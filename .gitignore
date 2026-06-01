@@ -49,3 +49,7 @@ assets/stories/Jesus e as crianças/
 
 # Arquivos de backup orphan
 assets/images/noe_apontandoBackup.png
+
+# Ignorar variações de pastas legadas com espaço/acento
+assets/stories/Jesus*/
+assets/stories/Davi*/
