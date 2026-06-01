@@ -1,29 +1,77 @@
 {
   "expo": {
-    "name": "pequenos-tracos-de-fe",
+    "name": "Pequenos Traços de Fé",
     "slug": "pequenos-tracos-de-fe",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "pequenostracosdefe",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#7C3AED"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.valentedev.pequenostracosdefe",
+      "buildNumber": "1",
+      "infoPlist": {
+        "usesNonExemptEncryption": false,
+        "UIRequiresFullScreen": false
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          }
+        ],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": []
+      }
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#7C3AED",
+      "barStyle": "light-content",
+      "translucent": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#7C3AED"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.valentedev.pequenostracosdefe",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundRecording": false
+        }
+      ],
+      "expo-asset"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ccf727af-fd51-4722-bf88-787cd48553c8"
+      }
+    },
+    "owner": "eduardocriacao"
   }
 }

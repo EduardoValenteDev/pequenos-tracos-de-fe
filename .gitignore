@@ -39,3 +39,13 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Backups e arquivos temporários locais
+tmp/
+
+# Pastas legadas de assets não referenciadas no código
+assets/stories/Davi e o Golias/
+assets/stories/Jesus e as crianças/
+
+# Arquivos de backup orphan
+assets/images/noe_apontandoBackup.png
