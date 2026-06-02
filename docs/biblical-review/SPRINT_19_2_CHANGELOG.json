@@ -1,0 +1,1434 @@
+[
+  {
+    "storyId": "creation",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "No começo de tudo, antes de existir o sol, a lua e as estrelas, antes de existir…",
+    "textNew": "Antes de existir o sol, a lua, as estrelas, as plantas, os animais e as pessoas,…"
+  },
+  {
+    "storyId": "creation",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Deus falou pela primeira vez ao mundo vazio. Com uma voz cheia de poder e amor, …",
+    "textNew": "Deus disse: “Haja luz.” E a luz apareceu. Deus viu que a luz era boa e separou a…"
+  },
+  {
+    "storyId": "creation",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "No segundo dia, Deus olhou para as águas que cobriam tudo. Ele criou um espaço e…",
+    "textNew": "No segundo dia, Deus fez o firmamento e separou as águas. Deus chamou o firmamen…"
+  },
+  {
+    "storyId": "creation",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "No terceiro dia, Deus disse: \"Que as águas se juntem num só lugar e que apareça …",
+    "textNew": "No terceiro dia, Deus juntou as águas em seus lugares e fez aparecer a terra sec…"
+  },
+  {
+    "storyId": "creation",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "No quarto dia, Deus criou duas luzes grandes: o sol para governar o dia — enorme…",
+    "textNew": "No quarto dia, Deus fez os luzeiros no céu. O maior para iluminar o dia, o menor…"
+  },
+  {
+    "storyId": "creation",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "No quinto dia, Deus encheu o mar e o céu de vida! Ele criou todos os peixinhos d…",
+    "textNew": "No quinto dia, Deus encheu as águas de seres vivos e criou as aves para voarem p…"
+  },
+  {
+    "storyId": "creation",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "No sexto dia, Deus criou os animais da terra — e que animais incríveis! Elefante…",
+    "textNew": "No sexto dia, Deus criou os animais da terra, cada um conforme a sua espécie. An…"
+  },
+  {
+    "storyId": "creation",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "No mesmo sexto dia, Deus fez algo muito especial. Ele disse: \"Vamos fazer o ser …",
+    "textNew": "Ainda no sexto dia, Deus criou o ser humano à sua imagem. Deus criou homem e mul…"
+  },
+  {
+    "storyId": "creation",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Depois de criar tudo — a luz, o céu, a terra, as plantas, o sol, a lua, os anima…",
+    "textNew": "Deus olhou para tudo o que havia feito: a luz, o céu, a terra, as plantas, os as…"
+  },
+  {
+    "storyId": "creation",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "No sétimo dia, Deus descansou de toda a Sua obra. Ele olhou para tudo que havia …",
+    "textNew": "No sétimo dia, Deus descansou de toda a obra que havia feito. Ele abençoou esse …"
+  },
+  {
+    "storyId": "noah",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Há muito, muito tempo, Deus olhou para o mundo e ficou triste porque as pessoas …",
+    "textNew": "Muito tempo depois da criação, Deus viu que a maldade havia crescido na terra. I…"
+  },
+  {
+    "storyId": "noah",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Um dia, Deus falou com Noé. Ele disse: \"Noé, vou mandar uma grande chuva sobre a…",
+    "textNew": "Deus falou com Noé e lhe deu uma missão: construir uma arca, um grande barco, pa…"
+  },
+  {
+    "storyId": "noah",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Noé não perdeu tempo! Ele fez exatamente tudo o que Deus mandou. Com seus filhos…",
+    "textNew": "Noé fez tudo como Deus havia mandado. Ele trabalhou com cuidado, preparando a ar…"
+  },
+  {
+    "storyId": "noah",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Quando a arca ficou pronta, Deus disse: \"Agora, chame os animais! Dois de cada t…",
+    "textNew": "Quando chegou o tempo certo, Noé, sua família e os animais entraram na arca. Os …"
+  },
+  {
+    "storyId": "noah",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Plic… plic… PLAC PLAC PLAC! A grande chuva começou! Deus mesmo fechou a porta da…",
+    "textNew": "Então começou a chover. As águas aumentaram sobre a terra, mas Deus guardou Noé,…"
+  },
+  {
+    "storyId": "noah",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "A arca flutuava mansamente sobre as águas. Deus não esqueceu de Noé! A Bíblia di…",
+    "textNew": "A arca flutuou sobre as águas. Depois, Deus fez passar um vento sobre a terra, e…"
+  },
+  {
+    "storyId": "noah",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Quando as águas baixaram mais um pouco, Noé abriu a janelinha da arca e soltou u…",
+    "textNew": "Noé esperou com paciência. Ele soltou aves para saber como estava a terra. Uma p…"
+  },
+  {
+    "storyId": "noah",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "A pombinha voltou para Noé — e trouxe um raminho de oliveira no bico! Um ramo ve…",
+    "textNew": "Depois, a pomba voltou trazendo uma folha nova de oliveira. Noé entendeu que as …"
+  },
+  {
+    "storyId": "noah",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Deus disse: \"Noé, você pode sair!\" E que saída feliz! Os animais saíram pulando,…",
+    "textNew": "Quando a terra secou, Deus mandou Noé sair da arca com sua família e os animais.…"
+  },
+  {
+    "storyId": "noah",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "Então Deus fez algo que ninguém jamais tinha visto! No céu apareceram lindas cor…",
+    "textNew": "Deus fez uma aliança com Noé, com sua família e com todos os seres vivos. Ele co…"
+  },
+  {
+    "storyId": "david_goliath",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Davi era o filho mais novo de Jessé, de Belém. Enquanto seus irmãos mais velhos …",
+    "textNew": "Davi era filho de Jessé, de Belém, e cuidava das ovelhas de sua família. Era um …"
+  },
+  {
+    "storyId": "david_goliath",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "No vale de Elá, o povo de Israel estava acampado de um lado. Do outro lado estav…",
+    "textNew": "No vale de Elá, os israelitas estavam de um lado e os filisteus do outro. Um gue…"
+  },
+  {
+    "storyId": "david_goliath",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Toda manhã e toda tarde, Golias saía gritando seu desafio. E o que acontecia? O …",
+    "textNew": "O rei Saul e os soldados ficaram com medo. Ninguém queria enfrentar Golias. O de…"
+  },
+  {
+    "storyId": "david_goliath",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "O pai de Davi o mandou levar comida para seus irmãos que estavam no exército. Qu…",
+    "textNew": "Um dia, Davi foi ao acampamento levar comida para seus irmãos. Quando ouviu o de…"
+  },
+  {
+    "storyId": "david_goliath",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Davi foi falar com o rei Saul. Saul disse: \"Você não pode lutar com Golias! Você…",
+    "textNew": "Davi foi levado ao rei Saul. Saul disse que Davi era jovem e que Golias era um g…"
+  },
+  {
+    "storyId": "david_goliath",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Davi olhou nos olhos do rei Saul e disse com toda a certeza: \"O Senhor, que me l…",
+    "textNew": "Davi disse que o Senhor, que o havia livrado antes, também poderia livrá-lo daqu…"
+  },
+  {
+    "storyId": "david_goliath",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Davi foi até o riacho e escolheu com cuidado cinco pedrinhas lisas e redondas. C…",
+    "textNew": "Davi pegou seu cajado, escolheu cinco pedras lisas no ribeiro e tomou sua funda.…"
+  },
+  {
+    "storyId": "david_goliath",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "Golias viu Davi se aproximando e ficou com raiva: \"Você vem até mim com um cajad…",
+    "textNew": "Golias zombou de Davi, mas Davi respondeu com fé. Ele disse que vinha em nome do…"
+  },
+  {
+    "storyId": "david_goliath",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "A pedrinha voou, voou, voou... e acertou bem na testa de Golias! O gigante camba…",
+    "textNew": "Davi correu para a batalha, colocou uma pedra na funda e a lançou. A pedra ating…"
+  },
+  {
+    "storyId": "david_goliath",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "O povo de Israel soltou um grande grito de alegria! Os filisteus fugiram. A vitó…",
+    "textNew": "O povo de Israel viu que o Senhor havia dado livramento. O medo deu lugar à cora…"
+  },
+  {
+    "storyId": "jesus_children",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Naquele dia especial, muitas mamães e papais saíram de casa com seus filhinhos p…",
+    "textNew": "Algumas pessoas levaram crianças até Jesus para que Ele as tocasse e as abençoas…"
+  },
+  {
+    "storyId": "jesus_children",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Quando os discípulos — os ajudantes de Jesus — viram as famílias chegando com as…",
+    "textNew": "Os discípulos viram as crianças chegando e começaram a impedir as pessoas. Eles …"
+  },
+  {
+    "storyId": "jesus_children",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Jesus estava conversando quando percebeu o que estava acontecendo. Ele viu as cr…",
+    "textNew": "Quando Jesus viu aquilo, ficou indignado. Ele não aceitou que as crianças fossem…"
+  },
+  {
+    "storyId": "jesus_children",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Jesus repreendeu os discípulos e disse com voz firme e cheia de amor: \"Deixem as…",
+    "textNew": "Jesus disse: “Deixem vir a mim os pequeninos. Não os impeçam.” Essas palavras mo…"
+  },
+  {
+    "storyId": "jesus_children",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Jesus aproveitou aquele momento para ensinar algo muito importante a todos: \"Em …",
+    "textNew": "Jesus também ensinou que o Reino de Deus deve ser recebido com confiança simples…"
+  },
+  {
+    "storyId": "jesus_children",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Quando as crianças ouviram Jesus dizer \"Vinde a mim!\", elas saíram correndo! Com…",
+    "textNew": "As crianças puderam se aproximar de Jesus. Elas não precisavam ter medo. Jesus a…"
+  },
+  {
+    "storyId": "jesus_children",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Jesus se abaixou, abriu os braços bem abertos e abraçou cada criança. Um abraço …",
+    "textNew": "Jesus tomou as crianças nos braços. Esse gesto mostrava carinho, aceitação e cui…"
+  },
+  {
+    "storyId": "jesus_children",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "Jesus colocou as mãos com muito carinho na cabeça de cada criança — uma por uma …",
+    "textNew": "Depois, Jesus colocou as mãos sobre as crianças e as abençoou. A bênção de Jesus…"
+  },
+  {
+    "storyId": "jesus_children",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Os discípulos ficaram pensando no que tinham visto. Eles tinham errado ao tentar…",
+    "textNew": "Os discípulos aprenderam uma lição importante. Eles não deveriam afastar as cria…"
+  },
+  {
+    "storyId": "jesus_children",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "As crianças foram para casa com o coração cheio de alegria e amor. Elas nunca ia…",
+    "textNew": "Jesus ama as crianças. Quando você ora, pode falar com Ele com confiança. Você é…"
+  },
+  {
+    "storyId": "daniel_lions",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Daniel era um jovem judeu que foi levado como prisioneiro para a grande cidade d…",
+    "textNew": "Daniel havia sido levado para longe de sua terra quando era jovem, mas muitos an…"
+  },
+  {
+    "storyId": "daniel_lions",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Todos os dias, três vezes ao dia — de manhã, ao meio-dia e à tarde — Daniel abri…",
+    "textNew": "Daniel tinha o costume de orar a Deus três vezes ao dia. Ele abria a janela volt…"
+  },
+  {
+    "storyId": "daniel_lions",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Alguns funcionários do rei tinham inveja de Daniel. Ele era tão honesto e tão fi…",
+    "textNew": "Alguns líderes tiveram inveja de Daniel. Procuraram uma falha em seu trabalho, m…"
+  },
+  {
+    "storyId": "daniel_lions",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Os inimigos de Daniel foram ao rei Dario com uma proposta enganosa: \"Rei, mande …",
+    "textNew": "Esses homens convenceram o rei Dario a assinar uma lei: durante trinta dias, nin…"
+  },
+  {
+    "storyId": "daniel_lions",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Daniel soube da nova lei. Sabia que poderia morrer. Mas o que ele fez? A mesma c…",
+    "textNew": "Daniel soube da lei. Mesmo assim, voltou para sua casa, abriu a janela como de c…"
+  },
+  {
+    "storyId": "daniel_lions",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Os inimigos de Daniel estavam escondidos, espiando. Assim que o viram orar, corr…",
+    "textNew": "Os inimigos de Daniel o viram orando e foram acusá-lo diante do rei. Dario ficou…"
+  },
+  {
+    "storyId": "daniel_lions",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "O rei Dario disse com tristeza: \"Que o teu Deus, a quem sempre serves, te livre!…",
+    "textNew": "Daniel foi lançado na cova dos leões. O rei disse que o Deus a quem Daniel servi…"
+  },
+  {
+    "storyId": "daniel_lions",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "Dentro da cova escura, Daniel não estava sozinho. Deus enviou um anjo especial p…",
+    "textNew": "Dentro da cova, Daniel não estava sozinho. Deus enviou seu anjo e fechou a boca …"
+  },
+  {
+    "storyId": "daniel_lions",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Com as primeiras luzes do amanhecer, o rei Dario se levantou correndo. Correu di…",
+    "textNew": "Ao amanhecer, o rei correu até a cova e chamou Daniel. Ele queria saber se o Deu…"
+  },
+  {
+    "storyId": "daniel_lions",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "\"Rei Dario, viva para sempre! Meu Deus enviou o Seu anjo e fechou as bocas dos l…",
+    "textNew": "Daniel saiu da cova sem ferimento algum, porque Deus o havia guardado. O rei rec…"
+  },
+  {
+    "storyId": "jonah_big_fish",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Um dia, Deus falou com Jonas: \"Levanta-te, vai para Nínive, aquela cidade grande…",
+    "textNew": "Deus falou com Jonas e mandou que ele fosse a Nínive, uma grande cidade, para an…"
+  },
+  {
+    "storyId": "jonah_big_fish",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Jonas decidiu fugir de Deus! Ele foi ao porto de Jope, comprou uma passagem num …",
+    "textNew": "Jonas decidiu fugir. Ele foi ao porto, entrou em um navio e seguiu para o lado o…"
+  },
+  {
+    "storyId": "jonah_big_fish",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Deus mandou uma grande tempestade no mar. As ondas ficaram enormes! O navio bala…",
+    "textNew": "Deus mandou um grande vento, e uma tempestade se levantou no mar. O navio balanç…"
+  },
+  {
+    "storyId": "jonah_big_fish",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Os marinheiros sortearam para saber quem era culpado pela tempestade — e o sorte…",
+    "textNew": "Os marinheiros descobriram que Jonas havia fugido da presença do Senhor. Jonas r…"
+  },
+  {
+    "storyId": "jonah_big_fish",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Jonas afundou nas águas frias e escuras. Mas Deus tinha um plano! Ele preparou u…",
+    "textNew": "Deus preparou um grande peixe para engolir Jonas. Jonas ficou vivo dentro do pei…"
+  },
+  {
+    "storyId": "jonah_big_fish",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Dentro do peixe, no escuro e no silêncio, Jonas começou a orar. Ele orou com tod…",
+    "textNew": "Dentro do peixe, Jonas orou ao Senhor. Ele reconheceu que precisava de Deus e se…"
+  },
+  {
+    "storyId": "jonah_big_fish",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Depois de três dias e três noites dentro do peixe, Deus falou ao peixe. E o peix…",
+    "textNew": "Depois de três dias e três noites, Deus falou ao peixe, e o peixe deixou Jonas e…"
+  },
+  {
+    "storyId": "jonah_big_fish",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "Desta vez, quando Deus disse \"Vai para Nínive!\", Jonas obedeceu! Nínive era tão …",
+    "textNew": "Deus falou outra vez com Jonas: ele deveria ir a Nínive. Dessa vez, Jonas obedec…"
+  },
+  {
+    "storyId": "jonah_big_fish",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Uma coisa incrível aconteceu: o povo de Nínive ouviu a mensagem de Jonas e SE AR…",
+    "textNew": "O povo de Nínive ouviu a mensagem e se arrependeu. Desde o rei até as pessoas ma…"
+  },
+  {
+    "storyId": "jonah_big_fish",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "Jonas ficou bravo quando Deus perdoou Nínive — ele achava que aquelas pessoas nã…",
+    "textNew": "Jonas ficou contrariado, mas Deus lhe ensinou uma lição. O Senhor se importa com…"
+  },
+  {
+    "storyId": "lost_sheep",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Jesus estava conversando com muitas pessoas quando contou uma história linda. El…",
+    "textNew": "Jesus contou uma parábola sobre um pastor que tinha cem ovelhas. Ele conhecia se…"
+  },
+  {
+    "storyId": "lost_sheep",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Um dia, uma ovelhinha do rebanho ficou curiosa. Ela foi andando, andando, andand…",
+    "textNew": "Na parábola, uma das ovelhas se perdeu. Ela se afastou do rebanho e ficou sozinh…"
+  },
+  {
+    "storyId": "lost_sheep",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Ao anoitecer, o pastor reuniu suas ovelhas e começou a contá-las: \"Uma, duas, tr…",
+    "textNew": "O pastor percebeu que uma ovelha faltava. Ele deixou as noventa e nove em segura…"
+  },
+  {
+    "storyId": "lost_sheep",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "\"Fiquem aqui, vou buscar a que se perdeu!\" O pastor deixou as 99 ovelhas seguras…",
+    "textNew": "O pastor procurou com atenção. Ele não tratou a ovelha perdida como sem valor. C…"
+  },
+  {
+    "storyId": "lost_sheep",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "O pastor procurou em todos os lugares: entre os arbustos, atrás das pedras, pelo…",
+    "textNew": "A ovelha talvez estivesse cansada e assustada. Mas o pastor não desistiu. Ele co…"
+  },
+  {
+    "storyId": "lost_sheep",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "A noite foi passando. A lua subiu e as estrelas brilharam. O pastor continuava p…",
+    "textNew": "Quando o pastor encontrou a ovelha, ficou cheio de alegria. Ele não a tratou com…"
+  },
+  {
+    "storyId": "lost_sheep",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "De repente — \"Meee!\" A ovelhinha estava atrás de uma pedra grande, com as patinh…",
+    "textNew": "A ovelha voltou nos ombros do pastor. Ela não precisou fazer o caminho sozinha. …"
+  },
+  {
+    "storyId": "lost_sheep",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "O pastor não mandou a ovelhinha caminhar de volta sozinha. Ele a colocou nos omb…",
+    "textNew": "Ao chegar, o pastor chamou amigos e vizinhos para celebrar. Ele disse que havia …"
+  },
+  {
+    "storyId": "lost_sheep",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Quando o pastor chegou em casa com a ovelhinha, ele estava transbordando de aleg…",
+    "textNew": "Jesus explicou que há alegria no céu por uma pessoa que se arrepende. A parábola…"
+  },
+  {
+    "storyId": "lost_sheep",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "Jesus contou essa história para mostrar que cada pessoa é preciosa para Deus — a…",
+    "textNew": "Quando você se sentir sozinho ou longe, lembre-se da parábola que Jesus contou. …"
+  },
+  {
+    "storyId": "good_samaritan",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Um dia, um homem muito estudioso foi falar com Jesus.\\nEle conhecia as leis de D…",
+    "textNew": "Um mestre da lei perguntou a Jesus o que deveria fazer para herdar a vida eterna…"
+  },
+  {
+    "storyId": "good_samaritan",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Para responder à pergunta, Jesus contou uma história.\\nUm homem estava viajando …",
+    "textNew": "Jesus respondeu contando uma parábola. Um homem descia de Jerusalém para Jericó …"
+  },
+  {
+    "storyId": "good_samaritan",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Logo um sacerdote passou por aquela estrada.\\nO sacerdote era uma pessoa importa…",
+    "textNew": "Um sacerdote passou por aquele caminho. Ele viu o homem ferido, mas passou pelo …"
+  },
+  {
+    "storyId": "good_samaritan",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Depois, um levita veio pelo mesmo caminho.\\nOs levitas ajudavam no templo de Deu…",
+    "textNew": "Depois, um levita também passou por ali. Ele viu o homem ferido, mas também segu…"
+  },
+  {
+    "storyId": "good_samaritan",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Então um samaritano passou por ali.\\nOs samaritanos e judeus não se gostavam.\\nS…",
+    "textNew": "Então chegou um samaritano. Judeus e samaritanos não costumavam se dar bem, mas …"
+  },
+  {
+    "storyId": "good_samaritan",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "O samaritano cuidou do homem ferido com muito carinho.\\nEle usou azeite e vinho …",
+    "textNew": "O samaritano tratou as feridas do homem, aplicando azeite e vinho, como se fazia…"
+  },
+  {
+    "storyId": "good_samaritan",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "O samaritano não foi embora depois de curar as feridas.\\nEle colocou o homem fer…",
+    "textNew": "Depois, o samaritano colocou o homem em seu próprio animal e o levou devagar até…"
+  },
+  {
+    "storyId": "good_samaritan",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "Na manhã seguinte, o samaritano precisava partir.\\nMas antes de ir, ele chamou o…",
+    "textNew": "No dia seguinte, o samaritano entregou dinheiro ao dono da estalagem e pediu que…"
+  },
+  {
+    "storyId": "good_samaritan",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Jesus terminou a história e olhou para o mestre da lei.\\nDepois ele fez uma perg…",
+    "textNew": "Depois da parábola, Jesus perguntou qual dos três havia sido o próximo do homem …"
+  },
+  {
+    "storyId": "good_samaritan",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "Jesus olhou para o mestre da lei e disse:\\n— Vai e faz o mesmo!\\nEssas palavras …",
+    "textNew": "Então Jesus disse: “Vá e faça o mesmo.” Amar o próximo não é apenas saber a resp…"
+  },
+  {
+    "storyId": "abraham_stars",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Numa noite especial, Deus falou com Abraão numa visão. Ele disse: \"Não tenha med…",
+    "textNew": "Em uma noite especial, Deus falou com Abrão, que mais tarde seria chamado Abraão…"
+  },
+  {
+    "storyId": "abraham_stars",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Abraão tinha uma preocupação no coração. Ele disse a Deus: \"Senhor, o que vai me…",
+    "textNew": "Abrão disse ao Senhor que não tinha filho. Ele se perguntava como a promessa de …"
+  },
+  {
+    "storyId": "abraham_stars",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Deus levou Abraão para fora da tenda e disse: \"Olhe para o céu e tente contar as…",
+    "textNew": "Então Deus levou Abrão para fora e mandou que ele olhasse para o céu. As estrela…"
+  },
+  {
+    "storyId": "abraham_stars",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Mesmo sem entender tudo, Abraão acreditou em Deus. Ele confiou na promessa, mesm…",
+    "textNew": "Abrão creu no Senhor. Mesmo sem ver a promessa cumprida naquele momento, ele con…"
+  },
+  {
+    "storyId": "abraham_stars",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Deus quis fazer uma promessa especial — uma aliança — com Abraão. Ele pediu que …",
+    "textNew": "Deus também falou sobre a terra que daria à descendência de Abrão. Ele estava fo…"
+  },
+  {
+    "storyId": "abraham_stars",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Quando o sol estava se pondo, um sono muito profundo caiu sobre Abraão. Era um s…",
+    "textNew": "Naquele dia, Deus mostrou que conhecia o futuro. Falou sobre gerações que ainda …"
+  },
+  {
+    "storyId": "abraham_stars",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Deus falou a Abraão sobre o que aconteceria no futuro — sobre seus netos, bisnet…",
+    "textNew": "Abrão preparou tudo conforme o Senhor havia mandado. Ele esperou diante de Deus.…"
+  },
+  {
+    "storyId": "abraham_stars",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "De repente, uma tocha de fogo brilhante passou entre os animais! Era Deus passan…",
+    "textNew": "Quando o sol já havia se posto, Deus confirmou sua aliança de forma solene. A pr…"
+  },
+  {
+    "storyId": "abraham_stars",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Deus prometeu a Abraão uma terra maravilhosa — com rios, montanhas e campos verd…",
+    "textNew": "Deus prometeu uma terra para a descendência de Abrão. Aquela promessa fazia part…"
+  },
+  {
+    "storyId": "abraham_stars",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "A fé de Abraão é um exemplo para todos nós até hoje! Ele acreditou numa promessa…",
+    "textNew": "As estrelas lembravam a Abrão que Deus é fiel. Ele ainda não via tudo pronto, ma…"
+  },
+  {
+    "storyId": "joseph_colorful_coat",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Jacó amava muito seu filho José e deu a ele um presente muito especial: um manto…",
+    "textNew": "Jacó amava José, seu filho, e lhe deu uma túnica especial. Aquilo chamou a atenç…"
+  },
+  {
+    "storyId": "joseph_colorful_coat",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "José teve dois sonhos muito especiais. Nos sonhos, os seus irmãos se curvavam pa…",
+    "textNew": "José teve sonhos que mostravam que, um dia, sua família se curvaria diante dele.…"
+  },
+  {
+    "storyId": "joseph_colorful_coat",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Os irmãos de José ficaram tão bravos que planejaram se livrar dele. Às vezes, qu…",
+    "textNew": "Os irmãos de José deixaram a raiva crescer. Eles começaram a planejar algo muito…"
+  },
+  {
+    "storyId": "joseph_colorful_coat",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Os irmãos venderam José para mercadores que passavam com camelos. José foi levad…",
+    "textNew": "José foi vendido a mercadores e levado para o Egito, longe de sua família. Foi u…"
+  },
+  {
+    "storyId": "joseph_colorful_coat",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "No Egito, José foi trabalhar na casa de um homem chamado Potifar. Mesmo sendo es…",
+    "textNew": "No Egito, José foi trabalhar na casa de Potifar. Ele serviu com responsabilidade…"
+  },
+  {
+    "storyId": "joseph_colorful_coat",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Por causa de uma injustiça, José foi parar na prisão. Que coisa difícil! Mas mes…",
+    "textNew": "Depois, José sofreu uma injustiça e foi colocado na prisão. A prisão era um luga…"
+  },
+  {
+    "storyId": "joseph_colorful_coat",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Na prisão, dois companheiros de José tiveram sonhos estranhos. José pediu a Deus…",
+    "textNew": "Na prisão, alguns homens tiveram sonhos. José sabia que a interpretação pertence…"
+  },
+  {
+    "storyId": "joseph_colorful_coat",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "O faraó, o rei do Egito, teve um sonho muito misterioso. Ele sonhou com vacas go…",
+    "textNew": "Mais tarde, o faraó teve sonhos que ninguém conseguia explicar. Então se lembrar…"
+  },
+  {
+    "storyId": "joseph_colorful_coat",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "José saiu da prisão para o palácio! O faraó o tornou governador de todo o Egito.…",
+    "textNew": "José foi tirado da prisão e colocado em uma posição importante no Egito. Ele aju…"
+  },
+  {
+    "storyId": "joseph_colorful_coat",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "Os irmãos de José chegaram ao Egito para pedir comida. José os reconheceu! Ele p…",
+    "textNew": "Quando seus irmãos foram ao Egito buscar comida, José os reconheceu. Ele poderia…"
+  },
+  {
+    "storyId": "moses_red_sea",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Depois de muito tempo como escravos, o povo de Israel finalmente estava livre! S…",
+    "textNew": "Depois de muito tempo no Egito, o povo de Israel saiu em direção à liberdade. De…"
+  },
+  {
+    "storyId": "moses_red_sea",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Mas de repente — o faraó mudou de ideia! Ele mandou seu grande exército ir atrás…",
+    "textNew": "Faraó mudou de ideia e enviou seu exército atrás dos israelitas. Carros de guerr…"
+  },
+  {
+    "storyId": "moses_red_sea",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "O povo de Israel ficou com muito medo! Na frente: o Mar Vermelho imenso. Atrás: …",
+    "textNew": "À frente estava o mar. Atrás, o exército do Egito. O povo ficou com medo e começ…"
+  },
+  {
+    "storyId": "moses_red_sea",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Moisés ergueu o cajado e disse com voz firme: \"Não tenham medo! Fiquem quietos e…",
+    "textNew": "Moisés respondeu ao povo que não tivesse medo. Ele disse que ficariam firmes e v…"
+  },
+  {
+    "storyId": "moses_red_sea",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Então aconteceu algo incrível! A coluna de nuvem e fogo que guiava Israel se mov…",
+    "textNew": "A coluna de nuvem se moveu e ficou entre Israel e o exército egípcio. Deus coloc…"
+  },
+  {
+    "storyId": "moses_red_sea",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Deus mandou Moisés estender o cajado sobre o mar. Era um ato de fé — agir antes …",
+    "textNew": "Deus mandou Moisés estender a mão sobre o mar. Durante a noite, o Senhor fez sop…"
+  },
+  {
+    "storyId": "moses_red_sea",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "E então o maior milagre aconteceu! As águas do Mar Vermelho se dividiram para os…",
+    "textNew": "As águas se abriram, e apareceu um caminho em terra seca. O povo de Israel atrav…"
+  },
+  {
+    "storyId": "moses_red_sea",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "Todo o povo de Israel começou a atravessar o fundo do mar — em terra seca! As cr…",
+    "textNew": "Famílias, crianças, idosos e todo o povo atravessaram juntos. Eles caminharam pe…"
+  },
+  {
+    "storyId": "moses_red_sea",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Os soldados do faraó tentaram seguir Israel pelo caminho aberto. Mas as rodas do…",
+    "textNew": "O exército egípcio tentou seguir pelo mesmo caminho, mas Deus confundiu seus car…"
+  },
+  {
+    "storyId": "moses_red_sea",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "Israel chegou são e salvo à outra margem! Moisés cantou um cântico de louvor a D…",
+    "textNew": "Israel chegou seguro ao outro lado. Então Moisés e o povo louvaram ao Senhor, e …"
+  },
+  {
+    "storyId": "ruth_naomi",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Noemi morava em Moabe com o marido e dois filhos. Cada filho se casou com uma mo…",
+    "textNew": "Noemi morava em Moabe com sua família. Seus filhos se casaram com Orfa e Rute. P…"
+  },
+  {
+    "storyId": "ruth_naomi",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Uma tristeza muito grande chegou: o marido de Noemi e os dois filhos morreram. N…",
+    "textNew": "Noemi perdeu seu marido e depois seus dois filhos. Foi uma tristeza muito grande…"
+  },
+  {
+    "storyId": "ruth_naomi",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Noemi decidiu voltar para Belém, sua cidade natal. Por amor às noras, ela disse:…",
+    "textNew": "Noemi decidiu voltar para Belém. Ela disse às noras que poderiam voltar para sua…"
+  },
+  {
+    "storyId": "ruth_naomi",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Orpá foi embora com muito choro. Mas Rute se agarrou a Noemi e disse: \"Não me pe…",
+    "textNew": "Rute disse que iria com Noemi. O povo de Noemi seria o seu povo, e o Deus de Noe…"
+  },
+  {
+    "storyId": "ruth_naomi",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Noemi e Rute chegaram em Belém e as pessoas ficaram animadas ao vê-las. Mas Noem…",
+    "textNew": "Rute e Noemi chegaram a Belém no tempo da colheita. Elas precisavam de alimento.…"
+  },
+  {
+    "storyId": "ruth_naomi",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Para cuidar das duas, Rute foi ao campo colher as sobras da colheita — as espiga…",
+    "textNew": "Rute foi parar no campo de Boaz, um homem bondoso da família de Noemi. Boaz ouvi…"
+  },
+  {
+    "storyId": "ruth_naomi",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "O dono do campo era Boaz, parente de Noemi. Ele notou Rute e perguntou quem ela …",
+    "textNew": "Noemi percebeu que Boaz era um parente que poderia ajudar sua família. Naquele t…"
+  },
+  {
+    "storyId": "ruth_naomi",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "Boaz mandou que seus trabalhadores cuidassem de Rute e deixassem cair mais espig…",
+    "textNew": "Boaz agiu com justiça e bondade. Ele assumiu a responsabilidade de cuidar da fam…"
+  },
+  {
+    "storyId": "ruth_naomi",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Pela lei de Israel, um parente próximo podia cuidar da família de alguém que mor…",
+    "textNew": "Rute e Boaz tiveram um filho chamado Obede. Noemi pôde segurá-lo nos braços com …"
+  },
+  {
+    "storyId": "ruth_naomi",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "Rute e Boaz tiveram um filho chamado Obede. Noemi ficou tão feliz que tomou o be…",
+    "textNew": "Obede se tornou avô do rei Davi. A história de Rute mostra que Deus trabalha por…"
+  },
+  {
+    "storyId": "esther_queen",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Ester era uma jovem judia que vivia com seu tio Mardoqueu. Um dia, o rei Assuero…",
+    "textNew": "Ester era uma jovem judia criada por seu primo Mardoqueu. Ela vivia em um reino …"
+  },
+  {
+    "storyId": "esther_queen",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Havia um homem mau no reino chamado Hamã. Ele ficou com muita raiva do tio de Es…",
+    "textNew": "Ester foi escolhida para se tornar rainha. Era uma posição importante e delicada…"
+  },
+  {
+    "storyId": "esther_queen",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Mardoqueu, o tio de Ester, ficou sabendo do plano terrível. Ele enviou uma mensa…",
+    "textNew": "No palácio havia um homem chamado Hamã. Ele ficou cheio de orgulho e raiva contr…"
+  },
+  {
+    "storyId": "esther_queen",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Ester estava com medo — entrar onde o rei não chamou podia custar sua vida! Mas …",
+    "textNew": "Mardoqueu soube do perigo e ficou muito triste. Ele pediu que Ester falasse com …"
+  },
+  {
+    "storyId": "esther_queen",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Antes de agir, Ester pediu que todos os judeus jejuassem e orassem por ela por t…",
+    "textNew": "Mardoqueu lembrou Ester de que talvez ela estivesse naquela posição para um temp…"
+  },
+  {
+    "storyId": "esther_queen",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Com fé no coração, Ester tomou sua decisão. Ela disse as palavras mais corajosas…",
+    "textNew": "Ester se vestiu como rainha e entrou no pátio do palácio. O rei a recebeu com fa…"
+  },
+  {
+    "storyId": "esther_queen",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Ester se vestiu com suas roupas reais e entrou no salão do rei sem ser convidada…",
+    "textNew": "No momento certo, Ester revelou seu pedido. Ela contou que seu povo estava em pe…"
+  },
+  {
+    "storyId": "esther_queen",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "O rei olhou para Ester — e estendeu o cetro dourado! Isso significava que ela er…",
+    "textNew": "O plano de Hamã foi descoberto. O rei entendeu a injustiça e agiu para proteger …"
+  },
+  {
+    "storyId": "esther_queen",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Ester preparou um banquete especial para o rei e Hamã. Com coragem, ela revelou …",
+    "textNew": "Uma nova ordem foi escrita para que o povo judeu pudesse se proteger. A tristeza…"
+  },
+  {
+    "storyId": "esther_queen",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "O plano de Hamã foi revertido! O povo judeu foi salvo! E Ester, uma jovem que po…",
+    "textNew": "A história de Ester mostra coragem, sabedoria e cuidado pelo povo. Mesmo quando …"
+  },
+  {
+    "storyId": "miraculous_catch",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Pedro e seus amigos pescadores trabalharam a noite toda no lago de Genesaré. Jog…",
+    "textNew": "Jesus estava perto do lago de Genesaré, e uma multidão queria ouvir a palavra de…"
+  },
+  {
+    "storyId": "miraculous_catch",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Uma multidão estava se juntando na margem para ouvir Jesus falar. Jesus viu o ba…",
+    "textNew": "Jesus entrou no barco de Simão e pediu que ele o afastasse um pouco da terra. Se…"
+  },
+  {
+    "storyId": "miraculous_catch",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Jesus entrou no barco de Pedro e começou a ensinar a multidão na margem. O lago …",
+    "textNew": "Quando terminou de ensinar, Jesus disse a Simão que levasse o barco para águas m…"
+  },
+  {
+    "storyId": "miraculous_catch",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Quando Jesus terminou de ensinar, ele disse a Pedro: \"Rema para o fundo do lago …",
+    "textNew": "Mesmo cansado, Simão respondeu que lançaria as redes porque Jesus havia falado. …"
+  },
+  {
+    "storyId": "miraculous_catch",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Pedro poderia ter dito não — ele era o pescador especialista! Mas em vez disso d…",
+    "textNew": "Quando lançaram as redes, pegaram tantos peixes que as redes começaram a se ench…"
+  },
+  {
+    "storyId": "miraculous_catch",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "As redes foram lançadas — e de repente ficaram tão cheias de peixes que começara…",
+    "textNew": "Eles chamaram os companheiros do outro barco para ajudar. Os barcos ficaram chei…"
+  },
+  {
+    "storyId": "miraculous_catch",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Pedro chamou seus sócios Tiago e João em outro barco para ajudar. Mesmo com dois…",
+    "textNew": "Simão Pedro ficou impressionado e reconheceu que estava diante de alguém santo. …"
+  },
+  {
+    "storyId": "miraculous_catch",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "Pedro caiu de joelhos aos pés de Jesus no barco e disse: \"Senhor, vai embora de …",
+    "textNew": "Jesus disse a Simão que não tivesse medo. A partir daquele momento, ele seria ch…"
+  },
+  {
+    "storyId": "miraculous_catch",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Jesus olhou para Pedro com amor e disse: \"Não tenha medo! A partir de agora você…",
+    "textNew": "Quando chegaram à praia, Simão, Tiago e João deixaram tudo e seguiram Jesus. Ele…"
+  },
+  {
+    "storyId": "miraculous_catch",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "Os barcos estavam cheios de peixes — mais do que nunca! Mas Pedro, Tiago e João …",
+    "textNew": "A pesca milagrosa nos lembra que a palavra de Jesus merece confiança. Ele chama …"
+  },
+  {
+    "storyId": "samuel_hears_god",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Samuel era um menino que morava e servia no templo com o sacerdote Eli. Desde pe…",
+    "textNew": "Samuel ainda era menino e servia ao Senhor no tabernáculo, ajudando o sacerdote …"
+  },
+  {
+    "storyId": "samuel_hears_god",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Era uma noite muito silenciosa no templo. Samuel dormia pertinho da arca de Deus…",
+    "textNew": "Certa noite, Samuel estava deitado. A lâmpada de Deus ainda não havia se apagado…"
+  },
+  {
+    "storyId": "samuel_hears_god",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "De repente, Samuel ouviu uma voz chamando seu nome: \"Samuel!\" Ele pensou que era…",
+    "textNew": "Eli disse que não o havia chamado e mandou Samuel voltar a deitar. Samuel obedec…"
+  },
+  {
+    "storyId": "samuel_hears_god",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "A voz chamou de novo: \"Samuel!\" E Samuel correu de novo até Eli. Mas Eli disse: …",
+    "textNew": "O Senhor chamou Samuel outra vez. Samuel se levantou e foi até Eli de novo. Eli …"
+  },
+  {
+    "storyId": "samuel_hears_god",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Na terceira vez, Eli entendeu: era Deus quem estava chamando Samuel! Então Eli e…",
+    "textNew": "Quando o chamado aconteceu novamente, Eli entendeu que era o Senhor quem chamava…"
+  },
+  {
+    "storyId": "samuel_hears_god",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Samuel voltou para dormir. E quando a voz de Deus chamou de novo: \"Samuel!\" — de…",
+    "textNew": "Samuel voltou para o seu lugar. Quando o Senhor o chamou, ele respondeu como Eli…"
+  },
+  {
+    "storyId": "samuel_hears_god",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Deus falou a Samuel — uma mensagem importante sobre o que aconteceria. Uma luz d…",
+    "textNew": "Deus confiou a Samuel uma mensagem séria. Nem sempre ouvir a Deus significa rece…"
+  },
+  {
+    "storyId": "samuel_hears_god",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "De manhã cedo, Samuel ficou quietinho. Tinha ouvido uma mensagem difícil de Deus…",
+    "textNew": "Pela manhã, Samuel teve receio de contar a mensagem a Eli. Mas Eli pediu que ele…"
+  },
+  {
+    "storyId": "samuel_hears_god",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Eli chamou Samuel e disse: \"Me conta tudo o que Deus disse — não esconda nada!\" …",
+    "textNew": "Eli ouviu a mensagem e reconheceu que o Senhor havia falado. Samuel crescia, e D…"
+  },
+  {
+    "storyId": "samuel_hears_god",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "Samuel cresceu e Deus esteve com ele em tudo. Cada palavra que Samuel falava aco…",
+    "textNew": "A história de Samuel nos ensina a ter um coração atento a Deus. Nem sempre ouvim…"
+  },
+  {
+    "storyId": "josiah_young_king",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Um dia muito especial chegou: Josias se tornou rei de Judá — com apenas oito ano…",
+    "textNew": "Josias se tornou rei quando ainda era muito jovem. Mesmo sendo criança, ele tinh…"
+  },
+  {
+    "storyId": "josiah_young_king",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "A Bíblia diz que Josias \"fez o que era reto aos olhos do Senhor\" — desde que era…",
+    "textNew": "Com o passar dos anos, Josias quis buscar o Senhor. Ele não queria seguir caminh…"
+  },
+  {
+    "storyId": "josiah_young_king",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Josias olhou para o templo de Deus e viu que estava deteriorado — precisando de …",
+    "textNew": "Josias mandou consertar a casa do Senhor. O templo precisava de cuidado. Enquant…"
+  },
+  {
+    "storyId": "josiah_young_king",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Durante a restauração do templo aconteceu uma descoberta incrível! O sacerdote H…",
+    "textNew": "Quando o livro foi lido para o rei, Josias ficou profundamente tocado. Ele perce…"
+  },
+  {
+    "storyId": "josiah_young_king",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "O livro foi lido em voz alta para o rei Josias. Quando ele ouviu as palavras de …",
+    "textNew": "Josias quis saber o que o Senhor estava dizendo ao povo. Ele buscou orientação e…"
+  },
+  {
+    "storyId": "josiah_young_king",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Josias não tomou nenhuma decisão sem consultar Deus primeiro. Ele mandou os líde…",
+    "textNew": "Depois, Josias reuniu o povo e leu as palavras do livro. Todos puderam ouvir a L…"
+  },
+  {
+    "storyId": "josiah_young_king",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Josias convocou todo o povo — do menor ao maior — para ouvir a Palavra de Deus j…",
+    "textNew": "Josias fez uma aliança diante do Senhor, prometendo seguir seus mandamentos de t…"
+  },
+  {
+    "storyId": "josiah_young_king",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "Josias e todo o povo fizeram uma promessa juntos: obedecer a Deus com todo o cor…",
+    "textNew": "Josias também removeu práticas que afastavam o povo de Deus. Ele queria limpar o…"
+  },
+  {
+    "storyId": "josiah_young_king",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Josias fez uma reforma total! Mandou derrubar e destruir todos os altares e ídol…",
+    "textNew": "O rei celebrou a Páscoa com o povo, lembrando o livramento que Deus havia dado a…"
+  },
+  {
+    "storyId": "josiah_young_king",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "A Bíblia diz que entre todos os reis de Israel, nenhum foi como Josias — que amo…",
+    "textNew": "Josias nos lembra que ninguém é jovem demais para buscar a Deus. Quando ouvimos …"
+  },
+  {
+    "storyId": "solomon_wisdom",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "O grande rei Davi havia morrido, e seu filho Salomão se tornou o novo rei de Isr…",
+    "textNew": "Salomão era filho de Davi e se tornou rei de Israel. Ele sabia que governar o po…"
+  },
+  {
+    "storyId": "solomon_wisdom",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Antes de tomar grandes decisões, Salomão foi ao lugar sagrado de Gibeom para faz…",
+    "textNew": "Uma noite, Deus apareceu a Salomão em sonho e perguntou o que ele desejava receb…"
+  },
+  {
+    "storyId": "solomon_wisdom",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Naquela noite, Deus apareceu a Salomão num sonho e disse: \"Pede o que você quise…",
+    "textNew": "Salomão pediu sabedoria para governar bem e discernir entre o certo e o errado. …"
+  },
+  {
+    "storyId": "solomon_wisdom",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Salomão respondeu a Deus com muita humildade: \"Senhor, sou como uma criança que …",
+    "textNew": "Deus deu a Salomão um coração sábio e entendido. Também lhe deu bênçãos que ele …"
+  },
+  {
+    "storyId": "solomon_wisdom",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Então Salomão fez seu pedido: \"Me dê um coração que entenda — para que eu possa …",
+    "textNew": "Certo dia, duas mulheres foram até o rei com uma situação muito difícil. As duas…"
+  },
+  {
+    "storyId": "solomon_wisdom",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Deus ficou muito satisfeito com o pedido de Salomão! Por quê? Porque Salomão não…",
+    "textNew": "Salomão ouviu as duas mulheres. Em vez de responder depressa, usou sabedoria par…"
+  },
+  {
+    "storyId": "solomon_wisdom",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Deus concedeu a Salomão uma sabedoria como nenhum outro ser humano tinha! E de p…",
+    "textNew": "Quando a verdadeira mãe percebeu que a criança poderia sofrer, preferiu abrir mã…"
+  },
+  {
+    "storyId": "solomon_wisdom",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "Dois casos muito difíceis chegaram a Salomão e ele precisou resolver com sabedor…",
+    "textNew": "O rei entregou a criança à mãe verdadeira. O povo viu que a sabedoria de Deus es…"
+  },
+  {
+    "storyId": "solomon_wisdom",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "As notícias sobre a sabedoria incrível de Salomão se espalharam por países muito…",
+    "textNew": "A fama da sabedoria de Salomão se espalhou. As pessoas perceberam que ele não go…"
+  },
+  {
+    "storyId": "solomon_wisdom",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "A grande lição de Salomão: a verdadeira sabedoria não vem de livros — começa com…",
+    "textNew": "A história de Salomão nos ensina a pedir sabedoria a Deus. Quando precisamos esc…"
+  },
+  {
+    "storyId": "mary_says_yes",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Maria era uma jovem simples que morava em Nazaré, uma cidade pequena. Ela amava …",
+    "textNew": "Maria era uma jovem de Nazaré. Um dia, o anjo Gabriel foi enviado por Deus até e…"
+  },
+  {
+    "storyId": "mary_says_yes",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "De repente, um anjo luminoso apareceu na frente de Maria! Era o anjo Gabriel, en…",
+    "textNew": "O anjo saudou Maria e disse que o Senhor era com ela. Maria ficou surpresa e ten…"
+  },
+  {
+    "storyId": "mary_says_yes",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "O anjo cumprimentou Maria com palavras belíssimas: \"Salve, cheia de graça! O Sen…",
+    "textNew": "Gabriel disse a Maria que ela não precisava ter medo. Ela teria um filho, e deve…"
+  },
+  {
+    "storyId": "mary_says_yes",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "Maria ficou pensativa e confusa com aquele saludo. O que poderia significar ser …",
+    "textNew": "Maria perguntou como aquilo aconteceria. Sua pergunta não foi rejeitada. O anjo …"
+  },
+  {
+    "storyId": "mary_says_yes",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "O anjo viu que Maria estava com medo e disse com voz gentil: \"Não tenha medo, Ma…",
+    "textNew": "O anjo também contou que Isabel, parente de Maria, estava esperando um filho em …"
+  },
+  {
+    "storyId": "mary_says_yes",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Gabriel anunciou as palavras mais importantes da história: \"Você vai conceber e …",
+    "textNew": "Maria respondeu com humildade. Ela se chamou serva do Senhor e aceitou que a pal…"
+  },
+  {
+    "storyId": "mary_says_yes",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Maria não fingiu que entendia — ela perguntou honestamente: \"Como isso pode acon…",
+    "textNew": "Depois que o anjo se foi, Maria ficou com aquela palavra diante de Deus. Ela não…"
+  },
+  {
+    "storyId": "mary_says_yes",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "O anjo explicou: \"O Espírito Santo virá sobre você!\" E acrescentou: \"Para Deus, …",
+    "textNew": "A promessa anunciada a Maria fazia parte do plano de Deus para enviar Jesus ao m…"
+  },
+  {
+    "storyId": "mary_says_yes",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "E então Maria disse as palavras mais importantes que já saíram da boca de uma pe…",
+    "textNew": "Maria nos ensina que obedecer a Deus exige fé e humildade. Ela ouviu a palavra d…"
+  },
+  {
+    "storyId": "mary_says_yes",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "Com aquele sim de Maria, o maior plano de Deus foi colocado em movimento! Jesus …",
+    "textNew": "A boa notícia dada a Maria aponta para Jesus. Ele é o presente de Deus para o mu…"
+  },
+  {
+    "storyId": "timothy_faith",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Timóteo era um jovem que cresceu na cidade de Listra. Ele era conhecido por todo…",
+    "textNew": "Timóteo aprendeu sobre Deus desde pequeno. Sua avó Loide e sua mãe Eunice tinham…"
+  },
+  {
+    "storyId": "timothy_faith",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "A avó de Timóteo se chamava Loide. Paulo a descreveu como uma mulher de fé genuí…",
+    "textNew": "Desde menino, Timóteo conhecia as Sagradas Escrituras. Ele cresceu ouvindo a pal…"
+  },
+  {
+    "storyId": "timothy_faith",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "A mãe de Timóteo, Eunice, também tinha uma fé sincera e real. Ela se preocupava …",
+    "textNew": "Mais tarde, Timóteo se tornou colaborador do apóstolo Paulo. Ele ajudava na obra…"
+  },
+  {
+    "storyId": "timothy_faith",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "A Bíblia diz que Timóteo conhecia as Sagradas Escrituras desde que era ainda beb…",
+    "textNew": "Paulo amava Timóteo como um filho na fé. Ele escreveu cartas para orientar, enco…"
+  },
+  {
+    "storyId": "timothy_faith",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Um dia, o apóstolo Paulo chegou à cidade de Listra em sua viagem de missão! Paul…",
+    "textNew": "Paulo lembrou Timóteo de não se envergonhar do testemunho do Senhor. Seguir Jesu…"
+  },
+  {
+    "storyId": "timothy_faith",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "Paulo notou algo especial em Timóteo: uma fé genuína, não fingida! Ele reconhece…",
+    "textNew": "Paulo também disse que Deus não nos deu espírito de medo, mas de poder, amor e e…"
+  },
+  {
+    "storyId": "timothy_faith",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Paulo convidou Timóteo para ser seu companheiro de missão — e Timóteo disse sim!…",
+    "textNew": "Timóteo foi orientado a permanecer naquilo que havia aprendido. A verdade de Deu…"
+  },
+  {
+    "storyId": "timothy_faith",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "A missão não era fácil! Havia dificuldades, pessoas que não queriam ouvir, momen…",
+    "textNew": "Paulo disse a Timóteo que ninguém deveria desprezá-lo por ser jovem. Em vez diss…"
+  },
+  {
+    "storyId": "timothy_faith",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Paulo escreveu a Timóteo palavras cheias de amor: \"Avive a chama do dom que Deus…",
+    "textNew": "Timóteo nos lembra que crianças e jovens também podem crescer na fé. Ouvir a Pal…"
+  },
+  {
+    "storyId": "timothy_faith",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "A fé de Loide passou para Eunice que passou para Timóteo! Três gerações unidas p…",
+    "textNew": "A fé de Timóteo foi cuidada por sua família, fortalecida pela Palavra e encoraja…"
+  },
+  {
+    "storyId": "jesus_temple",
+    "sceneId": 1,
+    "field": "textoNarracao",
+    "textOld": "Toda família de Jesus tinha uma tradição linda: todo ano iam juntos a Jerusalém …",
+    "textNew": "Todos os anos, José e Maria iam a Jerusalém para a festa da Páscoa. Quando Jesus…"
+  },
+  {
+    "storyId": "jesus_temple",
+    "sceneId": 2,
+    "field": "textoNarracao",
+    "textOld": "Em Jerusalém, a família celebrou a Páscoa no templo — uma festa muito especial q…",
+    "textNew": "Depois da festa, José e Maria começaram a voltar para casa com o grupo de viajan…"
+  },
+  {
+    "storyId": "jesus_temple",
+    "sceneId": 3,
+    "field": "textoNarracao",
+    "textOld": "Depois da festa, a grande caravana de famílias começou a viagem de volta para Na…",
+    "textNew": "Quando perceberam que Jesus não estava no grupo, José e Maria ficaram aflitos. P…"
+  },
+  {
+    "storyId": "jesus_temple",
+    "sceneId": 4,
+    "field": "textoNarracao",
+    "textOld": "No fim do primeiro dia de viagem, Maria e José perceberam: Jesus não estava! Olh…",
+    "textNew": "Depois de três dias, encontraram Jesus no templo. Ele estava sentado entre os me…"
+  },
+  {
+    "storyId": "jesus_temple",
+    "sceneId": 5,
+    "field": "textoNarracao",
+    "textOld": "Maria e José voltaram correndo para Jerusalém. Por três longos dias percorreram …",
+    "textNew": "Maria falou com Jesus sobre a aflição que ela e José sentiram ao procurá-lo. Jes…"
+  },
+  {
+    "storyId": "jesus_temple",
+    "sceneId": 6,
+    "field": "textoNarracao",
+    "textOld": "E então eles encontraram Jesus — dentro do templo! Ele estava sentado no meio do…",
+    "textNew": "José e Maria não compreenderam completamente naquele momento. Mesmo assim, Jesus…"
+  },
+  {
+    "storyId": "jesus_temple",
+    "sceneId": 7,
+    "field": "textoNarracao",
+    "textOld": "Os doutores mais sábios de Israel estavam boquiabertos! Com 12 anos, Jesus respo…",
+    "textNew": "Maria guardava essas coisas no coração. Ela via que havia algo muito especial so…"
+  },
+  {
+    "storyId": "jesus_temple",
+    "sceneId": 8,
+    "field": "textoNarracao",
+    "textOld": "Maria e José chegaram correndo e Maria abraçou o filho, com o coração aliviado m…",
+    "textNew": "Jesus crescia em sabedoria. Ele aprendia, ouvia e vivia de modo agradável a Deus…"
+  },
+  {
+    "storyId": "jesus_temple",
+    "sceneId": 9,
+    "field": "textoNarracao",
+    "textOld": "Jesus respondeu com calma: \"Por que estavam me procurando? Vocês não sabiam que …",
+    "textNew": "Jesus também crescia em estatura e em graça diante de Deus e das pessoas. Ele nã…"
+  },
+  {
+    "storyId": "jesus_temple",
+    "sceneId": 10,
+    "field": "textoNarracao",
+    "textOld": "Jesus voltou com a família para Nazaré e obedecia a Maria e José com amor. E a B…",
+    "textNew": "A história de Jesus no templo nos ensina a valorizar as coisas de Deus, ouvir co…"
+  },
+  {
+    "storyId": "noah",
+    "sceneId": null,
+    "field": "titulo",
+    "textOld": "Noé e o Arco-Íris",
+    "textNew": "Noé e o Sinal da Aliança",
+    "note": "1 ocorrência(s) substituída(s)"
+  },
+  {
+    "storyId": "jonah_big_fish",
+    "sceneId": null,
+    "field": "titulo",
+    "textOld": "Jonas e o Peixe",
+    "textNew": "Jonas e o Grande Peixe",
+    "note": "1 ocorrência(s) substituída(s)"
+  },
+  {
+    "storyId": "joseph_colorful_coat",
+    "sceneId": null,
+    "field": "titulo",
+    "textOld": "José e o Manto Colorido",
+    "textNew": "José e a Túnica Especial",
+    "note": "1 ocorrência(s) substituída(s)"
+  },
+  {
+    "storyId": "mary_says_yes",
+    "sceneId": null,
+    "field": "titulo",
+    "textOld": "Maria Diz Sim",
+    "textNew": "Maria Recebe a Boa Notícia",
+    "note": "1 ocorrência(s) substituída(s)"
+  }
+]
