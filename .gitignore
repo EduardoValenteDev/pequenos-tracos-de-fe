@@ -51,3 +51,20 @@ assets/stories/Jesus e as crianças/
 
 # Arquivos de backup orphan
 assets/images/noe_apontandoBackup.png
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Local credentials and private keys
+*.key
+*.pem
+*.p8
+*.p12
+*.jks
+*.mobileprovision
+credentials.json
+serviceAccount.json
+google-services.json
+GoogleService-Info.plist
