@@ -15,6 +15,10 @@ import { useProgressContext } from '../context/ProgressContext';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
 import NextAdventureCard from '../components/story/NextAdventureCard';
+import BeniAvatar from '../components/beni/BeniAvatar';
+import { getBeniGuideMessage } from '../data/beniGuideMessages';
+import { getNextAdventureRecommendation } from '../services/nextAdventureService';
+import StoryCoverImage from '../components/story/StoryCoverImage';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -83,9 +87,12 @@ export default function CongratsScreen({ route, navigation }) {
   const completedScenesCount = Object.values(progresso).filter(Boolean).length;
   const scenesPercent = story.totalCenas > 0 ? completedScenesCount / story.totalCenas : 0;
 
-  const availableStories = stories.filter(s => s.status === 'available' && (s.cenas?.length ?? 0) > 0);
-  const currentIndex = availableStories.findIndex(s => s.id === story.id);
-  const nextStory = currentIndex >= 0 ? (availableStories[currentIndex + 1] ?? null) : null;
+  // Recomendação inteligente de continuidade (nunca recomenda história concluída)
+  const recommendation = getNextAdventureRecommendation({
+    currentStoryId: story.id,
+    stories,
+    progressByStory,
+  });
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.7)).current;
@@ -128,10 +135,11 @@ export default function CongratsScreen({ route, navigation }) {
           {/* ── HERO ── */}
           <LinearGradient colors={[colors.action, '#E8703A']} style={styles.heroHeader}>
             <Text style={styles.heroEmoji}>{story.emoji}</Text>
-            <Text style={styles.heroTitle}>Parabéns!</Text>
+            <Text style={styles.heroTitle}>Aventura concluída!</Text>
             <Text style={styles.heroSub}>
-              Você completou a aventura com carinho.
+              {getBeniGuideMessage('storyCompleted')}
             </Text>
+            <BeniAvatar variant="celebrating" size="medium" style={styles.heroBeni} />
           </LinearGradient>
 
           {/* ── LIÇÃO DO CORAÇÃO ── */}
@@ -175,7 +183,7 @@ export default function CongratsScreen({ route, navigation }) {
           <View style={styles.rewardSection}>
             <Text style={styles.rewardSectionTitle}>Sua aventura virou um presente!</Text>
             <Text style={styles.rewardSectionSub}>
-              Agora você pode rever sua história, responder o quiz e conversar com Lumi.
+              Agora você pode rever sua história, responder o quiz e conversar com Beni.
             </Text>
             <Text style={styles.rewardUnlocked}>Você desbloqueou:</Text>
 
@@ -194,23 +202,70 @@ export default function CongratsScreen({ route, navigation }) {
               onPress={() => navigation.navigate('Quiz', { story })}
             />
             <RewardCard
-              emoji="🐑"
-              title="Conversar com Lumi"
+              emoji="✨"
+              title="Guardar no coração"
               desc="Compartilhe o que ficou no seu coração."
               done={false}
               onPress={() => navigation.navigate('Reflection', { story })}
             />
           </View>
 
-          {/* ── NEXT STORY ── */}
-          {nextStory && (
+          {/* ── CONTINUIDADE INTELIGENTE ── */}
+          {recommendation.state === 'A' && recommendation.story && (
             <>
               <Text style={styles.nextSectionTitle}>Continue a jornada</Text>
               <NextAdventureCard
-                story={nextStory}
-                onPress={() => navigation.navigate('StoryDetail', { story: nextStory })}
+                story={recommendation.story}
+                label="Próxima aventura"
+                buttonLabel={recommendation.inProgress ? 'Continuar →' : 'Começar →'}
+                onPress={() => navigation.navigate('StoryDetail', { story: recommendation.story })}
               />
             </>
+          )}
+
+          {recommendation.state === 'B' && recommendation.story && (
+            <>
+              <Text style={styles.nextSectionTitle}>Novo caminho esperando</Text>
+              <View style={styles.blockedCard}>
+                <View style={styles.blockedCoverWrap}>
+                  <StoryCoverImage story={recommendation.story} rounded={false} />
+                  <View style={styles.blockedTint} pointerEvents="none" />
+                  <View style={styles.blockedBadge}>
+                    <Text style={styles.blockedBadgeText}>🔒 Com responsável</Text>
+                  </View>
+                </View>
+                <View style={styles.blockedInfo}>
+                  <Text style={styles.blockedTitle}>Novo caminho para descobrir</Text>
+                  <Text style={styles.blockedSub}>
+                    {getBeniGuideMessage('premiumBlocked')}
+                  </Text>
+                  <SoundButton
+                    style={styles.blockedBtn}
+                    onPress={() => navigation.navigate('ParentArea')}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.blockedBtnText}>Chamar responsável</Text>
+                  </SoundButton>
+                </View>
+              </View>
+            </>
+          )}
+
+          {recommendation.state === 'C' && (
+            <View style={styles.allDoneCard}>
+              <Text style={styles.allDoneEmoji}>🌟</Text>
+              <Text style={styles.allDoneTitle}>Que jornada linda!</Text>
+              <Text style={styles.allDoneSub}>
+                Você pode rever suas aventuras quando quiser.
+              </Text>
+              <SoundButton
+                style={styles.allDoneBtn}
+                onPress={() => navigation.navigate('Aventuras')}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.allDoneBtnText}>Rever histórias</Text>
+              </SoundButton>
+            </View>
           )}
 
           {/* ── SECONDARY ACTIONS ── */}
@@ -219,7 +274,7 @@ export default function CongratsScreen({ route, navigation }) {
             onPress={() => navigation.navigate('StoryDetail', { story })}
             activeOpacity={0.85}
           >
-            <Text style={styles.reviewBtnText}>▶ Rever a história</Text>
+            <Text style={styles.reviewBtnText}>▶ Rever aventura</Text>
           </SoundButton>
 
           <SoundButton
@@ -260,6 +315,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.25)',
     textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 4,
   },
+  heroBeni: { marginTop: 12 },
   heroSub: {
     fontFamily: 'Nunito', fontSize: 14, color: 'rgba(255,255,255,0.9)',
     textAlign: 'center',
@@ -385,6 +441,59 @@ const styles = StyleSheet.create({
     fontFamily: 'FredokaOne', fontSize: 17, color: pt.text,
     marginHorizontal: 16, marginTop: 16, marginBottom: 8,
   },
+
+  // Estado B — novo caminho bloqueado
+  blockedCard: {
+    backgroundColor: '#FFF',
+    borderRadius: radii.lg,
+    marginHorizontal: 16, marginBottom: 14,
+    overflow: 'hidden',
+    ...shadows.card,
+    borderLeftWidth: 4, borderLeftColor: '#7C3AED',
+  },
+  blockedCoverWrap: { position: 'relative' },
+  blockedTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(124,58,237,0.16)',
+  },
+  blockedBadge: {
+    position: 'absolute', top: 8, right: 8,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: radii.pill, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  blockedBadgeText: { fontFamily: 'Nunito', fontSize: 11, color: '#7C3AED', fontWeight: '700' },
+  blockedInfo: { padding: 14 },
+  blockedTitle: { fontFamily: 'FredokaOne', fontSize: 16, color: pt.text, marginBottom: 4 },
+  blockedSub: {
+    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, lineHeight: 19, marginBottom: 12,
+  },
+  blockedBtn: {
+    backgroundColor: '#7C3AED',
+    borderRadius: radii.pill, paddingVertical: 13, alignItems: 'center',
+    elevation: 3, shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
+  },
+  blockedBtnText: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF' },
+
+  // Estado C — todas concluídas
+  allDoneCard: {
+    backgroundColor: pt.greenSoft,
+    borderRadius: radii.lg, marginHorizontal: 16, marginBottom: 14,
+    padding: 20, alignItems: 'center',
+    borderLeftWidth: 4, borderLeftColor: pt.green, ...shadows.soft,
+  },
+  allDoneEmoji: { fontSize: 40, marginBottom: 8 },
+  allDoneTitle: {
+    fontFamily: 'FredokaOne', fontSize: 18, color: pt.text, textAlign: 'center', marginBottom: 4,
+  },
+  allDoneSub: {
+    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center', marginBottom: 14,
+  },
+  allDoneBtn: {
+    backgroundColor: pt.green,
+    borderRadius: radii.pill, paddingVertical: 12, paddingHorizontal: 28, alignItems: 'center',
+  },
+  allDoneBtnText: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF' },
 
   reviewBtn: {
     backgroundColor: colors.cardBg,

@@ -45,6 +45,11 @@ const headerTitleStyle = {
 
 const headerTintColor = colors.primary;
 
+// Reserva largura para o botão de voltar customizado, evitando corte ("‹ V")
+// quando o título é longo nas telas que ainda usam header nativo.
+const headerLeftContainerStyle = { minWidth: 120, paddingLeft: 4 };
+const headerTitleContainerStyle = { marginHorizontal: 8 };
+
 function HomeBtn({ navigation }) {
   const busy = useRef(false);
   function handlePress() {
@@ -57,6 +62,22 @@ function HomeBtn({ navigation }) {
     <TouchableOpacity onPress={handlePress} style={{ paddingHorizontal: 14, paddingVertical: 6 }}>
       <Text style={{ fontFamily: 'FredokaOne', fontSize: 14, color: colors.primary }}>
         🏠 Início
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+// Botão de voltar customizado — substitui o botão nativo do iOS para que nenhum
+// nome técnico de rota (Home, Back, etc.) vaze como rótulo no header.
+function BackBtn({ navigation, onPress }) {
+  function handlePress() {
+    if (onPress) return onPress();
+    if (navigation.canGoBack()) navigation.goBack();
+  }
+  return (
+    <TouchableOpacity onPress={handlePress} style={{ paddingHorizontal: 14, paddingVertical: 6 }}>
+      <Text style={{ fontFamily: 'FredokaOne', fontSize: 14, color: colors.primary }}>
+        ‹ Voltar
       </Text>
     </TouchableOpacity>
   );
@@ -164,7 +185,14 @@ function MainTabs({ navigation }) {
 export default function AppNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Splash">
+      <Stack.Navigator
+        initialRouteName="Splash"
+        screenOptions={{
+          headerBackButtonDisplayMode: 'minimal',
+          headerBackTitle: '',
+          headerBackTitleVisible: false,
+        }}
+      >
         <Stack.Screen
           name="Splash"
           component={SplashScreen}
@@ -178,7 +206,16 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Stories"
           component={StoriesScreen}
-          options={{ title: 'Aventuras', headerStyle, headerTitleStyle, headerTintColor }}
+          options={({ navigation }) => ({
+            title: 'Aventuras',
+            headerStyle,
+            headerTitleStyle,
+            headerTintColor,
+            headerLeftContainerStyle,
+            headerTitleContainerStyle,
+            headerLeft: () => <BackBtn navigation={navigation} />,
+            headerRight: () => <HomeBtn navigation={navigation} />,
+          })}
         />
         <Stack.Screen
           name="StoryDetail"
@@ -188,19 +225,16 @@ export default function AppNavigator() {
             headerStyle,
             headerTitleStyle,
             headerTintColor,
+            headerLeftContainerStyle,
+            headerTitleContainerStyle,
+            headerLeft: () => <BackBtn navigation={navigation} />,
             headerRight: () => <HomeBtn navigation={navigation} />,
           })}
         />
         <Stack.Screen
           name="Narration"
           component={NarrationScreen}
-          options={({ route, navigation }) => ({
-            title: route.params?.story?.titulo || 'Narração',
-            headerStyle,
-            headerTitleStyle,
-            headerTintColor,
-            headerRight: () => <HomeBtn navigation={navigation} />,
-          })}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Coloring"
@@ -220,13 +254,7 @@ export default function AppNavigator() {
         <Stack.Screen
           name="AtelierGallery"
           component={AtelierGalleryScreen}
-          options={({ navigation }) => ({
-            title: 'Galeria dos Pequenos Artistas',
-            headerStyle,
-            headerTitleStyle,
-            headerTintColor,
-            headerRight: () => <HomeBtn navigation={navigation} />,
-          })}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="PostStoryHub"
@@ -236,13 +264,7 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Quiz"
           component={QuizScreen}
-          options={({ route, navigation: nav }) => ({
-            title: `Quiz · ${route.params?.story?.titulo || ''}`,
-            headerStyle,
-            headerTitleStyle,
-            headerTintColor,
-            headerRight: () => <HomeBtn navigation={nav} />,
-          })}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Reflection"
@@ -253,17 +275,28 @@ export default function AppNavigator() {
           name="LumiMoment"
           component={LumiMomentScreen}
           options={({ navigation: nav }) => ({
-            title: 'Momento com Lumi',
+            title: 'Momento com Beni',
             headerStyle,
             headerTitleStyle,
             headerTintColor,
+            headerLeftContainerStyle,
+            headerTitleContainerStyle,
+            headerLeft: () => <BackBtn navigation={nav} />,
             headerRight: () => <HomeBtn navigation={nav} />,
           })}
         />
         <Stack.Screen
           name="ParentArea"
           component={ParentAreaScreen}
-          options={{ title: 'Área dos Pais', headerStyle, headerTitleStyle, headerTintColor }}
+          options={({ navigation }) => ({
+            title: 'Área dos Pais',
+            headerStyle,
+            headerTitleStyle,
+            headerTintColor,
+            headerLeftContainerStyle,
+            headerTitleContainerStyle,
+            headerLeft: () => <BackBtn navigation={navigation} />,
+          })}
         />
         <Stack.Screen
           name="StoryBook"

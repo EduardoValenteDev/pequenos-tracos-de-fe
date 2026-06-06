@@ -43,7 +43,7 @@ export const STAMPS = [
   { emoji: '🌈', label: 'Arco-íris' },
   { emoji: '🕊️', label: 'Pomba' },
   { emoji: '🚢', label: 'Arca' },
-  { emoji: '🐑', label: 'Ovelha' },
+  { emoji: '🐑', label: 'Beni' },
   { emoji: '🐟', label: 'Peixinho' },
   { emoji: '🌸', label: 'Flor' },
   { emoji: '☁️', label: 'Nuvem' },

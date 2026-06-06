@@ -174,6 +174,79 @@ check(
   'hasAccess not exported from accessControl',
 );
 
+// ── Modo Criador / QA (override de permissão local, seguro p/ produção) ──
+const qaSrc = readSrc('src/services/creatorQaMode.js');
+
+check(
+  'creatorQaMode só é permitido em __DEV__ ou flag de build (não liga em prod)',
+  /isCreatorQaModeAllowed/.test(qaSrc) &&
+  qaSrc.includes('__DEV__') &&
+  qaSrc.includes("EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE === 'true'"),
+  'creatorQaMode allowed gate must be __DEV__ or EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE',
+);
+
+check(
+  'creatorQaMode: enabled é ignorado quando não permitido (prod ignora storage)',
+  /isCreatorQaModeEnabled\(\)\s*\{[\s\S]*?if \(!isCreatorQaModeAllowed\(\)\) return false/.test(qaSrc),
+  'isCreatorQaModeEnabled must return false when the mode is not allowed (production safety)',
+);
+
+check(
+  'creatorQaMode persiste em AsyncStorage só quando permitido',
+  qaSrc.includes('@ptf_creator_qa_mode') &&
+  /setCreatorQaModeEnabled[\s\S]*?if \(!isCreatorQaModeAllowed\(\)\)/.test(qaSrc),
+  'setCreatorQaModeEnabled must guard persistence behind isCreatorQaModeAllowed',
+);
+
+check(
+  'creatorQaMode NÃO marca compra/plano real (só override de permissão)',
+  !qaSrc.includes('premiumPurchased') && !/getCurrentPlan|PREMIUM_PLAN|premium'/.test(qaSrc),
+  'creatorQaMode must not touch real plan/purchase — it is only a permission override',
+);
+
+check(
+  'accessControl: isPremiumUser passa pela camada de QA (libera com Modo Criador)',
+  acSource.includes("import { isCreatorQaModeEnabled } from './creatorQaMode'") &&
+  /isPremiumUser\(\)\s*\{[\s\S]*?getCurrentPlan\(\) === 'premium'[\s\S]*?isCreatorQaModeEnabled\(\)/.test(acSource),
+  'isPremiumUser must grant access for real Premium OR Creator QA mode',
+);
+
+check(
+  'accessControl: QA desligado mantém Premium bloqueado (plano real free)',
+  /getCurrentPlan\(\)\s*\{[\s\S]*?return 'free'/.test(acSource),
+  'Default plan must remain free — Creator QA is an override, not a global unlock',
+);
+
+check(
+  'hasPremiumAccess exportado (pronto p/ futura compra real)',
+  acSource.includes('export function hasPremiumAccess'),
+  'hasPremiumAccess alias not exported',
+);
+
+const parentQaSrc = readSrc('src/screens/ParentAreaScreen.js');
+check(
+  'Modo Criador aparece só na Área dos Pais e só se permitido (atrás do gate)',
+  parentQaSrc.includes('isCreatorQaModeAllowed') &&
+  parentQaSrc.includes('qaAllowed &&') &&
+  parentQaSrc.includes('Modo Criador') &&
+  parentQaSrc.includes('não altera o plano dos usuários reais'),
+  'ParentAreaScreen must show the Creator toggle only when allowed, with the QA warning',
+);
+
+check(
+  'Toggle do Modo Criador NÃO está em telas infantis (Home/Stories/Profile)',
+  !readSrc('src/screens/HomeScreen.js').includes('CreatorQaMode') &&
+  !readSrc('src/screens/StoriesScreen.js').includes('CreatorQaMode') &&
+  !readSrc('src/screens/ProfileScreen.js').includes('CreatorQaMode'),
+  'Creator QA toggle must not appear on child-facing screens',
+);
+
+check(
+  'App.js carrega o Modo Criador no boot',
+  readSrc('App.js').includes('loadCreatorQaMode'),
+  'App.js must load the creator QA mode on startup',
+);
+
 // ── [16–20] contentAccessService.js API ─────────────────────────────────────
 console.log('\n── contentAccessService.js API ──');
 
@@ -379,9 +452,9 @@ check(
 );
 
 check(
-  'ParentAreaScreen has contato@pequenostracosdefe.com',
-  readSrc('src/screens/ParentAreaScreen.js').includes('contato@pequenostracosdefe.com'),
-  'Support email not found in ParentAreaScreen',
+  'productConfig.js has support email (email centralizado no Sprint Beni 1.0)',
+  readSrc('src/config/productConfig.js').includes('contato@pequenostracosdefe.com'),
+  'Support email not found in productConfig.js',
 );
 
 check(
@@ -856,9 +929,9 @@ check(
 );
 
 check(
-  'StoryBookScreen tracks currentSceneIndex',
-  storyBookSrc.includes('currentSceneIndex'),
-  'StoryBookScreen does not track currentSceneIndex',
+  'StoryBookScreen tracks current slide index',
+  storyBookSrc.includes('currentSlideIndex'),
+  'StoryBookScreen does not track currentSlideIndex',
 );
 
 check(
@@ -956,14 +1029,16 @@ check(
 
 check(
   'StoryBookScreen has no text about future audio narration',
-  !storyBookSrc.includes('em breve') && !storyBookSrc.includes('narração') && !storyBookSrc.includes('futura'),
+  !storyBookSrc.includes('narração') && !storyBookSrc.includes('futura') &&
+  !storyBookSrc.includes('áudio em breve') && !storyBookSrc.includes('som em breve') &&
+  !storyBookSrc.includes('som será'),
   'StoryBookScreen contains text about future audio narration — must be removed',
 );
 
 check(
-  'StoryBookScreen has "Iniciar Livrinho" button',
-  storyBookSrc.includes('Iniciar Livrinho'),
-  'StoryBookScreen missing "Iniciar Livrinho" button in intro state',
+  'StoryBookScreen has a mode-aware "Abrir" button in intro',
+  storyBookSrc.includes('handleStartLivrinho') && storyBookSrc.includes('Abrir livro mágico misto'),
+  'StoryBookScreen missing the intro start button (mode-aware labels)',
 );
 
 check(
@@ -1006,9 +1081,9 @@ check(
 );
 
 check(
-  'resolveStoryBookVisual returns lineartOnly type',
-  storyBookSrc.includes("'lineartOnly'") || storyBookSrc.includes('"lineartOnly"'),
-  'StoryBookScreen missing lineartOnly type — no display when paint not saved',
+  'resolveStoryBookVisual returns official type (Sprint 4.1 hybrid)',
+  storyBookSrc.includes("'official'") || storyBookSrc.includes('"official"'),
+  'StoryBookScreen missing official type — Livrinho no longer uses official illustration as priority B',
 );
 
 check(
@@ -1055,7 +1130,9 @@ check(
 
 check(
   'StoryBookScreen has no text about future audio narration',
-  !storyBookSrc.includes('em breve') && !storyBookSrc.includes('narração') && !storyBookSrc.includes('futura'),
+  !storyBookSrc.includes('narração') && !storyBookSrc.includes('futura') &&
+  !storyBookSrc.includes('áudio em breve') && !storyBookSrc.includes('som em breve') &&
+  !storyBookSrc.includes('som será'),
   'StoryBookScreen contains text about future audio narration — must be removed',
 );
 
@@ -1117,9 +1194,9 @@ check(
 );
 
 check(
-  'StoryBookScreen passes key={cena.id} to AudioPlayer (state reset on scene change)',
-  storyBookSrc.includes('key={cena.id}'),
-  'StoryBookScreen missing key={cena.id} on AudioPlayer — stale audio state from previous scene may leak',
+  'StoryBookScreen resets AudioPlayer per slide (key changes each slide)',
+  storyBookSrc.includes('key={slideKey}'),
+  'StoryBookScreen missing per-slide key on AudioPlayer — stale audio state may leak between slides',
 );
 
 check(
@@ -1333,9 +1410,37 @@ check(
 const coloringScreenSrc = readSrc('src/screens/ColoringScreen.js');
 
 check(
-  'ColoringScreen calls refreshProgress after salvarCena',
-  coloringScreenSrc.includes('refreshProgress') && coloringScreenSrc.includes('salvarCena'),
-  'ColoringScreen missing refreshProgress call after salvarCena — context stays stale after scene save',
+  'ColoringScreen never completes a scene (decoupled from progress)',
+  !coloringScreenSrc.includes('salvarCena') && !coloringScreenSrc.includes('UnlockCelebration'),
+  'ColoringScreen still calls salvarCena/UnlockCelebration — coloring must only save art, never complete a scene or give a star',
+);
+
+const narrationCompletionSrc = readSrc('src/screens/NarrationScreen.js');
+
+check(
+  'NarrationScreen owns scene completion (Concluir cena + salvarCena + celebration)',
+  narrationCompletionSrc.includes('Concluir cena') &&
+  narrationCompletionSrc.includes('salvarCena') &&
+  narrationCompletionSrc.includes('UnlockCelebration'),
+  'NarrationScreen must be the only place a scene is completed (Concluir cena ⭐ → salvarCena → UnlockCelebration)',
+);
+
+check(
+  'NarrationScreen has custom Portuguese header (Voltar / Início), no native route names',
+  narrationCompletionSrc.includes('Voltar') && narrationCompletionSrc.includes('Início') &&
+  narrationCompletionSrc.includes('Cena anterior') &&
+  narrationCompletionSrc.includes('Pintar no Ateliê'),
+  'NarrationScreen missing custom header / Cena anterior / Pintar no Ateliê labels',
+);
+
+const appNavHeaderSrc = readSrc('src/navigation/AppNavigator.js');
+
+check(
+  'AppNavigator uses custom BackBtn + minimal back display (no iOS route-name leak)',
+  appNavHeaderSrc.includes('function BackBtn') &&
+  appNavHeaderSrc.includes("headerBackButtonDisplayMode: 'minimal'") &&
+  appNavHeaderSrc.includes('headerLeft: () => <BackBtn'),
+  'AppNavigator missing BackBtn / headerBackButtonDisplayMode minimal — native headers may leak Home/Back on iOS',
 );
 
 const quizScreenSrc = readSrc('src/screens/QuizScreen.js');
@@ -1794,21 +1899,21 @@ check(
 );
 
 check(
-  'AtelierGalleryScreen has correct empty state title',
+  'AtelierGalleryScreen has correct empty state title (Sprint Beni 3.0)',
   atelierGallerySrc.includes('Seu Ateliê ainda está vazio'),
   'AtelierGalleryScreen empty state title wrong — should say "Seu Ateliê ainda está vazio"',
 );
 
 check(
-  'AtelierGalleryScreen has correct empty state description',
+  'AtelierGalleryScreen has correct empty state description (Sprint Beni 3.0)',
   atelierGallerySrc.includes('Crie seu primeiro desenho para guardar aqui'),
   'AtelierGalleryScreen empty state description wrong',
 );
 
 check(
-  'AtelierGalleryScreen empty state button says "Começar a desenhar"',
+  'AtelierGalleryScreen empty state has action to start drawing (Sprint Beni 3.0)',
   atelierGallerySrc.includes('Começar a desenhar'),
-  'AtelierGalleryScreen empty state button text wrong — should say "Começar a desenhar"',
+  'AtelierGalleryScreen empty state missing action to start drawing',
 );
 
 check(
@@ -2761,14 +2866,14 @@ const acSrc10            = readSrc('src/services/accessControl.js');
 
 // Infantile header
 check(
-  'StoriesScreen has "Estante de Histórias" title',
-  storiesScreenSrc10.includes('Estante de Histórias'),
-  'StoriesScreen missing infantile "Estante de Histórias" title',
+  'StoriesScreen has "Mapa das Histórias" title (Sprint Beni 2.2)',
+  storiesScreenSrc10.includes('Mapa das Histórias'),
+  'StoriesScreen missing "Mapa das Histórias" title — updated in Sprint Beni 2.2',
 );
 check(
-  'StoriesScreen has inspirational subtitle',
-  storiesScreenSrc10.includes('Qual aventura vai abrir hoje'),
-  'StoriesScreen missing inspirational subtitle',
+  'StoriesScreen has Beni subtitle (Sprint Beni 2.2)',
+  storiesScreenSrc10.includes('Escolha um caminho com Beni'),
+  'StoriesScreen missing subtitle — should say "Escolha um caminho com Beni."',
 );
 
 // Trail chips — FaithIcon
@@ -2928,7 +3033,7 @@ const appNavSrc11    = readSrc('src/navigation/AppNavigator.js');
 const sidebarSrc11   = readSrc('src/components/TabletSidebar.js');
 const achievDataSrc11 = readSrc('src/data/achievements.js');
 const nextAdvSrc11   = readSrc('src/components/story/NextAdventureCard.js');
-const lumiLockedSrc11 = readSrc('src/components/lumi/LumiLockedState.js');
+const lumiLockedSrc11 = readSrc('src/components/beni/BeniLockedState.js');
 const acSrc11        = readSrc('src/services/accessControl.js');
 
 // homeService.js
@@ -2975,9 +3080,9 @@ check(
   'HomeScreen does not import getHomePrimaryAction from homeService',
 );
 check(
-  'HomeScreen has "Continuar minha aventura" section title',
-  homeSrc11.includes('Continuar minha aventura'),
-  'HomeScreen missing "Continuar minha aventura" section title',
+  'HomeScreen has "Hoje com Beni" compact panel (Sprint Beni A++ 3.0)',
+  homeSrc11.includes('Hoje com Beni') && homeSrc11.includes('HojeComBeni'),
+  'HomeScreen missing "Hoje com Beni" compact panel — restructured in Sprint Beni A++ 3.0',
 );
 check(
   'HomeScreen uses primaryAction via useMemo',
@@ -2997,9 +3102,9 @@ check(
 
 // TrophiesScreen
 check(
-  'TrophiesScreen title is "Minhas Estrelinhas"',
-  trophiesSrc11.includes('Minhas Estrelinhas'),
-  'TrophiesScreen title still says "Conquistas" instead of "Minhas Estrelinhas"',
+  'TrophiesScreen title is "Álbum de Estrelinhas" (Sprint Beni A++ 3.0)',
+  trophiesSrc11.includes('Álbum de Estrelinhas'),
+  'TrophiesScreen title should be "Álbum de Estrelinhas" — renamed in Sprint Beni A++ 3.0',
 );
 check(
   'TrophiesScreen header uses FaithIcon star',
@@ -3063,9 +3168,9 @@ check(
   'NextAdventureCard still shows "Premium" as visible badge text in child area',
 );
 check(
-  'LumiLockedState default message uses "Plano Família" (not "plano premium")',
+  'BeniLockedState default message uses "Plano Família" (not "plano premium")',
   lumiLockedSrc11.includes('Plano Família') && !lumiLockedSrc11.includes('plano premium'),
-  'LumiLockedState default message still says "plano premium"',
+  'BeniLockedState default message still says "plano premium"',
 );
 
 // Docs
@@ -3811,11 +3916,11 @@ check(
   'StoryBookScreen.js missing auto-advance chain',
 );
 
-// [556] StoryBookScreen passes key={cena.id} to AudioPlayer (state reset on scene change)
+// [556] StoryBookScreen resets AudioPlayer per slide (key changes each slide)
 check(
-  'StoryBookScreen passes key={cena.id} to AudioPlayer',
-  storyBookSrc16.includes('key={cena.id}'),
-  'StoryBookScreen.js missing key={cena.id} on AudioPlayer — player state may not reset between scenes',
+  'StoryBookScreen resets AudioPlayer per slide',
+  storyBookSrc16.includes('key={slideKey}'),
+  'StoryBookScreen.js missing per-slide key on AudioPlayer — player state may not reset between slides',
 );
 
 // [557] audioManifest has no remote URLs (must remain local)
@@ -4355,6 +4460,542 @@ check(
   'Audio folder structure uses storyId directly (no stories/ subdirectory)',
   !readSrc('src/data/audioManifest.js').includes("assets/audio/stories/"),
   'audioManifest.js references deprecated stories/ subdirectory in audio path',
+);
+
+// ── Sprint Histórias 4.0 — base oficial de ilustrações por cena ──────────────
+const sceneManifestSrc = readSrc('src/data/storySceneIllustrations.js');
+const STORY_IDS_40 = [
+  'creation', 'noah', 'david_goliath', 'jesus_children', 'daniel_lions',
+  'jonah_big_fish', 'lost_sheep', 'good_samaritan', 'abraham_stars',
+  'joseph_colorful_coat', 'moses_red_sea', 'ruth_naomi', 'esther_queen',
+  'miraculous_catch', 'samuel_hears_god', 'josiah_young_king', 'solomon_wisdom',
+  'mary_says_yes', 'timothy_faith', 'jesus_temple',
+];
+
+check(
+  'src/data/storySceneIllustrations.js exists with all 20 story IDs + getter',
+  STORY_IDS_40.every(id => new RegExp(`\\b${id}\\s*:\\s*\\{`).test(sceneManifestSrc)) &&
+  sceneManifestSrc.includes('export function getSceneIllustrationAsset'),
+  'storySceneIllustrations.js (src/data) missing some story IDs or getSceneIllustrationAsset',
+);
+
+check(
+  'storyImageService imports manifest from src/data (single source of truth)',
+  readSrc('src/services/storyImageService.js').includes("from '../data/storySceneIllustrations'"),
+  'storyImageService no longer points to src/data/storySceneIllustrations',
+);
+
+check(
+  'storyImageService exposes getOfficialSceneIllustration + getBestStoryBookVisual',
+  readSrc('src/services/storyImageService.js').includes('export function getOfficialSceneIllustration') &&
+  readSrc('src/services/storyImageService.js').includes('export function getBestStoryBookVisual'),
+  'storyImageService missing getOfficialSceneIllustration / getBestStoryBookVisual',
+);
+
+check(
+  'StorySceneVisual keeps both seals (Cena ilustrada / Cena especial)',
+  readSrc('src/components/story/StorySceneVisual.js').includes('Cena ilustrada') &&
+  readSrc('src/components/story/StorySceneVisual.js').includes('Cena especial'),
+  'StorySceneVisual missing official/ambiance seals',
+);
+
+check(
+  'scene:images:audit script + npm command + guide exist',
+  srcExists('scripts/sceneIllustrationsAudit.js') &&
+  readSrc('package.json').includes('scene:images:audit') &&
+  srcExists('SCENE_ILLUSTRATIONS_GUIDE.md'),
+  'Missing sceneIllustrationsAudit.js / scene:images:audit script / SCENE_ILLUSTRATIONS_GUIDE.md',
+);
+
+check(
+  'No global preload of all scene illustrations (on-demand only)',
+  !readSrc('src/services/assetPreloadService.js').includes('STORY_SCENE_ILLUSTRATIONS') &&
+  !readSrc('src/services/assetPreloadService.js').includes('preloadStorySceneIllustrations'),
+  'assetPreloadService appears to preload scene illustrations globally — must stay on-demand',
+);
+
+// ── Sprint Histórias 4.1 — Livrinho da Fé Híbrido ────────────────────────────
+const livroSrc = readSrc('src/screens/StoryBookScreen.js');
+
+check(
+  'Livrinho usa prioridade arte da criança > ilustração oficial > fallback',
+  livroSrc.includes('getOfficialSceneIllustration') &&
+  livroSrc.includes("seal: 'Sua arte'") &&
+  livroSrc.includes("seal: 'Cena ilustrada'") &&
+  livroSrc.includes("seal: 'Cena especial'"),
+  'StoryBookScreen missing hybrid priority (child art / official / fallback) seals',
+);
+
+check(
+  'Livrinho não conclui cena nem soma estrela (sem salvarCena)',
+  !livroSrc.includes('salvarCena'),
+  'StoryBookScreen calls salvarCena — Livrinho must never complete a scene or add a star',
+);
+
+check(
+  'Livrinho não exige ilustração oficial para abrir (fallback seguro)',
+  livroSrc.includes("type: 'fallback'") && livroSrc.includes("seal: 'Cena especial'"),
+  'StoryBookScreen missing safe fallback — Livrinho must open without official illustrations',
+);
+
+check(
+  'Livrinho pré-carrega só a história aberta (preload por storyId, sem global)',
+  livroSrc.includes('preloadStorySceneIllustrations(story.id)') &&
+  !livroSrc.includes('STORY_SCENE_ILLUSTRATIONS'),
+  'StoryBookScreen must preload only the open story (no global scene-illustration preload)',
+);
+
+check(
+  'Livrinho tem auto-avanço por timer quando não há áudio',
+  livroSrc.includes('setTimeout') && livroSrc.includes('advanceToNextScene') &&
+  livroSrc.includes('hasSceneAudio'),
+  'StoryBookScreen missing timer-based auto-advance fallback for scenes without audio',
+);
+
+check(
+  'Livrinho header sem nome técnico de rota (Voltar / 🏠 em português)',
+  livroSrc.includes('← Voltar') && !/>\s*(Home|Back|Coloring|Narration)\s*</.test(livroSrc),
+  'StoryBookScreen header may leak an internal route name',
+);
+
+// ── Livrinho: 2 modos finais (recompensa criativa, não repete a história) ────
+check(
+  'Livrinho tem APENAS 2 modos (Livro mágico misto / Meu livrinho colorido), sem "História ilustrada"',
+  livroSrc.includes('Como você quer ver?') &&
+  livroSrc.includes('Livro mágico misto') &&
+  livroSrc.includes('Meu livrinho colorido') &&
+  !livroSrc.includes('História ilustrada'),
+  'StoryBookScreen must offer only the two creative modes (no official-only mode)',
+);
+
+check(
+  'Livrinho tem estado vazio quando não há desenhos (Pinte uma cena...)',
+  livroSrc.includes('Pinte uma cena para criar seu livrinho') &&
+  livroSrc.includes('childArtCount === 0'),
+  'StoryBookScreen missing empty state when the child has no saved drawings',
+);
+
+check(
+  'resolveStoryBookVisual expõe visualType childArt/official/fallback',
+  livroSrc.includes("visualType: 'childArt'") &&
+  livroSrc.includes("visualType: 'official'") &&
+  livroSrc.includes("visualType: 'fallback'"),
+  'StoryBookScreen missing visualType semantic field',
+);
+
+check(
+  'Livrinho usa transição suave com trava de toque + fade-in que termina em 1',
+  livroSrc.includes('isTransitioning') && livroSrc.includes('lockRef') &&
+  livroSrc.includes('fadeAnim.setValue(1)') && livroSrc.includes('onLoadEnd'),
+  'StoryBookScreen missing hardened transition (lock + fade-in always ending at opacity 1 + onLoadEnd)',
+);
+
+// ── Sprint Histórias 4.2.1 — timeline mista real + transição blindada ────────
+check(
+  'Livrinho constrói timeline por modo (buildStoryBookTimeline)',
+  livroSrc.includes('function buildStoryBookTimeline') &&
+  livroSrc.includes('const timeline = useMemo'),
+  'StoryBookScreen missing buildStoryBookTimeline / memoized timeline',
+);
+
+check(
+  'Livrinho misto resolve por cena: arte da criança → oficial → fallback (1 slide/cena)',
+  livroSrc.includes('function resolveStoryBookPageImage') &&
+  /if \(p\) return makeChildArtVisual/.test(livroSrc) &&
+  /mode === 'mixed'[\s\S]*?if \(official\) return makeOfficialVisual[\s\S]*?return makeFallbackVisual/.test(livroSrc),
+  'StoryBookScreen mixed mode must resolve child art → official → fallback per scene',
+);
+
+check(
+  'Modo "Meu livrinho colorido" (child) não usa ilustração oficial',
+  (() => {
+    const m = livroSrc.match(/function resolveStoryBookPageImage\([\s\S]*?\n\}/);
+    if (!m) return false;
+    const body = m[0];
+    // a ilustração oficial só é buscada dentro do ramo mixed
+    return /mode === 'mixed'[\s\S]*?getOfficialSceneIllustration/.test(body) &&
+           !/if \(p\) return[\s\S]*?getOfficialSceneIllustration[\s\S]*?mode === 'mixed'/.test(body);
+  })(),
+  'StoryBookScreen child mode must never use the official illustration',
+);
+
+check(
+  'Livrinho usa um único timer de autoplay (constante AUTOPLAY_MS, efeito único)',
+  (livroSrc.match(/setTimeout\(\(\) => \{ advanceToNextScene\(\); \}, AUTOPLAY_MS\)/g) || []).length === 1,
+  'StoryBookScreen has zero or multiple autoplay timers',
+);
+
+check(
+  'isTransitioning/lockRef bloqueia avanço duplo (guards em advance/prev/pause)',
+  (livroSrc.match(/if \(lockRef\.current\) return;/g) || []).length >= 3,
+  'StoryBookScreen does not guard rapid taps on next/prev/pause with lockRef',
+);
+
+check(
+  'Trocar de modo reseta a timeline (handleSelectMode → index 0)',
+  livroSrc.includes('function handleSelectMode') &&
+  /handleSelectMode\([\s\S]*?setCurrentSlideIndex\(0\)/.test(livroSrc),
+  'StoryBookScreen handleSelectMode does not reset the timeline to the start',
+);
+
+// ── Sprint Histórias 4.2.2 — final do Livrinho com retorno aos modos ─────────
+check(
+  'Tela final tem os 3 botões (Ver de novo / Escolher outro modo / Voltar para a aventura)',
+  livroSrc.includes('Ver de novo') &&
+  livroSrc.includes('Escolher outro modo') &&
+  livroSrc.includes('Voltar para a aventura'),
+  'StoryBookScreen ended state missing one of the 3 final buttons',
+);
+
+check(
+  'Escolher outro modo volta à seleção sem sair do StoryBookScreen (intro) e reseta slide',
+  (() => {
+    const m = livroSrc.match(/function handleChooseMode\(\)\s*\{([\s\S]*?)\n  \}/);
+    if (!m) return false;
+    const body = m[1];
+    return body.includes("setScreenState('intro')") &&
+           body.includes('setCurrentSlideIndex(0)') &&
+           !body.includes('navigation.navigate') &&
+           !body.includes('navigation.goBack');
+  })(),
+  'handleChooseMode must reset slide to 0 and return to intro without navigating away',
+);
+
+check(
+  'Ver de novo reseta slide para 0 e sai de finished (volta a playing)',
+  (() => {
+    const m = livroSrc.match(/function handleReplay\(\)\s*\{([\s\S]*?)\n  \}/);
+    if (!m) return false;
+    const body = m[1];
+    return body.includes('setCurrentSlideIndex(0)') && body.includes("setScreenState('playing')");
+  })(),
+  'handleReplay must reset slide to 0 and resume playing',
+);
+
+check(
+  'Livrinho não usa controles técnicos antigos (sem ▶▶)',
+  !livroSrc.includes('▶▶'),
+  'StoryBookScreen still uses the old technical ▶▶ control',
+);
+
+check(
+  'Livrinho fallback usa frase amigável e sem texto técnico',
+  livroSrc.includes('Imagem da cena em breve.') &&
+  !livroSrc.includes('Ilustração em breve') &&
+  !livroSrc.includes('placeholder') &&
+  !livroSrc.includes('Sem imagem'),
+  'StoryBookScreen fallback contains technical text or wrong copy',
+);
+
+check(
+  'Livrinho controles têm labels de acessibilidade em português',
+  livroSrc.includes('Página anterior') && livroSrc.includes('Próxima página') &&
+  livroSrc.includes('Pausar livrinho') && livroSrc.includes('Continuar livrinho'),
+  'StoryBookScreen controls missing accessibility labels',
+);
+
+check(
+  'Livrinho tem entrada mágica (MagicBookEntrance) e nav de página secundária',
+  livroSrc.includes('MagicBookEntrance') && livroSrc.includes('handleEnterLivrinho') &&
+  livroSrc.includes('pageNavRow') && !livroSrc.includes('ctrlBtnPlay'),
+  'StoryBookScreen missing magic entrance / simplified page-nav controls',
+);
+
+// ── Sprint Histórias 5.0 — pipeline oficial das imagens IA por cena ──────────
+const imgServiceSrc = readSrc('src/services/storyImageService.js');
+const sceneAuditSrc = readSrc('scripts/sceneIllustrationsAudit.js');
+const narration50 = readSrc('src/screens/NarrationScreen.js');
+const livro50 = readSrc('src/screens/StoryBookScreen.js');
+
+check(
+  'getOfficialSceneIllustration retorna null com segurança (try/catch)',
+  /export function getOfficialSceneIllustration[\s\S]*?try \{[\s\S]*?catch[\s\S]*?return null/.test(imgServiceSrc),
+  'getOfficialSceneIllustration must safely return null (try/catch) when no image exists',
+);
+
+check(
+  'NarrationScreen consome imagem oficial automaticamente',
+  narration50.includes('getOfficialSceneIllustration(story.id, cena.id)'),
+  'NarrationScreen does not consume getOfficialSceneIllustration',
+);
+
+check(
+  'StoryBook pré-carrega só a história aberta (sem preload global)',
+  livro50.includes('preloadStorySceneIllustrations(story.id)') &&
+  !livro50.includes('STORY_SCENE_ILLUSTRATIONS'),
+  'StoryBookScreen must preload only the open story (no global 200-image preload)',
+);
+
+check(
+  'scene:images:audit lista ausentes/encontradas sem quebrar (modo normal exit 0)',
+  sceneAuditSrc.includes('Imagens ausentes') &&
+  sceneAuditSrc.includes('Imagens encontradas') &&
+  sceneAuditSrc.includes('process.exit(0)'),
+  'sceneIllustrationsAudit must list found/missing images and not fail in normal mode',
+);
+
+check(
+  'scene:images:audit tem modo strict que falha quando faltam imagens',
+  sceneAuditSrc.includes('--strict') &&
+  /STRICT && totalMissing > 0[\s\S]*?process\.exit\(1\)/.test(sceneAuditSrc),
+  'sceneIllustrationsAudit missing strict mode that exits 1 on missing images',
+);
+
+check(
+  'package.json tem scene:images:audit e variante strict',
+  readSrc('package.json').includes('"scene:images:audit"') &&
+  readSrc('package.json').includes('"scene:images:audit:strict"'),
+  'package.json missing scene:images:audit / :strict scripts',
+);
+
+check(
+  'OFFICIAL_SCENE_IMAGES_GUIDE.md existe e cobre o pipeline',
+  srcExists('OFFICIAL_SCENE_IMAGES_GUIDE.md') &&
+  readSrc('OFFICIAL_SCENE_IMAGES_GUIDE.md').includes('getOfficialSceneIllustration') &&
+  readSrc('OFFICIAL_SCENE_IMAGES_GUIDE.md').includes('scene:images:audit'),
+  'OFFICIAL_SCENE_IMAGES_GUIDE.md missing or incomplete',
+);
+
+check(
+  'Preservação: nenhuma chave AsyncStorage do Livrinho renomeada (@ptf_progress)',
+  livro50.includes('@ptf_progress') && !livro50.includes('salvarCena'),
+  'StoryBookScreen storage/stars invariants changed',
+);
+
+// ── Sprint RC 1.1 — cabeçalhos seguros (SafeScreenHeader) ────────────────────
+const safeHeaderSrc = readSrc('src/components/layout/SafeScreenHeader.js');
+
+check(
+  'SafeScreenHeader existe com zonas de largura mínima (minWidth)',
+  safeHeaderSrc.includes('minWidth') && safeHeaderSrc.includes('SIDE_MIN'),
+  'SafeScreenHeader missing fixed minWidth side zones',
+);
+
+check(
+  'SafeScreenHeader: botões com hitSlop e área tocável 44×44',
+  safeHeaderSrc.includes('hitSlop') && /minWidth:\s*44/.test(safeHeaderSrc) && /minHeight:\s*44/.test(safeHeaderSrc),
+  'SafeScreenHeader buttons missing hitSlop / 44×44 touch target',
+);
+
+check(
+  'SafeScreenHeader: título trunca (numberOfLines={1} + ellipsizeMode="tail")',
+  safeHeaderSrc.includes('numberOfLines={1}') && safeHeaderSrc.includes('ellipsizeMode="tail"'),
+  'SafeScreenHeader title does not truncate safely',
+);
+
+check(
+  'SafeScreenHeader usa Safe Area (useSafeAreaInsets + paddingTop)',
+  safeHeaderSrc.includes('useSafeAreaInsets') && safeHeaderSrc.includes('insets.top'),
+  'SafeScreenHeader does not apply safe-area top inset',
+);
+
+for (const screen of ['QuizScreen', 'StoryBookScreen', 'NarrationScreen', 'ReflectionScreen']) {
+  check(
+    `${screen} usa SafeScreenHeader`,
+    readSrc(`src/screens/${screen}.js`).includes('SafeScreenHeader'),
+    `${screen} does not use the global SafeScreenHeader`,
+  );
+}
+
+check(
+  'QuizScreen não usa mais header nativo (headerShown:false na rota Quiz)',
+  /name="Quiz"[\s\S]*?options=\{\{ headerShown: false \}\}/.test(readSrc('src/navigation/AppNavigator.js')),
+  'Quiz route still uses the native header (risk of cropped back button)',
+);
+
+check(
+  'Headers nativos restantes reservam largura do botão (headerLeftContainerStyle minWidth)',
+  /const headerLeftContainerStyle = \{ minWidth: 120/.test(readSrc('src/navigation/AppNavigator.js')),
+  'Native headers do not reserve back-button width — risk of cropped "‹ Voltar"',
+);
+
+// Nenhum texto visível "Home" ou "Back" nas telas do fluxo
+const headerFlowScreens = ['QuizScreen', 'StoryBookScreen', 'NarrationScreen', 'ReflectionScreen', 'StoryDetailScreen', 'ParentAreaScreen', 'CongratsScreen'];
+for (const screen of headerFlowScreens) {
+  const src = readSrc(`src/screens/${screen}.js`);
+  check(
+    `${screen} não exibe texto visível "Home"/"Back"`,
+    !/>\s*Home\s*</.test(src) && !/>\s*Back\s*</.test(src) &&
+    !/>\s*‹\s*Back\s*</.test(src) && !/>\s*🏠\s*Home\s*</.test(src),
+    `${screen} renders a visible "Home"/"Back" technical label`,
+  );
+}
+
+// ── Sprint Histórias 5.1 — validação por história ────────────────────────────
+const sceneAudit51 = readSrc('scripts/sceneIllustrationsAudit.js');
+
+check(
+  'sceneIllustrationsAudit aceita filtro --story',
+  sceneAudit51.includes("indexOf('--story')") && sceneAudit51.includes('const SCOPE'),
+  'sceneIllustrationsAudit does not support --story filtering',
+);
+
+check(
+  'sceneIllustrationsAudit combina --story com --strict (exit 1 no escopo)',
+  sceneAudit51.includes('STRICT') && sceneAudit51.includes('SCOPE') &&
+  /STRICT && totalMissing > 0[\s\S]*?process\.exit\(1\)/.test(sceneAudit51),
+  'sceneIllustrationsAudit strict does not honor --story scope',
+);
+
+check(
+  'sceneIllustrationsAudit dá erro claro para storyId inválido (lista IDs)',
+  sceneAudit51.includes('storyId inválido') &&
+  sceneAudit51.includes('storyIds disponíveis') &&
+  /!availableIds\.includes\(STORY\)[\s\S]*?process\.exit\(1\)/.test(sceneAudit51),
+  'sceneIllustrationsAudit does not error clearly on invalid storyId',
+);
+
+check(
+  'sceneIllustrationsAudit mostra caminhos esperados no modo --story',
+  sceneAudit51.includes('caminhos esperados') && sceneAudit51.includes('expectedPath'),
+  'sceneIllustrationsAudit per-story report missing expected file paths',
+);
+
+check(
+  'package.json tem scripts scene:images:audit:story e :story:strict',
+  readSrc('package.json').includes('"scene:images:audit:story"') &&
+  readSrc('package.json').includes('"scene:images:audit:story:strict"'),
+  'package.json missing per-story audit scripts',
+);
+
+check(
+  'Guia canônico documenta Produção por história',
+  readSrc('OFFICIAL_SCENE_IMAGES_GUIDE.md').includes('Produção por história') &&
+  readSrc('OFFICIAL_SCENE_IMAGES_GUIDE.md').includes('--story'),
+  'OFFICIAL_SCENE_IMAGES_GUIDE.md missing per-story production section',
+);
+
+check(
+  'Checklist da história piloto existe com colunas corretas',
+  srcExists('OFFICIAL_SCENE_IMAGES_CHECKLIST.md') &&
+  readSrc('OFFICIAL_SCENE_IMAGES_CHECKLIST.md').includes('| storyId |') &&
+  readSrc('OFFICIAL_SCENE_IMAGES_CHECKLIST.md').includes('arquivo esperado') &&
+  readSrc('OFFICIAL_SCENE_IMAGES_CHECKLIST.md').includes('pendente'),
+  'OFFICIAL_SCENE_IMAGES_CHECKLIST.md missing or malformed',
+);
+
+check(
+  'Manifesto oficial: nenhum require() aponta para arquivo inexistente',
+  (() => {
+    const obj = readSrc('src/data/storySceneIllustrations.js').split('STORY_SCENE_ILLUSTRATIONS = {')[1] || '';
+    const reqs = [...obj.matchAll(/require\(['"](.*?)['"]\)/g)].map(x => x[1]);
+    // caminhos relativos a src/data → resolvem como ../../assets/...
+    return reqs.every(p => srcExists(p.replace(/^\.\.\/\.\.\//, '')));
+  })(),
+  'storySceneIllustrations contains a require() pointing to a missing file',
+);
+
+check(
+  'História creation registrada com 10 cenas oficiais (5.2)',
+  (() => {
+    const obj = readSrc('src/data/storySceneIllustrations.js').split('STORY_SCENE_ILLUSTRATIONS = {')[1] || '';
+    const block = /\bcreation\s*:\s*\{([\s\S]*?)\}/.exec(obj);
+    if (!block) return false;
+    const scenes = [...block[1].matchAll(/(\d+)\s*:\s*require\(/g)].map(x => Number(x[1]));
+    return [1,2,3,4,5,6,7,8,9,10].every(n => scenes.includes(n)) && scenes.length === 10;
+  })(),
+  'creation must register exactly 10 official scene illustrations (1..10)',
+);
+
+// ── Sprint Histórias 5.5 — imagens de cena em 4:5 responsivo ─────────────────
+const livro54 = readSrc('src/screens/StoryBookScreen.js');
+const sceneVisual54 = readSrc('src/components/story/StorySceneVisual.js');
+const officialConst54 = readSrc('src/constants/officialImage.js');
+const officialImgSrc = readSrc('src/components/story/OfficialSceneImage.js');
+
+check(
+  'Constante OFFICIAL_IMAGE_ASPECT_RATIO = 4/5 (retrato)',
+  officialConst54.includes('OFFICIAL_IMAGE_ASPECT_RATIO') && officialConst54.includes('4 / 5') &&
+  !officialConst54.includes('16 / 9'),
+  'officialImage.js must define OFFICIAL_IMAGE_ASPECT_RATIO = 4/5 (no 16/9)',
+);
+
+check(
+  'officialImage.js expõe os tamanhos responsivos scene/book',
+  officialConst54.includes('export function computeSceneImageSize') &&
+  officialConst54.includes('export function computeBookImageSize') &&
+  officialConst54.includes('* 0.46') && officialConst54.includes('* 0.56'),
+  'officialImage.js missing computeSceneImageSize/computeBookImageSize (46%/56%)',
+);
+
+check(
+  'OfficialSceneImage usa 4:5 responsivo (variant scene/book) — sem aspectRatio 16/9',
+  officialImgSrc.includes('computeSceneImageSize') && officialImgSrc.includes('computeBookImageSize') &&
+  officialImgSrc.includes("variant === 'book'") &&
+  /width:\s*size\.width/.test(officialImgSrc) && /height:\s*size\.height/.test(officialImgSrc) &&
+  !officialImgSrc.includes('OFFICIAL_IMAGE_ASPECT_RATIO'),
+  'OfficialSceneImage must size itself 4:5 via computeScene/BookImageSize (no aspectRatio)',
+);
+
+check(
+  'OfficialSceneImage não usa scale, ImageBackground nem flex:1 (e não ocupa tela inteira)',
+  !officialImgSrc.includes('ImageBackground') &&
+  !/scale\s*:/.test(officialImgSrc) && !officialImgSrc.includes('flex: 1') &&
+  !officialImgSrc.includes('fullBleed'),
+  'OfficialSceneImage uses a forbidden scale/background/flex/full-screen layout',
+);
+
+check(
+  'StorySceneVisual usa OfficialSceneImage variant="scene" para a imagem oficial',
+  /officialIllustration\)\s*\{[\s\S]*?<OfficialSceneImage[\s\S]*?variant="scene"/.test(sceneVisual54),
+  'StorySceneVisual official state must use OfficialSceneImage variant="scene" (4:5)',
+);
+
+check(
+  'StoryBook renderiza tudo na moldura fixa 4:5 com width/height 100% (nasce sem zoom gigante)',
+  livro54.includes('bookArtFrame') &&
+  /width: bookSize\.width, height: bookSize\.height/.test(livro54) &&
+  livro54.includes("bookFullImage: { width: '100%', height: '100%' }") &&
+  // a imagem principal NÃO usa absoluteFill (causava zoom no 1º frame)
+  /visual\.type === 'official'[\s\S]*?style=\{styles\.bookFullImage\}[\s\S]*?resizeMode="contain"/.test(livro54),
+  'StoryBookScreen images must use a fixed 4:5 frame + width/height 100% (no absoluteFill zoom)',
+);
+
+check(
+  'Livrinho: arte da criança em fundo CLARO (não fica preta)',
+  livro54.includes('const isUserArt =') &&
+  /isUserArt \? '#FFFDF8'/.test(livro54) &&
+  // sem overlay/opacity/tint escurecendo a arte da criança
+  !/bookFullImage[\s\S]{0,120}opacity/.test(livro54) &&
+  !livro54.includes('tintColor'),
+  'StoryBookScreen child art must render on a light background (no dark overlay/opacity/tint)',
+);
+
+check(
+  'StoryBook calcula tamanho 4:5 do Livrinho (computeBookImageSize) e não usa 16:9',
+  livro54.includes('computeBookImageSize(width, screenH)') &&
+  !livro54.includes('OFFICIAL_IMAGE_ASPECT_RATIO') &&
+  !livro54.includes('bookVisualStage'),
+  'StoryBookScreen must compute the 4:5 book size (no 16:9 aspectRatio / flex stage)',
+);
+
+check(
+  'StoryBook separa área de imagem e área de controles (image section + bottom panel)',
+  livro54.includes('bookImageSection') && livro54.includes('bookArtFrame') &&
+  livro54.includes('bookBottomPanel'),
+  'StoryBookScreen does not separate image area from controls area',
+);
+
+check(
+  'StoryBook painel inferior respeita Safe Area (insets.bottom + 20) e é compacto',
+  /bookBottomPanel[\s\S]*?paddingBottom: Math\.max\(insets\.bottom \+ 20/.test(livro54) &&
+  !/bookBottomPanel:\s*\{[^}]*flex:\s*1/.test(livro54),
+  'StoryBookScreen bottom panel must respect safe area and stay compact (no flex:1)',
+);
+
+check(
+  'StoryBook fade inicial não parece imagem branca (opacity >= 0.85)',
+  livro54.includes('fadeAnim.setValue(0.85)'),
+  'StoryBookScreen transition starts too transparent (looks like a blank image)',
+);
+
+check(
+  'Guia documenta o padrão 4:5 das imagens de cena',
+  (() => {
+    const g = readSrc('OFFICIAL_SCENE_IMAGES_GUIDE.md');
+    return g.includes('4:5') && g.includes('sempre aparecer');
+  })(),
+  'OFFICIAL_SCENE_IMAGES_GUIDE.md does not document the 4:5 scene image standard',
 );
 
 // ── Summary ──────────────────────────────────────────────────────────────────

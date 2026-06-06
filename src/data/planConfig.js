@@ -22,8 +22,8 @@ export const PREMIUM_PLAN = {
     { emoji: '🔍', label: 'Trilha Descobridores (6 histórias)' },
     { emoji: '📖', label: 'Trilha Jovens da Fé (6 histórias)' },
     { emoji: '🧩', label: 'Quiz de todas as histórias' },
-    { emoji: '🐑', label: 'Converse com Lumi' },
-    { emoji: '🌙', label: 'Momento com Lumi' },
+    { emoji: '✨', label: 'Guardar no coração' },
+    { emoji: '🌙', label: 'Momento com Beni' },
     { emoji: '🎨', label: 'Ateliê com artes ilimitadas' },
   ],
   comingSoonItems: [
@@ -52,7 +52,7 @@ export const PLAN_PRICING = {
 
 export const PLAN_TEXTS = {
   freeShortText: 'Comece com histórias grátis, quiz e 3 artes no Ateliê.',
-  premiumShortText: 'Desbloqueie todas as trilhas, Lumi, devocionais e artes ilimitadas.',
+  premiumShortText: 'Desbloqueie todas as trilhas, Beni e artes ilimitadas.',
   premiumCtaText: 'Conhecer Premium',
   notAvailableYetText: 'Em breve',
 };

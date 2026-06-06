@@ -9,6 +9,8 @@ import { colors } from '../theme/colors';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { AVATARS } from '../data/avatars';
 import CenteredContent from '../components/layout/CenteredContent';
+import { BeniGuideBubble } from '../components/beni';
+import { getBeniGuideMessage } from '../data/beniGuideMessages';
 import { useProfile } from '../context/ProfileContext';
 import { useProgressContext } from '../context/ProgressContext';
 
@@ -82,11 +84,13 @@ export default function ProfileScreen({ navigation }) {
   /* ── Child block ── */
   const childBlock = (
     <View style={styles.childBlock}>
-      {/* Avatar hero */}
+      {/* Cabeçalho suave — Meu cantinho (avatar da CRIANÇA, não Beni) */}
       <LinearGradient
-        colors={[colors.primaryDark, colors.primary]}
-        style={styles.childHeader}
+        colors={['#FFE6A8', '#FFD27F', '#FFC489']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={[styles.childHeader, { paddingTop: Math.max(insets.top, 20) + 8 }]}
       >
+        <Text style={styles.cantinhoTitle}>Meu cantinho</Text>
         <View style={styles.bigAvatarCircle}>
           <Text style={styles.bigAvatarEmoji}>{currentAvatar.emoji}</Text>
         </View>
@@ -101,6 +105,15 @@ export default function ProfileScreen({ navigation }) {
         </View>
         <Text style={styles.progressBarLabel}>{totalStars}/{maxStars} estrelas alcançadas</Text>
       </LinearGradient>
+
+      {/* Beni guia — sem substituir o avatar da criança */}
+      <BeniGuideBubble
+        message={getBeniGuideMessage('profile')}
+        avatarVariant="happy"
+        tone="yellow"
+        compact
+        style={styles.beniGuide}
+      />
 
       {/* Name input */}
       <View style={styles.childSection}>
@@ -153,7 +166,7 @@ export default function ProfileScreen({ navigation }) {
         style={styles.container}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: Math.max(insets.top, 0), paddingBottom: insets.bottom + 32 },
+          { paddingTop: 0, paddingBottom: insets.bottom + 72 },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -176,36 +189,44 @@ const styles = StyleSheet.create({
 
   childHeader: {
     alignItems: 'center',
-    paddingVertical: 28,
+    paddingBottom: 18,
     paddingHorizontal: 24,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     marginBottom: 4,
   },
+  cantinhoTitle: {
+    fontFamily: 'FredokaOne', fontSize: 14, color: '#7A5800',
+    marginBottom: 10, letterSpacing: 0.3,
+  },
   bigAvatarCircle: {
-    width: 96, height: 96, borderRadius: 48,
-    backgroundColor: 'rgba(255,255,255,0.28)',
+    width: 78, height: 78, borderRadius: 39,
+    backgroundColor: 'rgba(255,255,255,0.85)',
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
+    borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.95)',
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: '#C98A00',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
   },
-  bigAvatarEmoji: { fontSize: 52 },
+  bigAvatarEmoji: { fontSize: 42 },
   childName: {
-    fontFamily: 'FredokaOne', fontSize: 22, color: '#FFF', marginBottom: 4,
+    fontFamily: 'FredokaOne', fontSize: 22, color: '#3A2A1E', marginBottom: 3,
   },
   childStars: {
-    fontFamily: 'Nunito', fontSize: 14, color: 'rgba(255,255,255,0.9)', marginBottom: 10,
+    fontFamily: 'Nunito', fontSize: 14, color: '#7A5800', fontWeight: '700', marginBottom: 10,
   },
   progressBarOuter: {
-    width: '70%', height: 8, backgroundColor: 'rgba(255,255,255,0.3)',
+    width: '70%', height: 8, backgroundColor: 'rgba(122,88,0,0.18)',
     borderRadius: 4, overflow: 'hidden', marginBottom: 6,
   },
-  progressBarInner: { height: '100%', backgroundColor: '#FFF', borderRadius: 4 },
+  progressBarInner: { height: '100%', backgroundColor: '#F4B400', borderRadius: 4 },
   progressBarLabel: {
-    fontFamily: 'Nunito', fontSize: 11, color: 'rgba(255,255,255,0.75)',
+    fontFamily: 'Nunito', fontSize: 11, color: '#9B7B30',
   },
+  beniGuide: { marginHorizontal: 16, marginTop: 14, marginBottom: 4 },
 
   childSection: { paddingHorizontal: 16, paddingTop: 16, marginBottom: 4 },
   childSectionLabel: {

@@ -40,7 +40,7 @@ const BADGE_CONFIG = {
     icon: '🔒',
   },
   saved: {
-    defaultLabel: 'Desenho salvo',
+    defaultLabel: 'Arte salva',
     bg: pt.cream,
     text: pt.premiumText,
     icon: '🎨',

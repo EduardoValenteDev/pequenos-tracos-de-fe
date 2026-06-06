@@ -138,11 +138,11 @@ export default function PostStoryHubScreen({ route, navigation }) {
             onPress={() => navigation.navigate('Quiz', { story })}
           />
 
-          {/* ── Lumi ── */}
+          {/* ── Beni ── */}
           <HubCard
-            emoji="🐑"
-            title="Conversar com Lumi"
-            desc={canOpenLumi(story) ? 'Conte o que você aprendeu com essa história.' : 'Atividade Especial da Família — peça a um responsável.'}
+            emoji="✨"
+            title="Guardar no coração"
+            desc={canOpenLumi(story) ? 'Conte o que você aprendeu com essa história.' : 'Atividade Especial da Família. Peça a um responsável.'}
             cta={canOpenLumi(story) ? '+1 ⭐' : 'Especial da Família'}
             tagColor={canOpenLumi(story) ? pt.purple : '#F4B400'}
             done={reflectionDone}

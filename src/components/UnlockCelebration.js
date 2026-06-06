@@ -3,6 +3,7 @@ import { Modal, View, Text, Animated, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
 import SoundButton from './SoundButton';
 import Confetti from './Confetti';
+import BeniAvatar from './beni/BeniAvatar';
 
 const NUM_STARS = 6;
 
@@ -61,12 +62,20 @@ export default function UnlockCelebration({ visible, onContinue, isLast = false 
             </Animated.View>
           ))}
 
-          <Text style={styles.emoji}>{isLast ? '🏆' : '🎉'}</Text>
+          {/* Beni comemorando */}
+          <BeniAvatar variant="celebrating" size="large" style={styles.beni} />
           <Text style={styles.title}>Parabéns!</Text>
-          <Text style={styles.subtitle}>{isLast ? 'História concluída!' : 'Cena concluída!'}</Text>
+          {isLast ? (
+            <Text style={[styles.subtitle, { marginBottom: 20 }]}>Aventura concluída!</Text>
+          ) : (
+            <>
+              <Text style={styles.subtitle}>Você ganhou uma estrelinha! ⭐</Text>
+              <Text style={styles.hint}>Vamos para a próxima cena?</Text>
+            </>
+          )}
 
           <SoundButton style={[styles.btn, isLast && styles.btnLast]} onPress={onContinue}>
-            <Text style={styles.btnText}>{isLast ? '🌟 Ver conquistas!' : 'Próxima Cena →'}</Text>
+            <Text style={styles.btnText}>{isLast ? 'Ver conclusão' : 'Continuar'}</Text>
           </SoundButton>
         </Animated.View>
       </View>
@@ -96,21 +105,29 @@ const styles = StyleSheet.create({
   starText: {
     fontSize: 24,
   },
-  emoji: {
-    fontSize: 48,
-    marginBottom: 8,
+  beni: {
+    marginBottom: 10,
   },
   title: {
     fontFamily: 'FredokaOne',
-    fontSize: 28,
+    fontSize: 26,
     color: colors.primary,
     marginBottom: 4,
   },
   subtitle: {
     fontFamily: 'Nunito',
     fontSize: 16,
+    color: colors.text,
+    fontWeight: '700',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  hint: {
+    fontFamily: 'Nunito',
+    fontSize: 13,
     color: colors.textLight,
-    marginBottom: 24,
+    marginBottom: 20,
+    textAlign: 'center',
   },
   btn: {
     backgroundColor: colors.success,

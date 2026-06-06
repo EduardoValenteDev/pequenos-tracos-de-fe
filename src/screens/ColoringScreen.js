@@ -6,10 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { colors } from '../theme/colors';
 import ColoringCanvas, { ERASER_COLOR } from '../components/ColoringCanvas';
 import { COLOR_PALETTE } from '../constants/colorPalette';
-import UnlockCelebration from '../components/UnlockCelebration';
 import SoundButton from '../components/SoundButton';
-import { useProgress } from '../hooks/useProgress';
-import { useProgressContext } from '../context/ProgressContext';
 import { getColoringImage } from '../assets/coloringImages';
 import {
   getSavedDrawing,
@@ -38,11 +35,9 @@ export default function ColoringScreen({ route, navigation }) {
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   const [selectedColor, setSelectedColor] = useState(COLOR_PALETTE[0].hex);
-  const [showCelebration, setShowCelebration] = useState(false);
   const [hasPainted, setHasPainted] = useState(false);
   const [showPaintFirst, setShowPaintFirst] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const celebrationHandledRef = useRef(false);
 
   // Drawing restore state
   const [savedDrawing, setSavedDrawing] = useState(null);
@@ -51,9 +46,6 @@ export default function ColoringScreen({ route, navigation }) {
   // Touch feedback: shown briefly when user taps on a line instead of white area
   const [showLineTip, setShowLineTip] = useState(false);
   const lineTipTimerRef = useRef(null);
-
-  const { salvarCena } = useProgress(story.id);
-  const { refreshProgress } = useProgressContext();
 
   useEffect(() => {
     if (!canOpenStoryFullExperience(story)) {
@@ -91,8 +83,6 @@ export default function ColoringScreen({ route, navigation }) {
     };
   }, []);
 
-  const isLastCena = cenaIndex === story.cenas.length - 1;
-
   // Field aliases for backward compatibility
   const tituloColorir = cena.tituloColorir ?? cena.instrucaoColorir ?? cena.colorirElemento ?? '';
   const imageSource = getColoringImage(story.id, cena.id);
@@ -124,11 +114,6 @@ export default function ColoringScreen({ route, navigation }) {
   if (!imageSource) {
     return (
       <View style={styles.missingContainer}>
-        <UnlockCelebration
-          visible={showCelebration}
-          onContinue={handleContinue}
-          isLast={isLastCena}
-        />
         <LinearGradient
           colors={[cena.corTema || colors.secondary, (cena.corTema || colors.secondary) + 'AA']}
           style={styles.missingGradient}
@@ -140,15 +125,10 @@ export default function ColoringScreen({ route, navigation }) {
           </Text>
           <SoundButton
             style={styles.missingBtn}
-            onPress={async () => {
-              if (!canOpenStoryFullExperience(story)) return;
-              await salvarCena(cena.id);
-              refreshProgress();
-              setShowCelebration(true);
-            }}
+            onPress={() => navigation.goBack()}
             activeOpacity={0.85}
           >
-            <Text style={styles.missingBtnText}>Continuar a história ▶</Text>
+            <Text style={styles.missingBtnText}>Voltar para a cena ▶</Text>
           </SoundButton>
         </LinearGradient>
       </View>
@@ -181,6 +161,9 @@ export default function ColoringScreen({ route, navigation }) {
   }
 
   /* ── Actions ─────────────────────────────────────────────────── */
+  // Colorir é atividade complementar: APENAS salva a arte da criança e volta
+  // para a cena. Nunca conclui cena, nunca dá estrela, nunca avança a história.
+  // A conclusão da cena acontece somente na NarrationScreen.
   function handleProximo() {
     if (!hasPainted) {
       setShowPaintFirst(true);
@@ -189,24 +172,9 @@ export default function ColoringScreen({ route, navigation }) {
     setIsSaving(true);
     canvasRef.current?.exportPaint(async (exportData) => {
       await saveDrawingState(story.id, cena.id, exportData);
-      await salvarCena(cena.id);
-      refreshProgress();
       setIsSaving(false);
-      celebrationHandledRef.current = false;
-      setShowCelebration(true);
+      navigation.goBack();
     });
-  }
-
-  function handleContinue() {
-    // Guard against double-tap on the celebration button during navigation
-    if (celebrationHandledRef.current) return;
-    celebrationHandledRef.current = true;
-    setShowCelebration(false);
-    if (isLastCena) {
-      navigation.navigate('Congrats', { story });
-    } else {
-      navigation.navigate('Narration', { story, cenaIndex: cenaIndex + 1 });
-    }
   }
 
   function handleSelectColor(cor) {
@@ -363,12 +331,6 @@ export default function ColoringScreen({ route, navigation }) {
         </ScrollView>
 
       </View>
-
-      <UnlockCelebration
-        visible={showCelebration}
-        onContinue={handleContinue}
-        isLast={isLastCena}
-      />
 
       {/* ── LINE TIP — shown when user taps on a line ──────────── */}
       {showLineTip && (

@@ -14,6 +14,7 @@ import {
 } from '../services/postStoryStorage';
 import { canOpenMomentoLumi } from '../services/accessControl';
 import PremiumLockCard from '../components/premium/PremiumLockCard';
+import BeniAvatar from '../components/beni/BeniAvatar';
 
 function dayIndex(listLength) {
   return Math.floor(Date.now() / 86400000) % listLength;
@@ -34,9 +35,9 @@ export default function LumiMomentScreen({ navigation }) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', backgroundColor: '#FDF8EE' }}>
         <PremiumLockCard
-          featureName="Momento com Lumi"
+          featureName="Momento com Beni"
           title="Essa experiência é especial"
-          description="O Momento com Lumi é uma reflexão Especial da Família. Peça para um responsável ver os detalhes na Área dos Pais."
+          description="O Momento com Beni é uma reflexão Especial da Família. Peça para um responsável ver os detalhes na Área dos Pais."
           onPrimaryPress={() => navigation.navigate('ParentArea')}
           primaryLabel="Ver Área dos Pais"
           onSecondaryPress={() => navigation.goBack()}
@@ -77,8 +78,8 @@ export default function LumiMomentScreen({ navigation }) {
             </SoundButton>
           </View>
           <View style={styles.headerContent}>
-            <Text style={styles.headerEmoji}>{msg.emoji}</Text>
-            <Text style={styles.headerTitle}>Momento com Lumi</Text>
+            <BeniAvatar variant="thinking" size="medium" style={styles.headerBeni} />
+            <Text style={styles.headerTitle}>Momento com Beni</Text>
             {starGranted ? (
               <Text style={styles.headerStar}>+1 ⭐ estrela ganha hoje!</Text>
             ) : done ? (
@@ -92,7 +93,7 @@ export default function LumiMomentScreen({ navigation }) {
         <View style={styles.body}>
           {/* Daily message */}
           <View style={styles.messageCard}>
-            <Text style={styles.lumiLabel}>🐑 Lumi diz:</Text>
+            <Text style={styles.lumiLabel}>✨ Beni diz:</Text>
             <Text style={styles.messageText}>{msg.text}</Text>
           </View>
 
@@ -103,7 +104,7 @@ export default function LumiMomentScreen({ navigation }) {
           </View>
 
           {/* Repeat prompt */}
-          <Text style={styles.repeatLabel}>Repita com Lumi:</Text>
+          <Text style={styles.repeatLabel}>Repita com Beni:</Text>
           <View style={styles.repeatCard}>
             <Text style={styles.repeatText}>"{msg.verse}"</Text>
           </View>
@@ -137,6 +138,7 @@ const styles = StyleSheet.create({
   headerNavText: { fontFamily: 'Nunito', fontSize: 14, color: 'rgba(255,255,255,0.9)', fontWeight: '700' },
   headerContent: { alignItems: 'center', width: '100%' },
   headerEmoji: { fontSize: 52, marginBottom: 8 },
+  headerBeni: { marginBottom: 8 },
   headerTitle: { fontFamily: 'FredokaOne', fontSize: 24, color: '#FFF', marginBottom: 6 },
   headerSub: { fontFamily: 'Nunito', fontSize: 13, color: 'rgba(255,255,255,0.8)' },
   headerStar: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFD166' },

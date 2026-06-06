@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
+import { BeniEmptyState } from '../components/beni';
 import { listArts, getArt, deleteArt, ATELIER_FREE_SAVE_LIMIT } from '../services/atelierStorage';
 
 function formatDate(iso) {
@@ -76,45 +77,53 @@ export default function AtelierGalleryScreen({ navigation }) {
 
   return (
     <View style={styles.wrapper}>
+      {/* ── Header ── */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <SoundButton style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+          <Text style={styles.backBtnText}>‹ Voltar</Text>
+        </SoundButton>
+        <View style={styles.headerTitles}>
+          <Text style={styles.headerTitle}>Minhas artes</Text>
+          <Text style={styles.headerSub}>Suas criações ficam guardadas aqui.</Text>
+        </View>
+        <SoundButton
+          style={styles.newArtBtn}
+          onPress={() => navigation.navigate('AtelierCanvas', {})}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.newArtBtnText}>+ Nova</Text>
+        </SoundButton>
+      </View>
+
       <ScrollView
         style={styles.container}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header info */}
-        <View style={styles.infoRow}>
-          <Text style={styles.infoText}>
-            🖼️ {arts.length}/{ATELIER_FREE_SAVE_LIMIT} artes salvas
+        {/* Contador */}
+        <View style={styles.counterRow}>
+          <Text style={styles.counterText}>
+            🖼️ {arts.length} de {ATELIER_FREE_SAVE_LIMIT} artes salvas
           </Text>
-          <SoundButton
-            style={styles.atelierBtn}
-            onPress={() => navigation.navigate('AtelierCanvas', {})}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.atelierBtnText}>✏️ Nova arte</Text>
-          </SoundButton>
+          <View style={styles.counterBar}>
+            <View style={[styles.counterBarFill, { width: `${Math.min(arts.length / ATELIER_FREE_SAVE_LIMIT, 1) * 100}%` }]} />
+          </View>
         </View>
 
         {arts.length === 0 ? (
           /* ── Empty state ── */
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>🎨</Text>
-            <Text style={styles.emptyTitle}>Seu Ateliê ainda está vazio</Text>
-            <Text style={styles.emptyDesc}>
-              Crie seu primeiro desenho para guardar aqui.
-            </Text>
-            <SoundButton
-              style={styles.emptyBtn}
+            <BeniEmptyState
+              title="Seu Ateliê ainda está vazio"
+              message="Crie seu primeiro desenho para guardar aqui."
+              actionLabel="Começar a desenhar"
               onPress={() => navigation.navigate('AtelierCanvas', {})}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.emptyBtnText}>✏️ Começar a desenhar</Text>
-            </SoundButton>
+            />
           </View>
         ) : (
           arts.map(art => (
             <View key={art.id} style={styles.card}>
-              {/* Thumbnail — toque abre viewer */}
+              {/* Thumbnail */}
               <SoundButton
                 style={styles.thumbWrapper}
                 onPress={() => handleViewArt(art)}
@@ -239,45 +248,64 @@ export default function AtelierGalleryScreen({ navigation }) {
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 12 },
+  content: { paddingHorizontal: 16, paddingTop: 8 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { fontFamily: 'Nunito', fontSize: 16, color: colors.textLight },
 
-  infoRow: {
-    backgroundColor: colors.cardBg, borderRadius: 14,
-    paddingHorizontal: 16, paddingVertical: 10, marginBottom: 16,
+  // ── Header ──
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: pt.background,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: pt.border,
+    gap: 10,
+  },
+  backBtn: {
+    paddingVertical: 6, paddingHorizontal: 4, flexShrink: 0,
+  },
+  backBtnText: {
+    fontFamily: 'Nunito', fontSize: 14, color: pt.primary, fontWeight: '700',
+  },
+  headerTitles: { flex: 1 },
+  headerTitle: {
+    fontFamily: 'FredokaOne', fontSize: 18, color: pt.text,
+  },
+  headerSub: {
+    fontFamily: 'Nunito', fontSize: 11, color: pt.textSoft,
+  },
+  newArtBtn: {
+    backgroundColor: pt.gold,
+    borderRadius: radii.pill, paddingHorizontal: 14, paddingVertical: 8,
+    flexShrink: 0,
+    elevation: 2, shadowColor: pt.gold,
+    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.35, shadowRadius: 3,
+  },
+  newArtBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF' },
+
+  // ── Contador ──
+  counterRow: {
+    backgroundColor: colors.cardBg, borderRadius: radii.md,
+    paddingHorizontal: 14, paddingVertical: 10, marginBottom: 14,
     ...shadows.soft,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: 8,
   },
-  infoText: { fontFamily: 'Nunito', fontSize: 13, color: colors.textLight, fontWeight: '700' },
-  atelierBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 14, paddingVertical: 7, paddingHorizontal: 14,
-    elevation: 3, shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 4,
+  counterText: {
+    fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, fontWeight: '700',
   },
-  atelierBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF' },
+  counterBar: {
+    height: 4, backgroundColor: pt.border, borderRadius: 2, overflow: 'hidden',
+  },
+  counterBarFill: {
+    height: '100%', backgroundColor: '#34A853', borderRadius: 2,
+  },
 
   // ── Empty state ──
   emptyContainer: {
-    alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24,
+    paddingVertical: 24,
   },
-  emptyEmoji: { fontSize: 72, marginBottom: 16 },
-  emptyTitle: {
-    fontFamily: 'FredokaOne', fontSize: 22, color: colors.text,
-    textAlign: 'center', marginBottom: 10,
-  },
-  emptyDesc: {
-    fontFamily: 'Nunito', fontSize: 14, color: colors.textLight,
-    textAlign: 'center', lineHeight: 20, marginBottom: 28,
-  },
-  emptyBtn: {
-    backgroundColor: colors.action, borderRadius: 22,
-    paddingVertical: 16, paddingHorizontal: 32,
-    elevation: 4, shadowColor: colors.action,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 6,
-  },
-  emptyBtnText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
 
   // ── Art card ──
   card: {
@@ -345,7 +373,6 @@ const styles = StyleSheet.create({
   viewerDate: {
     fontFamily: 'Nunito', fontSize: 12, color: 'rgba(255,255,255,0.6)',
   },
-
   viewerImageWrap: {
     flex: 1, borderRadius: 16, overflow: 'hidden',
     backgroundColor: '#1A1A1A',
@@ -359,7 +386,6 @@ const styles = StyleSheet.create({
   viewerPlaceholderText: {
     fontFamily: 'Nunito', fontSize: 14, color: 'rgba(255,255,255,0.5)',
   },
-
   viewerActions: {
     flexDirection: 'row', gap: 12, marginTop: 14,
   },

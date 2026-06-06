@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Linking, TextInput, Alert,
+  View, Text, ScrollView, StyleSheet, Linking, TextInput, Alert, Switch,
   useWindowDimensions,
 } from 'react-native';
 import ParentalGate from '../components/ParentalGate';
@@ -9,13 +9,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { FREE_PLAN, PREMIUM_PLAN, PLAN_PRICING } from '../data/planConfig';
 import { getCurrentPlan } from '../services/accessControl';
+import {
+  isCreatorQaModeAllowed,
+  isCreatorQaModeEnabled,
+  setCreatorQaModeEnabled,
+} from '../services/creatorQaMode';
+import productConfig from '../config/productConfig';
 import { useProgressContext } from '../context/ProgressContext';
 import { stories } from '../data/stories';
 import { resetProgress } from '../services/progressResetService';
 import { getStoreReviewUrl } from '../config/storeLinks';
 import SoundButton from '../components/SoundButton';
 
-const SUPPORT_EMAIL = 'contato@pequenostracosdefe.com';
+const SUPPORT_EMAIL = productConfig.supportEmail;
 
 function SectionTitle({ children }) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
@@ -55,6 +61,15 @@ export default function ParentAreaScreen({ navigation }) {
   const [unlockedForSession, setUnlockedForSession] = useState(false);
   const [gateVisible, setGateVisible] = useState(false);
   const [pendingUrl, setPendingUrl] = useState(null);
+
+  // Modo Criador / QA — só existe em ambiente permitido (__DEV__ ou flag de build)
+  const qaAllowed = isCreatorQaModeAllowed();
+  const [qaEnabled, setQaEnabled] = useState(isCreatorQaModeEnabled());
+  async function handleToggleQa(value) {
+    const applied = await setCreatorQaModeEnabled(value);
+    setQaEnabled(applied);
+    refreshProgress(); // re-renderiza telas que dependem de acesso ao voltar
+  }
 
   // Reset de progresso
   const [resetStep, setResetStep] = useState('idle'); // idle | confirm1 | confirm2 | done
@@ -176,12 +191,38 @@ export default function ParentAreaScreen({ navigation }) {
                 </Text>
                 <Text style={styles.planDesc}>
                   {isPremium
-                    ? 'Acesso completo a todas as histórias, Lumi e Ateliê ilimitado.'
+                    ? 'Acesso completo a todas as histórias, Beni e Ateliê ilimitado.'
                     : 'Acesso às histórias gratuitas, quiz e 3 artes no Ateliê.'}
                 </Text>
               </View>
             </View>
           </InfoCard>
+
+          {/* ── Modo Criador / QA (só em ambiente permitido) ── */}
+          {qaAllowed && (
+            <>
+              <SectionTitle>🛠️ Modo Criador</SectionTitle>
+              <InfoCard style={styles.qaCard}>
+                <View style={styles.qaRow}>
+                  <View style={styles.qaText}>
+                    <Text style={styles.qaTitle}>Modo Criador</Text>
+                    <Text style={styles.qaDesc}>
+                      Desbloquear todo o conteúdo neste aparelho para testes.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={qaEnabled}
+                    onValueChange={handleToggleQa}
+                    trackColor={{ false: '#CBD5E1', true: pt.green }}
+                    thumbColor="#FFF"
+                  />
+                </View>
+                <Text style={styles.qaWarning}>
+                  Este modo libera todo o conteúdo apenas neste aparelho para validação do app. Ele não altera o plano dos usuários reais.
+                </Text>
+              </InfoCard>
+            </>
+          )}
 
           {/* ── Incluído gratuitamente ── */}
           <SectionTitle>✨ Incluído gratuitamente</SectionTitle>
@@ -287,7 +328,7 @@ export default function ParentAreaScreen({ navigation }) {
             )}
             <Text style={[styles.bodyText, progressSummary !== null && { marginTop: 12 }]}>
               Cada cena colorida vale <Text style={styles.bold}>1 estrela</Text>. Quiz vale{' '}
-              <Text style={styles.bold}>+1 estrela</Text>, reflexão com Lumi vale{' '}
+              <Text style={styles.bold}>+1 estrela</Text>, reflexão com Beni vale{' '}
               <Text style={styles.bold}>+1 estrela</Text> e Livrinho vale{' '}
               <Text style={styles.bold}>+1 estrela</Text>.
             </Text>
@@ -299,22 +340,19 @@ export default function ParentAreaScreen({ navigation }) {
           {/* ── Segurança e privacidade ── */}
           <SectionTitle>🔒 Segurança e privacidade</SectionTitle>
           <InfoCard>
-            <SecurityPoint text="Sem login ou cadastro — nenhum dado pessoal é solicitado." />
-            <SecurityPoint text="Sem coleta de dados pessoais de crianças." />
-            <SecurityPoint text="Todo o progresso é salvo localmente no dispositivo." />
-            <SecurityPoint text="Sem publicidade ou conteúdo patrocinado." />
-            <SecurityPoint text="Sem chat aberto ou conteúdo gerado por usuários." />
-            <SecurityPoint text="Sem comunicação entre usuários." />
-            <SecurityPoint text="Conteúdo adequado para crianças de 4 a 8 anos." />
-            <SecurityPoint text="Desenvolvido para uso com supervisão dos pais nas primeiras sessões." />
-            <SecurityPoint text="Sem compras ocultas — toda ativação de plano é informada ao responsável." />
+            <SecurityPoint text="Sem login e sem cadastro." />
+            <SecurityPoint text="O progresso fica salvo neste aparelho." />
+            <SecurityPoint text="Sem anúncios." />
+            <SecurityPoint text="Sem chat aberto entre usuários." />
+            <SecurityPoint text="Conteúdo pensado para crianças de 3 a 8 anos, com supervisão de um responsável." />
+            <SecurityPoint text="A ativação de plano é sempre informada ao responsável." />
           </InfoCard>
 
           {/* ── Armazenamento ── */}
           <SectionTitle>💾 Armazenamento</SectionTitle>
           <InfoCard>
             <Text style={styles.bodyText}>
-              O progresso, desenhos e configurações são salvos localmente no dispositivo. Para
+              O progresso, desenhos e configurações ficam salvos localmente neste aparelho. Para
               liberar espaço, é possível limpar os dados do app nas configurações do sistema.
             </Text>
             <Text style={[styles.bodyText, { marginTop: 8 }]}>
@@ -351,7 +389,7 @@ export default function ParentAreaScreen({ navigation }) {
                   <Text style={styles.storyProgressDetail}>
                     {done}/{total} cenas
                     {pss?.quizDone ? ' · Quiz ✓' : ''}
-                    {pss?.reflectionDone ? ' · Lumi ✓' : ''}
+                    {pss?.reflectionDone ? ' · Beni ✓' : ''}
                     {pss?.storyBookOpened ? ' · Livrinho ✓' : ''}
                   </Text>
                 </View>
@@ -376,7 +414,7 @@ export default function ParentAreaScreen({ navigation }) {
               </SoundButton>
             ) : (
               <View style={styles.comingSoonBadge}>
-                <Text style={styles.comingSoonBadgeText}>Em breve — aguardando publicação nas lojas</Text>
+                <Text style={styles.comingSoonBadgeText}>Em breve, aguardando publicação nas lojas</Text>
               </View>
             )}
           </InfoCard>
@@ -445,7 +483,7 @@ export default function ParentAreaScreen({ navigation }) {
                 <Text style={styles.resetWarningTitle}>⚠️ Confirmar reset</Text>
                 <Text style={styles.bodyText}>
                   Isso vai apagar todo o progresso da criança neste aparelho: cenas pintadas,
-                  quiz, reflexão com Lumi e livrinho de todas as histórias.
+                  quiz, reflexão com Beni e livrinho de todas as histórias.
                 </Text>
                 <Text style={[styles.bodyText, { marginTop: 10 }]}>
                   Perfil, nome, desenhos do Ateliê e artes salvas não serão afetados.
@@ -488,14 +526,14 @@ export default function ParentAreaScreen({ navigation }) {
           <SectionTitle>💬 Suporte e feedback</SectionTitle>
           <InfoCard>
             <Text style={styles.bodyText}>
-              Dúvidas, sugestões ou problemas? Entre em contato pelo e-mail abaixo. Respondemos o
+              Dúvidas, sugestões ou problemas? Entre em contato pelo email abaixo. Respondemos o
               mais breve possível.
             </Text>
             <SoundButton
               style={styles.supportBtn}
               onPress={() =>
                 openWithGate(
-                  `mailto:${SUPPORT_EMAIL}?subject=Suporte%20Pequenos%20Tra%C3%A7os%20de%20F%C3%A9`,
+                  `mailto:${SUPPORT_EMAIL}?subject=Suporte%20Beni`,
                 )
               }
               activeOpacity={0.85}
@@ -506,12 +544,12 @@ export default function ParentAreaScreen({ navigation }) {
               style={[styles.supportBtn, { marginTop: 8 }]}
               onPress={() =>
                 openWithGate(
-                  `mailto:${SUPPORT_EMAIL}?subject=Feedback%20Pequenos%20Tra%C3%A7os%20de%20F%C3%A9`,
+                  `mailto:${SUPPORT_EMAIL}?subject=Feedback%20Beni`,
                 )
               }
               activeOpacity={0.85}
             >
-              <Text style={styles.supportBtnText}>Enviar feedback por e-mail</Text>
+              <Text style={styles.supportBtnText}>Enviar feedback por email</Text>
             </SoundButton>
           </InfoCard>
 
@@ -528,7 +566,7 @@ export default function ParentAreaScreen({ navigation }) {
           </InfoCard>
 
           {/* ── Versão ── */}
-          <Text style={styles.versionText}>Pequenos Traços de Fé · v1.0 MVP</Text>
+          <Text style={styles.versionText}>{productConfig.versionLabel}</Text>
 
         </View>
       </ScrollView>
@@ -589,6 +627,24 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#F4B400',
     backgroundColor: '#FFFBF0',
+  },
+  qaCard: {
+    borderWidth: 1.5,
+    borderColor: '#94A3B8',
+    backgroundColor: '#F1F5F9',
+  },
+  qaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  qaText: { flex: 1 },
+  qaTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text },
+  qaDesc: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, marginTop: 2, lineHeight: 18 },
+  qaWarning: {
+    fontFamily: 'Nunito', fontSize: 12, color: pt.muted,
+    marginTop: 10, lineHeight: 17, fontStyle: 'italic',
   },
   comingSoonCard: {
     borderWidth: 1,

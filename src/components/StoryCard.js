@@ -7,9 +7,11 @@ import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { images } from '../assets/images';
 
 /**
- * StoryCard — card de história para uso em listas de biblioteca.
- * Layout vertical com capa 16:9 no topo e info abaixo.
- * Badge de acesso segue accessType da história (free | premium).
+ * StoryCard — card de história estilo pôster infantil.
+ * Capa 16:9 LIMPA no topo (sem texto, sem gradiente, sem overlay pesado) e
+ * área de informações abaixo (título, referência, badge, progresso).
+ * Bloqueio: capa visível + pequeno cadeado no canto; texto "Plano Família"
+ * vai na área de informações, fora da arte.
  */
 export default function StoryCard({ story, onPress, locked = false, progressCount = 0 }) {
   const coverImg = story.imagemCapa ? images[story.imagemCapa] : null;
@@ -29,14 +31,14 @@ export default function StoryCard({ story, onPress, locked = false, progressCoun
 
   return (
     <SoundButton
-      style={[styles.card, locked && styles.lockedCard]}
+      style={styles.card}
       onPress={locked ? null : onPress}
-      activeOpacity={locked ? 1 : 0.82}
+      activeOpacity={locked ? 1 : 0.85}
     >
-      {/* Capa 16:9 */}
-      <View style={[styles.cover, { backgroundColor: themeColor + '22' }]}>
+      {/* Capa 16:9 LIMPA no topo — sem texto, sem gradiente, sem overlay pesado */}
+      <View style={[styles.cover, { backgroundColor: themeColor + '18' }]}>
         {coverImg ? (
-          <Image source={coverImg} style={styles.coverImg} resizeMode="cover" />
+          <Image source={coverImg} style={styles.coverImage} resizeMode="cover" />
         ) : (
           <StoryFallbackCover
             title={story.titulo}
@@ -46,32 +48,30 @@ export default function StoryCard({ story, onPress, locked = false, progressCoun
           />
         )}
 
-        {/* Overlay de bloqueio */}
-        {locked && (
-          <View style={styles.lockedOverlay}>
-            <Text style={styles.lockIcon}>🔒</Text>
-          </View>
-        )}
+        {/* Overlay muito leve só em bloqueio — mantém a capa visível e desejável */}
+        {locked && <View style={styles.lockedTint} pointerEvents="none" />}
 
-        {/* Badge "Concluída" na capa */}
-        {isDone && !locked && (
-          <View style={styles.doneBadge}>
-            <Text style={styles.doneBadgeText}>⭐</Text>
+        {/* Selo pequeno no canto: cadeado (bloqueio) ou estrela (concluída) */}
+        {locked ? (
+          <View style={styles.cornerBadge}>
+            <Text style={styles.cornerBadgeText}>🔒</Text>
           </View>
-        )}
+        ) : isDone ? (
+          <View style={styles.cornerBadge}>
+            <Text style={styles.cornerBadgeText}>⭐</Text>
+          </View>
+        ) : null}
       </View>
 
-      {/* Info */}
+      {/* Área de informações — abaixo da imagem */}
       <View style={styles.info}>
         <Text style={styles.title} numberOfLines={2}>{story.titulo}</Text>
-        <Text style={styles.ref}>{story.referencia}</Text>
+        <Text style={styles.ref} numberOfLines={1}>{story.referencia}</Text>
 
-        {/* Badge dominante */}
         <View style={styles.badgeRow}>
           <StatusBadge type={badgeType} />
         </View>
 
-        {/* Barra de progresso */}
         {inProgress && story.totalCenas > 0 && (
           <View style={styles.progressBar}>
             <View
@@ -95,23 +95,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     borderRadius: radii.lg,
     marginHorizontal: 16,
-    marginBottom: 14,
+    marginBottom: 12,
     overflow: 'hidden',
     ...shadows.card,
   },
-  lockedCard: { opacity: 0.65 },
 
-  // 16:9 cover at top of card
+  // 16:9 cover limpa no topo
   cover: {
     width: '100%',
     aspectRatio: 16 / 9,
-    justifyContent: 'center',
-    alignItems: 'center',
     position: 'relative',
   },
-  coverImg: {
-    ...StyleSheet.absoluteFillObject,
-    resizeMode: 'cover',
+  coverImage: {
+    width: '100%',
+    height: '100%',
   },
   fallbackCover: {
     width: '100%',
@@ -119,26 +116,28 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     borderWidth: 0,
   },
-  lockedOverlay: {
+
+  // Overlay muito leve apenas para bloqueio (dentro do limite permitido)
+  lockedTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.10)',
   },
-  lockIcon: { fontSize: 28 },
-  doneBadge: {
+
+  // Selo pequeno no canto superior direito
+  cornerBadge: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(0,0,0,0.32)',
-    borderRadius: 12,
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  doneBadgeText: { fontSize: 14 },
+  cornerBadgeText: { fontSize: 15 },
 
+  // Área de informações (abaixo da imagem)
   info: {
     padding: 14,
   },
@@ -146,8 +145,8 @@ const styles = StyleSheet.create({
     fontFamily: 'FredokaOne',
     fontSize: 16,
     color: pt.text,
-    marginBottom: 2,
     lineHeight: 22,
+    marginBottom: 2,
   },
   ref: {
     fontFamily: 'Nunito',
@@ -160,13 +159,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 4,
-    marginBottom: 8,
   },
   progressBar: {
     height: 5,
     backgroundColor: pt.border,
     borderRadius: 3,
     overflow: 'hidden',
+    marginTop: 8,
   },
   progressFill: {
     height: '100%',

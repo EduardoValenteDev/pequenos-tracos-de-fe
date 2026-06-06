@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler'; // DEVE ser a primeira importação
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -14,6 +14,8 @@ import {
 import AppNavigator from './src/navigation/AppNavigator';
 import { ProfileProvider } from './src/context/ProfileContext';
 import { ProgressProvider } from './src/context/ProgressContext';
+import { preloadCriticalAssets } from './src/services/assetPreloadService';
+import { loadCreatorQaMode } from './src/services/creatorQaMode';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -21,6 +23,14 @@ export default function App() {
     'Nunito': Nunito_400Regular,
     'Nunito-Bold': Nunito_700Bold,
   });
+
+  // Pré-carrega capas das histórias e Beni em background (não bloqueia a UI).
+  // A SplashScreen (~2,5s) cobre a janela de aquecimento do cache.
+  useEffect(() => {
+    preloadCriticalAssets();
+    // Carrega o estado do Modo Criador/QA (override de permissão local) cedo no boot.
+    loadCreatorQaMode();
+  }, []);
 
   if (!fontsLoaded) {
     return (

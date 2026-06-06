@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, Image, StyleSheet, ActivityIndicator, ScrollView,
-  useWindowDimensions,
+  Animated, useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,8 +11,11 @@ import { colors as pt, radii } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import AudioPlayer from '../components/AudioPlayer';
 import LockedStoryFallback from '../components/premium/LockedStoryFallback';
+import SafeScreenHeader from '../components/layout/SafeScreenHeader';
+import MagicBookEntrance from '../components/story/MagicBookEntrance';
 import { getColoringImage } from '../assets/coloringImages';
 import { getSavedDrawing } from '../services/drawingStorage';
+import { getOfficialSceneIllustration, preloadStorySceneIllustrations } from '../services/storyImageService';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
 import { markStoryBookOpened } from '../services/postStoryStorage';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
@@ -20,20 +23,19 @@ import { useProgressContext } from '../context/ProgressContext';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
 import { images } from '../assets/images';
+import BeniAvatar from '../components/beni/BeniAvatar';
+import { computeBookImageSize } from '../constants/officialImage';
 
 const PROGRESS_KEY = '@ptf_progress';
+const AUTOPLAY_MS = 5000;
 
 /**
  * Parses the raw saved drawing value returned by getSavedDrawing().
  *
  * v1 — raw data URL: 'data:image/png;base64,...'
- * v2 — JSON payload: '{"v":2,"W":390,"H":600,"imgX":3,"imgY":15,...,"data":"data:image/png..."}'
- *
- * The `data` field in v2 is ONLY the transparent paint layer (colors where painted,
- * alpha=0 elsewhere). It does NOT include the cream background or lineart.
+ * v2 — JSON payload: '{"v":2,"W":390,"H":600,"imgX":3,...,"data":"data:image/png..."}'
  *
  * Returns { uri, W, H, imgX, imgY, imgW, imgH } or null on failure.
- * `uri` is always a valid PNG data URL safe for <Image source={{ uri }}/>.
  */
 function parseDrawingPayload(raw) {
   if (!raw) return null;
@@ -54,77 +56,113 @@ function parseDrawingPayload(raw) {
   }
 }
 
-/**
- * Determines how to render a scene's artwork in the Livrinho playback.
- *
- * Priority:
- *   1. paintWithLineart — saved v2 paint + lineart + complete layout metadata.
- *      The lineart is overlaid at EXACT pixel-aligned coordinates from the v2
- *      metadata. mixBlendMode:'multiply' makes the white lineart bg transparent,
- *      leaving only the dark outlines visible on top of the paint colors.
- *      NEVER use this mode without the v2 layout metadata — misaligned layers
- *      create a ghost/double-image effect (the Sprint 5.2 bug).
- *   2. paintOnly — saved paint exists but lineart unavailable or v1 format (no
- *      layout metadata to align). Shows paint on cream background, no overlay.
- *   3. lineartOnly — no paint saved, but lineart exists. Shows the original
- *      line art (uncolored) on cream background.
- *   4. fallback — no paint, no lineart. Shows a colored gradient with the
- *      scene emoji and title.
- */
-function resolveStoryBookVisual(cena, story, drawings) {
-  const rawDrawing = drawings[cena.id] ?? null;
+const EMPTY_LAYOUT = {
+  baseImage: null, officialImage: null,
+  canvasW: null, canvasH: null,
+  lineartImgX: null, lineartImgY: null, lineartImgW: null, lineartImgH: null,
+};
+
+// ── Construtores de visual por tipo (cada slide carrega um destes) ──
+
+// Arte da criança → paintWithLineart (paint v2 + lineart alinhado) ou paintOnly.
+function makeChildArtVisual(cena, story, p) {
   const baseImage = getColoringImage(story.id, cena.id);
   const fallbackColor = cena.corTema || '#A78BFA';
-
-  const noLineart = { baseImage: null, fallbackColor, canvasW: null, canvasH: null, lineartImgX: null, lineartImgY: null, lineartImgW: null, lineartImgH: null };
-  const withLineart = { baseImage, fallbackColor, canvasW: null, canvasH: null, lineartImgX: null, lineartImgY: null, lineartImgW: null, lineartImgH: null };
-
-  if (!rawDrawing) {
-    return baseImage
-      ? { type: 'lineartOnly', paintUri: null, ...withLineart }
-      : { type: 'fallback', paintUri: null, ...noLineart };
-  }
-
-  const p = parseDrawingPayload(rawDrawing);
-  if (!p) {
-    return baseImage
-      ? { type: 'lineartOnly', paintUri: null, ...withLineart }
-      : { type: 'fallback', paintUri: null, ...noLineart };
-  }
-
   const hasLayout = p.W && p.H && p.imgX !== null && p.imgY !== null && p.imgW && p.imgH;
-
   if (hasLayout && baseImage) {
     return {
-      type: 'paintWithLineart',
-      paintUri: p.uri,
-      baseImage,
-      fallbackColor,
+      type: 'paintWithLineart', visualType: 'childArt', seal: 'Sua arte', note: null,
+      paintUri: p.uri, baseImage, officialImage: null, fallbackColor,
       canvasW: p.W, canvasH: p.H,
-      lineartImgX: p.imgX, lineartImgY: p.imgY,
-      lineartImgW: p.imgW, lineartImgH: p.imgH,
+      lineartImgX: p.imgX, lineartImgY: p.imgY, lineartImgW: p.imgW, lineartImgH: p.imgH,
     };
   }
-
   return {
-    type: 'paintOnly',
-    paintUri: p.uri,
-    ...noLineart,
+    type: 'paintOnly', visualType: 'childArt', seal: 'Sua arte', note: null,
+    paintUri: p.uri, fallbackColor, ...EMPTY_LAYOUT,
+  };
+}
+
+// Ilustração oficial da cena.
+function makeOfficialVisual(cena, story, official) {
+  return {
+    type: 'official', visualType: 'official', seal: 'Cena ilustrada', note: null,
+    paintUri: null, fallbackColor: cena.corTema || '#A78BFA', ...EMPTY_LAYOUT,
+    officialImage: official,
+  };
+}
+
+// Fallback elegante (gradiente + emoji + título + frase curta).
+function makeFallbackVisual(cena, story, note) {
+  return {
+    type: 'fallback', visualType: 'fallback', seal: 'Cena especial',
+    note: note || 'Imagem da cena em breve.',
+    paintUri: null, fallbackColor: cena.corTema || '#A78BFA', ...EMPTY_LAYOUT,
   };
 }
 
 /**
- * Computes the absolute {position, left, top, width, height} style for the
- * lineart overlay so it aligns pixel-perfect with the paint layer.
+ * Resolução de UMA imagem por cena (compatibilidade / modos simples).
+ * Prioridade por modo. NUNCA usa arte da criança no modo 'official'.
+ */
+function resolveStoryBookVisual(cena, story, drawings, mode = 'mixed') {
+  const official = getOfficialSceneIllustration(story.id, cena.id);
+  const raw = drawings[cena.id] ?? null;
+  const p = mode !== 'official' && raw ? parseDrawingPayload(raw) : null;
+  if (p) return makeChildArtVisual(cena, story, p);
+  if (official) return makeOfficialVisual(cena, story, official);
+  return makeFallbackVisual(cena, story);
+}
+
+// sceneKey do manifesto de áudio (keyed por 'scene_01'..'scene_10', pela posição da cena)
+function sceneKeyFor(sceneNumber) {
+  return `scene_${String(sceneNumber).padStart(2, '0')}`;
+}
+
+function mkSlide(cena, sceneNumber, visual) {
+  return {
+    key: `${visual.visualType}-${cena.id}`,
+    cenaId: cena.id, sceneKey: sceneKeyFor(sceneNumber),
+    cena, sceneNumber, visual,
+  };
+}
+
+/**
+ * resolveStoryBookPageImage — resolução central de UMA imagem por cena no Livrinho.
  *
- * The paint layer (canvasW × canvasH) is displayed with resizeMode="contain"
- * inside the container (containerW × containerH). We replicate the same
- * contain-scaling transform and apply it to the lineart's canvas coordinates
- * (lineartImgX, lineartImgY, lineartImgW, lineartImgH) to get the exact
- * absolute position in the container.
+ *   'child' (Meu livrinho colorido): arte da criança → senão fallback suave.
+ *     Nunca usa ilustração oficial (não repete a história).
+ *   'mixed' (Livro mágico misto): arte da criança → senão ilustração oficial →
+ *     senão fallback seguro.
  *
- * Returns { position:'absolute', opacity:0 } when dimensions are unknown
- * (first frame before onLayout fires) — hides the lineart harmlessly.
+ * Sempre retorna um visual válido (nunca vazio, nunca require quebrado).
+ */
+function resolveStoryBookPageImage(cena, story, drawings, mode) {
+  const raw = drawings[cena.id] ?? null;
+  const p = raw ? parseDrawingPayload(raw) : null;
+  if (p) return makeChildArtVisual(cena, story, p);                 // 1) arte da criança
+  if (mode === 'mixed') {
+    const official = getOfficialSceneIllustration(story.id, cena.id);
+    if (official) return makeOfficialVisual(cena, story, official); // 2) oficial (só no misto)
+    return makeFallbackVisual(cena, story);                         // 3) fallback seguro
+  }
+  // modo 'child': sem arte salva → fallback suave "ainda não pintou"
+  return makeFallbackVisual(cena, story, 'Você ainda não pintou esta cena.');
+}
+
+/**
+ * Constrói a TIMELINE do Livrinho — 1 slide por cena, conforme o modo.
+ * Dois modos finais: 'child' (só desenhos) e 'mixed' (desenho → oficial → fallback).
+ */
+function buildStoryBookTimeline(story, drawings, mode) {
+  return (story?.cenas ?? []).map((cena, i) =>
+    mkSlide(cena, i + 1, resolveStoryBookPageImage(cena, story, drawings, mode)),
+  );
+}
+
+/**
+ * Computes the absolute style for the lineart overlay so it aligns pixel-perfect
+ * with the paint layer (which is displayed with resizeMode="contain").
  */
 function computeLineartStyle(containerW, containerH, visual) {
   if (!containerW || !containerH || !visual.canvasW || !visual.canvasH) {
@@ -145,11 +183,8 @@ function computeLineartStyle(containerW, containerH, visual) {
 }
 
 /**
- * Returns audio readiness for Livrinho auto-play.
- *
- * canAutoPlay is true ONLY when every scene has a real ready audio file.
- * While canAutoPlay is false the Livrinho works visually but advances manually.
- * Adding audio to all scenes in audioManifest flips canAutoPlay to true.
+ * Audio readiness for Livrinho auto-play. canAutoPlay is true ONLY when every
+ * scene has a real ready audio file. Without audio the Livrinho advances by timer.
  */
 function getStoryBookPlaybackReadiness(story) {
   if (!story?.cenas?.length) {
@@ -157,31 +192,17 @@ function getStoryBookPlaybackReadiness(story) {
   }
   const totalScenes = story.cenas.length;
   const missingAudioSceneIds = story.cenas
-    .filter(c => !hasSceneAudio(story.id, c.id))
+    .filter((c, i) => !hasSceneAudio(story.id, sceneKeyFor(i + 1)))
     .map(c => c.id);
   const scenesWithAudio = totalScenes - missingAudioSceneIds.length;
   const allScenesHaveAudio = missingAudioSceneIds.length === 0;
   return { totalScenes, scenesWithAudio, allScenesHaveAudio, canAutoPlay: allScenesHaveAudio, missingAudioSceneIds };
 }
 
-// State machine:
-//   loading → intro | locked | notCompleted | invalidStory | emptyScenes | error
-//   intro   → playing (index 0)   bookOpened marked here, never before
-//   playing → playing (index+1) | playing (index-1) | intro | ended
-//     isPaused=true: audio paused, scene stays visible, no auto-advance
-//     audioAsset=null (waitingForAudio): AudioPlayer=null, no auto-advance
-//   ended   → playing (index 0)   [Ver de novo]
-//
-// Auto-advance chain (future with real audio):
-//   AudioPlayer.onFinished → onSceneAudioComplete → advanceToNextScene
-//   Fires only when expo-audio emits didJustFinish on a real audio asset.
-//   Without audio: AudioPlayer returns null → onSceneAudioComplete never fires.
-//   With audio: every scene advances automatically when its narration ends.
-
 export default function StoryBookScreen({ route, navigation }) {
   const { story } = route.params ?? {};
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height: screenH } = useWindowDimensions();
   const isTablet = width >= 768;
 
   const { refreshProgress, progressByStory, postStoryStatusByStory } = useProgressContext();
@@ -190,15 +211,30 @@ export default function StoryBookScreen({ route, navigation }) {
     useAchievementCelebration({ progressByStory, postStoryStatusByStory, source: 'StoryBookScreen' });
 
   const [screenState, setScreenState] = useState('loading');
-  const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [drawings, setDrawings] = useState({});
   const [isPaused, setIsPaused] = useState(false);
   const [imgContainerSize, setImgContainerSize] = useState({ w: 0, h: 0 });
+  const [viewMode, setViewMode] = useState('mixed'); // 'official' | 'child' | 'mixed'
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [entering, setEntering] = useState(false); // transição mágica de abertura
   const markedRef = useRef(false);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const lockRef = useRef(false);   // trava de toques rápidos (anti avanço duplo)
+  const lockTimerRef = useRef(null);
+
+  // Timeline derivada (memoizada) — só recalcula ao trocar história, artes ou modo.
+  const timeline = useMemo(
+    () => buildStoryBookTimeline(story, drawings, viewMode),
+    [story?.id, drawings, viewMode],
+  );
+  const totalSlides = timeline.length;
 
   useEffect(() => {
     let cancelled = false;
-
+    // Carregamento antecipado APENAS da história aberta (sem preload global).
+    // No-op hoje (manifesto vazio); reduz piscadas quando as artes IA entrarem.
+    if (story?.id) preloadStorySceneIllustrations(story.id);
     async function init() {
       try {
         if (!story?.id || !Array.isArray(story.cenas)) {
@@ -234,13 +270,43 @@ export default function StoryBookScreen({ route, navigation }) {
         if (!cancelled) setScreenState('error');
       }
     }
-
     init();
     return () => { cancelled = true; };
   }, [story?.id]);
 
-  // bookOpened is marked only here — when the child actually taps "Iniciar Livrinho".
-  // Never on data load, never if locked, never if not completed.
+  // Fade-in do slide atual. SEMPRE termina em 1 (defesa contra imagem "presa
+  // quase branca"): cada troca de slide/modo reinicia a opacidade e anima até 1.
+  useEffect(() => {
+    if (screenState !== 'playing') return undefined;
+    // Opacidade inicial alta (0.85) — fade suave sem parecer imagem branca/apagada.
+    fadeAnim.setValue(0.85);
+    const anim = Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [currentSlideIndex, viewMode, screenState]);
+
+  // Limpeza de timers ao desmontar.
+  useEffect(() => () => {
+    if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+  }, []);
+
+  // Auto-avanço por TIMER quando a cena do slide não tem áudio. Um único timer
+  // por vez (efeito único, limpo a cada troca). Com áudio, o AudioPlayer avança.
+  useEffect(() => {
+    if (screenState !== 'playing' || isPaused) return undefined;
+    const slide = timeline[currentSlideIndex];
+    if (!slide) return undefined;
+    if (hasSceneAudio(story.id, slide.sceneKey)) return undefined;
+    const timer = setTimeout(() => { advanceToNextScene(); }, AUTOPLAY_MS);
+    return () => clearTimeout(timer);
+  }, [screenState, currentSlideIndex, isPaused, viewMode]);
+
+  // Entrada mágica: toca o botão → transição curta → leitura.
+  function handleEnterLivrinho() {
+    setEntering(true);
+  }
+
+  // bookOpened marcado só aqui — quando a criança "abre" o livrinho.
   function handleStartLivrinho() {
     if (!markedRef.current) {
       markedRef.current = true;
@@ -248,49 +314,89 @@ export default function StoryBookScreen({ route, navigation }) {
       refreshProgress();
       setTimeout(() => { checkForNewAchievements(); }, 1000);
     }
-    setCurrentSceneIndex(0);
+    setEntering(false);
+    fadeAnim.setValue(1);
+    setCurrentSlideIndex(0);
     setIsPaused(false);
     setScreenState('playing');
   }
 
-  // Core advance logic. Called by both the audio callback and the manual ▶▶ button.
+  // Trava de toques rápidos: ignora próximo/anterior/play enquanto transiciona;
+  // o setTimeout SEMPRE libera a trava e força opacidade 1 (à prova de toque rápido).
+  function beginLock() {
+    lockRef.current = true;
+    setIsTransitioning(true);
+    if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+    lockTimerRef.current = setTimeout(() => {
+      lockRef.current = false;
+      setIsTransitioning(false);
+      fadeAnim.setValue(1); // garante que nada fique preso em baixa opacidade
+    }, 260);
+  }
+
   function advanceToNextScene() {
-    if (currentSceneIndex >= story.cenas.length - 1) {
+    if (lockRef.current) return;
+    if (currentSlideIndex >= totalSlides - 1) {
       setScreenState('ended');
     } else {
-      setCurrentSceneIndex(i => i + 1);
+      beginLock();
+      setCurrentSlideIndex(i => i + 1);
       setIsPaused(false);
     }
   }
 
-  // Called by AudioPlayer when real narration finishes (expo-audio didJustFinish).
-  // AudioPlayer returns null when audioAsset is null → this never fires without real audio.
   function onSceneAudioComplete() {
     advanceToNextScene();
   }
 
-  // ▶▶ manual auxiliary control — same advance logic as the audio callback.
-  function handleSceneEnd() {
-    advanceToNextScene();
-  }
-
   function handlePrevScene() {
-    if (currentSceneIndex === 0) {
+    if (lockRef.current) return;
+    if (currentSlideIndex === 0) {
       setScreenState('intro');
     } else {
-      setCurrentSceneIndex(i => i - 1);
+      beginLock();
+      setCurrentSlideIndex(i => i - 1);
       setIsPaused(false);
     }
   }
 
+  function handleNextScene() {
+    advanceToNextScene();
+  }
+
+  // "Ver de novo" — reinicia o livrinho no modo atual, do primeiro slide.
   function handleReplay() {
-    setCurrentSceneIndex(0);
+    if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+    lockRef.current = false;
+    setIsTransitioning(false);
+    fadeAnim.setValue(1);
+    setCurrentSlideIndex(0);
     setIsPaused(false);
-    setScreenState('playing');
+    setScreenState('playing'); // sai de 'ended' (finished → false)
+  }
+
+  // "Escolher outro modo" — volta para a tela de seleção SEM sair do StoryBookScreen.
+  function handleChooseMode() {
+    if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+    lockRef.current = false;
+    setIsTransitioning(false);
+    fadeAnim.setValue(1);
+    setCurrentSlideIndex(0);
+    setIsPaused(false);
+    setScreenState('intro'); // mostra de novo os 3 modos (finished → false)
   }
 
   function handleTogglePause() {
+    if (lockRef.current) return;
     setIsPaused(p => !p);
+  }
+
+  // Trocar de modo: pausa, reseta a timeline para o começo e opacidade em 1.
+  function handleSelectMode(id) {
+    setViewMode(id);
+    setCurrentSlideIndex(0);
+    setIsPaused(false);
+    fadeAnim.setValue(1);
   }
 
   const handleImageAreaLayout = useCallback((e) => {
@@ -298,7 +404,7 @@ export default function StoryBookScreen({ route, navigation }) {
     setImgContainerSize({ w, h });
   }, []);
 
-  // ── loading ────────────────────────────────────────────────────────────────
+  // ── loading ──
   if (screenState === 'loading') {
     return (
       <View style={styles.centerState}>
@@ -308,7 +414,7 @@ export default function StoryBookScreen({ route, navigation }) {
     );
   }
 
-  // ── locked ─────────────────────────────────────────────────────────────────
+  // ── locked ──
   if (screenState === 'locked') {
     return (
       <LockedStoryFallback
@@ -320,7 +426,7 @@ export default function StoryBookScreen({ route, navigation }) {
     );
   }
 
-  // ── invalidStory ───────────────────────────────────────────────────────────
+  // ── invalidStory ──
   if (screenState === 'invalidStory') {
     return (
       <View style={styles.centerState}>
@@ -333,7 +439,7 @@ export default function StoryBookScreen({ route, navigation }) {
     );
   }
 
-  // ── emptyScenes ────────────────────────────────────────────────────────────
+  // ── emptyScenes ──
   if (screenState === 'emptyScenes') {
     return (
       <View style={styles.centerState}>
@@ -346,7 +452,7 @@ export default function StoryBookScreen({ route, navigation }) {
     );
   }
 
-  // ── notCompleted ───────────────────────────────────────────────────────────
+  // ── notCompleted ──
   if (screenState === 'notCompleted') {
     return (
       <View style={styles.centerState}>
@@ -362,7 +468,7 @@ export default function StoryBookScreen({ route, navigation }) {
     );
   }
 
-  // ── error ──────────────────────────────────────────────────────────────────
+  // ── error ──
   if (screenState === 'error') {
     return (
       <View style={styles.centerState}>
@@ -375,7 +481,7 @@ export default function StoryBookScreen({ route, navigation }) {
     );
   }
 
-  // ── Shared gradient header (quiz-style) — used in intro and ended ──────────
+  // ── Shared gradient header (intro + ended) ──
   function renderHeader(emoji, title, subtitle) {
     return (
       <LinearGradient
@@ -399,9 +505,11 @@ export default function StoryBookScreen({ route, navigation }) {
     );
   }
 
-  // ── intro ──────────────────────────────────────────────────────────────────
+  // ── intro ──
   if (screenState === 'intro') {
     const hasCover = story.imagemCapa && images[story.imagemCapa];
+    const totalScenes = story.cenas.length;
+    const childArtCount = story.cenas.filter(c => !!parseDrawingPayload(drawings[c.id])).length;
     return (
       <View style={styles.wrapper}>
         {renderHeader('📖', 'Livrinho da Fé', story.titulo)}
@@ -417,11 +525,7 @@ export default function StoryBookScreen({ route, navigation }) {
         >
           <View style={styles.introCoverCard}>
             {hasCover ? (
-              <Image
-                source={images[story.imagemCapa]}
-                style={styles.introCoverImage}
-                resizeMode="contain"
-              />
+              <Image source={images[story.imagemCapa]} style={styles.introCoverImage} resizeMode="contain" />
             ) : (
               <View style={styles.introCoverFallback}>
                 <Text style={styles.introCoverEmoji}>{story.emoji ?? '📖'}</Text>
@@ -433,121 +537,230 @@ export default function StoryBookScreen({ route, navigation }) {
             Reveja cada cena da aventura que você completou.
           </Text>
 
-          <Text style={styles.introSceneCount}>
-            {story.cenas.length} {story.cenas.length === 1 ? 'cena' : 'cenas'}
+          <View style={styles.beniReaderRow}>
+            <BeniAvatar variant="reading" size="small" />
+            <Text style={styles.beniReaderText}>
+              Beni vai recontar sua aventura com as imagens da história e suas artes.
+            </Text>
+          </View>
+
+          {/* Resumo: cenas · suas artes (o Livrinho é feito com os desenhos da criança) */}
+          <View style={styles.introStatsRow}>
+            <View style={styles.introStat}>
+              <Text style={styles.introStatNum}>{totalScenes}</Text>
+              <Text style={styles.introStatLabel}>{totalScenes === 1 ? 'cena' : 'cenas'}</Text>
+            </View>
+            <View style={styles.introStat}>
+              <Text style={styles.introStatNum}>{childArtCount}</Text>
+              <Text style={styles.introStatLabel}>{childArtCount === 1 ? 'sua arte' : 'suas artes'}</Text>
+            </View>
+          </View>
+
+          {childArtCount === 0 ? (
+            /* ── Sem desenhos: o Livrinho é recompensa de criação ── */
+            <View style={styles.bookEmptyState}>
+              <Text style={styles.bookEmptyEmoji}>🎨</Text>
+              <Text style={styles.bookEmptyTitle}>Pinte uma cena para criar seu livrinho!</Text>
+              <Text style={styles.bookEmptySub}>
+                Seu livrinho é feito com os desenhos que você colorir nesta aventura.
+              </Text>
+              <SoundButton style={styles.endedBackBtn} onPress={() => navigation.goBack()} activeOpacity={0.85}>
+                <Text style={styles.endedBackBtnText}>← Voltar para a aventura</Text>
+              </SoundButton>
+            </View>
+          ) : (
+            <>
+              <View style={styles.introArtHighlight}>
+                <Text style={styles.introArtHighlightText}>
+                  ✨ Você colocou sua arte neste livrinho.
+                </Text>
+              </View>
+
+              {/* ── Escolha de modo (apenas 2: misto e colorido) ── */}
+              <Text style={styles.modeTitle}>Como você quer ver?</Text>
+              <View style={styles.modeList}>
+                {[
+                  { id: 'mixed', emoji: '📖', title: 'Livro mágico misto', sub: 'Seus desenhos e, onde faltar, a imagem da cena.' },
+                  { id: 'child', emoji: '🎨', title: 'Meu livrinho colorido', sub: 'Só os desenhos que você coloriu.' },
+                ].map(opt => {
+                  const active = viewMode === opt.id;
+                  return (
+                    <SoundButton
+                      key={opt.id}
+                      style={[styles.modeCard, active && styles.modeCardActive]}
+                      onPress={() => handleSelectMode(opt.id)}
+                      activeOpacity={0.85}
+                      accessibilityLabel={opt.title}
+                    >
+                      <Text style={styles.modeEmoji}>{opt.emoji}</Text>
+                      <View style={styles.modeTextWrap}>
+                        <Text style={[styles.modeCardTitle, active && styles.modeCardTitleActive]}>{opt.title}</Text>
+                        <Text style={styles.modeCardSub}>{opt.sub}</Text>
+                      </View>
+                      <View style={[styles.modeRadio, active && styles.modeRadioActive]}>
+                        {active && <Text style={styles.modeRadioDot}>✓</Text>}
+                      </View>
+                    </SoundButton>
+                  );
+                })}
+              </View>
+
+              <SoundButton style={styles.startBtn} onPress={handleEnterLivrinho} activeOpacity={0.85}>
+                <Text style={styles.startBtnText}>
+                  {viewMode === 'child' ? '▶  Abrir meu livrinho colorido' : '▶  Abrir livro mágico misto'}
+                </Text>
+              </SoundButton>
+            </>
+          )}
+        </ScrollView>
+
+        {/* Entrada mágica do Livrinho (overlay curto antes da leitura) */}
+        {entering && (
+          <MagicBookEntrance
+            cover={hasCover ? images[story.imagemCapa] : null}
+            emoji={story.emoji ?? '📖'}
+            onDone={handleStartLivrinho}
+          />
+        )}
+      </View>
+    );
+  }
+
+  // ── ended ──
+  if (screenState === 'ended') {
+    return (
+      <View style={styles.wrapper}>
+        {renderHeader('📖', 'Livrinho da Fé', story.titulo)}
+        <ScrollView
+          contentContainerStyle={[styles.endedBody, { paddingBottom: Math.max(insets.bottom + 24, 40) }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.endedIconCircle}>
+            <Text style={styles.endedIcon}>🙏</Text>
+          </View>
+          <Text style={styles.endedTitle}>Seu Livrinho da Fé ficou pronto!</Text>
+          <Text style={styles.endedSub}>
+            Você pode rever, escolher outro jeito de ver ou voltar para a aventura.
           </Text>
 
-          <SoundButton style={styles.startBtn} onPress={handleStartLivrinho} activeOpacity={0.85}>
-            <Text style={styles.startBtnText}>▶  Iniciar Livrinho</Text>
+          <SoundButton style={styles.endedReplayBtn} onPress={handleReplay} activeOpacity={0.85}>
+            <Text style={styles.endedReplayBtnText}>↩  Ver de novo</Text>
+          </SoundButton>
+
+          <SoundButton style={styles.endedModeBtn} onPress={handleChooseMode} activeOpacity={0.85}>
+            <Text style={styles.endedModeBtnText}>📖  Escolher outro modo</Text>
+          </SoundButton>
+
+          <SoundButton style={styles.endedBackBtn} onPress={() => navigation.goBack()} activeOpacity={0.85}>
+            <Text style={styles.endedBackBtnText}>← Voltar para a aventura</Text>
           </SoundButton>
         </ScrollView>
       </View>
     );
   }
 
-  // ── ended ──────────────────────────────────────────────────────────────────
-  if (screenState === 'ended') {
-    return (
-      <View style={styles.wrapper}>
-        {renderHeader('🙏', 'Seu Livrinho da Fé ficou pronto!', story.titulo)}
+  // ── playing ──
+  const safeIndex = Math.min(currentSlideIndex, Math.max(0, totalSlides - 1));
+  const slide = timeline[safeIndex] ?? timeline[0];
+  const visual = slide.visual;
+  const cena = slide.cena;
+  const totalScenes = story.cenas.length;
+  const progressPct = totalSlides > 0 ? Math.round(((safeIndex + 1) / totalSlides) * 100) : 0;
 
-        <View style={[styles.endedBody, { paddingBottom: Math.max(insets.bottom + 24, 40) }]}>
-          <SoundButton style={styles.endedReplayBtn} onPress={handleReplay} activeOpacity={0.85}>
-            <Text style={styles.endedReplayBtnText}>↩  Ver de novo</Text>
-          </SoundButton>
-          <SoundButton style={styles.endedBackBtn} onPress={() => navigation.goBack()} activeOpacity={0.85}>
-            <Text style={styles.endedBackBtnText}>← Voltar para a aventura</Text>
-          </SoundButton>
-        </View>
-      </View>
-    );
-  }
-
-  // ── playing ────────────────────────────────────────────────────────────────
-  const cena = story.cenas[currentSceneIndex];
-  const visual = resolveStoryBookVisual(cena, story, drawings);
-
-  const audioAsset = hasSceneAudio(story.id, cena.id)
-    ? (getSceneAudio(story.id, cena.id)?.audioAsset ?? null)
+  const audioAsset = hasSceneAudio(story.id, slide.sceneKey)
+    ? (getSceneAudio(story.id, slide.sceneKey)?.audioAsset ?? null)
     : null;
 
-  // Compute lineart absolute position only when container size is known.
-  // computeLineartStyle replicates the resizeMode="contain" scale of the paint
-  // layer and positions the lineart at the exact matching coordinates.
   const lineartAbsStyle = visual.type === 'paintWithLineart' && imgContainerSize.w > 0
     ? computeLineartStyle(imgContainerSize.w, imgContainerSize.h, visual)
     : null;
 
+  // key estável por slide (mode + sceneId + visualType + índice) → Image remonta
+  // limpo a cada troca, evitando base64 "preso" da cena anterior.
+  const slideKey = `${viewMode}-${slide.key}-${safeIndex}`;
+
+  // Tamanho 4:5 responsivo do Livrinho (maior/protagonista, sem ocupar a tela toda)
+  const bookSize = computeBookImageSize(width, screenH);
+  // Arte da criança é PNG com transparência: precisa de fundo CLARO (senão fica preta)
+  const isUserArt = visual.type === 'paintWithLineart' || visual.type === 'paintOnly';
+
   return (
-    <View style={styles.playingWrapper}>
+    <View style={styles.bookPlayerRoot}>
 
-      {/* ── Playing top bar — exits livrinho or goes home ── */}
-      <View style={[styles.playingTopBar, { paddingTop: Math.max(insets.top, 8) }]}>
-        <SoundButton style={styles.playingNavBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-          <Text style={styles.playingNavBtnText}>← Voltar</Text>
-        </SoundButton>
-        <Text style={styles.playingTopTitle} numberOfLines={1}>📖 {story.titulo}</Text>
-        <SoundButton style={styles.playingNavBtn} onPress={() => navigation.navigate('Home')} activeOpacity={0.8}>
-          <Text style={styles.playingNavBtnText}>🏠</Text>
-        </SoundButton>
-      </View>
+      {/* ── Header escuro seguro ── */}
+      <SafeScreenHeader
+        title={story.titulo}
+        onBack={() => navigation.goBack()}
+        showHome
+        onHome={() => navigation.navigate('Home')}
+        backgroundColor="rgba(0,0,0,0.85)"
+        variant="dark"
+      />
 
-      {/* ── Scene image area ─────────────────────────────────────────────────
-          onLayout fires once (and on rotation) so imgContainerSize is always
-          current. The paint layer fills this area with resizeMode="contain".
-          The lineart is positioned using absolute coordinates computed from
-          the v2 payload metadata so both layers align perfectly.            ── */}
-      <View style={styles.playingImageArea} onLayout={handleImageAreaLayout}>
-
-        {visual.type === 'paintWithLineart' ? (
-          <>
-            {/* Paint layer: transparent PNG with child's colors, cream bg behind it */}
-            <Image
-              source={{ uri: visual.paintUri }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="contain"
-            />
-            {/* Lineart: absolute-positioned to match the paint canvas coordinate space.
-                mixBlendMode:'multiply' keeps dark outlines visible while making the
-                white lineart background transparent over the paint colors.           */}
-            {lineartAbsStyle && (
-              <Image
-                source={visual.baseImage}
-                style={[lineartAbsStyle, styles.lineartMultiply]}
-                resizeMode="stretch"
-              />
-            )}
-          </>
-        ) : visual.type === 'paintOnly' ? (
-          // v1 format or no lineart: paint on cream background, no overlay attempt
-          <Image
-            source={{ uri: visual.paintUri }}
-            style={StyleSheet.absoluteFill}
-            resizeMode="contain"
-          />
-        ) : visual.type === 'lineartOnly' ? (
-          <Image
-            source={visual.baseImage}
-            style={StyleSheet.absoluteFill}
-            resizeMode="contain"
-          />
-        ) : (
-          // Fallback: gradient + scene emoji + title
-          <LinearGradient
-            colors={[visual.fallbackColor, visual.fallbackColor + '99']}
-            style={StyleSheet.absoluteFill}
+      {/* ── Imagem 4:5 responsiva, em moldura de tamanho FIXO (nasce encaixada) ── */}
+      <View style={styles.bookImageSection}>
+        <Animated.View key={slideKey} style={[styles.bookSlideWrap, { opacity: fadeAnim }]}>
+          <View
+            style={[
+              styles.bookArtFrame,
+              { width: bookSize.width, height: bookSize.height,
+                backgroundColor: isUserArt ? '#FFFDF8' : '#0B0B0B' },
+            ]}
+            onLayout={handleImageAreaLayout}
           >
-            <View style={styles.fallbackCenter}>
-              <Text style={styles.fallbackEmoji}>{cena.emojiCena ?? '🎨'}</Text>
-              <Text style={styles.fallbackTitle}>{cena.titulo}</Text>
-            </View>
-          </LinearGradient>
-        )}
+            {visual.type === 'paintWithLineart' ? (
+              <>
+                <Image
+                  source={{ uri: visual.paintUri }}
+                  style={styles.bookFullImage}
+                  resizeMode="contain"
+                  onLoadEnd={() => fadeAnim.setValue(1)}
+                />
+                {lineartAbsStyle && (
+                  <Image
+                    source={visual.baseImage}
+                    style={[lineartAbsStyle, styles.lineartMultiply]}
+                    resizeMode="stretch"
+                  />
+                )}
+              </>
+            ) : visual.type === 'paintOnly' ? (
+              <Image
+                source={{ uri: visual.paintUri }}
+                style={styles.bookFullImage}
+                resizeMode="contain"
+                onLoadEnd={() => fadeAnim.setValue(1)}
+              />
+            ) : visual.type === 'official' ? (
+              // Oficial na moldura fixa 4:5 + contain (width/height 100%) → nasce encaixada, sem zoom
+              <Image
+                source={visual.officialImage}
+                style={styles.bookFullImage}
+                resizeMode="contain"
+                onLoadEnd={() => fadeAnim.setValue(1)}
+              />
+            ) : (
+              <LinearGradient
+                colors={[visual.fallbackColor, visual.fallbackColor + '99']}
+                style={StyleSheet.absoluteFill}
+              >
+                <View style={styles.fallbackCenter}>
+                  <Text style={styles.fallbackEmoji}>{cena.emojiCena ?? '🎨'}</Text>
+                  <Text style={styles.fallbackTitle}>{cena.titulo}</Text>
+                  <Text style={styles.fallbackSub}>{visual.note}</Text>
+                </View>
+              </LinearGradient>
+            )}
 
+            <View style={styles.sealPill} pointerEvents="none">
+              <Text style={styles.sealPillText}>{visual.seal}</Text>
+            </View>
+          </View>
+        </Animated.View>
       </View>
 
-      {/* ── Bottom panel: scene info + audio + scene controls ── */}
-      <View style={[styles.playingBottomPanel, { paddingBottom: Math.max(insets.bottom + 8, 16) }]}>
+      {/* ── Painel inferior separado (título, progresso, controles) ── */}
+      <View style={[styles.bookBottomPanel, { paddingBottom: Math.max(insets.bottom + 20, 32) }]}>
 
         <View style={styles.sceneInfoRow}>
           <Text style={styles.sceneInfoEmoji}>{cena.emojiCena ?? '✨'}</Text>
@@ -559,34 +772,43 @@ export default function StoryBookScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* AudioPlayer renders null when audioAsset is null — no fake player shown.
-            key={cena.id} resets all player state when the scene changes.
-            onFinished fires only from real expo-audio didJustFinish → onSceneAudioComplete.
-            paused syncs StoryBookScreen's play/pause state into the player. */}
-        <AudioPlayer
-          key={cena.id}
-          audioAsset={audioAsset}
-          onFinished={onSceneAudioComplete}
-          paused={isPaused}
-        />
-
-        {/* Scene controls — play/pause is the primary control (largest, centered).
-            ◀ and ▶▶ are auxiliary: small and dim, not the main CTA. */}
-        <View style={styles.controlsRow}>
-          <SoundButton style={styles.ctrlBtnAux} onPress={handlePrevScene} activeOpacity={0.8}>
-            <Text style={styles.ctrlBtnText}>◀</Text>
-          </SoundButton>
-
-          <SoundButton style={styles.ctrlBtnPlay} onPress={handleTogglePause} activeOpacity={0.8}>
-            <Text style={styles.ctrlBtnPlayText}>{isPaused ? '▶' : '⏸'}</Text>
-          </SoundButton>
-
-          <View style={styles.counterBox}>
-            <Text style={styles.counterText}>{currentSceneIndex + 1} / {story.cenas.length}</Text>
+        {/* ── Área de áudio: card dominante (com áudio) OU controle de tempo (sem áudio) ── */}
+        {audioAsset ? (
+          <AudioPlayer
+            key={slideKey}
+            audioAsset={audioAsset}
+            onFinished={onSceneAudioComplete}
+            paused={isPaused}
+          />
+        ) : (
+          <View style={styles.noAudioCard}>
+            <SoundButton
+              style={styles.noAudioBtn}
+              onPress={handleTogglePause}
+              activeOpacity={0.85}
+              accessibilityLabel={isPaused ? 'Continuar livrinho' : 'Pausar livrinho'}
+            >
+              <Text style={styles.noAudioBtnText}>{isPaused ? '▶' : '❚❚'}</Text>
+            </SoundButton>
+            <Text style={styles.noAudioLabel}>
+              {isPaused ? 'Em pausa. Toque para continuar.' : 'Virando as páginas com você…'}
+            </Text>
           </View>
+        )}
 
-          <SoundButton style={styles.ctrlBtnAux} onPress={handleSceneEnd} activeOpacity={0.8}>
-            <Text style={styles.ctrlBtnText}>▶▶</Text>
+        {/* ── Navegação de páginas — secundária (setas pequenas + contador + barra fina) ── */}
+        <View style={styles.pageNavRow}>
+          <SoundButton style={styles.pageArrow} onPress={handlePrevScene} activeOpacity={0.8} accessibilityLabel="Página anterior">
+            <Text style={styles.pageArrowText}>‹</Text>
+          </SoundButton>
+          <View style={styles.pageCenter}>
+            <Text style={styles.pageCounter}>Página {slide.sceneNumber} de {totalScenes}</Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
+            </View>
+          </View>
+          <SoundButton style={styles.pageArrow} onPress={handleNextScene} activeOpacity={0.8} accessibilityLabel="Próxima página">
+            <Text style={styles.pageArrowText}>›</Text>
           </SoundButton>
         </View>
 
@@ -603,7 +825,7 @@ export default function StoryBookScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  // ── Shared center states ──────────────────────────────────────────────────
+  // ── Shared center states ──
   centerState: {
     flex: 1, justifyContent: 'center', alignItems: 'center',
     padding: 32, backgroundColor: pt.background,
@@ -626,11 +848,10 @@ const styles = StyleSheet.create({
   },
   stateBtnText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFF' },
 
-  // ── Wrapper (intro + ended) ───────────────────────────────────────────────
+  // ── Wrapper (intro + ended) ──
   wrapper: { flex: 1, backgroundColor: pt.background },
 
-  // ── Quiz-style gradient header (intro + ended) ────────────────────────────
-  // Matches QuizScreen/ReflectionScreen visual: LinearGradient + nav row + content
+  // ── Header (intro + ended) ──
   header: { paddingHorizontal: 20, paddingBottom: 20 },
   headerNav: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -650,33 +871,96 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito', fontSize: 13, color: 'rgba(255,255,255,0.8)',
   },
 
-  // ── Intro ─────────────────────────────────────────────────────────────────
+  // ── Intro ──
   introScroll: { flex: 1 },
-  introScrollContent: {
-    alignItems: 'center', paddingHorizontal: 24, paddingTop: 24,
-  },
+  introScrollContent: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 24 },
   introScrollContentTablet: { paddingHorizontal: 64 },
-
   introCoverCard: {
     width: '100%', aspectRatio: 16 / 9,
     borderRadius: 16, overflow: 'hidden',
-    backgroundColor: '#E8E0D8',
-    marginBottom: 20,
+    backgroundColor: '#E8E0D8', marginBottom: 20,
     elevation: 3, shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 8,
   },
   introCoverImage: { width: '100%', height: '100%' },
   introCoverFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   introCoverEmoji: { fontSize: 80 },
-
   introDesc: {
     fontFamily: 'Nunito', fontSize: 15, color: pt.textSoft,
-    textAlign: 'center', lineHeight: 22, marginBottom: 6,
+    textAlign: 'center', lineHeight: 22, marginBottom: 12,
   },
-  introSceneCount: {
-    fontFamily: 'Nunito', fontSize: 13, color: pt.muted,
-    textAlign: 'center', marginBottom: 24,
+  beniReaderRow: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 10, marginBottom: 12,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+    borderWidth: 1, borderColor: 'rgba(108,158,255,0.25)',
   },
+  beniReaderText: {
+    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, fontWeight: '700', flex: 1,
+  },
+  introStatsRow: {
+    flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 16,
+  },
+  introStat: {
+    minWidth: 86, alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 16, paddingVertical: 10, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.18)',
+  },
+  introStatNum: { fontFamily: 'FredokaOne', fontSize: 22, color: colors.primary },
+  introStatLabel: {
+    fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, fontWeight: '700',
+    textAlign: 'center', marginTop: 2,
+  },
+  introArtHighlight: {
+    backgroundColor: '#FFF6E0', borderRadius: 16,
+    paddingVertical: 10, paddingHorizontal: 16, marginBottom: 22,
+    borderWidth: 1, borderColor: '#FFE0A3',
+  },
+  // Estado vazio: sem desenhos salvos (o Livrinho é recompensa de criação)
+  bookEmptyState: {
+    alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, width: '100%',
+  },
+  bookEmptyEmoji: { fontSize: 56, marginBottom: 12 },
+  bookEmptyTitle: {
+    fontFamily: 'FredokaOne', fontSize: 19, color: pt.text,
+    textAlign: 'center', marginBottom: 8,
+  },
+  bookEmptySub: {
+    fontFamily: 'Nunito', fontSize: 14, color: pt.textSoft,
+    textAlign: 'center', lineHeight: 21, marginBottom: 22,
+  },
+  introArtHighlightText: {
+    fontFamily: 'Nunito', fontSize: 14, color: '#8A6D00', fontWeight: '700', textAlign: 'center',
+  },
+
+  // ── Escolha de modo ──
+  modeTitle: {
+    fontFamily: 'FredokaOne', fontSize: 17, color: pt.text,
+    alignSelf: 'flex-start', marginBottom: 10,
+  },
+  modeList: { width: '100%', gap: 10, marginBottom: 22 },
+  modeCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#FFF', borderRadius: 18,
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderWidth: 2, borderColor: pt.border,
+  },
+  modeCardActive: { borderColor: colors.primary, backgroundColor: '#F6F1FF' },
+  modeEmoji: { fontSize: 30 },
+  modeTextWrap: { flex: 1 },
+  modeCardTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 1 },
+  modeCardTitleActive: { color: colors.primary },
+  modeCardSub: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 16 },
+  modeRadio: {
+    width: 24, height: 24, borderRadius: 12,
+    borderWidth: 2, borderColor: pt.border,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modeRadioActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  modeRadioDot: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF' },
+
   startBtn: {
     backgroundColor: colors.action, borderRadius: radii.pill,
     paddingVertical: 18, paddingHorizontal: 40,
@@ -686,33 +970,61 @@ const styles = StyleSheet.create({
   },
   startBtnText: { fontFamily: 'FredokaOne', fontSize: 20, color: '#FFF' },
 
-  // ── Ended ─────────────────────────────────────────────────────────────────
+  // ── Ended ──
   endedBody: {
-    flex: 1, justifyContent: 'center', padding: 32, gap: 12,
+    flexGrow: 1, justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 28, paddingTop: 28, gap: 12,
   },
+  endedIconCircle: {
+    width: 96, height: 96, borderRadius: 48,
+    backgroundColor: '#F6F1FF',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 6,
+    borderWidth: 2, borderColor: 'rgba(124,58,237,0.18)',
+  },
+  endedIcon: { fontSize: 48 },
+  endedTitle: {
+    fontFamily: 'FredokaOne', fontSize: 22, color: pt.text,
+    textAlign: 'center', marginBottom: 2,
+  },
+  endedSub: {
+    fontFamily: 'Nunito', fontSize: 14, color: pt.textSoft,
+    textAlign: 'center', lineHeight: 21, marginBottom: 18,
+  },
+  // Principal — forte (coral/dourado)
   endedReplayBtn: {
-    backgroundColor: colors.primary, borderRadius: radii.pill,
-    paddingVertical: 16, paddingHorizontal: 40,
-    alignItems: 'center',
-    elevation: 4, shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 6,
+    backgroundColor: colors.action, borderRadius: radii.pill,
+    paddingVertical: 17, paddingHorizontal: 40, alignItems: 'center',
+    width: '100%',
+    elevation: 6, shadowColor: colors.action,
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8,
   },
-  endedReplayBtnText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
+  endedReplayBtnText: { fontFamily: 'FredokaOne', fontSize: 19, color: '#FFF' },
+  // Secundário importante — creme com borda dourada
+  endedModeBtn: {
+    backgroundColor: '#FFF6E0', borderRadius: radii.pill,
+    paddingVertical: 15, paddingHorizontal: 36, alignItems: 'center',
+    width: '100%',
+    borderWidth: 2, borderColor: '#FFCE5A',
+    elevation: 2, shadowColor: '#FFC02D',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 5,
+  },
+  endedModeBtnText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#8A6D00' },
+  // Terciário — discreto mas claramente clicável (não cinza apagado)
   endedBackBtn: {
-    backgroundColor: pt.border, borderRadius: radii.pill,
-    paddingVertical: 14, paddingHorizontal: 40,
-    alignItems: 'center',
+    backgroundColor: '#F0EAFB', borderRadius: radii.pill,
+    paddingVertical: 14, paddingHorizontal: 36, alignItems: 'center',
+    width: '100%',
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.25)',
   },
-  endedBackBtnText: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text },
+  endedBackBtnText: { fontFamily: 'FredokaOne', fontSize: 15, color: colors.primary },
 
-  // ── Playing ───────────────────────────────────────────────────────────────
+  // ── Playing ──
   playingWrapper: { flex: 1, backgroundColor: '#111' },
-
   playingTopBar: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingBottom: 10,
-    backgroundColor: 'rgba(0,0,0,0.72)',
-    gap: 8, zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.72)', gap: 8, zIndex: 10,
   },
   playingNavBtn: { paddingVertical: 6, paddingHorizontal: 4 },
   playingNavBtnText: {
@@ -722,13 +1034,42 @@ const styles = StyleSheet.create({
     flex: 1, fontFamily: 'FredokaOne', fontSize: 14, color: '#FFF', textAlign: 'center',
   },
 
-  // Image area: cream background so unpainted transparent regions look natural.
-  // absoluteFill children fill this area; contain behavior shows the full image.
-  playingImageArea: { flex: 1, backgroundColor: '#FFFDF8' },
+  // Raiz do player do Livrinho
+  bookPlayerRoot: { flex: 1, backgroundColor: '#000' },
 
-  // Lineart overlay: multiply blend makes white pixels transparent, dark lines remain.
-  // Position is computed by computeLineartStyle — never absoluteFill, always absolute coords.
+  // Seção da imagem: centraliza a imagem 4:5 logo abaixo do header
+  bookImageSection: {
+    width: '100%',
+    backgroundColor: '#000',
+    alignItems: 'center',
+    paddingTop: 10,
+  },
+  bookSlideWrap: { alignSelf: 'center' },
+  // Moldura 4:5 (tamanho e cor de fundo via inline: claro p/ arte da criança)
+  bookArtFrame: {
+    alignSelf: 'center',
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  // Imagem ocupa a moldura inteira (width/height 100% num container de tamanho
+  // FIXO → nasce encaixada, sem absoluteFill que causava zoom no primeiro frame)
+  bookFullImage: { width: '100%', height: '100%' },
+  // Painel inferior COMPACTO — logo abaixo da imagem (sem roubar altura).
+  // O espaço vazio fica DEPOIS dos controles (fundo preto do root), não acima da imagem.
+  bookBottomPanel: {
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+
   lineartMultiply: { mixBlendMode: 'multiply' },
+
+  sealPill: {
+    position: 'absolute', left: 12, bottom: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5,
+  },
+  sealPillText: { fontFamily: 'Nunito', fontSize: 12, color: '#FFF', fontWeight: '700' },
 
   fallbackCenter: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   fallbackEmoji: { fontSize: 80, marginBottom: 16 },
@@ -737,46 +1078,58 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 4,
   },
+  fallbackSub: {
+    fontFamily: 'Nunito', fontSize: 13, color: 'rgba(255,255,255,0.9)',
+    textAlign: 'center', marginTop: 10, fontStyle: 'italic',
+  },
 
   playingBottomPanel: {
-    backgroundColor: 'rgba(0,0,0,0.88)',
-    paddingHorizontal: 16, paddingTop: 12,
+    backgroundColor: 'rgba(0,0,0,0.88)', paddingHorizontal: 16, paddingTop: 12,
   },
-
-  sceneInfoRow: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8,
-  },
+  sceneInfoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
   sceneInfoEmoji: { fontSize: 22 },
   sceneInfoText: { flex: 1 },
-  sceneInfoTitle: {
-    fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF', marginBottom: 2,
-  },
+  sceneInfoTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF', marginBottom: 2 },
   sceneInfoLicao: {
     fontFamily: 'Nunito', fontSize: 12, color: 'rgba(255,255,255,0.75)', lineHeight: 17,
   },
 
-  controlsRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8,
+  progressTrack: {
+    height: 4, borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden', marginTop: 6,
   },
-  // ◀ and ▶▶ — small secondary auxiliaries, not the main CTA
-  ctrlBtnAux: {
-    width: 38, height: 38, borderRadius: 19,
+  progressFill: { height: '100%', borderRadius: 3, backgroundColor: '#FFC02D' },
+
+  // Controle de tempo quando NÃO há áudio real (mantém play/pause do autoplay)
+  noAudioCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12, marginVertical: 8,
+  },
+  noAudioBtn: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: '#FFC02D', justifyContent: 'center', alignItems: 'center',
+    elevation: 4, shadowColor: '#FFC02D',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.45, shadowRadius: 6,
+  },
+  noAudioBtnText: { fontFamily: 'FredokaOne', fontSize: 20, color: '#3A2A00' },
+  noAudioLabel: {
+    flex: 1, fontFamily: 'Nunito', fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '700',
+  },
+
+  // Navegação de páginas — secundária (setas pequenas, contador, barra fina)
+  pageNavRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8,
+  },
+  pageArrow: {
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.12)',
     justifyContent: 'center', alignItems: 'center',
   },
-  // ⏸/▶ — primary play/pause, large and prominent
-  ctrlBtnPlay: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center', alignItems: 'center',
-    elevation: 4,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 6,
-  },
-  ctrlBtnText: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF' },
-  ctrlBtnPlayText: { fontFamily: 'FredokaOne', fontSize: 22, color: '#FFF' },
-  counterBox: { flex: 1, alignItems: 'center' },
-  counterText: {
-    fontFamily: 'Nunito', fontSize: 14, color: 'rgba(255,255,255,0.85)', fontWeight: '700',
+  pageArrowText: { fontFamily: 'FredokaOne', fontSize: 24, color: '#FFF', marginTop: -3 },
+  pageCenter: { flex: 1 },
+  pageCounter: {
+    fontFamily: 'Nunito', fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '700',
+    textAlign: 'center',
   },
 });

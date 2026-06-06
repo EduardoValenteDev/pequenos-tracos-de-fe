@@ -12,6 +12,8 @@
  * constante abaixo. NUNCA deve ser true em builds de produção.
  */
 
+import { isCreatorQaModeEnabled } from './creatorQaMode';
+
 // DEV TOOL ONLY — set true locally to test premium flows. Never ship as true.
 const ENABLE_LOCAL_PREMIUM_TEST_MODE = false;
 
@@ -32,9 +34,27 @@ export function getCurrentPlan() {
   return 'free';
 }
 
-/** True se o usuário é Premium. */
+/**
+ * True se o usuário pode acessar conteúdo Premium.
+ *
+ * Camada central: TODAS as travas Premium passam por aqui. Libera quando:
+ *   1. o plano real é Premium; ou
+ *   2. o Modo Criador / QA está ativo (apenas em ambiente permitido).
+ *
+ * O Modo Criador é só um OVERRIDE de permissão local: NÃO altera o plano real
+ * (getCurrentPlan continua 'free'), NÃO marca compra, NÃO afeta usuários reais
+ * em produção. Estrutura pronta para no futuro combinar com RevenueCat / Apple
+ * Sandbox / Google License Testers.
+ */
 export function isPremiumUser() {
-  return getCurrentPlan() === 'premium';
+  if (getCurrentPlan() === 'premium') return true;
+  if (isCreatorQaModeEnabled()) return true; // override local de QA (dev/permitido)
+  return false;
+}
+
+/** Alias semântico — pronto para a futura integração de compra real. */
+export function hasPremiumAccess() {
+  return isPremiumUser();
 }
 
 /**

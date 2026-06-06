@@ -38,6 +38,17 @@ const _sceneKeys = Array.from({ length: 10 }, (_, i) => `scene_${String(i + 1).p
 // Do NOT add require() for a file that does not yet exist in assets/.
 // See docs/AUDIO_GUIDE.md for the exact format.
 const _readyEntries = [
+  // ── A Criação — 10 áudios reais ──
+  { storyId: 'creation', sceneKey: 'scene_01', audioAsset: require('../../assets/audio/creation/creation_scene_01.mp3') },
+  { storyId: 'creation', sceneKey: 'scene_02', audioAsset: require('../../assets/audio/creation/creation_scene_02.mp3') },
+  { storyId: 'creation', sceneKey: 'scene_03', audioAsset: require('../../assets/audio/creation/creation_scene_03.mp3') },
+  { storyId: 'creation', sceneKey: 'scene_04', audioAsset: require('../../assets/audio/creation/creation_scene_04.mp3') },
+  { storyId: 'creation', sceneKey: 'scene_05', audioAsset: require('../../assets/audio/creation/creation_scene_05.mp3') },
+  { storyId: 'creation', sceneKey: 'scene_06', audioAsset: require('../../assets/audio/creation/creation_scene_06.mp3') },
+  { storyId: 'creation', sceneKey: 'scene_07', audioAsset: require('../../assets/audio/creation/creation_scene_07.mp3') },
+  { storyId: 'creation', sceneKey: 'scene_08', audioAsset: require('../../assets/audio/creation/creation_scene_08.mp3') },
+  { storyId: 'creation', sceneKey: 'scene_09', audioAsset: require('../../assets/audio/creation/creation_scene_09.mp3') },
+  { storyId: 'creation', sceneKey: 'scene_10', audioAsset: require('../../assets/audio/creation/creation_scene_10.mp3') },
 ];
 
 const _readyIndex = new Map(_readyEntries.map(e => [`${e.storyId}::${e.sceneKey}`, e]));

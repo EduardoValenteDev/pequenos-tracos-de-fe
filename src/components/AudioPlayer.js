@@ -111,10 +111,10 @@ function AudioPlayerInner({ audioAsset, onFinished, paused }) {
 
   function getLabel() {
     if (isLoading) return 'Carregando...';
-    if (isError) return 'Erro ao carregar — tente novamente';
+    if (isError) return 'Erro ao carregar. Toque para tentar de novo';
     if (isPlaying) return 'Ouvindo a história...';
     if (isDone) return 'Você ouviu! ✓';
-    if (appStatus === 'paused') return 'Pausado — toque para continuar';
+    if (appStatus === 'paused') return 'Pausado. Toque para continuar';
     return 'Toque para ouvir a história!';
   }
 

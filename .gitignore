@@ -31,7 +31,9 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
+.env
+.env.local
+.env.*.local
 
 # typescript
 *.tsbuildinfo
@@ -40,16 +42,12 @@ yarn-error.*
 /ios
 /android
 
-# Backups e arquivos temporários locais
+# Backups e arquivos temporÃ¡rios locais
 tmp/
 
-# Pastas legadas de assets não referenciadas no código
+# Pastas legadas de assets nÃ£o referenciadas no cÃ³digo
 assets/stories/Davi e o Golias/
-assets/stories/Jesus e as crianças/
+assets/stories/Jesus e as crianÃ§as/
 
 # Arquivos de backup orphan
 assets/images/noe_apontandoBackup.png
-
-# Ignorar variações de pastas legadas com espaço/acento
-assets/stories/Jesus*/
-assets/stories/Davi*/

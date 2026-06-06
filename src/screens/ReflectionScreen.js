@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
+import SafeScreenHeader from '../components/layout/SafeScreenHeader';
 import {
   LUMI_FEELINGS, LUMI_LEARNED, LUMI_PRAYERS, LEARNING_VERSES,
 } from '../data/lumiReflections';
@@ -14,6 +15,7 @@ import { getReflection, saveReflection, addBonusStars } from '../services/postSt
 import { canOpenLumi } from '../services/accessControl';
 import { useProgressContext } from '../context/ProgressContext';
 import PremiumLockCard from '../components/premium/PremiumLockCard';
+import BeniAvatar from '../components/beni/BeniAvatar';
 
 const STAR_BONUS = 1;
 const STEPS = ['feeling', 'learned', 'prayer', 'response'];
@@ -62,9 +64,9 @@ export default function ReflectionScreen({ route, navigation }) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', backgroundColor: '#FDF8EE' }}>
         <PremiumLockCard
-          featureName="Converse com Lumi"
+          featureName="Guardar no coração"
           title="Essa reflexão é especial"
-          description="Conversar com Lumi é uma experiência Especial da Família. Peça para um responsável ver os detalhes na Área dos Pais."
+          description="Guardar no coração é uma experiência Especial da Família. Peça para um responsável ver os detalhes na Área dos Pais."
           onPrimaryPress={() => navigation.navigate('ParentArea')}
           primaryLabel="Ver Área dos Pais"
           onSecondaryPress={() => navigation.goBack()}
@@ -114,6 +116,14 @@ export default function ReflectionScreen({ route, navigation }) {
 
   return (
     <View style={styles.wrapper}>
+      <SafeScreenHeader
+        title={story.titulo}
+        onBack={() => navigation.goBack()}
+        showHome
+        onHome={() => navigation.navigate('Home')}
+        backgroundColor="#7C3AED"
+        variant="dark"
+      />
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 48 }}
         showsVerticalScrollIndicator={false}
@@ -121,19 +131,11 @@ export default function ReflectionScreen({ route, navigation }) {
         {/* ── Header ── */}
         <LinearGradient
           colors={['#7C3AED', '#A78BFA']}
-          style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}
+          style={[styles.header, { paddingTop: 12 }]}
         >
-          <View style={styles.headerNav}>
-            <SoundButton style={styles.headerNavBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-              <Text style={styles.headerNavText}>← Voltar</Text>
-            </SoundButton>
-            <SoundButton style={styles.headerNavBtn} onPress={() => navigation.navigate('Home')} activeOpacity={0.7}>
-              <Text style={styles.headerNavText}>🏠</Text>
-            </SoundButton>
-          </View>
           <View style={styles.headerContent}>
-            <Text style={styles.headerEmoji}>🐑</Text>
-            <Text style={styles.headerTitle}>Conversa com Lumi</Text>
+            <BeniAvatar variant="thinking" size="medium" style={styles.headerBeni} />
+            <Text style={styles.headerTitle}>Guardar no coração</Text>
             <Text style={styles.headerStory} numberOfLines={1}>{story.titulo}</Text>
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
@@ -146,7 +148,7 @@ export default function ReflectionScreen({ route, navigation }) {
           {/* ── Feeling ── */}
           {stepKey === 'feeling' && (
             <>
-              <Text style={styles.lumiSays}>🐑 Lumi pergunta:</Text>
+              <Text style={styles.lumiSays}>✨ Beni pergunta:</Text>
               <Text style={styles.stepQuestion}>Como você se sentiu com essa história?</Text>
               <ChoiceGrid
                 options={LUMI_FEELINGS}
@@ -160,7 +162,7 @@ export default function ReflectionScreen({ route, navigation }) {
           {/* ── Learned ── */}
           {stepKey === 'learned' && (
             <>
-              <Text style={styles.lumiSays}>🐑 Lumi pergunta:</Text>
+              <Text style={styles.lumiSays}>✨ Beni pergunta:</Text>
               <Text style={styles.stepQuestion}>O que você aprendeu?</Text>
               <ChoiceGrid
                 options={LUMI_LEARNED}
@@ -173,7 +175,7 @@ export default function ReflectionScreen({ route, navigation }) {
           {/* ── Prayer ── */}
           {stepKey === 'prayer' && (
             <>
-              <Text style={styles.lumiSays}>🐑 Lumi pergunta:</Text>
+              <Text style={styles.lumiSays}>✨ Beni pergunta:</Text>
               <Text style={styles.stepQuestion}>O que você quer dizer para Deus?</Text>
               <ChoiceGrid
                 options={LUMI_PRAYERS}
@@ -188,7 +190,7 @@ export default function ReflectionScreen({ route, navigation }) {
             <>
               <View style={styles.lumiResponseCard}>
                 <Text style={styles.lumiResponseEmoji}>🐑</Text>
-                <Text style={styles.lumiResponseTitle}>Lumi ouviu você com carinho.</Text>
+                <Text style={styles.lumiResponseTitle}>Beni ouviu você com carinho.</Text>
                 <Text style={styles.lumiResponseMsg}>
                   {`Você se sentiu ${feelingLabel} e aprendeu que ${learnedLabel.toLowerCase()}. Que lindo! 💛`}
                 </Text>
@@ -199,7 +201,7 @@ export default function ReflectionScreen({ route, navigation }) {
                 <Text style={styles.verseRef}>{verse.ref}</Text>
               </View>
 
-              <Text style={styles.repeatLabel}>Repita com Lumi:</Text>
+              <Text style={styles.repeatLabel}>Repita com Beni:</Text>
               <View style={styles.repeatCard}>
                 <Text style={styles.repeatText}>"{verse.text}"</Text>
               </View>
@@ -235,6 +237,7 @@ const styles = StyleSheet.create({
   headerNavText: { fontFamily: 'Nunito', fontSize: 14, color: 'rgba(255,255,255,0.9)', fontWeight: '700' },
   headerContent: { alignItems: 'center', width: '100%' },
   headerEmoji: { fontSize: 44, marginBottom: 6 },
+  headerBeni: { marginBottom: 8 },
   headerTitle: { fontFamily: 'FredokaOne', fontSize: 22, color: '#FFF', marginBottom: 4 },
   headerStory: { fontFamily: 'Nunito', fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 14 },
   progressBar: {

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
+import productConfig from '../config/productConfig';
+import BeniAvatar from '../components/beni/BeniAvatar';
 
 export default function SplashScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -22,9 +24,9 @@ export default function SplashScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        <Text style={styles.logo}>✝️</Text>
-        <Text style={styles.title}>Pequenos Traços{'\n'}de Fé</Text>
-        <Text style={styles.subtitle}>Histórias que tocam o coração</Text>
+        <BeniAvatar variant="main" size="hero" style={styles.mascot} />
+        <Text style={styles.title}>{productConfig.appName}</Text>
+        <Text style={styles.subtitle}>{productConfig.appSubtitle}</Text>
       </Animated.View>
     </View>
   );
@@ -40,22 +42,22 @@ const styles = StyleSheet.create({
   content: {
     alignItems: 'center',
   },
-  logo: {
-    fontSize: 72,
-    marginBottom: 16,
+  mascot: {
+    marginBottom: 28,
   },
   title: {
     fontFamily: 'FredokaOne',
-    fontSize: 28,
+    fontSize: 40,
     color: colors.primary,
     textAlign: 'center',
-    lineHeight: 36,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   subtitle: {
     fontFamily: 'Nunito',
     fontSize: 15,
     color: colors.textLight,
     textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 32,
   },
 });

@@ -56,7 +56,7 @@ export function getHomePrimaryAction({
     return {
       targetType: 'pendingRewards',
       title: 'Você tem recompensas te esperando!',
-      description: `${pendingStory.titulo} — Livrinho, Quiz e Lumi disponíveis.`,
+      description: `${pendingStory.titulo} — Livrinho, Quiz e Beni disponíveis.`,
       buttonLabel: 'Ver recompensas →',
       storyId: pendingStory.id,
     };

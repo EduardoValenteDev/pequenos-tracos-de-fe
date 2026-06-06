@@ -8,11 +8,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useProgress } from '../hooks/useProgress';
 import { hasSavedDrawing } from '../services/drawingStorage';
+import { preloadStorySceneIllustrations } from '../services/storyImageService';
 import { hasAccess } from '../services/accessControl';
 import { isQuizDone, getReflection } from '../services/postStoryStorage';
 import StoryBookHero from '../components/story/StoryBookHero';
 import SceneListItem from '../components/story/SceneListItem';
 import { LumiEmptyState } from '../components/lumi';
+import { BeniGuideBubble } from '../components/beni';
+import { getBeniGuideMessage } from '../data/beniGuideMessages';
 import { colors } from '../theme/colors';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
@@ -55,6 +58,12 @@ export default function StoryDetailScreen({ route, navigation }) {
   const [savedDrawings, setSavedDrawings] = useState({});
   const [quizDone, setQuizDone] = useState(false);
   const [reflectionDone, setReflectionDone] = useState(false);
+
+  // Preload leve das ilustrações oficiais da história atual (reduz atraso visual
+  // ao abrir as cenas). Fire-and-forget; no-op se a história ainda não tem artes.
+  useEffect(() => {
+    if (story?.id) preloadStorySceneIllustrations(story.id);
+  }, [story?.id]);
 
   useEffect(() => {
     if (!story.cenas?.length) return;
@@ -148,6 +157,25 @@ export default function StoryDetailScreen({ route, navigation }) {
             isLocked={!canAccess}
           />
 
+          {/* ── ENTRADA GUIADA PELO BENI ── */}
+          {!isComingSoon && (
+            <BeniGuideBubble
+              message={
+                !canAccess
+                  ? getBeniGuideMessage('premiumBlocked')
+                  : isCompleted
+                    ? getBeniGuideMessage('storyCompleted')
+                    : progressCount > 0
+                      ? getBeniGuideMessage('continueStory')
+                      : getBeniGuideMessage('storyIntro')
+              }
+              avatarVariant={isCompleted ? 'celebrating' : !canAccess ? 'thinking' : 'pointing'}
+              tone={!canAccess ? 'yellow' : 'soft'}
+              compact
+              style={styles.beniEntry}
+            />
+          )}
+
           {/* ── AVENTURA CONCLUÍDA — 3 opções ── */}
           {isCompleted && (
             <View style={styles.completedSection}>
@@ -179,9 +207,9 @@ export default function StoryDetailScreen({ route, navigation }) {
                   onPress={() => navigation.navigate('Quiz', { story })}
                 />
                 <PostStoryCard
-                  emoji="🐑"
-                  title="Lumi"
-                  desc="Conversar sobre o que aprendi"
+                  emoji="✨"
+                  title="Guardar no coração"
+                  desc="O que ficou no coração"
                   done={reflectionDone}
                   tagColor={pt.purple}
                   isTablet={isTablet}
@@ -210,7 +238,7 @@ export default function StoryDetailScreen({ route, navigation }) {
             <View style={styles.emptySection}>
               <LumiEmptyState
                 title="Essa história está sendo preparada!"
-                message="Em breve você vai poder explorar todas as cenas dessa aventura com Lumi."
+                message="Em breve você vai poder explorar todas as cenas dessa aventura com Beni."
               />
             </View>
           ) : null}
@@ -223,6 +251,7 @@ export default function StoryDetailScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: colors.background },
+  beniEntry: { marginHorizontal: 16, marginTop: 14 },
   container: { flex: 1 },
   content: {},
 

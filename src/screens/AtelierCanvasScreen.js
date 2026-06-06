@@ -41,7 +41,7 @@ const CORE_STAMPS = [
   { emoji: '❤️', label: 'Coração'   },
   { emoji: '🌈', label: 'Arco-íris' },
   { emoji: '🕊️', label: 'Pomba'     },
-  { emoji: '🐑', label: 'Ovelha'    },
+  { emoji: '🐑', label: 'Beni'      },
   { emoji: '🌸', label: 'Flor'      },
 ];
 
@@ -162,10 +162,10 @@ export default function AtelierCanvasScreen({ route, navigation }) {
   }
 
   function handleClearAll() {
-    Alert.alert('🗑️ Apagar tudo?', 'Toda a arte vai ser apagada.', [
+    Alert.alert('🗑️ Apagar tudo?', 'Essa ação não pode ser desfeita.', [
       { text: 'Cancelar', style: 'cancel' },
       {
-        text: 'Apagar tudo', style: 'destructive',
+        text: 'Apagar desenho', style: 'destructive',
         onPress: () => {
           canvasRef.current?.clearAll();
           setHasPainted(false);
@@ -275,10 +275,14 @@ export default function AtelierCanvasScreen({ route, navigation }) {
           <Text style={styles.backBtnText}>‹</Text>
         </SoundButton>
         <View style={styles.headerCenter}>
-          {mission
-            ? <Text style={styles.missionText} numberOfLines={2}>{mission}</Text>
-            : <Text style={styles.headerTitle}>🎨 Minha Arte</Text>
-          }
+          {mission ? (
+            <>
+              <Text style={styles.headerTitle}>Desafio do Beni</Text>
+              <Text style={styles.missionText} numberOfLines={1}>{mission}</Text>
+            </>
+          ) : (
+            <Text style={styles.headerTitle}>Minha arte</Text>
+          )}
         </View>
         <SoundButton onPress={handleSavePress} style={styles.saveBtn} disabled={isSaving}>
           <Text style={styles.saveBtnText}>{isSaving ? '⏳' : '💾 Salvar'}</Text>

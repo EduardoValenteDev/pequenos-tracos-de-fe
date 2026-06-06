@@ -3,6 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors as pt, radii, shadows } from '../../theme/productTheme';
 import SoundButton from '../SoundButton';
 import FaithIcon from '../ui/FaithIcon';
+import { BeniAvatar } from '../beni';
+import { getBeniGuideMessage } from '../../data/beniGuideMessages';
 
 /**
  * LockedStoryFallback — tela amigável para acesso premium negado.
@@ -25,10 +27,14 @@ export default function LockedStoryFallback({
     <View style={styles.wrapper}>
       <View style={styles.card}>
         <View style={styles.iconCircle}>
-          <FaithIcon name="lock" size={40} color="#7C3AED" />
+          <BeniAvatar variant="locked" size="medium" />
+          <View style={styles.lockBadge}>
+            <FaithIcon name="lock" size={16} color="#7C3AED" />
+          </View>
         </View>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.subtitle}>{subtitle}</Text>
+        <Text style={styles.beniLine}>{getBeniGuideMessage('premiumBlocked')}</Text>
 
         {onBack && (
           <SoundButton style={styles.backBtn} onPress={onBack} activeOpacity={0.85}>
@@ -64,10 +70,15 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   iconCircle: {
-    width: 80, height: 80, borderRadius: 40,
+    marginBottom: 16,
+    position: 'relative',
+  },
+  lockBadge: {
+    position: 'absolute', bottom: -2, right: -2,
+    width: 28, height: 28, borderRadius: 14,
     backgroundColor: '#EDE9FE',
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 16,
+    borderWidth: 1.5, borderColor: '#FFF',
   },
   title: {
     fontFamily: 'FredokaOne',
@@ -83,7 +94,15 @@ const styles = StyleSheet.create({
     color: pt.textSoft,
     textAlign: 'center',
     lineHeight: 21,
-    marginBottom: 28,
+    marginBottom: 12,
+  },
+  beniLine: {
+    fontFamily: 'Nunito',
+    fontSize: 13,
+    color: '#7C3AED',
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 24,
   },
   backBtn: {
     width: '100%',

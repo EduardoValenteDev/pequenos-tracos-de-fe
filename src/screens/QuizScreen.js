@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { colors } from '../theme/colors';
 import SoundButton from '../components/SoundButton';
+import SafeScreenHeader from '../components/layout/SafeScreenHeader';
 import { QUIZZES } from '../data/quizzes';
 import { isQuizDone, markQuizDone, addBonusStars } from '../services/postStoryStorage';
 import { canOpenQuiz } from '../services/accessControl';
@@ -36,6 +37,11 @@ export default function QuizScreen({ route, navigation }) {
   const [confirmed, setConfirmed] = useState(false);
   const [answers, setAnswers] = useState([]);
   const [bonusGranted, setBonusGranted] = useState(false);
+
+  function handleBack() {
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('StoryDetail', { story });
+  }
 
   if (!canOpenQuiz(story)) {
     return (
@@ -100,13 +106,22 @@ export default function QuizScreen({ route, navigation }) {
     const allCorrect = correctCount === totalQ;
     return (
       <View style={styles.wrapper}>
+        <SafeScreenHeader
+          title="Quiz"
+          subtitle={story.titulo}
+          onBack={handleBack}
+          showHome
+          onHome={() => navigation.navigate('Home')}
+          backgroundColor={allCorrect ? '#2E7D32' : colors.primaryDark}
+          variant="dark"
+        />
         <ScrollView
           contentContainerStyle={[styles.resultContent, { paddingBottom: insets.bottom + 48 }]}
           showsVerticalScrollIndicator={false}
         >
           <LinearGradient
             colors={allCorrect ? ['#43A047', '#2E7D32'] : [colors.primaryDark, colors.primary]}
-            style={[styles.resultHeader, { paddingTop: Math.max(insets.top, 32) }]}
+            style={[styles.resultHeader, { paddingTop: 20 }]}
           >
             <Text style={styles.resultEmoji}>{allCorrect ? '🌟' : '⭐'}</Text>
             <Text style={styles.resultTitle}>
@@ -162,13 +177,22 @@ export default function QuizScreen({ route, navigation }) {
 
   return (
     <View style={styles.wrapper}>
+      <SafeScreenHeader
+        title="Quiz"
+        subtitle={story.titulo}
+        onBack={handleBack}
+        showHome
+        onHome={() => navigation.navigate('Home')}
+        backgroundColor={colors.primaryDark}
+        variant="dark"
+      />
       <ScrollView
         contentContainerStyle={[styles.quizContent, { paddingBottom: insets.bottom + 48 }]}
         showsVerticalScrollIndicator={false}
       >
         <LinearGradient
           colors={[colors.primaryDark, colors.primary]}
-          style={[styles.quizHeader, { paddingTop: Math.max(insets.top, 32) }]}
+          style={[styles.quizHeader, { paddingTop: 20 }]}
         >
           <Text style={styles.quizHeaderLabel}>Quiz · {story.titulo}</Text>
           <Text style={styles.quizHeaderProgress}>Pergunta {current + 1} de {totalQ}</Text>

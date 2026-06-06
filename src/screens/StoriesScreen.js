@@ -13,9 +13,10 @@ import StoryFallbackCover from '../components/story/StoryFallbackCover';
 import StatusBadge from '../components/ui/StatusBadge';
 import SoundButton from '../components/SoundButton';
 import FaithIcon from '../components/ui/FaithIcon';
-import { LumiGuideCard, LumiEmptyState } from '../components/lumi';
+import { BeniGuideBubble, BeniEmptyState } from '../components/beni';
 import CenteredContent from '../components/layout/CenteredContent';
 import { useProgressContext } from '../context/ProgressContext';
+import { getBeniGuideMessage } from '../data/beniGuideMessages';
 
 /* ── Trail definitions ───────────────────────────────────────────── */
 const CATEGORIES = [
@@ -127,6 +128,40 @@ function ComingSoonModal({ category, onClose }) {
   );
 }
 
+/* ── StoryStepWrapper — parada da trilha de histórias ───────────── */
+function StoryStepWrapper({ index, total, isDone, inProgress, isLocked, children }) {
+  const isLast = index === total - 1;
+  let dotBg, dotText, labelText, labelColor;
+  if (isDone) {
+    dotBg = pt.green; dotText = '✓'; labelText = 'Concluída'; labelColor = pt.freeText;
+  } else if (isLocked) {
+    dotBg = pt.border; dotText = '🔒'; labelText = 'Plano Família'; labelColor = pt.muted;
+  } else if (inProgress) {
+    dotBg = colors.action; dotText = '▶'; labelText = 'Em andamento'; labelColor = colors.action;
+  } else {
+    dotBg = '#EDE0FF'; dotText = String(index + 1); labelText = `Parada ${index + 1}`; labelColor = '#7C3AED';
+  }
+  return (
+    <View style={trailS.stepOuter}>
+      {/* Linha vertical antes do marcador (exceto no primeiro) */}
+      {index > 0 && <View style={trailS.connectorTop} />}
+      {/* Linha de label + marcador */}
+      <View style={trailS.stepHeader}>
+        <View style={[trailS.stepDot, { backgroundColor: dotBg }]}>
+          <Text style={[trailS.stepDotText, isDone && trailS.stepDotTextWhite]}>{dotText}</Text>
+        </View>
+        <Text style={[trailS.stepLabelText, { color: labelColor }]}>{labelText}</Text>
+      </View>
+      {/* Linha vertical depois do marcador até o card */}
+      <View style={trailS.connectorMid} />
+      {/* Card */}
+      {children}
+      {/* Linha vertical abaixo do card (exceto no último) */}
+      {!isLast && <View style={trailS.connectorBottom} />}
+    </View>
+  );
+}
+
 /* ── Main screen ─────────────────────────────────────────────────── */
 export default function StoriesScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
@@ -137,6 +172,7 @@ export default function StoriesScreen({ route, navigation }) {
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [modalCategory, setModalCategory] = useState(null);
 
+  // Invariante 2: chipScrollRef + chipLayouts para centralização de chips
   const outerScrollRef = useRef(null);
   const chipScrollRef = useRef(null);
   const chipLayouts = useRef({});
@@ -166,12 +202,12 @@ export default function StoriesScreen({ route, navigation }) {
     setActiveCategory(cat.id);
   }
 
-  // Scroll to top of list when switching trails
+  // Invariante 3: scroll para topo ao trocar trilha
   useEffect(() => {
     outerScrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [activeCategory]);
 
-  // Center active chip in horizontal scroll
+  // Invariante 2: centralizar chip ativo no scroll horizontal
   useEffect(() => {
     const layout = chipLayouts.current[activeCategory];
     if (!layout || !chipScrollRef.current) return;
@@ -185,37 +221,53 @@ export default function StoriesScreen({ route, navigation }) {
     <>
       {!activeCat.available ? (
         <View style={styles.emptyWrap}>
-          <LumiEmptyState
+          <BeniEmptyState
             title={`${activeCat.label} está chegando!`}
             message="Esse mundo de aventuras está sendo preparado com muito carinho. Explore as histórias disponíveis enquanto isso!"
           />
         </View>
       ) : catalogEntries.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <LumiEmptyState
+          <BeniEmptyState
             title="Em breve mais histórias aqui!"
             message="Novas aventuras estão a caminho. Fique de olho!"
           />
         </View>
       ) : (
-        catalogEntries.map((entry, index) => {
-          if (entry.type === 'placeholder') {
-            return <CatalogCard key={entry.slug} entry={entry} />;
-          }
-          const item = entry.story;
-          const prevEntry = catalogEntries[index - 1];
-          const prevStoryId = prevEntry?.type === 'story' ? prevEntry.story.id : null;
-          const locked = index > 0 && prevStoryId != null && getCount(prevStoryId) === 0;
-          return (
-            <StoryCard
-              key={String(item.id)}
-              story={item}
-              locked={locked}
-              progressCount={getCount(item.id)}
-              onPress={() => navigation.navigate('StoryDetail', { story: item })}
-            />
-          );
-        })
+        (() => {
+          const storyEntries = catalogEntries.filter(e => e.type === 'story');
+          const totalStories = storyEntries.length;
+          let storyStep = 0;
+          return catalogEntries.map((entry, index) => {
+            if (entry.type === 'placeholder') {
+              return <CatalogCard key={entry.slug} entry={entry} />;
+            }
+            const item = entry.story;
+            const prevEntry = catalogEntries[index - 1];
+            const prevStoryId = prevEntry?.type === 'story' ? prevEntry.story.id : null;
+            const locked = index > 0 && prevStoryId != null && getCount(prevStoryId) === 0;
+            const isDone = getCount(item.id) >= item.totalCenas && item.totalCenas > 0;
+            const inProgress = getCount(item.id) > 0 && !isDone;
+            const currentStep = storyStep++;
+            return (
+              <StoryStepWrapper
+                key={String(item.id)}
+                index={currentStep}
+                total={totalStories}
+                isDone={isDone}
+                inProgress={inProgress}
+                isLocked={locked}
+              >
+                <StoryCard
+                  story={item}
+                  locked={locked}
+                  progressCount={getCount(item.id)}
+                  onPress={() => navigation.navigate('StoryDetail', { story: item })}
+                />
+              </StoryStepWrapper>
+            );
+          });
+        })()
       )}
     </>
   );
@@ -225,22 +277,36 @@ export default function StoriesScreen({ route, navigation }) {
       <ScrollView
         ref={outerScrollRef}
         style={styles.container}
-        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 48 }}
+        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 72 }}
         showsVerticalScrollIndicator={false}
       >
-
-        {/* ── COLUNA ÚNICA CENTRALIZADA ─────────────────────── */}
         <CenteredContent>
 
-          {/* ── HEADER INFANTIL ────────────────────────────── */}
+          {/* ── HEADER: Mapa das Histórias ─────────────────── */}
           <View style={styles.screenHeader}>
-            <Text style={styles.screenTitle}>Estante de Histórias</Text>
-            <Text style={styles.screenSubtitle}>Qual aventura vai abrir hoje?</Text>
+            <Text style={styles.screenTitle}>Mapa das Histórias</Text>
+            <Text style={styles.screenSubtitle}>Escolha um caminho com Beni.</Text>
           </View>
 
+          {/* ── GUIA DO BENI (único balão, contextual) ─────── */}
+          <BeniGuideBubble
+            message={
+              activeCat.accessType === 'premium'
+                ? getBeniGuideMessage('trail', { premium: true })
+                : continueStory
+                  ? getBeniGuideMessage('story', { hasProgress: true })
+                  : getBeniGuideMessage('adventures')
+            }
+            avatarVariant={activeCat.accessType === 'premium' ? 'thinking' : 'reading'}
+            tone={activeCat.accessType === 'premium' ? 'yellow' : 'soft'}
+            compact
+            style={styles.beniGuide}
+          />
+
+          {/* ── SUA PRÓXIMA PARADA (história em andamento) ── */}
           {continueStory && (
             <View style={styles.continueBlock}>
-              <Text style={styles.continueBlockLabel}>📍 Continue de onde parou</Text>
+              <Text style={styles.continueBlockLabel}>📍 Sua próxima parada</Text>
               <View style={styles.continueCard}>
                 <View style={[styles.continueIcon, { backgroundColor: colors.primary + '20' }]}>
                   <Text style={styles.continueEmoji}>{continueStory.emoji}</Text>
@@ -269,7 +335,7 @@ export default function StoriesScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* ── TRAIL CHIPS ────────────────────────────────── */}
+          {/* ── SELETOR DE MUNDOS (chips horizontais) ─────── */}
           <ScrollView
             ref={chipScrollRef}
             horizontal
@@ -317,7 +383,7 @@ export default function StoriesScreen({ route, navigation }) {
             })}
           </ScrollView>
 
-          {/* ── CATEGORY HEADER ────────────────────────────── */}
+          {/* ── CABEÇALHO DO MUNDO ATIVO ──────────────────── */}
           <View style={styles.catHeader}>
             <View style={styles.catTitleRow}>
               <FaithIcon name={activeCat.faithIcon} size={18} color={pt.premiumText} />
@@ -329,12 +395,13 @@ export default function StoriesScreen({ route, navigation }) {
               )}
             </View>
             <Text style={styles.catDesc}>{activeCat.desc}</Text>
+            <Text style={styles.catGuideLine}>Escolha uma história e caminhe com Beni.</Text>
           </View>
 
+          {/* ── LISTA DE HISTÓRIAS (trilha/passos) ────────── */}
           {storyListContent}
-          <LumiGuideCard context="adventures" style={styles.lumiCard} />
-        </CenteredContent>
 
+        </CenteredContent>
       </ScrollView>
       <ComingSoonModal category={modalCategory} onClose={() => setModalCategory(null)} />
     </View>
@@ -346,14 +413,16 @@ const styles = StyleSheet.create({
   screenWrapper: { flex: 1 },
   container: { flex: 1, backgroundColor: pt.background },
 
-  lumiCard: { marginHorizontal: 16, marginTop: 8, marginBottom: 14 },
-
-  // Screen header (infantile identity)
-  screenHeader: { marginHorizontal: 16, marginBottom: 14 },
+  // Screen header
+  screenHeader: { marginHorizontal: 16, marginBottom: 12 },
   screenTitle: { fontFamily: 'FredokaOne', fontSize: 24, color: pt.text, marginBottom: 2 },
   screenSubtitle: { fontFamily: 'Nunito', fontSize: 14, color: pt.textSoft, lineHeight: 20 },
 
-  // Continue block
+  // Beni guide
+  beniGuide: { marginHorizontal: 16, marginBottom: 14 },
+  beniCardBottom: { marginHorizontal: 16, marginTop: 8, marginBottom: 14 },
+
+  // Continue / Próxima parada
   continueBlock: { marginHorizontal: 16, marginBottom: 16 },
   continueBlockLabel: {
     fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 8,
@@ -362,8 +431,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFF',
     borderRadius: radii.lg, padding: 14, gap: 12,
-    ...shadows.card,
-    borderLeftWidth: 4, borderLeftColor: colors.primary,
+    ...shadows.card, borderLeftWidth: 4, borderLeftColor: colors.primary,
   },
   continueIcon: {
     width: 44, height: 44, borderRadius: 22,
@@ -384,23 +452,19 @@ const styles = StyleSheet.create({
   },
   continueBtnText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFF' },
 
-  // Trail chips
+  // Trail chips (invariante 2 — estrutura preservada)
   trailScroll: { flexGrow: 0, marginBottom: 4 },
   trailContent: { paddingHorizontal: 16, gap: 10 },
   trailChip: {
     alignItems: 'center',
     backgroundColor: '#FFF',
     borderRadius: radii.lg,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
     borderWidth: 1.5, borderColor: pt.border,
-    minWidth: 90,
-    gap: 4,
-    ...shadows.soft,
+    minWidth: 90, gap: 4, ...shadows.soft,
   },
   trailChipActive: {
-    backgroundColor: pt.goldSoft,
-    borderColor: pt.gold,
+    backgroundColor: pt.goldSoft, borderColor: pt.gold,
     elevation: 4, shadowColor: pt.gold, shadowOpacity: 0.2,
   },
   trailChipLocked: { opacity: 0.65 },
@@ -433,9 +497,12 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: pt.gold + '60',
   },
   trailBadgeText: { fontFamily: 'Nunito', fontSize: 10, color: pt.premiumText, fontWeight: '700' },
-  catDesc: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, lineHeight: 19 },
+  catDesc: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, lineHeight: 19, marginBottom: 4 },
+  catGuideLine: {
+    fontFamily: 'Nunito', fontSize: 12, color: pt.muted, fontStyle: 'italic',
+  },
 
-  // Catalog placeholder card
+  // Catalog placeholder card (invariante 5)
   catalogCard: {
     flexDirection: 'row', alignItems: 'center',
     marginHorizontal: 16, marginBottom: 10,
@@ -484,4 +551,49 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3, shadowRadius: 6,
   },
   modalBtnText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
+});
+
+/* ── trailS — estilos da trilha de paradas ────────────────────────── */
+const trailS = StyleSheet.create({
+  stepOuter: {
+    // Sem margem horizontal — o StoryCard já tem marginHorizontal:16
+  },
+  stepHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 2,
+  },
+  stepDot: {
+    width: 26, height: 26, borderRadius: 13,
+    justifyContent: 'center', alignItems: 'center',
+    flexShrink: 0,
+  },
+  stepDotText: {
+    fontFamily: 'FredokaOne', fontSize: 11, color: '#7C3AED',
+  },
+  stepDotTextWhite: { color: '#FFF' },
+  stepLabelText: {
+    fontFamily: 'Nunito', fontSize: 11, fontWeight: '700',
+  },
+  connectorTop: {
+    width: 2, height: 8,
+    backgroundColor: pt.border,
+    marginLeft: 28,
+    opacity: 0.5,
+  },
+  connectorMid: {
+    width: 2, height: 6,
+    backgroundColor: pt.border,
+    marginLeft: 28,
+    opacity: 0.4,
+  },
+  connectorBottom: {
+    width: 2, height: 10,
+    backgroundColor: pt.border,
+    marginLeft: 28,
+    opacity: 0.4,
+    marginTop: -2,
+  },
 });

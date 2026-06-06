@@ -46,13 +46,16 @@ export default function SceneListItem({ cena, index, status, hasDrawing, onPress
         {hasDrawing && !isLocked && (
           <StatusBadge type="saved" style={{ marginTop: 4 }} />
         )}
+        {isLocked && (
+          <Text style={styles.lockedHint}>Complete a cena anterior</Text>
+        )}
       </View>
 
       {/* Badge de estado */}
       <View style={styles.badgeArea}>
         {isDone && <StatusBadge type="completed" />}
         {isAvailable && <StatusBadge type="in_progress" label="Disponível" />}
-        {isLocked && <StatusBadge type="locked" />}
+        {isLocked && <StatusBadge type="locked" label="Bloqueada" />}
       </View>
     </TouchableOpacity>
   );
@@ -71,7 +74,7 @@ const styles = StyleSheet.create({
   },
   rowLocked: {
     backgroundColor: pt.cream,
-    opacity: 0.72,
+    opacity: 0.9,
   },
   rowDone: {
     borderLeftWidth: 3,
@@ -100,8 +103,12 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   nameLocked: {
-    color: pt.muted,
-    fontWeight: '600',
+    color: pt.textSoft,
+    fontWeight: '700',
+  },
+  lockedHint: {
+    fontFamily: 'Nunito', fontSize: 11, color: pt.muted,
+    fontStyle: 'italic', marginTop: 3,
   },
   badgeArea: {
     flexShrink: 0,

@@ -6,12 +6,12 @@ import { hasAccess } from '../../services/accessControl';
 import SoundButton from '../SoundButton';
 import StoryCoverImage from './StoryCoverImage';
 
-export default function NextAdventureCard({ story, onPress }) {
+export default function NextAdventureCard({ story, onPress, label = 'Próxima aventura', buttonLabel }) {
   if (!story) return null;
 
   const accessible = hasAccess(story);
   const isPremium = story.accessType === 'premium';
-  const btnLabel = accessible ? 'Começar →' : 'Conhecer aventura →';
+  const btnLabel = buttonLabel ?? (accessible ? 'Começar →' : 'Conhecer aventura →');
 
   return (
     <View style={styles.card}>
@@ -22,7 +22,7 @@ export default function NextAdventureCard({ story, onPress }) {
         focusTop={story.id === 'david_goliath'}
       />
       <View style={styles.info}>
-        <Text style={styles.nextLabel}>Próxima aventura</Text>
+        <Text style={styles.nextLabel}>{label}</Text>
         <Text style={styles.title} numberOfLines={2}>{story.titulo}</Text>
         <Text style={styles.ref} numberOfLines={1}>{story.referencia}</Text>
         {isPremium && !accessible && (

@@ -68,7 +68,7 @@ export default function ParentalGate({ visible, onPass, onCancel }) {
       >
         <View style={[styles.box, shakeError && styles.boxError]}>
           <Text style={styles.title}>Área dos Pais</Text>
-          <Text style={styles.subtitle}>
+          <Text style={styles.subtitle} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.9}>
             Peça para um responsável resolver este desafio para continuar.
           </Text>
           <Text style={styles.equation}>
@@ -111,15 +111,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 18,
   },
   box: {
     backgroundColor: '#FFF',
     borderRadius: radii.xl,
-    padding: 28,
+    paddingVertical: 26,
+    paddingHorizontal: 22,
     alignItems: 'center',
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 400,
     ...shadows.card,
   },
   boxError: {
@@ -140,6 +141,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
     lineHeight: 20,
+    width: '100%',
+    paddingHorizontal: 4,
   },
   equation: {
     fontFamily: 'FredokaOne',

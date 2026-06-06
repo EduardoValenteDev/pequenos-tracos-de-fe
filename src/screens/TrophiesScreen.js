@@ -4,6 +4,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import FaithIcon from '../components/ui/FaithIcon';
+import { BeniAvatar } from '../components/beni';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
@@ -26,10 +28,16 @@ function AchievementCard({ achievement, unlocked, isTablet, ctx }) {
         styles.card,
         isTablet && styles.cardTablet,
         unlocked
-          ? [styles.cardUnlocked, { borderLeftColor: achievement.color }]
+          ? [styles.cardUnlocked, { borderLeftColor: achievement.color, backgroundColor: achievement.color + '0E' }]
           : styles.cardLocked,
       ]}
     >
+      {/* Selo de adesivo conquistado */}
+      {unlocked && (
+        <View style={[styles.stickerCorner, { backgroundColor: achievement.color }]}>
+          <Text style={styles.stickerCornerText}>⭐</Text>
+        </View>
+      )}
       <View
         style={[
           styles.emojiCircle,
@@ -111,16 +119,24 @@ export default function TrophiesScreen() {
     <View style={{ flex: 1 }}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 24), paddingBottom: insets.bottom + 48 }]}
+        contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 24), paddingBottom: insets.bottom + 64 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <View style={styles.headerIconCircle}>
-            <FaithIcon name="star" size={44} color="#B8860B" />
+        {/* ── Header — Álbum de Estrelinhas com Beni comemorando ── */}
+        <LinearGradient
+          colors={['#FFF6D8', '#FFE9A8']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <View style={styles.headerTopRow}>
+            <View style={styles.headerIconCircle}>
+              <FaithIcon name="star" size={34} color="#B8860B" />
+            </View>
+            <BeniAvatar variant="celebrating" size="medium" />
           </View>
-          <Text style={styles.headerTitle}>Minhas Estrelinhas</Text>
-          <Text style={styles.headerSub}>
+          <Text style={styles.headerTitle}>Álbum de Estrelinhas</Text>
+          <Text style={styles.headerSub}>Veja o que você já conquistou com Beni.</Text>
+          <Text style={styles.headerCount}>
             {unlockedCount} de {ACHIEVEMENTS.length} conquistadas
           </Text>
           <View style={styles.headerProgressRow}>
@@ -133,7 +149,7 @@ export default function TrophiesScreen() {
               />
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
         {/* ── Achievement grid (tablet: 2-col) ── */}
         <View style={isTablet ? styles.achievementsGrid : null}>
@@ -177,23 +193,34 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: pt.background },
   content: { paddingHorizontal: 16, paddingBottom: 24 },
 
-  header: { alignItems: 'center', paddingVertical: 24 },
+  header: {
+    alignItems: 'center', paddingVertical: 20, paddingHorizontal: 20,
+    borderRadius: radii.xl, marginBottom: 16,
+    borderWidth: 1.5, borderColor: '#F2DFA0',
+  },
+  headerTopRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 10,
+  },
   headerIconCircle: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: '#FFF1BF',
+    width: 60, height: 60, borderRadius: 30,
+    backgroundColor: '#FFF6DA',
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 8,
+    borderWidth: 2, borderColor: '#F2DFA0',
   },
-  headerTitle: { fontFamily: 'FredokaOne', fontSize: 26, color: pt.text, marginBottom: 4 },
+  headerTitle: { fontFamily: 'FredokaOne', fontSize: 24, color: pt.text, marginBottom: 3 },
   headerSub: {
-    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
-    textAlign: 'center', marginBottom: 12,
+    fontFamily: 'Nunito', fontSize: 13, color: '#8A6D1F',
+    textAlign: 'center', marginBottom: 8,
   },
-  headerProgressRow: { width: '60%' },
+  headerCount: {
+    fontFamily: 'Nunito', fontSize: 12, color: '#9B7B30',
+    fontWeight: '700', marginBottom: 10,
+  },
+  headerProgressRow: { width: '70%' },
   headerProgressBar: {
-    height: 8, backgroundColor: pt.border, borderRadius: 4, overflow: 'hidden',
+    height: 10, backgroundColor: 'rgba(122,88,0,0.15)', borderRadius: 5, overflow: 'hidden',
   },
-  headerProgressFill: { height: '100%', backgroundColor: colors.accent, borderRadius: 4 },
+  headerProgressFill: { height: '100%', backgroundColor: '#F4B400', borderRadius: 5 },
 
   achievementsGrid: {
     flexDirection: 'row',
@@ -203,15 +230,26 @@ const styles = StyleSheet.create({
 
   card: {
     flexDirection: 'row', alignItems: 'center',
-    borderRadius: radii.lg, padding: 16, marginBottom: 12, gap: 14,
-    borderLeftWidth: 4,
+    borderRadius: radii.xl, padding: 16, marginBottom: 12, gap: 14,
+    borderLeftWidth: 5,
+    position: 'relative', overflow: 'hidden',
     elevation: 3,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.07, shadowRadius: 4,
   },
   cardTablet: { width: '48%' },
   cardUnlocked: { backgroundColor: '#FFF' },
-  cardLocked: { backgroundColor: '#F5EFE8', borderLeftColor: '#D8CEC4' },
+  cardLocked: {
+    backgroundColor: '#F6F1EA',
+    borderLeftColor: '#DDD2C6',
+    borderWidth: 1.5, borderColor: '#E7DECF', borderStyle: 'dashed',
+  },
+  stickerCorner: {
+    position: 'absolute', top: 8, right: 8,
+    width: 22, height: 22, borderRadius: 11,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  stickerCornerText: { fontSize: 11 },
 
   emojiCircle: {
     width: 52, height: 52, borderRadius: 26,
