@@ -4998,6 +4998,99 @@ check(
   'OFFICIAL_SCENE_IMAGES_GUIDE.md does not document the 4:5 scene image standard',
 );
 
+// ── Bug fixes Sprint N: hasMeaningfulPaint / Livrinho / MagicBookEntrance ────
+console.log('\n── hasMeaningfulPaint / Pronto / Livrinho / MagicBookEntrance ──');
+
+const coloringSrc = readSrc('src/screens/ColoringScreen.js');
+const storyBookSrcBugFix = readSrc('src/screens/StoryBookScreen.js');
+const drawingStorageSrcBugFix = readSrc('src/services/drawingStorage.js');
+const magicBookSrc = readSrc('src/components/story/MagicBookEntrance.js');
+
+check(
+  'ColoringScreen usa hasMeaningfulPaint ou seta hasPainted ao continuar desenho salvo',
+  coloringSrc.includes('setHasPainted(true)') &&
+  coloringSrc.includes('handleContinueDrawing'),
+  'ColoringScreen.handleContinueDrawing deve chamar setHasPainted(true)',
+);
+
+check(
+  'ColoringScreen não bloqueia Pronto quando há pintura salva carregada',
+  (() => {
+    const fnMatch = coloringSrc.match(/function handleContinueDrawing[\s\S]*?\}/);
+    return fnMatch ? fnMatch[0].includes('setHasPainted(true)') : false;
+  })(),
+  'handleContinueDrawing deve conter setHasPainted(true)',
+);
+
+check(
+  'drawingStorage exporta hasMeaningfulPaint',
+  drawingStorageSrcBugFix.includes('export function hasMeaningfulPaint'),
+  'hasMeaningfulPaint não exportada em drawingStorage.js',
+);
+
+check(
+  'StoryBookScreen importa hasMeaningfulPaint de drawingStorage',
+  storyBookSrc.includes('hasMeaningfulPaint') &&
+  storyBookSrc.includes("from '../services/drawingStorage'"),
+  'StoryBookScreen não importa hasMeaningfulPaint',
+);
+
+check(
+  'StoryBookScreen usa hasMeaningfulPaint no modo misto (não usa childArt sem tinta real)',
+  storyBookSrc.includes('hasMeaningfulPaint(raw)') &&
+  storyBookSrc.includes('resolveStoryBookPageImage'),
+  'resolveStoryBookPageImage deve checar hasMeaningfulPaint antes de usar childArt',
+);
+
+check(
+  'StoryBookScreen modo colorido filtra artes com tinta significativa',
+  storyBookSrc.includes('hasMeaningfulPaint(raw)') &&
+  storyBookSrc.includes("Você ainda não pintou esta cena."),
+  'StoryBookScreen modo child deve usar hasMeaningfulPaint e ter fallback por cena',
+);
+
+check(
+  'MagicBookEntrance não contém ImageBackground',
+  !magicBookSrc.includes('ImageBackground'),
+  'MagicBookEntrance usa ImageBackground (causa zoom gigante)',
+);
+
+check(
+  'MagicBookEntrance não contém Animated.Image',
+  !magicBookSrc.includes('Animated.Image'),
+  'MagicBookEntrance usa Animated.Image',
+);
+
+check(
+  'MagicBookEntrance não contém <Image',
+  !/<Image[\s>]/.test(magicBookSrc),
+  'MagicBookEntrance renderiza <Image> (causa zoom gigante no iOS)',
+);
+
+check(
+  'MagicBookEntrance não contém resizeMode',
+  !magicBookSrc.includes('resizeMode'),
+  'MagicBookEntrance usa resizeMode (imagem de capa pode vazar do container animado)',
+);
+
+check(
+  'MagicBookEntrance não contém officialImage, coverImage, sceneImage nem source=',
+  !magicBookSrc.includes('officialImage') &&
+  !magicBookSrc.includes('coverImage') &&
+  !magicBookSrc.includes('sceneImage') &&
+  !/source=/.test(magicBookSrc),
+  'MagicBookEntrance ainda referencia source/officialImage/coverImage/sceneImage',
+);
+
+check(
+  'StoryBookScreen não passa cover para MagicBookEntrance',
+  !storyBookSrc.includes('cover={') || (() => {
+    const magicCall = storyBookSrc.match(/<MagicBookEntrance[\s\S]*?\/>/);
+    return magicCall ? !magicCall[0].includes('cover=') : true;
+  })(),
+  'StoryBookScreen ainda passa cover= para MagicBookEntrance',
+);
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 const total = passes + failures;
 console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

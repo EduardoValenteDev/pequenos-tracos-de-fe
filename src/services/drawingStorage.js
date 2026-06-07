@@ -51,6 +51,27 @@ export async function hasSavedDrawing(storyId, sceneId) {
   }
 }
 
+/**
+ * Retorna true se o payload salvo contém tinta real.
+ *
+ * Um PNG transparente (canvas sem nenhum fill aplicado) comprime para menos de
+ * ~600 chars em base64. Qualquer fill real de cor produz significativamente mais
+ * dados. Threshold de 1000 chars está bem acima de qualquer canvas em branco e
+ * bem abaixo de qualquer canvas com ao menos um fill visível.
+ *
+ * Suporta v1 (data URL raw) e v2 (JSON com campo "data").
+ */
+export function hasMeaningfulPaint(payload) {
+  if (!payload || typeof payload !== 'string') return false;
+  if (payload.startsWith('data:image/png;base64,')) {
+    return payload.length > 1000;
+  }
+  try {
+    const p = JSON.parse(payload);
+    return typeof p?.data === 'string' && p.data.length > 1000;
+  } catch { return false; }
+}
+
 /** Remove todos os desenhos salvos (DEV helper — limpar estado de teste). */
 export async function clearAllSavedDrawings() {
   try {

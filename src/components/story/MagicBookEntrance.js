@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Image, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 
 /**
  * MagicBookEntrance — transição mágica curta ao abrir o Livrinho da Fé.
@@ -22,7 +22,7 @@ const PARTICLES = [
   { x: 0.36, y: 0.45, size: 5, delay: 180 },
 ];
 
-export default function MagicBookEntrance({ cover, emoji = '📖', onDone }) {
+export default function MagicBookEntrance({ emoji = '📖', onDone }) {
   const bg = useRef(new Animated.Value(0)).current;
   const op = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.92)).current;
@@ -76,11 +76,7 @@ export default function MagicBookEntrance({ cover, emoji = '📖', onDone }) {
       ))}
 
       <Animated.View style={[styles.card, { opacity: op, transform: [{ scale }, { translateY: ty }] }]}>
-        {cover ? (
-          <Image source={cover} style={styles.cover} resizeMode="cover" />
-        ) : (
-          <View style={styles.emojiBox}><Text style={styles.emoji}>{emoji}</Text></View>
-        )}
+        <View style={styles.emojiBox}><Text style={styles.emoji}>{emoji}</Text></View>
         <Text style={styles.openLabel}>Abrindo seu livrinho…</Text>
       </Animated.View>
     </View>
@@ -92,11 +88,6 @@ const styles = StyleSheet.create({
   dark: { backgroundColor: '#000' },
   particle: { position: 'absolute', backgroundColor: '#FFE9A8' },
   card: { alignItems: 'center' },
-  cover: {
-    width: 150, aspectRatio: 4 / 5, borderRadius: 16, overflow: 'hidden',
-    elevation: 10, shadowColor: '#FFD166',
-    shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.7, shadowRadius: 18,
-  },
   emojiBox: {
     width: 150, aspectRatio: 4 / 5, borderRadius: 16,
     backgroundColor: '#7C3AED', justifyContent: 'center', alignItems: 'center',

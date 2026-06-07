@@ -139,6 +139,7 @@ export default function ColoringScreen({ route, navigation }) {
   function handleContinueDrawing() {
     setShowResumeDialog(false);
     canvasRef.current?.loadPaint(savedDrawing);
+    setHasPainted(true);
   }
 
   function handleStartFresh() {

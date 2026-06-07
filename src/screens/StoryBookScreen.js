@@ -14,7 +14,7 @@ import LockedStoryFallback from '../components/premium/LockedStoryFallback';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
 import MagicBookEntrance from '../components/story/MagicBookEntrance';
 import { getColoringImage } from '../assets/coloringImages';
-import { getSavedDrawing } from '../services/drawingStorage';
+import { getSavedDrawing, hasMeaningfulPaint } from '../services/drawingStorage';
 import { getOfficialSceneIllustration, preloadStorySceneIllustrations } from '../services/storyImageService';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
 import { markStoryBookOpened } from '../services/postStoryStorage';
@@ -108,7 +108,7 @@ function makeFallbackVisual(cena, story, note) {
 function resolveStoryBookVisual(cena, story, drawings, mode = 'mixed') {
   const official = getOfficialSceneIllustration(story.id, cena.id);
   const raw = drawings[cena.id] ?? null;
-  const p = mode !== 'official' && raw ? parseDrawingPayload(raw) : null;
+  const p = mode !== 'official' && hasMeaningfulPaint(raw) ? parseDrawingPayload(raw) : null;
   if (p) return makeChildArtVisual(cena, story, p);
   if (official) return makeOfficialVisual(cena, story, official);
   return makeFallbackVisual(cena, story);
@@ -139,14 +139,16 @@ function mkSlide(cena, sceneNumber, visual) {
  */
 function resolveStoryBookPageImage(cena, story, drawings, mode) {
   const raw = drawings[cena.id] ?? null;
-  const p = raw ? parseDrawingPayload(raw) : null;
-  if (p) return makeChildArtVisual(cena, story, p);                 // 1) arte da criança
+  if (hasMeaningfulPaint(raw)) {
+    const p = parseDrawingPayload(raw);
+    if (p) return makeChildArtVisual(cena, story, p);               // 1) arte da criança
+  }
   if (mode === 'mixed') {
     const official = getOfficialSceneIllustration(story.id, cena.id);
     if (official) return makeOfficialVisual(cena, story, official); // 2) oficial (só no misto)
     return makeFallbackVisual(cena, story);                         // 3) fallback seguro
   }
-  // modo 'child': sem arte salva → fallback suave "ainda não pintou"
+  // modo 'child': sem arte com tinta real → fallback "ainda não pintou"
   return makeFallbackVisual(cena, story, 'Você ainda não pintou esta cena.');
 }
 
@@ -509,7 +511,7 @@ export default function StoryBookScreen({ route, navigation }) {
   if (screenState === 'intro') {
     const hasCover = story.imagemCapa && images[story.imagemCapa];
     const totalScenes = story.cenas.length;
-    const childArtCount = story.cenas.filter(c => !!parseDrawingPayload(drawings[c.id])).length;
+    const childArtCount = story.cenas.filter(c => hasMeaningfulPaint(drawings[c.id])).length;
     return (
       <View style={styles.wrapper}>
         {renderHeader('📖', 'Livrinho da Fé', story.titulo)}
@@ -617,7 +619,6 @@ export default function StoryBookScreen({ route, navigation }) {
         {/* Entrada mágica do Livrinho (overlay curto antes da leitura) */}
         {entering && (
           <MagicBookEntrance
-            cover={hasCover ? images[story.imagemCapa] : null}
             emoji={story.emoji ?? '📖'}
             onDone={handleStartLivrinho}
           />
