@@ -5091,6 +5091,202 @@ check(
   'StoryBookScreen ainda passa cover= para MagicBookEntrance',
 );
 
+// ── Sprint 1 — Fundação de Dados do MVP Completo ─────────────────────────────
+
+console.log('\n── Sprint 1 — Fundação de Dados do MVP Completo ──');
+
+const storageKeysSrc      = fs.readFileSync(path.join(__dirname, '../src/services/storageKeys.js'), 'utf8');
+const appDataModelSrc     = fs.readFileSync(path.join(__dirname, '../src/data/appDataModel.js'), 'utf8');
+const childProfileSvcSrc  = fs.readFileSync(path.join(__dirname, '../src/services/childProfileService.js'), 'utf8');
+const parentSettingsSrc   = fs.readFileSync(path.join(__dirname, '../src/services/parentSettingsService.js'), 'utf8');
+const churchModeSrc       = fs.readFileSync(path.join(__dirname, '../src/services/churchModeService.js'), 'utf8');
+const certificateSvcSrc   = fs.readFileSync(path.join(__dirname, '../src/services/certificateService.js'), 'utf8');
+const shareCardSvcSrc     = fs.readFileSync(path.join(__dirname, '../src/services/shareCardService.js'), 'utf8');
+const weeklyReportSvcSrc  = fs.readFileSync(path.join(__dirname, '../src/services/weeklyReportService.js'), 'utf8');
+const migrationSvcSrc     = fs.readFileSync(path.join(__dirname, '../src/services/storageMigrationService.js'), 'utf8');
+const profileCtxSrc       = fs.readFileSync(path.join(__dirname, '../src/context/ProfileContext.js'), 'utf8');
+const appNavigatorSrc     = fs.readFileSync(path.join(__dirname, '../src/navigation/AppNavigator.js'), 'utf8');
+
+check(
+  'storageKeys.js existe e exporta APP_STORAGE_SCHEMA_VERSION',
+  storageKeysSrc.includes('export const APP_STORAGE_SCHEMA_VERSION'),
+  'storageKeys.js não exporta APP_STORAGE_SCHEMA_VERSION',
+);
+
+check(
+  'storageKeys.js exporta STORAGE_KEYS com chaves essenciais',
+  storageKeysSrc.includes('SCHEMA_VERSION') &&
+  storageKeysSrc.includes('LEGACY_PROFILE') &&
+  storageKeysSrc.includes('ACHIEVEMENTS_SEEN') &&
+  storageKeysSrc.includes('BONUS_STARS') &&
+  storageKeysSrc.includes('CHILD_PROFILES_LIST'),
+  'storageKeys.js não contém todas as chaves essenciais',
+);
+
+check(
+  'appDataModel.js existe e exporta factories obrigatórias',
+  appDataModelSrc.includes('export function createChildProfile') &&
+  appDataModelSrc.includes('export function createDefaultParentSettings') &&
+  appDataModelSrc.includes('export function createDefaultPlanState') &&
+  appDataModelSrc.includes('export function createChurchGroup') &&
+  appDataModelSrc.includes('export function createCertificateRecord') &&
+  appDataModelSrc.includes('export function createShareCardRecord') &&
+  appDataModelSrc.includes('export function createWeeklyReport') &&
+  appDataModelSrc.includes('export function createMigrationResult'),
+  'appDataModel.js não exporta todas as factories obrigatórias',
+);
+
+check(
+  'childProfileService.js exporta funções obrigatórias',
+  childProfileSvcSrc.includes('export async function getChildProfiles') &&
+  childProfileSvcSrc.includes('export async function getActiveChildProfile') &&
+  childProfileSvcSrc.includes('export async function createChildProfile') &&
+  childProfileSvcSrc.includes('export async function updateChildProfile') &&
+  childProfileSvcSrc.includes('export async function setActiveChildProfile') &&
+  childProfileSvcSrc.includes('export async function deleteChildProfile') &&
+  childProfileSvcSrc.includes('export async function ensureDefaultChildProfile') &&
+  childProfileSvcSrc.includes('export async function migrateLegacyProfileIfNeeded'),
+  'childProfileService.js não exporta todas as funções obrigatórias',
+);
+
+check(
+  'parentSettingsService.js exporta funções obrigatórias',
+  parentSettingsSrc.includes('export async function getParentSettings') &&
+  parentSettingsSrc.includes('export async function updateParentSettings') &&
+  parentSettingsSrc.includes('export async function resetParentSettings') &&
+  parentSettingsSrc.includes('export async function getParentalConsent') &&
+  parentSettingsSrc.includes('export async function acceptParentalConsent') &&
+  parentSettingsSrc.includes('export async function revokeParentalConsent'),
+  'parentSettingsService.js não exporta todas as funções obrigatórias',
+);
+
+check(
+  'churchModeService.js exporta funções obrigatórias',
+  churchModeSrc.includes('export async function getChurchGroups') &&
+  churchModeSrc.includes('export async function createChurchGroup') &&
+  churchModeSrc.includes('export async function updateChurchGroup') &&
+  churchModeSrc.includes('export async function deleteChurchGroup') &&
+  churchModeSrc.includes('export async function getChurchGroupByInviteCode') &&
+  churchModeSrc.includes('export async function setWeeklyStory') &&
+  churchModeSrc.includes('export async function getChurchProgressSummary'),
+  'churchModeService.js não exporta todas as funções obrigatórias',
+);
+
+check(
+  'certificateService.js exporta funções obrigatórias',
+  certificateSvcSrc.includes('export async function createStoryCertificate') &&
+  certificateSvcSrc.includes('export async function createTrackCertificate') &&
+  certificateSvcSrc.includes('export async function listCertificatesByChild') &&
+  certificateSvcSrc.includes('export async function getCertificate') &&
+  certificateSvcSrc.includes('export async function deleteCertificate'),
+  'certificateService.js não exporta todas as funções obrigatórias',
+);
+
+check(
+  'shareCardService.js exporta funções obrigatórias',
+  shareCardSvcSrc.includes('export async function createShareCardRecord') &&
+  shareCardSvcSrc.includes('export async function listShareCardsByChild') &&
+  shareCardSvcSrc.includes('export async function getShareCardRecord') &&
+  shareCardSvcSrc.includes('export async function deleteShareCardRecord') &&
+  shareCardSvcSrc.includes('export async function buildSafeShareCardPayload'),
+  'shareCardService.js não exporta todas as funções obrigatórias',
+);
+
+check(
+  'shareCardService.js garante safeForSharing:true no payload',
+  shareCardSvcSrc.includes('safeForSharing: true'),
+  'shareCardService.js não garante safeForSharing:true no payload',
+);
+
+check(
+  'weeklyReportService.js exporta funções obrigatórias',
+  weeklyReportSvcSrc.includes('export async function buildWeeklyReport') &&
+  weeklyReportSvcSrc.includes('export async function saveWeeklyReport') &&
+  weeklyReportSvcSrc.includes('export async function getLatestWeeklyReport') &&
+  weeklyReportSvcSrc.includes('export async function listWeeklyReportsByChild') &&
+  weeklyReportSvcSrc.includes('export async function deleteWeeklyReport'),
+  'weeklyReportService.js não exporta todas as funções obrigatórias',
+);
+
+check(
+  'storageMigrationService.js exporta funções obrigatórias',
+  migrationSvcSrc.includes('export async function getCurrentSchemaVersion') &&
+  migrationSvcSrc.includes('export async function setCurrentSchemaVersion') &&
+  migrationSvcSrc.includes('export async function runLocalMigrations') &&
+  migrationSvcSrc.includes('export async function migrateToV1') &&
+  migrationSvcSrc.includes('export async function getMigrationStatus'),
+  'storageMigrationService.js não exporta todas as funções obrigatórias',
+);
+
+check(
+  'storageMigrationService.js é idempotente (chama migrateLegacyProfileIfNeeded)',
+  migrationSvcSrc.includes('migrateLegacyProfileIfNeeded'),
+  'storageMigrationService.js não referencia migrateLegacyProfileIfNeeded',
+);
+
+check(
+  'ProfileContext ainda exporta ProfileProvider e useProfile',
+  profileCtxSrc.includes('export function ProfileProvider') &&
+  profileCtxSrc.includes('export function useProfile'),
+  'ProfileContext não exporta ProfileProvider ou useProfile',
+);
+
+check(
+  'ProfileContext mantém chave legada @ptf_profile intacta',
+  profileCtxSrc.includes('@ptf_profile'),
+  'ProfileContext não referencia mais @ptf_profile (pode ter quebrado compatibilidade)',
+);
+
+check(
+  'Nenhuma rota foi removida do AppNavigator',
+  appNavigatorSrc.includes('NarrationScreen') &&
+  appNavigatorSrc.includes('ColoringScreen') &&
+  appNavigatorSrc.includes('StoryBookScreen') &&
+  appNavigatorSrc.includes('PostStoryHubScreen') &&
+  appNavigatorSrc.includes('QuizScreen'),
+  'Uma ou mais rotas críticas foram removidas do AppNavigator',
+);
+
+check(
+  'planConfig.js continua existindo',
+  fs.existsSync(path.join(__dirname, '../src/data/planConfig.js')),
+  'planConfig.js foi apagado',
+);
+
+check(
+  'stories.js continua com 20 histórias',
+  (() => {
+    const src = fs.readFileSync(path.join(__dirname, '../src/data/stories.js'), 'utf8');
+    const matches = src.match(/id:\s*['"`][a-z_]+['"`]/g);
+    return matches && matches.length >= 20;
+  })(),
+  'stories.js contém menos de 20 histórias',
+);
+
+check(
+  'audioManifest.js continua existindo',
+  fs.existsSync(path.join(__dirname, '../src/data/audioManifest.js')),
+  'audioManifest.js foi apagado',
+);
+
+check(
+  'storySceneIllustrations.js continua existindo',
+  fs.existsSync(path.join(__dirname, '../src/data/storySceneIllustrations.js')),
+  'storySceneIllustrations.js foi apagado',
+);
+
+check(
+  'drawingStorage.js continua existindo',
+  fs.existsSync(path.join(__dirname, '../src/services/drawingStorage.js')),
+  'drawingStorage.js foi apagado',
+);
+
+check(
+  'achievementService.js continua existindo',
+  fs.existsSync(path.join(__dirname, '../src/services/achievementService.js')),
+  'achievementService.js foi apagado',
+);
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 const total = passes + failures;
 console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

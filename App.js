@@ -16,6 +16,7 @@ import { ProfileProvider } from './src/context/ProfileContext';
 import { ProgressProvider } from './src/context/ProgressContext';
 import { preloadCriticalAssets } from './src/services/assetPreloadService';
 import { loadCreatorQaMode } from './src/services/creatorQaMode';
+import { runLocalMigrations } from './src/services/storageMigrationService';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -28,8 +29,10 @@ export default function App() {
   // A SplashScreen (~2,5s) cobre a janela de aquecimento do cache.
   useEffect(() => {
     preloadCriticalAssets();
-    // Carrega o estado do Modo Criador/QA (override de permissão local) cedo no boot.
     loadCreatorQaMode();
+    // Migração local de schema — roda em background, nunca bloqueia a UI.
+    // Se falhar, o app continua abrindo normalmente.
+    runLocalMigrations().catch(e => console.warn('[Migration]', e));
   }, []);
 
   if (!fontsLoaded) {
