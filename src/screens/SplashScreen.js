@@ -3,6 +3,7 @@ import { View, Text, Animated, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
 import productConfig from '../config/productConfig';
 import BeniAvatar from '../components/beni/BeniAvatar';
+import { shouldShowOnboarding } from '../services/onboardingService';
 
 export default function SplashScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -14,8 +15,15 @@ export default function SplashScreen({ navigation }) {
       useNativeDriver: true,
     }).start();
 
-    const timer = setTimeout(() => {
-      navigation.replace('Home');
+    const timer = setTimeout(async () => {
+      // Decide entre onboarding (primeiro acesso) ou app principal (usuário retornando).
+      // Se a verificação falhar por qualquer motivo, vai direto para Home.
+      try {
+        const showOnboarding = await shouldShowOnboarding();
+        navigation.replace(showOnboarding ? 'Onboarding' : 'Home');
+      } catch {
+        navigation.replace('Home');
+      }
     }, 2500);
 
     return () => clearTimeout(timer);

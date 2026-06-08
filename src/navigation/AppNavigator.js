@@ -10,6 +10,7 @@ import FaithIcon from '../components/ui/FaithIcon';
 import { useProgressContext } from '../context/ProgressContext';
 
 import SplashScreen from '../screens/SplashScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
 import HomeScreen from '../screens/HomeScreen';
 import StoriesScreen from '../screens/StoriesScreen';
 import StoryDetailScreen from '../screens/StoryDetailScreen';
@@ -197,6 +198,11 @@ export default function AppNavigator() {
           name="Splash"
           component={SplashScreen}
           options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Onboarding"
+          component={OnboardingScreen}
+          options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen
           name="Home"

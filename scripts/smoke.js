@@ -5287,6 +5287,339 @@ check(
   'achievementService.js foi apagado',
 );
 
+// ── Sprint 2 — Onboarding Progressivo com Beni ───────────────────────────────
+
+console.log('\n── Sprint 2 — Onboarding Progressivo com Beni ──');
+
+const onboardingSvcSrc   = fs.readFileSync(path.join(__dirname, '../src/services/onboardingService.js'), 'utf8');
+const onboardingScreenSrc = fs.readFileSync(path.join(__dirname, '../src/screens/OnboardingScreen.js'), 'utf8');
+const splashSrcS2        = fs.readFileSync(path.join(__dirname, '../src/screens/SplashScreen.js'), 'utf8');
+const appNavSrcS2        = fs.readFileSync(path.join(__dirname, '../src/navigation/AppNavigator.js'), 'utf8');
+const storageKeysSrcS2   = fs.readFileSync(path.join(__dirname, '../src/services/storageKeys.js'), 'utf8');
+
+check(
+  'OnboardingScreen existe',
+  fs.existsSync(path.join(__dirname, '../src/screens/OnboardingScreen.js')),
+  'OnboardingScreen.js não foi criado',
+);
+
+check(
+  'onboardingService.js existe',
+  fs.existsSync(path.join(__dirname, '../src/services/onboardingService.js')),
+  'onboardingService.js não foi criado',
+);
+
+check(
+  'onboardingService exporta getOnboardingState',
+  onboardingSvcSrc.includes('export async function getOnboardingState'),
+  'onboardingService não exporta getOnboardingState',
+);
+
+check(
+  'onboardingService exporta markOnboardingCompleted',
+  onboardingSvcSrc.includes('export async function markOnboardingCompleted'),
+  'onboardingService não exporta markOnboardingCompleted',
+);
+
+check(
+  'onboardingService exporta resetOnboarding',
+  onboardingSvcSrc.includes('export async function resetOnboarding'),
+  'onboardingService não exporta resetOnboarding',
+);
+
+check(
+  'onboardingService exporta shouldShowOnboarding',
+  onboardingSvcSrc.includes('export async function shouldShowOnboarding'),
+  'onboardingService não exporta shouldShowOnboarding',
+);
+
+check(
+  'storageKeys.js contém chave de onboarding',
+  storageKeysSrcS2.includes('ONBOARDING_STATE') && storageKeysSrcS2.includes('@ptf_onboarding'),
+  'storageKeys.js não contém chave ONBOARDING_STATE',
+);
+
+check(
+  'Rota Onboarding está registrada no AppNavigator',
+  appNavSrcS2.includes("name=\"Onboarding\"") && appNavSrcS2.includes('OnboardingScreen'),
+  'Rota Onboarding não foi registrada no AppNavigator',
+);
+
+check(
+  'SplashScreen possui decisão segura de onboarding',
+  splashSrcS2.includes('shouldShowOnboarding') && splashSrcS2.includes('Onboarding'),
+  'SplashScreen não possui decisão de onboarding',
+);
+
+check(
+  'OnboardingScreen usa BeniAvatar',
+  onboardingScreenSrc.includes('BeniAvatar'),
+  'OnboardingScreen não usa BeniAvatar (Beni deve ser o guia)',
+);
+
+check(
+  'childProfileService continua existindo',
+  fs.existsSync(path.join(__dirname, '../src/services/childProfileService.js')),
+  'childProfileService.js foi apagado',
+);
+
+check(
+  'ProfileContext continua existindo',
+  fs.existsSync(path.join(__dirname, '../src/context/ProfileContext.js')),
+  'ProfileContext.js foi apagado',
+);
+
+check(
+  'Nenhuma rota antiga foi removida do AppNavigator',
+  appNavSrcS2.includes('NarrationScreen') &&
+  appNavSrcS2.includes('ColoringScreen') &&
+  appNavSrcS2.includes('StoryBookScreen') &&
+  appNavSrcS2.includes('PostStoryHubScreen') &&
+  appNavSrcS2.includes('QuizScreen') &&
+  appNavSrcS2.includes('ParentAreaScreen'),
+  'Uma ou mais rotas antigas foram removidas do AppNavigator',
+);
+
+check(
+  'HomeScreen continua existindo',
+  fs.existsSync(path.join(__dirname, '../src/screens/HomeScreen.js')),
+  'HomeScreen.js foi apagado',
+);
+
+check(
+  'ProfileScreen continua existindo',
+  fs.existsSync(path.join(__dirname, '../src/screens/ProfileScreen.js')),
+  'ProfileScreen.js foi apagado',
+);
+
+check(
+  'stories.js continua com A Criação',
+  (() => {
+    const src = fs.readFileSync(path.join(__dirname, '../src/data/stories.js'), 'utf8');
+    return src.includes("id: 'creation'") && src.includes("titulo: 'A Criação'");
+  })(),
+  'stories.js não contém a história da Criação',
+);
+
+check(
+  'OnboardingScreen não contém palavras de preço ou paywall',
+  !onboardingScreenSrc.match(/\b(preço|assinatura|premium|comprar|plano|plan|price|subscribe|paywall)\b/i),
+  'OnboardingScreen contém palavras de preço ou paywall (não deve aparecer para criança)',
+);
+
+check(
+  'OnboardingScreen não pede email, telefone, idade ou senha',
+  !onboardingScreenSrc.match(/\b(email|e-mail|telefone|phone|idade|age|senha|password)\b/i),
+  'OnboardingScreen pede dados sensíveis (email/telefone/idade/senha)',
+);
+
+// ── Sprint 2.1 — Hotfix do Onboarding + Polimento Mágico Visual ─────────────
+
+console.log('\n── Sprint 2.1 — Hotfix + Polimento Visual ──');
+
+const narrationScreenSrc = fs.readFileSync(path.join(__dirname, '../src/screens/NarrationScreen.js'), 'utf8');
+
+check(
+  'OnboardingScreen importa stories canônicas para navegação final',
+  onboardingScreenSrc.includes("from '../data/stories'"),
+  'OnboardingScreen deve importar stories de data/stories para resolver história completa com cenas',
+);
+
+check(
+  'OnboardingScreen tem resolveFullStory para catálogo canônico',
+  onboardingScreenSrc.includes('resolveFullStory') && onboardingScreenSrc.includes('allStories.find'),
+  'OnboardingScreen não tem resolveFullStory — história passada para navegação pode não ter cenas',
+);
+
+check(
+  'OnboardingScreen navega com história resolvida do catálogo canônico',
+  onboardingScreenSrc.includes('resolveFullStory(selectedStoryId)') &&
+  (onboardingScreenSrc.includes('story: fullStory') || onboardingScreenSrc.includes("params: { story: fullStory")),
+  'OnboardingScreen deve chamar resolveFullStory(selectedStoryId) e navegar com o resultado',
+);
+
+check(
+  'NarrationScreen tem guarda contra story sem cenas',
+  narrationScreenSrc.includes('hasCenas') || narrationScreenSrc.includes('story?.cenas?.length'),
+  'NarrationScreen não tem guarda: crash se story não tiver cenas',
+);
+
+check(
+  'NarrationScreen não acessa story.cenas sem validação prévia',
+  !narrationScreenSrc.match(/const cena = story\.cenas\[cenaIndex\]/),
+  'NarrationScreen acessa story.cenas[cenaIndex] diretamente sem verificar hasCenas',
+);
+
+check(
+  'OnboardingScreen não promete áudio para Noé',
+  (() => {
+    const noahLines = onboardingScreenSrc.split('\n').filter(l => l.toLowerCase().includes('noah'));
+    return !noahLines.some(l => /narr[aã]|áudio|audio|som\b/i.test(l));
+  })(),
+  'OnboardingScreen promete áudio para a história de Noé (áudio ainda não existe)',
+);
+
+check(
+  'OnboardingScreen usa LinearGradient no fundo mágico',
+  onboardingScreenSrc.includes('LinearGradient') && onboardingScreenSrc.includes('expo-linear-gradient'),
+  'OnboardingScreen não usa LinearGradient — visual mágico não implementado',
+);
+
+check(
+  'OnboardingScreen tem maxLength no campo de nome',
+  onboardingScreenSrc.includes('maxLength'),
+  'OnboardingScreen não tem maxLength no TextInput do nome',
+);
+
+// ── Sprint 2.2 — Reset Seguro do Onboarding para QA e Proteção de Usuários Legados ──
+
+console.log('\n── Sprint 2.2 — Reset Seguro + Proteção Legada ──');
+
+check(
+  'onboardingService exporta resetOnboardingForQa',
+  onboardingSvcSrc.includes('export async function resetOnboardingForQa'),
+  'onboardingService não exporta resetOnboardingForQa — reset seguro de QA não está disponível',
+);
+
+check(
+  'shouldShowOnboarding verifica perfil legado (@ptf_profile)',
+  onboardingSvcSrc.includes('LEGACY_PROFILE') || onboardingSvcSrc.includes("'@ptf_profile'"),
+  'shouldShowOnboarding não verifica @ptf_profile — usuários antigos podem ver onboarding indesejado',
+);
+
+check(
+  'shouldShowOnboarding marca onboarding concluído ao encontrar perfil legado válido',
+  (() => {
+    const fn = onboardingSvcSrc.indexOf('shouldShowOnboarding');
+    const snippet = onboardingSvcSrc.slice(fn, fn + 800);
+    return snippet.includes('markOnboardingCompleted') && snippet.includes('legacy');
+  })(),
+  'shouldShowOnboarding não chama markOnboardingCompleted para proteger usuários legados',
+);
+
+check(
+  'ParentAreaScreen contém opção de rever apresentação do Beni',
+  parentAreaSrc.includes('Rever apresentação do Beni'),
+  'ParentAreaScreen não tem a opção "Rever apresentação do Beni" no modo QA',
+);
+
+check(
+  'ParentAreaScreen chama resetOnboardingForQa',
+  parentAreaSrc.includes('resetOnboardingForQa'),
+  'ParentAreaScreen não chama resetOnboardingForQa — botão de reset não está conectado',
+);
+
+check(
+  'resetOnboardingForQa não usa AsyncStorage.clear',
+  !onboardingSvcSrc.match(/resetOnboardingForQa[\s\S]{0,500}AsyncStorage\.clear/),
+  'resetOnboardingForQa chama AsyncStorage.clear() — apagaria TODOS os dados do app!',
+);
+
+check(
+  'resetOnboardingForQa usa writeState com DEFAULT_STATE (reset seguro)',
+  (() => {
+    const fn = onboardingSvcSrc.indexOf('resetOnboardingForQa');
+    const snippet = onboardingSvcSrc.slice(fn, fn + 300);
+    return snippet.includes('writeState') && snippet.includes('DEFAULT_STATE');
+  })(),
+  'resetOnboardingForQa não usa writeState com DEFAULT_STATE — comportamento de reset não verificado',
+);
+
+// ── Sprint 2.3 — Correção Visual da Etapa de Nome do Onboarding ─────────────
+
+console.log('\n── Sprint 2.3 — Correção Visual Etapa Nome ──');
+
+check(
+  'OnboardingScreen TextInput tem placeholder descritivo com "Digite"',
+  onboardingScreenSrc.includes('Digite seu nome'),
+  'Placeholder do TextInput não é descritivo — usuário pode não saber onde digitar',
+);
+
+check(
+  'OnboardingScreen Beni usa tamanho compacto na etapa de nome',
+  onboardingScreenSrc.includes("'name' ? 'medium'") ||
+  onboardingScreenSrc.includes("=== 'name' ? 'medium'") ||
+  // Sprint 2.4: renderNameStep tem layout próprio com size="medium" direto
+  (onboardingScreenSrc.includes('function renderNameStep') && onboardingScreenSrc.includes('size="medium"')),
+  'Beni sempre usa tamanho hero na etapa de nome — pode deixar sem espaço para o TextInput',
+);
+
+check(
+  'OnboardingScreen TextInput tem altura mínima garantida (minHeight >= 56)',
+  onboardingScreenSrc.includes('minHeight: 60') || onboardingScreenSrc.includes('minHeight: 56') || onboardingScreenSrc.includes('minHeight: 64'),
+  'TextInput não tem minHeight — pode ficar invisível com teclado aberto no iPhone',
+);
+
+check(
+  'OnboardingScreen usa KeyboardAvoidingView para tratar teclado',
+  onboardingScreenSrc.includes('KeyboardAvoidingView'),
+  'OnboardingScreen não usa KeyboardAvoidingView — botão pode ficar coberto pelo teclado',
+);
+
+// ── Sprint 2.4 — Correção Real da Etapa de Nome do Onboarding ────────────────
+
+console.log('\n── Sprint 2.4 — Correção Estrutural Etapa Nome ──');
+
+check(
+  'OnboardingScreen tem função renderNameStep dedicada',
+  onboardingScreenSrc.includes('function renderNameStep'),
+  'renderNameStep não existe — etapa de nome ainda usa layout compartilhado que colapsa com teclado',
+);
+
+check(
+  'OnboardingScreen retorna renderNameStep() antes do layout geral (early return)',
+  onboardingScreenSrc.includes("currentStep === 'name') return renderNameStep()"),
+  'Não há early return para a etapa de nome — renderNameStep() não é chamada quando necessário',
+);
+
+check(
+  'OnboardingScreen NÃO tem autoFocus no TextInput',
+  !onboardingScreenSrc.includes('autoFocus'),
+  'autoFocus presente — abre o teclado automaticamente e pode colapsar o layout antes do usuário interagir',
+);
+
+check(
+  'OnboardingScreen TextInput é controlado (value={childName})',
+  onboardingScreenSrc.includes('value={childName}'),
+  'TextInput não tem prop value — não é controlado, estado pode divergir da UI',
+);
+
+check(
+  'OnboardingScreen TextInput tem onChangeText',
+  onboardingScreenSrc.includes('onChangeText'),
+  'TextInput não tem onChangeText — alterações de texto não são capturadas',
+);
+
+check(
+  'OnboardingScreen etapa de nome tem botão próprio (nameStepButton)',
+  onboardingScreenSrc.includes('nameStepButton'),
+  'nameStepButton não existe — botão da etapa nome ainda depende do footer compartilhado',
+);
+
+check(
+  'OnboardingScreen nameStep usa keyboardShouldPersistTaps="handled"',
+  onboardingScreenSrc.includes('keyboardShouldPersistTaps'),
+  'keyboardShouldPersistTaps ausente — toque no botão pode fechar o teclado sem executar a ação',
+);
+
+check(
+  'OnboardingScreen TextInput tem returnKeyType',
+  onboardingScreenSrc.includes('returnKeyType'),
+  'returnKeyType ausente — teclado virtual não mostra botão de confirmar',
+);
+
+check(
+  'OnboardingScreen nameStepScroll tem paddingBottom para afastar botão da borda',
+  onboardingScreenSrc.includes('nameStepScroll') && onboardingScreenSrc.includes('paddingBottom: 48'),
+  'nameStepScroll sem paddingBottom — botão pode ficar colado na borda inferior',
+);
+
+check(
+  'OnboardingScreen nameInput tem width explícito',
+  onboardingScreenSrc.includes("width: '100%'"),
+  "nameInput sem width: '100%' — TextInput pode não ocupar toda a largura disponível",
+);
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 const total = passes + failures;
 console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

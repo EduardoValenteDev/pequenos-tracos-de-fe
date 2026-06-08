@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView,
+  View, Text, ScrollView, TouchableOpacity,
   Animated, StyleSheet,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,28 +23,32 @@ import { hasSceneAudio, getSceneAudio } from '../services/audioService';
 
 export default function NarrationScreen({ route, navigation }) {
   const { story, cenaIndex } = route.params;
-  const cena = story.cenas[cenaIndex];
+
+  // Guard: story must have cenas populated (navigation from onboarding used to crash here)
+  const hasCenas = !!(story?.cenas?.length);
+  const cena = hasCenas ? story.cenas[cenaIndex] : null;
+
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const numeroCena = cenaIndex + 1;
-  const totalCenas = story.cenas.length;
-  const isLastCena = cenaIndex === story.cenas.length - 1;
+  const totalCenas = hasCenas ? story.cenas.length : 0;
+  const isLastCena = hasCenas ? (cenaIndex === story.cenas.length - 1) : false;
   const sceneKey = `scene_${String(cenaIndex + 1).padStart(2, '0')}`;
-  const sceneAudioEntry = getSceneAudio(story.id, sceneKey);
+  const sceneAudioEntry = hasCenas ? getSceneAudio(story.id, sceneKey) : null;
 
-  const textoNarracao = cena.textoNarracao ?? cena.narracao ?? '';
-  const tituloCena = cena.titulo ?? `Cena ${numeroCena}`;
+  const textoNarracao = cena ? (cena.textoNarracao ?? cena.narracao ?? '') : '';
+  const tituloCena = cena ? (cena.titulo ?? `Cena ${numeroCena}`) : '';
   // Fala do Beni antes da cena — vinda do catálogo central (sceneStart)
   const beniMessage = getBeniGuideMessage('sceneStart', { index: cenaIndex });
 
   // Visuais resolvidos separadamente: ilustração oficial (hoje null) e capa (ambientação)
-  const officialIllustration = getOfficialSceneIllustration(story.id, cena.id);
+  const officialIllustration = cena ? getOfficialSceneIllustration(story.id, cena.id) : null;
   const storyCover = getStoryCoverImage(story.id);
 
   // Progresso — conclusão da cena é desacoplada do colorir (Sprint Histórias 3.0)
   const { progresso, salvarCena } = useProgress(story.id);
   const { refreshProgress } = useProgressContext();
-  const jaConcluida = progresso[cena.id] === true;
+  const jaConcluida = cena ? (progresso[cena.id] === true) : false;
 
   const [showCelebration, setShowCelebration] = useState(false);
   const celebrationHandledRef = useRef(false);
@@ -122,6 +126,34 @@ export default function NarrationScreen({ route, navigation }) {
   } else {
     primaryLabel = 'Finalizar aventura →';
     primaryAction = goToNext;
+  }
+
+  // ── Fallback: story sem cenas (ex: objeto de navegação incompleto) ──────────
+  if (!hasCenas) {
+    return (
+      <View style={styles.wrapper}>
+        <SafeScreenHeader
+          title={story?.titulo || 'Aventura'}
+          onBack={handleVoltar}
+          showHome
+          onHome={handleInicio}
+        />
+        <View style={styles.fallback}>
+          <Text style={styles.fallbackEmoji}>🌟</Text>
+          <Text style={styles.fallbackTitle}>Ops!</Text>
+          <Text style={styles.fallbackMsg}>
+            Não conseguimos abrir essa aventura agora.
+          </Text>
+          <TouchableOpacity
+            style={styles.fallbackBtn}
+            onPress={handleVoltar}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.fallbackBtnText}>Voltar para as aventuras</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -347,5 +379,29 @@ const styles = StyleSheet.create({
   },
   prevLinkText: {
     fontFamily: 'Nunito', fontSize: 14, color: colors.textLight, fontWeight: '700',
+  },
+
+  // Fallback: story sem cenas
+  fallback: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  fallbackEmoji: { fontSize: 56, marginBottom: 12 },
+  fallbackTitle: {
+    fontFamily: 'FredokaOne', fontSize: 26, color: colors.text, marginBottom: 8,
+  },
+  fallbackMsg: {
+    fontFamily: 'Nunito', fontSize: 16, color: colors.textLight,
+    textAlign: 'center', lineHeight: 24, marginBottom: 24,
+  },
+  fallbackBtn: {
+    backgroundColor: colors.action,
+    borderRadius: 16, paddingVertical: 14, paddingHorizontal: 28,
+    elevation: 3,
+    shadowColor: colors.action, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25, shadowRadius: 5,
+  },
+  fallbackBtnText: {
+    fontFamily: 'FredokaOne', fontSize: 17, color: '#FFFFFF',
   },
 });

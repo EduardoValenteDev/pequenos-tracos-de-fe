@@ -64,6 +64,9 @@ export const STORAGE_KEYS = {
 
   // ── Cards compartilháveis ────────────────────────────────────────────────
   SHARE_CARDS_INDEX: '@ptf_share_cards_v1_index',
+
+  // ── Onboarding ───────────────────────────────────────────────────────────
+  ONBOARDING_STATE: '@ptf_onboarding_v1',
 };
 
 /**

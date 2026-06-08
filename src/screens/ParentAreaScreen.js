@@ -14,6 +14,7 @@ import {
   isCreatorQaModeEnabled,
   setCreatorQaModeEnabled,
 } from '../services/creatorQaMode';
+import { resetOnboardingForQa } from '../services/onboardingService';
 import productConfig from '../config/productConfig';
 import { useProgressContext } from '../context/ProgressContext';
 import { stories } from '../data/stories';
@@ -65,10 +66,21 @@ export default function ParentAreaScreen({ navigation }) {
   // Modo Criador / QA — só existe em ambiente permitido (__DEV__ ou flag de build)
   const qaAllowed = isCreatorQaModeAllowed();
   const [qaEnabled, setQaEnabled] = useState(isCreatorQaModeEnabled());
+  const [beniResetDone, setBeniResetDone] = useState(false);
+
   async function handleToggleQa(value) {
     const applied = await setCreatorQaModeEnabled(value);
     setQaEnabled(applied);
     refreshProgress(); // re-renderiza telas que dependem de acesso ao voltar
+  }
+
+  async function handleResetBeniOnboarding() {
+    const result = await resetOnboardingForQa();
+    if (result.success) {
+      setBeniResetDone(true);
+    } else {
+      Alert.alert('Erro', 'Não foi possível resetar o onboarding. Tente novamente.');
+    }
   }
 
   // Reset de progresso
@@ -220,6 +232,40 @@ export default function ParentAreaScreen({ navigation }) {
                 <Text style={styles.qaWarning}>
                   Este modo libera todo o conteúdo apenas neste aparelho para validação do app. Ele não altera o plano dos usuários reais.
                 </Text>
+              </InfoCard>
+
+              {/* Rever apresentação do Beni — reset seguro só para QA */}
+              <InfoCard style={styles.qaCard}>
+                {beniResetDone ? (
+                  <View>
+                    <Text style={styles.qaTitle}>✅ Pronto!</Text>
+                    <Text style={styles.qaDesc}>
+                      Na próxima vez que abrir o app, o Beni vai guiar a entrada novamente.
+                      Feche e abra o app para testar.
+                    </Text>
+                    <SoundButton
+                      style={styles.qaResetDoneBtn}
+                      onPress={() => setBeniResetDone(false)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.qaResetDoneBtnText}>Fechar</Text>
+                    </SoundButton>
+                  </View>
+                ) : (
+                  <View>
+                    <Text style={styles.qaTitle}>Rever apresentação do Beni</Text>
+                    <Text style={styles.qaDesc}>
+                      Mostra novamente o onboarding na próxima abertura, sem apagar progresso.
+                    </Text>
+                    <SoundButton
+                      style={styles.qaResetBtn}
+                      onPress={handleResetBeniOnboarding}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.qaResetBtnText}>Rever apresentação do Beni</Text>
+                    </SoundButton>
+                  </View>
+                )}
               </InfoCard>
             </>
           )}
@@ -967,5 +1013,33 @@ const styles = StyleSheet.create({
   resetDoneDesc: {
     fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
     textAlign: 'center', lineHeight: 19, marginBottom: 16,
+  },
+
+  // Botões QA — rever apresentação do Beni
+  qaResetBtn: {
+    marginTop: 10,
+    backgroundColor: '#E0E7FF',
+    borderRadius: radii.pill,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#A5B4FC',
+  },
+  qaResetBtnText: {
+    fontFamily: 'FredokaOne',
+    fontSize: 14,
+    color: '#3730A3',
+  },
+  qaResetDoneBtn: {
+    marginTop: 10,
+    backgroundColor: pt.border,
+    borderRadius: radii.pill,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  qaResetDoneBtnText: {
+    fontFamily: 'FredokaOne',
+    fontSize: 14,
+    color: pt.text,
   },
 });
