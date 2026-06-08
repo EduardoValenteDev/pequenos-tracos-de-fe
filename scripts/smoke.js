@@ -5620,6 +5620,203 @@ check(
   "nameInput sem width: '100%' — TextInput pode não ocupar toda a largura disponível",
 );
 
+// ── Sprint 3 — Área dos Pais como Central Adulta do MVP ──────────────────────
+
+console.log('\n── Sprint 3 — Área dos Pais Central Adulta ──');
+
+check(
+  'ParentAreaScreen mantém ParentalGate',
+  parentAreaSrc.includes('ParentalGate'),
+  'ParentalGate foi removido da Área dos Pais — tela não está mais protegida',
+);
+
+check(
+  'ParentAreaScreen contém seção de visão geral da criança',
+  parentAreaSrc.includes('Visão geral da criança'),
+  'Seção "Visão geral da criança" não encontrada na Área dos Pais',
+);
+
+check(
+  'ParentAreaScreen contém seção de progresso e conquistas',
+  parentAreaSrc.includes('Progresso e conquistas'),
+  'Seção "Progresso e conquistas" não encontrada na Área dos Pais',
+);
+
+check(
+  'ParentAreaScreen contém seção de dados e privacidade',
+  parentAreaSrc.includes('Dados e privacidade'),
+  'Seção "Dados e privacidade" não encontrada na Área dos Pais',
+);
+
+check(
+  'ParentAreaScreen contém seção de configurações da família',
+  parentAreaSrc.includes('Configurações da família'),
+  'Seção "Configurações da família" não encontrada na Área dos Pais',
+);
+
+check(
+  'ParentAreaScreen contém seção de plano e acesso',
+  parentAreaSrc.includes('Plano e acesso'),
+  'Seção "Plano e acesso" não encontrada na Área dos Pais',
+);
+
+check(
+  'ParentAreaScreen contém seção de Modo Igreja',
+  parentAreaSrc.includes('Modo Igreja'),
+  'Seção "Modo Igreja" não encontrada na Área dos Pais',
+);
+
+check(
+  'ParentAreaScreen mantém seção Ferramentas do Criador',
+  parentAreaSrc.includes('Ferramentas do Criador'),
+  'Seção "Ferramentas do Criador" foi removida da Área dos Pais',
+);
+
+check(
+  'ParentAreaScreen mantém "Rever apresentação do Beni"',
+  parentAreaSrc.includes('Rever apresentação do Beni'),
+  'Botão "Rever apresentação do Beni" foi removido — QA do onboarding perdido',
+);
+
+check(
+  'ParentAreaScreen usa parentSettingsService',
+  parentAreaSrc.includes('parentSettingsService'),
+  'parentSettingsService não está importado na Área dos Pais',
+);
+
+check(
+  'ParentAreaScreen usa churchModeService',
+  parentAreaSrc.includes('churchModeService'),
+  'churchModeService não está importado — Modo Igreja não tem suporte de serviço',
+);
+
+check(
+  'ParentAreaScreen não contém implementação de RevenueCat',
+  !parentAreaSrc.includes('RevenueCat') && !parentAreaSrc.includes('revenuecat'),
+  'RevenueCat encontrado na Área dos Pais — compra não deve ser implementada neste sprint',
+);
+
+check(
+  'ParentAreaScreen não ativa compra real',
+  !parentAreaSrc.includes('isPurchaseEnabled = true') && !parentAreaSrc.includes('initPurchases('),
+  'Compra real está sendo ativada na Área dos Pais — não permitido neste sprint',
+);
+
+check(
+  'ParentAreaScreen não chama AsyncStorage.clear diretamente',
+  !parentAreaSrc.includes('AsyncStorage.clear'),
+  'AsyncStorage.clear encontrado — apagaria TODOS os dados do app sem controle',
+);
+
+check(
+  'ParentAreaScreen não pede email, telefone, idade ou senha da criança',
+  !parentAreaSrc.includes("placeholder=\"Email\"") &&
+  !parentAreaSrc.includes("placeholder=\"Telefone\"") &&
+  !parentAreaSrc.includes("placeholder=\"Senha\"") &&
+  !parentAreaSrc.includes('email da criança') &&
+  !parentAreaSrc.includes('telefone da criança'),
+  'Área dos Pais pede dados pessoais da criança — não permitido',
+);
+
+check(
+  'ParentAreaScreen não remove reset de onboarding',
+  parentAreaSrc.includes('resetOnboardingForQa'),
+  'resetOnboardingForQa foi removido da Área dos Pais — QA do onboarding perdido',
+);
+
+check(
+  'ParentAreaScreen não remove reset de progresso',
+  parentAreaSrc.includes('resetProgress'),
+  'resetProgress foi removido da Área dos Pais — reset de progresso perdido',
+);
+
+check(
+  'Nenhuma rota antiga foi removida do AppNavigator',
+  appNavSrc.includes('Onboarding') &&
+  appNavSrc.includes('Home') &&
+  appNavSrc.includes('Narration') &&
+  appNavSrc.includes('ParentArea'),
+  'Uma rota essencial foi removida do AppNavigator — navegação pode estar quebrada',
+);
+
+check(
+  'OnboardingScreen continua existindo',
+  srcExists('src/screens/OnboardingScreen.js'),
+  'OnboardingScreen.js foi removido — onboarding do Beni perdido',
+);
+
+check(
+  'onboardingService continua existindo',
+  srcExists('src/services/onboardingService.js'),
+  'onboardingService.js foi removido — controle de onboarding perdido',
+);
+
+// ── Sprint 3.1 — Progresso por História Recolhido e Polimento Visual ─────────
+
+console.log('\n── Sprint 3.1 — Progresso Recolhido ──');
+
+const parentAreaSrc31 = readSrc('src/screens/ParentAreaScreen.js');
+
+check(
+  'ParentAreaScreen tem estado storyProgressExpanded',
+  parentAreaSrc31.includes('storyProgressExpanded'),
+  'Estado storyProgressExpanded não encontrado — seção de histórias não é colapsável',
+);
+
+check(
+  'storyProgressExpanded inicia como false (recolhido por padrão)',
+  parentAreaSrc31.includes('const [storyProgressExpanded, setStoryProgressExpanded] = useState(false)'),
+  'storyProgressExpanded não inicia como false — seção abre expandida por padrão (errado)',
+);
+
+check(
+  'ParentAreaScreen tem setter setStoryProgressExpanded',
+  parentAreaSrc31.includes('setStoryProgressExpanded'),
+  'setStoryProgressExpanded não encontrado — toggle não pode ser acionado',
+);
+
+check(
+  'ParentAreaScreen tem botão "Ver histórias"',
+  parentAreaSrc31.includes('Ver histórias'),
+  'Texto "Ver histórias" não encontrado — botão de expandir ausente',
+);
+
+check(
+  'ParentAreaScreen tem indicadores chevron ▼ e ▲',
+  parentAreaSrc31.includes('▼') && parentAreaSrc31.includes('▲'),
+  'Indicadores de chevron ▼/▲ não encontrados na Área dos Pais',
+);
+
+check(
+  'Lista de histórias é condicional ao storyProgressExpanded',
+  parentAreaSrc31.includes('storyProgressExpanded &&'),
+  'Lista de histórias não está condicionada a storyProgressExpanded — sempre exibida',
+);
+
+check(
+  'ParentAreaScreen tem botão "Recolher"',
+  parentAreaSrc31.includes('Recolher'),
+  'Texto "Recolher" não encontrado — botão de colapsar a lista ausente',
+);
+
+check(
+  'ParentAreaScreen importa TouchableOpacity (header do toggle)',
+  parentAreaSrc31.includes('TouchableOpacity'),
+  'TouchableOpacity não importado — cabeçalho do toggle não é clicável',
+);
+
+check(
+  'Configurações da família aparece antes de Dados e privacidade (reordenação)',
+  parentAreaSrc31.indexOf('Configurações da família') < parentAreaSrc31.indexOf('Dados e privacidade'),
+  'Seção "Configurações da família" não está antes de "Dados e privacidade" — reordenação não aplicada',
+);
+
+check(
+  'Resumo recolhido mostra contagem de histórias em andamento',
+  parentAreaSrc31.includes('em andamento'),
+  'Resumo recolhido não mostra histórias "em andamento" — stats da seção colapsada incompletos',
+);
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 const total = passes + failures;
 console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
