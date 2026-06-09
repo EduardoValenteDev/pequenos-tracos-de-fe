@@ -510,9 +510,9 @@ check(
 );
 
 check(
-  'ParentAreaScreen has disabled Ativar em breve button',
-  pasSrc.includes('Ativar em breve'),
-  'ParentAreaScreen missing disabled purchase button text',
+  'ParentAreaScreen has informative (non-pressable) Premium availability label',
+  pasSrc.includes('Disponível em breve para famílias'),
+  'ParentAreaScreen missing the informative Premium availability label',
 );
 
 check(
@@ -2724,7 +2724,8 @@ check(
 );
 check(
   'ColoringScreen Limpar still has Alert.alert (confirmation intact)',
-  coloringScreenSrc94.includes("Alert.alert(\n      'Apagar as cores deste desenho?'"),
+  coloringScreenSrc94.includes('Alert.alert(') &&
+  coloringScreenSrc94.includes("'Apagar as cores deste desenho?'"),
   'Limpar confirmation was removed — destructive action must always confirm',
 );
 
@@ -5815,6 +5816,66 @@ check(
   'Resumo recolhido mostra contagem de histórias em andamento',
   parentAreaSrc31.includes('em andamento'),
   'Resumo recolhido não mostra histórias "em andamento" — stats da seção colapsada incompletos',
+);
+
+// ── Sprint Maturidade — Beni speech layer + Área dos Pais 2.0 + Modo Igreja ──
+const beniLinesSrc = readSrc('src/data/beniLines.js');
+const speechCardSrc = readSrc('src/components/beni/BeniSpeechCard.js');
+const parentSrc = readSrc('src/screens/ParentAreaScreen.js');
+
+check(
+  'beniLines.js tem os contextos + getBeniLine + hasBeniLineAudio',
+  ['home', 'onboarding', 'stories', 'storyStart', 'sceneComplete', 'quizStart',
+   'atelier', 'storyBook', 'parentArea', 'churchMode', 'premium']
+    .every(c => new RegExp(`\\b${c}:`).test(beniLinesSrc)) &&
+  beniLinesSrc.includes('export function getBeniLine') &&
+  beniLinesSrc.includes('export function hasBeniLineAudio'),
+  'beniLines.js missing contexts / getBeniLine / hasBeniLineAudio',
+);
+
+check(
+  'BeniSpeechCard usa fallback de áudio (hasBeniLineAudio) e não exige áudio',
+  speechCardSrc.includes('hasBeniLineAudio') &&
+  speechCardSrc.includes('getBeniLine') &&
+  /audioReady\s*\?/.test(speechCardSrc) &&
+  speechCardSrc.includes('será preparada'),
+  'BeniSpeechCard must gate the listen button behind hasBeniLineAudio with a graceful fallback',
+);
+
+check(
+  'BeniSpeechCard exportado em components/beni',
+  readSrc('src/components/beni/index.js').includes('BeniSpeechCard'),
+  'BeniSpeechCard not exported from components/beni',
+);
+
+check(
+  'Área dos Pais usa Dica do Beni (BeniSpeechCard adult) e Próximo passo recomendado',
+  parentSrc.includes('BeniSpeechCard') &&
+  parentSrc.includes('Próximo passo recomendado') &&
+  parentSrc.includes('const nextStep'),
+  'ParentAreaScreen missing Beni tip / recommended next step',
+);
+
+check(
+  'Área dos Pais: ferramentas de Criador/QA/Build escondidas atrás de qaAllowed',
+  /qaAllowed &&[\s\S]*?Ferramentas do Criador/.test(parentSrc) &&
+  /qaAllowed &&[\s\S]*?Build info/.test(parentSrc),
+  'ParentAreaScreen must keep Creator/QA/Build tools behind the qaAllowed flag',
+);
+
+check(
+  'Área dos Pais: copy de Premium suavizada (sem "Ativar em breve")',
+  !parentSrc.includes('Ativar em breve') &&
+  parentSrc.includes('Disponível em breve para famílias'),
+  'ParentAreaScreen still uses the old "Ativar em breve" copy',
+);
+
+check(
+  'Modo Igreja: explicação em 3 passos (criar turma / história da semana / orientar famílias)',
+  parentSrc.includes('Crie uma turma local') &&
+  parentSrc.includes('Escolha a História da Semana') &&
+  parentSrc.includes('Compartilhe uma orientação com as famílias'),
+  'ParentAreaScreen Church mode missing the 3-step explanation',
 );
 
 // ── Summary ──────────────────────────────────────────────────────────────────

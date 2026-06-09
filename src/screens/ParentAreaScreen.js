@@ -23,6 +23,7 @@ import { stories } from '../data/stories';
 import { resetProgress } from '../services/progressResetService';
 import { getStoreReviewUrl } from '../config/storeLinks';
 import SoundButton from '../components/SoundButton';
+import { BeniSpeechCard } from '../components/beni';
 import {
   getParentSettings,
   updateParentSettings,
@@ -318,6 +319,23 @@ export default function ParentAreaScreen({ navigation }) {
   const childDisplayName = profile.name?.trim() || 'Ainda não definido';
   const storeUrl = getStoreReviewUrl();
 
+  // ── Próximo passo recomendado (dados locais simples) ──
+  const completedStoriesCount = progressSummary?.completedStories ?? 0;
+  const coloredScenesCount = progressSummary?.completedScenes ?? 0;
+  const storyBookOpenedCount = progressSummary?.storyBookOpenedCount ?? 0;
+  const nextStep = (() => {
+    if (startedStoriesCount > 0) {
+      return { emoji: '▶️', title: 'Continue uma história', desc: 'Há uma aventura começada esperando para ser concluída.' };
+    }
+    if (coloredScenesCount > 0 && storyBookOpenedCount === 0) {
+      return { emoji: '📖', title: 'Abra o Livrinho da Fé', desc: 'As cenas coloridas já formam um livrinho especial para rever.' };
+    }
+    if (completedStoriesCount === 0 && startedStoriesCount === 0) {
+      return { emoji: '✨', title: 'Comece a primeira história', desc: 'A primeira aventura gratuita é um ótimo ponto de partida.' };
+    }
+    return { emoji: '🌱', title: 'Continue explorando', desc: 'Cada história traz um novo ensino para descobrir com calma.' };
+  })();
+
   // ── Gate screen ───────────────────────────────────────────────────────────────
 
   if (!unlockedForSession) {
@@ -387,6 +405,21 @@ export default function ParentAreaScreen({ navigation }) {
               Este resumo é salvo apenas neste aparelho.
             </Text>
           </InfoCard>
+
+          {/* Próximo passo recomendado */}
+          <InfoCard style={styles.nextStepCard}>
+            <Text style={styles.nextStepLabel}>Próximo passo recomendado</Text>
+            <View style={styles.nextStepRow}>
+              <Text style={styles.nextStepEmoji}>{nextStep.emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.nextStepTitle}>{nextStep.title}</Text>
+                <Text style={styles.nextStepDesc}>{nextStep.desc}</Text>
+              </View>
+            </View>
+          </InfoCard>
+
+          {/* Dica do Beni (tom adulto) */}
+          <BeniSpeechCard context="parentArea" variant="adult" style={{ marginTop: 8 }} />
 
           {/* ─── 2. PROGRESSO E CONQUISTAS ────────────────────────────────────── */}
           <SectionTitle>📊 Progresso e conquistas</SectionTitle>
@@ -707,10 +740,10 @@ export default function ParentAreaScreen({ navigation }) {
               ))}
             </View>
             <View style={styles.activateBtn}>
-              <Text style={styles.activateBtnText}>Ativar em breve</Text>
+              <Text style={styles.activateBtnText}>Disponível em breve para famílias</Text>
             </View>
             <Text style={styles.activateNote}>
-              A ativação do plano estará disponível em uma próxima atualização.
+              Preferência salva para quando o Plano Família for ativado nesta família.
             </Text>
             <View style={styles.restoreRow}>
               <Text style={styles.restoreLabel}>🔄 Restaurar compra</Text>
@@ -755,12 +788,30 @@ export default function ParentAreaScreen({ navigation }) {
           <SectionTitle>⛪ Modo Igreja</SectionTitle>
           <InfoCard>
             <Text style={[styles.bodyText, { marginBottom: 12 }]}>
-              Crie uma turma local para acompanhar histórias em grupo na sua igreja ou comunidade. Tudo fica salvo apenas neste aparelho — sem internet obrigatória, sem backend.
+              Use este modo para organizar uma turma da igreja, acompanhar uma história da semana e orientar as famílias em casa. Tudo fica salvo apenas neste aparelho — sem internet obrigatória, sem login.
             </Text>
+
+            {/* Como funciona — 3 passos */}
+            <View style={styles.churchStepsBox}>
+              {[
+                { n: '1', t: 'Crie uma turma local' },
+                { n: '2', t: 'Escolha a História da Semana' },
+                { n: '3', t: 'Compartilhe uma orientação com as famílias' },
+              ].map(step => (
+                <View key={step.n} style={styles.churchStepRow}>
+                  <View style={styles.churchStepNum}><Text style={styles.churchStepNumText}>{step.n}</Text></View>
+                  <Text style={styles.churchStepText}>{step.t}</Text>
+                </View>
+              ))}
+            </View>
+
+            <BeniSpeechCard context="churchMode" variant="adult" style={{ marginBottom: 12 }} />
 
             {churchGroups.length === 0 && !showChurchForm && (
               <View style={styles.churchEmptyBox}>
-                <Text style={styles.churchEmptyText}>Nenhuma turma criada ainda.</Text>
+                <Text style={styles.churchEmptyText}>
+                  Você ainda não tem turmas. Crie a primeira para começar a acompanhar uma história da semana com o grupo.
+                </Text>
                 <SoundButton style={styles.churchCreateBtn} onPress={() => setShowChurchForm(true)} activeOpacity={0.85}>
                   <Text style={styles.churchCreateBtnText}>+ Criar turma</Text>
                 </SoundButton>
@@ -952,12 +1003,33 @@ const styles = StyleSheet.create({
   content: {},
   header: {
     paddingHorizontal: 24,
-    paddingBottom: 28,
+    paddingBottom: 16,
     alignItems: 'center',
   },
-  headerEmoji: { fontSize: 44, marginBottom: 8 },
-  headerTitle: { fontFamily: 'FredokaOne', fontSize: 26, color: '#fff', marginBottom: 6 },
-  headerSub: { fontFamily: 'Nunito', fontSize: 14, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
+  headerEmoji: { fontSize: 32, marginBottom: 4 },
+  headerTitle: { fontFamily: 'FredokaOne', fontSize: 19, color: '#fff', marginBottom: 4 },
+  headerSub: { fontFamily: 'Nunito', fontSize: 13, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
+
+  // Próximo passo recomendado
+  nextStepCard: { marginTop: 8, borderLeftWidth: 4, borderLeftColor: pt.primary ?? '#7C3AED' },
+  nextStepLabel: {
+    fontFamily: 'FredokaOne', fontSize: 12, color: pt.muted,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8,
+  },
+  nextStepRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  nextStepEmoji: { fontSize: 30 },
+  nextStepTitle: { fontFamily: 'FredokaOne', fontSize: 16, color: pt.text, marginBottom: 2 },
+  nextStepDesc: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, lineHeight: 18 },
+
+  // Modo Igreja — 3 passos
+  churchStepsBox: { gap: 8, marginBottom: 12 },
+  churchStepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  churchStepNum: {
+    width: 24, height: 24, borderRadius: 12, backgroundColor: '#EDE7F6',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  churchStepNumText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#7C3AED' },
+  churchStepText: { flex: 1, fontFamily: 'Nunito', fontSize: 13, color: pt.text, fontWeight: '700' },
   body: { paddingHorizontal: 16, paddingTop: 20 },
   bodyTablet: { paddingHorizontal: 48 },
 
