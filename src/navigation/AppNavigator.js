@@ -321,6 +321,12 @@ export default function AppNavigator() {
           component={BeniChestScreen}
           options={{ headerShown: false }}
         />
+        {/* Estrelinhas aberta como push do Stack (ex: modal pós cena) — mantém NarrationScreen na pilha */}
+        <Stack.Screen
+          name="EstrelinhasCena"
+          component={TrophiesScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

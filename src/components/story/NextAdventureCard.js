@@ -19,7 +19,6 @@ export default function NextAdventureCard({ story, onPress, label = 'Próxima av
         story={story}
         rounded={false}
         style={styles.cover}
-        focusTop={story.id === 'david_goliath'}
       />
       <View style={styles.info}>
         <Text style={styles.nextLabel}>{label}</Text>

@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, Image,
+  View, Text, ScrollView, Image, Modal,
   Animated, StyleSheet, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { images } from '../assets/images';
 import { stories } from '../data/stories';
 import { useProgressContext } from '../context/ProgressContext';
+import { useProfile } from '../context/ProfileContext';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
 import NextAdventureCard from '../components/story/NextAdventureCard';
@@ -79,7 +80,10 @@ export default function CongratsScreen({ route, navigation }) {
   const { story } = route.params;
   const insets = useSafeAreaInsets();
   const { progressByStory, postStoryStatusByStory } = useProgressContext();
+  const { profile } = useProfile();
   const progresso = progressByStory[story.id] ?? {};
+
+  const [showCertificate, setShowCertificate] = useState(false);
 
   const { pendingAchievement, checkForNewAchievements, dismissAchievement } =
     useAchievementCelebration({ progressByStory, postStoryStatusByStory, source: 'CongratsScreen' });
@@ -164,36 +168,66 @@ export default function CongratsScreen({ route, navigation }) {
             <Text style={styles.starsCount}>{completedScenesCount} / {story.totalCenas} estrelas</Text>
           </View>
 
-          {/* ── TIMELINE ── */}
-          <View style={styles.timelineCard}>
-            <Text style={styles.timelineTitle}>Sua jornada</Text>
-            <View style={styles.timelineList}>
-              {story.cenas.map((cena, index) => (
-                <SceneTimelineDot
-                  key={cena.id}
-                  cena={cena}
-                  done={!!progresso[cena.id]}
-                  index={index}
-                />
-              ))}
-            </View>
-          </View>
-
           {/* ── REWARD SECTION ── */}
           <View style={styles.rewardSection}>
             <Text style={styles.rewardSectionTitle}>Sua aventura virou um presente!</Text>
             <Text style={styles.rewardSectionSub}>
-              Agora você pode rever sua história, responder o quiz e conversar com Beni.
+              Beni guardou essa jornada com carinho. Veja tudo que você ganhou.
             </Text>
-            <Text style={styles.rewardUnlocked}>Você desbloqueou:</Text>
 
-            <RewardCard
-              emoji="📖"
-              title="Meu Livrinho da Fé"
-              desc="Veja sua história com seus próprios desenhos."
-              done={false}
-              onPress={() => navigation.navigate('StoryBook', { story })}
-            />
+            {/* Ação principal: Livrinho da Fé */}
+            <SoundButton
+              style={styles.livrinhoBtn}
+              onPress={() => navigation.navigate('StoryBook', { story, fromStoryCompletion: true })}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.livrinhoBtnEmoji}>📖</Text>
+              <View style={styles.livrinhoBtnInfo}>
+                <Text style={styles.livrinhoBtnTitle}>Abrir Livrinho da Fé</Text>
+                <Text style={styles.livrinhoBtnSub}>Sua aventura guardada em páginas especiais</Text>
+              </View>
+              <Text style={styles.livrinhoBtnArrow}>›</Text>
+            </SoundButton>
+
+            {/* Hub secundário: Baú · Estrelinhas · Colorir */}
+            <View style={styles.hubRow}>
+              <SoundButton
+                style={styles.hubBtn}
+                onPress={() => navigation.navigate('BeniChest', { fromStoryCompletion: true })}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.hubBtnEmoji}>🎴</Text>
+                <Text style={styles.hubBtnLabel}>Baú</Text>
+              </SoundButton>
+              <SoundButton
+                style={styles.hubBtn}
+                onPress={() => navigation.navigate('EstrelinhasCena', { fromStoryCompletion: true })}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.hubBtnEmoji}>⭐</Text>
+                <Text style={styles.hubBtnLabel}>Estrelinhas</Text>
+              </SoundButton>
+              <SoundButton
+                style={styles.hubBtn}
+                onPress={() => navigation.navigate('Coloring', { story, cenaIndex: 0 })}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.hubBtnEmoji}>🎨</Text>
+                <Text style={styles.hubBtnLabel}>Colorir</Text>
+              </SoundButton>
+            </View>
+
+            {/* Certificado local */}
+            <SoundButton
+              style={styles.certBtn}
+              onPress={() => setShowCertificate(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.certBtnEmoji}>🏅</Text>
+              <Text style={styles.certBtnText}>Ver Certificado da aventura</Text>
+            </SoundButton>
+
+            <Text style={styles.rewardUnlocked}>Continue a aventura:</Text>
             <RewardCard
               emoji="⭐"
               title="Responder Quiz"
@@ -285,6 +319,26 @@ export default function CongratsScreen({ route, navigation }) {
             <Text style={styles.homeBtnText}>🏠 Voltar ao início</Text>
           </SoundButton>
 
+          {/* ── RESUMO DA AVENTURA (secundário, abaixo das ações principais) ── */}
+          <View style={styles.timelineCard}>
+            <Text style={styles.timelineTitle}>Resumo da aventura</Text>
+            <View style={styles.timelineList}>
+              {story.cenas.map((cena, index) => (
+                <SceneTimelineDot
+                  key={cena.id}
+                  cena={cena}
+                  done={!!progresso[cena.id]}
+                  index={index}
+                />
+              ))}
+            </View>
+          </View>
+
+          {/* ── FRASE DE RETENÇÃO ── */}
+          <Text style={styles.retentionPhrase}>
+            Cada aventura completa guarda novas páginas, cartinhas e estrelinhas.
+          </Text>
+
         </Animated.View>
       </ScrollView>
 
@@ -294,6 +348,38 @@ export default function CongratsScreen({ route, navigation }) {
           onDismiss={dismissAchievement}
         />
       )}
+
+      {/* ── CERTIFICADO LOCAL (modal simples, sem compartilhamento) ── */}
+      <Modal
+        visible={showCertificate}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCertificate(false)}
+      >
+        <View style={styles.certOverlay}>
+          <View style={styles.certCard}>
+            <Text style={styles.certCardEmoji}>🏅</Text>
+            <Text style={styles.certCardLabel}>Certificado da aventura</Text>
+            <Text style={styles.certCardName}>
+              {profile?.name?.trim() || 'Pequeno explorador'}
+            </Text>
+            <Text style={styles.certCardStory}>{story.titulo}</Text>
+            {!!story.referencia && (
+              <Text style={styles.certCardRef}>{story.referencia}</Text>
+            )}
+            <Text style={styles.certCardMsg}>
+              Completou esta aventura com amor e fé!
+            </Text>
+            <BeniAvatar variant="celebrating" size="small" style={{ marginVertical: 8 }} />
+            <Text style={styles.certCardBeniMsg}>
+              Beni está muito orgulhoso de você! 🌟
+            </Text>
+            <SoundButton style={styles.certCloseBtn} onPress={() => setShowCertificate(false)} activeOpacity={0.85}>
+              <Text style={styles.certCloseBtnText}>Fechar</Text>
+            </SoundButton>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -514,4 +600,82 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.35, shadowRadius: 6,
   },
   homeBtnText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
+
+  // Botão principal do Livrinho
+  livrinhoBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderRadius: radii.lg, padding: 16,
+    marginHorizontal: 16, marginBottom: 12,
+    borderWidth: 2, borderColor: '#93C5FD', gap: 12,
+    elevation: 3, shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 6,
+  },
+  livrinhoBtnEmoji: { fontSize: 32 },
+  livrinhoBtnInfo: { flex: 1 },
+  livrinhoBtnTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: '#1E40AF' },
+  livrinhoBtnSub: { fontFamily: 'Nunito', fontSize: 12, color: '#3B82F6', lineHeight: 16 },
+  livrinhoBtnArrow: { fontFamily: 'FredokaOne', fontSize: 22, color: '#93C5FD' },
+
+  // Hub de ações secundárias (Baú · Estrelinhas · Colorir)
+  hubRow: {
+    flexDirection: 'row', gap: 10,
+    marginHorizontal: 16, marginBottom: 12,
+  },
+  hubBtn: {
+    flex: 1, alignItems: 'center',
+    paddingVertical: 12, paddingHorizontal: 4,
+    backgroundColor: pt.surface ?? '#F9F6FF',
+    borderRadius: radii.lg,
+    borderWidth: 1, borderColor: pt.border ?? '#E8DFFF', gap: 4,
+    elevation: 2, shadowColor: '#0001',
+    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4,
+  },
+  hubBtnEmoji: { fontSize: 24 },
+  hubBtnLabel: {
+    fontFamily: 'Nunito', fontSize: 12, fontWeight: '700',
+    color: pt.text ?? '#333', textAlign: 'center',
+  },
+
+  // Certificado
+  certBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginHorizontal: 16, marginBottom: 14, paddingVertical: 12,
+    borderRadius: radii.lg, borderWidth: 1.5, borderColor: '#F2DFA0',
+    backgroundColor: '#FFFDF7',
+  },
+  certBtnEmoji: { fontSize: 20 },
+  certBtnText: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '700', color: '#9A6B12' },
+
+  // Modal do Certificado
+  certOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  certCard: {
+    backgroundColor: '#FFFDF7', borderRadius: 24, padding: 28,
+    alignItems: 'center', width: '100%',
+    borderWidth: 2, borderColor: '#F2DFA0',
+    elevation: 12, shadowColor: '#B07A2E',
+    shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16,
+  },
+  certCardEmoji: { fontSize: 52, marginBottom: 6 },
+  certCardLabel: { fontFamily: 'FredokaOne', fontSize: 11, color: '#9A6B12', letterSpacing: 1.2, marginBottom: 12 },
+  certCardName: { fontFamily: 'FredokaOne', fontSize: 24, color: '#1A1A1A', textAlign: 'center', marginBottom: 4 },
+  certCardStory: { fontFamily: 'FredokaOne', fontSize: 17, color: colors.primary, textAlign: 'center', marginBottom: 2 },
+  certCardRef: { fontFamily: 'Nunito', fontSize: 13, color: '#9A6B12', textAlign: 'center', marginBottom: 10 },
+  certCardMsg: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '700', color: '#1A1A1A', textAlign: 'center', marginBottom: 4 },
+  certCardBeniMsg: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft ?? '#666', textAlign: 'center', marginBottom: 16 },
+  certCloseBtn: {
+    backgroundColor: colors.primary, borderRadius: radii.pill,
+    paddingVertical: 12, paddingHorizontal: 36,
+  },
+  certCloseBtnText: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF' },
+
+  // Frase de retenção
+  retentionPhrase: {
+    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft ?? '#888',
+    textAlign: 'center', marginHorizontal: 24, marginTop: 16, marginBottom: 8,
+    lineHeight: 20, fontStyle: 'italic',
+  },
 });

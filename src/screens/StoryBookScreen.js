@@ -202,7 +202,7 @@ function getStoryBookPlaybackReadiness(story) {
 }
 
 export default function StoryBookScreen({ route, navigation }) {
-  const { story } = route.params ?? {};
+  const { story, fromStoryCompletion = false } = route.params ?? {};
   const insets = useSafeAreaInsets();
   const { width, height: screenH } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -463,8 +463,15 @@ export default function StoryBookScreen({ route, navigation }) {
         <Text style={styles.stateSub}>
           Complete todas as cenas para desbloquear seu Livrinho da Fé.
         </Text>
-        <SoundButton style={styles.stateBtn} onPress={() => navigation.navigate('Home')} activeOpacity={0.85}>
-          <Text style={styles.stateBtnText}>🏠 Ir para o início</Text>
+        <SoundButton
+          style={styles.stateBtn}
+          onPress={() => navigation.navigate('StoryDetail', { story })}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.stateBtnText}>▶ Continuar história</Text>
+        </SoundButton>
+        <SoundButton style={[styles.stateBtn, { marginTop: 10, backgroundColor: 'transparent', elevation: 0, borderWidth: 1.5, borderColor: colors.primary }]} onPress={() => navigation.navigate('Home')} activeOpacity={0.85}>
+          <Text style={[styles.stateBtnText, { color: colors.primary }]}>🏠 Ir para o início</Text>
         </SoundButton>
       </View>
     );
@@ -535,8 +542,12 @@ export default function StoryBookScreen({ route, navigation }) {
             )}
           </View>
 
+          <Text style={styles.introCoverTitle}>{story.titulo}</Text>
+          {!!story.referencia && (
+            <Text style={styles.introCoverRef}>{story.referencia}</Text>
+          )}
           <Text style={styles.introDesc}>
-            Reveja cada cena da aventura que você completou.
+            Sua aventura ficou guardada aqui. Reveja cada cena com carinho.
           </Text>
 
           <View style={styles.beniReaderRow}>
@@ -639,10 +650,17 @@ export default function StoryBookScreen({ route, navigation }) {
           <View style={styles.endedIconCircle}>
             <Text style={styles.endedIcon}>🙏</Text>
           </View>
-          <Text style={styles.endedTitle}>Seu Livrinho da Fé ficou pronto!</Text>
+          <Text style={styles.endedTitle}>Você completou esta aventura!</Text>
           <Text style={styles.endedSub}>
-            Você pode rever, escolher outro jeito de ver ou voltar para a aventura.
+            Beni ficou muito feliz em ler esta história com você.
           </Text>
+          <BeniAvatar variant="celebrating" size="small" style={{ alignSelf: 'center', marginBottom: 16 }} />
+
+          {fromStoryCompletion && (
+            <SoundButton style={styles.endedConclusionBtn} onPress={() => navigation.goBack()} activeOpacity={0.85}>
+              <Text style={styles.endedConclusionBtnText}>🏆  Ver conclusão</Text>
+            </SoundButton>
+          )}
 
           <SoundButton style={styles.endedReplayBtn} onPress={handleReplay} activeOpacity={0.85}>
             <Text style={styles.endedReplayBtnText}>↩  Ver de novo</Text>
@@ -652,8 +670,12 @@ export default function StoryBookScreen({ route, navigation }) {
             <Text style={styles.endedModeBtnText}>📖  Escolher outro modo</Text>
           </SoundButton>
 
-          <SoundButton style={styles.endedBackBtn} onPress={() => navigation.goBack()} activeOpacity={0.85}>
-            <Text style={styles.endedBackBtnText}>← Voltar para a aventura</Text>
+          <SoundButton
+            style={styles.endedBackBtn}
+            onPress={() => navigation.navigate('Stories')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.endedBackBtnText}>← Voltar para Aventuras</Text>
           </SoundButton>
         </ScrollView>
       </View>
@@ -1133,4 +1155,24 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito', fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '700',
     textAlign: 'center',
   },
+
+  // Capa editorial da intro
+  introCoverTitle: {
+    fontFamily: 'FredokaOne', fontSize: 22, color: colors.primary,
+    textAlign: 'center', marginTop: 4, marginBottom: 2,
+  },
+  introCoverRef: {
+    fontFamily: 'Nunito', fontSize: 13, color: '#9A6B12',
+    textAlign: 'center', marginBottom: 8, fontWeight: '700',
+  },
+
+  // Ended: botão "Ver conclusão"
+  endedConclusionBtn: {
+    backgroundColor: '#7C3AED',
+    borderRadius: radii.pill, paddingVertical: 14, paddingHorizontal: 28,
+    alignItems: 'center', marginHorizontal: 20, marginBottom: 10,
+    elevation: 4, shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 6,
+  },
+  endedConclusionBtnText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
 });

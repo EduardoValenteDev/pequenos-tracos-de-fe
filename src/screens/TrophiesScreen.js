@@ -139,7 +139,13 @@ function AchievementCard({ achievement, unlocked, ctx, isTablet, onPress }) {
 }
 
 /* ── Tela principal ──────────────────────────────────────────────── */
-export default function TrophiesScreen({ navigation }) {
+export default function TrophiesScreen({ navigation, route }) {
+  // true quando aberta como push do Stack (modal pós cena ou conclusão de história).
+  // false quando aberta normalmente pela aba inferior.
+  const fromCena =
+    route?.params?.fromPostSceneCelebration === true ||
+    route?.params?.fromStoryCompletion === true;
+
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -189,9 +195,19 @@ export default function TrophiesScreen({ navigation }) {
 
   return (
     <View style={{ flex: 1 }}>
+      {fromCena && (
+        <View style={[styles.backRow, { paddingTop: insets.top || 16 }]}>
+          <SoundButton style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Text style={styles.backBtnText}>‹ Voltar</Text>
+          </SoundButton>
+        </View>
+      )}
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 24), paddingBottom: insets.bottom + 64 }]}
+        contentContainerStyle={[styles.content, {
+          paddingTop: fromCena ? 8 : Math.max(insets.top, 24),
+          paddingBottom: insets.bottom + 64,
+        }]}
         showsVerticalScrollIndicator={false}
       >
         {/* ── HERO ── */}
@@ -474,4 +490,21 @@ const styles = StyleSheet.create({
     paddingVertical: 13, paddingHorizontal: 40, alignSelf: 'stretch', alignItems: 'center',
   },
   detailBtnText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#5A3E12' },
+
+  // Botão Voltar — só visível quando aberta via modal pós cena (EstrelinhasCena)
+  backRow: {
+    backgroundColor: '#FFF6D8',
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+  },
+  backBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  backBtnText: {
+    fontFamily: 'FredokaOne',
+    fontSize: 16,
+    color: '#8A6D1F',
+  },
 });

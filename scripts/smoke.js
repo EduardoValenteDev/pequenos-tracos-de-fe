@@ -1893,6 +1893,25 @@ check(
   'AtelierCanvasScreen limit modal missing "Ver Área dos Pais" button text',
 );
 
+// ── Hotfix: texto do Desenho guiado não pode cortar ───────────────────────────
+check(
+  'AtelierCanvasScreen headerSub NÃO usa numberOfLines={1} (texto da missão não pode cortar)',
+  !atelierCanvasSrc.includes('numberOfLines={1}'),
+  'AtelierCanvasScreen headerSub ainda usa numberOfLines={1} — frase do Desenho guiado vai cortar',
+);
+
+check(
+  'AtelierCanvasScreen headerSub tem lineHeight (multi-linha legível)',
+  atelierCanvasSrc.includes('lineHeight') && atelierCanvasSrc.includes('headerSub'),
+  'AtelierCanvasScreen headerSub sem lineHeight — texto multi-linha fica apertado',
+);
+
+check(
+  'AtelierCanvasScreen headerCenter mantém flex: 1 (texto não empurra botão Salvar)',
+  atelierCanvasSrc.includes('headerCenter') && atelierCanvasSrc.includes('flex: 1'),
+  'AtelierCanvasScreen headerCenter sem flex:1 — texto da missão pode ultrapassar o botão Salvar',
+);
+
 // Gallery
 check(
   'AtelierGalleryScreen exists',
@@ -5953,6 +5972,416 @@ check(
   unlockSrc.includes('Beni') &&
   !unlockSrc.includes('Vamos para a próxima cena?'),
   'UnlockCelebration ainda usa copy fria / sem o Beni',
+);
+
+// ── Sprint Pós Cena e Recompensa 2.0 ──────────────────────────────────────────
+console.log('\n── Sprint Pós Cena 2.0 — celebração + próximos passos ──');
+
+const unlockSrc20    = readSrc('src/components/UnlockCelebration.js');
+const narrationSrc20 = readSrc('src/screens/NarrationScreen.js');
+
+check(
+  'UnlockCelebration tem botão primário "Continuar aventura"',
+  unlockSrc20.includes('Continuar aventura'),
+  'UnlockCelebration não exibe "Continuar aventura" — botão principal ausente',
+);
+
+check(
+  'UnlockCelebration aceita prop onColorir (atalho para Colorir cena)',
+  unlockSrc20.includes('onColorir'),
+  'UnlockCelebration sem prop onColorir — colorir não acessível da celebração',
+);
+
+check(
+  'UnlockCelebration aceita prop onBau (atalho para Baú do Beni)',
+  unlockSrc20.includes('onBau'),
+  'UnlockCelebration sem prop onBau — Baú não acessível da celebração',
+);
+
+check(
+  'UnlockCelebration aceita prop onEstrelinhas (atalho para Estrelinhas)',
+  unlockSrc20.includes('onEstrelinhas'),
+  'UnlockCelebration sem prop onEstrelinhas — Estrelinhas não acessível da celebração',
+);
+
+check(
+  'UnlockCelebration destaca Livrinho da Fé no fim da aventura (isLast)',
+  unlockSrc20.includes('onLibrinho') && unlockSrc20.includes('Livrinho da Fé'),
+  'UnlockCelebration não destaca Livrinho da Fé na última cena',
+);
+
+check(
+  'UnlockCelebration exibe badge de estrela conquistada em cenas intermediárias',
+  unlockSrc20.includes('starBadge') && unlockSrc20.includes('+1 estrela conquistada'),
+  'UnlockCelebration sem badge visual de estrela — criança não vê claramente que ganhou ⭐',
+);
+
+check(
+  'UnlockCelebration recebe sceneNumber e totalCenas (progresso contextual)',
+  unlockSrc20.includes('sceneNumber') && unlockSrc20.includes('totalCenas'),
+  'UnlockCelebration sem sceneNumber/totalCenas — contexto de progresso ausente',
+);
+
+check(
+  'NarrationScreen passa onColorir para UnlockCelebration',
+  narrationSrc20.includes('onColorir={handleColorirFromCelebration}'),
+  'NarrationScreen não passa onColorir — colorir não acessível da celebração',
+);
+
+check(
+  'NarrationScreen passa onBau para UnlockCelebration',
+  narrationSrc20.includes('onBau={handleBauFromCelebration}'),
+  'NarrationScreen não passa onBau — Baú não acessível da celebração',
+);
+
+check(
+  'NarrationScreen passa onEstrelinhas para UnlockCelebration',
+  narrationSrc20.includes('onEstrelinhas={handleEstrelinhasFromCelebration}'),
+  'NarrationScreen não passa onEstrelinhas — Estrelinhas não acessível da celebração',
+);
+
+// ── Hotfix Pós Cena Persistente — hub de vitória não fica preso sobre outras telas ─
+console.log('\n── Hotfix Pós Cena Persistente ──');
+
+check(
+  'NarrationScreen: celebrationHandledRef.current = true aparece exatamente uma vez (só em handleContinue)',
+  (narrationSrc20.match(/celebrationHandledRef\.current\s*=\s*true/g) || []).length === 1,
+  'celebrationHandledRef.current = true deve aparecer SOMENTE em handleContinue — handlers secundários não devem encerrar a celebração',
+);
+
+check(
+  'NarrationScreen: handlers secundários chamam setShowCelebration(false) antes de navegar (modal não fica preso)',
+  narrationSrc20.includes('handleColorirFromCelebration') &&
+  narrationSrc20.includes('handleBauFromCelebration') &&
+  narrationSrc20.includes('handleEstrelinhasFromCelebration') &&
+  // cada handler secundário deve ter setShowCelebration(false) antes do navigate
+  /handleColorirFromCelebration[\s\S]{0,200}setShowCelebration\(false\)[\s\S]{0,200}navigate/.test(narrationSrc20) &&
+  /handleBauFromCelebration[\s\S]{0,200}setShowCelebration\(false\)[\s\S]{0,200}navigate/.test(narrationSrc20) &&
+  /handleEstrelinhasFromCelebration[\s\S]{0,200}setShowCelebration\(false\)[\s\S]{0,200}navigate/.test(narrationSrc20),
+  'Handlers secundários devem chamar setShowCelebration(false) antes de navegar — Modal do RN sobrepõe a tela de destino',
+);
+
+check(
+  'NarrationScreen: Estrelinhas navega para EstrelinhasCena (rota Stack — preserva NarrationScreen na pilha)',
+  narrationSrc20.includes("navigate('EstrelinhasCena'") ||
+  narrationSrc20.includes('navigate("EstrelinhasCena"'),
+  "handleEstrelinhasFromCelebration deve usar navigate('EstrelinhasCena') — rota Stack que mantém NarrationScreen na pilha para o botão Voltar funcionar",
+);
+
+check(
+  'NarrationScreen: celebrationPendingRef existe (reabertura do modal ao voltar de visita)',
+  narrationSrc20.includes('celebrationPendingRef'),
+  'celebrationPendingRef não encontrado — useFocusEffect não consegue reabrir o modal ao retornar de ação secundária',
+);
+
+check(
+  'NarrationScreen: useFocusEffect reabre celebração se pendente e não encerrada',
+  narrationSrc20.includes('useFocusEffect') &&
+  narrationSrc20.includes('celebrationPendingRef.current') &&
+  narrationSrc20.includes('celebrationHandledRef.current'),
+  'useFocusEffect deve verificar celebrationPendingRef + celebrationHandledRef para reabrir o modal ao voltar',
+);
+
+// ── Hotfix Estrelinhas — botão Voltar via rota Stack ─────────────────────────
+console.log('\n── Hotfix Estrelinhas: botão Voltar ──');
+
+const appNavSrcHotfix = readSrc('src/navigation/AppNavigator.js');
+const trophiesSrcHotfix = readSrc('src/screens/TrophiesScreen.js');
+
+check(
+  'AppNavigator registra EstrelinhasCena como rota Stack (push sem remover NarrationScreen)',
+  appNavSrcHotfix.includes("name=\"EstrelinhasCena\"") || appNavSrcHotfix.includes("name='EstrelinhasCena'"),
+  "AppNavigator não registra EstrelinhasCena — navigate('EstrelinhasCena') vai falhar em runtime",
+);
+
+check(
+  'NarrationScreen passa fromPostSceneCelebration: true ao navegar para EstrelinhasCena',
+  narrationSrc20.includes('fromPostSceneCelebration'),
+  'handleEstrelinhasFromCelebration deve passar fromPostSceneCelebration: true como parâmetro',
+);
+
+check(
+  'TrophiesScreen lê fromPostSceneCelebration de route.params',
+  trophiesSrcHotfix.includes('fromPostSceneCelebration'),
+  'TrophiesScreen não lê fromPostSceneCelebration — não saberá quando exibir o botão Voltar',
+);
+
+check(
+  'TrophiesScreen exibe botão Voltar apenas quando fromCena é true (via modal pós cena)',
+  trophiesSrcHotfix.includes('fromCena') &&
+  trophiesSrcHotfix.includes('‹ Voltar') &&
+  /fromCena[\s\S]{0,300}‹ Voltar/.test(trophiesSrcHotfix),
+  'TrophiesScreen não exibe botão "‹ Voltar" condicional ao fromCena',
+);
+
+check(
+  'TrophiesScreen: botão Voltar chama navigation.goBack() (volta para NarrationScreen na pilha)',
+  /fromCena[\s\S]{0,500}navigation\.goBack\(\)/.test(trophiesSrcHotfix),
+  'Botão Voltar em TrophiesScreen deve chamar navigation.goBack()',
+);
+
+check(
+  'TrophiesScreen: paddingTop do ScrollView é reduzido quando fromCena (back row assume o topo)',
+  trophiesSrcHotfix.includes('fromCena ? 8') || trophiesSrcHotfix.includes('fromCena?8') ||
+  /fromCena[\s\S]{0,100}paddingTop/.test(trophiesSrcHotfix),
+  'TrophiesScreen não ajusta paddingTop do ScrollView quando fromCena — pode haver espaçamento duplo no topo',
+);
+
+// ── Sprint Livrinho da Fé 2.0 — conclusão memorável ─────────────────────────
+console.log('\n── Sprint Livrinho 2.0 + Conclusão ──');
+
+const congratsSrc20 = readSrc('src/screens/CongratsScreen.js');
+const storyBookSrc20 = readSrc('src/screens/StoryBookScreen.js');
+const trophiesSrc20 = readSrc('src/screens/TrophiesScreen.js');
+const livrinhoPagesSvc = readSrc('src/services/storyBookPagesService.js');
+
+// CongratsScreen
+check(
+  'CongratsScreen: botão primário do Livrinho da Fé existe',
+  congratsSrc20.includes('Abrir Livrinho da Fé') &&
+  congratsSrc20.includes('Sua aventura guardada em páginas especiais'),
+  'CongratsScreen sem botão primário "Abrir Livrinho da Fé" ou sem subtexto correto',
+);
+
+check(
+  'CongratsScreen: navega para StoryBook com fromStoryCompletion: true',
+  congratsSrc20.includes('fromStoryCompletion: true') &&
+  congratsSrc20.includes("navigate('StoryBook'"),
+  'CongratsScreen deve passar fromStoryCompletion: true ao abrir StoryBook',
+);
+
+check(
+  'CongratsScreen: ação para Baú do Beni (BeniChest)',
+  congratsSrc20.includes("navigate('BeniChest'"),
+  'CongratsScreen sem ação para Baú do Beni',
+);
+
+check(
+  'CongratsScreen: ação para Estrelinhas (EstrelinhasCena)',
+  congratsSrc20.includes("navigate('EstrelinhasCena'"),
+  'CongratsScreen sem ação para Estrelinhas',
+);
+
+check(
+  'CongratsScreen: ação para Colorir',
+  congratsSrc20.includes("navigate('Coloring'"),
+  'CongratsScreen sem ação para Colorir cenas',
+);
+
+check(
+  'CongratsScreen: Certificado da aventura existe (modal local, sem share/PDF)',
+  congratsSrc20.includes('Certificado da aventura') &&
+  !congratsSrc20.includes('Share') &&
+  !congratsSrc20.includes('shareAsync') &&
+  !congratsSrc20.includes('printAsync') &&
+  !congratsSrc20.includes('MediaLibrary'),
+  'CongratsScreen: Certificado ausente ou usa share/PDF/permissão — não permitido',
+);
+
+check(
+  'CongratsScreen: frase de retenção presente',
+  congratsSrc20.includes('Cada aventura completa') ||
+  congratsSrc20.includes('cartinhas e estrelinhas'),
+  'CongratsScreen sem frase de retenção ao final',
+);
+
+// StoryBookScreen
+check(
+  'StoryBookScreen: aceita fromStoryCompletion em route.params',
+  storyBookSrc20.includes('fromStoryCompletion'),
+  'StoryBookScreen não lê fromStoryCompletion — botão "Ver conclusão" não aparecerá',
+);
+
+check(
+  'StoryBookScreen: ended state tem botão "Ver conclusão" condicional ao fromStoryCompletion',
+  storyBookSrc20.includes('fromStoryCompletion') &&
+  storyBookSrc20.includes('Ver conclusão'),
+  'StoryBookScreen ended state sem botão "Ver conclusão" — usuário sem caminho de volta à conclusão',
+);
+
+check(
+  'StoryBookScreen: notCompleted state tem botão "Continuar história"',
+  storyBookSrc20.includes('Continuar história') || storyBookSrc20.includes('Continuar a história'),
+  'StoryBookScreen notCompleted sem botão para continuar a história',
+);
+
+check(
+  'StoryBookScreen: intro exibe referência bíblica da história',
+  storyBookSrc20.includes('story.referencia') || storyBookSrc20.includes('referencia'),
+  'StoryBookScreen intro não exibe referência bíblica',
+);
+
+check(
+  'StoryBookScreen: fallback de imagem (makeFallbackVisual) sempre retorna visual válido',
+  storyBookSrc20.includes('makeFallbackVisual'),
+  'StoryBookScreen sem makeFallbackVisual — pode ter tela preta em cenas sem imagem',
+);
+
+check(
+  'StoryBookScreen: prioriza arte da criança (hasMeaningfulPaint antes de official)',
+  storyBookSrc20.includes('hasMeaningfulPaint') &&
+  /hasMeaningfulPaint[\s\S]{0,200}makeChildArtVisual/.test(storyBookSrc20),
+  'StoryBookScreen não prioriza arte da criança no Livrinho',
+);
+
+// TrophiesScreen: fromStoryCompletion suportado
+check(
+  'TrophiesScreen: fromStoryCompletion também ativa botão Voltar',
+  trophiesSrc20.includes('fromStoryCompletion'),
+  'TrophiesScreen não suporta fromStoryCompletion — botão Voltar não aparece ao vir da conclusão',
+);
+
+// Helper storyBookPagesService
+check(
+  'storyBookPagesService existe',
+  livrinhoPagesSvc.length > 0,
+  'src/services/storyBookPagesService.js não existe',
+);
+
+check(
+  'storyBookPagesService retorna [] quando story é null',
+  livrinhoPagesSvc.includes('!story?.cenas?.length') || livrinhoPagesSvc.includes('!story?.cenas'),
+  'storyBookPagesService não trata story null — pode lançar em runtime',
+);
+
+check(
+  'storyBookPagesService retorna campos id, sceneNumber, title, text, image, imageSourceLabel, isCompleted, hasChildDrawing',
+  livrinhoPagesSvc.includes('sceneNumber') &&
+  livrinhoPagesSvc.includes('imageSourceLabel') &&
+  livrinhoPagesSvc.includes('isCompleted') &&
+  livrinhoPagesSvc.includes('hasChildDrawing'),
+  'storyBookPagesService não retorna todos os campos esperados de página',
+);
+
+check(
+  'storyBookPagesService prioriza desenho da criança antes da ilustração oficial',
+  /hasMeaningfulPaint[\s\S]{0,200}Desenho da criança/.test(livrinhoPagesSvc) ||
+  livrinhoPagesSvc.includes('Desenho da criança'),
+  'storyBookPagesService não prioriza desenho da criança',
+);
+
+check(
+  'storyBookPagesService usa try/catch por página (nunca lança)',
+  (livrinhoPagesSvc.match(/try\s*{/g) || []).length >= 2,
+  'storyBookPagesService sem try/catch por página — pode lançar se storage falhar',
+);
+
+// Escopo proibido: Área dos Pais, Modo Criador, Onboarding, RevenueCat não alterados
+const parentAreaSrc20 = readSrc('src/screens/ParentAreaScreen.js');
+check(
+  'Área dos Pais não foi alterada nesta sprint (sem fromStoryCompletion)',
+  !parentAreaSrc20.includes('fromStoryCompletion'),
+  'ParentAreaScreen foi alterada nesta sprint — fora do escopo',
+);
+
+// ── Hotfix Conclusão 2.1 — hierarquia do Livrinho da Fé ──────────────────────
+console.log('\n── Hotfix Conclusão 2.1: hierarquia do Livrinho ──');
+
+const congrats21 = readSrc('src/screens/CongratsScreen.js');
+
+check(
+  'CongratsScreen 2.1: texto "Sua aventura virou um presente!" presente',
+  congrats21.includes('Sua aventura virou um presente!'),
+  'CongratsScreen sem "Sua aventura virou um presente!" — bloco do presente ausente',
+);
+
+check(
+  'CongratsScreen 2.1: subtexto correto do botão Livrinho (sem texto fixo sobre desenhos)',
+  congrats21.includes('Sua aventura guardada em páginas especiais') &&
+  !congrats21.includes('Sua história com seus próprios desenhos'),
+  'CongratsScreen ainda usa texto fixo sobre desenhos — deve usar texto neutro',
+);
+
+check(
+  'CongratsScreen 2.1: Livrinho aparece antes do Resumo da aventura (ordem correta)',
+  congrats21.indexOf('Abrir Livrinho da Fé') < congrats21.indexOf('Resumo da aventura'),
+  'Livrinho da Fé aparece depois do Resumo da aventura — hierarquia invertida',
+);
+
+check(
+  'CongratsScreen 2.1: timeline title mudou para "Resumo da aventura"',
+  congrats21.includes('Resumo da aventura'),
+  'Título da timeline não foi atualizado para "Resumo da aventura"',
+);
+
+check(
+  'UnlockCelebration não foi alterado nesta sprint',
+  (() => {
+    const src = readSrc('src/components/UnlockCelebration.js');
+    return src.includes('onContinue') && src.includes('isLast') && !src.includes('fromStoryCompletion');
+  })(),
+  'UnlockCelebration foi alterado — fora do escopo desta sprint',
+);
+
+check(
+  'NarrationScreen não foi alterado nesta sprint (não contém Resumo da aventura)',
+  (() => {
+    const src = readSrc('src/screens/NarrationScreen.js');
+    return !src.includes('Resumo da aventura');
+  })(),
+  'NarrationScreen foi alterado nesta sprint — fora do escopo',
+);
+
+check(
+  'CongratsScreen 2.1: sem share, PDF, permissão ou dependência nova',
+  !congrats21.includes('Share') &&
+  !congrats21.includes('shareAsync') &&
+  !congrats21.includes('printAsync') &&
+  !congrats21.includes('MediaLibrary') &&
+  !congrats21.includes('Permissions'),
+  'CongratsScreen usa share/PDF/permissão — não permitido',
+);
+
+// ── Hotfix imagem próxima aventura (CongratsScreen) ──────────────────────────
+console.log('\n── Hotfix imagem próxima aventura ──');
+
+const nextAdvCardSrc = readSrc('src/components/story/NextAdventureCard.js');
+const storyCoverSrc  = readSrc('src/components/story/StoryCoverImage.js');
+
+check(
+  'NextAdventureCard: não usa focusTop hardcoded por story.id (causa zoom exagerado)',
+  !nextAdvCardSrc.includes("focusTop={story.id"),
+  'NextAdventureCard ainda usa focusTop={story.id === ...} — isso força imageTopFocus e zoom na capa',
+);
+
+check(
+  'NextAdventureCard: usa StoryCoverImage sem override de foco (foco vem de getStoryCoverMeta)',
+  nextAdvCardSrc.includes('StoryCoverImage') &&
+  !nextAdvCardSrc.includes('focusTop'),
+  'NextAdventureCard ainda passa focusTop — a capa da próxima aventura pode aparecer cortada',
+);
+
+check(
+  'StoryCoverImage: imageTopFocus só é aplicado quando focusY < 0.4 ou focusTop explícito (não por default)',
+  storyCoverSrc.includes('focusY < 0.4'),
+  'StoryCoverImage não verifica focusY < 0.4 — lógica de foco pode estar sempre ativa',
+);
+
+check(
+  'CongratsScreen: ordem correta — "Sua aventura virou um presente!" antes de "Resumo da aventura"',
+  (() => {
+    const src = readSrc('src/screens/CongratsScreen.js');
+    return src.indexOf('Sua aventura virou um presente!') < src.indexOf('Resumo da aventura');
+  })(),
+  'CongratsScreen: Livrinho / "presente" não aparece antes do "Resumo da aventura"',
+);
+
+check(
+  'UnlockCelebration não foi alterado neste hotfix',
+  (() => {
+    const src = readSrc('src/components/UnlockCelebration.js');
+    return src.includes('onContinue') && !src.includes('focusTop');
+  })(),
+  'UnlockCelebration foi alterado — fora do escopo',
+);
+
+check(
+  'NarrationScreen não foi alterado neste hotfix',
+  (() => {
+    const src = readSrc('src/screens/NarrationScreen.js');
+    return !src.includes('focusTop') && !src.includes('Resumo da aventura');
+  })(),
+  'NarrationScreen foi alterado — fora do escopo',
 );
 
 const bookHeroMundoSrc = readSrc('src/components/story/StoryBookHero.js');

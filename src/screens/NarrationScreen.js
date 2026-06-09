@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   Animated, StyleSheet,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useIsFocused } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import SoundButton from '../components/SoundButton';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
 import { BeniGuideBubble } from '../components/beni';
@@ -54,6 +54,9 @@ export default function NarrationScreen({ route, navigation }) {
 
   const [showCelebration, setShowCelebration] = useState(false);
   const celebrationHandledRef = useRef(false);
+  // true enquanto a celebração ainda não foi finalizada pela ação principal.
+  // Permite reabrir o modal ao retornar de uma ação secundária (visita).
+  const celebrationPendingRef = useRef(false);
 
   // Já existe um desenho salvo desta cena? Muda o convite de colorir.
   const [sceneHasDrawing, setSceneHasDrawing] = useState(false);
@@ -90,6 +93,14 @@ export default function NarrationScreen({ route, navigation }) {
     ]).start();
   }, [cenaIndex]);
 
+  // Reexibe a celebração ao voltar de uma ação secundária (visita), enquanto o
+  // hub ainda não foi encerrado pela ação principal.
+  useFocusEffect(useCallback(() => {
+    if (celebrationPendingRef.current && !celebrationHandledRef.current) {
+      setShowCelebration(true);
+    }
+  }, []));
+
   // ── Navegação segura ──
   function handleVoltar() {
     if (navigation.canGoBack()) navigation.goBack();
@@ -118,14 +129,44 @@ export default function NarrationScreen({ route, navigation }) {
     await salvarCena(cena.id);
     refreshProgress();
     celebrationHandledRef.current = false;
+    celebrationPendingRef.current = true;
     setShowCelebration(true);
   }
 
   function handleContinue() {
     if (celebrationHandledRef.current) return;
     celebrationHandledRef.current = true;
+    celebrationPendingRef.current = false;
     setShowCelebration(false);
     goToNext();
+  }
+
+  // Ações secundárias: escondem o modal antes de navegar para não sobrepor a tela
+  // de destino (Modal do RN renderiza fora da pilha do navegador). Não marcam
+  // celebrationHandledRef — ao voltar, useFocusEffect reabre o modal.
+  function handleColorirFromCelebration() {
+    if (celebrationHandledRef.current) return;
+    setShowCelebration(false);
+    navigation.navigate('Coloring', { story, cenaIndex });
+  }
+
+  function handleBauFromCelebration() {
+    if (celebrationHandledRef.current) return;
+    setShowCelebration(false);
+    navigation.navigate('BeniChest');
+  }
+
+  function handleEstrelinhasFromCelebration() {
+    if (celebrationHandledRef.current) return;
+    setShowCelebration(false);
+    // EstrelinhasCena é rota Stack — empurra TrophiesScreen sem remover NarrationScreen da pilha.
+    navigation.navigate('EstrelinhasCena', { fromPostSceneCelebration: true });
+  }
+
+  function handleLibrinhoFromCelebration() {
+    if (celebrationHandledRef.current) return;
+    setShowCelebration(false);
+    navigation.navigate('StoryBook', { story });
   }
 
   // Rótulo + ação do botão principal conforme o estado da cena
@@ -301,6 +342,13 @@ export default function NarrationScreen({ route, navigation }) {
         visible={showCelebration}
         onContinue={handleContinue}
         isLast={isLastCena}
+        onColorir={handleColorirFromCelebration}
+        onBau={handleBauFromCelebration}
+        onEstrelinhas={handleEstrelinhasFromCelebration}
+        onLibrinho={isLastCena ? handleLibrinhoFromCelebration : null}
+        sceneNumber={numeroCena}
+        totalCenas={totalCenas}
+        sceneHasDrawing={sceneHasDrawing}
       />
     </View>
   );

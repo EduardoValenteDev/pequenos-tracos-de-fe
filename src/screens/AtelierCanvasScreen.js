@@ -335,7 +335,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
           <Text style={styles.headerTitle}>
             {mode === 'guided' ? 'Desenho guiado pelo Beni' : 'Criar livre'}
           </Text>
-          <Text style={styles.headerSub} numberOfLines={1}>
+          <Text style={styles.headerSub}>
             {mode === 'guided' ? (mission || 'Uma ideia especial para hoje') : 'Desenhe do seu jeito ✨'}
           </Text>
         </View>
@@ -668,6 +668,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: colors.text },
   headerSub: {
     fontFamily: 'Nunito', fontSize: 12, color: '#7A6A58', fontWeight: '700',
+    lineHeight: 17, marginTop: 1,
   },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
