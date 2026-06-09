@@ -46,13 +46,13 @@ export default function StoryBookHero({
   const btnDisabled = isComingSoon;
   const showButton = !!primaryLabel && !!onPrimaryPress;
 
-  let btnBg = themeColor;
+  let btnBg = pt.beni;
   let btnTextColor = '#FFF';
   if (isComingSoon) {
     btnBg = pt.lockedBg;
     btnTextColor = pt.lockedText;
   } else if (isLocked) {
-    btnBg = '#7C3AED';
+    btnBg = pt.purple;
     btnTextColor = '#FFF';
   }
 
@@ -74,16 +74,18 @@ export default function StoryBookHero({
 
         {story.licaoCoracao && (
           <View style={styles.licaoBox}>
-            <Text style={styles.licaoLabel}>Lição do Coração</Text>
-            <Text style={styles.licao}>"{story.licaoCoracao}"</Text>
+            <Text style={styles.licaoQuote}>“</Text>
+            <Text style={styles.licaoLabel}>Lição do coração</Text>
+            <Text style={styles.licao}>{story.licaoCoracao}</Text>
           </View>
         )}
 
         {totalScenes > 0 && (
-          <View style={styles.chipsRow}>
-            <View style={styles.chip}><Text style={styles.chipText}>📖 {totalScenes} cenas</Text></View>
-            <View style={styles.chip}><Text style={styles.chipText}>🎨 Colorir</Text></View>
-            {hasAudio && <View style={styles.chip}><Text style={styles.chipText}>🎵 Áudio</Text></View>}
+          <View style={styles.experienceLine}>
+            <Text style={styles.experienceText}>
+              Nesta aventura você vai{' '}
+              {hasAudio ? 'ouvir, ' : ''}colorir e ganhar estrelas.
+            </Text>
           </View>
         )}
 
@@ -116,6 +118,12 @@ export default function StoryBookHero({
         {isLocked && !isComingSoon && (
           <Text style={styles.lockedHelper}>
             Peça a um responsável para desbloquear.
+          </Text>
+        )}
+
+        {!isCompleted && !isComingSoon && !isLocked && totalScenes > 0 && (
+          <Text style={styles.bookPromise}>
+            📖 Ao terminar, sua aventura vira um Livrinho da Fé.
           </Text>
         )}
       </View>
@@ -214,44 +222,52 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   licaoBox: {
-    backgroundColor: '#FFF8EC',
-    borderRadius: radii.md,
-    padding: 14,
-    borderLeftWidth: 3,
-    borderLeftColor: '#F4B400',
-    marginBottom: 12,
+    backgroundColor: pt.goldSoft,
+    borderRadius: radii.lg,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
+    marginBottom: 14,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  licaoQuote: {
+    position: 'absolute',
+    top: -6, left: 8,
+    fontFamily: 'FredokaOne',
+    fontSize: 48,
+    color: 'rgba(224,162,26,0.32)',
   },
   licaoLabel: {
     fontFamily: 'FredokaOne',
     fontSize: 10,
-    color: '#D98A18',
+    color: '#9A6B12',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
     marginBottom: 4,
+    marginLeft: 22,
   },
   licao: {
     fontFamily: 'Nunito',
-    fontSize: 14,
-    color: pt.text,
-    fontStyle: 'italic',
-    lineHeight: 21,
+    fontSize: 15,
+    color: '#5A3E12',
+    fontWeight: '700',
+    lineHeight: 22,
+    marginLeft: 22,
   },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 12,
+  experienceLine: {
+    backgroundColor: pt.faithBlueSoft,
+    borderRadius: radii.md,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    marginBottom: 14,
   },
-  chip: {
-    backgroundColor: pt.border,
-    borderRadius: radii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  chipText: {
+  experienceText: {
     fontFamily: 'Nunito',
-    fontSize: 11,
-    color: pt.text,
+    fontSize: 13,
+    color: pt.faithBlueDeep,
+    fontWeight: '700',
+    lineHeight: 19,
   },
   progressArea: {
     marginBottom: 14,
@@ -292,6 +308,15 @@ const styles = StyleSheet.create({
     color: pt.muted,
     textAlign: 'center',
     marginTop: 6,
+    marginBottom: 4,
+  },
+  bookPromise: {
+    fontFamily: 'Nunito',
+    fontSize: 12,
+    color: pt.textSoft,
+    textAlign: 'center',
+    fontWeight: '600',
+    marginTop: 10,
     marginBottom: 4,
   },
 });

@@ -28,10 +28,10 @@ const BADGE_CONFIG = {
     icon: '✓',
   },
   in_progress: {
-    defaultLabel: 'Em progresso',
+    defaultLabel: 'Em andamento',
     bg: pt.goldSoft,
     text: pt.premiumText,
-    icon: '▶',
+    icon: '✏️',
   },
   locked: {
     defaultLabel: 'Bloqueada',

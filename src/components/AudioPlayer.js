@@ -3,6 +3,7 @@ import { View, Text, Animated, StyleSheet } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import SoundButton from './SoundButton';
 import { colors } from '../theme/colors';
+import { colors as pt } from '../theme/productTheme';
 
 export default function AudioPlayer({ audioAsset, onFinished, paused }) {
   if (!audioAsset) return null;
@@ -173,42 +174,44 @@ function AudioPlayerInner({ audioAsset, onFinished, paused }) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.cardBg,
-    borderRadius: 20,
+    backgroundColor: pt.faithBlueSoft,
+    borderRadius: 22,
     marginVertical: 10,
     marginHorizontal: 16,
-    elevation: 4,
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: 'rgba(43,91,161,0.18)',
+    elevation: 3,
+    shadowColor: pt.faithBlue,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   playBtn: {
     width: 72, height: 72, borderRadius: 36,
-    backgroundColor: '#FF6B35',
+    backgroundColor: pt.faithBlue,
     justifyContent: 'center', alignItems: 'center',
     elevation: 6,
-    shadowColor: '#FF6B35',
+    shadowColor: pt.faithBlueDeep,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4, shadowRadius: 6,
   },
-  playBtnActive: { backgroundColor: colors.secondary, shadowColor: colors.secondary },
-  playBtnDone: { backgroundColor: colors.success, shadowColor: colors.success },
+  playBtnActive: { backgroundColor: pt.faithBlueDeep, shadowColor: pt.faithBlueDeep },
+  playBtnDone: { backgroundColor: pt.greenDeep, shadowColor: pt.greenDeep },
   playBtnError: { backgroundColor: '#9E9E9E', shadowColor: '#9E9E9E' },
   playBtnText: { fontSize: 28, color: '#FFF' },
   textArea: { flex: 1 },
   label: {
-    fontFamily: 'Nunito', fontSize: 14, color: colors.text,
-    marginBottom: 8, fontWeight: '700',
+    fontFamily: 'Nunito', fontSize: 14, color: pt.faithBlueDeep,
+    marginBottom: 8, fontWeight: '800',
   },
   progressBar: {
-    height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden',
+    height: 8, backgroundColor: 'rgba(43,91,161,0.16)', borderRadius: 4, overflow: 'hidden',
   },
   progressFill: {
-    height: '100%', backgroundColor: '#FF6B35', borderRadius: 4,
+    height: '100%', backgroundColor: pt.faithBlue, borderRadius: 4,
   },
   replayBtn: { padding: 8 },
   replayText: { fontSize: 22 },

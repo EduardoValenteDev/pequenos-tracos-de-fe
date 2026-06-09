@@ -63,3 +63,23 @@ export const COLOR_PALETTE = [
 ];
 
 export const DEFAULT_COLOR = COLOR_PALETTE[0].hex; // '#F44336'
+
+/**
+ * COLOR_FAMILIES — subconjunto curado e organizado por família, para uma
+ * paleta mais limpa e harmônica no Ateliê. Reaproveita hexes já existentes em
+ * COLOR_PALETTE, então artes salvas continuam 100% compatíveis.
+ */
+export const COLOR_FAMILIES = [
+  {
+    name: 'Principais',
+    colors: ['#F44336', '#FF6F00', '#FDD835', '#2ECC71', '#3498DB', '#8E44AD', '#EC407A', '#263238', '#FFFFFF'],
+  },
+  {
+    name: 'Natureza',
+    colors: ['#A5D6A7', '#1B8F3A', '#6B8E23', '#87CEEB', '#0D47A1', '#8B4513', '#DEB887'],
+  },
+  {
+    name: 'Especiais',
+    colors: ['#FFD700', '#48C9B0', '#D6B3FF', '#FFCDD2', '#FDBCB4', '#D9A066', '#8D5524', '#9E9E9E'],
+  },
+];

@@ -11,6 +11,7 @@ import { BeniGuideBubble } from '../components/beni';
 import CenteredContent from '../components/layout/CenteredContent';
 import { MISSIONS } from '../data/atelierData';
 import { listArts, ATELIER_FREE_SAVE_LIMIT } from '../services/atelierStorage';
+import { hasAtelierUnlimitedAccess } from '../services/accessControl';
 
 function pickMission() {
   return MISSIONS[Math.floor(Math.random() * MISSIONS.length)];
@@ -45,40 +46,41 @@ export default function AtelierScreen({ navigation }) {
   );
 
   const savePercent = Math.min(artCount / ATELIER_FREE_SAVE_LIMIT, 1);
+  const isFull = !hasAtelierUnlimitedAccess() && artCount >= ATELIER_FREE_SAVE_LIMIT;
 
-  /* ── Porta 1: Pintar uma cena — AÇÃO PRINCIPAL ── */
+  /* ── Ação principal: Colorir uma história ── */
   const pintarCenaCard = (
     <AnimatedCard delay={90} style={[styles.card, styles.cardPrincipal, styles.inMesa]}>
-      <LinearGradient colors={['#EAF2FF', '#BFDCFF']} style={styles.cardGradient}>
+      <LinearGradient colors={['#FFF3E6', '#FFE0C2']} style={styles.cardGradient}>
         <View style={styles.principalTag}>
           <Text style={styles.principalTagText}>✨ Comece por aqui</Text>
         </View>
         <View style={styles.cardRow}>
           <View style={[styles.cardEmojiBg, styles.cardEmojiBgPrincipal]}>
-            <Text style={styles.cardEmojiPrincipal}>🖼️</Text>
+            <Text style={styles.cardEmojiPrincipal}>🎨</Text>
           </View>
           <View style={styles.cardInfo}>
-            <Text style={styles.cardTitlePrincipal}>Pintar uma cena</Text>
+            <Text style={styles.cardTitlePrincipal}>Colorir uma história</Text>
             <Text style={styles.cardDesc}>
-              Escolha uma história e dê cor ao desenho.
+              Escolha uma cena bíblica e dê cor à aventura.
             </Text>
           </View>
         </View>
         <SoundButton
-          style={[styles.cardBtn, styles.cardBtnPrincipal, { backgroundColor: '#3B82F6' }]}
+          style={[styles.cardBtn, styles.cardBtnPrincipal, { backgroundColor: pt.beni }]}
           onPress={() => navigation.navigate('Aventuras')}
           activeOpacity={0.85}
         >
-          <Text style={styles.cardBtnTextPrincipal}>Escolher desenho</Text>
+          <Text style={styles.cardBtnTextPrincipal}>Escolher cena</Text>
         </SoundButton>
       </LinearGradient>
     </AnimatedCard>
   );
 
-  /* ── Portas secundárias: Desafio + Folha livre (2 colunas) ── */
+  /* ── Ações secundárias: Desenho guiado + Criar livre (2 colunas) ── */
   const secondaryDoors = (
     <AnimatedCard delay={160} style={[styles.secondaryRow, styles.inMesa]}>
-      {/* Desafio do Beni */}
+      {/* Desenho guiado pelo Beni */}
       <SoundButton
         style={[styles.tile, { backgroundColor: '#FFF4D6', borderColor: '#F4D08A' }]}
         onPress={() => navigation.navigate('AtelierCanvas', { mission })}
@@ -87,14 +89,14 @@ export default function AtelierScreen({ navigation }) {
         <View style={[styles.tileEmojiBg, { backgroundColor: '#FFD70050' }]}>
           <Text style={styles.tileEmoji}>💡</Text>
         </View>
-        <Text style={styles.tileTitle}>Desafio do Beni</Text>
-        <Text style={styles.tileDesc} numberOfLines={2}>Uma ideia especial para desenhar hoje.</Text>
-        <View style={[styles.tileBtn, { backgroundColor: '#F4B23C' }]}>
-          <Text style={styles.tileBtnText}>Aceitar</Text>
+        <Text style={styles.tileTitle}>Desenho guiado pelo Beni</Text>
+        <Text style={styles.tileDesc} numberOfLines={3}>Receba uma ideia simples para desenhar hoje.</Text>
+        <View style={[styles.tileBtn, { backgroundColor: pt.goldDeep }]}>
+          <Text style={styles.tileBtnText}>Começar desafio</Text>
         </View>
       </SoundButton>
 
-      {/* Folha livre */}
+      {/* Criar livre */}
       <SoundButton
         style={[styles.tile, { backgroundColor: '#F3E8FF', borderColor: '#D7C2F5' }]}
         onPress={() => navigation.navigate('AtelierCanvas', {})}
@@ -103,16 +105,16 @@ export default function AtelierScreen({ navigation }) {
         <View style={[styles.tileEmojiBg, { backgroundColor: '#C4A8FF50' }]}>
           <Text style={styles.tileEmoji}>📄</Text>
         </View>
-        <Text style={styles.tileTitle}>Folha livre</Text>
-        <Text style={styles.tileDesc} numberOfLines={2}>Crie do seu jeito.</Text>
-        <View style={[styles.tileBtn, { backgroundColor: '#8E44AD' }]}>
-          <Text style={styles.tileBtnText}>Abrir</Text>
+        <Text style={styles.tileTitle}>Criar livre</Text>
+        <Text style={styles.tileDesc} numberOfLines={3}>Desenhe do seu jeito.</Text>
+        <View style={[styles.tileBtn, { backgroundColor: pt.purple }]}>
+          <Text style={styles.tileBtnText}>Abrir folha</Text>
         </View>
       </SoundButton>
     </AnimatedCard>
   );
 
-  /* ── Porta 4: Minhas artes — galeria compacta e objetiva ── */
+  /* ── Minhas artes — galeria + limite amigável ── */
   const minhasArtesCard = (
     <AnimatedCard delay={290} style={styles.cardCompact}>
       <SoundButton
@@ -126,16 +128,28 @@ export default function AtelierScreen({ navigation }) {
         <View style={styles.cardInfo}>
           <Text style={styles.compactTitle}>Minhas artes</Text>
           <Text style={styles.compactDesc}>
-            {artCount} de {ATELIER_FREE_SAVE_LIMIT} artes salvas
+            {hasAtelierUnlimitedAccess()
+              ? `${artCount} arte${artCount === 1 ? '' : 's'} guardada${artCount === 1 ? '' : 's'}`
+              : `${artCount} de ${ATELIER_FREE_SAVE_LIMIT} artes salvas`}
           </Text>
-          <View style={styles.saveBar}>
-            <View style={[styles.saveBarFill, { width: `${savePercent * 100}%` }]} />
-          </View>
+          {!hasAtelierUnlimitedAccess() && (
+            <View style={styles.saveBar}>
+              <View style={[styles.saveBarFill, { width: `${savePercent * 100}%` }]} />
+            </View>
+          )}
         </View>
-        <View style={[styles.compactBtn, { backgroundColor: '#34A853' }]}>
-          <Text style={styles.compactBtnText}>Ver</Text>
+        <View style={[styles.compactBtn, { backgroundColor: pt.greenDeep }]}>
+          <Text style={styles.compactBtnText}>Ver galeria</Text>
         </View>
       </SoundButton>
+      {isFull && (
+        <View style={styles.fullNotice}>
+          <Text style={styles.fullNoticeText}>
+            Você já guardou {ATELIER_FREE_SAVE_LIMIT} artes. Para salvar mais, use o Modo Criador nos
+            testes ou aguarde o Plano Família. 💛
+          </Text>
+        </View>
+      )}
     </AnimatedCard>
   );
 
@@ -146,7 +160,7 @@ export default function AtelierScreen({ navigation }) {
         <Text style={styles.mesaLabel}>🎨 Mesa criativa</Text>
       </View>
       <BeniGuideBubble
-        message="Vamos criar uma arte juntos?"
+        message="Vamos dar cor para uma história hoje?"
         avatarVariant="artist"
         tone="purple"
         compact
@@ -175,7 +189,7 @@ export default function AtelierScreen({ navigation }) {
           <View style={styles.headerText}>
             <Text style={styles.headerTitle}>Ateliê do Beni</Text>
             <Text style={styles.headerSub}>
-              Pinte, crie e guarde suas artes de fé.
+              Colorir, criar e guardar suas artes de fé.
             </Text>
           </View>
         </View>
@@ -303,16 +317,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   tileEmoji: { fontSize: 20 },
-  tileTitle: { fontFamily: 'FredokaOne', fontSize: 14, color: pt.text, marginBottom: 3 },
+  tileTitle: { fontFamily: 'FredokaOne', fontSize: 14, color: pt.text, marginBottom: 3, minHeight: 38 },
   tileDesc: {
     fontFamily: 'Nunito', fontSize: 11, color: pt.textSoft, lineHeight: 15,
-    marginBottom: 10, minHeight: 30,
+    marginBottom: 10, minHeight: 45,
   },
   tileBtn: {
-    borderRadius: radii.pill, paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: radii.pill, paddingHorizontal: 10, paddingVertical: 9,
     alignSelf: 'stretch', alignItems: 'center',
   },
-  tileBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF' },
+  tileBtnText: { fontFamily: 'FredokaOne', fontSize: 12, color: '#FFF' },
 
   // ── Cards compactos (folha livre / minhas artes) ──
   cardCompact: {
@@ -335,7 +349,18 @@ const styles = StyleSheet.create({
   compactBtn: {
     borderRadius: radii.pill, paddingHorizontal: 16, paddingVertical: 9, flexShrink: 0,
   },
-  compactBtnText: { fontFamily: 'FredokaOne', fontSize: 14, color: '#FFF' },
+  compactBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF' },
+
+  // Aviso amigável quando o limite gratuito está cheio
+  fullNotice: {
+    backgroundColor: pt.goldSoft,
+    marginHorizontal: 12, marginBottom: 12,
+    borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 10,
+    borderWidth: 1, borderColor: pt.gold + '66',
+  },
+  fullNoticeText: {
+    fontFamily: 'Nunito', fontSize: 12, color: '#7A5800', fontWeight: '700', lineHeight: 17,
+  },
 
   missionBox: {
     backgroundColor: 'rgba(255,255,255,0.65)',

@@ -6,3 +6,4 @@ export { default as BeniEmptyState } from './BeniEmptyState';
 export { default as BeniLockedState } from './BeniLockedState';
 export { default as BeniCelebrationBadge } from './BeniCelebrationBadge';
 export { default as BeniSpeechCard } from './BeniSpeechCard';
+export { default as BeniChestCard } from './BeniChestCard';

@@ -63,13 +63,27 @@ export default function StoryCard({ story, onPress, locked = false, progressCoun
         ) : null}
       </View>
 
-      {/* Área de informações — abaixo da imagem */}
+      {/* Faixa colorida — "lombada" do livro entre a capa e a folha de rosto */}
+      <View style={[styles.spine, { backgroundColor: themeColor }]} />
+
+      {/* Folha de rosto do livro — abaixo da imagem */}
       <View style={styles.info}>
         <Text style={styles.title} numberOfLines={2}>{story.titulo}</Text>
         <Text style={styles.ref} numberOfLines={1}>{story.referencia}</Text>
 
-        <View style={styles.badgeRow}>
+        <View style={styles.metaRow}>
           <StatusBadge type={badgeType} />
+          {story.totalCenas > 0 && (
+            <View style={styles.cenasChip}>
+              <Text style={styles.cenasChipText}>
+                {isDone
+                  ? `${story.totalCenas} cenas`
+                  : inProgress
+                    ? `${progressCount}/${story.totalCenas} cenas`
+                    : `📖 ${story.totalCenas} cenas`}
+              </Text>
+            </View>
+          )}
         </View>
 
         {inProgress && story.totalCenas > 0 && (
@@ -95,9 +109,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     borderRadius: radii.lg,
     marginHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 14,
     overflow: 'hidden',
-    ...shadows.card,
+    borderWidth: 1,
+    borderColor: pt.border,
+    elevation: 4,
+    shadowColor: '#3A2A1E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 9,
+  },
+
+  // Lombada colorida — separa a capa da folha de rosto, dá cara de livro
+  spine: {
+    height: 5,
+    width: '100%',
   },
 
   // 16:9 cover limpa no topo
@@ -137,35 +163,53 @@ const styles = StyleSheet.create({
   },
   cornerBadgeText: { fontSize: 15 },
 
-  // Área de informações (abaixo da imagem)
+  // Folha de rosto do livro (abaixo da imagem)
   info: {
-    padding: 14,
+    paddingHorizontal: 15,
+    paddingTop: 12,
+    paddingBottom: 14,
+    backgroundColor: '#FFFDF7',
   },
   title: {
     fontFamily: 'FredokaOne',
-    fontSize: 16,
+    fontSize: 18,
     color: pt.text,
-    lineHeight: 22,
-    marginBottom: 2,
+    lineHeight: 23,
+    marginBottom: 3,
   },
   ref: {
     fontFamily: 'Nunito',
     fontSize: 12,
     color: pt.muted,
     fontStyle: 'italic',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  badgeRow: {
+  metaRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 4,
+    gap: 8,
+  },
+  cenasChip: {
+    backgroundColor: pt.cream,
+    borderRadius: radii.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: pt.border,
+  },
+  cenasChipText: {
+    fontFamily: 'Nunito',
+    fontSize: 11,
+    color: pt.textSoft,
+    fontWeight: '800',
   },
   progressBar: {
-    height: 5,
+    height: 6,
     backgroundColor: pt.border,
     borderRadius: 3,
     overflow: 'hidden',
-    marginTop: 8,
+    marginTop: 10,
   },
   progressFill: {
     height: '100%',

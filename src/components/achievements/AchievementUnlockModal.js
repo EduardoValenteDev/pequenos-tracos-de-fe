@@ -2,8 +2,14 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, Modal, Animated, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors as pt, radii } from '../../theme/productTheme';
 import { colors } from '../../theme/colors';
+import { BeniAvatar } from '../beni';
 
-export default function AchievementUnlockModal({ achievement, onDismiss }) {
+/**
+ * Celebração de conquista — reutilizável em todas as telas.
+ * @param onDismiss    fecha (botão "Continuar").
+ * @param onSeeAlbum   opcional: se fornecido, mostra botão secundário "Ver álbum".
+ */
+export default function AchievementUnlockModal({ achievement, onDismiss, onSeeAlbum }) {
   const scaleAnim = useRef(new Animated.Value(0.6)).current;
   const fadeAnim  = useRef(new Animated.Value(0)).current;
 
@@ -15,24 +21,32 @@ export default function AchievementUnlockModal({ achievement, onDismiss }) {
   }, []);
 
   if (!achievement) return null;
+  const color = achievement.color ?? colors.accent;
 
   return (
     <Modal transparent animationType="none" visible statusBarTranslucent>
       <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
         <Animated.View style={[styles.box, { transform: [{ scale: scaleAnim }] }]}>
           <Text style={styles.superTitle}>Nova estrelinha acesa! ✨</Text>
-          <View style={[styles.emojiCircle, { backgroundColor: (achievement.color ?? colors.accent) + '30' }]}>
+          <BeniAvatar variant="celebrating" size="medium" />
+          <View style={[styles.emojiCircle, { backgroundColor: color + '30' }]}>
             <Text style={styles.emoji}>{achievement.emoji}</Text>
           </View>
           <Text style={styles.title}>{achievement.title}</Text>
           <Text style={styles.desc}>{achievement.desc}</Text>
+          <Text style={styles.beniLine}>Beni viu essa vitória! 💛</Text>
           <TouchableOpacity
-            style={[styles.btn, { backgroundColor: achievement.color ?? colors.accent }]}
+            style={[styles.btn, { backgroundColor: color }]}
             onPress={onDismiss}
             activeOpacity={0.85}
           >
-            <Text style={styles.btnText}>Legal! 🎉</Text>
+            <Text style={styles.btnText}>Continuar 🎉</Text>
           </TouchableOpacity>
+          {onSeeAlbum && (
+            <TouchableOpacity style={styles.btnSecondary} onPress={onSeeAlbum} activeOpacity={0.85}>
+              <Text style={styles.btnSecondaryText}>Ver álbum</Text>
+            </TouchableOpacity>
+          )}
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -66,11 +80,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emojiCircle: {
-    width: 80, height: 80, borderRadius: 40,
+    width: 76, height: 76, borderRadius: 38,
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 16,
+    marginTop: 8, marginBottom: 14,
   },
-  emoji: { fontSize: 42 },
+  emoji: { fontSize: 40 },
   title: {
     fontFamily: 'FredokaOne',
     fontSize: 20,
@@ -84,7 +98,14 @@ const styles = StyleSheet.create({
     color: pt.textSoft,
     textAlign: 'center',
     lineHeight: 21,
-    marginBottom: 24,
+    marginBottom: 10,
+  },
+  beniLine: {
+    fontFamily: 'FredokaOne',
+    fontSize: 13,
+    color: pt.purpleDeep,
+    textAlign: 'center',
+    marginBottom: 20,
   },
   btn: {
     borderRadius: radii.pill,
@@ -102,5 +123,10 @@ const styles = StyleSheet.create({
     fontFamily: 'FredokaOne',
     fontSize: 17,
     color: '#FFF',
+  },
+  btnSecondary: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+  btnSecondaryText: {
+    fontFamily: 'Nunito', fontSize: 14, color: pt.muted,
+    fontWeight: '700', textDecorationLine: 'underline',
   },
 });

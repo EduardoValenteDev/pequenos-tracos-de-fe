@@ -4,14 +4,20 @@
  * válido para componentes existentes — não é necessário migrar tudo agora.
  */
 
+/**
+ * Direção visual "Mundo Vivo do Beni" — papéis de cor (ver sprint Jornada 1.1):
+ *   azul fé (confiança/ouvir) · ouro (estrelas/recompensa) · verde vida (progresso)
+ *   laranja Beni (ação principal infantil) · creme (fundo) · roxo mágico (Livrinho)
+ *   marrom quente (texto). Ajuste sobre a paleta existente, sem troca destrutiva.
+ */
 export const colors = {
-  // Fundos
-  background: '#FFF8EF',
+  // Fundos — creme acolhedor, leve
+  background: '#FFF9F0',
   surface: '#FFFFFF',
   cream: '#FFF3DD',
   creamStrong: '#FFE8BE',
 
-  // Texto
+  // Texto — marrom quente (evita preto duro)
   text: '#2F241D',
   textSoft: '#6F6258',
   muted: '#9B8D80',
@@ -19,30 +25,43 @@ export const colors = {
   // Bordas
   border: '#EADFD2',
 
-  // Ouro — estrelas, destaques, seleção
-  gold: '#F4B400',
-  goldSoft: '#FFF1BF',
+  // Ouro — estrelas, conquistas, luz, trilha Comece Aqui
+  gold: '#F9C74F',
+  goldDeep: '#E0A21A',
+  goldSoft: '#FFF3CC',
 
-  // Ações e destaques
-  orange: '#F97316',
+  // Laranja Beni — ação principal infantil (Começar, Continuar, Colorir)
+  beni: '#F3722C',
+  beniDeep: '#E25A12',
+  beniSoft: '#FFE6D6',
+
+  // Ações e destaques (compatibilidade)
+  orange: '#F3722C',
   coral: '#FF7A45',
 
-  // Verde — sucesso, grátis
-  green: '#34C759',
-  greenSoft: '#E8F8EE',
+  // Verde vida — progresso, concluído, criação, confirmação
+  green: '#90BE6D',
+  greenDeep: '#5E9C3E',
+  greenSoft: '#EBF5E0',
 
-  // Azul — céu, leitura
+  // Azul fé — confiança, céu, segurança, botões de ouvir
+  faithBlue: '#2B5BA1',
+  faithBlueDeep: '#1E467F',
+  faithBlueSoft: '#E5ECF7',
+
+  // Azul céu — elementos decorativos/secundários
   blue: '#4FC3F7',
   blueSoft: '#DFF6FF',
 
-  // Lilás — ateliê, criatividade
-  lilac: '#F0E8FF',
-  purple: '#8E44AD',
+  // Roxo mágico — momentos especiais do Beni, fantasia, Livrinho
+  lilac: '#F1EAFE',
+  purple: '#7C3AED',
+  purpleDeep: '#5B21B6',
 
   // Estados de acesso
   premiumBg: '#FFF2C2',
   premiumText: '#7A4E00',
-  freeBg: '#E8F8EE',
+  freeBg: '#EBF5E0',
   freeText: '#1F7A3D',
   lockedBg: '#F4EFE8',
   lockedText: '#9B8D80',

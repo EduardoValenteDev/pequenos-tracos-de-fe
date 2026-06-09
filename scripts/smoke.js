@@ -225,12 +225,12 @@ check(
 
 const parentQaSrc = readSrc('src/screens/ParentAreaScreen.js');
 check(
-  'Modo Criador aparece só na Área dos Pais e só se permitido (atrás do gate)',
+  'Modo Criador aparece na Área dos Pais atrás do gate de teste (SHOW_TEST_TOOLS)',
   parentQaSrc.includes('isCreatorQaModeAllowed') &&
-  parentQaSrc.includes('qaAllowed &&') &&
+  parentQaSrc.includes('SHOW_TEST_TOOLS &&') &&
   parentQaSrc.includes('Modo Criador') &&
   parentQaSrc.includes('não altera o plano dos usuários reais'),
-  'ParentAreaScreen must show the Creator toggle only when allowed, with the QA warning',
+  'ParentAreaScreen must show the Creator toggle behind the test-tools gate, with the QA warning',
 );
 
 check(
@@ -510,9 +510,11 @@ check(
 );
 
 check(
-  'ParentAreaScreen has informative (non-pressable) Premium availability label',
-  pasSrc.includes('Disponível em breve para famílias'),
-  'ParentAreaScreen missing the informative Premium availability label',
+  'ParentAreaScreen: Plano Família informativo, sem botão de compra/restauração',
+  pasSrc.includes('Disponível em uma próxima atualização') &&
+  !pasSrc.includes('Restaurar compra') &&
+  !pasSrc.includes('Ativar em breve'),
+  'ParentAreaScreen still shows actionable purchase/restore for the Premium plan',
 );
 
 check(
@@ -1429,8 +1431,8 @@ check(
   'NarrationScreen has custom Portuguese header (Voltar / Início), no native route names',
   narrationCompletionSrc.includes('Voltar') && narrationCompletionSrc.includes('Início') &&
   narrationCompletionSrc.includes('Cena anterior') &&
-  narrationCompletionSrc.includes('Pintar no Ateliê'),
-  'NarrationScreen missing custom header / Cena anterior / Pintar no Ateliê labels',
+  narrationCompletionSrc.includes('Colorir cena'),
+  'NarrationScreen missing custom header / Cena anterior / Colorir cena labels',
 );
 
 const appNavHeaderSrc = readSrc('src/navigation/AppNavigator.js');
@@ -1657,8 +1659,8 @@ check(
 );
 
 check(
-  'ParentAreaScreen shows "Este resumo é salvo apenas neste aparelho."',
-  parentSrc7.includes('Este resumo é salvo apenas neste aparelho'),
+  'ParentAreaScreen tem aviso de dados locais (Resumo de privacidade)',
+  parentSrc7.includes('Os dados ficam neste aparelho'),
   'ParentAreaScreen missing local-storage disclaimer for parents',
 );
 
@@ -1881,7 +1883,7 @@ check(
 
 check(
   'AtelierCanvasScreen limit modal message matches official text',
-  atelierCanvasSrc.includes('Para guardar mais criações, peça a um responsável'),
+  atelierCanvasSrc.includes('use o Modo Criador nos testes ou aguarde o Plano Família'),
   'AtelierCanvasScreen limit modal text does not match official product copy',
 );
 
@@ -2252,10 +2254,10 @@ check(
 );
 
 check(
-  'AtelierScreen desafio card says "Uma ideia especial" (not "Receba uma ideia")',
-  atelierSrc9.includes('Uma ideia especial para desenhar hoje') &&
-  !atelierSrc9.includes('Receba uma ideia especial para desenhar hoje'),
-  'AtelierScreen desafio card still says "Receba uma ideia especial para desenhar hoje"',
+  'AtelierScreen: card "Desenho guiado pelo Beni" explica a ação (Receba uma ideia simples)',
+  atelierSrc9.includes('Desenho guiado pelo Beni') &&
+  atelierSrc9.includes('Receba uma ideia simples para desenhar hoje'),
+  'AtelierScreen não tem o card "Desenho guiado pelo Beni" com a explicação correta',
 );
 
 // ── [304–337] Sprint 9.1 — Safe Area real, FaithIcon aplicado, linguagem ──────
@@ -2485,9 +2487,9 @@ check(
   'AtelierCanvasScreen still uses ATELIER_PALETTE — should use COLOR_PALETTE',
 );
 check(
-  'AtelierCanvasScreen uses COLOR_PALETTE in JSX',
-  atelierScreenSrc92.includes('COLOR_PALETTE.map'),
-  'AtelierCanvasScreen does not use COLOR_PALETTE.map — palette rendering not updated',
+  'AtelierCanvasScreen renderiza a paleta por famílias (COLOR_FAMILIES)',
+  atelierScreenSrc92.includes('COLOR_FAMILIES.map'),
+  'AtelierCanvasScreen não renderiza a paleta organizada por famílias',
 );
 check(
   'AtelierCanvas drawStamp uses actualBoundingBoxLeft (glyph centering)',
@@ -3081,9 +3083,10 @@ check(
   'HomeScreen does not import getHomePrimaryAction from homeService',
 );
 check(
-  'HomeScreen has "Hoje com Beni" compact panel (Sprint Beni A++ 3.0)',
-  homeSrc11.includes('Hoje com Beni') && homeSrc11.includes('HojeComBeni'),
-  'HomeScreen missing "Hoje com Beni" compact panel — restructured in Sprint Beni A++ 3.0',
+  'HomeScreen tem o hero "Missão de Hoje" (Portal do Beni — Mundo Vivo 1.0)',
+  homeSrc11.includes('MISSÃO DE HOJE') && homeSrc11.includes('MissaoDeHoje') &&
+  homeSrc11.includes('getShowcaseStory'),
+  'HomeScreen perdeu o hero Missão de Hoje (Portal do Beni)',
 );
 check(
   'HomeScreen uses primaryAction via useMemo',
@@ -3118,9 +3121,9 @@ check(
   'TrophiesScreen AchievementCard locked state still uses FaithIcon lock instead of dimmed emoji',
 );
 check(
-  'TrophiesScreen has progressHint style for locked achievement progress',
-  trophiesSrc11.includes('progressHint'),
-  'TrophiesScreen missing progressHint style — no progress display in locked cards',
+  'TrophiesScreen mostra progresso em conquistas bloqueadas (barra/label)',
+  trophiesSrc11.includes('cardProgressText') && trophiesSrc11.includes('cardProgressFill'),
+  'TrophiesScreen não mostra progresso nos cards bloqueados',
 );
 check(
   'TrophiesScreen passes ctx to AchievementCard',
@@ -3444,11 +3447,12 @@ check(
   'NarrationScreen no-audio text contains technical language forbidden in child UI',
 );
 
-// [489] TrophiesScreen has positive empty-state hint
+// [489] TrophiesScreen tem orientação positiva (próxima conquista), sem tela vazia
 check(
-  'TrophiesScreen has positive empty-state hint when unlockedCount === 0',
-  trophies13.includes('unlockedCount === 0') && trophies13.includes('Pinte sua primeira cena'),
-  'TrophiesScreen missing positive empty-state hint — child sees blank screen with 0 achievements',
+  'TrophiesScreen tem orientação positiva (próxima conquista) sem culpa',
+  trophies13.includes('PRÓXIMA CONQUISTA') &&
+  trophies13.includes('descobrir sua próxima estrelinha'),
+  'TrophiesScreen não tem o bloco de próxima conquista / orientação positiva',
 );
 
 // [490] ProfileScreen default name is "Pequeno artista" (not "explorador")
@@ -5638,27 +5642,28 @@ check(
 );
 
 check(
-  'ParentAreaScreen contém seção de progresso e conquistas',
-  parentAreaSrc.includes('Progresso e conquistas'),
-  'Seção "Progresso e conquistas" não encontrada na Área dos Pais',
+  'ParentAreaScreen contém seção Jornada e progresso',
+  parentAreaSrc.includes('Jornada e progresso'),
+  'Seção "Jornada e progresso" não encontrada na Área dos Pais',
 );
 
 check(
-  'ParentAreaScreen contém seção de dados e privacidade',
-  parentAreaSrc.includes('Dados e privacidade'),
-  'Seção "Dados e privacidade" não encontrada na Área dos Pais',
+  'ParentAreaScreen contém seção Segurança e privacidade',
+  parentAreaSrc.includes('Segurança e privacidade'),
+  'Seção "Segurança e privacidade" não encontrada na Área dos Pais',
 );
 
 check(
-  'ParentAreaScreen contém seção de configurações da família',
-  parentAreaSrc.includes('Configurações da família'),
-  'Seção "Configurações da família" não encontrada na Área dos Pais',
+  'ParentAreaScreen tem Resumo da criança + Próximo passo recomendado',
+  parentAreaSrc.includes('Resumo da criança') &&
+  parentAreaSrc.includes('Próximo passo recomendado'),
+  'Resumo da criança / Próximo passo recomendado não encontrados',
 );
 
 check(
-  'ParentAreaScreen contém seção de plano e acesso',
-  parentAreaSrc.includes('Plano e acesso'),
-  'Seção "Plano e acesso" não encontrada na Área dos Pais',
+  'ParentAreaScreen contém seção Plano familiar',
+  parentAreaSrc.includes('Plano familiar'),
+  'Seção "Plano familiar" não encontrada na Área dos Pais',
 );
 
 check(
@@ -5807,9 +5812,12 @@ check(
 );
 
 check(
-  'Configurações da família aparece antes de Dados e privacidade (reordenação)',
-  parentAreaSrc31.indexOf('Configurações da família') < parentAreaSrc31.indexOf('Dados e privacidade'),
-  'Seção "Configurações da família" não está antes de "Dados e privacidade" — reordenação não aplicada',
+  'Área dos Pais: ordem de blocos (Resumo → Jornada → Segurança → Plano → Igreja)',
+  parentAreaSrc31.indexOf('Resumo da criança') < parentAreaSrc31.indexOf('Jornada e progresso') &&
+  parentAreaSrc31.indexOf('Jornada e progresso') < parentAreaSrc31.indexOf('Segurança e privacidade') &&
+  parentAreaSrc31.indexOf('Segurança e privacidade') < parentAreaSrc31.indexOf('Plano familiar') &&
+  parentAreaSrc31.indexOf('Plano familiar') < parentAreaSrc31.indexOf('⛪ Modo Igreja'),
+  'Área dos Pais blocks are not in the expected order',
 );
 
 check(
@@ -5857,17 +5865,18 @@ check(
 );
 
 check(
-  'Área dos Pais: ferramentas de Criador/QA/Build escondidas atrás de qaAllowed',
-  /qaAllowed &&[\s\S]*?Ferramentas do Criador/.test(parentSrc) &&
-  /qaAllowed &&[\s\S]*?Build info/.test(parentSrc),
-  'ParentAreaScreen must keep Creator/QA/Build tools behind the qaAllowed flag',
+  'Área dos Pais: ferramentas de teste aparecem em DEV/Expo Go (gate SHOW_TEST_TOOLS)',
+  parentSrc.includes('const SHOW_TEST_TOOLS') &&
+  /__DEV__[\s\S]*?isCreatorQaModeAllowed\(\)/.test(parentSrc) &&
+  /\{SHOW_TEST_TOOLS &&[\s\S]*?Ferramentas do Criador/.test(parentSrc),
+  'Creator/QA/Build test tools must show in dev/Expo Go via SHOW_TEST_TOOLS',
 );
 
 check(
-  'Área dos Pais: copy de Premium suavizada (sem "Ativar em breve")',
-  !parentSrc.includes('Ativar em breve') &&
-  parentSrc.includes('Disponível em breve para famílias'),
-  'ParentAreaScreen still uses the old "Ativar em breve" copy',
+  'Área dos Pais: ferramentas de teste podem ficar ocultas em produção',
+  // SHOW_TEST_TOOLS é false em prod (sem __DEV__ e sem a flag de build)
+  /SHOW_TEST_TOOLS\s*=\s*\(typeof __DEV__/.test(parentSrc),
+  'SHOW_TEST_TOOLS must be derivable false in production (no __DEV__ / no build flag)',
 );
 
 check(
@@ -5877,6 +5886,759 @@ check(
   parentSrc.includes('Compartilhe uma orientação com as famílias'),
   'ParentAreaScreen Church mode missing the 3-step explanation',
 );
+
+// ── Sprint Design System 1.0 + Beni nas telas da criança ─────────────────────
+const themeSrc = readSrc('src/theme/theme.js');
+check(
+  'Design System 1.0 (theme.js) define os tokens centrais',
+  ['typography', 'buttonSizes', 'cardStyles', 'badges', 'sectionHeaders', 'palette']
+    .every(t => new RegExp(`export const ${t}`).test(themeSrc)) &&
+  /export \{ colors, radii, spacing, shadows, layout \}/.test(themeSrc),
+  'theme.js missing Design System tokens (typography/buttonSizes/cardStyles/badges/sectionHeaders/palette)',
+);
+
+check(
+  'QuizScreen mostra Beni (quizStart) só na primeira pergunta',
+  readSrc('src/screens/QuizScreen.js').includes('BeniSpeechCard') &&
+  readSrc('src/screens/QuizScreen.js').includes('context="quizStart"') &&
+  /current === 0 &&[\s\S]*?<BeniSpeechCard/.test(readSrc('src/screens/QuizScreen.js')),
+  'QuizScreen must show a single quizStart Beni line on the first question',
+);
+
+check(
+  'PremiumLockCard mostra fala do Beni (premium), suavizando o bloqueio',
+  readSrc('src/components/premium/PremiumLockCard.js').includes('BeniSpeechCard') &&
+  readSrc('src/components/premium/PremiumLockCard.js').includes('context="premium"'),
+  'PremiumLockCard must show a child-friendly Beni premium line',
+);
+
+check(
+  'Beni não é duplicado nas telas que já têm guia (sem BeniSpeechCard onde já há BeniGuideBubble)',
+  ['NarrationScreen', 'StoryDetailScreen', 'StoriesScreen', 'AtelierScreen'].every(s => {
+    const src = readSrc(`src/screens/${s}.js`);
+    return !(src.includes('BeniGuideBubble') && src.includes('BeniSpeechCard'));
+  }),
+  'A screen uses both BeniGuideBubble and BeniSpeechCard — avoid duplicating Beni',
+);
+
+// ── Sprint Mundo Vivo do Beni — Jornada Principal 1.0 ────────────────────────
+const showcaseSrc = readSrc('src/services/showcaseStory.js');
+check(
+  'showcaseStory service escolhe a história vitrine (grátis, jogável, comece_aqui)',
+  showcaseSrc.includes('getShowcaseStory') &&
+  showcaseSrc.includes('comece_aqui') &&
+  showcaseSrc.includes('accessType'),
+  'showcaseStory.js ausente ou sem critério de história vitrine',
+);
+
+const homeMundoSrc = readSrc('src/screens/HomeScreen.js');
+check(
+  'Home: hero da missão mostra o que a criança vai viver (Ouvir / Colorir / Estrelas)',
+  homeMundoSrc.includes('🔊 Ouvir') &&
+  homeMundoSrc.includes('🎨 Colorir') &&
+  homeMundoSrc.includes('⭐ Estrelas'),
+  'Home perdeu a linha de features (Ouvir/Colorir/Estrelas) do hero da missão',
+);
+check(
+  'Home: hero traz a lição do coração e a promessa do Livrinho',
+  homeMundoSrc.includes('licaoCoracao') &&
+  homeMundoSrc.includes('Livrinho da Fé'),
+  'Home não conecta lição do coração + Livrinho no hero da missão',
+);
+
+const unlockSrc = readSrc('src/components/UnlockCelebration.js');
+check(
+  'Primeira vitória: UnlockCelebration é emocional e cita o Beni',
+  unlockSrc.includes('avançou na aventura') &&
+  unlockSrc.includes('Beni') &&
+  !unlockSrc.includes('Vamos para a próxima cena?'),
+  'UnlockCelebration ainda usa copy fria / sem o Beni',
+);
+
+const bookHeroMundoSrc = readSrc('src/components/story/StoryBookHero.js');
+check(
+  'Entrada da história promete o Livrinho e mostra ganho de estrelas',
+  bookHeroMundoSrc.includes('Livrinho da Fé') &&
+  bookHeroMundoSrc.includes('ganhar estrelas'),
+  'StoryBookHero não promete Livrinho / não mostra ganho de estrelas',
+);
+
+const storiesMundoSrc = readSrc('src/screens/StoriesScreen.js');
+check(
+  'Mapa das Histórias destaca a história recomendada (Comece por aqui)',
+  storiesMundoSrc.includes('getShowcaseStory') &&
+  storiesMundoSrc.includes('isRecommended') &&
+  storiesMundoSrc.includes('Comece por aqui'),
+  'StoriesScreen não destaca mais a história recomendada na trilha',
+);
+
+// ── Sprint Jornada Principal 1.1 — direção visual + encanto ──────────────────
+const ptThemeSrc = readSrc('src/theme/productTheme.js');
+check(
+  'Paleta: papéis azul fé / laranja Beni / verde vida / roxo mágico definidos em productTheme',
+  ptThemeSrc.includes('faithBlue') && ptThemeSrc.includes('#2B5BA1') &&
+  ptThemeSrc.includes('beni:') && ptThemeSrc.includes('#F3722C') &&
+  ptThemeSrc.includes('#90BE6D'),
+  'productTheme não define os papéis de cor da direção visual (azul fé / Beni / verde vida)',
+);
+
+const homeVisualSrc = readSrc('src/screens/HomeScreen.js');
+check(
+  'Home agrupa Ideia do dia + versículo em "Cantinho do Beni"',
+  homeVisualSrc.includes('Cantinho do Beni') && homeVisualSrc.includes('CantinhoDoBeni') &&
+  homeVisualSrc.includes('Uma ideia para hoje') && homeVisualSrc.includes('versículo para guardar'),
+  'Home não agrupou ideia + versículo no Cantinho do Beni',
+);
+check(
+  'Home: conquista vira recompensa ("VOCÊ CONQUISTOU") e mundos viram "Caminhos da fé"',
+  homeVisualSrc.includes('VOCÊ CONQUISTOU') && homeVisualSrc.includes('ConquistaCard') &&
+  homeVisualSrc.includes('Caminhos da fé') &&
+  homeVisualSrc.includes('Cada mundo guarda novas histórias'),
+  'Home não tem conquista-recompensa nem seção Caminhos da fé',
+);
+check(
+  'Home: microcopy dos mundos atualizada (Primeiras aventuras / Mistérios e descobertas)',
+  homeVisualSrc.includes('Primeiras aventuras da fé') &&
+  homeVisualSrc.includes('Mistérios e descobertas bíblicas') &&
+  homeVisualSrc.includes('Desafios para corações corajosos'),
+  'Home não atualizou a microcopy dos mundos',
+);
+
+const storyCardSrc = readSrc('src/components/StoryCard.js');
+check(
+  'StoryCard parece livro: lombada colorida + folha de rosto + linha de cenas',
+  storyCardSrc.includes('spine') && storyCardSrc.includes('cenasChip') &&
+  storyCardSrc.includes('cenas'),
+  'StoryCard não tem cara de livro (lombada / folha de rosto / cenas)',
+);
+
+const storiesVisualSrc = readSrc('src/screens/StoriesScreen.js');
+check(
+  'Aventuras: "Próxima aventura" com botão pílula "Continuar →" (sem ▶ feio)',
+  storiesVisualSrc.includes('Próxima aventura') &&
+  storiesVisualSrc.includes('Continuar  →') &&
+  !storiesVisualSrc.includes('continueBtnText}>▶'),
+  'StoriesScreen ainda usa o botão de player feio / não renomeou para Próxima aventura',
+);
+
+const audioVisualSrc = readSrc('src/components/AudioPlayer.js');
+check(
+  'AudioPlayer usa azul fé (botão de ouvir) em vez do laranja antigo',
+  audioVisualSrc.includes('faithBlue') && !audioVisualSrc.includes("'#FF6B35'"),
+  'AudioPlayer não foi recolorido para azul fé',
+);
+
+const narrationVisualSrc = readSrc('src/screens/NarrationScreen.js');
+check(
+  'Narração: convite forte para colorir ("Hora de colorir") + estado "já coloriu"',
+  narrationVisualSrc.includes('Hora de colorir') &&
+  narrationVisualSrc.includes('Colorir cena') &&
+  narrationVisualSrc.includes('Você já coloriu esta cena') &&
+  narrationVisualSrc.includes('sceneHasDrawing'),
+  'NarrationScreen não tem convite forte para colorir nem estado de cena já colorida',
+);
+
+const bookHeroVisualSrc = readSrc('src/components/story/StoryBookHero.js');
+check(
+  'Entrada da história: linha única "ouvir, colorir e ganhar estrelas" e botão laranja Beni',
+  bookHeroVisualSrc.includes('Nesta aventura você vai') &&
+  bookHeroVisualSrc.includes('pt.beni'),
+  'StoryBookHero não tem a linha de experiência / botão Beni dominante',
+);
+
+// ── Sprint Ateliê Premium e Canvas Infantil 1.0 ─────────────────────────────
+const homeAtelierSrc = readSrc('src/screens/HomeScreen.js');
+check(
+  'Home: Cantinho do Beni é bloco especial com 3 itens (ideia + versículo + oração)',
+  homeAtelierSrc.includes('Uma ideia para hoje') &&
+  homeAtelierSrc.includes('Um versículo para guardar') &&
+  homeAtelierSrc.includes('Uma oração curtinha') &&
+  homeAtelierSrc.includes('DAILY_PRAYERS'),
+  'Home Cantinho do Beni não tem os 3 itens (ideia/versículo/oração)',
+);
+
+const badgeSrc = readSrc('src/components/ui/StatusBadge.js');
+check(
+  'Selo "Em andamento" não usa ícone de player (▶)',
+  !badgeSrc.includes("icon: '▶'") && badgeSrc.includes('Em andamento'),
+  'StatusBadge in_progress ainda usa o ícone de player ▶',
+);
+
+const atelierMesaSrc = readSrc('src/screens/AtelierScreen.js');
+check(
+  'Ateliê: 3 ações claras (Colorir uma história / Desenho guiado pelo Beni / Criar livre)',
+  atelierMesaSrc.includes('Colorir uma história') && atelierMesaSrc.includes('Escolher cena') &&
+  atelierMesaSrc.includes('Desenho guiado pelo Beni') && atelierMesaSrc.includes('Começar desafio') &&
+  atelierMesaSrc.includes('Criar livre') && atelierMesaSrc.includes('Abrir folha'),
+  'Ateliê não tem as 3 ações renomeadas e explicadas',
+);
+check(
+  'Ateliê: Minhas artes com "Ver galeria" e aviso amigável de limite cheio',
+  atelierMesaSrc.includes('Ver galeria') &&
+  atelierMesaSrc.includes('use o Modo Criador nos') &&
+  atelierMesaSrc.includes('Plano Família'),
+  'Ateliê Minhas artes sem botão de galeria / aviso amigável de limite',
+);
+
+const canvasSrc2 = readSrc('src/screens/AtelierCanvasScreen.js');
+check(
+  'Canvas: ferramentas Desenhar / Borracha / Carimbos (sem Apagar/Enfeitar)',
+  canvasSrc2.includes("label: 'Borracha'") && canvasSrc2.includes("label: 'Carimbos'") &&
+  canvasSrc2.includes("label: 'Desenhar'") &&
+  !canvasSrc2.includes("label: 'Apagar'") && !canvasSrc2.includes("label: 'Enfeitar'"),
+  'Canvas não renomeou as ferramentas para Borracha/Carimbos',
+);
+check(
+  'Canvas: pincel Pequeno/Médio/Grande (sem Fino/Grosso)',
+  canvasSrc2.includes("label: 'Pequeno'") && canvasSrc2.includes("label: 'Grande'") &&
+  !canvasSrc2.includes("label: 'Fino'") && !canvasSrc2.includes("label: 'Grosso'"),
+  'Canvas ainda usa Fino/Grosso no pincel',
+);
+check(
+  'Canvas: Carimbos da Fé = 5 itens (com Cordeirinho, sem Cruz); Limpar tudo separado',
+  canvasSrc2.includes("label: 'Cordeirinho'") && !canvasSrc2.includes("label: 'Cruz'") &&
+  canvasSrc2.includes("label: 'Pombinha'") &&
+  canvasSrc2.includes('Limpar tudo'),
+  'Canvas não rebaixou os Carimbos da Fé para 5 itens / removeu a cruz',
+);
+check(
+  'Canvas: salvar é emocional ("Beni salvou sua criação com carinho")',
+  canvasSrc2.includes('Beni salvou sua criação com carinho') &&
+  canvasSrc2.includes('Ver minhas artes'),
+  'Canvas não tem feedback emocional de salvamento',
+);
+
+const paletteSrc = readSrc('src/constants/colorPalette.js');
+check(
+  'colorPalette exporta COLOR_FAMILIES (paleta organizada, compatível)',
+  paletteSrc.includes('export const COLOR_FAMILIES') &&
+  paletteSrc.includes('Principais') && paletteSrc.includes('Natureza') && paletteSrc.includes('Especiais'),
+  'colorPalette não define COLOR_FAMILIES por família',
+);
+
+// ── Sprint Canvas Premium 2.0 e Retenção ────────────────────────────────────
+const canvasV2 = readSrc('src/screens/AtelierCanvasScreen.js');
+check(
+  'Canvas 2.0: painel inferior por abas Cores / Pincel / Ferramentas',
+  canvasV2.includes('panelTab') &&
+  canvasV2.includes("label: 'Cores'") && canvasV2.includes("label: 'Pincel'") &&
+  canvasV2.includes("label: 'Ferramentas'"),
+  'AtelierCanvasScreen não tem painel inferior por abas (Cores/Pincel/Ferramentas)',
+);
+check(
+  'Canvas 2.0: aba Pincel mostra preview do traço',
+  canvasV2.includes('brushPreview'),
+  'AtelierCanvasScreen não mostra preview do traço na aba Pincel',
+);
+check(
+  'Canvas 2.0: diferencia modo guiado / criar livre',
+  canvasV2.includes("mission ? 'guided' : 'free'") &&
+  canvasV2.includes('Desenho guiado pelo Beni') && canvasV2.includes('Criar livre'),
+  'AtelierCanvasScreen não diferencia os modos da mesa',
+);
+check(
+  'Canvas 2.0: borracha com dica "Passe por cima para apagar"',
+  canvasV2.includes('Passe por cima para apagar'),
+  'AtelierCanvasScreen não tem a dica intuitiva da borracha',
+);
+check(
+  'Canvas 2.0: recompensa ao salvar com progresso + Livrinho + Ver minhas artes',
+  canvasV2.includes('rewardVisible') &&
+  canvasV2.includes('Beni salvou sua criação com carinho') &&
+  canvasV2.includes('entrar no seu Livrinho da Fé') &&
+  canvasV2.includes('Continuar desenhando'),
+  'AtelierCanvasScreen sem microfeedback de retenção ao salvar',
+);
+check(
+  'Canvas 2.0: salvar arte aciona verificação de conquistas (Parte 7)',
+  canvasV2.includes('useAchievementCelebration') &&
+  canvasV2.includes('checkForNewAchievements') &&
+  canvasV2.includes('AchievementUnlockModal'),
+  'AtelierCanvasScreen não aciona conquistas ao salvar',
+);
+check(
+  'Canvas 2.0: comentário de ganchos de retenção (Cultinho / Domingo / Relatório)',
+  canvasV2.includes('Modo Cultinho em Casa') &&
+  canvasV2.includes('História do Domingo') &&
+  canvasV2.includes('Relatório semanal'),
+  'AtelierCanvasScreen sem nota de preparação de retenção (Plano Mestre)',
+);
+check(
+  'Canvas 2.0: TODO de assets próprios para os carimbos',
+  canvasV2.includes('TODO(assets)'),
+  'AtelierCanvasScreen sem TODO de assets próprios dos carimbos',
+);
+
+// ── Sprint Álbum de Conquistas e Recompensas 1.0 ────────────────────────────
+const achSrc = readSrc('src/data/achievements.js');
+check(
+  'Conquistas: categorias definidas (ACHIEVEMENT_CATEGORIES) e campo category nas conquistas',
+  achSrc.includes('ACHIEVEMENT_CATEGORIES') &&
+  achSrc.includes("category: 'jornada'") && achSrc.includes("category: 'arte'") &&
+  achSrc.includes("category: 'livrinho'") && achSrc.includes("category: 'coracao'"),
+  'achievements.js sem categorias / campo category',
+);
+check(
+  'Conquistas: novas conquistas seguras (Guardião da Criação, Primeiro Livrinho, Pequeno artista da fé)',
+  achSrc.includes("id: 'creation_complete'") &&
+  achSrc.includes("id: 'first_book_opened'") &&
+  achSrc.includes("id: 'little_artist_faith'"),
+  'achievements.js não tem as novas conquistas seguras',
+);
+check(
+  'Conquistas: progress() data-driven para a próxima conquista',
+  achSrc.includes('progress: ctx =>'),
+  'achievements.js sem progress() para calcular próxima conquista',
+);
+
+const achSvc = readSrc('src/services/achievementService.js');
+check(
+  'achievementService: anyBookOpened (gancho do Livrinho)',
+  achSvc.includes('anyBookOpened') && achSvc.includes('storyBookOpened'),
+  'achievementService não calcula anyBookOpened para a conquista do Livrinho',
+);
+
+const albumSrc = readSrc('src/screens/TrophiesScreen.js');
+check(
+  'Álbum: hero + subtítulo "viveu com Beni" + próxima conquista + categorias',
+  albumSrc.includes('Álbum de Estrelinhas') &&
+  albumSrc.includes('conquistas que você viveu com Beni') &&
+  albumSrc.includes('computeNextAchievement') &&
+  albumSrc.includes('ACHIEVEMENT_CATEGORIES'),
+  'TrophiesScreen não virou álbum por categorias com próxima conquista',
+);
+check(
+  'Álbum: detalhe da conquista (modal) com "Como conquistar" e status do Beni',
+  albumSrc.includes('COMO CONQUISTAR') &&
+  albumSrc.includes('Beni viu essa vitória') &&
+  albumSrc.includes('Continue sua jornada para desbloquear'),
+  'TrophiesScreen sem modal de detalhe da conquista',
+);
+check(
+  'Álbum: comentários de retenção futura (Cultinho / Domingo / Certificado / rotina semanal)',
+  albumSrc.includes('Modo Cultinho em Casa') &&
+  albumSrc.includes('História do Domingo') &&
+  albumSrc.includes('Certificado por história') &&
+  albumSrc.includes('rotina semanal'),
+  'TrophiesScreen sem notas de preparação de retenção',
+);
+
+const unlockModalSrc = readSrc('src/components/achievements/AchievementUnlockModal.js');
+check(
+  'Celebração: mostra Beni + "Beni viu essa vitória" + botão Continuar',
+  unlockModalSrc.includes('BeniAvatar') &&
+  unlockModalSrc.includes('Beni viu essa vitória') &&
+  unlockModalSrc.includes('Continuar'),
+  'AchievementUnlockModal não foi melhorado (Beni + copy)',
+);
+
+const homeAlbumSrc = readSrc('src/screens/HomeScreen.js');
+check(
+  'Home: card "Você conquistou" leva ao Álbum de Estrelinhas',
+  homeAlbumSrc.includes("navigation.navigate('Estrelinhas')") &&
+  homeAlbumSrc.includes('VOCÊ CONQUISTOU'),
+  'Home: ConquistaCard não aponta para Estrelinhas',
+);
+
+// ── Sprint Baú do Beni e Cartinhas da Fé 1.0 ────────────────────────────────
+const navSrc2 = readSrc('src/navigation/AppNavigator.js');
+const homeChestSrc = readSrc('src/screens/HomeScreen.js');
+const chestSvc = readSrc('src/services/beniChestService.js');
+check(
+  'beniChestService define tipos de cartinha e categorias',
+  chestSvc.includes('CHEST_CARD_TYPES') && chestSvc.includes('CHEST_CATEGORIES') &&
+  chestSvc.includes('buildBeniChestCards') &&
+  chestSvc.includes("historia") && chestSvc.includes("cena") && chestSvc.includes("arte") &&
+  chestSvc.includes("livrinho"),
+  'beniChestService não define tipos/categorias de cartinhas',
+);
+check(
+  'beniChestService deriva de dados existentes e não coleta dado sensível',
+  chestSvc.includes('getStoryCoverImage') && chestSvc.includes('thumbnailBase64') &&
+  !/expo-location|expo-camera|ImagePicker|Geolocation|AsyncStorage/i.test(chestSvc),
+  'beniChestService usa storage/API sensível ou não reaproveita assets',
+);
+
+const chestScreen = readSrc('src/screens/BeniChestScreen.js');
+check(
+  'BeniChestScreen tem hero, progresso, próxima cartinha e detalhe',
+  chestScreen.includes('Baú do Beni') &&
+  chestScreen.includes('cartinha') &&
+  chestScreen.includes('PRÓXIMA CARTINHA') &&
+  chestScreen.includes('Continue sua jornada para revelar'),
+  'BeniChestScreen incompleta',
+);
+check(
+  'AppNavigator registra a rota BeniChest',
+  navSrc2.includes('name="BeniChest"') && navSrc2.includes('BeniChestScreen'),
+  'Rota BeniChest não registrada',
+);
+check(
+  'Home tem entrada para o Baú do Beni (card → BeniChest)',
+  homeChestSrc.includes('Baú do Beni') &&
+  homeChestSrc.includes("navigation.navigate('BeniChest')") &&
+  homeChestSrc.includes('Suas cartinhas de fé'),
+  'Home sem entrada para o Baú do Beni',
+);
+check(
+  'Conquista "Primeira cartinha" defensiva (cnt/flag, ctx hostil)',
+  achSrc.includes("id: 'first_chest_card'") &&
+  achSrc.includes('Encontrou sua primeira cartinha'),
+  'Conquista do baú ausente',
+);
+
+// Execução real: buildBeniChestCards null-safe (sandbox com stubs de imagem).
+(() => {
+  let ok = false, err = null, hasBeniCard = false;
+  try {
+    const raw = readSrc('src/services/beniChestService.js');
+    const code =
+      'const getOfficialSceneIllustration=()=>null,getStoryCoverImage=()=>null;'
+      + raw
+        .replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]+['"];?/g, '')
+        .replace(/export\s+function\s+/g, 'function ')
+        .replace(/export\s+const\s+/g, 'const ')
+      + '\nreturn { buildBeniChestCards, getBeniChestSummary, getNextChestCard };';
+    // eslint-disable-next-line no-new-func
+    const mod = new Function(code)();
+    const inputs = [
+      undefined, null, {},
+      { progressByStory: null, stories: null, arts: null, ctx: null },
+      { progressByStory: {}, stories: [], arts: [], ctx: {} },
+      { stories: [{ id: 'x' }], progressByStory: {}, arts: [], ctx: {} },
+      { stories: [{ id: 'y', totalCenas: 2, cenas: [{ id: 1 }] }], progressByStory: { y: { 1: true } }, arts: [{ id: 'a', thumbnailBase64: null }], ctx: { totalScenes: 1 } },
+      { ctx: { familyWorshipDone: true, anyBookOpened: true } },
+    ];
+    for (const inp of inputs) {
+      const cards = mod.buildBeniChestCards(inp);
+      const sum = mod.getBeniChestSummary(cards);
+      mod.getNextChestCard(cards);
+      if (!Array.isArray(cards) || typeof sum.unlocked !== 'number') err = err || 'shape inválido';
+    }
+    const baseCards = mod.buildBeniChestCards({});
+    hasBeniCard = Array.isArray(baseCards) && baseCards.some(c => c && c.category === 'beni' && c.unlocked);
+    ok = true;
+  } catch (e) {
+    err = e.message;
+  }
+  check(
+    'buildBeniChestCards executa null-safe com ctx/arts/progresso vazios e nunca lança',
+    ok && err === null,
+    `Baú quebrou com entrada hostil → ${err}`,
+  );
+  check(
+    'Baú nunca abre vazio: sempre há a cartinha inicial do Beni desbloqueada',
+    hasBeniCard,
+    'Baú do Beni pode abrir vazio (sem cartinha inicial)',
+  );
+})();
+
+// ── Correção Baú 2.0.1: imagens de cenas e estado Nova ──────────────────────
+const chestSvc3 = readSrc('src/services/beniChestService.js');
+check(
+  'beniChestService: resolveCardImageSource + CARD_FALLBACK por categoria',
+  chestSvc3.includes('export function resolveCardImageSource') &&
+  chestSvc3.includes('CARD_FALLBACK') &&
+  chestSvc3.includes('cenas:') && chestSvc3.includes('Cena da história'),
+  'beniChestService sem resolver de imagem / fallback de categoria',
+);
+check(
+  'Cartinha de Cena resolve ilustração oficial → capa → fallback',
+  chestSvc3.includes('getOfficialSceneIllustration(s.id, cena1 && cena1.id) || getStoryCoverImage(s.id)'),
+  'Cartinha de Cena não tenta ilustração oficial e capa',
+);
+
+const chestCard2 = readSrc('src/components/beni/BeniChestCard.js');
+check(
+  'BeniChestCard usa resolveCardImageSource e CategoryFallback (nunca corpo vazio)',
+  chestCard2.includes('resolveCardImageSource') &&
+  chestCard2.includes('CategoryFallback') &&
+  chestCard2.includes('CardArt'),
+  'BeniChestCard não normaliza imagem / não tem fallback de categoria',
+);
+check(
+  'BeniChestCard: imagem com fundo de fallback atrás (desbloqueada nunca vazia)',
+  chestCard2.includes('artImgAbsolute') &&
+  /CategoryFallback[\s\S]{0,120}Image source=\{source\}/.test(chestCard2),
+  'BeniChestCard não renderiza fallback atrás da imagem',
+);
+check(
+  'BeniChestCard: artes usam resizeMode contain',
+  chestCard2.includes("isArt && source") && chestCard2.includes("resizeMode=\"contain\""),
+  'BeniChestCard não usa contain nas artes',
+);
+check(
+  'BeniChestCard: título permite 2 linhas',
+  chestCard2.includes('numberOfLines={2}'),
+  'BeniChestCard ainda corta título em 1 linha',
+);
+
+const chestScreen3 = readSrc('src/screens/BeniChestScreen.js');
+check(
+  'Detalhe da cartinha também usa resolveCardImageSource + fallback',
+  chestScreen3.includes('resolveCardImageSource(selected)') &&
+  chestScreen3.includes('detailFallback'),
+  'Detalhe da cartinha pode aparecer sem imagem',
+);
+check(
+  'Estado Nova: deriva de getUnseenUnlockedChestCards e some ao guardar',
+  chestScreen3.includes('getUnseenUnlockedChestCards') &&
+  chestScreen3.includes('markManyChestCardsSeen(revealQueue.map') &&
+  chestScreen3.includes('setNewIds([])'),
+  'Fluxo do badge Nova incorreto',
+);
+
+// ── Sprint Baú do Beni 2.0: revelação, premium, coleção viva ────────────────
+const seenSvc = readSrc('src/services/beniChestSeenStorage.js');
+check(
+  'Storage de cartinhas vistas existe e salva só ids (chave dedicada)',
+  seenSvc.includes('@ptf_beni_chest_seen_cards_v1') &&
+  seenSvc.includes('getSeenChestCardIds') && seenSvc.includes('markChestCardSeen') &&
+  seenSvc.includes('markManyChestCardsSeen') && seenSvc.includes('getUnseenUnlockedChestCards') &&
+  seenSvc.includes("typeof id === 'string'"),
+  'beniChestSeenStorage ausente ou não restringe a ids',
+);
+check(
+  'Storage de vistas não coleta dado sensível',
+  !/expo-location|expo-camera|ImagePicker|Geolocation|previewBase64|thumbnailBase64/i.test(seenSvc),
+  'beniChestSeenStorage parece salvar dado sensível/imagem',
+);
+
+const chestSvc2 = readSrc('src/services/beniChestService.js');
+check(
+  'Cartinhas têm raridade common/special/shiny',
+  chestSvc2.includes('CHEST_RARITIES') &&
+  chestSvc2.includes("rarity: 'common'") && chestSvc2.includes("rarity: 'special'") &&
+  chestSvc2.includes("rarity: 'shiny'"),
+  'beniChestService não define raridades nas cartinhas',
+);
+
+const chestCardComp = readSrc('src/components/beni/BeniChestCard.js');
+check(
+  'BeniChestCard: estados (new/locked), badge "Nova", verso de cartinha (sem "???")',
+  chestCardComp.includes('isNew') && chestCardComp.includes('Nova') &&
+  chestCardComp.includes('Cartinha escondida') && chestCardComp.includes('backCover') &&
+  !chestCardComp.includes('???'),
+  'BeniChestCard sem estados/verso adequados',
+);
+
+const chestScreen2 = readSrc('src/screens/BeniChestScreen.js');
+check(
+  'Baú 2.0: modal de revelação ("Beni encontrou uma nova cartinha" + Guardar no Baú)',
+  chestScreen2.includes('Beni encontrou uma nova cartinha') &&
+  chestScreen2.includes('Guardar no Baú') &&
+  chestScreen2.includes('getUnseenUnlockedChestCards'),
+  'BeniChestScreen sem modal de revelação',
+);
+check(
+  'Baú 2.0: abas/chips por categoria + limite de bloqueadas (Ver cartinhas escondidas)',
+  chestScreen2.includes('activeTab') &&
+  chestScreen2.includes('Ver cartinhas escondidas') &&
+  chestScreen2.includes('MAX_LOCKED_CATEGORY'),
+  'BeniChestScreen sem filtros/limite de bloqueadas',
+);
+check(
+  'Baú 2.0: tela não usa "???" como texto principal',
+  !chestScreen2.includes('???'),
+  'BeniChestScreen ainda usa "???"',
+);
+check(
+  'Home: card do Baú sem texto cortado (subtítulo curto + contador)',
+  homeChestSrc.includes('Suas cartinhas de fé') &&
+  homeChestSrc.includes('encontrada') &&
+  homeChestSrc.includes('bauCountPill'),
+  'Home: card do Baú ainda corta texto / sem contador',
+);
+
+// Execução real (síncrona): storage de vistas não lança com entradas hostis.
+(() => {
+  let err = null;
+  try {
+    const raw = readSrc('src/services/beniChestSeenStorage.js');
+    const store = {};
+    const code =
+      'const AsyncStorage={getItem:async k=>(k in store?store[k]:null),setItem:async (k,v)=>{store[k]=v;}};'
+      + raw
+        .replace(/import\s+[^;]+;?/g, '')
+        .replace(/export\s+async\s+function\s+/g, 'async function ')
+        .replace(/export\s+function\s+/g, 'function ')
+        .replace(/export\s+const\s+/g, 'const ')
+      + '\nreturn { getSeenChestCardIds, markChestCardSeen, markManyChestCardsSeen, getUnseenUnlockedChestCards };';
+    // eslint-disable-next-line no-new-func
+    const mod = new Function('store', code)(store);
+    const swallow = p => { if (p && typeof p.then === 'function') p.catch(() => {}); };
+    // Nenhuma chamada pode lançar de forma síncrona, mesmo com lixo de entrada.
+    swallow(mod.getSeenChestCardIds());
+    swallow(mod.markChestCardSeen(null));
+    swallow(mod.markChestCardSeen(undefined));
+    swallow(mod.markChestCardSeen('hist_creation'));
+    swallow(mod.markManyChestCardsSeen(null));
+    swallow(mod.markManyChestCardsSeen(['a', 1, null, 'b']));
+    swallow(mod.getUnseenUnlockedChestCards(null));
+    swallow(mod.getUnseenUnlockedChestCards([{ id: 'x', unlocked: true }, null, { unlocked: true }]));
+  } catch (e) {
+    err = e.message;
+  }
+  check(
+    'beniChestSeenStorage não lança com null/undefined/dados inválidos',
+    err === null,
+    `Storage de vistas quebrou → ${err}`,
+  );
+})();
+
+// ── Sprint Modo Cultinho em Casa 1.0 ────────────────────────────────────────
+const worshipSvc = readSrc('src/services/familyWorshipService.js');
+check(
+  'familyWorshipService existe com funções esperadas',
+  worshipSvc.includes('getFamilyWorshipSummary') &&
+  worshipSvc.includes('markFamilyWorshipCompleted') &&
+  worshipSvc.includes('getLastFamilyWorshipDate'),
+  'familyWorshipService sem as funções de registro local do cultinho',
+);
+check(
+  'familyWorshipService só guarda dados não sensíveis (count/lastDate/lastStoryId, sem APIs sensíveis)',
+  worshipSvc.includes('count') && worshipSvc.includes('lastStoryId') && worshipSvc.includes('lastDate') &&
+  !/expo-location|expo-camera|expo-image-picker|ImagePicker|Geolocation|getCurrentPositionAsync/i.test(worshipSvc),
+  'familyWorshipService usa alguma API de dado sensível (localização/câmera/foto)',
+);
+check(
+  'familyWorshipService prepara História do Domingo (getStoryOfTheWeek) sem push/agendamento real',
+  worshipSvc.includes('getStoryOfTheWeek') &&
+  !/expo-notifications|scheduleNotificationAsync|registerForPushNotifications/i.test(worshipSvc),
+  'familyWorshipService não prepara História do Domingo de forma segura',
+);
+
+const cultinhoScreen = readSrc('src/screens/CultinhoEmCasaScreen.js');
+check(
+  'CultinhoEmCasaScreen tem as etapas (história, conversa, colorir, oração, concluir)',
+  cultinhoScreen.includes('Cultinho em Casa') &&
+  cultinhoScreen.includes('Abrir história') &&
+  cultinhoScreen.includes('Abrir Ateliê') &&
+  cultinhoScreen.includes('Concluir cultinho') &&
+  cultinhoScreen.includes('Cultinho guardado'),
+  'CultinhoEmCasaScreen incompleta (faltam etapas do fluxo)',
+);
+check(
+  'CultinhoEmCasaScreen registra localmente e escolhe história vitrine (getStoryOfTheWeek)',
+  cultinhoScreen.includes('markFamilyWorshipCompleted') &&
+  cultinhoScreen.includes('getStoryOfTheWeek'),
+  'CultinhoEmCasaScreen não registra cultinho / não usa história recomendada',
+);
+
+const navSrc = readSrc('src/navigation/AppNavigator.js');
+check(
+  'AppNavigator registra a rota FamilyWorship (Cultinho em Casa)',
+  navSrc.includes("name=\"FamilyWorship\"") && navSrc.includes('CultinhoEmCasaScreen'),
+  'Rota FamilyWorship não registrada no navegador',
+);
+
+const homeCultinho = readSrc('src/screens/HomeScreen.js');
+check(
+  'Home tem entrada para o Cultinho em Casa (card → FamilyWorship)',
+  homeCultinho.includes('Cultinho em Casa') &&
+  homeCultinho.includes("navigation.navigate('FamilyWorship')") &&
+  homeCultinho.includes('5 min'),
+  'Home sem card de entrada para o Cultinho em Casa',
+);
+
+check(
+  'Conquista "Primeiro cultinho" existe, categoria coração, check defensivo (flag/familyWorshipDone)',
+  achSrc.includes("id: 'first_family_worship'") &&
+  achSrc.includes("flag(ctx, 'familyWorshipDone')"),
+  'Conquista do cultinho ausente ou não-defensiva',
+);
+check(
+  'achievementService alimenta familyWorshipDone (gancho do cultinho)',
+  achSvc.includes('familyWorshipDone') && achSvc.includes('getFamilyWorshipSummary'),
+  'achievementService não calcula familyWorshipDone',
+);
+
+// ── Fix crash Estrelinhas: conquistas null-safe (execução real) ─────────────
+// Avalia achievements.js num sandbox e roda check/progress/progressLabel contra
+// contextos hostis. Garante que NENHUMA função lança exceção (regressão do
+// "Cannot read property 'totalScenes' of null").
+(() => {
+  let loadOk = false;
+  let ACH = [];
+  try {
+    const raw = readSrc('src/data/achievements.js');
+    const code = raw
+      .replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]+['"];?/g, '') // remove imports ESM
+      .replace(/export\s+const\s+/g, 'const ')
+      + '\nreturn { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES };';
+    const colorsStub = new Proxy({}, { get: () => '#000000' });
+    // eslint-disable-next-line no-new-func
+    const factory = new Function('colors', code);
+    const mod = factory(colorsStub);
+    ACH = mod.ACHIEVEMENTS || [];
+    loadOk = Array.isArray(ACH) && ACH.length > 0;
+  } catch (e) {
+    loadOk = false;
+  }
+
+  check(
+    'achievements.js avalia em sandbox (ESM stripável) e expõe ACHIEVEMENTS',
+    loadOk,
+    'Não foi possível avaliar achievements.js para o teste de robustez',
+  );
+  if (!loadOk) return;
+
+  // Contextos hostis: undefined, null, vazio, progressByStory vazio/null, storyId ausente, tipos errados.
+  const hostileCtxs = [
+    undefined,
+    null,
+    {},
+    { progressByStory: {} },
+    { progressByStory: null },
+    { totalScenes: undefined, completedStories: null, savedDrawingCount: undefined },
+    { totalScenes: 'x', completedStories: NaN, savedDrawingCount: {} },
+    { someMissingStory: null },
+  ];
+
+  let firstError = null;
+  let progressShapeOk = true;
+  for (const a of ACH) {
+    for (const ctx of hostileCtxs) {
+      try { a.check(ctx); } catch (e) { firstError = firstError || `check '${a.id}': ${e.message}`; }
+      if (typeof a.progress === 'function') {
+        try {
+          const p = a.progress(ctx);
+          // Para ctx objeto, progress deve devolver shape numérico válido.
+          if (ctx && typeof ctx === 'object') {
+            if (!p || typeof p.current !== 'number' || typeof p.target !== 'number' ||
+                !Number.isFinite(p.current) || !Number.isFinite(p.target)) {
+              progressShapeOk = false;
+            }
+          }
+        } catch (e) { firstError = firstError || `progress '${a.id}': ${e.message}`; }
+      }
+      if (typeof a.progressLabel === 'function') {
+        try { a.progressLabel(ctx); } catch (e) { firstError = firstError || `progressLabel '${a.id}': ${e.message}`; }
+      }
+    }
+  }
+
+  check(
+    'Conquistas: check/progress/progressLabel nunca lançam com ctx hostil (null/{}/sem storyId)',
+    firstError === null,
+    `Conquista quebrou com ctx hostil → ${firstError}`,
+  );
+  check(
+    'Conquistas: progress() sempre retorna { current:number, target:number } finito',
+    progressShapeOk,
+    'Alguma progress() retornou shape inválido com ctx objeto',
+  );
+
+  // Toda conquista com progressLabel também tem progress (e vice-versa, coerência)
+  const progressCoherent = ACH.every(a =>
+    (typeof a.progress === 'function') === (typeof a.progressLabel === 'function'),
+  );
+  check(
+    'Conquistas: progress e progressLabel andam juntos (coerência)',
+    progressCoherent,
+    'Conquista tem só progress ou só progressLabel — pode confundir a UI',
+  );
+})();
 
 // ── Summary ──────────────────────────────────────────────────────────────────
 const total = passes + failures;

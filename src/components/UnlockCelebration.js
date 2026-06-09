@@ -64,13 +64,17 @@ export default function UnlockCelebration({ visible, onContinue, isLast = false 
 
           {/* Beni comemorando */}
           <BeniAvatar variant="celebrating" size="large" style={styles.beni} />
-          <Text style={styles.title}>Parabéns!</Text>
           {isLast ? (
-            <Text style={[styles.subtitle, { marginBottom: 20 }]}>Aventura concluída!</Text>
+            <>
+              <Text style={styles.title}>Você completou! 🏆</Text>
+              <Text style={styles.subtitle}>Que jornada linda você viveu!</Text>
+              <Text style={styles.hint}>Beni guardou essa conquista com muito carinho.</Text>
+            </>
           ) : (
             <>
-              <Text style={styles.subtitle}>Você ganhou uma estrelinha! ⭐</Text>
-              <Text style={styles.hint}>Vamos para a próxima cena?</Text>
+              <Text style={styles.title}>Que lindo! 🎉</Text>
+              <Text style={styles.subtitle}>Você avançou na aventura!</Text>
+              <Text style={styles.hint}>Beni viu sua conquista. Mais uma estrela para a sua jornada! ⭐</Text>
             </>
           )}
 

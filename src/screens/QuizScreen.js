@@ -9,6 +9,7 @@ import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { colors } from '../theme/colors';
 import SoundButton from '../components/SoundButton';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
+import { BeniSpeechCard } from '../components/beni';
 import { QUIZZES } from '../data/quizzes';
 import { isQuizDone, markQuizDone, addBonusStars } from '../services/postStoryStorage';
 import { canOpenQuiz } from '../services/accessControl';
@@ -202,6 +203,10 @@ export default function QuizScreen({ route, navigation }) {
         </LinearGradient>
 
         <View style={[styles.quizBody, isTablet && styles.quizBodyTablet]}>
+          {/* Beni só na primeira pergunta — incentivo, sem poluir */}
+          {current === 0 && (
+            <BeniSpeechCard context="quizStart" avatarVariant="pointing" style={{ marginBottom: 16 }} />
+          )}
           <Text style={styles.questionText}>{question.question}</Text>
 
           {question.options.map((opt, idx) => {

@@ -16,10 +16,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useProfile } from '../context/ProfileContext';
 import { useProgressContext } from '../context/ProgressContext';
 import { AVATARS, DEFAULT_AVATAR_ID } from '../data/avatars';
-import { hasSavedDrawing } from '../services/drawingStorage';
 import { canOpenMomentoLumi } from '../services/accessControl';
 import { getHomePrimaryAction } from '../services/homeService';
+import { getShowcaseStory } from '../services/showcaseStory';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
+import { getBeniLine } from '../data/beniLines';
+import { listArts } from '../services/atelierStorage';
+import { buildCtx } from '../services/achievementService';
+import { buildBeniChestCards, getBeniChestSummary } from '../services/beniChestService';
 
 /* ── Conteúdo rotativo ─────────────────────────────────────────── */
 const DAILY_MESSAGES = [
@@ -30,6 +34,14 @@ const DAILY_MESSAGES = [
   { emoji: '🕊️', text: 'Confie em Deus com todo o seu coração.' },
   { emoji: '✨', text: 'O Senhor é meu pastor e nada me faltará!' },
   { emoji: '✨', text: 'Sua fé move montanhas!' },
+];
+
+const DAILY_PRAYERS = [
+  { emoji: '🙏', text: 'Obrigado, Deus, por mais um dia para aprender e brincar.' },
+  { emoji: '💛', text: 'Senhor, cuida da minha família com o Seu amor.' },
+  { emoji: '🌟', text: 'Jesus, me ajuda a ser bom com todo mundo hoje.' },
+  { emoji: '🕊️', text: 'Deus, coloca paz no meu coraçãozinho.' },
+  { emoji: '✨', text: 'Obrigado, Senhor, por cuidar de mim sempre.' },
 ];
 
 const DAILY_CHALLENGES = [
@@ -46,9 +58,9 @@ const WORLDS = [
   {
     id: 'comece',
     label: 'Comece Aqui',
-    desc: 'Primeiros passos',
+    desc: 'Primeiras aventuras da fé',
     emoji: '🌈',
-    gradient: ['#87CEEB', '#4FC3F7'],
+    gradient: ['#5B8FD4', '#2B5BA1'],
     accessLabel: 'Grátis',
     accessType: 'free',
     available: true,
@@ -57,9 +69,9 @@ const WORLDS = [
   {
     id: 'pequeninos',
     label: 'Pequeninos',
-    desc: 'Histórias simples',
+    desc: 'Histórias fofas e simples',
     emoji: '⭐',
-    gradient: ['#FFD166', '#F4B400'],
+    gradient: ['#FBD46A', '#E0A21A'],
     accessLabel: 'Especial da Família',
     accessType: 'premium',
     available: true,
@@ -68,9 +80,9 @@ const WORLDS = [
   {
     id: 'descobridores',
     label: 'Descobridores',
-    desc: 'Novas descobertas',
+    desc: 'Mistérios e descobertas bíblicas',
     emoji: '🔍',
-    gradient: ['#4DB6AC', '#26A69A'],
+    gradient: ['#7FC79B', '#5E9C3E'],
     accessLabel: 'Especial da Família',
     accessType: 'premium',
     available: true,
@@ -79,9 +91,9 @@ const WORLDS = [
   {
     id: 'jovens_da_fe',
     label: 'Jovens da Fé',
-    desc: 'Grandes desafios',
+    desc: 'Desafios para corações corajosos',
     emoji: '📖',
-    gradient: ['#7E57C2', '#5C3D99'],
+    gradient: ['#9B6FE0', '#5B21B6'],
     accessLabel: 'Especial da Família',
     accessType: 'premium',
     available: true,
@@ -234,93 +246,130 @@ function SectionTitle({ title, style }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   HojeComBeni — painel compacto: capa + botão principal + chips
+   MissaoDeHoje — coração do Portal do Beni: a história recomendada como
+   missão única e clara (capa grande, lição do coração, o que vou viver,
+   CTA forte e promessa do Livrinho).
 ═══════════════════════════════════════════════════════════════════ */
-function HojeComBeni({
+function MissaoDeHoje({
   primaryAction,
-  primaryStory,
+  heroStory,
   getProgressCount,
-  continueHasDrawing,
   onAdventure,
   adventureLabel,
   onCriar,
-  mission,
+  beniLine,
 }) {
   const allDone = primaryAction.targetType === 'openAdventures' && !primaryAction.storyId;
-  const hasThumb = primaryStory?.imagemCapa && images[primaryStory.imagemCapa];
-  const progCount = primaryStory ? getProgressCount(primaryStory.id) : 0;
-  const progTotal = primaryStory?.totalCenas ?? 1;
+  const story = heroStory;
+  const hasThumb = story?.imagemCapa && images[story.imagemCapa];
+  const progCount = story ? getProgressCount(story.id) : 0;
+  const progTotal = story?.totalCenas ?? 1;
   const progPct = Math.min(progCount / progTotal, 1) * 100;
+  const isContinue = primaryAction.targetType === 'continueStory';
+  const isPending = primaryAction.targetType === 'pendingRewards';
+
+  if (allDone) {
+    return (
+      <View style={styles.missionHero}>
+        <View style={styles.missionAllDone}>
+          <Text style={styles.missionAllDoneEmoji}>🏆</Text>
+          <Text style={styles.missionAllDoneTitle}>{primaryAction.title}</Text>
+          <Text style={styles.missionAllDoneSub}>{primaryAction.description}</Text>
+          <SoundButton style={styles.missionBtn} onPress={onAdventure} activeOpacity={0.85}>
+            <LinearGradient
+              colors={[pt.beni, pt.beniDeep]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={styles.missionBtnGradient}
+            >
+              <Text style={styles.missionBtnText}>{adventureLabel}</Text>
+            </LinearGradient>
+          </SoundButton>
+        </View>
+      </View>
+    );
+  }
+
+  const badgeText = isPending
+    ? '🎁 PRESENTES ESPERANDO'
+    : isContinue
+      ? '✨ CONTINUE SUA AVENTURA'
+      : '✨ MISSÃO DE HOJE';
 
   return (
-    <View style={styles.hojePanel}>
-      {/* Cabeçalho leve */}
-      <View style={styles.hojeHeaderRow}>
-        <Text style={styles.hojeTitle}>Hoje com Beni</Text>
+    <View style={styles.missionHero}>
+      {/* Selo da missão + Beni guia */}
+      <View style={styles.missionTopRow}>
+        <View style={styles.missionBadge}>
+          <Text style={styles.missionBadgeText}>{badgeText}</Text>
+        </View>
         <BeniAvatar variant="pointing" size="small" />
       </View>
 
-      {allDone ? (
-        <View style={styles.allDoneInline}>
-          <Text style={styles.allDoneEmoji}>🏆</Text>
-          <Text style={styles.allDoneTitle}>{primaryAction.title}</Text>
-          <Text style={styles.allDoneSub}>{primaryAction.description}</Text>
+      {/* Uma única fala do Beni, ligada à missão */}
+      <Text style={styles.missionBeniLine}>{beniLine}</Text>
+
+      {/* Capa grande — a história em destaque */}
+      {hasThumb ? (
+        <View style={styles.missionCover}>
+          <Image
+            source={images[story.imagemCapa]}
+            style={styles.missionCoverImg}
+            resizeMode="cover"
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(20,12,4,0.55)']}
+            style={styles.missionCoverShade}
+          />
         </View>
       ) : (
-        <>
-          {/* Capa 16:9 — centro do painel */}
-          {hasThumb ? (
-            <View style={styles.hojeCover}>
-              <Image
-                source={images[primaryStory.imagemCapa]}
-                style={styles.hojeCoverImg}
-                resizeMode="cover"
-              />
-            </View>
-          ) : (
-            <View style={[styles.hojeCover, styles.hojeCoverFallback]}>
-              <Text style={styles.hojeCoverEmoji}>{primaryStory?.emoji ?? '⛵'}</Text>
-            </View>
-          )}
-
-          {primaryAction.targetType === 'pendingRewards' && (
-            <Text style={styles.hojePendingLabel}>🎁 Presentes esperando</Text>
-          )}
-          <Text style={styles.hojeStoryTitle} numberOfLines={1}>
-            {primaryStory?.titulo ?? primaryAction.title}
-          </Text>
-
-          {primaryAction.targetType === 'continueStory' && primaryStory && (
-            <View style={styles.hojeBar}>
-              <View style={[styles.hojeBarFill, { width: `${progPct}%` }]} />
-            </View>
-          )}
-
-          {/* Botão principal — visível na primeira dobra */}
-          <SoundButton style={styles.hojeBtn} onPress={onAdventure} activeOpacity={0.85}>
-            <LinearGradient
-              colors={['#FF8A5B', '#F4651F']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={styles.hojeBtnGradient}
-            >
-              <Text style={styles.hojeBtnText}>{adventureLabel}</Text>
-            </LinearGradient>
-          </SoundButton>
-
-          {/* Chips secundários compactos — não viram checklist */}
-          <View style={styles.hojeChips}>
-            <SoundButton style={styles.chipCriar} onPress={onCriar} activeOpacity={0.85}>
-              <Text style={styles.chipText} numberOfLines={1}>🎨 Criar com Beni</Text>
-              <Text style={styles.chipArrow}>→</Text>
-            </SoundButton>
-            <View style={styles.chipMissao}>
-              <Text style={styles.chipMissaoText} numberOfLines={2}>
-                {mission.emoji} Missão: {mission.short ?? mission.text}
-              </Text>
-            </View>
-          </View>
-        </>
+        <View style={[styles.missionCover, styles.missionCoverFallback]}>
+          <Text style={styles.missionCoverEmoji}>{story?.emoji ?? '⛵'}</Text>
+        </View>
       )}
+
+      <Text style={styles.missionTitle} numberOfLines={2}>
+        {story?.titulo ?? primaryAction.title}
+      </Text>
+      {story?.referencia ? (
+        <Text style={styles.missionRef}>{story.referencia}</Text>
+      ) : null}
+      {story?.licaoCoracao ? (
+        <Text style={styles.missionLesson} numberOfLines={2}>💛 {story.licaoCoracao}</Text>
+      ) : null}
+
+      {/* O que vou viver nesta aventura */}
+      <View style={styles.missionFeatures}>
+        <View style={styles.missionFeature}><Text style={styles.missionFeatureText}>🔊 Ouvir</Text></View>
+        <View style={styles.missionFeature}><Text style={styles.missionFeatureText}>🎨 Colorir</Text></View>
+        <View style={styles.missionFeature}><Text style={styles.missionFeatureText}>⭐ Estrelas</Text></View>
+      </View>
+
+      {/* Progresso visual quando a aventura já começou */}
+      {isContinue && story && (
+        <View style={styles.missionBar}>
+          <View style={[styles.missionBarFill, { width: `${progPct}%` }]} />
+        </View>
+      )}
+
+      {/* CTA principal — forte, impossível de não achar */}
+      <SoundButton style={styles.missionBtn} onPress={onAdventure} activeOpacity={0.85}>
+        <LinearGradient
+          colors={['#FF8A5B', '#F4651F']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={styles.missionBtnGradient}
+        >
+          <Text style={styles.missionBtnText}>{adventureLabel}</Text>
+        </LinearGradient>
+      </SoundButton>
+
+      {/* Promessa emocional do Livrinho */}
+      <Text style={styles.missionPromise}>📖 Sua aventura fica guardada no Livrinho da Fé.</Text>
+
+      {/* Atalho discreto para criar — apoio, não ação principal */}
+      <SoundButton style={styles.missionCriar} onPress={onCriar} activeOpacity={0.85}>
+        <Text style={styles.missionCriarText}>🎨 Criar com Beni</Text>
+        <Text style={styles.missionCriarArrow}>→</Text>
+      </SoundButton>
     </View>
   );
 }
@@ -336,84 +385,168 @@ function WorldCardCompact({ world, onPress }) {
       <LinearGradient
         colors={world.gradient}
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+        end={{ x: 0.9, y: 1 }}
         style={styles.worldCompact}
       >
         {/* Brilho no canto superior */}
         <View style={styles.worldGlow} />
-        <Text style={styles.worldCompactEmoji}>{world.emoji}</Text>
+        <View style={styles.worldEmojiBubble}>
+          <Text style={styles.worldCompactEmoji}>{world.emoji}</Text>
+        </View>
         <Text style={styles.worldCompactLabel} numberOfLines={1}>{world.label}</Text>
-        <Text style={styles.worldCompactDesc} numberOfLines={1}>{world.desc}</Text>
-        <View style={world.accessType === 'free' ? styles.worldBadgeFree : styles.worldBadgePremium}>
-          <Text style={world.accessType === 'free' ? styles.worldBadgeFreeText : styles.worldBadgePremiumText}>
-            {world.accessType === 'free' ? world.accessLabel : 'Família'}
-          </Text>
+        <Text style={styles.worldCompactDesc} numberOfLines={2}>{world.desc}</Text>
+        <View style={styles.worldFooter}>
+          <View style={world.accessType === 'free' ? styles.worldBadgeFree : styles.worldBadgePremium}>
+            <Text style={world.accessType === 'free' ? styles.worldBadgeFreeText : styles.worldBadgePremiumText}>
+              {world.accessType === 'free' ? world.accessLabel : 'Família'}
+            </Text>
+          </View>
+          <Text style={styles.worldExplore}>Explorar →</Text>
         </View>
       </LinearGradient>
     </TouchableOpacity>
   );
 }
 
-/* ── Missão de hoje ──────────────────────────────────────────────── */
-function MissionCard({ challenge }) {
+/* ── Você conquistou — recompensa em destaque (dourado), leva ao Álbum ── */
+function ConquistaCard({ lastCompleted, totalStars, onPress }) {
+  let title, sub;
+  if (totalStars > 0) {
+    title = `${totalStars} estrelinha${totalStars !== 1 ? 's' : ''} na sua jornada`;
+    sub = lastCompleted
+      ? `Última aventura: ${lastCompleted.titulo}`
+      : 'Continue brilhando para ganhar mais!';
+  } else {
+    title = 'Sua primeira estrelinha está pertinho';
+    sub = 'Complete uma cena para começar a brilhar.';
+  }
   return (
-    <View style={styles.missionCard}>
-      <Text style={styles.missionEmoji}>{challenge.emoji}</Text>
-      <Text style={styles.missionText}>{challenge.text}</Text>
-    </View>
+    <SoundButton onPress={onPress} activeOpacity={0.85}>
+      <LinearGradient
+        colors={['#FFF6D6', '#FCE6A8']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={styles.conquistaCard}
+      >
+        <View style={styles.conquistaMedal}>
+          <Text style={styles.conquistaMedalText}>{totalStars > 0 ? '⭐' : '✨'}</Text>
+        </View>
+        <View style={styles.conquistaInfo}>
+          <Text style={styles.conquistaLabel}>VOCÊ CONQUISTOU</Text>
+          <Text style={styles.conquistaTitle} numberOfLines={1}>{title}</Text>
+          <Text style={styles.conquistaSub} numberOfLines={1}>{sub}</Text>
+        </View>
+        <Text style={styles.conquistaChevron}>›</Text>
+      </LinearGradient>
+    </SoundButton>
   );
 }
 
-/* ── Última conquista ─────────────────────────────────────────────── */
-function LastAchievementCard({ lastCompleted, totalStars }) {
+/* ── Cultinho em Casa — atalho compacto para a rotina familiar ─────── */
+function CultinhoCard({ onPress }) {
   return (
-    <View style={styles.achievementCard}>
-      {lastCompleted ? (
-        <>
-          <Text style={styles.achievementEmoji}>🏆</Text>
-          <View style={styles.achievementInfo}>
-            <Text style={styles.achievementTitle}>Aventura concluída!</Text>
-            <Text style={styles.achievementSub} numberOfLines={1}>{lastCompleted.titulo}</Text>
+    <SoundButton onPress={onPress} activeOpacity={0.88} style={styles.cultinhoWrap}>
+      <LinearGradient
+        colors={['#6E54C8', '#4C2E9E']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={styles.cultinhoCard}
+      >
+        <View style={styles.cultinhoIcon}>
+          <Text style={styles.cultinhoIconText}>🏡</Text>
+        </View>
+        <View style={styles.cultinhoInfo}>
+          <View style={styles.cultinhoTitleRow}>
+            <Text style={styles.cultinhoTitle}>Cultinho em Casa</Text>
+            <View style={styles.cultinhoMin}><Text style={styles.cultinhoMinText}>⏱️ 5 min</Text></View>
           </View>
-        </>
-      ) : totalStars > 0 ? (
-        <>
-          <Text style={styles.achievementEmoji}>⭐</Text>
-          <View style={styles.achievementInfo}>
-            <Text style={styles.achievementTitle}>
-              {totalStars} estrela{totalStars !== 1 ? 's' : ''} alcançada{totalStars !== 1 ? 's' : ''}!
-            </Text>
-            <Text style={styles.achievementSub}>Continue para conquistar mais.</Text>
-          </View>
-        </>
-      ) : (
-        <>
-          <Text style={styles.achievementEmoji}>✨</Text>
-          <View style={styles.achievementInfo}>
-            <Text style={styles.achievementTitle}>Sua próxima conquista está chegando.</Text>
-            <Text style={styles.achievementSub}>Complete uma cena para ganhar estrelas.</Text>
-          </View>
-        </>
-      )}
-    </View>
+          <Text style={styles.cultinhoDesc} numberOfLines={2}>
+            Faça uma história curtinha em família com Beni.
+          </Text>
+        </View>
+        <View style={styles.cultinhoBtn}>
+          <Text style={styles.cultinhoBtnText}>Começar</Text>
+        </View>
+      </LinearGradient>
+    </SoundButton>
   );
 }
 
-/* ── Momento com Beni ────────────────────────────────────────────── */
-function BeniMomentCard({ msg, onPress, canAccess }) {
+/* ── Baú do Beni — atalho compacto para a coleção de cartinhas ─────── */
+function BauDoBeniCard({ onPress, count }) {
   return (
-    <SoundButton style={styles.momentCard} onPress={onPress} activeOpacity={0.88}>
-      <View style={styles.momentRow}>
-        <Text style={styles.momentEmoji}>{msg.emoji}</Text>
-        <View style={styles.momentInfo}>
-          <Text style={styles.momentTitle}>Momento com Beni</Text>
-          <Text style={styles.momentVerse} numberOfLines={2}>{msg.text}</Text>
+    <SoundButton onPress={onPress} activeOpacity={0.88} style={styles.bauWrap}>
+      <LinearGradient
+        colors={['#2B5BA1', '#1E467F']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={styles.bauCard}
+      >
+        <View style={styles.bauIcon}>
+          <Text style={styles.bauIconText}>🧰</Text>
+        </View>
+        <View style={styles.bauInfo}>
+          <View style={styles.bauTitleRow}>
+            <Text style={styles.bauTitle}>Baú do Beni</Text>
+            {count != null && (
+              <View style={styles.bauCountPill}>
+                <Text style={styles.bauCountText}>{count} encontrada{count === 1 ? '' : 's'}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.bauDesc} numberOfLines={1}>Suas cartinhas de fé</Text>
+        </View>
+        <View style={styles.bauBtn}>
+          <Text style={styles.bauBtnText}>Abrir</Text>
+        </View>
+      </LinearGradient>
+    </SoundButton>
+  );
+}
+
+/* ── Cantinho do Beni — bloco especial: ideia + versículo + oração ── */
+function CantinhoDoBeni({ idea, verse, prayer, canAccess, onVerse }) {
+  return (
+    <View style={styles.cantinho}>
+      {/* Cabeçalho com Beni presente */}
+      <LinearGradient
+        colors={['#EEE3FF', '#E0D2FA']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={styles.cantinhoHeader}
+      >
+        <BeniAvatar variant="happy" size="medium" />
+        <View style={styles.cantinhoHeaderText}>
+          <Text style={styles.cantinhoTitle}>Cantinho do Beni</Text>
+          <Text style={styles.cantinhoSubtitle}>Um carinho de fé para hoje 💜</Text>
+        </View>
+      </LinearGradient>
+
+      <View style={styles.cantinhoBody}>
+        {/* Uma ideia para hoje */}
+        <View style={styles.cantinhoItem}>
+          <Text style={styles.cantinhoItemLabel}>💡 Uma ideia para hoje</Text>
+          <Text style={styles.cantinhoItemText} numberOfLines={2}>{idea.text}</Text>
+        </View>
+
+        <View style={styles.cantinhoDivider} />
+
+        {/* Um versículo para guardar (abre o momento com Beni) */}
+        <SoundButton style={styles.cantinhoAction} onPress={onVerse} activeOpacity={0.85}>
+          <View style={styles.cantinhoItem}>
+            <Text style={styles.cantinhoItemLabel}>🕊️ Um versículo para guardar</Text>
+            <Text style={styles.cantinhoItemText} numberOfLines={2}>{verse.text}</Text>
+          </View>
+          <Text style={[styles.cantinhoLink, !canAccess && styles.cantinhoLinkLocked]} numberOfLines={1}>
+            {canAccess ? 'Abrir →' : 'Pedir ao responsável'}
+          </Text>
+        </SoundButton>
+
+        <View style={styles.cantinhoDivider} />
+
+        {/* Uma oração curtinha */}
+        <View style={styles.cantinhoItem}>
+          <Text style={styles.cantinhoItemLabel}>🙏 Uma oração curtinha</Text>
+          <Text style={styles.cantinhoItemText} numberOfLines={2}>{prayer.text}</Text>
         </View>
       </View>
-      <Text style={[styles.momentCta, !canAccess && styles.momentCtaLocked]}>
-        {canAccess ? 'Abrir momento →' : 'Pedir ao responsável →'}
-      </Text>
-    </SoundButton>
+    </View>
   );
 }
 
@@ -455,22 +588,30 @@ export default function HomeScreen({ navigation }) {
     [primaryAction.storyId],
   );
 
-  const [continueHasDrawing, setContinueHasDrawing] = useState(false);
-  useEffect(() => {
-    if (primaryAction.targetType !== 'continueStory' || !primaryStory) {
-      setContinueHasDrawing(false);
-      return;
-    }
-    const cnt = getProgressCount(primaryStory.id);
-    const lastDone = primaryStory.cenas?.[cnt - 1];
-    if (lastDone) hasSavedDrawing(primaryStory.id, lastDone.id).then(setContinueHasDrawing);
-    else setContinueHasDrawing(false);
-  }, [totalStars, primaryAction.storyId, primaryAction.targetType]);
-
   useFocusEffect(
     useCallback(() => {
       refreshProgress();
     }, []),
+  );
+
+  // Contador leve do Baú do Beni (cartinhas encontradas) — nunca bloqueia render.
+  const [chestCount, setChestCount] = useState(null);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      (async () => {
+        try {
+          const arts = await listArts().catch(() => []);
+          const ctx = await buildCtx(progressByStory, stories, { postStoryStatusByStory }).catch(() => null);
+          if (!alive) return;
+          const cards = buildBeniChestCards({ progressByStory, stories, arts, ctx });
+          setChestCount(getBeniChestSummary(cards).unlocked);
+        } catch {
+          /* contador é opcional — silencioso */
+        }
+      })();
+      return () => { alive = false; };
+    }, [progressByStory, postStoryStatusByStory]),
   );
 
   useEffect(() => {
@@ -482,21 +623,23 @@ export default function HomeScreen({ navigation }) {
 
   const dailyMsg = DAILY_MESSAGES[dayIndex(DAILY_MESSAGES.length)];
   const dailyChallenge = DAILY_CHALLENGES[dayIndex(DAILY_CHALLENGES.length)];
+  const dailyPrayer = DAILY_PRAYERS[dayIndex(DAILY_PRAYERS.length)];
 
   const playableStories = stories.filter(s => (s.totalCenas ?? 0) > 0);
   const completedStories = playableStories.filter(s => getProgressCount(s.id) >= s.totalCenas);
   const lastCompleted = completedStories[completedStories.length - 1] ?? null;
 
   function handleAdventurePress() {
-    if (!primaryStory) {
+    const targetStory = primaryStory ?? getShowcaseStory();
+    if (!targetStory) {
       navigation.navigate('Aventuras');
       return;
     }
     if (primaryAction.targetType === 'pendingRewards') {
-      navigation.navigate('PostStoryHub', { story: primaryStory });
+      navigation.navigate('PostStoryHub', { story: targetStory });
       return;
     }
-    navigation.navigate('StoryDetail', { story: primaryStory });
+    navigation.navigate('StoryDetail', { story: targetStory });
   }
 
   function getAdventureButtonLabel() {
@@ -510,25 +653,52 @@ export default function HomeScreen({ navigation }) {
     }
   }
 
-  /* ── Hoje com Beni — painel compacto (capa + botão + chips) ── */
+  /* ── Missão de Hoje — coração do Portal do Beni ── */
+  const heroStory = primaryStory ?? getShowcaseStory();
+  const missionBeniLine =
+    primaryAction.targetType === 'continueStory'
+      ? getBeniLine('sceneComplete').text
+      : getBeniLine('home').text;
+
   const jornadaBlock = (
-    <HojeComBeni
+    <MissaoDeHoje
       primaryAction={primaryAction}
-      primaryStory={primaryStory}
+      heroStory={heroStory}
       getProgressCount={getProgressCount}
-      continueHasDrawing={continueHasDrawing}
       onAdventure={handleAdventurePress}
       adventureLabel={getAdventureButtonLabel()}
       onCriar={() => navigation.navigate('Ateliê')}
-      mission={dailyChallenge}
+      beniLine={missionBeniLine}
     />
   );
 
-  /* ── Mundos para explorar (secundário) ── */
+  /* ── Conquista recente — recompensa em destaque ── */
+  const achievementBlock = (
+    <>
+      <SectionTitle title="Sua jornada" style={{ marginTop: 20 }} />
+      <ConquistaCard
+        lastCompleted={lastCompleted}
+        totalStars={totalStars}
+        onPress={() => navigation.navigate('Estrelinhas')}
+      />
+    </>
+  );
+
+  /* ── Cultinho em Casa (rotina familiar curta) ── */
+  const cultinhoEmCasaBlock = (
+    <CultinhoCard onPress={() => navigation.navigate('FamilyWorship')} />
+  );
+
+  /* ── Baú do Beni (coleção de cartinhas) ── */
+  const bauBlock = (
+    <BauDoBeniCard onPress={() => navigation.navigate('BeniChest')} count={chestCount} />
+  );
+
+  /* ── Caminhos da fé (continuação da jornada) ── */
   const worldsBlock = (
     <>
-      <SectionTitle title="Mundos para explorar" style={{ marginTop: 20 }} />
-      <Text style={styles.worldsSub}>Beni preparou outros caminhos para você.</Text>
+      <SectionTitle title="Caminhos da fé" style={{ marginTop: 20 }} />
+      <Text style={styles.worldsSub}>Cada mundo guarda novas histórias com Beni.</Text>
       <View style={styles.worldsGrid}>
         {WORLDS.map(world => (
           <WorldCardCompact
@@ -541,25 +711,21 @@ export default function HomeScreen({ navigation }) {
     </>
   );
 
-  /* ── Última conquista (compacta, abaixo) ── */
-  const achievementBlock = (
-    <>
-      <SectionTitle title="Última conquista" style={{ marginTop: 18 }} />
-      <LastAchievementCard lastCompleted={lastCompleted} totalStars={totalStars} />
-    </>
-  );
-
-  /* ── Momento com Beni ── */
+  /* ── Cantinho do Beni (ideia + versículo agrupados) ── */
   const canLumi = canOpenMomentoLumi();
-  const momentBlock = (
-    <BeniMomentCard
-      msg={dailyMsg}
-      canAccess={canLumi}
-      onPress={canLumi
-        ? () => navigation.navigate('LumiMoment')
-        : () => navigation.navigate('ParentArea')
-      }
-    />
+  const cantinhoBlock = (
+    <>
+      <CantinhoDoBeni
+        idea={dailyChallenge}
+        verse={dailyMsg}
+        prayer={dailyPrayer}
+        canAccess={canLumi}
+        onVerse={canLumi
+          ? () => navigation.navigate('LumiMoment')
+          : () => navigation.navigate('ParentArea')
+        }
+      />
+    </>
   );
 
   return (
@@ -584,9 +750,11 @@ export default function HomeScreen({ navigation }) {
 
         <CenteredContent>
           {jornadaBlock}
-          {worldsBlock}
           {achievementBlock}
-          {momentBlock}
+          {cultinhoEmCasaBlock}
+          {bauBlock}
+          {worldsBlock}
+          {cantinhoBlock}
         </CenteredContent>
       </Animated.View>
     </ScrollView>
@@ -602,80 +770,120 @@ const styles = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 8, marginTop: 4,
   },
 
-  // ── Hoje com Beni (painel compacto) ──
-  hojePanel: {
+  // ── Missão de Hoje (coração do Portal do Beni) ──
+  missionHero: {
     marginHorizontal: 16,
-    marginTop: 4,
+    marginTop: 2,
     marginBottom: 6,
     backgroundColor: '#FFFDF7',
     borderRadius: radii.xl,
     borderWidth: 1.5,
     borderColor: '#F0E2C6',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingTop: 12,
-    paddingBottom: 12,
-    ...shadows.card,
+    paddingBottom: 14,
+    elevation: 5,
+    shadowColor: '#B07A2E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
   },
-  hojeHeaderRow: {
+  missionTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  hojeTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: pt.text },
-
-  hojeCover: {
+  missionBadge: {
+    backgroundColor: '#FFF1D6',
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: '#F4C969',
+  },
+  missionBadgeText: {
+    fontFamily: 'FredokaOne', fontSize: 11, color: '#9A6B12',
+    letterSpacing: 0.4,
+  },
+  missionBeniLine: {
+    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
+    fontWeight: '700', lineHeight: 18, marginBottom: 10,
+  },
+  missionCover: {
     width: '100%',
     aspectRatio: 16 / 9,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 10,
     backgroundColor: '#F0E8FF',
+    position: 'relative',
   },
-  hojeCoverImg: { width: '100%', height: '100%' },
-  hojeCoverFallback: { justifyContent: 'center', alignItems: 'center' },
-  hojeCoverEmoji: { fontSize: 48 },
-  hojePendingLabel: {
-    fontFamily: 'Nunito', fontSize: 11, color: '#7C3AED',
-    fontWeight: '700', marginBottom: 2,
+  missionCoverImg: { width: '100%', height: '100%' },
+  missionCoverShade: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, height: '45%',
   },
-  hojeStoryTitle: {
-    fontFamily: 'FredokaOne', fontSize: 16, color: pt.text,
-    lineHeight: 21, marginBottom: 6,
+  missionCoverFallback: { justifyContent: 'center', alignItems: 'center' },
+  missionCoverEmoji: { fontSize: 56 },
+  missionTitle: {
+    fontFamily: 'FredokaOne', fontSize: 20, color: pt.text,
+    lineHeight: 26, marginBottom: 2,
   },
-  hojeBar: {
-    height: 5, backgroundColor: pt.border, borderRadius: 3,
-    overflow: 'hidden', marginBottom: 8,
+  missionRef: {
+    fontFamily: 'Nunito', fontSize: 12, color: pt.muted,
+    fontWeight: '700', marginBottom: 6,
   },
-  hojeBarFill: { height: '100%', backgroundColor: pt.green, borderRadius: 3 },
-  hojeBtn: {
-    borderRadius: radii.pill, overflow: 'hidden',
-    elevation: 3, shadowColor: '#F4651F',
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
+  missionLesson: {
+    fontFamily: 'Nunito', fontSize: 13.5, color: '#7A5800',
+    fontWeight: '700', lineHeight: 19, marginBottom: 10,
   },
-  hojeBtnGradient: { paddingVertical: 14, alignItems: 'center' },
-  hojeBtnText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFF' },
-
-  // Chips secundários
-  hojeChips: { marginTop: 10, gap: 8 },
-  chipCriar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: pt.lilac,
-    borderRadius: radii.pill,
-    paddingHorizontal: 14, paddingVertical: 9,
-    borderWidth: 1, borderColor: '#D7C8F5',
+  missionFeatures: {
+    flexDirection: 'row', gap: 8, marginBottom: 12,
   },
-  chipText: { fontFamily: 'Nunito', fontSize: 13, color: pt.text, fontWeight: '700', flex: 1 },
-  chipArrow: { fontFamily: 'FredokaOne', fontSize: 14, color: '#8E44AD', marginLeft: 8 },
-  chipMissao: {
+  missionFeature: {
     backgroundColor: pt.goldSoft,
     borderRadius: radii.pill,
-    paddingHorizontal: 14, paddingVertical: 9,
-    borderWidth: 1, borderColor: pt.gold + '55',
+    paddingHorizontal: 11, paddingVertical: 6,
+    borderWidth: 1, borderColor: pt.gold + '40',
   },
-  chipMissaoText: { fontFamily: 'Nunito', fontSize: 13, color: '#7A5800', fontWeight: '700' },
-
-  allDoneInline: { alignItems: 'center', paddingVertical: 8 },
+  missionFeatureText: {
+    fontFamily: 'Nunito', fontSize: 12, color: '#7A5800', fontWeight: '800',
+  },
+  missionBar: {
+    height: 6, backgroundColor: pt.border, borderRadius: 3,
+    overflow: 'hidden', marginBottom: 12,
+  },
+  missionBarFill: { height: '100%', backgroundColor: pt.green, borderRadius: 3 },
+  missionBtn: {
+    borderRadius: radii.pill, overflow: 'hidden',
+    elevation: 4, shadowColor: pt.beniDeep,
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.35, shadowRadius: 6,
+  },
+  missionBtnGradient: { paddingVertical: 16, alignItems: 'center' },
+  missionBtnText: { fontFamily: 'FredokaOne', fontSize: 18, color: '#FFF' },
+  missionPromise: {
+    fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft,
+    textAlign: 'center', marginTop: 10, fontWeight: '600',
+  },
+  missionCriar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: pt.lilac,
+    borderRadius: radii.pill,
+    paddingVertical: 11, marginTop: 10,
+    borderWidth: 1, borderColor: '#D7C8F5', gap: 6,
+  },
+  missionCriarText: { fontFamily: 'FredokaOne', fontSize: 14, color: '#7A4FB5' },
+  missionCriarArrow: { fontFamily: 'FredokaOne', fontSize: 14, color: '#8E44AD' },
+  missionAllDone: { alignItems: 'center', paddingVertical: 10 },
+  missionAllDoneEmoji: { fontSize: 48, marginBottom: 8 },
+  missionAllDoneTitle: {
+    fontFamily: 'FredokaOne', fontSize: 19, color: pt.text,
+    textAlign: 'center', marginBottom: 4,
+  },
+  missionAllDoneSub: {
+    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
+    textAlign: 'center', marginBottom: 14, lineHeight: 19,
+  },
 
   // ── Tudo concluído ──
   allDoneCard: {
@@ -803,80 +1011,173 @@ const styles = StyleSheet.create({
   worldCompactWrapper: { width: '47.5%' },
   worldCompact: {
     borderRadius: radii.lg, padding: 12,
-    alignItems: 'flex-start', minHeight: 104,
-    ...shadows.soft, overflow: 'hidden',
+    alignItems: 'flex-start', minHeight: 132,
+    elevation: 3, shadowColor: '#3A2A1E',
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 6,
+    overflow: 'hidden',
   },
   worldGlow: {
-    position: 'absolute', top: -8, right: -8,
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    position: 'absolute', top: -10, right: -10,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
-  worldCompactEmoji: { fontSize: 22, marginBottom: 4 },
+  worldEmojiBubble: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
+  },
+  worldCompactEmoji: { fontSize: 20 },
   worldCompactLabel: {
-    fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF', lineHeight: 18, marginBottom: 2,
+    fontFamily: 'FredokaOne', fontSize: 14, color: '#FFF', lineHeight: 18, marginBottom: 2,
   },
   worldCompactDesc: {
-    fontFamily: 'Nunito', fontSize: 10, color: 'rgba(255,255,255,0.82)',
-    lineHeight: 14, marginBottom: 7, flex: 1,
+    fontFamily: 'Nunito', fontSize: 11, color: 'rgba(255,255,255,0.88)',
+    lineHeight: 15, marginBottom: 8, flex: 1, fontWeight: '600',
+  },
+  worldFooter: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    alignSelf: 'stretch',
   },
   worldBadgeFree: {
     backgroundColor: 'rgba(255,255,255,0.32)',
-    borderRadius: radii.pill, paddingHorizontal: 7, paddingVertical: 2,
+    borderRadius: radii.pill, paddingHorizontal: 8, paddingVertical: 2,
   },
   worldBadgeFreeText: {
-    fontFamily: 'Nunito', fontSize: 10, color: '#FFF', fontWeight: '700',
+    fontFamily: 'Nunito', fontSize: 10, color: '#FFF', fontWeight: '800',
   },
   worldBadgePremium: {
-    backgroundColor: 'rgba(0,0,0,0.16)',
-    borderRadius: radii.pill, paddingHorizontal: 7, paddingVertical: 2,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderRadius: radii.pill, paddingHorizontal: 8, paddingVertical: 2,
   },
   worldBadgePremiumText: {
-    fontFamily: 'Nunito', fontSize: 10, color: 'rgba(255,255,255,0.88)', fontWeight: '700',
+    fontFamily: 'Nunito', fontSize: 10, color: 'rgba(255,255,255,0.92)', fontWeight: '800',
+  },
+  worldExplore: {
+    fontFamily: 'FredokaOne', fontSize: 11, color: '#FFF', opacity: 0.95,
   },
 
-  // ── Missão de hoje ──
-  missionCard: {
+  // ── Você conquistou (recompensa dourada) ──
+  conquistaCard: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: pt.goldSoft,
-    borderRadius: radii.lg,
-    marginHorizontal: 16, marginBottom: 12,
-    padding: 13, borderLeftWidth: 3, borderLeftColor: pt.gold,
-    ...shadows.soft, gap: 12,
+    marginHorizontal: 16, marginBottom: 4,
+    borderRadius: radii.lg, padding: 14, gap: 14,
+    borderWidth: 1, borderColor: '#F2D58A',
+    elevation: 3, shadowColor: '#C79A2E',
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 7,
   },
-  missionEmoji: { fontSize: 26, flexShrink: 0 },
-  missionText: {
-    fontFamily: 'Nunito', fontSize: 13, color: pt.text,
-    lineHeight: 19, fontWeight: '700', flex: 1,
+  conquistaMedal: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: '#F4C95B',
+    elevation: 2,
   },
+  conquistaMedalText: { fontSize: 24 },
+  conquistaInfo: { flex: 1 },
+  conquistaLabel: {
+    fontFamily: 'FredokaOne', fontSize: 10, color: '#9A6B12',
+    letterSpacing: 0.6, marginBottom: 2,
+  },
+  conquistaTitle: {
+    fontFamily: 'FredokaOne', fontSize: 16, color: '#5A3E12', marginBottom: 1,
+  },
+  conquistaSub: { fontFamily: 'Nunito', fontSize: 12, color: '#86683A', fontWeight: '700' },
+  conquistaChevron: { fontFamily: 'FredokaOne', fontSize: 26, color: '#C79A2E', marginLeft: 4 },
 
-  // ── Última conquista ──
-  achievementCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: pt.lilac,
-    marginHorizontal: 16, marginBottom: 12,
-    borderRadius: radii.lg, padding: 13,
-    ...shadows.soft, borderLeftWidth: 3, borderLeftColor: pt.purple, gap: 12,
+  // ── Cultinho em Casa (atalho compacto) ──
+  cultinhoWrap: { marginHorizontal: 16, marginTop: 14 },
+  cultinhoCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: radii.xl, paddingVertical: 12, paddingHorizontal: 14,
+    elevation: 4, shadowColor: '#3A1E6E',
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 8,
   },
-  achievementEmoji: { fontSize: 24 },
-  achievementInfo: { flex: 1 },
-  achievementTitle: { fontFamily: 'FredokaOne', fontSize: 14, color: pt.text, marginBottom: 2 },
-  achievementSub: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 17 },
+  cultinhoIcon: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    justifyContent: 'center', alignItems: 'center', flexShrink: 0,
+    borderWidth: 1.5, borderColor: 'rgba(249,199,79,0.55)',
+  },
+  cultinhoIconText: { fontSize: 22 },
+  cultinhoInfo: { flex: 1 },
+  cultinhoTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  cultinhoTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF' },
+  cultinhoMin: {
+    backgroundColor: 'rgba(249,199,79,0.92)', borderRadius: radii.pill,
+    paddingHorizontal: 7, paddingVertical: 1,
+  },
+  cultinhoMinText: { fontFamily: 'Nunito', fontSize: 10, color: '#5A3E12', fontWeight: '800' },
+  cultinhoDesc: { fontFamily: 'Nunito', fontSize: 12, color: 'rgba(255,255,255,0.92)', lineHeight: 16, fontWeight: '600' },
+  cultinhoBtn: {
+    backgroundColor: '#FFFFFF', borderRadius: radii.pill,
+    paddingHorizontal: 14, paddingVertical: 9, flexShrink: 0,
+  },
+  cultinhoBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#4C2E9E' },
 
-  // ── Momento com Beni ──
-  momentCard: {
-    backgroundColor: '#FFF',
-    borderRadius: radii.lg,
-    marginHorizontal: 16, marginBottom: 12,
-    padding: 14, borderLeftWidth: 3, borderLeftColor: '#A78BFA',
-    ...shadows.soft,
+  // ── Baú do Beni (atalho compacto) ──
+  bauWrap: { marginHorizontal: 16, marginTop: 10 },
+  bauCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: radii.xl, paddingVertical: 11, paddingHorizontal: 14,
+    elevation: 3, shadowColor: '#13315C',
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.26, shadowRadius: 7,
   },
-  momentRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10,
+  bauIcon: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    justifyContent: 'center', alignItems: 'center', flexShrink: 0,
+    borderWidth: 1.5, borderColor: 'rgba(249,199,79,0.6)',
   },
-  momentEmoji: { fontSize: 22, flexShrink: 0 },
-  momentInfo: { flex: 1 },
-  momentTitle: { fontFamily: 'FredokaOne', fontSize: 14, color: pt.text, marginBottom: 2 },
-  momentVerse: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 17 },
-  momentCta: { fontFamily: 'FredokaOne', fontSize: 13, color: '#7C3AED', textAlign: 'right' },
-  momentCtaLocked: { color: pt.muted },
+  bauIconText: { fontSize: 21 },
+  bauInfo: { flex: 1 },
+  bauTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  bauTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF' },
+  bauCountPill: {
+    backgroundColor: 'rgba(249,199,79,0.92)', borderRadius: radii.pill,
+    paddingHorizontal: 7, paddingVertical: 1,
+  },
+  bauCountText: { fontFamily: 'Nunito', fontSize: 10, color: '#5A3E12', fontWeight: '800' },
+  bauDesc: { fontFamily: 'Nunito', fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+  bauBtn: {
+    backgroundColor: '#F9C74F', borderRadius: radii.pill,
+    paddingHorizontal: 14, paddingVertical: 9, flexShrink: 0,
+  },
+  bauBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#5A3E12' },
+
+  // ── Cantinho do Beni (bloco especial: ideia + versículo + oração) ──
+  cantinho: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16, marginTop: 20, marginBottom: 4,
+    borderRadius: radii.xl, overflow: 'hidden',
+    borderWidth: 1.5, borderColor: '#E0D2FA',
+    elevation: 4, shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10,
+  },
+  cantinhoHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  cantinhoHeaderText: { flex: 1 },
+  cantinhoTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: pt.purpleDeep },
+  cantinhoSubtitle: {
+    fontFamily: 'Nunito', fontSize: 12, color: '#7A5FA8', fontWeight: '700', marginTop: 1,
+  },
+  cantinhoBody: { paddingHorizontal: 14, paddingTop: 6, paddingBottom: 14 },
+  cantinhoItem: { flex: 1 },
+  cantinhoItemLabel: {
+    fontFamily: 'FredokaOne', fontSize: 12, color: pt.text, marginBottom: 2,
+  },
+  cantinhoItemText: {
+    fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 17,
+  },
+  cantinhoDivider: {
+    height: 1, backgroundColor: '#E0D2FA', marginVertical: 10,
+  },
+  cantinhoAction: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+  },
+  cantinhoLink: {
+    fontFamily: 'FredokaOne', fontSize: 13, color: pt.purpleDeep, flexShrink: 0,
+  },
+  cantinhoLinkLocked: { color: pt.muted, fontSize: 11 },
 });

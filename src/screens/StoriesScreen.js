@@ -17,6 +17,7 @@ import { BeniGuideBubble, BeniEmptyState } from '../components/beni';
 import CenteredContent from '../components/layout/CenteredContent';
 import { useProgressContext } from '../context/ProgressContext';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
+import { getShowcaseStory } from '../services/showcaseStory';
 
 /* ── Trail definitions ───────────────────────────────────────────── */
 const CATEGORIES = [
@@ -116,7 +117,7 @@ function ComingSoonModal({ category, onClose }) {
           <StatusBadge type="coming_soon" style={{ marginBottom: 12 }} />
           <Text style={styles.modalTitle}>{category.label}</Text>
           <Text style={styles.modalDesc}>
-            Esse mundo será liberado em breve.{'\n'}
+            Esse mundo está sendo preparado com carinho.{'\n'}
             Continue brilhando nas aventuras de agora! ✨
           </Text>
           <SoundButton style={styles.modalBtn} onPress={onClose} activeOpacity={0.85}>
@@ -129,7 +130,7 @@ function ComingSoonModal({ category, onClose }) {
 }
 
 /* ── StoryStepWrapper — parada da trilha de histórias ───────────── */
-function StoryStepWrapper({ index, total, isDone, inProgress, isLocked, children }) {
+function StoryStepWrapper({ index, total, isDone, inProgress, isLocked, isRecommended, children }) {
   const isLast = index === total - 1;
   let dotBg, dotText, labelText, labelColor;
   if (isDone) {
@@ -137,7 +138,9 @@ function StoryStepWrapper({ index, total, isDone, inProgress, isLocked, children
   } else if (isLocked) {
     dotBg = pt.border; dotText = '🔒'; labelText = 'Plano Família'; labelColor = pt.muted;
   } else if (inProgress) {
-    dotBg = colors.action; dotText = '▶'; labelText = 'Em andamento'; labelColor = colors.action;
+    dotBg = colors.action; dotText = '✏️'; labelText = 'Continue aqui'; labelColor = colors.action;
+  } else if (isRecommended) {
+    dotBg = pt.gold; dotText = '⭐'; labelText = 'Comece por aqui'; labelColor = pt.premiumText;
   } else {
     dotBg = '#EDE0FF'; dotText = String(index + 1); labelText = `Parada ${index + 1}`; labelColor = '#7C3AED';
   }
@@ -229,14 +232,15 @@ export default function StoriesScreen({ route, navigation }) {
       ) : catalogEntries.length === 0 ? (
         <View style={styles.emptyWrap}>
           <BeniEmptyState
-            title="Em breve mais histórias aqui!"
-            message="Novas aventuras estão a caminho. Fique de olho!"
+            title="Novas aventuras a caminho!"
+            message="Beni vai avisar quando estas histórias estiverem prontas."
           />
         </View>
       ) : (
         (() => {
           const storyEntries = catalogEntries.filter(e => e.type === 'story');
           const totalStories = storyEntries.length;
+          const showcaseId = getShowcaseStory()?.id ?? null;
           let storyStep = 0;
           return catalogEntries.map((entry, index) => {
             if (entry.type === 'placeholder') {
@@ -248,6 +252,7 @@ export default function StoriesScreen({ route, navigation }) {
             const locked = index > 0 && prevStoryId != null && getCount(prevStoryId) === 0;
             const isDone = getCount(item.id) >= item.totalCenas && item.totalCenas > 0;
             const inProgress = getCount(item.id) > 0 && !isDone;
+            const isRecommended = item.id === showcaseId;
             const currentStep = storyStep++;
             return (
               <StoryStepWrapper
@@ -257,6 +262,7 @@ export default function StoriesScreen({ route, navigation }) {
                 isDone={isDone}
                 inProgress={inProgress}
                 isLocked={locked}
+                isRecommended={isRecommended}
               >
                 <StoryCard
                   story={item}
@@ -303,33 +309,34 @@ export default function StoriesScreen({ route, navigation }) {
             style={styles.beniGuide}
           />
 
-          {/* ── SUA PRÓXIMA PARADA (história em andamento) ── */}
+          {/* ── PRÓXIMA AVENTURA (estação da trilha, história em andamento) ── */}
           {continueStory && (
             <View style={styles.continueBlock}>
-              <Text style={styles.continueBlockLabel}>📍 Sua próxima parada</Text>
+              <Text style={styles.continueBlockLabel}>📍 Próxima aventura</Text>
               <View style={styles.continueCard}>
-                <View style={[styles.continueIcon, { backgroundColor: colors.primary + '20' }]}>
-                  <Text style={styles.continueEmoji}>{continueStory.emoji}</Text>
-                </View>
-                <View style={styles.continueInfo}>
-                  <Text style={styles.continueTitle} numberOfLines={1}>{continueStory.titulo}</Text>
-                  <Text style={styles.continueProgress}>
-                    {getCount(continueStory.id)}/{continueStory.totalCenas}{' '}
-                    {getCount(continueStory.id) === 1 ? 'cena concluída' : 'cenas concluídas'}
-                  </Text>
-                  <View style={styles.continueBar}>
-                    <View
-                      style={[styles.continueBarFill,
-                        { width: `${(getCount(continueStory.id) / continueStory.totalCenas) * 100}%` }]}
-                    />
+                <View style={styles.continueTopRow}>
+                  <View style={[styles.continueIcon, { backgroundColor: colors.action + '22' }]}>
+                    <Text style={styles.continueEmoji}>{continueStory.emoji}</Text>
                   </View>
+                  <View style={styles.continueInfo}>
+                    <Text style={styles.continueTitle} numberOfLines={1}>{continueStory.titulo}</Text>
+                    <Text style={styles.continueProgress}>
+                      Cena {Math.min(getCount(continueStory.id) + 1, continueStory.totalCenas)} de {continueStory.totalCenas}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.continueBar}>
+                  <View
+                    style={[styles.continueBarFill,
+                      { width: `${(getCount(continueStory.id) / continueStory.totalCenas) * 100}%` }]}
+                  />
                 </View>
                 <SoundButton
                   style={styles.continueBtn}
                   onPress={() => navigation.navigate('StoryDetail', { story: continueStory })}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.continueBtnText}>▶</Text>
+                  <Text style={styles.continueBtnText}>Continuar  →</Text>
                 </SoundButton>
               </View>
             </View>
@@ -422,33 +429,37 @@ const styles = StyleSheet.create({
   beniGuide: { marginHorizontal: 16, marginBottom: 14 },
   beniCardBottom: { marginHorizontal: 16, marginTop: 8, marginBottom: 14 },
 
-  // Continue / Próxima parada
+  // Continue / Próxima aventura (estação da trilha)
   continueBlock: { marginHorizontal: 16, marginBottom: 16 },
   continueBlockLabel: {
     fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 8,
   },
   continueCard: {
-    flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFF',
-    borderRadius: radii.lg, padding: 14, gap: 12,
-    ...shadows.card, borderLeftWidth: 4, borderLeftColor: colors.primary,
+    borderRadius: radii.lg, padding: 14,
+    ...shadows.card, borderLeftWidth: 4, borderLeftColor: pt.beni,
+  },
+  continueTopRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10,
   },
   continueIcon: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 46, height: 46, borderRadius: 23,
     justifyContent: 'center', alignItems: 'center',
   },
-  continueEmoji: { fontSize: 22 },
+  continueEmoji: { fontSize: 23 },
   continueInfo: { flex: 1 },
-  continueTitle: { fontFamily: 'FredokaOne', fontSize: 14, color: pt.text, marginBottom: 2 },
-  continueProgress: { fontFamily: 'Nunito', fontSize: 11, color: pt.muted, marginBottom: 6 },
-  continueBar: { height: 5, backgroundColor: pt.border, borderRadius: 3, overflow: 'hidden' },
+  continueTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 2 },
+  continueProgress: { fontFamily: 'Nunito', fontSize: 12, color: pt.muted, fontWeight: '700' },
+  continueBar: {
+    height: 6, backgroundColor: pt.border, borderRadius: 3, overflow: 'hidden', marginBottom: 12,
+  },
   continueBarFill: { height: '100%', backgroundColor: pt.green, borderRadius: 3 },
   continueBtn: {
-    width: 42, height: 42, borderRadius: 21,
-    backgroundColor: colors.action,
-    justifyContent: 'center', alignItems: 'center',
-    elevation: 3, shadowColor: colors.action,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 4,
+    backgroundColor: pt.beni,
+    borderRadius: radii.pill,
+    paddingVertical: 13, alignItems: 'center',
+    elevation: 3, shadowColor: pt.beniDeep,
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 5,
   },
   continueBtnText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFF' },
 

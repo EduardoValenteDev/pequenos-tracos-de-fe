@@ -1,11 +1,26 @@
 /**
- * AtelierCanvasScreen — Tela de desenho livre.
+ * AtelierCanvasScreen — Mesa de arte do Beni (Criar livre / Desenho guiado).
  *
- * 3 abas inferiores:  Desenhar | Apagar | Enfeitar
+ * Modos desta tela (Parte 1):
+ *   - free   → Criar livre (sem missão): liberdade criativa.
+ *   - guided → Desenho guiado pelo Beni (com `mission`): missão do Beni.
+ *   (Colorir uma cena da história é a ColoringScreen, rota separada.)
  *
- * Desenhar: cores + 3 tamanhos de pincel
- * Apagar:   3 tamanhos de borracha + Desfazer + Limpar
- * Enfeitar: 6 carimbos → selecionar → tocar na folha → arrastar/resize/excluir
+ * Painel inferior por ABAS (Parte 3):  Cores | Pincel | Ferramentas
+ *   Cores:       famílias de cores (principais primeiro), seleção clara.
+ *   Pincel:      Pequeno / Médio / Grande com preview do traço.
+ *   Ferramentas: Desenhar · Borracha · Carimbos · Desfazer · Limpar tudo.
+ *
+ * NÃO troca o motor de desenho — apenas a casca visual e a organização.
+ *
+ * ── Retenção (Plano Mestre — preparado, NÃO implementado aqui) ───────────────
+ *   Ganchos futuros, sem código novo nesta sprint:
+ *     • Modo Cultinho em Casa  — sessão guiada família + arte.
+ *     • História do Domingo     — destaque semanal recorrente.
+ *     • Relatório semanal       — resumo de progresso (Área dos Pais).
+ *     • Card compartilhável seguro — somente via Área dos Pais, nunca social.
+ *   Salvar arte já alimenta conquistas (Parte 7) via savedDrawingCount.
+ *   Segurança: nenhum desenho sai da Área dos Pais; nenhum log com nome/conteúdo.
  */
 import React, { useRef, useState } from 'react';
 import {
@@ -13,11 +28,17 @@ import {
   StyleSheet, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { colors } from '../theme/colors';
+import { colors as pt, radii } from '../theme/productTheme';
 import AtelierCanvas from '../components/AtelierCanvas';
 import SoundButton from '../components/SoundButton';
-import { COLOR_PALETTE } from '../constants/colorPalette';
+import { BeniAvatar } from '../components/beni';
+import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
+import { useProgressContext } from '../context/ProgressContext';
+import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
+import { COLOR_PALETTE, COLOR_FAMILIES } from '../constants/colorPalette';
 import {
   saveArt, getArt, getArtCount,
   ATELIER_FREE_SAVE_LIMIT,
@@ -25,9 +46,9 @@ import {
 import { hasAtelierUnlimitedAccess } from '../services/accessControl';
 
 const BRUSH_SIZES = [
-  { id: 'P', label: 'Fino',   size: 4  },
-  { id: 'M', label: 'Médio',  size: 10 },
-  { id: 'G', label: 'Grosso', size: 22 },
+  { id: 'P', label: 'Pequeno', size: 4  },
+  { id: 'M', label: 'Médio',   size: 10 },
+  { id: 'G', label: 'Grande',  size: 22 },
 ];
 
 const ERASER_SIZES = [
@@ -36,13 +57,15 @@ const ERASER_SIZES = [
   { id: 'G', label: 'Grande',  size: 56 },
 ];
 
+// Carimbos da Fé — recurso SECUNDÁRIO até termos assets próprios (Parte 5).
+// TODO(assets): substituir estes emojis por ilustrações próprias do Beni.
+// Máx. 5, apenas os mais coerentes; sem cruz/itens que pareçam emoji solto.
 const CORE_STAMPS = [
-  { emoji: '⭐', label: 'Estrela'   },
-  { emoji: '❤️', label: 'Coração'   },
-  { emoji: '🌈', label: 'Arco-íris' },
-  { emoji: '🕊️', label: 'Pomba'     },
-  { emoji: '🐑', label: 'Beni'      },
-  { emoji: '🌸', label: 'Flor'      },
+  { emoji: '⭐', label: 'Estrela'     },
+  { emoji: '❤️', label: 'Coração'     },
+  { emoji: '🌈', label: 'Arco-íris'   },
+  { emoji: '🕊️', label: 'Pombinha'    },
+  { emoji: '🐑', label: 'Cordeirinho' },
 ];
 
 function haptic(style) {
@@ -54,16 +77,25 @@ export default function AtelierCanvasScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const canvasRef = useRef(null);
 
+  // Modo da mesa (Parte 1): guiado (com missão) ou criação livre.
+  const mode = mission ? 'guided' : 'free';
+
+  /* Conquistas — salvar arte pode desbloquear (Parte 7) */
+  const { progressByStory, postStoryStatusByStory } = useProgressContext();
+  const { pendingAchievement, checkForNewAchievements, dismissAchievement } =
+    useAchievementCelebration({ progressByStory, postStoryStatusByStory, source: 'AtelierCanvasScreen' });
+
   /* Canvas key — incrementar força remontagem limpa */
   const [canvasKey, setCanvasKey] = useState(0);
 
   /* Arte atual */
   const [savedArtId, setSavedArtId] = useState(routeArtId ?? null);
 
-  /* Modo inferior */
-  const [bottomTab, setBottomTab] = useState(
-    openTab === 'carimbos' ? 'enfeitar' : 'desenhar',
-  );
+  /* Painel inferior: aba ativa (cores | pincel | ferramentas) */
+  const [panelTab, setPanelTab] = useState(openTab === 'carimbos' ? 'ferramentas' : 'cores');
+
+  /* Ferramenta de desenho ativa (desenhar | borracha | carimbos) */
+  const [activeTool, setActiveTool] = useState(openTab === 'carimbos' ? 'carimbos' : 'desenhar');
 
   /* Ferramentas */
   const [selectedColor, setSelectedColor]  = useState(COLOR_PALETTE[0].hex);
@@ -80,6 +112,8 @@ export default function AtelierCanvasScreen({ route, navigation }) {
   /* Modais */
   const [saveModalVisible,  setSaveModalVisible]  = useState(false);
   const [limitModalVisible, setLimitModalVisible] = useState(false);
+  const [rewardVisible, setRewardVisible] = useState(false);
+  const [rewardCount, setRewardCount] = useState(0);
   const [artTitle, setArtTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -114,26 +148,33 @@ export default function AtelierCanvasScreen({ route, navigation }) {
     setSelectedStampInfo(null);
   }
 
-  /* ── Troca de modo ── */
+  /* ── Seleção de ferramenta (aba Ferramentas) ── */
 
-  function switchTab(tab) {
-    setBottomTab(tab);
+  function selectTool(tool) {
+    setActiveTool(tool);
     setPendingStampState(null);
     canvasRef.current?.clearPending();
-    if (tab === 'desenhar') {
+    if (tool === 'desenhar') {
       canvasRef.current?.setTool('draw');
       canvasRef.current?.setColor(selectedColor);
       canvasRef.current?.setBrushSize(brushSize.size);
-    } else if (tab === 'apagar') {
+    } else if (tool === 'borracha') {
       canvasRef.current?.setTool('eraser');
       canvasRef.current?.setEraserSize(eraserSize.size);
+    } else if (tool === 'carimbos') {
+      // Base volta para desenho; a colocação do carimbo é por toque na folha.
+      canvasRef.current?.setTool('draw');
+      canvasRef.current?.setColor(selectedColor);
+      canvasRef.current?.setBrushSize(brushSize.size);
     }
+    haptic(Haptics.ImpactFeedbackStyle.Light);
   }
 
   /* ── Ferramentas Desenhar ── */
 
   function applyColor(hex) {
     setSelectedColor(hex);
+    setActiveTool('desenhar');
     canvasRef.current?.setTool('draw');
     canvasRef.current?.setColor(hex);
     canvasRef.current?.setBrushSize(brushSize.size);
@@ -142,15 +183,18 @@ export default function AtelierCanvasScreen({ route, navigation }) {
 
   function applyBrushSize(bs) {
     setBrushSizeState(bs);
+    setActiveTool('desenhar');
     canvasRef.current?.setTool('draw');
+    canvasRef.current?.setColor(selectedColor);
     canvasRef.current?.setBrushSize(bs.size);
     haptic(Haptics.ImpactFeedbackStyle.Light);
   }
 
-  /* ── Ferramentas Apagar ── */
+  /* ── Ferramentas Borracha ── */
 
   function applyEraserSize(es) {
     setEraserSizeState(es);
+    setActiveTool('borracha');
     canvasRef.current?.setTool('eraser');
     canvasRef.current?.setEraserSize(es.size);
     haptic(Haptics.ImpactFeedbackStyle.Light);
@@ -162,10 +206,10 @@ export default function AtelierCanvasScreen({ route, navigation }) {
   }
 
   function handleClearAll() {
-    Alert.alert('🗑️ Apagar tudo?', 'Essa ação não pode ser desfeita.', [
+    Alert.alert('🧹 Limpar tudo?', 'Isso apaga o desenho inteiro e não pode ser desfeito.', [
       { text: 'Cancelar', style: 'cancel' },
       {
-        text: 'Apagar desenho', style: 'destructive',
+        text: 'Limpar tudo', style: 'destructive',
         onPress: () => {
           canvasRef.current?.clearAll();
           setHasPainted(false);
@@ -242,17 +286,23 @@ export default function AtelierCanvasScreen({ route, navigation }) {
           previewBase64,
         });
         setSavedArtId(id);
+        const count = await getArtCount();
+        setRewardCount(count);
         setIsSaving(false);
-        Alert.alert('✨ Arte salva!', 'Sua obra ficou linda! O que quer fazer?', [
-          { text: '✏️ Continuar', style: 'cancel' },
-          { text: '✨ Nova arte', onPress: handleNewArt },
-          { text: '🖼️ Ver galeria', onPress: () => navigation.navigate('AtelierGallery') },
-        ]);
+        setRewardVisible(true); // microfeedback de retenção (Parte 6)
       } catch {
         setIsSaving(false);
         Alert.alert('Oops!', 'Não foi possível salvar. Tente novamente.');
       }
     });
+  }
+
+  // Fecha a recompensa e, em seguida, verifica conquistas de arte (Parte 7).
+  function closeReward(next) {
+    setRewardVisible(false);
+    if (next) next();
+    // pequeno atraso: deixa a recompensa fechar antes da conquista (se houver).
+    setTimeout(() => { checkForNewAchievements(); }, 450);
   }
 
   /* Abre folha limpa sem sair da tela */
@@ -261,189 +311,228 @@ export default function AtelierCanvasScreen({ route, navigation }) {
     setHasPainted(false);
     setSelectedStampInfo(null);
     setPendingStampState(null);
-    setBottomTab('desenhar');
+    setActiveTool('desenhar');
+    setPanelTab('cores');
     setCanvasKey(k => k + 1);
   }
+
+  const limitReached = !hasAtelierUnlimitedAccess() && rewardCount >= ATELIER_FREE_SAVE_LIMIT;
 
   /* ── Render ── */
   return (
     <View style={styles.wrapper}>
 
-      {/* CABEÇALHO */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
+      {/* CABEÇALHO — integrado, com salvar destacado mas não isolado */}
+      <LinearGradient
+        colors={mode === 'guided' ? ['#FFF7E6', '#FFE9C7'] : ['#F4ECFF', '#E9DCFF']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}
+      >
         <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backBtnText}>‹</Text>
         </SoundButton>
         <View style={styles.headerCenter}>
-          {mission ? (
-            <>
-              <Text style={styles.headerTitle}>Desafio do Beni</Text>
-              <Text style={styles.missionText} numberOfLines={1}>{mission}</Text>
-            </>
-          ) : (
-            <Text style={styles.headerTitle}>Minha arte</Text>
-          )}
+          <Text style={styles.headerTitle}>
+            {mode === 'guided' ? 'Desenho guiado pelo Beni' : 'Criar livre'}
+          </Text>
+          <Text style={styles.headerSub} numberOfLines={1}>
+            {mode === 'guided' ? (mission || 'Uma ideia especial para hoje') : 'Desenhe do seu jeito ✨'}
+          </Text>
         </View>
-        <SoundButton onPress={handleSavePress} style={styles.saveBtn} disabled={isSaving}>
-          <Text style={styles.saveBtnText}>{isSaving ? '⏳' : '💾 Salvar'}</Text>
+        <SoundButton onPress={handleSavePress} style={styles.saveBtn} disabled={isSaving} activeOpacity={0.85}>
+          <Text style={styles.saveBtnText}>{isSaving ? '⏳' : '💾'}</Text>
+          <Text style={styles.saveBtnLabel}>{isSaving ? 'Salvando' : 'Salvar'}</Text>
         </SoundButton>
+      </LinearGradient>
+
+      {/* FOLHA DE DESENHO — papel central com moldura premium */}
+      <View style={styles.canvasOuter}>
+        <View style={styles.canvasFrame}>
+          <AtelierCanvas
+            key={canvasKey}
+            ref={canvasRef}
+            onReady={handleCanvasReady}
+            onPainted={() => setHasPainted(true)}
+            onPlaced={() => setPendingStampState(null)}
+            onStampSelected={handleStampSelected}
+            onStampDeselected={handleStampDeselected}
+            onLoadCorrupted={handleLoadCorrupted}
+          />
+        </View>
       </View>
 
-      {/* FOLHA DE DESENHO */}
-      <View style={styles.canvasFrame}>
-        <AtelierCanvas
-          key={canvasKey}
-          ref={canvasRef}
-          onReady={handleCanvasReady}
-          onPainted={() => setHasPainted(true)}
-          onPlaced={() => setPendingStampState(null)}
-          onStampSelected={handleStampSelected}
-          onStampDeselected={handleStampDeselected}
-          onLoadCorrupted={handleLoadCorrupted}
-        />
-      </View>
-
-      {/* BARRA INFERIOR */}
+      {/* PAINEL INFERIOR POR ABAS */}
       <View style={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, 6) }]}>
 
-        {/* Painel de ferramentas */}
-        <View style={styles.toolPanel}>
+        {/* Conteúdo do painel ativo */}
+        <View style={styles.panelContent}>
 
-          {/* ─ DESENHAR ─ */}
-          {bottomTab === 'desenhar' && (
-            <View style={styles.desenharPanel}>
-              {/* Tamanhos + indicador de cor */}
-              <View style={styles.sizeRow}>
-                {BRUSH_SIZES.map(bs => (
-                  <SoundButton
-                    key={bs.id}
-                    style={[styles.sizeBtn, brushSize.id === bs.id && styles.sizeBtnActive]}
-                    onPress={() => applyBrushSize(bs)}
-                  >
-                    <View style={[
-                      styles.brushDot,
-                      {
-                        width: bs.size + 8, height: bs.size + 8,
-                        borderRadius: (bs.size + 8) / 2,
-                        backgroundColor: brushSize.id === bs.id ? selectedColor : '#C0B0A0',
-                      },
-                    ]} />
-                    <Text style={styles.sizeBtnLabel}>{bs.label}</Text>
-                  </SoundButton>
-                ))}
-                <View style={[styles.curColorCircle, { backgroundColor: selectedColor }]} />
-              </View>
-              {/* Paleta de cores */}
-              <ScrollView
-                horizontal showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.colorRow}
-              >
-                {COLOR_PALETTE.map(({ hex }) => (
-                  <SoundButton key={hex} onPress={() => applyColor(hex)} style={styles.colorWrap}>
-                    <View style={[
-                      styles.colorDot,
-                      { backgroundColor: hex },
-                      hex === '#FFFFFF' && styles.colorDotWhite,
-                      selectedColor === hex && styles.colorDotSelected,
-                    ]} />
-                  </SoundButton>
-                ))}
-              </ScrollView>
+          {/* ─ ABA CORES ─ */}
+          {panelTab === 'cores' && (
+            <ScrollView
+              horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.colorRow}
+            >
+              {COLOR_FAMILIES.map(fam => (
+                <View key={fam.name} style={styles.colorFamily}>
+                  <Text style={styles.colorFamilyLabel}>{fam.name}</Text>
+                  <View style={styles.colorFamilyDots}>
+                    {fam.colors.map(hex => (
+                      <SoundButton key={hex} onPress={() => applyColor(hex)} style={styles.colorWrap}>
+                        <View style={[
+                          styles.colorDot,
+                          { backgroundColor: hex },
+                          hex === '#FFFFFF' && styles.colorDotWhite,
+                          selectedColor === hex && activeTool === 'desenhar' && styles.colorDotSelected,
+                        ]} />
+                      </SoundButton>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* ─ ABA PINCEL ─ */}
+          {panelTab === 'pincel' && (
+            <View style={styles.pincelPanel}>
+              {BRUSH_SIZES.map(bs => (
+                <SoundButton
+                  key={bs.id}
+                  style={[styles.brushBtn, brushSize.id === bs.id && activeTool === 'desenhar' && styles.brushBtnActive]}
+                  onPress={() => applyBrushSize(bs)}
+                >
+                  {/* Preview do traço */}
+                  <View style={styles.brushPreview}>
+                    <View style={{
+                      width: 54, height: bs.size,
+                      borderRadius: bs.size / 2,
+                      backgroundColor: selectedColor === '#FFFFFF' ? '#E2D8C8' : selectedColor,
+                    }} />
+                  </View>
+                  <Text style={styles.brushLabel}>{bs.label}</Text>
+                </SoundButton>
+              ))}
             </View>
           )}
 
-          {/* ─ APAGAR ─ */}
-          {bottomTab === 'apagar' && (
-            <View style={styles.apagarPanel}>
-              <View style={styles.sizeRow}>
-                {ERASER_SIZES.map((es, idx) => (
+          {/* ─ ABA FERRAMENTAS ─ */}
+          {panelTab === 'ferramentas' && (
+            <View style={styles.ferramentasPanel}>
+              {/* Seletor de ferramenta */}
+              <View style={styles.toolSelectRow}>
+                {[
+                  { id: 'desenhar', label: 'Desenhar', icon: '🖌️' },
+                  { id: 'borracha', label: 'Borracha', icon: '🧽' },
+                  { id: 'carimbos', label: 'Carimbos', icon: '⭐' },
+                ].map(t => (
                   <SoundButton
-                    key={es.id}
-                    style={[styles.sizeBtn, eraserSize.id === es.id && styles.sizeBtnActive]}
-                    onPress={() => applyEraserSize(es)}
+                    key={t.id}
+                    style={[styles.toolChip, activeTool === t.id && styles.toolChipActive]}
+                    onPress={() => selectTool(t.id)}
                   >
-                    <Text style={[styles.eraserCircle, { fontSize: 12 + idx * 5 }]}>⬤</Text>
-                    <Text style={styles.sizeBtnLabel}>{es.label}</Text>
+                    <Text style={styles.toolChipIcon}>{t.icon}</Text>
+                    <Text style={[styles.toolChipLabel, activeTool === t.id && styles.toolChipLabelActive]}>
+                      {t.label}
+                    </Text>
                   </SoundButton>
                 ))}
-                <View style={styles.apagarDivider} />
+              </View>
+
+              {/* Ações: Desfazer + Limpar tudo (separado, secundário) */}
+              <View style={styles.actionRow}>
                 <SoundButton style={styles.actionBtn} onPress={handleUndo}>
                   <Text style={styles.actionBtnIcon}>↩️</Text>
                   <Text style={styles.actionBtnLabel}>Desfazer</Text>
                 </SoundButton>
-                <SoundButton style={styles.actionBtn} onPress={handleClearAll}>
-                  <Text style={styles.actionBtnIcon}>🗑️</Text>
-                  <Text style={styles.actionBtnLabel}>Limpar</Text>
+                <SoundButton style={[styles.actionBtn, styles.clearAllBtn]} onPress={handleClearAll}>
+                  <Text style={styles.actionBtnIcon}>🧹</Text>
+                  <Text style={[styles.actionBtnLabel, styles.clearAllLabel]}>Limpar tudo</Text>
                 </SoundButton>
               </View>
-            </View>
-          )}
 
-          {/* ─ ENFEITAR ─ */}
-          {bottomTab === 'enfeitar' && (
-            <View style={styles.enfeitarPanel}>
-              {selectedStampInfo ? (
-                /* Carimbo selecionado: controles */
-                <View style={styles.stampCtrlRow}>
-                  <Text style={styles.stampCtrlEmoji}>{selectedStampInfo.emoji}</Text>
-                  <Text style={styles.stampCtrlHint}>Arraste para mover</Text>
-                  <SoundButton style={styles.stampCtrlBtn} onPress={() => handleResizeStamp(-1)}>
-                    <Text style={styles.stampCtrlBtnTxt}>－</Text>
-                  </SoundButton>
-                  <SoundButton style={styles.stampCtrlBtn} onPress={() => handleResizeStamp(1)}>
-                    <Text style={styles.stampCtrlBtnTxt}>＋</Text>
-                  </SoundButton>
-                  <SoundButton
-                    style={[styles.stampCtrlBtn, styles.stampDeleteBtn]}
-                    onPress={handleDeleteStamp}
-                  >
-                    <Text style={styles.stampCtrlBtnTxt}>🗑️</Text>
-                  </SoundButton>
+              {/* Contexto da ferramenta ativa */}
+              {activeTool === 'borracha' && (
+                <View style={styles.toolContext}>
+                  <Text style={styles.toolContextHint}>🧽 Passe por cima para apagar.</Text>
+                  <View style={styles.sizeRow}>
+                    {ERASER_SIZES.map((es, idx) => (
+                      <SoundButton
+                        key={es.id}
+                        style={[styles.sizeBtn, eraserSize.id === es.id && styles.sizeBtnActive]}
+                        onPress={() => applyEraserSize(es)}
+                      >
+                        <View style={[
+                          styles.eraserChip,
+                          { width: 18 + idx * 8, height: 13 + idx * 5 },
+                          eraserSize.id === es.id && styles.eraserChipActive,
+                        ]} />
+                        <Text style={styles.sizeBtnLabel}>{es.label}</Text>
+                      </SoundButton>
+                    ))}
+                  </View>
                 </View>
-              ) : pendingStamp ? (
-                /* Aguardando toque na folha */
-                <View style={styles.pendingRow}>
-                  <Text style={styles.pendingEmoji}>{pendingStamp.emoji}</Text>
-                  <Text style={styles.pendingTxt}>Toque na folha para colocar!</Text>
-                  <SoundButton
-                    style={styles.cancelBtn}
-                    onPress={() => { setPendingStampState(null); canvasRef.current?.clearPending(); }}
-                  >
-                    <Text style={styles.cancelBtnTxt}>✕</Text>
-                  </SoundButton>
+              )}
+
+              {activeTool === 'carimbos' && (
+                <View style={styles.toolContext}>
+                  {selectedStampInfo ? (
+                    <View style={styles.stampCtrlRow}>
+                      <Text style={styles.stampCtrlEmoji}>{selectedStampInfo.emoji}</Text>
+                      <Text style={styles.stampCtrlHint}>Arraste para mover</Text>
+                      <SoundButton style={styles.stampCtrlBtn} onPress={() => handleResizeStamp(-1)}>
+                        <Text style={styles.stampCtrlBtnTxt}>－</Text>
+                      </SoundButton>
+                      <SoundButton style={styles.stampCtrlBtn} onPress={() => handleResizeStamp(1)}>
+                        <Text style={styles.stampCtrlBtnTxt}>＋</Text>
+                      </SoundButton>
+                      <SoundButton style={[styles.stampCtrlBtn, styles.stampDeleteBtn]} onPress={handleDeleteStamp}>
+                        <Text style={styles.stampCtrlBtnTxt}>🗑️</Text>
+                      </SoundButton>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.toolContextHint}>Escolha um carimbo e toque na folha.</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stampGrid}>
+                        {CORE_STAMPS.map(s => (
+                          <SoundButton
+                            key={s.emoji}
+                            style={[styles.stampCard, pendingStamp?.emoji === s.emoji && styles.stampCardActive]}
+                            onPress={() => handleStampPress(s)}
+                          >
+                            <Text style={styles.stampCardEmoji}>{s.emoji}</Text>
+                            <Text style={styles.stampCardLabel}>{s.label}</Text>
+                          </SoundButton>
+                        ))}
+                      </ScrollView>
+                    </>
+                  )}
                 </View>
-              ) : (
-                /* Grade de carimbos */
-                <ScrollView
-                  horizontal showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.stampGrid}
-                >
-                  {CORE_STAMPS.map(s => (
-                    <SoundButton key={s.emoji} style={styles.stampCard} onPress={() => handleStampPress(s)}>
-                      <Text style={styles.stampCardEmoji}>{s.emoji}</Text>
-                      <Text style={styles.stampCardLabel}>{s.label}</Text>
-                    </SoundButton>
-                  ))}
-                </ScrollView>
+              )}
+
+              {activeTool === 'desenhar' && (
+                <Text style={styles.toolContextHintMuted}>
+                  Escolha a cor e o tamanho do pincel nas abas Cores e Pincel.
+                </Text>
               )}
             </View>
           )}
         </View>
 
-        {/* 3 abas principais */}
-        <View style={styles.tabRow}>
+        {/* Abas do painel */}
+        <View style={styles.panelTabsRow}>
           {[
-            { id: 'desenhar', label: 'Desenhar', icon: '🖌️' },
-            { id: 'apagar',   label: 'Apagar',   icon: '⬜' },
-            { id: 'enfeitar', label: 'Enfeitar', icon: '⭐' },
+            { id: 'cores', label: 'Cores', icon: '🎨' },
+            { id: 'pincel', label: 'Pincel', icon: '🖊️' },
+            { id: 'ferramentas', label: 'Ferramentas', icon: '🧰' },
           ].map(tab => (
             <SoundButton
               key={tab.id}
-              style={[styles.tabBtn, bottomTab === tab.id && styles.tabBtnActive]}
-              onPress={() => switchTab(tab.id)}
+              style={[styles.panelTab, panelTab === tab.id && styles.panelTabActive]}
+              onPress={() => setPanelTab(tab.id)}
             >
-              <Text style={styles.tabIcon}>{tab.icon}</Text>
-              <Text style={[styles.tabLabel, bottomTab === tab.id && styles.tabLabelActive]}>
+              <Text style={styles.panelTabIcon}>{tab.icon}</Text>
+              <Text style={[styles.panelTabLabel, panelTab === tab.id && styles.panelTabLabelActive]}>
                 {tab.label}
               </Text>
             </SoundButton>
@@ -451,7 +540,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
         </View>
       </View>
 
-      {/* MODAL SALVAR */}
+      {/* MODAL: dar nome à arte */}
       <Modal visible={saveModalVisible} transparent animationType="fade" statusBarTranslucent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
@@ -469,25 +558,67 @@ export default function AtelierCanvasScreen({ route, navigation }) {
             <SoundButton style={styles.modalBtnPrimary} onPress={handleSaveConfirm}>
               <Text style={styles.modalBtnPrimaryText}>✨ Salvar minha arte</Text>
             </SoundButton>
-            <SoundButton
-              style={styles.modalBtnSecondary}
-              onPress={() => setSaveModalVisible(false)}
-            >
+            <SoundButton style={styles.modalBtnSecondary} onPress={() => setSaveModalVisible(false)}>
               <Text style={styles.modalBtnSecondaryText}>Cancelar</Text>
             </SoundButton>
           </View>
         </View>
       </Modal>
 
-      {/* MODAL LIMITE */}
+      {/* MODAL: recompensa ao salvar (microfeedback de retenção) */}
+      <Modal visible={rewardVisible} transparent animationType="fade" statusBarTranslucent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.rewardBox}>
+            <BeniAvatar variant="celebrating" size="large" />
+            <Text style={styles.rewardTitle}>Arte guardada!</Text>
+            <Text style={styles.rewardSub}>Beni salvou sua criação com carinho.</Text>
+
+            {/* Progresso de artes guardadas */}
+            <View style={styles.rewardProgress}>
+              <Text style={styles.rewardProgressText}>
+                {hasAtelierUnlimitedAccess()
+                  ? `🖼️ ${rewardCount} arte${rewardCount === 1 ? '' : 's'} guardada${rewardCount === 1 ? '' : 's'}`
+                  : `🖼️ ${rewardCount} de ${ATELIER_FREE_SAVE_LIMIT} artes guardadas`}
+              </Text>
+              {!hasAtelierUnlimitedAccess() && (
+                <View style={styles.rewardBar}>
+                  <View style={[styles.rewardBarFill, { width: `${Math.min(rewardCount / ATELIER_FREE_SAVE_LIMIT, 1) * 100}%` }]} />
+                </View>
+              )}
+            </View>
+
+            {/* Promessa do Livrinho */}
+            <Text style={styles.rewardLivrinho}>📖 Essa arte pode entrar no seu Livrinho da Fé.</Text>
+
+            <SoundButton
+              style={styles.rewardBtnPrimary}
+              onPress={() => closeReward(() => navigation.navigate('AtelierGallery'))}
+            >
+              <Text style={styles.rewardBtnPrimaryText}>🖼️ Ver minhas artes</Text>
+            </SoundButton>
+            <View style={styles.rewardBtnRow}>
+              <SoundButton style={styles.rewardBtnSecondary} onPress={() => closeReward()}>
+                <Text style={styles.rewardBtnSecondaryText}>✏️ Continuar desenhando</Text>
+              </SoundButton>
+              {!limitReached && (
+                <SoundButton style={styles.rewardBtnSecondary} onPress={() => closeReward(handleNewArt)}>
+                  <Text style={styles.rewardBtnSecondaryText}>🎨 Nova arte</Text>
+                </SoundButton>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL: limite gratuito */}
       <Modal visible={limitModalVisible} transparent animationType="fade" statusBarTranslucent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalEmoji}>💎</Text>
-            <Text style={styles.modalTitle}>Ateliê cheio!</Text>
+            <Text style={styles.modalEmoji}>💛</Text>
+            <Text style={styles.modalTitle}>Ateliê cheinho!</Text>
             <Text style={styles.modalDesc}>
-              Você já salvou {ATELIER_FREE_SAVE_LIMIT} desenhos no Ateliê.{'\n'}
-              Para guardar mais criações, peça a um responsável.
+              Você já guardou {ATELIER_FREE_SAVE_LIMIT} artes.{'\n'}
+              Para salvar mais, use o Modo Criador nos testes ou aguarde o Plano Família.
             </Text>
             <SoundButton
               style={styles.modalBtnPrimary}
@@ -501,178 +632,210 @@ export default function AtelierCanvasScreen({ route, navigation }) {
             >
               <Text style={styles.modalBtnSecondaryText}>🖼️ Gerenciar minhas artes</Text>
             </SoundButton>
-            <SoundButton
-              style={styles.modalBtnSecondary}
-              onPress={() => setLimitModalVisible(false)}
-            >
+            <SoundButton style={styles.modalBtnSecondary} onPress={() => setLimitModalVisible(false)}>
               <Text style={styles.modalBtnSecondaryText}>Fechar</Text>
             </SoundButton>
           </View>
         </View>
       </Modal>
+
+      {/* Conquista desbloqueada ao salvar (Parte 7) */}
+      {pendingAchievement && (
+        <AchievementUnlockModal achievement={pendingAchievement} onDismiss={dismissAchievement} />
+      )}
     </View>
   );
 }
 
 /* ─── Estilos ─────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#F5ECD8' },
+  wrapper: { flex: 1, backgroundColor: '#FBF3E4' },
 
   /* Header */
   header: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFF8EF',
-    paddingHorizontal: 12, paddingBottom: 8,
-    borderBottomWidth: 1, borderBottomColor: '#EED8C4',
-    gap: 8,
+    paddingHorizontal: 12, paddingBottom: 10,
+    gap: 10,
   },
   backBtn: {
     width: 42, height: 42, borderRadius: 21,
-    backgroundColor: '#EED8C4',
+    backgroundColor: 'rgba(255,255,255,0.7)',
     justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)',
   },
   backBtnText: { fontFamily: 'FredokaOne', fontSize: 26, color: colors.text, lineHeight: 30 },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontFamily: 'FredokaOne', fontSize: 16, color: colors.text },
-  missionText: {
-    fontFamily: 'Nunito', fontSize: 12, color: colors.textLight,
-    fontStyle: 'italic', textAlign: 'center',
+  headerCenter: { flex: 1, alignItems: 'flex-start' },
+  headerTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: colors.text },
+  headerSub: {
+    fontFamily: 'Nunito', fontSize: 12, color: '#7A6A58', fontWeight: '700',
   },
   saveBtn: {
-    backgroundColor: '#7CCB83',
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: pt.green,
     paddingHorizontal: 16, paddingVertical: 10,
-    borderRadius: 18,
-    elevation: 3, shadowColor: '#7CCB83',
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 4,
+    borderRadius: radii.pill,
+    elevation: 3, shadowColor: pt.greenDeep,
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 4,
   },
-  saveBtnText: { fontFamily: 'FredokaOne', fontSize: 14, color: '#FFF' },
+  saveBtnText: { fontSize: 15 },
+  saveBtnLabel: { fontFamily: 'FredokaOne', fontSize: 14, color: '#FFF' },
 
-  /* Canvas */
+  /* Canvas — papel central com moldura premium */
+  canvasOuter: {
+    flex: 1,
+    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8,
+  },
   canvasFrame: {
-    flex: 1, margin: 10,
-    borderRadius: 18, overflow: 'hidden',
-    borderWidth: 2.5, borderColor: '#D4A855',
-    elevation: 6, shadowColor: '#A0782A',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.22, shadowRadius: 8,
+    flex: 1,
+    borderRadius: 22, overflow: 'hidden',
+    backgroundColor: '#FFFDF8',
+    borderWidth: 5, borderColor: '#FFFFFF',
+    elevation: 8, shadowColor: '#7A5A22',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.22, shadowRadius: 12,
   },
 
   /* Toolbar */
   toolbar: {
-    backgroundColor: '#FFF8EF',
-    borderTopWidth: 1, borderTopColor: '#EED8C4',
-    elevation: 10,
+    backgroundColor: '#FFFDF7',
+    borderTopWidth: 1, borderTopColor: '#EFE2CE',
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    elevation: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.08, shadowRadius: 4,
+    shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.08, shadowRadius: 6,
+    paddingTop: 6,
   },
-  toolPanel: { minHeight: 90 },
+  panelContent: { minHeight: 116, justifyContent: 'center' },
 
-  /* Desenhar */
-  desenharPanel: { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 2 },
-  sizeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 7 },
-  sizeBtn: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 7, borderRadius: 14,
-    backgroundColor: '#F0E6D3',
-    borderWidth: 2, borderColor: 'transparent',
-    gap: 3, minHeight: 52,
+  /* Aba Cores */
+  colorRow: { gap: 12, alignItems: 'flex-start', paddingHorizontal: 12, paddingVertical: 8 },
+  colorFamily: { },
+  colorFamilyLabel: {
+    fontFamily: 'Nunito', fontSize: 9, color: colors.textLight, fontWeight: '800',
+    textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4, marginLeft: 4,
   },
-  sizeBtnActive: { backgroundColor: '#FFE8B0', borderColor: '#F4B23C' },
-  brushDot: {},
-  sizeBtnLabel: { fontFamily: 'Nunito', fontSize: 9, color: colors.textLight },
-  curColorCircle: {
-    width: 38, height: 38, borderRadius: 19,
-    borderWidth: 2.5, borderColor: '#D4A855',
-    elevation: 2,
-  },
-  colorRow: { gap: 5, alignItems: 'center', paddingBottom: 4 },
+  colorFamilyDots: { flexDirection: 'row', gap: 4 },
   colorWrap: { padding: 2 },
   colorDot: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 42, height: 42, borderRadius: 21,
     borderWidth: 2, borderColor: 'transparent', elevation: 1,
   },
-  colorDotWhite: { borderColor: '#BBA890' },
+  colorDotWhite: { borderColor: '#C8B79C' },
   colorDotSelected: {
-    borderColor: '#FFD700', borderWidth: 3.5,
-    transform: [{ scale: 1.2 }], elevation: 5,
+    borderColor: '#FFD700', borderWidth: 4,
+    transform: [{ scale: 1.16 }], elevation: 5,
   },
 
-  /* Apagar */
-  apagarPanel: { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 6 },
-  apagarDivider: { width: 1, height: 44, backgroundColor: '#EED8C4', marginHorizontal: 4 },
-  eraserCircle: { color: '#8A7464' },
+  /* Aba Pincel */
+  pincelPanel: {
+    flexDirection: 'row', gap: 10, paddingHorizontal: 12, paddingVertical: 10, alignItems: 'stretch',
+  },
+  brushBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 12, borderRadius: 18,
+    backgroundColor: '#F6EEDD',
+    borderWidth: 2, borderColor: 'transparent', gap: 8,
+  },
+  brushBtnActive: { backgroundColor: '#FFF3D6', borderColor: '#F4B23C' },
+  brushPreview: { height: 26, justifyContent: 'center', alignItems: 'center' },
+  brushLabel: { fontFamily: 'FredokaOne', fontSize: 13, color: colors.text },
+
+  /* Aba Ferramentas */
+  ferramentasPanel: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
+  toolSelectRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  toolChip: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 11, borderRadius: 16,
+    backgroundColor: '#F6EEDD',
+    borderWidth: 2, borderColor: 'transparent', gap: 5,
+  },
+  toolChipActive: {
+    backgroundColor: '#FFF3D6', borderColor: '#F4B23C',
+    elevation: 2, shadowColor: '#F4B23C',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3,
+  },
+  toolChipIcon: { fontSize: 18 },
+  toolChipLabel: { fontFamily: 'Nunito', fontSize: 13, color: colors.textLight, fontWeight: '700' },
+  toolChipLabelActive: { color: colors.primaryDark },
+
+  actionRow: { flexDirection: 'row', gap: 8 },
   actionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 10, borderRadius: 14,
+    backgroundColor: '#F0E6D3', gap: 6,
+  },
+  clearAllBtn: { backgroundColor: '#FFEFEA', borderWidth: 1.5, borderColor: '#F3C3B2' },
+  actionBtnIcon:  { fontSize: 18 },
+  actionBtnLabel: { fontFamily: 'Nunito', fontSize: 12, color: colors.text, fontWeight: '700' },
+  clearAllLabel: { color: '#C0512F' },
+
+  toolContext: { marginTop: 10 },
+  toolContextHint: {
+    fontFamily: 'Nunito', fontSize: 12, color: colors.textLight, fontWeight: '700',
+    textAlign: 'center', marginBottom: 8,
+  },
+  toolContextHintMuted: {
+    fontFamily: 'Nunito', fontSize: 12, color: '#B0A48F', fontWeight: '700',
+    textAlign: 'center', marginTop: 12,
+  },
+
+  /* Tamanhos (borracha) */
+  sizeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sizeBtn: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     paddingVertical: 8, borderRadius: 14,
-    backgroundColor: '#F0E6D3', gap: 3, minHeight: 52,
+    backgroundColor: '#F6EEDD',
+    borderWidth: 2, borderColor: 'transparent',
+    gap: 4, minHeight: 50,
   },
-  actionBtnIcon:  { fontSize: 22 },
-  actionBtnLabel: { fontFamily: 'Nunito', fontSize: 9, color: colors.text },
+  sizeBtnActive: { backgroundColor: '#FFF3D6', borderColor: '#F4B23C' },
+  sizeBtnLabel: { fontFamily: 'Nunito', fontSize: 10, color: colors.textLight, fontWeight: '700' },
+  eraserChip: {
+    backgroundColor: '#FFF', borderRadius: 5,
+    borderWidth: 1.5, borderColor: '#C8B59A',
+  },
+  eraserChipActive: { borderColor: '#F4B23C', backgroundColor: '#FFF7E6' },
 
-  /* Enfeitar */
-  enfeitarPanel: { minHeight: 90, justifyContent: 'center' },
-  stampGrid: { paddingHorizontal: 10, paddingVertical: 8, gap: 8, alignItems: 'center' },
+  /* Carimbos */
+  stampGrid: { paddingVertical: 4, gap: 8, alignItems: 'center' },
   stampCard: {
-    width: 70, height: 76, borderRadius: 20,
+    width: 66, height: 72, borderRadius: 18,
     backgroundColor: '#FFF',
     borderWidth: 2, borderColor: '#EED8C4',
-    alignItems: 'center', justifyContent: 'center',
-    elevation: 2, gap: 2,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08, shadowRadius: 3,
+    alignItems: 'center', justifyContent: 'center', gap: 2,
+    elevation: 1,
   },
-  stampCardEmoji: { fontSize: 32 },
-  stampCardLabel: { fontFamily: 'Nunito', fontSize: 9, color: colors.textLight },
+  stampCardActive: { borderColor: '#F4B23C', backgroundColor: '#FFF7E6' },
+  stampCardEmoji: { fontSize: 30 },
+  stampCardLabel: { fontFamily: 'Nunito', fontSize: 9, color: colors.textLight, fontWeight: '700' },
 
-  /* Carimbo selecionado */
-  stampCtrlRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 14, gap: 8,
-  },
-  stampCtrlEmoji: { fontSize: 30 },
-  stampCtrlHint: {
-    flex: 1, fontFamily: 'Nunito', fontSize: 12, color: colors.textLight, fontStyle: 'italic',
-  },
+  stampCtrlRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  stampCtrlEmoji: { fontSize: 28 },
+  stampCtrlHint: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: colors.textLight, fontStyle: 'italic' },
   stampCtrlBtn: {
-    width: 50, height: 50, borderRadius: 15,
+    width: 48, height: 48, borderRadius: 15,
     backgroundColor: '#F0E6D3', borderWidth: 2, borderColor: '#EED8C4',
     alignItems: 'center', justifyContent: 'center',
   },
   stampDeleteBtn: { backgroundColor: '#FFF0F0', borderColor: '#FFD0D0' },
-  stampCtrlBtnTxt: { fontSize: 22 },
+  stampCtrlBtnTxt: { fontSize: 20 },
 
-  /* Carimbo pendente */
-  pendingRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 14, gap: 10,
-    backgroundColor: '#FFFADC',
-  },
-  pendingEmoji: { fontSize: 30 },
-  pendingTxt: { flex: 1, fontFamily: 'FredokaOne', fontSize: 14, color: '#7A5800' },
-  cancelBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#EED8C4', alignItems: 'center', justifyContent: 'center',
-  },
-  cancelBtnTxt: { fontFamily: 'FredokaOne', fontSize: 16, color: colors.textLight },
-
-  /* Abas */
-  tabRow: {
+  /* Abas do painel */
+  panelTabsRow: {
     flexDirection: 'row', paddingHorizontal: 10, paddingTop: 6, paddingBottom: 2, gap: 8,
   },
-  tabBtn: {
+  panelTab: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingVertical: 11, borderRadius: 16,
-    backgroundColor: '#F0E6D3',
+    backgroundColor: '#F3EADA',
     borderWidth: 2, borderColor: 'transparent', gap: 5,
   },
-  tabBtnActive: {
-    backgroundColor: '#FFE8B0', borderColor: '#F4B23C',
-    elevation: 3, shadowColor: '#F4B23C',
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
+  panelTabActive: {
+    backgroundColor: pt.faithBlueSoft, borderColor: pt.faithBlue,
   },
-  tabIcon:       { fontSize: 20 },
-  tabLabel:      { fontFamily: 'Nunito', fontSize: 13, color: colors.textLight, fontWeight: '700' },
-  tabLabelActive:{ color: colors.primaryDark },
+  panelTabIcon: { fontSize: 17 },
+  panelTabLabel: { fontFamily: 'Nunito', fontSize: 12, color: colors.textLight, fontWeight: '800' },
+  panelTabLabelActive: { color: pt.faithBlueDeep },
 
   /* Modais */
   modalOverlay: {
@@ -711,4 +874,45 @@ const styles = StyleSheet.create({
   modalBtnSecondaryText: {
     fontFamily: 'Nunito', fontSize: 14, color: colors.textLight, textDecorationLine: 'underline',
   },
+
+  /* Recompensa ao salvar */
+  rewardBox: {
+    backgroundColor: '#FFFDF8', borderRadius: 28, padding: 24,
+    alignItems: 'center', width: '100%',
+    borderWidth: 1.5, borderColor: '#F0E2C6',
+    elevation: 20, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 20,
+  },
+  rewardTitle: {
+    fontFamily: 'FredokaOne', fontSize: 22, color: pt.text, marginTop: 6, marginBottom: 4,
+  },
+  rewardSub: {
+    fontFamily: 'Nunito', fontSize: 14, color: pt.textSoft, fontWeight: '700',
+    textAlign: 'center', marginBottom: 14,
+  },
+  rewardProgress: { width: '100%', alignItems: 'center', marginBottom: 12 },
+  rewardProgressText: {
+    fontFamily: 'FredokaOne', fontSize: 13, color: '#7A5800', marginBottom: 6,
+  },
+  rewardBar: {
+    width: '70%', height: 7, backgroundColor: '#F0E2C6', borderRadius: 4, overflow: 'hidden',
+  },
+  rewardBarFill: { height: '100%', backgroundColor: pt.gold, borderRadius: 4 },
+  rewardLivrinho: {
+    fontFamily: 'Nunito', fontSize: 12.5, color: pt.purpleDeep, fontWeight: '700',
+    textAlign: 'center', marginBottom: 18,
+  },
+  rewardBtnPrimary: {
+    backgroundColor: pt.beni, borderRadius: radii.pill,
+    paddingVertical: 14, width: '100%', alignItems: 'center', marginBottom: 10,
+    elevation: 3, shadowColor: pt.beniDeep,
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 5,
+  },
+  rewardBtnPrimaryText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFF' },
+  rewardBtnRow: { flexDirection: 'row', gap: 8, width: '100%' },
+  rewardBtnSecondary: {
+    flex: 1, backgroundColor: '#F3EADA', borderRadius: radii.pill,
+    paddingVertical: 11, alignItems: 'center',
+  },
+  rewardBtnSecondaryText: { fontFamily: 'FredokaOne', fontSize: 12, color: '#7A5A2E' },
 });

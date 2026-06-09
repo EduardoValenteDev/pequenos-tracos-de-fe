@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Linking, TextInput, Alert, Switch,
+  View, Text, ScrollView, StyleSheet, Linking, TextInput, Alert, Share, Switch,
   TouchableOpacity, useWindowDimensions,
 } from 'react-native';
 import ParentalGate from '../components/ParentalGate';
@@ -38,6 +38,13 @@ import {
 } from '../services/churchModeService';
 
 const SUPPORT_EMAIL = productConfig.supportEmail;
+
+// Ferramentas de teste do responsável (Modo Criador, rever Beni, build info).
+// Aparecem em DEV/Expo Go/teste local; ficam ocultas em produção real.
+// __DEV__ é true em desenvolvimento; isCreatorQaModeAllowed() também cobre a
+// flag de build EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE.
+const SHOW_TEST_TOOLS =
+  (typeof __DEV__ !== 'undefined' && __DEV__ === true) || isCreatorQaModeAllowed();
 
 // ── Componentes internos ──────────────────────────────────────────────────────
 
@@ -126,6 +133,8 @@ export default function ParentAreaScreen({ navigation }) {
 
   // Expansão do progresso por história (recolhido por padrão)
   const [storyProgressExpanded, setStoryProgressExpanded] = useState(false);
+  // Métricas secundárias (recolhidas por padrão — só 3 principais no topo)
+  const [metricsExpanded, setMetricsExpanded] = useState(false);
 
   // Configurações dos pais + consentimento
   const [parentSettings, setParentSettings] = useState({
@@ -140,7 +149,7 @@ export default function ParentAreaScreen({ navigation }) {
   // Modo Igreja
   const [churchGroups, setChurchGroups] = useState([]);
   const [showChurchForm, setShowChurchForm] = useState(false);
-  const [churchForm, setChurchForm] = useState({ name: '', leaderName: '', churchName: '' });
+  const [churchForm, setChurchForm] = useState({ name: '', leaderName: '', ageGroup: '', weeklyStory: '' });
   const [churchSaving, setChurchSaving] = useState(false);
 
   useEffect(() => {
@@ -207,15 +216,30 @@ export default function ParentAreaScreen({ navigation }) {
       const group = await createGroup({
         name: churchForm.name.trim(),
         leaderName: churchForm.leaderName.trim(),
-        churchName: churchForm.churchName.trim(),
+        churchName: churchForm.ageGroup.trim(), // faixa/grupo guardado no campo existente
       });
-      setChurchGroups(prev => [...prev, group]);
-      setChurchForm({ name: '', leaderName: '', churchName: '' });
+      // anexa metadados locais (faixa e história da semana) ao grupo retornado
+      const enriched = { ...group, ageGroup: churchForm.ageGroup.trim(), weeklyStory: churchForm.weeklyStory.trim() };
+      setChurchGroups(prev => [...prev, enriched]);
+      setChurchForm({ name: '', leaderName: '', ageGroup: '', weeklyStory: '' });
       setShowChurchForm(false);
     } catch {
-      Alert.alert('Erro', 'Não foi possível criar a turma. Tente novamente.');
+      Alert.alert('Não foi possível criar a turma agora', 'Tente novamente em instantes.');
     } finally {
       setChurchSaving(false);
+    }
+  }
+
+  async function handleShareChurchGuidance(group) {
+    const story = group.weeklyStory?.trim() || 'a história da semana';
+    const message =
+      `Olá, famílias! Nesta semana nossa turma "${group.name}" vai acompanhar ${story} no Pequenos Traços de Fé. ` +
+      'Separem um momento em casa para conversar, colorir e guardar o aprendizado no coração. 💛';
+    try {
+      await Share.share({ message });
+    } catch {
+      // se o compartilhamento falhar, mostramos a mensagem para copiar manualmente
+      Alert.alert('Orientação para as famílias', message);
     }
   }
 
@@ -365,22 +389,24 @@ export default function ParentAreaScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
 
-        {/* ── Header ── */}
-        <LinearGradient
-          colors={['#7C3AED', '#A78BFA']}
-          style={[styles.header, { paddingTop: insets.top + 16 }]}
-        >
-          <Text style={styles.headerEmoji}>👨‍👩‍👧</Text>
-          <Text style={styles.headerTitle}>Área dos Pais</Text>
-          <Text style={styles.headerSub}>
-            Central do responsável — progresso, privacidade e configurações da família.
-          </Text>
-        </LinearGradient>
+        <View style={[styles.body, isTablet && styles.bodyTablet, { paddingTop: insets.top + 14 }]}>
 
-        <View style={[styles.body, isTablet && styles.bodyTablet]}>
+          {/* ── Topo compacto (sem banner roxo gigante) ── */}
+          <View style={styles.welcomeCard}>
+            <Text style={styles.welcomeTitle}>Central da família</Text>
+            <Text style={styles.welcomeSub}>
+              Acompanhe o progresso, cuide dos dados e organize a jornada da criança.
+            </Text>
+          </View>
+          <BeniSpeechCard
+            context="parentArea"
+            variant="adult"
+            text="Pequenos momentos frequentes ajudam mais do que sessões longas."
+            style={{ marginTop: 8 }}
+          />
 
-          {/* ─── 1. VISÃO GERAL DA CRIANÇA ─────────────────────────────────────── */}
-          <SectionTitle>👶 Visão geral da criança</SectionTitle>
+          {/* ─── 1. RESUMO DA CRIANÇA ──────────────────────────────────────────── */}
+          <SectionTitle>Resumo da criança</SectionTitle>
           <InfoCard>
             <View style={styles.childProfileRow}>
               <Text style={styles.childAvatarEmoji}>{childAvatarEmoji}</Text>
@@ -389,21 +415,27 @@ export default function ParentAreaScreen({ navigation }) {
                 <Text style={styles.childSubtitle}>Explorador(a) das histórias</Text>
               </View>
             </View>
-            <View style={styles.metricsGrid}>
-              <View style={styles.metricsRow}>
-                <MetricCard emoji="⭐" value={progressSummary?.totalStars ?? 0} label="Estrelas" />
-                <MetricCard emoji="📖" value={startedStoriesCount} label="Iniciadas" />
-                <MetricCard emoji="🏆" value={progressSummary?.completedStories ?? 0} label="Concluídas" />
-              </View>
-              <View style={styles.metricsRow}>
-                <MetricCard emoji="🧩" value={progressSummary?.quizCompletedCount ?? 0} label="Quiz" />
-                <MetricCard emoji="📚" value={progressSummary?.storyBookOpenedCount ?? 0} label="Livrinho" />
-                <MetricCard emoji="🎨" value={progressSummary?.completedScenes ?? 0} label="Cenas" />
-              </View>
+            <View style={styles.metricsRow}>
+              <MetricCard emoji="⭐" value={progressSummary?.totalStars ?? 0} label="Estrelas" />
+              <MetricCard emoji="▶" value={startedStoriesCount} label="Em andamento" />
+              <MetricCard emoji="🎨" value={coloredScenesCount} label="Cenas" />
             </View>
-            <Text style={[styles.bodyText, { marginTop: 12, fontStyle: 'italic', color: pt.muted }]}>
-              Este resumo é salvo apenas neste aparelho.
-            </Text>
+            {!metricsExpanded ? (
+              <TouchableOpacity onPress={() => setMetricsExpanded(true)} style={styles.detailsLink} activeOpacity={0.7}>
+                <Text style={styles.detailsLinkText}>Ver detalhes</Text>
+              </TouchableOpacity>
+            ) : (
+              <>
+                <View style={[styles.metricsRow, { marginTop: 10 }]}>
+                  <MetricCard emoji="🏆" value={completedStoriesCount} label="Concluídas" />
+                  <MetricCard emoji="🧩" value={progressSummary?.quizCompletedCount ?? 0} label="Quiz" />
+                  <MetricCard emoji="📚" value={storyBookOpenedCount} label="Livrinho" />
+                </View>
+                <TouchableOpacity onPress={() => setMetricsExpanded(false)} style={styles.detailsLink} activeOpacity={0.7}>
+                  <Text style={styles.detailsLinkText}>Recolher</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </InfoCard>
 
           {/* Próximo passo recomendado */}
@@ -418,11 +450,8 @@ export default function ParentAreaScreen({ navigation }) {
             </View>
           </InfoCard>
 
-          {/* Dica do Beni (tom adulto) */}
-          <BeniSpeechCard context="parentArea" variant="adult" style={{ marginTop: 8 }} />
-
-          {/* ─── 2. PROGRESSO E CONQUISTAS ────────────────────────────────────── */}
-          <SectionTitle>📊 Progresso e conquistas</SectionTitle>
+          {/* ─── 2. JORNADA E PROGRESSO ───────────────────────────────────────── */}
+          <SectionTitle>Jornada e progresso</SectionTitle>
           <InfoCard>
             {progressSummary !== null && (
               <View style={styles.progressRow}>
@@ -522,49 +551,19 @@ export default function ParentAreaScreen({ navigation }) {
           </InfoCard>
 
           {/* ─── 4. CONFIGURAÇÕES DA FAMÍLIA ─────────────────────────────────── */}
-          <SectionTitle>⚙️ Configurações da família</SectionTitle>
-          <InfoCard>
-            <Text style={[styles.bodyText, { marginBottom: 14 }]}>
-              Preferências salvas localmente. Recursos de lembrete serão ativados em sprint futuro — salvar já registra sua preferência.
+          {/* ─── 3. SEGURANÇA E PRIVACIDADE ───────────────────────────────────── */}
+          <SectionTitle>Segurança e privacidade</SectionTitle>
+
+          {/* Resumo de privacidade (texto de produto, não "em breve") */}
+          <InfoCard style={styles.privacySummaryCard}>
+            <Text style={styles.cardHeading}>Resumo de privacidade</Text>
+            <Text style={styles.bodyText}>
+              O app funciona sem login. Os dados ficam neste aparelho. O responsável pode apagar o progresso quando quiser. Nada é enviado para servidores externos.
             </Text>
-            <ToggleRow
-              label="Lembrete da história do domingo"
-              description="Notificação de domingo para abrir uma história em família. (Em breve)"
-              value={parentSettings.sundayStoryReminderEnabled}
-              onValueChange={v => handleToggleSetting('sundayStoryReminderEnabled', v)}
-            />
-            <ToggleRow
-              label="Lembrete para fazer em família"
-              description="Notificação para experiência em família durante a semana. (Em breve)"
-              value={parentSettings.familyReminderEnabled}
-              onValueChange={v => handleToggleSetting('familyReminderEnabled', v)}
-            />
-            <ToggleRow
-              label="Permitir cards compartilháveis"
-              description="Permite que a criança compartilhe conquistas como imagem."
-              value={parentSettings.allowShareCards}
-              onValueChange={v => handleToggleSetting('allowShareCards', v)}
-            />
-            <ToggleRow
-              label="Permitir relatórios semanais"
-              description="Resumo semanal de progresso enviado por notificação. (Em breve)"
-              value={parentSettings.allowProgressReports}
-              onValueChange={v => handleToggleSetting('allowProgressReports', v)}
-            />
-            <ToggleRow
-              label="Habilitar Modo Igreja"
-              description="Permite criar e gerenciar uma turma local na seção abaixo."
-              value={parentSettings.allowChurchMode}
-              onValueChange={v => handleToggleSetting('allowChurchMode', v)}
-            />
           </InfoCard>
 
-          {/* ─── 5. DADOS E PRIVACIDADE ───────────────────────────────────────── */}
-          <SectionTitle>🔒 Dados e privacidade</SectionTitle>
-          <InfoCard>
-            <Text style={[styles.bodyText, { fontWeight: '700', color: pt.text, marginBottom: 10 }]}>
-              O que fica salvo localmente
-            </Text>
+          <InfoCard style={{ marginTop: 8 }}>
+            <Text style={styles.cardHeading}>O que fica salvo localmente</Text>
             <SecurityPoint text="Sem login e sem cadastro." />
             <SecurityPoint text="Nome ou apelido da criança (somente o que você digitar)." />
             <SecurityPoint text="Avatar escolhido." />
@@ -694,24 +693,14 @@ export default function ParentAreaScreen({ navigation }) {
           </InfoCard>
 
           {/* ─── 6. PLANO E ACESSO ─────────────────────────────────────────────── */}
-          <SectionTitle>💎 Plano e acesso</SectionTitle>
+          {/* ─── 4. PLANO FAMILIAR ─────────────────────────────────────────────── */}
+          <SectionTitle>Plano familiar</SectionTitle>
           <InfoCard style={isPremium ? styles.premiumCard : styles.freeCard}>
-            <View style={styles.planRow}>
-              <Text style={styles.planEmoji}>{isPremium ? '💎' : '✨'}</Text>
-              <View style={styles.planInfo}>
-                <Text style={styles.planName}>{isPremium ? 'Plano Família' : 'Gratuito'}</Text>
-                <Text style={styles.planDesc}>
-                  {isPremium
-                    ? 'Acesso completo a todas as histórias, Beni e Ateliê ilimitado.'
-                    : 'Acesso às histórias gratuitas, quiz e 3 artes no Ateliê.'}
-                </Text>
-              </View>
-            </View>
-          </InfoCard>
-
-          <InfoCard style={{ marginTop: 8 }}>
-            <Text style={[styles.bodyText, { fontWeight: '700', color: pt.text, marginBottom: 10 }]}>
-              ✨ Incluído gratuitamente
+            <Text style={styles.cardHeading}>{isPremium ? 'Plano atual: Família' : 'Plano atual: gratuito'}</Text>
+            <Text style={styles.bodyText}>
+              {isPremium
+                ? 'Acesso completo a todas as histórias, Beni e Ateliê ilimitado.'
+                : 'Acesso às histórias gratuitas, quiz e 3 artes no Ateliê.'}
             </Text>
             <View style={styles.featureList}>
               {FREE_PLAN.items.map((item, idx) => (
@@ -720,68 +709,20 @@ export default function ParentAreaScreen({ navigation }) {
             </View>
           </InfoCard>
 
-          <InfoCard style={[styles.paywallCard, { marginTop: 8 }]}>
-            <Text style={styles.paywallHeadline}>
-              Desbloqueie a experiência completa para sua família.
+          {/* Apresentação do Plano Família — informativa, sem botões acionáveis */}
+          <InfoCard style={[styles.planPrepCard, { marginTop: 8 }]}>
+            <Text style={styles.cardHeading}>Plano Família</Text>
+            <Text style={styles.bodyText}>
+              Será liberado quando as compras estiverem ativas. Os conteúdos Premium já estão preparados para a próxima etapa.
             </Text>
-            <View style={styles.featureList}>
+            <View style={[styles.featureList, { marginTop: 10 }]}>
               {PREMIUM_PLAN.items.map((item, idx) => (
                 <FeatureRow key={idx} emoji={item.emoji} label={item.label} />
               ))}
             </View>
-            <View style={[styles.pricingRow, isTablet && styles.pricingRowTablet]}>
-              {Object.values(PLAN_PRICING).map((plan) => (
-                <View key={plan.id} style={styles.pricingCard}>
-                  <Text style={styles.pricingLabel}>{plan.label}</Text>
-                  <View style={styles.comingSoonBadge}>
-                    <Text style={styles.comingSoonBadgeText}>Em breve</Text>
-                  </View>
-                </View>
-              ))}
+            <View style={[styles.comingSoonBadge, { alignSelf: 'flex-start', marginTop: 12 }]}>
+              <Text style={styles.comingSoonBadgeText}>Disponível em uma próxima atualização</Text>
             </View>
-            <View style={styles.activateBtn}>
-              <Text style={styles.activateBtnText}>Disponível em breve para famílias</Text>
-            </View>
-            <Text style={styles.activateNote}>
-              Preferência salva para quando o Plano Família for ativado nesta família.
-            </Text>
-            <View style={styles.restoreRow}>
-              <Text style={styles.restoreLabel}>🔄 Restaurar compra</Text>
-              {restoreState === 'unavailable' ? (
-                <Text style={styles.restoreNote}>
-                  As compras ainda não estão disponíveis nesta versão de teste. A restauração será habilitada quando as compras forem lançadas.
-                </Text>
-              ) : (
-                <>
-                  <Text style={styles.restoreNote}>
-                    Já tem o Plano Família? Toque abaixo para restaurar o acesso.
-                  </Text>
-                  <SoundButton
-                    style={[styles.restoreBtn, restoreState === 'loading' && styles.restoreBtnLoading]}
-                    onPress={restoreState === 'idle' ? handleRestorePurchase : undefined}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.restoreBtnText}>
-                      {restoreState === 'loading' ? 'Verificando...' : 'Restaurar compra'}
-                    </Text>
-                  </SoundButton>
-                </>
-              )}
-            </View>
-          </InfoCard>
-
-          <InfoCard style={[styles.comingSoonCard, { marginTop: 8 }]}>
-            <Text style={[styles.bodyText, { fontWeight: '700', color: pt.text, marginBottom: 10 }]}>
-              🚀 Chegando em futuras versões
-            </Text>
-            <View style={styles.featureList}>
-              {PREMIUM_PLAN.comingSoonItems.map((item, idx) => (
-                <FeatureRow key={idx} emoji={item.emoji} label={item.label} />
-              ))}
-            </View>
-            <Text style={styles.comingSoonFootnote}>
-              Funcionalidades em desenvolvimento, disponíveis em atualizações futuras.
-            </Text>
           </InfoCard>
 
           {/* ─── 6. MODO IGREJA ──────────────────────────────────────────────── */}
@@ -829,15 +770,24 @@ export default function ParentAreaScreen({ navigation }) {
                     {group.leaderName ? (
                       <Text style={styles.churchGroupLeader}>Líder: {group.leaderName}</Text>
                     ) : null}
+                    {group.ageGroup ? (
+                      <Text style={styles.churchGroupLeader}>Faixa/grupo: {group.ageGroup}</Text>
+                    ) : null}
+                    <Text style={styles.churchGroupWeekly}>
+                      História da semana: {group.weeklyStory?.trim() || 'a definir'}
+                    </Text>
                     <View style={styles.churchInviteRow}>
                       <Text style={styles.churchInviteLabel}>Código da turma:</Text>
                       <Text style={styles.churchInviteCode}>{group.inviteCode}</Text>
                     </View>
                     <Text style={styles.churchProgressNote}>
-                      Progresso agregado de múltiplas crianças disponível em sprint futuro.
+                      Progresso local da turma: começa zerado e cresce conforme as crianças avançam.
                     </Text>
+                    <SoundButton style={styles.churchShareBtn} onPress={() => handleShareChurchGuidance(group)} activeOpacity={0.85}>
+                      <Text style={styles.churchShareBtnText}>Compartilhar orientação</Text>
+                    </SoundButton>
                     <SoundButton style={styles.churchDeleteBtn} onPress={() => handleDeleteChurchGroup(group.id)} activeOpacity={0.85}>
-                      <Text style={styles.churchDeleteBtnText}>Excluir turma</Text>
+                      <Text style={styles.churchDeleteBtnText}>Apagar turma</Text>
                     </SoundButton>
                   </View>
                 ))}
@@ -860,7 +810,7 @@ export default function ParentAreaScreen({ navigation }) {
                 />
                 <TextInput
                   style={styles.churchInput}
-                  placeholder="Nome do líder"
+                  placeholder="Nome do líder ou professor"
                   placeholderTextColor={pt.muted}
                   value={churchForm.leaderName}
                   onChangeText={v => setChurchForm(f => ({ ...f, leaderName: v }))}
@@ -868,16 +818,24 @@ export default function ParentAreaScreen({ navigation }) {
                 />
                 <TextInput
                   style={styles.churchInput}
-                  placeholder="Nome da igreja"
+                  placeholder="Faixa ou grupo (ex.: 4 a 6 anos)"
                   placeholderTextColor={pt.muted}
-                  value={churchForm.churchName}
-                  onChangeText={v => setChurchForm(f => ({ ...f, churchName: v }))}
-                  maxLength={80}
+                  value={churchForm.ageGroup}
+                  onChangeText={v => setChurchForm(f => ({ ...f, ageGroup: v }))}
+                  maxLength={40}
+                />
+                <TextInput
+                  style={styles.churchInput}
+                  placeholder="História da semana (opcional)"
+                  placeholderTextColor={pt.muted}
+                  value={churchForm.weeklyStory}
+                  onChangeText={v => setChurchForm(f => ({ ...f, weeklyStory: v }))}
+                  maxLength={60}
                 />
                 <View style={styles.resetBtnRow}>
                   <SoundButton
                     style={styles.resetCancelBtn}
-                    onPress={() => { setShowChurchForm(false); setChurchForm({ name: '', leaderName: '', churchName: '' }); }}
+                    onPress={() => { setShowChurchForm(false); setChurchForm({ name: '', leaderName: '', ageGroup: '', weeklyStory: '' }); }}
                     activeOpacity={0.85}
                   >
                     <Text style={styles.resetCancelBtnText}>Cancelar</Text>
@@ -896,7 +854,7 @@ export default function ParentAreaScreen({ navigation }) {
           </InfoCard>
 
           {/* ─── 7. FERRAMENTAS DO CRIADOR (QA) ──────────────────────────────── */}
-          {qaAllowed && (
+          {SHOW_TEST_TOOLS && (
             <>
               <SectionTitle>🛠️ Ferramentas do Criador</SectionTitle>
               <InfoCard style={styles.qaCard}>
@@ -980,11 +938,12 @@ export default function ParentAreaScreen({ navigation }) {
           </InfoCard>
 
           <InfoCard style={{ marginTop: 8 }}>
+            <Text style={styles.cardHeading}>Privacidade em resumo</Text>
             <Text style={styles.bodyText}>
-              Nossa política de privacidade estará disponível no site oficial em breve.
+              Sem login, sem cadastro e sem coleta de dados pessoais da criança. Tudo fica apenas neste aparelho. Para dúvidas sobre privacidade, fale com a gente:
             </Text>
-            <Text style={[styles.bodyText, { marginTop: 8 }]}>
-              Privacidade: <Text style={styles.emailInline}>{SUPPORT_EMAIL}</Text>
+            <Text style={[styles.bodyText, { marginTop: 6 }]}>
+              <Text style={styles.emailInline}>{SUPPORT_EMAIL}</Text>
             </Text>
           </InfoCard>
 
@@ -1001,6 +960,32 @@ export default function ParentAreaScreen({ navigation }) {
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: pt.background },
   content: {},
+
+  // Topo compacto (substitui o banner roxo gigante)
+  welcomeCard: {
+    backgroundColor: '#EAF4FF',
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: '#CFE6FB',
+    padding: 16,
+  },
+  welcomeTitle: { fontFamily: 'FredokaOne', fontSize: 18, color: pt.text, marginBottom: 4 },
+  welcomeSub: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, lineHeight: 19 },
+
+  cardHeading: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 8 },
+  detailsLink: { alignSelf: 'flex-start', marginTop: 12, paddingVertical: 4 },
+  detailsLinkText: { fontFamily: 'Nunito', fontSize: 13, color: '#5B21B6', fontWeight: '700' },
+
+  privacySummaryCard: { backgroundColor: '#F0FAF4', borderWidth: 1, borderColor: '#BDE5CC' },
+  planPrepCard: { borderWidth: 1, borderColor: pt.border, backgroundColor: '#FFFDF6' },
+
+  churchGroupWeekly: { fontFamily: 'Nunito', fontSize: 13, color: pt.text, fontWeight: '700', marginTop: 4 },
+  churchShareBtn: {
+    marginTop: 10, backgroundColor: '#EDE9FE', borderRadius: radii.pill,
+    paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: '#C4B5FD',
+  },
+  churchShareBtnText: { fontFamily: 'FredokaOne', fontSize: 14, color: '#5B21B6' },
+
   header: {
     paddingHorizontal: 24,
     paddingBottom: 16,
@@ -1050,7 +1035,7 @@ const styles = StyleSheet.create({
 
   // Visão geral da criança
   childProfileRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
-  childAvatarEmoji: { fontSize: 44 },
+  childAvatarEmoji: { fontSize: 36 },
   childProfileInfo: { flex: 1 },
   childName: { fontFamily: 'FredokaOne', fontSize: 20, color: pt.text },
   childSubtitle: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, marginTop: 2 },

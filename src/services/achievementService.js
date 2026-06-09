@@ -1,7 +1,8 @@
 import { hasSavedDrawing } from './drawingStorage';
 import { listArts } from './atelierStorage';
+import { getFamilyWorshipSummary } from './familyWorshipService';
 import {
-  isQuizDone, getReflection, isLumiMomentEverDone,
+  isQuizDone, getReflection, isLumiMomentEverDone, isStoryBookOpened,
 } from './postStoryStorage';
 
 export async function buildCtx(progressMap, storiesList, options = {}) {
@@ -72,7 +73,7 @@ export async function buildCtx(progressMap, storiesList, options = {}) {
   const arts = await listArts();
   const savedDrawingCount = arts.length;
 
-  let anyQuizDone, anyReflectionDone, noahReflectionDone, jesusReflectionDone;
+  let anyQuizDone, anyReflectionDone, noahReflectionDone, jesusReflectionDone, anyBookOpened;
 
   if (options.postStoryStatusByStory) {
     const pss = options.postStoryStatusByStory;
@@ -80,6 +81,7 @@ export async function buildCtx(progressMap, storiesList, options = {}) {
     anyReflectionDone = Object.values(pss).some(s => !!s.reflectionDone);
     noahReflectionDone = !!pss['noah']?.reflectionDone;
     jesusReflectionDone = !!pss['jesus_children']?.reflectionDone;
+    anyBookOpened = Object.values(pss).some(s => !!s.storyBookOpened);
   } else {
     anyQuizDone = (
       await Promise.all(storiesList.map(s => isQuizDone(s.id)))
@@ -88,9 +90,15 @@ export async function buildCtx(progressMap, storiesList, options = {}) {
     anyReflectionDone = reflections.some(Boolean);
     noahReflectionDone = !!(await getReflection('noah'));
     jesusReflectionDone = !!(await getReflection('jesus_children'));
+    anyBookOpened = (
+      await Promise.all(storiesList.map(s => isStoryBookOpened(s.id)))
+    ).some(Boolean);
   }
 
   const lumiMomentEverDone = await isLumiMomentEverDone();
+
+  const familyWorship = await getFamilyWorshipSummary();
+  const familyWorshipDone = (familyWorship?.count ?? 0) > 0;
 
   return {
     totalScenes,
@@ -112,6 +120,8 @@ export async function buildCtx(progressMap, storiesList, options = {}) {
     anyReflectionDone,
     noahReflectionDone,
     jesusReflectionDone,
+    anyBookOpened,
     lumiMomentEverDone,
+    familyWorshipDone,
   };
 }

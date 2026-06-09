@@ -28,6 +28,8 @@ import ReflectionScreen from '../screens/ReflectionScreen';
 import LumiMomentScreen from '../screens/LumiMomentScreen';
 import ParentAreaScreen from '../screens/ParentAreaScreen';
 import StoryBookScreen from '../screens/StoryBookScreen';
+import CultinhoEmCasaScreen from '../screens/CultinhoEmCasaScreen';
+import BeniChestScreen from '../screens/BeniChestScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -307,6 +309,16 @@ export default function AppNavigator() {
         <Stack.Screen
           name="StoryBook"
           component={StoryBookScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="FamilyWorship"
+          component={CultinhoEmCasaScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="BeniChest"
+          component={BeniChestScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

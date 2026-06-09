@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors as pt, radii, shadows } from '../../theme/productTheme';
 import SoundButton from '../SoundButton';
 import FaithIcon from '../ui/FaithIcon';
+import BeniSpeechCard from '../beni/BeniSpeechCard';
 
 /**
  * PremiumLockCard — card de bloqueio premium reutilizável.
@@ -26,6 +27,7 @@ export default function PremiumLockCard({
   onSecondaryPress,
   primaryLabel = 'Ver Área dos Pais',
   secondaryLabel = 'Voltar',
+  showBeniLine = true,
 }) {
   return (
     <View style={styles.card}>
@@ -39,6 +41,10 @@ export default function PremiumLockCard({
 
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.description}>{description}</Text>
+
+      {showBeniLine && (
+        <BeniSpeechCard context="premium" avatarVariant="happy" style={styles.beniLine} />
+      )}
 
       {onPrimaryPress && (
         <SoundButton style={styles.primaryBtn} onPress={onPrimaryPress} activeOpacity={0.85}>
@@ -94,8 +100,9 @@ const styles = StyleSheet.create({
     color: pt.textSoft,
     textAlign: 'center',
     lineHeight: 21,
-    marginBottom: 24,
+    marginBottom: 16,
   },
+  beniLine: { width: '100%', marginBottom: 18 },
   primaryBtn: {
     backgroundColor: '#F4B400',
     borderRadius: radii.pill,
