@@ -748,10 +748,10 @@ check(
 );
 
 check(
-  'SoundButton imports createAudioPlayer from expo-audio',
-  soundBtnSrc.includes('createAudioPlayer') &&
-    soundBtnSrc.includes('expo-audio'),
-  'SoundButton.js missing createAudioPlayer from expo-audio',
+  'SoundButton delega o som ao AudioManager central (playUiSound)',
+  soundBtnSrc.includes('playUiSound') &&
+    soundBtnSrc.includes("from '../services/audioManager'"),
+  'SoundButton.js não usa o AudioManager central (playUiSound)',
 );
 
 check(
@@ -7722,6 +7722,80 @@ check(
   (ux4eScreen.includes("'APAGAR'") || ux4eScreen.includes('"APAGAR"')) &&
   ux4eScreen.includes('resetProgress'),
   'ParentAreaScreen: Gerenciar dados perdeu confirmação/ações sensíveis',
+);
+
+// ── Sprint Reestruturação UX 1.0 — Bloco 5: AudioManager + preferências ──────
+console.log('\n── Sprint UX 1.0 — Bloco 5 ──');
+
+const ux5Mgr = readSrc('src/services/audioManager.js');
+const ux5SoundBtn = readSrc('src/components/SoundButton.js');
+const ux5Player = readSrc('src/components/AudioPlayer.js');
+const ux5Canvas = readSrc('src/screens/AtelierCanvasScreen.js');
+const ux5Coloring = readSrc('src/screens/ColoringScreen.js');
+const ux5Parent = readSrc('src/screens/ParentAreaScreen.js');
+
+check(
+  'Bloco 5: AudioManager central expõe a API de áudio',
+  ux5Mgr.includes('export function playUiSound') &&
+  ux5Mgr.includes('export async function playMusic') &&
+  ux5Mgr.includes('export function stopMusic') &&
+  ux5Mgr.includes('export function pauseMusic') &&
+  ux5Mgr.includes('export function resumeMusic') &&
+  ux5Mgr.includes('export async function setSoundsEnabled') &&
+  ux5Mgr.includes('export async function setMusicEnabled') &&
+  ux5Mgr.includes('export function getAudioPreferences') &&
+  ux5Mgr.includes('export function onNarrationStart') &&
+  ux5Mgr.includes('export function onNarrationEnd'),
+  'audioManager não expõe a API central completa',
+);
+
+check(
+  'Bloco 5: preferências locais em chave nova, sons on / música off por padrão',
+  ux5Mgr.includes("'@ptf_audio_prefs_v1'") &&
+  /DEFAULT_PREFS\s*=\s*\{\s*soundsEnabled:\s*true,\s*musicEnabled:\s*false/.test(ux5Mgr) &&
+  ux5Mgr.includes('AsyncStorage'),
+  'audioManager sem preferências persistidas com os padrões corretos',
+);
+
+check(
+  'Bloco 5: sem trilha externa/protegida — música é infraestrutura (MUSIC_TRACK null)',
+  /const MUSIC_TRACK\s*=\s*null/.test(ux5Mgr) &&
+  !/https?:\/\//.test(ux5Mgr),
+  'audioManager não deve buscar música externa nem prometer trilha final',
+);
+
+check(
+  'Bloco 5: SoundButton delega ao manager e suporta silent (ações repetitivas)',
+  ux5SoundBtn.includes('playUiSound') &&
+  ux5SoundBtn.includes('silent') &&
+  /if \(!silent\) playUiSound/.test(ux5SoundBtn),
+  'SoundButton não delega ao AudioManager / não suporta silent',
+);
+
+check(
+  'Bloco 5: narração nunca sobrepõe música (AudioPlayer chama onNarrationStart/End)',
+  ux5Player.includes('onNarrationStart') && ux5Player.includes('onNarrationEnd') &&
+  ux5Player.includes("appStatus === 'playing') onNarrationStart()") &&
+  ux5Player.includes('onNarrationEnd();'),
+  'AudioPlayer não coordena a música com a narração',
+);
+
+check(
+  'Bloco 5: sons de clique não tocam em ações repetitivas do Ateliê/Colorir (silent)',
+  (ux5Canvas.match(/\bsilent\b/g) || []).length >= 4 &&
+  ux5Coloring.includes('silent'),
+  'Botões repetitivos do Ateliê/Colorir ainda tocam som',
+);
+
+check(
+  'Bloco 5: Área dos Pais tem toggles de Sons de botões e Música de fundo (accordion fechado)',
+  ux5Parent.includes('Sons e música') &&
+  ux5Parent.includes('Sons de botões') &&
+  ux5Parent.includes('Música de fundo') &&
+  ux5Parent.includes('handleToggleSounds') && ux5Parent.includes('handleToggleMusic') &&
+  ux5Parent.includes('setSoundsEnabled') && ux5Parent.includes('setMusicEnabled') &&
+  !/<AccordionSection\s+title="Sons e música" defaultOpen/.test(ux5Parent),
+  'ParentAreaScreen sem os toggles de áudio na seção recolhível',
 );
 
 // ── Summary ──────────────────────────────────────────────────────────────────

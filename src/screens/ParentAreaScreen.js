@@ -37,6 +37,12 @@ import {
   deleteChurchGroup,
 } from '../services/churchModeService';
 import { PARENTAL_CONSENT_FLOW_ENABLED } from '../config/featureFlags';
+import {
+  getAudioPreferences,
+  loadAudioPreferences,
+  setSoundsEnabled,
+  setMusicEnabled,
+} from '../services/audioManager';
 
 const SUPPORT_EMAIL = productConfig.supportEmail;
 
@@ -172,6 +178,9 @@ export default function ParentAreaScreen({ navigation }) {
   });
   const [consent, setConsent] = useState({ accepted: false, acceptedAt: null });
 
+  // Preferências de áudio (sons de botões + música de fundo)
+  const [audioPrefs, setAudioPrefs] = useState(getAudioPreferences());
+
   // Modo Igreja
   const [churchGroups, setChurchGroups] = useState([]);
   const [showChurchForm, setShowChurchForm] = useState(false);
@@ -182,6 +191,23 @@ export default function ParentAreaScreen({ navigation }) {
     if (!unlockedForSession) return;
     loadParentData();
   }, [unlockedForSession]);
+
+  // Carrega as preferências de áudio salvas (sons/música).
+  useEffect(() => {
+    let alive = true;
+    loadAudioPreferences().then(p => { if (alive) setAudioPrefs(p); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  async function handleToggleSounds(value) {
+    const applied = await setSoundsEnabled(value);
+    setAudioPrefs(p => ({ ...p, soundsEnabled: applied }));
+  }
+
+  async function handleToggleMusic(value) {
+    const applied = await setMusicEnabled(value);
+    setAudioPrefs(p => ({ ...p, musicEnabled: applied }));
+  }
 
   async function loadParentData() {
     try {
@@ -616,6 +642,27 @@ export default function ParentAreaScreen({ navigation }) {
               <View style={[styles.comingSoonBadge, { alignSelf: 'flex-start', marginTop: 12 }]}>
                 <Text style={styles.comingSoonBadgeText}>Disponível em uma próxima atualização</Text>
               </View>
+            </InfoCard>
+          </AccordionSection>
+
+          {/* ─── SONS E MÚSICA ────────────────────────────────────────────────── */}
+          <AccordionSection
+            title="Sons e música"
+            hint="Ligue ou desligue os sons de botões e a música de fundo."
+          >
+            <InfoCard>
+              <ToggleRow
+                label="Sons de botões"
+                description="Toques sutis nos botões principais do app."
+                value={audioPrefs.soundsEnabled}
+                onValueChange={handleToggleSounds}
+              />
+              <ToggleRow
+                label="Música de fundo"
+                description="Música suave nas telas de navegação. Pausa sozinha durante a narração das histórias."
+                value={audioPrefs.musicEnabled}
+                onValueChange={handleToggleMusic}
+              />
             </InfoCard>
           </AccordionSection>
 

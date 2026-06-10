@@ -21,7 +21,8 @@ import { backLabelFor } from '../utils/originBack';
 
 function ToolBtn({ iconName, label, onPress, active }) {
   return (
-    <SoundButton style={[styles.toolBtn, active && styles.toolBtnActive]} onPress={onPress}>
+    // Ferramentas de alta repetição (borracha/desfazer/zoom): sem som (Bloco 5).
+    <SoundButton silent style={[styles.toolBtn, active && styles.toolBtnActive]} onPress={onPress}>
       <FaithIcon name={iconName} size={20} color={active ? '#6B4F00' : '#666'} />
       <Text style={[styles.toolBtnLabel, active && styles.toolBtnLabelActive]}>{label}</Text>
     </SoundButton>
@@ -329,6 +330,7 @@ export default function ColoringScreen({ route, navigation }) {
           {COLOR_PALETTE.map(({ hex }) => (
             <SoundButton
               key={hex}
+              silent
               style={styles.dotWrapper}
               onPress={() => handleSelectColor(hex)}
             >

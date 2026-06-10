@@ -390,7 +390,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
                   <Text style={styles.colorFamilyLabel}>{fam.name}</Text>
                   <View style={styles.colorFamilyDots}>
                     {fam.colors.map(hex => (
-                      <SoundButton key={hex} onPress={() => applyColor(hex)} style={styles.colorWrap}>
+                      <SoundButton key={hex} silent onPress={() => applyColor(hex)} style={styles.colorWrap}>
                         <View style={[
                           styles.colorDot,
                           { backgroundColor: hex },
@@ -411,6 +411,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
               {BRUSH_SIZES.map(bs => (
                 <SoundButton
                   key={bs.id}
+                  silent
                   style={[styles.brushBtn, brushSize.id === bs.id && activeTool === 'desenhar' && styles.brushBtnActive]}
                   onPress={() => applyBrushSize(bs)}
                 >
@@ -441,6 +442,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
                 ].map(t => (
                   <SoundButton
                     key={t.id}
+                    silent
                     style={[styles.toolChip, activeTool === t.id && styles.toolChipActive]}
                     onPress={() => selectTool(t.id)}
                   >
@@ -472,6 +474,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
                     {ERASER_SIZES.map((es, idx) => (
                       <SoundButton
                         key={es.id}
+                        silent
                         style={[styles.sizeBtn, eraserSize.id === es.id && styles.sizeBtnActive]}
                         onPress={() => applyEraserSize(es)}
                       >
@@ -510,6 +513,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
                         {CORE_STAMPS.map(s => (
                           <SoundButton
                             key={s.emoji}
+                            silent
                             style={[styles.stampCard, pendingStamp?.emoji === s.emoji && styles.stampCardActive]}
                             onPress={() => handleStampPress(s)}
                           >

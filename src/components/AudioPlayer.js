@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import SoundButton from './SoundButton';
+import { onNarrationStart, onNarrationEnd } from '../services/audioManager';
 import { colors } from '../theme/colors';
 import { colors as pt } from '../theme/productTheme';
 
@@ -33,6 +34,17 @@ function AudioPlayerInner({ audioAsset, onFinished, paused }) {
   useEffect(() => {
     finishedCalledRef.current = false;
   }, [audioAsset]);
+
+  // ── Coordenação com a música de fundo (Bloco 5) ──
+  // Regra: a música NUNCA se sobrepõe à narração. Ao tocar a narração, a música
+  // pausa; ao sair do player (desmontar a tela de narração), a música retoma
+  // apenas se musicEnabled estiver ligado. Hoje é no-op (música default off),
+  // mas garante a regra sem reescrever o pipeline de narração.
+  useEffect(() => {
+    if (appStatus === 'playing') onNarrationStart();
+  }, [appStatus]);
+
+  useEffect(() => () => { onNarrationEnd(); }, []);
 
   // Real end-of-audio detection via expo-audio status — no timers, no simulation.
   useEffect(() => {
