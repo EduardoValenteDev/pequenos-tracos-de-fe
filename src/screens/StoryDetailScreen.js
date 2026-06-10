@@ -108,7 +108,7 @@ export default function StoryDetailScreen({ route, navigation }) {
   const startCenaIndex = progressCount > 0 && !isCompleted ? progressCount : 0;
 
   function getPrimaryLabel() {
-    if (isComingSoon) return '⏳ Em preparação';
+    if (isComingSoon) return '⏳ Em breve';
     if (isCompleted) return '↩ Rever a Aventura';
     if (!canAccess) return 'Pedir ao responsável';
     if (progressCount > 0) return '▶ Continuar a História';

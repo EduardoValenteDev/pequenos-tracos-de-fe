@@ -38,6 +38,8 @@ export default function ColoringScreen({ route, navigation }) {
   const [hasPainted, setHasPainted] = useState(false);
   const [showPaintFirst, setShowPaintFirst] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // Lineart carregado? Sem isso a arte ficaria sem contorno — bloqueia o salvar.
+  const [canvasReady, setCanvasReady] = useState(false);
 
   // Drawing restore state
   const [savedDrawing, setSavedDrawing] = useState(null);
@@ -170,6 +172,15 @@ export default function ColoringScreen({ route, navigation }) {
       setShowPaintFirst(true);
       return;
     }
+    // Não salvar sem o contorno carregado — evita arte sem lineart.
+    if (!canvasReady) {
+      Alert.alert(
+        'Quase lá! 🎨',
+        'O desenho ainda está carregando. Espere um instante e toque em Pronto de novo.',
+        [{ text: 'Ok!' }],
+      );
+      return;
+    }
     setIsSaving(true);
     canvasRef.current?.exportPaint(async (exportData) => {
       await saveDrawingState(story.id, cena.id, exportData);
@@ -265,6 +276,7 @@ export default function ColoringScreen({ route, navigation }) {
             ref={canvasRef}
             selectedColor={selectedColor}
             imageSource={imageSource}
+            onReadyChange={setCanvasReady}
             onPainted={() => setHasPainted(true)}
             onFillRejected={handleFillRejected}
             onGoBack={() => navigation.goBack()}

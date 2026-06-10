@@ -13,6 +13,7 @@
  */
 
 import { isCreatorQaModeEnabled } from './creatorQaMode';
+import { getStoryPlan, PLAN } from '../data/planConfig';
 
 // DEV TOOL ONLY — set true locally to test premium flows. Never ship as true.
 const ENABLE_LOCAL_PREMIUM_TEST_MODE = false;
@@ -65,8 +66,9 @@ export function hasPremiumAccess() {
  */
 export function hasStoryAccess(story) {
   if (!story) return false;
-  if (story.status === 'coming_soon') return ALLOW_COMING_SOON_PREVIEW;
-  if (story.accessType === ACCESS_TYPE.FREE) return true;
+  const plan = getStoryPlan(story); // fonte única (planConfig)
+  if (plan === PLAN.COMING_SOON) return ALLOW_COMING_SOON_PREVIEW;
+  if (plan === PLAN.FREE) return true;
   return isPremiumUser();
 }
 
@@ -82,7 +84,7 @@ export function hasAccess(story) {
  */
 export function hasQuizAccess(story) {
   if (!story) return false;
-  if (story.accessType === ACCESS_TYPE.FREE) return true;
+  if (getStoryPlan(story) === PLAN.FREE) return true;
   return isPremiumUser();
 }
 
@@ -94,7 +96,7 @@ export function hasLumiAccess() {
 /** Converse com Lumi (reflexão pós-história) — story-aware. Gratuito em histórias free. */
 export function hasLumiAccessForStory(story) {
   if (!story) return isPremiumUser();
-  if (story.accessType === ACCESS_TYPE.FREE) return true;
+  if (getStoryPlan(story) === PLAN.FREE) return true;
   return isPremiumUser();
 }
 

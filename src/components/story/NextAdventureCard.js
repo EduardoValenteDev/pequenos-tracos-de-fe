@@ -26,7 +26,7 @@ export default function NextAdventureCard({ story, onPress, label = 'Próxima av
         <Text style={styles.ref} numberOfLines={1}>{story.referencia}</Text>
         {isPremium && !accessible && (
           <View style={styles.premiumBadge}>
-            <Text style={styles.premiumText}>Especial da Família</Text>
+            <Text style={styles.premiumText}>Plano Família</Text>
           </View>
         )}
       </View>

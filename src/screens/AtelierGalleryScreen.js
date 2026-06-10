@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
+import SafeImage from '../components/ui/SafeImage';
 import { BeniEmptyState } from '../components/beni';
 import { listArts, getArt, deleteArt, ATELIER_FREE_SAVE_LIMIT } from '../services/atelierStorage';
 
@@ -129,17 +130,13 @@ export default function AtelierGalleryScreen({ navigation }) {
                 onPress={() => handleViewArt(art)}
                 activeOpacity={0.85}
               >
-                {art.thumbnailBase64 ? (
-                  <Image
-                    source={{ uri: art.thumbnailBase64 }}
-                    style={styles.thumb}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.thumbPlaceholder}>
-                    <Text style={styles.thumbPlaceholderEmoji}>🎨</Text>
-                  </View>
-                )}
+                <SafeImage
+                  source={art.thumbnailBase64 ? { uri: art.thumbnailBase64 } : null}
+                  style={styles.thumb}
+                  resizeMode="cover"
+                  fallbackIcon="🎨"
+                  fallbackColors={['#F3EEE6', '#E7DECF']}
+                />
                 <View style={styles.thumbViewHint}>
                   <Text style={styles.thumbViewHintText}>👁</Text>
                 </View>

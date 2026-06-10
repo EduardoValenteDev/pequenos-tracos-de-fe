@@ -114,7 +114,7 @@ export function getStoryUIState(story, progressCount = 0, totalScenes = 0) {
   let primaryButtonDisabled = false;
 
   if (accessStatus === 'coming_soon') {
-    primaryLabel = '⏳ Em preparação';
+    primaryLabel = '⏳ Em breve';
     primaryButtonStyle = 'disabled';
     primaryButtonDisabled = true;
     helperText = 'Essa história chegará em breve!';
@@ -154,7 +154,7 @@ export function getStoryUIState(story, progressCount = 0, totalScenes = 0) {
  * Keep short — displayed inside StoryCard.
  */
 export function getLockedStoryMessage() {
-  return 'Especial da Família ✨';
+  return 'Plano Família ✨';
 }
 
 /**
@@ -163,5 +163,5 @@ export function getLockedStoryMessage() {
  */
 export function getParentPremiumMessage(story) {
   const title = story?.titulo ?? 'essa história';
-  return `"${title}" é Especial da Família. Fale com um responsável para desbloquear todas as aventuras.`;
+  return `"${title}" é Plano Família. Fale com um responsável para desbloquear todas as aventuras.`;
 }

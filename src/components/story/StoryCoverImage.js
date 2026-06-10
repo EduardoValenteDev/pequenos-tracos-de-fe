@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { images } from '../../assets/images';
@@ -45,10 +45,15 @@ export default function StoryCoverImage({
   fallbackIcon,
   focusTop = false,
 }) {
+  // Estado de erro: se a imagem falhar ao carregar, cai no fallback temático
+  // (nunca mostra retângulo vazio). Reset quando a fonte muda.
+  const [errored, setErrored] = useState(false);
+
   let imgSource = source;
   if (!imgSource && story?.imagemCapa) {
     imgSource = images[story.imagemCapa];
   }
+  const showImage = !!imgSource && !errored;
 
   // Foco da capa — resolvido pelo id (no-op em 16:9, útil em recortes futuros).
   const meta = story?.id ? getStoryCoverMeta(story.id) : { focusX: 0.5, focusY: 0.5 };
@@ -58,11 +63,12 @@ export default function StoryCoverImage({
 
   return (
     <View style={[styles.container, { borderRadius }, style]}>
-      {imgSource ? (
+      {showImage ? (
         <Image
           source={imgSource}
           style={[alignTop ? styles.imageTopFocus : styles.image, imageStyle]}
           resizeMode="cover"
+          onError={() => setErrored(true)}
         />
       ) : (
         <StoryFallbackCover

@@ -1077,9 +1077,9 @@ check(
 );
 
 check(
-  'resolveStoryBookVisual returns paintOnly type (v1/no-lineart fallback)',
-  storyBookSrc.includes("'paintOnly'") || storyBookSrc.includes('"paintOnly"'),
-  'StoryBookScreen missing paintOnly type — no fallback when lineart cannot be aligned',
+  'StoryBook: arte da criança SEMPRE com contorno (paintWithLineartFull, sem paintOnly)',
+  storyBookSrc.includes('paintWithLineartFull') && !storyBookSrc.includes("'paintOnly'"),
+  'StoryBookScreen ainda usa paintOnly (cor sem contorno) — Bloco 1 exige lineart sempre',
 );
 
 check(
@@ -2250,9 +2250,9 @@ check(
 );
 
 check(
-  'HomeScreen LumiMomentCard badge says "Especial da Família" (not "💎 Plano Familiar")',
-  homeSrc9.includes('Especial da Família') && !homeSrc9.includes('Plano Familiar'),
-  'HomeScreen LumiMomentCard still says "💎 Plano Familiar" — must be "Especial da Família"',
+  'HomeScreen usa rótulo "Plano Família" (Bloco 1) e não "Especial da Família"',
+  homeSrc9.includes('Plano Família') && !homeSrc9.includes('Especial da Família'),
+  'HomeScreen ainda usa "Especial da Família" — deve ser "Plano Família"',
 );
 
 const storyDetailSrc9 = readSrc('src/screens/StoryDetailScreen.js');
@@ -2384,9 +2384,9 @@ check(
 
 // StatusBadge premium label
 check(
-  'StatusBadge premium defaultLabel is "Especial da Família" (not "Premium")',
-  statusBadgeSrc.includes("defaultLabel: 'Especial da Família'"),
-  'StatusBadge premium defaultLabel still says "Premium" — visible on all premium story badges',
+  'StatusBadge premium defaultLabel is "Plano Família" (Bloco 1)',
+  statusBadgeSrc.includes("defaultLabel: 'Plano Família'") && !statusBadgeSrc.includes("'Especial da Família'"),
+  'StatusBadge premium defaultLabel deve ser "Plano Família"',
 );
 
 // Language — child areas
@@ -2397,9 +2397,9 @@ check(
 );
 
 check(
-  'PostStoryHubScreen Lumi cta says "Especial da Família" (not "💎 Premium")',
-  postHubSrc91.includes('Especial da Família') && !postHubSrc91.includes("'💎 Premium'"),
-  'PostStoryHubScreen Lumi cta still says "💎 Premium"',
+  'PostStoryHubScreen Lumi cta says "Plano Família" (Bloco 1)',
+  postHubSrc91.includes('Plano Família') && !postHubSrc91.includes('Especial da Família'),
+  'PostStoryHubScreen Lumi cta deve usar "Plano Família"',
 );
 
 check(
@@ -2409,33 +2409,33 @@ check(
 );
 
 check(
-  'contentAccessService getLockedStoryMessage returns "Especial da Família"',
-  contentSvcSrc91.includes("Especial da Família") && !contentSvcSrc91.includes('Desbloqueie com o Plano Familiar'),
-  'contentAccessService getLockedStoryMessage still says "Desbloqueie com o Plano Familiar"',
+  'contentAccessService getLockedStoryMessage returns "Plano Família" (Bloco 1)',
+  contentSvcSrc91.includes('Plano Família') && !contentSvcSrc91.includes('Especial da Família'),
+  'contentAccessService getLockedStoryMessage deve usar "Plano Família"',
 );
 
 check(
-  'QuizScreen PremiumLockCard title says "Especial da Família"',
-  quizSrc91.includes('Especial da Família'),
-  'QuizScreen PremiumLockCard still uses "plano familiar" language',
+  'QuizScreen PremiumLockCard usa "Plano Família" (Bloco 1)',
+  quizSrc91.includes('Plano Família') && !quizSrc91.includes('Especial da Família'),
+  'QuizScreen PremiumLockCard deve usar "Plano Família"',
 );
 
 check(
-  'ReflectionScreen PremiumLockCard description says "Especial da Família"',
-  reflSrc91.includes('Especial da Família'),
-  'ReflectionScreen PremiumLockCard still says "plano familiar"',
+  'ReflectionScreen PremiumLockCard usa "Plano Família" (Bloco 1)',
+  reflSrc91.includes('Plano Família') && !reflSrc91.includes('Especial da Família'),
+  'ReflectionScreen PremiumLockCard deve usar "Plano Família"',
 );
 
 check(
-  'LumiMomentScreen PremiumLockCard description says "Especial da Família"',
-  lumiMomSrc91.includes('Especial da Família'),
-  'LumiMomentScreen PremiumLockCard still says "plano familiar"',
+  'LumiMomentScreen PremiumLockCard usa "Plano Família" (Bloco 1)',
+  lumiMomSrc91.includes('Plano Família') && !lumiMomSrc91.includes('Especial da Família'),
+  'LumiMomentScreen PremiumLockCard deve usar "Plano Família"',
 );
 
 check(
-  'StoryBookScreen locked title says "Especial da Família" (not "Plano Familiar")',
-  sbSrc91.includes('Especial da Família') && !sbSrc91.includes('guardado no Plano Familiar'),
-  'StoryBookScreen locked title still says "Plano Familiar"',
+  'StoryBookScreen locked title usa "Plano Família" (Bloco 1)',
+  sbSrc91.includes('Plano Família') && !sbSrc91.includes('Especial da Família'),
+  'StoryBookScreen locked title deve usar "Plano Família"',
 );
 
 check(
@@ -2920,11 +2920,11 @@ check(
   'StoriesScreen chip missing shortDesc — no description in chips',
 );
 
-// Language — "Especial da Família" in trail chips
+// Language — "Plano Família" in trail chips (Bloco 1)
 check(
-  'StoriesScreen chips show "Especial da Família" for premium trails (not "Premium")',
-  storiesScreenSrc10.includes('Especial da Família') && !storiesScreenSrc10.includes("'Premium'"),
-  'StoriesScreen trail chips still show "Premium" instead of "Especial da Família"',
+  'StoriesScreen chips usam "Plano Família" para trilhas premium (Bloco 1)',
+  storiesScreenSrc10.includes('Plano Família') && !storiesScreenSrc10.includes('Especial da Família') && !storiesScreenSrc10.includes("'Premium'"),
+  'StoriesScreen trail chips devem usar "Plano Família"',
 );
 
 // Scroll to top
@@ -3174,9 +3174,9 @@ check(
   'achievements.js missing "Primeira aventura especial" replacement achievement title',
 );
 check(
-  'achievements.js first_premium_story_done desc uses "Especial da Família" (not "trilha Premium")',
-  achievDataSrc11.includes('Especial da Família') && !achievDataSrc11.includes('trilha Premium'),
-  'achievements.js first_premium_story_done desc still says "trilha Premium"',
+  'achievements.js first_premium_story_done desc usa "Plano Família" (Bloco 1)',
+  achievDataSrc11.includes('Plano Família') && !achievDataSrc11.includes('Especial da Família'),
+  'achievements.js first_premium_story_done desc deve usar "Plano Família"',
 );
 check(
   'achievements.js has at least 5 progressLabel functions',
@@ -3186,9 +3186,9 @@ check(
 
 // Language sweep
 check(
-  'NextAdventureCard shows "Especial da Família" badge (not "Premium" as visible text)',
-  nextAdvSrc11.includes('Especial da Família') && !nextAdvSrc11.includes('>Premium<'),
-  'NextAdventureCard still shows "Premium" as visible badge text in child area',
+  'NextAdventureCard usa badge "Plano Família" (Bloco 1)',
+  nextAdvSrc11.includes('Plano Família') && !nextAdvSrc11.includes('Especial da Família'),
+  'NextAdventureCard deve mostrar "Plano Família" como rótulo de bloqueio',
 );
 check(
   'BeniLockedState default message uses "Plano Família" (not "plano premium")',
@@ -4623,9 +4623,10 @@ check(
 );
 
 check(
-  'Livrinho misto resolve por cena: arte da criança → oficial → fallback (1 slide/cena)',
+  'Livrinho misto resolve por cena: arte da criança (com contorno) → oficial → fallback',
   livroSrc.includes('function resolveStoryBookPageImage') &&
-  /if \(p\) return makeChildArtVisual/.test(livroSrc) &&
+  /makeChildArtVisual\(cena, story, p\)/.test(livroSrc) &&
+  /if \(childVisual\) return childVisual/.test(livroSrc) &&
   /mode === 'mixed'[\s\S]*?if \(official\) return makeOfficialVisual[\s\S]*?return makeFallbackVisual/.test(livroSrc),
   'StoryBookScreen mixed mode must resolve child art → official → fallback per scene',
 );
@@ -6786,14 +6787,14 @@ check(
   'BeniChestCard não normaliza imagem / não tem fallback de categoria',
 );
 check(
-  'BeniChestCard: imagem com fundo de fallback atrás (desbloqueada nunca vazia)',
-  chestCard2.includes('artImgAbsolute') &&
-  /CategoryFallback[\s\S]{0,120}Image source=\{source\}/.test(chestCard2),
-  'BeniChestCard não renderiza fallback atrás da imagem',
+  'BeniChestCard usa SafeImage com fallback de categoria (desbloqueada nunca vazia)',
+  chestCard2.includes('SafeImage') &&
+  /renderFallback=\{\(\) => <CategoryFallback/.test(chestCard2),
+  'BeniChestCard não usa SafeImage com CategoryFallback',
 );
 check(
-  'BeniChestCard: artes usam resizeMode contain',
-  chestCard2.includes("isArt && source") && chestCard2.includes("resizeMode=\"contain\""),
+  'BeniChestCard: artes usam resizeMode contain (via SafeImage)',
+  /resizeMode=\{isArt \? 'contain' : 'cover'\}/.test(chestCard2),
   'BeniChestCard não usa contain nas artes',
 );
 check(
@@ -7068,6 +7069,156 @@ check(
     'Conquista tem só progress ou só progressLabel — pode confundir a UI',
   );
 })();
+
+// ── Sprint UX 1 · Bloco 1 — Confiança ───────────────────────────────────────
+
+// Tarefa 1 — Quiz por id
+const quizModelSrc = readSrc('src/services/quizModel.js');
+const quizScreenB1 = readSrc('src/screens/QuizScreen.js');
+check(
+  'quizModel: normaliza para options {id,text} + correctOptionId e embaralha',
+  quizModelSrc.includes('correctOptionId') && quizModelSrc.includes('prepareQuizQuestions') &&
+  quizModelSrc.includes('normalizeQuizQuestion'),
+  'quizModel ausente / sem modelo por id',
+);
+check(
+  'QuizScreen valida por selectedOptionId === correctOptionId (não por posição)',
+  quizScreenB1.includes('selectedOptionId === question.correctOptionId') &&
+  quizScreenB1.includes('prepareQuizQuestions') &&
+  !quizScreenB1.includes('selected === question.correct'),
+  'QuizScreen ainda valida por índice/letra',
+);
+check(
+  'QuizScreen: letra A/B/C é só rótulo visual (String.fromCharCode por idx)',
+  quizScreenB1.includes('String.fromCharCode(65 + idx)'),
+  'QuizScreen não usa a letra apenas como rótulo visual',
+);
+// Execução real (sandbox): modelo por id, normalização legada e null-safe.
+(() => {
+  let err = null, ok = false;
+  try {
+    const raw = readSrc('src/services/quizModel.js');
+    const code = raw
+      .replace(/export\s+function\s+/g, 'function ')
+      + '\nreturn { normalizeQuizQuestion, prepareQuizQuestions, getCorrectOptionText };';
+    // eslint-disable-next-line no-new-func
+    const m = new Function(code)();
+    // Legado: correct índice 0 → correctOptionId aponta para a 1ª opção.
+    const n = m.normalizeQuizQuestion({ id: 'q1', question: 'p', options: ['A', 'B', 'C'], correct: 0 });
+    const correct = n.options.find(o => o.id === n.correctOptionId);
+    if (!correct || correct.text !== 'A') err = 'normalize legado falhou';
+    // Após embaralhar, a opção correta continua sendo a de texto 'A'.
+    const prepared = m.prepareQuizQuestions([{ id: 'q1', question: 'p', options: ['A', 'B', 'C'], correct: 0 }]);
+    const pc = prepared[0].options.find(o => o.id === prepared[0].correctOptionId);
+    if (!pc || pc.text !== 'A') err = err || 'shuffle perdeu a correta';
+    // Null-safe.
+    if (m.normalizeQuizQuestion(null) !== null) err = err || 'normalize(null) deveria ser null';
+    if (!Array.isArray(m.prepareQuizQuestions(null))) err = err || 'prepare(null) deveria ser []';
+    ok = true;
+  } catch (e) { err = e.message; }
+  check('quizModel executa por id, normaliza legado e é null-safe (sandbox)', ok && err === null, `quizModel falhou → ${err}`);
+})();
+
+// Tarefa 2 — SafeImage
+const safeImgSrc = readSrc('src/components/ui/SafeImage.js');
+check(
+  'SafeImage tem estados loading/loaded/erro + fallback',
+  safeImgSrc.includes("'loading'") && safeImgSrc.includes("'error'") &&
+  safeImgSrc.includes('onError') && safeImgSrc.includes('renderFallback'),
+  'SafeImage sem estados de carregamento/erro/fallback',
+);
+check(
+  'SafeImage aplicado nas superfícies críticas (StoryCard/Baú/Galeria/Home/Livrinho)',
+  readSrc('src/components/StoryCard.js').includes('SafeImage') &&
+  readSrc('src/components/beni/BeniChestCard.js').includes('SafeImage') &&
+  readSrc('src/screens/AtelierGalleryScreen.js').includes('SafeImage') &&
+  readSrc('src/screens/HomeScreen.js').includes('SafeImage') &&
+  readSrc('src/screens/StoryBookScreen.js').includes('SafeImage'),
+  'SafeImage não foi aplicado em todas as superfícies críticas',
+);
+check(
+  'StoryCoverImage cai em fallback temático no erro (card não fica vazio)',
+  readSrc('src/components/story/StoryCoverImage.js').includes('onError') &&
+  readSrc('src/components/story/StoryCoverImage.js').includes('errored'),
+  'StoryCoverImage não trata erro de imagem',
+);
+
+// Tarefa 3 — lineart sempre presente + guarda de salvar
+const coloringCanvasB1 = readSrc('src/components/ColoringCanvas.js');
+const coloringScreenB1 = readSrc('src/screens/ColoringScreen.js');
+check(
+  'ColoringCanvas expõe prontidão (onReadyChange) e mostra "Carregando desenho..."',
+  coloringCanvasB1.includes('onReadyChange') && coloringCanvasB1.includes('Carregando desenho'),
+  'ColoringCanvas sem sinal de prontidão / texto de carregamento',
+);
+check(
+  'ColoringScreen bloqueia salvar sem lineart carregado (canvasReady)',
+  coloringScreenB1.includes('canvasReady') && coloringScreenB1.includes('onReadyChange={setCanvasReady}') &&
+  /if \(!canvasReady\)/.test(coloringScreenB1),
+  'ColoringScreen não bloqueia salvar sem lineart',
+);
+
+// Tarefa 4 — planConfig + acesso (consolidado em src/data/planConfig.js)
+const planCfgSrc = readSrc('src/data/planConfig.js');
+const accessB1 = readSrc('src/services/accessControl.js');
+check(
+  'planConfig: fonte única (FREE_STORY_IDS creation+noah, sem david) + rótulos',
+  planCfgSrc.includes("FREE_STORY_IDS = ['creation', 'noah']") &&
+  planCfgSrc.includes("free: 'Grátis'") && planCfgSrc.includes("premium: 'Plano Família'") &&
+  planCfgSrc.includes("coming_soon: 'Em breve'") &&
+  planCfgSrc.includes('export function getStoryPlan'),
+  'planConfig não define corretamente grátis/rótulos',
+);
+check(
+  'accessControl consulta planConfig (getStoryPlan) como fonte única',
+  accessB1.includes("from '../data/planConfig'") && accessB1.includes('getStoryPlan(story)'),
+  'accessControl não usa planConfig',
+);
+// Varredura: nenhum rótulo de bloqueio proibido nas telas/components infantis.
+(() => {
+  const files = [
+    'src/components/ui/StatusBadge.js', 'src/components/StoryCard.js',
+    'src/components/story/NextAdventureCard.js', 'src/components/premium/PremiumLockCard.js',
+    'src/components/premium/LockedStoryFallback.js', 'src/services/contentAccessService.js',
+    'src/screens/StoriesScreen.js', 'src/screens/HomeScreen.js', 'src/screens/QuizScreen.js',
+    'src/screens/ReflectionScreen.js', 'src/screens/LumiMomentScreen.js',
+    'src/screens/StoryBookScreen.js', 'src/screens/PostStoryHubScreen.js',
+    'src/screens/StoryDetailScreen.js', 'src/data/achievements.js',
+  ];
+  const offenders = files.filter(f => {
+    const s = readSrc(f);
+    return s.includes('Especial da Família') || s.includes('Conteúdo familiar') || s.includes('Conteudo familiar');
+  });
+  check(
+    'Nenhum rótulo "Especial da Família"/"Conteúdo familiar" nas telas/components infantis',
+    offenders.length === 0,
+    `Rótulo de bloqueio proibido em: ${offenders.join(', ')}`,
+  );
+})();
+
+// Tarefa 5 — banner Modo Criador
+const bannerSrc = readSrc('src/components/dev/CreatorModeBanner.js');
+const creatorSvcB1 = readSrc('src/services/creatorQaMode.js');
+const navB1 = readSrc('src/navigation/AppNavigator.js');
+check(
+  'CreatorModeBanner mostra "MODO CRIADOR ATIVO" e assina mudanças do modo',
+  bannerSrc.includes('MODO CRIADOR ATIVO') && bannerSrc.includes('subscribeCreatorQaMode') &&
+  creatorSvcB1.includes('export function subscribeCreatorQaMode') && creatorSvcB1.includes('notifyListeners'),
+  'CreatorModeBanner / subscribe ausentes',
+);
+check(
+  'AppNavigator renderiza o banner global do Modo Criador',
+  navB1.includes('CreatorModeBanner') && navB1.includes('<CreatorModeBanner'),
+  'AppNavigator não renderiza o CreatorModeBanner',
+);
+
+// Tarefa 6 — header único no Momento com Beni
+check(
+  'Momento com Beni tem header único (nativo desligado + controle contextual)',
+  /name="LumiMoment"[\s\S]*?headerShown: false/.test(navB1) &&
+  lumiMomSrc91.includes('navigation.canGoBack()'),
+  'LumiMoment ainda tem header duplicado',
+);
 
 // ── Summary ──────────────────────────────────────────────────────────────────
 const total = passes + failures;

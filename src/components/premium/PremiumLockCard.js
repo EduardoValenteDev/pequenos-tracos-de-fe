@@ -20,7 +20,7 @@ import BeniSpeechCard from '../beni/BeniSpeechCard';
  * @param {string}   secondaryLabel   — label do botão secundário (default: 'Voltar')
  */
 export default function PremiumLockCard({
-  title = 'Essa aventura é Especial da Família',
+  title = 'Essa aventura é Plano Família',
   description = 'Peça para um responsável abrir essa área com você.',
   featureName,
   onPrimaryPress,

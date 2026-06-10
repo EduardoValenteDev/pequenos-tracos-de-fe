@@ -11,6 +11,7 @@ import SoundButton from '../components/SoundButton';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
 import { BeniSpeechCard } from '../components/beni';
 import { QUIZZES } from '../data/quizzes';
+import { prepareQuizQuestions, getCorrectOptionText } from '../services/quizModel';
 import { isQuizDone, markQuizDone, addBonusStars } from '../services/postStoryStorage';
 import { canOpenQuiz } from '../services/accessControl';
 import { useProgressContext } from '../context/ProgressContext';
@@ -26,15 +27,20 @@ export default function QuizScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const isTablet = width >= 768;
 
-  const questions = (QUIZZES[story.id] ?? []).filter(q => !q.quizDraft);
   const { refreshProgress, progressByStory, postStoryStatusByStory } = useProgressContext();
 
   const { pendingAchievement, checkForNewAchievements, dismissAchievement } =
     useAchievementCelebration({ progressByStory, postStoryStatusByStory, source: 'QuizScreen' });
 
+  // Normaliza (modelo por id) e EMBARALHA uma vez na carga. Estável após o toque:
+  // o inicializador do useState roda só uma vez, então as opções não trocam mais.
+  const [questions] = useState(() =>
+    prepareQuizQuestions((QUIZZES[story.id] ?? []).filter(q => !q.quizDraft)),
+  );
+
   const [step, setStep] = useState('quiz'); // 'quiz' | 'feedback' | 'result'
   const [current, setCurrent] = useState(0);
-  const [selected, setSelected] = useState(null);
+  const [selectedOptionId, setSelectedOptionId] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [answers, setAnswers] = useState([]);
   const [bonusGranted, setBonusGranted] = useState(false);
@@ -49,8 +55,8 @@ export default function QuizScreen({ route, navigation }) {
       <View style={[styles.wrapper, { justifyContent: 'center' }]}>
         <PremiumLockCard
           featureName="Quiz da história"
-          title="Essa atividade é Especial da Família"
-          description="O quiz desta história é do Especial da Família. Peça para um responsável ver os detalhes na Área dos Pais."
+          title="Essa atividade é Plano Família"
+          description="O quiz desta história é do Plano Família. Peça para um responsável ver os detalhes na Área dos Pais."
           onPrimaryPress={() => navigation.navigate('ParentArea')}
           primaryLabel="Ver Área dos Pais"
           onSecondaryPress={() => navigation.goBack()}
@@ -75,18 +81,19 @@ export default function QuizScreen({ route, navigation }) {
   }
 
   async function handleConfirm() {
-    if (selected === null || confirmed) return;
+    if (selectedOptionId === null || confirmed) return;
     setConfirmed(true);
   }
 
   async function handleNext() {
-    const isCorrect = selected === question.correct;
-    const newAnswers = [...answers, { questionId: question.id, selected, correct: isCorrect }];
+    // Validação por ID — nunca por posição/letra.
+    const isCorrect = selectedOptionId === question.correctOptionId;
+    const newAnswers = [...answers, { questionId: question.id, selectedOptionId, correct: isCorrect }];
     setAnswers(newAnswers);
 
     if (current + 1 < totalQ) {
       setCurrent(current + 1);
-      setSelected(null);
+      setSelectedOptionId(null);
       setConfirmed(false);
     } else {
       const alreadyDone = await isQuizDone(story.id);
@@ -147,7 +154,7 @@ export default function QuizScreen({ route, navigation }) {
                   <View style={styles.answerInfo}>
                     <Text style={styles.answerQuestion}>{q.question}</Text>
                     <Text style={styles.answerText}>
-                      {wasCorrect ? q.options[q.correct] : `Certo: ${q.options[q.correct]}`}
+                      {wasCorrect ? getCorrectOptionText(q) : `Certo: ${getCorrectOptionText(q)}`}
                     </Text>
                   </View>
                 </View>
@@ -173,8 +180,8 @@ export default function QuizScreen({ route, navigation }) {
     );
   }
 
-  const isCorrectAnswer = confirmed && selected === question.correct;
-  const isWrongAnswer = confirmed && selected !== question.correct;
+  const isCorrectAnswer = confirmed && selectedOptionId === question.correctOptionId;
+  const isWrongAnswer = confirmed && selectedOptionId !== question.correctOptionId;
 
   return (
     <View style={styles.wrapper}>
@@ -210,19 +217,19 @@ export default function QuizScreen({ route, navigation }) {
           <Text style={styles.questionText}>{question.question}</Text>
 
           {question.options.map((opt, idx) => {
-            const isSelected = selected === idx;
-            const isCorrectOpt = confirmed && idx === question.correct;
-            const isWrongOpt = confirmed && isSelected && idx !== question.correct;
+            const isSelected = selectedOptionId === opt.id;
+            const isCorrectOpt = confirmed && opt.id === question.correctOptionId;
+            const isWrongOpt = confirmed && isSelected && opt.id !== question.correctOptionId;
             return (
               <SoundButton
-                key={idx}
+                key={opt.id}
                 style={[
                   styles.optionBtn,
                   isSelected && !confirmed && styles.optionBtnSelected,
                   isCorrectOpt && styles.optionBtnCorrect,
                   isWrongOpt && styles.optionBtnWrong,
                 ]}
-                onPress={confirmed ? undefined : () => setSelected(idx)}
+                onPress={confirmed ? undefined : () => setSelectedOptionId(opt.id)}
                 activeOpacity={confirmed ? 1 : 0.8}
               >
                 <View style={[
@@ -231,6 +238,7 @@ export default function QuizScreen({ route, navigation }) {
                   isCorrectOpt && styles.optionNumCorrect,
                   isWrongOpt && styles.optionNumWrong,
                 ]}>
+                  {/* Letra = só rótulo visual da posição embaralhada */}
                   <Text style={[
                     styles.optionNumText,
                     (isSelected || isCorrectOpt) && { color: '#FFF' },
@@ -244,7 +252,7 @@ export default function QuizScreen({ route, navigation }) {
                   isCorrectOpt && { color: '#2E7D32' },
                   isWrongOpt && { color: '#C62828' },
                 ]}>
-                  {opt}
+                  {opt.text}
                 </Text>
               </SoundButton>
             );
@@ -264,9 +272,9 @@ export default function QuizScreen({ route, navigation }) {
 
           {!confirmed ? (
             <SoundButton
-              style={[styles.confirmBtn, selected === null && styles.confirmBtnDisabled]}
+              style={[styles.confirmBtn, selectedOptionId === null && styles.confirmBtnDisabled]}
               onPress={handleConfirm}
-              activeOpacity={selected === null ? 1 : 0.85}
+              activeOpacity={selectedOptionId === null ? 1 : 0.85}
             >
               <Text style={styles.confirmBtnText}>Confirmar</Text>
             </SoundButton>

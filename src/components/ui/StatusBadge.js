@@ -10,13 +10,13 @@ const BADGE_CONFIG = {
     icon: '✨',
   },
   premium: {
-    defaultLabel: 'Especial da Família',
+    defaultLabel: 'Plano Família',
     bg: pt.premiumBg,
     text: pt.premiumText,
     icon: '✨',
   },
   coming_soon: {
-    defaultLabel: 'Em preparação',
+    defaultLabel: 'Em breve',
     bg: pt.cream,
     text: pt.textSoft,
     icon: '🔮',

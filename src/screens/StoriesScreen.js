@@ -379,7 +379,7 @@ export default function StoriesScreen({ route, navigation }) {
                       styles.trailChipBadgeText,
                       cat.accessType === 'free' && styles.trailChipBadgeTextFree,
                     ]}>
-                      {cat.accessType === 'free' ? 'Grátis' : 'Especial da Família'}
+                      {cat.accessType === 'free' ? 'Grátis' : 'Plano Família'}
                     </Text>
                   </View>
                   {!cat.available && (

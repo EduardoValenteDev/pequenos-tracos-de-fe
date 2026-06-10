@@ -22,6 +22,19 @@ const STORAGE_KEY = '@ptf_creator_qa_mode';
 let _enabled = false; // valor em memória (lido de forma síncrona)
 let _loaded = false;
 
+// Assinantes (ex.: banner global) — notificados quando o modo liga/desliga.
+const _listeners = new Set();
+function notifyListeners() {
+  _listeners.forEach(fn => { try { fn(_enabled); } catch { /* nunca quebra */ } });
+}
+
+/** Inscreve um callback para mudanças do Modo Criador. Retorna unsubscribe. */
+export function subscribeCreatorQaMode(cb) {
+  if (typeof cb !== 'function') return () => {};
+  _listeners.add(cb);
+  return () => _listeners.delete(cb);
+}
+
 /** Ambiente onde o Modo Criador PODE existir. Nunca liga sozinho em produção. */
 export function isCreatorQaModeAllowed() {
   const dev = typeof __DEV__ !== 'undefined' && __DEV__ === true;
@@ -46,6 +59,7 @@ export async function loadCreatorQaMode() {
   } finally {
     _loaded = true;
   }
+  notifyListeners();
   return _enabled;
 }
 
@@ -70,6 +84,7 @@ export async function setCreatorQaModeEnabled(value) {
   } catch {
     // falha de storage não deve quebrar o app — mantém valor em memória
   }
+  notifyListeners();
   return _enabled;
 }
 

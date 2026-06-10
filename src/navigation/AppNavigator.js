@@ -30,6 +30,7 @@ import ParentAreaScreen from '../screens/ParentAreaScreen';
 import StoryBookScreen from '../screens/StoryBookScreen';
 import CultinhoEmCasaScreen from '../screens/CultinhoEmCasaScreen';
 import BeniChestScreen from '../screens/BeniChestScreen';
+import CreatorModeBanner from '../components/dev/CreatorModeBanner';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -188,6 +189,7 @@ function MainTabs({ navigation }) {
 export default function AppNavigator() {
   return (
     <NavigationContainer>
+      <CreatorModeBanner />
       <Stack.Navigator
         initialRouteName="Splash"
         screenOptions={{
@@ -282,16 +284,7 @@ export default function AppNavigator() {
         <Stack.Screen
           name="LumiMoment"
           component={LumiMomentScreen}
-          options={({ navigation: nav }) => ({
-            title: 'Momento com Beni',
-            headerStyle,
-            headerTitleStyle,
-            headerTintColor,
-            headerLeftContainerStyle,
-            headerTitleContainerStyle,
-            headerLeft: () => <BackBtn navigation={nav} />,
-            headerRight: () => <HomeBtn navigation={nav} />,
-          })}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="ParentArea"

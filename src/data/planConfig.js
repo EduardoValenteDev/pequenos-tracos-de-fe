@@ -56,3 +56,42 @@ export const PLAN_TEXTS = {
   premiumCtaText: 'Conhecer Premium',
   notAvailableYetText: 'Em breve',
 };
+
+/* ──────────────────────────────────────────────────────────────────────────
+   REGRA DE PLANO POR HISTÓRIA — fonte única (Bloco 1).
+   Home, Aventuras, onboarding, Área dos Pais e accessControl consultam AQUI.
+   NÃO cria pagamento/login/backend; o acesso efetivo sai de accessControl.
+─────────────────────────────────────────────────────────────────────────── */
+export const PLAN = { FREE: 'free', PREMIUM: 'premium', COMING_SOON: 'coming_soon' };
+
+/** Rótulos OFICIAIS. Nunca usar "Conteúdo familiar"/"Especial da Família"/"Família". */
+export const PLAN_LABELS = {
+  free: 'Grátis',
+  premium: 'Plano Família',
+  coming_soon: 'Em breve',
+};
+
+/**
+ * Histórias explicitamente GRATUITAS e jogáveis em conta limpa (trilha Comece
+ * Aqui). Garante A Criação e Noé sempre liberadas. Davi e Golias NÃO está aqui
+ * → premium (Plano Família).
+ */
+export const FREE_STORY_IDS = ['creation', 'noah'];
+
+/** Plano de uma história ('free' | 'premium' | 'coming_soon'). */
+export function getStoryPlan(story) {
+  if (!story) return PLAN.PREMIUM;
+  if (story.status === 'coming_soon') return PLAN.COMING_SOON;
+  if (FREE_STORY_IDS.includes(story.id)) return PLAN.FREE;
+  if (story.accessType === PLAN.FREE) return PLAN.FREE;
+  return PLAN.PREMIUM;
+}
+
+export function isFreeStory(story) { return getStoryPlan(story) === PLAN.FREE; }
+export function isPremiumStory(story) { return getStoryPlan(story) === PLAN.PREMIUM; }
+
+/** Rótulo de plano a partir do enum (ou de uma história). */
+export function getPlanLabel(planOrStory) {
+  if (typeof planOrStory === 'string') return PLAN_LABELS[planOrStory] ?? PLAN_LABELS.premium;
+  return PLAN_LABELS[getStoryPlan(planOrStory)] ?? PLAN_LABELS.premium;
+}

@@ -66,7 +66,7 @@ export default function ReflectionScreen({ route, navigation }) {
         <PremiumLockCard
           featureName="Guardar no coração"
           title="Essa reflexão é especial"
-          description="Guardar no coração é uma experiência Especial da Família. Peça para um responsável ver os detalhes na Área dos Pais."
+          description="Guardar no coração é uma experiência Plano Família. Peça para um responsável ver os detalhes na Área dos Pais."
           onPrimaryPress={() => navigation.navigate('ParentArea')}
           primaryLabel="Ver Área dos Pais"
           onSecondaryPress={() => navigation.goBack()}

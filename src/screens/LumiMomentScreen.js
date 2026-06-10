@@ -37,7 +37,7 @@ export default function LumiMomentScreen({ navigation }) {
         <PremiumLockCard
           featureName="Momento com Beni"
           title="Essa experiência é especial"
-          description="O Momento com Beni é uma reflexão Especial da Família. Peça para um responsável ver os detalhes na Área dos Pais."
+          description="O Momento com Beni é uma reflexão Plano Família. Peça para um responsável ver os detalhes na Área dos Pais."
           onPrimaryPress={() => navigation.navigate('ParentArea')}
           primaryLabel="Ver Área dos Pais"
           onSecondaryPress={() => navigation.goBack()}
@@ -69,13 +69,18 @@ export default function LumiMomentScreen({ navigation }) {
           colors={['#A78BFA', '#7C3AED']}
           style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}
         >
+          {/* Header ÚNICO (o header nativo está desligado nesta rota).
+              Contextual: Voltar quando há pilha; Início quando veio direto da Home. */}
           <View style={styles.headerNav}>
-            <SoundButton style={styles.headerNavBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-              <Text style={styles.headerNavText}>← Voltar</Text>
-            </SoundButton>
-            <SoundButton style={styles.headerNavBtn} onPress={() => navigation.navigate('Home')} activeOpacity={0.7}>
-              <Text style={styles.headerNavText}>🏠</Text>
-            </SoundButton>
+            {navigation.canGoBack() ? (
+              <SoundButton style={styles.headerNavBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+                <Text style={styles.headerNavText}>← Voltar</Text>
+              </SoundButton>
+            ) : (
+              <SoundButton style={styles.headerNavBtn} onPress={() => navigation.navigate('Home')} activeOpacity={0.7}>
+                <Text style={styles.headerNavText}>🏠 Início</Text>
+              </SoundButton>
+            )}
           </View>
           <View style={styles.headerContent}>
             <BeniAvatar variant="thinking" size="medium" style={styles.headerBeni} />

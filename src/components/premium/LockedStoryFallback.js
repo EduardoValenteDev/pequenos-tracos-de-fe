@@ -20,7 +20,7 @@ import { getBeniGuideMessage } from '../../data/beniGuideMessages';
 export default function LockedStoryFallback({
   onBack,
   onCallResponsible,
-  title = 'Essa aventura é Especial da Família.',
+  title = 'Essa aventura é Plano Família.',
   subtitle = 'Peça para um responsável abrir essa área com você.',
 }) {
   return (

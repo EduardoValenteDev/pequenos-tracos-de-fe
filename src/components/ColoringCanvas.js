@@ -507,7 +507,7 @@ if(imgUri){
    React Native component
 ────────────────────────────────────────────────────────────────── */
 const ColoringCanvas = forwardRef(function ColoringCanvas(
-  { selectedColor = '#FF0000', imageSource = null, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected },
+  { selectedColor = '#FF0000', imageSource = null, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected, onReadyChange },
   ref,
 ) {
   const webViewRef = useRef(null);
@@ -602,6 +602,13 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
     };
   }, []);
 
+  // Sinaliza prontidão do canvas (lineart carregado) para o consumidor. Permite
+  // que a tela BLOQUEIE o salvar até o desenho estar carregado corretamente.
+  const ready = !isLoading && !errorType;
+  useEffect(() => {
+    onReadyChange?.(ready);
+  }, [ready, onReadyChange]);
+
   useImperativeHandle(ref, () => ({
     clearCanvas() { webViewRef.current?.injectJavaScript('window.clearPaint(); true;'); },
     undo()        { webViewRef.current?.injectJavaScript('window.undo(); true;'); },
@@ -692,6 +699,7 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
       {isLoading && !errorType && (
         <View style={styles.overlay}>
           <ActivityIndicator size="large" color="#FF8C42" />
+          <Text style={styles.loadingText}>Carregando desenho...</Text>
         </View>
       )}
 
@@ -734,6 +742,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFDF8',
     paddingHorizontal: 32,
   },
+  loadingText: { fontFamily: 'Nunito', fontSize: 14, color: '#8A7464', fontWeight: '700', marginTop: 12 },
   errorEmoji: { fontSize: 56, marginBottom: 12 },
   errorTitle: {
     fontFamily: 'FredokaOne',

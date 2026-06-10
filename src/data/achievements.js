@@ -185,7 +185,7 @@ export const ACHIEVEMENTS = [
     id: 'first_premium_story_done',
     emoji: '💎',
     title: 'Primeira aventura especial',
-    desc: 'Completou sua primeira história da trilha Especial da Família.',
+    desc: 'Completou sua primeira história da trilha Plano Família.',
     color: '#AB47BC',
     category: 'historias',
     check: ctx => flag(ctx, 'davidComplete') || flag(ctx, 'jesusComplete'),

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, Image,
+  View, Text, ScrollView,
   Animated, StyleSheet, TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +10,7 @@ import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { stories } from '../data/stories';
 import { images } from '../assets/images';
 import SoundButton from '../components/SoundButton';
+import SafeImage from '../components/ui/SafeImage';
 import CenteredContent from '../components/layout/CenteredContent';
 import { BeniAvatar } from '../components/beni';
 import { useFocusEffect } from '@react-navigation/native';
@@ -72,7 +73,7 @@ const WORLDS = [
     desc: 'Histórias fofas e simples',
     emoji: '⭐',
     gradient: ['#FBD46A', '#E0A21A'],
-    accessLabel: 'Especial da Família',
+    accessLabel: 'Plano Família',
     accessType: 'premium',
     available: true,
     navKey: 'pequeninos',
@@ -83,7 +84,7 @@ const WORLDS = [
     desc: 'Mistérios e descobertas bíblicas',
     emoji: '🔍',
     gradient: ['#7FC79B', '#5E9C3E'],
-    accessLabel: 'Especial da Família',
+    accessLabel: 'Plano Família',
     accessType: 'premium',
     available: true,
     navKey: 'descobridores',
@@ -94,7 +95,7 @@ const WORLDS = [
     desc: 'Desafios para corações corajosos',
     emoji: '📖',
     gradient: ['#9B6FE0', '#5B21B6'],
-    accessLabel: 'Especial da Família',
+    accessLabel: 'Plano Família',
     accessType: 'premium',
     available: true,
     navKey: 'jovens_da_fe',
@@ -308,24 +309,20 @@ function MissaoDeHoje({
       {/* Uma única fala do Beni, ligada à missão */}
       <Text style={styles.missionBeniLine}>{beniLine}</Text>
 
-      {/* Capa grande — a história em destaque */}
-      {hasThumb ? (
-        <View style={styles.missionCover}>
-          <Image
-            source={images[story.imagemCapa]}
-            style={styles.missionCoverImg}
-            resizeMode="cover"
-          />
-          <LinearGradient
-            colors={['transparent', 'rgba(20,12,4,0.55)']}
-            style={styles.missionCoverShade}
-          />
-        </View>
-      ) : (
-        <View style={[styles.missionCover, styles.missionCoverFallback]}>
-          <Text style={styles.missionCoverEmoji}>{story?.emoji ?? '⛵'}</Text>
-        </View>
-      )}
+      {/* Capa grande — a história em destaque (com loading/erro/fallback) */}
+      <View style={styles.missionCover}>
+        <SafeImage
+          source={hasThumb ? images[story.imagemCapa] : null}
+          style={styles.missionCoverImg}
+          resizeMode="cover"
+          fallbackIcon={story?.emoji ?? '⛵'}
+          fallbackColors={['#F0E8FF', '#E0D4FF']}
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(20,12,4,0.55)']}
+          style={styles.missionCoverShade}
+        />
+      </View>
 
       <Text style={styles.missionTitle} numberOfLines={2}>
         {story?.titulo ?? primaryAction.title}
@@ -398,7 +395,7 @@ function WorldCardCompact({ world, onPress }) {
         <View style={styles.worldFooter}>
           <View style={world.accessType === 'free' ? styles.worldBadgeFree : styles.worldBadgePremium}>
             <Text style={world.accessType === 'free' ? styles.worldBadgeFreeText : styles.worldBadgePremiumText}>
-              {world.accessType === 'free' ? world.accessLabel : 'Família'}
+              {world.accessType === 'free' ? world.accessLabel : 'Plano Família'}
             </Text>
           </View>
           <Text style={styles.worldExplore}>Explorar →</Text>

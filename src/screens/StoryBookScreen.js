@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
 import { colors as pt, radii } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
+import SafeImage from '../components/ui/SafeImage';
 import AudioPlayer from '../components/AudioPlayer';
 import LockedStoryFallback from '../components/premium/LockedStoryFallback';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
@@ -64,12 +65,18 @@ const EMPTY_LAYOUT = {
 
 // ── Construtores de visual por tipo (cada slide carrega um destes) ──
 
-// Arte da criança → paintWithLineart (paint v2 + lineart alinhado) ou paintOnly.
+// Arte da criança — SEMPRE com o contorno (lineart) por cima.
+//   v2 (com layout)  → paintWithLineart: lineart alinhado pixel-perfect.
+//   v1 (sem layout)  → paintWithLineartFull: lineart em contain, alinhado pela
+//                      mesma moldura 4:5 do paint (restaura o contorno).
+// Sem lineart (coloringImage) disponível → retorna null: a arte NUNCA é exibida
+// sozinha; o chamador cai para oficial/fallback.
 function makeChildArtVisual(cena, story, p) {
   const baseImage = getColoringImage(story.id, cena.id);
+  if (!baseImage) return null; // sem contorno disponível → não mostra cor sozinha
   const fallbackColor = cena.corTema || '#A78BFA';
   const hasLayout = p.W && p.H && p.imgX !== null && p.imgY !== null && p.imgW && p.imgH;
-  if (hasLayout && baseImage) {
+  if (hasLayout) {
     return {
       type: 'paintWithLineart', visualType: 'childArt', seal: 'Sua arte', note: null,
       paintUri: p.uri, baseImage, officialImage: null, fallbackColor,
@@ -78,8 +85,8 @@ function makeChildArtVisual(cena, story, p) {
     };
   }
   return {
-    type: 'paintOnly', visualType: 'childArt', seal: 'Sua arte', note: null,
-    paintUri: p.uri, fallbackColor, ...EMPTY_LAYOUT,
+    type: 'paintWithLineartFull', visualType: 'childArt', seal: 'Sua arte', note: null,
+    paintUri: p.uri, baseImage, officialImage: null, fallbackColor, ...EMPTY_LAYOUT,
   };
 }
 
@@ -109,7 +116,9 @@ function resolveStoryBookVisual(cena, story, drawings, mode = 'mixed') {
   const official = getOfficialSceneIllustration(story.id, cena.id);
   const raw = drawings[cena.id] ?? null;
   const p = mode !== 'official' && hasMeaningfulPaint(raw) ? parseDrawingPayload(raw) : null;
-  if (p) return makeChildArtVisual(cena, story, p);
+  // Só usa a arte da criança se houver contorno (makeChildArtVisual pode dar null).
+  const childVisual = p ? makeChildArtVisual(cena, story, p) : null;
+  if (childVisual) return childVisual;
   if (official) return makeOfficialVisual(cena, story, official);
   return makeFallbackVisual(cena, story);
 }
@@ -141,7 +150,9 @@ function resolveStoryBookPageImage(cena, story, drawings, mode) {
   const raw = drawings[cena.id] ?? null;
   if (hasMeaningfulPaint(raw)) {
     const p = parseDrawingPayload(raw);
-    if (p) return makeChildArtVisual(cena, story, p);               // 1) arte da criança
+    // 1) arte da criança — só se vier COM contorno (senão cai para oficial/fallback)
+    const childVisual = p ? makeChildArtVisual(cena, story, p) : null;
+    if (childVisual) return childVisual;
   }
   if (mode === 'mixed') {
     const official = getOfficialSceneIllustration(story.id, cena.id);
@@ -422,7 +433,7 @@ export default function StoryBookScreen({ route, navigation }) {
       <LockedStoryFallback
         onBack={() => navigation.navigate('Home')}
         onCallResponsible={() => navigation.navigate('ParentArea')}
-        title="Seu Livrinho da Fé é Especial da Família."
+        title="Seu Livrinho da Fé é Plano Família."
         subtitle="Peça para um responsável abrir essa área com você."
       />
     );
@@ -533,13 +544,13 @@ export default function StoryBookScreen({ route, navigation }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.introCoverCard}>
-            {hasCover ? (
-              <Image source={images[story.imagemCapa]} style={styles.introCoverImage} resizeMode="contain" />
-            ) : (
-              <View style={styles.introCoverFallback}>
-                <Text style={styles.introCoverEmoji}>{story.emoji ?? '📖'}</Text>
-              </View>
-            )}
+            <SafeImage
+              source={hasCover ? images[story.imagemCapa] : null}
+              style={styles.introCoverImage}
+              resizeMode="contain"
+              fallbackIcon={story.emoji ?? '📖'}
+              fallbackColors={['#EFE7DC', '#E8E0D8']}
+            />
           </View>
 
           <Text style={styles.introCoverTitle}>{story.titulo}</Text>
@@ -705,7 +716,7 @@ export default function StoryBookScreen({ route, navigation }) {
   // Tamanho 4:5 responsivo do Livrinho (maior/protagonista, sem ocupar a tela toda)
   const bookSize = computeBookImageSize(width, screenH);
   // Arte da criança é PNG com transparência: precisa de fundo CLARO (senão fica preta)
-  const isUserArt = visual.type === 'paintWithLineart' || visual.type === 'paintOnly';
+  const isUserArt = visual.type === 'paintWithLineart' || visual.type === 'paintWithLineartFull';
 
   return (
     <View style={styles.bookPlayerRoot}>
@@ -747,13 +758,22 @@ export default function StoryBookScreen({ route, navigation }) {
                   />
                 )}
               </>
-            ) : visual.type === 'paintOnly' ? (
-              <Image
-                source={{ uri: visual.paintUri }}
-                style={styles.bookFullImage}
-                resizeMode="contain"
-                onLoadEnd={() => fadeAnim.setValue(1)}
-              />
+            ) : visual.type === 'paintWithLineartFull' ? (
+              // v1 (sem coordenadas): paint + contorno em contain na mesma moldura.
+              // O contorno SEMPRE entra por cima — arte da criança nunca fica sem linha.
+              <>
+                <Image
+                  source={{ uri: visual.paintUri }}
+                  style={styles.bookFullImage}
+                  resizeMode="contain"
+                  onLoadEnd={() => fadeAnim.setValue(1)}
+                />
+                <Image
+                  source={visual.baseImage}
+                  style={[StyleSheet.absoluteFill, styles.lineartMultiply]}
+                  resizeMode="contain"
+                />
+              </>
             ) : visual.type === 'official' ? (
               // Oficial na moldura fixa 4:5 + contain (width/height 100%) → nasce encaixada, sem zoom
               <Image
