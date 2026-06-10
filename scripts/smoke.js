@@ -5843,11 +5843,11 @@ check(
 );
 
 check(
-  'Área dos Pais: ordem de blocos (Resumo → Jornada → Segurança → Plano → Igreja)',
+  'Área dos Pais: ordem de blocos (Resumo → Jornada → Plano → Segurança → Igreja)',
   parentAreaSrc31.indexOf('Resumo da criança') < parentAreaSrc31.indexOf('Jornada e progresso') &&
-  parentAreaSrc31.indexOf('Jornada e progresso') < parentAreaSrc31.indexOf('Segurança e privacidade') &&
-  parentAreaSrc31.indexOf('Segurança e privacidade') < parentAreaSrc31.indexOf('Plano familiar') &&
-  parentAreaSrc31.indexOf('Plano familiar') < parentAreaSrc31.indexOf('⛪ Modo Igreja'),
+  parentAreaSrc31.indexOf('Jornada e progresso') < parentAreaSrc31.indexOf('Plano familiar') &&
+  parentAreaSrc31.indexOf('Plano familiar') < parentAreaSrc31.indexOf('Segurança e privacidade') &&
+  parentAreaSrc31.indexOf('Segurança e privacidade') < parentAreaSrc31.indexOf('⛪ Modo Igreja'),
   'Área dos Pais blocks are not in the expected order',
 );
 
@@ -7664,6 +7664,64 @@ check(
   ux4dScreen.includes('backLabelFor(route?.params?.from)') &&
   /backBtn[\s\S]*?navigation\.goBack\(\)/.test(ux4dScreen),
   'TrophiesScreen quebrou o retorno contextual à conclusão',
+);
+
+// ── Sprint Reestruturação UX 1.0 — Bloco 4E: Área dos Pais organizada ────────
+console.log('\n── Sprint UX 1.0 — Bloco 4E ──');
+
+const ux4eFlags = readSrc('src/config/featureFlags.js');
+const ux4eScreen = readSrc('src/screens/ParentAreaScreen.js');
+
+check(
+  'Bloco 4E: featureFlags expõe PARENTAL_CONSENT_FLOW_ENABLED = false',
+  /export const PARENTAL_CONSENT_FLOW_ENABLED\s*=\s*false/.test(ux4eFlags),
+  'featureFlags sem PARENTAL_CONSENT_FLOW_ENABLED=false',
+);
+
+check(
+  'Bloco 4E: Área dos Pais usa seções recolhíveis (AccordionSection)',
+  ux4eScreen.includes('function AccordionSection') &&
+  /<AccordionSection/.test(ux4eScreen),
+  'ParentAreaScreen não usa seções recolhíveis',
+);
+
+check(
+  'Bloco 4E: apenas "Resumo da criança" abre por padrão (único defaultOpen)',
+  /<AccordionSection title="Resumo da criança" defaultOpen>/.test(ux4eScreen) &&
+  (ux4eScreen.match(/<AccordionSection[^>]*\sdefaultOpen/g) || []).length === 1,
+  'Mais de uma seção abre por padrão (ou Resumo não é a aberta)',
+);
+
+check(
+  'Bloco 4E: Segurança e privacidade resumida (mensagem principal curta)',
+  ux4eScreen.includes('Este app salva apenas dados locais neste aparelho. Nada é enviado automaticamente para a internet.'),
+  'ParentAreaScreen sem a mensagem-resumo de privacidade',
+);
+
+check(
+  'Bloco 4E: consentimento decorativo atrás de flag, com texto informativo',
+  ux4eScreen.includes('PARENTAL_CONSENT_FLOW_ENABLED') &&
+  ux4eScreen.includes('Quando houver recursos de compartilhamento ou envio externo, o responsável será avisado antes.') &&
+  // o fluxo de registrar/revogar só renderiza quando a flag está ligada
+  /PARENTAL_CONSENT_FLOW_ENABLED \?[\s\S]*?Registrar consentimento/.test(ux4eScreen),
+  'ParentAreaScreen ainda mostra o consentimento formal como ação principal',
+);
+
+check(
+  'Bloco 4E: Modo Igreja discreto (texto provisório, recolhido, no fim)',
+  ux4eScreen.includes('Recurso em preparação para turmas, professores e encontros infantis.') &&
+  /<AccordionSection\s+title="⛪ Modo Igreja"/.test(ux4eScreen) &&
+  ux4eScreen.indexOf('Sobre e suporte') < ux4eScreen.indexOf('⛪ Modo Igreja'),
+  'ParentAreaScreen: Modo Igreja não está discreto/no fim',
+);
+
+check(
+  'Bloco 4E: Gerenciar dados mantém confirmação (APAGAR) e ações sensíveis',
+  ux4eScreen.includes('Gerenciar dados') &&
+  ux4eScreen.includes('Limpar progresso') &&
+  (ux4eScreen.includes("'APAGAR'") || ux4eScreen.includes('"APAGAR"')) &&
+  ux4eScreen.includes('resetProgress'),
+  'ParentAreaScreen: Gerenciar dados perdeu confirmação/ações sensíveis',
 );
 
 // ── Summary ──────────────────────────────────────────────────────────────────

@@ -36,6 +36,7 @@ import {
   createChurchGroup as createGroup,
   deleteChurchGroup,
 } from '../services/churchModeService';
+import { PARENTAL_CONSENT_FLOW_ENABLED } from '../config/featureFlags';
 
 const SUPPORT_EMAIL = productConfig.supportEmail;
 
@@ -50,6 +51,31 @@ const SHOW_TEST_TOOLS =
 
 function SectionTitle({ children }) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
+}
+
+/**
+ * AccordionSection — seção recolhível (UX 1.0 — Bloco 4E). A Área dos Pais abre
+ * mostrando só o essencial: apenas "Resumo da criança" inicia aberta; as demais
+ * iniciam fechadas, com uma frase-resumo (hint) visível quando recolhidas.
+ */
+function AccordionSection({ title, defaultOpen = false, hint, children }) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  return (
+    <View style={styles.accordion}>
+      <TouchableOpacity
+        style={styles.accordionHeader}
+        onPress={() => setOpen(o => !o)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+      >
+        <Text style={styles.accordionTitle}>{title}</Text>
+        <Text style={styles.accordionChevron}>{open ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
+      {!open && hint ? <Text style={styles.accordionHint}>{hint}</Text> : null}
+      {open ? <View style={styles.accordionBody}>{children}</View> : null}
+    </View>
+  );
 }
 
 function InfoCard({ children, style }) {
@@ -183,6 +209,8 @@ export default function ParentAreaScreen({ navigation }) {
     }
   }
 
+  // Consentimento parental formal — só usado quando PARENTAL_CONSENT_FLOW_ENABLED.
+  // Mantido (não deletado) para quando existir recurso sensível/envio externo.
   async function handleAcceptConsent() {
     const result = await acceptParentalConsent({ version: '1.0' });
     if (result) setConsent(result);
@@ -391,11 +419,11 @@ export default function ParentAreaScreen({ navigation }) {
 
         <View style={[styles.body, isTablet && styles.bodyTablet, { paddingTop: insets.top + 14 }]}>
 
-          {/* ── Topo compacto (sem banner roxo gigante) ── */}
+          {/* ── Topo compacto (central simples) ── */}
           <View style={styles.welcomeCard}>
             <Text style={styles.welcomeTitle}>Central da família</Text>
             <Text style={styles.welcomeSub}>
-              Acompanhe o progresso, cuide dos dados e organize a jornada da criança.
+              O essencial primeiro. Toque numa seção para ver os detalhes.
             </Text>
           </View>
           <BeniSpeechCard
@@ -405,458 +433,407 @@ export default function ParentAreaScreen({ navigation }) {
             style={{ marginTop: 8 }}
           />
 
-          {/* ─── 1. RESUMO DA CRIANÇA ──────────────────────────────────────────── */}
-          <SectionTitle>Resumo da criança</SectionTitle>
-          <InfoCard>
-            <View style={styles.childProfileRow}>
-              <Text style={styles.childAvatarEmoji}>{childAvatarEmoji}</Text>
-              <View style={styles.childProfileInfo}>
-                <Text style={styles.childName}>{childDisplayName}</Text>
-                <Text style={styles.childSubtitle}>Explorador(a) das histórias</Text>
-              </View>
-            </View>
-            <View style={styles.metricsRow}>
-              <MetricCard emoji="⭐" value={progressSummary?.totalStars ?? 0} label="Estrelas" />
-              <MetricCard emoji="▶" value={startedStoriesCount} label="Em andamento" />
-              <MetricCard emoji="🎨" value={coloredScenesCount} label="Cenas" />
-            </View>
-            {!metricsExpanded ? (
-              <TouchableOpacity onPress={() => setMetricsExpanded(true)} style={styles.detailsLink} activeOpacity={0.7}>
-                <Text style={styles.detailsLinkText}>Ver detalhes</Text>
-              </TouchableOpacity>
-            ) : (
-              <>
-                <View style={[styles.metricsRow, { marginTop: 10 }]}>
-                  <MetricCard emoji="🏆" value={completedStoriesCount} label="Concluídas" />
-                  <MetricCard emoji="🧩" value={progressSummary?.quizCompletedCount ?? 0} label="Quiz" />
-                  <MetricCard emoji="📚" value={storyBookOpenedCount} label="Livrinho" />
+          {/* ─── 1. RESUMO DA CRIANÇA (única aberta por padrão) ─────────────────── */}
+          <AccordionSection title="Resumo da criança" defaultOpen>
+            <InfoCard>
+              <View style={styles.childProfileRow}>
+                <Text style={styles.childAvatarEmoji}>{childAvatarEmoji}</Text>
+                <View style={styles.childProfileInfo}>
+                  <Text style={styles.childName}>{childDisplayName}</Text>
+                  <Text style={styles.childSubtitle}>Explorador(a) das histórias</Text>
                 </View>
-                <TouchableOpacity onPress={() => setMetricsExpanded(false)} style={styles.detailsLink} activeOpacity={0.7}>
-                  <Text style={styles.detailsLinkText}>Recolher</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </InfoCard>
-
-          {/* Próximo passo recomendado */}
-          <InfoCard style={styles.nextStepCard}>
-            <Text style={styles.nextStepLabel}>Próximo passo recomendado</Text>
-            <View style={styles.nextStepRow}>
-              <Text style={styles.nextStepEmoji}>{nextStep.emoji}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.nextStepTitle}>{nextStep.title}</Text>
-                <Text style={styles.nextStepDesc}>{nextStep.desc}</Text>
               </View>
-            </View>
-          </InfoCard>
+              <View style={styles.metricsRow}>
+                <MetricCard emoji="⭐" value={progressSummary?.totalStars ?? 0} label="Estrelas" />
+                <MetricCard emoji="▶" value={startedStoriesCount} label="Em andamento" />
+                <MetricCard emoji="🎨" value={coloredScenesCount} label="Cenas" />
+              </View>
+              {!metricsExpanded ? (
+                <TouchableOpacity onPress={() => setMetricsExpanded(true)} style={styles.detailsLink} activeOpacity={0.7}>
+                  <Text style={styles.detailsLinkText}>Ver detalhes</Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <View style={[styles.metricsRow, { marginTop: 10 }]}>
+                    <MetricCard emoji="🏆" value={completedStoriesCount} label="Concluídas" />
+                    <MetricCard emoji="🧩" value={progressSummary?.quizCompletedCount ?? 0} label="Quiz" />
+                    <MetricCard emoji="📚" value={storyBookOpenedCount} label="Livrinho" />
+                  </View>
+                  <TouchableOpacity onPress={() => setMetricsExpanded(false)} style={styles.detailsLink} activeOpacity={0.7}>
+                    <Text style={styles.detailsLinkText}>Recolher</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </InfoCard>
+
+            {/* Próximo passo recomendado */}
+            <InfoCard style={styles.nextStepCard}>
+              <Text style={styles.nextStepLabel}>Próximo passo recomendado</Text>
+              <View style={styles.nextStepRow}>
+                <Text style={styles.nextStepEmoji}>{nextStep.emoji}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.nextStepTitle}>{nextStep.title}</Text>
+                  <Text style={styles.nextStepDesc}>{nextStep.desc}</Text>
+                </View>
+              </View>
+            </InfoCard>
+          </AccordionSection>
 
           {/* ─── 2. JORNADA E PROGRESSO ───────────────────────────────────────── */}
-          <SectionTitle>Jornada e progresso</SectionTitle>
-          <InfoCard>
-            {progressSummary !== null && (
-              <View style={styles.progressRow}>
-                <Text style={styles.progressStar}>⭐</Text>
-                <View>
-                  <Text style={styles.progressValue}>
-                    {progressSummary.totalStars} estrela{progressSummary.totalStars !== 1 ? 's' : ''} conquistada{progressSummary.totalStars !== 1 ? 's' : ''}
+          <AccordionSection
+            title="Jornada e progresso"
+            hint="Estrelas, histórias concluídas e o progresso de cada aventura."
+          >
+            <InfoCard>
+              {progressSummary !== null && (
+                <View style={styles.progressRow}>
+                  <Text style={styles.progressStar}>⭐</Text>
+                  <View>
+                    <Text style={styles.progressValue}>
+                      {progressSummary.totalStars} estrela{progressSummary.totalStars !== 1 ? 's' : ''} conquistada{progressSummary.totalStars !== 1 ? 's' : ''}
+                    </Text>
+                    <Text style={styles.progressNote}>
+                      {progressSummary.completedStories} histór{progressSummary.completedStories !== 1 ? 'ias' : 'ia'} concluída{progressSummary.completedStories !== 1 ? 's' : ''} · {progressSummary.completedScenes} cenas coloridas
+                    </Text>
+                  </View>
+                </View>
+              )}
+              <Text style={[styles.bodyText, progressSummary !== null && { marginTop: 12 }]}>
+                Cada cena colorida vale <Text style={styles.bold}>1 estrela</Text>. Quiz vale{' '}
+                <Text style={styles.bold}>+1</Text>, reflexão com Beni vale{' '}
+                <Text style={styles.bold}>+1</Text> e Livrinho vale{' '}
+                <Text style={styles.bold}>+1 estrela</Text>.
+              </Text>
+            </InfoCard>
+
+            {/* Progresso por história (recolhido por padrão) */}
+            <SectionTitle>📖 Progresso por história</SectionTitle>
+            <InfoCard>
+              <TouchableOpacity
+                style={styles.storyToggleRow}
+                onPress={() => setStoryProgressExpanded(e => !e)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.storyToggleTitle}>
+                    {playableStories.length} histórias · {progressSummary?.completedStories ?? 0} concluídas · {startedStoriesCount} em andamento
                   </Text>
-                  <Text style={styles.progressNote}>
-                    {progressSummary.completedStories} histór{progressSummary.completedStories !== 1 ? 'ias' : 'ia'} concluída{progressSummary.completedStories !== 1 ? 's' : ''} · {progressSummary.completedScenes} cenas coloridas
+                  <Text style={styles.storyToggleSub}>
+                    Veja o progresso de cada história em detalhes.
                   </Text>
                 </View>
-              </View>
-            )}
-            <Text style={[styles.bodyText, progressSummary !== null && { marginTop: 12 }]}>
-              Cada cena colorida vale <Text style={styles.bold}>1 estrela</Text>. Quiz vale{' '}
-              <Text style={styles.bold}>+1</Text>, reflexão com Beni vale{' '}
-              <Text style={styles.bold}>+1</Text> e Livrinho vale{' '}
-              <Text style={styles.bold}>+1 estrela</Text>.
-            </Text>
-          </InfoCard>
-
-          {/* ─── 3. PROGRESSO POR HISTÓRIA (recolhido por padrão) ────────────── */}
-          <SectionTitle>📖 Progresso por história</SectionTitle>
-          <InfoCard>
-            <TouchableOpacity
-              style={styles.storyToggleRow}
-              onPress={() => setStoryProgressExpanded(e => !e)}
-              activeOpacity={0.7}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.storyToggleTitle}>
-                  {playableStories.length} histórias · {progressSummary?.completedStories ?? 0} concluídas · {startedStoriesCount} em andamento
+                <Text style={styles.storyToggleChevron}>
+                  {storyProgressExpanded ? '▲' : '▼'}
                 </Text>
-                <Text style={styles.storyToggleSub}>
-                  Veja o progresso de cada história em detalhes.
-                </Text>
-              </View>
-              <Text style={styles.storyToggleChevron}>
-                {storyProgressExpanded ? '▲' : '▼'}
-              </Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
 
-            {!storyProgressExpanded && (
-              <SoundButton
-                style={styles.storyToggleShowBtn}
-                onPress={() => setStoryProgressExpanded(true)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.storyToggleShowBtnText}>Ver histórias</Text>
-              </SoundButton>
-            )}
-
-            {storyProgressExpanded && (
-              <View style={{ marginTop: 14 }}>
-                {playableStories.map(story => {
-                  const prog = progressByStory[story.id] ?? {};
-                  const done = Object.values(prog).filter(Boolean).length;
-                  const total = story.totalCenas ?? 0;
-                  const pss = postStoryStatusByStory[story.id];
-                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-                  const status = getStoryStatus(story);
-                  const isFree = story.accessType === 'free';
-                  return (
-                    <View key={story.id} style={styles.storyProgressRow}>
-                      <View style={styles.storyProgressHeader}>
-                        <Text style={styles.storyProgressEmoji}>{story.emoji}</Text>
-                        <View style={styles.storyProgressInfo}>
-                          <Text style={styles.storyProgressTitle} numberOfLines={1}>{story.titulo}</Text>
-                          <Text style={styles.storyProgressPlan}>
-                            {isFree ? '✨ Grátis' : '💎 Plano Família'} · {status}
-                          </Text>
-                        </View>
-                        <Text style={styles.storyProgressPct}>{pct}%</Text>
-                      </View>
-                      <View style={styles.storyProgressBar}>
-                        <View style={[styles.storyProgressFill, { width: `${pct}%` }]} />
-                      </View>
-                      <Text style={styles.storyProgressDetail}>
-                        {done}/{total} cenas
-                        {pss?.quizDone ? ' · Quiz ✓' : ''}
-                        {pss?.reflectionDone ? ' · Beni ✓' : ''}
-                        {pss?.storyBookOpened ? ' · Livrinho ✓' : ''}
-                      </Text>
-                    </View>
-                  );
-                })}
+              {!storyProgressExpanded && (
                 <SoundButton
-                  style={styles.storyToggleHideBtn}
-                  onPress={() => setStoryProgressExpanded(false)}
+                  style={styles.storyToggleShowBtn}
+                  onPress={() => setStoryProgressExpanded(true)}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.storyToggleHideBtnText}>▲ Recolher</Text>
+                  <Text style={styles.storyToggleShowBtnText}>Ver histórias</Text>
                 </SoundButton>
-              </View>
-            )}
-          </InfoCard>
+              )}
 
-          {/* ─── 4. CONFIGURAÇÕES DA FAMÍLIA ─────────────────────────────────── */}
-          {/* ─── 3. SEGURANÇA E PRIVACIDADE ───────────────────────────────────── */}
-          <SectionTitle>Segurança e privacidade</SectionTitle>
-
-          {/* Resumo de privacidade (texto de produto, não "em breve") */}
-          <InfoCard style={styles.privacySummaryCard}>
-            <Text style={styles.cardHeading}>Resumo de privacidade</Text>
-            <Text style={styles.bodyText}>
-              O app funciona sem login. Os dados ficam neste aparelho. O responsável pode apagar o progresso quando quiser. Nada é enviado para servidores externos.
-            </Text>
-          </InfoCard>
-
-          <InfoCard style={{ marginTop: 8 }}>
-            <Text style={styles.cardHeading}>O que fica salvo localmente</Text>
-            <SecurityPoint text="Sem login e sem cadastro." />
-            <SecurityPoint text="Nome ou apelido da criança (somente o que você digitar)." />
-            <SecurityPoint text="Avatar escolhido." />
-            <SecurityPoint text="Progresso nas histórias: cenas coloridas, quiz, reflexão e livrinho." />
-            <SecurityPoint text="Desenhos salvos no Ateliê." />
-            <SecurityPoint text="Conquistas e estrelas." />
-            <SecurityPoint text="Configurações desta tela." />
-            <View style={styles.privacyGuaranteeBox}>
-              <Text style={styles.privacyGuaranteeText}>
-                🔒 O app não pede e não armazena email, telefone, idade, localização ou senha da criança. Todos os dados ficam apenas neste aparelho. Nenhuma informação é transmitida para servidores externos.
-              </Text>
-            </View>
-          </InfoCard>
-
-          <InfoCard style={{ marginTop: 8 }}>
-            <Text style={[styles.bodyText, { fontWeight: '700', color: pt.text, marginBottom: 10 }]}>
-              Consentimento parental
-            </Text>
-            <Text style={[styles.bodyText, { marginBottom: 12 }]}>
-              Registre seu consentimento como responsável pelo uso deste app pela criança. Fica salvo apenas neste aparelho.
-            </Text>
-            <View style={styles.consentStatusRow}>
-              <Text style={styles.consentStatusText}>
-                {consent.accepted ? '✅ Consentimento registrado' : '⏳ Consentimento ainda não registrado'}
-              </Text>
-              {consent.acceptedAt ? (
-                <Text style={styles.consentDate}>
-                  Em: {new Date(consent.acceptedAt).toLocaleDateString('pt-BR')}
-                </Text>
-              ) : null}
-            </View>
-            {!consent.accepted && (
-              <SoundButton style={styles.consentAcceptBtn} onPress={handleAcceptConsent} activeOpacity={0.85}>
-                <Text style={styles.consentAcceptBtnText}>Registrar consentimento</Text>
-              </SoundButton>
-            )}
-            {consent.accepted && (
-              <SoundButton style={styles.consentRevokeBtn} onPress={handleRevokeConsent} activeOpacity={0.85}>
-                <Text style={styles.consentRevokeBtnText}>Revogar consentimento</Text>
-              </SoundButton>
-            )}
-          </InfoCard>
-
-          <InfoCard style={[styles.resetCard, { marginTop: 8 }]}>
-            <Text style={[styles.bodyText, { fontWeight: '700', color: '#C62828', marginBottom: 8 }]}>
-              🗑️ Limpar progresso da criança
-            </Text>
-            {resetStep === 'done' ? (
-              <View style={styles.resetDoneBox}>
-                <Text style={styles.resetDoneTitle}>✅ Progresso apagado</Text>
-                <Text style={styles.resetDoneDesc}>
-                  A jornada pode começar de novo. O perfil, os desenhos do Ateliê e as artes salvas foram preservados.
-                </Text>
-                <SoundButton style={styles.resetCancelBtn} onPress={() => setResetStep('idle')} activeOpacity={0.85}>
-                  <Text style={styles.resetCancelBtnText}>Fechar</Text>
-                </SoundButton>
-              </View>
-            ) : resetStep === 'confirm2' ? (
-              <View>
-                <Text style={styles.resetWarningTitle}>⚠️ Esta ação não pode ser desfeita</Text>
-                <Text style={styles.bodyText}>
-                  Serão apagados: cenas coloridas, quiz, reflexão, livrinho, conquistas vistas e estrelas bônus.
-                </Text>
-                <Text style={[styles.bodyText, { marginTop: 10, fontWeight: '700', color: pt.text }]}>
-                  Digite APAGAR para confirmar:
-                </Text>
-                <TextInput
-                  style={styles.resetInput}
-                  value={resetConfirmText}
-                  onChangeText={setResetConfirmText}
-                  placeholder="APAGAR"
-                  placeholderTextColor={pt.muted}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                />
-                <View style={styles.resetBtnRow}>
-                  <SoundButton style={styles.resetCancelBtn} onPress={() => { setResetStep('idle'); setResetConfirmText(''); }} activeOpacity={0.85}>
-                    <Text style={styles.resetCancelBtnText}>Cancelar</Text>
-                  </SoundButton>
+              {storyProgressExpanded && (
+                <View style={{ marginTop: 14 }}>
+                  {playableStories.map(story => {
+                    const prog = progressByStory[story.id] ?? {};
+                    const done = Object.values(prog).filter(Boolean).length;
+                    const total = story.totalCenas ?? 0;
+                    const pss = postStoryStatusByStory[story.id];
+                    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                    const status = getStoryStatus(story);
+                    const isFree = story.accessType === 'free';
+                    return (
+                      <View key={story.id} style={styles.storyProgressRow}>
+                        <View style={styles.storyProgressHeader}>
+                          <Text style={styles.storyProgressEmoji}>{story.emoji}</Text>
+                          <View style={styles.storyProgressInfo}>
+                            <Text style={styles.storyProgressTitle} numberOfLines={1}>{story.titulo}</Text>
+                            <Text style={styles.storyProgressPlan}>
+                              {isFree ? '✨ Grátis' : '💎 Plano Família'} · {status}
+                            </Text>
+                          </View>
+                          <Text style={styles.storyProgressPct}>{pct}%</Text>
+                        </View>
+                        <View style={styles.storyProgressBar}>
+                          <View style={[styles.storyProgressFill, { width: `${pct}%` }]} />
+                        </View>
+                        <Text style={styles.storyProgressDetail}>
+                          {done}/{total} cenas
+                          {pss?.quizDone ? ' · Quiz ✓' : ''}
+                          {pss?.reflectionDone ? ' · Beni ✓' : ''}
+                          {pss?.storyBookOpened ? ' · Livrinho ✓' : ''}
+                        </Text>
+                      </View>
+                    );
+                  })}
                   <SoundButton
-                    style={[styles.resetConfirmBtn, resetConfirmText.trim() !== 'APAGAR' && styles.resetConfirmBtnDisabled]}
-                    onPress={handleExecuteReset}
-                    disabled={resetConfirmText.trim() !== 'APAGAR' || resetLoading}
+                    style={styles.storyToggleHideBtn}
+                    onPress={() => setStoryProgressExpanded(false)}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.resetConfirmBtnText}>
-                      {resetLoading ? 'Apagando...' : 'Apagar definitivamente'}
-                    </Text>
+                    <Text style={styles.storyToggleHideBtnText}>▲ Recolher</Text>
                   </SoundButton>
                 </View>
-              </View>
-            ) : resetStep === 'confirm1' ? (
-              <View>
-                <Text style={styles.resetWarningTitle}>⚠️ Confirmar reset</Text>
-                <Text style={styles.bodyText}>
-                  Isso vai apagar todo o progresso da criança neste aparelho. Perfil, nome, desenhos do Ateliê e artes salvas não serão afetados.
-                </Text>
-                <View style={styles.resetBtnRow}>
-                  <SoundButton style={styles.resetCancelBtn} onPress={() => setResetStep('idle')} activeOpacity={0.85}>
-                    <Text style={styles.resetCancelBtnText}>Cancelar</Text>
-                  </SoundButton>
-                  <SoundButton style={styles.resetNextBtn} onPress={() => setResetStep('confirm2')} activeOpacity={0.85}>
-                    <Text style={styles.resetNextBtnText}>Continuar →</Text>
-                  </SoundButton>
-                </View>
-              </View>
-            ) : (
-              <View>
-                <Text style={styles.bodyText}>
-                  Use esta opção apenas se quiser que a criança recomece a jornada do zero neste aparelho.
-                </Text>
-                <SoundButton style={styles.resetStartBtn} onPress={() => setResetStep('confirm1')} activeOpacity={0.85}>
-                  <Text style={styles.resetStartBtnText}>🗑️ Apagar progresso</Text>
-                </SoundButton>
-              </View>
-            )}
+              )}
+            </InfoCard>
+          </AccordionSection>
 
-            <View style={styles.deleteAllBox}>
-              <Text style={styles.deleteAllTitle}>Apagar todos os dados locais</Text>
-              <Text style={styles.deleteAllDesc}>
-                Esta opção apagará também o perfil, os desenhos e as configurações. Estará disponível em uma atualização futura, com confirmação adicional de segurança.
+          {/* ─── 3. PLANO ──────────────────────────────────────────────────────── */}
+          <AccordionSection
+            title="Plano familiar"
+            hint={isPremium ? 'Plano atual: Família.' : 'Plano atual: gratuito · 2 histórias gratuitas e recursos básicos.'}
+          >
+            <InfoCard style={isPremium ? styles.premiumCard : styles.freeCard}>
+              <Text style={styles.cardHeading}>{isPremium ? 'Plano atual: Família' : 'Plano atual: gratuito'}</Text>
+              <Text style={styles.bodyText}>
+                {isPremium
+                  ? 'Acesso completo a todas as histórias, Beni e Ateliê ilimitado.'
+                  : '2 histórias gratuitas (trilha Comece Aqui), quiz dessas histórias e 3 artes salvas no Ateliê.'}
               </Text>
-              <View style={[styles.comingSoonBadge, { alignSelf: 'flex-start' }]}>
-                <Text style={styles.comingSoonBadgeText}>Em preparação</Text>
+              <View style={styles.featureList}>
+                {FREE_PLAN.items.map((item, idx) => (
+                  <FeatureRow key={idx} emoji={item.emoji} label={item.label} />
+                ))}
               </View>
-            </View>
-          </InfoCard>
+            </InfoCard>
 
-          {/* ─── 6. PLANO E ACESSO ─────────────────────────────────────────────── */}
-          {/* ─── 4. PLANO FAMILIAR ─────────────────────────────────────────────── */}
-          <SectionTitle>Plano familiar</SectionTitle>
-          <InfoCard style={isPremium ? styles.premiumCard : styles.freeCard}>
-            <Text style={styles.cardHeading}>{isPremium ? 'Plano atual: Família' : 'Plano atual: gratuito'}</Text>
-            <Text style={styles.bodyText}>
-              {isPremium
-                ? 'Acesso completo a todas as histórias, Beni e Ateliê ilimitado.'
-                : 'Acesso às histórias gratuitas, quiz e 3 artes no Ateliê.'}
-            </Text>
-            <View style={styles.featureList}>
-              {FREE_PLAN.items.map((item, idx) => (
-                <FeatureRow key={idx} emoji={item.emoji} label={item.label} />
-              ))}
-            </View>
-          </InfoCard>
+            {/* Apresentação do Plano Família — informativa, sem botões acionáveis */}
+            <InfoCard style={[styles.planPrepCard, { marginTop: 8 }]}>
+              <Text style={styles.cardHeading}>Plano Família</Text>
+              <Text style={styles.bodyText}>
+                Mais histórias e recursos familiares para continuar a jornada. Será liberado quando as compras estiverem ativas; os conteúdos já estão preparados.
+              </Text>
+              <View style={[styles.featureList, { marginTop: 10 }]}>
+                {PREMIUM_PLAN.items.map((item, idx) => (
+                  <FeatureRow key={idx} emoji={item.emoji} label={item.label} />
+                ))}
+              </View>
+              <View style={[styles.comingSoonBadge, { alignSelf: 'flex-start', marginTop: 12 }]}>
+                <Text style={styles.comingSoonBadgeText}>Disponível em uma próxima atualização</Text>
+              </View>
+            </InfoCard>
+          </AccordionSection>
 
-          {/* Apresentação do Plano Família — informativa, sem botões acionáveis */}
-          <InfoCard style={[styles.planPrepCard, { marginTop: 8 }]}>
-            <Text style={styles.cardHeading}>Plano Família</Text>
-            <Text style={styles.bodyText}>
-              Será liberado quando as compras estiverem ativas. Os conteúdos Premium já estão preparados para a próxima etapa.
-            </Text>
-            <View style={[styles.featureList, { marginTop: 10 }]}>
-              {PREMIUM_PLAN.items.map((item, idx) => (
-                <FeatureRow key={idx} emoji={item.emoji} label={item.label} />
-              ))}
-            </View>
-            <View style={[styles.comingSoonBadge, { alignSelf: 'flex-start', marginTop: 12 }]}>
-              <Text style={styles.comingSoonBadgeText}>Disponível em uma próxima atualização</Text>
-            </View>
-          </InfoCard>
+          {/* ─── 4. SEGURANÇA E PRIVACIDADE ───────────────────────────────────── */}
+          <AccordionSection
+            title="Segurança e privacidade"
+            hint="Este app salva apenas dados locais neste aparelho. Nada é enviado automaticamente para a internet."
+          >
+            {/* Resumo de privacidade (mensagem principal, curta) */}
+            <InfoCard style={styles.privacySummaryCard}>
+              <Text style={styles.cardHeading}>Resumo de privacidade</Text>
+              <Text style={styles.bodyText}>
+                Este app salva apenas dados locais. Os dados ficam neste aparelho e nada é enviado automaticamente para a internet. O app funciona sem login e o responsável pode apagar o progresso quando quiser.
+              </Text>
+            </InfoCard>
 
-          {/* ─── 6. MODO IGREJA ──────────────────────────────────────────────── */}
-          <SectionTitle>⛪ Modo Igreja</SectionTitle>
-          <InfoCard>
-            <Text style={[styles.bodyText, { marginBottom: 12 }]}>
-              Use este modo para organizar uma turma da igreja, acompanhar uma história da semana e orientar as famílias em casa. Tudo fica salvo apenas neste aparelho — sem internet obrigatória, sem login.
-            </Text>
-
-            {/* Como funciona — 3 passos */}
-            <View style={styles.churchStepsBox}>
-              {[
-                { n: '1', t: 'Crie uma turma local' },
-                { n: '2', t: 'Escolha a História da Semana' },
-                { n: '3', t: 'Compartilhe uma orientação com as famílias' },
-              ].map(step => (
-                <View key={step.n} style={styles.churchStepRow}>
-                  <View style={styles.churchStepNum}><Text style={styles.churchStepNumText}>{step.n}</Text></View>
-                  <Text style={styles.churchStepText}>{step.t}</Text>
-                </View>
-              ))}
-            </View>
-
-            <BeniSpeechCard context="churchMode" variant="adult" style={{ marginBottom: 12 }} />
-
-            {churchGroups.length === 0 && !showChurchForm && (
-              <View style={styles.churchEmptyBox}>
-                <Text style={styles.churchEmptyText}>
-                  Você ainda não tem turmas. Crie a primeira para começar a acompanhar uma história da semana com o grupo.
+            <InfoCard style={{ marginTop: 8 }}>
+              <Text style={styles.cardHeading}>O que fica salvo localmente</Text>
+              <SecurityPoint text="Sem login e sem cadastro." />
+              <SecurityPoint text="Nome ou apelido da criança (somente o que você digitar)." />
+              <SecurityPoint text="Avatar escolhido." />
+              <SecurityPoint text="Progresso nas histórias: cenas coloridas, quiz, reflexão e livrinho." />
+              <SecurityPoint text="Desenhos salvos no Ateliê." />
+              <SecurityPoint text="Conquistas e estrelas." />
+              <SecurityPoint text="Configurações desta tela." />
+              <View style={styles.privacyGuaranteeBox}>
+                <Text style={styles.privacyGuaranteeText}>
+                  🔒 O app não pede e não armazena email, telefone, idade, localização ou senha da criança. Todos os dados ficam apenas neste aparelho. Nenhuma informação é transmitida para servidores externos.
                 </Text>
-                <SoundButton style={styles.churchCreateBtn} onPress={() => setShowChurchForm(true)} activeOpacity={0.85}>
-                  <Text style={styles.churchCreateBtnText}>+ Criar turma</Text>
-                </SoundButton>
               </View>
-            )}
+            </InfoCard>
 
-            {churchGroups.length > 0 && !showChurchForm && (
-              <View style={styles.churchGroupsList}>
-                {churchGroups.map(group => (
-                  <View key={group.id} style={styles.churchGroupCard}>
-                    <Text style={styles.churchGroupName}>{group.name || 'Turma sem nome'}</Text>
-                    {group.churchName ? (
-                      <Text style={styles.churchGroupChurch}>{group.churchName}</Text>
-                    ) : null}
-                    {group.leaderName ? (
-                      <Text style={styles.churchGroupLeader}>Líder: {group.leaderName}</Text>
-                    ) : null}
-                    {group.ageGroup ? (
-                      <Text style={styles.churchGroupLeader}>Faixa/grupo: {group.ageGroup}</Text>
-                    ) : null}
-                    <Text style={styles.churchGroupWeekly}>
-                      História da semana: {group.weeklyStory?.trim() || 'a definir'}
+            {/* Consentimento parental — informativo enquanto não houver recurso sensível */}
+            {PARENTAL_CONSENT_FLOW_ENABLED ? (
+              <InfoCard style={{ marginTop: 8 }}>
+                <Text style={[styles.bodyText, { fontWeight: '700', color: pt.text, marginBottom: 10 }]}>
+                  Consentimento parental
+                </Text>
+                <Text style={[styles.bodyText, { marginBottom: 12 }]}>
+                  Registre seu consentimento como responsável pelo uso deste app pela criança. Fica salvo apenas neste aparelho.
+                </Text>
+                <View style={styles.consentStatusRow}>
+                  <Text style={styles.consentStatusText}>
+                    {consent.accepted ? '✅ Consentimento registrado' : '⏳ Consentimento ainda não registrado'}
+                  </Text>
+                  {consent.acceptedAt ? (
+                    <Text style={styles.consentDate}>
+                      Em: {new Date(consent.acceptedAt).toLocaleDateString('pt-BR')}
                     </Text>
-                    <View style={styles.churchInviteRow}>
-                      <Text style={styles.churchInviteLabel}>Código da turma:</Text>
-                      <Text style={styles.churchInviteCode}>{group.inviteCode}</Text>
-                    </View>
-                    <Text style={styles.churchProgressNote}>
-                      Progresso local da turma: começa zerado e cresce conforme as crianças avançam.
-                    </Text>
-                    <SoundButton style={styles.churchShareBtn} onPress={() => handleShareChurchGuidance(group)} activeOpacity={0.85}>
-                      <Text style={styles.churchShareBtnText}>Compartilhar orientação</Text>
+                  ) : null}
+                </View>
+                {!consent.accepted && (
+                  <SoundButton style={styles.consentAcceptBtn} onPress={handleAcceptConsent} activeOpacity={0.85}>
+                    <Text style={styles.consentAcceptBtnText}>Registrar consentimento</Text>
+                  </SoundButton>
+                )}
+                {consent.accepted && (
+                  <SoundButton style={styles.consentRevokeBtn} onPress={handleRevokeConsent} activeOpacity={0.85}>
+                    <Text style={styles.consentRevokeBtnText}>Revogar consentimento</Text>
+                  </SoundButton>
+                )}
+              </InfoCard>
+            ) : (
+              <InfoCard style={{ marginTop: 8 }}>
+                <Text style={[styles.bodyText, { fontWeight: '700', color: pt.text, marginBottom: 8 }]}>
+                  Consentimento
+                </Text>
+                <Text style={styles.bodyText}>
+                  Quando houver recursos de compartilhamento ou envio externo, o responsável será avisado antes. Por enquanto, tudo funciona só com dados locais neste aparelho.
+                </Text>
+              </InfoCard>
+            )}
+          </AccordionSection>
+
+          {/* ─── 5. GERENCIAR DADOS ───────────────────────────────────────────── */}
+          <AccordionSection
+            title="Gerenciar dados"
+            hint="Limpar progresso ou apagar dados — com confirmação."
+          >
+            <InfoCard style={styles.resetCard}>
+              <Text style={[styles.bodyText, { fontWeight: '700', color: '#C62828', marginBottom: 8 }]}>
+                🗑️ Limpar progresso da criança
+              </Text>
+              {resetStep === 'done' ? (
+                <View style={styles.resetDoneBox}>
+                  <Text style={styles.resetDoneTitle}>✅ Progresso apagado</Text>
+                  <Text style={styles.resetDoneDesc}>
+                    A jornada pode começar de novo. O perfil, os desenhos do Ateliê e as artes salvas foram preservados.
+                  </Text>
+                  <SoundButton style={styles.resetCancelBtn} onPress={() => setResetStep('idle')} activeOpacity={0.85}>
+                    <Text style={styles.resetCancelBtnText}>Fechar</Text>
+                  </SoundButton>
+                </View>
+              ) : resetStep === 'confirm2' ? (
+                <View>
+                  <Text style={styles.resetWarningTitle}>⚠️ Esta ação não pode ser desfeita</Text>
+                  <Text style={styles.bodyText}>
+                    Serão apagados: cenas coloridas, quiz, reflexão, livrinho, conquistas vistas e estrelas bônus.
+                  </Text>
+                  <Text style={[styles.bodyText, { marginTop: 10, fontWeight: '700', color: pt.text }]}>
+                    Digite APAGAR para confirmar:
+                  </Text>
+                  <TextInput
+                    style={styles.resetInput}
+                    value={resetConfirmText}
+                    onChangeText={setResetConfirmText}
+                    placeholder="APAGAR"
+                    placeholderTextColor={pt.muted}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                  />
+                  <View style={styles.resetBtnRow}>
+                    <SoundButton style={styles.resetCancelBtn} onPress={() => { setResetStep('idle'); setResetConfirmText(''); }} activeOpacity={0.85}>
+                      <Text style={styles.resetCancelBtnText}>Cancelar</Text>
                     </SoundButton>
-                    <SoundButton style={styles.churchDeleteBtn} onPress={() => handleDeleteChurchGroup(group.id)} activeOpacity={0.85}>
-                      <Text style={styles.churchDeleteBtnText}>Apagar turma</Text>
+                    <SoundButton
+                      style={[styles.resetConfirmBtn, resetConfirmText.trim() !== 'APAGAR' && styles.resetConfirmBtnDisabled]}
+                      onPress={handleExecuteReset}
+                      disabled={resetConfirmText.trim() !== 'APAGAR' || resetLoading}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.resetConfirmBtnText}>
+                        {resetLoading ? 'Apagando...' : 'Apagar definitivamente'}
+                      </Text>
                     </SoundButton>
                   </View>
-                ))}
-                <SoundButton style={[styles.churchCreateBtn, { marginTop: 8 }]} onPress={() => setShowChurchForm(true)} activeOpacity={0.85}>
-                  <Text style={styles.churchCreateBtnText}>+ Nova turma</Text>
-                </SoundButton>
-              </View>
-            )}
-
-            {showChurchForm && (
-              <View style={styles.churchForm}>
-                <Text style={[styles.bodyText, { fontWeight: '700', marginBottom: 12 }]}>Nova turma</Text>
-                <TextInput
-                  style={styles.churchInput}
-                  placeholder="Nome da turma *"
-                  placeholderTextColor={pt.muted}
-                  value={churchForm.name}
-                  onChangeText={v => setChurchForm(f => ({ ...f, name: v }))}
-                  maxLength={60}
-                />
-                <TextInput
-                  style={styles.churchInput}
-                  placeholder="Nome do líder ou professor"
-                  placeholderTextColor={pt.muted}
-                  value={churchForm.leaderName}
-                  onChangeText={v => setChurchForm(f => ({ ...f, leaderName: v }))}
-                  maxLength={60}
-                />
-                <TextInput
-                  style={styles.churchInput}
-                  placeholder="Faixa ou grupo (ex.: 4 a 6 anos)"
-                  placeholderTextColor={pt.muted}
-                  value={churchForm.ageGroup}
-                  onChangeText={v => setChurchForm(f => ({ ...f, ageGroup: v }))}
-                  maxLength={40}
-                />
-                <TextInput
-                  style={styles.churchInput}
-                  placeholder="História da semana (opcional)"
-                  placeholderTextColor={pt.muted}
-                  value={churchForm.weeklyStory}
-                  onChangeText={v => setChurchForm(f => ({ ...f, weeklyStory: v }))}
-                  maxLength={60}
-                />
-                <View style={styles.resetBtnRow}>
-                  <SoundButton
-                    style={styles.resetCancelBtn}
-                    onPress={() => { setShowChurchForm(false); setChurchForm({ name: '', leaderName: '', ageGroup: '', weeklyStory: '' }); }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.resetCancelBtnText}>Cancelar</Text>
-                  </SoundButton>
-                  <SoundButton
-                    style={[styles.resetNextBtn, churchSaving && { opacity: 0.6 }]}
-                    onPress={handleCreateChurchGroup}
-                    disabled={churchSaving}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.resetNextBtnText}>{churchSaving ? 'Criando...' : 'Criar turma'}</Text>
+                </View>
+              ) : resetStep === 'confirm1' ? (
+                <View>
+                  <Text style={styles.resetWarningTitle}>⚠️ Confirmar reset</Text>
+                  <Text style={styles.bodyText}>
+                    Isso vai apagar todo o progresso da criança neste aparelho. Perfil, nome, desenhos do Ateliê e artes salvas não serão afetados.
+                  </Text>
+                  <View style={styles.resetBtnRow}>
+                    <SoundButton style={styles.resetCancelBtn} onPress={() => setResetStep('idle')} activeOpacity={0.85}>
+                      <Text style={styles.resetCancelBtnText}>Cancelar</Text>
+                    </SoundButton>
+                    <SoundButton style={styles.resetNextBtn} onPress={() => setResetStep('confirm2')} activeOpacity={0.85}>
+                      <Text style={styles.resetNextBtnText}>Continuar →</Text>
+                    </SoundButton>
+                  </View>
+                </View>
+              ) : (
+                <View>
+                  <Text style={styles.bodyText}>
+                    Use esta opção apenas se quiser que a criança recomece a jornada do zero neste aparelho.
+                  </Text>
+                  <SoundButton style={styles.resetStartBtn} onPress={() => setResetStep('confirm1')} activeOpacity={0.85}>
+                    <Text style={styles.resetStartBtnText}>🗑️ Apagar progresso</Text>
                   </SoundButton>
                 </View>
-              </View>
-            )}
-          </InfoCard>
+              )}
 
-          {/* ─── 7. FERRAMENTAS DO CRIADOR (QA) ──────────────────────────────── */}
+              <View style={styles.deleteAllBox}>
+                <Text style={styles.deleteAllTitle}>Apagar todos os dados locais</Text>
+                <Text style={styles.deleteAllDesc}>
+                  Esta opção apagará também o perfil, os desenhos e as configurações. Estará disponível em uma atualização futura, com confirmação adicional de segurança.
+                </Text>
+                <View style={[styles.comingSoonBadge, { alignSelf: 'flex-start' }]}>
+                  <Text style={styles.comingSoonBadgeText}>Em preparação</Text>
+                </View>
+              </View>
+            </InfoCard>
+          </AccordionSection>
+
+          {/* ─── 6. SOBRE E SUPORTE ───────────────────────────────────────────── */}
+          <AccordionSection
+            title="Sobre e suporte"
+            hint="Suporte, feedback, avaliação, privacidade em resumo e versão."
+          >
+            <InfoCard>
+              <Text style={styles.cardHeading}>💬 Suporte e feedback</Text>
+              <Text style={styles.bodyText}>
+                Dúvidas, sugestões ou problemas? Entre em contato pelo email abaixo.
+              </Text>
+              <SoundButton style={styles.supportBtn} onPress={() => openWithGate(`mailto:${SUPPORT_EMAIL}?subject=Suporte%20Beni`)} activeOpacity={0.85}>
+                <Text style={styles.supportBtnText}>✉ {SUPPORT_EMAIL}</Text>
+              </SoundButton>
+              <SoundButton style={[styles.supportBtn, { marginTop: 8 }]} onPress={() => openWithGate(`mailto:${SUPPORT_EMAIL}?subject=Feedback%20Beni`)} activeOpacity={0.85}>
+                <Text style={styles.supportBtnText}>Enviar feedback por email</Text>
+              </SoundButton>
+            </InfoCard>
+
+            <InfoCard style={{ marginTop: 8 }}>
+              <Text style={styles.cardHeading}>⭐ Gostou do app?</Text>
+              <Text style={styles.bodyText}>
+                Quando o app estiver publicado nas lojas, você poderá avaliar e ajudar outras famílias a descobrirem!
+              </Text>
+              {storeUrl ? (
+                <SoundButton style={[styles.supportBtn, { marginTop: 14 }]} onPress={() => Linking.openURL(storeUrl)} activeOpacity={0.85}>
+                  <Text style={styles.supportBtnText}>⭐ Avaliar o app</Text>
+                </SoundButton>
+              ) : (
+                <View style={[styles.comingSoonBadge, { marginTop: 12, alignSelf: 'flex-start' }]}>
+                  <Text style={styles.comingSoonBadgeText}>Em breve, aguardando publicação nas lojas</Text>
+                </View>
+              )}
+            </InfoCard>
+
+            <InfoCard style={{ marginTop: 8 }}>
+              <Text style={styles.cardHeading}>Privacidade em resumo</Text>
+              <Text style={styles.bodyText}>
+                Sem login, sem cadastro e sem coleta de dados pessoais da criança. Tudo fica apenas neste aparelho. Para dúvidas sobre privacidade, fale com a gente:
+              </Text>
+              <Text style={[styles.bodyText, { marginTop: 6 }]}>
+                <Text style={styles.emailInline}>{SUPPORT_EMAIL}</Text>
+              </Text>
+            </InfoCard>
+
+            <Text style={styles.versionText}>{productConfig.versionLabel}</Text>
+          </AccordionSection>
+
+          {/* ─── 7. FERRAMENTAS DO CRIADOR (QA) — discreta ────────────────────── */}
           {SHOW_TEST_TOOLS && (
-            <>
-              <SectionTitle>🛠️ Ferramentas do Criador</SectionTitle>
+            <AccordionSection
+              title="🛠️ Ferramentas do Criador"
+              hint="Apenas para desenvolvimento e testes neste aparelho."
+            >
               <InfoCard style={styles.qaCard}>
                 <View style={styles.qaRow}>
                   <View style={styles.qaText}>
@@ -875,7 +852,7 @@ export default function ParentAreaScreen({ navigation }) {
                 </Text>
               </InfoCard>
 
-              <InfoCard style={styles.qaCard}>
+              <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
                 {beniResetDone ? (
                   <View>
                     <Text style={styles.qaTitle}>✅ Pronto!</Text>
@@ -899,55 +876,145 @@ export default function ParentAreaScreen({ navigation }) {
                 )}
               </InfoCard>
 
-              <InfoCard style={styles.qaCard}>
+              <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
                 <Text style={styles.qaTitle}>Build info</Text>
                 <Text style={styles.qaDesc}>{productConfig.versionLabel}</Text>
                 <Text style={[styles.qaDesc, { marginTop: 4 }]}>Modo QA ativo neste aparelho.</Text>
               </InfoCard>
-            </>
+            </AccordionSection>
           )}
 
-          {/* ─── Suporte, avaliação e versão ─────────────────────────────────── */}
-          <SectionTitle>💬 Suporte e feedback</SectionTitle>
-          <InfoCard>
-            <Text style={styles.bodyText}>
-              Dúvidas, sugestões ou problemas? Entre em contato pelo email abaixo.
-            </Text>
-            <SoundButton style={styles.supportBtn} onPress={() => openWithGate(`mailto:${SUPPORT_EMAIL}?subject=Suporte%20Beni`)} activeOpacity={0.85}>
-              <Text style={styles.supportBtnText}>✉ {SUPPORT_EMAIL}</Text>
-            </SoundButton>
-            <SoundButton style={[styles.supportBtn, { marginTop: 8 }]} onPress={() => openWithGate(`mailto:${SUPPORT_EMAIL}?subject=Feedback%20Beni`)} activeOpacity={0.85}>
-              <Text style={styles.supportBtnText}>Enviar feedback por email</Text>
-            </SoundButton>
-          </InfoCard>
+          {/* ─── 8. MODO IGREJA — discreta, fechada, no fim ───────────────────── */}
+          <AccordionSection
+            title="⛪ Modo Igreja"
+            hint="Recurso em preparação para turmas, professores e encontros infantis."
+          >
+            <InfoCard>
+              <Text style={[styles.bodyText, { marginBottom: 12 }]}>
+                Recurso em preparação para turmas, professores e encontros infantis. Use para organizar uma turma local, acompanhar uma história da semana e orientar as famílias em casa. Tudo fica salvo apenas neste aparelho — sem internet obrigatória, sem login.
+              </Text>
 
-          <SectionTitle>⭐ Gostou do app?</SectionTitle>
-          <InfoCard>
-            <Text style={styles.bodyText}>
-              Quando o app estiver publicado nas lojas, você poderá avaliar e ajudar outras famílias a descobrirem!
-            </Text>
-            {storeUrl ? (
-              <SoundButton style={[styles.supportBtn, { marginTop: 14 }]} onPress={() => Linking.openURL(storeUrl)} activeOpacity={0.85}>
-                <Text style={styles.supportBtnText}>⭐ Avaliar o app</Text>
-              </SoundButton>
-            ) : (
-              <View style={[styles.comingSoonBadge, { marginTop: 12, alignSelf: 'flex-start' }]}>
-                <Text style={styles.comingSoonBadgeText}>Em breve, aguardando publicação nas lojas</Text>
+              {/* Como funciona — 3 passos */}
+              <View style={styles.churchStepsBox}>
+                {[
+                  { n: '1', t: 'Crie uma turma local' },
+                  { n: '2', t: 'Escolha a História da Semana' },
+                  { n: '3', t: 'Compartilhe uma orientação com as famílias' },
+                ].map(step => (
+                  <View key={step.n} style={styles.churchStepRow}>
+                    <View style={styles.churchStepNum}><Text style={styles.churchStepNumText}>{step.n}</Text></View>
+                    <Text style={styles.churchStepText}>{step.t}</Text>
+                  </View>
+                ))}
               </View>
-            )}
-          </InfoCard>
 
-          <InfoCard style={{ marginTop: 8 }}>
-            <Text style={styles.cardHeading}>Privacidade em resumo</Text>
-            <Text style={styles.bodyText}>
-              Sem login, sem cadastro e sem coleta de dados pessoais da criança. Tudo fica apenas neste aparelho. Para dúvidas sobre privacidade, fale com a gente:
-            </Text>
-            <Text style={[styles.bodyText, { marginTop: 6 }]}>
-              <Text style={styles.emailInline}>{SUPPORT_EMAIL}</Text>
-            </Text>
-          </InfoCard>
+              <BeniSpeechCard context="churchMode" variant="adult" style={{ marginBottom: 12 }} />
 
-          <Text style={styles.versionText}>{productConfig.versionLabel}</Text>
+              {churchGroups.length === 0 && !showChurchForm && (
+                <View style={styles.churchEmptyBox}>
+                  <Text style={styles.churchEmptyText}>
+                    Você ainda não tem turmas. Crie a primeira para começar a acompanhar uma história da semana com o grupo.
+                  </Text>
+                  <SoundButton style={styles.churchCreateBtn} onPress={() => setShowChurchForm(true)} activeOpacity={0.85}>
+                    <Text style={styles.churchCreateBtnText}>+ Criar turma</Text>
+                  </SoundButton>
+                </View>
+              )}
+
+              {churchGroups.length > 0 && !showChurchForm && (
+                <View style={styles.churchGroupsList}>
+                  {churchGroups.map(group => (
+                    <View key={group.id} style={styles.churchGroupCard}>
+                      <Text style={styles.churchGroupName}>{group.name || 'Turma sem nome'}</Text>
+                      {group.churchName ? (
+                        <Text style={styles.churchGroupChurch}>{group.churchName}</Text>
+                      ) : null}
+                      {group.leaderName ? (
+                        <Text style={styles.churchGroupLeader}>Líder: {group.leaderName}</Text>
+                      ) : null}
+                      {group.ageGroup ? (
+                        <Text style={styles.churchGroupLeader}>Faixa/grupo: {group.ageGroup}</Text>
+                      ) : null}
+                      <Text style={styles.churchGroupWeekly}>
+                        História da semana: {group.weeklyStory?.trim() || 'a definir'}
+                      </Text>
+                      <View style={styles.churchInviteRow}>
+                        <Text style={styles.churchInviteLabel}>Código da turma:</Text>
+                        <Text style={styles.churchInviteCode}>{group.inviteCode}</Text>
+                      </View>
+                      <Text style={styles.churchProgressNote}>
+                        Progresso local da turma: começa zerado e cresce conforme as crianças avançam.
+                      </Text>
+                      <SoundButton style={styles.churchShareBtn} onPress={() => handleShareChurchGuidance(group)} activeOpacity={0.85}>
+                        <Text style={styles.churchShareBtnText}>Compartilhar orientação</Text>
+                      </SoundButton>
+                      <SoundButton style={styles.churchDeleteBtn} onPress={() => handleDeleteChurchGroup(group.id)} activeOpacity={0.85}>
+                        <Text style={styles.churchDeleteBtnText}>Apagar turma</Text>
+                      </SoundButton>
+                    </View>
+                  ))}
+                  <SoundButton style={[styles.churchCreateBtn, { marginTop: 8 }]} onPress={() => setShowChurchForm(true)} activeOpacity={0.85}>
+                    <Text style={styles.churchCreateBtnText}>+ Nova turma</Text>
+                  </SoundButton>
+                </View>
+              )}
+
+              {showChurchForm && (
+                <View style={styles.churchForm}>
+                  <Text style={[styles.bodyText, { fontWeight: '700', marginBottom: 12 }]}>Nova turma</Text>
+                  <TextInput
+                    style={styles.churchInput}
+                    placeholder="Nome da turma *"
+                    placeholderTextColor={pt.muted}
+                    value={churchForm.name}
+                    onChangeText={v => setChurchForm(f => ({ ...f, name: v }))}
+                    maxLength={60}
+                  />
+                  <TextInput
+                    style={styles.churchInput}
+                    placeholder="Nome do líder ou professor"
+                    placeholderTextColor={pt.muted}
+                    value={churchForm.leaderName}
+                    onChangeText={v => setChurchForm(f => ({ ...f, leaderName: v }))}
+                    maxLength={60}
+                  />
+                  <TextInput
+                    style={styles.churchInput}
+                    placeholder="Faixa ou grupo (ex.: 4 a 6 anos)"
+                    placeholderTextColor={pt.muted}
+                    value={churchForm.ageGroup}
+                    onChangeText={v => setChurchForm(f => ({ ...f, ageGroup: v }))}
+                    maxLength={40}
+                  />
+                  <TextInput
+                    style={styles.churchInput}
+                    placeholder="História da semana (opcional)"
+                    placeholderTextColor={pt.muted}
+                    value={churchForm.weeklyStory}
+                    onChangeText={v => setChurchForm(f => ({ ...f, weeklyStory: v }))}
+                    maxLength={60}
+                  />
+                  <View style={styles.resetBtnRow}>
+                    <SoundButton
+                      style={styles.resetCancelBtn}
+                      onPress={() => { setShowChurchForm(false); setChurchForm({ name: '', leaderName: '', ageGroup: '', weeklyStory: '' }); }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.resetCancelBtnText}>Cancelar</Text>
+                    </SoundButton>
+                    <SoundButton
+                      style={[styles.resetNextBtn, churchSaving && { opacity: 0.6 }]}
+                      onPress={handleCreateChurchGroup}
+                      disabled={churchSaving}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.resetNextBtnText}>{churchSaving ? 'Criando...' : 'Criar turma'}</Text>
+                    </SoundButton>
+                  </View>
+                </View>
+              )}
+            </InfoCard>
+          </AccordionSection>
 
         </View>
       </ScrollView>
@@ -971,6 +1038,23 @@ const styles = StyleSheet.create({
   },
   welcomeTitle: { fontFamily: 'FredokaOne', fontSize: 18, color: pt.text, marginBottom: 4 },
   welcomeSub: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, lineHeight: 19 },
+
+  // Seções recolhíveis (accordion)
+  accordion: {
+    marginTop: 12, backgroundColor: '#FFF', borderRadius: radii.lg,
+    borderWidth: 1, borderColor: pt.border, overflow: 'hidden',
+  },
+  accordionHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  accordionTitle: { flex: 1, fontFamily: 'FredokaOne', fontSize: 16, color: pt.text },
+  accordionChevron: { fontFamily: 'Nunito', fontSize: 14, color: pt.textSoft, marginLeft: 10 },
+  accordionHint: {
+    fontFamily: 'Nunito', fontSize: 12.5, color: pt.textSoft,
+    paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 18,
+  },
+  accordionBody: { paddingHorizontal: 12, paddingBottom: 12, gap: 0 },
 
   cardHeading: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 8 },
   detailsLink: { alignSelf: 'flex-start', marginTop: 12, paddingVertical: 4 },
