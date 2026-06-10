@@ -1,26 +1,37 @@
 /**
  * SafeImage — <Image> com estados seguros de carregamento, erro e fallback.
  *
- * Garante que nenhuma superfície crítica mostre um retângulo vazio quando a
- * imagem está carregando, falha ou não existe. NÃO é redesign — é blindagem
- * visual. Aceita `source` como require local (number) ou { uri }.
+ * Princípio: a IMAGEM fica SEMPRE por cima; loading e fallback são camadas
+ * ATRÁS. Assim, quando a imagem carrega, ela cobre tudo e o SafeImage é
+ * visualmente transparente — preserva exatamente o visual do <Image> anterior
+ * (mesmo source, mesmo resizeMode, mesmas dimensões do contêiner). O fallback
+ * só aparece em erro real de carregamento (ou quando não há source); o loading
+ * nunca fica por cima depois que a imagem aparece.
  *
- * Props:
- *   source            — require/objeto/{uri}/null
- *   style             — estilo do CONTÊINER (define tamanho/proporção)
- *   resizeMode        — 'cover' (padrão) | 'contain' | ...
- *   fallbackIcon      — emoji/ícone do fallback (padrão '🖼️')
- *   fallbackLabel     — texto curto opcional no fallback
- *   fallbackColors    — [c1, c2] gradiente do fallback (padrão creme suave)
- *   loadingLabel      — texto opcional no estado de carregamento
- *   onStatusChange    — (status) => void  ('loading'|'loaded'|'error'|'empty')
+ * Não força aspectRatio, não sobrescreve borderRadius/dimensões e não impõe cor
+ * de fundo (o contêiner do chamador continua mandando).
+ *
+ * `source`: require local (number) ou { uri }.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Image, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors as pt } from '../../theme/productTheme';
 
 const DEFAULT_FALLBACK = ['#F3EEE6', '#E7DECF'];
+
+function isUsableSource(source) {
+  if (source == null) return false;
+  if (typeof source === 'number') return true; // require() do Metro
+  if (typeof source === 'object') return !!source.uri || Object.keys(source).length > 0;
+  return false;
+}
+function sourceKey(source) {
+  if (source == null) return null;
+  if (typeof source === 'number') return source;
+  if (typeof source === 'object') return source.uri ?? JSON.stringify(source);
+  return null;
+}
 
 export default function SafeImage({
   source,
@@ -34,19 +45,47 @@ export default function SafeImage({
   imageProps,
   renderFallback,
 }) {
-  const hasSource = source != null && (typeof source === 'number' || (typeof source === 'object' && (source.uri || Object.keys(source).length > 0)));
+  const hasSource = isUsableSource(source);
+  const key = sourceKey(source);
   const [status, setStatus] = useState(hasSource ? 'loading' : 'empty');
+
+  // Reinicia o estado quando o source muda (evita ficar preso em erro/loading
+  // ao reaproveitar o componente para outra história/imagem).
+  useEffect(() => {
+    setStatus(hasSource ? 'loading' : 'empty');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 
   function update(next) {
     setStatus(next);
     if (onStatusChange) onStatusChange(next);
   }
 
-  const showFallback = !hasSource || status === 'error';
-  const showLoading = hasSource && status === 'loading';
+  // Fallback SÓ em erro real ou ausência de source (nunca preventivo).
+  const showFallback = status === 'empty' || status === 'error';
+  const showLoading = status === 'loading';
 
   return (
     <View style={[styles.wrap, style]}>
+      {/* ── Camadas ATRÁS da imagem ── */}
+      {showFallback && (
+        renderFallback ? (
+          renderFallback()
+        ) : (
+          <LinearGradient colors={fallbackColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fill}>
+            <Text style={styles.icon}>{fallbackIcon}</Text>
+            {fallbackLabel ? <Text style={styles.label} numberOfLines={2}>{fallbackLabel}</Text> : null}
+          </LinearGradient>
+        )
+      )}
+      {showLoading && (
+        <View style={[styles.fill, styles.loading]} pointerEvents="none">
+          <ActivityIndicator size="small" color={pt.muted} />
+          {loadingLabel ? <Text style={styles.loadingLabel}>{loadingLabel}</Text> : null}
+        </View>
+      )}
+
+      {/* ── Imagem POR CIMA — mesmo visual de antes (cover/contain) ── */}
       {hasSource && (
         <Image
           source={source}
@@ -57,30 +96,13 @@ export default function SafeImage({
           {...(imageProps || {})}
         />
       )}
-
-      {showFallback && (
-        renderFallback ? (
-          <View style={styles.fill}>{renderFallback()}</View>
-        ) : (
-          <LinearGradient colors={fallbackColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fill}>
-            <Text style={styles.icon}>{fallbackIcon}</Text>
-            {fallbackLabel ? <Text style={styles.label} numberOfLines={2}>{fallbackLabel}</Text> : null}
-          </LinearGradient>
-        )
-      )}
-
-      {showLoading && (
-        <View style={[styles.fill, styles.loading]} pointerEvents="none">
-          <ActivityIndicator size="small" color={pt.muted} />
-          {loadingLabel ? <Text style={styles.loadingLabel}>{loadingLabel}</Text> : null}
-        </View>
-      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { overflow: 'hidden', backgroundColor: '#F3EEE6', position: 'relative' },
+  // Sem cor de fundo imposta: o contêiner do chamador continua mandando.
+  wrap: { overflow: 'hidden', position: 'relative' },
   fill: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 },
   icon: { fontSize: 34, opacity: 0.55 },
   label: { fontFamily: 'FredokaOne', fontSize: 12, color: 'rgba(58,42,30,0.6)', textAlign: 'center', marginTop: 4 },

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { images } from '../../assets/images';
@@ -54,6 +54,9 @@ export default function StoryCoverImage({
     imgSource = images[story.imagemCapa];
   }
   const showImage = !!imgSource && !errored;
+
+  // Reseta o estado de erro quando a capa muda (instância reaproveitada).
+  useEffect(() => { setErrored(false); }, [source, story?.imagemCapa]);
 
   // Foco da capa — resolvido pelo id (no-op em 16:9, útil em recortes futuros).
   const meta = story?.id ? getStoryCoverMeta(story.id) : { focusX: 0.5, focusY: 0.5 };
