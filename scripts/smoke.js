@@ -6787,14 +6787,15 @@ check(
   'BeniChestCard não normaliza imagem / não tem fallback de categoria',
 );
 check(
-  'BeniChestCard usa SafeImage com fallback de categoria (desbloqueada nunca vazia)',
-  chestCard2.includes('SafeImage') &&
-  /renderFallback=\{\(\) => <CategoryFallback/.test(chestCard2),
-  'BeniChestCard não usa SafeImage com CategoryFallback',
+  'BeniChestCard usa <Image> + CategoryFallback de categoria (desbloqueada nunca vazia)',
+  chestCard2.includes('CategoryFallback') &&
+  /Image source=\{source\}/.test(chestCard2) &&
+  !chestCard2.includes('SafeImage'),
+  'BeniChestCard não usa Image + CategoryFallback (rollback de capa)',
 );
 check(
-  'BeniChestCard: artes usam resizeMode contain (via SafeImage)',
-  /resizeMode=\{isArt \? 'contain' : 'cover'\}/.test(chestCard2),
+  'BeniChestCard: artes usam resizeMode contain',
+  /isArt && source/.test(chestCard2) && chestCard2.includes('resizeMode="contain"'),
   'BeniChestCard não usa contain nas artes',
 );
 check(
@@ -7128,26 +7129,26 @@ check(
   'SafeImage sem estados de carregamento/erro/fallback',
 );
 check(
-  'SafeImage aplicado nas superfícies críticas (StoryCard/Baú/Galeria/Home/Livrinho)',
-  readSrc('src/components/StoryCard.js').includes('SafeImage') &&
-  readSrc('src/components/beni/BeniChestCard.js').includes('SafeImage') &&
+  'SafeImage mantido onde não alterou o visual (Galeria); existe e segue robusto',
   readSrc('src/screens/AtelierGalleryScreen.js').includes('SafeImage') &&
-  readSrc('src/screens/HomeScreen.js').includes('SafeImage') &&
-  readSrc('src/screens/StoryBookScreen.js').includes('SafeImage'),
-  'SafeImage não foi aplicado em todas as superfícies críticas',
+  safeImgSrc.includes('SafeImage'),
+  'SafeImage não está mais na Galeria',
 );
 check(
-  'StoryCoverImage cai em fallback temático no erro (card não fica vazio)',
-  readSrc('src/components/story/StoryCoverImage.js').includes('onError') &&
-  readSrc('src/components/story/StoryCoverImage.js').includes('errored'),
-  'StoryCoverImage não trata erro de imagem',
+  'ROLLBACK: capas de história usam <Image> original (SafeImage removido dos cards)',
+  readSrc('src/components/StoryCard.js').includes('<Image source={coverImg}') &&
+  !readSrc('src/components/StoryCard.js').includes('SafeImage') &&
+  !readSrc('src/components/beni/BeniChestCard.js').includes('SafeImage') &&
+  !readSrc('src/components/story/StoryCoverImage.js').includes('SafeImage') &&
+  !readSrc('src/screens/StoryBookScreen.js').includes('SafeImage'),
+  'Capas de história ainda usam SafeImage — rollback incompleto',
 );
 check(
-  'SafeImage tem modo fill (absoluteFill) p/ contêineres aspectRatio; capas usam fill',
-  safeImgSrc.includes('wrapFill') && safeImgSrc.includes('absoluteFillObject') &&
-  /<SafeImage[\s\S]{0,80}\bfill\b/.test(readSrc('src/components/StoryCard.js')) &&
-  /<SafeImage[\s\S]{0,120}\bfill\b/.test(readSrc('src/screens/HomeScreen.js')),
-  'SafeImage/capas não usam o modo fill — risco de height:100% colapsar em pai aspectRatio',
+  'Home/Aventuras: capa de história volta ao caminho original (Image + images[imagemCapa])',
+  readSrc('src/screens/HomeScreen.js').includes('source={images[story.imagemCapa]}') &&
+  !readSrc('src/screens/HomeScreen.js').includes('SafeImage') &&
+  readSrc('src/components/StoryCard.js').includes('resizeMode="cover"'),
+  'Capa de Home/Aventuras não voltou ao <Image> original',
 );
 
 // Tarefa 3 — lineart sempre presente + guarda de salvar

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView,
+  View, Text, ScrollView, Image,
   Animated, StyleSheet, TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,7 +10,6 @@ import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { stories } from '../data/stories';
 import { images } from '../assets/images';
 import SoundButton from '../components/SoundButton';
-import SafeImage from '../components/ui/SafeImage';
 import CenteredContent from '../components/layout/CenteredContent';
 import { BeniAvatar } from '../components/beni';
 import { useFocusEffect } from '@react-navigation/native';
@@ -309,20 +308,24 @@ function MissaoDeHoje({
       {/* Uma única fala do Beni, ligada à missão */}
       <Text style={styles.missionBeniLine}>{beniLine}</Text>
 
-      {/* Capa grande — a história em destaque (com loading/erro/fallback) */}
-      <View style={styles.missionCover}>
-        <SafeImage
-          source={hasThumb ? images[story.imagemCapa] : null}
-          fill
-          resizeMode="cover"
-          fallbackIcon={story?.emoji ?? '⛵'}
-          fallbackColors={['#F0E8FF', '#E0D4FF']}
-        />
-        <LinearGradient
-          colors={['transparent', 'rgba(20,12,4,0.55)']}
-          style={styles.missionCoverShade}
-        />
-      </View>
+      {/* Capa grande — a história em destaque */}
+      {hasThumb ? (
+        <View style={styles.missionCover}>
+          <Image
+            source={images[story.imagemCapa]}
+            style={styles.missionCoverImg}
+            resizeMode="cover"
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(20,12,4,0.55)']}
+            style={styles.missionCoverShade}
+          />
+        </View>
+      ) : (
+        <View style={[styles.missionCover, styles.missionCoverFallback]}>
+          <Text style={styles.missionCoverEmoji}>{story?.emoji ?? '⛵'}</Text>
+        </View>
+      )}
 
       <Text style={styles.missionTitle} numberOfLines={2}>
         {story?.titulo ?? primaryAction.title}

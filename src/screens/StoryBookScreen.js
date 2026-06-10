@@ -9,7 +9,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
 import { colors as pt, radii } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
-import SafeImage from '../components/ui/SafeImage';
 import AudioPlayer from '../components/AudioPlayer';
 import LockedStoryFallback from '../components/premium/LockedStoryFallback';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
@@ -544,13 +543,13 @@ export default function StoryBookScreen({ route, navigation }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.introCoverCard}>
-            <SafeImage
-              source={hasCover ? images[story.imagemCapa] : null}
-              fill
-              resizeMode="contain"
-              fallbackIcon={story.emoji ?? '📖'}
-              fallbackColors={['#EFE7DC', '#E8E0D8']}
-            />
+            {hasCover ? (
+              <Image source={images[story.imagemCapa]} style={styles.introCoverImage} resizeMode="contain" />
+            ) : (
+              <View style={styles.introCoverFallback}>
+                <Text style={styles.introCoverEmoji}>{story.emoji ?? '📖'}</Text>
+              </View>
+            )}
           </View>
 
           <Text style={styles.introCoverTitle}>{story.titulo}</Text>

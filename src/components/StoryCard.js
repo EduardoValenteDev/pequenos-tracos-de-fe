@@ -1,9 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import SoundButton from './SoundButton';
 import StatusBadge from './ui/StatusBadge';
 import StoryFallbackCover from './story/StoryFallbackCover';
-import SafeImage from './ui/SafeImage';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { images } from '../assets/images';
 
@@ -38,19 +37,16 @@ export default function StoryCard({ story, onPress, locked = false, progressCoun
     >
       {/* Capa 16:9 LIMPA no topo — sem texto, sem gradiente, sem overlay pesado */}
       <View style={[styles.cover, { backgroundColor: themeColor + '18' }]}>
-        <SafeImage
-          source={coverImg}
-          fill
-          resizeMode="cover"
-          renderFallback={() => (
-            <StoryFallbackCover
-              title={story.titulo}
-              themeColor={themeColor}
-              icon={story.emoji ?? '📖'}
-              style={styles.fallbackCover}
-            />
-          )}
-        />
+        {coverImg ? (
+          <Image source={coverImg} style={styles.coverImage} resizeMode="cover" />
+        ) : (
+          <StoryFallbackCover
+            title={story.titulo}
+            themeColor={themeColor}
+            icon={story.emoji ?? '📖'}
+            style={styles.fallbackCover}
+          />
+        )}
 
         {/* Overlay muito leve só em bloqueio — mantém a capa visível e desejável */}
         {locked && <View style={styles.lockedTint} pointerEvents="none" />}

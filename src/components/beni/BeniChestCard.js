@@ -11,11 +11,10 @@
  * de categoria quando os assets existirem (baú fechado/aberto, verso, molduras).
  */
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from '../SoundButton';
 import BeniAvatar from './BeniAvatar';
-import SafeImage from '../ui/SafeImage';
 import { colors as pt, radii, shadows } from '../../theme/productTheme';
 import { resolveCardImageSource, CARD_FALLBACK } from '../../services/beniChestService';
 
@@ -43,23 +42,30 @@ function CardArt({ card }) {
   }
 
   const source = resolveCardImageSource(card);
-  if (!source) {
-    // Sem imagem: fallback de categoria (bonito, com rótulo) — nunca vazio.
-    return <CategoryFallback card={card} />;
+  const isArt = card.category === 'artes';
+
+  // Arte: enquadramento "contain" sobre fundo creme (evita corte ruim).
+  if (isArt && source) {
+    return (
+      <View style={[styles.artFill, styles.artCanvasBg]}>
+        <Image source={source} style={styles.artImg} resizeMode="contain" />
+      </View>
+    );
   }
 
-  const isArt = card.category === 'artes';
-  // SafeImage: loading/erro/fallback. Em erro/ausência, mostra o fallback de
-  // categoria (nunca corpo vazio). Arte usa "contain" sobre fundo creme.
-  return (
-    <SafeImage
-      source={source}
-      fill
-      style={isArt ? styles.artCanvasBg : null}
-      resizeMode={isArt ? 'contain' : 'cover'}
-      renderFallback={() => <CategoryFallback card={card} />}
-    />
-  );
+  // Com imagem: fallback de categoria ATRÁS + imagem por cima (nunca fica vazio
+  // se a imagem falhar/demorar/for transparente).
+  if (source) {
+    return (
+      <View style={styles.artFill}>
+        <CategoryFallback card={card} />
+        <Image source={source} style={styles.artImgAbsolute} resizeMode="cover" />
+      </View>
+    );
+  }
+
+  // Sem imagem: fallback de categoria (bonito, com rótulo) — nunca vazio.
+  return <CategoryFallback card={card} />;
 }
 
 export default function BeniChestCard({ card, isNew = false, onPress, style }) {
