@@ -7558,6 +7558,58 @@ check(
   'CultinhoEmCasaScreen: finalização/registro do cultinho alterada indevidamente',
 );
 
+// ── Sprint Reestruturação UX 1.0 — Bloco 4C: Guardar no coração simples ──────
+console.log('\n── Sprint UX 1.0 — Bloco 4C ──');
+
+const ux4cData = readSrc('src/data/lumiReflections.js');
+const ux4cScreen = readSrc('src/screens/ReflectionScreen.js');
+
+const hfBody = (ux4cData.match(/export const HEART_FEELINGS = \[([\s\S]*?)\];/) || [])[1] || '';
+const hkBody = (ux4cData.match(/export const HEART_KEEPS = \[([\s\S]*?)\];/) || [])[1] || '';
+const hfCount = (hfBody.match(/label:/g) || []).length;
+const hkCount = (hkBody.match(/'[^']+'/g) || []).length;
+
+check(
+  'Bloco 4C: lumiReflections expõe HEART_FEELINGS (4) e HEART_KEEPS (4)',
+  hfCount === 4 && hkCount === 4 &&
+  hkBody.includes('Deus cuida de mim') && hkBody.includes('Quero fazer o bem'),
+  `Listas enxutas do coração incorretas (feelings=${hfCount}, keeps=${hkCount})`,
+);
+
+check(
+  'Bloco 4C: Reflection usa as listas enxutas e o fluxo de 2 perguntas + feedback (não quiz)',
+  ux4cScreen.includes('HEART_FEELINGS') && ux4cScreen.includes('HEART_KEEPS') &&
+  ux4cScreen.includes("const STEPS = ['feeling', 'keep', 'done']") &&
+  !ux4cScreen.includes('LUMI_LEARNED') && !ux4cScreen.includes('LUMI_PRAYERS') &&
+  !ux4cScreen.includes('LEARNING_VERSES') && !ux4cScreen.includes('Repita com Beni'),
+  'ReflectionScreen ainda usa o fluxo longo/versículo (parece quiz)',
+);
+
+check(
+  'Bloco 4C: perguntas certas + propósito de lembrança (não é prova)',
+  ux4cScreen.includes('Como seu coração ficou com essa história?') &&
+  ux4cScreen.includes('O que você quer guardar no coração?') &&
+  ux4cScreen.includes('Escolha uma lembrança para guardar com Beni.') &&
+  ux4cScreen.includes('não uma prova'),
+  'ReflectionScreen sem as perguntas/propósito esperados do Bloco 4C',
+);
+
+check(
+  'Bloco 4C: feedback curto do Beni + botão "Guardar no coração"',
+  ux4cScreen.includes('Que lindo! Beni guardou esse momento com carinho.') &&
+  ux4cScreen.includes('Guardar no coração') &&
+  ux4cScreen.includes('handleGuardar'),
+  'ReflectionScreen sem feedback final/botão "Guardar no coração"',
+);
+
+check(
+  'Bloco 4C: recompensa/progresso preservados e volta para a conclusão (goBack)',
+  ux4cScreen.includes('saveReflection') && ux4cScreen.includes('addBonusStars') &&
+  ux4cScreen.includes('alreadyDone') && ux4cScreen.includes('refreshProgress') &&
+  /handleGuardar[\s\S]*?navigation\.goBack\(\)/.test(ux4cScreen),
+  'ReflectionScreen quebrou a recompensa/registro ou o retorno à conclusão',
+);
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 const total = passes + failures;
 console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

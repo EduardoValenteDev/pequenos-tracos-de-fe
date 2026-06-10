@@ -9,6 +9,23 @@ export const LUMI_FEELINGS = [
   { emoji: '😢', label: 'Tristinho' },
 ];
 
+// ── Guardar no coração (UX 1.0 — Bloco 4C) ──────────────────────────────────
+// Listas ENXUTAS usadas no fluxo simples (máx. 4 cada). As listas longas acima
+// ficam para rotação futura, mas NÃO aparecem mais no fluxo principal.
+export const HEART_FEELINGS = [
+  { emoji: '😊', label: 'Feliz' },
+  { emoji: '😌', label: 'Calmo' },
+  { emoji: '🦁', label: 'Corajoso' },
+  { emoji: '💛', label: 'Amado' },
+];
+
+export const HEART_KEEPS = [
+  'Deus cuida de mim',
+  'Posso confiar em Deus',
+  'Deus me ama',
+  'Quero fazer o bem',
+];
+
 export const LUMI_LEARNED = [
   'Deus cuida de mim',
   'Jesus me ama',

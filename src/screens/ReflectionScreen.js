@@ -8,9 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
-import {
-  LUMI_FEELINGS, LUMI_LEARNED, LUMI_PRAYERS, LEARNING_VERSES,
-} from '../data/lumiReflections';
+import { HEART_FEELINGS, HEART_KEEPS } from '../data/lumiReflections';
 import { getReflection, saveReflection, addBonusStars } from '../services/postStoryStorage';
 import { canOpenLumi } from '../services/accessControl';
 import { useProgressContext } from '../context/ProgressContext';
@@ -18,7 +16,8 @@ import PremiumLockCard from '../components/premium/PremiumLockCard';
 import BeniAvatar from '../components/beni/BeniAvatar';
 
 const STAR_BONUS = 1;
-const STEPS = ['feeling', 'learned', 'prayer', 'response'];
+// Bloco 4C: reflexão curta — 2 perguntas + feedback (não é quiz).
+const STEPS = ['feeling', 'keep', 'done'];
 
 function ChoiceGrid({ options, selected, onSelect, withEmoji }) {
   return (
@@ -57,8 +56,7 @@ export default function ReflectionScreen({ route, navigation }) {
 
   const [step, setStep] = useState(0);
   const [feelingIdx, setFeelingIdx] = useState(null);
-  const [learnedIdx, setLearnedIdx] = useState(null);
-  const [prayerIdx, setPrayerIdx] = useState(null);
+  const [keepIdx, setKeepIdx] = useState(null);
 
   if (!canOpenLumi(story)) {
     return (
@@ -78,46 +76,37 @@ export default function ReflectionScreen({ route, navigation }) {
 
   const stepKey = STEPS[step];
 
-  const feelingLabel = feelingIdx !== null ? LUMI_FEELINGS[feelingIdx].label.toLowerCase() : '';
-  const learnedLabel = learnedIdx !== null ? LUMI_LEARNED[learnedIdx] : '';
-  const verse = learnedLabel ? (LEARNING_VERSES[learnedLabel] ?? {
-    text: 'O Senhor é bom para todos.',
-    ref: 'Salmos 145:9',
-  }) : null;
+  const keepLabel = keepIdx !== null ? HEART_KEEPS[keepIdx] : '';
 
-  async function handleNext() {
-    if (stepKey === 'response') {
-      const reflection = {
-        feelingIdx, learnedIdx, prayerIdx,
-        feeling: LUMI_FEELINGS[feelingIdx]?.label,
-        learned: LUMI_LEARNED[learnedIdx],
-        prayer: LUMI_PRAYERS[prayerIdx],
-        completedAt: Date.now(),
-      };
-      const alreadyDone = !!(await getReflection(story.id));
-      await saveReflection(story.id, reflection);
-      if (!alreadyDone) {
-        await addBonusStars(STAR_BONUS);
-      }
-      refreshProgress();
-      navigation.goBack();
-      return;
+  async function handleGuardar() {
+    const reflection = {
+      feeling: HEART_FEELINGS[feelingIdx]?.label ?? null,
+      keep: HEART_KEEPS[keepIdx] ?? null,
+      completedAt: Date.now(),
+    };
+    // Preserva recompensa/progresso existentes: +1 estrela só na 1ª vez.
+    const alreadyDone = !!(await getReflection(story.id));
+    await saveReflection(story.id, reflection);
+    if (!alreadyDone) {
+      await addBonusStars(STAR_BONUS);
     }
-    setStep(step + 1);
+    refreshProgress();
+    navigation.goBack(); // volta para a conclusão (quem empurrou a tela)
+  }
+
+  function handleNext() {
+    if (stepKey === 'feeling' && feelingIdx !== null) setStep(1);
+    else if (stepKey === 'keep' && keepIdx !== null) setStep(2);
   }
 
   const canAdvance =
     (stepKey === 'feeling' && feelingIdx !== null) ||
-    (stepKey === 'learned' && learnedIdx !== null) ||
-    (stepKey === 'prayer' && prayerIdx !== null) ||
-    stepKey === 'response';
-
-  const progressPct = ((step + 1) / STEPS.length) * 100;
+    (stepKey === 'keep' && keepIdx !== null);
 
   return (
     <View style={styles.wrapper}>
       <SafeScreenHeader
-        title={story.titulo}
+        title="Guardar no coração"
         onBack={() => navigation.goBack()}
         showHome
         onHome={() => navigation.navigate('Home')}
@@ -136,22 +125,21 @@ export default function ReflectionScreen({ route, navigation }) {
           <View style={styles.headerContent}>
             <BeniAvatar variant="thinking" size="medium" style={styles.headerBeni} />
             <Text style={styles.headerTitle}>Guardar no coração</Text>
-            <Text style={styles.headerStory} numberOfLines={1}>{story.titulo}</Text>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
-            </View>
+            <Text style={styles.headerStory} numberOfLines={1}>
+              Uma lembrança do coração, não uma prova. 💜
+            </Text>
           </View>
         </LinearGradient>
 
         <View style={[styles.body, isTablet && styles.bodyTablet]}>
 
-          {/* ── Feeling ── */}
+          {/* ── Tela 1: como o coração ficou ── */}
           {stepKey === 'feeling' && (
             <>
-              <Text style={styles.lumiSays}>✨ Beni pergunta:</Text>
-              <Text style={styles.stepQuestion}>Como você se sentiu com essa história?</Text>
+              <Text style={styles.stepQuestion}>Como seu coração ficou com essa história?</Text>
+              <Text style={styles.stepHint}>Escolha uma lembrança para guardar com Beni.</Text>
               <ChoiceGrid
-                options={LUMI_FEELINGS}
+                options={HEART_FEELINGS}
                 selected={feelingIdx}
                 onSelect={setFeelingIdx}
                 withEmoji
@@ -159,64 +147,45 @@ export default function ReflectionScreen({ route, navigation }) {
             </>
           )}
 
-          {/* ── Learned ── */}
-          {stepKey === 'learned' && (
+          {/* ── Tela 2: o que guardar no coração ── */}
+          {stepKey === 'keep' && (
             <>
-              <Text style={styles.lumiSays}>✨ Beni pergunta:</Text>
-              <Text style={styles.stepQuestion}>O que você aprendeu?</Text>
+              <Text style={styles.stepQuestion}>O que você quer guardar no coração?</Text>
+              <Text style={styles.stepHint}>Escolha uma lembrança para guardar com Beni.</Text>
               <ChoiceGrid
-                options={LUMI_LEARNED}
-                selected={learnedIdx}
-                onSelect={setLearnedIdx}
+                options={HEART_KEEPS}
+                selected={keepIdx}
+                onSelect={setKeepIdx}
               />
             </>
           )}
 
-          {/* ── Prayer ── */}
-          {stepKey === 'prayer' && (
-            <>
-              <Text style={styles.lumiSays}>✨ Beni pergunta:</Text>
-              <Text style={styles.stepQuestion}>O que você quer dizer para Deus?</Text>
-              <ChoiceGrid
-                options={LUMI_PRAYERS}
-                selected={prayerIdx}
-                onSelect={setPrayerIdx}
-              />
-            </>
+          {/* ── Final: feedback curto do Beni ── */}
+          {stepKey === 'done' && (
+            <View style={styles.doneCard}>
+              <BeniAvatar variant="celebrating" size="large" />
+              <Text style={styles.doneTitle}>Que lindo! Beni guardou esse momento com carinho.</Text>
+              {!!keepLabel && (
+                <View style={styles.keepChip}>
+                  <Text style={styles.keepChipText}>💛 {keepLabel}</Text>
+                </View>
+              )}
+            </View>
           )}
 
-          {/* ── Response ── */}
-          {stepKey === 'response' && verse && (
-            <>
-              <View style={styles.lumiResponseCard}>
-                <Text style={styles.lumiResponseEmoji}>🐑</Text>
-                <Text style={styles.lumiResponseTitle}>Beni ouviu você com carinho.</Text>
-                <Text style={styles.lumiResponseMsg}>
-                  {`Você se sentiu ${feelingLabel} e aprendeu que ${learnedLabel.toLowerCase()}. Que lindo! 💛`}
-                </Text>
-              </View>
-
-              <View style={styles.verseCard}>
-                <Text style={styles.verseText}>"{verse.text}"</Text>
-                <Text style={styles.verseRef}>{verse.ref}</Text>
-              </View>
-
-              <Text style={styles.repeatLabel}>Repita com Beni:</Text>
-              <View style={styles.repeatCard}>
-                <Text style={styles.repeatText}>"{verse.text}"</Text>
-              </View>
-            </>
+          {stepKey === 'done' ? (
+            <SoundButton style={styles.nextBtn} onPress={handleGuardar} activeOpacity={0.85}>
+              <Text style={styles.nextBtnText}>💛 Guardar no coração</Text>
+            </SoundButton>
+          ) : (
+            <SoundButton
+              style={[styles.nextBtn, !canAdvance && styles.nextBtnDisabled]}
+              onPress={canAdvance ? handleNext : undefined}
+              activeOpacity={canAdvance ? 0.85 : 1}
+            >
+              <Text style={styles.nextBtnText}>Próximo →</Text>
+            </SoundButton>
           )}
-
-          <SoundButton
-            style={[styles.nextBtn, !canAdvance && styles.nextBtnDisabled]}
-            onPress={canAdvance ? handleNext : undefined}
-            activeOpacity={canAdvance ? 0.85 : 1}
-          >
-            <Text style={styles.nextBtnText}>
-              {stepKey === 'response' ? '✓ Concluir (+1 ⭐)' : 'Próximo →'}
-            </Text>
-          </SoundButton>
         </View>
       </ScrollView>
     </View>
@@ -255,7 +224,28 @@ const styles = StyleSheet.create({
   },
   stepQuestion: {
     fontFamily: 'FredokaOne', fontSize: 20, color: pt.text,
-    lineHeight: 27, marginBottom: 20,
+    lineHeight: 27, marginBottom: 6,
+  },
+  stepHint: {
+    fontFamily: 'Nunito', fontSize: 13.5, color: pt.textSoft,
+    fontWeight: '700', marginBottom: 20, lineHeight: 19,
+  },
+
+  // Final — feedback curto do Beni
+  doneCard: {
+    alignItems: 'center', paddingVertical: 12, marginBottom: 8,
+  },
+  doneTitle: {
+    fontFamily: 'FredokaOne', fontSize: 19, color: pt.text,
+    textAlign: 'center', lineHeight: 26, marginTop: 10, marginBottom: 14,
+  },
+  keepChip: {
+    backgroundColor: '#F5F0FF', borderRadius: radii.pill,
+    paddingHorizontal: 18, paddingVertical: 10,
+    borderWidth: 1.5, borderColor: '#C4B5FD',
+  },
+  keepChipText: {
+    fontFamily: 'FredokaOne', fontSize: 15, color: '#7C3AED',
   },
 
   choiceGrid: {
