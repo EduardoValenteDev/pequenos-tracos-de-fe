@@ -7356,6 +7356,26 @@ check(
   'StoryBookScreen enfraqueceu a regra de lineart por cima da arte (Bloco 1)',
 );
 
+// HOTFIX Bloco 3 — readiness: cor + contorno juntos, nunca cor sozinha por 1 frame
+check(
+  'HOTFIX: ChildArtWithLineart só revela quando cor E contorno carregaram (sem frame sem lineart)',
+  ux3Livro.includes('function ChildArtWithLineart') &&
+  ux3Livro.includes('paintLoaded') && ux3Livro.includes('lineartLoaded') &&
+  /const ready = paintLoaded && lineartLoaded/.test(ux3Livro) &&
+  /opacity: ready \? 1 : 0/.test(ux3Livro) &&
+  ux3Livro.includes('Carregando desenho'),
+  'StoryBookScreen não garante readiness de cor+contorno (pode piscar cor sem lineart)',
+);
+
+check(
+  'HOTFIX: arte da criança renderiza via ChildArtWithLineart com key estável (remount por página)',
+  /<ChildArtWithLineart/.test(ux3Livro) &&
+  /key=\{`art-\$\{story\.id\}-\$\{cena\.id\}-\$\{viewMode\}/.test(ux3Livro) &&
+  ux3Livro.includes('onLoad={() => setPaintLoaded(true)}') &&
+  ux3Livro.includes('onLoad={() => setLineartLoaded(true)}'),
+  'StoryBookScreen não usa ChildArtWithLineart com key estável + onLoad das duas camadas',
+);
+
 check(
   'Bloco 3: cards de modo têm título, descrição e prévia visual distinta',
   ux3Livro.includes('Reveja a aventura com as imagens da história.') &&

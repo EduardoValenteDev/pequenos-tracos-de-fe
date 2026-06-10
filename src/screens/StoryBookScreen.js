@@ -218,6 +218,74 @@ function getStoryBookPlaybackReadiness(story) {
   return { totalScenes, scenesWithAudio, allScenesHaveAudio, canAutoPlay: allScenesHaveAudio, missingAudioSceneIds };
 }
 
+/**
+ * ChildArtWithLineart — compõe a arte da criança (cor) + o contorno (lineart)
+ * garantindo que NENHUM frame mostre a cor sem o contorno.
+ *
+ * Problema que resolve: a cor é um data-URI base64 (decodifica quase instantâneo)
+ * e o lineart é um asset require'd (carrega assíncrono). Empilhar no JSX não
+ * basta — a cor aparecia alguns ms antes do lineart. Aqui as DUAS camadas são
+ * renderizadas invisíveis (opacity 0) só para disparar onLoad; a composição só
+ * fica visível quando `paintLoaded && lineartLoaded` (e, no modo posicionado v2,
+ * quando a moldura já foi medida). Enquanto isso, mostra "Carregando desenho…".
+ *
+ * Estado é por instância: a key no chamador (história+cena+modo+arte) remonta a
+ * cada página, então loaded/error nunca vazam de uma cena para outra.
+ */
+function ChildArtWithLineart({ visual, containerW, containerH }) {
+  const [paintLoaded, setPaintLoaded] = useState(false);
+  const [lineartLoaded, setLineartLoaded] = useState(false);
+
+  const positioned = visual.type === 'paintWithLineart';
+  const measured = !positioned || (containerW > 0 && containerH > 0);
+  // computeLineartStyle devolve { opacity: 0 } até a moldura/canvas estarem prontos.
+  const lineartAbsStyle = positioned
+    ? computeLineartStyle(containerW, containerH, visual)
+    : null;
+  // Só revela quando cor E contorno carregaram (e o lineart pode ser posicionado).
+  const ready = paintLoaded && lineartLoaded && measured;
+
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      {/* Camadas reais — invisíveis até cor + contorno estarem prontos juntos */}
+      <View style={[StyleSheet.absoluteFill, { opacity: ready ? 1 : 0 }]}>
+        <Image
+          source={{ uri: visual.paintUri }}
+          style={styles.bookFullImage}
+          resizeMode="contain"
+          fadeDuration={0}
+          onLoad={() => setPaintLoaded(true)}
+        />
+        {positioned ? (
+          <Image
+            source={visual.baseImage}
+            style={[lineartAbsStyle, styles.lineartMultiply]}
+            resizeMode="stretch"
+            fadeDuration={0}
+            onLoad={() => setLineartLoaded(true)}
+          />
+        ) : (
+          <Image
+            source={visual.baseImage}
+            style={[StyleSheet.absoluteFill, styles.lineartMultiply]}
+            resizeMode="contain"
+            fadeDuration={0}
+            onLoad={() => setLineartLoaded(true)}
+          />
+        )}
+      </View>
+
+      {/* Placeholder honesto enquanto não há composição completa */}
+      {!ready && (
+        <View style={[StyleSheet.absoluteFill, styles.childLoading]} pointerEvents="none">
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.childLoadingText}>Carregando desenho…</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function StoryBookScreen({ route, navigation }) {
   const { story, fromStoryCompletion = false } = route.params ?? {};
   const insets = useSafeAreaInsets();
@@ -734,10 +802,6 @@ export default function StoryBookScreen({ route, navigation }) {
     ? (getSceneAudio(story.id, slide.sceneKey)?.audioAsset ?? null)
     : null;
 
-  const lineartAbsStyle = visual.type === 'paintWithLineart' && imgContainerSize.w > 0
-    ? computeLineartStyle(imgContainerSize.w, imgContainerSize.h, visual)
-    : null;
-
   // key estável por slide (mode + sceneId + visualType + índice) → Image remonta
   // limpo a cada troca, evitando base64 "preso" da cena anterior.
   const slideKey = `${viewMode}-${slide.key}-${safeIndex}`;
@@ -771,38 +835,16 @@ export default function StoryBookScreen({ route, navigation }) {
             ]}
             onLayout={handleImageAreaLayout}
           >
-            {visual.type === 'paintWithLineart' ? (
-              <>
-                <Image
-                  source={{ uri: visual.paintUri }}
-                  style={styles.bookFullImage}
-                  resizeMode="contain"
-                  onLoadEnd={() => fadeAnim.setValue(1)}
-                />
-                {lineartAbsStyle && (
-                  <Image
-                    source={visual.baseImage}
-                    style={[lineartAbsStyle, styles.lineartMultiply]}
-                    resizeMode="stretch"
-                  />
-                )}
-              </>
-            ) : visual.type === 'paintWithLineartFull' ? (
-              // v1 (sem coordenadas): paint + contorno em contain na mesma moldura.
-              // O contorno SEMPRE entra por cima — arte da criança nunca fica sem linha.
-              <>
-                <Image
-                  source={{ uri: visual.paintUri }}
-                  style={styles.bookFullImage}
-                  resizeMode="contain"
-                  onLoadEnd={() => fadeAnim.setValue(1)}
-                />
-                <Image
-                  source={visual.baseImage}
-                  style={[StyleSheet.absoluteFill, styles.lineartMultiply]}
-                  resizeMode="contain"
-                />
-              </>
+            {isUserArt ? (
+              // Arte da criança: composição cor + contorno com readiness explícita.
+              // NUNCA mostra a cor sem o lineart (nem por 1 frame) — ver ChildArtWithLineart.
+              // key estável (história+cena+modo+arte) força remount limpo por página.
+              <ChildArtWithLineart
+                key={`art-${story.id}-${cena.id}-${viewMode}-${(visual.paintUri || '').length}`}
+                visual={visual}
+                containerW={imgContainerSize.w}
+                containerH={imgContainerSize.h}
+              />
             ) : visual.type === 'official' ? (
               // Oficial na moldura fixa 4:5 + contain (width/height 100%) → nasce encaixada, sem zoom
               <Image
@@ -1149,6 +1191,16 @@ const styles = StyleSheet.create({
   },
 
   lineartMultiply: { mixBlendMode: 'multiply' },
+
+  // Placeholder enquanto cor + contorno não estão prontos (arte da criança)
+  childLoading: {
+    backgroundColor: '#FFFDF8',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  childLoadingText: {
+    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
+    fontWeight: '700', marginTop: 8,
+  },
 
   sealPill: {
     position: 'absolute', left: 12, bottom: 12,
