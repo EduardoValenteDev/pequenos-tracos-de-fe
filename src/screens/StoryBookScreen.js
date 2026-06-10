@@ -138,33 +138,40 @@ function mkSlide(cena, sceneNumber, visual) {
 /**
  * resolveStoryBookPageImage — resolução central de UMA imagem por cena no Livrinho.
  *
- *   'child' (Meu livrinho colorido): arte da criança → senão fallback suave.
- *     Nunca usa ilustração oficial (não repete a história).
- *   'mixed' (Livro mágico misto): arte da criança → senão ilustração oficial →
- *     senão fallback seguro.
+ * DOIS MODOS FINAIS (UX 1.0 — Bloco 3). Sem modo misto: cada modo é previsível
+ * e visivelmente diferente, mesmo com 10 artes salvas.
  *
- * Sempre retorna um visual válido (nunca vazio, nunca require quebrado).
+ *   'official' (História ilustrada): SEMPRE a ilustração oficial da cena.
+ *     NUNCA troca a página pela arte da criança quando ela existe.
+ *     Sem oficial → fallback seguro.
+ *   'child' (Meu livrinho colorido): SOMENTE a arte da criança (com contorno).
+ *     Sem arte real nesta cena → fallback suave "ainda não pintou".
+ *     Nunca usa ilustração oficial (não recria a história).
+ *
+ * Sempre retorna um visual válido (nunca vazio, nunca require quebrado). A arte
+ * da criança só é usada quando makeChildArtVisual entrega o contorno por cima
+ * (Bloco 1): nenhuma página renderiza mancha de cor sem lineart.
  */
 function resolveStoryBookPageImage(cena, story, drawings, mode) {
+  // 'official' — História ilustrada: imagem oficial sempre, nunca a arte da criança.
+  if (mode === 'official') {
+    const official = getOfficialSceneIllustration(story.id, cena.id);
+    if (official) return makeOfficialVisual(cena, story, official);
+    return makeFallbackVisual(cena, story);
+  }
+  // 'child' — Meu livrinho colorido: só a arte da criança (com contorno garantido).
   const raw = drawings[cena.id] ?? null;
   if (hasMeaningfulPaint(raw)) {
     const p = parseDrawingPayload(raw);
-    // 1) arte da criança — só se vier COM contorno (senão cai para oficial/fallback)
     const childVisual = p ? makeChildArtVisual(cena, story, p) : null;
     if (childVisual) return childVisual;
   }
-  if (mode === 'mixed') {
-    const official = getOfficialSceneIllustration(story.id, cena.id);
-    if (official) return makeOfficialVisual(cena, story, official); // 2) oficial (só no misto)
-    return makeFallbackVisual(cena, story);                         // 3) fallback seguro
-  }
-  // modo 'child': sem arte com tinta real → fallback "ainda não pintou"
   return makeFallbackVisual(cena, story, 'Você ainda não pintou esta cena.');
 }
 
 /**
  * Constrói a TIMELINE do Livrinho — 1 slide por cena, conforme o modo.
- * Dois modos finais: 'child' (só desenhos) e 'mixed' (desenho → oficial → fallback).
+ * Dois modos finais: 'official' (História ilustrada) e 'child' (Meu livrinho colorido).
  */
 function buildStoryBookTimeline(story, drawings, mode) {
   return (story?.cenas ?? []).map((cena, i) =>
@@ -227,7 +234,7 @@ export default function StoryBookScreen({ route, navigation }) {
   const [drawings, setDrawings] = useState({});
   const [isPaused, setIsPaused] = useState(false);
   const [imgContainerSize, setImgContainerSize] = useState({ w: 0, h: 0 });
-  const [viewMode, setViewMode] = useState('mixed'); // 'official' | 'child' | 'mixed'
+  const [viewMode, setViewMode] = useState('official'); // 'official' (História ilustrada) | 'child' (Meu livrinho colorido)
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [entering, setEntering] = useState(false); // transição mágica de abertura
   const markedRef = useRef(false);
@@ -529,6 +536,9 @@ export default function StoryBookScreen({ route, navigation }) {
     const hasCover = story.imagemCapa && images[story.imagemCapa];
     const totalScenes = story.cenas.length;
     const childArtCount = story.cenas.filter(c => hasMeaningfulPaint(drawings[c.id])).length;
+    // Prévia do modo "História ilustrada" — ilustração oficial da 1ª cena (ou capa).
+    const firstCena = story.cenas[0];
+    const officialPreview = firstCena ? getOfficialSceneIllustration(story.id, firstCena.id) : null;
     return (
       <View style={styles.wrapper}>
         {renderHeader('📖', 'Livrinho da Fé', story.titulo)}
@@ -579,61 +589,81 @@ export default function StoryBookScreen({ route, navigation }) {
             </View>
           </View>
 
-          {childArtCount === 0 ? (
-            /* ── Sem desenhos: o Livrinho é recompensa de criação ── */
+          {childArtCount > 0 && (
+            <View style={styles.introArtHighlight}>
+              <Text style={styles.introArtHighlightText}>
+                ✨ Você colocou sua arte neste livrinho.
+              </Text>
+            </View>
+          )}
+
+          {/* ── Escolha de modo: 2 modos reais, previsíveis e visivelmente diferentes ── */}
+          <Text style={styles.modeTitle}>Como você quer ver?</Text>
+          <View style={styles.modeList}>
+            {[
+              { id: 'official', emoji: '📖', title: 'História ilustrada', sub: 'Reveja a aventura com as imagens da história.' },
+              { id: 'child', emoji: '🎨', title: 'Meu livrinho colorido', sub: 'Veja as cenas que você pintou.' },
+            ].map(opt => {
+              const active = viewMode === opt.id;
+              return (
+                <SoundButton
+                  key={opt.id}
+                  style={[styles.modeCard, active && styles.modeCardActive]}
+                  onPress={() => handleSelectMode(opt.id)}
+                  activeOpacity={0.85}
+                  accessibilityLabel={opt.title}
+                >
+                  {/* Prévia visual distinta por modo (entende-se a diferença em 5s) */}
+                  {opt.id === 'official' ? (
+                    officialPreview ? (
+                      <Image source={officialPreview} style={styles.modePreview} resizeMode="contain" />
+                    ) : hasCover ? (
+                      <Image source={images[story.imagemCapa]} style={styles.modePreview} resizeMode="contain" />
+                    ) : (
+                      <View style={[styles.modePreview, styles.modePreviewOfficial]}>
+                        <Text style={styles.modePreviewEmoji}>📖</Text>
+                      </View>
+                    )
+                  ) : (
+                    <View style={[styles.modePreview, styles.modePreviewChild]}>
+                      <Text style={styles.modePreviewEmoji}>🎨</Text>
+                      <Text style={styles.modePreviewBadge}>{childArtCount}</Text>
+                    </View>
+                  )}
+                  <View style={styles.modeTextWrap}>
+                    <Text style={[styles.modeCardTitle, active && styles.modeCardTitleActive]}>{opt.title}</Text>
+                    <Text style={styles.modeCardSub}>{opt.sub}</Text>
+                  </View>
+                  <View style={[styles.modeRadio, active && styles.modeRadioActive]}>
+                    {active && <Text style={styles.modeRadioDot}>✓</Text>}
+                  </View>
+                </SoundButton>
+              );
+            })}
+          </View>
+
+          {viewMode === 'child' && childArtCount === 0 ? (
+            /* ── Meu livrinho colorido sem nenhuma arte: estado vazio honesto + CTA ── */
             <View style={styles.bookEmptyState}>
               <Text style={styles.bookEmptyEmoji}>🎨</Text>
-              <Text style={styles.bookEmptyTitle}>Pinte uma cena para criar seu livrinho!</Text>
+              <Text style={styles.bookEmptyTitle}>Você ainda não pintou cenas desta aventura.</Text>
               <Text style={styles.bookEmptySub}>
-                Seu livrinho é feito com os desenhos que você colorir nesta aventura.
+                Pinte uma cena para criar seu livrinho colorido.
               </Text>
-              <SoundButton style={styles.endedBackBtn} onPress={() => navigation.goBack()} activeOpacity={0.85}>
-                <Text style={styles.endedBackBtnText}>← Voltar para a aventura</Text>
+              <SoundButton
+                style={styles.startBtn}
+                onPress={() => navigation.navigate('Coloring', { story, cenaIndex: 0 })}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.startBtnText}>🎨  Colorir uma cena</Text>
               </SoundButton>
             </View>
           ) : (
-            <>
-              <View style={styles.introArtHighlight}>
-                <Text style={styles.introArtHighlightText}>
-                  ✨ Você colocou sua arte neste livrinho.
-                </Text>
-              </View>
-
-              {/* ── Escolha de modo (apenas 2: misto e colorido) ── */}
-              <Text style={styles.modeTitle}>Como você quer ver?</Text>
-              <View style={styles.modeList}>
-                {[
-                  { id: 'mixed', emoji: '📖', title: 'Livro mágico misto', sub: 'Seus desenhos e, onde faltar, a imagem da cena.' },
-                  { id: 'child', emoji: '🎨', title: 'Meu livrinho colorido', sub: 'Só os desenhos que você coloriu.' },
-                ].map(opt => {
-                  const active = viewMode === opt.id;
-                  return (
-                    <SoundButton
-                      key={opt.id}
-                      style={[styles.modeCard, active && styles.modeCardActive]}
-                      onPress={() => handleSelectMode(opt.id)}
-                      activeOpacity={0.85}
-                      accessibilityLabel={opt.title}
-                    >
-                      <Text style={styles.modeEmoji}>{opt.emoji}</Text>
-                      <View style={styles.modeTextWrap}>
-                        <Text style={[styles.modeCardTitle, active && styles.modeCardTitleActive]}>{opt.title}</Text>
-                        <Text style={styles.modeCardSub}>{opt.sub}</Text>
-                      </View>
-                      <View style={[styles.modeRadio, active && styles.modeRadioActive]}>
-                        {active && <Text style={styles.modeRadioDot}>✓</Text>}
-                      </View>
-                    </SoundButton>
-                  );
-                })}
-              </View>
-
-              <SoundButton style={styles.startBtn} onPress={handleEnterLivrinho} activeOpacity={0.85}>
-                <Text style={styles.startBtnText}>
-                  {viewMode === 'child' ? '▶  Abrir meu livrinho colorido' : '▶  Abrir livro mágico misto'}
-                </Text>
-              </SoundButton>
-            </>
+            <SoundButton style={styles.startBtn} onPress={handleEnterLivrinho} activeOpacity={0.85}>
+              <Text style={styles.startBtnText}>
+                {viewMode === 'child' ? '▶  Abrir meu livrinho colorido' : '▶  Abrir história ilustrada'}
+              </Text>
+            </SoundButton>
           )}
         </ScrollView>
 
@@ -991,6 +1021,20 @@ const styles = StyleSheet.create({
   },
   modeCardActive: { borderColor: colors.primary, backgroundColor: '#F6F1FF' },
   modeEmoji: { fontSize: 30 },
+  // Prévia visual de cada modo (52×52): ilustração oficial vs. tile colorido.
+  modePreview: {
+    width: 52, height: 52, borderRadius: 12, overflow: 'hidden',
+    backgroundColor: '#EFE7DA', alignItems: 'center', justifyContent: 'center',
+  },
+  modePreviewOfficial: { backgroundColor: '#E8E0D8' },
+  modePreviewChild: { backgroundColor: '#FFF1D9', borderWidth: 1, borderColor: '#FFD98A' },
+  modePreviewEmoji: { fontSize: 26 },
+  modePreviewBadge: {
+    position: 'absolute', right: 3, bottom: 2,
+    fontFamily: 'FredokaOne', fontSize: 11, color: '#8A6D00',
+    backgroundColor: 'rgba(255,255,255,0.88)', borderRadius: 8,
+    paddingHorizontal: 5, overflow: 'hidden',
+  },
   modeTextWrap: { flex: 1 },
   modeCardTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 1 },
   modeCardTitleActive: { color: colors.primary },

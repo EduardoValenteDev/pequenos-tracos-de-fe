@@ -1039,7 +1039,9 @@ check(
 
 check(
   'StoryBookScreen has a mode-aware "Abrir" button in intro',
-  storyBookSrc.includes('handleStartLivrinho') && storyBookSrc.includes('Abrir livro mágico misto'),
+  storyBookSrc.includes('handleStartLivrinho') &&
+  storyBookSrc.includes('Abrir história ilustrada') &&
+  storyBookSrc.includes('Abrir meu livrinho colorido'),
   'StoryBookScreen missing the intro start button (mode-aware labels)',
 );
 
@@ -4582,21 +4584,24 @@ check(
   'StoryBookScreen header may leak an internal route name',
 );
 
-// ── Livrinho: 2 modos finais (recompensa criativa, não repete a história) ────
+// ── Livrinho: 2 modos finais (UX 1.0 Bloco 3 — sem modo misto) ───────────────
 check(
-  'Livrinho tem APENAS 2 modos (Livro mágico misto / Meu livrinho colorido), sem "História ilustrada"',
+  'Livrinho tem APENAS 2 modos (História ilustrada / Meu livrinho colorido), sem modo misto',
   livroSrc.includes('Como você quer ver?') &&
-  livroSrc.includes('Livro mágico misto') &&
+  livroSrc.includes('História ilustrada') &&
   livroSrc.includes('Meu livrinho colorido') &&
-  !livroSrc.includes('História ilustrada'),
-  'StoryBookScreen must offer only the two creative modes (no official-only mode)',
+  !livroSrc.includes('Livro mágico misto') &&
+  !/setViewMode\('mixed'\)|useState\('mixed'\)/.test(livroSrc),
+  'StoryBookScreen must offer exactly two predictable modes (História ilustrada / Meu livrinho colorido), no mixed mode',
 );
 
 check(
-  'Livrinho tem estado vazio quando não há desenhos (Pinte uma cena...)',
+  'Livrinho: estado vazio do colorido com 0 artes + CTA para colorir',
+  livroSrc.includes('Você ainda não pintou cenas desta aventura') &&
   livroSrc.includes('Pinte uma cena para criar seu livrinho') &&
-  livroSrc.includes('childArtCount === 0'),
-  'StoryBookScreen missing empty state when the child has no saved drawings',
+  livroSrc.includes("viewMode === 'child' && childArtCount === 0") &&
+  livroSrc.includes("navigation.navigate('Coloring'"),
+  'StoryBookScreen missing empty state + CTA for "Meu livrinho colorido" with zero saved drawings',
 );
 
 check(
@@ -4623,25 +4628,31 @@ check(
 );
 
 check(
-  'Livrinho misto resolve por cena: arte da criança (com contorno) → oficial → fallback',
+  'Livrinho resolve por modo: official sempre oficial; child só arte da criança (com contorno) → fallback',
   livroSrc.includes('function resolveStoryBookPageImage') &&
   /makeChildArtVisual\(cena, story, p\)/.test(livroSrc) &&
   /if \(childVisual\) return childVisual/.test(livroSrc) &&
-  /mode === 'mixed'[\s\S]*?if \(official\) return makeOfficialVisual[\s\S]*?return makeFallbackVisual/.test(livroSrc),
-  'StoryBookScreen mixed mode must resolve child art → official → fallback per scene',
+  /mode === 'official'[\s\S]*?if \(official\) return makeOfficialVisual[\s\S]*?return makeFallbackVisual/.test(livroSrc) &&
+  !/mode === 'mixed'/.test(livroSrc),
+  'StoryBookScreen must resolve official mode = official always, child mode = child art only (no mixed)',
 );
 
 check(
-  'Modo "Meu livrinho colorido" (child) não usa ilustração oficial',
+  'Modo "História ilustrada" (official) nunca usa arte da criança; modo child nunca usa oficial',
   (() => {
     const m = livroSrc.match(/function resolveStoryBookPageImage\([\s\S]*?\n\}/);
     if (!m) return false;
     const body = m[0];
-    // a ilustração oficial só é buscada dentro do ramo mixed
-    return /mode === 'mixed'[\s\S]*?getOfficialSceneIllustration/.test(body) &&
-           !/if \(p\) return[\s\S]*?getOfficialSceneIllustration[\s\S]*?mode === 'mixed'/.test(body);
+    // A ilustração oficial só é buscada no ramo 'official'.
+    const officialOnlyInOfficialBranch =
+      /mode === 'official'[\s\S]*?getOfficialSceneIllustration/.test(body) &&
+      (body.match(/getOfficialSceneIllustration/g) || []).length === 1;
+    // O ramo official retorna antes de qualquer leitura de arte da criança.
+    const officialReturnsBeforeChildArt =
+      body.indexOf("mode === 'official'") < body.indexOf('makeChildArtVisual');
+    return officialOnlyInOfficialBranch && officialReturnsBeforeChildArt;
   })(),
-  'StoryBookScreen child mode must never use the official illustration',
+  'StoryBookScreen: official mode must never read child art; child mode must never use official illustration',
 );
 
 check(
@@ -4665,10 +4676,10 @@ check(
 
 // ── Sprint Histórias 4.2.2 — final do Livrinho com retorno aos modos ─────────
 check(
-  'Tela final tem os 3 botões (Ver de novo / Escolher outro modo / Voltar para a aventura)',
+  'Tela final tem os 3 botões (Ver de novo / Escolher outro modo / Voltar para Aventuras)',
   livroSrc.includes('Ver de novo') &&
   livroSrc.includes('Escolher outro modo') &&
-  livroSrc.includes('Voltar para a aventura'),
+  livroSrc.includes('Voltar para Aventuras'),
   'StoryBookScreen ended state missing one of the 3 final buttons',
 );
 
@@ -5061,7 +5072,7 @@ check(
 );
 
 check(
-  'StoryBookScreen usa hasMeaningfulPaint no modo misto (não usa childArt sem tinta real)',
+  'StoryBookScreen usa hasMeaningfulPaint no modo colorido (não usa childArt sem tinta real)',
   storyBookSrc.includes('hasMeaningfulPaint(raw)') &&
   storyBookSrc.includes('resolveStoryBookPageImage'),
   'resolveStoryBookPageImage deve checar hasMeaningfulPaint antes de usar childArt',
@@ -6219,10 +6230,10 @@ check(
 );
 
 check(
-  'StoryBookScreen: prioriza arte da criança (hasMeaningfulPaint antes de official)',
+  'StoryBookScreen: modo colorido usa arte da criança via hasMeaningfulPaint → makeChildArtVisual',
   storyBookSrc20.includes('hasMeaningfulPaint') &&
   /hasMeaningfulPaint[\s\S]{0,200}makeChildArtVisual/.test(storyBookSrc20),
-  'StoryBookScreen não prioriza arte da criança no Livrinho',
+  'StoryBookScreen não usa arte da criança no modo colorido do Livrinho',
 );
 
 // TrophiesScreen: fromStoryCompletion suportado
@@ -7314,6 +7325,69 @@ check(
   ux2Beni.includes('backLabelFor') &&
   ux2Trophies.includes('backLabelFor'),
   'Alguma tela reusada não importou backLabelFor',
+);
+
+// ── Sprint Reestruturação UX 1.0 — Bloco 3: Livrinho 2 modos + Ateliê simples ─
+console.log('\n── Sprint UX 1.0 — Bloco 3 ──');
+
+const ux3Flags = readSrc('src/config/featureFlags.js');
+const ux3Livro = readSrc('src/screens/StoryBookScreen.js');
+const ux3Canvas = readSrc('src/screens/AtelierCanvasScreen.js');
+
+check(
+  'Bloco 3: featureFlags expõe STAMPS_ENABLED = false',
+  /export const STAMPS_ENABLED\s*=\s*false/.test(ux3Flags),
+  'src/config/featureFlags.js ausente ou STAMPS_ENABLED não é false',
+);
+
+check(
+  'Bloco 3: Livrinho default = História ilustrada (official), nunca inicia em mixed',
+  ux3Livro.includes("useState('official')") &&
+  !ux3Livro.includes("useState('mixed')"),
+  'StoryBookScreen deve iniciar no modo official (História ilustrada)',
+);
+
+check(
+  'Bloco 3: Livrinho preserva contorno por cima da arte (Bloco 1 intacto, sem paintOnly)',
+  ux3Livro.includes('paintWithLineart') &&
+  ux3Livro.includes('paintWithLineartFull') &&
+  ux3Livro.includes('lineartMultiply') &&
+  !ux3Livro.includes('paintOnly'),
+  'StoryBookScreen enfraqueceu a regra de lineart por cima da arte (Bloco 1)',
+);
+
+check(
+  'Bloco 3: cards de modo têm título, descrição e prévia visual distinta',
+  ux3Livro.includes('Reveja a aventura com as imagens da história.') &&
+  ux3Livro.includes('Veja as cenas que você pintou.') &&
+  ux3Livro.includes('modePreview') &&
+  ux3Livro.includes('officialPreview'),
+  'StoryBookScreen: cards de modo sem descrição/prévia visual distinta',
+);
+
+check(
+  'Bloco 3: Canvas importa STAMPS_ENABLED e esconde carimbos por flag',
+  ux3Canvas.includes("from '../config/featureFlags'") &&
+  ux3Canvas.includes('STAMPS_ENABLED ? [{ id:') &&
+  ux3Canvas.includes('STAMPS_ENABLED && activeTool === \'carimbos\'') &&
+  ux3Canvas.includes("STAMPS_ENABLED && openTab === 'carimbos'"),
+  'AtelierCanvasScreen não esconde os carimbos (chip + painel + init) por STAMPS_ENABLED',
+);
+
+check(
+  'Bloco 3: código de carimbos preservado (não deletado) no Canvas',
+  ux3Canvas.includes('CORE_STAMPS') &&
+  ux3Canvas.includes('handleStampPress') &&
+  ux3Canvas.includes('handleResizeStamp'),
+  'AtelierCanvasScreen perdeu o código de carimbos — deveria apenas escondê-lo',
+);
+
+check(
+  'Bloco 3: Canvas mantém ferramentas essenciais (cores/pincel/borracha/desfazer/limpar/pronto)',
+  ux3Canvas.includes("id: 'desenhar'") && ux3Canvas.includes("id: 'borracha'") &&
+  ux3Canvas.includes('handleUndo') && ux3Canvas.includes('handleClearAll') &&
+  ux3Canvas.includes('BRUSH_SIZES'),
+  'AtelierCanvasScreen perdeu alguma ferramenta essencial do fluxo principal',
 );
 
 // ── Summary ──────────────────────────────────────────────────────────────────

@@ -44,6 +44,7 @@ import {
   ATELIER_FREE_SAVE_LIMIT,
 } from '../services/atelierStorage';
 import { hasAtelierUnlimitedAccess } from '../services/accessControl';
+import { STAMPS_ENABLED } from '../config/featureFlags';
 
 const BRUSH_SIZES = [
   { id: 'P', label: 'Pequeno', size: 4  },
@@ -98,10 +99,11 @@ export default function AtelierCanvasScreen({ route, navigation }) {
   const [savedArtId, setSavedArtId] = useState(routeArtId ?? null);
 
   /* Painel inferior: aba ativa (cores | pincel | ferramentas) */
-  const [panelTab, setPanelTab] = useState(openTab === 'carimbos' ? 'ferramentas' : 'cores');
+  // Carimbos escondidos por flag (UX 1.0 — Bloco 3): openTab='carimbos' é ignorado.
+  const [panelTab, setPanelTab] = useState(STAMPS_ENABLED && openTab === 'carimbos' ? 'ferramentas' : 'cores');
 
   /* Ferramenta de desenho ativa (desenhar | borracha | carimbos) */
-  const [activeTool, setActiveTool] = useState(openTab === 'carimbos' ? 'carimbos' : 'desenhar');
+  const [activeTool, setActiveTool] = useState(STAMPS_ENABLED && openTab === 'carimbos' ? 'carimbos' : 'desenhar');
 
   /* Ferramentas */
   const [selectedColor, setSelectedColor]  = useState(COLOR_PALETTE[0].hex);
@@ -434,7 +436,8 @@ export default function AtelierCanvasScreen({ route, navigation }) {
                 {[
                   { id: 'desenhar', label: 'Desenhar', icon: '🖌️' },
                   { id: 'borracha', label: 'Borracha', icon: '🧽' },
-                  { id: 'carimbos', label: 'Carimbos', icon: '⭐' },
+                  // Carimbos escondidos no fluxo principal (UX 1.0 — Bloco 3).
+                  ...(STAMPS_ENABLED ? [{ id: 'carimbos', label: 'Carimbos', icon: '⭐' }] : []),
                 ].map(t => (
                   <SoundButton
                     key={t.id}
@@ -484,7 +487,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
                 </View>
               )}
 
-              {activeTool === 'carimbos' && (
+              {STAMPS_ENABLED && activeTool === 'carimbos' && (
                 <View style={styles.toolContext}>
                   {selectedStampInfo ? (
                     <View style={styles.stampCtrlRow}>
