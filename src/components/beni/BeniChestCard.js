@@ -10,7 +10,7 @@
  * TODO(assets): substituir por molduras/versos/brilho shiny próprios e ícones
  * de categoria quando os assets existirem (baú fechado/aberto, verso, molduras).
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from '../SoundButton';
@@ -50,11 +50,48 @@ function PremiumFallback({ card }) {
   );
 }
 
+/* Assinatura estável do source → usada como key para resetar o estado de
+   load/erro quando a imagem da cartinha muda (sem vazar entre cards). */
+function sourceSignature(source) {
+  if (source == null) return 'none';
+  if (typeof source === 'number') return `req:${source}`;
+  if (typeof source === 'object' && source.uri) return `uri:${String(source.uri).slice(0, 32)}`;
+  return 'obj';
+}
+
+/**
+ * BeniChestCardImage — imagem da cartinha com fallback PREMIUM por baixo.
+ *
+ * Começa mostrando o PremiumFallback (vivo + selo + origem). A imagem real só
+ * fica visível quando onLoad confirma o carregamento (opacity 0 até lá) — assim
+ * NUNCA aparece o ícone pequeno/estado quebrado durante o load. Em onError, a
+ * imagem é removida e o fallback premium permanece. O estado é por instância e
+ * reseta via key (card.id + assinatura do source) — não vaza ao rolar a lista.
+ */
+function BeniChestCardImage({ card, source, resizeMode }) {
+  const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
+  return (
+    <View style={styles.artFill}>
+      <PremiumFallback card={card} />
+      {!errored && (
+        <Image source={source}
+          style={[styles.artImgAbsolute, !loaded && styles.imgHidden]}
+          resizeMode={resizeMode}
+          fadeDuration={0}
+          onLoad={() => setLoaded(true)}
+          onError={() => setErrored(true)}
+        />
+      )}
+    </View>
+  );
+}
+
 function CardArt({ card }) {
   // Beni: avatar próprio (nunca usa imagem).
   if (card.beni) {
     return (
-      <LinearGradient colors={CARD_FALLBACK.beni.grad} style={styles.artCenter}>
+      <LinearGradient colors={CARD_FALLBACK.beni.gradStrong || CARD_FALLBACK.beni.grad} style={styles.artCenter}>
         <BeniAvatar variant="celebrating" size="large" />
       </LinearGradient>
     );
@@ -72,14 +109,16 @@ function CardArt({ card }) {
     );
   }
 
-  // Com imagem: fallback de categoria ATRÁS + imagem por cima (nunca fica vazio
-  // se a imagem falhar/demorar/for transparente).
+  // Com imagem (cena/história): PremiumFallback por baixo + imagem que só aparece
+  // após onLoad → nunca mostra ícone pequeno/quebrado enquanto carrega.
   if (source) {
     return (
-      <View style={styles.artFill}>
-        <CategoryFallback card={card} />
-        <Image source={source} style={styles.artImgAbsolute} resizeMode="cover" />
-      </View>
+      <BeniChestCardImage
+        key={`img-${card.id}-${sourceSignature(source)}`}
+        card={card}
+        source={source}
+        resizeMode="cover"
+      />
     );
   }
 
@@ -170,6 +209,7 @@ const styles = StyleSheet.create({
   artWrap: { width: '100%', aspectRatio: 1, position: 'relative', backgroundColor: '#F3EEE6' },
   artImg: { width: '100%', height: '100%' },
   artImgAbsolute: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  imgHidden: { opacity: 0 },
   artFill: { width: '100%', height: '100%', position: 'relative' },
   artCanvasBg: { backgroundColor: '#FFFDF8', justifyContent: 'center', alignItems: 'center' },
   artCenter: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },

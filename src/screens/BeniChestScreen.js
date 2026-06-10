@@ -11,6 +11,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, ScrollView, Image, StyleSheet, Modal, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Asset } from 'expo-asset';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
@@ -72,6 +73,19 @@ export default function BeniChestScreen({ navigation, route }) {
         setCtx(built);
 
         const cards = buildBeniChestCards({ progressByStory, stories, arts: list, ctx: built });
+
+        // Preload best-effort das imagens locais (require) das cartinhas
+        // desbloqueadas → reduz a demora ao rolar. Nunca trava nem lança.
+        try {
+          const localImgs = cards
+            .filter(cd => cd && cd.unlocked)
+            .map(cd => resolveCardImageSource(cd))
+            .filter(s => typeof s === 'number');
+          if (localImgs.length > 0) {
+            Promise.allSettled(localImgs.map(n => Asset.fromModule(n).downloadAsync())).catch(() => {});
+          }
+        } catch { /* preload é opcional; ignora qualquer falha */ }
+
         const unseen = await getUnseenUnlockedChestCards(cards);
         if (!alive) return;
         // Não revela a cartinha inicial do Beni como "descoberta".

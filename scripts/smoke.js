@@ -7473,6 +7473,33 @@ check(
   'BeniChestScreen: detalhe sem categoria/origem rotulada/ação contextual',
 );
 
+// HOTFIX Bloco 4A — loading das imagens de Cena (nunca card quebrado)
+check(
+  'HOTFIX 4A: BeniChestCardImage mostra PremiumFallback até onLoad (imagem oculta antes de carregar)',
+  ux4Card.includes('function BeniChestCardImage') &&
+  ux4Card.includes('<PremiumFallback card={card} />') &&
+  ux4Card.includes('onLoad={() => setLoaded(true)}') &&
+  ux4Card.includes('onError={() => setErrored(true)}') &&
+  /!loaded && styles\.imgHidden/.test(ux4Card),
+  'BeniChestCard: imagem da cartinha sem gate de onLoad/fallback premium (pode parecer quebrada)',
+);
+
+check(
+  'HOTFIX 4A: cartinha com imagem usa BeniChestCardImage com key estável (sem vazar load entre cards)',
+  /<BeniChestCardImage/.test(ux4Card) &&
+  ux4Card.includes('function sourceSignature') &&
+  /key=\{`img-\$\{card\.id\}-\$\{sourceSignature\(source\)\}`\}/.test(ux4Card),
+  'BeniChestCard: ramo de imagem não usa BeniChestCardImage com key estável',
+);
+
+check(
+  'HOTFIX 4A: Baú pré-carrega imagens locais das cartinhas (best-effort, não trava)',
+  ux4Screen.includes("from 'expo-asset'") &&
+  ux4Screen.includes('Asset.fromModule(n).downloadAsync()') &&
+  ux4Screen.includes("typeof s === 'number'"),
+  'BeniChestScreen: sem preload best-effort das imagens locais do Baú',
+);
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 const total = passes + failures;
 console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
