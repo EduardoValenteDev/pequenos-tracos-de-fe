@@ -1,16 +1,16 @@
 /**
- * CultinhoEmCasaScreen — "Cultinho em Casa" 1.0.
+ * CultinhoEmCasaScreen — "Cultinho em Casa" 2.0 (UX 1.0 — Bloco 4B).
  *
- * Fluxo curto de culto familiar infantil, reaproveitando recursos existentes:
- * história + conversa + colorir + oração, guiados pelo Beni. Sem backend, sem
- * notificações, sem compartilhamento e sem coleta de dado sensível.
+ * Pequeno culto familiar infantil de 3–5 min. NÃO repete a aventura: não reabre
+ * a história inteira como etapa. Estrutura limpa e espiritual:
+ *   1. A passagem de hoje (cena/frase + referência) — "Rever a história" é só link
+ *   2. Beni explica (3–5 frases curtas, tom de pastor infantil)
+ *   3. Conversa em família (uma pergunta)
+ *   4. Oração curtinha (em destaque)
+ *   + Colorir juntos é OPCIONAL ao final (abre o Ateliê com from:'cultinho')
+ *   + Concluir → registro local (alimenta a cartinha de Coração no Baú)
  *
- * Etapas (rolagem simples, sem wizard rígido):
- *   1. História sugerida (vitrine)  → Abrir história
- *   2. Conversa em família (pergunta simples)
- *   3. Colorir juntos               → Abrir Ateliê
- *   4. Oração curtinha
- *   5. Concluir cultinho            → registro local + mensagem do Beni
+ * Sem backend, sem IA em tempo real, sem texto livre da criança.
  */
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Image, StyleSheet, Modal } from 'react-native';
@@ -22,22 +22,7 @@ import SafeScreenHeader from '../components/layout/SafeScreenHeader';
 import { BeniGuideBubble, BeniAvatar } from '../components/beni';
 import { images } from '../assets/images';
 import { getStoryOfTheWeek, markFamilyWorshipCompleted } from '../services/familyWorshipService';
-
-/* Perguntas simples por história (fallback genérico). Conteúdo fixo e leve. */
-const FAMILY_QUESTIONS = {
-  creation: 'O que Deus criou que você mais gosta?',
-  noah: 'Como você acha que Noé cuidou dos animais com amor?',
-  david_goliath: 'Onde você pode ser corajoso como Davi?',
-  jesus_children: 'Como Jesus mostra que ama muito as crianças?',
-};
-const DEFAULT_QUESTION = 'O que essa história ensina ao seu coração?';
-
-/* Orações curtinhas e infantis. */
-const PRAYERS = [
-  'Deus, obrigado por cuidar da nossa família. Amém.',
-  'Jesus, obrigado por este momento juntos. Amém.',
-  'Senhor, enche nossa casa de amor e paz. Amém.',
-];
+import { getCultinhoForStory } from '../data/cultinhoData';
 
 function StepCard({ number, accent, title, children }) {
   return (
@@ -56,21 +41,21 @@ function StepCard({ number, accent, title, children }) {
 export default function CultinhoEmCasaScreen({ navigation }) {
   const insets = useSafeAreaInsets();
 
-  // História sugerida — vitrine/História do Domingo (preparo). Escolhida 1x por sessão.
+  // História sugerida — escolhida 1x por sessão (só ambienta a passagem do dia).
   const [story] = useState(() => getStoryOfTheWeek());
-  const [prayer] = useState(() => PRAYERS[Math.floor(Math.random() * PRAYERS.length)]);
+  const [cultinho] = useState(() => getCultinhoForStory(getStoryOfTheWeek()));
   const [done, setDone] = useState(false);
 
-  const question = (story && FAMILY_QUESTIONS[story.id]) || DEFAULT_QUESTION;
   const coverImg = story?.imagemCapa ? images[story.imagemCapa] : null;
 
-  function handleOpenStory() {
+  // "Rever a história" é apenas um link discreto — não compete com o Cultinho.
+  function handleReviewStory() {
     if (story) navigation.navigate('StoryDetail', { story });
     else navigation.navigate('Home', { screen: 'Aventuras' });
   }
 
-  function handleOpenAtelier() {
-    // Abre o Ateliê empurrado por contexto → permite voltar para o Cultinho.
+  function handleColorirJuntos() {
+    // Ação opcional ao final — abre o Ateliê por contexto (volta ao Cultinho).
     navigation.navigate('AtelierFromContext', { from: 'cultinho' });
   }
 
@@ -83,7 +68,7 @@ export default function CultinhoEmCasaScreen({ navigation }) {
     <View style={styles.wrapper}>
       <SafeScreenHeader
         title="Cultinho em Casa"
-        subtitle="Um momento especial para fazer juntos."
+        subtitle="Um momentinho de fé em família (3–5 min)."
         onBack={() => navigation.goBack()}
         showHome
         onHome={() => navigation.navigate('Home')}
@@ -95,7 +80,7 @@ export default function CultinhoEmCasaScreen({ navigation }) {
       >
         {/* Beni guia */}
         <BeniGuideBubble
-          message="Vamos viver uma história com carinho?"
+          message="Vamos ter um cultinho rapidinho juntos?"
           avatarVariant="reading"
           tone="purple"
           compact
@@ -104,11 +89,11 @@ export default function CultinhoEmCasaScreen({ navigation }) {
 
         {/* Intro acolhedora */}
         <Text style={styles.intro}>
-          Uma história, uma conversa e uma oração com Beni. 💜
+          Uma passagem, uma conversa e uma oração com Beni. 💜
         </Text>
 
-        {/* 1. História sugerida */}
-        <StepCard number="1" accent={pt.faithBlue} title="A história de hoje">
+        {/* 1. A passagem de hoje (cena/frase + referência) — sem reabrir a história */}
+        <StepCard number="1" accent={pt.faithBlue} title="A passagem de hoje">
           <View style={styles.storyCover}>
             {coverImg ? (
               <Image source={coverImg} style={styles.storyCoverImg} resizeMode="cover" />
@@ -120,35 +105,42 @@ export default function CultinhoEmCasaScreen({ navigation }) {
           </View>
           <Text style={styles.storyTitle}>{story?.titulo ?? 'Uma aventura da fé'}</Text>
           {story?.referencia ? <Text style={styles.storyRef}>{story.referencia}</Text> : null}
-          <SoundButton style={[styles.primaryBtn, { backgroundColor: pt.faithBlue }]} onPress={handleOpenStory} activeOpacity={0.85}>
-            <Text style={styles.primaryBtnText}>Abrir história</Text>
+          <View style={styles.verseBox}>
+            <Text style={styles.verseText}>“{cultinho.fraseDoDia}”</Text>
+          </View>
+          <SoundButton style={styles.reviewLink} onPress={handleReviewStory} activeOpacity={0.7}>
+            <Text style={styles.reviewLinkText}>Rever a história</Text>
           </SoundButton>
         </StepCard>
 
-        {/* 2. Conversa em família */}
-        <StepCard number="2" accent={pt.gold} title="Conversa em família">
+        {/* 2. Beni explica (3–5 frases curtas) */}
+        <StepCard number="2" accent={pt.purple} title="Beni explica">
+          <View style={styles.beniExplainRow}>
+            <BeniAvatar variant="reading" size="small" />
+            <View style={styles.beniExplainTextWrap}>
+              {cultinho.beniExplica.map((line, i) => (
+                <Text key={i} style={styles.beniExplainLine}>{line}</Text>
+              ))}
+            </View>
+          </View>
+        </StepCard>
+
+        {/* 3. Conversa em família */}
+        <StepCard number="3" accent={pt.gold} title="Conversa em família">
           <Text style={styles.questionLabel}>Conversem juntos:</Text>
           <View style={styles.questionBox}>
-            <Text style={styles.questionText}>💬 {question}</Text>
+            <Text style={styles.questionText}>💬 {cultinho.pergunta}</Text>
           </View>
         </StepCard>
 
-        {/* 3. Colorir juntos */}
-        <StepCard number="3" accent={pt.beni} title="Colorir juntos">
-          <Text style={styles.stepBody}>Depois da história, vocês podem colorir uma cena juntos.</Text>
-          <SoundButton style={[styles.primaryBtn, { backgroundColor: pt.beni }]} onPress={handleOpenAtelier} activeOpacity={0.85}>
-            <Text style={styles.primaryBtnText}>🎨 Abrir Ateliê</Text>
-          </SoundButton>
-        </StepCard>
-
-        {/* 4. Oração curtinha */}
-        <StepCard number="4" accent={pt.purple} title="Oração curtinha">
+        {/* 4. Oração curtinha (em destaque) */}
+        <StepCard number="4" accent={pt.beni} title="Oração curtinha">
           <View style={styles.prayerBox}>
-            <Text style={styles.prayerText}>🙏 {prayer}</Text>
+            <Text style={styles.prayerText}>🙏 {cultinho.oracao}</Text>
           </View>
         </StepCard>
 
-        {/* 5. Concluir */}
+        {/* Concluir */}
         <SoundButton style={styles.concludeBtn} onPress={handleConcluir} activeOpacity={0.85}>
           <LinearGradient
             colors={['#9B6FE0', '#5B21B6']}
@@ -158,6 +150,11 @@ export default function CultinhoEmCasaScreen({ navigation }) {
             <Text style={styles.concludeText}>Concluir cultinho ✨</Text>
           </LinearGradient>
         </SoundButton>
+
+        {/* Colorir juntos — ação OPCIONAL ao final (não é etapa do fluxo) */}
+        <SoundButton style={styles.optionalColorBtn} onPress={handleColorirJuntos} activeOpacity={0.85}>
+          <Text style={styles.optionalColorText}>🎨 Colorir juntos (opcional)</Text>
+        </SoundButton>
       </ScrollView>
 
       {/* Sucesso */}
@@ -166,7 +163,7 @@ export default function CultinhoEmCasaScreen({ navigation }) {
           <View style={styles.successBox}>
             <BeniAvatar variant="celebrating" size="large" />
             <Text style={styles.successTitle}>Cultinho guardado!</Text>
-            <Text style={styles.successSub}>Beni ficou feliz com esse momento em família. 💜</Text>
+            <Text style={styles.successSub}>Esse momento ficou guardado no coração. 💜</Text>
             <SoundButton
               style={styles.successBtnPrimary}
               onPress={() => { setDone(false); navigation.navigate('Home'); }}
@@ -219,7 +216,23 @@ const styles = StyleSheet.create({
   storyCoverFallback: { justifyContent: 'center', alignItems: 'center' },
   storyCoverEmoji: { fontSize: 48 },
   storyTitle: { fontFamily: 'FredokaOne', fontSize: 18, color: pt.text, marginBottom: 2 },
-  storyRef: { fontFamily: 'Nunito', fontSize: 12, color: pt.muted, fontWeight: '700', marginBottom: 12 },
+  storyRef: { fontFamily: 'Nunito', fontSize: 12, color: pt.muted, fontWeight: '700', marginBottom: 10 },
+
+  // Frase do dia (passagem) — destaque suave, não é citação literal de versículo
+  verseBox: {
+    backgroundColor: pt.faithBlueSoft || '#EAF0FA', borderRadius: radii.md,
+    padding: 14, borderLeftWidth: 3, borderLeftColor: pt.faithBlue, marginBottom: 10,
+  },
+  verseText: { fontFamily: 'Nunito', fontSize: 15, color: pt.faithBlueDeep || '#1E3A66', fontWeight: '800', lineHeight: 21, fontStyle: 'italic' },
+
+  // "Rever a história" — link discreto (não compete com o fluxo)
+  reviewLink: { alignSelf: 'flex-start', paddingVertical: 4 },
+  reviewLinkText: { fontFamily: 'Nunito', fontSize: 13, color: pt.faithBlue, fontWeight: '800', textDecorationLine: 'underline' },
+
+  // Beni explica
+  beniExplainRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  beniExplainTextWrap: { flex: 1, gap: 6 },
+  beniExplainLine: { fontFamily: 'Nunito', fontSize: 14, color: pt.text, fontWeight: '600', lineHeight: 20 },
 
   primaryBtn: {
     borderRadius: radii.pill, paddingVertical: 13, alignItems: 'center',
@@ -246,6 +259,13 @@ const styles = StyleSheet.create({
   },
   concludeGradient: { paddingVertical: 16, alignItems: 'center' },
   concludeText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
+
+  // Colorir juntos — opcional ao final (secundário, claramente não obrigatório)
+  optionalColorBtn: {
+    marginTop: 10, borderRadius: radii.pill, paddingVertical: 13, alignItems: 'center',
+    backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: pt.beni,
+  },
+  optionalColorText: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.beni },
 
   // Sucesso
   successOverlay: {

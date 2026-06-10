@@ -6951,13 +6951,15 @@ check(
 
 const cultinhoScreen = readSrc('src/screens/CultinhoEmCasaScreen.js');
 check(
-  'CultinhoEmCasaScreen tem as etapas (história, conversa, colorir, oração, concluir)',
+  'CultinhoEmCasaScreen tem a estrutura 4B (passagem, Beni explica, conversa, oração, concluir)',
   cultinhoScreen.includes('Cultinho em Casa') &&
-  cultinhoScreen.includes('Abrir história') &&
-  cultinhoScreen.includes('Abrir Ateliê') &&
+  cultinhoScreen.includes('A passagem de hoje') &&
+  cultinhoScreen.includes('Beni explica') &&
+  cultinhoScreen.includes('Conversa em família') &&
+  cultinhoScreen.includes('Oração curtinha') &&
   cultinhoScreen.includes('Concluir cultinho') &&
   cultinhoScreen.includes('Cultinho guardado'),
-  'CultinhoEmCasaScreen incompleta (faltam etapas do fluxo)',
+  'CultinhoEmCasaScreen incompleta (faltam blocos do fluxo 4B)',
 );
 check(
   'CultinhoEmCasaScreen registra localmente e escolhe história vitrine (getStoryOfTheWeek)',
@@ -7498,6 +7500,62 @@ check(
   ux4Screen.includes('Asset.fromModule(n).downloadAsync()') &&
   ux4Screen.includes("typeof s === 'number'"),
   'BeniChestScreen: sem preload best-effort das imagens locais do Baú',
+);
+
+// ── Sprint Reestruturação UX 1.0 — Bloco 4B: Cultinho familiar ───────────────
+console.log('\n── Sprint UX 1.0 — Bloco 4B ──');
+
+const ux4bData = readSrc('src/data/cultinhoData.js');
+const ux4bScreen = readSrc('src/screens/CultinhoEmCasaScreen.js');
+
+check(
+  'Bloco 4B: cultinhoData expõe getCultinhoForStory + conteúdo curado + fallback seguro',
+  ux4bData.includes('export function getCultinhoForStory') &&
+  ux4bData.includes('CULTINHO_BY_STORY') &&
+  ux4bData.includes('beniExplica') && ux4bData.includes('fraseDoDia') &&
+  ux4bData.includes('pergunta') && ux4bData.includes('oracao'),
+  'cultinhoData ausente ou sem estrutura (frase/explica/pergunta/oração + fallback)',
+);
+
+check(
+  'Bloco 4B: cultinhoData sem backend/IA/texto livre',
+  !/fetch\(|axios|expo-notifications|openai|gpt|TextInput/i.test(ux4bData),
+  'cultinhoData não pode usar backend/IA/texto livre',
+);
+
+check(
+  'Bloco 4B: Cultinho NÃO reabre a história como etapa (sem botão "Abrir história"); só link "Rever a história"',
+  !ux4bScreen.includes('Abrir história') &&
+  !ux4bScreen.includes('Abrir Ateliê') &&
+  ux4bScreen.includes('Rever a história') &&
+  ux4bScreen.includes('handleReviewStory'),
+  'CultinhoEmCasaScreen ainda reabre a história como etapa principal',
+);
+
+check(
+  'Bloco 4B: estrutura limpa (passagem → Beni explica → conversa → oração) usando cultinhoData',
+  ux4bScreen.includes("from '../data/cultinhoData'") &&
+  ux4bScreen.includes('getCultinhoForStory') &&
+  ux4bScreen.includes('cultinho.fraseDoDia') &&
+  ux4bScreen.includes('cultinho.beniExplica.map') &&
+  ux4bScreen.includes('cultinho.pergunta') &&
+  ux4bScreen.includes('cultinho.oracao'),
+  'CultinhoEmCasaScreen não usa a estrutura/conteúdo do cultinhoData',
+);
+
+check(
+  'Bloco 4B: Colorir juntos é opcional ao final, abre Ateliê from:cultinho e volta',
+  ux4bScreen.includes('Colorir juntos (opcional)') &&
+  ux4bScreen.includes('handleColorirJuntos') &&
+  ux4bScreen.includes("navigation.navigate('AtelierFromContext', { from: 'cultinho' })"),
+  'CultinhoEmCasaScreen: Colorir juntos não está opcional/contextual (from:cultinho)',
+);
+
+check(
+  'Bloco 4B: finalização guarda no coração e preserva o registro (cartinha de Coração)',
+  ux4bScreen.includes('Esse momento ficou guardado no coração') &&
+  ux4bScreen.includes('markFamilyWorshipCompleted'),
+  'CultinhoEmCasaScreen: finalização/registro do cultinho alterada indevidamente',
 );
 
 // ── Summary ──────────────────────────────────────────────────────────────────
