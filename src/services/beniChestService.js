@@ -45,16 +45,20 @@ export const CHEST_RARITIES = ['common', 'special', 'shiny'];
 export const RARITY_LABEL = { common: 'Comum', special: 'Especial', shiny: 'Brilhante' };
 
 /**
- * Fallback visual por categoria — usado quando uma cartinha desbloqueada não
- * tem imagem (ou enquanto ela carrega). Evita corpo vazio. Cores suaves do tema.
+ * Fallback visual por categoria.
+ *   grad       — suave: usado APENAS como rede de segurança ATRÁS de uma imagem
+ *                real (quase nunca visível).
+ *   gradStrong — vivo/premium: usado quando a cartinha DESBLOQUEADA não tem
+ *                imagem. Garante que a recompensa nunca pareça um card
+ *                administrativo/apagado (≠ verso bloqueado).
  */
 export const CARD_FALLBACK = {
-  historias: { grad: ['#E5ECF7', '#CBDBF1'], label: 'História guardada', icon: '📖' },
-  cenas:     { grad: ['#EBF5E0', '#D6EBC4'], label: 'Cena da história', icon: '🌄' },
-  artes:     { grad: ['#FCE4EE', '#F8CCDD'], label: 'Arte guardada',    icon: '🎨' },
-  coracao:   { grad: ['#FFE9DC', '#FFD6BE'], label: 'Momento de fé',    icon: '💛' },
-  livrinho:  { grad: ['#EFE6FB', '#DFCBF6'], label: 'Livrinho da Fé',   icon: '📕' },
-  beni:      { grad: ['#FFF3CC', '#FCE6A8'], label: 'Beni',             icon: '🐑' },
+  historias: { grad: ['#E5ECF7', '#CBDBF1'], gradStrong: ['#3D74C9', '#244F8C'], label: 'História guardada', icon: '📖' },
+  cenas:     { grad: ['#EBF5E0', '#D6EBC4'], gradStrong: ['#6FB44A', '#3F7A28'], label: 'Cena da história', icon: '🌄' },
+  artes:     { grad: ['#FCE4EE', '#F8CCDD'], gradStrong: ['#F65C92', '#D62E68'], label: 'Arte guardada',    icon: '🎨' },
+  coracao:   { grad: ['#FFE9DC', '#FFD6BE'], gradStrong: ['#FF8A3D', '#E85D12'], label: 'Momento de fé',    icon: '💛' },
+  livrinho:  { grad: ['#EFE6FB', '#DFCBF6'], gradStrong: ['#9A5BF0', '#6A2CC9'], label: 'Livrinho da Fé',   icon: '📕' },
+  beni:      { grad: ['#FFF3CC', '#FCE6A8'], gradStrong: ['#FBD45F', '#F0A91A'], label: 'Beni',             icon: '🐑' },
 };
 
 /**
@@ -104,10 +108,10 @@ export function buildBeniChestCards(params) {
     cards.push({
       id: `hist_${s.id}`, category: 'historias', type: CHEST_CARD_TYPES.historia,
       rarity: complete ? 'shiny' : 'common',
-      title: s.titulo || 'Aventura', storyTitle: s.titulo || null, unlocked: done > 0,
+      title: s.titulo || 'Aventura', storyTitle: s.titulo || null, storyId: s.id, unlocked: done > 0,
       image: getStoryCoverImage(s.id), emoji: s.emoji || '📖',
       phrase: s.licaoCoracao || s.shortDescription || 'Uma aventura da fé.',
-      origin: `Você encontrou isso em ${s.titulo || 'uma história'}.`,
+      origin: `Você ganhou ao viver ${s.titulo || 'esta aventura'}.`,
       color: '#2B5BA1',
     });
   }
@@ -120,11 +124,11 @@ export function buildBeniChestCards(params) {
     cards.push({
       id: `cena_${s.id}`, category: 'cenas', type: CHEST_CARD_TYPES.cena, rarity: 'common',
       title: (cena1 && cena1.titulo) || `Cena de ${s.titulo || 'aventura'}`,
-      storyTitle: s.titulo || null, unlocked: true,
+      storyTitle: s.titulo || null, storyId: s.id, unlocked: true,
       image: getOfficialSceneIllustration(s.id, cena1 && cena1.id) || getStoryCoverImage(s.id),
       emoji: (cena1 && cena1.emojiCena) || '🌄',
       phrase: 'Uma cena que você viveu.',
-      origin: `Da história ${s.titulo || ''}.`.trim(),
+      origin: `Você ganhou ao viver uma cena de ${s.titulo || 'uma aventura'}.`,
       color: '#5E9C3E',
     });
   }
@@ -145,7 +149,7 @@ export function buildBeniChestCards(params) {
         title: (a && a.title) || 'Minha arte', unlocked: true,
         uri: (a && a.thumbnailBase64) || null, emoji: '🎨',
         phrase: 'Uma arte sua, guardada com carinho.',
-        origin: 'Essa cartinha veio do seu Ateliê.', color: '#EC407A',
+        origin: 'Você ganhou ao salvar uma arte no Ateliê.', color: '#EC407A',
       });
     });
   }
@@ -155,21 +159,21 @@ export function buildBeniChestCards(params) {
     id: 'cor_reflexao', category: 'coracao', type: CHEST_CARD_TYPES.coracao, rarity: 'special',
     title: 'Conversa com Beni', unlocked: !!c.anyReflectionDone, beni: true,
     phrase: 'Você abriu seu coração numa reflexão.',
-    origin: 'De uma reflexão com Beni.',
+    origin: 'Você ganhou ao abrir seu coração com Beni.',
     hint: 'Dica: termine uma história e converse com Beni.', color: '#F4731F',
   });
   cards.push({
     id: 'cor_cultinho', category: 'coracao', type: CHEST_CARD_TYPES.coracao, rarity: 'special',
     title: 'Cultinho em Casa', unlocked: !!c.familyWorshipDone, emoji: '🏡',
     phrase: 'Um momento de fé em família.',
-    origin: 'Do Cultinho em Casa.',
+    origin: 'Você ganhou ao fazer um Cultinho em Casa.',
     hint: 'Dica: faça um Cultinho em Casa com a família.', color: '#F4731F',
   });
   cards.push({
     id: 'cor_momento', category: 'coracao', type: CHEST_CARD_TYPES.coracao, rarity: 'special',
     title: 'Momento com Beni', unlocked: !!c.lumiMomentEverDone, emoji: '🌙',
     phrase: 'Um versículo guardado no coração.',
-    origin: 'Do Momento com Beni.',
+    origin: 'Você ganhou ao guardar um versículo com Beni.',
     hint: 'Dica: abra um Momento com Beni.', color: '#F4731F',
   });
 
@@ -178,7 +182,7 @@ export function buildBeniChestCards(params) {
     id: 'livro_primeiro', category: 'livrinho', type: CHEST_CARD_TYPES.livrinho, rarity: 'shiny',
     title: 'Livrinho da Fé', unlocked: !!c.anyBookOpened, emoji: '📕',
     phrase: 'Sua história virou um livrinho.',
-    origin: 'De abrir o Livrinho da Fé.',
+    origin: 'Você ganhou ao concluir uma aventura.',
     hint: 'Dica: termine uma história e abra o Livrinho.', color: '#7C3AED',
   });
 

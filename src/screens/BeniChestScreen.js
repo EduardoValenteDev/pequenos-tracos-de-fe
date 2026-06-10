@@ -97,6 +97,28 @@ export default function BeniChestScreen({ navigation, route }) {
   const newSet = new Set(newIds);
   const hasNew = revealQueue.length > 0;
 
+  // Ação contextual do detalhe ("o que posso fazer com isso?"). Só quando faz
+  // sentido e a rota é segura — senão o detalhe mostra apenas "Fechar".
+  function detailAction(card) {
+    if (!card || !card.unlocked) return null;
+    if ((card.category === 'historias' || card.category === 'cenas') && card.storyId) {
+      const story = stories.find(s => s && s.id === card.storyId);
+      if (story) {
+        return {
+          label: 'Rever história',
+          onPress: () => { setSelected(null); navigation.navigate('StoryDetail', { story }); },
+        };
+      }
+    }
+    if (card.category === 'artes') {
+      return {
+        label: 'Ver minhas artes',
+        onPress: () => { setSelected(null); navigation.navigate('AtelierGallery'); },
+      };
+    }
+    return null;
+  }
+
   function handleGuardar() {
     // Guarda TODAS as novas de uma vez: marca como vistas (persistente) e some
     // o badge "Nova" agora. Ao reabrir, getUnseenUnlockedChestCards já as exclui.
@@ -156,8 +178,8 @@ export default function BeniChestScreen({ navigation, route }) {
             <BeniAvatar variant="celebrating" size="medium" />
           </View>
           <Text style={styles.heroTitle}>Baú do Beni</Text>
-          <Text style={styles.heroSub}>Suas cartinhas de fé ficam guardadas aqui.</Text>
-          <Text style={styles.heroLine}>Cada aventura pode revelar uma lembrança.</Text>
+          <Text style={styles.heroSub}>Suas cartinhas guardam lembranças das aventuras que você viveu com Beni.</Text>
+          <Text style={styles.heroLine}>Cada aventura pode revelar uma nova lembrança.</Text>
           <Text style={styles.heroCount}>{unlocked} cartinha{unlocked === 1 ? '' : 's'} encontrada{unlocked === 1 ? '' : 's'}</Text>
           <View style={styles.heroBar}>
             <View style={[styles.heroBarFill, { width: `${ratio * 100}%` }]} />
@@ -282,13 +304,32 @@ export default function BeniChestScreen({ navigation, route }) {
                 </View>
               </View>
               <Text style={styles.detailTitle}>{selected.title}</Text>
+              {(() => {
+                const cat = CHEST_CATEGORIES.find(c => c.id === selected.category);
+                return cat ? (
+                  <Text style={styles.detailCategory}>{cat.icon} {cat.label}</Text>
+                ) : null;
+              })()}
               <Text style={styles.detailPhrase}>{selected.phrase}</Text>
               <Text style={styles.detailBeniLine}>Beni guardou essa lembrança para você. 💛</Text>
               <View style={styles.detailOriginBox}>
+                <Text style={styles.detailOriginLabel}>Como você ganhou</Text>
                 <Text style={styles.detailOriginText}>{selected.origin}</Text>
               </View>
-              <SoundButton style={styles.detailBtn} onPress={() => setSelected(null)} activeOpacity={0.85}>
-                <Text style={styles.detailBtnText}>Fechar</Text>
+              {(() => {
+                const action = detailAction(selected);
+                return action ? (
+                  <SoundButton style={styles.detailActionBtn} onPress={action.onPress} activeOpacity={0.85}>
+                    <Text style={styles.detailActionText}>{action.label}</Text>
+                  </SoundButton>
+                ) : null;
+              })()}
+              <SoundButton
+                style={detailAction(selected) ? styles.detailBtnSecondary : styles.detailBtn}
+                onPress={() => setSelected(null)}
+                activeOpacity={0.85}
+              >
+                <Text style={detailAction(selected) ? styles.detailBtnSecondaryText : styles.detailBtnText}>Fechar</Text>
               </SoundButton>
             </View>
           ) : (
@@ -372,13 +413,20 @@ const styles = StyleSheet.create({
   detailTypeText: { fontFamily: 'Nunito', fontSize: 11, color: '#FFF', fontWeight: '800' },
   detailRarityBadge: { borderRadius: radii.pill, paddingHorizontal: 12, paddingVertical: 3, backgroundColor: pt.cream, borderWidth: 1, borderColor: '#F0E2C6' },
   detailRarityText: { fontFamily: 'Nunito', fontSize: 11, color: '#9A6B12', fontWeight: '800' },
-  detailTitle: { fontFamily: 'FredokaOne', fontSize: 20, color: pt.text, textAlign: 'center', marginBottom: 6 },
+  detailTitle: { fontFamily: 'FredokaOne', fontSize: 20, color: pt.text, textAlign: 'center', marginBottom: 2 },
+  detailCategory: { fontFamily: 'Nunito', fontSize: 12.5, color: pt.textSoft, fontWeight: '800', textAlign: 'center', marginBottom: 6 },
   detailPhrase: { fontFamily: 'Nunito', fontSize: 14, color: pt.textSoft, textAlign: 'center', lineHeight: 21, marginBottom: 6 },
   detailBeniLine: { fontFamily: 'FredokaOne', fontSize: 12.5, color: pt.purpleDeep, textAlign: 'center', marginBottom: 12 },
   detailOriginBox: { backgroundColor: pt.cream, borderRadius: radii.md, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 16, width: '100%' },
+  detailOriginLabel: { fontFamily: 'FredokaOne', fontSize: 11, color: '#9A6B12', letterSpacing: 0.4, textAlign: 'center', marginBottom: 3 },
   detailOriginText: { fontFamily: 'Nunito', fontSize: 13, color: pt.text, fontWeight: '700', textAlign: 'center' },
   detailBtn: { backgroundColor: pt.gold, borderRadius: radii.pill, paddingVertical: 13, alignSelf: 'stretch', alignItems: 'center' },
   detailBtnText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#5A3E12' },
+  // Ação contextual (primária) + Fechar (secundário) quando há ação
+  detailActionBtn: { backgroundColor: pt.faithBlue, borderRadius: radii.pill, paddingVertical: 13, alignSelf: 'stretch', alignItems: 'center', marginBottom: 8 },
+  detailActionText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFF' },
+  detailBtnSecondary: { backgroundColor: 'transparent', borderRadius: radii.pill, paddingVertical: 11, alignSelf: 'stretch', alignItems: 'center', borderWidth: 1.5, borderColor: '#E2D2A8' },
+  detailBtnSecondaryText: { fontFamily: 'FredokaOne', fontSize: 15, color: '#9A6B12' },
 
   // Detalhe bloqueada (menor)
   detailBoxSmall: { backgroundColor: '#FFFDF8', borderRadius: radii.xl, padding: 24, width: '100%', alignItems: 'center', borderWidth: 1.5, borderColor: '#E7DECF', elevation: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 20 },

@@ -7410,6 +7410,69 @@ check(
   'AtelierCanvasScreen perdeu alguma ferramenta essencial do fluxo principal',
 );
 
+// ── Sprint Reestruturação UX 1.0 — Bloco 4A: Baú valor percebido ─────────────
+console.log('\n── Sprint UX 1.0 — Bloco 4A ──');
+
+const ux4Svc = readSrc('src/services/beniChestService.js');
+const ux4Card = readSrc('src/components/beni/BeniChestCard.js');
+const ux4Screen = readSrc('src/screens/BeniChestScreen.js');
+
+check(
+  'Bloco 4A: CARD_FALLBACK tem gradiente vivo (gradStrong) por categoria',
+  ux4Svc.includes('gradStrong') &&
+  (ux4Svc.match(/gradStrong:/g) || []).length >= 6,
+  'beniChestService: CARD_FALLBACK sem gradiente premium (gradStrong) por categoria',
+);
+
+check(
+  'Bloco 4A: origens comunicam "por que ganhei" (Coração/Livrinho/Cenas/Artes)',
+  ux4Svc.includes('Você ganhou ao fazer um Cultinho em Casa.') &&
+  ux4Svc.includes('Você ganhou ao concluir uma aventura.') &&
+  /origin: `Você ganhou ao viver uma cena de/.test(ux4Svc) &&
+  ux4Svc.includes('Você ganhou ao salvar uma arte no Ateliê.'),
+  'beniChestService: origens não explicam por que a cartinha foi ganha',
+);
+
+check(
+  'Bloco 4A: cartinhas de história/cena carregam storyId (para ação "Rever história")',
+  /storyId: s\.id/.test(ux4Svc) &&
+  (ux4Svc.match(/storyId: s\.id/g) || []).length >= 2,
+  'beniChestService: histórias/cenas sem storyId para a ação do detalhe',
+);
+
+check(
+  'Bloco 4A: card desbloqueado sem imagem usa PremiumFallback (vivo + selo + origem)',
+  ux4Card.includes('function PremiumFallback') &&
+  ux4Card.includes('gradStrong') &&
+  ux4Card.includes('✓ Desbloqueada') &&
+  /return <PremiumFallback card=\{card\} \/>/.test(ux4Card),
+  'BeniChestCard: desbloqueada sem imagem ainda usa fallback apagado (não premium)',
+);
+
+check(
+  'Bloco 4A: card desbloqueado tem selo de check "Desbloqueada"; bloqueado tem cadeado + texto correto',
+  ux4Card.includes('unlockedSeal') &&
+  ux4Card.includes('Continue a aventura para revelar.') &&
+  ux4Card.includes('backLock'),
+  'BeniChestCard: desbloqueado/bloqueado não são distinguíveis (selo/cadeado/texto)',
+);
+
+check(
+  'Bloco 4A: Baú explica sua função em uma frase (hero)',
+  ux4Screen.includes('Suas cartinhas guardam lembranças das aventuras que você viveu com Beni.'),
+  'BeniChestScreen: hero não explica a função do Baú',
+);
+
+check(
+  'Bloco 4A: detalhe da cartinha mostra categoria + "Como você ganhou" + ação contextual',
+  ux4Screen.includes('detailCategory') &&
+  ux4Screen.includes('Como você ganhou') &&
+  ux4Screen.includes('function detailAction') &&
+  ux4Screen.includes("navigation.navigate('StoryDetail'") &&
+  ux4Screen.includes("navigation.navigate('AtelierGallery')"),
+  'BeniChestScreen: detalhe sem categoria/origem rotulada/ação contextual',
+);
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 const total = passes + failures;
 console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

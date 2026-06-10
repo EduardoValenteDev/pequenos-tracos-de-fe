@@ -20,13 +20,32 @@ import { resolveCardImageSource, CARD_FALLBACK } from '../../services/beniChestS
 
 const GOLD = '#F4B400';
 
-/* Fundo bonito por categoria — garante que a cartinha nunca pareça vazia. */
+/* Rede de segurança ATRÁS de uma imagem real (raramente visível). Usa o
+   gradiente vivo para que, se a imagem falhar, ainda apareça algo premium. */
 function CategoryFallback({ card }) {
   const fb = CARD_FALLBACK[card.category] || CARD_FALLBACK.beni;
   return (
-    <LinearGradient colors={fb.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fallbackFill}>
+    <LinearGradient colors={fb.gradStrong || fb.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fallbackFill}>
       <Text style={styles.fallbackIcon}>{fb.icon}</Text>
       <Text style={styles.fallbackLabel} numberOfLines={1}>{fb.label}</Text>
+    </LinearGradient>
+  );
+}
+
+/* Fallback PREMIUM da cartinha DESBLOQUEADA sem imagem: fundo vivo + ícone
+   grande + selo "Desbloqueada" + origem curta. NUNCA parece um card vazio ou
+   o verso bloqueado (apagado). */
+function PremiumFallback({ card }) {
+  const fb = CARD_FALLBACK[card.category] || CARD_FALLBACK.beni;
+  return (
+    <LinearGradient colors={fb.gradStrong || fb.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumFill}>
+      <View style={styles.premiumSeal}>
+        <Text style={styles.premiumSealText}>✓ Desbloqueada</Text>
+      </View>
+      <Text style={styles.premiumIcon}>{card.emoji || fb.icon}</Text>
+      {!!card.origin && (
+        <Text style={styles.premiumOrigin} numberOfLines={2}>{card.origin}</Text>
+      )}
     </LinearGradient>
   );
 }
@@ -64,8 +83,8 @@ function CardArt({ card }) {
     );
   }
 
-  // Sem imagem: fallback de categoria (bonito, com rótulo) — nunca vazio.
-  return <CategoryFallback card={card} />;
+  // Sem imagem: fallback PREMIUM (vivo, selo + origem) — recompensa real, nunca vazio.
+  return <PremiumFallback card={card} />;
 }
 
 export default function BeniChestCard({ card, isNew = false, onPress, style }) {
@@ -86,7 +105,7 @@ export default function BeniChestCard({ card, isNew = false, onPress, style }) {
         >
           <Text style={styles.backIcon}>🧰</Text>
           <Text style={styles.backTitle}>Cartinha escondida</Text>
-          <Text style={styles.backSub}>Continue a jornada para revelar</Text>
+          <Text style={styles.backSub}>Continue a aventura para revelar.</Text>
           <View style={styles.backLock}><Text style={styles.backLockText}>🔒</Text></View>
         </LinearGradient>
       </SoundButton>
@@ -94,13 +113,16 @@ export default function BeniChestCard({ card, isNew = false, onPress, style }) {
   }
 
   // ── Desbloqueada ──
+  // Cartinhas com imagem/avatar ganham o selo de check ✓ "Desbloqueada"; as
+  // sem imagem usam o PremiumFallback (que já traz o selo "Desbloqueada").
+  const hasRealImage = !!card.beni || !!resolveCardImageSource(card);
   return (
     <SoundButton
       activeOpacity={0.85}
       onPress={onPress}
       style={[
         styles.card,
-        { borderColor: shiny ? GOLD : color, borderWidth: special || shiny ? 2.5 : 2 },
+        { borderColor: shiny ? GOLD : color, borderWidth: special || shiny ? 3 : 2.5 },
         shiny ? styles.cardShiny : shadows.card,
         style,
       ]}
@@ -113,6 +135,13 @@ export default function BeniChestCard({ card, isNew = false, onPress, style }) {
           <Text style={styles.typeBadgeText}>{card.type}</Text>
         </View>
 
+        {/* Selo "Desbloqueada" (check) — diferencia na hora do verso bloqueado */}
+        {hasRealImage && (
+          <View style={styles.unlockedSeal} pointerEvents="none">
+            <Text style={styles.unlockedSealText}>✓</Text>
+          </View>
+        )}
+
         {/* Brilho discreto */}
         <View style={[styles.shine, shiny && styles.shineShiny]} pointerEvents="none" />
         {shiny && <Text style={styles.sparkle}>✨</Text>}
@@ -122,7 +151,8 @@ export default function BeniChestCard({ card, isNew = false, onPress, style }) {
           <View style={styles.newBadge}><Text style={styles.newBadgeText}>Nova</Text></View>
         )}
       </View>
-      <Text style={styles.cardTitle} numberOfLines={2}>{card.title}</Text>
+      {/* Rodapé com tom da categoria → fundo vivo, nunca creme apagado */}
+      <Text style={[styles.cardTitle, { backgroundColor: color + '14' }]} numberOfLines={2}>{card.title}</Text>
     </SoundButton>
   );
 }
@@ -144,10 +174,37 @@ const styles = StyleSheet.create({
   artCanvasBg: { backgroundColor: '#FFFDF8', justifyContent: 'center', alignItems: 'center' },
   artCenter: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
 
-  // Fallback de categoria
+  // Fallback de categoria (rede de segurança atrás da imagem)
   fallbackFill: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 },
   fallbackIcon: { fontSize: 36, marginBottom: 4 },
-  fallbackLabel: { fontFamily: 'FredokaOne', fontSize: 12, color: 'rgba(58,42,30,0.66)', textAlign: 'center' },
+  fallbackLabel: { fontFamily: 'FredokaOne', fontSize: 12, color: 'rgba(255,255,255,0.92)', textAlign: 'center' },
+
+  // Fallback PREMIUM (desbloqueada sem imagem) — vivo, com selo e origem
+  premiumFill: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 10 },
+  premiumIcon: {
+    fontSize: 52, marginBottom: 6,
+    textShadowColor: 'rgba(0,0,0,0.18)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3,
+  },
+  premiumSeal: {
+    position: 'absolute', top: 8, alignSelf: 'center',
+    backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: radii.pill,
+    paddingHorizontal: 10, paddingVertical: 3,
+  },
+  premiumSealText: { fontFamily: 'FredokaOne', fontSize: 10, color: '#2E7D32' },
+  premiumOrigin: {
+    fontFamily: 'Nunito', fontSize: 11, color: '#FFFFFF', fontWeight: '800',
+    textAlign: 'center', lineHeight: 14,
+    textShadowColor: 'rgba(0,0,0,0.22)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
+  },
+
+  // Selo "Desbloqueada" (check) nas cartinhas com imagem
+  unlockedSeal: {
+    position: 'absolute', bottom: 8, left: 8,
+    width: 24, height: 24, borderRadius: 12, backgroundColor: '#2E7D32',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#FFF',
+  },
+  unlockedSealText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF', marginTop: -1 },
 
   typeBadge: {
     position: 'absolute', top: 8, left: 8, borderRadius: radii.pill,
