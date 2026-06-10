@@ -6614,8 +6614,8 @@ const achSrc = readSrc('src/data/achievements.js');
 check(
   'Conquistas: categorias definidas (ACHIEVEMENT_CATEGORIES) e campo category nas conquistas',
   achSrc.includes('ACHIEVEMENT_CATEGORIES') &&
-  achSrc.includes("category: 'jornada'") && achSrc.includes("category: 'arte'") &&
-  achSrc.includes("category: 'livrinho'") && achSrc.includes("category: 'coracao'"),
+  achSrc.includes("category: 'historias'") && achSrc.includes("category: 'cenas'") &&
+  achSrc.includes("category: 'atelie'") && achSrc.includes("category: 'momentos'"),
   'achievements.js sem categorias / campo category',
 );
 check(
@@ -6640,9 +6640,9 @@ check(
 
 const albumSrc = readSrc('src/screens/TrophiesScreen.js');
 check(
-  'Álbum: hero + subtítulo "viveu com Beni" + próxima conquista + categorias',
+  'Álbum: hero + frase explicativa + próxima conquista + categorias',
   albumSrc.includes('Álbum de Estrelinhas') &&
-  albumSrc.includes('conquistas que você viveu com Beni') &&
+  albumSrc.includes('Você ganha estrelinhas ao completar cenas, histórias e momentos especiais.') &&
   albumSrc.includes('computeNextAchievement') &&
   albumSrc.includes('ACHIEVEMENT_CATEGORIES'),
   'TrophiesScreen não virou álbum por categorias com próxima conquista',
@@ -6721,10 +6721,11 @@ check(
   'Home sem entrada para o Baú do Beni',
 );
 check(
-  'Conquista "Primeira cartinha" defensiva (cnt/flag, ctx hostil)',
+  'Conquista de primeiro passo (first_chest_card) existe, sem confundir com o Baú',
   achSrc.includes("id: 'first_chest_card'") &&
-  achSrc.includes('Encontrou sua primeira cartinha'),
-  'Conquista do baú ausente',
+  achSrc.includes("category: 'momentos'") &&
+  !achSrc.includes('Encontrou sua primeira cartinha'),
+  'Conquista de primeiro passo ausente ou ainda referencia o Baú',
 );
 
 // Execução real: buildBeniChestCards null-safe (sandbox com stubs de imagem).
@@ -7608,6 +7609,61 @@ check(
   ux4cScreen.includes('alreadyDone') && ux4cScreen.includes('refreshProgress') &&
   /handleGuardar[\s\S]*?navigation\.goBack\(\)/.test(ux4cScreen),
   'ReflectionScreen quebrou a recompensa/registro ou o retorno à conclusão',
+);
+
+// ── Sprint Reestruturação UX 1.0 — Bloco 4D: Estrelinhas = progresso ─────────
+console.log('\n── Sprint UX 1.0 — Bloco 4D ──');
+
+const ux4dData = readSrc('src/data/achievements.js');
+const ux4dScreen = readSrc('src/screens/TrophiesScreen.js');
+
+const ux4dIdCount = (ux4dData.match(/\n\s{4}id: '/g) || []).length;
+const ux4dHowCount = (ux4dData.match(/\n\s{4}how: '/g) || []).length;
+const ux4dEarnedCount = (ux4dData.match(/\n\s{4}earned: '/g) || []).length;
+
+check(
+  'Bloco 4D: 4 categorias claras (Histórias, Cenas, Ateliê, Momentos com Beni)',
+  ux4dData.includes("id: 'historias'") && ux4dData.includes("id: 'cenas'") &&
+  ux4dData.includes("id: 'atelie'") && ux4dData.includes("id: 'momentos'") &&
+  ux4dData.includes("label: 'Momentos com Beni'") &&
+  !ux4dData.includes("{ id: 'jornada'"),
+  'achievements.js sem as 4 categorias do Bloco 4D',
+);
+
+check(
+  'Bloco 4D: conquistas de cena usam unidade "cenas" no título (sem "estrelas")',
+  ux4dData.includes("title: 'Cinco cenas'") && ux4dData.includes("title: 'Cinquenta cenas'") &&
+  !/title: '[^']*[Ee]strela/.test(ux4dData),
+  'achievements.js ainda mistura unidade (título "estrelas" medindo cenas)',
+);
+
+check(
+  'Bloco 4D: toda conquista tem how (como conquistar) e earned (como conquistou)',
+  ux4dIdCount > 0 && ux4dHowCount === ux4dIdCount && ux4dEarnedCount === ux4dIdCount,
+  `achievements.js: how/earned não cobrem todas as conquistas (ids=${ux4dIdCount}, how=${ux4dHowCount}, earned=${ux4dEarnedCount})`,
+);
+
+check(
+  'Bloco 4D: Estrelinhas explica seu propósito e se diferencia do Baú',
+  ux4dScreen.includes('Você ganha estrelinhas ao completar cenas, histórias e momentos especiais.') &&
+  ux4dScreen.includes('As estrelinhas mostram seu progresso. O Baú guarda suas lembranças.'),
+  'TrophiesScreen sem frase explicativa / diferenciação do Baú',
+);
+
+check(
+  'Bloco 4D: detalhe mostra "COMO VOCÊ GANHOU" (concluída) ou "COMO CONQUISTAR" (bloqueada)',
+  ux4dScreen.includes('COMO VOCÊ GANHOU') && ux4dScreen.includes('COMO CONQUISTAR') &&
+  ux4dScreen.includes('selected.earned') && ux4dScreen.includes('selected.how') &&
+  ux4dScreen.includes('achievement.how'),
+  'TrophiesScreen não usa how/earned nos estados de conquista',
+);
+
+check(
+  'Bloco 4D: navegação contextual preservada (volta para a conclusão)',
+  ux4dScreen.includes('fromStoryCompletion') &&
+  ux4dScreen.includes('backLabelFor(route?.params?.from)') &&
+  /backBtn[\s\S]*?navigation\.goBack\(\)/.test(ux4dScreen),
+  'TrophiesScreen quebrou o retorno contextual à conclusão',
 );
 
 // ── Summary ──────────────────────────────────────────────────────────────────

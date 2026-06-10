@@ -14,27 +14,35 @@ const flag = (ctx, key) => !!(ctx || {})[key];
 const mk = (ctx, key, target) => ({ current: Math.min(cnt(ctx, key), target), target });
 
 /**
- * Categorias do Álbum de Estrelinhas. Cada conquista tem um `category`.
+ * Categorias do Álbum de Estrelinhas (UX 1.0 — Bloco 4D). Quatro grupos claros:
+ *   Histórias · Cenas · Ateliê · Momentos com Beni.
+ * Estrelinhas = progresso (não é o Baú, que guarda lembranças).
  * Mapeamento puramente visual — não altera a lógica de desbloqueio.
  */
 export const ACHIEVEMENT_CATEGORIES = [
-  { id: 'jornada',   label: 'Jornada',   icon: '⭐', color: '#F9C74F' },
-  { id: 'historias', label: 'Histórias', icon: '📖', color: '#2B5BA1' },
-  { id: 'arte',      label: 'Arte',      icon: '🎨', color: '#EC407A' },
-  { id: 'quiz',      label: 'Quiz',      icon: '🧩', color: '#2ECC71' },
-  { id: 'livrinho',  label: 'Livrinho',  icon: '📕', color: '#7C3AED' },
-  { id: 'coracao',   label: 'Coração',   icon: '💛', color: '#F4B400' },
+  { id: 'historias', label: 'Histórias',          icon: '📖', color: '#2B5BA1' },
+  { id: 'cenas',     label: 'Cenas',              icon: '⭐', color: '#F9C74F' },
+  { id: 'atelie',    label: 'Ateliê',             icon: '🎨', color: '#EC407A' },
+  { id: 'momentos',  label: 'Momentos com Beni',  icon: '💛', color: '#7C3AED' },
 ];
 
+/**
+ * Cada conquista mede UMA unidade só (cenas, histórias, artes ou um momento).
+ * `how`    — como conquistar (mostrado quando bloqueada/em progresso).
+ * `earned` — como conquistou (mostrado quando concluída).
+ * Título e progresso usam SEMPRE a mesma unidade (sem misturar estrelas/cenas).
+ */
 export const ACHIEVEMENTS = [
-  // ── Jornada (estrelas/cenas) ──
+  // ── Cenas (mede totalScenes) ──
   {
     id: 'first_scene',
     emoji: '⭐',
     title: 'Primeira cena',
     desc: 'Complete sua primeira cena de qualquer história.',
+    how: 'Complete sua primeira cena para ganhar.',
+    earned: 'Você ganhou ao completar sua primeira cena.',
     color: '#FFD166',
-    category: 'jornada',
+    category: 'cenas',
     check: ctx => cnt(ctx, 'totalScenes') >= 1,
     progressLabel: ctx => `${Math.min(cnt(ctx, 'totalScenes'), 1)} de 1 cena`,
     progress: ctx => mk(ctx, 'totalScenes', 1),
@@ -42,10 +50,12 @@ export const ACHIEVEMENTS = [
   {
     id: 'five_stars',
     emoji: '🌟',
-    title: 'Cinco estrelas',
+    title: 'Cinco cenas',
     desc: 'Complete 5 cenas ao todo. Você está voando!',
+    how: 'Complete 5 cenas para ganhar.',
+    earned: 'Você ganhou ao completar 5 cenas.',
     color: colors.success,
-    category: 'jornada',
+    category: 'cenas',
     check: ctx => cnt(ctx, 'totalScenes') >= 5,
     progressLabel: ctx => `${Math.min(cnt(ctx, 'totalScenes'), 5)} de 5 cenas`,
     progress: ctx => mk(ctx, 'totalScenes', 5),
@@ -53,10 +63,12 @@ export const ACHIEVEMENTS = [
   {
     id: 'ten_stars',
     emoji: '💛',
-    title: 'Dez estrelas',
+    title: 'Dez cenas',
     desc: 'Complete 10 cenas. Que jornada incrível!',
+    how: 'Complete 10 cenas para ganhar.',
+    earned: 'Você ganhou ao completar 10 cenas.',
     color: colors.primaryDark,
-    category: 'jornada',
+    category: 'cenas',
     check: ctx => cnt(ctx, 'totalScenes') >= 10,
     progressLabel: ctx => `${Math.min(cnt(ctx, 'totalScenes'), 10)} de 10 cenas`,
     progress: ctx => mk(ctx, 'totalScenes', 10),
@@ -64,10 +76,12 @@ export const ACHIEVEMENTS = [
   {
     id: 'fifteen_stars',
     emoji: '🔥',
-    title: 'Quinze estrelas',
+    title: 'Quinze cenas',
     desc: 'Incrível! 15 cenas concluídas na sua jornada.',
+    how: 'Complete 15 cenas para ganhar.',
+    earned: 'Você ganhou ao completar 15 cenas.',
     color: '#E87722',
-    category: 'jornada',
+    category: 'cenas',
     check: ctx => cnt(ctx, 'totalScenes') >= 15,
     progressLabel: ctx => `${Math.min(cnt(ctx, 'totalScenes'), 15)} de 15 cenas`,
     progress: ctx => mk(ctx, 'totalScenes', 15),
@@ -75,10 +89,12 @@ export const ACHIEVEMENTS = [
   {
     id: 'thirty_stars',
     emoji: '🌠',
-    title: 'Trinta estrelas',
+    title: 'Trinta cenas',
     desc: 'Complete 30 cenas. Você é dedicado!',
+    how: 'Complete 30 cenas para ganhar.',
+    earned: 'Você ganhou ao completar 30 cenas.',
     color: '#5C6BC0',
-    category: 'jornada',
+    category: 'cenas',
     check: ctx => cnt(ctx, 'totalScenes') >= 30,
     progressLabel: ctx => `${Math.min(cnt(ctx, 'totalScenes'), 30)} de 30 cenas`,
     progress: ctx => mk(ctx, 'totalScenes', 30),
@@ -86,21 +102,25 @@ export const ACHIEVEMENTS = [
   {
     id: 'fifty_stars',
     emoji: '🎖️',
-    title: 'Cinquenta estrelas',
+    title: 'Cinquenta cenas',
     desc: '50 cenas! Você está construindo algo lindo.',
+    how: 'Complete 50 cenas para ganhar.',
+    earned: 'Você ganhou ao completar 50 cenas.',
     color: '#EC407A',
-    category: 'jornada',
+    category: 'cenas',
     check: ctx => cnt(ctx, 'totalScenes') >= 50,
     progressLabel: ctx => `${Math.min(cnt(ctx, 'totalScenes'), 50)} de 50 cenas`,
     progress: ctx => mk(ctx, 'totalScenes', 50),
   },
 
-  // ── Histórias ──
+  // ── Histórias (mede completedStories / flags de história) ──
   {
     id: 'first_story',
     emoji: '🏆',
     title: 'Primeira aventura',
     desc: 'Termine todas as cenas de uma história.',
+    how: 'Termine todas as cenas de uma história para ganhar.',
+    earned: 'Você ganhou ao completar sua primeira história.',
     color: colors.action,
     category: 'historias',
     check: ctx => cnt(ctx, 'completedStories') >= 1,
@@ -112,6 +132,8 @@ export const ACHIEVEMENTS = [
     emoji: '🌍',
     title: 'Guardião da Criação',
     desc: 'Completou a história da Criação do início ao fim.',
+    how: 'Complete a história da Criação para ganhar.',
+    earned: 'Você ganhou ao completar a história da Criação.',
     color: '#2E9E5B',
     category: 'historias',
     check: ctx => flag(ctx, 'creationComplete'),
@@ -121,6 +143,8 @@ export const ACHIEVEMENTS = [
     emoji: '🌈',
     title: 'Noé e o Sinal da Aliança',
     desc: 'Completou a história de Noé do início ao fim.',
+    how: 'Complete a história de Noé para ganhar.',
+    earned: 'Você ganhou ao completar a história de Noé.',
     color: '#4FC3F7',
     category: 'historias',
     check: ctx => flag(ctx, 'noahComplete'),
@@ -130,6 +154,8 @@ export const ACHIEVEMENTS = [
     emoji: '📚',
     title: 'Três aventuras',
     desc: 'Complete 3 histórias diferentes, pequeno aventureiro!',
+    how: 'Complete 3 histórias para ganhar.',
+    earned: 'Você ganhou ao completar 3 histórias.',
     color: '#8E44AD',
     category: 'historias',
     check: ctx => cnt(ctx, 'completedStories') >= 3,
@@ -141,6 +167,8 @@ export const ACHIEVEMENTS = [
     emoji: '🏹',
     title: 'Na arena com Davi',
     desc: 'Começou a história de Davi e Golias.',
+    how: 'Comece a história de Davi e Golias para ganhar.',
+    earned: 'Você ganhou ao começar a história de Davi.',
     color: '#E67E22',
     category: 'historias',
     check: ctx => flag(ctx, 'davidAnyScene'),
@@ -150,6 +178,8 @@ export const ACHIEVEMENTS = [
     emoji: '💛',
     title: 'Com Jesus',
     desc: 'Completou a primeira cena de Jesus e as Crianças.',
+    how: 'Complete a 1ª cena de Jesus e as Crianças para ganhar.',
+    earned: 'Você ganhou ao completar a 1ª cena de Jesus e as Crianças.',
     color: '#F4B400',
     category: 'historias',
     check: ctx => flag(ctx, 'jesusScene1Done'),
@@ -159,6 +189,8 @@ export const ACHIEVEMENTS = [
     emoji: '⚔️',
     title: 'Corajoso como Davi',
     desc: 'Completou a cena 1 da história de Davi.',
+    how: 'Complete a cena 1 de Davi para ganhar.',
+    earned: 'Você ganhou ao completar a cena 1 de Davi.',
     color: '#C0392B',
     category: 'historias',
     check: ctx => flag(ctx, 'davidScene1Done'),
@@ -168,6 +200,8 @@ export const ACHIEVEMENTS = [
     emoji: '🌈',
     title: 'Primeira história grátis',
     desc: 'Completou uma história da trilha gratuita Comece Aqui.',
+    how: 'Complete uma história da trilha Comece Aqui para ganhar.',
+    earned: 'Você ganhou ao completar uma história gratuita.',
     color: '#4FC3F7',
     category: 'historias',
     check: ctx => flag(ctx, 'noahComplete') || flag(ctx, 'creationComplete'),
@@ -177,6 +211,8 @@ export const ACHIEVEMENTS = [
     emoji: '✨',
     title: 'Comece Aqui, completa!',
     desc: 'Completou a trilha Comece Aqui.',
+    how: 'Complete a trilha Comece Aqui para ganhar.',
+    earned: 'Você ganhou ao completar a trilha Comece Aqui.',
     color: '#F4B400',
     category: 'historias',
     check: ctx => flag(ctx, 'noahComplete') && flag(ctx, 'creationComplete'),
@@ -186,6 +222,8 @@ export const ACHIEVEMENTS = [
     emoji: '💎',
     title: 'Primeira aventura especial',
     desc: 'Completou sua primeira história da trilha Plano Família.',
+    how: 'Complete uma história da trilha Plano Família para ganhar.',
+    earned: 'Você ganhou ao completar uma história do Plano Família.',
     color: '#AB47BC',
     category: 'historias',
     check: ctx => flag(ctx, 'davidComplete') || flag(ctx, 'jesusComplete'),
@@ -195,6 +233,8 @@ export const ACHIEVEMENTS = [
     emoji: '🔍',
     title: 'Trilha Descobridores!',
     desc: 'Completou todas as 6 histórias da Trilha Descobridores.',
+    how: 'Complete as 6 histórias da Trilha Descobridores para ganhar.',
+    earned: 'Você ganhou ao completar a Trilha Descobridores.',
     color: '#26A69A',
     category: 'historias',
     check: ctx => flag(ctx, 'descobridoresComplete'),
@@ -204,6 +244,8 @@ export const ACHIEVEMENTS = [
     emoji: '📖',
     title: 'Trilha Jovens da Fé!',
     desc: 'Completou todas as 6 histórias da Trilha Jovens da Fé.',
+    how: 'Complete as 6 histórias da Trilha Jovens da Fé para ganhar.',
+    earned: 'Você ganhou ao completar a Trilha Jovens da Fé.',
     color: '#7E57C2',
     category: 'historias',
     check: ctx => flag(ctx, 'jovensDaFeComplete'),
@@ -213,19 +255,23 @@ export const ACHIEVEMENTS = [
     emoji: '🏅',
     title: 'Caminhante da Fé!',
     desc: 'Completou todas as 20 histórias do app. Incrível!',
+    how: 'Complete todas as 20 histórias para ganhar.',
+    earned: 'Você ganhou ao completar todas as 20 histórias.',
     color: '#F4B400',
     category: 'historias',
     check: ctx => flag(ctx, 'allStoriesComplete'),
   },
 
-  // ── Arte ──
+  // ── Ateliê (mede artes salvas) ──
   {
     id: 'first_drawing',
     emoji: '🎨',
     title: 'Primeiro traço',
     desc: 'Salve seu primeiro desenho colorido.',
+    how: 'Salve uma arte no Ateliê para desbloquear.',
+    earned: 'Você ganhou ao salvar sua primeira arte.',
     color: colors.secondary,
-    category: 'arte',
+    category: 'atelie',
     check: ctx => flag(ctx, 'hasAnyDrawing'),
   },
   {
@@ -233,8 +279,10 @@ export const ACHIEVEMENTS = [
     emoji: '⛵',
     title: 'Artista da arca',
     desc: 'Salvou o desenho da cena de Noé.',
+    how: 'Salve o desenho da cena de Noé para ganhar.',
+    earned: 'Você ganhou ao salvar o desenho da arca.',
     color: colors.primary,
-    category: 'arte',
+    category: 'atelie',
     check: ctx => flag(ctx, 'hasArkDrawing'),
   },
   {
@@ -242,10 +290,12 @@ export const ACHIEVEMENTS = [
     emoji: '🖼️',
     title: 'Galeria crescendo',
     desc: 'Salvou 2 ou mais desenhos no ateliê.',
+    how: 'Salve 2 artes no Ateliê para ganhar.',
+    earned: 'Você ganhou ao salvar 2 artes.',
     color: '#9B59B6',
-    category: 'arte',
+    category: 'atelie',
     check: ctx => cnt(ctx, 'savedDrawingCount') >= 2,
-    progressLabel: ctx => `${Math.min(cnt(ctx, 'savedDrawingCount'), 2)} de 2 desenhos`,
+    progressLabel: ctx => `${Math.min(cnt(ctx, 'savedDrawingCount'), 2)} de 2 artes`,
     progress: ctx => mk(ctx, 'savedDrawingCount', 2),
   },
   {
@@ -253,43 +303,47 @@ export const ACHIEVEMENTS = [
     emoji: '🖌️',
     title: 'Pequeno artista da fé',
     desc: 'Guardou 3 artes no seu ateliê. Que talento!',
+    how: 'Salve 3 artes no Ateliê para ganhar.',
+    earned: 'Você ganhou ao salvar 3 artes.',
     color: '#EC407A',
-    category: 'arte',
+    category: 'atelie',
     check: ctx => cnt(ctx, 'savedDrawingCount') >= 3,
     progressLabel: ctx => `${Math.min(cnt(ctx, 'savedDrawingCount'), 3)} de 3 artes`,
     progress: ctx => mk(ctx, 'savedDrawingCount', 3),
   },
 
-  // ── Quiz ──
+  // ── Momentos com Beni (quiz, livrinho, reflexão, cultinho, momento) ──
   {
     id: 'first_quiz',
     emoji: '🧩',
     title: 'Quiz respondido',
     desc: 'Respondeu ao quiz de uma história pela primeira vez.',
+    how: 'Responda o quiz de uma história para ganhar.',
+    earned: 'Você ganhou ao responder seu primeiro quiz.',
     color: '#2ECC71',
-    category: 'quiz',
+    category: 'momentos',
     check: ctx => flag(ctx, 'anyQuizDone'),
   },
-
-  // ── Livrinho ──
   {
     id: 'first_book_opened',
     emoji: '📖',
     title: 'Primeiro Livrinho',
     desc: 'Abriu o seu Livrinho da Fé pela primeira vez.',
+    how: 'Abra o seu Livrinho da Fé para ganhar.',
+    earned: 'Você ganhou ao abrir o Livrinho da Fé.',
     color: '#7C3AED',
-    category: 'livrinho',
+    category: 'momentos',
     check: ctx => flag(ctx, 'anyBookOpened'),
   },
-
-  // ── Coração ──
   {
     id: 'first_reflection',
     emoji: '🐑',
     title: 'Conversei com Beni',
     desc: 'Completou uma reflexão guiada com Beni.',
+    how: 'Faça uma reflexão com Beni para ganhar.',
+    earned: 'Você ganhou ao guardar no coração com Beni.',
     color: '#7C3AED',
-    category: 'coracao',
+    category: 'momentos',
     check: ctx => flag(ctx, 'anyReflectionDone'),
   },
   {
@@ -297,8 +351,10 @@ export const ACHIEVEMENTS = [
     emoji: '🕊️',
     title: 'Coração de Noé',
     desc: 'Refletiu sobre a história de Noé com Beni.',
+    how: 'Reflita sobre a história de Noé para ganhar.',
+    earned: 'Você ganhou ao refletir sobre Noé.',
     color: '#48CAE4',
-    category: 'coracao',
+    category: 'momentos',
     check: ctx => flag(ctx, 'noahReflectionDone'),
   },
   {
@@ -306,8 +362,10 @@ export const ACHIEVEMENTS = [
     emoji: '✨',
     title: 'Coração aberto',
     desc: 'Refletiu sobre Jesus e as Crianças com Beni.',
+    how: 'Reflita sobre Jesus e as Crianças para ganhar.',
+    earned: 'Você ganhou ao refletir sobre Jesus.',
     color: '#F4B400',
-    category: 'coracao',
+    category: 'momentos',
     check: ctx => flag(ctx, 'jesusReflectionDone'),
   },
   {
@@ -315,8 +373,10 @@ export const ACHIEVEMENTS = [
     emoji: '🌙',
     title: 'Primeiro momento',
     desc: 'Completou o Momento com Beni pela primeira vez.',
+    how: 'Abra um Momento com Beni para ganhar.',
+    earned: 'Você ganhou ao viver um Momento com Beni.',
     color: '#A78BFA',
-    category: 'coracao',
+    category: 'momentos',
     check: ctx => flag(ctx, 'lumiMomentEverDone'),
   },
   {
@@ -324,19 +384,22 @@ export const ACHIEVEMENTS = [
     emoji: '🏡',
     title: 'Primeiro cultinho',
     desc: 'Concluiu um Cultinho em Casa com Beni.',
+    how: 'Faça um Cultinho em Casa para ganhar.',
+    earned: 'Você ganhou ao fazer um Cultinho em Casa.',
     color: '#7C3AED',
-    category: 'coracao',
+    category: 'momentos',
     check: ctx => flag(ctx, 'familyWorshipDone'),
   },
   {
     id: 'first_chest_card',
-    emoji: '🗝️',
-    title: 'Primeira cartinha',
-    desc: 'Encontrou sua primeira cartinha no Baú do Beni.',
+    emoji: '✨',
+    title: 'Primeira conquista',
+    desc: 'Deu o primeiro passo na sua jornada com Beni.',
+    how: 'Viva qualquer momento da jornada para ganhar.',
+    earned: 'Você ganhou ao começar sua jornada com Beni.',
     color: '#F4B400',
-    category: 'jornada',
-    // Desbloqueia ao encontrar uma cartinha real (qualquer ação que gere uma),
-    // não a cartinha inicial do Beni. Defensivo com ctx hostil.
+    category: 'momentos',
+    // Desbloqueia ao viver qualquer primeiro momento real. Defensivo com ctx hostil.
     check: ctx =>
       cnt(ctx, 'totalScenes') >= 1 ||
       cnt(ctx, 'savedDrawingCount') >= 1 ||

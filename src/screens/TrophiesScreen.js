@@ -132,7 +132,9 @@ function AchievementCard({ achievement, unlocked, ctx, isTablet, onPress }) {
             <Text style={styles.cardProgressText}>{progLabel}</Text>
           </View>
         ) : (
-          <Text style={styles.lockedHint}>🔒 Toque para ver como conquistar</Text>
+          <Text style={styles.lockedHint} numberOfLines={2}>
+            🔒 {achievement.how || 'Toque para ver como conquistar'}
+          </Text>
         )}
       </View>
     </SoundButton>
@@ -224,7 +226,12 @@ export default function TrophiesScreen({ navigation, route }) {
             <BeniAvatar variant="celebrating" size="medium" />
           </View>
           <Text style={styles.headerTitle}>Álbum de Estrelinhas</Text>
-          <Text style={styles.headerSub}>Veja as conquistas que você viveu com Beni.</Text>
+          <Text style={styles.headerSub}>
+            Você ganha estrelinhas ao completar cenas, histórias e momentos especiais.
+          </Text>
+          <Text style={styles.headerNote}>
+            As estrelinhas mostram seu progresso. O Baú guarda suas lembranças.
+          </Text>
           <Text style={styles.headerCount}>{unlockedCount} de {total} conquistas</Text>
           <View style={styles.headerProgressRow}>
             <View style={styles.headerProgressBar}>
@@ -313,9 +320,13 @@ export default function TrophiesScreen({ navigation, route }) {
                 <Text style={styles.detailDesc}>{selected.desc}</Text>
 
                 <View style={styles.detailHowBox}>
-                  <Text style={styles.detailHowLabel}>COMO CONQUISTAR</Text>
+                  <Text style={styles.detailHowLabel}>
+                    {unlocked ? 'COMO VOCÊ GANHOU' : 'COMO CONQUISTAR'}
+                  </Text>
                   <Text style={styles.detailHowText}>
-                    {safeProgressLabel(selected, ctx) || selected.desc}
+                    {unlocked
+                      ? (selected.earned || 'Você conquistou esta estrelinha!')
+                      : (selected.how || safeProgressLabel(selected, ctx) || selected.desc)}
                   </Text>
                 </View>
 
@@ -371,7 +382,8 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: '#F2DFA0',
   },
   headerTitle: { fontFamily: 'FredokaOne', fontSize: 24, color: pt.text, marginBottom: 3 },
-  headerSub: { fontFamily: 'Nunito', fontSize: 13, color: '#8A6D1F', textAlign: 'center', marginBottom: 8 },
+  headerSub: { fontFamily: 'Nunito', fontSize: 13, color: '#8A6D1F', textAlign: 'center', marginBottom: 6, lineHeight: 18, paddingHorizontal: 6 },
+  headerNote: { fontFamily: 'Nunito', fontSize: 11.5, color: '#A07A2A', fontWeight: '700', textAlign: 'center', marginBottom: 8, lineHeight: 16, fontStyle: 'italic', paddingHorizontal: 6 },
   headerCount: { fontFamily: 'Nunito', fontSize: 12, color: '#9B7B30', fontWeight: '700', marginBottom: 10 },
   headerProgressRow: { width: '70%' },
   headerProgressBar: { height: 10, backgroundColor: 'rgba(122,88,0,0.15)', borderRadius: 5, overflow: 'hidden' },
