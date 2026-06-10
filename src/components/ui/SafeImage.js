@@ -44,6 +44,7 @@ export default function SafeImage({
   onStatusChange,
   imageProps,
   renderFallback,
+  fill = false,
 }) {
   const hasSource = isUsableSource(source);
   const key = sourceKey(source);
@@ -66,7 +67,9 @@ export default function SafeImage({
   const showLoading = status === 'loading';
 
   return (
-    <View style={[styles.wrap, style]}>
+    // `fill`: preenche o contêiner via absoluteFill (NÃO depende de height:'100%'
+    // resolver contra um pai dimensionado só por aspectRatio — bug das capas).
+    <View style={[fill ? styles.wrapFill : styles.wrap, style]}>
       {/* ── Camadas ATRÁS da imagem ── */}
       {showFallback && (
         renderFallback ? (
@@ -103,6 +106,8 @@ export default function SafeImage({
 const styles = StyleSheet.create({
   // Sem cor de fundo imposta: o contêiner do chamador continua mandando.
   wrap: { overflow: 'hidden', position: 'relative' },
+  // Preenche o pai (que já tem tamanho via aspectRatio) sem usar %-height.
+  wrapFill: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
   fill: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 },
   icon: { fontSize: 34, opacity: 0.55 },
   label: { fontFamily: 'FredokaOne', fontSize: 12, color: 'rgba(58,42,30,0.6)', textAlign: 'center', marginTop: 4 },

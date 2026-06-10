@@ -54,7 +54,8 @@ function CardArt({ card }) {
   return (
     <SafeImage
       source={source}
-      style={[styles.artFill, isArt && styles.artCanvasBg]}
+      fill
+      style={isArt ? styles.artCanvasBg : null}
       resizeMode={isArt ? 'contain' : 'cover'}
       renderFallback={() => <CategoryFallback card={card} />}
     />

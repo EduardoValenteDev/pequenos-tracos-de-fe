@@ -546,7 +546,7 @@ export default function StoryBookScreen({ route, navigation }) {
           <View style={styles.introCoverCard}>
             <SafeImage
               source={hasCover ? images[story.imagemCapa] : null}
-              style={styles.introCoverImage}
+              fill
               resizeMode="contain"
               fallbackIcon={story.emoji ?? '📖'}
               fallbackColors={['#EFE7DC', '#E8E0D8']}

@@ -313,7 +313,7 @@ function MissaoDeHoje({
       <View style={styles.missionCover}>
         <SafeImage
           source={hasThumb ? images[story.imagemCapa] : null}
-          style={styles.missionCoverImg}
+          fill
           resizeMode="cover"
           fallbackIcon={story?.emoji ?? '⛵'}
           fallbackColors={['#F0E8FF', '#E0D4FF']}

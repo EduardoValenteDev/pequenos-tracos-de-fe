@@ -7142,6 +7142,13 @@ check(
   readSrc('src/components/story/StoryCoverImage.js').includes('errored'),
   'StoryCoverImage não trata erro de imagem',
 );
+check(
+  'SafeImage tem modo fill (absoluteFill) p/ contêineres aspectRatio; capas usam fill',
+  safeImgSrc.includes('wrapFill') && safeImgSrc.includes('absoluteFillObject') &&
+  /<SafeImage[\s\S]{0,80}\bfill\b/.test(readSrc('src/components/StoryCard.js')) &&
+  /<SafeImage[\s\S]{0,120}\bfill\b/.test(readSrc('src/screens/HomeScreen.js')),
+  'SafeImage/capas não usam o modo fill — risco de height:100% colapsar em pai aspectRatio',
+);
 
 // Tarefa 3 — lineart sempre presente + guarda de salvar
 const coloringCanvasB1 = readSrc('src/components/ColoringCanvas.js');

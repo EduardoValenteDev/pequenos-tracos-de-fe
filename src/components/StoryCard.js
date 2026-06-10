@@ -40,7 +40,7 @@ export default function StoryCard({ story, onPress, locked = false, progressCoun
       <View style={[styles.cover, { backgroundColor: themeColor + '18' }]}>
         <SafeImage
           source={coverImg}
-          style={styles.coverImage}
+          fill
           resizeMode="cover"
           renderFallback={() => (
             <StoryFallbackCover
