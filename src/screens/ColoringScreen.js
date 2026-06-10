@@ -16,6 +16,7 @@ import {
 } from '../services/drawingStorage';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
 import FaithIcon from '../components/ui/FaithIcon';
+import { backLabelFor } from '../utils/originBack';
 
 
 function ToolBtn({ iconName, label, onPress, active }) {
@@ -28,7 +29,7 @@ function ToolBtn({ iconName, label, onPress, active }) {
 }
 
 export default function ColoringScreen({ route, navigation }) {
-  const { story, cenaIndex } = route.params;
+  const { story, cenaIndex, from } = route.params;
   const cena = story.cenas[cenaIndex];
   const canvasRef = useRef(null);
   const insets = useSafeAreaInsets();
@@ -247,7 +248,7 @@ export default function ColoringScreen({ route, navigation }) {
       {/* ── TOP BAR ────────────────────────────────────────────── */}
       <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 8) }]}>
         <SoundButton style={styles.topBarNavBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-          <Text style={styles.topBarNavBtnText}>← Voltar</Text>
+          <Text style={styles.topBarNavBtnText}>← {backLabelFor(from)}</Text>
         </SoundButton>
         <Text style={styles.topBarTitle} numberOfLines={1}>Hora de Colorir</Text>
         <View style={styles.topBarActions}>

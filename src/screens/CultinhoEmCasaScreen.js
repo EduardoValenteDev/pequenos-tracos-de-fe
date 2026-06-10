@@ -70,8 +70,8 @@ export default function CultinhoEmCasaScreen({ navigation }) {
   }
 
   function handleOpenAtelier() {
-    // Abre o Ateliê (aba dentro das tabs) — rota existente, sem fluxo novo.
-    navigation.navigate('Home', { screen: 'Ateliê' });
+    // Abre o Ateliê empurrado por contexto → permite voltar para o Cultinho.
+    navigation.navigate('AtelierFromContext', { from: 'cultinho' });
   }
 
   async function handleConcluir() {

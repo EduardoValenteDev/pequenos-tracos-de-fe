@@ -12,6 +12,7 @@ import CenteredContent from '../components/layout/CenteredContent';
 import { MISSIONS } from '../data/atelierData';
 import { listArts, ATELIER_FREE_SAVE_LIMIT } from '../services/atelierStorage';
 import { hasAtelierUnlimitedAccess } from '../services/accessControl';
+import { backLabelFor, isFromTab } from '../utils/originBack';
 
 function pickMission() {
   return MISSIONS[Math.floor(Math.random() * MISSIONS.length)];
@@ -33,8 +34,13 @@ function AnimatedCard({ delay, children, style }) {
   );
 }
 
-export default function AtelierScreen({ navigation }) {
+export default function AtelierScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+
+  // Origem (Bloco 2): quando o Ateliê é empurrado por contexto (ex.: Cultinho),
+  // mostra um botão Voltar que retorna à origem. Pela aba, fica sem botão.
+  const from = route?.params?.from;
+  const showBack = !isFromTab(from);
 
   const [mission] = useState(pickMission);
   const [artCount, setArtCount] = useState(0);
@@ -185,6 +191,16 @@ export default function AtelierScreen({ navigation }) {
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: Math.max(insets.top, 32) }]}
       >
+        {showBack && (
+          <SoundButton
+            style={styles.backPill}
+            onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
+            activeOpacity={0.85}
+            accessibilityLabel={backLabelFor(from)}
+          >
+            <Text style={styles.backPillText}>‹ {backLabelFor(from)}</Text>
+          </SoundButton>
+        )}
         <View style={styles.headerRow}>
           <View style={styles.headerText}>
             <Text style={styles.headerTitle}>Ateliê do Beni</Text>
@@ -215,6 +231,14 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     marginBottom: 4,
   },
+  // Voltar contextual (Ateliê aberto por contexto, ex.: Cultinho)
+  backPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6,
+    marginBottom: 10, borderWidth: 1, borderColor: 'rgba(124,58,237,0.18)',
+  },
+  backPillText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#6E3FB5' },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',

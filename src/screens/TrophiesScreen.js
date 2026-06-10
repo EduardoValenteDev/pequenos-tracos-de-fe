@@ -34,6 +34,7 @@ import {
   diffNewAchievements,
 } from '../services/achievementSeenService';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
+import { backLabelFor } from '../utils/originBack';
 
 /* Extrai a unidade ("cenas", "artes"...) do progressLabel para frases naturais. */
 function unitFromLabel(label) {
@@ -198,7 +199,7 @@ export default function TrophiesScreen({ navigation, route }) {
       {fromCena && (
         <View style={[styles.backRow, { paddingTop: insets.top || 16 }]}>
           <SoundButton style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Text style={styles.backBtnText}>‹ Voltar</Text>
+            <Text style={styles.backBtnText}>‹ {backLabelFor(route?.params?.from)}</Text>
           </SoundButton>
         </View>
       )}

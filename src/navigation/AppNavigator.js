@@ -261,6 +261,13 @@ export default function AppNavigator() {
           component={AtelierCanvasScreen}
           options={{ headerShown: false }}
         />
+        {/* Ateliê empurrado por contexto (ex.: Cultinho) — distinto da aba "Ateliê",
+            permite voltar à origem. A aba continua intacta. */}
+        <Stack.Screen
+          name="AtelierFromContext"
+          component={AtelierScreen}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="AtelierGallery"
           component={AtelierGalleryScreen}

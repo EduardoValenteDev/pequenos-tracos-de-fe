@@ -2250,9 +2250,9 @@ check(
 );
 
 check(
-  'HomeScreen usa rótulo "Plano Família" (Bloco 1) e não "Especial da Família"',
-  homeSrc9.includes('Plano Família') && !homeSrc9.includes('Especial da Família'),
-  'HomeScreen ainda usa "Especial da Família" — deve ser "Plano Família"',
+  'HomeScreen não usa rótulo de bloqueio "Especial da Família" (Bloco 1)',
+  !homeSrc9.includes('Especial da Família'),
+  'HomeScreen ainda usa "Especial da Família"',
 );
 
 const storyDetailSrc9 = readSrc('src/screens/StoryDetailScreen.js');
@@ -6110,9 +6110,9 @@ check(
 check(
   'TrophiesScreen exibe botão Voltar apenas quando fromCena é true (via modal pós cena)',
   trophiesSrcHotfix.includes('fromCena') &&
-  trophiesSrcHotfix.includes('‹ Voltar') &&
-  /fromCena[\s\S]{0,300}‹ Voltar/.test(trophiesSrcHotfix),
-  'TrophiesScreen não exibe botão "‹ Voltar" condicional ao fromCena',
+  trophiesSrcHotfix.includes('backLabelFor') &&
+  /fromCena[\s\S]{0,300}backLabelFor/.test(trophiesSrcHotfix),
+  'TrophiesScreen não exibe botão Voltar condicional ao fromCena',
 );
 
 check(
@@ -6140,7 +6140,7 @@ const livrinhoPagesSvc = readSrc('src/services/storyBookPagesService.js');
 check(
   'CongratsScreen: botão primário do Livrinho da Fé existe',
   congratsSrc20.includes('Abrir Livrinho da Fé') &&
-  congratsSrc20.includes('Sua aventura guardada em páginas especiais'),
+  congratsSrc20.includes('Seu presente principal'),
   'CongratsScreen sem botão primário "Abrir Livrinho da Fé" ou sem subtexto correto',
 );
 
@@ -6288,7 +6288,7 @@ check(
 
 check(
   'CongratsScreen 2.1: subtexto correto do botão Livrinho (sem texto fixo sobre desenhos)',
-  congrats21.includes('Sua aventura guardada em páginas especiais') &&
+  congrats21.includes('Seu presente principal') &&
   !congrats21.includes('Sua história com seus próprios desenhos'),
   'CongratsScreen ainda usa texto fixo sobre desenhos — deve usar texto neutro',
 );
@@ -6420,18 +6420,17 @@ check(
   'Home não agrupou ideia + versículo no Cantinho do Beni',
 );
 check(
-  'Home: conquista vira recompensa ("VOCÊ CONQUISTOU") e mundos viram "Caminhos da fé"',
-  homeVisualSrc.includes('VOCÊ CONQUISTOU') && homeVisualSrc.includes('ConquistaCard') &&
-  homeVisualSrc.includes('Caminhos da fé') &&
-  homeVisualSrc.includes('Cada mundo guarda novas histórias'),
-  'Home não tem conquista-recompensa nem seção Caminhos da fé',
+  'Home: conquista vira recompensa ("VOCÊ CONQUISTOU")',
+  homeVisualSrc.includes('VOCÊ CONQUISTOU') && homeVisualSrc.includes('ConquistaCard'),
+  'Home não tem conquista-recompensa',
 );
+// Bloco 2 (UX 1.0): Home enxuta — seção "Caminhos da fé"/mundos REMOVIDA (não duplicar a tab Aventuras)
 check(
-  'Home: microcopy dos mundos atualizada (Primeiras aventuras / Mistérios e descobertas)',
-  homeVisualSrc.includes('Primeiras aventuras da fé') &&
-  homeVisualSrc.includes('Mistérios e descobertas bíblicas') &&
-  homeVisualSrc.includes('Desafios para corações corajosos'),
-  'Home não atualizou a microcopy dos mundos',
+  'Home enxuta (Bloco 2): sem seção "Caminhos da fé"/mundos (não duplica a tab Aventuras)',
+  !homeVisualSrc.includes('Caminhos da fé') &&
+  !homeVisualSrc.includes('WorldCardCompact') &&
+  !homeVisualSrc.includes('Cada mundo guarda novas histórias'),
+  'Home ainda tem a seção de mundos "Caminhos da fé" — deveria ter sido removida no Bloco 2',
 );
 
 const storyCardSrc = readSrc('src/components/StoryCard.js');
@@ -7226,6 +7225,95 @@ check(
   /name="LumiMoment"[\s\S]*?headerShown: false/.test(navB1) &&
   lumiMomSrc91.includes('navigation.canGoBack()'),
   'LumiMoment ainda tem header duplicado',
+);
+
+// ── Sprint Reestruturação UX 1.0 — Bloco 2: estrutura da jornada ─────────────
+console.log('\n── Sprint UX 1.0 — Bloco 2 ──');
+
+const ux2Home = readSrc('src/screens/HomeScreen.js');
+const ux2Nav = readSrc('src/navigation/AppNavigator.js');
+const ux2Cultinho = readSrc('src/screens/CultinhoEmCasaScreen.js');
+const ux2Canvas = readSrc('src/screens/AtelierCanvasScreen.js');
+const ux2Atelier = readSrc('src/screens/AtelierScreen.js');
+const ux2Congrats = readSrc('src/screens/CongratsScreen.js');
+const ux2Coloring = readSrc('src/screens/ColoringScreen.js');
+const ux2Beni = readSrc('src/screens/BeniChestScreen.js');
+const ux2Trophies = readSrc('src/screens/TrophiesScreen.js');
+const ux2Origin = readSrc('src/utils/originBack.js');
+
+check(
+  'Bloco 2: helper originBack expõe backLabelFor + isFromTab e rótulo storyComplete = "Voltar para a conclusão"',
+  ux2Origin.includes('export function backLabelFor') &&
+  ux2Origin.includes('export function isFromTab') &&
+  ux2Origin.includes('Voltar para a conclusão') &&
+  ux2Origin.includes("'Voltar ao Início'"),
+  'src/utils/originBack.js ausente ou sem rótulos esperados',
+);
+
+check(
+  'Bloco 2: Home não duplica a tab Aventuras (sem WORLDS/Caminhos da fé)',
+  !ux2Home.includes('Caminhos da fé') && !ux2Home.includes('const WORLDS') &&
+  !ux2Home.includes('WorldCardCompact'),
+  'HomeScreen ainda contém a seção de mundos',
+);
+
+check(
+  'Bloco 2: Home tem atalho "Criar com Beni" que abre fluxo contextual (from: createWithBeni)',
+  ux2Home.includes('Criar com Beni') && ux2Home.includes("from: 'createWithBeni'") &&
+  ux2Home.includes("navigation.navigate('AtelierCanvas'"),
+  'HomeScreen não tem o atalho Criar com Beni contextual',
+);
+
+check(
+  'Bloco 2: AppNavigator registra rota Stack AtelierFromContext (sem quebrar a tab Ateliê)',
+  ux2Nav.includes('name="AtelierFromContext"') && ux2Nav.includes('component={AtelierScreen}'),
+  'AppNavigator não registra a rota AtelierFromContext',
+);
+
+check(
+  'Bloco 2: Cultinho abre o Ateliê via AtelierFromContext com from: cultinho (e pode voltar)',
+  ux2Cultinho.includes("navigation.navigate('AtelierFromContext'") &&
+  ux2Cultinho.includes("from: 'cultinho'"),
+  'CultinhoEmCasaScreen não abre AtelierFromContext from:cultinho',
+);
+
+check(
+  'Bloco 2: AtelierScreen mostra Voltar contextual quando não vem da tab (isFromTab/backLabelFor)',
+  ux2Atelier.includes('isFromTab') && ux2Atelier.includes('backLabelFor'),
+  'AtelierScreen não usa o back contextual por origem',
+);
+
+check(
+  'Bloco 2: Canvas reconhece modo Criar com Beni (header "Criar com Beni" + voltar ao Início)',
+  ux2Canvas.includes("from === 'createWithBeni'") &&
+  ux2Canvas.includes('Criar com Beni') &&
+  ux2Canvas.includes('Início'),
+  'AtelierCanvasScreen não trata o modo createWithBeni',
+);
+
+check(
+  'Bloco 2: Conclusão tem 3 ações principais (Livrinho/Quiz/Próxima aventura) com reward tiles',
+  ux2Congrats.includes('Abrir Livrinho da Fé') &&
+  ux2Congrats.includes('mainActionBtn') &&
+  ux2Congrats.includes('rewardGrid') &&
+  ux2Congrats.includes('RewardTile') &&
+  ux2Congrats.includes('Você desbloqueou'),
+  'CongratsScreen não tem a primeira dobra com 3 ações + grade de recompensas',
+);
+
+check(
+  'Bloco 2: Conclusão propaga from: storyComplete nas recompensas e Livrinho antes do Resumo',
+  ux2Congrats.includes("from: 'storyComplete'") &&
+  ux2Congrats.indexOf('Abrir Livrinho da Fé') < ux2Congrats.indexOf('Resumo da aventura'),
+  'CongratsScreen não propaga origem ou ordem incorreta',
+);
+
+check(
+  'Bloco 2: telas reusadas mostram back contextual por origem (Colorir/Baú/Estrelinhas)',
+  ux2Coloring.includes('backLabelFor') &&
+  ux2Beni.includes('backLabelFor') &&
+  ux2Trophies.includes('backLabelFor'),
+  'Alguma tela reusada não importou backLabelFor',
 );
 
 // ── Summary ──────────────────────────────────────────────────────────────────

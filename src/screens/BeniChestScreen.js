@@ -27,6 +27,7 @@ import {
 import {
   getSeenChestCardIds, markManyChestCardsSeen, getUnseenUnlockedChestCards,
 } from '../services/beniChestSeenStorage';
+import { backLabelFor } from '../utils/originBack';
 
 const TABS = [
   { id: 'todas', label: 'Todas' },
@@ -44,7 +45,8 @@ function nextCardText(card) {
   return 'Continue sua jornada para revelar uma nova lembrança.';
 }
 
-export default function BeniChestScreen({ navigation }) {
+export default function BeniChestScreen({ navigation, route }) {
+  const backLabel = backLabelFor(route?.params?.from);
   const insets = useSafeAreaInsets();
   const { progressByStory, postStoryStatusByStory } = useProgressContext();
 
@@ -143,7 +145,7 @@ export default function BeniChestScreen({ navigation }) {
       >
         <View style={styles.headerRow}>
           <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.8}>
-            <Text style={styles.backBtnText}>‹ Voltar</Text>
+            <Text style={styles.backBtnText}>‹ {backLabel}</Text>
           </SoundButton>
         </View>
 

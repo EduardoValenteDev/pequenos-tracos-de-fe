@@ -15,7 +15,6 @@ import { useProgressContext } from '../context/ProgressContext';
 import { useProfile } from '../context/ProfileContext';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
-import NextAdventureCard from '../components/story/NextAdventureCard';
 import BeniAvatar from '../components/beni/BeniAvatar';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
 import { getNextAdventureRecommendation } from '../services/nextAdventureService';
@@ -48,6 +47,18 @@ function SceneTimelineDot({ cena, done, index }) {
         {done && <Text style={styles.timelineDotStar}>⭐ +1</Text>}
       </View>
     </Animated.View>
+  );
+}
+
+/* Tile de recompensa (presente) — sem chevron, cara de conquista, não config. */
+function RewardTile({ emoji, label, onPress }) {
+  return (
+    <SoundButton style={styles.rewardTile} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.rewardTileCircle}>
+        <Text style={styles.rewardTileEmoji}>{emoji}</Text>
+      </View>
+      <Text style={styles.rewardTileLabel} numberOfLines={2}>{label}</Text>
+    </SoundButton>
   );
 }
 
@@ -120,6 +131,24 @@ export default function CongratsScreen({ route, navigation }) {
     outputRange: ['0%', `${scenesPercent * 100}%`],
   });
 
+  // Ação principal "Próxima aventura" (contextual à recomendação).
+  function handleNextAdventure() {
+    if (recommendation.state === 'A' && recommendation.story) {
+      navigation.navigate('StoryDetail', { story: recommendation.story });
+    } else if (recommendation.state === 'B') {
+      navigation.navigate('ParentArea');
+    } else {
+      navigation.navigate('Aventuras');
+    }
+  }
+  const nextLabel = recommendation.state === 'C' ? 'Ver aventuras' : 'Próxima aventura';
+  const nextSub =
+    recommendation.state === 'A' && recommendation.story
+      ? recommendation.story.titulo
+      : recommendation.state === 'B'
+        ? 'Um novo caminho com o responsável'
+        : 'Reveja suas histórias quando quiser';
+
   return (
     <View style={styles.wrapper}>
       <View style={styles.confettiLayer} pointerEvents="none">
@@ -175,49 +204,70 @@ export default function CongratsScreen({ route, navigation }) {
               Beni guardou essa jornada com carinho. Veja tudo que você ganhou.
             </Text>
 
-            {/* Ação principal: Livrinho da Fé */}
+            {/* ── PRIMEIRA DOBRA: 3 ações principais ── */}
+            {/* 1. Presente principal: Livrinho da Fé */}
             <SoundButton
               style={styles.livrinhoBtn}
-              onPress={() => navigation.navigate('StoryBook', { story, fromStoryCompletion: true })}
+              onPress={() => navigation.navigate('StoryBook', { story, fromStoryCompletion: true, from: 'storyComplete' })}
               activeOpacity={0.85}
             >
               <Text style={styles.livrinhoBtnEmoji}>📖</Text>
               <View style={styles.livrinhoBtnInfo}>
                 <Text style={styles.livrinhoBtnTitle}>Abrir Livrinho da Fé</Text>
-                <Text style={styles.livrinhoBtnSub}>Sua aventura guardada em páginas especiais</Text>
+                <Text style={styles.livrinhoBtnSub}>Seu presente principal — a aventura em páginas</Text>
               </View>
               <Text style={styles.livrinhoBtnArrow}>›</Text>
             </SoundButton>
 
-            {/* Hub secundário: Baú · Estrelinhas · Colorir */}
-            <View style={styles.hubRow}>
-              <SoundButton
-                style={styles.hubBtn}
-                onPress={() => navigation.navigate('BeniChest', { fromStoryCompletion: true })}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.hubBtnEmoji}>🎴</Text>
-                <Text style={styles.hubBtnLabel}>Baú</Text>
-              </SoundButton>
-              <SoundButton
-                style={styles.hubBtn}
-                onPress={() => navigation.navigate('EstrelinhasCena', { fromStoryCompletion: true })}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.hubBtnEmoji}>⭐</Text>
-                <Text style={styles.hubBtnLabel}>Estrelinhas</Text>
-              </SoundButton>
-              <SoundButton
-                style={styles.hubBtn}
-                onPress={() => navigation.navigate('Coloring', { story, cenaIndex: 0 })}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.hubBtnEmoji}>🎨</Text>
-                <Text style={styles.hubBtnLabel}>Colorir</Text>
-              </SoundButton>
+            {/* 2. Responder Quiz */}
+            <SoundButton
+              style={styles.mainActionBtn}
+              onPress={() => navigation.navigate('Quiz', { story })}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.mainActionCircle, { backgroundColor: '#FFF3CC' }]}>
+                <Text style={styles.mainActionEmoji}>⭐</Text>
+              </View>
+              <View style={styles.mainActionInfo}>
+                <Text style={styles.mainActionTitle}>Responder Quiz</Text>
+                <Text style={styles.mainActionSub}>3 perguntas. Ganhe +1 ⭐!</Text>
+              </View>
+              <Text style={styles.mainActionArrow}>›</Text>
+            </SoundButton>
+
+            {/* 3. Próxima aventura */}
+            <SoundButton
+              style={styles.mainActionBtn}
+              onPress={handleNextAdventure}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.mainActionCircle, { backgroundColor: '#E3ECF7' }]}>
+                <Text style={styles.mainActionEmoji}>🧭</Text>
+              </View>
+              <View style={styles.mainActionInfo}>
+                <Text style={styles.mainActionTitle}>{nextLabel}</Text>
+                <Text style={styles.mainActionSub} numberOfLines={1}>{nextSub}</Text>
+              </View>
+              <Text style={styles.mainActionArrow}>›</Text>
+            </SoundButton>
+
+            {/* ── VOCÊ DESBLOQUEOU — cards de recompensa (sem chevron) ── */}
+            <Text style={styles.rewardUnlocked}>Você desbloqueou</Text>
+            <View style={styles.rewardGrid}>
+              <RewardTile emoji="🎴" label="Baú" onPress={() => navigation.navigate('BeniChest', { fromStoryCompletion: true, from: 'storyComplete' })} />
+              <RewardTile emoji="⭐" label="Estrelinhas" onPress={() => navigation.navigate('EstrelinhasCena', { fromStoryCompletion: true, from: 'storyComplete' })} />
+              <RewardTile emoji="🎨" label="Colorir" onPress={() => navigation.navigate('Coloring', { story, cenaIndex: 0, from: 'storyComplete' })} />
+              <RewardTile emoji="✨" label="Guardar no coração" onPress={() => navigation.navigate('Reflection', { story })} />
             </View>
 
-            {/* Certificado local */}
+            {/* Secundárias: Rever + Certificado */}
+            <SoundButton
+              style={styles.reviewBtn}
+              onPress={() => navigation.navigate('StoryDetail', { story })}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.reviewBtnText}>▶ Rever aventura</Text>
+            </SoundButton>
             <SoundButton
               style={styles.certBtn}
               onPress={() => setShowCertificate(true)}
@@ -226,63 +276,32 @@ export default function CongratsScreen({ route, navigation }) {
               <Text style={styles.certBtnEmoji}>🏅</Text>
               <Text style={styles.certBtnText}>Ver Certificado da aventura</Text>
             </SoundButton>
-
-            <Text style={styles.rewardUnlocked}>Continue a aventura:</Text>
-            <RewardCard
-              emoji="⭐"
-              title="Responder Quiz"
-              desc="3 perguntas sobre a aventura. Ganhe +1 ⭐!"
-              done={false}
-              onPress={() => navigation.navigate('Quiz', { story })}
-            />
-            <RewardCard
-              emoji="✨"
-              title="Guardar no coração"
-              desc="Compartilhe o que ficou no seu coração."
-              done={false}
-              onPress={() => navigation.navigate('Reflection', { story })}
-            />
           </View>
 
-          {/* ── CONTINUIDADE INTELIGENTE ── */}
-          {recommendation.state === 'A' && recommendation.story && (
-            <>
-              <Text style={styles.nextSectionTitle}>Continue a jornada</Text>
-              <NextAdventureCard
-                story={recommendation.story}
-                label="Próxima aventura"
-                buttonLabel={recommendation.inProgress ? 'Continuar →' : 'Começar →'}
-                onPress={() => navigation.navigate('StoryDetail', { story: recommendation.story })}
-              />
-            </>
-          )}
-
+          {/* ── Caminho bloqueado / tudo concluído (info, quando aplicável) ── */}
           {recommendation.state === 'B' && recommendation.story && (
-            <>
-              <Text style={styles.nextSectionTitle}>Novo caminho esperando</Text>
-              <View style={styles.blockedCard}>
-                <View style={styles.blockedCoverWrap}>
-                  <StoryCoverImage story={recommendation.story} rounded={false} />
-                  <View style={styles.blockedTint} pointerEvents="none" />
-                  <View style={styles.blockedBadge}>
-                    <Text style={styles.blockedBadgeText}>🔒 Com responsável</Text>
-                  </View>
-                </View>
-                <View style={styles.blockedInfo}>
-                  <Text style={styles.blockedTitle}>Novo caminho para descobrir</Text>
-                  <Text style={styles.blockedSub}>
-                    {getBeniGuideMessage('premiumBlocked')}
-                  </Text>
-                  <SoundButton
-                    style={styles.blockedBtn}
-                    onPress={() => navigation.navigate('ParentArea')}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.blockedBtnText}>Chamar responsável</Text>
-                  </SoundButton>
+            <View style={styles.blockedCard}>
+              <View style={styles.blockedCoverWrap}>
+                <StoryCoverImage story={recommendation.story} rounded={false} />
+                <View style={styles.blockedTint} pointerEvents="none" />
+                <View style={styles.blockedBadge}>
+                  <Text style={styles.blockedBadgeText}>🔒 Com responsável</Text>
                 </View>
               </View>
-            </>
+              <View style={styles.blockedInfo}>
+                <Text style={styles.blockedTitle}>Novo caminho para descobrir</Text>
+                <Text style={styles.blockedSub}>
+                  {getBeniGuideMessage('premiumBlocked')}
+                </Text>
+                <SoundButton
+                  style={styles.blockedBtn}
+                  onPress={() => navigation.navigate('ParentArea')}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.blockedBtnText}>Chamar responsável</Text>
+                </SoundButton>
+              </View>
+            </View>
           )}
 
           {recommendation.state === 'C' && (
@@ -292,25 +311,10 @@ export default function CongratsScreen({ route, navigation }) {
               <Text style={styles.allDoneSub}>
                 Você pode rever suas aventuras quando quiser.
               </Text>
-              <SoundButton
-                style={styles.allDoneBtn}
-                onPress={() => navigation.navigate('Aventuras')}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.allDoneBtnText}>Rever histórias</Text>
-              </SoundButton>
             </View>
           )}
 
-          {/* ── SECONDARY ACTIONS ── */}
-          <SoundButton
-            style={styles.reviewBtn}
-            onPress={() => navigation.navigate('StoryDetail', { story })}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.reviewBtnText}>▶ Rever aventura</Text>
-          </SoundButton>
-
+          {/* Voltar ao início */}
           <SoundButton
             style={styles.homeBtn}
             onPress={() => navigation.navigate('Home')}
@@ -616,6 +620,49 @@ const styles = StyleSheet.create({
   livrinhoBtnTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: '#1E40AF' },
   livrinhoBtnSub: { fontFamily: 'Nunito', fontSize: 12, color: '#3B82F6', lineHeight: 16 },
   livrinhoBtnArrow: { fontFamily: 'FredokaOne', fontSize: 22, color: '#93C5FD' },
+
+  // Ações principais 2 e 3 (Quiz, Próxima aventura)
+  mainActionBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: radii.lg, padding: 14,
+    marginHorizontal: 16, marginBottom: 12, gap: 12,
+    borderWidth: 1.5, borderColor: pt.border,
+    ...shadows.soft,
+  },
+  mainActionCircle: {
+    width: 48, height: 48, borderRadius: 24,
+    justifyContent: 'center', alignItems: 'center', flexShrink: 0,
+  },
+  mainActionEmoji: { fontSize: 24 },
+  mainActionInfo: { flex: 1 },
+  mainActionTitle: { fontFamily: 'FredokaOne', fontSize: 16, color: pt.text, marginBottom: 2 },
+  mainActionSub: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 16 },
+  mainActionArrow: { fontFamily: 'FredokaOne', fontSize: 22, color: pt.muted },
+
+  // Você desbloqueou — grade de recompensas (tiles sem chevron)
+  rewardGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between',
+    marginHorizontal: 16,
+  },
+  rewardTile: {
+    width: '48%', alignItems: 'center',
+    backgroundColor: '#FFFDF7',
+    borderRadius: radii.lg, paddingVertical: 16, paddingHorizontal: 8,
+    marginBottom: 10,
+    borderWidth: 1.5, borderColor: '#F0E2C6',
+    ...shadows.soft,
+  },
+  rewardTileCircle: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: '#FFF3CC',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
+    borderWidth: 1, borderColor: '#F2DFA0',
+  },
+  rewardTileEmoji: { fontSize: 24 },
+  rewardTileLabel: {
+    fontFamily: 'FredokaOne', fontSize: 13, color: pt.text, textAlign: 'center', lineHeight: 17,
+  },
 
   // Hub de ações secundárias (Baú · Estrelinhas · Colorir)
   hubRow: {

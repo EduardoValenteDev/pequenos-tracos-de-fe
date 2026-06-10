@@ -73,12 +73,18 @@ function haptic(style) {
 }
 
 export default function AtelierCanvasScreen({ route, navigation }) {
-  const { mission, artId: routeArtId, openTab } = route.params ?? {};
+  const { mission, artId: routeArtId, openTab, from } = route.params ?? {};
   const insets = useSafeAreaInsets();
   const canvasRef = useRef(null);
 
-  // Modo da mesa (Parte 1): guiado (com missão) ou criação livre.
-  const mode = mission ? 'guided' : 'free';
+  // Modo da mesa: criar com Beni (contexto) > guiado (com missão) > criação livre.
+  const isCreateWithBeni = from === 'createWithBeni';
+  const mode = isCreateWithBeni ? 'createWithBeni' : (mission ? 'guided' : 'free');
+  // Quando veio de "Criar com Beni" pela Home, o voltar leva ao Início.
+  const goBackFromHeader = () => {
+    if (isCreateWithBeni) navigation.navigate('Home');
+    else navigation.goBack();
+  };
 
   /* Conquistas — salvar arte pode desbloquear (Parte 7) */
   const { progressByStory, postStoryStatusByStory } = useProgressContext();
@@ -328,15 +334,19 @@ export default function AtelierCanvasScreen({ route, navigation }) {
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}
       >
-        <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>‹</Text>
+        <SoundButton onPress={goBackFromHeader} style={isCreateWithBeni ? styles.backPill : styles.backBtn} accessibilityLabel={isCreateWithBeni ? 'Voltar ao Início' : 'Voltar'}>
+          <Text style={isCreateWithBeni ? styles.backPillText : styles.backBtnText}>
+            {isCreateWithBeni ? '‹ Início' : '‹'}
+          </Text>
         </SoundButton>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>
-            {mode === 'guided' ? 'Desenho guiado pelo Beni' : 'Criar livre'}
+            {isCreateWithBeni ? 'Criar com Beni' : (mode === 'guided' ? 'Desenho guiado pelo Beni' : 'Criar livre')}
           </Text>
           <Text style={styles.headerSub}>
-            {mode === 'guided' ? (mission || 'Uma ideia especial para hoje') : 'Desenhe do seu jeito ✨'}
+            {isCreateWithBeni
+              ? (mission || 'Sua missão criativa de hoje com Beni 🎨')
+              : (mode === 'guided' ? (mission || 'Uma ideia especial para hoje') : 'Desenhe do seu jeito ✨')}
           </Text>
         </View>
         <SoundButton onPress={handleSavePress} style={styles.saveBtn} disabled={isSaving} activeOpacity={0.85}>
@@ -664,6 +674,14 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)',
   },
   backBtnText: { fontFamily: 'FredokaOne', fontSize: 26, color: colors.text, lineHeight: 30 },
+  // Voltar ao Início (contexto "Criar com Beni") — pílula com rótulo claro.
+  backPill: {
+    height: 42, borderRadius: 21, paddingHorizontal: 14,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)',
+  },
+  backPillText: { fontFamily: 'FredokaOne', fontSize: 15, color: colors.text },
   headerCenter: { flex: 1, alignItems: 'flex-start' },
   headerTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: colors.text },
   headerSub: {

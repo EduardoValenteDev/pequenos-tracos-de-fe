@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, Image,
-  Animated, StyleSheet, TouchableOpacity,
+  Animated, StyleSheet,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +24,7 @@ import { getBeniLine } from '../data/beniLines';
 import { listArts } from '../services/atelierStorage';
 import { buildCtx } from '../services/achievementService';
 import { buildBeniChestCards, getBeniChestSummary } from '../services/beniChestService';
+import { MISSIONS } from '../data/atelierData';
 
 /* ── Conteúdo rotativo ─────────────────────────────────────────── */
 const DAILY_MESSAGES = [
@@ -52,53 +53,6 @@ const DAILY_CHALLENGES = [
   { emoji: '💛', text: 'Descobrir a lição do coração de Davi.', short: 'fazer uma boa ação' },
   { emoji: '🙏', text: 'Orar por alguém depois de ler a história.', short: 'orar por alguém' },
   { emoji: '🌟', text: 'Contar uma história bíblica para alguém especial.', short: 'contar uma história' },
-];
-
-const WORLDS = [
-  {
-    id: 'comece',
-    label: 'Comece Aqui',
-    desc: 'Primeiras aventuras da fé',
-    emoji: '🌈',
-    gradient: ['#5B8FD4', '#2B5BA1'],
-    accessLabel: 'Grátis',
-    accessType: 'free',
-    available: true,
-    navKey: 'comece',
-  },
-  {
-    id: 'pequeninos',
-    label: 'Pequeninos',
-    desc: 'Histórias fofas e simples',
-    emoji: '⭐',
-    gradient: ['#FBD46A', '#E0A21A'],
-    accessLabel: 'Plano Família',
-    accessType: 'premium',
-    available: true,
-    navKey: 'pequeninos',
-  },
-  {
-    id: 'descobridores',
-    label: 'Descobridores',
-    desc: 'Mistérios e descobertas bíblicas',
-    emoji: '🔍',
-    gradient: ['#7FC79B', '#5E9C3E'],
-    accessLabel: 'Plano Família',
-    accessType: 'premium',
-    available: true,
-    navKey: 'descobridores',
-  },
-  {
-    id: 'jovens_da_fe',
-    label: 'Jovens da Fé',
-    desc: 'Desafios para corações corajosos',
-    emoji: '📖',
-    gradient: ['#9B6FE0', '#5B21B6'],
-    accessLabel: 'Plano Família',
-    accessType: 'premium',
-    available: true,
-    navKey: 'jovens_da_fe',
-  },
 ];
 
 function dayIndex(listLength) {
@@ -374,40 +328,6 @@ function MissaoDeHoje({
   );
 }
 
-/* ── Mini mundo de caminho (grid 2×2) ────────────────────────────── */
-function WorldCardCompact({ world, onPress }) {
-  return (
-    <TouchableOpacity
-      activeOpacity={world.available ? 0.82 : 1}
-      onPress={world.available ? onPress : undefined}
-      style={styles.worldCompactWrapper}
-    >
-      <LinearGradient
-        colors={world.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0.9, y: 1 }}
-        style={styles.worldCompact}
-      >
-        {/* Brilho no canto superior */}
-        <View style={styles.worldGlow} />
-        <View style={styles.worldEmojiBubble}>
-          <Text style={styles.worldCompactEmoji}>{world.emoji}</Text>
-        </View>
-        <Text style={styles.worldCompactLabel} numberOfLines={1}>{world.label}</Text>
-        <Text style={styles.worldCompactDesc} numberOfLines={2}>{world.desc}</Text>
-        <View style={styles.worldFooter}>
-          <View style={world.accessType === 'free' ? styles.worldBadgeFree : styles.worldBadgePremium}>
-            <Text style={world.accessType === 'free' ? styles.worldBadgeFreeText : styles.worldBadgePremiumText}>
-              {world.accessType === 'free' ? world.accessLabel : 'Plano Família'}
-            </Text>
-          </View>
-          <Text style={styles.worldExplore}>Explorar →</Text>
-        </View>
-      </LinearGradient>
-    </TouchableOpacity>
-  );
-}
-
 /* ── Você conquistou — recompensa em destaque (dourado), leva ao Álbum ── */
 function ConquistaCard({ lastCompleted, totalStars, onPress }) {
   let title, sub;
@@ -495,6 +415,30 @@ function BauDoBeniCard({ onPress, count }) {
         </View>
         <View style={styles.bauBtn}>
           <Text style={styles.bauBtnText}>Abrir</Text>
+        </View>
+      </LinearGradient>
+    </SoundButton>
+  );
+}
+
+/* ── Criar com Beni — atalho para missão criativa contextual ──────── */
+function CriarComBeniCard({ onPress }) {
+  return (
+    <SoundButton onPress={onPress} activeOpacity={0.88} style={styles.criarWrap}>
+      <LinearGradient
+        colors={['#8E5BD0', '#6E3FB5']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={styles.criarCard}
+      >
+        <View style={styles.criarIcon}>
+          <Text style={styles.criarIconText}>🎨</Text>
+        </View>
+        <View style={styles.criarInfo}>
+          <Text style={styles.criarTitle}>Criar com Beni</Text>
+          <Text style={styles.criarDesc} numberOfLines={1}>Uma missão criativa com Beni</Text>
+        </View>
+        <View style={styles.criarBtn}>
+          <Text style={styles.criarBtnText}>Criar</Text>
         </View>
       </LinearGradient>
     </SoundButton>
@@ -660,6 +604,14 @@ export default function HomeScreen({ navigation }) {
       ? getBeniLine('sceneComplete').text
       : getBeniLine('home').text;
 
+  // Criar com Beni — fluxo CONTEXTUAL (missão criativa), não Ateliê genérico.
+  function onCriarComBeni() {
+    const mission = Array.isArray(MISSIONS) && MISSIONS.length
+      ? MISSIONS[Math.floor(Math.random() * MISSIONS.length)]
+      : null;
+    navigation.navigate('AtelierCanvas', { from: 'createWithBeni', mission });
+  }
+
   const jornadaBlock = (
     <MissaoDeHoje
       primaryAction={primaryAction}
@@ -667,7 +619,7 @@ export default function HomeScreen({ navigation }) {
       getProgressCount={getProgressCount}
       onAdventure={handleAdventurePress}
       adventureLabel={getAdventureButtonLabel()}
-      onCriar={() => navigation.navigate('Ateliê')}
+      onCriar={onCriarComBeni}
       beniLine={missionBeniLine}
     />
   );
@@ -694,21 +646,9 @@ export default function HomeScreen({ navigation }) {
     <BauDoBeniCard onPress={() => navigation.navigate('BeniChest')} count={chestCount} />
   );
 
-  /* ── Caminhos da fé (continuação da jornada) ── */
-  const worldsBlock = (
-    <>
-      <SectionTitle title="Caminhos da fé" style={{ marginTop: 20 }} />
-      <Text style={styles.worldsSub}>Cada mundo guarda novas histórias com Beni.</Text>
-      <View style={styles.worldsGrid}>
-        {WORLDS.map(world => (
-          <WorldCardCompact
-            key={world.id}
-            world={world}
-            onPress={() => navigation.navigate('Stories', { nivel: world.navKey })}
-          />
-        ))}
-      </View>
-    </>
+  /* ── Criar com Beni (atalho para missão criativa contextual) ── */
+  const criarBlock = (
+    <CriarComBeniCard onPress={onCriarComBeni} />
   );
 
   /* ── Cantinho do Beni (ideia + versículo agrupados) ── */
@@ -753,7 +693,7 @@ export default function HomeScreen({ navigation }) {
           {achievementBlock}
           {cultinhoEmCasaBlock}
           {bauBlock}
-          {worldsBlock}
+          {criarBlock}
           {cantinhoBlock}
         </CenteredContent>
       </Animated.View>
@@ -999,63 +939,6 @@ const styles = StyleSheet.create({
   },
   atelierBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF' },
 
-  // ── Mapa dos caminhos ──
-  worldsSub: {
-    fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft,
-    marginHorizontal: 16, marginBottom: 10,
-  },
-  worldsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap',
-    marginHorizontal: 16, gap: 8, marginBottom: 4,
-  },
-  worldCompactWrapper: { width: '47.5%' },
-  worldCompact: {
-    borderRadius: radii.lg, padding: 12,
-    alignItems: 'flex-start', minHeight: 132,
-    elevation: 3, shadowColor: '#3A2A1E',
-    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 6,
-    overflow: 'hidden',
-  },
-  worldGlow: {
-    position: 'absolute', top: -10, right: -10,
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-  },
-  worldEmojiBubble: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.28)',
-    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
-  },
-  worldCompactEmoji: { fontSize: 20 },
-  worldCompactLabel: {
-    fontFamily: 'FredokaOne', fontSize: 14, color: '#FFF', lineHeight: 18, marginBottom: 2,
-  },
-  worldCompactDesc: {
-    fontFamily: 'Nunito', fontSize: 11, color: 'rgba(255,255,255,0.88)',
-    lineHeight: 15, marginBottom: 8, flex: 1, fontWeight: '600',
-  },
-  worldFooter: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    alignSelf: 'stretch',
-  },
-  worldBadgeFree: {
-    backgroundColor: 'rgba(255,255,255,0.32)',
-    borderRadius: radii.pill, paddingHorizontal: 8, paddingVertical: 2,
-  },
-  worldBadgeFreeText: {
-    fontFamily: 'Nunito', fontSize: 10, color: '#FFF', fontWeight: '800',
-  },
-  worldBadgePremium: {
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    borderRadius: radii.pill, paddingHorizontal: 8, paddingVertical: 2,
-  },
-  worldBadgePremiumText: {
-    fontFamily: 'Nunito', fontSize: 10, color: 'rgba(255,255,255,0.92)', fontWeight: '800',
-  },
-  worldExplore: {
-    fontFamily: 'FredokaOne', fontSize: 11, color: '#FFF', opacity: 0.95,
-  },
-
   // ── Você conquistou (recompensa dourada) ──
   conquistaCard: {
     flexDirection: 'row', alignItems: 'center',
@@ -1143,6 +1026,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 9, flexShrink: 0,
   },
   bauBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#5A3E12' },
+
+  // ── Criar com Beni (atalho compacto) ──
+  criarWrap: { marginHorizontal: 16, marginTop: 10 },
+  criarCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: radii.xl, paddingVertical: 11, paddingHorizontal: 14,
+    elevation: 3, shadowColor: '#3A1E6E',
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.26, shadowRadius: 7,
+  },
+  criarIcon: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    justifyContent: 'center', alignItems: 'center', flexShrink: 0,
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)',
+  },
+  criarIconText: { fontSize: 21 },
+  criarInfo: { flex: 1 },
+  criarTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF', marginBottom: 1 },
+  criarDesc: { fontFamily: 'Nunito', fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+  criarBtn: {
+    backgroundColor: '#FFFFFF', borderRadius: radii.pill,
+    paddingHorizontal: 14, paddingVertical: 9, flexShrink: 0,
+  },
+  criarBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#6E3FB5' },
 
   // ── Cantinho do Beni (bloco especial: ideia + versículo + oração) ──
   cantinho: {
