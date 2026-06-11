@@ -27,7 +27,7 @@ function AudioPlayerInner({ audioAsset, onFinished, paused }) {
       shouldPlayInBackground: false,
       allowsRecording: false,
       interruptionMode: 'mixWithOthers',
-    }).catch(e => console.warn('AudioPlayer: setAudioModeAsync failed', e));
+    }).catch(e => { if (__DEV__) console.warn('AudioPlayer: setAudioModeAsync failed', e); });
   }, []);
 
   // Reset guard when a new audio asset is provided (scene change).

@@ -107,21 +107,6 @@ function makeFallbackVisual(cena, story, note) {
   };
 }
 
-/**
- * Resolução de UMA imagem por cena (compatibilidade / modos simples).
- * Prioridade por modo. NUNCA usa arte da criança no modo 'official'.
- */
-function resolveStoryBookVisual(cena, story, drawings, mode = 'mixed') {
-  const official = getOfficialSceneIllustration(story.id, cena.id);
-  const raw = drawings[cena.id] ?? null;
-  const p = mode !== 'official' && hasMeaningfulPaint(raw) ? parseDrawingPayload(raw) : null;
-  // Só usa a arte da criança se houver contorno (makeChildArtVisual pode dar null).
-  const childVisual = p ? makeChildArtVisual(cena, story, p) : null;
-  if (childVisual) return childVisual;
-  if (official) return makeOfficialVisual(cena, story, official);
-  return makeFallbackVisual(cena, story);
-}
-
 // sceneKey do manifesto de áudio (keyed por 'scene_01'..'scene_10', pela posição da cena)
 function sceneKeyFor(sceneNumber) {
   return `scene_${String(sceneNumber).padStart(2, '0')}`;

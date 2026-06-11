@@ -62,31 +62,6 @@ function RewardTile({ emoji, label, onPress }) {
   );
 }
 
-function RewardCard({ emoji, title, desc, primary, done, onPress }) {
-  return (
-    <SoundButton
-      style={[styles.rewardCard, primary && styles.rewardCardPrimary, done && styles.rewardCardDone]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      <View style={[styles.rewardEmojiCircle, { backgroundColor: primary ? '#7C3AED22' : pt.border + '60' }]}>
-        <Text style={styles.rewardEmoji}>{emoji}</Text>
-      </View>
-      <View style={styles.rewardInfo}>
-        <Text style={[styles.rewardTitle, primary && styles.rewardTitlePrimary]}>{title}</Text>
-        <Text style={styles.rewardDesc}>{desc}</Text>
-      </View>
-      {done ? (
-        <View style={styles.doneBadge}>
-          <Text style={styles.doneBadgeText}>✓ Feito</Text>
-        </View>
-      ) : (
-        <Text style={styles.rewardArrow}>›</Text>
-      )}
-    </SoundButton>
-  );
-}
-
 export default function CongratsScreen({ route, navigation }) {
   const { story } = route.params;
   const insets = useSafeAreaInsets();
@@ -491,47 +466,6 @@ const styles = StyleSheet.create({
     fontFamily: 'FredokaOne', fontSize: 14, color: '#7C3AED',
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10,
   },
-  rewardCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: radii.lg,
-    padding: 14, marginBottom: 10, gap: 12,
-    borderWidth: 1.5, borderColor: pt.border,
-    ...shadows.soft,
-  },
-  rewardCardPrimary: {
-    borderColor: '#7C3AED',
-    borderWidth: 2,
-    backgroundColor: '#FAF7FF',
-  },
-  rewardCardDone: { opacity: 0.7 },
-  rewardEmojiCircle: {
-    width: 48, height: 48, borderRadius: 24,
-    justifyContent: 'center', alignItems: 'center', flexShrink: 0,
-  },
-  rewardEmoji: { fontSize: 24 },
-  rewardInfo: { flex: 1 },
-  rewardTitle: {
-    fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 2,
-  },
-  rewardTitlePrimary: { color: '#7C3AED' },
-  rewardDesc: {
-    fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 17,
-  },
-  rewardArrow: { fontFamily: 'FredokaOne', fontSize: 22, color: pt.muted },
-  doneBadge: {
-    backgroundColor: pt.greenSoft, borderRadius: radii.pill,
-    paddingHorizontal: 8, paddingVertical: 3,
-  },
-  doneBadgeText: {
-    fontFamily: 'Nunito', fontSize: 11, color: pt.freeText, fontWeight: '700',
-  },
-
-  nextSectionTitle: {
-    fontFamily: 'FredokaOne', fontSize: 17, color: pt.text,
-    marginHorizontal: 16, marginTop: 16, marginBottom: 8,
-  },
-
   // Estado B — novo caminho bloqueado
   blockedCard: {
     backgroundColor: '#FFF',
@@ -662,26 +596,6 @@ const styles = StyleSheet.create({
   rewardTileEmoji: { fontSize: 24 },
   rewardTileLabel: {
     fontFamily: 'FredokaOne', fontSize: 13, color: pt.text, textAlign: 'center', lineHeight: 17,
-  },
-
-  // Hub de ações secundárias (Baú · Estrelinhas · Colorir)
-  hubRow: {
-    flexDirection: 'row', gap: 10,
-    marginHorizontal: 16, marginBottom: 12,
-  },
-  hubBtn: {
-    flex: 1, alignItems: 'center',
-    paddingVertical: 12, paddingHorizontal: 4,
-    backgroundColor: pt.surface ?? '#F9F6FF',
-    borderRadius: radii.lg,
-    borderWidth: 1, borderColor: pt.border ?? '#E8DFFF', gap: 4,
-    elevation: 2, shadowColor: '#0001',
-    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4,
-  },
-  hubBtnEmoji: { fontSize: 24 },
-  hubBtnLabel: {
-    fontFamily: 'Nunito', fontSize: 12, fontWeight: '700',
-    color: pt.text ?? '#333', textAlign: 'center',
   },
 
   // Certificado

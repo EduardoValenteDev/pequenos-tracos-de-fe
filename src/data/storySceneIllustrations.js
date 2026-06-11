@@ -154,19 +154,19 @@ export const STORY_SCENE_ILLUSTRATIONS = {
     9: require('../../assets/stories/abraham_stars/scenes/abraham_stars_scene_09.png'),
     10: require('../../assets/stories/abraham_stars/scenes/abraham_stars_scene_10.png'),
   },
-  // storyId 'joseph_colorful_coat' (igual a stories.js e ao áudio); a pasta de
-  // assets entregue é 'joseph_tunic' — o slug da história continua o oficial.
+  // storyId 'joseph_colorful_coat' — pasta padronizada (igual a stories.js e ao
+  // áudio), seguindo <storyId>/scenes/<storyId>_scene_NN.png como as demais.
   joseph_colorful_coat: {
-    1: require('../../assets/stories/joseph_tunic/scenes/joseph_tunic_scene_01.png'),
-    2: require('../../assets/stories/joseph_tunic/scenes/joseph_tunic_scene_02.png'),
-    3: require('../../assets/stories/joseph_tunic/scenes/joseph_tunic_scene_03.png'),
-    4: require('../../assets/stories/joseph_tunic/scenes/joseph_tunic_scene_04.png'),
-    5: require('../../assets/stories/joseph_tunic/scenes/joseph_tunic_scene_05.png'),
-    6: require('../../assets/stories/joseph_tunic/scenes/joseph_tunic_scene_06.png'),
-    7: require('../../assets/stories/joseph_tunic/scenes/joseph_tunic_scene_07.png'),
-    8: require('../../assets/stories/joseph_tunic/scenes/joseph_tunic_scene_08.png'),
-    9: require('../../assets/stories/joseph_tunic/scenes/joseph_tunic_scene_09.png'),
-    10: require('../../assets/stories/joseph_tunic/scenes/joseph_tunic_scene_10.png'),
+    1: require('../../assets/stories/joseph_colorful_coat/scenes/joseph_colorful_coat_scene_01.png'),
+    2: require('../../assets/stories/joseph_colorful_coat/scenes/joseph_colorful_coat_scene_02.png'),
+    3: require('../../assets/stories/joseph_colorful_coat/scenes/joseph_colorful_coat_scene_03.png'),
+    4: require('../../assets/stories/joseph_colorful_coat/scenes/joseph_colorful_coat_scene_04.png'),
+    5: require('../../assets/stories/joseph_colorful_coat/scenes/joseph_colorful_coat_scene_05.png'),
+    6: require('../../assets/stories/joseph_colorful_coat/scenes/joseph_colorful_coat_scene_06.png'),
+    7: require('../../assets/stories/joseph_colorful_coat/scenes/joseph_colorful_coat_scene_07.png'),
+    8: require('../../assets/stories/joseph_colorful_coat/scenes/joseph_colorful_coat_scene_08.png'),
+    9: require('../../assets/stories/joseph_colorful_coat/scenes/joseph_colorful_coat_scene_09.png'),
+    10: require('../../assets/stories/joseph_colorful_coat/scenes/joseph_colorful_coat_scene_10.png'),
   },
   moses_red_sea: {
     1: require('../../assets/stories/moses_red_sea/scenes/moses_red_sea_scene_01.png'),
