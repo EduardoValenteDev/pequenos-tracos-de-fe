@@ -8021,27 +8021,22 @@ try {
 }
 
 // ── A1.5 Whitelist de reset (execução real) — NÃO apaga desenhos/artes ────────
+// (O round-trip que EXECUTA resetProgress virou assíncrono em A3 — resetProgress
+//  agora usa getAllKeys — e roda no bloco assíncrono antes do resumo.)
 try {
-  const { store, api } = a1MockAsyncStorage();
   const stories = [{ id: 'creation' }, { id: 'noah' }, { id: 'david_goliath' }];
   const pr = a1LoadSandbox('src/services/progressResetService.js',
-    { AsyncStorage: api, stories }, ['getResettableKeys', 'resetProgress']);
+    { AsyncStorage: a1MockAsyncStorage().api, stories }, ['getResettableKeys']);
   const wl = pr.getResettableKeys();
   const coversProgress = ['@ptf_progress_noah', '@ptf_quiz_done_noah', '@ptf_reflection_noah',
-    '@ptf_storybook_opened_noah', '@ptf_bonus_stars', '@ptf_achievements_seen', '@ptf_lumi_moment_ever']
+    '@ptf_storybook_opened_noah', '@ptf_bonus_stars', '@ptf_achievements_seen', '@ptf_lumi_moment_ever',
+    '@ptf_beni_chest_seen_cards_v1', '@ptf_family_worship_v1']
     .every(k => wl.includes(k));
   const preservesArt = !wl.some(k => k.startsWith('@ptf_drawing_') || k.startsWith('ptf_atelier_arts'));
-  check('A1 reset: whitelist cobre o progresso e NÃO inclui desenhos nem artes do Ateliê',
+  check('A1 reset: whitelist cobre progresso + Baú visto + Cultinho e NÃO inclui desenhos/artes',
     coversProgress && preservesArt, `coversProgress=${coversProgress} preservesArt=${preservesArt}`);
-  store.set('@ptf_progress_noah', '{"1":true}');
-  store.set('@ptf_drawing_snoah_c1', 'data:image/png;base64,AAA');
-  store.set('ptf_atelier_arts_v1_index', '[]');
-  pr.resetProgress();                                  // muta store sincronamente
-  check('A1 reset: resetProgress remove o progresso e PRESERVA desenho + arte do Ateliê',
-    !store.has('@ptf_progress_noah') && store.has('@ptf_drawing_snoah_c1') && store.has('ptf_atelier_arts_v1_index'),
-    'reset apagou desenho/arte ou não removeu o progresso');
 } catch (e) {
-  check('A1 reset: progressResetService round-trip', false, String(e && e.message));
+  check('A1 reset: progressResetService whitelist', false, String(e && e.message));
 }
 
 // ── A1.6 Preferências de áudio (execução real) + supressão de som ─────────────
@@ -8081,7 +8076,73 @@ try {
     'SoundButton não condiciona o som à prop silent');
 }
 
-// ── Summary ──────────────────────────────────────────────────────────────────
-const total = passes + failures;
-console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
-if (failures > 0) process.exit(1);
+// ════════════════════════════════════════════════════════════════════════════
+// Sprint Estabilização A — Bloco A3: navegação e storage leve
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Sprint A3: navegação e storage leve ──');
+
+const a3StoryBook = readSrc('src/screens/StoryBookScreen.js');
+const a3Cultinho  = readSrc('src/screens/CultinhoEmCasaScreen.js');
+const a3Atelier   = readSrc('src/screens/AtelierScreen.js');
+const a3Reset     = readSrc('src/services/progressResetService.js');
+
+// Item 1 — Livrinho "Voltar para Aventuras" usa a TAB, não empilha StoriesScreen.
+check(
+  'A3 Livrinho: "Voltar para Aventuras" usa a tab (navigate Home/Aventuras), sem navigate(\'Stories\')',
+  /Voltar para Aventuras/.test(a3StoryBook) &&
+  a3StoryBook.includes("navigate('Home', { screen: 'Aventuras' })") &&
+  !a3StoryBook.includes("navigate('Stories')"),
+  'StoryBookScreen ainda empilha StoriesScreen em vez de voltar pela tab Aventuras',
+);
+
+// Item 5 — "Colorir juntos" do Cultinho abre AtelierFromContext from:cultinho e
+// a tela do Ateliê volta por goBack() (canGoBack) → retorna ao Cultinho, não Home.
+check(
+  'A3 Cultinho: "Colorir juntos" → AtelierFromContext from:cultinho e back via goBack (volta ao Cultinho)',
+  a3Cultinho.includes("navigation.navigate('AtelierFromContext', { from: 'cultinho' })") &&
+  /navigation\.canGoBack\(\)\s*\?\s*navigation\.goBack\(\)/.test(a3Atelier),
+  'O retorno do "Colorir juntos" ao Cultinho não está garantido por goBack',
+);
+
+// Itens 2/3 — reset limpa as chaves diárias do Momento (prefixo) + Baú + Cultinho.
+check(
+  'A3 reset: limpeza dinâmica das chaves diárias do Momento (getAllKeys + prefixo) + Baú/Cultinho na whitelist',
+  a3Reset.includes('getAllKeys') &&
+  /startsWith\(LUMI_MOMENT_PREFIX\)/.test(a3Reset) &&
+  a3Reset.includes("'@ptf_beni_chest_seen_cards_v1'") &&
+  a3Reset.includes("'@ptf_family_worship_v1'"),
+  'progressResetService não limpa Momentos diários por prefixo / não inclui Baú+Cultinho',
+);
+
+// ── A3 (assíncrono): round-trip REAL do reset (resetProgress agora usa getAllKeys).
+// O resumo só é impresso depois que o reset assíncrono terminar.
+(async () => {
+  try {
+    const { store, api } = a1MockAsyncStorage();
+    const stories = [{ id: 'noah' }];
+    const pr = a1LoadSandbox('src/services/progressResetService.js',
+      { AsyncStorage: api, stories }, ['resetProgress']);
+    store.set('@ptf_progress_noah', '{"1":true}');
+    store.set('@ptf_quiz_done_noah', 'true');
+    store.set('@ptf_beni_chest_seen_cards_v1', '["x"]');   // Baú visto
+    store.set('@ptf_family_worship_v1', '{"count":2}');    // Cultinho
+    store.set('@ptf_lumi_moment_2026-06-11', 'done');      // Momento diário
+    store.set('@ptf_lumi_moment_ever', 'true');
+    store.set('@ptf_drawing_snoah_c1', 'data:image/png;base64,AAA'); // preservar
+    store.set('ptf_atelier_arts_v1_index', '[]');                    // preservar
+    await pr.resetProgress();
+    const cleaned = !store.has('@ptf_progress_noah') && !store.has('@ptf_quiz_done_noah') &&
+      !store.has('@ptf_beni_chest_seen_cards_v1') && !store.has('@ptf_family_worship_v1') &&
+      !store.has('@ptf_lumi_moment_2026-06-11') && !store.has('@ptf_lumi_moment_ever');
+    const preserved = store.has('@ptf_drawing_snoah_c1') && store.has('ptf_atelier_arts_v1_index');
+    check('A3 reset (round-trip real): limpa progresso + Baú + Cultinho + Momentos diários; PRESERVA desenhos/artes',
+      cleaned && preserved, `cleaned=${cleaned} preserved=${preserved}`);
+  } catch (e) {
+    check('A3 reset: resetProgress round-trip assíncrono', false, String(e && e.message));
+  }
+
+  // ── Summary ────────────────────────────────────────────────────────────────
+  const total = passes + failures;
+  console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
+  if (failures > 0) process.exit(1);
+})();

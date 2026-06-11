@@ -765,7 +765,7 @@ export default function StoryBookScreen({ route, navigation }) {
 
           <SoundButton
             style={styles.endedBackBtn}
-            onPress={() => navigation.navigate('Stories')}
+            onPress={() => navigation.navigate('Home', { screen: 'Aventuras' })}
             activeOpacity={0.85}
           >
             <Text style={styles.endedBackBtnText}>← Voltar para Aventuras</Text>

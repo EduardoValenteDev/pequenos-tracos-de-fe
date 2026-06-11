@@ -750,7 +750,7 @@ export default function ParentAreaScreen({ navigation }) {
                 <View style={styles.resetDoneBox}>
                   <Text style={styles.resetDoneTitle}>✅ Progresso apagado</Text>
                   <Text style={styles.resetDoneDesc}>
-                    A jornada pode começar de novo. O perfil, os desenhos do Ateliê e as artes salvas foram preservados.
+                    A jornada pode começar de novo. O perfil e todos os desenhos e artes (do Ateliê e das histórias coloridas) foram preservados.
                   </Text>
                   <SoundButton style={styles.resetCancelBtn} onPress={() => setResetStep('idle')} activeOpacity={0.85}>
                     <Text style={styles.resetCancelBtnText}>Fechar</Text>
@@ -760,7 +760,7 @@ export default function ParentAreaScreen({ navigation }) {
                 <View>
                   <Text style={styles.resetWarningTitle}>⚠️ Esta ação não pode ser desfeita</Text>
                   <Text style={styles.bodyText}>
-                    Serão apagados: cenas coloridas, quiz, reflexão, livrinho, conquistas vistas e estrelas bônus.
+                    Será apagado o progresso da jornada: estrelas e cenas concluídas, quiz, reflexão, Livrinho, conquistas vistas, o que já foi visto no Baú, o Cultinho e os Momentos com Beni. As pinturas e artes da criança NÃO são apagadas.
                   </Text>
                   <Text style={[styles.bodyText, { marginTop: 10, fontWeight: '700', color: pt.text }]}>
                     Digite APAGAR para confirmar:
@@ -794,7 +794,7 @@ export default function ParentAreaScreen({ navigation }) {
                 <View>
                   <Text style={styles.resetWarningTitle}>⚠️ Confirmar reset</Text>
                   <Text style={styles.bodyText}>
-                    Isso vai apagar todo o progresso da criança neste aparelho. Perfil, nome, desenhos do Ateliê e artes salvas não serão afetados.
+                    Isso vai apagar o progresso da jornada da criança neste aparelho. Perfil, nome, e todos os desenhos e artes (do Ateliê e das histórias coloridas) não serão afetados.
                   </Text>
                   <View style={styles.resetBtnRow}>
                     <SoundButton style={styles.resetCancelBtn} onPress={() => setResetStep('idle')} activeOpacity={0.85}>
