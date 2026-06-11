@@ -6577,9 +6577,11 @@ check(
   'AtelierCanvasScreen não diferencia os modos da mesa',
 );
 check(
-  'Canvas 2.0: borracha com dica "Passe por cima para apagar"',
-  canvasV2.includes('Passe por cima para apagar'),
-  'AtelierCanvasScreen não tem a dica intuitiva da borracha',
+  // H1.1: a dica de altura foi removida do modo borracha para os tamanhos
+  // (Pequena/Média/Grande) caberem sem rolagem. Agora os rótulos orientam.
+  'Canvas: borracha mostra os tamanhos (Pequena/Média/Grande) no modo borracha',
+  canvasV2.includes("activeTool === 'borracha'") && canvasV2.includes('ERASER_SIZES.map'),
+  'AtelierCanvasScreen não mostra os tamanhos da borracha',
 );
 check(
   'Canvas 2.0: recompensa ao salvar com progresso + Livrinho + Ver minhas artes',
@@ -7822,6 +7824,19 @@ check(
   'H1: área do canvas permanece estável (canvasOuter flex:1), sem mexer no motor',
   /canvasOuter:\s*\{\s*\n?\s*flex:\s*1/.test(h1Atelier),
   'AtelierCanvasScreen: canvasOuter perdeu o flex estável da área do canvas',
+);
+
+check(
+  'H1.1: painel compactado (PANEL_CONTENT_H <= 160) — devolve área de canvas',
+  (() => { const m = h1Atelier.match(/const PANEL_CONTENT_H\s*=\s*(\d+)/); return !!m && Number(m[1]) <= 160; })(),
+  'AtelierCanvasScreen: painel não foi compactado (PANEL_CONTENT_H > 160)',
+);
+
+check(
+  'H1.1: tamanhos da borracha sem rolagem (dica não rouba altura no modo borracha)',
+  !h1Atelier.includes('Passe por cima para apagar') &&
+  /activeTool === 'borracha'[\s\S]{0,400}styles\.sizeRow/.test(h1Atelier),
+  'AtelierCanvasScreen: modo borracha ainda usa a dica que rouba altura / tamanhos podem exigir rolagem',
 );
 
 // ── Summary ──────────────────────────────────────────────────────────────────

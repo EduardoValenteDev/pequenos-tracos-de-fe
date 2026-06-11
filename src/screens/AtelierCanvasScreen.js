@@ -58,13 +58,13 @@ const ERASER_SIZES = [
   { id: 'G', label: 'Grande',  size: 56 },
 ];
 
-// Hotfix H1 — altura RESERVADA fixa da área de conteúdo do painel inferior.
-// Dimensionada para o MAIOR estado do painel (Ferramentas + Borracha: chips de
-// ferramenta + ações + linha de tamanhos Pequena/Média/Grande + dica ≈ 182px).
-// Reservar essa altura mantém o canvas com tamanho ESTÁVEL: trocar de aba ou
-// selecionar a Borracha não comprime mais o desenho. Conteúdo que exceda essa
-// altura (ex.: fonte do sistema ampliada) rola por dentro, sem empurrar o canvas.
-const PANEL_CONTENT_H = 190;
+// Hotfix H1 + H1.1 — altura RESERVADA fixa da área de conteúdo do painel.
+// Mantém o canvas ESTÁVEL (trocar de aba/Borracha não comprime o desenho) e foi
+// COMPACTADA (H1.1): o maior estado (Ferramentas + Borracha: chips + ações +
+// linha de tamanhos Pequena/Média/Grande) cabe SEM rolagem em ~148px, devolvendo
+// área de canvas. A dica da borracha foi removida e os controles ficaram menores.
+// O ScrollView interno é só rede de segurança (fonte do sistema muito ampliada).
+const PANEL_CONTENT_H = 148;
 
 // Carimbos da Fé — recurso SECUNDÁRIO até termos assets próprios (Parte 5).
 // TODO(assets): substituir estes emojis por ilustrações próprias do Beni.
@@ -484,7 +484,8 @@ export default function AtelierCanvasScreen({ route, navigation }) {
               {/* Contexto da ferramenta ativa */}
               {activeTool === 'borracha' && (
                 <View style={styles.toolContext}>
-                  <Text style={styles.toolContextHint}>🧽 Passe por cima para apagar.</Text>
+                  {/* H1.1: dica removida deste modo — os tamanhos ficam visíveis
+                      sem rolagem; os rótulos Pequena/Média/Grande já orientam. */}
                   <View style={styles.sizeRow}>
                     {ERASER_SIZES.map((es, idx) => (
                       <SoundButton
@@ -785,12 +786,12 @@ const styles = StyleSheet.create({
   brushPreview: { height: 26, justifyContent: 'center', alignItems: 'center' },
   brushLabel: { fontFamily: 'FredokaOne', fontSize: 13, color: colors.text },
 
-  /* Aba Ferramentas */
-  ferramentasPanel: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
-  toolSelectRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  /* Aba Ferramentas (H1.1: compacto, cabe sem rolagem) */
+  ferramentasPanel: { paddingHorizontal: 12, paddingTop: 5, paddingBottom: 2 },
+  toolSelectRow: { flexDirection: 'row', gap: 8, marginBottom: 5 },
   toolChip: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 11, borderRadius: 16,
+    paddingVertical: 8, borderRadius: 16,
     backgroundColor: '#F6EEDD',
     borderWidth: 2, borderColor: 'transparent', gap: 5,
   },
@@ -806,7 +807,7 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 8 },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 10, borderRadius: 14,
+    paddingVertical: 8, borderRadius: 14,
     backgroundColor: '#F0E6D3', gap: 6,
   },
   clearAllBtn: { backgroundColor: '#FFEFEA', borderWidth: 1.5, borderColor: '#F3C3B2' },
@@ -814,24 +815,24 @@ const styles = StyleSheet.create({
   actionBtnLabel: { fontFamily: 'Nunito', fontSize: 12, color: colors.text, fontWeight: '700' },
   clearAllLabel: { color: '#C0512F' },
 
-  toolContext: { marginTop: 10 },
+  toolContext: { marginTop: 6 },
   toolContextHint: {
     fontFamily: 'Nunito', fontSize: 12, color: colors.textLight, fontWeight: '700',
     textAlign: 'center', marginBottom: 8,
   },
   toolContextHintMuted: {
     fontFamily: 'Nunito', fontSize: 12, color: '#B0A48F', fontWeight: '700',
-    textAlign: 'center', marginTop: 12,
+    textAlign: 'center', marginTop: 6,
   },
 
   /* Tamanhos (borracha) */
   sizeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sizeBtn: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 8, borderRadius: 14,
+    paddingVertical: 5, borderRadius: 14,
     backgroundColor: '#F6EEDD',
     borderWidth: 2, borderColor: 'transparent',
-    gap: 4, minHeight: 50,
+    gap: 3, minHeight: 42,
   },
   sizeBtnActive: { backgroundColor: '#FFF3D6', borderColor: '#F4B23C' },
   sizeBtnLabel: { fontFamily: 'Nunito', fontSize: 10, color: colors.textLight, fontWeight: '700' },
