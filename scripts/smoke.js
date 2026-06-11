@@ -1060,11 +1060,10 @@ check(
 // ── [128–145] Sprint 5.3 — Livrinho composição visual definitiva ──────────────
 console.log('\n── Sprint 5.3: Livrinho visual composition ──');
 
-check(
-  'StoryBookScreen has resolveStoryBookVisual (visual resolution helper)',
-  storyBookSrc.includes('resolveStoryBookVisual'),
-  'StoryBookScreen missing resolveStoryBookVisual — rendering logic is not centralized',
-);
+// [A1] Removido o check que exigia o nome 'resolveStoryBookVisual' (helper legado
+// não chamado). Sua presença ficava "travada" só pelo smoke; a remoção da função
+// é tarefa do Bloco A2. A composição real do Livrinho é validada pelos tipos
+// (paintWithLineart/official/fallback) abaixo, produzidos por make*Visual.
 
 check(
   'StoryBookScreen has computeLineartStyle (pixel-aligned lineart positioning)',
@@ -1073,7 +1072,7 @@ check(
 );
 
 check(
-  'resolveStoryBookVisual returns paintWithLineart type',
+  'Livrinho visual: tipo paintWithLineart presente (makeChildArtVisual)',
   storyBookSrc.includes("'paintWithLineart'") || storyBookSrc.includes('"paintWithLineart"'),
   'StoryBookScreen missing paintWithLineart type — never correctly overlays paint + lineart',
 );
@@ -1085,13 +1084,13 @@ check(
 );
 
 check(
-  'resolveStoryBookVisual returns official type (Sprint 4.1 hybrid)',
+  'Livrinho visual: tipo official presente (makeOfficialVisual)',
   storyBookSrc.includes("'official'") || storyBookSrc.includes('"official"'),
   'StoryBookScreen missing official type — Livrinho no longer uses official illustration as priority B',
 );
 
 check(
-  'resolveStoryBookVisual returns fallback type',
+  'Livrinho visual: tipo fallback presente (makeFallbackVisual)',
   storyBookSrc.includes("'fallback'") || storyBookSrc.includes('"fallback"'),
   'StoryBookScreen missing fallback type — no display when neither paint nor lineart exists',
 );
@@ -1990,11 +1989,9 @@ check(
 );
 
 // Baseline protections (Sprint 8 re-validation)
-check(
-  'StoryBookScreen resolveStoryBookVisual still intact (Sprint 8)',
-  sbSrc8.includes('resolveStoryBookVisual'),
-  'StoryBookScreen lost resolveStoryBookVisual — Livrinho visual composition broken',
-);
+// [A1] Removido o 2º check que exigia o nome 'resolveStoryBookVisual' (helper
+// legado). A integridade do Livrinho é coberta por onSceneAudioComplete /
+// advanceToNextScene e pelos tipos de visual; a remoção da função fica para A2.
 
 check(
   'StoryBookScreen onSceneAudioComplete still intact (Sprint 8)',
@@ -4605,7 +4602,7 @@ check(
 );
 
 check(
-  'resolveStoryBookVisual expõe visualType childArt/official/fallback',
+  'Livrinho visual: visualType childArt/official/fallback presente (make*Visual)',
   livroSrc.includes("visualType: 'childArt'") &&
   livroSrc.includes("visualType: 'official'") &&
   livroSrc.includes("visualType: 'fallback'"),
@@ -7838,6 +7835,251 @@ check(
   /activeTool === 'borracha'[\s\S]{0,400}styles\.sizeRow/.test(h1Atelier),
   'AtelierCanvasScreen: modo borracha ainda usa a dica que rouba altura / tamanhos podem exigir rolagem',
 );
+
+// ════════════════════════════════════════════════════════════════════════════
+// Sprint Estabilização A — Bloco A1: testes que pegam mentira
+// Validação COMPORTAMENTAL/ESTRUTURAL (disco real, parse, round-trip em sandbox,
+// rotas), reduzindo a dependência de checks que só confirmam que uma string
+// existe. Onde resta inspeção textual, o relatório explica por que é aceitável.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Sprint A1: testes que pegam mentira ──');
+
+// ── Helpers locais (fs/path/root já existem no topo do arquivo) ──────────────
+function a1StripComments(s) {
+  return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+function a1ExtractRequires(src) {
+  const out = [];
+  const re = /require\(\s*['"]([^'"]+)['"]\s*\)/g; let m;
+  while ((m = re.exec(src))) out.push(m[1]);
+  return out;
+}
+function a1AbsFromRequire(fileRelDir, requirePath) {
+  return path.join(root, fileRelDir, requirePath);
+}
+function a1ParseStoryMap(src, marker) {
+  const noC = a1StripComments(src);
+  const idx = noC.indexOf(marker);
+  const body = idx >= 0 ? noC.slice(idx) : noC;
+  const map = {};
+  const re = /([A-Za-z_]\w*):\s*\{([\s\S]*?)\n\s*\},?/g; let m;
+  while ((m = re.exec(body))) {
+    const reqs = [...m[2].matchAll(/(\d+):\s*require\(\s*['"]([^'"]+)['"]/g)]
+      .map(x => ({ n: Number(x[1]), p: x[2] }));
+    if (reqs.length) map[m[1]] = reqs;
+  }
+  return map;
+}
+// Avalia um módulo ESM simples em sandbox: remove imports, converte exports e
+// injeta dependências (ex.: AsyncStorage mock). Permite ROUND-TRIP real do código.
+function a1LoadSandbox(relPath, deps, returnNames) {
+  let code = readSrc(relPath)
+    .replace(/^\s*import\s.*$/gm, '')                     // remove imports (1 linha)
+    .replace(/export\s+default\s+/g, 'const __default = ')
+    .replace(/export\s+(async\s+function|function|const|let|var)\s+/g, '$1 ');
+  code += `\nreturn { ${returnNames.join(', ')} };`;
+  const names = Object.keys(deps);
+  // eslint-disable-next-line no-new-func
+  const fn = new Function(...names, code);
+  return fn(...names.map(n => deps[n]));
+}
+function a1MockAsyncStorage() {
+  const store = new Map();
+  return {
+    store,
+    api: {
+      setItem: (k, v) => { store.set(k, String(v)); return Promise.resolve(); },
+      getItem: (k) => Promise.resolve(store.has(k) ? store.get(k) : null),
+      removeItem: (k) => { store.delete(k); return Promise.resolve(); },
+      multiRemove: (ks) => { (ks || []).forEach(k => store.delete(k)); return Promise.resolve(); },
+      getAllKeys: () => Promise.resolve([...store.keys()]),
+    },
+  };
+}
+
+// ── A1.1 Integridade de mídia: todo require de manifest existe no disco ───────
+const a1SceneSrc   = readSrc('src/data/storySceneIllustrations.js');
+const a1ColorSrc   = readSrc('src/assets/coloringImages.js');
+const a1AudioSrc   = readSrc('src/data/audioManifest.js');
+const a1CoversSrc  = readSrc('src/assets/storyCovers.js');
+
+function a1CheckRequiresExist(label, src, fileRelDir) {
+  const reqs = a1ExtractRequires(a1StripComments(src)).filter(r => r.includes('assets/'));
+  const missing = reqs.filter(r => !fs.existsSync(a1AbsFromRequire(fileRelDir, r)));
+  check(label, reqs.length > 0 && missing.length === 0,
+    missing.length ? `arquivo(s) inexistente(s): ${missing.slice(0, 4).join(', ')}${missing.length > 4 ? ' …' : ''}`
+                   : 'nenhum require de mídia encontrado');
+}
+a1CheckRequiresExist('A1 mídia: cenas ilustrativas — todo require aponta para arquivo existente', a1SceneSrc, 'src/data');
+a1CheckRequiresExist('A1 mídia: imagens de colorir — todo require aponta para arquivo existente', a1ColorSrc, 'src/assets');
+a1CheckRequiresExist('A1 mídia: áudios manifestados — todo require aponta para arquivo existente', a1AudioSrc, 'src/data');
+a1CheckRequiresExist('A1 mídia: capas — todo require aponta para arquivo existente', a1CoversSrc, 'src/assets');
+
+// ── A1.2 Paridade manifest × disco ───────────────────────────────────────────
+// Cenas: numeração contígua 1..N por história (pega cena faltando/duplicada).
+{
+  const scn = a1ParseStoryMap(a1SceneSrc, 'STORY_SCENE_ILLUSTRATIONS = {');
+  let ok = true, detail = '';
+  for (const id of Object.keys(scn)) {
+    const nums = scn[id].map(x => x.n).sort((a, b) => a - b);
+    const contiguous = nums.length > 0 && nums.every((n, i) => n === i + 1);
+    if (!contiguous) { ok = false; detail += `${id}: [${nums.join(',')}]; `; }
+  }
+  check('A1 paridade: cenas ilustrativas — numeração contígua 1..N por história', ok, detail);
+}
+// Colorir: contagem do manifest === .png na pasta /colorir referenciada.
+{
+  const col = a1ParseStoryMap(a1ColorSrc, 'const coloringImages = {');
+  let ok = true, detail = '';
+  for (const id of Object.keys(col)) {
+    const reqs = col[id];
+    const fm = reqs[0].p.match(/assets\/stories\/([^/]+)\/colorir\//);
+    const folder = fm ? fm[1] : id;
+    const dir = path.join(root, 'assets/stories', folder, 'colorir');
+    const disk = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.png')).length : 0;
+    if (reqs.length !== disk) { ok = false; detail += `${id}: manifest ${reqs.length} ≠ disco ${disk}; `; }
+  }
+  check('A1 paridade: colorir — contagem do manifest === arquivos .png no disco', ok, detail);
+}
+// Áudio: contagem de entradas ready por história === .mp3 no disco.
+{
+  const ready = [...a1StripComments(a1AudioSrc)
+    .matchAll(/storyId:\s*'([^']+)',\s*sceneKey:\s*'[^']+',\s*audioAsset:\s*require/g)].map(m => m[1]);
+  const counts = {}; ready.forEach(id => { counts[id] = (counts[id] || 0) + 1; });
+  let ok = true, detail = '';
+  for (const id of Object.keys(counts)) {
+    const dir = path.join(root, 'assets/audio', id);
+    const disk = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.mp3')).length : 0;
+    if (counts[id] !== disk) { ok = false; detail += `${id}: manifest ${counts[id]} ≠ disco ${disk}; `; }
+  }
+  check('A1 paridade: áudio — contagem ready do manifest === .mp3 no disco', ok && ready.length > 0,
+    ready.length ? detail : 'nenhum áudio manifestado');
+}
+
+// ── A1.3 Rotas existentes: todo navigate('X') aponta para rota registrada ─────
+{
+  const navSrc = readSrc('src/navigation/AppNavigator.js');
+  const stackRoutes = new Set([...navSrc.matchAll(/name="(\w+)"/g)].map(m => m[1]));
+  const tabBlock = (navSrc.match(/const TAB_DEFS\s*=\s*\[([\s\S]*?)\];/) || [])[1] || '';
+  const tabNames = new Set([...tabBlock.matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]));
+  const known = new Set([...stackRoutes, ...tabNames]);
+  // walk de todos os .js de src
+  const files = [];
+  (function rec(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) rec(p);
+      else if (e.name.endsWith('.js')) files.push(p);
+    }
+  })(path.join(root, 'src'));
+  const targets = new Map();
+  for (const f of files) {
+    const s = fs.readFileSync(f, 'utf8');
+    for (const m of s.matchAll(/navigate\(\s*['"]([A-Za-z]\w*)['"]/g)) {
+      if (!targets.has(m[1])) targets.set(m[1], path.relative(root, f).replace(/\\/g, '/'));
+    }
+  }
+  const broken = [...targets.keys()].filter(r => !known.has(r));
+  check('A1 rotas: todo navigate(\'X\') aponta para uma rota registrada (Stack ou tab)',
+    targets.size > 0 && broken.length === 0,
+    broken.length ? `rota(s) não registrada(s): ${broken.map(r => `${r} ← ${targets.get(r)}`).join('; ')}` : '');
+}
+
+// ── A1.4 Round-trip de AsyncStorage (execução real em sandbox) ────────────────
+// storageKeys — chaves estáveis (pega mudança de formato que quebraria dados).
+try {
+  const sk = a1LoadSandbox('src/services/storageKeys.js', {}, ['STORAGE_KEYS', 'storageKey', 'APP_STORAGE_SCHEMA_VERSION']);
+  check('A1 storage: storageKeys gera chaves estáveis (progress/drawing/quiz/reflection/storybook)',
+    sk.storageKey.progress('noah') === '@ptf_progress_noah' &&
+    sk.storageKey.drawing('noah', 3) === '@ptf_drawing_snoah_c3' &&
+    sk.storageKey.quizDone('noah') === '@ptf_quiz_done_noah' &&
+    sk.storageKey.reflection('noah') === '@ptf_reflection_noah' &&
+    sk.storageKey.storyBookOpened('noah') === '@ptf_storybook_opened_noah' &&
+    typeof sk.APP_STORAGE_SCHEMA_VERSION === 'number',
+    'storageKeys mudou o formato das chaves — risco de perder dados já salvos');
+} catch (e) {
+  check('A1 storage: storageKeys avaliável e estável', false, String(e && e.message));
+}
+// drawingStorage — grava → confirma → remove, na chave correta.
+try {
+  const { store, api } = a1MockAsyncStorage();
+  const ds = a1LoadSandbox('src/services/drawingStorage.js',
+    { AsyncStorage: api, log: () => {} },
+    ['saveDrawingState', 'clearDrawingState', 'hasMeaningfulPaint']);
+  const url = 'data:image/png;base64,' + 'A'.repeat(2000);
+  ds.saveDrawingState('noah', 3, url);                 // muta store sincronamente
+  const saved = store.get('@ptf_drawing_snoah_c3') === url;
+  ds.clearDrawingState('noah', 3);
+  const removed = !store.has('@ptf_drawing_snoah_c3');
+  const meaningful = ds.hasMeaningfulPaint(url) === true &&
+                     ds.hasMeaningfulPaint('data:image/png;base64,AAAA') === false &&
+                     ds.hasMeaningfulPaint(null) === false;
+  check('A1 storage: drawingStorage grava → lê → remove na chave certa + hasMeaningfulPaint',
+    saved && removed && meaningful, `saved=${saved} removed=${removed} meaningful=${meaningful}`);
+} catch (e) {
+  check('A1 storage: drawingStorage round-trip', false, String(e && e.message));
+}
+
+// ── A1.5 Whitelist de reset (execução real) — NÃO apaga desenhos/artes ────────
+try {
+  const { store, api } = a1MockAsyncStorage();
+  const stories = [{ id: 'creation' }, { id: 'noah' }, { id: 'david_goliath' }];
+  const pr = a1LoadSandbox('src/services/progressResetService.js',
+    { AsyncStorage: api, stories }, ['getResettableKeys', 'resetProgress']);
+  const wl = pr.getResettableKeys();
+  const coversProgress = ['@ptf_progress_noah', '@ptf_quiz_done_noah', '@ptf_reflection_noah',
+    '@ptf_storybook_opened_noah', '@ptf_bonus_stars', '@ptf_achievements_seen', '@ptf_lumi_moment_ever']
+    .every(k => wl.includes(k));
+  const preservesArt = !wl.some(k => k.startsWith('@ptf_drawing_') || k.startsWith('ptf_atelier_arts'));
+  check('A1 reset: whitelist cobre o progresso e NÃO inclui desenhos nem artes do Ateliê',
+    coversProgress && preservesArt, `coversProgress=${coversProgress} preservesArt=${preservesArt}`);
+  store.set('@ptf_progress_noah', '{"1":true}');
+  store.set('@ptf_drawing_snoah_c1', 'data:image/png;base64,AAA');
+  store.set('ptf_atelier_arts_v1_index', '[]');
+  pr.resetProgress();                                  // muta store sincronamente
+  check('A1 reset: resetProgress remove o progresso e PRESERVA desenho + arte do Ateliê',
+    !store.has('@ptf_progress_noah') && store.has('@ptf_drawing_snoah_c1') && store.has('ptf_atelier_arts_v1_index'),
+    'reset apagou desenho/arte ou não removeu o progresso');
+} catch (e) {
+  check('A1 reset: progressResetService round-trip', false, String(e && e.message));
+}
+
+// ── A1.6 Preferências de áudio (execução real) + supressão de som ─────────────
+try {
+  const { store, api } = a1MockAsyncStorage();
+  let playerCreates = 0;
+  const createAudioPlayer = () => { playerCreates++; return { play() {}, pause() {}, seekTo() {}, volume: 0, loop: false }; };
+  const setAudioModeAsync = () => Promise.resolve();
+  const am = a1LoadSandbox('src/services/audioManager.js',
+    { AsyncStorage: api, createAudioPlayer, setAudioModeAsync, require: () => 1 },
+    ['getAudioPreferences', 'setSoundsEnabled', 'setMusicEnabled', 'playUiSound']);
+  am.setSoundsEnabled(false);
+  const offPersisted = (store.get('@ptf_audio_prefs_v1') || '').includes('"soundsEnabled":false');
+  const offRead = am.getAudioPreferences().soundsEnabled === false;
+  playerCreates = 0; am.playUiSound('tap');
+  const mutedNoSound = playerCreates === 0;            // som desligado → não toca
+  am.setSoundsEnabled(true);
+  playerCreates = 0; am.playUiSound('tap');
+  const onPlaysSound = playerCreates === 1;            // som ligado → toca
+  am.setMusicEnabled(true);
+  const musicPersisted = (store.get('@ptf_audio_prefs_v1') || '').includes('"musicEnabled":true') &&
+                         am.getAudioPreferences().musicEnabled === true;
+  check('A1 áudio: preferências de sons/música persistem e são lidas corretamente',
+    offPersisted && offRead && musicPersisted, `offPersisted=${offPersisted} offRead=${offRead} musicPersisted=${musicPersisted}`);
+  check('A1 áudio: desligar sons silencia (playUiSound não cria player); ligar reativa',
+    mutedNoSound && onPlaysSound, `mutedNoSound=${mutedNoSound} onPlaysSound=${onPlaysSound}`);
+} catch (e) {
+  check('A1 áudio: audioManager round-trip', false, String(e && e.message));
+}
+// Ligação SoundButton → playUiSound só quando !silent. SoundButton é componente
+// React Native (não executável em Node), então a regra "silent suprime o som" é
+// validada de forma ESTRUTURAL aqui e COMPORTAMENTAL no manager (acima).
+{
+  const sb = readSrc('src/components/SoundButton.js');
+  check('A1 áudio: SoundButton só dispara som quando !silent (estrutural — componente RN)',
+    sb.includes('playUiSound') && /if \(!silent\)\s*playUiSound/.test(sb),
+    'SoundButton não condiciona o som à prop silent');
+}
 
 // ── Summary ──────────────────────────────────────────────────────────────────
 const total = passes + failures;
