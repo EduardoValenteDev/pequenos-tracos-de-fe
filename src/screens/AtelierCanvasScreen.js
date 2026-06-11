@@ -58,6 +58,14 @@ const ERASER_SIZES = [
   { id: 'G', label: 'Grande',  size: 56 },
 ];
 
+// Hotfix H1 — altura RESERVADA fixa da área de conteúdo do painel inferior.
+// Dimensionada para o MAIOR estado do painel (Ferramentas + Borracha: chips de
+// ferramenta + ações + linha de tamanhos Pequena/Média/Grande + dica ≈ 182px).
+// Reservar essa altura mantém o canvas com tamanho ESTÁVEL: trocar de aba ou
+// selecionar a Borracha não comprime mais o desenho. Conteúdo que exceda essa
+// altura (ex.: fonte do sistema ampliada) rola por dentro, sem empurrar o canvas.
+const PANEL_CONTENT_H = 190;
+
 // Carimbos da Fé — recurso SECUNDÁRIO até termos assets próprios (Parte 5).
 // TODO(assets): substituir estes emojis por ilustrações próprias do Beni.
 // Máx. 5, apenas os mais coerentes; sem cruz/itens que pareçam emoji solto.
@@ -376,8 +384,15 @@ export default function AtelierCanvasScreen({ route, navigation }) {
       {/* PAINEL INFERIOR POR ABAS */}
       <View style={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, 6) }]}>
 
-        {/* Conteúdo do painel ativo */}
+        {/* Conteúdo do painel ativo — altura RESERVADA fixa (H1): o conteúdo rola
+            por dentro e NUNCA empurra/comprime o canvas. */}
         <View style={styles.panelContent}>
+          <ScrollView
+            style={styles.panelScroll}
+            contentContainerStyle={styles.panelScrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
 
           {/* ─ ABA CORES ─ */}
           {panelTab === 'cores' && (
@@ -534,6 +549,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
               )}
             </View>
           )}
+          </ScrollView>
         </View>
 
         {/* Abas do painel */}
@@ -731,7 +747,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.08, shadowRadius: 6,
     paddingTop: 6,
   },
-  panelContent: { minHeight: 116, justifyContent: 'center' },
+  // Altura RESERVADA fixa (H1): não cresce com a aba/Borracha → canvas estável.
+  panelContent: { height: PANEL_CONTENT_H },
+  panelScroll: { flex: 1 },
+  panelScrollContent: { flexGrow: 1, justifyContent: 'center' },
 
   /* Aba Cores */
   colorRow: { gap: 12, alignItems: 'flex-start', paddingHorizontal: 12, paddingVertical: 8 },

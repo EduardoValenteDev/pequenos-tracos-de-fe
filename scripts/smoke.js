@@ -7798,6 +7798,32 @@ check(
   'ParentAreaScreen sem os toggles de áudio na seção recolhível',
 );
 
+// ── Hotfix H1 — Ateliê canvas clipping (painel com altura reservada) ─────────
+console.log('\n── Hotfix H1: Ateliê canvas clipping ──');
+
+const h1Atelier = readSrc('src/screens/AtelierCanvasScreen.js');
+
+check(
+  'H1: painel inferior tem altura RESERVADA fixa (não cresce com a aba/Borracha)',
+  /const PANEL_CONTENT_H\s*=\s*\d+/.test(h1Atelier) &&
+  /panelContent:\s*\{\s*height:\s*PANEL_CONTENT_H\s*\}/.test(h1Atelier) &&
+  !/panelContent:\s*\{[^}]*minHeight/.test(h1Atelier),
+  'AtelierCanvasScreen: painelContent não usa altura reservada fixa (canvas pode encolher de novo)',
+);
+
+check(
+  'H1: conteúdo do painel rola por dentro, sem empurrar o canvas (panelScroll)',
+  h1Atelier.includes('panelScroll') &&
+  /style=\{styles\.panelScroll\}/.test(h1Atelier),
+  'AtelierCanvasScreen: painel não rola internamente — conteúdo alto pode comprimir o canvas',
+);
+
+check(
+  'H1: área do canvas permanece estável (canvasOuter flex:1), sem mexer no motor',
+  /canvasOuter:\s*\{\s*\n?\s*flex:\s*1/.test(h1Atelier),
+  'AtelierCanvasScreen: canvasOuter perdeu o flex estável da área do canvas',
+);
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 const total = passes + failures;
 console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
