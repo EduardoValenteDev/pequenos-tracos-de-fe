@@ -15,6 +15,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS, APP_STORAGE_SCHEMA_VERSION } from './storageKeys';
 import { createMigrationResult } from '../data/appDataModel';
 import { migrateLegacyProfileIfNeeded } from './childProfileService';
+import { migrateArtsToFiles } from './atelierStorage';
+import { migrateDrawingsToFiles } from './drawingStorage';
 import { log } from '../utils/logger';
 
 // ── Schema version ────────────────────────────────────────────────────────────
@@ -62,6 +64,40 @@ export async function migrateToV1() {
   return { changed, errors };
 }
 
+/**
+ * Migração para schema v2 (Sprint A5).
+ * - Move blobs base64 grandes (preview/thumb de artes do Ateliê + camada de
+ *   pintura dos desenhos) do AsyncStorage para arquivos locais (expo-file-system).
+ * - O AsyncStorage passa a guardar só ponteiros (file://) + metadados leves.
+ * - Idempotente: cada serviço pula itens já migrados (com uri / ponteiro v3).
+ * - Não apaga base64 antes de confirmar a escrita do arquivo.
+ * - Falha em um item não aborta a migração inteira.
+ * - Escopo restrito: toca SOMENTE artes do Ateliê e desenhos. Não toca em
+ *   progresso, quizzes, reflexões, plano, perfil, preferências ou flags.
+ */
+export async function migrateToV2() {
+  const changed = [];
+  const errors = [];
+
+  try {
+    const n = await migrateArtsToFiles();
+    if (n > 0) changed.push(`atelier_blobs_to_files:${n}`);
+  } catch (e) {
+    errors.push(`migrateToV2.atelier: ${e?.message || e}`);
+    log('storageMigration.v2.atelier:', e);
+  }
+
+  try {
+    const n = await migrateDrawingsToFiles();
+    if (n > 0) changed.push(`drawing_blobs_to_files:${n}`);
+  } catch (e) {
+    errors.push(`migrateToV2.drawings: ${e?.message || e}`);
+    log('storageMigration.v2.drawings:', e);
+  }
+
+  return { changed, errors };
+}
+
 // ── Runner principal ──────────────────────────────────────────────────────────
 
 /**
@@ -93,6 +129,7 @@ export async function runLocalMigrations() {
 
   const migrations = [
     { version: 1, run: migrateToV1 },
+    { version: 2, run: migrateToV2 },
   ];
 
   for (const m of migrations) {

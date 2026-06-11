@@ -147,7 +147,7 @@ export function buildBeniChestCards(params) {
       cards.push({
         id: `arte_${(a && a.id) || i}`, category: 'artes', type: CHEST_CARD_TYPES.arte, rarity: 'special',
         title: (a && a.title) || 'Minha arte', unlocked: true,
-        uri: (a && a.thumbnailBase64) || null, emoji: '🎨',
+        uri: (a && (a.thumbnailUri || a.thumbnailBase64)) || null, emoji: '🎨',
         phrase: 'Uma arte sua, guardada com carinho.',
         origin: 'Você ganhou ao salvar uma arte no Ateliê.', color: '#EC407A',
       });

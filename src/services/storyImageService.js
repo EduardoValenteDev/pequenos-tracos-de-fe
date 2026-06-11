@@ -73,6 +73,8 @@ export function getBookPageImageSource({ storyId, sceneId, childArt } = {}) {
   // 1. Arte da criança
   if (childArt) {
     if (typeof childArt === 'string' && childArt.length > 0) return { uri: childArt };
+    if (childArt.previewUri) return { uri: childArt.previewUri };
+    if (childArt.thumbnailUri) return { uri: childArt.thumbnailUri };
     if (childArt.previewBase64) return { uri: childArt.previewBase64 };
     if (childArt.thumbnailBase64) return { uri: childArt.thumbnailBase64 };
     if (childArt.uri) return { uri: childArt.uri };

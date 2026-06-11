@@ -2068,9 +2068,16 @@ check(
 );
 
 check(
-  'atelierStorage stores previewBase64 in fullArt (not in meta)',
-  atelierStorageSrc81.includes('previewBase64: previewBase64') || atelierStorageSrc81.includes('previewBase64:previewBase64||null') || atelierStorageSrc81.includes('previewBase64: previewBase64 ||'),
-  'atelierStorage does not store previewBase64 in fullArt object',
+  'atelierStorage stores preview no fullArt (A5: ponteiro previewUri + fallback base64), nunca na meta',
+  (() => {
+    const fullBlock = atelierStorageSrc81.slice(
+      atelierStorageSrc81.indexOf('const fullArt ='),
+      atelierStorageSrc81.indexOf('const meta ='),
+    );
+    // fullArt deve carregar o ponteiro do preview (previewUri) e o fallback inline.
+    return fullBlock.includes('previewUri') && fullBlock.includes('previewBase64');
+  })(),
+  'atelierStorage não guarda o preview (previewUri + fallback) no fullArt',
 );
 
 check(
@@ -2116,9 +2123,10 @@ check(
 );
 
 check(
-  'AtelierGalleryScreen viewer shows previewBase64 with thumbnailBase64 fallback',
-  atelierGallerySrc81.includes('previewBase64') && atelierGallerySrc81.includes('thumbnailBase64'),
-  'AtelierGalleryScreen viewer does not use previewBase64 || thumbnailBase64 pattern',
+  'AtelierGalleryScreen viewer usa resolvers (previewUri/base64 → thumbUri/base64) p/ formato novo e antigo',
+  atelierGallerySrc81.includes('resolveArtPreviewUri(viewingArtFull)') &&
+  atelierGallerySrc81.includes('resolveArtThumbUri(viewingArt)'),
+  'AtelierGalleryScreen viewer não usa os resolvers de URI (preview/thumb)',
 );
 
 check(
@@ -8000,24 +8008,27 @@ try {
 } catch (e) {
   check('A1 storage: storageKeys avaliável e estável', false, String(e && e.message));
 }
-// drawingStorage — grava → confirma → remove, na chave correta.
+// drawingStorage — hasMeaningfulPaint é puro/síncrono (v1/v2/v3). O round-trip de
+// GRAVAÇÃO virou assíncrono em A5 (escreve o blob em arquivo antes do setItem) e
+// roda no bloco assíncrono, junto dos testes A5, antes do resumo.
 try {
-  const { store, api } = a1MockAsyncStorage();
   const ds = a1LoadSandbox('src/services/drawingStorage.js',
-    { AsyncStorage: api, log: () => {} },
-    ['saveDrawingState', 'clearDrawingState', 'hasMeaningfulPaint']);
+    { AsyncStorage: a1MockAsyncStorage().api, log: () => {},
+      writeBlob: () => null, readBlobAsDataUrl: () => null, deleteBlob: () => {},
+      safeName: (s) => String(s),
+      isDataUrl: (s) => typeof s === 'string' && s.startsWith('data:'),
+      dataUrlMime: () => 'image/png' },
+    ['hasMeaningfulPaint']);
   const url = 'data:image/png;base64,' + 'A'.repeat(2000);
-  ds.saveDrawingState('noah', 3, url);                 // muta store sincronamente
-  const saved = store.get('@ptf_drawing_snoah_c3') === url;
-  ds.clearDrawingState('noah', 3);
-  const removed = !store.has('@ptf_drawing_snoah_c3');
+  const ptr = '{"v":3,"fmt":1,"uri":"file:///x.png","mime":"image/png"}';
   const meaningful = ds.hasMeaningfulPaint(url) === true &&
+                     ds.hasMeaningfulPaint(ptr) === true &&
                      ds.hasMeaningfulPaint('data:image/png;base64,AAAA') === false &&
                      ds.hasMeaningfulPaint(null) === false;
-  check('A1 storage: drawingStorage grava → lê → remove na chave certa + hasMeaningfulPaint',
-    saved && removed && meaningful, `saved=${saved} removed=${removed} meaningful=${meaningful}`);
+  check('A1 storage: drawingStorage.hasMeaningfulPaint reconhece v1/v3 (tinta real), rejeita branco/null',
+    meaningful, `meaningful=${meaningful}`);
 } catch (e) {
-  check('A1 storage: drawingStorage round-trip', false, String(e && e.message));
+  check('A1 storage: drawingStorage hasMeaningfulPaint', false, String(e && e.message));
 }
 
 // ── A1.5 Whitelist de reset (execução real) — NÃO apaga desenhos/artes ────────
@@ -8189,6 +8200,103 @@ check(
   'Modal de sucesso ainda aperta os botões secundários lado a lado (flex:1 em row)',
 );
 
+// ════════════════════════════════════════════════════════════════════════════
+// Sprint Estabilização A — Bloco A5: migração de blobs base64 → FileSystem
+// Checks ESTRUTURAIS aqui; o round-trip COMPORTAMENTAL (com fileBlobStore mockado)
+// roda no bloco assíncrono, antes do resumo. A confirmação final em FileSystem
+// nativo fica para a Sprint C (Development Build).
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Sprint A5: migração de blobs base64 → FileSystem ──');
+
+const a5Pkg          = JSON.parse(readSrc('package.json'));
+const a5BlobStore    = readSrc('src/services/fileBlobStore.js');
+const a5Atelier      = readSrc('src/services/atelierStorage.js');
+const a5Drawing      = readSrc('src/services/drawingStorage.js');
+const a5Migration    = readSrc('src/services/storageMigrationService.js');
+const a5Keys         = readSrc('src/services/storageKeys.js');
+
+check(
+  'A5: expo-file-system instalado (dependência) e usado via entrypoint legacy estável',
+  !!(a5Pkg.dependencies && a5Pkg.dependencies['expo-file-system']) &&
+  a5BlobStore.includes("from 'expo-file-system/legacy'"),
+  'expo-file-system ausente do package.json ou fileBlobStore não usa o entrypoint legacy',
+);
+
+check(
+  'A5: fileBlobStore grava base64 como bytes (EncodingType.Base64) e confirma com getInfoAsync antes de retornar',
+  a5BlobStore.includes('EncodingType.Base64') &&
+  a5BlobStore.includes('writeAsStringAsync') &&
+  /getInfoAsync[\s\S]{0,120}info\.exists/.test(a5BlobStore) &&
+  a5BlobStore.includes('export async function writeBlob'),
+  'fileBlobStore não confirma a escrita do arquivo antes de descartar o base64',
+);
+
+check(
+  'A5: nomes de arquivo derivam de IDs internos sanitizados (safeName), nunca de texto livre',
+  /safeName\(id\)\s*\{[\s\S]{0,80}replace\(\/\[\^A-Za-z0-9_-\]/.test(a5BlobStore) &&
+  a5Atelier.includes('safeName(id)') && a5Drawing.includes('safeName('),
+  'fileBlobStore.safeName ausente ou serviços não derivam nome de arquivo de id interno',
+);
+
+check(
+  'A5 atelier: saveArt grava blobs em arquivo (writeBlob) e guarda ponteiro previewUri + fallback inline',
+  a5Atelier.includes("from './fileBlobStore'") &&
+  a5Atelier.includes('writeBlob(BLOB_SUBDIR') &&
+  a5Atelier.includes('previewUri,') &&
+  a5Atelier.includes('previewBase64: previewUri ? null :') &&
+  a5Atelier.includes('thumbnailBase64: thumbnailUri ? null :'),
+  'atelierStorage.saveArt não move blobs para arquivo / não mantém fallback inline',
+);
+
+check(
+  'A5 atelier: deleteArt apaga os arquivos locais antes de remover o metadado (sem órfãos)',
+  /deleteBlob\(full\.previewUri\)[\s\S]{0,400}deleteBlob\(meta\.thumbnailUri\)/.test(a5Atelier) &&
+  a5Atelier.includes('export async function migrateArtsToFiles'),
+  'atelierStorage.deleteArt não apaga os arquivos locais / migrateArtsToFiles ausente',
+);
+
+check(
+  'A5 atelier: migração idempotente (pula itens com uri) e não apaga base64 sem confirmar arquivo',
+  /thumbnailBase64 && !meta\.thumbnailUri/.test(a5Atelier) &&
+  /previewBase64 && !full\.previewUri/.test(a5Atelier),
+  'migrateArtsToFiles não tem guarda de idempotência (uri já presente)',
+);
+
+check(
+  'A5 drawing: ponteiro v3 preserva layout (W/H/imgX...) e move só o blob; getSavedDrawing resolve p/ v1/v2',
+  a5Drawing.includes("from './fileBlobStore'") &&
+  a5Drawing.includes('v: POINTER_VERSION') &&
+  a5Drawing.includes('Object.assign(ptr, layout)') &&
+  a5Drawing.includes('async function resolvePointer') &&
+  a5Drawing.includes('export async function migrateDrawingsToFiles'),
+  'drawingStorage não preserva layout no ponteiro ou não resolve o formato antigo',
+);
+
+check(
+  'A5 drawing: fallback de leitura do formato antigo (retorna raw quando não é ponteiro v3)',
+  /if \(isDrawingPointer\(raw\)\)[\s\S]{0,160}return raw;/.test(a5Drawing),
+  'getSavedDrawing não faz fallback do formato antigo',
+);
+
+check(
+  'A5 migração: migrateToV2 registrada no runner + schema bump p/ 2, escopo só atelier+drawings',
+  a5Migration.includes('export async function migrateToV2') &&
+  a5Migration.includes('{ version: 2, run: migrateToV2 }') &&
+  a5Migration.includes('migrateArtsToFiles') &&
+  a5Migration.includes('migrateDrawingsToFiles') &&
+  a5Keys.includes('APP_STORAGE_SCHEMA_VERSION = 2'),
+  'migrateToV2 não está registrada / schema não foi para 2',
+);
+
+check(
+  'A5: nenhum AsyncStorage.clear nos serviços novos/alterados (preserva dados — só whitelist/multiRemove)',
+  !a5BlobStore.includes('AsyncStorage.clear') &&
+  !a5Atelier.includes('AsyncStorage.clear') &&
+  !a5Drawing.includes('AsyncStorage.clear') &&
+  !a5Migration.includes('AsyncStorage.clear'),
+  'Algum serviço A5 usa AsyncStorage.clear — proibido',
+);
+
 // ── A3 (assíncrono): round-trip REAL do reset (resetProgress agora usa getAllKeys).
 // O resumo só é impresso depois que o reset assíncrono terminar.
 (async () => {
@@ -8214,6 +8322,148 @@ check(
       cleaned && preserved, `cleaned=${cleaned} preserved=${preserved}`);
   } catch (e) {
     check('A3 reset: resetProgress round-trip assíncrono', false, String(e && e.message));
+  }
+
+  // ── A5 (assíncrono): round-trip REAL de blobs com fileBlobStore mockado ──────
+  // O FS nativo não roda em Node, então injetamos um fileBlobStore em memória
+  // (mesmo contrato: uri determinística por subdir+filename, guarda base64, lê de
+  // volta como data URL). Valida ponteiros, resolução, migração idempotente,
+  // fallback e limpeza de arquivos — a parte que poderia "mentir".
+  function a5MockBlobStore() {
+    const files = new Map();
+    const isDataUrl = (s) => typeof s === 'string' && s.startsWith('data:');
+    const dataUrlMime = (d, fb = 'image/png') => {
+      if (!isDataUrl(d)) return fb;
+      const m = /^data:([^;,]+)[;,]/.exec(d); return (m && m[1]) || fb;
+    };
+    const stripPrefix = (d) => {
+      const i = typeof d === 'string' ? d.indexOf('base64,') : -1;
+      return i >= 0 ? d.slice(i + 7) : d;
+    };
+    const toDataUrl = (b64, mime = 'image/png') => 'data:' + mime + ';base64,' + b64;
+    const safeName = (id) => String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_');
+    return {
+      files,
+      deps: {
+        safeName, isDataUrl, dataUrlMime,
+        writeBlob: async (subdir, filename, dataUrlOrBase64, mimeHint) => {
+          if (!dataUrlOrBase64) return null;
+          const mime = mimeHint || dataUrlMime(dataUrlOrBase64);
+          const b64 = isDataUrl(dataUrlOrBase64) ? stripPrefix(dataUrlOrBase64) : dataUrlOrBase64;
+          const uri = 'file:///mock/' + subdir + '/' + filename;
+          files.set(uri, { b64, mime });
+          return { uri, mime };
+        },
+        readBlobAsDataUrl: async (uri, mime = 'image/png') => {
+          const f = files.get(uri); if (!f) return null;
+          return toDataUrl(f.b64, f.mime || mime);
+        },
+        deleteBlob: async (uri) => { files.delete(uri); },
+      },
+    };
+  }
+
+  // A5.1 — drawing: salva ponteiro (não base64 grande) + resolve v2 com layout + clear apaga arquivo.
+  try {
+    const { store, api } = a1MockAsyncStorage();
+    const blob = a5MockBlobStore();
+    const ds = a1LoadSandbox('src/services/drawingStorage.js',
+      { AsyncStorage: api, log: () => {}, ...blob.deps },
+      ['saveDrawingState', 'getSavedDrawing', 'clearDrawingState']);
+    const big = 'A'.repeat(3000);
+    const v2 = JSON.stringify({ v: 2, W: 390, H: 600, imgX: 3, imgY: 4, imgW: 300, imgH: 400, data: 'data:image/png;base64,' + big });
+    await ds.saveDrawingState('noah', 3, v2);
+    const stored = store.get('@ptf_drawing_snoah_c3');
+    let isPointer = false;
+    try { const p = JSON.parse(stored); isPointer = p.v === 3 && typeof p.uri === 'string' && !stored.includes(big); } catch {}
+    const fileHasBlob = [...blob.files.values()].some(f => f.b64 === big);
+    const resolved = await ds.getSavedDrawing('noah', 3);
+    let rt = false;
+    try { const p = JSON.parse(resolved); rt = p.v === 2 && p.W === 390 && p.imgX === 3 && p.data === 'data:image/png;base64,' + big; } catch {}
+    await ds.clearDrawingState('noah', 3);
+    const cleared = !store.has('@ptf_drawing_snoah_c3') && blob.files.size === 0;
+    check('A5 drawing: salva ponteiro (sem base64 grande) + resolve v2 com layout + clear apaga arquivo',
+      isPointer && fileHasBlob && rt && cleared,
+      `pointer=${isPointer} file=${fileHasBlob} resolve=${rt} cleared=${cleared}`);
+  } catch (e) {
+    check('A5 drawing: round-trip ponteiro', false, String(e && e.message));
+  }
+
+  // A5.2 — drawing: fallback lê formato antigo + migração idempotente preservando o conteúdo.
+  try {
+    const { store, api } = a1MockAsyncStorage();
+    const blob = a5MockBlobStore();
+    const ds = a1LoadSandbox('src/services/drawingStorage.js',
+      { AsyncStorage: api, log: () => {}, ...blob.deps },
+      ['getSavedDrawing', 'migrateDrawingsToFiles']);
+    const oldUrl = 'data:image/png;base64,' + 'B'.repeat(3000);
+    store.set('@ptf_drawing_screation_c1', oldUrl);          // formato antigo v1 inline
+    const fallbackOk = (await ds.getSavedDrawing('creation', 1)) === oldUrl;
+    const n1 = await ds.migrateDrawingsToFiles();            // migra 1
+    const afterMig = store.get('@ptf_drawing_screation_c1');
+    let migratedToPointer = false;
+    try { const p = JSON.parse(afterMig); migratedToPointer = p.v === 3 && typeof p.uri === 'string'; } catch {}
+    const stillReads = (await ds.getSavedDrawing('creation', 1)) === oldUrl; // resolve = mesmo conteúdo
+    const n2 = await ds.migrateDrawingsToFiles();            // idempotente: 0
+    check('A5 drawing: fallback lê formato antigo + migração idempotente (1, depois 0) preservando conteúdo',
+      fallbackOk && n1 === 1 && migratedToPointer && stillReads && n2 === 0,
+      `fallback=${fallbackOk} n1=${n1} pointer=${migratedToPointer} stillReads=${stillReads} n2=${n2}`);
+  } catch (e) {
+    check('A5 drawing: fallback + migração idempotente', false, String(e && e.message));
+  }
+
+  // A5.3 — atelier: salva ponteiros (sem base64 grande) + resolve file:// + delete apaga arquivos.
+  try {
+    const { store, api } = a1MockAsyncStorage();
+    const blob = a5MockBlobStore();
+    const as = a1LoadSandbox('src/services/atelierStorage.js',
+      { AsyncStorage: api, log: () => {}, ...blob.deps },
+      ['saveArt', 'getArt', 'listArts', 'deleteArt', 'resolveArtPreviewUri', 'resolveArtThumbUri']);
+    const preview = 'data:image/jpeg;base64,' + 'P'.repeat(4000);
+    const thumb = 'data:image/jpeg;base64,' + 'T'.repeat(2000);
+    const id = await as.saveArt({ title: 'Arte', mission: null, stateJson: '{"v":2}', thumbnailBase64: thumb, previewBase64: preview });
+    const fullRaw = store.get('ptf_atelier_arts_v1_' + id);
+    const idxRaw = store.get('ptf_atelier_arts_v1_index');
+    const noBigBlob = !fullRaw.includes('P'.repeat(4000)) && !idxRaw.includes('T'.repeat(2000));
+    const full = await as.getArt(id);
+    const meta = (await as.listArts())[0];
+    const pUri = as.resolveArtPreviewUri(full);
+    const tUri = as.resolveArtThumbUri(meta);
+    const urisOk = typeof pUri === 'string' && pUri.startsWith('file:') && typeof tUri === 'string' && tUri.startsWith('file:');
+    const filesOk = [...blob.files.values()].some(f => f.b64 === 'P'.repeat(4000)) &&
+                    [...blob.files.values()].some(f => f.b64 === 'T'.repeat(2000));
+    await as.deleteArt(id);
+    const deletedClean = !store.has('ptf_atelier_arts_v1_' + id) && blob.files.size === 0 && (await as.listArts()).length === 0;
+    check('A5 atelier: salva ponteiros (sem base64 grande) + resolve file:// + delete apaga arquivos',
+      noBigBlob && urisOk && filesOk && deletedClean,
+      `noBigBlob=${noBigBlob} uris=${urisOk} files=${filesOk} deletedClean=${deletedClean}`);
+  } catch (e) {
+    check('A5 atelier: round-trip ponteiros', false, String(e && e.message));
+  }
+
+  // A5.4 — atelier: migração move base64→arquivo (idempotente) e fallback lê o formato antigo antes de migrar.
+  try {
+    const { store, api } = a1MockAsyncStorage();
+    const blob = a5MockBlobStore();
+    const as = a1LoadSandbox('src/services/atelierStorage.js',
+      { AsyncStorage: api, log: () => {}, ...blob.deps },
+      ['getArt', 'listArts', 'resolveArtPreviewUri', 'resolveArtThumbUri', 'migrateArtsToFiles']);
+    const oldId = 'art_old';
+    store.set('ptf_atelier_arts_v1_' + oldId, JSON.stringify({ id: oldId, title: 'Velha', stateJson: '{}', previewBase64: 'data:image/jpeg;base64,' + 'X'.repeat(4000) }));
+    store.set('ptf_atelier_arts_v1_index', JSON.stringify([{ id: oldId, title: 'Velha', thumbnailBase64: 'data:image/jpeg;base64,' + 'Y'.repeat(2000) }]));
+    const fullBefore = await as.getArt(oldId);
+    const fallbackPreview = as.resolveArtPreviewUri(fullBefore).startsWith('data:'); // lê antigo
+    const n1 = await as.migrateArtsToFiles();          // migra preview + thumb = 2
+    const fullAfter = await as.getArt(oldId);
+    const metaAfter = (await as.listArts())[0];
+    const moved = !!fullAfter.previewUri && fullAfter.previewBase64 === null &&
+                  !!metaAfter.thumbnailUri && metaAfter.thumbnailBase64 === null;
+    const n2 = await as.migrateArtsToFiles();          // idempotente: 0
+    check('A5 atelier: migração base64→arquivo (idempotente: 2, depois 0) + fallback antigo antes de migrar',
+      fallbackPreview && n1 === 2 && moved && n2 === 0,
+      `fallback=${fallbackPreview} n1=${n1} moved=${moved} n2=${n2}`);
+  } catch (e) {
+    check('A5 atelier: migração idempotente + fallback', false, String(e && e.message));
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

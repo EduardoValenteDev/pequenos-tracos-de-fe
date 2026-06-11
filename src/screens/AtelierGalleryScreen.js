@@ -9,7 +9,10 @@ import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import SafeImage from '../components/ui/SafeImage';
 import { BeniEmptyState } from '../components/beni';
-import { listArts, getArt, deleteArt, ATELIER_FREE_SAVE_LIMIT } from '../services/atelierStorage';
+import {
+  listArts, getArt, deleteArt, ATELIER_FREE_SAVE_LIMIT,
+  resolveArtThumbUri, resolveArtPreviewUri,
+} from '../services/atelierStorage';
 
 function formatDate(iso) {
   try {
@@ -133,7 +136,7 @@ export default function AtelierGalleryScreen({ navigation }) {
               activeOpacity={0.85}
             >
               <SafeImage
-                source={art.thumbnailBase64 ? { uri: art.thumbnailBase64 } : null}
+                source={resolveArtThumbUri(art) ? { uri: resolveArtThumbUri(art) } : null}
                 style={styles.thumb}
                 resizeMode="cover"
                 fallbackIcon="🎨"
@@ -200,9 +203,9 @@ export default function AtelierGalleryScreen({ navigation }) {
 
           {/* Image area */}
           <View style={styles.viewerImageWrap}>
-            {(viewingArtFull?.previewBase64 || viewingArt?.thumbnailBase64) ? (
+            {(resolveArtPreviewUri(viewingArtFull) || resolveArtThumbUri(viewingArt)) ? (
               <Image
-                source={{ uri: viewingArtFull?.previewBase64 || viewingArt?.thumbnailBase64 }}
+                source={{ uri: resolveArtPreviewUri(viewingArtFull) || resolveArtThumbUri(viewingArt) }}
                 style={styles.viewerImage}
                 resizeMode="contain"
               />
