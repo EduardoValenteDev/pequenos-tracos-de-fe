@@ -342,12 +342,24 @@ window.isEmpty=function(){ return strokes.length===0&&stamps.length===0; };
 window.exportState=function(){
   try{
     var prevSel=selId; selId=null; render();
+    /* A borracha apaga com destination-out: os pixels ficam TRANSPARENTES no
+       canvas vivo (e ali aparecem como o fundo). Mas JPEG NÃO tem canal alfa —
+       pixels transparentes viram PRETOS no arquivo salvo (o "borrao preto").
+       Antes de exportar, achatamos o canvas contra o fundo: um canvas opaco
+       preenchido com bgColor + C desenhado por cima. Assim a area apagada
+       exporta como o fundo, nunca como preto. O render ao vivo e os strokes
+       (stateJson) ficam intactos. */
+    var flat=document.createElement('canvas');
+    flat.width=W; flat.height=H;
+    var fctx=flat.getContext('2d');
+    fctx.fillStyle=bgColor; fctx.fillRect(0,0,W,H);
+    fctx.drawImage(C,0,0);
     var tw=300,th=Math.round(300*H/W)||300;
     var tb=document.createElement('canvas');
     tb.width=tw; tb.height=th;
-    tb.getContext('2d').drawImage(C,0,0,tw,th);
+    tb.getContext('2d').drawImage(flat,0,0,tw,th);
     var thumbData=tb.toDataURL('image/jpeg',0.6);
-    var previewData=C.toDataURL('image/jpeg',0.85);
+    var previewData=flat.toDataURL('image/jpeg',0.85);
     var st=JSON.stringify({v:2,strokes:strokes,stamps:stamps,bgColor:bgColor});
     notify('STATE_EXPORT:'+JSON.stringify({stateJson:st,thumbnailBase64:thumbData,previewBase64:previewData}));
     selId=prevSel;

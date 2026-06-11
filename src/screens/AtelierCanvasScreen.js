@@ -632,11 +632,11 @@ export default function AtelierCanvasScreen({ route, navigation }) {
             </SoundButton>
             <View style={styles.rewardBtnRow}>
               <SoundButton style={styles.rewardBtnSecondary} onPress={() => closeReward()}>
-                <Text style={styles.rewardBtnSecondaryText}>✏️ Continuar desenhando</Text>
+                <Text style={styles.rewardBtnSecondaryText} numberOfLines={1}>✏️ Continuar desenhando</Text>
               </SoundButton>
               {!limitReached && (
                 <SoundButton style={styles.rewardBtnSecondary} onPress={() => closeReward(handleNewArt)}>
-                  <Text style={styles.rewardBtnSecondaryText}>🎨 Nova arte</Text>
+                  <Text style={styles.rewardBtnSecondaryText} numberOfLines={1}>🎨 Nova arte</Text>
                 </SoundButton>
               )}
             </View>
@@ -955,10 +955,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 5,
   },
   rewardBtnPrimaryText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFF' },
-  rewardBtnRow: { flexDirection: 'row', gap: 8, width: '100%' },
+  // H2: botões secundários EMPILHADOS (largura total) — sem aperto/quebra feia,
+  // texto legível em telas estreitas. Hierarquia mantida abaixo do principal.
+  rewardBtnRow: { width: '100%', gap: 8, marginTop: 2 },
   rewardBtnSecondary: {
-    flex: 1, backgroundColor: '#F3EADA', borderRadius: radii.pill,
-    paddingVertical: 11, alignItems: 'center',
+    backgroundColor: '#F3EADA', borderRadius: radii.pill,
+    paddingVertical: 13, alignItems: 'center', justifyContent: 'center',
   },
-  rewardBtnSecondaryText: { fontFamily: 'FredokaOne', fontSize: 12, color: '#7A5A2E' },
+  rewardBtnSecondaryText: { fontFamily: 'FredokaOne', fontSize: 14, color: '#7A5A2E' },
 });

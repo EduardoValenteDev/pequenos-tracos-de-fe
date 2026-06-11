@@ -1897,8 +1897,8 @@ check(
 // ── Hotfix: texto do Desenho guiado não pode cortar ───────────────────────────
 check(
   'AtelierCanvasScreen headerSub NÃO usa numberOfLines={1} (texto da missão não pode cortar)',
-  !atelierCanvasSrc.includes('numberOfLines={1}'),
-  'AtelierCanvasScreen headerSub ainda usa numberOfLines={1} — frase do Desenho guiado vai cortar',
+  atelierCanvasSrc.includes('<Text style={styles.headerSub}>'),
+  'AtelierCanvasScreen headerSub ganhou atributos (ex.: numberOfLines) — frase do Desenho guiado pode cortar',
 );
 
 check(
@@ -2044,8 +2044,8 @@ const atelierGallerySrc81  = readSrc('src/screens/AtelierGalleryScreen.js');
 const atelierStorageSrc81  = readSrc('src/services/atelierStorage.js');
 
 check(
-  'AtelierCanvas exportState emits previewBase64 (full-res JPEG)',
-  atelierCanvasCompSrc.includes('previewData=C.toDataURL') && atelierCanvasCompSrc.includes('previewBase64:previewData'),
+  'AtelierCanvas exportState emits previewBase64 (full-res JPEG, achatado contra o fundo)',
+  atelierCanvasCompSrc.includes('previewData=flat.toDataURL') && atelierCanvasCompSrc.includes('previewBase64:previewData'),
   'AtelierCanvas exportState does not generate previewBase64 — viewer will still show 300px thumbnail',
 );
 
@@ -8151,6 +8151,42 @@ check(
   'A4 capas: StoryCard (Aventuras) usa Image original nas capas aprovadas — sem SafeImage',
   a4StoryCard.includes('<Image source={coverImg}') && !a4StoryCard.includes('SafeImage'),
   'StoryCard passou a usar SafeImage nas capas aprovadas — proibido',
+);
+
+// ── Hotfix H2 — borracha não exporta como preto + modal "Arte guardada" ──────
+console.log('\n── Hotfix H2: borracha export + modal ──');
+
+const h2Canvas = readSrc('src/components/AtelierCanvas.js');
+const h2Screen = readSrc('src/screens/AtelierCanvasScreen.js');
+
+check(
+  'H2: export achata a borracha contra o fundo (preview/thumb de canvas opaco, não de C)',
+  h2Canvas.includes('fctx.fillStyle=bgColor') &&
+  h2Canvas.includes('fctx.drawImage(C,0,0)') &&
+  h2Canvas.includes('previewData=flat.toDataURL') &&
+  /drawImage\(flat,0,0,tw,th\)/.test(h2Canvas) &&
+  !h2Canvas.includes('previewData=C.toDataURL'),
+  'AtelierCanvas exporta o preview/thumb direto de C — borracha transparente vira preta no JPEG',
+);
+
+check(
+  'H2: borracha continua apagando no render ao vivo (destination-out), nunca tinta preta source-over',
+  h2Canvas.includes("s.eraser?'destination-out':'source-over'"),
+  'AtelierCanvas mudou o composite da borracha no render ao vivo',
+);
+
+check(
+  'H2: stateJson preserva strokes/stamps/bgColor (edição futura intacta)',
+  h2Canvas.includes('JSON.stringify({v:2,strokes:strokes,stamps:stamps,bgColor:bgColor})'),
+  'AtelierCanvas alterou o stateJson — edição futura pode quebrar',
+);
+
+check(
+  'H2: modal "Arte guardada" empilha os botões secundários (sem aperto lado a lado)',
+  h2Screen.includes('Ver minhas artes') &&
+  !/rewardBtnRow:\s*\{\s*flexDirection:\s*'row'/.test(h2Screen) &&
+  !/rewardBtnSecondary:\s*\{\s*flex:\s*1/.test(h2Screen),
+  'Modal de sucesso ainda aperta os botões secundários lado a lado (flex:1 em row)',
 );
 
 // ── A3 (assíncrono): round-trip REAL do reset (resetProgress agora usa getAllKeys).
