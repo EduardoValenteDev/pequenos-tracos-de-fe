@@ -9,7 +9,7 @@
  * categoria, brilho shiny e ícones próprios de categoria.
  */
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, ScrollView, Image, StyleSheet, Modal, Animated } from 'react-native';
+import { View, Text, ScrollView, FlatList, Image, StyleSheet, Modal, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Asset } from 'expo-asset';
 import { useFocusEffect } from '@react-navigation/native';
@@ -175,87 +175,94 @@ export default function BeniChestScreen({ navigation, route }) {
 
   return (
     <View style={styles.wrapper}>
-      <ScrollView
+      <FlatList
         contentContainerStyle={{ paddingTop: Math.max(insets.top, 20), paddingBottom: insets.bottom + 48 }}
         showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.headerRow}>
-          <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.8}>
-            <Text style={styles.backBtnText}>‹ {backLabel}</Text>
-          </SoundButton>
-        </View>
-
-        {/* Hero */}
-        <LinearGradient colors={['#FFF1C9', '#F6E2FB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <View style={styles.heroTop}>
-            <Text style={styles.heroChest}>🧰</Text>
-            <BeniAvatar variant="celebrating" size="medium" />
-          </View>
-          <Text style={styles.heroTitle}>Baú do Beni</Text>
-          <Text style={styles.heroSub}>Suas cartinhas guardam lembranças das aventuras que você viveu com Beni.</Text>
-          <Text style={styles.heroLine}>Cada aventura pode revelar uma nova lembrança.</Text>
-          <Text style={styles.heroCount}>{unlocked} cartinha{unlocked === 1 ? '' : 's'} encontrada{unlocked === 1 ? '' : 's'}</Text>
-          <View style={styles.heroBar}>
-            <View style={[styles.heroBarFill, { width: `${ratio * 100}%` }]} />
-          </View>
-          <Text style={styles.heroState}>
-            {hasNew ? '✨ Você tem cartinha nova!' : 'Continue uma aventura para encontrar mais.'}
-          </Text>
-        </LinearGradient>
-
-        {/* Próxima cartinha */}
-        <View style={styles.nextCard}>
-          <Text style={styles.nextLabel}>🔎 PRÓXIMA CARTINHA</Text>
-          <Text style={styles.nextText}>{nextCardText(next)}</Text>
-        </View>
-
-        {/* Abas/chips de categoria */}
-        <ScrollView
-          horizontal showsHorizontalScrollIndicator={false}
-          style={styles.chipsScroll} contentContainerStyle={styles.chipsRow}
-        >
-          {TABS.map(tab => {
-            const active = activeTab === tab.id;
-            return (
-              <SoundButton
-                key={tab.id}
-                onPress={() => setActiveTab(tab.id)}
-                style={[styles.chip, active && styles.chipActive]}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{tab.label}</Text>
+        data={sections[0]?.cards ?? []}
+        keyExtractor={(card) => String(card.id)}
+        numColumns={2}
+        columnWrapperStyle={styles.gridRow}
+        ListHeaderComponent={
+          <>
+            <View style={styles.headerRow}>
+              <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.8}>
+                <Text style={styles.backBtnText}>‹ {backLabel}</Text>
               </SoundButton>
-            );
-          })}
-        </ScrollView>
-
-        {/* Grade */}
-        {sections.map(sec => (
-          <View key={sec.key} style={styles.section}>
-            <View style={styles.grid}>
-              {sec.cards.map(card => (
-                <BeniChestCard
-                  key={card.id}
-                  card={card}
-                  isNew={newSet.has(card.id)}
-                  onPress={() => setSelected(card)}
-                />
-              ))}
             </View>
-            {sec.hiddenLocked > 0 && (
-              <SoundButton
-                style={styles.revealMoreBtn}
-                onPress={() => setExpandedCats(prev => ({ ...prev, [activeTab]: true }))}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.revealMoreText}>Ver cartinhas escondidas ({sec.hiddenLocked})</Text>
-              </SoundButton>
-            )}
-          </View>
-        ))}
 
-        <View style={{ height: 16 }} />
-      </ScrollView>
+            {/* Hero */}
+            <LinearGradient colors={['#FFF1C9', '#F6E2FB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+              <View style={styles.heroTop}>
+                <Text style={styles.heroChest}>🧰</Text>
+                <BeniAvatar variant="celebrating" size="medium" />
+              </View>
+              <Text style={styles.heroTitle}>Baú do Beni</Text>
+              <Text style={styles.heroSub}>Suas cartinhas guardam lembranças das aventuras que você viveu com Beni.</Text>
+              <Text style={styles.heroLine}>Cada aventura pode revelar uma nova lembrança.</Text>
+              <Text style={styles.heroCount}>{unlocked} cartinha{unlocked === 1 ? '' : 's'} encontrada{unlocked === 1 ? '' : 's'}</Text>
+              <View style={styles.heroBar}>
+                <View style={[styles.heroBarFill, { width: `${ratio * 100}%` }]} />
+              </View>
+              <Text style={styles.heroState}>
+                {hasNew ? '✨ Você tem cartinha nova!' : 'Continue uma aventura para encontrar mais.'}
+              </Text>
+            </LinearGradient>
+
+            {/* Próxima cartinha */}
+            <View style={styles.nextCard}>
+              <Text style={styles.nextLabel}>🔎 PRÓXIMA CARTINHA</Text>
+              <Text style={styles.nextText}>{nextCardText(next)}</Text>
+            </View>
+
+            {/* Abas/chips de categoria */}
+            <ScrollView
+              horizontal showsHorizontalScrollIndicator={false}
+              style={styles.chipsScroll} contentContainerStyle={styles.chipsRow}
+            >
+              {TABS.map(tab => {
+                const active = activeTab === tab.id;
+                return (
+                  <SoundButton
+                    key={tab.id}
+                    onPress={() => setActiveTab(tab.id)}
+                    style={[styles.chip, active && styles.chipActive]}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{tab.label}</Text>
+                  </SoundButton>
+                );
+              })}
+            </ScrollView>
+          </>
+        }
+        renderItem={({ item: card }) => (
+          <BeniChestCard
+            card={card}
+            isNew={newSet.has(card.id)}
+            onPress={() => setSelected(card)}
+          />
+        )}
+        ListFooterComponent={
+          <>
+            {sections[0]?.hiddenLocked > 0 && (
+              <View style={styles.section}>
+                <SoundButton
+                  style={styles.revealMoreBtn}
+                  onPress={() => setExpandedCats(prev => ({ ...prev, [activeTab]: true }))}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.revealMoreText}>Ver cartinhas escondidas ({sections[0].hiddenLocked})</Text>
+                </SoundButton>
+              </View>
+            )}
+            <View style={{ height: 16 }} />
+          </>
+        }
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={9}
+        removeClippedSubviews
+      />
 
       {/* ── MODAL DE REVELAÇÃO ── */}
       <Modal visible={revealQueue.length > 0} transparent animationType="fade" statusBarTranslucent>
@@ -398,6 +405,9 @@ const styles = StyleSheet.create({
   // Grade
   section: { paddingHorizontal: 16, marginBottom: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  // columnWrapperStyle do FlatList: mesma distribuição 2-col + o padding lateral
+  // que antes vinha de styles.section. Visual idêntico ao grid anterior.
+  gridRow: { justifyContent: 'space-between', paddingHorizontal: 16 },
   revealMoreBtn: { alignSelf: 'center', backgroundColor: pt.lilac, borderRadius: radii.pill, paddingHorizontal: 18, paddingVertical: 10, marginTop: 4, marginBottom: 8, borderWidth: 1, borderColor: '#E0D2FA' },
   revealMoreText: { fontFamily: 'FredokaOne', fontSize: 13, color: pt.purpleDeep },
 

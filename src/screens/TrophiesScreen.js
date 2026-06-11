@@ -15,7 +15,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Modal,
+  View, Text, ScrollView, SectionList, StyleSheet, Modal,
   useWindowDimensions,
 } from 'react-native';
 import FaithIcon from '../components/ui/FaithIcon';
@@ -182,6 +182,24 @@ export default function TrophiesScreen({ navigation, route }) {
   const total = ACHIEVEMENTS.length;
   const next = computeNextAchievement(ctx);
 
+  // Seções por categoria para a SectionList (pula categorias sem conquistas).
+  // No tablet, agrupa em pares para manter a grade 2-col aprovada; no celular,
+  // 1-col (cada conquista é um item). Mesmas categorias/ordem/visual de antes.
+  const albumSections = ACHIEVEMENT_CATEGORIES
+    .map(cat => {
+      const items = ACHIEVEMENTS.filter(a => a.category === cat.id);
+      if (items.length === 0) return null;
+      const catUnlocked = items.filter(isUnlocked).length;
+      const data = isTablet
+        ? items.reduce((rows, a, i) => {
+            if (i % 2 === 0) rows.push([a]); else rows[rows.length - 1].push(a);
+            return rows;
+          }, [])
+        : items;
+      return { key: cat.id, cat, totalItems: items.length, catUnlocked, data };
+    })
+    .filter(Boolean);
+
   async function handleDismissModal() {
     if (!pendingAchievement) return;
     const dismissing = pendingAchievement;
@@ -205,106 +223,119 @@ export default function TrophiesScreen({ navigation, route }) {
           </SoundButton>
         </View>
       )}
-      <ScrollView
+      <SectionList
         style={styles.container}
         contentContainerStyle={[styles.content, {
           paddingTop: fromCena ? 8 : Math.max(insets.top, 24),
           paddingBottom: insets.bottom + 64,
         }]}
         showsVerticalScrollIndicator={false}
-      >
-        {/* ── HERO ── */}
-        <LinearGradient
-          colors={['#FFF6D8', '#FFE9A8']}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={styles.header}
-        >
-          <View style={styles.headerTopRow}>
-            <View style={styles.headerIconCircle}>
-              <FaithIcon name="star" size={34} color="#B8860B" />
-            </View>
-            <BeniAvatar variant="celebrating" size="medium" />
-          </View>
-          <Text style={styles.headerTitle}>Álbum de Estrelinhas</Text>
-          <Text style={styles.headerSub}>
-            Você ganha estrelinhas ao completar cenas, histórias e momentos especiais.
-          </Text>
-          <Text style={styles.headerNote}>
-            As estrelinhas mostram seu progresso. O Baú guarda suas lembranças.
-          </Text>
-          <Text style={styles.headerCount}>{unlockedCount} de {total} conquistas</Text>
-          <View style={styles.headerProgressRow}>
-            <View style={styles.headerProgressBar}>
-              <View style={[styles.headerProgressFill, { width: total > 0 ? `${(unlockedCount / total) * 100}%` : '0%' }]} />
-            </View>
-          </View>
-        </LinearGradient>
-
-        {/* ── PRÓXIMA CONQUISTA ── */}
-        {next ? (
-          <View style={styles.nextCard}>
-            <View style={styles.nextLabelRow}>
-              <Text style={styles.nextLabel}>🎯 PRÓXIMA CONQUISTA</Text>
-            </View>
-            <View style={styles.nextBody}>
-              <View style={[styles.nextEmojiCircle, { backgroundColor: next.achievement.color + '22' }]}>
-                <Text style={styles.nextEmoji}>{next.achievement.emoji}</Text>
+        sections={albumSections}
+        keyExtractor={(item, index) => (isTablet ? `row-${item[0]?.id ?? index}` : String(item.id))}
+        stickySectionHeadersEnabled={false}
+        ListHeaderComponent={
+          <>
+            {/* ── HERO ── */}
+            <LinearGradient
+              colors={['#FFF6D8', '#FFE9A8']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={styles.header}
+            >
+              <View style={styles.headerTopRow}>
+                <View style={styles.headerIconCircle}>
+                  <FaithIcon name="star" size={34} color="#B8860B" />
+                </View>
+                <BeniAvatar variant="celebrating" size="medium" />
               </View>
-              <View style={styles.nextInfo}>
-                <Text style={styles.nextTitle}>{next.achievement.title}</Text>
-                <Text style={styles.nextHow}>
-                  Faltam {next.remaining} {next.unit} para desbloquear.
-                </Text>
-                <View style={styles.nextBar}>
-                  <View style={[styles.nextBarFill, { width: `${next.ratio * 100}%`, backgroundColor: next.achievement.color }]} />
+              <Text style={styles.headerTitle}>Álbum de Estrelinhas</Text>
+              <Text style={styles.headerSub}>
+                Você ganha estrelinhas ao completar cenas, histórias e momentos especiais.
+              </Text>
+              <Text style={styles.headerNote}>
+                As estrelinhas mostram seu progresso. O Baú guarda suas lembranças.
+              </Text>
+              <Text style={styles.headerCount}>{unlockedCount} de {total} conquistas</Text>
+              <View style={styles.headerProgressRow}>
+                <View style={styles.headerProgressBar}>
+                  <View style={[styles.headerProgressFill, { width: total > 0 ? `${(unlockedCount / total) * 100}%` : '0%' }]} />
                 </View>
               </View>
-            </View>
-          </View>
-        ) : ctx && unlockedCount < total ? (
-          <View style={styles.nextCardSoft}>
-            <Text style={styles.nextSoftText}>
-              ✨ Continue uma aventura para descobrir sua próxima estrelinha.
-            </Text>
-          </View>
-        ) : ctx && unlockedCount === total ? (
-          <View style={styles.nextCardSoft}>
-            <Text style={styles.nextSoftText}>
-              🏅 Uau! Você acendeu todas as estrelinhas. Beni está muito orgulhoso!
-            </Text>
-          </View>
-        ) : null}
+            </LinearGradient>
 
-        {/* ── SEÇÕES POR CATEGORIA ── */}
-        {ACHIEVEMENT_CATEGORIES.map(cat => {
-          const items = ACHIEVEMENTS.filter(a => a.category === cat.id);
-          if (items.length === 0) return null;
-          const catUnlocked = items.filter(isUnlocked).length;
-          return (
-            <View key={cat.id} style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionIcon}>{cat.icon}</Text>
-                <Text style={styles.sectionTitle}>{cat.label}</Text>
-                <Text style={styles.sectionCount}>{catUnlocked}/{items.length}</Text>
+            {/* ── PRÓXIMA CONQUISTA ── */}
+            {next ? (
+              <View style={styles.nextCard}>
+                <View style={styles.nextLabelRow}>
+                  <Text style={styles.nextLabel}>🎯 PRÓXIMA CONQUISTA</Text>
+                </View>
+                <View style={styles.nextBody}>
+                  <View style={[styles.nextEmojiCircle, { backgroundColor: next.achievement.color + '22' }]}>
+                    <Text style={styles.nextEmoji}>{next.achievement.emoji}</Text>
+                  </View>
+                  <View style={styles.nextInfo}>
+                    <Text style={styles.nextTitle}>{next.achievement.title}</Text>
+                    <Text style={styles.nextHow}>
+                      Faltam {next.remaining} {next.unit} para desbloquear.
+                    </Text>
+                    <View style={styles.nextBar}>
+                      <View style={[styles.nextBarFill, { width: `${next.ratio * 100}%`, backgroundColor: next.achievement.color }]} />
+                    </View>
+                  </View>
+                </View>
               </View>
-              <View style={isTablet ? styles.grid : null}>
-                {items.map(a => (
-                  <AchievementCard
-                    key={a.id}
-                    achievement={a}
-                    unlocked={isUnlocked(a)}
-                    ctx={ctx}
-                    isTablet={isTablet}
-                    onPress={() => setSelected(a)}
-                  />
-                ))}
+            ) : ctx && unlockedCount < total ? (
+              <View style={styles.nextCardSoft}>
+                <Text style={styles.nextSoftText}>
+                  ✨ Continue uma aventura para descobrir sua próxima estrelinha.
+                </Text>
               </View>
+            ) : ctx && unlockedCount === total ? (
+              <View style={styles.nextCardSoft}>
+                <Text style={styles.nextSoftText}>
+                  🏅 Uau! Você acendeu todas as estrelinhas. Beni está muito orgulhoso!
+                </Text>
+              </View>
+            ) : null}
+          </>
+        }
+        renderSectionHeader={({ section }) => (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionIcon}>{section.cat.icon}</Text>
+            <Text style={styles.sectionTitle}>{section.cat.label}</Text>
+            <Text style={styles.sectionCount}>{section.catUnlocked}/{section.totalItems}</Text>
+          </View>
+        )}
+        renderSectionFooter={() => <View style={styles.sectionFooterGap} />}
+        renderItem={({ item }) => (
+          isTablet ? (
+            <View style={styles.grid}>
+              {item.map(a => (
+                <AchievementCard
+                  key={a.id}
+                  achievement={a}
+                  unlocked={isUnlocked(a)}
+                  ctx={ctx}
+                  isTablet
+                  onPress={() => setSelected(a)}
+                />
+              ))}
             </View>
-          );
-        })}
-
-        <View style={{ height: 16 }} />
-      </ScrollView>
+          ) : (
+            <AchievementCard
+              achievement={item}
+              unlocked={isUnlocked(item)}
+              ctx={ctx}
+              isTablet={false}
+              onPress={() => setSelected(item)}
+            />
+          )
+        )}
+        ListFooterComponent={<View style={{ height: 16 }} />}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={9}
+        removeClippedSubviews
+      />
 
       {/* ── DETALHE DA CONQUISTA ── */}
       <Modal visible={!!selected} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setSelected(null)}>
@@ -423,6 +454,8 @@ const styles = StyleSheet.create({
 
   // Seções
   section: { marginBottom: 16 },
+  // Recupera o espaçamento entre categorias que antes vinha de styles.section.
+  sectionFooterGap: { height: 6 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, paddingHorizontal: 2 },
   sectionIcon: { fontSize: 18 },
   sectionTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: pt.text, flex: 1 },

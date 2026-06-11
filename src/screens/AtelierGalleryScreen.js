@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import {
-  View, Text, ScrollView, Image, Modal, StyleSheet, Alert,
+  View, Text, FlatList, Image, Modal, StyleSheet, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -96,22 +96,24 @@ export default function AtelierGalleryScreen({ navigation }) {
         </SoundButton>
       </View>
 
-      <ScrollView
+      <FlatList
         style={styles.container}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
-      >
-        {/* Contador */}
-        <View style={styles.counterRow}>
-          <Text style={styles.counterText}>
-            🖼️ {arts.length} de {ATELIER_FREE_SAVE_LIMIT} artes salvas
-          </Text>
-          <View style={styles.counterBar}>
-            <View style={[styles.counterBarFill, { width: `${Math.min(arts.length / ATELIER_FREE_SAVE_LIMIT, 1) * 100}%` }]} />
+        data={arts}
+        keyExtractor={(art) => String(art.id)}
+        ListHeaderComponent={
+          /* Contador */
+          <View style={styles.counterRow}>
+            <Text style={styles.counterText}>
+              🖼️ {arts.length} de {ATELIER_FREE_SAVE_LIMIT} artes salvas
+            </Text>
+            <View style={styles.counterBar}>
+              <View style={[styles.counterBarFill, { width: `${Math.min(arts.length / ATELIER_FREE_SAVE_LIMIT, 1) * 100}%` }]} />
+            </View>
           </View>
-        </View>
-
-        {arts.length === 0 ? (
+        }
+        ListEmptyComponent={
           /* ── Empty state ── */
           <View style={styles.emptyContainer}>
             <BeniEmptyState
@@ -121,52 +123,55 @@ export default function AtelierGalleryScreen({ navigation }) {
               onPress={() => navigation.navigate('AtelierCanvas', {})}
             />
           </View>
-        ) : (
-          arts.map(art => (
-            <View key={art.id} style={styles.card}>
-              {/* Thumbnail */}
-              <SoundButton
-                style={styles.thumbWrapper}
-                onPress={() => handleViewArt(art)}
-                activeOpacity={0.85}
-              >
-                <SafeImage
-                  source={art.thumbnailBase64 ? { uri: art.thumbnailBase64 } : null}
-                  style={styles.thumb}
-                  resizeMode="cover"
-                  fallbackIcon="🎨"
-                  fallbackColors={['#F3EEE6', '#E7DECF']}
-                />
-                <View style={styles.thumbViewHint}>
-                  <Text style={styles.thumbViewHintText}>👁</Text>
-                </View>
-              </SoundButton>
+        }
+        renderItem={({ item: art }) => (
+          <View style={styles.card}>
+            {/* Thumbnail */}
+            <SoundButton
+              style={styles.thumbWrapper}
+              onPress={() => handleViewArt(art)}
+              activeOpacity={0.85}
+            >
+              <SafeImage
+                source={art.thumbnailBase64 ? { uri: art.thumbnailBase64 } : null}
+                style={styles.thumb}
+                resizeMode="cover"
+                fallbackIcon="🎨"
+                fallbackColors={['#F3EEE6', '#E7DECF']}
+              />
+              <View style={styles.thumbViewHint}>
+                <Text style={styles.thumbViewHintText}>👁</Text>
+              </View>
+            </SoundButton>
 
-              {/* Info */}
-              <View style={styles.cardInfo}>
-                <Text style={styles.artTitle} numberOfLines={1}>{art.title}</Text>
-                <Text style={styles.artDate}>{formatDate(art.createdAt)}</Text>
-                <View style={styles.btnRow}>
-                  <SoundButton
-                    style={styles.continueBtn}
-                    onPress={() => handleContinue(art)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.continueBtnText}>✏️ Editar</Text>
-                  </SoundButton>
-                  <SoundButton
-                    style={styles.deleteBtn}
-                    onPress={() => handleDelete(art)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.deleteBtnText}>🗑️</Text>
-                  </SoundButton>
-                </View>
+            {/* Info */}
+            <View style={styles.cardInfo}>
+              <Text style={styles.artTitle} numberOfLines={1}>{art.title}</Text>
+              <Text style={styles.artDate}>{formatDate(art.createdAt)}</Text>
+              <View style={styles.btnRow}>
+                <SoundButton
+                  style={styles.continueBtn}
+                  onPress={() => handleContinue(art)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.continueBtnText}>✏️ Editar</Text>
+                </SoundButton>
+                <SoundButton
+                  style={styles.deleteBtn}
+                  onPress={() => handleDelete(art)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.deleteBtnText}>🗑️</Text>
+                </SoundButton>
               </View>
             </View>
-          ))
+          </View>
         )}
-      </ScrollView>
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={7}
+        removeClippedSubviews
+      />
 
       {/* ── VIEWER MODAL ── */}
       <Modal

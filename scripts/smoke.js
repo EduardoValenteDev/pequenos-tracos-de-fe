@@ -8114,6 +8114,45 @@ check(
   'progressResetService não limpa Momentos diários por prefixo / não inclui Baú+Cultinho',
 );
 
+// ════════════════════════════════════════════════════════════════════════════
+// Sprint Estabilização A — Bloco A4: virtualização de listas
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Sprint A4: virtualização de listas ──');
+
+const a4Gallery   = readSrc('src/screens/AtelierGalleryScreen.js');
+const a4Chest     = readSrc('src/screens/BeniChestScreen.js');
+const a4Album     = readSrc('src/screens/TrophiesScreen.js');
+const a4StoryCard = readSrc('src/components/StoryCard.js');
+
+check(
+  'A4 Galeria: virtualizada com FlatList (sem arts.map em ScrollView) e preserva abrir/apagar arte',
+  a4Gallery.includes('FlatList') && a4Gallery.includes('renderItem') &&
+  !a4Gallery.includes('arts.map(') &&
+  a4Gallery.includes('handleViewArt') && a4Gallery.includes('handleDelete'),
+  'AtelierGalleryScreen não foi virtualizada ou perdeu as ações de arte',
+);
+
+check(
+  'A4 Baú: virtualizado com FlatList numColumns={2} (sem sections.map renderizando a grade)',
+  a4Chest.includes('FlatList') && a4Chest.includes('numColumns={2}') &&
+  a4Chest.includes('renderItem') &&
+  !a4Chest.includes('sections.map(sec'),
+  'BeniChestScreen não foi virtualizado como grade 2-col',
+);
+
+check(
+  'A4 Álbum: virtualizado com SectionList por categoria (renderSectionHeader + sections={albumSections})',
+  a4Album.includes('SectionList') && a4Album.includes('renderSectionHeader') &&
+  a4Album.includes('sections={albumSections}'),
+  'TrophiesScreen não virou SectionList por categoria',
+);
+
+check(
+  'A4 capas: StoryCard (Aventuras) usa Image original nas capas aprovadas — sem SafeImage',
+  a4StoryCard.includes('<Image source={coverImg}') && !a4StoryCard.includes('SafeImage'),
+  'StoryCard passou a usar SafeImage nas capas aprovadas — proibido',
+);
+
 // ── A3 (assíncrono): round-trip REAL do reset (resetProgress agora usa getAllKeys).
 // O resumo só é impresso depois que o reset assíncrono terminar.
 (async () => {
