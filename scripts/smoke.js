@@ -8559,17 +8559,19 @@ check(
 );
 
 check(
-  'Beni: BeniCircularArt enquadra a arte 4:5 INTEIRA (contain + margem innerRatio<1 + clip circular), sem preencher 100%',
+  'Beni: BeniCircularArt = avatar com cover + presets de crop (preenche o círculo, sem retângulo); full=contain só p/ exibição grande',
   (() => {
     const src = readSrc('src/components/common/BeniCircularArt.js');
-    const ratioOk = /INNER_RATIO\s*=\s*0\.\d+/.test(src) &&        // margem de segurança (<1)
-      /size\s*\*\s*innerRatio/.test(src);
-    const containOk = src.includes('resizeMode="contain"');
-    const clipOk = src.includes('overflow:') && src.includes('borderRadius: size / 2');
-    const usesMascot = src.includes("from './BeniMascotImage'");
-    return ratioOk && containOk && clipOk && usesMascot;
+    const coverOk = src.includes('resizeMode="cover"');                 // avatar preenche o círculo
+    const presetsOk = /CROP_PRESETS\s*=\s*\{[\s\S]*cropScale/.test(src) &&
+      /avatarBase:\s*\{\s*cropScale:\s*1\.08/.test(src) &&
+      /comBau:\s*\{\s*cropScale:\s*1\.12/.test(src);
+    const modesOk = /mode\s*=\s*'avatar'/.test(src) &&                  // avatar é o padrão
+      src.includes("mode === 'full'") && src.includes('resizeMode="contain"'); // full = contain
+    const clipOk = src.includes("overflow: 'hidden'") && src.includes('borderRadius: size / 2');
+    return coverOk && presetsOk && modesOk && clipOk;
   })(),
-  'BeniCircularArt não aplica margem de segurança/contain/clip — arte 4:5 cortaria na moldura redonda',
+  'BeniCircularArt não faz crop circular (cover + presets) — avatar ficaria como retângulo/contain',
 );
 
 // ── A3 (assíncrono): round-trip REAL do reset (resetProgress agora usa getAllKeys).
