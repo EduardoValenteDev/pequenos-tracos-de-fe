@@ -45,7 +45,7 @@ export default function BeniCircularArt({
   cropY,
   backgroundColor = '#FBF8F2',
   borderColor = '#F4B400',
-  borderWidth = 2.5,
+  borderWidth = 2,
   shadowColor = '#F4B400',
   showShadow = true,
   style,

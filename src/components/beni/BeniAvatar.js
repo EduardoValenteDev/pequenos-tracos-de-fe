@@ -35,9 +35,11 @@ const VARIANT_POSE = {
   atelie:      'atelie',
 };
 
+// Tamanhos com um pouco mais de presença (Beni mais fácil de identificar nos
+// círculos de apoio). Aumento sutil: small 40→50, medium 64→72.
 const SIZES = {
-  small:  40,
-  medium: 64,
+  small:  50,
+  medium: 72,
   large:  96,
   hero:  128,
 };
@@ -84,6 +86,8 @@ export default function BeniAvatar({ variant = 'happy', size = 'medium', style }
   const pose = VARIANT_POSE[variant] ?? 'avatarBase';
   const theme = VARIANT_THEME[variant] ?? VARIANT_THEME.main;
   const badge = VARIANT_BADGE[variant] ?? null;
+  // Borda mais fina e elegante; ainda mais delicada nos avatares pequenos.
+  const borderWidth = diameter <= 56 ? 1.5 : 2;
 
   const badgeDiam = Math.round(diameter * 0.30);
   const badgeFontSize = Math.round(diameter * 0.20);
@@ -94,6 +98,7 @@ export default function BeniAvatar({ variant = 'happy', size = 'medium', style }
       size={diameter}
       backgroundColor={theme.bg}
       borderColor={theme.border}
+      borderWidth={borderWidth}
       shadowColor={theme.shadow}
       style={style}
     >

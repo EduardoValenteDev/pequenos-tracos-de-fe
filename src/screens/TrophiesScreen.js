@@ -237,7 +237,7 @@ export default function TrophiesScreen({ navigation, route }) {
           <>
             {/* ── HERO ── */}
             <LinearGradient
-              colors={['#FFF6D8', '#FFE9A8']}
+              colors={['#F4EFFF', '#E7DBFF']}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.header}
             >
