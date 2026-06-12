@@ -1,39 +1,38 @@
 /**
- * BeniAvatar — mascote oficial Beni, o cordeirinho guia bíblico infantil.
+ * BeniAvatar — avatar circular do mascote Beni (cordeirinho guia bíblico).
  *
- * Usa as 7 poses oficiais do registro central beniImages.js (assets/mascot/beni/
- * 0N_beni_*.png). Mantém os nomes de variant legados mapeados para as novas
- * poses, então todas as telas existentes continuam funcionando com a nova arte.
+ * Renderiza via BeniCircularArt, que ENQUADRA a arte 4:5 inteira dentro da
+ * moldura redonda (margem de segurança + contain) — sem cortar cabeça/corpo/pose.
+ * Mantém a API existente (variant, size, style), o tema por variant (borda/fundo/
+ * sombra) e o badge decorativo, então todas as telas seguem funcionando.
  *
- * Para uma imagem simples (sem moldura circular), use BeniMascotImage.
+ * Para uma imagem simples sem moldura, use BeniMascotImage.
  */
 import React from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
-import { BENI_IMAGES } from '../../assets/mascot/beniImages';
+import { View, Text, StyleSheet } from 'react-native';
+import BeniCircularArt from '../common/BeniCircularArt';
 
-/* ── Mapa estático variant → pose oficial (require literal vem de beniImages) ──
-   Legado (main/idle/happy/pointing/...) + semânticos novos (waving/teaching/
-   praying/chest) → as 7 poses reais. */
-const VARIANT_IMAGE = {
+/* Variant (legado + semântico) → pose oficial do Beni (beniImages.js). */
+const VARIANT_POSE = {
   // legado
-  main:        BENI_IMAGES.avatarBase,
-  idle:        BENI_IMAGES.avatarBase,
-  happy:       BENI_IMAGES.acenando,
-  pointing:    BENI_IMAGES.ensinando,
-  celebrating: BENI_IMAGES.celebrando,
-  artist:      BENI_IMAGES.atelie,
-  thinking:    BENI_IMAGES.ensinando,
-  reading:     BENI_IMAGES.ensinando,
-  locked:      BENI_IMAGES.avatarBase,
-  parent:      BENI_IMAGES.avatarBase,
-  neutral:     BENI_IMAGES.avatarBase,
-  // semânticos (poses oficiais por nome direto)
-  avatarBase:  BENI_IMAGES.avatarBase,
-  waving:      BENI_IMAGES.acenando,
-  teaching:    BENI_IMAGES.ensinando,
-  praying:     BENI_IMAGES.orando,
-  chest:       BENI_IMAGES.comBau,
-  atelie:      BENI_IMAGES.atelie,
+  main:        'avatarBase',
+  idle:        'avatarBase',
+  neutral:     'avatarBase',
+  parent:      'avatarBase',
+  locked:      'avatarBase',
+  happy:       'acenando',
+  pointing:    'ensinando',
+  thinking:    'ensinando',
+  reading:     'ensinando',
+  celebrating: 'celebrando',
+  artist:      'atelie',
+  // semânticos
+  avatarBase:  'avatarBase',
+  waving:      'acenando',
+  teaching:    'ensinando',
+  praying:     'orando',
+  chest:       'comBau',
+  atelie:      'atelie',
 };
 
 const SIZES = {
@@ -43,7 +42,7 @@ const SIZES = {
   hero:  128,
 };
 
-/* Tema visual por variant: fundo e borda adequados à pose */
+/* Tema visual por variant: fundo (mat) e borda da moldura adequados à pose. */
 const VARIANT_THEME = {
   main:        { bg: '#FFF9ED', border: '#F4B400', shadow: '#F4B400' },
   happy:       { bg: '#FFF9ED', border: '#F4B400', shadow: '#F4B400' },
@@ -56,6 +55,11 @@ const VARIANT_THEME = {
   reading:     { bg: '#EEF4FF', border: '#6C9EFF', shadow: '#6C9EFF' },
   locked:      { bg: '#F5F0ED', border: '#C4B0A0', shadow: '#9B8D80' },
   parent:      { bg: '#F0FAF0', border: '#4CAF50', shadow: '#4CAF50' },
+  praying:     { bg: '#EEF4FF', border: '#6C9EFF', shadow: '#6C9EFF' },
+  chest:       { bg: '#FFF6E2', border: '#F4B400', shadow: '#F4B400' },
+  atelie:      { bg: '#F5F0FF', border: '#8E44AD', shadow: '#8E44AD' },
+  waving:      { bg: '#FFF9ED', border: '#F4B400', shadow: '#F4B400' },
+  teaching:    { bg: '#FFF3E5', border: '#FF8A5B', shadow: '#FF8A5B' },
 };
 
 /* Badge decorativo opcional por variant */
@@ -66,16 +70,18 @@ const VARIANT_BADGE = {
   reading:     '📖',
   locked:      '🔒',
   parent:      '❤️',
+  praying:     '🙏',
+  chest:       '✨',
 };
 
 /**
- * @param {'main'|'idle'|'happy'|'pointing'|'thinking'|'celebrating'|'artist'|'reading'|'locked'|'parent'|'neutral'} [variant='happy']
+ * @param {string} [variant='happy'] — pose/contexto (legado ou semântico)
  * @param {'small'|'medium'|'large'|'hero'} [size='medium']
  * @param {object} [style] — estilos extras no container
  */
 export default function BeniAvatar({ variant = 'happy', size = 'medium', style }) {
   const diameter = SIZES[size] ?? SIZES.medium;
-  const imageSource = VARIANT_IMAGE[variant] ?? VARIANT_IMAGE.main;
+  const pose = VARIANT_POSE[variant] ?? 'avatarBase';
   const theme = VARIANT_THEME[variant] ?? VARIANT_THEME.main;
   const badge = VARIANT_BADGE[variant] ?? null;
 
@@ -83,35 +89,14 @@ export default function BeniAvatar({ variant = 'happy', size = 'medium', style }
   const badgeFontSize = Math.round(diameter * 0.20);
 
   return (
-    <View
-      style={[
-        styles.circle,
-        {
-          width: diameter,
-          height: diameter,
-          borderRadius: diameter / 2,
-          backgroundColor: theme.bg,
-          borderColor: theme.border,
-          shadowColor: theme.shadow,
-        },
-        style,
-      ]}
+    <BeniCircularArt
+      variant={pose}
+      size={diameter}
+      backgroundColor={theme.bg}
+      borderColor={theme.border}
+      shadowColor={theme.shadow}
+      style={style}
     >
-      {/* Imagem real — clipped ao círculo pelo inner View */}
-      <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          { borderRadius: diameter / 2, overflow: 'hidden' },
-        ]}
-      >
-        <Image
-          source={imageSource}
-          style={styles.image}
-          resizeMode="contain"
-        />
-      </View>
-
-      {/* Badge decorativo no canto inferior direito (apenas para algumas variants) */}
       {badge !== null && (
         <View
           style={[
@@ -130,26 +115,11 @@ export default function BeniAvatar({ variant = 'happy', size = 'medium', style }
           <Text style={{ fontSize: badgeFontSize }}>{badge}</Text>
         </View>
       )}
-    </View>
+    </BeniCircularArt>
   );
 }
 
 const styles = StyleSheet.create({
-  circle: {
-    borderWidth: 2.5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 3,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    position: 'relative',
-    overflow: 'visible',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
   badge: {
     position: 'absolute',
     borderWidth: 1.5,

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { AVATARS, DEFAULT_AVATAR_ID } from '../data/avatars';
 import { useProfile } from '../context/ProfileContext';
-import BeniMascotImage from './common/BeniMascotImage';
+import BeniCircularArt from './common/BeniCircularArt';
 
 const TABS = [
   { name: 'Início',     emoji: '🏠' },
@@ -45,9 +45,16 @@ export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxSt
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarEmoji}>{avatar?.emoji ?? '⭐'}</Text>
           </View>
-          <View style={styles.lumiBadge}>
-            <BeniMascotImage variant="avatarBase" size={22} accessibilityLabel="Beni" />
-          </View>
+          <BeniCircularArt
+            variant="avatarBase"
+            size={30}
+            backgroundColor="#FFF8EF"
+            borderColor={colors.primary + '40'}
+            borderWidth={2}
+            showShadow={false}
+            style={styles.lumiBadge}
+            accessibilityLabel="Beni"
+          />
         </View>
         <Text style={styles.greeting} numberOfLines={1}>{greeting}</Text>
         <Text style={styles.stars}>⭐ {starsLabel(totalStars)} alcançadas</Text>
@@ -119,16 +126,9 @@ const styles = StyleSheet.create({
     borderColor: colors.primary + '50',
   },
   avatarEmoji: { fontSize: 32 },
+  // O círculo/borda/fundo vêm de BeniCircularArt; aqui só a posição relativa.
   lumiBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#FFF8EF',
-    justifyContent: 'center',
-    alignItems: 'center',
     marginLeft: -10,
-    borderWidth: 2,
-    borderColor: colors.primary + '40',
   },
   greeting: {
     fontFamily: 'FredokaOne',

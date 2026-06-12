@@ -8551,11 +8551,25 @@ check(
 );
 
 check(
-  'Beni: beniAssets (preload) e BeniAvatar consomem o registro central (sem require literal de mascote)',
+  'Beni: beniAssets (preload) consome o registro central; BeniAvatar renderiza via BeniCircularArt (sem require literal)',
   beniAssetsSrc.includes("from './mascot/beniImages'") &&
-  beniAvatarSrc.includes("from '../../assets/mascot/beniImages'") &&
+  beniAvatarSrc.includes("from '../common/BeniCircularArt'") &&
   !/require\(.*assets\/mascot\/beni\//.test(beniAvatarSrc),
-  'BeniAvatar/beniAssets não usam o registro central de imagens do Beni',
+  'BeniAvatar não delega a BeniCircularArt / beniAssets não usa o registro central',
+);
+
+check(
+  'Beni: BeniCircularArt enquadra a arte 4:5 INTEIRA (contain + margem innerRatio<1 + clip circular), sem preencher 100%',
+  (() => {
+    const src = readSrc('src/components/common/BeniCircularArt.js');
+    const ratioOk = /INNER_RATIO\s*=\s*0\.\d+/.test(src) &&        // margem de segurança (<1)
+      /size\s*\*\s*innerRatio/.test(src);
+    const containOk = src.includes('resizeMode="contain"');
+    const clipOk = src.includes('overflow:') && src.includes('borderRadius: size / 2');
+    const usesMascot = src.includes("from './BeniMascotImage'");
+    return ratioOk && containOk && clipOk && usesMascot;
+  })(),
+  'BeniCircularArt não aplica margem de segurança/contain/clip — arte 4:5 cortaria na moldura redonda',
 );
 
 // ── A3 (assíncrono): round-trip REAL do reset (resetProgress agora usa getAllKeys).
