@@ -8343,6 +8343,103 @@ check(
   'creatorQaMode escreve dados de progresso — poderia herdar conquista indevida em conta limpa',
 );
 
+// ════════════════════════════════════════════════════════════════════════════
+// Sprint B — Bloco B1: mediaReady e histórias "Em breve"
+// Estrutural + paridade de manifesto aqui; o comportamental (derivação + gate)
+// roda no bloco assíncrono. Regra: história sem mídia suficiente → "Em breve",
+// não abre o player vazio, e NÃO cai em paywall.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Sprint B1: mediaReady e histórias "Em breve" ──');
+
+const b1MediaSvc   = readSrc('src/services/mediaReadyService.js');
+const b1Content    = readSrc('src/services/contentAccessService.js');
+const b1StoryCard  = readSrc('src/components/StoryCard.js');
+const b1StoryDet   = readSrc('src/screens/StoryDetailScreen.js');
+const b1Narration  = readSrc('src/screens/NarrationScreen.js');
+const b1SceneIllu  = readSrc('src/data/storySceneIllustrations.js');
+
+check(
+  'B1: mediaReady é DERIVADO do manifesto de ilustrações (sem lista manual frágil)',
+  b1MediaSvc.includes("from '../data/storySceneIllustrations'") &&
+  b1MediaSvc.includes('STORY_SCENE_ILLUSTRATIONS') &&
+  b1MediaSvc.includes('export function isStoryMediaReady') &&
+  b1MediaSvc.includes('sceneIllustrations >= expectedScenes'),
+  'mediaReadyService não deriva do manifesto / usa lista manual',
+);
+
+check(
+  'B1: flag QA interna existe e é SEPARADA do Modo Criador (false em produção)',
+  /QA_ALLOW_INCOMPLETE_STORIES = false/.test(b1MediaSvc) &&
+  !b1MediaSvc.includes('creatorQaMode') &&
+  /canOpenStoryMedia[\s\S]{0,160}QA_ALLOW_INCOMPLETE_STORIES/.test(b1MediaSvc),
+  'flag QA ausente, ligada por engano, ou acoplada ao Modo Criador',
+);
+
+check(
+  'B1: contentAccessService trata falta de mídia como "Em breve" (isStoryComingSoon usa canOpenStoryMedia)',
+  /isStoryComingSoon\(story\)\s*\{[\s\S]{0,200}!canOpenStoryMedia\(story\)/.test(b1Content) &&
+  b1Content.includes('export function getStoryLockReason') &&
+  b1Content.includes("from './mediaReadyService'"),
+  'contentAccessService não integra mediaReady no estado "Em breve"',
+);
+
+check(
+  'B1: getStoryLockReason separa mídia ("media") de plano ("premium")',
+  /getStoryLockReason[\s\S]{0,260}return 'media'[\s\S]{0,160}return 'premium'/.test(b1Content),
+  'getStoryLockReason não distingue falta de mídia de trava de plano',
+);
+
+check(
+  'B1 card: StoryCard usa isStoryComingSoon (mídia) e esconde a promessa de "N cenas" quando "Em breve"',
+  b1StoryCard.includes('isStoryComingSoon(story)') &&
+  /!isComingSoon && story\.totalCenas > 0/.test(b1StoryCard),
+  'StoryCard não reflete "Em breve" por mídia / ainda promete cenas em história incompleta',
+);
+
+check(
+  'B1 detalhe: StoryDetail usa isStoryComingSoon e bloqueia as cenas (sem abrir player vazio)',
+  b1StoryDet.includes('isStoryComingSoon(story)') &&
+  /if \(isComingSoon\) return 'locked'/.test(b1StoryDet),
+  'StoryDetailScreen não bloqueia história "Em breve"',
+);
+
+check(
+  'B1 player: NarrationScreen redireciona por motivo — premium→Área dos Pais; mídia→volta (sem paywall)',
+  b1Narration.includes('getStoryLockReason(story)') &&
+  /getStoryLockReason\(story\) === 'premium'[\s\S]{0,160}ParentArea/.test(b1Narration) &&
+  /canGoBack\(\)[\s\S]{0,80}goBack\(\)/.test(b1Narration),
+  'NarrationScreen ainda manda história sem mídia para a Área dos Pais (paywall enganoso)',
+);
+
+check(
+  'B1 capas: StoryCard mantém <Image source={coverImg}> nas capas (sem SafeImage)',
+  b1StoryCard.includes('<Image source={coverImg}') && !b1StoryCard.includes('SafeImage'),
+  'StoryCard trocou a capa aprovada por SafeImage — proibido',
+);
+
+// Paridade com o manifesto (não-frágil): conta requires de cena por história e
+// confirma que a vitrine grátis (creation/noah) está pronta e que existe ao menos
+// uma história "só capa" (mapa vazio) — provando que a regra tem efeito real.
+{
+  const counts = {};
+  // pega cada bloco "<id>: { ... }" do mapa STORY_SCENE_ILLUSTRATIONS
+  for (const m of b1SceneIllu.matchAll(/([a-z_]+):\s*\{([\s\S]*?)\}/g)) {
+    const id = m[1];
+    if (id === 'folder' || id === 'fileName' || id === 'example') continue; // ignora o PATTERN
+    const n = (m[2].match(/\d+:\s*require\(/g) || []).length;
+    counts[id] = n;
+  }
+  const creationReady = (counts.creation ?? 0) >= 10;
+  const noahReady = (counts.noah ?? 0) >= 10;
+  const coverOnly = Object.values(counts).filter(n => n === 0).length;
+  const fullyReady = Object.values(counts).filter(n => n >= 10).length;
+  check(
+    'B1 paridade: creation+noah prontos (≥10 cenas) e existe ≥1 história "só capa" (mapa vazio)',
+    creationReady && noahReady && coverOnly >= 1 && fullyReady >= 2,
+    `creation=${counts.creation} noah=${counts.noah} coverOnly=${coverOnly} fullyReady=${fullyReady}`,
+  );
+}
+
 // ── A3 (assíncrono): round-trip REAL do reset (resetProgress agora usa getAllKeys).
 // O resumo só é impresso depois que o reset assíncrono terminar.
 (async () => {
@@ -8562,6 +8659,71 @@ check(
       `both=${bothFire} inv=${invariant} noah=${noahInvariant} clean=${cleanOk}`);
   } catch (e) {
     check('A6 conquistas: invariante first_story', false, String(e && e.message));
+  }
+
+  // ── B1 (comportamental): derivação de mediaReady + gate de conteúdo ──────────
+  // mediaReadyService com manifesto MOCK (o real usa require() de PNG, nativo).
+  try {
+    const mr = a1LoadSandbox('src/services/mediaReadyService.js',
+      { STORY_SCENE_ILLUSTRATIONS: {
+          ready10: Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, 1])),
+          partial3: { 1: 1, 2: 1, 3: 1 },
+          coverOnly: {},
+        } },
+      ['getStoryMediaStatus', 'isStoryMediaReady', 'canOpenStoryMedia']);
+    const ready = mr.isStoryMediaReady({ id: 'ready10', totalCenas: 10 }) === true;
+    const partial = mr.isStoryMediaReady({ id: 'partial3', totalCenas: 10 }) === false;
+    const cover = mr.isStoryMediaReady({ id: 'coverOnly', totalCenas: 10 }) === false;
+    const st = mr.getStoryMediaStatus({ id: 'coverOnly', totalCenas: 10 });
+    const reasonOk = st.reason === 'cover_only' && st.sceneIllustrations === 0 && st.expectedScenes === 10;
+    // QA flag é false → canOpenStoryMedia segue mediaReady (não abre incompleta).
+    const qaOff = mr.canOpenStoryMedia({ id: 'ready10', totalCenas: 10 }) === true &&
+                  mr.canOpenStoryMedia({ id: 'coverOnly', totalCenas: 10 }) === false;
+    check('B1 mediaReady: full→true, parcial→false, só capa→false (reason cover_only); QA off não abre incompleta',
+      ready && partial && cover && reasonOk && qaOff,
+      `ready=${ready} partial=${partial} cover=${cover} reason=${reasonOk} qaOff=${qaOff}`);
+  } catch (e) {
+    check('B1 mediaReady: derivação', false, String(e && e.message));
+  }
+
+  // contentAccessService: falta de mídia → "Em breve" (sem paywall); plano premium
+  // continua sendo paywall; QA (canOpenStoryMedia true) deixa passar p/ o plano.
+  try {
+    const mediaMap = { rf: true, rp: true, nr: false, cs: true, qa: true };
+    const ca = a1LoadSandbox('src/services/contentAccessService.js',
+      { ACCESS_TYPE: { FREE: 'free', PREMIUM: 'premium' },
+        isPremiumUser: () => false,
+        canOpenStoryMedia: (s) => !!(s && mediaMap[s.id]),
+        isStoryMediaReady: (s) => !!(s && mediaMap[s.id]) },
+      ['isStoryComingSoon', 'canOpenStoryFullExperience', 'getStoryBadgeType',
+       'getStoryPrimaryAction', 'getStoryLockReason', 'getStoryAccessStatus']);
+    const readyFree = { id: 'rf', status: 'available', accessType: 'free' };
+    const readyPrem = { id: 'rp', status: 'available', accessType: 'premium' };
+    const notReady = { id: 'nr', status: 'available', accessType: 'premium' };
+    const catalogSoon = { id: 'cs', status: 'coming_soon', accessType: 'free' };
+
+    const freeOk = ca.isStoryComingSoon(readyFree) === false &&
+      ca.canOpenStoryFullExperience(readyFree) === true &&
+      ca.getStoryLockReason(readyFree) === null;
+    // Sem mídia: Em breve, não abre, badge comingSoon, motivo 'media' (NÃO premium).
+    const mediaOk = ca.isStoryComingSoon(notReady) === true &&
+      ca.canOpenStoryFullExperience(notReady) === false &&
+      ca.getStoryBadgeType(notReady, 0, false) === 'comingSoon' &&
+      ca.getStoryPrimaryAction(notReady) === 'disabled' &&
+      ca.getStoryAccessStatus(notReady) === 'coming_soon' &&
+      ca.getStoryLockReason(notReady) === 'media';
+    // Premium pronto (usuário free): NÃO é "Em breve"; trava é de PLANO.
+    const premOk = ca.isStoryComingSoon(readyPrem) === false &&
+      ca.canOpenStoryFullExperience(readyPrem) === false &&
+      ca.getStoryLockReason(readyPrem) === 'premium';
+    // Catálogo coming_soon → motivo coming_soon.
+    const soonOk = ca.isStoryComingSoon(catalogSoon) === true &&
+      ca.getStoryLockReason(catalogSoon) === 'coming_soon';
+    check('B1 gate: falta de mídia vira "Em breve"/back (motivo media), premium segue paywall, catálogo coming_soon distinto',
+      freeOk && mediaOk && premOk && soonOk,
+      `free=${freeOk} media=${mediaOk} prem=${premOk} soon=${soonOk}`);
+  } catch (e) {
+    check('B1 gate: contentAccessService', false, String(e && e.message));
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

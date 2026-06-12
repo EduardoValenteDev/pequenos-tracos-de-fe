@@ -10,9 +10,11 @@
  * Helper puro e seguro — nunca lança; retorna null se não houver história jogável.
  */
 import { stories } from '../data/stories';
+import { isStoryMediaReady } from './mediaReadyService';
 
 export function getShowcaseStory() {
-  const playable = stories.filter(s => (s.totalCenas ?? 0) > 0 && s.status !== 'coming_soon');
+  // B1: vitrine só de história REALMENTE jogável (com mídia) — nunca "Em breve".
+  const playable = stories.filter(s => (s.totalCenas ?? 0) > 0 && s.status !== 'coming_soon' && isStoryMediaReady(s));
   const free = playable.filter(s => s.accessType === 'free');
   const pool = free.length ? free : playable;
 

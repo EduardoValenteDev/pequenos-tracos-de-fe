@@ -10,6 +10,7 @@ import { useProgress } from '../hooks/useProgress';
 import { hasSavedDrawing } from '../services/drawingStorage';
 import { preloadStorySceneIllustrations } from '../services/storyImageService';
 import { hasAccess } from '../services/accessControl';
+import { isStoryComingSoon } from '../services/contentAccessService';
 import { isQuizDone, getReflection } from '../services/postStoryStorage';
 import StoryBookHero from '../components/story/StoryBookHero';
 import SceneListItem from '../components/story/SceneListItem';
@@ -52,7 +53,8 @@ export default function StoryDetailScreen({ route, navigation }) {
   const totalScenes = story.totalCenas ?? 0;
   const xpPercent = totalScenes > 0 ? progressCount / totalScenes : 0;
   const isCompleted = progressCount >= totalScenes && totalScenes > 0;
-  const isComingSoon = story.status === 'coming_soon';
+  // B1: "Em breve" inclui histórias sem mídia suficiente (não só catálogo).
+  const isComingSoon = isStoryComingSoon(story);
   const canAccess = hasAccess(story);
 
   const [savedDrawings, setSavedDrawings] = useState({});
@@ -129,6 +131,7 @@ export default function StoryDetailScreen({ route, navigation }) {
   }
 
   function getSceneStatus(cena, index) {
+    if (isComingSoon) return 'locked'; // B1: sem mídia → cenas não abrem o player vazio
     if (!canAccess) return 'locked';
     if (progresso[cena.id] === true) return 'completed';
     if (index === progressCount) return 'available';

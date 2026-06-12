@@ -5,6 +5,7 @@ import StatusBadge from './ui/StatusBadge';
 import StoryFallbackCover from './story/StoryFallbackCover';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { images } from '../assets/images';
+import { isStoryComingSoon } from '../services/contentAccessService';
 
 /**
  * StoryCard — card de história estilo pôster infantil.
@@ -19,7 +20,8 @@ export default function StoryCard({ story, onPress, locked = false, progressCoun
 
   const isDone = progressCount >= story.totalCenas && story.totalCenas > 0;
   const inProgress = progressCount > 0 && !isDone;
-  const isComingSoon = story.status === 'coming_soon';
+  // B1: "Em breve" cobre catálogo coming_soon E falta de mídia (história só capa).
+  const isComingSoon = isStoryComingSoon(story);
 
   // Um único badge dominante — coming_soon > completed > in_progress > acesso
   const accessBadgeType = story.accessType === 'premium' ? 'premium' : 'free';
@@ -73,7 +75,8 @@ export default function StoryCard({ story, onPress, locked = false, progressCoun
 
         <View style={styles.metaRow}>
           <StatusBadge type={badgeType} />
-          {story.totalCenas > 0 && (
+          {/* B1: não prometer "10 cenas" em história "Em breve" (evita engano). */}
+          {!isComingSoon && story.totalCenas > 0 && (
             <View style={styles.cenasChip}>
               <Text style={styles.cenasChipText}>
                 {isDone

@@ -20,7 +20,7 @@ import ProgressBar from '../components/ProgressBar';
 import { useProgress } from '../hooks/useProgress';
 import { useProgressContext } from '../context/ProgressContext';
 import { getOfficialSceneIllustration, getStoryCoverImage } from '../services/storyImageService';
-import { canOpenStoryFullExperience } from '../services/contentAccessService';
+import { canOpenStoryFullExperience, getStoryLockReason } from '../services/contentAccessService';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
 
 export default function NarrationScreen({ route, navigation }) {
@@ -71,8 +71,16 @@ export default function NarrationScreen({ route, navigation }) {
   }, [story.id, cena?.id, jaConcluida]);
 
   useEffect(() => {
-    if (!canOpenStoryFullExperience(story)) {
+    if (canOpenStoryFullExperience(story)) return;
+    // B1: separa trava de PLANO de falta de MÍDIA.
+    //   premium → Área dos Pais (upsell legítimo);
+    //   media/coming_soon → volta, sem paywall enganoso por falta de mídia.
+    if (getStoryLockReason(story) === 'premium') {
       navigation.replace('ParentArea');
+    } else if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.replace('Home');
     }
   }, []);
 

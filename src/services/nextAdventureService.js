@@ -17,6 +17,7 @@
  */
 import { CATALOG } from '../data/catalog';
 import { hasAccess } from './accessControl';
+import { isStoryMediaReady } from './mediaReadyService';
 
 // Ordem oficial das trilhas (igual à navegação/Home/Aventuras).
 const TRAIL_ORDER = ['comece', 'pequeninos', 'descobridores', 'jovens_da_fe'];
@@ -53,7 +54,8 @@ export function getNextAdventureRecommendation({ currentStoryId, stories, progre
     const p = progressByStory?.[id] || {};
     return Object.values(p).filter(Boolean).length;
   };
-  const isPlayable = (s) => !!s && (s.totalCenas ?? 0) > 0 && s.status !== 'coming_soon';
+  // B1: só recomenda história com mídia pronta — nunca sugere uma "Em breve".
+  const isPlayable = (s) => !!s && (s.totalCenas ?? 0) > 0 && s.status !== 'coming_soon' && isStoryMediaReady(s);
   const isCompleted = (s) => isPlayable(s) && getCount(s.id) >= s.totalCenas;
   const isAccessible = (s) => isPlayable(s) && hasAccess(s);
 

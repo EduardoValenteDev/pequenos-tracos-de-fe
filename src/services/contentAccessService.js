@@ -12,9 +12,22 @@
  */
 
 import { ACCESS_TYPE, isPremiumUser } from './accessControl';
+import { canOpenStoryMedia, isStoryMediaReady } from './mediaReadyService';
 
-/** True if the story has no available content yet. */
+/**
+ * True if the story has no available content yet.
+ * "Em breve" cobre DUAS situações (B1):
+ *   1. status do catálogo = 'coming_soon'; ou
+ *   2. mídia insuficiente (sem ilustrações de cena para o fluxo narrado).
+ * Em ambos os casos a história mostra "Em breve" e NÃO abre o player vazio.
+ */
 export function isStoryComingSoon(story) {
+  if (story?.status === 'coming_soon') return true;
+  return !canOpenStoryMedia(story); // sem mídia → tratado como "Em breve"
+}
+
+/** True somente quando o catálogo marcou a história como coming_soon. */
+export function isStoryComingSoonByCatalog(story) {
   return story?.status === 'coming_soon';
 }
 
@@ -37,6 +50,23 @@ export function canOpenStoryFullExperience(story) {
   if (!story || isStoryComingSoon(story)) return false;
   if (isStoryFree(story)) return true;
   return isPremiumUser();
+}
+
+/**
+ * Por que a história não pode ser aberta (ou null se pode).
+ *   'coming_soon' — catálogo marcou como coming_soon
+ *   'media'       — sem mídia suficiente (selo "Em breve" por falta de mídia)
+ *   'premium'     — pronta, mas exige Plano Família
+ *   null          — pode abrir
+ * Usado pelas telas para decidir o destino do bloqueio SEM confundir falta de
+ * mídia ("Em breve", volta) com trava de plano ('premium', Área dos Pais).
+ */
+export function getStoryLockReason(story) {
+  if (!story) return 'unavailable';
+  if (isStoryComingSoonByCatalog(story)) return 'coming_soon';
+  if (!canOpenStoryMedia(story)) return 'media';
+  if (isStoryPremium(story) && !isPremiumUser()) return 'premium';
+  return null;
 }
 
 /**
