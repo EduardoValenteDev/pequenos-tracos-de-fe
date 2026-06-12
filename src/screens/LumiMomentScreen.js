@@ -12,8 +12,6 @@ import {
   markLumiMomentEverDone,
   addBonusStars,
 } from '../services/postStoryStorage';
-import { canOpenMomentoLumi } from '../services/accessControl';
-import PremiumLockCard from '../components/premium/PremiumLockCard';
 import BeniAvatar from '../components/beni/BeniAvatar';
 
 function dayIndex(listLength) {
@@ -31,21 +29,7 @@ export default function LumiMomentScreen({ navigation }) {
     isLumiMomentDoneToday().then(setDone);
   }, []);
 
-  if (!canOpenMomentoLumi()) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', backgroundColor: '#FDF8EE' }}>
-        <PremiumLockCard
-          featureName="Momento com Beni"
-          title="Essa experiência é especial"
-          description="O Momento com Beni é uma reflexão Plano Família. Peça para um responsável ver os detalhes na Área dos Pais."
-          onPrimaryPress={() => navigation.navigate('ParentArea')}
-          primaryLabel="Ver Área dos Pais"
-          onSecondaryPress={() => navigation.goBack()}
-          secondaryLabel="Voltar"
-        />
-      </View>
-    );
-  }
+  // A6: "Momento com Beni" é grátis no MVP — sem trava de plano aqui.
 
   async function handleComplete() {
     if (!done) {

@@ -10,9 +10,7 @@ import SoundButton from '../components/SoundButton';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
 import { HEART_FEELINGS, HEART_KEEPS } from '../data/lumiReflections';
 import { getReflection, saveReflection, addBonusStars } from '../services/postStoryStorage';
-import { canOpenLumi } from '../services/accessControl';
 import { useProgressContext } from '../context/ProgressContext';
-import PremiumLockCard from '../components/premium/PremiumLockCard';
 import BeniAvatar from '../components/beni/BeniAvatar';
 
 const STAR_BONUS = 1;
@@ -58,21 +56,7 @@ export default function ReflectionScreen({ route, navigation }) {
   const [feelingIdx, setFeelingIdx] = useState(null);
   const [keepIdx, setKeepIdx] = useState(null);
 
-  if (!canOpenLumi(story)) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', backgroundColor: '#FDF8EE' }}>
-        <PremiumLockCard
-          featureName="Guardar no coração"
-          title="Essa reflexão é especial"
-          description="Guardar no coração é uma experiência Plano Família. Peça para um responsável ver os detalhes na Área dos Pais."
-          onPrimaryPress={() => navigation.navigate('ParentArea')}
-          primaryLabel="Ver Área dos Pais"
-          onSecondaryPress={() => navigation.goBack()}
-          secondaryLabel="Voltar"
-        />
-      </View>
-    );
-  }
+  // A6: "Guardar no coração" é grátis no MVP — sem trava de plano aqui.
 
   const stepKey = STEPS[step];
 

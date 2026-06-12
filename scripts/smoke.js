@@ -288,15 +288,17 @@ check(
 );
 
 check(
-  'ReflectionScreen has canOpenLumi guard',
-  readSrc('src/screens/ReflectionScreen.js').includes('canOpenLumi'),
-  'ReflectionScreen missing canOpenLumi guard',
+  'A6: ReflectionScreen (Guardar no coração) NÃO é gateada por plano (grátis no MVP)',
+  !readSrc('src/screens/ReflectionScreen.js').includes('canOpenLumi') &&
+  !readSrc('src/screens/ReflectionScreen.js').includes('PremiumLockCard'),
+  'ReflectionScreen ainda trava "Guardar no coração" por plano — deve ser grátis no MVP',
 );
 
 check(
-  'LumiMomentScreen has canOpenMomentoLumi guard',
-  readSrc('src/screens/LumiMomentScreen.js').includes('canOpenMomentoLumi'),
-  'LumiMomentScreen missing canOpenMomentoLumi guard',
+  'A6: LumiMomentScreen (Momento com Beni) NÃO é gateado por plano (grátis no MVP)',
+  !readSrc('src/screens/LumiMomentScreen.js').includes('canOpenMomentoLumi') &&
+  !readSrc('src/screens/LumiMomentScreen.js').includes('PremiumLockCard'),
+  'LumiMomentScreen ainda trava "Momento com Beni" por plano — deve ser grátis no MVP',
 );
 
 check(
@@ -415,15 +417,16 @@ check(
 );
 
 check(
-  'ReflectionScreen passes story to canOpenLumi',
-  reflSrcS3.includes('canOpenLumi(story)'),
-  'ReflectionScreen missing canOpenLumi(story) call',
+  'A6: ReflectionScreen não chama canOpenLumi (Guardar no coração liberado)',
+  !reflSrcS3.includes('canOpenLumi'),
+  'ReflectionScreen ainda referencia canOpenLumi — gating removido no A6',
 );
 
 check(
-  'PostStoryHubScreen passes story to canOpenLumi',
-  postHubSrc.includes('canOpenLumi(story)'),
-  'PostStoryHubScreen missing canOpenLumi(story) call',
+  'A6: PostStoryHub "Guardar no coração" sem rótulo Plano Família (grátis no MVP)',
+  !postHubSrc.includes('canOpenLumi') &&
+  /title="Guardar no coração"[\s\S]{0,200}\+1 ⭐/.test(postHubSrc),
+  'PostStoryHub ainda rotula "Guardar no coração" como Plano Família',
 );
 
 // ── [39–40] Livrinho fix ─────────────────────────────────────────────────────
@@ -534,16 +537,16 @@ check(
 );
 
 check(
-  'canOpenMomentoLumi unchanged (always premium)',
-  acSourceS3.includes('export function canOpenMomentoLumi') &&
-    acSourceS3.includes('return hasMomentoLumiAccess()'),
-  'canOpenMomentoLumi may have been incorrectly modified',
+  'A6: hasMomentoLumiAccess é grátis no MVP (return true) — Momento com Beni não exige plano',
+  acSourceS3.includes('export function hasMomentoLumiAccess') &&
+    /export function hasMomentoLumiAccess\(\)\s*\{\s*return true;/.test(acSourceS3),
+  'hasMomentoLumiAccess não retorna true — Momento com Beni continuaria gateado',
 );
 
 check(
-  'LumiMomentScreen still uses canOpenMomentoLumi guard',
-  readSrc('src/screens/LumiMomentScreen.js').includes('canOpenMomentoLumi()'),
-  'LumiMomentScreen missing canOpenMomentoLumi() guard',
+  'A6: hasLumiAccessForStory é grátis no MVP (return true) — Guardar no coração não exige plano',
+  /export function hasLumiAccessForStory\(story\)\s*\{\s*return true;/.test(acSourceS3),
+  'hasLumiAccessForStory não retorna true — Guardar no coração continuaria gateado',
 );
 
 // ── [55–74] Sprint 4 — Audio infrastructure ──────────────────────────────────
@@ -2428,15 +2431,15 @@ check(
 );
 
 check(
-  'ReflectionScreen PremiumLockCard usa "Plano Família" (Bloco 1)',
-  reflSrc91.includes('Plano Família') && !reflSrc91.includes('Especial da Família'),
-  'ReflectionScreen PremiumLockCard deve usar "Plano Família"',
+  'A6: ReflectionScreen sem lock de "Plano Família" (Guardar no coração é grátis no MVP)',
+  !reflSrc91.includes('Plano Família') && !reflSrc91.includes('Especial da Família'),
+  'ReflectionScreen ainda contém copy de lock "Plano Família" — feature é grátis no MVP',
 );
 
 check(
-  'LumiMomentScreen PremiumLockCard usa "Plano Família" (Bloco 1)',
-  lumiMomSrc91.includes('Plano Família') && !lumiMomSrc91.includes('Especial da Família'),
-  'LumiMomentScreen PremiumLockCard deve usar "Plano Família"',
+  'A6: LumiMomentScreen sem lock de "Plano Família" (Momento com Beni é grátis no MVP)',
+  !lumiMomSrc91.includes('Plano Família') && !lumiMomSrc91.includes('Especial da Família'),
+  'LumiMomentScreen ainda contém copy de lock "Plano Família" — feature é grátis no MVP',
 );
 
 check(
@@ -8297,6 +8300,49 @@ check(
   'Algum serviço A5 usa AsyncStorage.clear — proibido',
 );
 
+// ════════════════════════════════════════════════════════════════════════════
+// Sprint Estabilização A — Bloco A6: plano e conquistas
+// Estrutural aqui; o comportamental (accessControl free + invariante de conquista)
+// roda no bloco assíncrono. Decisões: Guardar no coração e Momento com Beni são
+// GRÁTIS no MVP; "Primeira aventura" nunca fica atrás de uma conquista específica.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Sprint A6: plano e conquistas ──');
+
+const a6PlanCfg   = readSrc('src/data/planConfig.js');
+const a6AchSvc    = readSrc('src/services/achievementService.js');
+const a6AchData   = readSrc('src/data/achievements.js');
+const a6Qa        = readSrc('src/services/creatorQaMode.js');
+
+check(
+  'A6 copy: "Guardar no coração" e "Momento com Beni" estão no FREE_PLAN e NÃO no PREMIUM_PLAN',
+  (() => {
+    const freeBlock = a6PlanCfg.slice(a6PlanCfg.indexOf('FREE_PLAN'), a6PlanCfg.indexOf('PREMIUM_PLAN'));
+    const premBlock = a6PlanCfg.slice(a6PlanCfg.indexOf('PREMIUM_PLAN'), a6PlanCfg.indexOf('PLAN_PRICING'));
+    return freeBlock.includes('Guardar no coração') && freeBlock.includes('Momento com Beni') &&
+           !premBlock.includes('Guardar no coração') && !premBlock.includes('Momento com Beni');
+  })(),
+  'planConfig ainda vende Guardar no coração / Momento com Beni como exclusivos do Plano Família',
+);
+
+check(
+  'A6 conquistas: buildCtx deriva anyStoryComplete das flags de história e o retorna',
+  /const anyStoryComplete =[\s\S]{0,260}creationComplete[\s\S]{0,200}allStoriesComplete/.test(a6AchSvc) &&
+  /return \{[\s\S]*anyStoryComplete,[\s\S]*\}/.test(a6AchSvc),
+  'achievementService não computa/retorna anyStoryComplete',
+);
+
+check(
+  'A6 conquistas: first_story ("Primeira aventura") considera anyStoryComplete (não só completedStories)',
+  /id: 'first_story'[\s\S]{0,800}check: ctx => cnt\(ctx, 'completedStories'\) >= 1 \|\| flag\(ctx, 'anyStoryComplete'\)/.test(a6AchData),
+  'first_story.check não usa anyStoryComplete — risco de inconsistência com conquistas específicas',
+);
+
+check(
+  'A6 conta limpa: Modo Criador (QA) não fabrica progresso/desenhos/artes (só flag de permissão)',
+  !a6Qa.includes('@ptf_progress') && !a6Qa.includes('@ptf_drawing') && !a6Qa.includes('ptf_atelier'),
+  'creatorQaMode escreve dados de progresso — poderia herdar conquista indevida em conta limpa',
+);
+
 // ── A3 (assíncrono): round-trip REAL do reset (resetProgress agora usa getAllKeys).
 // O resumo só é impresso depois que o reset assíncrono terminar.
 (async () => {
@@ -8464,6 +8510,58 @@ check(
       `fallback=${fallbackPreview} n1=${n1} moved=${moved} n2=${n2}`);
   } catch (e) {
     check('A5 atelier: migração idempotente + fallback', false, String(e && e.message));
+  }
+
+  // ── A6 (comportamental): accessControl free + invariante de conquista ────────
+  // accessControl executado em sandbox (plano free, sem QA). Prova que os dois
+  // recursos ficam livres E que conteúdo premium (histórias) SEGUE gateado.
+  try {
+    const ac = a1LoadSandbox('src/services/accessControl.js',
+      { isCreatorQaModeEnabled: () => false,
+        getStoryPlan: (s) => (s && s.plan) || 'premium',
+        PLAN: { FREE: 'free', PREMIUM: 'premium', COMING_SOON: 'coming_soon' } },
+      ['hasMomentoLumiAccess', 'canOpenMomentoLumi', 'hasLumiAccessForStory', 'hasStoryAccess', 'isPremiumUser']);
+    const premiumStory = { id: 'david_goliath', plan: 'premium' };
+    const freeStory = { id: 'creation', plan: 'free' };
+    const momentoFree = ac.hasMomentoLumiAccess() === true && ac.canOpenMomentoLumi() === true;
+    const guardarFree = ac.hasLumiAccessForStory(premiumStory) === true && ac.hasLumiAccessForStory(freeStory) === true;
+    const premiumStillGated = ac.isPremiumUser() === false &&
+      ac.hasStoryAccess(premiumStory) === false && ac.hasStoryAccess(freeStory) === true;
+    check('A6 accessControl: Guardar no coração + Momento com Beni grátis p/ conta free; histórias premium SEGUEM gateadas',
+      momentoFree && guardarFree && premiumStillGated,
+      `momentoFree=${momentoFree} guardarFree=${guardarFree} premiumStillGated=${premiumStillGated}`);
+  } catch (e) {
+    check('A6 accessControl: gating grátis no MVP', false, String(e && e.message));
+  }
+
+  // Invariante de conquista: "Guardião da Criação" nunca acende sem "Primeira
+  // aventura"; conta limpa não herda conquista.
+  try {
+    const ach = a1LoadSandbox('src/data/achievements.js',
+      { colors: new Proxy({}, { get: () => '#000000' }) },
+      ['ACHIEVEMENTS']);
+    const find = id => ach.ACHIEVEMENTS.find(a => a.id === id);
+    const firstStory = find('first_story');
+    const creationAch = find('creation_complete');
+    const noahAch = find('noah_done');
+    // ctx "Criação concluída" como buildCtx produziria (anyStoryComplete derivado).
+    const ctxCreation = { creationComplete: true, anyStoryComplete: true, completedStories: 1 };
+    const bothFire = creationAch.check(ctxCreation) === true && firstStory.check(ctxCreation) === true;
+    // Invariante mesmo se a contagem travasse em 0: a flag garante first_story.
+    const ctxEdge = { creationComplete: true, anyStoryComplete: true, completedStories: 0 };
+    const invariant = creationAch.check(ctxEdge) === true && firstStory.check(ctxEdge) === true;
+    // Mesmo para outra história específica (Noé).
+    const ctxNoah = { noahComplete: true, anyStoryComplete: true, completedStories: 0 };
+    const noahInvariant = noahAch.check(ctxNoah) === true && firstStory.check(ctxNoah) === true;
+    // Conta limpa: nada acende.
+    const ctxClean = {};
+    const cleanOk = creationAch.check(ctxClean) === false && firstStory.check(ctxClean) === false &&
+                    noahAch.check(ctxClean) === false;
+    check('A6 conquistas: conquista específica de história nunca acende sem "Primeira aventura"; conta limpa não herda',
+      bothFire && invariant && noahInvariant && cleanOk,
+      `both=${bothFire} inv=${invariant} noah=${noahInvariant} clean=${cleanOk}`);
+  } catch (e) {
+    check('A6 conquistas: invariante first_story', false, String(e && e.message));
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

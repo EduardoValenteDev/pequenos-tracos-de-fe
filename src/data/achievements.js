@@ -123,7 +123,10 @@ export const ACHIEVEMENTS = [
     earned: 'Você ganhou ao completar sua primeira história.',
     color: colors.action,
     category: 'historias',
-    check: ctx => cnt(ctx, 'completedStories') >= 1,
+    // A6: acende quando QUALQUER história foi concluída de ponta a ponta — via
+    // contagem (completedStories) OU por qualquer flag de história específica
+    // (anyStoryComplete). Garante que "Guardião da Criação" nunca acenda sozinho.
+    check: ctx => cnt(ctx, 'completedStories') >= 1 || flag(ctx, 'anyStoryComplete'),
     progressLabel: ctx => `${Math.min(cnt(ctx, 'completedStories'), 1)} de 1 história`,
     progress: ctx => mk(ctx, 'completedStories', 1),
   },

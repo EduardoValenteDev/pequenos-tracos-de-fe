@@ -11,7 +11,6 @@ import { colors } from '../theme/colors';
 import { images } from '../assets/images';
 import SoundButton from '../components/SoundButton';
 import { isQuizDone, getReflection, isStoryBookOpened } from '../services/postStoryStorage';
-import { canOpenLumi } from '../services/accessControl';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
 import LockedStoryFallback from '../components/premium/LockedStoryFallback';
 
@@ -139,12 +138,13 @@ export default function PostStoryHubScreen({ route, navigation }) {
           />
 
           {/* ── Beni ── */}
+          {/* A6: "Guardar no coração" é grátis no MVP — sem rótulo Plano Família. */}
           <HubCard
             emoji="✨"
             title="Guardar no coração"
-            desc={canOpenLumi(story) ? 'Conte o que você aprendeu com essa história.' : 'Atividade Plano Família. Peça a um responsável.'}
-            cta={canOpenLumi(story) ? '+1 ⭐' : 'Plano Família'}
-            tagColor={canOpenLumi(story) ? pt.purple : '#F4B400'}
+            desc="Conte o que você aprendeu com essa história."
+            cta="+1 ⭐"
+            tagColor={pt.purple}
             done={reflectionDone}
             onPress={() => navigation.navigate('Reflection', { story })}
           />

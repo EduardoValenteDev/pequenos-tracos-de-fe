@@ -11,6 +11,9 @@ export const FREE_PLAN = {
     { emoji: '📖', label: '2 histórias gratuitas' },
     { emoji: '🧩', label: 'Quiz das histórias gratuitas' },
     { emoji: '🎨', label: 'Ateliê com 3 artes salvas' },
+    // A6: grátis no MVP — NÃO são exclusivos do Plano Família.
+    { emoji: '💛', label: 'Guardar no coração' },
+    { emoji: '🌙', label: 'Momento com Beni' },
   ],
 };
 
@@ -22,8 +25,8 @@ export const PREMIUM_PLAN = {
     { emoji: '🔍', label: 'Trilha Descobridores (6 histórias)' },
     { emoji: '📖', label: 'Trilha Jovens da Fé (6 histórias)' },
     { emoji: '🧩', label: 'Quiz de todas as histórias' },
-    { emoji: '✨', label: 'Guardar no coração' },
-    { emoji: '🌙', label: 'Momento com Beni' },
+    // A6: as reflexões guiadas saíram daqui — são grátis no MVP (ficam na lista
+    // do plano Gratuito), não são benefícios exclusivos do Plano Família.
     { emoji: '🎨', label: 'Ateliê com artes ilimitadas' },
   ],
   comingSoonItems: [

@@ -44,6 +44,16 @@ export async function buildCtx(progressMap, storiesList, options = {}) {
   const descobridoresComplete = descobridoresIds.every(makeComplete);
   const jovensDaFeComplete = jovensDaFeIds.every(makeComplete);
   const allStoriesComplete = completedStories >= storiesList.filter(s => (s.totalCenas ?? 0) > 0).length && storiesList.filter(s => (s.totalCenas ?? 0) > 0).length > 0;
+
+  // A6 — invariante de consistência: "Primeira aventura" (first_story) deve acender
+  // sempre que QUALQUER conquista específica de "história concluída" acender. Como
+  // completedStories e as flags por história derivam do MESMO predicado
+  // (getCount >= totalCenas), isto já é verdade hoje; tornamos explícito para
+  // travar a relação contra regressões futuras. Conta limpa → tudo false.
+  const anyStoryComplete =
+    completedStories >= 1 ||
+    creationComplete || noahComplete || davidComplete || jesusComplete ||
+    descobridoresComplete || jovensDaFeComplete || allStoriesComplete;
   const davidScene1Done = !!(progressMap['david_goliath'] ?? {})[
     storiesList.find(s => s.id === 'david_goliath')?.cenas[0]?.id
   ];
@@ -110,6 +120,7 @@ export async function buildCtx(progressMap, storiesList, options = {}) {
     descobridoresComplete,
     jovensDaFeComplete,
     allStoriesComplete,
+    anyStoryComplete,
     davidScene1Done,
     jesusScene1Done,
     davidAnyScene,

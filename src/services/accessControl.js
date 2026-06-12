@@ -93,16 +93,20 @@ export function hasLumiAccess() {
   return isPremiumUser();
 }
 
-/** Converse com Lumi (reflexão pós-história) — story-aware. Gratuito em histórias free. */
+/**
+ * "Guardar no coração" (reflexão curta pós-história) — GRÁTIS no MVP (decisão A6).
+ * NÃO é exclusivo do Plano Família e não deve ser gateado para conta gratuita.
+ * Mantém o parâmetro `story` para compatibilidade de assinatura e flexibilidade
+ * futura; a estrutura de plano (isPremiumUser) segue disponível para conteúdo
+ * realmente premium (histórias/quiz premium, Ateliê ilimitado).
+ */
 export function hasLumiAccessForStory(story) {
-  if (!story) return isPremiumUser();
-  if (getStoryPlan(story) === PLAN.FREE) return true;
-  return isPremiumUser();
+  return true;
 }
 
-/** Momento com Lumi exige Premium. */
+/** "Momento com Beni" — GRÁTIS no MVP (decisão A6). Não exige Premium. */
 export function hasMomentoLumiAccess() {
-  return isPremiumUser();
+  return true;
 }
 
 /** Devocional exige Premium. */
