@@ -8506,6 +8506,58 @@ check(
   'storyId duplicado no manifesto de cenas',
 );
 
+// ════════════════════════════════════════════════════════════════════════════
+// Beni mascote OFICIAL — registro/poses novas, sem referência a asset apagado.
+// (Pega regressão de require para arquivo inexistente, que doctor/smoke não
+// detectam por não fazerem bundle.)
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Beni mascote oficial ──');
+
+const beniImgSrc   = readSrc('src/assets/mascot/beniImages.js');
+const beniMascotSrc = readSrc('src/components/common/BeniMascotImage.js');
+const beniAssetsSrc = readSrc('src/assets/beniAssets.js');
+const beniAvatarSrc = readSrc('src/components/beni/BeniAvatar.js');
+const BENI_OFFICIAL = ['01_beni_avatar_base', '02_beni_acenando', '03_beni_celebrando',
+  '04_beni_com_bau', '05_beni_ensinando', '06_beni_orando', '07_beni_atelie'];
+
+check(
+  'Beni: beniImages.js registra as 7 poses oficiais e cada PNG existe no disco',
+  BENI_OFFICIAL.every(f => beniImgSrc.includes(`${f}.png`) &&
+    fs.existsSync(path.join(root, `assets/mascot/beni/${f}.png`))) &&
+  beniImgSrc.includes('avatarBase') && beniImgSrc.includes('orando') && beniImgSrc.includes('comBau'),
+  'beniImages não referencia as 7 poses oficiais ou falta arquivo no disco',
+);
+
+check(
+  'Beni: nenhum source referencia os assets antigos apagados (beni_main/idle/...)',
+  (() => {
+    const hits = [];
+    for (const rel of ['src/assets/beniAssets.js', 'src/components/beni/BeniAvatar.js',
+                       'src/assets/mascot/beniImages.js', 'src/components/common/BeniMascotImage.js']) {
+      if (/beni_(main|idle|pointing|celebrating|artist|thinking|reading)\.png/.test(readSrc(rel))) hits.push(rel);
+    }
+    return hits.length === 0;
+  })(),
+  'Ainda há require para asset antigo de Beni apagado (quebraria o bundle)',
+);
+
+check(
+  'Beni: BeniMascotImage tem default avatarBase + fallback seguro + resizeMode contain, sem require dinâmico',
+  beniMascotSrc.includes("variant = BENI_DEFAULT_VARIANT") &&
+  beniMascotSrc.includes("BENI_IMAGES[variant] || BENI_IMAGES[BENI_DEFAULT_VARIANT]") &&
+  beniMascotSrc.includes("resizeMode = 'contain'") &&
+  !/require\([^'")]/.test(beniMascotSrc),
+  'BeniMascotImage sem default/fallback seguro ou usa require dinâmico',
+);
+
+check(
+  'Beni: beniAssets (preload) e BeniAvatar consomem o registro central (sem require literal de mascote)',
+  beniAssetsSrc.includes("from './mascot/beniImages'") &&
+  beniAvatarSrc.includes("from '../../assets/mascot/beniImages'") &&
+  !/require\(.*assets\/mascot\/beni\//.test(beniAvatarSrc),
+  'BeniAvatar/beniAssets não usam o registro central de imagens do Beni',
+);
+
 // ── A3 (assíncrono): round-trip REAL do reset (resetProgress agora usa getAllKeys).
 // O resumo só é impresso depois que o reset assíncrono terminar.
 (async () => {

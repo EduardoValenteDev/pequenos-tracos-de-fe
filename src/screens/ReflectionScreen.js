@@ -107,7 +107,7 @@ export default function ReflectionScreen({ route, navigation }) {
           style={[styles.header, { paddingTop: 12 }]}
         >
           <View style={styles.headerContent}>
-            <BeniAvatar variant="thinking" size="medium" style={styles.headerBeni} />
+            <BeniAvatar variant="praying" size="medium" style={styles.headerBeni} />
             <Text style={styles.headerTitle}>Guardar no coração</Text>
             <Text style={styles.headerStory} numberOfLines={1}>
               Uma lembrança do coração, não uma prova. 💜

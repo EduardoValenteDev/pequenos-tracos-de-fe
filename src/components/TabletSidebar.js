@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { AVATARS, DEFAULT_AVATAR_ID } from '../data/avatars';
 import { useProfile } from '../context/ProfileContext';
+import BeniMascotImage from './common/BeniMascotImage';
 
 const TABS = [
   { name: 'Início',     emoji: '🏠' },
@@ -45,7 +46,7 @@ export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxSt
             <Text style={styles.avatarEmoji}>{avatar?.emoji ?? '⭐'}</Text>
           </View>
           <View style={styles.lumiBadge}>
-            <Text style={styles.lumiEmoji}>🐑</Text>
+            <BeniMascotImage variant="avatarBase" size={22} accessibilityLabel="Beni" />
           </View>
         </View>
         <Text style={styles.greeting} numberOfLines={1}>{greeting}</Text>
@@ -129,7 +130,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.primary + '40',
   },
-  lumiEmoji: { fontSize: 16 },
   greeting: {
     fontFamily: 'FredokaOne',
     fontSize: 15,

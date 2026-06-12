@@ -194,7 +194,7 @@ export default function BeniChestScreen({ navigation, route }) {
             <LinearGradient colors={['#FFF1C9', '#F6E2FB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
               <View style={styles.heroTop}>
                 <Text style={styles.heroChest}>🧰</Text>
-                <BeniAvatar variant="celebrating" size="medium" />
+                <BeniAvatar variant="chest" size="medium" />
               </View>
               <Text style={styles.heroTitle}>Baú do Beni</Text>
               <Text style={styles.heroSub}>Suas cartinhas guardam lembranças das aventuras que você viveu com Beni.</Text>

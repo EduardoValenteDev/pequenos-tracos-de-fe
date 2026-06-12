@@ -1,26 +1,28 @@
 /**
- * beniAssets.js — Manifest dos assets de imagem do mascote Beni.
+ * beniAssets.js — Manifest de pré-carregamento dos assets do mascote Beni.
  *
- * Usado pelo serviço de pré-carregamento (assetPreloadService) para aquecer o
- * cache do Beni no início do app. Os mesmos arquivos são consumidos por
- * BeniAvatar; o Metro deduplica módulos por caminho, então pré-carregar aqui
- * aquece exatamente o mesmo asset usado na renderização.
+ * Usado pelo assetPreloadService para aquecer o cache do Beni no início do app.
+ * As imagens reais vivem em beniImages.js (registro central oficial); aqui só
+ * mapeamos os nomes legados de pose → as novas poses oficiais (compatibilidade),
+ * sem duplicar require. O Metro deduplica por caminho, então pré-carregar a
+ * lista oficial aquece exatamente os mesmos assets usados na renderização.
  *
- * Apenas os 7 arquivos físicos (variants happy/locked/parent/neutral reusam
- * idle/thinking/main, já cobertos abaixo). Requires estáticos — sem caminho
- * dinâmico.
+ * Requires estáticos (em beniImages.js) — sem caminho dinâmico.
  */
+import { BENI_IMAGES, BENI_IMAGE_LIST } from './mascot/beniImages';
+
+// Mapa de COMPATIBILIDADE: nomes antigos de pose → novas poses oficiais.
 export const BENI_ASSETS = {
-  main:        require('../../assets/mascot/beni/beni_main.png'),
-  idle:        require('../../assets/mascot/beni/beni_idle.png'),
-  pointing:    require('../../assets/mascot/beni/beni_pointing.png'),
-  celebrating: require('../../assets/mascot/beni/beni_celebrating.png'),
-  artist:      require('../../assets/mascot/beni/beni_artist.png'),
-  thinking:    require('../../assets/mascot/beni/beni_thinking.png'),
-  reading:     require('../../assets/mascot/beni/beni_reading.png'),
+  main:        BENI_IMAGES.avatarBase,
+  idle:        BENI_IMAGES.avatarBase,
+  pointing:    BENI_IMAGES.ensinando,
+  celebrating: BENI_IMAGES.celebrando,
+  artist:      BENI_IMAGES.atelie,
+  thinking:    BENI_IMAGES.ensinando,
+  reading:     BENI_IMAGES.ensinando,
 };
 
-// Exports nomeados de conveniência (mesmos módulos do mapa acima).
+// Exports nomeados de conveniência (compatibilidade com imports existentes).
 export const beniMain        = BENI_ASSETS.main;
 export const beniIdle        = BENI_ASSETS.idle;
 export const beniPointing    = BENI_ASSETS.pointing;
@@ -29,4 +31,5 @@ export const beniArtist      = BENI_ASSETS.artist;
 export const beniThinking    = BENI_ASSETS.thinking;
 export const beniReading     = BENI_ASSETS.reading;
 
-export const BENI_ASSET_LIST = Object.values(BENI_ASSETS);
+/** Pré-carrega os 7 arquivos reais (poses oficiais). */
+export const BENI_ASSET_LIST = BENI_IMAGE_LIST;

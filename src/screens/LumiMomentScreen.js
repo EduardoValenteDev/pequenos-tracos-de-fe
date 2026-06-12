@@ -67,7 +67,7 @@ export default function LumiMomentScreen({ navigation }) {
             )}
           </View>
           <View style={styles.headerContent}>
-            <BeniAvatar variant="thinking" size="medium" style={styles.headerBeni} />
+            <BeniAvatar variant="praying" size="medium" style={styles.headerBeni} />
             <Text style={styles.headerTitle}>Momento com Beni</Text>
             {starGranted ? (
               <Text style={styles.headerStar}>+1 ⭐ estrela ganha hoje!</Text>

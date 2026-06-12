@@ -1,34 +1,39 @@
 /**
  * BeniAvatar — mascote oficial Beni, o cordeirinho guia bíblico infantil.
  *
- * Usa as imagens reais do mascote em assets/mascot/beni/.
- * Mantém fallback com emoji 🐑 para variants desconhecidas.
+ * Usa as 7 poses oficiais do registro central beniImages.js (assets/mascot/beni/
+ * 0N_beni_*.png). Mantém os nomes de variant legados mapeados para as novas
+ * poses, então todas as telas existentes continuam funcionando com a nova arte.
  *
- * Disponíveis:
- *   assets/mascot/beni/beni_main.png
- *   assets/mascot/beni/beni_idle.png
- *   assets/mascot/beni/beni_pointing.png
- *   assets/mascot/beni/beni_celebrating.png
- *   assets/mascot/beni/beni_artist.png
- *   assets/mascot/beni/beni_thinking.png
- *   assets/mascot/beni/beni_reading.png
+ * Para uma imagem simples (sem moldura circular), use BeniMascotImage.
  */
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
+import { BENI_IMAGES } from '../../assets/mascot/beniImages';
 
-/* ── Mapa estático de imagens (require deve ser literal no Metro) ── */
+/* ── Mapa estático variant → pose oficial (require literal vem de beniImages) ──
+   Legado (main/idle/happy/pointing/...) + semânticos novos (waving/teaching/
+   praying/chest) → as 7 poses reais. */
 const VARIANT_IMAGE = {
-  main:        require('../../../assets/mascot/beni/beni_main.png'),
-  idle:        require('../../../assets/mascot/beni/beni_idle.png'),
-  happy:       require('../../../assets/mascot/beni/beni_idle.png'),
-  pointing:    require('../../../assets/mascot/beni/beni_pointing.png'),
-  celebrating: require('../../../assets/mascot/beni/beni_celebrating.png'),
-  artist:      require('../../../assets/mascot/beni/beni_artist.png'),
-  thinking:    require('../../../assets/mascot/beni/beni_thinking.png'),
-  reading:     require('../../../assets/mascot/beni/beni_reading.png'),
-  locked:      require('../../../assets/mascot/beni/beni_thinking.png'),
-  parent:      require('../../../assets/mascot/beni/beni_main.png'),
-  neutral:     require('../../../assets/mascot/beni/beni_idle.png'),
+  // legado
+  main:        BENI_IMAGES.avatarBase,
+  idle:        BENI_IMAGES.avatarBase,
+  happy:       BENI_IMAGES.acenando,
+  pointing:    BENI_IMAGES.ensinando,
+  celebrating: BENI_IMAGES.celebrando,
+  artist:      BENI_IMAGES.atelie,
+  thinking:    BENI_IMAGES.ensinando,
+  reading:     BENI_IMAGES.ensinando,
+  locked:      BENI_IMAGES.avatarBase,
+  parent:      BENI_IMAGES.avatarBase,
+  neutral:     BENI_IMAGES.avatarBase,
+  // semânticos (poses oficiais por nome direto)
+  avatarBase:  BENI_IMAGES.avatarBase,
+  waving:      BENI_IMAGES.acenando,
+  teaching:    BENI_IMAGES.ensinando,
+  praying:     BENI_IMAGES.orando,
+  chest:       BENI_IMAGES.comBau,
+  atelie:      BENI_IMAGES.atelie,
 };
 
 const SIZES = {
