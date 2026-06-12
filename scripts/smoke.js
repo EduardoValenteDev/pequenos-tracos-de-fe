@@ -8601,6 +8601,41 @@ check(
     check('A3 reset: resetProgress round-trip assíncrono', false, String(e && e.message));
   }
 
+  // ── A1.4b (assíncrono): round-trip REAL do postStoryStorage (serviço principal) ──
+  // Exercita save→read de quiz, reflexão (objeto serializado), livrinho, estrelas
+  // bônus (acúmulo) e o status agregado — comportamento, não string.
+  try {
+    const { store, api } = a1MockAsyncStorage();
+    const ps = a1LoadSandbox('src/services/postStoryStorage.js',
+      { AsyncStorage: api },
+      ['markQuizDone', 'isQuizDone', 'saveReflection', 'getReflection',
+       'markStoryBookOpened', 'isStoryBookOpened', 'addBonusStars', 'getBonusStars',
+       'getPostStoryStatus']);
+    const cleanStart = (await ps.isQuizDone('noah')) === false &&
+      (await ps.getReflection('noah')) === null &&
+      (await ps.getBonusStars()) === 0;
+    await ps.markQuizDone('noah');
+    const quizOk = (await ps.isQuizDone('noah')) === true &&
+      (await ps.isQuizDone('david_goliath')) === false; // isolado por história
+    await ps.saveReflection('noah', { feeling: 'feliz', keep: 'amar a Deus' });
+    const refl = await ps.getReflection('noah');
+    const reflOk = !!refl && refl.feeling === 'feliz' && refl.keep === 'amar a Deus'; // objeto round-trip
+    await ps.markStoryBookOpened('noah');
+    const bookOk = (await ps.isStoryBookOpened('noah')) === true;
+    await ps.addBonusStars(2); await ps.addBonusStars(3);
+    const starsOk = (await ps.getBonusStars()) === 5; // acúmulo real
+    const status = await ps.getPostStoryStatus('noah');
+    const statusOk = status.quizDone && status.reflectionDone && status.storyBookOpened &&
+      status.hasPendingRewards === false;
+    const keysOk = store.has('@ptf_quiz_done_noah') && store.has('@ptf_reflection_noah') &&
+      store.has('@ptf_storybook_opened_noah') && store.has('@ptf_bonus_stars');
+    check('A1 storage: postStoryStorage round-trip real (quiz/reflexão/livrinho/estrelas + status agregado)',
+      cleanStart && quizOk && reflOk && bookOk && starsOk && statusOk && keysOk,
+      `clean=${cleanStart} quiz=${quizOk} refl=${reflOk} book=${bookOk} stars=${starsOk} status=${statusOk} keys=${keysOk}`);
+  } catch (e) {
+    check('A1 storage: postStoryStorage round-trip', false, String(e && e.message));
+  }
+
   // ── A5 (assíncrono): round-trip REAL de blobs com fileBlobStore mockado ──────
   // O FS nativo não roda em Node, então injetamos um fileBlobStore em memória
   // (mesmo contrato: uri determinística por subdir+filename, guarda base64, lê de
