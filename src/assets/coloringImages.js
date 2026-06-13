@@ -2,67 +2,41 @@
  * coloringImages.js — Mapa central de imagens de colorir.
  *
  * Indexado por [storyId][sceneId] — storyId é string (igual a stories.js), sceneId numérico.
- *
  * Todos os require() são literais (Metro Bundler exige estáticos).
  *
- * Pastas normalizadas usadas para evitar problemas com espaços e
- * acentos no Metro Bundler no Windows:
- *   noah         → assets/stories/noah/colorir/
- *   david_goliath  → assets/stories/david_goliath/colorir/
- *   jesus_children → assets/stories/jesus_children/colorir/
+ * TESTE TEMPORÁRIO: apenas a história `creation` tem pacote de colorir ATIVO.
+ * As imagens estão em assets/stories/creation/coloring/ no formato 16:9
+ * (scene_01.png … scene_10.png) — novo padrão temporário em teste.
+ * NÃO converter para 4:5 nem redimensionar.
+ *
+ * Histórias sem pacote ativo (ex.: noah, david_goliath, jesus_children) retornam
+ * null em getColoringImage → ColoringScreen exibe o estado de imagem ausente já
+ * existente (sem crash, sem tela branca, sem fallback indevido).
  */
 
 const coloringImages = {
 
-  // ── noah: Noé e o Arco-Íris ────────────────────────────────────────
-  noah: {
-    1:  require('../../assets/stories/noah/colorir/noe_scene_01_coloring.png'),
-    2:  require('../../assets/stories/noah/colorir/noe_scene_02_coloring.png'),
-    3:  require('../../assets/stories/noah/colorir/noe_scene_03_coloring.png'),
-    4:  require('../../assets/stories/noah/colorir/noe_scene_04_coloring.png'),
-    5:  require('../../assets/stories/noah/colorir/noe_scene_05_coloring.png'),
-    6:  require('../../assets/stories/noah/colorir/noe_scene_06_coloring.png'),
-    7:  require('../../assets/stories/noah/colorir/noe_scene_07_coloring.png'),
-    8:  require('../../assets/stories/noah/colorir/noe_scene_08_coloring.png'),
-    9:  require('../../assets/stories/noah/colorir/noe_scene_09_coloring.png'),
-    10: require('../../assets/stories/noah/colorir/noe_scene_10_coloring.png'),
-  },
-
-  // ── david_goliath: Davi e Golias ───────────────────────────────────
-  david_goliath: {
-    1:  require('../../assets/stories/david_goliath/colorir/davi_scene_01_coloring.png'),
-    2:  require('../../assets/stories/david_goliath/colorir/davi_scene_02_coloring.png'),
-    3:  require('../../assets/stories/david_goliath/colorir/davi_scene_03_coloring.png'),
-    4:  require('../../assets/stories/david_goliath/colorir/davi_scene_04_coloring.png'),
-    5:  require('../../assets/stories/david_goliath/colorir/davi_scene_05_coloring.png'),
-    6:  require('../../assets/stories/david_goliath/colorir/davi_scene_06_coloring.png'),
-    7:  require('../../assets/stories/david_goliath/colorir/davi_scene_07_coloring.png'),
-    8:  require('../../assets/stories/david_goliath/colorir/davi_scene_08_coloring.png'),
-    9:  require('../../assets/stories/david_goliath/colorir/davi_scene_09_coloring.png'),
-    10: require('../../assets/stories/david_goliath/colorir/davi_scene_10_coloring.png'),
-  },
-
-  // ── jesus_children: Jesus e as Crianças ───────────────────────────
-  jesus_children: {
-    1:  require('../../assets/stories/jesus_children/colorir/jesus_children_scene_01_coloring.png'),
-    2:  require('../../assets/stories/jesus_children/colorir/jesus_children_scene_02_coloring.png'),
-    3:  require('../../assets/stories/jesus_children/colorir/jesus_children_scene_03_coloring.png'),
-    4:  require('../../assets/stories/jesus_children/colorir/jesus_children_scene_04_coloring.png'),
-    5:  require('../../assets/stories/jesus_children/colorir/jesus_children_scene_05_coloring.png'),
-    6:  require('../../assets/stories/jesus_children/colorir/jesus_children_scene_06_coloring.png'),
-    7:  require('../../assets/stories/jesus_children/colorir/jesus_children_scene_07_coloring.png'),
-    8:  require('../../assets/stories/jesus_children/colorir/jesus_children_scene_08_coloring.png'),
-    9:  require('../../assets/stories/jesus_children/colorir/jesus_children_scene_09_coloring.png'),
-    10: require('../../assets/stories/jesus_children/colorir/jesus_children_scene_10_coloring.png'),
+  // ── creation: A Criação (pacote de colorir em teste — formato 16:9) ──────
+  creation: {
+    1:  require('../../assets/stories/creation/coloring/scene_01.png'),
+    2:  require('../../assets/stories/creation/coloring/scene_02.png'),
+    3:  require('../../assets/stories/creation/coloring/scene_03.png'),
+    4:  require('../../assets/stories/creation/coloring/scene_04.png'),
+    5:  require('../../assets/stories/creation/coloring/scene_05.png'),
+    6:  require('../../assets/stories/creation/coloring/scene_06.png'),
+    7:  require('../../assets/stories/creation/coloring/scene_07.png'),
+    8:  require('../../assets/stories/creation/coloring/scene_08.png'),
+    9:  require('../../assets/stories/creation/coloring/scene_09.png'),
+    10: require('../../assets/stories/creation/coloring/scene_10.png'),
   },
 
 };
 
 /**
  * Retorna a imagem de colorir para uma história + cena, ou null se não disponível.
- * ColoringScreen exibe placeholder quando null é retornado.
+ * ColoringScreen exibe o estado de imagem ausente quando null é retornado.
  *
- * @param {string} storyId  - story.id de stories.js ('noah', 'david_goliath', 'jesus_children')
+ * @param {string} storyId  - story.id de stories.js (ativo no teste: 'creation')
  * @param {number} sceneId  - cena.id de stories.js (1–10)
  * @returns {object|null}   - resultado de require() ou null
  */

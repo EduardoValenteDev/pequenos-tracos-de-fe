@@ -7944,9 +7944,11 @@ a1CheckRequiresExist('A1 mídia: capas — todo require aponta para arquivo exis
   let ok = true, detail = '';
   for (const id of Object.keys(col)) {
     const reqs = col[id];
-    const fm = reqs[0].p.match(/assets\/stories\/([^/]+)\/colorir\//);
+    // Aceita a pasta legada 'colorir' e a nova 'coloring' (creation, teste 16:9).
+    const fm = reqs[0].p.match(/assets\/stories\/([^/]+)\/(colorir|coloring)\//);
     const folder = fm ? fm[1] : id;
-    const dir = path.join(root, 'assets/stories', folder, 'colorir');
+    const subdir = fm ? fm[2] : 'colorir';
+    const dir = path.join(root, 'assets/stories', folder, subdir);
     const disk = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.png')).length : 0;
     if (reqs.length !== disk) { ok = false; detail += `${id}: manifest ${reqs.length} ≠ disco ${disk}; `; }
   }
