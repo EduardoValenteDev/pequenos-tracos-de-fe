@@ -73,6 +73,34 @@ const coloringImages = {
     10: require('../../assets/stories/jesus_children/colorir/scene_10.png'),
   },
 
+  // ── daniel_lions: Daniel e os Leões ──────────────────────────────────────
+  daniel_lions: {
+    1:  require('../../assets/stories/daniel_lions/coloring/scene_01.png'),
+    2:  require('../../assets/stories/daniel_lions/coloring/scene_02.png'),
+    3:  require('../../assets/stories/daniel_lions/coloring/scene_03.png'),
+    4:  require('../../assets/stories/daniel_lions/coloring/scene_04.png'),
+    5:  require('../../assets/stories/daniel_lions/coloring/scene_05.png'),
+    6:  require('../../assets/stories/daniel_lions/coloring/scene_06.png'),
+    7:  require('../../assets/stories/daniel_lions/coloring/scene_07.png'),
+    8:  require('../../assets/stories/daniel_lions/coloring/scene_08.png'),
+    9:  require('../../assets/stories/daniel_lions/coloring/scene_09.png'),
+    10: require('../../assets/stories/daniel_lions/coloring/scene_10.png'),
+  },
+
+  // ── jonah_big_fish: Jonas e o Grande Peixe ───────────────────────────────
+  jonah_big_fish: {
+    1:  require('../../assets/stories/jonah_big_fish/coloring/scene_01.png'),
+    2:  require('../../assets/stories/jonah_big_fish/coloring/scene_02.png'),
+    3:  require('../../assets/stories/jonah_big_fish/coloring/scene_03.png'),
+    4:  require('../../assets/stories/jonah_big_fish/coloring/scene_04.png'),
+    5:  require('../../assets/stories/jonah_big_fish/coloring/scene_05.png'),
+    6:  require('../../assets/stories/jonah_big_fish/coloring/scene_06.png'),
+    7:  require('../../assets/stories/jonah_big_fish/coloring/scene_07.png'),
+    8:  require('../../assets/stories/jonah_big_fish/coloring/scene_08.png'),
+    9:  require('../../assets/stories/jonah_big_fish/coloring/scene_09.png'),
+    10: require('../../assets/stories/jonah_big_fish/coloring/scene_10.png'),
+  },
+
 };
 
 /**
