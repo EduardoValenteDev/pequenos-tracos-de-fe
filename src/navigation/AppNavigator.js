@@ -13,6 +13,7 @@ import SplashScreen from '../screens/SplashScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import HomeScreen from '../screens/HomeScreen';
 import StoriesScreen from '../screens/StoriesScreen';
+import AdventureMapScreen from '../screens/AdventureMapScreen';
 import StoryDetailScreen from '../screens/StoryDetailScreen';
 import NarrationScreen from '../screens/NarrationScreen';
 import ColoringScreen from '../screens/ColoringScreen';
@@ -90,7 +91,9 @@ function BackBtn({ navigation, onPress }) {
 // Definição centralizada das abas — única fonte de verdade para mobile e tablet
 const TAB_DEFS = [
   { name: 'Início',     faithIcon: 'home',       component: HomeScreen },
-  { name: 'Aventuras',  faithIcon: 'adventures', component: StoriesScreen, defaultParams: { nivel: 'pequeninos' } },
+  // M1 Mapa Pergaminho: a aba Aventuras passa a renderizar o mapa vertical.
+  // StoriesScreen segue disponível na rota de stack 'Stories' (fallback reversível).
+  { name: 'Aventuras',  faithIcon: 'adventures', component: AdventureMapScreen },
   { name: 'Ateliê',     faithIcon: 'atelier',    component: AtelierScreen },
   { name: 'Estrelinhas', faithIcon: 'trophies',   component: TrophiesScreen },
   { name: 'Perfil',     faithIcon: 'profile',    component: ProfileScreen },
