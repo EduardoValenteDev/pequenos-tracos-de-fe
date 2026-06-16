@@ -2,13 +2,15 @@
  * progressResetService — reset seguro de progresso da criança.
  *
  * REGRAS CRÍTICAS:
- * - Usa whitelist explícita + um prefixo dinâmico controlado. Nunca AsyncStorage.clear.
+ * - Usa whitelist explícita + prefixos dinâmicos controlados. Nunca AsyncStorage.clear.
  * - LIMPA o progresso e os estados de experiência: cenas/quiz/reflexão/Livrinho,
- *   estrelas bônus, conquistas vistas, Baú visto, Cultinho e Momentos com Beni
- *   (diários + flag permanente).
- * - NUNCA remove as criações da criança: artes do Ateliê, desenhos/pinturas de
- *   colorir, perfil, plano e configurações ficam fora da whitelist e do prefixo.
- *   Apagar artes é uma AÇÃO SEPARADA (Galeria / "Apagar todos os dados").
+ *   estrelas bônus, conquistas vistas, Baú visto, Cultinho, Momentos com Beni
+ *   (diários + flag permanente) e o VÍNCULO de colorir por cena
+ *   (`@ptf_drawing_*` — a marca "já colorei esta cena"). Assim, após o reset uma
+ *   cena não aparece mais como já colorida.
+ * - PRESERVA as criações guardadas: artes salvas na Galeria do Ateliê
+ *   (`ptf_atelier_arts_*`), perfil, plano e configurações ficam fora da whitelist
+ *   e dos prefixos. Apagar a Galeria é uma AÇÃO SEPARADA ("Apagar todos os dados").
  * - Deve ser chamado apenas da Área dos Pais, após confirmação dupla.
  * - Chamar refreshProgress() externamente após este serviço completar.
  */
@@ -22,6 +24,12 @@ const STORY_IDS = stories.map(s => s.id);
 // não deixar chaves órfãs acumulando por dia. Esse prefixo é específico do
 // Momento e não alcança desenhos nem artes da criança (preservados).
 const LUMI_MOMENT_PREFIX = '@ptf_lumi_moment_';
+
+// Estado de colorir por cena (`@ptf_drawing_s<story>_c<scene>`) — é VÍNCULO de
+// progresso ("já colorei esta cena"), removido dinamicamente no reset para a
+// cena não ficar marcada como colorida. As artes salvas na Galeria do Ateliê
+// (`ptf_atelier_arts_*`) NÃO têm este prefixo e são preservadas.
+const DRAWING_PREFIX = '@ptf_drawing_';
 
 function buildProgressWhitelist() {
   const keys = [];
@@ -71,16 +79,20 @@ export function getResettableKeys() {
 export async function resetProgress() {
   const staticKeys = buildProgressWhitelist();
 
-  // Chaves diárias dinâmicas do Momento com Beni (`@ptf_lumi_moment_<date>`).
-  let dailyLumiKeys = [];
+  // Chaves dinâmicas por prefixo: Momento com Beni diário (`@ptf_lumi_moment_<date>`)
+  // e vínculo de colorir por cena (`@ptf_drawing_s<story>_c<scene>`).
+  // A Galeria do Ateliê (`ptf_atelier_arts_*`) NÃO casa estes prefixos → preservada.
+  let dynamicKeys = [];
   try {
     const all = await AsyncStorage.getAllKeys();
-    dailyLumiKeys = (all || []).filter(k => k.startsWith(LUMI_MOMENT_PREFIX));
+    dynamicKeys = (all || []).filter(
+      k => k.startsWith(LUMI_MOMENT_PREFIX) || k.startsWith(DRAWING_PREFIX),
+    );
   } catch {
     // Defensivo: se getAllKeys falhar, segue só com a whitelist estática.
   }
 
-  const keys = [...new Set([...staticKeys, ...dailyLumiKeys])];
+  const keys = [...new Set([...staticKeys, ...dynamicKeys])];
   await AsyncStorage.multiRemove(keys);
   return { removed: keys.length, keys };
 }

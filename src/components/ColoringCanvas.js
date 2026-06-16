@@ -1,6 +1,8 @@
 import React, { forwardRef, useImperativeHandle, useRef, useMemo, useEffect, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Image, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export const ERASER_COLOR = '__ERASER__';
 
@@ -507,7 +509,7 @@ if(imgUri){
    React Native component
 ────────────────────────────────────────────────────────────────── */
 const ColoringCanvas = forwardRef(function ColoringCanvas(
-  { selectedColor = '#FF0000', imageSource = null, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected, onReadyChange },
+  { selectedColor = '#FF0000', imageSource = null, storyId = null, sceneNumber = null, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected, onReadyChange },
   ref,
 ) {
   const webViewRef = useRef(null);
@@ -520,38 +522,57 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
   const [imageDataUrl, setImageDataUrl] = useState(null);
   const [retryKey, setRetryKey] = useState(0);
 
-  // Pre-fetch image as base64 data URL so the WebView receives a self-contained
-  // data URL and never needs cross-origin access to the Metro dev server or
-  // native asset resolver.
-  // retryKey is a dep so handleRetry triggers a fresh fetch attempt.
+  // Carrega a lineart como data URL base64 de forma CONFIÁVEL via expo-asset +
+  // expo-file-system. Evita `fetch().blob()` + FileReader (instável no React
+  // Native/Hermes), que falhava silenciosamente → canvas branco. O WebView recebe
+  // um data URL self-contained (sem depender do dev server nem do file:// no iOS).
+  // retryKey é dep para o "Tentar novamente" forçar nova tentativa.
   useEffect(() => {
     if (!imageSource) { setImageDataUrl(null); return; }
     let cancelled = false;
-    const uri = Image.resolveAssetSource(imageSource).uri;
-    if (__DEV__) console.log('[ColoringCanvas] fetching uri len=', uri.length);
     (async () => {
       try {
-        const resp = await fetch(uri);
-        const blob = await resp.blob();
-        const dataUrl = await new Promise((res, rej) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            if (typeof reader.result === 'string') res(reader.result);
-            else rej(new Error('FileReader result is not a string'));
-          };
-          reader.onerror = () => rej(new Error('FileReader error'));
-          reader.readAsDataURL(blob);
-        });
-        if (__DEV__) console.log('[ColoringCanvas] prefetch OK dataUrl len=', dataUrl.length);
+        const asset = Asset.fromModule(imageSource);
+        if (!asset.downloaded) await asset.downloadAsync();
+        const localUri = asset.localUri || asset.uri;
+        if (!localUri) throw new Error('asset sem localUri/uri');
+        let dataUrl;
+        if (localUri.startsWith('file')) {
+          // Lê o arquivo local direto em base64 — sem blob/FileReader.
+          const b64 = await FileSystem.readAsStringAsync(localUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          dataUrl = 'data:image/png;base64,' + b64;
+        } else {
+          // URI remota/http (fallback raro): fetch + FileReader.
+          const resp = await fetch(localUri);
+          const blob = await resp.blob();
+          dataUrl = await new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onloadend = () => (typeof reader.result === 'string'
+              ? res(reader.result) : rej(new Error('FileReader result is not a string')));
+            reader.onerror = () => rej(new Error('FileReader error'));
+            reader.readAsDataURL(blob);
+          });
+        }
+        if (!dataUrl || dataUrl.length < 64) throw new Error('dataUrl vazio');
+        if (__DEV__) console.log('[ColoringCanvas] lineart OK len=', dataUrl.length);
         if (!cancelled) setImageDataUrl(dataUrl);
       } catch (err) {
-        if (__DEV__) console.warn('[ColoringCanvas] prefetch failed:', err?.message);
-        if (!cancelled) setImageDataUrl(null);
+        // Falha VISÍVEL (nunca canvas branco silencioso): mostra estado de erro.
+        if (__DEV__) {
+          console.warn(`[ColoringCanvas] lineart FALHOU story=${storyId} scene=${sceneNumber}:`, err?.message);
+        }
+        if (!cancelled) {
+          setImageDataUrl(null);
+          setIsLoading(false);
+          setErrorType('error');
+        }
       }
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageSource, retryKey]);
+  }, [imageSource, retryKey, storyId, sceneNumber]);
 
   // When imageDataUrl transitions to a real URL (prefetch complete), reset the
   // loading state so the spinner shows again while the WebView processes the image.
@@ -680,21 +701,26 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
 
   return (
     <View style={styles.container}>
-      <WebView
-        key={retryKey}
-        ref={webViewRef}
-        source={htmlSource}
-        originWhitelist={['*']}
-        scrollEnabled={false}
-        bounces={false}
-        onMessage={handleMessage}
-        style={styles.webview}
-        javaScriptEnabled
-        domStorageEnabled
-        allowFileAccess
-        allowUniversalAccessFromFileURLs
-        mixedContentMode="always"
-      />
+      {/* Só monta o WebView quando a lineart está pronta (ou quando é canvas livre
+          sem imagem). Assim, imagem pendente/falha NUNCA vira canvas branco
+          "pronto" silencioso — fica spinner (carregando) ou estado de erro. */}
+      {(imageDataUrl != null || imageSource == null) && (
+        <WebView
+          key={retryKey}
+          ref={webViewRef}
+          source={htmlSource}
+          originWhitelist={['*']}
+          scrollEnabled={false}
+          bounces={false}
+          onMessage={handleMessage}
+          style={styles.webview}
+          javaScriptEnabled
+          domStorageEnabled
+          allowFileAccess
+          allowUniversalAccessFromFileURLs
+          mixedContentMode="always"
+        />
+      )}
 
       {isLoading && !errorType && (
         <View style={styles.overlay}>

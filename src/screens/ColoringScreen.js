@@ -99,9 +99,10 @@ export default function ColoringScreen({ route, navigation }) {
     try {
       const asset = Image.resolveAssetSource(imageSource);
       if (asset?.width && asset?.height) {
-        // topBar ≈ 56px content + safe area top. bottomPanel ≈ 158px content + safe area bottom.
+        // topBar ≈ 56px content + safe area top. bottomPanel compacto ≈ 112px
+        // (ferramentas + paleta menores, sem dica fixa) + safe area bottom.
         const approxTopH = 56 + Math.max(insets.top || 0, 8);
-        const approxBottomH = 158 + (insets.bottom || 0);
+        const approxBottomH = 112 + (insets.bottom || 0);
         const maxCanvasH = Math.max(200, screenH - approxTopH - approxBottomH - CANVAS_MARGIN * 2);
         const canvasW = screenW - CANVAS_MARGIN * 2;
         const naturalH = Math.round(canvasW / (asset.width / asset.height));
@@ -278,6 +279,8 @@ export default function ColoringScreen({ route, navigation }) {
             ref={canvasRef}
             selectedColor={selectedColor}
             imageSource={imageSource}
+            storyId={story.id}
+            sceneNumber={cena.id}
             onReadyChange={setCanvasReady}
             onPainted={() => setHasPainted(true)}
             onFillRejected={handleFillRejected}
@@ -314,10 +317,8 @@ export default function ColoringScreen({ route, navigation }) {
           <ToolBtn iconName="zoom_reset" label="Enquadrar" onPress={handleResetZoom} />
         </View>
 
-        {/* Two-finger hint */}
-        <Text style={styles.twoFingerHint}>Dois dedos: mover e ampliar  ·  Um dedo: colorir</Text>
-
-        {/* Thin separator */}
+        {/* Thin separator (a dica de gesto fixa foi removida para dar mais
+            área ao desenho; o gesto de dois dedos continua funcionando). */}
         <View style={styles.separator} />
 
         {/* Colour palette — horizontal scroll */}
@@ -484,7 +485,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFDF8',
   },
 
-  /* ── Bottom panel ── */
+  /* ── Bottom panel (compacto — máxima área para o desenho) ── */
   bottomPanel: {
     backgroundColor: colors.cardBg,
     elevation: 8,
@@ -492,23 +493,23 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
-    paddingTop: 8,
+    paddingTop: 6,
   },
 
-  /* Tools */
+  /* Tools — menos altura e texto menor */
   toolsRow: {
     flexDirection: 'row',
     justifyContent: 'space-evenly',
     paddingHorizontal: 8,
-    paddingBottom: 8,
+    paddingBottom: 6,
   },
   toolBtn: {
     alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 14,
+    paddingVertical: 5,
+    borderRadius: 12,
     backgroundColor: '#F0EAE0',
-    minWidth: 52,
+    minWidth: 48,
     elevation: 1,
   },
   toolBtnActive: {
@@ -519,37 +520,29 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 3,
   },
-  toolBtnLabel: { fontFamily: 'Nunito', fontSize: 10, color: '#888', marginTop: 2 },
+  toolBtnLabel: { fontFamily: 'Nunito', fontSize: 9, color: '#888', marginTop: 1 },
   toolBtnLabelActive: { color: '#6B4F00', fontWeight: '700' },
-
-  twoFingerHint: {
-    fontFamily: 'Nunito',
-    fontSize: 9,
-    color: '#C0B8B0',
-    textAlign: 'center',
-    paddingBottom: 6,
-  },
 
   separator: {
     height: 1,
     backgroundColor: '#EDE0D4',
     marginHorizontal: 12,
-    marginBottom: 8,
+    marginBottom: 6,
   },
 
-  /* Palette */
+  /* Palette — cores visualmente menores, mas área tocável segura (~46pt) */
   paletteScroll: { flexGrow: 0 },
   paletteContent: {
     paddingHorizontal: 12,
-    paddingBottom: 4,
+    paddingBottom: 2,
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
   },
-  dotWrapper: { padding: 3 },
+  dotWrapper: { padding: 5 },
   colorDot: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },

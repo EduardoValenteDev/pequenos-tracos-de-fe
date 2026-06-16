@@ -2802,16 +2802,13 @@ check(
   'suppressPaintUntil removed — accidental fills after pinch no longer prevented',
 );
 
-// Two-finger hint in ColoringScreen (Tarefa 5)
+// Dica fixa de dois dedos REMOVIDA (mais área para o desenho) — o gesto continua
+// funcionando, apenas sem o texto fixo ocupando altura.
 check(
-  'ColoringScreen has two-finger hint text',
-  coloringScreenSrc94.includes('Dois dedos: mover e ampliar'),
-  'Two-finger hint text not found in ColoringScreen',
-);
-check(
-  'ColoringScreen has twoFingerHint style',
-  coloringScreenSrc94.includes('twoFingerHint:'),
-  'twoFingerHint style missing from ColoringScreen',
+  'ColoringScreen: dica fixa de dois dedos removida (texto + estilo)',
+  !coloringScreenSrc94.includes('Dois dedos: mover e ampliar') &&
+  !coloringScreenSrc94.includes('twoFingerHint:'),
+  'ColoringScreen ainda contém a dica fixa de dois dedos — deveria ter sido removida',
 );
 
 // Layout improvements (Tarefa 6)
@@ -2826,14 +2823,42 @@ check(
   'CANVAS_MARGIN is not 6 — canvas margin not reduced',
 );
 check(
-  'ColoringScreen approxBottomH updated to 158',
-  coloringScreenSrc94.includes('approxBottomH = 158'),
-  'approxBottomH not updated — canvas height calculation may be inaccurate',
+  'ColoringScreen approxBottomH compacto (112) — barra inferior menor dá mais canvas',
+  coloringScreenSrc94.includes('approxBottomH = 112'),
+  'approxBottomH não está compacto (112) — barra inferior não foi reduzida',
 );
 check(
   'ColoringScreen lineTip bottom updated to 168',
   coloringScreenSrc94.includes('bottom: 168 + insets.bottom'),
   'lineTip bottom not updated — toast may overlap bottom panel after layout changes',
+);
+
+// ── Hotfix render: lineart confiável + sem canvas branco silencioso ──────────
+check(
+  'Colorir: lineart entregue via expo-asset + expo-file-system (sem blob/FileReader instável como primário)',
+  coloringCanvasSrc94.includes("from 'expo-asset'") &&
+  coloringCanvasSrc94.includes("from 'expo-file-system/legacy'") &&
+  coloringCanvasSrc94.includes('Asset.fromModule(imageSource)') &&
+  coloringCanvasSrc94.includes('readAsStringAsync'),
+  'ColoringCanvas não usa expo-asset/file-system para carregar a lineart de forma confiável',
+);
+check(
+  'Colorir: WebView só monta com a lineart pronta — nunca canvas branco silencioso',
+  /imageDataUrl != null \|\| imageSource == null/.test(coloringCanvasSrc94) &&
+  /catch \(err\)[\s\S]{0,400}setErrorType\('error'\)/.test(coloringCanvasSrc94),
+  'ColoringCanvas pode mostrar canvas branco "pronto" quando a imagem não carregou',
+);
+check(
+  'Colorir: ColoringScreen passa storyId/sceneNumber ao canvas (erro amigável em dev)',
+  coloringScreenSrc94.includes('storyId={story.id}') &&
+  coloringScreenSrc94.includes('sceneNumber={cena.id}'),
+  'ColoringScreen não passa storyId/sceneNumber — erro de carregamento sem contexto',
+);
+check(
+  'Colorir: motor de pintura intacto (loadPaint/flood fill não tocados neste hotfix)',
+  coloringCanvasSrc94.includes('window.loadPaint=function') &&
+  coloringCanvasSrc94.includes('window.exportPaint=function'),
+  'Motor de pintura (loadPaint/exportPaint) foi alterado indevidamente',
 );
 
 // Protections intact
@@ -3421,11 +3446,13 @@ check(
   'progressResetService includes @ptf_profile in whitelist — child profile must never be reset',
 );
 
-// [482] progressResetService does NOT reset atelier arts key
+// [482] progressResetService NÃO remove a Galeria do Ateliê.
+// (Comentários podem citar a chave em prosa com crase; o que não pode existir é a
+//  chave como STRING LITERAL — que entraria no multiRemove.)
 check(
-  'progressResetService does not reset atelier arts keys',
-  !resetSvcSrc13.includes('ptf_atelier_arts'),
-  'progressResetService includes atelier arts key — drawings must never be reset with progress',
+  'progressResetService não remove a Galeria do Ateliê (sem string-chave ptf_atelier_arts)',
+  !/['"]ptf_atelier_arts/.test(resetSvcSrc13),
+  'progressResetService usa string-chave de atelier arts — Galeria não pode ser apagada no reset',
 );
 
 // [483] Reset requires typing "APAGAR" confirmation
@@ -8048,9 +8075,14 @@ try {
     '@ptf_storybook_opened_noah', '@ptf_bonus_stars', '@ptf_achievements_seen', '@ptf_lumi_moment_ever',
     '@ptf_beni_chest_seen_cards_v1', '@ptf_family_worship_v1']
     .every(k => wl.includes(k));
-  const preservesArt = !wl.some(k => k.startsWith('@ptf_drawing_') || k.startsWith('ptf_atelier_arts'));
-  check('A1 reset: whitelist cobre progresso + Baú visto + Cultinho e NÃO inclui desenhos/artes',
-    coversProgress && preservesArt, `coversProgress=${coversProgress} preservesArt=${preservesArt}`);
+  // A Galeria do Ateliê (ptf_atelier_arts_*) NUNCA entra no reset. O vínculo de
+  // colorir por cena (@ptf_drawing_*) é limpo dinamicamente por prefixo (não pela
+  // whitelist estática), então também não deve aparecer na whitelist estática.
+  const preservesGallery = !wl.some(k => k.startsWith('ptf_atelier_arts'));
+  const drawingClearedByPrefix = readSrc('src/services/progressResetService.js').includes("DRAWING_PREFIX = '@ptf_drawing_'");
+  check('A1 reset: whitelist cobre progresso + Baú + Cultinho; preserva Galeria; limpa colorir por prefixo',
+    coversProgress && preservesGallery && drawingClearedByPrefix,
+    `coversProgress=${coversProgress} preservesGallery=${preservesGallery} drawingClearedByPrefix=${drawingClearedByPrefix}`);
 } catch (e) {
   check('A1 reset: progressResetService whitelist', false, String(e && e.message));
 }
@@ -8590,15 +8622,19 @@ check(
     store.set('@ptf_family_worship_v1', '{"count":2}');    // Cultinho
     store.set('@ptf_lumi_moment_2026-06-11', 'done');      // Momento diário
     store.set('@ptf_lumi_moment_ever', 'true');
-    store.set('@ptf_drawing_snoah_c1', 'data:image/png;base64,AAA'); // preservar
-    store.set('ptf_atelier_arts_v1_index', '[]');                    // preservar
+    store.set('@ptf_drawing_snoah_c1', 'data:image/png;base64,AAA'); // colorir por cena → LIMPAR
+    store.set('ptf_atelier_arts_v1_index', '[]');                    // Galeria → PRESERVAR
     await pr.resetProgress();
     const cleaned = !store.has('@ptf_progress_noah') && !store.has('@ptf_quiz_done_noah') &&
       !store.has('@ptf_beni_chest_seen_cards_v1') && !store.has('@ptf_family_worship_v1') &&
       !store.has('@ptf_lumi_moment_2026-06-11') && !store.has('@ptf_lumi_moment_ever');
-    const preserved = store.has('@ptf_drawing_snoah_c1') && store.has('ptf_atelier_arts_v1_index');
-    check('A3 reset (round-trip real): limpa progresso + Baú + Cultinho + Momentos diários; PRESERVA desenhos/artes',
-      cleaned && preserved, `cleaned=${cleaned} preserved=${preserved}`);
+    // Novo: o vínculo de colorir por cena é limpo (cena não fica "já colorida");
+    // a Galeria do Ateliê é preservada.
+    const drawingCleared = !store.has('@ptf_drawing_snoah_c1');
+    const galleryPreserved = store.has('ptf_atelier_arts_v1_index');
+    check('A3 reset (round-trip real): limpa progresso + Baú + Cultinho + Momentos + colorir por cena; PRESERVA Galeria',
+      cleaned && drawingCleared && galleryPreserved,
+      `cleaned=${cleaned} drawingCleared=${drawingCleared} galleryPreserved=${galleryPreserved}`);
   } catch (e) {
     check('A3 reset: resetProgress round-trip assíncrono', false, String(e && e.message));
   }
