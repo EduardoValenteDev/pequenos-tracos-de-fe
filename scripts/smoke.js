@@ -2888,9 +2888,10 @@ check(
 
 // ── V2.1: Colorir topo-alinhado + Ateliê no mesmo padrão visual ──────────────
 check(
-  'Colorir V2.1: canvas topo-alinhado (sem espaço morto acima da imagem)',
-  /canvasWrapper:\s*\{[\s\S]{0,400}justifyContent:\s*'flex-start'/.test(coloringScreenSrc94),
-  'canvasWrapper ainda centraliza — espaço morto acima do desenho',
+  'Colorir V2.2: desenho ancorado embaixo (flex-end) — barra colada na arte, sem vão entre desenho e ferramentas',
+  /canvasWrapper:\s*\{[\s\S]{0,500}justifyContent:\s*'flex-end'/.test(coloringScreenSrc94) &&
+  !/canvasWrapper:\s*\{[\s\S]{0,500}justifyContent:\s*'flex-start'/.test(coloringScreenSrc94),
+  'canvasWrapper não ancora o desenho embaixo — vão vazio entre arte e barra persiste',
 );
 {
   const atelierSrc21 = readSrc('src/screens/AtelierCanvasScreen.js');

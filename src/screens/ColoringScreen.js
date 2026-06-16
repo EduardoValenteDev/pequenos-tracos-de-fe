@@ -491,10 +491,12 @@ const styles = StyleSheet.create({
   /* ── Canvas ── */
   canvasWrapper: {
     flex: 1,
-    /* V2.1: topo-alinhado — o desenho começa logo abaixo do header, sem espaço
-       morto acima (para 4:5 a imagem é limitada pela largura; a folga vai para
-       baixo, perto da barra). */
-    justifyContent: 'flex-start',
+    /* V2.2: desenho ANCORADO embaixo (flex-end) → a barra de ferramentas/paleta
+       fica colada no fim da arte, sem vão vazio entre o desenho e a barra.
+       Como a imagem 4:5 é limitada pela LARGURA da tela (não dá para crescer em
+       altura sem cortar), a folga vertical inevitável vai para CIMA — entre o
+       header e o desenho — fora da relação desenho + ferramentas. */
+    justifyContent: 'flex-end',
   },
   canvasArea: {
     /* margin is set dynamically via CANVAS_MARGIN constant */
