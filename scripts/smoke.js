@@ -2837,10 +2837,10 @@ check(
   'overlay não tem o visual infantil leve (creme translúcido / borderRadius)',
 );
 check(
-  'Imersivo: clamp permite pan inferior extra (inset) p/ alcançar área sob o overlay',
-  coloringCanvasSrc94.includes('var bottomInset=H*0.20;') &&
-  coloringCanvasSrc94.includes('ty=Math.max(H*(1-scale)-bottomInset,Math.min(0,ty));'),
-  'clamp não tem inset inferior — parte da arte fica presa sob o overlay',
+  'Imersivo: clamp permite pan inferior extra (inset nomeado) p/ alcançar área sob o overlay',
+  coloringCanvasSrc94.includes('INITIAL_VIEW_BOTTOM_SAFE_INSET=Math.round(H*INITIAL_VIEW_BOTTOM_SAFE_FRAC);') &&
+  coloringCanvasSrc94.includes('ty=Math.max(H*(1-scale)-INITIAL_VIEW_BOTTOM_SAFE_INSET,Math.min(0,ty));'),
+  'clamp não tem inset inferior nomeado — parte da arte fica presa sob o overlay',
 );
 check(
   'ColoringScreen lineTip bottom updated to 168',
@@ -2917,9 +2917,9 @@ check(
 
 // ── Modo Colorir Grande (zoom inicial leve, centralizado, "Ver tudo" volta) ──
 check(
-  'Colorir Grande: INITIAL_COLORING_SCALE na faixa segura 1.10–1.20 (Imersivo: 1.20)',
-  /const INITIAL_COLORING_SCALE = 1\.(1[0-9]|20);/.test(coloringCanvasSrc94),
-  'INITIAL_COLORING_SCALE ausente ou fora da faixa segura 1.10–1.20',
+  'Colorir Grande: INITIAL_COLORING_SCALE elegante na faixa 1.14–1.16 (Imersivo refinado: 1.15)',
+  /const INITIAL_COLORING_SCALE = 1\.1[456];/.test(coloringCanvasSrc94),
+  'INITIAL_COLORING_SCALE ausente ou fora da faixa elegante 1.14–1.16',
 );
 check(
   'Colorir Grande: zoom inicial aplicado no initCanvas (scale=INITIAL_COLORING_SCALE)',
@@ -2927,10 +2927,11 @@ check(
   'initCanvas não aplica o zoom inicial — desenho não abre maior',
 );
 check(
-  'Colorir Grande: zoom inicial CENTRALIZADO (tx/ty pela metade do canvas) + clamp',
-  coloringCanvasSrc94.includes('tx=(W/2)*(1-scale);') &&
-  coloringCanvasSrc94.includes('ty=(H/2)*(1-scale);'),
-  'zoom inicial não está centralizado',
+  'Colorir Imersivo: câmera inicial centraliza na ÁREA VISUAL SEGURA (acima do overlay)',
+  coloringCanvasSrc94.includes('var safeCenterY=(H-INITIAL_VIEW_BOTTOM_SAFE_INSET)/2;') &&
+  coloringCanvasSrc94.includes('tx=safeCenterX-focusX*scale;') &&
+  coloringCanvasSrc94.includes('ty=safeCenterY-focusY*scale;'),
+  'câmera inicial não usa o centro visual seguro — foco pode abrir atrás do overlay',
 );
 check(
   'Colorir Grande: "Ver tudo" continua voltando a 1.0 (imagem inteira)',

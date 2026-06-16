@@ -33,11 +33,12 @@ const TIMEOUT_MS = 7000;
    celular; alinhar não aumenta o tamanho real, só um zoom de view aumenta). É só
    um transform de VIEW (scale/tx/ty), centralizado, que NÃO toca o motor de pintura
    (flood fill/baseD/paintD/export). "Ver tudo" volta a 1.0 (imagem inteira).
-   No Colorir Imersivo o viewport é full-bleed e mais alto; o pan (com inset
-   inferior no clamp) + "Ver tudo" recuperam as bordas, então usamos um zoom de
-   presença um pouco maior. Faixa segura 1.10 … 1.20 (máx sancionado).
-   Eduardo achou 1.14 fraco → 1.20 para o desenho abrir "maior de verdade". */
-const INITIAL_COLORING_SCALE = 1.20;
+   No Colorir Imersivo a câmera inicial centraliza a arte na ÁREA VISUAL SEGURA
+   (acima do overlay), então um zoom elegante já preenche bem essa área sem parecer
+   agressivo. 1.20 abria grande porém antipático; 1.15 enquadra com presença e
+   naturalidade (a 1.15 a arte 4:5 preenche quase exatamente a área acima do
+   overlay). Faixa segura 1.14 … 1.16. */
+const INITIAL_COLORING_SCALE = 1.15;
 
 function buildHtml(imgDataUrl) {
   const imgJson = imgDataUrl ? JSON.stringify(imgDataUrl) : 'null';
@@ -115,6 +116,13 @@ var scale=1.0,minScale=1.0,maxScale=3.0;
 var tx=0,ty=0;
 /* Modo Colorir Grande: scale inicial do desenho de história (1.0 = imagem inteira). */
 var INITIAL_COLORING_SCALE=${INITIAL_COLORING_SCALE};
+/* Colorir Imersivo — área coberta pelo overlay flutuante (ferramentas+paleta) na
+   base do viewport, como fração da altura. A câmera inicial e o pan tratam essa
+   faixa como "não-segura": o foco da arte abre CENTRALIZADO na área ACIMA dela e o
+   pan permite subir a arte para revelar o que fica sob o overlay.
+   INITIAL_VIEW_BOTTOM_SAFE_INSET (px) é derivado de H em resize(). */
+var INITIAL_VIEW_BOTTOM_SAFE_FRAC=0.20;
+var INITIAL_VIEW_BOTTOM_SAFE_INSET=0;
 var lastFillRejectedAt=0;
 
 /* ─── Touch state ─── */
@@ -134,6 +142,7 @@ function resize(){
   C.width=W; C.height=H;
   off.width=W; off.height=H;
   tmp.width=W; tmp.height=H;
+  INITIAL_VIEW_BOTTOM_SAFE_INSET=Math.round(H*INITIAL_VIEW_BOTTOM_SAFE_FRAC);
   if(baseD) renderAll();
 }
 
@@ -181,10 +190,9 @@ function clamp(){
   tx=Math.max(W*(1-scale),Math.min(0,tx));
   /* Colorir Imersivo: inset virtual inferior — permite empurrar a arte para CIMA
      além da borda, revelando a parte coberta pelo overlay flutuante de
-     ferramentas/paleta. ~20% da altura do viewport cobre a barra com folga.
-     Só afeta o limite INFERIOR do pan; o topo (Math.min(0,ty)) segue normal. */
-  var bottomInset=H*0.20;
-  ty=Math.max(H*(1-scale)-bottomInset,Math.min(0,ty));
+     ferramentas/paleta. Só afeta o limite INFERIOR do pan; o topo
+     (Math.min(0,ty)) segue normal. */
+  ty=Math.max(H*(1-scale)-INITIAL_VIEW_BOTTOM_SAFE_INSET,Math.min(0,ty));
 }
 
 /* ──────────────────────────────────────────
@@ -495,13 +503,19 @@ function initCanvas(uri){
       paintD=offCtx.createImageData(W,H);
       allocBufs();
       devLog('bufs allocated qBuf='+qBuf.length+' visBuf='+visBuf.length);
-      /* Modo Colorir Grande: abre com zoom inicial leve, CENTRALIZADO no canvas
-         (mesma fórmula do zoomIn a partir de scale=1, tx=0, ty=0 → tx=cx*(1-ns)).
-         clamp() mantém as bordas alcançáveis por pan de dois dedos. É só view —
-         baseD/paintD/imgX..imgW e o flood fill ficam intactos. */
+      /* Colorir Imersivo — câmera inicial inteligente: abre com zoom de presença,
+         mas CENTRALIZADO na ÁREA VISUAL SEGURA (acima do overlay), não no centro
+         bruto do canvas. Assim o foco da arte não nasce atrás do overlay e o
+         enquadramento fica natural/intencional. É só view (scale/tx/ty) — baseD/
+         paintD/imgX..imgW e o flood fill ficam intactos; clamp() mantém as bordas
+         alcançáveis por pan. "Ver tudo" (resetZoom) volta a scale 1, tx 0, ty 0. */
+      var focusX=imgX+imgW/2;                       // centro da imagem (X)
+      var focusY=imgY+imgH/2;                       // centro da imagem (Y)
+      var safeCenterX=W/2;                          // largura inteira visível
+      var safeCenterY=(H-INITIAL_VIEW_BOTTOM_SAFE_INSET)/2; // centro acima do overlay
       scale=INITIAL_COLORING_SCALE;
-      tx=(W/2)*(1-scale);
-      ty=(H/2)*(1-scale);
+      tx=safeCenterX-focusX*scale;
+      ty=safeCenterY-focusY*scale;
       clamp();
       renderAll();
       window.ReactNativeWebView.postMessage('READY');
