@@ -15,33 +15,25 @@ import { View, Text, StyleSheet, ImageBackground } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
+import { computeRegionHeight, markerFraction } from '../../data/adventureMap';
 
-const MARKER_W = 140;
-const SEAM_H = 54;
-const OVERLAP = 26; // sobreposição entre regiões (margem negativa)
-
-// Banda vertical onde os marcos vivem (fração da altura da região), de baixo para
-// cima. Poucas histórias → banda central-baixa (mostra o topo épico do mapa);
-// muitas → banda mais ampla para caber com folga.
-function band(n) {
-  return n <= 3 ? { top: 0.34, bottom: 0.82 } : { top: 0.12, bottom: 0.88 };
-}
+const MARKER_W = 148;
+const SEAM_H = 58;
+const OVERLAP = 28; // sobreposição entre regiões (margem negativa)
 
 export default function MapRegion({ region, width, awake, currentStoryId, isTop, getState, onPressStory }) {
   const list = region.stories || [];
+  const n = list.length;
   const pad = 16;
   const innerW = width - pad * 2;
   const colX = [pad + innerW * 0.29, pad + innerW * 0.71]; // zigue-zague
 
-  // Altura proporcional à imagem real (768×2048) → mapa inteiro, sem corte.
-  const regionH = Math.round((width * 2048) / 768);
+  // Altura via fórmula compartilhada (proporção real + folga para os marcos).
+  const regionH = computeRegionHeight(width, n);
 
-  const n = list.length;
-  const b = band(n);
-  const fracFor = (i) => (n <= 1 ? 0.60 : b.bottom - ((b.bottom - b.top) / (n - 1)) * i);
-
-  // 1ª história embaixo (i=0), última no topo → caminho sobe.
-  const points = list.map((s, i) => ({ x: colX[i % 2], y: Math.round(regionH * fracFor(i)) }));
+  // Marcos só na BANDA SEGURA (abaixo da zona do título); 1ª história embaixo
+  // (i=0), última no topo → o caminho sobe. Nenhum marco entra na zona do título.
+  const points = list.map((s, i) => ({ x: colX[i % 2], y: Math.round(regionH * markerFraction(i, n)) }));
 
   const highlightIndex = currentStoryId ? list.findIndex((s) => s.id === currentStoryId) : -1;
   const source = region.images ? (awake ? region.images.awake : region.images.asleep) : null;

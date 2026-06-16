@@ -5290,6 +5290,7 @@ check(
   const region = readSrc('src/components/map/MapRegion.js');
   const banner = readSrc('src/components/map/NextAdventureBanner.js');
   const focus = readSrc('src/components/map/StoryFocusModal.js');
+  const storiesSrcMap = readSrc('src/data/stories.js');
   const mapFiles = [mapScreen, mapData, mapPath, marker, region, banner, focus];
   const MAPS = ['R1A', 'R1B', 'R2A', 'R2B', 'R3A', 'R3B', 'R4A', 'R4B'];
 
@@ -5361,10 +5362,10 @@ check(
     'navegação para StoryDetail não está no botão do modal',
   );
   check(
-    'Mapa M2: a faixa de próxima aventura ABRE o modal (não navega seco)',
-    banner.includes('próxima aventura') &&
-    mapScreen.includes('openFocus(bannerStory)'),
-    'faixa de convite não abre o card de foco',
+    'Mapa M2.3: abrir história só pelos MARCOS (toque abre o card de foco)',
+    mapScreen.includes('onPressStory={openFocus}') &&
+    /openFocus[\s\S]{0,120}setModalVisible\(true\)/.test(mapScreen),
+    'marcos não abrem o card de foco',
   );
   check(
     'Mapa M2: NÃO usa os Benis novos (08-11) — ficam para M3',
@@ -5390,8 +5391,10 @@ check(
     'regiões sem transição (seam) — parecem fotos coladas',
   );
   check(
-    'Mapa M2.2: jornada SOBE dentro da região (1ª história embaixo, frac decresce com i)',
-    region.includes('b.bottom - ((b.bottom - b.top) / (n - 1)) * i'),
+    'Mapa M2.2: jornada SOBE dentro da região (markerFraction: 1ª história embaixo)',
+    mapData.includes('export function markerFraction') &&
+    mapData.includes('MARKER_BAND_BOTTOM - ((MARKER_BAND_BOTTOM - MARKER_BAND_TOP) / (storyCount - 1)) * index') &&
+    region.includes('markerFraction(i, n)'),
     'caminho/marcos não sobem dentro da região (sentido visual da jornada)',
   );
   check(
@@ -5446,8 +5449,10 @@ check(
     'creation não é o primeiro marco lógico da jornada',
   );
   check(
-    'Mapa M2.2: R1 INTEIRO — altura da região pela proporção real 768×2048 (sem width*1.32)',
-    region.includes('(width * 2048) / 768') &&
+    'Mapa M2.2: R1 INTEIRO — altura via computeRegionHeight (proporção 768×2048), sem width*1.32',
+    mapData.includes('export function computeRegionHeight') &&
+    mapData.includes('(width * 2048) / 768') &&
+    region.includes('computeRegionHeight(width, n)') &&
     !region.includes('width * 1.32'),
     'altura da região não respeita a proporção real do mapa (corta R1)',
   );
@@ -5469,11 +5474,11 @@ check(
     'caminho não destaca o trecho da próxima aventura',
   );
   check(
-    'Mapa M2.2: header refinado estilo pergaminho (LinearGradient + "Suba o caminho")',
+    'Mapa M2.3: header refinado estilo pergaminho + subtítulo "Suba o caminho da fé"',
     mapScreen.includes("from 'expo-linear-gradient'") &&
     /<LinearGradient[\s\S]{0,200}styles\.header/.test(mapScreen) &&
-    mapScreen.includes('Suba o caminho'),
-    'header não foi refinado para estilo pergaminho',
+    mapScreen.includes('Suba o caminho da fé'),
+    'header não foi refinado / subtítulo errado',
   );
   check(
     'Mapa M2.2: card de foco com brilho atrás da capa (recompensa)',
@@ -5485,11 +5490,47 @@ check(
     marker.includes('Animated.loop') && marker.includes('haloScale'),
     'marco atual sem pulso sutil',
   );
+
+  // ── M2.3 limpeza: sem CTA inferior, zona segura do título, pílula de região, reorder ──
   check(
-    'Mapa M2.2: CTA inferior reforça a caminhada (tom dourado, não laranja chapado)',
-    banner.includes("from 'expo-linear-gradient'") &&
-    banner.includes('Subir para a próxima aventura'),
-    'CTA inferior não reforça a subida / não usa tom dourado',
+    'Mapa M2.3: CTA inferior REMOVIDO da renderização (não usa NextAdventureBanner)',
+    !mapScreen.includes('NextAdventureBanner'),
+    'o CTA inferior ainda é renderizado na tela do mapa',
+  );
+  check(
+    'Mapa M2.3: zona segura do título — marcos só na banda (não usam a altura toda)',
+    mapData.includes('export const REGION_TITLE_SAFE') &&
+    mapData.includes('export const MARKER_BAND_TOP') &&
+    mapData.includes('export const MARKER_BAND_BOTTOM') &&
+    /MARKER_BAND_TOP\s*=\s*0\.(2|3)/.test(mapData),
+    'sem zona segura do título / marcos podem colidir com o título da região',
+  );
+  check(
+    'Mapa M2.3: pílula de região acompanha a rolagem (onScroll → activeRegionTitle)',
+    mapScreen.includes('activeRegionTitle') &&
+    mapScreen.includes('onScroll') &&
+    mapScreen.includes('regionPill'),
+    'sem pílula de região que acompanha a rolagem',
+  );
+  check(
+    'Mapa M2.3: reorder oficial — jonah→descobridores/6, miraculous→descobridores/5, esther→pequeninos/4',
+    /id:\s*'jonah_big_fish'[\s\S]{0,80}trackId:\s*'descobridores'[\s\S]{0,30}order:\s*6,/.test(storiesSrcMap) &&
+    /id:\s*'miraculous_catch'[\s\S]{0,80}trackId:\s*'descobridores'[\s\S]{0,30}order:\s*5,/.test(storiesSrcMap) &&
+    /id:\s*'esther_queen'[\s\S]{0,80}trackId:\s*'pequeninos'[\s\S]{0,30}order:\s*4,/.test(storiesSrcMap),
+    'a troca oficial de posição de Jonas/Pesca/Ester não está correta',
+  );
+  check(
+    'Mapa M2.3: creation continua abaixo de noah (markerFraction decresce com i)',
+    mapData.includes('markerFraction') &&
+    /MARKER_BAND_BOTTOM - \(\(MARKER_BAND_BOTTOM - MARKER_BAND_TOP\)/.test(mapData),
+    'creation/noah não respeitam o sentido de baixo para cima',
+  );
+  check(
+    'Mapa M2.3: títulos longos em 2 linhas (sem ellipsis duro de 1 linha)',
+    marker.includes('numberOfLines={2}') &&
+    marker.includes("ellipsizeMode=\"tail\"") &&
+    marker.includes('adjustsFontSizeToFit'),
+    'títulos (Abraão/Samuel) ainda dependem de 1 linha com corte',
   );
 }
 

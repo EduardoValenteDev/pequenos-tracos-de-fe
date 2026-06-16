@@ -99,14 +99,22 @@ export default function StoryMapMarker({ story, state = 'locked', onPress }) {
       </View>
 
       <View style={[styles.labelPill, isLocked && styles.labelPillLocked]}>
-        <Text style={[styles.label, isLocked && styles.labelLocked]} numberOfLines={2}>{story.titulo}</Text>
+        <Text
+          style={[styles.label, isLocked && styles.labelLocked]}
+          numberOfLines={2}
+          ellipsizeMode="tail"
+          adjustsFontSizeToFit
+          minimumFontScale={0.85}
+        >
+          {story.titulo}
+        </Text>
       </View>
     </SoundButton>
   );
 }
 
 const styles = StyleSheet.create({
-  touch: { width: 140, alignItems: 'center' },
+  touch: { width: 148, alignItems: 'center' },
   core: { alignItems: 'center', justifyContent: 'center' },
   halo: {
     position: 'absolute',
@@ -152,11 +160,11 @@ const styles = StyleSheet.create({
   lockBadgeText: { fontSize: 11 },
   labelPill: {
     marginTop: 6,
-    maxWidth: 136,
-    backgroundColor: 'rgba(255,250,238,0.92)',
+    maxWidth: 146,
+    backgroundColor: 'rgba(255,250,238,0.94)',
     borderRadius: 12,
     paddingVertical: 4,
-    paddingHorizontal: 11,
+    paddingHorizontal: 10,
   },
   labelPillLocked: { backgroundColor: 'rgba(247,242,232,0.78)' },
   label: { fontFamily: 'Nunito', fontSize: 12.5, fontWeight: '800', color: '#4A3A1E', textAlign: 'center' },
