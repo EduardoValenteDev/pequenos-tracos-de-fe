@@ -16,6 +16,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { stories } from '../data/stories';
+import { clearAllSavedDrawings } from './drawingStorage';
 
 const STORY_IDS = stories.map(s => s.id);
 
@@ -24,12 +25,6 @@ const STORY_IDS = stories.map(s => s.id);
 // não deixar chaves órfãs acumulando por dia. Esse prefixo é específico do
 // Momento e não alcança desenhos nem artes da criança (preservados).
 const LUMI_MOMENT_PREFIX = '@ptf_lumi_moment_';
-
-// Estado de colorir por cena (`@ptf_drawing_s<story>_c<scene>`) — é VÍNCULO de
-// progresso ("já colorei esta cena"), removido dinamicamente no reset para a
-// cena não ficar marcada como colorida. As artes salvas na Galeria do Ateliê
-// (`ptf_atelier_arts_*`) NÃO têm este prefixo e são preservadas.
-const DRAWING_PREFIX = '@ptf_drawing_';
 
 function buildProgressWhitelist() {
   const keys = [];
@@ -79,20 +74,29 @@ export function getResettableKeys() {
 export async function resetProgress() {
   const staticKeys = buildProgressWhitelist();
 
-  // Chaves dinâmicas por prefixo: Momento com Beni diário (`@ptf_lumi_moment_<date>`)
-  // e vínculo de colorir por cena (`@ptf_drawing_s<story>_c<scene>`).
-  // A Galeria do Ateliê (`ptf_atelier_arts_*`) NÃO casa estes prefixos → preservada.
-  let dynamicKeys = [];
+  // Chaves diárias dinâmicas do Momento com Beni (`@ptf_lumi_moment_<date>`).
+  let dailyLumiKeys = [];
   try {
     const all = await AsyncStorage.getAllKeys();
-    dynamicKeys = (all || []).filter(
-      k => k.startsWith(LUMI_MOMENT_PREFIX) || k.startsWith(DRAWING_PREFIX),
-    );
+    dailyLumiKeys = (all || []).filter(k => k.startsWith(LUMI_MOMENT_PREFIX));
   } catch {
     // Defensivo: se getAllKeys falhar, segue só com a whitelist estática.
   }
 
-  const keys = [...new Set([...staticKeys, ...dynamicKeys])];
+  const keys = [...new Set([...staticKeys, ...dailyLumiKeys])];
   await AsyncStorage.multiRemove(keys);
-  return { removed: keys.length, keys };
+
+  // Vínculo de colorir por cena: remove TODAS as chaves `@ptf_drawing_*` E os
+  // arquivos de blob apontados (sem deixar órfãos), via a função canônica do
+  // drawingStorage. Assim, após o reset nenhuma cena aparece como já colorida.
+  // A Galeria do Ateliê (`ptf_atelier_arts_*`) NÃO é tocada → preservada.
+  // (Apagar a Galeria é o "reset total" separado em "Gerenciar dados".)
+  let drawingsRemoved = 0;
+  try {
+    drawingsRemoved = await clearAllSavedDrawings();
+  } catch {
+    // Defensivo: nunca lança a partir do reset.
+  }
+
+  return { removed: keys.length + drawingsRemoved, keys };
 }

@@ -2860,6 +2860,14 @@ check(
   coloringCanvasSrc94.includes('window.exportPaint=function'),
   'Motor de pintura (loadPaint/exportPaint) foi alterado indevidamente',
 );
+check(
+  'Colorir: cache em memória da lineart (CACHE HIT/MISS) — reabrir cena é mais rápido',
+  coloringCanvasSrc94.includes('const lineartCache = new Map()') &&
+  coloringCanvasSrc94.includes('lineartCache.get(imageSource)') &&
+  coloringCanvasSrc94.includes('lineartCache.set(imageSource') &&
+  coloringCanvasSrc94.includes('CACHE HIT') && coloringCanvasSrc94.includes('CACHE MISS'),
+  'ColoringCanvas não tem cache em memória da lineart — reaberturas reconvertem o asset',
+);
 
 // Protections intact
 check(
@@ -8079,10 +8087,12 @@ try {
   // colorir por cena (@ptf_drawing_*) é limpo dinamicamente por prefixo (não pela
   // whitelist estática), então também não deve aparecer na whitelist estática.
   const preservesGallery = !wl.some(k => k.startsWith('ptf_atelier_arts'));
-  const drawingClearedByPrefix = readSrc('src/services/progressResetService.js').includes("DRAWING_PREFIX = '@ptf_drawing_'");
-  check('A1 reset: whitelist cobre progresso + Baú + Cultinho; preserva Galeria; limpa colorir por prefixo',
-    coversProgress && preservesGallery && drawingClearedByPrefix,
-    `coversProgress=${coversProgress} preservesGallery=${preservesGallery} drawingClearedByPrefix=${drawingClearedByPrefix}`);
+  // Colorir por cena é limpo delegando a clearAllSavedDrawings (remove chaves
+  // @ptf_drawing_* + arquivos de blob). A Galeria (ptf_atelier_arts_*) é preservada.
+  const drawingClearedViaCanonical = readSrc('src/services/progressResetService.js').includes('clearAllSavedDrawings(');
+  check('A1 reset: whitelist cobre progresso + Baú + Cultinho; preserva Galeria; limpa colorir (clearAllSavedDrawings)',
+    coversProgress && preservesGallery && drawingClearedViaCanonical,
+    `coversProgress=${coversProgress} preservesGallery=${preservesGallery} drawingCleared=${drawingClearedViaCanonical}`);
 } catch (e) {
   check('A1 reset: progressResetService whitelist', false, String(e && e.message));
 }
@@ -8614,8 +8624,15 @@ check(
   try {
     const { store, api } = a1MockAsyncStorage();
     const stories = [{ id: 'noah' }];
+    // resetProgress delega a limpeza de colorir a clearAllSavedDrawings — mock
+    // que remove as chaves @ptf_drawing_* do store (espelha o comportamento real).
+    const clearAllSavedDrawings = async () => {
+      const ks = [...store.keys()].filter(k => k.startsWith('@ptf_drawing_'));
+      ks.forEach(k => store.delete(k));
+      return ks.length;
+    };
     const pr = a1LoadSandbox('src/services/progressResetService.js',
-      { AsyncStorage: api, stories }, ['resetProgress']);
+      { AsyncStorage: api, stories, clearAllSavedDrawings }, ['resetProgress']);
     store.set('@ptf_progress_noah', '{"1":true}');
     store.set('@ptf_quiz_done_noah', 'true');
     store.set('@ptf_beni_chest_seen_cards_v1', '["x"]');   // Baú visto

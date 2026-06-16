@@ -506,6 +506,15 @@ if(imgUri){
 }
 
 /* ──────────────────────────────────────────────────────────────────
+   Cache em memória da lineart já convertida (base64 data URL).
+   Chave estável = a própria referência do require()/asset (id de módulo do
+   Metro), constante por imagem. Ao reabrir a mesma cena, reaproveita o data URL
+   e evita o download+leitura do arquivo (loading menor em reaberturas).
+   Vive no escopo do módulo → persiste entre montagens da tela.
+────────────────────────────────────────────────────────────────── */
+const lineartCache = new Map();
+
+/* ──────────────────────────────────────────────────────────────────
    React Native component
 ────────────────────────────────────────────────────────────────── */
 const ColoringCanvas = forwardRef(function ColoringCanvas(
@@ -530,7 +539,17 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
   useEffect(() => {
     if (!imageSource) { setImageDataUrl(null); return; }
     let cancelled = false;
+
+    // Cache HIT: reaproveita a lineart já convertida (sem download/leitura).
+    const cached = lineartCache.get(imageSource);
+    if (cached) {
+      if (__DEV__) console.log(`[ColoringCanvas] lineart CACHE HIT story=${storyId} scene=${sceneNumber}`);
+      setImageDataUrl(cached);
+      return () => { cancelled = true; };
+    }
+
     (async () => {
+      const t0 = Date.now();
       try {
         const asset = Asset.fromModule(imageSource);
         if (!asset.downloaded) await asset.downloadAsync();
@@ -556,7 +575,10 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
           });
         }
         if (!dataUrl || dataUrl.length < 64) throw new Error('dataUrl vazio');
-        if (__DEV__) console.log('[ColoringCanvas] lineart OK len=', dataUrl.length);
+        lineartCache.set(imageSource, dataUrl); // guarda p/ próximas aberturas
+        if (__DEV__) {
+          console.log(`[ColoringCanvas] lineart CACHE MISS story=${storyId} scene=${sceneNumber} convMs=${Date.now() - t0} len=${dataUrl.length}`);
+        }
         if (!cancelled) setImageDataUrl(dataUrl);
       } catch (err) {
         // Falha VISÍVEL (nunca canvas branco silencioso): mostra estado de erro.
