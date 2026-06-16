@@ -491,7 +491,10 @@ const styles = StyleSheet.create({
   /* ── Canvas ── */
   canvasWrapper: {
     flex: 1,
-    justifyContent: 'center',
+    /* V2.1: topo-alinhado — o desenho começa logo abaixo do header, sem espaço
+       morto acima (para 4:5 a imagem é limitada pela largura; a folga vai para
+       baixo, perto da barra). */
+    justifyContent: 'flex-start',
   },
   canvasArea: {
     /* margin is set dynamically via CANVAS_MARGIN constant */

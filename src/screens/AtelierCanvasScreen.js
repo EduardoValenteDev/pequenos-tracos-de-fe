@@ -60,11 +60,10 @@ const ERASER_SIZES = [
 
 // Hotfix H1 + H1.1 — altura RESERVADA fixa da área de conteúdo do painel.
 // Mantém o canvas ESTÁVEL (trocar de aba/Borracha não comprime o desenho) e foi
-// COMPACTADA (H1.1): o maior estado (Ferramentas + Borracha: chips + ações +
-// linha de tamanhos Pequena/Média/Grande) cabe SEM rolagem em ~148px, devolvendo
-// área de canvas. A dica da borracha foi removida e os controles ficaram menores.
-// O ScrollView interno é só rede de segurança (fonte do sistema muito ampliada).
-const PANEL_CONTENT_H = 148;
+// COMPACTADA (V2.1): mesmo padrão da tela de colorir — painel mais baixo para o
+// canvas ser o protagonista. O ScrollView interno é rede de segurança (fonte do
+// sistema muito ampliada / aba Ferramentas no maior estado).
+const PANEL_CONTENT_H = 116;
 
 // Carimbos da Fé — recurso SECUNDÁRIO até termos assets próprios (Parte 5).
 // TODO(assets): substituir estes emojis por ilustrações próprias do Beni.
@@ -688,7 +687,7 @@ const styles = StyleSheet.create({
   /* Header */
   header: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingBottom: 10,
+    paddingHorizontal: 12, paddingBottom: 6,
     gap: 10,
   },
   backBtn: {
@@ -726,16 +725,18 @@ const styles = StyleSheet.create({
   /* Canvas — papel central com moldura premium */
   canvasOuter: {
     flex: 1,
-    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8,
+    /* V2.1: margens mínimas como no Colorir — máxima área para o desenho. */
+    paddingHorizontal: 4, paddingTop: 4, paddingBottom: 4,
   },
   canvasFrame: {
     flex: 1,
-    borderRadius: 22, overflow: 'hidden',
+    /* V2.1: moldura "card grande" removida — sem borda branca, raio/sombra
+       menores, igual à folha de colorir (o desenho é o protagonista). */
+    borderRadius: 10, overflow: 'hidden',
     backgroundColor: '#FFFDF8',
-    borderWidth: 5, borderColor: '#FFFFFF',
-    elevation: 8, shadowColor: '#7A5A22',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.22, shadowRadius: 12,
+    elevation: 2, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 3,
   },
 
   /* Toolbar */
@@ -868,19 +869,20 @@ const styles = StyleSheet.create({
 
   /* Abas do painel */
   panelTabsRow: {
-    flexDirection: 'row', paddingHorizontal: 10, paddingTop: 6, paddingBottom: 2, gap: 8,
+    flexDirection: 'row', paddingHorizontal: 10, paddingTop: 4, paddingBottom: 2, gap: 8,
   },
   panelTab: {
+    /* V2.1: abas mais compactas (menos altura) — consistente com o Colorir. */
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 11, borderRadius: 16,
+    paddingVertical: 7, borderRadius: 12,
     backgroundColor: '#F3EADA',
     borderWidth: 2, borderColor: 'transparent', gap: 5,
   },
   panelTabActive: {
     backgroundColor: pt.faithBlueSoft, borderColor: pt.faithBlue,
   },
-  panelTabIcon: { fontSize: 17 },
-  panelTabLabel: { fontFamily: 'Nunito', fontSize: 12, color: colors.textLight, fontWeight: '800' },
+  panelTabIcon: { fontSize: 15 },
+  panelTabLabel: { fontFamily: 'Nunito', fontSize: 11, color: colors.textLight, fontWeight: '800' },
   panelTabLabelActive: { color: pt.faithBlueDeep },
 
   /* Modais */

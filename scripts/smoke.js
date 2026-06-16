@@ -2886,6 +2886,29 @@ check(
   'ColoringCanvas não aplica devicePixelRatio (lineart continua apagada) ou não converte coordenadas',
 );
 
+// ── V2.1: Colorir topo-alinhado + Ateliê no mesmo padrão visual ──────────────
+check(
+  'Colorir V2.1: canvas topo-alinhado (sem espaço morto acima da imagem)',
+  /canvasWrapper:\s*\{[\s\S]{0,400}justifyContent:\s*'flex-start'/.test(coloringScreenSrc94),
+  'canvasWrapper ainda centraliza — espaço morto acima do desenho',
+);
+{
+  const atelierSrc21 = readSrc('src/screens/AtelierCanvasScreen.js');
+  check(
+    'Ateliê V2.1: mesmo padrão do Colorir — painel mais baixo + canvas sem moldura "card grande"',
+    atelierSrc21.includes('PANEL_CONTENT_H = 116') &&
+    !/canvasFrame:\s*\{[\s\S]{0,200}borderWidth:\s*5/.test(atelierSrc21) &&
+    /panelTab:\s*\{[\s\S]{0,200}paddingVertical:\s*7/.test(atelierSrc21),
+    'AtelierCanvasScreen não foi compactado para o padrão do Colorir (moldura/painel/abas)',
+  );
+  check(
+    'Ateliê V2.1: motor de pintura (AtelierCanvas) e Salvar preservados',
+    atelierSrc21.includes('<AtelierCanvas') &&
+    atelierSrc21.includes('handleSavePress'),
+    'AtelierCanvasScreen perdeu o canvas ou o Salvar',
+  );
+}
+
 // Protections intact
 check(
   'ColoringCanvas exportPaint intact (Sprint 9.4)',
