@@ -154,11 +154,21 @@ export async function clearDrawingState(storyId, sceneId) {
   }
 }
 
-/** Retorna true se existe um desenho salvo para essa cena. */
+/**
+ * Retorna true se a cena tem um desenho CONCLUÍDO de verdade.
+ *
+ * Modelo rascunho × concluído: não existe rascunho persistido — a pintura em
+ * andamento vive só na memória do canvas. A chave `@ptf_drawing_*` só é escrita
+ * quando a criança toca em "Pronto" (saveDrawingState), e apenas com tinta real.
+ * Portanto "concluído" = chave existente COM tinta real. Aqui exigimos
+ * hasMeaningfulPaint para nunca marcar "Você já coloriu" por uma chave vazia ou
+ * residual. Após reset de jornada (clearAllSavedDrawings) a chave some → false.
+ */
 export async function hasSavedDrawing(storyId, sceneId) {
   try {
     const v = await AsyncStorage.getItem(key(storyId, sceneId));
-    return v !== null;
+    if (v === null) return false;
+    return hasMeaningfulPaint(v);
   } catch {
     return false;
   }

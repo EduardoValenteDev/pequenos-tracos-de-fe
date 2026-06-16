@@ -5203,6 +5203,70 @@ check(
   'hasMeaningfulPaint não exportada em drawingStorage.js',
 );
 
+// ── Hotfix persistência do colorir: validar antes do modal + curar incompatível ──
+{
+  const cc = readSrc('src/components/ColoringCanvas.js');
+  const cs = readSrc('src/screens/ColoringScreen.js');
+  const ds = readSrc('src/services/drawingStorage.js');
+
+  check(
+    'Persistência: canvas valida desenho salvo SEM aplicar (validatePaint → PAINT_VALID/PAINT_INVALID)',
+    cc.includes('window.validatePaint=function') &&
+    cc.includes("'PAINT_VALID'") &&
+    cc.includes("'PAINT_INVALID'"),
+    'ColoringCanvas não tem validatePaint que diferencia válido/incompatível',
+  );
+  check(
+    'Persistência: validatePaint compara dimensões salvas com o canvas atual (compatibilidade real)',
+    /sw===W&&sh===H/.test(cc) && cc.includes('im.naturalWidth===W&&im.naturalHeight===H'),
+    'validatePaint não checa compatibilidade de tamanho (W/H) — modal pode abrir branco',
+  );
+  check(
+    'Persistência: canvas expõe validatePaint imperativo com fila até READY',
+    /validatePaint\(savedData\)\s*\{/.test(cc) &&
+    cc.includes('pendingValidateRef') &&
+    cc.includes('window.validatePaint(${JSON.stringify(pendingValidateRef.current)})'),
+    'método validatePaint imperativo/fila ausente — validação pode rodar antes do canvas pronto',
+  );
+  check(
+    'Persistência: ColoringScreen VALIDA antes de mostrar o modal (não abre por mera existência da chave)',
+    cs.includes('hasMeaningfulPaint(saved)') &&
+    cs.includes('canvasRef.current?.validatePaint(saved)') &&
+    cs.includes('onPaintValid={() => setShowResumeDialog(true)}'),
+    'ColoringScreen ainda abre o modal sem validar o desenho salvo',
+  );
+  check(
+    'Persistência: estados inválido/incompatível/corrompido se curam (limpam a chave da cena)',
+    cs.includes('function healInvalidSavedDrawing') &&
+    cs.includes('onPaintInvalid={healInvalidSavedDrawing}') &&
+    /onLoadIncompatible=\{\(\)\s*=>\s*\{[\s\S]{0,360}healInvalidSavedDrawing\(\)/.test(cs) &&
+    /onLoadCorrupted=\{\(\)\s*=>\s*\{[\s\S]{0,360}healInvalidSavedDrawing\(\)/.test(cs),
+    'ColoringScreen não cura (clear) estados de colorir inválidos — modal falso persiste',
+  );
+  check(
+    'Persistência: "Continuar meu desenho" aplica o paint validado (cores aparecem)',
+    /function handleContinueDrawing[\s\S]{0,200}loadPaint\(savedDrawing\)/.test(cs),
+    'handleContinueDrawing não carrega o desenho validado',
+  );
+  check(
+    'Persistência: "Pronto" é o ÚNICO ponto que persiste (concluído só após salvar) ',
+    /handleProximo[\s\S]{0,700}saveDrawingState\(story\.id, cena\.id, exportData\)/.test(cs) &&
+    (cs.match(/saveDrawingState\(/g) || []).length === 1,
+    'cena pode ser marcada como concluída sem o Pronto (mais de um saveDrawingState)',
+  );
+  check(
+    'Persistência: hasSavedDrawing exige tinta real (card "Você já coloriu" = conclusão real)',
+    /hasSavedDrawing[\s\S]{0,260}hasMeaningfulPaint\(v\)/.test(ds),
+    'hasSavedDrawing ainda marca colorido por mera existência da chave',
+  );
+  check(
+    'Persistência: reset de jornada limpa colorir por cena e PRESERVA a Galeria do Ateliê',
+    readSrc('src/services/progressResetService.js').includes('clearAllSavedDrawings(') &&
+    !/['"]ptf_atelier_arts/.test(readSrc('src/services/progressResetService.js')),
+    'reset não delega limpeza de colorir a clearAllSavedDrawings ou toca na Galeria',
+  );
+}
+
 check(
   'StoryBookScreen importa hasMeaningfulPaint de drawingStorage',
   storyBookSrc.includes('hasMeaningfulPaint') &&

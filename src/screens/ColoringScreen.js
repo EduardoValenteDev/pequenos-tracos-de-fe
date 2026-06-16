@@ -15,6 +15,7 @@ import {
   saveDrawingState,
   clearDrawingState,
   clearAllSavedDrawings,
+  hasMeaningfulPaint,
 } from '../services/drawingStorage';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
 import FaithIcon from '../components/ui/FaithIcon';
@@ -74,15 +75,36 @@ export default function ColoringScreen({ route, navigation }) {
     }
   }, []);
 
-  // Check for a previously saved drawing when the screen opens
+  // Check for a previously saved drawing when the screen opens.
+  // O modal "Você já começou este desenho" NÃO é decidido só pela existência da
+  // chave: o desenho salvo precisa ter tinta real E ser CARREGÁVEL no canvas atual.
+  // Por isso passamos o payload para o canvas VALIDAR (validatePaint) antes de
+  // mostrar o modal — onPaintValid abre o modal; onPaintInvalid cura (limpa a chave
+  // incompatível/corrompida e abre a cena como nova, sem modal falso).
   useEffect(() => {
+    let alive = true;
     getSavedDrawing(story.id, cena.id).then(saved => {
-      if (saved) {
+      if (!alive) return;
+      if (saved && hasMeaningfulPaint(saved)) {
         setSavedDrawing(saved);
-        setShowResumeDialog(true);
+        // O canvas enfileira a validação até estar pronto (READY).
+        canvasRef.current?.validatePaint(saved);
+      } else if (saved) {
+        // Chave existente sem tinta real (vazia) → remove e abre como nova.
+        clearDrawingState(story.id, cena.id);
+        setSavedDrawing(null);
       }
     });
+    return () => { alive = false; };
   }, []);
+
+  // Cura um estado salvo inválido (incompatível/corrompido): remove a chave da cena
+  // e abre limpa — nunca deixa modal de continuar nem "concluído" falso.
+  function healInvalidSavedDrawing() {
+    clearDrawingState(story.id, cena.id);
+    setSavedDrawing(null);
+    setShowResumeDialog(false);
+  }
 
   // First-time hint: "use dois dedos para mover o desenho". Mostra UMA vez por
   // dispositivo (flag persistida) e some sozinha — nunca fixa, nunca ocupa espaço
@@ -298,7 +320,12 @@ export default function ColoringScreen({ route, navigation }) {
             onPainted={() => setHasPainted(true)}
             onFillRejected={handleFillRejected}
             onGoBack={() => navigation.goBack()}
+            // Validação do desenho salvo (probe, antes de aplicar):
+            onPaintValid={() => setShowResumeDialog(true)}
+            onPaintInvalid={healInvalidSavedDrawing}
             onLoadCorrupted={() => {
+              // Falha ao aplicar de verdade (raro, p.ex. ao "Continuar"): cura e avisa.
+              healInvalidSavedDrawing();
               Alert.alert(
                 '🎨 Atenção',
                 'Esse desenho salvo teve um problema, mas você pode começar de novo.',
@@ -306,8 +333,9 @@ export default function ColoringScreen({ route, navigation }) {
               );
             }}
             onLoadIncompatible={() => {
-              // Saved state from a different screen size — silently start fresh
-              if (__DEV__) console.log('[ColoringScreen] [COLORING_STATE] incompatible state — starting fresh');
+              // Estado de um tamanho de tela diferente — cura (limpa) e abre limpa.
+              if (__DEV__) console.log('[ColoringScreen] [COLORING_STATE] incompatible state — healing');
+              healInvalidSavedDrawing();
             }}
           />
       </View>

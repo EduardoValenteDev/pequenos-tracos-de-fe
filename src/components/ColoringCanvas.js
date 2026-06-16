@@ -418,6 +418,39 @@ window.exportPaint=function(){
   }
 };
 
+/* Validação REAL do desenho salvo, SEM aplicar tinta. Confirma que o payload
+   existe, parseia e é COMPATÍVEL com o tamanho atual do canvas (mesmas W,H —
+   imgX/Y/W/H são determinísticos a partir disso). Posta:
+     PAINT_VALID    → há tinta carregável e compatível (mostrar modal "continuar")
+     PAINT_INVALID  → ausente / corrompido / incompatível (limpar e abrir como nova)
+   Usado para decidir o modal ANTES de carregar — nunca deixa modal falso. */
+window.validatePaint=function(jsonStr){
+  try{
+    if(typeof jsonStr!=='string'||!jsonStr){window.ReactNativeWebView.postMessage('PAINT_INVALID');return;}
+    if(jsonStr.startsWith('data:')){
+      /* v1 legado: sem dims no payload → compara o tamanho natural da imagem. */
+      var im=new window.Image();
+      im.onload=function(){window.ReactNativeWebView.postMessage((im.naturalWidth===W&&im.naturalHeight===H)?'PAINT_VALID':'PAINT_INVALID');};
+      im.onerror=function(){window.ReactNativeWebView.postMessage('PAINT_INVALID');};
+      im.src=jsonStr; return;
+    }
+    var p;
+    try{p=JSON.parse(jsonStr);}catch(e){window.ReactNativeWebView.postMessage('PAINT_INVALID');return;}
+    if(!p||typeof p.data!=='string'){window.ReactNativeWebView.postMessage('PAINT_INVALID');return;}
+    var sw=(p.W!==null&&p.W!==undefined)?p.W:null;
+    var sh=(p.H!==null&&p.H!==undefined)?p.H:null;
+    if(sw===null||sh===null){
+      var im2=new window.Image();
+      im2.onload=function(){window.ReactNativeWebView.postMessage((im2.naturalWidth===W&&im2.naturalHeight===H)?'PAINT_VALID':'PAINT_INVALID');};
+      im2.onerror=function(){window.ReactNativeWebView.postMessage('PAINT_INVALID');};
+      im2.src=p.data; return;
+    }
+    window.ReactNativeWebView.postMessage((sw===W&&sh===H)?'PAINT_VALID':'PAINT_INVALID');
+  }catch(err){
+    window.ReactNativeWebView.postMessage('PAINT_INVALID');
+  }
+};
+
 window.loadPaint=function(jsonStr){
   try{
     var payload,dataUrl,savedW,savedH;
@@ -568,13 +601,14 @@ const lineartCache = new Map();
    React Native component
 ────────────────────────────────────────────────────────────────── */
 const ColoringCanvas = forwardRef(function ColoringCanvas(
-  { selectedColor = '#FF0000', imageSource = null, storyId = null, sceneNumber = null, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected, onReadyChange },
+  { selectedColor = '#FF0000', imageSource = null, storyId = null, sceneNumber = null, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected, onReadyChange, onPaintValid, onPaintInvalid },
   ref,
 ) {
   const webViewRef = useRef(null);
   const isReadyRef = useRef(false);
   const pendingExportCallbackRef = useRef(null);
   const pendingLoadRef = useRef(null);
+  const pendingValidateRef = useRef(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorType, setErrorType] = useState(null); // null | 'error' | 'timeout'
@@ -692,6 +726,7 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
     return () => {
       pendingExportCallbackRef.current = null;
       pendingLoadRef.current = null;
+      pendingValidateRef.current = null;
     };
   }, []);
 
@@ -721,6 +756,17 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
         pendingLoadRef.current = savedData;
       }
     },
+
+    // Valida (sem aplicar) se o desenho salvo é carregável e compatível com o
+    // canvas atual. Resultado vem por onPaintValid / onPaintInvalid.
+    validatePaint(savedData) {
+      const js = `window.validatePaint(${JSON.stringify(savedData)}); true;`;
+      if (isReadyRef.current && webViewRef.current) {
+        webViewRef.current.injectJavaScript(js);
+      } else {
+        pendingValidateRef.current = savedData;
+      }
+    },
   }));
 
   function handleMessage(e) {
@@ -733,6 +779,11 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
         ? 'window.setEraser(); true;'
         : `window.setColor(${JSON.stringify(selectedColor)}); true;`;
       webViewRef.current?.injectJavaScript(colorJs);
+      if (pendingValidateRef.current) {
+        const pendingVJs = `window.validatePaint(${JSON.stringify(pendingValidateRef.current)}); true;`;
+        webViewRef.current?.injectJavaScript(pendingVJs);
+        pendingValidateRef.current = null;
+      }
       if (pendingLoadRef.current) {
         const pendingJs = `window.loadPaint(${JSON.stringify(pendingLoadRef.current)}); true;`;
         webViewRef.current?.injectJavaScript(pendingJs);
@@ -744,6 +795,11 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
       const exportData = msg.slice('PAINT_EXPORT:'.length);
       pendingExportCallbackRef.current?.(exportData);
       pendingExportCallbackRef.current = null;
+    } else if (msg === 'PAINT_VALID') {
+      onPaintValid?.();
+    } else if (msg === 'PAINT_INVALID') {
+      if (__DEV__) console.log('[ColoringCanvas] [COLORING_STATE] saved state invalid/incompatible — healing (clear + fresh)');
+      onPaintInvalid?.();
     } else if (msg === 'LOAD_PAINT_CORRUPTED') {
       onLoadCorrupted?.();
     } else if (msg === 'FILL_REJECTED') {
