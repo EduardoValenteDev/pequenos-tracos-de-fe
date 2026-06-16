@@ -4534,6 +4534,19 @@ check(
   );
 })();
 
+// [613.1] coloringImages.js registra as histórias de colorir oficiais (inclui as 3 novas)
+(function() {
+  const imgSrc = readSrc('src/assets/coloringImages.js');
+  const expected = ['creation','noah','david_goliath','jesus_children','daniel_lions',
+    'jonah_big_fish','abraham_stars','good_samaritan','lost_sheep'];
+  const missing = expected.filter(id => !new RegExp(`^  ${id}: \\{`, 'm').test(imgSrc));
+  check(
+    'coloringImages.js registra as 9 histórias de colorir oficiais (+abraham_stars/good_samaritan/lost_sheep)',
+    missing.length === 0,
+    `storyIds de colorir não registrados: ${missing.join(', ')}`,
+  );
+})();
+
 // [614] audioManifest.js _readyEntries only has require() for files that exist
 (function() {
   const mSrc = readSrc('src/data/audioManifest.js');

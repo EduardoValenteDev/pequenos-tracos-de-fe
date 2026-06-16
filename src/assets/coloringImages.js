@@ -101,6 +101,48 @@ const coloringImages = {
     10: require('../../assets/stories/jonah_big_fish/coloring/scene_10.png'),
   },
 
+  // ── abraham_stars: Abraão e as Estrelas ──────────────────────────────────
+  abraham_stars: {
+    1:  require('../../assets/stories/abraham_stars/coloring/scene_01.png'),
+    2:  require('../../assets/stories/abraham_stars/coloring/scene_02.png'),
+    3:  require('../../assets/stories/abraham_stars/coloring/scene_03.png'),
+    4:  require('../../assets/stories/abraham_stars/coloring/scene_04.png'),
+    5:  require('../../assets/stories/abraham_stars/coloring/scene_05.png'),
+    6:  require('../../assets/stories/abraham_stars/coloring/scene_06.png'),
+    7:  require('../../assets/stories/abraham_stars/coloring/scene_07.png'),
+    8:  require('../../assets/stories/abraham_stars/coloring/scene_08.png'),
+    9:  require('../../assets/stories/abraham_stars/coloring/scene_09.png'),
+    10: require('../../assets/stories/abraham_stars/coloring/scene_10.png'),
+  },
+
+  // ── good_samaritan: O Bom Samaritano ─────────────────────────────────────
+  good_samaritan: {
+    1:  require('../../assets/stories/good_samaritan/coloring/scene_01.png'),
+    2:  require('../../assets/stories/good_samaritan/coloring/scene_02.png'),
+    3:  require('../../assets/stories/good_samaritan/coloring/scene_03.png'),
+    4:  require('../../assets/stories/good_samaritan/coloring/scene_04.png'),
+    5:  require('../../assets/stories/good_samaritan/coloring/scene_05.png'),
+    6:  require('../../assets/stories/good_samaritan/coloring/scene_06.png'),
+    7:  require('../../assets/stories/good_samaritan/coloring/scene_07.png'),
+    8:  require('../../assets/stories/good_samaritan/coloring/scene_08.png'),
+    9:  require('../../assets/stories/good_samaritan/coloring/scene_09.png'),
+    10: require('../../assets/stories/good_samaritan/coloring/scene_10.png'),
+  },
+
+  // ── lost_sheep: A Ovelha Perdida ─────────────────────────────────────────
+  lost_sheep: {
+    1:  require('../../assets/stories/lost_sheep/coloring/scene_01.png'),
+    2:  require('../../assets/stories/lost_sheep/coloring/scene_02.png'),
+    3:  require('../../assets/stories/lost_sheep/coloring/scene_03.png'),
+    4:  require('../../assets/stories/lost_sheep/coloring/scene_04.png'),
+    5:  require('../../assets/stories/lost_sheep/coloring/scene_05.png'),
+    6:  require('../../assets/stories/lost_sheep/coloring/scene_06.png'),
+    7:  require('../../assets/stories/lost_sheep/coloring/scene_07.png'),
+    8:  require('../../assets/stories/lost_sheep/coloring/scene_08.png'),
+    9:  require('../../assets/stories/lost_sheep/coloring/scene_09.png'),
+    10: require('../../assets/stories/lost_sheep/coloring/scene_10.png'),
+  },
+
 };
 
 /**
