@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Image, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -45,7 +45,6 @@ export default function ColoringScreen({ route, navigation }) {
   const cena = story.cenas[cenaIndex];
   const canvasRef = useRef(null);
   const insets = useSafeAreaInsets();
-  const { width: screenW, height: screenH } = useWindowDimensions();
 
   const [selectedColor, setSelectedColor] = useState(COLOR_PALETTE[0].hex);
   const [hasPainted, setHasPainted] = useState(false);
@@ -127,25 +126,13 @@ export default function ColoringScreen({ route, navigation }) {
   const tituloColorir = cena.tituloColorir ?? cena.instrucaoColorir ?? cena.colorirElemento ?? '';
   const imageSource = getColoringImage(story.id, cena.id);
 
-  // Adaptive canvas height: size canvas to image aspect ratio, capped at available screen
-  // space so the Pronto button and tools are always visible regardless of image shape.
-  const CANVAS_MARGIN = 2; // px on each side — mínimo seguro (V2: foco no desenho)
-  let canvasHeight = undefined;
-  if (imageSource) {
-    try {
-      const asset = Image.resolveAssetSource(imageSource);
-      if (asset?.width && asset?.height) {
-        // topBar ≈ 50px content + safe area top. bottomPanel V2 ≈ 96px
-        // (ícones compactos + paleta menor, sem moldura) + safe area bottom.
-        const approxTopH = 50 + Math.max(insets.top || 0, 8);
-        const approxBottomH = 96 + (insets.bottom || 0);
-        const maxCanvasH = Math.max(200, screenH - approxTopH - approxBottomH - CANVAS_MARGIN * 2);
-        const canvasW = screenW - CANVAS_MARGIN * 2;
-        const naturalH = Math.round(canvasW / (asset.width / asset.height));
-        canvasHeight = Math.min(naturalH, maxCanvasH);
-      }
-    } catch (_) {}
-  }
+  // COLORIR IMERSIVO V1: o canvas não é mais dimensionado à altura exata da imagem
+  // 4:5 (isso prendia o desenho numa faixa curta e deixava sobra vertical). Agora o
+  // canvas ocupa TODA a área entre o header e o fim da tela (flex:1, full-bleed) e as
+  // ferramentas/paleta viram um overlay flutuante que SOBREPÕE o canvas (não rouba
+  // faixa). O desenho abre em modo grande (zoom inicial) dentro desse viewport maior;
+  // o pan de dois dedos (com inset inferior no clamp) alcança a parte sob o overlay e
+  // "Ver tudo" reenquadra a imagem inteira.
 
   if (__DEV__ && !imageSource) {
     console.warn(`[ColoringScreen] Imagem ausente — história ${story.id} cena ${cena.id}.`);
@@ -299,14 +286,9 @@ export default function ColoringScreen({ route, navigation }) {
         </View>
       </View>
 
-      {/* ── CANVAS — wrapper centers canvas vertically in available space ── */}
-      <View style={styles.canvasWrapper}>
-        <View style={[
-          styles.canvasArea,
-          canvasHeight != null ? { height: canvasHeight } : { flex: 1 },
-          { margin: CANVAS_MARGIN },
-        ]}>
-          <ColoringCanvas
+      {/* ── CANVAS — full-bleed, ocupa TODA a área entre header e fim da tela ── */}
+      <View style={styles.canvasArea}>
+        <ColoringCanvas
             ref={canvasRef}
             selectedColor={selectedColor}
             imageSource={imageSource}
@@ -328,11 +310,10 @@ export default function ColoringScreen({ route, navigation }) {
               if (__DEV__) console.log('[ColoringScreen] [COLORING_STATE] incompatible state — starting fresh');
             }}
           />
-        </View>
       </View>
 
-      {/* ── BOTTOM PANEL (compacto — foco no desenho) ──────────────── */}
-      <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 4 }]}>
+      {/* ── OVERLAY flutuante — ferramentas + paleta SOBRE o canvas (não empurra) ── */}
+      <View style={[styles.overlayPanel, { bottom: insets.bottom + 8 }]}>
 
         {/* Menu pequeno: guarda "Limpar tudo" fora do destaque (com confirmação). */}
         {showMenu && (
@@ -525,38 +506,28 @@ const styles = StyleSheet.create({
   },
   prontoBtnText: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF' },
 
-  /* ── Canvas ── */
-  canvasWrapper: {
-    flex: 1,
-    /* V2.2: desenho ANCORADO embaixo (flex-end) → a barra de ferramentas/paleta
-       fica colada no fim da arte, sem vão vazio entre o desenho e a barra.
-       Como a imagem 4:5 é limitada pela LARGURA da tela (não dá para crescer em
-       altura sem cortar), a folga vertical inevitável vai para CIMA — entre o
-       header e o desenho — fora da relação desenho + ferramentas. */
-    justifyContent: 'flex-end',
-  },
+  /* ── Canvas — IMERSIVO: full-bleed, ocupa toda a área entre header e fim da tela ── */
   canvasArea: {
-    /* margin is set dynamically via CANVAS_MARGIN constant */
-    /* V2: moldura removida (sem borda) — o desenho é o protagonista. */
-    borderRadius: 10,
+    flex: 1,
     overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
     backgroundColor: '#FFFDF8',
   },
 
-  /* ── Bottom panel (compacto — máxima área para o desenho) ── */
-  bottomPanel: {
-    backgroundColor: colors.cardBg,
-    elevation: 8,
+  /* ── Overlay flutuante (ferramentas + paleta) — SOBRE o canvas, não rouba faixa ──
+     Creme com leve transparência, sombra suave, cantos arredondados, compacto. */
+  overlayPanel: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    backgroundColor: 'rgba(255,253,248,0.94)',
+    borderRadius: 22,
+    paddingTop: 8,
+    paddingBottom: 8,
+    elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    paddingTop: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
   },
 
   /* Ferramentas — ícones compactos (sem rótulo), área tocável ~44pt */

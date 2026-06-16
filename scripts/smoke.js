@@ -2815,26 +2815,32 @@ check(
   'ColoringScreen ainda contém a dica fixa de dois dedos — deveria ter sido removida',
 );
 
-// Layout improvements (Tarefa 6)
+// ── Colorir Imersivo V1: canvas full-bleed + controles em overlay flutuante ──
 check(
-  'ColoringScreen uses CANVAS_MARGIN constant',
-  coloringScreenSrc94.includes('CANVAS_MARGIN'),
-  'CANVAS_MARGIN not found — margin is not parameterised',
+  'Imersivo: canvas full-bleed (flex:1, sem altura fixa / CANVAS_MARGIN)',
+  /canvasArea:\s*\{\s*flex:\s*1/.test(coloringScreenSrc94) &&
+  !coloringScreenSrc94.includes('CANVAS_MARGIN') &&
+  !coloringScreenSrc94.includes('canvasHeight'),
+  'canvas não é full-bleed — ainda preso à altura exata da imagem (CANVAS_MARGIN/canvasHeight)',
 );
 check(
-  'Colorir V2: CANVAS_MARGIN mínimo (2) — moldura/margem reduzidas ao máximo',
-  coloringScreenSrc94.includes('CANVAS_MARGIN = 2'),
-  'CANVAS_MARGIN não está mínimo (2) — margens ainda roubam área do desenho',
+  'Imersivo: ferramentas/paleta viram overlay absoluto (não empurram o canvas)',
+  /overlayPanel:\s*\{[\s\S]{0,200}position:\s*'absolute'/.test(coloringScreenSrc94) &&
+  coloringScreenSrc94.includes('styles.overlayPanel') &&
+  !coloringScreenSrc94.includes('styles.bottomPanel'),
+  'barra inferior ainda ocupa faixa no fluxo (bottomPanel) — não virou overlay',
 );
 check(
-  'Colorir V2: approxBottomH compacto (96) — barra inferior ainda menor dá mais canvas',
-  coloringScreenSrc94.includes('approxBottomH = 96'),
-  'approxBottomH não está compacto (96) — barra inferior não foi reduzida',
+  'Imersivo: overlay com visual leve (creme translúcido + cantos arredondados)',
+  /overlayPanel:\s*\{[\s\S]{0,260}rgba\(255,253,248,0\.94\)/.test(coloringScreenSrc94) &&
+  /overlayPanel:\s*\{[\s\S]{0,260}borderRadius:\s*22/.test(coloringScreenSrc94),
+  'overlay não tem o visual infantil leve (creme translúcido / borderRadius)',
 );
 check(
-  'Colorir V2: canvas sem moldura (sem borderWidth: 2 no canvasArea)',
-  !/canvasArea:\s*\{[\s\S]{0,260}borderWidth:\s*2/.test(coloringScreenSrc94),
-  'canvasArea ainda tem moldura (borderWidth: 2) — desenho preso na moldura',
+  'Imersivo: clamp permite pan inferior extra (inset) p/ alcançar área sob o overlay',
+  coloringCanvasSrc94.includes('var bottomInset=H*0.20;') &&
+  coloringCanvasSrc94.includes('ty=Math.max(H*(1-scale)-bottomInset,Math.min(0,ty));'),
+  'clamp não tem inset inferior — parte da arte fica presa sob o overlay',
 );
 check(
   'ColoringScreen lineTip bottom updated to 168',
@@ -2888,10 +2894,9 @@ check(
 
 // ── V2.1: Colorir topo-alinhado + Ateliê no mesmo padrão visual ──────────────
 check(
-  'Colorir V2.2: desenho ancorado embaixo (flex-end) — barra colada na arte, sem vão entre desenho e ferramentas',
-  /canvasWrapper:\s*\{[\s\S]{0,500}justifyContent:\s*'flex-end'/.test(coloringScreenSrc94) &&
-  !/canvasWrapper:\s*\{[\s\S]{0,500}justifyContent:\s*'flex-start'/.test(coloringScreenSrc94),
-  'canvasWrapper não ancora o desenho embaixo — vão vazio entre arte e barra persiste',
+  'Colorir Imersivo: sem canvasWrapper de alinhamento (superado pelo full-bleed + overlay)',
+  !coloringScreenSrc94.includes('canvasWrapper'),
+  'canvasWrapper ainda existe — alinhamento vertical foi substituído pelo modo imersivo',
 );
 {
   const atelierSrc21 = readSrc('src/screens/AtelierCanvasScreen.js');
@@ -2912,9 +2917,9 @@ check(
 
 // ── Modo Colorir Grande (zoom inicial leve, centralizado, "Ver tudo" volta) ──
 check(
-  'Colorir Grande: INITIAL_COLORING_SCALE definido entre 1.10 e 1.18 (recomendado 1.14)',
-  /const INITIAL_COLORING_SCALE = 1\.1[0-8];/.test(coloringCanvasSrc94),
-  'INITIAL_COLORING_SCALE ausente ou fora da faixa segura 1.10–1.18',
+  'Colorir Grande: INITIAL_COLORING_SCALE na faixa segura 1.10–1.20 (Imersivo: 1.20)',
+  /const INITIAL_COLORING_SCALE = 1\.(1[0-9]|20);/.test(coloringCanvasSrc94),
+  'INITIAL_COLORING_SCALE ausente ou fora da faixa segura 1.10–1.20',
 );
 check(
   'Colorir Grande: zoom inicial aplicado no initCanvas (scale=INITIAL_COLORING_SCALE)',

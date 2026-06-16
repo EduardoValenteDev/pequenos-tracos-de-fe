@@ -33,8 +33,11 @@ const TIMEOUT_MS = 7000;
    celular; alinhar não aumenta o tamanho real, só um zoom de view aumenta). É só
    um transform de VIEW (scale/tx/ty), centralizado, que NÃO toca o motor de pintura
    (flood fill/baseD/paintD/export). "Ver tudo" volta a 1.0 (imagem inteira).
-   Conservador: 1.10 (suave) … 1.18 (máx). Recomendado: 1.14. */
-const INITIAL_COLORING_SCALE = 1.14;
+   No Colorir Imersivo o viewport é full-bleed e mais alto; o pan (com inset
+   inferior no clamp) + "Ver tudo" recuperam as bordas, então usamos um zoom de
+   presença um pouco maior. Faixa segura 1.10 … 1.20 (máx sancionado).
+   Eduardo achou 1.14 fraco → 1.20 para o desenho abrir "maior de verdade". */
+const INITIAL_COLORING_SCALE = 1.20;
 
 function buildHtml(imgDataUrl) {
   const imgJson = imgDataUrl ? JSON.stringify(imgDataUrl) : 'null';
@@ -176,7 +179,12 @@ function show(){
 ─────────────────────────────────────────── */
 function clamp(){
   tx=Math.max(W*(1-scale),Math.min(0,tx));
-  ty=Math.max(H*(1-scale),Math.min(0,ty));
+  /* Colorir Imersivo: inset virtual inferior — permite empurrar a arte para CIMA
+     além da borda, revelando a parte coberta pelo overlay flutuante de
+     ferramentas/paleta. ~20% da altura do viewport cobre a barra com folga.
+     Só afeta o limite INFERIOR do pan; o topo (Math.min(0,ty)) segue normal. */
+  var bottomInset=H*0.20;
+  ty=Math.max(H*(1-scale)-bottomInset,Math.min(0,ty));
 }
 
 /* ──────────────────────────────────────────
