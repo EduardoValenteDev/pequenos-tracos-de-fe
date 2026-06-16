@@ -2669,19 +2669,21 @@ check(
   'FaithIcon not imported in ColoringScreen',
 );
 check(
-  'ColoringScreen ToolBtn uses iconName prop (no emoji icon)',
-  coloringScreenSrc93.includes('iconName') && !coloringScreenSrc93.includes('icon="🧹"'),
-  'ToolBtn still uses emoji icon — FaithIcon not applied',
+  'Colorir V2: ferramentas em ícones compactos (CompactTool) e borracha com ícone de borracha real',
+  coloringScreenSrc93.includes('function CompactTool') &&
+  coloringScreenSrc93.includes('MaterialCommunityIcons name="eraser"'),
+  'ColoringScreen não usa CompactTool / ícone de borracha real',
 );
 check(
-  'ColoringScreen has Ampliar button',
-  coloringScreenSrc93.includes('"Ampliar"'),
-  'Ampliar button not found in ColoringScreen',
+  'Colorir V2: botão "Ampliar" removido da barra (zoom é por gesto de dois dedos)',
+  !coloringScreenSrc93.includes('"Ampliar"') && !coloringScreenSrc93.includes('handleZoomIn'),
+  'Botão Ampliar ainda presente — deveria ter sido removido',
 );
 check(
-  'ColoringScreen has Enquadrar button',
-  coloringScreenSrc93.includes('"Enquadrar"'),
-  'Enquadrar button not found in ColoringScreen',
+  'Colorir V2: "Enquadrar" virou "Ver tudo (centralizar)" via accessibilityLabel',
+  !coloringScreenSrc93.includes('"Enquadrar"') &&
+  coloringScreenSrc93.includes('Ver tudo (centralizar)'),
+  'Ação de centralizar não está clara (Ver tudo/Centralizar)',
 );
 check(
   'ColoringScreen has no old "Zoom ↺" label',
@@ -2689,9 +2691,11 @@ check(
   '"Zoom ↺" label still present — should be replaced by Ampliar/Enquadrar',
 );
 check(
-  'ColoringScreen handleZoomIn calls canvasRef.current?.zoomIn()',
-  coloringScreenSrc93.includes('canvasRef.current?.zoomIn()'),
-  'handleZoomIn not wired to zoomIn() — Ampliar button will not zoom',
+  'Colorir V2: "Limpar" movido para menu compacto (fora do destaque) + confirmação',
+  coloringScreenSrc93.includes('Limpar tudo') &&
+  /showMenu/.test(coloringScreenSrc93) &&
+  coloringScreenSrc93.includes('handleClearAll'),
+  'Limpar não foi movido para o menu / perdeu a confirmação',
 );
 check(
   'ColoringScreen passes onFillRejected to ColoringCanvas',
@@ -2818,14 +2822,19 @@ check(
   'CANVAS_MARGIN not found — margin is not parameterised',
 );
 check(
-  'ColoringScreen CANVAS_MARGIN is 6 (reduced from 10)',
-  coloringScreenSrc94.includes('CANVAS_MARGIN = 6'),
-  'CANVAS_MARGIN is not 6 — canvas margin not reduced',
+  'Colorir V2: CANVAS_MARGIN mínimo (2) — moldura/margem reduzidas ao máximo',
+  coloringScreenSrc94.includes('CANVAS_MARGIN = 2'),
+  'CANVAS_MARGIN não está mínimo (2) — margens ainda roubam área do desenho',
 );
 check(
-  'ColoringScreen approxBottomH compacto (112) — barra inferior menor dá mais canvas',
-  coloringScreenSrc94.includes('approxBottomH = 112'),
-  'approxBottomH não está compacto (112) — barra inferior não foi reduzida',
+  'Colorir V2: approxBottomH compacto (96) — barra inferior ainda menor dá mais canvas',
+  coloringScreenSrc94.includes('approxBottomH = 96'),
+  'approxBottomH não está compacto (96) — barra inferior não foi reduzida',
+);
+check(
+  'Colorir V2: canvas sem moldura (sem borderWidth: 2 no canvasArea)',
+  !/canvasArea:\s*\{[\s\S]{0,260}borderWidth:\s*2/.test(coloringScreenSrc94),
+  'canvasArea ainda tem moldura (borderWidth: 2) — desenho preso na moldura',
 );
 check(
   'ColoringScreen lineTip bottom updated to 168',
@@ -2867,6 +2876,14 @@ check(
   coloringCanvasSrc94.includes('lineartCache.set(imageSource') &&
   coloringCanvasSrc94.includes('CACHE HIT') && coloringCanvasSrc94.includes('CACHE MISS'),
   'ColoringCanvas não tem cache em memória da lineart — reaberturas reconvertem o asset',
+);
+check(
+  'Colorir V2: nitidez via devicePixelRatio (backing físico) + toque convertido por DPR (fill/coords corretos)',
+  /var DPR=Math\.min\(window\.devicePixelRatio\|\|1,3\)/.test(coloringCanvasSrc94) &&
+  /W=Math\.round\(cssW\*DPR\); H=Math\.round\(cssH\*DPR\)/.test(coloringCanvasSrc94) &&
+  coloringCanvasSrc94.includes("C.style.width=cssW+'px'") &&
+  /\(touch\.clientX-r\.left\)\*DPR-tx/.test(coloringCanvasSrc94),
+  'ColoringCanvas não aplica devicePixelRatio (lineart continua apagada) ou não converte coordenadas',
 );
 
 // Protections intact

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Image, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Image, Pressable, useWindowDimensions } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -19,12 +20,17 @@ import FaithIcon from '../components/ui/FaithIcon';
 import { backLabelFor } from '../utils/originBack';
 
 
-function ToolBtn({ iconName, label, onPress, active }) {
+// Ferramenta compacta: só ícone (sem rótulo embaixo) com área tocável segura.
+// Ferramentas de alta repetição (borracha/desfazer): sem som (Bloco 5).
+function CompactTool({ children, onPress, active, accessibilityLabel }) {
   return (
-    // Ferramentas de alta repetição (borracha/desfazer/zoom): sem som (Bloco 5).
-    <SoundButton silent style={[styles.toolBtn, active && styles.toolBtnActive]} onPress={onPress}>
-      <FaithIcon name={iconName} size={20} color={active ? '#6B4F00' : '#666'} />
-      <Text style={[styles.toolBtnLabel, active && styles.toolBtnLabelActive]}>{label}</Text>
+    <SoundButton
+      silent
+      accessibilityLabel={accessibilityLabel}
+      style={[styles.compactTool, active && styles.compactToolActive]}
+      onPress={onPress}
+    >
+      {children}
     </SoundButton>
   );
 }
@@ -50,6 +56,9 @@ export default function ColoringScreen({ route, navigation }) {
   // Touch feedback: shown briefly when user taps on a line instead of white area
   const [showLineTip, setShowLineTip] = useState(false);
   const lineTipTimerRef = useRef(null);
+
+  // Menu compacto de opções (guarda "Limpar tudo" fora do destaque)
+  const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {
     if (!canOpenStoryFullExperience(story)) {
@@ -93,16 +102,16 @@ export default function ColoringScreen({ route, navigation }) {
 
   // Adaptive canvas height: size canvas to image aspect ratio, capped at available screen
   // space so the Pronto button and tools are always visible regardless of image shape.
-  const CANVAS_MARGIN = 6; // px on each side — reduced from 10 to give more painting space
+  const CANVAS_MARGIN = 2; // px on each side — mínimo seguro (V2: foco no desenho)
   let canvasHeight = undefined;
   if (imageSource) {
     try {
       const asset = Image.resolveAssetSource(imageSource);
       if (asset?.width && asset?.height) {
-        // topBar ≈ 56px content + safe area top. bottomPanel compacto ≈ 112px
-        // (ferramentas + paleta menores, sem dica fixa) + safe area bottom.
-        const approxTopH = 56 + Math.max(insets.top || 0, 8);
-        const approxBottomH = 112 + (insets.bottom || 0);
+        // topBar ≈ 50px content + safe area top. bottomPanel V2 ≈ 96px
+        // (ícones compactos + paleta menor, sem moldura) + safe area bottom.
+        const approxTopH = 50 + Math.max(insets.top || 0, 8);
+        const approxBottomH = 96 + (insets.bottom || 0);
         const maxCanvasH = Math.max(200, screenH - approxTopH - approxBottomH - CANVAS_MARGIN * 2);
         const canvasW = screenW - CANVAS_MARGIN * 2;
         const naturalH = Math.round(canvasW / (asset.width / asset.height));
@@ -227,11 +236,6 @@ export default function ColoringScreen({ route, navigation }) {
     canvasRef.current?.resetZoom();
   }
 
-  function handleZoomIn() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    canvasRef.current?.zoomIn();
-  }
-
   function handleFillRejected() {
     setShowLineTip(true);
     if (lineTipTimerRef.current) clearTimeout(lineTipTimerRef.current);
@@ -300,28 +304,46 @@ export default function ColoringScreen({ route, navigation }) {
         </View>
       </View>
 
-      {/* ── BOTTOM PANEL ───────────────────────────────────────── */}
-      <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 6 }]}>
+      {/* ── BOTTOM PANEL (compacto — foco no desenho) ──────────────── */}
+      <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 4 }]}>
 
-        {/* Tools row */}
+        {/* Menu pequeno: guarda "Limpar tudo" fora do destaque (com confirmação). */}
+        {showMenu && (
+          <>
+            <Pressable style={styles.menuBackdrop} onPress={() => setShowMenu(false)} />
+            <View style={styles.menuPopover}>
+              <SoundButton
+                style={styles.menuItem}
+                onPress={() => { setShowMenu(false); handleClearAll(); }}
+              >
+                <Text style={styles.menuItemText}>🧹  Limpar tudo</Text>
+              </SoundButton>
+            </View>
+          </>
+        )}
+
+        {/* Ferramentas principais — ícones compactos (no máx.: Borracha, Desfazer,
+            Ver tudo, Mais). O botão de ampliar saiu — zoom é por gesto de dois dedos. */}
         <View style={styles.toolsRow}>
-          <ToolBtn
-            iconName="erase"
-            label="Borracha"
+          <CompactTool
             active={eraserActive}
+            accessibilityLabel="Borracha"
             onPress={() => handleSelectColor(ERASER_COLOR)}
-          />
-          <ToolBtn iconName="undo" label="Desfazer" onPress={handleUndo} />
-          <ToolBtn iconName="clear" label="Limpar" onPress={handleClearAll} />
-          <ToolBtn iconName="zoom_in" label="Ampliar" onPress={handleZoomIn} />
-          <ToolBtn iconName="zoom_reset" label="Enquadrar" onPress={handleResetZoom} />
+          >
+            <MaterialCommunityIcons name="eraser" size={24} color={eraserActive ? '#6B4F00' : '#666'} />
+          </CompactTool>
+          <CompactTool accessibilityLabel="Desfazer" onPress={handleUndo}>
+            <FaithIcon name="undo" size={22} color="#666" />
+          </CompactTool>
+          <CompactTool accessibilityLabel="Ver tudo (centralizar)" onPress={handleResetZoom}>
+            <FaithIcon name="zoom_reset" size={22} color="#666" />
+          </CompactTool>
+          <CompactTool active={showMenu} accessibilityLabel="Mais opções" onPress={() => setShowMenu(v => !v)}>
+            <Text style={styles.moreDots}>⋯</Text>
+          </CompactTool>
         </View>
 
-        {/* Thin separator (a dica de gesto fixa foi removida para dar mais
-            área ao desenho; o gesto de dois dedos continua funcionando). */}
-        <View style={styles.separator} />
-
-        {/* Colour palette — horizontal scroll */}
+        {/* Paleta — faixa compacta, rolagem horizontal */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -406,7 +428,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingBottom: 8,
+    paddingBottom: 5,
     backgroundColor: colors.cardBg,
     elevation: 3,
     shadowColor: '#000',
@@ -473,15 +495,14 @@ const styles = StyleSheet.create({
   },
   canvasArea: {
     /* margin is set dynamically via CANVAS_MARGIN constant */
-    borderRadius: 18,
+    /* V2: moldura removida (sem borda) — o desenho é o protagonista. */
+    borderRadius: 10,
     overflow: 'hidden',
-    elevation: 4,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    borderWidth: 2,
-    borderColor: '#F0D9C8',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
     backgroundColor: '#FFFDF8',
   },
 
@@ -496,23 +517,24 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
 
-  /* Tools — menos altura e texto menor */
+  /* Ferramentas — ícones compactos (sem rótulo), área tocável ~44pt */
   toolsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    paddingHorizontal: 8,
+    justifyContent: 'center',
+    gap: 14,
+    paddingTop: 2,
     paddingBottom: 6,
   },
-  toolBtn: {
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+  compactTool: {
+    width: 46,
+    height: 40,
     borderRadius: 12,
     backgroundColor: '#F0EAE0',
-    minWidth: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
     elevation: 1,
   },
-  toolBtnActive: {
+  compactToolActive: {
     backgroundColor: '#FFE066',
     elevation: 3,
     shadowColor: '#FFD700',
@@ -520,29 +542,41 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 3,
   },
-  toolBtnLabel: { fontFamily: 'Nunito', fontSize: 9, color: '#888', marginTop: 1 },
-  toolBtnLabelActive: { color: '#6B4F00', fontWeight: '700' },
+  moreDots: { fontFamily: 'FredokaOne', fontSize: 22, color: '#666', lineHeight: 24 },
 
-  separator: {
-    height: 1,
-    backgroundColor: '#EDE0D4',
-    marginHorizontal: 12,
-    marginBottom: 6,
+  /* Menu pequeno (Limpar tudo) */
+  menuBackdrop: { ...StyleSheet.absoluteFillObject, top: -1000 },
+  menuPopover: {
+    position: 'absolute',
+    right: 12,
+    top: -46,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    paddingVertical: 4,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: '#EDE0D4',
   },
+  menuItem: { paddingVertical: 10, paddingHorizontal: 18 },
+  menuItemText: { fontFamily: 'Nunito', fontSize: 14, color: '#6B4F00', fontWeight: '700' },
 
-  /* Palette — cores visualmente menores, mas área tocável segura (~46pt) */
+  /* Paleta — faixa compacta; bolinhas menores, área tocável segura (~46pt) */
   paletteScroll: { flexGrow: 0 },
   paletteContent: {
     paddingHorizontal: 12,
     paddingBottom: 2,
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
-  dotWrapper: { padding: 5 },
+  dotWrapper: { padding: 8 },
   colorDot: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -557,7 +591,7 @@ const styles = StyleSheet.create({
   colorDotSelected: {
     borderColor: '#FFD700',
     borderWidth: 3,
-    transform: [{ scale: 1.22 }],
+    transform: [{ scale: 1.15 }],
     elevation: 6,
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 2 },

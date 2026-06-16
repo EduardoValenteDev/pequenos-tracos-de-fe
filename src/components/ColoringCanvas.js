@@ -65,6 +65,11 @@ var offCtx=off.getContext('2d');
 var tmp=document.createElement('canvas');
 var tmpCtx=tmp.getContext('2d');
 var W=0,H=0;
+/* Backing store em pixels FÍSICOS (retina) → lineart nítida, não "apagada".
+   W,H passam a ser px físicos; o canvas DISPLAY continua do tamanho CSS via
+   style. Todas as coordenadas de toque são convertidas por DPR (ver handlers).
+   Limitado a 3 para não explodir memória/BFS em telas 4x. */
+var DPR=Math.min(window.devicePixelRatio||1,3);
 
 /* ─── Image data layers ─── */
 /* baseD — pixel snapshot of (bg + line art), used ONLY for BFS barrier detection */
@@ -109,7 +114,10 @@ var suppressPaintUntil=0;
    Layer order: 1. cream bg  2. user paint  3. line art on top
 ─────────────────────────────────────────── */
 function resize(){
-  W=window.innerWidth|0; H=window.innerHeight|0;
+  var cssW=window.innerWidth|0, cssH=window.innerHeight|0;
+  /* Backing FÍSICO (×DPR) para nitidez; display em CSS px via style. */
+  W=Math.round(cssW*DPR); H=Math.round(cssH*DPR);
+  C.style.width=cssW+'px'; C.style.height=cssH+'px';
   C.width=W; C.height=H;
   off.width=W; off.height=H;
   tmp.width=W; tmp.height=H;
@@ -278,12 +286,13 @@ C.addEventListener('touchstart',function(e){
   if(e.touches.length>=2){
     touchState='pinch';
     pinchD=d2(e.touches[0],e.touches[1]);
-    pinchMX=(e.touches[0].clientX+e.touches[1].clientX)/2;
-    pinchMY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    /* clientX/Y são CSS px → ×DPR para o espaço FÍSICO do backing (tx/ty/W/H). */
+    pinchMX=(e.touches[0].clientX+e.touches[1].clientX)/2*DPR;
+    pinchMY=(e.touches[0].clientY+e.touches[1].clientY)/2*DPR;
   }else{
     touchState='tap';
-    tapX=e.touches[0].clientX;
-    tapY=e.touches[0].clientY;
+    tapX=e.touches[0].clientX*DPR;
+    tapY=e.touches[0].clientY*DPR;
   }
 },{passive:false});
 
@@ -291,8 +300,8 @@ C.addEventListener('touchmove',function(e){
   e.preventDefault();
   if(touchState==='pinch'&&e.touches.length>=2){
     var nd=d2(e.touches[0],e.touches[1]);
-    var mX=(e.touches[0].clientX+e.touches[1].clientX)/2;
-    var mY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    var mX=(e.touches[0].clientX+e.touches[1].clientX)/2*DPR;
+    var mY=(e.touches[0].clientY+e.touches[1].clientY)/2*DPR;
     if(pinchD>0){
       var ns=Math.max(minScale,Math.min(maxScale,scale*nd/pinchD));
       /* Pan + zoom combined: keep the canvas point under pinchMX/pinchMY
@@ -313,15 +322,15 @@ C.addEventListener('touchend',function(e){
   var prev=touchState;
   if(e.touches.length>=2){
     touchState='pinch';
-    pinchMX=(e.touches[0].clientX+e.touches[1].clientX)/2;
-    pinchMY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    pinchMX=(e.touches[0].clientX+e.touches[1].clientX)/2*DPR;
+    pinchMY=(e.touches[0].clientY+e.touches[1].clientY)/2*DPR;
     pinchD=d2(e.touches[0],e.touches[1]);
   }else if(e.touches.length===1){
     /* After pinch: single finger always treated as tap, fills suppressed by
        suppressPaintUntil (300 ms cooldown set below). */
     touchState='tap';
-    tapX=e.touches[0].clientX;
-    tapY=e.touches[0].clientY;
+    tapX=e.touches[0].clientX*DPR;
+    tapY=e.touches[0].clientY*DPR;
   }else touchState='idle';
   /* Cooldown: any pinch-end (one or both fingers lifted) suppresses fills
      for 300 ms — guards against the simultaneous 2-finger-lift edge case. */
@@ -330,8 +339,9 @@ C.addEventListener('touchend',function(e){
   if(prev==='tap'&&e.changedTouches.length>0&&Date.now()>suppressPaintUntil){
     var touch=e.changedTouches[0];
     var r=C.getBoundingClientRect();
-    var ox=Math.floor((touch.clientX-r.left-tx)/scale);
-    var oy=Math.floor((touch.clientY-r.top-ty)/scale);
+    /* (clientX-r.left) é offset CSS no canvas → ×DPR para px físicos do backing. */
+    var ox=Math.floor(((touch.clientX-r.left)*DPR-tx)/scale);
+    var oy=Math.floor(((touch.clientY-r.top)*DPR-ty)/scale);
     devLog('[COLORING_DEBUG] touch clientX='+touch.clientX+' clientY='+touch.clientY
       +' canvasX='+ox+' canvasY='+oy
       +' imgX='+imgX+' imgY='+imgY+' imgW='+imgW+' imgH='+imgH
