@@ -1,26 +1,27 @@
 /**
- * MapRegion — uma das 4 regiões verticais do Mapa Pergaminho (M1).
+ * MapRegion — uma das 4 regiões verticais do Mapa Pergaminho (M2).
  *
- * Fundo PROVISÓRIO por código (tom pergaminho da região) — não importa
- * assets/maps/. As 4 regiões empilhadas simulam o encaixe futuro de R1..R4 (M2).
- * Posiciona os marcos em zigue-zague e desenha o caminho (SVG) por trás deles.
+ * Fundo = imagem REAL da região (assets/maps/), em par adormecido (A) / desperto
+ * (B): `awake` escolhe qual exibir. resizeMode="cover" preenche a largura. As 4
+ * regiões empilhadas formam o mapa contínuo. O caminho (SVG) fica POR CIMA do
+ * mapa mas ATRÁS dos marcos; os marcos (capas) ficam por cima de tudo.
  */
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ImageBackground } from 'react-native';
 import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
 
-const HEADER_H = 60;
-const ROW_H = 132;
-const BOTTOM_PAD = 28;
-const MARKER_W = 112;
+const HEADER_H = 64;
+const ROW_H = 158;
+const BOTTOM_PAD = 34;
+const MARKER_W = 132;
 
-export default function MapRegion({ region, width, getState, onPressStory }) {
+export default function MapRegion({ region, width, awake, getState, onPressStory }) {
   const list = region.stories || [];
-  const pad = 18;
+  const pad = 16;
   const innerW = width - pad * 2;
-  // Zigue-zague: alterna esquerda/direita para o caminho ondular.
-  const colX = [pad + innerW * 0.27, pad + innerW * 0.73];
+  // Zigue-zague suave: alterna esquerda/direita para o caminho ondular.
+  const colX = [pad + innerW * 0.28, pad + innerW * 0.72];
 
   const points = list.map((s, i) => ({
     x: colX[i % 2],
@@ -28,24 +29,33 @@ export default function MapRegion({ region, width, getState, onPressStory }) {
   }));
   const contentH = HEADER_H + ROW_H * list.length + BOTTOM_PAD;
 
+  const source = region.images ? (awake ? region.images.awake : region.images.asleep) : null;
+
   return (
-    <View style={[styles.region, { backgroundColor: region.tint, minHeight: contentH }]}>
-      {/* Cabeçalho da região (chip) */}
+    <ImageBackground
+      source={source}
+      resizeMode="cover"
+      style={[styles.region, { minHeight: contentH, backgroundColor: region.tint }]}
+    >
+      {/* Véu suave para legibilidade dos marcos/títulos sobre a arte do mapa */}
+      <View style={styles.veil} pointerEvents="none" />
+
+      {/* Cabeçalho da região (chip translúcido integrado ao mapa) */}
       <View style={styles.headerRow}>
-        <View style={[styles.chip, { borderColor: region.accent }]}>
-          <Text style={[styles.chipTitle, { color: region.accent }]}>{region.title}</Text>
+        <View style={styles.chip}>
+          <Text style={styles.chipTitle}>{region.title}</Text>
           <Text style={styles.chipSub}>{region.subtitle}</Text>
         </View>
       </View>
 
-      {/* Caminho por código (SVG) ligando os marcos */}
-      <MapPath width={width} height={contentH} points={points} color={region.accent} />
+      {/* Caminho por código (SVG) ligando os marcos — atrás dos marcos */}
+      <MapPath width={width} height={contentH} points={points} color="#FFF6E0" />
 
-      {/* Marcos posicionados ao longo do caminho */}
+      {/* Marcos (capas) por cima */}
       {list.map((story, i) => (
         <View
           key={story.id}
-          style={[styles.markerSlot, { left: points[i].x - MARKER_W / 2, top: points[i].y - 42 }]}
+          style={[styles.markerSlot, { left: points[i].x - MARKER_W / 2, top: points[i].y - 56 }]}
         >
           <StoryMapMarker
             story={story}
@@ -54,27 +64,22 @@ export default function MapRegion({ region, width, getState, onPressStory }) {
           />
         </View>
       ))}
-    </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  region: {
-    width: '100%',
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: 'rgba(120,90,40,0.08)',
-  },
-  headerRow: { alignItems: 'center', paddingTop: 12 },
+  region: { width: '100%' },
+  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,250,235,0.10)' },
+  headerRow: { alignItems: 'center', paddingTop: 14 },
   chip: {
-    backgroundColor: '#FFFFFFEE',
-    borderWidth: 2,
+    backgroundColor: 'rgba(40,30,15,0.55)',
     borderRadius: 18,
-    paddingVertical: 5,
-    paddingHorizontal: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 18,
     alignItems: 'center',
   },
-  chipTitle: { fontFamily: 'FredokaOne', fontSize: 15 },
-  chipSub: { fontFamily: 'Nunito', fontSize: 11, color: '#7A6A4E', fontWeight: '700' },
+  chipTitle: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFFFFF' },
+  chipSub: { fontFamily: 'Nunito', fontSize: 11.5, color: '#F3E8D0', fontWeight: '700' },
   markerSlot: { position: 'absolute', width: MARKER_W, alignItems: 'center' },
 });

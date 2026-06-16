@@ -11,9 +11,18 @@
  */
 import { stories } from './stories';
 
-// Metadados visuais provisórios por região (fundo por CÓDIGO no M1, sem
-// importar assets/maps/). `tint` = pergaminho suave da região; `accent` = cor
-// do caminho/realces.
+// M2 — imagens REAIS de cada região (assets/maps/), em pares adormecido (A) /
+// desperto (B). Ambas importadas para não quebrar e deixar B pronto para a
+// revelação. Mapeamento de regiões → R1..R4 (de cima para baixo).
+export const REGION_MAP_IMAGES = {
+  comece_aqui:   { asleep: require('../../assets/maps/R1A.png'), awake: require('../../assets/maps/R1B.png') },
+  pequeninos:    { asleep: require('../../assets/maps/R2A.png'), awake: require('../../assets/maps/R2B.png') },
+  descobridores: { asleep: require('../../assets/maps/R3A.png'), awake: require('../../assets/maps/R3B.png') },
+  jovens_da_fe:  { asleep: require('../../assets/maps/R4A.png'), awake: require('../../assets/maps/R4B.png') },
+};
+
+// Metadados visuais por região. `tint` = cor de borda/realce suave (fallback de
+// fundo enquanto a imagem carrega); `accent` = cor do caminho/realces.
 export const ADVENTURE_REGION_META = [
   { id: 'comece_aqui',   title: 'Comece Aqui',   subtitle: 'Os primeiros passos',      tint: '#EAF6FF', accent: '#4FC3F7' },
   { id: 'pequeninos',    title: 'Pequeninos',    subtitle: 'Histórias para crescer',   tint: '#EAF7EE', accent: '#66BB6A' },
@@ -31,7 +40,8 @@ export function getAdventureRegions() {
     const regionStories = stories
       .filter(s => s.trackId === meta.id)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    return { ...meta, stories: regionStories };
+    const images = REGION_MAP_IMAGES[meta.id] || null;
+    return { ...meta, stories: regionStories, images };
   });
 }
 

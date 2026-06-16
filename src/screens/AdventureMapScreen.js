@@ -1,34 +1,38 @@
 /**
- * AdventureMapScreen — Mapa Pergaminho (M1, esqueleto funcional).
+ * AdventureMapScreen — Mapa Pergaminho (M2, visual real).
  *
- * É a NOVA experiência da aba Aventuras (substitui a lista de cards). Mapa
- * vertical com scroll, 4 regiões (fundo provisório por código), caminho SVG,
- * marcos de histórias com 3 estados e faixa de convite no rodapé.
+ * É a experiência da aba Aventuras. Mapa vertical com as imagens REAIS de
+ * assets/maps/ como fundo das 4 regiões, caminho SVG (trilha), marcos grandes
+ * com as capas oficiais, e um CARD DE FOCO (estilo Livrinho) ao tocar.
  *
- * Tudo aqui é leitura: os estados dos marcos derivam de serviços EXISTENTES
+ * Tudo aqui é leitura: estados e revelação A/B derivam de serviços EXISTENTES
  * (contentAccessService + ProgressContext). Nenhuma regra de paywall/mídia/
- * progresso é alterada, e nenhuma história hoje bloqueada é liberada. Tocar num
- * marco usa o MESMO fluxo de antes: navigate('StoryDetail', { story }).
- *
- * M1 não importa assets/maps/ nem os Benis novos — isso entra em M2/M3.
+ * progresso é alterada, e nenhuma história hoje bloqueada é liberada. O toque
+ * abre o modal; a navegação para a história continua sendo a de antes —
+ * navigate('StoryDetail', { story }) — disparada pelo BOTÃO do modal.
  */
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { getAdventureRegions, getOrderedAdventureStories } from '../data/adventureMap';
-import { getStoryAccessStatus } from '../services/contentAccessService';
+import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
 import { useProgressContext } from '../context/ProgressContext';
 import MapRegion from '../components/map/MapRegion';
 import NextAdventureBanner from '../components/map/NextAdventureBanner';
+import StoryFocusModal from '../components/map/StoryFocusModal';
 
 export default function AdventureMapScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { isStoryCompleted } = useProgressContext();
+  const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
 
   const regions = useMemo(() => getAdventureRegions(), []);
   const ordered = useMemo(() => getOrderedAdventureStories(), []);
+
+  // Foco: toque abre o modal; navegação acontece pelo botão do modal.
+  const [focusStory, setFocusStory] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   // Aberto = mídia pronta + plano ok (regra existente). NÃO libera bloqueada.
   const isOpenable = useCallback((story) => getStoryAccessStatus(story) === 'full', []);
@@ -48,12 +52,28 @@ export default function AdventureMapScreen({ navigation }) {
     [currentId, isOpenable, isStoryCompleted],
   );
 
-  const openStory = useCallback(
-    (story) => navigation.navigate('StoryDetail', { story }),
-    [navigation],
+  // Revelação A/B: região "desperta" (B) quando já tem progresso relevante
+  // (ao menos uma história concluída); senão "adormecida" (A). Regra simples e
+  // segura — ambas as imagens já estão importadas.
+  const isRegionAwake = useCallback(
+    (region) => (region.stories || []).some((s) => isStoryCompleted(s.id)),
+    [isStoryCompleted],
   );
 
-  // Alvo da faixa de convite: o marco atual; se tudo concluído, convida a revisitar.
+  const openFocus = useCallback((story) => {
+    setFocusStory(story);
+    setModalVisible(true);
+  }, []);
+
+  const closeFocus = useCallback(() => setModalVisible(false), []);
+
+  const confirmOpenStory = useCallback(() => {
+    const story = focusStory;
+    setModalVisible(false);
+    if (story) navigation.navigate('StoryDetail', { story });
+  }, [focusStory, navigation]);
+
+  // Alvo da faixa: o marco atual; se tudo concluído, convida a revisitar.
   const currentStory = useMemo(() => ordered.find((s) => s.id === currentId), [ordered, currentId]);
   const allDone = !currentStory;
   const bannerStory = currentStory || ordered.find(isOpenable) || ordered[0];
@@ -74,23 +94,34 @@ export default function AdventureMapScreen({ navigation }) {
             key={region.id}
             region={region}
             width={width}
+            awake={isRegionAwake(region)}
             getState={getState}
-            onPressStory={openStory}
+            onPressStory={openFocus}
           />
         ))}
 
         <NextAdventureBanner
           story={bannerStory}
           allDone={allDone}
-          onPress={() => bannerStory && openStory(bannerStory)}
+          onPress={() => bannerStory && openFocus(bannerStory)}
         />
       </ScrollView>
+
+      <StoryFocusModal
+        visible={modalVisible}
+        story={focusStory}
+        state={focusStory ? getState(focusStory) : 'locked'}
+        lockReason={focusStory ? getStoryLockReason(focusStory) : null}
+        progressPercent={focusStory ? getStoryCompletionPercent(focusStory.id) : 0}
+        onClose={closeFocus}
+        onOpen={confirmOpenStory}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FBF4E6' },
+  container: { flex: 1, backgroundColor: '#2B2114' },
   header: {
     paddingHorizontal: 18,
     paddingBottom: 10,

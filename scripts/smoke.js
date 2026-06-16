@@ -5280,7 +5280,7 @@ check(
   );
 }
 
-// ── Mapa Pergaminho M1: esqueleto na aba Aventuras (fundo provisório, sem assets reais) ──
+// ── Mapa Pergaminho M2: visual real (imagens de assets/maps/) + card de foco ──
 {
   const nav = readSrc('src/navigation/AppNavigator.js');
   const mapScreen = readSrc('src/screens/AdventureMapScreen.js');
@@ -5289,68 +5289,96 @@ check(
   const marker = readSrc('src/components/map/StoryMapMarker.js');
   const region = readSrc('src/components/map/MapRegion.js');
   const banner = readSrc('src/components/map/NextAdventureBanner.js');
-  const mapFiles = [mapScreen, mapData, mapPath, marker, region, banner];
+  const focus = readSrc('src/components/map/StoryFocusModal.js');
+  const mapFiles = [mapScreen, mapData, mapPath, marker, region, banner, focus];
+  const MAPS = ['R1A', 'R1B', 'R2A', 'R2B', 'R3A', 'R3B', 'R4A', 'R4B'];
 
   check(
-    'Mapa M1: a aba Aventuras renderiza AdventureMapScreen (substitui a lista)',
+    'Mapa M2: a aba Aventuras renderiza AdventureMapScreen (substitui a lista)',
     /name:\s*'Aventuras'[\s\S]{0,160}component:\s*AdventureMapScreen/.test(nav) &&
     nav.includes("import AdventureMapScreen from '../screens/AdventureMapScreen'"),
     'aba Aventuras não aponta para AdventureMapScreen',
   );
   check(
-    'Mapa M1: regiões usam a classificação OFICIAL (trackId) — 4 regiões reais',
+    'Mapa M2: regiões usam a classificação OFICIAL (trackId) — 4 regiões reais',
     mapData.includes("from './stories'") &&
     mapData.includes('s.trackId === meta.id') &&
     ['comece_aqui', 'pequeninos', 'descobridores', 'jovens_da_fe'].every((t) => mapData.includes(`'${t}'`)),
     'adventureMap não deriva as regiões do trackId oficial',
   );
   check(
-    'Mapa M1: caminho desenhado por CÓDIGO via SVG (react-native-svg Path)',
+    'Mapa M2: usa as 8 imagens REAIS de assets/maps/ (R1A..R4B, pares A/B)',
+    MAPS.every((r) => mapData.includes(`assets/maps/${r}.png`)) &&
+    region.includes('ImageBackground') &&
+    region.includes('region.images'),
+    'mapa não importa/usa as imagens reais R1A..R4B como fundo das regiões',
+  );
+  check(
+    'Mapa M2: revelação A/B (adormecido/desperto) por progresso, sem inventar regra',
+    region.includes('awake ? region.images.awake : region.images.asleep') &&
+    mapScreen.includes('isRegionAwake') &&
+    /isRegionAwake[\s\S]{0,160}isStoryCompleted/.test(mapScreen),
+    'A/B não derivado de progresso (isRegionAwake)',
+  );
+  check(
+    'Mapa M2: emoji dormindo (😴) REMOVIDO de todos os arquivos do mapa',
+    mapFiles.every((s) => !s.includes('😴')),
+    'ainda há 😴 em algum arquivo do mapa',
+  );
+  check(
+    'Mapa M2: caminho por CÓDIGO via SVG (trilha, não placeholder) atrás dos marcos',
     mapPath.includes("from 'react-native-svg'") &&
     mapPath.includes('<Path') &&
     region.includes('MapPath'),
-    'caminho do mapa não é desenhado por código (SVG Path) atrás dos marcos',
+    'caminho do mapa não é SVG por código',
   );
   check(
-    'Mapa M1: marcos têm os 3 estados (bloqueado/atual/concluído)',
-    marker.includes("'completed'") && marker.includes("'current'") && marker.includes("'locked'") &&
-    /getState[\s\S]{0,260}return 'completed'[\s\S]{0,160}return 'current'[\s\S]{0,160}'locked'/.test(mapScreen),
-    'estados bloqueado/atual/concluído não definidos nos marcos/cálculo',
-  );
-  check(
-    'Mapa M1: capa recortada em círculo com fallback seguro (sem crash sem capa)',
+    'Mapa M2: marcos maiores valorizam a capa (círculo + fallback, sem emoji por cima)',
+    /isCurrent \? 112 : 96/.test(marker) &&
     marker.includes('getStoryCover(story.id)') &&
     /borderRadius:\s*inner\s*\/\s*2/.test(marker) &&
     marker.includes('fallback'),
-    'marco não usa capa circular com fallback seguro',
+    'marcos não foram aumentados ou perderam a capa circular/fallback',
   );
   check(
-    'Mapa M1: faixa de convite (próxima aventura) no rodapé',
+    'Mapa M2: 3 estados (bloqueado/atual/concluído) calculados por leitura',
+    marker.includes("'completed'") && marker.includes("'current'") && marker.includes("'locked'") &&
+    /getState[\s\S]{0,260}return 'completed'[\s\S]{0,160}return 'current'[\s\S]{0,160}'locked'/.test(mapScreen),
+    'estados bloqueado/atual/concluído não definidos',
+  );
+  check(
+    'Mapa M2: tocar no marco ABRE o card de foco (não navega seco)',
+    mapScreen.includes('StoryFocusModal') &&
+    mapScreen.includes('onPressStory={openFocus}') &&
+    /openFocus[\s\S]{0,120}setModalVisible\(true\)/.test(mapScreen) &&
+    focus.includes('Animated'),
+    'toque no marco não abre o modal de foco com Animated',
+  );
+  check(
+    'Mapa M2: a navegação para StoryDetail acontece no BOTÃO do modal (preservada)',
+    /confirmOpenStory[\s\S]{0,200}navigation\.navigate\('StoryDetail', \{ story \}\)/.test(mapScreen) &&
+    mapScreen.includes('onOpen={confirmOpenStory}'),
+    'navegação para StoryDetail não está no botão do modal',
+  );
+  check(
+    'Mapa M2: a faixa de próxima aventura ABRE o modal (não navega seco)',
     banner.includes('próxima aventura') &&
-    mapScreen.includes('NextAdventureBanner'),
-    'faixa de convite de próxima aventura ausente',
+    mapScreen.includes('openFocus(bannerStory)'),
+    'faixa de convite não abre o card de foco',
   );
   check(
-    'Mapa M1: navegação para história PRESERVADA (navigate StoryDetail), sem burlar acesso',
-    mapScreen.includes("navigation.navigate('StoryDetail', { story })") &&
-    mapScreen.includes('getStoryAccessStatus'),
-    'mapa não reaproveita o fluxo existente de abrir história / não usa o gate de acesso real',
-  );
-  check(
-    'Mapa M1: NÃO importa assets/maps/ nem os Benis novos (M2/M3)',
-    // Detecta IMPORT/REQUIRE real (não prose dos comentários).
-    mapFiles.every((s) => !/(require\(|from\s*)['"][^'"]*assets\/maps\//.test(s)) &&
+    'Mapa M2: NÃO usa os Benis novos (08-11) — ficam para M3',
     mapFiles.every((s) => !/(require\(|from\s*)['"][^'"]*mascot\/beni\/(08|09|10|11)_/.test(s)),
-    'arquivo do mapa importou assets/maps/ ou um Beni novo (proibido no M1)',
+    'arquivo do mapa importou um Beni novo (proibido no M2)',
   );
   check(
-    'Mapa M1: estados são LEITURA — não altera accessControl/mediaReady/storage/progresso',
+    'Mapa M2: estados são LEITURA — não altera accessControl/mediaReady/storage/progresso',
     mapScreen.includes("from '../services/contentAccessService'") &&
     mapScreen.includes("from '../context/ProgressContext'") &&
     mapFiles.every((s) => !s.includes('AsyncStorage')) &&
     mapFiles.every((s) => !/from '\.\.\/services\/accessControl'/.test(s)) &&
     mapFiles.every((s) => !/from '\.\.\/services\/mediaReadyService'/.test(s)),
-    'mapa toca em accessControl/mediaReady/storage em vez de só ler via contentAccessService/ProgressContext',
+    'mapa toca em accessControl/mediaReady/storage em vez de só ler',
   );
 }
 
