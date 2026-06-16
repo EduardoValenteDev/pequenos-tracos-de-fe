@@ -2910,6 +2910,55 @@ check(
   );
 }
 
+// ── Modo Colorir Grande (zoom inicial leve, centralizado, "Ver tudo" volta) ──
+check(
+  'Colorir Grande: INITIAL_COLORING_SCALE definido entre 1.10 e 1.18 (recomendado 1.14)',
+  /const INITIAL_COLORING_SCALE = 1\.1[0-8];/.test(coloringCanvasSrc94),
+  'INITIAL_COLORING_SCALE ausente ou fora da faixa segura 1.10–1.18',
+);
+check(
+  'Colorir Grande: zoom inicial aplicado no initCanvas (scale=INITIAL_COLORING_SCALE)',
+  coloringCanvasSrc94.includes('scale=INITIAL_COLORING_SCALE;'),
+  'initCanvas não aplica o zoom inicial — desenho não abre maior',
+);
+check(
+  'Colorir Grande: zoom inicial CENTRALIZADO (tx/ty pela metade do canvas) + clamp',
+  coloringCanvasSrc94.includes('tx=(W/2)*(1-scale);') &&
+  coloringCanvasSrc94.includes('ty=(H/2)*(1-scale);'),
+  'zoom inicial não está centralizado',
+);
+check(
+  'Colorir Grande: "Ver tudo" continua voltando a 1.0 (imagem inteira)',
+  coloringCanvasSrc94.includes('window.resetZoom=function(){scale=1;tx=0;ty=0;show();}'),
+  'resetZoom não volta a scale 1.0 — "Ver tudo" quebrado',
+);
+check(
+  'Colorir Grande: zoom inicial é só VIEW — motor (flood fill/export/load) intacto',
+  coloringCanvasSrc94.includes('window.exportPaint=function') &&
+  coloringCanvasSrc94.includes('window.loadPaint=function') &&
+  coloringCanvasSrc94.includes('function isBFSBarrier'),
+  'motor de pintura alterado pelo Modo Colorir Grande',
+);
+check(
+  'Colorir Grande: botão "Ampliar" NÃO voltou (zoom é por gesto)',
+  !/accessibilityLabel="Ampliar"/.test(coloringScreenSrc94) &&
+  !coloringScreenSrc94.includes('handleZoomIn'),
+  'botão Ampliar reapareceu na tela de colorir',
+);
+check(
+  'Colorir Grande: dica de primeira vez (dois dedos) — uma vez, persistida, não fixa',
+  coloringScreenSrc94.includes('@ptf_coloring_biggie_hint_v1') &&
+  coloringScreenSrc94.includes('Use dois dedos para mover o desenho') &&
+  coloringScreenSrc94.includes('setShowPanHint(false)'),
+  'dica de pan ausente, fixa, ou sem persistência de "primeira vez"',
+);
+check(
+  'Colorir Grande: paleta principal segue compacta e visível (não escondida neste bloco)',
+  coloringScreenSrc94.includes('styles.paletteScroll') &&
+  coloringScreenSrc94.includes('COLOR_PALETTE.map'),
+  'paleta principal foi removida ou escondida',
+);
+
 // Protections intact
 check(
   'ColoringCanvas exportPaint intact (Sprint 9.4)',

@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 import ColoringCanvas, { ERASER_COLOR } from '../components/ColoringCanvas';
 import { COLOR_PALETTE } from '../constants/colorPalette';
@@ -18,6 +19,10 @@ import {
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
 import FaithIcon from '../components/ui/FaithIcon';
 import { backLabelFor } from '../utils/originBack';
+
+// Dica de primeira vez do Modo Colorir Grande (UI-pref, não progresso): aparece
+// UMA vez por dispositivo e some sozinha — nunca fica fixa na tela.
+const PAN_HINT_KEY = '@ptf_coloring_biggie_hint_v1';
 
 
 // Ferramenta compacta: só ícone (sem rótulo embaixo) com área tocável segura.
@@ -60,6 +65,10 @@ export default function ColoringScreen({ route, navigation }) {
   // Menu compacto de opções (guarda "Limpar tudo" fora do destaque)
   const [showMenu, setShowMenu] = useState(false);
 
+  // Dica de primeira vez "use dois dedos para mover o desenho" (Modo Colorir Grande)
+  const [showPanHint, setShowPanHint] = useState(false);
+  const panHintTimerRef = useRef(null);
+
   useEffect(() => {
     if (!canOpenStoryFullExperience(story)) {
       navigation.replace('ParentArea');
@@ -74,6 +83,24 @@ export default function ColoringScreen({ route, navigation }) {
         setShowResumeDialog(true);
       }
     });
+  }, []);
+
+  // First-time hint: "use dois dedos para mover o desenho". Mostra UMA vez por
+  // dispositivo (flag persistida) e some sozinha — nunca fixa, nunca ocupa espaço
+  // permanente. Só faz sentido com imagem de história (Modo Colorir Grande).
+  useEffect(() => {
+    if (!imageSource) return;
+    let cancelled = false;
+    AsyncStorage.getItem(PAN_HINT_KEY).then(seen => {
+      if (cancelled || seen) return;
+      setShowPanHint(true);
+      AsyncStorage.setItem(PAN_HINT_KEY, '1').catch(() => {});
+      panHintTimerRef.current = setTimeout(() => setShowPanHint(false), 4000);
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+      if (panHintTimerRef.current) clearTimeout(panHintTimerRef.current);
+    };
   }, []);
 
   // DEV: expose console helpers to clear saved state during testing
@@ -370,6 +397,16 @@ export default function ColoringScreen({ route, navigation }) {
         </ScrollView>
 
       </View>
+
+      {/* ── PAN HINT — dica de primeira vez do Modo Colorir Grande ── */}
+      {showPanHint && (
+        <View
+          style={[styles.panHint, { top: Math.max(insets.top, 8) + 54 }]}
+          pointerEvents="none"
+        >
+          <Text style={styles.panHintText}>✌️ Use dois dedos para mover o desenho</Text>
+        </View>
+      )}
 
       {/* ── LINE TIP — shown when user taps on a line ──────────── */}
       {showLineTip && (
@@ -670,6 +707,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textLight,
     textDecorationLine: 'underline',
+  },
+
+  /* ── Pan hint toast (primeira vez, Modo Colorir Grande) ── */
+  panHint: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    backgroundColor: 'rgba(50,50,50,0.88)',
+    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    zIndex: 10,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  panHintText: {
+    fontFamily: 'Nunito',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
 
   /* ── Line tip toast ── */

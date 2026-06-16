@@ -28,6 +28,14 @@ const TIMEOUT_MS = 7000;
    visBuf is pre-allocated once and cleaned after each BFS by scanning only
    enqueued pixels (O(N_fill)) rather than a full W*H memset.
 ─────────────────────────────────────────────────────────────────────────────── */
+/* Modo Colorir Grande — o desenho de história abre com um zoom inicial leve para
+   parecer maior de verdade (a arte 4:5 exibida inteira é limitada pela LARGURA do
+   celular; alinhar não aumenta o tamanho real, só um zoom de view aumenta). É só
+   um transform de VIEW (scale/tx/ty), centralizado, que NÃO toca o motor de pintura
+   (flood fill/baseD/paintD/export). "Ver tudo" volta a 1.0 (imagem inteira).
+   Conservador: 1.10 (suave) … 1.18 (máx). Recomendado: 1.14. */
+const INITIAL_COLORING_SCALE = 1.14;
+
 function buildHtml(imgDataUrl) {
   const imgJson = imgDataUrl ? JSON.stringify(imgDataUrl) : 'null';
   const devFlag = __DEV__ ? 'true' : 'false';
@@ -102,6 +110,8 @@ var DX=[-1,1,0,0],DY=[0,0,-1,1];
 /* ─── Zoom / pan ─── */
 var scale=1.0,minScale=1.0,maxScale=3.0;
 var tx=0,ty=0;
+/* Modo Colorir Grande: scale inicial do desenho de história (1.0 = imagem inteira). */
+var INITIAL_COLORING_SCALE=${INITIAL_COLORING_SCALE};
 var lastFillRejectedAt=0;
 
 /* ─── Touch state ─── */
@@ -477,9 +487,17 @@ function initCanvas(uri){
       paintD=offCtx.createImageData(W,H);
       allocBufs();
       devLog('bufs allocated qBuf='+qBuf.length+' visBuf='+visBuf.length);
+      /* Modo Colorir Grande: abre com zoom inicial leve, CENTRALIZADO no canvas
+         (mesma fórmula do zoomIn a partir de scale=1, tx=0, ty=0 → tx=cx*(1-ns)).
+         clamp() mantém as bordas alcançáveis por pan de dois dedos. É só view —
+         baseD/paintD/imgX..imgW e o flood fill ficam intactos. */
+      scale=INITIAL_COLORING_SCALE;
+      tx=(W/2)*(1-scale);
+      ty=(H/2)*(1-scale);
+      clamp();
       renderAll();
       window.ReactNativeWebView.postMessage('READY');
-      devLog('READY sent');
+      devLog('READY sent zoom='+scale);
     }catch(e){
       window.ReactNativeWebView.postMessage('ERR:initCanvas:'+e.message);
     }
