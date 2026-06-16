@@ -1,33 +1,44 @@
 /**
- * MapRegion — uma das 4 regiões verticais do Mapa Pergaminho (M2).
+ * MapRegion — uma das 4 regiões verticais do Mapa Pergaminho (M2.1).
  *
  * Fundo = imagem REAL da região (assets/maps/), em par adormecido (A) / desperto
- * (B): `awake` escolhe qual exibir. resizeMode="cover" preenche a largura. As 4
- * regiões empilhadas formam o mapa contínuo. O caminho (SVG) fica POR CIMA do
- * mapa mas ATRÁS dos marcos; os marcos (capas) ficam por cima de tudo.
+ * (B): `awake` escolhe qual exibir. resizeMode="cover" preenche a largura.
+ *
+ * Sentido da jornada: dentro de cada região o caminho SOBE (marcos posicionados
+ * de baixo para cima), respeitando as artes (parte épica no topo). As 4 regiões
+ * empilham com SEAMS de névoa (LinearGradient) no topo e na base, para não
+ * parecerem "fotos coladas". O caminho (SVG) fica por cima do mapa, atrás dos
+ * marcos; as capas ficam por cima de tudo.
  */
 import React from 'react';
 import { View, Text, StyleSheet, ImageBackground } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
 
-const HEADER_H = 64;
-const ROW_H = 158;
-const BOTTOM_PAD = 34;
-const MARKER_W = 132;
+const HEADER_H = 60;
+const ROW_H = 166;
+const BOTTOM_PAD = 40;
+const MARKER_W = 140;
+const SEAM_H = 46;
 
 export default function MapRegion({ region, width, awake, getState, onPressStory }) {
   const list = region.stories || [];
   const pad = 16;
   const innerW = width - pad * 2;
-  // Zigue-zague suave: alterna esquerda/direita para o caminho ondular.
-  const colX = [pad + innerW * 0.28, pad + innerW * 0.72];
+  // Zigue-zague suave para o caminho ondular.
+  const colX = [pad + innerW * 0.29, pad + innerW * 0.71];
 
+  const markerSpan = HEADER_H + ROW_H * list.length + BOTTOM_PAD;
+  // Mostra mais da arte vertical (evita corte feio); seams escondem as bordas.
+  const regionH = Math.max(markerSpan, Math.round(width * 1.32));
+
+  // Sentido de baixo para cima: o índice 0 (1ª história) fica EMBAIXO e a jornada
+  // sobe. O caminho liga os marcos do fundo para o topo da região.
   const points = list.map((s, i) => ({
     x: colX[i % 2],
-    y: HEADER_H + ROW_H * i + ROW_H / 2,
+    y: regionH - BOTTOM_PAD - ROW_H / 2 - ROW_H * i,
   }));
-  const contentH = HEADER_H + ROW_H * list.length + BOTTOM_PAD;
 
   const source = region.images ? (awake ? region.images.awake : region.images.asleep) : null;
 
@@ -35,10 +46,22 @@ export default function MapRegion({ region, width, awake, getState, onPressStory
     <ImageBackground
       source={source}
       resizeMode="cover"
-      style={[styles.region, { minHeight: contentH, backgroundColor: region.tint }]}
+      style={[styles.region, { height: regionH, backgroundColor: region.tint }]}
     >
-      {/* Véu suave para legibilidade dos marcos/títulos sobre a arte do mapa */}
+      {/* Véu suave para legibilidade sobre a arte */}
       <View style={styles.veil} pointerEvents="none" />
+
+      {/* Seams de névoa de pergaminho — unem as regiões (topo e base) */}
+      <LinearGradient
+        colors={['rgba(43,33,20,0.55)', 'rgba(251,244,230,0)']}
+        style={[styles.seam, { top: 0, height: SEAM_H }]}
+        pointerEvents="none"
+      />
+      <LinearGradient
+        colors={['rgba(251,244,230,0)', 'rgba(43,33,20,0.55)']}
+        style={[styles.seam, { bottom: 0, height: SEAM_H }]}
+        pointerEvents="none"
+      />
 
       {/* Cabeçalho da região (chip translúcido integrado ao mapa) */}
       <View style={styles.headerRow}>
@@ -49,13 +72,13 @@ export default function MapRegion({ region, width, awake, getState, onPressStory
       </View>
 
       {/* Caminho por código (SVG) ligando os marcos — atrás dos marcos */}
-      <MapPath width={width} height={contentH} points={points} color="#FFF6E0" />
+      <MapPath width={width} height={regionH} points={points} color="#FFF6E0" />
 
       {/* Marcos (capas) por cima */}
       {list.map((story, i) => (
         <View
           key={story.id}
-          style={[styles.markerSlot, { left: points[i].x - MARKER_W / 2, top: points[i].y - 56 }]}
+          style={[styles.markerSlot, { left: points[i].x - MARKER_W / 2, top: points[i].y - 60 }]}
         >
           <StoryMapMarker
             story={story}
@@ -69,11 +92,12 @@ export default function MapRegion({ region, width, awake, getState, onPressStory
 }
 
 const styles = StyleSheet.create({
-  region: { width: '100%' },
-  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,250,235,0.10)' },
+  region: { width: '100%', overflow: 'hidden' },
+  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,250,235,0.08)' },
+  seam: { position: 'absolute', left: 0, right: 0 },
   headerRow: { alignItems: 'center', paddingTop: 14 },
   chip: {
-    backgroundColor: 'rgba(40,30,15,0.55)',
+    backgroundColor: 'rgba(40,30,15,0.50)',
     borderRadius: 18,
     paddingVertical: 6,
     paddingHorizontal: 18,

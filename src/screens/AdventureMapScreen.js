@@ -11,8 +11,8 @@
  * abre o modal; a navegação para a história continua sendo a de antes —
  * navigate('StoryDetail', { story }) — disparada pelo BOTÃO do modal.
  */
-import React, { useMemo, useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
+import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { getAdventureRegions, getOrderedAdventureStories } from '../data/adventureMap';
@@ -26,6 +26,13 @@ export default function AdventureMapScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
+
+  // Entrada mágica: fade-in + leve slide do mapa ao abrir a aba (curto, uma vez).
+  const entrance = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(entrance, { toValue: 1, duration: 420, useNativeDriver: true }).start();
+  }, [entrance]);
+  const entranceTranslate = entrance.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
 
   const regions = useMemo(() => getAdventureRegions(), []);
   const ordered = useMemo(() => getOrderedAdventureStories(), []);
@@ -52,12 +59,16 @@ export default function AdventureMapScreen({ navigation }) {
     [currentId, isOpenable, isStoryCompleted],
   );
 
-  // Revelação A/B: região "desperta" (B) quando já tem progresso relevante
-  // (ao menos uma história concluída); senão "adormecida" (A). Regra simples e
-  // segura — ambas as imagens já estão importadas.
+  // Revelação A/B: região "desperta" (B) quando a criança JÁ ENGAJOU com ela —
+  // tem alguma história concluída, com progresso, OU contém a história atual.
+  // Assim a região onde a jornada está/passou aparece colorida (corrige "Comece
+  // Aqui sem cor"). Regra simples e segura, só leitura — não cria paywall novo.
   const isRegionAwake = useCallback(
-    (region) => (region.stories || []).some((s) => isStoryCompleted(s.id)),
-    [isStoryCompleted],
+    (region) =>
+      (region.stories || []).some(
+        (s) => isStoryCompleted(s.id) || getStoryCompletionPercent(s.id) > 0 || s.id === currentId,
+      ),
+    [isStoryCompleted, getStoryCompletionPercent, currentId],
   );
 
   const openFocus = useCallback((story) => {
@@ -85,27 +96,29 @@ export default function AdventureMapScreen({ navigation }) {
         <Text style={styles.headerSub}>Siga o caminho e descubra cada história ✨</Text>
       </View>
 
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {regions.map((region) => (
-          <MapRegion
-            key={region.id}
-            region={region}
-            width={width}
-            awake={isRegionAwake(region)}
-            getState={getState}
-            onPressStory={openFocus}
-          />
-        ))}
+      <Animated.View style={{ flex: 1, opacity: entrance, transform: [{ translateY: entranceTranslate }] }}>
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {regions.map((region) => (
+            <MapRegion
+              key={region.id}
+              region={region}
+              width={width}
+              awake={isRegionAwake(region)}
+              getState={getState}
+              onPressStory={openFocus}
+            />
+          ))}
 
-        <NextAdventureBanner
-          story={bannerStory}
-          allDone={allDone}
-          onPress={() => bannerStory && openFocus(bannerStory)}
-        />
-      </ScrollView>
+          <NextAdventureBanner
+            story={bannerStory}
+            allDone={allDone}
+            onPress={() => bannerStory && openFocus(bannerStory)}
+          />
+        </ScrollView>
+      </Animated.View>
 
       <StoryFocusModal
         visible={modalVisible}

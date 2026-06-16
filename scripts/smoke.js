@@ -5314,11 +5314,11 @@ check(
     'mapa não importa/usa as imagens reais R1A..R4B como fundo das regiões',
   );
   check(
-    'Mapa M2: revelação A/B (adormecido/desperto) por progresso, sem inventar regra',
+    'Mapa M2.1: revelação A/B corrigida — desperta com conclusão OU progresso OU história atual',
     region.includes('awake ? region.images.awake : region.images.asleep') &&
     mapScreen.includes('isRegionAwake') &&
-    /isRegionAwake[\s\S]{0,160}isStoryCompleted/.test(mapScreen),
-    'A/B não derivado de progresso (isRegionAwake)',
+    /isRegionAwake[\s\S]{0,260}isStoryCompleted\(s\.id\)[\s\S]{0,120}getStoryCompletionPercent\(s\.id\) > 0[\s\S]{0,40}s\.id === currentId/.test(mapScreen),
+    'A/B não considera progresso/atual (Comece Aqui ficaria sem cor)',
   );
   check(
     'Mapa M2: emoji dormindo (😴) REMOVIDO de todos os arquivos do mapa',
@@ -5334,7 +5334,7 @@ check(
   );
   check(
     'Mapa M2: marcos maiores valorizam a capa (círculo + fallback, sem emoji por cima)',
-    /isCurrent \? 112 : 96/.test(marker) &&
+    /isCurrent \? 116 : 98/.test(marker) &&
     marker.includes('getStoryCover(story.id)') &&
     /borderRadius:\s*inner\s*\/\s*2/.test(marker) &&
     marker.includes('fallback'),
@@ -5379,6 +5379,57 @@ check(
     mapFiles.every((s) => !/from '\.\.\/services\/accessControl'/.test(s)) &&
     mapFiles.every((s) => !/from '\.\.\/services\/mediaReadyService'/.test(s)),
     'mapa toca em accessControl/mediaReady/storage em vez de só ler',
+  );
+
+  // ── M2.1 polish ──
+  check(
+    'Mapa M2.1: transição entre regiões (seams de névoa via LinearGradient)',
+    region.includes("from 'expo-linear-gradient'") &&
+    region.includes('<LinearGradient') &&
+    region.includes('seam'),
+    'regiões sem transição (seam) — parecem fotos coladas',
+  );
+  check(
+    'Mapa M2.1: jornada SOBE dentro da região (marcos de baixo para cima)',
+    region.includes('regionH - BOTTOM_PAD - ROW_H / 2 - ROW_H * i'),
+    'caminho/marcos não sobem dentro da região (sentido visual da jornada)',
+  );
+  check(
+    'Mapa M2.1: história atual com brilho (halo) — mais mágica',
+    marker.includes('halo'),
+    'marco da história atual sem halo/brilho',
+  );
+  check(
+    'Mapa M2.1: título legível em pílula CLARA (sem tarja preta pesada)',
+    /labelPill:\s*\{[\s\S]{0,160}rgba\(255,250,238/.test(marker),
+    'título do marco ainda usa tarja escura pesada',
+  );
+  check(
+    'Mapa M2.1: card de foco com abertura mágica (slide + scale + brilhos)',
+    focus.includes('translateY: cardTranslateY') &&
+    focus.includes('scale: cardScale') &&
+    focus.includes('SPARKS'),
+    'modal de foco sem slide/scale/brilhos',
+  );
+  check(
+    'Mapa M2.1: botão principal do modal com gradiente premium (LinearGradient)',
+    focus.includes("from 'expo-linear-gradient'") &&
+    /primaryGrad|primaryBtn[\s\S]{0,200}LinearGradient/.test(focus) &&
+    focus.includes('<LinearGradient'),
+    'botão principal do modal não tem gradiente premium',
+  );
+  check(
+    'Mapa M2.1: entrada mágica na aba (fade-in + slide do mapa, uma vez)',
+    mapScreen.includes('entrance') &&
+    /Animated\.timing\(entrance/.test(mapScreen) &&
+    mapScreen.includes('entranceTranslate'),
+    'mapa não tem animação de entrada (fade/slide)',
+  );
+  check(
+    'Mapa M2.1: não instalou pacote novo (usa expo-linear-gradient já existente)',
+    !!require(path.join(root, 'package.json')).dependencies['expo-linear-gradient'] &&
+    !!require(path.join(root, 'package.json')).dependencies['react-native-svg'],
+    'dependências de gradiente/svg ausentes (não instalar nada novo)',
   );
 }
 

@@ -1,16 +1,17 @@
 /**
- * StoryMapMarker — marco de história no Mapa Pergaminho (M2).
+ * StoryMapMarker — marco de história no Mapa Pergaminho (M2.1).
  *
- * A capa OFICIAL é a estrela: círculo grande, sem nenhum emoji por cima.
+ * A capa OFICIAL é a protagonista: círculo grande, sem nenhum emoji por cima.
  * Estados (calculados pela tela, sem regra nova de paywall):
  *   completed — concluída (anel verde + selo ✓ pequeno)
- *   current   — próxima aventura (anel dourado, maior, brilho suave)
- *   available — desbloqueada, ainda não concluída (anel azul)
+ *   current   — próxima aventura (anel dourado + HALO de brilho + maior)
+ *   available — desbloqueada, ainda não concluída (anel branco)
  *   locked    — premium/Em breve/não alcançada → adormecida ELEGANTE:
- *               capa com opacidade menor + leve camada translúcida + cadeado
- *               pequeno discreto. NUNCA emoji gigante.
+ *               capa com opacidade menor + leve véu + cadeado pequeno discreto.
+ *               NUNCA emoji gigante.
  *
- * Capa recortada em círculo; fallback seguro (cor + inicial) sem capa — sem crash.
+ * Título numa pílula CLARA (creme translúcido + texto escuro) — legível sobre a
+ * arte, sem tarja preta pesada. Capa circular com fallback seguro (cor+inicial).
  */
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
@@ -28,7 +29,7 @@ export default function StoryMapMarker({ story, state = 'locked', onPress }) {
   const cover = getStoryCover(story.id);
   const isCurrent = state === 'current';
   const isLocked = state === 'locked';
-  const size = isCurrent ? 112 : 96;
+  const size = isCurrent ? 116 : 98;
   const ring = RING[state] || RING.available;
   const inner = size - ring.width * 2;
 
@@ -39,51 +40,59 @@ export default function StoryMapMarker({ story, state = 'locked', onPress }) {
       style={styles.touch}
       activeOpacity={0.85}
     >
-      <View
-        style={[
-          styles.ring,
-          { width: size, height: size, borderRadius: size / 2, borderColor: ring.color, borderWidth: ring.width },
-          isCurrent ? styles.currentShadow : styles.softShadow,
-        ]}
-      >
-        <View style={[styles.circle, { width: inner, height: inner, borderRadius: inner / 2 }]}>
-          {cover ? (
-            <Image
-              source={cover}
-              style={[styles.cover, isLocked && { opacity: 0.55 }]}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[styles.fallback, { backgroundColor: story.corCapa || story.themeColor || '#BCA77E' }]}>
-              <Text style={styles.fallbackText}>{(story.titulo || '?').trim().charAt(0).toUpperCase()}</Text>
+      <View style={[styles.core, { width: size + 24, height: size + 24 }]}>
+        {/* Halo de brilho suave só na história atual */}
+        {isCurrent && (
+          <View style={[styles.halo, { width: size + 22, height: size + 22, borderRadius: (size + 22) / 2 }]} />
+        )}
+
+        <View
+          style={[
+            styles.ring,
+            { width: size, height: size, borderRadius: size / 2, borderColor: ring.color, borderWidth: ring.width },
+            isCurrent ? styles.currentShadow : styles.softShadow,
+          ]}
+        >
+          <View style={[styles.circle, { width: inner, height: inner, borderRadius: inner / 2 }]}>
+            {cover ? (
+              <Image source={cover} style={[styles.cover, isLocked && { opacity: 0.55 }]} resizeMode="cover" />
+            ) : (
+              <View style={[styles.fallback, { backgroundColor: story.corCapa || story.themeColor || '#BCA77E' }]}>
+                <Text style={styles.fallbackText}>{(story.titulo || '?').trim().charAt(0).toUpperCase()}</Text>
+              </View>
+            )}
+            {isLocked && <View style={styles.lockVeil} pointerEvents="none" />}
+          </View>
+
+          {state === 'completed' && (
+            <View style={[styles.badge, styles.doneBadge]}>
+              <Text style={styles.doneBadgeText}>✓</Text>
             </View>
           )}
-          {/* Camada translúcida discreta só nos bloqueados (adormecido elegante) */}
-          {isLocked && <View style={styles.lockVeil} pointerEvents="none" />}
+          {isLocked && (
+            <View style={[styles.badge, styles.lockBadge]}>
+              <Text style={styles.lockBadgeText}>🔒</Text>
+            </View>
+          )}
         </View>
-
-        {/* Selos pequenos no canto — nunca cobrem a capa */}
-        {state === 'completed' && (
-          <View style={[styles.badge, styles.doneBadge]}>
-            <Text style={styles.doneBadgeText}>✓</Text>
-          </View>
-        )}
-        {isLocked && (
-          <View style={[styles.badge, styles.lockBadge]}>
-            <Text style={styles.lockBadgeText}>🔒</Text>
-          </View>
-        )}
       </View>
 
       <View style={[styles.labelPill, isLocked && styles.labelPillLocked]}>
-        <Text style={styles.label} numberOfLines={2}>{story.titulo}</Text>
+        <Text style={[styles.label, isLocked && styles.labelLocked]} numberOfLines={2}>{story.titulo}</Text>
       </View>
     </SoundButton>
   );
 }
 
 const styles = StyleSheet.create({
-  touch: { width: 132, alignItems: 'center' },
+  touch: { width: 140, alignItems: 'center' },
+  core: { alignItems: 'center', justifyContent: 'center' },
+  halo: {
+    position: 'absolute',
+    backgroundColor: 'rgba(244,183,62,0.30)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,214,120,0.55)',
+  },
   ring: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFDF8' },
   softShadow: {
     elevation: 4,
@@ -93,16 +102,16 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   currentShadow: {
-    elevation: 8,
+    elevation: 9,
     shadowColor: '#F4B73E',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.6,
-    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7,
+    shadowRadius: 12,
   },
   circle: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFE7D6' },
   cover: { width: '100%', height: '100%' },
   fallback: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  fallbackText: { fontFamily: 'FredokaOne', fontSize: 34, color: '#FFFFFF' },
+  fallbackText: { fontFamily: 'FredokaOne', fontSize: 36, color: '#FFFFFF' },
   lockVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(70,60,45,0.18)' },
   badge: {
     position: 'absolute',
@@ -121,13 +130,14 @@ const styles = StyleSheet.create({
   lockBadge: { backgroundColor: '#8C8478' },
   lockBadgeText: { fontSize: 11 },
   labelPill: {
-    marginTop: 8,
-    maxWidth: 128,
-    backgroundColor: 'rgba(40,30,15,0.62)',
+    marginTop: 6,
+    maxWidth: 136,
+    backgroundColor: 'rgba(255,250,238,0.92)',
     borderRadius: 12,
     paddingVertical: 4,
-    paddingHorizontal: 10,
+    paddingHorizontal: 11,
   },
-  labelPillLocked: { backgroundColor: 'rgba(40,30,15,0.42)' },
-  label: { fontFamily: 'Nunito', fontSize: 12.5, fontWeight: '800', color: '#FFFFFF', textAlign: 'center' },
+  labelPillLocked: { backgroundColor: 'rgba(247,242,232,0.78)' },
+  label: { fontFamily: 'Nunito', fontSize: 12.5, fontWeight: '800', color: '#4A3A1E', textAlign: 'center' },
+  labelLocked: { color: '#8A7C66' },
 });

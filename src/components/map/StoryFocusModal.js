@@ -1,17 +1,18 @@
 /**
  * StoryFocusModal — card de FOCO ao tocar num marco do mapa (estilo Livrinho).
  *
- * Em vez de navegar seco, o toque abre este overlay: fundo escurece, a capa
- * oficial aparece GRANDE em destaque, com título, estado e um botão principal.
- * A navegação para a história continua sendo a existente — acontece no botão,
- * via onOpen (que faz navigation.navigate('StoryDetail', { story })). Nada de
- * paywall/disponibilidade é burlado: bloqueada/Em breve apenas explicam com
- * delicadeza e o botão leva ao detalhe, que aplica a regra real.
+ * Em vez de navegar seco, o toque abre este overlay com mágica: o fundo escurece
+ * (fade), o card SOBE (slide) e a capa CRESCE (scale com mola), com brilhos
+ * decorativos por código. A capa oficial aparece grande, com título, estado e um
+ * botão principal com gradiente premium. A navegação continua sendo a existente —
+ * acontece no botão, via onOpen → navigation.navigate('StoryDetail', { story }).
+ * Bloqueada/Em breve só explicam com delicadeza; nada é burlado.
  *
- * Só React Native / Animated (sem pacote novo): fade do fundo + scale do card.
+ * Só React Native / Animated + expo-linear-gradient (já no projeto). Sem pacote novo.
  */
 import React, { useEffect, useRef } from 'react';
 import { Modal, View, Text, Image, StyleSheet, Animated, Pressable, useWindowDimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from '../SoundButton';
 import { getStoryCover } from '../../assets/storyCovers';
 
@@ -20,40 +21,46 @@ function describe(state, lockReason, progressPercent) {
   const inProgress = progressPercent > 0 && progressPercent < 100;
   switch (state) {
     case 'completed':
-      return { badge: 'Concluída ✓', badgeColor: '#5EBE6E', cta: 'Rever história', ctaEnabled: true };
+      return { badge: 'Concluída ✓', badgeColor: '#5EBE6E', cta: 'Rever história' };
     case 'current':
-      return { badge: 'Próxima aventura ✨', badgeColor: '#F4B73E', cta: inProgress ? 'Continuar aventura' : 'Começar aventura', ctaEnabled: true };
+      return { badge: 'Próxima aventura ✨', badgeColor: '#F4B73E', cta: inProgress ? 'Continuar aventura' : 'Começar aventura' };
     case 'available':
-      return { badge: 'Disponível', badgeColor: '#4FC3F7', cta: inProgress ? 'Continuar aventura' : 'Começar aventura', ctaEnabled: true };
-    default: {
-      // locked: distinguir Em breve x Plano Família com delicadeza.
+      return { badge: 'Disponível', badgeColor: '#4FC3F7', cta: inProgress ? 'Continuar aventura' : 'Começar aventura' };
+    default:
       if (lockReason === 'coming_soon' || lockReason === 'media') {
-        return { badge: 'Em breve', badgeColor: '#9C8FAE', cta: 'Ver detalhes', ctaEnabled: true, note: 'Essa aventura está chegando! ✨' };
+        return { badge: 'Em breve', badgeColor: '#9C8FAE', cta: 'Ver detalhes', note: 'Essa aventura está chegando! ✨' };
       }
-      return { badge: 'Plano Família', badgeColor: '#B07CD6', cta: 'Ver detalhes', ctaEnabled: true, note: 'Peça a um responsável para desbloquear.' };
-    }
+      return { badge: 'Plano Família', badgeColor: '#B07CD6', cta: 'Ver detalhes', note: 'Peça a um responsável para desbloquear.' };
   }
 }
+
+// Brilhos decorativos por código (sem imagens/emoji): pequenos pontos que pulsam
+// suavemente ao redor da capa para dar sensação de recompensa.
+const SPARKS = [
+  { top: 6, left: 14, size: 7 },
+  { top: 20, right: 18, size: 5 },
+  { bottom: 18, left: 22, size: 6 },
+  { bottom: 8, right: 26, size: 8 },
+];
 
 export default function StoryFocusModal({ visible, story, state, lockReason, progressPercent = 0, onClose, onOpen }) {
   const { width } = useWindowDimensions();
   const backdrop = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.9)).current;
+  const pop = useRef(new Animated.Value(0)).current; // 0 = fechado, 1 = aberto
 
   useEffect(() => {
     if (visible) {
+      backdrop.setValue(0);
+      pop.setValue(0);
       Animated.parallel([
         Animated.timing(backdrop, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(scale, { toValue: 1, friction: 7, tension: 70, useNativeDriver: true }),
+        Animated.spring(pop, { toValue: 1, friction: 6.5, tension: 80, useNativeDriver: true }),
       ]).start();
-    } else {
-      backdrop.setValue(0);
-      scale.setValue(0.9);
     }
-  }, [visible, backdrop, scale]);
+  }, [visible, backdrop, pop]);
 
   function handleClose() {
-    Animated.timing(backdrop, { toValue: 0, duration: 160, useNativeDriver: true }).start(() => onClose?.());
+    Animated.timing(backdrop, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => onClose?.());
   }
 
   if (!story) return null;
@@ -62,12 +69,17 @@ export default function StoryFocusModal({ visible, story, state, lockReason, pro
   const cardW = Math.min(width - 40, 360);
   const coverH = Math.round((cardW - 24) * 9 / 16);
 
+  const cardScale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] });
+  const cardTranslateY = pop.interpolate({ inputRange: [0, 1], outputRange: [42, 0] });
+
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
       <Animated.View style={[styles.backdrop, { opacity: backdrop }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
 
-        <Animated.View style={[styles.card, { width: cardW, transform: [{ scale }] }]}>
+        <Animated.View
+          style={[styles.card, { width: cardW, opacity: backdrop, transform: [{ translateY: cardTranslateY }, { scale: cardScale }] }]}
+        >
           <SoundButton style={styles.closeBtn} onPress={handleClose} accessibilityLabel="Fechar" activeOpacity={0.8}>
             <Text style={styles.closeText}>✕</Text>
           </SoundButton>
@@ -80,6 +92,10 @@ export default function StoryFocusModal({ visible, story, state, lockReason, pro
                 <Text style={styles.coverFallbackText}>{(story.titulo || '?').trim().charAt(0).toUpperCase()}</Text>
               </View>
             )}
+            {/* Brilhos decorativos por código */}
+            {SPARKS.map((s, i) => (
+              <Animated.View key={i} style={[styles.spark, s, { opacity: pop }]} />
+            ))}
             <View style={[styles.stateBadge, { backgroundColor: info.badgeColor }]}>
               <Text style={styles.stateBadgeText}>{info.badge}</Text>
             </View>
@@ -90,7 +106,15 @@ export default function StoryFocusModal({ visible, story, state, lockReason, pro
           {!!info.note && <Text style={styles.note}>{info.note}</Text>}
 
           <SoundButton style={styles.primaryBtn} onPress={onOpen} activeOpacity={0.9}>
-            <Text style={styles.primaryBtnText}>{info.cta} ▶</Text>
+            <LinearGradient
+              colors={['#FFB15A', '#FF7A2F']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.primaryGrad}
+            >
+              <Text style={styles.primaryBtnText}>{info.cta}</Text>
+              <Text style={styles.primaryArrow}>▸</Text>
+            </LinearGradient>
           </SoundButton>
         </Animated.View>
       </Animated.View>
@@ -101,7 +125,7 @@ export default function StoryFocusModal({ visible, story, state, lockReason, pro
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(20,12,4,0.66)',
+    backgroundColor: 'rgba(20,12,4,0.68)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
@@ -110,12 +134,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFDF8',
     borderRadius: 26,
     padding: 12,
-    paddingBottom: 18,
-    elevation: 12,
+    paddingBottom: 16,
+    elevation: 14,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 18,
   },
   closeBtn: {
     position: 'absolute',
@@ -139,14 +163,8 @@ const styles = StyleSheet.create({
   cover: { width: '100%', height: '100%' },
   coverFallback: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   coverFallbackText: { fontFamily: 'FredokaOne', fontSize: 48, color: '#FFFFFF' },
-  stateBadge: {
-    position: 'absolute',
-    left: 10,
-    bottom: 10,
-    borderRadius: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-  },
+  spark: { position: 'absolute', backgroundColor: 'rgba(255,238,190,0.95)', borderRadius: 6, width: 7, height: 7 },
+  stateBadge: { position: 'absolute', left: 10, bottom: 10, borderRadius: 12, paddingVertical: 4, paddingHorizontal: 12 },
   stateBadgeText: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: '#FFFFFF' },
   title: { fontFamily: 'FredokaOne', fontSize: 20, color: '#4A3A1E', textAlign: 'center', marginTop: 14 },
   reference: { fontFamily: 'Nunito', fontSize: 13, color: '#8A7A5E', fontWeight: '700', textAlign: 'center', marginTop: 2 },
@@ -154,15 +172,15 @@ const styles = StyleSheet.create({
   primaryBtn: {
     marginTop: 16,
     marginHorizontal: 6,
-    backgroundColor: '#FF8A3D',
-    borderRadius: 20,
-    paddingVertical: 14,
-    alignItems: 'center',
+    borderRadius: 18,
+    overflow: 'hidden',
     elevation: 4,
-    shadowColor: '#FF8A3D',
+    shadowColor: '#FF7A2F',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4,
     shadowRadius: 5,
   },
+  primaryGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12 },
   primaryBtnText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFFFFF' },
+  primaryArrow: { fontSize: 15, color: '#FFFFFF', fontWeight: '900', marginLeft: 8 },
 });
