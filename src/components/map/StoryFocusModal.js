@@ -69,8 +69,9 @@ export default function StoryFocusModal({ visible, story, state, lockReason, pro
   const cardW = Math.min(width - 40, 360);
   const coverH = Math.round((cardW - 24) * 9 / 16);
 
-  const cardScale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] });
-  const cardTranslateY = pop.interpolate({ inputRange: [0, 1], outputRange: [42, 0] });
+  // Escala mais perceptível: a capa "cresce" do marco para o card.
+  const cardScale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
+  const cardTranslateY = pop.interpolate({ inputRange: [0, 1], outputRange: [46, 0] });
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
@@ -83,6 +84,9 @@ export default function StoryFocusModal({ visible, story, state, lockReason, pro
           <SoundButton style={styles.closeBtn} onPress={handleClose} accessibilityLabel="Fechar" activeOpacity={0.8}>
             <Text style={styles.closeText}>✕</Text>
           </SoundButton>
+
+          {/* Brilho curto atrás da capa (recompensa) */}
+          <Animated.View style={[styles.coverGlow, { height: coverH + 20, opacity: pop }]} pointerEvents="none" />
 
           <View style={[styles.coverWrap, { height: coverH }]}>
             {cover ? (
@@ -159,6 +163,14 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   closeText: { fontSize: 16, color: '#6B5A3E', fontWeight: '900' },
+  coverGlow: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    right: 2,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,220,140,0.55)',
+  },
   coverWrap: { width: '100%', borderRadius: 18, overflow: 'hidden', backgroundColor: '#EFE7D6' },
   cover: { width: '100%', height: '100%' },
   coverFallback: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },

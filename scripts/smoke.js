@@ -5314,11 +5314,11 @@ check(
     'mapa não importa/usa as imagens reais R1A..R4B como fundo das regiões',
   );
   check(
-    'Mapa M2.1: revelação A/B corrigida — desperta com conclusão OU progresso OU história atual',
+    'Mapa M2.2: A/B oficial — A=DESPERTA/colorida, B=ADORMECIDA; desperta por engajamento',
+    /comece_aqui:\s*\{\s*awake:\s*require\('\.\.\/\.\.\/assets\/maps\/R1A\.png'\),\s*asleep:\s*require\('\.\.\/\.\.\/assets\/maps\/R1B\.png'\)/.test(mapData) &&
     region.includes('awake ? region.images.awake : region.images.asleep') &&
-    mapScreen.includes('isRegionAwake') &&
     /isRegionAwake[\s\S]{0,260}isStoryCompleted\(s\.id\)[\s\S]{0,120}getStoryCompletionPercent\(s\.id\) > 0[\s\S]{0,40}s\.id === currentId/.test(mapScreen),
-    'A/B não considera progresso/atual (Comece Aqui ficaria sem cor)',
+    'A/B invertido (A precisa ser awake/R1A) ou não considera progresso/atual',
   );
   check(
     'Mapa M2: emoji dormindo (😴) REMOVIDO de todos os arquivos do mapa',
@@ -5390,8 +5390,8 @@ check(
     'regiões sem transição (seam) — parecem fotos coladas',
   );
   check(
-    'Mapa M2.1: jornada SOBE dentro da região (marcos de baixo para cima)',
-    region.includes('regionH - BOTTOM_PAD - ROW_H / 2 - ROW_H * i'),
+    'Mapa M2.2: jornada SOBE dentro da região (1ª história embaixo, frac decresce com i)',
+    region.includes('b.bottom - ((b.bottom - b.top) / (n - 1)) * i'),
     'caminho/marcos não sobem dentro da região (sentido visual da jornada)',
   );
   check(
@@ -5430,6 +5430,66 @@ check(
     !!require(path.join(root, 'package.json')).dependencies['expo-linear-gradient'] &&
     !!require(path.join(root, 'package.json')).dependencies['react-native-svg'],
     'dependências de gradiente/svg ausentes (não instalar nada novo)',
+  );
+
+  // ── M2.2 estrutural: direção da jornada, R1 inteiro, scroll, header ──
+  check(
+    'Mapa M2.2: ordem VISUAL invertida (topo = Jovens da Fé, base = Comece Aqui)',
+    mapScreen.includes('regions.slice().reverse()') &&
+    mapScreen.includes('regionsVisual'),
+    'regiões não foram invertidas para jornada de baixo para cima',
+  );
+  check(
+    'Mapa M2.2: creation é a 1ª história da jornada (comece_aqui 1ª região + creation order 1)',
+    /ADVENTURE_REGION_META = \[\s*\{\s*id:\s*'comece_aqui'/.test(mapData) &&
+    /id:\s*'creation'[\s\S]{0,140}trackId:\s*'comece_aqui'[\s\S]{0,40}order:\s*1,/.test(readSrc('src/data/stories.js')),
+    'creation não é o primeiro marco lógico da jornada',
+  );
+  check(
+    'Mapa M2.2: R1 INTEIRO — altura da região pela proporção real 768×2048 (sem width*1.32)',
+    region.includes('(width * 2048) / 768') &&
+    !region.includes('width * 1.32'),
+    'altura da região não respeita a proporção real do mapa (corta R1)',
+  );
+  check(
+    'Mapa M2.2: câmera inicial parte da BASE (scrollTo bottom) + passo para cima',
+    /onContentSize[\s\S]{0,260}h - scrollViewH\.current/.test(mapScreen) &&
+    mapScreen.includes('scrollRef.current?.scrollTo') &&
+    mapScreen.includes('bottomY - 120'),
+    'sem scroll inicial para a base da jornada / sem passo para cima',
+  );
+  check(
+    'Mapa M2.2: regiões se sobrepõem (margem negativa) — não parecem coladas',
+    region.includes('isTop ? 0 : -OVERLAP') && region.includes('const OVERLAP'),
+    'regiões sem sobreposição (transição) entre si',
+  );
+  check(
+    'Mapa M2.2: caminho destaca a próxima aventura (highlightIndex)',
+    mapPath.includes('highlightIndex') && region.includes('highlightIndex={highlightIndex}'),
+    'caminho não destaca o trecho da próxima aventura',
+  );
+  check(
+    'Mapa M2.2: header refinado estilo pergaminho (LinearGradient + "Suba o caminho")',
+    mapScreen.includes("from 'expo-linear-gradient'") &&
+    /<LinearGradient[\s\S]{0,200}styles\.header/.test(mapScreen) &&
+    mapScreen.includes('Suba o caminho'),
+    'header não foi refinado para estilo pergaminho',
+  );
+  check(
+    'Mapa M2.2: card de foco com brilho atrás da capa (recompensa)',
+    focus.includes('coverGlow') && focus.includes('SPARKS'),
+    'modal sem brilho/partículas de recompensa',
+  );
+  check(
+    'Mapa M2.2: marco da próxima aventura com pulso sutil (Animated.loop)',
+    marker.includes('Animated.loop') && marker.includes('haloScale'),
+    'marco atual sem pulso sutil',
+  );
+  check(
+    'Mapa M2.2: CTA inferior reforça a caminhada (tom dourado, não laranja chapado)',
+    banner.includes("from 'expo-linear-gradient'") &&
+    banner.includes('Subir para a próxima aventura'),
+    'CTA inferior não reforça a subida / não usa tom dourado',
   );
 }
 

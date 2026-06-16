@@ -13,8 +13,8 @@
  * Título numa pílula CLARA (creme translúcido + texto escuro) — legível sobre a
  * arte, sem tarja preta pesada. Capa circular com fallback seguro (cor+inicial).
  */
-import React from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, Image, StyleSheet, Animated } from 'react-native';
 import SoundButton from '../SoundButton';
 import { getStoryCover } from '../../assets/storyCovers';
 
@@ -33,6 +33,22 @@ export default function StoryMapMarker({ story, state = 'locked', onPress }) {
   const ring = RING[state] || RING.available;
   const inner = size - ring.width * 2;
 
+  // Pulso sutil no marco da próxima aventura (um elemento, leve).
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!isCurrent) return undefined;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1100, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1100, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isCurrent, pulse]);
+  const haloScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
+  const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0.85] });
+
   return (
     <SoundButton
       accessibilityLabel={`${story.titulo}${isLocked ? ' (bloqueada)' : ''}`}
@@ -41,9 +57,14 @@ export default function StoryMapMarker({ story, state = 'locked', onPress }) {
       activeOpacity={0.85}
     >
       <View style={[styles.core, { width: size + 24, height: size + 24 }]}>
-        {/* Halo de brilho suave só na história atual */}
+        {/* Halo de brilho pulsante só na história atual */}
         {isCurrent && (
-          <View style={[styles.halo, { width: size + 22, height: size + 22, borderRadius: (size + 22) / 2 }]} />
+          <Animated.View
+            style={[
+              styles.halo,
+              { width: size + 22, height: size + 22, borderRadius: (size + 22) / 2, opacity: haloOpacity, transform: [{ scale: haloScale }] },
+            ]}
+          />
         )}
 
         <View

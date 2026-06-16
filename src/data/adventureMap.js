@@ -11,14 +11,14 @@
  */
 import { stories } from './stories';
 
-// M2 — imagens REAIS de cada região (assets/maps/), em pares adormecido (A) /
-// desperto (B). Ambas importadas para não quebrar e deixar B pronto para a
-// revelação. Mapeamento de regiões → R1..R4 (de cima para baixo).
+// Imagens REAIS de cada região (assets/maps/). Convenção OFICIAL (confirmada pelo
+// Eduardo): A = DESPERTA/COLORIDA (awake), B = ADORMECIDA/SEM COR (asleep).
+// Mapeamento de regiões → R1..R4. Ambas importadas (sem quebrar).
 export const REGION_MAP_IMAGES = {
-  comece_aqui:   { asleep: require('../../assets/maps/R1A.png'), awake: require('../../assets/maps/R1B.png') },
-  pequeninos:    { asleep: require('../../assets/maps/R2A.png'), awake: require('../../assets/maps/R2B.png') },
-  descobridores: { asleep: require('../../assets/maps/R3A.png'), awake: require('../../assets/maps/R3B.png') },
-  jovens_da_fe:  { asleep: require('../../assets/maps/R4A.png'), awake: require('../../assets/maps/R4B.png') },
+  comece_aqui:   { awake: require('../../assets/maps/R1A.png'), asleep: require('../../assets/maps/R1B.png') },
+  pequeninos:    { awake: require('../../assets/maps/R2A.png'), asleep: require('../../assets/maps/R2B.png') },
+  descobridores: { awake: require('../../assets/maps/R3A.png'), asleep: require('../../assets/maps/R3B.png') },
+  jovens_da_fe:  { awake: require('../../assets/maps/R4A.png'), asleep: require('../../assets/maps/R4B.png') },
 };
 
 // Metadados visuais por região. `tint` = cor de borda/realce suave (fallback de
