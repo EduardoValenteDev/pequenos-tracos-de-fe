@@ -25,24 +25,16 @@ const REGION_OVERLAP = 28; // deve casar com OVERLAP de MapRegion
 
 export default function AdventureMapScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
 
-  // Entrada mágica: fade-in + leve slide do mapa ao abrir (curto, uma vez).
+  // Entrada: o mapa abre JÁ VISÍVEL (opacity 1 desde o 1º frame). Mantemos só um
+  // translateY levíssimo de charme — o mapa NUNCA fica invisível.
   const entrance = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(entrance, { toValue: 1, duration: 420, useNativeDriver: true }).start();
+    Animated.timing(entrance, { toValue: 1, duration: 320, useNativeDriver: true }).start();
   }, [entrance]);
-  const entranceTranslate = entrance.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
-
-  // Render progressivo: as regiões de BAIXO (onde a câmera começa) montam a arte
-  // primeiro; as de cima entram pouco depois — evita montar 4 imagens pesadas de
-  // uma vez (lentidão/flash). O placeholder de pergaminho segura a altura.
-  const [mountedAll, setMountedAll] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setMountedAll(true), 260);
-    return () => clearTimeout(t);
-  }, []);
+  const entranceTranslate = entrance.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
 
   const regions = useMemo(() => getAdventureRegions(), []);
   // Ordem VISUAL invertida: topo = última região, base = comece_aqui.
@@ -97,6 +89,22 @@ export default function AdventureMapScreen({ navigation }) {
     if (completed.length) return completed[completed.length - 1].id;
     return ordered[0]?.id;
   }, [currentId, ordered, isStoryCompleted]);
+
+  // Offset inicial da câmera calculado de forma SÍNCRONA (antes do 1º paint), via
+  // prop contentOffset → abre já na base correta, sem pulo. (onContentSize depois
+  // só refina com a altura real do viewport, então a correção é imperceptível.)
+  const initialOffsetY = useMemo(() => {
+    if (!regionLayout.length) return 0;
+    const last = regionLayout[regionLayout.length - 1];
+    const contentH = last.top + last.height + insets.bottom + 8;
+    const vpEst = Math.max(220, height - (insets.top + 56) - (insets.bottom + 56)); // header + tab bar aprox.
+    let anchorY = contentH - vpEst;
+    const idx = regionsVisual.findIndex((r) => (r.stories || []).some((s) => s.id === cameraStoryId));
+    if (idx >= 0 && regionLayout[idx]) {
+      anchorY = regionLayout[idx].top + getStoryMapCoord(cameraStoryId).y * regionLayout[idx].height;
+    }
+    return Math.max(0, Math.min(anchorY - vpEst * 0.58, Math.max(0, contentH - vpEst)));
+  }, [regionLayout, regionsVisual, cameraStoryId, height, insets.top, insets.bottom]);
 
   const getState = useCallback(
     (story) => {
@@ -175,26 +183,28 @@ export default function AdventureMapScreen({ navigation }) {
         </SoundButton>
       </LinearGradient>
 
-      <Animated.View style={{ flex: 1, opacity: entrance, transform: [{ translateY: entranceTranslate }] }}>
+      <Animated.View style={{ flex: 1, backgroundColor: REGION_PARCHMENT_BG, opacity: 1, transform: [{ translateY: entranceTranslate }] }}>
         <ScrollView
           ref={scrollRef}
+          style={styles.scroll}
           onLayout={onScrollLayout}
           onContentSizeChange={onContentSize}
           onScroll={onScroll}
           scrollEventThrottle={32}
+          contentOffset={{ x: 0, y: initialOffsetY }}
           contentContainerStyle={{ paddingBottom: insets.bottom + 8 }}
           showsVerticalScrollIndicator={false}
         >
-          {regionsVisual.map((region, idx) => (
+          {regionsVisual.map((region) => (
             <MapRegion
               key={region.id}
               region={region}
               width={width}
               awake={isRegionAwake(region)}
               currentStoryId={currentId}
-              isTop={idx === 0}
-              // Bottom 2 (base, onde a câmera começa) primeiro; o resto após o tick.
-              renderImage={idx >= regionsVisual.length - 2 || mountedAll}
+              isTop={region.id === regionsVisual[0].id}
+              // TODAS as regiões desenham a arte de imediato (sem branco na abertura).
+              renderImage
               getState={getState}
               onPressStory={openFocus}
             />
@@ -246,6 +256,7 @@ const styles = StyleSheet.create({
   // Fundo de pergaminho claro (full-bleed, SEM borda lateral, SEM preto). Só
   // aparece no topo/base e como fallback enquanto a arte carrega.
   container: { flex: 1, backgroundColor: REGION_PARCHMENT_BG },
+  scroll: { flex: 1, backgroundColor: REGION_PARCHMENT_BG },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

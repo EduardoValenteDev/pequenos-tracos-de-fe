@@ -5560,11 +5560,11 @@ check(
     'arte não é camada Image separada/condicional',
   );
   check(
-    'Mapa M2.4: render progressivo — regiões de baixo primeiro, resto após o tick',
-    mapScreen.includes('mountedAll') &&
-    /renderImage=\{idx >= regionsVisual\.length - 2 \|\| mountedAll\}/.test(mapScreen) &&
-    /setTimeout\(\(\) => setMountedAll\(true\)/.test(mapScreen),
-    'sem render progressivo das regiões pesadas',
+    'Mapa RENDER: TODAS as regiões desenham a arte de imediato (renderImage=true, sem mountedAll)',
+    /\n\s*renderImage\s*\n/.test(mapScreen) &&
+    !mapScreen.includes('mountedAll') &&
+    mapScreen.includes('contentOffset={{ x: 0, y: initialOffsetY }}'),
+    'regiões não montam a arte de imediato / sem offset inicial síncrono (risco de branco/pulo)',
   );
   check(
     'Mapa M2.4: NÃO instalou expo-image (usa Image do React Native)',
