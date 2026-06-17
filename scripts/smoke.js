@@ -5384,11 +5384,11 @@ check(
 
   // ── M2.1 polish ──
   check(
-    'Mapa M2.1: transição entre regiões (seams de névoa via LinearGradient)',
-    region.includes("from 'expo-linear-gradient'") &&
-    region.includes('<LinearGradient') &&
-    region.includes('seam'),
-    'regiões sem transição (seam) — parecem fotos coladas',
+    'Mapa B1: SEM seams cobrindo a base — cada região 9:16 aparece de topo a base',
+    !region.includes('<LinearGradient') &&
+    !region.includes('seam') &&
+    !region.includes('SEAM_H'),
+    'ainda há seam (gradiente) cobrindo/escurecendo a base da arte da região',
   );
   check(
     'Mapa M3: jornada SOBE — A Criação (y 0.78) ABAIXO de Noé (y 0.46) por coordenada',
@@ -5468,9 +5468,11 @@ check(
     'câmera não foca o marco atual por coordenada com clamp',
   );
   check(
-    'Mapa M2.2: regiões se sobrepõem (margem negativa) — não parecem coladas',
-    region.includes('isTop ? 0 : -OVERLAP') && region.includes('const OVERLAP'),
-    'regiões sem sobreposição (transição) entre si',
+    'Mapa B1: SEM overlap (marginTop negativo) — não corta a base da região',
+    !region.includes('-OVERLAP') &&
+    !region.includes('const OVERLAP') &&
+    /const REGION_OVERLAP = 0\b/.test(mapScreen),
+    'ainda há overlap negativo cobrindo a base da arte',
   );
   check(
     'Mapa M2.2: caminho destaca a próxima aventura (highlightIndex)',

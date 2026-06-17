@@ -21,7 +21,7 @@ import SoundButton from '../components/SoundButton';
 import MapRegion from '../components/map/MapRegion';
 import StoryFocusModal from '../components/map/StoryFocusModal';
 
-const REGION_OVERLAP = 28; // deve casar com OVERLAP de MapRegion
+const REGION_OVERLAP = 0; // regiões se tocam exatamente (sem overlap que cortava a base da arte)
 
 export default function AdventureMapScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -202,7 +202,6 @@ export default function AdventureMapScreen({ navigation }) {
               width={width}
               awake={isRegionAwake(region)}
               currentStoryId={currentId}
-              isTop={region.id === regionsVisual[0].id}
               // TODAS as regiões desenham a arte de imediato (sem branco na abertura).
               renderImage
               getState={getState}

@@ -14,16 +14,13 @@
  */
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
 import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../../data/adventureMap';
 
-const SEAM_H = 56;
-const OVERLAP = 28;       // sobreposição entre regiões (sem gap/faixa morta)
 const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo marco)
 
-export default function MapRegion({ region, width, awake, currentStoryId, isTop, renderImage, getState, onPressStory }) {
+export default function MapRegion({ region, width, awake, currentStoryId, renderImage, getState, onPressStory }) {
   const list = region.stories || [];
   const n = list.length;
 
@@ -45,7 +42,10 @@ export default function MapRegion({ region, width, awake, currentStoryId, isTop,
   const source = region.images ? (awake ? region.images.awake : region.images.asleep) : null;
 
   return (
-    <View style={[styles.region, { height: regionH, marginTop: isTop ? 0 : -OVERLAP }]}>
+    // Sem sobreposição nem faixas de transição: cada região 9:16 aparece de TOPO A
+    // BASE, sem cobrir o círculo inferior da arte. As regiões se tocam exatamente
+    // (altura == imagem), sem gap e sem corte.
+    <View style={[styles.region, { height: regionH }]}>
       {renderImage && source && (
         // Dimensões EXPLÍCITAS (= caixa): a arte 9:16 encolhe para width×regionH e
         // aparece INTEIRA. Sem absoluteFill (que deixava a Image no tamanho do
@@ -59,10 +59,6 @@ export default function MapRegion({ region, width, awake, currentStoryId, isTop,
       )}
 
       <View style={styles.veil} pointerEvents="none" />
-
-      {/* Seams de névoa — unem as regiões (topo/base), sem faixa morta */}
-      <LinearGradient colors={['rgba(43,33,20,0.6)', 'rgba(231,214,176,0)']} style={[styles.seam, { top: 0, height: SEAM_H }]} pointerEvents="none" />
-      <LinearGradient colors={['rgba(231,214,176,0)', 'rgba(43,33,20,0.6)']} style={[styles.seam, { bottom: 0, height: SEAM_H }]} pointerEvents="none" />
 
       {/* Chip de título INTERNO em zona segura (acima de todo marco) */}
       <View style={[styles.chipWrap, { top: Math.round(regionH * CHIP_SAFE_Y) }]} pointerEvents="none">
@@ -92,7 +88,6 @@ export default function MapRegion({ region, width, awake, currentStoryId, isTop,
 const styles = StyleSheet.create({
   region: { width: '100%', overflow: 'hidden', backgroundColor: REGION_PARCHMENT_BG },
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,250,235,0.05)' },
-  seam: { position: 'absolute', left: 0, right: 0 },
   chipWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 2 },
   chip: {
     backgroundColor: 'rgba(40,30,15,0.55)',
