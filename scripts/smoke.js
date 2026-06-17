@@ -5449,14 +5449,14 @@ check(
     'creation não é o primeiro marco lógico da jornada',
   );
   check(
-    'Mapa M2.4: R1 INTEIRO sem zoom — altura SÓ proporcional (768×2048), sem crescer por marcos',
+    'Mapa M5: altura SÓ proporcional via MAP_ASPECT (computeRegionHeight = width/MAP_ASPECT)',
     mapData.includes('export function computeRegionHeight') &&
-    /computeRegionHeight\(width\)\s*\{\s*return Math\.round\(\(width \* 2048\) \/ 768\);/.test(mapData) &&
+    /computeRegionHeight\(width\)\s*\{\s*return Math\.round\(width \/ MAP_ASPECT\);/.test(mapData) &&
     region.includes('computeRegionHeight(width)') &&
     !region.includes('width * 1.32') &&
     !mapData.includes('Math.max(proportional') &&
     !mapData.includes('MARKER_MIN_GAP'),
-    'altura da região ainda cresce por marcos / não é só proporcional (causa zoom)',
+    'altura da região não usa computeRegionHeight = width/MAP_ASPECT',
   );
   check(
     'Mapa M3: câmera por MARCO (coord do cameraStoryId) com clamp ~58% (sem scrollToEnd)',
@@ -5599,10 +5599,10 @@ check(
     'overview usa fundo preto puro',
   );
   check(
-    'Mapa M2.7: MAP_ASPECT/computeImageRect disponíveis p/ orientação (Visão Geral)',
-    mapData.includes('export const MAP_ASPECT = 768 / 2048') &&
+    'Mapa M5: MAP_ASPECT = 9/16 (FONTE ÚNICA) + computeImageRect para a Visão Geral',
+    mapData.includes('export const MAP_ASPECT = 9 / 16') &&
     mapData.includes('export function computeImageRect'),
-    'helpers de proporção da Visão Geral ausentes',
+    'MAP_ASPECT não é 9/16 ou computeImageRect ausente',
   );
   check(
     'Mapa M2.7: sem CTA inferior e ordem oficial preservada (stories.js intacto)',
@@ -5688,11 +5688,17 @@ check(
     'container do mapa ainda tem fundo preto/escuro',
   );
   check(
-    'Mapa M2.5B: proporção real preservada (regionHeight = width*2048/768), sem cover',
-    /computeRegionHeight\(width\)\s*\{\s*return Math\.round\(\(width \* 2048\) \/ 768\);/.test(mapData) &&
+    'Mapa M5: regionHeight = width/MAP_ASPECT (9:16), stretch sem cover',
+    /computeRegionHeight\(width\)\s*\{\s*return Math\.round\(width \/ MAP_ASPECT\);/.test(mapData) &&
     !region.includes('resizeMode="cover"') &&
     region.includes('resizeMode="stretch"'),
     'proporção/resize do mapa incorretos',
+  );
+  check(
+    'Mapa M5: nenhuma proporção 768/2048 remanescente em adventureMap/MapRegion',
+    !/2048|(\b768\b)/.test(mapData) &&
+    !/2048|(\b768\b)/.test(region),
+    'ainda há proporção 768/2048 hardcoded fora de MAP_ASPECT',
   );
 }
 

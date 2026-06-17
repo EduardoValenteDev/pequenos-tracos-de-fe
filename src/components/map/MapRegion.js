@@ -2,7 +2,7 @@
  * MapRegion — região do Mapa Pergaminho (M3, geometria base).
  *
  * Modo PRINCIPAL (Caminhada Cinematográfica): largura total, altura proporcional
- * (computeRegionHeight = width*2048/768), arte em resizeMode="stretch" (container
+ * (computeRegionHeight = width/MAP_ASPECT), arte em resizeMode="stretch" (container
  * na MESMA proporção da imagem → sem distorcer/cortar, sem contain, sem frame, sem
  * borda lateral). Container e imagem têm a MESMA altura (sem faixa morta).
  *

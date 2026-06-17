@@ -65,19 +65,20 @@ export function regionMarkerBand(storyCount) {
   return storyCount <= 3 ? { top: 0.36, bottom: 0.82 } : { top: 0.17, bottom: 0.87 };
 }
 
+// Proporção OFICIAL da arte do mapa (M5: reexportada em 9:16). FONTE ÚNICA — mudar
+// AQUI muda marcador, caminho (path), câmera e "Ver mapa" (tudo é normalizado).
+export const MAP_ASPECT = 9 / 16; // 0.5625
+
 /**
- * Altura de uma região no MODO PRINCIPAL (Caminhada Cinematográfica): proporção
- * real da arte (768×2048), largura total. A criança rola/sobe por ela (a tela
- * mostra um trecho bonito, não a região inteira). NÃO cresce por marcos.
+ * Altura de uma região no MODO PRINCIPAL (Caminhada Cinematográfica): largura total
+ * na proporção real da arte. A criança rola/sobe por ela. NÃO cresce por marcos.
  */
 export function computeRegionHeight(width) {
-  return Math.round((width * 2048) / 768);
+  return Math.round(width / MAP_ASPECT); // = width*16/9
 }
 
-// Proporção real (768×2048) e imageRect em "contain" — usados SÓ pelo MODO 2
-// (Visão Geral / "Ver mapa"), que mostra a região INTEIRA num modal de orientação.
-export const MAP_ASPECT = 768 / 2048;
-
+// imageRect em "contain" — usado pelo MODO 2 (Visão Geral / "Ver mapa"), que mostra
+// a região INTEIRA num modal de orientação. Usa MAP_ASPECT (adapta-se sozinho).
 export function computeImageRect(containerW, containerH) {
   let imageW;
   let imageH;
