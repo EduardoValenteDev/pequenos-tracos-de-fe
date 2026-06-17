@@ -14,7 +14,7 @@ import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react'
 import { View, Text, Image, Modal, Pressable, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, getStoryMapCoord, MAP_ASPECT, REGION_PARCHMENT_BG } from '../data/adventureMap';
+import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../data/adventureMap';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
 import { useProgressContext } from '../context/ProgressContext';
 import SoundButton from '../components/SoundButton';
@@ -61,13 +61,6 @@ export default function AdventureMapScreen({ navigation }) {
 
   const [focusStory, setFocusStory] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
-
-  // DEBUG 2 TEMP: guarda o tamanho RENDERIZADO (onLayout) da 1ª região (comece_aqui).
-  const [dbgLayout, setDbgLayout] = useState({});
-  const handleDbgLayout = useCallback((regionId, kind, layout) => {
-    if (regionId !== 'comece_aqui') return;
-    setDbgLayout((prev) => ({ ...prev, [kind]: { w: Math.round(layout.width), h: Math.round(layout.height) } }));
-  }, []);
 
   // MODO 2 — Visão Geral ("Ver mapa"): modal de orientação da região ativa.
   const [overviewVisible, setOverviewVisible] = useState(false);
@@ -177,12 +170,6 @@ export default function AdventureMapScreen({ navigation }) {
     setActiveIdx((prev) => (prev === idx ? prev : idx));
   }, [regionLayout]);
 
-  // ── DEBUG VISUAL TEMPORÁRIO (será revertido). Só leitura, sem cálculo novo. ──
-  const dbgRegionH = computeRegionHeight(width);
-  const dbgRegion = regions[0]; // comece_aqui (1ª região)
-  const dbgSource = dbgRegion?.images ? (isRegionAwake(dbgRegion) ? dbgRegion.images.awake : dbgRegion.images.asleep) : null;
-  const dbgArt = dbgSource ? (Image.resolveAssetSource(dbgSource) || {}) : {};
-
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#F4E6C8', '#E8D3A6']} style={[styles.header, { paddingTop: Math.max(insets.top, 8) + 2 }]}>
@@ -220,27 +207,12 @@ export default function AdventureMapScreen({ navigation }) {
               renderImage
               getState={getState}
               onPressStory={openFocus}
-              onDebugLayout={handleDbgLayout}
             />
           ))}
         </ScrollView>
         {/* (Orientação de região fica no chip INTERNO de cada região — sem pílula
             flutuante duplicada competindo com os labels.) */}
       </Animated.View>
-
-      {/* ── DEBUG VISUAL TEMPORÁRIO (será revertido) ── */}
-      <View style={[styles.dbgOverlay, { top: Math.max(insets.top, 8) + 56 }]} pointerEvents="none">
-        <Text style={styles.dbgText}>width = {width}</Text>
-        <Text style={styles.dbgText}>regionH = {dbgRegionH}</Text>
-        <Text style={styles.dbgText}>ratio = {(dbgRegionH / width).toFixed(4)}  (esp. ~1.778)</Text>
-        <Text style={styles.dbgText}>MAP_ASPECT = {MAP_ASPECT.toFixed(4)}  (esp. 0.5625)</Text>
-        <Text style={styles.dbgText}>art = {dbgArt.width ?? '?'} x {dbgArt.height ?? '?'}  (esp. 941x1672)</Text>
-        <Text style={styles.dbgText}>
-          artRatio = {dbgArt.width && dbgArt.height ? (dbgArt.width / dbgArt.height).toFixed(4) : '?'}  (esp. 0.5625)
-        </Text>
-        <Text style={styles.dbgText}>imgLayout = {dbgLayout.img ? `${dbgLayout.img.w} x ${dbgLayout.img.h}` : '?'}  (esp. ~390 x 693)</Text>
-        <Text style={styles.dbgText}>regionView = {dbgLayout.region ? `${dbgLayout.region.w} x ${dbgLayout.region.h}` : '?'}  (esp. ~390 x 693)</Text>
-      </View>
 
       <StoryFocusModal
         visible={modalVisible}
@@ -285,18 +257,6 @@ const styles = StyleSheet.create({
   // aparece no topo/base e como fallback enquanto a arte carrega.
   container: { flex: 1, backgroundColor: REGION_PARCHMENT_BG },
   scroll: { flex: 1, backgroundColor: REGION_PARCHMENT_BG },
-  // DEBUG VISUAL TEMPORÁRIO (revertido depois)
-  dbgOverlay: {
-    position: 'absolute',
-    left: 8,
-    zIndex: 9999,
-    elevation: 9999,
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-  },
-  dbgText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700', fontFamily: 'Nunito' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -5310,7 +5310,7 @@ check(
   check(
     'Mapa M2: usa as 8 imagens REAIS de assets/maps/ (R1A..R4B, pares A/B)',
     MAPS.every((r) => mapData.includes(`assets/maps/${r}.png`)) &&
-    region.includes('<Image source={source}') &&
+    region.includes('source={source}') &&
     region.includes('region.images'),
     'mapa não importa/usa as imagens reais R1A..R4B como fundo das regiões',
   );
@@ -5539,10 +5539,11 @@ check(
 
   // ── M2.4 enquadramento + loading ──
   check(
-    'Mapa M2.4: NÃO usa resizeMode="cover" no fundo vertical (usa "stretch", sem zoom/crop)',
-    !region.includes('resizeMode="cover"') &&
-    region.includes('resizeMode="stretch"'),
-    'mapa ainda usa cover (causa zoom/recorte)',
+    'Mapa FIX: arte com dimensões EXPLÍCITAS (width × regionH) — encolhe à caixa, sem recorte',
+    region.includes('width, height: regionH') &&
+    !/style=\{StyleSheet\.absoluteFill\}\s*\n\s*fadeDuration/.test(region) &&
+    !region.includes('resizeMode="stretch"'),
+    'arte não usa dimensões explícitas (volta a renderizar no tamanho do arquivo = zoom)',
   );
   check(
     'Mapa M2.4: placeholder de pergaminho NEUTRO (sem fundo azul/region.tint cru)',
@@ -5553,10 +5554,10 @@ check(
     'fundo da região ainda usa cor crua (azul) em vez de pergaminho neutro',
   );
   check(
-    'Mapa M2.4: arte é camada Image separada (pronta p/ reveal A/B) e só monta com renderImage',
+    'Mapa: arte é camada Image separada (pronta p/ reveal A/B) e só monta com renderImage',
     region.includes('renderImage && source') &&
-    /<Image source=\{source\} resizeMode="stretch"/.test(region) &&
-    region.includes('StyleSheet.absoluteFill'),
+    /<Image\b/.test(region) &&
+    region.includes('source={source}'),
     'arte não é camada Image separada/condicional',
   );
   check(
@@ -5578,7 +5579,7 @@ check(
   check(
     'Mapa M2.7: modo PRINCIPAL cinematográfico — full-width + proporção, SEM contain como principal',
     region.includes('computeRegionHeight(width)') &&
-    region.includes('resizeMode="stretch"') &&
+    region.includes('resizeMode="cover"') &&
     !region.includes('resizeMode="contain"') &&
     !region.includes('alignSelf'),
     'modo principal não é full-width cinematográfico (ou usa contain)',
@@ -5688,10 +5689,10 @@ check(
     'container do mapa ainda tem fundo preto/escuro',
   );
   check(
-    'Mapa M5: regionHeight = width/MAP_ASPECT (9:16), stretch sem cover',
+    'Mapa M5/FIX: regionHeight = width/MAP_ASPECT (9:16) + arte cover na caixa explícita',
     /computeRegionHeight\(width\)\s*\{\s*return Math\.round\(width \/ MAP_ASPECT\);/.test(mapData) &&
-    !region.includes('resizeMode="cover"') &&
-    region.includes('resizeMode="stretch"'),
+    region.includes('resizeMode="cover"') &&
+    region.includes('width, height: regionH'),
     'proporção/resize do mapa incorretos',
   );
   check(

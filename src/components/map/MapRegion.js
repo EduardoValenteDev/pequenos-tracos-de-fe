@@ -2,9 +2,11 @@
  * MapRegion — região do Mapa Pergaminho (M3, geometria base).
  *
  * Modo PRINCIPAL (Caminhada Cinematográfica): largura total, altura proporcional
- * (computeRegionHeight = width/MAP_ASPECT), arte em resizeMode="stretch" (container
- * na MESMA proporção da imagem → sem distorcer/cortar, sem contain, sem frame, sem
- * borda lateral). Container e imagem têm a MESMA altura (sem faixa morta).
+ * (computeRegionHeight = width/MAP_ASPECT). A arte usa dimensões EXPLÍCITAS
+ * (width × regionH) com resizeMode="cover": como caixa e arte têm a MESMA proporção
+ * 9:16, a imagem encolhe para a caixa e aparece INTEIRA, sem distorcer e sem recorte
+ * (absoluteFill deixava a Image no tamanho do arquivo → overflow mostrava só o
+ * centro = "zoom"). Container e imagem têm a MESMA altura (sem faixa morta).
  *
  * Geometria por COORDENADAS NORMALIZADAS explícitas (adventureMap.STORY_MAP_COORDS):
  * marcadores, labels e o CAMINHO (MapPath) usam os MESMOS pontos. Sem fórmula de
@@ -15,17 +17,13 @@ import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
-import { computeRegionHeight, getStoryMapCoord, MAP_ASPECT, REGION_PARCHMENT_BG } from '../../data/adventureMap';
+import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../../data/adventureMap';
 
 const SEAM_H = 56;
 const OVERLAP = 28;       // sobreposição entre regiões (sem gap/faixa morta)
 const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo marco)
 
-// BLOCO 0 — diagnóstico TEMPORÁRIO (revertido no Bloco 4). Loga UMA vez os números
-// crus de geometria + dimensão intrínseca da arte para decidir a causa do "zoom".
-let __mapDiagLogged = false;
-
-export default function MapRegion({ region, width, awake, currentStoryId, isTop, renderImage, getState, onPressStory, onDebugLayout }) {
+export default function MapRegion({ region, width, awake, currentStoryId, isTop, renderImage, getState, onPressStory }) {
   const list = region.stories || [];
   const n = list.length;
 
@@ -46,43 +44,17 @@ export default function MapRegion({ region, width, awake, currentStoryId, isTop,
   const highlightIndex = currentStoryId ? list.findIndex((s) => s.id === currentStoryId) : -1;
   const source = region.images ? (awake ? region.images.awake : region.images.asleep) : null;
 
-  // BLOCO 0 — log único de diagnóstico (TEMP, revertido no Bloco 4).
-  if (__DEV__ && !__mapDiagLogged && source) {
-    __mapDiagLogged = true;
-    const art = Image.resolveAssetSource(source) || {};
-    console.log('[MAP_DIAG]', JSON.stringify({
-      region: region.id,
-      width,
-      regionH,
-      ratio_regionH_over_width: Number((regionH / width).toFixed(4)),
-      MAP_ASPECT,
-      resizeMode: 'stretch',
-      artW: art.width,
-      artH: art.height,
-      artRatio_w_over_h: art.width && art.height ? Number((art.width / art.height).toFixed(4)) : null,
-    }));
-  }
-
   return (
-    <View
-      style={[styles.region, { height: regionH, marginTop: isTop ? 0 : -OVERLAP }]}
-      onLayout={(e) => {
-        const { width: rw, height: rh } = e.nativeEvent.layout;
-        if (__DEV__) console.log('[MAP_DIAG2] regionView', region.id, Math.round(rw) + 'x' + Math.round(rh));
-        onDebugLayout?.(region.id, 'region', e.nativeEvent.layout);
-      }}
-    >
+    <View style={[styles.region, { height: regionH, marginTop: isTop ? 0 : -OVERLAP }]}>
       {renderImage && source && (
+        // Dimensões EXPLÍCITAS (= caixa): a arte 9:16 encolhe para width×regionH e
+        // aparece INTEIRA. Sem absoluteFill (que deixava a Image no tamanho do
+        // arquivo → overflow:hidden mostrava só o recorte central = "zoom").
         <Image
           source={source}
-          resizeMode="stretch"
-          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+          style={{ position: 'absolute', top: 0, left: 0, width, height: regionH }}
           fadeDuration={120}
-          onLayout={(e) => {
-            const { width: iw, height: ih } = e.nativeEvent.layout;
-            if (__DEV__) console.log('[MAP_DIAG2] imgLayout', region.id, Math.round(iw) + 'x' + Math.round(ih));
-            onDebugLayout?.(region.id, 'img', e.nativeEvent.layout);
-          }}
         />
       )}
 
