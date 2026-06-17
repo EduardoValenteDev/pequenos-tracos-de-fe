@@ -14,7 +14,7 @@ import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react'
 import { View, Text, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, mapFrameWidth, markerFraction, MAP_AMBIENT_BG } from '../data/adventureMap';
+import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, markerFraction, REGION_PARCHMENT_BG } from '../data/adventureMap';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
 import { useProgressContext } from '../context/ProgressContext';
 import MapRegion from '../components/map/MapRegion';
@@ -43,26 +43,23 @@ export default function AdventureMapScreen({ navigation }) {
     return () => clearTimeout(t);
   }, []);
 
-  // VIEWPORT: a arte usa um frame menor que a tela, centralizado (reduz o zoom).
-  const frameWidth = useMemo(() => mapFrameWidth(width), [width]);
-
   const regions = useMemo(() => getAdventureRegions(), []);
   // Ordem VISUAL invertida: topo = última região, base = comece_aqui.
   const regionsVisual = useMemo(() => regions.slice().reverse(), [regions]);
   const ordered = useMemo(() => getOrderedAdventureStories(), []);
 
-  // Layout das regiões (offsets) — alturas baseadas no FRAME, p/ pílula e scroll.
+  // Layout das regiões (offsets) para a pílula de região acompanhar a rolagem.
   const regionLayout = useMemo(() => {
     const arr = [];
     let prevBottom = 0;
     regionsVisual.forEach((r, i) => {
-      const h = computeRegionHeight(frameWidth);
+      const h = computeRegionHeight(width);
       const top = i === 0 ? 0 : prevBottom - REGION_OVERLAP;
       arr.push({ id: r.id, title: r.title, top, height: h, count: (r.stories || []).length });
       prevBottom = top + h;
     });
     return arr;
-  }, [regionsVisual, frameWidth]);
+  }, [regionsVisual, width]);
 
   // Pílula começa na base (comece_aqui), pois a câmera inicia embaixo.
   const [activeRegionTitle, setActiveRegionTitle] = useState(
@@ -107,7 +104,9 @@ export default function AdventureMapScreen({ navigation }) {
     if (story) navigation.navigate('StoryDetail', { story });
   }, [focusStory, navigation]);
 
-  // Câmera inicial: começa na BASE (creation) e dá um pequeno passo para cima.
+  // Câmera inicial: pousa na BASE mostrando A Criação (1º marco da última região),
+  // com contexto de mapa em volta. CLAMP em [0, contentH - viewport] → nunca mostra
+  // vazio/preto no rodapé (sem rolar ao fim bruto).
   const scrollRef = useRef(null);
   const scrollViewH = useRef(0);
   const didInitScroll = useRef(false);
@@ -116,14 +115,12 @@ export default function AdventureMapScreen({ navigation }) {
     if (didInitScroll.current || scrollViewH.current <= 0) return;
     didInitScroll.current = true;
     const vp = scrollViewH.current;
-    const maxY = Math.max(0, h - vp); // clamp: nunca além do conteúdo (sem vazio/preto)
-    // Câmera pousa na BASE mostrando A Criação (1º marco da última região), com
-    // contexto de mapa em volta — não no fim bruto (que mostrava o rodapé preto).
+    const maxY = Math.max(0, h - vp);
     const base = regionLayout[regionLayout.length - 1];
     let target = maxY;
     if (base) {
       const creationY = base.top + base.height * markerFraction(0, base.count);
-      target = creationY - vp * 0.58; // creation por volta de 58% do viewport
+      target = creationY - vp * 0.58; // A Criação por volta de 58% do viewport
     }
     target = Math.max(0, Math.min(target, maxY));
     scrollRef.current?.scrollTo({ y: target, animated: false });
@@ -141,7 +138,7 @@ export default function AdventureMapScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#F4E6C8', '#E8D3A6']} style={[styles.header, { paddingTop: Math.max(insets.top, 8) + 4 }]}>
+      <LinearGradient colors={['#F4E6C8', '#E8D3A6']} style={[styles.header, { paddingTop: Math.max(insets.top, 8) + 2 }]}>
         <Text style={styles.headerTitle}>Mapa das Aventuras</Text>
         <Text style={styles.headerSub}>Suba o caminho da fé ✨</Text>
       </LinearGradient>
@@ -160,7 +157,7 @@ export default function AdventureMapScreen({ navigation }) {
             <MapRegion
               key={region.id}
               region={region}
-              frameWidth={frameWidth}
+              width={width}
               awake={isRegionAwake(region)}
               currentStoryId={currentId}
               isTop={idx === 0}
@@ -194,12 +191,12 @@ export default function AdventureMapScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  // Ambiente de pergaminho (NUNCA preto/azul): aparece nas laterais do frame, no
-  // topo e na base da jornada.
-  container: { flex: 1, backgroundColor: MAP_AMBIENT_BG },
+  // Fundo de pergaminho claro (full-bleed, SEM borda lateral, SEM preto). Só
+  // aparece no topo/base e como fallback enquanto a arte carrega.
+  container: { flex: 1, backgroundColor: REGION_PARCHMENT_BG },
   header: {
     paddingHorizontal: 18,
-    paddingBottom: 9,
+    paddingBottom: 6,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(120,90,40,0.22)',
     elevation: 4,
@@ -208,8 +205,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.14,
     shadowRadius: 4,
   },
-  headerTitle: { fontFamily: 'FredokaOne', fontSize: 20, color: '#5A4420' },
-  headerSub: { fontFamily: 'Nunito', fontSize: 12.5, color: '#7A6238', fontWeight: '700', marginTop: 1 },
+  headerTitle: { fontFamily: 'FredokaOne', fontSize: 19, color: '#5A4420' },
+  headerSub: { fontFamily: 'Nunito', fontSize: 12, color: '#7A6238', fontWeight: '700', marginTop: 0 },
   regionPillWrap: { position: 'absolute', top: 8, left: 0, right: 0, alignItems: 'center', zIndex: 5 },
   regionPill: {
     backgroundColor: 'rgba(40,30,15,0.62)',

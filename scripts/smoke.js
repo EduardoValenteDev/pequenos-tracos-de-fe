@@ -5452,18 +5452,19 @@ check(
     'Mapa M2.4: R1 INTEIRO sem zoom — altura SÓ proporcional (768×2048), sem crescer por marcos',
     mapData.includes('export function computeRegionHeight') &&
     /computeRegionHeight\(width\)\s*\{\s*return Math\.round\(\(width \* 2048\) \/ 768\);/.test(mapData) &&
-    region.includes('computeRegionHeight(frameWidth)') &&
+    region.includes('computeRegionHeight(width)') &&
     !region.includes('width * 1.32') &&
     !mapData.includes('Math.max(proportional') &&
     !mapData.includes('MARKER_MIN_GAP'),
     'altura da região ainda cresce por marcos / não é só proporcional (causa zoom)',
   );
   check(
-    'Mapa M2.5: câmera inicial pousa na BASE em A Criação (markerFraction(0,...) + clamp)',
+    'Mapa M2.5B: câmera inicial pousa na BASE em A Criação com CLAMP (sem scrollToEnd bruto)',
     mapScreen.includes('markerFraction(0, base.count)') &&
-    mapScreen.includes('scrollRef.current?.scrollTo') &&
-    mapScreen.includes('regionLayout[regionLayout.length - 1]'),
-    'scroll inicial não pousa na base (A Criação) com clamp',
+    mapScreen.includes('Math.min(target, maxY)') &&
+    mapScreen.includes('const maxY = Math.max(0, h - vp)') &&
+    !mapScreen.includes('scrollToEnd'),
+    'scroll inicial não usa clamp / pode mostrar vazio no rodapé',
   );
   check(
     'Mapa M2.2: regiões se sobrepõem (margem negativa) — não parecem coladas',
@@ -5571,49 +5572,36 @@ check(
     'expo-image foi instalado (não permitido) ou Image RN ausente',
   );
 
-  // ── M2.5 Map Viewport System ──
+  // ── M2.5B Full-Bleed Recovery (desfaz o frame 0.86 do M2.5) ──
   check(
-    'Mapa M2.5: existe mapFrameWidth MENOR que a tela (frame ~0.86), reduz o zoom',
-    mapData.includes('export function mapFrameWidth') &&
-    /mapFrameWidth\(screenWidth\)\s*\{\s*return Math\.round\(screenWidth \* 0\.8[4-9]\)/.test(mapData) &&
-    mapScreen.includes('mapFrameWidth(width)'),
-    'sem mapFrameWidth (< largura da tela) — arte ainda full width (zoom)',
+    'Mapa M2.5B: mapFrameWidth REMOVIDO — sem frame estreito (0.86) no mapa',
+    !mapData.includes('mapFrameWidth') &&
+    !mapScreen.includes('mapFrameWidth') &&
+    !mapData.includes('0.86') &&
+    !region.includes('frameWidth') &&
+    !mapScreen.includes('frameWidth'),
+    'mapFrameWidth/0.86/frameWidth ainda presentes (frame estreito)',
   );
   check(
-    'Mapa M2.5: arte/altura/caminho usam o FRAME (não a largura total da tela)',
-    region.includes('computeRegionHeight(frameWidth)') &&
-    region.includes('frameWidth - pad * 2') &&
-    region.includes('width={frameWidth}') &&
-    mapScreen.includes('frameWidth={frameWidth}'),
-    'MapRegion/MapPath não usam coordenadas do frame',
+    'Mapa M2.5B: região FULL-BLEED — largura total da tela, sem moldura central',
+    /region:\s*\{[\s\S]{0,160}width:\s*'100%'/.test(region) &&
+    !region.includes("alignSelf: 'center'") &&
+    region.includes('computeRegionHeight(width)') &&
+    region.includes('width={width}'),
+    'região não é full-bleed (ainda tem frame/alignSelf central)',
   );
   check(
-    'Mapa M2.5: frame CENTRALIZADO (alignSelf center, sem width:100%)',
-    region.includes("alignSelf: 'center'") &&
-    !/region:\s*\{[\s\S]{0,120}width:\s*'100%'/.test(region) &&
-    region.includes('width: frameWidth'),
-    'frame do mapa não está centralizado / ainda usa largura total',
-  );
-  check(
-    'Mapa M2.5: ambiente de pergaminho (sem fundo PRETO no container do mapa)',
-    mapData.includes('export const MAP_AMBIENT_BG') &&
-    mapScreen.includes('backgroundColor: MAP_AMBIENT_BG') &&
+    'Mapa M2.5B: container do mapa em pergaminho claro (sem preto #2B2114, sem borda lateral)',
+    mapScreen.includes('backgroundColor: REGION_PARCHMENT_BG') &&
     !mapScreen.includes('#2B2114'),
     'container do mapa ainda tem fundo preto/escuro',
   );
   check(
-    'Mapa M2.5: scroll inicial com CLAMP (sem scrollToEnd bruto, sem rodapé vazio)',
-    mapScreen.includes('Math.min(target, maxY)') &&
-    mapScreen.includes('const maxY = Math.max(0, h - vp)') &&
-    !mapScreen.includes('scrollToEnd'),
-    'scroll inicial não usa clamp / pode mostrar espaço vazio',
-  );
-  check(
-    'Mapa M2.5: sem CTA inferior e ordem oficial preservada (stories.js intacto)',
-    !mapScreen.includes('NextAdventureBanner') &&
-    /id:\s*'jonah_big_fish'[\s\S]{0,80}trackId:\s*'descobridores'[\s\S]{0,30}order:\s*6,/.test(storiesSrcMap) &&
-    /id:\s*'esther_queen'[\s\S]{0,80}trackId:\s*'pequeninos'[\s\S]{0,30}order:\s*4,/.test(storiesSrcMap),
-    'CTA voltou ou a ordem Jonas/Ester foi alterada',
+    'Mapa M2.5B: proporção real preservada (regionHeight = width*2048/768), sem cover',
+    /computeRegionHeight\(width\)\s*\{\s*return Math\.round\(\(width \* 2048\) \/ 768\);/.test(mapData) &&
+    !region.includes('resizeMode="cover"') &&
+    region.includes('resizeMode="stretch"'),
+    'proporção/resize do mapa incorretos',
   );
 }
 

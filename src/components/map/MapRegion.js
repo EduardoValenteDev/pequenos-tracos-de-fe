@@ -25,15 +25,15 @@ const MARKER_W = 132;
 const SEAM_H = 56;
 const OVERLAP = 28; // sobreposição entre regiões (margem negativa)
 
-export default function MapRegion({ region, frameWidth, awake, currentStoryId, isTop, renderImage, getState, onPressStory }) {
+export default function MapRegion({ region, width, awake, currentStoryId, isTop, renderImage, getState, onPressStory }) {
   const list = region.stories || [];
   const n = list.length;
-  const pad = 14;
-  const innerW = frameWidth - pad * 2;
-  const colX = [pad + innerW * 0.29, pad + innerW * 0.71]; // zigue-zague (coords do FRAME)
+  const pad = 16;
+  const innerW = width - pad * 2;
+  const colX = [pad + innerW * 0.29, pad + innerW * 0.71]; // zigue-zague
 
-  // Altura proporcional ao FRAME (não à tela inteira) → reduz a sensação de zoom.
-  const regionH = computeRegionHeight(frameWidth);
+  // Altura SEMPRE proporcional (sem zoom): a arte aparece inteira na rolagem.
+  const regionH = computeRegionHeight(width);
 
   // Marcos só na banda segura; 1ª embaixo → caminho sobe; nenhum entra no título.
   const points = list.map((s, i) => ({ x: colX[i % 2], y: Math.round(regionH * markerFraction(i, n)) }));
@@ -42,9 +42,8 @@ export default function MapRegion({ region, frameWidth, awake, currentStoryId, i
   const source = region.images ? (awake ? region.images.awake : region.images.asleep) : null;
 
   return (
-    <View style={[styles.region, { width: frameWidth, height: regionH, marginTop: isTop ? 0 : -OVERLAP }]}>
-      {/* Camada da ARTE (absoluta, stretch). Só monta quando próxima do viewport.
-          Camada separada deixa pronta a futura revelação A/B (B base + A por cima). */}
+    <View style={[styles.region, { height: regionH, marginTop: isTop ? 0 : -OVERLAP }]}>
+      {/* Camada da ARTE (absoluta, stretch). Só monta quando próxima do viewport. */}
       {renderImage && source && (
         <Image source={source} resizeMode="stretch" style={StyleSheet.absoluteFill} fadeDuration={120} />
       )}
@@ -63,8 +62,8 @@ export default function MapRegion({ region, frameWidth, awake, currentStoryId, i
         </View>
       </View>
 
-      {/* Caminho por código (SVG) em coords do FRAME, com brilho até a próxima aventura */}
-      <MapPath width={frameWidth} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
+      {/* Caminho por código (SVG), com brilho até a próxima aventura */}
+      <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
 
       {/* Marcos (capas) por cima */}
       {list.map((story, i) => (
@@ -77,12 +76,7 @@ export default function MapRegion({ region, frameWidth, awake, currentStoryId, i
 }
 
 const styles = StyleSheet.create({
-  region: {
-    alignSelf: 'center',           // FRAME centralizado (não full width)
-    overflow: 'hidden',
-    backgroundColor: REGION_PARCHMENT_BG,
-    borderRadius: 14,              // cantos de "quadro" de aventura
-  },
+  region: { width: '100%', overflow: 'hidden', backgroundColor: REGION_PARCHMENT_BG },
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,250,235,0.05)' },
   seam: { position: 'absolute', left: 0, right: 0 },
   headerRow: { alignItems: 'center', paddingTop: SEAM_H - 10 },
