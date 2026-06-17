@@ -62,6 +62,13 @@ export default function AdventureMapScreen({ navigation }) {
   const [focusStory, setFocusStory] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
+  // DEBUG 2 TEMP: guarda o tamanho RENDERIZADO (onLayout) da 1ª região (comece_aqui).
+  const [dbgLayout, setDbgLayout] = useState({});
+  const handleDbgLayout = useCallback((regionId, kind, layout) => {
+    if (regionId !== 'comece_aqui') return;
+    setDbgLayout((prev) => ({ ...prev, [kind]: { w: Math.round(layout.width), h: Math.round(layout.height) } }));
+  }, []);
+
   // MODO 2 — Visão Geral ("Ver mapa"): modal de orientação da região ativa.
   const [overviewVisible, setOverviewVisible] = useState(false);
   const overviewAnim = useRef(new Animated.Value(0)).current;
@@ -213,6 +220,7 @@ export default function AdventureMapScreen({ navigation }) {
               renderImage
               getState={getState}
               onPressStory={openFocus}
+              onDebugLayout={handleDbgLayout}
             />
           ))}
         </ScrollView>
@@ -230,6 +238,8 @@ export default function AdventureMapScreen({ navigation }) {
         <Text style={styles.dbgText}>
           artRatio = {dbgArt.width && dbgArt.height ? (dbgArt.width / dbgArt.height).toFixed(4) : '?'}  (esp. 0.5625)
         </Text>
+        <Text style={styles.dbgText}>imgLayout = {dbgLayout.img ? `${dbgLayout.img.w} x ${dbgLayout.img.h}` : '?'}  (esp. ~390 x 693)</Text>
+        <Text style={styles.dbgText}>regionView = {dbgLayout.region ? `${dbgLayout.region.w} x ${dbgLayout.region.h}` : '?'}  (esp. ~390 x 693)</Text>
       </View>
 
       <StoryFocusModal

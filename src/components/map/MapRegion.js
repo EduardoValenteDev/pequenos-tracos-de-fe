@@ -25,7 +25,7 @@ const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo mar
 // crus de geometria + dimensão intrínseca da arte para decidir a causa do "zoom".
 let __mapDiagLogged = false;
 
-export default function MapRegion({ region, width, awake, currentStoryId, isTop, renderImage, getState, onPressStory }) {
+export default function MapRegion({ region, width, awake, currentStoryId, isTop, renderImage, getState, onPressStory, onDebugLayout }) {
   const list = region.stories || [];
   const n = list.length;
 
@@ -64,9 +64,26 @@ export default function MapRegion({ region, width, awake, currentStoryId, isTop,
   }
 
   return (
-    <View style={[styles.region, { height: regionH, marginTop: isTop ? 0 : -OVERLAP }]}>
+    <View
+      style={[styles.region, { height: regionH, marginTop: isTop ? 0 : -OVERLAP }]}
+      onLayout={(e) => {
+        const { width: rw, height: rh } = e.nativeEvent.layout;
+        if (__DEV__) console.log('[MAP_DIAG2] regionView', region.id, Math.round(rw) + 'x' + Math.round(rh));
+        onDebugLayout?.(region.id, 'region', e.nativeEvent.layout);
+      }}
+    >
       {renderImage && source && (
-        <Image source={source} resizeMode="stretch" style={StyleSheet.absoluteFill} fadeDuration={120} />
+        <Image
+          source={source}
+          resizeMode="stretch"
+          style={StyleSheet.absoluteFill}
+          fadeDuration={120}
+          onLayout={(e) => {
+            const { width: iw, height: ih } = e.nativeEvent.layout;
+            if (__DEV__) console.log('[MAP_DIAG2] imgLayout', region.id, Math.round(iw) + 'x' + Math.round(ih));
+            onDebugLayout?.(region.id, 'img', e.nativeEvent.layout);
+          }}
+        />
       )}
 
       <View style={styles.veil} pointerEvents="none" />
