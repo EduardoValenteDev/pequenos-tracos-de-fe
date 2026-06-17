@@ -11,11 +11,12 @@
  * o toque abre o modal e a navegação continua navigate('StoryDetail', { story }).
  */
 import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
-import { View, Text, Image, Modal, Pressable, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
+import { View, Text, Image, Modal, Pressable, ActivityIndicator, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../data/adventureMap';
+import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, computeImageRect, getStoryMapCoord, REGION_PARCHMENT_BG } from '../data/adventureMap';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
+import { preloadMapRegionAssets } from '../services/assetPreloadService';
 import { useProgressContext } from '../context/ProgressContext';
 import SoundButton from '../components/SoundButton';
 import MapRegion from '../components/map/MapRegion';
@@ -35,6 +36,10 @@ export default function AdventureMapScreen({ navigation }) {
     Animated.timing(entrance, { toValue: 1, duration: 320, useNativeDriver: true }).start();
   }, [entrance]);
   const entranceTranslate = entrance.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
+
+  // Pré-carrega as 8 artes do mapa (aquece o cache) — Aventuras e "Ver mapa" abrem
+  // sem box vazio. Reutiliza o assetPreloadService existente (sem pacote novo).
+  useEffect(() => { preloadMapRegionAssets(); }, []);
 
   const regions = useMemo(() => getAdventureRegions(), []);
   // Ordem VISUAL invertida: topo = última região, base = comece_aqui.
@@ -64,8 +69,11 @@ export default function AdventureMapScreen({ navigation }) {
 
   // MODO 2 — Visão Geral ("Ver mapa"): modal de orientação da região ativa.
   const [overviewVisible, setOverviewVisible] = useState(false);
+  const [ovBox, setOvBox] = useState({ w: 0, h: 0 }); // caixa medida do modal
+  const [ovLoaded, setOvLoaded] = useState(false);     // arte do modal já decodificada?
   const overviewAnim = useRef(new Animated.Value(0)).current;
   const openOverview = useCallback(() => {
+    setOvLoaded(false);
     setOverviewVisible(true);
     overviewAnim.setValue(0);
     Animated.spring(overviewAnim, { toValue: 1, friction: 7, tension: 70, useNativeDriver: true }).start();
@@ -234,14 +242,38 @@ export default function AdventureMapScreen({ navigation }) {
               <Text style={styles.ovCloseText}>✕</Text>
             </SoundButton>
             <Text style={styles.ovTitle}>{activeRegion?.title ?? ''}</Text>
-            <View style={styles.ovImageBox}>
-              {activeRegion?.images && (
-                <Image
-                  source={isRegionAwake(activeRegion) ? activeRegion.images.awake : activeRegion.images.asleep}
-                  resizeMode="contain"
-                  style={StyleSheet.absoluteFill}
-                />
-              )}
+            <View
+              style={styles.ovImageBox}
+              onLayout={(e) => {
+                const { width: bw, height: bh } = e.nativeEvent.layout;
+                setOvBox((prev) => (prev.w === Math.round(bw) && prev.h === Math.round(bh) ? prev : { w: Math.round(bw), h: Math.round(bh) }));
+              }}
+            >
+              {(() => {
+                const ovSource = activeRegion?.images ? (isRegionAwake(activeRegion) ? activeRegion.images.awake : activeRegion.images.asleep) : null;
+                // Retângulo EXPLÍCITO (contain) dentro da caixa medida → arte inteira,
+                // centralizada, sem zoom/recorte. Sem StyleSheet.absoluteFill.
+                const rect = ovBox.w > 0 && ovBox.h > 0 ? computeImageRect(ovBox.w, ovBox.h) : null;
+                return (
+                  <>
+                    {ovSource && rect && (
+                      <Image
+                        source={ovSource}
+                        resizeMode="cover"
+                        fadeDuration={120}
+                        onLoadEnd={() => setOvLoaded(true)}
+                        style={{ position: 'absolute', left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+                      />
+                    )}
+                    {(!rect || !ovLoaded) && (
+                      <View style={styles.ovLoading} pointerEvents="none">
+                        <ActivityIndicator size="small" color="#8A7A5E" />
+                        <Text style={styles.ovLoadingText}>Abrindo o mapa…</Text>
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
             </View>
             <Text style={styles.ovHint}>Toque fora para voltar à caminhada</Text>
           </Animated.View>
@@ -336,5 +368,7 @@ const styles = StyleSheet.create({
   ovCloseText: { fontSize: 16, color: '#6B5A3E', fontWeight: '900' },
   ovTitle: { fontFamily: 'FredokaOne', fontSize: 18, color: '#5A4420', marginBottom: 8 },
   ovImageBox: { flex: 1, width: '100%', borderRadius: 16, overflow: 'hidden', backgroundColor: '#E7D6B0' },
+  ovLoading: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  ovLoadingText: { marginTop: 6, fontFamily: 'Nunito', fontSize: 12, fontWeight: '700', color: '#8A7A5E' },
   ovHint: { fontFamily: 'Nunito', fontSize: 11.5, fontWeight: '700', color: '#8A7A5E', marginTop: 8 },
 });

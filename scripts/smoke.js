@@ -5587,13 +5587,28 @@ check(
     'modo principal não é full-width cinematográfico (ou usa contain)',
   );
   check(
-    'Mapa M2.7: modo SECUNDÁRIO "Ver mapa" (overview) com região INTEIRA em contain',
+    'Mapa B2: "Ver mapa" mostra a região INTEIRA via imageRect explícito (sem absoluteFill, sem zoom)',
     mapScreen.includes('Ver mapa') &&
     mapScreen.includes('overviewVisible') &&
     mapScreen.includes('openOverview') &&
-    /<Image[\s\S]{0,220}resizeMode="contain"/.test(mapScreen) &&
+    mapScreen.includes('computeImageRect(ovBox.w, ovBox.h)') &&
+    /left: rect\.left, top: rect\.top, width: rect\.width, height: rect\.height/.test(mapScreen) &&
     mapScreen.includes('ovCard'),
-    'sem modo "Ver mapa" (overview) com contain',
+    'overview não usa imageRect explícito (risco de zoom como o bug raiz)',
+  );
+  check(
+    'Mapa B2: pré-carrega as artes do mapa (reutiliza assetPreloadService) + placeholder no overview',
+    mapScreen.includes('preloadMapRegionAssets') &&
+    readSrc('src/services/assetPreloadService.js').includes('export function preloadMapRegionAssets') &&
+    mapScreen.includes('ActivityIndicator'),
+    'sem preload das artes do mapa ou sem placeholder no overview',
+  );
+  check(
+    'Mapa B2: MapRegion só mostra path/marcadores após a arte carregar (onLoadEnd → ready)',
+    region.includes('onLoadEnd={() => setImageLoaded(true)}') &&
+    region.includes('const ready = !source || imageLoaded') &&
+    /\{ready && \(/.test(region),
+    'path/marcadores aparecem sobre pergaminho vazio (sem gate de imageLoaded)',
   );
   check(
     'Mapa M2.7: overview não usa preto puro nem azul (fundo escurecido quente)',
