@@ -46,48 +46,49 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
     // BASE, sem cobrir o círculo inferior da arte. As regiões se tocam exatamente
     // (altura == imagem), sem gap e sem corte.
     <View style={[styles.region, { height: regionH }]}>
+      {/* CAMADA 0 — arte de fundo da região (dimensão EXPLÍCITA = caixa; sem
+          absoluteFill, sem gate por carregamento). Sempre monta quando há source. */}
       {renderImage && source && (
-        // Dimensões EXPLÍCITAS (= caixa): a arte 9:16 encolhe para width×regionH e
-        // aparece INTEIRA. Sem absoluteFill (que deixava a Image no tamanho do
-        // arquivo → overflow:hidden mostrava só o recorte central = "zoom").
         <Image
           source={source}
           resizeMode="cover"
-          style={{ position: 'absolute', top: 0, left: 0, width, height: regionH }}
+          style={{ position: 'absolute', top: 0, left: 0, width, height: regionH, zIndex: 0 }}
           fadeDuration={120}
         />
       )}
 
+      {/* CAMADA 1 — véu bem transparente (não esconde a arte) */}
       <View style={styles.veil} pointerEvents="none" />
 
-      {/* Chip de título INTERNO em zona segura (acima de todo marco) */}
+      {/* CAMADA 2 — chip de título INTERNO em zona segura (acima de todo marco) */}
       <View style={[styles.chipWrap, { top: Math.round(regionH * CHIP_SAFE_Y) }]} pointerEvents="none">
         <View style={styles.chip}>
           <Text style={styles.chipTitle}>{region.title}</Text>
         </View>
       </View>
 
-      {/* Caminho (SVG) com os MESMOS pontos dos marcadores — render direto */}
-      <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
-
-      {/* Marcadores nas coordenadas explícitas; label no lado seguro */}
-      {items.map((it) => (
-        <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
-          <StoryMapMarker
-            story={it.story}
-            state={getState(it.story)}
-            labelPos={it.labelPos}
-            onPress={() => onPressStory(it.story)}
-          />
-        </View>
-      ))}
+      {/* CAMADA 3 — caminho + marcadores (acima da arte e do véu) */}
+      <View style={[styles.overlay, { height: regionH }]} pointerEvents="box-none">
+        <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
+        {items.map((it) => (
+          <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
+            <StoryMapMarker
+              story={it.story}
+              state={getState(it.story)}
+              labelPos={it.labelPos}
+              onPress={() => onPressStory(it.story)}
+            />
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  region: { width: '100%', overflow: 'hidden', backgroundColor: REGION_PARCHMENT_BG },
-  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,250,235,0.05)' },
+  region: { position: 'relative', width: '100%', overflow: 'hidden', backgroundColor: REGION_PARCHMENT_BG },
+  veil: { ...StyleSheet.absoluteFillObject, zIndex: 1, backgroundColor: 'rgba(255,250,235,0.04)' },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 3 },
   chipWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 2 },
   chip: {
     backgroundColor: 'rgba(40,30,15,0.55)',
