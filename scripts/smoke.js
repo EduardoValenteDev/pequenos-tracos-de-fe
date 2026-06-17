@@ -5384,11 +5384,11 @@ check(
 
   // ── M2.1 polish ──
   check(
-    'Mapa B1: SEM seams cobrindo a base — cada região 9:16 aparece de topo a base',
-    !region.includes('<LinearGradient') &&
+    'Mapa B1: SEM seams cobrindo a base (placeholder de pergaminho é permitido, atrás da arte)',
     !region.includes('seam') &&
-    !region.includes('SEAM_H'),
-    'ainda há seam (gradiente) cobrindo/escurecendo a base da arte da região',
+    !region.includes('SEAM_H') &&
+    region.includes('styles.placeholder'),
+    'ainda há seam cobrindo a base, ou falta o placeholder de pergaminho',
   );
   check(
     'Mapa M3: jornada SOBE — A Criação (y 0.78) ABAIXO de Noé (y 0.46) por coordenada',
@@ -5605,12 +5605,22 @@ check(
     'preload pesado ainda roda no mount, ou overview sem placeholder/onError',
   );
   check(
-    'Mapa B2.1: MapRegion renderiza path/marcadores DIRETO (sem gate imageLoaded que escondia tudo)',
+    'Mapa B2.3: path/marcadores por atraso CURTO (showOverlay ~400ms), NÃO por imageLoaded',
     !region.includes('imageLoaded') &&
     !region.includes('const ready =') &&
-    !/\{ready && \(/.test(region) &&
+    region.includes('showOverlay') &&
+    /setTimeout\(\(\) => setShowOverlay\(true\), OVERLAY_DELAY_MS\)/.test(region) &&
     /<MapPath width=\{width\} height=\{regionH\} points=\{points\}/.test(region),
-    'path/marcadores ainda dependem de gate (regressão do Bloco 2)',
+    'path/marcadores não usam atraso curto (showOverlay) — voltaram a depender de carregamento',
+  );
+  check(
+    'Mapa B2.3: placeholder de pergaminho (LinearGradient atrás da arte) + preload LEVE e TARDIO',
+    region.includes('styles.placeholder') &&
+    region.includes("from 'expo-linear-gradient'") &&
+    /placeholder:\s*\{[\s\S]{0,80}zIndex:\s*0/.test(region) &&
+    mapScreen.includes('InteractionManager.runAfterInteractions') &&
+    !mapScreen.includes('preloadMapRegionAssets'),
+    'sem placeholder/gradiente ou preload no mount (regressão) em vez de tardio',
   );
   check(
     'Mapa M2.7: overview não usa preto puro nem azul (fundo escurecido quente)',

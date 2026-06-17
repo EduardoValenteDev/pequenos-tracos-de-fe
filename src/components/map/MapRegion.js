@@ -12,17 +12,27 @@
  * marcadores, labels e o CAMINHO (MapPath) usam os MESMOS pontos. Sem fórmula de
  * índice como fonte final. Chip de título interno em zona segura no topo da arte.
  */
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
 import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../../data/adventureMap';
 
 const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo marco)
+const OVERLAY_DELAY_MS = 400; // path/marcadores entram logo após a 1ª pintura
 
 export default function MapRegion({ region, width, awake, currentStoryId, renderImage, getState, onPressStory }) {
   const list = region.stories || [];
   const n = list.length;
+
+  // Caminho + marcadores entram após um atraso CURTO (não 0 → não "flutuam" sobre o
+  // pergaminho no 1º frame; não dependem de onLoadEnd → nunca somem por 30s).
+  const [showOverlay, setShowOverlay] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShowOverlay(true), OVERLAY_DELAY_MS);
+    return () => clearTimeout(t);
+  }, []);
 
   // Altura proporcional (modo principal). Container == imagem (sem faixa morta).
   const regionH = computeRegionHeight(width);
@@ -46,50 +56,63 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
     // BASE, sem cobrir o círculo inferior da arte. As regiões se tocam exatamente
     // (altura == imagem), sem gap e sem corte.
     <View style={[styles.region, { height: regionH }]}>
-      {/* CAMADA 0 — arte de fundo da região (dimensão EXPLÍCITA = caixa; sem
-          absoluteFill, sem gate por carregamento). Sempre monta quando há source. */}
+      {/* CAMADA 0 — PLACEHOLDER de pergaminho (atrás da arte). Enquanto a arte
+          decodifica, mostra um pergaminho com variação sutil — não bege chapado. */}
+      <LinearGradient
+        colors={['#EFE0C2', '#E2CEA6', '#E8D6B2']}
+        start={{ x: 0.1, y: 0 }}
+        end={{ x: 0.9, y: 1 }}
+        style={styles.placeholder}
+        pointerEvents="none"
+      />
+
+      {/* CAMADA 1 — arte de fundo (dimensão EXPLÍCITA = caixa; sem absoluteFill, sem
+          gate). Monta na hora; ao decodificar, cobre o placeholder. */}
       {renderImage && source && (
         <Image
           source={source}
           resizeMode="cover"
-          style={{ position: 'absolute', top: 0, left: 0, width, height: regionH, zIndex: 0 }}
+          style={{ position: 'absolute', top: 0, left: 0, width, height: regionH, zIndex: 1 }}
           fadeDuration={120}
         />
       )}
 
-      {/* CAMADA 1 — véu bem transparente (não esconde a arte) */}
+      {/* CAMADA 2 — véu bem transparente (não esconde a arte) */}
       <View style={styles.veil} pointerEvents="none" />
 
-      {/* CAMADA 2 — chip de título INTERNO em zona segura (acima de todo marco) */}
+      {/* CAMADA 3 — chip de título INTERNO em zona segura (acima de todo marco) */}
       <View style={[styles.chipWrap, { top: Math.round(regionH * CHIP_SAFE_Y) }]} pointerEvents="none">
         <View style={styles.chip}>
           <Text style={styles.chipTitle}>{region.title}</Text>
         </View>
       </View>
 
-      {/* CAMADA 3 — caminho + marcadores (acima da arte e do véu) */}
-      <View style={[styles.overlay, { height: regionH }]} pointerEvents="box-none">
-        <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
-        {items.map((it) => (
-          <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
-            <StoryMapMarker
-              story={it.story}
-              state={getState(it.story)}
-              labelPos={it.labelPos}
-              onPress={() => onPressStory(it.story)}
-            />
-          </View>
-        ))}
-      </View>
+      {/* CAMADA 4 — caminho + marcadores (após atraso curto, acima de tudo) */}
+      {showOverlay && (
+        <View style={[styles.overlay, { height: regionH }]} pointerEvents="box-none">
+          <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
+          {items.map((it) => (
+            <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
+              <StoryMapMarker
+                story={it.story}
+                state={getState(it.story)}
+                labelPos={it.labelPos}
+                onPress={() => onPressStory(it.story)}
+              />
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   region: { position: 'relative', width: '100%', overflow: 'hidden', backgroundColor: REGION_PARCHMENT_BG },
-  veil: { ...StyleSheet.absoluteFillObject, zIndex: 1, backgroundColor: 'rgba(255,250,235,0.04)' },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 3 },
-  chipWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 2 },
+  placeholder: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
+  veil: { ...StyleSheet.absoluteFillObject, zIndex: 2, backgroundColor: 'rgba(255,250,235,0.04)' },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4 },
+  chipWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 3 },
   chip: {
     backgroundColor: 'rgba(40,30,15,0.55)',
     borderRadius: 16,

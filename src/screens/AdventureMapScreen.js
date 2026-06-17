@@ -11,8 +11,9 @@
  * o toque abre o modal e a navegação continua navigate('StoryDetail', { story }).
  */
 import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
-import { View, Text, Image, Modal, Pressable, ActivityIndicator, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
+import { View, Text, Image, Modal, Pressable, ActivityIndicator, InteractionManager, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Asset } from 'expo-asset';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, computeImageRect, getStoryMapCoord, REGION_PARCHMENT_BG } from '../data/adventureMap';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
@@ -35,6 +36,28 @@ export default function AdventureMapScreen({ navigation }) {
     Animated.timing(entrance, { toValue: 1, duration: 320, useNativeDriver: true }).start();
   }, [entrance]);
   const entranceTranslate = entrance.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
+
+  // Preload LEVE e TARDIO: só DEPOIS da 1ª pintura (runAfterInteractions), aquece a
+  // arte da região inicial (Comece Aqui) primeiro e as vizinhas de forma espaçada —
+  // nunca no mount nem bloqueando o render (a regressão anterior foi preload global
+  // no mount). Fire-and-forget; cancelável.
+  useEffect(() => {
+    let cancelled = false;
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (cancelled) return;
+      const all = getAdventureRegions(); // ordem lógica: comece_aqui primeiro
+      const pairs = all.map((r) => r.images).filter(Boolean);
+      pairs.forEach((pair, i) => {
+        setTimeout(() => {
+          if (cancelled) return;
+          [pair.awake, pair.asleep].forEach((m) => {
+            try { Asset.fromModule(m).downloadAsync(); } catch (e) { /* fire-and-forget */ }
+          });
+        }, i * 250);
+      });
+    });
+    return () => { cancelled = true; task.cancel?.(); };
+  }, []);
 
   const regions = useMemo(() => getAdventureRegions(), []);
   // Ordem VISUAL invertida: topo = última região, base = comece_aqui.
