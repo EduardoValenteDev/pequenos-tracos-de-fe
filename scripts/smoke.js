@@ -5324,7 +5324,7 @@ check(
   check(
     'Mapa M2.2: A/B oficial — A=DESPERTA/colorida, B=ADORMECIDA; desperta por engajamento',
     /comece_aqui:\s*\{\s*awake:\s*require\('\.\.\/\.\.\/assets\/maps\/R1A\.jpg'\),\s*asleep:\s*require\('\.\.\/\.\.\/assets\/maps\/R1B\.jpg'\)/.test(mapData) &&
-    region.includes('awake ? region.images.awake : region.images.asleep') &&
+    region.includes('awake ? imgs.awake : imgs.asleep') &&
     /isRegionAwake[\s\S]{0,260}isStoryCompleted\(s\.id\)[\s\S]{0,120}getStoryCompletionPercent\(s\.id\) > 0[\s\S]{0,40}s\.id === currentId/.test(mapScreen),
     'A/B invertido (A precisa ser awake/R1A) ou não considera progresso/atual',
   );
@@ -5563,18 +5563,18 @@ check(
     'fundo da região ainda usa cor crua (azul) em vez de pergaminho neutro',
   );
   check(
-    'Mapa: arte é camada Image separada (pronta p/ reveal A/B) e só monta com renderImage',
-    region.includes('renderImage && source') &&
+    'Mapa: arte FINAL é camada Image separada (reveal A/B) e só monta com renderImageFinal',
+    region.includes('renderImageFinal && source') &&
     /<Image\b/.test(region) &&
     region.includes('source={source}'),
-    'arte não é camada Image separada/condicional',
+    'arte final não é camada Image separada/condicional',
   );
   check(
-    'Mapa RENDER: TODAS as regiões desenham a arte de imediato (renderImage=true, sem mountedAll)',
-    /\n\s*renderImage\s*\n/.test(mapScreen) &&
+    'Mapa RENDER: arte final é LAZY por região (renderImageFinal por id, sem mountedAll) + offset síncrono',
+    mapScreen.includes('renderImageFinal={loadedFinalIds.has(region.id)}') &&
     !mapScreen.includes('mountedAll') &&
     mapScreen.includes('contentOffset={{ x: 0, y: initialOffsetY }}'),
-    'regiões não montam a arte de imediato / sem offset inicial síncrono (risco de branco/pulo)',
+    'arte final não é lazy por região / sem offset inicial síncrono (risco de branco/pulo)',
   );
   check(
     'Mapa M2.4: NÃO instalou expo-image (usa Image do React Native)',
@@ -5628,6 +5628,40 @@ check(
     mapScreen.includes('InteractionManager.runAfterInteractions') &&
     !mapScreen.includes('preloadMapRegionAssets'),
     'sem placeholder/gradiente ou preload no mount (regressão) em vez de tardio',
+  );
+  check(
+    'Mapa B2.5: PREVIEW leve por região (~60 KB) — 8 *_preview.jpg em disco (30–80 KB) + 4 pares no adventureMap',
+    MAPS.every((r) => fs.existsSync(path.join(root, 'assets/maps', `${r}_preview.jpg`))) &&
+    MAPS.every((r) => {
+      const sz = fs.statSync(path.join(root, 'assets/maps', `${r}_preview.jpg`)).size;
+      return sz >= 20 * 1024 && sz <= 90 * 1024; // alvo 30–80 KB, com folga
+    }) &&
+    MAPS.every((r) => mapData.includes(`require('../../assets/maps/${r}_preview.jpg')`)) &&
+    mapData.includes('awakePreview') && mapData.includes('asleepPreview'),
+    'faltam os 8 previews em disco/peso, ou adventureMap não declara awakePreview/asleepPreview',
+  );
+  check(
+    'Mapa B2.5: MapRegion mostra PREVIEW de imediato (z1) e FINAL por cima (z2) — ambas dimensão explícita, sem absoluteFill',
+    region.includes('previewSource') &&
+    region.includes('awake ? imgs.awakePreview : imgs.asleepPreview') &&
+    /previewSource &&[\s\S]{0,200}zIndex:\s*1/.test(region) &&
+    /renderImageFinal && source[\s\S]{0,260}zIndex:\s*2/.test(region) &&
+    !region.includes('absoluteFill}'),
+    'MapRegion não alterna preview(z1)/final(z2) com dimensão explícita',
+  );
+  check(
+    'Mapa B2.5: arte final escalonada por TEMPO (comece_aqui→…→jovens) + por PROXIMIDADE (activeIdx±1)',
+    /loadedFinalIds.*new Set\(\['comece_aqui'\]\)/.test(mapScreen) &&
+    /setTimeout\(\(\) => addFinal\('pequeninos'\), 300\)/.test(mapScreen) &&
+    mapScreen.includes("addFinal('jovens_da_fe')") &&
+    /\[activeIdx - 1, activeIdx, activeIdx \+ 1\]\.forEach\(\(i\) => addFinal\(regionsVisual\[i\]\?\.id\)\)/.test(mapScreen),
+    'arte final não é escalonada (tempo/proximidade) com prioridade comece_aqui',
+  );
+  check(
+    'Mapa B2.5: "Ver mapa" também usa preview imediata (spinner só sem preview)',
+    mapScreen.includes('awakeReg ? imgs.awakePreview : imgs.asleepPreview') &&
+    mapScreen.includes('!ovLoaded && !ovPreview'),
+    'overview não usa preview imediata como o modo principal',
   );
   check(
     'Mapa M2.7: overview não usa preto puro nem azul (fundo escurecido quente)',

@@ -22,7 +22,7 @@ import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../.
 const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo marco)
 const OVERLAY_DELAY_MS = 400; // path/marcadores entram logo após a 1ª pintura
 
-export default function MapRegion({ region, width, awake, currentStoryId, renderImage, getState, onPressStory }) {
+export default function MapRegion({ region, width, awake, currentStoryId, renderImageFinal = true, getState, onPressStory }) {
   const list = region.stories || [];
   const n = list.length;
 
@@ -49,7 +49,11 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
   });
   const points = items.map((it) => ({ x: it.x, y: it.y }));
   const highlightIndex = currentStoryId ? list.findIndex((s) => s.id === currentStoryId) : -1;
-  const source = region.images ? (awake ? region.images.awake : region.images.asleep) : null;
+  const imgs = region.images || null;
+  // PREVIEW leve (~60 KB) — decodifica quase instantâneo, aparece de imediato.
+  const previewSource = imgs ? (awake ? imgs.awakePreview : imgs.asleepPreview) : null;
+  // Arte FINAL nítida (~400 KB) — entra POR CIMA da preview quando renderImageFinal.
+  const source = imgs ? (awake ? imgs.awake : imgs.asleep) : null;
 
   return (
     // Sem sobreposição nem faixas de transição: cada região 9:16 aparece de TOPO A
@@ -66,28 +70,41 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
         pointerEvents="none"
       />
 
-      {/* CAMADA 1 — arte de fundo (dimensão EXPLÍCITA = caixa; sem absoluteFill, sem
-          gate). Monta na hora; ao decodificar, cobre o placeholder. */}
-      {renderImage && source && (
+      {/* CAMADA 1 — PREVIEW leve (dimensão EXPLÍCITA = caixa; sem absoluteFill).
+          Decodifica quase na hora e cobre o placeholder → o usuário vê o mapa de
+          imediato (em baixa resolução), sem fundo bege perceptível. */}
+      {previewSource && (
+        <Image
+          source={previewSource}
+          resizeMode="cover"
+          style={{ position: 'absolute', top: 0, left: 0, width, height: regionH, zIndex: 1 }}
+          fadeDuration={0}
+        />
+      )}
+
+      {/* CAMADA 2 — arte FINAL nítida (dimensão EXPLÍCITA = caixa; sem absoluteFill).
+          Só monta quando renderImageFinal (lazy por região). Ao decodificar, cobre a
+          preview e fica nítida — sem parecer bug. */}
+      {renderImageFinal && source && (
         <Image
           source={source}
           resizeMode="cover"
-          style={{ position: 'absolute', top: 0, left: 0, width, height: regionH, zIndex: 1 }}
+          style={{ position: 'absolute', top: 0, left: 0, width, height: regionH, zIndex: 2 }}
           fadeDuration={120}
         />
       )}
 
-      {/* CAMADA 2 — véu bem transparente (não esconde a arte) */}
+      {/* CAMADA 3 — véu bem transparente (não esconde a arte) */}
       <View style={styles.veil} pointerEvents="none" />
 
-      {/* CAMADA 3 — chip de título INTERNO em zona segura (acima de todo marco) */}
+      {/* CAMADA 4 — chip de título INTERNO em zona segura (acima de todo marco) */}
       <View style={[styles.chipWrap, { top: Math.round(regionH * CHIP_SAFE_Y) }]} pointerEvents="none">
         <View style={styles.chip}>
           <Text style={styles.chipTitle}>{region.title}</Text>
         </View>
       </View>
 
-      {/* CAMADA 4 — caminho + marcadores (após atraso curto, acima de tudo) */}
+      {/* CAMADA 5 — caminho + marcadores (após atraso curto, acima de tudo) */}
       {showOverlay && (
         <View style={[styles.overlay, { height: regionH }]} pointerEvents="box-none">
           <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
@@ -110,9 +127,9 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
 const styles = StyleSheet.create({
   region: { position: 'relative', width: '100%', overflow: 'hidden', backgroundColor: REGION_PARCHMENT_BG },
   placeholder: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
-  veil: { ...StyleSheet.absoluteFillObject, zIndex: 2, backgroundColor: 'rgba(255,250,235,0.04)' },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4 },
-  chipWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 3 },
+  veil: { ...StyleSheet.absoluteFillObject, zIndex: 3, backgroundColor: 'rgba(255,250,235,0.04)' },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5 },
+  chipWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 4 },
   chip: {
     backgroundColor: 'rgba(40,30,15,0.55)',
     borderRadius: 16,

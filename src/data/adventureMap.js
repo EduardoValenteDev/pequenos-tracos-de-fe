@@ -14,11 +14,37 @@ import { stories } from './stories';
 // Imagens REAIS de cada região (assets/maps/). Convenção OFICIAL (confirmada pelo
 // Eduardo): A = DESPERTA/COLORIDA (awake), B = ADORMECIDA/SEM COR (asleep).
 // Mapeamento de regiões → R1..R4. Ambas importadas (sem quebrar).
+//
+// Cada região tem 4 fontes:
+//   awake/asleep               = arte FINAL (941×1672, JPG q85, ~400 KB) — nítida.
+//   awakePreview/asleepPreview = PREVIEW leve (405×720, JPG q60, ~60 KB) — decodifica
+//                                quase instantâneo e aparece de imediato; a final
+//                                entra por cima quando terminar (sem fundo bege).
 export const REGION_MAP_IMAGES = {
-  comece_aqui:   { awake: require('../../assets/maps/R1A.jpg'), asleep: require('../../assets/maps/R1B.jpg') },
-  pequeninos:    { awake: require('../../assets/maps/R2A.jpg'), asleep: require('../../assets/maps/R2B.jpg') },
-  descobridores: { awake: require('../../assets/maps/R3A.jpg'), asleep: require('../../assets/maps/R3B.jpg') },
-  jovens_da_fe:  { awake: require('../../assets/maps/R4A.jpg'), asleep: require('../../assets/maps/R4B.jpg') },
+  comece_aqui: {
+    awake: require('../../assets/maps/R1A.jpg'),
+    asleep: require('../../assets/maps/R1B.jpg'),
+    awakePreview: require('../../assets/maps/R1A_preview.jpg'),
+    asleepPreview: require('../../assets/maps/R1B_preview.jpg'),
+  },
+  pequeninos: {
+    awake: require('../../assets/maps/R2A.jpg'),
+    asleep: require('../../assets/maps/R2B.jpg'),
+    awakePreview: require('../../assets/maps/R2A_preview.jpg'),
+    asleepPreview: require('../../assets/maps/R2B_preview.jpg'),
+  },
+  descobridores: {
+    awake: require('../../assets/maps/R3A.jpg'),
+    asleep: require('../../assets/maps/R3B.jpg'),
+    awakePreview: require('../../assets/maps/R3A_preview.jpg'),
+    asleepPreview: require('../../assets/maps/R3B_preview.jpg'),
+  },
+  jovens_da_fe: {
+    awake: require('../../assets/maps/R4A.jpg'),
+    asleep: require('../../assets/maps/R4B.jpg'),
+    awakePreview: require('../../assets/maps/R4A_preview.jpg'),
+    asleepPreview: require('../../assets/maps/R4B_preview.jpg'),
+  },
 };
 
 // Metadados visuais por região. `tint` = cor de borda/realce suave (fallback de

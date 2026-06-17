@@ -82,6 +82,29 @@ export default function AdventureMapScreen({ navigation }) {
   const [activeIdx, setActiveIdx] = useState(regionsVisual.length - 1);
   const activeRegion = regionsVisual[activeIdx] || regionsVisual[regionsVisual.length - 1];
 
+  // ── Lazy render da arte FINAL por região (Bloco 2.5) ─────────────────────────
+  // A PREVIEW leve (~60 KB, em MapRegion) aparece de IMEDIATO em todas as regiões;
+  // a arte FINAL (941×1672, cara de decodificar) monta de forma ESCALONADA para não
+  // competir toda no 1º frame. Prioridade máxima: comece_aqui (onde a câmera abre),
+  // depois pequeninos → descobridores → jovens_da_fe.
+  const [loadedFinalIds, setLoadedFinalIds] = useState(() => new Set(['comece_aqui']));
+  const addFinal = useCallback((id) => {
+    if (!id) return;
+    setLoadedFinalIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }, []);
+  // Escalonamento por TEMPO (após a 1ª pintura): cada região seguinte entra com folga.
+  useEffect(() => {
+    const t1 = setTimeout(() => addFinal('pequeninos'), 300);
+    const t2 = setTimeout(() => addFinal('descobridores'), 700);
+    const t3 = setTimeout(() => addFinal('jovens_da_fe'), 1100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [addFinal]);
+  // Por PROXIMIDADE: ao rolar para uma região, garante a arte final dela e das
+  // vizinhas (caso a criança chegue antes do escalonamento por tempo).
+  useEffect(() => {
+    [activeIdx - 1, activeIdx, activeIdx + 1].forEach((i) => addFinal(regionsVisual[i]?.id));
+  }, [activeIdx, regionsVisual, addFinal]);
+
   const [focusStory, setFocusStory] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -228,8 +251,9 @@ export default function AdventureMapScreen({ navigation }) {
               width={width}
               awake={isRegionAwake(region)}
               currentStoryId={currentId}
-              // TODAS as regiões desenham a arte de imediato (sem branco na abertura).
-              renderImage
+              // PREVIEW leve aparece sempre; arte FINAL entra de forma escalonada
+              // (comece_aqui primeiro) para a abertura parecer instantânea.
+              renderImageFinal={loadedFinalIds.has(region.id)}
               getState={getState}
               onPressStory={openFocus}
             />
@@ -268,12 +292,21 @@ export default function AdventureMapScreen({ navigation }) {
               }}
             >
               {(() => {
-                const ovSource = activeRegion?.images ? (isRegionAwake(activeRegion) ? activeRegion.images.awake : activeRegion.images.asleep) : null;
+                const awakeReg = isRegionAwake(activeRegion);
+                const imgs = activeRegion?.images || null;
+                const ovSource = imgs ? (awakeReg ? imgs.awake : imgs.asleep) : null;
+                // PREVIEW leve (mesmo rect contain) — aparece de imediato; a final entra
+                // por cima ao decodificar. Ver mapa também abre quase instantâneo.
+                const ovPreview = imgs ? (awakeReg ? imgs.awakePreview : imgs.asleepPreview) : null;
                 // Retângulo EXPLÍCITO (contain) dentro da caixa medida → arte inteira,
                 // centralizada, sem zoom/recorte. Sem StyleSheet.absoluteFill.
                 const rect = ovBox.w > 0 && ovBox.h > 0 ? computeImageRect(ovBox.w, ovBox.h) : null;
+                const rectStyle = rect ? { position: 'absolute', left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null;
                 return (
                   <>
+                    {ovPreview && rect && (
+                      <Image source={ovPreview} resizeMode="contain" fadeDuration={0} style={rectStyle} />
+                    )}
                     {ovSource && rect && (
                       <Image
                         source={ovSource}
@@ -281,10 +314,11 @@ export default function AdventureMapScreen({ navigation }) {
                         fadeDuration={120}
                         onLoadEnd={() => setOvLoaded(true)}
                         onError={() => setOvLoaded(true)}
-                        style={{ position: 'absolute', left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+                        style={rectStyle}
                       />
                     )}
-                    {(!rect || !ovLoaded) && (
+                    {/* Spinner só quando NÃO há preview para cobrir o vazio. */}
+                    {(!rect || (!ovLoaded && !ovPreview)) && (
                       <View style={styles.ovLoading} pointerEvents="none">
                         <ActivityIndicator size="small" color="#8A7A5E" />
                         <Text style={styles.ovLoadingText}>Abrindo o mapa…</Text>
