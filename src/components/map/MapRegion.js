@@ -1,69 +1,78 @@
 /**
- * MapRegion — uma das 4 regiões verticais do Mapa Pergaminho (M2.4).
+ * MapRegion — região do Mapa Pergaminho (M3, geometria base).
  *
- * Altura = PROPORÇÃO REAL da arte (768×2048), via computeRegionHeight — NÃO cresce
- * por marcos (isso causava zoom/recorte). A arte é uma camada de Image ABSOLUTA
- * com resizeMode="stretch" (o container tem a MESMA proporção da imagem, então não
- * distorce e não corta). O fundo enquanto a arte carrega é pergaminho NEUTRO (sem
- * azul). A Image só monta quando `renderImage` é true (render progressivo) — o
- * placeholder de pergaminho segura a altura, mantendo scroll/offsets corretos.
+ * Modo PRINCIPAL (Caminhada Cinematográfica): largura total, altura proporcional
+ * (computeRegionHeight = width*2048/768), arte em resizeMode="stretch" (container
+ * na MESMA proporção da imagem → sem distorcer/cortar, sem contain, sem frame, sem
+ * borda lateral). Container e imagem têm a MESMA altura (sem faixa morta).
  *
- * Camada separada da arte deixa pronta a futura revelação A/B (B base + A por cima
- * com máscara) sem refatorar a estrutura.
- *
- * Sentido da jornada: 1ª história embaixo, última no topo (markerFraction). Marcos
- * só na banda segura (regionMarkerBand), abaixo do título.
+ * Geometria por COORDENADAS NORMALIZADAS explícitas (adventureMap.STORY_MAP_COORDS):
+ * marcadores, labels e o CAMINHO (MapPath) usam os MESMOS pontos. Sem fórmula de
+ * índice como fonte final. Chip de título interno em zona segura no topo da arte.
  */
 import React from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
-import { computeRegionHeight, markerFraction, REGION_PARCHMENT_BG } from '../../data/adventureMap';
+import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../../data/adventureMap';
 
-const MARKER_W = 132;
 const SEAM_H = 56;
-const OVERLAP = 28; // sobreposição entre regiões (margem negativa)
+const OVERLAP = 28;       // sobreposição entre regiões (sem gap/faixa morta)
+const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo marco)
 
 export default function MapRegion({ region, width, awake, currentStoryId, isTop, renderImage, getState, onPressStory }) {
   const list = region.stories || [];
   const n = list.length;
-  const pad = 16;
-  const innerW = width - pad * 2;
-  const colX = [pad + innerW * 0.29, pad + innerW * 0.71]; // zigue-zague
 
-  // Altura SEMPRE proporcional (sem zoom): a arte aparece inteira na rolagem.
+  // Altura proporcional (modo principal). Container == imagem (sem faixa morta).
   const regionH = computeRegionHeight(width);
 
-  // Marcos só na banda segura; 1ª embaixo → caminho sobe; nenhum entra no título.
-  const points = list.map((s, i) => ({ x: colX[i % 2], y: Math.round(regionH * markerFraction(i, n)) }));
-
+  // FONTE ÚNICA: coordenadas normalizadas explícitas por história.
+  const items = list.map((s, i) => {
+    const coord = getStoryMapCoord(s.id, i, n);
+    return {
+      story: s,
+      labelPos: coord.label,
+      x: Math.round(coord.x * width),
+      y: Math.round(coord.y * regionH),
+    };
+  });
+  const points = items.map((it) => ({ x: it.x, y: it.y }));
   const highlightIndex = currentStoryId ? list.findIndex((s) => s.id === currentStoryId) : -1;
   const source = region.images ? (awake ? region.images.awake : region.images.asleep) : null;
 
   return (
     <View style={[styles.region, { height: regionH, marginTop: isTop ? 0 : -OVERLAP }]}>
-      {/* Camada da ARTE (absoluta, stretch). Só monta quando próxima do viewport. */}
       {renderImage && source && (
         <Image source={source} resizeMode="stretch" style={StyleSheet.absoluteFill} fadeDuration={120} />
       )}
 
       <View style={styles.veil} pointerEvents="none" />
 
-      {/* Seams de névoa de pergaminho — unem as regiões (topo e base) */}
+      {/* Seams de névoa — unem as regiões (topo/base), sem faixa morta */}
       <LinearGradient colors={['rgba(43,33,20,0.6)', 'rgba(231,214,176,0)']} style={[styles.seam, { top: 0, height: SEAM_H }]} pointerEvents="none" />
       <LinearGradient colors={['rgba(231,214,176,0)', 'rgba(43,33,20,0.6)']} style={[styles.seam, { bottom: 0, height: SEAM_H }]} pointerEvents="none" />
 
-      {/* (O título da região fica na pílula fixa da tela — sem chip interno aqui,
-          para não duplicar nem competir com os marcos.) */}
+      {/* Chip de título INTERNO em zona segura (acima de todo marco) */}
+      <View style={[styles.chipWrap, { top: Math.round(regionH * CHIP_SAFE_Y) }]} pointerEvents="none">
+        <View style={styles.chip}>
+          <Text style={styles.chipTitle}>{region.title}</Text>
+        </View>
+      </View>
 
-      {/* Caminho por código (SVG), com brilho até a próxima aventura */}
+      {/* Caminho (SVG) com os MESMOS pontos dos marcadores */}
       <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
 
-      {/* Marcos (capas) por cima */}
-      {list.map((story, i) => (
-        <View key={story.id} style={[styles.markerSlot, { left: points[i].x - MARKER_W / 2, top: points[i].y - 56 }]}>
-          <StoryMapMarker story={story} state={getState(story)} onPress={() => onPressStory(story)} />
+      {/* Marcadores nas coordenadas explícitas; label no lado seguro */}
+      {items.map((it) => (
+        <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
+          <StoryMapMarker
+            story={it.story}
+            state={getState(it.story)}
+            labelPos={it.labelPos}
+            onPress={() => onPressStory(it.story)}
+          />
         </View>
       ))}
     </View>
@@ -74,15 +83,17 @@ const styles = StyleSheet.create({
   region: { width: '100%', overflow: 'hidden', backgroundColor: REGION_PARCHMENT_BG },
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,250,235,0.05)' },
   seam: { position: 'absolute', left: 0, right: 0 },
-  headerRow: { alignItems: 'center', paddingTop: SEAM_H - 10 },
+  chipWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 2 },
   chip: {
-    backgroundColor: 'rgba(40,30,15,0.50)',
-    borderRadius: 18,
-    paddingVertical: 6,
-    paddingHorizontal: 18,
-    alignItems: 'center',
+    backgroundColor: 'rgba(40,30,15,0.55)',
+    borderRadius: 16,
+    paddingVertical: 5,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,236,190,0.30)',
   },
-  chipTitle: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFFFFF' },
-  chipSub: { fontFamily: 'Nunito', fontSize: 11.5, color: '#F3E8D0', fontWeight: '700' },
-  markerSlot: { position: 'absolute', width: MARKER_W, alignItems: 'center' },
+  chipTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF1D6' },
+  // O slot é a ÂNCORA (centro do marco) em 0×0; o pin e o label se posicionam ao
+  // redor dele (o label sai para o lado seguro sem clipar).
+  markerSlot: { position: 'absolute', width: 0, height: 0, alignItems: 'center', justifyContent: 'center' },
 });

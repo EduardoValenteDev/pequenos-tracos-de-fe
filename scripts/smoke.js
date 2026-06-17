@@ -5391,11 +5391,11 @@ check(
     'regiões sem transição (seam) — parecem fotos coladas',
   );
   check(
-    'Mapa M2.2: jornada SOBE dentro da região (markerFraction: 1ª história embaixo)',
-    mapData.includes('export function markerFraction') &&
-    mapData.includes('b.bottom - ((b.bottom - b.top) / (storyCount - 1)) * index') &&
-    region.includes('markerFraction(i, n)'),
-    'caminho/marcos não sobem dentro da região (sentido visual da jornada)',
+    'Mapa M3: jornada SOBE — A Criação (y 0.78) ABAIXO de Noé (y 0.46) por coordenada',
+    /creation:\s*\{ x: 0\.34, y: 0\.78/.test(mapData) &&
+    /noah:\s*\{ x: 0\.70, y: 0\.46/.test(mapData) &&
+    region.includes('getStoryMapCoord(s.id'),
+    'coordenadas não colocam A Criação abaixo de Noé / região não usa coords',
   );
   check(
     'Mapa M2.1: história atual com brilho (halo) — mais mágica',
@@ -5459,12 +5459,13 @@ check(
     'altura da região ainda cresce por marcos / não é só proporcional (causa zoom)',
   );
   check(
-    'Mapa M2.7: câmera por ÂNCORA (A Criação) com clamp targetY = anchorY - vp*0.55 (sem scrollToEnd)',
-    mapScreen.includes('markerFraction(0, base.count)') &&
-    mapScreen.includes('Math.min(anchorY - vp * 0.55, maxY)') &&
+    'Mapa M3: câmera por MARCO (coord do cameraStoryId) com clamp ~58% (sem scrollToEnd)',
+    mapScreen.includes('cameraStoryId') &&
+    mapScreen.includes('getStoryMapCoord(cameraStoryId)') &&
+    mapScreen.includes('Math.min(anchorY - vp * 0.58, maxY)') &&
     mapScreen.includes('const maxY = Math.max(0, h - vp)') &&
     !mapScreen.includes('scrollToEnd'),
-    'scroll inicial não usa âncora/clamp (pode mostrar vazio/preto)',
+    'câmera não foca o marco atual por coordenada com clamp',
   );
   check(
     'Mapa M2.2: regiões se sobrepõem (margem negativa) — não parecem coladas',
@@ -5609,6 +5610,57 @@ check(
     /id:\s*'jonah_big_fish'[\s\S]{0,80}trackId:\s*'descobridores'[\s\S]{0,30}order:\s*6,/.test(storiesSrcMap) &&
     /id:\s*'esther_queen'[\s\S]{0,80}trackId:\s*'pequeninos'[\s\S]{0,30}order:\s*4,/.test(storiesSrcMap),
     'CTA voltou ou ordem Jonas/Ester alterada',
+  );
+
+  // ── M3 geometria base: coordenadas explícitas (fonte única), path = pins, chip interno ──
+  {
+    const MAP_STORY_IDS = [
+      'creation', 'noah', 'david_goliath', 'jesus_children', 'daniel_lions', 'esther_queen',
+      'lost_sheep', 'good_samaritan', 'abraham_stars', 'joseph_colorful_coat', 'moses_red_sea',
+      'ruth_naomi', 'miraculous_catch', 'jonah_big_fish', 'samuel_hears_god', 'josiah_young_king',
+      'solomon_wisdom', 'mary_says_yes', 'timothy_faith', 'jesus_temple',
+    ];
+    const missingCoord = MAP_STORY_IDS.filter((id) => !new RegExp(`\\n\\s*${id}:\\s*\\{ x: [01]?\\.\\d+, y: [01]?\\.\\d+, label: '(below|left|right)' \\}`).test(mapData));
+    check(
+      'Mapa M3: TODAS as 20 histórias do mapa têm coordenada explícita {x,y,label}',
+      mapData.includes('export const STORY_MAP_COORDS') && missingCoord.length === 0,
+      `histórias sem coordenada explícita: ${missingCoord.join(', ')}`,
+    );
+  }
+  check(
+    'Mapa M3: fonte única — região deriva pontos das COORDS (não de fórmula de índice)',
+    region.includes('getStoryMapCoord(s.id, i, n)') &&
+    !region.includes('markerFraction(') &&
+    !/colX\[i % 2\]/.test(region),
+    'região ainda usa fórmula de índice como fonte de posição',
+  );
+  check(
+    'Mapa M3: MapPath usa os MESMOS pontos dos marcadores (path = pins)',
+    region.includes('const points = items.map') &&
+    /<MapPath[\s\S]{0,80}points=\{points\}/.test(region) &&
+    /points\.map\([\s\S]{0,120}getStoryMapCoord/.test(region) === false && // coords vêm de items
+    region.includes('points = items.map((it) => ({ x: it.x, y: it.y }))'),
+    'path e marcadores não derivam dos mesmos pontos',
+  );
+  check(
+    'Mapa M3: chip de título INTERNO (zona segura) — sem pílula flutuante duplicada',
+    region.includes('chipWrap') &&
+    region.includes('CHIP_SAFE_Y') &&
+    !/<View style=\{styles\.regionPillWrap\}/.test(mapScreen),
+    'há duplicação de chip (interno + flutuante) ou falta chip interno seguro',
+  );
+  check(
+    'Mapa M3: labels protegidos por lado (below/left/right), até 2 linhas',
+    marker.includes('labelPos') &&
+    marker.includes('labelBoxStyle') &&
+    /labelPos[\s\S]{0,40}'below'/.test(marker) &&
+    marker.includes('numberOfLines={2}'),
+    'labels não têm posicionamento seguro por lado / 2 linhas',
+  );
+  check(
+    'Mapa M3: marcadores médios (current 92) — nem mini, nem gigante',
+    /SIZE = \{ current: 92, available: 80, completed: 80, locked: 76 \}/.test(marker),
+    'marcadores fora do tamanho médio',
   );
 
   // ── M2.5B Full-Bleed Recovery (desfaz o frame 0.86 do M2.5) ──

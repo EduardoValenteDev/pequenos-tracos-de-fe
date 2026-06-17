@@ -14,7 +14,7 @@ import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react'
 import { View, Text, Image, Modal, Pressable, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, markerFraction, REGION_PARCHMENT_BG } from '../data/adventureMap';
+import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../data/adventureMap';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
 import { useProgressContext } from '../context/ProgressContext';
 import SoundButton from '../components/SoundButton';
@@ -89,6 +89,15 @@ export default function AdventureMapScreen({ navigation }) {
     return next ? next.id : null;
   }, [ordered, isOpenable, isStoryCompleted]);
 
+  // História que a câmera deve focar: próxima disponível; senão última concluída;
+  // senão A Criação (começo). Só leitura.
+  const cameraStoryId = useMemo(() => {
+    if (currentId) return currentId;
+    const completed = ordered.filter((s) => isStoryCompleted(s.id));
+    if (completed.length) return completed[completed.length - 1].id;
+    return ordered[0]?.id;
+  }, [currentId, ordered, isStoryCompleted]);
+
   const getState = useCallback(
     (story) => {
       if (isStoryCompleted(story.id)) return 'completed';
@@ -129,12 +138,18 @@ export default function AdventureMapScreen({ navigation }) {
     didInitScroll.current = true;
     const vp = scrollViewH.current;
     const maxY = Math.max(0, h - vp);
-    const base = regionLayout[regionLayout.length - 1]; // comece_aqui
-    // Âncora de câmera = A Criação na base da jornada; mostra com contexto e clamp.
-    const anchorY = base ? base.top + base.height * markerFraction(0, base.count) : maxY;
-    const target = Math.max(0, Math.min(anchorY - vp * 0.55, maxY));
+    // Câmera por MARCO: âncora = coordenada Y do marco focado (próxima aventura;
+    // senão última concluída; senão A Criação). Coloca o marco ~58% do viewport,
+    // deixando caminho acima. Clamp → nunca mostra vazio/preto.
+    let anchorY = maxY;
+    const idx = regionsVisual.findIndex((r) => (r.stories || []).some((s) => s.id === cameraStoryId));
+    if (idx >= 0 && regionLayout[idx]) {
+      const coord = getStoryMapCoord(cameraStoryId);
+      anchorY = regionLayout[idx].top + coord.y * regionLayout[idx].height;
+    }
+    const target = Math.max(0, Math.min(anchorY - vp * 0.58, maxY));
     scrollRef.current?.scrollTo({ y: target, animated: false });
-  }, [regionLayout]);
+  }, [regionLayout, regionsVisual, cameraStoryId]);
 
   // Atualiza o índice da região ativa conforme a rolagem (só quando muda — leve).
   const onScroll = useCallback((e) => {
@@ -167,7 +182,7 @@ export default function AdventureMapScreen({ navigation }) {
           onContentSizeChange={onContentSize}
           onScroll={onScroll}
           scrollEventThrottle={32}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 8 }}
           showsVerticalScrollIndicator={false}
         >
           {regionsVisual.map((region, idx) => (
@@ -185,13 +200,8 @@ export default function AdventureMapScreen({ navigation }) {
             />
           ))}
         </ScrollView>
-
-        {/* Pílula de região que acompanha a rolagem (não cobre marcos) */}
-        <View style={styles.regionPillWrap} pointerEvents="none">
-          <View style={styles.regionPill}>
-            <Text style={styles.regionPillText}>{activeRegion?.title ?? ''}</Text>
-          </View>
-        </View>
+        {/* (Orientação de região fica no chip INTERNO de cada região — sem pílula
+            flutuante duplicada competindo com os labels.) */}
       </Animated.View>
 
       <StoryFocusModal

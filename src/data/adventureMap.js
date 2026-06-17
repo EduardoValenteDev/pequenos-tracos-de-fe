@@ -96,9 +96,52 @@ export function computeImageRect(containerW, containerH) {
   };
 }
 
-/** Fração vertical (0..1) do marco i (1ª história embaixo → jornada sobe). */
+/** Fração vertical (0..1) do marco i — FALLBACK quando não há coordenada explícita. */
 export function markerFraction(index, storyCount) {
   if (storyCount <= 1) return 0.62;
   const b = regionMarkerBand(storyCount);
   return b.bottom - ((b.bottom - b.top) / (storyCount - 1)) * index;
+}
+
+// ── M3: COORDENADAS NORMALIZADAS por história (FONTE ÚNICA DE VERDADE) ──────────
+// x,y em 0..1 dentro da ARTE da região (y: 0 = topo, 1 = base). `label` = lado em
+// que o título do marco aparece ('below' | 'left' | 'right'), para nunca cortar.
+// Marcador, label, caminho (path) e câmera derivam TODOS daqui. Composição feita à
+// mão por região (não por fórmula de índice), de baixo para cima (1ª história mais
+// embaixo). Histórias sem coordenada caem no fallback (markerFraction + zigue-zague).
+export const STORY_MAP_COORDS = {
+  // comece_aqui (2 histórias)
+  creation:             { x: 0.34, y: 0.78, label: 'below' },
+  noah:                 { x: 0.70, y: 0.46, label: 'right' },
+  // pequeninos (baixo → cima)
+  david_goliath:        { x: 0.30, y: 0.82, label: 'below' },
+  jesus_children:       { x: 0.70, y: 0.70, label: 'right' },
+  daniel_lions:         { x: 0.30, y: 0.58, label: 'left' },
+  esther_queen:         { x: 0.70, y: 0.46, label: 'right' },
+  lost_sheep:           { x: 0.30, y: 0.34, label: 'left' },
+  good_samaritan:       { x: 0.70, y: 0.22, label: 'right' },
+  // descobridores (baixo → cima)
+  abraham_stars:        { x: 0.30, y: 0.82, label: 'below' },
+  joseph_colorful_coat: { x: 0.70, y: 0.70, label: 'right' },
+  moses_red_sea:        { x: 0.30, y: 0.58, label: 'left' },
+  ruth_naomi:           { x: 0.70, y: 0.46, label: 'right' },
+  miraculous_catch:     { x: 0.30, y: 0.34, label: 'left' },
+  jonah_big_fish:       { x: 0.70, y: 0.22, label: 'right' },
+  // jovens_da_fe (baixo → cima)
+  samuel_hears_god:     { x: 0.30, y: 0.82, label: 'below' },
+  josiah_young_king:    { x: 0.70, y: 0.70, label: 'right' },
+  solomon_wisdom:       { x: 0.30, y: 0.58, label: 'left' },
+  mary_says_yes:        { x: 0.70, y: 0.46, label: 'right' },
+  timothy_faith:        { x: 0.30, y: 0.34, label: 'left' },
+  jesus_temple:         { x: 0.70, y: 0.22, label: 'right' },
+};
+
+/**
+ * Coordenada normalizada de uma história. Usa a coordenada explícita (fonte única);
+ * só cai no fallback (markerFraction + zigue-zague) se a história não estiver no mapa.
+ */
+export function getStoryMapCoord(storyId, index = 0, storyCount = 1) {
+  const c = STORY_MAP_COORDS[storyId];
+  if (c) return c;
+  return { x: index % 2 === 0 ? 0.30 : 0.70, y: markerFraction(index, storyCount), label: 'below' };
 }
