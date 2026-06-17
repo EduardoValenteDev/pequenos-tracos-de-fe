@@ -14,7 +14,7 @@ import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react'
 import { View, Text, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight } from '../data/adventureMap';
+import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, mapFrameWidth, markerFraction, MAP_AMBIENT_BG } from '../data/adventureMap';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
 import { useProgressContext } from '../context/ProgressContext';
 import MapRegion from '../components/map/MapRegion';
@@ -43,23 +43,26 @@ export default function AdventureMapScreen({ navigation }) {
     return () => clearTimeout(t);
   }, []);
 
+  // VIEWPORT: a arte usa um frame menor que a tela, centralizado (reduz o zoom).
+  const frameWidth = useMemo(() => mapFrameWidth(width), [width]);
+
   const regions = useMemo(() => getAdventureRegions(), []);
   // Ordem VISUAL invertida: topo = última região, base = comece_aqui.
   const regionsVisual = useMemo(() => regions.slice().reverse(), [regions]);
   const ordered = useMemo(() => getOrderedAdventureStories(), []);
 
-  // Layout das regiões (offsets) para a pílula de região acompanhar a rolagem.
+  // Layout das regiões (offsets) — alturas baseadas no FRAME, p/ pílula e scroll.
   const regionLayout = useMemo(() => {
     const arr = [];
     let prevBottom = 0;
     regionsVisual.forEach((r, i) => {
-      const h = computeRegionHeight(width);
+      const h = computeRegionHeight(frameWidth);
       const top = i === 0 ? 0 : prevBottom - REGION_OVERLAP;
-      arr.push({ id: r.id, title: r.title, top, height: h });
+      arr.push({ id: r.id, title: r.title, top, height: h, count: (r.stories || []).length });
       prevBottom = top + h;
     });
     return arr;
-  }, [regionsVisual, width]);
+  }, [regionsVisual, frameWidth]);
 
   // Pílula começa na base (comece_aqui), pois a câmera inicia embaixo.
   const [activeRegionTitle, setActiveRegionTitle] = useState(
@@ -112,12 +115,19 @@ export default function AdventureMapScreen({ navigation }) {
   const onContentSize = useCallback((w, h) => {
     if (didInitScroll.current || scrollViewH.current <= 0) return;
     didInitScroll.current = true;
-    const bottomY = Math.max(0, h - scrollViewH.current);
-    scrollRef.current?.scrollTo({ y: bottomY, animated: false });
-    setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: Math.max(0, bottomY - 120), animated: true });
-    }, 480);
-  }, []);
+    const vp = scrollViewH.current;
+    const maxY = Math.max(0, h - vp); // clamp: nunca além do conteúdo (sem vazio/preto)
+    // Câmera pousa na BASE mostrando A Criação (1º marco da última região), com
+    // contexto de mapa em volta — não no fim bruto (que mostrava o rodapé preto).
+    const base = regionLayout[regionLayout.length - 1];
+    let target = maxY;
+    if (base) {
+      const creationY = base.top + base.height * markerFraction(0, base.count);
+      target = creationY - vp * 0.58; // creation por volta de 58% do viewport
+    }
+    target = Math.max(0, Math.min(target, maxY));
+    scrollRef.current?.scrollTo({ y: target, animated: false });
+  }, [regionLayout]);
 
   // Atualiza a pílula de região conforme a rolagem (só quando muda — leve).
   const onScroll = useCallback((e) => {
@@ -150,7 +160,7 @@ export default function AdventureMapScreen({ navigation }) {
             <MapRegion
               key={region.id}
               region={region}
-              width={width}
+              frameWidth={frameWidth}
               awake={isRegionAwake(region)}
               currentStoryId={currentId}
               isTop={idx === 0}
@@ -184,7 +194,9 @@ export default function AdventureMapScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#2B2114' },
+  // Ambiente de pergaminho (NUNCA preto/azul): aparece nas laterais do frame, no
+  // topo e na base da jornada.
+  container: { flex: 1, backgroundColor: MAP_AMBIENT_BG },
   header: {
     paddingHorizontal: 18,
     paddingBottom: 9,

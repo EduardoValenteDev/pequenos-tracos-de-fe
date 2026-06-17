@@ -59,6 +59,14 @@ export function getOrderedAdventureStories() {
 // carrega — nunca azul cru.
 export const REGION_TITLE_SAFE = 0.16;          // topo reservado ao título da região
 export const REGION_PARCHMENT_BG = '#E7D6B0';   // placeholder neutro (sem azul)
+export const MAP_AMBIENT_BG = '#D8C29A';        // ambiente de pergaminho nas laterais/topo/base (nunca preto/azul)
+
+// VIEWPORT do mapa: a arte NÃO ocupa a largura total da tela (isso deixava a
+// região gigante = sensação de zoom/câmera perto). Ela usa um FRAME menor,
+// centralizado, com pergaminho ao redor — cada região vira um "quadro" da jornada.
+export function mapFrameWidth(screenWidth) {
+  return Math.round(screenWidth * 0.86);
+}
 
 /** Banda vertical (frações) onde os marcos vivem, por nº de histórias. */
 export function regionMarkerBand(storyCount) {
