@@ -15,11 +15,15 @@ import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
-import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../../data/adventureMap';
+import { computeRegionHeight, getStoryMapCoord, MAP_ASPECT, REGION_PARCHMENT_BG } from '../../data/adventureMap';
 
 const SEAM_H = 56;
 const OVERLAP = 28;       // sobreposição entre regiões (sem gap/faixa morta)
 const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo marco)
+
+// BLOCO 0 — diagnóstico TEMPORÁRIO (revertido no Bloco 4). Loga UMA vez os números
+// crus de geometria + dimensão intrínseca da arte para decidir a causa do "zoom".
+let __mapDiagLogged = false;
 
 export default function MapRegion({ region, width, awake, currentStoryId, isTop, renderImage, getState, onPressStory }) {
   const list = region.stories || [];
@@ -41,6 +45,23 @@ export default function MapRegion({ region, width, awake, currentStoryId, isTop,
   const points = items.map((it) => ({ x: it.x, y: it.y }));
   const highlightIndex = currentStoryId ? list.findIndex((s) => s.id === currentStoryId) : -1;
   const source = region.images ? (awake ? region.images.awake : region.images.asleep) : null;
+
+  // BLOCO 0 — log único de diagnóstico (TEMP, revertido no Bloco 4).
+  if (__DEV__ && !__mapDiagLogged && source) {
+    __mapDiagLogged = true;
+    const art = Image.resolveAssetSource(source) || {};
+    console.log('[MAP_DIAG]', JSON.stringify({
+      region: region.id,
+      width,
+      regionH,
+      ratio_regionH_over_width: Number((regionH / width).toFixed(4)),
+      MAP_ASPECT,
+      resizeMode: 'stretch',
+      artW: art.width,
+      artH: art.height,
+      artRatio_w_over_h: art.width && art.height ? Number((art.width / art.height).toFixed(4)) : null,
+    }));
+  }
 
   return (
     <View style={[styles.region, { height: regionH, marginTop: isTop ? 0 : -OVERLAP }]}>
