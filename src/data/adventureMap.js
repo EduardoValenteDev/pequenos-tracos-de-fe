@@ -136,31 +136,32 @@ export function markerFraction(index, storyCount) {
 // Marcador, label, caminho (path) e câmera derivam TODOS daqui. Composição feita à
 // mão por região (não por fórmula de índice), de baixo para cima (1ª história mais
 // embaixo). Histórias sem coordenada caem no fallback (markerFraction + zigue-zague).
-// B3.4 (microajuste final): ajuste fino sobre a TRILHA principal de cada arte,
-// conforme feedback manual do Eduardo. Os títulos não aparecem mais no mapa
-// (showLabel={false}); `label` segue definindo o lado seguro caso volte a exibir.
+// B3.5 (microajuste final de pins e posições): ajuste fino sobre a TRILHA principal
+// de cada arte, conforme feedback manual do Eduardo. Os títulos não aparecem mais no
+// mapa (showLabel={false}); `label` segue definindo o lado seguro caso volte a exibir.
+// `markerScale` (opcional) aumenta/diminui SÓ aquele pin (clamp 0.85–1.25).
 export const STORY_MAP_COORDS = {
-  // comece_aqui (2 histórias)
-  creation:             { x: 0.70, y: 0.67, label: 'below' },
-  noah:                 { x: 0.61, y: 0.31, label: 'left' },
+  // comece_aqui (2 histórias) — pins um pouco maiores (markerScale)
+  creation:             { x: 0.73, y: 0.67, label: 'below', markerScale: 1.22 },
+  noah:                 { x: 0.61, y: 0.29, label: 'left', markerScale: 1.10 },
   // pequeninos (baixo → cima)
   david_goliath:        { x: 0.69, y: 0.90, label: 'below' },
   jesus_children:       { x: 0.64, y: 0.71, label: 'right' },
   daniel_lions:         { x: 0.38, y: 0.61, label: 'left' },
   esther_queen:         { x: 0.68, y: 0.47, label: 'right' },
-  lost_sheep:           { x: 0.43, y: 0.34, label: 'left' },
+  lost_sheep:           { x: 0.47, y: 0.34, label: 'left' },
   good_samaritan:       { x: 0.72, y: 0.23, label: 'right' },
   // descobridores (baixo → cima)
   abraham_stars:        { x: 0.82, y: 0.90, label: 'below' },
   joseph_colorful_coat: { x: 0.64, y: 0.74, label: 'right' },
   moses_red_sea:        { x: 0.48, y: 0.61, label: 'left' },
   ruth_naomi:           { x: 0.76, y: 0.49, label: 'right' },
-  miraculous_catch:     { x: 0.39, y: 0.32, label: 'left' },
-  jonah_big_fish:       { x: 0.78, y: 0.19, label: 'right' },
+  miraculous_catch:     { x: 0.39, y: 0.35, label: 'left' },
+  jonah_big_fish:       { x: 0.78, y: 0.22, label: 'right' },
   // jovens_da_fe (baixo → cima)
   samuel_hears_god:     { x: 0.68, y: 0.93, label: 'below' },
   josiah_young_king:    { x: 0.54, y: 0.75, label: 'right' },
-  solomon_wisdom:       { x: 0.61, y: 0.63, label: 'right' },
+  solomon_wisdom:       { x: 0.61, y: 0.60, label: 'right' },
   mary_says_yes:        { x: 0.70, y: 0.46, label: 'right' },
   timothy_faith:        { x: 0.45, y: 0.37, label: 'left' },
   jesus_temple:         { x: 0.78, y: 0.23, label: 'right' },

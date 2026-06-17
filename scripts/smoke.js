@@ -5398,9 +5398,9 @@ check(
     'ainda há seam cobrindo a base, ou falta o placeholder de pergaminho',
   );
   check(
-    'Mapa M3: jornada SOBE — A Criação (y 0.67) ABAIXO de Noé (y 0.31) por coordenada',
-    /creation:\s*\{ x: 0\.70, y: 0\.67/.test(mapData) &&
-    /noah:\s*\{ x: 0\.61, y: 0\.31/.test(mapData) &&
+    'Mapa M3: jornada SOBE — A Criação (y 0.67) ABAIXO de Noé (y 0.29) por coordenada',
+    /creation:\s*\{ x: 0\.73, y: 0\.67/.test(mapData) &&
+    /noah:\s*\{ x: 0\.61, y: 0\.29/.test(mapData) &&
     region.includes('getStoryMapCoord(s.id'),
     'coordenadas não colocam A Criação abaixo de Noé / região não usa coords',
   );
@@ -5697,6 +5697,17 @@ check(
     'marker não tem showLabel/gate do título ou perdeu accessibilityLabel/titulo',
   );
   check(
+    'Mapa B3.5: markerScale por história (clamp 0.85–1.25) — pin maior/menor sem mudar o global',
+    /markerScale = 1/.test(marker) &&
+    /Math\.min\(1\.25, Math\.max\(0\.85, markerScale/.test(marker) &&
+    /Math\.round\(\(SIZE\[state\] \|\| SIZE\.available\) \* scale\)/.test(marker) &&
+    region.includes('markerScale={it.markerScale}') &&
+    region.includes('coord.markerScale') &&
+    /creation:\s*\{[^}]*markerScale: 1\.22/.test(mapData) &&
+    /noah:\s*\{[^}]*markerScale: 1\.10/.test(mapData),
+    'markerScale ausente / sem clamp / não propagado das coords ao marcador',
+  );
+  check(
     'Mapa B2.8: caminho suavizado (traço fino 4, dash curto "9 12", opacidade menor, sombra leve)',
     /strokeWidth=\{4\}[\s\S]{0,80}strokeDasharray="9 12"/.test(mapPath) &&
     mapPath.includes('opacity={0.62}') &&
@@ -5731,7 +5742,7 @@ check(
       'ruth_naomi', 'miraculous_catch', 'jonah_big_fish', 'samuel_hears_god', 'josiah_young_king',
       'solomon_wisdom', 'mary_says_yes', 'timothy_faith', 'jesus_temple',
     ];
-    const missingCoord = MAP_STORY_IDS.filter((id) => !new RegExp(`\\n\\s*${id}:\\s*\\{ x: [01]?\\.\\d+, y: [01]?\\.\\d+, label: '(below|left|right)' \\}`).test(mapData));
+    const missingCoord = MAP_STORY_IDS.filter((id) => !new RegExp(`\\n\\s*${id}:\\s*\\{ x: [01]?\\.\\d+, y: [01]?\\.\\d+, label: '(below|left|right)'(?:, markerScale: [01]?\\.\\d+)? \\}`).test(mapData));
     check(
       'Mapa M3: TODAS as 20 histórias do mapa têm coordenada explícita {x,y,label}',
       mapData.includes('export const STORY_MAP_COORDS') && missingCoord.length === 0,

@@ -43,6 +43,7 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
     return {
       story: s,
       labelPos: coord.label,
+      markerScale: coord.markerScale || 1, // escala opcional por história
       x: Math.round(coord.x * width),
       y: Math.round(coord.y * regionH),
     };
@@ -113,6 +114,7 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
                 story={it.story}
                 state={getState(it.story)}
                 labelPos={it.labelPos}
+                markerScale={it.markerScale}
                 showLabel={false}
                 onPress={() => onPressStory(it.story)}
               />

@@ -33,11 +33,14 @@ function labelBoxStyle(side, size) {
   return below;
 }
 
-export default function StoryMapMarker({ story, state = 'locked', labelPos = 'below', showLabel = true, onPress }) {
+export default function StoryMapMarker({ story, state = 'locked', labelPos = 'below', showLabel = true, markerScale = 1, onPress }) {
   const cover = getStoryCover(story.id);
   const isCurrent = state === 'current';
   const isLocked = state === 'locked';
-  const size = SIZE[state] || SIZE.available;
+  // Escala opcional por história (coord.markerScale) — permite um pin maior/menor
+  // que os do mesmo estado SEM mudar o tamanho global. Limites de segurança.
+  const scale = Math.min(1.25, Math.max(0.85, markerScale || 1));
+  const size = Math.round((SIZE[state] || SIZE.available) * scale);
   const ring = RING[state] || RING.available;
   const inner = size - ring.width * 2;
 
