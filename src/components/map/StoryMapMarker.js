@@ -29,7 +29,7 @@ export default function StoryMapMarker({ story, state = 'locked', onPress }) {
   const cover = getStoryCover(story.id);
   const isCurrent = state === 'current';
   const isLocked = state === 'locked';
-  const size = isCurrent ? 116 : 98;
+  const size = isCurrent ? 104 : 86;
   const ring = RING[state] || RING.available;
   const inner = size - ring.width * 2;
 

@@ -1,56 +1,60 @@
 /**
- * MapRegion — uma das 4 regiões verticais do Mapa Pergaminho (M2.2).
+ * MapRegion — uma das 4 regiões verticais do Mapa Pergaminho (M2.4).
  *
- * Fundo = imagem REAL da região (assets/maps/), par DESPERTA (A) / ADORMECIDA (B):
- * `awake` escolhe qual. A altura respeita a PROPORÇÃO REAL da imagem (768×2048),
- * então o mapa aparece INTEIRO, sem corte (resizeMode cover = encaixe exato).
+ * Altura = PROPORÇÃO REAL da arte (768×2048), via computeRegionHeight — NÃO cresce
+ * por marcos (isso causava zoom/recorte). A arte é uma camada de Image ABSOLUTA
+ * com resizeMode="stretch" (o container tem a MESMA proporção da imagem, então não
+ * distorce e não corta). O fundo enquanto a arte carrega é pergaminho NEUTRO (sem
+ * azul). A Image só monta quando `renderImage` é true (render progressivo) — o
+ * placeholder de pergaminho segura a altura, mantendo scroll/offsets corretos.
  *
- * Sentido da jornada: dentro da região o caminho SOBE — a 1ª história fica
- * embaixo (entrada) e a última no topo (parte épica). As regiões se sobrepõem
- * levemente (margem negativa) + seams de névoa, para não parecerem coladas. O
- * caminho (SVG) fica por cima do mapa, atrás dos marcos.
+ * Camada separada da arte deixa pronta a futura revelação A/B (B base + A por cima
+ * com máscara) sem refatorar a estrutura.
+ *
+ * Sentido da jornada: 1ª história embaixo, última no topo (markerFraction). Marcos
+ * só na banda segura (regionMarkerBand), abaixo do título.
  */
 import React from 'react';
-import { View, Text, StyleSheet, ImageBackground } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
-import { computeRegionHeight, markerFraction } from '../../data/adventureMap';
+import { computeRegionHeight, markerFraction, REGION_PARCHMENT_BG } from '../../data/adventureMap';
 
-const MARKER_W = 148;
-const SEAM_H = 58;
+const MARKER_W = 132;
+const SEAM_H = 56;
 const OVERLAP = 28; // sobreposição entre regiões (margem negativa)
 
-export default function MapRegion({ region, width, awake, currentStoryId, isTop, getState, onPressStory }) {
+export default function MapRegion({ region, width, awake, currentStoryId, isTop, renderImage, getState, onPressStory }) {
   const list = region.stories || [];
   const n = list.length;
   const pad = 16;
   const innerW = width - pad * 2;
   const colX = [pad + innerW * 0.29, pad + innerW * 0.71]; // zigue-zague
 
-  // Altura via fórmula compartilhada (proporção real + folga para os marcos).
-  const regionH = computeRegionHeight(width, n);
+  // Altura SEMPRE proporcional (sem zoom): a arte aparece inteira na rolagem.
+  const regionH = computeRegionHeight(width);
 
-  // Marcos só na BANDA SEGURA (abaixo da zona do título); 1ª história embaixo
-  // (i=0), última no topo → o caminho sobe. Nenhum marco entra na zona do título.
+  // Marcos só na banda segura; 1ª embaixo → caminho sobe; nenhum entra no título.
   const points = list.map((s, i) => ({ x: colX[i % 2], y: Math.round(regionH * markerFraction(i, n)) }));
 
   const highlightIndex = currentStoryId ? list.findIndex((s) => s.id === currentStoryId) : -1;
   const source = region.images ? (awake ? region.images.awake : region.images.asleep) : null;
 
   return (
-    <ImageBackground
-      source={source}
-      resizeMode="cover"
-      style={[styles.region, { height: regionH, backgroundColor: region.tint, marginTop: isTop ? 0 : -OVERLAP }]}
-    >
+    <View style={[styles.region, { height: regionH, marginTop: isTop ? 0 : -OVERLAP }]}>
+      {/* Camada da ARTE (absoluta, stretch). Só monta quando próxima do viewport. */}
+      {renderImage && source && (
+        <Image source={source} resizeMode="stretch" style={StyleSheet.absoluteFill} fadeDuration={120} />
+      )}
+
       <View style={styles.veil} pointerEvents="none" />
 
       {/* Seams de névoa de pergaminho — unem as regiões (topo e base) */}
-      <LinearGradient colors={['rgba(43,33,20,0.6)', 'rgba(251,244,230,0)']} style={[styles.seam, { top: 0, height: SEAM_H }]} pointerEvents="none" />
-      <LinearGradient colors={['rgba(251,244,230,0)', 'rgba(43,33,20,0.6)']} style={[styles.seam, { bottom: 0, height: SEAM_H }]} pointerEvents="none" />
+      <LinearGradient colors={['rgba(43,33,20,0.6)', 'rgba(231,214,176,0)']} style={[styles.seam, { top: 0, height: SEAM_H }]} pointerEvents="none" />
+      <LinearGradient colors={['rgba(231,214,176,0)', 'rgba(43,33,20,0.6)']} style={[styles.seam, { bottom: 0, height: SEAM_H }]} pointerEvents="none" />
 
-      {/* Chip da região, integrado ao mapa (no alto) */}
+      {/* Chip da região (no alto, dentro da zona segura) */}
       <View style={styles.headerRow}>
         <View style={styles.chip}>
           <Text style={styles.chipTitle}>{region.title}</Text>
@@ -63,19 +67,19 @@ export default function MapRegion({ region, width, awake, currentStoryId, isTop,
 
       {/* Marcos (capas) por cima */}
       {list.map((story, i) => (
-        <View key={story.id} style={[styles.markerSlot, { left: points[i].x - MARKER_W / 2, top: points[i].y - 60 }]}>
+        <View key={story.id} style={[styles.markerSlot, { left: points[i].x - MARKER_W / 2, top: points[i].y - 56 }]}>
           <StoryMapMarker story={story} state={getState(story)} onPress={() => onPressStory(story)} />
         </View>
       ))}
-    </ImageBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  region: { width: '100%', overflow: 'hidden' },
-  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,250,235,0.06)' },
+  region: { width: '100%', overflow: 'hidden', backgroundColor: REGION_PARCHMENT_BG },
+  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,250,235,0.05)' },
   seam: { position: 'absolute', left: 0, right: 0 },
-  headerRow: { alignItems: 'center', paddingTop: SEAM_H - 8 },
+  headerRow: { alignItems: 'center', paddingTop: SEAM_H - 10 },
   chip: {
     backgroundColor: 'rgba(40,30,15,0.50)',
     borderRadius: 18,

@@ -34,6 +34,15 @@ export default function AdventureMapScreen({ navigation }) {
   }, [entrance]);
   const entranceTranslate = entrance.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
 
+  // Render progressivo: as regiões de BAIXO (onde a câmera começa) montam a arte
+  // primeiro; as de cima entram pouco depois — evita montar 4 imagens pesadas de
+  // uma vez (lentidão/flash). O placeholder de pergaminho segura a altura.
+  const [mountedAll, setMountedAll] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMountedAll(true), 260);
+    return () => clearTimeout(t);
+  }, []);
+
   const regions = useMemo(() => getAdventureRegions(), []);
   // Ordem VISUAL invertida: topo = última região, base = comece_aqui.
   const regionsVisual = useMemo(() => regions.slice().reverse(), [regions]);
@@ -44,7 +53,7 @@ export default function AdventureMapScreen({ navigation }) {
     const arr = [];
     let prevBottom = 0;
     regionsVisual.forEach((r, i) => {
-      const h = computeRegionHeight(width, (r.stories || []).length);
+      const h = computeRegionHeight(width);
       const top = i === 0 ? 0 : prevBottom - REGION_OVERLAP;
       arr.push({ id: r.id, title: r.title, top, height: h });
       prevBottom = top + h;
@@ -145,6 +154,8 @@ export default function AdventureMapScreen({ navigation }) {
               awake={isRegionAwake(region)}
               currentStoryId={currentId}
               isTop={idx === 0}
+              // Bottom 2 (base, onde a câmera começa) primeiro; o resto após o tick.
+              renderImage={idx >= regionsVisual.length - 2 || mountedAll}
               getState={getState}
               onPressStory={openFocus}
             />

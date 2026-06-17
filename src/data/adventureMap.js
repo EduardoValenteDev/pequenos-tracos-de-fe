@@ -55,25 +55,27 @@ export function getOrderedAdventureStories() {
 
 // ── Geometria compartilhada da região (a tela e MapRegion usam a MESMA fórmula) ──
 // Zona segura do TÍTULO no topo (nenhum marco entra) e BANDA dos marcos abaixo
-// dela. Isso impede histórias colidirem com o título da região.
-export const REGION_TITLE_SAFE = 0.30;   // topo reservado ao título da região
-export const MARKER_BAND_TOP = 0.34;     // marcos só começam abaixo do título
-export const MARKER_BAND_BOTTOM = 0.82;  // e terminam acima do seam inferior
-const MARKER_MIN_GAP = 158;              // distância vertical mínima entre marcos
+// dela, impedindo colisão com o título. Fundo NEUTRO de pergaminho enquanto a arte
+// carrega — nunca azul cru.
+export const REGION_TITLE_SAFE = 0.16;          // topo reservado ao título da região
+export const REGION_PARCHMENT_BG = '#E7D6B0';   // placeholder neutro (sem azul)
+
+/** Banda vertical (frações) onde os marcos vivem, por nº de histórias. */
+export function regionMarkerBand(storyCount) {
+  return storyCount <= 3 ? { top: 0.36, bottom: 0.82 } : { top: 0.17, bottom: 0.87 };
+}
 
 /**
- * Altura de uma região: respeita a proporção real da arte (768×2048) e cresce o
- * suficiente para os marcos caberem na banda segura sem se sobrepor.
+ * Altura de uma região: SEMPRE a proporção real da arte (768×2048). NÃO cresce
+ * por quantidade de marcos — isso evita zoom/recorte. Marcos se ajustam à banda.
  */
-export function computeRegionHeight(width, storyCount) {
-  const proportional = Math.round((width * 2048) / 768);
-  const span = MARKER_BAND_BOTTOM - MARKER_BAND_TOP;
-  const need = storyCount > 1 ? Math.ceil((MARKER_MIN_GAP * (storyCount - 1)) / span) : 0;
-  return Math.max(proportional, need);
+export function computeRegionHeight(width) {
+  return Math.round((width * 2048) / 768);
 }
 
 /** Fração vertical (0..1) do marco i (1ª história embaixo → jornada sobe). */
 export function markerFraction(index, storyCount) {
-  if (storyCount <= 1) return 0.60;
-  return MARKER_BAND_BOTTOM - ((MARKER_BAND_BOTTOM - MARKER_BAND_TOP) / (storyCount - 1)) * index;
+  if (storyCount <= 1) return 0.62;
+  const b = regionMarkerBand(storyCount);
+  return b.bottom - ((b.bottom - b.top) / (storyCount - 1)) * index;
 }

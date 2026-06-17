@@ -5310,7 +5310,7 @@ check(
   check(
     'Mapa M2: usa as 8 imagens REAIS de assets/maps/ (R1A..R4B, pares A/B)',
     MAPS.every((r) => mapData.includes(`assets/maps/${r}.png`)) &&
-    region.includes('ImageBackground') &&
+    region.includes('<Image source={source}') &&
     region.includes('region.images'),
     'mapa não importa/usa as imagens reais R1A..R4B como fundo das regiões',
   );
@@ -5334,12 +5334,12 @@ check(
     'caminho do mapa não é SVG por código',
   );
   check(
-    'Mapa M2: marcos maiores valorizam a capa (círculo + fallback, sem emoji por cima)',
-    /isCurrent \? 116 : 98/.test(marker) &&
+    'Mapa M2.4: marcos com capa circular + fallback (tamanho ajustado p/ caber sem zoom)',
+    /isCurrent \? 104 : 86/.test(marker) &&
     marker.includes('getStoryCover(story.id)') &&
     /borderRadius:\s*inner\s*\/\s*2/.test(marker) &&
     marker.includes('fallback'),
-    'marcos não foram aumentados ou perderam a capa circular/fallback',
+    'marcos perderam a capa circular/fallback ou o tamanho ajustado',
   );
   check(
     'Mapa M2: 3 estados (bloqueado/atual/concluído) calculados por leitura',
@@ -5393,7 +5393,7 @@ check(
   check(
     'Mapa M2.2: jornada SOBE dentro da região (markerFraction: 1ª história embaixo)',
     mapData.includes('export function markerFraction') &&
-    mapData.includes('MARKER_BAND_BOTTOM - ((MARKER_BAND_BOTTOM - MARKER_BAND_TOP) / (storyCount - 1)) * index') &&
+    mapData.includes('b.bottom - ((b.bottom - b.top) / (storyCount - 1)) * index') &&
     region.includes('markerFraction(i, n)'),
     'caminho/marcos não sobem dentro da região (sentido visual da jornada)',
   );
@@ -5449,12 +5449,14 @@ check(
     'creation não é o primeiro marco lógico da jornada',
   );
   check(
-    'Mapa M2.2: R1 INTEIRO — altura via computeRegionHeight (proporção 768×2048), sem width*1.32',
+    'Mapa M2.4: R1 INTEIRO sem zoom — altura SÓ proporcional (768×2048), sem crescer por marcos',
     mapData.includes('export function computeRegionHeight') &&
-    mapData.includes('(width * 2048) / 768') &&
-    region.includes('computeRegionHeight(width, n)') &&
-    !region.includes('width * 1.32'),
-    'altura da região não respeita a proporção real do mapa (corta R1)',
+    /computeRegionHeight\(width\)\s*\{\s*return Math\.round\(\(width \* 2048\) \/ 768\);/.test(mapData) &&
+    region.includes('computeRegionHeight(width)') &&
+    !region.includes('width * 1.32') &&
+    !mapData.includes('Math.max(proportional') &&
+    !mapData.includes('MARKER_MIN_GAP'),
+    'altura da região ainda cresce por marcos / não é só proporcional (causa zoom)',
   );
   check(
     'Mapa M2.2: câmera inicial parte da BASE (scrollTo bottom) + passo para cima',
@@ -5500,9 +5502,8 @@ check(
   check(
     'Mapa M2.3: zona segura do título — marcos só na banda (não usam a altura toda)',
     mapData.includes('export const REGION_TITLE_SAFE') &&
-    mapData.includes('export const MARKER_BAND_TOP') &&
-    mapData.includes('export const MARKER_BAND_BOTTOM') &&
-    /MARKER_BAND_TOP\s*=\s*0\.(2|3)/.test(mapData),
+    mapData.includes('export function regionMarkerBand') &&
+    /top:\s*0\.(1|3)/.test(mapData) && /bottom:\s*0\.8/.test(mapData),
     'sem zona segura do título / marcos podem colidir com o título da região',
   );
   check(
@@ -5522,7 +5523,7 @@ check(
   check(
     'Mapa M2.3: creation continua abaixo de noah (markerFraction decresce com i)',
     mapData.includes('markerFraction') &&
-    /MARKER_BAND_BOTTOM - \(\(MARKER_BAND_BOTTOM - MARKER_BAND_TOP\)/.test(mapData),
+    /b\.bottom - \(\(b\.bottom - b\.top\) \/ \(storyCount - 1\)\) \* index/.test(mapData),
     'creation/noah não respeitam o sentido de baixo para cima',
   );
   check(
@@ -5531,6 +5532,43 @@ check(
     marker.includes("ellipsizeMode=\"tail\"") &&
     marker.includes('adjustsFontSizeToFit'),
     'títulos (Abraão/Samuel) ainda dependem de 1 linha com corte',
+  );
+
+  // ── M2.4 enquadramento + loading ──
+  check(
+    'Mapa M2.4: NÃO usa resizeMode="cover" no fundo vertical (usa "stretch", sem zoom/crop)',
+    !region.includes('resizeMode="cover"') &&
+    region.includes('resizeMode="stretch"'),
+    'mapa ainda usa cover (causa zoom/recorte)',
+  );
+  check(
+    'Mapa M2.4: placeholder de pergaminho NEUTRO (sem fundo azul/region.tint cru)',
+    mapData.includes('export const REGION_PARCHMENT_BG') &&
+    /REGION_PARCHMENT_BG\s*=\s*'#E7D6B0'/.test(mapData) &&
+    region.includes('backgroundColor: REGION_PARCHMENT_BG') &&
+    !region.includes('region.tint'),
+    'fundo da região ainda usa cor crua (azul) em vez de pergaminho neutro',
+  );
+  check(
+    'Mapa M2.4: arte é camada Image separada (pronta p/ reveal A/B) e só monta com renderImage',
+    region.includes('renderImage && source') &&
+    /<Image source=\{source\} resizeMode="stretch"/.test(region) &&
+    region.includes('StyleSheet.absoluteFill'),
+    'arte não é camada Image separada/condicional',
+  );
+  check(
+    'Mapa M2.4: render progressivo — regiões de baixo primeiro, resto após o tick',
+    mapScreen.includes('mountedAll') &&
+    /renderImage=\{idx >= regionsVisual\.length - 2 \|\| mountedAll\}/.test(mapScreen) &&
+    /setTimeout\(\(\) => setMountedAll\(true\)/.test(mapScreen),
+    'sem render progressivo das regiões pesadas',
+  );
+  check(
+    'Mapa M2.4: NÃO instalou expo-image (usa Image do React Native)',
+    !require(path.join(root, 'package.json')).dependencies['expo-image'] &&
+    region.includes("from 'react-native'") &&
+    region.includes('Image'),
+    'expo-image foi instalado (não permitido) ou Image RN ausente',
   );
 }
 
