@@ -5309,14 +5309,21 @@ check(
   );
   check(
     'Mapa M2: usa as 8 imagens REAIS de assets/maps/ (R1A..R4B, pares A/B)',
-    MAPS.every((r) => mapData.includes(`assets/maps/${r}.png`)) &&
+    MAPS.every((r) => mapData.includes(`assets/maps/${r}.jpg`)) &&
     region.includes('source={source}') &&
     region.includes('region.images'),
     'mapa não importa/usa as imagens reais R1A..R4B como fundo das regiões',
   );
   check(
+    'Mapa B2.4: mapas em JPG (leves) — nenhum require .png no fluxo + os 8 .jpg existem em disco',
+    MAPS.every((r) => mapData.includes(`require('../../assets/maps/${r}.jpg')`)) &&
+    !/require\([^)]*assets\/maps\/R[0-9][AB]\.png/.test(mapData) &&
+    MAPS.every((r) => fs.existsSync(path.join(root, 'assets/maps', `${r}.jpg`))),
+    'adventureMap ainda referencia PNG do mapa, ou faltam os JPGs em disco',
+  );
+  check(
     'Mapa M2.2: A/B oficial — A=DESPERTA/colorida, B=ADORMECIDA; desperta por engajamento',
-    /comece_aqui:\s*\{\s*awake:\s*require\('\.\.\/\.\.\/assets\/maps\/R1A\.png'\),\s*asleep:\s*require\('\.\.\/\.\.\/assets\/maps\/R1B\.png'\)/.test(mapData) &&
+    /comece_aqui:\s*\{\s*awake:\s*require\('\.\.\/\.\.\/assets\/maps\/R1A\.jpg'\),\s*asleep:\s*require\('\.\.\/\.\.\/assets\/maps\/R1B\.jpg'\)/.test(mapData) &&
     region.includes('awake ? region.images.awake : region.images.asleep') &&
     /isRegionAwake[\s\S]{0,260}isStoryCompleted\(s\.id\)[\s\S]{0,120}getStoryCompletionPercent\(s\.id\) > 0[\s\S]{0,40}s\.id === currentId/.test(mapScreen),
     'A/B invertido (A precisa ser awake/R1A) ou não considera progresso/atual',

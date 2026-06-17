@@ -15,10 +15,10 @@ import { stories } from './stories';
 // Eduardo): A = DESPERTA/COLORIDA (awake), B = ADORMECIDA/SEM COR (asleep).
 // Mapeamento de regiões → R1..R4. Ambas importadas (sem quebrar).
 export const REGION_MAP_IMAGES = {
-  comece_aqui:   { awake: require('../../assets/maps/R1A.png'), asleep: require('../../assets/maps/R1B.png') },
-  pequeninos:    { awake: require('../../assets/maps/R2A.png'), asleep: require('../../assets/maps/R2B.png') },
-  descobridores: { awake: require('../../assets/maps/R3A.png'), asleep: require('../../assets/maps/R3B.png') },
-  jovens_da_fe:  { awake: require('../../assets/maps/R4A.png'), asleep: require('../../assets/maps/R4B.png') },
+  comece_aqui:   { awake: require('../../assets/maps/R1A.jpg'), asleep: require('../../assets/maps/R1B.jpg') },
+  pequeninos:    { awake: require('../../assets/maps/R2A.jpg'), asleep: require('../../assets/maps/R2B.jpg') },
+  descobridores: { awake: require('../../assets/maps/R3A.jpg'), asleep: require('../../assets/maps/R3B.jpg') },
+  jovens_da_fe:  { awake: require('../../assets/maps/R4A.jpg'), asleep: require('../../assets/maps/R4B.jpg') },
 };
 
 // Metadados visuais por região. `tint` = cor de borda/realce suave (fallback de
