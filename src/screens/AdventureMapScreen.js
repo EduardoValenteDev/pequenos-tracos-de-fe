@@ -14,13 +14,11 @@ import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react'
 import { View, Text, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, markerFraction, REGION_PARCHMENT_BG } from '../data/adventureMap';
+import { getAdventureRegions, getOrderedAdventureStories, REGION_PARCHMENT_BG } from '../data/adventureMap';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
 import { useProgressContext } from '../context/ProgressContext';
 import MapRegion from '../components/map/MapRegion';
 import StoryFocusModal from '../components/map/StoryFocusModal';
-
-const REGION_OVERLAP = 28; // deve casar com OVERLAP de MapRegion
 
 export default function AdventureMapScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -48,18 +46,20 @@ export default function AdventureMapScreen({ navigation }) {
   const regionsVisual = useMemo(() => regions.slice().reverse(), [regions]);
   const ordered = useMemo(() => getOrderedAdventureStories(), []);
 
-  // Layout das regiões (offsets) para a pílula de região acompanhar a rolagem.
+  // Altura medida da área do mapa (abaixo do header). Cada região é um PAINEL com
+  // essa altura → a região INTEIRA cabe numa tela (sem zoom).
+  const [viewportH, setViewportH] = useState(0);
+
+  // Layout dos painéis (offsets): um painel por região, empilhados (sem overlap).
   const regionLayout = useMemo(() => {
-    const arr = [];
-    let prevBottom = 0;
-    regionsVisual.forEach((r, i) => {
-      const h = computeRegionHeight(width);
-      const top = i === 0 ? 0 : prevBottom - REGION_OVERLAP;
-      arr.push({ id: r.id, title: r.title, top, height: h, count: (r.stories || []).length });
-      prevBottom = top + h;
-    });
-    return arr;
-  }, [regionsVisual, width]);
+    return regionsVisual.map((r, i) => ({
+      id: r.id,
+      title: r.title,
+      top: i * viewportH,
+      height: viewportH,
+      count: (r.stories || []).length,
+    }));
+  }, [regionsVisual, viewportH]);
 
   // Pílula começa na base (comece_aqui), pois a câmera inicia embaixo.
   const [activeRegionTitle, setActiveRegionTitle] = useState(
@@ -104,25 +104,24 @@ export default function AdventureMapScreen({ navigation }) {
     if (story) navigation.navigate('StoryDetail', { story });
   }, [focusStory, navigation]);
 
-  // Câmera inicial: pousa na BASE mostrando A Criação (1º marco da última região),
-  // com contexto de mapa em volta. CLAMP em [0, contentH - viewport] → nunca mostra
-  // vazio/preto no rodapé (sem rolar ao fim bruto).
+  // Câmera inicial: pousa no PAINEL de Comece Aqui (base da jornada) mostrando a
+  // região INTEIRA (A Criação + Noé no mesmo painel). CLAMP em [0, contentH -
+  // viewport] → nunca mostra vazio/preto (sem rolar ao fim bruto).
   const scrollRef = useRef(null);
   const scrollViewH = useRef(0);
   const didInitScroll = useRef(false);
-  const onScrollLayout = useCallback((e) => { scrollViewH.current = e.nativeEvent.layout.height; }, []);
+  const onScrollLayout = useCallback((e) => {
+    const h = e.nativeEvent.layout.height;
+    scrollViewH.current = h;
+    setViewportH((prev) => (Math.abs(prev - h) > 1 ? h : prev));
+  }, []);
   const onContentSize = useCallback((w, h) => {
     if (didInitScroll.current || scrollViewH.current <= 0) return;
     didInitScroll.current = true;
     const vp = scrollViewH.current;
     const maxY = Math.max(0, h - vp);
-    const base = regionLayout[regionLayout.length - 1];
-    let target = maxY;
-    if (base) {
-      const creationY = base.top + base.height * markerFraction(0, base.count);
-      target = creationY - vp * 0.58; // A Criação por volta de 58% do viewport
-    }
-    target = Math.max(0, Math.min(target, maxY));
+    const base = regionLayout[regionLayout.length - 1]; // comece_aqui (base)
+    const target = Math.max(0, Math.min(base ? base.top : maxY, maxY));
     scrollRef.current?.scrollTo({ y: target, animated: false });
   }, [regionLayout]);
 
@@ -153,14 +152,14 @@ export default function AdventureMapScreen({ navigation }) {
           contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
           showsVerticalScrollIndicator={false}
         >
-          {regionsVisual.map((region, idx) => (
+          {viewportH > 0 && regionsVisual.map((region, idx) => (
             <MapRegion
               key={region.id}
               region={region}
               width={width}
+              panelHeight={viewportH}
               awake={isRegionAwake(region)}
               currentStoryId={currentId}
-              isTop={idx === 0}
               // Bottom 2 (base, onde a câmera começa) primeiro; o resto após o tick.
               renderImage={idx >= regionsVisual.length - 2 || mountedAll}
               getState={getState}
