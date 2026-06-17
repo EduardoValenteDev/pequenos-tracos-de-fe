@@ -5341,8 +5341,8 @@ check(
     'caminho do mapa não é SVG por código',
   );
   check(
-    'Mapa B2.8: marcadores LEVEMENTE menores (current 80, available/completed 70, locked 68)',
-    /SIZE = \{ current: 80, available: 70, completed: 70, locked: 68 \}/.test(marker) &&
+    'Mapa B3.1: marcadores reduzidos (current 74, available/completed 64, locked 62)',
+    /SIZE = \{ current: 74, available: 64, completed: 64, locked: 62 \}/.test(marker) &&
     marker.includes('getStoryCover(story.id)') &&
     /borderRadius:\s*inner\s*\/\s*2/.test(marker) &&
     marker.includes('fallback'),
@@ -5398,9 +5398,9 @@ check(
     'ainda há seam cobrindo a base, ou falta o placeholder de pergaminho',
   );
   check(
-    'Mapa M3: jornada SOBE — A Criação (y 0.79) ABAIXO de Noé (y 0.48) por coordenada',
-    /creation:\s*\{ x: 0\.44, y: 0\.79/.test(mapData) &&
-    /noah:\s*\{ x: 0\.61, y: 0\.48/.test(mapData) &&
+    'Mapa M3: jornada SOBE — A Criação (y 0.73) ABAIXO de Noé (y 0.42) por coordenada',
+    /creation:\s*\{ x: 0\.44, y: 0\.73/.test(mapData) &&
+    /noah:\s*\{ x: 0\.61, y: 0\.42/.test(mapData) &&
     region.includes('getStoryMapCoord(s.id'),
     'coordenadas não colocam A Criação abaixo de Noé / região não usa coords',
   );
@@ -5761,9 +5761,9 @@ check(
     'labels não têm posicionamento seguro por lado / 2 linhas',
   );
   check(
-    'Mapa B2.8: marcadores no novo tamanho reduzido (current 80) — nem mini, nem gigante',
-    /SIZE = \{ current: 80, available: 70, completed: 70, locked: 68 \}/.test(marker),
-    'marcadores fora do tamanho reduzido B2.8',
+    'Mapa B3.1: marcadores no novo tamanho reduzido (current 74) — nem mini, nem gigante',
+    /SIZE = \{ current: 74, available: 64, completed: 64, locked: 62 \}/.test(marker),
+    'marcadores fora do tamanho reduzido B3.1',
   );
 
   // ── M2.5B Full-Bleed Recovery (desfaz o frame 0.86 do M2.5) ──

@@ -12,10 +12,10 @@ import { View, Text, Image, StyleSheet, Animated } from 'react-native';
 import SoundButton from '../SoundButton';
 import { getStoryCover } from '../../assets/storyCovers';
 
-// Tamanhos LEVEMENTE menores (B2.8): pins menos pesados sobre a arte, mas ainda
-// fáceis de tocar e com avatar/badge legíveis. As histórias ficam diretamente
+// Tamanhos reduzidos mais um pouco (B3.1): pins ainda mais leves sobre a arte,
+// mas com avatar/badge legíveis e bons de tocar. As histórias ficam diretamente
 // sobre o cenário do mapa (sem base/círculo atrás — removido na correção do B2.8).
-const SIZE = { current: 80, available: 70, completed: 70, locked: 68 };
+const SIZE = { current: 74, available: 64, completed: 64, locked: 62 };
 const RING = {
   completed: { color: '#5EBE6E', width: 3 },
   current:   { color: '#F4B73E', width: 4 },
