@@ -5398,9 +5398,9 @@ check(
     'ainda há seam cobrindo a base, ou falta o placeholder de pergaminho',
   );
   check(
-    'Mapa M3: jornada SOBE — A Criação (y 0.78) ABAIXO de Noé (y 0.46) por coordenada',
-    /creation:\s*\{ x: 0\.34, y: 0\.78/.test(mapData) &&
-    /noah:\s*\{ x: 0\.70, y: 0\.46/.test(mapData) &&
+    'Mapa M3: jornada SOBE — A Criação (y 0.79) ABAIXO de Noé (y 0.48) por coordenada',
+    /creation:\s*\{ x: 0\.44, y: 0\.79/.test(mapData) &&
+    /noah:\s*\{ x: 0\.61, y: 0\.48/.test(mapData) &&
     region.includes('getStoryMapCoord(s.id'),
     'coordenadas não colocam A Criação abaixo de Noé / região não usa coords',
   );
