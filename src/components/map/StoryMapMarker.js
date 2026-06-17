@@ -33,7 +33,7 @@ function labelBoxStyle(side, size) {
   return below;
 }
 
-export default function StoryMapMarker({ story, state = 'locked', labelPos = 'below', onPress }) {
+export default function StoryMapMarker({ story, state = 'locked', labelPos = 'below', showLabel = true, onPress }) {
   const cover = getStoryCover(story.id);
   const isCurrent = state === 'current';
   const isLocked = state === 'locked';
@@ -93,20 +93,24 @@ export default function StoryMapMarker({ story, state = 'locked', labelPos = 'be
         )}
       </View>
 
-      {/* Label SEMPRE dentro da tela, no lado seguro, até 2 linhas */}
-      <View style={[styles.labelBox, labelBoxStyle(labelPos, size)]}>
-        <View style={[styles.labelPill, isLocked && styles.labelPillLocked]}>
-          <Text
-            style={[styles.label, isLocked && styles.labelLocked]}
-            numberOfLines={2}
-            ellipsizeMode="tail"
-            adjustsFontSizeToFit
-            minimumFontScale={0.78}
-          >
-            {story.titulo}
-          </Text>
+      {/* Label opcional (showLabel). No MAPA fica oculto (showLabel={false}) p/ não
+          poluir a arte — o título segue no accessibilityLabel, no modal e nas telas
+          da história. Quando exibido: dentro da tela, lado seguro, até 2 linhas. */}
+      {showLabel && (
+        <View style={[styles.labelBox, labelBoxStyle(labelPos, size)]}>
+          <View style={[styles.labelPill, isLocked && styles.labelPillLocked]}>
+            <Text
+              style={[styles.label, isLocked && styles.labelLocked]}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.78}
+            >
+              {story.titulo}
+            </Text>
+          </View>
         </View>
-      </View>
+      )}
     </SoundButton>
   );
 }

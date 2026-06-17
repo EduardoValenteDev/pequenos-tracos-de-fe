@@ -9,18 +9,18 @@
  * centro = "zoom"). Container e imagem têm a MESMA altura (sem faixa morta).
  *
  * Geometria por COORDENADAS NORMALIZADAS explícitas (adventureMap.STORY_MAP_COORDS):
- * marcadores, labels e o CAMINHO (MapPath) usam os MESMOS pontos. Sem fórmula de
- * índice como fonte final. Chip de título interno em zona segura no topo da arte.
+ * os marcadores derivam DESSAS coordenadas. Sem fórmula de índice como fonte final.
+ * O app NÃO desenha mais a trilha (a própria arte do mapa guia) e o título não
+ * aparece no pin (showLabel={false}). Chip de título da região no topo da arte.
  */
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
 import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../../data/adventureMap';
 
 const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo marco)
-const OVERLAY_DELAY_MS = 400; // path/marcadores entram logo após a 1ª pintura
+const OVERLAY_DELAY_MS = 400; // marcadores entram logo após a 1ª pintura
 
 export default function MapRegion({ region, width, awake, currentStoryId, renderImageFinal = true, getState, onPressStory }) {
   const list = region.stories || [];
@@ -47,8 +47,6 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
       y: Math.round(coord.y * regionH),
     };
   });
-  const points = items.map((it) => ({ x: it.x, y: it.y }));
-  const highlightIndex = currentStoryId ? list.findIndex((s) => s.id === currentStoryId) : -1;
   const imgs = region.images || null;
   // PREVIEW leve (~60 KB) — decodifica quase instantâneo, aparece de imediato.
   const previewSource = imgs ? (awake ? imgs.awakePreview : imgs.asleepPreview) : null;
@@ -104,30 +102,23 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
         </View>
       </View>
 
-      {/* CAMADAS 4 e 7 — caminho (DECORATIVO, atrás) e marcadores (CLICÁVEIS,
-          frente). Entram após atraso curto (showOverlay). Sem base/círculo atrás
-          dos marcos: as histórias ficam diretamente sobre o cenário do mapa. */}
+      {/* CAMADA 7 — marcadores (clicáveis), após atraso curto. Sem caminho desenhado
+          pelo app (a trilha da ARTE guia) e SEM título no mapa (showLabel={false} →
+          o título aparece só no toque/modal e nas telas da história). */}
       {showOverlay && (
-        <>
-          {/* CAMADA 4 — caminho (atrás dos pins). Não clicável. */}
-          <View style={[styles.overlayBack, { height: regionH }]} pointerEvents="none">
-            <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
-          </View>
-
-          {/* CAMADA 7 — marcadores (clicáveis, acima do chip e do caminho) */}
-          <View style={[styles.overlayFront, { height: regionH }]} pointerEvents="box-none">
-            {items.map((it) => (
-              <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
-                <StoryMapMarker
-                  story={it.story}
-                  state={getState(it.story)}
-                  labelPos={it.labelPos}
-                  onPress={() => onPressStory(it.story)}
-                />
-              </View>
-            ))}
-          </View>
-        </>
+        <View style={[styles.overlayFront, { height: regionH }]} pointerEvents="box-none">
+          {items.map((it) => (
+            <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
+              <StoryMapMarker
+                story={it.story}
+                state={getState(it.story)}
+                labelPos={it.labelPos}
+                showLabel={false}
+                onPress={() => onPressStory(it.story)}
+              />
+            </View>
+          ))}
+        </View>
       )}
     </View>
   );
@@ -137,9 +128,8 @@ const styles = StyleSheet.create({
   region: { position: 'relative', width: '100%', overflow: 'hidden', backgroundColor: REGION_PARCHMENT_BG },
   placeholder: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
   veil: { ...StyleSheet.absoluteFillObject, zIndex: 3, backgroundColor: 'rgba(255,250,235,0.04)' },
-  // Caminho fica ATRÁS (z4); chip no meio (z6); marcadores na frente (z7) → o
-  // caminho não cobre o chip e os pins ficam acima de tudo. Sem base/círculo.
-  overlayBack: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4 },
+  // Chip de título da região no meio (z6); marcadores na frente (z7), acima de
+  // tudo. Sem caminho desenhado pelo app e sem base/círculo atrás dos pins.
   overlayFront: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 7 },
   chipWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 6 },
   chip: {

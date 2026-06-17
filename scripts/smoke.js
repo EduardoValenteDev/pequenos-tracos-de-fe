@@ -5334,11 +5334,11 @@ check(
     'ainda há 😴 em algum arquivo do mapa',
   );
   check(
-    'Mapa M2: caminho por CÓDIGO via SVG (trilha, não placeholder) atrás dos marcos',
-    mapPath.includes("from 'react-native-svg'") &&
-    mapPath.includes('<Path') &&
-    region.includes('MapPath'),
-    'caminho do mapa não é SVG por código',
+    'Mapa B3.4: caminho tracejado NÃO é mais renderizado no mapa (a trilha da arte guia); MapPath.js preservado',
+    !region.includes('MapPath') &&
+    !region.includes("from './MapPath'") &&
+    fs.existsSync(path.join(root, 'src/components/map/MapPath.js')),
+    'mapa ainda renderiza MapPath, ou MapPath.js foi removido',
   );
   check(
     'Mapa B3.2: marcadores reduzidos (current 68, available/completed 58, locked 56)',
@@ -5398,9 +5398,9 @@ check(
     'ainda há seam cobrindo a base, ou falta o placeholder de pergaminho',
   );
   check(
-    'Mapa M3: jornada SOBE — A Criação (y 0.63) ABAIXO de Noé (y 0.34) por coordenada',
-    /creation:\s*\{ x: 0\.66, y: 0\.63/.test(mapData) &&
-    /noah:\s*\{ x: 0\.61, y: 0\.34/.test(mapData) &&
+    'Mapa M3: jornada SOBE — A Criação (y 0.67) ABAIXO de Noé (y 0.31) por coordenada',
+    /creation:\s*\{ x: 0\.70, y: 0\.67/.test(mapData) &&
+    /noah:\s*\{ x: 0\.61, y: 0\.31/.test(mapData) &&
     region.includes('getStoryMapCoord(s.id'),
     'coordenadas não colocam A Criação abaixo de Noé / região não usa coords',
   );
@@ -5482,9 +5482,9 @@ check(
     'ainda há overlap negativo cobrindo a base da arte',
   );
   check(
-    'Mapa M2.2: caminho destaca a próxima aventura (highlightIndex)',
-    mapPath.includes('highlightIndex') && region.includes('highlightIndex={highlightIndex}'),
-    'caminho não destaca o trecho da próxima aventura',
+    'Mapa B3.4: MapPath.js preserva o highlight da próxima aventura (mas não é mais usado no mapa)',
+    mapPath.includes('highlightIndex') && !region.includes('highlightIndex'),
+    'MapPath perdeu o highlight, ou o mapa ainda renderiza highlightIndex',
   );
   check(
     'Mapa M2.3: header refinado estilo pergaminho + subtítulo "Suba o caminho da fé"',
@@ -5612,13 +5612,13 @@ check(
     'preload pesado ainda roda no mount, ou overview sem placeholder/onError',
   );
   check(
-    'Mapa B2.3: path/marcadores por atraso CURTO (showOverlay ~400ms), NÃO por imageLoaded',
+    'Mapa B2.3: marcadores por atraso CURTO (showOverlay ~400ms), NÃO por imageLoaded',
     !region.includes('imageLoaded') &&
     !region.includes('const ready =') &&
     region.includes('showOverlay') &&
     /setTimeout\(\(\) => setShowOverlay\(true\), OVERLAY_DELAY_MS\)/.test(region) &&
-    /<MapPath width=\{width\} height=\{regionH\} points=\{points\}/.test(region),
-    'path/marcadores não usam atraso curto (showOverlay) — voltaram a depender de carregamento',
+    region.includes('styles.overlayFront'),
+    'marcadores não usam atraso curto (showOverlay) — voltaram a depender de carregamento',
   );
   check(
     'Mapa B2.3: placeholder de pergaminho (LinearGradient atrás da arte) + preload LEVE e TARDIO',
@@ -5673,20 +5673,28 @@ check(
     'StoryStoneSlot ainda existe ou continua referenciado',
   );
   check(
-    'Mapa B2.8 fix: SEM base/círculo atrás dos marcos — só caminho atrás (overlayBack z4) e marcadores na frente (overlayFront z7)',
+    'Mapa B3.4: SEM base/círculo e SEM caminho atrás dos marcos — só marcadores (overlayFront z7), título oculto',
     !region.includes('StoryStoneSlot') &&
-    /styles\.overlayBack[\s\S]{0,40}pointerEvents="none"/.test(region) &&
+    !region.includes('MapPath') &&
+    !region.includes('overlayBack') &&
     /styles\.overlayFront[\s\S]{0,40}pointerEvents="box-none"/.test(region) &&
-    /overlayBack:\s*\{[\s\S]{0,80}zIndex:\s*4/.test(region) &&
     /overlayFront:\s*\{[\s\S]{0,80}zIndex:\s*7/.test(region) &&
-    /<MapPath[\s\S]{0,120}\/>\s*<\/View>/.test(region),
-    'ainda há base atrás dos marcos / camadas caminho-marcadores incorretas',
+    region.includes('showLabel={false}'),
+    'mapa ainda desenha base/caminho atrás dos marcos ou mostra título no pin',
   );
   check(
     'Mapa B3.2: labels menores (LABEL_W 84, fonte 9) — legenda, não cartão grande',
     /LABEL_W = 84/.test(marker) &&
     /label:\s*\{[\s\S]{0,120}fontSize:\s*9\b/.test(marker),
     'labels não foram reduzidos (LABEL_W/fonte)',
+  );
+  check(
+    'Mapa B3.4: título OCULTO no mapa via showLabel (default true; gate no render) — accessibilityLabel preservado',
+    /showLabel = true/.test(marker) &&
+    /\{showLabel &&[\s\S]{0,80}styles\.labelBox/.test(marker) &&
+    marker.includes('accessibilityLabel={`${story.titulo}') &&
+    marker.includes('{story.titulo}'),
+    'marker não tem showLabel/gate do título ou perdeu accessibilityLabel/titulo',
   );
   check(
     'Mapa B2.8: caminho suavizado (traço fino 4, dash curto "9 12", opacidade menor, sombra leve)',
@@ -5738,12 +5746,12 @@ check(
     'região ainda usa fórmula de índice como fonte de posição',
   );
   check(
-    'Mapa M3: MapPath usa os MESMOS pontos dos marcadores (path = pins)',
-    region.includes('const points = items.map') &&
-    /<MapPath[\s\S]{0,80}points=\{points\}/.test(region) &&
-    /points\.map\([\s\S]{0,120}getStoryMapCoord/.test(region) === false && // coords vêm de items
-    region.includes('points = items.map((it) => ({ x: it.x, y: it.y }))'),
-    'path e marcadores não derivam dos mesmos pontos',
+    'Mapa B3.4: marcadores derivam das COORDS (items = list.map por getStoryMapCoord), sem caminho desenhado',
+    region.includes('list.map((s, i)') &&
+    region.includes('x: Math.round(coord.x * width)') &&
+    region.includes('y: Math.round(coord.y * regionH)') &&
+    !region.includes('MapPath'),
+    'marcadores não derivam das coords / ainda há MapPath',
   );
   check(
     'Mapa M3: chip de título INTERNO (zona segura) — sem pílula flutuante duplicada',
@@ -5781,7 +5789,7 @@ check(
     /region:\s*\{[\s\S]{0,160}width:\s*'100%'/.test(region) &&
     !region.includes("alignSelf: 'center'") &&
     region.includes('computeRegionHeight(width)') &&
-    region.includes('width={width}'),
+    region.includes('width, height: regionH'),
     'região não é full-bleed (ainda tem frame/alignSelf central)',
   );
   check(
