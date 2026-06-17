@@ -13,7 +13,6 @@
 import { Asset } from 'expo-asset';
 import { STORY_COVERS } from '../assets/storyCovers';
 import { BENI_ASSET_LIST } from '../assets/beniAssets';
-import { REGION_MAP_IMAGES } from '../data/adventureMap';
 
 const PRELOAD_TIMEOUT_MS = 2500;
 
@@ -48,19 +47,6 @@ export function preloadStoryCoverAssets() {
 /** Pré-carrega os assets de imagem do mascote Beni. */
 export function preloadBeniAssets() {
   return preloadModules(BENI_ASSET_LIST);
-}
-
-let mapPreloadPromise = null;
-
-/**
- * Pré-carrega as 8 artes do Mapa das Aventuras (R1A..R4B), uma única vez. Aquece o
- * cache para a tela Aventuras e o modal "Ver mapa" abrirem sem box vazio.
- */
-export function preloadMapRegionAssets() {
-  if (mapPreloadPromise) return mapPreloadPromise;
-  const list = Object.values(REGION_MAP_IMAGES || {}).flatMap((p) => [p?.awake, p?.asleep]);
-  mapPreloadPromise = preloadModules(list);
-  return mapPreloadPromise;
 }
 
 /**

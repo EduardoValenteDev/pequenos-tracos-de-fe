@@ -16,7 +16,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, computeImageRect, getStoryMapCoord, REGION_PARCHMENT_BG } from '../data/adventureMap';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
-import { preloadMapRegionAssets } from '../services/assetPreloadService';
 import { useProgressContext } from '../context/ProgressContext';
 import SoundButton from '../components/SoundButton';
 import MapRegion from '../components/map/MapRegion';
@@ -36,10 +35,6 @@ export default function AdventureMapScreen({ navigation }) {
     Animated.timing(entrance, { toValue: 1, duration: 320, useNativeDriver: true }).start();
   }, [entrance]);
   const entranceTranslate = entrance.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
-
-  // Pré-carrega as 8 artes do mapa (aquece o cache) — Aventuras e "Ver mapa" abrem
-  // sem box vazio. Reutiliza o assetPreloadService existente (sem pacote novo).
-  useEffect(() => { preloadMapRegionAssets(); }, []);
 
   const regions = useMemo(() => getAdventureRegions(), []);
   // Ordem VISUAL invertida: topo = última região, base = comece_aqui.
@@ -259,9 +254,10 @@ export default function AdventureMapScreen({ navigation }) {
                     {ovSource && rect && (
                       <Image
                         source={ovSource}
-                        resizeMode="cover"
+                        resizeMode="contain"
                         fadeDuration={120}
                         onLoadEnd={() => setOvLoaded(true)}
+                        onError={() => setOvLoaded(true)}
                         style={{ position: 'absolute', left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
                       />
                     )}

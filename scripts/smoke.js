@@ -5597,18 +5597,20 @@ check(
     'overview não usa imageRect explícito (risco de zoom como o bug raiz)',
   );
   check(
-    'Mapa B2: pré-carrega as artes do mapa (reutiliza assetPreloadService) + placeholder no overview',
-    mapScreen.includes('preloadMapRegionAssets') &&
-    readSrc('src/services/assetPreloadService.js').includes('export function preloadMapRegionAssets') &&
-    mapScreen.includes('ActivityIndicator'),
-    'sem preload das artes do mapa ou sem placeholder no overview',
+    'Mapa B2.1: SEM preload pesado no mount (não compete com a 1ª pintura) + overview com placeholder/onError',
+    !mapScreen.includes('preloadMapRegionAssets') &&
+    !readSrc('src/services/assetPreloadService.js').includes('preloadMapRegionAssets') &&
+    mapScreen.includes('ActivityIndicator') &&
+    mapScreen.includes('onError={() => setOvLoaded(true)}'),
+    'preload pesado ainda roda no mount, ou overview sem placeholder/onError',
   );
   check(
-    'Mapa B2: MapRegion só mostra path/marcadores após a arte carregar (onLoadEnd → ready)',
-    region.includes('onLoadEnd={() => setImageLoaded(true)}') &&
-    region.includes('const ready = !source || imageLoaded') &&
-    /\{ready && \(/.test(region),
-    'path/marcadores aparecem sobre pergaminho vazio (sem gate de imageLoaded)',
+    'Mapa B2.1: MapRegion renderiza path/marcadores DIRETO (sem gate imageLoaded que escondia tudo)',
+    !region.includes('imageLoaded') &&
+    !region.includes('const ready =') &&
+    !/\{ready && \(/.test(region) &&
+    /<MapPath width=\{width\} height=\{regionH\} points=\{points\}/.test(region),
+    'path/marcadores ainda dependem de gate (regressão do Bloco 2)',
   );
   check(
     'Mapa M2.7: overview não usa preto puro nem azul (fundo escurecido quente)',

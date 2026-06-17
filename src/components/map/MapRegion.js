@@ -12,7 +12,7 @@
  * marcadores, labels e o CAMINHO (MapPath) usam os MESMOS pontos. Sem fórmula de
  * índice como fonte final. Chip de título interno em zona segura no topo da arte.
  */
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
@@ -23,10 +23,6 @@ const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo mar
 export default function MapRegion({ region, width, awake, currentStoryId, renderImage, getState, onPressStory }) {
   const list = region.stories || [];
   const n = list.length;
-
-  // Caminho e marcadores SÓ aparecem quando a arte da região terminou de carregar —
-  // evita pins/path flutuando sobre o pergaminho vazio na abertura.
-  const [imageLoaded, setImageLoaded] = useState(false);
 
   // Altura proporcional (modo principal). Container == imagem (sem faixa morta).
   const regionH = computeRegionHeight(width);
@@ -44,7 +40,6 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
   const points = items.map((it) => ({ x: it.x, y: it.y }));
   const highlightIndex = currentStoryId ? list.findIndex((s) => s.id === currentStoryId) : -1;
   const source = region.images ? (awake ? region.images.awake : region.images.asleep) : null;
-  const ready = !source || imageLoaded; // sem arte (caso raro) → mostra mesmo assim
 
   return (
     // Sem sobreposição nem faixas de transição: cada região 9:16 aparece de TOPO A
@@ -60,7 +55,6 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
           resizeMode="cover"
           style={{ position: 'absolute', top: 0, left: 0, width, height: regionH }}
           fadeDuration={120}
-          onLoadEnd={() => setImageLoaded(true)}
         />
       )}
 
@@ -73,22 +67,20 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
         </View>
       </View>
 
-      {/* Caminho + marcadores SÓ depois que a arte carregou (sem pins sobre vazio) */}
-      {ready && (
-        <>
-          <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
-          {items.map((it) => (
-            <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
-              <StoryMapMarker
-                story={it.story}
-                state={getState(it.story)}
-                labelPos={it.labelPos}
-                onPress={() => onPressStory(it.story)}
-              />
-            </View>
-          ))}
-        </>
-      )}
+      {/* Caminho (SVG) com os MESMOS pontos dos marcadores — render direto */}
+      <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
+
+      {/* Marcadores nas coordenadas explícitas; label no lado seguro */}
+      {items.map((it) => (
+        <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
+          <StoryMapMarker
+            story={it.story}
+            state={getState(it.story)}
+            labelPos={it.labelPos}
+            onPress={() => onPressStory(it.story)}
+          />
+        </View>
+      ))}
     </View>
   );
 }
