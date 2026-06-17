@@ -12,20 +12,20 @@ import { View, Text, Image, StyleSheet, Animated } from 'react-native';
 import SoundButton from '../SoundButton';
 import { getStoryCover } from '../../assets/storyCovers';
 
-// Tamanhos reduzidos mais um pouco (B3.1): pins ainda mais leves sobre a arte,
-// mas com avatar/badge legíveis e bons de tocar. As histórias ficam diretamente
-// sobre o cenário do mapa (sem base/círculo atrás — removido na correção do B2.8).
-const SIZE = { current: 74, available: 64, completed: 64, locked: 62 };
+// Tamanhos reduzidos de novo (B3.2): pins mais delicados sobre a arte, ainda com
+// avatar/badge legíveis e bons de tocar. As histórias ficam diretamente sobre o
+// cenário do mapa (sem base/círculo atrás — removido na correção do B2.8).
+const SIZE = { current: 68, available: 58, completed: 58, locked: 56 };
 const RING = {
   completed: { color: '#5EBE6E', width: 3 },
   current:   { color: '#F4B73E', width: 4 },
   available: { color: '#FFFFFF', width: 3 },
   locked:    { color: '#D8CFC0', width: 2 },
 };
-const LABEL_W = 96; // legenda menor (era 108) — ocupa menos do mapa
+const LABEL_W = 84; // legenda ainda menor (B3.2) — ocupa menos do mapa
 
 // Caixa do label posicionada por lado, mantendo-se SEMPRE dentro da tela (o pin
-// está em x = 0.30 ou 0.70, então uma caixa de ~96px ao redor cabe nos dois lados).
+// está em x ~0.40–0.78, então uma caixa de ~84px ao redor cabe nos dois lados).
 function labelBoxStyle(side, size) {
   const below = { top: size + 3, left: (size - LABEL_W) / 2, width: LABEL_W, alignItems: 'center' };
   if (side === 'left') return { ...below, left: (size - LABEL_W) / 2 - 12, alignItems: 'flex-start' };
@@ -101,7 +101,7 @@ export default function StoryMapMarker({ story, state = 'locked', labelPos = 'be
             numberOfLines={2}
             ellipsizeMode="tail"
             adjustsFontSizeToFit
-            minimumFontScale={0.82}
+            minimumFontScale={0.78}
           >
             {story.titulo}
           </Text>
@@ -125,26 +125,26 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: -3,
     bottom: -3,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
   doneBadge: { backgroundColor: '#5EBE6E' },
-  doneBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
+  doneBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
   lockBadge: { backgroundColor: '#8C8478' },
-  lockBadgeText: { fontSize: 10 },
+  lockBadgeText: { fontSize: 9 },
   labelBox: { position: 'absolute' },
   labelPill: {
     backgroundColor: 'rgba(255,250,238,0.94)',
-    borderRadius: 9,
-    paddingVertical: 2,
-    paddingHorizontal: 7,
+    borderRadius: 8,
+    paddingVertical: 1.5,
+    paddingHorizontal: 6,
   },
   labelPillLocked: { backgroundColor: 'rgba(247,242,232,0.80)' },
-  label: { fontFamily: 'Nunito', fontSize: 10, fontWeight: '800', color: '#4A3A1E', textAlign: 'center' },
+  label: { fontFamily: 'Nunito', fontSize: 9, fontWeight: '800', color: '#4A3A1E', textAlign: 'center' },
   labelLocked: { color: '#8A7C66' },
 });

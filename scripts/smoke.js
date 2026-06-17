@@ -5341,8 +5341,8 @@ check(
     'caminho do mapa não é SVG por código',
   );
   check(
-    'Mapa B3.1: marcadores reduzidos (current 74, available/completed 64, locked 62)',
-    /SIZE = \{ current: 74, available: 64, completed: 64, locked: 62 \}/.test(marker) &&
+    'Mapa B3.2: marcadores reduzidos (current 68, available/completed 58, locked 56)',
+    /SIZE = \{ current: 68, available: 58, completed: 58, locked: 56 \}/.test(marker) &&
     marker.includes('getStoryCover(story.id)') &&
     /borderRadius:\s*inner\s*\/\s*2/.test(marker) &&
     marker.includes('fallback'),
@@ -5398,9 +5398,9 @@ check(
     'ainda há seam cobrindo a base, ou falta o placeholder de pergaminho',
   );
   check(
-    'Mapa M3: jornada SOBE — A Criação (y 0.73) ABAIXO de Noé (y 0.42) por coordenada',
-    /creation:\s*\{ x: 0\.44, y: 0\.73/.test(mapData) &&
-    /noah:\s*\{ x: 0\.61, y: 0\.42/.test(mapData) &&
+    'Mapa M3: jornada SOBE — A Criação (y 0.63) ABAIXO de Noé (y 0.34) por coordenada',
+    /creation:\s*\{ x: 0\.56, y: 0\.63/.test(mapData) &&
+    /noah:\s*\{ x: 0\.61, y: 0\.34/.test(mapData) &&
     region.includes('getStoryMapCoord(s.id'),
     'coordenadas não colocam A Criação abaixo de Noé / região não usa coords',
   );
@@ -5683,9 +5683,9 @@ check(
     'ainda há base atrás dos marcos / camadas caminho-marcadores incorretas',
   );
   check(
-    'Mapa B2.8: labels menores (LABEL_W 96, fonte 10) — legenda, não cartão grande',
-    /LABEL_W = 96/.test(marker) &&
-    /label:\s*\{[\s\S]{0,120}fontSize:\s*10\b/.test(marker),
+    'Mapa B3.2: labels menores (LABEL_W 84, fonte 9) — legenda, não cartão grande',
+    /LABEL_W = 84/.test(marker) &&
+    /label:\s*\{[\s\S]{0,120}fontSize:\s*9\b/.test(marker),
     'labels não foram reduzidos (LABEL_W/fonte)',
   );
   check(
@@ -5761,9 +5761,9 @@ check(
     'labels não têm posicionamento seguro por lado / 2 linhas',
   );
   check(
-    'Mapa B3.1: marcadores no novo tamanho reduzido (current 74) — nem mini, nem gigante',
-    /SIZE = \{ current: 74, available: 64, completed: 64, locked: 62 \}/.test(marker),
-    'marcadores fora do tamanho reduzido B3.1',
+    'Mapa B3.2: marcadores no novo tamanho reduzido (current 68) — nem mini, nem gigante',
+    /SIZE = \{ current: 68, available: 58, completed: 58, locked: 56 \}/.test(marker),
+    'marcadores fora do tamanho reduzido B3.2',
   );
 
   // ── M2.5B Full-Bleed Recovery (desfaz o frame 0.86 do M2.5) ──
