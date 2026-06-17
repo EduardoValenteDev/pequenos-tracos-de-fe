@@ -17,6 +17,7 @@ import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapPath from './MapPath';
 import StoryMapMarker from './StoryMapMarker';
+import StoryStoneSlot from './StoryStoneSlot';
 import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../../data/adventureMap';
 
 const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo marco)
@@ -97,28 +98,42 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
       {/* CAMADA 3 — véu bem transparente (não esconde a arte) */}
       <View style={styles.veil} pointerEvents="none" />
 
-      {/* CAMADA 4 — chip de título INTERNO em zona segura (acima de todo marco) */}
+      {/* CAMADA 6 — chip de título INTERNO em zona segura (acima do caminho) */}
       <View style={[styles.chipWrap, { top: Math.round(regionH * CHIP_SAFE_Y) }]} pointerEvents="none">
         <View style={styles.chip}>
           <Text style={styles.chipTitle}>{region.title}</Text>
         </View>
       </View>
 
-      {/* CAMADA 5 — caminho + marcadores (após atraso curto, acima de tudo) */}
+      {/* CAMADAS 4–7 — base de pedra + caminho (DECORATIVO, atrás) e marcadores
+          (CLICÁVEIS, frente). Entram após atraso curto (showOverlay). Como a arte
+          não tem mais círculos desenhados, o app renderiza uma base sob cada marco. */}
       {showOverlay && (
-        <View style={[styles.overlay, { height: regionH }]} pointerEvents="box-none">
-          <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
-          {items.map((it) => (
-            <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
-              <StoryMapMarker
-                story={it.story}
-                state={getState(it.story)}
-                labelPos={it.labelPos}
-                onPress={() => onPressStory(it.story)}
-              />
-            </View>
-          ))}
-        </View>
+        <>
+          {/* CAMADA 4 — bases de pedra (atrás) + CAMADA 5 — caminho. Não clicável. */}
+          <View style={[styles.overlayBack, { height: regionH }]} pointerEvents="none">
+            {items.map((it) => (
+              <View key={`base-${it.story.id}`} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
+                <StoryStoneSlot />
+              </View>
+            ))}
+            <MapPath width={width} height={regionH} points={points} color="#FFF6E0" highlightIndex={highlightIndex} />
+          </View>
+
+          {/* CAMADA 7 — marcadores (clicáveis, acima do chip e do caminho) */}
+          <View style={[styles.overlayFront, { height: regionH }]} pointerEvents="box-none">
+            {items.map((it) => (
+              <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
+                <StoryMapMarker
+                  story={it.story}
+                  state={getState(it.story)}
+                  labelPos={it.labelPos}
+                  onPress={() => onPressStory(it.story)}
+                />
+              </View>
+            ))}
+          </View>
+        </>
       )}
     </View>
   );
@@ -128,8 +143,11 @@ const styles = StyleSheet.create({
   region: { position: 'relative', width: '100%', overflow: 'hidden', backgroundColor: REGION_PARCHMENT_BG },
   placeholder: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
   veil: { ...StyleSheet.absoluteFillObject, zIndex: 3, backgroundColor: 'rgba(255,250,235,0.04)' },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5 },
-  chipWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 4 },
+  // Bases de pedra + caminho ficam ATRÁS (z4); chip no meio (z6); marcadores na
+  // frente (z7) → base não cobre o pin e o caminho não cobre o chip.
+  overlayBack: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4 },
+  overlayFront: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 7 },
+  chipWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 6 },
   chip: {
     backgroundColor: 'rgba(40,30,15,0.55)',
     borderRadius: 16,

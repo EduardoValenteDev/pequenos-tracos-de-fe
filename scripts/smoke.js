@@ -5341,8 +5341,8 @@ check(
     'caminho do mapa não é SVG por código',
   );
   check(
-    'Mapa M2.7: marcadores MÉDIOS no modo principal (current 92, não mini 60 nem gigante 104)',
-    /SIZE = \{ current: 92, available: 80, completed: 80, locked: 76 \}/.test(marker) &&
+    'Mapa B2.8: marcadores LEVEMENTE menores (current 80, available/completed 70, locked 68)',
+    /SIZE = \{ current: 80, available: 70, completed: 70, locked: 68 \}/.test(marker) &&
     marker.includes('getStoryCover(story.id)') &&
     /borderRadius:\s*inner\s*\/\s*2/.test(marker) &&
     marker.includes('fallback'),
@@ -5663,6 +5663,38 @@ check(
     mapScreen.includes('!ovLoaded && !ovPreview'),
     'overview não usa preview imediata como o modo principal',
   );
+  // ── B2.8: harmonização visual (base de pedra + pins/labels menores + path suave) ──
+  const stoneSlot = readSrc('src/components/map/StoryStoneSlot.js');
+  check(
+    'Mapa B2.8: StoryStoneSlot — base de pedra/pergaminho DECORATIVA (pointerEvents none, ~104px, sem cor forte)',
+    stoneSlot.includes('pointerEvents="none"') &&
+    stoneSlot.includes("from 'expo-linear-gradient'") &&
+    /BASE_SIZE\s*=\s*10[0-9]/.test(stoneSlot) &&
+    !/#00ff00|#0000ff|#00aa00/i.test(stoneSlot),
+    'StoryStoneSlot ausente, clicável ou com cor forte demais',
+  );
+  check(
+    'Mapa B2.8: base ATRÁS (overlayBack z4, não clicável) + marcadores na FRENTE (overlayFront z7, clicáveis)',
+    region.includes('<StoryStoneSlot') &&
+    /styles\.overlayBack[\s\S]{0,40}pointerEvents="none"/.test(region) &&
+    /styles\.overlayFront[\s\S]{0,40}pointerEvents="box-none"/.test(region) &&
+    /overlayBack:\s*\{[\s\S]{0,80}zIndex:\s*4/.test(region) &&
+    /overlayFront:\s*\{[\s\S]{0,80}zIndex:\s*7/.test(region),
+    'base/marcadores não estão nas camadas corretas (atrás/frente)',
+  );
+  check(
+    'Mapa B2.8: labels menores (LABEL_W 96, fonte 10) — legenda, não cartão grande',
+    /LABEL_W = 96/.test(marker) &&
+    /label:\s*\{[\s\S]{0,120}fontSize:\s*10\b/.test(marker),
+    'labels não foram reduzidos (LABEL_W/fonte)',
+  );
+  check(
+    'Mapa B2.8: caminho suavizado (traço fino 4, dash curto "9 12", opacidade menor, sombra leve)',
+    /strokeWidth=\{4\}[\s\S]{0,80}strokeDasharray="9 12"/.test(mapPath) &&
+    mapPath.includes('opacity={0.62}') &&
+    !mapPath.includes('strokeWidth={11}'),
+    'caminho não foi suavizado (ainda pesado)',
+  );
   check(
     'Mapa M2.7: overview não usa preto puro nem azul (fundo escurecido quente)',
     /ovBackdrop:\s*\{[\s\S]{0,120}rgba\(38,28,14/.test(mapScreen) &&
@@ -5729,9 +5761,9 @@ check(
     'labels não têm posicionamento seguro por lado / 2 linhas',
   );
   check(
-    'Mapa M3: marcadores médios (current 92) — nem mini, nem gigante',
-    /SIZE = \{ current: 92, available: 80, completed: 80, locked: 76 \}/.test(marker),
-    'marcadores fora do tamanho médio',
+    'Mapa B2.8: marcadores no novo tamanho reduzido (current 80) — nem mini, nem gigante',
+    /SIZE = \{ current: 80, available: 70, completed: 70, locked: 68 \}/.test(marker),
+    'marcadores fora do tamanho reduzido B2.8',
   );
 
   // ── M2.5B Full-Bleed Recovery (desfaz o frame 0.86 do M2.5) ──

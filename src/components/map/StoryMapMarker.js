@@ -12,21 +12,24 @@ import { View, Text, Image, StyleSheet, Animated } from 'react-native';
 import SoundButton from '../SoundButton';
 import { getStoryCover } from '../../assets/storyCovers';
 
-const SIZE = { current: 92, available: 80, completed: 80, locked: 76 };
+// Tamanhos LEVEMENTE menores (B2.8): pins menos pesados sobre a arte, mas ainda
+// fáceis de tocar e com avatar/badge legíveis. A base de pedra (StoryStoneSlot,
+// ~104px) emoldura o pin por trás.
+const SIZE = { current: 80, available: 70, completed: 70, locked: 68 };
 const RING = {
   completed: { color: '#5EBE6E', width: 3 },
   current:   { color: '#F4B73E', width: 4 },
   available: { color: '#FFFFFF', width: 3 },
   locked:    { color: '#D8CFC0', width: 2 },
 };
-const LABEL_W = 108;
+const LABEL_W = 96; // legenda menor (era 108) — ocupa menos do mapa
 
 // Caixa do label posicionada por lado, mantendo-se SEMPRE dentro da tela (o pin
-// está em x = 0.30 ou 0.70, então uma caixa de ~108px ao redor cabe nos dois lados).
+// está em x = 0.30 ou 0.70, então uma caixa de ~96px ao redor cabe nos dois lados).
 function labelBoxStyle(side, size) {
   const below = { top: size + 3, left: (size - LABEL_W) / 2, width: LABEL_W, alignItems: 'center' };
-  if (side === 'left') return { ...below, left: (size - LABEL_W) / 2 - 14, alignItems: 'flex-start' };
-  if (side === 'right') return { ...below, left: (size - LABEL_W) / 2 + 14, alignItems: 'flex-end' };
+  if (side === 'left') return { ...below, left: (size - LABEL_W) / 2 - 12, alignItems: 'flex-start' };
+  if (side === 'right') return { ...below, left: (size - LABEL_W) / 2 + 12, alignItems: 'flex-end' };
   return below;
 }
 
@@ -137,11 +140,11 @@ const styles = StyleSheet.create({
   labelBox: { position: 'absolute' },
   labelPill: {
     backgroundColor: 'rgba(255,250,238,0.94)',
-    borderRadius: 11,
-    paddingVertical: 3,
-    paddingHorizontal: 9,
+    borderRadius: 9,
+    paddingVertical: 2,
+    paddingHorizontal: 7,
   },
   labelPillLocked: { backgroundColor: 'rgba(247,242,232,0.80)' },
-  label: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: '#4A3A1E', textAlign: 'center' },
+  label: { fontFamily: 'Nunito', fontSize: 10, fontWeight: '800', color: '#4A3A1E', textAlign: 'center' },
   labelLocked: { color: '#8A7C66' },
 });

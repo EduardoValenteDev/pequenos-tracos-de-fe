@@ -39,13 +39,13 @@ export default function MapPath({ width, height, points, color = '#FFF6E0', high
       style={{ position: 'absolute', top: 0, left: 0 }}
       pointerEvents="none"
     >
-      {/* Sombra sutil por baixo para destacar a trilha sobre a arte */}
-      <Path d={d} stroke="rgba(60,40,15,0.35)" strokeWidth={11} strokeLinecap="round" fill="none" />
-      {/* Trilha clara, contínua e suave (dash longo) */}
-      <Path d={d} stroke={color} strokeWidth={6} strokeLinecap="round" strokeDasharray="16 13" fill="none" opacity={0.92} />
-      {/* Trecho dourado da próxima aventura + brilho no marco */}
-      {hd && <Path d={hd} stroke="#FFD56A" strokeWidth={7} strokeLinecap="round" fill="none" opacity={0.95} />}
-      {hp && <Circle cx={hp.x} cy={hp.y} r={11} fill="rgba(255,213,106,0.45)" />}
+      {/* Sombra sutil por baixo — agora bem mais leve (não "pesa" sobre a arte) */}
+      <Path d={d} stroke="rgba(60,40,15,0.18)" strokeWidth={7} strokeLinecap="round" fill="none" />
+      {/* Trilha clara e DELICADA: traço fino, dash curto, opacidade menor */}
+      <Path d={d} stroke={color} strokeWidth={4} strokeLinecap="round" strokeDasharray="9 12" fill="none" opacity={0.62} />
+      {/* Trecho dourado da próxima aventura + brilho no marco (suavizados) */}
+      {hd && <Path d={hd} stroke="#FFD56A" strokeWidth={5} strokeLinecap="round" strokeDasharray="9 12" fill="none" opacity={0.8} />}
+      {hp && <Circle cx={hp.x} cy={hp.y} r={8} fill="rgba(255,213,106,0.32)" />}
     </Svg>
   );
 }
