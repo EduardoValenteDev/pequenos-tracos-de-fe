@@ -5399,7 +5399,7 @@ check(
   );
   check(
     'Mapa M3: jornada SOBE — A Criação (y 0.63) ABAIXO de Noé (y 0.34) por coordenada',
-    /creation:\s*\{ x: 0\.56, y: 0\.63/.test(mapData) &&
+    /creation:\s*\{ x: 0\.66, y: 0\.63/.test(mapData) &&
     /noah:\s*\{ x: 0\.61, y: 0\.34/.test(mapData) &&
     region.includes('getStoryMapCoord(s.id'),
     'coordenadas não colocam A Criação abaixo de Noé / região não usa coords',
