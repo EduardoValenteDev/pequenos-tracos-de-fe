@@ -65,15 +65,19 @@ export function regionMarkerBand(storyCount) {
   return storyCount <= 3 ? { top: 0.36, bottom: 0.82 } : { top: 0.17, bottom: 0.87 };
 }
 
-// Proporção REAL dos mapas (768×2048). Usada para exibir a região INTEIRA com
-// "contain" dentro do painel da tela (sem zoom, sem corte).
+/**
+ * Altura de uma região no MODO PRINCIPAL (Caminhada Cinematográfica): proporção
+ * real da arte (768×2048), largura total. A criança rola/sobe por ela (a tela
+ * mostra um trecho bonito, não a região inteira). NÃO cresce por marcos.
+ */
+export function computeRegionHeight(width) {
+  return Math.round((width * 2048) / 768);
+}
+
+// Proporção real (768×2048) e imageRect em "contain" — usados SÓ pelo MODO 2
+// (Visão Geral / "Ver mapa"), que mostra a região INTEIRA num modal de orientação.
 export const MAP_ASPECT = 768 / 2048;
 
-/**
- * Retângulo REAL da imagem (modo contain) dentro de um container W×H. TODOS os
- * elementos do mapa (caminho e pins) se posicionam dentro deste imageRect, então
- * nunca saem da arte. Fórmula oficial do bloco Full Map Region View.
- */
 export function computeImageRect(containerW, containerH) {
   let imageW;
   let imageH;
@@ -84,9 +88,12 @@ export function computeImageRect(containerW, containerH) {
     imageW = containerW;
     imageH = Math.round(containerW / MAP_ASPECT);
   }
-  const left = Math.round((containerW - imageW) / 2);
-  const top = Math.round((containerH - imageH) / 2);
-  return { left, top, width: imageW, height: imageH };
+  return {
+    left: Math.round((containerW - imageW) / 2),
+    top: Math.round((containerH - imageH) / 2),
+    width: imageW,
+    height: imageH,
+  };
 }
 
 /** Fração vertical (0..1) do marco i (1ª história embaixo → jornada sobe). */

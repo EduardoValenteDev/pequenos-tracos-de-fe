@@ -11,14 +11,17 @@
  * o toque abre o modal e a navegação continua navigate('StoryDetail', { story }).
  */
 import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
+import { View, Text, Image, Modal, Pressable, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAdventureRegions, getOrderedAdventureStories, REGION_PARCHMENT_BG } from '../data/adventureMap';
+import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, markerFraction, REGION_PARCHMENT_BG } from '../data/adventureMap';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
 import { useProgressContext } from '../context/ProgressContext';
+import SoundButton from '../components/SoundButton';
 import MapRegion from '../components/map/MapRegion';
 import StoryFocusModal from '../components/map/StoryFocusModal';
+
+const REGION_OVERLAP = 28; // deve casar com OVERLAP de MapRegion
 
 export default function AdventureMapScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -46,28 +49,38 @@ export default function AdventureMapScreen({ navigation }) {
   const regionsVisual = useMemo(() => regions.slice().reverse(), [regions]);
   const ordered = useMemo(() => getOrderedAdventureStories(), []);
 
-  // Altura medida da área do mapa (abaixo do header). Cada região é um PAINEL com
-  // essa altura → a região INTEIRA cabe numa tela (sem zoom).
-  const [viewportH, setViewportH] = useState(0);
-
-  // Layout dos painéis (offsets): um painel por região, empilhados (sem overlap).
+  // Layout das regiões (offsets) para a pílula de região acompanhar a rolagem.
   const regionLayout = useMemo(() => {
-    return regionsVisual.map((r, i) => ({
-      id: r.id,
-      title: r.title,
-      top: i * viewportH,
-      height: viewportH,
-      count: (r.stories || []).length,
-    }));
-  }, [regionsVisual, viewportH]);
+    const arr = [];
+    let prevBottom = 0;
+    regionsVisual.forEach((r, i) => {
+      const h = computeRegionHeight(width);
+      const top = i === 0 ? 0 : prevBottom - REGION_OVERLAP;
+      arr.push({ id: r.id, title: r.title, top, height: h, count: (r.stories || []).length });
+      prevBottom = top + h;
+    });
+    return arr;
+  }, [regionsVisual, width]);
 
-  // Pílula começa na base (comece_aqui), pois a câmera inicia embaixo.
-  const [activeRegionTitle, setActiveRegionTitle] = useState(
-    () => regionsVisual[regionsVisual.length - 1]?.title ?? '',
-  );
+  // Região ativa (índice visual). Começa na base (comece_aqui), pois a câmera
+  // inicia embaixo. Usada pela pílula de orientação e pelo modo "Ver mapa".
+  const [activeIdx, setActiveIdx] = useState(regionsVisual.length - 1);
+  const activeRegion = regionsVisual[activeIdx] || regionsVisual[regionsVisual.length - 1];
 
   const [focusStory, setFocusStory] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  // MODO 2 — Visão Geral ("Ver mapa"): modal de orientação da região ativa.
+  const [overviewVisible, setOverviewVisible] = useState(false);
+  const overviewAnim = useRef(new Animated.Value(0)).current;
+  const openOverview = useCallback(() => {
+    setOverviewVisible(true);
+    overviewAnim.setValue(0);
+    Animated.spring(overviewAnim, { toValue: 1, friction: 7, tension: 70, useNativeDriver: true }).start();
+  }, [overviewAnim]);
+  const closeOverview = useCallback(() => {
+    Animated.timing(overviewAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setOverviewVisible(false));
+  }, [overviewAnim]);
 
   const isOpenable = useCallback((story) => getStoryAccessStatus(story) === 'full', []);
 
@@ -104,42 +117,47 @@ export default function AdventureMapScreen({ navigation }) {
     if (story) navigation.navigate('StoryDetail', { story });
   }, [focusStory, navigation]);
 
-  // Câmera inicial: pousa no PAINEL de Comece Aqui (base da jornada) mostrando a
-  // região INTEIRA (A Criação + Noé no mesmo painel). CLAMP em [0, contentH -
-  // viewport] → nunca mostra vazio/preto (sem rolar ao fim bruto).
+  // Câmera inicial: pousa na BASE mostrando A Criação (1º marco da última região),
+  // com contexto de mapa em volta. CLAMP em [0, contentH - viewport] → nunca mostra
+  // vazio/preto no rodapé (sem rolar ao fim bruto).
   const scrollRef = useRef(null);
   const scrollViewH = useRef(0);
   const didInitScroll = useRef(false);
-  const onScrollLayout = useCallback((e) => {
-    const h = e.nativeEvent.layout.height;
-    scrollViewH.current = h;
-    setViewportH((prev) => (Math.abs(prev - h) > 1 ? h : prev));
-  }, []);
+  const onScrollLayout = useCallback((e) => { scrollViewH.current = e.nativeEvent.layout.height; }, []);
   const onContentSize = useCallback((w, h) => {
     if (didInitScroll.current || scrollViewH.current <= 0) return;
     didInitScroll.current = true;
     const vp = scrollViewH.current;
     const maxY = Math.max(0, h - vp);
-    const base = regionLayout[regionLayout.length - 1]; // comece_aqui (base)
-    const target = Math.max(0, Math.min(base ? base.top : maxY, maxY));
+    const base = regionLayout[regionLayout.length - 1]; // comece_aqui
+    // Âncora de câmera = A Criação na base da jornada; mostra com contexto e clamp.
+    const anchorY = base ? base.top + base.height * markerFraction(0, base.count) : maxY;
+    const target = Math.max(0, Math.min(anchorY - vp * 0.55, maxY));
     scrollRef.current?.scrollTo({ y: target, animated: false });
   }, [regionLayout]);
 
-  // Atualiza a pílula de região conforme a rolagem (só quando muda — leve).
+  // Atualiza o índice da região ativa conforme a rolagem (só quando muda — leve).
   const onScroll = useCallback((e) => {
     const y = e.nativeEvent.contentOffset.y + 90; // sonda perto do topo do viewport
-    let title = regionLayout[regionLayout.length - 1]?.title ?? '';
-    for (const r of regionLayout) {
-      if (y >= r.top && y < r.top + r.height) { title = r.title; break; }
+    let idx = regionLayout.length - 1;
+    for (let i = 0; i < regionLayout.length; i++) {
+      const r = regionLayout[i];
+      if (y >= r.top && y < r.top + r.height) { idx = i; break; }
     }
-    setActiveRegionTitle((prev) => (prev === title ? prev : title));
+    setActiveIdx((prev) => (prev === idx ? prev : idx));
   }, [regionLayout]);
 
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#F4E6C8', '#E8D3A6']} style={[styles.header, { paddingTop: Math.max(insets.top, 8) + 2 }]}>
-        <Text style={styles.headerTitle}>Mapa das Aventuras</Text>
-        <Text style={styles.headerSub}>Suba o caminho da fé ✨</Text>
+        <View style={styles.headerTexts}>
+          <Text style={styles.headerTitle}>Mapa das Aventuras</Text>
+          <Text style={styles.headerSub}>Suba o caminho da fé ✨</Text>
+        </View>
+        {/* MODO 2: botão discreto "Ver mapa" (Visão Geral) */}
+        <SoundButton style={styles.overviewBtn} onPress={openOverview} accessibilityLabel="Ver mapa" activeOpacity={0.85}>
+          <Text style={styles.overviewBtnText}>🗺️ Ver mapa</Text>
+        </SoundButton>
       </LinearGradient>
 
       <Animated.View style={{ flex: 1, opacity: entrance, transform: [{ translateY: entranceTranslate }] }}>
@@ -152,14 +170,14 @@ export default function AdventureMapScreen({ navigation }) {
           contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
           showsVerticalScrollIndicator={false}
         >
-          {viewportH > 0 && regionsVisual.map((region, idx) => (
+          {regionsVisual.map((region, idx) => (
             <MapRegion
               key={region.id}
               region={region}
               width={width}
-              panelHeight={viewportH}
               awake={isRegionAwake(region)}
               currentStoryId={currentId}
+              isTop={idx === 0}
               // Bottom 2 (base, onde a câmera começa) primeiro; o resto após o tick.
               renderImage={idx >= regionsVisual.length - 2 || mountedAll}
               getState={getState}
@@ -171,7 +189,7 @@ export default function AdventureMapScreen({ navigation }) {
         {/* Pílula de região que acompanha a rolagem (não cobre marcos) */}
         <View style={styles.regionPillWrap} pointerEvents="none">
           <View style={styles.regionPill}>
-            <Text style={styles.regionPillText}>{activeRegionTitle}</Text>
+            <Text style={styles.regionPillText}>{activeRegion?.title ?? ''}</Text>
           </View>
         </View>
       </Animated.View>
@@ -185,6 +203,31 @@ export default function AdventureMapScreen({ navigation }) {
         onClose={closeFocus}
         onOpen={confirmOpenStory}
       />
+
+      {/* MODO 2 — Visão Geral ("Ver mapa"): região INTEIRA em contain, só orientação */}
+      <Modal visible={overviewVisible} transparent animationType="none" onRequestClose={closeOverview}>
+        <Animated.View style={[styles.ovBackdrop, { opacity: overviewAnim }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeOverview} />
+          <Animated.View
+            style={[styles.ovCard, { transform: [{ scale: overviewAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }] }]}
+          >
+            <SoundButton style={styles.ovClose} onPress={closeOverview} accessibilityLabel="Fechar" activeOpacity={0.8}>
+              <Text style={styles.ovCloseText}>✕</Text>
+            </SoundButton>
+            <Text style={styles.ovTitle}>{activeRegion?.title ?? ''}</Text>
+            <View style={styles.ovImageBox}>
+              {activeRegion?.images && (
+                <Image
+                  source={isRegionAwake(activeRegion) ? activeRegion.images.awake : activeRegion.images.asleep}
+                  resizeMode="contain"
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
+            </View>
+            <Text style={styles.ovHint}>Toque fora para voltar à caminhada</Text>
+          </Animated.View>
+        </Animated.View>
+      </Modal>
     </View>
   );
 }
@@ -194,6 +237,8 @@ const styles = StyleSheet.create({
   // aparece no topo/base e como fallback enquanto a arte carrega.
   container: { flex: 1, backgroundColor: REGION_PARCHMENT_BG },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 18,
     paddingBottom: 6,
     borderBottomWidth: 1,
@@ -204,8 +249,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.14,
     shadowRadius: 4,
   },
+  headerTexts: { flex: 1 },
   headerTitle: { fontFamily: 'FredokaOne', fontSize: 19, color: '#5A4420' },
   headerSub: { fontFamily: 'Nunito', fontSize: 12, color: '#7A6238', fontWeight: '700', marginTop: 0 },
+  overviewBtn: {
+    backgroundColor: 'rgba(90,68,32,0.14)',
+    borderRadius: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(90,68,32,0.25)',
+  },
+  overviewBtnText: { fontFamily: 'Nunito', fontSize: 12.5, fontWeight: '800', color: '#5A4420' },
   regionPillWrap: { position: 'absolute', top: 8, left: 0, right: 0, alignItems: 'center', zIndex: 5 },
   regionPill: {
     backgroundColor: 'rgba(40,30,15,0.62)',
@@ -216,4 +271,50 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,236,190,0.35)',
   },
   regionPillText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF1D6' },
+
+  /* ── Visão Geral ("Ver mapa") ── */
+  ovBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(38,28,14,0.72)', // escurecido quente, não preto puro
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+  },
+  ovCard: {
+    width: '100%',
+    maxWidth: 420,
+    height: '86%',
+    backgroundColor: '#F5EAD2',
+    borderRadius: 24,
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+  },
+  ovClose: {
+    position: 'absolute',
+    top: -10,
+    right: -10,
+    zIndex: 5,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  ovCloseText: { fontSize: 16, color: '#6B5A3E', fontWeight: '900' },
+  ovTitle: { fontFamily: 'FredokaOne', fontSize: 18, color: '#5A4420', marginBottom: 8 },
+  ovImageBox: { flex: 1, width: '100%', borderRadius: 16, overflow: 'hidden', backgroundColor: '#E7D6B0' },
+  ovHint: { fontFamily: 'Nunito', fontSize: 11.5, fontWeight: '700', color: '#8A7A5E', marginTop: 8 },
 });

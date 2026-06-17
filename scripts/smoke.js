@@ -5334,12 +5334,12 @@ check(
     'caminho do mapa não é SVG por código',
   );
   check(
-    'Mapa M2.6: marcos viraram PINS pequenos (current ≤60) — capa grande fica no modal',
-    /current:\s*60,\s*available:\s*50,\s*completed:\s*50,\s*locked:\s*46/.test(marker) &&
+    'Mapa M2.7: marcadores MÉDIOS no modo principal (current 92, não mini 60 nem gigante 104)',
+    /SIZE = \{ current: 92, available: 80, completed: 80, locked: 76 \}/.test(marker) &&
     marker.includes('getStoryCover(story.id)') &&
     /borderRadius:\s*inner\s*\/\s*2/.test(marker) &&
     marker.includes('fallback'),
-    'marcos não viraram pins pequenos / perderam capa circular ou fallback',
+    'marcadores não estão no tamanho médio (presença sem cobrir o mapa)',
   );
   check(
     'Mapa M2: 3 estados (bloqueado/atual/concluído) calculados por leitura',
@@ -5384,11 +5384,11 @@ check(
 
   // ── M2.1 polish ──
   check(
-    'Mapa M2.6: ambiente lateral pela PRÓPRIA imagem (cover+blur+véu), sem borda dura',
-    region.includes('blurRadius') &&
-    region.includes('ambient') &&
-    region.includes('ambientVeil'),
-    'sem ambiente lateral (cover+blur) — laterais parecem borda',
+    'Mapa M2.1: transição entre regiões (seams de névoa via LinearGradient)',
+    region.includes("from 'expo-linear-gradient'") &&
+    region.includes('<LinearGradient') &&
+    region.includes('seam'),
+    'regiões sem transição (seam) — parecem fotos coladas',
   );
   check(
     'Mapa M2.2: jornada SOBE dentro da região (markerFraction: 1ª história embaixo)',
@@ -5449,27 +5449,27 @@ check(
     'creation não é o primeiro marco lógico da jornada',
   );
   check(
-    'Mapa M2.6: painel = altura do VIEWPORT (não width*2048/768) — região inteira por tela',
-    mapScreen.includes('const [viewportH, setViewportH]') &&
-    mapScreen.includes('panelHeight={viewportH}') &&
-    region.includes('height: panelHeight') &&
-    !mapData.includes('computeRegionHeight') &&
-    !region.includes('width * 1.32'),
-    'painel não usa a altura do viewport (ainda usa altura proporcional → zoom)',
+    'Mapa M2.4: R1 INTEIRO sem zoom — altura SÓ proporcional (768×2048), sem crescer por marcos',
+    mapData.includes('export function computeRegionHeight') &&
+    /computeRegionHeight\(width\)\s*\{\s*return Math\.round\(\(width \* 2048\) \/ 768\);/.test(mapData) &&
+    region.includes('computeRegionHeight(width)') &&
+    !region.includes('width * 1.32') &&
+    !mapData.includes('Math.max(proportional') &&
+    !mapData.includes('MARKER_MIN_GAP'),
+    'altura da região ainda cresce por marcos / não é só proporcional (causa zoom)',
   );
   check(
-    'Mapa M2.6: câmera inicial pousa no PAINEL Comece Aqui (base.top) com CLAMP',
-    mapScreen.includes('regionLayout[regionLayout.length - 1]') &&
-    mapScreen.includes('Math.min(base ? base.top : maxY, maxY)') &&
+    'Mapa M2.7: câmera por ÂNCORA (A Criação) com clamp targetY = anchorY - vp*0.55 (sem scrollToEnd)',
+    mapScreen.includes('markerFraction(0, base.count)') &&
+    mapScreen.includes('Math.min(anchorY - vp * 0.55, maxY)') &&
     mapScreen.includes('const maxY = Math.max(0, h - vp)') &&
     !mapScreen.includes('scrollToEnd'),
-    'scroll inicial não pousa no painel Comece Aqui com clamp',
+    'scroll inicial não usa âncora/clamp (pode mostrar vazio/preto)',
   );
   check(
-    'Mapa M2.6: um PAINEL por região (top = i*viewportH, sem overlap/sobreposição de imagens)',
-    /top:\s*i \* viewportH/.test(mapScreen) &&
-    !region.includes('-OVERLAP'),
-    'painéis não são independentes (ainda sobrepõem imagens)',
+    'Mapa M2.2: regiões se sobrepõem (margem negativa) — não parecem coladas',
+    region.includes('isTop ? 0 : -OVERLAP') && region.includes('const OVERLAP'),
+    'regiões sem sobreposição (transição) entre si',
   );
   check(
     'Mapa M2.2: caminho destaca a próxima aventura (highlightIndex)',
@@ -5508,10 +5508,11 @@ check(
     'sem zona segura do título / marcos podem colidir com o título da região',
   );
   check(
-    'Mapa M2.3: pílula de região acompanha a rolagem (onScroll → activeRegionTitle)',
-    mapScreen.includes('activeRegionTitle') &&
+    'Mapa M2.7: pílula de região acompanha a rolagem (onScroll → activeIdx/activeRegion)',
+    mapScreen.includes('setActiveIdx') &&
     mapScreen.includes('onScroll') &&
-    mapScreen.includes('regionPill'),
+    mapScreen.includes('regionPill') &&
+    mapScreen.includes('activeRegion?.title'),
     'sem pílula de região que acompanha a rolagem',
   );
   check(
@@ -5528,19 +5529,19 @@ check(
     'creation/noah não respeitam o sentido de baixo para cima',
   );
   check(
-    'Mapa M2.6: título do pin discreto — só para história atual/concluída (mapa limpo)',
-    marker.includes("showLabel = state === 'current' || state === 'completed'") &&
-    marker.includes('showLabel &&') &&
-    marker.includes('numberOfLines={1}'),
-    'título do pin não está discreto/condicional',
+    'Mapa M2.3: títulos longos em 2 linhas (sem ellipsis duro de 1 linha)',
+    marker.includes('numberOfLines={2}') &&
+    marker.includes("ellipsizeMode=\"tail\"") &&
+    marker.includes('adjustsFontSizeToFit'),
+    'títulos (Abraão/Samuel) ainda dependem de 1 linha com corte',
   );
 
-  // ── M2.6 Full Map Region View: imagem inteira (contain) dentro do imageRect ──
+  // ── M2.4 enquadramento + loading ──
   check(
-    'Mapa M2.6: imagem PRINCIPAL com resizeMode="contain" (região inteira visível, sem corte)',
-    /<Image[\s\S]{0,80}resizeMode="contain"/.test(region) &&
-    region.includes('computeImageRect'),
-    'imagem principal não usa contain (continua cortando/zoom)',
+    'Mapa M2.4: NÃO usa resizeMode="cover" no fundo vertical (usa "stretch", sem zoom/crop)',
+    !region.includes('resizeMode="cover"') &&
+    region.includes('resizeMode="stretch"'),
+    'mapa ainda usa cover (causa zoom/recorte)',
   );
   check(
     'Mapa M2.4: placeholder de pergaminho NEUTRO (sem fundo azul/region.tint cru)',
@@ -5551,11 +5552,11 @@ check(
     'fundo da região ainda usa cor crua (azul) em vez de pergaminho neutro',
   );
   check(
-    'Mapa M2.6: arte é camada Image separada (pronta p/ reveal A/B) e só monta com renderImage',
+    'Mapa M2.4: arte é camada Image separada (pronta p/ reveal A/B) e só monta com renderImage',
     region.includes('renderImage && source') &&
-    /<Image\s+source=\{source\}\s+resizeMode="contain"/.test(region) &&
-    region.includes('left: rect.left, top: rect.top, width: rect.width, height: rect.height'),
-    'arte não é camada Image separada/condicional dentro do imageRect',
+    /<Image source=\{source\} resizeMode="stretch"/.test(region) &&
+    region.includes('StyleSheet.absoluteFill'),
+    'arte não é camada Image separada/condicional',
   );
   check(
     'Mapa M2.4: render progressivo — regiões de baixo primeiro, resto após o tick',
@@ -5572,6 +5573,44 @@ check(
     'expo-image foi instalado (não permitido) ou Image RN ausente',
   );
 
+  // ── M2.7 dois modos: Caminhada Cinematográfica (principal) + Ver mapa (overview) ──
+  check(
+    'Mapa M2.7: modo PRINCIPAL cinematográfico — full-width + proporção, SEM contain como principal',
+    region.includes('computeRegionHeight(width)') &&
+    region.includes('resizeMode="stretch"') &&
+    !region.includes('resizeMode="contain"') &&
+    !region.includes('alignSelf'),
+    'modo principal não é full-width cinematográfico (ou usa contain)',
+  );
+  check(
+    'Mapa M2.7: modo SECUNDÁRIO "Ver mapa" (overview) com região INTEIRA em contain',
+    mapScreen.includes('Ver mapa') &&
+    mapScreen.includes('overviewVisible') &&
+    mapScreen.includes('openOverview') &&
+    /<Image[\s\S]{0,220}resizeMode="contain"/.test(mapScreen) &&
+    mapScreen.includes('ovCard'),
+    'sem modo "Ver mapa" (overview) com contain',
+  );
+  check(
+    'Mapa M2.7: overview não usa preto puro nem azul (fundo escurecido quente)',
+    /ovBackdrop:\s*\{[\s\S]{0,120}rgba\(38,28,14/.test(mapScreen) &&
+    !/ovBackdrop:\s*\{[\s\S]{0,120}#000000|rgba\(0,\s*0,\s*0,\s*1\)/.test(mapScreen),
+    'overview usa fundo preto puro',
+  );
+  check(
+    'Mapa M2.7: MAP_ASPECT/computeImageRect disponíveis p/ orientação (Visão Geral)',
+    mapData.includes('export const MAP_ASPECT = 768 / 2048') &&
+    mapData.includes('export function computeImageRect'),
+    'helpers de proporção da Visão Geral ausentes',
+  );
+  check(
+    'Mapa M2.7: sem CTA inferior e ordem oficial preservada (stories.js intacto)',
+    !mapScreen.includes('NextAdventureBanner') &&
+    /id:\s*'jonah_big_fish'[\s\S]{0,80}trackId:\s*'descobridores'[\s\S]{0,30}order:\s*6,/.test(storiesSrcMap) &&
+    /id:\s*'esther_queen'[\s\S]{0,80}trackId:\s*'pequeninos'[\s\S]{0,30}order:\s*4,/.test(storiesSrcMap),
+    'CTA voltou ou ordem Jonas/Ester alterada',
+  );
+
   // ── M2.5B Full-Bleed Recovery (desfaz o frame 0.86 do M2.5) ──
   check(
     'Mapa M2.5B: mapFrameWidth REMOVIDO — sem frame estreito (0.86) no mapa',
@@ -5583,11 +5622,12 @@ check(
     'mapFrameWidth/0.86/frameWidth ainda presentes (frame estreito)',
   );
   check(
-    'Mapa M2.6: painel ocupa a largura total da tela (sem frame/moldura central)',
-    region.includes('width, height: panelHeight') &&
+    'Mapa M2.5B: região FULL-BLEED — largura total da tela, sem moldura central',
+    /region:\s*\{[\s\S]{0,160}width:\s*'100%'/.test(region) &&
     !region.includes("alignSelf: 'center'") &&
-    mapScreen.includes('width={width}'),
-    'painel não usa a largura total (ainda tem frame/alignSelf central)',
+    region.includes('computeRegionHeight(width)') &&
+    region.includes('width={width}'),
+    'região não é full-bleed (ainda tem frame/alignSelf central)',
   );
   check(
     'Mapa M2.5B: container do mapa em pergaminho claro (sem preto #2B2114, sem borda lateral)',
@@ -5596,12 +5636,11 @@ check(
     'container do mapa ainda tem fundo preto/escuro',
   );
   check(
-    'Mapa M2.6: imageRect pela proporção real (MAP_ASPECT 768/2048) — caminho/pins dentro da arte',
-    mapData.includes('export const MAP_ASPECT = 768 / 2048') &&
-    mapData.includes('export function computeImageRect') &&
-    region.includes('rect.left + rect.width') &&
-    region.includes('rect.top + rect.height'),
-    'imageRect/MAP_ASPECT ausentes ou caminho/pins fora do imageRect',
+    'Mapa M2.5B: proporção real preservada (regionHeight = width*2048/768), sem cover',
+    /computeRegionHeight\(width\)\s*\{\s*return Math\.round\(\(width \* 2048\) \/ 768\);/.test(mapData) &&
+    !region.includes('resizeMode="cover"') &&
+    region.includes('resizeMode="stretch"'),
+    'proporção/resize do mapa incorretos',
   );
 }
 
