@@ -5663,24 +5663,24 @@ check(
     mapScreen.includes('!ovLoaded && !ovPreview'),
     'overview não usa preview imediata como o modo principal',
   );
-  // ── B2.8: harmonização visual (base de pedra + pins/labels menores + path suave) ──
-  const stoneSlot = readSrc('src/components/map/StoryStoneSlot.js');
+  // ── B2.8 (corrigido): bases circulares REMOVIDAS; pins/labels menores + path suave ──
   check(
-    'Mapa B2.8: StoryStoneSlot — base de pedra/pergaminho DECORATIVA (pointerEvents none, ~104px, sem cor forte)',
-    stoneSlot.includes('pointerEvents="none"') &&
-    stoneSlot.includes("from 'expo-linear-gradient'") &&
-    /BASE_SIZE\s*=\s*10[0-9]/.test(stoneSlot) &&
-    !/#00ff00|#0000ff|#00aa00/i.test(stoneSlot),
-    'StoryStoneSlot ausente, clicável ou com cor forte demais',
+    'Mapa B2.8 fix: StoryStoneSlot REMOVIDO — arquivo apagado e sem referência no mapa',
+    !fs.existsSync(path.join(root, 'src/components/map/StoryStoneSlot.js')) &&
+    !region.includes('StoryStoneSlot') &&
+    !marker.includes('<StoryStoneSlot') &&
+    [mapScreen, mapData, mapPath, marker, region].every((s) => !s.includes('import StoryStoneSlot')),
+    'StoryStoneSlot ainda existe ou continua referenciado',
   );
   check(
-    'Mapa B2.8: base ATRÁS (overlayBack z4, não clicável) + marcadores na FRENTE (overlayFront z7, clicáveis)',
-    region.includes('<StoryStoneSlot') &&
+    'Mapa B2.8 fix: SEM base/círculo atrás dos marcos — só caminho atrás (overlayBack z4) e marcadores na frente (overlayFront z7)',
+    !region.includes('StoryStoneSlot') &&
     /styles\.overlayBack[\s\S]{0,40}pointerEvents="none"/.test(region) &&
     /styles\.overlayFront[\s\S]{0,40}pointerEvents="box-none"/.test(region) &&
     /overlayBack:\s*\{[\s\S]{0,80}zIndex:\s*4/.test(region) &&
-    /overlayFront:\s*\{[\s\S]{0,80}zIndex:\s*7/.test(region),
-    'base/marcadores não estão nas camadas corretas (atrás/frente)',
+    /overlayFront:\s*\{[\s\S]{0,80}zIndex:\s*7/.test(region) &&
+    /<MapPath[\s\S]{0,120}\/>\s*<\/View>/.test(region),
+    'ainda há base atrás dos marcos / camadas caminho-marcadores incorretas',
   );
   check(
     'Mapa B2.8: labels menores (LABEL_W 96, fonte 10) — legenda, não cartão grande',

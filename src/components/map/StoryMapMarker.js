@@ -13,8 +13,8 @@ import SoundButton from '../SoundButton';
 import { getStoryCover } from '../../assets/storyCovers';
 
 // Tamanhos LEVEMENTE menores (B2.8): pins menos pesados sobre a arte, mas ainda
-// fáceis de tocar e com avatar/badge legíveis. A base de pedra (StoryStoneSlot,
-// ~104px) emoldura o pin por trás.
+// fáceis de tocar e com avatar/badge legíveis. As histórias ficam diretamente
+// sobre o cenário do mapa (sem base/círculo atrás — removido na correção do B2.8).
 const SIZE = { current: 80, available: 70, completed: 70, locked: 68 };
 const RING = {
   completed: { color: '#5EBE6E', width: 3 },
