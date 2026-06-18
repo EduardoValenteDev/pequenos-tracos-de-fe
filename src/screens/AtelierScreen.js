@@ -44,8 +44,8 @@ export default function AtelierScreen({ navigation, route }) {
   // mostra um botão Voltar que retorna à origem. Pela aba, fica sem botão.
   const from = route?.params?.from;
   const showBack = !isFromTab(from);
-  // Guia contextual do Ateliê — só na aba (não quando empurrado por contexto).
-  const atelierGuide = useScreenGuide('atelier', isFromTab(from));
+  // UX 2.3: guia do Ateliê DESATIVADO (reprovado) — só reativa no bloco UX 2.5.
+  const atelierGuide = useScreenGuide('atelier', false);
 
   const [mission] = useState(pickMission);
   const [artCount, setArtCount] = useState(0);

@@ -152,8 +152,8 @@ export default function TrophiesScreen({ navigation, route }) {
     route?.params?.fromPostSceneCelebration === true ||
     route?.params?.fromStoryCompletion === true;
 
-  // Guia contextual de Estrelinhas — só na visita pela aba (não em push pós-cena).
-  const starsGuide = useScreenGuide('stars', !fromCena);
+  // UX 2.3: guia de Estrelinhas DESATIVADO (reprovado) — só reativa no bloco UX 2.6.
+  const starsGuide = useScreenGuide('stars', false);
 
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();

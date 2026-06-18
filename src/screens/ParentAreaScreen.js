@@ -159,8 +159,8 @@ export default function ParentAreaScreen({ navigation }) {
   const [qaEnabled, setQaEnabled] = useState(isCreatorQaModeEnabled());
   const [beniResetDone, setBeniResetDone] = useState(false);
 
-  // Guia da Área dos Pais (tom para responsáveis). 2º passo só com Modo Criador.
-  const parentGuide = useScreenGuide('parentArea', unlockedForSession);
+  // UX 2.3: guia da Área dos Pais DESATIVADO (reprovado) — só reativa no bloco UX 2.8.
+  const parentGuide = useScreenGuide('parentArea', false);
   const parentGuideSteps = SHOW_TEST_TOOLS
     ? [...PARENT_GUIDE_BASE, PARENT_GUIDE_CREATOR_STEP]
     : PARENT_GUIDE_BASE;

@@ -6383,25 +6383,26 @@ check(
     'beniTourService não virou serviço de guias genérico (ou toca progresso/acesso)',
   );
   check(
-    'UX2.2: BeniGuideOverlay usa BeniAvatar (SEM imagem quadrada) + destaque contextual (spotlightFor) + balão/target, Pular + CTA final, Animated, sem Lottie',
+    'UX2.3: BeniGuideOverlay PRECISO — BeniAvatar (sem quadrado), destaque SÓ com medição (measure/measureInWindow), sem spotlight aproximado/balloon, sem Lottie',
     guideBase.includes("from './beni/BeniAvatar'") &&
     guideBase.includes('<BeniAvatar') &&
     !/Animated\.Image source=\{beniSource\}/.test(guideBase) &&
-    guideBase.includes('Pular tour') &&
-    guideBase.includes('finalLabel') &&
-    guideBase.includes('spotlightFor') &&
-    /balloon/.test(guideBase) &&
+    guideBase.includes('measure') &&
+    guideBase.includes('showRing') &&
+    !guideBase.includes('spotlightFor') &&
+    !/function spotlightBox/.test(guideBase) &&
     guideBase.includes('Animated') &&
     !/from ['"][^'"]*lottie/i.test(guideBase),
-    'BeniGuideOverlay não usa BeniAvatar / destaque contextual / base incompleta',
+    'BeniGuideOverlay não é o guia preciso medido (ou ainda usa spotlight aproximado)',
   );
   check(
-    'UX2.1: tour inicial = abertura curta do mapa (3 passos) via BeniGuideOverlay, CTA "Começar minha jornada", sem explicar Ateliê/Estrelinhas/Perfil',
+    'UX2.3: tour inicial = abertura MÍNIMA (2 passos) via BeniGuideOverlay, CTA "Começar minha jornada", sem indicador visual aproximado',
     tourCmp.includes('BeniGuideOverlay') &&
     tourCmp.includes('Começar minha jornada') &&
-    (tourCmp.match(/title:/g) || []).length === 3 &&
+    (tourCmp.match(/title:/g) || []).length === 2 &&
+    !tourCmp.includes('measure=') &&
     !/Ateliê|Estrelinhas|Perfil/.test(tourCmp),
-    'tour inicial não foi encurtado para 3 passos sobre o mapa',
+    'tour inicial não foi reduzido a 2 passos sem indicador aproximado',
   );
   check(
     'UX2.0: AdventureMapScreen mostra o tour só com startBeniTour + não-visto e marca visto ao fechar',
@@ -6450,15 +6451,29 @@ check(
     'beniGuides.js não exporta todos os guias das telas',
   );
   check(
-    'UX2.2: cada tela monta seu guia (useScreenGuide + BeniGuideOverlay) — Aventuras gateado p/ não empilhar com o tour inicial',
+    'UX2.3: PILOTO Aventuras com alvos REAIS (useGuideTargets + measure) — gateado p/ não empilhar com o tour inicial',
     /useScreenGuide\(\s*'adventures',\s*!showBeniTour && !route\?\.params\?\.startBeniTour/.test(mapSrcTour) &&
-    mapSrcTour.includes('ADVENTURES_GUIDE') &&
-    homeSrc.includes("useScreenGuide('home')") && homeSrc.includes('HOME_GUIDE') &&
-    atelierSrc.includes("useScreenGuide('atelier'") && atelierSrc.includes('ATELIER_GUIDE') &&
-    trophiesSrc.includes("useScreenGuide('stars'") && trophiesSrc.includes('STARS_GUIDE') &&
-    profileSrc.includes("useScreenGuide('profile')") && profileSrc.includes('PROFILE_GUIDE') &&
-    parentTour.includes("useScreenGuide('parentArea'") && parentTour.includes('parentGuideSteps'),
-    'alguma tela não monta o guia contextual / Aventuras não está gateado',
+    mapSrcTour.includes('useGuideTargets') &&
+    mapSrcTour.includes("register('adventures.map')") &&
+    mapSrcTour.includes("register('adventures.viewMapButton')") &&
+    mapSrcTour.includes('measure={guideTargets.measure}') &&
+    mapSrcTour.includes('ADVENTURES_GUIDE'),
+    'piloto Aventuras não usa alvos medidos / não está gateado',
+  );
+  check(
+    'UX2.3: guias reprovados DESATIVADOS (Home/Ateliê/Estrelinhas/Perfil/Pais não aparecem automaticamente)',
+    homeSrc.includes("useScreenGuide('home', false)") &&
+    atelierSrc.includes("useScreenGuide('atelier', false)") &&
+    trophiesSrc.includes("useScreenGuide('stars', false)") &&
+    profileSrc.includes("useScreenGuide('profile', false)") &&
+    parentTour.includes("useScreenGuide('parentArea', false)"),
+    'algum guia reprovado ainda aparece automaticamente (deveria estar desativado)',
+  );
+  check(
+    'UX2.3: useGuideTargets mede alvos reais (measureInWindow) e cai em fallback null sem medição',
+    readSrc('src/hooks/useGuideTargets.js').includes('measureInWindow') &&
+    /resolve\(null\)/.test(readSrc('src/hooks/useGuideTargets.js')),
+    'useGuideTargets não mede alvos reais / sem fallback seguro',
   );
 }
 

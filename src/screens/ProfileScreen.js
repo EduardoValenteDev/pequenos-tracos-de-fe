@@ -62,7 +62,8 @@ function AdultCard({ emoji, title, desc, onPress, tint = '#F5F0FF' }) {
 
 export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const profileGuide = useScreenGuide('profile');
+  // UX 2.3: guia do Perfil DESATIVADO (reprovado) — só reativa no bloco UX 2.7.
+  const profileGuide = useScreenGuide('profile', false);
 
   const { profile, saveProfile } = useProfile();
   const [nameInput, setNameInput] = useState(profile.name);

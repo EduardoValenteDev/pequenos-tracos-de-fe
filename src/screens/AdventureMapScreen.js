@@ -25,6 +25,7 @@ import BeniAppTour from '../components/BeniAppTour';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { hasSeenBeniAppTour, markBeniAppTourSeen } from '../services/beniTourService';
 import { useScreenGuide } from '../hooks/useScreenGuide';
+import { useGuideTargets } from '../hooks/useGuideTargets';
 import { ADVENTURES_GUIDE } from '../data/beniGuides';
 
 const REGION_OVERLAP = 0; // regiões se tocam exatamente (sem overlap que cortava a base da arte)
@@ -63,6 +64,8 @@ export default function AdventureMapScreen({ navigation, route }) {
     'adventures',
     !showBeniTour && !route?.params?.startBeniTour,
   );
+  // Alvos REAIS medidos do guia (UX 2.3): mapa + botão Ver mapa.
+  const guideTargets = useGuideTargets();
   const { width, height } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
 
@@ -277,13 +280,19 @@ export default function AdventureMapScreen({ navigation, route }) {
           <Text style={styles.headerTitle}>Mapa das Aventuras</Text>
           <Text style={styles.headerSub}>Suba o caminho da fé ✨</Text>
         </View>
-        {/* MODO 2: botão discreto "Ver mapa" (Visão Geral) */}
-        <SoundButton style={styles.overviewBtn} onPress={openOverview} accessibilityLabel="Ver mapa" activeOpacity={0.85}>
-          <Text style={styles.overviewBtnText}>🗺️ Ver mapa</Text>
-        </SoundButton>
+        {/* MODO 2: botão discreto "Ver mapa" (Visão Geral). View medível p/ o guia. */}
+        <View ref={guideTargets.register('adventures.viewMapButton')} collapsable={false}>
+          <SoundButton style={styles.overviewBtn} onPress={openOverview} accessibilityLabel="Ver mapa" activeOpacity={0.85}>
+            <Text style={styles.overviewBtnText}>🗺️ Ver mapa</Text>
+          </SoundButton>
+        </View>
       </LinearGradient>
 
-      <Animated.View style={{ flex: 1, backgroundColor: REGION_PARCHMENT_BG, opacity: 1, transform: [{ translateY: entranceTranslate }] }}>
+      <Animated.View
+        ref={guideTargets.register('adventures.map')}
+        collapsable={false}
+        style={{ flex: 1, backgroundColor: REGION_PARCHMENT_BG, opacity: 1, transform: [{ translateY: entranceTranslate }] }}
+      >
         <ScrollView
           ref={scrollRef}
           style={styles.scroll}
@@ -393,7 +402,13 @@ export default function AdventureMapScreen({ navigation, route }) {
       {showBeniTour && <BeniAppTour onFinish={closeBeniTour} onSkip={closeBeniTour} />}
       {/* UX 2.2 — Guia contextual da aba Aventuras (não aparece junto do tour inicial). */}
       {!showBeniTour && adventuresGuide.visible && (
-        <BeniGuideOverlay steps={ADVENTURES_GUIDE} finalLabel="Entendi" onFinish={adventuresGuide.close} onSkip={adventuresGuide.close} />
+        <BeniGuideOverlay
+          steps={ADVENTURES_GUIDE}
+          measure={guideTargets.measure}
+          finalLabel="Entendi"
+          onFinish={adventuresGuide.close}
+          onSkip={adventuresGuide.close}
+        />
       )}
     </View>
   );

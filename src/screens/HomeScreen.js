@@ -502,7 +502,8 @@ function CantinhoDoBeni({ idea, verse, prayer, canAccess, onVerse }) {
 ═══════════════════════════════════════════════════════════════════ */
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const homeGuide = useScreenGuide('home');
+  // UX 2.3: guia da Home DESATIVADO (reprovado) — só reativa no bloco UX 2.4.
+  const homeGuide = useScreenGuide('home', false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;

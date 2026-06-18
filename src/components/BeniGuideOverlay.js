@@ -1,74 +1,54 @@
 /**
- * BeniGuideOverlay — base reutilizável dos guias contextuais do Beni (UX 2.2).
+ * BeniGuideOverlay — guia contextual do Beni (UX 2.3, reconstruído).
  *
- * O Beni vira um GUIA dentro do app: aparece com uma pose (BeniAvatar — recorte
- * circular, SEM imagem quadrada crua), fala num balão de pergaminho e DESTACA de
- * forma contextual a área relevante da tela (sem mais o círculo amarelo gigante).
+ * Profissional e PRECISO: o destaque só aparece quando o alvo é MEDIDO de verdade
+ * (measureInWindow via prop `measure`). Sem medição → NENHUM contorno, só o balão
+ * do Beni numa posição segura (nunca aponta para o lugar errado). Nada de círculos/
+ * linhas amarelas atravessando a tela.
+ *
+ * Visual: card COMPACTO (Beni circular via BeniAvatar + título curto + até ~2 linhas),
+ * botão principal pequeno, "Pular" discreto, véu quente leve. O card se posiciona
+ * acima/abaixo do alvo conforme o espaço, sem cobrir o alvo nem a tab bar; quando há
+ * medição, uma moldura fina e suave envolve o alvo real, com seta apontando para ele.
  *
  * Props:
- *   steps: [{ title, text, variant?, target?, balloon? }]
- *     - variant: variant do BeniAvatar (happy, teaching, celebrating, artist,
- *                praying, parent, avatarBase, reading…) — pose do guia.
- *     - target:  'map'|'mainArea'|'pin'|'topRight'|'top'|'header'|'bottom'|
- *                'button'|'parentTools'|'tabAtelier'|'tabStars'|'tabProfile'|'center'
- *                (destaque APROXIMADO — sem medir refs ainda).
- *     - balloon: 'top'|'center'|'bottom' (posição do card; default 'bottom').
- *   finalLabel: rótulo do botão no último passo (default 'Entendi').
- *   onFinish, onSkip: callbacks (ambos marcam o guia como visto).
- *
- * Seguro: se um alvo não existir, cai num destaque/posição segura; se faltar pose,
- * BeniAvatar usa fallback. Véu quente LEVE, não bloqueia a tab bar, Pular sempre
- * visível. Sem pacote novo, sem Lottie.
+ *   steps: [{ title, text, variant?, target? }]
+ *   measure?: (name) => Promise<rect|null>  // medição real (opcional)
+ *   finalLabel?: rótulo do último passo (default 'Entendi')
+ *   onFinish, onSkip
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from './SoundButton';
 import BeniAvatar from './beni/BeniAvatar';
 
-// Destaque APROXIMADO por tipo de alvo (sem medição real). Retorna a caixa do
-// spotlight { left, top, width, height, radius } e o formato, ou null (sem destaque).
-function spotlightFor(target, w, h) {
-  const wide = w - 28;
-  switch (target) {
-    case 'map':
-    case 'mainArea':
-      // Destaque AMPLO e suave da área principal (rounded rect, não círculo gigante).
-      return { left: 14, top: h * 0.13, width: wide, height: h * 0.42, radius: 26 };
-    case 'pin':
-      // Anel pequeno na região do próximo pin (centro-superior do mapa).
-      return { left: w * 0.30, top: h * 0.24, width: w * 0.40, height: w * 0.40, radius: (w * 0.40) / 2 };
-    case 'topRight':
-      // Perto do botão "Ver mapa" (canto superior direito do header).
-      return { left: w - 138, top: 8, width: 126, height: 42, radius: 16 };
-    case 'top':
-    case 'header':
-      return { left: 14, top: h * 0.05, width: wide, height: h * 0.1, radius: 18 };
-    case 'parentTools':
-    case 'bottom':
-    case 'button':
-      return { left: 14, top: h * 0.58, width: wide, height: h * 0.14, radius: 18 };
-    case 'tabAtelier':
-      return { left: w * 0.5 - 26, top: h - 56, width: 52, height: 52, radius: 26 };
-    case 'tabStars':
-      return { left: w * 0.7 - 26, top: h - 56, width: 52, height: 52, radius: 26 };
-    case 'tabProfile':
-      return { left: w * 0.9 - 26, top: h - 56, width: 52, height: 52, radius: 26 };
-    default:
-      return null; // 'center' / desconhecido → sem destaque, só o card + Beni
-  }
-}
+const CARD_H = 150;       // altura estimada do card (posicionamento)
+const TABBAR_APPROX = 64; // altura aproximada da tab bar (não cobrir)
+const GAP = 12;
 
-export default function BeniGuideOverlay({ steps = [], finalLabel = 'Entendi', onFinish, onSkip }) {
+export default function BeniGuideOverlay({ steps = [], measure, finalLabel = 'Entendi', onFinish, onSkip }) {
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [index, setIndex] = useState(0);
+  const [rect, setRect] = useState(null); // alvo MEDIDO do passo atual (ou null)
+
   const safeSteps = steps.length ? steps : [{ title: '', text: '' }];
   const isLast = index === safeSteps.length - 1;
   const step = safeSteps[index];
-  const balloon = step.balloon || 'bottom';
-  const spot = step.target ? spotlightFor(step.target, width, height) : null;
 
-  // Pulso discreto (Beni + destaque) — Animated nativo, sem exagero.
+  // Mede o alvo do passo atual de verdade. Sem alvo/medição → rect null (fallback).
+  useEffect(() => {
+    let alive = true;
+    setRect(null);
+    if (step.target && typeof measure === 'function') {
+      measure(step.target).then((r) => { if (alive) setRect(r || null); });
+    }
+    return () => { alive = false; };
+  }, [index, step.target, measure]);
+
+  // Pulso discreto (Beni + moldura do alvo) — Animated nativo.
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -81,80 +61,100 @@ export default function BeniGuideOverlay({ steps = [], finalLabel = 'Entendi', o
     return () => loop.stop();
   }, [pulse]);
   const beniScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
-  const spotScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
-  const spotOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.95] });
+  const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.95] });
 
   const handleNext = () => {
     if (isLast) onFinish?.();
     else setIndex((i) => Math.min(i + 1, safeSteps.length - 1));
   };
 
-  const wrapJustify = balloon === 'top' ? 'flex-start' : balloon === 'center' ? 'center' : 'flex-end';
-  // Seta do card aponta para o alvo (cima quando o card está embaixo, etc.).
-  const arrowUp = balloon === 'bottom' && !!spot;
-  const arrowDown = balloon === 'top' && !!spot;
+  // Alvo "área grande" (ex.: o mapa inteiro) → não desenha moldura (ficaria uma borda
+  // na tela toda). Só molduramos alvos PEQUENOS/precisos (botão, ícone…).
+  const isBigArea = rect && rect.width > width * 0.85 && rect.height > height * 0.5;
+  const showRing = !!rect && !isBigArea;
+
+  // Posição do card: abaixo de alvo no topo; acima de alvo embaixo; senão rodapé.
+  const usableBottom = height - (TABBAR_APPROX + insets.bottom);
+  let cardTop;
+  let arrow = null; // 'up' (alvo acima do card) | 'down' (alvo abaixo) | null
+  if (showRing) {
+    const targetMid = rect.y + rect.height / 2;
+    if (targetMid < height * 0.5) {
+      cardTop = rect.y + rect.height + GAP;
+      arrow = 'up';
+    } else {
+      cardTop = rect.y - CARD_H - GAP;
+      arrow = 'down';
+    }
+    cardTop = Math.max(insets.top + 8, Math.min(cardTop, usableBottom - CARD_H - 8));
+  } else {
+    // Sem alvo medido (ou área grande) → card seguro no rodapé, sem seta.
+    cardTop = usableBottom - CARD_H - 8;
+  }
+
+  const ringPad = 6;
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
-      {/* Véu quente LEVE — a tela host continua visível por trás. */}
+      {/* Véu quente LEVE — a tela continua visível por trás. */}
       <View style={styles.veil} pointerEvents="auto" />
 
-      {/* Destaque contextual APROXIMADO (rounded rect / anel suave). */}
-      {spot && (
+      {/* Moldura fina e suave SÓ no alvo medido (sem aproximação). */}
+      {showRing && (
         <Animated.View
           pointerEvents="none"
           style={[
-            styles.spotlight,
+            styles.ring,
             {
-              left: spot.left,
-              top: spot.top,
-              width: spot.width,
-              height: spot.height,
-              borderRadius: spot.radius,
-              opacity: spotOpacity,
-              transform: [{ scale: spotScale }],
+              left: rect.x - ringPad,
+              top: rect.y - ringPad,
+              width: rect.width + ringPad * 2,
+              height: rect.height + ringPad * 2,
+              borderRadius: Math.min(18, (rect.height + ringPad * 2) / 2),
+              opacity: ringOpacity,
             },
           ]}
         />
       )}
 
-      <View style={[styles.cardWrap, { justifyContent: wrapJustify }]} pointerEvents="box-none">
-        {arrowUp && <View style={[styles.arrow, styles.arrowUp]} />}
+      <View style={[styles.cardWrap, { top: cardTop }]} pointerEvents="box-none">
+        {arrow === 'up' && <View style={[styles.arrow, styles.arrowUp]} />}
         <LinearGradient
           colors={['#FBF1D8', '#F4E3BE', '#EAD3A0']}
-          start={{ x: 0.15, y: 0 }}
-          end={{ x: 0.85, y: 1 }}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
           style={styles.card}
         >
-          {/* Beni recortado (BeniAvatar — sem quadrado). Leve pulso. */}
-          <Animated.View style={[styles.beniWrap, { transform: [{ scale: beniScale }] }]}>
-            <BeniAvatar variant={step.variant || 'happy'} size="large" />
+          <Animated.View style={{ transform: [{ scale: beniScale }] }}>
+            <BeniAvatar variant={step.variant || 'happy'} size="medium" />
           </Animated.View>
 
-          {!!step.title && <Text style={styles.title}>{step.title}</Text>}
-          {!!step.text && <Text style={styles.text}>{step.text}</Text>}
+          <View style={styles.cardBody}>
+            {!!step.title && <Text style={styles.title} numberOfLines={1}>{step.title}</Text>}
+            {!!step.text && <Text style={styles.text} numberOfLines={3}>{step.text}</Text>}
 
-          {safeSteps.length > 1 && (
-            <View style={styles.dots}>
-              {safeSteps.map((_, i) => (
-                <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
-              ))}
+            <View style={styles.actions}>
+              {safeSteps.length > 1 && (
+                <View style={styles.dots}>
+                  {safeSteps.map((_, i) => (
+                    <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+                  ))}
+                </View>
+              )}
+              <View style={styles.btnRow}>
+                <SoundButton style={styles.skipBtn} onPress={onSkip} activeOpacity={0.7} silent>
+                  <Text style={styles.skipText}>Pular</Text>
+                </SoundButton>
+                <SoundButton style={styles.primaryBtn} onPress={handleNext} activeOpacity={0.9}>
+                  <LinearGradient colors={['#FFB15A', '#FF7A2F']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.primaryGrad}>
+                    <Text style={styles.primaryText}>{isLast ? finalLabel : 'Próximo'}</Text>
+                  </LinearGradient>
+                </SoundButton>
+              </View>
             </View>
-          )}
-
-          <SoundButton style={styles.primaryBtn} onPress={handleNext} activeOpacity={0.9}>
-            <LinearGradient colors={['#FFB15A', '#FF7A2F']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.primaryGrad}>
-              <Text style={styles.primaryText}>{isLast ? finalLabel : 'Próximo'}</Text>
-              <Text style={styles.primaryArrow}>▸</Text>
-            </LinearGradient>
-          </SoundButton>
-
-          {/* Pular — visível em TODAS as etapas */}
-          <SoundButton style={styles.skipBtn} onPress={onSkip} activeOpacity={0.7} silent>
-            <Text style={styles.skipText}>Pular tour</Text>
-          </SoundButton>
+          </View>
         </LinearGradient>
-        {arrowDown && <View style={[styles.arrow, styles.arrowDown]} />}
+        {arrow === 'down' && <View style={[styles.arrow, styles.arrowDown]} />}
       </View>
     </View>
   );
@@ -162,58 +162,42 @@ export default function BeniGuideOverlay({ steps = [], finalLabel = 'Entendi', o
 
 const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, zIndex: 50 },
-  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(40,28,12,0.28)' },
-  spotlight: {
+  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(40,28,12,0.26)' },
+  ring: {
     position: 'absolute',
     borderWidth: 2.5,
     borderColor: 'rgba(255,205,110,0.95)',
     backgroundColor: 'rgba(255,222,150,0.10)',
   },
-  cardWrap: { ...StyleSheet.absoluteFillObject, paddingHorizontal: 16, paddingVertical: 18 },
-  arrow: {
-    alignSelf: 'center',
-    width: 0,
-    height: 0,
-    borderLeftWidth: 12,
-    borderRightWidth: 12,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-  },
-  arrowUp: { borderBottomWidth: 14, borderBottomColor: '#FBF1D8' },
-  arrowDown: { borderTopWidth: 14, borderTopColor: '#EAD3A0' },
+  cardWrap: { position: 'absolute', left: 16, right: 16 },
+  arrow: { alignSelf: 'center', width: 0, height: 0, borderLeftWidth: 10, borderRightWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent' },
+  arrowUp: { borderBottomWidth: 12, borderBottomColor: '#FBF1D8' },
+  arrowDown: { borderTopWidth: 12, borderTopColor: '#EAD3A0' },
   card: {
-    borderRadius: 26,
-    paddingTop: 14,
-    paddingBottom: 16,
-    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 22,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderWidth: 1.5,
     borderColor: 'rgba(180,140,70,0.45)',
-    elevation: 14,
+    elevation: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    alignItems: 'center',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
-  beniWrap: { marginBottom: 6 },
-  title: { fontFamily: 'FredokaOne', fontSize: 20, color: '#5A4420', textAlign: 'center', marginTop: 4 },
-  text: { fontFamily: 'Nunito', fontSize: 14.5, fontWeight: '700', color: '#6B5733', textAlign: 'center', marginTop: 6, marginHorizontal: 4, lineHeight: 20 },
-  dots: { flexDirection: 'row', marginTop: 14, marginBottom: 12 },
-  dot: { width: 7, height: 7, borderRadius: 4, marginHorizontal: 4, backgroundColor: 'rgba(120,95,55,0.30)' },
-  dotActive: { backgroundColor: '#E08A2E', width: 18 },
-  primaryBtn: {
-    alignSelf: 'stretch',
-    borderRadius: 18,
-    overflow: 'hidden',
-    elevation: 4,
-    shadowColor: '#FF7A2F',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 5,
-  },
-  primaryGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 13 },
-  primaryText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFFFFF' },
-  primaryArrow: { fontSize: 15, color: '#FFFFFF', fontWeight: '900', marginLeft: 8 },
-  skipBtn: { marginTop: 10, paddingVertical: 6, paddingHorizontal: 14 },
-  skipText: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: '#8A7350', textDecorationLine: 'underline' },
+  cardBody: { flex: 1, marginLeft: 12 },
+  title: { fontFamily: 'FredokaOne', fontSize: 16, color: '#5A4420' },
+  text: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '700', color: '#6B5733', marginTop: 2, lineHeight: 18 },
+  actions: { marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dots: { flexDirection: 'row' },
+  dot: { width: 6, height: 6, borderRadius: 3, marginRight: 4, backgroundColor: 'rgba(120,95,55,0.30)' },
+  dotActive: { backgroundColor: '#E08A2E', width: 14 },
+  btnRow: { flexDirection: 'row', alignItems: 'center' },
+  skipBtn: { paddingVertical: 6, paddingHorizontal: 10, marginRight: 4 },
+  skipText: { fontFamily: 'Nunito', fontSize: 12.5, fontWeight: '800', color: '#8A7350' },
+  primaryBtn: { borderRadius: 14, overflow: 'hidden' },
+  primaryGrad: { paddingVertical: 8, paddingHorizontal: 16 },
+  primaryText: { fontFamily: 'FredokaOne', fontSize: 13.5, color: '#FFFFFF' },
 });

@@ -8,11 +8,12 @@
  * variant: pose do BeniAvatar · target: destaque aproximado · balloon: posição do card.
  */
 
-// Aventuras (aba) — aparece na visita à aba, depois do tour inicial.
+// Aventuras (aba) — PILOTO UX 2.3 com alvos REAIS medidos (useGuideTargets).
+// 'adventures.nextPin' fica sem medição segura por enquanto → sem contorno (fallback).
 export const ADVENTURES_GUIDE = [
-  { variant: 'teaching',    target: 'map',      balloon: 'bottom', title: 'Seu caminho',   text: 'Aqui você acompanha as histórias da sua jornada.' },
-  { variant: 'celebrating', target: 'pin',      balloon: 'bottom', title: 'O próximo passo', text: 'O brilho mostra onde continuar.' },
-  { variant: 'happy',       target: 'topRight', balloon: 'bottom', title: 'Ver mapa',       text: 'Este botão abre uma visão maior da região.' },
+  { variant: 'teaching',    target: 'adventures.map',           title: 'Seu mapa',      text: 'Aqui começa sua jornada pelas histórias da Bíblia.' },
+  { variant: 'celebrating', target: 'adventures.nextPin',       title: 'Siga o brilho', text: 'O brilho mostra onde continuar.' },
+  { variant: 'happy',       target: 'adventures.viewMapButton', title: 'Ver a região',  text: 'Toque aqui para ver o mapa maior.' },
 ];
 
 // Home
