@@ -142,6 +142,10 @@ export default function BeniGuideOverlay({
   // Sem medição → fallback sem seta. Generalizado para Início (idx 0) e Aventuras (idx 1).
   const curTarget = targetFor(step);
   const isSidebarTarget = !!curTarget && curTarget.endsWith('.sidebarTab');
+  // Step com noRing (ex.: Home "Sua aventura atual"): mede e aponta com a seta, mas
+  // NÃO desenha a moldura/halo (a seta já basta). Isolado por step — os demais cards
+  // seguem com halo. Não afeta posicionamento, scroll, nem o fallback honesto.
+  const hideRing = phase === 'steps' && !!step.noRing;
   const glowTabIndex = step.highlightTab != null ? TAB_INDEX_BY_KEY[step.highlightTab] : undefined;
   const showTabGlow = phase === 'steps' && !!step.highlightTab && !isTabletLayout && glowTabIndex != null;
   const TAB_COUNT = 5;
@@ -233,7 +237,7 @@ export default function BeniGuideOverlay({
           </View>
         ) : (
           <>
-            {showRing && (
+            {showRing && !hideRing && (
               <Animated.View
                 pointerEvents="none"
                 style={[

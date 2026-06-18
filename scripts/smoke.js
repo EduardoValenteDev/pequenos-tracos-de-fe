@@ -6571,6 +6571,15 @@ check(
     homeSrc.includes('scrollGuideTargetIntoView'),
     'Início não é destacado como Aventuras (sidebar/medição combinada ausente)',
   );
+  const overlayHomeBase = readSrc('src/components/BeniGuideOverlay.js');
+  check(
+    'HOME1.4: halo removido SÓ no Card 2 (noRing) — mede + seta, sem moldura; demais cards mantêm halo',
+    /title: 'Sua aventura atual',[\s\S]*?noRing: true/.test(guidesData) &&
+    (guidesData.match(/noRing: true/g) || []).length === 1 &&
+    /const hideRing = phase === 'steps' && !!step\.noRing/.test(overlayHomeBase) &&
+    overlayHomeBase.includes('showRing && !hideRing'),
+    'halo do Card 2 não foi removido isoladamente (ou afeta outros cards)',
+  );
   check(
     'UX2.3: useGuideTargets mede alvos reais (measureInWindow) e cai em fallback null sem medição',
     readSrc('src/hooks/useGuideTargets.js').includes('measureInWindow') &&
