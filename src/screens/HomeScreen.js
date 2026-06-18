@@ -230,8 +230,8 @@ function MissaoDeHoje({
 
   if (allDone) {
     return (
-      <View ref={targetRef} collapsable={false} style={styles.missionHero}>
-        <View style={styles.missionAllDone}>
+      <View style={styles.missionHero}>
+        <View ref={targetRef} collapsable={false} style={styles.missionAllDone}>
           <Text style={styles.missionAllDoneEmoji}>🏆</Text>
           <Text style={styles.missionAllDoneTitle}>{primaryAction.title}</Text>
           <Text style={styles.missionAllDoneSub}>{primaryAction.description}</Text>
@@ -256,7 +256,7 @@ function MissaoDeHoje({
       : '✨ MISSÃO DE HOJE';
 
   return (
-    <View ref={targetRef} collapsable={false} style={styles.missionHero}>
+    <View style={styles.missionHero}>
       {/* Selo da missão + Beni guia */}
       <View style={styles.missionTopRow}>
         <View style={styles.missionBadge}>
@@ -268,31 +268,36 @@ function MissaoDeHoje({
       {/* Uma única fala do Beni, ligada à missão */}
       <Text style={styles.missionBeniLine}>{beniLine}</Text>
 
-      {/* Capa grande — a história em destaque */}
-      {hasThumb ? (
-        <View style={styles.missionCover}>
-          <Image
-            source={images[story.imagemCapa]}
-            style={styles.missionCoverImg}
-            resizeMode="cover"
-          />
-          <LinearGradient
-            colors={['transparent', 'rgba(20,12,4,0.55)']}
-            style={styles.missionCoverShade}
-          />
-        </View>
-      ) : (
-        <View style={[styles.missionCover, styles.missionCoverFallback]}>
-          <Text style={styles.missionCoverEmoji}>{story?.emoji ?? '⛵'}</Text>
-        </View>
-      )}
+      {/* ALVO do guia (Card 2 "Sua aventura atual"): capa + título da história —
+          o indicador visual mais CLARO da aventura atual (halo justo, não a seção). */}
+      <View ref={targetRef} collapsable={false} style={styles.missionTargetWrap}>
+        {/* Capa grande — a história em destaque */}
+        {hasThumb ? (
+          <View style={styles.missionCover}>
+            <Image
+              source={images[story.imagemCapa]}
+              style={styles.missionCoverImg}
+              resizeMode="cover"
+            />
+            <LinearGradient
+              colors={['transparent', 'rgba(20,12,4,0.55)']}
+              style={styles.missionCoverShade}
+            />
+          </View>
+        ) : (
+          <View style={[styles.missionCover, styles.missionCoverFallback]}>
+            <Text style={styles.missionCoverEmoji}>{story?.emoji ?? '⛵'}</Text>
+          </View>
+        )}
 
-      <Text style={styles.missionTitle} numberOfLines={2}>
-        {story?.titulo ?? primaryAction.title}
-      </Text>
-      {story?.referencia ? (
-        <Text style={styles.missionRef}>{story.referencia}</Text>
-      ) : null}
+        <Text style={styles.missionTitle} numberOfLines={2}>
+          {story?.titulo ?? primaryAction.title}
+        </Text>
+        {story?.referencia ? (
+          <Text style={styles.missionRef}>{story.referencia}</Text>
+        ) : null}
+      </View>
+
       {story?.licaoCoracao ? (
         <Text style={styles.missionLesson} numberOfLines={2}>💛 {story.licaoCoracao}</Text>
       ) : null}
@@ -810,6 +815,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
     fontWeight: '700', lineHeight: 18, marginBottom: 10,
   },
+  // Alvo do guia (Card 2): abraça só capa + título (halo justo, leitura clara).
+  missionTargetWrap: { borderRadius: radii.lg },
   missionCover: {
     width: '100%',
     aspectRatio: 16 / 9,
