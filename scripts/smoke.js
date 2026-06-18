@@ -247,6 +247,55 @@ check(
   'App.js must load the creator QA mode on startup',
 );
 
+// ── QA 1: Galeria de QA dos desenhos de colorir (só Modo Criador) ────────────
+{
+  const colImgSrc = readSrc('src/assets/coloringImages.js');
+  const colQaSrc = readSrc('src/screens/ColoringQaScreen.js');
+  const colScreenSrc = readSrc('src/screens/ColoringScreen.js');
+  const navSrc = readSrc('src/navigation/AppNavigator.js');
+  const parentSrcQa1 = readSrc('src/screens/ParentAreaScreen.js');
+  check(
+    'QA1: coloringImages expõe enumeração do manifesto (getColoringStoryIds/getColoringSceneIds), só leitura',
+    colImgSrc.includes('export function getColoringStoryIds') &&
+    colImgSrc.includes('export function getColoringSceneIds') &&
+    colImgSrc.includes('Object.keys(coloringImages)'),
+    'coloringImages não expõe enumeração do manifesto',
+  );
+  check(
+    'QA1: ColoringScreen abre QUALQUER desenho só com qa + Modo Criador (duplo-gate); fluxo normal mantém bloqueio',
+    colScreenSrc.includes("import { isCreatorQaModeEnabled } from '../services/creatorQaMode'") &&
+    /qaBypass = route\.params\?\.qa === true && isCreatorQaModeEnabled\(\)/.test(colScreenSrc) &&
+    /if \(!qaBypass && !canOpenStoryFullExperience\(story\)\)/.test(colScreenSrc),
+    'ColoringScreen não tem o bypass de QA com duplo-gate (ou removeu o bloqueio normal)',
+  );
+  check(
+    'QA1: ColoringQaScreen lista por história, abre Coloring com qa:true e é restrita ao Modo Criador',
+    colQaSrc.includes("import { stories } from '../data/stories'") &&
+    colQaSrc.includes('getColoringImage') &&
+    colQaSrc.includes('isCreatorQaModeAllowed') &&
+    /navigation\.navigate\('Coloring', \{ story, cenaIndex: index, qa: true/.test(colQaSrc) &&
+    colQaSrc.includes('if (!allowed)'),
+    'ColoringQaScreen não lista/abre os desenhos em QA ou não é restrita ao Criador',
+  );
+  check(
+    'QA1: ColoringQaScreen é SÓ leitura — não importa/chama writers de progresso/conquista/plano',
+    !colQaSrc.includes('AsyncStorage') &&
+    !/from '\.\.\/services\/(accessControl|achievementService|rewardService|postStoryStorage|drawingStorage|progressResetService)'/.test(colQaSrc) &&
+    !/from '\.\.\/context\/ProgressContext'/.test(colQaSrc) &&
+    !colQaSrc.includes('setCreatorQaModeEnabled') &&
+    !/markStor|saveProgress|refreshProgress|unlockAchievement/i.test(colQaSrc),
+    'ColoringQaScreen importa/chama writers de progresso/conquista/plano (deveria ser só leitura + navegação)',
+  );
+  check(
+    'QA1: rota ColoringQa registrada e entrada na seção Ferramentas do Criador (SHOW_TEST_TOOLS)',
+    navSrc.includes("name=\"ColoringQa\"") &&
+    navSrc.includes('import ColoringQaScreen') &&
+    parentSrcQa1.includes("navigation.navigate('ColoringQa')") &&
+    /\{SHOW_TEST_TOOLS &&[\s\S]*?navigation\.navigate\('ColoringQa'\)/.test(parentSrcQa1),
+    'rota ColoringQa ausente ou entrada fora do gate de Ferramentas do Criador',
+  );
+}
+
 // ── [16–20] contentAccessService.js API ─────────────────────────────────────
 console.log('\n── contentAccessService.js API ──');
 

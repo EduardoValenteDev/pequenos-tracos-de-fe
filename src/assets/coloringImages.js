@@ -157,4 +157,18 @@ export function getColoringImage(storyId, sceneId) {
   return coloringImages[storyId]?.[sceneId] ?? null;
 }
 
+/**
+ * IDs de história que possuem PACOTE de colorir (chaves do manifesto). Só leitura —
+ * usado pela ferramenta de QA do Criador para enumerar os desenhos.
+ */
+export function getColoringStoryIds() {
+  return Object.keys(coloringImages);
+}
+
+/** IDs de cena (ordenados) com imagem de colorir para uma história. Só leitura. */
+export function getColoringSceneIds(storyId) {
+  const pack = coloringImages[storyId];
+  return pack ? Object.keys(pack).map(Number).sort((a, b) => a - b) : [];
+}
+
 export default coloringImages;

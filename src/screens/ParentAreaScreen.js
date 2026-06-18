@@ -924,6 +924,16 @@ export default function ParentAreaScreen({ navigation }) {
               </InfoCard>
 
               <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
+                <Text style={styles.qaTitle}>Testar Desenhos (QA)</Text>
+                <Text style={styles.qaDesc}>
+                  Abre todos os desenhos de colorir (inclusive de histórias bloqueadas) para validação. Não altera progresso, plano nem conquistas.
+                </Text>
+                <SoundButton style={styles.qaResetBtn} onPress={() => navigation.navigate('ColoringQa')} activeOpacity={0.85}>
+                  <Text style={styles.qaResetBtnText}>Abrir galeria de QA</Text>
+                </SoundButton>
+              </InfoCard>
+
+              <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
                 <Text style={styles.qaTitle}>Build info</Text>
                 <Text style={styles.qaDesc}>{productConfig.versionLabel}</Text>
                 <Text style={[styles.qaDesc, { marginTop: 4 }]}>Modo QA ativo neste aparelho.</Text>

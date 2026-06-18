@@ -17,6 +17,7 @@ import AdventureMapScreen from '../screens/AdventureMapScreen';
 import StoryDetailScreen from '../screens/StoryDetailScreen';
 import NarrationScreen from '../screens/NarrationScreen';
 import ColoringScreen from '../screens/ColoringScreen';
+import ColoringQaScreen from '../screens/ColoringQaScreen';
 import CongratsScreen from '../screens/CongratsScreen';
 import TrophiesScreen from '../screens/TrophiesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -252,6 +253,13 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Coloring"
           component={ColoringScreen}
+          options={{ headerShown: false }}
+        />
+        {/* QA do Criador: galeria para testar todos os desenhos de colorir.
+            Entrada só na seção "Ferramentas do Criador" da Área dos Pais. */}
+        <Stack.Screen
+          name="ColoringQa"
+          component={ColoringQaScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

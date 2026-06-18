@@ -18,6 +18,7 @@ import {
   hasMeaningfulPaint,
 } from '../services/drawingStorage';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
+import { isCreatorQaModeEnabled } from '../services/creatorQaMode';
 import FaithIcon from '../components/ui/FaithIcon';
 import { backLabelFor } from '../utils/originBack';
 
@@ -70,7 +71,11 @@ export default function ColoringScreen({ route, navigation }) {
   const panHintTimerRef = useRef(null);
 
   useEffect(() => {
-    if (!canOpenStoryFullExperience(story)) {
+    // QA do Criador: abre QUALQUER desenho (premium/"Em breve") para teste, SÓ quando
+    // route.params.qa e o Modo Criador estiverem ativos (duplo-gate). No fluxo normal
+    // da criança o bloqueio/paywall segue valendo — nada é liberado.
+    const qaBypass = route.params?.qa === true && isCreatorQaModeEnabled();
+    if (!qaBypass && !canOpenStoryFullExperience(story)) {
       navigation.replace('ParentArea');
     }
   }, []);
