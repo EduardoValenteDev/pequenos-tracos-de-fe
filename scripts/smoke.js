@@ -5279,6 +5279,27 @@ check(
   'Livrinho não tem modo de reprodução contínua corretamente cabeado',
 );
 
+// ── LIVRINHO 1.1: autoplay determinístico (espera load) + arte colorida grande ──
+check(
+  'LIVRINHO1.1: autostart ESPERA o asset carregar (status.isLoaded) antes de tocar — corrige autoplay intermitente',
+  /if \(!status\.isLoaded\) return;/.test(audioPlayerSrc) &&
+  /autoStartedRef\.current = true;[\s\S]{0,80}player\.play\(\);[\s\S]{0,40}setAppStatus\('playing'\)/.test(audioPlayerSrc) &&
+  // o autostart NÃO marca 'playing' antes do load (sem 'loading' no caminho de autostart)
+  !/if \(!autoPlay \|\| paused\) return;[\s\S]{0,260}'loading'/.test(audioPlayerSrc),
+  'autostart do AudioPlayer ainda pode tocar antes do load (autoplay intermitente)',
+);
+check(
+  'LIVRINHO1.1: arte da criança preenche o card pelo RETÂNGULO da arte (computeArtworkScale/computePaintStyle), cor+contorno alinhados',
+  livro54.includes('computeArtworkScale') &&
+  livro54.includes('computePaintStyle') &&
+  livro54.includes('paintAbsStyle') &&
+  // escala pelo retângulo do lineart (não pelo canvas inteiro) → arte grande
+  /Math\.min\(containerW \/ visual\.lineartImgW, containerH \/ visual\.lineartImgH\)/.test(livro54) &&
+  // computeLineartStyle (alinhamento) e lineartAbsStyle continuam presentes
+  livro54.includes('computeLineartStyle') && livro54.includes('lineartAbsStyle'),
+  'arte colorida não preenche o card pelo retângulo real (segue pequena no canvas inteiro)',
+);
+
 check(
   'Guia documenta o padrão 4:5 das imagens de cena',
   (() => {

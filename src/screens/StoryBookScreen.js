@@ -183,21 +183,42 @@ function buildStoryBookTimeline(story, drawings, mode) {
  * Computes the absolute style for the lineart overlay so it aligns pixel-perfect
  * with the paint layer (which is displayed with resizeMode="contain").
  */
-function computeLineartStyle(containerW, containerH, visual) {
-  if (!containerW || !containerH || !visual.canvasW || !visual.canvasH) {
-    return { position: 'absolute', opacity: 0 };
+// Livrinho 1.1 — a ARTE (retângulo do lineart) é a PROTAGONISTA: preenche o card.
+// A arte salva é o CANVAS INTEIRO (W×H) com o desenho num sub-retângulo centralizado
+// (imgX/Y/W/H) cercado de margem creme. Antes containávamos o canvas todo → arte
+// pequena dentro de um card grande. Agora escalamos pelo RETÂNGULO DA ARTE (contain
+// do rect no card): o canvas extrapola o card e é recortado (overflow hidden do
+// frame), mostrando só a arte, grande. Paint e lineart usam a MESMA escala/âncora,
+// então cor e contorno seguem alinhados pixel a pixel.
+function computeArtworkScale(containerW, containerH, visual) {
+  if (!containerW || !containerH || !visual.canvasW || !visual.canvasH || !visual.lineartImgW || !visual.lineartImgH) {
+    return null;
   }
-  const scale = Math.min(containerW / visual.canvasW, containerH / visual.canvasH);
-  const paintDisplayW = visual.canvasW * scale;
-  const paintDisplayH = visual.canvasH * scale;
-  const offsetX = (containerW - paintDisplayW) / 2;
-  const offsetY = (containerH - paintDisplayH) / 2;
+  const scale = Math.min(containerW / visual.lineartImgW, containerH / visual.lineartImgH);
+  const rectW = visual.lineartImgW * scale;
+  const rectH = visual.lineartImgH * scale;
+  const rectLeft = (containerW - rectW) / 2;
+  const rectTop = (containerH - rectH) / 2;
+  return { scale, rectW, rectH, rectLeft, rectTop };
+}
+
+/** Estilo do CONTORNO (lineart) — preenche o card com o retângulo real da arte. */
+function computeLineartStyle(containerW, containerH, visual) {
+  const a = computeArtworkScale(containerW, containerH, visual);
+  if (!a) return { position: 'absolute', opacity: 0 };
+  return { position: 'absolute', left: a.rectLeft, top: a.rectTop, width: a.rectW, height: a.rectH };
+}
+
+/** Estilo da PINTURA (canvas inteiro) deslocado p/ o retângulo da arte cair sobre o lineart. */
+function computePaintStyle(containerW, containerH, visual) {
+  const a = computeArtworkScale(containerW, containerH, visual);
+  if (!a) return null;
   return {
     position: 'absolute',
-    left: offsetX + visual.lineartImgX * scale,
-    top: offsetY + visual.lineartImgY * scale,
-    width: visual.lineartImgW * scale,
-    height: visual.lineartImgH * scale,
+    left: a.rectLeft - visual.lineartImgX * a.scale,
+    top: a.rectTop - visual.lineartImgY * a.scale,
+    width: visual.canvasW * a.scale,
+    height: visual.canvasH * a.scale,
   };
 }
 
@@ -237,11 +258,11 @@ function ChildArtWithLineart({ visual, containerW, containerH }) {
   const [lineartLoaded, setLineartLoaded] = useState(false);
 
   const positioned = visual.type === 'paintWithLineart';
-  const measured = !positioned || (containerW > 0 && containerH > 0);
-  // computeLineartStyle devolve { opacity: 0 } até a moldura/canvas estarem prontos.
-  const lineartAbsStyle = positioned
-    ? computeLineartStyle(containerW, containerH, visual)
-    : null;
+  // v2 (com layout): cor e contorno escalados pelo retângulo da arte → arte grande.
+  const lineartAbsStyle = positioned ? computeLineartStyle(containerW, containerH, visual) : null;
+  const paintAbsStyle = positioned ? computePaintStyle(containerW, containerH, visual) : null;
+  // Posicionado só está pronto quando a moldura foi medida (paintAbsStyle calculado).
+  const measured = !positioned || !!paintAbsStyle;
   // Só revela quando cor E contorno carregaram (e o lineart pode ser posicionado).
   const ready = paintLoaded && lineartLoaded && measured;
 
@@ -251,8 +272,8 @@ function ChildArtWithLineart({ visual, containerW, containerH }) {
       <View style={[StyleSheet.absoluteFill, { opacity: ready ? 1 : 0 }]}>
         <Image
           source={{ uri: visual.paintUri }}
-          style={styles.bookFullImage}
-          resizeMode="contain"
+          style={positioned && paintAbsStyle ? paintAbsStyle : styles.bookFullImage}
+          resizeMode={positioned && paintAbsStyle ? 'stretch' : 'contain'}
           fadeDuration={0}
           onLoad={() => setPaintLoaded(true)}
         />
@@ -366,6 +387,17 @@ export default function StoryBookScreen({ route, navigation }) {
     return () => { cancelled = true; };
   }, [story?.id]);
 
+  // DEV: relata cenas sem som (autoplay cai no timer nelas). A Criação tem os 10.
+  useEffect(() => {
+    if (!__DEV__ || !story?.id) return;
+    const r = getStoryBookPlaybackReadiness(story);
+    if (r.missingAudioSceneIds.length) {
+      if (__DEV__) console.log('[StoryBook][DEV] cenas sem som:', r.missingAudioSceneIds, '— autoplay por timer');
+    } else if (__DEV__) {
+      console.log('[StoryBook][DEV] todas as', r.totalScenes, 'cenas têm som (autoplay contínuo)');
+    }
+  }, [story?.id]);
+
   // Fade-in do slide atual. SEMPRE termina em 1 (defesa contra imagem "presa
   // quase branca"): cada troca de slide/modo reinicia a opacidade e anima até 1.
   useEffect(() => {
@@ -430,15 +462,20 @@ export default function StoryBookScreen({ route, navigation }) {
   function advanceToNextScene() {
     if (lockRef.current) return;
     if (currentSlideIndex >= totalSlides - 1) {
-      setScreenState('ended');
+      if (__DEV__) console.log('[StoryBook] last scene reached → ended (no loop)');
+      setScreenState('ended'); // não tenta avançar p/ cena inexistente, sem loop
     } else {
+      if (__DEV__) console.log('[StoryBook] advance to scene', currentSlideIndex + 2, 'continuous=', autoplayActive);
       beginLock();
       setCurrentSlideIndex(i => i + 1);
       setIsPaused(false);
+      // continuousPlayback (autoplayActive) NÃO é alterado aqui: o fim natural do
+      // áudio mantém o modo contínuo → a próxima cena toca sozinha (gate isLoaded).
     }
   }
 
   function onSceneAudioComplete() {
+    if (__DEV__) console.log('[StoryBook] finished scene', currentSlideIndex + 1);
     advanceToNextScene();
   }
 

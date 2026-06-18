@@ -48,18 +48,22 @@ function AudioPlayerInner({ audioAsset, onFinished, paused, autoPlay, onPlayStar
     finishedCalledRef.current = false;
   }, [audioAsset]);
 
-  // Auto-start da narração no Livrinho contínuo: toca SOZINHO ao montar/quando
-  // autoPlay liga, só se ainda estiver 'idle' e não pausado (sem sequestrar uma
-  // reprodução já em curso, sem tocar duas vezes). Avisa o pai (onPlayStart) para
-  // ele entrar/seguir no modo de reprodução contínua.
+  // Auto-start da narração no Livrinho contínuo (Livrinho 1.1): toca SOZINHO, mas
+  // SÓ depois que o asset da cena CARREGOU (status.isLoaded). A causa do autoplay
+  // intermitente do 1.0 era chamar player.play() antes do load do novo asset: em
+  // alguns remounts era no-op e a cena ficava "tocando" muda, sem didJustFinish,
+  // exigindo Play de novo. Esperar o load torna o play determinístico por cena.
+  // autoStartedRef garante UMA vez por montagem; toque manual também marca a flag.
   useEffect(() => {
     if (!autoPlay || paused) return;
-    if (autoStartedRef.current || appStatus !== 'idle') return;
+    if (autoStartedRef.current) return;
+    if (!status.isLoaded) return; // espera carregar — corrige autoplay intermitente
     autoStartedRef.current = true;
     player.play();
-    setAppStatus(status.isLoaded ? 'playing' : 'loading');
+    setAppStatus('playing');
+    if (__DEV__) console.log('[AudioPlayer] auto-start (asset loaded) → play');
     onPlayStart?.();
-  }, [autoPlay, paused, appStatus, status.isLoaded]);
+  }, [autoPlay, paused, status.isLoaded]);
 
   // ── Coordenação com a música de fundo (Bloco 5) ──
   // Regra: a música NUNCA se sobrepõe à narração. Ao tocar a narração, a música
