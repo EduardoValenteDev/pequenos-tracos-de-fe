@@ -21,6 +21,8 @@ import { useProgressContext } from '../context/ProgressContext';
 import SoundButton from '../components/SoundButton';
 import MapRegion from '../components/map/MapRegion';
 import StoryFocusModal from '../components/map/StoryFocusModal';
+import BeniAppTour from '../components/BeniAppTour';
+import { hasSeenBeniAppTour, markBeniAppTourSeen } from '../services/beniTourService';
 
 const REGION_OVERLAP = 0; // regiões se tocam exatamente (sem overlap que cortava a base da arte)
 
@@ -30,8 +32,27 @@ const REGION_OVERLAP = 0; // regiões se tocam exatamente (sem overlap que corta
 // faixa morta de pergaminho. (Mesma constante alimenta o cálculo de câmera.)
 const SCROLL_BOTTOM_PAD = 0;
 
-export default function AdventureMapScreen({ navigation }) {
+export default function AdventureMapScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+
+  // ── UX 2.0: Tour Mágico do Beni — só após o onboarding (param startBeniTour) e
+  // só UMA vez (guardado por beniTourService). Usuário antigo entra pela aba sem o
+  // param → tour nunca aparece. É puramente visual: não toca acesso/progresso.
+  const [showBeniTour, setShowBeniTour] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    if (route?.params?.startBeniTour) {
+      hasSeenBeniAppTour().then((seen) => {
+        if (alive && !seen) setShowBeniTour(true);
+      });
+    }
+    return () => { alive = false; };
+  }, [route?.params?.startBeniTour]);
+  const closeBeniTour = useCallback(() => {
+    setShowBeniTour(false);
+    markBeniAppTourSeen();
+    navigation.setParams?.({ startBeniTour: false });
+  }, [navigation]);
   const { width, height } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
 
@@ -357,6 +378,9 @@ export default function AdventureMapScreen({ navigation }) {
           </Animated.View>
         </Animated.View>
       </Modal>
+
+      {/* UX 2.0 — Tour Mágico do Beni (sobre o mapa, abaixo da tab bar). Visual, uma vez. */}
+      {showBeniTour && <BeniAppTour onFinish={closeBeniTour} onSkip={closeBeniTour} />}
     </View>
   );
 }

@@ -6354,11 +6354,54 @@ check(
 );
 
 check(
-  'OnboardingScreen navega com história resolvida do catálogo canônico',
-  onboardingScreenSrc.includes('resolveFullStory(selectedStoryId)') &&
-  (onboardingScreenSrc.includes('story: fullStory') || onboardingScreenSrc.includes("params: { story: fullStory")),
-  'OnboardingScreen deve chamar resolveFullStory(selectedStoryId) e navegar com o resultado',
+  'UX2.0 OnboardingScreen: ao concluir, vai para a aba Aventuras com o Tour do Beni (startBeniTour), não direto pra história',
+  /name: 'Aventuras', params: \{ startBeniTour: true \}/.test(onboardingScreenSrc) &&
+  onboardingScreenSrc.includes('markOnboardingCompleted') &&
+  !onboardingScreenSrc.includes('params: { story: fullStory'),
+  'OnboardingScreen deve cair na aba Aventuras com startBeniTour após o onboarding',
 );
+
+// ── UX 2.0: Tour Mágico do Beni (visual, uma vez, após o onboarding) ─────────
+{
+  const tourSvc = readSrc('src/services/beniTourService.js');
+  const tourCmp = readSrc('src/components/BeniAppTour.js');
+  const mapSrcTour = readSrc('src/screens/AdventureMapScreen.js');
+  const parentTour = readSrc('src/screens/ParentAreaScreen.js');
+  check(
+    'UX2.0: beniTourService = flag local (@ptf_beni_app_tour_seen_v1), defensivo, sem tocar progresso/paywall',
+    tourSvc.includes('@ptf_beni_app_tour_seen_v1') &&
+    tourSvc.includes('export async function hasSeenBeniAppTour') &&
+    tourSvc.includes('export async function markBeniAppTourSeen') &&
+    tourSvc.includes('export async function resetBeniAppTour') &&
+    !/from '\.\.\/services\/(accessControl|achievementService|rewardService|postStoryStorage)'/.test(tourSvc) &&
+    !/ProgressContext|isPremiumUser|unlockAchievement|markStor/i.test(tourSvc),
+    'beniTourService ausente/sem API ou importa/chama progresso/acesso',
+  );
+  check(
+    'UX2.0: BeniAppTour usa Beni oficial, tem Pular tour + CTA final, Animated nativo e sem pacote novo (Lottie)',
+    tourCmp.includes("from '../assets/mascot/beniImages'") &&
+    tourCmp.includes('Pular tour') &&
+    tourCmp.includes('Começar minha jornada') &&
+    tourCmp.includes('Animated') &&
+    !/lottie/i.test(tourCmp),
+    'BeniAppTour sem Beni oficial / sem Pular / sem CTA final / usa Lottie',
+  );
+  check(
+    'UX2.0: AdventureMapScreen mostra o tour só com startBeniTour + não-visto e marca visto ao fechar',
+    mapSrcTour.includes('startBeniTour') &&
+    mapSrcTour.includes('hasSeenBeniAppTour') &&
+    mapSrcTour.includes('markBeniAppTourSeen') &&
+    mapSrcTour.includes('<BeniAppTour'),
+    'AdventureMapScreen não condiciona/renderiza o tour corretamente',
+  );
+  check(
+    'UX2.0: Ferramentas do Criador tem "Rever Tour do Beni" (reset + abre Aventuras)',
+    parentTour.includes('resetBeniAppTour') &&
+    parentTour.includes('Rever Tour do Beni') &&
+    /navigation\.navigate\('Home', \{ screen: 'Aventuras', params: \{ startBeniTour: true \} \}\)/.test(parentTour),
+    'falta a opção de rever o tour na Área dos Pais (Criador)',
+  );
+}
 
 check(
   'NarrationScreen tem guarda contra story sem cenas',

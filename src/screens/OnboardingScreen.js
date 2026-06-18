@@ -188,14 +188,26 @@ export default function OnboardingScreen({ navigation }) {
       // 3. Marca onboarding concluído
       await markOnboardingCompleted();
 
-      // 4. Resolve a história completa (com cenas) do catálogo canônico — nunca STARTER_STORIES
-      const fullStory = resolveFullStory(selectedStoryId);
+      // 4. UX 2.0: em vez de cair direto numa história, a primeira visão é a aba
+      // AVENTURAS (mapa) com o "Tour Mágico do Beni" por cima (startBeniTour). O
+      // tour aparece uma única vez (guardado pelo beniTourService).
       navigation.dispatch(
         CommonActions.reset({
-          index: 1,
+          index: 0,
           routes: [
-            { name: 'Home' },
-            { name: 'StoryDetail', params: { story: fullStory } },
+            {
+              name: 'Home',
+              state: {
+                index: 1, // aba Aventuras
+                routes: [
+                  { name: 'Início' },
+                  { name: 'Aventuras', params: { startBeniTour: true } },
+                  { name: 'Ateliê' },
+                  { name: 'Estrelinhas' },
+                  { name: 'Perfil' },
+                ],
+              },
+            },
           ],
         }),
       );

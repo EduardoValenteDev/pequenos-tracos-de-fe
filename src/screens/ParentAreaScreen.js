@@ -15,6 +15,7 @@ import {
   setCreatorQaModeEnabled,
 } from '../services/creatorQaMode';
 import { resetOnboardingForQa } from '../services/onboardingService';
+import { resetBeniAppTour } from '../services/beniTourService';
 import productConfig from '../config/productConfig';
 import { useProgressContext } from '../context/ProgressContext';
 import { useProfile } from '../context/ProfileContext';
@@ -328,6 +329,12 @@ export default function ParentAreaScreen({ navigation }) {
     } else {
       Alert.alert('Erro', 'Não foi possível resetar o onboarding. Tente novamente.');
     }
+  }
+
+  // Rever o Tour Mágico do Beni: limpa a flag e abre a aba Aventuras com o gatilho.
+  async function handleReviewBeniTour() {
+    await resetBeniAppTour();
+    navigation.navigate('Home', { screen: 'Aventuras', params: { startBeniTour: true } });
   }
 
   const handleRestorePurchase = useCallback(() => {
@@ -930,6 +937,16 @@ export default function ParentAreaScreen({ navigation }) {
                 </Text>
                 <SoundButton style={styles.qaResetBtn} onPress={() => navigation.navigate('ColoringQa')} activeOpacity={0.85}>
                   <Text style={styles.qaResetBtnText}>Abrir galeria de QA</Text>
+                </SoundButton>
+              </InfoCard>
+
+              <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
+                <Text style={styles.qaTitle}>Rever Tour do Beni</Text>
+                <Text style={styles.qaDesc}>
+                  Mostra novamente o Tour Mágico do Beni sobre a aba Aventuras. Só visual — não altera progresso nem acesso.
+                </Text>
+                <SoundButton style={styles.qaResetBtn} onPress={handleReviewBeniTour} activeOpacity={0.85}>
+                  <Text style={styles.qaResetBtnText}>Rever Tour do Beni</Text>
                 </SoundButton>
               </InfoCard>
 
