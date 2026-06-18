@@ -71,15 +71,20 @@ export default function AdventureMapScreen({ navigation, route }) {
   const registerNextPin = useMemo(() => guideTargets.register('adventures.nextPin'), [guideTargets.register]);
   // UX 2.4: a voz do passo do "brilho" depende do estado do foco (só leitura — não
   // muda current/nextLocked/acesso): liberado → next_available; bloqueado → next_locked.
-  const adventuresSteps = useMemo(
-    () =>
-      ADVENTURES_GUIDE.map((s) =>
-        s.target === 'adventures.nextPin'
-          ? { ...s, audioKey: currentId ? 'guide.adventures.next_available' : (nextLockedId ? 'guide.adventures.next_locked' : s.audioKey) }
-          : s,
-      ),
-    [currentId, nextLockedId],
-  );
+  const adventuresSteps = useMemo(() => {
+    const focusLocked = !currentId && !!nextLockedId; // foco da jornada bloqueado
+    return ADVENTURES_GUIDE.map((s) => {
+      if (s.target !== 'adventures.nextPin') return s;
+      return {
+        ...s,
+        audioKey: currentId ? 'guide.adventures.next_available' : (nextLockedId ? 'guide.adventures.next_locked' : s.audioKey),
+        title: focusLocked ? 'Próxima aventura' : s.title,
+        text: focusLocked
+          ? 'Essa aventura ainda está bloqueada. Peça ajuda a um responsável para continuar.'
+          : s.text,
+      };
+    });
+  }, [currentId, nextLockedId]);
   const { width, height } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
 

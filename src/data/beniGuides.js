@@ -11,11 +11,11 @@
 // Aventuras (aba) — PILOTO UX 2.3 com alvos REAIS medidos (useGuideTargets).
 // 'adventures.nextPin' fica sem medição segura por enquanto → sem contorno (fallback).
 export const ADVENTURES_GUIDE = [
-  { variant: 'teaching',    target: 'adventures.map',           title: 'Seu mapa',      text: 'Aqui começa sua jornada pelas histórias da Bíblia.', audioKey: 'guide.adventures.path' },
-  // audioKey do pin é DEFAULT (available); a tela troca p/ next_locked se o foco
-  // estiver bloqueado (sem mexer em current/nextLocked/acesso).
-  { variant: 'celebrating', target: 'adventures.nextPin',       title: 'Siga o brilho', text: 'O brilho mostra onde continuar.',                     audioKey: 'guide.adventures.next_available' },
-  { variant: 'happy',       target: 'adventures.viewMapButton', title: 'Ver a região',  text: 'Toque aqui para ver o mapa maior.',                   audioKey: 'guide.adventures.view_region' },
+  { variant: 'teaching',    target: 'adventures.map',           title: 'Seu mapa',      text: 'Você acompanha sua jornada aqui. As histórias aparecem pelo caminho.', audioKey: 'guide.adventures.path' },
+  // O pin é DEFAULT (liberado/available); a tela troca título/texto/áudio para a
+  // versão BLOQUEADA quando o foco for nextLocked (só leitura — não mexe no acesso).
+  { variant: 'celebrating', target: 'adventures.nextPin',       title: 'Siga o brilho', text: 'Este brilho mostra sua próxima aventura. Toque nele quando estiver pronto.', audioKey: 'guide.adventures.next_available' },
+  { variant: 'happy',       target: 'adventures.viewMapButton', title: 'Ver a região',  text: 'O botão Ver mapa abre o mapa inteiro. Olhe os detalhes com calma.',     audioKey: 'guide.adventures.view_region' },
 ];
 
 // Home

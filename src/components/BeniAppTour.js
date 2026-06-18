@@ -13,8 +13,9 @@ import BeniGuideOverlay from './BeniGuideOverlay';
 // Apresentação MÍNIMA, só sobre o mapa (UX 2.3): 2 passos, sem indicador visual
 // (não passa `measure`) → só o balão do Beni, sem contorno aproximado.
 const INITIAL_STEPS = [
-  { variant: 'happy',       title: 'Eu sou o Beni!',   text: 'Vou caminhar com você pelas histórias da Bíblia.', audioKey: 'guide.initial.welcome' },
-  { variant: 'celebrating', title: 'Comece pelo brilho', text: 'Quando um ponto brilhar, toque nele para continuar.', audioKey: 'guide.initial.glow' },
+  { variant: 'happy',       title: 'Eu sou o Beni!',       text: 'Seu companheiro de aventuras! Vou caminhar com você pelas histórias da Bíblia.', audioKey: 'guide.initial.welcome' },
+  { variant: 'teaching',    title: 'Seu mapa de aventuras', text: 'É aqui que começa o seu caminho de fé.',                                          audioKey: 'guide.initial.adventures' },
+  { variant: 'celebrating', title: 'Siga o brilho',        text: 'Sua próxima aventura sempre vai estar brilhando. Siga por esse brilho!',          audioKey: 'guide.initial.glow' },
 ];
 
 export default function BeniAppTour({ onFinish, onSkip }) {

@@ -6396,13 +6396,13 @@ check(
     'BeniGuideOverlay não é o guia preciso medido (ou ainda usa spotlight aproximado)',
   );
   check(
-    'UX2.3: tour inicial = abertura MÍNIMA (2 passos) via BeniGuideOverlay, CTA "Começar minha jornada", sem indicador visual aproximado',
+    'UX2.4: tour inicial = abertura curta (3 passos, alinhada à voz) via BeniGuideOverlay, CTA "Começar minha jornada", sem indicador visual aproximado',
     tourCmp.includes('BeniGuideOverlay') &&
     tourCmp.includes('Começar minha jornada') &&
-    (tourCmp.match(/title:/g) || []).length === 2 &&
+    (tourCmp.match(/title:/g) || []).length === 3 &&
     !tourCmp.includes('measure=') &&
     !/Ateliê|Estrelinhas|Perfil/.test(tourCmp),
-    'tour inicial não foi reduzido a 2 passos sem indicador aproximado',
+    'tour inicial não está com 3 passos alinhados à voz (sem indicador aproximado)',
   );
   check(
     'UX2.0: AdventureMapScreen mostra o tour só com startBeniTour + não-visto e marca visto ao fechar',
