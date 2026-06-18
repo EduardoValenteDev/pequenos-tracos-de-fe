@@ -88,7 +88,8 @@ export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxSt
           const sidebarTargetName =
             tab.name === 'Aventuras' ? 'adventures.sidebarTab'
               : tab.name === 'Início' ? 'home.sidebarTab'
-                : null;
+                : tab.name === 'Ateliê' ? 'atelier.sidebarTab'
+                  : null;
           if (sidebarTargetName) {
             return (
               <View key={tab.name} collapsable={false} ref={registerGuideTarget(sidebarTargetName)}>

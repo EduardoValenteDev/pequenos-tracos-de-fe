@@ -29,6 +29,11 @@ const BENI_GUIDE_AUDIO = {
   'guide.home.bau_beni':             require('../../assets/audio/beni_guide/home/guide_home_bau_beni.mp3'),
   'guide.home.create_beni':          require('../../assets/audio/beni_guide/home/guide_home_create_beni.mp3'),
   'guide.home.momento_beni':         require('../../assets/audio/beni_guide/home/guide_home_momento_beni.mp3'),
+  // Guia da aba Ateliê (Ateliê 1.0) — assets/audio/beni_guide/atelier/
+  'guide.atelier.welcome':           require('../../assets/audio/beni_guide/atelier/guide_atelier_welcome.mp3'),
+  'guide.atelier.coloring':          require('../../assets/audio/beni_guide/atelier/guide_atelier_coloring.mp3'),
+  'guide.atelier.free_draw':         require('../../assets/audio/beni_guide/atelier/guide_atelier_free_draw.mp3'),
+  'guide.atelier.gallery':           require('../../assets/audio/beni_guide/atelier/guide_atelier_gallery.mp3'),
 };
 
 /**

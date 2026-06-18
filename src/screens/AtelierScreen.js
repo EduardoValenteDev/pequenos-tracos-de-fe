@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, Animated, StyleSheet,
+  View, Text, ScrollView, Animated, StyleSheet, useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -11,6 +11,8 @@ import { BeniGuideBubble } from '../components/beni';
 import CenteredContent from '../components/layout/CenteredContent';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
+import { useGuideTargets } from '../hooks/useGuideTargets';
+import { measureGuideTarget } from '../services/guideTargetRegistry';
 import { ATELIER_GUIDE } from '../data/beniGuides';
 import { MISSIONS } from '../data/atelierData';
 import { listArts, ATELIER_FREE_SAVE_LIMIT } from '../services/atelierStorage';
@@ -21,7 +23,7 @@ function pickMission() {
   return MISSIONS[Math.floor(Math.random() * MISSIONS.length)];
 }
 
-function AnimatedCard({ delay, children, style }) {
+function AnimatedCard({ delay, children, style, targetRef }) {
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(28)).current;
   useEffect(() => {
@@ -31,7 +33,7 @@ function AnimatedCard({ delay, children, style }) {
     ]).start();
   }, []);
   return (
-    <Animated.View style={[style, { opacity: fade, transform: [{ translateY: slide }] }]}>
+    <Animated.View ref={targetRef} collapsable={false} style={[style, { opacity: fade, transform: [{ translateY: slide }] }]}>
       {children}
     </Animated.View>
   );
@@ -39,13 +41,44 @@ function AnimatedCard({ delay, children, style }) {
 
 export default function AtelierScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const { height: screenH } = useWindowDimensions();
 
   // Origem (Bloco 2): quando o Ateliê é empurrado por contexto (ex.: Cultinho),
   // mostra um botão Voltar que retorna à origem. Pela aba, fica sem botão.
   const from = route?.params?.from;
   const showBack = !isFromTab(from);
-  // UX 2.3: guia do Ateliê DESATIVADO (reprovado) — só reativa no bloco UX 2.5.
-  const atelierGuide = useScreenGuide('atelier', false);
+  // Ateliê 1.0: guia falado do Ateliê ATIVO — 1ª visita (flag @ptf_beni_guide_atelier_v1).
+  // Só pela ABA (sem from): aberto por contexto (ex.: Cultinho) não dispara o guia.
+  const atelierGuide = useScreenGuide('atelier', isFromTab(from));
+  // Alvos REAIS dos módulos do Ateliê (measureInWindow) — sem medição → fallback sem seta.
+  const atelierTargets = useGuideTargets();
+  // Medição combinada: alvos LOCAIS (cards) + GLOBAL (item Ateliê da sidebar no tablet).
+  const measureAtelierTarget = useCallback(
+    (name) => atelierTargets.measure(name).then((r) => r || measureGuideTarget(name)),
+    [atelierTargets.measure],
+  );
+  // Rolagem do Ateliê p/ trazer o alvo do card atual à área visível antes de medir.
+  const scrollRef = useRef(null);
+  const scrollY = useRef(0);
+  const onAtelierScroll = useCallback((e) => { scrollY.current = e.nativeEvent.contentOffset.y; }, []);
+  const scrollGuideTargetIntoView = useCallback((name) => {
+    if (!name) { scrollRef.current?.scrollTo({ y: 0, animated: true }); return; } // Card 1: topo
+    atelierTargets.measure(name).then((r) => {
+      if (!r) return; // sem medição → sem rolagem (overlay cai no fallback honesto)
+      if (r.height >= 170) {
+        const desiredTop = insets.top + 60;
+        const delta = r.y - desiredTop;
+        if (Math.abs(delta) > 8) scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + delta), animated: true });
+        return;
+      }
+      const desiredTop = insets.top + 110;
+      const viewBottom = screenH - 64 - 190;
+      let delta = 0;
+      if (r.y < desiredTop) delta = r.y - desiredTop;
+      else if (r.y + r.height > viewBottom) delta = (r.y + r.height) - viewBottom;
+      if (Math.abs(delta) > 8) scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + delta), animated: true });
+    });
+  }, [atelierTargets, insets.top, screenH]);
 
   const [mission] = useState(pickMission);
   const [artCount, setArtCount] = useState(0);
@@ -61,7 +94,7 @@ export default function AtelierScreen({ navigation, route }) {
 
   /* ── Ação principal: Colorir uma história ── */
   const pintarCenaCard = (
-    <AnimatedCard delay={90} style={[styles.card, styles.cardPrincipal, styles.inMesa]}>
+    <AnimatedCard delay={90} targetRef={atelierTargets.register('atelier.coloring')} style={[styles.card, styles.cardPrincipal, styles.inMesa]}>
       <LinearGradient colors={['#FFF3E6', '#FFE0C2']} style={styles.cardGradient}>
         <View style={styles.principalTag}>
           <Text style={styles.principalTagText}>✨ Comece por aqui</Text>
@@ -107,19 +140,21 @@ export default function AtelierScreen({ navigation, route }) {
         </View>
       </SoundButton>
 
-      {/* Criar livre */}
+      {/* Criar livre (alvo medido do guia: Card 3) */}
       <SoundButton
         style={[styles.tile, { backgroundColor: '#F3E8FF', borderColor: '#D7C2F5' }]}
         onPress={() => navigation.navigate('AtelierCanvas', {})}
         activeOpacity={0.85}
       >
-        <View style={[styles.tileEmojiBg, { backgroundColor: '#C4A8FF50' }]}>
-          <Text style={styles.tileEmoji}>📄</Text>
-        </View>
-        <Text style={styles.tileTitle}>Criar livre</Text>
-        <Text style={styles.tileDesc} numberOfLines={3}>Desenhe do seu jeito.</Text>
-        <View style={[styles.tileBtn, { backgroundColor: pt.purple }]}>
-          <Text style={styles.tileBtnText}>Abrir folha</Text>
+        <View ref={atelierTargets.register('atelier.free_draw')} collapsable={false} style={styles.tileTargetWrap}>
+          <View style={[styles.tileEmojiBg, { backgroundColor: '#C4A8FF50' }]}>
+            <Text style={styles.tileEmoji}>📄</Text>
+          </View>
+          <Text style={styles.tileTitle}>Criar livre</Text>
+          <Text style={styles.tileDesc} numberOfLines={3}>Desenhe do seu jeito.</Text>
+          <View style={[styles.tileBtn, { backgroundColor: pt.purple }]}>
+            <Text style={styles.tileBtnText}>Abrir folha</Text>
+          </View>
         </View>
       </SoundButton>
     </AnimatedCard>
@@ -127,7 +162,7 @@ export default function AtelierScreen({ navigation, route }) {
 
   /* ── Minhas artes — galeria + limite amigável ── */
   const minhasArtesCard = (
-    <AnimatedCard delay={290} style={styles.cardCompact}>
+    <AnimatedCard delay={290} targetRef={atelierTargets.register('atelier.gallery')} style={styles.cardCompact}>
       <SoundButton
         style={styles.compactRow}
         onPress={() => navigation.navigate('AtelierGallery')}
@@ -187,9 +222,12 @@ export default function AtelierScreen({ navigation, route }) {
   return (
     <View style={{ flex: 1 }}>
     <ScrollView
+      ref={scrollRef}
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 24 }}
       showsVerticalScrollIndicator={false}
+      onScroll={onAtelierScroll}
+      scrollEventThrottle={32}
     >
       {/* ── HEADER ── */}
       <LinearGradient
@@ -226,7 +264,14 @@ export default function AtelierScreen({ navigation, route }) {
       <View style={{ height: 8 }} />
     </ScrollView>
       {atelierGuide.visible && (
-        <BeniGuideOverlay steps={ATELIER_GUIDE} finalLabel="Entendi" onFinish={atelierGuide.close} onSkip={atelierGuide.close} />
+        <BeniGuideOverlay
+          steps={ATELIER_GUIDE}
+          measure={measureAtelierTarget}
+          finalLabel="Entendi"
+          onStep={scrollGuideTargetIntoView}
+          onFinish={atelierGuide.close}
+          onSkip={atelierGuide.close}
+        />
       )}
     </View>
   );
@@ -345,6 +390,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     ...shadows.soft,
   },
+  // Wrapper medível do tile (alvo do guia): preenche o tile, preserva o layout.
+  tileTargetWrap: { alignSelf: 'stretch', alignItems: 'flex-start' },
   tileEmojiBg: {
     width: 40, height: 40, borderRadius: 13,
     justifyContent: 'center', alignItems: 'center',

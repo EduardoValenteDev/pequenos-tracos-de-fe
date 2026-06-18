@@ -62,8 +62,8 @@ export default function BeniGuideOverlay({
   const isTabletLayout = width >= 768;
   // Realce de aba por chave (mobile=tab bar / tablet=sidebar). Generalizado p/ Início
   // e Aventuras (mesma lógica premium). Índice da aba (mobile) e alvo da sidebar (tablet).
-  const TAB_INDEX_BY_KEY = { home: 0, adventures: 1 };
-  const SIDEBAR_TARGET_BY_KEY = { home: 'home.sidebarTab', adventures: 'adventures.sidebarTab' };
+  const TAB_INDEX_BY_KEY = { home: 0, adventures: 1, atelier: 2 };
+  const SIDEBAR_TARGET_BY_KEY = { home: 'home.sidebarTab', adventures: 'adventures.sidebarTab', atelier: 'atelier.sidebarTab' };
   const targetFor = (s) =>
     s?.target || (isTabletLayout && s?.highlightTab ? (SIDEBAR_TARGET_BY_KEY[s.highlightTab] || null) : null);
   // Voz da etapa: só com aviso "com voz" + soundsEnabled + áudio existente.

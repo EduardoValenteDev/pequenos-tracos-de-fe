@@ -45,11 +45,13 @@ export const HOME_GUIDE = [
   { variant: 'happy',       title: 'Momento com Beni',      text: 'O Beni fica pertinho para conversar e ajudar.',     audioKey: 'guide.home.momento_beni', target: 'home.momento' },
 ];
 
-// Ateliê
+// Ateliê (Ateliê 1.0) — guia falado CURTO de 4 cards, com alvos MEDIDOS. Card 1
+// destaca a aba Ateliê (tab bar / sidebar). Não explica outras telas.
 export const ATELIER_GUIDE = [
-  { variant: 'artist',   target: 'mainArea', balloon: 'bottom', title: 'Hora de colorir',  text: 'Aqui você pinta desenhos das histórias.' },
-  { variant: 'happy',    target: 'mainArea', balloon: 'bottom', title: 'Escolha suas cores', text: 'Toque nas cores para pintar do seu jeito.' },
-  { variant: 'celebrating', target: 'mainArea', balloon: 'bottom', title: 'Guarde sua arte', text: 'Quando terminar, sua arte pode ficar salva para você ver depois.' },
+  { variant: 'artist',      title: 'Seu Ateliê',        text: 'Aqui suas histórias viram arte.',               audioKey: 'guide.atelier.welcome',   highlightTab: 'atelier' },
+  { variant: 'happy',       title: 'Colorir histórias', text: 'Escolha uma cena da Bíblia para colorir.',      audioKey: 'guide.atelier.coloring',  target: 'atelier.coloring' },
+  { variant: 'artist',      title: 'Criar livre',       text: 'Crie do seu jeito, usando imaginação e fé.',    audioKey: 'guide.atelier.free_draw', target: 'atelier.free_draw' },
+  { variant: 'celebrating', title: 'Minhas artes',      text: 'Aqui ficam as artes que você já criou.',        audioKey: 'guide.atelier.gallery',   target: 'atelier.gallery' },
 ];
 
 // Estrelinhas

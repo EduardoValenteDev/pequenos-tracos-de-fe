@@ -6528,12 +6528,47 @@ check(
     'tour único não usa alvos medidos / ainda tem guia de Aventuras separado',
   );
   check(
-    'UX2.3 / HOME1.0: demais guias seguem DESATIVADOS (Ateliê/Estrelinhas/Perfil/Pais) — só a Home foi ativada',
-    atelierSrc.includes("useScreenGuide('atelier', false)") &&
+    'UX2.3 / ATELIÊ1.0: demais guias seguem DESATIVADOS (Estrelinhas/Perfil/Pais) — Home e Ateliê já ativados',
     trophiesSrc.includes("useScreenGuide('stars', false)") &&
     profileSrc.includes("useScreenGuide('profile', false)") &&
     parentTour.includes("useScreenGuide('parentArea', false)"),
     'algum guia reprovado ainda aparece automaticamente (deveria estar desativado)',
+  );
+  // ── ATELIÊ 1.0: guia falado do Ateliê (4 cards) com alvos medidos ────────────
+  const atelierManifest = readSrc('src/data/beniGuideAudio.js');
+  const atelierGuideSrc = readSrc('src/screens/AtelierScreen.js');
+  check(
+    'ATELIÊ1.0: manifesto tem as 4 chaves de áudio do Ateliê (require de atelier/, null-safe)',
+    ['welcome', 'coloring', 'free_draw', 'gallery'].every((k) =>
+      atelierManifest.includes(`'guide.atelier.${k}'`) &&
+      fs.existsSync(path.join(root, 'assets/audio/beni_guide/atelier', `guide_atelier_${k}.mp3`)) &&
+      atelierManifest.includes(`beni_guide/atelier/guide_atelier_${k}.mp3`)),
+    'manifesto não tem as 4 chaves/áudios do Ateliê corretamente',
+  );
+  check(
+    'ATELIÊ1.0: ATELIER_GUIDE tem 4 cards CURTOS; Card 1 destaca a aba Ateliê (highlightTab: atelier); cards 2-4 com alvo medido; Entendi',
+    (guidesData.match(/audioKey: 'guide\.atelier\./g) || []).length === 4 &&
+    guidesData.includes("highlightTab: 'atelier'") &&
+    ['atelier.coloring', 'atelier.free_draw', 'atelier.gallery'].every((t) => guidesData.includes(`target: '${t}'`)) &&
+    atelierGuideSrc.includes("finalLabel=\"Entendi\""),
+    'ATELIER_GUIDE não tem 4 cards / Card 1 não destaca Ateliê / falta alvo',
+  );
+  check(
+    'ATELIÊ1.0: AtelierScreen ativa o guia só pela aba, mede alvos reais nos cards (targetRef) e rola até o alvo',
+    atelierGuideSrc.includes("useScreenGuide('atelier', isFromTab(from))") &&
+    atelierGuideSrc.includes('useGuideTargets') &&
+    atelierGuideSrc.includes('measure={measureAtelierTarget}') &&
+    /atelierTargets\.measure\(name\)\.then\(\(r\) => r \|\| measureGuideTarget\(name\)\)/.test(atelierGuideSrc) &&
+    ['atelier.coloring', 'atelier.free_draw', 'atelier.gallery'].every((t) => atelierGuideSrc.includes(`register('${t}')`)) &&
+    atelierGuideSrc.includes('scrollGuideTargetIntoView'),
+    'AtelierScreen não ativa/medê o guia do Ateliê corretamente',
+  );
+  check(
+    'ATELIÊ1.0: aba Ateliê destacada como Início/Aventuras — sidebar mede atelier.sidebarTab + overlay mapeia atelier',
+    readSrc('src/components/TabletSidebar.js').includes("'atelier.sidebarTab'") &&
+    readSrc('src/components/BeniGuideOverlay.js').includes("atelier: 'atelier.sidebarTab'") &&
+    /TAB_INDEX_BY_KEY = \{ home: 0, adventures: 1, atelier: 2 \}/.test(readSrc('src/components/BeniGuideOverlay.js')),
+    'aba Ateliê não é destacada como Início/Aventuras (sidebar/tab index ausente)',
   );
   // ── HOME 1.0: guia falado da Home (5 cards) com alvos medidos ────────────────
   const homeManifest = readSrc('src/data/beniGuideAudio.js');
@@ -6650,8 +6685,8 @@ check(
     ['home', 'atelier', 'stars', 'profile', 'parents', 'common'].every((d) =>
       fs.existsSync(path.join(root, 'assets/audio/beni_guide', d, '.gitkeep'))) &&
     fs.existsSync(path.join(root, 'docs/BENI_GUIDE_AUDIO_PLAN.md')) &&
-    // Home foi ativada (Home 1.0); as demais seguem futuras e NÃO podem ser importadas.
-    !/guide_atelier_|guide_stars_|guide_profile_|guide_parents_|guide_common_/.test(guideAudioData),
+    // Home e Ateliê ativados; as demais seguem futuras e NÃO podem ser importadas.
+    !/guide_stars_|guide_profile_|guide_parents_|guide_common_/.test(guideAudioData),
     'pastas futuras/plano ausentes, ou o manifesto importa áudio futuro inexistente',
   );
   check(
