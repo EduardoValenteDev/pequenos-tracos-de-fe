@@ -125,19 +125,32 @@ export default function AdventureMapScreen({ navigation }) {
 
   const isOpenable = useCallback((story) => getStoryAccessStatus(story) === 'full', []);
 
-  const currentId = useMemo(() => {
-    const next = ordered.find((s) => isOpenable(s) && !isStoryCompleted(s.id));
-    return next ? next.id : null;
-  }, [ordered, isOpenable, isStoryCompleted]);
+  // PRÓXIMA história da JORNADA = 1ª da trilha oficial ainda não concluída (B3.7).
+  // Se liberada → 'current' (pulso normal). Se bloqueada → 'nextLocked' (cadeado +
+  // pulso sutil), indicando para onde a jornada segue SEM liberar acesso. Se tudo
+  // concluído → nenhuma das duas. Só leitura (não altera acesso/progresso).
+  const nextJourney = useMemo(
+    () => ordered.find((s) => !isStoryCompleted(s.id)) || null,
+    [ordered, isStoryCompleted],
+  );
+  const currentId = useMemo(
+    () => (nextJourney && isOpenable(nextJourney) ? nextJourney.id : null),
+    [nextJourney, isOpenable],
+  );
+  const nextLockedId = useMemo(
+    () => (nextJourney && !isOpenable(nextJourney) ? nextJourney.id : null),
+    [nextJourney, isOpenable],
+  );
 
-  // História que a câmera deve focar: próxima disponível; senão última concluída;
-  // senão A Criação (começo). Só leitura.
+  // História que a câmera deve focar: o foco da jornada (disponível OU bloqueada);
+  // senão última concluída; senão A Criação (começo). Só leitura.
   const cameraStoryId = useMemo(() => {
     if (currentId) return currentId;
+    if (nextLockedId) return nextLockedId;
     const completed = ordered.filter((s) => isStoryCompleted(s.id));
     if (completed.length) return completed[completed.length - 1].id;
     return ordered[0]?.id;
-  }, [currentId, ordered, isStoryCompleted]);
+  }, [currentId, nextLockedId, ordered, isStoryCompleted]);
 
   // Offset inicial da câmera calculado de forma SÍNCRONA (antes do 1º paint), via
   // prop contentOffset → abre já na base correta, sem pulo. (onContentSize depois
@@ -159,9 +172,10 @@ export default function AdventureMapScreen({ navigation }) {
     (story) => {
       if (isStoryCompleted(story.id)) return 'completed';
       if (story.id === currentId) return 'current';
+      if (story.id === nextLockedId) return 'nextLocked';
       return isOpenable(story) ? 'available' : 'locked';
     },
-    [currentId, isOpenable, isStoryCompleted],
+    [currentId, nextLockedId, isOpenable, isStoryCompleted],
   );
 
   const isRegionAwake = useCallback(
@@ -266,7 +280,12 @@ export default function AdventureMapScreen({ navigation }) {
       <StoryFocusModal
         visible={modalVisible}
         story={focusStory}
-        state={focusStory ? getState(focusStory) : 'locked'}
+        state={(() => {
+          const st = focusStory ? getState(focusStory) : 'locked';
+          // No card de foco, nextLocked se comporta EXATAMENTE como locked (mesmo
+          // fluxo bloqueado, nada é liberado) — o destaque pulsante é só no mapa.
+          return st === 'nextLocked' ? 'locked' : st;
+        })()}
         lockReason={focusStory ? getStoryLockReason(focusStory) : null}
         progressPercent={focusStory ? getStoryCompletionPercent(focusStory.id) : 0}
         onClose={closeFocus}

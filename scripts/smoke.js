@@ -5342,7 +5342,7 @@ check(
   );
   check(
     'Mapa B3.2: marcadores reduzidos (current 68, available/completed 58, locked 56)',
-    /SIZE = \{ current: 68, available: 58, completed: 58, locked: 56 \}/.test(marker) &&
+    /SIZE = \{ current: 68, available: 58, completed: 58, locked: 56, nextLocked: 56 \}/.test(marker) &&
     marker.includes('getStoryCover(story.id)') &&
     /borderRadius:\s*inner\s*\/\s*2/.test(marker) &&
     marker.includes('fallback'),
@@ -5721,7 +5721,7 @@ check(
     'Mapa B3.6: StoryMapMarker usa completedColor/currentColor (borda + badge + halo), sem verde fixo no render',
     /completedColor = '#5EBE6E'/.test(marker) &&
     /currentColor = '#F4B73E'/.test(marker) &&
-    /const ringColor = state === 'completed' \? completedColor : isCurrent \? currentColor/.test(marker) &&
+    /const ringColor = state === 'completed' \? completedColor : \(isCurrent \|\| isNextLocked\) \? currentColor/.test(marker) &&
     marker.includes('borderColor: ringColor') &&
     /doneBadge,\s*\{ backgroundColor: completedColor \}/.test(marker) &&
     marker.includes('`${currentColor}33`') &&
@@ -5729,12 +5729,32 @@ check(
     'marcador não aplica as cores da região em borda/badge/halo',
   );
   check(
-    'Mapa B3.6: pulso SÓ no current (halo na currentColor), calmo (1100–1600ms); completed estável, locked apagado',
-    /if \(!isCurrent\) return undefined/.test(marker) &&
+    'Mapa B3.6: pulso na cor da região, calmo (1100–1600ms); completed estável; capa locked esmaecida',
+    /if \(!shouldPulse\) return undefined/.test(marker) &&
     /duration: 1[1-6]\d\d/.test(marker) &&
-    marker.includes('opacity: 0.55') && // capa locked esmaecida preservada
+    /coverDim = isLocked \? 0\.55/.test(marker) &&
     marker.includes('haloScale'),
-    'pulso não está restrito ao current / fora da faixa de duração / locked não esmaecido',
+    'pulso fora da faixa de duração / sem cor da região / locked não esmaecido',
+  );
+  check(
+    'Mapa B3.7: AdventureMapScreen calcula nextLocked (1ª da trilha não concluída e bloqueada) sem mudar acesso',
+    mapScreen.includes('ordered.find((s) => !isStoryCompleted(s.id))') &&
+    /const currentId = useMemo\(\s*\(\) => \(nextJourney && isOpenable\(nextJourney\)/.test(mapScreen) &&
+    /const nextLockedId = useMemo\(\s*\(\) => \(nextJourney && !isOpenable\(nextJourney\)/.test(mapScreen) &&
+    /story\.id === nextLockedId\) return 'nextLocked'/.test(mapScreen) &&
+    !mapScreen.includes('AsyncStorage'),
+    'nextLocked não é derivado da trilha em getState (ou mexe em storage)',
+  );
+  check(
+    'Mapa B3.7: só UM pulsa (current OU nextLocked); nextLocked = visual locked + pulso; toque preserva fluxo locked',
+    marker.includes('shouldPulse = isCurrent || isNextLocked') &&
+    /SIZE = \{[^}]*nextLocked: 56/.test(marker) &&
+    /RING = \{[\s\S]*?nextLocked:\s*\{/.test(marker) &&
+    marker.includes('showLock = isLocked || isNextLocked') &&
+    /ringColor = state === 'completed' \? completedColor : \(isCurrent \|\| isNextLocked\) \? currentColor/.test(marker) &&
+    region.includes('completedColor={region.completedColor}') &&
+    /st === 'nextLocked' \? 'locked' : st/.test(mapScreen),
+    'nextLocked não compartilha visual locked+pulso, ou toque não preserva o locked',
   );
   check(
     'Mapa B2.8: caminho suavizado (traço fino 4, dash curto "9 12", opacidade menor, sombra leve)',
@@ -5810,7 +5830,7 @@ check(
   );
   check(
     'Mapa B3.2: marcadores no novo tamanho reduzido (current 68) — nem mini, nem gigante',
-    /SIZE = \{ current: 68, available: 58, completed: 58, locked: 56 \}/.test(marker),
+    /SIZE = \{ current: 68, available: 58, completed: 58, locked: 56, nextLocked: 56 \}/.test(marker),
     'marcadores fora do tamanho reduzido B3.2',
   );
 

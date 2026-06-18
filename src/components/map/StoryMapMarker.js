@@ -15,12 +15,16 @@ import { getStoryCover } from '../../assets/storyCovers';
 // Tamanhos reduzidos de novo (B3.2): pins mais delicados sobre a arte, ainda com
 // avatar/badge legíveis e bons de tocar. As histórias ficam diretamente sobre o
 // cenário do mapa (sem base/círculo atrás — removido na correção do B2.8).
-const SIZE = { current: 68, available: 58, completed: 58, locked: 56 };
+// `nextLocked` (B3.7) = próxima história da jornada que está BLOQUEADA: visual de
+// locked (tamanho/cadeado) mas com pulso sutil na cor da região, indicando "a
+// jornada continua aqui" sem liberar acesso.
+const SIZE = { current: 68, available: 58, completed: 58, locked: 56, nextLocked: 56 };
 const RING = {
-  completed: { color: '#5EBE6E', width: 3 },
-  current:   { color: '#F4B73E', width: 4 },
-  available: { color: '#FFFFFF', width: 3 },
-  locked:    { color: '#D8CFC0', width: 2 },
+  completed:  { color: '#5EBE6E', width: 3 },
+  current:    { color: '#F4B73E', width: 4 },
+  available:  { color: '#FFFFFF', width: 3 },
+  locked:     { color: '#D8CFC0', width: 2 },
+  nextLocked: { color: '#D8CFC0', width: 2 },
 };
 const LABEL_W = 84; // legenda ainda menor (B3.2) — ocupa menos do mapa
 
@@ -45,19 +49,25 @@ export default function StoryMapMarker({
 }) {
   const cover = getStoryCover(story.id);
   const isCurrent = state === 'current';
+  const isNextLocked = state === 'nextLocked';
   const isLocked = state === 'locked';
+  const showLock = isLocked || isNextLocked; // cadeado + acessibilidade "(bloqueada)"
+  const shouldPulse = isCurrent || isNextLocked; // só UM pulsa por vez (definido fora)
   // Escala opcional por história (coord.markerScale) — permite um pin maior/menor
   // que os do mesmo estado SEM mudar o tamanho global. Limites de segurança.
   const scale = Math.min(1.25, Math.max(0.85, markerScale || 1));
   const size = Math.round((SIZE[state] || SIZE.available) * scale);
   const ring = RING[state] || RING.available;
   const inner = size - ring.width * 2;
-  // Cor da BORDA por estado: completed/current usam a cor DA REGIÃO (sem verde fixo).
-  const ringColor = state === 'completed' ? completedColor : isCurrent ? currentColor : ring.color;
+  // Cor da BORDA por estado: completed usa completedColor; current/nextLocked usam
+  // a currentColor DA REGIÃO (sem verde fixo); demais mantêm a cor do estado.
+  const ringColor = state === 'completed' ? completedColor : (isCurrent || isNextLocked) ? currentColor : ring.color;
+  // Capa esmaecida: locked mais apagada; nextLocked um pouco mais visível.
+  const coverDim = isLocked ? 0.55 : isNextLocked ? 0.72 : 1;
 
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (!isCurrent) return undefined;
+    if (!shouldPulse) return undefined;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1, duration: 1300, useNativeDriver: true }),
@@ -66,19 +76,20 @@ export default function StoryMapMarker({
     );
     loop.start();
     return () => loop.stop();
-  }, [isCurrent, pulse]);
-  const haloScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.16] });
-  const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.7] });
+  }, [shouldPulse, pulse]);
+  // nextLocked pulsa MAIS sutil que current (menor amplitude e opacidade).
+  const haloScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, isNextLocked ? 1.1 : 1.16] });
+  const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: isNextLocked ? [0.2, 0.45] : [0.35, 0.7] });
 
   // O pin (SoundButton) tem tamanho `size` e fica centrado na âncora (slot 0×0).
   return (
     <SoundButton
-      accessibilityLabel={`${story.titulo}${isLocked ? ' (bloqueada)' : ''}`}
+      accessibilityLabel={`${story.titulo}${showLock ? ' (bloqueada)' : ''}`}
       onPress={onPress}
       activeOpacity={0.85}
       style={[styles.pin, { width: size, height: size, marginLeft: -size / 2, marginTop: -size / 2 }]}
     >
-      {isCurrent && (
+      {shouldPulse && (
         <Animated.View
           style={[
             styles.halo,
@@ -103,7 +114,7 @@ export default function StoryMapMarker({
       >
         <View style={[styles.circle, { width: inner, height: inner, borderRadius: inner / 2 }]}>
           {cover ? (
-            <Image source={cover} style={[styles.cover, isLocked && { opacity: 0.55 }]} resizeMode="cover" />
+            <Image source={cover} style={[styles.cover, coverDim < 1 && { opacity: coverDim }]} resizeMode="cover" />
           ) : (
             <View style={[styles.fallback, { backgroundColor: story.corCapa || story.themeColor || '#BCA77E' }]}>
               <Text style={styles.fallbackText}>{(story.titulo || '?').trim().charAt(0).toUpperCase()}</Text>
@@ -113,7 +124,7 @@ export default function StoryMapMarker({
         {state === 'completed' && (
           <View style={[styles.badge, styles.doneBadge, { backgroundColor: completedColor }]}><Text style={styles.doneBadgeText}>✓</Text></View>
         )}
-        {isLocked && (
+        {showLock && (
           <View style={[styles.badge, styles.lockBadge]}><Text style={styles.lockBadgeText}>🔒</Text></View>
         )}
       </View>
