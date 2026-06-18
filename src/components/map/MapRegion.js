@@ -116,6 +116,8 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
                 labelPos={it.labelPos}
                 markerScale={it.markerScale}
                 showLabel={false}
+                completedColor={region.completedColor}
+                currentColor={region.currentColor}
                 onPress={() => onPressStory(it.story)}
               />
             </View>

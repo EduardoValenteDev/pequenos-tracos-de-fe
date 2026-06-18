@@ -33,7 +33,16 @@ function labelBoxStyle(side, size) {
   return below;
 }
 
-export default function StoryMapMarker({ story, state = 'locked', labelPos = 'below', showLabel = true, markerScale = 1, onPress }) {
+export default function StoryMapMarker({
+  story,
+  state = 'locked',
+  labelPos = 'below',
+  showLabel = true,
+  markerScale = 1,
+  completedColor = '#5EBE6E', // default seguro p/ uso fora do mapa; no mapa vem da região
+  currentColor = '#F4B73E',   // idem; no mapa = cor da região (B3.6)
+  onPress,
+}) {
   const cover = getStoryCover(story.id);
   const isCurrent = state === 'current';
   const isLocked = state === 'locked';
@@ -43,21 +52,23 @@ export default function StoryMapMarker({ story, state = 'locked', labelPos = 'be
   const size = Math.round((SIZE[state] || SIZE.available) * scale);
   const ring = RING[state] || RING.available;
   const inner = size - ring.width * 2;
+  // Cor da BORDA por estado: completed/current usam a cor DA REGIÃO (sem verde fixo).
+  const ringColor = state === 'completed' ? completedColor : isCurrent ? currentColor : ring.color;
 
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!isCurrent) return undefined;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1100, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1100, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 1300, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1300, useNativeDriver: true }),
       ]),
     );
     loop.start();
     return () => loop.stop();
   }, [isCurrent, pulse]);
   const haloScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.16] });
-  const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.8] });
+  const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.7] });
 
   // O pin (SoundButton) tem tamanho `size` e fica centrado na âncora (slot 0×0).
   return (
@@ -69,14 +80,25 @@ export default function StoryMapMarker({ story, state = 'locked', labelPos = 'be
     >
       {isCurrent && (
         <Animated.View
-          style={[styles.halo, { width: size + 16, height: size + 16, borderRadius: (size + 16) / 2, opacity: haloOpacity, transform: [{ scale: haloScale }] }]}
+          style={[
+            styles.halo,
+            {
+              width: size + 16,
+              height: size + 16,
+              borderRadius: (size + 16) / 2,
+              backgroundColor: `${currentColor}33`, // brilho translúcido na cor da região
+              borderColor: `${currentColor}99`,
+              opacity: haloOpacity,
+              transform: [{ scale: haloScale }],
+            },
+          ]}
         />
       )}
       <View
         style={[
           styles.ring,
-          { width: size, height: size, borderRadius: size / 2, borderColor: ring.color, borderWidth: ring.width },
-          isCurrent ? styles.currentShadow : styles.softShadow,
+          { width: size, height: size, borderRadius: size / 2, borderColor: ringColor, borderWidth: ring.width },
+          isCurrent ? [styles.currentShadow, { shadowColor: currentColor }] : styles.softShadow,
         ]}
       >
         <View style={[styles.circle, { width: inner, height: inner, borderRadius: inner / 2 }]}>
@@ -89,7 +111,7 @@ export default function StoryMapMarker({ story, state = 'locked', labelPos = 'be
           )}
         </View>
         {state === 'completed' && (
-          <View style={[styles.badge, styles.doneBadge]}><Text style={styles.doneBadgeText}>✓</Text></View>
+          <View style={[styles.badge, styles.doneBadge, { backgroundColor: completedColor }]}><Text style={styles.doneBadgeText}>✓</Text></View>
         )}
         {isLocked && (
           <View style={[styles.badge, styles.lockBadge]}><Text style={styles.lockBadgeText}>🔒</Text></View>

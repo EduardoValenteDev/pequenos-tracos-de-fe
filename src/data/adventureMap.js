@@ -49,11 +49,14 @@ export const REGION_MAP_IMAGES = {
 
 // Metadados visuais por região. `tint` = cor de borda/realce suave (fallback de
 // fundo enquanto a imagem carrega); `accent` = cor do caminho/realces.
+// `completedColor`/`currentColor` (B3.6) = cores dos PINS no mapa por região —
+// substituem o verde fixo de concluído (que destoava da arte). completed = borda +
+// badge ✓; current = borda + brilho pulsante da história atual.
 export const ADVENTURE_REGION_META = [
-  { id: 'comece_aqui',   title: 'Comece Aqui',   subtitle: 'Os primeiros passos',      tint: '#EAF6FF', accent: '#4FC3F7' },
-  { id: 'pequeninos',    title: 'Pequeninos',    subtitle: 'Histórias para crescer',   tint: '#EAF7EE', accent: '#66BB6A' },
-  { id: 'descobridores', title: 'Descobridores', subtitle: 'Grandes aventuras',        tint: '#FFF4E3', accent: '#F0A93B' },
-  { id: 'jovens_da_fe',  title: 'Jovens da Fé',  subtitle: 'Coragem e sabedoria',      tint: '#F6ECFA', accent: '#BA68C8' },
+  { id: 'comece_aqui',   title: 'Comece Aqui',   subtitle: 'Os primeiros passos',      tint: '#EAF6FF', accent: '#4FC3F7', completedColor: '#8E5CF7', currentColor: '#B48CFF' },
+  { id: 'pequeninos',    title: 'Pequeninos',    subtitle: 'Histórias para crescer',   tint: '#EAF7EE', accent: '#66BB6A', completedColor: '#D59A2E', currentColor: '#F2C66D' },
+  { id: 'descobridores', title: 'Descobridores', subtitle: 'Grandes aventuras',        tint: '#FFF4E3', accent: '#F0A93B', completedColor: '#2F9E9E', currentColor: '#65D6D6' },
+  { id: 'jovens_da_fe',  title: 'Jovens da Fé',  subtitle: 'Coragem e sabedoria',      tint: '#F6ECFA', accent: '#BA68C8', completedColor: '#B56AD8', currentColor: '#E0A7FF' },
 ];
 
 /**

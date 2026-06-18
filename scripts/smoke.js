@@ -5708,6 +5708,35 @@ check(
     'markerScale ausente / sem clamp / não propagado das coords ao marcador',
   );
   check(
+    'Mapa B3.6: paleta de PIN por região (completed/current) — sem verde fixo; 4 regiões com cores próprias',
+    /comece_aqui[\s\S]{0,140}completedColor: '#8E5CF7'[\s\S]{0,40}currentColor: '#B48CFF'/.test(mapData) &&
+    /pequeninos[\s\S]{0,140}completedColor: '#D59A2E'/.test(mapData) &&
+    /descobridores[\s\S]{0,140}completedColor: '#2F9E9E'/.test(mapData) &&
+    /jovens_da_fe[\s\S]{0,140}completedColor: '#B56AD8'/.test(mapData) &&
+    region.includes('completedColor={region.completedColor}') &&
+    region.includes('currentColor={region.currentColor}'),
+    'paleta de pin por região ausente ou não propagada ao marcador',
+  );
+  check(
+    'Mapa B3.6: StoryMapMarker usa completedColor/currentColor (borda + badge + halo), sem verde fixo no render',
+    /completedColor = '#5EBE6E'/.test(marker) &&
+    /currentColor = '#F4B73E'/.test(marker) &&
+    /const ringColor = state === 'completed' \? completedColor : isCurrent \? currentColor/.test(marker) &&
+    marker.includes('borderColor: ringColor') &&
+    /doneBadge,\s*\{ backgroundColor: completedColor \}/.test(marker) &&
+    marker.includes('`${currentColor}33`') &&
+    marker.includes('shadowColor: currentColor'),
+    'marcador não aplica as cores da região em borda/badge/halo',
+  );
+  check(
+    'Mapa B3.6: pulso SÓ no current (halo na currentColor), calmo (1100–1600ms); completed estável, locked apagado',
+    /if \(!isCurrent\) return undefined/.test(marker) &&
+    /duration: 1[1-6]\d\d/.test(marker) &&
+    marker.includes('opacity: 0.55') && // capa locked esmaecida preservada
+    marker.includes('haloScale'),
+    'pulso não está restrito ao current / fora da faixa de duração / locked não esmaecido',
+  );
+  check(
     'Mapa B2.8: caminho suavizado (traço fino 4, dash curto "9 12", opacidade menor, sombra leve)',
     /strokeWidth=\{4\}[\s\S]{0,80}strokeDasharray="9 12"/.test(mapPath) &&
     mapPath.includes('opacity={0.62}') &&
