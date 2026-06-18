@@ -90,6 +90,39 @@ export async function resetAllGuides() {
   }
 }
 
+// ── Pedido de TOUR INICIAL (independe do layout: mobile tab bar OU tablet sidebar) ──
+// O onboarding/“Rever Tour” NÃO consegue, no tablet, passar route.params para a
+// AdventureMapScreen (TabletLayout é custom e ignora o nested state da navegação).
+// Então usamos um SINAL em memória: quem quer abrir o tour chama requestInitialTour();
+// a tela de Aventuras consome; o TabletLayout assina para focar a aba Aventuras.
+let _pendingInitialTour = false;
+const _tourReqListeners = new Set();
+
+/** Pede para o tour inicial abrir na próxima entrada em Aventuras (qualquer layout). */
+export function requestInitialTour() {
+  _pendingInitialTour = true;
+  _tourReqListeners.forEach((fn) => { try { fn(); } catch { /* nunca quebra */ } });
+}
+
+/** Lê SEM consumir (o TabletLayout usa para focar a aba Aventuras). */
+export function isInitialTourPending() {
+  return _pendingInitialTour;
+}
+
+/** Lê e LIMPA o pedido (a tela de Aventuras chama ao abrir o tour). */
+export function consumeInitialTourRequest() {
+  const v = _pendingInitialTour;
+  _pendingInitialTour = false;
+  return v;
+}
+
+/** Assina pedidos de tour (ex.: TabletLayout focar Aventuras). Retorna unsubscribe. */
+export function subscribeInitialTourRequest(fn) {
+  if (typeof fn !== 'function') return () => {};
+  _tourReqListeners.add(fn);
+  return () => _tourReqListeners.delete(fn);
+}
+
 // ── Compatibilidade com o tour inicial (UX 2.0) ───────────────────────────────
 
 /** True se o tour inicial já foi visto/pulado. */

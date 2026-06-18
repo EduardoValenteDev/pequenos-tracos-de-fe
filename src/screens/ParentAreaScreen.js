@@ -15,7 +15,7 @@ import {
   setCreatorQaModeEnabled,
 } from '../services/creatorQaMode';
 import { resetOnboardingForQa } from '../services/onboardingService';
-import { resetBeniAppTour, resetAllGuides } from '../services/beniTourService';
+import { resetBeniAppTour, resetAllGuides, requestInitialTour } from '../services/beniTourService';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
 import { PARENT_GUIDE_BASE, PARENT_GUIDE_CREATOR_STEP } from '../data/beniGuides';
@@ -343,6 +343,7 @@ export default function ParentAreaScreen({ navigation }) {
   // Rever o Tour INICIAL do Beni: limpa a flag e abre a aba Aventuras com o gatilho.
   async function handleReviewBeniTour() {
     await resetBeniAppTour();
+    requestInitialTour(); // tablet: foca Aventuras via sinal; mobile: também usa o param
     navigation.navigate('Home', { screen: 'Aventuras', params: { startBeniTour: true } });
   }
 

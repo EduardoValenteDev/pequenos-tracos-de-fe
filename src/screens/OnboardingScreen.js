@@ -19,6 +19,7 @@ import { AVATARS, DEFAULT_AVATAR_ID } from '../data/avatars';
 import { useProfile } from '../context/ProfileContext';
 import { createChildProfile } from '../services/childProfileService';
 import { markOnboardingCompleted } from '../services/onboardingService';
+import { requestInitialTour } from '../services/beniTourService';
 import { colors } from '../theme/colors';
 import { log } from '../utils/logger';
 
@@ -152,6 +153,9 @@ export default function OnboardingScreen({ navigation }) {
 
       // 3. Marca onboarding concluído
       await markOnboardingCompleted();
+
+      // 3.1 Sinaliza o tour inicial (independe do layout — mobile param + tablet sidebar).
+      requestInitialTour();
 
       // 4. UX 2.0: em vez de cair direto numa história, a primeira visão é a aba
       // AVENTURAS (mapa) com o "Tour Mágico do Beni" por cima (startBeniTour). O

@@ -6637,6 +6637,63 @@ check(
   );
 }
 
+// ── TABLET 1.0: estabilização iPad/tablet (sem regressão mobile) ──────────────
+{
+  const tourSvcTab = readSrc('src/services/beniTourService.js');
+  const navSrcTab = readSrc('src/navigation/AppNavigator.js');
+  const mapSrcTab = readSrc('src/screens/AdventureMapScreen.js');
+  const onbSrcTab = readSrc('src/screens/OnboardingScreen.js');
+  const parentSrcTab = readSrc('src/screens/ParentAreaScreen.js');
+  const overlaySrcTab = readSrc('src/components/BeniGuideOverlay.js');
+  const gateSrcTab = readSrc('src/components/ParentalGate.js');
+  check(
+    'TABLET1.0: sinal de tour independente de layout (request/consume/isPending/subscribe) usado por onboarding e "Rever Tour"',
+    tourSvcTab.includes('export function requestInitialTour') &&
+    tourSvcTab.includes('export function consumeInitialTourRequest') &&
+    tourSvcTab.includes('export function isInitialTourPending') &&
+    tourSvcTab.includes('export function subscribeInitialTourRequest') &&
+    onbSrcTab.includes('requestInitialTour()') &&
+    parentSrcTab.includes('requestInitialTour()'),
+    'falta o sinal de tour por layout ou não é disparado no onboarding/Rever Tour',
+  );
+  check(
+    'TABLET1.0: TabletLayout foca Aventuras quando há tour pendente (default + subscribe)',
+    /useState\(\(\) => \(isInitialTourPending\(\) \? 'Aventuras' : 'Início'\)\)/.test(navSrcTab) &&
+    /subscribeInitialTourRequest\(\(\) => setActiveTabName\('Aventuras'\)\)/.test(navSrcTab),
+    'TabletLayout não foca Aventuras no tour pendente',
+  );
+  check(
+    'TABLET1.0: mapa usa LARGURA DA ÁREA DE CONTEÚDO (onLayout) — corrige corte na sidebar; mobile == janela (sem regressão)',
+    mapSrcTab.includes('const mapWidth = contentW > 0 ? contentW : width') &&
+    mapSrcTab.includes('onLayout={onContainerLayout}') &&
+    mapSrcTab.includes('computeRegionHeight(mapWidth)') &&
+    mapSrcTab.includes('width={mapWidth}') &&
+    /useEffect\(\(\) => \{ didInitScroll\.current = false; \}, \[mapWidth\]\)/.test(mapSrcTab),
+    'mapa ainda usa largura da janela / não recentra ao mudar a largura',
+  );
+  check(
+    'TABLET1.0: tour dispara por param OU sinal pendente (consume + subscribe) — funciona no tablet',
+    mapSrcTab.includes('consumeInitialTourRequest()') &&
+    mapSrcTab.includes('subscribeInitialTourRequest(') &&
+    /route\?\.params\?\.startBeniTour \|\| consumeInitialTourRequest\(\)/.test(mapSrcTab),
+    'tour não dispara pelo sinal pendente no tablet',
+  );
+  check(
+    'TABLET1.0: Card 2 NÃO desenha realce de tab bar no tablet (fallback honesto; sem seta errada)',
+    overlaySrcTab.includes('isTabletLayout') &&
+    /showTabGlow = phase === 'steps' && step\.highlightTab === 'adventures' && !isTabletLayout/.test(overlaySrcTab),
+    'Card 2 desenharia realce de 5 abas no tablet (sem tab bar)',
+  );
+  check(
+    'TABLET1.0: ParentalGate foca o input por ref após abrir (teclado confiável no iPad)',
+    gateSrcTab.includes('inputRef') &&
+    /ref=\{inputRef\}/.test(gateSrcTab) &&
+    /inputRef\.current\?\.focus/.test(gateSrcTab) &&
+    gateSrcTab.includes('autoFocus'),
+    'ParentalGate não garante foco/teclado no tablet',
+  );
+}
+
 check(
   'NarrationScreen tem guarda contra story sem cenas',
   narrationScreenSrc.includes('hasCenas') || narrationScreenSrc.includes('story?.cenas?.length'),

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, StyleSheet,
   TouchableOpacity, KeyboardAvoidingView, Platform,
@@ -25,6 +25,16 @@ export default function ParentalGate({ visible, onPass, onCancel }) {
   const [input, setInput] = useState('');
   const [shakeError, setShakeError] = useState(false);
   const [showError, setShowError] = useState(false);
+  const inputRef = useRef(null);
+
+  // TABLET/iPad FIX: autoFocus dentro de Modal às vezes não abre o teclado (corrida
+  // com a apresentação do modal). Foca de novo por ref logo após abrir — garante o
+  // teclado no iPad. Inofensivo no celular (onde o autoFocus já funciona).
+  useEffect(() => {
+    if (!visible) return undefined;
+    const t = setTimeout(() => { inputRef.current?.focus?.(); }, 300);
+    return () => clearTimeout(t);
+  }, [visible]);
 
   const reset = useCallback(() => {
     setChallenge(generateChallenge());
@@ -75,6 +85,7 @@ export default function ParentalGate({ visible, onPass, onCancel }) {
             {challenge.a} × {challenge.b} = ?
           </Text>
           <TextInput
+            ref={inputRef}
             style={styles.input}
             value={input}
             onChangeText={setInput}

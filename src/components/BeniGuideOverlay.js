@@ -154,7 +154,11 @@ export default function BeniGuideOverlay({
   // gigante, sem linha longa: moldura arredondada no item + seta curta do card.
   const TAB_COUNT = 5;
   const ADV_TAB_INDEX = 1;
-  const showTabGlow = phase === 'steps' && step.highlightTab === 'adventures';
+  // TABLET: NÃO existe tab bar inferior (é sidebar). O realce determinístico de 5
+  // abas apontaria errado → no tablet, fallback honesto (sem realce de aba). O
+  // destaque da sidebar fica para um próximo bloco (medição da sidebar).
+  const isTabletLayout = width >= 768;
+  const showTabGlow = phase === 'steps' && step.highlightTab === 'adventures' && !isTabletLayout;
   const tabItemW = width / TAB_COUNT;
   const tabCenterX = tabItemW * (ADV_TAB_INDEX + 0.5);
   const tabHaloW = Math.min(tabItemW - 10, 96);

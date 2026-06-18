@@ -22,7 +22,7 @@ import SoundButton from '../components/SoundButton';
 import MapRegion from '../components/map/MapRegion';
 import StoryFocusModal from '../components/map/StoryFocusModal';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
-import { hasSeenBeniAppTour, markBeniAppTourSeen, markGuideSeen } from '../services/beniTourService';
+import { hasSeenBeniAppTour, markBeniAppTourSeen, markGuideSeen, consumeInitialTourRequest, subscribeInitialTourRequest } from '../services/beniTourService';
 import { useGuideTargets } from '../hooks/useGuideTargets';
 import { INITIAL_TOUR } from '../data/beniGuides';
 
@@ -43,12 +43,13 @@ export default function AdventureMapScreen({ navigation, route }) {
   const [showBeniTour, setShowBeniTour] = useState(false);
   useEffect(() => {
     let alive = true;
-    if (route?.params?.startBeniTour) {
-      hasSeenBeniAppTour().then((seen) => {
-        if (alive && !seen) setShowBeniTour(true);
-      });
-    }
-    return () => { alive = false; };
+    const maybeShow = () => hasSeenBeniAppTour().then((seen) => { if (alive && !seen) setShowBeniTour(true); });
+    // Gatilho por param (mobile) OU pelo SINAL pendente (tablet pós-onboarding, já setado
+    // antes do mount). Consome o sinal para não reabrir.
+    if (route?.params?.startBeniTour || consumeInitialTourRequest()) maybeShow();
+    // E também enquanto montado (ex.: "Rever Tour" no tablet com Aventuras já ativa).
+    const unsub = subscribeInitialTourRequest(() => { consumeInitialTourRequest(); maybeShow(); });
+    return () => { alive = false; unsub(); };
   }, [route?.params?.startBeniTour]);
   const closeBeniTour = useCallback(() => {
     setShowBeniTour(false);
@@ -64,6 +65,16 @@ export default function AdventureMapScreen({ navigation, route }) {
   const registerNextPin = useMemo(() => guideTargets.register('adventures.nextPin'), [guideTargets.register]);
   const { width, height } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
+
+  // TABLET FIX: o mapa deve usar a largura da ÁREA DE CONTEÚDO (à direita da sidebar),
+  // não a largura total da tela — senão fica cortado. Medimos o container; no celular
+  // isso é igual à largura da janela (sem regressão).
+  const [contentW, setContentW] = useState(0);
+  const mapWidth = contentW > 0 ? contentW : width;
+  const onContainerLayout = useCallback((e) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    setContentW((prev) => (prev === w ? prev : w));
+  }, []);
 
   // Entrada: o mapa abre JÁ VISÍVEL (opacity 1 desde o 1º frame). Mantemos só um
   // translateY levíssimo de charme — o mapa NUNCA fica invisível.
@@ -105,13 +116,13 @@ export default function AdventureMapScreen({ navigation, route }) {
     const arr = [];
     let prevBottom = 0;
     regionsVisual.forEach((r, i) => {
-      const h = computeRegionHeight(width);
+      const h = computeRegionHeight(mapWidth);
       const top = i === 0 ? 0 : prevBottom - REGION_OVERLAP;
       arr.push({ id: r.id, title: r.title, top, height: h, count: (r.stories || []).length });
       prevBottom = top + h;
     });
     return arr;
-  }, [regionsVisual, width]);
+  }, [regionsVisual, mapWidth]);
 
   // Região ativa (índice visual). Começa na base (comece_aqui), pois a câmera
   // inicia embaixo. Usada pela pílula de orientação e pelo modo "Ver mapa".
@@ -243,6 +254,9 @@ export default function AdventureMapScreen({ navigation, route }) {
   const scrollRef = useRef(null);
   const scrollViewH = useRef(0);
   const didInitScroll = useRef(false);
+  // Câmera re-centraliza quando a largura do mapa muda (ex.: medição da área de
+  // conteúdo no tablet) — senão o scroll inicial fica calculado p/ a largura errada.
+  useEffect(() => { didInitScroll.current = false; }, [mapWidth]);
   const onScrollLayout = useCallback((e) => { scrollViewH.current = e.nativeEvent.layout.height; }, []);
   const onContentSize = useCallback((w, h) => {
     if (didInitScroll.current || scrollViewH.current <= 0) return;
@@ -295,7 +309,7 @@ export default function AdventureMapScreen({ navigation, route }) {
   }, [scrollPinIntoView]);
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={onContainerLayout}>
       <LinearGradient colors={['#F4E6C8', '#E8D3A6']} style={[styles.header, { paddingTop: Math.max(insets.top, 8) + 2 }]}>
         <View style={styles.headerTexts}>
           <Text style={styles.headerTitle}>Mapa das Aventuras</Text>
@@ -329,7 +343,7 @@ export default function AdventureMapScreen({ navigation, route }) {
             <MapRegion
               key={region.id}
               region={region}
-              width={width}
+              width={mapWidth}
               awake={isRegionAwake(region)}
               currentStoryId={currentId}
               // PREVIEW leve aparece sempre; arte FINAL entra de forma escalonada

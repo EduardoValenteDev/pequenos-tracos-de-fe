@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -8,6 +8,7 @@ import { colors } from '../theme/colors';
 import TabletSidebar from '../components/TabletSidebar';
 import FaithIcon from '../components/ui/FaithIcon';
 import { useProgressContext } from '../context/ProgressContext';
+import { isInitialTourPending, subscribeInitialTourRequest } from '../services/beniTourService';
 
 import SplashScreen from '../screens/SplashScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
@@ -112,7 +113,11 @@ function TabIcon({ iconName, focused }) {
 
 // Layout para tablet: sidebar fixa à esquerda + tela ativa à direita
 function TabletLayout({ navigation }) {
-  const [activeTabName, setActiveTabName] = useState('Início');
+  // Tablet: o nested state da navegação não chega aqui (layout custom). Se há tour
+  // inicial pendente (onboarding/“Rever Tour”), começa na aba Aventuras e assina o
+  // sinal para focar Aventuras quando o pedido vier com a tela já montada.
+  const [activeTabName, setActiveTabName] = useState(() => (isInitialTourPending() ? 'Aventuras' : 'Início'));
+  useEffect(() => subscribeInitialTourRequest(() => setActiveTabName('Aventuras')), []);
   const { progressSummary } = useProgressContext();
   const totalStars = progressSummary?.totalStars ?? 0;
   const maxStars = progressSummary?.maxTotalStars ?? 0;
