@@ -55,6 +55,11 @@ export default function BeniGuideOverlay({
   const safeSteps = steps.length ? steps : [{ title: '', text: '' }];
   const isLast = index === safeSteps.length - 1;
   const step = safeSteps[index];
+  // Tablet (sidebar) vs mobile (tab bar). No tablet, o passo com highlightTab vira um
+  // alvo MEDIDO da sidebar ('adventures.sidebarTab'); no mobile usa o realce de tab bar.
+  const isTabletLayout = width >= 768;
+  const targetFor = (s) =>
+    s?.target || (isTabletLayout && s?.highlightTab === 'adventures' ? 'adventures.sidebarTab' : null);
   // Voz da etapa: só com aviso "com voz" + soundsEnabled + áudio existente.
   const stepAudio = phase === 'steps' && voiceOn && soundsOn && step.audioKey
     ? getBeniGuideAudio(step.audioKey)
@@ -69,7 +74,7 @@ export default function BeniGuideOverlay({
     if (to < 0 || to > safeSteps.length - 1) return;
     setBusy(true);
     if (commitTimer.current) clearTimeout(commitTimer.current);
-    const target = safeSteps[to]?.target;
+    const target = targetFor(safeSteps[to]);
     onStep?.(target);
     const finish = (r) => { setIndex(to); setRect(r || null); setBusy(false); };
     if (target && typeof measure === 'function') {
@@ -119,52 +124,56 @@ export default function BeniGuideOverlay({
   };
   const startNoVoice = () => { setVoiceOn(false); setPhase('steps'); };
 
-  // ── Posicionamento do card por alvo medido ───────────────────────────────────
-  const isBigArea = rect && rect.width > width * 0.85 && rect.height > height * 0.5;
+  // ── Realce (mobile=tab bar / tablet=sidebar) + posicionamento do card ─────────
   const tabTop = height - (TABBAR_APPROX + insets.bottom);
+  const ringPad = 6;
+  const isBigArea = rect && rect.width > width * 0.85 && rect.height > height * 0.5;
   const inViewport = !!rect && rect.y + rect.height > insets.top && rect.y < tabTop;
   const showRing = !!rect && !isBigArea && inViewport;
 
+  // Card 2: no MOBILE, realce determinístico da aba na tab bar; no TABLET, o alvo é
+  // MEDIDO (item Aventuras da sidebar → showRing). Sem medição → fallback sem seta.
+  const curTarget = targetFor(step);
+  const isSidebarTarget = curTarget === 'adventures.sidebarTab';
+  const showTabGlow = phase === 'steps' && step.highlightTab === 'adventures' && !isTabletLayout;
+  const TAB_COUNT = 5;
+  const ADV_TAB_INDEX = 1;
+  const tabItemW = width / TAB_COUNT;
+  const tabCenterX = tabItemW * (ADV_TAB_INDEX + 0.5);
+  const tabHaloW = Math.min(tabItemW - 10, 96);
+  const tabHaloH = 54;
+  const tabHaloLeft = tabCenterX - tabHaloW / 2;
+  const tabHaloTop = tabTop + 3;
+
   const usableBottom = tabTop;
-  const ringPad = 6;
   let cardTop;
-  let arrow = null;
-  let arrowLeft = null; // posição horizontal da seta — aponta para o CENTRO do alvo
-  if (showRing) {
+  let cardLeft = 16;
+  let cardRight = 16;
+  let arrow = null;      // 'up' | 'down' | 'left'
+  let arrowLeft = null;  // x da seta (up/down) — aponta para o centro do alvo
+  let arrowTop = null;   // y da seta (left) — aponta para o centro vertical do alvo
+  if (showRing && isSidebarTarget) {
+    // Alvo na SIDEBAR (esquerda): card à DIREITA da sidebar (não a cobre), seta p/ a esquerda.
+    cardLeft = Math.min(rect.x + rect.width + 18, Math.round(width * 0.42));
+    cardRight = 16;
+    cardTop = Math.max(insets.top + 8, Math.min(rect.y + rect.height / 2 - CARD_H / 2, usableBottom - CARD_H - 8));
+    arrow = 'left';
+    arrowTop = Math.max(12, Math.min(CARD_H - 24, (rect.y + rect.height / 2) - cardTop - ARROW_HALF));
+  } else if (showRing) {
     const targetMid = rect.y + rect.height / 2;
     if (targetMid < height * 0.5) { cardTop = rect.y + rect.height + GAP; arrow = 'up'; }
     else { cardTop = rect.y - CARD_H - GAP; arrow = 'down'; }
     cardTop = Math.max(insets.top + 8, Math.min(cardTop, usableBottom - CARD_H - 8));
-    // Desloca a seta para o x do alvo (não fica centralizada no card). cardWrap=16..w-16.
     const targetCx = rect.x + rect.width / 2;
     arrowLeft = Math.max(12, Math.min((width - 32) - ARROW_HALF * 2 - 12, targetCx - 16 - ARROW_HALF));
   } else if (showTabGlow) {
-    // Card 2: card acima da tab bar (deixa o item Aventuras e o mapa visíveis), com
-    // seta CURTA para baixo apontando o item Aventuras (não o centro da tela).
+    // Card 2 (mobile): card acima da tab bar, seta CURTA para baixo no item Aventuras.
     cardTop = Math.max(insets.top + 8, tabHaloTop - CARD_H - 16);
     arrow = 'down';
     arrowLeft = Math.max(12, Math.min((width - 32) - ARROW_HALF * 2 - 12, tabCenterX - 16 - ARROW_HALF));
   } else {
     cardTop = usableBottom - CARD_H - 8;
   }
-
-  // UX 2.4.5 (Card 2): realce CLARO do item Aventuras da tab bar — moldura (halo)
-  // ao redor do ícone + texto, posição DETERMINÍSTICA (5 abas, Aventuras = índice 1).
-  // Decorativo (pointerEvents none); a tab bar segue BLOQUEADA pelo véu. Sem círculo
-  // gigante, sem linha longa: moldura arredondada no item + seta curta do card.
-  const TAB_COUNT = 5;
-  const ADV_TAB_INDEX = 1;
-  // TABLET: NÃO existe tab bar inferior (é sidebar). O realce determinístico de 5
-  // abas apontaria errado → no tablet, fallback honesto (sem realce de aba). O
-  // destaque da sidebar fica para um próximo bloco (medição da sidebar).
-  const isTabletLayout = width >= 768;
-  const showTabGlow = phase === 'steps' && step.highlightTab === 'adventures' && !isTabletLayout;
-  const tabItemW = width / TAB_COUNT;
-  const tabCenterX = tabItemW * (ADV_TAB_INDEX + 0.5);
-  const tabHaloW = Math.min(tabItemW - 10, 96);
-  const tabHaloH = 54;
-  const tabHaloLeft = tabCenterX - tabHaloW / 2;
-  const tabHaloTop = tabTop + 3; // logo no topo da tab bar (ícone + rótulo)
 
   return (
     <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={() => onSkip?.()}>
@@ -247,7 +256,9 @@ export default function BeniGuideOverlay({
               />
             )}
 
-            <View style={[styles.cardWrap, { top: cardTop }]} pointerEvents="box-none">
+            <View style={[styles.cardWrap, { top: cardTop, left: cardLeft, right: cardRight }]} pointerEvents="box-none">
+              {/* Seta para a ESQUERDA (alvo na sidebar do tablet). */}
+              {arrow === 'left' && <View style={[styles.arrowSide, { top: arrowTop }]} />}
               {arrow === 'up' && <View style={[styles.arrow, styles.arrowUp, arrowLeft != null && { alignSelf: 'flex-start', marginLeft: arrowLeft }]} />}
               <LinearGradient colors={['#FBF1D8', '#F4E3BE', '#EAD3A0']} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.card}>
                 <View style={styles.cardTopRow}>
@@ -344,6 +355,19 @@ const styles = StyleSheet.create({
   arrow: { alignSelf: 'center', width: 0, height: 0, borderLeftWidth: 10, borderRightWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent' },
   arrowUp: { borderBottomWidth: 12, borderBottomColor: '#FBF1D8' },
   arrowDown: { borderTopWidth: 12, borderTopColor: '#EAD3A0' },
+  // Seta apontando para a ESQUERDA (alvo na sidebar), na borda esquerda do card.
+  arrowSide: {
+    position: 'absolute',
+    left: -12,
+    width: 0,
+    height: 0,
+    borderTopWidth: 10,
+    borderBottomWidth: 10,
+    borderRightWidth: 12,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderRightColor: '#FBF1D8',
+  },
   card: {
     borderRadius: 22, paddingVertical: 12, paddingHorizontal: 14,
     borderWidth: 1.5, borderColor: 'rgba(180,140,70,0.45)',

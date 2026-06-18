@@ -5,6 +5,7 @@ import { colors } from '../theme/colors';
 import { AVATARS, DEFAULT_AVATAR_ID } from '../data/avatars';
 import { useProfile } from '../context/ProfileContext';
 import BeniCircularArt from './common/BeniCircularArt';
+import { registerGuideTarget } from '../services/guideTargetRegistry';
 
 const TABS = [
   { name: 'Início',     emoji: '🏠' },
@@ -68,9 +69,8 @@ export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxSt
       <View style={styles.navButtons}>
         {TABS.map(tab => {
           const isActive = activeTab === tab.name;
-          return (
+          const btn = (
             <TouchableOpacity
-              key={tab.name}
               style={[styles.navButton, isActive && styles.navButtonActive]}
               onPress={() => onTabPress(tab.name)}
               activeOpacity={0.75}
@@ -83,6 +83,15 @@ export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxSt
               </Text>
             </TouchableOpacity>
           );
+          // O item Aventuras vira ALVO medível do guia (Card 2 do tour no tablet).
+          if (tab.name === 'Aventuras') {
+            return (
+              <View key={tab.name} collapsable={false} ref={registerGuideTarget('adventures.sidebarTab')}>
+                {btn}
+              </View>
+            );
+          }
+          return <View key={tab.name}>{btn}</View>;
         })}
       </View>
     </View>

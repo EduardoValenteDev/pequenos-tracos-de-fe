@@ -24,6 +24,7 @@ import StoryFocusModal from '../components/map/StoryFocusModal';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { hasSeenBeniAppTour, markBeniAppTourSeen, markGuideSeen, consumeInitialTourRequest, subscribeInitialTourRequest } from '../services/beniTourService';
 import { useGuideTargets } from '../hooks/useGuideTargets';
+import { measureGuideTarget } from '../services/guideTargetRegistry';
 import { INITIAL_TOUR } from '../data/beniGuides';
 
 const REGION_OVERLAP = 0; // regiões se tocam exatamente (sem overlap que cortava a base da arte)
@@ -63,6 +64,12 @@ export default function AdventureMapScreen({ navigation, route }) {
   // ref ESTÁVEL do pin foco (current/nextLocked), registrado só pelo MapRegion que o
   // contém. measureInWindow (nativo) já considera o scroll.
   const registerNextPin = useMemo(() => guideTargets.register('adventures.nextPin'), [guideTargets.register]);
+  // Medição combinada: alvos LOCAIS (mapa/pin/Ver mapa) + alvos GLOBAIS (item
+  // Aventuras da sidebar no tablet, registrado em outro componente).
+  const measureTarget = useCallback(
+    (name) => guideTargets.measure(name).then((r) => r || measureGuideTarget(name)),
+    [guideTargets.measure],
+  );
   const { width, height } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
 
@@ -440,7 +447,7 @@ export default function AdventureMapScreen({ navigation, route }) {
       {showBeniTour && (
         <BeniGuideOverlay
           steps={tourSteps}
-          measure={guideTargets.measure}
+          measure={measureTarget}
           withAudioPrompt
           finalLabel="Começar minha jornada"
           onStep={onTourStep}

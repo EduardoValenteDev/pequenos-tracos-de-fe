@@ -6462,7 +6462,7 @@ check(
     mapSrcTour.includes('useGuideTargets') &&
     mapSrcTour.includes("register('adventures.map')") &&
     mapSrcTour.includes("register('adventures.viewMapButton')") &&
-    mapSrcTour.includes('measure={guideTargets.measure}') &&
+    mapSrcTour.includes('measure={measureTarget}') &&
     mapSrcTour.includes('tourSteps') &&
     !mapSrcTour.includes('useScreenGuide'),
     'tour único não usa alvos medidos / ainda tem guia de Aventuras separado',
@@ -6691,6 +6691,37 @@ check(
     /inputRef\.current\?\.focus/.test(gateSrcTab) &&
     gateSrcTab.includes('autoFocus'),
     'ParentalGate não garante foco/teclado no tablet',
+  );
+
+  // ── TABLET 1.1: destaque MEDIDO da sidebar no Card 2 (tablet) ────────────────
+  const registrySrc = readSrc('src/services/guideTargetRegistry.js');
+  const sidebarSrc = readSrc('src/components/TabletSidebar.js');
+  check(
+    'TABLET1.1: registro GLOBAL de alvo (register/measure, null-safe) e item Aventuras da sidebar registrado com View collapsable',
+    registrySrc.includes('export function registerGuideTarget') &&
+    registrySrc.includes('export function measureGuideTarget') &&
+    registrySrc.includes('measureInWindow') &&
+    /resolve\(null\)/.test(registrySrc) &&
+    sidebarSrc.includes("registerGuideTarget('adventures.sidebarTab')") &&
+    /collapsable=\{false\}/.test(sidebarSrc),
+    'registro global ausente / sidebar não registra o item Aventuras medível',
+  );
+  check(
+    'TABLET1.1: medição combinada (local + registro global) passada ao tour',
+    mapSrcTab.includes('measureGuideTarget') &&
+    /guideTargets\.measure\(name\)\.then\(\(r\) => r \|\| measureGuideTarget\(name\)\)/.test(mapSrcTab) &&
+    mapSrcTab.includes('measure={measureTarget}'),
+    'tour não usa medição combinada (sidebar no tablet)',
+  );
+  check(
+    'TABLET1.1: overlay mede a sidebar no tablet (targetFor → adventures.sidebarTab) com card à direita + seta para a esquerda; fallback sem seta se não medir',
+    overlaySrcTab.includes("'adventures.sidebarTab'") &&
+    /isTabletLayout && s\?\.highlightTab === 'adventures' \? 'adventures\.sidebarTab' : null/.test(overlaySrcTab) &&
+    overlaySrcTab.includes('isSidebarTarget') &&
+    /arrow = 'left'/.test(overlaySrcTab) &&
+    overlaySrcTab.includes('arrowSide') &&
+    /const showRing = !!rect && !isBigArea && inViewport/.test(overlaySrcTab),
+    'overlay não destaca a sidebar medida no tablet (ou sem fallback)',
   );
 }
 
