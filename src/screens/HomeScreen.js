@@ -535,6 +535,17 @@ export default function HomeScreen({ navigation }) {
     if (!name) { scrollRef.current?.scrollTo({ y: 0, animated: true }); return; } // Card 1: topo
     homeTargets.measure(name).then((r) => {
       if (!r) return; // sem medição → sem rolagem (o overlay cai no fallback honesto)
+      // Alvo ALTO (ex.: capa + título): leva o TOPO para perto do topo da tela, para
+      // sobrar espaço ABAIXO p/ o card do Beni — assim o halo não fica atrás do card.
+      if (r.height >= 170) {
+        const desiredTop = insets.top + 60;
+        const delta = r.y - desiredTop;
+        if (Math.abs(delta) > 8) {
+          scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + delta), animated: true });
+        }
+        return;
+      }
+      // Alvo pequeno: só traz a uma posição confortável se estiver fora da tela.
       const desiredTop = insets.top + 110;        // posição confortável abaixo do topo
       const viewBottom = screenH - 64 - 190;       // espaço p/ tab bar + card do guia
       let delta = 0;

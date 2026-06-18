@@ -26,6 +26,7 @@ import { getBeniGuideAudio, preloadGuideAudio } from '../data/beniGuideAudio';
 import { getAudioPreferences, subscribeAudioPreferences } from '../services/audioManager';
 
 const CARD_H = 168;        // altura estimada do card (posicionamento)
+const CARD_H_TALL = 200;   // estimativa GENEROSA p/ colisão (card real c/ texto de 3 linhas passa de CARD_H)
 const TABBAR_APPROX = 64;  // altura aproximada da tab bar (não cobrir)
 const GAP = 18;            // folga card↔alvo (UX 2.4.3: card não cobre o pin/botão)
 const ARROW_HALF = 10;     // metade da base da seta
@@ -166,12 +167,21 @@ export default function BeniGuideOverlay({
     arrow = 'left';
     arrowTop = Math.max(12, Math.min(CARD_H - 24, (rect.y + rect.height / 2) - cardTop - ARROW_HALF));
   } else if (showRing) {
-    const targetMid = rect.y + rect.height / 2;
-    if (targetMid < height * 0.5) { cardTop = rect.y + rect.height + GAP; arrow = 'up'; }
-    else { cardTop = rect.y - CARD_H - GAP; arrow = 'down'; }
-    cardTop = Math.max(insets.top + 8, Math.min(cardTop, usableBottom - CARD_H - 8));
+    // Colisão card↔halo (Home 1.3): o card NUNCA cobre a moldura medida — antes a
+    // "linha amarela" aparecia atrás do card porque o card real (texto de 3 linhas)
+    // passa de CARD_H. Usamos CARD_H_TALL (generoso) e posicionamos o card no lado
+    // que o COMPORTA inteiro, fora do halo. Sem espaço em nenhum lado (alvo muito
+    // alto), encosta o card embaixo SEM seta (não cortar a borda do halo).
+    const haloTop = rect.y - ringPad;
+    const haloBottom = rect.y + rect.height + ringPad;
+    const fitsBelow = (usableBottom - 8) - (haloBottom + GAP) >= CARD_H_TALL;
+    const fitsAbove = (haloTop - GAP) - (insets.top + 8) >= CARD_H_TALL;
+    if (fitsBelow) { cardTop = haloBottom + GAP; arrow = 'up'; }
+    else if (fitsAbove) { cardTop = haloTop - GAP - CARD_H_TALL; arrow = 'down'; }
+    else { cardTop = usableBottom - CARD_H_TALL - 8; arrow = null; }
+    if (arrow) cardTop = Math.max(insets.top + 8, Math.min(cardTop, usableBottom - CARD_H_TALL - 8));
     const targetCx = rect.x + rect.width / 2;
-    arrowLeft = Math.max(12, Math.min((width - 32) - ARROW_HALF * 2 - 12, targetCx - 16 - ARROW_HALF));
+    arrowLeft = arrow ? Math.max(12, Math.min((width - 32) - ARROW_HALF * 2 - 12, targetCx - 16 - ARROW_HALF)) : null;
   } else if (showTabGlow) {
     // Card 2 (mobile): card acima da tab bar, seta CURTA para baixo no item Aventuras.
     cardTop = Math.max(insets.top + 8, tabHaloTop - CARD_H - 16);
