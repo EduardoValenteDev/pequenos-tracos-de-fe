@@ -33,10 +33,15 @@ export const ADVENTURES_GUIDE = [
   { variant: 'happy',       target: 'adventures.viewMapButton', title: 'Ver a região',  text: 'O botão Ver mapa abre o mapa inteiro. Olhe os detalhes com calma.',     audioKey: 'guide.adventures.view_region' },
 ];
 
-// Home
+// Home (Home 1.0) — guia falado CURTO de 5 cards, com alvos MEDIDOS dos módulos
+// principais. Card 1 sem alvo (mostra sem seta, posição segura). Não explica outras
+// abas (Ateliê/Estrelinhas/Perfil/Área dos Pais têm guia próprio depois).
 export const HOME_GUIDE = [
-  { variant: 'happy',    target: 'mainArea', balloon: 'bottom', title: 'Seu cantinho',  text: 'Aqui ficam os atalhos para continuar sua jornada.' },
-  { variant: 'teaching', target: 'mainArea', balloon: 'bottom', title: 'Beni por perto', text: 'Quando aparecer uma dica do Beni, ele está te ajudando a encontrar o caminho.' },
+  { variant: 'happy',       title: 'Seu início',            text: 'Aqui ficam os caminhos principais da sua jornada.', audioKey: 'guide.home.welcome' },
+  { variant: 'teaching',    title: 'Continue sua aventura', text: 'Volte para onde parou.',                            audioKey: 'guide.home.continue',     target: 'home.continue' },
+  { variant: 'happy',       title: 'Cultinho em Casa',      text: 'Um momento de fé em família.',                      audioKey: 'guide.home.cultinho',     target: 'home.cultinho' },
+  { variant: 'celebrating', title: 'Baú do Beni',           text: 'Suas lembranças especiais ficam aqui.',             audioKey: 'guide.home.bau_beni',     target: 'home.bau' },
+  { variant: 'happy',       title: 'Momento com Beni',      text: 'O Beni fica pertinho para conversar e ajudar.',     audioKey: 'guide.home.momento_beni', target: 'home.momento' },
 ];
 
 // Ateliê

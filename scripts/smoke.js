@@ -6528,13 +6528,39 @@ check(
     'tour único não usa alvos medidos / ainda tem guia de Aventuras separado',
   );
   check(
-    'UX2.3: guias reprovados DESATIVADOS (Home/Ateliê/Estrelinhas/Perfil/Pais não aparecem automaticamente)',
-    homeSrc.includes("useScreenGuide('home', false)") &&
+    'UX2.3 / HOME1.0: demais guias seguem DESATIVADOS (Ateliê/Estrelinhas/Perfil/Pais) — só a Home foi ativada',
     atelierSrc.includes("useScreenGuide('atelier', false)") &&
     trophiesSrc.includes("useScreenGuide('stars', false)") &&
     profileSrc.includes("useScreenGuide('profile', false)") &&
     parentTour.includes("useScreenGuide('parentArea', false)"),
     'algum guia reprovado ainda aparece automaticamente (deveria estar desativado)',
+  );
+  // ── HOME 1.0: guia falado da Home (5 cards) com alvos medidos ────────────────
+  const homeManifest = readSrc('src/data/beniGuideAudio.js');
+  check(
+    'HOME1.0: manifesto tem as 5 chaves de áudio da Home (require de assets/audio/beni_guide/home/, null-safe)',
+    ['welcome', 'continue', 'cultinho', 'bau_beni', 'momento_beni'].every((k) =>
+      homeManifest.includes(`'guide.home.${k}'`) &&
+      fs.existsSync(path.join(root, 'assets/audio/beni_guide/home', `guide_home_${k}.mp3`)) &&
+      homeManifest.includes(`beni_guide/home/guide_home_${k}.mp3`)),
+    'manifesto não tem as 5 chaves/áudios da Home corretamente',
+  );
+  check(
+    'HOME1.0: HOME_GUIDE tem 5 cards CURTOS com audioKey; cards 2-5 com alvo medido; card 1 sem alvo (sem seta); botão Entendi',
+    (guidesData.match(/audioKey: 'guide\.home\./g) || []).length === 5 &&
+    ['home.continue', 'home.cultinho', 'home.bau', 'home.momento'].every((t) => guidesData.includes(`target: '${t}'`)) &&
+    homeSrc.includes("finalLabel=\"Entendi\""),
+    'HOME_GUIDE não tem 5 cards com áudio/alvos corretos',
+  );
+  check(
+    'HOME1.0: HomeScreen ativa o guia, mede alvos reais (useGuideTargets) e rola até o alvo do card; tab bar/sidebar bloqueadas pelo overlay',
+    homeSrc.includes("useScreenGuide('home', true)") &&
+    homeSrc.includes('useGuideTargets') &&
+    ["home.continue", 'home.cultinho', 'home.bau', 'home.momento'].every((t) => homeSrc.includes(`register('${t}')`)) &&
+    homeSrc.includes('measure={homeTargets.measure}') &&
+    homeSrc.includes('scrollGuideTargetIntoView') &&
+    /collapsable=\{false\}/.test(homeSrc),
+    'HomeScreen não ativa/medê o guia da Home corretamente (ou não rola até o alvo)',
   );
   check(
     'UX2.3: useGuideTargets mede alvos reais (measureInWindow) e cai em fallback null sem medição',
@@ -6606,7 +6632,8 @@ check(
     ['home', 'atelier', 'stars', 'profile', 'parents', 'common'].every((d) =>
       fs.existsSync(path.join(root, 'assets/audio/beni_guide', d, '.gitkeep'))) &&
     fs.existsSync(path.join(root, 'docs/BENI_GUIDE_AUDIO_PLAN.md')) &&
-    !/guide_home_|guide_atelier_|guide_stars_|guide_profile_|guide_parents_|guide_common_/.test(guideAudioData),
+    // Home foi ativada (Home 1.0); as demais seguem futuras e NÃO podem ser importadas.
+    !/guide_atelier_|guide_stars_|guide_profile_|guide_parents_|guide_common_/.test(guideAudioData),
     'pastas futuras/plano ausentes, ou o manifesto importa áudio futuro inexistente',
   );
   check(

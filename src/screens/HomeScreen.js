@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, Image,
-  Animated, StyleSheet,
+  Animated, StyleSheet, useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import CenteredContent from '../components/layout/CenteredContent';
 import { BeniAvatar } from '../components/beni';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
+import { useGuideTargets } from '../hooks/useGuideTargets';
 import { HOME_GUIDE } from '../data/beniGuides';
 import { useFocusEffect } from '@react-navigation/native';
 import { useProfile } from '../context/ProfileContext';
@@ -502,8 +503,29 @@ function CantinhoDoBeni({ idea, verse, prayer, canAccess, onVerse }) {
 ═══════════════════════════════════════════════════════════════════ */
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  // UX 2.3: guia da Home DESATIVADO (reprovado) — só reativa no bloco UX 2.4.
-  const homeGuide = useScreenGuide('home', false);
+  const { height: screenH } = useWindowDimensions();
+  // Home 1.0: guia falado da Home ATIVO — 1ª visita à Home (flag @ptf_beni_guide_home_v1).
+  const homeGuide = useScreenGuide('home', true);
+  // Alvos REAIS dos módulos da Home (measureInWindow) — sem medição → fallback sem seta.
+  const homeTargets = useGuideTargets();
+  // Rolagem da Home p/ trazer o alvo do card atual à área visível antes de medir.
+  const scrollRef = useRef(null);
+  const scrollY = useRef(0);
+  const onHomeScroll = useCallback((e) => { scrollY.current = e.nativeEvent.contentOffset.y; }, []);
+  const scrollGuideTargetIntoView = useCallback((name) => {
+    if (!name) { scrollRef.current?.scrollTo({ y: 0, animated: true }); return; } // Card 1: topo
+    homeTargets.measure(name).then((r) => {
+      if (!r) return; // sem medição → sem rolagem (o overlay cai no fallback honesto)
+      const desiredTop = insets.top + 110;        // posição confortável abaixo do topo
+      const viewBottom = screenH - 64 - 190;       // espaço p/ tab bar + card do guia
+      let delta = 0;
+      if (r.y < desiredTop) delta = r.y - desiredTop;
+      else if (r.y + r.height > viewBottom) delta = (r.y + r.height) - viewBottom;
+      if (Math.abs(delta) > 8) {
+        scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + delta), animated: true });
+      }
+    });
+  }, [homeTargets, insets.top, screenH]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
@@ -676,9 +698,12 @@ export default function HomeScreen({ navigation }) {
   return (
     <View style={{ flex: 1 }}>
     <ScrollView
+      ref={scrollRef}
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 24 }}
       showsVerticalScrollIndicator={false}
+      onScroll={onHomeScroll}
+      scrollEventThrottle={32}
     >
       <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
         {/* 1. Cena de entrada */}
@@ -695,17 +720,26 @@ export default function HomeScreen({ navigation }) {
         />
 
         <CenteredContent>
-          {jornadaBlock}
+          {/* Alvos MEDIDOS do guia da Home (wrappers collapsable p/ measureInWindow).
+              Card 1 (Seu início) não tem alvo → guia mostra sem seta. */}
+          <View ref={homeTargets.register('home.continue')} collapsable={false}>{jornadaBlock}</View>
           {achievementBlock}
-          {cultinhoEmCasaBlock}
-          {bauBlock}
+          <View ref={homeTargets.register('home.cultinho')} collapsable={false}>{cultinhoEmCasaBlock}</View>
+          <View ref={homeTargets.register('home.bau')} collapsable={false}>{bauBlock}</View>
           {criarBlock}
-          {cantinhoBlock}
+          <View ref={homeTargets.register('home.momento')} collapsable={false}>{cantinhoBlock}</View>
         </CenteredContent>
       </Animated.View>
     </ScrollView>
       {homeGuide.visible && (
-        <BeniGuideOverlay steps={HOME_GUIDE} finalLabel="Entendi" onFinish={homeGuide.close} onSkip={homeGuide.close} />
+        <BeniGuideOverlay
+          steps={HOME_GUIDE}
+          measure={homeTargets.measure}
+          finalLabel="Entendi"
+          onStep={scrollGuideTargetIntoView}
+          onFinish={homeGuide.close}
+          onSkip={homeGuide.close}
+        />
       )}
     </View>
   );

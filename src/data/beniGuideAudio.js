@@ -22,6 +22,12 @@ const BENI_GUIDE_AUDIO = {
   'guide.adventures.next_available': require('../../assets/audio/beni_guide/adventures/guide_adventures_next_available.mp3'),
   'guide.adventures.next_locked':    require('../../assets/audio/beni_guide/adventures/guide_adventures_next_locked.mp3'),
   'guide.adventures.view_region':    require('../../assets/audio/beni_guide/adventures/guide_adventures_view_region.mp3'),
+  // Guia da aba Início/Home (Home 1.0) — assets/audio/beni_guide/home/
+  'guide.home.welcome':              require('../../assets/audio/beni_guide/home/guide_home_welcome.mp3'),
+  'guide.home.continue':             require('../../assets/audio/beni_guide/home/guide_home_continue.mp3'),
+  'guide.home.cultinho':             require('../../assets/audio/beni_guide/home/guide_home_cultinho.mp3'),
+  'guide.home.bau_beni':             require('../../assets/audio/beni_guide/home/guide_home_bau_beni.mp3'),
+  'guide.home.momento_beni':         require('../../assets/audio/beni_guide/home/guide_home_momento_beni.mp3'),
 };
 
 /**
