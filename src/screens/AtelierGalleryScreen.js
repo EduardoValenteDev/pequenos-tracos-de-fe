@@ -101,7 +101,7 @@ export default function AtelierGalleryScreen({ navigation }) {
 
       <FlatList
         style={styles.container}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
         data={arts}
         keyExtractor={(art) => String(art.id)}
