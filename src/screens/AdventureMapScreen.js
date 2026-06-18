@@ -66,6 +66,9 @@ export default function AdventureMapScreen({ navigation, route }) {
   );
   // Alvos REAIS medidos do guia (UX 2.3): mapa + botão Ver mapa.
   const guideTargets = useGuideTargets();
+  // UX 2.3.1: ref ESTÁVEL do pin foco da jornada (current/nextLocked), registrado
+  // só pelo MapRegion que o contém. measureInWindow (nativo) já considera o scroll.
+  const registerNextPin = useMemo(() => guideTargets.register('adventures.nextPin'), [guideTargets.register]);
   const { width, height } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
 
@@ -273,6 +276,25 @@ export default function AdventureMapScreen({ navigation, route }) {
     setActiveIdx((prev) => (prev === idx ? prev : idx));
   }, [regionLayout]);
 
+  // UX 2.3.1: ao abrir o guia de Aventuras, traz o pin foco para a área visível
+  // (mesma geometria da câmera) → maximiza a chance de medir o brilho. Se não der,
+  // o overlay cai no fallback honesto (sem halo). Não mexe em coords/pins.
+  const scrollPinIntoView = useCallback(() => {
+    const vp = scrollViewH.current;
+    if (vp <= 0 || !regionLayout.length || !cameraStoryId) return;
+    const idx = regionsVisual.findIndex((r) => (r.stories || []).some((s) => s.id === cameraStoryId));
+    if (idx < 0 || !regionLayout[idx]) return;
+    const anchorY = regionLayout[idx].top + getStoryMapCoord(cameraStoryId).y * regionLayout[idx].height;
+    const last = regionLayout[regionLayout.length - 1];
+    const contentH = last.top + last.height + SCROLL_BOTTOM_PAD;
+    const maxY = Math.max(0, contentH - vp);
+    const target = Math.max(0, Math.min(anchorY - vp * 0.5, maxY));
+    scrollRef.current?.scrollTo({ y: target, animated: true });
+  }, [regionLayout, regionsVisual, cameraStoryId]);
+  useEffect(() => {
+    if (adventuresGuide.visible) scrollPinIntoView();
+  }, [adventuresGuide.visible, scrollPinIntoView]);
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#F4E6C8', '#E8D3A6']} style={[styles.header, { paddingTop: Math.max(insets.top, 8) + 2 }]}>
@@ -316,6 +338,7 @@ export default function AdventureMapScreen({ navigation, route }) {
               renderImageFinal={loadedFinalIds.has(region.id)}
               getState={getState}
               onPressStory={openFocus}
+              registerPinTarget={registerNextPin}
             />
           ))}
         </ScrollView>

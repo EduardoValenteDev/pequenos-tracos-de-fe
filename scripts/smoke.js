@@ -6475,6 +6475,41 @@ check(
     /resolve\(null\)/.test(readSrc('src/hooks/useGuideTargets.js')),
     'useGuideTargets não mede alvos reais / sem fallback seguro',
   );
+
+  // ── UX 2.3.1: pin foco MEDIDO (current/nextLocked) com gate de visibilidade ──
+  const markerSrc231 = readSrc('src/components/map/StoryMapMarker.js');
+  const regionSrc231 = readSrc('src/components/map/MapRegion.js');
+  check(
+    'UX2.3.1: StoryMapMarker expõe measureRef numa View nativa (ref + collapsable={false}) — sem mudar visual/coords/cores',
+    markerSrc231.includes('measureRef') &&
+    /ref=\{measureRef\}/.test(markerSrc231) &&
+    /collapsable=\{measureRef \? false : undefined\}/.test(markerSrc231) &&
+    !markerSrc231.includes('STORY_MAP_COORDS'),
+    'StoryMapMarker não expõe measureRef numa View medível',
+  );
+  check(
+    'UX2.3.1: MapRegion registra SÓ o pin foco (current/nextLocked) como alvo medível',
+    regionSrc231.includes('registerPinTarget') &&
+    /st === 'current' \|\| st === 'nextLocked'/.test(regionSrc231) &&
+    /measureRef=\{isFocusPin \? registerPinTarget : undefined\}/.test(regionSrc231),
+    'MapRegion não registra apenas o pin foco como alvo medível',
+  );
+  check(
+    'UX2.3.1: AdventureMapScreen registra adventures.nextPin + scroll-into-view + passa registerPinTarget',
+    mapSrcTour.includes("register('adventures.nextPin')") &&
+    mapSrcTour.includes('registerPinTarget={registerNextPin}') &&
+    mapSrcTour.includes('scrollPinIntoView') &&
+    /if \(adventuresGuide\.visible\) scrollPinIntoView\(\)/.test(mapSrcTour),
+    'AdventureMapScreen não registra/rola o pin foco para o guia',
+  );
+  check(
+    'UX2.3.1: BeniGuideOverlay só destaca o alvo se medido E dentro da viewport (gate de visibilidade) — senão fallback',
+    guideBase.includes('inViewport') &&
+    /const showRing = !!rect && !isBigArea && inViewport/.test(guideBase) &&
+    guideBase.includes('rect.y + rect.height > insets.top') &&
+    guideBase.includes('rect.y < tabTop'),
+    'BeniGuideOverlay não tem gate de visibilidade do alvo medido',
+  );
 }
 
 check(

@@ -69,9 +69,14 @@ export default function BeniGuideOverlay({ steps = [], measure, finalLabel = 'En
   };
 
   // Alvo "área grande" (ex.: o mapa inteiro) → não desenha moldura (ficaria uma borda
-  // na tela toda). Só molduramos alvos PEQUENOS/precisos (botão, ícone…).
+  // na tela toda). Só molduramos alvos PEQUENOS/precisos (botão, pin…).
   const isBigArea = rect && rect.width > width * 0.85 && rect.height > height * 0.5;
-  const showRing = !!rect && !isBigArea;
+  // Gate de VISIBILIDADE (UX 2.3.1): só destaca se o rect medido estiver de fato na
+  // área visível (abaixo do topo, acima da tab bar). Pin/alvo fora da viewport →
+  // SEM moldura, SEM seta (fallback honesto).
+  const tabTop = height - (TABBAR_APPROX + insets.bottom);
+  const inViewport = !!rect && rect.y + rect.height > insets.top && rect.y < tabTop;
+  const showRing = !!rect && !isBigArea && inViewport;
 
   // Posição do card: abaixo de alvo no topo; acima de alvo embaixo; senão rodapé.
   const usableBottom = height - (TABBAR_APPROX + insets.bottom);
@@ -110,7 +115,11 @@ export default function BeniGuideOverlay({ steps = [], measure, finalLabel = 'En
               top: rect.y - ringPad,
               width: rect.width + ringPad * 2,
               height: rect.height + ringPad * 2,
-              borderRadius: Math.min(18, (rect.height + ringPad * 2) / 2),
+              // Alvo quase quadrado (pin) → círculo; alvo largo (botão) → cantos suaves.
+              borderRadius:
+                Math.abs(rect.width - rect.height) <= 10
+                  ? (Math.max(rect.width, rect.height) + ringPad * 2) / 2
+                  : Math.min(18, (rect.height + ringPad * 2) / 2),
               opacity: ringOpacity,
             },
           ]}

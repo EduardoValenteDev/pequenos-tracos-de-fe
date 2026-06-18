@@ -51,6 +51,7 @@ export default function StoryMapMarker({
   markerScale = 1,
   completedColor = '#5EBE6E', // default seguro p/ uso fora do mapa; no mapa vem da região
   currentColor = '#F4B73E',   // idem; no mapa = cor da região (B3.6)
+  measureRef,                 // UX 2.3.1: ref de MEDIÇÃO (só no marco current/nextLocked)
   onPress,
 }) {
   const cover = getStoryCover(story.id);
@@ -119,6 +120,8 @@ export default function StoryMapMarker({
         />
       )}
       <View
+        ref={measureRef}
+        collapsable={measureRef ? false : undefined}
         style={[
           styles.ring,
           { width: size, height: size, borderRadius: size / 2, borderColor: ringColor, borderWidth: ring.width },

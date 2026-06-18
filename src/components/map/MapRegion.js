@@ -22,7 +22,7 @@ import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../.
 const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo marco)
 const OVERLAY_DELAY_MS = 400; // marcadores entram logo após a 1ª pintura
 
-export default function MapRegion({ region, width, awake, currentStoryId, renderImageFinal = true, getState, onPressStory }) {
+export default function MapRegion({ region, width, awake, currentStoryId, renderImageFinal = true, getState, onPressStory, registerPinTarget }) {
   const list = region.stories || [];
   const n = list.length;
 
@@ -108,20 +108,27 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
           o título aparece só no toque/modal e nas telas da história). */}
       {showOverlay && (
         <View style={[styles.overlayFront, { height: regionH }]} pointerEvents="box-none">
-          {items.map((it) => (
-            <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
-              <StoryMapMarker
-                story={it.story}
-                state={getState(it.story)}
-                labelPos={it.labelPos}
-                markerScale={it.markerScale}
-                showLabel={false}
-                completedColor={region.completedColor}
-                currentColor={region.currentColor}
-                onPress={() => onPressStory(it.story)}
-              />
-            </View>
-          ))}
+          {items.map((it) => {
+            const st = getState(it.story);
+            // UX 2.3.1: só o marco FOCO da jornada (current/nextLocked) é registrado
+            // como alvo medível para o guia — os demais não recebem ref.
+            const isFocusPin = st === 'current' || st === 'nextLocked';
+            return (
+              <View key={it.story.id} style={[styles.markerSlot, { left: it.x, top: it.y }]}>
+                <StoryMapMarker
+                  story={it.story}
+                  state={st}
+                  labelPos={it.labelPos}
+                  markerScale={it.markerScale}
+                  showLabel={false}
+                  completedColor={region.completedColor}
+                  currentColor={region.currentColor}
+                  measureRef={isFocusPin ? registerPinTarget : undefined}
+                  onPress={() => onPressStory(it.story)}
+                />
+              </View>
+            );
+          })}
         </View>
       )}
     </View>
