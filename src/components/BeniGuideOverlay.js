@@ -138,18 +138,29 @@ export default function BeniGuideOverlay({
     // Desloca a seta para o x do alvo (não fica centralizada no card). cardWrap=16..w-16.
     const targetCx = rect.x + rect.width / 2;
     arrowLeft = Math.max(12, Math.min((width - 32) - ARROW_HALF * 2 - 12, targetCx - 16 - ARROW_HALF));
+  } else if (showTabGlow) {
+    // Card 2: card acima da tab bar (deixa o item Aventuras e o mapa visíveis), com
+    // seta CURTA para baixo apontando o item Aventuras (não o centro da tela).
+    cardTop = Math.max(insets.top + 8, tabHaloTop - CARD_H - 16);
+    arrow = 'down';
+    arrowLeft = Math.max(12, Math.min((width - 32) - ARROW_HALF * 2 - 12, tabCenterX - 16 - ARROW_HALF));
   } else {
     cardTop = usableBottom - CARD_H - 8;
   }
 
-  // UX 2.4.4 (Card 2): realce SUTIL no ícone da aba Aventuras (posição determinística
-  // — 5 abas, Aventuras = índice 1). É decorativo (pointerEvents none); a tab bar
-  // segue BLOQUEADA pelo véu. Sem linha/contorno feio, só um brilho quente.
+  // UX 2.4.5 (Card 2): realce CLARO do item Aventuras da tab bar — moldura (halo)
+  // ao redor do ícone + texto, posição DETERMINÍSTICA (5 abas, Aventuras = índice 1).
+  // Decorativo (pointerEvents none); a tab bar segue BLOQUEADA pelo véu. Sem círculo
+  // gigante, sem linha longa: moldura arredondada no item + seta curta do card.
   const TAB_COUNT = 5;
   const ADV_TAB_INDEX = 1;
   const showTabGlow = phase === 'steps' && step.highlightTab === 'adventures';
-  const tabGlowX = width * ((ADV_TAB_INDEX + 0.5) / TAB_COUNT);
-  const tabGlowY = tabTop + 18;
+  const tabItemW = width / TAB_COUNT;
+  const tabCenterX = tabItemW * (ADV_TAB_INDEX + 0.5);
+  const tabHaloW = Math.min(tabItemW - 10, 96);
+  const tabHaloH = 54;
+  const tabHaloLeft = tabCenterX - tabHaloW / 2;
+  const tabHaloTop = tabTop + 3; // logo no topo da tab bar (ícone + rótulo)
 
   return (
     <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={() => onSkip?.()}>
@@ -158,11 +169,15 @@ export default function BeniGuideOverlay({
             para a tela (mapa + abas) continuar claramente visível por trás. */}
         <View style={styles.veil} pointerEvents="auto" />
 
-        {/* Realce suave no ícone da aba Aventuras (Card 2). Decorativo. */}
+        {/* Realce CLARO do item Aventuras (Card 2): moldura pulsante no ícone+texto.
+            Decorativo (pointerEvents none) — a tab bar continua bloqueada pelo véu. */}
         {showTabGlow && (
           <Animated.View
             pointerEvents="none"
-            style={[styles.tabGlow, { left: tabGlowX - 24, top: tabGlowY - 24, opacity: ringOpacity }]}
+            style={[
+              styles.tabHalo,
+              { left: tabHaloLeft, top: tabHaloTop, width: tabHaloW, height: tabHaloH, opacity: ringOpacity, transform: [{ scale: beniScale }] },
+            ]}
           />
         )}
 
@@ -287,7 +302,19 @@ const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject },
   // Véu LEVE (UX 2.4.4): bloqueia o toque, mas deixa o mapa e a tab bar visíveis.
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(40,28,12,0.22)' },
-  tabGlow: { position: 'absolute', width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,213,120,0.38)' },
+  // Moldura do item Aventuras na tab bar (Card 2) — clara, mas elegante.
+  tabHalo: {
+    position: 'absolute',
+    borderRadius: 16,
+    borderWidth: 2.5,
+    borderColor: 'rgba(255,205,110,0.98)',
+    backgroundColor: 'rgba(255,222,150,0.18)',
+    shadowColor: '#FFB15A',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   ring: {
     position: 'absolute',
     borderWidth: 2.5,

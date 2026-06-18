@@ -6616,13 +6616,18 @@ check(
     'overlay não comita índice+rect juntos (ainda há render provisório/pulo)',
   );
   check(
-    'UX2.4.4: Card 2 realça a aba Aventuras (highlightTab) e o véu é leve (mapa/abas visíveis, mas tab bar bloqueada)',
+    'UX2.4.5: Card 2 realça CLARO a aba Aventuras — moldura (tabHalo c/ borda+pulso) no item + seta curta do card, véu leve, tab bar bloqueada',
     readSrc('src/data/beniGuides.js').includes("highlightTab: 'adventures'") &&
     guideBase.includes("step.highlightTab === 'adventures'") &&
-    guideBase.includes('tabGlow') &&
+    guideBase.includes('tabHalo') &&
+    guideBase.includes('borderWidth: 2.5') &&
+    guideBase.includes('else if (showTabGlow)') &&
+    guideBase.includes("arrow = 'down'") &&
+    guideBase.includes('tabCenterX') &&
     /rgba\(40,28,12,0\.22\)/.test(guideBase) &&
-    /pointerEvents="auto"/.test(guideBase),
-    'Card 2 não realça a aba / véu não ficou leve / tab bar deixou de ser bloqueada',
+    guideBase.includes('pointerEvents="auto"') &&
+    !guideBase.includes('tabGlow:'),
+    'Card 2 não tem moldura clara/seta na aba / véu não leve / tab bar deixou de ser bloqueada',
   );
   check(
     'UX2.4.4: os 7 áudios oficiais existem com os nomes do manifesto (path/glow inclusos)',
