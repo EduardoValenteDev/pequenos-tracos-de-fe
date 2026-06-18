@@ -1,9 +1,10 @@
 /**
  * OnboardingScreen.js — Onboarding progressivo com Beni.
  *
- * 5 etapas: boas-vindas → nome → avatar → primeira aventura → confirmação.
+ * 4 etapas: boas-vindas → nome → avatar → confirmação (UX 2.1).
  * Visual infantil, mágico e sem fricção. Apenas nome e avatar — nenhum dado sensível.
- * Ao concluir, salva perfil (legado + nova estrutura) e marca onboarding feito.
+ * Ao concluir, salva perfil (legado + nova estrutura), marca onboarding feito e abre
+ * a aba Aventuras com o Tour do Beni (sem escolher história aqui).
  */
 import React, { useState, useRef, useCallback } from 'react';
 import {
@@ -18,54 +19,20 @@ import { AVATARS, DEFAULT_AVATAR_ID } from '../data/avatars';
 import { useProfile } from '../context/ProfileContext';
 import { createChildProfile } from '../services/childProfileService';
 import { markOnboardingCompleted } from '../services/onboardingService';
-import { stories as allStories } from '../data/stories';
 import { colors } from '../theme/colors';
 import { log } from '../utils/logger';
 
-// ── Dados das histórias de estreia (visual apenas — nunca usar como objeto final) ──
+// ── Etapas (UX 2.1: onboarding curto — só nome + avatar + entrada na jornada) ──
+// A escolha de história saiu: a primeira visão passou a ser o Mapa das Aventuras,
+// com o Tour do Beni por cima. Não há mais navegação para StoryDetail aqui.
 
-const STARTER_STORIES = [
-  {
-    id: 'creation',
-    titulo: 'A Criação',
-    referencia: 'Gênesis 1',
-    shortDescription: 'Deus criou o mundo com amor.',
-    themeColor: '#4FC3F7',
-    emoji: '🌍',
-    badge: '⭐ Recomendado',
-    recommended: true,
-  },
-  {
-    id: 'noah',
-    titulo: 'Noé e o Sinal da Aliança',
-    referencia: 'Gênesis 6–9',
-    shortDescription: 'Deus cuida de Noé e suas promessas.',
-    themeColor: '#F4B400',
-    emoji: '🌈',
-    badge: '🎨 Para colorir',
-    recommended: false,
-  },
-];
-
-/**
- * Retorna a história completa (com cenas) a partir do catálogo canônico.
- * Fallback: retorna A Criação se o id não existir.
- */
-function resolveFullStory(id) {
-  const found = allStories.find(s => s.id === id);
-  return found ?? allStories.find(s => s.id === 'creation') ?? allStories[0];
-}
-
-// ── Etapas ────────────────────────────────────────────────────────────────────
-
-const STEPS = ['welcome', 'name', 'avatar', 'adventure', 'confirm'];
+const STEPS = ['welcome', 'name', 'avatar', 'confirm'];
 const TOTAL_STEPS = STEPS.length;
 
 const BENI_VARIANTS = {
   welcome:   'happy',
   name:      'pointing',
   avatar:    'celebrating',
-  adventure: 'reading',
   confirm:   'celebrating',
 };
 
@@ -73,7 +40,6 @@ const BENI_MESSAGES = {
   welcome:   'Olá! Eu sou o Beni.\nVou caminhar com você nas aventuras da Bíblia.',
   name:      'Como posso te chamar\nnessa jornada?',
   avatar:    'Escolha um rostinho\npara caminhar comigo.',
-  adventure: 'Vamos começar com\numa história especial?',
   confirm:   'Prontinho! Sua jornada\nde fé vai começar.',
 };
 
@@ -148,7 +114,6 @@ export default function OnboardingScreen({ navigation }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [childName, setChildName] = useState('');
   const [avatarId, setAvatarId] = useState(DEFAULT_AVATAR_ID);
-  const [selectedStoryId, setSelectedStoryId] = useState('creation');
   const [nameError, setNameError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -316,48 +281,13 @@ export default function OnboardingScreen({ navigation }) {
           </View>
         );
 
-      case 'adventure':
-        return (
-          <View style={styles.storiesColumn}>
-            {STARTER_STORIES.map(s => (
-              <TouchableOpacity
-                key={s.id}
-                style={[
-                  styles.storyCard,
-                  { borderColor: s.themeColor },
-                  selectedStoryId === s.id && { backgroundColor: s.themeColor + '22', borderWidth: 3 },
-                ]}
-                onPress={() => setSelectedStoryId(s.id)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.storyEmoji}>{s.emoji}</Text>
-                <View style={styles.storyInfo}>
-                  <Text style={styles.storyTitle} numberOfLines={2}>{s.titulo}</Text>
-                  <Text style={styles.storyRef}>{s.referencia}</Text>
-                  <Text style={styles.storyDesc} numberOfLines={2}>{s.shortDescription}</Text>
-                  <View style={[styles.storyBadge, { backgroundColor: s.themeColor + '33' }]}>
-                    <Text style={[styles.storyBadgeText, { color: s.recommended ? '#2666A8' : '#7A5200' }]}>
-                      {s.badge}
-                    </Text>
-                  </View>
-                </View>
-                {selectedStoryId === s.id && (
-                  <Text style={[styles.selectedCheck, { color: s.themeColor }]}>✓</Text>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        );
-
       case 'confirm': {
         const chosenAvatar = AVATARS.find(a => a.id === avatarId);
-        const chosenStory = STARTER_STORIES.find(s => s.id === selectedStoryId);
         return (
           <View style={styles.confirmCard}>
             <Text style={styles.confirmEmoji}>{chosenAvatar?.emoji ?? '⭐'}</Text>
             <Text style={styles.confirmName}>{childName.trim() || 'Amiguinho'}</Text>
-            <Text style={styles.confirmStory}>Primeira história:</Text>
-            <Text style={styles.confirmStoryName}>{chosenStory?.titulo}</Text>
+            <Text style={styles.confirmStory}>Sua jornada vai começar!</Text>
           </View>
         );
       }

@@ -6342,49 +6342,64 @@ console.log('\n── Sprint 2.1 — Hotfix + Polimento Visual ──');
 const narrationScreenSrc = fs.readFileSync(path.join(__dirname, '../src/screens/NarrationScreen.js'), 'utf8');
 
 check(
-  'OnboardingScreen importa stories canônicas para navegação final',
-  onboardingScreenSrc.includes("from '../data/stories'"),
-  'OnboardingScreen deve importar stories de data/stories para resolver história completa com cenas',
+  'UX2.1 OnboardingScreen: onboarding curto (4 etapas) SEM escolha de história — adventure/STARTER_STORIES/resolveFullStory/selectedStoryId removidos',
+  /const STEPS = \['welcome', 'name', 'avatar', 'confirm'\]/.test(onboardingScreenSrc) &&
+  !onboardingScreenSrc.includes("'adventure'") &&
+  !onboardingScreenSrc.includes('STARTER_STORIES') &&
+  !onboardingScreenSrc.includes('resolveFullStory') &&
+  !onboardingScreenSrc.includes('selectedStoryId'),
+  'OnboardingScreen ainda tem a etapa de escolha de história (adventure/STARTER_STORIES/resolveFullStory/selectedStoryId)',
 );
 
 check(
-  'OnboardingScreen tem resolveFullStory para catálogo canônico',
-  onboardingScreenSrc.includes('resolveFullStory') && onboardingScreenSrc.includes('allStories.find'),
-  'OnboardingScreen não tem resolveFullStory — história passada para navegação pode não ter cenas',
-);
-
-check(
-  'UX2.0 OnboardingScreen: ao concluir, vai para a aba Aventuras com o Tour do Beni (startBeniTour), não direto pra história',
+  'UX2.1 OnboardingScreen: ao concluir, vai para a aba Aventuras com o Tour do Beni (startBeniTour), não pra StoryDetail',
   /name: 'Aventuras', params: \{ startBeniTour: true \}/.test(onboardingScreenSrc) &&
   onboardingScreenSrc.includes('markOnboardingCompleted') &&
-  !onboardingScreenSrc.includes('params: { story: fullStory'),
+  !onboardingScreenSrc.includes('params: { story: fullStory') &&
+  !/\{ name: 'StoryDetail'/.test(onboardingScreenSrc),
   'OnboardingScreen deve cair na aba Aventuras com startBeniTour após o onboarding',
 );
 
-// ── UX 2.0: Tour Mágico do Beni (visual, uma vez, após o onboarding) ─────────
+// ── UX 2.0/2.1: Tour inicial + base de guias contextuais do Beni ─────────────
 {
-  const tourSvc = readSrc('src/services/beniTourService.js');
+  const guideSvc = readSrc('src/services/beniTourService.js');
+  const guideBase = readSrc('src/components/BeniGuideOverlay.js');
   const tourCmp = readSrc('src/components/BeniAppTour.js');
   const mapSrcTour = readSrc('src/screens/AdventureMapScreen.js');
   const parentTour = readSrc('src/screens/ParentAreaScreen.js');
   check(
-    'UX2.0: beniTourService = flag local (@ptf_beni_app_tour_seen_v1), defensivo, sem tocar progresso/paywall',
-    tourSvc.includes('@ptf_beni_app_tour_seen_v1') &&
-    tourSvc.includes('export async function hasSeenBeniAppTour') &&
-    tourSvc.includes('export async function markBeniAppTourSeen') &&
-    tourSvc.includes('export async function resetBeniAppTour') &&
-    !/from '\.\.\/services\/(accessControl|achievementService|rewardService|postStoryStorage)'/.test(tourSvc) &&
-    !/ProgressContext|isPremiumUser|unlockAchievement|markStor/i.test(tourSvc),
-    'beniTourService ausente/sem API ou importa/chama progresso/acesso',
+    'UX2.1: beniGuideService = API genérica (hasSeenGuide/markGuideSeen/resetGuide/resetAllGuides) + GUIDE_KEYS, chave inicial preservada, sem tocar progresso/acesso',
+    guideSvc.includes('@ptf_beni_app_tour_seen_v1') &&
+    guideSvc.includes('export const GUIDE_KEYS') &&
+    guideSvc.includes('export async function hasSeenGuide') &&
+    guideSvc.includes('export async function markGuideSeen') &&
+    guideSvc.includes('export async function resetGuide') &&
+    guideSvc.includes('export async function resetAllGuides') &&
+    /export function hasSeenBeniAppTour/.test(guideSvc) &&
+    /export function markBeniAppTourSeen/.test(guideSvc) &&
+    /export function resetBeniAppTour/.test(guideSvc) &&
+    !/from '\.\.\/services\/(accessControl|achievementService|rewardService|postStoryStorage)'/.test(guideSvc) &&
+    !/ProgressContext|isPremiumUser|unlockAchievement|markStor/i.test(guideSvc),
+    'beniTourService não virou serviço de guias genérico (ou toca progresso/acesso)',
   );
   check(
-    'UX2.0: BeniAppTour usa Beni oficial, tem Pular tour + CTA final, Animated nativo e sem pacote novo (Lottie)',
-    tourCmp.includes("from '../assets/mascot/beniImages'") &&
-    tourCmp.includes('Pular tour') &&
+    'UX2.1: BeniGuideOverlay = base reutilizável (Beni oficial, balão, target/balloon, Pular, CTA final), Animated nativo, sem Lottie',
+    guideBase.includes("from '../assets/mascot/beniImages'") &&
+    guideBase.includes('Pular tour') &&
+    guideBase.includes('finalLabel') &&
+    guideBase.includes('spotlightBox') &&
+    /balloon/.test(guideBase) &&
+    guideBase.includes('Animated') &&
+    !/from ['"][^'"]*lottie/i.test(guideBase),
+    'BeniGuideOverlay base ausente/incompleta',
+  );
+  check(
+    'UX2.1: tour inicial = abertura curta do mapa (3 passos) via BeniGuideOverlay, CTA "Começar minha jornada", sem explicar Ateliê/Estrelinhas/Perfil',
+    tourCmp.includes('BeniGuideOverlay') &&
     tourCmp.includes('Começar minha jornada') &&
-    tourCmp.includes('Animated') &&
-    !/lottie/i.test(tourCmp),
-    'BeniAppTour sem Beni oficial / sem Pular / sem CTA final / usa Lottie',
+    (tourCmp.match(/title:/g) || []).length === 3 &&
+    !/Ateliê|Estrelinhas|Perfil/.test(tourCmp),
+    'tour inicial não foi encurtado para 3 passos sobre o mapa',
   );
   check(
     'UX2.0: AdventureMapScreen mostra o tour só com startBeniTour + não-visto e marca visto ao fechar',
@@ -6395,11 +6410,13 @@ check(
     'AdventureMapScreen não condiciona/renderiza o tour corretamente',
   );
   check(
-    'UX2.0: Ferramentas do Criador tem "Rever Tour do Beni" (reset + abre Aventuras)',
+    'UX2.1: Criador tem "Rever Tour Inicial do Beni" (reset+abre Aventuras) e "Resetar Guias do Beni" (resetAllGuides)',
     parentTour.includes('resetBeniAppTour') &&
-    parentTour.includes('Rever Tour do Beni') &&
+    parentTour.includes('resetAllGuides') &&
+    parentTour.includes('Rever Tour Inicial do Beni') &&
+    parentTour.includes('Resetar Guias do Beni') &&
     /navigation\.navigate\('Home', \{ screen: 'Aventuras', params: \{ startBeniTour: true \} \}\)/.test(parentTour),
-    'falta a opção de rever o tour na Área dos Pais (Criador)',
+    'faltam os botões de rever/resetar guias do Beni na Área dos Pais (Criador)',
   );
 }
 

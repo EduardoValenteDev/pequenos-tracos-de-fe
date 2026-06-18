@@ -15,7 +15,7 @@ import {
   setCreatorQaModeEnabled,
 } from '../services/creatorQaMode';
 import { resetOnboardingForQa } from '../services/onboardingService';
-import { resetBeniAppTour } from '../services/beniTourService';
+import { resetBeniAppTour, resetAllGuides } from '../services/beniTourService';
 import productConfig from '../config/productConfig';
 import { useProgressContext } from '../context/ProgressContext';
 import { useProfile } from '../context/ProfileContext';
@@ -331,10 +331,21 @@ export default function ParentAreaScreen({ navigation }) {
     }
   }
 
-  // Rever o Tour Mágico do Beni: limpa a flag e abre a aba Aventuras com o gatilho.
+  // Rever o Tour INICIAL do Beni: limpa a flag e abre a aba Aventuras com o gatilho.
   async function handleReviewBeniTour() {
     await resetBeniAppTour();
     navigation.navigate('Home', { screen: 'Aventuras', params: { startBeniTour: true } });
+  }
+
+  // Resetar TODOS os guias contextuais do Beni (inicial + por aba) para revê-los.
+  async function handleResetAllGuides() {
+    const result = await resetAllGuides();
+    Alert.alert(
+      result?.success ? 'Guias resetados' : 'Erro',
+      result?.success
+        ? 'Os guias do Beni vão aparecer de novo quando você abrir as telas.'
+        : 'Não foi possível resetar os guias. Tente novamente.',
+    );
   }
 
   const handleRestorePurchase = useCallback(() => {
@@ -941,12 +952,15 @@ export default function ParentAreaScreen({ navigation }) {
               </InfoCard>
 
               <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
-                <Text style={styles.qaTitle}>Rever Tour do Beni</Text>
+                <Text style={styles.qaTitle}>Rever Tour Inicial do Beni</Text>
                 <Text style={styles.qaDesc}>
-                  Mostra novamente o Tour Mágico do Beni sobre a aba Aventuras. Só visual — não altera progresso nem acesso.
+                  Mostra novamente o tour inicial do Beni sobre a aba Aventuras. Só visual — não altera progresso nem acesso.
                 </Text>
                 <SoundButton style={styles.qaResetBtn} onPress={handleReviewBeniTour} activeOpacity={0.85}>
-                  <Text style={styles.qaResetBtnText}>Rever Tour do Beni</Text>
+                  <Text style={styles.qaResetBtnText}>Rever Tour Inicial do Beni</Text>
+                </SoundButton>
+                <SoundButton style={[styles.qaResetBtn, { marginTop: 8 }]} onPress={handleResetAllGuides} activeOpacity={0.85}>
+                  <Text style={styles.qaResetBtnText}>Resetar Guias do Beni</Text>
                 </SoundButton>
               </InfoCard>
 
