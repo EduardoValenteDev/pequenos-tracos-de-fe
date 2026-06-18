@@ -6510,6 +6510,56 @@ check(
     guideBase.includes('rect.y < tabTop'),
     'BeniGuideOverlay não tem gate de visibilidade do alvo medido',
   );
+
+  // ── UX 2.4: voz do Beni no guia (áudio por etapa, gateado por soundsEnabled) ──
+  const GUIDE_MP3 = [
+    'guide_initial_welcome', 'guide_initial_adventures', 'guide_initial_glow',
+    'guide_adventures_path', 'guide_adventures_next_available', 'guide_adventures_next_locked',
+    'guide_adventures_view_region',
+  ];
+  const guideAudioData = readSrc('src/data/beniGuideAudio.js');
+  const guideAudioCmp = readSrc('src/components/BeniGuideAudio.js');
+  const tourCmp24 = readSrc('src/components/BeniAppTour.js');
+  const guidesData24 = readSrc('src/data/beniGuides.js');
+  check(
+    'UX2.4: os 7 áudios do guia existem em assets/audio/beni_guide/ e o manifesto faz require deles (null-safe)',
+    GUIDE_MP3.every((f) => fs.existsSync(path.join(root, 'assets/audio/beni_guide', `${f}.mp3`))) &&
+    GUIDE_MP3.every((f) => guideAudioData.includes(`beni_guide/${f}.mp3`)) &&
+    guideAudioData.includes('export function getBeniGuideAudio') &&
+    /return BENI_GUIDE_AUDIO\[audioKey\] \?\? null/.test(guideAudioData) &&
+    /if \(!audioKey\) return null/.test(guideAudioData),
+    'manifesto de áudio do guia ausente/incompleto ou não é null-safe',
+  );
+  check(
+    'UX2.4: BeniGuideAudio é HEADLESS (retorna null), autoplay no mount e para no unmount, via expo-audio (sem pacote novo)',
+    guideAudioCmp.includes("from 'expo-audio'") &&
+    guideAudioCmp.includes('useAudioPlayer') &&
+    guideAudioCmp.includes('player.play()') &&
+    /return\s*\(\)\s*=>\s*\{[\s\S]{0,80}player\.pause\(\)/.test(guideAudioCmp) &&
+    /if \(!audioAsset\) return null/.test(guideAudioCmp),
+    'BeniGuideAudio não é headless/autoplay/para no unmount',
+  );
+  check(
+    'UX2.4: BeniGuideOverlay toca a voz por etapa só com soundsEnabled, sem autoavanço, e micro-som no avançar',
+    guideBase.includes('getBeniGuideAudio') &&
+    guideBase.includes('getAudioPreferences') &&
+    guideBase.includes('subscribeAudioPreferences') &&
+    /soundsOn && step\.audioKey \? getBeniGuideAudio/.test(guideBase) &&
+    /<BeniGuideAudio key=\{`guide-audio-\$\{index\}-\$\{soundsOn\}`\} audioAsset=\{stepAudio\}/.test(guideBase) &&
+    guideBase.includes("playUiSound('success')") &&
+    !/<BeniGuideAudio[^>]*onFinished/.test(guideBase),
+    'overlay não toca voz gateada por soundsEnabled / autoavança / sem micro-som',
+  );
+  check(
+    'UX2.4: passos têm audioKey — tour inicial (welcome+glow) e Aventuras (path/next/view); pin escolhe available vs locked por estado',
+    tourCmp24.includes("audioKey: 'guide.initial.welcome'") &&
+    tourCmp24.includes("audioKey: 'guide.initial.glow'") &&
+    guidesData24.includes("audioKey: 'guide.adventures.path'") &&
+    guidesData24.includes("audioKey: 'guide.adventures.view_region'") &&
+    /audioKey: currentId \? 'guide\.adventures\.next_available' : \(nextLockedId \? 'guide\.adventures\.next_locked'/.test(mapSrcTour) &&
+    mapSrcTour.includes('steps={adventuresSteps}'),
+    'audioKeys ausentes nos passos / pin não diferencia available×locked',
+  );
 }
 
 check(

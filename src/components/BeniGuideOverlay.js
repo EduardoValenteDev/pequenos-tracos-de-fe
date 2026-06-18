@@ -23,6 +23,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from './SoundButton';
 import BeniAvatar from './beni/BeniAvatar';
+import BeniGuideAudio from './BeniGuideAudio';
+import { getBeniGuideAudio } from '../data/beniGuideAudio';
+import { getAudioPreferences, subscribeAudioPreferences, playUiSound } from '../services/audioManager';
 
 const CARD_H = 150;       // altura estimada do card (posicionamento)
 const TABBAR_APPROX = 64; // altura aproximada da tab bar (não cobrir)
@@ -37,6 +40,12 @@ export default function BeniGuideOverlay({ steps = [], measure, finalLabel = 'En
   const safeSteps = steps.length ? steps : [{ title: '', text: '' }];
   const isLast = index === safeSteps.length - 1;
   const step = safeSteps[index];
+
+  // UX 2.4: voz do Beni por etapa. Só toca se houver áudio E `soundsEnabled` ON.
+  // (respeita o mudo do sistema; se desligar no meio, o áudio para — key muda.)
+  const [soundsOn, setSoundsOn] = useState(() => getAudioPreferences().soundsEnabled);
+  useEffect(() => subscribeAudioPreferences(() => setSoundsOn(getAudioPreferences().soundsEnabled)), []);
+  const stepAudio = soundsOn && step.audioKey ? getBeniGuideAudio(step.audioKey) : null;
 
   // Mede o alvo do passo atual de verdade. Sem alvo/medição → rect null (fallback).
   useEffect(() => {
@@ -64,6 +73,7 @@ export default function BeniGuideOverlay({ steps = [], measure, finalLabel = 'En
   const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.95] });
 
   const handleNext = () => {
+    playUiSound('success'); // micro-som leve ao avançar (já respeita soundsEnabled)
     if (isLast) onFinish?.();
     else setIndex((i) => Math.min(i + 1, safeSteps.length - 1));
   };
@@ -101,6 +111,10 @@ export default function BeniGuideOverlay({ steps = [], measure, finalLabel = 'En
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
+      {/* Voz do Beni (headless). key por etapa+som → troca de etapa/desligar som
+          desmonta o áudio anterior (para) e monta o novo. Some ao pular/concluir. */}
+      <BeniGuideAudio key={`guide-audio-${index}-${soundsOn}`} audioAsset={stepAudio} />
+
       {/* Véu quente LEVE — a tela continua visível por trás. */}
       <View style={styles.veil} pointerEvents="auto" />
 

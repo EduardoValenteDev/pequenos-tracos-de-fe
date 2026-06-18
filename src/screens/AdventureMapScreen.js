@@ -69,6 +69,17 @@ export default function AdventureMapScreen({ navigation, route }) {
   // UX 2.3.1: ref ESTÁVEL do pin foco da jornada (current/nextLocked), registrado
   // só pelo MapRegion que o contém. measureInWindow (nativo) já considera o scroll.
   const registerNextPin = useMemo(() => guideTargets.register('adventures.nextPin'), [guideTargets.register]);
+  // UX 2.4: a voz do passo do "brilho" depende do estado do foco (só leitura — não
+  // muda current/nextLocked/acesso): liberado → next_available; bloqueado → next_locked.
+  const adventuresSteps = useMemo(
+    () =>
+      ADVENTURES_GUIDE.map((s) =>
+        s.target === 'adventures.nextPin'
+          ? { ...s, audioKey: currentId ? 'guide.adventures.next_available' : (nextLockedId ? 'guide.adventures.next_locked' : s.audioKey) }
+          : s,
+      ),
+    [currentId, nextLockedId],
+  );
   const { width, height } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
 
@@ -426,7 +437,7 @@ export default function AdventureMapScreen({ navigation, route }) {
       {/* UX 2.2 — Guia contextual da aba Aventuras (não aparece junto do tour inicial). */}
       {!showBeniTour && adventuresGuide.visible && (
         <BeniGuideOverlay
-          steps={ADVENTURES_GUIDE}
+          steps={adventuresSteps}
           measure={guideTargets.measure}
           finalLabel="Entendi"
           onFinish={adventuresGuide.close}
