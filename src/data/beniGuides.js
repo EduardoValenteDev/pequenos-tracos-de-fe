@@ -16,10 +16,12 @@ export const INITIAL_TOUR = [
   { variant: 'happy',       title: 'Eu sou o Beni',         text: 'Ei, eu sou o Beni! Seu companheiro de aventuras. E vou caminhar com você pelas histórias da Bíblia.', audioKey: 'guide.initial.welcome' },
   { variant: 'teaching',    title: 'Seu mapa de aventuras', text: 'Este é o seu mapa de aventuras. Onde vamos iniciar o seu caminho de fé!',                              audioKey: 'guide.initial.adventures' },
   { variant: 'teaching',    title: 'Seu mapa',              text: 'Aqui em Aventuras, você acompanha sua jornada! As histórias aparecem pelo caminho!',  target: 'adventures.map',           audioKey: 'guide.adventures.path' },
-  { variant: 'celebrating', title: 'Siga o brilho',         text: 'Este brilho mostra sua próxima aventura! Toque nele quando estiver pronto.',           target: 'adventures.nextPin',       audioKey: 'guide.adventures.next_available' },
   { variant: 'happy',       title: 'Ver a região',          text: 'O botão Ver mapa abre o seu mapa inteiro! Dessa forma você pode olhar os detalhes com calma!', target: 'adventures.viewMapButton', audioKey: 'guide.adventures.view_region' },
   { variant: 'celebrating', title: 'Siga o brilho',         text: 'Sua primeira aventura está brilhando! Siga por ela!',                                  target: 'adventures.nextPin',       audioKey: 'guide.initial.glow' },
 ];
+// Reservados (NÃO usados no tour inicial): guide.adventures.next_available e
+// guide.adventures.next_locked — ficam p/ um guia contextual futuro da aba Aventuras
+// (e estados bloqueados). Continuam em beniGuideAudio e na ADVENTURES_GUIDE abaixo.
 
 // Aventuras (aba) — guia contextual SEPARADO: DESATIVADO (substituído pelo tour
 // único acima). Mantido só como dado planejado; a tela não o dispara mais.

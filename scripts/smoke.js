@@ -6396,15 +6396,17 @@ check(
     'BeniGuideOverlay não é o guia preciso medido (ou ainda usa spotlight aproximado)',
   );
   check(
-    'UX2.4.2: TOUR ÚNICO de 6 cards (beniGuides.INITIAL_TOUR), sem explicar Ateliê/Estrelinhas/Perfil',
+    'UX2.4.3: TOUR ÚNICO de 5 cards (beniGuides.INITIAL_TOUR), sem next_available/next_locked, sem explicar Ateliê/Estrelinhas/Perfil',
     (() => {
       const gd = readSrc('src/data/beniGuides.js');
       const seg = gd.split('INITIAL_TOUR = [')[1]?.split('];')[0] || '';
       return /export const INITIAL_TOUR = \[/.test(gd) &&
-        (seg.match(/\{[^}]*title:/g) || []).length === 6 &&
+        (seg.match(/\{[^}]*title:/g) || []).length === 5 &&
+        !seg.includes('next_available') &&
+        !seg.includes('next_locked') &&
         !/Ateliê|Estrelinhas|Perfil/.test(seg);
     })(),
-    'INITIAL_TOUR não tem 6 cards / explica outras abas',
+    'INITIAL_TOUR não tem 5 cards / ainda usa next_available|locked / explica outras abas',
   );
   check(
     'UX2.4.2: AdventureMapScreen mostra o TOUR ÚNICO só com startBeniTour + não-visto; ao fechar marca initial E adventures',
@@ -6562,17 +6564,34 @@ check(
     'overlay não é o tour bloqueante falado (voz/Modal/aviso/Voltar/debounce/sem som duplo)',
   );
   check(
-    'UX2.4.2: audioKeys nos 6 cards (INITIAL_TOUR) + pin bloqueado vira next_locked na tela (só leitura)',
+    'UX2.4.3: audioKeys dos 5 cards (welcome/adventures/path/view_region/glow); steps={tourSteps}=INITIAL_TOUR (sem override)',
     guidesData24.includes("audioKey: 'guide.initial.welcome'") &&
     guidesData24.includes("audioKey: 'guide.initial.adventures'") &&
     guidesData24.includes("audioKey: 'guide.adventures.path'") &&
-    guidesData24.includes("audioKey: 'guide.adventures.next_available'") &&
     guidesData24.includes("audioKey: 'guide.adventures.view_region'") &&
     guidesData24.includes("audioKey: 'guide.initial.glow'") &&
-    /focusLocked = !currentId && !!nextLockedId/.test(mapSrcTour) &&
-    /audioKey: 'guide\.adventures\.next_locked'/.test(mapSrcTour) &&
+    mapSrcTour.includes('const tourSteps = INITIAL_TOUR') &&
+    !mapSrcTour.includes("'guide.adventures.next_locked'") &&
     mapSrcTour.includes('steps={tourSteps}'),
-    'audioKeys ausentes nos passos / pin não diferencia available×locked',
+    'audioKeys/tourSteps fora do esperado (5 cards estáticos)',
+  );
+  check(
+    'UX2.4.3: áudios reservados (next_available/next_locked) seguem no manifesto e na ADVENTURES_GUIDE, fora do tour inicial',
+    guideAudioData.includes("'guide.adventures.next_available'") &&
+    guideAudioData.includes("'guide.adventures.next_locked'") &&
+    readSrc('src/data/beniGuides.js').includes("audioKey: 'guide.adventures.next_available'"),
+    'áudios reservados foram apagados ou saíram do manifesto/ADVENTURES_GUIDE',
+  );
+  check(
+    'UX2.4.3: card final permite toque no pin (onTargetPress só no isLast+medido) e a seta aponta para o x do alvo',
+    guideBase.includes('onTargetPress') &&
+    /isLast && showRing && typeof onTargetPress === 'function'/.test(guideBase) &&
+    guideBase.includes('arrowLeft') &&
+    /marginLeft: arrowLeft/.test(guideBase) &&
+    mapSrcTour.includes('onTargetPress=') &&
+    /ordered\.find\(\(s\) => s\.id === cameraStoryId\)/.test(mapSrcTour) &&
+    mapSrcTour.includes('openFocus(story)'),
+    'card final sem toque no pin / seta não aponta para o alvo / tela não abre a história',
   );
 }
 

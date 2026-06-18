@@ -178,23 +178,9 @@ export default function AdventureMapScreen({ navigation, route }) {
     [nextJourney, isOpenable],
   );
 
-  // UX 2.4.2: tour ÚNICO de 6 cards. Os cards do pin (4 e 6) usam o DEFAULT (liberado);
-  // se o foco da jornada estiver BLOQUEADO, troca áudio/texto do card 4 — só LEITURA de
-  // currentId/nextLockedId, não mexe em acesso/current/nextLocked.
-  const tourSteps = useMemo(() => {
-    const focusLocked = !currentId && !!nextLockedId;
-    if (!focusLocked) return INITIAL_TOUR;
-    return INITIAL_TOUR.map((s, i) =>
-      i === 3
-        ? {
-            ...s,
-            audioKey: 'guide.adventures.next_locked',
-            title: 'Próxima aventura',
-            text: 'Essa aventura ainda está bloqueada. Peça ajuda a um responsável para continuar.',
-          }
-        : s,
-    );
-  }, [currentId, nextLockedId]);
+  // UX 2.4.3: tour ÚNICO de 5 cards (estático). Os áudios next_available/next_locked
+  // NÃO entram no tour inicial (ficam reservados p/ guia contextual futuro).
+  const tourSteps = INITIAL_TOUR;
 
   // História que a câmera deve focar: o foco da jornada (disponível OU bloqueada);
   // senão última concluída; senão A Criação (começo). Só leitura.
@@ -444,6 +430,13 @@ export default function AdventureMapScreen({ navigation, route }) {
           withAudioPrompt
           finalLabel="Começar minha jornada"
           onStep={onTourStep}
+          onTargetPress={() => {
+            // Card final: tocar no pin destacado = comportamento NORMAL do pin (abre o
+            // card de foco da história). Fecha o tour antes. Paywall preservado.
+            const story = ordered.find((s) => s.id === cameraStoryId);
+            closeBeniTour();
+            if (story) openFocus(story);
+          }}
           onFinish={closeBeniTour}
           onSkip={closeBeniTour}
         />

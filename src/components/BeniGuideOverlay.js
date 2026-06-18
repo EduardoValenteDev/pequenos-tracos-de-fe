@@ -27,7 +27,8 @@ import { getAudioPreferences, subscribeAudioPreferences } from '../services/audi
 
 const CARD_H = 168;        // altura estimada do card (posicionamento)
 const TABBAR_APPROX = 64;  // altura aproximada da tab bar (não cobrir)
-const GAP = 12;
+const GAP = 18;            // folga card↔alvo (UX 2.4.3: card não cobre o pin/botão)
+const ARROW_HALF = 10;     // metade da base da seta
 const MEASURE_SETTLE_MS = 320; // espera o layout/scroll estabilizar antes de medir
 const ADVANCE_DEBOUNCE_MS = 320; // trava o botão por um instante (evita duplo toque)
 
@@ -38,6 +39,7 @@ export default function BeniGuideOverlay({
   onFinish,
   onSkip,
   onStep,
+  onTargetPress, // UX 2.4.3: toque no alvo medido no ÚLTIMO card (ex.: pin do brilho)
   withAudioPrompt = false,
 }) {
   const { width, height } = useWindowDimensions();
@@ -118,17 +120,21 @@ export default function BeniGuideOverlay({
   const showRing = !!rect && !isBigArea && inViewport;
 
   const usableBottom = tabTop;
+  const ringPad = 6;
   let cardTop;
   let arrow = null;
+  let arrowLeft = null; // posição horizontal da seta — aponta para o CENTRO do alvo
   if (showRing) {
     const targetMid = rect.y + rect.height / 2;
     if (targetMid < height * 0.5) { cardTop = rect.y + rect.height + GAP; arrow = 'up'; }
     else { cardTop = rect.y - CARD_H - GAP; arrow = 'down'; }
     cardTop = Math.max(insets.top + 8, Math.min(cardTop, usableBottom - CARD_H - 8));
+    // Desloca a seta para o x do alvo (não fica centralizada no card). cardWrap=16..w-16.
+    const targetCx = rect.x + rect.width / 2;
+    arrowLeft = Math.max(12, Math.min((width - 32) - ARROW_HALF * 2 - 12, targetCx - 16 - ARROW_HALF));
   } else {
     cardTop = usableBottom - CARD_H - 8;
   }
-  const ringPad = 6;
 
   return (
     <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={() => onSkip?.()}>
@@ -179,8 +185,27 @@ export default function BeniGuideOverlay({
               />
             )}
 
+            {/* Card FINAL: o alvo medido (pin do brilho) também é tocável → abre a
+                história (comportamento normal). Só o pin destacado; nada mais. */}
+            {isLast && showRing && typeof onTargetPress === 'function' && (
+              <SoundButton
+                silent
+                activeOpacity={0.85}
+                accessibilityLabel="Abrir a aventura em destaque"
+                onPress={onTargetPress}
+                style={{
+                  position: 'absolute',
+                  left: rect.x - ringPad,
+                  top: rect.y - ringPad,
+                  width: rect.width + ringPad * 2,
+                  height: rect.height + ringPad * 2,
+                  borderRadius: (Math.max(rect.width, rect.height) + ringPad * 2) / 2,
+                }}
+              />
+            )}
+
             <View style={[styles.cardWrap, { top: cardTop }]} pointerEvents="box-none">
-              {arrow === 'up' && <View style={[styles.arrow, styles.arrowUp]} />}
+              {arrow === 'up' && <View style={[styles.arrow, styles.arrowUp, arrowLeft != null && { alignSelf: 'flex-start', marginLeft: arrowLeft }]} />}
               <LinearGradient colors={['#FBF1D8', '#F4E3BE', '#EAD3A0']} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.card}>
                 <View style={styles.cardTopRow}>
                   <Animated.View style={{ transform: [{ scale: beniScale }] }}>
@@ -225,7 +250,7 @@ export default function BeniGuideOverlay({
                   </LinearGradient>
                 </SoundButton>
               </LinearGradient>
-              {arrow === 'down' && <View style={[styles.arrow, styles.arrowDown]} />}
+              {arrow === 'down' && <View style={[styles.arrow, styles.arrowDown, arrowLeft != null && { alignSelf: 'flex-start', marginLeft: arrowLeft }]} />}
             </View>
           </>
         )}
