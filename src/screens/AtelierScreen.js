@@ -122,31 +122,35 @@ export default function AtelierScreen({ navigation, route }) {
   );
 
   /* ── Ações secundárias: Desenho guiado + Criar livre (2 colunas) ── */
+  // Cada tile é envolvido por uma View medível (flex:1) que abraça o TILE INTEIRO
+  // (com a borda) — halo confortável e idêntico nos dois cards irmãos (Cards 3 e 4).
   const secondaryDoors = (
     <AnimatedCard delay={160} style={[styles.secondaryRow, styles.inMesa]}>
-      {/* Desenho guiado pelo Beni */}
-      <SoundButton
-        style={[styles.tile, { backgroundColor: '#FFF4D6', borderColor: '#F4D08A' }]}
-        onPress={() => navigation.navigate('AtelierCanvas', { mission })}
-        activeOpacity={0.85}
-      >
-        <View style={[styles.tileEmojiBg, { backgroundColor: '#FFD70050' }]}>
-          <Text style={styles.tileEmoji}>💡</Text>
-        </View>
-        <Text style={styles.tileTitle}>Desenho guiado pelo Beni</Text>
-        <Text style={styles.tileDesc} numberOfLines={3}>Receba uma ideia simples para desenhar hoje.</Text>
-        <View style={[styles.tileBtn, { backgroundColor: pt.goldDeep }]}>
-          <Text style={styles.tileBtnText}>Começar desafio</Text>
-        </View>
-      </SoundButton>
+      {/* Desenho guiado pelo Beni (alvo medido do guia: Card 3) */}
+      <View ref={atelierTargets.register('atelier.guided')} collapsable={false} style={styles.tileTarget}>
+        <SoundButton
+          style={[styles.tile, { backgroundColor: '#FFF4D6', borderColor: '#F4D08A' }]}
+          onPress={() => navigation.navigate('AtelierCanvas', { mission })}
+          activeOpacity={0.85}
+        >
+          <View style={[styles.tileEmojiBg, { backgroundColor: '#FFD70050' }]}>
+            <Text style={styles.tileEmoji}>💡</Text>
+          </View>
+          <Text style={styles.tileTitle}>Desenho guiado pelo Beni</Text>
+          <Text style={styles.tileDesc} numberOfLines={3}>Receba uma ideia simples para desenhar hoje.</Text>
+          <View style={[styles.tileBtn, { backgroundColor: pt.goldDeep }]}>
+            <Text style={styles.tileBtnText}>Começar desafio</Text>
+          </View>
+        </SoundButton>
+      </View>
 
-      {/* Criar livre (alvo medido do guia: Card 3) */}
-      <SoundButton
-        style={[styles.tile, { backgroundColor: '#F3E8FF', borderColor: '#D7C2F5' }]}
-        onPress={() => navigation.navigate('AtelierCanvas', {})}
-        activeOpacity={0.85}
-      >
-        <View ref={atelierTargets.register('atelier.free_draw')} collapsable={false} style={styles.tileTargetWrap}>
+      {/* Criar livre (alvo medido do guia: Card 4) */}
+      <View ref={atelierTargets.register('atelier.free_draw')} collapsable={false} style={styles.tileTarget}>
+        <SoundButton
+          style={[styles.tile, { backgroundColor: '#F3E8FF', borderColor: '#D7C2F5' }]}
+          onPress={() => navigation.navigate('AtelierCanvas', {})}
+          activeOpacity={0.85}
+        >
           <View style={[styles.tileEmojiBg, { backgroundColor: '#C4A8FF50' }]}>
             <Text style={styles.tileEmoji}>📄</Text>
           </View>
@@ -155,8 +159,8 @@ export default function AtelierScreen({ navigation, route }) {
           <View style={[styles.tileBtn, { backgroundColor: pt.purple }]}>
             <Text style={styles.tileBtnText}>Abrir folha</Text>
           </View>
-        </View>
-      </SoundButton>
+        </SoundButton>
+      </View>
     </AnimatedCard>
   );
 
@@ -390,8 +394,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     ...shadows.soft,
   },
-  // Wrapper medível do tile (alvo do guia): preenche o tile, preserva o layout.
-  tileTargetWrap: { alignSelf: 'stretch', alignItems: 'flex-start' },
+  // Wrapper medível que abraça o TILE INTEIRO (com a borda) → halo confortável.
+  tileTarget: { flex: 1 },
   tileEmojiBg: {
     width: 40, height: 40, borderRadius: 13,
     justifyContent: 'center', alignItems: 'center',

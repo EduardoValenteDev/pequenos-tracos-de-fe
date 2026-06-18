@@ -6538,30 +6538,38 @@ check(
   const atelierManifest = readSrc('src/data/beniGuideAudio.js');
   const atelierGuideSrc = readSrc('src/screens/AtelierScreen.js');
   check(
-    'ATELIÊ1.0: manifesto tem as 4 chaves de áudio do Ateliê (require de atelier/, null-safe)',
-    ['welcome', 'coloring', 'free_draw', 'gallery'].every((k) =>
+    'ATELIÊ1.1: manifesto tem as 5 chaves de áudio do Ateliê (inclui guided_drawing; require de atelier/, null-safe)',
+    ['welcome', 'coloring', 'guided_drawing', 'free_draw', 'gallery'].every((k) =>
       atelierManifest.includes(`'guide.atelier.${k}'`) &&
       fs.existsSync(path.join(root, 'assets/audio/beni_guide/atelier', `guide_atelier_${k}.mp3`)) &&
       atelierManifest.includes(`beni_guide/atelier/guide_atelier_${k}.mp3`)),
-    'manifesto não tem as 4 chaves/áudios do Ateliê corretamente',
+    'manifesto não tem as 5 chaves/áudios do Ateliê corretamente (guided_drawing incluso)',
   );
   check(
-    'ATELIÊ1.0: ATELIER_GUIDE tem 4 cards CURTOS; Card 1 destaca a aba Ateliê (highlightTab: atelier); cards 2-4 com alvo medido; Entendi',
-    (guidesData.match(/audioKey: 'guide\.atelier\./g) || []).length === 4 &&
+    'ATELIÊ1.1: ATELIER_GUIDE tem 5 cards CURTOS; Card 1 destaca Ateliê; Desenho guiado incluso; cards 2-5 com alvo medido; Entendi',
+    (guidesData.match(/audioKey: 'guide\.atelier\./g) || []).length === 5 &&
     guidesData.includes("highlightTab: 'atelier'") &&
-    ['atelier.coloring', 'atelier.free_draw', 'atelier.gallery'].every((t) => guidesData.includes(`target: '${t}'`)) &&
+    guidesData.includes('guide.atelier.guided_drawing') &&
+    ['atelier.coloring', 'atelier.guided', 'atelier.free_draw', 'atelier.gallery'].every((t) => guidesData.includes(`target: '${t}'`)) &&
     atelierGuideSrc.includes("finalLabel=\"Entendi\""),
-    'ATELIER_GUIDE não tem 4 cards / Card 1 não destaca Ateliê / falta alvo',
+    'ATELIER_GUIDE não tem 5 cards / falta Desenho guiado / falta alvo',
   );
   check(
-    'ATELIÊ1.0: AtelierScreen ativa o guia só pela aba, mede alvos reais nos cards (targetRef) e rola até o alvo',
+    'ATELIÊ1.1: AtelierScreen ativa o guia só pela aba, mede alvos reais nos cards (targetRef: coloring/guided/free_draw/gallery) e rola até o alvo',
     atelierGuideSrc.includes("useScreenGuide('atelier', isFromTab(from))") &&
     atelierGuideSrc.includes('useGuideTargets') &&
     atelierGuideSrc.includes('measure={measureAtelierTarget}') &&
     /atelierTargets\.measure\(name\)\.then\(\(r\) => r \|\| measureGuideTarget\(name\)\)/.test(atelierGuideSrc) &&
-    ['atelier.coloring', 'atelier.free_draw', 'atelier.gallery'].every((t) => atelierGuideSrc.includes(`register('${t}')`)) &&
+    ['atelier.coloring', 'atelier.guided', 'atelier.free_draw', 'atelier.gallery'].every((t) => atelierGuideSrc.includes(`register('${t}')`)) &&
     atelierGuideSrc.includes('scrollGuideTargetIntoView'),
-    'AtelierScreen não ativa/medê o guia do Ateliê corretamente',
+    'AtelierScreen não ativa/medê o guia do Ateliê corretamente (guided incluso)',
+  );
+  check(
+    'ATELIÊ1.1: Desenho guiado e Criar livre são cards IRMÃOS — ambos medidos no tile inteiro (tileTarget flex:1), halo coerente',
+    /tileTarget: \{ flex: 1 \}/.test(atelierGuideSrc) &&
+    (atelierGuideSrc.match(/style=\{styles\.tileTarget\}/g) || []).length === 2 &&
+    !atelierGuideSrc.includes('tileTargetWrap'),
+    'tiles do Ateliê não usam o mesmo wrapper medível (halo incoerente entre Desenho guiado e Criar livre)',
   );
   check(
     'ATELIÊ1.0: aba Ateliê destacada como Início/Aventuras — sidebar mede atelier.sidebarTab + overlay mapeia atelier',
