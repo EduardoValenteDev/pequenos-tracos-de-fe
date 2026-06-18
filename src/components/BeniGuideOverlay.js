@@ -30,7 +30,6 @@ const TABBAR_APPROX = 64;  // altura aproximada da tab bar (não cobrir)
 const GAP = 18;            // folga card↔alvo (UX 2.4.3: card não cobre o pin/botão)
 const ARROW_HALF = 10;     // metade da base da seta
 const MEASURE_SETTLE_MS = 320; // espera o layout/scroll estabilizar antes de medir
-const ADVANCE_DEBOUNCE_MS = 320; // trava o botão por um instante (evita duplo toque)
 
 export default function BeniGuideOverlay({
   steps = [],
@@ -61,22 +60,32 @@ export default function BeniGuideOverlay({
     ? getBeniGuideAudio(step.audioKey)
     : null;
 
-  // Mede o alvo do passo (com settle p/ scroll/layout estabilizar) e avisa a tela
-  // (onStep) para rolar o pin à viewport. Sem alvo/medição → rect null (fallback).
-  useEffect(() => {
-    if (phase !== 'steps') { setRect(null); return undefined; }
-    let alive = true;
-    let timer;
-    setRect(null);
-    onStep?.(step.target);
-    if (step.target && typeof measure === 'function') {
-      timer = setTimeout(() => {
-        measure(step.target).then((r) => { if (alive) setRect(r || null); });
+  // UX 2.4.4: COMMIT MODEL — para etapas com alvo, NÃO renderiza o card em posição
+  // provisória. Ao trocar de etapa: avisa a tela (onStep → scroll), espera o settle,
+  // MEDE, e só então comita índice + rect JUNTOS (card já na posição final + áudio
+  // junto). O card anterior fica visível durante o intervalo (sem pulo/flicker).
+  const commitTimer = useRef(null);
+  const commitStep = (to) => {
+    if (to < 0 || to > safeSteps.length - 1) return;
+    setBusy(true);
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+    const target = safeSteps[to]?.target;
+    onStep?.(target);
+    const finish = (r) => { setIndex(to); setRect(r || null); setBusy(false); };
+    if (target && typeof measure === 'function') {
+      commitTimer.current = setTimeout(() => {
+        measure(target).then(finish).catch(() => finish(null));
       }, MEASURE_SETTLE_MS);
+    } else {
+      finish(null); // sem alvo → comita na hora (1↔2, 2↔3 sem medição)
     }
-    return () => { alive = false; if (timer) clearTimeout(timer); };
+  };
+  // Ao entrar nas etapas (após o aviso de som), prepara o 1º card já posicionado.
+  useEffect(() => {
+    if (phase === 'steps') commitStep(0);
+    return () => { if (commitTimer.current) clearTimeout(commitTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, phase, step.target]);
+  }, [phase]);
 
   // Pulso discreto (Beni + moldura do alvo).
   const pulse = useRef(new Animated.Value(0)).current;
@@ -93,17 +102,14 @@ export default function BeniGuideOverlay({
   const beniScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
   const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.95] });
 
-  const lockBriefly = () => { setBusy(true); setTimeout(() => setBusy(false), ADVANCE_DEBOUNCE_MS); };
   const handleNext = () => {
     if (busy) return; // anti duplo-toque (sem som de clique — a voz é a resposta)
-    lockBriefly();
     if (isLast) onFinish?.();
-    else setIndex((i) => Math.min(i + 1, safeSteps.length - 1));
+    else commitStep(index + 1);
   };
   const handleBack = () => {
     if (busy || index === 0) return;
-    lockBriefly();
-    setIndex((i) => Math.max(0, i - 1)); // troca o áudio (key) → o anterior toca de novo
+    commitStep(index - 1); // re-mede + re-toca o áudio do card anterior
   };
 
   const startWithVoice = async () => {
@@ -136,11 +142,29 @@ export default function BeniGuideOverlay({
     cardTop = usableBottom - CARD_H - 8;
   }
 
+  // UX 2.4.4 (Card 2): realce SUTIL no ícone da aba Aventuras (posição determinística
+  // — 5 abas, Aventuras = índice 1). É decorativo (pointerEvents none); a tab bar
+  // segue BLOQUEADA pelo véu. Sem linha/contorno feio, só um brilho quente.
+  const TAB_COUNT = 5;
+  const ADV_TAB_INDEX = 1;
+  const showTabGlow = phase === 'steps' && step.highlightTab === 'adventures';
+  const tabGlowX = width * ((ADV_TAB_INDEX + 0.5) / TAB_COUNT);
+  const tabGlowY = tabTop + 18;
+
   return (
     <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={() => onSkip?.()}>
       <View style={styles.overlay} pointerEvents="box-none">
-        {/* Véu = escudo de toque: BLOQUEIA o que está atrás (mapa/pins/tab bar). */}
+        {/* Véu = escudo de toque: BLOQUEIA o que está atrás (mapa/pins/tab bar). LEVE
+            para a tela (mapa + abas) continuar claramente visível por trás. */}
         <View style={styles.veil} pointerEvents="auto" />
+
+        {/* Realce suave no ícone da aba Aventuras (Card 2). Decorativo. */}
+        {showTabGlow && (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.tabGlow, { left: tabGlowX - 24, top: tabGlowY - 24, opacity: ringOpacity }]}
+          />
+        )}
 
         {/* Voz do Beni (headless). Some no aviso e ao trocar etapa/pular/concluir. */}
         {phase === 'steps' && (
@@ -261,7 +285,9 @@ export default function BeniGuideOverlay({
 
 const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject },
-  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(40,28,12,0.30)' },
+  // Véu LEVE (UX 2.4.4): bloqueia o toque, mas deixa o mapa e a tab bar visíveis.
+  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(40,28,12,0.22)' },
+  tabGlow: { position: 'absolute', width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,213,120,0.38)' },
   ring: {
     position: 'absolute',
     borderWidth: 2.5,

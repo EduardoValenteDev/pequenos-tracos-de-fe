@@ -6593,6 +6593,43 @@ check(
     mapSrcTour.includes('openFocus(story)'),
     'card final sem toque no pin / seta não aponta para o alvo / tela não abre a história',
   );
+
+  // ── UX 2.4.4: confiabilidade do áudio + sem pulo de card + Card 2 ──────────────
+  const guideAudioCmp44 = readSrc('src/components/BeniGuideAudio.js');
+  check(
+    'UX2.4.4: BeniGuideAudio tem RETRY automático único (re-toca se não iniciou), sem autoavanço',
+    guideAudioCmp44.includes('RETRY_MS') &&
+    /setTimeout\(/.test(guideAudioCmp44) &&
+    /player\.playing/.test(guideAudioCmp44) &&
+    (guideAudioCmp44.match(/safePlay\(\)/g) || []).length >= 2 &&
+    !/onFinished|setIndex/i.test(guideAudioCmp44),
+    'BeniGuideAudio sem retry / com autoavanço',
+  );
+  check(
+    'UX2.4.4: overlay usa COMMIT MODEL (mede → comita índice+rect juntos), sem render provisório que pula',
+    guideBase.includes('commitStep') &&
+    /measure\(target\)\.then\(finish\)/.test(guideBase) &&
+    /const finish = \(r\) => \{ setIndex\(to\); setRect\(r \|\| null\); setBusy\(false\); \}/.test(guideBase) &&
+    !/setRect\(null\);[\s\S]{0,40}onStep\?\.\(step\.target\)/.test(guideBase) &&
+    /commitStep\(index \+ 1\)/.test(guideBase) &&
+    /commitStep\(index - 1\)/.test(guideBase),
+    'overlay não comita índice+rect juntos (ainda há render provisório/pulo)',
+  );
+  check(
+    'UX2.4.4: Card 2 realça a aba Aventuras (highlightTab) e o véu é leve (mapa/abas visíveis, mas tab bar bloqueada)',
+    readSrc('src/data/beniGuides.js').includes("highlightTab: 'adventures'") &&
+    guideBase.includes("step.highlightTab === 'adventures'") &&
+    guideBase.includes('tabGlow') &&
+    /rgba\(40,28,12,0\.22\)/.test(guideBase) &&
+    /pointerEvents="auto"/.test(guideBase),
+    'Card 2 não realça a aba / véu não ficou leve / tab bar deixou de ser bloqueada',
+  );
+  check(
+    'UX2.4.4: os 7 áudios oficiais existem com os nomes do manifesto (path/glow inclusos)',
+    ['guide_initial_welcome', 'guide_initial_adventures', 'guide_initial_glow', 'guide_adventures_path', 'guide_adventures_next_available', 'guide_adventures_next_locked', 'guide_adventures_view_region']
+      .every((f) => fs.existsSync(path.join(root, 'assets/audio/beni_guide', `${f}.mp3`))),
+    'falta algum áudio oficial em assets/audio/beni_guide (nome divergente do manifesto)',
+  );
 }
 
 check(

@@ -14,7 +14,7 @@
 // versão BLOQUEADA conforme o estado real (só leitura — não mexe no acesso).
 export const INITIAL_TOUR = [
   { variant: 'happy',       title: 'Eu sou o Beni',         text: 'Ei, eu sou o Beni! Seu companheiro de aventuras. E vou caminhar com você pelas histórias da Bíblia.', audioKey: 'guide.initial.welcome' },
-  { variant: 'teaching',    title: 'Seu mapa de aventuras', text: 'Este é o seu mapa de aventuras. Onde vamos iniciar o seu caminho de fé!',                              audioKey: 'guide.initial.adventures' },
+  { variant: 'teaching',    title: 'Seu mapa de aventuras', text: 'Este é o seu mapa de aventuras. Onde vamos iniciar o seu caminho de fé!',                              audioKey: 'guide.initial.adventures', highlightTab: 'adventures' },
   { variant: 'teaching',    title: 'Seu mapa',              text: 'Aqui em Aventuras, você acompanha sua jornada! As histórias aparecem pelo caminho!',  target: 'adventures.map',           audioKey: 'guide.adventures.path' },
   { variant: 'happy',       title: 'Ver a região',          text: 'O botão Ver mapa abre o seu mapa inteiro! Dessa forma você pode olhar os detalhes com calma!', target: 'adventures.viewMapButton', audioKey: 'guide.adventures.view_region' },
   { variant: 'celebrating', title: 'Siga o brilho',         text: 'Sua primeira aventura está brilhando! Siga por ela!',                                  target: 'adventures.nextPin',       audioKey: 'guide.initial.glow' },
