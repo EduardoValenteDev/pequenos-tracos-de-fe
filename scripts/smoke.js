@@ -5244,6 +5244,41 @@ check(
   'StoryBookScreen transition starts too transparent (looks like a blank image)',
 );
 
+// ── LIVRINHO 1.0: arte protagonista + autoplay contínuo entre cenas ──────────
+check(
+  'LIVRINHO1.0: arte preenche a área medida entre header e painel (section flex:1 + fitBookArt45), com fallback responsivo',
+  /bookImageSection:\s*\{[\s\S]*?flex:\s*1[\s\S]*?justifyContent:\s*'center'/.test(livro54) &&
+  livro54.includes('handleArtSectionLayout') &&
+  livro54.includes('fitBookArt45(') &&
+  livro54.includes('artSectionSize') &&
+  livro54.includes('computeBookImageSize(width, screenH)') &&
+  /width: bookSize\.width, height: bookSize\.height/.test(livro54),
+  'arte do Livrinho não preenche a área disponível (section sem flex:1 ou sem fit medido)',
+);
+check(
+  'LIVRINHO1.0: AudioPlayer tem autoplay OPT-IN (autoPlay/onPlayStart/onUserPause, default off; sem timer novo)',
+  /autoPlay\s*=\s*false/.test(audioPlayerSrc) &&
+  audioPlayerSrc.includes('onPlayStart') && audioPlayerSrc.includes('onUserPause') &&
+  audioPlayerSrc.includes('autoStartedRef') &&
+  /if \(!autoPlay \|\| paused\) return;/.test(audioPlayerSrc) &&
+  !audioPlayerSrc.includes('setTimeout') && !audioPlayerSrc.includes('setInterval'),
+  'AudioPlayer não tem autoplay opt-in seguro (ou introduziu timer)',
+);
+check(
+  'LIVRINHO1.0: NarrationScreen NÃO usa autoplay (narração comum segue manual)',
+  !narrationSrc.includes('autoPlay') && !narrationSrc.includes('onPlayStart'),
+  'NarrationScreen passou a usar autoplay — narração comum não deve mudar',
+);
+check(
+  'LIVRINHO1.0: StoryBook entra em reprodução contínua (autoplayActive: Play liga, pausa manual desliga; done NÃO desliga)',
+  storyBookSrc.includes('autoplayActive') &&
+  /autoPlay=\{autoplayActive\}/.test(storyBookSrc) &&
+  /onPlayStart=\{\(\) => setAutoplayActive\(true\)\}/.test(storyBookSrc) &&
+  /onUserPause=\{\(\) => setAutoplayActive\(false\)\}/.test(storyBookSrc) &&
+  storyBookSrc.includes('setAutoplayActive(false)'), // reset ao (re)iniciar
+  'Livrinho não tem modo de reprodução contínua corretamente cabeado',
+);
+
 check(
   'Guia documenta o padrão 4:5 das imagens de cena',
   (() => {

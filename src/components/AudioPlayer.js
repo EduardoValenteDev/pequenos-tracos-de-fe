@@ -6,12 +6,21 @@ import { onNarrationStart, onNarrationEnd } from '../services/audioManager';
 import { colors } from '../theme/colors';
 import { colors as pt } from '../theme/productTheme';
 
-export default function AudioPlayer({ audioAsset, onFinished, paused }) {
+export default function AudioPlayer({ audioAsset, onFinished, paused, autoPlay = false, onPlayStart, onUserPause }) {
   if (!audioAsset) return null;
-  return <AudioPlayerInner audioAsset={audioAsset} onFinished={onFinished} paused={paused} />;
+  return (
+    <AudioPlayerInner
+      audioAsset={audioAsset}
+      onFinished={onFinished}
+      paused={paused}
+      autoPlay={autoPlay}
+      onPlayStart={onPlayStart}
+      onUserPause={onUserPause}
+    />
+  );
 }
 
-function AudioPlayerInner({ audioAsset, onFinished, paused }) {
+function AudioPlayerInner({ audioAsset, onFinished, paused, autoPlay, onPlayStart, onUserPause }) {
   const player = useAudioPlayer(audioAsset, { updateInterval: 100 });
   const status = useAudioPlayerStatus(player);
   const [appStatus, setAppStatus] = useState('idle');
@@ -20,6 +29,10 @@ function AudioPlayerInner({ audioAsset, onFinished, paused }) {
   // Prevents onFinished from firing more than once per playback — guards against
   // expo-audio emitting didJustFinish on multiple consecutive status updates.
   const finishedCalledRef = useRef(false);
+  // Auto-play (Livrinho contínuo): inicia UMA vez por montagem quando autoPlay
+  // está ligado e não está pausado. Opt-in — callers sem autoPlay (NarrationScreen)
+  // seguem manuais. didJustFinish/done NÃO disparam onUserPause (só o botão pausa).
+  const autoStartedRef = useRef(false);
 
   useEffect(() => {
     setAudioModeAsync({
@@ -34,6 +47,19 @@ function AudioPlayerInner({ audioAsset, onFinished, paused }) {
   useEffect(() => {
     finishedCalledRef.current = false;
   }, [audioAsset]);
+
+  // Auto-start da narração no Livrinho contínuo: toca SOZINHO ao montar/quando
+  // autoPlay liga, só se ainda estiver 'idle' e não pausado (sem sequestrar uma
+  // reprodução já em curso, sem tocar duas vezes). Avisa o pai (onPlayStart) para
+  // ele entrar/seguir no modo de reprodução contínua.
+  useEffect(() => {
+    if (!autoPlay || paused) return;
+    if (autoStartedRef.current || appStatus !== 'idle') return;
+    autoStartedRef.current = true;
+    player.play();
+    setAppStatus(status.isLoaded ? 'playing' : 'loading');
+    onPlayStart?.();
+  }, [autoPlay, paused, appStatus, status.isLoaded]);
 
   // ── Coordenação com a música de fundo (Bloco 5) ──
   // Regra: a música NUNCA se sobrepõe à narração. Ao tocar a narração, a música
@@ -96,14 +122,17 @@ function AudioPlayerInner({ audioAsset, onFinished, paused }) {
 
   function handlePlay() {
     if (appStatus === 'loading') return;
+    autoStartedRef.current = true; // toque manual já conta como início (sem auto-start duplo)
     player.play();
     setAppStatus(status.isLoaded ? 'playing' : 'loading');
+    onPlayStart?.(); // entra/retoma o modo de reprodução contínua no pai
   }
 
   function handlePause() {
     if (appStatus !== 'playing') return;
     player.pause();
     setAppStatus('paused');
+    onUserPause?.(); // pausa MANUAL → o pai interrompe o autoplay até novo Play
   }
 
   async function handleReplay() {

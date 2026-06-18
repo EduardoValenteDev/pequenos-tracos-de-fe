@@ -29,6 +29,21 @@ import { computeBookImageSize } from '../constants/officialImage';
 const PROGRESS_KEY = '@ptf_progress';
 const AUTOPLAY_MS = 5000;
 
+// Livrinho 1.0 — a arte é a PROTAGONISTA: ocupa o máximo da área disponível entre
+// o header e o painel de controles (medida em tempo real), mantendo 4:5 e com tetos
+// de respiro. Maior em telas altas/tablet, segura em telas pequenas (sem empurrar
+// os controles). Antes da medição, cai no tamanho responsivo base (sem pulo grande).
+const BOOK_ART_MAX_W = 560;    // teto de largura (tablet não vira faixa larga demais)
+const BOOK_ART_SIDE_PAD = 16;  // respiro lateral da arte
+const BOOK_ART_V_PAD = 10;     // respiro vertical da arte dentro da seção
+
+/** Maior caixa 4:5 (retrato) que cabe em (availW, availH). */
+function fitBookArt45(availW, availH) {
+  const ratio = 4 / 5; // largura/altura
+  const w = Math.max(0, Math.min(availW, availH * ratio));
+  return { width: Math.round(w), height: Math.round(w / ratio) };
+}
+
 /**
  * Parses the raw saved drawing value returned by getSavedDrawing().
  *
@@ -286,7 +301,12 @@ export default function StoryBookScreen({ route, navigation }) {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [drawings, setDrawings] = useState({});
   const [isPaused, setIsPaused] = useState(false);
+  // Modo de reprodução CONTÍNUA do Livrinho: ligado quando a criança toca Play
+  // (1ª cena); ao terminar uma cena, a próxima toca sozinha. Pausa manual desliga.
+  const [autoplayActive, setAutoplayActive] = useState(false);
   const [imgContainerSize, setImgContainerSize] = useState({ w: 0, h: 0 });
+  // Área disponível para a arte (entre header e painel) — medida p/ dimensionar a arte.
+  const [artSectionSize, setArtSectionSize] = useState({ w: 0, h: 0 });
   const [viewMode, setViewMode] = useState('official'); // 'official' (História ilustrada) | 'child' (Meu livrinho colorido)
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [entering, setEntering] = useState(false); // transição mágica de abertura
@@ -390,6 +410,7 @@ export default function StoryBookScreen({ route, navigation }) {
     fadeAnim.setValue(1);
     setCurrentSlideIndex(0);
     setIsPaused(false);
+    setAutoplayActive(false); // 1ª cena espera o Play da criança; depois segue sozinho
     setScreenState('playing');
   }
 
@@ -444,6 +465,7 @@ export default function StoryBookScreen({ route, navigation }) {
     fadeAnim.setValue(1);
     setCurrentSlideIndex(0);
     setIsPaused(false);
+    setAutoplayActive(false);
     setScreenState('playing'); // sai de 'ended' (finished → false)
   }
 
@@ -455,6 +477,7 @@ export default function StoryBookScreen({ route, navigation }) {
     fadeAnim.setValue(1);
     setCurrentSlideIndex(0);
     setIsPaused(false);
+    setAutoplayActive(false);
     setScreenState('intro'); // mostra de novo os 3 modos (finished → false)
   }
 
@@ -468,12 +491,21 @@ export default function StoryBookScreen({ route, navigation }) {
     setViewMode(id);
     setCurrentSlideIndex(0);
     setIsPaused(false);
+    setAutoplayActive(false);
     fadeAnim.setValue(1);
   }
 
   const handleImageAreaLayout = useCallback((e) => {
     const { width: w, height: h } = e.nativeEvent.layout;
     setImgContainerSize({ w, h });
+  }, []);
+
+  // Mede a área disponível para a arte (entre header e painel de controles).
+  const handleArtSectionLayout = useCallback((e) => {
+    const { width: w, height: h } = e.nativeEvent.layout;
+    setArtSectionSize((prev) => (
+      prev.w === Math.round(w) && prev.h === Math.round(h) ? prev : { w: Math.round(w), h: Math.round(h) }
+    ));
   }, []);
 
   // ── loading ──
@@ -791,8 +823,16 @@ export default function StoryBookScreen({ route, navigation }) {
   // limpo a cada troca, evitando base64 "preso" da cena anterior.
   const slideKey = `${viewMode}-${slide.key}-${safeIndex}`;
 
-  // Tamanho 4:5 responsivo do Livrinho (maior/protagonista, sem ocupar a tela toda)
-  const bookSize = computeBookImageSize(width, screenH);
+  // Tamanho 4:5 do Livrinho — a arte é PROTAGONISTA: preenche a área medida entre
+  // header e painel (maior em telas altas/tablet), com tetos de respiro. Antes da
+  // medição, usa o tamanho responsivo base (sem pulo grande na 1ª pintura).
+  const fallbackBookSize = computeBookImageSize(width, screenH);
+  const bookSize = (artSectionSize.w > 0 && artSectionSize.h > 0)
+    ? fitBookArt45(
+        Math.min(artSectionSize.w - BOOK_ART_SIDE_PAD * 2, BOOK_ART_MAX_W),
+        artSectionSize.h - BOOK_ART_V_PAD * 2,
+      )
+    : fallbackBookSize;
   // Arte da criança é PNG com transparência: precisa de fundo CLARO (senão fica preta)
   const isUserArt = visual.type === 'paintWithLineart' || visual.type === 'paintWithLineartFull';
 
@@ -809,8 +849,8 @@ export default function StoryBookScreen({ route, navigation }) {
         variant="dark"
       />
 
-      {/* ── Imagem 4:5 responsiva, em moldura de tamanho FIXO (nasce encaixada) ── */}
-      <View style={styles.bookImageSection}>
+      {/* ── Imagem 4:5 protagonista — ocupa a área medida entre header e painel ── */}
+      <View style={styles.bookImageSection} onLayout={handleArtSectionLayout}>
         <Animated.View key={slideKey} style={[styles.bookSlideWrap, { opacity: fadeAnim }]}>
           <View
             style={[
@@ -878,6 +918,9 @@ export default function StoryBookScreen({ route, navigation }) {
             audioAsset={audioAsset}
             onFinished={onSceneAudioComplete}
             paused={isPaused}
+            autoPlay={autoplayActive}
+            onPlayStart={() => setAutoplayActive(true)}
+            onUserPause={() => setAutoplayActive(false)}
           />
         ) : (
           <View style={styles.noAudioCard}>
@@ -1150,12 +1193,15 @@ const styles = StyleSheet.create({
   // Raiz do player do Livrinho
   bookPlayerRoot: { flex: 1, backgroundColor: '#000' },
 
-  // Seção da imagem: centraliza a imagem 4:5 logo abaixo do header
+  // Seção da imagem: OCUPA a área entre header e painel (flex:1) e centraliza a
+  // arte 4:5 — sem faixa preta sobrando e com a arte o maior possível por tela.
   bookImageSection: {
+    flex: 1,
     width: '100%',
     backgroundColor: '#000',
     alignItems: 'center',
-    paddingTop: 10,
+    justifyContent: 'center',
+    paddingVertical: 10,
   },
   bookSlideWrap: { alignSelf: 'center' },
   // Moldura 4:5 (tamanho e cor de fundo via inline: claro p/ arte da criança)
