@@ -11,7 +11,7 @@
  * o toque abre o modal e a navegação continua navigate('StoryDetail', { story }).
  */
 import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
-import { View, Text, Image, Modal, Pressable, ActivityIndicator, InteractionManager, StyleSheet, ScrollView, Animated, useWindowDimensions } from 'react-native';
+import { View, Text, Image, Modal, Pressable, ActivityIndicator, InteractionManager, StyleSheet, ScrollView, Animated, Easing, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Asset } from 'expo-asset';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -166,15 +166,22 @@ export default function AdventureMapScreen({ navigation, route }) {
   const [overviewVisible, setOverviewVisible] = useState(false);
   const [ovBox, setOvBox] = useState({ w: 0, h: 0 }); // caixa medida do modal
   const [ovLoaded, setOvLoaded] = useState(false);     // arte do modal já decodificada?
+  // Região mostrada pelo overview: por padrão a ativa (rolagem); o tour pode pedir
+  // uma região específica (a do foco) ao abrir "Ver mapa" — sem mexer no activeIdx.
+  const [ovRegionIdx, setOvRegionIdx] = useState(null);
   const overviewAnim = useRef(new Animated.Value(0)).current;
-  const openOverview = useCallback(() => {
+  // MAPA 1.1: abertura SUAVE e intencional (não um "pop"). Timing com easing macio
+  // + escala leve (0.96→1) em vez de spring rápido; mesmo comportamento no celular,
+  // iPad e tablet. NÃO há scrollTo aqui: o overview é um modal contain (sem salto).
+  const openOverview = useCallback((regionIdx) => {
+    setOvRegionIdx(typeof regionIdx === 'number' ? regionIdx : null);
     setOvLoaded(false);
     setOverviewVisible(true);
     overviewAnim.setValue(0);
-    Animated.spring(overviewAnim, { toValue: 1, friction: 7, tension: 70, useNativeDriver: true }).start();
+    Animated.timing(overviewAnim, { toValue: 1, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, [overviewAnim]);
   const closeOverview = useCallback(() => {
-    Animated.timing(overviewAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setOverviewVisible(false));
+    Animated.timing(overviewAnim, { toValue: 0, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => setOverviewVisible(false));
   }, [overviewAnim]);
 
   const isOpenable = useCallback((story) => getStoryAccessStatus(story) === 'full', []);
@@ -209,6 +216,16 @@ export default function AdventureMapScreen({ navigation, route }) {
     if (completed.length) return completed[completed.length - 1].id;
     return ordered[0]?.id;
   }, [currentId, nextLockedId, ordered, isStoryCompleted]);
+
+  // Índice VISUAL da região que contém o foco da câmera — usado para abrir o
+  // overview JÁ na região certa quando o tour pede "Ver mapa" (sem depender do
+  // estado de rolagem). Fallback = base (comece_aqui).
+  const cameraRegionIdx = useMemo(() => {
+    const idx = regionsVisual.findIndex((r) => (r.stories || []).some((s) => s.id === cameraStoryId));
+    return idx >= 0 ? idx : regionsVisual.length - 1;
+  }, [regionsVisual, cameraStoryId]);
+  // Região efetivamente exibida pelo overview: a pedida (tour) ou a ativa (rolagem).
+  const overviewRegion = regionsVisual[ovRegionIdx != null ? ovRegionIdx : activeIdx] || activeRegion;
 
   // Offset inicial da câmera calculado de forma SÍNCRONA (antes do 1º paint), via
   // prop contentOffset → abre já na base correta, sem pulo. (onContentSize depois
@@ -391,7 +408,7 @@ export default function AdventureMapScreen({ navigation, route }) {
             <SoundButton style={styles.ovClose} onPress={closeOverview} accessibilityLabel="Fechar" activeOpacity={0.8}>
               <Text style={styles.ovCloseText}>✕</Text>
             </SoundButton>
-            <Text style={styles.ovTitle}>{activeRegion?.title ?? ''}</Text>
+            <Text style={styles.ovTitle}>{overviewRegion?.title ?? ''}</Text>
             <View
               style={styles.ovImageBox}
               onLayout={(e) => {
@@ -400,8 +417,8 @@ export default function AdventureMapScreen({ navigation, route }) {
               }}
             >
               {(() => {
-                const awakeReg = isRegionAwake(activeRegion);
-                const imgs = activeRegion?.images || null;
+                const awakeReg = isRegionAwake(overviewRegion);
+                const imgs = overviewRegion?.images || null;
                 const ovSource = imgs ? (awakeReg ? imgs.awake : imgs.asleep) : null;
                 // PREVIEW leve (mesmo rect contain) — aparece de imediato; a final entra
                 // por cima ao decodificar. Ver mapa também abre quase instantâneo.
@@ -451,6 +468,12 @@ export default function AdventureMapScreen({ navigation, route }) {
           withAudioPrompt
           finalLabel="Começar minha jornada"
           onStep={onTourStep}
+          onViewMap={() => {
+            // Card "Ver a região": tocar no botão medido abre a Visão Geral SUAVE,
+            // já na região do foco, SEM avançar nem fechar o tour. Ao fechar o
+            // overview, o tour continua no mesmo card (estado preservado).
+            openOverview(cameraRegionIdx);
+          }}
           onTargetPress={() => {
             // Card final: tocar no pin destacado = comportamento NORMAL do pin (abre o
             // card de foco da história). Fecha o tour antes. Paywall preservado.

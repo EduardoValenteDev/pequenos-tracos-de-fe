@@ -5585,11 +5585,15 @@ check(
     'sem zona segura do título / marcos podem colidir com o título da região',
   );
   check(
-    'Mapa M2.7: pílula de região acompanha a rolagem (onScroll → activeIdx/activeRegion)',
+    'Mapa M2.7: pílula de região acompanha a rolagem (onScroll → activeIdx; overview reflete a região ativa)',
     mapScreen.includes('setActiveIdx') &&
     mapScreen.includes('onScroll') &&
     mapScreen.includes('regionPill') &&
-    mapScreen.includes('activeRegion?.title'),
+    mapScreen.includes('activeRegion') &&
+    // MAPA 1.1: o título do overview reflete a região ativa via overviewRegion
+    // (que cai em activeIdx quando o tour não pede uma região específica).
+    mapScreen.includes('overviewRegion?.title') &&
+    /ovRegionIdx != null \? ovRegionIdx : activeIdx/.test(mapScreen),
     'sem pílula de região que acompanha a rolagem',
   );
   check(
@@ -6722,6 +6726,31 @@ check(
     overlaySrcTab.includes('arrowSide') &&
     /const showRing = !!rect && !isBigArea && inViewport/.test(overlaySrcTab),
     'overlay não destaca a sidebar medida no tablet (ou sem fallback)',
+  );
+
+  // ── MAPA 1.1: "Ver mapa" suave + tocável no tour (celular/iPad/tablet) ──────────
+  check(
+    'MAPA1.1: "Ver mapa" abre SUAVE (timing+easing, sem spring poppy) — sem scrollTo brusco no overview',
+    mapSrcTab.includes('Easing.out(Easing.cubic)') &&
+    !/Animated\.spring\(overviewAnim/.test(mapSrcTab) &&
+    /Animated\.timing\(overviewAnim, \{ toValue: 1/.test(mapSrcTab),
+    'abertura do overview não foi suavizada (ainda usa spring rápido)',
+  );
+  check(
+    'MAPA1.1: overview abre na região do FOCO quando pedido pelo tour (cameraRegionIdx) sem mexer no activeIdx',
+    mapSrcTab.includes('cameraRegionIdx') &&
+    mapSrcTab.includes('overviewRegion') &&
+    /openOverview\(cameraRegionIdx\)/.test(mapSrcTab) &&
+    /ovRegionIdx != null \? ovRegionIdx : activeIdx/.test(mapSrcTab),
+    'overview do tour não abre na região do foco (ou mexe no activeIdx)',
+  );
+  check(
+    'MAPA1.1: botão "Ver mapa" medido é tocável no tour (onViewMap) sem avançar/fechar; pin final segue só no último card',
+    overlaySrcTab.includes('onViewMap') &&
+    /!isLast && showRing && curTarget === 'adventures\.viewMapButton' && typeof onViewMap === 'function'/.test(overlaySrcTab) &&
+    mapSrcTab.includes('onViewMap={') &&
+    /isLast && showRing && typeof onTargetPress === 'function'/.test(overlaySrcTab),
+    '"Ver mapa" não é tocável de forma controlada no tour (ou conflita com o pin final)',
   );
 }
 

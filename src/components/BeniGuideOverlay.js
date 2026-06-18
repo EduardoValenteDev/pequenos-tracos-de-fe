@@ -39,6 +39,7 @@ export default function BeniGuideOverlay({
   onSkip,
   onStep,
   onTargetPress, // UX 2.4.3: toque no alvo medido no ÚLTIMO card (ex.: pin do brilho)
+  onViewMap,     // MAPA 1.1: toque no botão "Ver mapa" medido durante o tour (não avança)
   withAudioPrompt = false,
 }) {
   const { width, height } = useWindowDimensions();
@@ -234,6 +235,26 @@ export default function BeniGuideOverlay({
                     opacity: ringOpacity,
                   },
                 ]}
+              />
+            )}
+
+            {/* MAPA 1.1: no card "Ver a região", o botão "Ver mapa" MEDIDO fica
+                tocável → abre a Visão Geral suave SEM avançar nem fechar o tour
+                (o tour continua atrás; ao fechar o overview, volta a este card). */}
+            {!isLast && showRing && curTarget === 'adventures.viewMapButton' && typeof onViewMap === 'function' && (
+              <SoundButton
+                silent
+                activeOpacity={0.85}
+                accessibilityLabel="Ver o mapa inteiro"
+                onPress={onViewMap}
+                style={{
+                  position: 'absolute',
+                  left: rect.x - ringPad,
+                  top: rect.y - ringPad,
+                  width: rect.width + ringPad * 2,
+                  height: rect.height + ringPad * 2,
+                  borderRadius: 14,
+                }}
               />
             )}
 
