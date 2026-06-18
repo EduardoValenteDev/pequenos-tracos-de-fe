@@ -6,18 +6,22 @@
  * SEGURO PARA NULO: chave ausente → null (o guia segue em texto, sem quebrar).
  *
  * NÃO é a narração das histórias (audioManifest/audioService) — é uma camada
- * separada, só do guia. Arquivos: assets/audio/beni_guide/*.mp3
+ * separada, só do guia. Arquivos organizados por CONTEXTO em subpastas:
+ *   assets/audio/beni_guide/{initial,adventures,home,atelier,stars,profile,parents,common}/
+ * (Audio 1.0). Só `initial/` e `adventures/` têm áudio hoje; as demais pastas
+ * existem para os guias futuros — o plano de chaves está em docs/BENI_GUIDE_AUDIO_PLAN.md.
+ * REGRA: nunca adicionar require() aqui para um arquivo que ainda não existe.
  */
 const BENI_GUIDE_AUDIO = {
-  // Tour inicial (pós-onboarding)
-  'guide.initial.welcome':           require('../../assets/audio/beni_guide/guide_initial_welcome.mp3'),
-  'guide.initial.adventures':        require('../../assets/audio/beni_guide/guide_initial_adventures.mp3'),
-  'guide.initial.glow':              require('../../assets/audio/beni_guide/guide_initial_glow.mp3'),
-  // Guia contextual da aba Aventuras
-  'guide.adventures.path':           require('../../assets/audio/beni_guide/guide_adventures_path.mp3'),
-  'guide.adventures.next_available': require('../../assets/audio/beni_guide/guide_adventures_next_available.mp3'),
-  'guide.adventures.next_locked':    require('../../assets/audio/beni_guide/guide_adventures_next_locked.mp3'),
-  'guide.adventures.view_region':    require('../../assets/audio/beni_guide/guide_adventures_view_region.mp3'),
+  // Tour inicial (pós-onboarding) — assets/audio/beni_guide/initial/
+  'guide.initial.welcome':           require('../../assets/audio/beni_guide/initial/guide_initial_welcome.mp3'),
+  'guide.initial.adventures':        require('../../assets/audio/beni_guide/initial/guide_initial_adventures.mp3'),
+  'guide.initial.glow':              require('../../assets/audio/beni_guide/initial/guide_initial_glow.mp3'),
+  // Guia contextual da aba Aventuras — assets/audio/beni_guide/adventures/
+  'guide.adventures.path':           require('../../assets/audio/beni_guide/adventures/guide_adventures_path.mp3'),
+  'guide.adventures.next_available': require('../../assets/audio/beni_guide/adventures/guide_adventures_next_available.mp3'),
+  'guide.adventures.next_locked':    require('../../assets/audio/beni_guide/adventures/guide_adventures_next_locked.mp3'),
+  'guide.adventures.view_region':    require('../../assets/audio/beni_guide/adventures/guide_adventures_view_region.mp3'),
 };
 
 /**

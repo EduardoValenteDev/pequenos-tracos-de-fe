@@ -6523,24 +6523,35 @@ check(
     'BeniGuideOverlay não tem gate de visibilidade do alvo medido',
   );
 
-  // ── UX 2.4: voz do Beni no guia (áudio por etapa, gateado por soundsEnabled) ──
+  // ── UX 2.4 / AUDIO 1.0: voz do Beni organizada por CONTEXTO (subpastas) ──
+  // Caminhos RELATIVOS por contexto: initial/ e adventures/ (Audio 1.0).
   const GUIDE_MP3 = [
-    'guide_initial_welcome', 'guide_initial_adventures', 'guide_initial_glow',
-    'guide_adventures_path', 'guide_adventures_next_available', 'guide_adventures_next_locked',
-    'guide_adventures_view_region',
+    'initial/guide_initial_welcome', 'initial/guide_initial_adventures', 'initial/guide_initial_glow',
+    'adventures/guide_adventures_path', 'adventures/guide_adventures_next_available',
+    'adventures/guide_adventures_next_locked', 'adventures/guide_adventures_view_region',
   ];
   const guideAudioData = readSrc('src/data/beniGuideAudio.js');
   const guideAudioCmp = readSrc('src/components/BeniGuideAudio.js');
   const tourCmp24 = readSrc('src/components/BeniAppTour.js');
   const guidesData24 = readSrc('src/data/beniGuides.js');
   check(
-    'UX2.4: os 7 áudios do guia existem em assets/audio/beni_guide/ e o manifesto faz require deles (null-safe)',
+    'AUDIO1.0: os 7 áudios do guia existem em subpastas (initial/ e adventures/) e o manifesto faz require deles (null-safe)',
     GUIDE_MP3.every((f) => fs.existsSync(path.join(root, 'assets/audio/beni_guide', `${f}.mp3`))) &&
     GUIDE_MP3.every((f) => guideAudioData.includes(`beni_guide/${f}.mp3`)) &&
     guideAudioData.includes('export function getBeniGuideAudio') &&
     /return BENI_GUIDE_AUDIO\[audioKey\] \?\? null/.test(guideAudioData) &&
     /if \(!audioKey\) return null/.test(guideAudioData),
     'manifesto de áudio do guia ausente/incompleto ou não é null-safe',
+  );
+  // AUDIO 1.0: pastas futuras existem (com .gitkeep) e o manifesto NÃO importa
+  // áudio inexistente; o plano de chaves futuras está documentado.
+  check(
+    'AUDIO1.0: pastas futuras criadas (home/atelier/stars/profile/parents/common) + plano documentado, SEM require de áudio futuro',
+    ['home', 'atelier', 'stars', 'profile', 'parents', 'common'].every((d) =>
+      fs.existsSync(path.join(root, 'assets/audio/beni_guide', d, '.gitkeep'))) &&
+    fs.existsSync(path.join(root, 'docs/BENI_GUIDE_AUDIO_PLAN.md')) &&
+    !/guide_home_|guide_atelier_|guide_stars_|guide_profile_|guide_parents_|guide_common_/.test(guideAudioData),
+    'pastas futuras/plano ausentes, ou o manifesto importa áudio futuro inexistente',
   );
   check(
     'UX2.4: BeniGuideAudio é HEADLESS (retorna null), autoplay no mount e para no unmount, via expo-audio (sem pacote novo)',
@@ -6634,10 +6645,10 @@ check(
     'Card 2 não tem moldura clara/seta na aba / véu não leve / tab bar deixou de ser bloqueada',
   );
   check(
-    'UX2.4.4: os 7 áudios oficiais existem com os nomes do manifesto (path/glow inclusos)',
-    ['guide_initial_welcome', 'guide_initial_adventures', 'guide_initial_glow', 'guide_adventures_path', 'guide_adventures_next_available', 'guide_adventures_next_locked', 'guide_adventures_view_region']
+    'UX2.4.4: os 7 áudios oficiais existem com os nomes do manifesto, em subpastas por contexto (path/glow inclusos)',
+    ['initial/guide_initial_welcome', 'initial/guide_initial_adventures', 'initial/guide_initial_glow', 'adventures/guide_adventures_path', 'adventures/guide_adventures_next_available', 'adventures/guide_adventures_next_locked', 'adventures/guide_adventures_view_region']
       .every((f) => fs.existsSync(path.join(root, 'assets/audio/beni_guide', `${f}.mp3`))),
-    'falta algum áudio oficial em assets/audio/beni_guide (nome divergente do manifesto)',
+    'falta algum áudio oficial em assets/audio/beni_guide (nome/subpasta divergente do manifesto)',
   );
 }
 
