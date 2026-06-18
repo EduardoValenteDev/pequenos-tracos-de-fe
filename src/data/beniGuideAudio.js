@@ -35,6 +35,10 @@ const BENI_GUIDE_AUDIO = {
   'guide.atelier.guided_drawing':    require('../../assets/audio/beni_guide/atelier/guide_atelier_guided_drawing.mp3'),
   'guide.atelier.free_draw':         require('../../assets/audio/beni_guide/atelier/guide_atelier_free_draw.mp3'),
   'guide.atelier.gallery':           require('../../assets/audio/beni_guide/atelier/guide_atelier_gallery.mp3'),
+  // Guia da aba Estrelinhas (Estrelinhas 1.0) — assets/audio/beni_guide/stars/
+  'guide.stars.welcome':             require('../../assets/audio/beni_guide/stars/guide_stars_welcome.mp3'),
+  'guide.stars.progress':            require('../../assets/audio/beni_guide/stars/guide_stars_progress.mp3'),
+  'guide.stars.next':                require('../../assets/audio/beni_guide/stars/guide_stars_next.mp3'),
 };
 
 /**

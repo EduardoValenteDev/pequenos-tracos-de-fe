@@ -13,7 +13,7 @@
  *     • Card compartilhável seguro (somente via Área dos Pais)
  *   Nada disso coleta dado sensível, usa foto da criança ou cria recurso social.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, SectionList, StyleSheet, Modal,
   useWindowDimensions,
@@ -23,6 +23,8 @@ import { BeniAvatar } from '../components/beni';
 import SoundButton from '../components/SoundButton';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
+import { useGuideTargets } from '../hooks/useGuideTargets';
+import { measureGuideTarget } from '../services/guideTargetRegistry';
 import { STARS_GUIDE } from '../data/beniGuides';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -152,8 +154,21 @@ export default function TrophiesScreen({ navigation, route }) {
     route?.params?.fromPostSceneCelebration === true ||
     route?.params?.fromStoryCompletion === true;
 
-  // UX 2.3: guia de Estrelinhas DESATIVADO (reprovado) — só reativa no bloco UX 2.6.
-  const starsGuide = useScreenGuide('stars', false);
+  // Estrelinhas 1.0: guia falado ATIVO na 1ª visita PELA ABA (flag @ptf_beni_guide_stars_v1).
+  // Aberto por push (modal pós-cena / conclusão) NÃO dispara o guia.
+  const starsGuide = useScreenGuide('stars', !fromCena);
+  // Alvos REAIS de Estrelinhas (measureInWindow) — sem medição → fallback sem seta.
+  const starsTargets = useGuideTargets();
+  const measureStarsTarget = useCallback(
+    (name) => starsTargets.measure(name).then((r) => r || measureGuideTarget(name)),
+    [starsTargets.measure],
+  );
+  // Os alvos (conquistas/próxima) ficam no topo (cabeçalho da lista); garante o topo
+  // visível antes de medir. SectionList → scroll responder do VirtualizedList.
+  const listRef = useRef(null);
+  const onStarsStep = useCallback(() => {
+    try { listRef.current?.getScrollResponder?.()?.scrollTo?.({ y: 0, animated: true }); } catch { /* topo já visível */ }
+  }, []);
 
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -230,6 +245,7 @@ export default function TrophiesScreen({ navigation, route }) {
         </View>
       )}
       <SectionList
+        ref={listRef}
         style={styles.container}
         contentContainerStyle={[styles.content, {
           paddingTop: fromCena ? 8 : Math.max(insets.top, 24),
@@ -260,17 +276,20 @@ export default function TrophiesScreen({ navigation, route }) {
               <Text style={styles.headerNote}>
                 As estrelinhas mostram seu progresso. O Baú guarda suas lembranças.
               </Text>
-              <Text style={styles.headerCount}>{unlockedCount} de {total} conquistas</Text>
-              <View style={styles.headerProgressRow}>
-                <View style={styles.headerProgressBar}>
-                  <View style={[styles.headerProgressFill, { width: total > 0 ? `${(unlockedCount / total) * 100}%` : '0%' }]} />
+              {/* Alvo do guia (Card 2 "Suas conquistas"): contagem + barra de progresso. */}
+              <View ref={starsTargets.register('stars.achievements')} collapsable={false} style={styles.heroAchievements}>
+                <Text style={styles.headerCount}>{unlockedCount} de {total} conquistas</Text>
+                <View style={styles.headerProgressRow}>
+                  <View style={styles.headerProgressBar}>
+                    <View style={[styles.headerProgressFill, { width: total > 0 ? `${(unlockedCount / total) * 100}%` : '0%' }]} />
+                  </View>
                 </View>
               </View>
             </LinearGradient>
 
             {/* ── PRÓXIMA CONQUISTA ── */}
             {next ? (
-              <View style={styles.nextCard}>
+              <View ref={starsTargets.register('stars.next')} collapsable={false} style={styles.nextCard}>
                 <View style={styles.nextLabelRow}>
                   <Text style={styles.nextLabel}>🎯 PRÓXIMA CONQUISTA</Text>
                 </View>
@@ -290,13 +309,13 @@ export default function TrophiesScreen({ navigation, route }) {
                 </View>
               </View>
             ) : ctx && unlockedCount < total ? (
-              <View style={styles.nextCardSoft}>
+              <View ref={starsTargets.register('stars.next')} collapsable={false} style={styles.nextCardSoft}>
                 <Text style={styles.nextSoftText}>
                   ✨ Continue uma aventura para descobrir sua próxima estrelinha.
                 </Text>
               </View>
             ) : ctx && unlockedCount === total ? (
-              <View style={styles.nextCardSoft}>
+              <View ref={starsTargets.register('stars.next')} collapsable={false} style={styles.nextCardSoft}>
                 <Text style={styles.nextSoftText}>
                   🏅 Uau! Você acendeu todas as estrelinhas. Beni está muito orgulhoso!
                 </Text>
@@ -397,9 +416,16 @@ export default function TrophiesScreen({ navigation, route }) {
         />
       )}
 
-      {/* UX 2.2 — Guia contextual de Estrelinhas (1ª visita pela aba). */}
+      {/* Estrelinhas 1.0 — Guia falado (1ª visita pela aba), alvos medidos. */}
       {starsGuide.visible && (
-        <BeniGuideOverlay steps={STARS_GUIDE} finalLabel="Entendi" onFinish={starsGuide.close} onSkip={starsGuide.close} />
+        <BeniGuideOverlay
+          steps={STARS_GUIDE}
+          measure={measureStarsTarget}
+          finalLabel="Entendi"
+          onStep={onStarsStep}
+          onFinish={starsGuide.close}
+          onSkip={starsGuide.close}
+        />
       )}
     </View>
   );
@@ -427,6 +453,8 @@ const styles = StyleSheet.create({
   headerSub: { fontFamily: 'Nunito', fontSize: 13, color: '#8A6D1F', textAlign: 'center', marginBottom: 6, lineHeight: 18, paddingHorizontal: 6 },
   headerNote: { fontFamily: 'Nunito', fontSize: 11.5, color: '#A07A2A', fontWeight: '700', textAlign: 'center', marginBottom: 8, lineHeight: 16, fontStyle: 'italic', paddingHorizontal: 6 },
   headerCount: { fontFamily: 'Nunito', fontSize: 12, color: '#9B7B30', fontWeight: '700', marginBottom: 10 },
+  // Alvo medível do guia (Card 2): contagem + barra, centralizado, ocupa a largura do hero.
+  heroAchievements: { alignSelf: 'stretch', alignItems: 'center' },
   headerProgressRow: { width: '70%' },
   headerProgressBar: { height: 10, backgroundColor: 'rgba(122,88,0,0.15)', borderRadius: 5, overflow: 'hidden' },
   headerProgressFill: { height: '100%', backgroundColor: pt.gold, borderRadius: 5 },

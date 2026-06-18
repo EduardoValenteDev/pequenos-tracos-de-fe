@@ -55,10 +55,12 @@ export const ATELIER_GUIDE = [
   { variant: 'celebrating', title: 'Minhas artes',      text: 'Aqui ficam as artes que você já criou.',        audioKey: 'guide.atelier.gallery',        target: 'atelier.gallery' },
 ];
 
-// Estrelinhas
+// Estrelinhas (Estrelinhas 1.0) — guia falado CURTO de 3 cards, com alvos MEDIDOS.
+// Card 1 destaca a aba Estrelinhas (tab bar / sidebar). Não explica outras telas.
 export const STARS_GUIDE = [
-  { variant: 'celebrating', target: 'mainArea', balloon: 'bottom', title: 'Suas estrelinhas', text: 'Aqui aparecem as conquistas da sua caminhada.' },
-  { variant: 'teaching',    target: 'mainArea', balloon: 'bottom', title: 'Continue aprendendo', text: 'Cada história vivida pode acender uma nova conquista.' },
+  { variant: 'celebrating', title: 'Suas estrelinhas',    text: 'Elas mostram as conquistas da sua jornada.',     audioKey: 'guide.stars.welcome',  highlightTab: 'stars' },
+  { variant: 'teaching',    title: 'Suas conquistas',     text: 'Cada história pode acender uma nova conquista.',  audioKey: 'guide.stars.progress', target: 'stars.achievements' },
+  { variant: 'happy',       title: 'Continue caminhando', text: 'O Beni vai celebrar cada passo com você.',        audioKey: 'guide.stars.next',     target: 'stars.next' },
 ];
 
 // Perfil
