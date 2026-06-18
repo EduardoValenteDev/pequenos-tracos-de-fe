@@ -27,6 +27,7 @@ const BENI_GUIDE_AUDIO = {
   'guide.home.continue':             require('../../assets/audio/beni_guide/home/guide_home_continue.mp3'),
   'guide.home.cultinho':             require('../../assets/audio/beni_guide/home/guide_home_cultinho.mp3'),
   'guide.home.bau_beni':             require('../../assets/audio/beni_guide/home/guide_home_bau_beni.mp3'),
+  'guide.home.create_beni':          require('../../assets/audio/beni_guide/home/guide_home_create_beni.mp3'),
   'guide.home.momento_beni':         require('../../assets/audio/beni_guide/home/guide_home_momento_beni.mp3'),
 };
 

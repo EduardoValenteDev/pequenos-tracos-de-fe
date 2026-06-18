@@ -83,10 +83,15 @@ export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxSt
               </Text>
             </TouchableOpacity>
           );
-          // O item Aventuras vira ALVO medível do guia (Card 2 do tour no tablet).
-          if (tab.name === 'Aventuras') {
+          // Itens que viram ALVO medível dos guias na sidebar do tablet:
+          //   Aventuras → Card 2 do tour de Aventuras · Início → Card 1 do guia da Home.
+          const sidebarTargetName =
+            tab.name === 'Aventuras' ? 'adventures.sidebarTab'
+              : tab.name === 'Início' ? 'home.sidebarTab'
+                : null;
+          if (sidebarTargetName) {
             return (
-              <View key={tab.name} collapsable={false} ref={registerGuideTarget('adventures.sidebarTab')}>
+              <View key={tab.name} collapsable={false} ref={registerGuideTarget(sidebarTargetName)}>
                 {btn}
               </View>
             );

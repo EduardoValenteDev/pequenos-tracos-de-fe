@@ -15,6 +15,7 @@ import { BeniAvatar } from '../components/beni';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
 import { useGuideTargets } from '../hooks/useGuideTargets';
+import { measureGuideTarget } from '../services/guideTargetRegistry';
 import { HOME_GUIDE } from '../data/beniGuides';
 import { useFocusEffect } from '@react-navigation/native';
 import { useProfile } from '../context/ProfileContext';
@@ -216,6 +217,7 @@ function MissaoDeHoje({
   adventureLabel,
   onCriar,
   beniLine,
+  targetRef,
 }) {
   const allDone = primaryAction.targetType === 'openAdventures' && !primaryAction.storyId;
   const story = heroStory;
@@ -228,7 +230,7 @@ function MissaoDeHoje({
 
   if (allDone) {
     return (
-      <View style={styles.missionHero}>
+      <View ref={targetRef} collapsable={false} style={styles.missionHero}>
         <View style={styles.missionAllDone}>
           <Text style={styles.missionAllDoneEmoji}>🏆</Text>
           <Text style={styles.missionAllDoneTitle}>{primaryAction.title}</Text>
@@ -254,7 +256,7 @@ function MissaoDeHoje({
       : '✨ MISSÃO DE HOJE';
 
   return (
-    <View style={styles.missionHero}>
+    <View ref={targetRef} collapsable={false} style={styles.missionHero}>
       {/* Selo da missão + Beni guia */}
       <View style={styles.missionTopRow}>
         <View style={styles.missionBadge}>
@@ -366,9 +368,10 @@ function ConquistaCard({ lastCompleted, totalStars, onPress }) {
 }
 
 /* ── Cultinho em Casa — atalho compacto para a rotina familiar ─────── */
-function CultinhoCard({ onPress }) {
+function CultinhoCard({ onPress, targetRef }) {
   return (
     <SoundButton onPress={onPress} activeOpacity={0.88} style={styles.cultinhoWrap}>
+     <View ref={targetRef} collapsable={false}>
       <LinearGradient
         colors={['#6E54C8', '#4C2E9E']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -390,14 +393,16 @@ function CultinhoCard({ onPress }) {
           <Text style={styles.cultinhoBtnText}>Começar</Text>
         </View>
       </LinearGradient>
+     </View>
     </SoundButton>
   );
 }
 
 /* ── Baú do Beni — atalho compacto para a coleção de cartinhas ─────── */
-function BauDoBeniCard({ onPress, count }) {
+function BauDoBeniCard({ onPress, count, targetRef }) {
   return (
     <SoundButton onPress={onPress} activeOpacity={0.88} style={styles.bauWrap}>
+     <View ref={targetRef} collapsable={false}>
       <LinearGradient
         colors={['#2B5BA1', '#1E467F']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -421,14 +426,16 @@ function BauDoBeniCard({ onPress, count }) {
           <Text style={styles.bauBtnText}>Abrir</Text>
         </View>
       </LinearGradient>
+     </View>
     </SoundButton>
   );
 }
 
 /* ── Criar com Beni — atalho para missão criativa contextual ──────── */
-function CriarComBeniCard({ onPress }) {
+function CriarComBeniCard({ onPress, targetRef }) {
   return (
     <SoundButton onPress={onPress} activeOpacity={0.88} style={styles.criarWrap}>
+     <View ref={targetRef} collapsable={false}>
       <LinearGradient
         colors={['#8E5BD0', '#6E3FB5']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -445,14 +452,15 @@ function CriarComBeniCard({ onPress }) {
           <Text style={styles.criarBtnText}>Criar</Text>
         </View>
       </LinearGradient>
+     </View>
     </SoundButton>
   );
 }
 
 /* ── Cantinho do Beni — bloco especial: ideia + versículo + oração ── */
-function CantinhoDoBeni({ idea, verse, prayer, canAccess, onVerse }) {
+function CantinhoDoBeni({ idea, verse, prayer, canAccess, onVerse, targetRef }) {
   return (
-    <View style={styles.cantinho}>
+    <View ref={targetRef} collapsable={false} style={styles.cantinho}>
       {/* Cabeçalho com Beni presente */}
       <LinearGradient
         colors={['#EEE3FF', '#E0D2FA']}
@@ -508,6 +516,12 @@ export default function HomeScreen({ navigation }) {
   const homeGuide = useScreenGuide('home', true);
   // Alvos REAIS dos módulos da Home (measureInWindow) — sem medição → fallback sem seta.
   const homeTargets = useGuideTargets();
+  // Medição combinada: alvos LOCAIS (cards da Home) + GLOBAL (item Início da sidebar
+  // no tablet, registrado em TabletSidebar). No mobile o item da sidebar não existe → null.
+  const measureHomeTarget = useCallback(
+    (name) => homeTargets.measure(name).then((r) => r || measureGuideTarget(name)),
+    [homeTargets.measure],
+  );
   // Rolagem da Home p/ trazer o alvo do card atual à área visível antes de medir.
   const scrollRef = useRef(null);
   const scrollY = useRef(0);
@@ -648,6 +662,7 @@ export default function HomeScreen({ navigation }) {
       adventureLabel={getAdventureButtonLabel()}
       onCriar={onCriarComBeni}
       beniLine={missionBeniLine}
+      targetRef={homeTargets.register('home.continue')}
     />
   );
 
@@ -665,17 +680,17 @@ export default function HomeScreen({ navigation }) {
 
   /* ── Cultinho em Casa (rotina familiar curta) ── */
   const cultinhoEmCasaBlock = (
-    <CultinhoCard onPress={() => navigation.navigate('FamilyWorship')} />
+    <CultinhoCard onPress={() => navigation.navigate('FamilyWorship')} targetRef={homeTargets.register('home.cultinho')} />
   );
 
   /* ── Baú do Beni (coleção de cartinhas) ── */
   const bauBlock = (
-    <BauDoBeniCard onPress={() => navigation.navigate('BeniChest')} count={chestCount} />
+    <BauDoBeniCard onPress={() => navigation.navigate('BeniChest')} count={chestCount} targetRef={homeTargets.register('home.bau')} />
   );
 
   /* ── Criar com Beni (atalho para missão criativa contextual) ── */
   const criarBlock = (
-    <CriarComBeniCard onPress={onCriarComBeni} />
+    <CriarComBeniCard onPress={onCriarComBeni} targetRef={homeTargets.register('home.criar')} />
   );
 
   /* ── Cantinho do Beni (ideia + versículo agrupados) ── */
@@ -691,6 +706,7 @@ export default function HomeScreen({ navigation }) {
           ? () => navigation.navigate('LumiMoment')
           : () => navigation.navigate('ParentArea')
         }
+        targetRef={homeTargets.register('home.momento')}
       />
     </>
   );
@@ -720,21 +736,21 @@ export default function HomeScreen({ navigation }) {
         />
 
         <CenteredContent>
-          {/* Alvos MEDIDOS do guia da Home (wrappers collapsable p/ measureInWindow).
-              Card 1 (Seu início) não tem alvo → guia mostra sem seta. */}
-          <View ref={homeTargets.register('home.continue')} collapsable={false}>{jornadaBlock}</View>
+          {/* Alvos do guia da Home: o ref medível fica no PRÓPRIO card (halo justo).
+              Card 1 (Seu início) destaca a aba Início (tab bar / sidebar). */}
+          {jornadaBlock}
           {achievementBlock}
-          <View ref={homeTargets.register('home.cultinho')} collapsable={false}>{cultinhoEmCasaBlock}</View>
-          <View ref={homeTargets.register('home.bau')} collapsable={false}>{bauBlock}</View>
+          {cultinhoEmCasaBlock}
+          {bauBlock}
           {criarBlock}
-          <View ref={homeTargets.register('home.momento')} collapsable={false}>{cantinhoBlock}</View>
+          {cantinhoBlock}
         </CenteredContent>
       </Animated.View>
     </ScrollView>
       {homeGuide.visible && (
         <BeniGuideOverlay
           steps={HOME_GUIDE}
-          measure={homeTargets.measure}
+          measure={measureHomeTarget}
           finalLabel="Entendi"
           onStep={scrollGuideTargetIntoView}
           onFinish={homeGuide.close}

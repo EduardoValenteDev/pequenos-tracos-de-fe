@@ -59,8 +59,12 @@ export default function BeniGuideOverlay({
   // Tablet (sidebar) vs mobile (tab bar). No tablet, o passo com highlightTab vira um
   // alvo MEDIDO da sidebar ('adventures.sidebarTab'); no mobile usa o realce de tab bar.
   const isTabletLayout = width >= 768;
+  // Realce de aba por chave (mobile=tab bar / tablet=sidebar). Generalizado p/ Início
+  // e Aventuras (mesma lógica premium). Índice da aba (mobile) e alvo da sidebar (tablet).
+  const TAB_INDEX_BY_KEY = { home: 0, adventures: 1 };
+  const SIDEBAR_TARGET_BY_KEY = { home: 'home.sidebarTab', adventures: 'adventures.sidebarTab' };
   const targetFor = (s) =>
-    s?.target || (isTabletLayout && s?.highlightTab === 'adventures' ? 'adventures.sidebarTab' : null);
+    s?.target || (isTabletLayout && s?.highlightTab ? (SIDEBAR_TARGET_BY_KEY[s.highlightTab] || null) : null);
   // Voz da etapa: só com aviso "com voz" + soundsEnabled + áudio existente.
   const stepAudio = phase === 'steps' && voiceOn && soundsOn && step.audioKey
     ? getBeniGuideAudio(step.audioKey)
@@ -132,15 +136,16 @@ export default function BeniGuideOverlay({
   const inViewport = !!rect && rect.y + rect.height > insets.top && rect.y < tabTop;
   const showRing = !!rect && !isBigArea && inViewport;
 
-  // Card 2: no MOBILE, realce determinístico da aba na tab bar; no TABLET, o alvo é
-  // MEDIDO (item Aventuras da sidebar → showRing). Sem medição → fallback sem seta.
+  // Realce de aba (Card "Seu início"/"Seu mapa de aventuras"): no MOBILE, moldura
+  // determinística na tab bar; no TABLET, o alvo é MEDIDO (item da sidebar → showRing).
+  // Sem medição → fallback sem seta. Generalizado para Início (idx 0) e Aventuras (idx 1).
   const curTarget = targetFor(step);
-  const isSidebarTarget = curTarget === 'adventures.sidebarTab';
-  const showTabGlow = phase === 'steps' && step.highlightTab === 'adventures' && !isTabletLayout;
+  const isSidebarTarget = !!curTarget && curTarget.endsWith('.sidebarTab');
+  const glowTabIndex = step.highlightTab != null ? TAB_INDEX_BY_KEY[step.highlightTab] : undefined;
+  const showTabGlow = phase === 'steps' && !!step.highlightTab && !isTabletLayout && glowTabIndex != null;
   const TAB_COUNT = 5;
-  const ADV_TAB_INDEX = 1;
   const tabItemW = width / TAB_COUNT;
-  const tabCenterX = tabItemW * (ADV_TAB_INDEX + 0.5);
+  const tabCenterX = tabItemW * ((glowTabIndex ?? 1) + 0.5);
   const tabHaloW = Math.min(tabItemW - 10, 96);
   const tabHaloH = 54;
   const tabHaloLeft = tabCenterX - tabHaloW / 2;

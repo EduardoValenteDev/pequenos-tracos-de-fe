@@ -6538,29 +6538,38 @@ check(
   // ── HOME 1.0: guia falado da Home (5 cards) com alvos medidos ────────────────
   const homeManifest = readSrc('src/data/beniGuideAudio.js');
   check(
-    'HOME1.0: manifesto tem as 5 chaves de áudio da Home (require de assets/audio/beni_guide/home/, null-safe)',
-    ['welcome', 'continue', 'cultinho', 'bau_beni', 'momento_beni'].every((k) =>
+    'HOME1.1: manifesto tem as 6 chaves de áudio da Home (inclui create_beni; require de home/, null-safe)',
+    ['welcome', 'continue', 'cultinho', 'bau_beni', 'create_beni', 'momento_beni'].every((k) =>
       homeManifest.includes(`'guide.home.${k}'`) &&
       fs.existsSync(path.join(root, 'assets/audio/beni_guide/home', `guide_home_${k}.mp3`)) &&
       homeManifest.includes(`beni_guide/home/guide_home_${k}.mp3`)),
-    'manifesto não tem as 5 chaves/áudios da Home corretamente',
+    'manifesto não tem as 6 chaves/áudios da Home corretamente (create_beni incluso)',
   );
   check(
-    'HOME1.0: HOME_GUIDE tem 5 cards CURTOS com audioKey; cards 2-5 com alvo medido; card 1 sem alvo (sem seta); botão Entendi',
-    (guidesData.match(/audioKey: 'guide\.home\./g) || []).length === 5 &&
-    ['home.continue', 'home.cultinho', 'home.bau', 'home.momento'].every((t) => guidesData.includes(`target: '${t}'`)) &&
+    'HOME1.1: HOME_GUIDE tem 6 cards CURTOS; Card 1 destaca a aba Início (highlightTab: home, sem target); cards 2-6 com alvo medido; Entendi',
+    (guidesData.match(/audioKey: 'guide\.home\./g) || []).length === 6 &&
+    guidesData.includes("highlightTab: 'home'") &&
+    ['home.continue', 'home.cultinho', 'home.bau', 'home.criar', 'home.momento'].every((t) => guidesData.includes(`target: '${t}'`)) &&
     homeSrc.includes("finalLabel=\"Entendi\""),
-    'HOME_GUIDE não tem 5 cards com áudio/alvos corretos',
+    'HOME_GUIDE não tem 6 cards / Card 1 não destaca Início / falta alvo',
   );
   check(
-    'HOME1.0: HomeScreen ativa o guia, mede alvos reais (useGuideTargets) e rola até o alvo do card; tab bar/sidebar bloqueadas pelo overlay',
+    'HOME1.1: refs do guia ficam no PRÓPRIO card (halo justo via targetRef) — Continue/Cultinho/Baú/Criar/Momento',
+    ['home.continue', 'home.cultinho', 'home.bau', 'home.criar', 'home.momento'].every((t) => homeSrc.includes(`register('${t}')`)) &&
+    (homeSrc.match(/targetRef=\{homeTargets\.register\('home\./g) || []).length === 5 &&
+    homeSrc.includes('ref={targetRef} collapsable={false}'),
+    'refs do guia da Home não estão nos cards reais (halo ficaria amplo demais)',
+  );
+  check(
+    'HOME1.1: Início destacado igual Aventuras — sidebar mede home.sidebarTab (tablet) + medição combinada; guia ativo e rola até o alvo',
     homeSrc.includes("useScreenGuide('home', true)") &&
     homeSrc.includes('useGuideTargets') &&
-    ["home.continue", 'home.cultinho', 'home.bau', 'home.momento'].every((t) => homeSrc.includes(`register('${t}')`)) &&
-    homeSrc.includes('measure={homeTargets.measure}') &&
-    homeSrc.includes('scrollGuideTargetIntoView') &&
-    /collapsable=\{false\}/.test(homeSrc),
-    'HomeScreen não ativa/medê o guia da Home corretamente (ou não rola até o alvo)',
+    homeSrc.includes('measure={measureHomeTarget}') &&
+    /homeTargets\.measure\(name\)\.then\(\(r\) => r \|\| measureGuideTarget\(name\)\)/.test(homeSrc) &&
+    readSrc('src/components/TabletSidebar.js').includes("'home.sidebarTab'") &&
+    readSrc('src/components/BeniGuideOverlay.js').includes("home: 'home.sidebarTab'") &&
+    homeSrc.includes('scrollGuideTargetIntoView'),
+    'Início não é destacado como Aventuras (sidebar/medição combinada ausente)',
   );
   check(
     'UX2.3: useGuideTargets mede alvos reais (measureInWindow) e cai em fallback null sem medição',
@@ -6716,7 +6725,8 @@ check(
   check(
     'UX2.4.5: Card 2 realça CLARO a aba Aventuras — moldura (tabHalo c/ borda+pulso) no item + seta curta do card, véu leve, tab bar bloqueada',
     readSrc('src/data/beniGuides.js').includes("highlightTab: 'adventures'") &&
-    guideBase.includes("step.highlightTab === 'adventures'") &&
+    // HOME 1.1: realce de aba generalizado (Início/Aventuras) por chave highlightTab.
+    /showTabGlow = phase === 'steps' && !!step\.highlightTab && !isTabletLayout/.test(guideBase) &&
     guideBase.includes('tabHalo') &&
     guideBase.includes('borderWidth: 2.5') &&
     guideBase.includes('else if (showTabGlow)') &&
@@ -6779,7 +6789,7 @@ check(
   check(
     'TABLET1.0: Card 2 NÃO desenha realce de tab bar no tablet (fallback honesto; sem seta errada)',
     overlaySrcTab.includes('isTabletLayout') &&
-    /showTabGlow = phase === 'steps' && step\.highlightTab === 'adventures' && !isTabletLayout/.test(overlaySrcTab),
+    /showTabGlow = phase === 'steps' && !!step\.highlightTab && !isTabletLayout/.test(overlaySrcTab),
     'Card 2 desenharia realce de 5 abas no tablet (sem tab bar)',
   );
   check(
@@ -6800,7 +6810,8 @@ check(
     registrySrc.includes('export function measureGuideTarget') &&
     registrySrc.includes('measureInWindow') &&
     /resolve\(null\)/.test(registrySrc) &&
-    sidebarSrc.includes("registerGuideTarget('adventures.sidebarTab')") &&
+    sidebarSrc.includes("'adventures.sidebarTab'") &&
+    sidebarSrc.includes('registerGuideTarget(sidebarTargetName)') &&
     /collapsable=\{false\}/.test(sidebarSrc),
     'registro global ausente / sidebar não registra o item Aventuras medível',
   );
@@ -6813,8 +6824,8 @@ check(
   );
   check(
     'TABLET1.1: overlay mede a sidebar no tablet (targetFor → adventures.sidebarTab) com card à direita + seta para a esquerda; fallback sem seta se não medir',
-    overlaySrcTab.includes("'adventures.sidebarTab'") &&
-    /isTabletLayout && s\?\.highlightTab === 'adventures' \? 'adventures\.sidebarTab' : null/.test(overlaySrcTab) &&
+    overlaySrcTab.includes("adventures: 'adventures.sidebarTab'") &&
+    /isTabletLayout && s\?\.highlightTab \? \(SIDEBAR_TARGET_BY_KEY\[s\.highlightTab\] \|\| null\) : null/.test(overlaySrcTab) &&
     overlaySrcTab.includes('isSidebarTarget') &&
     /arrow = 'left'/.test(overlaySrcTab) &&
     overlaySrcTab.includes('arrowSide') &&
