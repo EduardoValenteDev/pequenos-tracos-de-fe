@@ -29,4 +29,18 @@ export function getBeniGuideAudio(audioKey) {
   return BENI_GUIDE_AUDIO[audioKey] ?? null;
 }
 
+/**
+ * Pré-carrega (aquece o cache de) os áudios das audioKeys dadas, para a 1ª fala
+ * tocar sem atraso. Usa expo-asset (já no projeto). Nunca lança.
+ */
+export async function preloadGuideAudio(audioKeys) {
+  try {
+    const { Asset } = require('expo-asset');
+    const assets = Array.from(new Set((audioKeys || []).map(getBeniGuideAudio).filter(Boolean)));
+    await Promise.allSettled(assets.map((a) => Asset.fromModule(a).downloadAsync()));
+  } catch {
+    /* pré-carregamento é best-effort — o guia segue mesmo se falhar */
+  }
+}
+
 export default BENI_GUIDE_AUDIO;

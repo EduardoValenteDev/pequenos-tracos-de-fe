@@ -8,8 +8,21 @@
  * variant: pose do BeniAvatar · target: destaque aproximado · balloon: posição do card.
  */
 
-// Aventuras (aba) — PILOTO UX 2.3 com alvos REAIS medidos (useGuideTargets).
-// 'adventures.nextPin' fica sem medição segura por enquanto → sem contorno (fallback).
+// TOUR ÚNICO de abertura (UX 2.4.2): fluxo contínuo de 6 cards sobre Aventuras,
+// pós-onboarding. Não há mais "tour inicial" + "guia de Aventuras" separados. Os
+// cards do pin (4 e 6) têm o áudio/texto DEFAULT (liberado); a tela troca para a
+// versão BLOQUEADA conforme o estado real (só leitura — não mexe no acesso).
+export const INITIAL_TOUR = [
+  { variant: 'happy',       title: 'Eu sou o Beni',         text: 'Ei, eu sou o Beni! Seu companheiro de aventuras. E vou caminhar com você pelas histórias da Bíblia.', audioKey: 'guide.initial.welcome' },
+  { variant: 'teaching',    title: 'Seu mapa de aventuras', text: 'Este é o seu mapa de aventuras. Onde vamos iniciar o seu caminho de fé!',                              audioKey: 'guide.initial.adventures' },
+  { variant: 'teaching',    title: 'Seu mapa',              text: 'Aqui em Aventuras, você acompanha sua jornada! As histórias aparecem pelo caminho!',  target: 'adventures.map',           audioKey: 'guide.adventures.path' },
+  { variant: 'celebrating', title: 'Siga o brilho',         text: 'Este brilho mostra sua próxima aventura! Toque nele quando estiver pronto.',           target: 'adventures.nextPin',       audioKey: 'guide.adventures.next_available' },
+  { variant: 'happy',       title: 'Ver a região',          text: 'O botão Ver mapa abre o seu mapa inteiro! Dessa forma você pode olhar os detalhes com calma!', target: 'adventures.viewMapButton', audioKey: 'guide.adventures.view_region' },
+  { variant: 'celebrating', title: 'Siga o brilho',         text: 'Sua primeira aventura está brilhando! Siga por ela!',                                  target: 'adventures.nextPin',       audioKey: 'guide.initial.glow' },
+];
+
+// Aventuras (aba) — guia contextual SEPARADO: DESATIVADO (substituído pelo tour
+// único acima). Mantido só como dado planejado; a tela não o dispara mais.
 export const ADVENTURES_GUIDE = [
   { variant: 'teaching',    target: 'adventures.map',           title: 'Seu mapa',      text: 'Você acompanha sua jornada aqui. As histórias aparecem pelo caminho.', audioKey: 'guide.adventures.path' },
   // O pin é DEFAULT (liberado/available); a tela troca título/texto/áudio para a

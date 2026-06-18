@@ -6396,21 +6396,26 @@ check(
     'BeniGuideOverlay não é o guia preciso medido (ou ainda usa spotlight aproximado)',
   );
   check(
-    'UX2.4: tour inicial = abertura curta (3 passos, alinhada à voz) via BeniGuideOverlay, CTA "Começar minha jornada", sem indicador visual aproximado',
-    tourCmp.includes('BeniGuideOverlay') &&
-    tourCmp.includes('Começar minha jornada') &&
-    (tourCmp.match(/title:/g) || []).length === 3 &&
-    !tourCmp.includes('measure=') &&
-    !/Ateliê|Estrelinhas|Perfil/.test(tourCmp),
-    'tour inicial não está com 3 passos alinhados à voz (sem indicador aproximado)',
+    'UX2.4.2: TOUR ÚNICO de 6 cards (beniGuides.INITIAL_TOUR), sem explicar Ateliê/Estrelinhas/Perfil',
+    (() => {
+      const gd = readSrc('src/data/beniGuides.js');
+      const seg = gd.split('INITIAL_TOUR = [')[1]?.split('];')[0] || '';
+      return /export const INITIAL_TOUR = \[/.test(gd) &&
+        (seg.match(/\{[^}]*title:/g) || []).length === 6 &&
+        !/Ateliê|Estrelinhas|Perfil/.test(seg);
+    })(),
+    'INITIAL_TOUR não tem 6 cards / explica outras abas',
   );
   check(
-    'UX2.0: AdventureMapScreen mostra o tour só com startBeniTour + não-visto e marca visto ao fechar',
+    'UX2.4.2: AdventureMapScreen mostra o TOUR ÚNICO só com startBeniTour + não-visto; ao fechar marca initial E adventures',
     mapSrcTour.includes('startBeniTour') &&
     mapSrcTour.includes('hasSeenBeniAppTour') &&
     mapSrcTour.includes('markBeniAppTourSeen') &&
-    mapSrcTour.includes('<BeniAppTour'),
-    'AdventureMapScreen não condiciona/renderiza o tour corretamente',
+    mapSrcTour.includes("markGuideSeen('adventures')") &&
+    mapSrcTour.includes('<BeniGuideOverlay') &&
+    mapSrcTour.includes('steps={tourSteps}') &&
+    mapSrcTour.includes('withAudioPrompt'),
+    'AdventureMapScreen não renderiza o tour único / não marca os dois flags ao fechar',
   );
   check(
     'UX2.1: Criador tem "Rever Tour Inicial do Beni" (reset+abre Aventuras) e "Resetar Guias do Beni" (resetAllGuides)',
@@ -6451,14 +6456,14 @@ check(
     'beniGuides.js não exporta todos os guias das telas',
   );
   check(
-    'UX2.3: PILOTO Aventuras com alvos REAIS (useGuideTargets + measure) — gateado p/ não empilhar com o tour inicial',
-    /useScreenGuide\(\s*'adventures',\s*!showBeniTour && !route\?\.params\?\.startBeniTour/.test(mapSrcTour) &&
+    'UX2.4.2: tour único com alvos REAIS (useGuideTargets + measure) — mapa + Ver mapa; sem guia de Aventuras separado',
     mapSrcTour.includes('useGuideTargets') &&
     mapSrcTour.includes("register('adventures.map')") &&
     mapSrcTour.includes("register('adventures.viewMapButton')") &&
     mapSrcTour.includes('measure={guideTargets.measure}') &&
-    mapSrcTour.includes('ADVENTURES_GUIDE'),
-    'piloto Aventuras não usa alvos medidos / não está gateado',
+    mapSrcTour.includes('tourSteps') &&
+    !mapSrcTour.includes('useScreenGuide'),
+    'tour único não usa alvos medidos / ainda tem guia de Aventuras separado',
   );
   check(
     'UX2.3: guias reprovados DESATIVADOS (Home/Ateliê/Estrelinhas/Perfil/Pais não aparecem automaticamente)',
@@ -6495,11 +6500,12 @@ check(
     'MapRegion não registra apenas o pin foco como alvo medível',
   );
   check(
-    'UX2.3.1: AdventureMapScreen registra adventures.nextPin + scroll-into-view + passa registerPinTarget',
+    'UX2.3.1: AdventureMapScreen registra adventures.nextPin + scroll-into-view (via onStep) + passa registerPinTarget',
     mapSrcTour.includes("register('adventures.nextPin')") &&
     mapSrcTour.includes('registerPinTarget={registerNextPin}') &&
     mapSrcTour.includes('scrollPinIntoView') &&
-    /if \(adventuresGuide\.visible\) scrollPinIntoView\(\)/.test(mapSrcTour),
+    /onTourStep[\s\S]{0,80}adventures\.nextPin'\) scrollPinIntoView\(\)/.test(mapSrcTour) &&
+    mapSrcTour.includes('onStep={onTourStep}'),
     'AdventureMapScreen não registra/rola o pin foco para o guia',
   );
   check(
@@ -6540,24 +6546,32 @@ check(
     'BeniGuideAudio não é headless/autoplay/para no unmount',
   );
   check(
-    'UX2.4: BeniGuideOverlay toca a voz por etapa só com soundsEnabled, sem autoavanço, e micro-som no avançar',
+    'UX2.4.2: BeniGuideOverlay voz gateada (voiceOn+soundsEnabled), Modal bloqueante, aviso de som, Voltar, debounce, SEM som duplo (sem playUiSound), sem autoavanço',
     guideBase.includes('getBeniGuideAudio') &&
-    guideBase.includes('getAudioPreferences') &&
     guideBase.includes('subscribeAudioPreferences') &&
-    /soundsOn && step\.audioKey \? getBeniGuideAudio/.test(guideBase) &&
-    /<BeniGuideAudio key=\{`guide-audio-\$\{index\}-\$\{soundsOn\}`\} audioAsset=\{stepAudio\}/.test(guideBase) &&
-    guideBase.includes("playUiSound('success')") &&
+    /voiceOn && soundsOn && step\.audioKey\s*\?\s*getBeniGuideAudio/.test(guideBase) &&
+    guideBase.includes('<Modal') &&
+    guideBase.includes('withAudioPrompt') &&
+    guideBase.includes('preloadGuideAudio') &&
+    guideBase.includes('Começar com som') &&
+    guideBase.includes('Continuar sem voz') &&
+    guideBase.includes('handleBack') &&
+    /if \(busy\) return/.test(guideBase) &&
+    !guideBase.includes('playUiSound') &&
     !/<BeniGuideAudio[^>]*onFinished/.test(guideBase),
-    'overlay não toca voz gateada por soundsEnabled / autoavança / sem micro-som',
+    'overlay não é o tour bloqueante falado (voz/Modal/aviso/Voltar/debounce/sem som duplo)',
   );
   check(
-    'UX2.4: passos têm audioKey — tour inicial (welcome+glow) e Aventuras (path/next/view); pin escolhe available vs locked por estado',
-    tourCmp24.includes("audioKey: 'guide.initial.welcome'") &&
-    tourCmp24.includes("audioKey: 'guide.initial.glow'") &&
+    'UX2.4.2: audioKeys nos 6 cards (INITIAL_TOUR) + pin bloqueado vira next_locked na tela (só leitura)',
+    guidesData24.includes("audioKey: 'guide.initial.welcome'") &&
+    guidesData24.includes("audioKey: 'guide.initial.adventures'") &&
     guidesData24.includes("audioKey: 'guide.adventures.path'") &&
+    guidesData24.includes("audioKey: 'guide.adventures.next_available'") &&
     guidesData24.includes("audioKey: 'guide.adventures.view_region'") &&
-    /audioKey: currentId \? 'guide\.adventures\.next_available' : \(nextLockedId \? 'guide\.adventures\.next_locked'/.test(mapSrcTour) &&
-    mapSrcTour.includes('steps={adventuresSteps}'),
+    guidesData24.includes("audioKey: 'guide.initial.glow'") &&
+    /focusLocked = !currentId && !!nextLockedId/.test(mapSrcTour) &&
+    /audioKey: 'guide\.adventures\.next_locked'/.test(mapSrcTour) &&
+    mapSrcTour.includes('steps={tourSteps}'),
     'audioKeys ausentes nos passos / pin não diferencia available×locked',
   );
 }

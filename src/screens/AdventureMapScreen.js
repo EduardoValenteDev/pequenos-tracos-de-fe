@@ -21,12 +21,10 @@ import { useProgressContext } from '../context/ProgressContext';
 import SoundButton from '../components/SoundButton';
 import MapRegion from '../components/map/MapRegion';
 import StoryFocusModal from '../components/map/StoryFocusModal';
-import BeniAppTour from '../components/BeniAppTour';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
-import { hasSeenBeniAppTour, markBeniAppTourSeen } from '../services/beniTourService';
-import { useScreenGuide } from '../hooks/useScreenGuide';
+import { hasSeenBeniAppTour, markBeniAppTourSeen, markGuideSeen } from '../services/beniTourService';
 import { useGuideTargets } from '../hooks/useGuideTargets';
-import { ADVENTURES_GUIDE } from '../data/beniGuides';
+import { INITIAL_TOUR } from '../data/beniGuides';
 
 const REGION_OVERLAP = 0; // regiões se tocam exatamente (sem overlap que cortava a base da arte)
 
@@ -54,37 +52,16 @@ export default function AdventureMapScreen({ navigation, route }) {
   }, [route?.params?.startBeniTour]);
   const closeBeniTour = useCallback(() => {
     setShowBeniTour(false);
-    markBeniAppTourSeen();
+    markBeniAppTourSeen();        // 'initial' visto
+    markGuideSeen('adventures');  // impede o guia separado de Aventuras de disparar
     navigation.setParams?.({ startBeniTour: false });
   }, [navigation]);
 
-  // Guia contextual da aba Aventuras — só quando o TOUR INICIAL não está ativo
-  // (não empilha). Aparece na 1ª visita "normal" à aba.
-  const adventuresGuide = useScreenGuide(
-    'adventures',
-    !showBeniTour && !route?.params?.startBeniTour,
-  );
-  // Alvos REAIS medidos do guia (UX 2.3): mapa + botão Ver mapa.
+  // Alvos REAIS medidos do tour (UX 2.3.1+): mapa + pin foco + botão Ver mapa.
   const guideTargets = useGuideTargets();
-  // UX 2.3.1: ref ESTÁVEL do pin foco da jornada (current/nextLocked), registrado
-  // só pelo MapRegion que o contém. measureInWindow (nativo) já considera o scroll.
+  // ref ESTÁVEL do pin foco (current/nextLocked), registrado só pelo MapRegion que o
+  // contém. measureInWindow (nativo) já considera o scroll.
   const registerNextPin = useMemo(() => guideTargets.register('adventures.nextPin'), [guideTargets.register]);
-  // UX 2.4: a voz do passo do "brilho" depende do estado do foco (só leitura — não
-  // muda current/nextLocked/acesso): liberado → next_available; bloqueado → next_locked.
-  const adventuresSteps = useMemo(() => {
-    const focusLocked = !currentId && !!nextLockedId; // foco da jornada bloqueado
-    return ADVENTURES_GUIDE.map((s) => {
-      if (s.target !== 'adventures.nextPin') return s;
-      return {
-        ...s,
-        audioKey: currentId ? 'guide.adventures.next_available' : (nextLockedId ? 'guide.adventures.next_locked' : s.audioKey),
-        title: focusLocked ? 'Próxima aventura' : s.title,
-        text: focusLocked
-          ? 'Essa aventura ainda está bloqueada. Peça ajuda a um responsável para continuar.'
-          : s.text,
-      };
-    });
-  }, [currentId, nextLockedId]);
   const { width, height } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
 
@@ -201,6 +178,24 @@ export default function AdventureMapScreen({ navigation, route }) {
     [nextJourney, isOpenable],
   );
 
+  // UX 2.4.2: tour ÚNICO de 6 cards. Os cards do pin (4 e 6) usam o DEFAULT (liberado);
+  // se o foco da jornada estiver BLOQUEADO, troca áudio/texto do card 4 — só LEITURA de
+  // currentId/nextLockedId, não mexe em acesso/current/nextLocked.
+  const tourSteps = useMemo(() => {
+    const focusLocked = !currentId && !!nextLockedId;
+    if (!focusLocked) return INITIAL_TOUR;
+    return INITIAL_TOUR.map((s, i) =>
+      i === 3
+        ? {
+            ...s,
+            audioKey: 'guide.adventures.next_locked',
+            title: 'Próxima aventura',
+            text: 'Essa aventura ainda está bloqueada. Peça ajuda a um responsável para continuar.',
+          }
+        : s,
+    );
+  }, [currentId, nextLockedId]);
+
   // História que a câmera deve focar: o foco da jornada (disponível OU bloqueada);
   // senão última concluída; senão A Criação (começo). Só leitura.
   const cameraStoryId = useMemo(() => {
@@ -307,9 +302,11 @@ export default function AdventureMapScreen({ navigation, route }) {
     const target = Math.max(0, Math.min(anchorY - vp * 0.5, maxY));
     scrollRef.current?.scrollTo({ y: target, animated: true });
   }, [regionLayout, regionsVisual, cameraStoryId]);
-  useEffect(() => {
-    if (adventuresGuide.visible) scrollPinIntoView();
-  }, [adventuresGuide.visible, scrollPinIntoView]);
+  // UX 2.4.2: o tour avisa qual alvo entrou; ao chegar no pin do brilho, rolamos o
+  // pin para a viewport (depois o overlay mede com settle).
+  const onTourStep = useCallback((target) => {
+    if (target === 'adventures.nextPin') scrollPinIntoView();
+  }, [scrollPinIntoView]);
 
   return (
     <View style={styles.container}>
@@ -437,16 +434,18 @@ export default function AdventureMapScreen({ navigation, route }) {
         </Animated.View>
       </Modal>
 
-      {/* UX 2.0 — Tour inicial do Beni (sobre o mapa, abaixo da tab bar). Visual, uma vez. */}
-      {showBeniTour && <BeniAppTour onFinish={closeBeniTour} onSkip={closeBeniTour} />}
-      {/* UX 2.2 — Guia contextual da aba Aventuras (não aparece junto do tour inicial). */}
-      {!showBeniTour && adventuresGuide.visible && (
+      {/* UX 2.4.2 — TOUR ÚNICO falado (6 cards) sobre Aventuras, pós-onboarding.
+          Bloqueante (Modal), com aviso de som, alvos medidos e CTA só no fim.
+          Ao fechar, marca 'initial' e 'adventures' como vistos (não reabre guia). */}
+      {showBeniTour && (
         <BeniGuideOverlay
-          steps={adventuresSteps}
+          steps={tourSteps}
           measure={guideTargets.measure}
-          finalLabel="Entendi"
-          onFinish={adventuresGuide.close}
-          onSkip={adventuresGuide.close}
+          withAudioPrompt
+          finalLabel="Começar minha jornada"
+          onStep={onTourStep}
+          onFinish={closeBeniTour}
+          onSkip={closeBeniTour}
         />
       )}
     </View>
