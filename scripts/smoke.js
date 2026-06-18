@@ -296,6 +296,24 @@ check(
   );
 }
 
+// ── Layout 1: sem espaço morto no fim do scroll (tab bar não-absoluta) ───────
+{
+  const navLayout = readSrc('src/navigation/AppNavigator.js');
+  check(
+    'Layout1: tab bar NÃO-absoluta reserva 64 + insets.bottom — telas não re-somam insets.bottom no fim do scroll',
+    /height: 64 \+ insets\.bottom/.test(navLayout) &&
+    !/tabBarStyle:\s*\{[\s\S]{0,200}position:\s*'absolute'/.test(navLayout) &&
+    readSrc('src/screens/AdventureMapScreen.js').includes('const SCROLL_BOTTOM_PAD = 8') &&
+    readSrc('src/screens/AdventureMapScreen.js').includes('paddingBottom: SCROLL_BOTTOM_PAD') &&
+    !readSrc('src/screens/HomeScreen.js').includes('insets.bottom + 80') &&
+    !readSrc('src/screens/AtelierScreen.js').includes('insets.bottom + 72') &&
+    !readSrc('src/screens/ProfileScreen.js').includes('insets.bottom + 72') &&
+    !readSrc('src/screens/TrophiesScreen.js').includes('insets.bottom + 64') &&
+    !readSrc('src/screens/ParentAreaScreen.js').includes('insets.bottom + 48'),
+    'tab bar virou absoluta, ou alguma tela voltou a somar insets.bottom (espaço morto) no paddingBottom',
+  );
+}
+
 // ── [16–20] contentAccessService.js API ─────────────────────────────────────
 console.log('\n── contentAccessService.js API ──');
 

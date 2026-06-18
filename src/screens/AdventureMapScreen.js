@@ -24,6 +24,11 @@ import StoryFocusModal from '../components/map/StoryFocusModal';
 
 const REGION_OVERLAP = 0; // regiões se tocam exatamente (sem overlap que cortava a base da arte)
 
+// Espaço inferior do scroll. A TAB BAR (não-absoluta) já reserva 64 + insets.bottom
+// abaixo da tela, então NÃO se soma insets.bottom aqui (era espaço morto). Mapa
+// imersivo → margem mínima para a última região quase encostar na tab bar.
+const SCROLL_BOTTOM_PAD = 8;
+
 export default function AdventureMapScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -158,7 +163,7 @@ export default function AdventureMapScreen({ navigation }) {
   const initialOffsetY = useMemo(() => {
     if (!regionLayout.length) return 0;
     const last = regionLayout[regionLayout.length - 1];
-    const contentH = last.top + last.height + insets.bottom + 8;
+    const contentH = last.top + last.height + SCROLL_BOTTOM_PAD;
     const vpEst = Math.max(220, height - (insets.top + 56) - (insets.bottom + 56)); // header + tab bar aprox.
     let anchorY = contentH - vpEst;
     const idx = regionsVisual.findIndex((r) => (r.stories || []).some((s) => s.id === cameraStoryId));
@@ -255,7 +260,7 @@ export default function AdventureMapScreen({ navigation }) {
           onScroll={onScroll}
           scrollEventThrottle={32}
           contentOffset={{ x: 0, y: initialOffsetY }}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 8 }}
+          contentContainerStyle={{ paddingBottom: SCROLL_BOTTOM_PAD }}
           showsVerticalScrollIndicator={false}
         >
           {regionsVisual.map((region) => (

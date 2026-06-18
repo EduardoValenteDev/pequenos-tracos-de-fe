@@ -227,7 +227,7 @@ export default function TrophiesScreen({ navigation, route }) {
         style={styles.container}
         contentContainerStyle={[styles.content, {
           paddingTop: fromCena ? 8 : Math.max(insets.top, 24),
-          paddingBottom: insets.bottom + 64,
+          paddingBottom: 24,
         }]}
         showsVerticalScrollIndicator={false}
         sections={albumSections}

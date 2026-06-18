@@ -182,7 +182,7 @@ export default function AtelierScreen({ navigation, route }) {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 72 }}
+      contentContainerStyle={{ paddingBottom: 24 }}
       showsVerticalScrollIndicator={false}
     >
       {/* ── HEADER ── */}

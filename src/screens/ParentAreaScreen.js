@@ -438,7 +438,7 @@ export default function ParentAreaScreen({ navigation }) {
       <ParentalGate visible={gateVisible} onPass={handleGatePass} onCancel={handleGateCancel} />
       <ScrollView
         style={styles.wrapper}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 48 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: 24 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >

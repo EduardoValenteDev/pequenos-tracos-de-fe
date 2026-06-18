@@ -166,7 +166,7 @@ export default function ProfileScreen({ navigation }) {
         style={styles.container}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: 0, paddingBottom: insets.bottom + 72 },
+          { paddingTop: 0, paddingBottom: 24 },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
