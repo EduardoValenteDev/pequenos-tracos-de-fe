@@ -26,8 +26,9 @@ const REGION_OVERLAP = 0; // regiões se tocam exatamente (sem overlap que corta
 
 // Espaço inferior do scroll. A TAB BAR (não-absoluta) já reserva 64 + insets.bottom
 // abaixo da tela, então NÃO se soma insets.bottom aqui (era espaço morto). Mapa
-// imersivo → margem mínima para a última região quase encostar na tab bar.
-const SCROLL_BOTTOM_PAD = 8;
+// imersivo → 0: a última região termina limpa, encostando na área da tab bar, sem
+// faixa morta de pergaminho. (Mesma constante alimenta o cálculo de câmera.)
+const SCROLL_BOTTOM_PAD = 0;
 
 export default function AdventureMapScreen({ navigation }) {
   const insets = useSafeAreaInsets();

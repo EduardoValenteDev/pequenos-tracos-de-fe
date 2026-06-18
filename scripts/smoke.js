@@ -303,7 +303,7 @@ check(
     'Layout1: tab bar NÃO-absoluta reserva 64 + insets.bottom — telas não re-somam insets.bottom no fim do scroll',
     /height: 64 \+ insets\.bottom/.test(navLayout) &&
     !/tabBarStyle:\s*\{[\s\S]{0,200}position:\s*'absolute'/.test(navLayout) &&
-    readSrc('src/screens/AdventureMapScreen.js').includes('const SCROLL_BOTTOM_PAD = 8') &&
+    /const SCROLL_BOTTOM_PAD = [0-8]\b/.test(readSrc('src/screens/AdventureMapScreen.js')) &&
     readSrc('src/screens/AdventureMapScreen.js').includes('paddingBottom: SCROLL_BOTTOM_PAD') &&
     !readSrc('src/screens/HomeScreen.js').includes('insets.bottom + 80') &&
     !readSrc('src/screens/AtelierScreen.js').includes('insets.bottom + 72') &&
