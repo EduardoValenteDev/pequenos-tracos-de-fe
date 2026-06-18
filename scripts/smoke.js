@@ -5721,7 +5721,7 @@ check(
     'Mapa B3.6: StoryMapMarker usa completedColor/currentColor (borda + badge + halo), sem verde fixo no render',
     /completedColor = '#5EBE6E'/.test(marker) &&
     /currentColor = '#F4B73E'/.test(marker) &&
-    /const ringColor = state === 'completed' \? completedColor : \(isCurrent \|\| isNextLocked\) \? currentColor/.test(marker) &&
+    /const ringColor = state === 'completed' \? completedColor[\s\S]{0,60}isCurrent \? currentColor/.test(marker) &&
     marker.includes('borderColor: ringColor') &&
     /doneBadge,\s*\{ backgroundColor: completedColor \}/.test(marker) &&
     marker.includes('`${currentColor}33`') &&
@@ -5751,10 +5751,20 @@ check(
     /SIZE = \{[^}]*nextLocked: 56/.test(marker) &&
     /RING = \{[\s\S]*?nextLocked:\s*\{/.test(marker) &&
     marker.includes('showLock = isLocked || isNextLocked') &&
-    /ringColor = state === 'completed' \? completedColor : \(isCurrent \|\| isNextLocked\) \? currentColor/.test(marker) &&
+    marker.includes('isNextLocked ? NEXTLOCKED_COLOR') &&
     region.includes('completedColor={region.completedColor}') &&
     /st === 'nextLocked' \? 'locked' : st/.test(mapScreen),
     'nextLocked não compartilha visual locked+pulso, ou toque não preserva o locked',
+  );
+  check(
+    'Mapa B3.8: nextLocked usa cor GLOBAL azul celeste (#4FC3FF / brilho #EAFBFF), não a cor da região',
+    /NEXTLOCKED_COLOR = '#4FC3FF'/.test(marker) &&
+    /NEXTLOCKED_GLOW = '#EAFBFF'/.test(marker) &&
+    marker.includes('isNextLocked ? NEXTLOCKED_COLOR') &&
+    marker.includes('haloFill = isNextLocked ? `${NEXTLOCKED_COLOR}40`') &&
+    marker.includes('shadowColor: NEXTLOCKED_COLOR') &&
+    marker.includes('outputRange: isNextLocked ? [0.3, 0.6]'),
+    'nextLocked não usa a cor global azul celeste na borda/halo/pulso',
   );
   check(
     'Mapa B2.8: caminho suavizado (traço fino 4, dash curto "9 12", opacidade menor, sombra leve)',

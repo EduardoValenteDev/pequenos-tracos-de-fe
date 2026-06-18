@@ -26,6 +26,12 @@ const RING = {
   locked:     { color: '#D8CFC0', width: 2 },
   nextLocked: { color: '#D8CFC0', width: 2 },
 };
+// Cor GLOBAL de "próxima aventura bloqueada" (B3.8): azul celeste com brilho claro,
+// visível sobre mapas sépia (a cor da região se misturava demais). Convite a
+// continuar a jornada — não erro/alerta, não "desbloqueado".
+const NEXTLOCKED_COLOR = '#4FC3FF';
+const NEXTLOCKED_GLOW = '#EAFBFF';
+
 const LABEL_W = 84; // legenda ainda menor (B3.2) — ocupa menos do mapa
 
 // Caixa do label posicionada por lado, mantendo-se SEMPRE dentro da tela (o pin
@@ -59,11 +65,18 @@ export default function StoryMapMarker({
   const size = Math.round((SIZE[state] || SIZE.available) * scale);
   const ring = RING[state] || RING.available;
   const inner = size - ring.width * 2;
-  // Cor da BORDA por estado: completed usa completedColor; current/nextLocked usam
-  // a currentColor DA REGIÃO (sem verde fixo); demais mantêm a cor do estado.
-  const ringColor = state === 'completed' ? completedColor : (isCurrent || isNextLocked) ? currentColor : ring.color;
-  // Capa esmaecida: locked mais apagada; nextLocked um pouco mais visível.
-  const coverDim = isLocked ? 0.55 : isNextLocked ? 0.72 : 1;
+  // Cor da BORDA por estado: completed → completedColor (região); current →
+  // currentColor (região); nextLocked → azul celeste GLOBAL (não some no sépia);
+  // demais mantêm a cor do estado.
+  const ringColor = state === 'completed' ? completedColor
+    : isCurrent ? currentColor
+    : isNextLocked ? NEXTLOCKED_COLOR
+    : ring.color;
+  // Brilho do pulso: current na cor da região; nextLocked no azul celeste global.
+  const haloFill = isNextLocked ? `${NEXTLOCKED_COLOR}40` : `${currentColor}33`;
+  const haloBorder = isNextLocked ? `${NEXTLOCKED_GLOW}CC` : `${currentColor}99`;
+  // Capa esmaecida: locked mais apagada; nextLocked só levemente (não "desativado").
+  const coverDim = isLocked ? 0.55 : isNextLocked ? 0.78 : 1;
 
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -79,7 +92,7 @@ export default function StoryMapMarker({
   }, [shouldPulse, pulse]);
   // nextLocked pulsa MAIS sutil que current (menor amplitude e opacidade).
   const haloScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, isNextLocked ? 1.1 : 1.16] });
-  const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: isNextLocked ? [0.2, 0.45] : [0.35, 0.7] });
+  const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: isNextLocked ? [0.3, 0.6] : [0.35, 0.7] });
 
   // O pin (SoundButton) tem tamanho `size` e fica centrado na âncora (slot 0×0).
   return (
@@ -97,8 +110,8 @@ export default function StoryMapMarker({
               width: size + 16,
               height: size + 16,
               borderRadius: (size + 16) / 2,
-              backgroundColor: `${currentColor}33`, // brilho translúcido na cor da região
-              borderColor: `${currentColor}99`,
+              backgroundColor: haloFill, // brilho translúcido (região ou azul global)
+              borderColor: haloBorder,
               opacity: haloOpacity,
               transform: [{ scale: haloScale }],
             },
@@ -109,7 +122,11 @@ export default function StoryMapMarker({
         style={[
           styles.ring,
           { width: size, height: size, borderRadius: size / 2, borderColor: ringColor, borderWidth: ring.width },
-          isCurrent ? [styles.currentShadow, { shadowColor: currentColor }] : styles.softShadow,
+          isCurrent
+            ? [styles.currentShadow, { shadowColor: currentColor }]
+            : isNextLocked
+              ? [styles.currentShadow, { shadowColor: NEXTLOCKED_COLOR }]
+              : styles.softShadow,
         ]}
       >
         <View style={[styles.circle, { width: inner, height: inner, borderRadius: inner / 2 }]}>
