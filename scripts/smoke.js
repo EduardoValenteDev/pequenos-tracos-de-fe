@@ -6383,15 +6383,17 @@ check(
     'beniTourService não virou serviço de guias genérico (ou toca progresso/acesso)',
   );
   check(
-    'UX2.1: BeniGuideOverlay = base reutilizável (Beni oficial, balão, target/balloon, Pular, CTA final), Animated nativo, sem Lottie',
-    guideBase.includes("from '../assets/mascot/beniImages'") &&
+    'UX2.2: BeniGuideOverlay usa BeniAvatar (SEM imagem quadrada) + destaque contextual (spotlightFor) + balão/target, Pular + CTA final, Animated, sem Lottie',
+    guideBase.includes("from './beni/BeniAvatar'") &&
+    guideBase.includes('<BeniAvatar') &&
+    !/Animated\.Image source=\{beniSource\}/.test(guideBase) &&
     guideBase.includes('Pular tour') &&
     guideBase.includes('finalLabel') &&
-    guideBase.includes('spotlightBox') &&
+    guideBase.includes('spotlightFor') &&
     /balloon/.test(guideBase) &&
     guideBase.includes('Animated') &&
     !/from ['"][^'"]*lottie/i.test(guideBase),
-    'BeniGuideOverlay base ausente/incompleta',
+    'BeniGuideOverlay não usa BeniAvatar / destaque contextual / base incompleta',
   );
   check(
     'UX2.1: tour inicial = abertura curta do mapa (3 passos) via BeniGuideOverlay, CTA "Começar minha jornada", sem explicar Ateliê/Estrelinhas/Perfil',
@@ -6417,6 +6419,46 @@ check(
     parentTour.includes('Resetar Guias do Beni') &&
     /navigation\.navigate\('Home', \{ screen: 'Aventuras', params: \{ startBeniTour: true \} \}\)/.test(parentTour),
     'faltam os botões de rever/resetar guias do Beni na Área dos Pais (Criador)',
+  );
+
+  // ── UX 2.2: guias contextuais por tela ──────────────────────────────────────
+  const hookSrc = readSrc('src/hooks/useScreenGuide.js');
+  const guidesData = readSrc('src/data/beniGuides.js');
+  const homeSrc = readSrc('src/screens/HomeScreen.js');
+  const atelierSrc = readSrc('src/screens/AtelierScreen.js');
+  const trophiesSrc = readSrc('src/screens/TrophiesScreen.js');
+  const profileSrc = readSrc('src/screens/ProfileScreen.js');
+  check(
+    'UX2.2: GUIDE_KEYS cobre todas as telas (initial/adventures/home/atelier/stars/profile/parentArea) e resetAllGuides limpa tudo',
+    ['initial', 'adventures', 'home', 'atelier', 'stars', 'profile', 'parentArea'].every((k) => new RegExp(`${k}:`).test(guideSvc)) &&
+    guideSvc.includes('@ptf_beni_guide_home_v1') &&
+    guideSvc.includes('@ptf_beni_guide_parent_v1') &&
+    guideSvc.includes('multiRemove(Object.values(GUIDE_STORAGE))'),
+    'GUIDE_KEYS/STORAGE não cobre home/parentArea ou resetAllGuides não limpa tudo',
+  );
+  check(
+    'UX2.2: useScreenGuide = primeira visita por foco (useFocusEffect + flag), pulável, marca visto',
+    hookSrc.includes("from '@react-navigation/native'") &&
+    hookSrc.includes('useFocusEffect') &&
+    hookSrc.includes('hasSeenGuide') &&
+    hookSrc.includes('markGuideSeen'),
+    'useScreenGuide ausente/incompleto',
+  );
+  check(
+    'UX2.2: beniGuides.js define os passos das telas (Aventuras/Home/Ateliê/Estrelinhas/Perfil/Pais)',
+    ['ADVENTURES_GUIDE', 'HOME_GUIDE', 'ATELIER_GUIDE', 'STARS_GUIDE', 'PROFILE_GUIDE', 'PARENT_GUIDE_BASE', 'PARENT_GUIDE_CREATOR_STEP'].every((k) => guidesData.includes(`export const ${k}`)),
+    'beniGuides.js não exporta todos os guias das telas',
+  );
+  check(
+    'UX2.2: cada tela monta seu guia (useScreenGuide + BeniGuideOverlay) — Aventuras gateado p/ não empilhar com o tour inicial',
+    /useScreenGuide\(\s*'adventures',\s*!showBeniTour && !route\?\.params\?\.startBeniTour/.test(mapSrcTour) &&
+    mapSrcTour.includes('ADVENTURES_GUIDE') &&
+    homeSrc.includes("useScreenGuide('home')") && homeSrc.includes('HOME_GUIDE') &&
+    atelierSrc.includes("useScreenGuide('atelier'") && atelierSrc.includes('ATELIER_GUIDE') &&
+    trophiesSrc.includes("useScreenGuide('stars'") && trophiesSrc.includes('STARS_GUIDE') &&
+    profileSrc.includes("useScreenGuide('profile')") && profileSrc.includes('PROFILE_GUIDE') &&
+    parentTour.includes("useScreenGuide('parentArea'") && parentTour.includes('parentGuideSteps'),
+    'alguma tela não monta o guia contextual / Aventuras não está gateado',
   );
 }
 

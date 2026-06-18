@@ -16,6 +16,9 @@ import {
 } from '../services/creatorQaMode';
 import { resetOnboardingForQa } from '../services/onboardingService';
 import { resetBeniAppTour, resetAllGuides } from '../services/beniTourService';
+import BeniGuideOverlay from '../components/BeniGuideOverlay';
+import { useScreenGuide } from '../hooks/useScreenGuide';
+import { PARENT_GUIDE_BASE, PARENT_GUIDE_CREATOR_STEP } from '../data/beniGuides';
 import productConfig from '../config/productConfig';
 import { useProgressContext } from '../context/ProgressContext';
 import { useProfile } from '../context/ProfileContext';
@@ -155,6 +158,12 @@ export default function ParentAreaScreen({ navigation }) {
   const qaAllowed = isCreatorQaModeAllowed();
   const [qaEnabled, setQaEnabled] = useState(isCreatorQaModeEnabled());
   const [beniResetDone, setBeniResetDone] = useState(false);
+
+  // Guia da Área dos Pais (tom para responsáveis). 2º passo só com Modo Criador.
+  const parentGuide = useScreenGuide('parentArea', unlockedForSession);
+  const parentGuideSteps = SHOW_TEST_TOOLS
+    ? [...PARENT_GUIDE_BASE, PARENT_GUIDE_CREATOR_STEP]
+    : PARENT_GUIDE_BASE;
 
   // Reset de progresso
   const [resetStep, setResetStep] = useState('idle');
@@ -1106,6 +1115,11 @@ export default function ParentAreaScreen({ navigation }) {
 
         </View>
       </ScrollView>
+
+      {/* UX 2.2 — Guia da Área dos Pais (tom para responsáveis; só após o gate). */}
+      {parentGuide.visible && (
+        <BeniGuideOverlay steps={parentGuideSteps} finalLabel="Entendi" onFinish={parentGuide.close} onSkip={parentGuide.close} />
+      )}
     </>
   );
 }

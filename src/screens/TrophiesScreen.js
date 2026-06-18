@@ -21,6 +21,9 @@ import {
 import FaithIcon from '../components/ui/FaithIcon';
 import { BeniAvatar } from '../components/beni';
 import SoundButton from '../components/SoundButton';
+import BeniGuideOverlay from '../components/BeniGuideOverlay';
+import { useScreenGuide } from '../hooks/useScreenGuide';
+import { STARS_GUIDE } from '../data/beniGuides';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
@@ -148,6 +151,9 @@ export default function TrophiesScreen({ navigation, route }) {
   const fromCena =
     route?.params?.fromPostSceneCelebration === true ||
     route?.params?.fromStoryCompletion === true;
+
+  // Guia contextual de Estrelinhas — só na visita pela aba (não em push pós-cena).
+  const starsGuide = useScreenGuide('stars', !fromCena);
 
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -389,6 +395,11 @@ export default function TrophiesScreen({ navigation, route }) {
           onDismiss={handleDismissModal}
           onSeeAlbum={null}
         />
+      )}
+
+      {/* UX 2.2 — Guia contextual de Estrelinhas (1ª visita pela aba). */}
+      {starsGuide.visible && (
+        <BeniGuideOverlay steps={STARS_GUIDE} finalLabel="Entendi" onFinish={starsGuide.close} onSkip={starsGuide.close} />
       )}
     </View>
   );

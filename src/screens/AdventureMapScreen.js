@@ -22,7 +22,10 @@ import SoundButton from '../components/SoundButton';
 import MapRegion from '../components/map/MapRegion';
 import StoryFocusModal from '../components/map/StoryFocusModal';
 import BeniAppTour from '../components/BeniAppTour';
+import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { hasSeenBeniAppTour, markBeniAppTourSeen } from '../services/beniTourService';
+import { useScreenGuide } from '../hooks/useScreenGuide';
+import { ADVENTURES_GUIDE } from '../data/beniGuides';
 
 const REGION_OVERLAP = 0; // regiões se tocam exatamente (sem overlap que cortava a base da arte)
 
@@ -53,6 +56,13 @@ export default function AdventureMapScreen({ navigation, route }) {
     markBeniAppTourSeen();
     navigation.setParams?.({ startBeniTour: false });
   }, [navigation]);
+
+  // Guia contextual da aba Aventuras — só quando o TOUR INICIAL não está ativo
+  // (não empilha). Aparece na 1ª visita "normal" à aba.
+  const adventuresGuide = useScreenGuide(
+    'adventures',
+    !showBeniTour && !route?.params?.startBeniTour,
+  );
   const { width, height } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
 
@@ -379,8 +389,12 @@ export default function AdventureMapScreen({ navigation, route }) {
         </Animated.View>
       </Modal>
 
-      {/* UX 2.0 — Tour Mágico do Beni (sobre o mapa, abaixo da tab bar). Visual, uma vez. */}
+      {/* UX 2.0 — Tour inicial do Beni (sobre o mapa, abaixo da tab bar). Visual, uma vez. */}
       {showBeniTour && <BeniAppTour onFinish={closeBeniTour} onSkip={closeBeniTour} />}
+      {/* UX 2.2 — Guia contextual da aba Aventuras (não aparece junto do tour inicial). */}
+      {!showBeniTour && adventuresGuide.visible && (
+        <BeniGuideOverlay steps={ADVENTURES_GUIDE} finalLabel="Entendi" onFinish={adventuresGuide.close} onSkip={adventuresGuide.close} />
+      )}
     </View>
   );
 }

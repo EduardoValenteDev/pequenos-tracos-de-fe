@@ -12,6 +12,9 @@ import { images } from '../assets/images';
 import SoundButton from '../components/SoundButton';
 import CenteredContent from '../components/layout/CenteredContent';
 import { BeniAvatar } from '../components/beni';
+import BeniGuideOverlay from '../components/BeniGuideOverlay';
+import { useScreenGuide } from '../hooks/useScreenGuide';
+import { HOME_GUIDE } from '../data/beniGuides';
 import { useFocusEffect } from '@react-navigation/native';
 import { useProfile } from '../context/ProfileContext';
 import { useProgressContext } from '../context/ProgressContext';
@@ -499,6 +502,7 @@ function CantinhoDoBeni({ idea, verse, prayer, canAccess, onVerse }) {
 ═══════════════════════════════════════════════════════════════════ */
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const homeGuide = useScreenGuide('home');
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
@@ -669,6 +673,7 @@ export default function HomeScreen({ navigation }) {
   );
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 24 }}
@@ -698,6 +703,10 @@ export default function HomeScreen({ navigation }) {
         </CenteredContent>
       </Animated.View>
     </ScrollView>
+      {homeGuide.visible && (
+        <BeniGuideOverlay steps={HOME_GUIDE} finalLabel="Entendi" onFinish={homeGuide.close} onSkip={homeGuide.close} />
+      )}
+    </View>
   );
 }
 

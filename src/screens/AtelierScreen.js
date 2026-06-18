@@ -9,6 +9,9 @@ import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import { BeniGuideBubble } from '../components/beni';
 import CenteredContent from '../components/layout/CenteredContent';
+import BeniGuideOverlay from '../components/BeniGuideOverlay';
+import { useScreenGuide } from '../hooks/useScreenGuide';
+import { ATELIER_GUIDE } from '../data/beniGuides';
 import { MISSIONS } from '../data/atelierData';
 import { listArts, ATELIER_FREE_SAVE_LIMIT } from '../services/atelierStorage';
 import { hasAtelierUnlimitedAccess } from '../services/accessControl';
@@ -41,6 +44,8 @@ export default function AtelierScreen({ navigation, route }) {
   // mostra um botão Voltar que retorna à origem. Pela aba, fica sem botão.
   const from = route?.params?.from;
   const showBack = !isFromTab(from);
+  // Guia contextual do Ateliê — só na aba (não quando empurrado por contexto).
+  const atelierGuide = useScreenGuide('atelier', isFromTab(from));
 
   const [mission] = useState(pickMission);
   const [artCount, setArtCount] = useState(0);
@@ -180,6 +185,7 @@ export default function AtelierScreen({ navigation, route }) {
   );
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 24 }}
@@ -219,6 +225,10 @@ export default function AtelierScreen({ navigation, route }) {
 
       <View style={{ height: 8 }} />
     </ScrollView>
+      {atelierGuide.visible && (
+        <BeniGuideOverlay steps={ATELIER_GUIDE} finalLabel="Entendi" onFinish={atelierGuide.close} onSkip={atelierGuide.close} />
+      )}
+    </View>
   );
 }
 

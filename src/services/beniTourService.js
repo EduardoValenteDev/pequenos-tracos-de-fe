@@ -19,17 +19,21 @@ import { log } from '../utils/logger';
 export const GUIDE_KEYS = {
   initial: 'initial',
   adventures: 'adventures',
+  home: 'home',
   atelier: 'atelier',
   stars: 'stars',
   profile: 'profile',
+  parentArea: 'parentArea',
 };
 
 const GUIDE_STORAGE = {
   initial: '@ptf_beni_app_tour_seen_v1',
   adventures: '@ptf_beni_guide_adventures_v1',
+  home: '@ptf_beni_guide_home_v1',
   atelier: '@ptf_beni_guide_atelier_v1',
   stars: '@ptf_beni_guide_stars_v1',
   profile: '@ptf_beni_guide_profile_v1',
+  parentArea: '@ptf_beni_guide_parent_v1',
 };
 
 function storageKeyFor(key) {

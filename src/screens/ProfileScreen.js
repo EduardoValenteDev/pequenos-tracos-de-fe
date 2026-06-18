@@ -11,6 +11,9 @@ import { AVATARS } from '../data/avatars';
 import CenteredContent from '../components/layout/CenteredContent';
 import { BeniGuideBubble } from '../components/beni';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
+import BeniGuideOverlay from '../components/BeniGuideOverlay';
+import { useScreenGuide } from '../hooks/useScreenGuide';
+import { PROFILE_GUIDE } from '../data/beniGuides';
 import { useProfile } from '../context/ProfileContext';
 import { useProgressContext } from '../context/ProgressContext';
 
@@ -59,6 +62,7 @@ function AdultCard({ emoji, title, desc, onPress, tint = '#F5F0FF' }) {
 
 export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const profileGuide = useScreenGuide('profile');
 
   const { profile, saveProfile } = useProfile();
   const [nameInput, setNameInput] = useState(profile.name);
@@ -176,6 +180,9 @@ export default function ProfileScreen({ navigation }) {
           {adultBlock}
         </CenteredContent>
       </ScrollView>
+      {profileGuide.visible && (
+        <BeniGuideOverlay steps={PROFILE_GUIDE} finalLabel="Entendi" onFinish={profileGuide.close} onSkip={profileGuide.close} />
+      )}
     </KeyboardAvoidingView>
   );
 }

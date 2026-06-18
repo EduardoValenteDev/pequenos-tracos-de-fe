@@ -10,11 +10,11 @@
 import React from 'react';
 import BeniGuideOverlay from './BeniGuideOverlay';
 
-// Apresentação curta, só sobre o mapa (textos aprovados UX 2.1).
+// Apresentação curta e contextual, só sobre o mapa (textos UX 2.2).
 const INITIAL_STEPS = [
-  { pose: 'acenando',   target: 'center', balloon: 'bottom', title: 'Bem-vindo à jornada!', text: 'Eu sou o Beni. Vou caminhar com você pelas histórias da Bíblia.' },
-  { pose: 'ensinando',  target: 'map',    balloon: 'bottom', title: 'Este é o seu mapa',    text: 'Cada aventura fica pelo caminho. Toque no brilho para continuar sua jornada.' },
-  { pose: 'celebrando', target: 'pin',    balloon: 'bottom', title: 'Vamos começar?',       text: 'Quando quiser, toque na próxima aventura. Eu estarei por perto para te ajudar.' },
+  { variant: 'happy',       target: 'center', balloon: 'bottom', title: 'Eu sou o Beni!',  text: 'Vou caminhar com você pelas histórias da Bíblia.' },
+  { variant: 'teaching',    target: 'map',    balloon: 'bottom', title: 'Este é o seu mapa', text: 'Cada aventura fica pelo caminho.' },
+  { variant: 'celebrating', target: 'pin',    balloon: 'bottom', title: 'Siga o brilho',   text: 'Quando um ponto brilhar, toque nele para continuar.' },
 ];
 
 export default function BeniAppTour({ onFinish, onSkip }) {

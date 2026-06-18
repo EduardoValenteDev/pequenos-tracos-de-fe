@@ -1,49 +1,61 @@
 /**
- * BeniGuideOverlay — base reutilizável dos guias contextuais do Beni (UX 2.1).
+ * BeniGuideOverlay — base reutilizável dos guias contextuais do Beni (UX 2.2).
  *
- * O Beni vira um GUIA dentro do app: aparece com uma pose, fala num balão de
- * pergaminho e (opcionalmente) destaca uma área da tela. É usado pelo tour inicial
- * (sobre Aventuras) e, nos próximos blocos, pelos guias de cada aba.
+ * O Beni vira um GUIA dentro do app: aparece com uma pose (BeniAvatar — recorte
+ * circular, SEM imagem quadrada crua), fala num balão de pergaminho e DESTACA de
+ * forma contextual a área relevante da tela (sem mais o círculo amarelo gigante).
  *
  * Props:
- *   steps: [{ title, text, pose?, target?, balloon? }]
- *     - pose:   chave de beniImages (acenando, ensinando, celebrando, atelie, ...)
- *     - target: 'top'|'center'|'bottom'|'tabBar'|'map'|'pin'|'header'|'button'
- *               (posição APROXIMADA do destaque/seta — sem medir refs ainda)
- *     - balloon:'top'|'center'|'bottom' (posição do card de fala; default 'bottom')
- *   finalLabel: rótulo do botão no último passo (default 'Entendi')
- *   onFinish, onSkip: callbacks (ambos devem marcar o guia como visto)
+ *   steps: [{ title, text, variant?, target?, balloon? }]
+ *     - variant: variant do BeniAvatar (happy, teaching, celebrating, artist,
+ *                praying, parent, avatarBase, reading…) — pose do guia.
+ *     - target:  'map'|'mainArea'|'pin'|'topRight'|'top'|'header'|'bottom'|
+ *                'button'|'parentTools'|'tabAtelier'|'tabStars'|'tabProfile'|'center'
+ *                (destaque APROXIMADO — sem medir refs ainda).
+ *     - balloon: 'top'|'center'|'bottom' (posição do card; default 'bottom').
+ *   finalLabel: rótulo do botão no último passo (default 'Entendi').
+ *   onFinish, onSkip: callbacks (ambos marcam o guia como visto).
  *
- * Visual: pergaminho quente, borda arredondada, sombra suave, Beni em destaque,
- * brilho/pulso DISCRETO (Animated nativo), seta/spotlight suave. Sem pacote novo,
- * sem Lottie, sem overlay preto pesado. Não bloqueia a tab bar (vive na tela host).
+ * Seguro: se um alvo não existir, cai num destaque/posição segura; se faltar pose,
+ * BeniAvatar usa fallback. Véu quente LEVE, não bloqueia a tab bar, Pular sempre
+ * visível. Sem pacote novo, sem Lottie.
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from './SoundButton';
-import { BENI_IMAGES, BENI_DEFAULT_VARIANT } from '../assets/mascot/beniImages';
+import BeniAvatar from './beni/BeniAvatar';
 
-// Destaque APROXIMADO por tipo de alvo (sem medição real de elementos). Retorna a
-// caixa do spotlight ou null (sem destaque → só o card).
-function spotlightBox(target, w, h) {
-  const size = Math.min(w * 0.7, 260);
-  const cx = (w - size) / 2;
+// Destaque APROXIMADO por tipo de alvo (sem medição real). Retorna a caixa do
+// spotlight { left, top, width, height, radius } e o formato, ou null (sem destaque).
+function spotlightFor(target, w, h) {
+  const wide = w - 28;
   switch (target) {
-    case 'header':
-    case 'top':
-      return { left: cx, top: h * 0.1, width: size, height: size * 0.5 };
-    case 'pin':
-      return { left: cx, top: h * 0.26, width: size, height: size };
     case 'map':
-    case 'center':
-      return { left: cx, top: h * 0.32, width: size, height: size };
-    case 'tabBar':
-    case 'button':
+    case 'mainArea':
+      // Destaque AMPLO e suave da área principal (rounded rect, não círculo gigante).
+      return { left: 14, top: h * 0.13, width: wide, height: h * 0.42, radius: 26 };
+    case 'pin':
+      // Anel pequeno na região do próximo pin (centro-superior do mapa).
+      return { left: w * 0.30, top: h * 0.24, width: w * 0.40, height: w * 0.40, radius: (w * 0.40) / 2 };
+    case 'topRight':
+      // Perto do botão "Ver mapa" (canto superior direito do header).
+      return { left: w - 138, top: 8, width: 126, height: 42, radius: 16 };
+    case 'top':
+    case 'header':
+      return { left: 14, top: h * 0.05, width: wide, height: h * 0.1, radius: 18 };
+    case 'parentTools':
     case 'bottom':
-      return { left: cx, top: h * 0.62, width: size, height: size * 0.6 };
+    case 'button':
+      return { left: 14, top: h * 0.58, width: wide, height: h * 0.14, radius: 18 };
+    case 'tabAtelier':
+      return { left: w * 0.5 - 26, top: h - 56, width: 52, height: 52, radius: 26 };
+    case 'tabStars':
+      return { left: w * 0.7 - 26, top: h - 56, width: 52, height: 52, radius: 26 };
+    case 'tabProfile':
+      return { left: w * 0.9 - 26, top: h - 56, width: 52, height: 52, radius: 26 };
     default:
-      return null;
+      return null; // 'center' / desconhecido → sem destaque, só o card + Beni
   }
 }
 
@@ -53,11 +65,10 @@ export default function BeniGuideOverlay({ steps = [], finalLabel = 'Entendi', o
   const safeSteps = steps.length ? steps : [{ title: '', text: '' }];
   const isLast = index === safeSteps.length - 1;
   const step = safeSteps[index];
-  const beniSource = BENI_IMAGES[step.pose] || BENI_IMAGES[BENI_DEFAULT_VARIANT];
   const balloon = step.balloon || 'bottom';
-  const spot = step.target ? spotlightBox(step.target, width, height) : null;
+  const spot = step.target ? spotlightFor(step.target, width, height) : null;
 
-  // Pulso suave e discreto (Beni + brilho + spotlight) — Animated nativo.
+  // Pulso discreto (Beni + destaque) — Animated nativo, sem exagero.
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -70,46 +81,55 @@ export default function BeniGuideOverlay({ steps = [], finalLabel = 'Entendi', o
     return () => loop.stop();
   }, [pulse]);
   const beniScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
-  const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.7] });
-  const spotOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0.85] });
+  const spotScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
+  const spotOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.95] });
 
   const handleNext = () => {
     if (isLast) onFinish?.();
     else setIndex((i) => Math.min(i + 1, safeSteps.length - 1));
   };
 
-  // Card de fala alinhado por balloonPosition. A seta aponta para o alvo.
   const wrapJustify = balloon === 'top' ? 'flex-start' : balloon === 'center' ? 'center' : 'flex-end';
-  const arrowUp = balloon === 'bottom' && !!spot; // card embaixo, alvo acima → seta pra cima
+  // Seta do card aponta para o alvo (cima quando o card está embaixo, etc.).
+  const arrowUp = balloon === 'bottom' && !!spot;
+  const arrowDown = balloon === 'top' && !!spot;
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
       {/* Véu quente LEVE — a tela host continua visível por trás. */}
       <View style={styles.veil} pointerEvents="auto" />
 
-      {/* Spotlight aproximado (decorativo) — anel suave, sem recorte real. */}
+      {/* Destaque contextual APROXIMADO (rounded rect / anel suave). */}
       {spot && (
         <Animated.View
           pointerEvents="none"
           style={[
             styles.spotlight,
-            { left: spot.left, top: spot.top, width: spot.width, height: spot.height, borderRadius: Math.min(spot.width, spot.height) / 2, opacity: spotOpacity },
+            {
+              left: spot.left,
+              top: spot.top,
+              width: spot.width,
+              height: spot.height,
+              borderRadius: spot.radius,
+              opacity: spotOpacity,
+              transform: [{ scale: spotScale }],
+            },
           ]}
         />
       )}
 
       <View style={[styles.cardWrap, { justifyContent: wrapJustify }]} pointerEvents="box-none">
-        {arrowUp && <View style={styles.arrowUp} />}
+        {arrowUp && <View style={[styles.arrow, styles.arrowUp]} />}
         <LinearGradient
           colors={['#FBF1D8', '#F4E3BE', '#EAD3A0']}
           start={{ x: 0.15, y: 0 }}
           end={{ x: 0.85, y: 1 }}
           style={styles.card}
         >
-          <View style={styles.beniRow}>
-            <Animated.View style={[styles.beniGlow, { opacity: glowOpacity }]} pointerEvents="none" />
-            <Animated.Image source={beniSource} resizeMode="contain" style={[styles.beni, { transform: [{ scale: beniScale }] }]} />
-          </View>
+          {/* Beni recortado (BeniAvatar — sem quadrado). Leve pulso. */}
+          <Animated.View style={[styles.beniWrap, { transform: [{ scale: beniScale }] }]}>
+            <BeniAvatar variant={step.variant || 'happy'} size="large" />
+          </Animated.View>
 
           {!!step.title && <Text style={styles.title}>{step.title}</Text>}
           {!!step.text && <Text style={styles.text}>{step.text}</Text>}
@@ -134,6 +154,7 @@ export default function BeniGuideOverlay({ steps = [], finalLabel = 'Entendi', o
             <Text style={styles.skipText}>Pular tour</Text>
           </SoundButton>
         </LinearGradient>
+        {arrowDown && <View style={[styles.arrow, styles.arrowDown]} />}
       </View>
     </View>
   );
@@ -141,25 +162,25 @@ export default function BeniGuideOverlay({ steps = [], finalLabel = 'Entendi', o
 
 const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, zIndex: 50 },
-  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(40,28,12,0.30)' },
+  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(40,28,12,0.28)' },
   spotlight: {
     position: 'absolute',
-    borderWidth: 3,
-    borderColor: 'rgba(255,213,120,0.9)',
-    backgroundColor: 'rgba(255,213,120,0.12)',
+    borderWidth: 2.5,
+    borderColor: 'rgba(255,205,110,0.95)',
+    backgroundColor: 'rgba(255,222,150,0.10)',
   },
-  cardWrap: { ...StyleSheet.absoluteFillObject, paddingHorizontal: 16, paddingBottom: 18, paddingTop: 18 },
-  arrowUp: {
+  cardWrap: { ...StyleSheet.absoluteFillObject, paddingHorizontal: 16, paddingVertical: 18 },
+  arrow: {
     alignSelf: 'center',
     width: 0,
     height: 0,
     borderLeftWidth: 12,
     borderRightWidth: 12,
-    borderBottomWidth: 14,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderBottomColor: '#FBF1D8',
   },
+  arrowUp: { borderBottomWidth: 14, borderBottomColor: '#FBF1D8' },
+  arrowDown: { borderTopWidth: 14, borderTopColor: '#EAD3A0' },
   card: {
     borderRadius: 26,
     paddingTop: 14,
@@ -174,10 +195,8 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     alignItems: 'center',
   },
-  beniRow: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  beniGlow: { position: 'absolute', width: 96, height: 96, borderRadius: 48, backgroundColor: 'rgba(255,213,120,0.55)' },
-  beni: { width: 88, height: 88 },
-  title: { fontFamily: 'FredokaOne', fontSize: 20, color: '#5A4420', textAlign: 'center' },
+  beniWrap: { marginBottom: 6 },
+  title: { fontFamily: 'FredokaOne', fontSize: 20, color: '#5A4420', textAlign: 'center', marginTop: 4 },
   text: { fontFamily: 'Nunito', fontSize: 14.5, fontWeight: '700', color: '#6B5733', textAlign: 'center', marginTop: 6, marginHorizontal: 4, lineHeight: 20 },
   dots: { flexDirection: 'row', marginTop: 14, marginBottom: 12 },
   dot: { width: 7, height: 7, borderRadius: 4, marginHorizontal: 4, backgroundColor: 'rgba(120,95,55,0.30)' },
