@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, KeyboardAvoidingView, Platform,
+  StyleSheet, KeyboardAvoidingView, Platform, useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +13,8 @@ import { BeniGuideBubble } from '../components/beni';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
+import { useGuideTargets } from '../hooks/useGuideTargets';
+import { measureGuideTarget } from '../services/guideTargetRegistry';
 import { PROFILE_GUIDE } from '../data/beniGuides';
 import { useProfile } from '../context/ProfileContext';
 import { useProgressContext } from '../context/ProgressContext';
@@ -62,8 +64,37 @@ function AdultCard({ emoji, title, desc, onPress, tint = '#F5F0FF' }) {
 
 export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  // UX 2.3: guia do Perfil DESATIVADO (reprovado) — só reativa no bloco UX 2.7.
-  const profileGuide = useScreenGuide('profile', false);
+  const { height: screenH } = useWindowDimensions();
+  // Perfil 1.0: guia falado do Perfil ATIVO — 1ª visita pela aba (flag @ptf_beni_guide_profile_v1).
+  const profileGuide = useScreenGuide('profile', true);
+  // Alvos REAIS do Perfil (measureInWindow) — sem medição → fallback sem seta.
+  const profileTargets = useGuideTargets();
+  const measureProfileTarget = useCallback(
+    (name) => profileTargets.measure(name).then((r) => r || measureGuideTarget(name)),
+    [profileTargets.measure],
+  );
+  // Rolagem do Perfil p/ trazer o alvo do card atual à área visível antes de medir.
+  const scrollRef = useRef(null);
+  const scrollY = useRef(0);
+  const onProfileScroll = useCallback((e) => { scrollY.current = e.nativeEvent.contentOffset.y; }, []);
+  const scrollGuideTargetIntoView = useCallback((name) => {
+    if (!name) { scrollRef.current?.scrollTo({ y: 0, animated: true }); return; } // Card 1: topo
+    profileTargets.measure(name).then((r) => {
+      if (!r) return; // sem medição → sem rolagem (overlay cai no fallback honesto)
+      if (r.height >= 170) {
+        const desiredTop = insets.top + 60;
+        const delta = r.y - desiredTop;
+        if (Math.abs(delta) > 8) scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + delta), animated: true });
+        return;
+      }
+      const desiredTop = insets.top + 110;
+      const viewBottom = screenH - 64 - 190;
+      let delta = 0;
+      if (r.y < desiredTop) delta = r.y - desiredTop;
+      else if (r.y + r.height > viewBottom) delta = (r.y + r.height) - viewBottom;
+      if (Math.abs(delta) > 8) scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + delta), animated: true });
+    });
+  }, [profileTargets, insets.top, screenH]);
 
   const { profile, saveProfile } = useProfile();
   const [nameInput, setNameInput] = useState(profile.name);
@@ -96,12 +127,15 @@ export default function ProfileScreen({ navigation }) {
         style={[styles.childHeader, { paddingTop: Math.max(insets.top, 20) + 8 }]}
       >
         <Text style={styles.cantinhoTitle}>Meu cantinho</Text>
-        <View style={styles.bigAvatarCircle}>
-          <Text style={styles.bigAvatarEmoji}>{currentAvatar.emoji}</Text>
+        {/* Alvo do guia (Card 2 "Sua carinha"): avatar + nome da criança. */}
+        <View ref={profileTargets.register('profile.identity')} collapsable={false} style={styles.identityTarget}>
+          <View style={styles.bigAvatarCircle}>
+            <Text style={styles.bigAvatarEmoji}>{currentAvatar.emoji}</Text>
+          </View>
+          <Text style={styles.childName}>
+            {profile.name ? profile.name : 'Pequeno artista'}
+          </Text>
         </View>
-        <Text style={styles.childName}>
-          {profile.name ? profile.name : 'Pequeno artista'}
-        </Text>
         <Text style={styles.childStars}>
           ⭐ {totalStars === 1 ? '1 estrela' : `${totalStars} estrelas`}
         </Text>
@@ -152,13 +186,16 @@ export default function ProfileScreen({ navigation }) {
         Configurações e acompanhamento para responsáveis.
       </Text>
 
-      <AdultCard
-        emoji="👨‍👩‍👧"
-        title="Área dos Pais"
-        desc="Acompanhe o progresso e gerencie o perfil."
-        tint="#EFF8FF"
-        onPress={() => navigation.navigate('ParentArea')}
-      />
+      {/* Alvo do guia (Card 3): card real da Área dos Pais (só destaca, não abre). */}
+      <View ref={profileTargets.register('profile.parents')} collapsable={false} style={styles.parentsTarget}>
+        <AdultCard
+          emoji="👨‍👩‍👧"
+          title="Área dos Pais"
+          desc="Acompanhe o progresso e gerencie o perfil."
+          tint="#EFF8FF"
+          onPress={() => navigation.navigate('ParentArea')}
+        />
+      </View>
     </View>
   );
 
@@ -168,6 +205,7 @@ export default function ProfileScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
+        ref={scrollRef}
         style={styles.container}
         contentContainerStyle={[
           styles.content,
@@ -175,6 +213,8 @@ export default function ProfileScreen({ navigation }) {
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        onScroll={onProfileScroll}
+        scrollEventThrottle={32}
       >
         <CenteredContent>
           {childBlock}
@@ -182,7 +222,14 @@ export default function ProfileScreen({ navigation }) {
         </CenteredContent>
       </ScrollView>
       {profileGuide.visible && (
-        <BeniGuideOverlay steps={PROFILE_GUIDE} finalLabel="Entendi" onFinish={profileGuide.close} onSkip={profileGuide.close} />
+        <BeniGuideOverlay
+          steps={PROFILE_GUIDE}
+          measure={measureProfileTarget}
+          finalLabel="Entendi"
+          onStep={scrollGuideTargetIntoView}
+          onFinish={profileGuide.close}
+          onSkip={profileGuide.close}
+        />
       )}
     </KeyboardAvoidingView>
   );
@@ -207,6 +254,10 @@ const styles = StyleSheet.create({
     fontFamily: 'FredokaOne', fontSize: 14, color: '#7A5800',
     marginBottom: 10, letterSpacing: 0.3,
   },
+  // Alvo medível do guia (Card 2): abraça avatar + nome, centralizado.
+  identityTarget: { alignItems: 'center' },
+  // Alvo medível do guia (Card 3): abraça o card da Área dos Pais.
+  parentsTarget: { alignSelf: 'stretch' },
   bigAvatarCircle: {
     width: 78, height: 78, borderRadius: 39,
     backgroundColor: 'rgba(255,255,255,0.85)',

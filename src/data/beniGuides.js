@@ -63,10 +63,13 @@ export const STARS_GUIDE = [
   { variant: 'happy',       title: 'Continue caminhando', text: 'O Beni vai celebrar cada passo com você.',        audioKey: 'guide.stars.next',     target: 'stars.next' },
 ];
 
-// Perfil
+// Perfil (Perfil 1.0) — guia falado CURTO de 3 cards, com alvos MEDIDOS. Card 1
+// destaca a aba Perfil (tab bar / sidebar). Não explica outras telas nem abre a
+// Área dos Pais (só aponta onde ela fica).
 export const PROFILE_GUIDE = [
-  { variant: 'happy',    target: 'top',      balloon: 'bottom', title: 'Sua carinha', text: 'Aqui ficam seu nome e seu avatar.' },
-  { variant: 'teaching', target: 'mainArea', balloon: 'bottom', title: 'Seu jeitinho', text: 'Você pode deixar sua jornada com a sua cara.' },
+  { variant: 'happy',    title: 'Seu perfil',     text: 'Aqui a jornada fica com a sua carinha.',     audioKey: 'guide.profile.welcome',  highlightTab: 'profile' },
+  { variant: 'happy',    title: 'Sua carinha',    text: 'Aqui ficam seu nome e seu avatar.',          audioKey: 'guide.profile.identity', target: 'profile.identity' },
+  { variant: 'parent',   title: 'Área dos Pais',  text: 'Aqui os responsáveis cuidam das configurações.', audioKey: 'guide.profile.parents',  target: 'profile.parents' },
 ];
 
 // Área dos Pais (tom para responsáveis). O 2º passo só entra se Modo Criador ativo.

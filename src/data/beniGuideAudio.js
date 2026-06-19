@@ -39,6 +39,10 @@ const BENI_GUIDE_AUDIO = {
   'guide.stars.welcome':             require('../../assets/audio/beni_guide/stars/guide_stars_welcome.mp3'),
   'guide.stars.progress':            require('../../assets/audio/beni_guide/stars/guide_stars_progress.mp3'),
   'guide.stars.next':                require('../../assets/audio/beni_guide/stars/guide_stars_next.mp3'),
+  // Guia da aba Perfil (Perfil 1.0) — assets/audio/beni_guide/profile/
+  'guide.profile.welcome':           require('../../assets/audio/beni_guide/profile/guide_profile_welcome.mp3'),
+  'guide.profile.identity':          require('../../assets/audio/beni_guide/profile/guide_profile_identity.mp3'),
+  'guide.profile.parents':           require('../../assets/audio/beni_guide/profile/guide_profile_parents.mp3'),
 };
 
 /**

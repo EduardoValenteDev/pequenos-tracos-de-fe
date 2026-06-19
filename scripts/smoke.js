@@ -6528,10 +6528,9 @@ check(
     'tour único não usa alvos medidos / ainda tem guia de Aventuras separado',
   );
   check(
-    'UX2.3 / ESTRELINHAS1.0: demais guias seguem DESATIVADOS (Perfil/Pais) — Home/Ateliê/Estrelinhas já ativados',
-    profileSrc.includes("useScreenGuide('profile', false)") &&
+    'UX2.3 / PERFIL1.0: só a Área dos Pais segue com guia DESATIVADO (terá guia próprio); Home/Ateliê/Estrelinhas/Perfil ativados',
     parentTour.includes("useScreenGuide('parentArea', false)"),
-    'algum guia reprovado ainda aparece automaticamente (deveria estar desativado)',
+    'guia da Área dos Pais deveria seguir desativado (terá guia próprio depois)',
   );
   // ── ATELIÊ 1.0: guia falado do Ateliê (4 cards) com alvos medidos ────────────
   const atelierManifest = readSrc('src/data/beniGuideAudio.js');
@@ -6598,8 +6597,40 @@ check(
     starsGuideSrc.includes("register('stars.achievements')") &&
     starsGuideSrc.includes("register('stars.next')") &&
     readSrc('src/components/TabletSidebar.js').includes("'stars.sidebarTab'") &&
-    /TAB_INDEX_BY_KEY = \{ home: 0, adventures: 1, atelier: 2, stars: 3 \}/.test(readSrc('src/components/BeniGuideOverlay.js')),
+    /TAB_INDEX_BY_KEY = \{[^}]*stars: 3[^}]*\}/.test(readSrc('src/components/BeniGuideOverlay.js')),
     'TrophiesScreen não ativa/medê o guia de Estrelinhas corretamente',
+  );
+  // ── PERFIL 1.0: guia falado do Perfil (3 cards) com alvos medidos ────────────
+  const profileManifest = readSrc('src/data/beniGuideAudio.js');
+  const profileGuideSrc = readSrc('src/screens/ProfileScreen.js');
+  check(
+    'PERFIL1.0: manifesto tem as 3 chaves de áudio do Perfil (require de profile/, null-safe)',
+    ['welcome', 'identity', 'parents'].every((k) =>
+      profileManifest.includes(`'guide.profile.${k}'`) &&
+      fs.existsSync(path.join(root, 'assets/audio/beni_guide/profile', `guide_profile_${k}.mp3`)) &&
+      profileManifest.includes(`beni_guide/profile/guide_profile_${k}.mp3`)),
+    'manifesto não tem as 3 chaves/áudios do Perfil corretamente',
+  );
+  check(
+    'PERFIL1.0: PROFILE_GUIDE tem 3 cards CURTOS; Card 1 destaca a aba (highlightTab: profile); cards 2-3 com alvo medido; Entendi',
+    (guidesData.match(/audioKey: 'guide\.profile\./g) || []).length === 3 &&
+    guidesData.includes("highlightTab: 'profile'") &&
+    ['profile.identity', 'profile.parents'].every((t) => guidesData.includes(`target: '${t}'`)) &&
+    profileGuideSrc.includes("finalLabel=\"Entendi\""),
+    'PROFILE_GUIDE não tem 3 cards / Card 1 não destaca Perfil / falta alvo',
+  );
+  check(
+    'PERFIL1.0: ProfileScreen ativa o guia, mede avatar+nome e Área dos Pais (targetRef) e rola; aba via sidebar/tab index; NÃO abre Área dos Pais',
+    profileGuideSrc.includes("useScreenGuide('profile', true)") &&
+    profileGuideSrc.includes('useGuideTargets') &&
+    profileGuideSrc.includes('measure={measureProfileTarget}') &&
+    /profileTargets\.measure\(name\)\.then\(\(r\) => r \|\| measureGuideTarget\(name\)\)/.test(profileGuideSrc) &&
+    profileGuideSrc.includes("register('profile.identity')") &&
+    profileGuideSrc.includes("register('profile.parents')") &&
+    profileGuideSrc.includes('scrollGuideTargetIntoView') &&
+    readSrc('src/components/TabletSidebar.js').includes("'profile.sidebarTab'") &&
+    /TAB_INDEX_BY_KEY = \{[^}]*profile: 4[^}]*\}/.test(readSrc('src/components/BeniGuideOverlay.js')),
+    'ProfileScreen não ativa/medê o guia do Perfil corretamente',
   );
   check(
     'ATELIÊ1.0: aba Ateliê destacada como Início/Aventuras — sidebar mede atelier.sidebarTab + overlay mapeia atelier',
@@ -6723,8 +6754,8 @@ check(
     ['home', 'atelier', 'stars', 'profile', 'parents', 'common'].every((d) =>
       fs.existsSync(path.join(root, 'assets/audio/beni_guide', d, '.gitkeep'))) &&
     fs.existsSync(path.join(root, 'docs/BENI_GUIDE_AUDIO_PLAN.md')) &&
-    // Home/Ateliê/Estrelinhas ativados; as demais seguem futuras e NÃO importáveis.
-    !/guide_profile_|guide_parents_|guide_common_/.test(guideAudioData),
+    // Home/Ateliê/Estrelinhas/Perfil ativados; as demais seguem futuras e NÃO importáveis.
+    !/guide_parents_|guide_common_/.test(guideAudioData),
     'pastas futuras/plano ausentes, ou o manifesto importa áudio futuro inexistente',
   );
   check(
