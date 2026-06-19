@@ -4,14 +4,20 @@
  * O AudioPlayer.js existente é um CONTROLE VISÍVEL de narração (toca por toque,
  * com botão/progresso) — incompatível com a voz automática do guia. Este wrapper
  * mínimo reusa o MESMO motor (expo-audio, já no projeto — sem pacote novo):
- *   - toca automaticamente ao montar;
+ *   - toca automaticamente assim que o asset CARREGA;
  *   - PARA ao desmontar (troca de etapa / pular / concluir);
  *   - pausa a música durante a fala (onNarrationStart/End), como a narração.
  *
+ * Confiabilidade (Perfil 1.1): a 1ª fala agora espera `status.isLoaded` antes de
+ * tocar. Antes o play() saía no mount/retry mesmo sem o asset carregado (áudio
+ * frio — ex.: arquivos maiores do Perfil) → no-op silencioso, exigindo Voltar/
+ * Próximo para a fala sair. Esperar o load torna o 1º play determinístico para
+ * TODOS os guias. O retry curto fica como rede de segurança.
+ *
  * Não renderiza nada. Sem asset → não monta o player (null-safe).
  */
-import { useEffect } from 'react';
-import { useAudioPlayer } from 'expo-audio';
+import { useEffect, useRef } from 'react';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { onNarrationStart, onNarrationEnd } from '../services/audioManager';
 import { log } from '../utils/logger';
 
@@ -19,29 +25,38 @@ const RETRY_MS = 220; // UX 2.4.4: 2ª tentativa curta se a 1ª não iniciou (ra
 
 function GuideAudioInner({ audioAsset }) {
   const player = useAudioPlayer(audioAsset, { updateInterval: 250 });
+  const status = useAudioPlayerStatus(player);
+  const startedRef = useRef(false);
+  const safePlay = () => { try { player.play(); } catch { /* segue só visual */ } };
+
+  // PRIMÁRIO: toca assim que o asset está carregado (determinístico, sem fala muda).
   useEffect(() => {
-    let cancelled = false;
-    const safePlay = () => { try { player.play(); } catch { /* segue só visual */ } };
-    safePlay();           // 1ª tentativa (mount)
+    if (!status.isLoaded || startedRef.current) return;
+    startedRef.current = true;
+    safePlay();
     onNarrationStart();
-    // RETRY automático único: se ainda não estiver tocando, tenta de novo. Sem
-    // exigir Voltar/Próximo manual. Nunca avança o card por causa do áudio.
+    if (typeof __DEV__ !== 'undefined' && __DEV__) log('[BeniGuideAudio] play (asset carregado)');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.isLoaded]);
+
+  // RETRY automático único (rede de segurança) + PARA no unmount. Se em RETRY_MS
+  // ainda não estiver tocando, tenta de novo — sem marcar started (deixa o efeito
+  // de isLoaded assumir). Nunca avança o card por causa do áudio.
+  useEffect(() => {
     const retry = setTimeout(() => {
-      if (cancelled) return;
       let playing = false;
       try { playing = !!player.playing; } catch { playing = false; }
-      if (!playing) {
+      if (!playing && !startedRef.current) {
         safePlay();
         if (typeof __DEV__ !== 'undefined' && __DEV__) log('[BeniGuideAudio] retry play()');
       }
     }, RETRY_MS);
     return () => {
-      cancelled = true;
       clearTimeout(retry);
       try { player.pause(); } catch { /* ignora */ }
       onNarrationEnd();
     };
-    // monta → toca (com retry); desmonta → para.
+    // monta → toca quando carregar (com retry); desmonta → para.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;

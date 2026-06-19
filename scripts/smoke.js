@@ -6633,6 +6633,18 @@ check(
     'ProfileScreen não ativa/medê o guia do Perfil corretamente',
   );
   check(
+    'PERFIL1.1: voz confiável — BeniGuideAudio toca quando o asset CARREGA (status.isLoaded) + retry; Perfil pré-carrega os áudios',
+    (() => {
+      const audioCmp = readSrc('src/components/BeniGuideAudio.js');
+      return audioCmp.includes('useAudioPlayerStatus') &&
+        /if \(!status\.isLoaded \|\| startedRef\.current\) return;/.test(audioCmp) &&
+        audioCmp.includes('RETRY_MS') &&
+        (audioCmp.match(/safePlay\(\)/g) || []).length >= 2 &&
+        profileGuideSrc.includes('preloadGuideAudio(PROFILE_GUIDE.map');
+    })(),
+    'voz do guia não espera o asset carregar / Perfil não pré-carrega (fala muda/atrasada)',
+  );
+  check(
     'ATELIÊ1.0: aba Ateliê destacada como Início/Aventuras — sidebar mede atelier.sidebarTab + overlay mapeia atelier',
     readSrc('src/components/TabletSidebar.js').includes("'atelier.sidebarTab'") &&
     readSrc('src/components/BeniGuideOverlay.js').includes("atelier: 'atelier.sidebarTab'") &&

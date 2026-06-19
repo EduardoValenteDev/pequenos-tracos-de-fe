@@ -16,6 +16,7 @@ import { useScreenGuide } from '../hooks/useScreenGuide';
 import { useGuideTargets } from '../hooks/useGuideTargets';
 import { measureGuideTarget } from '../services/guideTargetRegistry';
 import { PROFILE_GUIDE } from '../data/beniGuides';
+import { preloadGuideAudio } from '../data/beniGuideAudio';
 import { useProfile } from '../context/ProfileContext';
 import { useProgressContext } from '../context/ProgressContext';
 
@@ -95,6 +96,13 @@ export default function ProfileScreen({ navigation }) {
       if (Math.abs(delta) > 8) scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + delta), animated: true });
     });
   }, [profileTargets, insets.top, screenH]);
+
+  // Perfil 1.1: aquece os 3 áudios do guia ANTES de mostrá-lo, para a 1ª fala sair
+  // sem atraso (o BeniGuideAudio toca quando o asset carrega; o preload adianta isso).
+  useEffect(() => {
+    preloadGuideAudio(PROFILE_GUIDE.map((s) => s.audioKey));
+    if (typeof __DEV__ !== 'undefined' && __DEV__) console.log('[ProfileGuide][DEV] preload áudios do Perfil');
+  }, []);
 
   const { profile, saveProfile } = useProfile();
   const [nameInput, setNameInput] = useState(profile.name);
