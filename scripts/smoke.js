@@ -5201,8 +5201,10 @@ check(
   livro54.includes('bookArtFrame') &&
   /width: bookSize\.width, height: bookSize\.height/.test(livro54) &&
   livro54.includes("bookFullImage: { width: '100%', height: '100%' }") &&
-  // a imagem principal NÃO usa absoluteFill (causava zoom no 1º frame)
-  /visual\.type === 'official'[\s\S]*?style=\{styles\.bookFullImage\}[\s\S]*?resizeMode="contain"/.test(livro54),
+  // a oficial é renderizada via OfficialSceneImage no frame fixo (não absoluteFill)…
+  /visual\.type === 'official'[\s\S]*?<OfficialSceneImage/.test(livro54) &&
+  // …e OfficialSceneImage usa bookFullImage + contain (sem zoom no 1º frame)
+  /function OfficialSceneImage[\s\S]*?style=\{styles\.bookFullImage\}[\s\S]*?resizeMode="contain"/.test(livro54),
   'StoryBookScreen images must use a fixed 4:5 frame + width/height 100% (no absoluteFill zoom)',
 );
 

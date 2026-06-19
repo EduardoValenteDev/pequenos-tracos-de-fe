@@ -29,6 +29,13 @@ import { computeBookImageSize } from '../constants/officialImage';
 const PROGRESS_KEY = '@ptf_progress';
 const AUTOPLAY_MS = 5000;
 
+// Timeout de segurança da arte da criança (cor + contorno). Se a composição não
+// ficar pronta dentro disto (decode de base64 falho, ou — no Expo Go — asset
+// preso no Metro por Wi-Fi ruim), o Livrinho SAI do "Carregando desenho…" e cai
+// num fallback amigável, em vez de travar para sempre. Tradeoff intencional:
+// uma carga muito lenta vira fallback (e se a imagem chegar depois, recupera).
+const CHILD_ART_LOAD_TIMEOUT_MS = 7000;
+
 // Livrinho 1.0 — a arte é a PROTAGONISTA: ocupa o máximo da área disponível entre
 // o header e o painel de controles (medida em tempo real), mantendo 4:5 e com tetos
 // de respiro. Maior em telas altas/tablet, segura em telas pequenas (sem empurrar
@@ -240,6 +247,63 @@ function getStoryBookPlaybackReadiness(story) {
 }
 
 /**
+ * BookArtFallback — fallback ilustrado e amigável para criança (gradiente da cena
+ * + emoji + título + frase curta). Preenche a moldura inteira (absoluteFill), então
+ * cobre o fundo escuro da moldura oficial — nada de quadro preto. Reutilizado por:
+ *   • imagem oficial que falhou (OfficialSceneImage),
+ *   • arte da criança que falhou/estourou o timeout (ChildArtWithLineart),
+ *   • o caminho de fallback "normal" do render (cena sem mídia).
+ * Layout idêntico ao fallback já existente — não muda o visual do Livrinho.
+ */
+function BookArtFallback({ fallbackColor, emoji, title, note }) {
+  const base = fallbackColor || '#A78BFA';
+  return (
+    <LinearGradient colors={[base, base + '99']} style={StyleSheet.absoluteFill}>
+      <View style={styles.fallbackCenter}>
+        <Text style={styles.fallbackEmoji}>{emoji ?? '🎨'}</Text>
+        {!!title && <Text style={styles.fallbackTitle}>{title}</Text>}
+        {!!note && <Text style={styles.fallbackSub}>{note}</Text>}
+      </View>
+    </LinearGradient>
+  );
+}
+
+/**
+ * OfficialSceneImage — ilustração oficial da cena com fallback seguro em erro.
+ * Estado de erro é por instância; a key no chamador (por slide) remonta a cada
+ * página, então o erro nunca vaza de uma cena para outra. Se a imagem falhar,
+ * troca para o fallback ilustrado (BookArtFallback) — nunca deixa quadro preto.
+ * `onSettled` replica o comportamento do onLoadEnd antigo (libera o fade do slide)
+ * tanto no sucesso quanto na falha, para o slide nunca ficar preso em baixa opacidade.
+ */
+function OfficialSceneImage({ source, cena, fallbackColor, onSettled }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <BookArtFallback
+        fallbackColor={fallbackColor}
+        emoji={cena?.emojiCena}
+        title={cena?.titulo}
+        note="Não consegui carregar esta cena agora."
+      />
+    );
+  }
+  return (
+    <Image
+      source={source}
+      style={styles.bookFullImage}
+      resizeMode="contain"
+      onLoadEnd={onSettled}
+      onError={() => {
+        if (__DEV__) console.warn('[DEV] Livrinho: imagem oficial falhou — usando fallback ilustrado.');
+        setFailed(true);
+        onSettled?.();
+      }}
+    />
+  );
+}
+
+/**
  * ChildArtWithLineart — compõe a arte da criança (cor) + o contorno (lineart)
  * garantindo que NENHUM frame mostre a cor sem o contorno.
  *
@@ -253,9 +317,11 @@ function getStoryBookPlaybackReadiness(story) {
  * Estado é por instância: a key no chamador (história+cena+modo+arte) remonta a
  * cada página, então loaded/error nunca vazam de uma cena para outra.
  */
-function ChildArtWithLineart({ visual, containerW, containerH }) {
+function ChildArtWithLineart({ visual, containerW, containerH, cena }) {
   const [paintLoaded, setPaintLoaded] = useState(false);
   const [lineartLoaded, setLineartLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false); // onError da cor OU do contorno
+  const [timedOut, setTimedOut] = useState(false);      // estourou o timeout sem ficar pronto
 
   const positioned = visual.type === 'paintWithLineart';
   // v2 (com layout): cor e contorno escalados pelo retângulo da arte → arte grande.
@@ -266,9 +332,31 @@ function ChildArtWithLineart({ visual, containerW, containerH }) {
   // Só revela quando cor E contorno carregaram (e o lineart pode ser posicionado).
   const ready = paintLoaded && lineartLoaded && measured;
 
+  // Timeout de segurança: arma quando ainda não está pronto e não falhou. Se a
+  // composição não ficar pronta a tempo, marca timedOut → mostra fallback (não
+  // trava em "Carregando desenho…"). O timer é limpo no unmount e sempre que
+  // `ready`/`loadFailed` mudam; o componente é keyed por página, então o timeout
+  // reinicia a cada troca de cena ou mudança de visual (remount limpo).
+  useEffect(() => {
+    if (ready || loadFailed) return undefined; // nada a temporizar
+    const t = setTimeout(() => setTimedOut(true), CHILD_ART_LOAD_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [ready, loadFailed]);
+
+  const onLoadError = () => {
+    if (__DEV__) console.warn('[DEV] Livrinho: arte da criança falhou ao carregar — usando fallback.');
+    setLoadFailed(true);
+  };
+
+  // Mostra o fallback quando NÃO ficou pronto E (alguma imagem falhou OU estourou o
+  // tempo). Se a imagem chegar depois (carga lenta), `ready` vira true e recupera a arte.
+  const showFallback = !ready && (loadFailed || timedOut);
+
   return (
     <View style={StyleSheet.absoluteFill}>
-      {/* Camadas reais — invisíveis até cor + contorno estarem prontos juntos */}
+      {/* Camadas reais — invisíveis até cor + contorno estarem prontos juntos.
+          Permanecem montadas mesmo durante o fallback: se a carga lenta terminar,
+          `ready` recupera a arte automaticamente. */}
       <View style={[StyleSheet.absoluteFill, { opacity: ready ? 1 : 0 }]}>
         <Image
           source={{ uri: visual.paintUri }}
@@ -276,6 +364,7 @@ function ChildArtWithLineart({ visual, containerW, containerH }) {
           resizeMode={positioned && paintAbsStyle ? 'stretch' : 'contain'}
           fadeDuration={0}
           onLoad={() => setPaintLoaded(true)}
+          onError={onLoadError}
         />
         {positioned ? (
           <Image
@@ -284,6 +373,7 @@ function ChildArtWithLineart({ visual, containerW, containerH }) {
             resizeMode="stretch"
             fadeDuration={0}
             onLoad={() => setLineartLoaded(true)}
+            onError={onLoadError}
           />
         ) : (
           <Image
@@ -292,16 +382,27 @@ function ChildArtWithLineart({ visual, containerW, containerH }) {
             resizeMode="contain"
             fadeDuration={0}
             onLoad={() => setLineartLoaded(true)}
+            onError={onLoadError}
           />
         )}
       </View>
 
-      {/* Placeholder honesto enquanto não há composição completa */}
-      {!ready && (
+      {/* Placeholder honesto enquanto carrega — só até ficar pronto OU cair no fallback */}
+      {!ready && !showFallback && (
         <View style={[StyleSheet.absoluteFill, styles.childLoading]} pointerEvents="none">
           <ActivityIndicator size="small" color={colors.primary} />
           <Text style={styles.childLoadingText}>Carregando desenho…</Text>
         </View>
+      )}
+
+      {/* Fallback amigável quando a arte não carrega (erro/timeout) — sem loading infinito */}
+      {showFallback && (
+        <BookArtFallback
+          fallbackColor={visual.fallbackColor}
+          emoji={cena?.emojiCena}
+          title={cena?.titulo}
+          note="Não consegui carregar este desenho agora."
+        />
       )}
     </View>
   );
@@ -906,26 +1007,25 @@ export default function StoryBookScreen({ route, navigation }) {
                 visual={visual}
                 containerW={imgContainerSize.w}
                 containerH={imgContainerSize.h}
+                cena={cena}
               />
             ) : visual.type === 'official' ? (
-              // Oficial na moldura fixa 4:5 + contain (width/height 100%) → nasce encaixada, sem zoom
-              <Image
+              // Oficial na moldura fixa 4:5 + contain (width/height 100%) → nasce encaixada, sem zoom.
+              // key por slide → estado de erro reseta a cada cena; falha cai no fallback (sem quadro preto).
+              <OfficialSceneImage
+                key={`official-${slideKey}`}
                 source={visual.officialImage}
-                style={styles.bookFullImage}
-                resizeMode="contain"
-                onLoadEnd={() => fadeAnim.setValue(1)}
+                cena={cena}
+                fallbackColor={visual.fallbackColor}
+                onSettled={() => fadeAnim.setValue(1)}
               />
             ) : (
-              <LinearGradient
-                colors={[visual.fallbackColor, visual.fallbackColor + '99']}
-                style={StyleSheet.absoluteFill}
-              >
-                <View style={styles.fallbackCenter}>
-                  <Text style={styles.fallbackEmoji}>{cena.emojiCena ?? '🎨'}</Text>
-                  <Text style={styles.fallbackTitle}>{cena.titulo}</Text>
-                  <Text style={styles.fallbackSub}>{visual.note}</Text>
-                </View>
-              </LinearGradient>
+              <BookArtFallback
+                fallbackColor={visual.fallbackColor}
+                emoji={cena.emojiCena}
+                title={cena.titulo}
+                note={visual.note}
+              />
             )}
 
             <View style={styles.sealPill} pointerEvents="none">
