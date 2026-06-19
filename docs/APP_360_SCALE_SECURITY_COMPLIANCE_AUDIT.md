@@ -1,3 +1,5 @@
+> **Aviso: este documento é histórico.** Para decisões atuais, consulte [docs/PROJECT_SOURCE_OF_TRUTH.md](PROJECT_SOURCE_OF_TRUTH.md).
+
 # Auditoria 360° — Pequenos Traços de Fé
 ## Escalabilidade · Segurança · Privacidade Infantil · Compliance · Performance · Arquitetura
 
