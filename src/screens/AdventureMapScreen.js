@@ -22,7 +22,7 @@ import SoundButton from '../components/SoundButton';
 import MapRegion from '../components/map/MapRegion';
 import StoryFocusModal from '../components/map/StoryFocusModal';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
-import { hasSeenBeniAppTour, markBeniAppTourSeen, markGuideSeen, consumeInitialTourRequest, subscribeInitialTourRequest } from '../services/beniTourService';
+import { hasSeenBeniAppTour, markBeniAppTourSeen, markGuideSeen, consumeInitialTourRequest, subscribeInitialTourRequest, setAdventureTourActive, setAdventureTabCalloutActive } from '../services/beniTourService';
 import { useGuideTargets } from '../hooks/useGuideTargets';
 import { measureGuideTarget } from '../services/guideTargetRegistry';
 import { INITIAL_TOUR } from '../data/beniGuides';
@@ -58,6 +58,24 @@ export default function AdventureMapScreen({ navigation, route }) {
     markGuideSeen('adventures');  // impede o guia separado de Aventuras de disparar
     navigation.setParams?.({ startBeniTour: false });
   }, [navigation]);
+
+  // Fase 1.1.3: enquanto o tour de Aventuras está ativo, BLOQUEIA a troca de aba
+  // (tab bar mobile / sidebar tablet) — sem Modal, sem cobrir o mapa, sem travar o
+  // pan. O AppNavigator/TabletSidebar leem isAdventureTourActive(). Libera ao fechar
+  // o tour OU ao desmontar a tela (cleanup), garantindo que a navegação volte.
+  useEffect(() => {
+    setAdventureTourActive(showBeniTour);
+    return () => setAdventureTourActive(false);
+  }, [showBeniTour]);
+
+  // Fase 1.1.4: enquanto o tour está ativo e o usuário ROLA o mapa, avisa o overlay
+  // (mapScrolling → esconde halo/seta/hit zone, sem stale) e, ao parar (settle),
+  // bump no nonce → o overlay re-mede o alvo do passo (segue ou some, fallback honesto).
+  const [mapScrolling, setMapScrolling] = useState(false);
+  const [mapScrollNonce, setMapScrollNonce] = useState(0);
+  const mapScrollingRef = useRef(false);
+  const scrollSettleTimer = useRef(null);
+  useEffect(() => () => { if (scrollSettleTimer.current) clearTimeout(scrollSettleTimer.current); }, []);
 
   // Alvos REAIS medidos do tour (UX 2.3.1+): mapa + pin foco + botão Ver mapa.
   const guideTargets = useGuideTargets();
@@ -131,9 +149,23 @@ export default function AdventureMapScreen({ navigation, route }) {
     return arr;
   }, [regionsVisual, mapWidth]);
 
-  // Região ativa (índice visual). Começa na base (comece_aqui), pois a câmera
-  // inicia embaixo. Usada pela pílula de orientação e pelo modo "Ver mapa".
-  const [activeIdx, setActiveIdx] = useState(regionsVisual.length - 1);
+  // Âncora EXPLÍCITA da região inicial da jornada ("Comece Aqui"), por id (não por
+  // ordem frágil). É a região onde o usuário começa — referência do 1º acesso.
+  const comeceRegionIdx = useMemo(() => {
+    const i = regionsVisual.findIndex((r) => r.id === 'comece_aqui');
+    return i >= 0 ? i : regionsVisual.length - 1;
+  }, [regionsVisual]);
+
+  // Região ativa (índice visual). Começa em "Comece Aqui" (início da jornada). Usada
+  // pela pílula de orientação e pelo modo "Ver mapa".
+  const [activeIdx, setActiveIdx] = useState(comeceRegionIdx);
+  // Fase 1.1.3: ref SEMPRE atual da região visível (atualizada no onScroll), para o
+  // "Ver mapa" abrir a região ATIVA no momento do toque, sem closure stale.
+  const activeIdxRef = useRef(comeceRegionIdx);
+  // Fase 1.1.5: enquanto o usuário NÃO rolou MANUALMENTE, mantemos a região ativa em
+  // "Comece Aqui" (o scroll inicial é programático e não deve sequestrar o activeIdx).
+  // Vira true no 1º arrasto do usuário → a partir daí o "Ver mapa" segue a viewport.
+  const userScrolledRef = useRef(false);
   const activeRegion = regionsVisual[activeIdx] || regionsVisual[regionsVisual.length - 1];
 
   // ── Lazy render da arte FINAL por região (Bloco 2.5) ─────────────────────────
@@ -174,7 +206,11 @@ export default function AdventureMapScreen({ navigation, route }) {
   // + escala leve (0.96→1) em vez de spring rápido; mesmo comportamento no celular,
   // iPad e tablet. NÃO há scrollTo aqui: o overview é um modal contain (sem salto).
   const openOverview = useCallback((regionIdx) => {
-    setOvRegionIdx(typeof regionIdx === 'number' ? regionIdx : null);
+    // Fase 1.1.3: "Ver mapa" abre a região ATIVA (visível) no momento do toque —
+    // o header passa o EVENTO de press (não-número) → usa activeIdxRef.current; o
+    // tour também chama sem índice. Antes ficava preso na 1ª região (cameraRegionIdx).
+    const idx = typeof regionIdx === 'number' ? regionIdx : activeIdxRef.current;
+    setOvRegionIdx(idx != null ? idx : activeIdx);
     setOvLoaded(false);
     setOverviewVisible(true);
     overviewAnim.setValue(0);
@@ -217,14 +253,7 @@ export default function AdventureMapScreen({ navigation, route }) {
     return ordered[0]?.id;
   }, [currentId, nextLockedId, ordered, isStoryCompleted]);
 
-  // Índice VISUAL da região que contém o foco da câmera — usado para abrir o
-  // overview JÁ na região certa quando o tour pede "Ver mapa" (sem depender do
-  // estado de rolagem). Fallback = base (comece_aqui).
-  const cameraRegionIdx = useMemo(() => {
-    const idx = regionsVisual.findIndex((r) => (r.stories || []).some((s) => s.id === cameraStoryId));
-    return idx >= 0 ? idx : regionsVisual.length - 1;
-  }, [regionsVisual, cameraStoryId]);
-  // Região efetivamente exibida pelo overview: a pedida (tour) ou a ativa (rolagem).
+  // Região efetivamente exibida pelo overview: a pedida (rolagem/active) ou a ativa.
   const overviewRegion = regionsVisual[ovRegionIdx != null ? ovRegionIdx : activeIdx] || activeRegion;
 
   // Offset inicial da câmera calculado de forma SÍNCRONA (antes do 1º paint), via
@@ -235,13 +264,18 @@ export default function AdventureMapScreen({ navigation, route }) {
     const last = regionLayout[regionLayout.length - 1];
     const contentH = last.top + last.height + SCROLL_BOTTOM_PAD;
     const vpEst = Math.max(220, height - (insets.top + 56) - (insets.bottom + 56)); // header + tab bar aprox.
-    let anchorY = contentH - vpEst;
+    const maxY = Math.max(0, contentH - vpEst);
     const idx = regionsVisual.findIndex((r) => (r.stories || []).some((s) => s.id === cameraStoryId));
+    // Fase 1.1.5: "Comece Aqui" alinha no topo (início claro); demais regiões = marco ~58%.
+    if (idx === comeceRegionIdx && regionLayout[idx]) {
+      return Math.max(0, Math.min(regionLayout[idx].top, maxY));
+    }
+    let anchorY = contentH - vpEst;
     if (idx >= 0 && regionLayout[idx]) {
       anchorY = regionLayout[idx].top + getStoryMapCoord(cameraStoryId).y * regionLayout[idx].height;
     }
-    return Math.max(0, Math.min(anchorY - vpEst * 0.58, Math.max(0, contentH - vpEst)));
-  }, [regionLayout, regionsVisual, cameraStoryId, height, insets.top, insets.bottom]);
+    return Math.max(0, Math.min(anchorY - vpEst * 0.58, maxY));
+  }, [regionLayout, regionsVisual, cameraStoryId, comeceRegionIdx, height, insets.top, insets.bottom]);
 
   const getState = useCallback(
     (story) => {
@@ -272,6 +306,15 @@ export default function AdventureMapScreen({ navigation, route }) {
     if (story) navigation.navigate('StoryDetail', { story });
   }, [focusStory, navigation]);
 
+  // Fase 1.1: "Começar minha jornada" (CTA final) e o toque no pin destacado seguem
+  // o MESMO caminho — fecha o tour (libera o mapa: o véu some ao desmontar o overlay)
+  // e abre o card de foco da história atual. Não depende de toque direto no mapa.
+  const startJourneyFromTour = useCallback(() => {
+    const story = ordered.find((s) => s.id === cameraStoryId);
+    closeBeniTour();
+    if (story) openFocus(story);
+  }, [ordered, cameraStoryId, closeBeniTour, openFocus]);
+
   // Câmera inicial: pousa na BASE mostrando A Criação (1º marco da última região),
   // com contexto de mapa em volta. CLAMP em [0, contentH - viewport] → nunca mostra
   // vazio/preto no rodapé (sem rolar ao fim bruto).
@@ -287,29 +330,55 @@ export default function AdventureMapScreen({ navigation, route }) {
     didInitScroll.current = true;
     const vp = scrollViewH.current;
     const maxY = Math.max(0, h - vp);
-    // Câmera por MARCO: âncora = coordenada Y do marco focado (próxima aventura;
-    // senão última concluída; senão A Criação). Coloca o marco ~58% do viewport,
-    // deixando caminho acima. Clamp → nunca mostra vazio/preto.
-    let anchorY = maxY;
     const idx = regionsVisual.findIndex((r) => (r.stories || []).some((s) => s.id === cameraStoryId));
-    if (idx >= 0 && regionLayout[idx]) {
+    let target;
+    if (idx === comeceRegionIdx && regionLayout[idx]) {
+      // Fase 1.1.5 — 1º acesso / início da jornada: alinha "Comece Aqui" no TOPO da
+      // viewport → região inicial CLARA, sem abrir entre duas regiões. Clamp p/ maxY.
+      target = Math.max(0, Math.min(regionLayout[idx].top, maxY));
+    } else if (idx >= 0 && regionLayout[idx]) {
+      // Demais casos (usuário com progresso em outra região): marco focado ~58% do
+      // viewport, deixando caminho acima. Clamp → nunca mostra vazio/preto.
       const coord = getStoryMapCoord(cameraStoryId);
-      anchorY = regionLayout[idx].top + coord.y * regionLayout[idx].height;
+      const anchorY = regionLayout[idx].top + coord.y * regionLayout[idx].height;
+      target = Math.max(0, Math.min(anchorY - vp * 0.58, maxY));
+    } else {
+      target = maxY;
     }
-    const target = Math.max(0, Math.min(anchorY - vp * 0.58, maxY));
     scrollRef.current?.scrollTo({ y: target, animated: false });
-  }, [regionLayout, regionsVisual, cameraStoryId]);
+    // Região ativa = a da CÂMERA (não a sonda do onScroll) antes do 1º arrasto, para o
+    // "Ver mapa" abrir a região certa mesmo se o usuário tocar rápido.
+    const camIdx = idx >= 0 ? idx : comeceRegionIdx;
+    activeIdxRef.current = camIdx;
+    setActiveIdx((prev) => (prev === camIdx ? prev : camIdx));
+  }, [regionLayout, regionsVisual, cameraStoryId, comeceRegionIdx]);
 
   // Atualiza o índice da região ativa conforme a rolagem (só quando muda — leve).
   const onScroll = useCallback((e) => {
-    const y = e.nativeEvent.contentOffset.y + 90; // sonda perto do topo do viewport
-    let idx = regionLayout.length - 1;
-    for (let i = 0; i < regionLayout.length; i++) {
-      const r = regionLayout[i];
-      if (y >= r.top && y < r.top + r.height) { idx = i; break; }
+    // Fase 1.1.5: só segue a viewport DEPOIS do 1º arrasto manual. Antes disso a região
+    // ativa é a da câmera ("Comece Aqui" no 1º acesso), definida no scroll inicial — o
+    // scroll programático não pode sequestrar o activeIdx (senão "Ver mapa" abre errado).
+    if (userScrolledRef.current) {
+      const y = e.nativeEvent.contentOffset.y + 90; // sonda perto do topo do viewport
+      let idx = regionLayout.length - 1;
+      for (let i = 0; i < regionLayout.length; i++) {
+        const r = regionLayout[i];
+        if (y >= r.top && y < r.top + r.height) { idx = i; break; }
+      }
+      activeIdxRef.current = idx; // ref sempre atual (lida pelo "Ver mapa")
+      setActiveIdx((prev) => (prev === idx ? prev : idx));
     }
-    setActiveIdx((prev) => (prev === idx ? prev : idx));
-  }, [regionLayout]);
+    // Durante o tour: esconde o halo enquanto rola; re-mede o alvo ao parar (settle).
+    if (showBeniTour) {
+      if (!mapScrollingRef.current) { mapScrollingRef.current = true; setMapScrolling(true); }
+      if (scrollSettleTimer.current) clearTimeout(scrollSettleTimer.current);
+      scrollSettleTimer.current = setTimeout(() => {
+        mapScrollingRef.current = false;
+        setMapScrolling(false);
+        setMapScrollNonce((n) => n + 1);
+      }, 180);
+    }
+  }, [regionLayout, showBeniTour]);
 
   // UX 2.3.1: ao abrir o guia de Aventuras, traz o pin foco para a área visível
   // (mesma geometria da câmera) → maximiza a chance de medir o brilho. Se não der,
@@ -358,6 +427,8 @@ export default function AdventureMapScreen({ navigation, route }) {
           onLayout={onScrollLayout}
           onContentSizeChange={onContentSize}
           onScroll={onScroll}
+          // Fase 1.1.5: 1º arrasto manual → "Ver mapa" passa a seguir a região visível.
+          onScrollBeginDrag={() => { userScrolledRef.current = true; }}
           scrollEventThrottle={32}
           contentOffset={{ x: 0, y: initialOffsetY }}
           contentContainerStyle={{ paddingBottom: SCROLL_BOTTOM_PAD }}
@@ -397,6 +468,39 @@ export default function AdventureMapScreen({ navigation, route }) {
         onClose={closeFocus}
         onOpen={confirmOpenStory}
       />
+
+      {/* UX 2.4.2 — TOUR ÚNICO falado sobre Aventuras, pós-onboarding. Bloqueante
+          (Modal), com aviso de som, alvos medidos e CTA só no fim. Ao fechar, marca
+          'initial' e 'adventures' como vistos (não reabre guia).
+          Fase 1.1.1: renderizado ANTES do Modal de "Ver mapa" abaixo → quando o
+          overview abre durante o tour, ele fica POR CIMA (Modal posterior na árvore),
+          corrigindo o "Ver mapa" que antes abria atrás do tour. */}
+      {showBeniTour && (
+        <BeniGuideOverlay
+          steps={tourSteps}
+          measure={measureTarget}
+          embedded
+          mapScrolling={mapScrolling}
+          mapScrollNonce={mapScrollNonce}
+          onTabHighlight={setAdventureTabCalloutActive}
+          withAudioPrompt
+          finalLabel="Começar minha jornada"
+          onStep={onTourStep}
+          onViewMap={() => {
+            // Fase 1.1.3 — interação controlada: tocar no botão REAL "Ver mapa"
+            // destacado abre a Visão Geral da REGIÃO ATIVA (a visível no momento, via
+            // activeIdxRef) — não mais presa à 1ª região. SEM avançar nem fechar o
+            // tour; ao fechar o overview, continua no mesmo card. (Sem botão duplicado.)
+            openOverview();
+          }}
+          onTargetPress={startJourneyFromTour}
+          // Fase 1.1: "Começar minha jornada" é o caminho PRINCIPAL — fecha o tour e
+          // abre o foco da história atual (não depende de tocar no pin). O pin segue
+          // brilhando como indicação e também abre, mas não é mais obrigatório.
+          onFinish={startJourneyFromTour}
+          onSkip={closeBeniTour}
+        />
+      )}
 
       {/* MODO 2 — Visão Geral ("Ver mapa"): região INTEIRA em contain, só orientação */}
       <Modal visible={overviewVisible} transparent animationType="none" onRequestClose={closeOverview}>
@@ -457,34 +561,6 @@ export default function AdventureMapScreen({ navigation, route }) {
           </Animated.View>
         </Animated.View>
       </Modal>
-
-      {/* UX 2.4.2 — TOUR ÚNICO falado (6 cards) sobre Aventuras, pós-onboarding.
-          Bloqueante (Modal), com aviso de som, alvos medidos e CTA só no fim.
-          Ao fechar, marca 'initial' e 'adventures' como vistos (não reabre guia). */}
-      {showBeniTour && (
-        <BeniGuideOverlay
-          steps={tourSteps}
-          measure={measureTarget}
-          withAudioPrompt
-          finalLabel="Começar minha jornada"
-          onStep={onTourStep}
-          onViewMap={() => {
-            // Card "Ver a região": tocar no botão medido abre a Visão Geral SUAVE,
-            // já na região do foco, SEM avançar nem fechar o tour. Ao fechar o
-            // overview, o tour continua no mesmo card (estado preservado).
-            openOverview(cameraRegionIdx);
-          }}
-          onTargetPress={() => {
-            // Card final: tocar no pin destacado = comportamento NORMAL do pin (abre o
-            // card de foco da história). Fecha o tour antes. Paywall preservado.
-            const story = ordered.find((s) => s.id === cameraStoryId);
-            closeBeniTour();
-            if (story) openFocus(story);
-          }}
-          onFinish={closeBeniTour}
-          onSkip={closeBeniTour}
-        />
-      )}
     </View>
   );
 }

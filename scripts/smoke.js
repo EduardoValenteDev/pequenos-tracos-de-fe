@@ -6693,7 +6693,7 @@ check(
     /title: 'Sua aventura atual',[\s\S]*?noRing: true/.test(guidesData) &&
     (guidesData.match(/noRing: true/g) || []).length === 1 &&
     /const hideRing = phase === 'steps' && !!step\.noRing/.test(overlayHomeBase) &&
-    overlayHomeBase.includes('showRing && !hideRing'),
+    overlayHomeBase.includes('targetVisible && !hideRing'),
     'halo do Card 2 não foi removido isoladamente (ou afeta outros cards)',
   );
   check(
@@ -6817,7 +6817,7 @@ check(
   check(
     'UX2.4.3: card final permite toque no pin (onTargetPress só no isLast+medido) e a seta aponta para o x do alvo',
     guideBase.includes('onTargetPress') &&
-    /isLast && showRing && typeof onTargetPress === 'function'/.test(guideBase) &&
+    /isLast && targetVisible && typeof onTargetPress === 'function'/.test(guideBase) &&
     guideBase.includes('arrowLeft') &&
     /marginLeft: arrowLeft/.test(guideBase) &&
     mapSrcTour.includes('onTargetPress=') &&
@@ -6858,7 +6858,8 @@ check(
     guideBase.includes("arrow = 'down'") &&
     guideBase.includes('tabCenterX') &&
     /rgba\(40,28,12,0\.22\)/.test(guideBase) &&
-    guideBase.includes('pointerEvents="auto"') &&
+    // Fase 1.1.2: véu bloqueante no modo MODAL (default); só vira pass-through no embedded.
+    /pointerEvents=\{embedded \? 'none' : 'auto'\}/.test(guideBase) &&
     !guideBase.includes('tabGlow:'),
     'Card 2 não tem moldura clara/seta na aba / véu não leve / tab bar deixou de ser bloqueada',
   );
@@ -6967,20 +6968,152 @@ check(
     'abertura do overview não foi suavizada (ainda usa spring rápido)',
   );
   check(
-    'MAPA1.1: overview abre na região do FOCO quando pedido pelo tour (cameraRegionIdx) sem mexer no activeIdx',
-    mapSrcTab.includes('cameraRegionIdx') &&
+    'FASE1.1.3: overview abre a região ATIVA (activeIdxRef, atualizada no onScroll) — não presa à 1ª região',
     mapSrcTab.includes('overviewRegion') &&
-    /openOverview\(cameraRegionIdx\)/.test(mapSrcTab) &&
+    mapSrcTab.includes('const activeIdxRef = useRef') &&
+    /activeIdxRef\.current = idx;/.test(mapSrcTab) &&
+    /const idx = typeof regionIdx === 'number' \? regionIdx : activeIdxRef\.current;/.test(mapSrcTab) &&
+    mapSrcTab.includes('openOverview();') &&            // tour usa região ativa (sem índice fixo)
+    !/openOverview\(cameraRegionIdx\)/.test(mapSrcTab) && // não mais preso ao foco
     /ovRegionIdx != null \? ovRegionIdx : activeIdx/.test(mapSrcTab),
-    'overview do tour não abre na região do foco (ou mexe no activeIdx)',
+    'overview do tour não abre a região ativa (ainda preso na 1ª região)',
   );
   check(
     'MAPA1.1: botão "Ver mapa" medido é tocável no tour (onViewMap) sem avançar/fechar; pin final segue só no último card',
     overlaySrcTab.includes('onViewMap') &&
-    /!isLast && showRing && curTarget === 'adventures\.viewMapButton' && typeof onViewMap === 'function'/.test(overlaySrcTab) &&
+    /!isLast && targetVisible && curTarget === 'adventures.viewMapButton' && typeof onViewMap === 'function'/.test(overlaySrcTab) &&
     mapSrcTab.includes('onViewMap={') &&
-    /isLast && showRing && typeof onTargetPress === 'function'/.test(overlaySrcTab),
+    /isLast && targetVisible && typeof onTargetPress === 'function'/.test(overlaySrcTab),
     '"Ver mapa" não é tocável de forma controlada no tour (ou conflita com o pin final)',
+  );
+
+  // ── FASE 1.1.2: tour do mapa PASS-THROUGH (embedded, sem Modal bloqueante) ──────
+  const guidesData11 = readSrc('src/data/beniGuides.js');
+  check(
+    'FASE1.1.2: INITIAL_TOUR segue com 5 cards (tour do mapa não mudou de tamanho)',
+    ((guidesData11.match(/export const INITIAL_TOUR = \[([\s\S]*?)\];/) || [, ''])[1].match(/audioKey:/g) || []).length === 5,
+    'INITIAL_TOUR não tem mais 5 cards',
+  );
+  check(
+    'FASE1.1.2: overlay tem modo EMBEDDED opt-in (sem Modal) preservando o default Modal; véu vira pass-through (pointerEvents none) no embedded',
+    overlaySrcTab.includes('embedded = false') &&
+    overlaySrcTab.includes('if (embedded) return body;') &&
+    /<Modal transparent visible/.test(overlaySrcTab) &&
+    /pointerEvents=\{embedded \? 'none' : 'auto'\}/.test(overlaySrcTab) &&
+    /pointerEvents="box-none"/.test(overlaySrcTab),
+    'overlay não tem modo embedded pass-through (ou perdeu o default Modal)',
+  );
+  check(
+    'FASE1.1.2: SÓ o tour do mapa usa embedded (Home/Ateliê/Estrelinhas/Perfil seguem modal bloqueante)',
+    /measure=\{measureTarget\}\s*\n\s*embedded/.test(mapSrcTab) &&
+    !readSrc('src/screens/HomeScreen.js').includes('embedded') &&
+    !readSrc('src/screens/AtelierScreen.js').includes('embedded') &&
+    !readSrc('src/screens/TrophiesScreen.js').includes('embedded') &&
+    !readSrc('src/screens/ProfileScreen.js').includes('embedded'),
+    'embedded vazou para outro guia (ou o tour do mapa não usa embedded)',
+  );
+  check(
+    'FASE1.1.2: "Ver mapa" usa o alvo REAL (área tocável sobre o rect) — SEM CTA duplicado nem hint no card; nenhum guia passa hint',
+    /!isLast && targetVisible && curTarget === 'adventures.viewMapButton' && typeof onViewMap === 'function'/.test(overlaySrcTab) &&
+    !overlaySrcTab.includes('styles.cardCta') &&
+    !overlaySrcTab.includes('styles.hintLine') &&
+    !mapSrcTab.includes('hint=') &&
+    !readSrc('src/screens/HomeScreen.js').includes('hint=') &&
+    !readSrc('src/screens/AtelierScreen.js').includes('hint=') &&
+    !readSrc('src/screens/TrophiesScreen.js').includes('hint=') &&
+    !readSrc('src/screens/ProfileScreen.js').includes('hint='),
+    'overlay ainda tem CTA/hint duplicados ou algum guia passa hint',
+  );
+  check(
+    'FASE1.1.2: "Começar minha jornada" e o pin abrem a história (startJourneyFromTour) — toque destacado não fica morto',
+    mapSrcTab.includes('const startJourneyFromTour = useCallback') &&
+    /closeBeniTour\(\);\s*if \(story\) openFocus\(story\)/.test(mapSrcTab) &&
+    mapSrcTab.includes('onFinish={startJourneyFromTour}') &&
+    mapSrcTab.includes('onTargetPress={startJourneyFromTour}'),
+    'o CTA final não abre a história / ainda depende de toque no pin',
+  );
+  check(
+    'FASE1.1.2: guias aprovados não regrediram em nº de cards (Home 6 / Ateliê 5 / Estrelinhas 3 / Perfil 3)',
+    (guidesData11.match(/audioKey: 'guide\.home\./g) || []).length === 6 &&
+    (guidesData11.match(/audioKey: 'guide\.atelier\./g) || []).length === 5 &&
+    (guidesData11.match(/audioKey: 'guide\.stars\./g) || []).length === 3 &&
+    (guidesData11.match(/audioKey: 'guide\.profile\./g) || []).length === 3,
+    'algum guia aprovado mudou de número de cards',
+  );
+  // ── FASE 1.1.3: lock de navegação durante o tour (sem Modal) ──────────────────
+  const tourSvc113 = readSrc('src/services/beniTourService.js');
+  const navSrc113 = readSrc('src/navigation/AppNavigator.js');
+  check(
+    'FASE1.1.3: sinal de tour de Aventuras ativo (set/is/subscribe) controlado pela tela',
+    tourSvc113.includes('export function setAdventureTourActive') &&
+    tourSvc113.includes('export function isAdventureTourActive') &&
+    tourSvc113.includes('export function subscribeAdventureTourActive') &&
+    /setAdventureTourActive\(showBeniTour\)/.test(mapSrcTab) &&
+    /return \(\) => setAdventureTourActive\(false\)/.test(mapSrcTab),
+    'falta o sinal de lock do tour de Aventuras (ou a tela não liga/desliga)',
+  );
+  check(
+    'FASE1.1.3: tab bar mobile bloqueia troca p/ outras abas no tour (tabPress preventDefault) — SEM Modal/overlay bloqueante',
+    navSrc113.includes('isAdventureTourActive') &&
+    /tabPress: \(e\) => \{[\s\S]*?isAdventureTourActive\(\) && tab\.name !== 'Aventuras'\) e\.preventDefault\(\)/.test(navSrc113) &&
+    !/<Modal[\s\S]{0,200}adventure/i.test(navSrc113),
+    'tab bar não bloqueia navegação durante o tour de Aventuras',
+  );
+  check(
+    'FASE1.1.3: sidebar tablet ignora troca p/ outros itens no tour (Aventuras segue ativa)',
+    /onTabPress=\{\(name\) => \{[\s\S]*?isAdventureTourActive\(\) && name !== 'Aventuras'\) return;[\s\S]*?setActiveTabName\(name\)/.test(navSrc113),
+    'sidebar do tablet não respeita o lock do tour',
+  );
+  // ── FASE 1.1.4: destaque da aba na tab bar + halo não-stale ao rolar ──────────
+  check(
+    'FASE1.1.4.3: moldura da aba Aventuras ESCOPADA ao passo (sinal callout, não tourActive) + camada decorativa pointerEvents none (sem tabBarItemStyle que cortava o label)',
+    // sinal por-PASSO (não tour inteiro)
+    tourSvc113.includes('export function setAdventureTabCalloutActive') &&
+    tourSvc113.includes('export function getAdventureTabCalloutActive') &&
+    tourSvc113.includes('export function subscribeAdventureTabCalloutActive') &&
+    // overlay liga o callout SÓ no passo que realça a aba (embedded && showTabGlow)
+    /const tabCalloutOn = embedded && showTabGlow/.test(overlaySrcTab) &&
+    overlaySrcTab.includes('onTabHighlight(tabCalloutOn)') &&
+    mapSrcTab.includes('onTabHighlight={setAdventureTabCalloutActive}') &&
+    // tab bar: assina o callout e desenha CAMADA decorativa (não tabBarItemStyle)
+    navSrc113.includes('subscribeAdventureTabCalloutActive') &&
+    navSrc113.includes('TOUR_TAB_CALLOUT') &&
+    /\{calloutOn && advIndex >= 0 && \([\s\S]*?pointerEvents="none"/.test(navSrc113) &&
+    !/tabBarItemStyle:/.test(navSrc113) &&
+    // ícone padrão (sem container especial no SVG)
+    /function TabIcon\(\{ iconName, focused \}\)/.test(navSrc113) &&
+    // overlay: moldura própria só no modal; card+seta valem nos dois modos
+    overlaySrcTab.includes('const showTabHalo = showTabGlow && !embedded') &&
+    /const showArrow = targetVisible \|\| showTabGlow/.test(overlaySrcTab),
+    'moldura da aba não está escopada ao passo / ainda usa tabBarItemStyle / ícone em container especial',
+  );
+  check(
+    'FASE1.1.4: halo/seta/hit zone somem ao rolar (targetVisible = showRing && !mapScrolling) e re-medem no settle (mapScrollNonce)',
+    overlaySrcTab.includes('mapScrolling = false') &&
+    /const targetVisible = showRing && !mapScrolling/.test(overlaySrcTab) &&
+    /useEffect\(\(\) => \{[\s\S]*?mapScrollNonce == null[\s\S]*?measure\(target\)\.then/.test(overlaySrcTab) &&
+    mapSrcTab.includes('mapScrolling={mapScrolling}') &&
+    mapSrcTab.includes('mapScrollNonce={mapScrollNonce}') &&
+    /if \(showBeniTour\) \{[\s\S]*?setMapScrolling\(true\)[\s\S]*?setMapScrollNonce\(\(n\) => n \+ 1\)/.test(mapSrcTab),
+    'halo não é invalidado/remedido no scroll do tour (risco de halo stale)',
+  );
+  // ── FASE 1.1.5: viewport inicial em "Comece Aqui" + região ativa da câmera ────
+  check(
+    'FASE1.1.5: âncora inicial em "Comece Aqui" (comeceRegionIdx por id) — alinha o topo da região, sem abrir entre duas regiões',
+    /const comeceRegionIdx = useMemo\(\(\) => \{[\s\S]*?findIndex\(\(r\) => r\.id === 'comece_aqui'\)/.test(mapSrcTab) &&
+    /idx === comeceRegionIdx && regionLayout\[idx\]\) \{[\s\S]*?target = Math\.max\(0, Math\.min\(regionLayout\[idx\]\.top, maxY\)\)/.test(mapSrcTab) &&
+    /useState\(comeceRegionIdx\)/.test(mapSrcTab) &&
+    /useRef\(comeceRegionIdx\)/.test(mapSrcTab),
+    'a viewport inicial não ancora claramente em "Comece Aqui"',
+  );
+  check(
+    'FASE1.1.5: região ativa = a da CÂMERA até o 1º arrasto manual (userScrolledRef + onScrollBeginDrag); depois segue a viewport',
+    /const userScrolledRef = useRef\(false\)/.test(mapSrcTab) &&
+    /onScrollBeginDrag=\{\(\) => \{ userScrolledRef\.current = true; \}\}/.test(mapSrcTab) &&
+    /if \(userScrolledRef\.current\) \{[\s\S]*?activeIdxRef\.current = idx;[\s\S]*?setActiveIdx/.test(mapSrcTab) &&
+    // onContentSize fixa o activeIdx na região da câmera (camIdx) antes do arrasto
+    /const camIdx = idx >= 0 \? idx : comeceRegionIdx;[\s\S]*?activeIdxRef\.current = camIdx;/.test(mapSrcTab),
+    '"Ver mapa" não abre a região da câmera antes do 1º arrasto (risco de abrir a região de cima)',
   );
 }
 

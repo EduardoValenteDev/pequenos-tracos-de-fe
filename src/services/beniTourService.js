@@ -123,6 +123,61 @@ export function subscribeInitialTourRequest(fn) {
   return () => _tourReqListeners.delete(fn);
 }
 
+// ── Sinal: tour de Aventuras ATIVO (Fase 1.1.3) ───────────────────────────────
+// O tour do mapa é pass-through (sem Modal), então a tab bar/sidebar continuam
+// nativas. Este sinal em memória avisa o AppNavigator/TabletSidebar para BLOQUEAR
+// a troca para outras abas enquanto o tour está ativo — sem Modal, sem cobrir o
+// mapa, sem travar o pan. É só UI/navegação: não toca progresso/acesso.
+let _adventureTourActive = false;
+const _advTourListeners = new Set();
+
+/** Liga/desliga o lock de navegação do tour de Aventuras. */
+export function setAdventureTourActive(active) {
+  const v = !!active;
+  if (v === _adventureTourActive) return;
+  _adventureTourActive = v;
+  _advTourListeners.forEach((fn) => { try { fn(v); } catch { /* nunca quebra */ } });
+}
+
+/** True enquanto o tour de Aventuras estiver ativo (lê SEM consumir). */
+export function isAdventureTourActive() {
+  return _adventureTourActive;
+}
+
+/** Assina mudanças do lock (ex.: re-render do tab/sidebar). Retorna unsubscribe. */
+export function subscribeAdventureTourActive(fn) {
+  if (typeof fn !== 'function') return () => {};
+  _advTourListeners.add(fn);
+  return () => _advTourListeners.delete(fn);
+}
+
+// ── Sinal: REALCE da aba Aventuras na tab bar (Fase 1.1.4.3) ───────────────────
+// Diferente do lock acima: este liga SÓ no passo específico que explica a aba
+// (card "Seu mapa de aventuras"), não no tour inteiro. A tab bar desenha a moldura
+// decorativa (pointerEvents none) sobre o item Aventuras só quando isto é true.
+let _advTabCallout = false;
+const _advTabCalloutListeners = new Set();
+
+/** Liga/desliga a moldura da aba Aventuras (só no passo do card que explica a aba). */
+export function setAdventureTabCalloutActive(active) {
+  const v = !!active;
+  if (v === _advTabCallout) return;
+  _advTabCallout = v;
+  _advTabCalloutListeners.forEach((fn) => { try { fn(v); } catch { /* nunca quebra */ } });
+}
+
+/** True só durante o passo que realça a aba Aventuras. */
+export function getAdventureTabCalloutActive() {
+  return _advTabCallout;
+}
+
+/** Assina mudanças da moldura da aba (re-render da tab bar). Retorna unsubscribe. */
+export function subscribeAdventureTabCalloutActive(fn) {
+  if (typeof fn !== 'function') return () => {};
+  _advTabCalloutListeners.add(fn);
+  return () => _advTabCalloutListeners.delete(fn);
+}
+
 // ── Compatibilidade com o tour inicial (UX 2.0) ───────────────────────────────
 
 /** True se o tour inicial já foi visto/pulado. */

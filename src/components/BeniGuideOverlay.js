@@ -16,7 +16,7 @@
  *        withAudioPrompt?
  */
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, Modal, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Modal, BackHandler, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from './SoundButton';
@@ -41,6 +41,10 @@ export default function BeniGuideOverlay({
   onStep,
   onTargetPress, // UX 2.4.3: toque no alvo medido no ÚLTIMO card (ex.: pin do brilho)
   onViewMap,     // MAPA 1.1: toque no botão "Ver mapa" medido durante o tour (não avança)
+  embedded = false, // Fase 1.1.2: modo PASS-THROUGH (sem Modal). Default = modal bloqueante.
+  mapScrolling = false, // Fase 1.1.4: mapa rolando agora → esconde halo/seta/hit zone (sem stale).
+  mapScrollNonce,        // Fase 1.1.4: muda no scroll-settle → re-mede o alvo do passo atual.
+  onTabHighlight,        // Fase 1.1.4.3: avisa (true/false) quando o passo realça a aba (embedded).
   withAudioPrompt = false,
 }) {
   const { width, height } = useWindowDimensions();
@@ -53,6 +57,15 @@ export default function BeniGuideOverlay({
 
   const [soundsOn, setSoundsOn] = useState(() => getAudioPreferences().soundsEnabled);
   useEffect(() => subscribeAudioPreferences(() => setSoundsOn(getAudioPreferences().soundsEnabled)), []);
+
+  // Fase 1.1.2: no modo embedded (sem Modal) o botão físico "voltar" do Android não
+  // passa pelo onRequestClose do Modal — então interceptamos aqui = Pular (fecha o
+  // tour), preservando o comportamento do modo modal. Só ativo no embedded.
+  useEffect(() => {
+    if (!embedded) return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onSkip?.(); return true; });
+    return () => sub.remove();
+  }, [embedded, onSkip]);
 
   const safeSteps = steps.length ? steps : [{ title: '', text: '' }];
   const isLast = index === safeSteps.length - 1;
@@ -98,6 +111,19 @@ export default function BeniGuideOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
+  // Fase 1.1.4: RE-MEDIR o alvo do passo atual quando o mapa para de rolar
+  // (mapScrollNonce muda no scroll-settle da tela). Sem trocar de passo/áudio: só
+  // atualiza o rect → halo/seta/hit zone seguem o alvo (ou somem se ele saiu da tela).
+  useEffect(() => {
+    if (mapScrollNonce == null || phase !== 'steps') return undefined;
+    const target = targetFor(safeSteps[index]);
+    if (!target || typeof measure !== 'function') { setRect(null); return undefined; }
+    let alive = true;
+    measure(target).then((r) => { if (alive) setRect(r || null); }).catch(() => { if (alive) setRect(null); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapScrollNonce]);
+
   // Pulso discreto (Beni + moldura do alvo).
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -136,6 +162,9 @@ export default function BeniGuideOverlay({
   const isBigArea = rect && rect.width > width * 0.85 && rect.height > height * 0.5;
   const inViewport = !!rect && rect.y + rect.height > insets.top && rect.y < tabTop;
   const showRing = !!rect && !isBigArea && inViewport;
+  // Fase 1.1.4: enquanto o mapa ROLA, esconde halo/seta/hit zone (o rect está stale)
+  // — o card fica onde estava (posição pelo rect antigo) e só atualiza no settle.
+  const targetVisible = showRing && !mapScrolling;
 
   // Realce de aba (Card "Seu início"/"Seu mapa de aventuras"): no MOBILE, moldura
   // determinística na tab bar; no TABLET, o alvo é MEDIDO (item da sidebar → showRing).
@@ -147,7 +176,27 @@ export default function BeniGuideOverlay({
   // seguem com halo. Não afeta posicionamento, scroll, nem o fallback honesto.
   const hideRing = phase === 'steps' && !!step.noRing;
   const glowTabIndex = step.highlightTab != null ? TAB_INDEX_BY_KEY[step.highlightTab] : undefined;
+  // Realce de aba (Card "Seu início"/"Seu mapa de aventuras"): posiciona o card acima
+  // da tab bar e a SETA p/ baixo no item — vale nos dois modos. A MOLDURA do item,
+  // porém, no modo EMBEDDED é desenhada pela PRÓPRIA tab bar (AppNavigator), pois o
+  // overlay vive dentro da tela e não alcança a tab bar (ver `showTabHalo`).
   const showTabGlow = phase === 'steps' && !!step.highlightTab && !isTabletLayout && glowTabIndex != null;
+  // Fase 1.1.4.2: a moldura pulsante na tab bar só é desenhada AQUI no modo modal;
+  // no embedded (tour do mapa) quem desenha é a tab bar do AppNavigator.
+  const showTabHalo = showTabGlow && !embedded;
+  // A seta aparece para alvos medidos (ring, escondida ao rolar) OU para o realce de
+  // tab no modo modal. Nunca aponta para alvo stale durante o scroll do mapa.
+  const showArrow = targetVisible || showTabGlow;
+
+  // Fase 1.1.4.3: no embedded, a moldura da aba é desenhada pela tab bar. Avisamos a
+  // tela SÓ no passo que realça a aba (showTabGlow) — não no tour inteiro, não no
+  // aviso de som, não no card "Eu sou o Beni". Limpa (false) ao sair do passo/desmontar.
+  const tabCalloutOn = embedded && showTabGlow;
+  useEffect(() => {
+    if (typeof onTabHighlight !== 'function') return undefined;
+    onTabHighlight(tabCalloutOn);
+    return () => onTabHighlight(false);
+  }, [tabCalloutOn, onTabHighlight]);
   const TAB_COUNT = 5;
   const tabItemW = width / TAB_COUNT;
   const tabCenterX = tabItemW * ((glowTabIndex ?? 1) + 0.5);
@@ -187,24 +236,28 @@ export default function BeniGuideOverlay({
     const targetCx = rect.x + rect.width / 2;
     arrowLeft = arrow ? Math.max(12, Math.min((width - 32) - ARROW_HALF * 2 - 12, targetCx - 16 - ARROW_HALF)) : null;
   } else if (showTabGlow) {
-    // Card 2 (mobile): card acima da tab bar, seta CURTA para baixo no item Aventuras.
-    cardTop = Math.max(insets.top + 8, tabHaloTop - CARD_H - 16);
+    // Card (mobile): card ACIMA da tab bar, seta CURTA para baixo no item destacado.
+    // No embedded, a folga é maior (CARD_H_TALL) p/ não cobrir a tab bar REAL (no modo
+    // modal o card flutua sobre o véu, então mantém a folga aprovada).
+    const tabClearance = embedded ? CARD_H_TALL + 8 : CARD_H + 16;
+    cardTop = Math.max(insets.top + 8, tabHaloTop - tabClearance);
     arrow = 'down';
     arrowLeft = Math.max(12, Math.min((width - 32) - ARROW_HALF * 2 - 12, tabCenterX - 16 - ARROW_HALF));
   } else {
     cardTop = usableBottom - CARD_H - 8;
   }
 
-  return (
-    <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={() => onSkip?.()}>
-      <View style={styles.overlay} pointerEvents="box-none">
-        {/* Véu = escudo de toque: BLOQUEIA o que está atrás (mapa/pins/tab bar). LEVE
-            para a tela (mapa + abas) continuar claramente visível por trás. */}
-        <View style={styles.veil} pointerEvents="auto" />
+  // Fase 1.1.2: corpo do overlay. No modo EMBEDDED (pass-through), o véu é só visual
+  // (pointerEvents none) e o conjunto é box-none → o mapa por baixo recebe pan/toque
+  // fora do card; o card e as hit zones (auto) seguem capturando seus toques.
+  const body = (
+    <View style={styles.overlay} pointerEvents="box-none">
+      {/* Véu: bloqueante no modo modal; só visual (não bloqueia) no modo embedded. */}
+      <View style={styles.veil} pointerEvents={embedded ? 'none' : 'auto'} />
 
-        {/* Realce CLARO do item Aventuras (Card 2): moldura pulsante no ícone+texto.
-            Decorativo (pointerEvents none) — a tab bar continua bloqueada pelo véu. */}
-        {showTabGlow && (
+        {/* Realce CLARO do item destacado: moldura pulsante no ícone+texto. Só no modo
+            modal; no embedded quem desenha é a tab bar (AppNavigator). pointerEvents none. */}
+        {showTabHalo && (
           <Animated.View
             pointerEvents="none"
             style={[
@@ -237,7 +290,7 @@ export default function BeniGuideOverlay({
           </View>
         ) : (
           <>
-            {showRing && !hideRing && (
+            {targetVisible && !hideRing && (
               <Animated.View
                 pointerEvents="none"
                 style={[
@@ -260,7 +313,7 @@ export default function BeniGuideOverlay({
             {/* MAPA 1.1: no card "Ver a região", o botão "Ver mapa" MEDIDO fica
                 tocável → abre a Visão Geral suave SEM avançar nem fechar o tour
                 (o tour continua atrás; ao fechar o overview, volta a este card). */}
-            {!isLast && showRing && curTarget === 'adventures.viewMapButton' && typeof onViewMap === 'function' && (
+            {!isLast && targetVisible && curTarget === 'adventures.viewMapButton' && typeof onViewMap === 'function' && (
               <SoundButton
                 silent
                 activeOpacity={0.85}
@@ -279,7 +332,7 @@ export default function BeniGuideOverlay({
 
             {/* Card FINAL: o alvo medido (pin do brilho) também é tocável → abre a
                 história (comportamento normal). Só o pin destacado; nada mais. */}
-            {isLast && showRing && typeof onTargetPress === 'function' && (
+            {isLast && targetVisible && typeof onTargetPress === 'function' && (
               <SoundButton
                 silent
                 activeOpacity={0.85}
@@ -298,8 +351,8 @@ export default function BeniGuideOverlay({
 
             <View style={[styles.cardWrap, { top: cardTop, left: cardLeft, right: cardRight }]} pointerEvents="box-none">
               {/* Seta para a ESQUERDA (alvo na sidebar do tablet). */}
-              {arrow === 'left' && <View style={[styles.arrowSide, { top: arrowTop }]} />}
-              {arrow === 'up' && <View style={[styles.arrow, styles.arrowUp, arrowLeft != null && { alignSelf: 'flex-start', marginLeft: arrowLeft }]} />}
+              {showArrow && arrow === 'left' && <View style={[styles.arrowSide, { top: arrowTop }]} />}
+              {showArrow && arrow === 'up' && <View style={[styles.arrow, styles.arrowUp, arrowLeft != null && { alignSelf: 'flex-start', marginLeft: arrowLeft }]} />}
               <LinearGradient colors={['#FBF1D8', '#F4E3BE', '#EAD3A0']} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.card}>
                 <View style={styles.cardTopRow}>
                   <Animated.View style={{ transform: [{ scale: beniScale }] }}>
@@ -344,11 +397,19 @@ export default function BeniGuideOverlay({
                   </LinearGradient>
                 </SoundButton>
               </LinearGradient>
-              {arrow === 'down' && <View style={[styles.arrow, styles.arrowDown, arrowLeft != null && { alignSelf: 'flex-start', marginLeft: arrowLeft }]} />}
+              {showArrow && arrow === 'down' && <View style={[styles.arrow, styles.arrowDown, arrowLeft != null && { alignSelf: 'flex-start', marginLeft: arrowLeft }]} />}
             </View>
           </>
         )}
-      </View>
+    </View>
+  );
+
+  // Embedded (pass-through): camada absoluta DENTRO da tela, sem Modal → o mapa por
+  // baixo recebe pan. Modal (default): bloqueante, para os demais guias.
+  if (embedded) return body;
+  return (
+    <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={() => onSkip?.()}>
+      {body}
     </Modal>
   );
 }

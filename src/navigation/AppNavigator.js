@@ -8,7 +8,7 @@ import { colors } from '../theme/colors';
 import TabletSidebar from '../components/TabletSidebar';
 import FaithIcon from '../components/ui/FaithIcon';
 import { useProgressContext } from '../context/ProgressContext';
-import { isInitialTourPending, subscribeInitialTourRequest } from '../services/beniTourService';
+import { isInitialTourPending, subscribeInitialTourRequest, isAdventureTourActive, getAdventureTabCalloutActive, subscribeAdventureTabCalloutActive } from '../services/beniTourService';
 
 import SplashScreen from '../screens/SplashScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
@@ -102,6 +102,9 @@ const TAB_DEFS = [
 ];
 
 function TabIcon({ iconName, focused }) {
+  // Ícone padrão: cor/tamanho ATIVOS quando a aba está focada. Durante o tour de
+  // Aventuras a aba já está focada → cor ativa automática. A moldura guiada é uma
+  // CAMADA decorativa à parte (na tab bar), nunca um container em volta do SVG.
   return (
     <FaithIcon
       name={iconName}
@@ -129,7 +132,12 @@ function TabletLayout({ navigation }) {
     <View style={{ flex: 1, flexDirection: 'row' }}>
       <TabletSidebar
         activeTab={activeTabName}
-        onTabPress={setActiveTabName}
+        // Fase 1.1.3: durante o tour de Aventuras, ignora a troca para outros itens
+        // (sidebar segue visível, Aventuras continua ativa). Sem Modal/overlay.
+        onTabPress={(name) => {
+          if (isAdventureTourActive() && name !== 'Aventuras') return;
+          setActiveTabName(name);
+        }}
         totalStars={totalStars}
         maxStars={maxStars}
       />
@@ -147,10 +155,35 @@ function TabletLayout({ navigation }) {
   );
 }
 
+// Fase 1.1.4.3: moldura da aba Aventuras = CAMADA decorativa (pointerEvents none)
+// SOBRE o item, com as mesmas cores do tabHalo do BeniGuideOverlay. Não usa
+// tabBarItemStyle (que cortava o label) — não altera layout/padding/size do item.
+const TOUR_TAB_CALLOUT = {
+  position: 'absolute',
+  borderRadius: 16,
+  borderWidth: 2.5,
+  borderColor: 'rgba(255,205,110,0.98)',
+  backgroundColor: 'rgba(255,222,150,0.18)',
+};
+
 // Navegação inferior para celular com safe area corrigida
 function MobileTabs() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  // Fase 1.1.4.3: re-renderiza a tab bar quando o REALCE da aba liga/desliga — e isso
+  // liga SÓ no passo "Seu mapa de aventuras" (sinal callout), não no tour inteiro.
+  const [calloutOn, setCalloutOn] = useState(getAdventureTabCalloutActive());
+  useEffect(() => subscribeAdventureTabCalloutActive(setCalloutOn), []);
+
+  // Geometria da moldura sobre o item Aventuras (sem tocar o layout do item).
+  const tabBarH = 64 + insets.bottom;
+  const advIndex = TAB_DEFS.findIndex((t) => t.name === 'Aventuras');
+  const tabW = width / TAB_DEFS.length;
+  const calloutW = Math.min(tabW - 14, 88);
+  const calloutLeft = tabW * (advIndex + 0.5) - calloutW / 2;
+
   return (
+    <View style={{ flex: 1 }}>
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
@@ -182,9 +215,29 @@ function MobileTabs() {
             tabBarIcon: ({ focused }) => <TabIcon iconName={tab.faithIcon} focused={focused} />,
             tabBarAccessibilityLabel: tab.name,
           }}
+          listeners={{
+            // Fase 1.1.3: durante o tour de Aventuras, bloqueia a troca para outras
+            // abas (sem Modal, sem cobrir o mapa). A tab bar segue visível; o toque
+            // só não navega. A aba Aventuras continua acessível.
+            tabPress: (e) => {
+              if (isAdventureTourActive() && tab.name !== 'Aventuras') e.preventDefault();
+            },
+          }}
         />
       ))}
     </Tab.Navigator>
+      {/* Moldura decorativa sobre o item Aventuras — só no passo que realça a aba.
+          pointerEvents none: não bloqueia toque, não altera o layout do item. */}
+      {calloutOn && advIndex >= 0 && (
+        <View
+          pointerEvents="none"
+          style={[
+            TOUR_TAB_CALLOUT,
+            { left: calloutLeft, width: calloutW, bottom: insets.bottom + 5, height: tabBarH - insets.bottom - 9 },
+          ]}
+        />
+      )}
+    </View>
   );
 }
 
