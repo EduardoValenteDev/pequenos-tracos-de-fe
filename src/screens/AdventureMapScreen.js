@@ -15,7 +15,7 @@ import { View, Text, Image, Modal, Pressable, ActivityIndicator, InteractionMana
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Asset } from 'expo-asset';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, computeImageRect, getStoryMapCoord, REGION_PARCHMENT_BG } from '../data/adventureMap';
+import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, computeImageRect, getStoryMapCoord, REGION_PARCHMENT_BG, MAP_ASPECT } from '../data/adventureMap';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
 import { useProgressContext } from '../context/ProgressContext';
 import SoundButton from '../components/SoundButton';
@@ -90,6 +90,27 @@ export default function AdventureMapScreen({ navigation, route }) {
   );
   const { width, height } = useWindowDimensions();
   const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
+
+  // "Ver mapa" (Visão Geral): dimensiona a IMAGEM no aspecto real da arte (MAP_ASPECT
+  // = 9:16) dentro do card, em vez de deixar a caixa `flex` ficar mais alta que a arte
+  // (o que sobrava como faixa em cima/embaixo). Limita por largura E por altura útil,
+  // então funciona tanto em iPhone alto quanto em telas menores, sem corte nem branco.
+  const ovImg = useMemo(() => {
+    const BACKDROP_PAD = 18; // styles.ovBackdrop.padding
+    const CARD_HPAD = 12;    // styles.ovCard.paddingHorizontal
+    const CARD_MAXW = 420;   // styles.ovCard.maxWidth
+    const V_CHROME = 84;     // título + dica + paddings verticais do card
+    const cardW = Math.min(width - BACKDROP_PAD * 2, CARD_MAXW);
+    const boxW = cardW - CARD_HPAD * 2;
+    const availH = height * 0.92 - V_CHROME; // card limitado a 92% da altura
+    let w = boxW;
+    let h = Math.round(w / MAP_ASPECT); // arte é mais alta que larga
+    if (h > availH) {
+      h = availH;
+      w = Math.round(h * MAP_ASPECT);
+    }
+    return { width: Math.max(0, Math.round(w)), height: Math.max(0, Math.round(h)) };
+  }, [width, height]);
 
   // TABLET FIX: o mapa deve usar a largura da ÁREA DE CONTEÚDO (à direita da sidebar),
   // não a largura total da tela — senão fica cortado. Medimos o container; no celular
@@ -514,7 +535,7 @@ export default function AdventureMapScreen({ navigation, route }) {
             </SoundButton>
             <Text style={styles.ovTitle}>{overviewRegion?.title ?? ''}</Text>
             <View
-              style={styles.ovImageBox}
+              style={[styles.ovImageBox, { width: ovImg.width, height: ovImg.height }]}
               onLayout={(e) => {
                 const { width: bw, height: bh } = e.nativeEvent.layout;
                 setOvBox((prev) => (prev.w === Math.round(bw) && prev.h === Math.round(bh) ? prev : { w: Math.round(bw), h: Math.round(bh) }));
@@ -617,7 +638,7 @@ const styles = StyleSheet.create({
   ovCard: {
     width: '100%',
     maxWidth: 420,
-    height: '86%',
+    maxHeight: '92%',
     backgroundColor: '#F5EAD2',
     borderRadius: 24,
     paddingTop: 14,
@@ -649,7 +670,7 @@ const styles = StyleSheet.create({
   },
   ovCloseText: { fontSize: 16, color: '#6B5A3E', fontWeight: '900' },
   ovTitle: { fontFamily: 'FredokaOne', fontSize: 18, color: '#5A4420', marginBottom: 8 },
-  ovImageBox: { flex: 1, width: '100%', borderRadius: 16, overflow: 'hidden', backgroundColor: '#E7D6B0' },
+  ovImageBox: { alignSelf: 'center', borderRadius: 16, overflow: 'hidden', backgroundColor: '#E7D6B0' },
   ovLoading: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   ovLoadingText: { marginTop: 6, fontFamily: 'Nunito', fontSize: 12, fontWeight: '700', color: '#8A7A5E' },
   ovHint: { fontFamily: 'Nunito', fontSize: 11.5, fontWeight: '700', color: '#8A7A5E', marginTop: 8 },
