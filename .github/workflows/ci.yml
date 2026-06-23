@@ -3,6 +3,14 @@ name: CI
 # Gates de qualidade agnósticos de agente (Claude Code, Codex e outros).
 # smoke = gate DURO (node puro, determinístico, sem rede).
 # expo-doctor = informativo no início (toca a rede): continue-on-error.
+#
+# concurrency: cancela execuções ANTIGAS/duplicadas do MESMO ref (PR ou branch),
+# evitando dois check-runs "smoke" concorrentes no mesmo commit (estabiliza o
+# required status check, sem remover a validação pós-merge em push).
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 on:
   pull_request:
