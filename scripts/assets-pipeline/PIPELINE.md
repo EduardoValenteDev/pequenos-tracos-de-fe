@@ -34,6 +34,7 @@ Todo lote de assets novo segue, em ordem:
 | `npm run assets:budget` | `budget-report.js` | Orçamento: assets tracked (proxy) vs meta ~150 MB — FR-003/FR-004 |
 | `npm run assets:growth` | `growth-projection.js` | Projeção 20 histórias + >=25% de reserva — FR-003 |
 | `npm run assets:traceability` | `traceability.js` | Cruza história ↔ camada ↔ requires ↔ existência/tracked — FR-011 |
+| `npm run assets:check-ratio` | `check-ratio.js` | Valida 4:5 SÓ de cenas/colorir (isenta capas/mapas/avatares); só reporta, `--strict` falha — FR-008 |
 
 ## Guard de Git — `assets/stories/*` (T005a)
 

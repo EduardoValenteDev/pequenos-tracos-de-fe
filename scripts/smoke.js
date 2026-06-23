@@ -10624,6 +10624,27 @@ check(
     );
   }
 
+  // ── Arquitetura 001.5: validador de proporção 4:5 (check-ratio) executa sem quebrar ──
+  {
+    let ok = false;
+    let detail = '';
+    try {
+      const r = require('./assets-pipeline/check-ratio').run();
+      // modo relatório: retorna objeto com summary + listas; isenta não-cenas/colorir.
+      ok = !!r && typeof r === 'object' && r.summary && Array.isArray(r.offenders) &&
+        Array.isArray(r.enforcedCategories) && r.enforcedCategories.join(',') === 'scenes,coloring' &&
+        r.exemptByCategory && typeof r.exemptByCategory === 'object';
+      if (!ok) detail = 'check-ratio.run() sem o formato esperado';
+    } catch (e) {
+      detail = String(e && e.message);
+    }
+    check(
+      'Arquitetura 001.5: check-ratio executa (4:5 só p/ cenas/colorir; isenta demais)',
+      ok,
+      detail,
+    );
+  }
+
   // ── Arquitetura 001.3: relatórios de orçamento/rastreabilidade executam sem quebrar ──
   {
     const reports = [
