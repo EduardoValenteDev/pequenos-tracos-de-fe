@@ -1,0 +1,51 @@
+# Pipeline de Assets — Feature 001 (Fase 1)
+
+Ferramentas **documentais e de auditoria** para a *Fundação de Arquitetura e Orçamento
+de Assets*. **Nada aqui altera o app, move/converte/renomeia assets nem adiciona
+`assets/stories/*` ao Git.** São scripts de leitura/relatório (Node puro, sem dependências).
+
+> Fonte de verdade: `specs/001-asset-architecture-budget/` (spec, plan, tasks, research,
+> data-model, contract). Em conflito, vale `docs/PROJECT_SOURCE_OF_TRUTH.md` → constituição
+> → `AGENTS.md`.
+
+## Pipeline obrigatório (D9)
+
+Todo lote de assets novo segue, em ordem:
+
+1. **Auditar** — inventário + medição (`assets:inventory`, `assets:measure`); estado
+   tracked/untracked; peso por categoria.
+2. **Padronizar** — conferir nome/diretório/dimensão/proporção contra o padrão canônico
+   (ver [`NAMING.md`](./NAMING.md)). **Sem renomear nesta feature** — apenas sinalizar.
+3. **Otimizar** — (fase futura) WebP para cenas; WebP lossless/PNG otimizado para colorir,
+   com teste de flood-fill; preservar 4:5. **Não nesta Fase 1.**
+4. **Decidir camada** — `starter` (binário, grátis), `remote` (baixável sob demanda) ou
+   `coming_soon` (fora do bundle). **Não nesta Fase 1.**
+5. **Versionar** — starter otimizado no Git comum (seletivo); packs remotos fora do Git;
+   `assets/stories/*` permanecem untracked até auditoria/aprovação.
+
+## Scripts
+
+| Comando | Arquivo | O que faz |
+|---|---|---|
+| `npm run assets:inventory` | `inventory.js` | Inventário JSON determinístico (categorias × tracked/untracked × bytes) — FR-001 |
+| `npm run assets:measure` | `measure-size.js` | Tamanhos mensuráveis (assets, src, .git) + "N/A" para export/bundle/builds — FR-002 |
+| `npm run assets:guard` | `check-untracked-guard.js` | **Falha** se `assets/stories/*` estiver staged — FR-013/D9 |
+
+## Guard de Git — `assets/stories/*` (T005a)
+
+`assets/stories/*` **não podem entrar por `git add` acidental**. O guard lê
+`git diff --cached --name-only` e:
+
+- **Sai com erro (exit 1)** se houver qualquer `assets/stories/*` staged;
+- Está **integrado ao `npm run smoke`** (o smoke falha no mesmo caso);
+- **Não bloqueia** uma adição **futura, auditada e aprovada**: use o override explícito
+  e documentado **`ALLOW_STORY_ASSETS=1`** (ex.: `ALLOW_STORY_ASSETS=1 npm run assets:guard`).
+
+O override existe para o dia em que um lote for **auditado** (peso, proporção 4:5,
+flood-fill) e **aprovado** para entrada seletiva — nunca para contornar a auditoria.
+
+## Limites desta Fase 1 (não implementado aqui)
+
+Sem `contentResolver`, sem `packManifestService`, sem download remoto, sem R2, sem
+conversão de imagem, sem mover/renomear assets, sem dependências novas. Esses itens
+pertencem às fases seguintes da feature 001 (ver `specs/.../tasks.md`).

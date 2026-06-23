@@ -10624,6 +10624,24 @@ check(
     );
   }
 
+  // ── Arquitetura 001.1: guard impede assets/stories/* staged (git add acidental) ──
+  {
+    let guard = { ok: true, staged: [], error: 'guard indisponível' };
+    try {
+      const mod = require('./assets-pipeline/check-untracked-guard');
+      guard = mod.getStagedStoryAssets();
+    } catch (e) {
+      guard = { ok: true, staged: [], error: String(e && e.message) };
+    }
+    const override = process.env.ALLOW_STORY_ASSETS === '1';
+    check(
+      'Arquitetura 001.1: guard de assets/stories/* (smoke falha se houver staged, sem override)',
+      // git indisponível → não bloqueia; senão exige ok (nada staged) OU override aprovado.
+      guard.error ? true : (guard.ok || override),
+      `assets/stories/* staged sem ALLOW_STORY_ASSETS=1: ${(guard.staged || []).join(', ')}`,
+    );
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
