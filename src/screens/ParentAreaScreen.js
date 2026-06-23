@@ -22,7 +22,7 @@ import { PARENT_GUIDE_BASE, PARENT_GUIDE_CREATOR_STEP } from '../data/beniGuides
 import productConfig from '../config/productConfig';
 import { useProgressContext } from '../context/ProgressContext';
 import { useProfile } from '../context/ProfileContext';
-import { getAvatarImage } from '../data/avatars';
+import { getAvatarImage, getProfileAvatarSkinTone } from '../data/avatars';
 import AvatarImage from '../components/AvatarImage';
 import { stories } from '../data/stories';
 import { resetProgress } from '../services/progressResetService';
@@ -421,7 +421,7 @@ export default function ParentAreaScreen({ navigation }) {
     return 'Em andamento';
   }
 
-  const childAvatarImage = getAvatarImage(profile.avatarId, profile.skinTone);
+  const childAvatarImage = getAvatarImage(profile.avatarId, getProfileAvatarSkinTone(profile, profile.avatarId));
   const childDisplayName = profile.name?.trim() || 'Ainda não definido';
   const storeUrl = getStoreReviewUrl();
 

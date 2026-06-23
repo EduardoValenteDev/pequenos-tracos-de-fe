@@ -20,7 +20,7 @@ import { HOME_GUIDE } from '../data/beniGuides';
 import { useFocusEffect } from '@react-navigation/native';
 import { useProfile } from '../context/ProfileContext';
 import { useProgressContext } from '../context/ProgressContext';
-import { getAvatarImage } from '../data/avatars';
+import { getAvatarImage, getProfileAvatarSkinTone } from '../data/avatars';
 import AvatarImage from '../components/AvatarImage';
 import { canOpenMomentoLumi } from '../services/accessControl';
 import { getHomePrimaryAction } from '../services/homeService';
@@ -739,7 +739,7 @@ export default function HomeScreen({ navigation }) {
         <BeniHeroScene
           greeting={greeting}
           totalStars={totalStars}
-          avatarImage={getAvatarImage(profile.avatarId, profile.skinTone)}
+          avatarImage={getAvatarImage(profile.avatarId, getProfileAvatarSkinTone(profile, profile.avatarId))}
           insets={insets}
           bubbleMessage={getBeniGuideMessage('home', {
             hasProgress:

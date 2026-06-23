@@ -5,10 +5,10 @@ import { View, Image, StyleSheet } from 'react-native';
  * AvatarImage — avatar com MÁSCARA CIRCULAR real.
  *
  * Container quadrado (size×size) com borderRadius = size/2 e `overflow: 'hidden'`,
- * com a imagem preenchendo por dentro. Padrão `contain` para não cortar personagens
- * (os avatares têm proporções mistas — quadrados e algumas variantes landscape);
- * o fundo suave preenche o círculo atrás da imagem. Nunca deixa "quadrado" aparente:
- * o recorte circular esconde os cantos.
+ * com a imagem PREENCHENDO o círculo (`cover` por padrão). `cover` evita o retângulo/
+ * letterbox interno (importante para as variantes landscape, ex.: dark boy/girl) e dá
+ * um padrão visual único a todos os avatares. O recorte circular esconde os cantos.
+ * `resizeMode` é configurável por contexto, se necessário.
  *
  * Reutilizado em Home, Perfil, Sidebar, Área dos Pais, Onboarding e no modal de zoom.
  * Decoração (borda/sombra) fica no container externo de cada tela (passar via `style`).
@@ -16,8 +16,9 @@ import { View, Image, StyleSheet } from 'react-native';
 export default function AvatarImage({
   source,
   size,
-  resizeMode = 'contain',
+  resizeMode = 'cover',
   backgroundColor = 'transparent',
+  zoom = 1,
   style,
 }) {
   return (
@@ -27,7 +28,11 @@ export default function AvatarImage({
         style,
       ]}
     >
-      <Image source={source} style={styles.fill} resizeMode={resizeMode} />
+      <Image
+        source={source}
+        style={[styles.fill, zoom !== 1 && { transform: [{ scale: zoom }] }]}
+        resizeMode={resizeMode}
+      />
     </View>
   );
 }

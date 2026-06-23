@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { getAvatarImage } from '../data/avatars';
+import { getAvatarImage, getProfileAvatarSkinTone } from '../data/avatars';
 import AvatarImage from './AvatarImage';
 import { useProfile } from '../context/ProfileContext';
 import BeniCircularArt from './common/BeniCircularArt';
@@ -41,7 +41,7 @@ export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxSt
       <View style={styles.profileArea}>
         <View style={styles.lumiRow}>
           <View style={styles.avatarCircle}>
-            <AvatarImage source={getAvatarImage(profile.avatarId, profile.skinTone)} size={56} />
+            <AvatarImage source={getAvatarImage(profile.avatarId, getProfileAvatarSkinTone(profile, profile.avatarId))} size={56} />
           </View>
           <BeniCircularArt
             variant="avatarBase"

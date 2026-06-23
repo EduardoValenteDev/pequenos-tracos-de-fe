@@ -9,7 +9,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform, Animated, Image,
+  ScrollView, KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,8 +17,8 @@ import { CommonActions } from '@react-navigation/native';
 import BeniAvatar from '../components/beni/BeniAvatar';
 import AvatarImage from '../components/AvatarImage';
 import {
-  AVATARS, DEFAULT_AVATAR_ID, getAvatarImage,
-  SKIN_TONES, DEFAULT_SKIN_TONE, avatarHasSkinTones,
+  DEFAULT_AVATAR_ID, DEFAULT_SKIN_TONE, getAvatarImage,
+  ONBOARDING_AVATAR_OPTIONS, isAvatarUnlocked,
 } from '../data/avatars';
 import { useProfile } from '../context/ProfileContext';
 import { createChildProfile } from '../services/childProfileService';
@@ -72,8 +72,8 @@ function ProgressStars({ currentStep }) {
 const starStyles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12 },
   star: { fontSize: 18, color: colors.border },
-  starDone: { color: colors.primary },
-  starActive: { color: colors.action, fontSize: 22 },
+  starDone: { color: '#D99A1E' },
+  starActive: { color: '#C9870F', fontSize: 22 },
 });
 
 function BeniSpeech({ message }) {
@@ -118,7 +118,9 @@ export default function OnboardingScreen({ navigation }) {
 
   const [stepIndex, setStepIndex] = useState(0);
   const [childName, setChildName] = useState('');
-  const [avatarId, setAvatarId] = useState(DEFAULT_AVATAR_ID);
+  // Estrela PRÉ-SELECIONADA por padrão: se ninguém tocar em nada e clicar Avançar,
+  // salva avatarId='star' e a tela final mostra a Estrela (nunca círculo vazio).
+  const [avatarId, setAvatarId] = useState('star');
   const [skinTone, setSkinTone] = useState(DEFAULT_SKIN_TONE);
   const [nameError, setNameError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -143,15 +145,30 @@ export default function OnboardingScreen({ navigation }) {
     if (stepIndex < TOTAL_STEPS - 1) goToStep(stepIndex + 1);
   }
 
+  function handleBack() {
+    if (saving) return;
+    setNameError('');
+    if (stepIndex > 0) goToStep(stepIndex - 1);
+  }
+
   async function handleFinish() {
     if (saving) return;
     setSaving(true);
     try {
       const name = childName.trim() || 'Amiguinho';
-      const selectedAvatar = avatarId || DEFAULT_AVATAR_ID;
+      // Segurança: se por edge case o avatar escolhido estiver bloqueado (0 estrelinhas
+      // no onboarding), cai no default 'star' (sempre grátis/válido).
+      const candidateAvatar = avatarId || DEFAULT_AVATAR_ID;
+      const selectedAvatar = isAvatarUnlocked(candidateAvatar, 0, null) ? candidateAvatar : DEFAULT_AVATAR_ID;
 
-      // 1. Atualiza o perfil legado (@ptf_profile) → HomeScreen e ProfileScreen continuam funcionando
-      await saveProfile({ name, avatarId: selectedAvatar, skinTone });
+      // Tom por avatar (independente): só boy/girl carregam tom; star ignora.
+      const avatarSkinTones = (selectedAvatar === 'boy' || selectedAvatar === 'girl')
+        ? { [selectedAvatar]: skinTone }
+        : {};
+
+      // 1. Atualiza o perfil legado (@ptf_profile). Mantém skinTone legado p/ compat
+      //    e grava avatarSkinTones (novo, por avatar). HomeScreen/ProfileScreen seguem.
+      await saveProfile({ name, avatarId: selectedAvatar, skinTone, avatarSkinTones });
 
       // 2. Cria perfil na nova estrutura de múltiplos filhos (Sprint 1)
       await createChildProfile({ name, avatarId: selectedAvatar }).catch(e => log('onboarding.createChild:', e));
@@ -252,6 +269,17 @@ export default function OnboardingScreen({ navigation }) {
               <Text style={styles.buttonText}>Avançar →</Text>
             </TouchableOpacity>
 
+            {stepIndex > 0 && (
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={handleBack}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+              >
+                <Text style={styles.backBtnText}>← Voltar</Text>
+              </TouchableOpacity>
+            )}
+
             {/* 6. Trilha de estrelas */}
             <ProgressStars currentStep={stepIndex} />
           </ScrollView>
@@ -265,57 +293,36 @@ export default function OnboardingScreen({ navigation }) {
   function renderStepContent() {
     switch (currentStep) {
       case 'welcome':
-        return (
-          <View style={styles.welcomeDecor} pointerEvents="none">
-            <Text style={styles.decorStar1}>✨</Text>
-            <Text style={styles.decorStar2}>⭐</Text>
-            <Text style={styles.decorStar3}>🌟</Text>
-          </View>
-        );
+        // Primeira tela limpa: o protagonista é o Beni (componente real) + a fala.
+        // Sem estrelas-emoji decorativas (empobreciam a tela).
+        return null;
 
       case 'avatar':
         return (
-          <View>
-            <View style={styles.avatarGrid}>
-              {AVATARS.map(av => (
+          <View style={styles.avatarGrid}>
+            {/* Onboarding: 5 cards finais já com o tom embutido (sem seletor separado). */}
+            {ONBOARDING_AVATAR_OPTIONS.map(opt => {
+              const isSel = avatarId === opt.avatarId
+                && (opt.avatarId === 'star' || skinTone === opt.skinTone);
+              return (
                 <TouchableOpacity
-                  key={av.id}
-                  style={[styles.avatarCell, avatarId === av.id && styles.avatarCellSelected]}
-                  onPress={() => setAvatarId(av.id)}
+                  key={opt.key}
+                  style={[styles.avatarCell, isSel && styles.avatarCellSelected]}
+                  onPress={() => { setAvatarId(opt.avatarId); setSkinTone(opt.skinTone); }}
                   activeOpacity={0.7}
                 >
-                  <Image source={getAvatarImage(av.id)} style={styles.avatarImage} resizeMode="contain" />
-                  <Text style={styles.avatarLabel}>{av.label}</Text>
+                  <AvatarImage source={getAvatarImage(opt.avatarId, opt.skinTone)} size={52} />
+                  <Text style={styles.avatarLabel} numberOfLines={1}>{opt.label}</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Seletor de tom de pele — só para avatares humanos (menino/menina) */}
-            {avatarHasSkinTones(avatarId) && (
-              <View style={styles.skinToneRow}>
-                <Text style={styles.skinToneTitle}>Tom de pele</Text>
-                <View style={styles.skinToneOptions}>
-                  {SKIN_TONES.map(tone => (
-                    <TouchableOpacity
-                      key={tone}
-                      style={[styles.avatarCell, skinTone === tone && styles.avatarCellSelected]}
-                      onPress={() => setSkinTone(tone)}
-                      activeOpacity={0.7}
-                    >
-                      <Image source={getAvatarImage(avatarId, tone)} style={styles.avatarImage} resizeMode="contain" />
-                      <Text style={styles.avatarLabel}>{tone === 'claro' ? 'Claro' : 'Escuro'}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
+              );
+            })}
           </View>
         );
 
       case 'confirm':
         return (
           <View style={styles.confirmCard}>
-            <AvatarImage source={getAvatarImage(avatarId, skinTone)} size={96} backgroundColor="#FFFDF8" style={styles.confirmAvatar} />
+            <AvatarImage source={getAvatarImage(avatarId || 'star', skinTone)} size={96} zoom={1.14} style={styles.confirmAvatar} />
             <Text style={styles.confirmName}>{childName.trim() || 'Amiguinho'}</Text>
             <Text style={styles.confirmStory}>Sua jornada vai começar!</Text>
           </View>
@@ -327,7 +334,7 @@ export default function OnboardingScreen({ navigation }) {
   }
 
   const isLastStep = currentStep === 'confirm';
-  const buttonLabel = isLastStep ? 'Começar aventura 🚀' : 'Avançar →';
+  const buttonLabel = isLastStep ? 'Começar aventura' : 'Avançar →';
 
   // Etapa de nome tem layout próprio: TextInput sempre antes do botão, sem dependência do footer
   if (currentStep === 'name') return renderNameStep();
@@ -374,6 +381,17 @@ export default function OnboardingScreen({ navigation }) {
           >
             <Text style={styles.buttonText}>{saving ? 'Carregando…' : buttonLabel}</Text>
           </TouchableOpacity>
+          {stepIndex > 0 && (
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={handleBack}
+              activeOpacity={0.7}
+              disabled={saving}
+              accessibilityRole="button"
+            >
+              <Text style={styles.backBtnText}>← Voltar</Text>
+            </TouchableOpacity>
+          )}
           <ProgressStars currentStep={stepIndex} />
         </View>
       </LinearGradient>
@@ -427,16 +445,6 @@ const styles = StyleSheet.create({
   },
 
   // Estrelas decorativas na etapa de boas-vindas
-  welcomeDecor: {
-    width: '100%',
-    height: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  decorStar1: { fontSize: 36, position: 'absolute', left: '15%', top: 0 },
-  decorStar2: { fontSize: 28, position: 'absolute', right: '20%', top: 10 },
-  decorStar3: { fontSize: 40, position: 'absolute', left: '42%', bottom: 0 },
-
   // Input de nome — borda dourada unmistakable, branco sólido, altura mínima garantida
   inputWrapper: {
     width: '100%',
@@ -496,36 +504,18 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
+  // Estado selecionado NÃO altera borderWidth/padding/tamanho (evita salto de layout):
+  // só muda cor da borda + fundo. A borda tem largura constante (2) em ambos os estados.
   avatarCellSelected: {
     borderColor: colors.primary,
     backgroundColor: '#FFF3CC',
-    borderWidth: 3,
-  },
-  avatarImage: {
-    width: 48,
-    height: 48,
   },
   avatarLabel: {
     fontFamily: 'Nunito',
     fontSize: 11,
     color: colors.textLight,
-  },
-
-  // Seletor de tom de pele (só menino/menina)
-  skinToneRow: {
-    marginTop: 18,
-    alignItems: 'center',
-  },
-  skinToneTitle: {
-    fontFamily: 'Nunito',
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textLight,
-    marginBottom: 8,
-  },
-  skinToneOptions: {
-    flexDirection: 'row',
-    gap: 16,
+    height: 16,
+    textAlignVertical: 'center',
   },
 
   // Cards de história — empilhados verticalmente, layout horizontal interno
@@ -633,17 +623,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Botão principal
+  // Botão principal — dourado suave (âmbar mel do app), infantil e leve, texto marrom
+  // escuro para bom contraste. Sem laranja/marrom chapado pesado.
   button: {
-    backgroundColor: colors.action,
-    borderRadius: 18,
+    backgroundColor: '#FFC94D',
+    borderRadius: 20,
     paddingVertical: 18,
     alignItems: 'center',
-    elevation: 5,
-    shadowColor: colors.action,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    elevation: 3,
+    shadowColor: '#E0A21E',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 7,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -651,7 +642,19 @@ const styles = StyleSheet.create({
   buttonText: {
     fontFamily: 'FredokaOne',
     fontSize: 20,
-    color: '#FFFFFF',
+    color: '#5A3E1B',
     letterSpacing: 0.3,
+  },
+  backBtn: {
+    marginTop: 10,
+    alignSelf: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 18,
+  },
+  backBtnText: {
+    fontFamily: 'Nunito',
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textLight,
   },
 });
