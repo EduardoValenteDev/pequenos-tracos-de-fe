@@ -1,0 +1,25 @@
+# CODEOWNERS — documentação de ownership (Bloco Agentes 1.1).
+#
+# OBJETIVO: registrar quem é dono de cada área sensível do projeto. Neste momento
+# NÃO há exigência de review de code owner (branch protection será configurada
+# manualmente depois — ver docs/BRANCH_PROTECTION_GUIDE.md). Este arquivo serve para
+# tornar explícita a responsabilidade sobre áreas protegidas e de governança.
+#
+# Regra do GitHub: o ÚLTIMO padrão que casar prevalece.
+
+# Owner geral do repositório
+*                                   @EduardoValenteDev
+
+# ── Áreas sensíveis (conteúdo e arquitetura) ────────────────────────────────
+/assets/                            @EduardoValenteDev
+/assets/stories/                    @EduardoValenteDev
+/src/services/                      @EduardoValenteDev
+/src/context/ProgressContext.js     @EduardoValenteDev
+
+# ── Governança, CI e fonte de verdade ───────────────────────────────────────
+/AGENTS.md                          @EduardoValenteDev
+/CLAUDE.md                          @EduardoValenteDev
+/.github/                           @EduardoValenteDev
+/.specify/                          @EduardoValenteDev
+/docs/PROJECT_SOURCE_OF_TRUTH.md    @EduardoValenteDev
+/docs/BRANCH_PROTECTION_GUIDE.md    @EduardoValenteDev
