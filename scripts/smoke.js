@@ -10624,6 +10624,32 @@ check(
     );
   }
 
+  // ── Arquitetura 001.3: relatórios de orçamento/rastreabilidade executam sem quebrar ──
+  {
+    const reports = [
+      { file: 'budget-report', key: 'proxy' },
+      { file: 'growth-projection', key: 'projection' },
+      { file: 'traceability', key: 'integrity' },
+    ];
+    reports.forEach(({ file, key }) => {
+      let ok = false;
+      let detail = '';
+      try {
+        const mod = require(`./assets-pipeline/${file}`);
+        const r = mod.run();
+        ok = !!r && typeof r === 'object' && r[key] !== undefined;
+        if (!ok) detail = `run() sem chave '${key}'`;
+      } catch (e) {
+        detail = String(e && e.message);
+      }
+      check(
+        `Arquitetura 001.3: relatório ${file} executa sem quebrar e retorna objeto`,
+        ok,
+        detail,
+      );
+    });
+  }
+
   // ── Arquitetura 001.2: contentManifest + packManifestService (Fase 2 mínima) ──
   {
     const cm = a1LoadSandbox('src/data/contentManifest.js', {}, [

@@ -30,6 +30,10 @@ Todo lote de assets novo segue, em ordem:
 | `npm run assets:inventory` | `inventory.js` | Inventário JSON determinístico (categorias × tracked/untracked × bytes) — FR-001 |
 | `npm run assets:measure` | `measure-size.js` | Tamanhos mensuráveis (assets, src, .git) + "N/A" para export/bundle/builds — FR-002 |
 | `npm run assets:guard` | `check-untracked-guard.js` | **Falha** se `assets/stories/*` estiver staged — FR-013/D9 |
+| `npm run assets:validate-manifest -- <m.json>` | `validate-pack-manifest.js` | Valida um manifesto de pack contra `packManifestService` — FR-018 |
+| `npm run assets:budget` | `budget-report.js` | Orçamento: assets tracked (proxy) vs meta ~150 MB — FR-003/FR-004 |
+| `npm run assets:growth` | `growth-projection.js` | Projeção 20 histórias + >=25% de reserva — FR-003 |
+| `npm run assets:traceability` | `traceability.js` | Cruza história ↔ camada ↔ requires ↔ existência/tracked — FR-011 |
 
 ## Guard de Git — `assets/stories/*` (T005a)
 
