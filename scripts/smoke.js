@@ -10624,6 +10624,65 @@ check(
     );
   }
 
+  // ── Arquitetura 001.2: contentManifest + packManifestService (Fase 2 mínima) ──
+  {
+    const cm = a1LoadSandbox('src/data/contentManifest.js', {}, [
+      'CONTENT_LAYERS', 'STARTER_STORY_IDS', 'REMOTE_PACKS', 'getContentLayer', 'getStoriesByLayer', 'isValidLayer',
+    ]);
+    // (a) contentManifest existe + camadas declaradas
+    check(
+      'Arquitetura 001.2: contentManifest declara camadas starter/remote/coming_soon',
+      cm.CONTENT_LAYERS.STARTER === 'starter' &&
+      cm.CONTENT_LAYERS.REMOTE === 'remote' &&
+      cm.CONTENT_LAYERS.COMING_SOON === 'coming_soon' &&
+      cm.isValidLayer('starter') && !cm.isValidLayer('nope'),
+      'CONTENT_LAYERS incompleto ou isValidLayer incorreto',
+    );
+    // (b/e) starter declarado e A Criação + Noé no starter
+    check(
+      'Arquitetura 001.2: A Criação e Noé ficam no starter (binário/offline)',
+      cm.getContentLayer('creation') === 'starter' &&
+      cm.getContentLayer('noah') === 'starter' &&
+      cm.STARTER_STORY_IDS.includes('creation') &&
+      cm.STARTER_STORY_IDS.includes('noah'),
+      'creation/noah não estão no starter',
+    );
+    // (c) remote packs declaráveis SEM download (sem URL real/fetch)
+    check(
+      'Arquitetura 001.2: remote packs declarados sem download',
+      Array.isArray(cm.REMOTE_PACKS) && cm.REMOTE_PACKS.length >= 1 &&
+      cm.REMOTE_PACKS[0].layer === 'remote' &&
+      cm.REMOTE_PACKS[0].status === 'not_downloaded' &&
+      cm.getStoriesByLayer('remote').length >= 1,
+      'remote packs não declaráveis sem download',
+    );
+    // (d) coming_soon declarável (planejado, fora do bundle)
+    check(
+      'Arquitetura 001.2: coming_soon declarável (planejado, fora do bundle)',
+      cm.getStoriesByLayer('coming_soon').length >= 1 &&
+      cm.getContentLayer('jesus_temple') === 'coming_soon',
+      'coming_soon não declarável',
+    );
+    // (g) packManifestService valida campos obrigatórios do contrato
+    const pm = a1LoadSandbox('src/services/packManifestService.js', {}, ['validateManifest']);
+    const validManifest = {
+      schemaVersion: 1, id: 'story_ruth_naomi', version: '1.0.0', type: 'story', minAppVersion: '1.0.0',
+      totalBytes: 30,
+      files: [{ path: 'scenes/ruth_naomi_scene_01.webp', bytes: 30, sha256: 'a'.repeat(64), kind: 'scene', width: 1024, height: 1280, ratio: '4:5' }],
+      metadata: { title: 'Rute e Noemi', storyId: 'ruth_naomi', language: 'pt-BR' },
+    };
+    const okRes = pm.validateManifest(validManifest);
+    const badRes = pm.validateManifest({ schemaVersion: 2, id: 'BAD ID', version: '1.0', type: 'movie', minAppVersion: 'x', totalBytes: 5, files: [], metadata: {} });
+    const sumRes = pm.validateManifest({ ...validManifest, totalBytes: 999 });
+    check(
+      'Arquitetura 001.2: packManifestService valida campos obrigatórios do contrato',
+      okRes.ok === true && okRes.errors.length === 0 &&
+      badRes.ok === false && badRes.errors.length >= 5 &&
+      sumRes.ok === false && sumRes.errors.some((e) => /totalBytes/.test(e)),
+      `valid=${okRes.ok}(${okRes.errors.length}) bad=${badRes.ok}(${badRes.errors.length}) sum=${sumRes.ok}`,
+    );
+  }
+
   // ── Arquitetura 001.1: guard impede assets/stories/* staged (git add acidental) ──
   {
     let guard = { ok: true, staged: [], error: 'guard indisponível' };
