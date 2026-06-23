@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pequenostracosdefe.app/schemas/pack-manifest.v1.json",
+  "title": "Pack Manifest",
+  "description": "Manifesto versionado de um pack de conteúdo (starter local ou remoto baixável). Proposta inicial — Plano 001. Não decide provedor/algoritmo de entrega.",
+  "type": "object",
+  "required": ["schemaVersion", "id", "version", "type", "minAppVersion", "totalBytes", "files", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Versão do schema do manifesto (compatibilidade do parser). Incrementa em mudanças incompatíveis."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$",
+      "description": "Slug estável do pack, ex.: story_ruth_naomi"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Versão semver do CONTEÚDO do pack."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["story", "coloring", "audio", "bundle"]
+    },
+    "minAppVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Versão mínima do app capaz de usar este pack."
+    },
+    "totalBytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Soma de files[].bytes. Validar igualdade no download."
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/fileEntry" }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["title", "storyId", "language"],
+      "additionalProperties": true,
+      "properties": {
+        "title": { "type": "string" },
+        "storyId": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "language": { "type": "string", "examples": ["pt-BR"] },
+        "coverPath": { "type": "string" }
+      }
+    }
+  },
+  "definitions": {
+    "fileEntry": {
+      "type": "object",
+      "required": ["path", "bytes", "sha256", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^[^/].*$",
+          "not": { "pattern": "\\.\\." },
+          "description": "Caminho relativo ao pack; sem '..'; único no manifesto."
+        },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Hash de integridade do arquivo."
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["scene", "coloring", "audio", "cover", "other"]
+        },
+        "width": { "type": ["integer", "null"], "minimum": 1 },
+        "height": { "type": ["integer", "null"], "minimum": 1 },
+        "ratio": {
+          "type": ["string", "null"],
+          "examples": ["4:5"],
+          "description": "Proporção declarada; cenas/colorir devem ser 4:5 ou marcadas para aprovação visual."
+        }
+      }
+    }
+  }
+}
