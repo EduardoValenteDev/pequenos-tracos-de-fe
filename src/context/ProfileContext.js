@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DEFAULT_AVATAR_ID } from '../data/avatars';
+import { DEFAULT_AVATAR_ID, DEFAULT_SKIN_TONE } from '../data/avatars';
 import { log } from '../utils/logger';
 
 const PROFILE_KEY = '@ptf_profile';
@@ -8,6 +8,7 @@ const PROFILE_KEY = '@ptf_profile';
 const DEFAULT_PROFILE = {
   name: '',
   avatarId: DEFAULT_AVATAR_ID,
+  skinTone: DEFAULT_SKIN_TONE,
 };
 
 const ProfileContext = createContext({

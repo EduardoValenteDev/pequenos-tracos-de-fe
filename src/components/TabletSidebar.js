@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { AVATARS, DEFAULT_AVATAR_ID } from '../data/avatars';
+import { getAvatarImage, getProfileAvatarSkinTone } from '../data/avatars';
+import AvatarImage from './AvatarImage';
 import { useProfile } from '../context/ProfileContext';
 import BeniCircularArt from './common/BeniCircularArt';
 import { registerGuideTarget } from '../services/guideTargetRegistry';
@@ -18,10 +19,6 @@ const TABS = [
 export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxStars }) {
   const insets = useSafeAreaInsets();
   const { profile } = useProfile();
-
-  const avatar =
-    AVATARS.find(a => a.id === profile.avatarId) ??
-    AVATARS.find(a => a.id === DEFAULT_AVATAR_ID);
 
   const starsPercent = maxStars > 0 ? Math.min(totalStars / maxStars, 1) : 0;
   const greeting = profile.name ? `Olá, ${profile.name}!` : 'Olá!';
@@ -44,7 +41,7 @@ export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxSt
       <View style={styles.profileArea}>
         <View style={styles.lumiRow}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarEmoji}>{avatar?.emoji ?? '⭐'}</Text>
+            <AvatarImage source={getAvatarImage(profile.avatarId, getProfileAvatarSkinTone(profile, profile.avatarId))} size={56} />
           </View>
           <BeniCircularArt
             variant="avatarBase"
@@ -142,7 +139,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.primary + '50',
   },
-  avatarEmoji: { fontSize: 32 },
   // O círculo/borda/fundo vêm de BeniCircularArt; aqui só a posição relativa.
   lumiBadge: {
     marginLeft: -10,

@@ -10574,6 +10574,56 @@ check(
     check('B2 mediaReady: flip pelas contagens reais', false, String(e && e.message));
   }
 
+  // ── Agentes 1.1: artefatos de governança/review existem e são consistentes ──
+  {
+    const prTpl = srcExists('.github/pull_request_template.md') ? readSrc('.github/pull_request_template.md') : '';
+    check(
+      'Agentes 1.1: PR template existe e cobre portões + smoke/expo-doctor + validação visual + git add + assets + AGENTS.md',
+      prTpl.length > 0 &&
+      /Port(ã|õ)/i.test(prTpl) &&
+      prTpl.includes('npm run smoke') &&
+      prTpl.includes('expo-doctor') &&
+      /valida(ç|c)(ã|a)o visual/i.test(prTpl) &&
+      prTpl.includes('git add') &&
+      /assets\/stories/.test(prTpl) &&
+      prTpl.includes('AGENTS.md'),
+      'PR template ausente ou não cobre os itens de governança',
+    );
+
+    const owners = srcExists('.github/CODEOWNERS') ? readSrc('.github/CODEOWNERS') : '';
+    check(
+      'Agentes 1.1: CODEOWNERS existe, define owner e marca áreas sensíveis + governança',
+      owners.length > 0 &&
+      owners.includes('@EduardoValenteDev') &&
+      owners.includes('/assets/') &&
+      owners.includes('/assets/stories/') &&
+      owners.includes('/src/services/') &&
+      owners.includes('/AGENTS.md') &&
+      owners.includes('/.github/'),
+      'CODEOWNERS ausente ou sem os caminhos sensíveis/governança esperados',
+    );
+
+    const bpGuide = srcExists('docs/BRANCH_PROTECTION_GUIDE.md') ? readSrc('docs/BRANCH_PROTECTION_GUIDE.md') : '';
+    check(
+      'Agentes 1.1: BRANCH_PROTECTION_GUIDE documenta PR + check smoke obrigatório + bloquear force-push',
+      bpGuide.length > 0 &&
+      bpGuide.includes('sprint_design_system_jornada_beni') &&
+      /check\s+`?smoke`?/i.test(bpGuide) &&
+      /force.?push/i.test(bpGuide) &&
+      /expo-doctor/i.test(bpGuide),
+      'BRANCH_PROTECTION_GUIDE.md ausente ou incompleto',
+    );
+
+    const ciYml = srcExists('.github/workflows/ci.yml') ? readSrc('.github/workflows/ci.yml') : '';
+    check(
+      'Agentes 1.1: CI expõe check estável "smoke" e mantém expo-doctor informativo',
+      ciYml.length > 0 &&
+      /\n\s{2}smoke:\s*\n\s{4}name:\s*smoke\b/.test(ciYml) &&
+      /continue-on-error:\s*true/.test(ciYml),
+      'ci.yml sem job/check estável "smoke" ou sem expo-doctor informativo',
+    );
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

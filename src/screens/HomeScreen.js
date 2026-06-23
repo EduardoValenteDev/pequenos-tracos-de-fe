@@ -20,7 +20,8 @@ import { HOME_GUIDE } from '../data/beniGuides';
 import { useFocusEffect } from '@react-navigation/native';
 import { useProfile } from '../context/ProfileContext';
 import { useProgressContext } from '../context/ProgressContext';
-import { AVATARS, DEFAULT_AVATAR_ID } from '../data/avatars';
+import { getAvatarImage, getProfileAvatarSkinTone } from '../data/avatars';
+import AvatarImage from '../components/AvatarImage';
 import { canOpenMomentoLumi } from '../services/accessControl';
 import { getHomePrimaryAction } from '../services/homeService';
 import { getShowcaseStory } from '../services/showcaseStory';
@@ -67,7 +68,7 @@ function dayIndex(listLength) {
 /* ═══════════════════════════════════════════════════════════════════
    BeniHeroScene — cena de entrada do mundo
 ═══════════════════════════════════════════════════════════════════ */
-function BeniHeroScene({ greeting, totalStars, avatar, insets, bubbleMessage }) {
+function BeniHeroScene({ greeting, totalStars, avatarImage, insets, bubbleMessage }) {
   return (
     <View style={heroS.wrapper}>
       <LinearGradient
@@ -84,7 +85,7 @@ function BeniHeroScene({ greeting, totalStars, avatar, insets, bubbleMessage }) 
         {/* Saudação + Beni (compacto) */}
         <View style={heroS.contentRow}>
           <View style={heroS.childCircle}>
-            <Text style={heroS.childEmoji}>{avatar?.emoji ?? '⭐'}</Text>
+            <AvatarImage source={avatarImage} size={42} />
           </View>
           <View style={heroS.greetingCol}>
             <Text style={heroS.greetingText} numberOfLines={1}>{greeting}</Text>
@@ -155,7 +156,6 @@ const heroS = StyleSheet.create({
     shadowColor: '#F4B400',
     shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 3,
   },
-  childEmoji: { fontSize: 24 },
   greetingText: {
     fontFamily: 'FredokaOne', fontSize: 20, color: '#3A2A1E', marginBottom: 5,
   },
@@ -561,9 +561,6 @@ export default function HomeScreen({ navigation }) {
   const slideAnim = useRef(new Animated.Value(24)).current;
 
   const { profile } = useProfile();
-  const avatar =
-    AVATARS.find(a => a.id === profile.avatarId) ??
-    AVATARS.find(a => a.id === DEFAULT_AVATAR_ID);
   const greeting = profile.name ? `Olá, ${profile.name}!` : 'Olá!';
 
   const { progressByStory, progressSummary, postStoryStatusByStory, refreshProgress } = useProgressContext();
@@ -742,7 +739,7 @@ export default function HomeScreen({ navigation }) {
         <BeniHeroScene
           greeting={greeting}
           totalStars={totalStars}
-          avatar={avatar}
+          avatarImage={getAvatarImage(profile.avatarId, getProfileAvatarSkinTone(profile, profile.avatarId))}
           insets={insets}
           bubbleMessage={getBeniGuideMessage('home', {
             hasProgress:

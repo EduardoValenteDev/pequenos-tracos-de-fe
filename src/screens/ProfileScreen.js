@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
+  View, Text, TextInput, TouchableOpacity, ScrollView, Modal, Pressable,
   StyleSheet, KeyboardAvoidingView, Platform, useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
-import { AVATARS } from '../data/avatars';
+import { getAvatarById, getAvatarImage, isAvatarUnlocked, getAvatarUnlockStars, avatarHasSkinTones, getProfileAvatarSkinTone, SKIN_TONES, PROFILE_AVATAR_ORDER } from '../data/avatars';
+import AvatarImage from '../components/AvatarImage';
 import CenteredContent from '../components/layout/CenteredContent';
 import { BeniGuideBubble } from '../components/beni';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
@@ -20,25 +21,46 @@ import { preloadGuideAudio } from '../data/beniGuideAudio';
 import { useProfile } from '../context/ProfileContext';
 import { useProgressContext } from '../context/ProgressContext';
 
-function AvatarPicker({ selected, onSelect }) {
+function AvatarPicker({ profile, onSelect, onLockedPress, totalStars = 0 }) {
+  const currentAvatarId = profile.avatarId;
   return (
     <View style={styles.avatarGrid}>
-      {AVATARS.map(avatar => {
-        const isSelected = selected === avatar.id;
+      {PROFILE_AVATAR_ORDER.map(id => {
+        const avatar = getAvatarById(id);
+        const isSelected = currentAvatarId === avatar.id;
+        const unlocked = isAvatarUnlocked(avatar.id, totalStars, currentAvatarId);
         return (
           <TouchableOpacity
             key={avatar.id}
             style={[
               styles.avatarOption,
               isSelected && styles.avatarOptionSelected,
+              !unlocked && styles.avatarOptionLocked,
             ]}
-            onPress={() => onSelect(avatar.id)}
+            onPress={() => { unlocked ? onSelect(avatar.id) : onLockedPress?.(avatar); }}
             activeOpacity={0.8}
+            accessibilityState={{ selected: isSelected }}
           >
-            <Text style={styles.avatarOptionEmoji}>{avatar.emoji}</Text>
-            <Text style={styles.avatarOptionLabel} numberOfLines={2}>
+            <View style={styles.avatarOptionImgWrap}>
+              <AvatarImage
+                source={getAvatarImage(avatar.id, getProfileAvatarSkinTone(profile, avatar.id))}
+                size={44}
+                style={!unlocked && styles.avatarOptionImageLocked}
+              />
+              {!unlocked && (
+                <View style={styles.avatarLockBadge}>
+                  <Text style={styles.avatarLockEmoji}>🔒</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.avatarOptionLabel} numberOfLines={1}>
               {avatar.label}
             </Text>
+            {!unlocked && (
+              <Text style={styles.avatarUnlockHint} numberOfLines={2}>
+                Libera com {getAvatarUnlockStars(avatar.id)} ⭐
+              </Text>
+            )}
           </TouchableOpacity>
         );
       })}
@@ -106,6 +128,8 @@ export default function ProfileScreen({ navigation }) {
 
   const { profile, saveProfile } = useProfile();
   const [nameInput, setNameInput] = useState(profile.name);
+  const [avatarZoom, setAvatarZoom] = useState(false); // modal de ampliação do avatar atual
+  const [lockedInfo, setLockedInfo] = useState(null);   // {label, stars} do avatar bloqueado tocado
   useEffect(() => {
     setNameInput(profile.name);
   }, [profile.name]);
@@ -123,7 +147,17 @@ export default function ProfileScreen({ navigation }) {
     saveProfile({ avatarId });
   }
 
-  const currentAvatar = AVATARS.find(a => a.id === profile.avatarId) ?? AVATARS[0];
+  function handleLockedPress(avatar) {
+    setLockedInfo({ label: avatar.label, stars: getAvatarUnlockStars(avatar.id) });
+  }
+
+  // Troca de tom (claro/escuro) do avatar ATUAL — só boy/girl. Atualiza SOMENTE
+  // avatarSkinTones[avatarId] (independente): trocar boy não afeta girl e vice-versa.
+  function handleSkinToneChange(tone) {
+    const avatarId = profile.avatarId;
+    if (getProfileAvatarSkinTone(profile, avatarId) === tone) return;
+    saveProfile({ avatarSkinTones: { ...(profile.avatarSkinTones || {}), [avatarId]: tone } });
+  }
 
   /* ── Child block ── */
   const childBlock = (
@@ -137,9 +171,14 @@ export default function ProfileScreen({ navigation }) {
         <Text style={styles.cantinhoTitle}>Meu cantinho</Text>
         {/* Alvo do guia (Card 2 "Sua carinha"): avatar + nome da criança. */}
         <View ref={profileTargets.register('profile.identity')} collapsable={false} style={styles.identityTarget}>
-          <View style={styles.bigAvatarCircle}>
-            <Text style={styles.bigAvatarEmoji}>{currentAvatar.emoji}</Text>
-          </View>
+          <Pressable
+            style={styles.bigAvatarCircle}
+            onPress={() => setAvatarZoom(true)}
+            accessibilityRole="imagebutton"
+            accessibilityLabel="Ver avatar maior"
+          >
+            <AvatarImage source={getAvatarImage(profile.avatarId, getProfileAvatarSkinTone(profile, profile.avatarId))} size={72} />
+          </Pressable>
           <Text style={styles.childName}>
             {profile.name ? profile.name : 'Pequeno artista'}
           </Text>
@@ -152,6 +191,56 @@ export default function ProfileScreen({ navigation }) {
         </View>
         <Text style={styles.progressBarLabel}>{totalStars}/{maxStars} estrelas alcançadas</Text>
       </LinearGradient>
+
+      {/* Modal simples de ampliação do avatar ATUAL (tocar no avatar) — sem navegação nova */}
+      <Modal
+        visible={avatarZoom}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAvatarZoom(false)}
+      >
+        <Pressable style={styles.avatarZoomBackdrop} onPress={() => setAvatarZoom(false)}>
+          <View style={styles.avatarZoomCard}>
+            <AvatarImage
+              source={getAvatarImage(profile.avatarId, getProfileAvatarSkinTone(profile, profile.avatarId))}
+              size={184}
+              zoom={1.14}
+              style={styles.avatarZoomImage}
+            />
+            <TouchableOpacity
+              style={styles.avatarZoomClose}
+              onPress={() => setAvatarZoom(false)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.avatarZoomCloseText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Explicação ao tocar em avatar BLOQUEADO — linguagem positiva, sem cobrança */}
+      <Modal
+        visible={!!lockedInfo}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLockedInfo(null)}
+      >
+        <Pressable style={styles.avatarZoomBackdrop} onPress={() => setLockedInfo(null)}>
+          <View style={styles.lockedCard}>
+            <Text style={styles.lockedEmoji}>🔒</Text>
+            <Text style={styles.lockedText}>
+              Continue sua jornada para liberar este avatar com {lockedInfo?.stars} estrelinhas.
+            </Text>
+            <TouchableOpacity
+              style={styles.avatarZoomClose}
+              onPress={() => setLockedInfo(null)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.avatarZoomCloseText}>Entendi</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* Beni guia — sem substituir o avatar da criança */}
       <BeniGuideBubble
@@ -181,7 +270,37 @@ export default function ProfileScreen({ navigation }) {
       {/* Avatar picker */}
       <View style={styles.childSection}>
         <Text style={styles.childSectionLabel}>Escolha seu avatar</Text>
-        <AvatarPicker selected={profile.avatarId} onSelect={handleAvatarSelect} />
+        <AvatarPicker
+          profile={profile}
+          onSelect={handleAvatarSelect}
+          onLockedPress={handleLockedPress}
+          totalStars={totalStars}
+        />
+
+        {/* Tom de pele do avatar atual — só menino/menina; salva apenas skinTone */}
+        {avatarHasSkinTones(profile.avatarId) && (
+          <View style={styles.toneRow}>
+            <Text style={styles.toneLabel}>Cor da pele</Text>
+            <View style={styles.toneOptions}>
+              {SKIN_TONES.map(tone => {
+                const active = getProfileAvatarSkinTone(profile, profile.avatarId) === tone;
+                return (
+                  <TouchableOpacity
+                    key={tone}
+                    style={[styles.toneChip, active && styles.toneChipActive]}
+                    onPress={() => handleSkinToneChange(tone)}
+                    activeOpacity={0.8}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.toneChipText, active && styles.toneChipTextActive]}>
+                      {tone === 'claro' ? 'Claro' : 'Escuro'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -278,7 +397,39 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
   },
-  bigAvatarEmoji: { fontSize: 42 },
+  avatarZoomBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  avatarZoomCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    paddingVertical: 28,
+    paddingHorizontal: 40,
+    alignItems: 'center',
+    gap: 18,
+    maxWidth: 300,
+  },
+  // Anel que DEFINE o círculo do avatar contra o card branco (evita "imagem estreita
+  // num quadrado branco"). overflow hidden + zoom no AvatarImage preenchem o círculo.
+  avatarZoomImage: {
+    borderWidth: 4,
+    borderColor: '#EADFD2',
+  },
+  avatarZoomClose: {
+    backgroundColor: pt.primary ?? '#7C3AED',
+    borderRadius: 999,
+    paddingHorizontal: 28,
+    paddingVertical: 10,
+  },
+  avatarZoomCloseText: {
+    fontFamily: 'FredokaOne',
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
   childName: {
     fontFamily: 'FredokaOne', fontSize: 22, color: '#3A2A1E', marginBottom: 3,
   },
@@ -332,10 +483,63 @@ const styles = StyleSheet.create({
     elevation: 5,
     shadowColor: colors.primary, shadowOpacity: 0.25, shadowRadius: 6,
   },
-  avatarOptionEmoji: { fontSize: 30 },
   avatarOptionLabel: {
     fontFamily: 'Nunito', fontSize: 10, color: pt.text,
     textAlign: 'center', marginTop: 5, lineHeight: 13, fontWeight: '700',
+  },
+  avatarOptionLocked: {
+    backgroundColor: '#F4F1EA',
+  },
+  avatarOptionImgWrap: {
+    width: 44, height: 44, position: 'relative',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarOptionImageLocked: { opacity: 0.35 },
+  avatarLockBadge: {
+    position: 'absolute', right: -4, bottom: -2,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: 'rgba(58,42,30,0.62)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarLockEmoji: { fontSize: 11 },
+  avatarUnlockHint: {
+    fontFamily: 'Nunito', fontSize: 9, color: '#9A6B12', fontWeight: '700',
+    textAlign: 'center', marginTop: 2, lineHeight: 11,
+  },
+
+  // Toggle de tom de pele (Perfil) — só boy/girl
+  toneRow: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  toneLabel: {
+    fontFamily: 'Nunito', fontSize: 13, fontWeight: '700', color: pt.textSoft,
+  },
+  toneOptions: { flexDirection: 'row', gap: 8 },
+  toneChip: {
+    paddingHorizontal: 16, paddingVertical: 7, borderRadius: 999,
+    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: pt.border,
+  },
+  toneChipActive: {
+    backgroundColor: colors.primary + '1A', borderColor: colors.primary,
+  },
+  toneChipText: {
+    fontFamily: 'Nunito', fontSize: 13, fontWeight: '700', color: pt.textSoft,
+  },
+  toneChipTextActive: { color: '#7A5800' },
+
+  // Modal de avatar bloqueado
+  lockedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 24,
+    paddingHorizontal: 28,
+    marginHorizontal: 8,
+    alignItems: 'center',
+    gap: 14,
+    maxWidth: 320,
+  },
+  lockedEmoji: { fontSize: 36 },
+  lockedText: {
+    fontFamily: 'Nunito', fontSize: 15, fontWeight: '700', color: pt.text,
+    textAlign: 'center', lineHeight: 21,
   },
 
   /* ── Adult block ── */
