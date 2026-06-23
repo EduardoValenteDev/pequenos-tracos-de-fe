@@ -68,3 +68,6 @@ credentials.json
 serviceAccount.json
 google-services.json
 GoogleService-Info.plist
+
+# Configurações pessoais de agentes (não versionar)
+.claude/settings.local.json

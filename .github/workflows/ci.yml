@@ -1,0 +1,38 @@
+name: CI
+
+# Gates de qualidade agnósticos de agente (Claude Code, Codex e outros).
+# smoke = gate DURO (node puro, determinístico, sem rede).
+# expo-doctor = informativo no início (toca a rede): continue-on-error.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - sprint_design_system_jornada_beni
+
+jobs:
+  smoke:
+    name: Smoke (gate duro)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run smoke
+
+  expo-doctor:
+    name: expo-doctor (informativo)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx expo-doctor
