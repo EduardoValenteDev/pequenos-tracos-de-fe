@@ -17,6 +17,7 @@
     "assets:budget": "node scripts/assets-pipeline/budget-report.js",
     "assets:growth": "node scripts/assets-pipeline/growth-projection.js",
     "assets:traceability": "node scripts/assets-pipeline/traceability.js",
+    "assets:check-ratio": "node scripts/assets-pipeline/check-ratio.js",
     "audio:audit": "node scripts/audio-audit.js",
     "scene:images:audit": "node scripts/sceneIllustrationsAudit.js",
     "scene:images:audit:strict": "node scripts/sceneIllustrationsAudit.js --strict",
