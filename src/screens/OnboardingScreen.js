@@ -9,13 +9,17 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform, Animated,
+  ScrollView, KeyboardAvoidingView, Platform, Animated, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommonActions } from '@react-navigation/native';
 import BeniAvatar from '../components/beni/BeniAvatar';
-import { AVATARS, DEFAULT_AVATAR_ID } from '../data/avatars';
+import AvatarImage from '../components/AvatarImage';
+import {
+  AVATARS, DEFAULT_AVATAR_ID, getAvatarImage,
+  SKIN_TONES, DEFAULT_SKIN_TONE, avatarHasSkinTones,
+} from '../data/avatars';
 import { useProfile } from '../context/ProfileContext';
 import { createChildProfile } from '../services/childProfileService';
 import { markOnboardingCompleted } from '../services/onboardingService';
@@ -115,6 +119,7 @@ export default function OnboardingScreen({ navigation }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [childName, setChildName] = useState('');
   const [avatarId, setAvatarId] = useState(DEFAULT_AVATAR_ID);
+  const [skinTone, setSkinTone] = useState(DEFAULT_SKIN_TONE);
   const [nameError, setNameError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -146,7 +151,7 @@ export default function OnboardingScreen({ navigation }) {
       const selectedAvatar = avatarId || DEFAULT_AVATAR_ID;
 
       // 1. Atualiza o perfil legado (@ptf_profile) → HomeScreen e ProfileScreen continuam funcionando
-      await saveProfile({ name, avatarId: selectedAvatar });
+      await saveProfile({ name, avatarId: selectedAvatar, skinTone });
 
       // 2. Cria perfil na nova estrutura de múltiplos filhos (Sprint 1)
       await createChildProfile({ name, avatarId: selectedAvatar }).catch(e => log('onboarding.createChild:', e));
@@ -270,31 +275,51 @@ export default function OnboardingScreen({ navigation }) {
 
       case 'avatar':
         return (
-          <View style={styles.avatarGrid}>
-            {AVATARS.map(av => (
-              <TouchableOpacity
-                key={av.id}
-                style={[styles.avatarCell, avatarId === av.id && styles.avatarCellSelected]}
-                onPress={() => setAvatarId(av.id)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.avatarEmoji}>{av.emoji}</Text>
-                <Text style={styles.avatarLabel}>{av.label}</Text>
-              </TouchableOpacity>
-            ))}
+          <View>
+            <View style={styles.avatarGrid}>
+              {AVATARS.map(av => (
+                <TouchableOpacity
+                  key={av.id}
+                  style={[styles.avatarCell, avatarId === av.id && styles.avatarCellSelected]}
+                  onPress={() => setAvatarId(av.id)}
+                  activeOpacity={0.7}
+                >
+                  <Image source={getAvatarImage(av.id)} style={styles.avatarImage} resizeMode="contain" />
+                  <Text style={styles.avatarLabel}>{av.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Seletor de tom de pele — só para avatares humanos (menino/menina) */}
+            {avatarHasSkinTones(avatarId) && (
+              <View style={styles.skinToneRow}>
+                <Text style={styles.skinToneTitle}>Tom de pele</Text>
+                <View style={styles.skinToneOptions}>
+                  {SKIN_TONES.map(tone => (
+                    <TouchableOpacity
+                      key={tone}
+                      style={[styles.avatarCell, skinTone === tone && styles.avatarCellSelected]}
+                      onPress={() => setSkinTone(tone)}
+                      activeOpacity={0.7}
+                    >
+                      <Image source={getAvatarImage(avatarId, tone)} style={styles.avatarImage} resizeMode="contain" />
+                      <Text style={styles.avatarLabel}>{tone === 'claro' ? 'Claro' : 'Escuro'}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
           </View>
         );
 
-      case 'confirm': {
-        const chosenAvatar = AVATARS.find(a => a.id === avatarId);
+      case 'confirm':
         return (
           <View style={styles.confirmCard}>
-            <Text style={styles.confirmEmoji}>{chosenAvatar?.emoji ?? '⭐'}</Text>
+            <AvatarImage source={getAvatarImage(avatarId, skinTone)} size={96} backgroundColor="#FFFDF8" style={styles.confirmAvatar} />
             <Text style={styles.confirmName}>{childName.trim() || 'Amiguinho'}</Text>
             <Text style={styles.confirmStory}>Sua jornada vai começar!</Text>
           </View>
         );
-      }
 
       default:
         return null;
@@ -476,13 +501,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF3CC',
     borderWidth: 3,
   },
-  avatarEmoji: {
-    fontSize: 32,
+  avatarImage: {
+    width: 48,
+    height: 48,
   },
   avatarLabel: {
     fontFamily: 'Nunito',
     fontSize: 11,
     color: colors.textLight,
+  },
+
+  // Seletor de tom de pele (só menino/menina)
+  skinToneRow: {
+    marginTop: 18,
+    alignItems: 'center',
+  },
+  skinToneTitle: {
+    fontFamily: 'Nunito',
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textLight,
+    marginBottom: 8,
+  },
+  skinToneOptions: {
+    flexDirection: 'row',
+    gap: 16,
   },
 
   // Cards de história — empilhados verticalmente, layout horizontal interno
@@ -565,8 +608,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  confirmEmoji: {
-    fontSize: 52,
+  confirmAvatar: {
+    marginBottom: 4,
+    borderWidth: 2,
+    borderColor: 'rgba(0,0,0,0.05)',
   },
   confirmName: {
     fontFamily: 'FredokaOne',

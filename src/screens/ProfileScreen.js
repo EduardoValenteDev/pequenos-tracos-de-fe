@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
+  View, Text, TextInput, TouchableOpacity, ScrollView, Image, Modal, Pressable,
   StyleSheet, KeyboardAvoidingView, Platform, useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
-import { AVATARS } from '../data/avatars';
+import { AVATARS, getAvatarImage } from '../data/avatars';
+import AvatarImage from '../components/AvatarImage';
 import CenteredContent from '../components/layout/CenteredContent';
 import { BeniGuideBubble } from '../components/beni';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
@@ -35,7 +36,7 @@ function AvatarPicker({ selected, onSelect }) {
             onPress={() => onSelect(avatar.id)}
             activeOpacity={0.8}
           >
-            <Text style={styles.avatarOptionEmoji}>{avatar.emoji}</Text>
+            <Image source={getAvatarImage(avatar.id)} style={styles.avatarOptionImage} resizeMode="contain" />
             <Text style={styles.avatarOptionLabel} numberOfLines={2}>
               {avatar.label}
             </Text>
@@ -106,6 +107,7 @@ export default function ProfileScreen({ navigation }) {
 
   const { profile, saveProfile } = useProfile();
   const [nameInput, setNameInput] = useState(profile.name);
+  const [avatarZoom, setAvatarZoom] = useState(false); // modal de ampliação do avatar atual
   useEffect(() => {
     setNameInput(profile.name);
   }, [profile.name]);
@@ -123,8 +125,6 @@ export default function ProfileScreen({ navigation }) {
     saveProfile({ avatarId });
   }
 
-  const currentAvatar = AVATARS.find(a => a.id === profile.avatarId) ?? AVATARS[0];
-
   /* ── Child block ── */
   const childBlock = (
     <View style={styles.childBlock}>
@@ -137,9 +137,14 @@ export default function ProfileScreen({ navigation }) {
         <Text style={styles.cantinhoTitle}>Meu cantinho</Text>
         {/* Alvo do guia (Card 2 "Sua carinha"): avatar + nome da criança. */}
         <View ref={profileTargets.register('profile.identity')} collapsable={false} style={styles.identityTarget}>
-          <View style={styles.bigAvatarCircle}>
-            <Text style={styles.bigAvatarEmoji}>{currentAvatar.emoji}</Text>
-          </View>
+          <Pressable
+            style={styles.bigAvatarCircle}
+            onPress={() => setAvatarZoom(true)}
+            accessibilityRole="imagebutton"
+            accessibilityLabel="Ver avatar maior"
+          >
+            <AvatarImage source={getAvatarImage(profile.avatarId, profile.skinTone)} size={72} />
+          </Pressable>
           <Text style={styles.childName}>
             {profile.name ? profile.name : 'Pequeno artista'}
           </Text>
@@ -152,6 +157,32 @@ export default function ProfileScreen({ navigation }) {
         </View>
         <Text style={styles.progressBarLabel}>{totalStars}/{maxStars} estrelas alcançadas</Text>
       </LinearGradient>
+
+      {/* Modal simples de ampliação do avatar ATUAL (tocar no avatar) — sem navegação nova */}
+      <Modal
+        visible={avatarZoom}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAvatarZoom(false)}
+      >
+        <Pressable style={styles.avatarZoomBackdrop} onPress={() => setAvatarZoom(false)}>
+          <View style={styles.avatarZoomCard}>
+            <AvatarImage
+              source={getAvatarImage(profile.avatarId, profile.skinTone)}
+              size={208}
+              backgroundColor="#FFFDF8"
+              style={styles.avatarZoomImage}
+            />
+            <TouchableOpacity
+              style={styles.avatarZoomClose}
+              onPress={() => setAvatarZoom(false)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.avatarZoomCloseText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* Beni guia — sem substituir o avatar da criança */}
       <BeniGuideBubble
@@ -278,7 +309,36 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
   },
-  bigAvatarEmoji: { fontSize: 42 },
+  avatarZoomBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  avatarZoomCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 24,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    gap: 16,
+  },
+  avatarZoomImage: {
+    borderWidth: 2,
+    borderColor: 'rgba(0,0,0,0.06)',
+  },
+  avatarZoomClose: {
+    backgroundColor: pt.primary ?? '#7C3AED',
+    borderRadius: 999,
+    paddingHorizontal: 28,
+    paddingVertical: 10,
+  },
+  avatarZoomCloseText: {
+    fontFamily: 'FredokaOne',
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
   childName: {
     fontFamily: 'FredokaOne', fontSize: 22, color: '#3A2A1E', marginBottom: 3,
   },
@@ -332,7 +392,7 @@ const styles = StyleSheet.create({
     elevation: 5,
     shadowColor: colors.primary, shadowOpacity: 0.25, shadowRadius: 6,
   },
-  avatarOptionEmoji: { fontSize: 30 },
+  avatarOptionImage: { width: 44, height: 44 },
   avatarOptionLabel: {
     fontFamily: 'Nunito', fontSize: 10, color: pt.text,
     textAlign: 'center', marginTop: 5, lineHeight: 13, fontWeight: '700',

@@ -22,7 +22,8 @@ import { PARENT_GUIDE_BASE, PARENT_GUIDE_CREATOR_STEP } from '../data/beniGuides
 import productConfig from '../config/productConfig';
 import { useProgressContext } from '../context/ProgressContext';
 import { useProfile } from '../context/ProfileContext';
-import { AVATARS } from '../data/avatars';
+import { getAvatarImage } from '../data/avatars';
+import AvatarImage from '../components/AvatarImage';
 import { stories } from '../data/stories';
 import { resetProgress } from '../services/progressResetService';
 import { getStoreReviewUrl } from '../config/storeLinks';
@@ -420,8 +421,7 @@ export default function ParentAreaScreen({ navigation }) {
     return 'Em andamento';
   }
 
-  const childAvatarObj = AVATARS.find(a => a.id === profile.avatarId);
-  const childAvatarEmoji = childAvatarObj?.emoji ?? '⭐';
+  const childAvatarImage = getAvatarImage(profile.avatarId, profile.skinTone);
   const childDisplayName = profile.name?.trim() || 'Ainda não definido';
   const storeUrl = getStoreReviewUrl();
 
@@ -491,7 +491,7 @@ export default function ParentAreaScreen({ navigation }) {
           <AccordionSection title="Resumo da criança" defaultOpen>
             <InfoCard>
               <View style={styles.childProfileRow}>
-                <Text style={styles.childAvatarEmoji}>{childAvatarEmoji}</Text>
+                <AvatarImage source={childAvatarImage} size={56} backgroundColor="#FFFDF8" style={styles.childAvatarCircle} />
                 <View style={styles.childProfileInfo}>
                   <Text style={styles.childName}>{childDisplayName}</Text>
                   <Text style={styles.childSubtitle}>Explorador(a) das histórias</Text>
@@ -1222,7 +1222,7 @@ const styles = StyleSheet.create({
 
   // Visão geral da criança
   childProfileRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
-  childAvatarEmoji: { fontSize: 36 },
+  childAvatarCircle: { borderWidth: 1.5, borderColor: pt.border ?? 'rgba(0,0,0,0.06)' },
   childProfileInfo: { flex: 1 },
   childName: { fontFamily: 'FredokaOne', fontSize: 20, color: pt.text },
   childSubtitle: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, marginTop: 2 },
