@@ -18,6 +18,7 @@
     "assets:growth": "node scripts/assets-pipeline/growth-projection.js",
     "assets:traceability": "node scripts/assets-pipeline/traceability.js",
     "assets:check-ratio": "node scripts/assets-pipeline/check-ratio.js",
+    "assets:optimize-scene": "node scripts/assets-pipeline/optimize-scene.js",
     "audio:audit": "node scripts/audio-audit.js",
     "scene:images:audit": "node scripts/sceneIllustrationsAudit.js",
     "scene:images:audit:strict": "node scripts/sceneIllustrationsAudit.js --strict",
@@ -57,5 +58,8 @@
     "react-native-svg": "15.12.1",
     "react-native-webview": "13.15.0"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "sharp": "0.35.2"
+  }
 }

@@ -35,6 +35,15 @@ Todo lote de assets novo segue, em ordem:
 | `npm run assets:growth` | `growth-projection.js` | Projeção 20 histórias + >=25% de reserva — FR-003 |
 | `npm run assets:traceability` | `traceability.js` | Cruza história ↔ camada ↔ requires ↔ existência/tracked — FR-011 |
 | `npm run assets:check-ratio` | `check-ratio.js` | Valida 4:5 SÓ de cenas/colorir (isenta capas/mapas/avatares); só reporta, `--strict` falha — FR-008 |
+| `npm run assets:optimize-scene -- --in <cena> [--dry-run]` | `optimize-scene.js` | Piloto: CENA → WebP lossy (sharp). Saída fora de `assets/`; recusa colorir; nunca toca originais — T013 |
+
+### `optimize-scene.js` — regras de segurança (T013)
+
+- **Encoder:** `sharp` (**devDependency**, build-time; **nunca** importado por `src/`/runtime).
+- **Só CENAS** coloridas (WebP **lossy**). **RECUSA** arquivos de **colorir** (flood-fill é sensível → lossless/PNG em `optimize-coloring`, bloco futuro).
+- **Saída sempre FORA de `assets/`** (padrão `tmp/assets-pipeline/`, gitignored) — **falha** se a saída cair em `assets/` ou `assets/stories/`.
+- **Nunca** sobrescreve/move/renomeia/altera o original; entrada é só leitura.
+- Suporta `--dry-run` (não escreve) e `--help`; reporta dimensões, ratio 4:5, bytes antes/depois e % de redução.
 
 ## Guard de Git — `assets/stories/*` (T005a)
 

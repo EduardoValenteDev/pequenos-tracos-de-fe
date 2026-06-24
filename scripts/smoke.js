@@ -10624,6 +10624,64 @@ check(
     );
   }
 
+  // ── Arquitetura 001.7: sharp (devDep) + optimize-scene (piloto seguro de cenas) ──
+  {
+    const pkg = JSON.parse(readSrc('package.json'));
+    const devDeps = pkg.devDependencies || {};
+    const deps = pkg.dependencies || {};
+    // (a) sharp em devDependencies · (b) NÃO em dependencies
+    check(
+      'Arquitetura 001.7: sharp está em devDependencies e NÃO em dependencies',
+      !!devDeps.sharp && !deps.sharp,
+      `devDeps.sharp=${devDeps.sharp || 'ausente'} deps.sharp=${deps.sharp || 'ausente'}`,
+    );
+    // (c) nenhum arquivo de src/ importa sharp
+    const importsSharp = (() => {
+      const hits = [];
+      const stack = [path.join(root, 'src')];
+      while (stack.length) {
+        const d = stack.pop();
+        let entries = [];
+        try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch (e) { continue; }
+        for (const e of entries) {
+          const p = path.join(d, e.name);
+          if (e.isDirectory()) stack.push(p);
+          else if (/\.(js|jsx|ts|tsx)$/.test(e.name)) {
+            const src = fs.readFileSync(p, 'utf8');
+            if (/require\(\s*['"]sharp['"]\s*\)|from\s+['"]sharp['"]/.test(src)) hits.push(path.relative(root, p));
+          }
+        }
+      }
+      return hits;
+    })();
+    check(
+      'Arquitetura 001.7: nenhum arquivo de src/ importa sharp (build-time apenas)',
+      importsSharp.length === 0,
+      `src/ importa sharp em: ${importsSharp.join(', ')}`,
+    );
+    // (d) optimize-scene.js existe e suas guardas funcionam SEM converter (require não carrega sharp)
+    let guardsOk = false;
+    let detail = '';
+    try {
+      const m = require('./assets-pipeline/optimize-scene');
+      guardsOk =
+        srcExists('scripts/assets-pipeline/optimize-scene.js') &&
+        m.isColoringInput('a/coloring/scene_01.png') === true &&
+        m.isColoringInput('a/scenes/x_scene_01.png') === false &&
+        m.isInsideAssets(path.join(root, 'assets', 'x.webp')) === true &&
+        m.isInsideAssets(path.join(root, 'tmp', 'x.webp')) === false &&
+        typeof m.run === 'function';
+      if (!guardsOk) detail = 'guardas de optimize-scene não conferem';
+    } catch (e) {
+      detail = String(e && e.message);
+    }
+    check(
+      'Arquitetura 001.7: optimize-scene existe e guarda colorir/saída-em-assets (sem converter)',
+      guardsOk,
+      detail,
+    );
+  }
+
   // ── Arquitetura 001.5: validador de proporção 4:5 (check-ratio) executa sem quebrar ──
   {
     let ok = false;
