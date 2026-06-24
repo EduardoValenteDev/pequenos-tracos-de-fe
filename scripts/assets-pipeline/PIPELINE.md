@@ -44,6 +44,7 @@ Todo lote de assets novo segue, em ordem:
 - **Saída sempre FORA de `assets/`** (padrão `tmp/assets-pipeline/`, gitignored) — **falha** se a saída cair em `assets/` ou `assets/stories/`.
 - **Nunca** sobrescreve/move/renomeia/altera o original; entrada é só leitura.
 - Suporta `--dry-run` (não escreve) e `--help`; reporta dimensões, ratio 4:5, bytes antes/depois e % de redução.
+- **Medição piloto real:** ver [`docs/assets/SCENE_WEBP_PILOT_REPORT.md`](../../docs/assets/SCENE_WEBP_PILOT_REPORT.md) (5 cenas, WebP q80, **~89.9%** de redução; imagens convertidas ficam em `tmp/`, fora do Git).
 
 ## Guard de Git — `assets/stories/*` (T005a)
 
