@@ -12,6 +12,8 @@ Quando houver conflito entre documentos antigos e este arquivo, **este arquivo p
 
 Documentos antigos permanecem como histórico, mas **não devem orientar decisões futuras sem validação contra este arquivo**. Veja o mapa de documentos em [docs/DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md).
 
+**Linha de lançamento (beta/loja):** o [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md) é a **fonte oficial da linha de lançamento**, subordinada a este roteiro mestre. Conflitos com o app já entregue e as decisões finais estão em [`docs/launch/DECISOES_E_CONFLITOS.md`](launch/DECISOES_E_CONFLITOS.md); a matriz de acesso final em [`docs/launch/MATRIZ_DE_ACESSO.md`](launch/MATRIZ_DE_ACESSO.md).
+
 ---
 
 ## 2. Produto
