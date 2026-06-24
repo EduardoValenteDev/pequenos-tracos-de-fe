@@ -1,0 +1,42 @@
+# Matriz de Acesso — Grátis × Plano Família (Linha de Lançamento)
+
+Fonte: [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](../PLANO_OFICIAL_BENI_LANCAMENTO.md) §5/§6/§10 +
+decisões em [`DECISOES_E_CONFLITOS.md`](./DECISOES_E_CONFLITOS.md).
+
+> Documento de **referência** (Fase 0). A implementação real fica no Bloco A (Fase 2), centralizada em
+> `src/services/accessControl.js` / `contentAccessService.js` — **sem** `__DEV__` em regra de produto,
+> **sem** quebrar chaves `@ptf_*`. "Já existe" = comportamento atual no código; "Novo" = a implementar.
+
+## Matriz por funcionalidade
+
+| Funcionalidade | Grátis | Plano Família | Situação |
+|---|---|---|---|
+| **A Criação** e **Noé** (história completa) | ✅ | ✅ | Já existe |
+| Demais histórias (18 premium) | ❌ | ✅ | Já existe (`accessType`) |
+| Narração das histórias **grátis** | ✅ | ✅ | Requisito (lacuna de execução) |
+| Narração das histórias **premium** | ❌ | ✅ | Requisito |
+| Quiz | grátis: ✅ · premium: ❌ | ✅ | Já existe |
+| Momento com Beni | grátis: ✅ · premium: ❌ | ✅ | Já existe |
+| Livrinho | grátis: ✅ · premium: ❌ | ✅ | Já existe |
+| Colorir cenas | grátis: ✅ · premium: ❌ | ✅ | Já existe |
+| **Criar com Beni** (desenhar) | ✅ (sem salvar) | ✅ | Já existe |
+| **Salvar arte** | ❌ **(0 no grátis)** | ✅ | **Mudança** (hoje 3 grátis → 0) |
+| **Galeria / Minhas artes** funcional | ❌ | ✅ | Mudança (acompanha o salvar) |
+| **Brincar — rodadas/dia** | **2/dia** (compartilhado) | ilimitado | **Novo** (não existe limite hoje) |
+| Jogos ilimitados | ❌ | ✅ | Novo (com os jogos) |
+| **Avatares** | ❌ (só base, não extras) | ✅ | **Mudança** (hoje liberam por estrelinhas) |
+| Downloads offline premium | ❌ | ✅ (após pacote) | Novo (Fase 10) |
+
+## Regras transversais
+- **Estrelinhas**: progresso/celebração. A criança **nunca gasta**. **Não** liberam avatares no grátis.
+- **Avatares**: benefício **exclusivo** do Plano Família; nunca vendidos diretamente à criança.
+- **Compra/assinatura/links externos**: somente na **Área dos Pais** com gate parental.
+- **Planos comerciais**: mensal, trimestral, anual (sem vitalício nesta fase).
+- **Limite de rodadas**: centralizado no controle de acesso; reset por dia local; persistido; não burlável por troca de tela/fechar app; **sem `__DEV__`**.
+
+## Onde isso vive no código (referência — Bloco A)
+- Acesso central: `src/services/accessControl.js` (`isPremiumUser()`, `hasAtelierUnlimitedAccess()`, `ENABLE_LOCAL_PREMIUM_TEST_MODE`), `src/services/contentAccessService.js`.
+- Salvar arte: `src/services/atelierStorage.js` (`ATELIER_FREE_SAVE_LIMIT`), `src/screens/AtelierCanvasScreen.js`.
+- Avatares: `src/data/avatars.js` (`isAvatarUnlocked`), `src/screens/ProfileScreen.js`.
+- Rodadas/dia: **novo** serviço + chave `@ptf_brincar_daily_v1` (a criar no Bloco A).
+- Storage: `src/services/storageKeys.js` (não quebrar chaves existentes).
