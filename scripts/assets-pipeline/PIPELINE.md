@@ -45,6 +45,7 @@ Todo lote de assets novo segue, em ordem:
 - **Nunca** sobrescreve/move/renomeia/altera o original; entrada é só leitura.
 - Suporta `--dry-run` (não escreve) e `--help`; reporta dimensões, ratio 4:5, bytes antes/depois e % de redução.
 - **Medição piloto real:** ver [`docs/assets/SCENE_WEBP_PILOT_REPORT.md`](../../docs/assets/SCENE_WEBP_PILOT_REPORT.md) (5 cenas, WebP q80, **~89.9%** de redução; imagens convertidas ficam em `tmp/`, fora do Git).
+- **Aprovação visual:** ver [`docs/assets/SCENE_WEBP_VISUAL_QA.md`](../../docs/assets/SCENE_WEBP_VISUAL_QA.md) — **q80 aprovado SÓ para cenas coloridas**; colorir/lineart/mapas/capas/avatares/Beni **fora** do escopo.
 
 ## Guard de Git — `assets/stories/*` (T005a)
 
