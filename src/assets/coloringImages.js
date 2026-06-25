@@ -143,6 +143,48 @@ const coloringImages = {
     10: require('../../assets/stories/lost_sheep/coloring/scene_10.png'),
   },
 
+  // ── solomon_wisdom: A Sabedoria de Salomão ───────────────────────────────
+  solomon_wisdom: {
+    1:  require('../../assets/stories/solomon_wisdom/coloring/scene_01.png'),
+    2:  require('../../assets/stories/solomon_wisdom/coloring/scene_02.png'),
+    3:  require('../../assets/stories/solomon_wisdom/coloring/scene_03.png'),
+    4:  require('../../assets/stories/solomon_wisdom/coloring/scene_04.png'),
+    5:  require('../../assets/stories/solomon_wisdom/coloring/scene_05.png'),
+    6:  require('../../assets/stories/solomon_wisdom/coloring/scene_06.png'),
+    7:  require('../../assets/stories/solomon_wisdom/coloring/scene_07.png'),
+    8:  require('../../assets/stories/solomon_wisdom/coloring/scene_08.png'),
+    9:  require('../../assets/stories/solomon_wisdom/coloring/scene_09.png'),
+    10: require('../../assets/stories/solomon_wisdom/coloring/scene_10.png'),
+  },
+
+  // ── timothy_faith: A Fé de Timóteo ───────────────────────────────────────
+  timothy_faith: {
+    1:  require('../../assets/stories/timothy_faith/coloring/scene_01.png'),
+    2:  require('../../assets/stories/timothy_faith/coloring/scene_02.png'),
+    3:  require('../../assets/stories/timothy_faith/coloring/scene_03.png'),
+    4:  require('../../assets/stories/timothy_faith/coloring/scene_04.png'),
+    5:  require('../../assets/stories/timothy_faith/coloring/scene_05.png'),
+    6:  require('../../assets/stories/timothy_faith/coloring/scene_06.png'),
+    7:  require('../../assets/stories/timothy_faith/coloring/scene_07.png'),
+    8:  require('../../assets/stories/timothy_faith/coloring/scene_08.png'),
+    9:  require('../../assets/stories/timothy_faith/coloring/scene_09.png'),
+    10: require('../../assets/stories/timothy_faith/coloring/scene_10.png'),
+  },
+
+  // ── jesus_temple: Jesus no Templo ────────────────────────────────────────
+  jesus_temple: {
+    1:  require('../../assets/stories/jesus_temple/coloring/scene_01.png'),
+    2:  require('../../assets/stories/jesus_temple/coloring/scene_02.png'),
+    3:  require('../../assets/stories/jesus_temple/coloring/scene_03.png'),
+    4:  require('../../assets/stories/jesus_temple/coloring/scene_04.png'),
+    5:  require('../../assets/stories/jesus_temple/coloring/scene_05.png'),
+    6:  require('../../assets/stories/jesus_temple/coloring/scene_06.png'),
+    7:  require('../../assets/stories/jesus_temple/coloring/scene_07.png'),
+    8:  require('../../assets/stories/jesus_temple/coloring/scene_08.png'),
+    9:  require('../../assets/stories/jesus_temple/coloring/scene_09.png'),
+    10: require('../../assets/stories/jesus_temple/coloring/scene_10.png'),
+  },
+
 };
 
 /**
