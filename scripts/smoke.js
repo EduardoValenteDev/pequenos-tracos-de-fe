@@ -10080,22 +10080,22 @@ check(
   const coverOnly = Object.values(counts).filter(n => n === 0).length;
   const fullyReady = Object.values(counts).filter(n => n >= 10).length;
   check(
-    'B1 paridade: creation+noah prontos (≥10 cenas) e existe ≥1 história "só capa" (mapa vazio)',
-    creationReady && noahReady && coverOnly >= 1 && fullyReady >= 2,
+    'B1 paridade: creation+noah prontos (≥10 cenas) e NENHUMA história "só capa" (20/20 com mídia)',
+    creationReady && noahReady && coverOnly === 0 && fullyReady === 20,
     `creation=${counts.creation} noah=${counts.noah} coverOnly=${coverOnly} fullyReady=${fullyReady}`,
   );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Sprint B — Bloco B2: integração controlada de mídia nova
-// As 5 histórias entregues (mapas antes vazios) passam a ter 10 cenas reais.
-// Valida: 10 requires por história integrada, cada arquivo no disco, storyIds
-// reais (sem duplicar), e que as 4 restantes seguem "Em breve".
+// Sprint B — Bloco B2: integração controlada de mídia nova (CONCLUÍDA)
+// Estado oficial: as 20 histórias têm 10 cenas reais cada (mapas antes vazios
+// agora preenchidos). Valida: 10 requires por história, cada arquivo no disco,
+// storyIds reais (sem duplicar) e que as 4 finais saíram de "Em breve".
 // ════════════════════════════════════════════════════════════════════════════
 console.log('\n── Sprint B2: integração controlada de mídia nova ──');
 
 const B2_INTEGRATED = ['ruth_naomi', 'esther_queen', 'miraculous_catch', 'samuel_hears_god', 'josiah_young_king'];
-const B2_STILL_SOON = ['solomon_wisdom', 'mary_says_yes', 'timothy_faith', 'jesus_temple'];
+const B2_NEWLY_INTEGRATED = ['solomon_wisdom', 'mary_says_yes', 'timothy_faith', 'jesus_temple'];
 const b2SceneSrc = readSrc('src/data/storySceneIllustrations.js');
 
 // Conta requires de cena por história no manifesto.
@@ -10137,10 +10137,10 @@ check(
 );
 
 check(
-  'B2: as 4 histórias ainda sem mídia continuam "Em breve" (mapa vazio, 0 cenas)',
-  B2_STILL_SOON.every(sid => b2SceneCount(sid) === 0) &&
-  B2_STILL_SOON.every(sid => new RegExp(`${sid}: \\{\\}`).test(b2SceneSrc)),
-  'Uma história sem mídia foi integrada por engano (deveria continuar Em breve)',
+  'B2: as 4 histórias antes "Em breve" agora têm 10 cenas reais cada (integração concluída)',
+  B2_NEWLY_INTEGRATED.every(sid => b2SceneCount(sid) === 10) &&
+  B2_NEWLY_INTEGRATED.every(sid => !new RegExp(`${sid}: \\{\\}`).test(b2SceneSrc)),
+  'Uma das 4 histórias finais não está integrada (esperado 10 cenas, mapa não-vazio)',
 );
 
 check(
@@ -10151,6 +10151,53 @@ check(
   })(),
   'storyId duplicado no manifesto de cenas',
 );
+
+// ── Estado oficial (pós-B2): cobertura visual completa das 20 histórias ──
+// Substitui as asserções transitórias "Em breve": agora as 20 histórias têm
+// cenas E colorir registrados (20/200 cada), todos resolvendo para arquivo no
+// disco (0 paths quebrados). Fonte: storySceneIllustrations.js + coloringImages.js.
+{
+  const OFFICIAL_20 = [
+    'creation', 'noah', 'david_goliath', 'jesus_children', 'daniel_lions', 'lost_sheep',
+    'good_samaritan', 'esther_queen', 'jonah_big_fish', 'abraham_stars', 'joseph_colorful_coat',
+    'moses_red_sea', 'ruth_naomi', 'miraculous_catch', 'samuel_hears_god', 'josiah_young_king',
+    'solomon_wisdom', 'mary_says_yes', 'timothy_faith', 'jesus_temple',
+  ];
+  const officialSceneSrc = readSrc('src/data/storySceneIllustrations.js');
+  const officialColorSrc = readSrc('src/assets/coloringImages.js');
+
+  let sceneStories = 0; let sceneEntries = 0; let sceneBroken = 0;
+  let colorStories = 0; let colorEntries = 0; let colorBroken = 0;
+  for (const sid of OFFICIAL_20) {
+    let sc = 0; let cc = 0;
+    for (let n = 1; n <= 10; n += 1) {
+      const nn = String(n).padStart(2, '0');
+      const sRel = `assets/stories/${sid}/scenes/${sid}_scene_${nn}.png`;
+      if (officialSceneSrc.includes(`'../../${sRel}'`)) {
+        sceneEntries += 1; sc += 1;
+        if (!fs.existsSync(path.join(root, sRel))) sceneBroken += 1;
+      }
+      const cRel = `assets/stories/${sid}/coloring/scene_${nn}.png`;
+      if (officialColorSrc.includes(`'../../${cRel}'`)) {
+        colorEntries += 1; cc += 1;
+        if (!fs.existsSync(path.join(root, cRel))) colorBroken += 1;
+      }
+    }
+    if (sc === 10) sceneStories += 1;
+    if (cc === 10) colorStories += 1;
+  }
+
+  check(
+    'Estado oficial: 20/20 histórias com 10 cenas ilustradas (200/200) e 0 paths quebrados',
+    sceneStories === 20 && sceneEntries === 200 && sceneBroken === 0,
+    `stories=${sceneStories}/20 entries=${sceneEntries}/200 broken=${sceneBroken}`,
+  );
+  check(
+    'Estado oficial: 20/20 histórias com 10 colorir (200/200) e 0 paths quebrados',
+    colorStories === 20 && colorEntries === 200 && colorBroken === 0,
+    `stories=${colorStories}/20 entries=${colorEntries}/200 broken=${colorBroken}`,
+  );
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // Beni mascote OFICIAL — registro/poses novas, sem referência a asset apagado.
@@ -10553,9 +10600,10 @@ check(
   }
 
   // B2 (comportamental): a mídia integrada faz mediaReady virar true PELA REGRA
-  // real do B1 (mediaReadyService), usando as contagens reais do manifesto.
+  // real do B1 (mediaReadyService), usando as contagens reais do manifesto. Pós-B2
+  // todas as 9 (5 + as 4 finais) estão integradas → todas ready=true.
   try {
-    const allIds = [...B2_INTEGRATED, ...B2_STILL_SOON, 'creation', 'noah'];
+    const allIds = [...B2_INTEGRATED, ...B2_NEWLY_INTEGRATED, 'creation', 'noah'];
     const mockMap = {};
     for (const sid of allIds) {
       const c = b2SceneCount(sid);
@@ -10564,12 +10612,12 @@ check(
     const mr = a1LoadSandbox('src/services/mediaReadyService.js',
       { STORY_SCENE_ILLUSTRATIONS: mockMap }, ['isStoryMediaReady']);
     const integratedReady = B2_INTEGRATED.every(sid => mr.isStoryMediaReady({ id: sid, totalCenas: 10 }) === true);
-    const soonNotReady = B2_STILL_SOON.every(sid => mr.isStoryMediaReady({ id: sid, totalCenas: 10 }) === false);
+    const newlyReady = B2_NEWLY_INTEGRATED.every(sid => mr.isStoryMediaReady({ id: sid, totalCenas: 10 }) === true);
     const showcaseIntact = mr.isStoryMediaReady({ id: 'creation', totalCenas: 10 }) === true &&
                            mr.isStoryMediaReady({ id: 'noah', totalCenas: 10 }) === true;
-    check('B2 mediaReady: as 5 integradas viram true pela regra do B1; as 4 restantes seguem false; creation/noah intactos',
-      integratedReady && soonNotReady && showcaseIntact,
-      `integrated=${integratedReady} soon=${soonNotReady} showcase=${showcaseIntact}`);
+    check('B2 mediaReady: as 5 + as 4 finais viram true pela regra do B1; creation/noah intactos',
+      integratedReady && newlyReady && showcaseIntact,
+      `integrated=${integratedReady} newly=${newlyReady} showcase=${showcaseIntact}`);
   } catch (e) {
     check('B2 mediaReady: flip pelas contagens reais', false, String(e && e.message));
   }

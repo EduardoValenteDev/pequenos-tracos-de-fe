@@ -185,6 +185,118 @@ const coloringImages = {
     10: require('../../assets/stories/jesus_temple/coloring/scene_10.png'),
   },
 
+  // ── esther_queen: Rainha Ester ───────────────────────────────────────────
+  esther_queen: {
+    1:  require('../../assets/stories/esther_queen/coloring/scene_01.png'),
+    2:  require('../../assets/stories/esther_queen/coloring/scene_02.png'),
+    3:  require('../../assets/stories/esther_queen/coloring/scene_03.png'),
+    4:  require('../../assets/stories/esther_queen/coloring/scene_04.png'),
+    5:  require('../../assets/stories/esther_queen/coloring/scene_05.png'),
+    6:  require('../../assets/stories/esther_queen/coloring/scene_06.png'),
+    7:  require('../../assets/stories/esther_queen/coloring/scene_07.png'),
+    8:  require('../../assets/stories/esther_queen/coloring/scene_08.png'),
+    9:  require('../../assets/stories/esther_queen/coloring/scene_09.png'),
+    10: require('../../assets/stories/esther_queen/coloring/scene_10.png'),
+  },
+
+  // ── joseph_colorful_coat: José e a Túnica Colorida ───────────────────────
+  joseph_colorful_coat: {
+    1:  require('../../assets/stories/joseph_colorful_coat/coloring/scene_01.png'),
+    2:  require('../../assets/stories/joseph_colorful_coat/coloring/scene_02.png'),
+    3:  require('../../assets/stories/joseph_colorful_coat/coloring/scene_03.png'),
+    4:  require('../../assets/stories/joseph_colorful_coat/coloring/scene_04.png'),
+    5:  require('../../assets/stories/joseph_colorful_coat/coloring/scene_05.png'),
+    6:  require('../../assets/stories/joseph_colorful_coat/coloring/scene_06.png'),
+    7:  require('../../assets/stories/joseph_colorful_coat/coloring/scene_07.png'),
+    8:  require('../../assets/stories/joseph_colorful_coat/coloring/scene_08.png'),
+    9:  require('../../assets/stories/joseph_colorful_coat/coloring/scene_09.png'),
+    10: require('../../assets/stories/joseph_colorful_coat/coloring/scene_10.png'),
+  },
+
+  // ── moses_red_sea: Moisés e o Mar Vermelho ───────────────────────────────
+  moses_red_sea: {
+    1:  require('../../assets/stories/moses_red_sea/coloring/scene_01.png'),
+    2:  require('../../assets/stories/moses_red_sea/coloring/scene_02.png'),
+    3:  require('../../assets/stories/moses_red_sea/coloring/scene_03.png'),
+    4:  require('../../assets/stories/moses_red_sea/coloring/scene_04.png'),
+    5:  require('../../assets/stories/moses_red_sea/coloring/scene_05.png'),
+    6:  require('../../assets/stories/moses_red_sea/coloring/scene_06.png'),
+    7:  require('../../assets/stories/moses_red_sea/coloring/scene_07.png'),
+    8:  require('../../assets/stories/moses_red_sea/coloring/scene_08.png'),
+    9:  require('../../assets/stories/moses_red_sea/coloring/scene_09.png'),
+    10: require('../../assets/stories/moses_red_sea/coloring/scene_10.png'),
+  },
+
+  // ── ruth_naomi: Rute e Noemi ─────────────────────────────────────────────
+  ruth_naomi: {
+    1:  require('../../assets/stories/ruth_naomi/coloring/scene_01.png'),
+    2:  require('../../assets/stories/ruth_naomi/coloring/scene_02.png'),
+    3:  require('../../assets/stories/ruth_naomi/coloring/scene_03.png'),
+    4:  require('../../assets/stories/ruth_naomi/coloring/scene_04.png'),
+    5:  require('../../assets/stories/ruth_naomi/coloring/scene_05.png'),
+    6:  require('../../assets/stories/ruth_naomi/coloring/scene_06.png'),
+    7:  require('../../assets/stories/ruth_naomi/coloring/scene_07.png'),
+    8:  require('../../assets/stories/ruth_naomi/coloring/scene_08.png'),
+    9:  require('../../assets/stories/ruth_naomi/coloring/scene_09.png'),
+    10: require('../../assets/stories/ruth_naomi/coloring/scene_10.png'),
+  },
+
+  // ── miraculous_catch: A Pesca Milagrosa ──────────────────────────────────
+  miraculous_catch: {
+    1:  require('../../assets/stories/miraculous_catch/coloring/scene_01.png'),
+    2:  require('../../assets/stories/miraculous_catch/coloring/scene_02.png'),
+    3:  require('../../assets/stories/miraculous_catch/coloring/scene_03.png'),
+    4:  require('../../assets/stories/miraculous_catch/coloring/scene_04.png'),
+    5:  require('../../assets/stories/miraculous_catch/coloring/scene_05.png'),
+    6:  require('../../assets/stories/miraculous_catch/coloring/scene_06.png'),
+    7:  require('../../assets/stories/miraculous_catch/coloring/scene_07.png'),
+    8:  require('../../assets/stories/miraculous_catch/coloring/scene_08.png'),
+    9:  require('../../assets/stories/miraculous_catch/coloring/scene_09.png'),
+    10: require('../../assets/stories/miraculous_catch/coloring/scene_10.png'),
+  },
+
+  // ── samuel_hears_god: Samuel Ouve a Deus ─────────────────────────────────
+  samuel_hears_god: {
+    1:  require('../../assets/stories/samuel_hears_god/coloring/scene_01.png'),
+    2:  require('../../assets/stories/samuel_hears_god/coloring/scene_02.png'),
+    3:  require('../../assets/stories/samuel_hears_god/coloring/scene_03.png'),
+    4:  require('../../assets/stories/samuel_hears_god/coloring/scene_04.png'),
+    5:  require('../../assets/stories/samuel_hears_god/coloring/scene_05.png'),
+    6:  require('../../assets/stories/samuel_hears_god/coloring/scene_06.png'),
+    7:  require('../../assets/stories/samuel_hears_god/coloring/scene_07.png'),
+    8:  require('../../assets/stories/samuel_hears_god/coloring/scene_08.png'),
+    9:  require('../../assets/stories/samuel_hears_god/coloring/scene_09.png'),
+    10: require('../../assets/stories/samuel_hears_god/coloring/scene_10.png'),
+  },
+
+  // ── josiah_young_king: Josias, o Jovem Rei ───────────────────────────────
+  josiah_young_king: {
+    1:  require('../../assets/stories/josiah_young_king/coloring/scene_01.png'),
+    2:  require('../../assets/stories/josiah_young_king/coloring/scene_02.png'),
+    3:  require('../../assets/stories/josiah_young_king/coloring/scene_03.png'),
+    4:  require('../../assets/stories/josiah_young_king/coloring/scene_04.png'),
+    5:  require('../../assets/stories/josiah_young_king/coloring/scene_05.png'),
+    6:  require('../../assets/stories/josiah_young_king/coloring/scene_06.png'),
+    7:  require('../../assets/stories/josiah_young_king/coloring/scene_07.png'),
+    8:  require('../../assets/stories/josiah_young_king/coloring/scene_08.png'),
+    9:  require('../../assets/stories/josiah_young_king/coloring/scene_09.png'),
+    10: require('../../assets/stories/josiah_young_king/coloring/scene_10.png'),
+  },
+
+  // ── mary_says_yes: Maria Diz Sim ─────────────────────────────────────────
+  mary_says_yes: {
+    1:  require('../../assets/stories/mary_says_yes/coloring/scene_01.png'),
+    2:  require('../../assets/stories/mary_says_yes/coloring/scene_02.png'),
+    3:  require('../../assets/stories/mary_says_yes/coloring/scene_03.png'),
+    4:  require('../../assets/stories/mary_says_yes/coloring/scene_04.png'),
+    5:  require('../../assets/stories/mary_says_yes/coloring/scene_05.png'),
+    6:  require('../../assets/stories/mary_says_yes/coloring/scene_06.png'),
+    7:  require('../../assets/stories/mary_says_yes/coloring/scene_07.png'),
+    8:  require('../../assets/stories/mary_says_yes/coloring/scene_08.png'),
+    9:  require('../../assets/stories/mary_says_yes/coloring/scene_09.png'),
+    10: require('../../assets/stories/mary_says_yes/coloring/scene_10.png'),
+  },
+
 };
 
 /**
