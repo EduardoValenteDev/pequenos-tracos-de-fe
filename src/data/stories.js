@@ -96,7 +96,7 @@ export const stories = [
         id: 4,
         titulo: 'A terra e as plantas',
         emojiCena: '🌱',
-        textoNarracao: 'No terceiro dia, Deus juntou as águas em seus lugares e fez aparecer a terra seca. Depois, Deus mandou a terra produzir plantas, árvores e frutos. A terra começou a ficar cheia de vida, com sementes, folhas e cores.',
+        textoNarracao: 'No terceiro dia, Deus juntou as águas em seus lugares e fez aparecer a terra seca. Depois, Deus mandou a terra produzir plantas, árvores e frutos. A terra começou a ficar cheia de vida, com sementes, folhas e cores. Deus viu que tudo isso era bom.',
         instrucaoColorir: 'A terra cheia de plantas e flores — flores amarelas, rosas, roxas, árvores verdes e terra marrom!',
         tituloColorir: 'A terra e as plantas',
         imagemNarracao: null,
