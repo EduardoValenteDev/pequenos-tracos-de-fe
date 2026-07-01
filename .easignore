@@ -1,0 +1,75 @@
+# .easignore — controla o que o EAS Build ENVIA no upload do projeto.
+#
+# IMPORTANTE: quando este arquivo existe, o EAS CLI o usa NO LUGAR do .gitignore
+# (substitui, não soma). Por isso ele espelha o conteúdo do .gitignore e só então
+# acrescenta o peso-morto/tooling extra que não deve subir no build.
+# Não remove nada do repositório — apenas evita o upload.
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env
+.env.local
+.env.*.local
+.env.*
+!.env.example
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+
+# Backups e arquivos temporários locais
+tmp/
+
+# Pastas legadas de assets não referenciadas no código
+assets/stories/Davi e o Golias/
+assets/stories/Jesus e as crianças/
+
+# Arquivos de backup orphan
+assets/images/noe_apontandoBackup.png
+
+# Local credentials and private keys
+credentials.json
+serviceAccount.json
+google-services.json
+GoogleService-Info.plist
+
+# Tooling local de agentes (não necessário no build)
+.agents/
+.claude/
+
+# ── Extra EAS: peso-morto de mapas (backup/source), não referenciado no app ──
+# Mantém os mapas reais assets/maps/R*.jpg no upload; exclui só os backups/sources.
+assets/maps/backup_*
+assets/maps/source_*
