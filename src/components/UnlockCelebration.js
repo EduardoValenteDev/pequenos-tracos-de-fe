@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Modal, View, Text, Animated, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
-import { colors as pt, radii } from '../theme/productTheme';
+import { radii } from '../theme/productTheme';
 import SoundButton from './SoundButton';
 import Confetti from './Confetti';
 import BeniAvatar from './beni/BeniAvatar';
@@ -9,29 +9,26 @@ import BeniAvatar from './beni/BeniAvatar';
 const NUM_STARS = 6;
 
 /**
- * UnlockCelebration — modal de vitória após concluir uma cena.
+ * UnlockCelebration — feedback CURTO após concluir uma cena INTERMEDIÁRIA.
  *
- * Modo normal (isLast=false):
- *   ⭐ badge  →  Continuar aventura (primário)  →  Colorir · Baú · Estrelas (secundários)
+ *   ⭐ badge "+1 estrela"  →  "Que lindo!"  →  Continuar (primário)  →  Colorir esta cena (secundário)
  *
- * Modo fim de aventura (isLast=true):
- *   Livrinho da Fé (destaque)  →  Ver conclusão (primário)  →  Colorir · Baú · Estrelas
+ * Simplificado (Bloco B4): sem Baú/Estrelinhas/Livrinho por cena. O hub completo
+ * da história (Livrinho, Quiz, Baú, Estrelinhas, próxima aventura) vive só no
+ * CongratsScreen, ao final. A última cena NÃO usa este modal — a NarrationScreen
+ * conduz direto para o CongratsScreen (sem duplicar modal + tela final).
  */
 export default function UnlockCelebration({
   visible,
   onContinue,
-  isLast = false,
   onColorir,
-  onBau,
-  onEstrelinhas,
-  onLibrinho,
   sceneNumber,
   totalCenas,
   sceneHasDrawing = false,
 }) {
-  const scaleAnim    = useRef(new Animated.Value(0)).current;
-  const starAnims    = useRef(Array.from({ length: NUM_STARS }, () => new Animated.Value(0))).current;
-  const badgeAnim    = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const starAnims = useRef(Array.from({ length: NUM_STARS }, () => new Animated.Value(0))).current;
+  const badgeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -64,7 +61,6 @@ export default function UnlockCelebration({
   ];
 
   const hasProgress = sceneNumber != null && totalCenas != null;
-  const hasSecondaryActions = onColorir || onBau || onEstrelinhas;
 
   return (
     <Modal visible={visible} transparent animationType="none">
@@ -86,79 +82,31 @@ export default function UnlockCelebration({
           {/* Beni comemorando */}
           <BeniAvatar variant="celebrating" size="medium" style={styles.beni} />
 
-          {/* Badge de estrela — apenas em cenas intermediárias */}
-          {!isLast && (
-            <Animated.View style={[styles.starBadge, { transform: [{ scale: badgeAnim }] }]}>
-              <Text style={styles.starBadgeText}>⭐ +1 estrela conquistada!</Text>
-            </Animated.View>
-          )}
+          {/* Badge de estrela */}
+          <Animated.View style={[styles.starBadge, { transform: [{ scale: badgeAnim }] }]}>
+            <Text style={styles.starBadgeText}>⭐ +1 estrela conquistada!</Text>
+          </Animated.View>
 
-          {/* Título e subtítulo */}
-          {isLast ? (
-            <>
-              <Text style={styles.title}>Aventura concluída! 🏆</Text>
-              <Text style={styles.subtitle}>Que jornada linda você viveu!</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.title}>Que lindo! 🎉</Text>
-              <Text style={styles.subtitle}>
-                {hasProgress
-                  ? `Cena ${sceneNumber} de ${totalCenas} — você avançou na aventura!`
-                  : 'Você avançou na aventura!'}
-              </Text>
-            </>
-          )}
+          {/* Feedback curto */}
+          <Text style={styles.title}>Que lindo! 🎉</Text>
+          <Text style={styles.subtitle}>
+            {hasProgress
+              ? `Cena ${sceneNumber} de ${totalCenas} — você avançou!`
+              : 'Você avançou na aventura!'}
+          </Text>
 
-          {/* Última cena: destaque do Livrinho da Fé */}
-          {isLast && onLibrinho && (
-            <SoundButton style={styles.livrinhoCard} onPress={onLibrinho} activeOpacity={0.85}>
-              <Text style={styles.livrinhoEmoji}>📖</Text>
-              <View style={styles.livrinhoInfo}>
-                <Text style={styles.livrinhoTitle}>Livrinho da Fé</Text>
-                <Text style={styles.livrinhoSub}>
-                  Sua história virou um livrinho especial
-                </Text>
-              </View>
-              <Text style={styles.livrinhoArrow}>›</Text>
-            </SoundButton>
-          )}
-
-          {/* Botão principal */}
-          <SoundButton
-            style={[styles.primaryBtn, isLast && styles.primaryBtnLast]}
-            onPress={onContinue}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.primaryBtnText}>
-              {isLast ? 'Ver conclusão →' : 'Continuar aventura →'}
-            </Text>
+          {/* Botão principal — Continuar */}
+          <SoundButton style={styles.primaryBtn} onPress={onContinue} activeOpacity={0.85}>
+            <Text style={styles.primaryBtnText}>Continuar →</Text>
           </SoundButton>
 
-          {/* Ações secundárias: Colorir · Baú · Estrelinhas */}
-          {hasSecondaryActions && (
-            <View style={styles.actionsRow}>
-              {onColorir && (
-                <SoundButton style={styles.actionBtn} onPress={onColorir} activeOpacity={0.85}>
-                  <Text style={styles.actionBtnEmoji}>🎨</Text>
-                  <Text style={styles.actionBtnLabel}>
-                    {sceneHasDrawing ? 'Ver desenho' : 'Colorir'}
-                  </Text>
-                </SoundButton>
-              )}
-              {onBau && (
-                <SoundButton style={styles.actionBtn} onPress={onBau} activeOpacity={0.85}>
-                  <Text style={styles.actionBtnEmoji}>🎴</Text>
-                  <Text style={styles.actionBtnLabel}>Baú</Text>
-                </SoundButton>
-              )}
-              {onEstrelinhas && (
-                <SoundButton style={styles.actionBtn} onPress={onEstrelinhas} activeOpacity={0.85}>
-                  <Text style={styles.actionBtnEmoji}>⭐</Text>
-                  <Text style={styles.actionBtnLabel}>Estrelas</Text>
-                </SoundButton>
-              )}
-            </View>
+          {/* Botão secundário — Colorir esta cena */}
+          {onColorir && (
+            <SoundButton style={styles.colorirBtn} onPress={onColorir} activeOpacity={0.85}>
+              <Text style={styles.colorirBtnText}>
+                🎨 {sceneHasDrawing ? 'Ver meu desenho' : 'Colorir esta cena'}
+              </Text>
+            </SoundButton>
           )}
 
         </Animated.View>
@@ -177,6 +125,7 @@ const styles = StyleSheet.create({
     borderRadius: 28, padding: 26,
     alignItems: 'center', elevation: 12,
     position: 'relative', marginHorizontal: 28,
+    alignSelf: 'stretch',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18, shadowRadius: 20,
@@ -206,54 +155,29 @@ const styles = StyleSheet.create({
     fontWeight: '700', marginBottom: 16, textAlign: 'center', lineHeight: 19,
   },
 
-  // Livrinho da Fé (última cena)
-  livrinhoCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    borderRadius: radii.lg, padding: 12, marginBottom: 14,
-    alignSelf: 'stretch', gap: 10,
-    borderWidth: 1.5, borderColor: '#93C5FD',
-  },
-  livrinhoEmoji: { fontSize: 26 },
-  livrinhoInfo: { flex: 1 },
-  livrinhoTitle: {
-    fontFamily: 'FredokaOne', fontSize: 14, color: '#1E40AF',
-  },
-  livrinhoSub: {
-    fontFamily: 'Nunito', fontSize: 11, color: '#3B82F6', lineHeight: 15,
-  },
-  livrinhoArrow: { fontFamily: 'FredokaOne', fontSize: 18, color: '#93C5FD' },
-
-  // Botão principal
+  // Botão principal — Continuar
   primaryBtn: {
     backgroundColor: colors.success,
     paddingVertical: 14, paddingHorizontal: 28,
     borderRadius: 20, elevation: 3,
     alignSelf: 'stretch', alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
     shadowColor: colors.success,
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
   },
-  primaryBtnLast: { backgroundColor: colors.primary },
   primaryBtnText: {
     fontFamily: 'FredokaOne', fontSize: 18, color: '#FFF',
   },
 
-  // Ações secundárias
-  actionsRow: {
-    flexDirection: 'row', gap: 8, alignSelf: 'stretch',
-    justifyContent: 'center',
-  },
-  actionBtn: {
-    flex: 1, alignItems: 'center',
-    paddingVertical: 10, paddingHorizontal: 4,
+  // Botão secundário — Colorir esta cena
+  colorirBtn: {
+    alignSelf: 'stretch', alignItems: 'center',
+    paddingVertical: 12, paddingHorizontal: 16,
     backgroundColor: '#F8F4FF',
     borderRadius: radii.lg,
-    borderWidth: 1, borderColor: '#E8DFFF', gap: 3,
+    borderWidth: 1, borderColor: '#E8DFFF',
   },
-  actionBtnEmoji: { fontSize: 20 },
-  actionBtnLabel: {
-    fontFamily: 'Nunito', fontSize: 11, fontWeight: '700',
-    color: '#5B21B6', textAlign: 'center',
+  colorirBtnText: {
+    fontFamily: 'FredokaOne', fontSize: 15, color: '#5B21B6', textAlign: 'center',
   },
 });

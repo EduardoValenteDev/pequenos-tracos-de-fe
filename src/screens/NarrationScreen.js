@@ -136,6 +136,12 @@ export default function NarrationScreen({ route, navigation }) {
     // salvarCena é idempotente: não duplica estrela se a cena já estava concluída
     await salvarCena(cena.id);
     refreshProgress();
+    // Última cena: conduz direto para o hub final (CongratsScreen), sem duplicar
+    // o modal comum por cena com a tela final.
+    if (isLastCena) {
+      goToNext();
+      return;
+    }
     celebrationHandledRef.current = false;
     celebrationPendingRef.current = true;
     setShowCelebration(true);
@@ -149,32 +155,15 @@ export default function NarrationScreen({ route, navigation }) {
     goToNext();
   }
 
-  // Ações secundárias: escondem o modal antes de navegar para não sobrepor a tela
-  // de destino (Modal do RN renderiza fora da pilha do navegador). Não marcam
-  // celebrationHandledRef — ao voltar, useFocusEffect reabre o modal.
+  // "Colorir esta cena" RESOLVE o modal pós-cena (B4): esconde e LIMPA o pending
+  // para que, ao voltar do Colorir, o modal NÃO reabra (Modal do RN renderiza fora
+  // da pilha do navegador). A cena já está concluída, então "Próxima cena →" fica
+  // disponível para o avanço MANUAL — não chamamos goToNext ao voltar do Colorir.
   function handleColorirFromCelebration() {
     if (celebrationHandledRef.current) return;
+    celebrationPendingRef.current = false;
     setShowCelebration(false);
     navigation.navigate('Coloring', { story, cenaIndex });
-  }
-
-  function handleBauFromCelebration() {
-    if (celebrationHandledRef.current) return;
-    setShowCelebration(false);
-    navigation.navigate('BeniChest');
-  }
-
-  function handleEstrelinhasFromCelebration() {
-    if (celebrationHandledRef.current) return;
-    setShowCelebration(false);
-    // EstrelinhasCena é rota Stack — empurra TrophiesScreen sem remover NarrationScreen da pilha.
-    navigation.navigate('EstrelinhasCena', { fromPostSceneCelebration: true });
-  }
-
-  function handleLibrinhoFromCelebration() {
-    if (celebrationHandledRef.current) return;
-    setShowCelebration(false);
-    navigation.navigate('StoryBook', { story });
   }
 
   // Rótulo + ação do botão principal conforme o estado da cena
@@ -349,11 +338,7 @@ export default function NarrationScreen({ route, navigation }) {
       <UnlockCelebration
         visible={showCelebration}
         onContinue={handleContinue}
-        isLast={isLastCena}
         onColorir={handleColorirFromCelebration}
-        onBau={handleBauFromCelebration}
-        onEstrelinhas={handleEstrelinhasFromCelebration}
-        onLibrinho={isLastCena ? handleLibrinhoFromCelebration : null}
         sceneNumber={numeroCena}
         totalCenas={totalCenas}
         sceneHasDrawing={sceneHasDrawing}

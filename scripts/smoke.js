@@ -7669,9 +7669,9 @@ const unlockSrc20    = readSrc('src/components/UnlockCelebration.js');
 const narrationSrc20 = readSrc('src/screens/NarrationScreen.js');
 
 check(
-  'UnlockCelebration tem botão primário "Continuar aventura"',
-  unlockSrc20.includes('Continuar aventura'),
-  'UnlockCelebration não exibe "Continuar aventura" — botão principal ausente',
+  'UnlockCelebration (B4) tem botão primário "Continuar"',
+  unlockSrc20.includes('Continuar'),
+  'UnlockCelebration não exibe "Continuar" — botão principal ausente',
 );
 
 check(
@@ -7681,21 +7681,18 @@ check(
 );
 
 check(
-  'UnlockCelebration aceita prop onBau (atalho para Baú do Beni)',
-  unlockSrc20.includes('onBau'),
-  'UnlockCelebration sem prop onBau — Baú não acessível da celebração',
+  'UnlockCelebration (B4): botão secundário "Colorir esta cena"',
+  unlockSrc20.includes('Colorir esta cena'),
+  'UnlockCelebration sem o botão secundário "Colorir esta cena"',
 );
 
 check(
-  'UnlockCelebration aceita prop onEstrelinhas (atalho para Estrelinhas)',
-  unlockSrc20.includes('onEstrelinhas'),
-  'UnlockCelebration sem prop onEstrelinhas — Estrelinhas não acessível da celebração',
-);
-
-check(
-  'UnlockCelebration destaca Livrinho da Fé no fim da aventura (isLast)',
-  unlockSrc20.includes('onLibrinho') && unlockSrc20.includes('Livrinho da Fé'),
-  'UnlockCelebration não destaca Livrinho da Fé na última cena',
+  'UnlockCelebration (B4): pós-cena simples — sem Baú/Estrelinhas/Livrinho por cena',
+  !unlockSrc20.includes('onBau') &&
+  !unlockSrc20.includes('onEstrelinhas') &&
+  !unlockSrc20.includes('onLibrinho') &&
+  !unlockSrc20.includes('isLast'),
+  'UnlockCelebration voltou a expor Baú/Estrelinhas/Livrinho/isLast por cena — B4 removeu (hub só no CongratsScreen)',
 );
 
 check(
@@ -7717,15 +7714,11 @@ check(
 );
 
 check(
-  'NarrationScreen passa onBau para UnlockCelebration',
-  narrationSrc20.includes('onBau={handleBauFromCelebration}'),
-  'NarrationScreen não passa onBau — Baú não acessível da celebração',
-);
-
-check(
-  'NarrationScreen passa onEstrelinhas para UnlockCelebration',
-  narrationSrc20.includes('onEstrelinhas={handleEstrelinhasFromCelebration}'),
-  'NarrationScreen não passa onEstrelinhas — Estrelinhas não acessível da celebração',
+  'NarrationScreen (B4): sem onBau/onEstrelinhas por cena; última cena vai direto ao Congrats',
+  !narrationSrc20.includes('onBau=') &&
+  !narrationSrc20.includes('onEstrelinhas=') &&
+  /isLastCena\)\s*\{[\s\S]{0,140}goToNext\(\)/.test(narrationSrc20),
+  'NarrationScreen ainda expõe Baú/Estrelinhas por cena, ou a última cena não conduz direto ao Congrats',
 );
 
 // ── Hotfix Pós Cena Persistente — hub de vitória não fica preso sobre outras telas ─
@@ -7738,22 +7731,19 @@ check(
 );
 
 check(
-  'NarrationScreen: handlers secundários chamam setShowCelebration(false) antes de navegar (modal não fica preso)',
+  'NarrationScreen (B4): "Colorir esta cena" LIMPA o pending e esconde o modal antes de navegar (não reabre ao voltar)',
   narrationSrc20.includes('handleColorirFromCelebration') &&
-  narrationSrc20.includes('handleBauFromCelebration') &&
-  narrationSrc20.includes('handleEstrelinhasFromCelebration') &&
-  // cada handler secundário deve ter setShowCelebration(false) antes do navigate
-  /handleColorirFromCelebration[\s\S]{0,200}setShowCelebration\(false\)[\s\S]{0,200}navigate/.test(narrationSrc20) &&
-  /handleBauFromCelebration[\s\S]{0,200}setShowCelebration\(false\)[\s\S]{0,200}navigate/.test(narrationSrc20) &&
-  /handleEstrelinhasFromCelebration[\s\S]{0,200}setShowCelebration\(false\)[\s\S]{0,200}navigate/.test(narrationSrc20),
-  'Handlers secundários devem chamar setShowCelebration(false) antes de navegar — Modal do RN sobrepõe a tela de destino',
+  /handleColorirFromCelebration[\s\S]{0,240}celebrationPendingRef\.current\s*=\s*false[\s\S]{0,120}setShowCelebration\(false\)[\s\S]{0,160}navigate/.test(narrationSrc20) &&
+  // não avança a cena automaticamente ao escolher Colorir
+  !/handleColorirFromCelebration[\s\S]{0,240}goToNext\(\)/.test(narrationSrc20),
+  'handleColorirFromCelebration deve limpar celebrationPendingRef + setShowCelebration(false) antes de navegar (e não chamar goToNext) — senão o modal reabre ao voltar do Colorir',
 );
 
 check(
-  'NarrationScreen: Estrelinhas navega para EstrelinhasCena (rota Stack — preserva NarrationScreen na pilha)',
-  narrationSrc20.includes("navigate('EstrelinhasCena'") ||
-  narrationSrc20.includes('navigate("EstrelinhasCena"'),
-  "handleEstrelinhasFromCelebration deve usar navigate('EstrelinhasCena') — rota Stack que mantém NarrationScreen na pilha para o botão Voltar funcionar",
+  'NarrationScreen (B4): não navega para Baú/Estrelinhas por cena (hub vive só no CongratsScreen)',
+  !narrationSrc20.includes("navigate('EstrelinhasCena'") &&
+  !narrationSrc20.includes("navigate('BeniChest')"),
+  'NarrationScreen ainda navega para Baú/Estrelinhas por cena — B4 moveu o hub para o CongratsScreen',
 );
 
 check(
@@ -7783,9 +7773,13 @@ check(
 );
 
 check(
-  'NarrationScreen passa fromPostSceneCelebration: true ao navegar para EstrelinhasCena',
-  narrationSrc20.includes('fromPostSceneCelebration'),
-  'handleEstrelinhasFromCelebration deve passar fromPostSceneCelebration: true como parâmetro',
+  'CongratsScreen (B4) é o hub final da história — Livrinho, Quiz, Baú e Estrelinhas',
+  (() => {
+    const c = readSrc('src/screens/CongratsScreen.js');
+    return c.includes("navigate('StoryBook'") && c.includes("navigate('Quiz'") &&
+      c.includes("navigate('BeniChest'") && c.includes("navigate('EstrelinhasCena'");
+  })(),
+  'CongratsScreen deixou de ser o hub final (Livrinho/Quiz/Baú/Estrelinhas)',
 );
 
 check(
@@ -7993,12 +7987,13 @@ check(
 );
 
 check(
-  'UnlockCelebration não foi alterado nesta sprint',
+  'UnlockCelebration (B4): pós-cena simples — onContinue + onColorir, sem isLast/hub por cena',
   (() => {
     const src = readSrc('src/components/UnlockCelebration.js');
-    return src.includes('onContinue') && src.includes('isLast') && !src.includes('fromStoryCompletion');
+    return src.includes('onContinue') && src.includes('onColorir') &&
+      !src.includes('isLast') && !src.includes('fromStoryCompletion');
   })(),
-  'UnlockCelebration foi alterado — fora do escopo desta sprint',
+  'UnlockCelebration não está no estado B4 (esperado: onContinue + onColorir, sem isLast)',
 );
 
 check(
