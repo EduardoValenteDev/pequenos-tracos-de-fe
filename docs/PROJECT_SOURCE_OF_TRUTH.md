@@ -12,7 +12,9 @@ Quando houver conflito entre documentos antigos e este arquivo, **este arquivo p
 
 Documentos antigos permanecem como histórico, mas **não devem orientar decisões futuras sem validação contra este arquivo**. Veja o mapa de documentos em [docs/DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md).
 
-**Linha de lançamento (beta/loja):** o [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md) é a **fonte oficial da linha de lançamento**, subordinada a este roteiro mestre. Conflitos com o app já entregue e as decisões finais estão em [`docs/launch/DECISOES_E_CONFLITOS.md`](launch/DECISOES_E_CONFLITOS.md); a matriz de acesso final em [`docs/launch/MATRIZ_DE_ACESSO.md`](launch/MATRIZ_DE_ACESSO.md).
+**Fase final (execução, otimização, beta e lançamento):** o [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL.md) (v2.0, 01/07/2026) é a **fonte única de verdade da fase final** do projeto. Em conflito entre ele e qualquer plano, prompt ou conversa anterior, **o documento oficial final prevalece**. Decisão de escopo travada: **a aba Brincar completa entra no lançamento**, com **arquitetura híbrida obrigatória** (2 histórias grátis locais no binário, 18 premium por packs remotos no Cloudflare R2).
+
+O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md) foi **substituído** pelo documento oficial final e permanece **apenas como histórico** (a versão anterior sugeria MVP sem a aba Brincar). Os conflitos com o app já entregue continuam registrados em [`docs/launch/DECISOES_E_CONFLITOS.md`](launch/DECISOES_E_CONFLITOS.md); a matriz de acesso em [`docs/launch/MATRIZ_DE_ACESSO.md`](launch/MATRIZ_DE_ACESSO.md).
 
 ---
 

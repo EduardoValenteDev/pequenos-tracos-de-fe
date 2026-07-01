@@ -1,3 +1,5 @@
+> ⚠️ **DOCUMENTO SUBSTITUÍDO (SUPERSEDED).** Este documento foi substituído por [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL.md) (v2.0). Manter apenas como histórico. Em qualquer conflito, vale o documento oficial final. Mudança principal: **a aba Brincar completa entra no lançamento** (o plano abaixo sugeria MVP sem Brincar).
+
 # Plano Oficial de Produto, Execucao e Lancamento
 
 Projeto: Pequenos Tracos de Fe, com experiencia guiada por Beni
