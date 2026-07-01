@@ -71,3 +71,7 @@ GoogleService-Info.plist
 
 # Configurações pessoais de agentes (não versionar)
 .claude/settings.local.json
+
+# Tooling local de agentes (não versionar) — mantém .claude/skills/speckit-* versionadas
+.agents/
+.claude/skills/react-native-best-practices/
