@@ -380,6 +380,20 @@ check(
   'ParentAreaScreen missing session gate',
 );
 
+// Regressão B2: fluxo de apagar dados protege o campo "APAGAR" do teclado
+// (KeyboardAvoidingView) e empilha os botões (resetBtnColumn) para não quebrar
+// o texto "Apagar definitivamente" em telas estreitas.
+{
+  const parentSrcB2 = readSrc('src/screens/ParentAreaScreen.js');
+  check(
+    'ParentAreaScreen: apagar dados usa KeyboardAvoidingView + botões empilhados (resetBtnColumn)',
+    parentSrcB2.includes('KeyboardAvoidingView') &&
+    parentSrcB2.includes('resetBtnColumn') &&
+    parentSrcB2.includes("resetConfirmText.trim() !== 'APAGAR'"),
+    'ParentAreaScreen perdeu KeyboardAvoidingView, a coluna de botões, ou a confirmação "APAGAR"',
+  );
+}
+
 // ── [28–30] critical files exist ─────────────────────────────────────────────
 console.log('\n── critical files ──');
 

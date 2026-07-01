@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, Linking, TextInput, Alert, Share, Switch,
-  TouchableOpacity, useWindowDimensions,
+  TouchableOpacity, useWindowDimensions, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import ParentalGate from '../components/ParentalGate';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -464,6 +464,10 @@ export default function ParentAreaScreen({ navigation }) {
   return (
     <>
       <ParentalGate visible={gateVisible} onPass={handleGatePass} onCancel={handleGateCancel} />
+      <KeyboardAvoidingView
+        style={styles.wrapper}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView
         style={styles.wrapper}
         contentContainerStyle={[styles.content, { paddingBottom: 24 }]}
@@ -802,17 +806,17 @@ export default function ParentAreaScreen({ navigation }) {
                     autoCapitalize="characters"
                     autoCorrect={false}
                   />
-                  <View style={styles.resetBtnRow}>
-                    <SoundButton style={styles.resetCancelBtn} onPress={() => { setResetStep('idle'); setResetConfirmText(''); }} activeOpacity={0.85}>
+                  <View style={styles.resetBtnColumn}>
+                    <SoundButton style={[styles.resetCancelBtn, styles.resetBtnStacked]} onPress={() => { setResetStep('idle'); setResetConfirmText(''); }} activeOpacity={0.85}>
                       <Text style={styles.resetCancelBtnText}>Cancelar</Text>
                     </SoundButton>
                     <SoundButton
-                      style={[styles.resetConfirmBtn, resetConfirmText.trim() !== 'APAGAR' && styles.resetConfirmBtnDisabled]}
+                      style={[styles.resetConfirmBtn, styles.resetBtnStacked, resetConfirmText.trim() !== 'APAGAR' && styles.resetConfirmBtnDisabled]}
                       onPress={handleExecuteReset}
                       disabled={resetConfirmText.trim() !== 'APAGAR' || resetLoading}
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.resetConfirmBtnText}>
+                      <Text style={styles.resetConfirmBtnText} numberOfLines={1}>
                         {resetLoading ? 'Apagando...' : 'Apagar definitivamente'}
                       </Text>
                     </SoundButton>
@@ -1116,6 +1120,7 @@ export default function ParentAreaScreen({ navigation }) {
 
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* UX 2.2 — Guia da Área dos Pais (tom para responsáveis; só após o gate). */}
       {parentGuide.visible && (
@@ -1423,6 +1428,10 @@ const styles = StyleSheet.create({
   // Reset
   resetWarningTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: '#C62828', marginBottom: 10 },
   resetBtnRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  // Confirmação de apagar: botões empilhados (full-width) para não comprimir o
+  // texto longo "Apagar definitivamente" em telas estreitas.
+  resetBtnColumn: { gap: 10, marginTop: 16 },
+  resetBtnStacked: { flex: 0, alignSelf: 'stretch' },
   resetCancelBtn: { flex: 1, backgroundColor: pt.border, borderRadius: radii.pill, paddingVertical: 12, alignItems: 'center' },
   resetCancelBtnText: { fontFamily: 'FredokaOne', fontSize: 14, color: pt.text },
   resetNextBtn: { flex: 1, backgroundColor: '#FF8A80', borderRadius: radii.pill, paddingVertical: 12, alignItems: 'center' },
@@ -1435,7 +1444,7 @@ const styles = StyleSheet.create({
   },
   resetConfirmBtn: { flex: 1, backgroundColor: '#C62828', borderRadius: radii.pill, paddingVertical: 12, alignItems: 'center' },
   resetConfirmBtnDisabled: { backgroundColor: pt.border },
-  resetConfirmBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF' },
+  resetConfirmBtnText: { fontFamily: 'FredokaOne', fontSize: 14, color: '#FFF', textAlign: 'center' },
   resetStartBtn: {
     marginTop: 12, backgroundColor: '#FFCDD2', borderRadius: radii.pill,
     paddingVertical: 12, alignItems: 'center',
