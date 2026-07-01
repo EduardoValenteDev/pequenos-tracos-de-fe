@@ -1945,6 +1945,17 @@ check(
   'AtelierCanvasScreen uses ENABLE_LOCAL_PREMIUM_TEST_MODE directly — must go through accessControl',
 );
 
+// Regressão B1: "Escolher cena" deve navegar para a aba via Home > Aventuras.
+// 'Aventuras' NÃO é rota do Stack root (a rota é 'Stories'); navegar 'Aventuras'
+// direto falha ("NAVIGATE not handled") quando o Ateliê é aberto por
+// AtelierFromContext (ex.: Cultinho). O padrão correto é navigate('Home', {screen:'Aventuras'}).
+check(
+  'AtelierScreen "Escolher cena" usa navigate(Home, {screen: Aventuras}) — não a rota inexistente Aventuras',
+  atelierScreenSrc.includes("navigate('Home', { screen: 'Aventuras' })") &&
+  !/navigate\(\s*'Aventuras'\s*\)/.test(atelierScreenSrc),
+  'AtelierScreen navega para a rota inexistente Aventuras — quebra ao abrir o Ateliê pelo Cultinho (AtelierFromContext)',
+);
+
 // Limit modal → ParentArea
 check(
   'AtelierCanvasScreen limit modal navigates to ParentArea',

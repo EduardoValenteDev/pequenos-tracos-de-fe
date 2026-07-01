@@ -112,7 +112,7 @@ export default function AtelierScreen({ navigation, route }) {
         </View>
         <SoundButton
           style={[styles.cardBtn, styles.cardBtnPrincipal, { backgroundColor: pt.beni }]}
-          onPress={() => navigation.navigate('Aventuras')}
+          onPress={() => navigation.navigate('Home', { screen: 'Aventuras' })}
           activeOpacity={0.85}
         >
           <Text style={styles.cardBtnTextPrincipal}>Escolher cena</Text>
