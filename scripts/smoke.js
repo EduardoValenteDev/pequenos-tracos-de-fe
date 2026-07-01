@@ -2710,20 +2710,26 @@ check(
   faithIconSrc93.includes('zoom_reset:'),
   'FaithIcon missing zoom_reset — Enquadrar button cannot use FaithIcon',
 );
+// B3: Eduardo NÃO quer botões + / - de zoom. O zoomIn órfão (Ampliar) foi
+// removido; o zoom continua por gesto de pinça e o botão zoom_reset (Enquadrar).
 check(
-  'ColoringCanvas has window.zoomIn (Ampliar API)',
-  coloringCanvasSrc93.includes('window.zoomIn=function'),
-  'window.zoomIn not found in ColoringCanvas — Ampliar button will not work',
+  'Colorir (B3): ColoringCanvas não tem window.zoomIn órfão (sem botão Ampliar +/-)',
+  !coloringCanvasSrc93.includes('window.zoomIn'),
+  'ColoringCanvas voltou a expor window.zoomIn (Ampliar) — Eduardo não quer botões + / - de zoom',
 );
 check(
-  'ColoringCanvas zoomIn clamps to maxScale (1.5× step)',
-  coloringCanvasSrc93.includes('Math.min(maxScale,scale*1.5)'),
-  'zoomIn does not use 1.5x step clamped to maxScale',
+  'Colorir (B3): reset de zoom (Enquadrar) preservado — window.resetZoom + zoom_reset',
+  coloringCanvasSrc93.includes('window.resetZoom=function') &&
+  coloringScreenSrc93.includes('name="zoom_reset"') &&
+  !/name="zoom_(in|out)"/.test(coloringScreenSrc93),
+  'reset de zoom removido, ou surgiu botão zoom_in/zoom_out (proibido)',
 );
 check(
-  'ColoringCanvas exposes zoomIn via useImperativeHandle',
-  coloringCanvasSrc93.includes("zoomIn()") && coloringCanvasSrc93.includes("window.zoomIn()"),
-  'zoomIn not exposed via ref — canvasRef.current.zoomIn() will fail',
+  'Colorir (B3): orientação inicial "toque numa parte branca" + botão Entendi',
+  coloringScreenSrc93.includes('Toque em uma parte branca para começar a colorir') &&
+  coloringScreenSrc93.includes('dismissStartHint') &&
+  coloringScreenSrc93.includes('Entendi'),
+  'ColoringScreen perdeu a orientação inicial (toque numa parte branca / botão Entendi / dismissStartHint)',
 );
 check(
   'ColoringCanvas postMessages FILL_REJECTED on barrier tap',
@@ -3044,11 +3050,11 @@ check(
   'botão Ampliar reapareceu na tela de colorir',
 );
 check(
-  'Colorir Grande: dica de primeira vez (dois dedos) — uma vez, persistida, não fixa',
-  coloringScreenSrc94.includes('@ptf_coloring_biggie_hint_v1') &&
-  coloringScreenSrc94.includes('Use dois dedos para mover o desenho') &&
+  'Colorir Grande: orientação de primeira vez — uma vez, persistida, dispensável (B3)',
+  coloringScreenSrc94.includes('@ptf_coloring_start_hint_v1') &&
+  coloringScreenSrc94.includes('Use dois dedos para aproximar ou mover o desenho') &&
   coloringScreenSrc94.includes('setShowPanHint(false)'),
-  'dica de pan ausente, fixa, ou sem persistência de "primeira vez"',
+  'orientação inicial do Colorir ausente, fixa, ou sem persistência de "primeira vez"',
 );
 check(
   'Colorir Grande: paleta principal segue compacta e visível (não escondida neste bloco)',
@@ -3074,9 +3080,9 @@ check(
   'FILL_REJECTED removed — touch feedback on line tap lost',
 );
 check(
-  'ColoringCanvas zoomIn intact (Sprint 9.4)',
-  coloringCanvasSrc94.includes('window.zoomIn=function'),
-  'zoomIn removed — Ampliar button broken',
+  'ColoringCanvas sem zoomIn órfão (B3) — sem botão Ampliar + / -',
+  !coloringCanvasSrc94.includes('window.zoomIn'),
+  'window.zoomIn voltou — Eduardo não quer botões + / - de zoom',
 );
 check(
   'ColoringCanvas resetZoom intact (Sprint 9.4)',

@@ -22,9 +22,10 @@ import { isCreatorQaModeEnabled } from '../services/creatorQaMode';
 import FaithIcon from '../components/ui/FaithIcon';
 import { backLabelFor } from '../utils/originBack';
 
-// Dica de primeira vez do Modo Colorir Grande (UI-pref, não progresso): aparece
-// UMA vez por dispositivo e some sozinha — nunca fica fixa na tela.
-const PAN_HINT_KEY = '@ptf_coloring_biggie_hint_v1';
+// Orientação inicial do Colorir (UI-pref, não progresso): aparece UMA vez por
+// dispositivo e some ao tocar "Entendi", ao pintar pela 1ª vez ou por tempo.
+// Chave nova (v_start) para que a nova orientação apareça uma vez para todos.
+const PAN_HINT_KEY = '@ptf_coloring_start_hint_v1';
 
 
 // Ferramenta compacta: só ícone (sem rótulo embaixo) com área tocável segura.
@@ -111,9 +112,9 @@ export default function ColoringScreen({ route, navigation }) {
     setShowResumeDialog(false);
   }
 
-  // First-time hint: "use dois dedos para mover o desenho". Mostra UMA vez por
-  // dispositivo (flag persistida) e some sozinha — nunca fixa, nunca ocupa espaço
-  // permanente. Só faz sentido com imagem de história (Modo Colorir Grande).
+  // Orientação inicial: "toque numa parte branca para começar" + gesto de mover.
+  // Mostra UMA vez por dispositivo (flag persistida) e some sozinha — nunca fixa.
+  // Só faz sentido com imagem de história (Modo Colorir Grande).
   useEffect(() => {
     if (!imageSource) return;
     let cancelled = false;
@@ -121,13 +122,19 @@ export default function ColoringScreen({ route, navigation }) {
       if (cancelled || seen) return;
       setShowPanHint(true);
       AsyncStorage.setItem(PAN_HINT_KEY, '1').catch(() => {});
-      panHintTimerRef.current = setTimeout(() => setShowPanHint(false), 4000);
+      panHintTimerRef.current = setTimeout(() => setShowPanHint(false), 8000);
     }).catch(() => {});
     return () => {
       cancelled = true;
       if (panHintTimerRef.current) clearTimeout(panHintTimerRef.current);
     };
   }, []);
+
+  // Some ao tocar "Entendi" ou ao pintar pela 1ª vez.
+  function dismissStartHint() {
+    if (panHintTimerRef.current) clearTimeout(panHintTimerRef.current);
+    setShowPanHint(false);
+  }
 
   // DEV: expose console helpers to clear saved state during testing
   useEffect(() => {
@@ -322,7 +329,7 @@ export default function ColoringScreen({ route, navigation }) {
             storyId={story.id}
             sceneNumber={cena.id}
             onReadyChange={setCanvasReady}
-            onPainted={() => setHasPainted(true)}
+            onPainted={() => { setHasPainted(true); dismissStartHint(); }}
             onFillRejected={handleFillRejected}
             onGoBack={() => navigation.goBack()}
             // Validação do desenho salvo (probe, antes de aplicar):
@@ -412,13 +419,14 @@ export default function ColoringScreen({ route, navigation }) {
 
       </View>
 
-      {/* ── PAN HINT — dica de primeira vez do Modo Colorir Grande ── */}
+      {/* ── ORIENTAÇÃO INICIAL — 1ª vez: tocar numa parte branca + gesto de mover ── */}
       {showPanHint && (
-        <View
-          style={[styles.panHint, { top: Math.max(insets.top, 8) + 54 }]}
-          pointerEvents="none"
-        >
-          <Text style={styles.panHintText}>✌️ Use dois dedos para mover o desenho</Text>
+        <View style={[styles.panHint, { top: Math.max(insets.top, 8) + 54 }]}>
+          <Text style={styles.startHintTitle}>👆 Toque em uma parte branca para começar a colorir.</Text>
+          <Text style={styles.startHintSub}>✌️ Use dois dedos para aproximar ou mover o desenho.</Text>
+          <SoundButton style={styles.startHintBtn} onPress={dismissStartHint} activeOpacity={0.85}>
+            <Text style={styles.startHintBtnText}>Entendi</Text>
+          </SoundButton>
         </View>
       )}
 
@@ -736,6 +744,36 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     textAlign: 'center',
+  },
+  startHintTitle: {
+    fontFamily: 'Nunito',
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  startHintSub: {
+    fontFamily: 'Nunito',
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.85)',
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 17,
+  },
+  startHintBtn: {
+    marginTop: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingVertical: 7,
+    paddingHorizontal: 24,
+    alignSelf: 'center',
+  },
+  startHintBtnText: {
+    fontFamily: 'FredokaOne',
+    fontSize: 13,
+    color: '#333333',
   },
 
   /* ── Line tip toast ── */

@@ -401,7 +401,6 @@ window.undo=function(){
 };
 
 window.resetZoom=function(){scale=1;tx=0;ty=0;show();};
-window.zoomIn=function(){var ns=Math.min(maxScale,scale*1.5);if(ns===scale)return;var cx=W/2,cy=H/2;tx=cx-(cx-tx)*(ns/scale);ty=cy-(cy-ty)*(ns/scale);scale=ns;clamp();show();};
 
 window.exportPaint=function(){
   try{
@@ -741,7 +740,6 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
     clearCanvas() { webViewRef.current?.injectJavaScript('window.clearPaint(); true;'); },
     undo()        { webViewRef.current?.injectJavaScript('window.undo(); true;'); },
     resetZoom()   { webViewRef.current?.injectJavaScript('window.resetZoom(); true;'); },
-    zoomIn()      { webViewRef.current?.injectJavaScript('window.zoomIn(); true;'); },
 
     exportPaint(callback) {
       pendingExportCallbackRef.current = callback;
