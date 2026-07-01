@@ -130,6 +130,7 @@ const ProgressContext = createContext({
   refreshProgress: async () => {},
   getStoryProgress: () => ({}),
   isStoryCompleted: () => false,
+  isNarrativeComplete: () => false,
   getCompletedScenesCount: () => 0,
   getTotalScenesCount: () => 0,
   getStoryCompletionPercent: () => 0,
@@ -193,6 +194,13 @@ export function ProgressProvider({ children }) {
     [getCompletedScenesCount, getTotalScenesCount],
   );
 
+  // B5.1 — "narrativa concluída" = TODAS as cenas da história vistas/concluídas.
+  // É EXATAMENTE a regra de `isStoryCompleted` (só cenas): NÃO exige quiz, colorir,
+  // Livrinho, Cultinho, Baú nem estrelinhas para desbloquear a próxima história.
+  // Alias semântico para deixar essa intenção explícita nos blocos do mapa (B5.2+).
+  // (Um conceito de "100% completo" = cenas + extras é FUTURO e não é usado aqui.)
+  const isNarrativeComplete = isStoryCompleted;
+
   const getStoryCompletionPercent = useCallback(
     storyId => {
       const total = getTotalScenesCount(storyId);
@@ -221,6 +229,7 @@ export function ProgressProvider({ children }) {
     refreshProgress,
     getStoryProgress,
     isStoryCompleted,
+    isNarrativeComplete,
     getCompletedScenesCount,
     getTotalScenesCount,
     getStoryCompletionPercent,
@@ -236,6 +245,7 @@ export function ProgressProvider({ children }) {
     refreshProgress,
     getStoryProgress,
     isStoryCompleted,
+    isNarrativeComplete,
     getCompletedScenesCount,
     getTotalScenesCount,
     getStoryCompletionPercent,

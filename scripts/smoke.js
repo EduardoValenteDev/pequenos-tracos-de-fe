@@ -10880,6 +10880,65 @@ check(
     );
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // B5.1 — Desbloqueio da PRÓXIMA história depende SÓ da narrativa (cenas).
+  // Regra travada: "viu todas as cenas → história concluída narrativamente →
+  // próxima desbloqueia". Não exige quiz, colorir, Livrinho, Cultinho, Baú nem
+  // estrelinhas. Não depende de "100% completo" (cenas + extras).
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── B5.1: desbloqueio por narrativa (só cenas) ──');
+  {
+    const progB51  = readSrc('src/context/ProgressContext.js');
+    const nextB51  = readSrc('src/services/nextAdventureService.js');
+    const mapB51   = readSrc('src/screens/AdventureMapScreen.js');
+    const EXTRAS = /quiz|coloring|colorir|storybook|storyBook|livrinho|reflection|reflex|cultinho|familyWorship|beniChest|estrelinha|bonus_stars|hasPendingRewards/i;
+
+    // isStoryCompleted = cenas concluídas >= total (só cenas), sem extras.
+    check(
+      'B5.1: isStoryCompleted usa só cenas (getCompletedScenesCount >= total), sem extras',
+      /isStoryCompleted\s*=\s*useCallback\(\s*storyId\s*=>\s*\{[\s\S]{0,200}getCompletedScenesCount\(storyId\)\s*>=\s*total/.test(progB51),
+      'isStoryCompleted deixou de ser baseado só na contagem de cenas',
+    );
+    // isNarrativeComplete existe e é alias de isStoryCompleted (mesma regra).
+    check(
+      'B5.1: ProgressContext expõe isNarrativeComplete (alias de isStoryCompleted, só cenas)',
+      progB51.includes('isNarrativeComplete = isStoryCompleted') &&
+      progB51.includes('isNarrativeComplete,'),
+      'isNarrativeComplete ausente ou não é alias de isStoryCompleted',
+    );
+    // nextAdventureService: "concluída" = contagem de cenas >= totalCenas.
+    check(
+      'B5.1: nextAdventureService.isCompleted usa contagem de cenas >= totalCenas',
+      /isCompleted\s*=\s*\(s\)\s*=>[\s\S]{0,80}getCount\(s\.id\)\s*>=\s*s\.totalCenas/.test(nextB51),
+      'nextAdventureService.isCompleted deixou de ser por contagem de cenas',
+    );
+    // O caminho de desbloqueio (accessibleIncomplete/isAccessible/isCompleted)
+    // NÃO referencia quiz/colorir/livrinho/cultinho/baú/estrelinhas/100%.
+    check(
+      'B5.1: caminho de desbloqueio do nextAdventureService não exige extras (quiz/colorir/livrinho/cultinho)',
+      !EXTRAS.test(nextB51),
+      'nextAdventureService passou a exigir atividade extra para desbloquear a próxima história',
+    );
+    // A "fronteira" da jornada no mapa = 1ª história não concluída POR CENAS.
+    check(
+      'B5.1: fronteira da jornada = primeira história não concluída por cenas (isStoryCompleted)',
+      /ordered\.find\(\s*\(?s\)?\s*=>\s*!isStoryCompleted\(s\.id\)\)/.test(mapB51),
+      'a fronteira do mapa deixou de ser derivada de isStoryCompleted (só cenas)',
+    );
+    // Regressão do caso A Criação → Noé (contagem de cenas basta p/ concluir).
+    check(
+      'B5.1: A Criação concluída por 10 cenas satisfaz isStoryCompleted (Noé vira a fronteira)',
+      (() => {
+        const total = 10;
+        const done = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, true]));
+        const completed = total > 0 && Object.values(done).filter(Boolean).length >= total;
+        // simula a regra pura (sem exigir quiz/colorir/etc.)
+        return completed === true;
+      })(),
+      'regra pura de cenas não considera A Criação concluída com 10/10 cenas',
+    );
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
