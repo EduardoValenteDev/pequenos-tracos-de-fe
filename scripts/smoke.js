@@ -11448,6 +11448,91 @@ check(
     }
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // A0.1 — Tokens oficiais da Direção de Arte v1.1 (src/theme/tokens.js). SÓ define
+  // os tokens (cor/tipografia/forma/movimento/responsividade); não migra telas, não
+  // carrega fontes, não cria componentes. Temas antigos seguem intactos.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── A0.1: tokens da Direção de Arte v1.1 ──');
+  {
+    const tokPath = 'src/theme/tokens.js';
+    const tokSrc = readSrc(tokPath);
+
+    check(
+      'A0.1: src/theme/tokens.js existe e exporta os grupos principais',
+      /export const color\b/.test(tokSrc) && /export const font\b/.test(tokSrc) &&
+      /export const fontSize\b/.test(tokSrc) && /export const radius\b/.test(tokSrc) &&
+      /export const border\b/.test(tokSrc) && /export const shadow\b/.test(tokSrc) &&
+      /export const motion\b/.test(tokSrc) && /export const breakpoints\b/.test(tokSrc) &&
+      /export const maxContentWidth\b/.test(tokSrc) && /export default tokens/.test(tokSrc),
+      'tokens.js não existe ou não exporta os grupos esperados',
+    );
+    check(
+      'A0.1: temas antigos INTACTOS em paralelo (colors/productTheme/theme)',
+      readSrc('src/theme/colors.js').includes('export const colors') &&
+      readSrc('src/theme/productTheme.js').length > 0 &&
+      readSrc('src/theme/theme.js').length > 0,
+      'algum tema antigo sumiu/foi alterado (deviam seguir vivos)',
+    );
+
+    // Validação numérica dos VALORES (sandbox — tokens.js é puro, sem imports/require).
+    try {
+      let s = tokSrc
+        .replace(/export default[^\n]*\n?/g, '')  // remove a linha `export default tokens;`
+        .replace(/export /g, '');                  // `export const` → `const`
+      s += '\nreturn { color, semantic, font, fontSize, lineHeight, fontWeight, radius, border, shadow, texture, motion, breakpoints, maxContentWidth, grid, displayScaleTablet };';
+      // eslint-disable-next-line no-new-func
+      const T = new Function(s)();
+
+      const coresOk =
+        T.color.paper50 === '#FDF8EE' && T.color.paper100 === '#F8F0DC' &&
+        T.color.paper200 === '#EFE3C8' && T.color.paper300 === '#E4D5B4' &&
+        T.color.ink900 === '#3E2E1B' && T.color.ink600 === '#7A6A50' && T.color.ink400 === '#A89573' &&
+        T.color.terra500 === '#C9502A' && T.color.terra600 === '#A73F1F' &&
+        T.color.terra100 === '#F7DED2' && T.color.onTerra === '#FFF6E8' &&
+        T.color.gold700 === '#8F6A1E' && T.color.gold500 === '#C99A3B' &&
+        T.color.gold300 === '#E8C05A' && T.color.gold100 === '#F6E7C8' &&
+        T.color.night800 === '#1C2B52' && T.color.night600 === '#2E4370' && T.color.star100 === '#F2DCA0';
+      check(
+        'A0.1: 18 cores oficiais (paper/ink/terra/gold/night) com os hexes EXATOS do v1.1',
+        coresOk,
+        'algum hex de cor difere do documento v1.1',
+      );
+
+      check(
+        'A0.1: semânticos mínimos — acerto = gold300; atencao = terra100 + ink600 (sem verde/vermelho)',
+        T.semantic.acerto === T.color.gold300 &&
+        T.semantic.atencao.bg === T.color.terra100 && T.semantic.atencao.text === T.color.ink600,
+        'semânticos (acerto/atencao) incorretos',
+      );
+      check(
+        'A0.1: tipografia — Fraunces (display) + Nunito (texto); escala (caption 13 … displayXL 40); line-height',
+        T.font.display === 'Fraunces' && T.font.body === 'Nunito' &&
+        T.fontSize.caption === 13 && T.fontSize.body === 17 && T.fontSize.displayXL === 40 &&
+        T.lineHeight.title === 1.35 && T.lineHeight.body === 1.55,
+        'tipografia/escala/line-height fora do v1.1',
+      );
+      check(
+        'A0.1: forma/sombra/movimento — radius {chip14…pill28}, sombra única, motion + pressScale 0.96',
+        T.radius.chip === 14 && T.radius.card === 20 && T.radius.hero === 24 && T.radius.pill === 28 &&
+        T.border.card.width === 1.5 && T.border.reward.color === T.color.gold500 &&
+        T.shadow.color === '#3E2E1B' && T.shadow.opacity === 0.10 && T.shadow.radius === 10 &&
+        T.motion.pageTurn === 450 && T.motion.pressScale === 0.96,
+        'radius/border/shadow/motion fora do v1.1',
+      );
+      check(
+        'A0.1: responsividade — breakpoints {0,600,900}, maxContentWidth {100%,560,640}, grid, display +10%',
+        T.breakpoints.phone === 0 && T.breakpoints.tablet === 600 && T.breakpoints.tabletL === 900 &&
+        T.maxContentWidth.tablet === 560 && T.maxContentWidth.tabletL === 640 &&
+        T.grid.phone === 1 && T.grid.tablet === 2 && T.grid.tabletL === 3 &&
+        T.displayScaleTablet === 1.10,
+        'breakpoints/maxContentWidth/grid fora do v1.1',
+      );
+    } catch (e) {
+      check('A0.1: validação numérica dos tokens', false, String(e && e.message));
+    }
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
