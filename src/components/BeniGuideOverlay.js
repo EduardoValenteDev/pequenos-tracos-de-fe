@@ -31,6 +31,10 @@ const TABBAR_APPROX = 64;  // altura aproximada da tab bar (não cobrir)
 const GAP = 18;            // folga card↔alvo (UX 2.4.3: card não cobre o pin/botão)
 const ARROW_HALF = 10;     // metade da base da seta
 const MEASURE_SETTLE_MS = 320; // espera o layout/scroll estabilizar antes de medir
+// V3 (regra global de segurança): tempo MÁXIMO esperando a medição de um alvo.
+// Se `measure` não resolver/rejeitar até aqui (âncora ausente/não renderizada/travada),
+// o passo comita SEM alvo — o tour NUNCA trava a tela. Vale para todos os tours.
+const MEASURE_TIMEOUT_MS = 1500;
 
 export default function BeniGuideOverlay({
   steps = [],
@@ -89,16 +93,31 @@ export default function BeniGuideOverlay({
   // MEDE, e só então comita índice + rect JUNTOS (card já na posição final + áudio
   // junto). O card anterior fica visível durante o intervalo (sem pulo/flicker).
   const commitTimer = useRef(null);
+  const watchdogTimer = useRef(null); // V3: garante que a medição nunca trave o passo
   const commitStep = (to) => {
     if (to < 0 || to > safeSteps.length - 1) return;
     setBusy(true);
     if (commitTimer.current) clearTimeout(commitTimer.current);
+    if (watchdogTimer.current) { clearTimeout(watchdogTimer.current); watchdogTimer.current = null; }
     const target = targetFor(safeSteps[to]);
     onStep?.(target);
-    const finish = (r) => { setIndex(to); setRect(r || null); setBusy(false); };
+    const finish = (r) => {
+      if (watchdogTimer.current) { clearTimeout(watchdogTimer.current); watchdogTimer.current = null; }
+      setIndex(to); setRect(r || null); setBusy(false);
+    };
     if (target && typeof measure === 'function') {
       commitTimer.current = setTimeout(() => {
-        measure(target).then(finish).catch(() => finish(null));
+        // V3 — WATCHDOG GLOBAL: a medição NUNCA trava o passo. Se `measure` não
+        // resolver/rejeitar a tempo (âncora ausente/não medida) OU lançar de forma
+        // síncrona, o passo comita SEM alvo (card em posição segura, avançável).
+        let settled = false;
+        const done = (r) => { if (!settled) { settled = true; finish(r); } };
+        watchdogTimer.current = setTimeout(() => done(null), MEASURE_TIMEOUT_MS);
+        try {
+          Promise.resolve(measure(target)).then((r) => done(r || null)).catch(() => done(null));
+        } catch {
+          done(null); // measure lançou de forma síncrona → fallback honesto (sem alvo)
+        }
       }, MEASURE_SETTLE_MS);
     } else {
       finish(null); // sem alvo → comita na hora (1↔2, 2↔3 sem medição)
@@ -107,7 +126,10 @@ export default function BeniGuideOverlay({
   // Ao entrar nas etapas (após o aviso de som), prepara o 1º card já posicionado.
   useEffect(() => {
     if (phase === 'steps') commitStep(0);
-    return () => { if (commitTimer.current) clearTimeout(commitTimer.current); };
+    return () => {
+      if (commitTimer.current) clearTimeout(commitTimer.current);
+      if (watchdogTimer.current) clearTimeout(watchdogTimer.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 

@@ -6874,8 +6874,8 @@ check(
   check(
     'UX2.4.4: overlay usa COMMIT MODEL (mede → comita índice+rect juntos), sem render provisório que pula',
     guideBase.includes('commitStep') &&
-    /measure\(target\)\.then\(finish\)/.test(guideBase) &&
-    /const finish = \(r\) => \{ setIndex\(to\); setRect\(r \|\| null\); setBusy\(false\); \}/.test(guideBase) &&
+    /Promise\.resolve\(measure\(target\)\)\.then\(\(r\) => done\(r \|\| null\)\)/.test(guideBase) &&
+    /const finish = \(r\) =>[\s\S]{0,160}setIndex\(to\); setRect\(r \|\| null\); setBusy\(false\)/.test(guideBase) &&
     !/setRect\(null\);[\s\S]{0,40}onStep\?\.\(step\.target\)/.test(guideBase) &&
     /commitStep\(index \+ 1\)/.test(guideBase) &&
     /commitStep\(index - 1\)/.test(guideBase),
@@ -11200,6 +11200,44 @@ check(
       /top:\s*edgeLightTop,\s*height:\s*REVEAL_EDGE_LIGHT_H/.test(mapRegionB53) &&
       !/Animated|reveal_seen|AsyncStorage|@ptf_/.test(mapRegionB53),
       'linha de luz não posicionada na fronteira, ou introduziu animação/persistência',
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // V3 — Regra GLOBAL de segurança do tour: nenhum tour trava a tela quando uma
+  // âncora não renderiza/mede. Watchdog na medição (comita sem alvo em tempo seguro)
+  // + measure protegido (hang/throw) + rota de escape sempre disponível ("Pular").
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── V3: regra global de segurança do tour (nunca trava) ──');
+  {
+    const guideV3 = readSrc('src/components/BeniGuideOverlay.js');
+
+    check(
+      'V3: watchdog de medição — MEASURE_TIMEOUT_MS comita o passo sem alvo em tempo seguro',
+      /const MEASURE_TIMEOUT_MS\s*=\s*\d{3,4}/.test(guideV3) &&
+      /watchdogTimer/.test(guideV3) &&
+      /setTimeout\(\(\)\s*=>\s*done\(null\),\s*MEASURE_TIMEOUT_MS\)/.test(guideV3),
+      'sem watchdog de medição — o passo pode travar se a âncora não medir',
+    );
+    check(
+      'V3: measure protegido contra hang/throw (Promise.resolve + catch + try/catch síncrono)',
+      /Promise\.resolve\(measure\(target\)\)/.test(guideV3) &&
+      /\.catch\(\(\)\s*=>\s*done\(null\)\)/.test(guideV3) &&
+      /catch\s*\{[\s\S]{0,40}done\(null\)/.test(guideV3),
+      'measure não está protegido — busy pode ficar preso e travar o avanço',
+    );
+    check(
+      'V3: busy SEMPRE libera — finish limpa o watchdog e chama setBusy(false)',
+      /const finish = \(r\) =>/.test(guideV3) &&
+      /clearTimeout\(watchdogTimer\.current\)/.test(guideV3) &&
+      /setBusy\(false\)/.test(guideV3),
+      'busy pode não liberar após a medição (avanço travado)',
+    );
+    check(
+      'V3: rota de escape sempre disponível — "Pular" (onSkip) NÃO é disabled={busy}',
+      /onPress=\{onSkip\}/.test(guideV3) &&
+      !/onPress=\{onSkip\}[^)]*disabled=\{busy\}/.test(guideV3),
+      'o botão Pular pode ficar bloqueado (sem rota de escape)',
     );
   }
 
