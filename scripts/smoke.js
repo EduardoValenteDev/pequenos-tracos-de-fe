@@ -11533,6 +11533,42 @@ check(
     }
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // A0.2 — Fontes: Fraunces (display, D3) carregada junto de Nunito; FredokaOne
+  // segue carregada TEMPORARIAMENTE (sem regressão nas telas atuais). Nenhuma tela
+  // migrada; só o carregamento/registro em App.js.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── A0.2: carregamento de fontes (Fraunces + Nunito) ──');
+  {
+    const appSrc = readSrc('App.js');
+    const tokSrcA02 = readSrc('src/theme/tokens.js');
+
+    check(
+      'A0.2: App.js importa Fraunces_600SemiBold de @expo-google-fonts/fraunces',
+      /import\s*\{[\s\S]{0,60}Fraunces_600SemiBold[\s\S]{0,60}\}\s*from\s*'@expo-google-fonts\/fraunces'/.test(appSrc),
+      'App.js não importa Fraunces_600SemiBold do pacote fraunces',
+    );
+    check(
+      'A0.2: useFonts registra Fraunces + Nunito (regular/bold); FredokaOne segue temporária',
+      /useFonts\(\{[\s\S]*?'Fraunces':\s*Fraunces_600SemiBold[\s\S]*?\}\)/.test(appSrc) &&
+      /'Nunito':\s*Nunito_400Regular/.test(appSrc) &&
+      /'Nunito-Bold':\s*Nunito_700Bold/.test(appSrc) &&
+      /'FredokaOne':\s*FredokaOne_400Regular/.test(appSrc),
+      'useFonts não registra Fraunces/Nunito/Nunito-Bold, ou FredokaOne foi removida (regressão)',
+    );
+    check(
+      'A0.2: o app ainda aguarda fontsLoaded (sem regressão de boot)',
+      /const \[fontsLoaded\] = useFonts/.test(appSrc) && /if \(!fontsLoaded\)/.test(appSrc),
+      'App.js não aguarda mais fontsLoaded (risco de flash/boot sem fonte)',
+    );
+    check(
+      'A0.2: o nome de família carregado ("Fraunces") casa com tokens.font.display',
+      /'Fraunces':\s*Fraunces_600SemiBold/.test(appSrc) &&
+      /display:\s*'Fraunces'/.test(tokSrcA02),
+      'o nome da família registrada não corresponde a tokens.font.display',
+    );
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

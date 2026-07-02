@@ -11,6 +11,12 @@ import {
   Nunito_400Regular,
   Nunito_700Bold,
 } from '@expo-google-fonts/nunito';
+// A0.2 (Direção de Arte v1.1 / D3): Fraunces (display, peso 600) passa a ser
+// carregada junto. FredokaOne segue carregada TEMPORARIAMENTE (as 317 telas atuais
+// ainda a usam — a migração para Fraunces é por tela, em blocos futuros).
+import {
+  Fraunces_600SemiBold,
+} from '@expo-google-fonts/fraunces';
 import AppNavigator from './src/navigation/AppNavigator';
 import { ProfileProvider } from './src/context/ProfileContext';
 import { ProgressProvider } from './src/context/ProgressContext';
@@ -20,9 +26,10 @@ import { runLocalMigrations } from './src/services/storageMigrationService';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    'FredokaOne': FredokaOne_400Regular,
+    'FredokaOne': FredokaOne_400Regular, // temporário (telas atuais) — sai por tela
     'Nunito': Nunito_400Regular,
     'Nunito-Bold': Nunito_700Bold,
+    'Fraunces': Fraunces_600SemiBold,    // A0.2: display oficial da v1.1 (tokens.font.display)
   });
 
   // Pré-carrega capas das histórias e Beni em background (não bloqueia a UI).
