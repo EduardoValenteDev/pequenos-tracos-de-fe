@@ -20,6 +20,7 @@ import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
 import { PARENT_GUIDE_BASE, PARENT_GUIDE_CREATOR_STEP } from '../data/beniGuides';
 import productConfig from '../config/productConfig';
+import { SHOW_CHURCH_MODE } from '../config/featureFlags';
 import { useProgressContext } from '../context/ProgressContext';
 import { useProfile } from '../context/ProfileContext';
 import { getAvatarImage, getProfileAvatarSkinTone } from '../data/avatars';
@@ -986,7 +987,12 @@ export default function ParentAreaScreen({ navigation }) {
             </AccordionSection>
           )}
 
-          {/* ─── 8. MODO IGREJA — discreta, fechada, no fim ───────────────────── */}
+          {/* ─── 8. MODO IGREJA — feature "em preparação", FORA do v1 ──────────────
+              Bloco 3: escondida por padrão (DECISIONS.md #5). Só aparece com a flag
+              de build SHOW_CHURCH_MODE (EXPO_PUBLIC_ENABLE_CHURCH_MODE=true). Em
+              produção fica invisível. O Cultinho em Casa (FamilyWorship) é separado
+              e NÃO depende desta flag. */}
+          {SHOW_CHURCH_MODE && (
           <AccordionSection
             title="⛪ Modo Igreja"
             hint="Recurso em preparação para turmas, professores e encontros infantis."
@@ -1117,6 +1123,7 @@ export default function ParentAreaScreen({ navigation }) {
               )}
             </InfoCard>
           </AccordionSection>
+          )}
 
         </View>
       </ScrollView>

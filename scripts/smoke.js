@@ -11204,6 +11204,55 @@ check(
   }
 
   // ════════════════════════════════════════════════════════════════════════════
+  // BLOCO 3 — Flags de produção: ferramentas internas invisíveis no v1. Modo Igreja
+  // ("em preparação") atrás de flag de build dedicada; QA sob SHOW_TEST_TOOLS;
+  // Cultinho em Casa e "Em breve" (premium) NÃO afetados.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco 3: flags de produção (ferramentas internas escondidas) ──');
+  {
+    const flagsB3 = readSrc('src/config/featureFlags.js');
+    const parentB3 = readSrc('src/screens/ParentAreaScreen.js');
+    const homeB3 = readSrc('src/screens/HomeScreen.js');
+
+    check(
+      'Bloco3: featureFlags define SHOW_CHURCH_MODE atrás de flag de build (default OFF)',
+      /export const SHOW_CHURCH_MODE\s*=\s*[\s\S]{0,80}process\.env\.EXPO_PUBLIC_ENABLE_CHURCH_MODE\s*===\s*'true'/.test(flagsB3),
+      'SHOW_CHURCH_MODE não é uma flag de build desligada por padrão',
+    );
+    check(
+      'Bloco3 (a): Modo Igreja só renderiza sob SHOW_CHURCH_MODE (import + gate {SHOW_CHURCH_MODE && ...})',
+      /import\s*\{[^}]*SHOW_CHURCH_MODE[^}]*\}\s*from\s*'\.\.\/config\/featureFlags'/.test(parentB3) &&
+      /\{SHOW_CHURCH_MODE && \([\s\S]{0,200}title="⛪ Modo Igreja"/.test(parentB3),
+      'a seção Modo Igreja não está gated por SHOW_CHURCH_MODE',
+    );
+    check(
+      'Bloco3 (b): bloco de ferramentas QA continua sob SHOW_TEST_TOOLS (__DEV__ || isCreatorQaModeAllowed)',
+      /const SHOW_TEST_TOOLS\s*=/.test(parentB3) &&
+      /isCreatorQaModeAllowed\(\)/.test(parentB3) &&
+      /\{SHOW_TEST_TOOLS && \(/.test(parentB3),
+      'as ferramentas QA não estão mais sob SHOW_TEST_TOOLS',
+    );
+    check(
+      'Bloco3 (c): Cultinho em Casa (FamilyWorship) NÃO depende de SHOW_CHURCH_MODE (feature separada, fica no v1)',
+      /navigation\.navigate\('FamilyWorship'\)/.test(homeB3) &&
+      !/SHOW_CHURCH_MODE[\s\S]{0,120}FamilyWorship/.test(homeB3) &&
+      !/FamilyWorship[\s\S]{0,120}SHOW_CHURCH_MODE/.test(homeB3),
+      'o Cultinho em Casa foi acoplado à flag do Modo Igreja (não deveria)',
+    );
+    check(
+      'Bloco3 (d): "Em breve" (premium/plano) permanece intacto — não foi removido neste bloco',
+      /notAvailableYetText:\s*'Em breve'/.test(readSrc('src/data/planConfig.js')),
+      'o rótulo "Em breve" de premium/plano foi removido (fora do escopo do Bloco 3)',
+    );
+    check(
+      'Bloco3: texto "em preparação" do Modo Igreja está DENTRO do gate (não vaza em produção)',
+      // as duas ocorrências de "em preparação" da ParentArea (hint + corpo) ficam sob o gate
+      /\{SHOW_CHURCH_MODE && \([\s\S]*em preparação[\s\S]*em preparação[\s\S]*\)\}/.test(parentB3),
+      '"em preparação" do Modo Igreja pode aparecer fora do gate SHOW_CHURCH_MODE',
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
   // V1 — Áudio do tour: garante o audio mode (playsInSilentMode) ANTES da 1ª fala do
   // Beni (idempotente, via audioManager). A voz do tour segue gated por voiceOn &&
   // soundsOn; a NARRAÇÃO (AudioPlayer) permanece em caminho separado (não silenciada).
