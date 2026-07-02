@@ -11,7 +11,7 @@ import SoundButton from '../components/SoundButton';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
 import { BeniSpeechCard } from '../components/beni';
 import { QUIZZES } from '../data/quizzes';
-import { prepareQuizQuestions, getCorrectOptionText } from '../services/quizModel';
+import { prepareQuizQuestions, getCorrectOptionText, QUIZ_QUESTIONS_PER_STORY } from '../services/quizModel';
 import { isQuizDone, markQuizDone, addBonusStars } from '../services/postStoryStorage';
 import { canOpenQuiz } from '../services/accessControl';
 import { useProgressContext } from '../context/ProgressContext';
@@ -34,8 +34,12 @@ export default function QuizScreen({ route, navigation }) {
 
   // Normaliza (modelo por id) e EMBARALHA uma vez na carga. Estável após o toque:
   // o inicializador do useState roda só uma vez, então as opções não trocam mais.
+  // Bloco 4 (DECISIONS.md #4): exatamente QUIZ_QUESTIONS_PER_STORY (4) perguntas por
+  // história — as 4 PRIMEIRAS (q1–q4, determinístico; prepareQuizQuestions não
+  // reordena, só embaralha as opções). q5–q8 seguem em quizzes.js como reserva.
   const [questions] = useState(() =>
-    prepareQuizQuestions((QUIZZES[story.id] ?? []).filter(q => !q.quizDraft)),
+    prepareQuizQuestions((QUIZZES[story.id] ?? []).filter(q => !q.quizDraft))
+      .slice(0, QUIZ_QUESTIONS_PER_STORY),
   );
 
   const [step, setStep] = useState('quiz'); // 'quiz' | 'feedback' | 'result'

@@ -19,6 +19,7 @@ import BeniAvatar from '../components/beni/BeniAvatar';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
 import { getNextAdventureRecommendation } from '../services/nextAdventureService';
 import StoryCoverImage from '../components/story/StoryCoverImage';
+import { QUIZ_QUESTIONS_PER_STORY } from '../services/quizModel';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -205,7 +206,7 @@ export default function CongratsScreen({ route, navigation }) {
               </View>
               <View style={styles.mainActionInfo}>
                 <Text style={styles.mainActionTitle}>Responder Quiz</Text>
-                <Text style={styles.mainActionSub}>3 perguntas. Ganhe +1 ⭐!</Text>
+                <Text style={styles.mainActionSub}>{QUIZ_QUESTIONS_PER_STORY} perguntas. Ganhe +1 ⭐!</Text>
               </View>
               <Text style={styles.mainActionArrow}>›</Text>
             </SoundButton>

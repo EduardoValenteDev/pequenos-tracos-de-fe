@@ -12,6 +12,12 @@
  * (letra A/B/C) é só rótulo visual e nunca muda depois do toque.
  */
 
+// Bloco 4 (DECISIONS.md #4) — FONTE ÚNICA da quantidade de perguntas do quiz.
+// Exatamente 4 por história (q1–q4, determinístico). q5–q8 permanecem em
+// quizzes.js como banco reserva para revisitas futuras (não são apagadas nem
+// usadas aqui). Config E copy (QuizScreen/CongratsScreen) derivam desta constante.
+export const QUIZ_QUESTIONS_PER_STORY = 4;
+
 /** Fisher–Yates — embaralha uma cópia. */
 function shuffle(arr) {
   const a = [...arr];

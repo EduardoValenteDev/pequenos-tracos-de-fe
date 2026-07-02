@@ -8787,7 +8787,7 @@ check(
   try {
     const raw = readSrc('src/services/quizModel.js');
     const code = raw
-      .replace(/export\s+function\s+/g, 'function ')
+      .replace(/export\s+/g, '') // strip export function/const (Bloco 4 add QUIZ_QUESTIONS_PER_STORY)
       + '\nreturn { normalizeQuizQuestion, prepareQuizQuestions, getCorrectOptionText };';
     // eslint-disable-next-line no-new-func
     const m = new Function(code)();
@@ -11201,6 +11201,65 @@ check(
       !/Animated|reveal_seen|AsyncStorage|@ptf_/.test(mapRegionB53),
       'linha de luz não posicionada na fronteira, ou introduziu animação/persistência',
     );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // BLOCO 4 — Quiz de EXATAMENTE 4 perguntas por história (DECISIONS.md #4). Config e
+  // copy derivam de QUIZ_QUESTIONS_PER_STORY; q5–q8 preservadas como reserva.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco 4: quiz de exatamente 4 perguntas ──');
+  {
+    const quizModelB4 = readSrc('src/services/quizModel.js');
+    const quizScreenB4 = readSrc('src/screens/QuizScreen.js');
+    const congratsB4 = readSrc('src/screens/CongratsScreen.js');
+    const quizzesB4 = readSrc('src/data/quizzes.js');
+
+    check(
+      'Bloco4 (a): quizModel exporta QUIZ_QUESTIONS_PER_STORY === 4 (fonte única)',
+      /export const QUIZ_QUESTIONS_PER_STORY\s*=\s*4\b/.test(quizModelB4),
+      'QUIZ_QUESTIONS_PER_STORY ausente ou diferente de 4',
+    );
+    check(
+      'Bloco4 (c): QuizScreen corta para a constante (slice(0, QUIZ_QUESTIONS_PER_STORY))',
+      /import\s*\{[^}]*QUIZ_QUESTIONS_PER_STORY[^}]*\}\s*from\s*'\.\.\/services\/quizModel'/.test(quizScreenB4) &&
+      /\.slice\(0,\s*QUIZ_QUESTIONS_PER_STORY\)/.test(quizScreenB4),
+      'QuizScreen não corta as perguntas para a constante (pode executar 8)',
+    );
+    check(
+      'Bloco4 (d): CongratsScreen deriva a copy da constante (sem "3 perguntas" hardcoded)',
+      /import\s*\{[^}]*QUIZ_QUESTIONS_PER_STORY[^}]*\}\s*from\s*'\.\.\/services\/quizModel'/.test(congratsB4) &&
+      /\{QUIZ_QUESTIONS_PER_STORY\} perguntas/.test(congratsB4),
+      'CongratsScreen não deriva a quantidade de perguntas da constante',
+    );
+    check(
+      'Bloco4 (e): sem copy hardcoded "3 perguntas" no fluxo do quiz (Congrats/StoryDetail)',
+      !/3 perguntas/.test(congratsB4) &&
+      !/3 perguntas/.test(readSrc('src/screens/StoryDetailScreen.js')),
+      'ainda há "3 perguntas" hardcoded no fluxo do quiz',
+    );
+
+    // Validação numérica: toda história tem >=4 perguntas não-draft e o corte dá 4;
+    // reserva preservada (dados seguem com mais de 4 — hoje 8). Usa os helpers reais.
+    try {
+      // extrai QUIZZES do arquivo de dados (sem imports/require)
+      let qs = quizzesB4.replace(/^\s*import\s.*$/gm, '').replace(/export /g, '');
+      qs += '\nreturn QUIZZES;';
+      // eslint-disable-next-line no-new-func
+      const QUIZZES = new Function(qs)();
+      const ids = Object.keys(QUIZZES);
+      const PER = 4;
+      const nonDraft = (id) => (QUIZZES[id] || []).filter(q => !q.quizDraft);
+      const allHave4 = ids.every(id => nonDraft(id).length >= PER);
+      const sliceGives4 = ids.every(id => nonDraft(id).slice(0, PER).length === PER);
+      const reserveKept = ids.every(id => (QUIZZES[id] || []).length > PER); // q5+ preservadas
+      check(
+        'Bloco4 (b/f): todas as histórias têm >=4 perguntas não-draft; corte dá 4; reserva (q5+) preservada',
+        ids.length === 20 && allHave4 && sliceGives4 && reserveKept,
+        'alguma história não tem 4 perguntas, ou a reserva (q5–q8) foi removida',
+      );
+    } catch (e) {
+      check('Bloco4: validação numérica do quiz (4 + reserva)', false, String(e && e.message));
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════
