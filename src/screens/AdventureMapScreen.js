@@ -15,7 +15,7 @@ import { View, Text, Image, Modal, Pressable, ActivityIndicator, InteractionMana
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Asset } from 'expo-asset';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAdventureRegions, getOrderedAdventureStories, computeRegionHeight, computeImageRect, getStoryMapCoord, REGION_PARCHMENT_BG, MAP_ASPECT } from '../data/adventureMap';
+import { getAdventureRegions, getOrderedAdventureStories, getJourneyRegionRevealFraction, computeRegionHeight, computeImageRect, getStoryMapCoord, REGION_PARCHMENT_BG, MAP_ASPECT } from '../data/adventureMap';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
 import { useProgressContext } from '../context/ProgressContext';
 import SoundButton from '../components/SoundButton';
@@ -89,7 +89,7 @@ export default function AdventureMapScreen({ navigation, route }) {
     [guideTargets.measure],
   );
   const { width, height } = useWindowDimensions();
-  const { isStoryCompleted, getStoryCompletionPercent, getRegionRevealFraction } = useProgressContext();
+  const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
 
   // "Ver mapa" (Visão Geral): dimensiona a IMAGEM no aspecto real da arte (MAP_ASPECT
   // = 9:16) dentro do card, em vez de deixar a caixa `flex` ficar mais alta que a arte
@@ -156,6 +156,14 @@ export default function AdventureMapScreen({ navigation, route }) {
   // Ordem VISUAL invertida: topo = última região, base = comece_aqui.
   const regionsVisual = useMemo(() => regions.slice().reverse(), [regions]);
   const ordered = useMemo(() => getOrderedAdventureStories(), []);
+
+  // B5.3.1 — reveal GLOBAL da jornada: usa a lista de regiões em ORDEM (regions, não
+  // regionsVisual) para que regiões FUTURAS (acima da fronteira) fiquem 0/sépia.
+  // A regra é do domínio do mapa (helper puro); aqui só injetamos isStoryCompleted.
+  const journeyRevealFraction = useCallback(
+    (region) => getJourneyRegionRevealFraction(region, regions, isStoryCompleted),
+    [regions, isStoryCompleted],
+  );
 
   // Layout das regiões (offsets) para a pílula de região acompanhar a rolagem.
   const regionLayout = useMemo(() => {
@@ -460,9 +468,9 @@ export default function AdventureMapScreen({ navigation, route }) {
               key={region.id}
               region={region}
               width={mapWidth}
-              // B5.3 — reveal ESTÁTICO por região (sépia base + colorida recortada
-              // até o frontier). Substitui o awake binário no mapa principal.
-              revealFraction={getRegionRevealFraction(region)}
+              // B5.3.1 — reveal GLOBAL da jornada (completa→1 · fronteira→parcial ·
+              // futuras→0 sépia). Sem awake binário; sem cor acima da fronteira global.
+              revealFraction={journeyRevealFraction(region)}
               currentStoryId={currentId}
               // PREVIEW leve aparece sempre; arte FINAL entra de forma escalonada
               // (comece_aqui primeiro) para a abertura parecer instantânea.

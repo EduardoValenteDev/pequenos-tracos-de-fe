@@ -11028,6 +11028,100 @@ check(
   }
 
   // ════════════════════════════════════════════════════════════════════════════
+  // B5.3.1 — Reveal GLOBAL da jornada: regiões futuras (depois da fronteira global)
+  // ficam 100% sépia (revealFraction 0). Corrige o cálculo por-região isolado, que
+  // revelava até a 1ª história de regiões ainda não alcançadas. Helper PURO/testável.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── B5.3.1: reveal global da jornada (futuras = sépia) ──');
+  {
+    const mapB531 = readSrc('src/data/adventureMap.js');
+    const mapScreenB531 = readSrc('src/screens/AdventureMapScreen.js');
+    const mapRegionB531 = readSrc('src/components/map/MapRegion.js');
+
+    check(
+      'B5.3.1: adventureMap exporta o helper GLOBAL puro (getJourneyRegionRevealFraction)',
+      mapB531.includes('export function getJourneyRegionRevealFraction'),
+      'helper global de reveal da jornada ausente em adventureMap.js',
+    );
+    check(
+      'B5.3.1: helper global é PURO — sem storage/AsyncStorage/animação',
+      !/reveal_seen|AsyncStorage|Animated|@ptf_/.test(mapB531.slice(mapB531.indexOf('getJourneyRegionRevealFraction'))),
+      'o helper global introduziu storage/animação — deve ser puro',
+    );
+    check(
+      'B5.3.1: a regra global fica no HELPER (domínio do mapa), consumida pela tela',
+      mapScreenB531.includes('getJourneyRegionRevealFraction') &&
+      /revealFraction=\{journeyRevealFraction\(region\)\}/.test(mapScreenB531) &&
+      /getJourneyRegionRevealFraction\(region,\s*regions,\s*isStoryCompleted\)/.test(mapScreenB531),
+      'a tela não consome o helper global com a lista de regiões em ordem',
+    );
+    check(
+      'B5.3.1: MapRegion — rf=0 → 100% sépia (sem camada colorida, sem linha); rf=1 → sem linha dourada',
+      /showColor\s*=\s*rf\s*>\s*0/.test(mapRegionB531) &&
+      /showEdgeLight\s*=\s*rf\s*>\s*0\s*&&\s*rf\s*<\s*1/.test(mapRegionB531),
+      'MapRegion pode mostrar cor/linha com rf=0, ou linha com rf=1',
+    );
+    check(
+      'B5.3.1: storage/reset/tour intocados (sem reveal em storageKeys/progressReset; helper sem AsyncStorage)',
+      !/reveal/i.test(readSrc('src/services/storageKeys.js')) &&
+      !/reveal/i.test(readSrc('src/services/progressResetService.js')) &&
+      !/AsyncStorage/.test(mapB531),
+      'storageKeys/progressReset ganharam reveal, ou o helper usa AsyncStorage',
+    );
+
+    // Validação numérica dos 4 cenários com o helper REAL (sandbox, sem require de imagem).
+    try {
+      let s = mapB531
+        .replace(/^\s*import\s.*$/gm, '')
+        .replace(/export const REGION_MAP_IMAGES[\s\S]*?\n\};/, 'const REGION_MAP_IMAGES={};')
+        .replace(/require\([^)]*\)/g, 'null')
+        .replace(/export /g, '');
+      s = 'const stories=[];\n' + s +
+        '\nreturn { getJourneyRegionRevealFraction };';
+      // eslint-disable-next-line no-new-func
+      const M = new Function(s)();
+      const R = (id, ids) => ({ id, stories: ids.map((x) => ({ id: x })) });
+      const comece = R('comece_aqui', ['creation', 'noah']);
+      const peq = R('pequeninos', ['david_goliath', 'jesus_children', 'daniel_lions', 'esther_queen', 'lost_sheep', 'good_samaritan']);
+      const desc = R('descobridores', ['abraham_stars', 'joseph_colorful_coat', 'moses_red_sea', 'ruth_naomi', 'miraculous_catch', 'jonah_big_fish']);
+      const jov = R('jovens_da_fe', ['samuel_hears_god', 'josiah_young_king', 'solomon_wisdom', 'mary_says_yes', 'timothy_faith', 'jesus_temple']);
+      const ordered = [comece, peq, desc, jov];
+      const inc = (done) => (id) => done.includes(id);
+      const jr = (region, done) => M.getJourneyRegionRevealFraction(region, ordered, inc(done));
+      const near = (a, b) => Math.abs(a - b) < 0.005;
+      const partial = (v) => v > 0.001 && v < 0.999;
+      const allPeq = ['creation', 'noah', 'david_goliath', 'jesus_children', 'daniel_lions', 'esther_queen', 'lost_sheep', 'good_samaritan'];
+
+      check(
+        'B5.3.1 cenário 1 (nada concluído): Comece Aqui ≈0.365 · Pequeninos/Descobridores/Jovens = 0 (sépia)',
+        near(jr(comece, []), 0.365) && jr(peq, []) === 0 && jr(desc, []) === 0 && jr(jov, []) === 0,
+        'cenário 1 do reveal global incorreto (futuras deveriam ser 0/sépia)',
+      );
+      check(
+        'B5.3.1 cenário 2 (A Criação concluída): Comece Aqui ≈0.665 · demais = 0',
+        near(jr(comece, ['creation']), 0.665) &&
+        jr(peq, ['creation']) === 0 && jr(desc, ['creation']) === 0 && jr(jov, ['creation']) === 0,
+        'cenário 2 do reveal global incorreto',
+      );
+      check(
+        'B5.3.1 cenário 3 (Criação+Noé): Comece Aqui = 1 · Pequeninos ≈0.135 · Descobridores/Jovens = 0',
+        jr(comece, ['creation', 'noah']) === 1 &&
+        near(jr(peq, ['creation', 'noah']), 0.135) &&
+        jr(desc, ['creation', 'noah']) === 0 && jr(jov, ['creation', 'noah']) === 0,
+        'cenário 3 do reveal global incorreto (Pequeninos deveria revelar só até Davi)',
+      );
+      check(
+        'B5.3.1 cenário 4 (Comece Aqui+Pequeninos completos): ambos = 1 · Descobridores PARCIAL (Abraão) · Jovens = 0',
+        jr(comece, allPeq) === 1 && jr(peq, allPeq) === 1 &&
+        partial(jr(desc, allPeq)) && jr(jov, allPeq) === 0,
+        'cenário 4 do reveal global incorreto (Descobridores deveria ser parcial e Jovens 0)',
+      );
+    } catch (e) {
+      check('B5.3.1: validação numérica do reveal global da jornada', false, String(e && e.message));
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
   // B5.3 — Camada de reveal ESTÁTICA no mapa (sépia base + colorida recortada NÍTIDA)
   // + linha de luz dourada fina na fronteira. Sem feather/blur, sem animação, sem storage, sem laser.
   // ════════════════════════════════════════════════════════════════════════════
@@ -11037,10 +11131,10 @@ check(
     const mapRegionB53 = readSrc('src/components/map/MapRegion.js');
 
     check(
-      'B5.3: AdventureMapScreen consome getRegionRevealFraction e o passa como revealFraction ao MapRegion',
-      mapScreenB53.includes('getRegionRevealFraction') &&
-      /revealFraction=\{getRegionRevealFraction\(region\)\}/.test(mapScreenB53),
-      'AdventureMapScreen não passa revealFraction (do helper B5.2) para o MapRegion',
+      'B5.3/B5.3.1: AdventureMapScreen passa o reveal GLOBAL da jornada (journeyRevealFraction) ao MapRegion',
+      mapScreenB53.includes('getJourneyRegionRevealFraction') &&
+      /revealFraction=\{journeyRevealFraction\(region\)\}/.test(mapScreenB53),
+      'AdventureMapScreen não passa o reveal global da jornada para o MapRegion',
     );
     check(
       'B5.3: o mapa principal não decide mais por awake binário (não passa awake={...} ao MapRegion)',

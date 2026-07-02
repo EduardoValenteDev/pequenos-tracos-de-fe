@@ -243,3 +243,28 @@ export function getRegionRevealFraction(region, isNarrativeComplete, options = {
   const index = list.findIndex((s) => s.id === frontier.id);
   return getStoryRevealFraction(frontier.id, index, list.length, options);
 }
+
+/**
+ * B5.3.1 — Fração revelada de uma região no contexto GLOBAL da jornada (não isolada).
+ * A cor sobe região a região, EM ORDEM: uma região futura NÃO revela nada até a
+ * jornada chegar nela. Corrige o cálculo por-região (que sozinho revelava até a 1ª
+ * história de regiões ainda não alcançadas).
+ *  - regiões ANTES da fronteira global (todas concluídas) → 1 (coloridas);
+ *  - a região que CONTÉM a fronteira global (1ª região não concluída) → PARCIAL
+ *    (getRegionRevealFraction: sobe até a 1ª história não concluída dela);
+ *  - regiões DEPOIS da fronteira (futuras/bloqueadas) → 0 (sépia).
+ * `orderedRegions` deve estar na ORDEM da jornada (comece_aqui → … → jovens_da_fe).
+ * PURO: derivado só de isNarrativeComplete. Sem storage, sem visual, sem animação.
+ */
+export function getJourneyRegionRevealFraction(region, orderedRegions, isNarrativeComplete, options = {}) {
+  const regions = Array.isArray(orderedRegions) ? orderedRegions : [];
+  // Fronteira GLOBAL = 1ª região (na ordem da jornada) ainda não concluída.
+  const frontierIdx = regions.findIndex((r) => !isRegionNarrativeComplete(r, isNarrativeComplete));
+  if (frontierIdx === -1) return 1; // jornada inteira concluída → tudo colorido
+  const myIdx = regions.findIndex((r) => r && region && r.id === region.id);
+  // Defensivo: região fora da lista → cai no cálculo isolado (não quebra o mapa).
+  if (myIdx === -1) return getRegionRevealFraction(region, isNarrativeComplete, options);
+  if (myIdx < frontierIdx) return 1; // regiões anteriores já concluídas → coloridas
+  if (myIdx > frontierIdx) return 0; // regiões futuras/bloqueadas → sépia
+  return getRegionRevealFraction(region, isNarrativeComplete, options); // fronteira → parcial
+}
