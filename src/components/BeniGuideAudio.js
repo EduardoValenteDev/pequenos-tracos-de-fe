@@ -18,7 +18,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { onNarrationStart, onNarrationEnd } from '../services/audioManager';
+import { onNarrationStart, onNarrationEnd, ensureAudioMode } from '../services/audioManager';
 import { log } from '../utils/logger';
 
 const RETRY_MS = 220; // UX 2.4.4: 2ª tentativa curta se a 1ª não iniciou (race do player)
@@ -27,7 +27,10 @@ function GuideAudioInner({ audioAsset }) {
   const player = useAudioPlayer(audioAsset, { updateInterval: 250 });
   const status = useAudioPlayerStatus(player);
   const startedRef = useRef(false);
-  const safePlay = () => { try { player.play(); } catch { /* segue só visual */ } };
+  // V1 — garante o audio mode (playsInSilentMode) ANTES de tocar. Idempotente: a 1ª
+  // fala do tour não fica muda no iPhone em modo silencioso; chamadas seguintes são
+  // no-op (audioModeReady). Não silencia a narração (caminho separado do AudioPlayer).
+  const safePlay = () => { ensureAudioMode(); try { player.play(); } catch { /* segue só visual */ } };
 
   // PRIMÁRIO: toca assim que o asset está carregado (determinístico, sem fala muda).
   useEffect(() => {
@@ -43,6 +46,7 @@ function GuideAudioInner({ audioAsset }) {
   // ainda não estiver tocando, tenta de novo — sem marcar started (deixa o efeito
   // de isLoaded assumir). Nunca avança o card por causa do áudio.
   useEffect(() => {
+    ensureAudioMode(); // V1: no mount, aquece o audio mode (async) antes do 1º play
     const retry = setTimeout(() => {
       let playing = false;
       try { playing = !!player.playing; } catch { playing = false; }

@@ -50,7 +50,10 @@ function notify() {
   listeners.forEach(l => { try { l(snap); } catch { /* listener nunca quebra */ } });
 }
 
-async function ensureAudioMode() {
+// V1 — idempotente e reaproveitável: garante o audio mode (playsInSilentMode) antes
+// de qualquer fala. Já usada por sons de UI/música; EXPORTADA para o guia do Beni
+// garantir a voz do tour mesmo com a chave de silencioso do iPhone ligada.
+export async function ensureAudioMode() {
   if (audioModeReady) return;
   audioModeReady = true;
   try {

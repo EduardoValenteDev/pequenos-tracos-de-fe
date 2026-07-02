@@ -11204,6 +11204,43 @@ check(
   }
 
   // ════════════════════════════════════════════════════════════════════════════
+  // V1 — Áudio do tour: garante o audio mode (playsInSilentMode) ANTES da 1ª fala do
+  // Beni (idempotente, via audioManager). A voz do tour segue gated por voiceOn &&
+  // soundsOn; a NARRAÇÃO (AudioPlayer) permanece em caminho separado (não silenciada).
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── V1: audio mode garantido antes da fala do tour ──');
+  {
+    const amV1 = readSrc('src/services/audioManager.js');
+    const bgaV1 = readSrc('src/components/BeniGuideAudio.js');
+    const overlayV1 = readSrc('src/components/BeniGuideOverlay.js');
+
+    check(
+      'V1: audioManager EXPORTA ensureAudioMode idempotente (playsInSilentMode:true, guarda audioModeReady)',
+      /export async function ensureAudioMode/.test(amV1) &&
+      /if \(audioModeReady\) return;/.test(amV1) &&
+      /playsInSilentMode:\s*true/.test(amV1),
+      'ensureAudioMode não é exportada/idempotente ou não usa playsInSilentMode',
+    );
+    check(
+      'V1: BeniGuideAudio garante o audio mode antes da fala (importa + chama ensureAudioMode no play e no mount)',
+      /import\s*\{[^}]*ensureAudioMode[^}]*\}\s*from\s*'\.\.\/services\/audioManager'/.test(bgaV1) &&
+      /const safePlay = \(\) => \{ ensureAudioMode\(\);/.test(bgaV1) &&
+      (bgaV1.match(/ensureAudioMode\(\)/g) || []).length >= 2,
+      'BeniGuideAudio não garante o audio mode antes de tocar a voz do Beni',
+    );
+    check(
+      'V1: voz do tour segue gated por voiceOn && soundsOn (respeita o atalho; não toca narração)',
+      /voiceOn && soundsOn && step\.audioKey/.test(overlayV1),
+      'a condição de voz do tour foi alterada indevidamente',
+    );
+    check(
+      'V1: narração (AudioPlayer) permanece com seu próprio audio mode (não silenciada pelo atalho)',
+      /playsInSilentMode:\s*true/.test(readSrc('src/components/AudioPlayer.js')),
+      'a narração perdeu o playsInSilentMode (regressão de narração)',
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
   // V3 — Regra GLOBAL de segurança do tour: nenhum tour trava a tela quando uma
   // âncora não renderiza/mede. Watchdog na medição (comita sem alvo em tempo seguro)
   // + measure protegido (hang/throw) + rota de escape sempre disponível ("Pular").
