@@ -146,7 +146,7 @@ export function markerFraction(index, storyCount) {
 export const STORY_MAP_COORDS = {
   // comece_aqui (2 histórias) — pins um pouco maiores (markerScale)
   creation:             { x: 0.73, y: 0.67, label: 'below', markerScale: 1.22 },
-  noah:                 { x: 0.61, y: 0.29, label: 'left', markerScale: 1.10 },
+  noah:                 { x: 0.65, y: 0.37, label: 'left', markerScale: 1.10 }, // B5.3: pin na marca do Eduardo (x 0.65, y 0.37) — no caminho central; guia marcador + reveal
   // pequeninos (baixo → cima)
   david_goliath:        { x: 0.69, y: 0.90, label: 'below' },
   jesus_children:       { x: 0.64, y: 0.71, label: 'right' },

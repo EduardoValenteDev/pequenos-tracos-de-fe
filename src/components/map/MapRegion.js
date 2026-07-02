@@ -21,8 +21,16 @@ import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../.
 
 const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo marco)
 const OVERLAY_DELAY_MS = 400; // marcadores entram logo após a 1ª pintura
+// B5.3 (ajuste v2) — reveal NÍTIDO: colorida recortada até a fronteira (sem feather,
+// sem blur, sem cor acima do ponto). A divisão é escondida por uma LINHA DE LUZ fina
+// e dourada na fronteira ("despertar do mapa"). Estático (a animação fica no B5.4).
+const REVEAL_EDGE_LIGHT_H = 12; // altura (px) da linha de luz dourada na fronteira
 
-export default function MapRegion({ region, width, awake, currentStoryId, renderImageFinal = true, getState, onPressStory, registerPinTarget }) {
+// B5.3 — reveal ESTÁTICO sépia→cor: base sépia (asleep) sempre + camada colorida
+// (awake) recortada de baixo p/ cima até `revealFraction` (0..1, do B5.2). Sem
+// animação, sem storage. O `awake` binário antigo saiu do mapa principal (o
+// overview/"Ver mapa" segue com sua própria lógica no AdventureMapScreen).
+export default function MapRegion({ region, width, revealFraction = 0, currentStoryId, renderImageFinal = true, getState, onPressStory, registerPinTarget }) {
   const list = region.stories || [];
   const n = list.length;
 
@@ -49,10 +57,20 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
     };
   });
   const imgs = region.images || null;
-  // PREVIEW leve (~60 KB) — decodifica quase instantâneo, aparece de imediato.
-  const previewSource = imgs ? (awake ? imgs.awakePreview : imgs.asleepPreview) : null;
-  // Arte FINAL nítida (~400 KB) — entra POR CIMA da preview quando renderImageFinal.
-  const source = imgs ? (awake ? imgs.awake : imgs.asleep) : null;
+  // Base SÉPIA (asleep) sempre visível; camada COLORIDA (awake) recortada por reveal.
+  // PREVIEW leve (~60 KB) decodifica quase instantâneo; arte FINAL (~400 KB) entra
+  // por cima quando renderImageFinal (lazy por região) — em AMBAS as camadas.
+  const asleepPreview = imgs ? imgs.asleepPreview : null;
+  const asleepFinal   = imgs ? imgs.asleep : null;
+  const awakePreview  = imgs ? imgs.awakePreview : null;
+  const awakeFinal    = imgs ? imgs.awake : null;
+  // Fração revelada (colorida), de baixo p/ cima. Clamp defensivo (o helper já clampa).
+  const rf = Math.max(0, Math.min(1, revealFraction ?? 0));
+  const revealH = Math.round(rf * regionH);
+  const showColor = rf > 0 && !!imgs;               // rf <= 0 → região totalmente sépia
+  const showEdgeLight = rf > 0 && rf < 1 && !!imgs; // linha de luz só no reveal PARCIAL
+  // Topo da fronteira (colorido↔sépia). Centraliza a linha de luz fina sobre ela. Clamp >= 0.
+  const edgeLightTop = Math.max(0, regionH - revealH - Math.round(REVEAL_EDGE_LIGHT_H / 2));
 
   return (
     // Sem sobreposição nem faixas de transição: cada região 9:16 aparece de TOPO A
@@ -69,27 +87,66 @@ export default function MapRegion({ region, width, awake, currentStoryId, render
         pointerEvents="none"
       />
 
-      {/* CAMADA 1 — PREVIEW leve (dimensão EXPLÍCITA = caixa; sem absoluteFill).
-          Decodifica quase na hora e cobre o placeholder → o usuário vê o mapa de
-          imediato (em baixa resolução), sem fundo bege perceptível. */}
-      {previewSource && (
+      {/* CAMADA 1 — BASE SÉPIA (asleep): preview instantâneo + final lazy. Sempre
+          presente e do tamanho da caixa (top:0, altura plena) — nunca some. */}
+      {asleepPreview && (
         <Image
-          source={previewSource}
+          source={asleepPreview}
           resizeMode="cover"
           style={{ position: 'absolute', top: 0, left: 0, width, height: regionH, zIndex: 1 }}
           fadeDuration={0}
         />
       )}
-
-      {/* CAMADA 2 — arte FINAL nítida (dimensão EXPLÍCITA = caixa; sem absoluteFill).
-          Só monta quando renderImageFinal (lazy por região). Ao decodificar, cobre a
-          preview e fica nítida — sem parecer bug. */}
-      {renderImageFinal && source && (
+      {renderImageFinal && asleepFinal && (
         <Image
-          source={source}
+          source={asleepFinal}
           resizeMode="cover"
           style={{ position: 'absolute', top: 0, left: 0, width, height: regionH, zIndex: 2 }}
           fadeDuration={120}
+        />
+      )}
+
+      {/* CAMADA 2.5 — REVEAL COLORIDO (awake) recortado de BAIXO p/ cima até revealH.
+          Janela overflow:hidden ANCORADA na base (bottom:0); colorida bottom:0 em
+          TAMANHO PLENO (width × regionH) → alinhada com a base sépia. NÍTIDA: a cor
+          NÃO passa de revealH (sem feather/blur). rf<=0 não renderiza; rf>=1 cobre a
+          região toda (sem linha). Estático (sem animação). */}
+      {showColor && (
+        <View
+          style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: revealH, overflow: 'hidden', zIndex: 2 }}
+          pointerEvents="none"
+        >
+          {awakePreview && (
+            <Image
+              source={awakePreview}
+              resizeMode="cover"
+              style={{ position: 'absolute', bottom: 0, left: 0, width, height: regionH }}
+              fadeDuration={0}
+            />
+          )}
+          {renderImageFinal && awakeFinal && (
+            <Image
+              source={awakeFinal}
+              resizeMode="cover"
+              style={{ position: 'absolute', bottom: 0, left: 0, width, height: regionH }}
+              fadeDuration={120}
+            />
+          )}
+        </View>
+      )}
+
+      {/* CAMADA 2.6 — LINHA DE LUZ dourada na fronteira (colorido↔sépia): fina,
+          elegante, "despertar do mapa". Fora do clip → nítida exatamente na fronteira.
+          Transparente nas pontas (sem faixa branca, sem blur da arte). Só no reveal
+          PARCIAL (0<rf<1). NÃO cobre pins (zIndex 2 < marcadores z7). */}
+      {showEdgeLight && (
+        <LinearGradient
+          colors={['rgba(255,214,120,0)', 'rgba(255,226,150,0.85)', 'rgba(255,214,120,0)']}
+          locations={[0, 0.5, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={{ position: 'absolute', left: 0, right: 0, top: edgeLightTop, height: REVEAL_EDGE_LIGHT_H, zIndex: 2 }}
+          pointerEvents="none"
         />
       )}
 

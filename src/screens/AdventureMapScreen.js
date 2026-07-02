@@ -89,7 +89,7 @@ export default function AdventureMapScreen({ navigation, route }) {
     [guideTargets.measure],
   );
   const { width, height } = useWindowDimensions();
-  const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
+  const { isStoryCompleted, getStoryCompletionPercent, getRegionRevealFraction } = useProgressContext();
 
   // "Ver mapa" (Visão Geral): dimensiona a IMAGEM no aspecto real da arte (MAP_ASPECT
   // = 9:16) dentro do card, em vez de deixar a caixa `flex` ficar mais alta que a arte
@@ -460,7 +460,9 @@ export default function AdventureMapScreen({ navigation, route }) {
               key={region.id}
               region={region}
               width={mapWidth}
-              awake={isRegionAwake(region)}
+              // B5.3 — reveal ESTÁTICO por região (sépia base + colorida recortada
+              // até o frontier). Substitui o awake binário no mapa principal.
+              revealFraction={getRegionRevealFraction(region)}
               currentStoryId={currentId}
               // PREVIEW leve aparece sempre; arte FINAL entra de forma escalonada
               // (comece_aqui primeiro) para a abertura parecer instantânea.

@@ -5466,9 +5466,10 @@ check(
   check(
     'Mapa M2: usa as 8 imagens REAIS de assets/maps/ (R1A..R4B, pares A/B)',
     MAPS.every((r) => mapData.includes(`assets/maps/${r}.jpg`)) &&
-    region.includes('source={source}') &&
+    region.includes('source={asleepFinal}') &&
+    region.includes('source={awakeFinal}') &&
     region.includes('region.images'),
-    'mapa não importa/usa as imagens reais R1A..R4B como fundo das regiões',
+    'mapa não importa/usa as imagens reais R1A..R4B (base sépia + colorida) como fundo das regiões',
   );
   check(
     'Mapa B2.4: mapas em JPG (leves) — nenhum require .png no fluxo + os 8 .jpg existem em disco',
@@ -5478,11 +5479,11 @@ check(
     'adventureMap ainda referencia PNG do mapa, ou faltam os JPGs em disco',
   );
   check(
-    'Mapa M2.2: A/B oficial — A=DESPERTA/colorida, B=ADORMECIDA; desperta por engajamento',
+    'Mapa M2.2: A/B oficial — A=DESPERTA/colorida (base do reveal), B=ADORMECIDA/sépia (base); isRegionAwake preservado p/ overview',
     /comece_aqui:\s*\{\s*awake:\s*require\('\.\.\/\.\.\/assets\/maps\/R1A\.jpg'\),\s*asleep:\s*require\('\.\.\/\.\.\/assets\/maps\/R1B\.jpg'\)/.test(mapData) &&
-    region.includes('awake ? imgs.awake : imgs.asleep') &&
+    region.includes('imgs.asleep') && region.includes('imgs.awake') &&
     /isRegionAwake[\s\S]{0,260}isStoryCompleted\(s\.id\)[\s\S]{0,120}getStoryCompletionPercent\(s\.id\) > 0[\s\S]{0,40}s\.id === currentId/.test(mapScreen),
-    'A/B invertido (A precisa ser awake/R1A) ou não considera progresso/atual',
+    'A/B invertido (A precisa ser awake/R1A), MapRegion não usa asleep/awake, ou isRegionAwake (overview) sumiu',
   );
   check(
     'Mapa M2: emoji dormindo (😴) REMOVIDO de todos os arquivos do mapa',
@@ -5554,9 +5555,9 @@ check(
     'ainda há seam cobrindo a base, ou falta o placeholder de pergaminho',
   );
   check(
-    'Mapa M3: jornada SOBE — A Criação (y 0.67) ABAIXO de Noé (y 0.29) por coordenada',
+    'Mapa M3: jornada SOBE — A Criação (y 0.67) ABAIXO de Noé (y 0.37) por coordenada',
     /creation:\s*\{ x: 0\.73, y: 0\.67/.test(mapData) &&
-    /noah:\s*\{ x: 0\.61, y: 0\.29/.test(mapData) &&
+    /noah:\s*\{ x: 0\.65, y: 0\.37/.test(mapData) &&
     region.includes('getStoryMapCoord(s.id'),
     'coordenadas não colocam A Criação abaixo de Noé / região não usa coords',
   );
@@ -5723,11 +5724,11 @@ check(
     'fundo da região ainda usa cor crua (azul) em vez de pergaminho neutro',
   );
   check(
-    'Mapa: arte FINAL é camada Image separada (reveal A/B) e só monta com renderImageFinal',
-    region.includes('renderImageFinal && source') &&
-    /<Image\b/.test(region) &&
-    region.includes('source={source}'),
-    'arte final não é camada Image separada/condicional',
+    'Mapa: arte FINAL é camada Image separada (base sépia + colorida) e só monta com renderImageFinal',
+    region.includes('renderImageFinal && asleepFinal') &&
+    region.includes('renderImageFinal && awakeFinal') &&
+    /<Image\b/.test(region),
+    'arte final (sépia/colorida) não é camada Image separada/condicional por renderImageFinal',
   );
   check(
     'Mapa RENDER: arte final é LAZY por região (renderImageFinal por id, sem mountedAll) + offset síncrono',
@@ -5801,13 +5802,13 @@ check(
     'faltam os 8 previews em disco/peso, ou adventureMap não declara awakePreview/asleepPreview',
   );
   check(
-    'Mapa B2.5: MapRegion mostra PREVIEW de imediato (z1) e FINAL por cima (z2) — ambas dimensão explícita, sem absoluteFill',
-    region.includes('previewSource') &&
-    region.includes('awake ? imgs.awakePreview : imgs.asleepPreview') &&
-    /previewSource &&[\s\S]{0,200}zIndex:\s*1/.test(region) &&
-    /renderImageFinal && source[\s\S]{0,260}zIndex:\s*2/.test(region) &&
+    'Mapa B2.5: base sépia mostra PREVIEW de imediato (z1) e FINAL por cima (z2) — dimensão explícita, sem absoluteFill',
+    region.includes('asleepPreview') &&
+    region.includes('awakePreview') &&
+    /asleepPreview &&[\s\S]{0,200}zIndex:\s*1/.test(region) &&
+    /renderImageFinal && asleepFinal[\s\S]{0,260}zIndex:\s*2/.test(region) &&
     !region.includes('absoluteFill}'),
-    'MapRegion não alterna preview(z1)/final(z2) com dimensão explícita',
+    'base sépia não alterna preview(z1)/final(z2) com dimensão explícita',
   );
   check(
     'Mapa B2.5: arte final escalonada por TEMPO (comece_aqui→…→jovens) + por PROXIMIDADE (activeIdx±1)',
@@ -11000,9 +11001,9 @@ check(
         'reveal inicial de Comece Aqui incorreto',
       );
       check(
-        'B5.2: A Criação concluída → frontier=noah, revela até o topo de Noé (≈0.745)',
+        'B5.2: A Criação concluída → frontier=noah, revela até o topo de Noé (≈0.665, pin em y=0.37)',
         M.getRegionFrontierStory(comece, inc(['creation'])).id === 'noah' &&
-        near(M.getRegionRevealFraction(comece, inc(['creation'])), 0.745),
+        near(M.getRegionRevealFraction(comece, inc(['creation'])), 0.665),
         'reveal após concluir A Criação incorreto',
       );
       check(
@@ -11024,6 +11025,88 @@ check(
     } catch (e) {
       check('B5.2: validação numérica dos helpers de reveal', false, String(e && e.message));
     }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // B5.3 — Camada de reveal ESTÁTICA no mapa (sépia base + colorida recortada NÍTIDA)
+  // + linha de luz dourada fina na fronteira. Sem feather/blur, sem animação, sem storage, sem laser.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── B5.3: reveal estático sépia→cor no mapa ──');
+  {
+    const mapScreenB53 = readSrc('src/screens/AdventureMapScreen.js');
+    const mapRegionB53 = readSrc('src/components/map/MapRegion.js');
+
+    check(
+      'B5.3: AdventureMapScreen consome getRegionRevealFraction e o passa como revealFraction ao MapRegion',
+      mapScreenB53.includes('getRegionRevealFraction') &&
+      /revealFraction=\{getRegionRevealFraction\(region\)\}/.test(mapScreenB53),
+      'AdventureMapScreen não passa revealFraction (do helper B5.2) para o MapRegion',
+    );
+    check(
+      'B5.3: o mapa principal não decide mais por awake binário (não passa awake={...} ao MapRegion)',
+      !/<MapRegion[\s\S]{0,400}awake=\{/.test(mapScreenB53),
+      'MapRegion ainda recebe awake binário no mapa principal — deve usar revealFraction',
+    );
+    check(
+      'B5.3: MapRegion recebe prop revealFraction (com default) e clampa [0,1]',
+      /function MapRegion\(\{[^}]*revealFraction\s*=\s*0/.test(mapRegionB53) &&
+      /Math\.max\(0,\s*Math\.min\(1,\s*revealFraction/.test(mapRegionB53),
+      'MapRegion não recebe/clampa revealFraction',
+    );
+    check(
+      'B5.3: MapRegion renderiza BASE sépia (asleep) + camada COLORIDA (awake) por cima',
+      mapRegionB53.includes('asleepPreview') && mapRegionB53.includes('asleepFinal') &&
+      mapRegionB53.includes('awakePreview') && mapRegionB53.includes('awakeFinal'),
+      'MapRegion não compõe base sépia + camada colorida',
+    );
+    check(
+      'B5.3: reveal recortado por overflow:hidden ANCORADO na base (bottom:0), altura = revealH',
+      /overflow:\s*'hidden'[\s\S]{0,120}bottom:\s*0[\s\S]{0,120}height:\s*revealH/.test(mapRegionB53) ||
+      /bottom:\s*0[\s\S]{0,120}height:\s*revealH[\s\S]{0,120}overflow:\s*'hidden'/.test(mapRegionB53),
+      'o recorte do reveal não usa overflow:hidden ancorado na base com altura revealH',
+    );
+    check(
+      'B5.3: revealH deriva de revealFraction * regionH; colorida alinhada (bottom:0, altura plena)',
+      /revealH\s*=\s*Math\.round\(rf\s*\*\s*regionH\)/.test(mapRegionB53) &&
+      /awakeFinal[\s\S]{0,200}bottom:\s*0,\s*left:\s*0,\s*width,\s*height:\s*regionH/.test(mapRegionB53),
+      'revealH não deriva de revealFraction*regionH, ou a colorida não está ancorada/alinhada',
+    );
+    check(
+      'B5.3: sem animação/persistência/reveal_seen neste bloco (reveal estático)',
+      !/Animated|reveal_seen|AsyncStorage|@ptf_/.test(mapRegionB53),
+      'MapRegion introduziu animação/persistência — proibido no B5.3 (é estático)',
+    );
+    check(
+      'B5.3: marcadores continuam ACIMA do reveal (overlayFront zIndex 7 > reveal zIndex 2)',
+      /overlayFront:\s*\{[^}]*zIndex:\s*7/.test(mapRegionB53),
+      'marcadores não estão mais acima das camadas de imagem/reveal',
+    );
+
+    // Ajuste visual v2 — reveal NÍTIDO + linha de luz dourada (sem feather/blur).
+    check(
+      'B5.3 (v2): SEM feather/crossfade borrado — reveal colorido NÃO se expande acima de revealH',
+      !mapRegionB53.includes('REVEAL_FEATHER_STEPS') &&
+      !mapRegionB53.includes('featherLayers') &&
+      !mapRegionB53.includes('showFeather') &&
+      // única camada colorida = clip de altura revealH (nada acima da fronteira)
+      (mapRegionB53.match(/height:\s*revealH,\s*overflow:\s*'hidden'/g) || []).length === 1,
+      'ainda há feather/expansão da cor acima da fronteira (deveria ser reveal nítido)',
+    );
+    check(
+      'B5.3 (v2): linha de luz DOURADA fina na fronteira (0<rf<1), transparente nas pontas, altura pequena',
+      mapRegionB53.includes('REVEAL_EDGE_LIGHT_H') &&
+      /showEdgeLight\s*=\s*rf\s*>\s*0\s*&&\s*rf\s*<\s*1/.test(mapRegionB53) &&
+      /colors=\{\['rgba\(255,214,120,0\)',\s*'rgba\(255,226,150,0\.85\)',\s*'rgba\(255,214,120,0\)'\]\}/.test(mapRegionB53) &&
+      /const REVEAL_EDGE_LIGHT_H = 1[0-4];/.test(mapRegionB53),
+      'não há linha de luz dourada fina (8–14px) condicionada ao reveal parcial',
+    );
+    check(
+      'B5.3 (v2): linha de luz posicionada na fronteira (topo do reveal), sem animação/storage',
+      /edgeLightTop\s*=\s*Math\.max\(0,\s*regionH\s*-\s*revealH/.test(mapRegionB53) &&
+      /top:\s*edgeLightTop,\s*height:\s*REVEAL_EDGE_LIGHT_H/.test(mapRegionB53) &&
+      !/Animated|reveal_seen|AsyncStorage|@ptf_/.test(mapRegionB53),
+      'linha de luz não posicionada na fronteira, ou introduziu animação/persistência',
+    );
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
