@@ -11203,6 +11203,68 @@ check(
     );
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // V4 — Fallback OBRIGATÓRIO de avatar: NENHUMA tela exibe moldura vazia.
+  // AvatarImage cai no avatar padrão quando source é null/undefined; getAvatarImage
+  // nunca retorna undefined (id/tom inválido → padrão). Não toca desbloqueio/acesso.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── V4: fallback obrigatório de avatar ──');
+  {
+    const avatarsV4 = readSrc('src/data/avatars.js');
+    const avatarImgV4 = readSrc('src/components/AvatarImage.js');
+
+    check(
+      'V4: avatars.js exporta DEFAULT_AVATAR_IMAGE (require literal do avatar padrão)',
+      /export const DEFAULT_AVATAR_IMAGE\s*=\s*require\(/.test(avatarsV4),
+      'DEFAULT_AVATAR_IMAGE ausente em avatars.js',
+    );
+    check(
+      'V4: getAvatarImage nunca retorna undefined (fallback final ?? DEFAULT_AVATAR_IMAGE)',
+      /return img\s*\?\?\s*DEFAULT_AVATAR_IMAGE/.test(avatarsV4),
+      'getAvatarImage não tem fallback garantido para o avatar padrão',
+    );
+    check(
+      'V4: AvatarImage nunca renderiza source cru — usa fallback (source ?? DEFAULT_AVATAR_IMAGE)',
+      /import\s*\{[^}]*DEFAULT_AVATAR_IMAGE[^}]*\}\s*from\s*'\.\.\/data\/avatars'/.test(avatarImgV4) &&
+      /const safeSource\s*=\s*source\s*\?\?\s*DEFAULT_AVATAR_IMAGE/.test(avatarImgV4) &&
+      /source=\{safeSource\}/.test(avatarImgV4),
+      'AvatarImage pode exibir moldura vazia (source null sem fallback)',
+    );
+    check(
+      'V4: lógica de desbloqueio de avatar INTACTA (isAvatarUnlocked/unlockStars não alterados)',
+      /export function isAvatarUnlocked\(avatarId, totalStars = 0, currentAvatarId = null\)/.test(avatarsV4) &&
+      avatarsV4.includes('unlockStars'),
+      'a lógica de desbloqueio de avatar foi alterada (proibido no V4)',
+    );
+
+    // Sandbox: getAvatarImage SEMPRE truthy (nunca undefined/null) — matriz de entradas.
+    try {
+      let s = avatarsV4
+        .replace(/^\s*import\s.*$/gm, '')
+        .replace(/require\([^)]*\)/g, "'IMG'") // imagens viram marcador truthy
+        .replace(/export /g, '');
+      s += '\nreturn { getAvatarImage, AVATARS };';
+      // eslint-disable-next-line no-new-func
+      const M = new Function(s)();
+      const ok = (v) => typeof v !== 'undefined' && v !== null;
+      const ids = M.AVATARS.map((a) => a.id);
+      const allValid =
+        ids.every((id) => ok(M.getAvatarImage(id))) &&
+        ids.every((id) => ok(M.getAvatarImage(id, 'escuro'))) &&
+        ok(M.getAvatarImage('id_inexistente')) &&       // id inválido → padrão
+        ok(M.getAvatarImage('girl', 'tom_invalido')) &&  // tom inválido → claro
+        ok(M.getAvatarImage(undefined)) &&               // undefined → padrão
+        ok(M.getAvatarImage(null, null));                // null → padrão
+      check(
+        'V4: getAvatarImage retorna imagem válida para TODA entrada (ids, tons, inválidos, null)',
+        allValid,
+        'getAvatarImage retornou undefined/null para alguma entrada',
+      );
+    } catch (e) {
+      check('V4: validação do fallback de getAvatarImage', false, String(e && e.message));
+    }
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

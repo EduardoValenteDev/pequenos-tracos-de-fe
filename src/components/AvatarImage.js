@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Image, StyleSheet } from 'react-native';
+import { DEFAULT_AVATAR_IMAGE } from '../data/avatars';
 
 /**
  * AvatarImage — avatar com MÁSCARA CIRCULAR real.
@@ -21,6 +22,9 @@ export default function AvatarImage({
   zoom = 1,
   style,
 }) {
+  // V4 — NUNCA renderiza moldura vazia: source ausente/null/undefined cai no avatar
+  // padrão garantido. Não altera nada quando um source válido é passado.
+  const safeSource = source ?? DEFAULT_AVATAR_IMAGE;
   return (
     <View
       style={[
@@ -29,7 +33,7 @@ export default function AvatarImage({
       ]}
     >
       <Image
-        source={source}
+        source={safeSource}
         style={[styles.fill, zoom !== 1 && { transform: [{ scale: zoom }] }]}
         resizeMode={resizeMode}
       />

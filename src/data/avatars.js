@@ -62,6 +62,11 @@ export const SKIN_TONE_AVATAR_IDS = ['boy', 'girl'];
 
 export const DEFAULT_AVATAR_ID = 'star';
 
+// V4 — imagem padrão GARANTIDA (fallback): usada quando um avatar/tom não resolve,
+// para NENHUMA tela exibir moldura vazia. require() literal (Metro exige). É o mesmo
+// arquivo do avatar 'star' (Metro deduplica pelo caminho).
+export const DEFAULT_AVATAR_IMAGE = require('../../assets/avatar/avatar_star.png');
+
 /** Retorna o avatar pelo id, com fallback para o avatar padrão (nunca undefined). */
 export function getAvatarById(id) {
   return AVATARS.find(a => a.id === id) ?? AVATARS.find(a => a.id === DEFAULT_AVATAR_ID);
@@ -80,11 +85,16 @@ export function avatarHasSkinTones(id) {
  */
 export function getAvatarImage(avatarId, skinTone) {
   const avatar = getAvatarById(avatarId);
+  let img;
   if (avatar?.variants) {
     const tone = skinTone === 'escuro' ? 'escuro' : DEFAULT_SKIN_TONE;
-    return avatar.variants[tone] ?? avatar.image;
+    img = avatar.variants[tone] ?? avatar.image;
+  } else {
+    img = avatar?.image;
   }
-  return avatar?.image;
+  // V4 — fallback GARANTIDO: nunca retorna undefined (id/tom inválido, variante
+  // ausente ou dados incompletos → cai no avatar padrão). Evita moldura vazia.
+  return img ?? DEFAULT_AVATAR_IMAGE;
 }
 
 // ── Desbloqueio por marcos de estrelinhas (Bloco 3) ───────────────────────────
