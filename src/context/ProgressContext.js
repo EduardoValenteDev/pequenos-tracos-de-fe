@@ -16,6 +16,11 @@ import {
   getBonusStars,
 } from '../services/postStoryStorage';
 import { getRewardsSummary } from '../services/rewardService';
+import {
+  getRegionFrontierStory as regionFrontierStory,
+  isRegionNarrativeComplete as regionNarrativeComplete,
+  getRegionRevealFraction as regionRevealFraction,
+} from '../data/adventureMap';
 
 const PROGRESS_KEY = '@ptf_progress';
 const STORY_IDS = stories.map(s => s.id);
@@ -131,6 +136,9 @@ const ProgressContext = createContext({
   getStoryProgress: () => ({}),
   isStoryCompleted: () => false,
   isNarrativeComplete: () => false,
+  getRegionFrontierStory: () => null,
+  isRegionNarrativeComplete: () => false,
+  getRegionRevealFraction: () => 0,
   getCompletedScenesCount: () => 0,
   getTotalScenesCount: () => 0,
   getStoryCompletionPercent: () => 0,
@@ -201,6 +209,22 @@ export function ProgressProvider({ children }) {
   // (Um conceito de "100% completo" = cenas + extras é FUTURO e não é usado aqui.)
   const isNarrativeComplete = isStoryCompleted;
 
+  // B5.2 — helpers de reveal por região (derivados, PUROS). Injetam a regra
+  // narrativa (isNarrativeComplete) nos helpers de adventureMap. Sem storage, sem
+  // visual, sem animação — base matemática consumida a partir de B5.3.
+  const getRegionFrontierStory = useCallback(
+    (region) => regionFrontierStory(region, isNarrativeComplete),
+    [isNarrativeComplete],
+  );
+  const isRegionNarrativeComplete = useCallback(
+    (region) => regionNarrativeComplete(region, isNarrativeComplete),
+    [isNarrativeComplete],
+  );
+  const getRegionRevealFraction = useCallback(
+    (region, options) => regionRevealFraction(region, isNarrativeComplete, options),
+    [isNarrativeComplete],
+  );
+
   const getStoryCompletionPercent = useCallback(
     storyId => {
       const total = getTotalScenesCount(storyId);
@@ -230,6 +254,9 @@ export function ProgressProvider({ children }) {
     getStoryProgress,
     isStoryCompleted,
     isNarrativeComplete,
+    getRegionFrontierStory,
+    isRegionNarrativeComplete,
+    getRegionRevealFraction,
     getCompletedScenesCount,
     getTotalScenesCount,
     getStoryCompletionPercent,
@@ -246,6 +273,9 @@ export function ProgressProvider({ children }) {
     getStoryProgress,
     isStoryCompleted,
     isNarrativeComplete,
+    getRegionFrontierStory,
+    isRegionNarrativeComplete,
+    getRegionRevealFraction,
     getCompletedScenesCount,
     getTotalScenesCount,
     getStoryCompletionPercent,

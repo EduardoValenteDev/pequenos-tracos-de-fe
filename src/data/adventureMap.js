@@ -179,3 +179,67 @@ export function getStoryMapCoord(storyId, index = 0, storyCount = 1) {
   if (c) return c;
   return { x: index % 2 === 0 ? 0.30 : 0.70, y: markerFraction(index, storyCount), label: 'below' };
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// B5.2 — Frontier e fração de reveal por região (base matemática do sépia→cor).
+//
+// PUROS e DERIVADOS: recebem `isNarrativeComplete(storyId)` (regra travada em B5.1
+// = só cenas, sem quiz/colorir/livrinho/Cultinho/baú/estrelinhas) e usam as
+// coordenadas normalizadas (STORY_MAP_COORDS / getStoryMapCoord). NÃO tocam
+// storage, NÃO animam e NÃO renderizam nada. Consumidos só a partir de B5.3.
+// A cor sobe de BAIXO (y=1) para CIMA (y=0), até o TOPO do marcador do frontier.
+// ════════════════════════════════════════════════════════════════════════════
+
+// Offset conservador (fração da altura da região) para a cor parar no TOPO do
+// marcador (não no centro). O pin real varia com markerScale; este valor é uma
+// margem segura e pode ser sobrescrito via options.pinTopFractionOffset em B5.3.
+export const PIN_TOP_FRACTION_OFFSET = 0.035;
+
+/**
+ * Primeira história da região ainda NÃO concluída narrativamente, respeitando a
+ * ordem já usada no mapa (stories ordenadas por `order` = de baixo para cima).
+ * Retorna null se TODAS as histórias da região estiverem concluídas.
+ * @param {object} region  — { stories: [...] } de getAdventureRegions()
+ * @param {(storyId:string)=>boolean} isNarrativeComplete
+ */
+export function getRegionFrontierStory(region, isNarrativeComplete) {
+  const list = region?.stories || [];
+  for (const s of list) {
+    if (!isNarrativeComplete(s.id)) return s;
+  }
+  return null;
+}
+
+/** True se todas as histórias da região estão concluídas narrativamente. */
+export function isRegionNarrativeComplete(region, isNarrativeComplete) {
+  const list = region?.stories || [];
+  return list.length > 0 && list.every((s) => isNarrativeComplete(s.id));
+}
+
+/**
+ * Fração vertical (0..1, medida da BASE para o topo) até o TOPO do marcador de uma
+ * história. y é 0=topo/1=base; a cor sobe da base até (y - offset). Sempre clampada.
+ * Usa getStoryMapCoord → herda o fallback markerFraction quando não há coordenada.
+ */
+export function getStoryRevealFraction(storyId, index = 0, storyCount = 1, options = {}) {
+  const offset = options.pinTopFractionOffset ?? PIN_TOP_FRACTION_OFFSET;
+  const { y } = getStoryMapCoord(storyId, index, storyCount); // y: 0 = topo, 1 = base
+  const frac = 1 - (y - offset); // base (y=1) → topo do pin (y - offset)
+  return Math.max(0, Math.min(1, frac));
+}
+
+/**
+ * Fração da região que deve estar COLORIDA (revelada), 0..1, de baixo para cima.
+ *  - região narrativamente completa → 1.0 (toda colorida);
+ *  - senão → sobe até o TOPO do marcador do frontier (1ª história não concluída).
+ * Derivado SÓ do progresso narrativo (isNarrativeComplete). Extras não entram.
+ */
+export function getRegionRevealFraction(region, isNarrativeComplete, options = {}) {
+  const list = region?.stories || [];
+  if (list.length === 0) return 0;
+  if (isRegionNarrativeComplete(region, isNarrativeComplete)) return 1;
+  const frontier = getRegionFrontierStory(region, isNarrativeComplete);
+  if (!frontier) return 1; // defensivo (não deveria ocorrer aqui)
+  const index = list.findIndex((s) => s.id === frontier.id);
+  return getStoryRevealFraction(frontier.id, index, list.length, options);
+}

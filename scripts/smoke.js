@@ -10939,6 +10939,93 @@ check(
     );
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // B5.2 — Helpers de frontier + fração de reveal por região (base do sépia→cor).
+  // PUROS/derivados (isNarrativeComplete). Sem storage, sem visual, sem animação.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── B5.2: helpers de frontier/reveal por região ──');
+  {
+    const mapB52  = readSrc('src/data/adventureMap.js');
+    const progB52 = readSrc('src/context/ProgressContext.js');
+
+    check(
+      'B5.2: adventureMap exporta os helpers de reveal (frontier/complete/revealFraction/storyReveal)',
+      mapB52.includes('export function getRegionFrontierStory') &&
+      mapB52.includes('export function isRegionNarrativeComplete') &&
+      mapB52.includes('export function getRegionRevealFraction') &&
+      mapB52.includes('export function getStoryRevealFraction'),
+      'helpers de reveal ausentes em adventureMap.js',
+    );
+    check(
+      'B5.2: ProgressContext expõe wrappers injetados (derivados de isNarrativeComplete)',
+      progB52.includes('getRegionRevealFraction') &&
+      progB52.includes('isRegionNarrativeComplete') &&
+      progB52.includes('getRegionFrontierStory') &&
+      /regionRevealFraction\(region,\s*isNarrativeComplete/.test(progB52),
+      'ProgressContext não expõe os wrappers injetados de reveal',
+    );
+    check(
+      'B5.2: getStoryRevealFraction usa getStoryMapCoord (STORY_MAP_COORDS) e clampa [0,1]',
+      /getStoryRevealFraction[\s\S]{0,200}getStoryMapCoord\(/.test(mapB52) &&
+      /getStoryRevealFraction[\s\S]{0,320}Math\.max\(0,\s*Math\.min\(1,/.test(mapB52),
+      'getStoryRevealFraction não deriva das coordenadas ou não clampa entre 0 e 1',
+    );
+    check(
+      'B5.2: helpers de reveal são PUROS — sem storage/reveal_seen/animação',
+      !/reveal_seen|AsyncStorage|Animated|@ptf_/.test(mapB52.slice(mapB52.indexOf('B5.2 — Frontier'))),
+      'os helpers B5.2 introduziram storage/animação — devem ser puros',
+    );
+
+    // Validação numérica com os helpers REAIS (extraídos sem os require de imagem).
+    try {
+      let s = mapB52
+        .replace(/^\s*import\s.*$/gm, '')
+        .replace(/export const REGION_MAP_IMAGES[\s\S]*?\n\};/, 'const REGION_MAP_IMAGES={};')
+        .replace(/require\([^)]*\)/g, 'null')
+        .replace(/export /g, '');
+      s = 'const stories=[];\n' + s +
+        '\nreturn { getRegionRevealFraction, getRegionFrontierStory, isRegionNarrativeComplete, getStoryRevealFraction };';
+      // eslint-disable-next-line no-new-func
+      const M = new Function(s)();
+      const region = (ids) => ({ stories: ids.map((id) => ({ id })) });
+      const comece = region(['creation', 'noah']);
+      const peq = region(['david_goliath', 'jesus_children', 'daniel_lions', 'esther_queen', 'lost_sheep', 'good_samaritan']);
+      const inc = (done) => (id) => done.includes(id);
+      const near = (a, b) => Math.abs(a - b) < 0.005;
+
+      check(
+        'B5.2: Comece Aqui sem nada → frontier=creation, revela até A Criação (≈0.365)',
+        M.getRegionFrontierStory(comece, inc([])).id === 'creation' &&
+        near(M.getRegionRevealFraction(comece, inc([])), 0.365),
+        'reveal inicial de Comece Aqui incorreto',
+      );
+      check(
+        'B5.2: A Criação concluída → frontier=noah, revela até o topo de Noé (≈0.745)',
+        M.getRegionFrontierStory(comece, inc(['creation'])).id === 'noah' &&
+        near(M.getRegionRevealFraction(comece, inc(['creation'])), 0.745),
+        'reveal após concluir A Criação incorreto',
+      );
+      check(
+        'B5.2: A Criação + Noé concluídas → região completa → revealFraction = 1.0 (extras não entram)',
+        M.isRegionNarrativeComplete(comece, inc(['creation', 'noah'])) === true &&
+        M.getRegionRevealFraction(comece, inc(['creation', 'noah'])) === 1 &&
+        // extras (quiz/colorir) não mudam nada: mesma entrada de cenas → mesmo 1.0
+        M.getRegionRevealFraction(comece, inc(['creation', 'noah'])) === 1,
+        'região Comece Aqui completa não retorna 1.0',
+      );
+      check(
+        'B5.2: Pequeninos sem nada → frontier=david_goliath (≈0.135); guard(vazio)=0; fallback markerFraction clampa [0,1]',
+        M.getRegionFrontierStory(peq, inc([])).id === 'david_goliath' &&
+        near(M.getRegionRevealFraction(peq, inc([])), 0.135) &&
+        M.getRegionRevealFraction({ stories: [] }, inc([])) === 0 &&
+        M.getStoryRevealFraction('semCoord', 0, 3) >= 0 && M.getStoryRevealFraction('semCoord', 0, 3) <= 1,
+        'reveal de Pequeninos / guard região vazia / fallback markerFraction incorreto',
+      );
+    } catch (e) {
+      check('B5.2: validação numérica dos helpers de reveal', false, String(e && e.message));
+    }
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
