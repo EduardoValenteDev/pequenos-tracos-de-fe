@@ -71,6 +71,19 @@ As decisões da Seção 2 (P1–P10) estão **RESOLVIDAS E CONGELADAS** (não ma
 
 ---
 
+## SEÇÃO 3 — DIREÇÃO DE ARTE v1.1 (CONGELADAS)
+
+> Anexo visual oficial do Documento Mestre v3.1: `docs/DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md`. **Precedência:** o v3.1 governa escopo/estrutura/fluxos/monetização/ordem macro; a Direção de Arte v1.1 governa visual/tokens/responsividade/componentes/critérios de aceite visuais. Valores detalhados (hex, escalas, breakpoints, specs) ficam para blocos futuros (A0+) — não reabrir D1–D4.
+
+| # | Decisão | Resolução (congelada) |
+|---|---|---|
+| **D1** | Tese "O Livro Vivo" + 10 Leis | **Aprovada.** "O Livro Vivo" troca a **pele visual** do app (cores, tipografia, componentes, estados) e **nunca altera estrutura, fluxos ou escopo** do v3.1. **Em conflito entre estética e estrutura, a estrutura vence** e o caso **sobe ao fundador**. Mantém o padrão premium sem perda de qualidade. |
+| **D2** | Roxo aposentado da UI | O **roxo está aposentado da UI** — não é mais cor de sistema/realce/chrome em nenhuma tela. Os **rituais** (Momento com Beni, Guardar no coração, Cantinho) usam **céu-noite estrelado + dourado** (família das cenas da Criação). |
+| **D3** | Tipografia | **Fraunces** para **display/títulos** + **Nunito** para **texto/corpo/UI** (Par A), via @expo-google-fonts. |
+| **D4** | Galeria Viva · nenhuma recapa · coerência por moldura | **Multiestilo é identidade oficial ("Galeria Viva")** — cada história é uma obra num estilo próprio (Davi pictórico, Pesca estilo Pixar etc.), intencional. **NENHUMA recapa** (não redesenhar/regenerar/substituir capas/cenas/colorir). A coerência vem **exclusivamente** do sistema que envolve as artes: **moldura-padrão, tipografia, chips e pins**. Regra: **"a arte muda; a moldura nunca muda."** Também é proteção de assets. |
+
+---
+
 ## O QUE NÃO FAZER DE JEITO NENHUM
 Backend/Supabase/login · histórias 21+ · Modo Igreja visível · limpeza Lumi pré-lançamento · reaproveitar patch B5.4.3 · compressão lossy em páginas de colorir · SDK com Advertising ID · compra fora do gate parental · preço/urgência para criança · teclado nativo ou microfone nos jogos · features novas fora do Documento Mestre v3.1 · reabrir decisões congeladas · avançar bloco sem autorização.
 

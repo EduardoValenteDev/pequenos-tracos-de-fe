@@ -16,6 +16,8 @@ Documentos antigos permanecem como histórico, mas **não devem orientar decisõ
 
 O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md) foi **substituído** pelo documento oficial final e permanece **apenas como histórico** (a versão anterior sugeria MVP sem a aba Brincar). Os conflitos com o app já entregue continuam registrados em [`docs/launch/DECISOES_E_CONFLITOS.md`](launch/DECISOES_E_CONFLITOS.md); a matriz de acesso em [`docs/launch/MATRIZ_DE_ACESSO.md`](launch/MATRIZ_DE_ACESSO.md).
 
+**Anexo de direção visual:** a [`docs/DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md`](DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md) é o **anexo oficial de direção de arte** (governa visual, tokens, responsividade, componentes e critérios de aceite visuais), subordinado ao Documento Mestre de execução v3.1. As decisões visuais congeladas (D1–D4) estão espelhadas em `DECISIONS.md` (Seção 3).
+
 ---
 
 ## 2. Produto
