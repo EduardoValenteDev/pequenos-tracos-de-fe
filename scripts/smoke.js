@@ -12052,6 +12052,70 @@ check(
       'Plano Família não está em azul-noite ou há roxo/marrom no card');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // F2.1a — Fundação do runtime de packs premium (serviços ISOLADOS, não integrados).
+  // App inalterado: nenhuma tela consome os novos serviços. Só índice + resolução
+  // preparada; sem download/rede/R2, sem mexer em assets/requires de mídia.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── F2.1a: fundação do runtime de packs (isolado) ──');
+  {
+    const keysF2 = readSrc('src/services/storageKeys.js');
+    const store = readSrc('src/services/packStorageService.js');
+    const integ = readSrc('src/services/packIntegrityService.js');
+    const dl = readSrc('src/services/packDownloadService.js');
+    const resolver = readSrc('src/services/contentResolver.js');
+    const cmSrc = readSrc('src/data/contentManifest.js');
+    const sdF2 = readSrc('src/screens/StoryDetailScreen.js');
+    const narF2 = readSrc('src/screens/NarrationScreen.js');
+    const colF2 = readSrc('src/screens/ColoringScreen.js');
+    const mapF2 = readSrc('src/screens/AdventureMapScreen.js');
+    const hasFn = (src, fn) => new RegExp(`export (async )?function ${fn}\\b`).test(src);
+
+    check('F2.1a (storageKey): @ptf_packs_v1 declarado em storageKeys',
+      /PACKS_INDEX:\s*'@ptf_packs_v1'/.test(keysF2),
+      '@ptf_packs_v1 não declarado em storageKeys');
+
+    check('F2.1a (packStorageService): 8 estados + funções índice/caminho; usa @ptf_packs_v1; sem FS destrutivo',
+      /export const PACK_STATUS/.test(store) &&
+      ['included', 'not_downloaded', 'downloading', 'verifying', 'ready', 'failed', 'needs_update', 'requires_app_update'].every(s => store.includes(`'${s}'`)) &&
+      ['getPackIndex', 'savePackIndex', 'getPackEntry', 'setPackEntry', 'clearPackEntry', 'getPackLocalDir', 'getPackTempDir'].every(fn => hasFn(store, fn)) &&
+      /STORAGE_KEYS\.PACKS_INDEX/.test(store) &&
+      !/downloadAsync|deleteAsync|moveAsync|copyAsync|writeAsStringAsync/.test(store),
+      'packStorageService: estados/funções faltando ou faz I/O de arquivo (proibido no F2.1a)');
+
+    check('F2.1a (packIntegrityService): valida manifesto+arquivos; sha256 preparado SEM importar expo-crypto',
+      ['validatePackManifest', 'validatePackFiles', 'validateFileEntry', 'computeFileSha256'].every(fn => hasFn(integ, fn)) &&
+      /validateManifest/.test(integ) &&
+      !/from ['"]expo-crypto['"]|require\(['"]expo-crypto['"]\)/.test(integ),
+      'packIntegrityService: funções faltando ou importou expo-crypto (dep nova proibida)');
+
+    check('F2.1a (packDownloadService): preparado, NÃO baixa/rede; markPackReady só índice',
+      ['downloadPackFromManifest', 'simulateInstallLocalPack', 'markPackReady'].every(fn => hasFn(dl, fn)) &&
+      !/fetch\(|https?:\/\/|downloadAsync|createDownloadResumable/.test(dl),
+      'packDownloadService: funções faltando ou baixa da rede (proibido no F2.1a)');
+
+    check('F2.1a (contentResolver): resolvers + enums; starter→require, ready→file://, remote→fallback local',
+      ['getStoryContentLayer', 'getPackState', 'canResolveStoryMedia', 'resolveStoryCover', 'resolveStoryScene', 'resolveStoryColoring', 'resolveStoryAudio'].every(fn => hasFn(resolver, fn)) &&
+      /RESOLVE_SOURCE_TYPE/.test(resolver) &&
+      /CONTENT_LAYERS\.STARTER/.test(resolver) &&
+      /packEntry\.localDir \+ relPathInPack/.test(resolver) &&
+      /fallback local/.test(resolver),
+      'contentResolver: resolvers/decisão starter/ready/fallback ausentes');
+
+    check('F2.1a (ISOLADO): nenhuma tela consome o runtime (app inalterado)',
+      ![sdF2, narF2, colF2, mapF2].some(s => /contentResolver|packStorageService|packDownloadService|packIntegrityService/.test(s)),
+      'uma tela já importa o runtime de packs — deveria ficar isolado no F2.1a');
+
+    check('F2.1a (manifesto intacto): contentManifest segue 2 starter / 18 remote',
+      (() => {
+        try {
+          const cm = new Function(`${cmSrc.replace(/export /g, '')}; return { getStoriesByLayer };`)();
+          return cm.getStoriesByLayer('starter').length === 2 && cm.getStoriesByLayer('remote').length === 18;
+        } catch { return false; }
+      })(),
+      'contentManifest deixou de ser 2 starter / 18 remote');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

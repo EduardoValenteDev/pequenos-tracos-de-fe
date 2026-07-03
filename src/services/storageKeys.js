@@ -67,6 +67,11 @@ export const STORAGE_KEYS = {
 
   // ── Onboarding ───────────────────────────────────────────────────────────
   ONBOARDING_STATE: '@ptf_onboarding_v1',
+
+  // ── Packs remotos (Fase 2 — índice local do runtime híbrido, F2.1a) ────────
+  // Mapa storyId → CacheEntry (status/versão/localDir/bytes...). Só índice; os
+  // arquivos do pack vivem em documentDirectory/packs/<id>@<version>/ (não aqui).
+  PACKS_INDEX: '@ptf_packs_v1',
 };
 
 /**
