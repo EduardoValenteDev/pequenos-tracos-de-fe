@@ -11569,6 +11569,55 @@ check(
     );
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // A0.3 — Fundação responsiva: ContentContainer (useWindowDimensions + tokens) e
+  // remoção do Dimensions.get congelado (Confetti, CongratsScreen). Sem redesenho.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── A0.3: fundação responsiva (ContentContainer) ──');
+  {
+    const ccSrc = readSrc('src/components/ui/ContentContainer.js');
+    const confettiA03 = readSrc('src/components/Confetti.js');
+    const congratsA03 = readSrc('src/screens/CongratsScreen.js');
+
+    check(
+      'A0.3: ContentContainer existe e usa useWindowDimensions + tokens (breakpoints/maxContentWidth)',
+      ccSrc.length > 0 &&
+      /useWindowDimensions\(\)/.test(ccSrc) &&
+      /import\s*\{[^}]*breakpoints[^}]*maxContentWidth[^}]*\}\s*from\s*'\.\.\/\.\.\/theme\/tokens'/.test(ccSrc) &&
+      /maxWidth/.test(ccSrc) && /alignSelf:\s*'center'/.test(ccSrc),
+      'ContentContainer ausente ou não usa useWindowDimensions + tokens',
+    );
+    check(
+      'A0.3: ContentContainer é FLUIDO (width 100%) e centraliza por token — sem largura fixa de tela',
+      /width:\s*'100%'/.test(ccSrc) &&
+      /maxContentWidth\.tablet\b/.test(ccSrc) && /maxContentWidth\.tabletL\b/.test(ccSrc) &&
+      !/Dimensions\.get/.test(ccSrc),
+      'ContentContainer usa largura fixa/Dimensions.get em vez de fluido + maxWidth por token',
+    );
+    check(
+      'A0.3: Confetti.js sem Dimensions.get congelado — usa useWindowDimensions (responsivo)',
+      !/Dimensions\.get/.test(confettiA03) &&
+      /useWindowDimensions\(\)/.test(confettiA03) &&
+      /useMemo\(\(\) => makePieces\(width\)/.test(confettiA03),
+      'Confetti.js ainda tem Dimensions.get congelado em módulo',
+    );
+    check(
+      'A0.3: CongratsScreen.js sem Dimensions.get congelado (código morto removido)',
+      !/Dimensions\.get/.test(congratsA03) &&
+      !/const \{ width: SCREEN_W \}/.test(congratsA03),
+      'CongratsScreen.js ainda tem Dimensions.get / SCREEN_W congelado',
+    );
+    check(
+      'A0.3: nenhum Dimensions.get(\'window\') congelado em MÓDULO restante no app',
+      // varre src atrás de `Dimensions.get('window')` fora de componente (nível de módulo)
+      (function () {
+        const files = ['src/components/Confetti.js', 'src/screens/CongratsScreen.js'];
+        return files.every((f) => !/^const[^\n]*Dimensions\.get\('window'\)/m.test(readSrc(f)));
+      })(),
+      'ainda há Dimensions.get(\'window\') congelado em módulo nos arquivos-alvo',
+    );
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

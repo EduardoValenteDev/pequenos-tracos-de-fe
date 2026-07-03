@@ -1,22 +1,25 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Dimensions, Easing } from 'react-native';
-
-const { width: SCREEN_W } = Dimensions.get('window');
+import React, { useEffect, useRef, useMemo } from 'react';
+import { Animated, StyleSheet, Easing, useWindowDimensions } from 'react-native';
 
 const COLORS = ['#FF8C42', '#FFD166', '#6EC6CA', '#6BCB77', '#E74C3C', '#8E44AD', '#FF6B9D', '#F1C40F'];
 
-// Gerado uma única vez no módulo para posições consistentes
-const PIECES = Array.from({ length: 22 }, (_, i) => ({
-  id: i,
-  color: COLORS[i % COLORS.length],
-  x: (Math.random() - 0.5) * SCREEN_W * 1.1,
-  y: -(Math.random() * 580 + 180),
-  rotate: Math.random() * 720 - 360,
-  scale: Math.random() * 0.6 + 0.5,
-  delay: Math.floor(Math.random() * 180),
-  width: Math.random() > 0.5 ? 10 : 7,
-  height: Math.random() > 0.5 ? 14 : 10,
-}));
+// A0.3: gera as 22 peças usando a largura REAL da janela (responsivo — sem leitura
+// de dimensão congelada no módulo). Puro; chamado via useMemo(width) para manter
+// posições estáveis por mount e responder a rotação/Split View. (Cores/tamanhos
+// inalterados — fora do escopo do A0.3.)
+function makePieces(screenW) {
+  return Array.from({ length: 22 }, (_, i) => ({
+    id: i,
+    color: COLORS[i % COLORS.length],
+    x: (Math.random() - 0.5) * screenW * 1.1,
+    y: -(Math.random() * 580 + 180),
+    rotate: Math.random() * 720 - 360,
+    scale: Math.random() * 0.6 + 0.5,
+    delay: Math.floor(Math.random() * 180),
+    width: Math.random() > 0.5 ? 10 : 7,
+    height: Math.random() > 0.5 ? 14 : 10,
+  }));
+}
 
 function ConfettiPiece({ color, x, y, rotate, scale, delay, width, height }) {
   const translateX = useRef(new Animated.Value(0)).current;
@@ -109,11 +112,14 @@ function ConfettiPiece({ color, x, y, rotate, scale, delay, width, height }) {
 }
 
 export default function Confetti({ visible }) {
+  const { width } = useWindowDimensions();
+  // Posições geradas com a largura real; estáveis por mount (useMemo).
+  const pieces = useMemo(() => makePieces(width), [width]);
   if (!visible) return null;
 
   return (
     <>
-      {PIECES.map(p => (
+      {pieces.map(p => (
         <ConfettiPiece key={p.id} {...p} />
       ))}
     </>

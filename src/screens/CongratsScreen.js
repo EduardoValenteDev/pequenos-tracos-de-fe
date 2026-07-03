@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, Image, Modal,
-  Animated, StyleSheet, Dimensions,
+  Animated, StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,7 +21,9 @@ import { getNextAdventureRecommendation } from '../services/nextAdventureService
 import StoryCoverImage from '../components/story/StoryCoverImage';
 import { QUIZ_QUESTIONS_PER_STORY } from '../services/quizModel';
 
-const { width: SCREEN_W } = Dimensions.get('window');
+// A0.3: removida a leitura de largura de tela congelada no módulo — era código MORTO
+// (a variável não era usada em lugar nenhum). Sem substituto necessário; esta tela
+// não usa largura de tela aqui.
 
 function SceneTimelineDot({ cena, done, index }) {
   const scaleAnim = useRef(new Animated.Value(0)).current;
