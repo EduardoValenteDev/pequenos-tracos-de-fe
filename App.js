@@ -20,6 +20,7 @@ import {
 import AppNavigator from './src/navigation/AppNavigator';
 import { ProfileProvider } from './src/context/ProfileContext';
 import { ProgressProvider } from './src/context/ProgressContext';
+import { PacksProvider } from './src/context/PacksContext';
 import { preloadCriticalAssets } from './src/services/assetPreloadService';
 import { loadCreatorQaMode } from './src/services/creatorQaMode';
 import { runLocalMigrations } from './src/services/storageMigrationService';
@@ -55,7 +56,10 @@ export default function App() {
       <SafeAreaProvider>
         <ProfileProvider>
           <ProgressProvider>
-            <AppNavigator />
+            {/* F2.1d: estado READ-ONLY de packs (sem consumo visual — nenhuma tela lê ainda). */}
+            <PacksProvider>
+              <AppNavigator />
+            </PacksProvider>
           </ProgressProvider>
         </ProfileProvider>
       </SafeAreaProvider>

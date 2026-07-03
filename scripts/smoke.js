@@ -12223,6 +12223,64 @@ check(
       'contentManifest deixou de ser 2 starter / 18 remote');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // F2.1d — PacksContext READ-ONLY integrado ao app (sem consumo visual).
+  // Provider montado no root; nenhuma tela consome; nenhuma escrita em @ptf_packs_v1.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── F2.1d: PacksContext read-only (sem consumo visual) ──');
+  {
+    const hasPacksCtx = srcExists('src/context/PacksContext.js');
+    const packsCtx = hasPacksCtx ? readSrc('src/context/PacksContext.js') : '';
+    const appJs = readSrc('App.js');
+    const cmD = readSrc('src/data/contentManifest.js');
+    const hasExportFn = (src, fn) => new RegExp(`export function ${fn}\\b`).test(src);
+
+    check('F2.1d (PacksContext existe): PacksProvider + usePacks + acessores read-only',
+      hasPacksCtx &&
+      hasExportFn(packsCtx, 'PacksProvider') && hasExportFn(packsCtx, 'usePacks') &&
+      ['getPackEntry', 'getPackStatus', 'isPackReady', 'getStoryPackState', 'refreshPacks'].every((fn) => packsCtx.includes(fn)),
+      'PacksContext: provider/hook/acessores ausentes');
+
+    check('F2.1d (read-only): lê getPackIndex; NÃO grava índice/AsyncStorage; NÃO baixa/instala',
+      /getPackIndex/.test(packsCtx) &&
+      !/savePackIndex|setPackEntry|clearPackEntry|setItem\(/.test(packsCtx) &&
+      !/downloadAsync|createDownloadResumable|fetch\(/.test(packsCtx),
+      'PacksContext: grava índice/baixa (deveria ser somente leitura)');
+
+    check('F2.1d (provider montado): App.js monta PacksProvider envolvendo AppNavigator',
+      /import\s*{\s*PacksProvider\s*}\s*from\s*'\.\/src\/context\/PacksContext'/.test(appJs) &&
+      /<PacksProvider>[\s\S]*<AppNavigator[\s\S]*<\/PacksProvider>/.test(appJs),
+      'App.js não monta PacksProvider em volta de AppNavigator');
+
+    check('F2.1d (estado default): starter→included, remote→not_downloaded (índice vazio)',
+      (() => {
+        try {
+          const cm = new Function(`${cmD.replace(/export /g, '')}; return { getContentLayer, CONTENT_LAYERS };`)();
+          const st = (id) => (cm.getContentLayer(id) === cm.CONTENT_LAYERS.STARTER ? 'included' : 'not_downloaded');
+          return st('creation') === 'included' && st('noah') === 'included' &&
+            st('david_goliath') === 'not_downloaded' && st('mary_says_yes') === 'not_downloaded';
+        } catch { return false; }
+      })(),
+      'estado default do pack incorreto (starter deve ser included; remote sem índice, not_downloaded)');
+
+    check('F2.1d (sem consumo visual): nenhuma tela importa usePacks/PacksContext/contentResolver/pack*',
+      (() => {
+        const dir = path.join(root, 'src/screens');
+        const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js'));
+        return !files.some((f) => /usePacks|PacksContext|contentResolver|packStorageService|packDownloadService|packIntegrityService/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+      })(),
+      'uma tela já consome o runtime/PacksContext (F2.1d é sem consumo visual)');
+
+    check('F2.1d (manifesto intacto): contentManifest segue 2 starter / 18 remote',
+      (() => {
+        try {
+          const cm = new Function(`${cmD.replace(/export /g, '')}; return { getStoriesByLayer };`)();
+          return cm.getStoriesByLayer('starter').length === 2 && cm.getStoriesByLayer('remote').length === 18;
+        } catch { return false; }
+      })(),
+      'contentManifest deixou de ser 2 starter / 18 remote');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
