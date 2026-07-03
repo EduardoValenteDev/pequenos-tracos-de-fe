@@ -40,10 +40,14 @@ export const STORY_CONTENT_LAYER = Object.freeze({
   miraculous_catch: 'remote',
   samuel_hears_god: 'remote',
   josiah_young_king: 'remote',
-  solomon_wisdom: 'coming_soon',
-  mary_says_yes: 'coming_soon',
-  timothy_faith: 'coming_soon',
-  jesus_temple: 'coming_soon',
+  // F2.0a: estas 4 tinham conteúdo COMPLETO (10 cenas + 10 colorir + 10 áudio + capa +
+  // quiz; status 'available', accessType premium) mas estavam marcadas 'coming_soon'
+  // por engano → corrigidas para 'remote'. Agora as 18 premium prontas são packs
+  // baixáveis; 'coming_soon' fica reservado para conteúdo realmente futuro (nenhum hoje).
+  solomon_wisdom: 'remote',
+  mary_says_yes: 'remote',
+  timothy_faith: 'remote',
+  jesus_temple: 'remote',
 });
 
 // Packs REMOTOS DECLARADOS (apenas declaração — SEM download, SEM URL real obrigatória,

@@ -10861,12 +10861,16 @@ check(
       cm.getStoriesByLayer('remote').length >= 1,
       'remote packs não declaráveis sem download',
     );
-    // (d) coming_soon declarável (planejado, fora do bundle)
+    // (d) F2.0b: camada coming_soon DECLARÁVEL (planejada, fora do bundle). Valida o
+    // schema/enum + isValidLayer + o FALLBACK real (storyId desconhecido → coming_soon),
+    // SEM hardcodar uma história pronta como coming_soon: o F2.0a corrigiu as 4 completas
+    // (solomon/mary/timothy/jesus_temple) para 'remote' e hoje não há história futura real.
     check(
       'Arquitetura 001.2: coming_soon declarável (planejado, fora do bundle)',
-      cm.getStoriesByLayer('coming_soon').length >= 1 &&
-      cm.getContentLayer('jesus_temple') === 'coming_soon',
-      'coming_soon não declarável',
+      cm.CONTENT_LAYERS.COMING_SOON === 'coming_soon' &&
+      cm.isValidLayer('coming_soon') === true &&
+      cm.getContentLayer('__inexistente__') === 'coming_soon',
+      'coming_soon não declarável (enum/isValidLayer/fallback quebrado)',
     );
     // (g) packManifestService valida campos obrigatórios do contrato
     const pm = a1LoadSandbox('src/services/packManifestService.js', {}, ['validateManifest']);
