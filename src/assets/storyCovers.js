@@ -12,9 +12,9 @@
  * derivado deste manifest, mantendo o fluxo existente de imagemCapa.
  */
 export const STORY_COVERS = {
-  creation:             require('../../assets/images/criacao_cover.png'),
+  creation:             require('../../assets/images/criacao_cover.webp'),
   noah:                 require('../../assets/images/noe_cover.png'),
-  david_goliath:        require('../../assets/images/david_goliath_cover.png'),
+  david_goliath:        require('../../assets/images/david_goliath_cover.webp'),
   jesus_children:       require('../../assets/images/jesus_children_cover.png'),
   daniel_lions:         require('../../assets/images/daniel_leoes_cover.png'),
   jonah_big_fish:       require('../../assets/images/jonas_peixe_cover.png'),

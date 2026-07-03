@@ -12,7 +12,7 @@
  * ── PADRÃO OFICIAL DE PASTAS E NOMES ──
  *   Pasta:  assets/stories/<storyId>/scenes/
  *   Nome:   <storyId>_scene_NN.png   (NN = 01..10, com zero à esquerda)
- *   Ex:     assets/stories/creation/scenes/creation_scene_01.png
+ *   Ex:     assets/stories/creation/scenes/creation_scene_01.webp
  *           assets/stories/noah/scenes/noah_scene_01.png
  *
  * ── COMO REGISTRAR UMA IMAGEM ──
@@ -20,8 +20,8 @@
  *   da história, com a chave igual ao número da cena. Exemplo:
  *
  *     creation: {
- *       1: require('../../assets/stories/creation/scenes/creation_scene_01.png'),
- *       2: require('../../assets/stories/creation/scenes/creation_scene_02.png'),
+ *       1: require('../../assets/stories/creation/scenes/creation_scene_01.webp'),
+ *       2: require('../../assets/stories/creation/scenes/creation_scene_02.webp'),
  *     },
  *
  * ── REGRAS ──
@@ -37,7 +37,7 @@ export const SCENE_ILLUSTRATION_PATTERN = {
   folder: 'assets/stories/<storyId>/scenes/',
   fileName: '<storyId>_scene_NN.png',
   scenesPerStory: 10,
-  example: 'assets/stories/creation/scenes/creation_scene_01.png',
+  example: 'assets/stories/creation/scenes/creation_scene_01.webp',
 };
 
 /**
@@ -47,16 +47,16 @@ export const SCENE_ILLUSTRATION_PATTERN = {
  */
 export const STORY_SCENE_ILLUSTRATIONS = {
   creation: {
-    1: require('../../assets/stories/creation/scenes/creation_scene_01.png'),
-    2: require('../../assets/stories/creation/scenes/creation_scene_02.png'),
-    3: require('../../assets/stories/creation/scenes/creation_scene_03.png'),
-    4: require('../../assets/stories/creation/scenes/creation_scene_04.png'),
-    5: require('../../assets/stories/creation/scenes/creation_scene_05.png'),
-    6: require('../../assets/stories/creation/scenes/creation_scene_06.png'),
-    7: require('../../assets/stories/creation/scenes/creation_scene_07.png'),
-    8: require('../../assets/stories/creation/scenes/creation_scene_08.png'),
-    9: require('../../assets/stories/creation/scenes/creation_scene_09.png'),
-    10: require('../../assets/stories/creation/scenes/creation_scene_10.png'),
+    1: require('../../assets/stories/creation/scenes/creation_scene_01.webp'),
+    2: require('../../assets/stories/creation/scenes/creation_scene_02.webp'),
+    3: require('../../assets/stories/creation/scenes/creation_scene_03.webp'),
+    4: require('../../assets/stories/creation/scenes/creation_scene_04.webp'),
+    5: require('../../assets/stories/creation/scenes/creation_scene_05.webp'),
+    6: require('../../assets/stories/creation/scenes/creation_scene_06.webp'),
+    7: require('../../assets/stories/creation/scenes/creation_scene_07.webp'),
+    8: require('../../assets/stories/creation/scenes/creation_scene_08.webp'),
+    9: require('../../assets/stories/creation/scenes/creation_scene_09.webp'),
+    10: require('../../assets/stories/creation/scenes/creation_scene_10.webp'),
   },
   noah: {
     1: require('../../assets/stories/noah/scenes/noah_scene_01.png'),
@@ -71,16 +71,16 @@ export const STORY_SCENE_ILLUSTRATIONS = {
     10: require('../../assets/stories/noah/scenes/noah_scene_10.png'),
   },
   david_goliath: {
-    1: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_01.png'),
-    2: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_02.png'),
-    3: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_03.png'),
-    4: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_04.png'),
-    5: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_05.png'),
-    6: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_06.png'),
-    7: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_07.png'),
-    8: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_08.png'),
-    9: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_09.png'),
-    10: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_10.png'),
+    1: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_01.webp'),
+    2: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_02.webp'),
+    3: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_03.webp'),
+    4: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_04.webp'),
+    5: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_05.webp'),
+    6: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_06.webp'),
+    7: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_07.webp'),
+    8: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_08.webp'),
+    9: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_09.webp'),
+    10: require('../../assets/stories/david_goliath/scenes/david_goliath_scene_10.webp'),
   },
   jesus_children: {
     1: require('../../assets/stories/jesus_children/scenes/jesus_children_scene_01.png'),

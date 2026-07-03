@@ -9622,7 +9622,9 @@ a1CheckRequiresExist('A1 mídia: capas — todo require aponta para arquivo exis
     const folder = fm ? fm[1] : id;
     const subdir = fm ? fm[2] : 'colorir';
     const dir = path.join(root, 'assets/stories', folder, subdir);
-    const disk = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.png')).length : 0;
+    // F1.1a: aceita .png OU .webp (piloto WebP) — paridade manifest↔disco preservada
+    // (conta as imagens de colorir reais no disco, independente da extensão).
+    const disk = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.png') || f.endsWith('.webp')).length : 0;
     if (reqs.length !== disk) { ok = false; detail += `${id}: manifest ${reqs.length} ≠ disco ${disk}; `; }
   }
   check('A1 paridade: colorir — contagem do manifest === arquivos .png no disco', ok, detail);
@@ -10136,7 +10138,8 @@ const b2SceneSrc = readSrc('src/data/storySceneIllustrations.js');
 
 // Conta requires de cena por história no manifesto.
 function b2SceneCount(sid) {
-  return (b2SceneSrc.match(new RegExp(`stories/${sid}/scenes/${sid}_scene_\\d\\d\\.png`, 'g')) || []).length;
+  // F1.1a: extensão-agnóstico (piloto WebP) — conta cenas registradas em .png OU .webp.
+  return (b2SceneSrc.match(new RegExp(`stories/${sid}/scenes/${sid}_scene_\\d\\d\\.(png|webp)`, 'g')) || []).length;
 }
 
 check(
@@ -10208,13 +10211,21 @@ check(
     let sc = 0; let cc = 0;
     for (let n = 1; n <= 10; n += 1) {
       const nn = String(n).padStart(2, '0');
-      const sRel = `assets/stories/${sid}/scenes/${sid}_scene_${nn}.png`;
-      if (officialSceneSrc.includes(`'../../${sRel}'`)) {
+      // F1.1a: extensão-agnóstico (piloto WebP). Protege igual: exige o require no
+      // manifest (.png OU .webp) E que o arquivo RESOLVIDO exista (0 paths quebrados).
+      const sPng = `assets/stories/${sid}/scenes/${sid}_scene_${nn}.png`;
+      const sWebp = `assets/stories/${sid}/scenes/${sid}_scene_${nn}.webp`;
+      const sRel = officialSceneSrc.includes(`'../../${sWebp}'`) ? sWebp
+        : officialSceneSrc.includes(`'../../${sPng}'`) ? sPng : null;
+      if (sRel) {
         sceneEntries += 1; sc += 1;
         if (!fs.existsSync(path.join(root, sRel))) sceneBroken += 1;
       }
-      const cRel = `assets/stories/${sid}/coloring/scene_${nn}.png`;
-      if (officialColorSrc.includes(`'../../${cRel}'`)) {
+      const cPng = `assets/stories/${sid}/coloring/scene_${nn}.png`;
+      const cWebp = `assets/stories/${sid}/coloring/scene_${nn}.webp`;
+      const cRel = officialColorSrc.includes(`'../../${cWebp}'`) ? cWebp
+        : officialColorSrc.includes(`'../../${cPng}'`) ? cPng : null;
+      if (cRel) {
         colorEntries += 1; cc += 1;
         if (!fs.existsSync(path.join(root, cRel))) colorBroken += 1;
       }
