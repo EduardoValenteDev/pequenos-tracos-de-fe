@@ -12116,6 +12116,53 @@ check(
       'contentManifest deixou de ser 2 starter / 18 remote');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // F2.1b — Pack sandbox local de david_goliath (scripts de build/validação).
+  // Os scripts PROVAM a estrutura do pack FORA do repo; nada é integrado às telas,
+  // nenhum pack/asset entra no repo, e o runtime F2.1a segue isolado.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── F2.1b: pack sandbox (scripts build/validação) ──');
+  {
+    const hasBuild = srcExists('scripts/assets-pipeline/build-story-pack.js');
+    const hasVal = srcExists('scripts/assets-pipeline/validate-story-pack.js');
+    const build = hasBuild ? readSrc('scripts/assets-pipeline/build-story-pack.js') : '';
+    const val = hasVal ? readSrc('scripts/assets-pipeline/validate-story-pack.js') : '';
+    // Import real (não prosa de comentário): require('expo'|'react-native') ou from '...'.
+    const importsExpoRN = (s) => /(require\(['"]|from ['"])(expo|react-native)/.test(s);
+
+    check('F2.1b (scripts existem): build-story-pack.js + validate-story-pack.js',
+      hasBuild && hasVal,
+      'scripts de pack ausentes em scripts/assets-pipeline/');
+
+    check('F2.1b (build seguro): recusa output no repo; sha256 nativo; sharp opcional; sem import Expo/RN',
+      /assertOutsideRepo/.test(build) &&
+      /RECUSADO/.test(build) &&
+      /startsWith\(root \+ path\.sep\)/.test(build) &&
+      /crypto\.createHash\('sha256'\)/.test(build) &&
+      /require\('sharp'\)/.test(build) && /catch/.test(build) &&
+      !importsExpoRN(build),
+      'build-story-pack.js: guard/sha256/sharp-opcional ausente ou importa Expo/RN');
+
+    check('F2.1b (validate prova runtime): carrega packManifestService.validateManifest; re-hash; convenção contentResolver; sem import Expo/RN',
+      /packManifestService/.test(val) &&
+      /validateManifest/.test(val) &&
+      /createHash\('sha256'\)/.test(val) &&
+      /scenes\/\$\{storyId\}_scene_/.test(val) &&
+      !importsExpoRN(val),
+      'validate-story-pack.js: não prova compat com runtime ou importa Expo/RN');
+
+    check('F2.1b (nenhum pack no repo): sem packs/ na raiz; sem artefatos de pack em assets-pipeline',
+      !srcExists('packs') &&
+      !srcExists('scripts/assets-pipeline/packs') &&
+      !fs.readdirSync(path.join(root, 'scripts/assets-pipeline')).some((f) => /\.(webp|png|mp3|sha256)$/.test(f) || f === 'manifest.json'),
+      'há pack sandbox/artefato dentro do repo (deveria ficar fora)');
+
+    check('F2.1b (runtime ainda isolado): telas não importam contentResolver/pack*',
+      ![readSrc('src/screens/StoryDetailScreen.js'), readSrc('src/screens/NarrationScreen.js'), readSrc('src/screens/ColoringScreen.js')]
+        .some((s) => /contentResolver|packStorageService|packDownloadService|packIntegrityService/.test(s)),
+      'uma tela passou a consumir o runtime — F2.1b não integra telas');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
