@@ -5000,9 +5000,12 @@ check(
 );
 
 check(
-  'NarrationScreen consome imagem oficial automaticamente',
-  narration50.includes('getOfficialSceneIllustration(story.id, cena.id)'),
-  'NarrationScreen does not consume getOfficialSceneIllustration',
+  // F2.1f: a consumo da ilustração oficial migrou para o hook useResolvedSceneImage,
+  // que resolve a MESMA ilustração oficial (fallback local) + o pack ready. Mesma
+  // garantia (a tela consome a imagem oficial da cena), agora via o hook.
+  'NarrationScreen consome imagem oficial automaticamente (via useResolvedSceneImage — F2.1f)',
+  narration50.includes('useResolvedSceneImage(story.id, cena?.id)'),
+  'NarrationScreen does not consume the resolved official scene image',
 );
 
 check(
@@ -12349,6 +12352,78 @@ check(
         } catch { return false; }
       })(),
       'estado default incorreto (starter deve ser included; remote sem índice, not_downloaded)');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // F2.1f — PRIMEIRO consumo visual do resolver (sandbox): SÓ david_goliath, SÓ cenas,
+  // SÓ na NarrationScreen, através do hook useResolvedStoryMedia. Com índice vazio, o
+  // fallback local é IDÊNTICO ao anterior. Áudio/colorir/capas seguem 100% locais.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── F2.1f: primeiro consumo visual (david_goliath, cenas, sandbox) ──');
+  {
+    const hookP = 'src/hooks/useResolvedStoryMedia.js';
+    const hasHook = srcExists(hookP);
+    const hook = hasHook ? readSrc(hookP) : '';
+    const narr = readSrc('src/screens/NarrationScreen.js');
+    const resolverF = readSrc('src/services/contentResolver.js');
+    const screensDir = path.join(root, 'src/screens');
+    const screenFiles = fs.readdirSync(screensDir).filter((f) => f.endsWith('.js'));
+    const mediaLoaders = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+
+    check('F2.1f (hook existe, gated a david_goliath, read-only)',
+      hasHook &&
+      /export function useResolvedSceneImage\b/.test(hook) &&
+      /SANDBOX_STORY_ID\s*=\s*'david_goliath'/.test(hook) &&
+      /storyId !== SANDBOX_STORY_ID/.test(hook) &&
+      /usePacks/.test(hook) && /resolveStoryScene/.test(hook) && /getOfficialSceneIllustration/.test(hook) &&
+      !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|downloadAsync|Purchases\.|react-native-purchases/.test(hook),
+      'hook ausente / não-gated / não read-only');
+
+    check('F2.1f (consumo visual SÓ na NarrationScreen)',
+      (() => {
+        const consumers = screenFiles.filter((f) => /useResolvedSceneImage|useResolvedStoryMedia/.test(fs.readFileSync(path.join(screensDir, f), 'utf8')));
+        return consumers.length === 1 && consumers[0] === 'NarrationScreen.js';
+      })(),
+      'o consumo do hook não está restrito à NarrationScreen');
+
+    check('F2.1f (escopo cena-only: capa e áudio seguem locais na tela)',
+      /useResolvedSceneImage\(/.test(narr) &&
+      /getStoryCoverImage\(/.test(narr) &&
+      /getSceneAudio\(|hasSceneAudio\(/.test(narr) &&
+      !/resolveStoryCover|resolveStoryAudio|resolveStoryColoring/.test(narr),
+      'a tela roteou capa/áudio/colorir pelo resolver (deveria ser só a cena)');
+
+    check('F2.1f (áudio/colorir/capas 100% locais): loaders require-based sem file://; Coloring sem hook',
+      mediaLoaders.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }) &&
+      !/useResolvedSceneImage|useResolvedStoryMedia|contentResolver/.test(readSrc('src/screens/ColoringScreen.js')),
+      'áudio/colorir/capas deixaram de ser 100% locais');
+
+    check('F2.1f (fallback×ready david_goliath por eval): índice vazio → require; pack ready → file://',
+      (() => {
+        try {
+          const code = resolverF.replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '');
+          const stubs = {
+            getContentLayer: (id) => (id === 'david_goliath' ? 'remote' : 'starter'),
+            CONTENT_LAYERS: { STARTER: 'starter', REMOTE: 'remote', COMING_SOON: 'coming_soon' },
+            PACK_STATUS: { INCLUDED: 'included', NOT_DOWNLOADED: 'not_downloaded', READY: 'ready', DOWNLOADING: 'downloading', VERIFYING: 'verifying', FAILED: 'failed', NEEDS_UPDATE: 'needs_update', REQUIRES_APP_UPDATE: 'requires_app_update' },
+            getOfficialSceneIllustration: () => ({ __local: 1 }),
+            getSceneColoringImage: () => ({ __local: 1 }),
+            getStoryCoverImage: () => ({ __local: 1 }),
+            getSceneAudio: () => ({ __local: 1 }),
+          };
+          const header = 'const getContentLayer=__s.getContentLayer;const CONTENT_LAYERS=__s.CONTENT_LAYERS;const PACK_STATUS=__s.PACK_STATUS;const getOfficialSceneIllustration=__s.getOfficialSceneIllustration;const getSceneColoringImage=__s.getSceneColoringImage;const getStoryCoverImage=__s.getStoryCoverImage;const getSceneAudio=__s.getSceneAudio;';
+          const R = new Function('__s', header + code + ';return { resolveStoryScene, RESOLVE_SOURCE_TYPE };')(stubs);
+          const fb = R.resolveStoryScene('david_goliath', 1, null);
+          const rd = R.resolveStoryScene('david_goliath', 1, { status: 'ready', localDir: 'file:///x/' });
+          return fb.sourceType === R.RESOLVE_SOURCE_TYPE.REQUIRE && rd.sourceType === R.RESOLVE_SOURCE_TYPE.FILE && /^file:\/\//.test(rd.source.uri);
+        } catch { return false; }
+      })(),
+      'fallback/ready da cena david_goliath incorreto');
+
+    check('F2.1f (sem compra/entitlement no caminho visual)',
+      !/Purchases\.|react-native-purchases|entitlement|accessControl/.test(hook) &&
+      !/Purchases\.|react-native-purchases/.test(resolverF),
+      'o caminho visual tocou compras/entitlement');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

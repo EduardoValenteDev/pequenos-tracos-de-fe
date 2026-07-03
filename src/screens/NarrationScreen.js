@@ -19,7 +19,8 @@ import AudioPlayer from '../components/AudioPlayer';
 import ProgressBar from '../components/ProgressBar';
 import { useProgress } from '../hooks/useProgress';
 import { useProgressContext } from '../context/ProgressContext';
-import { getOfficialSceneIllustration, getStoryCoverImage } from '../services/storyImageService';
+import { getStoryCoverImage } from '../services/storyImageService';
+import { useResolvedSceneImage } from '../hooks/useResolvedStoryMedia';
 import { canOpenStoryFullExperience, getStoryLockReason } from '../services/contentAccessService';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
 
@@ -43,8 +44,10 @@ export default function NarrationScreen({ route, navigation }) {
   // Fala do Beni antes da cena — vinda do catálogo central (sceneStart)
   const beniMessage = getBeniGuideMessage('sceneStart', { index: cenaIndex });
 
-  // Visuais resolvidos separadamente: ilustração oficial (hoje null) e capa (ambientação)
-  const officialIllustration = cena ? getOfficialSceneIllustration(story.id, cena.id) : null;
+  // F2.1f: imagem da cena via resolver de packs, GATED a david_goliath (fallback local
+  // idêntico quando não há pack ready). Demais histórias seguem o caminho antigo. A capa
+  // (ambientação) e o áudio permanecem 100% locais.
+  const officialIllustration = useResolvedSceneImage(story.id, cena?.id);
   const storyCover = getStoryCoverImage(story.id);
 
   // Progresso — conclusão da cena é desacoplada do colorir (Sprint Histórias 3.0)
