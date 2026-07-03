@@ -12163,6 +12163,66 @@ check(
       'uma tela passou a consumir o runtime — F2.1b não integra telas');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // F2.1c — Simulação de pack READY + resolução file:// (sandbox, fora do repo).
+  // Scripts de instalação/verificação + helper aditivo no resolver. Nada integrado
+  // a telas; nenhum pack/índice entra no repo; nenhum AsyncStorage real gravado.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── F2.1c: pack ready + resolução file:// (sandbox) ──');
+  {
+    const hasInstall = srcExists('scripts/assets-pipeline/install-sandbox-pack.js');
+    const hasVerify = srcExists('scripts/assets-pipeline/verify-sandbox-resolver.js');
+    const install = hasInstall ? readSrc('scripts/assets-pipeline/install-sandbox-pack.js') : '';
+    const verify = hasVerify ? readSrc('scripts/assets-pipeline/verify-sandbox-resolver.js') : '';
+    const resolverC = readSrc('src/services/contentResolver.js');
+    const cmC = readSrc('src/data/contentManifest.js');
+    const importsExpoRN = (s) => /(require\(['"]|from ['"])(expo|react-native)/.test(s);
+    const hasExport = (src, fn) => new RegExp(`export (async )?function ${fn}\\b`).test(src);
+
+    check('F2.1c (scripts existem): install-sandbox-pack.js + verify-sandbox-resolver.js',
+      hasInstall && hasVerify,
+      'scripts de instalação/verificação ausentes');
+
+    check('F2.1c (install seguro): recusa repo (source+runtime); valida antes de mover; índice fora do app; sem AsyncStorage/Expo/RN',
+      /assertOutsideRepo\(args\.sourcePackDir/.test(install) &&
+      /assertOutsideRepo\(args\.runtimeDir/.test(install) &&
+      /RECUSADO/.test(install) &&
+      /validateManifest/.test(install) && /renameSync/.test(install) && /\.tmp/.test(install) &&
+      /pack-index\.json/.test(install) &&
+      !/@react-native-async-storage|STORAGE_KEYS|setItem\(/.test(install) &&
+      !importsExpoRN(install),
+      'install-sandbox-pack.js: guard/validação/índice inseguro ou toca AsyncStorage/Expo/RN');
+
+    check('F2.1c (verify prova file://): carrega contentResolver sem Expo; usa resolveStoryMediaFromPackEntry + fileURLToPath',
+      /contentResolver/.test(verify) &&
+      /resolveStoryMediaFromPackEntry/.test(verify) &&
+      /fileURLToPath/.test(verify) &&
+      !importsExpoRN(verify),
+      'verify-sandbox-resolver.js: não prova file:// via resolver real ou importa Expo/RN');
+
+    check('F2.1c (resolver helper aditivo): resolveStoryMediaFromPackEntry; ready→file:// e fallback local intactos',
+      hasExport(resolverC, 'resolveStoryMediaFromPackEntry') &&
+      /packEntry\.localDir \+ relPathInPack/.test(resolverC) &&
+      /fallback local/.test(resolverC),
+      'contentResolver: helper aditivo ausente ou decisão ready/fallback alterada');
+
+    check('F2.1c (isolado + sem pack no repo): telas não importam runtime; sem packs/ nem pack-index no repo',
+      ![readSrc('src/screens/StoryDetailScreen.js'), readSrc('src/screens/NarrationScreen.js'), readSrc('src/screens/ColoringScreen.js')]
+        .some((s) => /contentResolver|packStorageService|packDownloadService|packIntegrityService/.test(s)) &&
+      !srcExists('packs') && !srcExists('pack-index.json') && !srcExists('scripts/assets-pipeline/packs') &&
+      !fs.readdirSync(path.join(root, 'scripts/assets-pipeline')).some((f) => /\.(webp|png|mp3|sha256|json)$/.test(f)),
+      'tela consome runtime ou há pack/índice dentro do repo');
+
+    check('F2.1c (manifesto intacto): contentManifest segue 2 starter / 18 remote',
+      (() => {
+        try {
+          const cm = new Function(`${cmC.replace(/export /g, '')}; return { getStoriesByLayer };`)();
+          return cm.getStoriesByLayer('starter').length === 2 && cm.getStoriesByLayer('remote').length === 18;
+        } catch { return false; }
+      })(),
+      'contentManifest deixou de ser 2 starter / 18 remote');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

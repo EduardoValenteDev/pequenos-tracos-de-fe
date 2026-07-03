@@ -105,3 +105,27 @@ export function resolveStoryAudio(storyId, sceneNumber, packEntry = null) {
   const local = getSceneAudio(storyId, `scene_${pad2(sceneNumber)}`);
   return decide(storyId, local, `audio/${storyId}_scene_${pad2(sceneNumber)}.mp3`, packEntry);
 }
+
+/**
+ * Resolve mídia por TIPO a partir de um packEntry (ADITIVO, F2.1c).
+ *
+ * Unifica os quatro resolvers atrás de um `mediaKind`, para que um chamador
+ * (sandbox de verificação, e no futuro um PacksContext) resolva as 31 mídias de uma
+ * história por um único ponto de entrada. NÃO é consumido por telas e NÃO altera o
+ * comportamento atual — apenas delega às funções acima, preservando o fallback local
+ * (remote sem pack → require local; starter → require).
+ *
+ * @param {string} mediaKind 'cover' | 'scene' | 'coloring' | 'audio'
+ * @param {number|null} sceneNumber 1..N (ignorado para 'cover')
+ * @returns {{status:string, sourceType:string, source:*, reason:string}}
+ */
+export function resolveStoryMediaFromPackEntry(storyId, mediaKind, sceneNumber = null, packEntry = null) {
+  switch (mediaKind) {
+    case 'cover': return resolveStoryCover(storyId, packEntry);
+    case 'scene': return resolveStoryScene(storyId, sceneNumber, packEntry);
+    case 'coloring': return resolveStoryColoring(storyId, sceneNumber, packEntry);
+    case 'audio': return resolveStoryAudio(storyId, sceneNumber, packEntry);
+    default:
+      return { status: RESOLVE_STATUS.ERROR, sourceType: RESOLVE_SOURCE_TYPE.MISSING, source: null, reason: `mediaKind inválido: ${mediaKind}` };
+  }
+}
