@@ -17,6 +17,8 @@ import {
   clearAllSavedDrawings,
   hasMeaningfulPaint,
 } from '../services/drawingStorage';
+import { markStoryColoringActivityDone } from '../services/coloringActivityService';
+import { useProgressContext } from '../context/ProgressContext';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
 import { isCreatorQaModeEnabled } from '../services/creatorQaMode';
 import FaithIcon from '../components/ui/FaithIcon';
@@ -44,6 +46,7 @@ function CompactTool({ children, onPress, active, accessibilityLabel }) {
 }
 
 export default function ColoringScreen({ route, navigation }) {
+  const { refreshProgress } = useProgressContext();
   const { story, cenaIndex, from } = route.params;
   const cena = story.cenas[cenaIndex];
   const canvasRef = useRef(null);
@@ -244,6 +247,13 @@ export default function ColoringScreen({ route, navigation }) {
     setIsSaving(true);
     canvasRef.current?.exportPaint(async (exportData) => {
       await saveDrawingState(story.id, cena.id, exportData);
+      // A0.10: marca a ATIVIDADE de colorir concluída (booleano leve, independente
+      // de salvar arte na galeria) — alimenta journeyComplete mesmo se, no futuro,
+      // salvar na galeria for bloqueado para Free. Não altera o save acima.
+      await markStoryColoringActivityDone(story.id, cena.id);
+      // Propaga ao contexto (mapa/estante/pais) — como StoryBook/Quiz/Reflexão fazem —
+      // para o journeyComplete refletir na hora se colorir foi a última pendência.
+      refreshProgress();
       setIsSaving(false);
       navigation.goBack();
     });

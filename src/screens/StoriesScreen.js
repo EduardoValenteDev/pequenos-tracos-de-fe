@@ -180,7 +180,7 @@ export default function StoriesScreen({ route, navigation }) {
   const chipScrollRef = useRef(null);
   const chipLayouts = useRef({});
 
-  const { progressByStory } = useProgressContext();
+  const { progressByStory, isStoryJourneyComplete } = useProgressContext();
   const progressMap = progressByStory;
 
   const storyMap = Object.fromEntries(stories.map(s => [s.id, s]));
@@ -250,7 +250,9 @@ export default function StoriesScreen({ route, navigation }) {
             const prevEntry = catalogEntries[index - 1];
             const prevStoryId = prevEntry?.type === 'story' ? prevEntry.story.id : null;
             const locked = index > 0 && prevStoryId != null && getCount(prevStoryId) === 0;
-            const isDone = getCount(item.id) >= item.totalCenas && item.totalCenas > 0;
+            // A0.10: "Concluída" só com jornada completa (não por cenas). Cenas
+            // completas sem jornada caem em inProgress ("Continue aqui").
+            const isDone = isStoryJourneyComplete(item.id);
             const inProgress = getCount(item.id) > 0 && !isDone;
             const isRecommended = item.id === showcaseId;
             const currentStep = storyStep++;

@@ -148,7 +148,7 @@ export default function ParentAreaScreen({ navigation }) {
   const currentPlan = getCurrentPlan();
   const isPremium = currentPlan === 'premium';
 
-  const { progressSummary, progressByStory, postStoryStatusByStory, refreshProgress } = useProgressContext();
+  const { progressSummary, progressByStory, postStoryStatusByStory, isStoryJourneyComplete, refreshProgress } = useProgressContext();
   const { profile } = useProfile();
 
   // Gate
@@ -418,7 +418,10 @@ export default function ParentAreaScreen({ navigation }) {
     const done = Object.values(prog).filter(Boolean).length;
     const total = story.totalCenas ?? 0;
     if (done === 0) return 'Não iniciada';
-    if (done >= total) return 'Concluída ✓';
+    // A0.10: "Concluída ✓" só com jornada completa. Cenas completas sem jornada →
+    // "Cenas vistas" (nunca "concluída" por cenas).
+    if (isStoryJourneyComplete(story.id)) return 'Concluída ✓';
+    if (done >= total && total > 0) return 'Cenas vistas';
     return 'Em andamento';
   }
 
@@ -427,7 +430,8 @@ export default function ParentAreaScreen({ navigation }) {
   const storeUrl = getStoreReviewUrl();
 
   // ── Próximo passo recomendado (dados locais simples) ──
-  const completedStoriesCount = progressSummary?.completedStories ?? 0;
+  // A0.10: "Concluídas" conta JORNADA completa (não cenas). "Cenas" segue separado.
+  const completedStoriesCount = playableStories.filter(s => isStoryJourneyComplete(s.id)).length;
   const coloredScenesCount = progressSummary?.completedScenes ?? 0;
   const storyBookOpenedCount = progressSummary?.storyBookOpenedCount ?? 0;
   const nextStep = (() => {

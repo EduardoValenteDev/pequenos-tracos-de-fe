@@ -10,16 +10,21 @@ import { useProgress } from '../hooks/useProgress';
 import { hasSavedDrawing } from '../services/drawingStorage';
 import { preloadStorySceneIllustrations } from '../services/storyImageService';
 import { hasAccess } from '../services/accessControl';
-import { isStoryComingSoon } from '../services/contentAccessService';
-import { isQuizDone, getReflection } from '../services/postStoryStorage';
+import { isStoryComingSoon, getStoryAccessStatus } from '../services/contentAccessService';
+import { getStoryJourneyStatus } from '../services/storyJourneyService';
+import { hasStoryColoringActivityDone } from '../services/coloringActivityService';
+import { useProgressContext } from '../context/ProgressContext';
+import { isQuizDone, getReflection, isStoryBookOpened } from '../services/postStoryStorage';
 import StoryBookHero from '../components/story/StoryBookHero';
 import SceneListItem from '../components/story/SceneListItem';
 import { LumiEmptyState } from '../components/lumi';
 import { BeniGuideBubble } from '../components/beni';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
-import { colors } from '../theme/colors';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
+import ContentContainer from '../components/ui/ContentContainer';
+import BotaoPrimario from '../components/ui/BotaoPrimario';
+import { color } from '../theme/tokens';
 
 function PostStoryCard({ emoji, title, desc, done, tagColor, onPress, isTablet }) {
   return (
@@ -48,6 +53,7 @@ export default function StoryDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const isTablet = width >= 768;
 
+  const { isStorySequenceUnlocked } = useProgressContext();
   const { progresso } = useProgress(story.id);
   const progressCount = Object.values(progresso).filter(Boolean).length;
   const totalScenes = story.totalCenas ?? 0;
@@ -56,10 +62,14 @@ export default function StoryDetailScreen({ route, navigation }) {
   // B1: "Em breve" inclui histórias sem mídia suficiente (não só catálogo).
   const isComingSoon = isStoryComingSoon(story);
   const canAccess = hasAccess(story);
+  // A0.10: sequência da jornada — só abre se a história ANTERIOR estiver journeyComplete.
+  const sequenceUnlocked = isStorySequenceUnlocked(story.id);
 
   const [savedDrawings, setSavedDrawings] = useState({});
   const [quizDone, setQuizDone] = useState(false);
   const [reflectionDone, setReflectionDone] = useState(false);
+  const [bookOpened, setBookOpened] = useState(false);
+  const [coloringDone, setColoringDone] = useState(false);
 
   // Preload leve das ilustrações oficiais da história atual (reduz atraso visual
   // ao abrir as cenas). Fire-and-forget; no-op se a história ainda não tem artes.
@@ -84,8 +94,25 @@ export default function StoryDetailScreen({ route, navigation }) {
       if (!isCompleted) return;
       isQuizDone(story.id).then(setQuizDone);
       getReflection(story.id).then(r => setReflectionDone(!!r));
+      isStoryBookOpened(story.id).then(setBookOpened);
+      hasStoryColoringActivityDone(story.id).then(setColoringDone);
     }, [story.id, isCompleted]),
   );
+
+  // A0.10: status público via FONTE ÚNICA (storyJourneyService) — mesma regra do
+  // mapa e do card. journeyComplete = cenas + Livrinho + quiz + reflexão + colorir
+  // (≥1 página). O progresso de cenas ("10/10") segue separado (journey.progress) e
+  // NÃO dispara o selo "Concluída" sozinho.
+  const journey = getStoryJourneyStatus({
+    totalScenes,
+    sceneDoneCount: progressCount,
+    postStoryStatus: { storyBookOpened: bookOpened, quizDone, reflectionDone },
+    coloringComplete: coloringDone,
+    accessStatus: getStoryAccessStatus(story),
+    accessType: story.accessType,
+    isFirstStory: true, // sequência tratada à parte (sequenceUnlocked)
+  });
+  const isFullyComplete = journey.journeyComplete;
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
@@ -110,15 +137,21 @@ export default function StoryDetailScreen({ route, navigation }) {
   const startCenaIndex = progressCount > 0 && !isCompleted ? progressCount : 0;
 
   function getPrimaryLabel() {
-    if (isComingSoon) return '⏳ Em breve';
-    if (isCompleted) return '↩ Rever a Aventura';
+    // A0.5: sentence case, SEM emoji de UI (Lei 3). Terracota é a única cor de ação.
+    // A0.10: sequência primeiro (jornada não chegou → "Complete a aventura anterior",
+    // desabilitado). "Rever a aventura" SÓ com journeyComplete. Cenas completas mas
+    // jornada pendente → "Continuar aventura".
+    if (isComingSoon) return 'Em breve';
+    if (!sequenceUnlocked) return 'Complete a aventura anterior';
     if (!canAccess) return 'Pedir ao responsável';
-    if (progressCount > 0) return '▶ Continuar a História';
-    return '▶ Começar a História';
+    if (isFullyComplete) return 'Rever a aventura';
+    if (progressCount > 0) return 'Continuar aventura';
+    return 'Começar a história';
   }
 
   function handlePrimary() {
     if (isComingSoon) return;
+    if (!sequenceUnlocked) return; // jornada não chegou — ação bloqueada (botão desabilitado)
     if (isCompleted) {
       navigation.navigate('Narration', { story, cenaIndex: 0 });
       return;
@@ -147,56 +180,78 @@ export default function StoryDetailScreen({ route, navigation }) {
       >
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
 
-          {/* ── STORY BOOK HERO ── */}
+          {/* ── STORY BOOK HERO (A0.5) — hero de exibição em papel/tinta ── */}
           <StoryBookHero
             story={story}
             progressCount={progressCount}
             totalScenes={totalScenes}
-            primaryLabel={getPrimaryLabel()}
-            onPrimaryPress={handlePrimary}
             isTablet={isTablet}
-            isCompleted={isCompleted}
+            isFullyComplete={isFullyComplete}
             isComingSoon={isComingSoon}
             isLocked={!canAccess}
           />
 
+          {/* ── AÇÃO PRINCIPAL (A0.5) — BotaoPrimario terracota, centralizado no
+              tablet/iPad via ContentContainer. Toda a lógica de acesso/navegação
+              (handlePrimary) permanece intacta. ── */}
+          <ContentContainer style={styles.ctaWrap}>
+            <BotaoPrimario
+              label={getPrimaryLabel()}
+              onPress={handlePrimary}
+              disabled={isComingSoon || !sequenceUnlocked}
+              style={styles.ctaBtn}
+            />
+          </ContentContainer>
+
           {/* ── ENTRADA GUIADA PELO BENI ── */}
           {!isComingSoon && (
-            <BeniGuideBubble
-              message={
-                !canAccess
-                  ? getBeniGuideMessage('premiumBlocked')
-                  : isCompleted
-                    ? getBeniGuideMessage('storyCompleted')
-                    : progressCount > 0
-                      ? getBeniGuideMessage('continueStory')
-                      : getBeniGuideMessage('storyIntro')
-              }
-              avatarVariant={isCompleted ? 'celebrating' : !canAccess ? 'thinking' : 'pointing'}
-              tone={!canAccess ? 'yellow' : 'soft'}
-              compact
-              style={styles.beniEntry}
-            />
+            <ContentContainer style={styles.beniWrap}>
+              <BeniGuideBubble
+                message={
+                  !canAccess
+                    ? getBeniGuideMessage('premiumBlocked')
+                    : isCompleted
+                      ? getBeniGuideMessage('storyCompleted')
+                      : progressCount > 0
+                        ? getBeniGuideMessage('continueStory')
+                        : getBeniGuideMessage('storyIntro')
+                }
+                avatarVariant={isCompleted ? 'celebrating' : !canAccess ? 'thinking' : 'pointing'}
+                tone={!canAccess ? 'yellow' : 'soft'}
+                compact
+                style={styles.beniEntry}
+              />
+            </ContentContainer>
           )}
 
-          {/* ── AVENTURA CONCLUÍDA — 3 opções ── */}
+          {/* ── PÓS-CENAS — pendências da jornada (Livrinho, Quiz, Guardar, Colorir) ── */}
+          {/* A0.10: cabeçalho só diz "Aventura concluída!" quando journeyComplete
+              (cenas + Livrinho + quiz + reflexão + colorir). Com apenas as cenas,
+              evita "Concluída" e conduz às atividades pendentes (✓ em cada card já
+              feito). Gradiente em AZUL-NOITE (tokens) — roxo aposentado (Lei 9). */}
           {isCompleted && (
             <View style={styles.completedSection}>
               <LinearGradient
-                colors={['#7C3AED', '#A78BFA']}
+                colors={[color.night800, color.night600]}
                 style={styles.completedHeader}
               >
-                <Text style={styles.completedEmoji}>🎉</Text>
-                <Text style={styles.completedTitle}>Aventura concluída!</Text>
-                <Text style={styles.completedSub}>Agora escolha uma atividade especial.</Text>
+                <Text style={styles.completedEmoji}>{isFullyComplete ? '🎉' : '🎬'}</Text>
+                <Text style={styles.completedTitle}>
+                  {isFullyComplete ? 'Aventura concluída!' : 'Você terminou as cenas!'}
+                </Text>
+                <Text style={styles.completedSub}>
+                  {isFullyComplete
+                    ? 'Agora escolha uma atividade especial.'
+                    : 'Ainda falta completar as atividades da aventura.'}
+                </Text>
               </LinearGradient>
               <View style={[styles.completedCards, isTablet && styles.completedCardsTablet]}>
                 <PostStoryCard
                   emoji="📖"
                   title="Livrinho da Fé"
                   desc="Ver minha história colorida"
-                  done={false}
-                  tagColor={pt.blue}
+                  done={bookOpened}
+                  tagColor={color.night600}
                   isTablet={isTablet}
                   onPress={() => navigation.navigate('StoryBook', { story })}
                 />
@@ -205,7 +260,7 @@ export default function StoryDetailScreen({ route, navigation }) {
                   title="Quiz"
                   desc="Responder perguntas"
                   done={quizDone}
-                  tagColor={pt.gold}
+                  tagColor={color.gold500}
                   isTablet={isTablet}
                   onPress={() => navigation.navigate('Quiz', { story })}
                 />
@@ -214,9 +269,18 @@ export default function StoryDetailScreen({ route, navigation }) {
                   title="Guardar no coração"
                   desc="O que ficou no coração"
                   done={reflectionDone}
-                  tagColor={pt.purple}
+                  tagColor={color.terra500}
                   isTablet={isTablet}
                   onPress={() => navigation.navigate('Reflection', { story })}
+                />
+                <PostStoryCard
+                  emoji="🎨"
+                  title="Colorir"
+                  desc="Pintar uma cena"
+                  done={coloringDone}
+                  tagColor={color.gold300}
+                  isTablet={isTablet}
+                  onPress={() => navigation.navigate('Narration', { story, cenaIndex: 0 })}
                 />
               </View>
             </View>
@@ -253,7 +317,12 @@ export default function StoryDetailScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background },
+  wrapper: { flex: 1, backgroundColor: color.paper50 }, // A0.5: fundo papel (Lei 7)
+  ctaWrap: { marginHorizontal: 20, marginTop: 18 },
+  // A0.5 ajuste: botão mais elegante — largura capada e centralizada (não full-bleed,
+  // não encosta nas bordas). Mantém alvo 56 e terracota (do BotaoPrimario).
+  ctaBtn: { alignSelf: 'center', width: '100%', maxWidth: 340 },
+  beniWrap: { marginTop: 2 },
   beniEntry: { marginHorizontal: 16, marginTop: 14 },
   container: { flex: 1 },
   content: {},

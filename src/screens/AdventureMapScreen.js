@@ -89,7 +89,11 @@ export default function AdventureMapScreen({ navigation, route }) {
     [guideTargets.measure],
   );
   const { width, height } = useWindowDimensions();
-  const { isStoryCompleted, getStoryCompletionPercent } = useProgressContext();
+  // A0.10 — CONTRATO da jornada: o mapa (reveal, pulso, câmera, região, nextJourney E
+  // selo) avança por journeyComplete, NÃO mais por cenas. getStoryContractStatus é a
+  // fonte única (acesso + jornada + sequência). getStoryCompletionPercent segue só
+  // para o progresso narrativo de cenas mostrado no card.
+  const { isStoryJourneyComplete, getStoryContractStatus, getStoryCompletionPercent } = useProgressContext();
 
   // "Ver mapa" (Visão Geral): dimensiona a IMAGEM no aspecto real da arte (MAP_ASPECT
   // = 9:16) dentro do card, em vez de deixar a caixa `flex` ficar mais alta que a arte
@@ -157,12 +161,12 @@ export default function AdventureMapScreen({ navigation, route }) {
   const regionsVisual = useMemo(() => regions.slice().reverse(), [regions]);
   const ordered = useMemo(() => getOrderedAdventureStories(), []);
 
-  // B5.3.1 — reveal GLOBAL da jornada: usa a lista de regiões em ORDEM (regions, não
-  // regionsVisual) para que regiões FUTURAS (acima da fronteira) fiquem 0/sépia.
-  // A regra é do domínio do mapa (helper puro); aqui só injetamos isStoryCompleted.
+  // B5.3.1 + A0.10 — reveal GLOBAL da jornada. A fronteira avança por journeyComplete
+  // (não por cenas): se A Criação está só em andamento, a cor sobe até A Criação e
+  // NÃO até Noé. Helper puro; aqui injetamos isStoryJourneyComplete.
   const journeyRevealFraction = useCallback(
-    (region) => getJourneyRegionRevealFraction(region, regions, isStoryCompleted),
-    [regions, isStoryCompleted],
+    (region) => getJourneyRegionRevealFraction(region, regions, isStoryJourneyComplete),
+    [regions, isStoryJourneyComplete],
   );
 
   // Layout das regiões (offsets) para a pílula de região acompanhar a rolagem.
@@ -256,8 +260,8 @@ export default function AdventureMapScreen({ navigation, route }) {
   // pulso sutil), indicando para onde a jornada segue SEM liberar acesso. Se tudo
   // concluído → nenhuma das duas. Só leitura (não altera acesso/progresso).
   const nextJourney = useMemo(
-    () => ordered.find((s) => !isStoryCompleted(s.id)) || null,
-    [ordered, isStoryCompleted],
+    () => ordered.find((s) => !isStoryJourneyComplete(s.id)) || null,
+    [ordered, isStoryJourneyComplete],
   );
   const currentId = useMemo(
     () => (nextJourney && isOpenable(nextJourney) ? nextJourney.id : null),
@@ -277,10 +281,10 @@ export default function AdventureMapScreen({ navigation, route }) {
   const cameraStoryId = useMemo(() => {
     if (currentId) return currentId;
     if (nextLockedId) return nextLockedId;
-    const completed = ordered.filter((s) => isStoryCompleted(s.id));
+    const completed = ordered.filter((s) => isStoryJourneyComplete(s.id));
     if (completed.length) return completed[completed.length - 1].id;
     return ordered[0]?.id;
-  }, [currentId, nextLockedId, ordered, isStoryCompleted]);
+  }, [currentId, nextLockedId, ordered, isStoryJourneyComplete]);
 
   // Região efetivamente exibida pelo overview: a pedida (rolagem/active) ou a ativa.
   const overviewRegion = regionsVisual[ovRegionIdx != null ? ovRegionIdx : activeIdx] || activeRegion;
@@ -306,22 +310,30 @@ export default function AdventureMapScreen({ navigation, route }) {
     return Math.max(0, Math.min(anchorY - vpEst * 0.58, maxY));
   }, [regionLayout, regionsVisual, cameraStoryId, comeceRegionIdx, height, insets.top, insets.bottom]);
 
+  // A0.10 — estado do marco pela FONTE ÚNICA (contrato). Hierarquia: comingSoon >
+  // journeyLocked (jornada não chegou → cadeado, "Complete a anterior") > premiumLocked
+  // (alcançada mas premium → convite sutil) > journeyComplete (✓) > fronteira atual
+  // (pulso). Cenas completas NÃO avançam nada aqui.
   const getState = useCallback(
     (story) => {
-      if (isStoryCompleted(story.id)) return 'completed';
-      if (story.id === currentId) return 'current';
-      if (story.id === nextLockedId) return 'nextLocked';
-      return isOpenable(story) ? 'available' : 'locked';
+      const c = getStoryContractStatus(story.id);
+      if (!c) return 'locked';
+      if (c.journeyComplete) return 'completed';
+      if (c.status === 'comingSoon') return 'locked';
+      if (c.status === 'journeyLocked') return 'locked';     // não alcançada → sem convite
+      if (c.status === 'premiumLocked') return 'nextLocked'; // alcançada + premium → convite sutil
+      if (c.canShowAsNext) return 'current';                 // fronteira liberada e aberta → pulso
+      return 'available';
     },
-    [currentId, nextLockedId, isOpenable, isStoryCompleted],
+    [getStoryContractStatus],
   );
 
   const isRegionAwake = useCallback(
     (region) =>
       (region.stories || []).some(
-        (s) => isStoryCompleted(s.id) || getStoryCompletionPercent(s.id) > 0 || s.id === currentId,
+        (s) => isStoryJourneyComplete(s.id) || getStoryCompletionPercent(s.id) > 0 || s.id === currentId,
       ),
-    [isStoryCompleted, getStoryCompletionPercent, currentId],
+    [isStoryJourneyComplete, getStoryCompletionPercent, currentId],
   );
 
   const openFocus = useCallback((story) => {
@@ -430,6 +442,15 @@ export default function AdventureMapScreen({ navigation, route }) {
     if (target === 'adventures.nextPin') scrollPinIntoView();
   }, [scrollPinIntoView]);
 
+  // A0.10 — contrato da história em foco (card) + título da ANTERIOR (para o texto
+  // "Complete [história]" quando bloqueada por jornada). Derivado, barato.
+  const focusContract = focusStory ? getStoryContractStatus(focusStory.id) : null;
+  const focusPrevTitle = (() => {
+    if (!focusStory) return null;
+    const idx = ordered.findIndex((s) => s.id === focusStory.id);
+    return idx > 0 ? ordered[idx - 1].titulo : null;
+  })();
+
   return (
     <View style={styles.container} onLayout={onContainerLayout}>
       <LinearGradient colors={['#F4E6C8', '#E8D3A6']} style={[styles.header, { paddingTop: Math.max(insets.top, 8) + 2 }]}>
@@ -488,12 +509,12 @@ export default function AdventureMapScreen({ navigation, route }) {
       <StoryFocusModal
         visible={modalVisible}
         story={focusStory}
-        state={(() => {
-          const st = focusStory ? getState(focusStory) : 'locked';
-          // No card de foco, nextLocked se comporta EXATAMENTE como locked (mesmo
-          // fluxo bloqueado, nada é liberado) — o destaque pulsante é só no mapa.
-          return st === 'nextLocked' ? 'locked' : st;
-        })()}
+        // A0.10: o card usa o CONTRATO (status + sequência) como fonte única —
+        // "Concluída" só com journeyComplete; journeyLocked mostra "Complete [anterior]".
+        contractStatus={focusContract ? focusContract.status : 'locked'}
+        journeyComplete={focusContract ? focusContract.journeyComplete : false}
+        canOpen={focusContract ? focusContract.canOpen : false}
+        previousStoryTitle={focusPrevTitle}
         lockReason={focusStory ? getStoryLockReason(focusStory) : null}
         progressPercent={focusStory ? getStoryCompletionPercent(focusStory.id) : 0}
         onClose={closeFocus}

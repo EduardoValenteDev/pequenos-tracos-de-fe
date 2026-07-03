@@ -16,14 +16,21 @@ import {
   getBonusStars,
 } from '../services/postStoryStorage';
 import { getRewardsSummary } from '../services/rewardService';
+import { getStoryJourneyStatus } from '../services/storyJourneyService';
+import { loadStoriesWithColoringDone } from '../services/coloringActivityService';
+import { getStoryAccessStatus } from '../services/contentAccessService';
 import {
   getRegionFrontierStory as regionFrontierStory,
   isRegionNarrativeComplete as regionNarrativeComplete,
   getRegionRevealFraction as regionRevealFraction,
+  getOrderedAdventureStories,
 } from '../data/adventureMap';
 
 const PROGRESS_KEY = '@ptf_progress';
 const STORY_IDS = stories.map(s => s.id);
+const STORY_BY_ID = Object.fromEntries(stories.map(s => [s.id, s]));
+// Ordem OFICIAL da jornada (mesma do mapa) — fonte da SEQUÊNCIA (A0.10).
+const ORDERED_STORY_IDS = getOrderedAdventureStories().map(s => s.id);
 
 async function loadAllProgress() {
   const keys = STORY_IDS.map(id => `${PROGRESS_KEY}_${id}`);
@@ -135,6 +142,9 @@ const ProgressContext = createContext({
   refreshProgress: async () => {},
   getStoryProgress: () => ({}),
   isStoryCompleted: () => false,
+  isStoryJourneyComplete: () => false,
+  isStorySequenceUnlocked: () => true,
+  getStoryContractStatus: () => null,
   isNarrativeComplete: () => false,
   getRegionFrontierStory: () => null,
   isRegionNarrativeComplete: () => false,
@@ -150,6 +160,7 @@ const ProgressContext = createContext({
 export function ProgressProvider({ children }) {
   const [progressByStory, setProgressByStory] = useState({});
   const [postStoryStatusByStory, setPostStoryStatusByStory] = useState({});
+  const [coloringDoneByStory, setColoringDoneByStory] = useState(() => new Set());
   const [progressSummary, setProgressSummary] = useState(null);
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
   const [progressError, setProgressError] = useState(null);
@@ -158,13 +169,15 @@ export function ProgressProvider({ children }) {
     setIsLoadingProgress(true);
     setProgressError(null);
     try {
-      const [progress, postStatus, bonusStars] = await Promise.all([
+      const [progress, postStatus, bonusStars, coloringDone] = await Promise.all([
         loadAllProgress(),
         loadAllPostStoryStatuses(),
         getBonusStars(),
+        loadStoriesWithColoringDone(STORY_IDS),
       ]);
       setProgressByStory(progress);
       setPostStoryStatusByStory(postStatus);
+      setColoringDoneByStory(coloringDone);
       setProgressSummary(computeSummary(progress, postStatus, bonusStars));
     } catch (e) {
       warn('ProgressContext.loadAll:', e);
@@ -202,27 +215,70 @@ export function ProgressProvider({ children }) {
     [getCompletedScenesCount, getTotalScenesCount],
   );
 
-  // B5.1 — "narrativa concluída" = TODAS as cenas da história vistas/concluídas.
-  // É EXATAMENTE a regra de `isStoryCompleted` (só cenas): NÃO exige quiz, colorir,
-  // Livrinho, Cultinho, Baú nem estrelinhas para desbloquear a próxima história.
-  // Alias semântico para deixar essa intenção explícita nos blocos do mapa (B5.2+).
-  // (Um conceito de "100% completo" = cenas + extras é FUTURO e não é usado aqui.)
+  // A0.10 — CONTRATO da jornada via FONTE ÚNICA storyJourneyService.
+  // journeyComplete = cenas + Livrinho aberto + quiz + reflexão + colorir (≥1 página).
+  // Cenas completas NÃO bastam. Deriva de dados JÁ carregados (sem storage novo aqui).
+  const isStoryJourneyComplete = useCallback(
+    storyId => getStoryJourneyStatus({
+      totalScenes: getTotalScenesCount(storyId),
+      sceneDoneCount: getCompletedScenesCount(storyId),
+      postStoryStatus: postStoryStatusByStory[storyId] ?? null,
+      coloringComplete: coloringDoneByStory.has(storyId),
+      accessStatus: 'full',
+      isFirstStory: true, // sequência irrelevante para o booleano de jornada
+    }).journeyComplete,
+    [getTotalScenesCount, getCompletedScenesCount, postStoryStatusByStory, coloringDoneByStory],
+  );
+
+  // SEQUÊNCIA: 1ª história (ordem oficial) sempre liberada; demais só se a ANTERIOR
+  // estiver journeyComplete. Cenas completas NÃO liberam a próxima (A0.10).
+  const isStorySequenceUnlocked = useCallback(
+    storyId => {
+      const idx = ORDERED_STORY_IDS.indexOf(storyId);
+      if (idx <= 0) return true;
+      return isStoryJourneyComplete(ORDERED_STORY_IDS[idx - 1]);
+    },
+    [isStoryJourneyComplete],
+  );
+
+  // CONTRATO COMPLETO (acesso + jornada + sequência) — fonte única de mapa/card/
+  // detalhe/estante/pais. Usa getStoryAccessStatus (acesso real NÃO é reescrito).
+  const getStoryContractStatus = useCallback(
+    storyId => {
+      const story = STORY_BY_ID[storyId];
+      const idx = ORDERED_STORY_IDS.indexOf(storyId);
+      const isFirstStory = idx <= 0;
+      const previousJourneyComplete = idx > 0 ? isStoryJourneyComplete(ORDERED_STORY_IDS[idx - 1]) : true;
+      return getStoryJourneyStatus({
+        totalScenes: getTotalScenesCount(storyId),
+        sceneDoneCount: getCompletedScenesCount(storyId),
+        postStoryStatus: postStoryStatusByStory[storyId] ?? null,
+        coloringComplete: coloringDoneByStory.has(storyId),
+        accessStatus: getStoryAccessStatus(story),
+        accessType: story?.accessType,
+        isFirstStory,
+        previousJourneyComplete,
+      });
+    },
+    [getTotalScenesCount, getCompletedScenesCount, postStoryStatusByStory, coloringDoneByStory, isStoryJourneyComplete],
+  );
+
+  // "narrativa concluída" = só cenas (mantido para compat/consumidores externos).
   const isNarrativeComplete = isStoryCompleted;
 
-  // B5.2 — helpers de reveal por região (derivados, PUROS). Injetam a regra
-  // narrativa (isNarrativeComplete) nos helpers de adventureMap. Sem storage, sem
-  // visual, sem animação — base matemática consumida a partir de B5.3.
+  // A0.10 — helpers de reveal por região agora injetam a JORNADA (journeyComplete),
+  // não mais só cenas: o mapa avança a fronteira por journeyComplete. Puros/derivados.
   const getRegionFrontierStory = useCallback(
-    (region) => regionFrontierStory(region, isNarrativeComplete),
-    [isNarrativeComplete],
+    (region) => regionFrontierStory(region, isStoryJourneyComplete),
+    [isStoryJourneyComplete],
   );
   const isRegionNarrativeComplete = useCallback(
-    (region) => regionNarrativeComplete(region, isNarrativeComplete),
-    [isNarrativeComplete],
+    (region) => regionNarrativeComplete(region, isStoryJourneyComplete),
+    [isStoryJourneyComplete],
   );
   const getRegionRevealFraction = useCallback(
-    (region, options) => regionRevealFraction(region, isNarrativeComplete, options),
-    [isNarrativeComplete],
+    (region, options) => regionRevealFraction(region, isStoryJourneyComplete, options),
+    [isStoryJourneyComplete],
   );
 
   const getStoryCompletionPercent = useCallback(
@@ -253,6 +309,9 @@ export function ProgressProvider({ children }) {
     refreshProgress,
     getStoryProgress,
     isStoryCompleted,
+    isStoryJourneyComplete,
+    isStorySequenceUnlocked,
+    getStoryContractStatus,
     isNarrativeComplete,
     getRegionFrontierStory,
     isRegionNarrativeComplete,
@@ -272,6 +331,9 @@ export function ProgressProvider({ children }) {
     refreshProgress,
     getStoryProgress,
     isStoryCompleted,
+    isStoryJourneyComplete,
+    isStorySequenceUnlocked,
+    getStoryContractStatus,
     isNarrativeComplete,
     getRegionFrontierStory,
     isRegionNarrativeComplete,

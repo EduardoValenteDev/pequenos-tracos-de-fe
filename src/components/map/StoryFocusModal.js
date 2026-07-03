@@ -15,22 +15,58 @@ import { Modal, View, Text, Image, StyleSheet, Animated, Pressable, useWindowDim
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from '../SoundButton';
 import { getStoryCover } from '../../assets/storyCovers';
+import { color } from '../../theme/tokens';
 
-// Rótulo de estado + texto do botão por estado/progresso/motivo de bloqueio.
-function describe(state, lockReason, progressPercent) {
-  const inProgress = progressPercent > 0 && progressPercent < 100;
-  switch (state) {
-    case 'completed':
-      return { badge: 'Concluída ✓', badgeColor: '#5EBE6E', cta: 'Rever história' };
-    case 'current':
-      return { badge: 'Próxima aventura ✨', badgeColor: '#F4B73E', cta: inProgress ? 'Continuar aventura' : 'Começar aventura' };
-    case 'available':
-      return { badge: 'Disponível', badgeColor: '#4FC3F7', cta: inProgress ? 'Continuar aventura' : 'Começar aventura' };
+// Cores dos badges. A0.10: premium em AZUL-NOITE (tokens.night — roxo/lilás
+// aposentado da UI) e "Em breve" em neutro. Verde da "Concluída" e azul/gold de
+// progresso permanecem (não são roxo/marrom).
+const BADGE = {
+  done: '#5EBE6E',        // "Concluída ✓" (verde)
+  progress: '#4FC3F7',    // "Em andamento" (azul claro)
+  next: '#F4B73E',        // "Próxima aventura" (gold)
+  locked: '#8C8478',      // "Bloqueada" (cinza neutro)
+  premium: color.night600, // "Plano Família" (AZUL-NOITE oficial)
+  soon: '#8A8172',        // "Em breve" (neutro quente)
+};
+
+// Rótulo de estado + texto do botão pela FONTE ÚNICA (contractStatus). A0.10/A0.11:
+// "Concluída ✓"/"Rever aventura" SÓ com journeyComplete. journeyLocked explica a
+// dependência no TEXTO ("Complete [anterior]"); em história PREMIUM o badge principal
+// segue "Plano Família" (azul-noite) mesmo bloqueada pela jornada (A0.11 — não esconde
+// o acesso comercial). premiumLocked (jornada alcançada) = "Plano Família" + responsável.
+function describe({ contractStatus, journeyComplete, progressPercent, previousStoryTitle, lockReason, accessType }) {
+  const hasProgress = progressPercent > 0;
+  const isPremium = accessType === 'premium';
+  // Frase de dependência da jornada — vai no texto, sem ocultar o Plano Família.
+  const lockPhrase = previousStoryTitle ? `Complete "${previousStoryTitle}" primeiro.` : 'Complete a aventura anterior primeiro.';
+  switch (contractStatus) {
+    case 'journeyComplete':
+      if (journeyComplete) return { badge: 'Concluída ✓', badgeColor: BADGE.done, cta: 'Rever aventura' };
+      return { badge: 'Em andamento', badgeColor: BADGE.progress, cta: 'Continuar aventura' };
+    case 'inProgress':
+    case 'scenesComplete':
+      return { badge: 'Em andamento', badgeColor: BADGE.progress, cta: 'Continuar aventura' };
+    case 'notStarted':
+      return { badge: 'Próxima aventura ✨', badgeColor: BADGE.next, cta: 'Começar aventura' };
+    case 'journeyLocked':
+      // A0.11: a JORNADA continua mandando (bloqueado, não vira próxima etapa, não
+      // libera clique). Mas premium journeyLocked mantém "Plano Família" (azul-noite)
+      // como badge principal, com a dependência da jornada explicada no texto.
+      if (isPremium) return { badge: 'Plano Família', badgeColor: BADGE.premium, cta: 'Ver detalhes', note: lockPhrase };
+      return { badge: 'Bloqueada', badgeColor: BADGE.locked, cta: 'Ver detalhes', note: lockPhrase };
+    case 'premiumLocked':
+      return {
+        badge: 'Plano Família', badgeColor: BADGE.premium, cta: 'Ver detalhes',
+        note: 'Peça a um responsável para desbloquear.',
+      };
+    case 'comingSoon':
+      return { badge: 'Em breve', badgeColor: BADGE.soon, cta: 'Ver detalhes', note: 'Essa aventura está chegando! ✨' };
     default:
       if (lockReason === 'coming_soon' || lockReason === 'media') {
-        return { badge: 'Em breve', badgeColor: '#9C8FAE', cta: 'Ver detalhes', note: 'Essa aventura está chegando! ✨' };
+        return { badge: 'Em breve', badgeColor: BADGE.soon, cta: 'Ver detalhes', note: 'Essa aventura está chegando! ✨' };
       }
-      return { badge: 'Plano Família', badgeColor: '#B07CD6', cta: 'Ver detalhes', note: 'Peça a um responsável para desbloquear.' };
+      if (hasProgress) return { badge: 'Em andamento', badgeColor: BADGE.progress, cta: 'Continuar aventura' };
+      return { badge: 'Bloqueada', badgeColor: BADGE.locked, cta: 'Ver detalhes', note: 'Peça a um responsável para desbloquear.' };
   }
 }
 
@@ -43,7 +79,7 @@ const SPARKS = [
   { bottom: 8, right: 26, size: 8 },
 ];
 
-export default function StoryFocusModal({ visible, story, state, lockReason, progressPercent = 0, onClose, onOpen }) {
+export default function StoryFocusModal({ visible, story, contractStatus = 'locked', journeyComplete = false, canOpen = false, previousStoryTitle = null, lockReason, progressPercent = 0, onClose, onOpen }) {
   const { width } = useWindowDimensions();
   const backdrop = useRef(new Animated.Value(0)).current;
   const pop = useRef(new Animated.Value(0)).current; // 0 = fechado, 1 = aberto
@@ -65,7 +101,7 @@ export default function StoryFocusModal({ visible, story, state, lockReason, pro
 
   if (!story) return null;
   const cover = getStoryCover(story.id);
-  const info = describe(state, lockReason, progressPercent);
+  const info = describe({ contractStatus, journeyComplete, progressPercent, previousStoryTitle, lockReason, accessType: story.accessType });
   const cardW = Math.min(width - 40, 360);
   const coverH = Math.round((cardW - 24) * 9 / 16);
 

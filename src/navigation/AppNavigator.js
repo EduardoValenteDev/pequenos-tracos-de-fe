@@ -293,14 +293,20 @@ export default function AppNavigator() {
           name="StoryDetail"
           component={StoryDetailScreen}
           options={({ route, navigation }) => ({
+            // A0.7: header da tela de detalhe = APENAS "Voltar" à esquerda. O "Voltar"
+            // respeita o fluxo e retorna à tela anterior (mapa de aventuras ou lista de
+            // histórias), diferente do antigo botão que ia para a Home. Sem botão à
+            // direita. A largura reservada (headerLeftContainerStyle) + título
+            // centralizado fazem títulos longos ("Noé e o Sinal da Aliança") truncarem
+            // no centro sem NUNCA esconder o "Voltar". Padrão idêntico em toda história.
             title: route.params?.story?.titulo || 'Detalhes',
             headerStyle,
             headerTitleStyle,
             headerTintColor,
+            headerTitleAlign: 'center',
             headerLeftContainerStyle,
             headerTitleContainerStyle,
             headerLeft: () => <BackBtn navigation={navigation} />,
-            headerRight: () => <HomeBtn navigation={navigation} />,
           })}
         />
         <Stack.Screen

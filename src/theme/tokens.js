@@ -47,6 +47,19 @@ export const semantic = {
   atencao: { bg: color.terra100, text: color.ink600 }, // avisos gentis
 };
 
+// SELOS de acesso/estado (A0.6 · cor premium revista no A0.7) — coesos e DISTINTOS.
+//   free → Grátis (verde) · premium → Plano Família (AZUL-NOITE) · done → Concluída (dourado)
+// NOTA DE GOVERNANÇA (A0.7): o premium foi MIGRADO de roxo/lilás → AZUL-NOITE, derivado
+// da família `night` da paleta oficial v1.1 (texto = night800), RESOLVENDO a tensão com a
+// decisão congelada D2 ("roxo aposentado da UI") — não há mais roxo na UI, nem marrom no
+// premium. Só o verde de "Grátis" segue como exceção pontual dos selos (fora da
+// paleta-núcleo, aprovada pelo fundador), sempre com fundo claro + texto escuro.
+export const seal = {
+  free:    { bg: '#E8F3E4', border: '#A9CFA0', text: '#2E6B33' },        // verde (Grátis)
+  premium: { bg: '#E5EAF4', border: '#A9BAD9', text: color.night800 },   // azul-noite (Plano Família)
+  done:    { bg: color.gold100, border: color.gold500, text: color.gold700 }, // dourado (Concluída)
+};
+
 // ── §2.2 TIPOGRAFIA ───────────────────────────────────────────────────────────
 // Famílias PREVISTAS (Fraunces display / Nunito texto). A0.1 só NOMEIA; o
 // carregamento efetivo (registro no App.js) é o A0.2 — não feito aqui.

@@ -5482,7 +5482,7 @@ check(
     'Mapa M2.2: A/B oficial — A=DESPERTA/colorida (base do reveal), B=ADORMECIDA/sépia (base); isRegionAwake preservado p/ overview',
     /comece_aqui:\s*\{\s*awake:\s*require\('\.\.\/\.\.\/assets\/maps\/R1A\.jpg'\),\s*asleep:\s*require\('\.\.\/\.\.\/assets\/maps\/R1B\.jpg'\)/.test(mapData) &&
     region.includes('imgs.asleep') && region.includes('imgs.awake') &&
-    /isRegionAwake[\s\S]{0,260}isStoryCompleted\(s\.id\)[\s\S]{0,120}getStoryCompletionPercent\(s\.id\) > 0[\s\S]{0,40}s\.id === currentId/.test(mapScreen),
+    /isRegionAwake[\s\S]{0,260}isStoryJourneyComplete\(s\.id\)[\s\S]{0,120}getStoryCompletionPercent\(s\.id\) > 0[\s\S]{0,40}s\.id === currentId/.test(mapScreen),
     'A/B invertido (A precisa ser awake/R1A), MapRegion não usa asleep/awake, ou isRegionAwake (overview) sumiu',
   );
   check(
@@ -5508,7 +5508,10 @@ check(
   check(
     'Mapa M2: 3 estados (bloqueado/atual/concluído) calculados por leitura',
     marker.includes("'completed'") && marker.includes("'current'") && marker.includes("'locked'") &&
-    /getState[\s\S]{0,260}return 'completed'[\s\S]{0,160}return 'current'[\s\S]{0,160}'locked'/.test(mapScreen),
+    // A0.10: getState decide pelo CONTRATO (getStoryContractStatus). Mantém os 3
+    // estados (completed/current/locked); a ordem não importa (hierarquia no contrato).
+    /getState/.test(mapScreen) && /return 'completed'/.test(mapScreen) &&
+    /return 'current'/.test(mapScreen) && /return 'locked'/.test(mapScreen),
     'estados bloqueado/atual/concluído não definidos',
   );
   check(
@@ -5899,12 +5902,14 @@ check(
   );
   check(
     'Mapa B3.7: AdventureMapScreen calcula nextLocked (1ª da trilha não concluída e bloqueada) sem mudar acesso',
-    mapScreen.includes('ordered.find((s) => !isStoryCompleted(s.id))') &&
+    // A0.10: fronteira por journeyComplete; currentId/nextLockedId seguem para câmera/
+    // pin; o marco 'nextLocked' vem do CONTRATO (premiumLocked → convite sutil).
+    mapScreen.includes('ordered.find((s) => !isStoryJourneyComplete(s.id))') &&
     /const currentId = useMemo\(\s*\(\) => \(nextJourney && isOpenable\(nextJourney\)/.test(mapScreen) &&
     /const nextLockedId = useMemo\(\s*\(\) => \(nextJourney && !isOpenable\(nextJourney\)/.test(mapScreen) &&
-    /story\.id === nextLockedId\) return 'nextLocked'/.test(mapScreen) &&
+    /c\.status === 'premiumLocked'\) return 'nextLocked'/.test(mapScreen) &&
     !mapScreen.includes('AsyncStorage'),
-    'nextLocked não é derivado da trilha em getState (ou mexe em storage)',
+    'nextLocked não é derivado da trilha/contrato em getState (ou mexe em storage)',
   );
   check(
     'Mapa B3.7: só UM pulsa (current OU nextLocked); nextLocked = visual locked + pulso; toque preserva fluxo locked',
@@ -5914,8 +5919,10 @@ check(
     marker.includes('showLock = isLocked || isNextLocked') &&
     marker.includes('isNextLocked ? NEXTLOCKED_COLOR') &&
     region.includes('completedColor={region.completedColor}') &&
-    /st === 'nextLocked' \? 'locked' : st/.test(mapScreen),
-    'nextLocked não compartilha visual locked+pulso, ou toque não preserva o locked',
+    // A0.10: o card recebe o CONTRATO (status) — trata journeyLocked/premiumLocked
+    // coerentemente (substitui o antigo mapeamento nextLocked→locked do state prop).
+    /contractStatus=\{focusContract \? focusContract\.status/.test(mapScreen),
+    'nextLocked não compartilha visual locked+pulso, ou o card não recebe o contrato',
   );
   check(
     'Mapa B3.8: nextLocked usa cor GLOBAL azul celeste (#4FC3FF / brilho #EAFBFF), não a cor da região',
@@ -8152,10 +8159,12 @@ check(
 
 const bookHeroVisualSrc = readSrc('src/components/story/StoryBookHero.js');
 check(
-  'Entrada da história: linha única "ouvir, colorir e ganhar estrelas" e botão laranja Beni',
-  bookHeroVisualSrc.includes('Nesta aventura você vai') &&
-  bookHeroVisualSrc.includes('pt.beni'),
-  'StoryBookHero não tem a linha de experiência / botão Beni dominante',
+  // A0.5: o hero mantém a linha de experiência; a ação principal migrou para o
+  // StoryDetailScreen como BotaoPrimario terracota (não mais o botão laranja Beni).
+  'Entrada da história: painel "Nesta aventura" no hero + ação principal via BotaoPrimario terracota',
+  bookHeroVisualSrc.includes('Nesta aventura') &&
+  readSrc('src/screens/StoryDetailScreen.js').includes('BotaoPrimario'),
+  'StoryBookHero perdeu a linha de experiência / a ação principal não é BotaoPrimario',
 );
 
 // ── Sprint Ateliê Premium e Canvas Infantil 1.0 ─────────────────────────────
@@ -10920,15 +10929,16 @@ check(
       !EXTRAS.test(nextB51),
       'nextAdventureService passou a exigir atividade extra para desbloquear a próxima história',
     );
-    // A "fronteira" da jornada no mapa = 1ª história não concluída POR CENAS.
+    // A0.10: a "fronteira" da jornada no mapa = 1ª história NÃO journeyComplete
+    // (cenas + Livrinho + quiz + reflexão + colorir). Cenas completas NÃO avançam.
     check(
-      'B5.1: fronteira da jornada = primeira história não concluída por cenas (isStoryCompleted)',
-      /ordered\.find\(\s*\(?s\)?\s*=>\s*!isStoryCompleted\(s\.id\)\)/.test(mapB51),
-      'a fronteira do mapa deixou de ser derivada de isStoryCompleted (só cenas)',
+      'B5.1→A0.10: fronteira da jornada = primeira história não journeyComplete (isStoryJourneyComplete)',
+      /ordered\.find\(\s*\(?s\)?\s*=>\s*!isStoryJourneyComplete\(s\.id\)\)/.test(mapB51),
+      'a fronteira do mapa deixou de ser derivada de isStoryJourneyComplete',
     );
-    // Regressão do caso A Criação → Noé (contagem de cenas basta p/ concluir).
+    // A0.10: 10/10 cenas = scenesComplete (progresso narrativo), NÃO libera a próxima.
     check(
-      'B5.1: A Criação concluída por 10 cenas satisfaz isStoryCompleted (Noé vira a fronteira)',
+      'B5.1→A0.10: 10/10 cenas satisfaz a contagem de scenesComplete (progresso narrativo)',
       (() => {
         const total = 10;
         const done = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, true]));
@@ -10958,12 +10968,12 @@ check(
       'helpers de reveal ausentes em adventureMap.js',
     );
     check(
-      'B5.2: ProgressContext expõe wrappers injetados (derivados de isNarrativeComplete)',
+      'B5.2→A0.10: ProgressContext injeta isStoryJourneyComplete (jornada) nos wrappers de reveal',
       progB52.includes('getRegionRevealFraction') &&
       progB52.includes('isRegionNarrativeComplete') &&
       progB52.includes('getRegionFrontierStory') &&
-      /regionRevealFraction\(region,\s*isNarrativeComplete/.test(progB52),
-      'ProgressContext não expõe os wrappers injetados de reveal',
+      /regionRevealFraction\(region,\s*isStoryJourneyComplete/.test(progB52),
+      'ProgressContext não injeta isStoryJourneyComplete nos wrappers de reveal',
     );
     check(
       'B5.2: getStoryRevealFraction usa getStoryMapCoord (STORY_MAP_COORDS) e clampa [0,1]',
@@ -11049,10 +11059,10 @@ check(
       'o helper global introduziu storage/animação — deve ser puro',
     );
     check(
-      'B5.3.1: a regra global fica no HELPER (domínio do mapa), consumida pela tela',
+      'B5.3.1→A0.10: a regra global fica no HELPER, consumida pela tela (injeta journeyComplete)',
       mapScreenB531.includes('getJourneyRegionRevealFraction') &&
       /revealFraction=\{journeyRevealFraction\(region\)\}/.test(mapScreenB531) &&
-      /getJourneyRegionRevealFraction\(region,\s*regions,\s*isStoryCompleted\)/.test(mapScreenB531),
+      /getJourneyRegionRevealFraction\(region,\s*regions,\s*isStoryJourneyComplete\)/.test(mapScreenB531),
       'a tela não consome o helper global com a lista de regiões em ordem',
     );
     check(
@@ -11699,12 +11709,327 @@ check(
       'TrilhoProgresso não usa os tokens de progresso',
     );
     check(
-      'A0.4: componentes-base NÃO aplicados a nenhuma tela ainda (nada em screens importa ui/Botao*/CartaoPagina/etc.)',
+      // A0.4 criou os componentes sem aplicá-los; A0.5 aplica SÓ à vitrine
+      // (StoryDetailScreen + StoryBookHero). Aqui garantimos que NÃO foram espalhados
+      // prematuramente para telas fora da vitrine (Home/Congrats).
+      'A0.4/A0.5: componentes-base restritos à vitrine — não espalhados a Home/Congrats',
       !/from\s*'[^']*ui\/(BotaoPrimario|BotaoSecundario|BotaoGhost|CartaoPagina|ChipOrnamentado|ModalPapel|TrilhoProgresso)'/.test(
-        [readSrc('src/screens/HomeScreen.js'), readSrc('src/screens/CongratsScreen.js'), readSrc('src/screens/StoryDetailScreen.js')].join('\n'),
+        [readSrc('src/screens/HomeScreen.js'), readSrc('src/screens/CongratsScreen.js')].join('\n'),
       ),
-      'algum componente-base já foi aplicado a uma tela (fora do escopo do A0.4)',
+      'algum componente-base foi espalhado para telas fora da vitrine (fora do escopo)',
     );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // A0.5 — Tela-vitrine: estado PRÉ-HISTÓRIA do StoryDetail migrado à v1.1 (tokens
+  // + componentes-base + moldura Galeria Viva). Pós-conclusão e lista de cenas
+  // NÃO redesenhados (A1/futuro).
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── A0.5: tela-vitrine (StoryDetail pré-história) ──');
+  {
+    const sd = readSrc('src/screens/StoryDetailScreen.js');
+    const hero = readSrc('src/components/story/StoryBookHero.js');
+    const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{2190}-\u{21FF}]/u;
+
+    check(
+      'A0.5 (1): StoryDetailScreen usa ContentContainer (import + render)',
+      /import ContentContainer from '[^']*ui\/ContentContainer'/.test(sd) && /<ContentContainer\b/.test(sd),
+      'StoryDetailScreen não usa ContentContainer',
+    );
+    check(
+      'A0.5 (2): StoryDetailScreen usa BotaoPrimario para a ação principal (label=getPrimaryLabel)',
+      /import BotaoPrimario from '[^']*ui\/BotaoPrimario'/.test(sd) &&
+      /<BotaoPrimario\b[\s\S]{0,160}label=\{getPrimaryLabel\(\)\}/.test(sd),
+      'StoryDetailScreen não usa BotaoPrimario como ação principal',
+    );
+    check(
+      'A0.5 (3): StoryDetailScreen usa tokens (fundo papel — color.paper50)',
+      /from '\.\.\/theme\/tokens'/.test(sd) && /backgroundColor:\s*color\.paper50/.test(sd),
+      'StoryDetailScreen não usa tokens (fundo papel)',
+    );
+    check(
+      'A0.5 (4): StoryBookHero usa tokens na moldura Galeria Viva (gold500 + paper100 + arte intacta)',
+      /borderColor:\s*color\.gold500/.test(hero) && /backgroundColor:\s*color\.paper100/.test(hero) &&
+      /StoryCoverImage/.test(hero),
+      'StoryBookHero não aplica a moldura Galeria Viva por tokens',
+    );
+    check(
+      'A0.5 (5): sem gradiente roxo no BOTÃO PRINCIPAL — hero sem LinearGradient; ação = BotaoPrimario',
+      !/LinearGradient/.test(hero) &&
+      /<BotaoPrimario\b[\s\S]{0,160}onPress=\{handlePrimary\}/.test(sd),
+      'o botão principal ainda usa gradiente / o hero tem LinearGradient',
+    );
+    check(
+      'A0.5 (6): chrome migrado SEM emoji — StoryBookHero sem emoji; labels do botão sem emoji',
+      !EMOJI.test(hero) &&
+      !/return '[^']*[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}][^']*';/u.test(sd.slice(sd.indexOf('getPrimaryLabel'), sd.indexOf('getPrimaryLabel') + 400)),
+      'há emoji no chrome migrado (StoryBookHero ou labels do botão)',
+    );
+    check(
+      'A0.5 (7): sem ellipsizeMode em botão/título migrado (StoryBookHero + BotaoPrimario)',
+      !/ellipsizeMode/.test(hero),
+      'há ellipsizeMode no chrome migrado',
+    );
+    check(
+      'A0.5 (8): StoryBookHero SEM hex hardcoded (#RRGGBB) — 100% tokens',
+      !/#[0-9A-Fa-f]{6}\b/.test(hero),
+      'StoryBookHero tem hex hardcoded fora dos tokens',
+    );
+    check(
+      'A0.5 (9): lógica de acesso/progresso/navegação INTACTA (hasAccess/getSceneStatus/useProgress/handlePrimary)',
+      /hasAccess\(story\)/.test(sd) && /function getSceneStatus/.test(sd) &&
+      /useProgress\(story\.id\)/.test(sd) && /function handlePrimary/.test(sd) &&
+      /isStoryComingSoon\(story\)/.test(sd),
+      'a lógica de acesso/progresso da tela foi alterada',
+    );
+    check(
+      'A0.5→A0.10: PostStoryCard/SceneListItem preservados; gradiente pós-cenas migrado para AZUL-NOITE (roxo aposentado)',
+      /function PostStoryCard/.test(sd) && /<SceneListItem\b/.test(sd) &&
+      /colors=\{\[color\.night800, color\.night600\]\}/.test(sd),
+      'PostStoryCard/SceneListItem sumiram ou o gradiente pós-cenas não é azul-noite (A0.10)',
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // A0.7 — Ajuste final do header da vitrine: o header do StoryDetail volta a ser
+  // APENAS "Voltar" (respeita o fluxo → mapa/lista de origem; sem "Início", sem botão
+  // à direita). O selo premium MIGRA de roxo/lilás → AZUL-NOITE (resolve a tensão D2).
+  // Grátis (verde), "Concluída" (dourado, conclusão REAL) e o painel "Nesta aventura"
+  // com variante concluída seguem do A0.6.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── A0.7: header "Voltar" + selos coesos (premium azul-noite) + conclusão real ──');
+  {
+    const nav = readSrc('src/navigation/AppNavigator.js');
+    const tok = readSrc('src/theme/tokens.js');
+    const heroA07 = readSrc('src/components/story/StoryBookHero.js');
+    const sdA07 = readSrc('src/screens/StoryDetailScreen.js');
+    const sdOptions = nav.slice(nav.indexOf('name="StoryDetail"'), nav.indexOf('name="Narration"'));
+    const premiumLine = (tok.match(/premium:\s*\{[^}]*\}/) || [''])[0];
+
+    check(
+      'A0.7 (header): StoryDetail renderiza "Voltar" (BackBtn à esquerda), NÃO renderiza "Início" (sem HomeBtn), sem botão à direita',
+      /headerLeft:\s*\(\)\s*=>\s*<BackBtn/.test(sdOptions) &&
+      !/HomeBtn/.test(sdOptions) &&
+      !/headerRight/.test(sdOptions),
+      'o header do StoryDetail ainda usa Início/HomeBtn, perdeu o Voltar ou tem botão à direita',
+    );
+    check(
+      'A0.7 (título): título centralizado + largura reservada (headerTitleAlign center + headerLeftContainerStyle) — "Voltar" nunca some em título longo',
+      /headerTitleAlign:\s*'center'/.test(sdOptions) &&
+      /headerLeftContainerStyle/.test(sdOptions),
+      'o header não equilibra título longo (sem center ou sem largura reservada)',
+    );
+    check(
+      'A0.7 (tokens): seal premium = AZUL-NOITE (text night800, fundo claro), SEM roxo/lilás e SEM marrom; Grátis verde; Concluída dourada',
+      /export const seal\s*=/.test(tok) &&
+      /free:\s*\{[^}]*text:\s*'#2E6B33'/.test(tok) &&
+      /night800/.test(premiumLine) &&
+      !/ink900|terra|#3E2E1B/.test(premiumLine) &&
+      !/#5B3E9C/.test(tok) && !/#B79CE2/.test(tok) && !/#EFE6FA/.test(tok) &&
+      /done:\s*\{[^}]*border:\s*color\.gold500/.test(tok),
+      'tokens.seal ainda usa roxo/lilás/marrom no premium ou perdeu Grátis verde/Concluída dourada',
+    );
+    check(
+      'A0.7 (acesso): Grátis usa selo verde (seal.free); premium usa "Plano Família" com selo azul-noite (seal.premium)',
+      /import\s*\{[^}]*seal[^}]*\}\s*from\s*'\.\.\/\.\.\/theme\/tokens'/.test(heroA07) &&
+      /acessoLabel = isPremium \? 'Plano Família' : 'Grátis'/.test(heroA07) &&
+      /acessoVariant = isPremium \? 'premium' : 'free'/.test(heroA07) &&
+      /seal\[variant\]/.test(heroA07),
+      'o hero não aplica os selos verde/azul-noite de acesso',
+    );
+    check(
+      'A0.7 (conclusão): selo "Concluída" exige conclusão REAL — via fonte única (getStoryJourneyStatus, journeyComplete A0.10)',
+      /const journey = getStoryJourneyStatus\(\{/.test(sdA07) &&
+      /const isFullyComplete = journey\.journeyComplete/.test(sdA07) &&
+      /isStoryBookOpened\(story\.id\)\.then\(setBookOpened\)/.test(sdA07) &&
+      /isFullyComplete=\{isFullyComplete\}/.test(sdA07) &&
+      /isFullyComplete \? \{ label: 'Concluída', variant: 'done' \}/.test(heroA07),
+      'o selo "Concluída" ainda dispara por 10/10 cenas sozinho',
+    );
+    check(
+      'A0.7 (progresso): "N/M cenas" permanece como progresso de cenas, independente do selo Concluída — mantém A0.6',
+      /\{progressCount\}\/\{totalScenes\} cenas/.test(heroA07),
+      'o progresso de cenas foi removido/acoplado ao selo',
+    );
+    check(
+      'A0.7 (painel): "Nesta aventura" tem variante CONCLUÍDA (guardada no Livrinho) mantendo o mesmo padrão — mantém A0.6',
+      /isFullyComplete \? \(/.test(heroA07) &&
+      /Sua aventura ficou guardada no/.test(heroA07) &&
+      /Ao terminar, sua aventura vira um/.test(heroA07),
+      'o painel "Nesta aventura" não tem variante concluída padronizada',
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // A0.10 — CONTRATO DEFINITIVO da jornada. "Concluída" = journeyComplete (cenas +
+  // Livrinho + quiz + reflexão + colorir). Mapa/card/detalhe/estante/pais avançam por
+  // journeyComplete (NÃO cenas). Sequência: próxima só com anterior journeyComplete.
+  // journeyLocked > premiumLocked. Acesso comercial é eixo separado.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── A0.10: contrato definitivo da jornada (journeyComplete + sequência) ──');
+  {
+    const svc = readSrc('src/services/storyJourneyService.js');
+    const colorSvc = readSrc('src/services/coloringActivityService.js');
+    const nav = readSrc('src/screens/AdventureMapScreen.js');
+    const modal = readSrc('src/components/map/StoryFocusModal.js');
+    const sd = readSrc('src/screens/StoryDetailScreen.js');
+    const stories2 = readSrc('src/screens/StoriesScreen.js');
+    const parent = readSrc('src/screens/ParentAreaScreen.js');
+    const coloring = readSrc('src/screens/ColoringScreen.js');
+    const hero = readSrc('src/components/story/StoryBookHero.js');
+    const tokens = readSrc('src/theme/tokens.js');
+    const keys = readSrc('src/services/storageKeys.js');
+    const appNav = readSrc('src/navigation/AppNavigator.js');
+    const navOptions = appNav.slice(appNav.indexOf('name="StoryDetail"'), appNav.indexOf('name="Narration"'));
+
+    // Avalia a fonte pura para os CENÁRIOS do contrato (sequência + colorir + hierarquia).
+    let R = {};
+    try {
+      const sandbox = svc.replace(/export /g, '');
+      // eslint-disable-next-line no-new-func
+      const run = new Function(`${sandbox}; return getStoryJourneyStatus;`)();
+      R.full = run({ totalScenes: 10, sceneDoneCount: 10, postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true }, coloringComplete: true, accessType: 'free', isFirstStory: true });
+      R.scenesOnly = run({ totalScenes: 10, sceneDoneCount: 10, postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true }, coloringComplete: false, accessType: 'free', isFirstStory: true });
+      R.noeLocked = run({ totalScenes: 10, sceneDoneCount: 0, accessType: 'free', isFirstStory: false, previousJourneyComplete: false });
+      R.noeNext = run({ totalScenes: 10, sceneDoneCount: 0, accessType: 'free', isFirstStory: false, previousJourneyComplete: true });
+      R.daviEarly = run({ totalScenes: 10, sceneDoneCount: 0, accessStatus: 'preview', accessType: 'premium', isFirstStory: false, previousJourneyComplete: false });
+      R.daviReached = run({ totalScenes: 10, sceneDoneCount: 0, accessStatus: 'preview', accessType: 'premium', isFirstStory: false, previousJourneyComplete: true });
+    } catch (e) { R = {}; }
+
+    check('A0.10 (1 fonte única): storyJourneyService exporta getStoryJourneyStatus + JOURNEY_STATUS + COMMERCIAL_ACCESS',
+      /export function getStoryJourneyStatus/.test(svc) && /export const JOURNEY_STATUS/.test(svc) && /export const COMMERCIAL_ACCESS/.test(svc),
+      'storyJourneyService não é a fonte única do contrato');
+    check('A0.10 (2 scenes≠journey): 10/10 sem colorir NÃO é journeyComplete (fica scenesComplete, progress 100%)',
+      !!R.scenesOnly && R.scenesOnly.journeyComplete === false && R.scenesOnly.status === 'scenesComplete' && R.scenesOnly.progress.percent === 100,
+      'cenas completas estão virando conclusão');
+    check('A0.10 (3 regra): journeyComplete = cenas + Livrinho + quiz + reflexão + colorir',
+      /journeyComplete\s*=\s*scenesComplete && bookOpened && quizDone && reflectionDone && coloringComplete/.test(svc) && !!R.full && R.full.journeyComplete === true,
+      'journeyComplete não exige os 5 requisitos');
+    check('A0.10 (4 mapa não usa cenas): reveal/pulso/câmera/região/nextJourney NÃO usam isStoryCompleted',
+      !/isStoryCompleted/.test(nav),
+      'o mapa ainda referencia isStoryCompleted (cenas)');
+    check('A0.10 (5 mapa avança por jornada): reveal + nextJourney + câmera + selo via journeyComplete/contrato',
+      /getJourneyRegionRevealFraction\(region, regions, isStoryJourneyComplete\)/.test(nav) &&
+      /ordered\.find\(\(s\) => !isStoryJourneyComplete\(s\.id\)\)/.test(nav) &&
+      /ordered\.filter\(\(s\) => isStoryJourneyComplete\(s\.id\)\)/.test(nav) &&
+      /const c = getStoryContractStatus\(story\.id\)/.test(nav),
+      'o mapa não avança a fronteira por journeyComplete');
+    check('A0.10 (6): A Criação em andamento NÃO torna Noé "Próxima aventura" (journeyLocked)',
+      !!R.noeLocked && R.noeLocked.status === 'journeyLocked' && R.noeLocked.canShowAsNext === false,
+      'Noé aparece como próxima com A Criação incompleta');
+    check('A0.10 (7): A Criação journeyComplete torna Noé "Próxima aventura" (canShowAsNext)',
+      !!R.noeNext && R.noeNext.status === 'notStarted' && R.noeNext.canShowAsNext === true,
+      'Noé não libera mesmo com A Criação concluída');
+    check('A0.10 (8): Noé não libera Davi antes de journeyComplete (journeyLocked)',
+      !!R.daviEarly && R.daviEarly.status === 'journeyLocked',
+      'Davi libera antes de Noé concluída');
+    check('A0.10 (9): premium NÃO alcançada pela jornada NÃO mostra Plano Família (journeyLocked)',
+      !!R.daviEarly && R.daviEarly.status === 'journeyLocked' && R.daviEarly.status !== 'premiumLocked',
+      'premium não alcançada já mostra Plano Família');
+    check('A0.10 (10): premium ALCANÇADA pela jornada + Free mostra Plano Família (premiumLocked)',
+      !!R.daviReached && R.daviReached.status === 'premiumLocked',
+      'premium alcançada não mostra Plano Família');
+    check('A0.10 (11 card): não mostra "Concluída" por scenesComplete (só journeyComplete)',
+      /case 'journeyComplete':[\s\S]{0,120}badge: 'Concluída ✓'[\s\S]{0,40}cta: 'Rever aventura'/.test(modal) &&
+      /case 'scenesComplete':[\s\S]{0,120}badge: 'Em andamento'/.test(modal) && /contractStatus/.test(modal),
+      'o card mostra "Concluída" por cenas');
+    check('A0.10 (12 StoryDetail): "Concluída" só por journeyComplete + colorir na regra',
+      /const isFullyComplete = journey\.journeyComplete/.test(sd) && /coloringComplete: coloringDone/.test(sd),
+      'StoryDetail decide conclusão por cenas');
+    check('A0.10 (13 estante): StoriesScreen isDone = isStoryJourneyComplete (não cenas)',
+      /const isDone = isStoryJourneyComplete\(item\.id\)/.test(stories2),
+      'StoriesScreen ainda marca "Concluída" por cenas');
+    check('A0.10 (14 pais): ParentArea conta "Concluídas" por journeyComplete; cenas → "Cenas vistas"',
+      /completedStoriesCount = playableStories\.filter\(s => isStoryJourneyComplete\(s\.id\)\)/.test(parent) &&
+      /if \(isStoryJourneyComplete\(story\.id\)\) return 'Concluída ✓'/.test(parent) &&
+      /return 'Cenas vistas'/.test(parent),
+      'ParentArea conta concluída por cenas');
+    check('A0.10 (15): "Rever aventura" só com journeyComplete (detalhe + card)',
+      /if \(isFullyComplete\) return 'Rever a aventura'/.test(sd) && /cta: 'Rever aventura'/.test(modal),
+      '"Rever" aparece sem journeyComplete');
+    check('A0.10 (16): "10/10 cenas" continua como progresso narrativo',
+      /\{progressCount\}\/\{totalScenes\} cenas/.test(hero) && /const progress = \{ done, total, percent \}/.test(svc),
+      'o progresso narrativo de cenas foi removido');
+    check('A0.10 (17 colorir por storyId): chave @ptf_coloring_done_{storyId}_{sceneId} + marca no "Pronto"',
+      /@ptf_coloring_done_/.test(colorSvc) && /export async function markStoryColoringActivityDone/.test(colorSvc) &&
+      /markStoryColoringActivityDone\(story\.id, cena\.id\)/.test(coloring),
+      'colorir concluído não é derivado/registrado por storyId');
+    check('A0.10 (18 sem renome): chaves antigas preservadas; colorir é chave NOVA aditiva',
+      /@ptf_progress_/.test(keys) && /@ptf_quiz_done_/.test(keys) && /@ptf_reflection_/.test(keys) &&
+      /@ptf_storybook_opened_/.test(keys) && /@ptf_drawing_s/.test(keys) && /@ptf_bonus_stars/.test(keys) &&
+      /@ptf_coloring_done_/.test(colorSvc) && /@ptf_drawing_s/.test(colorSvc),
+      'alguma chave antiga foi renomeada ou colorir não é aditivo');
+    check('A0.10 (19 header): StoryDetail segue com "Voltar" (BackBtn), sem "Início" (HomeBtn)',
+      /headerLeft:\s*\(\)\s*=>\s*<BackBtn/.test(navOptions) && !/HomeBtn/.test(navOptions),
+      'header do StoryDetail regrediu');
+    check('A0.10 (20 premium azul-noite): sem roxo/marrom nas áreas tocadas (card + bloco + tokens)',
+      /premium:\s*color\.night600/.test(modal) && !/#B07CD6/.test(modal) && !/#9C8FAE/.test(modal) &&
+      !/#7C3AED/.test(sd) && /premium:\s*\{[^}]*night800/.test(tokens) && !/#5B3E9C/.test(tokens),
+      'roxo/marrom restante nas áreas tocadas');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // A0.11 — Comunicação comercial nos cards bloqueados por jornada. A jornada continua
+  // mandando (A0.10 intacto): premium journeyLocked segue bloqueada, sem virar
+  // "Próxima aventura" e sem clique. Mas o card NÃO esconde o Plano Família — premium
+  // journeyLocked mantém "Plano Família" (azul-noite); grátis journeyLocked = "Bloqueada".
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── A0.11: Plano Família visível em cards premium bloqueados por jornada ──');
+  {
+    const modal = readSrc('src/components/map/StoryFocusModal.js');
+    const svc = readSrc('src/services/storyJourneyService.js');
+    const storiesSrc = readSrc('src/data/stories.js');
+    const jlBlock = modal.slice(modal.indexOf("case 'journeyLocked'"), modal.indexOf("case 'premiumLocked'"));
+
+    // Matriz de acesso: exatamente 2 grátis (creation, noah); demais Plano Família.
+    let freeIds = null, premCount = null;
+    try {
+      const st = require(path.join(root, 'src/data/stories.js')).stories;
+      freeIds = st.filter(s => s.accessType === 'free').map(s => s.id);
+      premCount = st.filter(s => s.accessType === 'premium').length;
+    } catch (e) { /* fallback textual abaixo */ }
+    const accessMatrixOk = freeIds
+      ? (freeIds.length === 2 && freeIds.includes('creation') && freeIds.includes('noah') && premCount === 18)
+      : ((storiesSrc.match(/accessType:\s*'free'/g) || []).length === 2 &&
+         /id:\s*'creation'[\s\S]{0,1400}accessType:\s*'free'/.test(storiesSrc));
+
+    // Contrato (A0.10 preservado): premium journeyLocked continua bloqueado.
+    let daviEarly = null, daviReached = null;
+    try {
+      // eslint-disable-next-line no-new-func
+      const run = new Function(`${svc.replace(/export /g, '')}; return getStoryJourneyStatus;`)();
+      daviEarly = run({ totalScenes: 10, sceneDoneCount: 0, accessStatus: 'preview', accessType: 'premium', isFirstStory: false, previousJourneyComplete: false });
+      daviReached = run({ totalScenes: 10, sceneDoneCount: 0, accessStatus: 'preview', accessType: 'premium', isFirstStory: false, previousJourneyComplete: true });
+    } catch (e) { /* falha os checks abaixo */ }
+
+    check('A0.11 (1 matriz): A Criação e Noé são free; as demais são Plano Família (18 premium)',
+      accessMatrixOk, 'a matriz de acesso não é 2 grátis (creation/noah) + demais premium');
+    check('A0.11 (2 modal recebe acesso): describe recebe accessType (story.accessType)',
+      /accessType: story\.accessType/.test(modal) && /function describe\(\{[^}]*accessType/.test(modal),
+      'o card não recebe o accessType para comunicar Plano Família');
+    check('A0.11 (3 premium journeyLocked → Plano Família): badge principal azul-noite + frase da jornada',
+      /case 'journeyLocked':[\s\S]{0,400}if \(isPremium\) return \{ badge: 'Plano Família', badgeColor: BADGE\.premium[\s\S]{0,40}note: lockPhrase/.test(modal),
+      'premium journeyLocked não mostra Plano Família como badge principal');
+    check('A0.11 (4 grátis journeyLocked → Bloqueada): "Bloqueada" + "Complete [anterior] primeiro"',
+      /return \{ badge: 'Bloqueada', badgeColor: BADGE\.locked, cta: 'Ver detalhes', note: lockPhrase \}/.test(modal) &&
+      /Complete "\$\{previousStoryTitle\}" primeiro/.test(modal),
+      'grátis journeyLocked não mostra "Bloqueada" + frase da jornada');
+    check('A0.11 (5 sem responsável antes da jornada): journeyLocked NÃO usa "Peça a um responsável"',
+      jlBlock.length > 0 && !/responsável/.test(jlBlock) && /Peça a um responsável/.test(modal),
+      'journeyLocked mostra "Peça ao responsável" antes de a jornada chegar');
+    check('A0.11 (6 premium alcançada + Free): premiumLocked = "Plano Família" + "Peça a um responsável"',
+      /case 'premiumLocked':[\s\S]{0,140}badge: 'Plano Família', badgeColor: BADGE\.premium[\s\S]{0,90}Peça a um responsável/.test(modal) &&
+      !!daviReached && daviReached.status === 'premiumLocked',
+      'premium alcançada não mostra Plano Família + responsável');
+    check('A0.11 (7 jornada manda): premium journeyLocked continua bloqueada (canOpen=false; não vira Próxima aventura)',
+      !!daviEarly && daviEarly.status === 'journeyLocked' && daviEarly.canOpen === false && daviEarly.canShowAsNext === false,
+      'premium journeyLocked deixou de ser bloqueada pela jornada');
+    check('A0.11 (8 sem clique/Próxima): journeyLocked CTA = "Ver detalhes" (não "Começar/Próxima aventura")',
+      jlBlock.length > 0 && /cta: 'Ver detalhes'/.test(jlBlock) && !/Começar aventura/.test(jlBlock) && !/Próxima aventura/.test(jlBlock),
+      'journeyLocked virou clique/Próxima aventura');
+    check('A0.11 (9 azul-noite): "Plano Família" = BADGE.premium (night600); sem roxo/marrom nas áreas tocadas',
+      /premium:\s*color\.night600/.test(modal) && !/#B07CD6/.test(modal) && !/#9C8FAE/.test(modal),
+      'Plano Família não está em azul-noite ou há roxo/marrom no card');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
