@@ -11618,6 +11618,95 @@ check(
     );
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // A0.4 — Componentes-base da fundação visual (src/components/ui/*). Só tokens,
+  // sem hex hardcoded, sem emoji, sem aplicar a nenhuma tela. Regras §2.4 nos botões.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── A0.4: componentes-base (ui/*) ──');
+  {
+    const uiFiles = {
+      BotaoPrimario: readSrc('src/components/ui/BotaoPrimario.js'),
+      BotaoSecundario: readSrc('src/components/ui/BotaoSecundario.js'),
+      BotaoGhost: readSrc('src/components/ui/BotaoGhost.js'),
+      CartaoPagina: readSrc('src/components/ui/CartaoPagina.js'),
+      ChipOrnamentado: readSrc('src/components/ui/ChipOrnamentado.js'),
+      ModalPapel: readSrc('src/components/ui/ModalPapel.js'),
+      TrilhoProgresso: readSrc('src/components/ui/TrilhoProgresso.js'),
+    };
+    const botoes = [uiFiles.BotaoPrimario, uiFiles.BotaoSecundario, uiFiles.BotaoGhost];
+
+    check(
+      'A0.4: os 7 componentes-base existem e exportam default',
+      Object.values(uiFiles).every((s) => s.length > 0 && /export default function/.test(s)),
+      'algum componente-base ausente ou sem export default',
+    );
+    check(
+      'A0.4: todos os componentes-base importam tokens de ../../theme/tokens',
+      Object.values(uiFiles).every((s) => /from\s*'\.\.\/\.\.\/theme\/tokens'/.test(s)),
+      'algum componente-base não importa os tokens',
+    );
+    check(
+      'A0.4: botões NÃO usam ellipsizeMode (texto nunca cortado por reticências)',
+      botoes.every((s) => !/ellipsizeMode/.test(s)),
+      'algum botão usa ellipsizeMode (proibido §2.4)',
+    );
+    check(
+      'A0.4: botões NÃO usam numberOfLines={1} (permitem até 2 linhas)',
+      botoes.every((s) => !/numberOfLines=\{1\}/.test(s) && /numberOfLines=\{2\}/.test(s)),
+      'algum botão usa numberOfLines={1} ou não permite 2 linhas',
+    );
+    check(
+      'A0.4: botões têm altura MÍNIMA 56 (minHeight, sem altura fixa)',
+      botoes.every((s) => /minHeight:\s*MIN_TOUCH/.test(s) && /const MIN_TOUCH = 56/.test(s)) &&
+      botoes.every((s) => !/\bheight:\s*\d/.test(s)),
+      'algum botão não usa minHeight 56 ou tem altura fixa',
+    );
+    check(
+      'A0.4: BotaoPrimario usa terracota (color.terra500) como ação',
+      /backgroundColor:\s*color\.terra500/.test(uiFiles.BotaoPrimario),
+      'BotaoPrimario não usa terra500 como cor de ação',
+    );
+    check(
+      'A0.4: botões têm largura FLUIDA (alignSelf stretch) e press squish (motion.pressScale)',
+      botoes.every((s) => /alignSelf:\s*'stretch'/.test(s) && /motion\.pressScale/.test(s)),
+      'algum botão tem largura fixa ou não faz o squish 0.96',
+    );
+    check(
+      'A0.4: NENHUM hex hardcoded (#RRGGBB) nos 7 componentes — só tokens',
+      Object.values(uiFiles).every((s) => !/#[0-9A-Fa-f]{6}\b/.test(s)),
+      'algum componente-base tem hex hardcoded fora dos tokens',
+    );
+    check(
+      'A0.4: CartaoPagina usa paper100 + borda paper200 + radius.card + sombra única (tokens.shadow)',
+      /backgroundColor:\s*color\.paper100/.test(uiFiles.CartaoPagina) &&
+      /borderColor:\s*color\.paper200/.test(uiFiles.CartaoPagina) &&
+      /borderRadius:\s*radius\.card/.test(uiFiles.CartaoPagina) &&
+      /shadowColor:\s*shadow\.color/.test(uiFiles.CartaoPagina),
+      'CartaoPagina não usa os tokens de card/sombra',
+    );
+    check(
+      'A0.4: ModalPapel é RESPONSIVO (useWindowDimensions + maxContentWidth) e fundo papel',
+      /useWindowDimensions\(\)/.test(uiFiles.ModalPapel) &&
+      /maxContentWidth\.tablet/.test(uiFiles.ModalPapel) &&
+      /backgroundColor:\s*color\.paper100/.test(uiFiles.ModalPapel),
+      'ModalPapel não é responsivo / não usa fundo papel dos tokens',
+    );
+    check(
+      'A0.4: TrilhoProgresso usa paper300 (trilho) + gold300/gold500 (preenchimento) dos tokens',
+      /backgroundColor:\s*color\.paper300/.test(uiFiles.TrilhoProgresso) &&
+      /backgroundColor:\s*color\.gold300/.test(uiFiles.TrilhoProgresso) &&
+      /color\.gold500/.test(uiFiles.TrilhoProgresso),
+      'TrilhoProgresso não usa os tokens de progresso',
+    );
+    check(
+      'A0.4: componentes-base NÃO aplicados a nenhuma tela ainda (nada em screens importa ui/Botao*/CartaoPagina/etc.)',
+      !/from\s*'[^']*ui\/(BotaoPrimario|BotaoSecundario|BotaoGhost|CartaoPagina|ChipOrnamentado|ModalPapel|TrilhoProgresso)'/.test(
+        [readSrc('src/screens/HomeScreen.js'), readSrc('src/screens/CongratsScreen.js'), readSrc('src/screens/StoryDetailScreen.js')].join('\n'),
+      ),
+      'algum componente-base já foi aplicado a uma tela (fora do escopo do A0.4)',
+    );
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
