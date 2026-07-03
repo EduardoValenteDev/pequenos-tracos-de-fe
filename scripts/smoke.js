@@ -4895,8 +4895,10 @@ check(
     const body = m[0];
     // A ilustração oficial só é buscada no ramo 'official'.
     const officialOnlyInOfficialBranch =
-      /mode === 'official'[\s\S]*?getOfficialSceneIllustration/.test(body) &&
-      (body.match(/getOfficialSceneIllustration/g) || []).length === 1;
+      // F2.1h v2: a imagem oficial é resolvida via resolveSceneImageForStory (gated a
+      // david_goliath). A CHAMADA só ocorre no ramo 'official', exatamente uma vez.
+      /mode === 'official'[\s\S]*?resolveSceneImageForStory\(/.test(body) &&
+      (body.match(/resolveSceneImageForStory\(/g) || []).length === 1;
     // O ramo official retorna antes de qualquer leitura de arte da criança.
     const officialReturnsBeforeChildArt =
       body.indexOf("mode === 'official'") < body.indexOf('makeChildArtVisual');
@@ -12379,12 +12381,12 @@ check(
       !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|downloadAsync|Purchases\.|react-native-purchases/.test(hook),
       'hook ausente / não-gated / não read-only');
 
-    check('F2.1f (consumo visual SÓ na NarrationScreen)',
+    check('F2.1f→F2.1h v2 (consumo só nas superfícies permitidas: NarrationScreen + StoryBookScreen)',
       (() => {
-        const consumers = screenFiles.filter((f) => /useResolvedSceneImage|useResolvedStoryMedia/.test(fs.readFileSync(path.join(screensDir, f), 'utf8')));
-        return consumers.length === 1 && consumers[0] === 'NarrationScreen.js';
+        const consumers = screenFiles.filter((f) => /useResolvedSceneImage|useResolvedStoryMedia|useSandboxScenePackEntry|resolveSceneImageForStory/.test(fs.readFileSync(path.join(screensDir, f), 'utf8'))).sort();
+        return consumers.length === 2 && consumers[0] === 'NarrationScreen.js' && consumers[1] === 'StoryBookScreen.js';
       })(),
-      'o consumo do hook não está restrito à NarrationScreen');
+      'o consumo do hook não está restrito às superfícies permitidas (NarrationScreen + StoryBookScreen)');
 
     check('F2.1f (escopo cena-only: capa e áudio seguem locais na tela)',
       /useResolvedSceneImage\(/.test(narr) &&
@@ -12495,16 +12497,16 @@ check(
       mediaLoadersG.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
       'áudio/colorir/capas deixaram de ser 100% locais');
 
-    check('F2.1g (consumo SÓ NarrationScreen; read-only; sem download/R2/compras/entitlement)',
+    check('F2.1g→F2.1h v2 (consumo só nas superfícies permitidas; read-only; sem download/R2/compras/entitlement)',
       (() => {
-        const consumers = fs.readdirSync(screensDirG).filter((f) => f.endsWith('.js')).filter((f) => /useResolvedSceneImage|useResolvedStoryMedia/.test(fs.readFileSync(path.join(screensDirG, f), 'utf8')));
-        const onlyNarr = consumers.length === 1 && consumers[0] === 'NarrationScreen.js';
+        const consumers = fs.readdirSync(screensDirG).filter((f) => f.endsWith('.js')).filter((f) => /useResolvedSceneImage|useResolvedStoryMedia|useSandboxScenePackEntry|resolveSceneImageForStory/.test(fs.readFileSync(path.join(screensDirG, f), 'utf8'))).sort();
+        const onlySurfaces = consumers.length === 2 && consumers[0] === 'NarrationScreen.js' && consumers[1] === 'StoryBookScreen.js';
         // Uso REAL (chamadas/imports), não prosa de comentário: escrita de storage,
         // download, compras (RevenueCat) e controle de acesso/entitlement.
         const readOnly = !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|clearPackEntry\(|downloadAsync|createDownloadResumable|Purchases\.|react-native-purchases|isPremiumUser\(|getStoryAccessStatus\(|contentAccessService/.test(hookG + resolverG);
-        return onlyNarr && readOnly;
+        return onlySurfaces && readOnly;
       })(),
-      'consumo fora da NarrationScreen ou caminho não read-only (escreve/baixa/compras)');
+      'consumo fora das superfícies permitidas ou caminho não read-only (escreve/baixa/compras)');
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -12548,6 +12550,71 @@ check(
         });
       })(),
       'existe accessibilityValue.now com fração/decimal em algum arquivo do src');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // F2.1h v2 — 2ª superfície de cenas: Livrinho (StoryBookScreen), modo "História
+  // ilustrada", gated a david_goliath, via VALOR do packEntry (sem recompor timeline).
+  // Intro preview e "Meu livrinho colorido" no caminho antigo. Índice vazio → require.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── F2.1h v2: 2ª superfície (Livrinho, História ilustrada, sandbox david_goliath) ──');
+  {
+    const hookV2 = readSrc('src/hooks/useResolvedStoryMedia.js');
+    const livroV2 = readSrc('src/screens/StoryBookScreen.js');
+    const narrV2 = readSrc('src/screens/NarrationScreen.js');
+    const mediaLoadersV2 = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+
+    check('F2.1h v2 (hook): resolveSceneImageForStory (pura, gated) + useSandboxScenePackEntry (valor); useResolvedSceneImage intacto',
+      /export function resolveSceneImageForStory\b/.test(hookV2) &&
+      /export function useSandboxScenePackEntry\b/.test(hookV2) &&
+      /export function useResolvedSceneImage\b/.test(hookV2) &&
+      /storyId !== SANDBOX_STORY_ID/.test(hookV2) &&
+      /SANDBOX_STORY_ID\s*=\s*'david_goliath'/.test(hookV2) &&
+      /return storyId === SANDBOX_STORY_ID \? getPackEntry\(storyId\) : null/.test(hookV2) &&
+      !/useSceneImageResolver/.test(hookV2),
+      'hook v2: exports/gating ausentes ou useSandboxScenePackEntry não retorna valor');
+
+    check('F2.1h v2 (hook read-only): sem AsyncStorage-write/download/compras/entitlement',
+      !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|clearPackEntry\(|downloadAsync|createDownloadResumable|Purchases\.|react-native-purchases|isPremiumUser\(|getStoryAccessStatus\(|contentAccessService/.test(hookV2),
+      'hook v2 deixou de ser read-only');
+
+    check('F2.1h v2 (Livrinho consome via hook; sem runtime direto; dep do useMemo = VALOR; sem useSceneImageResolver)',
+      /import\s*{\s*resolveSceneImageForStory,\s*useSandboxScenePackEntry\s*}\s*from\s*'\.\.\/hooks\/useResolvedStoryMedia'/.test(livroV2) &&
+      /const scenePackEntry = useSandboxScenePackEntry\(story\?\.id\)/.test(livroV2) &&
+      /resolveSceneImageForStory\(story\.id, cena\.id, scenePackEntry\)/.test(livroV2) &&
+      /\[story\?\.id, drawings, viewMode, scenePackEntry\]/.test(livroV2) &&
+      !/useSceneImageResolver/.test(livroV2) &&
+      !/from\s*'\.\.\/context\/PacksContext'|from\s*'\.\.\/services\/contentResolver'|from\s*'\.\.\/services\/packStorageService'/.test(livroV2),
+      'StoryBookScreen: consumo via hook incorreto, callback no useMemo, ou importa runtime direto');
+
+    check('F2.1h v2 (gating por eval): david null→require; david ready→file://; outra história ready→require',
+      (() => {
+        try {
+          const code = hookV2.replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '');
+          const stubResolve = (id, n, entry) => ({ source: (entry && entry.status === 'ready') ? { uri: `${entry.localDir}scenes/${id}_scene_${String(n).padStart(2, '0')}.webp` } : { __require: true } });
+          const stubOfficial = () => ({ __require: true });
+          const header = 'const usePacks=()=>({getPackEntry:()=>null});const resolveStoryScene=__rss;const getOfficialSceneIllustration=__gos;';
+          const M = new Function('__rss', '__gos', header + code + ';return { resolveSceneImageForStory };')(stubResolve, stubOfficial);
+          const a = M.resolveSceneImageForStory('david_goliath', 1, null);
+          const b = M.resolveSceneImageForStory('david_goliath', 1, { status: 'ready', localDir: 'file:///c/' });
+          const c = M.resolveSceneImageForStory('mary_says_yes', 1, { status: 'ready', localDir: 'file:///c/' });
+          return a.__require === true && typeof b.uri === 'string' && /^file:\/\//.test(b.uri) && c.__require === true && !c.uri;
+        } catch { return false; }
+      })(),
+      'resolveSceneImageForStory: gating incorreto (david require/file; outra história deve ficar em require)');
+
+    check('F2.1h v2 (intro preview no caminho antigo + "Meu livrinho colorido" prioriza arte da criança)',
+      /officialPreview = firstCena \? getOfficialSceneIllustration\(story\.id, firstCena\.id\)/.test(livroV2) &&
+      /if \(hasMeaningfulPaint\(raw\)\)[\s\S]*?makeChildArtVisual/.test(livroV2),
+      'intro preview mudou de caminho ou "Meu livrinho colorido" perdeu prioridade da arte da criança');
+
+    check('F2.1h v2 (NarrationScreen intacta): segue via useResolvedSceneImage(story.id, cena?.id)',
+      /useResolvedSceneImage\(story\.id, cena\?\.id\)/.test(narrV2),
+      'NarrationScreen deixou de usar o hook de cena');
+
+    check('F2.1h v2 (áudio/colorir/capas 100% locais; loaders require-based sem file://)',
+      mediaLoadersV2.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
+      'áudio/colorir/capas deixaram de ser 100% locais');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

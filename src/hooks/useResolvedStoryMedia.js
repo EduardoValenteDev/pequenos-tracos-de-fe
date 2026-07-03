@@ -43,3 +43,37 @@ export function useResolvedSceneImage(storyId, sceneId) {
   const resolved = resolveStoryScene(storyId, sceneId, getPackEntry(storyId));
   return resolved.source;
 }
+
+/**
+ * resolveSceneImageForStory — versão PURA (não-hook) da resolução da imagem de cena
+ * (F2.1h v2). Recebe o `packEntry` JÁ RESOLVIDO — para uso em FUNÇÕES PURAS / LOOPS
+ * onde hooks não podem ser chamados (ex.: timeline do Livrinho na StoryBookScreen).
+ *
+ * Gated a `david_goliath`: outras histórias seguem `getOfficialSceneIllustration`
+ * (caminho antigo, intacto). Com `packEntry` nulo (índice vazio) → require local idêntico.
+ * Retorna SEMPRE um `source` de <Image> (require OU `{ uri }`), NUNCA o envelope do resolver.
+ *
+ * @param {string} storyId
+ * @param {number} sceneId  cena.id (1..N)
+ * @param {*} packEntry     CacheEntry do PacksContext (ou null)
+ * @returns {*} source de <Image> (require OU { uri }) ou null
+ */
+export function resolveSceneImageForStory(storyId, sceneId, packEntry = null) {
+  if (storyId !== SANDBOX_STORY_ID) {
+    return getOfficialSceneIllustration(storyId, sceneId);
+  }
+  return resolveStoryScene(storyId, sceneId, packEntry).source;
+}
+
+/**
+ * useSandboxScenePackEntry — devolve o VALOR do `packEntry` do sandbox (`david_goliath`),
+ * ou `null` para qualquer outra história (F2.1h v2). Read-only.
+ *
+ * Retorna um VALOR (não um callback): com índice vazio é `null` (estável) — assim, usado
+ * como dependência do `useMemo` do Livrinho, NÃO recompõe a timeline no load de packs
+ * (`null === null`). A timeline só reconstrói quando o packEntry realmente muda.
+ */
+export function useSandboxScenePackEntry(storyId) {
+  const { getPackEntry } = usePacks(); // hook chamado SEMPRE (regras do React)
+  return storyId === SANDBOX_STORY_ID ? getPackEntry(storyId) : null;
+}

@@ -16,6 +16,7 @@ import MagicBookEntrance from '../components/story/MagicBookEntrance';
 import { getColoringImage } from '../assets/coloringImages';
 import { getSavedDrawing, hasMeaningfulPaint } from '../services/drawingStorage';
 import { getOfficialSceneIllustration, preloadStorySceneIllustrations } from '../services/storyImageService';
+import { resolveSceneImageForStory, useSandboxScenePackEntry } from '../hooks/useResolvedStoryMedia';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
 import { markStoryBookOpened } from '../services/postStoryStorage';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
@@ -159,10 +160,13 @@ function mkSlide(cena, sceneNumber, visual) {
  * da criança só é usada quando makeChildArtVisual entrega o contorno por cima
  * (Bloco 1): nenhuma página renderiza mancha de cor sem lineart.
  */
-function resolveStoryBookPageImage(cena, story, drawings, mode) {
+function resolveStoryBookPageImage(cena, story, drawings, mode, scenePackEntry) {
   // 'official' — História ilustrada: imagem oficial sempre, nunca a arte da criança.
   if (mode === 'official') {
-    const official = getOfficialSceneIllustration(story.id, cena.id);
+    // F2.1h v2: imagem oficial via resolveSceneImageForStory (gated a david_goliath;
+    // fallback local IDÊNTICO com índice vazio; file:// só com pack ready no sandbox).
+    // Retorna sempre um source de <Image> (require OU { uri }), nunca o envelope.
+    const official = resolveSceneImageForStory(story.id, cena.id, scenePackEntry);
     if (official) return makeOfficialVisual(cena, story, official);
     return makeFallbackVisual(cena, story);
   }
@@ -180,9 +184,9 @@ function resolveStoryBookPageImage(cena, story, drawings, mode) {
  * Constrói a TIMELINE do Livrinho — 1 slide por cena, conforme o modo.
  * Dois modos finais: 'official' (História ilustrada) e 'child' (Meu livrinho colorido).
  */
-function buildStoryBookTimeline(story, drawings, mode) {
+function buildStoryBookTimeline(story, drawings, mode, scenePackEntry) {
   return (story?.cenas ?? []).map((cena, i) =>
-    mkSlide(cena, i + 1, resolveStoryBookPageImage(cena, story, drawings, mode)),
+    mkSlide(cena, i + 1, resolveStoryBookPageImage(cena, story, drawings, mode, scenePackEntry)),
   );
 }
 
@@ -416,6 +420,10 @@ export default function StoryBookScreen({ route, navigation }) {
 
   const { refreshProgress, progressByStory, postStoryStatusByStory } = useProgressContext();
 
+  // F2.1h v2: VALOR do packEntry do sandbox (david_goliath) — null p/ outras histórias
+  // e com índice vazio. Valor estável ⇒ NÃO recompõe a timeline no load de packs.
+  const scenePackEntry = useSandboxScenePackEntry(story?.id);
+
   const { pendingAchievement, checkForNewAchievements, dismissAchievement } =
     useAchievementCelebration({ progressByStory, postStoryStatusByStory, source: 'StoryBookScreen' });
 
@@ -439,8 +447,8 @@ export default function StoryBookScreen({ route, navigation }) {
 
   // Timeline derivada (memoizada) — só recalcula ao trocar história, artes ou modo.
   const timeline = useMemo(
-    () => buildStoryBookTimeline(story, drawings, viewMode),
-    [story?.id, drawings, viewMode],
+    () => buildStoryBookTimeline(story, drawings, viewMode, scenePackEntry),
+    [story?.id, drawings, viewMode, scenePackEntry],
   );
   const totalSlides = timeline.length;
 
