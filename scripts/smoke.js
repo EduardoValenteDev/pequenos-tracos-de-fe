@@ -10156,8 +10156,13 @@ check(
     for (const sid of B2_INTEGRATED) {
       for (let n = 1; n <= 10; n++) {
         const nn = String(n).padStart(2, '0');
-        const rel = `assets/stories/${sid}/scenes/${sid}_scene_${nn}.png`;
-        if (b2SceneSrc.includes(`'../../${rel}'`) && fs.existsSync(path.join(root, rel))) ok++;
+        // F1.2: extensão-agnóstico (WebP escalado). Exige o require no manifest (.png
+        // OU .webp) E que o arquivo RESOLVIDO exista — require quebrado ainda é pego.
+        const png = `assets/stories/${sid}/scenes/${sid}_scene_${nn}.png`;
+        const webp = `assets/stories/${sid}/scenes/${sid}_scene_${nn}.webp`;
+        const rel = b2SceneSrc.includes(`'../../${webp}'`) ? webp
+          : b2SceneSrc.includes(`'../../${png}'`) ? png : null;
+        if (rel && fs.existsSync(path.join(root, rel))) ok++;
       }
     }
     return ok === 50;
