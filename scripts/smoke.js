@@ -12281,6 +12281,76 @@ check(
       'contentManifest deixou de ser 2 starter / 18 remote');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // F2.1e — Camada read-only de resolução de mídia POR HISTÓRIA (resolveStoryMedia).
+  // Pura; consulta o packEntry (PacksContext) p/ decidir pack ready (file://) ou
+  // fallback local. Sem consumo visual; loaders de mídia intactos (nada vira file://).
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── F2.1e: resolveStoryMedia read-only por história ──');
+  {
+    const resolverE = readSrc('src/services/contentResolver.js');
+    const cmE = readSrc('src/data/contentManifest.js');
+    const mediaLoaders = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+    const hasExportFn = (src, fn) => new RegExp(`export function ${fn}\\b`).test(src);
+
+    check('F2.1e (camada por história existe): contentResolver exporta resolveStoryMedia',
+      hasExportFn(resolverE, 'resolveStoryMedia') && hasExportFn(resolverE, 'resolveStoryMediaFromPackEntry'),
+      'contentResolver: resolveStoryMedia ausente');
+
+    check('F2.1e (read-only): resolver não escreve índice/AsyncStorage, não baixa, não toca compras',
+      !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|clearPackEntry\(/.test(resolverE) &&
+      !/downloadAsync|createDownloadResumable|fetch\(/.test(resolverE) &&
+      !/Purchases\.|react-native-purchases/.test(resolverE),
+      'contentResolver deixou de ser read-only (escreve/baixa/compras)');
+
+    check('F2.1e (fallback×ready): sem pack → require (fallback local); pack ready → file:// (puro)',
+      (() => {
+        try {
+          const code = resolverE.replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '');
+          const stubs = {
+            getContentLayer: (id) => (id === 'david_goliath' ? 'remote' : 'starter'),
+            CONTENT_LAYERS: { STARTER: 'starter', REMOTE: 'remote', COMING_SOON: 'coming_soon' },
+            PACK_STATUS: { INCLUDED: 'included', NOT_DOWNLOADED: 'not_downloaded', READY: 'ready', DOWNLOADING: 'downloading', VERIFYING: 'verifying', FAILED: 'failed', NEEDS_UPDATE: 'needs_update', REQUIRES_APP_UPDATE: 'requires_app_update' },
+            getOfficialSceneIllustration: () => ({ __local: 1 }),
+            getSceneColoringImage: () => ({ __local: 1 }),
+            getStoryCoverImage: () => ({ __local: 1 }),
+            getSceneAudio: () => ({ __local: 1 }),
+          };
+          const header = 'const getContentLayer=__s.getContentLayer;const CONTENT_LAYERS=__s.CONTENT_LAYERS;const PACK_STATUS=__s.PACK_STATUS;const getOfficialSceneIllustration=__s.getOfficialSceneIllustration;const getSceneColoringImage=__s.getSceneColoringImage;const getStoryCoverImage=__s.getStoryCoverImage;const getSceneAudio=__s.getSceneAudio;';
+          const R = new Function('__s', header + code + ';return { resolveStoryMedia, RESOLVE_SOURCE_TYPE };')(stubs);
+          const allT = (o) => [o.cover, ...o.scenes, ...o.coloring, ...o.audio];
+          const fb = R.resolveStoryMedia('david_goliath', { packEntry: null, sceneCount: 2 });
+          const rd = R.resolveStoryMedia('david_goliath', { packEntry: { status: 'ready', localDir: 'file:///x/' }, sceneCount: 2 });
+          const allReq = allT(fb).every((x) => x.sourceType === R.RESOLVE_SOURCE_TYPE.REQUIRE);
+          const allFile = allT(rd).every((x) => x.sourceType === R.RESOLVE_SOURCE_TYPE.FILE);
+          return fb.usesPack === false && allReq && rd.usesPack === true && allFile;
+        } catch { return false; }
+      })(),
+      'resolveStoryMedia não faz fallback sem pack ou não usa file:// com pack ready');
+
+    check('F2.1e (loaders de mídia intactos): require-based, NENHUM usa file:///uri',
+      mediaLoaders.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
+      'um loader de mídia passou a usar file:///uri (proibido no F2.1e)');
+
+    check('F2.1e (sem consumo visual): nenhuma tela importa contentResolver/resolveStoryMedia/usePacks',
+      (() => {
+        const dir = path.join(root, 'src/screens');
+        return !fs.readdirSync(dir).filter((f) => f.endsWith('.js'))
+          .some((f) => /contentResolver|resolveStoryMedia|usePacks|packStorageService/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+      })(),
+      'uma tela passou a consumir o resolver (F2.1e é sem consumo visual)');
+
+    check('F2.1e (estado default): starter→included, remote→not_downloaded (índice vazio)',
+      (() => {
+        try {
+          const cm = new Function(`${cmE.replace(/export /g, '')}; return { getContentLayer, CONTENT_LAYERS };`)();
+          const st = (id) => (cm.getContentLayer(id) === cm.CONTENT_LAYERS.STARTER ? 'included' : 'not_downloaded');
+          return st('creation') === 'included' && st('noah') === 'included' && st('david_goliath') === 'not_downloaded';
+        } catch { return false; }
+      })(),
+      'estado default incorreto (starter deve ser included; remote sem índice, not_downloaded)');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

@@ -129,3 +129,40 @@ export function resolveStoryMediaFromPackEntry(storyId, mediaKind, sceneNumber =
       return { status: RESOLVE_STATUS.ERROR, sourceType: RESOLVE_SOURCE_TYPE.MISSING, source: null, reason: `mediaKind inválido: ${mediaKind}` };
   }
 }
+
+/**
+ * Camada de resolução de mídia POR HISTÓRIA (ADITIVO, F2.1e).
+ *
+ * Resolve o CONJUNTO de mídias de uma história de uma vez (capa + N cenas + N colorir
+ * + N áudios), consultando o estado do pack (`packEntry`, vindo do PacksContext) para
+ * decidir pack `ready` (file://) ou FALLBACK LOCAL (require no binário). Construída
+ * sobre os resolvers per-item acima — não os substitui.
+ *
+ * PURA e READ-ONLY: não escreve no índice, não baixa, não instala; não toca progresso,
+ * acesso/entitlement nem compras. Nunca lança. NÃO é consumida por telas ainda (F2.1e).
+ * Inicialmente `david_goliath` é o único com pack sandbox; o fallback local vale para
+ * TODAS as histórias (sem pack `ready` → require).
+ *
+ * @param {string} storyId
+ * @param {{ packEntry?: object|null, sceneCount?: number }} [options]
+ * @returns {{ storyId, layer, packStatus, usesPack, cover, scenes:Array, coloring:Array, audio:Array }}
+ */
+export function resolveStoryMedia(storyId, options = {}) {
+  const packEntry = options.packEntry || null;
+  const sceneCount = Number.isInteger(options.sceneCount) && options.sceneCount > 0 ? options.sceneCount : 0;
+  const layer = getContentLayer(storyId);
+  const packStatus = getPackState(storyId, packEntry);
+
+  const cover = resolveStoryCover(storyId, packEntry);
+  const scenes = [];
+  const coloring = [];
+  const audio = [];
+  for (let n = 1; n <= sceneCount; n += 1) {
+    scenes.push(resolveStoryScene(storyId, n, packEntry));
+    coloring.push(resolveStoryColoring(storyId, n, packEntry));
+    audio.push(resolveStoryAudio(storyId, n, packEntry));
+  }
+  const usesPack = [cover, ...scenes, ...coloring, ...audio].some((r) => r.sourceType === RESOLVE_SOURCE_TYPE.FILE);
+
+  return { storyId, layer, packStatus, usesPack, cover, scenes, coloring, audio };
+}
