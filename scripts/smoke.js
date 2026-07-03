@@ -12426,6 +12426,87 @@ check(
       'o caminho visual tocou compras/entitlement');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // F2.1g — Validação do caminho PACK READY (sandbox david_goliath, cenas).
+  // Prova: índice vazio → require; packEntry ready CONTROLADO → file://; o gating do
+  // hook mantém file:// restrito a david_goliath (outra história → require). Sem
+  // download/instalação/AsyncStorage/R2/compras. Áudio/colorir/capas seguem locais.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── F2.1g: validação do caminho pack ready (sandbox david_goliath) ──');
+  {
+    const resolverG = readSrc('src/services/contentResolver.js');
+    const hookG = readSrc('src/hooks/useResolvedStoryMedia.js');
+    const screensDirG = path.join(root, 'src/screens');
+    const mediaLoadersG = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+
+    // Eval do RESOLVER real (stubs no lugar das deps Expo).
+    const evalResolver = () => {
+      const code = resolverG.replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '');
+      const stubs = {
+        getContentLayer: (id) => (id === 'david_goliath' ? 'remote' : 'starter'),
+        CONTENT_LAYERS: { STARTER: 'starter', REMOTE: 'remote', COMING_SOON: 'coming_soon' },
+        PACK_STATUS: { INCLUDED: 'included', NOT_DOWNLOADED: 'not_downloaded', READY: 'ready', DOWNLOADING: 'downloading', VERIFYING: 'verifying', FAILED: 'failed', NEEDS_UPDATE: 'needs_update', REQUIRES_APP_UPDATE: 'requires_app_update' },
+        getOfficialSceneIllustration: () => ({ __local: 1 }), getSceneColoringImage: () => ({ __local: 1 }),
+        getStoryCoverImage: () => ({ __local: 1 }), getSceneAudio: () => ({ __local: 1 }),
+      };
+      const header = 'const getContentLayer=__s.getContentLayer;const CONTENT_LAYERS=__s.CONTENT_LAYERS;const PACK_STATUS=__s.PACK_STATUS;const getOfficialSceneIllustration=__s.getOfficialSceneIllustration;const getSceneColoringImage=__s.getSceneColoringImage;const getStoryCoverImage=__s.getStoryCoverImage;const getSceneAudio=__s.getSceneAudio;';
+      return new Function('__s', header + code + ';return { resolveStoryScene, RESOLVE_SOURCE_TYPE };')(stubs);
+    };
+
+    // Eval do HOOK real (stubs: usePacks / resolveStoryScene / getOfficialSceneIllustration).
+    const evalHook = (getPackEntry) => {
+      const code = hookG.replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '');
+      const stubResolve = (id, n, entry) => (entry && entry.status === 'ready'
+        ? { source: { uri: `${entry.localDir}scenes/${id}_scene_${String(n).padStart(2, '0')}.webp` }, sourceType: 'file' }
+        : { source: { __require: true }, sourceType: 'require' });
+      const stubOfficial = () => ({ __require: true });
+      const header = 'const usePacks=()=>({getPackEntry:__gpe});const resolveStoryScene=__rss;const getOfficialSceneIllustration=__gos;';
+      return new Function('__gpe', '__rss', '__gos', header + code + ';return { useResolvedSceneImage, SANDBOX_STORY_ID };')(getPackEntry, stubResolve, stubOfficial);
+    };
+
+    check('F2.1g (índice vazio → david cena em fallback require)',
+      (() => { try { const R = evalResolver(); return R.resolveStoryScene('david_goliath', 1, null).sourceType === R.RESOLVE_SOURCE_TYPE.REQUIRE; } catch { return false; } })(),
+      'com índice vazio a cena de david_goliath deixou de ser require (fallback local)');
+
+    check('F2.1g (packEntry ready CONTROLADO → david cena file:// em scenes/…)',
+      (() => {
+        try {
+          const R = evalResolver();
+          const r = R.resolveStoryScene('david_goliath', 1, { status: 'ready', localDir: 'file:///c/' });
+          return r.sourceType === R.RESOLVE_SOURCE_TYPE.FILE && /^file:\/\/.*scenes\/david_goliath_scene_01\.webp$/.test(r.source.uri);
+        } catch { return false; }
+      })(),
+      'com pack ready a cena de david_goliath não resolveu o file:// esperado');
+
+    check('F2.1g (gating do hook: file:// SÓ david; outra história com entry ready → require)',
+      (() => {
+        try {
+          const H = evalHook(() => ({ status: 'ready', localDir: 'file:///c/' })); // ready p/ TODAS (controle)
+          const david = H.useResolvedSceneImage('david_goliath', 1);
+          const other = H.useResolvedSceneImage('mary_says_yes', 1);
+          const davidFile = david && typeof david.uri === 'string' && /^file:\/\//.test(david.uri);
+          const otherRequire = other && other.__require === true && !other.uri;
+          return davidFile && otherRequire;
+        } catch { return false; }
+      })(),
+      'o gating do hook não restringe file:// a david_goliath (outra história resolveu file://)');
+
+    check('F2.1g (áudio/colorir/capas 100% locais; loaders require-based sem file://)',
+      mediaLoadersG.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
+      'áudio/colorir/capas deixaram de ser 100% locais');
+
+    check('F2.1g (consumo SÓ NarrationScreen; read-only; sem download/R2/compras/entitlement)',
+      (() => {
+        const consumers = fs.readdirSync(screensDirG).filter((f) => f.endsWith('.js')).filter((f) => /useResolvedSceneImage|useResolvedStoryMedia/.test(fs.readFileSync(path.join(screensDirG, f), 'utf8')));
+        const onlyNarr = consumers.length === 1 && consumers[0] === 'NarrationScreen.js';
+        // Uso REAL (chamadas/imports), não prosa de comentário: escrita de storage,
+        // download, compras (RevenueCat) e controle de acesso/entitlement.
+        const readOnly = !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|clearPackEntry\(|downloadAsync|createDownloadResumable|Purchases\.|react-native-purchases|isPremiumUser\(|getStoryAccessStatus\(|contentAccessService/.test(hookG + resolverG);
+        return onlyNarr && readOnly;
+      })(),
+      'consumo fora da NarrationScreen ou caminho não read-only (escreve/baixa/compras)');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
