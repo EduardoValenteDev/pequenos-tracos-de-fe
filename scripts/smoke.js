@@ -12507,6 +12507,49 @@ check(
       'consumo fora da NarrationScreen ou caminho não read-only (escreve/baixa/compras)');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // HOTFIX (crash abertura de história) — TrilhoProgresso: accessibilityValue.now é
+  // Int32 no New Architecture (Fabric). Passar a FRAÇÃO (0.9/0.2) quebra o app na
+  // abertura ("Loss of precision ... (long long) 0.9"). Guard: now deve ser INTEIRO
+  // (escala 0..100, via Math.round + NaN/Infinity-safe); o visual mantém % da fração.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Hotfix: TrilhoProgresso accessibilityValue.now inteiro (Fabric) ──');
+  {
+    const trilho = readSrc('src/components/ui/TrilhoProgresso.js');
+
+    check('Hotfix (sem max:1 + now:pct): TrilhoProgresso não passa a fração para accessibilityValue.now',
+      !/accessibilityValue=\{\{[^}]*\bmax:\s*1\b[^}]*\bnow:\s*pct\b/.test(trilho) &&
+      !/\bnow:\s*pct\b/.test(trilho),
+      'TrilhoProgresso ainda passa now: pct (decimal) para accessibilityValue');
+
+    check('Hotfix (now inteiro): Math.round em escala 0..100 + blindagem NaN/Infinity',
+      /Number\.isFinite\(/.test(trilho) &&
+      /Math\.round\(/.test(trilho) &&
+      /accessibilityValue=\{\{[^}]*\bmax:\s*100\b[^}]*\bnow:\s*accessibilityNow\b/.test(trilho),
+      'TrilhoProgresso não converte progress para inteiro 0..100 (Math.round) no accessibilityValue.now');
+
+    check('Hotfix (visual preserva % da fração): largura usa safePct * 100%',
+      /\$\{safePct \* 100\}%/.test(trilho),
+      'TrilhoProgresso deixou de usar porcentagem baseada na fração para a largura da barra');
+
+    check('Hotfix (nenhum accessibilityValue.now decimal/fração no src)',
+      (() => {
+        const files = [];
+        const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((d) => {
+          const p = path.join(dir, d.name);
+          if (d.isDirectory()) walk(p);
+          else if (d.name.endsWith('.js')) files.push(p);
+        });
+        walk(path.join(root, 'src'));
+        return !files.some((p) => {
+          const s = fs.readFileSync(p, 'utf8');
+          return /accessibilityValue=\{\{[^}]*\bnow:\s*[A-Za-z_$][A-Za-z0-9_$]*[pP](ct|ercent)\b/.test(s) ||
+                 /accessibilityValue=\{\{[^}]*\bnow:\s*[0-9]*\.[0-9]/.test(s);
+        });
+      })(),
+      'existe accessibilityValue.now com fração/decimal em algum arquivo do src');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

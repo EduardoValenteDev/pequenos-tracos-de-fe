@@ -10,18 +10,23 @@ import { color } from '../../theme/tokens';
  * Props: progress (0..1), height (default 8), style.
  */
 export default function TrilhoProgresso({ progress = 0, height = 8, style }) {
-  const pct = Math.max(0, Math.min(1, progress ?? 0));
+  // Fração clampada [0,1], blindada contra NaN/Infinity (progress pode chegar inválido).
+  const safePct = Number.isFinite(progress) ? Math.max(0, Math.min(progress, 1)) : 0;
+  // ⚠️ accessibilityValue.now é Int32 no New Architecture (Fabric): passar decimal quebra
+  // o app na abertura ("Loss of precision during arithmetic conversion: (long long) 0.9").
+  // Usar escala INTEIRA 0..100 (nunca a fração). O visual continua usando safePct * 100%.
+  const accessibilityNow = Math.round(safePct * 100);
   return (
     <View
       style={[styles.track, { height, borderRadius: height / 2 }, style]}
       accessibilityRole="progressbar"
-      accessibilityValue={{ min: 0, max: 1, now: pct }}
+      accessibilityValue={{ min: 0, max: 100, now: accessibilityNow }}
     >
       <View
         style={[
           styles.fill,
-          { width: `${pct * 100}%`, borderRadius: height / 2 },
-          pct > 0 && pct < 1 ? styles.fillPartial : null,
+          { width: `${safePct * 100}%`, borderRadius: height / 2 },
+          safePct > 0 && safePct < 1 ? styles.fillPartial : null,
         ]}
       />
     </View>
