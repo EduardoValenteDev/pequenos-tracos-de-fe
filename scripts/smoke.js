@@ -12128,10 +12128,17 @@ check(
       !/from ['"]expo-crypto['"]|require\(['"]expo-crypto['"]\)/.test(integ),
       'packIntegrityService: funções faltando ou importou expo-crypto (dep nova proibida)');
 
-    check('F2.1a (packDownloadService): preparado, NÃO baixa/rede; markPackReady só índice',
-      ['downloadPackFromManifest', 'simulateInstallLocalPack', 'markPackReady'].every(fn => hasFn(dl, fn)) &&
-      !/fetch\(|https?:\/\/|downloadAsync|createDownloadResumable/.test(dl),
-      'packDownloadService: funções faltando ou baixa da rede (proibido no F2.1a)');
+    check('F2.1a→F2.4d.3 (packDownloadService): stubs F2.1a declarativos; download real SÓ na função genérica F2.4d.3',
+      ['downloadPackFromManifest', 'simulateInstallLocalPack', 'markPackReady', 'downloadStoryPackScenesFromGlobalManifest'].every(fn => hasFn(dl, fn)) &&
+      /executed: false/.test(dl) &&
+      // O download real (downloadAsync/createDownloadResumable) só pode aparecer DENTRO da
+      // função genérica F2.4d.3 — os stubs F2.1a e markPackReady continuam sem rede/FileSystem.
+      (() => {
+        const gi = dl.indexOf('async function downloadStoryPackScenesFromGlobalManifest');
+        const beforeGen = gi >= 0 ? dl.slice(0, gi) : dl;
+        return gi >= 0 && !/downloadAsync|createDownloadResumable|fetch\(/.test(beforeGen);
+      })(),
+      'packDownloadService: stubs F2.1a deixaram de ser declarativos, ou download real vazou para fora da função genérica F2.4d.3');
 
     check('F2.1a (contentResolver): resolvers + enums; starter→require, ready→file://, remote→fallback local',
       ['getStoryContentLayer', 'getPackState', 'canResolveStoryMedia', 'resolveStoryCover', 'resolveStoryScene', 'resolveStoryColoring', 'resolveStoryAudio'].every(fn => hasFn(resolver, fn)) &&
@@ -12922,6 +12929,73 @@ check(
       !!R.found && R.found.ok === true && R.found.data && R.found.data.storyId === 'david_goliath'
         && !!R.notFound && R.notFound.ok === false,
       R.err || 'getPackFromGlobalManifest não resolveu corretamente');
+  }
+
+  // ── F2.4d.3: downloader genérico por storyId (via manifesto global, só cenas) ──
+  console.log('\n── F2.4d.3: downloader genérico por storyId ──');
+  {
+    const pdsSrc = readSrc('src/services/packDownloadService.js');
+    const pdsCode = a1StripComments(pdsSrc);
+    const genIdx = pdsCode.indexOf('async function downloadStoryPackScenesFromGlobalManifest');
+    const genBody = genIdx >= 0 ? pdsCode.slice(genIdx) : '';
+
+    check('F2.4d.3: packDownloadService expõe downloader genérico por storyId',
+      /export async function downloadStoryPackScenesFromGlobalManifest\s*\(/.test(pdsSrc),
+      'downloadStoryPackScenesFromGlobalManifest não exportada');
+
+    check('F2.4d.3: usa globalManifestService para obter o pack (fetch + getPack)',
+      /fetchGlobalContentManifest/.test(pdsCode) && /getPackFromGlobalManifest/.test(pdsCode),
+      'não consome fetchGlobalContentManifest/getPackFromGlobalManifest');
+
+    check('F2.4d.3: função genérica NÃO hardcoda david_goliath (é por storyId)',
+      genBody.length > 0 && !/david_goliath/.test(genBody),
+      'a função genérica não deve conter david_goliath (parametrizada por storyId)');
+
+    check('F2.4d.3: usa baseUrl + manifestPath (não monta o segmento de versão a partir de version)',
+      /pack\.baseUrl/.test(genBody) && /pack\.manifestPath/.test(genBody)
+        && !/`v\$\{/.test(genBody) && !/\bmajor\b/.test(genBody) && !/version\.split/.test(genBody),
+      'deve usar baseUrl + manifestPath; não construir o segmento de versão (ex.: `v${major}`) a partir de version');
+
+    check('F2.4d.3: baixa somente kind scene',
+      /f\.kind === 'scene'/.test(genBody),
+      'filtro de cenas (kind scene) ausente');
+
+    check('F2.4d.3: não baixa cover/coloring/audio na função genérica',
+      genBody.length > 0 && !/cover\.webp|coloring\/|audio\/|\.mp3/.test(genBody),
+      'a função genérica referencia cover/coloring/audio — só cenas neste bloco');
+
+    check('F2.4d.3: não marca ready antes de validar (errors → failWith antes do move e do ready)',
+      (() => {
+        const errIdx = genBody.indexOf('if (errors.length) return failWith');
+        const moveIdx = genBody.search(/moveAsync\(\{ from: tempDir, to: localDir \}\)/);
+        const readyIdx = genBody.search(/setPackEntry\(storyId, \{\s*version,\s*status: PACK_STATUS\.READY/);
+        return errIdx >= 0 && moveIdx > errIdx && readyIdx > moveIdx;
+      })(),
+      'ordem insegura: ready pode ocorrer antes da validação/move');
+
+    check('F2.4d.3: mantém .tmp antes do move (getPackTempDir + move .tmp→localDir)',
+      /getPackTempDir/.test(pdsCode) && /moveAsync\(\{ from: tempDir, to: localDir \}\)/.test(genBody),
+      'fluxo .tmp → move atômico ausente');
+
+    check('F2.4d.3: fallback seguro em falha (failWith → FAILED + limpa .tmp)',
+      /status: PACK_STATUS\.FAILED/.test(genBody) && /deleteAsync\(tempDir, \{ idempotent: true \}\)/.test(genBody),
+      'falha não limpa .tmp nem grava status failed');
+
+    check('F2.4d.3: preserva downloadDavidGoliathPackSandbox (função legada intacta)',
+      readSrc('src/services/packSandboxDevService.js').includes('export async function downloadDavidGoliathPackSandbox'),
+      'a função legada foi removida/renomeada');
+
+    check('F2.4d.3: não toca contentResolver (código)',
+      !/contentResolver|resolveStory/.test(pdsCode),
+      'packDownloadService referencia contentResolver — fora do escopo');
+
+    check('F2.4d.3: não toca entitlement/RevenueCat (código)',
+      !/isPremiumUser|Purchases|RevenueCat|entitlement/.test(pdsCode),
+      'packDownloadService referencia entitlement/RevenueCat — fora do escopo');
+
+    check('F2.4d.3: sem dependência nova (sem crypto/zip/axios)',
+      !/expo-crypto|jszip|\bunzip\b|axios/.test(pdsSrc),
+      'introduziu dependência nova');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
