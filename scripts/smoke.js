@@ -12833,6 +12833,97 @@ check(
       'introduziu zip/unzip');
   }
 
+  // ── F2.4d.2: globalManifestService (read-only — valida o manifesto global) ────
+  console.log('\n── F2.4d.2: globalManifestService ──');
+  {
+    const gmSrc = readSrc('src/services/globalManifestService.js');
+
+    check('F2.4d.2: globalManifestService.js existe',
+      srcExists('src/services/globalManifestService.js'),
+      'src/services/globalManifestService.js não encontrado');
+
+    // READ-ONLY: sem storage/resolver/download/instalação de pack. Testa só o CÓDIGO
+    // (sem comentários) — a doc do serviço menciona esses termos no NEGATIVO ("NÃO grava…").
+    const gmCode = a1StripComments(gmSrc);
+    check('F2.4d.2: serviço é read-only (sem AsyncStorage/setPackEntry/contentResolver/download)',
+      !/AsyncStorage|setPackEntry|clearPackEntry|packStorageService|contentResolver|packSandboxDevService|downloadAsync|createDownloadResumable|moveAsync|makeDirectoryAsync|writeAsStringAsync|copyAsync/.test(gmCode),
+      'globalManifestService referencia storage/resolver/download no código — deveria ser read-only');
+
+    check('F2.4d.2: não hardcoda URL r2.dev no serviço',
+      !/r2\.dev/.test(gmSrc),
+      'globalManifestService não deve hardcodar a URL r2.dev');
+
+    // Execução REAL em sandbox (ESM stripável), injetando stubs de dependência.
+    let R = {};
+    try {
+      const stubLayer = { david_goliath: 'remote', jesus_children: 'remote', creation: 'starter' };
+      const { validateGlobalContentManifest, getPackFromGlobalManifest } = a1LoadSandbox(
+        'src/services/globalManifestService.js',
+        { STORY_CONTENT_LAYER: stubLayer, warn: () => {} },
+        ['validateGlobalContentManifest', 'getPackFromGlobalManifest'],
+      );
+      const mkPack = (over) => ({
+        id: 'story_david_goliath', storyId: 'david_goliath', version: '1.0.0', type: 'story',
+        access: 'premium', title: 'Davi e Golias', bytes: 18532477,
+        baseUrl: 'https://x.example.dev/packs/david_goliath/v1/', manifestPath: 'manifest.json',
+        manifestSha256: 'a'.repeat(64), requiredAppVersion: '1.0.0',
+        mediaKinds: ['cover', 'scene', 'coloring', 'audio'], status: 'not_downloaded', ...over,
+      });
+      const base = (packs) => ({ manifestVersion: 1, generatedAt: '2026-07-04T00:00:00Z', minAppVersion: '1.0.0', packs });
+      const opt = { appVersion: '1.0.0' };
+
+      R.valid    = validateGlobalContentManifest(base([mkPack()]), opt);
+      R.dupId    = validateGlobalContentManifest(base([mkPack(), mkPack({ storyId: 'jesus_children' })]), opt);
+      R.dupStory = validateGlobalContentManifest(base([mkPack(), mkPack({ id: 'story_two' })]), opt);
+      R.unknown  = validateGlobalContentManifest(base([mkPack({ id: 'story_x', storyId: 'unknown_story' })]), opt);
+      R.noSlash  = validateGlobalContentManifest(base([mkPack({ baseUrl: 'https://x.example.dev/packs/david_goliath/v1' })]), opt);
+      R.httpProd = validateGlobalContentManifest(base([mkPack({ baseUrl: 'http://x.example.dev/packs/david_goliath/v1/' })]), opt);
+      R.badKind  = validateGlobalContentManifest(base([mkPack({ mediaKinds: ['scene', 'video'] })]), opt);
+      R.needUpd  = validateGlobalContentManifest(base([mkPack({ requiredAppVersion: '2.0.0' })]), opt);
+      R.found    = getPackFromGlobalManifest(R.valid.data, 'david_goliath');
+      R.notFound = getPackFromGlobalManifest(R.valid.data, 'nope');
+    } catch (e) { R = { err: String((e && e.message) || e) }; }
+
+    check('F2.4d.2: manifesto válido (david_goliath) passa',
+      !!R.valid && R.valid.ok === true,
+      R.err || (R.valid && R.valid.errors.join(' | ')) || 'sem resultado');
+
+    check('F2.4d.2: duplicidade de id falha',
+      !!R.dupId && R.dupId.ok === false && R.dupId.errors.some((e) => /id: duplicado/.test(e)),
+      R.err || 'duplicidade de id não rejeitada');
+
+    check('F2.4d.2: duplicidade de storyId falha',
+      !!R.dupStory && R.dupStory.ok === false && R.dupStory.errors.some((e) => /storyId: duplicado/.test(e)),
+      R.err || 'duplicidade de storyId não rejeitada');
+
+    check('F2.4d.2: storyId desconhecido falha',
+      !!R.unknown && R.unknown.ok === false && R.unknown.errors.some((e) => /desconhecido/.test(e)),
+      R.err || 'storyId desconhecido não rejeitado');
+
+    check('F2.4d.2: baseUrl sem barra final falha',
+      !!R.noSlash && R.noSlash.ok === false && R.noSlash.errors.some((e) => /terminar com/.test(e)),
+      R.err || 'baseUrl sem barra não rejeitado');
+
+    check('F2.4d.2: baseUrl http em produção falha (https exigido)',
+      !!R.httpProd && R.httpProd.ok === false && R.httpProd.errors.some((e) => /https/.test(e)),
+      R.err || 'http em produção não rejeitado');
+
+    check('F2.4d.2: mediaKind inválido falha',
+      !!R.badKind && R.badKind.ok === false && R.badKind.errors.some((e) => /mediaKinds/.test(e)),
+      R.err || 'mediaKind inválido não rejeitado');
+
+    check('F2.4d.2: requiredAppVersion > appVersion → requires_app_update sem quebrar schema',
+      !!R.needUpd && R.needUpd.ok === true
+        && R.needUpd.data.packs[0].requiresAppUpdate === true
+        && R.needUpd.warnings.some((w) => /requires_app_update/.test(w)),
+      R.err || 'requiredAppVersion alto deveria gerar requiresAppUpdate/warning sem erro de schema');
+
+    check('F2.4d.2: getPackFromGlobalManifest encontra david_goliath (e retorna erro p/ ausente)',
+      !!R.found && R.found.ok === true && R.found.data && R.found.data.storyId === 'david_goliath'
+        && !!R.notFound && R.notFound.ok === false,
+      R.err || 'getPackFromGlobalManifest não resolveu corretamente');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
