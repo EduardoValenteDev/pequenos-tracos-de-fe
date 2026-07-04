@@ -4928,6 +4928,38 @@ check(
   'StoryBookScreen handleSelectMode does not reset the timeline to the start',
 );
 
+// ── LIVRINHO_AUTOPLAY_FIX_1 — fim de áudio resiliente à trava de transição ────
+check(
+  'LIVRINHO_AUTOPLAY_FIX_1: fim de áudio durante a trava NÃO é descartado (marca pendingAutoAdvanceRef e retorna)',
+  /function onSceneAudioComplete\(\)\s*\{[\s\S]*?if \(lockRef\.current\)\s*\{[\s\S]*?pendingAutoAdvanceRef\.current = true;[\s\S]*?return;[\s\S]*?\}[\s\S]*?advanceToNextScene\(\);/.test(livroSrc),
+  'onSceneAudioComplete deve marcar pendingAutoAdvanceRef quando lockRef ativo e retornar (não descartar o avanço)',
+);
+
+check(
+  'LIVRINHO_AUTOPLAY_FIX_1: efeito consome o avanço pendente ao liberar a trava, UMA vez (sem duplo avanço)',
+  /if \(isTransitioning\) return undefined;[\s\S]*?if \(!pendingAutoAdvanceRef\.current\) return undefined;[\s\S]*?pendingAutoAdvanceRef\.current = false;[\s\S]*?advanceToNextScene\(\);[\s\S]*?\}, \[isTransitioning\]\);/.test(livroSrc),
+  'StoryBookScreen sem efeito [isTransitioning] que consome pendingAutoAdvanceRef (false antes de avançar → sem duplo avanço)',
+);
+
+check(
+  'LIVRINHO_AUTOPLAY_FIX_1: timer de cena SEM áudio preservado (fallback intacto)',
+  /if \(hasSceneAudio\(story\.id, slide\.sceneKey\)\) return undefined;[\s\S]*?setTimeout\(\(\) => \{ advanceToNextScene\(\); \}, AUTOPLAY_MS\)/.test(livroSrc),
+  'Timer de auto-avanço para cenas sem áudio foi alterado/removido',
+);
+
+check(
+  'LIVRINHO_AUTOPLAY_FIX_1: advanceToNextScene mantém a guarda anti-duplo (lockRef) e o avanço manual intacto',
+  /function advanceToNextScene\(\)\s*\{\s*if \(lockRef\.current\) return;/.test(livroSrc) &&
+  /function handleNextScene\(\)\s*\{\s*advanceToNextScene\(\);/.test(livroSrc),
+  'advanceToNextScene perdeu a guarda lockRef, ou o avanço manual (handleNextScene) foi alterado',
+);
+
+check(
+  'LIVRINHO_AUTOPLAY_FIX_1: escopo não toca R2/packs/download/storage (StoryBookScreen limpo)',
+  !/packDownloadService|packSandboxDevService|downloadDavidGoliath|packStorageService|@ptf_packs_v1/.test(livroSrc),
+  'StoryBookScreen passou a referenciar serviços de pack/R2/download/storage — fora do escopo do fix',
+);
+
 // ── Sprint Histórias 4.2.2 — final do Livrinho com retorno aos modos ─────────
 check(
   'Tela final tem os 3 botões (Ver de novo / Escolher outro modo / Voltar para Aventuras)',

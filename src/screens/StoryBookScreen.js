@@ -444,6 +444,10 @@ export default function StoryBookScreen({ route, navigation }) {
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const lockRef = useRef(false);   // trava de toques rápidos (anti avanço duplo)
   const lockTimerRef = useRef(null);
+  // LIVRINHO_AUTOPLAY_FIX_1: um fim de áudio que chega DURANTE a trava de transição não
+  // pode ser descartado (senão a cena não avança). Marca-se aqui e o avanço é reagendado
+  // quando a trava libera (efeito abaixo). SÓ o fim de áudio usa este caminho.
+  const pendingAutoAdvanceRef = useRef(false);
 
   // Timeline derivada (memoizada) — só recalcula ao trocar história, artes ou modo.
   const timeline = useMemo(
@@ -521,6 +525,7 @@ export default function StoryBookScreen({ route, navigation }) {
   // Limpeza de timers ao desmontar.
   useEffect(() => () => {
     if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+    pendingAutoAdvanceRef.current = false; // LIVRINHO_AUTOPLAY_FIX_1: sem avanço órfão
   }, []);
 
   // Auto-avanço por TIMER quando a cena do slide não tem áudio. Um único timer
@@ -533,6 +538,19 @@ export default function StoryBookScreen({ route, navigation }) {
     const timer = setTimeout(() => { advanceToNextScene(); }, AUTOPLAY_MS);
     return () => clearTimeout(timer);
   }, [screenState, currentSlideIndex, isPaused, viewMode]);
+
+  // LIVRINHO_AUTOPLAY_FIX_1 — consome um avanço por FIM DE ÁUDIO que chegou durante a
+  // trava de transição. Quando a trava libera (isTransitioning → false), avança UMA vez.
+  // Efeito (não o setTimeout da trava) para não capturar um currentSlideIndex obsoleto:
+  // ao mudar isTransitioning, o componente re-renderiza e este efeito roda já com a cena
+  // atual. O toque manual durante a trava continua sendo ignorado (não usa este caminho).
+  useEffect(() => {
+    if (isTransitioning) return undefined;              // ainda travado: espera liberar
+    if (!pendingAutoAdvanceRef.current) return undefined;
+    pendingAutoAdvanceRef.current = false;              // consome UMA vez (sem duplo avanço)
+    advanceToNextScene();
+    return undefined;
+  }, [isTransitioning]);
 
   // Entrada mágica: toca o botão → transição curta → leitura.
   function handleEnterLivrinho() {
@@ -585,11 +603,19 @@ export default function StoryBookScreen({ route, navigation }) {
 
   function onSceneAudioComplete() {
     if (__DEV__) console.log('[StoryBook] finished scene', currentSlideIndex + 1);
+    // LIVRINHO_AUTOPLAY_FIX_1: se a trava de transição estiver ativa, NÃO descarta o
+    // fim de áudio (era a causa da cena travar) — marca pendente e o efeito reagenda o
+    // avanço quando a trava liberar. Marca uma vez e retorna (sem duplo avanço).
+    if (lockRef.current) {
+      pendingAutoAdvanceRef.current = true;
+      return;
+    }
     advanceToNextScene();
   }
 
   function handlePrevScene() {
     if (lockRef.current) return;
+    pendingAutoAdvanceRef.current = false; // LIVRINHO_AUTOPLAY_FIX_1: voltar cancela avanço pendente
     if (currentSlideIndex === 0) {
       setScreenState('intro');
     } else {
@@ -607,6 +633,7 @@ export default function StoryBookScreen({ route, navigation }) {
   function handleReplay() {
     if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
     lockRef.current = false;
+    pendingAutoAdvanceRef.current = false; // LIVRINHO_AUTOPLAY_FIX_1
     setIsTransitioning(false);
     fadeAnim.setValue(1);
     setCurrentSlideIndex(0);
@@ -619,6 +646,7 @@ export default function StoryBookScreen({ route, navigation }) {
   function handleChooseMode() {
     if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
     lockRef.current = false;
+    pendingAutoAdvanceRef.current = false; // LIVRINHO_AUTOPLAY_FIX_1
     setIsTransitioning(false);
     fadeAnim.setValue(1);
     setCurrentSlideIndex(0);
@@ -639,6 +667,7 @@ export default function StoryBookScreen({ route, navigation }) {
     setIsPaused(false);
     setAutoplayActive(false);
     fadeAnim.setValue(1);
+    pendingAutoAdvanceRef.current = false; // LIVRINHO_AUTOPLAY_FIX_1
   }
 
   const handleImageAreaLayout = useCallback((e) => {
