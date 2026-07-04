@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, View, TouchableOpacity, useWindowDimensions } from 'react-native';
@@ -34,6 +34,9 @@ import StoryBookScreen from '../screens/StoryBookScreen';
 import CultinhoEmCasaScreen from '../screens/CultinhoEmCasaScreen';
 import BeniChestScreen from '../screens/BeniChestScreen';
 import CreatorModeBanner from '../components/dev/CreatorModeBanner';
+// F2.2b — ferramenta dev-only de pack sandbox (rota + FAB só sob o DUPLO GATE).
+import { isPackSandboxDevEnabled } from '../services/packSandboxDevService';
+import PackSandboxDevScreen from '../screens/PackSandboxDevScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -249,8 +252,11 @@ function MainTabs({ navigation }) {
 }
 
 export default function AppNavigator() {
+  // F2.2b: acesso à ferramenta dev de pack sandbox — SÓ sob o duplo gate.
+  const navigationRef = useNavigationContainerRef();
+  const devPacksEnabled = isPackSandboxDevEnabled();
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <CreatorModeBanner />
       <Stack.Navigator
         initialRouteName="Splash"
@@ -402,7 +408,25 @@ export default function AppNavigator() {
           component={TrophiesScreen}
           options={{ headerShown: false }}
         />
+        {/* F2.2b — rota da ferramenta dev de pack sandbox: registrada SÓ sob o duplo gate. */}
+        {devPacksEnabled && (
+          <Stack.Screen
+            name="PackSandboxDev"
+            component={PackSandboxDevScreen}
+            options={{ headerShown: false }}
+          />
+        )}
       </Stack.Navigator>
+      {/* F2.2b — FAB discreto para abrir a ferramenta dev: renderizado SÓ sob o duplo gate. */}
+      {devPacksEnabled && (
+        <TouchableOpacity
+          onPress={() => navigationRef.navigate('PackSandboxDev')}
+          accessibilityLabel="Dev: Pack Sandbox"
+          style={{ position: 'absolute', right: 10, bottom: 120, backgroundColor: '#1E1E28', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, opacity: 0.85, zIndex: 9999 }}
+        >
+          <Text style={{ color: '#FFF', fontSize: 12, fontFamily: 'Nunito' }}>🛠 packs</Text>
+        </TouchableOpacity>
+      )}
     </NavigationContainer>
   );
 }

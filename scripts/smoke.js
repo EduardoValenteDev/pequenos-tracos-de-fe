@@ -12270,13 +12270,14 @@ check(
       })(),
       'estado default do pack incorreto (starter deve ser included; remote sem índice, not_downloaded)');
 
-    check('F2.1d (sem consumo visual): nenhuma tela importa usePacks/PacksContext/contentResolver/pack*',
+    check('F2.1d (sem consumo visual): nenhuma tela de usuário importa usePacks/PacksContext/contentResolver/pack*',
       (() => {
         const dir = path.join(root, 'src/screens');
-        const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js'));
+        // Exceção sancionada: a ferramenta DEV-ONLY (PackSandboxDevScreen, sob DUPLO GATE) pode usar usePacks.
+        const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js') && f !== 'PackSandboxDevScreen.js');
         return !files.some((f) => /usePacks|PacksContext|contentResolver|packStorageService|packDownloadService|packIntegrityService/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
       })(),
-      'uma tela já consome o runtime/PacksContext (F2.1d é sem consumo visual)');
+      'uma tela de usuário passou a consumir o runtime/PacksContext direto');
 
     check('F2.1d (manifesto intacto): contentManifest segue 2 starter / 18 remote',
       (() => {
@@ -12339,13 +12340,14 @@ check(
       mediaLoaders.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
       'um loader de mídia passou a usar file:///uri (proibido no F2.1e)');
 
-    check('F2.1e (sem consumo visual): nenhuma tela importa contentResolver/resolveStoryMedia/usePacks',
+    check('F2.1e (sem consumo visual): nenhuma tela de usuário importa contentResolver/resolveStoryMedia/usePacks',
       (() => {
         const dir = path.join(root, 'src/screens');
-        return !fs.readdirSync(dir).filter((f) => f.endsWith('.js'))
+        // Exceção sancionada: PackSandboxDevScreen (DEV-ONLY, sob DUPLO GATE) pode usar usePacks.
+        return !fs.readdirSync(dir).filter((f) => f.endsWith('.js') && f !== 'PackSandboxDevScreen.js')
           .some((f) => /contentResolver|resolveStoryMedia|usePacks|packStorageService/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
       })(),
-      'uma tela passou a consumir o resolver (F2.1e é sem consumo visual)');
+      'uma tela de usuário passou a consumir o resolver direto');
 
     check('F2.1e (estado default): starter→included, remote→not_downloaded (índice vazio)',
       (() => {
@@ -12662,6 +12664,69 @@ check(
       /useResolvedSceneImage\(story\.id, cena\?\.id\)/.test(narrI) &&
       mediaLoadersI.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
       'História ilustrada/child art/NarrationScreen/loaders divergiram');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // F2.2b — Ferramenta DEV-ONLY (seed/reset/diagnóstico) de pack sandbox no device,
+  // sob DUPLO GATE (__DEV__ && EXPO_PUBLIC_ENABLE_PACK_SANDBOX==='true'). Sem R2/download
+  // real/compras. Cria file:// reais copiando as 10 cenas do bundle → documentDirectory.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── F2.2b: ferramenta dev de pack sandbox (duplo gate) ──');
+  {
+    const svc = readSrc('src/services/packSandboxDevService.js');
+    const scr = readSrc('src/screens/PackSandboxDevScreen.js');
+    const nav = readSrc('src/navigation/AppNavigator.js');
+    const narrB = readSrc('src/screens/NarrationScreen.js');
+    const livroB = readSrc('src/screens/StoryBookScreen.js');
+    const mediaLoadersB = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+    const fnBody = (name) => svc.match(new RegExp(`export async function ${name}[\\s\\S]*?\\n\\}`))?.[0] || '';
+
+    check('F2.2b (duplo gate): isPackSandboxDevEnabled = __DEV__ && EXPO_PUBLIC_ENABLE_PACK_SANDBOX === "true"',
+      /export function isPackSandboxDevEnabled\(\)/.test(svc) &&
+      /__DEV__\s*&&\s*process\.env\.EXPO_PUBLIC_ENABLE_PACK_SANDBOX\s*===\s*'true'/.test(svc),
+      'gate não é __DEV__ && EXPO_PUBLIC_ENABLE_PACK_SANDBOX==="true"');
+
+    check('F2.2b (seed/reset gated): abortam se o gate estiver falso',
+      /if \(!isPackSandboxDevEnabled\(\)\) return/.test(fnBody('seedDavidGoliathPackSandbox')) &&
+      /if \(!isPackSandboxDevEnabled\(\)\) return/.test(fnBody('resetDavidGoliathPackSandbox')),
+      'seed/reset não abortam com o gate desligado');
+
+    check('F2.2b (rota + FAB só sob gate): AppNavigator registra PackSandboxDev e o FAB apenas com devPacksEnabled',
+      /const devPacksEnabled = isPackSandboxDevEnabled\(\)/.test(nav) &&
+      /devPacksEnabled && \(\s*<Stack\.Screen\s+name="PackSandboxDev"/.test(nav) &&
+      /devPacksEnabled && \(\s*<TouchableOpacity/.test(nav),
+      'AppNavigator registra a rota/FAB dev fora do duplo gate');
+
+    check('F2.2b (nomes das 10 cenas batem com o resolver): scenes/<id>_scene_NN.webp',
+      /scenes\/\$\{STORY_ID\}_scene_\$\{pad2\(n\)\}\.webp/.test(svc),
+      'convenção de path do seed não bate com o resolver');
+
+    check('F2.2b (seed só marca ready após 10/10): setPackEntry ready só depois do allOk',
+      (() => {
+        const body = fnBody('seedDavidGoliathPackSandbox');
+        const allOkIdx = body.indexOf('const allOk');
+        const readyIdx = body.search(/setPackEntry\([\s\S]*?status:\s*PACK_STATUS\.READY/);
+        return allOkIdx >= 0 && readyIdx > allOkIdx && /if \(!allOk\)[\s\S]*?return/.test(body);
+      })(),
+      'seed marca ready sem validar 10/10');
+
+    check('F2.2b (reset limpa índice + diretório): clearPackEntry + deleteAsync(localDir)',
+      /clearPackEntry\(STORY_ID\)/.test(svc) && /deleteAsync\(localDir,\s*\{\s*idempotent:\s*true\s*\}\)/.test(svc),
+      'reset não limpa índice e/ou diretório');
+
+    check('F2.2b (diagnóstico usa o resolver): resolveStoryScene + resolveStoryMedia',
+      /resolveStoryScene\(STORY_ID, n, entry\)/.test(svc) && /resolveStoryMedia\(STORY_ID,/.test(svc),
+      'diagnóstico não usa resolveStoryScene/resolveStoryMedia');
+
+    check('F2.2b (sem R2/download real/compras/entitlement — uso real, não prosa)',
+      !/FileSystem\.downloadAsync|createDownloadResumable|fetch\(|Purchases\.|react-native-purchases|isPremiumUser\(|getStoryAccessStatus\(|contentAccessService|https:\/\//.test(svc + scr),
+      'ferramenta dev toca R2/download real/compras/entitlement');
+
+    check('F2.2b (telas conectadas + mídias intactas): NarrationScreen/StoryBookScreen sem mudança; loaders locais',
+      /useResolvedSceneImage\(story\.id, cena\?\.id\)/.test(narrB) &&
+      /resolveSceneImageForStory\(story\.id, cena\.id, scenePackEntry\)/.test(livroB) &&
+      mediaLoadersB.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
+      'telas conectadas/loaders divergiram');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
