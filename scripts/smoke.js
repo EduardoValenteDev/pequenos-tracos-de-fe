@@ -12998,6 +12998,65 @@ check(
       'introduziu dependência nova');
   }
 
+  // ── F2.4d.4: tela dev conectada ao downloader genérico (dev only, duplo gate) ──
+  console.log('\n── F2.4d.4: PackSandboxDevScreen × downloader genérico ──');
+  {
+    const pssSrc = readSrc('src/screens/PackSandboxDevScreen.js');
+    const pssCode = a1StripComments(pssSrc);
+
+    check('F2.4d.4: tela importa o downloader genérico',
+      /downloadStoryPackScenesFromGlobalManifest/.test(pssCode) && /packDownloadService/.test(pssCode),
+      'PackSandboxDevScreen não importa downloadStoryPackScenesFromGlobalManifest');
+
+    check('F2.4d.4: preserva o fluxo legado (downloadDavidGoliathPackSandbox ainda usado)',
+      /downloadDavidGoliathPackSandbox/.test(pssCode),
+      'a tela removeu o fluxo legado de download por baseUrl');
+
+    check('F2.4d.4: expõe campo/constante para globalManifestUrl',
+      /GLOBAL_MANIFEST_URL/.test(pssCode) && /globalUrl/.test(pssCode),
+      'PackSandboxDevScreen não expõe campo/estado para a URL do manifesto global');
+
+    check('F2.4d.4: permite storyId (padrão david_goliath)',
+      /DEFAULT_STORY_ID\s*=\s*'david_goliath'/.test(pssCode) && /storyId/.test(pssCode),
+      'PackSandboxDevScreen não define storyId (padrão david_goliath)');
+
+    check('F2.4d.4: nova ação chama downloadStoryPackScenesFromGlobalManifest com storyId+globalManifestUrl',
+      /downloadStoryPackScenesFromGlobalManifest\(\{[\s\S]*?storyId[\s\S]*?globalManifestUrl:\s*globalUrl[\s\S]*?\}\)/.test(pssCode),
+      'a ação genérica não chama a função com storyId + globalManifestUrl');
+
+    check('F2.4d.4: duplo gate preservado (isPackSandboxDevEnabled + guard !enabled)',
+      /isPackSandboxDevEnabled\(\)/.test(pssCode) && /if \(!enabled\)/.test(pssCode),
+      'a tela perdeu o duplo gate / o guard de habilitação');
+
+    check('F2.4d.4: não conecta usuário final (rota só sob devPacksEnabled no AppNavigator)',
+      (() => {
+        const nav = a1StripComments(readSrc('src/navigation/AppNavigator.js'));
+        return /devPacksEnabled/.test(nav) && /PackSandboxDev/.test(nav)
+          && /isPackSandboxDevEnabled/.test(nav);
+      })(),
+      'a rota PackSandboxDev deixou de ser gated por devPacksEnabled/isPackSandboxDevEnabled');
+
+    check('F2.4d.4: não altera contentResolver (tela não o importa)',
+      !/contentResolver|resolveStory/.test(pssCode),
+      'PackSandboxDevScreen passou a referenciar contentResolver');
+
+    check('F2.4d.4: não altera entitlement/RevenueCat (tela)',
+      !/isPremiumUser|Purchases|RevenueCat|entitlement/.test(pssCode),
+      'PackSandboxDevScreen referencia entitlement/RevenueCat');
+
+    check('F2.4d.4: função legada downloadDavidGoliathPackSandbox intacta no serviço',
+      readSrc('src/services/packSandboxDevService.js').includes('export async function downloadDavidGoliathPackSandbox'),
+      'downloadDavidGoliathPackSandbox foi removida/alterada no serviço');
+
+    check('F2.4d.4: a tela não baixa cover/coloring/audio (só cenas via as ações existentes)',
+      !/cover\.webp|coloring\/|audio\/|\.mp3/.test(pssCode),
+      'PackSandboxDevScreen referencia download de cover/coloring/audio');
+
+    check('F2.4d.4: sem dependência nova na tela (sem crypto/zip/axios)',
+      !/expo-crypto|jszip|\bunzip\b|axios/.test(pssSrc),
+      'PackSandboxDevScreen introduziu dependência nova');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

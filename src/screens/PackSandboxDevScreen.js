@@ -18,9 +18,18 @@ import {
   diagnoseDavidGoliathPackSandbox,
   downloadDavidGoliathPackSandbox,
 } from '../services/packSandboxDevService';
+// F2.4d.4: downloader GENÉRICO por storyId via manifesto global (só cenas).
+import { downloadStoryPackScenesFromGlobalManifest } from '../services/packDownloadService';
 
 // baseUrl padrão (dev): pode vir de env; editável na tela. Nunca em produção (duplo gate).
 const DEFAULT_BASE_URL = process.env.EXPO_PUBLIC_PACK_SANDBOX_BASE_URL || 'http://192.168.0.10:8787/';
+// F2.4d.4 (dev only, duplo gate): fluxo genérico via manifesto global. URL/storyId editáveis.
+// NÃO hardcodamos o domínio de storage remoto aqui (preserva o invariante de "sem storage
+// remoto hardcoded" na ferramenta dev): o padrão é um placeholder ou o env; a URL real do
+// manifesto global é colada manualmente na validação (igual ao campo LAN legado).
+const DEFAULT_GLOBAL_MANIFEST_URL = process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL
+  || 'https://SEU-DOMINIO/content-manifest.json';
+const DEFAULT_STORY_ID = 'david_goliath';
 
 export default function PackSandboxDevScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -30,6 +39,10 @@ export default function PackSandboxDevScreen({ navigation }) {
   const [msg, setMsg] = useState('');
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL);
   const [dl, setDl] = useState(null); // progresso: { status, downloadedBytes, totalBytes }
+  // F2.4d.4 — fluxo genérico via manifesto global.
+  const [globalUrl, setGlobalUrl] = useState(DEFAULT_GLOBAL_MANIFEST_URL);
+  const [storyId, setStoryId] = useState(DEFAULT_STORY_ID);
+  const [dlG, setDlG] = useState(null); // progresso do fluxo genérico
   const enabled = isPackSandboxDevEnabled();
 
   const refresh = useCallback(async () => {
@@ -64,6 +77,23 @@ export default function PackSandboxDevScreen({ navigation }) {
     setMsg(r.ok ? `Download OK (${r.totalBytes} bytes)` : `Download falhou: ${r.reason}`);
     await refresh();
   }, [baseUrl, refreshPacks, refresh]);
+
+  // F2.4d.4 — download GENÉRICO por storyId via manifesto global (só cenas).
+  const onDownloadGeneric = useCallback(async () => {
+    setBusy(true); setMsg('Baixando (genérico via manifesto global)…');
+    setDlG({ status: 'downloading', downloadedBytes: 0, totalBytes: 0 });
+    const r = await downloadStoryPackScenesFromGlobalManifest({
+      storyId,
+      globalManifestUrl: globalUrl,
+      appVersion: '1.0.0',
+      onProgress: (p) => setDlG(p),
+    });
+    await refreshPacks();
+    setMsg(r.ok
+      ? `Download genérico OK (${r.sceneCount} cenas, ${r.totalBytes} bytes)`
+      : `Download genérico falhou: ${r.reason}`);
+    await refresh();
+  }, [storyId, globalUrl, refreshPacks, refresh]);
 
   if (!enabled) {
     return (
@@ -112,6 +142,40 @@ export default function PackSandboxDevScreen({ navigation }) {
         )}
       </View>
 
+      {/* F2.4d.4 — Download GENÉRICO por storyId via MANIFESTO GLOBAL (dev, duplo gate). Só cenas. */}
+      <View style={styles.card}>
+        <Text style={styles.k}>Download genérico via manifesto global (dev)</Text>
+        <TextInput
+          style={styles.input}
+          value={globalUrl}
+          onChangeText={setGlobalUrl}
+          placeholder="https://…/content-manifest.json"
+          placeholderTextColor="#6A6A78"
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!busy}
+        />
+        <TextInput
+          style={styles.input}
+          value={storyId}
+          onChangeText={setStoryId}
+          placeholder="storyId (ex.: david_goliath)"
+          placeholderTextColor="#6A6A78"
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!busy}
+        />
+        <TouchableOpacity style={[styles.btn, styles.btnGeneric]} onPress={onDownloadGeneric} disabled={busy}>
+          <Text style={styles.btnTxt}>Download genérico ({storyId}) — só cenas</Text>
+        </TouchableOpacity>
+        {dlG && (
+          <Text style={styles.msg}>
+            {dlG.status} · {dlG.downloadedBytes}/{dlG.totalBytes} bytes
+            {dlG.totalBytes > 0 ? `  (${Math.round((dlG.downloadedBytes / dlG.totalBytes) * 100)}%)` : ''}
+          </Text>
+        )}
+      </View>
+
       {busy && <ActivityIndicator style={{ marginVertical: 8 }} color="#F5B301" />}
       {!!msg && <Text style={styles.msg}>{msg}</Text>}
 
@@ -155,6 +219,7 @@ const styles = StyleSheet.create({
   btn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   btnSeed: { backgroundColor: '#2E7D32' }, btnReset: { backgroundColor: '#8E2E2E' }, btnRefresh: { backgroundColor: '#2E4A8E' },
   btnDownload: { backgroundColor: '#6A4AAE', marginTop: 8 },
+  btnGeneric: { backgroundColor: '#2E7D6A', marginTop: 8 },
   input: { backgroundColor: '#0F0F16', color: '#FFF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: 'Nunito', fontSize: 12, marginTop: 6, marginBottom: 6, borderWidth: 1, borderColor: '#2A2A38' },
   btnTxt: { fontFamily: 'Nunito', fontWeight: '700', color: '#FFF', fontSize: 13 },
   btnGhost: { alignSelf: 'center', marginTop: 20 }, btnGhostTxt: { fontFamily: 'Nunito', color: '#8FB7FF', fontSize: 13 },
