@@ -15,7 +15,7 @@ import SafeScreenHeader from '../components/layout/SafeScreenHeader';
 import MagicBookEntrance from '../components/story/MagicBookEntrance';
 import { getColoringImage } from '../assets/coloringImages';
 import { getSavedDrawing, hasMeaningfulPaint } from '../services/drawingStorage';
-import { getOfficialSceneIllustration, preloadStorySceneIllustrations } from '../services/storyImageService';
+import { preloadStorySceneIllustrations } from '../services/storyImageService';
 import { resolveSceneImageForStory, useSandboxScenePackEntry } from '../hooks/useResolvedStoryMedia';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
 import { markStoryBookOpened } from '../services/postStoryStorage';
@@ -768,8 +768,11 @@ export default function StoryBookScreen({ route, navigation }) {
     const totalScenes = story.cenas.length;
     const childArtCount = story.cenas.filter(c => hasMeaningfulPaint(drawings[c.id])).length;
     // Prévia do modo "História ilustrada" — ilustração oficial da 1ª cena (ou capa).
+    // F2.1i: via resolveSceneImageForStory (gated a david_goliath; fallback local IDÊNTICO
+    // com índice vazio; file:// só com pack ready no sandbox). Reusa scenePackEntry (valor)
+    // e retorna sempre um source de <Image> (require OU { uri }), nunca o envelope.
     const firstCena = story.cenas[0];
-    const officialPreview = firstCena ? getOfficialSceneIllustration(story.id, firstCena.id) : null;
+    const officialPreview = firstCena ? resolveSceneImageForStory(story.id, firstCena.id, scenePackEntry) : null;
     return (
       <View style={styles.wrapper}>
         {renderHeader('📖', 'Livrinho da Fé', story.titulo)}

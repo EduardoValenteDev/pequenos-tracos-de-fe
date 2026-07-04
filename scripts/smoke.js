@@ -4795,7 +4795,9 @@ const livroSrc = readSrc('src/screens/StoryBookScreen.js');
 
 check(
   'Livrinho usa prioridade arte da criança > ilustração oficial > fallback',
-  livroSrc.includes('getOfficialSceneIllustration') &&
+  // F2.1i: a imagem oficial (páginas E prévia da intro) é resolvida via
+  // resolveSceneImageForStory (gated a david_goliath). Mesma prioridade + 3 selos.
+  livroSrc.includes('resolveSceneImageForStory') &&
   livroSrc.includes("seal: 'Sua arte'") &&
   livroSrc.includes("seal: 'Cena ilustrada'") &&
   livroSrc.includes("seal: 'Cena especial'"),
@@ -12603,10 +12605,10 @@ check(
       })(),
       'resolveSceneImageForStory: gating incorreto (david require/file; outra história deve ficar em require)');
 
-    check('F2.1h v2 (intro preview no caminho antigo + "Meu livrinho colorido" prioriza arte da criança)',
-      /officialPreview = firstCena \? getOfficialSceneIllustration\(story\.id, firstCena\.id\)/.test(livroV2) &&
+    check('F2.1i (intro preview via resolveSceneImageForStory + scenePackEntry) + "Meu livrinho colorido" prioriza arte da criança',
+      /officialPreview = firstCena \? resolveSceneImageForStory\(story\.id, firstCena\.id, scenePackEntry\)/.test(livroV2) &&
       /if \(hasMeaningfulPaint\(raw\)\)[\s\S]*?makeChildArtVisual/.test(livroV2),
-      'intro preview mudou de caminho ou "Meu livrinho colorido" perdeu prioridade da arte da criança');
+      'intro preview não usa resolveSceneImageForStory(...,scenePackEntry) ou "Meu livrinho colorido" perdeu prioridade da arte da criança');
 
     check('F2.1h v2 (NarrationScreen intacta): segue via useResolvedSceneImage(story.id, cena?.id)',
       /useResolvedSceneImage\(story\.id, cena\?\.id\)/.test(narrV2),
@@ -12615,6 +12617,51 @@ check(
     check('F2.1h v2 (áudio/colorir/capas 100% locais; loaders require-based sem file://)',
       mediaLoadersV2.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
       'áudio/colorir/capas deixaram de ser 100% locais');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // F2.1i — Prévia da intro do Livrinho conectada ao resolver (sandbox david_goliath).
+  // Reusa scenePackEntry (valor) + resolveSceneImageForStory. Agora AMBOS os pontos de
+  // imagem oficial (páginas + prévia) passam pelo resolver; getOfficialSceneIllustration
+  // sai da tela (fica encapsulado no hook). Índice vazio → require. Child art intacta.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── F2.1i: prévia da intro do Livrinho (sandbox david_goliath) ──');
+  {
+    const hookI = readSrc('src/hooks/useResolvedStoryMedia.js');
+    const livroI = readSrc('src/screens/StoryBookScreen.js');
+    const narrI = readSrc('src/screens/NarrationScreen.js');
+    const mediaLoadersI = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+
+    check('F2.1i (prévia da intro conectada; getOfficialSceneIllustration fora da tela; 2 pontos oficiais; sem runtime direto)',
+      /officialPreview = firstCena \? resolveSceneImageForStory\(story\.id, firstCena\.id, scenePackEntry\)/.test(livroI) &&
+      !/getOfficialSceneIllustration/.test(livroI) &&
+      (livroI.match(/resolveSceneImageForStory\(/g) || []).length === 2 &&
+      !/useSceneImageResolver/.test(livroI) &&
+      !/from\s*'\.\.\/context\/PacksContext'|from\s*'\.\.\/services\/contentResolver'|from\s*'\.\.\/services\/packStorageService'/.test(livroI),
+      'prévia da intro não conectada, getOfficialSceneIllustration ainda na tela, ou runtime importado direto');
+
+    check('F2.1i (gating por eval): david null→require; david ready→file://; outra história ready→require',
+      (() => {
+        try {
+          const code = hookI.replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '');
+          const stubResolve = (id, n, entry) => ({ source: (entry && entry.status === 'ready') ? { uri: `${entry.localDir}scenes/${id}_scene_${String(n).padStart(2, '0')}.webp` } : { __require: true } });
+          const stubOfficial = () => ({ __require: true });
+          const header = 'const usePacks=()=>({getPackEntry:()=>null});const resolveStoryScene=__rss;const getOfficialSceneIllustration=__gos;';
+          const M = new Function('__rss', '__gos', header + code + ';return { resolveSceneImageForStory };')(stubResolve, stubOfficial);
+          const a = M.resolveSceneImageForStory('david_goliath', 1, null);
+          const b = M.resolveSceneImageForStory('david_goliath', 1, { status: 'ready', localDir: 'file:///c/' });
+          const c = M.resolveSceneImageForStory('mary_says_yes', 1, { status: 'ready', localDir: 'file:///c/' });
+          return a.__require === true && typeof b.uri === 'string' && /^file:\/\//.test(b.uri) && c.__require === true && !c.uri;
+        } catch { return false; }
+      })(),
+      'resolveSceneImageForStory: gating incorreto (david require/file; outra história deve ficar em require)');
+
+    check('F2.1i (superfícies preservadas): História ilustrada (:official), child art prioritária, NarrationScreen intacta, loaders locais',
+      /mode === 'official'[\s\S]*?resolveSceneImageForStory\(story\.id, cena\.id, scenePackEntry\)/.test(livroI) &&
+      /if \(hasMeaningfulPaint\(raw\)\)[\s\S]*?makeChildArtVisual/.test(livroI) &&
+      /useResolvedSceneImage\(story\.id, cena\?\.id\)/.test(narrI) &&
+      mediaLoadersI.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
+      'História ilustrada/child art/NarrationScreen/loaders divergiram');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
