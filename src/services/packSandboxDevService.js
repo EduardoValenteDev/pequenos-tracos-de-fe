@@ -22,7 +22,7 @@ import {
   PACK_STATUS,
 } from './packStorageService';
 import { validatePackManifest } from './packIntegrityService';
-import { resolveStoryScene, resolveStoryMedia, RESOLVE_SOURCE_TYPE } from './contentResolver';
+import { resolveStoryMedia, RESOLVE_SOURCE_TYPE } from './contentResolver';
 import { warn } from '../utils/logger';
 
 const STORY_ID = 'david_goliath';
@@ -30,8 +30,11 @@ const VERSION = '1.0.0';
 const SCENE_COUNT = 10;
 
 const pad2 = (n) => String(n).padStart(2, '0');
-/** Caminho relativo dentro do pack — DEVE bater com o contentResolver. */
+/** Caminhos relativos dentro do pack — DEVEM bater com o contentResolver. */
 const sceneRelPath = (n) => `scenes/${STORY_ID}_scene_${pad2(n)}.webp`;
+const coverRelPath = () => 'cover.webp';
+const coloringRelPath = (n) => `coloring/scene_${pad2(n)}.png`;
+const audioRelPath = (n) => `audio/${STORY_ID}_scene_${pad2(n)}.mp3`;
 
 /** DUPLO GATE. Sem ele, nada nesta ferramenta executa. */
 export function isPackSandboxDevEnabled() {
@@ -209,18 +212,20 @@ export async function downloadDavidGoliathPackSandbox(baseUrl, onProgress) {
 }
 
 /**
- * Diagnóstico read-only: status/localDir/version/arquivos + decisão do resolver por cena
- * (sourceType require|file, uri) e usesPack. Usa resolveStoryScene/resolveStoryMedia.
+ * Diagnóstico read-only POR KIND (F2.4e.1): para cover/scene/coloring/audio informa
+ * existência, bytes, decisão do resolver (sourceType require|file) e uri file:// quando
+ * ready — sem depender do consumo visual das telas finais. Usa resolveStoryMedia.
  * @returns {Promise<object>}
  */
 export async function diagnoseDavidGoliathPackSandbox() {
   if (!isPackSandboxDevEnabled()) return { enabled: false };
   const entry = await getPackEntry(STORY_ID);
   const localDir = entry?.localDir || getPackLocalDir(STORY_ID, VERSION);
+  const media = resolveStoryMedia(STORY_ID, { packEntry: entry, sceneCount: SCENE_COUNT });
 
-  const scenes = [];
-  for (let n = 1; n <= SCENE_COUNT; n += 1) {
-    const expectedUri = `${localDir}${sceneRelPath(n)}`;
+  // Inspeciona um item: disco (existe/bytes) + decisão do resolver (require|file, uri).
+  const inspect = async (rel, resolved) => {
+    const expectedUri = `${localDir}${rel}`;
     let exists = false;
     let size = 0;
     try {
@@ -228,20 +233,40 @@ export async function diagnoseDavidGoliathPackSandbox() {
       exists = !!info.exists;
       size = info.size ?? 0;
     } catch { /* mantém exists=false */ }
-    const r = resolveStoryScene(STORY_ID, n, entry); // decisão do resolver (require|file)
-    scenes.push({
-      n,
+    return {
       expectedUri,
       exists,
       size,
-      sourceType: r.sourceType,
-      uri: (r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source && r.source.uri) ? r.source.uri : null,
-    });
+      sourceType: resolved.sourceType,
+      uri: (resolved.sourceType === RESOLVE_SOURCE_TYPE.FILE && resolved.source && resolved.source.uri) ? resolved.source.uri : null,
+    };
+  };
+
+  const cover = { ...(await inspect(coverRelPath(), media.cover)) };
+  const scenes = [];
+  const coloring = [];
+  const audio = [];
+  for (let n = 1; n <= SCENE_COUNT; n += 1) {
+    scenes.push({ n, ...(await inspect(sceneRelPath(n), media.scenes[n - 1])) });
+    coloring.push({ n, ...(await inspect(coloringRelPath(n), media.coloring[n - 1])) });
+    audio.push({ n, ...(await inspect(audioRelPath(n), media.audio[n - 1])) });
   }
 
-  const media = resolveStoryMedia(STORY_ID, { packEntry: entry, sceneCount: SCENE_COUNT });
-  const filesFound = scenes.filter((s) => s.exists).length;
-  const totalBytes = scenes.reduce((acc, s) => acc + (s.exists ? s.size : 0), 0);
+  const summarize = (items) => ({
+    found: items.filter((i) => i.exists).length,
+    total: items.length,
+    file: items.filter((i) => i.sourceType === RESOLVE_SOURCE_TYPE.FILE).length,
+    bytes: items.reduce((acc, i) => acc + (i.exists ? i.size : 0), 0),
+  });
+
+  const byKind = {
+    cover: summarize([cover]),
+    scene: summarize(scenes),
+    coloring: summarize(coloring),
+    audio: summarize(audio),
+  };
+  const filesFound = byKind.cover.found + byKind.scene.found + byKind.coloring.found + byKind.audio.found;
+  const totalBytes = byKind.cover.bytes + byKind.scene.bytes + byKind.coloring.bytes + byKind.audio.bytes;
 
   return {
     enabled: true,
@@ -252,6 +277,10 @@ export async function diagnoseDavidGoliathPackSandbox() {
     filesFound,
     totalBytes,
     usesPack: media.usesPack,
+    byKind,
+    cover,
     scenes,
+    coloring,
+    audio,
   };
 }

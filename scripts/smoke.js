@@ -12753,9 +12753,10 @@ check(
       /clearPackEntry\(STORY_ID\)/.test(svc) && /deleteAsync\(localDir,\s*\{\s*idempotent:\s*true\s*\}\)/.test(svc),
       'reset não limpa índice e/ou diretório');
 
-    check('F2.2b (diagnóstico usa o resolver): resolveStoryScene + resolveStoryMedia',
-      /resolveStoryScene\(STORY_ID, n, entry\)/.test(svc) && /resolveStoryMedia\(STORY_ID,/.test(svc),
-      'diagnóstico não usa resolveStoryScene/resolveStoryMedia');
+    check('F2.2b→F2.4e.1 (diagnóstico usa o resolver): resolveStoryMedia p/ os 4 kinds',
+      /resolveStoryMedia\(STORY_ID,/.test(svc) && /byKind/.test(svc)
+        && /media\.cover/.test(svc) && /media\.coloring/.test(svc) && /media\.audio/.test(svc),
+      'diagnóstico não usa resolveStoryMedia para cover/scene/coloring/audio (byKind)');
 
     check('F2.2b→F2.3b (sem R2/compras/entitlement; download LAN permitido, sem storage remoto hardcoded)',
       // F2.3b: download real por FileSystem (LAN) é PERMITIDO. Proibido: RevenueCat/
@@ -12956,13 +12957,14 @@ check(
         && !/`v\$\{/.test(genBody) && !/\bmajor\b/.test(genBody) && !/version\.split/.test(genBody),
       'deve usar baseUrl + manifestPath; não construir o segmento de versão (ex.: `v${major}`) a partir de version');
 
-    check('F2.4d.3: baixa somente kind scene',
-      /f\.kind === 'scene'/.test(genBody),
-      'filtro de cenas (kind scene) ausente');
+    check('F2.4d.3→F2.4e.1: download por kind (default scenes-only preservado)',
+      /requestedKinds\s*=\s*\['scene'\]/.test(genBody) && /kinds\.includes\(f\.kind\)/.test(genBody),
+      'default scenes-only ou filtro kind-genérico (kinds.includes) ausente');
 
-    check('F2.4d.3: não baixa cover/coloring/audio na função genérica',
-      genBody.length > 0 && !/cover\.webp|coloring\/|audio\/|\.mp3/.test(genBody),
-      'a função genérica referencia cover/coloring/audio — só cenas neste bloco');
+    check('F2.4d.3→F2.4e.1: kinds restritos a cover/scene/coloring/audio, sem paths de mídia hardcoded',
+      /KNOWN_KINDS = \['cover', 'scene', 'coloring', 'audio'\]/.test(pdsCode)
+        && genBody.length > 0 && !/cover\.webp|coloring\/scene_|audio\/\w+_scene_|\.mp3/.test(genBody),
+      'kinds não whitelisted ou paths de mídia hardcodados na função genérica');
 
     check('F2.4d.3: não marca ready antes de validar (errors → failWith antes do move e do ready)',
       (() => {
@@ -13055,6 +13057,80 @@ check(
     check('F2.4d.4: sem dependência nova na tela (sem crypto/zip/axios)',
       !/expo-crypto|jszip|\bunzip\b|axios/.test(pssSrc),
       'PackSandboxDevScreen introduziu dependência nova');
+  }
+
+  // ── F2.4e.1: download + diagnose de cover/scene/coloring/audio (dev-only, sem crypto) ──
+  console.log('\n── F2.4e.1: mídia por kind (download + diagnose) ──');
+  {
+    const pds = a1StripComments(readSrc('src/services/packDownloadService.js'));
+    const dlIdx = pds.indexOf('async function downloadStoryPackScenesFromGlobalManifest');
+    const dlBody = dlIdx >= 0 ? pds.slice(dlIdx) : '';
+    const pss = a1StripComments(readSrc('src/services/packSandboxDevService.js'));
+    const scr = a1StripComments(readSrc('src/screens/PackSandboxDevScreen.js'));
+    const pkg = readSrc('package.json');
+    const cryptoRe = /@noble\/hashes|expo-crypto|react-native-quick-crypto/;
+
+    check('F2.4e.1: downloader aceita requestedKinds',
+      /requestedKinds/.test(dlBody),
+      'downloadStoryPackScenesFromGlobalManifest não aceita requestedKinds');
+
+    check('F2.4e.1: default scenes-only preservado (compat F2.4d)',
+      /requestedKinds\s*=\s*\['scene'\]/.test(dlBody),
+      'default de requestedKinds deixou de ser scenes-only');
+
+    check('F2.4e.1: cover/scene/coloring/audio solicitáveis (KNOWN_KINDS + camada dev)',
+      /KNOWN_KINDS = \['cover', 'scene', 'coloring', 'audio'\]/.test(pds)
+        && /ALL_KINDS = \['cover', 'scene', 'coloring', 'audio'\]/.test(scr)
+        && /requestedKinds:\s*ALL_KINDS/.test(scr),
+      'kinds cover/scene/coloring/audio não são solicitáveis pela camada dev');
+
+    check('F2.4e.1: validação de contagem por kind (expectedPerKind vs doneByKind)',
+      /expectedPerKind/.test(dlBody) && /doneByKind/.test(dlBody)
+        && /!==\s*expectedPerKind\[k\]/.test(dlBody),
+      'não valida a contagem esperada por kind');
+
+    check('F2.4e.1: diagnose por kind (byKind cover/scene/coloring/audio)',
+      /byKind/.test(pss) && /coloringRelPath/.test(pss) && /audioRelPath/.test(pss) && /coverRelPath/.test(pss),
+      'diagnose não cobre os 4 kinds (byKind + rel paths)');
+
+    check('F2.4e.1: duplo dev gate preservado (tela + diagnose gated)',
+      /isPackSandboxDevEnabled\(\)/.test(scr) && /if \(!enabled\)/.test(scr)
+        && /diagnoseDavidGoliathPackSandbox\(\)\s*\{\s*if \(!isPackSandboxDevEnabled\(\)\)/.test(pss),
+      'duplo gate (tela/diagnose) não preservado');
+
+    check('F2.4e.1: sem RevenueCat nos arquivos tocados',
+      !/Purchases\.|react-native-purchases|RevenueCat/.test(pds + pss + scr),
+      'RevenueCat referenciado');
+
+    check('F2.4e.1: sem entitlement nos arquivos tocados',
+      !/isPremiumUser|entitlement/.test(pds + pss + scr),
+      'entitlement referenciado');
+
+    check('F2.4e.1: package.json NÃO alterado para crypto (sem @noble/expo-crypto/quick-crypto)',
+      !cryptoRe.test(pkg),
+      'package.json passou a declarar dependência de crypto');
+
+    check('F2.4e.1: sem dependência de crypto nos arquivos tocados (sha256 real fica p/ F2.4e.2)',
+      !cryptoRe.test(pds + pss + scr),
+      'algum arquivo importou @noble/hashes/expo-crypto/react-native-quick-crypto');
+
+    check('F2.4e.1: download escreve só no documentDirectory (não toca assets locais)',
+      !/assets\//.test(dlBody) && /getPackLocalDir|getPackTempDir/.test(pds),
+      'a função genérica referencia assets/ (deveria escrever só em documentDirectory)');
+
+    check('F2.4e.1: SEM consumo user-facing de coloring/cover/audio (telas finais intactas)',
+      (() => {
+        const surfaces = ['src/screens/NarrationScreen.js', 'src/screens/StoryBookScreen.js',
+          'src/screens/ColoringScreen.js', 'src/services/audioService.js'];
+        return surfaces.every((p) => !/resolveStoryColoring|resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc(p))))
+          && /getColoringImage/.test(readSrc('src/screens/ColoringScreen.js'));
+      })(),
+      'uma tela final passou a consumir coloring/cover/audio via resolver — pertence a F2.4e.3+');
+
+    check('F2.4e.1: compat F2.4d (botão só-cenas + função legada intacta)',
+      /onDownloadGeneric/.test(scr) && /downloadDavidGoliathPackSandbox/.test(scr)
+        && readSrc('src/services/packSandboxDevService.js').includes('export async function downloadDavidGoliathPackSandbox'),
+      'compat F2.4d quebrada (só-cenas ou legado)');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

@@ -75,30 +75,40 @@ export async function markPackReady(storyId, version, localDir, manifest) {
   });
 }
 
+/** Kinds de mídia conhecidos de um pack (bate com o manifesto por-pack e o resolver). */
+const KNOWN_KINDS = ['cover', 'scene', 'coloring', 'audio'];
+
 /**
- * Download GENÉRICO por storyId das CENAS de um pack (F2.4d.3), descobrindo
+ * Download GENÉRICO por storyId de um pack (F2.4d.3 → F2.4e.1), descobrindo
  * baseUrl/version/manifestPath pelo MANIFESTO GLOBAL (content-manifest.json) — sem
  * hardcode de história. Substitui o downloader hardcoded de david_goliath como única
  * opção (a função legada `downloadDavidGoliathPackSandbox` segue intacta em paralelo).
  *
- * SÓ CENAS (kind 'scene') neste bloco — cover/colorir/áudio continuam vindo do bundle
+ * `requestedKinds` seleciona os tipos a baixar. DEFAULT `['scene']` — preserva o
+ * comportamento do F2.4d (só cenas). F2.4e.1: a camada DEV pode pedir
+ * `['cover','scene','coloring','audio']`. As mídias NÃO baixadas seguem do bundle
  * (fallback require via contentResolver). Dev-only quando acionado pela tela dev; SEM
- * entitlement/RevenueCat/oferta a usuário final.
+ * entitlement/RevenueCat/oferta a usuário final; SEM sha256 real (só bytes+existência).
  *
  * Segurança (fluxo já provado): `.tmp` limpo → baixa manifesto do pack → valida →
- * baixa cenas → valida bytes → move atômico (`.tmp` → localDir) → `setPackEntry ready`.
- * NUNCA marca ready parcial; qualquer falha limpa o `.tmp`, grava status `failed` e
- * mantém o fallback require.
+ * baixa os arquivos dos kinds pedidos → valida bytes + contagem por kind → move atômico
+ * (`.tmp` → localDir) → `setPackEntry ready`. NUNCA marca ready parcial; qualquer falha
+ * (inclusive contagem por kind) limpa o `.tmp`, grava status `failed` e mantém o require.
  *
  * @param {{ storyId:string, globalManifestUrl:string, appVersion?:string,
- *   onProgress?:(p:{status:string, downloadedBytes:number, totalBytes:number})=>void }} params
+ *   requestedKinds?:string[],
+ *   onProgress?:(p:{status:string, kind?:string, downloadedBytes:number, totalBytes:number})=>void }} params
  * @returns {Promise<{ ok:boolean, reason?:string, storyId?:string, version?:string,
- *   sceneCount?:number, totalBytes?:number, requiresAppUpdate?:boolean, entry?:object, errors?:string[] }>}
+ *   kinds?:string[], counts?:object, sceneCount?:number, totalBytes?:number,
+ *   requiresAppUpdate?:boolean, entry?:object, errors?:string[] }>}
  */
 export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
-  const { storyId, globalManifestUrl, appVersion = '1.0.0', onProgress } = params || {};
+  const { storyId, globalManifestUrl, appVersion = '1.0.0', onProgress, requestedKinds = ['scene'] } = params || {};
   if (!storyId || typeof storyId !== 'string') return { ok: false, reason: 'storyId inválido' };
   if (!globalManifestUrl || typeof globalManifestUrl !== 'string') return { ok: false, reason: 'globalManifestUrl inválido' };
+  // Kinds solicitados: só os conhecidos; default scenes-only (compat F2.4d).
+  const kinds = Array.isArray(requestedKinds) ? requestedKinds.filter((k) => KNOWN_KINDS.includes(k)) : [];
+  if (kinds.length === 0) return { ok: false, reason: 'requestedKinds inválido (use cover/scene/coloring/audio)' };
 
   const report = (status, extra) => {
     try { if (onProgress) onProgress({ status, downloadedBytes: 0, totalBytes: 0, ...extra }); } catch { /* noop */ }
@@ -129,9 +139,9 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
   };
 
   try {
-    // retry LIMPO: .tmp sempre recomeça vazio
+    // retry LIMPO: .tmp sempre recomeça vazio. Subdiretórios são criados por arquivo.
     await FileSystem.deleteAsync(tempDir, { idempotent: true });
-    await FileSystem.makeDirectoryAsync(`${tempDir}scenes/`, { intermediates: true });
+    await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
     report(PACK_STATUS.DOWNLOADING, {});
 
     // 4) URL do manifesto por-pack = baseUrl + manifestPath. baseUrl é AUTORITATIVO para o
@@ -158,32 +168,50 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
       return failWith(`version do pack (${manifest?.version}) != version global (${version})`);
     }
 
-    // 9) SÓ CENAS (kind 'scene', path seguro). cover/colorir/áudio NÃO são baixados aqui.
-    const scenes = (manifest.files || []).filter((f) => f && f.kind === 'scene'
+    // 9) seleciona os arquivos dos KINDS solicitados (path seguro). Default: só 'scene'
+    //    (compat F2.4d). F2.4e.1: cover/scene/coloring/audio quando a camada dev pedir.
+    const wanted = (manifest.files || []).filter((f) => f && kinds.includes(f.kind)
       && typeof f.path === 'string' && !f.path.startsWith('/') && !f.path.includes('..'));
-    if (scenes.length === 0) return failWith('manifesto do pack sem cenas (kind scene)');
-    const totalBytes = scenes.reduce((a, f) => a + (Number(f.bytes) || 0), 0);
+    if (wanted.length === 0) return failWith(`manifesto do pack sem arquivos dos kinds solicitados (${kinds.join(',')})`);
 
-    // 10) baixa cada cena → .tmp (progresso cumulativo)
+    // Quantidade esperada por kind, declarada no manifesto. Cada kind pedido precisa existir.
+    const expectedPerKind = {};
+    for (const f of (manifest.files || [])) {
+      if (f && kinds.includes(f.kind)) expectedPerKind[f.kind] = (expectedPerKind[f.kind] || 0) + 1;
+    }
+    const missingKind = kinds.find((k) => !expectedPerKind[k]);
+    if (missingKind) return failWith(`kind solicitado ausente no manifesto: ${missingKind}`);
+
+    const totalBytes = wanted.reduce((a, f) => a + (Number(f.bytes) || 0), 0);
+
+    // 10) baixa cada arquivo → .tmp (garante o subdiretório; progresso por kind + cumulativo)
     let completed = 0;
-    for (const f of scenes) {
+    const doneByKind = {};
+    for (const f of wanted) {
       const to = `${tempDir}${f.path}`;
+      const parent = to.slice(0, to.lastIndexOf('/'));
+      await FileSystem.makeDirectoryAsync(parent, { intermediates: true }); // idempotente (mkdir -p)
       const dl = FileSystem.createDownloadResumable(`${base}${f.path}`, to, {}, (p) => {
-        report(PACK_STATUS.DOWNLOADING, { downloadedBytes: completed + (p.totalBytesWritten || 0), totalBytes });
+        report(PACK_STATUS.DOWNLOADING, { kind: f.kind, downloadedBytes: completed + (p.totalBytesWritten || 0), totalBytes });
       });
       await dl.downloadAsync();
       const info = await FileSystem.getInfoAsync(to, { size: true });
       completed += info.size || 0;
-      report(PACK_STATUS.DOWNLOADING, { downloadedBytes: completed, totalBytes });
+      doneByKind[f.kind] = (doneByKind[f.kind] || 0) + 1;
+      report(PACK_STATUS.DOWNLOADING, { kind: f.kind, downloadedBytes: completed, totalBytes });
     }
 
-    // 11) valida existência + bytes (sha256 real pendente de dep de crypto)
+    // 11) valida existência + bytes de TODOS os solicitados + CONTAGEM por kind
+    //     (sha256 real pendente de dep de crypto → F2.4e.2). Nunca ready parcial.
     report(PACK_STATUS.VERIFYING, { downloadedBytes: completed, totalBytes });
     const errors = [];
-    for (const f of scenes) {
+    for (const f of wanted) {
       const info = await FileSystem.getInfoAsync(`${tempDir}${f.path}`, { size: true });
       if (!info.exists) errors.push(`${f.path}: ausente`);
       else if (typeof f.bytes === 'number' && info.size !== f.bytes) errors.push(`${f.path}: bytes ${info.size} != ${f.bytes}`);
+    }
+    for (const k of kinds) {
+      if ((doneByKind[k] || 0) !== expectedPerKind[k]) errors.push(`kind ${k}: ${doneByKind[k] || 0}/${expectedPerKind[k]} baixados`);
     }
     if (errors.length) return failWith(`validação falhou (${errors.length})`, errors);
 
@@ -191,7 +219,7 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
     await FileSystem.deleteAsync(localDir, { idempotent: true });
     await FileSystem.moveAsync({ from: tempDir, to: localDir });
 
-    // 13) ready (nunca parcial): só chega aqui com N/N cenas válidas e move concluído
+    // 13) ready (nunca parcial): só chega aqui com todos os kinds pedidos válidos + move
     const entry = await setPackEntry(storyId, {
       version,
       status: PACK_STATUS.READY,
@@ -203,8 +231,8 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
     });
     report(PACK_STATUS.READY, { downloadedBytes: totalBytes, totalBytes });
 
-    // 14) resultado estruturado
-    return { ok: true, storyId, version, sceneCount: scenes.length, totalBytes, entry };
+    // 14) resultado estruturado (counts por kind; sceneCount mantido p/ compat)
+    return { ok: true, storyId, version, kinds, counts: doneByKind, sceneCount: doneByKind.scene || 0, totalBytes, entry };
   } catch (e) {
     warn('downloadStoryPackScenesFromGlobalManifest:', e);
     return failWith(String((e && e.message) || e));

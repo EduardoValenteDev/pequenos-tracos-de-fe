@@ -30,6 +30,9 @@ const DEFAULT_BASE_URL = process.env.EXPO_PUBLIC_PACK_SANDBOX_BASE_URL || 'http:
 const DEFAULT_GLOBAL_MANIFEST_URL = process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL
   || 'https://SEU-DOMINIO/content-manifest.json';
 const DEFAULT_STORY_ID = 'david_goliath';
+// F2.4e.1: kinds baixáveis pela camada dev; resumo por kind do retorno do downloader.
+const ALL_KINDS = ['cover', 'scene', 'coloring', 'audio'];
+const kindSummary = (c) => (c ? `cover ${c.cover || 0} · cenas ${c.scene || 0} · colorir ${c.coloring || 0} · áudio ${c.audio || 0}` : '');
 
 export default function PackSandboxDevScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -78,9 +81,9 @@ export default function PackSandboxDevScreen({ navigation }) {
     await refresh();
   }, [baseUrl, refreshPacks, refresh]);
 
-  // F2.4d.4 — download GENÉRICO por storyId via manifesto global (só cenas).
+  // F2.4d.4 — download GENÉRICO por storyId via manifesto global (SÓ CENAS; default).
   const onDownloadGeneric = useCallback(async () => {
-    setBusy(true); setMsg('Baixando (genérico via manifesto global)…');
+    setBusy(true); setMsg('Baixando (genérico — só cenas)…');
     setDlG({ status: 'downloading', downloadedBytes: 0, totalBytes: 0 });
     const r = await downloadStoryPackScenesFromGlobalManifest({
       storyId,
@@ -90,8 +93,26 @@ export default function PackSandboxDevScreen({ navigation }) {
     });
     await refreshPacks();
     setMsg(r.ok
-      ? `Download genérico OK (${r.sceneCount} cenas, ${r.totalBytes} bytes)`
-      : `Download genérico falhou: ${r.reason}`);
+      ? `Download OK (${kindSummary(r.counts)} · ${r.totalBytes} bytes)`
+      : `Download falhou: ${r.reason}`);
+    await refresh();
+  }, [storyId, globalUrl, refreshPacks, refresh]);
+
+  // F2.4e.1 — download de TODAS as mídias (cover+scene+coloring+audio) via manifesto global.
+  const onDownloadAllMedia = useCallback(async () => {
+    setBusy(true); setMsg('Baixando TODAS as mídias (via manifesto global)…');
+    setDlG({ status: 'downloading', downloadedBytes: 0, totalBytes: 0 });
+    const r = await downloadStoryPackScenesFromGlobalManifest({
+      storyId,
+      globalManifestUrl: globalUrl,
+      appVersion: '1.0.0',
+      requestedKinds: ALL_KINDS,
+      onProgress: (p) => setDlG(p),
+    });
+    await refreshPacks();
+    setMsg(r.ok
+      ? `Download TODAS OK (${kindSummary(r.counts)} · ${r.totalBytes} bytes)`
+      : `Download TODAS falhou: ${r.reason}`);
     await refresh();
   }, [storyId, globalUrl, refreshPacks, refresh]);
 
@@ -168,9 +189,12 @@ export default function PackSandboxDevScreen({ navigation }) {
         <TouchableOpacity style={[styles.btn, styles.btnGeneric]} onPress={onDownloadGeneric} disabled={busy}>
           <Text style={styles.btnTxt}>Download genérico ({storyId}) — só cenas</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, styles.btnGenericAll]} onPress={onDownloadAllMedia} disabled={busy}>
+          <Text style={styles.btnTxt}>Download TODAS as mídias ({storyId}) — cover+cenas+colorir+áudio</Text>
+        </TouchableOpacity>
         {dlG && (
           <Text style={styles.msg}>
-            {dlG.status} · {dlG.downloadedBytes}/{dlG.totalBytes} bytes
+            {dlG.status}{dlG.kind ? ` · ${dlG.kind}` : ''} · {dlG.downloadedBytes}/{dlG.totalBytes} bytes
             {dlG.totalBytes > 0 ? `  (${Math.round((dlG.downloadedBytes / dlG.totalBytes) * 100)}%)` : ''}
           </Text>
         )}
@@ -183,7 +207,16 @@ export default function PackSandboxDevScreen({ navigation }) {
         <View style={styles.card}>
           <Text style={styles.k}>status: <Text style={styles.v}>{diag.status}</Text></Text>
           <Text style={styles.k}>version: <Text style={styles.v}>{String(diag.version)}</Text></Text>
-          <Text style={styles.k}>arquivos: <Text style={styles.v}>{diag.filesFound}/10</Text></Text>
+          {diag.byKind && ['cover', 'scene', 'coloring', 'audio'].map((k) => {
+            const g = diag.byKind[k] || { found: 0, total: 0, file: 0, bytes: 0 };
+            const okAll = g.total > 0 && g.found === g.total;
+            return (
+              <Text key={k} style={styles.k}>
+                {k}: <Text style={[styles.v, okAll ? styles.ok : styles.no]}>{g.found}/{g.total}</Text>
+                {'  '}· file:{g.file} · {g.bytes}B
+              </Text>
+            );
+          })}
           <Text style={styles.k}>totalBytes: <Text style={styles.v}>{diag.totalBytes}</Text></Text>
           <Text style={styles.k}>usesPack: <Text style={[styles.v, diag.usesPack ? styles.ok : styles.no]}>{String(diag.usesPack)}</Text></Text>
           <Text style={styles.k}>localDir:</Text>
@@ -220,6 +253,7 @@ const styles = StyleSheet.create({
   btnSeed: { backgroundColor: '#2E7D32' }, btnReset: { backgroundColor: '#8E2E2E' }, btnRefresh: { backgroundColor: '#2E4A8E' },
   btnDownload: { backgroundColor: '#6A4AAE', marginTop: 8 },
   btnGeneric: { backgroundColor: '#2E7D6A', marginTop: 8 },
+  btnGenericAll: { backgroundColor: '#3A6EA5', marginTop: 8 },
   input: { backgroundColor: '#0F0F16', color: '#FFF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: 'Nunito', fontSize: 12, marginTop: 6, marginBottom: 6, borderWidth: 1, borderColor: '#2A2A38' },
   btnTxt: { fontFamily: 'Nunito', fontWeight: '700', color: '#FFF', fontSize: 13 },
   btnGhost: { alignSelf: 'center', marginTop: 20 }, btnGhostTxt: { fontFamily: 'Nunito', color: '#8FB7FF', fontSize: 13 },
