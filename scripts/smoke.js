@@ -12718,15 +12718,87 @@ check(
       /resolveStoryScene\(STORY_ID, n, entry\)/.test(svc) && /resolveStoryMedia\(STORY_ID,/.test(svc),
       'diagnóstico não usa resolveStoryScene/resolveStoryMedia');
 
-    check('F2.2b (sem R2/download real/compras/entitlement — uso real, não prosa)',
-      !/FileSystem\.downloadAsync|createDownloadResumable|fetch\(|Purchases\.|react-native-purchases|isPremiumUser\(|getStoryAccessStatus\(|contentAccessService|https:\/\//.test(svc + scr),
-      'ferramenta dev toca R2/download real/compras/entitlement');
+    check('F2.2b→F2.3b (sem R2/compras/entitlement; download LAN permitido, sem storage remoto hardcoded)',
+      // F2.3b: download real por FileSystem (LAN) é PERMITIDO. Proibido: RevenueCat/
+      // entitlement/acesso e domínios de storage remoto hardcoded (R2/S3).
+      !/Purchases\.|react-native-purchases|isPremiumUser\(|getStoryAccessStatus\(|contentAccessService|cloudflarestorage|\.r2\.dev|amazonaws/.test(svc + scr),
+      'ferramenta dev tocou compras/entitlement ou storage remoto hardcoded (R2/S3)');
 
     check('F2.2b (telas conectadas + mídias intactas): NarrationScreen/StoryBookScreen sem mudança; loaders locais',
       /useResolvedSceneImage\(story\.id, cena\?\.id\)/.test(narrB) &&
       /resolveSceneImageForStory\(story\.id, cena\.id, scenePackEntry\)/.test(livroB) &&
       mediaLoadersB.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
       'telas conectadas/loaders divergiram');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // F2.3b — Download REAL sandbox (LAN, dev-only, só as 10 cenas de david_goliath).
+  // Executa o DOWNLOAD_FLOW: manifest → .tmp → validar bytes → mover atômico → ready.
+  // Sem R2/RevenueCat/entitlement/zip. Duplo gate herdado.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── F2.3b: download real sandbox (LAN, 10 cenas, dev-only) ──');
+  {
+    const svc3 = readSrc('src/services/packSandboxDevService.js');
+    const scr3 = readSrc('src/screens/PackSandboxDevScreen.js');
+    const dlBody = svc3.match(/export async function downloadDavidGoliathPackSandbox[\s\S]*?\n\}/)?.[0] || '';
+
+    check('F2.3b/d (download existe, gated, baseUrl trim + http(s) validado)',
+      /export async function downloadDavidGoliathPackSandbox\(baseUrl/.test(svc3) &&
+      /if \(!isPackSandboxDevEnabled\(\)\) return/.test(dlBody) &&
+      /\.trim\(\)/.test(dlBody) && // F2.3d: trim de segurança do input
+      /\^https\?:/.test(dlBody),
+      'download ausente / não-gated / baseUrl não trimado/validado');
+
+    check('F2.3b (fluxo real): downloadAsync(manifest) + createDownloadResumable(cenas)',
+      /FileSystem\.downloadAsync\([\s\S]*?manifest\.json/.test(dlBody) &&
+      /createDownloadResumable\([\s\S]*?base[\s\S]*?f\.path/.test(dlBody),
+      'não usa downloadAsync(manifest) + createDownloadResumable(cenas)');
+
+    check('F2.3b (só 10 cenas): filtra kind===scene + sceneRe; rejeita se != 10',
+      /f\.kind === 'scene' && sceneRe\.test\(f\.path\)/.test(dlBody) &&
+      /scenes\.length !== SCENE_COUNT/.test(dlBody),
+      'não restringe o subset às 10 cenas');
+
+    check('F2.3b (valida manifesto + storyId + version)',
+      /validatePackManifest\(manifest/.test(dlBody) &&
+      /metadata\?\.storyId !== STORY_ID/.test(dlBody) &&
+      /manifest\?\.version !== VERSION/.test(dlBody),
+      'não valida manifesto/storyId/version');
+
+    check('F2.3b (valida bytes + NÃO marca ready parcial): READY só após validação e move atômico',
+      (() => {
+        const okChk = /info\.size !== f\.bytes/.test(dlBody);
+        const guard = /if \(errors\.length\) return failWith/.test(dlBody);
+        const errIdx = dlBody.indexOf('if (errors.length) return failWith');
+        const moveIdx = dlBody.search(/moveAsync\(\{ from: tempDir, to: localDir \}\)/);
+        // setPackEntry READY final (não o do failWith, que é FAILED): status READY logo após version.
+        const readyIdx = dlBody.search(/setPackEntry\(STORY_ID, \{\s*version: VERSION,\s*status: PACK_STATUS\.READY/);
+        return okChk && guard && errIdx >= 0 && moveIdx > errIdx && readyIdx > moveIdx;
+      })(),
+      'marca ready sem validar bytes ou permite ready parcial');
+
+    check('F2.3b (.tmp → mover atômico → ready + retry limpo)',
+      /await FileSystem\.deleteAsync\(tempDir, \{ idempotent: true \}\)/.test(dlBody) &&
+      /deleteAsync\(localDir, \{ idempotent: true \}\)/.test(dlBody) &&
+      /moveAsync\(\{ from: tempDir, to: localDir \}\)/.test(dlBody),
+      'fluxo .tmp/move/ready/retry incorreto');
+
+    check('F2.3b (falha → failed; reset limpa localDir + tempDir)',
+      /status: PACK_STATUS\.FAILED/.test(dlBody) &&
+      /deleteAsync\(localDir, \{ idempotent: true \}\)/.test(svc3) &&
+      /deleteAsync\(tempDir, \{ idempotent: true \}\)/.test(svc3),
+      'falha/reset não limpam corretamente');
+
+    check('F2.3b (tela: baseUrl + Download + progresso; duplo gate herdado)',
+      /downloadDavidGoliathPackSandbox\(baseUrl,/.test(scr3) &&
+      /<TextInput/.test(scr3) &&
+      /Download david_goliath/.test(scr3) &&
+      /downloadedBytes\}\/\{dl\.totalBytes/.test(scr3),
+      'tela sem seção de download / progresso');
+
+    check('F2.3b (sem zip/unzip/nova dep)',
+      !/jszip|zip-archive|\bunzip\b|require\('zlib'\)/.test(svc3 + scr3),
+      'introduziu zip/unzip');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

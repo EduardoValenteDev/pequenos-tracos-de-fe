@@ -15,11 +15,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { getSceneIllustrationAsset } from '../data/storySceneIllustrations';
 import {
   getPackLocalDir,
+  getPackTempDir,
   setPackEntry,
   clearPackEntry,
   getPackEntry,
   PACK_STATUS,
 } from './packStorageService';
+import { validatePackManifest } from './packIntegrityService';
 import { resolveStoryScene, resolveStoryMedia, RESOLVE_SOURCE_TYPE } from './contentResolver';
 import { warn } from '../utils/logger';
 
@@ -96,11 +98,113 @@ export async function resetDavidGoliathPackSandbox() {
   try {
     await clearPackEntry(STORY_ID);
     const localDir = getPackLocalDir(STORY_ID, VERSION);
+    const tempDir = getPackTempDir(STORY_ID, VERSION);
     if (localDir) await FileSystem.deleteAsync(localDir, { idempotent: true });
+    if (tempDir) await FileSystem.deleteAsync(tempDir, { idempotent: true }); // F2.3b: limpa .tmp também
     return { ok: true };
   } catch (e) {
     warn('resetDavidGoliathPackSandbox:', e);
     return { ok: false, reason: String(e?.message || e) };
+  }
+}
+
+const sceneRe = /^scenes\/david_goliath_scene_\d{2}\.webp$/;
+
+/**
+ * DOWNLOAD REAL sandbox (F2.3b) — baixa as 10 CENAS de david_goliath de uma origem HTTP
+ * local (LAN), executando o DOWNLOAD_FLOW: manifest → .tmp → validar bytes/existência →
+ * mover atômico → ready. SÓ cenas (sem áudio/colorir/capa). SEM R2, SEM dep nova.
+ *
+ * Segurança: retry começa com `.tmp` LIMPO; NUNCA marca ready parcial; falha → mantém
+ * fallback (require) + status `failed`; storyId/version incompatíveis → rejeita.
+ *
+ * @param {string} baseUrl  ex.: 'http://192.168.x.x:8787/'
+ * @param {(p:{status:string, downloadedBytes:number, totalBytes:number})=>void} [onProgress]
+ * @returns {Promise<{ok:boolean, reason?:string, totalBytes?:number, entry?:object, errors?:string[]}>}
+ */
+export async function downloadDavidGoliathPackSandbox(baseUrl, onProgress) {
+  if (!isPackSandboxDevEnabled()) return { ok: false, reason: 'gate desligado' };
+  // F2.3d: trim de segurança (espaços acidentais no início/fim do input) antes de validar.
+  const trimmed = (typeof baseUrl === 'string' ? baseUrl : '').trim();
+  if (!trimmed || !/^https?:\/\//.test(trimmed)) return { ok: false, reason: 'baseUrl inválido (use http://IP:porta/)' };
+  const base = trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
+  const localDir = getPackLocalDir(STORY_ID, VERSION);
+  const tempDir = getPackTempDir(STORY_ID, VERSION);
+  if (!localDir || !tempDir) return { ok: false, reason: 'documentDirectory indisponível' };
+  const report = (status, extra) => { try { if (onProgress) onProgress({ status, downloadedBytes: 0, totalBytes: 0, ...extra }); } catch { /* noop */ } };
+  const failWith = async (reason, errors) => {
+    try { await FileSystem.deleteAsync(tempDir, { idempotent: true }); } catch { /* noop */ }
+    try { await setPackEntry(STORY_ID, { version: VERSION, status: PACK_STATUS.FAILED, errorMessage: reason }); } catch { /* noop */ }
+    report(PACK_STATUS.FAILED, {});
+    return { ok: false, reason, errors };
+  };
+
+  try {
+    // retry LIMPO: .tmp sempre recomeça vazio (nunca reaproveita parcial)
+    await FileSystem.deleteAsync(tempDir, { idempotent: true });
+    await FileSystem.makeDirectoryAsync(`${tempDir}scenes/`, { intermediates: true });
+    report(PACK_STATUS.DOWNLOADING, {});
+
+    // 1) manifest remoto
+    const mTo = `${tempDir}manifest.json`;
+    await FileSystem.downloadAsync(`${base}manifest.json`, mTo);
+    let manifest;
+    try { manifest = JSON.parse(await FileSystem.readAsStringAsync(mTo)); }
+    catch { return failWith('manifest.json inválido (JSON)'); }
+
+    // 2) validar manifesto + storyId + version
+    const mv = validatePackManifest(manifest, { appVersion: '1.0.0' });
+    if (!mv.ok) return failWith(`manifesto inválido: ${mv.errors.join(' | ')}`);
+    if (manifest?.metadata?.storyId !== STORY_ID) return failWith('storyId != david_goliath (rejeitado)');
+    if (manifest?.version !== VERSION) return failWith(`version incompatível (${manifest?.version} != ${VERSION})`);
+
+    // 3) subset = SOMENTE as 10 cenas
+    const scenes = (manifest.files || []).filter((f) => f.kind === 'scene' && sceneRe.test(f.path));
+    if (scenes.length !== SCENE_COUNT) return failWith(`manifesto tem ${scenes.length} cenas (esperado ${SCENE_COUNT})`);
+    const totalBytes = scenes.reduce((a, f) => a + (Number(f.bytes) || 0), 0);
+
+    // 4) baixar cada cena → .tmp (progresso cumulativo)
+    let completed = 0;
+    for (const f of scenes) {
+      const to = `${tempDir}${f.path}`;
+      const dl = FileSystem.createDownloadResumable(`${base}${f.path}`, to, {}, (p) => {
+        report(PACK_STATUS.DOWNLOADING, { downloadedBytes: completed + (p.totalBytesWritten || 0), totalBytes });
+      });
+      await dl.downloadAsync();
+      const info = await FileSystem.getInfoAsync(to, { size: true });
+      completed += info.size || 0;
+      report(PACK_STATUS.DOWNLOADING, { downloadedBytes: completed, totalBytes });
+    }
+
+    // 5) verificar existência + bytes (verifying) — sha256 pendente (sem expo-crypto)
+    report(PACK_STATUS.VERIFYING, { downloadedBytes: completed, totalBytes });
+    const errors = [];
+    for (const f of scenes) {
+      const info = await FileSystem.getInfoAsync(`${tempDir}${f.path}`, { size: true });
+      if (!info.exists) errors.push(`${f.path}: ausente`);
+      else if (typeof f.bytes === 'number' && info.size !== f.bytes) errors.push(`${f.path}: bytes ${info.size} != ${f.bytes}`);
+    }
+    if (errors.length) return failWith(`validação falhou (${errors.length})`, errors);
+
+    // 6) promover .tmp → localDir (troca atômica) — só depois de TUDO validado
+    await FileSystem.deleteAsync(localDir, { idempotent: true });
+    await FileSystem.moveAsync({ from: tempDir, to: localDir });
+
+    // 7) ready
+    const entry = await setPackEntry(STORY_ID, {
+      version: VERSION,
+      status: PACK_STATUS.READY,
+      localDir,
+      manifestPath: `${localDir}manifest.json`,
+      totalBytes,
+      downloadedBytes: totalBytes,
+      errorMessage: null,
+    });
+    report(PACK_STATUS.READY, { downloadedBytes: totalBytes, totalBytes });
+    return { ok: true, totalBytes, entry };
+  } catch (e) {
+    warn('downloadDavidGoliathPackSandbox:', e);
+    return failWith(String(e?.message || e));
   }
 }
 

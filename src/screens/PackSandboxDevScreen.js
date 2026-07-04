@@ -7,7 +7,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePacks } from '../context/PacksContext';
@@ -16,7 +16,11 @@ import {
   seedDavidGoliathPackSandbox,
   resetDavidGoliathPackSandbox,
   diagnoseDavidGoliathPackSandbox,
+  downloadDavidGoliathPackSandbox,
 } from '../services/packSandboxDevService';
+
+// baseUrl padrão (dev): pode vir de env; editável na tela. Nunca em produção (duplo gate).
+const DEFAULT_BASE_URL = process.env.EXPO_PUBLIC_PACK_SANDBOX_BASE_URL || 'http://192.168.0.10:8787/';
 
 export default function PackSandboxDevScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -24,6 +28,8 @@ export default function PackSandboxDevScreen({ navigation }) {
   const [diag, setDiag] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL);
+  const [dl, setDl] = useState(null); // progresso: { status, downloadedBytes, totalBytes }
   const enabled = isPackSandboxDevEnabled();
 
   const refresh = useCallback(async () => {
@@ -51,6 +57,14 @@ export default function PackSandboxDevScreen({ navigation }) {
     await refresh();
   }, [refreshPacks, refresh]);
 
+  const onDownload = useCallback(async () => {
+    setBusy(true); setMsg('Baixando…'); setDl({ status: 'downloading', downloadedBytes: 0, totalBytes: 0 });
+    const r = await downloadDavidGoliathPackSandbox(baseUrl, (p) => setDl(p));
+    await refreshPacks();
+    setMsg(r.ok ? `Download OK (${r.totalBytes} bytes)` : `Download falhou: ${r.reason}`);
+    await refresh();
+  }, [baseUrl, refreshPacks, refresh]);
+
   if (!enabled) {
     return (
       <View style={[styles.wrap, { paddingTop: insets.top + 16 }]}>
@@ -69,9 +83,33 @@ export default function PackSandboxDevScreen({ navigation }) {
       </View>
 
       <View style={styles.btnRow}>
-        <TouchableOpacity style={[styles.btn, styles.btnSeed]} onPress={onSeed} disabled={busy}><Text style={styles.btnTxt}>Seed</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, styles.btnSeed]} onPress={onSeed} disabled={busy}><Text style={styles.btnTxt}>Seed (bundle)</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btn, styles.btnReset]} onPress={onReset} disabled={busy}><Text style={styles.btnTxt}>Reset</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btn, styles.btnRefresh]} onPress={refresh} disabled={busy}><Text style={styles.btnTxt}>Refresh</Text></TouchableOpacity>
+      </View>
+
+      {/* F2.3b — Download real sandbox (LAN, SÓ as 10 cenas). Duplo gate herdado. */}
+      <View style={styles.card}>
+        <Text style={styles.k}>Download sandbox remoto (LAN)</Text>
+        <TextInput
+          style={styles.input}
+          value={baseUrl}
+          onChangeText={setBaseUrl}
+          placeholder="http://IP:8787/"
+          placeholderTextColor="#6A6A78"
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!busy}
+        />
+        <TouchableOpacity style={[styles.btn, styles.btnDownload]} onPress={onDownload} disabled={busy}>
+          <Text style={styles.btnTxt}>Download david_goliath (10 cenas)</Text>
+        </TouchableOpacity>
+        {dl && (
+          <Text style={styles.msg}>
+            {dl.status} · {dl.downloadedBytes}/{dl.totalBytes} bytes
+            {dl.totalBytes > 0 ? `  (${Math.round((dl.downloadedBytes / dl.totalBytes) * 100)}%)` : ''}
+          </Text>
+        )}
       </View>
 
       {busy && <ActivityIndicator style={{ marginVertical: 8 }} color="#F5B301" />}
@@ -116,6 +154,8 @@ const styles = StyleSheet.create({
   btnRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   btn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   btnSeed: { backgroundColor: '#2E7D32' }, btnReset: { backgroundColor: '#8E2E2E' }, btnRefresh: { backgroundColor: '#2E4A8E' },
+  btnDownload: { backgroundColor: '#6A4AAE', marginTop: 8 },
+  input: { backgroundColor: '#0F0F16', color: '#FFF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: 'Nunito', fontSize: 12, marginTop: 6, marginBottom: 6, borderWidth: 1, borderColor: '#2A2A38' },
   btnTxt: { fontFamily: 'Nunito', fontWeight: '700', color: '#FFF', fontSize: 13 },
   btnGhost: { alignSelf: 'center', marginTop: 20 }, btnGhostTxt: { fontFamily: 'Nunito', color: '#8FB7FF', fontSize: 13 },
   msg: { fontFamily: 'Nunito', color: '#F5B301', marginBottom: 8 },
