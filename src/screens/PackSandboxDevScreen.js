@@ -5,7 +5,7 @@
  * ⚠️ Só é acessível sob o DUPLO GATE (a rota nem é registrada sem ele — ver AppNavigator).
  * Defesa em profundidade: se o gate estiver falso, a tela mostra um aviso e não opera.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput,
 } from 'react-native';
@@ -17,6 +17,7 @@ import {
   resetDavidGoliathPackSandbox,
   diagnoseDavidGoliathPackSandbox,
   downloadDavidGoliathPackSandbox,
+  verifyDavidGoliathPackSandboxSha256,
 } from '../services/packSandboxDevService';
 // F2.4d.4: downloader GENÉRICO por storyId via manifesto global (só cenas).
 import { downloadStoryPackScenesFromGlobalManifest } from '../services/packDownloadService';
@@ -46,75 +47,113 @@ export default function PackSandboxDevScreen({ navigation }) {
   const [globalUrl, setGlobalUrl] = useState(DEFAULT_GLOBAL_MANIFEST_URL);
   const [storyId, setStoryId] = useState(DEFAULT_STORY_ID);
   const [dlG, setDlG] = useState(null); // progresso do fluxo genérico
+  const [verify, setVerify] = useState(null); // resumo sha256 (do download OU do verify profundo)
   const enabled = isPackSandboxDevEnabled();
 
-  const refresh = useCallback(async () => {
+  // F2.4e.2pR — guardas de concorrência/ciclo de vida:
+  //  • busyRef: trava SÍNCRONA (fecha o TOCTOU de duplo-toque; serializa as ações pesadas).
+  //  • mountedRef: evita setState após desmontar (ex.: "Voltar" no meio do download).
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  const safeSet = useCallback((setter, value) => { if (mountedRef.current) setter(value); }, []);
+
+  // Diagnóstico LEVE (sem busy próprio; chamado no mount e ao fim das ações).
+  const loadDiag = useCallback(async () => {
     if (!enabled) return;
-    setBusy(true);
-    try { setDiag(await diagnoseDavidGoliathPackSandbox()); }
-    finally { setBusy(false); }
-  }, [enabled]);
+    const d = await diagnoseDavidGoliathPackSandbox();
+    safeSet(setDiag, d);
+  }, [enabled, safeSet]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  // Executa uma ação pesada de forma EXCLUSIVA: guarda síncrona + libera busy sempre.
+  const runExclusive = useCallback(async (fn) => {
+    if (busyRef.current) return;      // duplo-toque/duas ações no mesmo frame → ignora a 2ª
+    busyRef.current = true;
+    safeSet(setBusy, true);
+    try { await fn(); }
+    finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false); // busy SEMPRE liberado (nunca trava a tela)
+    }
+  }, [safeSet]);
 
-  const onSeed = useCallback(async () => {
-    setBusy(true); setMsg('Semeando…');
+  const refresh = useCallback(() => runExclusive(loadDiag), [runExclusive, loadDiag]);
+
+  useEffect(() => { loadDiag(); }, [loadDiag]); // mount: só diagnóstico leve
+
+  const onSeed = useCallback(() => runExclusive(async () => {
+    // limpa integridade/progresso stale ao trocar o conjunto de arquivos (F2.4e.2pR)
+    safeSet(setMsg, 'Semeando…'); safeSet(setVerify, null); safeSet(setDl, null); safeSet(setDlG, null);
     const r = await seedDavidGoliathPackSandbox();
     await refreshPacks();          // PacksContext reflete o novo estado → resolver usa file://
-    setMsg(r.ok ? `Seed OK (${r.totalBytes} bytes)` : `Seed falhou: ${r.reason}`);
-    await refresh();
-  }, [refreshPacks, refresh]);
+    safeSet(setMsg, r.ok ? `Seed OK (${r.totalBytes} bytes)` : `Seed falhou: ${r.reason}`);
+    await loadDiag();
+  }), [runExclusive, safeSet, refreshPacks, loadDiag]);
 
-  const onReset = useCallback(async () => {
-    setBusy(true); setMsg('Resetando…');
+  const onReset = useCallback(() => runExclusive(async () => {
+    safeSet(setMsg, 'Resetando…'); safeSet(setVerify, null); safeSet(setDl, null); safeSet(setDlG, null);
     const r = await resetDavidGoliathPackSandbox();
     await refreshPacks();
-    setMsg(r.ok ? 'Reset OK (voltou a require)' : `Reset falhou: ${r.reason}`);
-    await refresh();
-  }, [refreshPacks, refresh]);
+    safeSet(setMsg, r.ok ? 'Reset OK (voltou a require)' : `Reset falhou: ${r.reason}`);
+    await loadDiag();
+  }), [runExclusive, safeSet, refreshPacks, loadDiag]);
 
-  const onDownload = useCallback(async () => {
-    setBusy(true); setMsg('Baixando…'); setDl({ status: 'downloading', downloadedBytes: 0, totalBytes: 0 });
-    const r = await downloadDavidGoliathPackSandbox(baseUrl, (p) => setDl(p));
+  const onDownload = useCallback(() => runExclusive(async () => {
+    safeSet(setMsg, 'Baixando…'); safeSet(setVerify, null); safeSet(setDl, { status: 'downloading', downloadedBytes: 0, totalBytes: 0 });
+    const r = await downloadDavidGoliathPackSandbox(baseUrl, (p) => safeSet(setDl, p));
     await refreshPacks();
-    setMsg(r.ok ? `Download OK (${r.totalBytes} bytes)` : `Download falhou: ${r.reason}`);
-    await refresh();
-  }, [baseUrl, refreshPacks, refresh]);
+    safeSet(setMsg, r.ok ? `Download OK (${r.totalBytes} bytes)` : `Download falhou: ${r.reason}`);
+    await loadDiag();
+  }), [runExclusive, safeSet, baseUrl, refreshPacks, loadDiag]);
 
   // F2.4d.4 — download GENÉRICO por storyId via manifesto global (SÓ CENAS; default).
-  const onDownloadGeneric = useCallback(async () => {
-    setBusy(true); setMsg('Baixando (genérico — só cenas)…');
-    setDlG({ status: 'downloading', downloadedBytes: 0, totalBytes: 0 });
+  const onDownloadGeneric = useCallback(() => runExclusive(async () => {
+    safeSet(setMsg, 'Baixando (genérico — só cenas)…');
+    safeSet(setVerify, null); safeSet(setDlG, { status: 'downloading', downloadedBytes: 0, totalBytes: 0 });
     const r = await downloadStoryPackScenesFromGlobalManifest({
       storyId,
       globalManifestUrl: globalUrl,
       appVersion: '1.0.0',
-      onProgress: (p) => setDlG(p),
+      onProgress: (p) => safeSet(setDlG, p),
     });
     await refreshPacks();
-    setMsg(r.ok
-      ? `Download OK (${kindSummary(r.counts)} · ${r.totalBytes} bytes)`
+    // sha256 já foi validado DENTRO do download (antes do ready) — registra sem re-hashear.
+    safeSet(setVerify, r.ok ? { source: 'download', ok: true, kinds: r.kinds || ['scene'] } : null);
+    safeSet(setMsg, r.ok
+      ? `Download OK (${kindSummary(r.counts)} · ${r.totalBytes} bytes · sha256 validado)`
       : `Download falhou: ${r.reason}`);
-    await refresh();
-  }, [storyId, globalUrl, refreshPacks, refresh]);
+    await loadDiag();
+  }), [runExclusive, safeSet, storyId, globalUrl, refreshPacks, loadDiag]);
 
   // F2.4e.1 — download de TODAS as mídias (cover+scene+coloring+audio) via manifesto global.
-  const onDownloadAllMedia = useCallback(async () => {
-    setBusy(true); setMsg('Baixando TODAS as mídias (via manifesto global)…');
-    setDlG({ status: 'downloading', downloadedBytes: 0, totalBytes: 0 });
+  const onDownloadAllMedia = useCallback(() => runExclusive(async () => {
+    safeSet(setMsg, 'Baixando TODAS as mídias (via manifesto global)…');
+    safeSet(setVerify, null); safeSet(setDlG, { status: 'downloading', downloadedBytes: 0, totalBytes: 0 });
     const r = await downloadStoryPackScenesFromGlobalManifest({
       storyId,
       globalManifestUrl: globalUrl,
       appVersion: '1.0.0',
       requestedKinds: ALL_KINDS,
-      onProgress: (p) => setDlG(p),
+      onProgress: (p) => safeSet(setDlG, p),
     });
     await refreshPacks();
-    setMsg(r.ok
-      ? `Download TODAS OK (${kindSummary(r.counts)} · ${r.totalBytes} bytes)`
+    safeSet(setVerify, r.ok ? { source: 'download', ok: true, kinds: r.kinds || ALL_KINDS } : null);
+    safeSet(setMsg, r.ok
+      ? `Download TODAS OK (${kindSummary(r.counts)} · ${r.totalBytes} bytes · sha256 validado)`
       : `Download TODAS falhou: ${r.reason}`);
-    await refresh();
-  }, [storyId, globalUrl, refreshPacks, refresh]);
+    await loadDiag();
+  }), [runExclusive, safeSet, storyId, globalUrl, refreshPacks, loadDiag]);
+
+  // F2.4e.2p — verificação sha256 PROFUNDA (dev, sob demanda, com yields; não roda no refresh).
+  const onVerifySha = useCallback(() => runExclusive(async () => {
+    safeSet(setMsg, 'Verificando sha256 (profundo, pode levar alguns segundos)…');
+    const v = await verifyDavidGoliathPackSandboxSha256();
+    if (!v.enabled) { safeSet(setMsg, 'gate desligado'); return; }
+    safeSet(setVerify, v.ok ? { source: 'deep', ok: true, byKind: v.byKind, ms: v.ms }
+      : { source: 'deep', ok: false, byKind: v.byKind, reason: v.reason, ms: v.ms });
+    safeSet(setMsg, v.ok ? `sha256 profundo OK (${v.checked} arquivos, ${v.ms}ms)` : `sha256 profundo: ${v.reason || 'divergência'}`);
+  }), [runExclusive, safeSet]);
 
   if (!enabled) {
     return (
@@ -130,7 +169,7 @@ export default function PackSandboxDevScreen({ navigation }) {
     <ScrollView style={styles.wrap} contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40, paddingHorizontal: 16 }}>
       <View style={styles.rowBetween}>
         <Text style={styles.title}>🛠 Pack Sandbox — david_goliath</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.btnGhostTxt}>‹ Voltar</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()} disabled={busy}><Text style={styles.btnGhostTxt}>‹ Voltar</Text></TouchableOpacity>
       </View>
 
       <View style={styles.btnRow}>
@@ -200,6 +239,33 @@ export default function PackSandboxDevScreen({ navigation }) {
         )}
       </View>
 
+      {/* F2.4e.2p — Integridade sha256: validada no download; verificação profunda sob demanda. */}
+      <View style={styles.card}>
+        <Text style={styles.k}>Integridade sha256 (dev)</Text>
+        <TouchableOpacity style={[styles.btn, styles.btnVerify]} onPress={onVerifySha} disabled={busy}>
+          <Text style={styles.btnTxt}>Verificar sha256 (profundo)</Text>
+        </TouchableOpacity>
+        {verify?.source === 'download' && (
+          <Text style={[styles.msg, styles.ok]}>sha256 validado no download ✓ ({(verify.kinds || []).join(', ')})</Text>
+        )}
+        {verify?.source === 'deep' && (
+          <>
+            <Text style={[styles.msg, verify.ok ? styles.ok : styles.no]}>
+              sha256 profundo: {verify.ok ? 'OK ✓' : `FALHOU (${verify.reason || 'divergência'})`}{verify.ms ? ` · ${verify.ms}ms` : ''}
+            </Text>
+            {verify.byKind && ['cover', 'scene', 'coloring', 'audio'].map((k) => {
+              const g = verify.byKind[k];
+              if (!g) return null;
+              return (
+                <Text key={k} style={styles.k}>
+                  {k}: <Text style={g.ok === g.total ? styles.ok : styles.no}>{g.ok}/{g.total}</Text>
+                </Text>
+              );
+            })}
+          </>
+        )}
+      </View>
+
       {busy && <ActivityIndicator style={{ marginVertical: 8 }} color="#F5B301" />}
       {!!msg && <Text style={styles.msg}>{msg}</Text>}
 
@@ -254,6 +320,7 @@ const styles = StyleSheet.create({
   btnDownload: { backgroundColor: '#6A4AAE', marginTop: 8 },
   btnGeneric: { backgroundColor: '#2E7D6A', marginTop: 8 },
   btnGenericAll: { backgroundColor: '#3A6EA5', marginTop: 8 },
+  btnVerify: { backgroundColor: '#7A5C2E', marginTop: 4 },
   input: { backgroundColor: '#0F0F16', color: '#FFF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: 'Nunito', fontSize: 12, marginTop: 6, marginBottom: 6, borderWidth: 1, borderColor: '#2A2A38' },
   btnTxt: { fontFamily: 'Nunito', fontWeight: '700', color: '#FFF', fontSize: 13 },
   btnGhost: { alignSelf: 'center', marginTop: 20 }, btnGhostTxt: { fontFamily: 'Nunito', color: '#8FB7FF', fontSize: 13 },

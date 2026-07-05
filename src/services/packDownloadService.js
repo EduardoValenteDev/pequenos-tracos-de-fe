@@ -10,7 +10,7 @@
  */
 import * as FileSystem from 'expo-file-system/legacy';
 import { PACK_STATUS, getPackLocalDir, getPackTempDir, setPackEntry } from './packStorageService';
-import { validatePackManifest } from './packIntegrityService';
+import { validatePackManifest, computeFileSha256 } from './packIntegrityService';
 import { fetchGlobalContentManifest, getPackFromGlobalManifest } from './globalManifestService';
 import { warn } from '../utils/logger';
 
@@ -77,6 +77,9 @@ export async function markPackReady(storyId, version, localDir, manifest) {
 
 /** Kinds de mídia conhecidos de um pack (bate com o manifesto por-pack e o resolver). */
 const KNOWN_KINDS = ['cover', 'scene', 'coloring', 'audio'];
+
+/** Cede o controle à UI entre etapas pesadas (evita travar o JS thread no verify sha256). */
+const yieldToUI = () => new Promise((r) => setTimeout(r, 0));
 
 /**
  * Download GENÉRICO por storyId de um pack (F2.4d.3 → F2.4e.1), descobrindo
@@ -185,31 +188,45 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
     const totalBytes = wanted.reduce((a, f) => a + (Number(f.bytes) || 0), 0);
 
     // 10) baixa cada arquivo → .tmp (garante o subdiretório; progresso por kind + cumulativo)
+    //     Progresso de chunk é THROTTLED (~120ms) p/ não inundar a UI com setState.
     let completed = 0;
     const doneByKind = {};
+    let lastTick = 0;
     for (const f of wanted) {
       const to = `${tempDir}${f.path}`;
       const parent = to.slice(0, to.lastIndexOf('/'));
       await FileSystem.makeDirectoryAsync(parent, { intermediates: true }); // idempotente (mkdir -p)
       const dl = FileSystem.createDownloadResumable(`${base}${f.path}`, to, {}, (p) => {
+        const now = Date.now();
+        if (now - lastTick < 120) return; // throttle: no máx ~8 updates/s durante o chunk
+        lastTick = now;
         report(PACK_STATUS.DOWNLOADING, { kind: f.kind, downloadedBytes: completed + (p.totalBytesWritten || 0), totalBytes });
       });
       await dl.downloadAsync();
       const info = await FileSystem.getInfoAsync(to, { size: true });
       completed += info.size || 0;
       doneByKind[f.kind] = (doneByKind[f.kind] || 0) + 1;
-      report(PACK_STATUS.DOWNLOADING, { kind: f.kind, downloadedBytes: completed, totalBytes });
+      report(PACK_STATUS.DOWNLOADING, { kind: f.kind, downloadedBytes: completed, totalBytes }); // 1 por arquivo
     }
 
-    // 11) valida existência + bytes de TODOS os solicitados + CONTAGEM por kind
-    //     (sha256 real pendente de dep de crypto → F2.4e.2). Nunca ready parcial.
+    // 11) valida existência + bytes + SHA256 REAL (F2.4e.2) de TODOS os solicitados +
+    //     CONTAGEM por kind. Nunca ready parcial: qualquer divergência → failWith.
     report(PACK_STATUS.VERIFYING, { downloadedBytes: completed, totalBytes });
     const errors = [];
+    const tVerify = Date.now();
     for (const f of wanted) {
-      const info = await FileSystem.getInfoAsync(`${tempDir}${f.path}`, { size: true });
-      if (!info.exists) errors.push(`${f.path}: ausente`);
-      else if (typeof f.bytes === 'number' && info.size !== f.bytes) errors.push(`${f.path}: bytes ${info.size} != ${f.bytes}`);
+      const fileUri = `${tempDir}${f.path}`;
+      const info = await FileSystem.getInfoAsync(fileUri, { size: true });
+      if (!info.exists) { errors.push(`${f.path}: ausente`); continue; }
+      if (typeof f.bytes === 'number' && info.size !== f.bytes) { errors.push(`${f.path}: bytes ${info.size} != ${f.bytes}`); continue; }
+      if (f.sha256) {
+        const h = await computeFileSha256(fileUri);
+        if (!h.ok) errors.push(`${f.path}: sha256 indisponível (${h.reason})`);
+        else if (h.sha256 !== String(f.sha256).toLowerCase()) errors.push(`${f.path}: sha256 divergente`);
+      }
+      await yieldToUI(); // F2.4e.2p: cede a UI entre arquivos (não congela durante o verify)
     }
+    if (__DEV__) console.log('[packDownload] verify+sha256:', Date.now() - tVerify, 'ms,', wanted.length, 'arquivos');
     for (const k of kinds) {
       if ((doneByKind[k] || 0) !== expectedPerKind[k]) errors.push(`kind ${k}: ${doneByKind[k] || 0}/${expectedPerKind[k]} baixados`);
     }

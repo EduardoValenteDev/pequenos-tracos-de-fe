@@ -21,7 +21,7 @@ import {
   getPackEntry,
   PACK_STATUS,
 } from './packStorageService';
-import { validatePackManifest } from './packIntegrityService';
+import { validatePackManifest, computeFileSha256 } from './packIntegrityService';
 import { resolveStoryMedia, RESOLVE_SOURCE_TYPE } from './contentResolver';
 import { warn } from '../utils/logger';
 
@@ -35,6 +35,9 @@ const sceneRelPath = (n) => `scenes/${STORY_ID}_scene_${pad2(n)}.webp`;
 const coverRelPath = () => 'cover.webp';
 const coloringRelPath = (n) => `coloring/scene_${pad2(n)}.png`;
 const audioRelPath = (n) => `audio/${STORY_ID}_scene_${pad2(n)}.mp3`;
+
+/** Cede o controle à UI entre etapas pesadas (evita travar o JS thread). */
+const yieldToUI = () => new Promise((r) => setTimeout(r, 0));
 
 /** DUPLO GATE. Sem ele, nada nesta ferramenta executa. */
 export function isPackSandboxDevEnabled() {
@@ -166,17 +169,21 @@ export async function downloadDavidGoliathPackSandbox(baseUrl, onProgress) {
     if (scenes.length !== SCENE_COUNT) return failWith(`manifesto tem ${scenes.length} cenas (esperado ${SCENE_COUNT})`);
     const totalBytes = scenes.reduce((a, f) => a + (Number(f.bytes) || 0), 0);
 
-    // 4) baixar cada cena → .tmp (progresso cumulativo)
+    // 4) baixar cada cena → .tmp (progresso cumulativo; chunk THROTTLED ~120ms — F2.4e.2pR)
     let completed = 0;
+    let lastTick = 0;
     for (const f of scenes) {
       const to = `${tempDir}${f.path}`;
       const dl = FileSystem.createDownloadResumable(`${base}${f.path}`, to, {}, (p) => {
+        const now = Date.now();
+        if (now - lastTick < 120) return; // throttle: no máx ~8 updates/s durante o chunk
+        lastTick = now;
         report(PACK_STATUS.DOWNLOADING, { downloadedBytes: completed + (p.totalBytesWritten || 0), totalBytes });
       });
       await dl.downloadAsync();
       const info = await FileSystem.getInfoAsync(to, { size: true });
       completed += info.size || 0;
-      report(PACK_STATUS.DOWNLOADING, { downloadedBytes: completed, totalBytes });
+      report(PACK_STATUS.DOWNLOADING, { downloadedBytes: completed, totalBytes }); // 1 por arquivo
     }
 
     // 5) verificar existência + bytes (verifying) — sha256 pendente (sem expo-crypto)
@@ -212,9 +219,10 @@ export async function downloadDavidGoliathPackSandbox(baseUrl, onProgress) {
 }
 
 /**
- * Diagnóstico read-only POR KIND (F2.4e.1): para cover/scene/coloring/audio informa
- * existência, bytes, decisão do resolver (sourceType require|file) e uri file:// quando
- * ready — sem depender do consumo visual das telas finais. Usa resolveStoryMedia.
+ * Diagnóstico read-only LEVE POR KIND (F2.4e.1 → F2.4e.2p): cover/scene/coloring/audio com
+ * existência, bytes, decisão do resolver (sourceType require|file) e uri file://.
+ * ⚠️ NÃO hasheia (a verificação sha256 profunda é uma ação dev explícita —
+ * `verifyDavidGoliathPackSandboxSha256`). Isto mantém o refresh/entrada da tela rápidos.
  * @returns {Promise<object>}
  */
 export async function diagnoseDavidGoliathPackSandbox() {
@@ -223,7 +231,7 @@ export async function diagnoseDavidGoliathPackSandbox() {
   const localDir = entry?.localDir || getPackLocalDir(STORY_ID, VERSION);
   const media = resolveStoryMedia(STORY_ID, { packEntry: entry, sceneCount: SCENE_COUNT });
 
-  // Inspeciona um item: disco (existe/bytes) + decisão do resolver (require|file, uri).
+  // LEVE: só disco (existe/bytes) + resolver (require|file, uri). SEM hashing (F2.4e.2p).
   const inspect = async (rel, resolved) => {
     const expectedUri = `${localDir}${rel}`;
     let exists = false;
@@ -283,4 +291,34 @@ export async function diagnoseDavidGoliathPackSandbox() {
     coloring,
     audio,
   };
+}
+
+/**
+ * Verificação PROFUNDA de sha256 (F2.4e.2p) — AÇÃO DEV EXPLÍCITA e sob demanda. Hasheia
+ * cada arquivo do pack contra o `manifest.json` do disco, **cedendo a UI entre arquivos**
+ * (yield) para não travar. Não roda no refresh/entrada da tela. Retorno seguro (nunca lança).
+ * @returns {Promise<{enabled:boolean, ok?:boolean, reason?:string, byKind?:object, checked?:number, ms?:number}>}
+ */
+export async function verifyDavidGoliathPackSandboxSha256() {
+  if (!isPackSandboxDevEnabled()) return { enabled: false };
+  const entry = await getPackEntry(STORY_ID);
+  const localDir = entry?.localDir || getPackLocalDir(STORY_ID, VERSION);
+  let man;
+  try { man = JSON.parse(await FileSystem.readAsStringAsync(`${localDir}manifest.json`)); }
+  catch { return { enabled: true, ok: false, reason: 'manifest.json ausente no disco (baixe primeiro)' }; }
+
+  const files = (man.files || []).filter((f) => f && typeof f.path === 'string' && typeof f.sha256 === 'string');
+  const byKind = {};
+  const t0 = Date.now();
+  for (const f of files) {
+    const g = byKind[f.kind] || (byKind[f.kind] = { ok: 0, total: 0 });
+    g.total += 1;
+    const h = await computeFileSha256(`${localDir}${f.path}`);
+    if (h.ok && h.sha256 === f.sha256.toLowerCase()) g.ok += 1;
+    await yieldToUI(); // devolve controle à UI entre arquivos (evita congelar)
+  }
+  const ms = Date.now() - t0;
+  const ok = files.length > 0 && Object.values(byKind).every((g) => g.ok === g.total);
+  if (__DEV__) console.log('[PackSandbox] verify sha256 profundo:', ms, 'ms,', files.length, 'arquivos', byKind);
+  return { enabled: true, ok, byKind, checked: files.length, ms };
 }

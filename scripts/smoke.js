@@ -12122,11 +12122,12 @@ check(
       !/downloadAsync|deleteAsync|moveAsync|copyAsync|writeAsStringAsync/.test(store),
       'packStorageService: estados/funções faltando ou faz I/O de arquivo (proibido no F2.1a)');
 
-    check('F2.1a (packIntegrityService): valida manifesto+arquivos; sha256 preparado SEM importar expo-crypto',
+    check('F2.1a→F2.4e.2 (packIntegrityService): valida manifesto+arquivos; sha256 REAL via @noble/hashes; SEM expo-crypto',
       ['validatePackManifest', 'validatePackFiles', 'validateFileEntry', 'computeFileSha256'].every(fn => hasFn(integ, fn)) &&
       /validateManifest/.test(integ) &&
+      /@noble\/hashes/.test(integ) &&
       !/from ['"]expo-crypto['"]|require\(['"]expo-crypto['"]\)/.test(integ),
-      'packIntegrityService: funções faltando ou importou expo-crypto (dep nova proibida)');
+      'packIntegrityService: funções faltando, não usa @noble/hashes, ou importou expo-crypto (proibido)');
 
     check('F2.1a→F2.4d.3 (packDownloadService): stubs F2.1a declarativos; download real SÓ na função genérica F2.4d.3',
       ['downloadPackFromManifest', 'simulateInstallLocalPack', 'markPackReady', 'downloadStoryPackScenesFromGlobalManifest'].every(fn => hasFn(dl, fn)) &&
@@ -13106,9 +13107,9 @@ check(
       !/isPremiumUser|entitlement/.test(pds + pss + scr),
       'entitlement referenciado');
 
-    check('F2.4e.1: package.json NÃO alterado para crypto (sem @noble/expo-crypto/quick-crypto)',
-      !cryptoRe.test(pkg),
-      'package.json passou a declarar dependência de crypto');
+    check('F2.4e.1→F2.4e.2: package.json só pode adicionar @noble/hashes (sem expo-crypto/quick-crypto)',
+      !/expo-crypto|react-native-quick-crypto/.test(pkg),
+      'package.json declarou expo-crypto ou react-native-quick-crypto (proibido)');
 
     check('F2.4e.1: sem dependência de crypto nos arquivos tocados (sha256 real fica p/ F2.4e.2)',
       !cryptoRe.test(pds + pss + scr),
@@ -13131,6 +13132,208 @@ check(
       /onDownloadGeneric/.test(scr) && /downloadDavidGoliathPackSandbox/.test(scr)
         && readSrc('src/services/packSandboxDevService.js').includes('export async function downloadDavidGoliathPackSandbox'),
       'compat F2.4d quebrada (só-cenas ou legado)');
+  }
+
+  // ── F2.4e.2: sha256 real (@noble/hashes) na integridade dos arquivos de pack ──
+  console.log('\n── F2.4e.2: sha256 real (@noble/hashes) ──');
+  {
+    const integ = readSrc('src/services/packIntegrityService.js');
+    const integCode = a1StripComments(integ);
+    const pdsCode = a1StripComments(readSrc('src/services/packDownloadService.js'));
+    const pssCode = a1StripComments(readSrc('src/services/packSandboxDevService.js'));
+    const scrSrc = readSrc('src/screens/PackSandboxDevScreen.js');
+    const pkgJson = (() => { try { return JSON.parse(readSrc('package.json')); } catch { return {}; } });
+    const pkg = pkgJson();
+    const allDeps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+
+    check('F2.4e.2: @noble/hashes presente no package.json',
+      Object.prototype.hasOwnProperty.call(allDeps, '@noble/hashes'),
+      '@noble/hashes não está declarado em package.json');
+
+    check('F2.4e.2: expo-crypto AUSENTE',
+      !Object.prototype.hasOwnProperty.call(allDeps, 'expo-crypto'),
+      'expo-crypto foi instalado (proibido)');
+
+    check('F2.4e.2: react-native-quick-crypto AUSENTE',
+      !Object.prototype.hasOwnProperty.call(allDeps, 'react-native-quick-crypto'),
+      'react-native-quick-crypto foi instalado (proibido)');
+
+    check('F2.4e.2: computeFileSha256 não é mais stub (usa @noble/hashes)',
+      /@noble\/hashes/.test(integCode) && /import \{ sha256 \}/.test(integCode)
+        && !/hash indispon[ií]vel sem depend/.test(integCode),
+      'computeFileSha256 ainda é stub / não usa @noble/hashes');
+
+    check('F2.4e.2: computeFileSha256 lê o arquivo como base64',
+      /readAsStringAsync\([^)]*encoding:\s*'base64'/.test(integCode),
+      'não lê o arquivo como base64');
+
+    check('F2.4e.2: converte base64 → bytes (base64ToBytes/atob)',
+      /base64ToBytes/.test(integCode) && /atob\(/.test(integCode),
+      'não converte base64 para bytes');
+
+    check('F2.4e.2: retorna hex lowercase (bytesToHex + regex a-f0-9)',
+      /bytesToHex/.test(integCode) && /\^\[a-f0-9\]\{64\}\$/.test(integCode),
+      'não garante hex lowercase');
+
+    check('F2.4e.2: validateFileEntry compara sha256 quando presente',
+      /fileEntry\.sha256/.test(integCode) && /computeFileSha256\(/.test(integCode)
+        && /sha256 divergente/.test(integCode),
+      'validateFileEntry não compara sha256');
+
+    check('F2.4e.2: downloader valida sha256 e falha (mismatch → errors → failWith, nunca ready parcial)',
+      /computeFileSha256\(fileUri\)/.test(pdsCode) && /sha256 divergente/.test(pdsCode)
+        && (() => {
+          const gi = pdsCode.indexOf('async function downloadStoryPackScenesFromGlobalManifest');
+          const b = gi >= 0 ? pdsCode.slice(gi) : '';
+          const errIdx = b.indexOf('if (errors.length) return failWith');
+          const moveIdx = b.search(/moveAsync\(\{ from: tempDir, to: localDir \}\)/);
+          return errIdx >= 0 && moveIdx > errIdx;
+        })(),
+      'downloader não valida sha256 antes do move/ready');
+
+    check('F2.4e.2p: diagnose é LEVE (não hasheia no refresh) — verify sha256 profundo é ação separada',
+      (() => {
+        const ds = pssCode.indexOf('async function diagnoseDavidGoliathPackSandbox');
+        const vs = pssCode.indexOf('async function verifyDavidGoliathPackSandboxSha256');
+        const diagBody = (ds >= 0 && vs > ds) ? pssCode.slice(ds, vs) : (ds >= 0 ? pssCode.slice(ds) : '');
+        return ds >= 0 && vs > ds && !/computeFileSha256/.test(diagBody);
+      })(),
+      'diagnose ainda hasheia (deveria ser leve) ou falta a função de verify sha256 profundo');
+
+    check('F2.4e.2: default scenes-only + requestedKinds preservados',
+      /requestedKinds\s*=\s*\['scene'\]/.test(pdsCode) && /requestedKinds/.test(pdsCode),
+      'default scenes-only ou requestedKinds regrediram');
+
+    check('F2.4e.2: SEM consumo user-facing de coloring/cover/audio (telas finais intactas)',
+      ['src/screens/NarrationScreen.js', 'src/screens/StoryBookScreen.js',
+        'src/screens/ColoringScreen.js', 'src/services/audioService.js']
+        .every((p) => !/resolveStoryColoring|resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc(p)))),
+      'uma tela final passou a consumir coloring/cover/audio via resolver');
+
+    check('F2.4e.2: sem RevenueCat/entitlement nos arquivos tocados',
+      !/Purchases\.|react-native-purchases|RevenueCat|isPremiumUser|entitlement/.test(integCode + pdsCode + pssCode + a1StripComments(scrSrc)),
+      'RevenueCat/entitlement referenciado');
+
+    check('F2.4e.2: integridade não escreve em assets locais',
+      !/assets\//.test(integCode),
+      'packIntegrityService referencia assets/');
+
+    // Execução REAL em sandbox: a hash pura casa com o Node crypto (o mesmo do gerador).
+    let H = {};
+    try {
+      const nobleSha = require('@noble/hashes/sha2.js').sha256;
+      const nobleHex = require('@noble/hashes/utils.js').bytesToHex;
+      const { hashBase64ToHex } = a1LoadSandbox(
+        'src/services/packIntegrityService.js',
+        { sha256: nobleSha, bytesToHex: nobleHex, FileSystem: {}, validateManifest: () => ({ ok: true, errors: [] }), warn: () => {} },
+        ['hashBase64ToHex'],
+      );
+      const buf = Buffer.from('pequenos tracos de fe \x00\x01\xfe binário', 'binary');
+      const b64 = buf.toString('base64');
+      const nodeHex = require('crypto').createHash('sha256').update(buf).digest('hex');
+      const got = hashBase64ToHex(b64);
+      H = { nodeHex, got, match: got === nodeHex, lower: /^[a-f0-9]{64}$/.test(got) };
+    } catch (e) { H = { err: String((e && e.message) || e) }; }
+
+    check('F2.4e.2: hashBase64ToHex casa com o Node crypto (bytes crus) e é hex lowercase',
+      !!H.match && !!H.lower,
+      H.err || `hash não casou (node ${H.nodeHex} vs noble ${H.got})`);
+  }
+
+  // ── F2.4e.2p: performance (sha256 real sem travar a UI) ──────────────────────
+  console.log('\n── F2.4e.2p: performance sha256 ──');
+  {
+    const pdsCodeP = a1StripComments(readSrc('src/services/packDownloadService.js'));
+    const pssCodeP = a1StripComments(readSrc('src/services/packSandboxDevService.js'));
+    const scrCodeP = a1StripComments(readSrc('src/screens/PackSandboxDevScreen.js'));
+
+    check('F2.4e.2p: verify sha256 profundo existe e cede a UI (yield entre arquivos)',
+      /export async function verifyDavidGoliathPackSandboxSha256/.test(pssCodeP)
+        && /yieldToUI/.test(pssCodeP) && /computeFileSha256/.test(pssCodeP),
+      'falta a função de verify profundo com yield entre arquivos');
+
+    check('F2.4e.2p: download faz yield entre arquivos no verify (não trava o JS thread)',
+      (() => {
+        const gi = pdsCodeP.indexOf('async function downloadStoryPackScenesFromGlobalManifest');
+        const b = gi >= 0 ? pdsCodeP.slice(gi) : '';
+        // yieldToUI aparece dentro do loop de verify (após o bloco de sha256)
+        return /await yieldToUI\(\)/.test(b) && /computeFileSha256\(fileUri\)/.test(b);
+      })(),
+      'verify loop do download não cede a UI entre arquivos');
+
+    check('F2.4e.2p: progresso de download é throttled (evita setState excessivo)',
+      /- lastTick < 120/.test(pdsCodeP) && /const now = Date\.now\(\)/.test(pdsCodeP),
+      'progresso de chunk não é throttled');
+
+    check('F2.4e.2p: sha256 REAL preservado no download (antes do ready) e mismatch impede ready',
+      /computeFileSha256\(fileUri\)/.test(pdsCodeP) && /sha256 divergente/.test(pdsCodeP)
+        && (() => {
+          const gi = pdsCodeP.indexOf('async function downloadStoryPackScenesFromGlobalManifest');
+          const b = gi >= 0 ? pdsCodeP.slice(gi) : '';
+          const errIdx = b.indexOf('if (errors.length) return failWith');
+          const readyIdx = b.search(/setPackEntry\(storyId, \{\s*version,\s*status: PACK_STATUS\.READY/);
+          return errIdx >= 0 && readyIdx > errIdx;
+        })(),
+      'sha256 do download regrediu ou não impede ready');
+
+    check('F2.4e.2p: tela expõe verificação profunda sob demanda (botão + estado)',
+      /verifyDavidGoliathPackSandboxSha256/.test(scrCodeP) && /onVerifySha/.test(scrCodeP)
+        && /Verificar sha256/.test(readSrc('src/screens/PackSandboxDevScreen.js')),
+      'a tela não oferece a verificação sha256 profunda sob demanda');
+
+    check('F2.4e.2p: logs de tempo são dev-only (__DEV__)',
+      !/console\.log\('\[packDownload\] verify/.test(pdsCodeP.replace(/if \(__DEV__\) console\.log\('\[packDownload\] verify[\s\S]*?\);/g, '')),
+      'log de tempo do verify não está sob __DEV__');
+  }
+
+  // ── F2.4e.2pR: guardas de concorrência / ciclo de vida (anti-travamento) ─────
+  console.log('\n── F2.4e.2pR: concorrência & ciclo de vida ──');
+  {
+    const scr = a1StripComments(readSrc('src/screens/PackSandboxDevScreen.js'));
+    const pssP = a1StripComments(readSrc('src/services/packSandboxDevService.js'));
+
+    check('F2.4e.2pR: trava SÍNCRONA de duplo-toque (busyRef + if (busyRef.current) return)',
+      /const busyRef = useRef\(false\)/.test(scr) && /if \(busyRef\.current\) return/.test(scr),
+      'falta o busyRef síncrono que fecha o TOCTOU de duplo-toque');
+
+    check('F2.4e.2pR: mountedRef + cleanup + setState guardado (sem update pós-unmount)',
+      /const mountedRef = useRef\(true\)/.test(scr)
+        && /mountedRef\.current = false/.test(scr)
+        && /if \(mountedRef\.current\)/.test(scr) && /safeSet/.test(scr),
+      'falta mountedRef/safeSet para evitar setState após desmontar');
+
+    check('F2.4e.2pR: runExclusive libera busy SEMPRE (try/finally) — sem trava permanente',
+      /const runExclusive = useCallback\([\s\S]*?try \{ await fn\(\); \}[\s\S]*?finally \{[\s\S]*?busyRef\.current = false;[\s\S]*?setBusy\(false\)/.test(scr),
+      'runExclusive não garante liberação de busy em finally');
+
+    check('F2.4e.2pR: todas as ações pesadas passam por runExclusive',
+      ['onSeed', 'onReset', 'onDownload', 'onDownloadGeneric', 'onDownloadAllMedia', 'onVerifySha']
+        .every((h) => new RegExp(`const ${h} = useCallback\\(\\(\\) => runExclusive\\(`).test(scr)),
+      'alguma ação pesada não está serializada por runExclusive');
+
+    check('F2.4e.2pR: diagnose no mount/refresh usa loadDiag leve (sem busy próprio duplicado)',
+      /const loadDiag = useCallback/.test(scr) && /useEffect\(\(\) => \{ loadDiag\(\); \}/.test(scr)
+        && /const refresh = useCallback\(\(\) => runExclusive\(loadDiag\)/.test(scr),
+      'mount/refresh não usam loadDiag/runExclusive');
+
+    check('F2.4e.2pR: estado stale (verify/dl/dlG) limpo ao trocar arquivos (seed/download)',
+      (() => {
+        const seedIdx = scr.indexOf('const onSeed = useCallback');
+        const dlIdx = scr.indexOf('const onDownload = useCallback');
+        const seedBody = seedIdx >= 0 ? scr.slice(seedIdx, seedIdx + 400) : '';
+        const dlBody = dlIdx >= 0 ? scr.slice(dlIdx, dlIdx + 400) : '';
+        return /setVerify, null/.test(seedBody) && /setDlG, null/.test(seedBody)
+          && /setVerify, null/.test(dlBody);
+      })(),
+      'seed/download não limpam integridade/progresso stale');
+
+    check('F2.4e.2pR: botão Voltar desabilitado enquanto busy',
+      /navigation\.goBack\(\)\} disabled=\{busy\}/.test(readSrc('src/screens/PackSandboxDevScreen.js')),
+      'Voltar não é desabilitado durante operações (permite unmount no meio)');
+
+    check('F2.4e.2pR: downloader LAN legado também throttla o progresso (paridade)',
+      /- lastTick < 120/.test(pssP),
+      'downloadDavidGoliathPackSandbox (LAN) não throttla o progresso');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
