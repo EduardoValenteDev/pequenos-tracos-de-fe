@@ -1,3 +1,9 @@
+> ⚠️ **SUPERSEDED (2026-07-05).** Esta é a **v2.0** e foi **substituída** pelo
+> **`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`** (v4), que é a fonte única da linha de
+> lançamento. As **decisões** são governadas por **`docs/DECISIONS.md`** (árbitro). Este arquivo
+> permanece como **histórico** — conteúdo preservado, **não é fonte atual**. Em conflito, valem
+> `DECISIONS.md` e a v4.
+
 # DOCUMENTO OFICIAL FINAL DO PROJETO, Pequenos Traços de Fé
 
 | Campo | Valor |
