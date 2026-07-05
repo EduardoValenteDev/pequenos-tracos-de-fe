@@ -623,8 +623,14 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
     if (!imageSource) { setImageDataUrl(null); return; }
     let cancelled = false;
 
+    // F2.4e.3: imageSource pode ser um require (módulo) OU { uri: 'file://…' } (colorir remoto
+    // do pack). A chave de cache e a resolução do localUri tratam os dois casos; o pipeline
+    // file://→base64→dataURL abaixo é IDÊNTICO (o WebView recebe um data URL self-contained).
+    const isUriSource = !!(imageSource && typeof imageSource === 'object' && typeof imageSource.uri === 'string');
+    const cacheKey = isUriSource ? imageSource.uri : imageSource;
+
     // Cache HIT: reaproveita a lineart já convertida (sem download/leitura).
-    const cached = lineartCache.get(imageSource);
+    const cached = lineartCache.get(cacheKey);
     if (cached) {
       if (__DEV__) console.log(`[ColoringCanvas] lineart CACHE HIT story=${storyId} scene=${sceneNumber}`);
       setImageDataUrl(cached);
@@ -634,9 +640,14 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
     (async () => {
       const t0 = Date.now();
       try {
-        const asset = Asset.fromModule(imageSource);
-        if (!asset.downloaded) await asset.downloadAsync();
-        const localUri = asset.localUri || asset.uri;
+        let localUri;
+        if (isUriSource) {
+          localUri = imageSource.uri; // fonte remota já resolvida (file:// persistente do pack)
+        } else {
+          const asset = Asset.fromModule(imageSource);
+          if (!asset.downloaded) await asset.downloadAsync();
+          localUri = asset.localUri || asset.uri;
+        }
         if (!localUri) throw new Error('asset sem localUri/uri');
         let dataUrl;
         if (localUri.startsWith('file')) {
@@ -658,7 +669,7 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
           });
         }
         if (!dataUrl || dataUrl.length < 64) throw new Error('dataUrl vazio');
-        lineartCache.set(imageSource, dataUrl); // guarda p/ próximas aberturas
+        lineartCache.set(cacheKey, dataUrl); // guarda p/ próximas aberturas (require OU uri)
         if (__DEV__) {
           console.log(`[ColoringCanvas] lineart CACHE MISS story=${storyId} scene=${sceneNumber} convMs=${Date.now() - t0} len=${dataUrl.length}`);
         }

@@ -2974,10 +2974,10 @@ check(
   'Motor de pintura (loadPaint/exportPaint) foi alterado indevidamente',
 );
 check(
-  'Colorir: cache em memória da lineart (CACHE HIT/MISS) — reabrir cena é mais rápido',
+  'Colorir: cache em memória da lineart (CACHE HIT/MISS por cacheKey require|uri) — reabrir cena é mais rápido',
   coloringCanvasSrc94.includes('const lineartCache = new Map()') &&
-  coloringCanvasSrc94.includes('lineartCache.get(imageSource)') &&
-  coloringCanvasSrc94.includes('lineartCache.set(imageSource') &&
+  coloringCanvasSrc94.includes('lineartCache.get(cacheKey)') &&
+  coloringCanvasSrc94.includes('lineartCache.set(cacheKey') &&
   coloringCanvasSrc94.includes('CACHE HIT') && coloringCanvasSrc94.includes('CACHE MISS'),
   'ColoringCanvas não tem cache em memória da lineart — reaberturas reconvertem o asset',
 );
@@ -12425,12 +12425,12 @@ check(
       !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|downloadAsync|Purchases\.|react-native-purchases/.test(hook),
       'hook ausente / não-gated / não read-only');
 
-    check('F2.1f→F2.1h v2 (consumo só nas superfícies permitidas: NarrationScreen + StoryBookScreen)',
+    check('F2.1f→F2.4e.3 (consumo só nas superfícies permitidas: NarrationScreen + StoryBookScreen + ColoringScreen)',
       (() => {
-        const consumers = screenFiles.filter((f) => /useResolvedSceneImage|useResolvedStoryMedia|useSandboxScenePackEntry|resolveSceneImageForStory/.test(fs.readFileSync(path.join(screensDir, f), 'utf8'))).sort();
-        return consumers.length === 2 && consumers[0] === 'NarrationScreen.js' && consumers[1] === 'StoryBookScreen.js';
+        const consumers = screenFiles.filter((f) => /useResolvedSceneImage|useResolvedStoryMedia|useSandboxScenePackEntry|resolveSceneImageForStory|useResolvedColoringImage/.test(fs.readFileSync(path.join(screensDir, f), 'utf8'))).sort();
+        return consumers.length === 3 && consumers[0] === 'ColoringScreen.js' && consumers[1] === 'NarrationScreen.js' && consumers[2] === 'StoryBookScreen.js';
       })(),
-      'o consumo do hook não está restrito às superfícies permitidas (NarrationScreen + StoryBookScreen)');
+      'o consumo do hook não está restrito às superfícies permitidas (NarrationScreen + StoryBookScreen + ColoringScreen)');
 
     check('F2.1f (escopo cena-only: capa e áudio seguem locais na tela)',
       /useResolvedSceneImage\(/.test(narr) &&
@@ -12439,10 +12439,11 @@ check(
       !/resolveStoryCover|resolveStoryAudio|resolveStoryColoring/.test(narr),
       'a tela roteou capa/áudio/colorir pelo resolver (deveria ser só a cena)');
 
-    check('F2.1f (áudio/colorir/capas 100% locais): loaders require-based sem file://; Coloring sem hook',
+    check('F2.1f→F2.4e.3 (áudio/capas locais; registros require-based; colorir via HOOK, sem contentResolver direto na tela)',
       mediaLoaders.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }) &&
-      !/useResolvedSceneImage|useResolvedStoryMedia|contentResolver/.test(readSrc('src/screens/ColoringScreen.js')),
-      'áudio/colorir/capas deixaram de ser 100% locais');
+      /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js')) &&
+      !/contentResolver/.test(readSrc('src/screens/ColoringScreen.js')),
+      'áudio/capas deixaram de ser locais, ou colorir não passa pelo hook / a tela importa contentResolver direto');
 
     check('F2.1f (fallback×ready david_goliath por eval): índice vazio → require; pack ready → file://',
       (() => {
@@ -12541,10 +12542,10 @@ check(
       mediaLoadersG.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
       'áudio/colorir/capas deixaram de ser 100% locais');
 
-    check('F2.1g→F2.1h v2 (consumo só nas superfícies permitidas; read-only; sem download/R2/compras/entitlement)',
+    check('F2.1g→F2.4e.3 (consumo só nas superfícies permitidas; read-only; sem download/R2/compras/entitlement)',
       (() => {
-        const consumers = fs.readdirSync(screensDirG).filter((f) => f.endsWith('.js')).filter((f) => /useResolvedSceneImage|useResolvedStoryMedia|useSandboxScenePackEntry|resolveSceneImageForStory/.test(fs.readFileSync(path.join(screensDirG, f), 'utf8'))).sort();
-        const onlySurfaces = consumers.length === 2 && consumers[0] === 'NarrationScreen.js' && consumers[1] === 'StoryBookScreen.js';
+        const consumers = fs.readdirSync(screensDirG).filter((f) => f.endsWith('.js')).filter((f) => /useResolvedSceneImage|useResolvedStoryMedia|useSandboxScenePackEntry|resolveSceneImageForStory|useResolvedColoringImage/.test(fs.readFileSync(path.join(screensDirG, f), 'utf8'))).sort();
+        const onlySurfaces = consumers.length === 3 && consumers[0] === 'ColoringScreen.js' && consumers[1] === 'NarrationScreen.js' && consumers[2] === 'StoryBookScreen.js';
         // Uso REAL (chamadas/imports), não prosa de comentário: escrita de storage,
         // download, compras (RevenueCat) e controle de acesso/entitlement.
         const readOnly = !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|clearPackEntry\(|downloadAsync|createDownloadResumable|Purchases\.|react-native-purchases|isPremiumUser\(|getStoryAccessStatus\(|contentAccessService/.test(hookG + resolverG);
@@ -13119,14 +13120,19 @@ check(
       !/assets\//.test(dlBody) && /getPackLocalDir|getPackTempDir/.test(pds),
       'a função genérica referencia assets/ (deveria escrever só em documentDirectory)');
 
-    check('F2.4e.1: SEM consumo user-facing de coloring/cover/audio (telas finais intactas)',
+    check('F2.4e.1→F2.4e.3: cover/audio ainda SEM consumo user-facing; coloring só via hook (fallback local preservado)',
       (() => {
         const surfaces = ['src/screens/NarrationScreen.js', 'src/screens/StoryBookScreen.js',
           'src/screens/ColoringScreen.js', 'src/services/audioService.js'];
-        return surfaces.every((p) => !/resolveStoryColoring|resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc(p))))
-          && /getColoringImage/.test(readSrc('src/screens/ColoringScreen.js'));
+        // cover/áudio: nenhuma tela final os consome ainda (F2.4e.4/e.5 pendentes).
+        const noCoverAudio = surfaces.every((p) => !/resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc(p))));
+        // coloring (F2.4e.3): ColoringScreen usa o HOOK (não o resolver direto) e o registro
+        // local segue disponível via getColoringImage no hook (requires locais preservados).
+        const coloringViaHook = /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
+          && /getColoringImage/.test(readSrc('src/hooks/useResolvedStoryMedia.js'));
+        return noCoverAudio && coloringViaHook;
       })(),
-      'uma tela final passou a consumir coloring/cover/audio via resolver — pertence a F2.4e.3+');
+      'cover/áudio vazaram para telas finais, ou coloring não passou pelo hook / fallback local sumiu');
 
     check('F2.4e.1: compat F2.4d (botão só-cenas + função legada intacta)',
       /onDownloadGeneric/.test(scr) && /downloadDavidGoliathPackSandbox/.test(scr)
@@ -13204,11 +13210,11 @@ check(
       /requestedKinds\s*=\s*\['scene'\]/.test(pdsCode) && /requestedKinds/.test(pdsCode),
       'default scenes-only ou requestedKinds regrediram');
 
-    check('F2.4e.2: SEM consumo user-facing de coloring/cover/audio (telas finais intactas)',
+    check('F2.4e.2→F2.4e.3: cover/audio ainda SEM consumo user-facing (coloring passou a consumir via hook)',
       ['src/screens/NarrationScreen.js', 'src/screens/StoryBookScreen.js',
         'src/screens/ColoringScreen.js', 'src/services/audioService.js']
-        .every((p) => !/resolveStoryColoring|resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc(p)))),
-      'uma tela final passou a consumir coloring/cover/audio via resolver');
+        .every((p) => !/resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc(p)))),
+      'cover/áudio vazaram para telas finais (F2.4e.4/e.5 ainda não iniciados)');
 
     check('F2.4e.2: sem RevenueCat/entitlement nos arquivos tocados',
       !/Purchases\.|react-native-purchases|RevenueCat|isPremiumUser|entitlement/.test(integCode + pdsCode + pssCode + a1StripComments(scrSrc)),
@@ -13334,6 +13340,82 @@ check(
     check('F2.4e.2pR: downloader LAN legado também throttla o progresso (paridade)',
       /- lastTick < 120/.test(pssP),
       'downloadDavidGoliathPackSandbox (LAN) não throttla o progresso');
+  }
+
+  // ── F2.4e.3: consumo user-facing de COLORING remoto (david_goliath) com fallback local ──
+  console.log('\n── F2.4e.3: coloring remoto user-facing ──');
+  {
+    const colHook = a1StripComments(readSrc('src/hooks/useResolvedStoryMedia.js'));
+    const colScreen = a1StripComments(readSrc('src/screens/ColoringScreen.js'));
+    const colCanvas = a1StripComments(readSrc('src/components/ColoringCanvas.js'));
+    const touched = colHook + '\n' + colScreen + '\n' + colCanvas;
+
+    check('F2.4e.3: governança — DECISIONS.md e Documento Oficial v4 existem',
+      srcExists('docs/DECISIONS.md') && srcExists('docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md'),
+      'DECISIONS.md ou DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md ausente');
+
+    check('F2.4e.3: existe hook explícito para coloring remoto (useResolvedColoringImage)',
+      /export function useResolvedColoringImage/.test(colHook) && /resolveStoryColoring/.test(colHook),
+      'falta o hook useResolvedColoringImage / uso de resolveStoryColoring');
+
+    check('F2.4e.3: coloring remoto LIMITADO a david_goliath (SANDBOX_STORY_ID)',
+      /storyId === SANDBOX_STORY_ID/.test(colHook),
+      'coloring remoto não está restrito a david_goliath');
+
+    check('F2.4e.3: coloring remoto exige pack READY (via resolveStoryColoring + sourceType FILE)',
+      /resolveStoryColoring\(storyId, sceneNumber, packEntry\)/.test(colHook)
+        && /RESOLVE_SOURCE_TYPE\.FILE/.test(colHook),
+      'coloring remoto não exige pack ready (sourceType FILE do resolver)');
+
+    check('F2.4e.3: coloring remoto usa file:// do pack (retorna { uri }) — sem re-hash',
+      /setRemoteSource\(\{ uri: candidateUri \}\)/.test(colHook) && !/computeFileSha256/.test(colHook),
+      'coloring remoto não retorna { uri } do pack, ou recalcula sha256 no hook');
+
+    check('F2.4e.3: checagem de existência FORA do render (useEffect + getInfoAsync, sem hash)',
+      /useEffect\(\(\) => \{[\s\S]*?getInfoAsync\(candidateUri\)/.test(colHook)
+        && /info && info\.exists/.test(colHook),
+      'não confirma existência do arquivo remoto fora do render');
+
+    check('F2.4e.3: FALLBACK LOCAL obrigatório (getColoringImage) — requires locais preservados',
+      /getColoringImage\(storyId, cena\.id\)/.test(colHook)
+        && /return remoteSource \|\| localSource/.test(colHook)
+        && /getColoringImage/.test(readSrc('src/assets/coloringImages.js')),
+      'fallback local (getColoringImage) ausente ou requires locais removidos');
+
+    check('F2.4e.3: A Criação/Noé (não-sandbox) seguem LOCAL (hook devolve getColoringImage)',
+      // fora do sandbox, candidateUri fica null → sempre localSource; validado pelo gate storyId.
+      /const packEntry = storyId === SANDBOX_STORY_ID \? getPackEntry\(storyId\) : null/.test(colHook),
+      'histórias não-sandbox poderiam consumir remoto — gate ausente');
+
+    check('F2.4e.3: ColoringScreen usa o hook (não o resolver direto)',
+      /useResolvedColoringImage\(story, cenaIndex\)/.test(colScreen)
+        && /import \{ useResolvedColoringImage \}/.test(readSrc('src/screens/ColoringScreen.js')),
+      'ColoringScreen não passou a usar o hook');
+
+    check('F2.4e.3: ColoringScreen NÃO baixa arquivo nem calcula sha256',
+      !/downloadAsync|createDownloadResumable|downloadStoryPack|downloadDavidGoliath|computeFileSha256|\bsha256\b/.test(colScreen),
+      'ColoringScreen contém download/sha256 (proibido)');
+
+    check('F2.4e.3: ColoringScreen sem linguagem técnica para criança (sem pack/manifesto/sha256/CDN/file/MB literais)',
+      !/manifesto|sha256|\bCDN\b|file:\/\/|\bMB\b/i.test(colScreen),
+      'ColoringScreen expõe termo técnico em código/texto user-facing');
+
+    check('F2.4e.3: ColoringCanvas aceita { uri } além de require (pipeline file://→dataURL)',
+      /isUriSource/.test(colCanvas) && /imageSource\.uri/.test(colCanvas),
+      'ColoringCanvas não trata fonte remota { uri }');
+
+    check('F2.4e.3: sem RevenueCat/entitlement/paywall NOVOS nos arquivos tocados',
+      !/Purchases\.|react-native-purchases|RevenueCat|isPremiumUser|paywall/i.test(touched),
+      'arquivos tocados referenciam RevenueCat/entitlement/paywall');
+
+    check('F2.4e.3: escopo intacto — sem Brincar/conclusão-total/Free-sem-salvar nos arquivos tocados',
+      !/dailyRounds|startGameRound|isStoryFullyComplete|ATELIER_FREE_SAVE_LIMIT/.test(touched),
+      'arquivos tocados mexeram em Brincar/conclusão total/Free sem salvar');
+
+    check('F2.4e.3: cover/áudio ainda SEM consumo user-facing (F2.4e.4/e.5 não iniciados)',
+      !/resolveStoryCover|resolveStoryAudio/.test(colScreen)
+        && !/resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc('src/services/audioService.js'))),
+      'cover/áudio passaram a ser consumidos — F2.4e.4/e.5 fora de escopo');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

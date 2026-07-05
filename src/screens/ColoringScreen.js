@@ -9,7 +9,7 @@ import { colors } from '../theme/colors';
 import ColoringCanvas, { ERASER_COLOR } from '../components/ColoringCanvas';
 import { COLOR_PALETTE } from '../constants/colorPalette';
 import SoundButton from '../components/SoundButton';
-import { getColoringImage } from '../assets/coloringImages';
+import { useResolvedColoringImage } from '../hooks/useResolvedStoryMedia';
 import {
   getSavedDrawing,
   saveDrawingState,
@@ -161,7 +161,9 @@ export default function ColoringScreen({ route, navigation }) {
 
   // Field aliases for backward compatibility
   const tituloColorir = cena.tituloColorir ?? cena.instrucaoColorir ?? cena.colorirElemento ?? '';
-  const imageSource = getColoringImage(story.id, cena.id);
+  // F2.4e.3: colorir remoto (file://) p/ david_goliath com pack ready + arquivo existente;
+  // fallback local (getColoringImage) idêntico ao anterior para todas as outras condições.
+  const imageSource = useResolvedColoringImage(story, cenaIndex);
 
   // COLORIR IMERSIVO V1: o canvas não é mais dimensionado à altura exata da imagem
   // 4:5 (isso prendia o desenho numa faixa curta e deixava sobra vertical). Agora o
