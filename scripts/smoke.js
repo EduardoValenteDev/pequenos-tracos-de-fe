@@ -13120,19 +13120,19 @@ check(
       !/assets\//.test(dlBody) && /getPackLocalDir|getPackTempDir/.test(pds),
       'a função genérica referencia assets/ (deveria escrever só em documentDirectory)');
 
-    check('F2.4e.1→F2.4e.3: cover/audio ainda SEM consumo user-facing; coloring só via hook (fallback local preservado)',
+    check('F2.4e.1→F2.4e.4: áudio ainda SEM consumo user-facing; coloring/cover só via hook (fallback local preservado)',
       (() => {
         const surfaces = ['src/screens/NarrationScreen.js', 'src/screens/StoryBookScreen.js',
           'src/screens/ColoringScreen.js', 'src/services/audioService.js'];
-        // cover/áudio: nenhuma tela final os consome ainda (F2.4e.4/e.5 pendentes).
-        const noCoverAudio = surfaces.every((p) => !/resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc(p))));
-        // coloring (F2.4e.3): ColoringScreen usa o HOOK (não o resolver direto) e o registro
-        // local segue disponível via getColoringImage no hook (requires locais preservados).
+        // áudio: nenhuma superfície final o consome ainda (F2.4e.5 pendente).
+        const noAudio = surfaces.every((p) => !/resolveStoryAudio/.test(a1StripComments(readSrc(p))));
+        // coloring (F2.4e.3) e cover (F2.4e.4): consumidos via HOOK; registros locais preservados.
         const coloringViaHook = /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
           && /getColoringImage/.test(readSrc('src/hooks/useResolvedStoryMedia.js'));
-        return noCoverAudio && coloringViaHook;
+        const coverViaHook = /useResolvedStoryCover/.test(readSrc('src/hooks/useResolvedStoryMedia.js'));
+        return noAudio && coloringViaHook && coverViaHook;
       })(),
-      'cover/áudio vazaram para telas finais, ou coloring não passou pelo hook / fallback local sumiu');
+      'áudio vazou para superfície final, ou coloring/cover não passaram pelo hook / fallback local sumiu');
 
     check('F2.4e.1: compat F2.4d (botão só-cenas + função legada intacta)',
       /onDownloadGeneric/.test(scr) && /downloadDavidGoliathPackSandbox/.test(scr)
@@ -13210,11 +13210,11 @@ check(
       /requestedKinds\s*=\s*\['scene'\]/.test(pdsCode) && /requestedKinds/.test(pdsCode),
       'default scenes-only ou requestedKinds regrediram');
 
-    check('F2.4e.2→F2.4e.3: cover/audio ainda SEM consumo user-facing (coloring passou a consumir via hook)',
+    check('F2.4e.2→F2.4e.4: áudio ainda SEM consumo user-facing (coloring/cover passaram a consumir via hook)',
       ['src/screens/NarrationScreen.js', 'src/screens/StoryBookScreen.js',
         'src/screens/ColoringScreen.js', 'src/services/audioService.js']
-        .every((p) => !/resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc(p)))),
-      'cover/áudio vazaram para telas finais (F2.4e.4/e.5 ainda não iniciados)');
+        .every((p) => !/resolveStoryAudio/.test(a1StripComments(readSrc(p)))),
+      'áudio vazou para superfície final (F2.4e.5 ainda não iniciado)');
 
     check('F2.4e.2: sem RevenueCat/entitlement nos arquivos tocados',
       !/Purchases\.|react-native-purchases|RevenueCat|isPremiumUser|entitlement/.test(integCode + pdsCode + pssCode + a1StripComments(scrSrc)),
@@ -13412,10 +13412,83 @@ check(
       !/dailyRounds|startGameRound|isStoryFullyComplete|ATELIER_FREE_SAVE_LIMIT/.test(touched),
       'arquivos tocados mexeram em Brincar/conclusão total/Free sem salvar');
 
-    check('F2.4e.3: cover/áudio ainda SEM consumo user-facing (F2.4e.4/e.5 não iniciados)',
-      !/resolveStoryCover|resolveStoryAudio/.test(colScreen)
-        && !/resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc('src/services/audioService.js'))),
-      'cover/áudio passaram a ser consumidos — F2.4e.4/e.5 fora de escopo');
+    check('F2.4e.3→F2.4e.4: áudio ainda SEM consumo user-facing (F2.4e.5 não iniciado)',
+      !/resolveStoryAudio/.test(colScreen)
+        && !/resolveStoryAudio/.test(a1StripComments(readSrc('src/services/audioService.js'))),
+      'áudio passou a ser consumido — F2.4e.5 fora de escopo');
+  }
+
+  // ── F2.4e.4: consumo user-facing de COVER remoto (david_goliath) com fallback local ──
+  console.log('\n── F2.4e.4: cover remoto user-facing ──');
+  {
+    const covHookRaw = readSrc('src/hooks/useResolvedStoryMedia.js');
+    const covHook = a1StripComments(covHookRaw);
+    const marker = readSrc('src/components/map/StoryMapMarker.js');
+    const focus = readSrc('src/components/map/StoryFocusModal.js');
+    const card = readSrc('src/components/StoryCard.js');
+    const covTouched = covHook + '\n' + a1StripComments(marker) + '\n' + a1StripComments(focus) + '\n' + a1StripComments(card);
+    // corpo da função de cover (a partir da sua declaração)
+    const cvIdx = covHook.indexOf('function useResolvedStoryCover');
+    const cvBody = cvIdx >= 0 ? covHook.slice(cvIdx) : '';
+
+    check('F2.4e.4: governança — DECISIONS.md e Documento Oficial v4 existem',
+      srcExists('docs/DECISIONS.md') && srcExists('docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md'),
+      'DECISIONS.md ou DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md ausente');
+
+    check('F2.4e.4: existe hook explícito para cover remoto (useResolvedStoryCover)',
+      /export function useResolvedStoryCover/.test(covHook) && /resolveStoryCover/.test(covHook),
+      'falta o hook useResolvedStoryCover / uso de resolveStoryCover');
+
+    check('F2.4e.4: cover remoto LIMITADO a david_goliath (SANDBOX_STORY_ID)',
+      /storyId === SANDBOX_STORY_ID/.test(cvBody),
+      'cover remoto não está restrito a david_goliath');
+
+    check('F2.4e.4: cover remoto exige pack READY (resolveStoryCover + sourceType FILE)',
+      /resolveStoryCover\(storyId, packEntry\)/.test(cvBody) && /RESOLVE_SOURCE_TYPE\.FILE/.test(cvBody),
+      'cover remoto não exige pack ready (sourceType FILE do resolver)');
+
+    check('F2.4e.4: cover remoto usa file:// do pack ({ uri }); existência FORA do render; sem hash',
+      /setRemoteSource\(\{ uri: candidateUri \}\)/.test(cvBody)
+        && /getInfoAsync\(candidateUri\)/.test(cvBody)
+        && !/computeFileSha256/.test(cvBody),
+      'cover remoto não retorna { uri }/existência fora do render, ou recalcula sha256');
+
+    check('F2.4e.4: FALLBACK LOCAL obrigatório (localSource) — hook desacoplado do registro',
+      /return remoteSource \|\| localSource/.test(cvBody),
+      'cover remoto sem fallback local (localSource)');
+
+    check('F2.4e.4: 3 superfícies user-facing usam o hook (mapa · detalhe · card)',
+      /useResolvedStoryCover/.test(marker) && /useResolvedStoryCover/.test(focus) && /useResolvedStoryCover/.test(card),
+      'StoryMapMarker/StoryFocusModal/StoryCard não usam o hook de cover');
+
+    check('F2.4e.4: render das capas INALTERADO (<Image source> — sem pipeline/layout novo)',
+      /Image source=\{cover\}/.test(marker) && /Image source=\{cover\}/.test(focus) && /Image source=\{coverImg\}/.test(card),
+      'o render de capa mudou (deveria ser só a fonte via hook)');
+
+    check('F2.4e.4: superfícies de capa NÃO baixam arquivo nem calculam sha256',
+      !/downloadAsync|createDownloadResumable|downloadStoryPack|computeFileSha256|\bsha256\b/.test(a1StripComments(marker) + a1StripComments(focus) + a1StripComments(card)),
+      'uma superfície de capa contém download/sha256 (proibido)');
+
+    check('F2.4e.4: superfícies de capa sem linguagem técnica para criança',
+      !/manifesto|sha256|\bCDN\b|file:\/\/|\bMB\b/i.test(a1StripComments(marker) + a1StripComments(focus) + a1StripComments(card)),
+      'superfície de capa expõe termo técnico');
+
+    check('F2.4e.4: A Criação/Noé (não-sandbox) seguem LOCAL (gate SANDBOX_STORY_ID no cover)',
+      /const packEntry = storyId === SANDBOX_STORY_ID \? getPackEntry\(storyId\) : null/.test(cvBody),
+      'cover de histórias não-sandbox poderia ir remoto — gate ausente');
+
+    check('F2.4e.4: F2.4e.3 (coloring remoto) continua intacto',
+      /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
+        && /export function useResolvedColoringImage/.test(covHook),
+      'coloring remoto (F2.4e.3) foi quebrado');
+
+    check('F2.4e.4: sem RevenueCat/entitlement/paywall/Brincar/conclusão/Free NOVOS nos arquivos tocados',
+      !/Purchases\.|react-native-purchases|RevenueCat|isPremiumUser|paywall|dailyRounds|startGameRound|isStoryFullyComplete|ATELIER_FREE_SAVE_LIMIT/i.test(covTouched),
+      'arquivos tocados mexeram em RevenueCat/entitlement/Brincar/conclusão/Free');
+
+    check('F2.4e.4: requires locais preservados (storyCovers/images intactos como fallback)',
+      /getStoryCover/.test(readSrc('src/assets/storyCovers.js')) && /STORY_COVERS/.test(readSrc('src/assets/images.js')),
+      'registros locais de capa (storyCovers/images) removidos');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

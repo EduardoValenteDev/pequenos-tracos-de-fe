@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
 import { usePacks } from '../context/PacksContext';
-import { resolveStoryScene, resolveStoryColoring, RESOLVE_SOURCE_TYPE } from '../services/contentResolver';
+import { resolveStoryScene, resolveStoryColoring, resolveStoryCover, RESOLVE_SOURCE_TYPE } from '../services/contentResolver';
 import { getOfficialSceneIllustration } from '../services/storyImageService';
 import { getColoringImage } from '../assets/coloringImages';
 
@@ -124,6 +124,48 @@ export function useResolvedColoringImage(story, cenaIndex) {
   useEffect(() => {
     let cancelled = false;
     setRemoteSource(null); // reset ao trocar cena/pack: garante fallback até confirmar de novo
+    if (!candidateUri) return () => { cancelled = true; };
+    (async () => {
+      try {
+        const info = await FileSystem.getInfoAsync(candidateUri); // leve (metadata), sem hash
+        if (!cancelled && info && info.exists) setRemoteSource({ uri: candidateUri });
+      } catch { /* mantém fallback local */ }
+    })();
+    return () => { cancelled = true; };
+  }, [candidateUri]);
+
+  return remoteSource || localSource;
+}
+
+/**
+ * useResolvedStoryCover — `source` da CAPA da história (16:9) para superfícies user-facing
+ * (Fase 2, F2.4e.4). Mesma estratégia do coloring (F2.4e.3): FALLBACK LOCAL sempre; remoto
+ * `{ uri: file:// }` só p/ david_goliath + pack `ready` (resolveStoryCover sourceType FILE) +
+ * arquivo EXISTENTE (checagem leve `getInfoAsync` FORA do render).
+ *
+ * O `localSource` é passado pela superfície (o registro local que ela já usa — `getStoryCover`,
+ * `images[imagemCapa]`, …), então o hook NÃO se acopla a nenhum registro específico e serve a
+ * qualquer tela/card. READ-ONLY: não baixa, não calcula sha256, sem leitura pesada em render.
+ * Reseta ao trocar história/pack — nunca aponta para um `file://` antigo após um reset.
+ *
+ * @param {string} storyId
+ * @param {*} localSource  fonte de capa LOCAL atual da superfície (require OU null)
+ * @returns {*} source de <Image>: local (fallback) OU { uri: 'file://…' }
+ */
+export function useResolvedStoryCover(storyId, localSource) {
+  const { getPackEntry } = usePacks(); // hook chamado SEMPRE (regras do React)
+  const [remoteSource, setRemoteSource] = useState(null);
+
+  const packEntry = storyId === SANDBOX_STORY_ID ? getPackEntry(storyId) : null;
+  let candidateUri = null;
+  if (storyId === SANDBOX_STORY_ID) {
+    const r = resolveStoryCover(storyId, packEntry);
+    candidateUri = r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source ? r.source.uri : null;
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    setRemoteSource(null); // reset ao trocar história/pack: fallback local até reconfirmar
     if (!candidateUri) return () => { cancelled = true; };
     (async () => {
       try {

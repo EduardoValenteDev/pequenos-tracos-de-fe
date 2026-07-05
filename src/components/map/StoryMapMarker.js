@@ -11,6 +11,7 @@ import React, { useRef, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, Animated } from 'react-native';
 import SoundButton from '../SoundButton';
 import { getStoryCover } from '../../assets/storyCovers';
+import { useResolvedStoryCover } from '../../hooks/useResolvedStoryMedia';
 
 // Tamanhos reduzidos de novo (B3.2): pins mais delicados sobre a arte, ainda com
 // avatar/badge legíveis e bons de tocar. As histórias ficam diretamente sobre o
@@ -54,7 +55,9 @@ export default function StoryMapMarker({
   measureRef,                 // UX 2.3.1: ref de MEDIÇÃO (só no marco current/nextLocked)
   onPress,
 }) {
-  const cover = getStoryCover(story.id);
+  // F2.4e.4: capa remota (file://) p/ david_goliath com pack ready + arquivo existente;
+  // fallback local (getStoryCover) idêntico ao anterior para todas as outras condições.
+  const cover = useResolvedStoryCover(story.id, getStoryCover(story.id));
   const isCurrent = state === 'current';
   const isNextLocked = state === 'nextLocked';
   const isLocked = state === 'locked';

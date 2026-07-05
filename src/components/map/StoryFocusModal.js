@@ -15,6 +15,7 @@ import { Modal, View, Text, Image, StyleSheet, Animated, Pressable, useWindowDim
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from '../SoundButton';
 import { getStoryCover } from '../../assets/storyCovers';
+import { useResolvedStoryCover } from '../../hooks/useResolvedStoryMedia';
 import { color } from '../../theme/tokens';
 
 // Cores dos badges. A0.10: premium em AZUL-NOITE (tokens.night — roxo/lilás
@@ -95,12 +96,16 @@ export default function StoryFocusModal({ visible, story, contractStatus = 'lock
     }
   }, [visible, backdrop, pop]);
 
+  // F2.4e.4: capa remota (file://) p/ david_goliath com pack ready + arquivo existente; fallback
+  // local sempre. Hook ANTES do early-return `if (!story)` (ordem estável dos hooks do React).
+  const resolvedCover = useResolvedStoryCover(story && story.id, story ? getStoryCover(story.id) : null);
+
   function handleClose() {
     Animated.timing(backdrop, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => onClose?.());
   }
 
   if (!story) return null;
-  const cover = getStoryCover(story.id);
+  const cover = resolvedCover;
   const info = describe({ contractStatus, journeyComplete, progressPercent, previousStoryTitle, lockReason, accessType: story.accessType });
   const cardW = Math.min(width - 40, 360);
   const coverH = Math.round((cardW - 24) * 9 / 16);

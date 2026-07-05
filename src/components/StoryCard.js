@@ -6,6 +6,7 @@ import StoryFallbackCover from './story/StoryFallbackCover';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { images } from '../assets/images';
 import { isStoryComingSoon } from '../services/contentAccessService';
+import { useResolvedStoryCover } from '../hooks/useResolvedStoryMedia';
 
 /**
  * StoryCard — card de história estilo pôster infantil.
@@ -15,7 +16,9 @@ import { isStoryComingSoon } from '../services/contentAccessService';
  * vai na área de informações, fora da arte.
  */
 export default function StoryCard({ story, onPress, locked = false, progressCount = 0 }) {
-  const coverImg = story.imagemCapa ? images[story.imagemCapa] : null;
+  // F2.4e.4: capa remota (file://) p/ david_goliath com pack ready + arquivo existente;
+  // fallback local (images[imagemCapa]) idêntico ao anterior nas outras condições.
+  const coverImg = useResolvedStoryCover(story.id, story.imagemCapa ? images[story.imagemCapa] : null);
   const themeColor = story.themeColor ?? story.corCapa ?? '#F4B400';
 
   const isDone = progressCount >= story.totalCenas && story.totalCenas > 0;
