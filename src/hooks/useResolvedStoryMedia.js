@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
 import { usePacks } from '../context/PacksContext';
-import { resolveStoryScene, resolveStoryColoring, resolveStoryCover, RESOLVE_SOURCE_TYPE } from '../services/contentResolver';
+import { resolveStoryScene, resolveStoryColoring, resolveStoryCover, resolveStoryAudio, RESOLVE_SOURCE_TYPE } from '../services/contentResolver';
 import { getOfficialSceneIllustration } from '../services/storyImageService';
 import { getColoringImage } from '../assets/coloringImages';
 
@@ -177,4 +177,50 @@ export function useResolvedStoryCover(storyId, localSource) {
   }, [candidateUri]);
 
   return remoteSource || localSource;
+}
+
+/**
+ * useResolvedStoryAudio — `source` do ÁUDIO de narração de uma cena para o AudioPlayer
+ * (expo-audio) — Fase 2, F2.4e.5. Mesma estratégia de coloring/cover: FALLBACK LOCAL sempre;
+ * remoto `{ uri: file:// }` só p/ david_goliath + pack `ready` (resolveStoryAudio sourceType
+ * FILE) + arquivo EXISTENTE (checagem leve `getInfoAsync` FORA do render).
+ *
+ * `useAudioPlayer` (expo-audio) aceita nativamente `{ uri }` além de require — SEM pipeline
+ * novo. O `localAudioAsset` (require do bundle) é passado pela superfície; o hook não se acopla
+ * ao audioService. READ-ONLY: não baixa, não calcula sha256, sem leitura pesada em render.
+ * Retorno é referência ESTÁVEL (state) → o player não reinicializa à toa; reseta ao trocar
+ * cena/pack (nunca aponta para um `file://` antigo após reset). Não altera play/pause/autoplay/
+ * cleanup — apenas a FONTE.
+ *
+ * @param {string} storyId
+ * @param {number} sceneNumber  posição da cena (1..N)
+ * @param {*} localAudioAsset   áudio LOCAL atual (require) OU null
+ * @returns {*} source do player: local (fallback) OU { uri: 'file://…' }
+ */
+export function useResolvedStoryAudio(storyId, sceneNumber, localAudioAsset) {
+  const { getPackEntry } = usePacks(); // hook chamado SEMPRE (regras do React)
+  const [remoteSource, setRemoteSource] = useState(null);
+
+  const n = Number.isInteger(sceneNumber) ? sceneNumber : 0;
+  const packEntry = storyId === SANDBOX_STORY_ID ? getPackEntry(storyId) : null;
+  let candidateUri = null;
+  if (storyId === SANDBOX_STORY_ID && n > 0) {
+    const r = resolveStoryAudio(storyId, n, packEntry);
+    candidateUri = r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source ? r.source.uri : null;
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    setRemoteSource(null); // reset ao trocar cena/pack: fallback local até reconfirmar
+    if (!candidateUri) return () => { cancelled = true; };
+    (async () => {
+      try {
+        const info = await FileSystem.getInfoAsync(candidateUri); // leve (metadata), sem hash
+        if (!cancelled && info && info.exists) setRemoteSource({ uri: candidateUri });
+      } catch { /* mantém fallback local */ }
+    })();
+    return () => { cancelled = true; };
+  }, [candidateUri]);
+
+  return remoteSource || localAudioAsset;
 }

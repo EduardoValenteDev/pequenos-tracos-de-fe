@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, Image, StyleSheet, ActivityIndicator, ScrollView,
-  Animated, useWindowDimensions,
+  Animated, useWindowDimensions, AppState,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
@@ -440,6 +441,7 @@ export default function StoryBookScreen({ route, navigation }) {
   const [viewMode, setViewMode] = useState('official'); // 'official' (História ilustrada) | 'child' (Meu livrinho colorido)
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [entering, setEntering] = useState(false); // transição mágica de abertura
+  const isBookFocused = useIsFocused(); // F2.4e.5p: usado p/ parar o áudio ao sair da tela
   const markedRef = useRef(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const lockRef = useRef(false);   // trava de toques rápidos (anti avanço duplo)
@@ -448,6 +450,14 @@ export default function StoryBookScreen({ route, navigation }) {
   // pode ser descartado (senão a cena não avança). Marca-se aqui e o avanço é reagendado
   // quando a trava libera (efeito abaixo). SÓ o fim de áudio usa este caminho.
   const pendingAutoAdvanceRef = useRef(false);
+  // F2.4e.5pR — HARDENING de lifecycle de áudio. Token de sessão de reprodução:
+  // sincronamente invalidado (bump) no blur, no background, na troca manual de cena, no
+  // novo início de áudio e na pausa manual. Todo callback que pode AVANÇAR cena ou iniciar
+  // autoplay verifica se a sessão ainda é a atual E se a tela está focada E o app ativo.
+  const playbackGenerationRef = useRef(0);
+  const isBookFocusedRef = useRef(true); // espelho do foco (debug/efeitos); a verdade usada nos guards é navigation.isFocused()
+  const appActiveRef = useRef(true);     // AppState 'active' (app em foreground)
+  const noAudioTimerRef = useRef(null);  // timer da cena sem áudio (cancelável no invalidate)
 
   // Timeline derivada (memoizada) — só recalcula ao trocar história, artes ou modo.
   const timeline = useMemo(
@@ -528,16 +538,62 @@ export default function StoryBookScreen({ route, navigation }) {
     pendingAutoAdvanceRef.current = false; // LIVRINHO_AUTOPLAY_FIX_1: sem avanço órfão
   }, []);
 
+  // F2.4e.5p — LIFECYCLE DE ÁUDIO: ao PERDER o foco (sair p/ mapa/Início, Voltar, trocar de
+  // aba) o áudio DEVE parar e a cadeia de autoplay DEVE haltar. `setIsPaused(true)` aciona o
+  // `player.pause()` do AudioPlayer (via prop `paused`) e para o timer das cenas sem áudio;
+  // `setAutoplayActive(false)` impede que a próxima cena toque sozinha; o avanço pendente é
+  // limpo. Nada volta a tocar no mapa; ao retornar, fica em estado seguro (aguardando Play).
+  useEffect(() => {
+    isBookFocusedRef.current = isBookFocused; // F2.4e.5pR: espelho síncrono p/ os callbacks
+    if (!isBookFocused) {
+      // Ordem (F2.4e.5pR): cancelar timers → invalidar token → pausar → desligar autoplay.
+      invalidatePlaybackSession(); // limpa timer de cena sem áudio + avanço pendente + bump do token
+      setIsPaused(true);           // pausa o áudio (via prop `paused` do AudioPlayer)
+      setAutoplayActive(false);    // a próxima cena NÃO toca sozinha
+    }
+  }, [isBookFocused]);
+
+  // F2.4e.5pR — AppState: ao ir para BACKGROUND / bloquear a tela (o app deixa de estar
+  // 'active'), para o áudio e halta o autoplay, MESMO com a tela ainda "focada" na
+  // navegação (useIsFocused não muda no background). NÃO retoma sozinho ao voltar —
+  // fica em estado seguro aguardando o Play da criança.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      // 'inactive' é TRANSITÓRIO (Central de Controle, banner de notificação, Face ID) —
+      // NÃO halta a história (evita cortar a leitura por um toque acidental do sistema).
+      // Só o 'background' real (app fora / tela bloqueada) para tudo e halta o autoplay.
+      appActiveRef.current = next !== 'background';
+      if (next === 'background') {
+        invalidatePlaybackSession();
+        setIsPaused(true);
+        setAutoplayActive(false);
+      }
+      // volta a 'active': NÃO auto-resume (sem setIsPaused(false)) — estado seguro.
+    });
+    return () => sub.remove();
+  }, []);
+
   // Auto-avanço por TIMER quando a cena do slide não tem áudio. Um único timer
   // por vez (efeito único, limpo a cada troca). Com áudio, o AudioPlayer avança.
   useEffect(() => {
     if (screenState !== 'playing' || isPaused) return undefined;
+    if (!isBookFocused) return undefined; // F2.4e.5pR: sem timer de avanço fora de foco
     const slide = timeline[currentSlideIndex];
     if (!slide) return undefined;
     if (hasSceneAudio(story.id, slide.sceneKey)) return undefined;
-    const timer = setTimeout(() => { advanceToNextScene(); }, AUTOPLAY_MS);
-    return () => clearTimeout(timer);
-  }, [screenState, currentSlideIndex, isPaused, viewMode]);
+    const gen = playbackGenerationRef.current; // F2.4e.5pR: sessão no agendamento
+    const timer = setTimeout(() => {
+      // Só avança se a sessão ainda é a mesma E a tela está viva (foco + app ativo).
+      if (gen !== playbackGenerationRef.current) return;
+      if (!isPlaybackContextLive()) return;
+      advanceToNextScene();
+    }, AUTOPLAY_MS);
+    noAudioTimerRef.current = timer;
+    return () => {
+      clearTimeout(timer);
+      if (noAudioTimerRef.current === timer) noAudioTimerRef.current = null;
+    };
+  }, [screenState, currentSlideIndex, isPaused, viewMode, isBookFocused]);
 
   // LIVRINHO_AUTOPLAY_FIX_1 — consome um avanço por FIM DE ÁUDIO que chegou durante a
   // trava de transição. Quando a trava libera (isTransitioning → false), avança UMA vez.
@@ -570,6 +626,7 @@ export default function StoryBookScreen({ route, navigation }) {
     setCurrentSlideIndex(0);
     setIsPaused(false);
     setAutoplayActive(false); // 1ª cena espera o Play da criança; depois segue sozinho
+    playbackGenerationRef.current += 1; // F2.4e.5pR: nova sessão de reprodução
     setScreenState('playing');
   }
 
@@ -586,8 +643,29 @@ export default function StoryBookScreen({ route, navigation }) {
     }, 260);
   }
 
+  // F2.4e.5pR — a reprodução só é "viva" com a tela focada E o app em foreground.
+  // Usa navigation.isFocused() como verdade SÍNCRONA do foco (sem o lag de 1 render do
+  // useIsFocused): fecha a corrida em que um didJustFinish dispara entre o blur e o efeito
+  // atualizar o espelho, avançando cena fora da tela. appActiveRef cobre background/lock.
+  function isPlaybackContextLive() {
+    return navigation.isFocused() && appActiveRef.current;
+  }
+
+  // F2.4e.5pR — invalida a sessão de reprodução atual: incrementa o token (qualquer
+  // callback antigo em voo vira no-op), cancela o timer de cena sem áudio e limpa o
+  // avanço pendente. Chamado no blur, no background e nas trocas manuais de cena.
+  function invalidatePlaybackSession() {
+    playbackGenerationRef.current += 1;
+    pendingAutoAdvanceRef.current = false;
+    if (noAudioTimerRef.current) {
+      clearTimeout(noAudioTimerRef.current);
+      noAudioTimerRef.current = null;
+    }
+  }
+
   function advanceToNextScene() {
     if (lockRef.current) return;
+    if (!isPlaybackContextLive()) return; // F2.4e.5pR: nunca avança fora de foco/app ativo
     if (currentSlideIndex >= totalSlides - 1) {
       if (__DEV__) console.log('[StoryBook] last scene reached → ended (no loop)');
       setScreenState('ended'); // não tenta avançar p/ cena inexistente, sem loop
@@ -603,6 +681,7 @@ export default function StoryBookScreen({ route, navigation }) {
 
   function onSceneAudioComplete() {
     if (__DEV__) console.log('[StoryBook] finished scene', currentSlideIndex + 1);
+    if (!isPlaybackContextLive()) return; // F2.4e.5pR: fim de áudio fora da tela não avança cena
     // LIVRINHO_AUTOPLAY_FIX_1: se a trava de transição estiver ativa, NÃO descarta o
     // fim de áudio (era a causa da cena travar) — marca pendente e o efeito reagenda o
     // avanço quando a trava liberar. Marca uma vez e retorna (sem duplo avanço).
@@ -615,6 +694,7 @@ export default function StoryBookScreen({ route, navigation }) {
 
   function handlePrevScene() {
     if (lockRef.current) return;
+    playbackGenerationRef.current += 1; // F2.4e.5pR: troca manual invalida a sessão anterior
     pendingAutoAdvanceRef.current = false; // LIVRINHO_AUTOPLAY_FIX_1: voltar cancela avanço pendente
     if (currentSlideIndex === 0) {
       setScreenState('intro');
@@ -639,6 +719,7 @@ export default function StoryBookScreen({ route, navigation }) {
     setCurrentSlideIndex(0);
     setIsPaused(false);
     setAutoplayActive(false);
+    playbackGenerationRef.current += 1; // F2.4e.5pR: "Ver de novo" reinicia a sessão
     setScreenState('playing'); // sai de 'ended' (finished → false)
   }
 
@@ -652,6 +733,7 @@ export default function StoryBookScreen({ route, navigation }) {
     setCurrentSlideIndex(0);
     setIsPaused(false);
     setAutoplayActive(false);
+    playbackGenerationRef.current += 1; // F2.4e.5pR: trocar de modo reinicia a sessão
     setScreenState('intro'); // mostra de novo os 3 modos (finished → false)
   }
 
@@ -668,6 +750,7 @@ export default function StoryBookScreen({ route, navigation }) {
     setAutoplayActive(false);
     fadeAnim.setValue(1);
     pendingAutoAdvanceRef.current = false; // LIVRINHO_AUTOPLAY_FIX_1
+    playbackGenerationRef.current += 1; // F2.4e.5pR: selecionar modo invalida a sessão anterior
   }
 
   const handleImageAreaLayout = useCallback((e) => {
@@ -1096,8 +1179,8 @@ export default function StoryBookScreen({ route, navigation }) {
             onFinished={onSceneAudioComplete}
             paused={isPaused}
             autoPlay={autoplayActive}
-            onPlayStart={() => setAutoplayActive(true)}
-            onUserPause={() => setAutoplayActive(false)}
+            onPlayStart={() => { playbackGenerationRef.current += 1; setIsPaused(false); setAutoplayActive(true); }}
+            onUserPause={() => { playbackGenerationRef.current += 1; setAutoplayActive(false); }}
           />
         ) : (
           <View style={styles.noAudioCard}>

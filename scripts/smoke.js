@@ -4911,7 +4911,8 @@ check(
 
 check(
   'Livrinho usa um único timer de autoplay (constante AUTOPLAY_MS, efeito único)',
-  (livroSrc.match(/setTimeout\(\(\) => \{ advanceToNextScene\(\); \}, AUTOPLAY_MS\)/g) || []).length === 1,
+  (livroSrc.match(/, AUTOPLAY_MS\)/g) || []).length === 1
+    && /setTimeout\(\(\) => \{[\s\S]*?advanceToNextScene\(\);\s*\}, AUTOPLAY_MS\)/.test(livroSrc),
   'StoryBookScreen has zero or multiple autoplay timers',
 );
 
@@ -4943,7 +4944,7 @@ check(
 
 check(
   'LIVRINHO_AUTOPLAY_FIX_1: timer de cena SEM áudio preservado (fallback intacto)',
-  /if \(hasSceneAudio\(story\.id, slide\.sceneKey\)\) return undefined;[\s\S]*?setTimeout\(\(\) => \{ advanceToNextScene\(\); \}, AUTOPLAY_MS\)/.test(livroSrc),
+  /if \(hasSceneAudio\(story\.id, slide\.sceneKey\)\) return undefined;[\s\S]*?setTimeout\(\(\) => \{[\s\S]*?advanceToNextScene\(\);\s*\}, AUTOPLAY_MS\)/.test(livroSrc),
   'Timer de auto-avanço para cenas sem áudio foi alterado/removido',
 );
 
@@ -5345,8 +5346,8 @@ check(
   'LIVRINHO1.0: StoryBook entra em reprodução contínua (autoplayActive: Play liga, pausa manual desliga; done NÃO desliga)',
   storyBookSrc.includes('autoplayActive') &&
   /autoPlay=\{autoplayActive\}/.test(storyBookSrc) &&
-  /onPlayStart=\{\(\) => setAutoplayActive\(true\)\}/.test(storyBookSrc) &&
-  /onUserPause=\{\(\) => setAutoplayActive\(false\)\}/.test(storyBookSrc) &&
+  /onPlayStart=\{\(\) => \{ playbackGenerationRef\.current \+= 1; setIsPaused\(false\); setAutoplayActive\(true\); \}\}/.test(storyBookSrc) &&
+  /onUserPause=\{\(\) => \{ playbackGenerationRef\.current \+= 1; setAutoplayActive\(false\); \}\}/.test(storyBookSrc) &&
   storyBookSrc.includes('setAutoplayActive(false)'), // reset ao (re)iniciar
   'Livrinho não tem modo de reprodução contínua corretamente cabeado',
 );
@@ -13120,19 +13121,19 @@ check(
       !/assets\//.test(dlBody) && /getPackLocalDir|getPackTempDir/.test(pds),
       'a função genérica referencia assets/ (deveria escrever só em documentDirectory)');
 
-    check('F2.4e.1→F2.4e.4: áudio ainda SEM consumo user-facing; coloring/cover só via hook (fallback local preservado)',
+    check('F2.4e.1→F2.4e.5: coloring/cover/áudio consumidos SÓ via hook (superfícies não usam o resolver direto; fallback local preservado)',
       (() => {
         const surfaces = ['src/screens/NarrationScreen.js', 'src/screens/StoryBookScreen.js',
           'src/screens/ColoringScreen.js', 'src/services/audioService.js'];
-        // áudio: nenhuma superfície final o consome ainda (F2.4e.5 pendente).
-        const noAudio = surfaces.every((p) => !/resolveStoryAudio/.test(a1StripComments(readSrc(p))));
-        // coloring (F2.4e.3) e cover (F2.4e.4): consumidos via HOOK; registros locais preservados.
-        const coloringViaHook = /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
-          && /getColoringImage/.test(readSrc('src/hooks/useResolvedStoryMedia.js'));
-        const coverViaHook = /useResolvedStoryCover/.test(readSrc('src/hooks/useResolvedStoryMedia.js'));
-        return noAudio && coloringViaHook && coverViaHook;
+        // superfícies finais NÃO importam o resolver diretamente (tudo via hooks do useResolvedStoryMedia).
+        const noDirectResolver = surfaces.every((p) => !/resolveStoryColoring|resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc(p))));
+        const hookExports = readSrc('src/hooks/useResolvedStoryMedia.js');
+        const allViaHook = /useResolvedColoringImage/.test(hookExports)
+          && /useResolvedStoryCover/.test(hookExports) && /useResolvedStoryAudio/.test(hookExports)
+          && /getColoringImage/.test(hookExports); // fallback local preservado
+        return noDirectResolver && allViaHook;
       })(),
-      'áudio vazou para superfície final, ou coloring/cover não passaram pelo hook / fallback local sumiu');
+      'uma superfície final usa o resolver direto, ou coloring/cover/áudio não passam pelo hook / fallback sumiu');
 
     check('F2.4e.1: compat F2.4d (botão só-cenas + função legada intacta)',
       /onDownloadGeneric/.test(scr) && /downloadDavidGoliathPackSandbox/.test(scr)
@@ -13210,11 +13211,11 @@ check(
       /requestedKinds\s*=\s*\['scene'\]/.test(pdsCode) && /requestedKinds/.test(pdsCode),
       'default scenes-only ou requestedKinds regrediram');
 
-    check('F2.4e.2→F2.4e.4: áudio ainda SEM consumo user-facing (coloring/cover passaram a consumir via hook)',
+    check('F2.4e.2→F2.4e.5: superfícies finais não importam o resolver direto (coloring/cover/áudio via hook)',
       ['src/screens/NarrationScreen.js', 'src/screens/StoryBookScreen.js',
         'src/screens/ColoringScreen.js', 'src/services/audioService.js']
-        .every((p) => !/resolveStoryAudio/.test(a1StripComments(readSrc(p)))),
-      'áudio vazou para superfície final (F2.4e.5 ainda não iniciado)');
+        .every((p) => !/resolveStoryColoring|resolveStoryCover|resolveStoryAudio/.test(a1StripComments(readSrc(p)))),
+      'uma superfície final passou a importar o resolver diretamente (deveria ser via hook)');
 
     check('F2.4e.2: sem RevenueCat/entitlement nos arquivos tocados',
       !/Purchases\.|react-native-purchases|RevenueCat|isPremiumUser|entitlement/.test(integCode + pdsCode + pssCode + a1StripComments(scrSrc)),
@@ -13412,10 +13413,10 @@ check(
       !/dailyRounds|startGameRound|isStoryFullyComplete|ATELIER_FREE_SAVE_LIMIT/.test(touched),
       'arquivos tocados mexeram em Brincar/conclusão total/Free sem salvar');
 
-    check('F2.4e.3→F2.4e.4: áudio ainda SEM consumo user-facing (F2.4e.5 não iniciado)',
+    check('F2.4e.3→F2.4e.5: ColoringScreen sem áudio; audioService segue manifest-only (resolver de pack fica no hook)',
       !/resolveStoryAudio/.test(colScreen)
-        && !/resolveStoryAudio/.test(a1StripComments(readSrc('src/services/audioService.js'))),
-      'áudio passou a ser consumido — F2.4e.5 fora de escopo');
+        && !/resolveStoryAudio|contentResolver/.test(a1StripComments(readSrc('src/services/audioService.js'))),
+      'ColoringScreen tocou áudio, ou audioService passou a importar o resolver de pack');
   }
 
   // ── F2.4e.4: consumo user-facing de COVER remoto (david_goliath) com fallback local ──
@@ -13489,6 +13490,343 @@ check(
     check('F2.4e.4: requires locais preservados (storyCovers/images intactos como fallback)',
       /getStoryCover/.test(readSrc('src/assets/storyCovers.js')) && /STORY_COVERS/.test(readSrc('src/assets/images.js')),
       'registros locais de capa (storyCovers/images) removidos');
+  }
+
+  // ── F2.4e.5: consumo user-facing de ÁUDIO remoto (david_goliath) com fallback local ──
+  console.log('\n── F2.4e.5: áudio remoto user-facing ──');
+  {
+    const audHook = a1StripComments(readSrc('src/hooks/useResolvedStoryMedia.js'));
+    const narrRaw = readSrc('src/screens/NarrationScreen.js');
+    const narr = a1StripComments(narrRaw);
+    const player = readSrc('src/components/AudioPlayer.js');
+    const audTouched = audHook + '\n' + narr;
+    const avIdx = audHook.indexOf('function useResolvedStoryAudio');
+    const avBody = avIdx >= 0 ? audHook.slice(avIdx) : '';
+
+    check('F2.4e.5: governança — DECISIONS.md e Documento Oficial v4 existem',
+      srcExists('docs/DECISIONS.md') && srcExists('docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md'),
+      'DECISIONS.md ou DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md ausente');
+
+    check('F2.4e.5: existe hook explícito para áudio remoto (useResolvedStoryAudio)',
+      /export function useResolvedStoryAudio/.test(audHook) && /resolveStoryAudio/.test(audHook),
+      'falta o hook useResolvedStoryAudio / uso de resolveStoryAudio');
+
+    check('F2.4e.5: áudio remoto LIMITADO a david_goliath (SANDBOX_STORY_ID)',
+      /storyId === SANDBOX_STORY_ID/.test(avBody),
+      'áudio remoto não está restrito a david_goliath');
+
+    check('F2.4e.5: áudio remoto exige pack READY (resolveStoryAudio + sourceType FILE)',
+      /resolveStoryAudio\(storyId, n, packEntry\)/.test(avBody) && /RESOLVE_SOURCE_TYPE\.FILE/.test(avBody),
+      'áudio remoto não exige pack ready (sourceType FILE do resolver)');
+
+    check('F2.4e.5: áudio remoto usa file:// ({ uri }); existência FORA do render; sem hash',
+      /setRemoteSource\(\{ uri: candidateUri \}\)/.test(avBody)
+        && /getInfoAsync\(candidateUri\)/.test(avBody)
+        && !/computeFileSha256/.test(avBody),
+      'áudio remoto não retorna { uri }/existência fora do render, ou recalcula sha256');
+
+    check('F2.4e.5: FALLBACK LOCAL obrigatório (localAudioAsset) — hook desacoplado do audioService',
+      /return remoteSource \|\| localAudioAsset/.test(avBody),
+      'áudio remoto sem fallback local (localAudioAsset)');
+
+    check('F2.4e.5: NarrationScreen usa o hook e passa a fonte resolvida ao AudioPlayer',
+      /useResolvedStoryAudio\(story\?\.id, numeroCena,/.test(narr)
+        && /<AudioPlayer audioAsset=\{resolvedAudioAsset\}/.test(narrRaw),
+      'NarrationScreen não resolve o áudio pelo hook / não passa resolvedAudioAsset');
+
+    check('F2.4e.5: NarrationScreen NÃO baixa arquivo nem calcula sha256',
+      !/downloadAsync|createDownloadResumable|downloadStoryPack|computeFileSha256|\bsha256\b/.test(narr),
+      'NarrationScreen contém download/sha256 (proibido)');
+
+    check('F2.4e.5: NarrationScreen sem linguagem técnica para criança (sem manifesto/sha256/CDN/file/MB)',
+      !/manifesto|sha256|\bCDN\b|file:\/\/|\bMB\b/i.test(narr),
+      'NarrationScreen expõe termo técnico');
+
+    check('F2.4e.5: A Criação/Noé (não-sandbox) seguem LOCAL (gate SANDBOX_STORY_ID no áudio)',
+      /const packEntry = storyId === SANDBOX_STORY_ID \? getPackEntry\(storyId\) : null/.test(avBody),
+      'áudio de histórias não-sandbox poderia ir remoto — gate ausente');
+
+    check('F2.4e.5: AudioPlayer INTACTO (play/pause/cleanup/autoplay) — só a FONTE mudou',
+      /useAudioPlayer\(audioAsset/.test(player)
+        && /autoPlay = false/.test(player)
+        && /finishedCalledRef\.current = false;\s*\n\s*\}, \[audioAsset\]\)/.test(player),
+      'AudioPlayer foi alterado (lógica de play/cleanup/autoplay não deve mudar neste bloco)');
+
+    check('F2.4e.5: sem autoplay duplicado (NarrationScreen não passa autoPlay ao AudioPlayer)',
+      !/AudioPlayer[^>]*autoPlay/.test(narrRaw),
+      'NarrationScreen passou autoPlay ao AudioPlayer — risco de autoplay duplicado');
+
+    check('F2.4e.5: troca de cena preservada (hook keyed por sceneNumber; reset ao trocar cena/pack)',
+      /const n = Number\.isInteger\(sceneNumber\)/.test(avBody) && /setRemoteSource\(null\)/.test(avBody),
+      'áudio remoto não reseta por cena/pack (troca de cena/reset em risco)');
+
+    check('F2.4e.5: F2.4e.3 (coloring) e F2.4e.4 (cover) continuam intactos',
+      /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
+        && /useResolvedStoryCover/.test(readSrc('src/components/map/StoryMapMarker.js'))
+        && /export function useResolvedColoringImage/.test(audHook)
+        && /export function useResolvedStoryCover/.test(audHook),
+      'coloring (F2.4e.3) ou cover (F2.4e.4) foram quebrados');
+
+    check('F2.4e.5: sem RevenueCat/entitlement/paywall/Brincar/conclusão/Free NOVOS nos arquivos tocados',
+      !/Purchases\.|react-native-purchases|RevenueCat|isPremiumUser|paywall|dailyRounds|startGameRound|isStoryFullyComplete|ATELIER_FREE_SAVE_LIMIT/i.test(audTouched),
+      'arquivos tocados mexeram em RevenueCat/entitlement/Brincar/conclusão/Free');
+
+    check('F2.4e.5: requires locais de áudio preservados (audioManifest intacto como fallback)',
+      /require\(/.test(readSrc('src/data/audioManifest.js')) && /audioAsset/.test(readSrc('src/data/audioManifest.js')),
+      'registro local de áudio (audioManifest) removido/alterado');
+  }
+
+  // ── F2.4e.5p: lifecycle de áudio do Livrinho (para ao sair; sem áudio no mapa) ──
+  console.log('\n── F2.4e.5p: lifecycle de áudio (StoryBook) ──');
+  {
+    const sb = readSrc('src/screens/StoryBookScreen.js');
+    const sbCode = a1StripComments(sb);
+    const ap = readSrc('src/components/AudioPlayer.js');
+    const narr5p = readSrc('src/screens/NarrationScreen.js');
+
+    check('F2.4e.5p: StoryBookScreen observa o foco (useIsFocused) para o lifecycle de áudio',
+      /import \{ useIsFocused \} from '@react-navigation\/native'/.test(sb) && /const isBookFocused = useIsFocused\(\)/.test(sbCode),
+      'StoryBookScreen não observa isFocused — áudio pode continuar fora da tela');
+
+    check('F2.4e.5p: ao PERDER o foco, o Livrinho PARA o áudio e HALTA o autoplay',
+      /if \(!isBookFocused\) \{[\s\S]*?setIsPaused\(true\);[\s\S]*?setAutoplayActive\(false\);/.test(sbCode)
+        && /\}, \[isBookFocused\]\)/.test(sbCode),
+      'falta o efeito de blur que para o áudio e halta o autoplay');
+
+    check('F2.4e.5p: blur invalida a sessão (token + avanço pendente) — sem callback antigo/áudio no mapa',
+      /if \(!isBookFocused\) \{\s*invalidatePlaybackSession\(\);/.test(sbCode)
+        && /function invalidatePlaybackSession\(\)[\s\S]*?pendingAutoAdvanceRef\.current = false;/.test(sbCode),
+      'blur não invalida a sessão (token/avanço pendente) — callback antigo pode disparar');
+
+    check('F2.4e.5p: AudioPlayer PARA o player ao desmontar (stop no fim de vida)',
+      /try \{ player\.pause\(\); \}[\s\S]*?onNarrationEnd\(\);\s*\}, \[\]\)/.test(ap),
+      'AudioPlayer não pausa o player no unmount (áudio pode vazar após sair/troca de cena)');
+
+    check('F2.4e.5p: AudioPlayer INTACTO em play/pause/replay/autoplay (só o stop foi adicionado)',
+      /useAudioPlayer\(audioAsset/.test(ap) && /function handlePlay\(\)/.test(ap)
+        && /function handlePause\(\)/.test(ap) && /handleReplay/.test(ap)
+        && /autoPlay = false/.test(ap),
+      'AudioPlayer perdeu play/pause/replay ou o default autoPlay=false');
+
+    check('F2.4e.5p: sem autoplay novo/duplicado — Livrinho mantém autoPlay={autoplayActive}; blur zera',
+      /autoPlay=\{autoplayActive\}/.test(sb) && /onSceneAudioComplete/.test(sbCode)
+        && /setAutoplayActive\(false\)/.test(sbCode),
+      'a fiação de autoplay do Livrinho mudou / blur não zera o autoplay');
+
+    check('F2.4e.5p: LIVRINHO_AUTOPLAY_FIX_1 preservado (avanço resiliente à trava)',
+      /pendingAutoAdvanceRef/.test(sbCode) && /function advanceToNextScene\(\)/.test(sbCode)
+        && /function onSceneAudioComplete\(\)/.test(sbCode),
+      'o fix de autoplay do Livrinho (LIVRINHO_AUTOPLAY_FIX_1) foi quebrado');
+
+    check('F2.4e.5p: F2.4e.5 (áudio remoto NarrationScreen) preservado',
+      /useResolvedStoryAudio\(story\?\.id, numeroCena,/.test(narr5p)
+        && /<AudioPlayer audioAsset=\{resolvedAudioAsset\}/.test(narr5p),
+      'F2.4e.5 (áudio remoto via hook no NarrationScreen) foi quebrado');
+
+    check('F2.4e.5p: F2.4e.3 coloring + F2.4e.4 cover + gate david_goliath preservados',
+      /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
+        && /useResolvedStoryCover/.test(readSrc('src/components/map/StoryMapMarker.js'))
+        && /storyId === SANDBOX_STORY_ID/.test(readSrc('src/hooks/useResolvedStoryMedia.js')),
+      'coloring/cover remotos ou o gate sandbox foram quebrados');
+
+    check('F2.4e.5p: escopo — audioService intacto e sem RevenueCat/entitlement/Brincar/conclusão/Free',
+      !/resolveStoryAudio|contentResolver/.test(a1StripComments(readSrc('src/services/audioService.js')))
+        && !/Purchases\.|RevenueCat|isPremiumUser|paywall|dailyRounds|startGameRound|isStoryFullyComplete|ATELIER_FREE_SAVE_LIMIT/i.test(sbCode + a1StripComments(ap)),
+      'audioService mudou, ou arquivos tocados mexeram em RevenueCat/entitlement/Brincar/conclusão/Free');
+
+    check('F2.4e.5p: correção é só de lifecycle (não adiciona StyleSheet novo no AudioPlayer)',
+      (ap.match(/StyleSheet\.create\(/g) || []).length <= 1,
+      'AudioPlayer ganhou StyleSheet novo — a correção deve ser só de lifecycle, sem visual');
+  }
+
+  // ── F2.4e.5pR: hardening MÁXIMO do lifecycle de áudio (token + AppState + guards) ──
+  console.log('\n── F2.4e.5pR: hardening de lifecycle de áudio ──');
+  {
+    const sb = readSrc('src/screens/StoryBookScreen.js');
+    const sbCode = a1StripComments(sb);
+    const ap = readSrc('src/components/AudioPlayer.js');
+    const apCode = a1StripComments(ap);
+    const narr = readSrc('src/screens/NarrationScreen.js');
+    const hook = a1StripComments(readSrc('src/hooks/useResolvedStoryMedia.js'));
+
+    // 1–3. Token de sessão + espelhos síncronos + timer cancelável
+    check('F2.4e.5pR: token de sessão playbackGenerationRef (useRef) no StoryBook',
+      /const playbackGenerationRef = useRef\(0\)/.test(sbCode),
+      'falta o token de sessão playbackGenerationRef');
+
+    check('F2.4e.5pR: espelhos síncronos de foco e AppState (isBookFocusedRef + appActiveRef)',
+      /const isBookFocusedRef = useRef\(true\)/.test(sbCode) && /const appActiveRef = useRef\(true\)/.test(sbCode),
+      'faltam os espelhos síncronos isBookFocusedRef/appActiveRef');
+
+    check('F2.4e.5pR: timer de cena sem áudio é cancelável (noAudioTimerRef)',
+      /const noAudioTimerRef = useRef\(null\)/.test(sbCode) && /noAudioTimerRef\.current = timer/.test(sbCode),
+      'falta noAudioTimerRef (timer da cena sem áudio não é cancelável)');
+
+    check('F2.4e.5pR: cleanup do timer sem áudio limpa o ref (sem timer órfão)',
+      /if \(noAudioTimerRef\.current === timer\) noAudioTimerRef\.current = null;/.test(sbCode),
+      'cleanup do timer sem áudio não limpa noAudioTimerRef');
+
+    // 4–5. Contexto vivo + invalidação de sessão
+    check('F2.4e.5pR: isPlaybackContextLive() usa navigation.isFocused() (foco síncrono) + app ativo',
+      /function isPlaybackContextLive\(\)\s*\{\s*return navigation\.isFocused\(\) && appActiveRef\.current;/.test(sbCode),
+      'isPlaybackContextLive não usa navigation.isFocused() (verdade síncrona sem lag) + app ativo');
+
+    check('F2.4e.5pR: invalidatePlaybackSession bump do token + limpa avanço + cancela timer',
+      /function invalidatePlaybackSession\(\)\s*\{\s*playbackGenerationRef\.current \+= 1;\s*pendingAutoAdvanceRef\.current = false;[\s\S]*?clearTimeout\(noAudioTimerRef\.current\)/.test(sbCode),
+      'invalidatePlaybackSession não invalida token/pendências/timer corretamente');
+
+    // 6. Blur: sincroniza foco + invalida sessão + pausa + desliga autoplay (ordem)
+    check('F2.4e.5pR: blur sincroniza isBookFocusedRef e invalida a sessão (invalidate→pause→autoplay off)',
+      /isBookFocusedRef\.current = isBookFocused;/.test(sbCode)
+        && /if \(!isBookFocused\) \{\s*invalidatePlaybackSession\(\);\s*setIsPaused\(true\);\s*setAutoplayActive\(false\);/.test(sbCode),
+      'blur não sincroniza o foco / não invalida a sessão na ordem correta');
+
+    // 7–10. AppState: background pausa + halta, sem auto-resume, listener removido
+    check('F2.4e.5pR: AppState.addEventListener change (via react-native, sem dep nova)',
+      /import \{[\s\S]*?AppState[\s\S]*?\} from 'react-native'/.test(sb) && /AppState\.addEventListener\('change'/.test(sbCode),
+      'falta o listener AppState (background/lock) — ou veio de dependência nova');
+
+    check('F2.4e.5pR: halta só no background real (inactive transitório NÃO corta a história)',
+      /appActiveRef\.current = next !== 'background';\s*if \(next === 'background'\) \{\s*invalidatePlaybackSession\(\);\s*setIsPaused\(true\);\s*setAutoplayActive\(false\);/.test(sbCode),
+      'AppState não halta só no background (ou trata inactive como background, cortando a história)');
+
+    check('F2.4e.5pR: AppState NÃO auto-resume ao voltar (sem setIsPaused(false) no handler)',
+      /AppState\.addEventListener\('change'[\s\S]*?return \(\) => sub\.remove\(\)/.test(sbCode)
+        && !/AppState\.addEventListener\('change'[\s\S]*?setIsPaused\(false\)[\s\S]*?return \(\) => sub\.remove\(\)/.test(sbCode),
+      'AppState pode retomar sozinho ao voltar (setIsPaused(false) no handler)');
+
+    check('F2.4e.5pR: listener de AppState é removido no cleanup (sub.remove)',
+      /return \(\) => sub\.remove\(\);/.test(sbCode),
+      'AppState listener não é removido (vazamento)');
+
+    // 11–12. Guards nos callbacks que avançam cena
+    check('F2.4e.5pR: advanceToNextScene guardado por isPlaybackContextLive()',
+      /function advanceToNextScene\(\)\s*\{\s*if \(lockRef\.current\) return;\s*if \(!isPlaybackContextLive\(\)\) return;/.test(sbCode),
+      'advanceToNextScene não verifica foco/app ativo — pode avançar fora da tela');
+
+    check('F2.4e.5pR: onSceneAudioComplete guardado por isPlaybackContextLive()',
+      /function onSceneAudioComplete\(\)\s*\{[\s\S]*?if \(!isPlaybackContextLive\(\)\) return;/.test(sbCode),
+      'onSceneAudioComplete não verifica foco/app ativo — fim de áudio fora da tela avança cena');
+
+    // 13–14. Timer da cena sem áudio: gated em foco + token + contexto
+    check('F2.4e.5pR: timer da cena sem áudio não roda fora de foco',
+      /if \(screenState !== 'playing' \|\| isPaused\) return undefined;\s*if \(!isBookFocused\) return undefined;/.test(sbCode)
+        && /\[screenState, currentSlideIndex, isPaused, viewMode, isBookFocused\]/.test(sbCode),
+      'timer da cena sem áudio não é gated em foco');
+
+    check('F2.4e.5pR: timer captura o token e valida contexto antes de avançar',
+      /const gen = playbackGenerationRef\.current;[\s\S]*?if \(gen !== playbackGenerationRef\.current\) return;\s*if \(!isPlaybackContextLive\(\)\) return;\s*advanceToNextScene\(\);/.test(sbCode),
+      'timer não valida token/contexto no disparo (avanço órfão possível)');
+
+    // 15–17. Bumps do token: novo início, pausa manual, trocas manuais
+    check('F2.4e.5pR: novo início de áudio bump do token + limpa isPaused (onPlayStart)',
+      /onPlayStart=\{\(\) => \{ playbackGenerationRef\.current \+= 1; setIsPaused\(false\); setAutoplayActive\(true\); \}\}/.test(sb),
+      'onPlayStart não incrementa o token / não limpa isPaused (divergência isPaused×player)');
+
+    check('F2.4e.5pR: pausa manual bump do token (onUserPause)',
+      /onUserPause=\{\(\) => \{ playbackGenerationRef\.current \+= 1; setAutoplayActive\(false\); \}\}/.test(sb),
+      'onUserPause não incrementa o token');
+
+    check('F2.4e.5pR: trocas manuais de cena incrementam o token (>= 7 bumps no total)',
+      (sbCode.match(/playbackGenerationRef\.current \+= 1;/g) || []).length >= 7,
+      'faltam incrementos do token nas trocas manuais de cena');
+
+    // 18–19. AudioPlayer: paused-sync pausa em loading; nunca toca de idle
+    check('F2.4e.5pR: AudioPlayer pausa também durante o load (fecha a janela de loading)',
+      /if \(paused\) \{\s*if \(appStatus === 'playing' \|\| appStatus === 'loading'\) \{\s*player\.pause\(\);/.test(apCode),
+      'AudioPlayer não pausa durante o load — áudio pode escapar ao sair no meio do carregamento');
+
+    check('F2.4e.5pR: AudioPlayer nunca inicia de idle/done (retoma só de paused)',
+      /\} else if \(appStatus === 'paused'\) \{\s*player\.play\(\);\s*setAppStatus\('playing'\);/.test(apCode),
+      'AudioPlayer pode iniciar sozinho de idle/done (resume incorreto)');
+
+    // 20–21. AudioPlayer: cleanup para o player e NÃO simula conclusão; autoplay gated
+    check('F2.4e.5pR: cleanup do AudioPlayer para o player e NÃO chama onFinished (sem simular conclusão)',
+      (() => {
+        // Liga só ao bloco do unmount-cleanup (arrow-que-retorna-arrow), não a outros efeitos.
+        const c = (apCode.match(/useEffect\(\(\) => \(\) => \{[\s\S]*?\}, \[\]\)/) || [''])[0];
+        return /try \{ player\.pause\(\); \}[\s\S]*?onNarrationEnd\(\);/.test(c) && !/onFinished/.test(c);
+      })(),
+      'cleanup do AudioPlayer não para o player OU chama onFinished (simula conclusão)');
+
+    check('F2.4e.5pR: autoplay do AudioPlayer segue gated por autoPlay + isLoaded (sem autoplay novo)',
+      /if \(!autoPlay \|\| paused\) return;[\s\S]*?if \(autoStartedRef\.current\) return;[\s\S]*?if \(!status\.isLoaded\) return;/.test(apCode)
+        && /autoPlay = false/.test(ap),
+      'o gating de autoplay do AudioPlayer mudou (risco de autoplay indevido)');
+
+    // AudioPlayer reage a background/lock (AppState) — para o player e anula auto-resume nativo
+    check('F2.4e.5pR: AudioPlayer para o player no background (AppState, via react-native)',
+      /import \{[\s\S]*?AppState[\s\S]*?\} from 'react-native'/.test(ap)
+        && /AppState\.addEventListener\('change'/.test(apCode)
+        && /if \(next === 'background'\) \{\s*pausedByLifecycleRef\.current = true;\s*try \{ player\.pause\(\);/.test(apCode),
+      'AudioPlayer não para o player no background (áudio pode vazar em background/lock)');
+
+    check('F2.4e.5pR: AudioPlayer NÃO auto-resume ao voltar (reforça a pausa; anti auto-resume nativo)',
+      /else if \(next === 'active' && pausedByLifecycleRef\.current\) \{\s*pausedByLifecycleRef\.current = false;\s*try \{ player\.pause\(\);/.test(apCode)
+        && /AppState\.addEventListener\('change'[\s\S]*?return \(\) => sub\.remove\(\)/.test(apCode),
+      'AudioPlayer pode retomar sozinho ao voltar do background (sem reforço de pausa)');
+
+    // 22. Paridade NarrationScreen (equivalente-ou-mais-seguro)
+    check('F2.4e.5pR: NarrationScreen mantém AudioPlayer gated em isFocused (paridade/mais seguro)',
+      /hasSceneAudio\(story\.id, sceneKey\) && isFocused \?/.test(narr) && /<AudioPlayer audioAsset=\{resolvedAudioAsset\}/.test(narr),
+      'NarrationScreen perdeu o gate isFocused do AudioPlayer');
+
+    // 23–26. Preservação dos blocos anteriores
+    check('F2.4e.5pR: LIVRINHO_AUTOPLAY_FIX_1 preservado (avanço resiliente à trava)',
+      /pendingAutoAdvanceRef/.test(sbCode) && /if \(lockRef\.current\) \{\s*pendingAutoAdvanceRef\.current = true;/.test(sbCode),
+      'LIVRINHO_AUTOPLAY_FIX_1 foi quebrado');
+
+    check('F2.4e.5pR: F2.4e.5 (áudio remoto NarrationScreen via hook) preservado',
+      /useResolvedStoryAudio\(story\?\.id, numeroCena,/.test(narr) && /export function useResolvedStoryAudio/.test(hook),
+      'F2.4e.5 (hook de áudio remoto) foi quebrado');
+
+    check('F2.4e.5pR: F2.4e.3 coloring + F2.4e.4 cover + gate david_goliath preservados',
+      /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
+        && /useResolvedStoryCover/.test(readSrc('src/components/map/StoryMapMarker.js'))
+        && /storyId === SANDBOX_STORY_ID/.test(hook),
+      'coloring/cover remotos ou o gate sandbox foram quebrados');
+
+    check('F2.4e.5pR: fiação de áudio do Livrinho intacta (autoPlay={autoplayActive}, onFinished, paused)',
+      /autoPlay=\{autoplayActive\}/.test(sb) && /onFinished=\{onSceneAudioComplete\}/.test(sb) && /paused=\{isPaused\}/.test(sb),
+      'a fiação de áudio do Livrinho mudou');
+
+    // 27–31. Escopo / não-regressão
+    check('F2.4e.5pR: StoryBook NÃO importa expo-audio direto (áudio segue via AudioPlayer)',
+      !/from 'expo-audio'/.test(sb),
+      'StoryBookScreen passou a importar expo-audio diretamente (fora de escopo)');
+
+    check('F2.4e.5pR: audioService intacto (sem resolveStoryAudio/contentResolver)',
+      !/resolveStoryAudio|contentResolver/.test(a1StripComments(readSrc('src/services/audioService.js'))),
+      'audioService foi alterado (fora de escopo)');
+
+    check('F2.4e.5pR: sem RevenueCat/entitlement/paywall/Brincar/conclusão/Free nos arquivos tocados',
+      !/Purchases\.|RevenueCat|isPremiumUser|paywall|dailyRounds|startGameRound|isStoryFullyComplete|ATELIER_FREE_SAVE_LIMIT/i.test(sbCode + apCode),
+      'arquivos tocados mexeram em RevenueCat/entitlement/Brincar/conclusão/Free');
+
+    check('F2.4e.5pR: só lifecycle — AudioPlayer sem StyleSheet novo (<=1)',
+      (ap.match(/StyleSheet\.create\(/g) || []).length <= 1,
+      'AudioPlayer ganhou StyleSheet novo — deve ser só lifecycle, sem visual');
+
+    check('F2.4e.5pR: sem dependência nova (AppState de react-native, não de pacote externo)',
+      !/@react-native-community\/hooks/.test(sb) && !/react-native-appstate/.test(sb),
+      'AppState veio de dependência externa (proibido)');
+
+    // 32–34. Documentação + governança
+    check('F2.4e.5pR: doc do bloco existe e cita token + AppState + foco',
+      srcExists('docs/F2_4E_5PR_AUDIO_LIFECYCLE_HARDENING.md')
+        && /playbackGenerationRef|token/.test(readSrc('docs/F2_4E_5PR_AUDIO_LIFECYCLE_HARDENING.md'))
+        && /AppState/.test(readSrc('docs/F2_4E_5PR_AUDIO_LIFECYCLE_HARDENING.md'))
+        && /isPlaybackContextLive|foco/.test(readSrc('docs/F2_4E_5PR_AUDIO_LIFECYCLE_HARDENING.md')),
+      'falta docs/F2_4E_5PR_AUDIO_LIFECYCLE_HARDENING.md com token/AppState/foco');
+
+    check('F2.4e.5pR: governança — DECISIONS.md e Documento Oficial v4 existem',
+      srcExists('docs/DECISIONS.md') && srcExists('docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md'),
+      'governança ausente (DECISIONS.md / Documento Oficial v4)');
+
+    check('F2.4e.5pR: F2.4e.5p preservado (unmount-pause do AudioPlayer + blur do StoryBook)',
+      /try \{ player\.pause\(\); \}[\s\S]*?onNarrationEnd\(\);\s*\}, \[\]\)/.test(ap)
+        && /const isBookFocused = useIsFocused\(\)/.test(sbCode),
+      'F2.4e.5p (unmount-pause / blur) foi quebrado');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

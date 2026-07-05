@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Animated, StyleSheet } from 'react-native';
+import { View, Text, Animated, StyleSheet, AppState } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import SoundButton from './SoundButton';
 import { onNarrationStart, onNarrationEnd } from '../services/audioManager';
@@ -33,6 +33,9 @@ function AudioPlayerInner({ audioAsset, onFinished, paused, autoPlay, onPlayStar
   // está ligado e não está pausado. Opt-in — callers sem autoPlay (NarrationScreen)
   // seguem manuais. didJustFinish/done NÃO disparam onUserPause (só o botão pausa).
   const autoStartedRef = useRef(false);
+  // F2.4e.5pR: marca que a pausa foi imposta pelo lifecycle (background) — usado p/
+  // REFORÇAR a pausa ao voltar ao foreground e anular um auto-resume nativo.
+  const pausedByLifecycleRef = useRef(false);
 
   useEffect(() => {
     setAudioModeAsync({
@@ -74,7 +77,13 @@ function AudioPlayerInner({ audioAsset, onFinished, paused, autoPlay, onPlayStar
     if (appStatus === 'playing') onNarrationStart();
   }, [appStatus]);
 
-  useEffect(() => () => { onNarrationEnd(); }, []);
+  // F2.4e.5p: ao DESMONTAR (sair da tela, troca de cena por key, blur), PARA o player —
+  // nunca deixa áudio tocando fora da tela. Defensivo (try/catch: o player pode já ter sido
+  // liberado). Não altera play/pause/replay/autoplay; só garante o stop no fim de vida.
+  useEffect(() => () => {
+    try { player.pause(); } catch { /* player já liberado */ }
+    onNarrationEnd();
+  }, []);
 
   // Real end-of-audio detection via expo-audio status — no timers, no simulation.
   useEffect(() => {
@@ -87,16 +96,42 @@ function AudioPlayerInner({ audioAsset, onFinished, paused, autoPlay, onPlayStar
 
   // Sync with external paused prop so the parent (e.g. StoryBookScreen) can
   // pause/resume without duplicating play controls.
+  // F2.4e.5pR: pausa também quando o áudio ainda está CARREGANDO ('loading'). Antes só
+  // pausava em 'playing' — um áudio que começou durante o load ESCAPAVA ao perder o foco
+  // ou ir para background (áudio no mapa). Nunca inicia a partir de 'idle'/'done' (não
+  // toca sozinho sem Play); retoma somente de 'paused'.
   useEffect(() => {
     if (paused === undefined) return;
-    if (paused && appStatus === 'playing') {
-      player.pause();
-      setAppStatus('paused');
-    } else if (!paused && appStatus === 'paused') {
+    if (paused) {
+      if (appStatus === 'playing' || appStatus === 'loading') {
+        player.pause();
+        setAppStatus('paused');
+      }
+    } else if (appStatus === 'paused') {
       player.play();
       setAppStatus('playing');
     }
   }, [paused]);
+
+  // F2.4e.5pR — background/lock: a narração NÃO pode continuar quando o app sai de
+  // foreground e NÃO pode retomar sozinha ao voltar. Reage a 'background' (app fora):
+  // para o player e marca a pausa por lifecycle; ao voltar a 'active', REFORÇA a pausa
+  // (anula um eventual auto-resume nativo pós-background — ex.: fim de interrupção).
+  // 'inactive' transitório é ignorado (não corta a história por Central de Controle /
+  // banner de notificação / Face ID). Nunca retoma sozinho — a criança toca Play.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'background') {
+        pausedByLifecycleRef.current = true;
+        try { player.pause(); } catch { /* player já liberado */ }
+        setAppStatus(s => (s === 'playing' || s === 'loading') ? 'paused' : s);
+      } else if (next === 'active' && pausedByLifecycleRef.current) {
+        pausedByLifecycleRef.current = false;
+        try { player.pause(); } catch { /* player já liberado */ } // NÃO retoma sozinho
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (appStatus === 'loading' && status.isLoaded) {

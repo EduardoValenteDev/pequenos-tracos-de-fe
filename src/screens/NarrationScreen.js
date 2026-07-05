@@ -20,7 +20,7 @@ import ProgressBar from '../components/ProgressBar';
 import { useProgress } from '../hooks/useProgress';
 import { useProgressContext } from '../context/ProgressContext';
 import { getStoryCoverImage } from '../services/storyImageService';
-import { useResolvedSceneImage } from '../hooks/useResolvedStoryMedia';
+import { useResolvedSceneImage, useResolvedStoryAudio } from '../hooks/useResolvedStoryMedia';
 import { canOpenStoryFullExperience, getStoryLockReason } from '../services/contentAccessService';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
 
@@ -38,6 +38,10 @@ export default function NarrationScreen({ route, navigation }) {
   const isLastCena = hasCenas ? (cenaIndex === story.cenas.length - 1) : false;
   const sceneKey = `scene_${String(cenaIndex + 1).padStart(2, '0')}`;
   const sceneAudioEntry = hasCenas ? getSceneAudio(story.id, sceneKey) : null;
+  // F2.4e.5: áudio remoto (file://) p/ david_goliath com pack ready + arquivo existente;
+  // fallback local (audioAsset do bundle) idêntico ao anterior nas outras condições. Hook
+  // chamado SEMPRE (antes de qualquer early-return) — só troca a FONTE, não o play/cleanup.
+  const resolvedAudioAsset = useResolvedStoryAudio(story?.id, numeroCena, sceneAudioEntry?.audioAsset ?? null);
 
   const textoNarracao = cena ? (cena.textoNarracao ?? cena.narracao ?? '') : '';
   const tituloCena = cena ? (cena.titulo ?? `Cena ${numeroCena}`) : '';
@@ -264,7 +268,7 @@ export default function NarrationScreen({ route, navigation }) {
 
           {/* ── 6. ÁUDIO (real) ou aviso discreto de áudio futuro ── */}
           {hasSceneAudio(story.id, sceneKey) && isFocused ? (
-            <AudioPlayer audioAsset={sceneAudioEntry.audioAsset} />
+            <AudioPlayer audioAsset={resolvedAudioAsset} />
           ) : (
             <View style={styles.noAudioHint}>
               <Text style={styles.noAudioHintText}>
