@@ -47,3 +47,29 @@ Com o R2 populado (18 packs), pelo Pack Sandbox (dev): baixar e marcar `ready` �
 
 ## 8. O que NÃO foi feito
 Sem remover requires/assets; sem alterar downloader/resolver/storage/telas/dev screen; sem RevenueCat; sem domínio próprio; sem tocar o R2 (nada apagado/sync); sem git add/commit/push (aguarda aprovação).
+
+## 9. Validação manual no iPhone (executada — 2026-07-06)
+Validação em **dispositivo físico (iPhone)**, build de desenvolvimento, pelo **Pack Sandbox DevScreen** (gate `EXPO_PUBLIC_ENABLE_PACK_SANDBOX`), após a publicação do F2.5c (commit `e71fadf`).
+
+- **Manifesto global usado:** `https://pub-f990153eeeb9460ab963038904f3ac96.r2.dev/content-manifest.json` (baseUrl QA `r2.dev` do F2.5b.2bR).
+- **Histórias testadas (camada `remote`):** `jesus_children`, `daniel_lions`, `moses_red_sea`.
+
+**Resultado — idêntico nas 3 histórias:**
+
+| Item | jesus_children | daniel_lions | moses_red_sea |
+|---|---|---|---|
+| Download TODAS (cover+cenas+colorir+áudio) | OK | OK | OK |
+| Contagem por kind | cover 1 · cenas 10 · colorir 10 · áudio 10 | idem | idem |
+| sha256 | validado | validado | validado |
+| Status pós-download | `ready` | `ready` | `ready` |
+| História abre | ✔ | ✔ | ✔ |
+| Narração + cenas renderizam | ✔ | ✔ | ✔ |
+| Colorir (lineart) abre | ✔ | ✔ | ✔ |
+| Livrinho abre | ✔ | ✔ | ✔ |
+| Áudio toca | ✔ | ✔ | ✔ |
+
+- **Sem regressão:** sem moldura preta, sem tela quebrada, **sem lineart errada**, sem regressão visual aparente. O "sem lineart errada" confirma **empiricamente** o resultado da auditoria da chave de colorir (Bloco 2): as 18 premium têm `cena.id == posição (1..10)`, então o `file://` de colorir (`coloring/scene_<posição>.png`) aponta para o índice correto.
+
+**Metodologia / observação de escopo da ferramenta dev:** o painel inferior do Pack Sandbox (**diag** e **"Verificar sha256 profundo"**) é **fixo em `david_goliath`** e **não** reflete histórias genéricas. Para as 3 histórias acima, a prova válida foi a **mensagem do bloco de download genérico** (`Download TODAS OK` + `sha256 validado`) somada à **validação visual/manual** nas superfícies (capa/cena/colorir/Livrinho/áudio). Um reset/diagnóstico **genérico por `storyId`** na tela dev fica como candidato a micro-bloco dev-only futuro (fora do escopo do F2.5c).
+
+**Conclusão:** o consumo remoto por camada (`isRemotePackStory`) está **confirmado em device** para as 3 histórias; o **fallback local** permanece intacto (sem pack `ready` → `require`), e o download segue **dev/QA-gated** — em produção nada muda até a UX de download (F2.5d) e o entitlement (F2.4f).
