@@ -13829,6 +13829,140 @@ check(
       'F2.4e.5p (unmount-pause / blur) foi quebrado');
   }
 
+  // ── F2.4e.7b: gatilho QA release-safe do pack sandbox (dev OU preview/internal) ──
+  console.log('\n── F2.4e.7b: gate QA release-safe do pack sandbox ──');
+  {
+    const ff = a1StripComments(readSrc('src/config/featureFlags.js'));
+    const svc = a1StripComments(readSrc('src/services/packSandboxDevService.js'));
+    const svcRaw = readSrc('src/services/packSandboxDevService.js');
+    const nav = readSrc('src/navigation/AppNavigator.js');
+    const eas = JSON.parse(readSrc('eas.json'));
+    const hook = a1StripComments(readSrc('src/hooks/useResolvedStoryMedia.js'));
+    const sb7b = a1StripComments(readSrc('src/screens/StoryBookScreen.js'));
+
+    // 1. Helper central release-safe
+    check('F2.4e.7b: featureFlags exporta RELEASE_PACK_QA_ENABLED (gate central release-safe)',
+      /export const RELEASE_PACK_QA_ENABLED\s*=/.test(ff),
+      'falta o helper central RELEASE_PACK_QA_ENABLED em featureFlags.js');
+
+    // 2. Gate DEV preservado
+    check('F2.4e.7b: gate DEV preservado (__DEV__ && EXPO_PUBLIC_ENABLE_PACK_SANDBOX)',
+      /__DEV__\s*&&\s*process\.env\.EXPO_PUBLIC_ENABLE_PACK_SANDBOX\s*===\s*'true'/.test(svc),
+      'gate dev foi removido/enfraquecido');
+
+    // 3. Release gate exige múltiplas flags QA explícitas
+    check('F2.4e.7b: gate release exige ENABLE_RELEASE_PACK_QA + QA_BUILD (>=2 flags QA)',
+      /EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA\s*===\s*'true'/.test(ff)
+        && /EXPO_PUBLIC_QA_BUILD\s*===\s*'true'/.test(ff),
+      'gate release não exige as flags QA explícitas');
+
+    // 4. Release gate exige BUILD_PROFILE === 'preview'
+    check('F2.4e.7b: gate release exige EXPO_PUBLIC_BUILD_PROFILE === "preview"',
+      /EXPO_PUBLIC_BUILD_PROFILE\s*===\s*'preview'/.test(ff),
+      'gate release não amarra ao perfil preview → poderia ligar fora do preview');
+
+    // 5. Release gate também exige EXPO_PUBLIC_ENABLE_PACK_SANDBOX
+    check('F2.4e.7b: gate release também exige EXPO_PUBLIC_ENABLE_PACK_SANDBOX',
+      /EXPO_PUBLIC_ENABLE_PACK_SANDBOX\s*===\s*'true'/.test(ff),
+      'gate release não exige EXPO_PUBLIC_ENABLE_PACK_SANDBOX');
+
+    // 6. NÃO é flag simples — conjunção de 4 (production-safe)
+    check('F2.4e.7b: gate release é conjunção (>=3 "&&"), não flag simples',
+      (ff.match(/&&/g) || []).length >= 3 && /EXPO_PUBLIC_BUILD_PROFILE\s*===\s*'preview'/.test(ff),
+      'o gate release virou flag simples — produção poderia ligar por acidente');
+
+    // 7. Gate central compõe dev OU release
+    check('F2.4e.7b: isPackSandboxDevEnabled = devGate || RELEASE_PACK_QA_ENABLED',
+      /RELEASE_PACK_QA_ENABLED/.test(svc) && /export function isPackSandboxDevEnabled\(\)/.test(svc)
+        && /devGate \|\| RELEASE_PACK_QA_ENABLED/.test(svc),
+      'isPackSandboxDevEnabled não usa o helper central release-safe');
+
+    // 8. eas.json PRODUCTION sem flags QA
+    check('F2.4e.7b: eas.json PRODUCTION sem flags QA (nunca liga sandbox na loja por acidente)',
+      (() => {
+        const p = (eas.build && eas.build.production && eas.build.production.env) || {};
+        return p.EXPO_PUBLIC_ENABLE_PACK_SANDBOX !== 'true' && p.EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA !== 'true'
+          && p.EXPO_PUBLIC_QA_BUILD !== 'true' && p.EXPO_PUBLIC_BUILD_PROFILE !== 'preview';
+      })(),
+      'production recebeu flags QA — risco de liberar o sandbox na loja');
+
+    // 9. eas.json PREVIEW com as 4 flags QA
+    check('F2.4e.7b: eas.json PREVIEW define as 4 flags QA (true/true/true/preview)',
+      (() => {
+        const e = (eas.build && eas.build.preview && eas.build.preview.env) || {};
+        return e.EXPO_PUBLIC_ENABLE_PACK_SANDBOX === 'true' && e.EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA === 'true'
+          && e.EXPO_PUBLIC_QA_BUILD === 'true' && e.EXPO_PUBLIC_BUILD_PROFILE === 'preview';
+      })(),
+      'preview não define as 4 flags QA release-safe');
+
+    // 10. Remoto limitado a david_goliath
+    check('F2.4e.7b: remoto ainda limitado a david_goliath (SANDBOX_STORY_ID)',
+      /SANDBOX_STORY_ID\s*=\s*'david_goliath'/.test(hook) && /storyId === SANDBOX_STORY_ID/.test(hook),
+      'gate de história remota mudou');
+
+    // 11. Fallback local preservado
+    check('F2.4e.7b: fallback local preservado (remoteSource || local)',
+      /return remoteSource \|\| localSource/.test(hook) && /return remoteSource \|\| localAudioAsset/.test(hook),
+      'fallback local foi enfraquecido');
+
+    // 12. sha256 real ainda obrigatório
+    check('F2.4e.7b: sha256 real ainda obrigatório antes do ready (não enfraquecido)',
+      /computeFileSha256/.test(readSrc('src/services/packIntegrityService.js'))
+        && /computeFileSha256|validateFileEntry/.test(readSrc('src/services/packDownloadService.js')),
+      'validação sha256 foi removida/enfraquecida');
+
+    // 13. seed/reset ainda gated
+    check('F2.4e.7b: seed/reset ainda abortam com o gate desligado',
+      /if \(!isPackSandboxDevEnabled\(\)\) return/.test(svcRaw),
+      'seed/reset não checam mais o gate');
+
+    // 14. FAB/rota só sob gate (não child-facing)
+    check('F2.4e.7b: PackSandboxDev (rota+FAB) só sob devPacksEnabled (não child-facing)',
+      /const devPacksEnabled = isPackSandboxDevEnabled\(\)/.test(nav)
+        && /devPacksEnabled && \(\s*<Stack\.Screen\s+name="PackSandboxDev"/.test(nav)
+        && /devPacksEnabled && \(\s*<TouchableOpacity/.test(nav),
+      'a ferramenta deixou de ser gated (risco child-facing)');
+
+    // 15. Lifecycle de áudio F2.4e.5pR intacto
+    check('F2.4e.7b: lifecycle de áudio F2.4e.5pR intacto (token/navigation.isFocused/AppState)',
+      /playbackGenerationRef/.test(sb7b) && /navigation\.isFocused\(\)/.test(sb7b)
+        && /AppState/.test(readSrc('src/components/AudioPlayer.js')),
+      'lifecycle de áudio foi tocado');
+
+    // 16. Sem RevenueCat/entitlement/Brincar/conclusão nos arquivos tocados
+    check('F2.4e.7b: sem RevenueCat/entitlement/Brincar/conclusão nos arquivos tocados',
+      !/Purchases\.|RevenueCat|isPremiumUser|dailyRounds|startGameRound|isStoryFullyComplete/i.test(ff + svc),
+      'arquivo tocado mexeu em RevenueCat/entitlement/Brincar/conclusão');
+
+    // 17. Requires locais preservados (fallback)
+    check('F2.4e.7b: requires locais preservados (coloring/covers/scenes/audio)',
+      /require\(/.test(readSrc('src/assets/coloringImages.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
+        && /require\(/.test(readSrc('src/data/storySceneIllustrations.js')) && /require\(/.test(readSrc('src/data/audioManifest.js')),
+      'requires locais foram removidos');
+
+    // 18. A Criação/Noé continuam starter local
+    check('F2.4e.7b: A Criação/Noé continuam starter (local)',
+      /STARTER_STORY_IDS\s*=\s*Object\.freeze\(\['creation', 'noah'\]\)/.test(readSrc('src/data/contentManifest.js')),
+      'camada starter (creation/noah) mudou');
+
+    // 19. Sem ios/ nem android/ gerados
+    check('F2.4e.7b: sem pastas nativas ios/ ou android/ no repo',
+      !srcExists('ios') && !srcExists('android'),
+      'pastas nativas ios/ ou android/ apareceram (prebuild rodou?)');
+
+    // 20. Doc do bloco existe e cita as flags + production-safe
+    check('F2.4e.7b: doc do bloco existe e cita as 4 flags + production sem QA',
+      srcExists('docs/F2_4E_7B_RELEASE_SAFE_PACK_QA_GATE.md')
+        && /EXPO_PUBLIC_BUILD_PROFILE/.test(readSrc('docs/F2_4E_7B_RELEASE_SAFE_PACK_QA_GATE.md'))
+        && /production/i.test(readSrc('docs/F2_4E_7B_RELEASE_SAFE_PACK_QA_GATE.md')),
+      'falta docs/F2_4E_7B_RELEASE_SAFE_PACK_QA_GATE.md completo');
+
+    // 21. Governança
+    check('F2.4e.7b: governança — DECISIONS.md e Documento Oficial v4 existem',
+      srcExists('docs/DECISIONS.md') && srcExists('docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md'),
+      'governança ausente (DECISIONS.md / Documento Oficial v4)');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

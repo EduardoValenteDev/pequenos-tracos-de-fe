@@ -2,8 +2,10 @@
  * packSandboxDevService.js — Ferramenta SOMENTE DE DESENVOLVIMENTO para semear, resetar
  * e diagnosticar um pack sandbox `ready` de `david_goliath` NO DEVICE (Fase 2, F2.2b).
  *
- * ⚠️ DUPLO GATE: tudo aqui só roda sob `__DEV__ && EXPO_PUBLIC_ENABLE_PACK_SANDBOX === 'true'`.
- * Com o gate falso: seed/reset NÃO executam, NADA é escrito em AsyncStorage nem em FileSystem.
+ * ⚠️ GATE (F2.4e.7b): tudo aqui só roda quando `isPackSandboxDevEnabled()` é true — em DOIS
+ * ambientes seguros: (A) DEV `__DEV__ && EXPO_PUBLIC_ENABLE_PACK_SANDBOX === 'true'`; OU
+ * (B) QA release-safe (preview/internal) via `RELEASE_PACK_QA_ENABLED` (quádruplo gate).
+ * PRODUÇÃO nunca liga. Com o gate falso: seed/reset NÃO executam, NADA é escrito.
  *
  * O seed cria `file://` REAIS copiando as 10 cenas de david_goliath do BUNDLE para
  * `documentDirectory/packs/david_goliath@1.0.0/scenes/` (via expo-asset + expo-file-system),
@@ -23,6 +25,7 @@ import {
 } from './packStorageService';
 import { validatePackManifest, computeFileSha256 } from './packIntegrityService';
 import { resolveStoryMedia, RESOLVE_SOURCE_TYPE } from './contentResolver';
+import { RELEASE_PACK_QA_ENABLED } from '../config/featureFlags';
 import { warn } from '../utils/logger';
 
 const STORY_ID = 'david_goliath';
@@ -39,9 +42,15 @@ const audioRelPath = (n) => `audio/${STORY_ID}_scene_${pad2(n)}.mp3`;
 /** Cede o controle à UI entre etapas pesadas (evita travar o JS thread). */
 const yieldToUI = () => new Promise((r) => setTimeout(r, 0));
 
-/** DUPLO GATE. Sem ele, nada nesta ferramenta executa. */
+/**
+ * Gate central da ferramenta de pack sandbox. Ativo em DOIS ambientes seguros:
+ *  (A) DEV: `__DEV__ && EXPO_PUBLIC_ENABLE_PACK_SANDBOX === 'true'`.
+ *  (B) QA release-safe (preview/internal): `RELEASE_PACK_QA_ENABLED` — quádruplo gate
+ *      (ver featureFlags). PRODUÇÃO nunca liga. Sem ele, nada nesta ferramenta executa.
+ */
 export function isPackSandboxDevEnabled() {
-  return __DEV__ && process.env.EXPO_PUBLIC_ENABLE_PACK_SANDBOX === 'true';
+  const devGate = __DEV__ && process.env.EXPO_PUBLIC_ENABLE_PACK_SANDBOX === 'true';
+  return devGate || RELEASE_PACK_QA_ENABLED;
 }
 
 /**

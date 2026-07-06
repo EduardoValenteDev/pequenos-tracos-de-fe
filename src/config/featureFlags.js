@@ -34,3 +34,25 @@ export const PARENTAL_CONSENT_FLOW_ENABLED = false;
  */
 export const SHOW_CHURCH_MODE =
   process.env.EXPO_PUBLIC_ENABLE_CHURCH_MODE === 'true';
+
+/**
+ * RELEASE_PACK_QA_ENABLED — libera a ferramenta técnica de QA de packs (seed/download/
+ * diagnose do pack sandbox `david_goliath`) em build **preview/internal** (release, onde
+ * `__DEV__` é false), para provar o **offline real do REMOTO** num app instalado (F2.4e.7b).
+ *
+ * ⚠️ RELEASE-SAFE por QUÁDRUPLO gate — TODAS precisam bater (conjunção, não flag simples):
+ *   - EXPO_PUBLIC_ENABLE_PACK_SANDBOX     === 'true'
+ *   - EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA  === 'true'
+ *   - EXPO_PUBLIC_QA_BUILD                === 'true'
+ *   - EXPO_PUBLIC_BUILD_PROFILE           === 'preview'
+ *
+ * PRODUÇÃO NUNCA liga: o perfil `production` do eas.json NÃO define nenhuma dessas flags;
+ * e mesmo que EXPO_PUBLIC_ENABLE_PACK_SANDBOX vazasse sozinho, faltariam as outras três
+ * (em especial BUILD_PROFILE === 'preview'). Flags NÃO são segredo (EXPO_PUBLIC_*). A
+ * ferramenta continua TÉCNICA e restrita (FAB/rota dev), NUNCA child-facing.
+ */
+export const RELEASE_PACK_QA_ENABLED =
+  process.env.EXPO_PUBLIC_ENABLE_PACK_SANDBOX === 'true' &&
+  process.env.EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA === 'true' &&
+  process.env.EXPO_PUBLIC_QA_BUILD === 'true' &&
+  process.env.EXPO_PUBLIC_BUILD_PROFILE === 'preview';

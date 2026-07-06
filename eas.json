@@ -16,6 +16,12 @@
     },
     "preview": {
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_ENABLE_PACK_SANDBOX": "true",
+        "EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA": "true",
+        "EXPO_PUBLIC_QA_BUILD": "true",
+        "EXPO_PUBLIC_BUILD_PROFILE": "preview"
+      },
       "ios": {
         "resourceClass": "m-medium"
       },
