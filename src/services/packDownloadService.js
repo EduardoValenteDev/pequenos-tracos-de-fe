@@ -9,7 +9,7 @@
  * packStorageService), sem sistema de arquivos.
  */
 import * as FileSystem from 'expo-file-system/legacy';
-import { PACK_STATUS, getPackLocalDir, getPackTempDir, setPackEntry } from './packStorageService';
+import { PACK_STATUS, getPackLocalDir, getPackTempDir, setPackEntry, getPackEntry } from './packStorageService';
 import { validatePackManifest, computeFileSha256 } from './packIntegrityService';
 import { fetchGlobalContentManifest, getPackFromGlobalManifest } from './globalManifestService';
 import { warn } from '../utils/logger';
@@ -81,6 +81,31 @@ const KNOWN_KINDS = ['cover', 'scene', 'coloring', 'audio'];
 /** Cede o controle à UI entre etapas pesadas (evita travar o JS thread no verify sha256). */
 const yieldToUI = () => new Promise((r) => setTimeout(r, 0));
 
+// F2.5-hardening-3 — cancelamento seguro (sentinela) + timeout de etapa de rede.
+const CANCELLED = { __packCancelled: true };
+const throwIfCancelled = (isCancelled) => { if (typeof isCancelled === 'function' && isCancelled()) throw CANCELLED; };
+
+/**
+ * Executa `runFactory()` com timeout. Em timeout: chama `onTimeout` (ex.: cancelar o download em
+ * voo) e rejeita com erro marcado `__timeout`. Sempre limpa o timer. Não toca estado do pack.
+ */
+async function withTimeout(runFactory, ms, onTimeout) {
+  let timer = null;
+  try {
+    return await Promise.race([
+      runFactory(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          try { if (onTimeout) onTimeout(); } catch (_) { /* noop */ }
+          const err = new Error('timeout'); err.__timeout = true; reject(err);
+        }, ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * Download GENÉRICO por storyId de um pack (F2.4d.3 → F2.4e.1), descobrindo
  * baseUrl/version/manifestPath pelo MANIFESTO GLOBAL (content-manifest.json) — sem
@@ -106,7 +131,8 @@ const yieldToUI = () => new Promise((r) => setTimeout(r, 0));
  *   requiresAppUpdate?:boolean, entry?:object, errors?:string[] }>}
  */
 export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
-  const { storyId, globalManifestUrl, appVersion = '1.0.0', onProgress, requestedKinds = ['scene'] } = params || {};
+  const { storyId, globalManifestUrl, appVersion = '1.0.0', onProgress, requestedKinds = ['scene'],
+    isCancelled, manifestTimeoutMs = 15000, fileTimeoutMs = 60000 } = params || {};
   if (!storyId || typeof storyId !== 'string') return { ok: false, reason: 'storyId inválido' };
   if (!globalManifestUrl || typeof globalManifestUrl !== 'string') return { ok: false, reason: 'globalManifestUrl inválido' };
   // Kinds solicitados: só os conhecidos; default scenes-only (compat F2.4d).
@@ -119,7 +145,12 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
 
   // 1) manifesto global + 2) pack por storyId (read-only)
   const gm = await fetchGlobalContentManifest(globalManifestUrl, { appVersion });
-  if (!gm.ok) return { ok: false, reason: `manifesto global inválido: ${gm.errors.join(' | ')}` };
+  if (!gm.ok) {
+    // F2.5-hardening-3: GATE DE REDE — falha de rede/timeout no fetch do manifesto global (já com
+    // timeout no globalManifestService) retorna erro LIMPO ANTES de criar .tmp ou tocar o índice.
+    const networkError = /rede indispon[ií]vel|timeout/i.test(gm.errors.join(' '));
+    return { ok: false, reason: `manifesto global inválido: ${gm.errors.join(' | ')}`, networkError };
+  }
   const gp = getPackFromGlobalManifest(gm.data, storyId);
   if (!gp.ok) return { ok: false, reason: gp.errors.join(' | ') };
   const pack = gp.data;
@@ -134,14 +165,25 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
   const tempDir = getPackTempDir(storyId, version);
   if (!localDir || !tempDir) return { ok: false, reason: 'documentDirectory indisponível' };
 
-  const failWith = async (reason, errors) => {
+  // F2.5-hardening-3: uma tentativa que falha NÃO pode rebaixar um pack já READY que estava
+  // funcionando no device. Preserva a entry anterior se for READY (só limpa o .tmp e retorna
+  // ok:false); só grava FAILED quando NÃO há READY a preservar. `extra` (ex.: { networkError:true })
+  // vai no retorno. Nota: falhas ANTES do swap ocorrem com o localDir antigo intacto → a entry
+  // READY anterior é legítima e preservada. Nunca marca ready parcial.
+  const failWith = async (reason, errors, extra) => {
     try { await FileSystem.deleteAsync(tempDir, { idempotent: true }); } catch { /* noop */ }
-    try { await setPackEntry(storyId, { version, status: PACK_STATUS.FAILED, errorMessage: reason }); } catch { /* noop */ }
+    try {
+      const prev = await getPackEntry(storyId);
+      if (!(prev && prev.status === PACK_STATUS.READY)) {
+        await setPackEntry(storyId, { version, status: PACK_STATUS.FAILED, errorMessage: reason });
+      }
+    } catch { /* noop */ }
     report(PACK_STATUS.FAILED, {});
-    return { ok: false, reason, errors };
+    return { ok: false, reason, errors, ...(extra || {}) };
   };
 
   try {
+    throwIfCancelled(isCancelled);
     // retry LIMPO: .tmp sempre recomeça vazio. Subdiretórios são criados por arquivo.
     await FileSystem.deleteAsync(tempDir, { idempotent: true });
     await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
@@ -152,9 +194,23 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
     const base = pack.baseUrl; // validado terminando com '/'
     const manifestUrl = `${base}${pack.manifestPath}`;
 
-    // 5) baixa o manifesto por-pack para o .tmp
+    // 5) baixa o manifesto por-pack para o .tmp (com TIMEOUT + cancelável — F2.5-hardening-3)
     const mTo = `${tempDir}manifest.json`;
-    await FileSystem.downloadAsync(manifestUrl, mTo);
+    const mdl = FileSystem.createDownloadResumable(manifestUrl, mTo);
+    await withTimeout(() => mdl.downloadAsync(), manifestTimeoutMs, () => { try { mdl.cancelAsync(); } catch (_) { /* noop */ } });
+    throwIfCancelled(isCancelled);
+
+    // 5b) manifestSha256 OBRIGATÓRIO (F2.5-hardening-3): verifica os BYTES do manifest.json baixado
+    //     contra a âncora do manifesto global — ANTES de confiar no schema e de baixar arquivos.
+    //     Ausente/inválido/divergente → rejeita (fallback local intacto; .tmp limpo; nunca ready).
+    const expectedManifestSha = typeof pack.manifestSha256 === 'string' ? pack.manifestSha256.toLowerCase() : null;
+    if (!expectedManifestSha || !/^[a-f0-9]{64}$/.test(expectedManifestSha)) {
+      return failWith('manifestSha256 ausente/inválido no manifesto global (pack remoto rejeitado)');
+    }
+    const mh = await computeFileSha256(mTo);
+    if (!mh.ok) return failWith(`manifest.json: sha256 indisponível (${mh.reason})`);
+    if (mh.sha256 !== expectedManifestSha) return failWith('manifest.json com sha256 divergente da âncora (pack remoto rejeitado)');
+
     let manifest;
     try { manifest = JSON.parse(await FileSystem.readAsStringAsync(mTo)); }
     catch { return failWith('manifest.json do pack inválido (JSON)'); }
@@ -193,6 +249,7 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
     const doneByKind = {};
     let lastTick = 0;
     for (const f of wanted) {
+      throwIfCancelled(isCancelled); // F2.5-hardening-3: cancelamento antes de cada arquivo
       const to = `${tempDir}${f.path}`;
       const parent = to.slice(0, to.lastIndexOf('/'));
       await FileSystem.makeDirectoryAsync(parent, { intermediates: true }); // idempotente (mkdir -p)
@@ -202,7 +259,8 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
         lastTick = now;
         report(PACK_STATUS.DOWNLOADING, { kind: f.kind, downloadedBytes: completed + (p.totalBytesWritten || 0), totalBytes });
       });
-      await dl.downloadAsync();
+      // F2.5-hardening-3: timeout por arquivo (cancela o download em voo no estouro)
+      await withTimeout(() => dl.downloadAsync(), fileTimeoutMs, () => { try { dl.cancelAsync(); } catch (_) { /* noop */ } });
       const info = await FileSystem.getInfoAsync(to, { size: true });
       completed += info.size || 0;
       doneByKind[f.kind] = (doneByKind[f.kind] || 0) + 1;
@@ -211,6 +269,7 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
 
     // 11) valida existência + bytes + SHA256 REAL (F2.4e.2) de TODOS os solicitados +
     //     CONTAGEM por kind. Nunca ready parcial: qualquer divergência → failWith.
+    throwIfCancelled(isCancelled);
     report(PACK_STATUS.VERIFYING, { downloadedBytes: completed, totalBytes });
     const errors = [];
     const tVerify = Date.now();
@@ -232,6 +291,7 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
     }
     if (errors.length) return failWith(`validação falhou (${errors.length})`, errors);
 
+    throwIfCancelled(isCancelled); // F2.5-hardening-3: ÚLTIMO ponto cancelável — o swap não é cancelável
     // 12) promove .tmp → localDir (troca atômica) — só depois de TUDO validado.
     // F2.5-hardening-2: RE-DOWNLOAD da MESMA versão → localDir já existe; o swap delete→move
     // tem uma janela em que localDir some. Marcar DOWNLOADING ANTES do swap garante que um
@@ -265,7 +325,15 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
     // 14) resultado estruturado (counts por kind; sceneCount mantido p/ compat)
     return { ok: true, storyId, version, kinds, counts: doneByKind, sceneCount: doneByKind.scene || 0, totalBytes, entry };
   } catch (e) {
+    // F2.5-hardening-3: CANCELAMENTO — NÃO grava índice (preserva a entry anterior, seja READY ou
+    // qualquer outra); só limpa o .tmp. Ready nunca foi setado; a marca DOWNLOADING do hardening-2
+    // fica FORA da janela de cancelamento (após o último throwIfCancelled) → índice consistente.
+    if (e === CANCELLED || (e && e.__packCancelled)) {
+      try { await FileSystem.deleteAsync(tempDir, { idempotent: true }); } catch (_) { /* noop */ }
+      return { ok: false, cancelled: true, reason: 'cancelado' };
+    }
     warn('downloadStoryPackScenesFromGlobalManifest:', e);
-    return failWith(String((e && e.message) || e));
+    // timeout de download → networkError no retorno (erro de rede controlado).
+    return failWith(String((e && e.message) || e), undefined, { networkError: !!(e && e.__timeout) });
   }
 }

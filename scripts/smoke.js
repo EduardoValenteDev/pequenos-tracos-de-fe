@@ -14238,6 +14238,99 @@ check(
       'falta docs/F2_5_HARDENING_2.md');
   }
 
+  // ── F2.5-hardening-3: manifestSha256 obrigatório + timeout + cancelamento + gate de rede ──
+  console.log('\n── F2.5-hardening-3: endurecimento do download remoto ──');
+  {
+    const pds3 = a1StripComments(readSrc('src/services/packDownloadService.js'));
+
+    // ── manifestSha256 OBRIGATÓRIO ──
+    check('F2.5-hardening-3: manifestSha256 obrigatório — verifica bytes do manifest.json vs âncora, rejeita ausente/divergente',
+      /pack\.manifestSha256/.test(pds3) && /computeFileSha256\(mTo\)/.test(pds3)
+        && /manifestSha256 ausente\/inv[aá]lido/.test(pds3)
+        && /sha256 divergente da [aâ]ncora/.test(pds3),
+      'downloader não torna manifestSha256 obrigatório (ausente/divergente deve rejeitar)');
+
+    check('F2.5-hardening-3: manifestSha256 verificado ANTES de baixar arquivos e ANTES do ready',
+      (() => {
+        const shaIdx = pds3.search(/computeFileSha256\(mTo\)/);
+        const fileIdx = pds3.search(/createDownloadResumable\(`[^`]*f\.path/);
+        const mvIdx = pds3.search(/moveAsync\(\{ from: tempDir, to: localDir \}\)/);
+        return shaIdx >= 0 && fileIdx > shaIdx && mvIdx > fileIdx;
+      })(),
+      'a verificação do manifestSha256 não ocorre antes do download dos arquivos/ready');
+
+    // ── TIMEOUT ──
+    check('F2.5-hardening-3: timeout no manifest.json e nos arquivos (withTimeout + defaults 15000/60000)',
+      /async function withTimeout\(/.test(pds3)
+        && /manifestTimeoutMs = 15000/.test(pds3) && /fileTimeoutMs = 60000/.test(pds3)
+        && /await withTimeout\(\(\) => mdl\.downloadAsync\(\)/.test(pds3)
+        && /await withTimeout\(\(\) => dl\.downloadAsync\(\)/.test(pds3),
+      'timeout ausente no manifest.json e/ou nos arquivos');
+
+    // ── CANCELAMENTO ──
+    check('F2.5-hardening-3: cancelamento no núcleo (isCancelled + throwIfCancelled em >=4 pontos)',
+      /isCancelled/.test(pds3) && (pds3.match(/throwIfCancelled\(isCancelled\)/g) || []).length >= 4,
+      'cancelamento ausente ou com poucos pontos de checagem');
+
+    check('F2.5-hardening-3: cancelamento NÃO grava índice (sem setPackEntry) e retorna { cancelled:true }',
+      (() => {
+        const m = pds3.match(/if \(e === CANCELLED[\s\S]*?return \{ ok: false, cancelled: true, reason: 'cancelado' \};/);
+        return !!m && !/setPackEntry/.test(m[0]) && /deleteAsync\(tempDir/.test(m[0]);
+      })(),
+      'ramo de cancelamento grava índice ou não limpa .tmp / não retorna cancelled:true');
+
+    // ── failWith preserva READY anterior (regra do Portão 3) ──
+    check('F2.5-hardening-3: failWith NÃO rebaixa READY — só grava FAILED quando não há READY anterior',
+      /const prev = await getPackEntry\(storyId\)/.test(pds3)
+        && /if \(!\(prev && prev\.status === PACK_STATUS\.READY\)\)/.test(pds3)
+        && /import \{[^}]*getPackEntry[^}]*\} from '\.\/packStorageService'/.test(pds3),
+      'failWith pode rebaixar um pack READY anterior (deveria preservar)');
+
+    // ── GATE DE REDE (sem dep) ──
+    check('F2.5-hardening-3: gate de rede — !gm.ok retorna networkError ANTES de criar .tmp/índice',
+      (() => {
+        const netIdx = pds3.search(/networkError = \/rede indispon/);
+        const mkIdx = pds3.search(/makeDirectoryAsync\(tempDir/);
+        return netIdx >= 0 && /networkError \}/.test(pds3) && mkIdx > netIdx;
+      })(),
+      'gate de rede ausente ou networkError não é retornado antes de tocar .tmp/índice');
+
+    // ── READY só após move (invariante preservada) ──
+    check('F2.5-hardening-3: READY continua SÓ após moveAsync bem-sucedido',
+      (() => {
+        const mvIdx = pds3.search(/moveAsync\(\{ from: tempDir, to: localDir \}\)/);
+        return mvIdx >= 0 && /setPackEntry\(storyId, \{\s*version,\s*status: PACK_STATUS\.READY/.test(pds3.slice(mvIdx));
+      })(),
+      'READY não está estritamente após o move');
+
+    // ── ESCOPO / SEM DEP NOVA / REGRESSÃO ──
+    check('F2.5-hardening-3: sem dependência de rede nova (expo-network/NetInfo) no serviço nem no package.json',
+      !/expo-network|NetInfo|netinfo/i.test(pds3)
+        && !/expo-network|@react-native-community\/netinfo|"netinfo"/i.test(readSrc('package.json')),
+      'dependência de rede nova detectada (proibida neste bloco)');
+
+    check('F2.5-hardening-3: sem GC/precheck (sem getFreeDiskStorageAsync / readDirectoryAsync)',
+      !/getFreeDiskStorageAsync|getTotalDiskCapacityAsync|readDirectoryAsync/.test(pds3),
+      'GC/precheck iniciados no downloader (fora do escopo)');
+
+    check('F2.5-hardening-3: protegidos INTACTOS (globalManifest/packIntegrity/packStorage/PacksContext/packSandboxDev)',
+      !/throwIfCancelled|withTimeout|manifestTimeoutMs/.test(readSrc('src/services/globalManifestService.js'))
+        && !/throwIfCancelled|withTimeout/.test(readSrc('src/services/packIntegrityService.js'))
+        && !/throwIfCancelled|withTimeout/.test(readSrc('src/services/packStorageService.js'))
+        && !/throwIfCancelled|withTimeout/.test(readSrc('src/context/PacksContext.js'))
+        && !/throwIfCancelled|withTimeout|manifestTimeoutMs/.test(readSrc('src/services/packSandboxDevService.js')),
+      'a mudança vazou para arquivos protegidos');
+
+    check('F2.5-hardening-3: nenhum require removido dos loaders',
+      /require\(/.test(readSrc('src/assets/coloringImages.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
+        && /require\(/.test(readSrc('src/data/storySceneIllustrations.js')) && /require\(/.test(readSrc('src/data/audioManifest.js')),
+      'requires locais foram removidos');
+
+    check('F2.5-hardening-3: doc do bloco existe',
+      srcExists('docs/F2_5_HARDENING_3.md'),
+      'falta docs/F2_5_HARDENING_3.md');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
