@@ -106,6 +106,14 @@ async function withTimeout(runFactory, ms, onTimeout) {
   }
 }
 
+// F2.5-hardening-2b.i — margem de espaço aprovada: max(20% da estimativa, 20 MB). PURO/testável
+// (sem I/O). Estimativa 0/inválida → piso de 20 MB. Usado no precheck ANTES do download pesado.
+const SPACE_MARGIN_FLOOR_BYTES = 20 * 1024 * 1024; // 20 MB
+function spaceNeededBytes(estimateBytes) {
+  const e = Number.isFinite(estimateBytes) && estimateBytes > 0 ? estimateBytes : 0;
+  return e + Math.max(Math.ceil(e * 0.2), SPACE_MARGIN_FLOOR_BYTES);
+}
+
 /**
  * Download GENÉRICO por storyId de um pack (F2.4d.3 → F2.4e.1), descobrindo
  * baseUrl/version/manifestPath pelo MANIFESTO GLOBAL (content-manifest.json) — sem
@@ -242,6 +250,20 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
     if (missingKind) return failWith(`kind solicitado ausente no manifesto: ${missingKind}`);
 
     const totalBytes = wanted.reduce((a, f) => a + (Number(f.bytes) || 0), 0);
+
+    // F2.5-hardening-2b.i: PRECHECK DE ESPAÇO — antes do download PESADO. Estimativa = totalBytes
+    // (Σ wanted[].bytes: preciso por requestedKinds → parcial NÃO sofre falso bloqueio; NÃO usa
+    // pack.bytes cego). API SEGURA: só chama getFreeDiskStorageAsync se for função; se lançar/
+    // retornar não-número → PROSSEGUE (o fail-safe de ENOSPC no download cobre o caso real). Abort
+    // reusa failWith → limpa .tmp, preserva READY anterior, sem baixar arquivos pesados.
+    const neededBytes = spaceNeededBytes(totalBytes);
+    let freeBytes = null;
+    if (typeof FileSystem.getFreeDiskStorageAsync === 'function') {
+      try { freeBytes = await FileSystem.getFreeDiskStorageAsync(); } catch (_) { freeBytes = null; }
+    }
+    if (typeof freeBytes === 'number' && freeBytes < neededBytes) {
+      return failWith('insufficient_space');
+    }
 
     // 10) baixa cada arquivo → .tmp (garante o subdiretório; progresso por kind + cumulativo)
     //     Progresso de chunk é THROTTLED (~120ms) p/ não inundar a UI com setState.

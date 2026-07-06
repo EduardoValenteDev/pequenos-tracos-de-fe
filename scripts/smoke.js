@@ -14217,10 +14217,9 @@ check(
       'ordem insegura: DOWNLOADING/move/ready fora de ordem');
 
     // ── Escopo + regressão ──
-    check('F2.5-hardening-2: SEM GC/precheck (sem getFreeDiskStorageAsync / sem readDirectoryAsync novo)',
-      !/getFreeDiskStorageAsync|getTotalDiskCapacityAsync/.test(pcH2 + pdsH2)
-        && !/readDirectoryAsync/.test(pcH2 + pdsH2),
-      'GC/precheck iniciados (getFreeDiskStorageAsync/readDirectoryAsync) — são F2.5-hardening-2b');
+    check('F2.5-hardening-2: SEM GC destrutivo (sem readDirectoryAsync); precheck de espaço é F2.5-hardening-2b.i',
+      !/readDirectoryAsync/.test(pcH2 + pdsH2),
+      'GC destrutivo (readDirectoryAsync) iniciado — é F2.5-hardening-2b.ii');
 
     check('F2.5-hardening-2: protegidos INTACTOS (contentResolver/packStorageService/StoryBookScreen sem lógica nova)',
       !/reconcileEntry|invalidReadyIds|probePackDisk/.test(readSrc('src/services/contentResolver.js'))
@@ -14309,9 +14308,9 @@ check(
         && !/expo-network|@react-native-community\/netinfo|"netinfo"/i.test(readSrc('package.json')),
       'dependência de rede nova detectada (proibida neste bloco)');
 
-    check('F2.5-hardening-3: sem GC/precheck (sem getFreeDiskStorageAsync / readDirectoryAsync)',
-      !/getFreeDiskStorageAsync|getTotalDiskCapacityAsync|readDirectoryAsync/.test(pds3),
-      'GC/precheck iniciados no downloader (fora do escopo)');
+    check('F2.5-hardening-3: sem GC destrutivo (sem readDirectoryAsync); precheck de espaço é F2.5-hardening-2b.i',
+      !/readDirectoryAsync/.test(pds3),
+      'GC destrutivo (readDirectoryAsync) iniciado no downloader — é F2.5-hardening-2b.ii');
 
     check('F2.5-hardening-3: protegidos INTACTOS (globalManifest/packIntegrity/packStorage/PacksContext/packSandboxDev)',
       !/throwIfCancelled|withTimeout|manifestTimeoutMs/.test(readSrc('src/services/globalManifestService.js'))
@@ -14329,6 +14328,88 @@ check(
     check('F2.5-hardening-3: doc do bloco existe',
       srcExists('docs/F2_5_HARDENING_3.md'),
       'falta docs/F2_5_HARDENING_3.md');
+  }
+
+  // ── F2.5-hardening-2b.i: pré-checagem de espaço (não-destrutivo) no download remoto ──
+  console.log('\n── F2.5-hardening-2b.i: pré-checagem de espaço ──');
+  {
+    const pds2bi = a1StripComments(readSrc('src/services/packDownloadService.js'));
+
+    // Helper puro spaceNeededBytes (eval REAL): margem max(20%, 20MB), piso 20MB.
+    const spaceHelperSrc = (pds2bi.match(/const SPACE_MARGIN_FLOOR_BYTES =[\s\S]*?SPACE_MARGIN_FLOOR_BYTES\);\s*\}/) || [])[0] || '';
+    check('F2.5-hardening-2b.i: spaceNeededBytes puro — estimativa + max(20%, 20MB), piso 20MB',
+      (() => { try {
+        const f = new Function(spaceHelperSrc + '; return spaceNeededBytes;')();
+        const MB = 1024 * 1024;
+        return f(100 * MB) === 120 * MB   // 100 + max(20,20)=120
+          && f(50 * MB) === 70 * MB       // 50 + max(10,20)=70
+          && f(10 * MB) === 30 * MB       // 10 + max(2,20)=30 (piso 20 domina)
+          && f(0) === 20 * MB             // 0 → piso 20
+          && f(-5) === 20 * MB            // inválido → 0 → piso 20
+          && f(200 * MB) === 240 * MB;    // 200 + max(40,20)=240 (20% domina)
+      } catch { return false; } })(),
+      'spaceNeededBytes incorreto (deveria: estimativa + max(20%, 20MB), piso 20MB)');
+
+    check('F2.5-hardening-2b.i: precheck usa spaceNeededBytes(totalBytes) + getFreeDiskStorageAsync + failWith(insufficient_space)',
+      /const neededBytes = spaceNeededBytes\(totalBytes\)/.test(pds2bi)
+        && /getFreeDiskStorageAsync/.test(pds2bi)
+        && /failWith\('insufficient_space'\)/.test(pds2bi),
+      'precheck ausente ou não usa totalBytes/getFreeDiskStorageAsync/insufficient_space');
+
+    check('F2.5-hardening-2b.i: API SEGURA (typeof função + try/catch + só bloqueia com number < needed)',
+      /typeof FileSystem\.getFreeDiskStorageAsync === 'function'/.test(pds2bi)
+        && /try \{ freeBytes = await FileSystem\.getFreeDiskStorageAsync\(\); \} catch/.test(pds2bi)
+        && /typeof freeBytes === 'number' && freeBytes < neededBytes/.test(pds2bi),
+      'getFreeDiskStorageAsync não é usado de forma segura (typeof função + try/catch + guarda number)');
+
+    check('F2.5-hardening-2b.i: precheck ANTES do loop pesado e DEPOIS de totalBytes',
+      (() => {
+        const totIdx = pds2bi.search(/const totalBytes = wanted\.reduce/);
+        const chkIdx = pds2bi.search(/const neededBytes = spaceNeededBytes\(totalBytes\)/);
+        const fileIdx = pds2bi.search(/createDownloadResumable\(`[^`]*f\.path/);
+        return totIdx >= 0 && chkIdx > totIdx && fileIdx > chkIdx;
+      })(),
+      'precheck fora de posição (deve ser após totalBytes e antes do download dos arquivos)');
+
+    check('F2.5-hardening-2b.i: estimativa por wanted[].bytes (NÃO pack.bytes cego)',
+      /spaceNeededBytes\(totalBytes\)/.test(pds2bi) && !/pack\.bytes/.test(pds2bi),
+      'precheck usa pack.bytes cego (deveria usar totalBytes de wanted)');
+
+    check('F2.5-hardening-2b.i: insufficient_space é REASON (não novo PACK_STATUS); packStorageService intacto',
+      /failWith\('insufficient_space'\)/.test(pds2bi)
+        && !/insufficient_space|INSUFFICIENT/.test(readSrc('src/services/packStorageService.js')),
+      'insufficient_space virou status novo ou packStorageService foi tocado');
+
+    check('F2.5-hardening-2b.i: READY só após move + failWith preserva READY (intactos)',
+      (() => {
+        const mvIdx = pds2bi.search(/moveAsync\(\{ from: tempDir, to: localDir \}\)/);
+        return mvIdx >= 0 && /setPackEntry\(storyId, \{\s*version,\s*status: PACK_STATUS\.READY/.test(pds2bi.slice(mvIdx))
+          && /if \(!\(prev && prev\.status === PACK_STATUS\.READY\)\)/.test(pds2bi);
+      })(),
+      'READY não está após move OU failWith deixou de preservar READY');
+
+    check('F2.5-hardening-2b.i: SEM GC/destrutivo (sem readDirectoryAsync/packGcService) e SEM dep nova',
+      !/readDirectoryAsync/.test(pds2bi) && !srcExists('src/services/packGcService.js')
+        && !/expo-network|NetInfo/i.test(pds2bi)
+        && !/getFreeDiskStorageAsync|spaceNeededBytes|insufficient_space/i.test(readSrc('package.json')),
+      'introduziu GC/readDirectoryAsync/packGcService/dep nova (fora do escopo do 2b.i)');
+
+    check('F2.5-hardening-2b.i: protegidos INTACTOS (PacksContext/contentResolver/globalManifest/packIntegrity/packSandboxDev)',
+      !/spaceNeededBytes|insufficient_space|getFreeDiskStorageAsync/.test(readSrc('src/context/PacksContext.js'))
+        && !/spaceNeededBytes|insufficient_space/.test(readSrc('src/services/contentResolver.js'))
+        && !/getFreeDiskStorageAsync|spaceNeededBytes/.test(readSrc('src/services/globalManifestService.js'))
+        && !/spaceNeededBytes|insufficient_space/.test(readSrc('src/services/packIntegrityService.js'))
+        && !/spaceNeededBytes|insufficient_space/.test(readSrc('src/services/packSandboxDevService.js')),
+      'a mudança vazou para arquivos protegidos');
+
+    check('F2.5-hardening-2b.i: nenhum require removido dos loaders',
+      /require\(/.test(readSrc('src/assets/coloringImages.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
+        && /require\(/.test(readSrc('src/data/storySceneIllustrations.js')) && /require\(/.test(readSrc('src/data/audioManifest.js')),
+      'requires locais foram removidos');
+
+    check('F2.5-hardening-2b.i: doc do bloco existe',
+      srcExists('docs/F2_5_HARDENING_2B_I.md'),
+      'falta docs/F2_5_HARDENING_2B_I.md');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
