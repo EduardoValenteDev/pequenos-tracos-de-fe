@@ -70,3 +70,13 @@ A reconciliação usa **`localDir` + `manifest.json`** como prova de disco. O **
 
 ## 9. Rollback
 `git revert` do commit único. Tudo **aditivo**; `packReconcileService.js` deletável; **sem mudança de schema persistido** (reconciliação em memória) → app antigo lê o índice cru como antes.
+
+## 10. Validação manual complementar no iPhone (executada — 2026-07-06, pós-commit `2e6d00b`)
+Validação em **dispositivo físico (iPhone)** após o commit da implementação:
+- **jesus_children** (`remote`): OK — download → `ready` → sha256 validado → **reabrir o app** OK (pack remoto seguiu funcionando; a reconciliação confirmou o pack válido, sem rebaixamento indevido).
+- **david_goliath** (`remote`): OK — `ready` → sha256 → **reabrir o app** OK; **reset → fallback local** correto.
+- **creation / noah** (`starter`): OK — locais intactas.
+
+**Sem** moldura preta · **sem** tela quebrada · **sem** áudio quebrado · **sem** lineart errada. **Pack remoto continuou funcionando após reabrir o app** (confirma que a reconciliação NÃO rebaixa packs válidos — o downloader real grava `manifest.json`, então `probePackDisk` valida `localDir`+`manifest.json` e mantém o `ready`). **Reset de david_goliath voltou corretamente ao fallback local.** Starters `creation`/`noah` intactas.
+
+**Conclusão:** F2.5-hardening-2 validado em device — a reconciliação índice↔disco mantém packs válidos (baixados via downloader real, com `manifest.json`) e o fallback local segue íntegro no reset. Coerente com a ressalva dev-only da §8 (que afeta apenas o seed "Semear", não o download real testado aqui).
