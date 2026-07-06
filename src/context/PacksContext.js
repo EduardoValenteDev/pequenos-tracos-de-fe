@@ -22,7 +22,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { getPackIndex, PACK_STATUS } from '../services/packStorageService';
+import { getPackIndex, getPackLocalDir, PACK_STATUS } from '../services/packStorageService';
 import { getContentLayer, CONTENT_LAYERS } from '../data/contentManifest';
 import { warn } from '../utils/logger';
 
@@ -71,9 +71,26 @@ export function PacksProvider({ children }) {
 
   const refreshPacks = useCallback(() => loadPacks(), [loadPacks]);
 
+  // F2.5-hardening-1 C3: recompõe `localDir` a partir do `documentDirectory` ATUAL (no iOS o
+  // container muda de UUID entre updates/restores → o file:// ABSOLUTO persistido fica inválido).
+  // Migração IMPLÍCITA e idempotente: o localDir persistido é ignorado no boundary de leitura;
+  // recompomos por (storyId, version). Sem storyId/version válidos → mantém a entry CRUA.
+  // READ-ONLY (não grava índice). Memoizado em [packIndex] → estabilidade referencial preservada
+  // (getPackEntry/useSandboxScenePackEntry mantêm identidade → Livrinho não rebuilda a timeline).
+  const normalizedIndex = useMemo(() => {
+    const out = {};
+    for (const sid of Object.keys(packIndex)) {
+      const e = packIndex[sid];
+      if (!e || typeof e !== 'object') { out[sid] = e; continue; }
+      const dir = e.version ? getPackLocalDir(e.storyId || sid, e.version) : null;
+      out[sid] = dir ? { ...e, localDir: dir } : e;
+    }
+    return out;
+  }, [packIndex]);
+
   const getPackEntry = useCallback(
-    storyId => (storyId ? packIndex[storyId] : null) || null,
-    [packIndex],
+    storyId => (storyId ? normalizedIndex[storyId] : null) || null,
+    [normalizedIndex],
   );
 
   // Estado do pack considerando a CAMADA. Puro/derivado; nunca lança.
@@ -84,7 +101,7 @@ export function PacksProvider({ children }) {
       if (layer === CONTENT_LAYERS.STARTER) {
         return { storyId, layer, status: PACK_STATUS.INCLUDED, ready: false, localDir: null, entry: null };
       }
-      const entry = packIndex[storyId] || null;
+      const entry = normalizedIndex[storyId] || null;
       const status = entry?.status || PACK_STATUS.NOT_DOWNLOADED;
       return {
         storyId,
@@ -95,7 +112,7 @@ export function PacksProvider({ children }) {
         entry,
       };
     },
-    [packIndex],
+    [normalizedIndex],
   );
 
   const getPackStatus = useCallback(
@@ -109,7 +126,7 @@ export function PacksProvider({ children }) {
   );
 
   const value = useMemo(() => ({
-    packIndex,
+    packIndex: normalizedIndex,
     isLoadingPacks,
     packsError,
     refreshPacks,
@@ -118,7 +135,7 @@ export function PacksProvider({ children }) {
     isPackReady,
     getStoryPackState,
   }), [
-    packIndex,
+    normalizedIndex,
     isLoadingPacks,
     packsError,
     refreshPacks,

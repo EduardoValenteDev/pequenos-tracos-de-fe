@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet, useWindowDimensions } from 'react-native';
 import {
   OFFICIAL_IMAGE_RESIZE_MODE,
@@ -18,6 +18,7 @@ import {
  * 4:5 dentro de um quadro 4:5, `cover` preenche sem corte perceptível.
  *
  * @param {*}        source
+ * @param {*}        [fallbackSource=null]  require local p/ onError (F2.5-hardening-1 C2)
  * @param {'scene'|'book'} [variant='scene']
  * @param {boolean}  [showSeal=true]
  * @param {string}   [sealLabel='Cena ilustrada']
@@ -27,6 +28,7 @@ import {
  */
 export default function OfficialSceneImage({
   source,
+  fallbackSource = null,
   variant = 'scene',
   showSeal = true,
   sealLabel = 'Cena ilustrada',
@@ -39,6 +41,13 @@ export default function OfficialSceneImage({
     ? computeBookImageSize(screenW, screenH)
     : computeSceneImageSize(screenW, screenH);
 
+  // F2.5-hardening-1 C2: se o `source` (ex.: file:// de pack) falhar no decode, cair UMA vez
+  // para o require local (`fallbackSource`) — nunca deixar a moldura escura. Reseta ao trocar
+  // cena/pack (source OU fallback mudam). Sem loop: a troca só ocorre uma vez.
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [source, fallbackSource]);
+  const effectiveSource = failed && fallbackSource ? fallbackSource : source;
+
   return (
     <View
       style={[
@@ -49,10 +58,11 @@ export default function OfficialSceneImage({
       ]}
     >
       <Image
-        source={source}
+        source={effectiveSource}
         style={styles.image}
         resizeMode={OFFICIAL_IMAGE_RESIZE_MODE}
         onLoadEnd={onLoadEnd}
+        onError={() => { if (!failed && fallbackSource) setFailed(true); }}
       />
       {showSeal && (
         <View style={styles.seal} pointerEvents="none">

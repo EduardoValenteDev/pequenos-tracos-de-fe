@@ -12508,7 +12508,11 @@ check(
         ? { source: { uri: `${entry.localDir}scenes/${id}_scene_${String(n).padStart(2, '0')}.webp` }, sourceType: 'file' }
         : { source: { __require: true }, sourceType: 'require' });
       const stubOfficial = () => ({ __require: true });
-      const header = 'const usePacks=()=>({getPackEntry:__gpe});const resolveStoryScene=__rss;const getOfficialSceneIllustration=__gos;const getContentLayer=(id)=>((id===\'david_goliath\'||id===\'mary_says_yes\')?\'remote\':\'starter\');const CONTENT_LAYERS={STARTER:\'starter\',REMOTE:\'remote\',COMING_SOON:\'coming_soon\'};';
+      // F2.5-hardening-1: a cena virou hook async (useState/useEffect + getInfoAsync). Stubamos
+      // hooks/tipos/FileSystem para o eval não lançar; com useEffect noop, o retorno é SÍNCRONO
+      // (fallback-first): remoteSource fica null → sempre require. Prova de que a cena nunca
+      // serve file:// sem confirmar existência de forma assíncrona.
+      const header = 'const usePacks=()=>({getPackEntry:__gpe});const resolveStoryScene=__rss;const getOfficialSceneIllustration=__gos;const getContentLayer=(id)=>((id===\'david_goliath\'||id===\'mary_says_yes\')?\'remote\':\'starter\');const CONTENT_LAYERS={STARTER:\'starter\',REMOTE:\'remote\',COMING_SOON:\'coming_soon\'};const RESOLVE_SOURCE_TYPE={REQUIRE:\'require\',FILE:\'file\',MISSING:\'missing\'};const useState=(v)=>[v,()=>{}];const useEffect=()=>{};const FileSystem={getInfoAsync:async()=>({exists:false})};';
       return new Function('__gpe', '__rss', '__gos', header + code + ';return { useResolvedSceneImage, SANDBOX_STORY_ID };')(getPackEntry, stubResolve, stubOfficial);
     };
 
@@ -12526,19 +12530,19 @@ check(
       })(),
       'com pack ready a cena de david_goliath não resolveu o file:// esperado');
 
-    check('F2.1g→F2.5c (gating por camada): remote (david, mary) → file://; starter (creation) → require',
+    check('F2.5-hardening-1 (cena fallback-first): sync=require p/ david/mary/creation (file:// só após getInfoAsync confirmar)',
       (() => {
         try {
           const H = evalHook(() => ({ status: 'ready', localDir: 'file:///c/' })); // ready p/ TODAS (controle)
-          const isFile = (x) => x && typeof x.uri === 'string' && /^file:\/\//.test(x.uri);
           const isReq = (x) => x && x.__require === true && !x.uri;
-          const david = H.useResolvedSceneImage('david_goliath', 1);   // remote → file://
-          const mary = H.useResolvedSceneImage('mary_says_yes', 1);     // remote → file:// (F2.5c)
-          const creation = H.useResolvedSceneImage('creation', 1);      // starter → require
-          return isFile(david) && isFile(mary) && isReq(creation);
+          // Com useState/useEffect stubados (efeito não roda), o retorno SÍNCRONO é sempre o
+          // require: prova de que a cena NUNCA serve file:// sem confirmação async de existência.
+          return isReq(H.useResolvedSceneImage('david_goliath', 1))
+            && isReq(H.useResolvedSceneImage('mary_says_yes', 1))
+            && isReq(H.useResolvedSceneImage('creation', 1));
         } catch { return false; }
       })(),
-      'gating por camada incorreto (remote deve dar file://; starter deve dar require)');
+      'cena não é fallback-first (sync deveria ser require; file:// só após getInfoAsync)');
 
     check('F2.1g (áudio/colorir/capas 100% locais; loaders require-based sem file://)',
       mediaLoadersG.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
@@ -14025,6 +14029,84 @@ check(
     check('F2.5c: doc do bloco existe',
       srcExists('docs/F2_5C_REMOTE_CONSUMPTION_18_PACKS.md'),
       'falta docs/F2_5C_REMOTE_CONSUMPTION_18_PACKS.md');
+  }
+
+  // ── F2.5-hardening-1: cena com fallback + localDir recomposto + guard do colorir ──
+  console.log('\n── F2.5-hardening-1: blindagem do consumo remoto (C2 cena / C3 localDir / C4 colorir) ──');
+  {
+    const hookH = a1StripComments(readSrc('src/hooks/useResolvedStoryMedia.js'));
+    const osiC = a1StripComments(readSrc('src/components/story/OfficialSceneImage.js'));
+    const ssvC = a1StripComments(readSrc('src/components/story/StorySceneVisual.js'));
+    const narrC = a1StripComments(readSrc('src/screens/NarrationScreen.js'));
+    const pcC = a1StripComments(readSrc('src/context/PacksContext.js'));
+
+    // ── C2: cena com pré-checagem de existência + anti-race + fallback de render ──
+    check('F2.5-hardening-1 C2: useResolvedSceneImage checa existência (getInfoAsync+exists), é race-safe e fallback-first',
+      /export function useResolvedSceneImage\(storyId, sceneId\)/.test(hookH)
+        && /getInfoAsync\(candidateUri\)/.test(hookH) && /info\.exists/.test(hookH)
+        && /let cancelled = false/.test(hookH)
+        && /return safeRemoteSource \|\| localSource/.test(hookH),
+      'cena sem getInfoAsync / sem guarda de race (cancelled) / não é fallback-first');
+
+    check('F2.5-hardening-1 C2 (anti-race): remoto só é usado quando remoteSource.uri === candidateUri ATUAL',
+      /remoteSource\.uri === candidateUri/.test(hookH)
+        && /const safeRemoteSource\s*=/.test(hookH),
+      'falta a guarda anti-race safeRemoteSource (remoteSource.uri === candidateUri)');
+
+    check('F2.5-hardening-1 C2: OfficialSceneImage tem onError→fallbackSource + reset de failed em [source, fallbackSource]',
+      /fallbackSource/.test(osiC) && /onError=\{/.test(osiC)
+        && /setFailed\(true\)/.test(osiC) && /setFailed\(false\)/.test(osiC)
+        && /\[source, fallbackSource\]/.test(osiC),
+      'OfficialSceneImage sem onError/fallbackSource/reset de failed');
+
+    check('F2.5-hardening-1 C2: StorySceneVisual repassa fallbackSource no estado oficial',
+      /officialFallback/.test(ssvC) && /fallbackSource=\{officialFallback\}/.test(ssvC),
+      'StorySceneVisual não repassa officialFallback→fallbackSource');
+
+    check('F2.5-hardening-1 C2: NarrationScreen fornece officialFallback null-safe (require local)',
+      /getOfficialSceneIllustration/.test(narrC)
+        && /officialFallback = cena\?\.id \? getOfficialSceneIllustration\(story\.id, cena\.id\) : null/.test(narrC)
+        && /officialFallback=\{officialFallback\}/.test(narrC),
+      'NarrationScreen não fornece officialFallback null-safe / não repassa a prop');
+
+    // ── C3: localDir recomposto no PacksContext (read-only) ──
+    check('F2.5-hardening-1 C3: PacksContext importa getPackLocalDir e recompõe localDir por (storyId, version) em useMemo',
+      /import \{[^}]*getPackLocalDir[^}]*\} from '\.\.\/services\/packStorageService'/.test(pcC)
+        && /normalizedIndex = useMemo\(/.test(pcC) && /e\.version \? getPackLocalDir/.test(pcC),
+      'PacksContext não recompõe localDir via getPackLocalDir(storyId, version) em useMemo([packIndex])');
+
+    check('F2.5-hardening-1 C3: getters + value.packIndex usam normalizedIndex (localDir recomposto)',
+      (pcC.match(/normalizedIndex\[storyId\]/g) || []).length >= 2
+        && (pcC.match(/\[normalizedIndex\]/g) || []).length >= 2
+        && /packIndex: normalizedIndex/.test(pcC),
+      'getPackEntry/getStoryPackState/value não usam normalizedIndex');
+
+    check('F2.5-hardening-1 C3: PacksContext segue READ-ONLY (sem gravar índice / sem baixar / schema intacto)',
+      !/savePackIndex|setPackEntry|clearPackEntry|setItem\(/.test(pcC)
+        && !/downloadAsync|createDownloadResumable|fetch\(/.test(pcC),
+      'PacksContext passou a gravar índice/baixar (deveria seguir read-only)');
+
+    // ── C4: guard do colorir (cena.id === posição) ──
+    check('F2.5-hardening-1 C4: colorir só monta candidato remoto quando cena.id === posição (keyMatches)',
+      /keyMatches = !!cena && cena\.id === sceneNumber/.test(hookH)
+        && /sceneNumber > 0 && keyMatches/.test(hookH),
+      'colorir sem guard cena.id===posição (risco de lineart errada no futuro)');
+
+    // ── Regressão: intactos ──
+    check('F2.5-hardening-1: resolveSceneImageForStory (Livrinho) + StoryBookScreen local INTACTOS',
+      /export function resolveSceneImageForStory\(storyId, sceneId, packEntry = null\)/.test(hookH)
+        && /return getOfficialSceneIllustration\(storyId, sceneId\)/.test(hookH)
+        && /function OfficialSceneImage\(\{ source, cena, fallbackColor, onSettled \}\)/.test(a1StripComments(readSrc('src/screens/StoryBookScreen.js'))),
+      'resolveSceneImageForStory ou o OfficialSceneImage do Livrinho foram alterados (deveriam ficar intactos)');
+
+    check('F2.5-hardening-1: contentResolver.js e packStorageService.js INALTERADOS (sem lógica nova)',
+      !/normalizedIndex|isRemotePackStory|keyMatches/.test(readSrc('src/services/contentResolver.js'))
+        && !/normalizedIndex/.test(readSrc('src/services/packStorageService.js')),
+      'contentResolver/packStorageService foram tocados (deveriam ficar intactos)');
+
+    check('F2.5-hardening-1: doc do bloco existe',
+      srcExists('docs/F2_5_HARDENING_1.md'),
+      'falta docs/F2_5_HARDENING_1.md');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

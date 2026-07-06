@@ -19,6 +19,7 @@ import OfficialSceneImage from './OfficialSceneImage';
  * @param {object}  scene                 — objeto da cena (emojiCena, titulo, corTema)
  * @param {object}  story                 — história (emoji de fallback)
  * @param {*}       officialIllustration  — asset da ilustração oficial ou null
+ * @param {*}       officialFallback      — require local da cena p/ onError (fallback) ou null
  * @param {*}       storyCover            — asset da capa ou null
  * @param {number}  sceneNumber           — número da cena
  * @param {number}  totalScenes           — total de cenas
@@ -27,6 +28,7 @@ export default function StorySceneVisual({
   scene,
   story,
   officialIllustration = null,
+  officialFallback = null,
   storyCover = null,
   sceneNumber,
   totalScenes,
@@ -46,6 +48,7 @@ export default function StorySceneVisual({
     return (
       <OfficialSceneImage
         source={officialIllustration}
+        fallbackSource={officialFallback}
         variant="scene"
         sealLabel="Cena ilustrada"
         style={styles.officialMargin}

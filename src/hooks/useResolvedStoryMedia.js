@@ -37,11 +37,14 @@ export function isRemotePackStory(storyId) {
 /**
  * useResolvedSceneImage — `source` da IMAGEM DE CENA (Estado A do StorySceneVisual).
  *
- * - Qualquer história ≠ sandbox → caminho ANTIGO intacto (`getOfficialSceneIllustration`),
- *   sem tocar packs. Comportamento idêntico ao de antes do F2.1f.
- * - `david_goliath`:
- *     • sem pack `ready` (estado real com índice vazio) → require local IDÊNTICO ao antigo;
- *     • pack `ready` (sandbox) → `{ uri: 'file://…' }` vindo do resolver.
+ * FALLBACK-FIRST + pré-checagem de existência (F2.5-hardening-1 C2), espelhando o colorir:
+ * - starter (creation/noah) OU premium sem pack `ready` → require local (idêntico ao anterior).
+ * - premium (camada `remote`) com pack `ready` E arquivo existente (getInfoAsync FORA do render)
+ *   → `{ uri: 'file://…' }`. O `{ uri }` só é usado quando `remoteSource.uri === candidateUri`
+ *   ATUAL (anti-race: mesmo antes do efeito limpar o estado, uma troca rápida de cena NUNCA
+ *   reaproveita o file:// da cena anterior). Sem pack/arquivo → require imediato.
+ *
+ * READ-ONLY: não baixa, não grava índice, sem leitura pesada em render. Nunca lança.
  *
  * @param {string} storyId
  * @param {number} sceneId  cena.id (1..N) — a MESMA chave usada pela tela hoje
@@ -49,17 +52,40 @@ export function isRemotePackStory(storyId) {
  */
 export function useResolvedSceneImage(storyId, sceneId) {
   const { getPackEntry } = usePacks(); // hook chamado SEMPRE (regras do React)
+  const [remoteSource, setRemoteSource] = useState(null);
 
-  // Histórias não-sandbox: fluxo antigo, sem packs (byte-a-byte igual ao anterior).
-  if (!isRemotePackStory(storyId)) {
-    return getOfficialSceneIllustration(storyId, sceneId);
+  // Fallback local ATUAL (require) — inalterado p/ creation/noah e p/ premium sem pack ready.
+  const localSource = getOfficialSceneIllustration(storyId, sceneId);
+
+  // Candidato remoto: só camada `remote` + pack ready → file:// (mesma chave cena.id de hoje).
+  const packEntry = isRemotePackStory(storyId) ? getPackEntry(storyId) : null;
+  let candidateUri = null;
+  if (isRemotePackStory(storyId) && sceneId) {
+    const r = resolveStoryScene(storyId, sceneId, packEntry);
+    candidateUri = r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source ? r.source.uri : null;
   }
 
-  // Sandbox: o resolver devolve require (fallback local) OU { uri } (pack ready).
-  // Com índice vazio, getPackEntry(...) = null → fallback = getOfficialSceneIllustration
-  // (idêntico ao antigo). O consumidor usa `source` diretamente em <Image>.
-  const resolved = resolveStoryScene(storyId, sceneId, getPackEntry(storyId));
-  return resolved.source;
+  // Existência confirmada FORA do render; race-safe (cancelled): resultado async antigo NUNCA
+  // promove a cena anterior. Dep principal = candidateUri (string estável).
+  useEffect(() => {
+    let cancelled = false;
+    setRemoteSource(null); // reset ao trocar cena/pack → fallback local até reconfirmar
+    if (!candidateUri) return () => { cancelled = true; };
+    (async () => {
+      try {
+        const info = await FileSystem.getInfoAsync(candidateUri); // leve (metadata), sem hash
+        if (!cancelled && info && info.exists) setRemoteSource({ uri: candidateUri });
+      } catch { /* mantém fallback local */ }
+    })();
+    return () => { cancelled = true; };
+  }, [candidateUri]);
+
+  // Anti-race adicional (F2.5-hardening-1): mesmo antes de o efeito limpar o estado antigo, um
+  // render intermediário só usa o remoto quando sua uri === candidateUri ATUAL — senão fallback
+  // local imediato. Fecha a janela entre a troca de cena e a limpeza do useEffect.
+  const safeRemoteSource =
+    remoteSource && candidateUri && remoteSource.uri === candidateUri ? remoteSource : null;
+  return safeRemoteSource || localSource;
 }
 
 /**
@@ -124,12 +150,17 @@ export function useResolvedColoringImage(story, cenaIndex) {
   // Fallback local ATUAL — a mesma fonte que a tela usava antes (nunca muda p/ outras histórias).
   const localSource = cena ? getColoringImage(storyId, cena.id) : null;
 
-  // Candidato remoto: só existe quando david_goliath + pack ready → file:// do resolver
-  // (mesma convenção de path das cenas). sceneNumber = posição (cenaIndex+1).
+  // Candidato remoto: só existe quando camada remote + pack ready → file:// do resolver
+  // (convenção de path por POSIÇÃO: coloring/scene_NN.png). sceneNumber = posição (cenaIndex+1).
   const sceneNumber = Number.isInteger(cenaIndex) ? cenaIndex + 1 : 0;
+  // C4 (F2.5-hardening-1): o pack usa POSIÇÃO (scene_NN) e o fallback local usa cena.id. Só
+  // montar o candidato remoto quando as chaves COINCIDEM — senão o file:// existiria mas seria a
+  // lineart de OUTRA cena (getInfoAsync não pega troca de chave). Hoje cena.id === posição nas 18
+  // (Bloco 2) → comportamento idêntico; a guarda apenas blinda história futura não-sequencial.
+  const keyMatches = !!cena && cena.id === sceneNumber;
   const packEntry = isRemotePackStory(storyId) ? getPackEntry(storyId) : null;
   let candidateUri = null;
-  if (isRemotePackStory(storyId) && sceneNumber > 0) {
+  if (isRemotePackStory(storyId) && sceneNumber > 0 && keyMatches) {
     const r = resolveStoryColoring(storyId, sceneNumber, packEntry);
     candidateUri = r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source ? r.source.uri : null;
   }

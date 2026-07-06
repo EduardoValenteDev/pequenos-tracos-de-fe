@@ -19,7 +19,7 @@ import AudioPlayer from '../components/AudioPlayer';
 import ProgressBar from '../components/ProgressBar';
 import { useProgress } from '../hooks/useProgress';
 import { useProgressContext } from '../context/ProgressContext';
-import { getStoryCoverImage } from '../services/storyImageService';
+import { getStoryCoverImage, getOfficialSceneIllustration } from '../services/storyImageService';
 import { useResolvedSceneImage, useResolvedStoryAudio } from '../hooks/useResolvedStoryMedia';
 import { canOpenStoryFullExperience, getStoryLockReason } from '../services/contentAccessService';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
@@ -52,6 +52,8 @@ export default function NarrationScreen({ route, navigation }) {
   // idêntico quando não há pack ready). Demais histórias seguem o caminho antigo. A capa
   // (ambientação) e o áudio permanecem 100% locais.
   const officialIllustration = useResolvedSceneImage(story.id, cena?.id);
+  // F2.5-hardening-1 C2: require local da cena (null-safe) p/ o onError do OfficialSceneImage.
+  const officialFallback = cena?.id ? getOfficialSceneIllustration(story.id, cena.id) : null;
   const storyCover = getStoryCoverImage(story.id);
 
   // Progresso — conclusão da cena é desacoplada do colorir (Sprint Histórias 3.0)
@@ -255,6 +257,7 @@ export default function NarrationScreen({ route, navigation }) {
             scene={cena}
             story={story}
             officialIllustration={officialIllustration}
+            officialFallback={officialFallback}
             storyCover={storyCover}
             sceneNumber={numeroCena}
             totalScenes={totalCenas}
