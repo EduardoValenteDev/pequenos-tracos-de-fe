@@ -3,8 +3,9 @@
  * (Fase 2, F2.1f — PRIMEIRO consumo visual, em sandbox controlado).
  *
  * Encapsula `usePacks` (estado do pack) + `contentResolver` (decisão de origem) atrás de
- * um hook, para que a TELA nunca importe o runtime diretamente. Escopo mínimo: apenas a
- * IMAGEM DE CENA, e apenas para a história sandbox `david_goliath`.
+ * um hook, para que a TELA nunca importe o runtime diretamente. Consumo remoto (cover/scene/
+ * coloring/audio) habilitado para as histórias da camada `remote` (F2.5c — as 18 premium),
+ * com FALLBACK LOCAL obrigatório. `creation`/`noah` (`starter`) seguem sempre locais.
  *
  * ⚠️ READ-ONLY: não baixa, não instala, não grava índice/AsyncStorage, não toca
  * progresso/acesso/compras. Nunca lança.
@@ -15,9 +16,23 @@ import { usePacks } from '../context/PacksContext';
 import { resolveStoryScene, resolveStoryColoring, resolveStoryCover, resolveStoryAudio, RESOLVE_SOURCE_TYPE } from '../services/contentResolver';
 import { getOfficialSceneIllustration } from '../services/storyImageService';
 import { getColoringImage } from '../assets/coloringImages';
+import { getContentLayer, CONTENT_LAYERS } from '../data/contentManifest';
 
-/** Única história com consumo visual do resolver de packs neste bloco (sandbox técnico). */
+/**
+ * SANDBOX_STORY_ID — mantido por COMPATIBILIDADE (piloto/QA e referências existentes).
+ * O consumo remoto NÃO é mais limitado a ele: agora é gated pela CAMADA de conteúdo.
+ */
 export const SANDBOX_STORY_ID = 'david_goliath';
+
+/**
+ * isRemotePackStory — TRUE se a história é da camada `remote` (as 18 premium) e, portanto,
+ * ELEGÍVEL a consumir um pack instalado (F2.5c). `creation`/`noah` são `starter` → sempre
+ * local. Fonte única: `contentManifest.STORY_CONTENT_LAYER` (sem hardcode). Nunca lança.
+ * Nota: consumir só faz efeito quando o pack está `ready`; sem pack → fallback local.
+ */
+export function isRemotePackStory(storyId) {
+  return getContentLayer(storyId) === CONTENT_LAYERS.REMOTE;
+}
 
 /**
  * useResolvedSceneImage — `source` da IMAGEM DE CENA (Estado A do StorySceneVisual).
@@ -36,7 +51,7 @@ export function useResolvedSceneImage(storyId, sceneId) {
   const { getPackEntry } = usePacks(); // hook chamado SEMPRE (regras do React)
 
   // Histórias não-sandbox: fluxo antigo, sem packs (byte-a-byte igual ao anterior).
-  if (storyId !== SANDBOX_STORY_ID) {
+  if (!isRemotePackStory(storyId)) {
     return getOfficialSceneIllustration(storyId, sceneId);
   }
 
@@ -62,7 +77,7 @@ export function useResolvedSceneImage(storyId, sceneId) {
  * @returns {*} source de <Image> (require OU { uri }) ou null
  */
 export function resolveSceneImageForStory(storyId, sceneId, packEntry = null) {
-  if (storyId !== SANDBOX_STORY_ID) {
+  if (!isRemotePackStory(storyId)) {
     return getOfficialSceneIllustration(storyId, sceneId);
   }
   return resolveStoryScene(storyId, sceneId, packEntry).source;
@@ -78,7 +93,7 @@ export function resolveSceneImageForStory(storyId, sceneId, packEntry = null) {
  */
 export function useSandboxScenePackEntry(storyId) {
   const { getPackEntry } = usePacks(); // hook chamado SEMPRE (regras do React)
-  return storyId === SANDBOX_STORY_ID ? getPackEntry(storyId) : null;
+  return isRemotePackStory(storyId) ? getPackEntry(storyId) : null;
 }
 
 /**
@@ -112,9 +127,9 @@ export function useResolvedColoringImage(story, cenaIndex) {
   // Candidato remoto: só existe quando david_goliath + pack ready → file:// do resolver
   // (mesma convenção de path das cenas). sceneNumber = posição (cenaIndex+1).
   const sceneNumber = Number.isInteger(cenaIndex) ? cenaIndex + 1 : 0;
-  const packEntry = storyId === SANDBOX_STORY_ID ? getPackEntry(storyId) : null;
+  const packEntry = isRemotePackStory(storyId) ? getPackEntry(storyId) : null;
   let candidateUri = null;
-  if (storyId === SANDBOX_STORY_ID && sceneNumber > 0) {
+  if (isRemotePackStory(storyId) && sceneNumber > 0) {
     const r = resolveStoryColoring(storyId, sceneNumber, packEntry);
     candidateUri = r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source ? r.source.uri : null;
   }
@@ -156,9 +171,9 @@ export function useResolvedStoryCover(storyId, localSource) {
   const { getPackEntry } = usePacks(); // hook chamado SEMPRE (regras do React)
   const [remoteSource, setRemoteSource] = useState(null);
 
-  const packEntry = storyId === SANDBOX_STORY_ID ? getPackEntry(storyId) : null;
+  const packEntry = isRemotePackStory(storyId) ? getPackEntry(storyId) : null;
   let candidateUri = null;
-  if (storyId === SANDBOX_STORY_ID) {
+  if (isRemotePackStory(storyId)) {
     const r = resolveStoryCover(storyId, packEntry);
     candidateUri = r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source ? r.source.uri : null;
   }
@@ -202,9 +217,9 @@ export function useResolvedStoryAudio(storyId, sceneNumber, localAudioAsset) {
   const [remoteSource, setRemoteSource] = useState(null);
 
   const n = Number.isInteger(sceneNumber) ? sceneNumber : 0;
-  const packEntry = storyId === SANDBOX_STORY_ID ? getPackEntry(storyId) : null;
+  const packEntry = isRemotePackStory(storyId) ? getPackEntry(storyId) : null;
   let candidateUri = null;
-  if (storyId === SANDBOX_STORY_ID && n > 0) {
+  if (isRemotePackStory(storyId) && n > 0) {
     const r = resolveStoryAudio(storyId, n, packEntry);
     candidateUri = r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source ? r.source.uri : null;
   }

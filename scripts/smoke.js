@@ -12417,11 +12417,11 @@ check(
     const screenFiles = fs.readdirSync(screensDir).filter((f) => f.endsWith('.js'));
     const mediaLoaders = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
 
-    check('F2.1f (hook existe, gated a david_goliath, read-only)',
+    check('F2.1f→F2.5c (hook existe, gated por camada remote, read-only)',
       hasHook &&
       /export function useResolvedSceneImage\b/.test(hook) &&
       /SANDBOX_STORY_ID\s*=\s*'david_goliath'/.test(hook) &&
-      /storyId !== SANDBOX_STORY_ID/.test(hook) &&
+      /!isRemotePackStory\(storyId\)/.test(hook) &&
       /usePacks/.test(hook) && /resolveStoryScene/.test(hook) && /getOfficialSceneIllustration/.test(hook) &&
       !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|downloadAsync|Purchases\.|react-native-purchases/.test(hook),
       'hook ausente / não-gated / não read-only');
@@ -12508,7 +12508,7 @@ check(
         ? { source: { uri: `${entry.localDir}scenes/${id}_scene_${String(n).padStart(2, '0')}.webp` }, sourceType: 'file' }
         : { source: { __require: true }, sourceType: 'require' });
       const stubOfficial = () => ({ __require: true });
-      const header = 'const usePacks=()=>({getPackEntry:__gpe});const resolveStoryScene=__rss;const getOfficialSceneIllustration=__gos;';
+      const header = 'const usePacks=()=>({getPackEntry:__gpe});const resolveStoryScene=__rss;const getOfficialSceneIllustration=__gos;const getContentLayer=(id)=>((id===\'david_goliath\'||id===\'mary_says_yes\')?\'remote\':\'starter\');const CONTENT_LAYERS={STARTER:\'starter\',REMOTE:\'remote\',COMING_SOON:\'coming_soon\'};';
       return new Function('__gpe', '__rss', '__gos', header + code + ';return { useResolvedSceneImage, SANDBOX_STORY_ID };')(getPackEntry, stubResolve, stubOfficial);
     };
 
@@ -12526,18 +12526,19 @@ check(
       })(),
       'com pack ready a cena de david_goliath não resolveu o file:// esperado');
 
-    check('F2.1g (gating do hook: file:// SÓ david; outra história com entry ready → require)',
+    check('F2.1g→F2.5c (gating por camada): remote (david, mary) → file://; starter (creation) → require',
       (() => {
         try {
           const H = evalHook(() => ({ status: 'ready', localDir: 'file:///c/' })); // ready p/ TODAS (controle)
-          const david = H.useResolvedSceneImage('david_goliath', 1);
-          const other = H.useResolvedSceneImage('mary_says_yes', 1);
-          const davidFile = david && typeof david.uri === 'string' && /^file:\/\//.test(david.uri);
-          const otherRequire = other && other.__require === true && !other.uri;
-          return davidFile && otherRequire;
+          const isFile = (x) => x && typeof x.uri === 'string' && /^file:\/\//.test(x.uri);
+          const isReq = (x) => x && x.__require === true && !x.uri;
+          const david = H.useResolvedSceneImage('david_goliath', 1);   // remote → file://
+          const mary = H.useResolvedSceneImage('mary_says_yes', 1);     // remote → file:// (F2.5c)
+          const creation = H.useResolvedSceneImage('creation', 1);      // starter → require
+          return isFile(david) && isFile(mary) && isReq(creation);
         } catch { return false; }
       })(),
-      'o gating do hook não restringe file:// a david_goliath (outra história resolveu file://)');
+      'gating por camada incorreto (remote deve dar file://; starter deve dar require)');
 
     check('F2.1g (áudio/colorir/capas 100% locais; loaders require-based sem file://)',
       mediaLoadersG.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
@@ -12614,9 +12615,9 @@ check(
       /export function resolveSceneImageForStory\b/.test(hookV2) &&
       /export function useSandboxScenePackEntry\b/.test(hookV2) &&
       /export function useResolvedSceneImage\b/.test(hookV2) &&
-      /storyId !== SANDBOX_STORY_ID/.test(hookV2) &&
+      /!isRemotePackStory\(storyId\)/.test(hookV2) &&
       /SANDBOX_STORY_ID\s*=\s*'david_goliath'/.test(hookV2) &&
-      /return storyId === SANDBOX_STORY_ID \? getPackEntry\(storyId\) : null/.test(hookV2) &&
+      /return isRemotePackStory\(storyId\) \? getPackEntry\(storyId\) : null/.test(hookV2) &&
       !/useSceneImageResolver/.test(hookV2),
       'hook v2: exports/gating ausentes ou useSandboxScenePackEntry não retorna valor');
 
@@ -12633,21 +12634,22 @@ check(
       !/from\s*'\.\.\/context\/PacksContext'|from\s*'\.\.\/services\/contentResolver'|from\s*'\.\.\/services\/packStorageService'/.test(livroV2),
       'StoryBookScreen: consumo via hook incorreto, callback no useMemo, ou importa runtime direto');
 
-    check('F2.1h v2 (gating por eval): david null→require; david ready→file://; outra história ready→require',
+    check('F2.1h v2→F2.5c (gating por eval, camada): david/mary remote ready→file://; creation starter→require',
       (() => {
         try {
           const code = hookV2.replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '');
           const stubResolve = (id, n, entry) => ({ source: (entry && entry.status === 'ready') ? { uri: `${entry.localDir}scenes/${id}_scene_${String(n).padStart(2, '0')}.webp` } : { __require: true } });
           const stubOfficial = () => ({ __require: true });
-          const header = 'const usePacks=()=>({getPackEntry:()=>null});const resolveStoryScene=__rss;const getOfficialSceneIllustration=__gos;';
+          const header = 'const usePacks=()=>({getPackEntry:()=>null});const resolveStoryScene=__rss;const getOfficialSceneIllustration=__gos;const getContentLayer=(id)=>((id===\'david_goliath\'||id===\'mary_says_yes\')?\'remote\':\'starter\');const CONTENT_LAYERS={STARTER:\'starter\',REMOTE:\'remote\',COMING_SOON:\'coming_soon\'};';
           const M = new Function('__rss', '__gos', header + code + ';return { resolveSceneImageForStory };')(stubResolve, stubOfficial);
           const a = M.resolveSceneImageForStory('david_goliath', 1, null);
           const b = M.resolveSceneImageForStory('david_goliath', 1, { status: 'ready', localDir: 'file:///c/' });
           const c = M.resolveSceneImageForStory('mary_says_yes', 1, { status: 'ready', localDir: 'file:///c/' });
-          return a.__require === true && typeof b.uri === 'string' && /^file:\/\//.test(b.uri) && c.__require === true && !c.uri;
+          const d = M.resolveSceneImageForStory('creation', 1, { status: 'ready', localDir: 'file:///c/' });
+          return a.__require === true && typeof b.uri === 'string' && /^file:\/\//.test(b.uri) && typeof c.uri === 'string' && /^file:\/\//.test(c.uri) && d.__require === true && !d.uri;
         } catch { return false; }
       })(),
-      'resolveSceneImageForStory: gating incorreto (david require/file; outra história deve ficar em require)');
+      'resolveSceneImageForStory: gating por camada incorreto (remote david/mary → file://; starter creation → require)');
 
     check('F2.1i (intro preview via resolveSceneImageForStory + scenePackEntry) + "Meu livrinho colorido" prioriza arte da criança',
       /officialPreview = firstCena \? resolveSceneImageForStory\(story\.id, firstCena\.id, scenePackEntry\)/.test(livroV2) &&
@@ -12684,21 +12686,22 @@ check(
       !/from\s*'\.\.\/context\/PacksContext'|from\s*'\.\.\/services\/contentResolver'|from\s*'\.\.\/services\/packStorageService'/.test(livroI),
       'prévia da intro não conectada, getOfficialSceneIllustration ainda na tela, ou runtime importado direto');
 
-    check('F2.1i (gating por eval): david null→require; david ready→file://; outra história ready→require',
+    check('F2.1i→F2.5c (gating por eval, camada): david/mary remote ready→file://; creation starter→require',
       (() => {
         try {
           const code = hookI.replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '');
           const stubResolve = (id, n, entry) => ({ source: (entry && entry.status === 'ready') ? { uri: `${entry.localDir}scenes/${id}_scene_${String(n).padStart(2, '0')}.webp` } : { __require: true } });
           const stubOfficial = () => ({ __require: true });
-          const header = 'const usePacks=()=>({getPackEntry:()=>null});const resolveStoryScene=__rss;const getOfficialSceneIllustration=__gos;';
+          const header = 'const usePacks=()=>({getPackEntry:()=>null});const resolveStoryScene=__rss;const getOfficialSceneIllustration=__gos;const getContentLayer=(id)=>((id===\'david_goliath\'||id===\'mary_says_yes\')?\'remote\':\'starter\');const CONTENT_LAYERS={STARTER:\'starter\',REMOTE:\'remote\',COMING_SOON:\'coming_soon\'};';
           const M = new Function('__rss', '__gos', header + code + ';return { resolveSceneImageForStory };')(stubResolve, stubOfficial);
           const a = M.resolveSceneImageForStory('david_goliath', 1, null);
           const b = M.resolveSceneImageForStory('david_goliath', 1, { status: 'ready', localDir: 'file:///c/' });
           const c = M.resolveSceneImageForStory('mary_says_yes', 1, { status: 'ready', localDir: 'file:///c/' });
-          return a.__require === true && typeof b.uri === 'string' && /^file:\/\//.test(b.uri) && c.__require === true && !c.uri;
+          const d = M.resolveSceneImageForStory('creation', 1, { status: 'ready', localDir: 'file:///c/' });
+          return a.__require === true && typeof b.uri === 'string' && /^file:\/\//.test(b.uri) && typeof c.uri === 'string' && /^file:\/\//.test(c.uri) && d.__require === true && !d.uri;
         } catch { return false; }
       })(),
-      'resolveSceneImageForStory: gating incorreto (david require/file; outra história deve ficar em require)');
+      'resolveSceneImageForStory: gating por camada incorreto (remote david/mary → file://; starter creation → require)');
 
     check('F2.1i (superfícies preservadas): História ilustrada (:official), child art prioritária, NarrationScreen intacta, loaders locais',
       /mode === 'official'[\s\S]*?resolveSceneImageForStory\(story\.id, cena\.id, scenePackEntry\)/.test(livroI) &&
@@ -13359,8 +13362,8 @@ check(
       /export function useResolvedColoringImage/.test(colHook) && /resolveStoryColoring/.test(colHook),
       'falta o hook useResolvedColoringImage / uso de resolveStoryColoring');
 
-    check('F2.4e.3: coloring remoto LIMITADO a david_goliath (SANDBOX_STORY_ID)',
-      /storyId === SANDBOX_STORY_ID/.test(colHook),
+    check('F2.4e.3→F2.5c: coloring remoto gated por camada remote (isRemotePackStory)',
+      /isRemotePackStory\(storyId\)/.test(colHook),
       'coloring remoto não está restrito a david_goliath');
 
     check('F2.4e.3: coloring remoto exige pack READY (via resolveStoryColoring + sourceType FILE)',
@@ -13385,7 +13388,7 @@ check(
 
     check('F2.4e.3: A Criação/Noé (não-sandbox) seguem LOCAL (hook devolve getColoringImage)',
       // fora do sandbox, candidateUri fica null → sempre localSource; validado pelo gate storyId.
-      /const packEntry = storyId === SANDBOX_STORY_ID \? getPackEntry\(storyId\) : null/.test(colHook),
+      /const packEntry = isRemotePackStory\(storyId\) \? getPackEntry\(storyId\) : null/.test(colHook),
       'histórias não-sandbox poderiam consumir remoto — gate ausente');
 
     check('F2.4e.3: ColoringScreen usa o hook (não o resolver direto)',
@@ -13440,8 +13443,8 @@ check(
       /export function useResolvedStoryCover/.test(covHook) && /resolveStoryCover/.test(covHook),
       'falta o hook useResolvedStoryCover / uso de resolveStoryCover');
 
-    check('F2.4e.4: cover remoto LIMITADO a david_goliath (SANDBOX_STORY_ID)',
-      /storyId === SANDBOX_STORY_ID/.test(cvBody),
+    check('F2.4e.4→F2.5c: cover remoto gated por camada remote (isRemotePackStory)',
+      /isRemotePackStory\(storyId\)/.test(cvBody),
       'cover remoto não está restrito a david_goliath');
 
     check('F2.4e.4: cover remoto exige pack READY (resolveStoryCover + sourceType FILE)',
@@ -13475,7 +13478,7 @@ check(
       'superfície de capa expõe termo técnico');
 
     check('F2.4e.4: A Criação/Noé (não-sandbox) seguem LOCAL (gate SANDBOX_STORY_ID no cover)',
-      /const packEntry = storyId === SANDBOX_STORY_ID \? getPackEntry\(storyId\) : null/.test(cvBody),
+      /const packEntry = isRemotePackStory\(storyId\) \? getPackEntry\(storyId\) : null/.test(cvBody),
       'cover de histórias não-sandbox poderia ir remoto — gate ausente');
 
     check('F2.4e.4: F2.4e.3 (coloring remoto) continua intacto',
@@ -13511,8 +13514,8 @@ check(
       /export function useResolvedStoryAudio/.test(audHook) && /resolveStoryAudio/.test(audHook),
       'falta o hook useResolvedStoryAudio / uso de resolveStoryAudio');
 
-    check('F2.4e.5: áudio remoto LIMITADO a david_goliath (SANDBOX_STORY_ID)',
-      /storyId === SANDBOX_STORY_ID/.test(avBody),
+    check('F2.4e.5→F2.5c: áudio remoto gated por camada remote (isRemotePackStory)',
+      /isRemotePackStory\(storyId\)/.test(avBody),
       'áudio remoto não está restrito a david_goliath');
 
     check('F2.4e.5: áudio remoto exige pack READY (resolveStoryAudio + sourceType FILE)',
@@ -13543,7 +13546,7 @@ check(
       'NarrationScreen expõe termo técnico');
 
     check('F2.4e.5: A Criação/Noé (não-sandbox) seguem LOCAL (gate SANDBOX_STORY_ID no áudio)',
-      /const packEntry = storyId === SANDBOX_STORY_ID \? getPackEntry\(storyId\) : null/.test(avBody),
+      /const packEntry = isRemotePackStory\(storyId\) \? getPackEntry\(storyId\) : null/.test(avBody),
       'áudio de histórias não-sandbox poderia ir remoto — gate ausente');
 
     check('F2.4e.5: AudioPlayer INTACTO (play/pause/cleanup/autoplay) — só a FONTE mudou',
@@ -13626,7 +13629,7 @@ check(
     check('F2.4e.5p: F2.4e.3 coloring + F2.4e.4 cover + gate david_goliath preservados',
       /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
         && /useResolvedStoryCover/.test(readSrc('src/components/map/StoryMapMarker.js'))
-        && /storyId === SANDBOX_STORY_ID/.test(readSrc('src/hooks/useResolvedStoryMedia.js')),
+        && /isRemotePackStory\(storyId\)/.test(readSrc('src/hooks/useResolvedStoryMedia.js')),
       'coloring/cover remotos ou o gate sandbox foram quebrados');
 
     check('F2.4e.5p: escopo — audioService intacto e sem RevenueCat/entitlement/Brincar/conclusão/Free',
@@ -13783,7 +13786,7 @@ check(
     check('F2.4e.5pR: F2.4e.3 coloring + F2.4e.4 cover + gate david_goliath preservados',
       /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
         && /useResolvedStoryCover/.test(readSrc('src/components/map/StoryMapMarker.js'))
-        && /storyId === SANDBOX_STORY_ID/.test(hook),
+        && /isRemotePackStory\(storyId\)/.test(hook),
       'coloring/cover remotos ou o gate sandbox foram quebrados');
 
     check('F2.4e.5pR: fiação de áudio do Livrinho intacta (autoPlay={autoplayActive}, onFinished, paused)',
@@ -13897,7 +13900,7 @@ check(
 
     // 10. Remoto limitado a david_goliath
     check('F2.4e.7b: remoto ainda limitado a david_goliath (SANDBOX_STORY_ID)',
-      /SANDBOX_STORY_ID\s*=\s*'david_goliath'/.test(hook) && /storyId === SANDBOX_STORY_ID/.test(hook),
+      /SANDBOX_STORY_ID\s*=\s*'david_goliath'/.test(hook) && /isRemotePackStory\(storyId\)/.test(hook),
       'gate de história remota mudou');
 
     // 11. Fallback local preservado
@@ -13961,6 +13964,67 @@ check(
     check('F2.4e.7b: governança — DECISIONS.md e Documento Oficial v4 existem',
       srcExists('docs/DECISIONS.md') && srcExists('docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md'),
       'governança ausente (DECISIONS.md / Documento Oficial v4)');
+  }
+
+  // ── F2.5c: consumo remoto expandido às 18 premium (gated por camada; fallback local) ──
+  console.log('\n── F2.5c: consumo remoto das 18 premium (camada remote) ──');
+  {
+    const hook = readSrc('src/hooks/useResolvedStoryMedia.js');
+    const hookC = a1StripComments(hook);
+    const cm = readSrc('src/data/contentManifest.js');
+
+    check('F2.5c: isRemotePackStory por CAMADA (getContentLayer === CONTENT_LAYERS.REMOTE)',
+      /export function isRemotePackStory\(storyId\)/.test(hookC)
+        && /getContentLayer\(storyId\) === CONTENT_LAYERS\.REMOTE/.test(hookC),
+      'falta isRemotePackStory baseado em getContentLayer/CONTENT_LAYERS.REMOTE');
+
+    check('F2.5c: hook importa getContentLayer + CONTENT_LAYERS de contentManifest',
+      /import \{[^}]*getContentLayer[^}]*CONTENT_LAYERS[^}]*\} from '\.\.\/data\/contentManifest'/.test(hook),
+      'hook não importa getContentLayer/CONTENT_LAYERS');
+
+    check('F2.5c: gate fixo removido — sem "storyId === SANDBOX_STORY_ID" no hook',
+      !/storyId === SANDBOX_STORY_ID/.test(hookC),
+      'ainda há gate fixo storyId === SANDBOX_STORY_ID no hook');
+
+    check('F2.5c: SANDBOX_STORY_ID ainda EXPORTADO (compatibilidade)',
+      /export const SANDBOX_STORY_ID = 'david_goliath'/.test(hookC),
+      'SANDBOX_STORY_ID deixou de ser exportado');
+
+    check('F2.5c: os 4 kinds + cena usam isRemotePackStory (>=9 gates)',
+      (hookC.match(/isRemotePackStory\(storyId\)/g) || []).length >= 9,
+      'nem todos os gates do hook usam isRemotePackStory');
+
+    check('F2.5c: FALLBACK LOCAL preservado (remote || local em todos os kinds)',
+      /return remoteSource \|\| localSource/.test(hookC) && /return remoteSource \|\| localAudioAsset/.test(hookC)
+        && /return getOfficialSceneIllustration\(storyId, sceneId\)/.test(hookC),
+      'fallback local (remote || local) foi enfraquecido');
+
+    check('F2.5c: creation/noah continuam STARTER (excluídas do consumo remoto)',
+      /STARTER_STORY_IDS\s*=\s*Object\.freeze\(\['creation', 'noah'\]\)/.test(cm)
+        && /creation:\s*'starter'/.test(cm) && /noah:\s*'starter'/.test(cm),
+      'creation/noah não são mais starter (entrariam no consumo remoto)');
+
+    check('F2.5c: 18 premium elegíveis (camada remote) — amostra + contagem',
+      /david_goliath:\s*'remote'/.test(cm) && /jesus_children:\s*'remote'/.test(cm)
+        && /moses_red_sea:\s*'remote'/.test(cm) && /daniel_lions:\s*'remote'/.test(cm)
+        && (cm.match(/:\s*'remote'/g) || []).length >= 18,
+      'camada remote não cobre as 18 premium esperadas');
+
+    check('F2.5c: requires locais preservados (nenhum asset removido)',
+      /require\(/.test(readSrc('src/assets/coloringImages.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
+        && /require\(/.test(readSrc('src/data/storySceneIllustrations.js')) && /require\(/.test(readSrc('src/data/audioManifest.js')),
+      'requires locais foram removidos');
+
+    check('F2.5c: mudança isolada no hook (downloader/resolver/storage NÃO alterados)',
+      !/isRemotePackStory/.test(readSrc('src/services/packDownloadService.js'))
+        && !/isRemotePackStory/.test(readSrc('src/services/contentResolver.js'))
+        && !/isRemotePackStory/.test(readSrc('src/context/PacksContext.js'))
+        && !/isRemotePackStory/.test(readSrc('src/services/globalManifestService.js')),
+      'a mudança vazou para downloader/resolver/storage/globalManifest (deveria ser só no hook)');
+
+    check('F2.5c: doc do bloco existe',
+      srcExists('docs/F2_5C_REMOTE_CONSUMPTION_18_PACKS.md'),
+      'falta docs/F2_5C_REMOTE_CONSUMPTION_18_PACKS.md');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
