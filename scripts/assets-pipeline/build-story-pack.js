@@ -66,10 +66,30 @@ function assertOutsideRepo(outputDir) {
   }
 }
 
+// Resolve a CAPA de origem por storyId (F2.5b.1a). O registry oficial do app
+// (src/assets/storyCovers.js) mapeia storyId → arquivo local, e vários usam nome PT
+// (ex.: daniel_lions → assets/images/daniel_leoes_cover.webp). Lê o registry como TEXTO
+// (sem importar RN/Expo — mesma técnica de readStoryTitle) e cai no padrão inglês
+// `<id>_cover.webp` como fallback compatível. NÃO renomeia/altera assets; a capa continua
+// sendo COPIADA para o pack como `cover.webp` (a normalização acontece no `rel`).
+function resolveCoverSource(storyId) {
+  try {
+    const txt = fs.readFileSync(path.join(REPO_ROOT, 'src', 'assets', 'storyCovers.js'), 'utf8');
+    // linha do STORY_COVERS: `<storyId>: require('../../assets/images/<arquivo>'),`
+    const re = new RegExp(`\\b${storyId}\\s*:\\s*require\\('\\.\\./\\.\\./(assets/images/[^']+)'\\)`);
+    const m = txt.match(re);
+    if (m && m[1]) {
+      const p = path.join(REPO_ROOT, m[1].replace(/\//g, path.sep));
+      if (fs.existsSync(p)) return p;
+    }
+  } catch (_e) { /* cai no fallback compatível abaixo */ }
+  return path.join(REPO_ROOT, 'assets', 'images', `${storyId}_cover.webp`);
+}
+
 // ── fontes de asset por storyId (padrões reais do app, verificados em F2.1b) ──
 function sourcePaths(storyId) {
   return {
-    cover: path.join(REPO_ROOT, 'assets', 'images', `${storyId}_cover.webp`),
+    cover: resolveCoverSource(storyId), // F2.5b.1a: via storyCovers.js (nomes PT/EN)
     scenesDir: path.join(REPO_ROOT, 'assets', 'stories', storyId, 'scenes'),
     coloringDir: path.join(REPO_ROOT, 'assets', 'stories', storyId, 'coloring'),
     audioDir: path.join(REPO_ROOT, 'assets', 'audio', storyId),
