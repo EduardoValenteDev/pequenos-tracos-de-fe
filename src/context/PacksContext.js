@@ -9,6 +9,10 @@
  * `@ptf_packs_v1`, NÃO instala pack, NÃO baixa, NÃO limpa, NÃO toca R2. AsyncStorage
  * vazio → índice vazio seguro. Erro de leitura → capturado, app NÃO quebra.
  *
+ * F2.5-hardening-2: reconciliação índice↔disco EM MEMÓRIA — um `ready` cujo localDir/
+ * manifest.json não existem é tratado como `not_downloaded` (resolver cai no require). Só
+ * lê disco (getInfoAsync); NÃO grava o índice (read-only preservado; downgrade-safe).
+ *
  * Camada × estado:
  *   - starter (creation/noah) → status `included` (no binário; não é pack baixável).
  *   - remote sem entrada no índice → `not_downloaded`.
@@ -22,7 +26,9 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getPackIndex, getPackLocalDir, PACK_STATUS } from '../services/packStorageService';
+import { needsDiskCheck, computeInvalidReadyIds, reconcileEntry } from '../services/packReconcileService';
 import { getContentLayer, CONTENT_LAYERS } from '../data/contentManifest';
 import { warn } from '../utils/logger';
 
@@ -45,6 +51,28 @@ const PacksContext = createContext({
   isPackReady: () => false,
   getStoryPackState: () => EMPTY_STATE,
 });
+
+// F2.5-hardening-2 — casca FS FINA (fora do render): checa localDir + manifest.json. Se
+// getInfoAsync LANÇAR, retorna probe INDETERMINADO {null,null} → o núcleo puro NÃO rebaixa
+// (conservador). READ-ONLY (só getInfoAsync; nunca grava índice/baixa).
+async function probePackDisk(localDir) {
+  if (!localDir) return { localDirExists: false, manifestExists: false };
+  try {
+    const d = await FileSystem.getInfoAsync(localDir);
+    if (!d || !d.exists) return { localDirExists: false, manifestExists: false };
+    const m = await FileSystem.getInfoAsync(`${localDir}manifest.json`);
+    return { localDirExists: true, manifestExists: !!(m && m.exists) };
+  } catch {
+    return { localDirExists: null, manifestExists: null };
+  }
+}
+
+// True se o conjunto de storyIds inválidos é o MESMO (evita setState/render à toa).
+function sameIds(prevSet, nextArr) {
+  if (prevSet.size !== nextArr.length) return false;
+  for (const id of nextArr) if (!prevSet.has(id)) return false;
+  return true;
+}
 
 export function PacksProvider({ children }) {
   const [packIndex, setPackIndex] = useState({});
@@ -88,9 +116,41 @@ export function PacksProvider({ children }) {
     return out;
   }, [packIndex]);
 
+  // F2.5-hardening-2 — reconciliação índice↔disco EM MEMÓRIA (não grava índice). Overlay de
+  // storyIds cujo `ready` não bate com o disco (localDir/manifest.json ausentes). Roda em
+  // useEffect APÓS o índice cru carregar (não bloqueia loadPacks/1ª pintura). Cancellation
+  // impede aplicar resultado antigo; setState só quando o conjunto muda (sem render à toa).
+  const [invalidReadyIds, setInvalidReadyIds] = useState(() => new Set());
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const probes = {};
+      for (const sid of Object.keys(normalizedIndex)) {
+        const e = normalizedIndex[sid];
+        if (!needsDiskCheck(e)) continue; // só entries `ready` com localDir
+        probes[sid] = await probePackDisk(e.localDir);
+      }
+      if (cancelled) return;
+      const invalid = computeInvalidReadyIds(normalizedIndex, probes); // núcleo PURO
+      setInvalidReadyIds(prev => (sameIds(prev, invalid) ? prev : new Set(invalid)));
+    })();
+    return () => { cancelled = true; };
+  }, [normalizedIndex]);
+
+  // Índice EFETIVO: `ready` inválido → NOT_DOWNLOADED (via núcleo puro). Sem WRITE. Mantém a
+  // MESMA referência quando não há inválidos (estabilidade referencial preservada).
+  const reconciledIndex = useMemo(() => {
+    if (!invalidReadyIds.size) return normalizedIndex;
+    const out = {};
+    for (const sid of Object.keys(normalizedIndex)) {
+      out[sid] = reconcileEntry(normalizedIndex[sid], invalidReadyIds.has(sid));
+    }
+    return out;
+  }, [normalizedIndex, invalidReadyIds]);
+
   const getPackEntry = useCallback(
-    storyId => (storyId ? normalizedIndex[storyId] : null) || null,
-    [normalizedIndex],
+    storyId => (storyId ? reconciledIndex[storyId] : null) || null,
+    [reconciledIndex],
   );
 
   // Estado do pack considerando a CAMADA. Puro/derivado; nunca lança.
@@ -101,7 +161,7 @@ export function PacksProvider({ children }) {
       if (layer === CONTENT_LAYERS.STARTER) {
         return { storyId, layer, status: PACK_STATUS.INCLUDED, ready: false, localDir: null, entry: null };
       }
-      const entry = normalizedIndex[storyId] || null;
+      const entry = reconciledIndex[storyId] || null;
       const status = entry?.status || PACK_STATUS.NOT_DOWNLOADED;
       return {
         storyId,
@@ -112,7 +172,7 @@ export function PacksProvider({ children }) {
         entry,
       };
     },
-    [normalizedIndex],
+    [reconciledIndex],
   );
 
   const getPackStatus = useCallback(
@@ -126,7 +186,7 @@ export function PacksProvider({ children }) {
   );
 
   const value = useMemo(() => ({
-    packIndex: normalizedIndex,
+    packIndex: reconciledIndex,
     isLoadingPacks,
     packsError,
     refreshPacks,
@@ -135,7 +195,7 @@ export function PacksProvider({ children }) {
     isPackReady,
     getStoryPackState,
   }), [
-    normalizedIndex,
+    reconciledIndex,
     isLoadingPacks,
     packsError,
     refreshPacks,

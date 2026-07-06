@@ -14075,11 +14075,11 @@ check(
         && /normalizedIndex = useMemo\(/.test(pcC) && /e\.version \? getPackLocalDir/.test(pcC),
       'PacksContext não recompõe localDir via getPackLocalDir(storyId, version) em useMemo([packIndex])');
 
-    check('F2.5-hardening-1 C3: getters + value.packIndex usam normalizedIndex (localDir recomposto)',
-      (pcC.match(/normalizedIndex\[storyId\]/g) || []).length >= 2
-        && (pcC.match(/\[normalizedIndex\]/g) || []).length >= 2
-        && /packIndex: normalizedIndex/.test(pcC),
-      'getPackEntry/getStoryPackState/value não usam normalizedIndex');
+    check('F2.5-hardening-1 C3→hardening-2: getters + value.packIndex usam reconciledIndex (derivado do normalizedIndex recomposto)',
+      /reconcileEntry\(normalizedIndex\[sid\]/.test(pcC)
+        && (pcC.match(/reconciledIndex\[storyId\]/g) || []).length >= 2
+        && /packIndex: reconciledIndex/.test(pcC),
+      'getters/value não consomem o índice recomposto via reconciledIndex');
 
     check('F2.5-hardening-1 C3: PacksContext segue READ-ONLY (sem gravar índice / sem baixar / schema intacto)',
       !/savePackIndex|setPackEntry|clearPackEntry|setItem\(/.test(pcC)
@@ -14107,6 +14107,135 @@ check(
     check('F2.5-hardening-1: doc do bloco existe',
       srcExists('docs/F2_5_HARDENING_1.md'),
       'falta docs/F2_5_HARDENING_1.md');
+  }
+
+  // ── F2.5-hardening-2: reconciliação índice↔disco (memória) + fix da janela delete→move ──
+  console.log('\n── F2.5-hardening-2: consistência índice↔disco (reconciliação em memória) ──');
+  {
+    const evalReconcile = () => {
+      const code = a1StripComments(readSrc('src/services/packReconcileService.js'))
+        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '');
+      const header = "const PACK_STATUS={INCLUDED:'included',NOT_DOWNLOADED:'not_downloaded',DOWNLOADING:'downloading',VERIFYING:'verifying',READY:'ready',FAILED:'failed',NEEDS_UPDATE:'needs_update',REQUIRES_APP_UPDATE:'requires_app_update'};";
+      return new Function(header + code + ';return { needsDiskCheck, isReadyEntryValid, computeInvalidReadyIds, reconcileEntry };')();
+    };
+
+    // ── Núcleo puro (eval REAL) ──
+    check('F2.5-hardening-2: núcleo — ready+disco ok → válido; localDir/manifest ausente → inválido; throw → conservador',
+      (() => { try {
+        const R = evalReconcile();
+        const ready = { status: 'ready', localDir: 'x/', storyId: 'a' };
+        return R.isReadyEntryValid(ready, { localDirExists: true, manifestExists: true }) === true
+          && R.isReadyEntryValid(ready, { localDirExists: false }) === false
+          && R.isReadyEntryValid(ready, { localDirExists: true, manifestExists: false }) === false
+          && R.isReadyEntryValid(ready, { localDirExists: null, manifestExists: null }) === true;
+      } catch { return false; } })(),
+      'isReadyEntryValid incorreto (ok→true; localDir/manifest false→false; null→true conservador)');
+
+    check('F2.5-hardening-2: não-ready nunca é invalidado (needsDiskCheck=false) e reconcileEntry não promove',
+      (() => { try {
+        const R = evalReconcile();
+        const dl = { status: 'downloading', localDir: 'x/', storyId: 'a' };
+        return R.needsDiskCheck(dl) === false
+          && R.isReadyEntryValid(dl, { localDirExists: false }) === true
+          && R.reconcileEntry(dl, true) === dl; // não-ready → mesma ref, nunca vira ready
+      } catch { return false; } })(),
+      'não-ready foi tratado como ready ou invalidado indevidamente');
+
+    check('F2.5-hardening-2: reconcileEntry rebaixa ready inválido → not_downloaded; válido mantém MESMA referência',
+      (() => { try {
+        const R = evalReconcile();
+        const e = { status: 'ready', localDir: 'x/', storyId: 'a' };
+        const bad = R.reconcileEntry(e, true);
+        const good = R.reconcileEntry(e, false);
+        return bad !== e && bad.status === 'not_downloaded' && good === e;
+      } catch { return false; } })(),
+      'reconcileEntry não rebaixa inválido para not_downloaded ou não preserva a referência do válido');
+
+    check('F2.5-hardening-2: computeInvalidReadyIds lista SÓ os READY inválidos',
+      (() => { try {
+        const R = evalReconcile();
+        const idx = {
+          a: { status: 'ready', localDir: 'x/', storyId: 'a' },
+          b: { status: 'ready', localDir: 'y/', storyId: 'b' },
+          c: { status: 'downloading', localDir: 'z/', storyId: 'c' },
+        };
+        const probes = { a: { localDirExists: true, manifestExists: true }, b: { localDirExists: false } };
+        const inv = R.computeInvalidReadyIds(idx, probes);
+        return inv.length === 1 && inv[0] === 'b';
+      } catch { return false; } })(),
+      'computeInvalidReadyIds não isolou o READY inválido');
+
+    check('F2.5-hardening-2: packReconcileService é PURO (sem FileSystem/AsyncStorage/rede no código)',
+      !/expo-file-system|FileSystem|AsyncStorage|fetch\(|downloadAsync|getInfoAsync/.test(a1StripComments(readSrc('src/services/packReconcileService.js'))),
+      'packReconcileService importa FS/AsyncStorage/rede (deveria ser puro)');
+
+    // ── PacksContext: overlay + read-only ──
+    const pcH2 = a1StripComments(readSrc('src/context/PacksContext.js'));
+    check('F2.5-hardening-2: PacksContext reconcilia (probePackDisk getInfoAsync localDir+manifest.json; overlay; reconciledIndex)',
+      /from '\.\.\/services\/packReconcileService'/.test(pcH2)
+        && /getInfoAsync\(localDir\)/.test(pcH2) && /manifest\.json/.test(pcH2)
+        && /invalidReadyIds/.test(pcH2) && /computeInvalidReadyIds/.test(pcH2)
+        && /reconciledIndex = useMemo/.test(pcH2) && /reconcileEntry/.test(pcH2),
+      'PacksContext não faz reconciliação (probePackDisk/overlay/reconciledIndex)');
+
+    check('F2.5-hardening-2: probe indeterminado é conservador ({localDirExists:null, manifestExists:null} no throw)',
+      /return \{ localDirExists: null, manifestExists: null \}/.test(pcH2),
+      'probePackDisk não trata throw como indeterminado {null,null}');
+
+    check('F2.5-hardening-2: getters + value.packIndex usam reconciledIndex (efetivo NOT_DOWNLOADED)',
+      (pcH2.match(/reconciledIndex\[storyId\]/g) || []).length >= 2 && /packIndex: reconciledIndex/.test(pcH2),
+      'getPackEntry/getStoryPackState/value não usam reconciledIndex');
+
+    check('F2.5-hardening-2: PacksContext continua READ-ONLY (sem gravar índice / baixar)',
+      !/savePackIndex|setPackEntry|clearPackEntry|setItem\(/.test(pcH2)
+        && !/downloadAsync|createDownloadResumable|fetch\(/.test(pcH2),
+      'PacksContext passou a gravar índice/baixar (deveria seguir read-only)');
+
+    check('F2.5-hardening-2: reconcile com cancellation + setInvalidReadyIds só quando o conjunto muda',
+      /let cancelled = false/.test(pcH2) && /if \(cancelled\) return/.test(pcH2) && /sameIds\(prev, invalid\)/.test(pcH2),
+      'reconcile sem cancellation, ou atualiza estado sem checar mudança (render à toa)');
+
+    // ── packDownloadService: DOWNLOADING antes do swap com safe stat ──
+    const pdsH2 = a1StripComments(readSrc('src/services/packDownloadService.js'));
+    check('F2.5-hardening-2: marca DOWNLOADING antes do swap SÓ com localDir confirmado (info.exists === true)',
+      /getInfoAsync\(localDir\)/.test(pdsH2) && /exists === true/.test(pdsH2)
+        && /setPackEntry\(storyId, \{ version, status: PACK_STATUS\.DOWNLOADING \}\)/.test(pdsH2),
+      'packDownloadService não marca DOWNLOADING sob existência confirmada');
+
+    check('F2.5-hardening-2: stat de localDir é SEGURO (try/catch → preExisting=false, download segue)',
+      /try \{[\s\S]*?getInfoAsync\(localDir\)[\s\S]*?\} catch \{ preExisting = false; \}/.test(pdsH2),
+      'o stat de localDir não está isolado em try/catch seguro');
+
+    check('F2.5-hardening-2: ordem preservada — DOWNLOADING e move antes do READY; READY só após move',
+      (() => {
+        const dlIdx = pdsH2.search(/setPackEntry\(storyId, \{ version, status: PACK_STATUS\.DOWNLOADING \}\)/);
+        const mvIdx = pdsH2.search(/moveAsync\(\{ from: tempDir, to: localDir \}\)/);
+        // READY do FLUXO DE DOWNLOAD = após o move (ignora markPackReady, que fica antes no arquivo).
+        const readyAfterMove = mvIdx >= 0 && /setPackEntry\(storyId, \{\s*version,\s*status: PACK_STATUS\.READY/.test(pdsH2.slice(mvIdx));
+        return dlIdx >= 0 && mvIdx > dlIdx && readyAfterMove;
+      })(),
+      'ordem insegura: DOWNLOADING/move/ready fora de ordem');
+
+    // ── Escopo + regressão ──
+    check('F2.5-hardening-2: SEM GC/precheck (sem getFreeDiskStorageAsync / sem readDirectoryAsync novo)',
+      !/getFreeDiskStorageAsync|getTotalDiskCapacityAsync/.test(pcH2 + pdsH2)
+        && !/readDirectoryAsync/.test(pcH2 + pdsH2),
+      'GC/precheck iniciados (getFreeDiskStorageAsync/readDirectoryAsync) — são F2.5-hardening-2b');
+
+    check('F2.5-hardening-2: protegidos INTACTOS (contentResolver/packStorageService/StoryBookScreen sem lógica nova)',
+      !/reconcileEntry|invalidReadyIds|probePackDisk/.test(readSrc('src/services/contentResolver.js'))
+        && !/reconcileEntry|invalidReadyIds|probePackDisk/.test(readSrc('src/services/packStorageService.js'))
+        && !/reconcileEntry|invalidReadyIds|probePackDisk/.test(readSrc('src/screens/StoryBookScreen.js')),
+      'contentResolver/packStorageService/StoryBookScreen foram tocados (deveriam ficar intactos)');
+
+    check('F2.5-hardening-2: nenhum require removido dos loaders',
+      /require\(/.test(readSrc('src/assets/coloringImages.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
+        && /require\(/.test(readSrc('src/data/storySceneIllustrations.js')) && /require\(/.test(readSrc('src/data/audioManifest.js')),
+      'requires locais foram removidos');
+
+    check('F2.5-hardening-2: doc do bloco existe',
+      srcExists('docs/F2_5_HARDENING_2.md'),
+      'falta docs/F2_5_HARDENING_2.md');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

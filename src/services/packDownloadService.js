@@ -232,7 +232,21 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
     }
     if (errors.length) return failWith(`validação falhou (${errors.length})`, errors);
 
-    // 12) promove .tmp → localDir (troca atômica) — só depois de TUDO validado
+    // 12) promove .tmp → localDir (troca atômica) — só depois de TUDO validado.
+    // F2.5-hardening-2: RE-DOWNLOAD da MESMA versão → localDir já existe; o swap delete→move
+    // tem uma janela em que localDir some. Marcar DOWNLOADING ANTES do swap garante que um
+    // crash na janela deixe status=DOWNLOADING (≠READY → require), nunca READY falso. Só marca
+    // com existência CONFIRMADA (info.exists === true). O stat é SEGURO (try/catch isolado): se
+    // getInfoAsync lançar, preExisting=false e o download SEGUE (não derruba download saudável);
+    // fresh/bump não têm localDir pré-existente → sem marca (comportamento inalterado).
+    let preExisting = false;
+    try {
+      const info = await FileSystem.getInfoAsync(localDir);
+      preExisting = !!(info && info.exists === true);
+    } catch { preExisting = false; }
+    if (preExisting) {
+      await setPackEntry(storyId, { version, status: PACK_STATUS.DOWNLOADING });
+    }
     await FileSystem.deleteAsync(localDir, { idempotent: true });
     await FileSystem.moveAsync({ from: tempDir, to: localDir });
 
