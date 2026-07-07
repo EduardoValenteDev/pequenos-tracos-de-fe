@@ -1269,9 +1269,9 @@ check(
 );
 
 check(
-  'AudioPlayer uses didJustFinish for end detection (not timer)',
-  audioPlayerSrc.includes('didJustFinish') && !audioPlayerSrc.includes('setTimeout'),
-  'AudioPlayer.js must use status.didJustFinish from expo-audio, not a timer, to detect end of audio',
+  'AudioPlayer uses didJustFinish for end detection (LIVRINHO_FIX_1: watchdog/backstop permitidos; sem timer FAKE)',
+  audioPlayerSrc.includes('didJustFinish') && !audioPlayerSrc.includes('DURACAO_SIMULADA') && !audioPlayerSrc.includes('setInterval'),
+  'AudioPlayer.js deve usar status.didJustFinish (primário) e não um timer FAKE de fim (setInterval/DURACAO_SIMULADA)',
 );
 
 check(
@@ -5334,8 +5334,8 @@ check(
   audioPlayerSrc.includes('onPlayStart') && audioPlayerSrc.includes('onUserPause') &&
   audioPlayerSrc.includes('autoStartedRef') &&
   /if \(!autoPlay \|\| paused\) return;/.test(audioPlayerSrc) &&
-  !audioPlayerSrc.includes('setTimeout') && !audioPlayerSrc.includes('setInterval'),
-  'AudioPlayer não tem autoplay opt-in seguro (ou introduziu timer)',
+  !audioPlayerSrc.includes('setInterval'),
+  'AudioPlayer não tem autoplay opt-in seguro (ou introduziu timer FAKE de progresso setInterval)',
 );
 check(
   'LIVRINHO1.0: NarrationScreen NÃO usa autoplay (narração comum segue manual)',
@@ -13553,11 +13553,11 @@ check(
       /const packEntry = isRemotePackStory\(storyId\) \? getPackEntry\(storyId\) : null/.test(avBody),
       'áudio de histórias não-sandbox poderia ir remoto — gate ausente');
 
-    check('F2.4e.5: AudioPlayer INTACTO (play/pause/cleanup/autoplay) — só a FONTE mudou',
+    check('F2.4e.5→LIVRINHO_FIX_1: AudioPlayer mantém a base (useAudioPlayer/autoPlay default/finishedCalledRef reset por asset)',
       /useAudioPlayer\(audioAsset/.test(player)
         && /autoPlay = false/.test(player)
-        && /finishedCalledRef\.current = false;\s*\n\s*\}, \[audioAsset\]\)/.test(player),
-      'AudioPlayer foi alterado (lógica de play/cleanup/autoplay não deve mudar neste bloco)');
+        && /useEffect\(\(\) => \{\s*finishedCalledRef\.current = false;[\s\S]*?\}, \[audioAsset\]\)/.test(player),
+      'AudioPlayer perdeu a base (useAudioPlayer/autoPlay default/finishedCalledRef reset no MESMO useEffect [audioAsset])');
 
     check('F2.4e.5: sem autoplay duplicado (NarrationScreen não passa autoPlay ao AudioPlayer)',
       !/AudioPlayer[^>]*autoPlay/.test(narrRaw),
@@ -13750,9 +13750,9 @@ check(
     // 20–21. AudioPlayer: cleanup para o player e NÃO simula conclusão; autoplay gated
     check('F2.4e.5pR: cleanup do AudioPlayer para o player e NÃO chama onFinished (sem simular conclusão)',
       (() => {
-        // Liga só ao bloco do unmount-cleanup (arrow-que-retorna-arrow), não a outros efeitos.
-        const c = (apCode.match(/useEffect\(\(\) => \(\) => \{[\s\S]*?\}, \[\]\)/) || [''])[0];
-        return /try \{ player\.pause\(\); \}[\s\S]*?onNarrationEnd\(\);/.test(c) && !/onFinished/.test(c);
+        // Liga ao bloco de unmount-cleanup que PARA o player (não a outros efeitos, ex. mountedRef).
+        const c = (apCode.match(/useEffect\(\(\) => \(\) => \{\s*try \{ player\.pause\(\);[\s\S]*?\}, \[\]\)/) || [''])[0];
+        return /player\.pause\(\);/.test(c) && /onNarrationEnd\(\);/.test(c) && !/onFinished/.test(c);
       })(),
       'cleanup do AudioPlayer não para o player OU chama onFinished (simula conclusão)');
 
@@ -14410,6 +14410,78 @@ check(
     check('F2.5-hardening-2b.i: doc do bloco existe',
       srcExists('docs/F2_5_HARDENING_2B_I.md'),
       'falta docs/F2_5_HARDENING_2B_I.md');
+  }
+
+  // ── LIVRINHO_FIX_1: rede de segurança do autoplay do Livrinho (watchdog + backstop + erro) ──
+  console.log('\n── LIVRINHO_FIX_1: watchdog de reprodução do Livrinho ──');
+  {
+    const ap = a1StripComments(readSrc('src/components/AudioPlayer.js'));
+    const apHelpers = ((ap.match(/function hasAudioProgressed[\s\S]*?\n\}/) || [''])[0])
+      + '\n' + ((ap.match(/function isAudioNearEnd[\s\S]*?\n\}/) || [''])[0]);
+
+    check('LIVRINHO_FIX_1: helpers puros hasAudioProgressed / isAudioNearEnd corretos (eval REAL)',
+      (() => { try {
+        const H = new Function(apHelpers + '; return { hasAudioProgressed, isAudioNearEnd };')();
+        return H.hasAudioProgressed(0, 0.2, 0.15) === true
+          && H.hasAudioProgressed(0, 0.1, 0.15) === false
+          && H.hasAudioProgressed(NaN, 1, 0.15) === false
+          && H.isAudioNearEnd(9.7, 10, 0.35) === true
+          && H.isAudioNearEnd(5, 10, 0.35) === false
+          && H.isAudioNearEnd(5, 0, 0.35) === false      // duração desconhecida → false (sem teto cego)
+          && H.isAudioNearEnd(3, -1, 0.35) === false;
+      } catch { return false; } })(),
+      'hasAudioProgressed/isAudioNearEnd incorretos');
+
+    check('LIVRINHO_FIX_1: stall detectado por currentTime (NÃO por playing/timeControlStatus); exclui buffering',
+      /hasAudioProgressed\(lastCheck, s\.currentTime, MIN_PROGRESS_DELTA_S\)/.test(ap)
+        && /s\.isBuffering/.test(ap)
+        && !/timeControlStatus\s*===\s*'waiting'/.test(ap) && !/status\.playing\s*===\s*false/.test(ap),
+      'watchdog não usa currentTime, ou depende de playing/timeControlStatus (proibido no ajuste 1)');
+
+    check('LIVRINHO_FIX_1: retry LIMITADO (MAX_START_RETRIES=2), player.play(), seekTo(0) só no início',
+      /const MAX_START_RETRIES = 2/.test(ap)
+        && /retryCountRef\.current < MAX_START_RETRIES/.test(ap) && /retryCountRef\.current \+= 1/.test(ap)
+        && /s\.currentTime < SEEK_RESET_THRESHOLD_S\) player\.seekTo\(0\)/.test(ap) && /player\.play\(\)/.test(ap),
+      'retry não é limitado, ou seekTo(0) é incondicional');
+
+    check('LIVRINHO_FIX_1: esgotou retries → limpa timer + setAppStatus(error), SEM reagendar/onFinished',
+      /\} else \{\s*if \(watchdogTimerRef\.current\) \{ clearTimeout\(watchdogTimerRef\.current\); watchdogTimerRef\.current = null; \}\s*setAppStatus\('error'\);\s*\}/.test(ap),
+      'caminho de erro não limpa o timer OU reagenda/chama onFinished');
+
+    check('LIVRINHO_FIX_1: backstop só avança com duration>0 + near-end (isAudioNearEnd); SEM teto cego 120s',
+      /if \(!isAudioNearEnd\(status\.currentTime, status\.duration, FINISH_EPSILON_S\)\) return undefined;/.test(ap)
+        && /finishedCalledRef\.current = true;\s*setAppStatus\('done'\);\s*onFinished/.test(ap)
+        && !/120000|120 \* 1000/.test(ap),
+      'backstop com teto cego, ou não gated em near-end/finishedCalledRef');
+
+    check('LIVRINHO_FIX_1: onFinished é o ÚNICO avanço + didJustFinish protegido por finishedCalledRef (sem duplo)',
+      /status\.didJustFinish && !finishedCalledRef\.current/.test(ap)
+        && (ap.match(/onFinished\?\.\(\)/g) || []).length >= 2
+        && (ap.match(/finishedCalledRef\.current = true/g) || []).length >= 2,
+      'onFinished/finishedCalledRef não protegem contra duplo avanço');
+
+    check('LIVRINHO_FIX_1: handlePlay reseta retryCount (retry manual = ciclo limpo, sai de error) e retenta',
+      /function handlePlay\(\)[\s\S]*?retryCountRef\.current = 0[\s\S]*?player\.play\(\)/.test(ap),
+      'handlePlay não reseta retryCount / não retenta');
+
+    check('LIVRINHO_FIX_1: limpeza de timers (cancelled + clearTimeout) + mountedRef anti-setState-pós-unmount',
+      /let cancelled = false/.test(ap) && /if \(cancelled \|\| !mountedRef\.current\) return/.test(ap)
+        && /mountedRef\.current = false/.test(ap) && (ap.match(/clearTimeout/g) || []).length >= 2,
+      'watchdog sem cancellation/cleanup/mountedRef');
+
+    check('LIVRINHO_FIX_1: StoryBookScreen INTACTO (sem watchdog/helpers/onFinished novo)',
+      !/hasAudioProgressed|isAudioNearEnd|MAX_START_RETRIES|WATCHDOG_WINDOW_MS/.test(readSrc('src/screens/StoryBookScreen.js')),
+      'a mudança vazou para StoryBookScreen (deveria ficar intacto)');
+
+    check('LIVRINHO_FIX_1: escopo — audioService intacto, sem dep nova, sem misturar com 2b.i',
+      !/hasAudioProgressed|isAudioNearEnd|MAX_START_RETRIES/.test(readSrc('src/services/audioService.js'))
+        && !/expo-network|NetInfo/i.test(ap)
+        && !/spaceNeededBytes|getFreeDiskStorageAsync/.test(ap),
+      'escopo vazou (audioService/dep/2b.i)');
+
+    check('LIVRINHO_FIX_1: doc do bloco existe',
+      srcExists('docs/LIVRINHO_FIX_1.md'),
+      'falta docs/LIVRINHO_FIX_1.md');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

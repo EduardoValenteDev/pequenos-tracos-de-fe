@@ -6,6 +6,28 @@ import { onNarrationStart, onNarrationEnd } from '../services/audioManager';
 import { colors } from '../theme/colors';
 import { colors as pt } from '../theme/productTheme';
 
+// LIVRINHO_FIX_1 — rede de segurança do autoplay do Livrinho. Bug observado: o áudio entra em
+// "playing" (otimista) mas currentTime NÃO progride e didJustFinish nunca dispara → a cena não
+// avança. Watchdog de INÍCIO (baseado SÓ em currentTime — não em playing/timeControlStatus, que
+// mentem no bug) re-tenta play() de forma LIMITADA; ao esgotar → estado de erro (retry manual),
+// SEM chamar onFinished. Backstop de FINALIZAÇÃO só avança quando o áudio REALMENTE chegou ao fim
+// (duration>0 + near-end) — nunca pula narração não ouvida. onFinished continua o ÚNICO avanço.
+const WATCHDOG_WINDOW_MS = 1500;      // janela p/ currentTime avançar após play()
+const MIN_PROGRESS_DELTA_S = 0.15;    // avanço mínimo p/ considerar "progrediu"
+const MAX_START_RETRIES = 2;          // tentativas de retry (bounded; sem loop)
+const SEEK_RESET_THRESHOLD_S = 0.3;   // só seekTo(0) se claramente no início
+const FINISH_EPSILON_S = 0.35;        // currentTime >= duration - ε = efetivamente terminou
+const FINISH_GRACE_MS = 500;          // sustentar near-end antes do backstop
+
+/** PURO: o áudio progrediu >= minDelta entre duas amostras de currentTime? (sem I/O) */
+function hasAudioProgressed(prevSec, currSec, minDeltaSec) {
+  return Number.isFinite(prevSec) && Number.isFinite(currSec) && (currSec - prevSec) >= minDeltaSec;
+}
+/** PURO: currentTime chegou perto do fim? Exige duration conhecida (>0). Sem teto cego. */
+function isAudioNearEnd(currentTimeSec, durationSec, epsilonSec) {
+  return durationSec > 0 && Number.isFinite(currentTimeSec) && currentTimeSec >= (durationSec - epsilonSec);
+}
+
 export default function AudioPlayer({ audioAsset, onFinished, paused, autoPlay = false, onPlayStart, onUserPause }) {
   if (!audioAsset) return null;
   return (
@@ -36,6 +58,11 @@ function AudioPlayerInner({ audioAsset, onFinished, paused, autoPlay, onPlayStar
   // F2.4e.5pR: marca que a pausa foi imposta pelo lifecycle (background) — usado p/
   // REFORÇAR a pausa ao voltar ao foreground e anular um auto-resume nativo.
   const pausedByLifecycleRef = useRef(false);
+  // LIVRINHO_FIX_1 — watchdog de reprodução: contagem de retries, timer, espelho do status.
+  const mountedRef = useRef(true);
+  const retryCountRef = useRef(0);
+  const watchdogTimerRef = useRef(null);
+  const statusRef = useRef(status);
 
   useEffect(() => {
     setAudioModeAsync({
@@ -49,7 +76,13 @@ function AudioPlayerInner({ audioAsset, onFinished, paused, autoPlay, onPlayStar
   // Reset guard when a new audio asset is provided (scene change).
   useEffect(() => {
     finishedCalledRef.current = false;
+    retryCountRef.current = 0; // LIVRINHO_FIX_1: novo asset → novo ciclo de retries
   }, [audioAsset]);
+
+  // LIVRINHO_FIX_1: espelha o status mais recente p/ os watchdogs lerem sem closure obsoleto;
+  // mountedRef evita setState/retry após desmontar (troca de cena por key, saída da tela).
+  useEffect(() => { statusRef.current = status; }, [status]);
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   // Auto-start da narração no Livrinho contínuo (Livrinho 1.1): toca SOZINHO, mas
   // SÓ depois que o asset da cena CARREGOU (status.isLoaded). A causa do autoplay
@@ -93,6 +126,59 @@ function AudioPlayerInner({ audioAsset, onFinished, paused, autoPlay, onPlayStar
       onFinished?.();
     }
   }, [status.didJustFinish]);
+
+  // LIVRINHO_FIX_1 — WATCHDOG DE INÍCIO (rolling): enquanto deveria estar tocando, garante que
+  // currentTime PROGRIDE. Critério de stall = SÓ currentTime (não usa playing/timeControlStatus).
+  // Buffering NÃO conta (espera legítima). Stall → retry LIMITADO (player.play(); seekTo(0) só se
+  // no início); ao ESGOTAR → limpa o timer, NÃO reagenda, NÃO chama onFinished → setAppStatus('error').
+  // Arma ao entrar em 'playing' (deps SEM currentTime → não re-arma a cada tick); auto-agenda.
+  useEffect(() => {
+    if (!autoPlay || paused || appStatus !== 'playing' || !status.isLoaded) return undefined;
+    let cancelled = false;
+    let lastCheck = statusRef.current.currentTime;
+    const schedule = () => { watchdogTimerRef.current = setTimeout(tick, WATCHDOG_WINDOW_MS); };
+    function tick() {
+      if (cancelled || !mountedRef.current) return;
+      const s = statusRef.current;
+      if (paused || s.isBuffering) { lastCheck = s.currentTime; schedule(); return; } // espera legítima
+      if (hasAudioProgressed(lastCheck, s.currentTime, MIN_PROGRESS_DELTA_S)) {
+        retryCountRef.current = 0; lastCheck = s.currentTime; schedule(); return;       // saudável
+      }
+      // STALL confirmado (currentTime parado, não-buffering):
+      if (retryCountRef.current < MAX_START_RETRIES) {
+        retryCountRef.current += 1;
+        try { if (s.currentTime < SEEK_RESET_THRESHOLD_S) player.seekTo(0); player.play(); } catch { /* player liberado */ }
+        lastCheck = s.currentTime; schedule();
+      } else {
+        if (watchdogTimerRef.current) { clearTimeout(watchdogTimerRef.current); watchdogTimerRef.current = null; }
+        setAppStatus('error'); // esgotou: sem reagendar, sem onFinished → erro + retry manual
+      }
+    }
+    schedule();
+    return () => {
+      cancelled = true;
+      if (watchdogTimerRef.current) { clearTimeout(watchdogTimerRef.current); watchdogTimerRef.current = null; }
+    };
+  }, [autoPlay, paused, appStatus, status.isLoaded]);
+
+  // LIVRINHO_FIX_1 — BACKSTOP DE FINALIZAÇÃO: rede p/ áudio que TOCOU até o fim mas cujo
+  // didJustFinish não veio. SÓ avança com prova de que foi OUVIDO: duration>0 E currentTime
+  // near-end (isAudioNearEnd). SEM teto cego de tempo → nunca pula narração não ouvida. Passa
+  // pelo MESMO finishedCalledRef (uma vez). Se duration desconhecida / sem progresso → não avança.
+  useEffect(() => {
+    if (finishedCalledRef.current || paused) return undefined;
+    if (!isAudioNearEnd(status.currentTime, status.duration, FINISH_EPSILON_S)) return undefined;
+    const t = setTimeout(() => {
+      const s = statusRef.current;
+      if (!finishedCalledRef.current && !paused
+          && isAudioNearEnd(s.currentTime, s.duration, FINISH_EPSILON_S) && !s.didJustFinish) {
+        finishedCalledRef.current = true;
+        setAppStatus('done');
+        onFinished?.();
+      }
+    }, FINISH_GRACE_MS);
+    return () => clearTimeout(t);
+  }, [status.currentTime, status.duration, paused]);
 
   // Sync with external paused prop so the parent (e.g. StoryBookScreen) can
   // pause/resume without duplicating play controls.
@@ -161,7 +247,9 @@ function AudioPlayerInner({ audioAsset, onFinished, paused, autoPlay, onPlayStar
 
   function handlePlay() {
     if (appStatus === 'loading') return;
+    retryCountRef.current = 0; // LIVRINHO_FIX_1: retry manual = novo ciclo limpo (e sai de 'error')
     autoStartedRef.current = true; // toque manual já conta como início (sem auto-start duplo)
+    if (statusRef.current.currentTime < SEEK_RESET_THRESHOLD_S) { try { player.seekTo(0); } catch { /* player liberado */ } }
     player.play();
     setAppStatus(status.isLoaded ? 'playing' : 'loading');
     onPlayStart?.(); // entra/retoma o modo de reprodução contínua no pai
