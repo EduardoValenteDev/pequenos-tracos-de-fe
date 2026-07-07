@@ -4,7 +4,7 @@ import {
   Animated, useWindowDimensions, AppState,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
@@ -189,6 +189,18 @@ function buildStoryBookTimeline(story, drawings, mode, scenePackEntry) {
   return (story?.cenas ?? []).map((cena, i) =>
     mkSlide(cena, i + 1, resolveStoryBookPageImage(cena, story, drawings, mode, scenePackEntry)),
   );
+}
+
+// LIVRINHO_UX_1 — lê os desenhos salvos de todas as cenas. Usado no init E no refresh
+// ao focar (voltar do Coloring), reaproveitando getSavedDrawing/hasMeaningfulPaint.
+async function loadDrawingsMap(story) {
+  const drawingMap = {};
+  await Promise.all(
+    (story?.cenas ?? []).map(async (cena) => {
+      drawingMap[cena.id] = await getSavedDrawing(story.id, cena.id);
+    }),
+  );
+  return drawingMap;
 }
 
 /**
@@ -458,6 +470,7 @@ export default function StoryBookScreen({ route, navigation }) {
   const isBookFocusedRef = useRef(true); // espelho do foco (debug/efeitos); a verdade usada nos guards é navigation.isFocused()
   const appActiveRef = useRef(true);     // AppState 'active' (app em foreground)
   const noAudioTimerRef = useRef(null);  // timer da cena sem áudio (cancelável no invalidate)
+  const screenStateRef = useRef('loading'); // LIVRINHO_UX_1: espelho de screenState p/ o refresh ao focar
 
   // Timeline derivada (memoizada) — só recalcula ao trocar história, artes ou modo.
   const timeline = useMemo(
@@ -492,12 +505,7 @@ export default function StoryBookScreen({ route, navigation }) {
           if (!cancelled) setScreenState('notCompleted');
           return;
         }
-        const drawingMap = {};
-        await Promise.all(
-          story.cenas.map(async (cena) => {
-            drawingMap[cena.id] = await getSavedDrawing(story.id, cena.id);
-          }),
-        );
+        const drawingMap = await loadDrawingsMap(story);
         if (!cancelled) {
           setDrawings(drawingMap);
           setScreenState('intro');
@@ -509,6 +517,26 @@ export default function StoryBookScreen({ route, navigation }) {
     init();
     return () => { cancelled = true; };
   }, [story?.id]);
+
+  // LIVRINHO_UX_1 — espelho de screenState (lido pelo refresh ao focar, sem re-subscrever o efeito).
+  useEffect(() => { screenStateRef.current = screenState; }, [screenState]);
+
+  // LIVRINHO_UX_1 — ao voltar do Coloring (a tela recupera foco ainda no 'intro'), recarrega os
+  // desenhos salvos para childArtCount/coloredComplete refletirem a pintura recém-feita, sem sair
+  // da história. Só no 'intro' (não perturba o 'playing'/áudio). Sem polling/interval; cleanup via
+  // `cancelled` (dispara no blur/desmontagem) evita setState após sair da tela.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      if (screenStateRef.current === 'intro') {
+        (async () => {
+          const map = await loadDrawingsMap(story);
+          if (!cancelled) setDrawings(map);
+        })();
+      }
+      return () => { cancelled = true; };
+    }, [story?.id]),
+  );
 
   // DEV: relata cenas sem som (autoplay cai no timer nelas). A Criação tem os 10.
   useEffect(() => {
@@ -879,6 +907,9 @@ export default function StoryBookScreen({ route, navigation }) {
     const hasCover = story.imagemCapa && images[story.imagemCapa];
     const totalScenes = story.cenas.length;
     const childArtCount = story.cenas.filter(c => hasMeaningfulPaint(drawings[c.id])).length;
+    // LIVRINHO_UX_1 — modo colorido só abre com a aventura 100% pintada; CTA leva à 1ª cena pendente.
+    const firstUncoloredIndex = story.cenas.findIndex(c => !hasMeaningfulPaint(drawings[c.id]));
+    const coloredComplete = totalScenes > 0 && childArtCount === totalScenes;
     // Prévia do modo "História ilustrada" — ilustração oficial da 1ª cena (ou capa).
     // F2.1i: via resolveSceneImageForStory (gated a david_goliath; fallback local IDÊNTICO
     // com índice vazio; file:// só com pack ready no sandbox). Reusa scenePackEntry (valor)
@@ -973,12 +1004,16 @@ export default function StoryBookScreen({ route, navigation }) {
                   ) : (
                     <View style={[styles.modePreview, styles.modePreviewChild]}>
                       <Text style={styles.modePreviewEmoji}>🎨</Text>
-                      <Text style={styles.modePreviewBadge}>{childArtCount}</Text>
+                      <Text style={styles.modePreviewBadge}>{childArtCount}/{totalScenes}</Text>
                     </View>
                   )}
                   <View style={styles.modeTextWrap}>
                     <Text style={[styles.modeCardTitle, active && styles.modeCardTitleActive]}>{opt.title}</Text>
-                    <Text style={styles.modeCardSub}>{opt.sub}</Text>
+                    <Text style={styles.modeCardSub}>
+                      {opt.id === 'child' && !coloredComplete
+                        ? 'Disponível quando você pintar todas as cenas.'
+                        : opt.sub}
+                    </Text>
                   </View>
                   <View style={[styles.modeRadio, active && styles.modeRadioActive]}>
                     {active && <Text style={styles.modeRadioDot}>✓</Text>}
@@ -988,20 +1023,24 @@ export default function StoryBookScreen({ route, navigation }) {
             })}
           </View>
 
-          {viewMode === 'child' && childArtCount === 0 ? (
-            /* ── Meu livrinho colorido sem nenhuma arte: estado vazio honesto + CTA ── */
+          {viewMode === 'child' && !coloredComplete ? (
+            /* ── LIVRINHO_UX_1: modo colorido bloqueado até 100% pintado (sem emoji) ── */
             <View style={styles.bookEmptyState}>
-              <Text style={styles.bookEmptyEmoji}>🎨</Text>
-              <Text style={styles.bookEmptyTitle}>Você ainda não pintou cenas desta aventura.</Text>
+              <BeniAvatar variant="happy" size="small" style={styles.blockedAvatar} />
+              <Text style={styles.bookEmptyTitle}>Seu livrinho colorido fica pronto quando você pinta a aventura inteira.</Text>
               <Text style={styles.bookEmptySub}>
-                Pinte uma cena para criar seu livrinho colorido.
+                Você já pintou {childArtCount} de {totalScenes} cenas. Pinte todas para abrir um livrinho só com as suas pinturas.
               </Text>
+              <Text style={styles.blockedProgress}>{childArtCount}/{totalScenes} cenas pintadas</Text>
               <SoundButton
                 style={styles.startBtn}
-                onPress={() => navigation.navigate('Coloring', { story, cenaIndex: 0 })}
+                onPress={() => navigation.navigate('Coloring', { story, cenaIndex: firstUncoloredIndex >= 0 ? firstUncoloredIndex : 0 })}
                 activeOpacity={0.85}
               >
-                <Text style={styles.startBtnText}>🎨  Colorir uma cena</Text>
+                <Text style={styles.startBtnText}>Pintar próxima cena</Text>
+              </SoundButton>
+              <SoundButton style={styles.blockedSecondaryBtn} onPress={() => handleSelectMode('official')} activeOpacity={0.85}>
+                <Text style={styles.blockedSecondaryText}>Ver história ilustrada</Text>
               </SoundButton>
             </View>
           ) : (
@@ -1320,19 +1359,30 @@ const styles = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: 16, marginBottom: 22,
     borderWidth: 1, borderColor: '#FFE0A3',
   },
-  // Estado vazio: sem desenhos salvos (o Livrinho é recompensa de criação)
+  // LIVRINHO_UX_1 — container do estado bloqueado do modo colorido (centralizado, sem emoji)
   bookEmptyState: {
     alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, width: '100%',
   },
-  bookEmptyEmoji: { fontSize: 56, marginBottom: 12 },
   bookEmptyTitle: {
     fontFamily: 'FredokaOne', fontSize: 19, color: pt.text,
     textAlign: 'center', marginBottom: 8,
   },
   bookEmptySub: {
     fontFamily: 'Nunito', fontSize: 14, color: pt.textSoft,
-    textAlign: 'center', lineHeight: 21, marginBottom: 22,
+    textAlign: 'center', lineHeight: 21, marginBottom: 16,
   },
+  // LIVRINHO_UX_1 — estado bloqueado do modo colorido (BeniAvatar + progresso, sem emoji)
+  blockedAvatar: { marginBottom: 12 },
+  blockedProgress: {
+    fontFamily: 'FredokaOne', fontSize: 14, color: colors.primary,
+    textAlign: 'center', marginBottom: 16,
+  },
+  blockedSecondaryBtn: {
+    marginTop: 10, paddingVertical: 14, paddingHorizontal: 24,
+    borderRadius: radii.pill, borderWidth: 1.5, borderColor: colors.primary,
+    width: '100%', alignItems: 'center',
+  },
+  blockedSecondaryText: { fontFamily: 'FredokaOne', fontSize: 16, color: colors.primary },
   introArtHighlightText: {
     fontFamily: 'Nunito', fontSize: 14, color: '#8A6D00', fontWeight: '700', textAlign: 'center',
   },

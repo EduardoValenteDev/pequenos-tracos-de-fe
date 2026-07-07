@@ -4848,12 +4848,12 @@ check(
 );
 
 check(
-  'Livrinho: estado vazio do colorido com 0 artes + CTA para colorir',
-  livroSrc.includes('Você ainda não pintou cenas desta aventura') &&
-  livroSrc.includes('Pinte uma cena para criar seu livrinho') &&
-  livroSrc.includes("viewMode === 'child' && childArtCount === 0") &&
+  'Livrinho: estado bloqueado do colorido incompleto + CTA para colorir (LIVRINHO_UX_1)',
+  livroSrc.includes('Seu livrinho colorido fica pronto quando você pinta a aventura inteira') &&
+  livroSrc.includes('Pinte todas para abrir um livrinho só com as suas pinturas') &&
+  livroSrc.includes("viewMode === 'child' && !coloredComplete") &&
   livroSrc.includes("navigation.navigate('Coloring'"),
-  'StoryBookScreen missing empty state + CTA for "Meu livrinho colorido" with zero saved drawings',
+  'StoryBookScreen missing blocked state + CTA for "Meu livrinho colorido" when not 100% painted (LIVRINHO_UX_1)',
 );
 
 check(
@@ -13592,7 +13592,7 @@ check(
     const narr5p = readSrc('src/screens/NarrationScreen.js');
 
     check('F2.4e.5p: StoryBookScreen observa o foco (useIsFocused) para o lifecycle de áudio',
-      /import \{ useIsFocused \} from '@react-navigation\/native'/.test(sb) && /const isBookFocused = useIsFocused\(\)/.test(sbCode),
+      /import \{[^}]*\buseIsFocused\b[^}]*\} from '@react-navigation\/native'/.test(sb) && /const isBookFocused = useIsFocused\(\)/.test(sbCode),
       'StoryBookScreen não observa isFocused — áudio pode continuar fora da tela');
 
     check('F2.4e.5p: ao PERDER o foco, o Livrinho PARA o áudio e HALTA o autoplay',
@@ -14482,6 +14482,79 @@ check(
     check('LIVRINHO_FIX_1: doc do bloco existe',
       srcExists('docs/LIVRINHO_FIX_1.md'),
       'falta docs/LIVRINHO_FIX_1.md');
+  }
+
+  // ── LIVRINHO_UX_1: modo colorido bloqueado até 100% pintado (estado sem emoji) ──
+  console.log('\n── LIVRINHO_UX_1: bloqueio do Livrinho colorido incompleto ──');
+  {
+    const sb = readSrc('src/screens/StoryBookScreen.js');
+    const blockedBlock = (sb.match(/!coloredComplete \? \(([\s\S]*?)\) : \(/) || ['', ''])[1];
+
+    check('LIVRINHO_UX_1: modo colorido gated por 100% pintado (coloredComplete = totalScenes>0 && childArtCount===totalScenes)',
+      /const coloredComplete = totalScenes > 0 && childArtCount === totalScenes;/.test(sb)
+        && /viewMode === 'child' && !coloredComplete \? \(/.test(sb)
+        && !/childArtCount === 0/.test(sb),
+      'gate não usa coloredComplete (com totalScenes>0), ou manteve o antigo childArtCount === 0');
+
+    check('LIVRINHO_UX_1: fontes de verdade (childArtCount/hasMeaningfulPaint, totalScenes/cenas.length, firstUncoloredIndex/findIndex)',
+      /const totalScenes = story\.cenas\.length;/.test(sb)
+        && /const childArtCount = story\.cenas\.filter\(c => hasMeaningfulPaint\(drawings\[c\.id\]\)\)\.length;/.test(sb)
+        && /const firstUncoloredIndex = story\.cenas\.findIndex\(c => !hasMeaningfulPaint\(drawings\[c\.id\]\)\);/.test(sb),
+      'fontes de verdade divergentes do aprovado');
+
+    check('LIVRINHO_UX_1: copy aprovada (título/subtítulo/progresso/CTAs)',
+      sb.includes('Seu livrinho colorido fica pronto quando você pinta a aventura inteira.')
+        && sb.includes('Pinte todas para abrir um livrinho só com as suas pinturas.')
+        && /\{childArtCount\}\/\{totalScenes\} cenas pintadas/.test(sb)
+        && sb.includes('Pintar próxima cena')
+        && sb.includes('Ver história ilustrada'),
+      'copy divergente do aprovado');
+
+    check('LIVRINHO_UX_1: estado bloqueado usa BeniAvatar variant="happy", SEM emoji e sem variante insegura',
+      /<BeniAvatar variant="happy"/.test(blockedBlock)
+        && !/variant="(reading|locked|thinking)"/.test(blockedBlock)
+        && !/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{25A0}-\u{25FF}\u{2190}-\u{21FF}\u{2764}\u{FE0F}]/u.test(blockedBlock)
+        && !/styles\.bookEmptyEmoji/.test(sb),
+      'estado bloqueado sem BeniAvatar happy, com emoji, ou com variante insegura');
+
+    check('LIVRINHO_UX_1: CTA primário → Coloring na 1ª cena não pintada; secundário → modo oficial',
+      /navigation\.navigate\('Coloring', \{ story, cenaIndex: firstUncoloredIndex >= 0 \? firstUncoloredIndex : 0 \}\)/.test(sb)
+        && /onPress=\{\(\) => handleSelectMode\('official'\)\}/.test(sb),
+      'CTAs do estado bloqueado divergentes');
+
+    check('LIVRINHO_UX_1: card do child mostra {childArtCount}/{totalScenes} e sub de bloqueio',
+      /\{childArtCount\}\/\{totalScenes\}<\/Text>/.test(sb)
+        && sb.includes('Disponível quando você pintar todas as cenas.'),
+      'card do child não reflete progresso/bloqueio');
+
+    check('LIVRINHO_UX_1: modo oficial continua liberado (botão abrir + resolve official intactos)',
+      sb.includes('Abrir história ilustrada')
+        && /if \(mode === 'official'\)/.test(sb)
+        && /if \(official\) return makeOfficialVisual\(cena, story, official\);/.test(sb),
+      'modo oficial afetado');
+
+    check('LIVRINHO_UX_1: fallback interno do playing preservado (rede de segurança)',
+      sb.includes('Você ainda não pintou esta cena.')
+        && /function makeFallbackVisual\(/.test(sb)
+        && /function BookArtFallback\(/.test(sb),
+      'fallback do playing foi removido/alterado');
+
+    check('LIVRINHO_UX_1: AudioPlayer/LIVRINHO_FIX_1 intactos (UX1 não vazou; StoryBook mantém onFinished)',
+      !/coloredComplete|firstUncoloredIndex|blockedProgress/.test(readSrc('src/components/AudioPlayer.js'))
+        && /onFinished=\{onSceneAudioComplete\}/.test(sb),
+      'UX1 vazou para AudioPlayer OU StoryBook perdeu o wiring de áudio');
+
+    check('LIVRINHO_UX_1: refresh ao focar recarrega desenhos (useFocusEffect + loadDrawingsMap, guard cancelled, só no intro, sem interval)',
+      /useFocusEffect\(/.test(sb)
+        && /async function loadDrawingsMap\(story\)/.test(sb)
+        && /const map = await loadDrawingsMap\(story\);\s*if \(!cancelled\) setDrawings\(map\);/.test(sb)
+        && /screenStateRef\.current === 'intro'/.test(sb)
+        && !/setInterval/.test(sb),
+      'refresh ao focar ausente/instável (falta useFocusEffect/loadDrawingsMap/guard cancelled/escopo intro, ou usa interval)');
+
+    check('LIVRINHO_UX_1: doc do bloco existe',
+      srcExists('docs/LIVRINHO_UX_1.md'),
+      'falta docs/LIVRINHO_UX_1.md');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
