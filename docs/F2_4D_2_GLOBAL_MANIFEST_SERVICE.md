@@ -57,7 +57,7 @@ desconhecido) mantém o válido; **subconjunto vazio** ainda é `ok:true`; `gene
 encontra `david_goliath` e reporta erro para ausente (inclusive sobre o subconjunto do misto); e a
 garantia **read-only** (código sem storage/resolver/download).
 
-**Gates:** smoke **1811/1811** ✓ · expo-doctor **18/18** ✓.
+**Gates:** smoke **1812/1812** ✓ · expo-doctor **18/18** ✓.
 
 ## 7. Limitações
 
