@@ -79,19 +79,24 @@ export default function NarrationScreen({ route, navigation }) {
     return () => { alive = false; };
   }, [story.id, cena?.id, jaConcluida]);
 
-  useEffect(() => {
-    if (canOpenStoryFullExperience(story)) return;
-    // B1: separa trava de PLANO de falta de MÍDIA.
-    //   premium → Área dos Pais (upsell legítimo);
-    //   media/coming_soon → volta, sem paywall enganoso por falta de mídia.
-    if (getStoryLockReason(story) === 'premium') {
-      navigation.replace('ParentArea');
-    } else if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.replace('Home');
-    }
-  }, []);
+  // Fase 2B.6 (RP3): revalida ACESSO ao FOCAR (não só no mount) — protege expiração
+  // durante o uso. Ao redirecionar, a tela desmonta e o AudioPlayer pausa no cleanup do
+  // unmount (áudio premium não continua tocando após o bloqueio).
+  useFocusEffect(
+    useCallback(() => {
+      if (canOpenStoryFullExperience(story)) return;
+      // B1: separa trava de PLANO de falta de MÍDIA.
+      //   premium → Área dos Pais (upsell legítimo);
+      //   media/coming_soon → volta, sem paywall enganoso por falta de mídia.
+      if (getStoryLockReason(story) === 'premium') {
+        navigation.replace('ParentArea');
+      } else if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.replace('Home');
+      }
+    }, [story]),
+  );
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;

@@ -26,7 +26,20 @@ export const ACCESS_TYPE = {
 const ALLOW_COMING_SOON_PREVIEW = false;
 const FREE_ATELIER_SAVE_LIMIT = 3;
 
-/** Retorna o plano atual do usuário. Sempre 'free' até integração de compra real. */
+/**
+ * Retorna o plano atual do usuário. Sempre 'free' até integração de compra real.
+ *
+ * CONTRATO FUTURO DE ENTITLEMENT (Fase 2B.6 · RP4 — registrado, NÃO implementado aqui):
+ *   - Quando RevenueCat entrar, getCurrentPlan() deve refletir entitlement ATIVO,
+ *     EXPIRADO ou CANCELADO (não um booleano perpétuo em memória).
+ *   - OFFLINE: premium offline só é permitido até um `expiresAt` LOCAL conhecido. Se a
+ *     validade local passou, BLOQUEAR conteúdo premium mesmo offline e pedir revalidação
+ *     online. Uma assinatura curta NÃO pode virar acesso vitalício offline.
+ *   - Pack no disco NUNCA é autorização (Fase 2B.6 · RP2): a abertura premium depende de
+ *     isPremiumUser()/entitlement ativo, não do arquivo existir. O gate de abertura é a
+ *     fonte da proteção de receita.
+ *   - Fora do escopo desta fase: RevenueCat, backend, criptografia de pack, R2 privado.
+ */
 export function getCurrentPlan() {
   if (ENABLE_LOCAL_PREMIUM_TEST_MODE) {
     console.warn('[accessControl] ENABLE_LOCAL_PREMIUM_TEST_MODE is TRUE — never ship this');

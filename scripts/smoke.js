@@ -1028,7 +1028,9 @@ check(
 
 check(
   'StoryDetailScreen navigates to StoryBook for Livrinho card',
-  storyDetailSrc.includes("navigate('StoryBook'"),
+  // Fase 2B.6: o card do Livrinho leva ao StoryBook via goToPremium (guard canAccess),
+  // não mais navigate('StoryBook') cru. Intenção preservada: StoryBook, não PostStoryHub.
+  storyDetailSrc.includes("goToPremium('StoryBook'") || storyDetailSrc.includes("navigate('StoryBook'"),
   "StoryDetailScreen Livrinho PostStoryCard still navigates to PostStoryHub instead of StoryBook",
 );
 
@@ -14790,6 +14792,88 @@ check(
         && /function buildStoryBookTimeline\(story, drawings, mode, scenePackEntry\)/.test(sb2b)
         && /function resolveStoryBookPageImage\(cena, sceneNumber, story, drawings, mode, scenePackEntry\)/.test(sb2b),
       'Livrinho pode ter hook em loop OU mais de um hook de pack (viola regra dos hooks)');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Fase 2B.6 — Política de acesso e download premium (segurança de receita).
+  // Pack no disco NÃO é autorização: download gated por progressão (sequenceUnlocked =
+  // atual OU concluída); abertura premium revalidada nas telas (mount + FOCO) com parada
+  // de mídia; resolver agnóstico; contrato de entitlement offline (RP4) documentado;
+  // Modo Criador impossível em produção (guard + flag não vaza p/ build).
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Fase 2B.6: política de acesso e download premium ──');
+  {
+    const detail26 = readSrc('src/screens/StoryDetailScreen.js');
+    const narr26 = readSrc('src/screens/NarrationScreen.js');
+    const color26 = readSrc('src/screens/ColoringScreen.js');
+    const sb26 = readSrc('src/screens/StoryBookScreen.js');
+    const resolver26 = readSrc('src/services/contentResolver.js');
+    const ac26 = readSrc('src/services/accessControl.js');
+
+    // RP1 — download gated por sequenceUnlocked (atual OU concluída; exclui futuras).
+    check('2B.6 (RP1 download por progressão): canDownload = canAccess && isRemote && !isComingSoon && sequenceUnlocked',
+      /const canDownload = canAccess && packDownload\.isRemote && !isComingSoon && sequenceUnlocked;/.test(detail26)
+        && /\{canDownload && \(/.test(detail26),
+      'StoryDetail não gateia o download por sequenceUnlocked (atual/concluída)');
+
+    // RP1 — concluída também baixa (sequenceUnlocked=true); NÃO restrito só à atual.
+    check('2B.6 (RP1 concluída/futura): gate por sequenceUnlocked (rebaixar concluída OK; futura bloqueada), sem restringir só à atual',
+      /sequenceUnlocked = história atual da jornada OU já concluída/.test(detail26)
+        && !/getCurrentJourneyStoryId|isCurrentJourneyStory/.test(detail26),
+      'gate de download restringe indevidamente (deveria ser sequenceUnlocked)');
+
+    // RP3 — guard canAccess antes de navegar; nenhum navigate premium cru (incl. isCompleted).
+    check('2B.6 (RP3 guard nav): goToPremium checa canAccess; nenhum navigate Narration/StoryBook cru no StoryDetail',
+      /function goToPremium\(routeName, params\)/.test(detail26)
+        && /if \(!canAccess\) \{ navigation\.navigate\('ParentArea'\); return; \}/.test(detail26)
+        && !/navigation\.navigate\('(Narration|StoryBook)'/.test(detail26),
+      'StoryDetail navega p/ conteúdo premium sem guard canAccess (goToPremium)');
+
+    // RP3 — rechecagem em FOCO nas 3 telas premium.
+    check('2B.6 (RP3 foco): Narration/Coloring/StoryBook revalidam canOpenStoryFullExperience em useFocusEffect',
+      /useFocusEffect\([\s\S]{0,220}canOpenStoryFullExperience\(story\)/.test(narr26)
+        && /useFocusEffect\([\s\S]{0,220}canOpenStoryFullExperience\(story\)/.test(color26)
+        && /useFocusEffect\([\s\S]{0,260}!canOpenStoryFullExperience\(story\)/.test(sb26),
+      'uma tela premium não revalida acesso em foco (useFocusEffect)');
+
+    // RP3 — parada de mídia no StoryBook (pausa imediata + locked); Narration/Coloring saem (unmount pausa).
+    check('2B.6 (RP3 parada de mídia): StoryBook setIsPaused(true)+setScreenState("locked") ao bloquear em foco',
+      /!canOpenStoryFullExperience\(story\)\) \{\s*setIsPaused\(true\);\s*setScreenState\('locked'\);/.test(sb26)
+        && /navigation\.replace\('ParentArea'\)/.test(narr26)
+        && /navigation\.replace\('ParentArea'\)/.test(color26),
+      'StoryBook não pausa/trava a mídia premium ao bloquear em foco');
+
+    // RP2 — resolver permanece agnóstico (sem entitlement).
+    check('2B.6 (RP2 resolver agnóstico): contentResolver.decide sem isPremiumUser/hasAccess/canOpenStoryFullExperience',
+      !/isPremiumUser|hasAccess|hasStoryAccess|canOpenStoryFullExperience/.test(resolver26),
+      'contentResolver passou a checar entitlement (deveria ser agnóstico)');
+
+    // RP4 — contrato de entitlement offline documentado (não implementado).
+    check('2B.6 (RP4 contrato): accessControl documenta expiresAt/expirado offline + pack ≠ autorização',
+      /expiresAt/.test(ac26) && /expirad|expired/i.test(ac26) && /pack no disco nunca é autoriza/i.test(ac26),
+      'contrato de entitlement offline (RP4) não documentado em accessControl');
+
+    // RP5 — starter (creation/noah) livre/offline; download só p/ isRemote (starter nunca baixa).
+    check('2B.6 (RP5 starter livre): creation/noah = starter; download gated por isRemote',
+      (() => {
+        try {
+          const cm = new Function(`${readSrc('src/data/contentManifest.js').replace(/export /g, '')}; return { getContentLayer };`)();
+          return cm.getContentLayer('creation') === 'starter' && cm.getContentLayer('noah') === 'starter';
+        } catch { return false; }
+      })() && /packDownload\.isRemote/.test(detail26),
+      'starter deixou de ser livre OU download não é gated por isRemote');
+
+    // Adendo #2 — Modo Criador impossível em produção: guard + flag NÃO vaza p/ build.
+    check('2B.6 (adendo: Creator QA seguro em prod): guard __DEV__/flag no serviço + flag ausente de eas.json/app.json',
+      (() => {
+        const eas = srcExists('eas.json') ? readSrc('eas.json') : '';
+        const appJson = srcExists('app.json') ? readSrc('app.json') : '';
+        const qa = readSrc('src/services/creatorQaMode.js');
+        return !/EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE/.test(eas)
+          && !/EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE/.test(appJson)
+          && /isCreatorQaModeAllowed/.test(qa) && /__DEV__/.test(qa);
+      })(),
+      'Modo Criador pode vazar p/ produção (flag em eas.json/app.json ou guard ausente)');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

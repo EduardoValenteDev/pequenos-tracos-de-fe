@@ -529,6 +529,20 @@ export default function StoryBookScreen({ route, navigation }) {
   // LIVRINHO_UX_1 — espelho de screenState (lido pelo refresh ao focar, sem re-subscrever o efeito).
   useEffect(() => { screenStateRef.current = screenState; }, [screenState]);
 
+  // Fase 2B.6 (RP3): revalida ACESSO ao FOCAR (não só no mount). Se o entitlement caiu
+  // (ex.: assinatura expirou com o app aberto), PAUSA o áudio imediatamente (setIsPaused,
+  // via prop `paused` do AudioPlayer) e trava em 'locked' (remove o AudioPlayer do render →
+  // player.pause() no unmount). Nunca deixa áudio premium tocando após o bloqueio. Roda ANTES
+  // do refresh de desenhos; preserva LIVRINHO_FIX/UX (não altera autoplay).
+  useFocusEffect(
+    useCallback(() => {
+      if (story?.id && Array.isArray(story?.cenas) && !canOpenStoryFullExperience(story)) {
+        setIsPaused(true);
+        setScreenState('locked');
+      }
+    }, [story?.id]),
+  );
+
   // LIVRINHO_UX_1 — ao voltar do Coloring (a tela recupera foco ainda no 'intro'), recarrega os
   // desenhos salvos para childArtCount/coloredComplete refletirem a pintura recém-feita, sem sair
   // da história. Só no 'intro' (não perturba o 'playing'/áudio). Sem polling/interval; cleanup via

@@ -69,6 +69,10 @@ export default function StoryDetailScreen({ route, navigation }) {
   // consome só esse hook e não acessa o runtime de conteúdo diretamente (guardrail preservado).
   // O bloco de download só aparece p/ premium-active (canAccess) + história remote (hook.isRemote).
   const packDownload = useStoryPackDownload(story.id);
+  // Fase 2B.6 (RP1): download só p/ história premium remote LIBERADA pela jornada.
+  // sequenceUnlocked = história atual da jornada OU já concluída (exclui futuras bloqueadas)
+  // → permite baixar/rebaixar concluídas e a atual; bloqueia download em massa de futuras.
+  const canDownload = canAccess && packDownload.isRemote && !isComingSoon && sequenceUnlocked;
 
   const [savedDrawings, setSavedDrawings] = useState({});
   const [quizDone, setQuizDone] = useState(false);
@@ -154,18 +158,22 @@ export default function StoryDetailScreen({ route, navigation }) {
     return 'Começar a história';
   }
 
+  // Fase 2B.6 (RP3): navega p/ conteúdo premium só com canAccess; senão → Área dos Pais.
+  // Guard obrigatório ANTES de navegar — vale inclusive p/ história concluída (isCompleted),
+  // sem depender apenas do guard da tela seguinte.
+  function goToPremium(routeName, params) {
+    if (!canAccess) { navigation.navigate('ParentArea'); return; }
+    navigation.navigate(routeName, params);
+  }
+
   function handlePrimary() {
     if (isComingSoon) return;
     if (!sequenceUnlocked) return; // jornada não chegou — ação bloqueada (botão desabilitado)
     if (isCompleted) {
-      navigation.navigate('Narration', { story, cenaIndex: 0 });
+      goToPremium('Narration', { story, cenaIndex: 0 });
       return;
     }
-    if (!canAccess) {
-      navigation.navigate('ParentArea');
-      return;
-    }
-    navigation.navigate('Narration', { story, cenaIndex: startCenaIndex });
+    goToPremium('Narration', { story, cenaIndex: startCenaIndex });
   }
 
   function getSceneStatus(cena, index) {
@@ -209,7 +217,7 @@ export default function StoryDetailScreen({ route, navigation }) {
           </ContentContainer>
 
           {/* ── Fase 2B: download de pack remoto (só premium-active + história remote) ── */}
-          {canAccess && packDownload.isRemote && !isComingSoon && (
+          {canDownload && (
             <ContentContainer style={styles.downloadWrap}>
               {packDownload.uiState === 'ready' ? (
                 <Text style={styles.downloadReady}>Baixado ✓ · funciona offline</Text>
@@ -284,7 +292,7 @@ export default function StoryDetailScreen({ route, navigation }) {
                   done={bookOpened}
                   tagColor={color.night600}
                   isTablet={isTablet}
-                  onPress={() => navigation.navigate('StoryBook', { story })}
+                  onPress={() => goToPremium('StoryBook', { story })}
                 />
                 <PostStoryCard
                   emoji="⭐"
@@ -311,7 +319,7 @@ export default function StoryDetailScreen({ route, navigation }) {
                   done={coloringDone}
                   tagColor={color.gold300}
                   isTablet={isTablet}
-                  onPress={() => navigation.navigate('Narration', { story, cenaIndex: 0 })}
+                  onPress={() => goToPremium('Narration', { story, cenaIndex: 0 })}
                 />
               </View>
             </View>
@@ -328,7 +336,7 @@ export default function StoryDetailScreen({ route, navigation }) {
                   index={index}
                   status={getSceneStatus(cena, index)}
                   hasDrawing={savedDrawings[cena.id] === true}
-                  onPress={() => navigation.navigate('Narration', { story, cenaIndex: index })}
+                  onPress={() => goToPremium('Narration', { story, cenaIndex: index })}
                 />
               ))}
             </View>

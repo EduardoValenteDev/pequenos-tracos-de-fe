@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, Pressable } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -74,15 +75,17 @@ export default function ColoringScreen({ route, navigation }) {
   const [showPanHint, setShowPanHint] = useState(false);
   const panHintTimerRef = useRef(null);
 
-  useEffect(() => {
-    // QA do Criador: abre QUALQUER desenho (premium/"Em breve") para teste, SÓ quando
-    // route.params.qa e o Modo Criador estiverem ativos (duplo-gate). No fluxo normal
-    // da criança o bloqueio/paywall segue valendo — nada é liberado.
-    const qaBypass = route.params?.qa === true && isCreatorQaModeEnabled();
-    if (!qaBypass && !canOpenStoryFullExperience(story)) {
-      navigation.replace('ParentArea');
-    }
-  }, []);
+  // Fase 2B.6 (RP3): revalida ACESSO ao FOCAR (não só no mount). Sem áudio → bloquear e
+  // sair seguro. QA do Criador (duplo-gate) mantém o bypass só em dev/permitido; o fluxo
+  // normal da criança segue com paywall — pack no disco NÃO libera abertura.
+  useFocusEffect(
+    useCallback(() => {
+      const qaBypass = route.params?.qa === true && isCreatorQaModeEnabled();
+      if (!qaBypass && !canOpenStoryFullExperience(story)) {
+        navigation.replace('ParentArea');
+      }
+    }, [story, route.params?.qa]),
+  );
 
   // Check for a previously saved drawing when the screen opens.
   // O modal "Você já começou este desenho" NÃO é decidido só pela existência da
