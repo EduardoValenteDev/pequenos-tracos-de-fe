@@ -18,6 +18,7 @@ import { getColoringImage } from '../assets/coloringImages';
 import { getSavedDrawing, hasMeaningfulPaint } from '../services/drawingStorage';
 import { preloadStorySceneIllustrations } from '../services/storyImageService';
 import { resolveSceneImageForStory, useSandboxScenePackEntry } from '../hooks/useResolvedStoryMedia';
+import { resolveRemoteColoringUri, resolveRemoteAudioSource } from '../hooks/useResolvedStoryMedia';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
 import { markStoryBookOpened } from '../services/postStoryStorage';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
@@ -94,8 +95,7 @@ const EMPTY_LAYOUT = {
 //                      mesma moldura 4:5 do paint (restaura o contorno).
 // Sem lineart (coloringImage) disponível → retorna null: a arte NUNCA é exibida
 // sozinha; o chamador cai para oficial/fallback.
-function makeChildArtVisual(cena, story, p) {
-  const baseImage = getColoringImage(story.id, cena.id);
+function makeChildArtVisual(cena, story, p, baseImage) {
   if (!baseImage) return null; // sem contorno disponível → não mostra cor sozinha
   const fallbackColor = cena.corTema || '#A78BFA';
   const hasLayout = p.W && p.H && p.imgX !== null && p.imgY !== null && p.imgW && p.imgH;
@@ -161,7 +161,7 @@ function mkSlide(cena, sceneNumber, visual) {
  * da criança só é usada quando makeChildArtVisual entrega o contorno por cima
  * (Bloco 1): nenhuma página renderiza mancha de cor sem lineart.
  */
-function resolveStoryBookPageImage(cena, story, drawings, mode, scenePackEntry) {
+function resolveStoryBookPageImage(cena, sceneNumber, story, drawings, mode, scenePackEntry) {
   // 'official' — História ilustrada: imagem oficial sempre, nunca a arte da criança.
   if (mode === 'official') {
     // F2.1h v2: imagem oficial via resolveSceneImageForStory (gated a david_goliath;
@@ -175,7 +175,15 @@ function resolveStoryBookPageImage(cena, story, drawings, mode, scenePackEntry) 
   const raw = drawings[cena.id] ?? null;
   if (hasMeaningfulPaint(raw)) {
     const p = parseDrawingPayload(raw);
-    const childVisual = p ? makeChildArtVisual(cena, story, p) : null;
+    // Lineart (contorno): fonte local ATUAL por padrão; remoto file:// só quando o pack está
+    // ready+válido (resolveRemoteColoringUri via useResolvedStoryMedia) e a chave por posição
+    // bate (cena.id === sceneNumber). NÃO toca o motor; fallback local sempre. (Fase 2B)
+    let baseImage = getColoringImage(story.id, cena.id);
+    if (cena.id === sceneNumber) {
+      const remote = resolveRemoteColoringUri(story.id, sceneNumber, scenePackEntry);
+      if (remote) baseImage = remote;
+    }
+    const childVisual = p ? makeChildArtVisual(cena, story, p, baseImage) : null;
     if (childVisual) return childVisual;
   }
   return makeFallbackVisual(cena, story, 'Você ainda não pintou esta cena.');
@@ -187,7 +195,7 @@ function resolveStoryBookPageImage(cena, story, drawings, mode, scenePackEntry) 
  */
 function buildStoryBookTimeline(story, drawings, mode, scenePackEntry) {
   return (story?.cenas ?? []).map((cena, i) =>
-    mkSlide(cena, i + 1, resolveStoryBookPageImage(cena, story, drawings, mode, scenePackEntry)),
+    mkSlide(cena, i + 1, resolveStoryBookPageImage(cena, i + 1, story, drawings, mode, scenePackEntry)),
   );
 }
 
@@ -1115,9 +1123,13 @@ export default function StoryBookScreen({ route, navigation }) {
   const totalScenes = story.cenas.length;
   const progressPct = totalSlides > 0 ? Math.round(((safeIndex + 1) / totalSlides) * 100) : 0;
 
-  const audioAsset = hasSceneAudio(story.id, slide.sceneKey)
+  // Áudio: fonte local ATUAL por padrão; remoto file:// só com pack ready+válido (Fase 2B).
+  // Sem tocar o autoplay/AudioPlayer (LIVRINHO_FIX_1) — só a FONTE muda.
+  let audioAsset = hasSceneAudio(story.id, slide.sceneKey)
     ? (getSceneAudio(story.id, slide.sceneKey)?.audioAsset ?? null)
     : null;
+  const remoteAudio = resolveRemoteAudioSource(story.id, slide.sceneNumber, scenePackEntry);
+  if (remoteAudio) audioAsset = remoteAudio;
 
   // key estável por slide (mode + sceneId + visualType + índice) → Image remonta
   // limpo a cada troca, evitando base64 "preso" da cena anterior.

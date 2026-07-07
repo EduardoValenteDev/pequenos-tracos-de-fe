@@ -35,6 +35,29 @@ export function isRemotePackStory(storyId) {
 }
 
 /**
+ * resolveRemoteColoringUri — { uri: 'file://…' } da PÁGINA DE COLORIR (lineart) SÓ quando a
+ * história é `remote` E o `packEntry` está `ready` e válido (o índice do PacksContext já é
+ * reconciliado contra o disco). Caso contrário → `null` (o chamador mantém a fonte LOCAL atual
+ * como fallback). PURO, não-hook, read-only (Fase 2B). Camada única de consumo: a TELA usa este
+ * export de useResolvedStoryMedia, nunca `contentResolver` direto.
+ */
+export function resolveRemoteColoringUri(storyId, sceneNumber, packEntry) {
+  if (!isRemotePackStory(storyId) || !packEntry) return null;
+  const r = resolveStoryColoring(storyId, sceneNumber, packEntry);
+  return r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source ? r.source : null;
+}
+
+/**
+ * resolveRemoteAudioSource — fonte de áudio remota ({ uri: 'file://…' }) SÓ p/ `remote` + pack
+ * `ready` e válido; senão `null` (fallback local). PURO, não-hook, read-only (Fase 2B).
+ */
+export function resolveRemoteAudioSource(storyId, sceneNumber, packEntry) {
+  if (!isRemotePackStory(storyId) || !packEntry) return null;
+  const r = resolveStoryAudio(storyId, sceneNumber, packEntry);
+  return r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source ? r.source : null;
+}
+
+/**
  * useResolvedSceneImage — `source` da IMAGEM DE CENA (Estado A do StorySceneVisual).
  *
  * FALLBACK-FIRST + pré-checagem de existência (F2.5-hardening-1 C2), espelhando o colorir:

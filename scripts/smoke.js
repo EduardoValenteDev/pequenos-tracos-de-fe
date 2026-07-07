@@ -4882,7 +4882,7 @@ check(
 check(
   'Livrinho resolve por modo: official sempre oficial; child só arte da criança (com contorno) → fallback',
   livroSrc.includes('function resolveStoryBookPageImage') &&
-  /makeChildArtVisual\(cena, story, p\)/.test(livroSrc) &&
+  /makeChildArtVisual\(cena, story, p, baseImage\)/.test(livroSrc) &&
   /if \(childVisual\) return childVisual/.test(livroSrc) &&
   /mode === 'official'[\s\S]*?if \(official\) return makeOfficialVisual[\s\S]*?return makeFallbackVisual/.test(livroSrc) &&
   !/mode === 'mixed'/.test(livroSrc),
@@ -7950,7 +7950,7 @@ check(
 check(
   'StoryBookScreen: modo colorido usa arte da criança via hasMeaningfulPaint → makeChildArtVisual',
   storyBookSrc20.includes('hasMeaningfulPaint') &&
-  /hasMeaningfulPaint[\s\S]{0,200}makeChildArtVisual/.test(storyBookSrc20),
+  /hasMeaningfulPaint[\s\S]{0,600}makeChildArtVisual/.test(storyBookSrc20),
   'StoryBookScreen não usa arte da criança no modo colorido do Livrinho',
 );
 
@@ -14711,6 +14711,85 @@ check(
     check('LIVRINHO_UX_1: doc do bloco existe',
       srcExists('docs/LIVRINHO_UX_1.md'),
       'falta docs/LIVRINHO_UX_1.md');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Fase 2B (redução de bundle / spec 005) — consumo de packs remotos USER-FACING.
+  // StoryDetail BAIXA (via hook dedicado) e o Livrinho USA a mídia remota (via resolvers
+  // puros da camada permitida). Guardrails de arquitetura preservados: nenhuma tela importa
+  // usePacks/pack*/contentResolver direto (isso é coberto por F2.1d/F2.1e acima). Aqui
+  // validamos o consumo POSITIVO: hook de download, resolvers puros, máquina de estado da
+  // tela e — o mais importante — o FALLBACK LOCAL como origem-padrão (remoto só sobrescreve
+  // quando o pack está ready+válido). 2B NÃO mexe no empacotamento (isso é a Fase 2C).
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Fase 2B: consumo de packs remotos (download + Livrinho) ──');
+  {
+    const dlHook = readSrc('src/hooks/useStoryPackDownload.js');
+    const media2b = readSrc('src/hooks/useResolvedStoryMedia.js');
+    const detail2b = readSrc('src/screens/StoryDetailScreen.js');
+    const sb2b = readSrc('src/screens/StoryBookScreen.js');
+
+    // 1) O runtime de packs (usePacks + packDownloadService) vive DENTRO do hook — a TELA nunca.
+    check('2B (hook de download existe): useStoryPackDownload encapsula usePacks + packDownloadService',
+      /export function useStoryPackDownload\b/.test(dlHook)
+        && /usePacks/.test(dlHook)
+        && /downloadStoryPackScenesFromGlobalManifest/.test(dlHook)
+        && ['uiState', 'progress', 'error', 'download', 'retry', 'isRemote'].every((k) => dlHook.includes(k)),
+      'useStoryPackDownload ausente ou não encapsula o runtime/estado esperado');
+
+    // 2) READ-ONLY quanto a acesso/compras: baixa pack, mas NÃO mexe em entitlement/paywall.
+    check('2B (hook read-only): download NÃO toca compras/entitlement (sem Purchases/isPremium/accessControl)',
+      !/Purchases\.|react-native-purchases|setPremium|contentAccessService|accessControl/.test(dlHook),
+      'useStoryPackDownload passou a tocar acesso/compras (deveria só baixar)');
+
+    // 3) Estado derivado do índice RECONCILIADO + refresh pós-sucesso + guard de reentrância.
+    check('2B (estado do hook): uiState de getStoryPackState (reconciliado), refreshPacks no sucesso, busyRef',
+      /getStoryPackState/.test(dlHook)
+        && /refreshPacks\(\)/.test(dlHook)
+        && /busyRef/.test(dlHook)
+        && /'downloading'[\s\S]{0,200}'error'[\s\S]{0,200}'ready'[\s\S]{0,200}'not_downloaded'/.test(dlHook),
+      'máquina de estado do hook incompleta (reconciliado/refresh/guard/uiState)');
+
+    // 4) Resolvers PUROS (não-hook) em useResolvedStoryMedia: file:// só com pack; senão null.
+    check('2B (resolvers puros): resolveRemoteColoringUri/resolveRemoteAudioSource → file:// só com pack, senão null',
+      /export function resolveRemoteColoringUri\(storyId, sceneNumber, packEntry\)/.test(media2b)
+        && /export function resolveRemoteAudioSource\(storyId, sceneNumber, packEntry\)/.test(media2b)
+        && (media2b.match(/if \(!isRemotePackStory\(storyId\) \|\| !packEntry\) return null;/g) || []).length >= 2
+        && (media2b.match(/RESOLVE_SOURCE_TYPE\.FILE && r\.source \? r\.source : null/g) || []).length >= 2,
+      'resolvers remotos ausentes ou sem guarda null/FILE (fallback local em risco)');
+
+    // 5) StoryDetail consome SÓ o hook + bloco gated a premium-active (canAccess) + remote + !comingSoon.
+    check('2B (StoryDetail): importa só useStoryPackDownload; bloco gated a canAccess + isRemote + !isComingSoon',
+      /import \{ useStoryPackDownload \} from '\.\.\/hooks\/useStoryPackDownload'/.test(detail2b)
+        && /const packDownload = useStoryPackDownload\(story\.id\)/.test(detail2b)
+        && /canAccess && packDownload\.isRemote && !isComingSoon/.test(detail2b),
+      'StoryDetail não consome o hook ou o bloco não está gated (premium-active + remote)');
+
+    // 6) StoryDetail: máquina de estado visível (baixar / baixando+progresso / pronto / erro+retry).
+    check('2B (StoryDetail UI): estados pronto/baixando/erro+retry com progresso',
+      /packDownload\.uiState === 'ready'/.test(detail2b)
+        && /packDownload\.uiState === 'downloading'/.test(detail2b)
+        && /packDownload\.uiState === 'error' \? packDownload\.retry : packDownload\.download/.test(detail2b)
+        && /Baixar história/.test(detail2b) && /Baixado/.test(detail2b) && /Tentar de novo/.test(detail2b),
+      'StoryDetail não expõe os 4 estados de download (baixar/baixando/pronto/erro+retry)');
+
+    // 7) Livrinho: remoto só pelos resolvers da camada permitida + FALLBACK LOCAL preservado.
+    check('2B (Livrinho): usa resolveRemote* de useResolvedStoryMedia; local é default e só é sobrescrito',
+      /import \{ resolveRemoteColoringUri, resolveRemoteAudioSource \} from '\.\.\/hooks\/useResolvedStoryMedia'/.test(sb2b)
+        && /let baseImage = getColoringImage\(story\.id, cena\.id\);/.test(sb2b)
+        && /if \(remote\) baseImage = remote;/.test(sb2b)
+        && /let audioAsset = hasSceneAudio\(story\.id, slide\.sceneKey\)/.test(sb2b)
+        && /if \(remoteAudio\) audioAsset = remoteAudio;/.test(sb2b),
+      'Livrinho não roteia remoto pela camada permitida OU perdeu o fallback local (lineart/áudio)');
+
+    // 8) Regra dos hooks: um ÚNICO hook de pack no TOPO; a timeline recebe scenePackEntry como
+    //    PARÂMETRO (resolvers não-hook), nunca chama hook dentro de loop/map.
+    check('2B (regra dos hooks): scenePackEntry é o único hook de pack no topo; builders recebem por parâmetro',
+      /const scenePackEntry = useSandboxScenePackEntry\(story\?\.id\);/.test(sb2b)
+        && (sb2b.match(/useSandboxScenePackEntry\(/g) || []).length === 1
+        && /function buildStoryBookTimeline\(story, drawings, mode, scenePackEntry\)/.test(sb2b)
+        && /function resolveStoryBookPageImage\(cena, sceneNumber, story, drawings, mode, scenePackEntry\)/.test(sb2b),
+      'Livrinho pode ter hook em loop OU mais de um hook de pack (viola regra dos hooks)');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

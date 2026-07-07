@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useProgress } from '../hooks/useProgress';
+import { useStoryPackDownload } from '../hooks/useStoryPackDownload';
 import { hasSavedDrawing } from '../services/drawingStorage';
 import { preloadStorySceneIllustrations } from '../services/storyImageService';
 import { hasAccess } from '../services/accessControl';
@@ -64,6 +65,10 @@ export default function StoryDetailScreen({ route, navigation }) {
   const canAccess = hasAccess(story);
   // A0.10: sequência da jornada — só abre se a história ANTERIOR estiver journeyComplete.
   const sequenceUnlocked = isStorySequenceUnlocked(story.id);
+  // Fase 2B: estado de download do pack remoto vem do hook dedicado em src/hooks; a tela
+  // consome só esse hook e não acessa o runtime de conteúdo diretamente (guardrail preservado).
+  // O bloco de download só aparece p/ premium-active (canAccess) + história remote (hook.isRemote).
+  const packDownload = useStoryPackDownload(story.id);
 
   const [savedDrawings, setSavedDrawings] = useState({});
   const [quizDone, setQuizDone] = useState(false);
@@ -203,6 +208,32 @@ export default function StoryDetailScreen({ route, navigation }) {
             />
           </ContentContainer>
 
+          {/* ── Fase 2B: download de pack remoto (só premium-active + história remote) ── */}
+          {canAccess && packDownload.isRemote && !isComingSoon && (
+            <ContentContainer style={styles.downloadWrap}>
+              {packDownload.uiState === 'ready' ? (
+                <Text style={styles.downloadReady}>Baixado ✓ · funciona offline</Text>
+              ) : packDownload.uiState === 'downloading' ? (
+                <View style={styles.downloadBox}>
+                  <Text style={styles.downloadLabel}>Baixando… {Math.round(packDownload.progress * 100)}%</Text>
+                  <View style={styles.downloadTrack}>
+                    <View style={[styles.downloadFill, { width: `${Math.round(packDownload.progress * 100)}%` }]} />
+                  </View>
+                </View>
+              ) : (
+                <SoundButton
+                  style={styles.downloadBtn}
+                  onPress={packDownload.uiState === 'error' ? packDownload.retry : packDownload.download}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.downloadBtnText}>
+                    {packDownload.uiState === 'error' ? 'Não foi possível baixar. Tentar de novo' : 'Baixar história (usar offline)'}
+                  </Text>
+                </SoundButton>
+              )}
+            </ContentContainer>
+          )}
+
           {/* ── ENTRADA GUIADA PELO BENI ── */}
           {!isComingSoon && (
             <ContentContainer style={styles.beniWrap}>
@@ -322,6 +353,32 @@ const styles = StyleSheet.create({
   // A0.5 ajuste: botão mais elegante — largura capada e centralizada (não full-bleed,
   // não encosta nas bordas). Mantém alvo 56 e terracota (do BotaoPrimario).
   ctaBtn: { alignSelf: 'center', width: '100%', maxWidth: 340 },
+
+  // Fase 2B — bloco de download de pack remoto (premium-active + história remote).
+  // Ação secundária abaixo do CTA; acento azul-noite (mesmo tom da seção "completed").
+  downloadWrap: { marginHorizontal: 20, marginTop: 10, alignItems: 'center' },
+  downloadReady: {
+    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center',
+  },
+  downloadBox: { width: '100%', maxWidth: 340, alignSelf: 'center' },
+  downloadLabel: {
+    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
+    textAlign: 'center', marginBottom: 6,
+  },
+  downloadTrack: {
+    height: 8, borderRadius: 4, backgroundColor: pt.border, overflow: 'hidden',
+  },
+  downloadFill: { height: '100%', borderRadius: 4, backgroundColor: color.night600 },
+  downloadBtn: {
+    alignSelf: 'center', width: '100%', maxWidth: 340, alignItems: 'center',
+    paddingVertical: 12, paddingHorizontal: 20,
+    borderRadius: radii.pill, borderWidth: 1.5, borderColor: color.night600,
+    backgroundColor: 'transparent',
+  },
+  downloadBtnText: {
+    fontFamily: 'FredokaOne', fontSize: 15, color: color.night600, textAlign: 'center',
+  },
+
   beniWrap: { marginTop: 2 },
   beniEntry: { marginHorizontal: 16, marginTop: 14 },
   container: { flex: 1 },
