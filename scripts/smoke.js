@@ -12900,6 +12900,22 @@ check(
       R.needUpd  = validateGlobalContentManifest(base([mkPack({ requiredAppVersion: '2.0.0' })]), opt);
       R.found    = getPackFromGlobalManifest(R.valid.data, 'david_goliath');
       R.notFound = getPackFromGlobalManifest(R.valid.data, 'nope');
+
+      // Bloco 3 (tolerante por-pack): defeito de pack vira warning + exclui só ele; manifesto segue ok.
+      R.mixed    = validateGlobalContentManifest(base([mkPack(), mkPack({ id: 'story_x', storyId: 'unknown_story' })]), opt);
+      R.mixFound = R.mixed.ok ? getPackFromGlobalManifest(R.mixed.data, 'david_goliath') : null;
+      R.mixMiss  = R.mixed.ok ? getPackFromGlobalManifest(R.mixed.data, 'unknown_story') : null;
+      R.rootVer  = validateGlobalContentManifest({ manifestVersion: 2, generatedAt: '2026-07-04T00:00:00Z', minAppVersion: '1.0.0', packs: [mkPack()] }, opt);
+      R.rootArr  = validateGlobalContentManifest({ manifestVersion: 1, generatedAt: '2026-07-04T00:00:00Z', minAppVersion: '1.0.0', packs: 'nope' }, opt);
+      R.rootMin  = validateGlobalContentManifest({ manifestVersion: 1, generatedAt: '2026-07-04T00:00:00Z', packs: [mkPack()] }, opt);
+      // Dup storyId FATAL mesmo com defeito por-pack numa das entradas — as DUAS ordens:
+      R.dupDefA  = validateGlobalContentManifest(base([mkPack({ id: 'story_a', baseUrl: 'https://x.example.dev/packs/david_goliath/v1' }), mkPack({ id: 'story_b' })]), opt);
+      R.dupDefB  = validateGlobalContentManifest(base([mkPack({ id: 'story_a' }), mkPack({ id: 'story_b', baseUrl: 'https://x.example.dev/packs/david_goliath/v1' })]), opt);
+      // dup id FATAL mesmo com defeito por-pack (malformado 1º): storyIds distintos isolam o dup de id.
+      R.dupIdDef = validateGlobalContentManifest(base([mkPack({ id: 'story_dup', storyId: 'david_goliath', baseUrl: 'https://x.example.dev/packs/david_goliath/v1' }), mkPack({ id: 'story_dup', storyId: 'jesus_children' })]), opt);
+      R.noId     = validateGlobalContentManifest(base([mkPack({ id: '' })]), opt);
+      R.noStory  = validateGlobalContentManifest(base([mkPack({ storyId: '' })]), opt);
+      R.badGen   = validateGlobalContentManifest({ manifestVersion: 1, generatedAt: 'nope', minAppVersion: '1.0.0', packs: [mkPack()] }, opt);
     } catch (e) { R = { err: String((e && e.message) || e) }; }
 
     check('F2.4d.2: manifesto válido (david_goliath) passa',
@@ -12914,21 +12930,26 @@ check(
       !!R.dupStory && R.dupStory.ok === false && R.dupStory.errors.some((e) => /storyId: duplicado/.test(e)),
       R.err || 'duplicidade de storyId não rejeitada');
 
-    check('F2.4d.2: storyId desconhecido falha',
-      !!R.unknown && R.unknown.ok === false && R.unknown.errors.some((e) => /desconhecido/.test(e)),
-      R.err || 'storyId desconhecido não rejeitado');
+    // Bloco 3: defeito por-pack NÃO derruba o manifesto — exclui só o pack (ok:true + warning).
+    check('F2.4d.2 (Bloco 3): storyId desconhecido → excluído com warning, manifesto ok:true',
+      !!R.unknown && R.unknown.ok === true && R.unknown.data.packs.length === 0
+        && R.unknown.warnings.some((w) => /desconhecido/.test(w)),
+      R.err || 'storyId desconhecido deveria excluir o pack (warning) e manter ok:true');
 
-    check('F2.4d.2: baseUrl sem barra final falha',
-      !!R.noSlash && R.noSlash.ok === false && R.noSlash.errors.some((e) => /terminar com/.test(e)),
-      R.err || 'baseUrl sem barra não rejeitado');
+    check('F2.4d.2 (Bloco 3): baseUrl sem barra final → excluído com warning, ok:true',
+      !!R.noSlash && R.noSlash.ok === true && R.noSlash.data.packs.length === 0
+        && R.noSlash.warnings.some((w) => /terminar com/.test(w)),
+      R.err || 'baseUrl sem barra deveria excluir o pack (warning) e manter ok:true');
 
-    check('F2.4d.2: baseUrl http em produção falha (https exigido)',
-      !!R.httpProd && R.httpProd.ok === false && R.httpProd.errors.some((e) => /https/.test(e)),
-      R.err || 'http em produção não rejeitado');
+    check('F2.4d.2 (Bloco 3): baseUrl http em produção → excluído com warning, ok:true',
+      !!R.httpProd && R.httpProd.ok === true && R.httpProd.data.packs.length === 0
+        && R.httpProd.warnings.some((w) => /https/.test(w)),
+      R.err || 'http em produção deveria excluir o pack (warning) e manter ok:true');
 
-    check('F2.4d.2: mediaKind inválido falha',
-      !!R.badKind && R.badKind.ok === false && R.badKind.errors.some((e) => /mediaKinds/.test(e)),
-      R.err || 'mediaKind inválido não rejeitado');
+    check('F2.4d.2 (Bloco 3): mediaKind inválido → excluído com warning, ok:true',
+      !!R.badKind && R.badKind.ok === true && R.badKind.data.packs.length === 0
+        && R.badKind.warnings.some((w) => /mediaKinds/.test(w)),
+      R.err || 'mediaKind inválido deveria excluir o pack (warning) e manter ok:true');
 
     check('F2.4d.2: requiredAppVersion > appVersion → requires_app_update sem quebrar schema',
       !!R.needUpd && R.needUpd.ok === true
@@ -12940,6 +12961,46 @@ check(
       !!R.found && R.found.ok === true && R.found.data && R.found.data.storyId === 'david_goliath'
         && !!R.notFound && R.notFound.ok === false,
       R.err || 'getPackFromGlobalManifest não resolveu corretamente');
+
+    // ── Bloco 3: manifesto global tolerante por pack ──
+    check('F2.4d.2 (Bloco 3): MISTO (1 válido + 1 desconhecido) → ok:true com só o válido',
+      !!R.mixed && R.mixed.ok === true && R.mixed.data.packs.length === 1
+        && R.mixed.data.packs[0].storyId === 'david_goliath' && R.mixed.warnings.some((w) => /desconhecido/.test(w)),
+      R.err || 'manifesto misto deveria manter o pack válido e excluir o desconhecido');
+
+    check('F2.4d.2 (Bloco 3): consumidor sobre o subconjunto — acha o válido, não acha o excluído',
+      !!R.mixFound && R.mixFound.ok === true && R.mixFound.data.storyId === 'david_goliath'
+        && !!R.mixMiss && R.mixMiss.ok === false,
+      R.err || 'getPackFromGlobalManifest deveria achar david_goliath e não achar unknown_story no misto');
+
+    check('F2.4d.2 (Bloco 3): RAIZ fatal — manifestVersion/packs/minAppVersion → ok:false, data:null',
+      !!R.rootVer && R.rootVer.ok === false && R.rootVer.data === null && R.rootVer.errors.some((e) => /manifestVersion/.test(e))
+        && !!R.rootArr && R.rootArr.ok === false && R.rootArr.errors.some((e) => /packs/.test(e))
+        && !!R.rootMin && R.rootMin.ok === false && R.rootMin.errors.some((e) => /minAppVersion/.test(e)),
+      R.err || 'erro de raiz deveria ser fatal (ok:false, data:null)');
+
+    check('F2.4d.2 (Bloco 3): dup storyId FATAL mesmo com defeito por-pack — as duas ordens',
+      !!R.dupDefA && R.dupDefA.ok === false && R.dupDefA.errors.some((e) => /storyId: duplicado/.test(e))
+        && !!R.dupDefB && R.dupDefB.ok === false && R.dupDefB.errors.some((e) => /storyId: duplicado/.test(e)),
+      R.err || 'dup storyId deveria ser fatal mesmo quando uma entrada tem defeito por-pack (ambas as ordens)');
+
+    check('F2.4d.2 (Bloco 3): dup id FATAL mesmo com defeito por-pack (malformado primeiro)',
+      !!R.dupIdDef && R.dupIdDef.ok === false && R.dupIdDef.errors.some((e) => /id: duplicado/.test(e)),
+      R.err || 'dup id deveria ser fatal mesmo quando a 1ª entrada duplicada tem defeito por-pack');
+
+    check('F2.4d.2 (Bloco 3): pack sem id/sem storyId → excluído com warning, ok:true',
+      !!R.noId && R.noId.ok === true && R.noId.data.packs.length === 0
+        && !!R.noStory && R.noStory.ok === true && R.noStory.data.packs.length === 0,
+      R.err || 'pack sem id/storyId deveria ser excluído (warning) e manter ok:true');
+
+    check('F2.4d.2 (Bloco 3): subconjunto vazio ainda é ok:true (único pack inválido)',
+      !!R.unknown && R.unknown.ok === true && R.unknown.data.packs.length === 0 && R.unknown.warnings.length > 0,
+      R.err || 'único pack inválido deveria dar ok:true com packs vazio e warning');
+
+    check('F2.4d.2 (Bloco 3): generatedAt inválido NÃO é fatal (no máximo warning)',
+      !!R.badGen && R.badGen.ok === true && R.badGen.data.packs.length === 1
+        && R.badGen.warnings.some((w) => /generatedAt/.test(w)),
+      R.err || 'generatedAt inválido não deveria derrubar o manifesto');
   }
 
   // ── F2.4d.3: downloader genérico por storyId (via manifesto global, só cenas) ──

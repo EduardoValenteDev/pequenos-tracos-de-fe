@@ -46,14 +46,18 @@ lançam** — sempre retorno estruturado.
 
 ## 6. Verificação (smoke — execução real em sandbox)
 
-12 checks `[1526]–[1537]`, incluindo **round-trip real** do módulo (validador rodado contra
-fixtures): manifesto válido passa; duplicidade de `id` falha; duplicidade de `storyId` falha;
-`storyId` desconhecido falha; `baseUrl` sem barra falha; `baseUrl` http em produção falha;
-`mediaKind` inválido falha; `requiredAppVersion` alto → `requires_app_update`/warning sem
-erro de schema; `getPackFromGlobalManifest` encontra `david_goliath` e reporta erro para
-ausente; e a garantia **read-only** (código sem storage/resolver/download).
+Bloco F2.4d.2 com **round-trip real** do módulo (validador rodado contra fixtures). Comportamento
+**tolerante por-pack (Bloco 3)**: manifesto válido passa; `id`/`storyId` **duplicado** é fatal (incl.
+quando uma das entradas também tem defeito por-pack — testado nas **duas ordens**); erros de **raiz**
+(`manifestVersion`/`minAppVersion`/`packs`) são fatais (`data:null`); **defeitos de pack** (`storyId`
+desconhecido, `baseUrl` sem barra, `baseUrl` http em produção, `mediaKind` inválido, `id`/`storyId`
+ausente) **excluem só o pack com warning** e mantêm **`ok:true`**; **manifesto misto** (1 válido + 1
+desconhecido) mantém o válido; **subconjunto vazio** ainda é `ok:true`; `generatedAt` inválido é
+**warning** (não fatal); `requiredAppVersion` alto → `requires_app_update`/warning; `getPackFromGlobalManifest`
+encontra `david_goliath` e reporta erro para ausente (inclusive sobre o subconjunto do misto); e a
+garantia **read-only** (código sem storage/resolver/download).
 
-**Gates:** smoke **1537/1537** ✓ · expo-doctor **18/18** ✓ · audio **200/200** ✓.
+**Gates:** smoke **1811/1811** ✓ · expo-doctor **18/18** ✓.
 
 ## 7. Limitações
 

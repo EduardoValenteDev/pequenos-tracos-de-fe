@@ -122,10 +122,14 @@ retornando sempre um resultado estruturado `{ ok: boolean, errors: string[], dat
 13. **duplicidade de `storyId`** deve ser **rejeitada**.
 14. **duplicidade de `id`** deve ser **rejeitada**.
 
-> Observação: um pack inválido **não** deve derrubar o índice inteiro — o serviço deve
-> **isolar** o pack com erro (reportar em `errors`) e ainda permitir usar os packs válidos,
-> a decidir na implementação (F2.4d.2). O contrato exige apenas que erros sejam **estruturados
-> e não lançados**.
+> **Isolamento por-pack (decidido no Bloco 3 — Manifesto global tolerante):** um pack inválido
+> **não** derruba o índice inteiro. Um **defeito interno de pack** (incl. `id`/`storyId` ausente/inválido,
+> `storyId` desconhecido, `baseUrl`/`version`/`mediaKinds`/etc. malformados) vira **warning** e **exclui só
+> aquele pack**, mantendo o manifesto **`ok:true`** com o subconjunto válido (subconjunto vazio ainda é `ok:true`).
+> São **fatais** (`ok:false`, `data:null`) apenas: erros de **raiz** (`manifestVersion`, `minAppVersion`, `packs`
+> não-array, manifesto não-objeto) e **integridade cruzada** — `id` **ou** `storyId` **duplicado** entre packs
+> identificáveis (fatal mesmo quando uma das entradas duplicadas também tem defeito por-pack). `generatedAt`
+> ausente/inválido é **no máximo warning**. Erros continuam **estruturados e não lançados**.
 
 ---
 

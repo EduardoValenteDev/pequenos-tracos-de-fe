@@ -76,7 +76,8 @@ export function validateGlobalContentManifest(rawManifest, options = {}) {
   if (rawManifest.manifestVersion !== GLOBAL_MANIFEST_VERSION) {
     errors.push(`manifestVersion: deve ser ${GLOBAL_MANIFEST_VERSION}`);
   }
-  if (!isValidISO(rawManifest.generatedAt)) errors.push('generatedAt: string ISO válida obrigatória');
+  // generatedAt não é fatal (decisão Bloco 3): ausente/inválido → no máximo warning.
+  if (!isValidISO(rawManifest.generatedAt)) warnings.push('generatedAt: string ISO inválida ou ausente — ignorado (não fatal)');
   if (!isNonEmptyString(rawManifest.minAppVersion) || !SEMVER.test(rawManifest.minAppVersion)) {
     errors.push('minAppVersion: semver x.y.z obrigatório');
   }
@@ -95,66 +96,84 @@ export function validateGlobalContentManifest(rawManifest, options = {}) {
   const seenStoryIds = new Set();
   const outPacks = [];
 
+  // Validação TOLERANTE por-pack (Bloco 3): um defeito INTERNO de pack vira warning e
+  // EXCLUI só aquele pack, mantendo o manifesto ok:true com o subconjunto válido. Só
+  // erros de RAIZ (acima) e de INTEGRIDADE CRUZADA (id/storyId duplicado) são fatais.
   rawManifest.packs.forEach((p, i) => {
     const at = `packs[${i}]`;
-    if (!p || typeof p !== 'object' || Array.isArray(p)) { errors.push(`${at}: deve ser objeto`); return; }
+    // Pack não-objeto: não identificável → exclui com warning (não derruba o manifesto).
+    if (!p || typeof p !== 'object' || Array.isArray(p)) { warnings.push(`${at}: deve ser objeto — pack excluído`); return; }
 
-    if (!isNonEmptyString(p.id)) errors.push(`${at}.id: string obrigatória`);
+    // Defeitos POR-PACK (excluem só este pack). id/storyId DUPLICADO é integridade
+    // cruzada → vai para `errors` (FATAL). O registro em seen* ocorre para TODO id/storyId
+    // válido ANTES da decisão de exclusão, para que um duplicado seja fatal mesmo que este
+    // pack também tenha outro defeito por-pack (ajuste de precisão F2.4d.1 §5).
+    const packDefects = [];
+
+    if (!isNonEmptyString(p.id)) packDefects.push(`${at}.id: string obrigatória`);
     else if (seenIds.has(p.id)) errors.push(`${at}.id: duplicado (${p.id})`);
     else seenIds.add(p.id);
 
     if (!isNonEmptyString(p.storyId)) {
-      errors.push(`${at}.storyId: string obrigatória`);
+      packDefects.push(`${at}.storyId: string obrigatória`);
+    } else if (seenStoryIds.has(p.storyId)) {
+      errors.push(`${at}.storyId: duplicado (${p.storyId})`);
     } else {
-      if (seenStoryIds.has(p.storyId)) errors.push(`${at}.storyId: duplicado (${p.storyId})`);
-      else seenStoryIds.add(p.storyId);
-      if (!knownStoryIds.has(p.storyId)) errors.push(`${at}.storyId: desconhecido pelo app (${p.storyId})`);
+      seenStoryIds.add(p.storyId);
+      if (!knownStoryIds.has(p.storyId)) packDefects.push(`${at}.storyId: desconhecido pelo app (${p.storyId})`);
     }
 
-    if (!isNonEmptyString(p.version) || !SEMVER.test(p.version)) errors.push(`${at}.version: semver x.y.z`);
-    if (!KNOWN_PACK_TYPES.includes(p.type)) errors.push(`${at}.type: deve ser ${KNOWN_PACK_TYPES.join('|')}`);
-    if (!KNOWN_ACCESS.includes(p.access)) errors.push(`${at}.access: deve ser ${KNOWN_ACCESS.join('|')}`);
-    if (!isNonEmptyString(p.title)) errors.push(`${at}.title: string não vazia`);
-    if (!isPositiveInt(p.bytes)) errors.push(`${at}.bytes: inteiro positivo`);
+    if (!isNonEmptyString(p.version) || !SEMVER.test(p.version)) packDefects.push(`${at}.version: semver x.y.z`);
+    if (!KNOWN_PACK_TYPES.includes(p.type)) packDefects.push(`${at}.type: deve ser ${KNOWN_PACK_TYPES.join('|')}`);
+    if (!KNOWN_ACCESS.includes(p.access)) packDefects.push(`${at}.access: deve ser ${KNOWN_ACCESS.join('|')}`);
+    if (!isNonEmptyString(p.title)) packDefects.push(`${at}.title: string não vazia`);
+    if (!isPositiveInt(p.bytes)) packDefects.push(`${at}.bytes: inteiro positivo`);
 
     if (!isNonEmptyString(p.baseUrl)) {
-      errors.push(`${at}.baseUrl: string obrigatória`);
+      packDefects.push(`${at}.baseUrl: string obrigatória`);
     } else {
-      if (!p.baseUrl.endsWith('/')) errors.push(`${at}.baseUrl: deve terminar com '/'`);
+      if (!p.baseUrl.endsWith('/')) packDefects.push(`${at}.baseUrl: deve terminar com '/'`);
       const isHttps = /^https:\/\//.test(p.baseUrl);
       const isHttp = /^http:\/\//.test(p.baseUrl);
       if (!isHttps && !(allowHttp && isHttp)) {
-        errors.push(`${at}.baseUrl: deve usar https://${allowHttp ? ' (ou http:// em dev)' : ' em produção'}`);
+        packDefects.push(`${at}.baseUrl: deve usar https://${allowHttp ? ' (ou http:// em dev)' : ' em produção'}`);
       }
     }
 
-    if (p.manifestPath !== 'manifest.json') errors.push(`${at}.manifestPath: deve ser "manifest.json"`);
+    if (p.manifestPath !== 'manifest.json') packDefects.push(`${at}.manifestPath: deve ser "manifest.json"`);
 
     if (p.manifestSha256 != null && !(isNonEmptyString(p.manifestSha256) && SHA256.test(p.manifestSha256))) {
-      errors.push(`${at}.manifestSha256: hex de 64 caracteres (ou ausente)`);
+      packDefects.push(`${at}.manifestSha256: hex de 64 caracteres (ou ausente)`);
     }
 
     if (!isNonEmptyString(p.requiredAppVersion) || !SEMVER.test(p.requiredAppVersion)) {
-      errors.push(`${at}.requiredAppVersion: semver x.y.z`);
+      packDefects.push(`${at}.requiredAppVersion: semver x.y.z`);
     }
 
     if (!Array.isArray(p.mediaKinds) || p.mediaKinds.length === 0) {
-      errors.push(`${at}.mediaKinds: array não vazio`);
+      packDefects.push(`${at}.mediaKinds: array não vazio`);
     } else {
       const bad = p.mediaKinds.filter((k) => !KNOWN_MEDIA_KINDS.includes(k));
-      if (bad.length) errors.push(`${at}.mediaKinds: valores inválidos (${bad.join(',')})`);
+      if (bad.length) packDefects.push(`${at}.mediaKinds: valores inválidos (${bad.join(',')})`);
     }
 
-    if (p.status != null && !KNOWN_STATUS.includes(p.status)) errors.push(`${at}.status: valor inesperado (${p.status})`);
+    if (p.status != null && !KNOWN_STATUS.includes(p.status)) packDefects.push(`${at}.status: valor inesperado (${p.status})`);
 
-    // requiredAppVersion > appVersion → NÃO é erro de schema; sinaliza requires_app_update.
+    // requiredAppVersion > appVersion → NÃO é defeito; sinaliza requires_app_update (soft).
     let requiresAppUpdate = false;
     if (appVersion && isNonEmptyString(p.requiredAppVersion) && SEMVER.test(p.requiredAppVersion)
         && cmpSemver(p.requiredAppVersion, appVersion) > 0) {
       requiresAppUpdate = true;
-      warnings.push(`${at}: requiredAppVersion (${p.requiredAppVersion}) > appVersion (${appVersion}) → requires_app_update`);
     }
 
+    // Defeito por-pack → EXCLUI só este pack (warning); o manifesto segue válido.
+    if (packDefects.length) {
+      warnings.push(`${at}: pack excluído — ${packDefects.join('; ')}`);
+      return;
+    }
+    if (requiresAppUpdate) {
+      warnings.push(`${at}: requiredAppVersion (${p.requiredAppVersion}) > appVersion (${appVersion}) → requires_app_update`);
+    }
     outPacks.push({ ...p, requiresAppUpdate });
   });
 
