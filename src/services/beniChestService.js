@@ -10,6 +10,7 @@
  * Única dependência: resolvers de imagem já existentes (assets locais).
  */
 import { getOfficialSceneIllustration, getStoryCoverImage } from './storyImageService';
+import { recomposeBlobUri, currentBlobsRoot } from './fileBlobStore';
 
 const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
@@ -68,7 +69,8 @@ export const CARD_FALLBACK = {
  */
 export function resolveCardImageSource(card) {
   if (!card) return null;
-  if (typeof card.uri === 'string' && card.uri) return { uri: card.uri };
+  // Boundary B: recompõe file:// absoluto de blob p/ o documentDirectory atual (no-op p/ data URL/externo).
+  if (typeof card.uri === 'string' && card.uri) return { uri: recomposeBlobUri(card.uri, currentBlobsRoot()) };
   const img = card.image;
   if (img == null) return null;
   if (typeof img === 'number') return img;            // require do Metro

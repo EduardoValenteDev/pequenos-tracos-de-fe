@@ -33,6 +33,11 @@ function blobsRoot() {
   return doc + ROOT_DIRNAME + '/';
 }
 
+/** Raiz ATUAL dos blobs (documentDirectory + 'ptf_blobs/'), ou null. Wrapper fino de blobsRoot(). */
+export function currentBlobsRoot() {
+  return blobsRoot();
+}
+
 // ── Helpers puros (sem dependência nativa — testáveis isoladamente) ────────────
 
 /** true se a string é um data URL base64 ('data:...;base64,...'). */
@@ -67,6 +72,27 @@ export function toDataUrl(base64, mime = 'image/png') {
 /** Sanitiza um id para nome de arquivo seguro (somente [A-Za-z0-9_-]). */
 export function safeName(id) {
   return String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+/**
+ * Recompõe uma URI de blob file:// ABSOLUTA (que embute um documentDirectory antigo,
+ * ex.: container iOS após restore) para a raiz de blobs ATUAL. PURO e param-based —
+ * sem I/O, sem escrita, sem getInfoAsync. Não muda o formato do ponteiro v3.
+ *   - não-string → inalterado
+ *   - data URL   → inalterado
+ *   - file:// FORA de 'ptf_blobs/' → inalterado
+ *   - file:// dentro de 'ptf_blobs/' → currentBlobsRoot + (sufixo após 'ptf_blobs/')
+ *   - currentBlobsRoot ausente → inalterado
+ * Idempotente: recompor o já-atual devolve o mesmo valor (no-op quando o container não mudou).
+ */
+export function recomposeBlobUri(oldUri, currentBlobsRoot) {
+  if (typeof oldUri !== 'string') return oldUri;
+  if (oldUri.startsWith('data:')) return oldUri;
+  const marker = ROOT_DIRNAME + '/';
+  const i = oldUri.indexOf(marker);
+  if (i < 0) return oldUri;
+  if (!currentBlobsRoot) return oldUri;
+  return currentBlobsRoot + oldUri.slice(i + marker.length);
 }
 
 // ── Operações de FileSystem (async, nativas) ───────────────────────────────────
@@ -127,9 +153,19 @@ export async function writeBlob(subdir, filename, dataUrlOrBase64, mimeHint) {
 export async function readBlobAsDataUrl(uri, mime = 'image/png') {
   if (!isFileUri(uri)) return null;
   try {
-    const info = await FileSystem.getInfoAsync(uri);
-    if (!info.exists) return null;
-    const base64 = await FileSystem.readAsStringAsync(uri, {
+    // Boundary A: tenta o URI ANTIGO primeiro; se o arquivo não existe (ex.: o
+    // container iOS mudou de UUID após restore/update), recompõe pelo
+    // documentDirectory ATUAL e tenta de novo. Só LÊ — nunca grava/apaga/migra.
+    let target = uri;
+    let info = await FileSystem.getInfoAsync(target);
+    if (!info || !info.exists) {
+      const recomposed = recomposeBlobUri(uri, currentBlobsRoot());
+      if (recomposed === uri) return null;
+      info = await FileSystem.getInfoAsync(recomposed);
+      if (!info || !info.exists) return null;
+      target = recomposed;
+    }
+    const base64 = await FileSystem.readAsStringAsync(target, {
       encoding: FileSystem.EncodingType.Base64,
     });
     return toDataUrl(base64, mime);

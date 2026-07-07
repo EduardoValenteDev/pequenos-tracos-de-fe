@@ -16,6 +16,7 @@ import { getSceneIllustrationAsset, STORY_SCENE_ILLUSTRATIONS } from '../data/st
 import { getColoringImage } from '../assets/coloringImages';
 import { getStoryCover } from '../assets/storyCovers';
 import { Asset } from 'expo-asset';
+import { recomposeBlobUri, currentBlobsRoot } from './fileBlobStore';
 
 /** Ilustração oficial da cena (ou null se ainda não existir). */
 export function getOfficialSceneIllustration(storyId, sceneId) {
@@ -72,12 +73,13 @@ export function getBestSceneVisual(storyId, sceneId) {
 export function getBookPageImageSource({ storyId, sceneId, childArt } = {}) {
   // 1. Arte da criança
   if (childArt) {
-    if (typeof childArt === 'string' && childArt.length > 0) return { uri: childArt };
-    if (childArt.previewUri) return { uri: childArt.previewUri };
-    if (childArt.thumbnailUri) return { uri: childArt.thumbnailUri };
-    if (childArt.previewBase64) return { uri: childArt.previewBase64 };
-    if (childArt.thumbnailBase64) return { uri: childArt.thumbnailBase64 };
-    if (childArt.uri) return { uri: childArt.uri };
+    // Boundary B: mesma precedência de antes; recompõe file:// absoluto de blob p/ o
+    // documentDirectory atual (eager, síncrono; no-op p/ data URL e file:// externo).
+    const raw = (typeof childArt === 'string' && childArt.length > 0)
+      ? childArt
+      : (childArt.previewUri || childArt.thumbnailUri
+         || childArt.previewBase64 || childArt.thumbnailBase64 || childArt.uri || null);
+    if (raw) return { uri: recomposeBlobUri(raw, currentBlobsRoot()) };
   }
   // 2. Ilustração oficial → 3. capa → 4. null
   return getBestSceneVisual(storyId, sceneId);

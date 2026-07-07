@@ -10454,6 +10454,10 @@ check(
       files,
       deps: {
         safeName, isDataUrl, dataUrlMime,
+        // Bloco 1: atelierStorage/beniChest/storyImage passaram a importar estes de fileBlobStore.
+        // Nos testes A5 as URIs do mock NÃO estão sob 'ptf_blobs/', então recompor é no-op (passthrough).
+        recomposeBlobUri: (u) => u,
+        currentBlobsRoot: () => 'file:///mock/ptf_blobs/',
         writeBlob: async (subdir, filename, dataUrlOrBase64, mimeHint) => {
           if (!dataUrlOrBase64) return null;
           const mime = mimeHint || dataUrlMime(dataUrlOrBase64);
@@ -10572,6 +10576,97 @@ check(
       `fallback=${fallbackPreview} n1=${n1} moved=${moved} n2=${n2}`);
   } catch (e) {
     check('A5 atelier: migração idempotente + fallback', false, String(e && e.message));
+  }
+
+  // ── Bloco 1: recomposeBlobUri + Boundary A/B (persistência file:// no iOS) ─────
+  console.log('\n── Bloco 1: recomposição de file:// absoluto de blobs ──');
+  {
+    // fileBlobStore REAL com FileSystem mockado (documentDirectory MUTÁVEL + files Map).
+    const fsState = { doc: 'file:///A/', files: new Map(), calls: { getInfo: 0, del: 0, write: 0 } };
+    const FS = {
+      get documentDirectory() { return fsState.doc; },
+      EncodingType: { Base64: 'base64' },
+      getInfoAsync: async (uri) => { fsState.calls.getInfo++; return { exists: fsState.files.has(uri) }; },
+      readAsStringAsync: async (uri) => { const v = fsState.files.get(uri); if (v == null) throw new Error('no file'); return v; },
+      writeAsStringAsync: async (uri, b64) => { fsState.calls.write++; fsState.files.set(uri, b64); },
+      makeDirectoryAsync: async () => {},
+      deleteAsync: async (uri) => { fsState.calls.del++; fsState.files.delete(uri); },
+    };
+    let fbs;
+    try {
+      fbs = a1LoadSandbox('src/services/fileBlobStore.js', { FileSystem: FS, log: () => {} },
+        ['recomposeBlobUri', 'currentBlobsRoot', 'readBlobAsDataUrl']);
+    } catch (e) { fbs = { __err: String(e && e.message) }; }
+    const R = fbs.recomposeBlobUri;
+
+    // T1 — helper puro (param-based): preserva não-string/data URL/externo; recompõe; idempotente; no-op.
+    check('Bloco1: recomposeBlobUri puro (não-string/data URL/file externo inalterados; ptf_blobs recompõe; idempotente; no-op; sem root inalterado)',
+      !fbs.__err && typeof R === 'function'
+        && R(null, 'file:///B/ptf_blobs/') === null
+        && R(123, 'file:///B/ptf_blobs/') === 123
+        && R('data:image/png;base64,ZZ', 'file:///B/ptf_blobs/') === 'data:image/png;base64,ZZ'
+        && R('file:///X/outro/foo.png', 'file:///B/ptf_blobs/') === 'file:///X/outro/foo.png'
+        && R('file:///A/ptf_blobs/atelier/x.jpg', 'file:///B/ptf_blobs/') === 'file:///B/ptf_blobs/atelier/x.jpg'
+        && R(R('file:///A/ptf_blobs/atelier/x.jpg', 'file:///B/ptf_blobs/'), 'file:///B/ptf_blobs/') === 'file:///B/ptf_blobs/atelier/x.jpg'
+        && R('file:///B/ptf_blobs/atelier/x.jpg', 'file:///B/ptf_blobs/') === 'file:///B/ptf_blobs/atelier/x.jpg'
+        && R('file:///A/ptf_blobs/d/x.png', null) === 'file:///A/ptf_blobs/d/x.png',
+      fbs.__err || 'recomposeBlobUri incorreto');
+
+    // T2 — Boundary A: tenta antigo; se ausente recompõe e tenta o recomposto; senão null.
+    let a = false, b = false, c = false;
+    try {
+      fsState.doc = 'file:///A/'; fsState.files.clear(); fsState.calls.getInfo = 0;
+      fsState.files.set('file:///A/ptf_blobs/drawings/x.png', 'AAAA');
+      const ra = await fbs.readBlobAsDataUrl('file:///A/ptf_blobs/drawings/x.png');
+      a = ra === 'data:image/png;base64,AAAA' && fsState.calls.getInfo === 1;   // antigo existe → 1 getInfo, sem recompor
+      fsState.doc = 'file:///B/'; fsState.files.clear(); fsState.calls.getInfo = 0;
+      fsState.files.set('file:///B/ptf_blobs/drawings/x.png', 'BBBB');           // arquivo moveu com o container
+      const rb = await fbs.readBlobAsDataUrl('file:///A/ptf_blobs/drawings/x.png'); // ponteiro antigo (container velho)
+      b = rb === 'data:image/png;base64,BBBB' && fsState.calls.getInfo === 2;   // antigo(false) + recomposto(true)
+      fsState.files.clear();
+      c = (await fbs.readBlobAsDataUrl('file:///A/ptf_blobs/drawings/gone.png')) === null;
+    } catch (e) { /* a/b/c ficam false */ }
+    check('Bloco1: Boundary A readBlobAsDataUrl (antigo→lê; ausente→recompõe+lê; ambos ausentes→null; ordem antigo→recompor)',
+      a && b && c, fbs.__err || `a=${a} b=${b} c=${c}`);
+
+    // T5 (não-mutação em leitura): readBlobAsDataUrl não grava nem apaga arquivo.
+    check('Bloco1: leitura NÃO muta — readBlobAsDataUrl sem writeAsStringAsync/deleteAsync',
+      !fbs.__err && fsState.calls.write === 0 && fsState.calls.del === 0,
+      `write=${fsState.calls.write} del=${fsState.calls.del}`);
+
+    // T3 — Boundary B (atelierStorage): eager + síncrono, com o recomposeBlobUri REAL; spies de não-mutação.
+    const spies = { set: 0, rem: 0, del: 0 };
+    let bRet = false, bSync = false, bData = false;
+    try {
+      const at = a1LoadSandbox('src/services/atelierStorage.js', {
+        AsyncStorage: { setItem: () => { spies.set++; return Promise.resolve(); },
+                        removeItem: () => { spies.rem++; return Promise.resolve(); },
+                        getItem: () => Promise.resolve(null) },
+        log: () => {}, writeBlob: async () => null, deleteBlob: async () => { spies.del++; }, safeName: (id) => String(id),
+        recomposeBlobUri: fbs.recomposeBlobUri, currentBlobsRoot: () => 'file:///B/ptf_blobs/',
+      }, ['resolveArtPreviewUri', 'resolveArtThumbUri']);
+      const out = at.resolveArtPreviewUri({ previewUri: 'file:///A/ptf_blobs/atelier/p.jpg' });
+      bRet = out === 'file:///B/ptf_blobs/atelier/p.jpg';
+      bSync = typeof out === 'string' && typeof (out && out.then) !== 'function';   // string, não Promise
+      bData = at.resolveArtPreviewUri({ previewBase64: 'data:image/jpeg;base64,ZZ' }) === 'data:image/jpeg;base64,ZZ'
+        && at.resolveArtThumbUri({ thumbnailUri: 'file:///A/ptf_blobs/atelier/t.jpg' }) === 'file:///B/ptf_blobs/atelier/t.jpg';
+    } catch (e) { /* bRet fica false */ }
+    check('Bloco1: Boundary B atelier — recompõe eager+SÍNCRONO, preserva data URL, sem setItem/removeItem/deleteBlob',
+      bRet && bSync && bData && spies.set === 0 && spies.rem === 0 && spies.del === 0,
+      `ret=${bRet} sync=${bSync} data=${bData} spies=${JSON.stringify(spies)}`);
+
+    // T8 — drawingStorage delega a readBlobAsDataUrl e NÃO recompõe sozinho (coberto por Boundary A).
+    const dsSrc = readSrc('src/services/drawingStorage.js');
+    check('Bloco1: drawingStorage delega a readBlobAsDataUrl e NÃO recompõe sozinho (coberto por Boundary A)',
+      /readBlobAsDataUrl\(p\.uri/.test(dsSrc) && !/recomposeBlobUri/.test(dsSrc),
+      'drawingStorage não delega OU passou a recompor sozinho (fora do escopo do Bloco 1)');
+
+    // Escopo Boundary B: os 3 services aplicam o helper.
+    check('Bloco1: Boundary B aplicado em atelierStorage/beniChestService/storyImageService',
+      /recomposeBlobUri/.test(readSrc('src/services/atelierStorage.js'))
+        && /recomposeBlobUri/.test(readSrc('src/services/beniChestService.js'))
+        && /recomposeBlobUri/.test(readSrc('src/services/storyImageService.js')),
+      'algum Boundary B não aplica recomposeBlobUri');
   }
 
   // ── A6 (comportamental): accessControl free + invariante de conquista ────────

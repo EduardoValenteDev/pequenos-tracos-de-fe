@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { log } from '../utils/logger';
-import { writeBlob, deleteBlob, safeName } from './fileBlobStore';
+import { writeBlob, deleteBlob, safeName, recomposeBlobUri, currentBlobsRoot } from './fileBlobStore';
 
 export const ATELIER_FREE_SAVE_LIMIT = 3;
 
@@ -29,7 +29,9 @@ function thumbFileName(id) {
  */
 export function resolveArtPreviewUri(full) {
   if (!full) return null;
-  return full.previewUri || full.previewBase64 || null;
+  // Boundary B: recompõe file:// absoluto de blob p/ o documentDirectory atual (eager,
+  // síncrono, idempotente). No-op p/ data URL (previewBase64) e file:// fora de ptf_blobs.
+  return recomposeBlobUri(full.previewUri || full.previewBase64 || null, currentBlobsRoot());
 }
 
 /**
@@ -38,7 +40,7 @@ export function resolveArtPreviewUri(full) {
  */
 export function resolveArtThumbUri(meta) {
   if (!meta) return null;
-  return meta.thumbnailUri || meta.thumbnailBase64 || null;
+  return recomposeBlobUri(meta.thumbnailUri || meta.thumbnailBase64 || null, currentBlobsRoot());
 }
 
 /** Returns array of art metadata objects (id, title, createdAt, thumbnailUri|thumbnailBase64). */
