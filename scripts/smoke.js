@@ -14998,7 +14998,7 @@ check(
 
     // Service: consome a policy, mapeia !==premium→free, now on-demand, try/catch fail-closed.
     check('2B.7.2 (service): consome decideEntitlement; !==premium→free; now on-demand; try/catch',
-      /import \{ decideEntitlement \} from '\.\/entitlementPolicy'/.test(svcSrc72)
+      /import \{ decideEntitlement[^}]*\} from '\.\/entitlementPolicy'/.test(svcSrc72)
         && /decision === 'premium' \? 'premium' : 'free'/.test(svcSrc72)
         && /now: Date\.now\(\)/.test(svcSrc72)
         && /try \{[\s\S]{0,500}catch[\s\S]{0,160}_snapshot = \{ loaded: false \}/.test(svcSrc72),
@@ -15038,22 +15038,167 @@ check(
     check('2B.7.2 (fail-closed): storage vazio/inválido/malformado/{plan:premium} → free, nunca premium, sem lançar',
       failClosedOk, 'loadEntitlement liberou premium OU lançou com storage vazio/inválido/malformado');
 
-    // Telas/App.js intocados: nenhuma src/screens nem App.js consome entitlement.
-    check('2B.7.2 (telas/App.js intocados): nenhuma src/screens nem App.js importa entitlementService/Policy',
+    // Telas intocadas: nenhuma src/screens consome entitlement. (App.js: a partir da 2B.7.3
+    // importa initEntitlement para o boot — coberto pelo check 2B.7.3, não mais aqui.)
+    check('2B.7.2 (telas intocadas): nenhuma src/screens importa entitlementService/Policy/Source',
       (() => {
         const scr = path.join(root, 'src', 'screens');
         const files = fs.existsSync(scr) ? fs.readdirSync(scr).filter((f) => f.endsWith('.js')) : [];
-        const screensClean = !files.some((f) => /entitlement(Service|Policy)/.test(fs.readFileSync(path.join(scr, f), 'utf8')));
-        const appClean = !srcExists('App.js') || !/entitlement(Service|Policy)|loadEntitlement/.test(readSrc('App.js'));
-        return screensClean && appClean;
+        return !files.some((f) => /entitlement(Service|Policy|Source)/.test(fs.readFileSync(path.join(scr, f), 'utf8')));
       })(),
-      'uma tela ou App.js passou a consumir entitlement (proibido nesta fase)');
+      'uma tela passou a consumir entitlement (proibido)');
 
     // Chave registrada + 2C não iniciada.
     check('2B.7.2 (chave + 2C): storageKeys tem ENTITLEMENT @ptf_entitlement_v1; app.json sem assetBundlePatterns',
       /ENTITLEMENT:\s*'@ptf_entitlement_v1'/.test(readSrc('src/services/storageKeys.js'))
         && !/assetBundlePatterns/.test(readSrc('app.json')),
       'chave de entitlement ausente OU 2C iniciada (assetBundlePatterns em app.json)');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Fase 2B.7.3 — fonte real (port `entitlementSource`) + persistência sanitizada +
+  // boot controlado + refresh conservador por AppState. Tudo fail-closed; fonte = stub → free.
+  // Service carregado isolado (policy real + mocks de fonte/storage/AppState).
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Fase 2B.7.3: fonte real (port) + boot + refresh ──');
+  {
+    const DAY = 86400000; const NOW = Date.now();
+    const srcSrc73 = readSrc('src/services/entitlementSource.js');
+    const svcSrc73 = readSrc('src/services/entitlementService.js');
+
+    // D1 — port + stub.
+    check('2B.7.3 (port): entitlementSource.fetchEntitlement async, stub → null, sem imports',
+      await (async () => {
+        try {
+          if (!/export async function fetchEntitlement\(\)/.test(srcSrc73) || /^\s*import\s/m.test(srcSrc73)) return false;
+          const ep = new Function(srcSrc73.replace(/export /g, '') + '\nreturn { fetchEntitlement };')();
+          return (await ep.fetchEntitlement()) === null;
+        } catch (e) { return false; }
+      })(),
+      'entitlementSource não é port stub null sem imports');
+
+    // Carrega o service isolado (policy real + mocks).
+    let svc = null; let loadErr = null;
+    let _storageValue = null; let _savedValue = null; let _fetchImpl = async () => null;
+    const appStateSpy = { count: 0, cb: null, removed: false };
+    try {
+      const pol = new Function(readSrc('src/services/entitlementPolicy.js').replace(/export /g, '') + '\nreturn { decideEntitlement, isValidTs };')();
+      const AsyncStorageMock = { getItem: async () => _storageValue, setItem: async (k, v) => { _savedValue = v; _storageValue = v; } };
+      const fetchMock = async () => _fetchImpl();
+      const AppStateMock = { addEventListener: (ev, cb) => { appStateSpy.count += 1; appStateSpy.cb = cb; return { remove: () => { appStateSpy.removed = true; } }; } };
+      const STORAGE_KEYS_MOCK = { ENTITLEMENT: '@ptf_entitlement_v1' };
+      const code = svcSrc73.replace(/^\s*import\s.+?;\s*$/gm, '').replace(/export /g, '')
+        + '\nreturn { getEntitlementPlan, loadEntitlement, refreshEntitlement, initEntitlement, stopEntitlementAutoRefresh };';
+      svc = new Function('decideEntitlement', 'isValidTs', 'fetchEntitlement', 'AsyncStorage', 'AppState', 'STORAGE_KEYS', code)(
+        pol.decideEntitlement, pol.isValidTs, fetchMock, AsyncStorageMock, AppStateMock, STORAGE_KEYS_MOCK);
+    } catch (e) { loadErr = String((e && e.message) || e); }
+
+    const loadWith = async (c) => { _storageValue = c === null ? null : (typeof c === 'string' ? c : JSON.stringify(c)); return svc.loadEntitlement(); };
+    const refreshWith = async (fn) => { _fetchImpl = fn; return svc.refreshEntitlement(); };
+
+    // D2 — pipeline/refresh conservador.
+    check('2B.7.3 (pipeline): fonte válida→premium+salvou; null/erro/{plan} solto→free; nunca lança',
+      await (async () => {
+        if (!svc) return false;
+        try {
+          await loadWith(null); _savedValue = null;
+          if (await refreshWith(async () => ({ rcActive: true, expiresAt: NOW + DAY, serverNow: NOW })) !== 'premium') return false;
+          if (!_savedValue) return false;
+          await loadWith(null); if (await refreshWith(async () => null) !== 'free') return false;
+          await loadWith(null); if (await refreshWith(async () => { throw new Error('boom'); }) !== 'free') return false;
+          await loadWith(null); if (await refreshWith(async () => ({ plan: 'premium' })) !== 'free') return false;
+          return true;
+        } catch (e) { return false; }
+      })(),
+      `pipeline de refresh não conservador${loadErr ? ' (load err: ' + loadErr + ')' : ''}`);
+
+    // D3 — persistência sanitizada.
+    check('2B.7.3 (persistência sanitizada): salvo só com campos do contrato (sem plan/estranhos)',
+      await (async () => {
+        if (!svc) return false;
+        try {
+          await loadWith(null); _savedValue = null;
+          await refreshWith(async () => ({ rcActive: true, expiresAt: NOW + DAY, serverNow: NOW, plan: 'premium', hacker: 1 }));
+          if (!_savedValue) return false;
+          const saved = JSON.parse(_savedValue);
+          const allowed = ['loaded', 'lastValidatedAt', 'maxSeenDeviceTimestamp', 'rcActive', 'rcCancelledButPaid', 'expiresAt'];
+          return !('plan' in saved) && !('hacker' in saved) && Object.keys(saved).every((k) => allowed.includes(k));
+        } catch (e) { return false; }
+      })(),
+      'saveEntitlement persistiu campos estranhos');
+
+    // D4 — cache + policy + janela.
+    check('2B.7.3 (cache+janela): expired→free; válido→premium; stale>7d→free',
+      await (async () => {
+        if (!svc) return false;
+        try {
+          if (await loadWith({ rcActive: true, expiresAt: NOW - DAY }) !== 'free') return false;
+          if (await loadWith({ rcActive: true, expiresAt: NOW + DAY, lastValidatedAt: NOW - DAY, maxSeenDeviceTimestamp: NOW }) !== 'premium') return false;
+          if (await loadWith({ rcActive: true, expiresAt: NOW + DAY, lastValidatedAt: NOW - 8 * DAY, maxSeenDeviceTimestamp: NOW }) !== 'free') return false;
+          return true;
+        } catch (e) { return false; }
+      })(),
+      'cache antigo não passou pela policy/janela');
+
+    // D5 — relógio alterado.
+    check('2B.7.3 (relógio): maxSeenDeviceTimestamp futuro → clock_rollback → free',
+      await (async () => {
+        if (!svc) return false;
+        try { return (await loadWith({ rcActive: true, expiresAt: NOW + 365 * DAY, lastValidatedAt: NOW, maxSeenDeviceTimestamp: NOW + 365 * DAY })) === 'free'; }
+        catch (e) { return false; }
+      })(),
+      'alteração de relógio não bloqueou premium');
+
+    // D6 — maxSeen não regride + refresh inválido não apaga cache válido.
+    check('2B.7.3 (maxSeen não regride + refresh inválido não apaga cache válido)',
+      await (async () => {
+        if (!svc) return false;
+        try {
+          await loadWith({ rcActive: true, expiresAt: NOW + 2 * DAY, lastValidatedAt: NOW - DAY, maxSeenDeviceTimestamp: NOW });
+          if (await refreshWith(async () => null) !== 'premium') return false; // cache válido mantido
+          _savedValue = null;
+          await refreshWith(async () => ({ rcActive: true, expiresAt: NOW + 2 * DAY, serverNow: NOW, maxSeenDeviceTimestamp: NOW - 10 * DAY }));
+          return JSON.parse(_savedValue).maxSeenDeviceTimestamp >= NOW; // não regrediu
+        } catch (e) { return false; }
+      })(),
+      'maxSeen regrediu OU refresh inválido apagou cache válido');
+
+    // D7 — AppState guard + cleanup + init não lança.
+    check('2B.7.3 (AppState): init idempotente (listener 1×), cb refresh, cleanup, nunca lança',
+      await (async () => {
+        if (!svc) return false;
+        try {
+          appStateSpy.count = 0; appStateSpy.cb = null; appStateSpy.removed = false;
+          svc.initEntitlement(); svc.initEntitlement(); svc.initEntitlement();
+          if (appStateSpy.count !== 1 || typeof appStateSpy.cb !== 'function') return false;
+          _fetchImpl = async () => null; appStateSpy.cb('active'); // não deve lançar
+          svc.stopEntitlementAutoRefresh();
+          if (!appStateSpy.removed) return false;
+          appStateSpy.count = 0; svc.initEntitlement();
+          return appStateSpy.count === 1;
+        } catch (e) { return false; }
+      })(),
+      'AppState listener duplicou / sem cleanup / init lançou');
+
+    // D8 — boot sem loading + intocados.
+    check('2B.7.3 (boot/intocados): App.js só +initEntitlement; sem loading novo; telas/dep/2C/RevenueCat/isolamento',
+      (() => {
+        const app = readSrc('App.js');
+        const appOk = /import \{ initEntitlement \} from '\.\/src\/services\/entitlementService'/.test(app)
+          && /initEntitlement\(\);/.test(app)
+          && !/useState[\s\S]{0,40}entitlement/i.test(app);
+        const scr = path.join(root, 'src', 'screens');
+        const screensClean = !fs.readdirSync(scr).filter((f) => f.endsWith('.js')).some((f) => /entitlement(Service|Policy|Source)/.test(fs.readFileSync(path.join(scr, f), 'utf8')));
+        const svcBlob = readSrc('src/services/entitlementSource.js') + readSrc('src/services/entitlementService.js');
+        // import REAL de RevenueCat/NetInfo (não menção em comentário).
+        const noRcNetinfo = !/from ['"]react-native-purchases['"]|from ['"]@react-native-community\/netinfo['"]/.test(svcBlob);
+        const no2C = !/assetBundlePatterns/.test(readSrc('app.json'));
+        const dir = path.join(root, 'src');
+        const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => { const p = path.join(d, e.name); return e.isDirectory() ? walk(p) : (e.name.endsWith('.js') ? [p] : []); });
+        const srcOnlyService = !walk(dir).some((f) => !/entitlementSource\.js$/.test(f) && !/entitlementService\.js$/.test(f) && /entitlementSource/.test(fs.readFileSync(f, 'utf8')));
+        return appOk && screensClean && noRcNetinfo && no2C && srcOnlyService;
+      })(),
+      'App.js/telas/dependência/2C/isolamento violados');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

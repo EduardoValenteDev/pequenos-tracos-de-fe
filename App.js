@@ -23,6 +23,7 @@ import { ProgressProvider } from './src/context/ProgressContext';
 import { PacksProvider } from './src/context/PacksContext';
 import { preloadCriticalAssets } from './src/services/assetPreloadService';
 import { loadCreatorQaMode } from './src/services/creatorQaMode';
+import { initEntitlement } from './src/services/entitlementService';
 import { runLocalMigrations } from './src/services/storageMigrationService';
 
 export default function App() {
@@ -38,6 +39,7 @@ export default function App() {
   useEffect(() => {
     preloadCriticalAssets();
     loadCreatorQaMode();
+    initEntitlement(); // Fase 2B.7.3: boot fire-and-forget do entitlement (cache + refresh por AppState)
     // Migração local de schema — roda em background, nunca bloqueia a UI.
     // Se falhar, o app continua abrindo normalmente.
     runLocalMigrations().catch(e => console.warn('[Migration]', e));
