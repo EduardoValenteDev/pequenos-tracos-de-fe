@@ -38,6 +38,16 @@
         "buildType": "app-bundle",
         "resourceClass": "medium"
       }
+    },
+    "screenshot": {
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "apk",
+        "resourceClass": "medium"
+      }
     }
   }
 }
