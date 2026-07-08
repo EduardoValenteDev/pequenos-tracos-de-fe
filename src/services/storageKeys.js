@@ -72,6 +72,11 @@ export const STORAGE_KEYS = {
   // Mapa storyId → CacheEntry (status/versão/localDir/bytes...). Só índice; os
   // arquivos do pack vivem em documentDirectory/packs/<id>@<version>/ (não aqui).
   PACKS_INDEX: '@ptf_packs_v1',
+
+  // ── Entitlement real (Fase 2B.7.2 — REGISTRO; leitura de runtime só na 2B.7.3) ──
+  // Snapshot de entitlement offline (expiresAt/lastValidatedAt/maxSeen...). Nesta fase
+  // NADA grava nem lê em runtime; a chave fica registrada para a fonte real (RevenueCat).
+  ENTITLEMENT: '@ptf_entitlement_v1',
 };
 
 /**

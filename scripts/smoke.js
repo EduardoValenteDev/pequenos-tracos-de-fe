@@ -213,7 +213,10 @@ check(
 
 check(
   'accessControl: QA desligado mantém Premium bloqueado (plano real free)',
-  /getCurrentPlan\(\)\s*\{[\s\S]*?return 'free'/.test(acSource),
+  // Fase 2B.7.2: getCurrentPlan DELEGA ao entitlementService (resolve 'free' sem fonte real —
+  // provado pelos checks 2B.7.2 compat/fail-closed). Creator QA segue override, não unlock global.
+  /getCurrentPlan\(\)\s*\{[\s\S]*?return getEntitlementPlan\(\)/.test(acSource) &&
+  !/ENABLE_LOCAL_PREMIUM_TEST_MODE = true/.test(acSource),
   'Default plan must remain free — Creator QA is an override, not a global unlock',
 );
 
@@ -10677,6 +10680,7 @@ check(
   try {
     const ac = a1LoadSandbox('src/services/accessControl.js',
       { isCreatorQaModeEnabled: () => false,
+        getEntitlementPlan: () => 'free', // Fase 2B.7.2: getCurrentPlan delega (sem fonte → free)
         getStoryPlan: (s) => (s && s.plan) || 'premium',
         PLAN: { FREE: 'free', PREMIUM: 'premium', COMING_SOON: 'coming_soon' } },
       ['hasMomentoLumiAccess', 'canOpenMomentoLumi', 'hasLumiAccessForStory', 'hasStoryAccess', 'isPremiumUser']);
@@ -14957,18 +14961,99 @@ check(
 
     // Isolamento: FORA do smoke, nenhum arquivo de src/ importa/menciona entitlementPolicy
     // (o smoke é a exceção autorizada — ele está em scripts/, não em src/).
-    check('2B.7.1 (isolamento fora do smoke): nenhum módulo de src/ consome entitlementPolicy nesta fase',
+    // Fase 2B.7.2 (migração fiel do isolamento): a policy passa a ter UM consumidor autorizado
+    // — o entitlementService. Nenhum outro módulo de src/ (telas, accessControl...) a importa direto.
+    check('2B.7.2 (isolamento migrado): entitlementPolicy consumida SÓ por entitlementService',
       (() => {
         const dir = path.join(root, 'src');
-        const self = path.join(dir, 'services', 'entitlementPolicy.js');
+        const policy = path.join(dir, 'services', 'entitlementPolicy.js');
+        const service = path.join(dir, 'services', 'entitlementService.js');
         const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => {
           const p = path.join(d, e.name);
           if (e.isDirectory()) return walk(p);
           return e.name.endsWith('.js') ? [p] : [];
         });
-        return !walk(dir).some((f) => f !== self && /entitlementPolicy/.test(fs.readFileSync(f, 'utf8')));
+        return !walk(dir).some((f) => f !== policy && f !== service && /entitlementPolicy/.test(fs.readFileSync(f, 'utf8')));
       })(),
-      'algum módulo de src/ passou a consumir entitlementPolicy (deveria ficar isolado nesta fase)');
+      'entitlementPolicy passou a ser consumida por outro módulo além de entitlementService');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Fase 2B.7.2 — consumo controlado (ponte técnica fail-closed).
+  // getCurrentPlan DELEGA ao entitlementService (que consome a policy pura); sem fonte real,
+  // resolve 'free'. loadEntitlement é exercitado AQUI (não no boot): storage vazio/inválido/
+  // malformado/{plan:'premium'} → nunca premium, sem lançar. Nenhuma tela/App.js tocada.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Fase 2B.7.2: consumo controlado do entitlement ──');
+  {
+    const acSrc72 = readSrc('src/services/accessControl.js');
+    const svcSrc72 = readSrc('src/services/entitlementService.js');
+
+    // Delegação: getCurrentPlan importa e delega ao entitlementService, com test-mode ANTES.
+    check('2B.7.2 (delegação): getCurrentPlan importa getEntitlementPlan e delega (test-mode antes)',
+      /import \{ getEntitlementPlan \} from '\.\/entitlementService'/.test(acSrc72)
+        && /if \(ENABLE_LOCAL_PREMIUM_TEST_MODE\)[\s\S]{0,140}return 'premium'/.test(acSrc72)
+        && /return getEntitlementPlan\(\);/.test(acSrc72),
+      'getCurrentPlan não delega ao entitlementService (ou perdeu a precedência do test-mode)');
+
+    // Service: consome a policy, mapeia !==premium→free, now on-demand, try/catch fail-closed.
+    check('2B.7.2 (service): consome decideEntitlement; !==premium→free; now on-demand; try/catch',
+      /import \{ decideEntitlement \} from '\.\/entitlementPolicy'/.test(svcSrc72)
+        && /decision === 'premium' \? 'premium' : 'free'/.test(svcSrc72)
+        && /now: Date\.now\(\)/.test(svcSrc72)
+        && /try \{[\s\S]{0,500}catch[\s\S]{0,160}_snapshot = \{ loaded: false \}/.test(svcSrc72),
+      'entitlementService não segue o contrato (policy/mapeamento/now/try-catch)');
+
+    // Carrega o service ISOLADO (policy real + AsyncStorage mockado) e exercita loadEntitlement.
+    let svc = null; let loadErr = null; let _storageValue = null;
+    try {
+      const epCode = readSrc('src/services/entitlementPolicy.js').replace(/export /g, '') + '\nreturn { decideEntitlement };';
+      // eslint-disable-next-line no-new-func
+      const { decideEntitlement } = new Function(epCode)();
+      const AsyncStorageMock = { getItem: async () => _storageValue };
+      const STORAGE_KEYS_MOCK = { ENTITLEMENT: '@ptf_entitlement_v1' };
+      const svcCode = svcSrc72.replace(/^\s*import\s.+?;\s*$/gm, '').replace(/export /g, '')
+        + '\nreturn { getEntitlementPlan, getEntitlementDecision, loadEntitlement };';
+      // eslint-disable-next-line no-new-func
+      svc = new Function('decideEntitlement', 'AsyncStorage', 'STORAGE_KEYS', svcCode)(decideEntitlement, AsyncStorageMock, STORAGE_KEYS_MOCK);
+    } catch (e) { loadErr = String((e && e.message) || e); }
+
+    // Compatibilidade: sem load (default { loaded:false }) → 'free'.
+    check('2B.7.2 (compat free): sem fonte/cache, getEntitlementPlan() === "free"',
+      !!svc && svc.getEntitlementPlan() === 'free',
+      `service não resolve free por padrão${loadErr ? ' (erro ao carregar: ' + loadErr + ')' : ''}`);
+
+    // Fail-closed: storage vazio/inválido/malformado/{plan:'premium'}/array → free, sem lançar.
+    const failClosedOk = await (async () => {
+      if (!svc) return false;
+      try {
+        _storageValue = null;                              if (await svc.loadEntitlement() !== 'free') return false; // vazio
+        _storageValue = '{ nao eh json valido';            if (await svc.loadEntitlement() !== 'free') return false; // inválido
+        _storageValue = JSON.stringify({ rcActive: true }); if (await svc.loadEntitlement() !== 'free') return false; // malformado (sem janela)
+        _storageValue = JSON.stringify({ plan: 'premium' }); if (await svc.loadEntitlement() !== 'free') return false; // plan solto
+        _storageValue = JSON.stringify([1, 2, 3]);         if (await svc.loadEntitlement() !== 'free') return false; // array
+        return true;
+      } catch (e) { return false; } // NUNCA deve lançar
+    })();
+    check('2B.7.2 (fail-closed): storage vazio/inválido/malformado/{plan:premium} → free, nunca premium, sem lançar',
+      failClosedOk, 'loadEntitlement liberou premium OU lançou com storage vazio/inválido/malformado');
+
+    // Telas/App.js intocados: nenhuma src/screens nem App.js consome entitlement.
+    check('2B.7.2 (telas/App.js intocados): nenhuma src/screens nem App.js importa entitlementService/Policy',
+      (() => {
+        const scr = path.join(root, 'src', 'screens');
+        const files = fs.existsSync(scr) ? fs.readdirSync(scr).filter((f) => f.endsWith('.js')) : [];
+        const screensClean = !files.some((f) => /entitlement(Service|Policy)/.test(fs.readFileSync(path.join(scr, f), 'utf8')));
+        const appClean = !srcExists('App.js') || !/entitlement(Service|Policy)|loadEntitlement/.test(readSrc('App.js'));
+        return screensClean && appClean;
+      })(),
+      'uma tela ou App.js passou a consumir entitlement (proibido nesta fase)');
+
+    // Chave registrada + 2C não iniciada.
+    check('2B.7.2 (chave + 2C): storageKeys tem ENTITLEMENT @ptf_entitlement_v1; app.json sem assetBundlePatterns',
+      /ENTITLEMENT:\s*'@ptf_entitlement_v1'/.test(readSrc('src/services/storageKeys.js'))
+        && !/assetBundlePatterns/.test(readSrc('app.json')),
+      'chave de entitlement ausente OU 2C iniciada (assetBundlePatterns em app.json)');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

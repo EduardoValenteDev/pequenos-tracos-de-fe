@@ -14,6 +14,7 @@
 
 import { isCreatorQaModeEnabled } from './creatorQaMode';
 import { getStoryPlan, PLAN } from '../data/planConfig';
+import { getEntitlementPlan } from './entitlementService';
 
 // DEV TOOL ONLY — set true locally to test premium flows. Never ship as true.
 const ENABLE_LOCAL_PREMIUM_TEST_MODE = false;
@@ -27,7 +28,8 @@ const ALLOW_COMING_SOON_PREVIEW = false;
 const FREE_ATELIER_SAVE_LIMIT = 3;
 
 /**
- * Retorna o plano atual do usuário. Sempre 'free' até integração de compra real.
+ * Retorna o plano atual do usuário. Fase 2B.7.2: DELEGA ao entitlementService (política pura).
+ * Sem fonte real (RevenueCat = 2B.7.3), o snapshot é vazio → 'free' (idêntico ao mock anterior).
  *
  * CONTRATO FUTURO DE ENTITLEMENT (Fase 2B.6 · RP4 — registrado, NÃO implementado aqui):
  *   - Quando RevenueCat entrar, getCurrentPlan() deve refletir entitlement ATIVO,
@@ -43,9 +45,11 @@ const FREE_ATELIER_SAVE_LIMIT = 3;
 export function getCurrentPlan() {
   if (ENABLE_LOCAL_PREMIUM_TEST_MODE) {
     console.warn('[accessControl] ENABLE_LOCAL_PREMIUM_TEST_MODE is TRUE — never ship this');
-    return 'premium';
+    return 'premium'; // test-mode: precedência explícita (Fase 2B.7.2)
   }
-  return 'free';
+  // Fase 2B.7.2: fonte de verdade passa a ser a policy pura via entitlementService.
+  // decision === 'premium' ? 'premium' : 'free' (needs_revalidation → free). Sem fonte → 'free'.
+  return getEntitlementPlan();
 }
 
 /**
