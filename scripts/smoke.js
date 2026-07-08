@@ -14876,6 +14876,101 @@ check(
       'Modo Criador pode vazar p/ produção (flag em eas.json/app.json ou guard ausente)');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // Fase 2B.7.1 — entitlementPolicy PURO (decisão de entitlement offline).
+  // Módulo PURO, ISOLADO (não consumido nesta fase). Testa a matriz conservadora + bordas +
+  // reforço de `now` inválido + totalidade. Avaliado direto (new Function), como storyJourneyService.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Fase 2B.7.1: entitlementPolicy puro ──');
+  {
+    const epSrc = readSrc('src/services/entitlementPolicy.js');
+    let ep = null;
+    try {
+      const code = epSrc.replace(/export /g, '') + '\nreturn { decideEntitlement, isValidTs, OFFLINE_MAX_WINDOW_MS };';
+      // eslint-disable-next-line no-new-func
+      ep = new Function(code)();
+    } catch (e) { /* ep=null → o check de pureza falha com mensagem clara */ }
+
+    // Pureza estrutural: sem imports, sem require, sem React/storage/FileSystem.
+    check('2B.7.1 (puro): entitlementPolicy sem imports/require/React/storage/FileSystem',
+      !!ep
+        && !/^\s*import\s/m.test(epSrc)
+        && !/require\(/.test(epSrc)
+        && !/AsyncStorage|FileSystem|useState|useEffect|from 'react'/.test(epSrc),
+      'entitlementPolicy não é puro (import/require/React/storage) ou não carregou isolado');
+
+    const DAY = 86400000, WINDOW = 7 * DAY, T = 1700000000000;
+    const call = (snap) => {
+      try { return ep.decideEntitlement(snap); }
+      catch (e) { return { decision: 'THREW', reason: String((e && e.message) || e) }; }
+    };
+    const eq = (r, decision, reason) => !!r && r.decision === decision && r.reason === reason;
+
+    // 15 casos da matriz (plan-fase-2b71 §Casos) — decision + reason, com bordas.
+    const CASES = [
+      ['1 sem cache',                 { loaded: false, now: T },                                                                                                   'free',               'no_cache'],
+      ['2 relógio retrocedido',       { loaded: true, now: T, maxSeenDeviceTimestamp: T + DAY, expiresAt: T + DAY, lastValidatedAt: T - DAY, rcActive: true },      'needs_revalidation', 'clock_rollback'],
+      ['3 now<expiresAt (feliz)',     { loaded: true, now: T, expiresAt: T + DAY, lastValidatedAt: T - DAY, maxSeenDeviceTimestamp: T, rcActive: true },             'premium',            'active'],
+      ['4 now===expiresAt',           { loaded: true, now: T, expiresAt: T, lastValidatedAt: T - DAY, maxSeenDeviceTimestamp: T, rcActive: true },                   'free',               'expired'],
+      ['5 now>expiresAt',             { loaded: true, now: T, expiresAt: T - 1, lastValidatedAt: T - DAY, maxSeenDeviceTimestamp: T, rcActive: true },               'free',               'expired'],
+      ['6 janela<7d',                 { loaded: true, now: T, expiresAt: T + DAY, lastValidatedAt: T - DAY, maxSeenDeviceTimestamp: T, rcActive: true },             'premium',            'active'],
+      ['7 janela===7d',               { loaded: true, now: T, expiresAt: T + DAY, lastValidatedAt: T - WINDOW, maxSeenDeviceTimestamp: T, rcActive: true },          'premium',            'active'],
+      ['8 janela>7d',                 { loaded: true, now: T, expiresAt: T + DAY, lastValidatedAt: T - WINDOW - 1, maxSeenDeviceTimestamp: T, rcActive: true },      'needs_revalidation', 'stale_validation'],
+      ['9 rcActive válido',           { loaded: true, now: T, expiresAt: T + 2 * DAY, lastValidatedAt: T - 2 * DAY, maxSeenDeviceTimestamp: T, rcActive: true },     'premium',            'active'],
+      ['10 rcActive sem expiresAt',   { loaded: true, now: T, expiresAt: null, lastValidatedAt: T - DAY, maxSeenDeviceTimestamp: T, rcActive: true },                'needs_revalidation', 'needs_revalidation'],
+      ['11 rcActive sem lastValid',   { loaded: true, now: T, expiresAt: T + DAY, lastValidatedAt: null, maxSeenDeviceTimestamp: T, rcActive: true },                'needs_revalidation', 'needs_revalidation'],
+      ['12 cancelledButPaid futuro',  { loaded: true, now: T, expiresAt: T + DAY, lastValidatedAt: T - DAY, maxSeenDeviceTimestamp: T, rcCancelledButPaid: true },   'premium',            'cancelled_active'],
+      ['13 cancelledButPaid vencido', { loaded: true, now: T, expiresAt: T - DAY, lastValidatedAt: T - DAY, maxSeenDeviceTimestamp: T, rcCancelledButPaid: true },   'free',               'expired'],
+      ['14 timestamps inválidos',     { loaded: true, now: NaN, expiresAt: T + DAY, lastValidatedAt: T - DAY, rcActive: true },                                      'free',               'invalid_data'],
+      ['15 inativo',                  { loaded: true, now: T, expiresAt: T + DAY, lastValidatedAt: T - DAY, maxSeenDeviceTimestamp: T, rcActive: false, rcCancelledButPaid: false }, 'free', 'inactive'],
+    ];
+    let matrixOk = !!ep; const matrixFails = [];
+    if (ep) for (const [label, snap, dec, rea] of CASES) {
+      const r = call(snap);
+      if (!eq(r, dec, rea)) { matrixOk = false; matrixFails.push(`${label}→${r && r.decision}/${r && r.reason} (esperado ${dec}/${rea})`); }
+    }
+    check('2B.7.1 (matriz 15 casos): decision+reason conforme o plan (bordas >=, ===7d, ausentes, inválidos)',
+      matrixOk, `casos divergentes: ${matrixFails.join(' | ')}`);
+
+    // Reforço: `now` inválido (TODAS as variantes) → free/invalid_data, SEM lançar.
+    const badNows = [NaN, -1, 0, null, undefined, 'abc'];
+    let nowOk = !!ep; const nowFails = [];
+    if (ep) for (const bad of badNows) {
+      const r = call({ loaded: true, now: bad, expiresAt: T + DAY, lastValidatedAt: T - DAY, rcActive: true });
+      if (!eq(r, 'free', 'invalid_data')) { nowOk = false; nowFails.push(`now=${String(bad)}→${r && r.decision}/${r && r.reason}`); }
+    }
+    check('2B.7.1 (reforço now inválido): NaN/negativo/0/null/undefined/não-numérico → free/invalid_data sem lançar',
+      nowOk, `now inválido não tratado: ${nowFails.join(' | ')}`);
+
+    // Totalidade: decision ∈ {premium,free,needs_revalidation}; reason string não-vazia; nunca lança.
+    const ALL_SNAPS = CASES.map((c) => c[1])
+      .concat(badNows.map((b) => ({ loaded: true, now: b })), [undefined, null, {}, { loaded: true }]);
+    let totalOk = !!ep; const totalFails = [];
+    if (ep) for (const snap of ALL_SNAPS) {
+      const r = call(snap);
+      const decOk = r && ['premium', 'free', 'needs_revalidation'].includes(r.decision);
+      const reaOk = r && typeof r.reason === 'string' && r.reason.length > 0 && r.decision !== 'THREW';
+      if (!decOk || !reaOk) { totalOk = false; totalFails.push(`${JSON.stringify(snap)}→${r && r.decision}/${r && r.reason}`); }
+    }
+    check('2B.7.1 (totalidade): decision ∈ {premium,free,needs_revalidation}; reason não-vazia; nunca lança',
+      totalOk, `totalidade violada: ${totalFails.slice(0, 3).join(' | ')}`);
+
+    // Isolamento: FORA do smoke, nenhum arquivo de src/ importa/menciona entitlementPolicy
+    // (o smoke é a exceção autorizada — ele está em scripts/, não em src/).
+    check('2B.7.1 (isolamento fora do smoke): nenhum módulo de src/ consome entitlementPolicy nesta fase',
+      (() => {
+        const dir = path.join(root, 'src');
+        const self = path.join(dir, 'services', 'entitlementPolicy.js');
+        const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => {
+          const p = path.join(d, e.name);
+          if (e.isDirectory()) return walk(p);
+          return e.name.endsWith('.js') ? [p] : [];
+        });
+        return !walk(dir).some((f) => f !== self && /entitlementPolicy/.test(fs.readFileSync(f, 'utf8')));
+      })(),
+      'algum módulo de src/ passou a consumir entitlementPolicy (deveria ficar isolado nesta fase)');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
