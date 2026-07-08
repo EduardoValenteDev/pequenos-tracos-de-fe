@@ -5,11 +5,12 @@
  * (`accessControl.getCurrentPlan`). Mantém o SNAPSHOT de entitlement em memória e expõe a
  * decisão de forma SÍNCRONA. É o ÚNICO módulo que consome `entitlementPolicy` e `entitlementSource`.
  *
- * ⚠️ FONTE REAL AINDA STUB (2B.7.3): `entitlementSource.fetchEntitlement()` resolve `null` →
- * `free`. A 2B.7.3 conecta o ENCANAMENTO (boot `loadEntitlement` + refresh por `AppState` +
- * persistência sanitizada), mantendo fail-closed. RevenueCat (adapter da fonte) = 2B.7.4.
- * NÃO grava entitlement sem sanitizar, NÃO faz compra, NÃO libera premium sem passar por
- * `decideEntitlement` — nenhum campo salvo (ex.: `plan`) autoriza por conta própria.
+ * ⚠️ FONTE REAL = RevenueCat (2B.7.4): `entitlementSource.fetchEntitlement()` lê o `CustomerInfo`
+ * e o mapeia para `RawEntitlement` (fail-closed → `null`/`free`). Este service segue como PONTE:
+ * carrega/sanitiza/persiste e DERIVA `lastValidatedAt`/`maxSeenDeviceTimestamp` — e NÃO conhece
+ * RevenueCat (o SDK vive só no adapter `entitlementSource`). NÃO grava sem sanitizar, NÃO faz
+ * compra, NÃO libera premium sem passar por `decideEntitlement` — nenhum campo salvo (ex.: `plan`)
+ * autoriza por conta própria.
  */
 import { decideEntitlement, isValidTs } from './entitlementPolicy';
 import { fetchEntitlement } from './entitlementSource';

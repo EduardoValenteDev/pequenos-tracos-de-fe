@@ -15059,7 +15059,7 @@ check(
 
   // ════════════════════════════════════════════════════════════════════════════
   // Fase 2B.7.3 — fonte real (port `entitlementSource`) + persistência sanitizada +
-  // boot controlado + refresh conservador por AppState. Tudo fail-closed; fonte = stub → free.
+  // boot controlado + refresh conservador por AppState. Tudo fail-closed; fonte real = adapter RevenueCat (2B.7.4).
   // Service carregado isolado (policy real + mocks de fonte/storage/AppState).
   // ════════════════════════════════════════════════════════════════════════════
   console.log('\n── Fase 2B.7.3: fonte real (port) + boot + refresh ──');
@@ -15068,16 +15068,13 @@ check(
     const srcSrc73 = readSrc('src/services/entitlementSource.js');
     const svcSrc73 = readSrc('src/services/entitlementService.js');
 
-    // D1 — port + stub.
-    check('2B.7.3 (port): entitlementSource.fetchEntitlement async, stub → null, sem imports',
-      await (async () => {
-        try {
-          if (!/export async function fetchEntitlement\(\)/.test(srcSrc73) || /^\s*import\s/m.test(srcSrc73)) return false;
-          const ep = new Function(srcSrc73.replace(/export /g, '') + '\nreturn { fetchEntitlement };')();
-          return (await ep.fetchEntitlement()) === null;
-        } catch (e) { return false; }
-      })(),
-      'entitlementSource não é port stub null sem imports');
+    // D1 — o port agora é o ADAPTER RevenueCat real (2B.7.4): mantém `fetchEntitlement` async e
+    // é o adapter (importa react-native-purchases), sem `-ui`. Mapeamento/fail-closed → bloco "Fase 2B.7.4".
+    check('2B.7.3→2B.7.4 (port real): entitlementSource expõe fetchEntitlement async + é o adapter RevenueCat (sem -ui)',
+      /export async function fetchEntitlement\(\)/.test(srcSrc73)
+        && /from ['"]react-native-purchases['"]/.test(srcSrc73)
+        && !/from ['"]react-native-purchases-ui['"]/.test(srcSrc73), // import real, não menção em comentário
+      'entitlementSource deixou de ser port async OU não é o adapter RevenueCat esperado');
 
     // Carrega o service isolado (policy real + mocks).
     let svc = null; let loadErr = null;
@@ -15191,9 +15188,12 @@ check(
           && !/useState[\s\S]{0,40}entitlement/i.test(app);
         const scr = path.join(root, 'src', 'screens');
         const screensClean = !fs.readdirSync(scr).filter((f) => f.endsWith('.js')).some((f) => /entitlement(Service|Policy|Source)/.test(fs.readFileSync(path.join(scr, f), 'utf8')));
-        const svcBlob = readSrc('src/services/entitlementSource.js') + readSrc('src/services/entitlementService.js');
-        // import REAL de RevenueCat/NetInfo (não menção em comentário).
-        const noRcNetinfo = !/from ['"]react-native-purchases['"]|from ['"]@react-native-community\/netinfo['"]/.test(svcBlob);
+        // Fronteira 2B.7.4: o SERVICE nunca importa RevenueCat (o SDK vive só no adapter
+        // `entitlementSource`); ninguém importa NetInfo. (import REAL, não menção em comentário.)
+        const svcOnly73 = readSrc('src/services/entitlementService.js');
+        const srcOnly73 = readSrc('src/services/entitlementSource.js');
+        const noRcNetinfo = !/from ['"]react-native-purchases['"]/.test(svcOnly73)
+          && !/from ['"]@react-native-community\/netinfo['"]/.test(svcOnly73 + srcOnly73);
         const no2C = !/assetBundlePatterns/.test(readSrc('app.json'));
         const dir = path.join(root, 'src');
         const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => { const p = path.join(d, e.name); return e.isDirectory() ? walk(p) : (e.name.endsWith('.js') ? [p] : []); });
@@ -15270,6 +15270,122 @@ check(
         && !/from ['"]react-native-purchases['"]/.test(js73a + sd73a)
         && !/assetBundlePatterns/.test(readSrc('app.json')),
       'SceneListItem/entitlement/RevenueCat/2C violados');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Fase 2B.7.4 — ADAPTER RevenueCat: `mapCustomerInfo` (puro) + `fetchEntitlement` fail-closed.
+  // SEM UI/compra/restore/offerings/paywall/sandbox. Só public SDK key (env `EXPO_PUBLIC_*`).
+  // `decideEntitlement` segue o ÚNICO juiz. Adapter carregado isolado com mocks (não toca o SDK real).
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Fase 2B.7.4: adapter RevenueCat (mapeamento + fail-closed) ──');
+  {
+    const adapterSrc74 = readSrc('src/services/entitlementSource.js');
+    const stripped74 = adapterSrc74.replace(/^\s*import\s.+?;\s*$/gm, '').replace(/export /g, '');
+    // Carrega o adapter injetando Platform/Purchases/process mockados (SDK real nunca é chamado).
+    const loadAdapter74 = (mockPurchases, os, env) => new Function(
+      'Platform', 'Purchases', 'process',
+      stripped74 + '\nreturn { mapCustomerInfo, fetchEntitlement, configureRevenueCat, getRevenueCatApiKey };'
+    )({ OS: os || 'ios' }, mockPurchases || {}, { env: env || {} });
+
+    const NOW74 = Date.now();
+    const iso74 = (ms) => new Date(ms).toISOString();
+    const ciActive74 = { entitlements: { active: { premium: { willRenew: true, expirationDate: iso74(NOW74 + 30 * 86400000) } } }, requestDate: iso74(NOW74) };
+    const ciCancelled74 = { entitlements: { active: { premium: { willRenew: false, expirationDate: iso74(NOW74 + 10 * 86400000) } } }, requestDate: iso74(NOW74) };
+    const ciEmpty74 = { entitlements: { active: {} }, requestDate: iso74(NOW74) };
+    const ciMalformed74 = { entitlements: { active: { premium: { willRenew: false, expirationDate: 'not-a-date' } } } }; // sem requestDate
+
+    // E1 — ativo: rcActive true, cancelled false, expiresAt futuro, serverNow válido.
+    check('2B.7.4 (mapeia ativo): premium willRenew → {rcActive:true, rcCancelledButPaid:false, expiresAt>now, serverNow>0}',
+      (() => { try {
+        const r = loadAdapter74().mapCustomerInfo(ciActive74);
+        return !!r && r.rcActive === true && r.rcCancelledButPaid === false
+          && r.expiresAt > NOW74 && typeof r.serverNow === 'number' && r.serverNow > 0;
+      } catch (e) { return false; } })(),
+      'mapCustomerInfo(ativo) incorreto');
+
+    // E2 — cancelado mas pago: rcCancelledButPaid true, ainda com janela futura.
+    check('2B.7.4 (cancelado-mas-pago): willRenew:false + futuro → rcActive:true, rcCancelledButPaid:true',
+      (() => { try {
+        const r = loadAdapter74().mapCustomerInfo(ciCancelled74);
+        return !!r && r.rcActive === true && r.rcCancelledButPaid === true && r.expiresAt > NOW74;
+      } catch (e) { return false; } })(),
+      'mapCustomerInfo(cancelado) incorreto');
+
+    // E3 — sem premium ativo (e inputs vazios/nulos) → null (free). null-safe.
+    check('2B.7.4 (sem premium): active sem premium / null / {} / sem entitlements → null',
+      (() => { try {
+        const A = loadAdapter74();
+        return A.mapCustomerInfo(ciEmpty74) === null && A.mapCustomerInfo(null) === null
+          && A.mapCustomerInfo({}) === null && A.mapCustomerInfo({ entitlements: {} }) === null;
+      } catch (e) { return false; } })(),
+      'mapCustomerInfo sem premium não retorna null');
+
+    // E4 — malformado: datas inválidas → null (não lança); rcActive segue true (entitlement presente).
+    check('2B.7.4 (malformado): expirationDate inválido / requestDate ausente → expiresAt=null, serverNow=null, sem lançar',
+      (() => { try {
+        const r = loadAdapter74().mapCustomerInfo(ciMalformed74);
+        return !!r && r.rcActive === true && r.expiresAt === null && r.serverNow === null;
+      } catch (e) { return false; } })(),
+      'mapCustomerInfo(malformado) lançou ou não anulou datas');
+
+    // E5 — fetchEntitlement fail-closed: getCustomerInfo lança → null (nunca propaga).
+    check('2B.7.4 (fail-closed erro): getCustomerInfo lança → fetchEntitlement resolve null',
+      await (async () => { try {
+        const A = loadAdapter74({ configure: () => {}, getCustomerInfo: async () => { throw new Error('boom'); } }, 'ios', { EXPO_PUBLIC_REVENUECAT_IOS_API_KEY: 'pk_test' });
+        return (await A.fetchEntitlement()) === null;
+      } catch (e) { return false; } })(),
+      'fetchEntitlement não é fail-closed em erro do SDK');
+
+    // E6 — chave PÚBLICA ausente NÃO quebra: configure não roda, fetch → null (app segue → free).
+    check('2B.7.4 (chave ausente): sem EXPO_PUBLIC_REVENUECAT_* → key undefined + configure false + fetch null (app abre)',
+      await (async () => { try {
+        let configured = false;
+        const A = loadAdapter74({ configure: () => { configured = true; }, getCustomerInfo: async () => ciActive74 }, 'ios', {}); // env vazio
+        const key = A.getRevenueCatApiKey();
+        const cfg = A.configureRevenueCat();
+        const fetched = await A.fetchEntitlement();
+        return key === undefined && cfg === false && configured === false && fetched === null;
+      } catch (e) { return false; } })(),
+      'chave pública ausente quebrou o adapter (deveria cair para null/free)');
+
+    // E7 — fetchEntitlement sucesso: chave presente (Android) + premium ativo → RawEntitlement mapeado.
+    check('2B.7.4 (fetch ok): chave presente + premium ativo → RawEntitlement (rcActive:true, expiresAt futuro)',
+      await (async () => { try {
+        const A = loadAdapter74({ configure: () => {}, getCustomerInfo: async () => ciActive74 }, 'android', { EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY: 'pk_test_android' });
+        const r = await A.fetchEntitlement();
+        return !!r && r.rcActive === true && r.expiresAt > NOW74;
+      } catch (e) { return false; } })(),
+      'fetchEntitlement(sucesso) não mapeou o entitlement');
+
+    // E8 — decideEntitlement é o ÚNICO juiz: booleano solto / {plan} solto NÃO liberam premium;
+    // rcActive + janela válida (expiresAt futuro + lastValidatedAt recente) → premium.
+    check('2B.7.4 (decideEntitlement juiz): {rcActive:true} sem janela → NÃO premium; {plan:premium} solto → NÃO premium; com janela → premium',
+      (() => { try {
+        const pol = new Function(readSrc('src/services/entitlementPolicy.js').replace(/export /g, '') + '\nreturn { decideEntitlement };')();
+        const dec = (s) => pol.decideEntitlement({ ...s, now: NOW74 }).decision;
+        const looseBool = dec({ loaded: true, rcActive: true });                 // sem expiresAt/lastValidatedAt
+        const loosePlan = dec({ loaded: true, plan: 'premium' });                // campo solto ignorado
+        const proper = dec({ loaded: true, rcActive: true, expiresAt: NOW74 + 30 * 86400000, lastValidatedAt: NOW74, maxSeenDeviceTimestamp: NOW74 });
+        return looseBool !== 'premium' && loosePlan !== 'premium' && proper === 'premium';
+      } catch (e) { return false; } })(),
+      'decideEntitlement liberou premium por booleano/campo solto OU não confirmou o caso válido');
+
+    // E9 — guardrails: adapter sem compra/restore/offerings/paywall/-ui; service sem import RC;
+    // app.json sem plugin RC nem secret key; 2C não iniciada (assetBundlePatterns ausente).
+    check('2B.7.4 (guardrails): adapter sem compra/restore/offerings/paywall/-ui; service sem RevenueCat; app.json limpo; 2C intacta',
+      (() => {
+        // Inspeciona CÓDIGO, não comentários (o header do adapter legitimamente cita "-ui/paywall" p/ dizer que NÃO usa).
+        const adp = a1StripComments(readSrc('src/services/entitlementSource.js'));
+        const svc = a1StripComments(readSrc('src/services/entitlementService.js'));
+        const appjson = readSrc('app.json');
+        const adapterClean = !/purchasePackage|restorePurchases|getOfferings|presentPaywall|purchaseStoreProduct|react-native-purchases-ui|RevenueCatUI/.test(adp);
+        const serviceNoRc = !/from ['"]react-native-purchases['"]/.test(svc);
+        const appjsonClean = !/react-native-purchases/.test(appjson)              // plugin RC NÃO adicionado
+          && !/sk_live|sk_test|secret[_-]?key/i.test(appjson);                     // nenhuma secret key
+        const no2C = !/assetBundlePatterns/.test(appjson);
+        return adapterClean && serviceNoRc && appjsonClean && no2C;
+      })(),
+      'guardrails 2B.7.4 violados (compra/restore/offerings/paywall/-ui/service-RC/app.json/secret/2C)');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
