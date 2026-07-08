@@ -12,7 +12,7 @@ import { hasSavedDrawing } from '../services/drawingStorage';
 import { preloadStorySceneIllustrations } from '../services/storyImageService';
 import { hasAccess } from '../services/accessControl';
 import { isStoryComingSoon, getStoryAccessStatus } from '../services/contentAccessService';
-import { getStoryJourneyStatus } from '../services/storyJourneyService';
+import { getStoryJourneyStatus, sceneVisualStatus } from '../services/storyJourneyService';
 import { hasStoryColoringActivityDone } from '../services/coloringActivityService';
 import { useProgressContext } from '../context/ProgressContext';
 import { isQuizDone, getReflection, isStoryBookOpened } from '../services/postStoryStorage';
@@ -176,12 +176,16 @@ export default function StoryDetailScreen({ route, navigation }) {
     goToPremium('Narration', { story, cenaIndex: startCenaIndex });
   }
 
+  // Fase 2B.7.3a: delega a decisão VISUAL à função pura (o progresso reflete o histórico REAL,
+  // mesmo sem acesso ativo). A PERMISSÃO de abrir NÃO muda: cena concluída segue clicando em
+  // goToPremium → ParentArea sem acesso; não concluída fica bloqueada. Só o rótulo muda.
   function getSceneStatus(cena, index) {
-    if (isComingSoon) return 'locked'; // B1: sem mídia → cenas não abrem o player vazio
-    if (!canAccess) return 'locked';
-    if (progresso[cena.id] === true) return 'completed';
-    if (index === progressCount) return 'available';
-    return 'locked';
+    return sceneVisualStatus({
+      isComingSoon,
+      isDone: progresso[cena.id] === true, // progresso REAL salvo (useProgress), independe de canAccess
+      canAccess,
+      isCurrent: index === progressCount,
+    });
   }
 
   return (

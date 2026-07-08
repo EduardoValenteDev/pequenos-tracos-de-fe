@@ -10128,7 +10128,9 @@ check(
 check(
   'B1 detalhe: StoryDetail usa isStoryComingSoon e bloqueia as cenas (sem abrir player vazio)',
   b1StoryDet.includes('isStoryComingSoon(story)') &&
-  /if \(isComingSoon\) return 'locked'/.test(b1StoryDet),
+  // Fase 2B.7.3a: getSceneStatus delega a sceneVisualStatus passando isComingSoon → 'locked'
+  // (a garantia coming_soon→locked é coberta pelo check 2B.7.3a [matriz]).
+  /sceneVisualStatus\(\{[\s\S]{0,80}isComingSoon/.test(b1StoryDet),
   'StoryDetailScreen não bloqueia história "Em breve"',
 );
 
@@ -15199,6 +15201,75 @@ check(
         return appOk && screensClean && noRcNetinfo && no2C && srcOnlyService;
       })(),
       'App.js/telas/dependência/2C/isolamento violados');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Fase 2B.7.3a — progresso VISUAL em história premium bloqueada. sceneVisualStatus (puro)
+  // mostra cenas concluídas como completed MESMO sem acesso; a PERMISSÃO de abrir continua em
+  // goToPremium/telas (2B.6). Grátis e premium-sem-progresso idênticos. Só o rótulo muda.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Fase 2B.7.3a: progresso visual em premium bloqueada ──');
+  {
+    const js73a = readSrc('src/services/storyJourneyService.js');
+    const sd73a = readSrc('src/screens/StoryDetailScreen.js');
+    const sli73a = readSrc('src/components/story/SceneListItem.js');
+
+    // Carrega sceneVisualStatus isolado (storyJourneyService é puro, sem imports).
+    let svs = null;
+    try { svs = new Function(js73a.replace(/export /g, '') + '\nreturn { sceneVisualStatus };')().sceneVisualStatus; }
+    catch (e) { /* null → checks falham com mensagem */ }
+    const st = (p) => { try { return svs(p); } catch (e) { return 'THREW'; } };
+
+    // C1 — matriz completa (5 ramos, top-down).
+    check('2B.7.3a (matriz): coming_soon→locked; done→completed; !canAccess→locked; current→available; else→locked',
+      !!svs
+        && st({ isComingSoon: true, isDone: true, canAccess: true, isCurrent: true }) === 'locked'
+        && st({ isDone: true, canAccess: false, isCurrent: false }) === 'completed'
+        && st({ isDone: false, canAccess: false, isCurrent: true }) === 'locked'
+        && st({ isDone: false, canAccess: false, isCurrent: false }) === 'locked'
+        && st({ isDone: false, canAccess: true, isCurrent: true }) === 'available'
+        && st({ isDone: false, canAccess: true, isCurrent: false }) === 'locked',
+      'sceneVisualStatus não segue a matriz aprovada');
+
+    // C2 — progresso salvo aparece concluído mesmo sem acesso.
+    check('2B.7.3a (progresso sem acesso): cena concluída premium sem acesso → completed',
+      !!svs && st({ isDone: true, canAccess: false, isCurrent: false }) === 'completed',
+      'cena concluída sem acesso não aparece completed');
+
+    // C3 — grátis não regride.
+    check('2B.7.3a (grátis não regride): done→completed; current→available; else→locked (canAccess=true)',
+      !!svs
+        && st({ isDone: true, canAccess: true, isCurrent: false }) === 'completed'
+        && st({ isDone: false, canAccess: true, isCurrent: true }) === 'available'
+        && st({ isDone: false, canAccess: true, isCurrent: false }) === 'locked',
+      'história grátis regrediu');
+
+    // C4 — premium sem progresso igual (todas não-done sem acesso → locked).
+    check('2B.7.3a (premium sem progresso = hoje): !done + !canAccess → locked (atual e futura)',
+      !!svs
+        && st({ isDone: false, canAccess: false, isCurrent: true }) === 'locked'
+        && st({ isDone: false, canAccess: false, isCurrent: false }) === 'locked',
+      'premium sem progresso mudou');
+
+    // C5 — StoryDetail delega + abertura protegida (goToPremium intacto; sem navigate premium cru).
+    check('2B.7.3a (StoryDetail): getSceneStatus delega a sceneVisualStatus; onPress via goToPremium; sem navigate cru',
+      /return sceneVisualStatus\(\{/.test(sd73a)
+        && /isDone: progresso\[cena\.id\] === true/.test(sd73a)
+        && /onPress=\{\(\) => goToPremium\('Narration', \{ story, cenaIndex: index \}\)\}/.test(sd73a)
+        && !/navigation\.navigate\('(Narration|StoryBook)'/.test(sd73a),
+      'StoryDetail não delega OU perdeu o guard goToPremium nas cenas');
+
+    // C6 — botão principal continua pedindo responsável sem acesso.
+    check('2B.7.3a (botão premium bloqueado): getPrimaryLabel !canAccess → "Pedir ao responsável"',
+      /if \(!canAccess\) return 'Pedir ao responsável';/.test(sd73a),
+      'botão primário perdeu "Pedir ao responsável"');
+
+    // C7 — intocados: SceneListItem sem lógica de acesso; sem RevenueCat; 2C não iniciada.
+    check('2B.7.3a (intocados): SceneListItem sem entitlement/canAccess; sem RevenueCat; app.json sem assetBundlePatterns',
+      !/entitlement|canAccess|isPremiumUser|hasAccess/.test(sli73a)
+        && !/from ['"]react-native-purchases['"]/.test(js73a + sd73a)
+        && !/assetBundlePatterns/.test(readSrc('app.json')),
+      'SceneListItem/entitlement/RevenueCat/2C violados');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

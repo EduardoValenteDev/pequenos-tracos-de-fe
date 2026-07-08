@@ -126,3 +126,23 @@ export function getStoryJourneyStatus(params) {
     progress,
   };
 }
+
+/**
+ * Estado VISUAL de UMA cena na lista do StoryDetail (Fase 2B.7.3a). PURO — só decide o
+ * RÓTULO/ícone, NÃO a permissão de abrir. Separa "visualização de progresso" de "acesso":
+ * uma cena já concluída (`isDone`) aparece `completed` MESMO sem acesso ativo, sem liberar
+ * abertura (o gate de abertura continua em `goToPremium`/telas). Cenas não concluídas seguem
+ * `locked` sem acesso; a atual só vira `available` com acesso.
+ *
+ * @param {{ isComingSoon?: boolean, isDone?: boolean, canAccess?: boolean, isCurrent?: boolean }} p
+ *   - isDone: progresso REAL salvo desta cena (ex.: `progresso[cena.id] === true`) — independe de canAccess.
+ * @returns {'completed'|'available'|'locked'}
+ */
+export function sceneVisualStatus(p) {
+  const s = p || {};
+  if (s.isComingSoon) return 'locked';   // 1 — sem mídia/coming_soon: não abre player vazio
+  if (s.isDone) return 'completed';       // 2 — progresso visual real, ANTES de canAccess
+  if (!s.canAccess) return 'locked';      // 3 — não concluídas: bloqueadas sem acesso
+  if (s.isCurrent) return 'available';    // 4 — próxima só com acesso
+  return 'locked';                        // 5
+}
