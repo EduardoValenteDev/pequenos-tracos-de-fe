@@ -7433,9 +7433,9 @@ check(
 );
 
 check(
-  'ParentAreaScreen mantém seção Ferramentas do Criador',
-  parentAreaSrc.includes('Ferramentas do Criador'),
-  'Seção "Ferramentas do Criador" foi removida da Área dos Pais',
+  'ParentAreaScreen mantém a seção interna (M1: "Administração (dev)")',
+  parentAreaSrc.includes('Administração (dev)'),
+  'Seção "Administração (dev)" foi removida da Área dos Pais',
 );
 
 check(
@@ -7625,18 +7625,19 @@ check(
 );
 
 check(
-  'Área dos Pais: ferramentas de teste aparecem em DEV/Expo Go (gate SHOW_TEST_TOOLS)',
+  'Área dos Pais: seção interna aparece em DEV via gate único (M1: SHOW_TEST_TOOLS = isInternalToolsEnabled)',
   parentSrc.includes('const SHOW_TEST_TOOLS') &&
-  /__DEV__[\s\S]*?isCreatorQaModeAllowed\(\)/.test(parentSrc) &&
-  /\{SHOW_TEST_TOOLS &&[\s\S]*?Ferramentas do Criador/.test(parentSrc),
-  'Creator/QA/Build test tools must show in dev/Expo Go via SHOW_TEST_TOOLS',
+  /SHOW_TEST_TOOLS\s*=\s*isInternalToolsEnabled\(\)/.test(parentSrc) &&
+  /\{SHOW_TEST_TOOLS &&[\s\S]*?Administração \(dev\)/.test(parentSrc),
+  'seção interna deve aparecer em dev via SHOW_TEST_TOOLS = isInternalToolsEnabled()',
 );
 
 check(
-  'Área dos Pais: ferramentas de teste podem ficar ocultas em produção',
-  // SHOW_TEST_TOOLS é false em prod (sem __DEV__ e sem a flag de build)
-  /SHOW_TEST_TOOLS\s*=\s*\(typeof __DEV__/.test(parentSrc),
-  'SHOW_TEST_TOOLS must be derivable false in production (no __DEV__ / no build flag)',
+  'Área dos Pais: ferramentas internas ficam OCULTAS em produção (gate único derivável false)',
+  // M1: SHOW_TEST_TOOLS vem de isInternalToolsEnabled(), que é __DEV__ || Modo Criador || QA release-safe
+  /SHOW_TEST_TOOLS\s*=\s*isInternalToolsEnabled\(\)/.test(parentSrc) &&
+  /__DEV__[\s\S]*?isCreatorQaModeAllowed\(\)[\s\S]*?RELEASE_PACK_QA_ENABLED/.test(readSrc('src/config/internalTools.js')),
+  'isInternalToolsEnabled deve ser derivável false em produção (sem __DEV__ / sem flags)',
 );
 
 check(
@@ -12843,11 +12844,11 @@ check(
       /if \(!isPackSandboxDevEnabled\(\)\) return/.test(fnBody('resetDavidGoliathPackSandbox')),
       'seed/reset não abortam com o gate desligado');
 
-    check('F2.2b (rota + FAB só sob gate): AppNavigator registra PackSandboxDev e o FAB apenas com devPacksEnabled',
+    check('F2.2b→M1 (rota sob gate; FAB removido): PackSandboxDev registra sob devPacksEnabled e NÃO há mais FAB global de packs',
       /const devPacksEnabled = isPackSandboxDevEnabled\(\)/.test(nav) &&
       /devPacksEnabled && \(\s*<Stack\.Screen\s+name="PackSandboxDev"/.test(nav) &&
-      /devPacksEnabled && \(\s*<TouchableOpacity/.test(nav),
-      'AppNavigator registra a rota/FAB dev fora do duplo gate');
+      !/devPacksEnabled && \(\s*<TouchableOpacity/.test(nav),
+      'rota PackSandboxDev fora do gate OU FAB global de packs ainda presente (M1 removeu o FAB)');
 
     check('F2.2b (nomes das 10 cenas batem com o resolver): scenes/<id>_scene_NN.webp',
       /scenes\/\$\{STORY_ID\}_scene_\$\{pad2\(n\)\}\.webp/.test(svc),
@@ -14087,12 +14088,12 @@ check(
       /if \(!isPackSandboxDevEnabled\(\)\) return/.test(svcRaw),
       'seed/reset não checam mais o gate');
 
-    // 14. FAB/rota só sob gate (não child-facing)
-    check('F2.4e.7b: PackSandboxDev (rota+FAB) só sob devPacksEnabled (não child-facing)',
+    // 14. Rota só sob gate; FAB global REMOVIDO (M1) — acesso a packs só na seção Administração (dev)
+    check('F2.4e.7b→M1: PackSandboxDev rota só sob devPacksEnabled; FAB global removido (não child-facing)',
       /const devPacksEnabled = isPackSandboxDevEnabled\(\)/.test(nav)
         && /devPacksEnabled && \(\s*<Stack\.Screen\s+name="PackSandboxDev"/.test(nav)
-        && /devPacksEnabled && \(\s*<TouchableOpacity/.test(nav),
-      'a ferramenta deixou de ser gated (risco child-facing)');
+        && !/devPacksEnabled && \(\s*<TouchableOpacity/.test(nav),
+      'rota PackSandboxDev fora do gate OU FAB global ainda presente (M1 removeu o FAB)');
 
     // 15. Lifecycle de áudio F2.4e.5pR intacto
     check('F2.4e.7b: lifecycle de áudio F2.4e.5pR intacto (token/navigation.isFocused/AppState)',

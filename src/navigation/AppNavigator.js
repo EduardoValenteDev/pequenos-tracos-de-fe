@@ -34,9 +34,11 @@ import StoryBookScreen from '../screens/StoryBookScreen';
 import CultinhoEmCasaScreen from '../screens/CultinhoEmCasaScreen';
 import BeniChestScreen from '../screens/BeniChestScreen';
 import CreatorModeBanner from '../components/dev/CreatorModeBanner';
-// F2.2b — ferramenta dev-only de pack sandbox (rota + FAB só sob o DUPLO GATE).
+// F2.2b — ferramenta dev-only de pack sandbox (rota SÓ sob o DUPLO GATE).
 import { isPackSandboxDevEnabled } from '../services/packSandboxDevService';
 import PackSandboxDevScreen from '../screens/PackSandboxDevScreen';
+// M1 — gate único das ferramentas internas (Administração dev): rotas internas só sob ele.
+import { isInternalToolsEnabled } from '../config/internalTools';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -325,13 +327,15 @@ export default function AppNavigator() {
           component={ColoringScreen}
           options={{ headerShown: false }}
         />
-        {/* QA do Criador: galeria para testar todos os desenhos de colorir.
-            Entrada só na seção "Ferramentas do Criador" da Área dos Pais. */}
-        <Stack.Screen
-          name="ColoringQa"
-          component={ColoringQaScreen}
-          options={{ headerShown: false }}
-        />
+        {/* M1: QA do Criador (testar desenhos) — rota registrada SÓ sob o gate interno,
+            SEM rota pública. Entrada só na seção "Administração (dev)" da Área dos Pais. */}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="ColoringQa"
+            component={ColoringQaScreen}
+            options={{ headerShown: false }}
+          />
+        )}
         <Stack.Screen
           name="Congrats"
           component={CongratsScreen}
@@ -417,16 +421,8 @@ export default function AppNavigator() {
           />
         )}
       </Stack.Navigator>
-      {/* F2.2b — FAB discreto para abrir a ferramenta dev: renderizado SÓ sob o duplo gate. */}
-      {devPacksEnabled && (
-        <TouchableOpacity
-          onPress={() => navigationRef.navigate('PackSandboxDev')}
-          accessibilityLabel="Dev: Pack Sandbox"
-          style={{ position: 'absolute', right: 10, bottom: 120, backgroundColor: '#1E1E28', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, opacity: 0.85, zIndex: 9999 }}
-        >
-          <Text style={{ color: '#FFF', fontSize: 12, fontFamily: 'Nunito' }}>🛠 packs</Text>
-        </TouchableOpacity>
-      )}
+      {/* M1: FAB packs global REMOVIDO — acesso a packs vive só na seção "Administração (dev)"
+          da Área dos Pais (gated por isPackSandboxDevEnabled). Nada de overlay dev em telas públicas. */}
     </NavigationContainer>
   );
 }

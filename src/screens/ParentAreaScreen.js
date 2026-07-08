@@ -14,6 +14,9 @@ import {
   isCreatorQaModeEnabled,
   setCreatorQaModeEnabled,
 } from '../services/creatorQaMode';
+// M1 — gate único da seção interna + gate específico dos packs (defesa em profundidade).
+import { isInternalToolsEnabled } from '../config/internalTools';
+import { isPackSandboxDevEnabled } from '../services/packSandboxDevService';
 import { resetOnboardingForQa } from '../services/onboardingService';
 import { resetBeniAppTour, resetAllGuides, requestInitialTour } from '../services/beniTourService';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
@@ -56,8 +59,9 @@ const SUPPORT_EMAIL = productConfig.supportEmail;
 // Aparecem em DEV/Expo Go/teste local; ficam ocultas em produção real.
 // __DEV__ é true em desenvolvimento; isCreatorQaModeAllowed() também cobre a
 // flag de build EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE.
-const SHOW_TEST_TOOLS =
-  (typeof __DEV__ !== 'undefined' && __DEV__ === true) || isCreatorQaModeAllowed();
+// M1: gate da seção interna vem da FONTE ÚNICA `isInternalToolsEnabled()`
+// (= __DEV__ || Modo Criador permitido || QA release-safe). Produção/screenshot → false.
+const SHOW_TEST_TOOLS = isInternalToolsEnabled();
 
 // ── Componentes internos ──────────────────────────────────────────────────────
 
@@ -912,11 +916,14 @@ export default function ParentAreaScreen({ navigation }) {
             <Text style={styles.versionText}>{productConfig.versionLabel}</Text>
           </AccordionSection>
 
-          {/* ─── 7. FERRAMENTAS DO CRIADOR (QA) — discreta ────────────────────── */}
+          {/* ─── 7. ADMINISTRAÇÃO (DEV) — ferramentas internas do criador, gated ──────
+              M1: seção única concentrando as ferramentas internas. NÃO aparece em
+              produção/screenshot (isInternalToolsEnabled false). "Apagar progresso" NÃO
+              está aqui — é gestão de dados pública do responsável, em seção própria. */}
           {SHOW_TEST_TOOLS && (
             <AccordionSection
-              title="🛠️ Ferramentas do Criador"
-              hint="Apenas para desenvolvimento e testes neste aparelho."
+              title="🛠️ Administração (dev)"
+              hint="Apenas para desenvolvimento e testes neste aparelho. Não aparece em produção."
             >
               <InfoCard style={styles.qaCard}>
                 <View style={styles.qaRow}>
@@ -969,6 +976,20 @@ export default function ParentAreaScreen({ navigation }) {
                   <Text style={styles.qaResetBtnText}>Abrir galeria de QA</Text>
                 </SoundButton>
               </InfoCard>
+
+              {/* M1: acesso a packs migrou do FAB global para cá — gate específico próprio
+                  (isPackSandboxDevEnabled) além do gate da seção. Sem R2 real nem entitlement. */}
+              {isPackSandboxDevEnabled() && (
+                <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
+                  <Text style={styles.qaTitle}>Packs (dev)</Text>
+                  <Text style={styles.qaDesc}>
+                    Semear, baixar e diagnosticar o pack sandbox (david_goliath) neste aparelho. Não toca R2 real, plano nem conquistas.
+                  </Text>
+                  <SoundButton style={styles.qaResetBtn} onPress={() => navigation.navigate('PackSandboxDev')} activeOpacity={0.85}>
+                    <Text style={styles.qaResetBtnText}>Abrir Pack Sandbox</Text>
+                  </SoundButton>
+                </InfoCard>
+              )}
 
               <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
                 <Text style={styles.qaTitle}>Rever Tour Inicial do Beni</Text>
