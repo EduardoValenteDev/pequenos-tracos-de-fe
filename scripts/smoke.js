@@ -15389,6 +15389,82 @@ check(
       'guardrails 2B.7.4 violados (compra/restore/offerings/paywall/-ui/service-RC/app.json/secret/2C)');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // M1 — Higiene de release + ferramentas internas. Gate único `isInternalToolsEnabled()`;
+  // seção "Administração (dev)"; FAB packs REMOVIDO; rota ColoringQa gated; banner só em dev;
+  // perfil screenshot limpo. Produção/screenshot = SEM ferramentas internas (anti-vazamento).
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── M1: higiene de release + ferramentas internas ──');
+  {
+    const navM1 = readSrc('src/navigation/AppNavigator.js');
+    const parentM1 = readSrc('src/screens/ParentAreaScreen.js');
+    const bannerM1 = readSrc('src/components/dev/CreatorModeBanner.js');
+    const creatorM1 = a1StripComments(readSrc('src/services/creatorQaMode.js'));
+    const flagsM1 = readSrc('src/config/featureFlags.js');
+    const itSrcM1 = readSrc('src/config/internalTools.js');
+    const easM1 = JSON.parse(readSrc('eas.json'));
+
+    // M1-1 — gate único: produção (sem __DEV__/flags) → false; dev/creator/QA → true.
+    check('M1 (gate único): isInternalToolsEnabled false em produção; true em dev/creator/QA',
+      (() => { try {
+        const code = itSrcM1.replace(/^\s*import\s.+?;\s*$/gm, '').replace(/export /g, '');
+        const load = (dev, creator, qa) => new Function('__DEV__', 'isCreatorQaModeAllowed', 'RELEASE_PACK_QA_ENABLED', code + '\nreturn { isInternalToolsEnabled };')(dev, () => creator, qa).isInternalToolsEnabled();
+        return load(false, false, false) === false
+          && load(true, false, false) === true
+          && load(false, true, false) === true
+          && load(false, false, true) === true;
+      } catch (e) { return false; } })(),
+      'isInternalToolsEnabled não é derivável false em produção OU não liga em dev/creator/QA');
+
+    // M1-2 — banner Modo Criador só sob gate (null sem permissão).
+    check('M1 (banner): CreatorModeBanner retorna null sem isCreatorQaModeAllowed()',
+      /if \(!isCreatorQaModeAllowed\(\) \|\| !enabled\) return null/.test(bannerM1),
+      'CreatorModeBanner deixou de ser gated por isCreatorQaModeAllowed');
+
+    // M1-3 — FAB packs global REMOVIDO (sem overlay dev em telas públicas).
+    check('M1 (FAB removido): AppNavigator não renderiza mais o FAB global de packs',
+      !/devPacksEnabled && \(\s*<TouchableOpacity/.test(navM1) && !/🛠 packs/.test(navM1),
+      'FAB global de packs ainda presente no AppNavigator (M1 removeu)');
+
+    // M1-4 — rotas internas SÓ sob gate.
+    check('M1 (rotas internas gated): ColoringQa sob isInternalToolsEnabled; PackSandboxDev sob devPacksEnabled',
+      /\{isInternalToolsEnabled\(\) &&[\s\S]*?name="ColoringQa"/.test(navM1)
+        && /devPacksEnabled && \(\s*<Stack\.Screen\s+name="PackSandboxDev"/.test(navM1),
+      'rota ColoringQa/PackSandboxDev não está sob o gate interno');
+
+    // M1-5 — seção "Administração (dev)" sob o gate único.
+    check('M1 (seção admin gated): "Administração (dev)" sob SHOW_TEST_TOOLS = isInternalToolsEnabled()',
+      /const SHOW_TEST_TOOLS\s*=\s*isInternalToolsEnabled\(\)/.test(parentM1)
+        && /\{SHOW_TEST_TOOLS &&[\s\S]*?Administração \(dev\)/.test(parentM1),
+      'seção "Administração (dev)" fora do gate único');
+
+    // M1-6 — eas.json: production E screenshot SEM as 4 flags QA internas.
+    check('M1 (eas limpo): perfis production e screenshot sem flags QA internas',
+      (() => {
+        const bad = /EXPO_PUBLIC_ENABLE_PACK_SANDBOX|EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE|EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA|EXPO_PUBLIC_QA_BUILD/;
+        const shot = easM1.build && easM1.build.screenshot;
+        const prodEnv = JSON.stringify((easM1.build && easM1.build.production && easM1.build.production.env) || {});
+        return !!shot && !bad.test(prodEnv) && !bad.test(JSON.stringify(shot.env || {}));
+      })(),
+      'perfil production/screenshot com flag QA OU perfil screenshot ausente');
+
+    // M1-7 — Modo Criador NUNCA grava plano premium (só override em memória).
+    check('M1 (sem plano gravado): creatorQaMode não referencia plan/premium (código, sem comentários)',
+      !/premium/i.test(creatorM1) && !/\bplan\b/i.test(creatorM1),
+      'creatorQaMode referencia plano/premium no código (deveria ser só override de permissão)');
+
+    // M1-8 — RELEASE_PACK_QA_ENABLED exige os 4 gates (não afrouxado).
+    check('M1 (quádruplo gate): RELEASE_PACK_QA_ENABLED exige as 4 flags EXPO_PUBLIC',
+      /RELEASE_PACK_QA_ENABLED\s*=[\s\S]*?ENABLE_PACK_SANDBOX[\s\S]*?&&[\s\S]*?ENABLE_RELEASE_PACK_QA[\s\S]*?&&[\s\S]*?QA_BUILD[\s\S]*?&&[\s\S]*?BUILD_PROFILE/.test(flagsM1),
+      'RELEASE_PACK_QA_ENABLED não exige mais os 4 gates');
+
+    // M1-9 — "Apagar progresso" (público) fica FORA da seção Administração (dev).
+    check('M1 (apagar progresso público): confirmação "APAGAR" existe e vem ANTES da seção Administração (dev)',
+      parentM1.includes("'APAGAR'") && parentM1.includes('Administração (dev)')
+        && parentM1.indexOf("'APAGAR'") < parentM1.indexOf('Administração (dev)'),
+      '"Apagar progresso" ausente OU dentro da seção dev (deveria ser público, fora dela)');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
