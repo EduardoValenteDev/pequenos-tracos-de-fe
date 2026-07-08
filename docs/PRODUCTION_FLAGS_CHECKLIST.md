@@ -29,8 +29,34 @@ Verificar ANTES de cada build de produção. Uma flag errada pode entregar premi
 | `development` | `internal` | `apk` | Desenvolvimento local com dev client |
 | `preview` | `internal` | `apk` (Android) / default (iOS) | Testes internos antes de submissão |
 | `production` | `store` (implícito) | `app-bundle` (Android) | Submissão às lojas |
+| `screenshot` | `internal` | `apk` (Android) | **M1:** screenshots oficiais — production-like, SEM flags internas |
 
-**Regra:** Nunca usar `preview` para submeter às lojas. Sempre usar `production`.
+**Regra:** Nunca usar `preview` para submeter às lojas. Sempre usar `production`. **Screenshots oficiais nunca saem de `development` nem `preview`** — usar `production` ou `screenshot` (ambos limpos).
+
+---
+
+## Ferramentas internas e visibilidade (M1)
+
+As ferramentas internas do criador (Modo Criador/premium simulado, packs, reset de guias, rever onboarding, testar desenhos, build info) vivem na seção **"Administração (dev)"** da Área dos Pais e nas rotas internas (`ColoringQa`, `PackSandboxDev`). Gate único: **`isInternalToolsEnabled()`** (`src/config/internalTools.js`) = `__DEV__ || Modo Criador permitido || QA release-safe`. Cada ferramenta mantém o gate específico (defesa em profundidade). Proteção **build-time** (sem auth de admin no app final).
+
+### Matriz de visibilidade
+
+| Ambiente | `isInternalToolsEnabled()` | Modo Criador (premium simulado) | FAB packs | Seção "Administração (dev)" |
+|---|---|---|---|---|
+| `development` (`__DEV__`) | **true** | ON | (sem FAB — só a seção) | ON |
+| `preview` (QA) | **true** (via `RELEASE_PACK_QA_ENABLED`) | **OFF** (sem `ENABLE_CREATOR_QA_MODE`) | removido | ON (para packs QA) |
+| `production` | **false** | OFF | removido | OFF |
+| `screenshot` | **false** | OFF | removido | OFF |
+
+- **FAB packs global REMOVIDO (M1):** sem overlay dev em nenhuma tela; acesso a packs só pela seção "Administração (dev)".
+- **Banner "Modo Criador Ativo":** só onde o Modo Criador é permitido (development ou build com `EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE`). Nunca em production/screenshot.
+- **"Apagar progresso":** feature PÚBLICA do responsável (gestão de dados, confirmação "APAGAR") — fora da seção dev.
+
+### Processo de screenshots oficiais
+
+1. **Nunca** tirar screenshots de `development` (mostra banner/ferramentas) nem de `preview` (mostra a seção de packs QA).
+2. Usar o perfil **`screenshot`** (`eas build --profile screenshot`) ou **`production`** — ambos sem flags internas → app limpo (sem Modo Criador, FAB, seção dev, premium simulado).
+3. Anti-vazamento coberto pelo smoke (bloco `── M1 ──`).
 
 ---
 
