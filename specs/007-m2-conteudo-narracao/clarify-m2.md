@@ -1,0 +1,16 @@
+# Clarify — M2 · Alinhamento de conteúdo
+
+> **Etapa SDD 2.** Ambiguidades a resolver no **Portão 1**. A **Q1 é BLOQUEADORA** (a auditoria mostrou app-text = roteiro do repo 200/200).
+
+| # | Questão (Portão 1) | Por que importa | Recomendação |
+|---|---|---|---|
+| **Q1 🔴 BLOQUEADOR** | **`Roteiro de Narração Final(8).docx` é IDÊNTICO ao `docs/biblical-review/final-5-revisoes/ROTEIRO_NARRACAO_FINAL_5_REVISOES.md`, ou é uma versão diferente/posterior que gerou os áudios?** | A auditoria provou app-text = roteiro do repo **200/200**. Se o `.docx` for igual → **não há divergência de texto** (M2a é no-op; o problema está em áudio/quiz/reflexão/final). Se for diferente → o **repo não tem a fonte real** e M2a precisa desse conteúdo versionado. | Você confirmar: (a) igual → seguimos direto para M2b/c/d; (b) diferente → me forneça/versionamos o Final(8) antes de tocar texto. |
+| Q2 | **Onde exatamente você viu "texto ≠ narração"?** Era a **legenda na tela** (o app mostra `textoNarracao`, que bate com o roteiro) ou o **áudio** falava diferente do que estava escrito? Quais histórias/cenas? | Se foi áudio ≠ tela, o problema é do **áudio** (fora do escopo M2 "não mexer em áudio") ou do documento (Q1). Se foi tela, minha auditoria não reproduz — precisamos de exemplos concretos. | Aponte 1–2 cenas específicas onde ouviu a diferença (história + nº da cena). |
+| Q3 | **Quiz:** posso remover/ajustar perguntas de **detalhe não narrado** (ex.: `david_q7` "quarenta dias", `david_q8` "Senhor dos Exércitos")? Manter 8 por história ou reduzir? | Eduardo relatou "perguntas não mencionadas na história". A regra: pergunta respondível pelo texto. | Manter 8; trocar as que pedem fato fora do roteiro por perguntas respondíveis pela narração. Ids estáveis. |
+| Q4 | **Reflexão ("Guardar no coração"):** virar uma explicação **específica da história** (2–3 frases sobre a lição), mantendo as perguntas curtas, ou substituir o formato atual? | Hoje é genérico (HEART_FEELINGS/HEART_KEEPS, [[ux1_bloco4c]]). | Adicionar um texto curto **por história** que explique a lição (derivado do `licaoCoracao`/roteiro), mantendo o fluxo. |
+| Q5 | **Finalização:** qual padrão você quer na última cena? Ex.: botão único **"Concluir história"** → tela de conclusão e as ações; **sem** auto-finalizar. | Eduardo: "Concluir cena → finalizar história → às vezes finaliza sozinha". Área sensível (afeta `journeyComplete`/estrela). | Padrão único explícito, sem auto-advance na última cena; preservar `journeyComplete`/progresso. **Decidido no Portão 3 (Eduardo):** a conclusão **NÃO** dá estrela extra — a estrela da última cena é a da própria cena (`salvarCena` idempotente). |
+| Q6 | **Ordem dos sub-blocos** e se M2 vira sub-fases (M2b, M2c, M2d) com commits próprios. | Anti-retrabalho + commits atômicos. | Sub-fases separadas; M2a só depois da Q1. |
+
+**Nenhuma spec avança com a Q1 em aberto.** As respostas alimentam o Plan/Tasks.
+
+**Resolução do Portão 1 (Eduardo):** Q1 → o docx Final(8) bate com o roteiro do repo **em palavras** (as 6 diferenças eram só aspas perdidas na conversão) ⇒ **M2a = NO-OP**. Q2 → sem ajuste cosmético de aspas agora. Q3 → manter 8/história, ids estáveis, critério manter/reescrever/substituir. Q4 → texto curto de lição por história. Q5 → padrão único **sem estrela extra**. Q6 → sub-fases com commits próprios.
