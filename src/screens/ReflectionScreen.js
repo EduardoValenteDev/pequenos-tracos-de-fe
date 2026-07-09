@@ -157,6 +157,14 @@ export default function ReflectionScreen({ route, navigation }) {
             </View>
           )}
 
+          {/* M2c: lição central da história (display-only; não altera o fluxo/recompensa). */}
+          {stepKey === 'done' && !!(story.reflexaoLicao || story.licaoCoracao) && (
+            <View style={styles.lessonCard}>
+              <Text style={styles.lessonTitle}>O que essa história nos ensina</Text>
+              <Text style={styles.lessonText}>{story.reflexaoLicao || story.licaoCoracao}</Text>
+            </View>
+          )}
+
           {stepKey === 'done' ? (
             <SoundButton style={styles.nextBtn} onPress={handleGuardar} activeOpacity={0.85}>
               <Text style={styles.nextBtnText}>💛 Guardar no coração</Text>
@@ -230,6 +238,20 @@ const styles = StyleSheet.create({
   },
   keepChipText: {
     fontFamily: 'FredokaOne', fontSize: 15, color: '#7C3AED',
+  },
+
+  // M2c — card da lição central da história (exibido no passo final).
+  lessonCard: {
+    backgroundColor: '#FFF',
+    borderRadius: radii.lg, padding: 18,
+    borderLeftWidth: 4, borderLeftColor: '#A78BFA',
+    marginBottom: 16, ...shadows.soft,
+  },
+  lessonTitle: {
+    fontFamily: 'FredokaOne', fontSize: 15, color: '#7C3AED', marginBottom: 8,
+  },
+  lessonText: {
+    fontFamily: 'Nunito', fontSize: 14.5, color: pt.text, lineHeight: 22, fontWeight: '600',
   },
 
   choiceGrid: {

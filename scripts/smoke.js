@@ -15539,6 +15539,41 @@ check(
       'textoNarracao foi alterado/removido (M2a deveria ser NO-OP)');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // M2c — Reflexão "Guardar no coração": lição central por história (campo reflexaoLicao),
+  // exibida no passo final. DISPLAY-ONLY: fluxo (feeling→keep→done), recompensa (+1⭐) e
+  // navegação preservados. textoNarracao intocado (M2a NO-OP).
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── M2c: reflexão específica por história ──');
+  {
+    const stC = new Function(readSrc('src/data/stories.js').replace(/export const/g, 'const').replace(/export /g, '') + '\nreturn stories;')();
+    const refC = readSrc('src/screens/ReflectionScreen.js');
+
+    // M2c-1 — toda história tem reflexaoLicao específica e substancial.
+    check('M2c (dados): toda história tem reflexaoLicao (>= 40 chars)',
+      stC.length === 20 && stC.every((s) => typeof s.reflexaoLicao === 'string' && s.reflexaoLicao.trim().length >= 40),
+      'alguma história sem reflexaoLicao ou muito curta');
+
+    // M2c-2 — ReflectionScreen exibe a reflexão no passo final (display-only).
+    check('M2c (tela): ReflectionScreen exibe story.reflexaoLicao no passo done',
+      /story\.reflexaoLicao/.test(refC) && /stepKey === 'done'[\s\S]*?reflexaoLicao/.test(refC),
+      'ReflectionScreen não exibe reflexaoLicao no passo done');
+
+    // M2c-3 — fluxo e recompensa PRESERVADOS (não mexer em conclusão/estrela/reflexão).
+    check('M2c (fluxo intacto): STEPS/+1⭐/HEART_*/goBack preservados',
+      /STEPS\s*=\s*\['feeling',\s*'keep',\s*'done'\]/.test(refC)
+        && /STAR_BONUS\s*=\s*1/.test(refC)
+        && /addBonusStars\(STAR_BONUS\)/.test(refC)
+        && /HEART_FEELINGS/.test(refC) && /HEART_KEEPS/.test(refC)
+        && /navigation\.goBack\(\)/.test(refC),
+      'fluxo/recompensa/navegação da reflexão foi alterado');
+
+    // M2c-4 — textoNarracao intocado (M2a NO-OP) + quizzes M2b intactos (8/história).
+    check('M2c (intocados): textoNarracao presente em todas as cenas; stories.js estrutura ok',
+      stC.every((s) => (s.cenas || []).every((c) => typeof c.textoNarracao === 'string' && c.textoNarracao.length > 0)),
+      'textoNarracao alterado/removido (M2a deveria ser NO-OP)');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
