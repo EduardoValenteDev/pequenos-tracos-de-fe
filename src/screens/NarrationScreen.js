@@ -183,14 +183,24 @@ export default function NarrationScreen({ route, navigation }) {
   // Rótulo + ação do botão principal conforme o estado da cena
   let primaryLabel;
   let primaryAction;
-  if (!jaConcluida) {
+  if (isLastCena) {
+    // M2d: última cena — ação/rótulo explícitos de finalização da história.
+    //   NÃO concluída → conclui a cena (salvarCena idempotente = a própria estrela da cena) e
+    //     segue para o Congrats. NÃO há estrela extra de conclusão da história.
+    //   JÁ concluída (revisita) → apenas VÊ a conclusão: sem nova estrela, sem recompensa.
+    // Sem auto-finalizar: só avança por toque do usuário (handleConcluirCena / goToNext).
+    if (!jaConcluida) {
+      primaryLabel = 'Concluir história ⭐';
+      primaryAction = handleConcluirCena;
+    } else {
+      primaryLabel = 'Ver conclusão →';
+      primaryAction = goToNext;
+    }
+  } else if (!jaConcluida) {
     primaryLabel = 'Concluir cena ⭐';
     primaryAction = handleConcluirCena;
-  } else if (!isLastCena) {
-    primaryLabel = 'Próxima cena →';
-    primaryAction = goToNext;
   } else {
-    primaryLabel = 'Finalizar aventura →';
+    primaryLabel = 'Próxima cena →';
     primaryAction = goToNext;
   }
 

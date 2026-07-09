@@ -15574,6 +15574,41 @@ check(
       'textoNarracao alterado/removido (M2a deveria ser NO-OP)');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // M2d — Finalização da história (última cena). Correção mínima de rótulo/ação:
+  // "Concluir história ⭐" (não concluída) / "Ver conclusão →" (revisita, sem nova estrela).
+  // salvarCena idempotente preservado; SEM estrela extra de conclusão; journeyComplete intocado.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── M2d: finalização da história ──');
+  {
+    const narrM2 = readSrc('src/screens/NarrationScreen.js');
+
+    // M2d-1 — rótulos claros da última cena; não-última inalterada; sem "Finalizar aventura".
+    check('M2d (rótulos): última cena "Concluir história ⭐"/"Ver conclusão →"; não-última intacta',
+      narrM2.includes('Concluir história ⭐') && narrM2.includes('Ver conclusão →')
+        && narrM2.includes('Concluir cena ⭐') && narrM2.includes('Próxima cena →')
+        && !narrM2.includes('Finalizar aventura'),
+      'rótulos da última cena não atualizados (M2d)');
+
+    // M2d-2 — ação: última NÃO concluída → conclui a cena; JÁ concluída → só vê a conclusão.
+    check('M2d (ação): última não-concluída→handleConcluirCena; concluída→goToNext',
+      /Concluir história ⭐[\s\S]{0,80}?handleConcluirCena/.test(narrM2)
+        && /Ver conclusão →[\s\S]{0,80}?goToNext/.test(narrM2)
+        && /if \(isLastCena\)/.test(narrM2),
+      'ação/rótulo da última cena não mapeados corretamente');
+
+    // M2d-3 — idempotência preservada; SEM estrela extra de conclusão.
+    check('M2d (sem estrela extra): salvarCena idempotente preservado; NarrationScreen sem addBonusStars',
+      /salvarCena é idempotente/.test(narrM2) && /await salvarCena\(cena\.id\)/.test(narrM2)
+        && !/addBonusStars/.test(narrM2),
+      'idempotência quebrada ou estrela/recompensa extra adicionada na conclusão');
+
+    // M2d-4 — journeyComplete NÃO tocado (segue derivado em storyJourneyService).
+    check('M2d (journeyComplete intacto): NarrationScreen não referencia journeyComplete',
+      !/journeyComplete/.test(narrM2),
+      'NarrationScreen passou a mexer em journeyComplete (fora do escopo M2d)');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
