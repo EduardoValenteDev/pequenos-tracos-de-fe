@@ -15465,6 +15465,80 @@ check(
       '"Apagar progresso" ausente OU dentro da seção dev (deveria ser público, fora dela)');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // M2b — Quiz alinhado à narração oficial. Estrutura (8/história, ids únicos, correct
+  // válido) + respostas corrigidas ANCORADAS na narração + termos não-narrados removidos.
+  // (M2a = NO-OP: textoNarracao não é tocado.)
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── M2b: quiz alinhado à narração ──');
+  {
+    const qzM2 = new Function(readSrc('src/data/quizzes.js').replace(/export /g, '') + '\nreturn QUIZZES;')();
+    const stM2 = new Function(readSrc('src/data/stories.js').replace(/export const/g, 'const').replace(/export /g, '') + '\nreturn stories;')();
+    const narrByStory = {};
+    for (const s of stM2) narrByStory[s.id] = (s.cenas || []).map((c) => c.textoNarracao || '').join(' ');
+    const normM2 = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // M2b-1 — estrutura: 8/história, ids únicos globais, correct índice válido.
+    check('M2b (estrutura): 8 perguntas por história, ids únicos, correct válido',
+      (() => { try {
+        const ids = new Set();
+        for (const sid of Object.keys(qzM2)) {
+          const arr = qzM2[sid];
+          if (!Array.isArray(arr) || arr.length !== 8) return false;
+          for (const q of arr) {
+            if (!q.id || ids.has(q.id)) return false; ids.add(q.id);
+            if (!Array.isArray(q.options) || q.options.length < 2) return false;
+            if (!(Number.isInteger(q.correct) && q.correct >= 0 && q.correct < q.options.length)) return false;
+          }
+        }
+        return ids.size === 160;
+      } catch (e) { return false; } })(),
+      'quiz sem 8/história, id duplicado/ausente, ou correct inválido');
+
+    // M2b-2 — respostas CORRIGIDAS ancoradas na narração (termo-chave na resposta E na narração).
+    const grounded = [
+      ['noah', 'noah_q4', 'arco nas nuvens'], ['david_goliath', 'david_q7', 'muitos dias'],
+      ['joseph_colorful_coat', 'joseph_q1', 'tunica especial'], ['abraham_stars', 'abraham_q6', 'presenca de deus'],
+      ['esther_queen', 'esther_q6', 'com favor'], ['samuel_hears_god', 'samuel_q7', 'havia falado'],
+      ['josiah_young_king', 'josiah_q5', 'profundamente tocado'], ['solomon_wisdom', 'solomon_q3', 'ajuda de deus'],
+      ['timothy_faith', 'timothy_q6', 'colaborador'], ['moses_red_sea', 'moses_q7', 'confundiu'],
+      ['jonah_big_fish', 'jonah_q6', 'terra seca'], ['noah', 'noah_q8', 'folha'],
+    ];
+    check('M2b (ancorada): respostas corrigidas têm termo-chave presente na narração',
+      (() => { try {
+        for (const [sid, qid, phrase] of grounded) {
+          const q = (qzM2[sid] || []).find((x) => x.id === qid); if (!q) return false;
+          const ans = normM2(q.options[q.correct]); const narr = normM2(narrByStory[sid] || ''); const p = normM2(phrase);
+          if (!ans.includes(p) || !narr.includes(p)) return false;
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'alguma resposta corrigida não está ancorada na narração');
+
+    // M2b-3 — termos NÃO narrados removidos das respostas corretas.
+    const removed = [
+      ['david_goliath', 'david_q7', 'quarenta'], ['esther_queen', 'esther_q1', 'assuero'],
+      ['joseph_colorful_coat', 'joseph_q1', 'manto de muitas cores'], ['abraham_stars', 'abraham_q6', 'tocha'],
+      ['esther_queen', 'esther_q6', 'cetro'], ['josiah_young_king', 'josiah_q1', 'oito'],
+      ['josiah_young_king', 'josiah_q6', 'hulda'], ['timothy_faith', 'timothy_q1', 'listra'],
+      ['noah', 'noah_q4', 'arco iris'],
+    ];
+    check('M2b (limpeza): termos não-narrados removidos das respostas corretas',
+      (() => { try {
+        for (const [sid, qid, term] of removed) {
+          const q = (qzM2[sid] || []).find((x) => x.id === qid); if (!q) return false;
+          if (normM2(q.options[q.correct]).includes(normM2(term))) return false;
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'uma resposta corrigida ainda contém termo não-narrado');
+
+    // M2b-4 — textoNarracao NÃO foi tocado (M2a NO-OP): guarda leve.
+    check('M2b (M2a intacto): stories.js mantém cenas com textoNarracao',
+      stM2.every((s) => (s.cenas || []).every((c) => typeof c.textoNarracao === 'string' && c.textoNarracao.length > 0)),
+      'textoNarracao foi alterado/removido (M2a deveria ser NO-OP)');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
