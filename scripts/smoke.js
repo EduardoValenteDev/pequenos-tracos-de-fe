@@ -15496,13 +15496,23 @@ check(
       'quiz sem 8/história, id duplicado/ausente, ou correct inválido');
 
     // M2b-2 — respostas CORRIGIDAS ancoradas na narração (termo-chave na resposta E na narração).
+    // Fase 2A (reancoragem no documento oficial novo): as 4 âncoras marcadas (*) apontavam para termos
+    // que a narração antiga tinha e a NOVA não tem ('presenca de deus', 'havia falado', 'colaborador',
+    // 'confundiu'). As perguntas foram reescritas e as âncoras reapontadas. A REGRA do check é a mesma
+    // (termo presente na resposta correta E na narração); a lista foi AMPLIADA com 5 âncoras novas.
     const grounded = [
       ['noah', 'noah_q4', 'arco nas nuvens'], ['david_goliath', 'david_q7', 'muitos dias'],
-      ['joseph_colorful_coat', 'joseph_q1', 'tunica especial'], ['abraham_stars', 'abraham_q6', 'presenca de deus'],
-      ['esther_queen', 'esther_q6', 'com favor'], ['samuel_hears_god', 'samuel_q7', 'havia falado'],
+      ['joseph_colorful_coat', 'joseph_q1', 'tunica especial'], ['abraham_stars', 'abraham_q6', 'uma terra'], // *
+      ['esther_queen', 'esther_q6', 'com favor'], ['samuel_hears_god', 'samuel_q7', 'falasse tudo'], // *
       ['josiah_young_king', 'josiah_q5', 'profundamente tocado'], ['solomon_wisdom', 'solomon_q3', 'ajuda de deus'],
-      ['timothy_faith', 'timothy_q6', 'colaborador'], ['moses_red_sea', 'moses_q7', 'confundiu'],
+      ['timothy_faith', 'timothy_q6', 'ao lado de paulo'], // *
+      ['moses_red_sea', 'moses_q7', 'forte vento'], // *
       ['jonah_big_fish', 'jonah_q6', 'terra seca'], ['noah', 'noah_q8', 'folha'],
+      // Fase 2A — reforço (respostas reancoradas nesta fase):
+      ['moses_red_sea', 'moses_q6', 'muros'], ['ruth_naomi', 'ruth_q7', 'obede'],
+      ['mary_says_yes', 'mary_q8', 'serva do senhor'],
+      ['samuel_hears_god', 'samuel_q4', 'porque o teu servo ouve'],
+      ['jesus_temple', 'temple_q7', 'coisas de seu pai'],
     ];
     check('M2b (ancorada): respostas corrigidas têm termo-chave presente na narração',
       (() => { try {
