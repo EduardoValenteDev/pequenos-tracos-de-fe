@@ -15619,6 +15619,60 @@ check(
       'NarrationScreen passou a mexer em journeyComplete (fora do escopo M2d)');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // Fase 4A — Briefing de colorir (tituloColorir/instrucaoColorir) reancorado no
+  // documento oficial de narração. ADITIVO: nenhuma validação existente foi tocada.
+  //
+  // Motivo: esses campos são o BRIEFING usado para encomendar folhas de colorir.
+  // Eles seguiam o roteiro ANTIGO e citavam eventos que a narração oficial removeu
+  // (tocha da aliança em Abraão, carros de guerra em Moisés, prisão/faraó em José,
+  // Rainha de Sabá em Salomão). Produzir arte por eles gerava folhas deslocadas.
+  // Estes checks impedem o briefing antigo de voltar.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Fase 4A: briefing de colorir reancorado ──');
+  {
+    const st4 = new Function(readSrc('src/data/stories.js').replace(/export const/g, 'const').replace(/export /g, '') + '\nreturn stories;')();
+    const n4 = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const cenas4 = st4.flatMap((s) => (s.cenas || []).map((c) => ({ sid: s.id, c })));
+
+    check('4A (estrutura): 200 cenas com tituloColorir e instrucaoColorir não vazios',
+      st4.length === 20 && cenas4.length === 200 && cenas4.every(({ c }) =>
+        typeof c.tituloColorir === 'string' && c.tituloColorir.trim().length > 0
+        && typeof c.instrucaoColorir === 'string' && c.instrucaoColorir.trim().length > 0),
+      'alguma cena sem tituloColorir/instrucaoColorir, ou campo vazio');
+
+    // Eventos que a narração oficial NÃO tem — não podem reaparecer no briefing.
+    const banidos = {
+      abraham_stars: ['tocha', 'alianca', 'sacrificio', 'altar', 'mapa'],
+      moses_red_sea: ['carros', 'exercito', 'persegui', 'coluna de fogo'],
+      joseph_colorful_coat: ['prisao', 'farao', 'fome', 'vacas'],
+      solomon_wisdom: ['saba', 'construcao do templo'],
+      esther_queen: ['assuero', 'cetro dourado', 'hulda'],
+      timothy_faith: ['listra'],
+    };
+    check('4A (limpeza): briefing de colorir não cita eventos removidos da narração oficial',
+      cenas4.every(({ sid, c }) => {
+        const campo = n4(c.tituloColorir + ' ' + c.instrucaoColorir);
+        return (banidos[sid] || []).every((t) => !campo.includes(n4(t)));
+      }),
+      'um campo de colorir voltou a citar evento que não existe na narração oficial');
+
+    // Cenas críticas: o briefing precisa apontar para o MOMENTO da própria cena.
+    const ancoras4 = [
+      ['lost_sheep', 8, 'encontr'], ['lost_sheep', 9, 'ombros'],
+      ['miraculous_catch', 5, 'vazias'], ['moses_red_sea', 8, 'coluna de nuvem'],
+      ['esther_queen', 3, 'preparada'], ['good_samaritan', 10, 'ajudando'],
+    ];
+    check('4A (âncoras): cenas críticas com briefing do próprio momento narrativo',
+      ancoras4.every(([sid, cena, termo]) => {
+        const s = st4.find((x) => x.id === sid);
+        const c = s && (s.cenas || []).find((y) => y.id === cena);
+        if (!c) return false;
+        return n4(c.tituloColorir + ' ' + c.instrucaoColorir).includes(n4(termo));
+      }),
+      'uma cena crítica voltou a ter briefing de outra cena');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
