@@ -19,7 +19,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View, Text, Image, Animated, Pressable, AppState, StyleSheet, useWindowDimensions,
 } from 'react-native';
-import Svg, { Circle, Ellipse, Polygon, Rect } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Polygon, Rect, Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -37,7 +37,8 @@ import { playGameSfx, preloadGameSfx, releaseGameSfx } from '../services/audioMa
 import { warn } from '../utils/logger';
 import { OVELHA_BENI, OVELHA_DISTRATORES_DEV, OVELHA_ALVO_DEV } from '../data/ovelhaSceneData';
 import {
-  getDifficulty, buildRound, roundValido, margemDe, nivelDica, DICA,
+  getDifficulty, buildRound, roundValido, margemDe, nivelDica,
+  erroElegivel, visivelFrac,
   OVELHA_ROUNDS, OVELHA_SOUND_EVENTS,
 } from '../services/ovelhaGameService';
 import {
@@ -59,6 +60,14 @@ const T = {
 };
 
 const DIF_FACIL = getDifficulty('facil');
+
+/** Cores dos oclusores provisórios de cenário (2.1b). Trocados por arte oficial no 2.2. */
+const OCLUSOR_CORES = Object.freeze({
+  arbusto: { corpo: '#6FA84A', sombra: '#588A38' },
+  moita: { corpo: '#7FB456', sombra: '#639542' },
+  pedra: { corpo: '#A9A29B', sombra: '#8A837C' },
+  feno: { corpo: '#E0B85C', sombra: '#C69B3E' },
+});
 
 /** Vibração leve. expo-haptics já é dependência; falhar é irrelevante. */
 function vibrar() {
@@ -101,17 +110,24 @@ function OvelhaSvgSprite({ size }) {
   );
 }
 
-/** Distrator TEMPORÁRIO em SVG. "Claramente diferente" da ovelha. Trocado no 2.2. */
+/**
+ * Distrator TEMPORÁRIO em SVG. "Claramente diferente" da ovelha (sem lã, corpo liso,
+ * patinhas), com sombra de contato para coexistir com o cenário. Trocado no 2.2.
+ */
 function DistratorSvg({ visualId, size }) {
   const c = OVELHA_DISTRATORES_DEV[visualId] ?? OVELHA_DISTRATORES_DEV.gato;
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Polygon points="30,26 42,8 50,30" fill={c.orelha} />
-      <Polygon points="70,26 58,8 50,30" fill={c.orelha} />
-      <Circle cx="50" cy="58" r="40" fill={c.corpo} />
-      <Circle cx="38" cy="52" r="5" fill={c.rosto} />
-      <Circle cx="62" cy="52" r="5" fill={c.rosto} />
-      <Ellipse cx="50" cy="68" rx="6.5" ry="4.5" fill={c.rosto} />
+      <Ellipse cx="50" cy="92" rx="30" ry="6" fill="#000000" opacity={0.10} />
+      <Rect x="36" y="74" width="8" height="16" rx="4" fill={c.corpo} />
+      <Rect x="56" y="74" width="8" height="16" rx="4" fill={c.corpo} />
+      <Polygon points="30,28 42,10 50,32" fill={c.orelha} />
+      <Polygon points="70,28 58,10 50,32" fill={c.orelha} />
+      <Circle cx="50" cy="54" r="34" fill={c.corpo} />
+      <Ellipse cx="50" cy="60" rx="20" ry="16" fill="#FFFFFF" opacity={0.18} />
+      <Circle cx="40" cy="50" r="4.5" fill={c.rosto} />
+      <Circle cx="60" cy="50" r="4.5" fill={c.rosto} />
+      <Ellipse cx="50" cy="63" rx="5.5" ry="4" fill={c.rosto} />
     </Svg>
   );
 }
@@ -158,6 +174,7 @@ const Sprite = React.memo(function Sprite({ item, indice, encontrada, errando, o
   const shakeX = shake.interpolate({ inputRange: [-1, 1], outputRange: [-8, 8] });
   const entradaScale = entrada.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
   const hb = item.hitbox;
+  const vs = item.visualSize;
   const alvo = item.role === 'target';
 
   return (
@@ -166,14 +183,17 @@ const Sprite = React.memo(function Sprite({ item, indice, encontrada, errando, o
       onPressIn={() => setPress(true)}
       onPressOut={() => setPress(false)}
       // Pressable = EXATAMENTE a hitbox do item (desenho = área tocável, sem hitSlop).
-      style={[styles.hit, { left: item.cx - hb / 2, top: item.cy - hb / 2, width: hb, height: hb, zIndex: 2 }]}
+      style={[styles.hit, { left: item.cx - hb / 2, top: item.cy - hb / 2, width: hb, height: hb, zIndex: 3 }]}
       accessibilityRole="button"
       accessibilityLabel={alvo ? 'ovelhinha' : (OVELHA_DISTRATORES_DEV[item.visualId]?.label ?? 'bichinho')}
     >
       <Animated.View
-        style={{ opacity: entrada, transform: [{ translateX: shakeX }, { scale: Animated.multiply(pop, entradaScale) }, { scale: press ? 0.94 : 1 }] }}
+        style={{ width: vs, height: vs, opacity: entrada, transform: [{ translateX: shakeX }, { scale: Animated.multiply(pop, entradaScale) }, { scale: press ? 0.94 : 1 }] }}
       >
-        {alvo ? <OvelhaVisual size={item.visualSize} /> : <DistratorSvg visualId={item.visualId} size={item.visualSize} />}
+        {alvo ? <OvelhaVisual size={vs} /> : <DistratorSvg visualId={item.visualId} size={vs} />}
+        {/* OCLUSOR FRONTAL: cobre a BASE do sprite (oclusão parcial). pointerEvents none
+            → o toque passa por ele para o Pressable. Nunca cobre 100% (invariante). */}
+        <OccluderSvg occluder={item.occluder} size={vs} />
       </Animated.View>
 
       {OVELHA_DEBUG_HITBOX && (
@@ -184,6 +204,55 @@ const Sprite = React.memo(function Sprite({ item, indice, encontrada, errando, o
     </Pressable>
   );
 });
+
+/** Oclusor frontal provisório (arbusto/pedra/feno/moita) cobrindo a base do sprite. */
+function OccluderSvg({ occluder, size }) {
+  if (!occluder || !(occluder.coberturaFrac > 0)) return null;
+  const cor = OCLUSOR_CORES[occluder.tipo] ?? OCLUSOR_CORES.arbusto;
+  const h = Math.max(1, Math.round(size * occluder.coberturaFrac));
+  const w = Math.round(size * 1.18);   // um pouco mais largo que o sprite
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', bottom: -2, left: (size - w) / 2, width: w, height: h }}>
+      <Svg width={w} height={h} viewBox="0 0 100 100" preserveAspectRatio="none">
+        {occluder.tipo === 'pedra' ? (
+          <Path d="M2,100 Q6,45 26,40 Q42,20 60,38 Q84,34 96,64 L100,100 Z" fill={cor.corpo} />
+        ) : occluder.tipo === 'feno' ? (
+          <Path d="M0,100 Q10,52 24,54 Q34,34 50,50 Q66,34 78,56 Q92,52 100,100 Z" fill={cor.corpo} />
+        ) : (
+          // arbusto / moita — lóbulos arredondados
+          <Path d="M0,100 Q4,58 22,56 Q30,34 48,50 Q60,32 74,52 Q94,52 100,100 Z" fill={cor.corpo} />
+        )}
+        <Path d="M0,100 Q4,70 22,68 Q30,52 48,64 Q60,50 74,66 Q94,66 100,100 Z" fill={cor.sombra} opacity={0.5} />
+      </Svg>
+    </View>
+  );
+}
+
+/** Decoração de fundo (tufos/flores). pointerEvents none, atrás de tudo. */
+function DecorSvg({ decor }) {
+  const s = decor.size;
+  const alvo = decor.tipo === 'flor';
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', left: decor.cx - s / 2, top: decor.cy - s / 2, width: s, height: s, zIndex: 0, opacity: 0.7 }}>
+      <Svg width={s} height={s} viewBox="0 0 100 100">
+        {alvo ? (
+          <>
+            <Circle cx="50" cy="46" r="12" fill="#F6B6C8" />
+            <Circle cx="34" cy="52" r="10" fill="#F6B6C8" />
+            <Circle cx="66" cy="52" r="10" fill="#F6B6C8" />
+            <Circle cx="50" cy="50" r="7" fill="#F4D06A" />
+          </>
+        ) : (
+          <>
+            <Path d="M50,95 Q40,55 34,42" stroke="#8BBE5A" strokeWidth="7" fill="none" strokeLinecap="round" />
+            <Path d="M50,95 Q50,55 50,40" stroke="#7FB350" strokeWidth="7" fill="none" strokeLinecap="round" />
+            <Path d="M50,95 Q60,55 66,42" stroke="#8BBE5A" strokeWidth="7" fill="none" strokeLinecap="round" />
+          </>
+        )}
+      </Svg>
+    </View>
+  );
+}
 
 /** Halo em ANEL (centro transparente), ATRÁS dos sprites, sem receber toque. */
 function HaloAnel({ item, evidente }) {
@@ -241,8 +310,13 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const timeouts = useRef([]);
   const montado = useRef(true);
   const areaRef = useRef({ largura: 0, altura: 0 });
-  const buscaMsRef = useRef(0);       // tempo ACUMULADO procurando (pausa não conta)
+  // ── Estado de DICA, TUDO por rodada (nada vaza para a próxima) ──
+  const buscaMsRef = useRef(0);        // tempo acumulado procurando (pausa não conta)
   const nivelRef = useRef(0);
+  const erroElegivelRef = useRef(0);   // erros que CONTAM para a dica (anti-spam) — por rodada
+  const ultimoErroIdRef = useRef(null);
+  const ultimoErroMsRef = useRef(0);
+  const rodadaSeqRef = useRef(0);      // sobe a cada rodada; timers antigos abortam se divergir
   const fn = useRef({});
 
   /* ── Timers centralizados ── */
@@ -259,14 +333,19 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     timeouts.current = [];
   }, []);
 
+  /** Zera TODO o sistema de dica. Chamado ao montar rodada, no acerto (via aplicar),
+   *  na pausa/saída/unmount/reinício. Nada de tempo, erro ou halo sobrevive à troca. */
   const resetarDica = useCallback(() => {
     buscaMsRef.current = 0;
     nivelRef.current = 0;
+    erroElegivelRef.current = 0;
+    ultimoErroIdRef.current = null;
+    ultimoErroMsRef.current = 0;
     if (montado.current) setNivel(0);
   }, []);
 
-  const aplicarNivel = useCallback((elapsedMs, erros) => {
-    const n = nivelDica(elapsedMs, erros);
+  const aplicarNivel = useCallback((elapsedMs, errosElegiveis) => {
+    const n = nivelDica(elapsedMs, errosElegiveis);
     if (n > nivelRef.current) { nivelRef.current = n; if (montado.current) setNivel(n); }
   }, []);
 
@@ -319,9 +398,10 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     regiaoAnteriorRef.current = r.regiaoAlvo;
     const iniciou = aplicar(iniciarRodada, { targetId: r.targetId, itemIds: r.items.map((it) => it.id) });
     if (!iniciou.aceito) return;               // barreira: nunca inicia rodada sem alvo válido
+    rodadaSeqRef.current += 1;                  // nova sequência: timers antigos abortam
     setRound(r);
     setErradoId(null);
-    resetarDica();
+    resetarDica();                             // rodada nova NASCE limpa (tempo/erro/halo zerados)
     fn.current.agendar(() => fn.current.aplicar(cenaPronta), T.entrada);
   }, [aplicar, resetarDica]);
 
@@ -384,15 +464,19 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const jogando = tela === 'jogando';
   const procurando = jogando && vista.fase === FASES.PROCURANDO;
 
-  /* ── Controlador de dica: acumula tempo SÓ enquanto procura e não pausado ── */
+  /* ── Controlador de dica: acumula tempo SÓ procurando e não pausado.
+     A progressão usa o ERRO ELEGÍVEL DA RODADA (erroElegivelRef), NUNCA o cumulativo
+     da máquina — era o vazamento. O `seq` capturado aborta um tick de rodada antiga. */
   useEffect(() => {
     if (!procurando || pausado) return undefined;
+    const seq = rodadaSeqRef.current;
     let ultimo = Date.now();
     const t = setInterval(() => {
+      if (rodadaSeqRef.current !== seq) return;   // rodada mudou → tick órfão, ignora
       const agora = Date.now();
       buscaMsRef.current += agora - ultimo;
       ultimo = agora;
-      fn.current.aplicarNivel?.(buscaMsRef.current, jogoRef.current.erros);
+      fn.current.aplicarNivel?.(buscaMsRef.current, erroElegivelRef.current);
     }, 500);
     return () => clearInterval(t);
   }, [procurando, pausado]);
@@ -431,10 +515,18 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     if (pausado) return;
     const r = aplicar(tocar, id);
     if (r.aceito && r.acerto === false) {
+      // Feedback (balanço + som) em TODO erro.
       setErradoId(id);
       agendar(() => montado.current && setErradoId(null), T.erro);
-      // O erro pode elevar o nível da dica (2/3/5 erros), mas NUNCA revela no 1º.
-      aplicarNivel(buscaMsRef.current, jogoRef.current.erros);
+      // Mas só ERROS ELEGÍVEIS progridem a dica: spam no mesmo item dentro do cooldown
+      // não conta. Alternar entre itens errados conta mais.
+      const agora = Date.now();
+      if (erroElegivel({ id, ultimoId: ultimoErroIdRef.current, agoraMs: agora, ultimoMs: ultimoErroMsRef.current })) {
+        erroElegivelRef.current += 1;
+        ultimoErroMsRef.current = agora;
+      }
+      ultimoErroIdRef.current = id;
+      aplicarNivel(buscaMsRef.current, erroElegivelRef.current);
     }
   }, [aplicar, agendar, pausado, aplicarNivel]);
 
@@ -454,12 +546,15 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
 
   const semRodadas = !premium && rounds != null && rounds.remaining <= 0;
 
-  // Mensagem do Beni: incentivo a partir do nível 1 (não espacial).
+  // Mensagem do Beni: no erro recente, fala leve; do nível 1, incentivo (não espacial).
   const mensagem = pausado
     ? 'Joguinho pausado. Volte quando quiser!'
-    : nivel >= 1 ? OVELHA_BENI.incentivo : OVELHA_BENI.procurando;
+    : erradoId ? OVELHA_BENI.erro
+      : nivel >= 1 ? OVELHA_BENI.incentivo
+        : OVELHA_BENI.procurando;
 
   const alvoItem = round?.items?.find((it) => it.id === round.targetId) || null;
+  // Halo (ajuda espacial) só do nível 2; some ao pausar/acertar/trocar.
   const mostraHalo = procurando && nivel >= 2 && !pausado && !!alvoItem;
 
   /* ══════════════ ENTRADA ══════════════ */
@@ -574,10 +669,17 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
 
       <Text style={styles.dica} numberOfLines={1}>{mensagem}</Text>
 
-      <LinearGradient colors={['#EAF7EF', '#DFF3E6', '#EFF9F2']} style={styles.cena} onLayout={medirArea}>
-        {/* Camada 1 — halo em anel, ATRÁS de tudo, sem toque. */}
+      {/* Fundo de campo (gradiente + chão). Camadas empilhadas por zIndex explícito. */}
+      <LinearGradient colors={['#DCEFFB', '#EAF7EF', '#E7F3D9']} style={styles.cena} onLayout={medirArea}>
+        <View pointerEvents="none" style={styles.chao} />
+
+        {/* Camada 1 — cenário decorativo (tufos/flores), atrás de tudo, sem toque. */}
+        {(round?.decor ?? []).map((d) => <DecorSvg key={d.id} decor={d} />)}
+
+        {/* Camada 2 — halo em anel, ATRÁS dos sprites (some sob o oclusor frontal). */}
         {mostraHalo && <HaloAnel item={alvoItem} evidente={nivel >= 3} />}
-        {/* Camada 2 — sprites (zIndex 2). key = roundId+item.id → remonta a cada rodada. */}
+
+        {/* Camada 3+4 — sprites (zIndex 3) com o OCLUSOR frontal (dentro, sem toque). */}
         {items.map((it, i) => (
           <Sprite
             key={`${round.roundId}-${it.id}`}
@@ -588,9 +690,10 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
             onPress={() => tocarItem(it.id)}
           />
         ))}
+
         {OVELHA_DEBUG_HITBOX && round && (
           <View pointerEvents="none" style={styles.debugHud}>
-            <Text style={styles.debugTxt}>target={round.targetId.slice(-8)}</Text>
+            <Text style={styles.debugTxt}>target={round.targetId.slice(-8)} · vis={Math.round(visivelFrac(alvoItem) * 100)}%</Text>
           </View>
         )}
       </LinearGradient>
@@ -687,10 +790,12 @@ const styles = StyleSheet.create({
 
   dica: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center', height: 24, lineHeight: 24 },
 
-  // ── Cena ──
+  // ── Cena (camadas por zIndex: chão/decor 0 · halo 1 · sprites 3 · oclusor no sprite) ──
   cena: { flex: 1, marginHorizontal: 12, marginBottom: 12, borderRadius: radii.xl, overflow: 'hidden', ...shadows.soft },
+  chao: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '34%', backgroundColor: '#CFE8A6', opacity: 0.55, zIndex: 0 },
   hit: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  // Halo em ANEL: centro transparente (só borda). zIndex 1 → atrás dos sprites (zIndex 2).
+  // Halo em ANEL: centro transparente (só borda). zIndex 1 → ATRÁS dos sprites (zIndex 3)
+  // e atrás do oclusor frontal, para não "desenhar" a resposta por cima do cenário.
   halo: { position: 'absolute', backgroundColor: 'transparent', borderColor: pt.gold, zIndex: 1 },
 
   debugRect: { ...StyleSheet.absoluteFillObject, borderWidth: 1.5, alignItems: 'flex-start', justifyContent: 'flex-start' },

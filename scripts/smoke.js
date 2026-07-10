@@ -17390,8 +17390,9 @@ check(
     const evalSvc = () => new Function(limpa(svc)
       + ';return { OVELHA_DIFFICULTIES, getDifficulty, buildRound, posicionarItens, fallbackGrade,'
       + ' tamanhoSprite, rectsIntersect, semSobreposicao, todosDentro, regiaoDe, margemDe,'
-      + ' exactlyOneTarget, targetIsRenderable, targetInsideBounds, roundValido, nivelDica, DICA,'
-      + ' shuffle, OVELHA_HITBOX_MIN, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS };')();
+      + ' exactlyOneTarget, targetIsRenderable, targetInsideBounds, targetHitboxValid,'
+      + ' targetVisibleAreaMinima, visivelFrac, erroElegivel, roundValido, nivelDica, DICA, OCLUSAO,'
+      + ' ERRO_ELEGIVEL_COOLDOWN_MS, shuffle, OVELHA_HITBOX_MIN, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS };')();
 
     /** Máquina pura (identidade por targetId). */
     const evalMq = () => new Function(limpa(mq)
@@ -17575,6 +17576,7 @@ check(
       /key=\{`\$\{round\.roundId\}-\$\{it\.id\}`\}/.test(tela21),
       'a key não inclui roundId+item.id → Animated.Value preso entre rodadas');
 
+    // MIGRADO 2.1b: sprites subiram para zIndex 3 (para o oclusor/decor/halo se camadarem).
     check('2.1a (halo): anel de centro TRANSPARENTE, atrás dos sprites, sem toque, ~1,45–1,6× o sprite',
       (() => {
         const comp = (tela21.match(/function HaloAnel[\s\S]*?\n\}/) || [''])[0];
@@ -17583,21 +17585,21 @@ check(
           && /item\.visualSize \* \(evidente \? 1\.6 : 1\.45\)/.test(comp)
           && /borderWidth:/.test(comp)
           && /halo: \{ position: 'absolute', backgroundColor: 'transparent', borderColor: pt\.gold, zIndex: 1 \}/.test(tela21)
-          && /zIndex: 2/.test(tela21);   // sprites acima do halo
+          && /zIndex: 3/.test(tela21);   // sprites acima do halo (zIndex 1)
       })(),
       'o halo voltou a ser um círculo cheio, cobre o alvo, ou recebe toque');
 
-    check('2.1a (dica): não revela no 1º erro; espacial só nível ≥2 (8s/2 · 12s/3 · 17s/5)',
+    // MIGRADO 2.1b: novos limiares (10/14/18s · 2/3/5 erros ELEGÍVEIS) — ver bloco 2.1b.
+    check('2.1a (dica): não revela no 1º erro elegível; espacial só nível ≥2',
       (() => { try {
         const S = evalSvc();
         return S.nivelDica(0, 1) < 2 && S.nivelDica(0, 0) === 0
           && S.nivelDica(0, 2) === 1 && S.nivelDica(0, 3) >= 2 && S.nivelDica(0, 5) === 3
-          && S.nivelDica(8000, 0) === 1 && S.nivelDica(12000, 0) >= 2 && S.nivelDica(17000, 0) === 3
-          && S.DICA.T1_MS === 8000 && S.DICA.E1 === 2
-          // a tela só mostra o halo em nível ≥2 e cancela ao sair de procurando
+          && S.nivelDica(10000, 0) === 1 && S.nivelDica(14000, 0) >= 2 && S.nivelDica(18000, 0) === 3
+          && S.DICA.T1_MS === 10000 && S.DICA.E1 === 2
           && /nivel >= 2/.test(tela21) && /if \(r\.estado\.fase !== FASES\.PROCURANDO\) resetarDica\(\)/.test(tela21);
       } catch (e) { return false; } })(),
-      'a dica revela cedo demais, ou não segue os limiares 8/12/17s e 2/3/5 erros');
+      'a dica revela cedo demais, ou não segue os limiares 10/14/18s e 2/3/5 erros');
 
     check('2.1a (dica): controlador acumula tempo só procurando; halo some ao pausar; reseta por rodada',
       /const resetarDica = useCallback/.test(tela21)
@@ -17750,6 +17752,122 @@ check(
       && /export function isInternalToolsEnabled/.test(readSrc('src/config/internalTools.js'))
       && !/ovelha|Ovelha/.test(a1StripComments(readSrc('src/services/paresGameMachine.js'))),
       'o bloco 2.1 tocou o Pares ou o Modo Criador');
+
+    /* ══════════════ Bloco 2.1b — vazamento de dica + oclusão real ══════════════ */
+
+    check('2.1b (vazamento): a dica usa ERRO ELEGÍVEL POR RODADA, não o cumulativo da máquina',
+      // a causa raiz era alimentar nivelDica com jogoRef.current.erros (cumulativo)
+      /erroElegivelRef\.current/.test(tela21)
+      && /aplicarNivel\(buscaMsRef\.current, erroElegivelRef\.current\)/.test(tela21)
+      && !/aplicarNivel\([^)]*jogoRef\.current\.erros/.test(tela21)
+      && !/jogoRef\.current\.erros\)/.test(tela21),
+      'a dica voltou a usar o contador cumulativo de erros da máquina (vaza entre rodadas)');
+
+    check('2.1b (reset por rodada): montarRodada zera tempo, erro elegível, nível e halo',
+      (() => {
+        const reset = (tela21.match(/const resetarDica = useCallback\(\(\) => \{[\s\S]*?\n  \}/) || [''])[0];
+        return /buscaMsRef\.current = 0;/.test(reset)
+          && /erroElegivelRef\.current = 0;/.test(reset)
+          && /ultimoErroIdRef\.current = null;/.test(reset)
+          && /nivelRef\.current = 0;/.test(reset)
+          && /setNivel\(0\)/.test(reset)
+          // montarRodada chama resetarDica ao nascer a rodada nova
+          && /setRound\(r\);\s*setErradoId\(null\);\s*resetarDica\(\);/.test(tela21)
+          // acerto também limpa (sair de procurando → resetarDica em aplicar)
+          && /if \(r\.estado\.fase !== FASES\.PROCURANDO\) resetarDica\(\)/.test(tela21);
+      })(),
+      'a rodada nova pode herdar tempo/erro/halo da rodada anterior');
+
+    check('2.1b (timers): rodada carrega uma sequência e o tick de rodada antiga aborta',
+      /rodadaSeqRef\.current \+= 1;/.test(tela21)
+      && /const seq = rodadaSeqRef\.current;/.test(tela21)
+      && /if \(rodadaSeqRef\.current !== seq\) return;/.test(tela21),
+      'um timer/tick de dica de rodada antiga pode afetar a rodada nova');
+
+    check('2.1b (anti-spam/puro): mesmo item no cooldown não conta; alternar itens conta',
+      (() => { try {
+        const S = evalSvc();
+        // 10 toques rápidos (120ms) no MESMO distrator → no máximo 1–2 elegíveis
+        let eleg = 0, ultimoId = null, ultimoMs = 0, agora = 0;
+        for (let i = 0; i < 10; i++) { agora += 120;
+          if (S.erroElegivel({ id: 'd1', ultimoId, agoraMs: agora, ultimoMs })) { eleg++; ultimoMs = agora; }
+          ultimoId = 'd1'; }
+        if (!(eleg <= 2 && S.nivelDica(0, eleg) < 2)) return false;   // spam NÃO revela
+        // alternando d1/d2 rápido → cada um conta
+        let e2 = 0, uId = null, uMs = 0, ag = 0;
+        for (const id of ['d1', 'd2', 'd1', 'd2', 'd1']) { ag += 120;
+          if (S.erroElegivel({ id, ultimoId: uId, agoraMs: ag, ultimoMs: uMs })) { e2++; uMs = ag; } uId = id; }
+        return e2 >= 3 && S.ERRO_ELEGIVEL_COOLDOWN_MS >= 300;
+      } catch (e) { return false; } })(),
+      'o anti-spam não contém o spam no mesmo item, ou impede a progressão legítima');
+
+    check('2.1b (anti-spam/tela): erroElegivel controla a progressão; feedback em todo erro',
+      /erroElegivel\(\{ id, ultimoId: ultimoErroIdRef\.current/.test(tela21)
+      && /erroElegivelRef\.current \+= 1;/.test(tela21)
+      && /setErradoId\(id\);/.test(tela21),   // balanço em TODO erro, elegível ou não
+      'a tela não aplica a regra de erro elegível, ou perdeu o feedback de erro');
+
+    check('2.1b (oclusão/puro): alvo SEMPRE parcialmente escondido (≥40% e <100%) — 100 seeds × 7 telas',
+      (() => { try {
+        const S = evalSvc();
+        const dif = S.getDifficulty('facil');
+        const DIMS = [[320, 568], [375, 667], [390, 844], [360, 760], [834, 1112], [400, 320], [900, 440]];
+        for (const [w, h] of DIMS) {
+          const m = S.margemDe(dif, w, h);
+          for (let seed = 1; seed <= 100; seed++) {
+            const r = S.buildRound({ dif, largura: w, altura: h, rnd: lcg(seed * 13 + 3), roundId: seed });
+            const alvo = r.items.find((i) => i.role === 'target');
+            if (!(alvo.occluder.coberturaFrac > 0)) return false;         // tem oclusor
+            const vis = S.visivelFrac(alvo);
+            if (!(vis >= 0.40 && vis < 1)) return false;                  // parcial, nunca total
+            if (!S.targetVisibleAreaMinima(r)) return false;
+            if (!S.roundValido(r, w, h, m)) return false;                 // válida com oclusão
+            // distratores não "somem" (≥70% visíveis)
+            if (r.items.filter((i) => i.role === 'distractor').some((d) => S.visivelFrac(d) < 0.70)) return false;
+          }
+        }
+        return S.OCLUSAO.VISIVEL_MIN_ALVO === 0.40;
+      } catch (e) { return false; } })(),
+      'a oclusão do alvo é total, insuficiente, ou some os distratores');
+
+    check('2.1b (oclusão): alvo 100% coberto → rodada INVÁLIDA (invariante de visibilidade)',
+      (() => { try {
+        const S = evalSvc();
+        const dif = S.getDifficulty('facil');
+        const r = S.buildRound({ dif, largura: 390, altura: 640, rnd: lcg(5), roundId: 1 });
+        const m = S.margemDe(dif, 390, 640);
+        const total = { ...r, items: r.items.map((i) => i.id === r.targetId ? { ...i, occluder: { tipo: 'arbusto', coberturaFrac: 1.0 } } : i) };
+        return S.targetVisibleAreaMinima(total) === false && S.roundValido(total, 390, 640, m) === false
+          && S.targetHitboxValid(r) === true;
+      } catch (e) { return false; } })(),
+      'a rodada aceita um alvo totalmente coberto');
+
+    check('2.1b (camadas): fundo/chão · decor · halo(atrás) · sprites · oclusor(frontal, sem toque)',
+      (() => {
+        const occ = (tela21.match(/function OccluderSvg[\s\S]*?\n\}/) || [''])[0];
+        return /styles\.chao/.test(tela21)                       // chão
+          && /function DecorSvg/.test(tela21) && /round\?\.decor/.test(tela21)   // cenário
+          && occ.length > 0 && /pointerEvents="none"/.test(occ)  // oclusor não recebe toque
+          && /size \* occluder\.coberturaFrac/.test(occ)         // cobre a base pela fração
+          && /<OccluderSvg occluder=\{item\.occluder\}/.test(tela21);  // dentro do sprite (toque passa)
+      })(),
+      'as camadas da cena regrediram, ou o oclusor bloqueia o toque');
+
+    check('2.1b (composição): oclusão é só visual — geometria/identidade intactas',
+      (() => { try {
+        const S = evalSvc();
+        const dif = S.getDifficulty('facil');
+        let cruz = 0;
+        for (const [w, h] of [[320, 568], [390, 844], [834, 1112]]) {
+          for (let s = 1; s <= 50; s++) {
+            const r = S.buildRound({ dif, largura: w, altura: h, rnd: lcg(s * 7), roundId: s });
+            if (!S.semSobreposicao(r.items)) cruz++;
+            if (!S.exactlyOneTarget(r)) cruz++;
+          }
+        }
+        return cruz === 0;
+      } catch (e) { return false; } })(),
+      'a oclusão afetou a geometria ou a identidade dos itens');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

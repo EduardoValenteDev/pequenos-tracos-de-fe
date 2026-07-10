@@ -220,12 +220,19 @@ export function buildRound({ dif, largura, altura, rnd = Math.random, regiaoAnte
   });
 
   const kinds = shuffle(KINDS_DISTRATOR, rnd);
+  const tiposOc = shuffle(TIPOS_OCLUSOR, rnd);
   const targetId = `r${roundId}-target`;
+  const faixa = (min, max) => min + rnd() * (max - min);
 
-  // Item 0 = alvo; demais = distratores. Cada um com id/role/visual/hitbox próprios.
+  // Item 0 = alvo; demais = distratores. Cada um com id/role/visual/hitbox/oclusor.
   const brutos = centros.map((c, i) => {
     const alvo = i === 0;
     const spec = alvo ? alvoT : distT;
+    // Oclusão PARCIAL: o alvo fica mais escondido (sem passar do mínimo visível),
+    // os distratores só encostam no cenário (continuam claramente visíveis).
+    const coberturaFrac = alvo
+      ? faixa(OCLUSAO.ALVO_MIN, OCLUSAO.ALVO_MAX)
+      : faixa(OCLUSAO.DIST_MIN, OCLUSAO.DIST_MAX);
     return {
       id: alvo ? targetId : `r${roundId}-distractor-${String(i).padStart(2, '0')}`,
       role: alvo ? 'target' : 'distractor',
@@ -237,6 +244,12 @@ export function buildRound({ dif, largura, altura, rnd = Math.random, regiaoAnte
       visualSize: spec.size,
       hitbox: spec.hitbox,
       region: regiaoDe(c.cx, c.cy, largura, altura),
+      // Oclusor frontal (cenário provisório) que cobre a BASE do sprite. Só visual;
+      // não altera a hitbox nem recebe toque.
+      occluder: {
+        tipo: tiposOc[i % tiposOc.length],
+        coberturaFrac: Math.round(coberturaFrac * 100) / 100,
+      },
     };
   });
 
@@ -245,9 +258,28 @@ export function buildRound({ dif, largura, altura, rnd = Math.random, regiaoAnte
     roundId,
     targetId,
     regiaoAlvo: alvo.region,
+    // Cenário decorativo de fundo (tufos/flores). Puro, sem toque, não afeta hitbox.
+    decor: gerarDecor({ largura, altura, margem, rnd, roundId }),
     // Embaralha a ORDEM visual (z-order/entrada) — a identidade segue no id.
     items: shuffle(brutos, rnd),
   };
+}
+
+/** Decoração de fundo (tufos de grama/flores). Puro, apenas visual. */
+function gerarDecor({ largura, altura, margem, rnd, roundId }) {
+  const caixa = caixaComposicao({ largura, altura, margem, compFracW: 0.96, compFracH: 0.86 });
+  const tipos = ['grama', 'flor', 'grama', 'folha'];
+  const n = 5;
+  return Array.from({ length: n }, (_, i) => {
+    const size = Math.round(Math.min(largura, altura) * (0.06 + rnd() * 0.05));
+    return {
+      id: `r${roundId}-decor-${i}`,
+      tipo: tipos[Math.floor(rnd() * tipos.length)],
+      cx: Math.round(caixa.x0 + rnd() * (caixa.x1 - caixa.x0)),
+      cy: Math.round(caixa.y0 + rnd() * (caixa.y1 - caixa.y0)),
+      size,
+    };
+  });
 }
 
 /* ─────────────────────────── Invariantes ─────────────────────────── */
@@ -285,12 +317,14 @@ export function semSobreposicao(items, gap = 0) {
   return true;
 }
 
-/** A rodada inteira é válida e jogável? */
+/** A rodada inteira é válida e jogável? Inclui a oclusão parcial do alvo (2.1b). */
 export function roundValido(round, largura, altura, margem) {
   if (!round || !Array.isArray(round.items) || round.items.length < 2) return false;
   return exactlyOneTarget(round)
     && targetIsRenderable(round)
     && targetInsideBounds(round, largura, altura, margem)
+    && targetHitboxValid(round)
+    && targetVisibleAreaMinima(round)   // alvo parcialmente escondido, nunca 100% oculto
     && semSobreposicao(round.items);
 }
 
@@ -321,22 +355,74 @@ export const OVELHA_SOUND_EVENTS = Object.freeze({
 });
 
 /**
- * Regras de DICA (2.1a). A ajuda não revela a posição cedo. Níveis:
+ * Regras de DICA (2.1b). A ajuda não revela a posição cedo. Níveis:
  *   0 nenhuma · 1 incentivo (só mensagem) · 2 halo em anel · 3 anel mais evidente
- * Disparo por tempo OU erros (o que vier primeiro). Reinicia a cada rodada.
+ * Disparo por TEMPO de busca (ms) OU ERROS ELEGÍVEIS (o que vier primeiro).
+ *
+ * ⚠️ `erros` aqui é o contador de ERRO ELEGÍVEL POR RODADA (não o cumulativo da
+ * partida). Spam no mesmo distrator não escala a dica — ver a regra de elegibilidade
+ * na tela (item diferente OU cooldown). Reinicia a cada rodada.
  */
 export const DICA = Object.freeze({
-  T1_MS: 8000, T2_MS: 12000, T3_MS: 17000,   // tempo sem acerto
-  E1: 2, E2: 3, E3: 5,                         // nº de erros
+  T1_MS: 10000, T2_MS: 14000, T3_MS: 18000,   // tempo de busca sem acerto
+  E1: 2, E2: 3, E3: 5,                          // nº de erros ELEGÍVEIS
 });
 
-/** Nível de dica dado o tempo decorrido (ms) e os erros acumulados. PURO. */
-export function nivelDica(elapsedMs, erros) {
+/** Cooldown para um erro no MESMO item contar de novo para a dica (anti-spam). */
+export const ERRO_ELEGIVEL_COOLDOWN_MS = 700;
+
+/**
+ * Decide se um erro CONTA para a progressão da dica (é "elegível"). PURO.
+ * Conta se for item DIFERENTE do último erro, OU se passou o cooldown. Assim,
+ * repetir o mesmo distrator rápido não infla a ajuda.
+ */
+export function erroElegivel({ id, ultimoId, agoraMs, ultimoMs }, cooldown = ERRO_ELEGIVEL_COOLDOWN_MS) {
+  if (id !== ultimoId) return true;
+  return (Number(agoraMs) - Number(ultimoMs)) >= cooldown;
+}
+
+/** Nível de dica dado o tempo de busca (ms) e os erros ELEGÍVEIS da rodada. PURO. */
+export function nivelDica(elapsedMs, errosElegiveis) {
   const t = Number(elapsedMs) || 0;
-  const e = Number(erros) || 0;
+  const e = Number(errosElegiveis) || 0;
   let nivel = 0;
   if (t >= DICA.T1_MS || e >= DICA.E1) nivel = 1;
   if (t >= DICA.T2_MS || e >= DICA.E2) nivel = 2;
   if (t >= DICA.T3_MS || e >= DICA.E3) nivel = 3;
   return nivel;
+}
+
+/* ─────────────────────────── Oclusão parcial (2.1b) ─────────────────────────── */
+
+/**
+ * Cobertura de oclusão por papel. O ALVO fica parcialmente escondido (mas sempre
+ * ≥40% visível); os distratores ficam levemente encostados no cenário (≥70% visíveis,
+ * para não parecerem bugs). Fração = quanto da altura do sprite o oclusor cobre (base).
+ */
+export const OCLUSAO = Object.freeze({
+  ALVO_MIN: 0.40, ALVO_MAX: 0.55,          // alvo: 40–55% coberto → 45–60% visível
+  DIST_MIN: 0.12, DIST_MAX: 0.30,          // distrator: 12–30% coberto
+  VISIVEL_MIN_ALVO: 0.40,                  // invariante: alvo ≥40% aparente
+});
+
+const TIPOS_OCLUSOR = ['arbusto', 'pedra', 'feno', 'moita'];
+
+/** Fração visível do sprite (1 − cobertura). PURO. */
+export function visivelFrac(item) {
+  const cob = Number(item?.occluder?.coberturaFrac) || 0;
+  return Math.max(0, 1 - cob);
+}
+
+/** O alvo mantém a fração visível mínima? (oclusão parcial, nunca total). PURO. */
+export function targetVisibleAreaMinima(round, min = OCLUSAO.VISIVEL_MIN_ALVO) {
+  const t = round?.items?.find((it) => it.id === round.targetId);
+  if (!t) return false;
+  const vis = visivelFrac(t);
+  return vis >= min && vis < 1;   // ≥ mínimo E não totalmente descoberto
+}
+
+/** Hitbox do alvo válida (≥ piso). PURO. */
+export function targetHitboxValid(round) {
+  const t = round?.items?.find((it) => it.id === round.targetId);
+  return !!t && t.hitbox >= OVELHA_HITBOX_MIN;
 }
