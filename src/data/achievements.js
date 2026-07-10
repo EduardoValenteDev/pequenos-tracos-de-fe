@@ -23,8 +23,9 @@ export const ACHIEVEMENT_CATEGORIES = [
   { id: 'historias', label: 'Histórias',          icon: '📖', color: '#2B5BA1' },
   { id: 'cenas',     label: 'Cenas',              icon: '⭐', color: '#F9C74F' },
   // ⚠️ id 'atelie' é DADO LEGADO (conquistas já desbloqueadas apontam para ele).
-  // NÃO renomear. O rótulo visível migra para "Brincar" quando a aba migrar (1.2).
-  { id: 'atelie',    label: 'Ateliê',             icon: '🎨', color: '#EC407A' },
+  // NÃO renomear o id. Bloco 1.2: só o RÓTULO visível mudou — "Ateliê" sumiu da UI.
+  // Não virou "Brincar" para não colidir com a categoria nova abaixo.
+  { id: 'atelie',    label: 'Minhas artes',       icon: '🎨', color: '#EC407A' },
   { id: 'momentos',  label: 'Momentos com Beni',  icon: '💛', color: '#7C3AED' },
   // Bloco 1.1 — categoria NOVA do Brincar. Nasce sem conquistas: `TrophiesScreen`
   // pula categorias vazias, então ela é invisível até os jogos existirem.
@@ -277,7 +278,7 @@ export const ACHIEVEMENTS = [
     emoji: '🎨',
     title: 'Primeiro traço',
     desc: 'Salve seu primeiro desenho colorido.',
-    how: 'Salve uma arte no Ateliê para desbloquear.',
+    how: 'Salve uma arte em Brincar para desbloquear.',
     earned: 'Você ganhou ao salvar sua primeira arte.',
     color: colors.secondary,
     category: 'atelie',
@@ -299,7 +300,7 @@ export const ACHIEVEMENTS = [
     emoji: '🖼️',
     title: 'Galeria crescendo',
     desc: 'Salvou 2 ou mais desenhos no ateliê.',
-    how: 'Salve 2 artes no Ateliê para ganhar.',
+    how: 'Salve 2 artes em Brincar para ganhar.',
     earned: 'Você ganhou ao salvar 2 artes.',
     color: '#9B59B6',
     category: 'atelie',
@@ -312,7 +313,7 @@ export const ACHIEVEMENTS = [
     emoji: '🖌️',
     title: 'Pequeno artista da fé',
     desc: 'Guardou 3 artes no seu ateliê. Que talento!',
-    how: 'Salve 3 artes no Ateliê para ganhar.',
+    how: 'Salve 3 artes em Brincar para ganhar.',
     earned: 'Você ganhou ao salvar 3 artes.',
     color: '#EC407A',
     category: 'atelie',

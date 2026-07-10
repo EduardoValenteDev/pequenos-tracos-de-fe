@@ -2022,10 +2022,13 @@ check(
   'AtelierGalleryScreen.js is missing — gallery not reachable',
 );
 
+// Bloco 1.2 — MIGRADO: o nome "Ateliê" saiu da UI. O check continua guardando
+// que o estado vazio tem título próprio (não some, não vira texto genérico).
 check(
-  'AtelierGalleryScreen has correct empty state title (Sprint Beni 3.0)',
-  atelierGallerySrc.includes('Seu Ateliê ainda está vazio'),
-  'AtelierGalleryScreen empty state title wrong — should say "Seu Ateliê ainda está vazio"',
+  'AtelierGalleryScreen has correct empty state title (Bloco 1.2: sem "Ateliê")',
+  atelierGallerySrc.includes('Suas artes ainda vão aparecer aqui')
+  && !/title="[^"]*Ateliê/.test(atelierGallerySrc),
+  'empty state title errado — deve ser "Suas artes ainda vão aparecer aqui", sem "Ateliê"',
 );
 
 check(
@@ -15821,6 +15824,91 @@ check(
         return !/atelier|ATELIER|achievement|addBonusStars|salvarCena|progress/i.test(s)
           && /STORAGE_KEYS\.BRINCAR_DAILY/.test(s); })(),
       'brincarDailyService passou a tocar progresso, conquistas ou chaves do Ateliê');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco 1.2 — Hub da aba Brincar. ADITIVO.
+  //   · rótulo VISÍVEL é "Brincar"; o `name` da aba continua 'Ateliê' (identidade
+  //     de rota: o Onboarding navega por ela)
+  //   · 6 cards: 2 ativos, 4 em preparo (não abrem tela)
+  //   · "Colorir uma história" NÃO é card da aba
+  //   · nenhum emoji na tela; só FaithIcon
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco 1.2: hub da aba Brincar ──');
+  {
+    const brc = readSrc('src/screens/BrincarScreen.js');
+    const navB = a1StripComments(readSrc('src/navigation/AppNavigator.js'));
+    const sideB = a1StripComments(readSrc('src/components/TabletSidebar.js'));
+    const planB = readSrc('src/data/planConfig.js');
+    const brcNoCom = a1StripComments(brc);
+
+    check('1.2 (aba): rótulo visível "Brincar"; identidade de rota "Ateliê" preservada',
+      /name: 'Ateliê',\s*label: 'Brincar',\s*faithIcon: 'brincar',\s*component: BrincarScreen/.test(navB)
+      && /tabBarLabel: tab\.label \?\? tab\.name/.test(navB),
+      'a aba não exibe "Brincar", ou o name de rota deixou de ser Ateliê');
+
+    check('1.2 (tablet): sidebar exibe "Brincar" com FaithIcon, sem emoji',
+      /name: 'Ateliê',\s*label: 'Brincar',\s*faithIcon: 'brincar'/.test(sideB)
+      && /<FaithIcon/.test(sideB)
+      && !/\p{Extended_Pictographic}/u.test(sideB),
+      'sidebar do tablet ainda usa emoji ou não exibe "Brincar"');
+
+    check('1.2 (cards): as 6 atividades existem na tela',
+      ['Desenho guiado pelo Beni', 'Criar livre', 'Pares do Beni',
+        'Palavrinhas do Beni', 'Bichinhos da Bíblia', 'Cadê a Ovelhinha?']
+        .every((t) => brc.includes(t)),
+      'faltou uma das 6 atividades na BrincarScreen');
+
+    check('1.2 (ativos): só Desenho guiado e Criar livre abrem tela (AtelierCanvas)',
+      (brcNoCom.match(/navigate\(ROUTES\.ATELIER_CANVAS/g) || []).length === 2
+      && /navigate\(ROUTES\.ATELIER_GALLERY\)/.test(brcNoCom),
+      'os cards ativos não abrem AtelierCanvas, ou a galeria sumiu');
+
+    // O CORPO de ComingTile não pode ter onPress/SoundButton: card em preparo não abre tela.
+    const corpoComing = (brcNoCom.match(/function ComingTile[\s\S]*?\n\}/) || [''])[0];
+    check('1.2 (em preparo): os 4 jogos não navegam para lugar nenhum',
+      corpoComing.length > 0
+      && !/onPress|SoundButton|navigate\(/.test(corpoComing)
+      && /Chegando/.test(corpoComing),
+      'um card em preparo virou botão — abriria tela inexistente');
+
+    check('1.2 (colorir): "Colorir uma história" NÃO é card da aba Brincar',
+      !/Colorir uma hist/.test(brcNoCom) && !/screen: 'Aventuras'/.test(brcNoCom),
+      'o card "Colorir uma história" voltou para a aba Brincar');
+
+    check('1.2 (sem emoji): BrincarScreen usa FaithIcon e nenhum emoji',
+      /<FaithIcon/.test(brc) && !/\p{Extended_Pictographic}/u.test(brc),
+      'entrou emoji na BrincarScreen, ou ela deixou de usar FaithIcon');
+
+    check('1.2 (plano): textos de plano sem "Ateliê" e sem prometer 3 artes no free',
+      !/Ateliê/.test(planB) && !/3 artes/.test(planB)
+      && /Brincar/.test(planB),
+      'planConfig ainda fala em "Ateliê" ou promete 3 artes salvas no plano gratuito');
+
+    check('1.2 (rodadas): o hub INFORMA as rodadas e nunca as consome',
+      /getDailyRounds/.test(brcNoCom) && !/consumeRound/.test(brcNoCom),
+      'a BrincarScreen consome rodada — só o jogo pode consumir');
+
+    check('1.2 (legado intacto): AtelierScreen segue viva para AtelierFromContext',
+      /name="AtelierFromContext"/.test(navB) && /component=\{AtelierScreen\}/.test(navB),
+      'o fluxo contextual do Cultinho (AtelierFromContext) foi quebrado');
+
+    // "Ateliê" não pode voltar aos TEXTOS que o usuário lê. Identidade de rota
+    // (`name: 'Ateliê'`, `tab.name === 'Ateliê'`) é permitida — não é UI.
+    check('1.2 (sem "Ateliê" na UI): textos de plano, galeria e conquistas limpos',
+      (() => {
+        const arquivos = {
+          planConfig: planB,
+          achievements: readSrc('src/data/achievements.js'),
+          galeria: readSrc('src/screens/AtelierGalleryScreen.js'),
+        };
+        return Object.values(arquivos).every((src) =>
+          a1StripComments(src)
+            .split('\n')
+            .filter((l) => /Ateliê/.test(l))
+            .every((l) => /name:|tab\.name|id: 'atelie'/.test(l)));
+      })(),
+      'a palavra "Ateliê" voltou a um texto visível ao usuário');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

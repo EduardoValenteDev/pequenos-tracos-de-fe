@@ -10,7 +10,8 @@ export const FREE_PLAN = {
     { emoji: '✨', label: 'Trilha Comece Aqui' },
     { emoji: '📖', label: '2 histórias gratuitas' },
     { emoji: '🧩', label: 'Quiz das histórias gratuitas' },
-    { emoji: '🎨', label: 'Ateliê com 3 artes salvas' },
+    // Bloco 1.2: a aba é "Brincar" e o plano gratuito NÃO salva artes (limite 0).
+    { emoji: '🎨', label: 'Brincar: desenhar e criar à vontade' },
     // A6: grátis no MVP — NÃO são exclusivos do Plano Família.
     { emoji: '💛', label: 'Guardar no coração' },
     { emoji: '🌙', label: 'Momento com Beni' },
@@ -27,7 +28,7 @@ export const PREMIUM_PLAN = {
     { emoji: '🧩', label: 'Quiz de todas as histórias' },
     // A6: as reflexões guiadas saíram daqui — são grátis no MVP (ficam na lista
     // do plano Gratuito), não são benefícios exclusivos do Plano Família.
-    { emoji: '🎨', label: 'Ateliê com artes ilimitadas' },
+    { emoji: '🎨', label: 'Brincar sem limite e guardar todas as artes' },
   ],
   comingSoonItems: [
     { emoji: '🙏', label: 'Devocional infantil' },
@@ -54,7 +55,7 @@ export const PLAN_PRICING = {
 };
 
 export const PLAN_TEXTS = {
-  freeShortText: 'Comece com histórias grátis, quiz e 3 artes no Ateliê.',
+  freeShortText: 'Comece com histórias grátis, quiz e brincadeiras com o Beni.',
   premiumShortText: 'Desbloqueie todas as trilhas, Beni e artes ilimitadas.',
   premiumCtaText: 'Conhecer Premium',
   notAvailableYetText: 'Em breve',

@@ -6,14 +6,19 @@ import { getAvatarImage, getProfileAvatarSkinTone } from '../data/avatars';
 import AvatarImage from './AvatarImage';
 import { useProfile } from '../context/ProfileContext';
 import BeniCircularArt from './common/BeniCircularArt';
+import FaithIcon from './ui/FaithIcon';
 import { registerGuideTarget } from '../services/guideTargetRegistry';
 
+/**
+ * Bloco 1.2 — `name` é a IDENTIDADE DE ROTA (onTabPress navega por ela): não muda.
+ * `label` é o que o usuário lê. Emoji saiu: ícone semântico via FaithIcon.
+ */
 const TABS = [
-  { name: 'Início',     emoji: '🏠' },
-  { name: 'Aventuras',  emoji: '📖' },
-  { name: 'Ateliê',     emoji: '🎨' },
-  { name: 'Estrelinhas', emoji: '⭐' },
-  { name: 'Perfil',     emoji: '👤' },
+  { name: 'Início',      label: 'Início',      faithIcon: 'home' },
+  { name: 'Aventuras',   label: 'Aventuras',   faithIcon: 'adventures' },
+  { name: 'Ateliê',      label: 'Brincar',     faithIcon: 'brincar' },
+  { name: 'Estrelinhas', label: 'Estrelinhas', faithIcon: 'trophies' },
+  { name: 'Perfil',      label: 'Perfil',      faithIcon: 'profile' },
 ];
 
 export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxStars }) {
@@ -55,7 +60,11 @@ export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxSt
           />
         </View>
         <Text style={styles.greeting} numberOfLines={1}>{greeting}</Text>
-        <Text style={styles.stars}>⭐ {starsLabel(totalStars)} alcançadas</Text>
+        {/* Bloco 1.2: emoji ⭐ trocado por ícone semântico. */}
+        <View style={styles.starsRow}>
+          <FaithIcon name="star" size={14} color={colors.primary} />
+          <Text style={styles.stars}>{starsLabel(totalStars)} alcançadas</Text>
+        </View>
         <View style={styles.progressOuter}>
           <View style={[styles.progressInner, { width: `${starsPercent * 100}%` }]} />
         </View>
@@ -72,11 +81,15 @@ export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxSt
               onPress={() => onTabPress(tab.name)}
               activeOpacity={0.75}
             >
-              <Text style={[styles.navEmoji, isActive && styles.navEmojiActive]}>
-                {tab.emoji}
-              </Text>
+              <View style={styles.navIcon}>
+                <FaithIcon
+                  name={tab.faithIcon}
+                  size={isActive ? 24 : 21}
+                  color={isActive ? colors.primary : colors.textLight}
+                />
+              </View>
               <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
-                {tab.name}
+                {tab.label}
               </Text>
             </TouchableOpacity>
           );
@@ -150,11 +163,11 @@ const styles = StyleSheet.create({
     marginBottom: 3,
     textAlign: 'center',
   },
+  starsRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
   stars: {
     fontFamily: 'Nunito',
     fontSize: 11,
     color: colors.textLight,
-    marginBottom: 8,
     textAlign: 'center',
   },
   progressOuter: {
@@ -188,8 +201,8 @@ const styles = StyleSheet.create({
   navButtonActive: {
     backgroundColor: colors.activeBg,
   },
-  navEmoji: { fontSize: 20, opacity: 0.6 },
-  navEmojiActive: { opacity: 1 },
+  // Bloco 1.2: ícone semântico (FaithIcon) no lugar do emoji.
+  navIcon: { width: 26, alignItems: 'center', justifyContent: 'center' },
   navLabel: {
     fontFamily: 'Nunito',
     fontSize: 14,

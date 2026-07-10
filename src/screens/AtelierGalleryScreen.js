@@ -57,7 +57,7 @@ export default function AtelierGalleryScreen({ navigation }) {
   function handleDelete(art) {
     Alert.alert(
       '🗑️ Apagar arte?',
-      `Quer apagar "${art.title}" do Ateliê? Isso não pode ser desfeito.`,
+      `Quer apagar "${art.title}" das suas artes? Isso não pode ser desfeito.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -120,7 +120,7 @@ export default function AtelierGalleryScreen({ navigation }) {
           /* ── Empty state ── */
           <View style={styles.emptyContainer}>
             <BeniEmptyState
-              title="Seu Ateliê ainda está vazio"
+              title="Suas artes ainda vão aparecer aqui"
               message="Crie seu primeiro desenho para guardar aqui."
               actionLabel="Começar a desenhar"
               onPress={() => navigation.navigate('AtelierCanvas', {})}

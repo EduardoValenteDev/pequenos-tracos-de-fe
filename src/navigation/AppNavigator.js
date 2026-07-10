@@ -24,6 +24,7 @@ import CongratsScreen from '../screens/CongratsScreen';
 import TrophiesScreen from '../screens/TrophiesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AtelierScreen from '../screens/AtelierScreen';
+import BrincarScreen from '../screens/BrincarScreen';
 import AtelierCanvasScreen from '../screens/AtelierCanvasScreen';
 import AtelierGalleryScreen from '../screens/AtelierGalleryScreen';
 import PostStoryHubScreen from '../screens/PostStoryHubScreen';
@@ -102,7 +103,10 @@ const TAB_DEFS = [
   // M1 Mapa Pergaminho: a aba Aventuras passa a renderizar o mapa vertical.
   // StoriesScreen segue disponível na rota de stack 'Stories' (fallback reversível).
   { name: 'Aventuras',  faithIcon: 'adventures', component: AdventureMapScreen },
-  { name: 'Ateliê',     faithIcon: 'atelier',    component: AtelierScreen },
+  // Bloco 1.2 — a aba vira "Brincar" na UI. O `name` é a IDENTIDADE DE ROTA e continua
+  // 'Ateliê': o OnboardingScreen navega por ela, e trocá-la quebraria a navegação.
+  // O usuário nunca vê `name` — vê `label` (tabBarLabel).
+  { name: 'Ateliê',     label: 'Brincar', faithIcon: 'brincar', component: BrincarScreen },
   { name: 'Estrelinhas', faithIcon: 'trophies',   component: TrophiesScreen },
   { name: 'Perfil',     faithIcon: 'profile',    component: ProfileScreen },
 ];
@@ -219,7 +223,9 @@ function MobileTabs() {
           initialParams={tab.defaultParams}
           options={{
             tabBarIcon: ({ focused }) => <TabIcon iconName={tab.faithIcon} focused={focused} />,
-            tabBarAccessibilityLabel: tab.name,
+            // Bloco 1.2: o rótulo VISÍVEL vem de `label` (quando existe); `name` é só rota.
+            tabBarLabel: tab.label ?? tab.name,
+            tabBarAccessibilityLabel: tab.label ?? tab.name,
           }}
           listeners={{
             // Fase 1.1.3: durante o tour de Aventuras, bloqueia a troca para outras
