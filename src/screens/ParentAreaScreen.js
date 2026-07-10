@@ -977,6 +977,18 @@ export default function ParentAreaScreen({ navigation }) {
                 </SoundButton>
               </InfoCard>
 
+              {/* V1: revisão humana cena a cena (texto oficial + ilustrada + briefing + colorir).
+                  Só leitura: não salva decisões, não toca imagens, áudio, progresso ou plano. */}
+              <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
+                <Text style={styles.qaTitle}>Validação visual de cenas</Text>
+                <Text style={styles.qaDesc}>
+                  Percorre as 20 histórias, cena a cena, mostrando o título e o texto oficiais, a imagem ilustrada, o briefing de colorir e a folha de colorir. Só leitura: não salva decisões nem toca em imagens, áudio ou progresso. Os áudios ainda são os antigos — validar pelo texto exibido.
+                </Text>
+                <SoundButton style={styles.qaResetBtn} onPress={() => navigation.navigate('SceneValidation')} activeOpacity={0.85}>
+                  <Text style={styles.qaResetBtnText}>Abrir validação visual</Text>
+                </SoundButton>
+              </InfoCard>
+
               {/* M1: acesso a packs migrou do FAB global para cá — gate específico próprio
                   (isPackSandboxDevEnabled) além do gate da seção. Sem R2 real nem entitlement. */}
               {isPackSandboxDevEnabled() && (

@@ -19,6 +19,7 @@ import StoryDetailScreen from '../screens/StoryDetailScreen';
 import NarrationScreen from '../screens/NarrationScreen';
 import ColoringScreen from '../screens/ColoringScreen';
 import ColoringQaScreen from '../screens/ColoringQaScreen';
+import SceneValidationScreen from '../screens/SceneValidationScreen';
 import CongratsScreen from '../screens/CongratsScreen';
 import TrophiesScreen from '../screens/TrophiesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -333,6 +334,15 @@ export default function AppNavigator() {
           <Stack.Screen
             name="ColoringQa"
             component={ColoringQaScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+        {/* V1: Validação visual de cenas — SÓ LEITURA, rota registrada apenas sob o gate
+            interno, SEM rota pública. Entrada só na seção "Administração (dev)". */}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="SceneValidation"
+            component={SceneValidationScreen}
             options={{ headerShown: false }}
           />
         )}

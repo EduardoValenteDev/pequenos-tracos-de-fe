@@ -15673,6 +15673,41 @@ check(
       'uma cena crítica voltou a ter briefing de outra cena');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // V1 — Tela "Validação visual de cenas" (SÓ desenvolvimento). ADITIVO.
+  // Anti-vazamento: a rota não pode existir em produção, a entrada vive só na seção
+  // "Administração (dev)" e a tela precisa ser READ-ONLY (sem áudio, sem escrita).
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── V1: validação visual de cenas (dev) ──');
+  {
+    const navV1 = a1StripComments(readSrc('src/navigation/AppNavigator.js'));
+    const parV1 = a1StripComments(readSrc('src/screens/ParentAreaScreen.js'));
+    const telaV1 = a1StripComments(readSrc('src/screens/SceneValidationScreen.js'));
+
+    check('V1 (gate): rota SceneValidation registrada SÓ sob isInternalToolsEnabled()',
+      /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s+name="SceneValidation"/.test(navV1)
+      && (navV1.match(/name="SceneValidation"/g) || []).length === 1,
+      'rota SceneValidation fora do gate interno, ou registrada mais de uma vez');
+
+    check('V1 (entrada): botão vive na seção "Administração (dev)" da Área dos Pais',
+      /SHOW_TEST_TOOLS && \(/.test(parV1)
+      && parV1.indexOf("navigate('SceneValidation')") > parV1.indexOf('SHOW_TEST_TOOLS && ('),
+      'entrada da validação visual fora da seção Administração (dev)');
+
+    check('V1 (defesa em profundidade): a própria tela revalida isInternalToolsEnabled()',
+      /isInternalToolsEnabled/.test(telaV1) && /if \(!allowed\)/.test(telaV1),
+      'SceneValidationScreen não revalida o gate interno');
+
+    check('V1 (read-only): a tela não toca áudio, progresso, plano nem storage',
+      !/AudioPlayer|expo-audio|playAsync|salvarCena|addBonusStars|AsyncStorage|setItem|entitlement/i.test(telaV1),
+      'SceneValidationScreen passou a tocar áudio ou a escrever estado');
+
+    check('V1 (conteúdo oficial intacto): a tela só LÊ stories.js e os mapas de imagem',
+      /from '\.\.\/data\/stories'/.test(telaV1)
+      && /getSceneIllustrationAsset/.test(telaV1) && /getColoringImage/.test(telaV1),
+      'SceneValidationScreen não lê as fontes oficiais esperadas');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
