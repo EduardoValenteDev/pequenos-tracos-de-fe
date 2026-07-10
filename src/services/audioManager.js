@@ -37,16 +37,37 @@ const GAME_SFX = {
   match_error: require('../../assets/audio/sfx/match_error.wav'),
   game_victory: require('../../assets/audio/sfx/game_victory.wav'),
   turbo_end: require('../../assets/audio/sfx/turbo_end.wav'),
+  // Bloco 1.4b — contagem regressiva, alarme e vinhetas de encerramento.
+  countdown_tick: require('../../assets/audio/sfx/countdown_tick.wav'),
+  time_up_alarm: require('../../assets/audio/sfx/time_up_alarm.wav'),
+  board_complete: require('../../assets/audio/sfx/board_complete.wav'),
+  classic_victory_jingle: require('../../assets/audio/sfx/classic_victory_jingle.wav'),
+  turbo_result_jingle: require('../../assets/audio/sfx/turbo_result_jingle.wav'),
 };
 
 const GAME_SFX_VOLUME = {
   card_flip: 0.30, match_success: 0.50, match_error: 0.34,
   game_victory: 0.55, turbo_end: 0.5,
+  countdown_tick: 0.38, time_up_alarm: 0.5, board_complete: 0.5,
+  classic_victory_jingle: 0.55, turbo_result_jingle: 0.55,
 };
 
 // Intervalo mínimo entre duas execuções do MESMO efeito. Toques rápidos numa carta
 // não podem empilhar dezenas de reproduções.
 const SFX_MIN_INTERVAL_MS = 70;
+
+/**
+ * Throttle por efeito, quando o padrão não serve.
+ * `countdown_tick` bate 1× por segundo: 300 ms impede um toque duplo no mesmo
+ * segundo sem NUNCA barrar o tique seguinte. As vinhetas são longas: um segundo
+ * disparo dentro delas seria eco.
+ */
+const SFX_INTERVAL_OVERRIDE = {
+  countdown_tick: 300,
+  time_up_alarm: 1200,
+  classic_victory_jingle: 2600,
+  turbo_result_jingle: 2400,
+};
 
 // Trilha de fundo: NÃO há asset final/seguro ainda. Mantido null de propósito
 // (sem buscar música externa, sem trilha protegida). A infraestrutura já existe.
@@ -184,7 +205,8 @@ export function preloadGameSfx(nomes = Object.keys(GAME_SFX)) {
 export function playGameSfx(nome) {
   if (!prefs.soundsEnabled) return;
   const agora = Date.now();
-  if (agora - (sfxLastPlayedAt[nome] || 0) < SFX_MIN_INTERVAL_MS) return;
+  const minimo = SFX_INTERVAL_OVERRIDE[nome] ?? SFX_MIN_INTERVAL_MS;
+  if (agora - (sfxLastPlayedAt[nome] || 0) < minimo) return;
   sfxLastPlayedAt[nome] = agora;
   ensureAudioMode();
   try {
@@ -195,6 +217,17 @@ export function playGameSfx(nome) {
   } catch {
     // som falhou silenciosamente — o jogo continua
   }
+}
+
+/**
+ * Silencia um efeito já tocando (ex.: o relógio, quando a partida pausa ou acaba).
+ * Não destrói o player — o próximo `playGameSfx` volta a usá-lo.
+ */
+export function stopGameSfx(nome) {
+  try {
+    const p = sfxPlayers[nome];
+    if (p) { p.pause(); p.seekTo(0); }
+  } catch { /* ignora */ }
 }
 
 /** Libera os players dos efeitos (chamar no unmount da tela do jogo). */

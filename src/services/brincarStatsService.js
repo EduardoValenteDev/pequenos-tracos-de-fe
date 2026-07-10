@@ -37,8 +37,8 @@ import { warn } from '../utils/logger';
 const DIFS = ['facil', 'medio', 'dificil'];
 const MODOS = ['classico', 'turbo'];
 
-const difVazia = () => ({ plays: 0, wins: 0, bestMs: null, bestErros: null, bestMoves: null });
-const turboVazio = () => ({ plays: 0, bestScore: 0, bestPairs: 0, bestCombo: 0 });
+/** Quantas partidas o histórico pessoal guarda POR DIFICULDADE. Local, sem servidor. */
+export const RANKING_MAX = 5;
 
 /* ══════════════════════════ NÚCLEO PURO ══════════════════════════ */
 
@@ -66,6 +66,10 @@ export function sanitizeStats(raw) {
     turbo[d] = {
       plays: nOr0(t.plays), bestScore: nOr0(t.bestScore),
       bestPairs: nOr0(t.bestPairs), bestCombo: nOr0(t.bestCombo),
+      // Histórico pessoal: saneado, reordenado e cortado — mesmo se o disco vier torto.
+      ranking: (Array.isArray(t.ranking) ? t.ranking : [])
+        .map(sanitizeRankingEntry).filter(Boolean)
+        .sort(compararTurbo).slice(0, RANKING_MAX),
     };
   }
   return {
@@ -75,6 +79,51 @@ export function sanitizeStats(raw) {
     pares,
     turbo,
   };
+}
+
+/* ─────────────────── Ranking pessoal do Turbo (local, sem servidor) ─────────────────── */
+
+/** Normaliza uma entrada do histórico. Entrada inválida → null (nunca entra no ranking). */
+export function sanitizeRankingEntry(raw) {
+  const e = raw && typeof raw === 'object' ? raw : null;
+  if (!e) return null;
+  const pontos = nOr0(e.pontos);
+  if (pontos <= 0) return null;   // partida sem nenhum par não vira registro
+  return {
+    pontos,
+    pares: nOr0(e.pares),
+    maiorCombo: nOr0(e.maiorCombo),
+    grades: nOr0(e.grades),
+    dificuldade: DIFS.includes(e.dificuldade) ? e.dificuldade : 'facil',
+    data: typeof e.data === 'string' ? e.data : '',
+    duracaoMs: nOr0(e.duracaoMs),
+  };
+}
+
+/**
+ * Ordem do ranking: pontos ↓ · pares ↓ · maior combo ↓ · partida mais recente ↓.
+ * Devolve <0 se `a` vem antes de `b` (a é melhor).
+ */
+export function compararTurbo(a, b) {
+  if (b.pontos !== a.pontos) return b.pontos - a.pontos;
+  if (b.pares !== a.pares) return b.pares - a.pares;
+  if (b.maiorCombo !== a.maiorCombo) return b.maiorCombo - a.maiorCombo;
+  return String(b.data).localeCompare(String(a.data));   // mais recente primeiro
+}
+
+/**
+ * Insere a partida no histórico e corta em RANKING_MAX. PURO.
+ * @returns {{ lista: object[], posicao: number }} posicao 1-based, ou 0 se ficou fora.
+ */
+export function inserirNoRanking(lista, entrada, max = RANKING_MAX) {
+  const atual = (Array.isArray(lista) ? lista : []).map(sanitizeRankingEntry).filter(Boolean);
+  const nova = sanitizeRankingEntry(entrada);
+  if (!nova) return { lista: atual.slice(0, max), posicao: 0 };
+
+  const ordenada = [...atual, nova].sort(compararTurbo).slice(0, max);
+  // Identidade por referência: a entrada nova é a única que não veio de `atual`.
+  const idx = ordenada.indexOf(nova);
+  return { lista: ordenada, posicao: idx >= 0 ? idx + 1 : 0 };
 }
 
 /** Estrelinhas já ganhas HOJE. Dia diferente → 0 (o dia virou). */
@@ -112,6 +161,14 @@ export function applyResult(stats, partida, cap = BRINCAR_DAILY_STAR_CAP) {
     const antes = s.turbo[dificuldade];
     const pontos = nOr0(partida.pontos);
     const isBest = isBetterScore(antes.bestScore, pontos);
+
+    // Histórico pessoal daquele nível. `data` vem de fora: a função continua pura.
+    const { lista, posicao } = inserirNoRanking(antes.ranking, {
+      pontos, pares: partida.pares, maiorCombo: partida.maiorCombo,
+      grades: partida.grades, dificuldade, data: partida.data || day,
+      duracaoMs: partida.duracaoMs,
+    });
+
     return {
       stats: {
         ...s, ...base,
@@ -122,11 +179,13 @@ export function applyResult(stats, partida, cap = BRINCAR_DAILY_STAR_CAP) {
             bestScore: isBest ? pontos : antes.bestScore,
             bestPairs: Math.max(antes.bestPairs, nOr0(partida.pares)),
             bestCombo: Math.max(antes.bestCombo, nOr0(partida.maiorCombo)),
+            ranking: lista,
           },
         },
       },
       isBest,
       starAwarded,
+      posicao,   // 0 = ficou fora das cinco melhores
     };
   }
 
@@ -209,7 +268,7 @@ export async function recordParesResult(partida) {
   const atual = await readStats();
   const r = applyResult(atual, partida);
   await writeStats(r.stats);
-  return { isBest: r.isBest, starAwarded: r.starAwarded, stats: r.stats };
+  return { isBest: r.isBest, starAwarded: r.starAwarded, stats: r.stats, posicao: r.posicao ?? 0 };
 }
 
 /** Lembra o último modo escolhido (preferência leve; falha não atrapalha o jogo). */

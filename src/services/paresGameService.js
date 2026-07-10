@@ -93,12 +93,24 @@ export function isBetterMoves(anterior, novo) {
   return n < a;
 }
 
-/** Dificuldades oficiais. Médio e Difícil são benefício do Plano Família. */
+/**
+ * Dificuldades oficiais. Médio e Difícil são benefício do Plano Família.
+ *
+ * `turboMs` é a duração da partida Turbo NAQUELE nível. Hoje os três valem 60 s —
+ * o campo existe para que tempos diferentes por nível não exijam refatoração ampla.
+ */
 export const DIFFICULTIES = Object.freeze([
-  { id: 'facil', label: 'Fácil', pairs: 6, cols: 3, premium: false },
-  { id: 'medio', label: 'Médio', pairs: 8, cols: 4, premium: true },
-  { id: 'dificil', label: 'Difícil', pairs: 12, cols: 4, premium: true },
+  { id: 'facil', label: 'Fácil', pairs: 6, cols: 3, premium: false, turboMs: TURBO_DURATION_MS },
+  { id: 'medio', label: 'Médio', pairs: 8, cols: 4, premium: true, turboMs: TURBO_DURATION_MS },
+  { id: 'dificil', label: 'Difícil', pairs: 12, cols: 4, premium: true, turboMs: TURBO_DURATION_MS },
 ]);
+
+/** Duração da partida Turbo do nível. Nível desconhecido → duração padrão. */
+export function getTurboDuration(difId) {
+  const d = DIFFICULTIES.find((x) => x.id === difId);
+  const ms = Number(d?.turboMs);
+  return Number.isFinite(ms) && ms > 0 ? ms : TURBO_DURATION_MS;
+}
 
 /** Teto diário de estrelinhas ganhas em Brincar — vale para TODOS os planos. */
 export const BRINCAR_DAILY_STAR_CAP = 2;
@@ -188,4 +200,21 @@ export const PARES_SOUND_EVENTS = Object.freeze({
   MISMATCH: 'match_error',
   WIN: 'game_victory',
   TURBO_END: 'turbo_end',
+  // Bloco 1.4b
+  BOARD_COMPLETE: 'board_complete',
+  COUNTDOWN_TICK: 'countdown_tick',
+  TIME_UP: 'time_up_alarm',
+  CLASSIC_JINGLE: 'classic_victory_jingle',
+  TURBO_JINGLE: 'turbo_result_jingle',
 });
+
+/** Turbo: a partir de 10 s a borda pulsa; a partir de 5 s o relógio bate a cada segundo. */
+export const TURBO_ALERTA_MS = 10000;
+export const TURBO_TICK_MS = 5000;
+
+/** Segundo inteiro exibido no relógio. Fonte única para o tique não sair do número. */
+export function segundosRestantes(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.ceil(n / 1000);
+}

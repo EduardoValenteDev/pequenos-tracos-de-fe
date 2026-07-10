@@ -16044,20 +16044,24 @@ check(
       })(),
       'a rodada é consumida fora do início da partida (ex.: ao abrir a tela)');
 
-    // Bloco 1.4 — MIGRADO: `concluir` virou `finalizar` (dois modos terminam por ele).
-    // A garantia é a mesma: 1 crédito, dentro do fim de partida, atrás de starAwarded.
-    check('1.3 (estrelinha): só é creditada dentro de finalizar(), atrás de starAwarded',
+    // MIGRADO 1.4 (`concluir`→`finalizar`) e 1.4b (`finalizar`→`salvarPartida`, que é
+    // o ÚNICO ponto de gravação da partida). A garantia não mudou: 1 crédito, no fim
+    // da partida, atrás de starAwarded.
+    check('1.3 (estrelinha): só é creditada dentro de salvarPartida(), atrás de starAwarded',
       (() => {
-        const fim = (pdbNoCom.match(/const finalizar = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
+        const fim = (pdbNoCom.match(/const salvarPartida = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
         return (pdbNoCom.match(/addBonusStars\(/g) || []).length === 1
           && /if \(r\.starAwarded\) \{\s*await addBonusStars\(1\);\s*await refreshProgress\?\.\(\);/.test(fim);
       })(),
       'estrelinha creditada sem partida concluída, ou sem refreshProgress');
 
-    check('1.3 (sem rede): recordes são locais — nenhum ranking online',
-      !/fetch\(|axios|https?:\/\/|ranking|leaderboard/i.test(a1StripComments(bsSrc))
-      && !/fetch\(|axios|ranking|leaderboard/i.test(pdbNoCom)
-      && /STORAGE_KEYS\.BRINCAR_STATS/.test(bsSrc),
+    // MIGRADO 1.4b: agora EXISTE um ranking — mas pessoal, local e sem servidor.
+    // O check deixa de proibir a palavra e passa a proibir o que importa: rede.
+    check('1.3 (sem rede): recordes e ranking são locais — nada de servidor',
+      !/fetch\(|axios|https?:\/\/|leaderboard|onlineRanking/i.test(a1StripComments(bsSrc))
+      && !/fetch\(|axios|leaderboard/i.test(pdbNoCom)
+      && /STORAGE_KEYS\.BRINCAR_STATS/.test(bsSrc)
+      && /RANKING_MAX/.test(bsSrc),   // o histórico vive no mesmo storage local
       'o Brincar passou a falar com a rede ou a expor ranking online');
 
     check('1.3 (assets): as cartas reusam as capas das histórias; nenhum asset novo',
@@ -16149,14 +16153,18 @@ check(
       && /const refreshProgress = progressCtx\?\.refreshProgress/.test(pdbA),
       'ParesDoBeniScreen importa um hook inexistente ou não protege a ausência do contexto');
 
-    // Bloco 1.4 — MIGRADO: `concluir`→`finalizar`, `vitoria`→`resultado` (dois modos).
+    // MIGRADO 1.4/1.4b: `concluir`→`finalizar`→`salvarPartida`; `setFase`→`setTela`.
+    // A garantia é a mesma: falhar ao gravar não pode esconder o resultado.
     check('1.3a (guarda): falha ao registrar recorde/estrelinha não derruba o resultado',
       (() => {
-        const fim = (pdbA.match(/const finalizar = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
+        const fim = (pdbA.match(/const salvarPartida = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
         return /try \{/.test(fim) && /catch \(e\) \{\s*warn\(/.test(fim)
-          && /setFase\('resultado'\);/.test(fim);
+          && /setResultado\(\{/.test(fim)
+          // quem troca de tela é o chamador, e ele roda mesmo se o await falhar
+          && /salvarPartida\(\);\s*setTela\('resultado'\);/.test(pdbA)
+          && /salvarPartida\(\);\s*setTela\('tempoEsgotado'\);/.test(pdbA);
       })(),
-      'finalizar() pode lançar e impedir a tela de resultado de aparecer');
+      'salvarPartida() pode lançar e impedir a tela de resultado de aparecer');
 
     check('1.3a (produto): "Desenho guiado pelo Beni" não é mais card da aba Brincar',
       // Só o CÓDIGO: os comentários do arquivo explicam por que o card saiu.
@@ -16312,15 +16320,13 @@ check(
       && !/useNativeDriver: false/.test(pdb14),
       'o flip não é um giro real em Y, ou deixou de usar backfaceVisibility/driver nativo');
 
-    check('1.4 (erro): observar → som → chacoalhar → virar de volta, e só então liberar',
-      (() => {
-        const seq = (pdb14.match(/g\.erros \+= 1;[\s\S]*?\}, T\.observar\);/) || [''])[0];
-        const ordemOk = seq.indexOf('MISMATCH') < seq.indexOf('setErrando(novas)')
-          && seq.indexOf('setErrando(novas)') < seq.indexOf('travado.current = false');
-        return seq.length > 0 && ordemOk
-          && /T\.observar/.test(seq)
-          && /observar: 550/.test(pdb14) && /chacoalhar: 380/.test(pdb14);  // 300–450 ms
-      })(),
+    // MIGRADO 1.4b: a sequência saiu do handler e virou máquina de estados. A ordem
+    // agora é garantida por transição de fase — o comportamento é testado no bloco 1.4b.
+    check('1.4 (erro): a chacoalhada existe e a grade só libera ao fim da sequência',
+      /chacoalhar: 380/.test(pdb14)   // 300–450 ms
+      && /observar: 420/.test(pdb14)  // as duas cartas visíveis antes de verificar
+      && /case EFEITOS\.AGENDAR_FECHAR: fn\.current\.agendar\(\(\) => fn\.current\.aplicar\(fechar\), T\.chacoalhar\)/.test(pdb14)
+      && /errando && styles\.cartaFrenteErro/.test(pdb14),
       'a sequência de erro libera a grade cedo demais, ou perdeu a chacoalhada');
 
     check('1.4 (acerto): pop de crescer e voltar; as cartas continuam na grade',
@@ -16330,26 +16336,33 @@ check(
       && !/filter\(\(c\) => !casadas/.test(pdb14),   // nada é removido do baralho
       'o acerto perdeu o pop, o som, ou passou a remover cartas da grade');
 
-    check('1.4 (3ª carta): a grade tranca quando a 2ª carta abre',
+    // MIGRADO 1.4b: a decisão saiu do estado React (que chegava atrasado e permitia a
+    // 3ª carta) e virou máquina pura. Aqui só guardamos a ARQUITETURA; o comportamento
+    // é provado por simulação de toques no bloco 1.4b.
+    check('1.4 (3ª carta): a tela não decide toque — quem decide é a máquina, no ref',
       (() => {
         const t = (pdb14.match(/const tocarCarta = useCallback\(\(i\) => \{[\s\S]*?\n  \}, \[/) || [''])[0];
-        const guarda = /if \(travado\.current \|\| finalizado\.current \|\| fase !== 'jogando' \|\| pausado\) return;/.test(t);
-        // a trava é ligada logo após a 2ª carta abrir, antes de qualquer verificação
-        const trancaCedo = t.indexOf('if (novas.length < 2) return;') < t.indexOf('travado.current = true;')
-          && t.indexOf('travado.current = true;') < t.indexOf('isPair(a, b)');
-        return guarda && trancaCedo;
+        return /aplicar\(tocar, i\)/.test(t)
+          // a tela não reimplementa regra nenhuma de aceitação
+          && !/abertas\.includes\(i\)/.test(t) && !/travado\.current/.test(pdb14)
+          // o ref é gravado ANTES do setState, dentro de aplicar()
+          && /jogoRef\.current = r\.estado;\s*if \(montado\.current\) setVista\(r\.estado\);/.test(pdb14);
       })(),
-      'uma terceira carta pode abrir durante a verificação do par');
+      'a tela voltou a decidir o toque pelo estado React — a 3ª carta pode abrir');
 
-    check('1.4 (recompensa única): finalizado.current impede 2 resultados / 2 estrelinhas',
-      /if \(finalizado\.current\) return;\s*finalizado\.current = true;/.test(pdb14)
-      && (pdb14.match(/setFase\('resultado'\)/g) || []).length === 1
+    // MIGRADO 1.4b: `finalizado.current` virou `salvoRef` (grava) + `tempoAcabouRef`
+    // (alarme/painel). Duas guardas, cada uma para uma coisa — nenhuma foi perdida.
+    check('1.4 (recompensa única): a partida grava uma vez e credita a estrelinha uma vez',
+      /if \(salvoRef\.current\) return;\s*salvoRef\.current = true;/.test(pdb14)
+      && /if \(tempoAcabouRef\.current\) return;\s*tempoAcabouRef\.current = true;/.test(pdb14)
+      && (pdb14.match(/recordParesResult\(/g) || []).length === 1
       && (pdb14.match(/addBonusStars\(/g) || []).length === 1,
-      'a partida pode gerar dois resultados ou creditar a estrelinha duas vezes');
+      'a partida pode ser gravada duas vezes ou creditar a estrelinha duas vezes');
 
     check('1.4 (timers): todo timeout passa por agendar() e é limpo no unmount',
       /timeouts\.current\.forEach\(clearTimeout\)/.test(pdb14)
-      && /montado\.current = false;\s*limparTimers\(\);\s*releaseGameSfx\(\);/.test(pdb14)
+      && /montado\.current = false;\s*limparTimers\(\);/.test(pdb14)
+      && /releaseGameSfx\(\);/.test(pdb14)
       // nenhum setTimeout solto fora do helper
       && (pdb14.match(/setTimeout\(/g) || []).length === 1,
       'existe um setTimeout fora do agendar(), ou os timers/sons sobrevivem à saída da tela');
@@ -16357,7 +16370,7 @@ check(
     check('1.4 (pausa): app em segundo plano ou tela sem foco param o relógio',
       /AppState\.addEventListener\('change'/.test(pdb14)
       && /navigation\.addListener\('blur', \(\) => setPausado\(true\)\)/.test(pdb14)
-      && /if \(fase !== 'jogando' \|\| pausado\) return undefined;/.test(pdb14),
+      && /if \(!jogando \|\| pausado\) return undefined;/.test(pdb14),
       'o cronômetro continua correndo com o app em segundo plano ou fora da tela');
 
     check('1.4 (som): efeitos com fallback seguro, throttle e liberação',
@@ -16422,6 +16435,404 @@ check(
           && !/audio\/(?!sfx)/.test(a1StripComments(readSrc('src/services/audioManager.js')).split('GAME_SFX')[1] || '');
       })(),
       'o Bloco 1.4 vazou para histórias, quizzes ou para o áudio de narração');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco 1.4b — Máquina de estados + Turbo expandido.
+  //
+  //   A regra da 3ª carta NÃO é testável por regex: é comportamento. Aqui a máquina
+  //   pura é carregada e TOCADA de verdade, simulando toques concorrentes.
+  //
+  //   · impossível abrir 3 cartas · verificação só depois do flip da 2ª
+  //   · contagem regressiva · alarme único · ranking top 5 ordenado · salvar 1×
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco 1.4b: máquina de toque + Turbo ──');
+  {
+    const pgB = readSrc('src/services/paresGameService.js');
+    const bsB = readSrc('src/services/brincarStatsService.js');
+    const mqB = readSrc('src/services/paresGameMachine.js');
+    const pdbB = a1StripComments(readSrc('src/screens/ParesDoBeniScreen.js'));
+    const amB = a1StripComments(readSrc('src/services/audioManager.js'));
+
+    const limpa = (s) => a1StripComments(s)
+      .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+      .replace(/^export\s+default[\s\S]*$/m, '')
+      .replace(/^export\s+/gm, '');
+
+    /** Máquina + serviço, avaliados de verdade. */
+    const carregar = () => new Function(
+      'AsyncStorage', 'STORAGE_KEYS', 'warn',
+      limpa(pgB) + '\n' + limpa(mqB) + '\n' + limpa(bsB)
+      + ';return { FASES, EFEITOS, FASES_QUE_ACEITAM, criarJogo, aceitaToque, tocar, flipConcluido,'
+      + ' verificar, liberar, fechar, novaGrade, encerrar, applyResult, inserirNoRanking,'
+      + ' compararTurbo, sanitizeStats, RANKING_MAX, segundosRestantes, TURBO_TICK_MS, TURBO_ALERTA_MS,'
+      + ' getTurboDuration };',
+    )({}, {}, () => {});
+
+    // Baralho fixo, 3 pares: (0,1)=a · (2,3)=b · (4,5)=c. Nada aleatório.
+    // Par errado = duas cartas de histórias diferentes, ex.: 0 e 2.
+    const DECK = [
+      { key: 'a#a', storyId: 'a' }, { key: 'a#b', storyId: 'a' },
+      { key: 'b#a', storyId: 'b' }, { key: 'b#b', storyId: 'b' },
+      { key: 'c#a', storyId: 'c' }, { key: 'c#b', storyId: 'c' },
+    ];
+    const jogoNovo = (M, extra = {}) => M.criarJogo({ deck: DECK, pares: 3, ...extra });
+
+    /** Jogada completa: dois toques, dois flips concluídos, verificação. */
+    const jogar = (M, e, a, b) => {
+      e = M.tocar(e, a).estado;
+      e = M.tocar(e, b).estado;
+      e = M.flipConcluido(e, a).estado;
+      e = M.flipConcluido(e, b).estado;
+      return M.verificar(e);
+    };
+
+    // ── 1. A TERCEIRA CARTA (o bug real do iPhone) ───────────────────────────
+    check('1.4b (3ª carta): três toques no MESMO instante abrem exatamente duas cartas',
+      (() => { try {
+        const M = carregar();
+        let e = jogoNovo(M);
+        // Nenhum callback assíncrono roda entre os toques — é exatamente a corrida real.
+        const t1 = M.tocar(e, 0); e = t1.estado;
+        const t2 = M.tocar(e, 1); e = t2.estado;
+        const t3 = M.tocar(e, 2); e = t3.estado;
+
+        return t1.aceito === true && t2.aceito === true && t3.aceito === false
+          && e.abertas.length === 2                 // só duas viradas
+          && e.abertas.join() === '0,1'             // e são as duas primeiras
+          && t3.efeitos.length === 0                // a 3ª não tocou som nem vibrou
+          && e.jogadas === 0;                       // jogada só conta na verificação
+      } catch (err) { return false; } })(),
+      'ainda é possível abrir uma terceira carta — a corrida do toque não foi eliminada');
+
+    check('1.4b (3ª carta): rajada de toques simultâneos em cartas diferentes',
+      (() => { try {
+        const M = carregar();
+        let e = jogoNovo(M);
+        let aceitos = 0;
+        // 8 toques disparados sem nenhum callback no meio.
+        for (const i of [0, 2, 3, 1, 2, 3, 0, 1]) {
+          const r = M.tocar(e, i);
+          e = r.estado;
+          if (r.aceito) aceitos++;
+        }
+        return aceitos === 2 && e.abertas.length === 2 && e.abertas.join() === '0,2';
+      } catch (err) { return false; } })(),
+      'uma rajada de toques simultâneos abre mais de duas cartas');
+
+    check('1.4b (3ª carta): nenhum toque é aceito durante verificação, acerto, erro, troca de grade ou fim',
+      (() => { try {
+        const M = carregar();
+        const bloqueadas = [M.FASES.SECOND_FLIP, M.FASES.CHECKING, M.FASES.MATCH,
+          M.FASES.ERROR, M.FASES.BOARD, M.FASES.FINISHED];
+        const base = jogoNovo(M);
+        const todasBloqueiam = bloqueadas.every((fase) => !M.aceitaToque({ ...base, fase }, 3));
+        // E as fases que aceitam são exatamente as três esperadas.
+        return todasBloqueiam
+          && M.FASES_QUE_ACEITAM.length === 3
+          && M.FASES_QUE_ACEITAM.includes(M.FASES.IDLE)
+          && M.FASES_QUE_ACEITAM.includes(M.FASES.FIRST_FLIP)     // a criança é rápida
+          && M.FASES_QUE_ACEITAM.includes(M.FASES.WAITING_SECOND);
+      } catch (err) { return false; } })(),
+      'alguma fase de resolução voltou a aceitar toque');
+
+    check('1.4b (3ª carta): depois da sequência, a mesma carta recusada é aceita normalmente',
+      (() => { try {
+        const M = carregar();
+        let e = jogoNovo(M);
+        e = M.tocar(e, 0).estado;
+        e = M.tocar(e, 2).estado;                 // par errado
+        if (M.tocar(e, 3).aceito) return false;   // recusada durante a resolução
+        e = M.flipConcluido(e, 0).estado;
+        e = M.flipConcluido(e, 2).estado;         // 2ª carta terminou o giro
+        e = M.verificar(e).estado;                // erro
+        e = M.fechar(e).estado;                   // chacoalhou e virou de volta
+        const r = M.tocar(e, 3);                  // agora sim
+        return e.fase === M.FASES.IDLE && r.aceito === true;
+      } catch (err) { return false; } })(),
+      'depois da sequência de erro a grade não volta a aceitar toques');
+
+    // ── 2. FLIP ANTES DA VERIFICAÇÃO ─────────────────────────────────────────
+    check('1.4b (ordem/acerto): som, borda verde, pontos e combo só DEPOIS do flip da 2ª carta',
+      (() => { try {
+        const M = carregar();
+        let e = jogoNovo(M, { cronometrado: true });
+        e = M.tocar(e, 0).estado;
+        e = M.tocar(e, 1).estado;                 // par certo, 2ª ainda girando
+
+        // Verificar agora seria "adiantar o acerto": a máquina recusa.
+        const cedo = M.verificar(e);
+        if (cedo.efeitos.length !== 0 || cedo.estado.casadas.length !== 0
+          || cedo.estado.pontos !== 0 || cedo.estado.jogadas !== 0) return false;
+
+        // Fim do giro da 1ª carta NÃO pode disparar a verificação (a 2ª ainda gira).
+        const f1 = M.flipConcluido(e, 0);
+        if (f1.efeitos.length !== 0 || f1.estado.fase !== M.FASES.SECOND_FLIP) return false;
+
+        // Só o fim do giro da 2ª carta autoriza.
+        const f2 = M.flipConcluido(f1.estado, 1);
+        if (f2.estado.fase !== M.FASES.CHECKING
+          || !f2.efeitos.includes(M.EFEITOS.AGENDAR_VERIFICAR)) return false;
+
+        const v = M.verificar(f2.estado);
+        return v.estado.fase === M.FASES.MATCH
+          && v.efeitos.includes(M.EFEITOS.SOM_ACERTO)     // som só agora
+          && v.efeitos.includes(M.EFEITOS.VIBRAR_ACERTO)
+          && v.estado.casadas.length === 2                // borda verde só agora
+          && v.estado.pontos === 100 && v.estado.combo === 1 && v.estado.jogadas === 1;
+      } catch (err) { return false; } })(),
+      'o acerto (som, borda, pontos) aparece antes de a 2ª carta terminar o flip');
+
+    check('1.4b (ordem/erro): som de erro e chacoalhada só DEPOIS do flip da 2ª carta',
+      (() => { try {
+        const M = carregar();
+        let e = jogoNovo(M);
+        e = M.tocar(e, 0).estado;
+        e = M.tocar(e, 2).estado;                 // par errado
+        if (M.verificar(e).efeitos.length !== 0) return false;   // cedo demais: nada
+
+        e = M.flipConcluido(e, 0).estado;
+        e = M.flipConcluido(e, 2).estado;
+        const v = M.verificar(e);
+        return v.estado.fase === M.FASES.ERROR
+          && v.efeitos.includes(M.EFEITOS.SOM_ERRO)
+          && v.efeitos.includes(M.EFEITOS.AGENDAR_FECHAR)
+          && v.estado.erros === 1 && v.estado.jogadas === 1 && v.estado.combo === 0
+          && v.estado.abertas.length === 2;       // ainda visíveis: a criança olha
+      } catch (err) { return false; } })(),
+      'o erro é mostrado antes de a 2ª carta terminar o flip');
+
+    check('1.4b (combo): acertos seguidos multiplicam; um erro zera o combo sem tirar pontos',
+      (() => { try {
+        const M = carregar();
+        let e = jogoNovo(M, { cronometrado: true });
+        e = M.liberar(jogar(M, e, 0, 1).estado).estado;   // 1º par: 100 (combo 1×)
+        e = M.liberar(jogar(M, e, 2, 3).estado).estado;   // 2º par seguido: 200 (combo 2×)
+        if (e.pontos !== 300 || e.maiorCombo !== 2 || e.combo !== 2) return false;
+
+        // Erro logo depois: combo zera, mas os 300 pontos ficam.
+        let f = jogoNovo(M, { cronometrado: true });
+        f = M.liberar(jogar(M, f, 0, 1).estado).estado;   // combo 1
+        const erro = jogar(M, f, 2, 4);                   // b × c → erro
+        f = M.fechar(erro.estado).estado;
+        if (f.combo !== 0 || f.pontos !== 100 || f.erros !== 1) return false;
+
+        // Combo recomeça do 1× (100 pontos, não 200).
+        const g = M.liberar(jogar(M, f, 2, 3).estado).estado;
+        return g.pontos === 200 && g.combo === 1 && g.maiorCombo === 1;
+      } catch (err) { return false; } })(),
+      'o combo não multiplica, não zera no erro, ou o erro retira pontos');
+
+    // ── 3. TURBO: grade, relógio, alarme ─────────────────────────────────────
+    check('1.4b (grade): limpar a grade no Turbo NÃO encerra a partida; no Clássico encerra',
+      (() => { try {
+        const M = carregar();
+        const limpar = (e) => {
+          e = M.liberar(jogar(M, e, 0, 1).estado).estado;
+          e = M.liberar(jogar(M, e, 2, 3).estado).estado;
+          return M.liberar(jogar(M, e, 4, 5).estado);   // 3º par: grade limpa
+        };
+        // Turbo: grade cheia → troca de grade, partida segue.
+        const turbo = limpar(jogoNovo(M, { cronometrado: true }));
+        if (turbo.estado.fase !== M.FASES.BOARD) return false;
+        if (!turbo.efeitos.includes(M.EFEITOS.SOM_GRADE)) return false;
+        if (turbo.efeitos.includes(M.EFEITOS.FIM_DE_JOGO)) return false;   // NÃO acaba
+        if (turbo.estado.gradesCompletas !== 1) return false;
+        if (M.aceitaToque(turbo.estado, 0)) return false;                  // trava na troca
+
+        // Nova grade: pontos, combo, pares e grades continuam.
+        const nova = M.novaGrade(turbo.estado, DECK).estado;
+        if (nova.fase !== M.FASES.IDLE || nova.paresTotais !== 3 || nova.pontos === 0) return false;
+        if (nova.casadas.length !== 0 || nova.gradesCompletas !== 1) return false;
+
+        // Clássico: grade cheia → fim de jogo.
+        const classico = limpar(jogoNovo(M));
+        return classico.estado.fase === M.FASES.FINISHED
+          && classico.efeitos.includes(M.EFEITOS.FIM_DE_JOGO);
+      } catch (err) { return false; } })(),
+      'o Turbo encerra ao limpar a grade, ou o Clássico não encerra');
+
+    check('1.4b (fim): depois de encerrar, nenhum toque é aceito — nunca mais',
+      (() => { try {
+        const M = carregar();
+        let e = jogoNovo(M, { cronometrado: true });
+        e = M.tocar(e, 0).estado;
+        e = M.encerrar(e).estado;                 // tempo zerou no meio da jogada
+        const r = M.tocar(e, 1);
+        return e.fase === M.FASES.FINISHED && e.abertas.length === 0
+          && r.aceito === false && r.efeitos.length === 0
+          && M.verificar(e).efeitos.length === 0;  // nada pendente conta depois do zero
+      } catch (err) { return false; } })(),
+      'uma carta aberta depois do zero ainda é contabilizada');
+
+    check('1.4b (recorde na partida): "Novo recorde!" é anunciado UMA única vez',
+      (() => { try {
+        const M = carregar();
+        let e = jogoNovo(M, { cronometrado: true, recordeAtual: 50 });
+        const v1 = jogar(M, e, 0, 1);             // 100 pontos > 50 → anuncia
+        if (!v1.efeitos.includes(M.EFEITOS.RECORDE_BATIDO)) return false;
+        e = M.liberar(v1.estado).estado;
+        const v2 = jogar(M, e, 2, 3);             // segue passando, mas não repete
+        return !v2.efeitos.includes(M.EFEITOS.RECORDE_BATIDO) && v2.estado.recordeAvisado === true;
+      } catch (err) { return false; } })(),
+      'o aviso de novo recorde repete durante a partida');
+
+    check('1.4b (contagem): alerta a 10 s, tique a partir de 5 s, segundo inteiro coerente',
+      (() => { try {
+        const M = carregar();
+        return M.TURBO_ALERTA_MS === 10000 && M.TURBO_TICK_MS === 5000
+          && M.segundosRestantes(5000) === 5 && M.segundosRestantes(4001) === 5
+          && M.segundosRestantes(4000) === 4 && M.segundosRestantes(1) === 1
+          && M.segundosRestantes(0) === 0 && M.segundosRestantes(-10) === 0
+          && M.getTurboDuration('facil') === 60000 && M.getTurboDuration('inexistente') === 60000;
+      } catch (err) { return false; } })(),
+      'a contagem regressiva não começa em 5 s, ou o segundo exibido não bate com o tique');
+
+    // ── 4. RANKING PESSOAL ───────────────────────────────────────────────────
+    check('1.4b (ranking): guarda no máximo 5 partidas por dificuldade',
+      (() => { try {
+        const M = carregar();
+        let lista = [];
+        for (let i = 1; i <= 8; i++) {
+          lista = M.inserirNoRanking(lista, {
+            pontos: i * 100, pares: i, maiorCombo: 1, grades: 0,
+            dificuldade: 'facil', data: '2026-07-1' + (i % 10), duracaoMs: 60000,
+          }).lista;
+        }
+        return lista.length === M.RANKING_MAX && M.RANKING_MAX === 5
+          && lista[0].pontos === 800 && lista[4].pontos === 400;   // as 5 melhores
+      } catch (err) { return false; } })(),
+      'o histórico pessoal guarda mais (ou menos) que cinco partidas por dificuldade');
+
+    check('1.4b (ranking): ordem pontos → pares → combo → mais recente',
+      (() => { try {
+        const M = carregar();
+        const e = (pontos, pares, maiorCombo, data) => ({ pontos, pares, maiorCombo, grades: 0, dificuldade: 'facil', data, duracaoMs: 60000 });
+        // Todos empatados em pontos: desempata por pares.
+        let l = M.inserirNoRanking([], e(500, 3, 5, '2026-07-01')).lista;
+        l = M.inserirNoRanking(l, e(500, 6, 1, '2026-07-02')).lista;
+        if (l[0].pares !== 6) return false;
+        // Empate em pontos e pares: desempata por combo.
+        l = M.inserirNoRanking(l, e(500, 6, 4, '2026-07-03')).lista;
+        if (l[0].maiorCombo !== 4) return false;
+        // Empate total: a partida mais recente vem primeiro.
+        const r = M.inserirNoRanking(l, e(500, 6, 4, '2026-07-09'));
+        if (r.lista[0].data !== '2026-07-09' || r.posicao !== 1) return false;
+        // Pontuação maior sempre vence tudo.
+        const topo = M.inserirNoRanking(r.lista, e(900, 1, 1, '2026-07-01'));
+        return topo.lista[0].pontos === 900 && topo.posicao === 1;
+      } catch (err) { return false; } })(),
+      'o desempate do ranking não segue pontos → pares → combo → mais recente');
+
+    check('1.4b (ranking): posição devolvida é a da partida atual; fora do top 5 devolve 0',
+      (() => { try {
+        const M = carregar();
+        const e = (p, d) => ({ pontos: p, pares: 1, maiorCombo: 1, grades: 0, dificuldade: 'facil', data: d, duracaoMs: 60000 });
+        let l = [];
+        for (const p of [900, 800, 700, 600, 500]) l = M.inserirNoRanking(l, e(p, '2026-07-01')).lista;
+        const dentro = M.inserirNoRanking(l, e(750, '2026-07-02'));
+        const fora = M.inserirNoRanking(l, e(100, '2026-07-02'));
+        return dentro.posicao === 3 && dentro.lista.length === 5
+          && fora.posicao === 0 && fora.lista.length === 5
+          // partida sem nenhum par não entra no histórico
+          && M.inserirNoRanking(l, e(0, '2026-07-02')).posicao === 0;
+      } catch (err) { return false; } })(),
+      'a posição da partida atual no ranking está errada');
+
+    check('1.4b (ranking): separado por dificuldade e ligado ao applyResult do Turbo',
+      (() => { try {
+        const M = carregar();
+        const hoje = '2026-07-10';
+        const jogo = (dificuldade, pontos) => ({ modo: 'turbo', dificuldade, day: hoje, data: hoje, pontos, pares: 4, maiorCombo: 2, grades: 1, duracaoMs: 60000 });
+        let s = M.applyResult(null, jogo('facil', 500)).stats;
+        const r = M.applyResult(s, jogo('medio', 900));
+        s = r.stats;
+        return s.turbo.facil.ranking.length === 1 && s.turbo.medio.ranking.length === 1
+          && s.turbo.dificil.ranking.length === 0            // nível não jogado fica vazio
+          && s.turbo.facil.ranking[0].pontos === 500
+          && r.posicao === 1
+          && s.turbo.medio.ranking[0].grades === 1
+          && s.turbo.medio.ranking[0].duracaoMs === 60000;   // duração do nível registrada
+      } catch (err) { return false; } })(),
+      'o ranking não é separado por dificuldade, ou o Turbo não o alimenta');
+
+    check('1.4b (ranking): não concede estrelinha extra e sobrevive a storage corrompido',
+      (() => { try {
+        const M = carregar();
+        const s = M.sanitizeStats({ turbo: { facil: { ranking: ['lixo', null, { pontos: 0 }, { pontos: 300, data: 'x' }] } } });
+        if (s.turbo.facil.ranking.length !== 1 || s.turbo.facil.ranking[0].pontos !== 300) return false;
+        // 3 partidas Turbo no mesmo dia: só 2 estrelinhas (teto compartilhado).
+        const hoje = '2026-07-10';
+        const j = { modo: 'turbo', dificuldade: 'facil', day: hoje, data: hoje, pontos: 400, pares: 3, maiorCombo: 2, grades: 0, duracaoMs: 60000 };
+        const r1 = M.applyResult(null, j);
+        const r2 = M.applyResult(r1.stats, j);
+        const r3 = M.applyResult(r2.stats, j);
+        return r1.starAwarded && r2.starAwarded && !r3.starAwarded
+          && r3.stats.turbo.facil.ranking.length === 3;   // mas o histórico registra as 3
+      } catch (err) { return false; } })(),
+      'o ranking dá estrelinha extra, ou quebra com storage corrompido');
+
+    // ── 5. TELA: painel, alarme, salvamento e limpeza ────────────────────────
+    check('1.4b (painel): "Tempo encerrado" vem ANTES do resultado, e o resultado só pelo botão',
+      /setTela\('tempoEsgotado'\)/.test(pdbB)
+      && /Tempo encerrado!/.test(pdbB)
+      && /Ver meu resultado/.test(pdbB)
+      // o único caminho de 'tempoEsgotado' para 'resultado' é o botão
+      && /onPress=\{\(\) => \{ playGameSfx\(PARES_SOUND_EVENTS\.TURBO_JINGLE\); setTela\('resultado'\); \}\}/.test(pdbB),
+      'o resultado do Turbo aparece sem passar pelo painel de tempo encerrado');
+
+    check('1.4b (alarme): dispara uma vez, cala o tique e cancela timers pendentes',
+      (() => {
+        const bloco = (pdbB.match(/const tempoEsgotou = useCallback\([\s\S]*?\n  \}/) || [''])[0];
+        return /if \(tempoAcabouRef\.current\) return;/.test(bloco)
+          && /aplicar\(encerrar\)/.test(bloco)
+          && /limparTimers\(\)/.test(bloco)
+          && /stopGameSfx\(PARES_SOUND_EVENTS\.COUNTDOWN_TICK\)/.test(bloco)
+          && /playGameSfx\(PARES_SOUND_EVENTS\.TIME_UP\)/.test(bloco)
+          && /salvarPartida\(\)/.test(bloco);
+      })(),
+      'o alarme pode tocar duas vezes, ou o tique continua depois do zero');
+
+    check('1.4b (tique): um por segundo, casado com o número, e silenciado ao pausar',
+      /if \(seg > 0 && seg <= TURBO_TICK_MS \/ 1000 && seg !== ultimoSegundoRef\.current\)/.test(pdbB)
+      && /ultimoSegundoRef\.current = seg;\s*playGameSfx\(PARES_SOUND_EVENTS\.COUNTDOWN_TICK\)/.test(pdbB)
+      && /if \(pausado\) stopGameSfx\(PARES_SOUND_EVENTS\.COUNTDOWN_TICK\)/.test(pdbB)
+      // throttle do tique não pode barrar o segundo seguinte (1000 ms), mas barra o dobro no mesmo segundo
+      && /countdown_tick: 300/.test(amB),
+      'o relógio pode tocar mais de uma vez por segundo, ou continua tocando pausado');
+
+    check('1.4b (pulso): borda e relógio pulsam nos últimos 10 s, sem cobrir as cartas',
+      /restanteMs <= TURBO_ALERTA_MS/.test(pdbB)
+      && /Animated\.loop\(/.test(pdbB)
+      && /pointerEvents="none"/.test(pdbB)     // a borda não rouba o toque das cartas
+      && /styles\.bordaAlerta/.test(pdbB)
+      && /hudCritico/.test(pdbB),
+      'o alerta dos últimos 10 segundos sumiu, ou a borda cobre as cartas');
+
+    check('1.4b (ciclo de vida): animações e sons param no unmount e ao pausar',
+      /pulso\.stopAnimation\(\); tique\.stopAnimation\(\);/.test(pdbB)
+      && /stopGameSfx\(PARES_SOUND_EVENTS\.COUNTDOWN_TICK\);\s*releaseGameSfx\(\);/.test(pdbB)
+      && /if \(montado\.current\) fn\(\);/.test(pdbB)   // timeout não toca componente desmontado
+      && /export function stopGameSfx/.test(readSrc('src/services/audioManager.js')),
+      'animações, tique ou timers sobrevivem à saída da tela');
+
+    check('1.4b (sons novos): 5 efeitos registrados, com throttle próprio e sem loop',
+      ['countdown_tick', 'time_up_alarm', 'board_complete', 'classic_victory_jingle', 'turbo_result_jingle']
+        .every((n) => new RegExp(`${n}: require\\('\\.\\./\\.\\./assets/audio/sfx/${n}\\.wav'\\)`).test(amB))
+      && /SFX_INTERVAL_OVERRIDE/.test(amB)
+      && !/loop = true/.test(amB.split('GAME_SFX')[1] || '')
+      && !/expo-av/.test(amB),
+      'os sons novos não foram registrados, ou entraram em loop / voltaram para expo-av');
+
+    // Só o CÓDIGO: os comentários da máquina explicam justamente por que ela não pode
+    // depender de estado React.
+    check('1.4b (a máquina é pura): sem React, sem relógio, sem I/O, sem rede',
+      (() => { const codigo = a1StripComments(mqB);
+        return !/useState|useEffect|useRef|from 'react|require\('react/i.test(codigo)
+          && !/Date\.now|setTimeout|setInterval|Math\.random/.test(codigo)
+          && !/AsyncStorage|fetch\(/.test(codigo)
+          && /export function aceitaToque/.test(mqB); })(),
+      'a máquina de estados deixou de ser pura — os testes comportamentais perdem valor');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
