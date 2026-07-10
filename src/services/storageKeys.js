@@ -44,7 +44,11 @@ export const STORAGE_KEYS = {
   BONUS_STARS: '@ptf_bonus_stars',
 
   // ── Ateliê (prefixo sem @ é legado do atelierStorage) ───────────────────
+  // ⚠️ NÃO RENOMEAR: apagaria a galeria de quem já usa o app.
   ATELIER_INDEX: 'ptf_atelier_arts_v1_index',
+
+  // ── Brincar (Bloco 1.1) — chave NOVA, não toca nada do Ateliê ───────────
+  BRINCAR_DAILY: '@ptf_brincar_daily_v1',
 
   // ── Conquistas ───────────────────────────────────────────────────────────
   ACHIEVEMENTS_SEEN: '@ptf_achievements_seen',

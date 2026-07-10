@@ -2,8 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { log } from '../utils/logger';
 import { writeBlob, deleteBlob, safeName, recomposeBlobUri, currentBlobsRoot } from './fileBlobStore';
 
-export const ATELIER_FREE_SAVE_LIMIT = 3;
+/**
+ * Bloco 1.1 — decisão oficial do Eduardo: o plano GRATUITO **não salva artes** (0).
+ * Espelha `FREE_ATELIER_SAVE_LIMIT` de `accessControl.js`; os dois devem andar juntos.
+ */
+export const ATELIER_FREE_SAVE_LIMIT = 0;
 
+// ⚠️ Chave LEGADA (sem prefixo `@`). NÃO renomear: apagaria a galeria de quem já usa o app.
 const LIST_KEY = 'ptf_atelier_arts_v1_index';
 const BLOB_SUBDIR = 'atelier';
 

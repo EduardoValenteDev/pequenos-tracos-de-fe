@@ -26,6 +26,17 @@ const ICON_MAP = {
   clear: 'trash',
   zoom_in: 'search',
   zoom_reset: 'scan',
+
+  // ── Brincar (Bloco 1.1) — ícones semânticos; emoji NUNCA é solução visual ──
+  brincar: 'game-controller',
+  pares: 'albums',
+  palavrinhas: 'text',
+  bichinhos: 'paw',
+  /** PROVISÓRIO: o Ionicons não tem ovelha. Trocar por SVG próprio
+   *  (react-native-svg, já instalada) no bloco de assets do Brincar. */
+  ovelha: 'eye',
+  desenho_guiado: 'color-wand',
+  criar_livre: 'create',
 };
 
 /**

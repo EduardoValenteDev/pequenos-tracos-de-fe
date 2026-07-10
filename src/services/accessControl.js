@@ -25,7 +25,12 @@ export const ACCESS_TYPE = {
 };
 
 const ALLOW_COMING_SOON_PREVIEW = false;
-const FREE_ATELIER_SAVE_LIMIT = 3;
+/**
+ * Bloco 1.1 — decisão oficial do Eduardo: o plano GRATUITO **não salva artes** (0).
+ * A criança cria e brinca à vontade; salvar e a Galeria são do Plano Família.
+ * O bloqueio é amigável (convite, nunca punição) e vive na tela, não aqui.
+ */
+const FREE_ATELIER_SAVE_LIMIT = 0;
 
 /**
  * Retorna o plano atual do usuário. Fase 2B.7.2: DELEGA ao entitlementService (política pura).

@@ -22,8 +22,14 @@ const mk = (ctx, key, target) => ({ current: Math.min(cnt(ctx, key), target), ta
 export const ACHIEVEMENT_CATEGORIES = [
   { id: 'historias', label: 'Histórias',          icon: '📖', color: '#2B5BA1' },
   { id: 'cenas',     label: 'Cenas',              icon: '⭐', color: '#F9C74F' },
+  // ⚠️ id 'atelie' é DADO LEGADO (conquistas já desbloqueadas apontam para ele).
+  // NÃO renomear. O rótulo visível migra para "Brincar" quando a aba migrar (1.2).
   { id: 'atelie',    label: 'Ateliê',             icon: '🎨', color: '#EC407A' },
   { id: 'momentos',  label: 'Momentos com Beni',  icon: '💛', color: '#7C3AED' },
+  // Bloco 1.1 — categoria NOVA do Brincar. Nasce sem conquistas: `TrophiesScreen`
+  // pula categorias vazias, então ela é invisível até os jogos existirem.
+  // Sem emoji por decisão de produto: usa `faithIcon` (ver src/components/ui/FaithIcon.js).
+  { id: 'brincar',   label: 'Brincar',            faithIcon: 'brincar', color: '#0E9F6E' },
 ];
 
 /**

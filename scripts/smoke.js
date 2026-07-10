@@ -1903,10 +1903,12 @@ check(
   'atelierStorage missing ATELIER_FREE_SAVE_LIMIT constant',
 );
 
+// Bloco 1.1 — MIGRADO de 3 para 0. Decisão oficial do Eduardo: o plano gratuito
+// NÃO salva artes. O check continua guardando contra mudança silenciosa do limite.
 check(
-  'atelierStorage ATELIER_FREE_SAVE_LIMIT equals 3',
-  atelierStorageSrc.includes('ATELIER_FREE_SAVE_LIMIT = 3'),
-  'ATELIER_FREE_SAVE_LIMIT is not 3 — free limit changed without product decision',
+  'atelierStorage ATELIER_FREE_SAVE_LIMIT equals 0 (free não salva)',
+  atelierStorageSrc.includes('ATELIER_FREE_SAVE_LIMIT = 0'),
+  'ATELIER_FREE_SAVE_LIMIT is not 0 — free save limit changed without product decision',
 );
 
 check(
@@ -2082,10 +2084,11 @@ check(
   'accessControl missing hasAtelierUnlimitedAccess export',
 );
 
+// Bloco 1.1 — MIGRADO de 3 para 0 (free não salva). Espelha atelierStorage.
 check(
-  'accessControl FREE_ATELIER_SAVE_LIMIT equals 3',
-  acSrc8.includes('FREE_ATELIER_SAVE_LIMIT = 3'),
-  'accessControl FREE_ATELIER_SAVE_LIMIT is not 3',
+  'accessControl FREE_ATELIER_SAVE_LIMIT equals 0 (free não salva)',
+  acSrc8.includes('FREE_ATELIER_SAVE_LIMIT = 0'),
+  'accessControl FREE_ATELIER_SAVE_LIMIT is not 0',
 );
 
 // Baseline protections (Sprint 8 re-validation)
@@ -15706,6 +15709,118 @@ check(
       /from '\.\.\/data\/stories'/.test(telaV1)
       && /getSceneIllustrationAsset/.test(telaV1) && /getColoringImage/.test(telaV1),
       'SceneValidationScreen não lê as fontes oficiais esperadas');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco 1.1 — Fundação técnica do Brincar. ADITIVO: nenhum check existente tocado.
+  //   · routes.js como fonte única (sem RENOMEAR valores: contrato do React Navigation)
+  //   · FaithIcon com os 7 ícones semânticos (emoji nunca é solução visual)
+  //   · brincarDailyService: núcleo PURO das 2 rodadas grátis/dia
+  //   · Free NÃO salva artes (limite 0), Plano Família salva
+  //   · chaves LEGADAS do Ateliê intactas (renomear apagaria dados de usuários reais)
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco 1.1: fundação do Brincar ──');
+  {
+    const rtB = readSrc('src/constants/routes.js');
+    const fiB = readSrc('src/components/ui/FaithIcon.js');
+    const skB = readSrc('src/services/storageKeys.js');
+    const asB = readSrc('src/services/atelierStorage.js');
+    const acB = readSrc('src/services/accessControl.js');
+    const achB = readSrc('src/data/achievements.js');
+
+    // 1.1-a — routes.js NÃO renomeia rotas: os valores batem com o AppNavigator.
+    check('1.1 (rotas): routes.js centraliza nomes sem renomear (valores legados preservados)',
+      /ATELIER_CANVAS: 'AtelierCanvas'/.test(rtB) && /ATELIER_GALLERY: 'AtelierGallery'/.test(rtB)
+      && /ACTIVITIES: 'Ateliê'/.test(rtB) && /SCENE_VALIDATION: 'SceneValidation'/.test(rtB)
+      && !/import /.test(rtB), // módulo puro, sem deps
+      'routes.js renomeou uma rota (quebra navegação) ou deixou de ser puro');
+
+    // 1.1-b — os 7 ícones semânticos do Brincar existem e nenhum é emoji.
+    const icones11 = ['brincar', 'pares', 'palavrinhas', 'bichinhos', 'ovelha', 'desenho_guiado', 'criar_livre'];
+    check('1.1 (ícones): FaithIcon tem os 7 nomes semânticos do Brincar, sem emoji',
+      icones11.every((n) => new RegExp(`\\n\\s*${n}: '[a-z-]+',`).test(fiB))
+      && !/\p{Extended_Pictographic}/u.test(fiB),
+      'faltou ícone semântico do Brincar, ou entrou emoji no FaithIcon');
+
+    // 1.1-c — chave nova; chaves LEGADAS do Ateliê intactas.
+    check('1.1 (storage): chave nova @ptf_brincar_daily_v1; chaves legadas do Ateliê intactas',
+      /BRINCAR_DAILY: '@ptf_brincar_daily_v1'/.test(skB)
+      && /ATELIER_INDEX: 'ptf_atelier_arts_v1_index'/.test(skB)
+      && /const LIST_KEY = 'ptf_atelier_arts_v1_index'/.test(asB),
+      'chave do Brincar ausente, ou uma chave legada do Ateliê foi renomeada');
+
+    // 1.1-d — Free NÃO salva (0) nos DOIS lugares onde o limite vive.
+    check('1.1 (plano): Free não salva artes (limite 0) em accessControl e atelierStorage',
+      /const FREE_ATELIER_SAVE_LIMIT = 0;/.test(acB)
+      && /export const ATELIER_FREE_SAVE_LIMIT = 0;/.test(asB)
+      && /hasAtelierUnlimitedAccess\(\) \{\s*return isPremiumUser\(\);/.test(a1StripComments(acB)),
+      'o limite de salvar do plano gratuito não é 0, ou o Plano Família deixou de salvar');
+
+    // 1.1-e — categoria 'brincar' nova; 'atelie' preservada como dado legado.
+    check('1.1 (conquistas): categoria brincar (sem emoji) criada; atelie preservada',
+      /id: 'brincar'.*faithIcon: 'brincar'/.test(achB)
+      && !/id: 'brincar'[^}]*icon: '\p{Extended_Pictographic}/u.test(achB)
+      && /id: 'atelie'/.test(achB),
+      'categoria brincar ausente/com emoji, ou a categoria legada atelie sumiu');
+
+    // 1.1-f — NÚCLEO PURO das rodadas diárias (eval real, sem I/O).
+    const evalBrincar = () => {
+      const code = a1StripComments(readSrc('src/services/brincarDailyService.js'))
+        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+/gm, '');
+      return new Function(code + ';return { BRINCAR_FREE_DAILY_ROUNDS, UNLIMITED, toDayKey, sanitizeEntry, usedToday, remainingRounds, canPlayRound, nextEntryAfterRound };')();
+    };
+
+    check('1.1 (rodadas/puro): 2 rodadas grátis por dia; premium ilimitado',
+      (() => { try {
+        const B = evalBrincar();
+        if (B.BRINCAR_FREE_DAILY_ROUNDS !== 2) return false;
+        const hoje = '2026-07-09';
+        const zero = { day: hoje, used: 0 };
+        const uma = { day: hoje, used: 1 };
+        const duas = { day: hoje, used: 2 };
+        return B.remainingRounds(zero, hoje, false) === 2
+          && B.remainingRounds(uma, hoje, false) === 1
+          && B.remainingRounds(duas, hoje, false) === 0
+          && B.canPlayRound(uma, hoje, false) === true
+          && B.canPlayRound(duas, hoje, false) === false
+          && B.remainingRounds(duas, hoje, true) === B.UNLIMITED
+          && B.canPlayRound(duas, hoje, true) === true;
+      } catch (e) { return false; } })(),
+      'núcleo de rodadas diárias não respeita 2/dia no free ou ilimitado no premium');
+
+    check('1.1 (rodadas/puro): o dia vira; entry corrompida ou de outro dia → 0 usadas',
+      (() => { try {
+        const B = evalBrincar();
+        const hoje = '2026-07-09';
+        return B.usedToday({ day: '2026-07-08', used: 2 }, hoje) === 0
+          && B.usedToday(null, hoje) === 0
+          && B.usedToday({ day: hoje, used: -5 }, hoje) === 0
+          && B.usedToday({ day: hoje, used: 'x' }, hoje) === 0
+          && B.canPlayRound({ day: '2026-07-08', used: 2 }, hoje, false) === true;
+      } catch (e) { return false; } })(),
+      'virada de dia ou saneamento de entry corrompida falhou');
+
+    check('1.1 (rodadas/puro): toDayKey usa data LOCAL (não UTC) e nextEntry incrementa',
+      (() => { try {
+        const B = evalBrincar();
+        // 23h local de 09/07 continua sendo 09/07 (toISOString viraria 10/07 em fuso negativo)
+        const noite = new Date(2026, 6, 9, 23, 30, 0);
+        if (B.toDayKey(noite) !== '2026-07-09') return false;
+        if (B.toDayKey(new Date('invalida')) !== null) return false;
+        const hoje = '2026-07-09';
+        const n1 = B.nextEntryAfterRound({ day: hoje, used: 1 }, hoje, false);
+        const nPrem = B.nextEntryAfterRound({ day: hoje, used: 1 }, hoje, true);
+        return n1.used === 2 && n1.day === hoje && nPrem.used === 1;
+      } catch (e) { return false; } })(),
+      'toDayKey não é local, ou nextEntryAfterRound incrementa errado');
+
+    // 1.1-g — o serviço não vaza para áreas sensíveis.
+    check('1.1 (isolamento): brincarDailyService não toca progresso, conquistas nem chaves do Ateliê',
+      (() => { const s = a1StripComments(readSrc('src/services/brincarDailyService.js'));
+        return !/atelier|ATELIER|achievement|addBonusStars|salvarCena|progress/i.test(s)
+          && /STORAGE_KEYS\.BRINCAR_DAILY/.test(s); })(),
+      'brincarDailyService passou a tocar progresso, conquistas ou chaves do Ateliê');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
