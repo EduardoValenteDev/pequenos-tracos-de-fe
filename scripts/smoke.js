@@ -16835,6 +16835,179 @@ check(
       'a máquina de estados deixou de ser pura — os testes comportamentais perdem valor');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco 1.4c — Polimento visual e responsivo.
+  //   · o Difícil VAZAVA porque cardSize só olhava a largura (12 pares = 6 linhas)
+  //   · moldura de alerta na tela toda, dentro da safe area, sem roubar toque
+  //   · topo compacto, HUD de 3 itens, resultado e ranking mais legíveis
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco 1.4c: layout responsivo ──');
+  {
+    const pgC = readSrc('src/services/paresGameService.js');
+    const pdbCraw = readSrc('src/screens/ParesDoBeniScreen.js');
+    const pdbC = a1StripComments(pdbCraw);
+
+    const evalLayout = () => new Function(
+      a1StripComments(pgC)
+        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+default[\s\S]*$/m, '')
+        .replace(/^export\s+/gm, '')
+      + ';return { computeCardSize, gridRows, CARD_RATIO, CARD_MIN, DIFFICULTIES };',
+    )();
+
+    check('1.4c (cartas/puro): o lado é o MENOR entre a restrição horizontal e a vertical',
+      (() => { try {
+        const L = evalLayout();
+        // Tela larga e baixa: quem manda é a ALTURA.
+        const baixa = L.computeCardSize({ largura: 900, altura: 200, cols: 4, pairs: 12, gap: 7, padding: 28 });
+        // Tela estreita e alta: quem manda é a LARGURA.
+        const estreita = L.computeCardSize({ largura: 320, altura: 2000, cols: 4, pairs: 12, gap: 7, padding: 28 });
+        if (!(baixa < estreita)) return false;
+        // Sem altura conhecida (primeiro render), cai na largura — comportamento antigo.
+        const semAltura = L.computeCardSize({ largura: 320, altura: 0, cols: 4, pairs: 12, gap: 7, padding: 28 });
+        return semAltura === estreita && L.gridRows(12, 4) === 6 && L.gridRows(6, 3) === 4;
+      } catch (e) { return false; } })(),
+      'o tamanho da carta voltou a depender só da largura');
+
+    check('1.4c (Difícil não vaza): 12 pares cabem na altura útil de um iPhone pequeno',
+      (() => { try {
+        const L = evalLayout();
+        const GAP = 7, PADV = 6, PADH = 14;
+        // iPhone SE: 375×667. Cabeçalho 64 + HUD 36 + barra 5 + dica 22 = 127.
+        const areaJogo = 667 - 127;
+        let todosCabem = true;
+        for (const d of L.DIFFICULTIES) {
+          const size = L.computeCardSize({
+            largura: 375, altura: areaJogo - PADV * 2,
+            cols: d.cols, pairs: d.pairs, gap: GAP, padding: PADH * 2,
+          });
+          const linhas = L.gridRows(d.pairs, d.cols);
+          const alturaGrade = linhas * (size * L.CARD_RATIO) + (linhas - 1) * GAP + PADV * 2;
+          const larguraGrade = d.cols * size + (d.cols - 1) * GAP + PADH * 2;
+          if (alturaGrade > areaJogo + 0.5 || larguraGrade > 375.5) todosCabem = false;
+        }
+        // Prova de que o check morde: o cálculo ANTIGO (só largura), na área útil que
+        // o cabeçalho ANTIGO deixava (~445 px no SE), estourava a tela.
+        const antigo = Math.floor((375 - 32 - 3 * 8) / 4);
+        const alturaAntiga = L.gridRows(12, 4) * antigo * 1.12 + 5 * 8 + 12;
+        const vazava = alturaAntiga > 445;
+        return todosCabem && vazava;
+      } catch (e) { return false; } })(),
+      'o modo Difícil volta a vazar da tela num iPhone pequeno');
+
+    check('1.4c (cartas/puro): piso absoluto protege telas minúsculas, sem zerar a carta',
+      (() => { try {
+        const L = evalLayout();
+        const minusculo = L.computeCardSize({ largura: 200, altura: 60, cols: 4, pairs: 12, gap: 7, padding: 28 });
+        return minusculo === L.CARD_MIN && L.CARD_MIN >= 32
+          && L.computeCardSize({ largura: 0, altura: 0, cols: 0, pairs: 0 }) > 0;   // nunca 0/NaN
+      } catch (e) { return false; } })(),
+      'o cálculo pode devolver carta zero, negativa ou NaN');
+
+    check('1.4c (proporção): a tela desenha a carta com a MESMA proporção do cálculo',
+      /const h = size \* CARD_RATIO;/.test(pdbC)
+      && /CARD_RATIO/.test(pdbC) && /export const CARD_RATIO/.test(pgC)
+      && !/size \* 1\.1[0-9]/.test(pdbC),   // nenhuma proporção solta
+      'a carta é desenhada com proporção diferente da usada no cálculo — a conta mente');
+
+    check('1.4c (medição): o tabuleiro mede a altura real que sobrou',
+      /onLayout=\{medirTabuleiro\}/.test(pdbC)
+      && /const medirTabuleiro = useCallback/.test(pdbC)
+      && /computeCardSize\(\{/.test(pdbC)
+      && /altura: alturaTabuleiro - GRADE_PADDING_V \* 2/.test(pdbC)
+      // sem ScrollView na partida: nada de carta escondida atrás de rolagem
+      && !/<ScrollView[\s\S]{0,400}styles\.grade/.test(pdbC),
+      'o tabuleiro não mede a altura útil, ou voltou a rolar durante a partida');
+
+    check('1.4c (moldura): a borda de alerta envolve a TELA, dentro da safe area, sem tocar',
+      (() => {
+        const bloco = (pdbC.match(/\{critico && \(\s*<Animated\.View[\s\S]*?\/>\s*\)\}/) || [''])[0];
+        return bloco.length > 0
+          && /pointerEvents="none"/.test(bloco)
+          && /top: insets\.top, bottom: insets\.bottom/.test(bloco)
+          && /left: insets\.left, right: insets\.right/.test(bloco)
+          // fica na raiz, DEPOIS do tabuleiro (por cima), não dentro da área de jogo
+          && pdbC.indexOf('styles.areaJogo') < pdbC.indexOf('styles.bordaAlerta')
+          && /bordaAlerta: \{\s*position: 'absolute'/.test(pdbC);
+      })(),
+      'a moldura de alerta não envolve a tela, ignora a safe area, ou bloqueia o toque');
+
+    check('1.4c (alerta coerente): moldura, relógio e barra usam o MESMO vermelho, e somem juntos',
+      (() => {
+        const usos = (pdbC.match(/ALERTA/g) || []).length;
+        return /^const ALERTA = '#C0392B';$/m.test(pdbC)
+          && usos >= 4                                   // constante única, sem hex solto
+          && !/#C0392B/.test(pdbC.replace(/const ALERTA = '#C0392B';/, ''))
+          && /const critico = modo\.timed && restanteMs <= TURBO_ALERTA_MS && restanteMs > 0;/.test(pdbC)
+          // pausar/encerrar zera o pulso
+          && /if \(!emAlerta\) \{ pulso\.stopAnimation\(\); pulso\.setValue\(0\); return undefined; \}/.test(pdbC)
+          && /const emAlerta = jogando && modo\.timed && !pausado/.test(pdbC);
+      })(),
+      'o vermelho do alerta divergiu entre moldura, relógio e barra, ou o pulso não some ao pausar');
+
+    check('1.4c (topo): título e voltar dividem uma faixa; o modo virou chip',
+      /<View style=\{styles\.headerRow\}>/.test(pdbC)
+      && /Pares do Beni\s*<\/Text>/.test(pdbC)
+      && /chip=\{modo\.timed \? 'Turbo' : 'Clássico'\}/.test(pdbC)
+      && /paddingTop: Math\.max\(insets\.top, 12\)/.test(pdbC)   // safe area preservada
+      && /headerCompacto/.test(pdbC),
+      'o cabeçalho voltou a empilhar título e botão, ou perdeu a safe area');
+
+    check('1.4c (HUD): três itens (tempo · pares · combo) e nada de "faltam X pontos"',
+      (() => {
+        const hud = (pdbC.match(/<View style=\{styles\.hud\}>[\s\S]*?<\/View>\s*\)/) || [''])[0];
+        return !/Faltam \$\{/.test(pdbC) && !/styles\.meta/.test(pdbC)
+          && !/Grades completas:/.test(pdbC)
+          && /icone="combo"/.test(hud) && /icone="pares"/.test(hud) && /name="timer"/.test(hud)
+          // a pontuação saiu do HUD do Turbo
+          && !/icone="star"/.test(hud);
+      })(),
+      'o HUD voltou a exibir pontuação, meta de recorde ou grades completas');
+
+    check('1.4c (dica): frase baixa, some depois da primeira jogada e não pula o layout',
+      /vista\.jogadas === 0 \? dica : ''/.test(pdbC)
+      && /<Text style=\{styles\.dica\} numberOfLines=\{1\}>/.test(pdbC)
+      && /dica: \{[\s\S]*?height: 22, lineHeight: 22,/.test(pdbC),
+      'a frase do Beni voltou a ocupar duas linhas ou faz o tabuleiro pular ao sumir');
+
+    check('1.4c (tempo encerrado): o card sobe, sem centralização vertical ociosa',
+      /styles\.tempoWrap/.test(pdbC) && !/styles\.centro/.test(pdbC)
+      && /tempoWrap: \{ paddingHorizontal: 16, paddingTop: 18 \}/.test(pdbC)
+      && /Tempo encerrado!/.test(pdbC) && /Ver meu resultado/.test(pdbC),
+      'a tela de tempo encerrado voltou a centralizar o card com vazio acima');
+
+    check('1.4c (resultado): um número grande, 3 métricas curtas e ações hierarquizadas',
+      /<Text style=\{styles\.destaque\}>/.test(pdbC)
+      && /destaque: \{ fontFamily: 'FredokaOne', fontSize: 44/.test(pdbC)
+      && (pdbC.match(/<Stat label=/g) || []).length === 6        // 3 no Turbo + 3 no Clássico
+      && /Trocar modo ou nível/.test(pdbC)
+      && !/Trocar nível<\/Text>/.test(pdbC)                      // os dois botões viraram um
+      && !/styles\.comparacao/.test(pdbC),                       // sem parágrafos explicativos
+      'a tela de resultado voltou a ter texto longo, métricas demais ou botões redundantes');
+
+    check('1.4c (ranking): linha enxuta — posição, pontos, pares, combo, data',
+      (() => {
+        const linha = (pdbC.match(/<View key=\{`\$\{e\.data\}[\s\S]*?<\/View>\s*\);/) || [''])[0];
+        return /styles\.rankPontos/.test(linha) && /styles\.rankPares/.test(linha)
+          && /styles\.rankCombo/.test(linha) && /styles\.rankData/.test(linha)
+          && !/styles\.rankDetalhe/.test(pdbC)          // a segunda linha de texto saiu
+          && !/esta partida/.test(pdbC)                 // virou 'agora', curto
+          && /rankLinhaAtual/.test(pdbC)                // a partida atual segue destacada
+          && /rankPontosTopo/.test(pdbC);               // e o 1º lugar segue especial
+      })(),
+      'o ranking voltou a ter duas linhas de texto por partida');
+
+    check('1.4c (nada regrediu): máquina, flip e recompensa intactos',
+      /aplicar\(tocar, i\)/.test(pdbC)
+      && /onFlipEnd=\{cartaAbriu\}/.test(pdbC)
+      && (pdbC.match(/addBonusStars\(/g) || []).length === 1
+      && (pdbC.match(/recordParesResult\(/g) || []).length === 1
+      && /if \(salvoRef\.current\) return;/.test(pdbC)
+      && /if \(tempoAcabouRef\.current\) return;/.test(pdbC)
+      && !/\p{Extended_Pictographic}/u.test(pdbCraw),
+      'o polimento visual mexeu na máquina, no flip ou na recompensa');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

@@ -48,7 +48,7 @@ import { isPremiumUser } from '../services/accessControl';
 import { addBonusStars } from '../services/postStoryStorage';
 import { useProgressContext } from '../context/ProgressContext';
 import { getDailyRounds, consumeRound, toDayKey } from '../services/brincarDailyService';
-import { readStats, recordParesResult, saveLastMode, RANKING_MAX } from '../services/brincarStatsService';
+import { readStats, recordParesResult, saveLastMode } from '../services/brincarStatsService';
 import { playGameSfx, preloadGameSfx, releaseGameSfx, stopGameSfx } from '../services/audioManager';
 import { warn } from '../utils/logger';
 import {
@@ -56,6 +56,7 @@ import {
   computeScore, formatTime, BRINCAR_DAILY_STAR_CAP,
   GAME_MODES, getMode, DEFAULT_MODE, getTurboDuration,
   addTurboTime, comboMultiplier, segundosRestantes,
+  computeCardSize, CARD_RATIO,
   TURBO_ALERTA_MS, TURBO_TICK_MS, PARES_SOUND_EVENTS,
 } from '../services/paresGameService';
 import {
@@ -98,6 +99,14 @@ const T = {
   novaGrade: 750,   // Turbo: troca de grade
   aviso: 1800,      // "Novo recorde!" some sozinho
 };
+
+/** Vermelho do alerta. Um só lugar: moldura, relógio e barra usam o mesmo tom. */
+const ALERTA = '#C0392B';
+
+/** Geometria do tabuleiro. Compartilhada entre o cálculo puro e o estilo. */
+const GRADE_GAP = 7;
+const GRADE_PADDING_H = 14;
+const GRADE_PADDING_V = 6;
 
 const IDS_COM_CAPA = stories.map((s) => s.id).filter((id) => !!getStoryCoverImage(id));
 
@@ -182,7 +191,9 @@ const Carta = React.memo(function Carta({ carta, aberta, casada, errando, size, 
   const entradaScale = entrada.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1] });
 
   const w = size;
-  const h = size * 1.12;
+  // MESMA proporção usada por computeCardSize. Se divergirem, o cálculo de altura
+  // mente e o tabuleiro volta a vazar.
+  const h = size * CARD_RATIO;
 
   return (
     <Pressable
@@ -571,10 +582,27 @@ export default function ParesDoBeniScreen({ navigation }) {
 
   /* ── Derivados ── */
   const semRodadas = !premium && rounds != null && rounds.remaining <= 0;
-  const cardSize = useMemo(() => {
-    const larguraUtil = Math.min(width, 520) - 32 - (dif.cols - 1) * 8;
-    return Math.floor(larguraUtil / dif.cols);
-  }, [width, dif.cols]);
+
+  /**
+   * Tabuleiro responsivo. A altura útil não dá para adivinhar (cabeçalho, HUD, barra
+   * e dica mudam de altura entre modos e aparelhos): medimos a área real que sobrou.
+   * Antes da primeira medida, `alturaTabuleiro` é 0 e o cálculo cai na restrição
+   * horizontal — exatamente o comportamento antigo, sem salto visual.
+   */
+  const [alturaTabuleiro, setAlturaTabuleiro] = useState(0);
+  const medirTabuleiro = useCallback((e) => {
+    const h = e?.nativeEvent?.layout?.height ?? 0;
+    setAlturaTabuleiro((atual) => (Math.abs(atual - h) > 1 ? h : atual));
+  }, []);
+
+  const cardSize = useMemo(() => computeCardSize({
+    largura: Math.min(width, 520),
+    altura: alturaTabuleiro - GRADE_PADDING_V * 2,
+    cols: dif.cols,
+    pairs: dif.pairs,
+    gap: GRADE_GAP,
+    padding: GRADE_PADDING_H * 2,
+  }), [width, alturaTabuleiro, dif.cols, dif.pairs]);
 
   const trocarModo = useCallback((id) => { setModoId(id); saveLastMode(id); }, []);
 
@@ -586,7 +614,7 @@ export default function ParesDoBeniScreen({ navigation }) {
   if (tela === 'entrada') {
     return (
       <View style={styles.root}>
-        <Header insets={insets} onBack={() => navigation.goBack()} titulo="Pares do Beni" />
+        <Header insets={insets} onBack={() => navigation.goBack()} />
         <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
           <View style={styles.painel}>
             <BeniGuideBubble message={dica} avatarVariant="teaching" tone="purple" compact />
@@ -709,11 +737,12 @@ export default function ParesDoBeniScreen({ navigation }) {
   if (tela === 'tempoEsgotado') {
     return (
       <View style={styles.root}>
-        <Header insets={insets} onBack={() => setTela('entrada')} titulo="Pares do Beni" />
-        <View style={styles.centro}>
+        <Header insets={insets} onBack={() => setTela('entrada')} chip="Turbo" corChip={pt.beniDeep} compacto />
+        {/* Transição curta: o card encosta no topo, sem vazio acima. */}
+        <View style={styles.tempoWrap}>
           <View style={styles.tempoCard}>
             <View style={styles.tempoIconBg}>
-              <FaithIcon name="timer" size={34} color={pt.beniDeep} />
+              <FaithIcon name="timer" size={30} color={pt.beniDeep} />
             </View>
             <Text style={styles.tempoTitulo}>Tempo encerrado!</Text>
             <Text style={styles.tempoSub}>{BENI.tempoFim}</Text>
@@ -736,8 +765,15 @@ export default function ParesDoBeniScreen({ navigation }) {
     const turbo = resultado?.modo === 'turbo';
     return (
       <View style={styles.root}>
-        <Header insets={insets} onBack={() => setTela('entrada')} titulo="Pares do Beni" />
+        <Header
+          insets={insets}
+          onBack={() => setTela('entrada')}
+          chip={turbo ? 'Turbo' : 'Clássico'}
+          corChip={turbo ? pt.beniDeep : pt.faithBlue}
+          compacto
+        />
         <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
+          {/* 1 — Beni */}
           <View style={styles.painel}>
             <BeniGuideBubble
               message={turbo ? elogioTurbo(resultado?.pares ?? 0, resultado?.isBest) : BENI.vitoria}
@@ -747,69 +783,63 @@ export default function ParesDoBeniScreen({ navigation }) {
             />
           </View>
 
+          {/* 2 — Resultado principal, e 3 — três métricas curtas */}
           <View style={styles.vitoriaCard}>
             <View style={styles.scoreRow}>
               {[1, 2, 3].map((n) => (
-                <FaithIcon key={n} name="star" size={30} color={n <= (resultado?.score ?? 1) ? pt.gold : '#E3DDD4'} />
+                <FaithIcon key={n} name="star" size={26} color={n <= (resultado?.score ?? 1) ? pt.gold : '#E3DDD4'} />
               ))}
             </View>
-            <Text style={styles.vitoriaTitulo}>
-              {turbo ? `${resultado?.pontos ?? 0} pontos!` : 'Você achou todos os pares!'}
+            <Text style={styles.destaque}>{turbo ? `${resultado?.pontos ?? 0}` : `${resultado?.pares ?? 0}`}</Text>
+            <Text style={styles.destaqueLabel}>
+              {turbo ? 'pontos' : (resultado?.pares === 1 ? 'par encontrado' : 'pares encontrados')}
             </Text>
 
-            {turbo ? (
-              <>
-                <View style={styles.statsRow}>
+            <View style={styles.statsRow}>
+              {turbo ? (
+                <>
                   <Stat label="Pares" valor={String(resultado?.pares ?? 0)} />
-                  <Stat label="Maior combo" valor={`${resultado?.maiorCombo ?? 0}×`} />
-                  <Stat label="Grades" valor={String(resultado?.grades ?? 0)} />
-                </View>
-                <Text style={styles.comparacao}>
-                  {resultado?.anterior
-                    ? `Seu recorde antes: ${resultado.anterior} pontos.`
-                    : 'Este é o seu primeiro resultado no Turbo.'}
-                </Text>
-                {resultado?.posicao > 0 && (
-                  <Text style={styles.comparacao}>
-                    Esta partida é a {resultado.posicao}ª melhor do {dif.label}.
-                  </Text>
-                )}
-              </>
-            ) : (
-              <>
-                <View style={styles.statsRow}>
+                  <Stat label="Combo" valor={`${resultado?.maiorCombo ?? 0}×`} />
+                  <Stat label="No ranking" valor={resultado?.posicao > 0 ? `${resultado.posicao}º` : '—'} />
+                </>
+              ) : (
+                <>
                   <Stat label="Jogadas" valor={String(resultado?.jogadas ?? 0)} />
-                  <Stat label="Pares" valor={String(resultado?.pares ?? 0)} />
                   <Stat label="Tempo" valor={formatTime(resultado?.elapsedMs)} />
-                </View>
-                <Text style={styles.comparacao}>
-                  {resultado?.anterior
-                    ? `Seu melhor antes: ${resultado.anterior} jogadas.`
-                    : 'Este é o seu primeiro resultado neste tamanho.'}
-                </Text>
-              </>
-            )}
+                  <Stat label="Combo" valor={`${resultado?.maiorCombo ?? 0}×`} />
+                </>
+              )}
+            </View>
+          </View>
 
-            {resultado?.isBest && (
+          {/* 4 — Melhor recorde e estrelinha, em uma faixa leve */}
+          <View style={styles.faixas}>
+            {resultado?.isBest ? (
               <View style={styles.faixaBoa}>
                 <FaithIcon name="trophies" size={16} color="#0E5A3C" />
                 <Text style={styles.faixaBoaText}>Novo recorde no {dif.label}!</Text>
               </View>
-            )}
-            {resultado?.starAwarded ? (
-              <View style={styles.faixaBoa}>
-                <FaithIcon name="star" size={16} color="#0E5A3C" />
-                <Text style={styles.faixaBoaText}>Você ganhou 1 estrelinha!</Text>
-              </View>
             ) : (
               <View style={styles.faixaSuave}>
+                <FaithIcon name="trophies" size={15} color={pt.textSoft} />
                 <Text style={styles.faixaSuaveText}>
-                  Você já ganhou as {BRINCAR_DAILY_STAR_CAP} estrelinhas de hoje. Amanhã tem mais!
+                  {resultado?.anterior
+                    ? (turbo ? `Seu recorde: ${resultado.anterior} pontos` : `Seu melhor: ${resultado.anterior} jogadas`)
+                    : 'Seu primeiro resultado aqui!'}
                 </Text>
               </View>
             )}
+            <View style={resultado?.starAwarded ? styles.faixaEstrela : styles.faixaSuave}>
+              <FaithIcon name="star" size={15} color={resultado?.starAwarded ? pt.goldDeep : pt.textSoft} />
+              <Text style={resultado?.starAwarded ? styles.faixaEstrelaText : styles.faixaSuaveText}>
+                {resultado?.starAwarded
+                  ? '+1 estrelinha!'
+                  : `Estrelinhas de hoje: ${BRINCAR_DAILY_STAR_CAP}/${BRINCAR_DAILY_STAR_CAP}`}
+              </Text>
+            </View>
           </View>
 
+          {/* 5 — Ranking */}
           {turbo && (
             <RankingTabela
               lista={resultado?.ranking ?? []}
@@ -818,16 +848,15 @@ export default function ParesDoBeniScreen({ navigation }) {
             />
           )}
 
+          {/* 6 — Ações. "Trocar nível" e "Trocar modo" levavam à MESMA tela: viraram um
+              botão só. Menos escolha aparente, mesmo destino, leitura imediata. */}
           <SoundButton style={styles.btnPrimario} onPress={comecar} activeOpacity={0.9} soundType="success">
+            <FaithIcon name="restart" size={18} color="#FFF" />
             <Text style={styles.btnPrimarioText}>Jogar novamente</Text>
           </SoundButton>
           <SoundButton style={styles.btnSecundario} onPress={() => setTela('entrada')} activeOpacity={0.9}>
-            <FaithIcon name="pares" size={16} color={pt.text} />
-            <Text style={styles.btnSecundarioText}>Trocar nível</Text>
-          </SoundButton>
-          <SoundButton style={styles.btnSecundario} onPress={() => setTela('entrada')} activeOpacity={0.9}>
             <FaithIcon name="swap" size={16} color={pt.text} />
-            <Text style={styles.btnSecundarioText}>Trocar modo</Text>
+            <Text style={styles.btnSecundarioText}>Trocar modo ou nível</Text>
           </SoundButton>
           <SoundButton
             style={styles.btnTerciario}
@@ -849,44 +878,50 @@ export default function ParesDoBeniScreen({ navigation }) {
   const contando = modo.timed && segundos > 0 && segundos <= TURBO_TICK_MS / 1000;
   const errando = vista.fase === FASES.ERROR ? vista.abertas : [];
 
-  const faltaPRecorde = modo.timed && vista.recordeAtual > 0 && vista.pontos <= vista.recordeAtual
-    ? vista.recordeAtual - vista.pontos + 1
-    : 0;
+  // A frase do Beni some depois da primeira jogada: ela ensina, não acompanha.
+  const frase = pausado
+    ? 'Jogo pausado. Volte quando quiser!'
+    : (aviso || (vista.jogadas === 0 ? dica : ''));
+
+  const larguraGrade = Math.min(width, 520);
 
   return (
     <View style={styles.root}>
-      <Header insets={insets} onBack={abandonar} titulo={modo.label} />
+      <Header
+        insets={insets}
+        onBack={abandonar}
+        chip={modo.timed ? 'Turbo' : 'Clássico'}
+        corChip={modo.timed ? pt.beniDeep : pt.faithBlue}
+        compacto
+      />
 
+      {/* HUD enxuto: tempo · pares · foguinho. Nada mais compete com o tabuleiro. */}
       <View style={styles.hud}>
         {modo.timed ? (
           <>
             <Animated.View style={[styles.hudItem, contando && { transform: [{ scale: tique }] }]}>
-              <FaithIcon name="timer" size={14} color={critico ? '#C0392B' : pt.textSoft} />
+              <FaithIcon name="timer" size={15} color={critico ? ALERTA : pt.textSoft} />
               <Text style={[styles.hudText, critico && styles.hudCritico]}>{formatTime(restanteMs)}</Text>
             </Animated.View>
-            <HudItem icone="star" texto={`${vista.pontos}`} />
             <HudItem icone="pares" texto={`${vista.paresTotais}`} />
-            <HudItem icone="combo" texto={vista.combo > 1 ? `${comboMultiplier(vista.combo)}×` : '—'} />
+            <HudItem
+              icone="combo"
+              texto={vista.combo > 1 ? `${comboMultiplier(vista.combo)}×` : '—'}
+              cor={vista.combo > 1 ? pt.beniDeep : undefined}
+            />
           </>
         ) : (
           <>
             <HudItem icone="timer" texto={formatTime(decorridoMs)} />
-            <HudItem icone="pares" texto={`${feitosNaGrade} de ${dif.pairs}`} />
-            <HudItem icone="restart" texto={`${vista.jogadas}`} />
+            <HudItem icone="pares" texto={`${feitosNaGrade}/${dif.pairs}`} />
+            <HudItem
+              icone="combo"
+              texto={vista.combo > 1 ? `${vista.combo}×` : '—'}
+              cor={vista.combo > 1 ? pt.beniDeep : undefined}
+            />
           </>
         )}
       </View>
-
-      {/* Meta: quanto falta para o recorde. Uma linha só, sem poluir. */}
-      {modo.timed && (
-        <Text style={styles.meta} numberOfLines={1}>
-          {faltaPRecorde > 0
-            ? `Faltam ${faltaPRecorde} pontos para seu recorde (${vista.recordeAtual})`
-            : vista.recordeAtual > 0
-              ? `Você passou seu recorde de ${vista.recordeAtual} pontos!`
-              : `Grades completas: ${vista.gradesCompletas}`}
-        </Text>
-      )}
 
       <View style={styles.barraFundo}>
         <View
@@ -894,25 +929,18 @@ export default function ParesDoBeniScreen({ navigation }) {
             styles.barraFrente,
             {
               width: `${Math.max(0, Math.min(1, progresso)) * 100}%`,
-              backgroundColor: modo.timed ? (critico ? '#C0392B' : pt.beni) : pt.green,
+              backgroundColor: modo.timed ? (critico ? ALERTA : pt.beni) : pt.green,
             },
           ]}
         />
       </View>
 
-      <Text style={styles.dica} numberOfLines={2}>
-        {pausado ? 'Jogo pausado. Volte quando quiser!' : (aviso || dica)}
-      </Text>
+      {/* Linha única e baixa. Vazia, some sem deixar buraco (altura fixa pequena). */}
+      <Text style={styles.dica} numberOfLines={1}>{frase}</Text>
 
-      <View style={styles.areaJogo}>
-        {/* Borda que pulsa em vermelho nos últimos 10 s. Não cobre as cartas. */}
-        {critico && (
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.bordaAlerta, { opacity: pulso.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.75] }) }]}
-          />
-        )}
-        <ScrollView contentContainerStyle={[styles.grade, { paddingBottom: insets.bottom + 24 }]}>
+      {/* O tabuleiro MEDE a altura que sobrou e o cardSize sai daí. */}
+      <View style={styles.areaJogo} onLayout={medirTabuleiro}>
+        <View style={[styles.grade, { width: larguraGrade }]}>
           {vista.deck.map((c, i) => (
             <Carta
               key={`${vista.gradesCompletas}-${c.key}`}
@@ -926,35 +954,73 @@ export default function ParesDoBeniScreen({ navigation }) {
               onFlipEnd={cartaAbriu}
             />
           ))}
-        </ScrollView>
+        </View>
       </View>
+
+      {/* Moldura de alerta: envolve a TELA inteira, por cima de tudo, sem tocar em nada. */}
+      {critico && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.bordaAlerta,
+            {
+              top: insets.top, bottom: insets.bottom,
+              left: insets.left, right: insets.right,
+              opacity: pulso.interpolate({ inputRange: [0, 1], outputRange: [0.22, 0.9] }),
+            },
+          ]}
+        />
+      )}
     </View>
   );
 }
 
 /* ══════════════════════════════ PEÇAS ══════════════════════════════ */
 
-function Header({ insets, onBack, titulo }) {
+/**
+ * Cabeçalho compacto (Bloco 1.4c). O título do JOGO é sempre "Pares do Beni"; o modo
+ * vira um chip pequeno ao lado. Voltar e título dividem a mesma faixa, em vez de
+ * empilharem dois blocos altos — isso devolve ~40 px de altura ao tabuleiro.
+ */
+function Header({ insets, onBack, chip, corChip, compacto }) {
   return (
     <LinearGradient
       colors={['#F0E8FF', '#E0D4FF', '#D0EAFF']}
       start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-      style={[styles.header, { paddingTop: Math.max(insets.top, 28) }]}
+      style={[
+        styles.header,
+        compacto && styles.headerCompacto,
+        { paddingTop: Math.max(insets.top, 12) },   // safe area preservada
+      ]}
     >
-      <SoundButton style={styles.backPill} onPress={onBack} activeOpacity={0.85} accessibilityLabel="Voltar">
-        <FaithIcon name="back" size={16} color="#6E3FB5" />
-        <Text style={styles.backPillText}>Voltar</Text>
-      </SoundButton>
-      <Text style={styles.headerTitle}>{titulo}</Text>
+      <View style={styles.headerRow}>
+        <SoundButton
+          style={styles.backPill}
+          onPress={onBack}
+          activeOpacity={0.85}
+          accessibilityLabel="Voltar"
+          accessibilityRole="button"
+        >
+          <FaithIcon name="back" size={16} color="#6E3FB5" />
+        </SoundButton>
+        <Text style={[styles.headerTitle, compacto && styles.headerTitleCompacto]} numberOfLines={1}>
+          Pares do Beni
+        </Text>
+        {chip ? (
+          <View style={[styles.chip, { backgroundColor: corChip + '1F', borderColor: corChip + '55' }]}>
+            <Text style={[styles.chipText, { color: corChip }]}>{chip}</Text>
+          </View>
+        ) : <View style={styles.chipVazio} />}
+      </View>
     </LinearGradient>
   );
 }
 
-function HudItem({ icone, texto }) {
+function HudItem({ icone, texto, cor }) {
   return (
     <View style={styles.hudItem}>
-      <FaithIcon name={icone} size={14} color={pt.textSoft} />
-      <Text style={styles.hudText}>{texto}</Text>
+      <FaithIcon name={icone} size={15} color={cor || pt.textSoft} />
+      <Text style={[styles.hudText, cor && { color: cor }]}>{texto}</Text>
     </View>
   );
 }
@@ -968,30 +1034,28 @@ function Stat({ label, valor }) {
   );
 }
 
-/** Histórico pessoal do Turbo: as cinco melhores partidas daquele nível. Local. */
+/**
+ * Histórico pessoal do Turbo: as cinco melhores daquele nível. Local, sem servidor.
+ * Uma linha = posição · pontuação · pares · data. O combo fica pequeno, ao lado.
+ */
 function RankingTabela({ lista, posicaoAtual, nivel }) {
   if (!lista.length) return null;
   const CORES = ['#E0A21A', '#9AA5B1', '#B06A3B'];   // ouro · prata · bronze
   return (
     <View style={styles.ranking}>
-      <Text style={styles.rankingTitulo}>Suas {RANKING_MAX} melhores no {nivel}</Text>
+      <Text style={styles.rankingTitulo}>Suas melhores no {nivel}</Text>
       {lista.map((e, i) => {
         const atual = posicaoAtual === i + 1;
-        const cor = CORES[i] ?? pt.textSoft;
+        const cor = CORES[i] ?? '#CFC7BC';
         return (
           <View key={`${e.data}-${e.pontos}-${i}`} style={[styles.rankLinha, atual && styles.rankLinhaAtual]}>
             <View style={[styles.rankMedalha, { backgroundColor: cor + '22', borderColor: cor }]}>
-              <Text style={[styles.rankPos, { color: cor }]}>{i + 1}</Text>
+              <Text style={[styles.rankPos, { color: i < 3 ? cor : pt.textSoft }]}>{i + 1}</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rankPontos}>
-                {e.pontos} pontos{atual ? ' · esta partida' : ''}
-              </Text>
-              <Text style={styles.rankDetalhe}>
-                {e.pares} pares · combo {e.maiorCombo}× · {dataCurta(e.data) || 'hoje'}
-              </Text>
-            </View>
-            {i === 0 && <FaithIcon name="trophies" size={18} color={CORES[0]} />}
+            <Text style={[styles.rankPontos, i === 0 && styles.rankPontosTopo]}>{e.pontos}</Text>
+            <Text style={styles.rankPares}>{e.pares} pares</Text>
+            <Text style={styles.rankCombo}>{e.maiorCombo}×</Text>
+            <Text style={styles.rankData}>{atual ? 'agora' : (dataCurta(e.data) || '—')}</Text>
           </View>
         );
       })}
@@ -1001,17 +1065,25 @@ function RankingTabela({ lista, posicaoAtual, nivel }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: pt.background },
-  centro: { flex: 1, justifyContent: 'center', paddingHorizontal: 16 },
 
-  header: { paddingHorizontal: 18, paddingBottom: 14 },
+  // Cabeçalho compacto: uma faixa só (voltar · título · chip do modo).
+  header: { paddingHorizontal: 14, paddingBottom: 12 },
+  headerCompacto: { paddingBottom: 8 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   backPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 999,
-    paddingHorizontal: 12, paddingVertical: 6, marginBottom: 10,
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.72)',
     borderWidth: 1, borderColor: 'rgba(124,58,237,0.18)',
   },
-  backPillText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#6E3FB5' },
-  headerTitle: { fontFamily: 'FredokaOne', fontSize: 24, color: pt.text },
+  headerTitle: { flex: 1, fontFamily: 'FredokaOne', fontSize: 22, color: pt.text },
+  headerTitleCompacto: { fontSize: 19 },
+  chip: {
+    borderRadius: radii.pill, borderWidth: 1,
+    paddingHorizontal: 11, paddingVertical: 5,
+  },
+  chipText: { fontFamily: 'FredokaOne', fontSize: 12 },
+  chipVazio: { width: 0 },
 
   painel: {
     marginTop: 12, marginHorizontal: 16, backgroundColor: '#FBF7FF',
@@ -1057,6 +1129,7 @@ const styles = StyleSheet.create({
   difRec: { fontFamily: 'Nunito', fontSize: 11, color: pt.goldDeep, fontWeight: '800', marginTop: 2 },
 
   btnPrimario: {
+    flexDirection: 'row', gap: 8, justifyContent: 'center',
     marginTop: 16, marginHorizontal: 16, backgroundColor: pt.purple,
     borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center', ...shadows.card,
   },
@@ -1083,50 +1156,49 @@ const styles = StyleSheet.create({
   },
   conviteText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: '#7A5800', fontWeight: '700', lineHeight: 17 },
 
-  // ── Tempo encerrado ──
+  // ── Tempo encerrado: transição curta, encostada no topo (sem vazio acima) ──
+  tempoWrap: { paddingHorizontal: 16, paddingTop: 18 },
   tempoCard: {
-    backgroundColor: '#FFF', borderRadius: radii.xl, padding: 22,
+    backgroundColor: '#FFF', borderRadius: radii.xl, padding: 20,
     alignItems: 'center', ...shadows.card,
   },
   tempoIconBg: {
-    width: 68, height: 68, borderRadius: 34, backgroundColor: pt.beniSoft,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+    width: 58, height: 58, borderRadius: 29, backgroundColor: pt.beniSoft,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
   },
-  tempoTitulo: { fontFamily: 'FredokaOne', fontSize: 24, color: pt.text, textAlign: 'center' },
-  tempoSub: { fontFamily: 'Nunito', fontSize: 14, color: pt.textSoft, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  tempoTitulo: { fontFamily: 'FredokaOne', fontSize: 22, color: pt.text, textAlign: 'center' },
+  tempoSub: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center', marginTop: 6, lineHeight: 19 },
 
-  // ── HUD ──
+  // ── HUD: três itens, baixo ──
   hud: {
-    flexDirection: 'row', justifyContent: 'center', gap: 16,
-    paddingVertical: 10, backgroundColor: '#FFF',
+    flexDirection: 'row', justifyContent: 'center', gap: 22,
+    paddingVertical: 7, backgroundColor: '#FFF',
   },
-  hudItem: { flexDirection: 'row', alignItems: 'center', gap: 5, minWidth: 54, justifyContent: 'center' },
-  hudText: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.text },
-  hudCritico: { color: '#C0392B' },
+  hudItem: { flexDirection: 'row', alignItems: 'center', gap: 5, minWidth: 56, justifyContent: 'center' },
+  hudText: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: pt.text },
+  hudCritico: { color: ALERTA },
 
-  meta: {
-    fontFamily: 'Nunito', fontSize: 11, fontWeight: '700', color: pt.textSoft,
-    textAlign: 'center', backgroundColor: '#FFF', paddingBottom: 8,
-  },
-
-  barraFundo: { height: 6, backgroundColor: '#EFEAE3', overflow: 'hidden' },
+  barraFundo: { height: 5, backgroundColor: '#EFEAE3', overflow: 'hidden' },
   barraFrente: { height: '100%', borderTopRightRadius: 3, borderBottomRightRadius: 3 },
 
+  // Altura fixa e baixa: a frase pode sumir sem o tabuleiro pular.
   dica: {
     fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft,
-    textAlign: 'center', marginTop: 10, marginHorizontal: 24, lineHeight: 17, minHeight: 34,
+    textAlign: 'center', marginHorizontal: 24,
+    height: 22, lineHeight: 22,
   },
 
-  areaJogo: { flex: 1 },
+  areaJogo: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  // Moldura da TELA: ancorada na raiz, por cima de tudo, dentro da safe area.
   bordaAlerta: {
-    ...StyleSheet.absoluteFillObject,
-    borderWidth: 4, borderColor: '#C0392B', borderRadius: radii.lg,
-    margin: 6,
+    position: 'absolute',
+    borderWidth: 5, borderColor: ALERTA, borderRadius: 26,
   },
 
   grade: {
-    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center',
-    gap: 8, paddingHorizontal: 16, paddingTop: 6,
+    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignContent: 'center',
+    gap: GRADE_GAP, paddingHorizontal: GRADE_PADDING_H, paddingVertical: GRADE_PADDING_V,
   },
   cartaBox: { borderRadius: radii.md, ...shadows.soft },
   cartaPressionada: { opacity: 0.86 },
@@ -1148,49 +1220,61 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  // ── Resultado ──
+  // ── Resultado: um número grande, três métricas, faixas leves ──
   vitoriaCard: {
-    marginTop: 14, marginHorizontal: 16, backgroundColor: '#FFF',
-    borderRadius: radii.xl, padding: 16, alignItems: 'center', ...shadows.card,
+    marginTop: 12, marginHorizontal: 16, backgroundColor: '#FFF',
+    borderRadius: radii.xl, paddingVertical: 16, paddingHorizontal: 14,
+    alignItems: 'center', ...shadows.card,
   },
-  scoreRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  vitoriaTitulo: { fontFamily: 'FredokaOne', fontSize: 18, color: pt.text, marginBottom: 12, textAlign: 'center' },
-  statsRow: { flexDirection: 'row', gap: 18, marginBottom: 6 },
-  stat: { alignItems: 'center', minWidth: 74 },
-  statValor: { fontFamily: 'FredokaOne', fontSize: 18, color: pt.text },
-  statLabel: { fontFamily: 'Nunito', fontSize: 11, color: pt.textSoft, textAlign: 'center' },
-  comparacao: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, marginTop: 6, textAlign: 'center' },
+  scoreRow: { flexDirection: 'row', gap: 7, marginBottom: 6 },
+  destaque: { fontFamily: 'FredokaOne', fontSize: 44, color: pt.text, lineHeight: 50 },
+  destaqueLabel: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.textSoft, marginBottom: 14 },
+  statsRow: { flexDirection: 'row', alignSelf: 'stretch', justifyContent: 'space-around' },
+  stat: { alignItems: 'center', flex: 1 },
+  statValor: { fontFamily: 'FredokaOne', fontSize: 17, color: pt.text },
+  statLabel: { fontFamily: 'Nunito', fontSize: 11, color: pt.textSoft, textAlign: 'center', marginTop: 1 },
 
+  faixas: { marginHorizontal: 16, marginTop: 10, gap: 8 },
   faixaBoa: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch',
-    marginTop: 10, backgroundColor: '#DDF3E7', borderRadius: radii.md,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#DDF3E7', borderRadius: radii.md,
     paddingHorizontal: 12, paddingVertical: 9,
   },
   faixaBoaText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: '#0E5A3C' },
+  faixaEstrela: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: pt.goldSoft, borderRadius: radii.md,
+    paddingHorizontal: 12, paddingVertical: 9,
+  },
+  faixaEstrelaText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: '#7A5800' },
   faixaSuave: {
-    alignSelf: 'stretch', marginTop: 10, backgroundColor: '#F3EFE9',
-    borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 9,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F3EFE9', borderRadius: radii.md,
+    paddingHorizontal: 12, paddingVertical: 9,
   },
-  faixaSuaveText: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, fontWeight: '700', lineHeight: 17 },
+  faixaSuaveText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, fontWeight: '700' },
 
-  // ── Ranking pessoal ──
+  // ── Ranking pessoal: uma linha = posição · pontos · pares · combo · data ──
   ranking: {
-    marginTop: 16, marginHorizontal: 16, backgroundColor: '#FFF',
-    borderRadius: radii.xl, padding: 14, ...shadows.card,
+    marginTop: 14, marginHorizontal: 16, backgroundColor: '#FFF',
+    borderRadius: radii.xl, padding: 12, ...shadows.card,
   },
-  rankingTitulo: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 10 },
+  rankingTitulo: { fontFamily: 'FredokaOne', fontSize: 14, color: pt.text, marginBottom: 8, marginLeft: 2 },
   rankLinha: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 10, paddingHorizontal: 10, marginBottom: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 7, paddingHorizontal: 8, marginBottom: 4,
     borderRadius: radii.md, backgroundColor: '#FBF9F5',
     borderWidth: 1.5, borderColor: 'transparent',
   },
   rankLinhaAtual: { borderColor: pt.purple, backgroundColor: '#F7F1FF' },
   rankMedalha: {
-    width: 34, height: 34, borderRadius: 17, borderWidth: 2,
+    width: 26, height: 26, borderRadius: 13, borderWidth: 1.5,
     alignItems: 'center', justifyContent: 'center',
   },
-  rankPos: { fontFamily: 'FredokaOne', fontSize: 15 },
-  rankPontos: { fontFamily: 'FredokaOne', fontSize: 14, color: pt.text },
-  rankDetalhe: { fontFamily: 'Nunito', fontSize: 11, color: pt.textSoft, marginTop: 1 },
+  rankPos: { fontFamily: 'FredokaOne', fontSize: 12 },
+  rankPontos: { flex: 1, fontFamily: 'FredokaOne', fontSize: 15, color: pt.text },
+  rankPontosTopo: { color: '#E0A21A' },
+  rankPares: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: pt.textSoft, width: 56, textAlign: 'right' },
+  rankCombo: { fontFamily: 'Nunito', fontSize: 11, color: pt.muted, width: 26, textAlign: 'right' },
+  rankData: { fontFamily: 'Nunito', fontSize: 11, color: pt.muted, width: 42, textAlign: 'right' },
 });

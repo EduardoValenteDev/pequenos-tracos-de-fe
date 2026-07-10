@@ -212,6 +212,56 @@ export const PARES_SOUND_EVENTS = Object.freeze({
 export const TURBO_ALERTA_MS = 10000;
 export const TURBO_TICK_MS = 5000;
 
+/* ══════════════════════ Layout do tabuleiro (Bloco 1.4c) ══════════════════════ */
+
+/** Proporção da carta (altura = largura × RATIO). Levemente mais baixa que antes. */
+export const CARD_RATIO = 1.1;
+
+/**
+ * Piso ABSOLUTO da carta. Não é o tamanho "confortável" (esse seria ~44): é o limite
+ * abaixo do qual a carta deixa de ser jogável. Em telas muito pequenas, a regra é
+ * CABER na tela — mesmo que a carta fique menor do que o ideal.
+ */
+export const CARD_MIN = 36;
+
+/** Quantas linhas a grade ocupa. */
+export function gridRows(pairs, cols) {
+  const c = Number(cols) > 0 ? Math.floor(cols) : 1;
+  const cartas = Math.max(0, Math.floor(Number(pairs) || 0)) * 2;
+  return Math.ceil(cartas / c) || 1;
+}
+
+/**
+ * Tamanho da carta que cabe na tela. PURO.
+ *
+ * O modo Difícil vazava porque o cálculo só olhava a LARGURA: 12 pares em 4 colunas
+ * dão 6 linhas, e 6 × (largura/4 × 1.12) estoura qualquer iPhone. Agora o lado da
+ * carta é o MENOR entre a restrição horizontal e a vertical.
+ *
+ * `altura` é a altura ÚTIL já descontada (safe area, cabeçalho, HUD, barra, dica).
+ * Altura desconhecida (0) → cai na restrição horizontal, como antes.
+ *
+ * @returns {number} lado da carta, em pixels lógicos (>= CARD_MIN quando possível)
+ */
+export function computeCardSize({ largura, altura, cols, pairs, gap = 8, padding = 32, ratio = CARD_RATIO }) {
+  const c = Number(cols) > 0 ? Math.floor(cols) : 1;
+  const linhas = gridRows(pairs, c);
+  const g = Number(gap) >= 0 ? gap : 0;
+
+  const w = Number(largura) > 0 ? largura : 0;
+  const porLargura = Math.floor((w - padding - (c - 1) * g) / c);
+
+  const h = Number(altura) > 0 ? altura : 0;
+  const porAltura = h > 0
+    ? Math.floor(((h - (linhas - 1) * g) / linhas) / ratio)
+    : Infinity;
+
+  const lado = Math.min(porLargura, porAltura);
+  // Nunca devolve zero/negativo: numa tela absurdamente baixa, o piso de toque vence
+  // e a grade rola — melhor uma carta pequena do que uma carta inexistente.
+  return Math.max(CARD_MIN, Number.isFinite(lado) ? lado : porLargura);
+}
+
 /** Segundo inteiro exibido no relógio. Fonte única para o tique não sair do número. */
 export function segundosRestantes(ms) {
   const n = Number(ms);
