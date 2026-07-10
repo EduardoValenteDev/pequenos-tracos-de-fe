@@ -117,7 +117,13 @@ function AchievementCard({ achievement, unlocked, ctx, isTablet, onPress }) {
         </View>
       )}
       <View style={[styles.emojiCircle, { backgroundColor: unlocked ? achievement.color + '2A' : '#ECE7E0' }]}>
-        <Text style={[styles.cardEmoji, !unlocked && styles.cardEmojiDimmed]}>{achievement.emoji}</Text>
+        {/* Bloco 1.3: conquistas novas trazem `faithIcon` (sem emoji). As antigas
+            seguem com `emoji` — nada quebra. */}
+        {achievement.faithIcon ? (
+          <FaithIcon name={achievement.faithIcon} size={24} color={unlocked ? achievement.color : '#B9B2A9'} />
+        ) : (
+          <Text style={[styles.cardEmoji, !unlocked && styles.cardEmojiDimmed]}>{achievement.emoji}</Text>
+        )}
       </View>
       <View style={styles.cardInfo}>
         <Text style={[styles.cardTitle, !unlocked && styles.cardTitleLocked]} numberOfLines={1}>
@@ -325,7 +331,11 @@ export default function TrophiesScreen({ navigation, route }) {
         }
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>{section.cat.icon}</Text>
+            {section.cat.faithIcon ? (
+              <FaithIcon name={section.cat.faithIcon} size={20} color={section.cat.color} style={styles.sectionIcon} />
+            ) : (
+              <Text style={styles.sectionIcon}>{section.cat.icon}</Text>
+            )}
             <Text style={styles.sectionTitle}>{section.cat.label}</Text>
             <Text style={styles.sectionCount}>{section.catUnlocked}/{section.totalItems}</Text>
           </View>

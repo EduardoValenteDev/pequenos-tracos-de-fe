@@ -42,7 +42,6 @@ function pickMission() {
 
 /** Atividades ainda em preparação. Ordem = ordem de chegada planejada. */
 const EM_PREPARO = [
-  { key: 'pares', icon: 'pares', title: 'Pares do Beni', desc: 'Encontre as figuras iguais.', tint: '#E8F0FF', border: '#BFD6FF', bg: '#3B82F620' },
   { key: 'ovelha', icon: 'ovelha', title: 'Cadê a Ovelhinha?', desc: 'Procure a ovelhinha escondida.', tint: '#E6F7EE', border: '#B7E4CB', bg: '#0E9F6E20' },
   { key: 'palavrinhas', icon: 'palavrinhas', title: 'Palavrinhas do Beni', desc: 'Monte palavras da Bíblia.', tint: '#FFF4D6', border: '#F4D08A', bg: '#F4B23C20' },
   { key: 'bichinhos', icon: 'bichinhos', title: 'Bichinhos da Bíblia', desc: 'Descubra os animais das histórias.', tint: '#F3E8FF', border: '#D7C2F5', bg: '#7C3AED20' },
@@ -182,6 +181,16 @@ export default function BrincarScreen({ navigation, route }) {
         <AnimatedCard delay={150} style={styles.row}>
           <View style={styles.rowItem}>
             <ActiveTile
+              icon="pares"
+              title="Pares do Beni"
+              desc="Encontre as figuras iguais das histórias."
+              cta="Jogar"
+              tint="#E8F0FF" border="#BFD6FF" bg="#3B82F620" btnColor="#2B5BA1"
+              onPress={() => navigation.navigate(ROUTES.PARES_DO_BENI)}
+            />
+          </View>
+          <View style={styles.rowItem}>
+            <ActiveTile
               icon="desenho_guiado"
               title="Desenho guiado pelo Beni"
               desc="Receba uma ideia simples para desenhar hoje."
@@ -190,6 +199,9 @@ export default function BrincarScreen({ navigation, route }) {
               onPress={() => navigation.navigate(ROUTES.ATELIER_CANVAS, { mission })}
             />
           </View>
+        </AnimatedCard>
+
+        <AnimatedCard delay={190} style={styles.row}>
           <View style={styles.rowItem}>
             <ActiveTile
               icon="criar_livre"
@@ -200,21 +212,22 @@ export default function BrincarScreen({ navigation, route }) {
               onPress={() => navigation.navigate(ROUTES.ATELIER_CANVAS, {})}
             />
           </View>
+          <View style={styles.rowItem} />
         </AnimatedCard>
 
         {/* ── EM PREPARO ── */}
-        <AnimatedCard delay={210} style={styles.sectionHead}>
+        <AnimatedCard delay={230} style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>Chegando em breve</Text>
           <Text style={styles.sectionSub}>Novas brincadeiras a caminho.</Text>
         </AnimatedCard>
 
-        <AnimatedCard delay={250} style={styles.row}>
+        <AnimatedCard delay={270} style={styles.row}>
           <View style={styles.rowItem}><ComingTile {...EM_PREPARO[0]} /></View>
           <View style={styles.rowItem}><ComingTile {...EM_PREPARO[1]} /></View>
         </AnimatedCard>
-        <AnimatedCard delay={290} style={styles.row}>
+        <AnimatedCard delay={310} style={styles.row}>
           <View style={styles.rowItem}><ComingTile {...EM_PREPARO[2]} /></View>
-          <View style={styles.rowItem}><ComingTile {...EM_PREPARO[3]} /></View>
+          <View style={styles.rowItem} />
         </AnimatedCard>
 
         {/* ── Minhas artes ── */}

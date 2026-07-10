@@ -15866,7 +15866,7 @@ check(
 
     // O CORPO de ComingTile não pode ter onPress/SoundButton: card em preparo não abre tela.
     const corpoComing = (brcNoCom.match(/function ComingTile[\s\S]*?\n\}/) || [''])[0];
-    check('1.2 (em preparo): os 4 jogos não navegam para lugar nenhum',
+    check('1.2 (em preparo): os jogos ainda não prontos não navegam para lugar nenhum',
       corpoComing.length > 0
       && !/onPress|SoundButton|navigate\(/.test(corpoComing)
       && /Chegando/.test(corpoComing),
@@ -15909,6 +15909,201 @@ check(
             .every((l) => /name:|tab\.name|id: 'atelie'/.test(l)));
       })(),
       'a palavra "Ateliê" voltou a um texto visível ao usuário');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco 1.3 — Pares do Beni (1º jogo real). ADITIVO.
+  //   · rodada é consumida SÓ quando a partida começa (nunca ao abrir a tela)
+  //   · estrelinha SÓ com partida concluída, e com teto diário (todos os planos)
+  //   · recordes LOCAIS: sem ranking online, sem rede
+  //   · nenhum asset novo: as cartas usam as capas das histórias
+  //   · conquistas novas na categoria 'brincar', sem tocar nas antigas
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco 1.3: Pares do Beni ──');
+  {
+    const pgSrc = readSrc('src/services/paresGameService.js');
+    const bsSrc = readSrc('src/services/brincarStatsService.js');
+    const pdb = readSrc('src/screens/ParesDoBeniScreen.js');
+    const pdbNoCom = a1StripComments(pdb);
+    const achB13 = readSrc('src/data/achievements.js');
+    const acsB13 = a1StripComments(readSrc('src/services/achievementService.js'));
+    const navB13 = a1StripComments(readSrc('src/navigation/AppNavigator.js'));
+    const brcB13 = a1StripComments(readSrc('src/screens/BrincarScreen.js'));
+    const skB13 = readSrc('src/services/storageKeys.js');
+
+    // Núcleos PUROS avaliados de verdade (paresGameService + brincarStatsService).
+    const evalPares = () => {
+      const limpa = (s) => a1StripComments(s)
+        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+/gm, '');
+      const code = limpa(pgSrc) + '\n' + limpa(bsSrc);
+      return new Function(
+        'AsyncStorage', 'STORAGE_KEYS', 'warn',
+        code + ';return { DIFFICULTIES, BRINCAR_DAILY_STAR_CAP, getDifficulty, shuffle, pickStoryIds, buildDeck, isPair, computeScore, isBetterTime, formatTime, PARES_SOUND_EVENTS, sanitizeStats, starsToday, canEarnStar, applyResult, toAchievementCtx };',
+      )({}, {}, () => {});
+    };
+
+    check('1.3 (dificuldades): Fácil 6 pares (grátis); Médio 8 e Difícil 12 (Plano Família)',
+      (() => { try {
+        const P = evalPares();
+        const [f, m, d] = P.DIFFICULTIES;
+        return f.id === 'facil' && f.pairs === 6 && f.premium === false
+          && m.id === 'medio' && m.pairs === 8 && m.premium === true
+          && d.id === 'dificil' && d.pairs === 12 && d.premium === true
+          && P.getDifficulty('nao_existe') === null;
+      } catch (e) { return false; } })(),
+      'as dificuldades saíram do contrato (6/8/12 pares; Médio e Difícil premium)');
+
+    check('1.3 (baralho/puro): cada história vira 2 cartas; par exige cartas diferentes',
+      (() => { try {
+        const P = evalPares();
+        const rnd = () => 0.5; // determinístico
+        const ids = P.pickStoryIds(['a', 'b', 'c', 'd'], 3, rnd);
+        if (ids.length !== 3 || new Set(ids).size !== 3) return false;
+        const deck = P.buildDeck(ids, rnd);
+        if (deck.length !== 6 || new Set(deck.map((c) => c.key)).size !== 6) return false;
+        const [c1, c2] = deck.filter((c) => c.storyId === ids[0]);
+        return P.isPair(c1, c2) === true
+          && P.isPair(c1, c1) === false        // a mesma carta não faz par consigo
+          && P.isPair(c1, null) === false
+          && P.pickStoryIds(['a'], 5, rnd).length === 1; // faltando história, não quebra
+      } catch (e) { return false; } })(),
+      'buildDeck/isPair/pickStoryIds violaram o contrato do baralho');
+
+    check('1.3 (pontuação/puro): concluir nunca pune — mínimo 1, máximo 3',
+      (() => { try {
+        const P = evalPares();
+        const horrivel = P.computeScore({ pairs: 6, erros: 999, elapsedMs: 9e6 });
+        const perfeito = P.computeScore({ pairs: 6, erros: 0, elapsedMs: 1000 });
+        return horrivel === 1 && perfeito === 3
+          && P.computeScore({ pairs: 0, erros: -1, elapsedMs: -1 }) >= 1
+          && P.formatTime(65000) === '01:05' && P.formatTime(-1) === '--:--'
+          && P.isBetterTime(null, 5000) === true && P.isBetterTime(3000, 5000) === false;
+      } catch (e) { return false; } })(),
+      'computeScore pune a criança, ou formatTime/isBetterTime quebraram');
+
+    check('1.3 (estrelinha/puro): teto diário de 2 vale para TODOS os planos; o dia vira',
+      (() => { try {
+        const P = evalPares();
+        if (P.BRINCAR_DAILY_STAR_CAP !== 2) return false;
+        const hoje = '2026-07-09';
+        const jogada = { dificuldade: 'facil', elapsedMs: 30000, erros: 1, day: hoje };
+        const r1 = P.applyResult(P.sanitizeStats(null), jogada);
+        const r2 = P.applyResult(r1.stats, jogada);
+        const r3 = P.applyResult(r2.stats, jogada);
+        if (!(r1.starAwarded && r2.starAwarded && !r3.starAwarded)) return false;
+        if (r3.stats.pares.facil.plays !== 3) return false;   // conta a partida mesmo sem estrela
+        // Dia novo: o teto reseta.
+        const amanha = P.applyResult(r3.stats, { ...jogada, day: '2026-07-10' });
+        return amanha.starAwarded === true && P.canEarnStar(r3.stats, hoje) === false;
+      } catch (e) { return false; } })(),
+      'o teto diário de estrelinhas não é 2, ou não reseta na virada do dia');
+
+    check('1.3 (recordes/puro): melhor tempo e menos erros; storage corrompido → estado zerado',
+      (() => { try {
+        const P = evalPares();
+        const hoje = '2026-07-09';
+        const a = P.applyResult(null, { dificuldade: 'medio', elapsedMs: 50000, erros: 4, day: hoje });
+        const b = P.applyResult(a.stats, { dificuldade: 'medio', elapsedMs: 30000, erros: 9, day: hoje });
+        const c = P.applyResult(b.stats, { dificuldade: 'medio', elapsedMs: 90000, erros: 1, day: hoje });
+        if (!(a.isBest && b.isBest && !c.isBest)) return false;
+        if (c.stats.pares.medio.bestMs !== 30000 || c.stats.pares.medio.bestErros !== 1) return false;
+        // Dificuldade inválida não corrompe nada.
+        if (P.applyResult(c.stats, { dificuldade: 'x', elapsedMs: 1, erros: 0, day: hoje }).starAwarded !== false) return false;
+        const lixo = P.sanitizeStats({ day: 42, starsToday: -9, pares: { facil: { plays: 'x', bestMs: -1 } } });
+        return lixo.day === null && lixo.starsToday === 0
+          && lixo.pares.facil.plays === 0 && lixo.pares.facil.bestMs === null
+          && P.starsToday({ day: '2026-07-08', starsToday: 2 }, hoje) === 0;
+      } catch (e) { return false; } })(),
+      'recorde de tempo/erros errado, ou stats corrompidos não são saneados');
+
+    check('1.3 (conquistas/puro): toAchievementCtx deriva as flags de Brincar',
+      (() => { try {
+        const P = evalPares();
+        const vazio = P.toAchievementCtx(null);
+        if (vazio.paresPlays !== 0 || vazio.paresWinDificil || vazio.paresPoucosErros) return false;
+        const hoje = '2026-07-09';
+        let s = P.applyResult(null, { dificuldade: 'dificil', elapsedMs: 60000, erros: 2, day: hoje }).stats;
+        s = P.applyResult(s, { dificuldade: 'medio', elapsedMs: 40000, erros: 7, day: hoje }).stats;
+        const ctx = P.toAchievementCtx(s);
+        return ctx.paresPlays === 2 && ctx.paresWinDificil === true
+          && ctx.paresWinMedio === true && ctx.paresWinFacil === false
+          && ctx.paresPoucosErros === true; // 2 erros no Difícil
+      } catch (e) { return false; } })(),
+      'as flags de conquista do Brincar não derivam dos recordes locais');
+
+    // ── Regras de produto na TELA (não só no núcleo) ──────────────────────────
+    check('1.3 (rodada): consumeRound acontece SÓ ao começar a partida',
+      (() => {
+        const usos = (pdbNoCom.match(/consumeRound\(/g) || []).length;
+        const comecar = (pdbNoCom.match(/const comecar = useCallback\(async \(\) => \{[\s\S]*?\n  \}/) || [''])[0];
+        return usos === 1 && /consumeRound\(/.test(comecar);
+      })(),
+      'a rodada é consumida fora do início da partida (ex.: ao abrir a tela)');
+
+    check('1.3 (estrelinha): só é creditada dentro de concluir(), atrás de starAwarded',
+      (() => {
+        const concluir = (pdbNoCom.match(/const concluir = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
+        return (pdbNoCom.match(/addBonusStars\(/g) || []).length === 1
+          && /if \(r\.starAwarded\) \{\s*await addBonusStars\(1\);\s*await refreshProgress\(\);/.test(concluir);
+      })(),
+      'estrelinha creditada sem partida concluída, ou sem refreshProgress');
+
+    check('1.3 (sem rede): recordes são locais — nenhum ranking online',
+      !/fetch\(|axios|https?:\/\/|ranking|leaderboard/i.test(a1StripComments(bsSrc))
+      && !/fetch\(|axios|ranking|leaderboard/i.test(pdbNoCom)
+      && /STORAGE_KEYS\.BRINCAR_STATS/.test(bsSrc),
+      'o Brincar passou a falar com a rede ou a expor ranking online');
+
+    check('1.3 (assets): as cartas reusam as capas das histórias; nenhum asset novo',
+      /getStoryCoverImage/.test(pdbNoCom) && !/require\(/.test(pdbNoCom),
+      'a tela do jogo passou a exigir assets próprios');
+
+    check('1.3 (som): pontos de extensão nomeados, sem áudio de Beni ainda',
+      /FLIP: 'brincar\.pares\.flip'/.test(pgSrc) && /WIN: 'brincar\.pares\.win'/.test(pgSrc),
+      'os eventos de som do Pares sumiram — o Bloco 1.7 depende deles');
+
+    check('1.3 (sem emoji): a tela do jogo usa FaithIcon e nenhum emoji',
+      /<FaithIcon/.test(pdb) && !/\p{Extended_Pictographic}/u.test(pdb),
+      'entrou emoji na ParesDoBeniScreen');
+
+    check('1.3 (navegação): rota ParesDoBeni registrada e ligada ao card do hub',
+      /PARES_DO_BENI: 'ParesDoBeni'/.test(readSrc('src/constants/routes.js'))
+      && /name="ParesDoBeni"/.test(navB13)
+      && /navigate\(ROUTES\.PARES_DO_BENI\)/.test(brcB13),
+      'o card Pares do Beni não abre o jogo');
+
+    check('1.3 (conquistas): 5 conquistas novas em "brincar", sem emoji e sem tocar nas antigas',
+      (() => {
+        const novas = ['brincar_first_game', 'brincar_three_games', 'brincar_pares_medio',
+          'brincar_pares_dificil', 'brincar_poucos_erros'];
+        const semEmoji = novas.every((id) => {
+          const bloco = (achB13.match(new RegExp(`id: '${id}'[\\s\\S]*?category: 'brincar'`)) || [''])[0];
+          return bloco.length > 0 && /faithIcon:/.test(bloco) && !/\p{Extended_Pictographic}/u.test(bloco);
+        });
+        // As antigas continuam nas categorias legadas.
+        return semEmoji
+          && /id: 'first_drawing'[\s\S]*?category: 'atelie'/.test(achB13)
+          && /id: 'first_chest_card'[\s\S]*?category: 'momentos'/.test(achB13);
+      })(),
+      'faltou conquista de Brincar, entrou emoji, ou uma conquista antiga mudou de categoria');
+
+    check('1.3 (ctx): buildCtx funde as flags de Brincar de forma defensiva',
+      /readAchievementCtx as readBrincarAchievementCtx/.test(acsB13)
+      && /try \{\s*brincarCtx = \(await readBrincarAchievementCtx\(\)\) \|\| \{\};\s*\} catch/.test(acsB13),
+      'buildCtx não lê as flags de Brincar, ou pode lançar se a leitura falhar');
+
+    check('1.3 (álbum): TrophiesScreen renderiza faithIcon sem perder os emojis antigos',
+      (() => { const t = a1StripComments(readSrc('src/screens/TrophiesScreen.js'));
+        return /achievement\.faithIcon \?/.test(t) && /achievement\.emoji/.test(t)
+          && /section\.cat\.faithIcon \?/.test(t) && /section\.cat\.icon/.test(t); })(),
+      'o álbum não desenha as conquistas novas, ou perdeu os ícones antigos');
+
+    check('1.3 (legado intacto): chaves do Ateliê preservadas; chave nova do Brincar isolada',
+      /BRINCAR_STATS: '@ptf_brincar_stats_v1'/.test(skB13)
+      && /ATELIER_INDEX: 'ptf_atelier_arts_v1_index'/.test(skB13)
+      && !/atelier|ATELIER|progress/i.test(a1StripComments(bsSrc)),
+      'o Brincar passou a tocar chaves do Ateliê ou de progresso');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

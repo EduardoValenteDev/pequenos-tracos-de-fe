@@ -1,6 +1,7 @@
 import { hasSavedDrawing } from './drawingStorage';
 import { listArts } from './atelierStorage';
 import { getFamilyWorshipSummary } from './familyWorshipService';
+import { readAchievementCtx as readBrincarAchievementCtx } from './brincarStatsService';
 import {
   isQuizDone, getReflection, isLumiMomentEverDone, isStoryBookOpened,
 } from './postStoryStorage';
@@ -110,7 +111,18 @@ export async function buildCtx(progressMap, storiesList, options = {}) {
   const familyWorship = await getFamilyWorshipSummary();
   const familyWorshipDone = (familyWorship?.count ?? 0) > 0;
 
+  // Bloco 1.3 — flags do Brincar (paresPlays, paresWinFacil/Medio/Dificil,
+  // paresPoucosErros). Defensivo: se a leitura falhar, o ctx segue sem elas e
+  // as conquistas de Brincar apenas não acendem — nada quebra.
+  let brincarCtx = {};
+  try {
+    brincarCtx = (await readBrincarAchievementCtx()) || {};
+  } catch {
+    brincarCtx = {};
+  }
+
   return {
+    ...brincarCtx,
     totalScenes,
     completedStories,
     noahComplete,

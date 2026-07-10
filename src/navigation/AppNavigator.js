@@ -25,6 +25,7 @@ import TrophiesScreen from '../screens/TrophiesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AtelierScreen from '../screens/AtelierScreen';
 import BrincarScreen from '../screens/BrincarScreen';
+import ParesDoBeniScreen from '../screens/ParesDoBeniScreen';
 import AtelierCanvasScreen from '../screens/AtelierCanvasScreen';
 import AtelierGalleryScreen from '../screens/AtelierGalleryScreen';
 import PostStoryHubScreen from '../screens/PostStoryHubScreen';
@@ -367,6 +368,12 @@ export default function AppNavigator() {
         <Stack.Screen
           name="AtelierFromContext"
           component={AtelierScreen}
+          options={{ headerShown: false }}
+        />
+        {/* Bloco 1.3 — primeiro jogo real da aba Brincar. */}
+        <Stack.Screen
+          name="ParesDoBeni"
+          component={ParesDoBeniScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

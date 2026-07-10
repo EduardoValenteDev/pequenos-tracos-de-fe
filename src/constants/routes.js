@@ -36,6 +36,9 @@ export const ROUTES = Object.freeze({
   ATELIER_CANVAS: 'AtelierCanvas',
   ATELIER_GALLERY: 'AtelierGallery',
 
+  // ── Brincar — jogos (Bloco 1.3+) ──────────────────────────────────────────
+  PARES_DO_BENI: 'ParesDoBeni',
+
   // ── Outros ────────────────────────────────────────────────────────────────
   PARENT_AREA: 'ParentArea',
   BENI_CHEST: 'BeniChest',

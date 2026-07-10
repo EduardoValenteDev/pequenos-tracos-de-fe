@@ -49,6 +49,8 @@ export const STORAGE_KEYS = {
 
   // ── Brincar (Bloco 1.1) — chave NOVA, não toca nada do Ateliê ───────────
   BRINCAR_DAILY: '@ptf_brincar_daily_v1',
+  // ── Brincar (Bloco 1.3) — recordes locais dos jogos. Sem ranking online. ──
+  BRINCAR_STATS: '@ptf_brincar_stats_v1',
 
   // ── Conquistas ───────────────────────────────────────────────────────────
   ACHIEVEMENTS_SEEN: '@ptf_achievements_seen',
