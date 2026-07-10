@@ -17,14 +17,16 @@
  *   day: 'YYYY-MM-DD', starsToday: n, lastMode: 'classico'|'turbo',
  *   pares: { facil: {plays, wins, bestMs, bestErros, bestMoves}, medio: {...}, dificil: {...} },
  *   turbo: { facil: {plays, bestScore, bestPairs, bestCombo}, medio: {...}, dificil: {...} },
+ *   ovelha: { facil: {plays, encontradas, bestSequencia}, medio: {...}, dificil: {...} },
  * }
  *
  * `pares` é o recorde do modo CLÁSSICO (nome legado, mantido para não perder dados
  * de quem já jogou). `turbo` nasce vazio. Os recordes NUNCA se misturam entre modos:
  * no Clássico vale menos jogadas/menos tempo; no Turbo vale mais pontos.
  *
- * O teto diário de estrelinhas (`starsToday`) é COMPARTILHADO pelos dois modos — é o
- * que impede o Turbo de virar uma fonte infinita de recompensa.
+ * `ovelha` (Bloco 2.1) é o recorde de "Cadê a Ovelhinha?" — outro jogo da mesma aba.
+ * Vive na MESMA chave, e o teto de estrelinhas (`starsToday`) é COMPARTILHADO por
+ * TODOS os jogos: é o que impede qualquer um deles de virar fonte infinita de estrela.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from './storageKeys';
@@ -55,6 +57,7 @@ export function sanitizeStats(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
   const pares = {};
   const turbo = {};
+  const ovelha = {};
   for (const d of DIFS) {
     const p = (src.pares && src.pares[d]) || {};
     pares[d] = {
@@ -71,6 +74,11 @@ export function sanitizeStats(raw) {
         .map(sanitizeRankingEntry).filter(Boolean)
         .sort(compararTurbo).slice(0, RANKING_MAX),
     };
+    // Bloco 2.1 — "Cadê a Ovelhinha?". Formato antigo (sem `ovelha`) nasce zerado.
+    const o = (src.ovelha && src.ovelha[d]) || {};
+    ovelha[d] = {
+      plays: nOr0(o.plays), encontradas: nOr0(o.encontradas), bestSequencia: nOr0(o.bestSequencia),
+    };
   }
   return {
     day: typeof src.day === 'string' ? src.day : null,
@@ -78,6 +86,7 @@ export function sanitizeStats(raw) {
     lastMode: MODOS.includes(src.lastMode) ? src.lastMode : DEFAULT_MODE,
     pares,
     turbo,
+    ovelha,
   };
 }
 
@@ -217,6 +226,44 @@ export function applyResult(stats, partida, cap = BRINCAR_DAILY_STAR_CAP) {
   };
 }
 
+/**
+ * Aplica o resultado de uma partida CONCLUÍDA de "Cadê a Ovelhinha?". PURO.
+ * Separado do `applyResult` do Pares de propósito — os dois jogos não se acoplam —,
+ * mas COMPARTILHA o mesmo teto diário de estrelinhas (`starsToday`).
+ *
+ * @returns {{ stats: object, isBest: boolean, starAwarded: boolean }}
+ */
+export function applyOvelhaResult(stats, partida, cap = BRINCAR_DAILY_STAR_CAP) {
+  const s = sanitizeStats(stats);
+  const { dificuldade, day } = partida || {};
+  if (!DIFS.includes(dificuldade)) return { stats: s, isBest: false, starAwarded: false };
+
+  const proximoDia = s.day === day ? s.starsToday : 0;
+  const starAwarded = proximoDia < cap;
+
+  const antes = s.ovelha[dificuldade];
+  const sequencia = nOr0(partida.sequencia);
+  const isBest = sequencia > antes.bestSequencia;
+
+  return {
+    stats: {
+      ...s,
+      day,
+      starsToday: proximoDia + (starAwarded ? 1 : 0),
+      ovelha: {
+        ...s.ovelha,
+        [dificuldade]: {
+          plays: antes.plays + 1,
+          encontradas: antes.encontradas + nOr0(partida.encontradas),
+          bestSequencia: Math.max(antes.bestSequencia, sequencia),
+        },
+      },
+    },
+    isBest,
+    starAwarded,
+  };
+}
+
 /** Flags derivadas para as conquistas. PURO. */
 export function toAchievementCtx(stats) {
   const s = sanitizeStats(stats);
@@ -269,6 +316,18 @@ export async function recordParesResult(partida) {
   const r = applyResult(atual, partida);
   await writeStats(r.stats);
   return { isBest: r.isBest, starAwarded: r.starAwarded, stats: r.stats, posicao: r.posicao ?? 0 };
+}
+
+/**
+ * Registra uma partida concluída de "Cadê a Ovelhinha?". Mesmo contrato do Pares:
+ * NÃO credita a estrelinha — só diz se foi autorizada. Quem credita é a tela.
+ * `partida` = { dificuldade, day, encontradas, sequencia }.
+ */
+export async function recordOvelhaResult(partida) {
+  const atual = await readStats();
+  const r = applyOvelhaResult(atual, partida);
+  await writeStats(r.stats);
+  return { isBest: r.isBest, starAwarded: r.starAwarded, stats: r.stats };
 }
 
 /** Lembra o último modo escolhido (preferência leve; falha não atrapalha o jogo). */

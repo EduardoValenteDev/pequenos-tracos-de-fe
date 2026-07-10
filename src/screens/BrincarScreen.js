@@ -33,6 +33,7 @@ import SoundButton from '../components/SoundButton';
 import FaithIcon from '../components/ui/FaithIcon';
 import { BeniAvatar } from '../components/beni';
 import CenteredContent from '../components/layout/CenteredContent';
+import { isInternalToolsEnabled } from '../config/internalTools';
 import { ROUTES } from '../constants/routes';
 import { listArts } from '../services/atelierStorage';
 import { hasAtelierUnlimitedAccess } from '../services/accessControl';
@@ -110,6 +111,35 @@ function ComingTile({ icon, title, desc, tint, border, bg }) {
         <Text style={styles.comingFootText}>O Beni está preparando</Text>
       </View>
     </View>
+  );
+}
+
+/**
+ * Card SÓ DE DESENVOLVIMENTO — abre um jogo ainda com assets temporários. O selo
+ * "Em teste" deixa claro que não é conteúdo final. Nunca renderiza em produção
+ * (só é usado sob `isInternalToolsEnabled()`).
+ */
+function TestingTile({ icon, title, desc, tint, border, bg, onPress }) {
+  return (
+    <SoundButton
+      style={[styles.tile, styles.tileAtivo, { backgroundColor: tint, borderColor: border }]}
+      onPress={onPress}
+      activeOpacity={0.82}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. Em teste no ambiente de desenvolvimento.`}
+    >
+      <View style={styles.comingBadge}>
+        <Text style={styles.comingBadgeText}>Em teste</Text>
+      </View>
+      <View style={[styles.tileIconBg, { backgroundColor: bg }]}>
+        <FaithIcon name={icon} size={24} color={pt.greenDeep} />
+      </View>
+      <Text style={styles.tileTitle}>{title}</Text>
+      <Text style={styles.tileDesc} numberOfLines={2}>{desc}</Text>
+      <View style={[styles.tileBtn, { backgroundColor: pt.greenDeep }]}>
+        <Text style={styles.tileBtnText}>Testar</Text>
+      </View>
+    </SoundButton>
   );
 }
 
@@ -218,11 +248,20 @@ export default function BrincarScreen({ navigation, route }) {
           <Text style={styles.sectionSub}>Novas brincadeiras a caminho.</Text>
         </AnimatedCard>
 
-        {/* `key` explícita no elemento; o resto do objeto vai por spread (sem `key` dentro). */}
+        {/* `key` explícita no elemento; o resto do objeto vai por spread (sem `key` dentro).
+            Bloco 2.1: em DEV, "Cadê a Ovelhinha?" abre o vertical slice (selo "Em teste").
+            Em produção a rota nem existe → o card continua "Chegando em breve". */}
         <AnimatedCard delay={250} style={styles.grid}>
           {EM_PREPARO.map(({ id, ...tileProps }) => (
             <View key={id} style={styles.gridItem}>
-              <ComingTile {...tileProps} />
+              {id === 'ovelha' && isInternalToolsEnabled() ? (
+                <TestingTile
+                  {...tileProps}
+                  onPress={() => navigation.navigate(ROUTES.CADE_A_OVELHINHA)}
+                />
+              ) : (
+                <ComingTile {...tileProps} />
+              )}
             </View>
           ))}
         </AnimatedCard>

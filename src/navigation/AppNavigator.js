@@ -26,6 +26,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import AtelierScreen from '../screens/AtelierScreen';
 import BrincarScreen from '../screens/BrincarScreen';
 import ParesDoBeniScreen from '../screens/ParesDoBeniScreen';
+import CadeAOvelhinhaScreen from '../screens/CadeAOvelhinhaScreen';
 import AtelierCanvasScreen from '../screens/AtelierCanvasScreen';
 import AtelierGalleryScreen from '../screens/AtelierGalleryScreen';
 import PostStoryHubScreen from '../screens/PostStoryHubScreen';
@@ -376,6 +377,16 @@ export default function AppNavigator() {
           component={ParesDoBeniScreen}
           options={{ headerShown: false }}
         />
+        {/* Bloco 2.1 — vertical slice de "Cadê a Ovelhinha?". Registrado SÓ sob o gate
+            interno enquanto usa assets temporários: em produção a rota não existe e o
+            card da Brincar continua "Chegando em breve". Liberação no Bloco 2.2. */}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="CadeAOvelhinha"
+            component={CadeAOvelhinhaScreen}
+            options={{ headerShown: false }}
+          />
+        )}
         <Stack.Screen
           name="AtelierGallery"
           component={AtelierGalleryScreen}

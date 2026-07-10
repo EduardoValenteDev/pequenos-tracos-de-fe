@@ -38,6 +38,9 @@ export const ROUTES = Object.freeze({
 
   // ── Brincar — jogos (Bloco 1.3+) ──────────────────────────────────────────
   PARES_DO_BENI: 'ParesDoBeni',
+  // Bloco 2.1 — vertical slice. Rota registrada SÓ sob o gate interno enquanto os
+  // assets forem temporários (ver AppNavigator); em produção ela não existe.
+  CADE_A_OVELHINHA: 'CadeAOvelhinha',
 
   // ── Outros ────────────────────────────────────────────────────────────────
   PARENT_AREA: 'ParentArea',

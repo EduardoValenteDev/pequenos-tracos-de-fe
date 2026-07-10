@@ -15738,10 +15738,13 @@ check(
       && !/import /.test(rtB), // módulo puro, sem deps
       'routes.js renomeou uma rota (quebra navegação) ou deixou de ser puro');
 
-    // 1.1-b — os 7 ícones semânticos do Brincar existem e nenhum é emoji.
-    const icones11 = ['brincar', 'pares', 'palavrinhas', 'bichinhos', 'ovelha', 'desenho_guiado', 'criar_livre'];
-    check('1.1 (ícones): FaithIcon tem os 7 nomes semânticos do Brincar, sem emoji',
+    // 1.1-b — os ícones semânticos do Brincar existem e nenhum é emoji.
+    // MIGRADO 2.1: `ovelha` saiu do mapa de Ionicons e virou SVG próprio (OvelhaSvg);
+    // é verificado à parte no Bloco 2.1. Aqui restam os 6 que seguem no mapa Ionicons.
+    const icones11 = ['brincar', 'pares', 'palavrinhas', 'bichinhos', 'desenho_guiado', 'criar_livre'];
+    check('1.1 (ícones): FaithIcon tem os ícones semânticos do Brincar, sem emoji',
       icones11.every((n) => new RegExp(`\\n\\s*${n}: '[a-z-]+',`).test(fiB))
+      && /name === 'ovelha'/.test(fiB)   // ovelha desenhada por SVG, não emoji
       && !/\p{Extended_Pictographic}/u.test(fiB),
       'faltou ícone semântico do Brincar, ou entrou emoji no FaithIcon');
 
@@ -17356,6 +17359,370 @@ check(
       && !/travado\.current/.test(pdbD)
       && !/\p{Extended_Pictographic}/u.test(pdbDraw),
       'o bloco 1.4d regrediu a máquina, o flip ou a grade responsiva');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco 2.1 — Vertical slice de "Cadê a Ovelhinha?".
+  //
+  //   Máquina e geometria PURAS, exercitadas de verdade: partida completa, toques
+  //   concorrentes, geometria em várias resoluções, fallback, persistência com teto
+  //   COMPARTILHADO. Card só ativo em dev; Pares/Turbo intactos.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco 2.1: Cadê a Ovelhinha? (vertical slice) ──');
+  {
+    const svc = readSrc('src/services/ovelhaGameService.js');
+    const mq = readSrc('src/services/ovelhaGameMachine.js');
+    const bs21 = readSrc('src/services/brincarStatsService.js');
+    const telaRaw = readSrc('src/screens/CadeAOvelhinhaScreen.js');
+    const tela21 = a1StripComments(telaRaw);
+    const nav21 = a1StripComments(readSrc('src/navigation/AppNavigator.js'));
+    const brc21 = a1StripComments(readSrc('src/screens/BrincarScreen.js'));
+    const fi21 = readSrc('src/components/ui/FaithIcon.js');
+    const rt21 = readSrc('src/constants/routes.js');
+
+    const limpa = (s) => a1StripComments(s)
+      .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+      .replace(/require\('[^']*'\)/g, 'null')
+      .replace(/^export\s+default[\s\S]*$/m, '')
+      .replace(/^export\s+/gm, '');
+
+    /** Serviço de geometria puro, avaliado de verdade. */
+    const evalSvc = () => new Function(limpa(svc)
+      + ';return { OVELHA_DIFFICULTIES, getDifficulty, buildRound, posicionarSprites,'
+      + ' fallbackGrade, tamanhoSprite, semSobreposicao, todosDentro, regiaoDe,'
+      + ' OVELHA_HITBOX_MIN, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS };')();
+
+    /** Máquina pura. */
+    const evalMq = () => new Function(limpa(mq)
+      + ';return { FASES, FASES_QUE_ACEITAM, EFEITOS, criarJogo, iniciarRodada, cenaPronta,'
+      + ' aceitaToque, tocar, liberarErro, avancar, encerrar };')();
+
+    /** brincarStatsService com deps injetadas (as constantes/ajudas vêm do paresGameService). */
+    const evalStats = () => new Function(
+      'AsyncStorage', 'STORAGE_KEYS', 'warn',
+      'BRINCAR_DAILY_STAR_CAP', 'DEFAULT_MODE', 'isBetterTime', 'isBetterScore', 'isBetterMoves',
+      a1StripComments(bs21)
+        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+/gm, '')
+      + ';return { sanitizeStats, applyOvelhaResult, applyResult };')(
+        {}, {}, () => {},
+        2, 'classico',
+        (ant, novo) => Number.isFinite(novo) && novo > 0 && (!(Number.isFinite(ant) && ant > 0) || novo < ant),
+        (ant, novo) => Number.isFinite(novo) && novo > 0 && novo > (Number.isFinite(ant) ? ant : 0),
+        (ant, novo) => Number.isFinite(novo) && novo > 0 && (!(Number.isFinite(ant) && ant > 0) || novo < ant),
+      );
+
+    // RNG determinístico (LCG) — reproduz a aleatoriedade sem depender de Math.random.
+    const lcg = (seed) => { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; };
+
+    // ── GEOMETRIA ────────────────────────────────────────────────────────────
+    check('2.1 (geometria): 3 sprites cabem, sem sobreposição, em várias resoluções',
+      (() => { try {
+        const S = evalSvc();
+        const dif = S.getDifficulty('facil');
+        const RES = [[320, 420], [375, 500], [390, 540], [430, 620], [768, 900]];
+        for (const [w, h] of RES) {
+          for (let seed = 1; seed <= 25; seed++) {
+            const cena = S.buildRound({ dif, largura: w, altura: h, rnd: lcg(seed) });
+            const m = Math.round(Math.min(w, h) * dif.margemFrac);
+            if (cena.sprites.length !== 3) return false;
+            if (!S.semSobreposicao(cena.sprites)) return false;
+            if (!S.todosDentro(cena.sprites, w, h, m)) return false;
+            if (!cena.sprites.every((s) => s.hitbox >= S.OVELHA_HITBOX_MIN)) return false;
+          }
+        }
+        return S.OVELHA_HITBOX_MIN === 56;
+      } catch (e) { return false; } })(),
+      'a geometria sobrepõe, vaza, encolhe a hitbox abaixo de 56, ou muda o nº de sprites');
+
+    check('2.1 (geometria): RNG fixo é determinístico; o alvo não repete a região',
+      (() => { try {
+        const S = evalSvc();
+        const dif = S.getDifficulty('facil');
+        const a = S.buildRound({ dif, largura: 390, altura: 540, rnd: lcg(7) });
+        const b = S.buildRound({ dif, largura: 390, altura: 540, rnd: lcg(7) });
+        if (JSON.stringify(a) !== JSON.stringify(b)) return false;
+        // 30 rodadas seguidas: a região do alvo nunca repete a anterior.
+        let reg = null, repetiu = 0, rnd = lcg(42);
+        for (let i = 0; i < 30; i++) {
+          const c = S.buildRound({ dif, largura: 390, altura: 620, rnd, regiaoAnterior: reg });
+          if (reg !== null && c.regiaoAlvo === reg) repetiu++;
+          reg = c.regiaoAlvo;
+        }
+        return repetiu === 0;
+      } catch (e) { return false; } })(),
+      'a geometria não é determinística sob RNG fixo, ou o alvo repete a região');
+
+    check('2.1 (geometria): o fallback é acionado e produz posições válidas',
+      (() => { try {
+        const S = evalSvc();
+        // Área apertada (força a grade), mas geométricamente viável para 3 hitboxes.
+        const specs = [{ hitbox: 56, size: 44 }, { hitbox: 56, size: 44 }, { hitbox: 56, size: 44 }];
+        const fb = S.fallbackGrade({ largura: 280, altura: 240, margem: 8, gap: 4, specs, rnd: lcg(3) });
+        if (fb.length !== 3) return false;
+        if (!fb.every((p) => Number.isFinite(p.cx) && Number.isFinite(p.cy))) return false;
+        const comHb = fb.map((p, i) => ({ ...p, hitbox: specs[i].hitbox }));
+        if (!S.semSobreposicao(comHb)) return false;
+        // varia com o rnd (não é sempre a mesma composição)
+        const fb2 = S.fallbackGrade({ largura: 280, altura: 240, margem: 8, gap: 4, specs, rnd: lcg(9) });
+        return JSON.stringify(fb) !== JSON.stringify(fb2);
+      } catch (e) { return false; } })(),
+      'o fallback não é acionado, sobrepõe, ou não varia com o RNG');
+
+    check('2.1 (geometria): hitbox uniforme e ≥ o sprite; alvo maior que o distrator',
+      (() => { try {
+        const S = evalSvc();
+        const cena = S.buildRound({ dif: S.getDifficulty('facil'), largura: 390, altura: 540, rnd: lcg(5) });
+        const hbs = cena.sprites.map((s) => s.hitbox);
+        const uniforme = hbs.every((h) => h === hbs[0]);
+        const alvo = cena.sprites.find((s) => s.tipo === 'alvo');
+        const dist = cena.sprites.find((s) => s.tipo === 'distrator');
+        return uniforme && alvo.size > dist.size && hbs[0] >= alvo.size;
+      } catch (e) { return false; } })(),
+      'a hitbox deixou de ser uniforme/≥ sprite, ou o alvo não é maior que o distrator');
+
+    // ── MÁQUINA (comportamento) ──────────────────────────────────────────────
+    const M = evalMq();
+    const jogar = (e, i) => {
+      const r = M.tocar(e, i);
+      return r;
+    };
+
+    check('2.1 (máquina): só "procurando" aceita toque',
+      (() => { try {
+        const bloqueadas = [M.FASES.TROCANDO, M.FASES.ENTRANDO, M.FASES.ERRO, M.FASES.ACERTO, M.FASES.FIM];
+        let e = M.criarJogo({ rounds: 5 });
+        e = M.iniciarRodada(e, { alvoIndex: 1, n: 3 }).estado;   // entrandoCena
+        const base = e;
+        const todasBloqueiam = bloqueadas.every((fase) => !M.aceitaToque({ ...base, n: 3, alvoIndex: 1, fase }, 1));
+        const so1 = M.FASES_QUE_ACEITAM.length === 1 && M.FASES_QUE_ACEITAM[0] === M.FASES.PROCURANDO;
+        // durante entrandoCena o toque é recusado, sem efeitos
+        const t = M.tocar(base, 1);
+        return todasBloqueiam && so1 && t.aceito === false && t.efeitos.length === 0;
+      } catch (e) { return false; } })(),
+      'alguma fase fora de "procurando" aceita toque');
+
+    check('2.1 (máquina): alvo → 1 acerto; o mesmo alvo não conta duas vezes',
+      (() => { try {
+        let e = M.criarJogo({ rounds: 5 });
+        e = M.iniciarRodada(e, { alvoIndex: 2, n: 3 }).estado;
+        e = M.cenaPronta(e).estado;
+        const a = M.tocar(e, 2);
+        if (!(a.aceito && a.estado.encontradas === 1 && a.estado.fase === M.FASES.ACERTO)) return false;
+        if (!a.efeitos.includes(M.EFEITOS.SOM_ACERTO) || !a.efeitos.includes(M.EFEITOS.VIBRAR_ACERTO)) return false;
+        // já em ACERTO: segundo toque recusado, encontradas não muda
+        const b = M.tocar(a.estado, 2);
+        return b.aceito === false && a.estado.encontradas === 1;
+      } catch (e) { return false; } })(),
+      'o alvo não gera exatamente um acerto, ou conta duas vezes');
+
+    check('2.1 (máquina): distrator → erro suave, sem reduzir encontradas',
+      (() => { try {
+        let e = M.criarJogo({ rounds: 5 });
+        e = M.iniciarRodada(e, { alvoIndex: 1, n: 3 }).estado;
+        e = M.cenaPronta(e).estado;
+        // acerta primeiro para ter encontradas=1... mas alvo é 1; para errar toco 0
+        const err = M.tocar(e, 0);
+        return err.aceito === true && err.estado.fase === M.FASES.ERRO
+          && err.estado.erros === 1 && err.estado.encontradas === 0
+          && err.estado.sequencia === 0
+          && err.efeitos.includes(M.EFEITOS.SOM_ERRO)
+          && !err.efeitos.includes(M.EFEITOS.SOM_ACERTO);
+      } catch (e) { return false; } })(),
+      'o erro reduz encontradas, ou toca som de acerto');
+
+    check('2.1 (máquina): toque recusado não gera NENHUM efeito',
+      (() => { try {
+        let e = M.criarJogo({ rounds: 5 });
+        e = M.iniciarRodada(e, { alvoIndex: 1, n: 3 }).estado;
+        e = M.cenaPronta(e).estado;
+        const fora = M.tocar(e, 9);   // índice inexistente
+        return fora.aceito === false && fora.efeitos.length === 0
+          && fora.estado.erros === 0 && fora.estado.encontradas === 0;
+      } catch (e) { return false; } })(),
+      'um toque recusado gera som, estatística ou efeito');
+
+    check('2.1 (máquina): 5 rodadas encerram a partida; a 6ª não é criada',
+      (() => { try {
+        let e = M.criarJogo({ rounds: 5 });
+        const efeitos = [];
+        for (let r = 1; r <= 5; r++) {
+          e = M.iniciarRodada(e, { alvoIndex: 1, n: 3 }).estado;
+          e = M.cenaPronta(e).estado;
+          const a = M.tocar(e, 1); e = a.estado; a.efeitos.forEach((x) => efeitos.push(x));
+          const av = M.avancar(e); e = av.estado; av.efeitos.forEach((x) => efeitos.push(x));
+        }
+        if (e.fase !== M.FASES.FIM || e.encontradas !== 5) return false;
+        if (efeitos.filter((x) => x === M.EFEITOS.FINALIZAR).length !== 1) return false;
+        // finalizado não aceita toque, e avançar de novo não muda a rodada
+        const depois = M.avancar(e);
+        return M.aceitaToque(e, 1) === false && depois.estado.fase === M.FASES.FIM
+          && depois.estado.rodada === 5;
+      } catch (e) { return false; } })(),
+      'as 5 rodadas não encerram, ou uma 6ª rodada é criada');
+
+    check('2.1 (máquina): erro quebra a sequência; melhor sequência é preservada',
+      (() => { try {
+        let e = M.criarJogo({ rounds: 5 });
+        const round = (alvo, toque) => {
+          e = M.iniciarRodada(e, { alvoIndex: alvo, n: 3 }).estado;
+          e = M.cenaPronta(e).estado;
+          e = M.tocar(e, toque).estado;
+          if (e.fase === M.FASES.ERRO) { e = M.liberarErro(e).estado; e = M.tocar(e, alvo).estado; }
+          e = M.avancar(e).estado;
+        };
+        round(1, 1);  // acerto (seq 1)
+        round(1, 1);  // acerto (seq 2)
+        round(1, 0);  // erro → seq 0, depois acerto (seq 1)
+        round(1, 1);  // acerto (seq 2)
+        return e.encontradas === 4 && e.bestSequencia === 2;
+      } catch (e) { return false; } })(),
+      'a sequência não zera no erro, ou a melhor sequência se perde');
+
+    check('2.1 (máquina): é PURA — sem React, relógio, I/O, navegação',
+      (() => { const codigo = a1StripComments(mq);
+        return !/useState|useEffect|useRef|from 'react|require\('react/i.test(codigo)
+          && !/Date\.now|setTimeout|setInterval|Math\.random/.test(codigo)
+          && !/AsyncStorage|fetch\(|navigation/.test(codigo)
+          && /export function aceitaToque/.test(mq); })(),
+      'a máquina da ovelhinha deixou de ser pura');
+
+    // ── PERSISTÊNCIA ─────────────────────────────────────────────────────────
+    check('2.1 (persistência): grava ovelha, dá 1 estrelinha, respeita o teto',
+      (() => { try {
+        const B = evalStats();
+        const hoje = '2026-07-10';
+        const p = { dificuldade: 'facil', day: hoje, encontradas: 5, sequencia: 4 };
+        const r1 = B.applyOvelhaResult(null, p);
+        if (!(r1.starAwarded && r1.stats.ovelha.facil.plays === 1
+          && r1.stats.ovelha.facil.encontradas === 5 && r1.stats.ovelha.facil.bestSequencia === 4)) return false;
+        const r2 = B.applyOvelhaResult(r1.stats, { ...p, encontradas: 3, sequencia: 2 });
+        const r3 = B.applyOvelhaResult(r2.stats, { ...p, encontradas: 5, sequencia: 5 });
+        return r2.starAwarded === true && r3.starAwarded === false     // teto de 2
+          && r3.stats.ovelha.facil.plays === 3                          // mas conta a partida
+          && r3.stats.ovelha.facil.encontradas === 13
+          && r3.stats.ovelha.facil.bestSequencia === 5 && r3.isBest === true;
+      } catch (e) { return false; } })(),
+      'a persistência da ovelha não grava certo ou fura o teto de estrelinhas');
+
+    check('2.1 (persistência): o teto é COMPARTILHADO com o Pares',
+      (() => { try {
+        const B = evalStats();
+        const hoje = '2026-07-10';
+        const par = B.applyResult(null, { modo: 'classico', dificuldade: 'facil', day: hoje, elapsedMs: 30000, erros: 0, jogadas: 6 });
+        const ov = B.applyOvelhaResult(par.stats, { dificuldade: 'facil', day: hoje, encontradas: 5, sequencia: 5 });
+        const ov2 = B.applyOvelhaResult(ov.stats, { dificuldade: 'facil', day: hoje, encontradas: 5, sequencia: 5 });
+        // Pares deu 1, Ovelha deu 1, a 3ª (ovelha) já não dá: teto único de 2.
+        return par.starAwarded && ov.starAwarded && !ov2.starAwarded;
+      } catch (e) { return false; } })(),
+      'o teto de estrelinhas não é compartilhado entre os jogos da Brincar');
+
+    check('2.1 (persistência): dados antigos migram; Pares e Turbo intactos',
+      (() => { try {
+        const B = evalStats();
+        const antigo = { day: 'x', starsToday: 1, pares: { facil: { plays: 3, wins: 3, bestMs: 25000, bestErros: 1 } } };
+        const s = B.sanitizeStats(antigo);
+        return s.ovelha.facil.plays === 0 && s.ovelha.facil.bestSequencia === 0   // nasce zerado
+          && s.pares.facil.bestMs === 25000 && s.pares.facil.wins === 3            // Pares preservado
+          && s.turbo.facil.bestScore === 0                                          // Turbo intacto
+          && B.sanitizeStats('lixo').ovelha.facil.plays === 0;                      // corrompido saneado
+      } catch (e) { return false; } })(),
+      'a migração perde dados antigos, ou toca em Pares/Turbo');
+
+    check('2.1 (persistência): applyResult do Pares NÃO mudou (nada de ovelha nele)',
+      /export function applyResult\(stats, partida/.test(bs21)
+      && /export function applyOvelhaResult\(stats, partida/.test(bs21)
+      && !/ovelha/.test((bs21.match(/export function applyResult[\s\S]*?\n\}/) || [''])[0]),
+      'o applyResult do Pares foi contaminado com lógica da ovelhinha');
+
+    // ── TELA / INTEGRAÇÃO ────────────────────────────────────────────────────
+    check('2.1 (tela): a lógica não é decidida por estado React — a máquina manda',
+      (() => {
+        const t = (tela21.match(/const tocarSprite = useCallback\(\(i\) => \{[\s\S]*?\n  \}/) || [''])[0];
+        return /aplicar\(tocar, i\)/.test(t)
+          && /jogoRef\.current = r\.estado;/.test(tela21)
+          && !/aceitaToque/.test(t);   // a tela não reimplementa a regra de aceite
+      })(),
+      'a tela reimplementa a regra de toque em vez de delegar à máquina');
+
+    check('2.1 (tela): rodada consumida só em comecar(); estrelinha uma vez em finalizar()',
+      (() => {
+        const com = (tela21.match(/const comecar = useCallback\(async[\s\S]*?\n  \}/) || [''])[0];
+        const fin = (tela21.match(/const finalizar = useCallback\(async[\s\S]*?\n  \}/) || [''])[0];
+        return (tela21.match(/consumeRound\(/g) || []).length === 1 && /consumeRound\(/.test(com)
+          && (tela21.match(/addBonusStars\(/g) || []).length === 1
+          && (tela21.match(/recordOvelhaResult\(/g) || []).length === 1
+          && /if \(salvoRef\.current\) return;\s*salvoRef\.current = true;/.test(fin)
+          && /if \(r\.starAwarded\) \{\s*await addBonusStars\(1\);\s*await refreshProgress\?\.\(\);/.test(fin);
+      })(),
+      'a rodada/estrelinha pode ser consumida/creditada fora do lugar ou duas vezes');
+
+    check('2.1 (tela): ciclo de vida — AppState, blur, montadoRef, agendar, releaseGameSfx',
+      /AppState\.addEventListener\('change'/.test(tela21)
+      && /navigation\.addListener\('blur'/.test(tela21)
+      && /montado\.current = false;\s*limparTimers\(\);\s*releaseGameSfx\(\);/.test(tela21)
+      && /timeouts\.current\.forEach\(clearTimeout\)/.test(tela21)
+      && (tela21.match(/setTimeout\(/g) || []).length === 1   // só dentro de agendar()
+      && /if \(montado\.current\) cb\(\);/.test(tela21),
+      'a tela não limpa timers/sons no unmount, ou tem setTimeout solto');
+
+    check('2.1 (tela): dica única — halo só na região do alvo, cancelável, sem múltiplos',
+      /if \(dicaAtivaRef\.current\) return;/.test(tela21)
+      && /dicaVisivel && i === alvoIndex/.test(tela21)
+      && /pointerEvents="none"/.test(tela21)   // o halo não rouba o toque
+      && /const cancelarDica = useCallback/.test(tela21)
+      && /if \(r\.estado\.fase !== FASES\.PROCURANDO\) cancelarDica\(\);/.test(tela21),
+      'a dica pode gerar múltiplos halos, cobrir o toque, ou não ser cancelada');
+
+    check('2.1 (tela): áudio reaproveitado; nenhum arquivo de som novo',
+      /OVELHA_SOUND_EVENTS\.ACERTO/.test(tela21) && /playGameSfx/.test(tela21)
+      && /ACERTO: 'match_success'/.test(svc) && /VITORIA: 'classic_victory_jingle'/.test(svc)
+      && !/assets\/audio/.test(tela21),
+      'a ovelhinha passou a depender de um som novo, ou conhece caminho de asset de áudio');
+
+    check('2.1 (tela): sem emoji — só FaithIcon e SVG',
+      !/\p{Extended_Pictographic}/u.test(telaRaw) && /<FaithIcon/.test(telaRaw),
+      'entrou emoji na tela da ovelhinha');
+
+    // ── ROTA, CARD, PRODUÇÃO ─────────────────────────────────────────────────
+    check('2.1 (rota): CADE_A_OVELHINHA existe e é registrada SÓ sob o gate interno',
+      /CADE_A_OVELHINHA: 'CadeAOvelhinha'/.test(rt21)
+      && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="CadeAOvelhinha"/.test(nav21),
+      'a rota da ovelhinha não existe, ou é registrada em produção');
+
+    check('2.1 (card): ativo SÓ em dev; em produção continua "Chegando"',
+      (() => {
+        // o card "ovelha" continua em EM_PREPARO (produção usa ComingTile)
+        const emPreparo = /\{ id: 'ovelha', icon: 'ovelha'/.test(brc21);
+        // e só vira TestingTile sob o gate
+        const gated = /id === 'ovelha' && isInternalToolsEnabled\(\) \?/.test(brc21)
+          && /navigate\(ROUTES\.CADE_A_OVELHINHA\)/.test(brc21);
+        // o TestingTile não é usado sem o gate (nenhuma outra referência de navegação solta)
+        return emPreparo && gated
+          && /function TestingTile/.test(brc21)
+          && /Em teste/.test(brc21);
+      })(),
+      'o card da ovelhinha fica ativo em produção, ou não abre o jogo em dev');
+
+    check('2.1 (produção): a tela declara-se "Em teste"; o smoke não afrouxa o gate',
+      /chip="Em teste"/.test(tela21)
+      && /export function isInternalToolsEnabled/.test(readSrc('src/config/internalTools.js')),
+      'a tela não sinaliza "Em teste", ou o gate interno foi alterado');
+
+    // ── ÍCONE ────────────────────────────────────────────────────────────────
+    check('2.1 (ícone): ovelha é SVG próprio; o placeholder "eye" não é mais usado',
+      /function OvelhaSvg/.test(fi21)
+      && /if \(name === 'ovelha'\) return <OvelhaSvg/.test(fi21)
+      && !/ovelha: 'eye'/.test(fi21)
+      && !/ovelha: '[a-z-]+'/.test(fi21),   // não voltou para o mapa de Ionicons
+      'a ovelha voltou a usar o ícone "eye" do Ionicons');
+
+    // ── PROTEGIDOS ───────────────────────────────────────────────────────────
+    check('2.1 (protegidos): Pares e Modo Criador intocados por este bloco',
+      /aplicar\(tocar, i\)/.test(a1StripComments(readSrc('src/screens/ParesDoBeniScreen.js')))
+      && /export function isInternalToolsEnabled/.test(readSrc('src/config/internalTools.js'))
+      && !/ovelha|Ovelha/.test(a1StripComments(readSrc('src/services/paresGameMachine.js'))),
+      'o bloco 2.1 tocou o Pares ou o Modo Criador');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
