@@ -47,7 +47,7 @@ export function spriteAspect(pose) {
 }
 
 export const OVELHA_DIFFICULTIES = Object.freeze([
-  { id: 'facil', label: 'Fácil', premium: false, minEsconderijos: 4 },
+  { id: 'facil', label: 'Fácil', premium: false, minEsconderijos: 2 },
 ]);
 
 export function getDifficulty(id) {
