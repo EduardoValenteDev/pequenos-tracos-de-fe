@@ -31,9 +31,10 @@ import { stories } from '../data/stories';
 import { getStoryCoverImage } from '../services/storyImageService';
 import { isPremiumUser } from '../services/accessControl';
 import { addBonusStars } from '../services/postStoryStorage';
-import { useProgress } from '../context/ProgressContext';
+import { useProgressContext } from '../context/ProgressContext';
 import { getDailyRounds, consumeRound, toDayKey } from '../services/brincarDailyService';
 import { readStats, recordParesResult } from '../services/brincarStatsService';
+import { warn } from '../utils/logger';
 import {
   DIFFICULTIES, getDifficulty, buildDeck, pickStoryIds, isPair,
   computeScore, formatTime, BRINCAR_DAILY_STAR_CAP,
@@ -91,7 +92,10 @@ function Carta({ carta, aberta, casada, size, onPress }) {
 export default function ParesDoBeniScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { refreshProgress } = useProgress();
+  // O contexto pode não estar montado (ex.: tela aberta fora do Provider em um teste).
+  // O jogo não depende dele para funcionar: se faltar, apenas não atualizamos o resumo.
+  const progressCtx = useProgressContext();
+  const refreshProgress = progressCtx?.refreshProgress;
   const premium = isPremiumUser();
 
   const [fase, setFase] = useState('entrada'); // entrada | jogando | vitoria
@@ -112,8 +116,9 @@ export default function ParesDoBeniScreen({ navigation }) {
 
   useEffect(() => {
     let vivo = true;
-    getDailyRounds().then((r) => vivo && setRounds(r));
-    readStats().then((s) => vivo && setStats(s));
+    // Rodadas e recordes são informativos: se a leitura falhar, o jogo abre do mesmo jeito.
+    getDailyRounds().then((r) => vivo && setRounds(r)).catch((e) => warn('ParesDoBeni.rounds:', e));
+    readStats().then((s) => vivo && setStats(s)).catch((e) => warn('ParesDoBeni.stats:', e));
     return () => { vivo = false; };
   }, []);
 
@@ -145,15 +150,22 @@ export default function ParesDoBeniScreen({ navigation }) {
     setRounds(await getDailyRounds());
   }, [dif.pairs]);
 
-  /* ── Concluir: SÓ AQUI a estrelinha é creditada ── */
+  /* ── Concluir: SÓ AQUI a estrelinha é creditada ──
+     A criança venceu: a tela de vitória aparece mesmo se o registro do recorde ou o
+     crédito da estrelinha falhar. Recompensa é bônus; a vitória não pode sumir. */
   const concluir = useCallback(async (elapsedMs, errosFinais) => {
-    const day = toDayKey(new Date());
-    const r = await recordParesResult({ dificuldade: difId, elapsedMs, erros: errosFinais, day });
-    if (r.starAwarded) {
-      await addBonusStars(1);
-      await refreshProgress();
+    let r = { stats: null, isBest: false, starAwarded: false };
+    try {
+      const day = toDayKey(new Date());
+      r = await recordParesResult({ dificuldade: difId, elapsedMs, erros: errosFinais, day });
+      if (r.starAwarded) {
+        await addBonusStars(1);
+        await refreshProgress?.();
+      }
+    } catch (e) {
+      warn('ParesDoBeni.concluir:', e);
     }
-    setStats(r.stats);
+    if (r.stats) setStats(r.stats);
     setResultado({
       elapsedMs, erros: errosFinais,
       score: computeScore({ pairs: dif.pairs, erros: errosFinais, elapsedMs }),

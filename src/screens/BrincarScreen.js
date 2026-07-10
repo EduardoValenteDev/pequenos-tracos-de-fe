@@ -6,9 +6,13 @@
  * navega por ela e trocá-la quebraria a navegação. `AtelierScreen` continua existindo
  * para o fluxo contextual (`AtelierFromContext`, aberto pelo Cultinho).
  *
- * Seis atividades:
- *   ATIVAS  — Desenho guiado pelo Beni · Criar livre (reaproveitam AtelierCanvas)
- *   EM PREPARO — Pares do Beni · Palavrinhas do Beni · Bichinhos da Bíblia · Cadê a Ovelhinha?
+ * Cinco atividades (Bloco 1.3a):
+ *   ATIVAS  — Pares do Beni · Criar livre
+ *   EM PREPARO — Cadê a Ovelhinha? · Palavrinhas do Beni · Bichinhos da Bíblia
+ *
+ * "Desenho guiado pelo Beni" saiu DESTA TELA por decisão de produto. O fluxo continua
+ * vivo: `MISSIONS` (atelierData), `AtelierScreen` e a rota `AtelierCanvas` seguem
+ * intactos — só deixaram de ter card na aba.
  *
  * Os cards em preparo NÃO abrem tela: são parte do produto, com visual próprio e
  * selo honesto. Nenhum placeholder pobre, nenhum emoji — só FaithIcon.
@@ -30,21 +34,22 @@ import FaithIcon from '../components/ui/FaithIcon';
 import { BeniGuideBubble } from '../components/beni';
 import CenteredContent from '../components/layout/CenteredContent';
 import { ROUTES } from '../constants/routes';
-import { MISSIONS } from '../data/atelierData';
 import { listArts } from '../services/atelierStorage';
 import { hasAtelierUnlimitedAccess } from '../services/accessControl';
 import { getDailyRounds } from '../services/brincarDailyService';
 import { backLabelFor, isFromTab } from '../utils/originBack';
 
-function pickMission() {
-  return MISSIONS[Math.floor(Math.random() * MISSIONS.length)];
-}
-
-/** Atividades ainda em preparação. Ordem = ordem de chegada planejada. */
+/**
+ * Atividades ainda em preparação. Ordem = ordem de chegada planejada.
+ *
+ * O campo de identidade chama-se `id`, NÃO `key`: espalhar um objeto com `key` em JSX
+ * (`<Tile {...item} />`) faz o React avisar que a chave está sendo tratada como prop.
+ * A chave é passada explicitamente no `map`.
+ */
 const EM_PREPARO = [
-  { key: 'ovelha', icon: 'ovelha', title: 'Cadê a Ovelhinha?', desc: 'Procure a ovelhinha escondida.', tint: '#E6F7EE', border: '#B7E4CB', bg: '#0E9F6E20' },
-  { key: 'palavrinhas', icon: 'palavrinhas', title: 'Palavrinhas do Beni', desc: 'Monte palavras da Bíblia.', tint: '#FFF4D6', border: '#F4D08A', bg: '#F4B23C20' },
-  { key: 'bichinhos', icon: 'bichinhos', title: 'Bichinhos da Bíblia', desc: 'Descubra os animais das histórias.', tint: '#F3E8FF', border: '#D7C2F5', bg: '#7C3AED20' },
+  { id: 'ovelha', icon: 'ovelha', title: 'Cadê a Ovelhinha?', desc: 'Procure a ovelhinha escondida.', tint: '#E6F7EE', border: '#B7E4CB', bg: '#0E9F6E20' },
+  { id: 'palavrinhas', icon: 'palavrinhas', title: 'Palavrinhas do Beni', desc: 'Monte palavras da Bíblia.', tint: '#FFF4D6', border: '#F4D08A', bg: '#F4B23C20' },
+  { id: 'bichinhos', icon: 'bichinhos', title: 'Bichinhos da Bíblia', desc: 'Descubra os animais das histórias.', tint: '#F3E8FF', border: '#D7C2F5', bg: '#7C3AED20' },
 ];
 
 function AnimatedCard({ delay, children, style }) {
@@ -104,7 +109,6 @@ export default function BrincarScreen({ navigation, route }) {
   const from = route?.params?.from;
   const showBack = !isFromTab(from);
 
-  const [mission] = useState(pickMission);
   const [artCount, setArtCount] = useState(0);
   const [rounds, setRounds] = useState(null);
 
@@ -191,19 +195,6 @@ export default function BrincarScreen({ navigation, route }) {
           </View>
           <View style={styles.rowItem}>
             <ActiveTile
-              icon="desenho_guiado"
-              title="Desenho guiado pelo Beni"
-              desc="Receba uma ideia simples para desenhar hoje."
-              cta="Começar"
-              tint="#FFF4D6" border="#F4D08A" bg="#FFD70050" btnColor={pt.goldDeep}
-              onPress={() => navigation.navigate(ROUTES.ATELIER_CANVAS, { mission })}
-            />
-          </View>
-        </AnimatedCard>
-
-        <AnimatedCard delay={190} style={styles.row}>
-          <View style={styles.rowItem}>
-            <ActiveTile
               icon="criar_livre"
               title="Criar livre"
               desc="Desenhe do seu jeito, com as cores que quiser."
@@ -212,22 +203,21 @@ export default function BrincarScreen({ navigation, route }) {
               onPress={() => navigation.navigate(ROUTES.ATELIER_CANVAS, {})}
             />
           </View>
-          <View style={styles.rowItem} />
         </AnimatedCard>
 
         {/* ── EM PREPARO ── */}
-        <AnimatedCard delay={230} style={styles.sectionHead}>
+        <AnimatedCard delay={210} style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>Chegando em breve</Text>
           <Text style={styles.sectionSub}>Novas brincadeiras a caminho.</Text>
         </AnimatedCard>
 
-        <AnimatedCard delay={270} style={styles.row}>
-          <View style={styles.rowItem}><ComingTile {...EM_PREPARO[0]} /></View>
-          <View style={styles.rowItem}><ComingTile {...EM_PREPARO[1]} /></View>
-        </AnimatedCard>
-        <AnimatedCard delay={310} style={styles.row}>
-          <View style={styles.rowItem}><ComingTile {...EM_PREPARO[2]} /></View>
-          <View style={styles.rowItem} />
+        {/* `key` explícita no elemento; o resto do objeto vai por spread (sem `key` dentro). */}
+        <AnimatedCard delay={250} style={styles.grid}>
+          {EM_PREPARO.map(({ id, ...tileProps }) => (
+            <View key={id} style={styles.gridItem}>
+              <ComingTile {...tileProps} />
+            </View>
+          ))}
         </AnimatedCard>
 
         {/* ── Minhas artes ── */}
@@ -299,6 +289,14 @@ const styles = StyleSheet.create({
 
   row: { flexDirection: 'row', gap: 10, marginTop: 10, marginHorizontal: 16 },
   rowItem: { flex: 1 },
+
+  // Grade dos cards em preparo: 2 por linha, e o 3º ocupa metade da linha seguinte
+  // (não estica para a largura toda — ficaria desproporcional ao lado dos outros).
+  grid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 10,
+    marginTop: 10, marginHorizontal: 16,
+  },
+  gridItem: { flexBasis: '48%', flexGrow: 0, flexShrink: 1 },
 
   tile: {
     flex: 1, borderRadius: radii.lg, borderWidth: 1.5, padding: 12,

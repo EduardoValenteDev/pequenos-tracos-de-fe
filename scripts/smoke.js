@@ -15853,14 +15853,17 @@ check(
       && !/\p{Extended_Pictographic}/u.test(sideB),
       'sidebar do tablet ainda usa emoji ou não exibe "Brincar"');
 
-    check('1.2 (cards): as 6 atividades existem na tela',
-      ['Desenho guiado pelo Beni', 'Criar livre', 'Pares do Beni',
+    // Bloco 1.3a — MIGRADO de 6 para 5 cards: "Desenho guiado pelo Beni" saiu da UI
+    // (decisão de produto). O fluxo legado segue vivo — ver check 1.3a (legado).
+    check('1.2 (cards): as 5 atividades existem na tela',
+      ['Criar livre', 'Pares do Beni',
         'Palavrinhas do Beni', 'Bichinhos da Bíblia', 'Cadê a Ovelhinha?']
         .every((t) => brc.includes(t)),
-      'faltou uma das 6 atividades na BrincarScreen');
+      'faltou uma das 5 atividades na BrincarScreen');
 
-    check('1.2 (ativos): só Desenho guiado e Criar livre abrem tela (AtelierCanvas)',
-      (brcNoCom.match(/navigate\(ROUTES\.ATELIER_CANVAS/g) || []).length === 2
+    // Bloco 1.3a — MIGRADO de 2 para 1: só "Criar livre" abre o AtelierCanvas.
+    check('1.2 (ativos): só Criar livre abre o AtelierCanvas; a galeria segue acessível',
+      (brcNoCom.match(/navigate\(ROUTES\.ATELIER_CANVAS/g) || []).length === 1
       && /navigate\(ROUTES\.ATELIER_GALLERY\)/.test(brcNoCom),
       'os cards ativos não abrem AtelierCanvas, ou a galeria sumiu');
 
@@ -16045,7 +16048,7 @@ check(
       (() => {
         const concluir = (pdbNoCom.match(/const concluir = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
         return (pdbNoCom.match(/addBonusStars\(/g) || []).length === 1
-          && /if \(r\.starAwarded\) \{\s*await addBonusStars\(1\);\s*await refreshProgress\(\);/.test(concluir);
+          && /if \(r\.starAwarded\) \{\s*await addBonusStars\(1\);\s*await refreshProgress\?\.\(\);/.test(concluir);
       })(),
       'estrelinha creditada sem partida concluída, ou sem refreshProgress');
 
@@ -16104,6 +16107,81 @@ check(
       && /ATELIER_INDEX: 'ptf_atelier_arts_v1_index'/.test(skB13)
       && !/atelier|ATELIER|progress/i.test(a1StripComments(bsSrc)),
       'o Brincar passou a tocar chaves do Ateliê ou de progresso');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco 1.3a — Hotfix após teste no iPhone. Dois bugs reais + 1 decisão de produto.
+  //   · aviso do React: objeto com `key` espalhado em JSX
+  //   · render error: `useProgress` não existe no ProgressContext (é useProgressContext)
+  //   · "Desenho guiado pelo Beni" sai da UI da aba — o fluxo legado NÃO é apagado
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco 1.3a: hotfix Brincar + Pares ──');
+  {
+    const brcA = readSrc('src/screens/BrincarScreen.js');
+    const brcAn = a1StripComments(brcA);
+    const pdbA = a1StripComments(readSrc('src/screens/ParesDoBeniScreen.js'));
+    const ctxA = readSrc('src/context/ProgressContext.js');
+    const navA = a1StripComments(readSrc('src/navigation/AppNavigator.js'));
+
+    check('1.3a (key): nenhum objeto com campo `key` é espalhado em JSX na BrincarScreen',
+      (() => {
+        // Os itens em preparo identificam-se por `id`; a chave vai explícita no map.
+        const temKeyNoDado = /^\s*\{\s*key:\s*'/m.test(brcAn);
+        const spreads = brcAn.match(/<\w+\s+\{\.\.\.(\w+)\}/g) || [];
+        const espalhaItemCru = spreads.some((s) => /\{\.\.\.(EM_PREPARO|item)\b/.test(s));
+        return !temKeyNoDado && !espalhaItemCru
+          && /EM_PREPARO\.map\(\(\{ id, \.\.\.tileProps \}\)/.test(brcAn)
+          && /<View key=\{id\}/.test(brcAn);
+      })(),
+      'um objeto contendo `key` voltou a ser espalhado em JSX (aviso do React ao abrir Brincar)');
+
+    check('1.3a (progresso): ParesDoBeniScreen usa a API real do contexto, com guarda',
+      /export function useProgressContext/.test(ctxA)
+      && !/export function useProgress\b/.test(ctxA)          // o hook nunca existiu aqui
+      && /useProgressContext\(\)/.test(pdbA)
+      && !/\{\s*useProgress\s*\}\s*from '\.\.\/context\/ProgressContext'/.test(pdbA)
+      && /const refreshProgress = progressCtx\?\.refreshProgress/.test(pdbA),
+      'ParesDoBeniScreen importa um hook inexistente ou não protege a ausência do contexto');
+
+    check('1.3a (guarda): falha ao registrar recorde/estrelinha não derruba a vitória',
+      (() => {
+        const concluir = (pdbA.match(/const concluir = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
+        return /try \{/.test(concluir) && /catch \(e\) \{\s*warn\(/.test(concluir)
+          && /setFase\('vitoria'\);/.test(concluir);
+      })(),
+      'concluir() pode lançar e impedir a tela de vitória de aparecer');
+
+    check('1.3a (produto): "Desenho guiado pelo Beni" não é mais card da aba Brincar',
+      // Só o CÓDIGO: os comentários do arquivo explicam por que o card saiu.
+      !/Desenho guiado/.test(brcAn) && !/MISSIONS/.test(brcAn)
+      && !/icon="desenho_guiado"/.test(brcAn),
+      'o card "Desenho guiado pelo Beni" voltou para a aba Brincar');
+
+    check('1.3a (legado intacto): missões, AtelierScreen, AtelierCanvas e a rota seguem vivos',
+      /export const MISSIONS/.test(readSrc('src/data/atelierData.js'))
+      && /name="AtelierFromContext"/.test(navA)
+      && /component=\{AtelierScreen\}/.test(navA)
+      && /name="AtelierCanvas"/.test(navA)
+      && /ATELIER_CANVAS: 'AtelierCanvas'/.test(readSrc('src/constants/routes.js')),
+      'o fluxo legado do Desenho guiado foi apagado — só a UI deveria ter mudado');
+
+    check('1.3a (grade): 2 cards ativos (Pares, Criar livre) e exatamente 3 em preparo',
+      (() => {
+        const emPreparo = (brcAn.match(/\{ id: '[a-z]+', icon:/g) || []).length;
+        const ativos = (brcAn.match(/<ActiveTile\b/g) || []).length;
+        return emPreparo === 3 && ativos === 2
+          && /navigate\(ROUTES\.PARES_DO_BENI\)/.test(brcAn)
+          && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brcAn);
+      })(),
+      'a aba Brincar não está com 2 cards ativos e 3 em preparo');
+
+    check('1.3a (em preparo): os 3 cards não navegam, e nenhum emoji voltou',
+      (() => {
+        const corpo = (brcAn.match(/function ComingTile[\s\S]*?\n\}/) || [''])[0];
+        return corpo.length > 0 && !/onPress|navigate\(/.test(corpo)
+          && !/\p{Extended_Pictographic}/u.test(brcA);
+      })(),
+      'um card em preparo virou botão, ou entrou emoji na BrincarScreen');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
