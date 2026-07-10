@@ -1,24 +1,17 @@
 /**
- * CadeAOvelhinhaScreen — "Cadê a Ovelhinha?" (2.2d duplo buffer + card do alvo).
+ * CadeAOvelhinhaScreen — "Cadê a Ovelhinha?" (2.2e cobertura opaca + expo-image onDisplay).
  *
- * ── Enquadramento (2.2d) ──────────────────────────────────────────────────────
- * O background é desenhado num RETÂNGULO EXPLÍCITO (contentRect: left/top/width/height),
- * não em absoluteFill+contain. Como o retângulo já tem a proporção exata da arte, a imagem
- * o preenche por inteiro (resizeMode="stretch") — sem cover, sem zoom, sem transform, sem
- * corte. A auditoria perceptual (scripts/audit-ovelha-backgrounds.js) prova que o WebP
- * processado contém o quadro completo; o recorte anterior era da árvore de render.
+ * ── Carregamento estável (2.2e) ───────────────────────────────────────────────
+ * Saiu o duplo buffer visual frágil do 2.2d. Agora existe UMA cena real, montada com
+ * opacidade 1 por baixo de um OVERLAY OPACO (o card do alvo). A prontidão é decidida por
+ * `onDisplay` (expo-image) das TRÊS imagens reais — retrato do card, background e ovelha da
+ * cena — todas do mesmo `roundToken`; NUNCA por `onLoadEnd`. O botão "Procurar" só habilita
+ * com os três `onDisplay` e sem erro. Ao tocar, apenas o overlay some (a cena já está
+ * desenhada). Lógica pura e testável em services/ovelhaTransition (loadingReducer).
  *
- * ── Duplo buffer (2.2d) ───────────────────────────────────────────────────────
- * Duas camadas COMPLETAS (activeLayer + stagingLayer), cada uma com background + ovelha
- * REAIS montados desde o início (sem loader 1×1). A staging só é revelada quando as duas
- * imagens reais terminam `onLoadEnd` (mesmo roundId) e passam 2 requestAnimationFrame. A
- * troca é um cross-fade das duas camadas (bg e ovelha juntos); a active nunca é desmontada
- * antes da staging estar pronta. Lógica pura e testável em services/ovelhaTransition.
- *
- * ── Card do alvo (2.2d) ───────────────────────────────────────────────────────
- * Antes de cada rodada, um card "Encontre esta ovelhinha!" mostra a POSE que será
- * procurada (coleira/sino visíveis) enquanto a staging prepara; some só quando a cena nova
- * está realmente pronta. Durante a busca, o HUD mostra um retrato pequeno da mesma pose.
+ * ── Enquadramento ─────────────────────────────────────────────────────────────
+ * O background é desenhado num RETÂNGULO EXPLÍCITO (contentRect da cena ATIVA, com as
+ * dimensões reais dela) e preenchido por inteiro — sem cover, zoom ou transform.
  *
  * A rota só existe sob o gate interno; o card fica "Em teste". Ferramentas dev
  * (OVELHA_DEBUG_HITBOX / OVELHA_DEBUG_FRAME / OVELHA_CALIBRACAO) são SEMPRE false em produção.
@@ -26,8 +19,9 @@
  */
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
-  View, Text, Image, Animated, Pressable, AppState, StyleSheet, useWindowDimensions,
+  View, Text, Animated, Pressable, AppState, StyleSheet, useWindowDimensions,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,6 +32,7 @@ import SoundButton from '../components/SoundButton';
 import FaithIcon from '../components/ui/FaithIcon';
 import { BeniGuideBubble } from '../components/beni';
 import { ROUTES } from '../constants/routes';
+import { isInternalToolsEnabled } from '../config/internalTools';
 import { isPremiumUser } from '../services/accessControl';
 import { addBonusStars } from '../services/postStoryStorage';
 import { useProgressContext } from '../context/ProgressContext';
@@ -46,33 +41,23 @@ import { readStats, recordOvelhaResult } from '../services/brincarStatsService';
 import { playGameSfx, preloadGameSfx, releaseGameSfx } from '../services/audioManager';
 import { warn } from '../utils/logger';
 import { OVELHA_BENI } from '../data/ovelhaSceneData';
-import { getScene, OVELHA_SCENES } from '../data/ovelhaScenes';
+import { getScene, cenasHabilitadas } from '../data/ovelhaScenes';
+import { OVELHA_BG, OVELHA_POSE_IMG } from '../data/ovelhaAssets';
 import {
   buildRoundFromSpot, roundValido, planPartida, computeViewport, contentRect, artToPx, pxToArt,
   spriteBoxArt, visibleBoxArt, hitboxPxRect, toqueAcertou, celulaToque, erroElegivel,
-  nivelDica, estagioDica, MISS_ID, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS, OVELHA_ART_W, OVELHA_ART_H,
+  nivelDica, estagioDica, MISS_ID, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS,
 } from '../services/ovelhaGameService';
 import {
-  transitionReducer, initialTransition, stagingPronta, podeCrossfade, inputBloqueado, mostrandoAlvo, TFASE,
+  loadingReducer, initialLoading, prontoParaRevelar, temErro, botaoHabilitado, inputBloqueado,
 } from '../services/ovelhaTransition';
 import {
   FASES, criarJogo, iniciarRodada, cenaPronta, tocar, liberarErro, avancar, encerrar,
 } from '../services/ovelhaGameMachine';
 
-/** Assets REAIS: backgrounds WebP processados; ovelhas recortadas por alpha bbox. */
-const OVELHA_BG = {
-  warehouse_01: require('../../assets/games/cade_a_ovelhinha/backgrounds/processed/warehouse_01.webp'),
-  farm_01: require('../../assets/games/cade_a_ovelhinha/backgrounds/processed/farm_01.webp'),
-};
-const OVELHA_POSE_IMG = {
-  front: require('../../assets/games/cade_a_ovelhinha/sheep/processed/sheep_front.png'),
-  peekLeft: require('../../assets/games/cade_a_ovelhinha/sheep/processed/sheep_peek_left.png'),
-  peekRight: require('../../assets/games/cade_a_ovelhinha/sheep/processed/sheep_peek_right.png'),
-};
-
 /**
- * Pré-carrega os 5 assets do jogo (2 backgrounds + 3 poses) via expo-asset (sem dep nova).
- * Idempotente e resiliente. A staging só usa assets já resolvidos.
+ * Pré-carrega (aquece o cache) os assets do jogo via expo-asset. Prefetch NÃO é prova
+ * visual — o gate final é o `onDisplay`. Idempotente e resiliente.
  */
 const OVELHA_ASSET_MODULES = [...Object.values(OVELHA_BG), ...Object.values(OVELHA_POSE_IMG)];
 let ovelhaPreloadPromise = null;
@@ -84,26 +69,12 @@ function preloadOvelhaAssets() {
   return ovelhaPreloadPromise;
 }
 
-/**
- * Ferramentas internas. SEMPRE `false` em produção.
- *   OVELHA_DEBUG_HITBOX  — overlay: sprite box, hitbox, clip, ids, pose, escala.
- *   OVELHA_DEBUG_FRAME   — overlay: borda do viewport + contentRect + cantos da arte + dims.
- *   OVELHA_CALIBRACAO    — navega/ajusta esconderijos sem consumir rodada/salvar.
- */
+/** Ferramentas internas. SEMPRE `false` em produção. */
 const OVELHA_DEBUG_HITBOX = false;
 const OVELHA_DEBUG_FRAME = false;
 const OVELHA_CALIBRACAO = false;
 
-/** Tempos (ms). */
-const T = { acerto: 720, erro: 460, xfade: 260, previewMin: 1200 };
-
-/** Passos da calibração (dev). */
-const CALIB_PASSO_XY = 6;
-const CALIB_PASSO_ESC = 0.005;
-
-const clampEsc = (v) => Math.max(0.06, Math.min(0.18, v));
-const wrap = (i, n) => ((i % n) + n) % n;
-const CALIB_SPOTS = OVELHA_SCENES.flatMap((sc) => sc.hidingSpots.map((sp) => ({ sceneId: sc.id, spot: sp })));
+const T = { acerto: 720, erro: 460, coverOut: 190 };
 
 function vibrar() {
   try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* segue */ }
@@ -125,28 +96,25 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const [pausado, setPausado] = useState(false);
 
   const [vista, setVista] = useState(() => criarJogo({ rounds: OVELHA_ROUNDS }));
-  const [tstate, dispatch] = useReducer(transitionReducer, undefined, initialTransition);
+  const [lstate, ldispatch] = useReducer(loadingReducer, undefined, initialLoading);
+  const [rodada, setRodada] = useState(null);        // round object corrente (cena+spot)
+  const [retryNonce, setRetryNonce] = useState(0);   // muda o recyclingKey para recarregar
   const [nivel, setNivel] = useState(0);
   const [ripple, setRipple] = useState(null);
   const [errouAgora, setErrouAgora] = useState(false);
   const [areaVersion, setAreaVersion] = useState(0);
-  const [calibSel, setCalibSel] = useState(null);
 
   const jogoRef = useRef(vista);
   const roundIdRef = useRef(0);
   const planoRef = useRef([]);
-  const calibIdxRef = useRef(0);
   const salvoRef = useRef(false);
   const timeouts = useRef([]);
   const rafs = useRef([]);
   const montado = useRef(true);
   const areaRef = useRef({ largura: 0, altura: 0 });
-  const transSeqRef = useRef(0);
-  const xfadeRef = useRef(false);       // evita reanimar o mesmo cross-fade
-  // Cross-fade das duas camadas:
-  const opAtiva = useRef(new Animated.Value(1)).current;
-  const opStaging = useRef(new Animated.Value(0)).current;
-  // Dica — tudo por rodada (nada vaza):
+  const trocaSeqRef = useRef(0);
+  const coverAnim = useRef(new Animated.Value(1)).current;   // 1 = coberto
+  // Dica — tudo por rodada:
   const buscaMsRef = useRef(0);
   const nivelRef = useRef(0);
   const erroElegivelRef = useRef(0);
@@ -155,21 +123,32 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const rodadaSeqRef = useRef(0);
   const fn = useRef({});
 
+  const sceneAtiva = getScene(rodada?.sceneId);
   const viewport = useMemo(
     () => computeViewport({
       largura: areaRef.current.largura || Math.min(width - 20, 560),
       altura: areaRef.current.altura || 9999,
+      artW: sceneAtiva?.designWidth,
+      artH: sceneAtiva?.designHeight,
     }),
-    [width, areaVersion, tela],
+    [width, areaVersion, tela, sceneAtiva?.designWidth, sceneAtiva?.designHeight],
   );
 
-  /* ── Timers e rAF centralizados ── */
+  /* ── Timers / rAF centralizados ── */
   const agendar = useCallback((cb, ms) => {
     const id = setTimeout(() => {
       timeouts.current = timeouts.current.filter((x) => x !== id);
       if (montado.current) cb();
     }, ms);
     timeouts.current.push(id);
+    return id;
+  }, []);
+  const proximoFrame = useCallback((cb) => {
+    const id = requestAnimationFrame(() => {
+      rafs.current = rafs.current.filter((x) => x !== id);
+      if (montado.current) cb();
+    });
+    rafs.current.push(id);
     return id;
   }, []);
   const limparTimers = useCallback(() => {
@@ -217,29 +196,23 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     return r;
   }, [executar, resetarDica]);
 
-  /* ── Prepara a próxima rodada: máquina + card do alvo + staging (invisível). ── */
-  const prepararRodada = useCallback((round) => {
-    const iniciou = aplicar(iniciarRodada, { targetId: round.targetId, itemIds: [round.targetId, MISS_ID] });
-    if (!iniciou.aceito) return;
-    const seq = (transSeqRef.current += 1);
-    xfadeRef.current = false;
-    opStaging.setValue(0);                 // staging entra invisível
-    dispatch({ type: 'PREPARAR', round, seq });
-    agendar(() => dispatch({ type: 'PREVIEW_MIN', seq }), T.previewMin);
-  }, [aplicar, agendar, opStaging]);
-
-  /* ── Monta a rodada seguindo o PLANO determinístico. ── */
-  const buildRoundParaRodada = useCallback((rodada1based) => {
+  /* ── Monta a próxima rodada do PLANO e a registra (coberta). ── */
+  const montarRodada = useCallback((rodada1based) => {
     const plano = planoRef.current;
-    if (!plano.length) return null;
+    if (!plano.length) return;
     const entry = plano[(rodada1based - 1) % plano.length] || plano[0];
     const scene = getScene(entry.sceneId);
     const spot = scene.hidingSpots.find((s) => s.id === entry.spotId) || scene.hidingSpots[0];
     roundIdRef.current += 1;
-    const r = buildRoundFromSpot({ scene, spot, roundId: roundIdRef.current });
-    if (!r || !roundValido(r, 'facil')) { warn('CadeAOvelhinha: rodada inválida (contrato).'); return null; }
-    return r;
-  }, []);
+    const token = roundIdRef.current;
+    const r = buildRoundFromSpot({ scene, spot, roundId: token });
+    if (!r || !roundValido(r, 'facil')) { warn('CadeAOvelhinha: rodada inválida (contrato).'); return; }
+    const iniciou = aplicar(iniciarRodada, { targetId: r.targetId, itemIds: [r.targetId, MISS_ID] });
+    if (!iniciou.aceito) return;
+    setRodada(r);
+    setRipple(null);
+    ldispatch({ type: 'NOVA_RODADA', token, sceneId: r.sceneId, spotId: r.spot.id, pose: r.pose });
+  }, [aplicar]);
 
   /* ── Fim da partida: salva UMA vez. Nunca em CALIBRAÇÃO. ── */
   const finalizar = useCallback(async () => {
@@ -273,7 +246,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     let vivo = true;
     getDailyRounds().then((r) => vivo && setRounds(r)).catch((e) => warn('CadeAOvelhinha.rounds:', e));
     readStats().then((s) => vivo && setStats(s)).catch((e) => warn('CadeAOvelhinha.stats:', e));
-    return () => { vivo = false; montado.current = false; transSeqRef.current += 1; limparTimers(); releaseGameSfx(); };
+    return () => { vivo = false; montado.current = false; trocaSeqRef.current += 1; limparTimers(); releaseGameSfx(); };
   }, [limparTimers]);
 
   useEffect(() => {
@@ -284,7 +257,12 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   }, [navigation]);
 
   const jogando = tela === 'jogando';
-  const procurando = jogando && vista.fase === FASES.PROCURANDO && tstate.fase === TFASE.ACTIVE;
+  const procurando = jogando && vista.fase === FASES.PROCURANDO && !inputBloqueado(lstate);
+
+  /* ── Cobertura: sempre que coberto, o overlay cobre IMEDIATAMENTE (sem fade lento). ── */
+  useEffect(() => {
+    if (lstate.coverVisible) coverAnim.setValue(1);
+  }, [lstate.coverVisible, coverAnim]);
 
   /* ── Controlador de dica (por rodada; usa erro ELEGÍVEL, não o cumulativo) ── */
   useEffect(() => {
@@ -301,54 +279,18 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     return () => clearInterval(t);
   }, [procurando, pausado]);
 
-  /* ── Dispara a preparação da rodada quando a máquina entra em TROCANDO. ── */
+  /* ── Entre rodadas: máquina em TROCANDO → cobre, espera 1 frame, só então troca a cena. ── */
   useEffect(() => {
     if (!jogando || OVELHA_CALIBRACAO) return;
     if (vista.fase !== FASES.TROCANDO) return;
     if (jogoRef.current.fase !== FASES.TROCANDO) return;
-    const r = buildRoundParaRodada(vista.rodada);
-    if (r) prepararRodada(r);
-  }, [jogando, vista.fase, vista.rodada, buildRoundParaRodada, prepararRodada]);
-
-  /* ── Staging: após bg REAL + ovelha REAL carregarem, esperar 2 frames. ── */
-  useEffect(() => {
-    if (!tstate.stagingRound || !tstate.bgLoaded || !tstate.poseLoaded || tstate.framesReady) return undefined;
-    const seq = tstate.seq;
-    const r1 = requestAnimationFrame(() => {
-      const r2 = requestAnimationFrame(() => {
-        if (montado.current) dispatch({ type: 'FRAMES_PRONTOS', seq });
-      });
-      rafs.current.push(r2);
+    const seq = (trocaSeqRef.current += 1);
+    ldispatch({ type: 'COBRIR' });                    // overlay cobre a cena atual JÁ
+    proximoFrame(() => {                              // garante 1 frame com o overlay pintado
+      if (trocaSeqRef.current !== seq) return;        // token: ignora troca antiga
+      fn.current.montarRodada(vista.rodada);          // só agora troca sceneId/spot/pose/sources
     });
-    rafs.current.push(r1);
-    return undefined;
-  }, [tstate.stagingRound, tstate.bgLoaded, tstate.poseLoaded, tstate.framesReady, tstate.seq]);
-
-  /* ── Quando a staging fica pronta e o card cumpriu o tempo, inicia o cross-fade. ── */
-  useEffect(() => {
-    if (podeCrossfade(tstate)) dispatch({ type: 'CROSSFADE', seq: tstate.seq });
-  }, [tstate]);
-
-  /* ── Cross-fade: bg e ovelha entram JUNTOS; promove e libera o input ao final. ── */
-  useEffect(() => {
-    if (tstate.fase !== TFASE.CROSSFADE || xfadeRef.current) return undefined;
-    xfadeRef.current = true;
-    const seq = tstate.seq;
-    const a = Animated.parallel([
-      Animated.timing(opAtiva, { toValue: 0, duration: T.xfade, useNativeDriver: true }),
-      Animated.timing(opStaging, { toValue: 1, duration: T.xfade, useNativeDriver: true }),
-    ]);
-    a.start(({ finished }) => {
-      if (!finished || !montado.current) return;
-      opAtiva.setValue(1); opStaging.setValue(0);      // a camada promovida (mesma key) segue em 1
-      dispatch({ type: 'PROMOVER', seq });
-      fn.current.aplicar(cenaPronta);                  // ENTRANDO → PROCURANDO (libera input)
-      rodadaSeqRef.current += 1;
-      resetarDica();
-      setRipple(null);
-    });
-    return () => a.stop();
-  }, [tstate.fase, tstate.seq, opAtiva, opStaging, resetarDica]);
+  }, [jogando, vista.fase, vista.rodada, proximoFrame]);
 
   /* ── Começar. Em CALIBRAÇÃO não consome rodada nem sorteia. ── */
   const comecar = useCallback(async () => {
@@ -361,78 +303,62 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     limparTimers();
     resetarDica();
     salvoRef.current = false;
-    transSeqRef.current += 1;
-    xfadeRef.current = false;
-    opAtiva.setValue(1); opStaging.setValue(0);
-    dispatch({ type: 'RESET' });
+    trocaSeqRef.current += 1;
+    coverAnim.setValue(1);
+    ldispatch({ type: 'RESET' });
     planoRef.current = planPartida({ rounds: OVELHA_ROUNDS, rnd: Math.random });
-    calibIdxRef.current = 0;
     jogoRef.current = criarJogo({ rounds: OVELHA_ROUNDS });
     setVista(jogoRef.current);
+    setRodada(null);
     setResultado(null);
     setRipple(null);
     setPausado(AppState.currentState !== 'active');
-    if (OVELHA_CALIBRACAO) setCalibSel({ sceneId: CALIB_SPOTS[0].sceneId, spot: { ...CALIB_SPOTS[0].spot, pos: { ...CALIB_SPOTS[0].spot.pos } } });
     setTela('jogando');
     if (!OVELHA_CALIBRACAO) setRounds(await getDailyRounds());
-  }, [limparTimers, resetarDica, opAtiva, opStaging]);
-
-  /* ── CALIBRAÇÃO: monta o esconderijo selecionado sem consumir rodada nem salvar. ── */
-  useEffect(() => {
-    if (!OVELHA_CALIBRACAO || tela !== 'jogando' || !calibSel) return;
-    limparTimers();
-    transSeqRef.current += 1;
-    xfadeRef.current = false;
-    opAtiva.setValue(1); opStaging.setValue(0);
-    dispatch({ type: 'RESET' });
-    jogoRef.current = criarJogo({ rounds: OVELHA_ROUNDS });
-    setVista(jogoRef.current);
-    const scene = getScene(calibSel.sceneId);
-    roundIdRef.current += 1;
-    const r = buildRoundFromSpot({ scene, spot: calibSel.spot, roundId: roundIdRef.current });
-    if (r) prepararRodada(r);
-  }, [calibSel, tela, limparTimers, opAtiva, opStaging, prepararRodada]);
-
-  const calibNavegar = useCallback((delta) => {
-    calibIdxRef.current = wrap(calibIdxRef.current + delta, CALIB_SPOTS.length);
-    const base = CALIB_SPOTS[calibIdxRef.current];
-    setCalibSel({ sceneId: base.sceneId, spot: { ...base.spot, pos: { ...base.spot.pos } } });
-  }, []);
-  const calibNudge = useCallback((campo, delta) => {
-    setCalibSel((prev) => {
-      if (!prev) return prev;
-      const sp = { ...prev.spot, pos: { ...prev.spot.pos } };
-      if (campo === 'x') sp.pos.x = Math.max(0, Math.min(OVELHA_ART_W, sp.pos.x + delta));
-      if (campo === 'y') sp.pos.y = Math.max(0, Math.min(OVELHA_ART_H, sp.pos.y + delta));
-      if (campo === 'e') sp.escala = clampEsc(Math.round((sp.escala + delta) * 1000) / 1000);
-      return { ...prev, spot: sp };
-    });
-  }, []);
-  const calibPose = useCallback(() => {
-    setCalibSel((prev) => {
-      if (!prev) return prev;
-      const ordem = ['peekLeft', 'peekRight'];
-      const prox = ordem[(ordem.indexOf(prev.spot.pose) + 1) % ordem.length];
-      const sp = { ...prev.spot, pos: { ...prev.spot.pos }, pose: prox, modo: 'PEEK' };
-      sp.clip = { side: prox === 'peekLeft' ? 'right' : 'left', visibleFraction: 0.6 };
-      return { ...prev, spot: sp };
-    });
-  }, []);
+    fn.current.montarRodada(1);   // rodada 1 (já coberta pelo RESET)
+  }, [limparTimers, resetarDica, coverAnim]);
 
   const abandonar = useCallback(() => {
-    limparTimers(); transSeqRef.current += 1; resetarDica(); aplicar(encerrar); setTela('entrada');
+    limparTimers(); trocaSeqRef.current += 1; resetarDica(); aplicar(encerrar); setTela('entrada');
   }, [aplicar, limparTimers, resetarDica]);
 
-  /* ── Toque na CENA inteira: só com a rodada ativa e input liberado. ── */
-  const activeRound = tstate.activeRound;
-  const stagingRound = tstate.stagingRound;
-  const scene = getScene(activeRound?.sceneId);
+  /* ── onDisplay / onError de cada imagem REAL (gate de prontidão). ── */
+  const aoExibir = useCallback((alvo, token) => {
+    ldispatch({ type: 'EXIBIDA', alvo, token });
+  }, []);
+  const aoErro = useCallback((alvo, token) => {
+    ldispatch({ type: 'ERRO', alvo, token });
+  }, []);
+
+  /* ── Procurar: revela (só o overlay sai) e libera input após a saída. ── */
+  const procurar = useCallback(() => {
+    if (!botaoHabilitado(lstate)) return;
+    const token = lstate.roundToken;
+    ldispatch({ type: 'REVELAR', token });
+    Animated.timing(coverAnim, { toValue: 0, duration: T.coverOut, useNativeDriver: true }).start(({ finished }) => {
+      if (!finished || !montado.current) return;
+      fn.current.aplicar(cenaPronta);       // ENTRANDO → PROCURANDO
+      ldispatch({ type: 'LIBERAR', token });
+      rodadaSeqRef.current += 1;
+      resetarDica();
+      setRipple(null);
+    });
+  }, [lstate, coverAnim, resetarDica]);
+
+  /* ── Tentar novamente (após erro): recarrega a MESMA rodada. ── */
+  const tentarNovamente = useCallback(() => {
+    ldispatch({ type: 'RETRY', token: lstate.roundToken });
+    setRetryNonce((n) => n + 1);   // novo recyclingKey → imagens remontam e reportam onDisplay/onError
+  }, [lstate.roundToken]);
+
+  /* ── Toque na CENA: só com input liberado (não coberto/carregando/erro) e máquina procurando. ── */
+  const scene = sceneAtiva;
   const tocarCena = useCallback((e) => {
-    if (pausado || inputBloqueado(tstate) || !activeRound) return;
+    if (pausado || inputBloqueado(lstate) || !rodada) return;
     const { locationX: px, locationY: py } = e?.nativeEvent ?? {};
     if (OVELHA_CALIBRACAO) { setRipple({ key: `${Date.now()}`, x: px, y: py }); return; }
-    const acertou = toqueAcertou(px, py, activeRound.spot, scene, viewport);
-    const r = aplicar(tocar, acertou ? activeRound.targetId : MISS_ID);
+    const acertou = toqueAcertou(px, py, rodada.spot, scene, viewport);
+    const r = aplicar(tocar, acertou ? rodada.targetId : MISS_ID);
     if (r.aceito && r.acerto === false) {
       setRipple({ key: `${Date.now()}`, x: px, y: py });
       setErrouAgora(true);
@@ -447,7 +373,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
       ultimoErroIdRef.current = cel;
       aplicarNivel(buscaMsRef.current, erroElegivelRef.current);
     }
-  }, [aplicar, agendar, pausado, tstate, activeRound, scene, viewport, aplicarNivel]);
+  }, [aplicar, agendar, pausado, lstate, rodada, scene, viewport, aplicarNivel]);
 
   const medirArea = useCallback((e) => {
     const { width: w, height: h } = e?.nativeEvent?.layout ?? {};
@@ -465,7 +391,8 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
         : OVELHA_BENI.procurando;
 
   const estagio = procurando && !pausado ? estagioDica(nivel) : 0;
-  const posePreview = stagingRound?.pose || activeRound?.pose || 'front';
+  const posePreview = lstate.pose || rodada?.pose || 'front';
+  const rodadaNum = Math.min(vista.rodada, vista.rounds);
 
   /* ══════════════ ENTRADA ══════════════ */
   if (tela === 'entrada') {
@@ -505,6 +432,11 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
           ) : (
             <SoundButton style={styles.btnPrimario} onPress={comecar} activeOpacity={0.9} soundType="success">
               <Text style={styles.btnPrimarioText}>Começar a brincar</Text>
+            </SoundButton>
+          )}
+          {isInternalToolsEnabled() && (
+            <SoundButton style={styles.btnDev} onPress={() => navigation.navigate(ROUTES.OVELHA_ASSET_GALLERY)} activeOpacity={0.9}>
+              <Text style={styles.btnDevText}>Asset Gallery (dev)</Text>
             </SoundButton>
           )}
         </View>
@@ -556,6 +488,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   }
 
   /* ══════════════ JOGANDO ══════════════ */
+  const coberto = lstate.coverVisible;
   return (
     <View style={styles.root}>
       <Header insets={insets} onBack={abandonar} chip="Em teste" />
@@ -564,12 +497,8 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
           <FaithIcon name="ovelha" size={16} color={pt.textSoft} />
           <Text style={styles.hudText}>{vista.encontradas} de {vista.rounds}</Text>
         </View>
-        {/* Retrato pequeno da ovelha a procurar. */}
-        <View style={styles.hudRetrato}>
-          <View style={styles.hudRetratoImg}><Image source={OVELHA_POSE_IMG[activeRound?.pose || posePreview]} style={styles.hudSheep} resizeMode="contain" /></View>
-          <Text style={styles.hudRetratoLabel}>Procure esta</Text>
-        </View>
-        <Text style={styles.hudRodada}>Rodada {Math.min(vista.rodada, vista.rounds)}/{vista.rounds}</Text>
+        <HudRetrato pose={rodada?.pose || posePreview} />
+        <Text style={styles.hudRodada}>Rodada {rodadaNum}/{vista.rounds}</Text>
       </View>
 
       <Text style={styles.dica} numberOfLines={1}>{mensagem}</Text>
@@ -581,64 +510,58 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
           accessibilityRole="button"
           accessibilityLabel="Procure a ovelhinha na paisagem"
         >
-          {/* Camada ATIVA (o que está em jogo). */}
-          {activeRound && (
+          {/* ÚNICA cena real, opacidade 1, montada por baixo do overlay. */}
+          {rodada && (
             <SceneLayer
-              key={`L-${activeRound.roundId}`}
-              round={activeRound}
-              scene={getScene(activeRound.sceneId)}
+              round={rodada}
+              scene={scene}
               viewport={viewport}
-              opacity={opAtiva}
+              retryNonce={retryNonce}
               encontrada={vista.fase === FASES.ACERTO}
               estagio={estagio}
               ripple={ripple}
               debugHitbox={OVELHA_DEBUG_HITBOX}
-            />
-          )}
-          {/* Camada STAGING (próxima cena, montada com bg+ovelha REAIS, invisível). */}
-          {stagingRound && (
-            <SceneLayer
-              key={`L-${stagingRound.roundId}`}
-              round={stagingRound}
-              scene={getScene(stagingRound.sceneId)}
-              viewport={viewport}
-              opacity={opStaging}
-              staging
-              seq={tstate.seq}
-              onBgLoadEnd={(seq) => dispatch({ type: 'BG_CARREGADO', seq })}
-              onPoseLoadEnd={(seq) => dispatch({ type: 'POSE_CARREGADA', seq })}
+              onBgDisplay={() => aoExibir('background', rodada.roundId)}
+              onBgError={() => aoErro('background', rodada.roundId)}
+              onSheepDisplay={() => aoExibir('sceneSheep', rodada.roundId)}
+              onSheepError={() => aoErro('sceneSheep', rodada.roundId)}
             />
           )}
 
           {OVELHA_DEBUG_FRAME && <FrameDebug scene={scene} viewport={viewport} />}
 
-          {/* Card do alvo: cobre a cena enquanto a staging prepara. */}
-          {mostrandoAlvo(tstate) && (
-            <TargetCard
-              pose={posePreview}
-              rodada={Math.min(vista.rodada, vista.rounds)}
-              total={vista.rounds}
-              onProcurar={() => dispatch({ type: 'PREVIEW_MIN', seq: tstate.seq })}
-            />
+          {/* Overlay OPACO = card do alvo. Cobre a cena até estar pronta e revelada. */}
+          {coberto && (
+            <Animated.View style={[StyleSheet.absoluteFill, styles.cover, { opacity: coverAnim }]}>
+              <TargetCard
+                pose={posePreview}
+                rodada={rodadaNum}
+                total={vista.rounds}
+                roundToken={lstate.roundToken}
+                retryNonce={retryNonce}
+                pronto={botaoHabilitado(lstate)}
+                erro={temErro(lstate)}
+                onPreviewDisplay={() => aoExibir('preview', lstate.roundToken)}
+                onPreviewError={() => aoErro('preview', lstate.roundToken)}
+                onProcurar={procurar}
+                onRetry={tentarNovamente}
+              />
+            </Animated.View>
           )}
         </Pressable>
-
-        {OVELHA_CALIBRACAO && calibSel && (
-          <CalibBar sel={calibSel} onNav={calibNavegar} onPose={calibPose} onNudge={calibNudge} />
-        )}
       </View>
     </View>
   );
 }
 
-/* ══════════════════════════ SCENE LAYER (camada completa) ══════════════════════════ */
+/* ══════════════════════════ SCENE LAYER (cena única, opacidade 1) ══════════════════════════ */
 
 /**
- * Uma camada COMPLETA: background (retângulo explícito do contentRect) + ovelha REAL (com
- * clip) + dica + ripple. Montada inteira desde o início (staging carrega ambas as imagens
- * reais e reporta onLoadEnd). A opacidade da camada é controlada pela tela (cross-fade).
+ * Uma cena real (background em retângulo explícito + ovelha com clip), montada com
+ * opacidade 1. As imagens usam expo-image com recyclingKey estável e onDisplay/onError.
+ * A prontidão vem do onDisplay (não onLoadEnd).
  */
-function SceneLayer({ round, scene, viewport, opacity, encontrada, estagio, ripple, debugHitbox, staging, seq, onBgLoadEnd, onPoseLoadEnd }) {
+function SceneLayer({ round, scene, viewport, retryNonce, encontrada, estagio, ripple, debugHitbox, onBgDisplay, onBgError, onSheepDisplay, onSheepError }) {
   const spot = round.spot;
   const cr = contentRect(scene, viewport);
   const s = cr.scale;
@@ -661,39 +584,42 @@ function SceneLayer({ round, scene, viewport, opacity, encontrada, estagio, ripp
   const offX = spriteLeft - clipLeft;
   const offY = spriteTop - clipTop;
 
+  const kBg = `background:${round.roundId}:${scene.id}:${retryNonce}`;
+  const kSheep = `sheep:${round.roundId}:${scene.id}:${spot.id}:${spot.pose}:${retryNonce}`;
+
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, { opacity }]} pointerEvents="none">
-      {/* 0 — background REAL no RETÂNGULO EXPLÍCITO (contentRect). Preenche o retângulo, que
-             já tem a proporção exata da arte → imagem inteira, sem cover/zoom/transform. */}
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {/* 0 — background REAL no retângulo explícito (proporção exata da cena → sem cover/zoom). */}
       {bg
-        ? <Image
+        ? <ExpoImage
             source={bg}
             style={{ position: 'absolute', left: cr.x, top: cr.y, width: cr.w, height: cr.h }}
-            resizeMode="stretch"
-            onLoadEnd={staging ? () => onBgLoadEnd?.(seq) : undefined}
+            contentFit="fill"
+            cachePolicy="memory-disk"
+            transition={0}
+            recyclingKey={kBg}
+            onDisplay={onBgDisplay}
+            onError={onBgError}
           />
         : <View style={[styles.bgFallback, { position: 'absolute', left: cr.x, top: cr.y, width: cr.w, height: cr.h }]} />}
 
       {estagio >= 3 && <BrilhoRegiao cx={centro.px} cy={centro.py} r={Math.min(spW, spH) * 0.55} />}
 
-      {/* 2 — ovelha REAL, recortada pela janela de clip. Montada desde o início. */}
-      <Animated.View
-        style={{ position: 'absolute', left: clipLeft, top: clipTop, width: clipW, height: clipH, overflow: 'hidden', zIndex: 2 }}
-      >
-        <SheepImage img={img} offX={offX} offY={offY} spW={spW} spH={spH} flip={flip} encontrada={encontrada}
-          onLoadEnd={staging ? () => onPoseLoadEnd?.(seq) : undefined} />
-      </Animated.View>
+      {/* 2 — ovelha REAL recortada pela janela de clip. */}
+      <SheepView clipLeft={clipLeft} clipTop={clipTop} clipW={clipW} clipH={clipH}
+        offX={offX} offY={offY} spW={spW} spH={spH} img={img} flip={flip} encontrada={encontrada}
+        recyclingKey={kSheep} onDisplay={onSheepDisplay} onError={onSheepError} />
 
       {estagio >= 4 && <ContornoVisivel cx={cr.x + vb.cx * s} cy={cr.y + vb.cy * s} w={clipW} h={clipH} />}
 
       {ripple && <TouchRipple key={ripple.key} x={ripple.x} y={ripple.y} />}
 
       {debugHitbox && <HitboxDebug round={round} scene={scene} viewport={viewport} centro={centro} spW={spW} spH={spH} clipLeft={clipLeft} clipTop={clipTop} clipW={clipW} clipH={clipH} />}
-    </Animated.View>
+    </View>
   );
 }
 
-function SheepImage({ img, offX, offY, spW, spH, flip, encontrada, onLoadEnd }) {
+function SheepView({ clipLeft, clipTop, clipW, clipH, offX, offY, spW, spH, img, flip, encontrada, recyclingKey, onDisplay, onError }) {
   const pop = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (!encontrada) return undefined;
@@ -704,16 +630,24 @@ function SheepImage({ img, offX, offY, spW, spH, flip, encontrada, onLoadEnd }) 
     a.start(); return () => a.stop();
   }, [encontrada, pop]);
   return (
-    <Animated.Image
-      source={img}
-      resizeMode="contain"
-      onLoadEnd={onLoadEnd}
-      style={{ position: 'absolute', left: offX, top: offY, width: spW, height: spH, transform: [{ scaleX: flip ? -1 : 1 }, { scale: pop }] }}
-    />
+    <Animated.View
+      style={{ position: 'absolute', left: clipLeft, top: clipTop, width: clipW, height: clipH, overflow: 'hidden', zIndex: 2, transform: [{ scale: pop }] }}
+    >
+      <ExpoImage
+        source={img}
+        contentFit="contain"
+        cachePolicy="memory-disk"
+        transition={0}
+        recyclingKey={recyclingKey}
+        onDisplay={onDisplay}
+        onError={onError}
+        style={{ position: 'absolute', left: offX, top: offY, width: spW, height: spH, transform: [{ scaleX: flip ? -1 : 1 }] }}
+      />
+    </Animated.View>
   );
 }
 
-/** Brilho discreto (estágio 3) — halo suave e PEQUENO, atrás da ovelha. */
+/* ── Dica visual ── */
 function BrilhoRegiao({ cx, cy, r }) {
   const p = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -724,14 +658,11 @@ function BrilhoRegiao({ cx, cy, r }) {
     a.start(); return () => a.stop();
   }, [p]);
   return (
-    <Animated.View
-      pointerEvents="none"
+    <Animated.View pointerEvents="none"
       style={{ position: 'absolute', left: cx - r, top: cy - r, width: r * 2, height: r * 2, borderRadius: r, zIndex: 1, backgroundColor: pt.gold, opacity: p.interpolate({ inputRange: [0, 1], outputRange: [0.08, 0.22] }) }}
     />
   );
 }
-
-/** Contorno na parte visível (estágio 4) — arco fino tracejado no topo. */
 function ContornoVisivel({ cx, cy, w, h }) {
   const p = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -750,8 +681,6 @@ function ContornoVisivel({ cx, cy, w, h }) {
     </Animated.View>
   );
 }
-
-/** Ripple de erro no ponto tocado. */
 function TouchRipple({ x, y }) {
   const p = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -760,8 +689,7 @@ function TouchRipple({ x, y }) {
   }, [p]);
   const d = 54;
   return (
-    <Animated.View
-      pointerEvents="none"
+    <Animated.View pointerEvents="none"
       style={{ position: 'absolute', left: x - d / 2, top: y - d / 2, width: d, height: d, borderRadius: d / 2, borderWidth: 3, borderColor: '#E8A33D', zIndex: 5,
         opacity: p.interpolate({ inputRange: [0, 1], outputRange: [0.7, 0] }), transform: [{ scale: p.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1.3] }) }] }}
     />
@@ -770,34 +698,70 @@ function TouchRipple({ x, y }) {
 
 /* ══════════════════════════ CARD DO ALVO + HUD ══════════════════════════ */
 
-/** Card "Encontre esta ovelhinha!" — mostra a pose que será procurada, fundo neutro. */
-function TargetCard({ pose, rodada, total, onProcurar }) {
+/** Card = overlay opaco: mostra a pose a procurar; o botão só habilita quando tudo exibiu. */
+function TargetCard({ pose, rodada, total, roundToken, retryNonce, pronto, erro, onPreviewDisplay, onPreviewError, onProcurar, onRetry }) {
   const ent = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const a = Animated.spring(ent, { toValue: 1, friction: 7, tension: 60, useNativeDriver: true });
     a.start(); return () => a.stop();
   }, [ent]);
+  const kPreview = `preview:${roundToken}:${pose}:${retryNonce}`;
   return (
-    <Animated.View
-      style={[StyleSheet.absoluteFill, styles.cardOverlay, { opacity: ent }]}
-      accessibilityRole="alert"
-    >
-      <Animated.View style={[styles.cardBox, { transform: [{ scale: ent.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] }]}>
+    <View style={styles.cardWrap} accessibilityRole="alert">
+      <Animated.View style={[styles.cardBox, { opacity: ent, transform: [{ scale: ent.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] }]}>
         <Text style={styles.cardTitulo}>Encontre esta ovelhinha!</Text>
         <View style={styles.cardSheepBg}>
-          <Image source={OVELHA_POSE_IMG[pose] || OVELHA_POSE_IMG.front} style={styles.cardSheep} resizeMode="contain" />
+          <ExpoImage
+            source={OVELHA_POSE_IMG[pose] || OVELHA_POSE_IMG.front}
+            style={styles.cardSheep}
+            contentFit="contain"
+            cachePolicy="memory-disk"
+            transition={0}
+            recyclingKey={kPreview}
+            onDisplay={onPreviewDisplay}
+            onError={onPreviewError}
+          />
         </View>
         <Text style={styles.cardRodada}>Rodada {rodada} de {total}</Text>
-        <SoundButton style={styles.cardBtn} onPress={onProcurar} activeOpacity={0.9} soundType="success">
-          <Text style={styles.cardBtnText}>Procurar</Text>
-        </SoundButton>
+
+        {erro ? (
+          <>
+            <Text style={styles.cardErro}>Não conseguimos preparar a cena.</Text>
+            <SoundButton style={styles.cardBtn} onPress={onRetry} activeOpacity={0.9}>
+              <Text style={styles.cardBtnText}>Tentar novamente</Text>
+            </SoundButton>
+          </>
+        ) : pronto ? (
+          <SoundButton style={styles.cardBtn} onPress={onProcurar} activeOpacity={0.9} soundType="success">
+            <Text style={styles.cardBtnText}>Procurar</Text>
+          </SoundButton>
+        ) : (
+          <View style={[styles.cardBtn, styles.cardBtnOff]} accessibilityState={{ disabled: true }}>
+            <Text style={styles.cardBtnOffText}>Preparando a brincadeira…</Text>
+          </View>
+        )}
       </Animated.View>
-    </Animated.View>
+    </View>
   );
 }
 
-/** Overlay de diagnóstico do ENQUADRAMENTO: viewport, contentRect, cantos da arte, dims. */
-function FrameDebug({ scene, viewport, }) {
+/** Retrato pequeno da ovelha a procurar (expo-image, memory-disk); com fallback visual. */
+function HudRetrato({ pose }) {
+  const [falhou, setFalhou] = useState(false);
+  return (
+    <View style={styles.hudRetrato}>
+      <View style={styles.hudRetratoImg}>
+        {falhou
+          ? <FaithIcon name="ovelha" size={22} color={pt.greenDeep} />
+          : <ExpoImage source={OVELHA_POSE_IMG[pose] || OVELHA_POSE_IMG.front} style={styles.hudSheep} contentFit="contain" cachePolicy="memory-disk" transition={0} recyclingKey={`hud:${pose}`} onError={() => setFalhou(true)} />}
+      </View>
+      <Text style={styles.hudRetratoLabel}>Procure esta</Text>
+    </View>
+  );
+}
+
+/* ── Diagnósticos (dev) ── */
+function FrameDebug({ scene, viewport }) {
   const cr = contentRect(scene, viewport);
   const cantos = [
     artToPx({ x: 0, y: 0 }, scene, viewport),
@@ -818,8 +782,6 @@ function FrameDebug({ scene, viewport, }) {
     </View>
   );
 }
-
-/** Overlay de diagnóstico da HITBOX (dev). */
 function HitboxDebug({ round, scene, viewport, centro, spW, spH, clipLeft, clipTop, clipW, clipH }) {
   const hb = hitboxPxRect(round.spot, scene, viewport);
   return (
@@ -831,34 +793,6 @@ function HitboxDebug({ round, scene, viewport, centro, spW, spH, clipLeft, clipT
         <Text style={styles.debugTxt}>{round.sceneId} · {round.spot.id} · {round.pose} · e{round.spot.escala} · {round.modo}</Text>
       </View>
     </>
-  );
-}
-
-/* ══════════════════════════ CALIBRAÇÃO (dev) ══════════════════════════ */
-
-function CalibBar({ sel, onNav, onPose, onNudge }) {
-  const sp = sel.spot;
-  const xN = (sp.pos.x / OVELHA_ART_W).toFixed(3);
-  const yN = (sp.pos.y / OVELHA_ART_H).toFixed(3);
-  const side = sp.clip ? sp.clip.side : '—';
-  return (
-    <View style={styles.calibWrap} pointerEvents="box-none">
-      <View style={styles.calibRow}>
-        <SoundButton style={styles.calibBtn} onPress={() => onNav(-1)} accessibilityLabel="Anterior"><Text style={styles.calibTxt}>‹</Text></SoundButton>
-        <SoundButton style={styles.calibBtn} onPress={onPose} accessibilityLabel="Pose"><Text style={styles.calibMini}>{sp.pose}</Text></SoundButton>
-        <SoundButton style={styles.calibBtn} onPress={() => onNav(1)} accessibilityLabel="Próximo"><Text style={styles.calibTxt}>›</Text></SoundButton>
-      </View>
-      <View style={styles.calibRow}>
-        <SoundButton style={styles.calibBtn} onPress={() => onNudge('x', -CALIB_PASSO_XY)}><Text style={styles.calibMini}>x−</Text></SoundButton>
-        <SoundButton style={styles.calibBtn} onPress={() => onNudge('x', CALIB_PASSO_XY)}><Text style={styles.calibMini}>x+</Text></SoundButton>
-        <SoundButton style={styles.calibBtn} onPress={() => onNudge('y', -CALIB_PASSO_XY)}><Text style={styles.calibMini}>y−</Text></SoundButton>
-        <SoundButton style={styles.calibBtn} onPress={() => onNudge('y', CALIB_PASSO_XY)}><Text style={styles.calibMini}>y+</Text></SoundButton>
-        <SoundButton style={styles.calibBtn} onPress={() => onNudge('e', -CALIB_PASSO_ESC)}><Text style={styles.calibMini}>e−</Text></SoundButton>
-        <SoundButton style={styles.calibBtn} onPress={() => onNudge('e', CALIB_PASSO_ESC)}><Text style={styles.calibMini}>e+</Text></SoundButton>
-      </View>
-      <Text style={styles.calibInfo}>{sel.sceneId} · {sp.id}</Text>
-      <Text style={styles.calibInfo}>x {xN} · y {yN} · e {sp.escala.toFixed(3)} · side {side}</Text>
-    </View>
   );
 }
 
@@ -911,6 +845,8 @@ const styles = StyleSheet.create({
   btnPrimarioText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
   btnTerciario: { marginTop: 10, paddingVertical: 12, alignItems: 'center' },
   btnTerciarioText: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: pt.textSoft },
+  btnDev: { marginTop: 10, paddingVertical: 10, alignItems: 'center', borderRadius: radii.md, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#F1F5F9' },
+  btnDevText: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: '#475569' },
   convite: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, backgroundColor: pt.goldSoft, borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: pt.gold + '66' },
   conviteText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: '#7A5800', fontWeight: '700', lineHeight: 17 },
 
@@ -929,23 +865,19 @@ const styles = StyleSheet.create({
   bgFallback: { backgroundColor: '#DDEFF6' },
   debugTxt: { fontFamily: 'Nunito', fontSize: 9, color: '#C0392B', fontWeight: '800' },
 
-  // ── Card do alvo ──
-  cardOverlay: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(233,244,239,0.96)', zIndex: 10 },
+  // ── Overlay opaco = card do alvo ──
+  cover: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#E9F4EF', zIndex: 10 },
+  cardWrap: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   cardBox: { alignItems: 'center', backgroundColor: '#FFF', borderRadius: radii.xl, paddingHorizontal: 22, paddingVertical: 18, ...shadows.card, borderWidth: 1.5, borderColor: '#CDEBD9' },
   cardTitulo: { fontFamily: 'FredokaOne', fontSize: 18, color: pt.text, textAlign: 'center' },
   cardSheepBg: { width: 150, height: 150, borderRadius: 24, backgroundColor: '#F3FBF6', borderWidth: 1, borderColor: '#DDEFE4', alignItems: 'center', justifyContent: 'center', marginVertical: 12 },
   cardSheep: { width: 128, height: 128 },
   cardRodada: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.textSoft, marginBottom: 12 },
+  cardErro: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: '#B4460F', textAlign: 'center', marginBottom: 10 },
   cardBtn: { backgroundColor: pt.greenDeep, borderRadius: radii.lg, paddingHorizontal: 32, paddingVertical: 12, ...shadows.soft },
   cardBtnText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#FFF' },
-
-  // ── Calibração (dev) ──
-  calibWrap: { marginTop: 8, backgroundColor: '#FFF', borderRadius: radii.lg, paddingHorizontal: 8, paddingVertical: 8, alignItems: 'center', gap: 6, ...shadows.soft },
-  calibRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  calibBtn: { minWidth: 34, height: 34, paddingHorizontal: 8, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EAF7EF' },
-  calibTxt: { fontFamily: 'FredokaOne', fontSize: 20, color: pt.greenDeep, lineHeight: 22 },
-  calibMini: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: pt.greenDeep },
-  calibInfo: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: pt.textSoft },
+  cardBtnOff: { backgroundColor: '#DCE6E0' },
+  cardBtnOffText: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: '#6B837A' },
 
   vitoriaCard: { marginTop: 12, backgroundColor: '#FFF', borderRadius: radii.xl, paddingVertical: 18, paddingHorizontal: 14, alignItems: 'center', ...shadows.card },
   vitoriaIconBg: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#DFF3E6', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },

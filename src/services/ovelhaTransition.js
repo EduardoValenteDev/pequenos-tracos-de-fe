@@ -1,107 +1,133 @@
 /**
- * ovelhaTransition.js — Reducer PURO da transição em DUPLO BUFFER de "Cadê a Ovelhinha?".
+ * ovelhaTransition.js — Reducer PURO do CARREGAMENTO/COBERTURA de "Cadê a Ovelhinha?" (2.2e).
  *
- * Separa a LÓGICA de staging/promoção da renderização (testável sem React). A tela mantém
- * duas camadas completas (activeLayer + stagingLayer); este reducer decide QUANDO a staging
- * está pronta e QUANDO promover, garantindo que:
- *   • a activeLayer nunca é desmontada antes da staging estar pronta;
- *   • a ovelha e o background novos entram JUNTOS (mesma opacidade de camada);
- *   • a próxima ovelha nunca aparece sobre o background anterior;
- *   • callbacks de load/frames de uma rodada antiga (seq diferente) são ignorados.
+ * Substitui o duplo buffer visual frágil do 2.2d. Agora existe UMA única cena real, montada
+ * com opacidade 1 por baixo de um OVERLAY OPACO (o card do alvo). A cena só é revelada quando
+ * as TRÊS imagens reais reportaram `onDisplay` (não onLoadEnd): o retrato do card, o background
+ * da cena e a ovelha da cena — todas do MESMO `roundToken`.
  *
- * Sem React, sem relógio, sem I/O. `seq` é o carimbo da transição atual.
+ * O botão "Procurar" só habilita com os três `*Displayed`, nenhum `*Error` e o token corrente.
+ * Callbacks de rodada antiga (token diferente) são ignorados. Estado imutável — toda mudança
+ * vem por dispatch (nada de prontidão escondida em ref). Sem React, sem relógio, sem I/O.
  */
 
-export const TFASE = Object.freeze({
-  IDLE: 'idle',           // nada em jogo
-  PREVIEW: 'preview',     // card do alvo visível; staging carregando (invisível)
-  CROSSFADE: 'crossfade', // active some, staging aparece (juntos)
-  ACTIVE: 'active',       // procurando (input liberado)
-});
+/** Alvos de imagem monitorados. */
+export const ALVOS = Object.freeze(['preview', 'background', 'sceneSheep']);
 
-export function initialTransition() {
+const CAMPO_DISPLAY = { preview: 'previewDisplayed', background: 'backgroundDisplayed', sceneSheep: 'sceneSheepDisplayed' };
+const CAMPO_ERRO = { preview: 'previewError', background: 'backgroundError', sceneSheep: 'sceneSheepError' };
+
+export function initialLoading() {
   return {
-    fase: TFASE.IDLE,
-    seq: 0,
-    activeRound: null,
-    stagingRound: null,
-    bgLoaded: false,
-    poseLoaded: false,
-    framesReady: false,
-    previewMinElapsed: false,
-    inputLiberado: false,
+    roundToken: 0,
+    sceneId: null,
+    spotId: null,
+    pose: null,
+    previewDisplayed: false,
+    backgroundDisplayed: false,
+    sceneSheepDisplayed: false,
+    previewError: false,
+    backgroundError: false,
+    sceneSheepError: false,
+    coverVisible: true,     // abre sempre coberto
+    inputEnabled: false,
   };
 }
 
-/** A staging está realmente pronta (bg REAL + ovelha REAL + 2 frames), para esta seq? */
-export function stagingPronta(s) {
-  return !!s && !!s.stagingRound && s.bgLoaded && s.poseLoaded && s.framesReady;
+export function todosExibidos(s) {
+  return !!s && s.previewDisplayed && s.backgroundDisplayed && s.sceneSheepDisplayed;
 }
-
-/** Pode iniciar o cross-fade? (staging pronta E tempo mínimo do card cumprido). */
-export function podeCrossfade(s) {
-  return !!s && s.fase === TFASE.PREVIEW && stagingPronta(s) && s.previewMinElapsed;
+export function temErro(s) {
+  return !!s && (s.previewError || s.backgroundError || s.sceneSheepError);
 }
-
-/** O input está bloqueado? (só liberado quando ACTIVE e a promoção ocorreu). */
+/** Cena pronta para revelar: as 3 imagens exibidas e nenhum erro. NÃO depende de toque. */
+export function prontoParaRevelar(s) {
+  return todosExibidos(s) && !temErro(s);
+}
+/** O botão "Procurar" pode ficar habilitado? (coberto, pronto, sem erro). */
+export function botaoHabilitado(s) {
+  return !!s && s.coverVisible && prontoParaRevelar(s);
+}
+/** O input do jogo (toque na cena) está bloqueado? */
 export function inputBloqueado(s) {
-  return !s || s.fase !== TFASE.ACTIVE || !s.inputLiberado;
+  return !s || !s.inputEnabled;
 }
 
-/** O card do alvo está visível? */
-export function mostrandoAlvo(s) {
-  return !!s && s.fase === TFASE.PREVIEW;
-}
-
-export function transitionReducer(state, action) {
-  const s = state || initialTransition();
-  switch (action && action.type) {
-    // Começa a preparar uma rodada: card do alvo + staging (invisível). NÃO mexe na active.
-    case 'PREPARAR':
-      return {
-        ...s,
-        fase: TFASE.PREVIEW,
-        seq: action.seq,
-        stagingRound: action.round,
-        bgLoaded: false,
-        poseLoaded: false,
-        framesReady: false,
-        previewMinElapsed: false,
-        inputLiberado: false,
-      };
-    case 'BG_CARREGADO':
-      if (action.seq !== s.seq) return s;               // callback antigo: ignora
-      return { ...s, bgLoaded: true };
-    case 'POSE_CARREGADA':
-      if (action.seq !== s.seq) return s;
-      return { ...s, poseLoaded: true };
-    case 'FRAMES_PRONTOS':
-      if (action.seq !== s.seq) return s;
-      return { ...s, framesReady: true };
-    case 'PREVIEW_MIN':
-      if (action.seq !== s.seq) return s;
-      return { ...s, previewMinElapsed: true };
-    // Inicia o cross-fade — só se a staging estiver pronta e o tempo mínimo cumprido.
-    case 'CROSSFADE':
-      if (action.seq !== s.seq || !podeCrossfade(s)) return s;
-      return { ...s, fase: TFASE.CROSSFADE };
-    // Promove staging → active (juntas). Só a partir do cross-fade, mesma seq.
-    case 'PROMOVER':
-      if (action.seq !== s.seq || s.fase !== TFASE.CROSSFADE) return s;
-      return {
-        ...s,
-        fase: TFASE.ACTIVE,
-        activeRound: s.stagingRound,
-        stagingRound: null,
-        inputLiberado: true,
-      };
+export function loadingReducer(state, action) {
+  const s = state || initialLoading();
+  const a = action || {};
+  switch (a.type) {
     case 'RESET':
-      return initialTransition();
+      return initialLoading();
+
+    // Cobre a cena IMEDIATAMENTE (sem trocar a rodada ainda). Bloqueia input.
+    case 'COBRIR':
+      return { ...s, coverVisible: true, inputEnabled: false };
+
+    // Nova rodada: descritor + reset de prontidão/erros; permanece coberto e bloqueado.
+    case 'NOVA_RODADA':
+      return {
+        ...s,
+        roundToken: a.token,
+        sceneId: a.sceneId,
+        spotId: a.spotId,
+        pose: a.pose,
+        previewDisplayed: false,
+        backgroundDisplayed: false,
+        sceneSheepDisplayed: false,
+        previewError: false,
+        backgroundError: false,
+        sceneSheepError: false,
+        coverVisible: true,
+        inputEnabled: false,
+      };
+
+    // Uma imagem REAL foi exibida (onDisplay). Ignora token antigo.
+    case 'EXIBIDA': {
+      if (a.token !== s.roundToken) return s;
+      const campo = CAMPO_DISPLAY[a.alvo];
+      if (!campo || s[campo]) return s;
+      return { ...s, [campo]: true };
+    }
+
+    // Uma imagem falhou (onError). Mantém coberto e bloqueado.
+    case 'ERRO': {
+      if (a.token !== s.roundToken) return s;
+      const campo = CAMPO_ERRO[a.alvo];
+      if (!campo) return s;
+      return { ...s, [campo]: true, coverVisible: true, inputEnabled: false };
+    }
+
+    // Tentar novamente a MESMA rodada: limpa prontidão/erros, segue coberto.
+    case 'RETRY':
+      if (a.token !== s.roundToken) return s;
+      return {
+        ...s,
+        previewDisplayed: false,
+        backgroundDisplayed: false,
+        sceneSheepDisplayed: false,
+        previewError: false,
+        backgroundError: false,
+        sceneSheepError: false,
+        coverVisible: true,
+        inputEnabled: false,
+      };
+
+    // Revelar: só se pronto. Tira o overlay (o input é liberado depois da saída — LIBERAR).
+    case 'REVELAR':
+      if (a.token !== s.roundToken || !prontoParaRevelar(s)) return s;
+      return { ...s, coverVisible: false };
+
+    // Libera o input (após a saída do overlay).
+    case 'LIBERAR':
+      if (a.token !== s.roundToken) return s;
+      return { ...s, inputEnabled: true };
+
     default:
       return s;
   }
 }
 
 export default {
-  TFASE, initialTransition, stagingPronta, podeCrossfade, inputBloqueado, mostrandoAlvo, transitionReducer,
+  ALVOS, initialLoading, todosExibidos, temErro, prontoParaRevelar, botaoHabilitado, inputBloqueado, loadingReducer,
 };

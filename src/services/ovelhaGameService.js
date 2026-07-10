@@ -20,12 +20,12 @@
  *   peekRight → olha à direita,  corpo escondido à ESQUERDA → clip.side = 'left'
  *   front     → só atrás de objeto baixo/entre mercadorias → sem clip ou clip.side='bottom'
  */
-import { getScene, OVELHA_SCENES, OVELHA_POSES, OVELHA_ORIENTACOES, OVELHA_MODOS } from '../data/ovelhaScenes';
+import { getScene, OVELHA_SCENES, OVELHA_POSES, OVELHA_ORIENTACOES, OVELHA_MODOS, cenasHabilitadas } from '../data/ovelhaScenes';
 
 export const OVELHA_HITBOX_MIN = 56;
 export const OVELHA_ROUNDS = 5;
 
-/** Dimensões REAIS dos backgrounds integrados (px de arte). Base do enquadramento. */
+/** Dimensões PADRÃO de arte (fallback). Cada cena carrega as suas em designWidth/Height. */
 export const OVELHA_ART_W = 1122;
 export const OVELHA_ART_H = 1402;
 
@@ -47,7 +47,7 @@ export function spriteAspect(pose) {
 }
 
 export const OVELHA_DIFFICULTIES = Object.freeze([
-  { id: 'facil', label: 'Fácil', premium: false, minEsconderijos: 2 },
+  { id: 'facil', label: 'Fácil', premium: false, minEsconderijos: 3 },
 ]);
 
 export function getDifficulty(id) {
@@ -324,10 +324,11 @@ export function spotContratoValido(spot, scene, dificuldade = 'facil') {
 }
 
 export function sceneValida(scene, dificuldade = 'facil') {
+  if (!scene || scene.enabled === false) return false;   // cena desabilitada nunca é jogável
   const dif = getDifficulty(dificuldade);
-  const spots = (scene?.hidingSpots || []).filter((s) => spotDificuldadeOk(s, dificuldade));
-  if (spots.length < (dif.minEsconderijos || 4)) return false;
-  return !!scene?.background && spots.every((s) => spotContratoValido(s, scene, dificuldade));
+  const spots = (scene.hidingSpots || []).filter((s) => spotDificuldadeOk(s, dificuldade));
+  if (spots.length < (dif.minEsconderijos || 3)) return false;
+  return !!scene.background && spots.every((s) => spotContratoValido(s, scene, dificuldade));
 }
 
 /* ─────────────────────────── Composição da rodada ─────────────────────────── */
@@ -351,7 +352,7 @@ export function buildRoundFromSpot({ scene, spot, roundId = 0 }) {
 }
 
 /** Sorteia UMA rodada (uma cena, um esconderijo), evitando repetir cena/esconderijo. */
-export function buildRound({ dificuldade = 'facil', rnd = Math.random, sceneAnterior = null, spotAnterior = null, roundId = 0, scenes = OVELHA_SCENES }) {
+export function buildRound({ dificuldade = 'facil', rnd = Math.random, sceneAnterior = null, spotAnterior = null, roundId = 0, scenes = cenasHabilitadas() }) {
   const validas = scenes.filter((sc) => sceneValida(sc, dificuldade));
   if (!validas.length) return null;
   const semCena = validas.filter((sc) => sc.id !== sceneAnterior);
@@ -368,25 +369,37 @@ export function buildRound({ dificuldade = 'facil', rnd = Math.random, sceneAnte
 }
 
 /**
- * Plano DETERMINÍSTICO da partida (5 rodadas): alterna as cenas quando possível, não
- * repete esconderijo, garante ≥2 poses distintas e nunca só `front`. PURO.
+ * Plano DETERMINÍSTICO da partida (5 rodadas). Usa SÓ cenas habilitadas (nunca underwater),
+ * garante ≥3 AMBIENTES distintos (quando houver ≥3), não repete cena/esconderijo
+ * imediatamente, garante ≥2 poses distintas e nunca só `front`. PURO.
  * @returns Array<{ sceneId, spotId, pose }>
  */
-export function planPartida({ rounds = 5, rnd = Math.random, dificuldade = 'facil', scenes = OVELHA_SCENES }) {
+export function planPartida({ rounds = 5, rnd = Math.random, dificuldade = 'facil', scenes = cenasHabilitadas() }) {
   const validas = scenes.filter((sc) => sceneValida(sc, dificuldade));
   const todos = validas.flatMap((sc) => sc.hidingSpots
     .filter((s) => spotDificuldadeOk(s, dificuldade))
     .map((s) => ({ sceneId: sc.id, spotId: s.id, pose: s.pose })));
   if (!todos.length) return [];
 
+  const nCenas = validas.length;
+  const alvoDistintas = Math.min(3, nCenas);
+  const usadas = new Set();
   const plano = [];
   let prevScene = null, prevSpot = null;
   for (let i = 0; i < rounds; i++) {
-    let cand = todos.filter((x) => x.sceneId !== prevScene && x.spotId !== prevSpot);
-    if (!cand.length) cand = todos.filter((x) => x.spotId !== prevSpot);
-    if (!cand.length) cand = todos;
+    // base: não repete cena nem esconderijo imediatamente (quando há alternativa).
+    let base = todos.filter((x) => x.sceneId !== prevScene && x.spotId !== prevSpot);
+    if (!base.length) base = todos.filter((x) => x.spotId !== prevSpot);
+    if (!base.length) base = todos;
+    // enquanto faltam ambientes distintos, prefere uma cena ainda não usada.
+    let cand = base;
+    if (usadas.size < alvoDistintas) {
+      const novas = base.filter((x) => !usadas.has(x.sceneId));
+      if (novas.length) cand = novas;
+    }
     const pick = shuffle(cand, rnd)[0];
     plano.push(pick);
+    usadas.add(pick.sceneId);
     prevScene = pick.sceneId; prevSpot = pick.spotId;
   }
 
@@ -402,6 +415,26 @@ export function planPartida({ rounds = 5, rnd = Math.random, dificuldade = 'faci
       if (plano[idx].spotId !== plano[Math.max(0, idx - 1)].spotId) plano[idx] = alt;
       else plano[Math.min(plano.length - 1, idx + 1)] = alt;
     }
+  }
+
+  // Reparo de DIVERSIDADE: se faltarem ambientes distintos, troca uma rodada por um spot
+  // de uma cena ainda não usada, sem repetir a cena/esconderijo das rodadas vizinhas.
+  const distintas = () => new Set(plano.map((p) => p.sceneId)).size;
+  let guarda = 0;
+  while (distintas() < alvoDistintas && guarda++ < todos.length) {
+    const usadasAgora = new Set(plano.map((p) => p.sceneId));
+    const nova = shuffle(todos.filter((x) => !usadasAgora.has(x.sceneId)), rnd)[0];
+    if (!nova) break;
+    // procura uma rodada cuja cena se repete e cujos vizinhos não colidam com a nova.
+    let trocou = false;
+    for (let i = 0; i < plano.length; i++) {
+      const cenaRep = plano.filter((p) => p.sceneId === plano[i].sceneId).length > 1;
+      const antes = plano[i - 1], depois = plano[i + 1];
+      const okVizinhos = (!antes || (antes.sceneId !== nova.sceneId && antes.spotId !== nova.spotId))
+        && (!depois || (depois.sceneId !== nova.sceneId && depois.spotId !== nova.spotId));
+      if (cenaRep && okVizinhos) { plano[i] = nova; trocou = true; break; }
+    }
+    if (!trocou) break;
   }
   return plano;
 }

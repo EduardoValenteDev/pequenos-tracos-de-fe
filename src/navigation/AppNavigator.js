@@ -27,6 +27,7 @@ import AtelierScreen from '../screens/AtelierScreen';
 import BrincarScreen from '../screens/BrincarScreen';
 import ParesDoBeniScreen from '../screens/ParesDoBeniScreen';
 import CadeAOvelhinhaScreen from '../screens/CadeAOvelhinhaScreen';
+import OvelhaAssetGalleryScreen from '../screens/OvelhaAssetGalleryScreen';
 import AtelierCanvasScreen from '../screens/AtelierCanvasScreen';
 import AtelierGalleryScreen from '../screens/AtelierGalleryScreen';
 import PostStoryHubScreen from '../screens/PostStoryHubScreen';
@@ -384,6 +385,15 @@ export default function AppNavigator() {
           <Stack.Screen
             name="CadeAOvelhinha"
             component={CadeAOvelhinhaScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+        {/* Bloco 2.2e — Asset Gallery interna (diagnóstico de carregamento por onDisplay).
+            SÓ sob o gate interno; nunca em produção. */}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="OvelhaAssetGallery"
+            component={OvelhaAssetGalleryScreen}
             options={{ headerShown: false }}
           />
         )}

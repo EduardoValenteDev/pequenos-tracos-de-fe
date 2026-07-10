@@ -51,6 +51,7 @@ export const ROUTES = Object.freeze({
   COLORING_QA: 'ColoringQa',
   PACK_SANDBOX_DEV: 'PackSandboxDev',
   SCENE_VALIDATION: 'SceneValidation',
+  OVELHA_ASSET_GALLERY: 'OvelhaAssetGallery',
 });
 
 export default ROUTES;
