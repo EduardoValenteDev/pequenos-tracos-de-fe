@@ -57,7 +57,7 @@ import {
   GAME_MODES, getMode, DEFAULT_MODE, getTurboDuration,
   addTurboTime, comboMultiplier, segundosRestantes,
   computeCardSize, CARD_RATIO,
-  TURBO_ALERTA_MS, TURBO_TICK_MS, PARES_SOUND_EVENTS,
+  TURBO_ALERTA_MS, TURBO_TICK_MS, TURBO_AVISO_MS, PARES_SOUND_EVENTS,
 } from '../services/paresGameService';
 import {
   FASES, EFEITOS, criarJogo, tocar, flipConcluido, verificar,
@@ -299,13 +299,15 @@ export default function ParesDoBeniScreen({ navigation }) {
   const decorridoRef = useRef(0);
   const restanteRef = useRef(duracaoMs);
   const ultimoSegundoRef = useRef(null);   // 1 tique por segundo, no máximo
-  const tempoAcabouRef = useRef(false);    // alarme e painel: uma vez só
+  const tempoAcabouRef = useRef(false);    // alarme e aviso: uma vez só
   const salvoRef = useRef(false);          // partida salva: uma vez só
+  const transicaoResultadoRef = useRef(null);  // aviso → resultado: agendado uma vez só
   const timeouts = useRef([]);
   const montado = useRef(true);
 
-  const pulso = useRef(new Animated.Value(0)).current;   // borda/relógio nos últimos 10 s
+  const pulso = useRef(new Animated.Value(0)).current;   // moldura/relógio nos últimos 10 s
   const tique = useRef(new Animated.Value(1)).current;   // número cresce a cada segundo
+  const aviso3s = useRef(new Animated.Value(0)).current; // entrada do "Tempo encerrado!"
 
   /* ── Timers: TODOS passam por aqui, para serem limpos no unmount ── */
   const agendar = useCallback((fn, ms) => {
@@ -320,6 +322,9 @@ export default function ParesDoBeniScreen({ navigation }) {
   const limparTimers = useCallback(() => {
     timeouts.current.forEach(clearTimeout);
     timeouts.current = [];
+    // A transição do aviso vive num desses timeouts: matá-la aqui evita que uma
+    // partida antiga abra o resultado por cima de uma partida nova.
+    transicaoResultadoRef.current = null;
   }, []);
 
   const mostrarAviso = useCallback((texto) => {
@@ -449,9 +454,10 @@ export default function ParesDoBeniScreen({ navigation }) {
   const emAlerta = jogando && modo.timed && !pausado && restanteMs > 0 && restanteMs <= TURBO_ALERTA_MS;
   useEffect(() => {
     if (!emAlerta) { pulso.stopAnimation(); pulso.setValue(0); return undefined; }
+    // Ciclo de 820 ms (410 ida + 410 volta): respira, não pisca.
     const anim = Animated.loop(Animated.sequence([
-      Animated.timing(pulso, { toValue: 1, duration: 480, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      Animated.timing(pulso, { toValue: 0, duration: 480, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(pulso, { toValue: 1, duration: 410, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(pulso, { toValue: 0, duration: 410, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
     ]));
     anim.start();
     return () => anim.stop();
@@ -505,7 +511,14 @@ export default function ParesDoBeniScreen({ navigation }) {
     setTela('resultado');
   }, [limparTimers, salvarPartida]);
 
-  /** Turbo: zero no relógio. Alarme + painel "Tempo encerrado" — uma vez só. */
+  /**
+   * Turbo: zero no relógio. Roda UMA vez (`tempoAcabouRef`) e faz, em ordem:
+   * trava a máquina · cancela timers pendentes · cala o tique · para o pulso ·
+   * alarme · salva a partida · mostra o aviso · agenda a abertura do resultado.
+   *
+   * O resultado abre sozinho depois de TURBO_AVISO_MS. `transicaoResultadoRef` impede
+   * agendamento duplicado; `agendar()` garante que o timeout morre no unmount.
+   */
   const tempoEsgotou = useCallback(() => {
     if (tempoAcabouRef.current) return;
     tempoAcabouRef.current = true;
@@ -518,9 +531,21 @@ export default function ParesDoBeniScreen({ navigation }) {
 
     restanteRef.current = 0;
     setRestanteMs(0);
-    salvarPartida();              // salvo AQUI, não ao abrir os detalhes
+    salvarPartida();              // salvo AQUI, uma vez só (salvoRef)
     setTela('tempoEsgotado');
-  }, [aplicar, limparTimers, salvarPartida]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Entrada discreta do aviso, e transição automática.
+    aviso3s.setValue(0);
+    Animated.timing(aviso3s, { toValue: 1, duration: 260, useNativeDriver: true }).start();
+
+    if (transicaoResultadoRef.current == null) {
+      transicaoResultadoRef.current = agendar(() => {
+        transicaoResultadoRef.current = null;
+        playGameSfx(PARES_SOUND_EVENTS.TURBO_JINGLE);   // uma vez, na transição
+        setTela('resultado');
+      }, TURBO_AVISO_MS);
+    }
+  }, [aplicar, limparTimers, salvarPartida, agendar]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Começar: SÓ AQUI a rodada é consumida ── */
   const comecar = useCallback(async () => {
@@ -735,27 +760,26 @@ export default function ParesDoBeniScreen({ navigation }) {
 
   /* ══════════════ TEMPO ENCERRADO (só Turbo) ══════════════ */
   if (tela === 'tempoEsgotado') {
+    // Transição curta e centralizada. Sem cabeçalho, sem chip, sem botão: a criança
+    // não precisa fazer nada — o resultado abre sozinho (ver `tempoEsgotou`).
     return (
-      <View style={styles.root}>
-        <Header insets={insets} onBack={() => setTela('entrada')} chip="Turbo" corChip={pt.beniDeep} compacto />
-        {/* Transição curta: o card encosta no topo, sem vazio acima. */}
-        <View style={styles.tempoWrap}>
-          <View style={styles.tempoCard}>
-            <View style={styles.tempoIconBg}>
-              <FaithIcon name="timer" size={30} color={pt.beniDeep} />
-            </View>
-            <Text style={styles.tempoTitulo}>Tempo encerrado!</Text>
-            <Text style={styles.tempoSub}>{BENI.tempoFim}</Text>
-            <SoundButton
-              style={styles.btnPrimarioCheio}
-              onPress={() => { playGameSfx(PARES_SOUND_EVENTS.TURBO_JINGLE); setTela('resultado'); }}
-              activeOpacity={0.9}
-              soundType="success"
-            >
-              <Text style={styles.btnPrimarioText}>Ver meu resultado</Text>
-            </SoundButton>
+      <View style={[styles.root, styles.avisoRoot]}>
+        <Animated.View
+          style={[
+            styles.tempoCard,
+            {
+              opacity: aviso3s,
+              transform: [{ scale: aviso3s.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }],
+            },
+          ]}
+          accessibilityLiveRegion="polite"
+        >
+          <View style={styles.tempoIconBg}>
+            <FaithIcon name="timer" size={32} color={pt.beniDeep} />
           </View>
-        </View>
+          <Text style={styles.tempoTitulo}>Tempo encerrado!</Text>
+          <Text style={styles.tempoSub}>{BENI.tempoFim}</Text>
+        </Animated.View>
       </View>
     );
   }
@@ -957,20 +981,45 @@ export default function ParesDoBeniScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Moldura de alerta: envolve a TELA inteira, por cima de tudo, sem tocar em nada. */}
-      {critico && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.bordaAlerta,
-            {
-              top: insets.top, bottom: insets.bottom,
-              left: insets.left, right: insets.right,
-              opacity: pulso.interpolate({ inputRange: [0, 1], outputRange: [0.22, 0.9] }),
-            },
-          ]}
-        />
-      )}
+      {/* Moldura de alerta: encosta nos limites da JANELA, por cima de tudo, sem tocar em nada. */}
+      {critico && <MolduraAlerta pulso={pulso} largura={width} />}
+    </View>
+  );
+}
+
+/**
+ * Moldura de urgência dos últimos 10 s (Bloco 1.4d).
+ *
+ * Quatro faixas absolutas em `top/bottom/left/right: 0` — nos limites da JANELA, não da
+ * safe area. É decoração: pode passar por baixo do notch e da barra inferior. Sem raio
+ * (raio faria parecer um card), sem deslocar layout, sem roubar toque.
+ *
+ * Fica na raiz da tela, DEPOIS do tabuleiro. Não pode viver dentro de `areaJogo`, que
+ * recorta, nem dentro da grade.
+ */
+function MolduraAlerta({ pulso, largura }) {
+  // Celular ~7px; tablet cresce um pouco, com teto — nunca uma tarja grossa.
+  const esp = Math.round(Math.min(10, Math.max(6, largura * 0.018)));
+  const opacidade = pulso.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] });
+
+  const faixa = (posicao) => (
+    <Animated.View
+      key={posicao}
+      pointerEvents="none"
+      style={[
+        styles.faixaAlerta,
+        posicao === 'topo' && { top: 0, left: 0, right: 0, height: esp },
+        posicao === 'base' && { bottom: 0, left: 0, right: 0, height: esp },
+        posicao === 'esq' && { top: 0, bottom: 0, left: 0, width: esp },
+        posicao === 'dir' && { top: 0, bottom: 0, right: 0, width: esp },
+        { opacity: opacidade },
+      ]}
+    />
+  );
+
+  return (
+    <View pointerEvents="none" style={styles.moldura}>
+      {['topo', 'base', 'esq', 'dir'].map(faixa)}
     </View>
   );
 }
@@ -1133,10 +1182,6 @@ const styles = StyleSheet.create({
     marginTop: 16, marginHorizontal: 16, backgroundColor: pt.purple,
     borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center', ...shadows.card,
   },
-  btnPrimarioCheio: {
-    marginTop: 18, alignSelf: 'stretch', backgroundColor: pt.purple,
-    borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center', ...shadows.card,
-  },
   btnPrimarioText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
   btnSecundario: {
     flexDirection: 'row', gap: 8, justifyContent: 'center',
@@ -1156,18 +1201,18 @@ const styles = StyleSheet.create({
   },
   conviteText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: '#7A5800', fontWeight: '700', lineHeight: 17 },
 
-  // ── Tempo encerrado: transição curta, encostada no topo (sem vazio acima) ──
-  tempoWrap: { paddingHorizontal: 16, paddingTop: 18 },
+  // ── Tempo encerrado: transição curta, centralizada, sem interação ──
+  avisoRoot: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   tempoCard: {
-    backgroundColor: '#FFF', borderRadius: radii.xl, padding: 20,
-    alignItems: 'center', ...shadows.card,
+    alignSelf: 'stretch', backgroundColor: '#FFF', borderRadius: radii.xl,
+    paddingVertical: 26, paddingHorizontal: 20, alignItems: 'center', ...shadows.card,
   },
   tempoIconBg: {
-    width: 58, height: 58, borderRadius: 29, backgroundColor: pt.beniSoft,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+    width: 62, height: 62, borderRadius: 31, backgroundColor: pt.beniSoft,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
   },
-  tempoTitulo: { fontFamily: 'FredokaOne', fontSize: 22, color: pt.text, textAlign: 'center' },
-  tempoSub: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center', marginTop: 6, lineHeight: 19 },
+  tempoTitulo: { fontFamily: 'FredokaOne', fontSize: 23, color: pt.text, textAlign: 'center' },
+  tempoSub: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center', marginTop: 8, lineHeight: 19 },
 
   // ── HUD: três itens, baixo ──
   hud: {
@@ -1190,10 +1235,18 @@ const styles = StyleSheet.create({
 
   areaJogo: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  // Moldura da TELA: ancorada na raiz, por cima de tudo, dentro da safe area.
-  bordaAlerta: {
+  // Moldura da JANELA: ancorada na raiz, por cima de tudo. Sem insets, sem raio:
+  // é decoração e pode passar pela safe area.
+  moldura: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
+  faixaAlerta: {
     position: 'absolute',
-    borderWidth: 5, borderColor: ALERTA, borderRadius: 26,
+    backgroundColor: ALERTA,
+    // Brilho suave voltado para dentro da tela (iOS) / elevação (Android).
+    shadowColor: ALERTA,
+    shadowOpacity: 0.85,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
 
   grade: {

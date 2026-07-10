@@ -202,6 +202,16 @@ export function preloadGameSfx(nomes = Object.keys(GAME_SFX)) {
  * Toca um efeito do jogo. Respeita `soundsEnabled` (mesma preferência global dos
  * botões) e ignora repetições coladas do mesmo efeito.
  */
+/**
+ * Toca um efeito do jogo. Respeita `soundsEnabled` (mesma preferência global dos
+ * botões) e ignora repetições coladas do mesmo efeito.
+ *
+ * ⚠️ `seekTo()` do expo-audio é ASSÍNCRONO (devolve Promise). O código anterior fazia
+ * `p.seekTo(0); p.play();` — e o `play()` rodava ANTES do seek resolver. Na primeira
+ * execução o player já estava na posição 0 e o som saía; na segunda ele estava parado
+ * no FIM do arquivo, o `play()` não tinha o que tocar, e o seek voltava para 0 em
+ * silêncio. Era exatamente o "segundo par não toca". O play agora espera o seek.
+ */
 export function playGameSfx(nome) {
   if (!prefs.soundsEnabled) return;
   const agora = Date.now();
@@ -212,8 +222,14 @@ export function playGameSfx(nome) {
   try {
     const p = sfxPlayer(nome);
     if (!p) return;
-    p.seekTo(0);
-    p.play();
+    if (p.playing) p.pause();          // rearma sem sobrepor a execução anterior
+    const seek = p.seekTo(0);
+    if (seek && typeof seek.then === 'function') {
+      seek.then(() => { try { p.play(); } catch { /* som falhou; jogo segue */ } })
+        .catch(() => { try { p.play(); } catch { /* melhor esforço */ } });
+    } else {
+      p.play();                        // implementação síncrona (web/mocks)
+    }
   } catch {
     // som falhou silenciosamente — o jogo continua
   }

@@ -208,9 +208,16 @@ export const PARES_SOUND_EVENTS = Object.freeze({
   TURBO_JINGLE: 'turbo_result_jingle',
 });
 
-/** Turbo: a partir de 10 s a borda pulsa; a partir de 5 s o relógio bate a cada segundo. */
+/**
+ * Turbo: nos últimos 10 s a moldura pulsa E o relógio bate a cada segundo.
+ * O tique acompanha o NÚMERO exibido (10, 9, … 1) — nunca o milissegundo exato.
+ * No zero não há tique: só o alarme.
+ */
 export const TURBO_ALERTA_MS = 10000;
-export const TURBO_TICK_MS = 5000;
+export const TURBO_TICK_MS = 10000;
+
+/** Quanto tempo o aviso "Tempo encerrado!" fica na tela antes de abrir o resultado. */
+export const TURBO_AVISO_MS = 2000;
 
 /* ══════════════════════ Layout do tabuleiro (Bloco 1.4c) ══════════════════════ */
 

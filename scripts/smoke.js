@@ -16677,10 +16677,11 @@ check(
       } catch (err) { return false; } })(),
       'o aviso de novo recorde repete durante a partida');
 
-    check('1.4b (contagem): alerta a 10 s, tique a partir de 5 s, segundo inteiro coerente',
+    // MIGRADO 1.4d: o tique passou a começar junto com o alerta, aos 10 s (era 5 s).
+    check('1.4b (contagem): alerta e tique começam aos 10 s; segundo inteiro coerente',
       (() => { try {
         const M = carregar();
-        return M.TURBO_ALERTA_MS === 10000 && M.TURBO_TICK_MS === 5000
+        return M.TURBO_ALERTA_MS === 10000 && M.TURBO_TICK_MS === 10000
           && M.segundosRestantes(5000) === 5 && M.segundosRestantes(4001) === 5
           && M.segundosRestantes(4000) === 4 && M.segundosRestantes(1) === 1
           && M.segundosRestantes(0) === 0 && M.segundosRestantes(-10) === 0
@@ -16773,13 +16774,15 @@ check(
       'o ranking dá estrelinha extra, ou quebra com storage corrompido');
 
     // ── 5. TELA: painel, alarme, salvamento e limpeza ────────────────────────
-    check('1.4b (painel): "Tempo encerrado" vem ANTES do resultado, e o resultado só pelo botão',
+    // MIGRADO 1.4d: o botão sumiu. A garantia é a MESMA (o aviso vem antes do
+    // resultado), mas agora a passagem é automática e agendada uma única vez.
+    check('1.4b (painel): "Tempo encerrado" vem ANTES do resultado, agora automaticamente',
       /setTela\('tempoEsgotado'\)/.test(pdbB)
       && /Tempo encerrado!/.test(pdbB)
-      && /Ver meu resultado/.test(pdbB)
-      // o único caminho de 'tempoEsgotado' para 'resultado' é o botão
-      && /onPress=\{\(\) => \{ playGameSfx\(PARES_SOUND_EVENTS\.TURBO_JINGLE\); setTela\('resultado'\); \}\}/.test(pdbB),
-      'o resultado do Turbo aparece sem passar pelo painel de tempo encerrado');
+      && !/Ver meu resultado/.test(pdbB)     // nenhuma ação exigida da criança
+      && /if \(transicaoResultadoRef\.current == null\) \{/.test(pdbB)
+      && /transicaoResultadoRef\.current = agendar\(\(\) => \{[\s\S]*?setTela\('resultado'\);\s*\}, TURBO_AVISO_MS\);/.test(pdbB),
+      'o resultado do Turbo aparece sem passar pelo aviso de tempo encerrado');
 
     check('1.4b (alarme): dispara uma vez, cala o tique e cancela timers pendentes',
       (() => {
@@ -16801,13 +16804,15 @@ check(
       && /countdown_tick: 300/.test(amB),
       'o relógio pode tocar mais de uma vez por segundo, ou continua tocando pausado');
 
-    check('1.4b (pulso): borda e relógio pulsam nos últimos 10 s, sem cobrir as cartas',
+    // MIGRADO 1.4d: a borda única virou quatro faixas (`MolduraAlerta`), nos limites
+    // da janela. A garantia é a mesma: pulsa nos últimos 10 s e não rouba o toque.
+    check('1.4b (pulso): moldura e relógio pulsam nos últimos 10 s, sem cobrir as cartas',
       /restanteMs <= TURBO_ALERTA_MS/.test(pdbB)
       && /Animated\.loop\(/.test(pdbB)
-      && /pointerEvents="none"/.test(pdbB)     // a borda não rouba o toque das cartas
-      && /styles\.bordaAlerta/.test(pdbB)
+      && /pointerEvents="none"/.test(pdbB)     // a moldura não rouba o toque das cartas
+      && /<MolduraAlerta pulso=\{pulso\}/.test(pdbB)
       && /hudCritico/.test(pdbB),
-      'o alerta dos últimos 10 segundos sumiu, ou a borda cobre as cartas');
+      'o alerta dos últimos 10 segundos sumiu, ou a moldura cobre as cartas');
 
     check('1.4b (ciclo de vida): animações e sons param no unmount e ao pausar',
       /pulso\.stopAnimation\(\); tique\.stopAnimation\(\);/.test(pdbB)
@@ -16919,18 +16924,19 @@ check(
       && !/<ScrollView[\s\S]{0,400}styles\.grade/.test(pdbC),
       'o tabuleiro não mede a altura útil, ou voltou a rolar durante a partida');
 
-    check('1.4c (moldura): a borda de alerta envolve a TELA, dentro da safe area, sem tocar',
+    // MIGRADO 1.4d: a moldura DEVE encostar nos limites da janela. Recuar pela safe
+    // area (o que este check exigia antes) era justamente o defeito visto no iPhone.
+    check('1.4c (moldura): a moldura encosta nos limites da JANELA, sem tocar em nada',
       (() => {
-        const bloco = (pdbC.match(/\{critico && \(\s*<Animated\.View[\s\S]*?\/>\s*\)\}/) || [''])[0];
-        return bloco.length > 0
-          && /pointerEvents="none"/.test(bloco)
-          && /top: insets\.top, bottom: insets\.bottom/.test(bloco)
-          && /left: insets\.left, right: insets\.right/.test(bloco)
+        const comp = (pdbC.match(/function MolduraAlerta[\s\S]*?\n\}/) || [''])[0];
+        return comp.length > 0
+          && /pointerEvents="none"/.test(comp)
+          && !/insets/.test(comp)                                   // sem recuo de safe area
+          && /moldura: \{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 \}/.test(pdbC)
           // fica na raiz, DEPOIS do tabuleiro (por cima), não dentro da área de jogo
-          && pdbC.indexOf('styles.areaJogo') < pdbC.indexOf('styles.bordaAlerta')
-          && /bordaAlerta: \{\s*position: 'absolute'/.test(pdbC);
+          && pdbC.indexOf('styles.areaJogo') < pdbC.indexOf('<MolduraAlerta');
       })(),
-      'a moldura de alerta não envolve a tela, ignora a safe area, ou bloqueia o toque');
+      'a moldura de alerta recuou pela safe area, saiu da raiz, ou bloqueia o toque');
 
     check('1.4c (alerta coerente): moldura, relógio e barra usam o MESMO vermelho, e somem juntos',
       (() => {
@@ -16970,11 +16976,18 @@ check(
       && /dica: \{[\s\S]*?height: 22, lineHeight: 22,/.test(pdbC),
       'a frase do Beni voltou a ocupar duas linhas ou faz o tabuleiro pular ao sumir');
 
-    check('1.4c (tempo encerrado): o card sobe, sem centralização vertical ociosa',
-      /styles\.tempoWrap/.test(pdbC) && !/styles\.centro/.test(pdbC)
-      && /tempoWrap: \{ paddingHorizontal: 16, paddingTop: 18 \}/.test(pdbC)
-      && /Tempo encerrado!/.test(pdbC) && /Ver meu resultado/.test(pdbC),
-      'a tela de tempo encerrado voltou a centralizar o card com vazio acima');
+    // MIGRADO 1.4d: o aviso virou transição automática, centralizada e sem cabeçalho.
+    // A garantia agora é "nada ocioso E nada a tocar".
+    check('1.4c (tempo encerrado): aviso centralizado, sem botão e sem cabeçalho',
+      /avisoRoot: \{ alignItems: 'center', justifyContent: 'center'/.test(pdbC)
+      && !/styles\.tempoWrap/.test(pdbC)
+      && /Tempo encerrado!/.test(pdbC)
+      && (() => {
+        const bloco = (pdbC.match(/if \(tela === 'tempoEsgotado'\) \{[\s\S]*?\n  \}/) || [''])[0];
+        // sem botão, sem Header, sem chip, sem ranking/pontos
+        return bloco.length > 0 && !/SoundButton|<Header|chip=|ranking|pontos/.test(bloco);
+      })(),
+      'a tela de tempo encerrado voltou a exigir botão, ou ganhou cabeçalho/dados');
 
     check('1.4c (resultado): um número grande, 3 métricas curtas e ações hierarquizadas',
       /<Text style=\{styles\.destaque\}>/.test(pdbC)
@@ -17006,6 +17019,343 @@ check(
       && /if \(tempoAcabouRef\.current\) return;/.test(pdbC)
       && !/\p{Extended_Pictographic}/u.test(pdbCraw),
       'o polimento visual mexeu na máquina, no flip ou na recompensa');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco 1.4d — Contagem de 10 s, moldura na janela, som do 2º acerto, aviso automático.
+  //
+  //   O 2º acerto não tocava porque `seekTo()` do expo-audio é ASSÍNCRONO: o `play()`
+  //   rodava antes do seek resolver, com o player parado no FIM do arquivo. Aqui o
+  //   audioManager é carregado com um player DUBLÊ e exercitado de verdade.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco 1.4d: contagem, moldura e som ──');
+  {
+    const amD = readSrc('src/services/audioManager.js');
+    const pgD = readSrc('src/services/paresGameService.js');
+    const mqD = readSrc('src/services/paresGameMachine.js');
+    const pdbDraw = readSrc('src/screens/ParesDoBeniScreen.js');
+    const pdbD = a1StripComments(pdbDraw);
+
+    /**
+     * Carrega o audioManager real, com dublês de expo-audio, AsyncStorage e Date.
+     * O dublê de `seekTo` devolve um thenable SÍNCRONO: assim conseguimos observar,
+     * sem async, se o `play()` só acontece DEPOIS do seek resolver.
+     */
+    const carregarAudio = () => {
+      const criados = [];
+      const createAudioPlayer = () => {
+        const p = {
+          plays: 0, audiveis: 0, seeks: 0, pauses: 0, removed: false,
+          playing: false, volume: 0,
+          // O player começa em 0 e PARA NO FIM depois de tocar. Tocar do fim não
+          // emite som nenhum — é exatamente o comportamento real do expo-audio.
+          posicao: 0,
+          play() {
+            this.plays++;
+            if (this.posicao === 0) { this.audiveis++; this.posicao = 1; }   // 1 = fim
+            this.playing = true;
+          },
+          pause() { this.pauses++; this.playing = false; },
+          seekTo() {
+            const self = this;
+            self.seeks++;
+            const playsAntes = self.plays;
+            return {
+              then(cb) {
+                self.seekResolveuAntesDoPlay = (self.plays === playsAntes);
+                self.posicao = 0;      // só AGORA o player volta ao início
+                cb();
+                return { catch() {} };
+              },
+            };
+          },
+          remove() { this.removed = true; },
+        };
+        criados.push(p);
+        return p;
+      };
+      let agora = 1000000;
+      const FakeDate = { now: () => agora };
+      const AsyncStorage = { getItem: () => Promise.resolve(null), setItem: () => Promise.resolve() };
+
+      const codigo = a1StripComments(amD)
+        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/require\('[^']*\/([^/']+)\.wav'\)/g, "'$1'")   // assets → nome
+        .replace(/^export\s+/gm, '');
+
+      const api = new Function(
+        'AsyncStorage', 'createAudioPlayer', 'setAudioModeAsync', 'Date',
+        codigo + ';return { playGameSfx, stopGameSfx, releaseGameSfx, preloadGameSfx };',
+      )(AsyncStorage, createAudioPlayer, () => Promise.resolve(), FakeDate);
+
+      return { ...api, criados, avancar: (ms) => { agora += ms; } };
+    };
+
+    // ── SOM DO ACERTO (o bug real) ───────────────────────────────────────────
+    check('1.4d (som): dois acertos consecutivos produzem DOIS sons',
+      (() => { try {
+        const A = carregarAudio();
+        A.playGameSfx('match_success');
+        A.avancar(900);                    // intervalo real entre dois pares
+        A.playGameSfx('match_success');
+        const p = A.criados[0];
+        // `audiveis` só conta quando o player toca a partir do início. Com o código
+        // antigo (play antes do seek) o segundo som saía MUDO: audiveis seria 1.
+        return A.criados.length === 1      // mesma instância reaproveitada
+          && p.audiveis === 2 && p.plays === 2 && p.seeks === 2;
+      } catch (e) { return false; } })(),
+      'o segundo acerto seguido não toca — o som do par voltou a ser engolido');
+
+    check('1.4d (som): o play() só acontece DEPOIS de o seek resolver',
+      (() => { try {
+        const A = carregarAudio();
+        A.playGameSfx('match_success');
+        const p = A.criados[0];
+        // O dublê marca `true` se, no instante em que o seek resolveu, o play
+        // ainda não tinha sido chamado. Era exatamente o que o código antigo violava.
+        return p.seekResolveuAntesDoPlay === true && p.plays === 1;
+      } catch (e) { return false; } })(),
+      'o play() voltou a rodar antes do seekTo() assíncrono resolver');
+
+    check('1.4d (som): um par toca UMA vez; toque colado no mesmo instante é ignorado',
+      (() => { try {
+        const A = carregarAudio();
+        A.playGameSfx('match_success');
+        A.playGameSfx('match_success');   // mesmo instante: throttle
+        return A.criados[0].audiveis === 1;
+      } catch (e) { return false; } })(),
+      'um único par pode tocar o som duas vezes');
+
+    check('1.4d (som): board_complete não engole o acerto — players independentes',
+      (() => { try {
+        const A = carregarAudio();
+        A.playGameSfx('match_success');
+        A.avancar(50);
+        A.playGameSfx('board_complete');  // logo depois, sem throttle cruzado
+        A.avancar(900);
+        A.playGameSfx('match_success');
+        return A.criados.length === 2
+          && A.criados[0].audiveis === 2  // acertos: os dois soam
+          && A.criados[1].audiveis === 1;  // grade completa
+      } catch (e) { return false; } })(),
+      'o throttle é compartilhado entre efeitos diferentes, ou eles dividem o player');
+
+    check('1.4d (som): o relógio bate a cada segundo sem ser barrado pelo throttle',
+      (() => { try {
+        const A = carregarAudio();
+        // 10 tiques (10..1), um por segundo: o throttle de 300 ms nunca barra o seguinte.
+        for (let i = 0; i < 10; i++) {
+          A.playGameSfx('countdown_tick');
+          if (i < 9) A.avancar(1000);
+        }
+        const tique = A.criados[0];
+        if (tique.audiveis !== 10) return false;
+        // Um disparo duplo DENTRO do mesmo segundo é barrado.
+        A.playGameSfx('countdown_tick');
+        A.avancar(120);
+        A.playGameSfx('countdown_tick');
+        return tique.audiveis === 10;
+      } catch (e) { return false; } })(),
+      'o throttle barra o tique do relógio, ou deixa passar dois no mesmo segundo');
+
+    check('1.4d (som): sobrevive a pausa e a nova partida; respeita a preferência global',
+      (() => { try {
+        const A = carregarAudio();
+        A.playGameSfx('match_success');
+        A.stopGameSfx('countdown_tick');   // pausa cala o tique, não o acerto
+        A.avancar(900);
+        A.playGameSfx('match_success');
+        if (A.criados[0].audiveis !== 2) return false;
+
+        // Nova partida: releaseGameSfx solta os players; o próximo som recria e toca.
+        A.releaseGameSfx();
+        if (!A.criados[0].removed) return false;
+        A.avancar(900);
+        A.playGameSfx('match_success');
+        const novo = A.criados[A.criados.length - 1];
+        return novo !== A.criados[0] && novo.audiveis === 1
+          && /if \(!prefs\.soundsEnabled\) return;/.test(a1StripComments(amD).split('function playGameSfx')[1] || '');
+      } catch (e) { return false; } })(),
+      'o som some depois de uma pausa ou de uma nova partida');
+
+    check('1.4d (som): falha do player não derruba o jogo',
+      (() => {
+        const corpo = (a1StripComments(amD).match(/function playGameSfx[\s\S]*?\n\}/) || [''])[0];
+        return /try \{/.test(corpo) && /catch \{/.test(corpo)
+          && /\.catch\(\(\) => \{/.test(corpo);   // rejeição do seek também é tratada
+      })(),
+      'uma falha de áudio pode lançar e derrubar a partida');
+
+    // ── MATCH sai da máquina uma vez por par ─────────────────────────────────
+    check('1.4d (MATCH/puro): 1 par = 1 evento; 2 pares = 2 eventos; erro e toque recusado = 0',
+      (() => { try {
+        const limpa = (s) => a1StripComments(s)
+          .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+          .replace(/^export\s+default[\s\S]*$/m, '')
+          .replace(/^export\s+/gm, '');
+        const M = new Function(limpa(pgD) + '\n' + limpa(mqD)
+          + ';return { FASES, EFEITOS, criarJogo, tocar, flipConcluido, verificar, liberar, fechar };')();
+
+        const DECK = [
+          { key: 'a#a', storyId: 'a' }, { key: 'a#b', storyId: 'a' },
+          { key: 'b#a', storyId: 'b' }, { key: 'b#b', storyId: 'b' },
+          { key: 'c#a', storyId: 'c' }, { key: 'c#b', storyId: 'c' },
+        ];
+        const sons = [];
+        const jogar = (e, a, b) => {
+          e = M.tocar(e, a).estado;
+          e = M.tocar(e, b).estado;
+          e = M.flipConcluido(e, a).estado;
+          e = M.flipConcluido(e, b).estado;
+          const v = M.verificar(e);
+          v.efeitos.filter((x) => x === M.EFEITOS.SOM_ACERTO).forEach((x) => sons.push(x));
+          return v.estado;
+        };
+        let e = M.criarJogo({ deck: DECK, pares: 3, cronometrado: true });
+
+        // 1º par
+        e = M.liberar(jogar(e, 0, 1)).estado;
+        if (sons.length !== 1) return false;
+        // 2º par, logo em seguida → SEGUNDO evento MATCH
+        e = M.liberar(jogar(e, 2, 3)).estado;
+        if (sons.length !== 2) return false;
+
+        // Erro não gera MATCH; toque recusado não gera efeito nenhum.
+        let f = M.criarJogo({ deck: DECK, pares: 3 });
+        f = M.tocar(f, 0).estado;
+        f = M.tocar(f, 2).estado;
+        const recusado = M.tocar(f, 4);
+        if (recusado.aceito !== false || recusado.efeitos.length !== 0) return false;
+        f = M.flipConcluido(f, 0).estado;
+        f = M.flipConcluido(f, 2).estado;
+        const erro = M.verificar(f);
+        return !erro.efeitos.includes(M.EFEITOS.SOM_ACERTO)
+          && erro.efeitos.includes(M.EFEITOS.SOM_ERRO)
+          // e verificar() de novo (dupla chamada) não repete o MATCH
+          && M.verificar(erro.estado).efeitos.length === 0;
+      } catch (e) { return false; } })(),
+      'a máquina emite MATCH a menos, a mais, ou em erro/toque recusado');
+
+    // ── CONTAGEM 10→1 ────────────────────────────────────────────────────────
+    check('1.4d (tique): começa aos 10 s, um por segundo, nenhum no zero',
+      (() => { try {
+        const limpa = (s) => a1StripComments(s)
+          .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+          .replace(/^export\s+default[\s\S]*$/m, '')
+          .replace(/^export\s+/gm, '');
+        const S = new Function(limpa(pgD) + ';return { segundosRestantes, TURBO_TICK_MS, TURBO_ALERTA_MS, TURBO_AVISO_MS };')();
+
+        // Reproduz a regra da tela: tique quando o SEGUNDO EXIBIDO muda, dentro da janela.
+        const tiques = [];
+        let ultimo = null;
+        for (let ms = 12000; ms >= 0; ms -= 100) {   // relógio de 100 em 100 ms
+          const seg = S.segundosRestantes(ms);
+          if (seg > 0 && seg <= S.TURBO_TICK_MS / 1000 && seg !== ultimo) {
+            ultimo = seg;
+            tiques.push(seg);
+          }
+        }
+        return tiques.join(',') === '10,9,8,7,6,5,4,3,2,1'   // 10 tiques, um por segundo
+          && S.segundosRestantes(0) === 0                    // zero não bate
+          && S.TURBO_AVISO_MS === 2000;
+      } catch (e) { return false; } })(),
+      'o tique não começa aos 10 s, repete no mesmo segundo, ou bate no zero');
+
+    check('1.4d (tique): fonte única do segundo, e reinício limpo a cada partida',
+      /const seg = segundosRestantes\(restanteRef\.current\);/.test(pdbD)
+      && /seg !== ultimoSegundoRef\.current/.test(pdbD)
+      && /if \(seg > 0 &&/.test(pdbD)                       // nada no zero
+      && /ultimoSegundoRef\.current = null;/.test(pdbD)     // nova partida rearma
+      && (pdbD.match(/playGameSfx\(PARES_SOUND_EVENTS\.COUNTDOWN_TICK\)/g) || []).length === 1
+      && !/setTimeout\(\(\) => playGameSfx/.test(pdbD),     // nada de 10 timeouts
+      'o tique deixou de seguir o número exibido, ou não rearma em nova partida');
+
+    // ── MOLDURA ──────────────────────────────────────────────────────────────
+    check('1.4d (moldura): quatro faixas em 0, sem raio, sem insets, sem roubar toque',
+      (() => {
+        const comp = (pdbD.match(/function MolduraAlerta[\s\S]*?\n\}/) || [''])[0];
+        return comp.length > 0
+          && /\['topo', 'base', 'esq', 'dir'\]\.map\(faixa\)/.test(comp)
+          && /posicao === 'topo' && \{ top: 0, left: 0, right: 0, height: esp \}/.test(comp)
+          && /posicao === 'base' && \{ bottom: 0, left: 0, right: 0, height: esp \}/.test(comp)
+          && /posicao === 'esq' && \{ top: 0, bottom: 0, left: 0, width: esp \}/.test(comp)
+          && /posicao === 'dir' && \{ top: 0, bottom: 0, right: 0, width: esp \}/.test(comp)
+          && !/insets/.test(comp)
+          && (comp.match(/pointerEvents="none"/g) || []).length >= 2   // faixa e container
+          && !/borderRadius/.test(comp)
+          // nem no estilo: raio faria a moldura parecer um card
+          && !/borderRadius/.test((pdbD.match(/faixaAlerta: \{[\s\S]*?\n  \},/) || [''])[0]);
+      })(),
+      'a moldura não encosta nos limites da janela, ganhou raio, ou bloqueia o toque');
+
+    check('1.4d (moldura): mais forte — espessura 6..10, opacidade 0.35→1, ciclo ~820 ms',
+      /Math\.round\(Math\.min\(10, Math\.max\(6, largura \* 0\.018\)\)\)/.test(pdbD)
+      && /outputRange: \[0\.35, 1\]/.test(pdbD)
+      && (pdbD.match(/duration: 410/g) || []).length === 2   // 410 + 410 = 820 ms
+      && /shadowColor: ALERTA/.test(pdbD) && /shadowRadius: 12/.test(pdbD),
+      'a moldura voltou a ser discreta, ou o pulso virou um flash');
+
+    check('1.4d (moldura): some ao pausar, encerrar ou sair; some junto do relógio vermelho',
+      /const emAlerta = jogando && modo\.timed && !pausado && restanteMs > 0 && restanteMs <= TURBO_ALERTA_MS;/.test(pdbD)
+      && /if \(!emAlerta\) \{ pulso\.stopAnimation\(\); pulso\.setValue\(0\); return undefined; \}/.test(pdbD)
+      && /pulso\.stopAnimation\(\); pulso\.setValue\(0\);\s*playGameSfx\(PARES_SOUND_EVENTS\.TIME_UP\)/.test(pdbD)
+      && /\{critico && <MolduraAlerta/.test(pdbD),
+      'a moldura sobrevive à pausa, ao fim da partida ou à saída da tela');
+
+    // ── AVISO AUTOMÁTICO ─────────────────────────────────────────────────────
+    check('1.4d (aviso): sem botão, centralizado, com entrada discreta',
+      (() => {
+        const bloco = (pdbD.match(/if \(tela === 'tempoEsgotado'\) \{[\s\S]*?\n  \}/) || [''])[0];
+        return bloco.length > 0
+          && !/SoundButton|onPress|<Header|chip=/.test(bloco)
+          && /styles\.avisoRoot/.test(bloco)
+          && /Tempo encerrado!/.test(bloco)
+          && /opacity: aviso3s/.test(bloco) && /scale: aviso3s\.interpolate/.test(bloco)
+          && /duration: 260/.test(pdbD)                       // entrada curta
+          && !/btnPrimarioCheio/.test(pdbD);                  // estilo órfão removido
+      })(),
+      'o aviso de tempo encerrado voltou a exigir toque, ou perdeu a centralização');
+
+    check('1.4d (transição): agendada UMA vez, pelo sistema central de timers',
+      (() => {
+        const bloco = (pdbD.match(/const tempoEsgotou = useCallback\([\s\S]*?\n  \}, \[/) || [''])[0];
+        return /if \(transicaoResultadoRef\.current == null\) \{/.test(bloco)
+          && /transicaoResultadoRef\.current = agendar\(/.test(bloco)
+          && /\}, TURBO_AVISO_MS\);/.test(bloco)
+          // limparTimers (unmount, reinício, troca de modo, saída) anula o agendamento
+          && /timeouts\.current\.forEach\(clearTimeout\);\s*timeouts\.current = \[\];\s*transicaoResultadoRef\.current = null;/.test(pdbD);
+      })(),
+      'a transição do aviso pode ser agendada duas vezes, ou sobreviver ao unmount');
+
+    check('1.4d (uma vez só): resultado, salvamento, estrelinha e vinheta não duplicam',
+      (pdbD.match(/setTela\('resultado'\)/g) || []).length === 2     // Clássico + transição do Turbo
+      && (pdbD.match(/PARES_SOUND_EVENTS\.TURBO_JINGLE/g) || []).length === 1
+      && (pdbD.match(/PARES_SOUND_EVENTS\.TIME_UP/g) || []).length === 1
+      && (pdbD.match(/addBonusStars\(/g) || []).length === 1
+      && (pdbD.match(/recordParesResult\(/g) || []).length === 1
+      && /if \(salvoRef\.current\) return;\s*salvoRef\.current = true;/.test(pdbD)
+      && /if \(tempoAcabouRef\.current\) return;\s*tempoAcabouRef\.current = true;/.test(pdbD)
+      && /if \(montado\.current\) fn\(\);/.test(pdbD),              // sem setState pós-unmount
+      'a transição automática pode duplicar resultado, salvamento, estrelinha ou vinheta');
+
+    check('1.4d (Modo Criador intocado): nada foi ajustado por causa do banner',
+      (() => {
+        // A tela não conhece o banner nem compensa a altura dele.
+        const semBanner = !/MODO CRIADOR|CreatorBanner|creatorMode|bannerHeight/i.test(pdbD);
+        // E os arquivos do Modo Criador/ferramentas dev não foram tocados neste bloco.
+        const intactos = /export function isInternalToolsEnabled/.test(readSrc('src/config/internalTools.js'));
+        return semBanner && intactos && /paddingTop: Math\.max\(insets\.top, 12\)/.test(pdbD);
+      })(),
+      'a tela foi ajustada por causa do banner do Modo Criador');
+
+    check('1.4d (nada regrediu): máquina, flip, grade responsiva e recompensa intactos',
+      /aplicar\(tocar, i\)/.test(pdbD)
+      && /onFlipEnd=\{cartaAbriu\}/.test(pdbD)
+      && /computeCardSize\(\{/.test(pdbD)
+      && /onLayout=\{medirTabuleiro\}/.test(pdbD)
+      && !/travado\.current/.test(pdbD)
+      && !/\p{Extended_Pictographic}/u.test(pdbDraw),
+      'o bloco 1.4d regrediu a máquina, o flip ou a grade responsiva');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
