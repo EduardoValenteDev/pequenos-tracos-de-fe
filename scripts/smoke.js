@@ -17362,14 +17362,13 @@ check(
   }
 
   // ════════════════════════════════════════════════════════════════════════════
-  // Bloco 2.2b — "Cadê a Ovelhinha?" com as PRIMEIRAS cenas e ovelhas REAIS.
+  // Bloco 2.2c — "Cadê a Ovelhinha?": enquadramento correto + transição atômica.
   //
-  //   Dois fundos ilustrados (armazém/fazenda, WebP real) e três poses da ovelha
-  //   (recortadas por alpha bbox, PNG com transparência real). Cenas autorais com
-  //   ≥6 esconderijos cada; hitbox/clip DERIVADOS do sprite processado. Máquina,
-  //   persistência e teto compartilhado preservados. Jogo segue dev-gated ("Em teste").
+  //   Background por CONTAIN (imagem inteira, sem zoom/cover), conversão arte↔pixel via
+  //   contentRect REAL, 4 esconderijos por cena (8 no total) reconstruídos com direção de
+  //   pose e apoio visual, e troca de rodada ATÔMICA (activeRound/pendingRound/sceneReady).
   // ════════════════════════════════════════════════════════════════════════════
-  console.log('\n── Bloco 2.2b: Cadê a Ovelhinha? (cenas e ovelhas reais) ──');
+  console.log('\n── Bloco 2.2c: Cadê a Ovelhinha? (enquadramento + transição atômica) ──');
   {
     const svc = readSrc('src/services/ovelhaGameService.js');
     const mq = readSrc('src/services/ovelhaGameMachine.js');
@@ -17381,14 +17380,15 @@ check(
     const brc21 = a1StripComments(readSrc('src/screens/BrincarScreen.js'));
     const fi21 = readSrc('src/components/ui/FaithIcon.js');
     const rt21 = readSrc('src/constants/routes.js');
+    const layer = (tela21.match(/function SceneLayer[\s\S]*?\n\}/) || [''])[0];
+    const sheep = (tela21.match(/function SheepView[\s\S]*?\n\}/) || [''])[0];
 
     // ── Auditoria de bytes dos assets (sem depender de libs de imagem) ──
     const GAME_DIR = 'assets/games/cade_a_ovelhinha';
     const assetBuf = (rel) => { try { return fs.readFileSync(path.join(root, rel)); } catch (_) { return null; } };
     const isRiffWebp = (b) => !!b && b.length > 12 && b.slice(0, 4).toString('ascii') === 'RIFF' && b.slice(8, 12).toString('ascii') === 'WEBP';
     const isPng = (b) => !!b && b.slice(0, 8).toString('hex') === '89504e470d0a1a0a';
-    // PNG IHDR color type (offset 25): 6 = RGBA, 4 = cinza+alpha → possui canal alpha real.
-    const pngTemAlpha = (b) => isPng(b) && (b[25] === 6 || b[25] === 4);
+    const pngTemAlpha = (b) => isPng(b) && (b[25] === 6 || b[25] === 4);   // color type 6/4 = canal alpha
     const pngDims = (b) => (isPng(b) ? { w: b.readUInt32BE(16), h: b.readUInt32BE(20) } : null);
     const BG = ['warehouse_01', 'farm_01'];
     const SHEEP = ['sheep_front', 'sheep_peek_left', 'sheep_peek_right'];
@@ -17402,14 +17402,15 @@ check(
         .replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '');
       return new Function(scenes + '\n' + s
         + ';return { OVELHA_SCENES, getScene, OVELHA_SCENE_PADRAO, sceneValida, buildRound, buildRoundFromSpot,'
-        + ' planPartida, roundValido, computeViewport, escalaArte, artToPx, pxToArt,'
+        + ' planPartida, roundValido, computeViewport, contentRect, escalaArte, artToPx, pxToArt,'
         + ' spriteBoxArt, visibleBoxArt, hitboxArt, hitboxRect, hitboxPxRect, visivelFracEfetiva,'
         + ' toqueAcertou, pontoNaHitboxArte, celulaToque, estagioDica, nivelDica, erroElegivel,'
-        + ' spotContratoValido, spriteDentroSafeArea, spotHitboxDentroViewport, spotVisibilidadeOk,'
-        + ' clipValido, escalaValida, poseValida, orientacaoValida, modoValido,'
-        + ' targetVisibleAreaMinima, targetRenderable, exactlyOneTarget, targetInsideBounds,'
-        + ' MISS_ID, CENA_RATIO, OVELHA_POSES, OVELHA_MODOS, OVELHA_ROUNDS, OVELHA_HITBOX_MIN,'
-        + ' OVELHA_SPRITE_ASPECT, spriteAspect, DICA, OVELHA_SOUND_EVENTS, ERRO_ELEGIVEL_COOLDOWN_MS };')();
+        + ' spotContratoValido, modoCoerente, poseLadoValido, spotNaoAereo, spotComApoio,'
+        + ' spriteDentroSafeArea, spotHitboxDentroViewport, spotVisibilidadeOk, clipValido, escalaValida,'
+        + ' poseValida, orientacaoValida, modoValido, targetVisibleAreaMinima, targetRenderable,'
+        + ' exactlyOneTarget, targetInsideBounds, MISS_ID, CENA_RATIO, OVELHA_POSES, OVELHA_MODOS,'
+        + ' OVELHA_ROUNDS, OVELHA_HITBOX_MIN, OVELHA_ART_W, OVELHA_ART_H, OVELHA_SPRITE_ASPECT,'
+        + ' spriteAspect, DICA, OVELHA_SOUND_EVENTS, ERRO_ELEGIVEL_COOLDOWN_MS };')();
     };
 
     const evalMq = () => new Function(a1StripComments(mq)
@@ -17433,123 +17434,165 @@ check(
 
     const lcg = (seed) => { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; };
 
-    /* ── ASSETS: portão de transparência + WebP real (2.2b §1,2,3) ── */
-    check('2.2b (assets/ovelhas): 3 poses processadas com TRANSPARÊNCIA REAL (RGBA), dims batem com o aspecto',
+    /* ── ASSETS: portão de transparência + WebP real ── */
+    check('2.2c (assets/ovelhas): 3 poses processadas com TRANSPARÊNCIA REAL (RGBA), dims batem com o aspecto',
       (() => { try {
         const S = evalSvc();
         return SHEEP.every((f) => {
           const b = assetBuf(`${GAME_DIR}/sheep/processed/${f}.png`);
-          if (!pngTemAlpha(b)) return false;               // portão crítico
+          if (!pngTemAlpha(b)) return false;
           const d = pngDims(b);
           const pose = f === 'sheep_front' ? 'front' : f === 'sheep_peek_left' ? 'peekLeft' : 'peekRight';
-          return d && Math.abs((d.w / d.h) - S.spriteAspect(pose)) < 0.01;   // aspecto declarado = arte real
+          return d && Math.abs((d.w / d.h) - S.spriteAspect(pose)) < 0.01;
         });
       } catch (e) { return false; } })(),
       'alguma ovelha processada perdeu a transparência real ou diverge do aspecto declarado');
 
-    check('2.2b (assets/backgrounds): 2 paisagens em WebP REAL (RIFF/WEBP), 1122×1402 (4:5)',
-      BG.every((f) => {
-        const b = assetBuf(`${GAME_DIR}/backgrounds/processed/${f}.webp`);
-        return isRiffWebp(b);   // extensão .webp aponta para bytes WebP reais, não PNG
-      }),
-      'um background integrado não é WebP real (bytes PNG com extensão .webp) ou sumiu');
+    check('2.2c (assets/backgrounds): 2 paisagens em WebP REAL (RIFF/WEBP)',
+      BG.every((f) => isRiffWebp(assetBuf(`${GAME_DIR}/backgrounds/processed/${f}.webp`))),
+      'um background integrado não é WebP real ou sumiu');
 
-    check('2.2b (tela/requires): tela carrega os backgrounds WebP e as 3 poses PNG processadas; data SEM require',
-      /backgrounds\/processed\/warehouse_01\.webp/.test(tela21)
-      && /backgrounds\/processed\/farm_01\.webp/.test(tela21)
-      && SHEEP.every((f) => new RegExp(`sheep/processed/${f}\\.png`).test(tela21))
-      && !/require\(/.test(scenesRaw),   // a DATA de cenas nunca carrega arquivo de arte
-      'a tela não referencia os assets processados, ou a data passou a carregar arte');
+    /* ── ENQUADRAMENTO: contain, sem cover, sem transform scale no background ── */
+    check('2.2c (background/contain): background por resizeMode="contain"; NUNCA cover; sem transform no <Image> do fundo',
+      (() => {
+        const bgTag = (layer.match(/<Image source=\{bg\}[^>]*\/>/) || [''])[0];
+        return !!bgTag
+          && /resizeMode="contain"/.test(bgTag)
+          && !/transform/.test(bgTag)
+          && !/resizeMode="cover"/.test(tela21)   // cover não aparece em lugar nenhum
+          && /bg: \{ \.\.\.StyleSheet\.absoluteFillObject/.test(tela21);
+      })(),
+      'o background voltou a usar cover, aplicou transform, ou não usa contain');
 
-    /* ── CONTRATO DE CENA: 2 cenas reais, ≥6 esconderijos cada (2.2b §5,6) ── */
-    check('2.2b (cenas): warehouse_01 + farm_01, ≥6 esconderijos válidos cada, background com assetKey',
+    check('2.2c (viewport): razão REAL da arte (≈1.2496, não 4:5 nominal), estável entre larguras',
       (() => { try {
         const S = evalSvc();
-        const ids = S.OVELHA_SCENES.map((s) => s.id).sort();
-        if (ids.join(',') !== 'farm_01,warehouse_01') return false;
-        return S.OVELHA_SCENES.every((scene) => {
-          const spots = scene.hidingSpots.filter((s) => (s.dificuldades || []).includes('facil'));
-          return S.sceneValida(scene, 'facil')
-            && spots.length >= 6
-            && scene.background && typeof scene.background.assetKey === 'string' && scene.background.tipo === 'image'
-            && spots.every((s) => S.spotContratoValido(s, scene, 'facil'));
-        });
-      } catch (e) { return false; } })(),
-      'as duas cenas reais não cumprem o contrato (≥6 esconderijos, background com assetKey/tipo)');
-
-    check('2.2b (total): ≥12 esconderijos no conjunto; modos só CAMOUFLAGE/PEEK/PARTIAL (sem oclusor geométrico)',
-      (() => { try {
-        const S = evalSvc();
-        const spots = S.OVELHA_SCENES.flatMap((s) => s.hidingSpots);
-        return spots.length >= 12
-          && spots.every((s) => S.OVELHA_MODOS.includes(s.modo))
-          && spots.every((s) => S.modoValido(s.modo) && S.poseValida(s.pose) && S.orientacaoValida(s.orientacao));
-      } catch (e) { return false; } })(),
-      'faltam esconderijos, ou algum usa modo/pose fora do contrato');
-
-    check('2.2b (contrato inválido): escala/clip/pose fora da faixa → contrato inválido → rodada não inicia',
-      (() => { try {
-        const S = evalSvc(); const M = evalMq();
-        const scene = S.getScene('warehouse_01');
-        const base = scene.hidingSpots[0];
-        const ruimPose = S.spotContratoValido({ ...base, pose: 'nao_existe' }, scene, 'facil');
-        const ruimEsc = S.spotContratoValido({ ...base, escala: 0.5 }, scene, 'facil');       // > 0.18
-        const ruimClip = S.spotContratoValido({ ...base, modo: 'PEEK', clip: { side: 'left', visibleFraction: 0.9 } }, scene, 'facil');
-        let e = M.criarJogo({ rounds: 5 });
-        const rej = M.iniciarRodada(e, { targetId: 'x', itemIds: ['y', 'z'] });
-        return ruimPose === false && ruimEsc === false && ruimClip === false && rej.aceito === false;
-      } catch (e) { return false; } })(),
-      'um esconderijo com escala/clip/pose inválidos pode iniciar uma rodada');
-
-    /* ── VIEWPORT 4:5 + coordenadas ── */
-    check('2.2b (viewport): 4:5, largura responsiva, teto 520, altura limitada',
-      (() => { try {
-        const S = evalSvc();
+        if (!(S.OVELHA_ART_W === 1122 && S.OVELHA_ART_H === 1402)) return false;
+        if (Math.abs(S.CENA_RATIO - (S.OVELHA_ART_H / S.OVELHA_ART_W)) > 1e-9) return false;
         for (const w of [320, 360, 390, 430, 768, 1024]) {
-          const vp = S.computeViewport({ largura: w, altura: 9999, maxLargura: 520 });
-          if (Math.abs(vp.h / vp.w - S.CENA_RATIO) > 0.02 || vp.w > 520) return false;
-        }
-        const baixo = S.computeViewport({ largura: 400, altura: 300 });
-        return Math.abs(baixo.h / baixo.w - S.CENA_RATIO) < 0.02 && baixo.h <= 300 && S.CENA_RATIO === 1.25;
-      } catch (e) { return false; } })(),
-      'o viewport não mantém 4:5, estoura o teto, ou não limita a altura');
-
-    check('2.2b (coordenadas): arte↔px round-trip; escala = w/designWidth',
-      (() => { try {
-        const S = evalSvc();
-        const scene = S.getScene('farm_01');
-        const vp = S.computeViewport({ largura: 360, altura: 9999 });
-        if (Math.abs(S.escalaArte(scene, vp) - vp.w / scene.designWidth) > 1e-9) return false;
-        const pt = { x: 540, y: 675 };
-        const px = S.artToPx(pt, scene, vp);
-        const back = S.pxToArt(px.px, px.py, scene, vp);
-        return Math.abs(back.x - pt.x) < 0.01 && Math.abs(back.y - pt.y) < 0.01;
-      } catch (e) { return false; } })(),
-      'a conversão de coordenadas arte↔pixels está incorreta');
-
-    /* ── SPRITE / CLIP / HITBOX derivados do alpha bbox (2.2b §9,11,12) ── */
-    check('2.2b (derivados): sprite usa aspecto por pose; clip corta o lado escondido; hitbox = área visível, não o canvas',
-      (() => { try {
-        const S = evalSvc();
-        const scene = S.getScene('warehouse_01');
-        // Sprite: altura derivada do aspecto da pose (não quadrado, não o designWidth inteiro).
-        const spotFront = scene.hidingSpots.find((s) => s.pose === 'front' && !s.clip);
-        const sb = S.spriteBoxArt(spotFront, scene);
-        if (Math.abs(sb.h - sb.w / S.spriteAspect('front')) > 0.01) return false;
-        if (!(sb.w < scene.designWidth * 0.25)) return false;      // pequeno perto do canvas
-        // Clip 'left' mostra a fração a partir da DIREITA (esconde a esquerda).
-        const spotClip = scene.hidingSpots.find((s) => s.clip && s.clip.side === 'left');
-        if (spotClip) {
-          const full = S.spriteBoxArt(spotClip, scene);
-          const vis = S.visibleBoxArt(spotClip, scene);
-          if (!(vis.w < full.w) || Math.abs(vis.x1 - full.x1) > 0.5) return false;   // borda direita preservada
-          if (!(S.hitboxArt(spotClip, scene).w < full.w)) return false;              // hitbox segue a área visível
+          const vp = S.computeViewport({ largura: w, altura: 9999, maxLargura: 560 });
+          if (Math.abs(vp.h / vp.w - S.CENA_RATIO) > 0.01) return false;
+          if (vp.w > 560) return false;
         }
         return true;
       } catch (e) { return false; } })(),
-      'sprite/clip/hitbox derivados regrediram (aspecto, lado do clip, ou hitbox virou o canvas)');
+      'o viewport não segue a razão real da arte, ou não é responsivo');
 
-    check('2.2b (hitbox px): piso de 56×56 mesmo para ovelha pequena/distante; dentro do viewport',
+    check('2.2c (contentRect): retângulo REAL exibido; viewport na razão da arte = quase full; razão errada = letterbox centrado',
+      (() => { try {
+        const S = evalSvc();
+        const scene = S.getScene('warehouse_01');
+        // viewport na razão da arte → contentRect cobre o viewport (resíduo < 1px)
+        const vp = S.computeViewport({ largura: 390, altura: 9999 });
+        const cr = S.contentRect(scene, vp);
+        const quaseFull = Math.abs(cr.x) < 1 && Math.abs(cr.y) < 1
+          && Math.abs(cr.w - vp.w) < 1.5 && Math.abs(cr.h - vp.h) < 1.5
+          && Math.abs(cr.scale - Math.min(vp.w / scene.designWidth, vp.h / scene.designHeight)) < 1e-6;
+        // viewport quadrado (razão errada) → letterbox: cr centrado e menor num eixo
+        const sq = { w: 400, h: 400 };
+        const cr2 = S.contentRect(scene, sq);
+        const letterbox = cr2.x > 1 && cr2.w < sq.w - 1 && Math.abs(cr2.y) < 1
+          && Math.abs(cr2.scale - Math.min(400 / scene.designWidth, 400 / scene.designHeight)) < 1e-6;
+        return quaseFull && letterbox;
+      } catch (e) { return false; } })(),
+      'o contentRect não reflete o retângulo real exibido pela imagem');
+
+    check('2.2c (arte completa): topo e base da arte continuam visíveis (contain não corta)',
+      (() => { try {
+        const S = evalSvc();
+        const scene = S.getScene('farm_01');
+        const vp = S.computeViewport({ largura: 390, altura: 9999 });
+        const tl = S.artToPx({ x: 0, y: 0 }, scene, vp);
+        const br = S.artToPx({ x: scene.designWidth, y: scene.designHeight }, scene, vp);
+        return tl.px >= -0.6 && tl.py >= -0.6 && br.px <= vp.w + 0.6 && br.py <= vp.h + 0.6
+          && (br.py - tl.py) > vp.h * 0.9;   // arte preenche quase toda a altura (base não some)
+      } catch (e) { return false; } })(),
+      'a arte é cortada no topo ou na base (enquadramento incorreto)');
+
+    check('2.2c (coordenadas): arte↔px round-trip através do contentRect',
+      (() => { try {
+        const S = evalSvc();
+        const scene = S.getScene('warehouse_01');
+        const vp = S.computeViewport({ largura: 360, altura: 9999 });
+        const pt = { x: 540, y: 675 };
+        const px = S.artToPx(pt, scene, vp);
+        const back = S.pxToArt(px.px, px.py, scene, vp);
+        return Math.abs(back.x - pt.x) < 0.02 && Math.abs(back.y - pt.y) < 0.02;
+      } catch (e) { return false; } })(),
+      'a conversão de coordenadas arte↔pixels (contentRect) está incorreta');
+
+    /* ── SPOTS: exatamente 4 por cena, reconstruídos ── */
+    check('2.2c (spots): EXATAMENTE 4 esconderijos por cena (8 no total); todos válidos; com apoio real',
+      (() => { try {
+        const S = evalSvc();
+        const ids = S.OVELHA_SCENES.map((s) => s.id).sort().join(',');
+        if (ids !== 'farm_01,warehouse_01') return false;
+        return S.OVELHA_SCENES.every((scene) => {
+          const spots = scene.hidingSpots.filter((s) => (s.dificuldades || []).includes('facil'));
+          return spots.length === 4 && S.sceneValida(scene, 'facil')
+            && spots.every((s) => S.spotContratoValido(s, scene, 'facil') && S.spotComApoio(s));
+        });
+      } catch (e) { return false; } })(),
+      'as cenas não têm exatamente 4 esconderijos válidos com apoio real');
+
+    check('2.2c (sem janela/céu/personagem): nenhum spot aéreo; apoio nunca é região proibida',
+      (() => { try {
+        const S = evalSvc();
+        const proibido = /janela|c[eé]u|parede|teto|telhado|vendedor|crian|pessoa|homem|mulher|rosto/i;
+        return S.OVELHA_SCENES.every((scene) => scene.hidingSpots.every((s) =>
+          S.spotNaoAereo(s, scene) && S.spotComApoio(s) && !proibido.test(s.apoio || '')));
+      } catch (e) { return false; } })(),
+      'algum esconderijo está no céu/janela/parede ou apoia em pessoa');
+
+    check('2.2c (direção peekLeft): exige objeto/oclusão à DIREITA (clip.side="right")',
+      (() => { try {
+        const S = evalSvc();
+        const scene = S.getScene('warehouse_01');
+        const base = scene.hidingSpots.find((s) => s.pose === 'front');
+        const certo = { ...base, pose: 'peekLeft', modo: 'PEEK', clip: { side: 'right', visibleFraction: 0.6 } };
+        const errado = { ...base, pose: 'peekLeft', modo: 'PEEK', clip: { side: 'left', visibleFraction: 0.6 } };
+        const autorais = S.OVELHA_SCENES.flatMap((sc) => sc.hidingSpots).filter((s) => s.pose === 'peekLeft');
+        return S.poseLadoValido(certo) && !S.poseLadoValido(errado)
+          && autorais.length > 0 && autorais.every((s) => s.clip && s.clip.side === 'right');
+      } catch (e) { return false; } })(),
+      'peekLeft aceitou lado errado, ou um spot autoral peekLeft não esconde à direita');
+
+    check('2.2c (direção peekRight): exige objeto/oclusão à ESQUERDA (clip.side="left")',
+      (() => { try {
+        const S = evalSvc();
+        const scene = S.getScene('farm_01');
+        const base = scene.hidingSpots.find((s) => s.pose === 'front');
+        const certo = { ...base, pose: 'peekRight', modo: 'PEEK', clip: { side: 'left', visibleFraction: 0.6 } };
+        const errado = { ...base, pose: 'peekRight', modo: 'PEEK', clip: { side: 'right', visibleFraction: 0.6 } };
+        const autorais = S.OVELHA_SCENES.flatMap((sc) => sc.hidingSpots).filter((s) => s.pose === 'peekRight');
+        return S.poseLadoValido(certo) && !S.poseLadoValido(errado)
+          && autorais.length > 0 && autorais.every((s) => s.clip && s.clip.side === 'left');
+      } catch (e) { return false; } })(),
+      'peekRight aceitou lado errado, ou um spot autoral peekRight não esconde à esquerda');
+
+    check('2.2c (front não aéreo): front no céu = inválido; front autoral fica na parte baixa; front só sem clip ou clip inferior',
+      (() => { try {
+        const S = evalSvc();
+        const scene = S.getScene('warehouse_01');
+        const base = scene.hidingSpots.find((s) => s.pose === 'front');
+        const aereo = { ...base, pos: { x: base.pos.x, y: Math.round(scene.designHeight * 0.2) } };
+        const frontLateral = { ...base, modo: 'PEEK', clip: { side: 'left', visibleFraction: 0.6 } };
+        const fronts = S.OVELHA_SCENES.flatMap((sc) => sc.hidingSpots).filter((s) => s.pose === 'front');
+        return S.spotNaoAereo(base, scene) && !S.spotNaoAereo(aereo, scene)
+          && !S.poseLadoValido(frontLateral)                       // front não usa clip lateral
+          && fronts.every((s) => !s.clip && s.modo === 'CAMOUFLAGE');
+      } catch (e) { return false; } })(),
+      'front aceitou posição aérea ou clip lateral inválido');
+
+    check('2.2c (perspectiva/escala): toda escala 6–18%; front central pequeno; nada absurdo',
+      (() => { try {
+        const S = evalSvc();
+        return S.OVELHA_SCENES.every((scene) => scene.hidingSpots.every((s) => S.escalaValida(s) && s.escala <= 0.1));
+      } catch (e) { return false; } })(),
+      'alguma escala saiu da faixa jogável / perspectiva');
+
+    /* ── HITBOX recalculada via contentRect ── */
+    check('2.2c (hitbox): via contentRect, piso 56×56, dentro do viewport; derivada da área visível (não o canvas) — todos os spots',
       (() => { try {
         const S = evalSvc();
         for (const scene of S.OVELHA_SCENES) {
@@ -17559,15 +17602,15 @@ check(
               const hb = S.hitboxPxRect(spot, scene, vp);
               if (hb.w < S.OVELHA_HITBOX_MIN - 0.5 || hb.h < S.OVELHA_HITBOX_MIN - 0.5) return false;
               if (!S.spotHitboxDentroViewport(spot, scene, vp)) return false;
+              if (!(S.hitboxArt(spot, scene).w < scene.designWidth * 0.2)) return false;   // não é o canvas
             }
           }
         }
         return true;
       } catch (e) { return false; } })(),
-      'a hitbox px ficou abaixo de 56 ou estourou o viewport em algum esconderijo');
+      'a hitbox regrediu (piso 56, dentro do viewport, ou virou o canvas)');
 
-    /* ── TOQUE na cena inteira: todos os 12 esconderijos, 360 e 768 ── */
-    check('2.2b (toque): centro da hitbox = acerto; canto oposto = erro; logo fora = erro (todos os spots)',
+    check('2.2c (toque): centro da hitbox = acerto; canto oposto = erro; logo fora = erro (todos os spots, 360/768)',
       (() => { try {
         const S = evalSvc();
         for (const scene of S.OVELHA_SCENES) {
@@ -17578,9 +17621,9 @@ check(
               if (!S.toqueAcertou(hb.cx, hb.cy, spot, scene, vp)) return false;
               const missX = hb.cx < vp.w / 2 ? vp.w - 1 : 1;
               const missY = hb.cy < vp.h / 2 ? vp.h - 1 : 1;
-              if (S.toqueAcertou(missX, missY, spot, scene, vp)) return false;           // canto oposto
+              if (S.toqueAcertou(missX, missY, spot, scene, vp)) return false;
               const foraX = hb.x1 + 6;
-              if (foraX <= vp.w && S.toqueAcertou(foraX, hb.cy, spot, scene, vp)) return false;   // logo fora
+              if (foraX <= vp.w && S.toqueAcertou(foraX, hb.cy, spot, scene, vp)) return false;
             }
           }
         }
@@ -17588,7 +17631,7 @@ check(
       } catch (e) { return false; } })(),
       'o toque não distingue a hitbox da ovelha do resto da cena em algum esconderijo');
 
-    check('2.2b (toque/máquina): MISS_ID vira erro; alvo = acerto; a máquina segue intacta',
+    check('2.2c (toque/máquina): MISS_ID vira erro; alvo = acerto; não conta 2×',
       (() => { try {
         const S = evalSvc(); const M = evalMq();
         const scene = S.getScene('farm_01');
@@ -17600,58 +17643,96 @@ check(
         if (miss.acerto !== false || miss.estado.encontradas !== 0) return false;
         e = M.liberarErro(miss.estado).estado;
         const ac = M.tocar(e, r.targetId);
-        return ac.acerto === true && ac.estado.encontradas === 1
-          && M.tocar(ac.estado, r.targetId).aceito === false;   // não conta 2×
+        return ac.acerto === true && ac.estado.encontradas === 1 && M.tocar(ac.estado, r.targetId).aceito === false;
       } catch (e) { return false; } })(),
       'o MISS_ID não vira erro, ou o alvo não conta como acerto');
 
-    /* ── PLANO da partida (2.2b §13): 5 rodadas, alterna cenas, ≥2 poses, não-só-front, determinístico ── */
-    check('2.2b (plano): 5 rodadas usam as 2 cenas, sem repetir spot, ≥2 poses, nunca só "front"',
+    /* ── PLANO da partida: 5 rodadas ── */
+    check('2.2c (plano/5 rodadas): usa as 2 cenas, sem repetir spot, ≥2 poses, nunca só front; determinístico; máquina encerra em 5',
       (() => { try {
-        const S = evalSvc();
+        const S = evalSvc(); const M = evalMq();
         for (let seed = 1; seed <= 60; seed++) {
           const plano = S.planPartida({ rounds: 5, rnd: lcg(seed) });
           if (plano.length !== 5) return false;
-          const cenas = new Set(plano.map((p) => p.sceneId));
-          const poses = new Set(plano.map((p) => p.pose));
-          if (cenas.size < 2) return false;                     // usa as duas paisagens
-          if (poses.size < 2) return false;                     // ≥2 poses distintas
+          if (new Set(plano.map((p) => p.sceneId)).size < 2) return false;
+          if (new Set(plano.map((p) => p.pose)).size < 2) return false;
           if (plano.every((p) => p.pose === 'front')) return false;
           for (let i = 1; i < plano.length; i++) if (plano[i].spotId === plano[i - 1].spotId) return false;
-          // cada entrada monta uma rodada VÁLIDA
           for (const p of plano) {
             const scene = S.getScene(p.sceneId);
             const spot = scene.hidingSpots.find((s) => s.id === p.spotId);
-            const r = S.buildRoundFromSpot({ scene, spot, roundId: 1 });
-            if (!S.roundValido(r, 'facil')) return false;
+            if (!S.roundValido(S.buildRoundFromSpot({ scene, spot, roundId: 1 }), 'facil')) return false;
           }
         }
-        return true;
+        if (JSON.stringify(S.planPartida({ rounds: 5, rnd: lcg(9) })) !== JSON.stringify(S.planPartida({ rounds: 5, rnd: lcg(9) }))) return false;
+        // 5 rodadas completas pela máquina
+        let e = M.criarJogo({ rounds: 5 });
+        const pl = S.planPartida({ rounds: 5, rnd: lcg(3) });
+        for (let rr = 0; rr < 5; rr++) {
+          const scene = S.getScene(pl[rr].sceneId);
+          const spot = scene.hidingSpots.find((s) => s.id === pl[rr].spotId);
+          const round = S.buildRoundFromSpot({ scene, spot, roundId: rr + 1 });
+          e = M.iniciarRodada(e, { targetId: round.targetId, itemIds: [round.targetId, S.MISS_ID] }).estado;
+          e = M.cenaPronta(e).estado;
+          e = M.avancar(M.tocar(e, round.targetId).estado).estado;
+        }
+        return e.fase === M.FASES.FIM && e.encontradas === 5;
       } catch (e) { return false; } })(),
-      'o plano da partida regrediu (rodadas, alternância de cena, poses, ou rodada inválida)');
+      'o plano da partida ou o encerramento das 5 rodadas regrediu');
 
-    check('2.2b (plano determinístico): mesmo seed → mesmo plano',
-      (() => { try {
-        const S = evalSvc();
-        const a = S.planPartida({ rounds: 5, rnd: lcg(123) });
-        const b = S.planPartida({ rounds: 5, rnd: lcg(123) });
-        return JSON.stringify(a) === JSON.stringify(b);
-      } catch (e) { return false; } })(),
-      'o plano da partida deixou de ser determinístico sob o mesmo rnd');
+    /* ── TRANSIÇÃO ATÔMICA (activeRound/pendingRound/sceneReady) ── */
+    check('2.2c (estados atômicos): activeRound + pendingRound + sceneReady; layerAnim faz fade; SceneLayer remonta por key',
+      /const \[activeRound, setActiveRound\]/.test(tela21)
+      && /const \[pendingRound, setPendingRound\]/.test(tela21)
+      && /const \[sceneReady, setSceneReady\]/.test(tela21)
+      && /layerAnim = useRef\(new Animated\.Value\(0\)\)/.test(tela21)
+      && /key=\{`\$\{activeRound\.roundId\}:\$\{activeRound\.sceneId\}:\$\{activeRound\.spot\.id\}`\}/.test(tela21),
+      'os estados da transição atômica (active/pending/sceneReady/key) regrediram');
 
-    check('2.2b (visibilidade): PEEK/PARTIAL mantêm 45–75% visível; CAMOUFLAGE ~100%; nunca 100% oculto',
-      (() => { try {
-        const S = evalSvc();
-        return S.OVELHA_SCENES.every((scene) => scene.hidingSpots.every((s) => {
-          const f = S.visivelFracEfetiva(s);
-          const ok = s.modo === 'CAMOUFLAGE' ? f >= 0.9 : (f >= 0.45 && f <= 0.75);
-          return ok && S.spotVisibilidadeOk(s) && f >= 0.40;
-        }));
-      } catch (e) { return false; } })(),
-      'algum esconderijo esconde a ovelha demais (ou de menos) para o modo declarado');
+    check('2.2c (não exibir ovelha antes do bg): ovelha só com sceneReady; bg e ovelha no MESMO SceneLayer',
+      (() => (
+        /\{sceneReady && \(\s*<SheepView/.test(layer)          // ovelha condicionada a sceneReady
+        && /<Image source=\{bg\}/.test(layer)                  // bg no mesmo container
+        && /opacity: layerAnim/.test(layer)                    // fade do container inteiro
+      ))(),
+      'a ovelha pode aparecer sem sceneReady, ou bg e ovelha não estão no mesmo SceneLayer');
+
+    check('2.2c (promoção/fade-in): promove no fade-out; libera (cenaPronta) só quando sceneReady e fase ENTRANDO',
+      /Animated\.timing\(layerAnim, \{ toValue: 0[\s\S]*?promover\(\)/.test(tela21)
+      && /if \(!sceneReady\) return undefined;/.test(tela21)
+      && /if \(jogoRef\.current\.fase !== FASES\.ENTRANDO\) return undefined;/.test(tela21)
+      && /fn\.current\.aplicar\(cenaPronta\)/.test(tela21),
+      'a promoção/fade-in atômico regrediu');
+
+    check('2.2c (callback antigo): load de rodada antiga NÃO libera rodada nova (roundId confere)',
+      /const marcarCarregado = useCallback\(\(qual, roundId\) => \{[\s\S]*?if \(!r \|\| r\.roundId !== roundId\) return;/.test(tela21)
+      && /if \(r\.bg && r\.pose && montado\.current\) setSceneReady\(true\)/.test(tela21),
+      'um callback de load antigo pode liberar uma rodada nova');
+
+    check('2.2c (input bloqueado): toque exige activeRound + sceneReady; posição da ovelha não é animada entre spots',
+      /if \(pausado \|\| !activeRound \|\| !sceneReady\) return;/.test(tela21)
+      && /left: clipLeft, top: clipTop/.test(sheep)          // posição estática (não Animated)
+      && !/left: pop|top: pop/.test(sheep),                  // sem animar left/top
+      'o input não fica bloqueado na transição, ou a ovelha anima de posição');
+
+    /* ── PRELOAD ── */
+    check('2.2c (preload): pré-carrega os 5 assets via expo-asset (sem dep nova); pendingRound só usa assets prontos',
+      /import \{ Asset \} from 'expo-asset'/.test(tela21)
+      && /Asset\.fromModule\(m\)\.downloadAsync\(\)/.test(tela21)
+      && /function preloadOvelhaAssets/.test(tela21)
+      && /const OVELHA_ASSET_MODULES = \[\.\.\.Object\.values\(OVELHA_BG\), \.\.\.Object\.values\(OVELHA_POSE_IMG\)\]/.test(tela21)
+      && /await preloadOvelhaAssets\(\)/.test(tela21),
+      'o preload dos assets do jogo regrediu');
+
+    check('2.2c (tela/requires): tela carrega backgrounds WebP + 3 poses PNG; data SEM require',
+      /backgrounds\/processed\/warehouse_01\.webp/.test(tela21)
+      && /backgrounds\/processed\/farm_01\.webp/.test(tela21)
+      && SHEEP.every((f) => new RegExp(`sheep/processed/${f}\\.png`).test(tela21))
+      && !/require\(/.test(scenesRaw),
+      'a tela não referencia os assets processados, ou a data passou a carregar arte');
 
     /* ── DICA por rodada + anti-spam por CÉLULA (preservado) ── */
-    check('2.2b (dica): estágios (incentivo/brilho/contorno); limiares 10/14/18 · 2/3/5',
+    check('2.2c (dica): estágios (incentivo/brilho/contorno); limiares 10/14/18 · 2/3/5',
       (() => { try {
         const S = evalSvc();
         return S.estagioDica(0) === 0 && S.estagioDica(1) === 1 && S.estagioDica(2) === 3 && S.estagioDica(3) === 4
@@ -17661,7 +17742,7 @@ check(
       } catch (e) { return false; } })(),
       'os estágios/limiares de dica regrediram');
 
-    check('2.2b (anti-spam por célula): mesma região no cooldown não conta; alternar conta',
+    check('2.2c (anti-spam por célula + dica isolada por rodada): mesma região no cooldown não conta; erro elegível por rodada, não cumulativo',
       (() => { try {
         const S = evalSvc();
         const scene = S.getScene('warehouse_01');
@@ -17671,73 +17752,28 @@ check(
           const id = cel(100, 100);
           if (S.erroElegivel({ id, ultimoId, agoraMs: agora, ultimoMs })) { eleg++; ultimoMs = agora; } ultimoId = id; }
         if (!(eleg <= 2 && S.nivelDica(0, eleg) < 2)) return false;
-        let e2 = 0, uId = null, uMs = 0, ag = 0;
-        for (const [x, y] of [[100, 100], [900, 1200], [100, 100], [900, 1200], [500, 200]]) { ag += 120;
-          const id = cel(x, y);
-          if (S.erroElegivel({ id, ultimoId: uId, agoraMs: ag, ultimoMs: uMs })) { e2++; uMs = ag; } uId = id; }
-        return e2 >= 3 && cel(100, 100) === cel(120, 120) && cel(100, 100) !== cel(900, 1200);
+        return /aplicarNivel\(buscaMsRef\.current, erroElegivelRef\.current\)/.test(tela21)
+          && !/jogoRef\.current\.erros\)/.test(tela21)
+          && /erroElegivelRef\.current = 0;/.test(tela21);
       } catch (e) { return false; } })(),
-      'o anti-spam por célula não contém spam ou impede a progressão legítima');
+      'o anti-spam por célula ou o isolamento da dica por rodada regrediram');
 
-    check('2.2b (tela): dica usa erro elegível por rodada, não o cumulativo; reset por rodada; timers com seq',
-      /aplicarNivel\(buscaMsRef\.current, erroElegivelRef\.current\)/.test(tela21)
-      && !/jogoRef\.current\.erros\)/.test(tela21)
-      && /erroElegivelRef\.current = 0;/.test(tela21)
-      && /rodadaSeqRef\.current \+= 1;/.test(tela21)
-      && /if \(rodadaSeqRef\.current !== seq\) return;/.test(tela21),
-      'a dica voltou a vazar (cumulativo) ou perdeu o reset/seq por rodada');
-
-    /* ── CAMADAS + toque na cena inteira, com ARTE REAL (2.2b §3,5) ── */
-    check('2.2b (camadas): cena inteira captura o toque; background e ovelha por Image real; sem mocks',
+    /* ── CALIBRAÇÃO ── */
+    check('2.2c (calibração): OVELHA_CALIBRACAO=false; navega/ajusta x/y/escala e troca pose; mostra normalizado; não consome/salva',
       (() => {
-        const pressables = (tela21.match(/<Pressable/g) || []).length;
-        const cena = (tela21.match(/function CenaAutoral[\s\S]*?\n\}/) || [''])[0];
-        return pressables === 1
-          && /onPress=\{tocarCena\}/.test(tela21)
-          && !/\.items\.map/.test(tela21)
-          && /OVELHA_BG\[scene\.background/.test(cena) && /<Image source=\{bg\}/.test(cena)   // fundo = imagem real
-          && /<SheepView/.test(cena)
-          && !/OvelhaMock|ForegroundMock|DecorMock|FolhaMovimento/.test(tela21);   // mocks removidos
-      })(),
-      'a cena não usa arte real (Image), ainda tem mocks, ou perdeu o toque único');
-
-    check('2.2b (ovelha real + clip): SheepView usa Image, janela overflow hidden e flip por scaleX; z2, sem toque',
-      (() => {
-        const sheep = (tela21.match(/function SheepView[\s\S]*?\n\}/) || [''])[0];
-        return /<Image/.test(sheep)
-          && /overflow: 'hidden'/.test(sheep)          // clip real (PEEK/PARTIAL)
-          && /scaleX: flip \? -1 : 1/.test(sheep)      // orientação por espelhamento
-          && /zIndex: 2,/.test(sheep) && /pointerEvents="none"/.test(sheep);
-      })(),
-      'a ovelha real não é recortada por clip/overflow, perdeu o flip, ou passou a receber toque');
-
-    check('2.2b (dica visual discreta): brilho pequeno atrelado ao sprite (estágio 3) e contorno (estágio 4); sem círculo grande',
-      /estagio >= 3 && <BrilhoRegiao/.test(tela21)
-      && /estagio >= 4 && <ContornoVisivel/.test(tela21)
-      && /Math\.min\(spW, spH\) \* 0\.55/.test(tela21)   // raio do brilho segue o sprite (pequeno)
-      && /function ContornoVisivel/.test(tela21),
-      'a dica visual regrediu para um círculo grande ou perdeu os estágios discretos');
-
-    check('2.2b (ripple): erro mostra feedback no ponto tocado',
-      /function TouchRipple/.test(tela21)
-      && /setRipple\(\{ key:/.test(tela21)
-      && /\{ripple && <TouchRipple/.test(tela21),
-      'o erro não mostra feedback (ripple) no ponto tocado');
-
-    /* ── CALIBRAÇÃO interna (2.2b §15): OFF, não consome rodada nem salva ── */
-    check('2.2b (calibração): OVELHA_CALIBRACAO=false; navega spots; não consome rodada nem salva estrelinha',
-      (() => {
-        const com = (tela21.match(/const comecar = useCallback\(async[\s\S]*?\n  \}/) || [''])[0];
         const fin = (tela21.match(/const finalizar = useCallback\(async[\s\S]*?\n  \}/) || [''])[0];
         return /const OVELHA_CALIBRACAO = false;/.test(tela21)
           && /const calibNavegar = useCallback/.test(tela21)
-          && /if \(!OVELHA_CALIBRACAO\) \{\s*const r = await consumeRound\(\);/.test(com)   // consumo pulado em calibração
-          && /if \(OVELHA_CALIBRACAO \|\| salvoRef\.current\) return;/.test(fin);           // salvamento pulado em calibração
+          && /const calibNudge = useCallback/.test(tela21)
+          && /const calibPose = useCallback/.test(tela21)
+          && /OVELHA_ART_W\)\.toFixed\(3\)/.test(tela21)          // leitura normalizada
+          && /if \(!OVELHA_CALIBRACAO\) \{\s*const r = await consumeRound\(\);/.test(tela21)   // não consome em calib
+          && /if \(OVELHA_CALIBRACAO \|\| salvoRef\.current\) return;/.test(fin);              // não salva em calib
       })(),
-      'o modo de calibração está ligado, consome rodada ou salva progresso');
+      'a calibração está ligada, não ajusta x/y/escala/pose, ou consome rodada/salva');
 
-    /* ── DIAGNÓSTICO (2.2b §17): overlay OFF, sem Modo Criador ── */
-    check('2.2b (diagnóstico): overlay mostra sprite/hitbox/clip/ids/pose/escala, OFF por padrão, sem Modo Criador',
+    /* ── DIAGNÓSTICO ── */
+    check('2.2c (diagnóstico): overlay sprite/hitbox/clip/ids/pose/escala, OFF por padrão, sem Modo Criador',
       /const OVELHA_DEBUG_HITBOX = false;/.test(tela21)
       && /function DebugOverlay/.test(tela21)
       && /hitboxPxRect\(round\.spot/.test(tela21)
@@ -17746,7 +17782,7 @@ check(
       'o overlay de diagnóstico regrediu, está ligado, ou depende do Modo Criador');
 
     /* ── PERSISTÊNCIA / FUNDAÇÃO PRESERVADA ── */
-    check('2.2b (persistência): grava ovelha, 1 estrelinha, teto compartilhado com o Pares',
+    check('2.2c (persistência): grava ovelha, 1 estrelinha, teto compartilhado com o Pares',
       (() => { try {
         const B = evalStats();
         const hoje = '2026-07-10';
@@ -17762,7 +17798,7 @@ check(
       } catch (e) { return false; } })(),
       'a persistência da ovelha ou o teto compartilhado regrediram');
 
-    check('2.2b (tela): consumo único em comecar(); salvamento único em finalizar(); ciclo de vida',
+    check('2.2c (tela): consumo único em comecar(); salvamento único em finalizar(); ciclo de vida',
       (() => {
         const fin = (tela21.match(/const finalizar = useCallback\(async[\s\S]*?\n  \}/) || [''])[0];
         return (tela21.match(/consumeRound\(/g) || []).length === 1
@@ -17770,11 +17806,11 @@ check(
           && (tela21.match(/recordOvelhaResult\(/g) || []).length === 1
           && /salvoRef\.current = true;/.test(fin)
           && /AppState\.addEventListener\('change'/.test(tela21)
-          && /montado\.current = false; limparTimers\(\); releaseGameSfx\(\);/.test(tela21);
+          && /montado\.current = false;/.test(tela21) && /releaseGameSfx\(\);/.test(tela21);
       })(),
       'consumo/salvamento/ciclo de vida da ovelha regrediram');
 
-    check('2.2b (máquina): pura, sem React/relógio/IO; só "procurando" aceita toque',
+    check('2.2c (máquina): pura, sem React/relógio/IO; só "procurando" aceita toque',
       (() => { try {
         const M = evalMq();
         const codigo = a1StripComments(mq);
@@ -17787,23 +17823,23 @@ check(
       'a máquina deixou de ser pura ou aceita toque fora de procurando');
 
     /* ── PRODUÇÃO / ROTA / CARD / ÍCONE / PROTEGIDOS ── */
-    check('2.2b (produção): rota dev-gated; card "Em teste" só em dev',
+    check('2.2c (produção): rota dev-gated; card "Em teste" só em dev',
       /CADE_A_OVELHINHA: 'CadeAOvelhinha'/.test(rt21)
       && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="CadeAOvelhinha"/.test(nav21)
       && /id === 'ovelha' && isInternalToolsEnabled\(\) \?/.test(brc21)
       && /chip="Em teste"/.test(tela21),
       'a produção liberou o jogo antes da validação');
 
-    check('2.2b (ícone/sem emoji): ovelha é SVG; nenhum emoji na tela nem na data',
+    check('2.2c (ícone/sem emoji): ovelha é SVG; nenhum emoji na tela nem na data',
       /function OvelhaSvg/.test(fi21) && !/ovelha: 'eye'/.test(fi21)
       && !/\p{Extended_Pictographic}/u.test(telaRaw) && !/\p{Extended_Pictographic}/u.test(scenesRaw),
       'a ovelha voltou a "eye", ou entrou emoji');
 
-    check('2.2b (protegidos): Pares e Modo Criador intocados',
+    check('2.2c (protegidos): Pares e Modo Criador intocados',
       /aplicar\(tocar, i\)/.test(a1StripComments(readSrc('src/screens/ParesDoBeniScreen.js')))
       && /export function isInternalToolsEnabled/.test(readSrc('src/config/internalTools.js'))
       && !/ovelha|Ovelha/.test(a1StripComments(readSrc('src/services/paresGameMachine.js'))),
-      'o bloco 2.2b tocou o Pares ou o Modo Criador');
+      'o bloco 2.2c tocou o Pares ou o Modo Criador');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

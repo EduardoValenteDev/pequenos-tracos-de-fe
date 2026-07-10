@@ -1,22 +1,33 @@
 /**
- * ovelhaGameService.js — Núcleo PURO de "Cadê a Ovelhinha?" (2.1→2.2b).
+ * ovelhaGameService.js — Núcleo PURO de "Cadê a Ovelhinha?" (2.1→2.2c).
  *
  * Sem I/O, sem relógio, sem React, sem áudio, nunca lança. `rnd` injetável → determinístico.
  *
- * ── Cenas autorais reais (2.2b) ───────────────────────────────────────────────
- * A rodada sorteia um ESCONDERIJO (`hidingSpot`) autoral dentro de uma cena ilustrada
- * REAL (ver ovelhaScenes). A CENA INTEIRA recebe o toque; o acerto é o ponto cair na
- * hitbox do esconderijo. A hitbox é DERIVADA do sprite processado (alpha bbox) por pose,
- * escala e clip — não é o canvas inteiro. Modos: CAMOUFLAGE / PEEK / PARTIAL (clip real,
- * nenhum oclusor geométrico colorido).
+ * ── Enquadramento correto (2.2c) ──────────────────────────────────────────────
+ * O background é exibido por CONTAIN (nunca cover, nunca zoom): a arte inteira aparece,
+ * na razão real do asset (1122×1402). O viewport tem a MESMA razão da arte; qualquer
+ * folga mínima de arredondamento vira um `contentRect` (retângulo REAL exibido pela
+ * imagem). TODA conversão arte↔pixel passa pelo `contentRect` — é ele que alinha a ovelha
+ * e a hitbox ao que o olho vê.
  *
- * Coordenadas de esconderijo em px de ARTE (design = dimensões do background). A conversão
- * arte↔viewport é um fator de escala único (4:5).
+ * ── Cenas autorais reais ──────────────────────────────────────────────────────
+ * A rodada segue um esconderijo (`hidingSpot`) sobre uma cena ilustrada real (ver
+ * ovelhaScenes). A CENA INTEIRA recebe o toque; o acerto é o ponto cair na hitbox
+ * DERIVADA do sprite processado (alpha bbox) por pose, escala e clip — nunca o canvas.
+ * Modos: CAMOUFLAGE (ovelha inteira, sem clip) · PEEK (clip lateral alinhado a borda real)
+ * · PARTIAL (recorte inferior). Contrato de DIREÇÃO por pose:
+ *   peekLeft  → olha à esquerda, corpo escondido à DIREITA  → clip.side = 'right'
+ *   peekRight → olha à direita,  corpo escondido à ESQUERDA → clip.side = 'left'
+ *   front     → só atrás de objeto baixo/entre mercadorias → sem clip ou clip.side='bottom'
  */
 import { getScene, OVELHA_SCENES, OVELHA_POSES, OVELHA_ORIENTACOES, OVELHA_MODOS } from '../data/ovelhaScenes';
 
 export const OVELHA_HITBOX_MIN = 56;
 export const OVELHA_ROUNDS = 5;
+
+/** Dimensões REAIS dos backgrounds integrados (px de arte). Base do enquadramento. */
+export const OVELHA_ART_W = 1122;
+export const OVELHA_ART_H = 1402;
 
 /** Sentinela de "toque fora da ovelha" — vira um erro suave na máquina. */
 export const MISS_ID = '__miss__';
@@ -36,7 +47,7 @@ export function spriteAspect(pose) {
 }
 
 export const OVELHA_DIFFICULTIES = Object.freeze([
-  { id: 'facil', label: 'Fácil', premium: false, minEsconderijos: 6 },
+  { id: 'facil', label: 'Fácil', premium: false, minEsconderijos: 4 },
 ]);
 
 export function getDifficulty(id) {
@@ -55,37 +66,64 @@ export function shuffle(arr, rnd = Math.random) {
 }
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-/* ─────────────────────────── Viewport 4:5 ─────────────────────────── */
+/* ─────────────────────────── Viewport + contentRect (contain) ─────────────────────────── */
 
-export const CENA_RATIO = 5 / 4;   // altura/largura
+/** Razão altura/largura da ARTE real (não um 4:5 nominal). */
+export const CENA_RATIO = OVELHA_ART_H / OVELHA_ART_W;   // ≈ 1.2496
 
-export function computeViewport({ largura, altura, maxLargura = 520 }) {
+/**
+ * Viewport que respeita a razão REAL da arte, cabendo na área disponível (contain do box).
+ * A imagem preenche integralmente esse viewport; o `contentRect` cobre qualquer resíduo.
+ */
+export function computeViewport({ largura, altura, maxLargura = 560, artW = OVELHA_ART_W, artH = OVELHA_ART_H }) {
+  const ratio = (Number(artH) > 0 && Number(artW) > 0) ? artH / artW : CENA_RATIO;
   const w0 = Number(largura) > 0 ? largura : 0;
   const h0 = Number(altura) > 0 ? altura : Infinity;
   let w = Math.min(w0, maxLargura);
-  let h = w * CENA_RATIO;
-  if (h > h0) { h = h0; w = h / CENA_RATIO; }
+  let h = w * ratio;
+  if (h > h0) { h = h0; w = h / ratio; }
   return { w: Math.round(w), h: Math.round(h), x0: Math.round((w0 - w) / 2), y0: 0 };
 }
 
+/**
+ * Retângulo REAL exibido pela imagem sob CONTAIN dentro do viewport. Centrado; a escala
+ * é a MENOR entre ajustar por largura e por altura (nunca amplia além do "cabe inteiro").
+ * @returns {{ x:number, y:number, w:number, h:number, scale:number }}
+ */
+export function contentRect(scene, viewport) {
+  const aw = scene?.designWidth || OVELHA_ART_W;
+  const ah = scene?.designHeight || OVELHA_ART_H;
+  const vw = viewport?.w || 0;
+  const vh = viewport?.h || 0;
+  const scale = Math.min(vw / aw, vh / ah) || 0;
+  const w = aw * scale;
+  const h = ah * scale;
+  return { x: (vw - w) / 2, y: (vh - h) / 2, w, h, scale };
+}
+
+/** Escala arte→px = escala do contentRect (contain). */
 export function escalaArte(scene, viewport) {
-  const dw = scene?.designWidth || 1;
-  return (viewport?.w || 0) / dw;
+  return contentRect(scene, viewport).scale;
 }
+
+/** Ponto de ARTE → px do viewport, através do retângulo REAL exibido. */
 export function artToPx(pt, scene, viewport) {
-  const s = escalaArte(scene, viewport);
-  return { px: (Number(pt?.x) || 0) * s, py: (Number(pt?.y) || 0) * s };
+  const cr = contentRect(scene, viewport);
+  return { px: cr.x + (Number(pt?.x) || 0) * cr.scale, py: cr.y + (Number(pt?.y) || 0) * cr.scale };
 }
+
+/** px do viewport → ponto de ARTE, através do retângulo REAL exibido. */
 export function pxToArt(px, py, scene, viewport) {
-  const s = escalaArte(scene, viewport) || 1;
-  return { x: (Number(px) || 0) / s, y: (Number(py) || 0) / s };
+  const cr = contentRect(scene, viewport);
+  const s = cr.scale || 1;
+  return { x: ((Number(px) || 0) - cr.x) / s, y: ((Number(py) || 0) - cr.y) / s };
 }
 
 /* ─────────────────────────── Sprite · clip · hitbox (derivados) ─────────────────────────── */
 
 /** Caixa do sprite (em ARTE), centrada em spot.pos. Largura = escala × designWidth. */
 export function spriteBoxArt(spot, scene) {
-  const w = (Number(spot?.escala) || 0.1) * (scene?.designWidth || 1);
+  const w = (Number(spot?.escala) || 0.1) * (scene?.designWidth || OVELHA_ART_W);
   const h = w / spriteAspect(spot?.pose);
   const cx = spot?.pos?.x || 0;
   const cy = spot?.pos?.y || 0;
@@ -133,17 +171,17 @@ export function hitboxRect(spot, scene) {
 }
 
 /**
- * Hitbox em PIXELS do viewport, INFLADA ao piso de 56×56 (a área tocável pode ser maior
- * que o sprite visível quando a ovelha é pequena/distante — evita alvo microscópico sem
- * mover o desenho). Centrada na área visível.
+ * Hitbox em PIXELS do viewport, através do contentRect, INFLADA ao piso de 56×56 (a área
+ * tocável pode ser maior que o sprite visível quando a ovelha é pequena/distante — evita
+ * alvo microscópico sem mover o desenho). Centrada na área visível.
  */
 export function hitboxPxRect(spot, scene, viewport) {
-  const s = escalaArte(scene, viewport);
+  const cr = contentRect(scene, viewport);
   const a = hitboxArt(spot, scene);
-  const cx = a.cx * s;
-  const cy = a.cy * s;
-  const w = Math.max(OVELHA_HITBOX_MIN, a.w * s);
-  const h = Math.max(OVELHA_HITBOX_MIN, a.h * s);
+  const cx = cr.x + a.cx * cr.scale;
+  const cy = cr.y + a.cy * cr.scale;
+  const w = Math.max(OVELHA_HITBOX_MIN, a.w * cr.scale);
+  const h = Math.max(OVELHA_HITBOX_MIN, a.h * cr.scale);
   return { cx, cy, w, h, x0: cx - w / 2, y0: cy - h / 2, x1: cx + w / 2, y1: cy + h / 2 };
 }
 
@@ -154,16 +192,16 @@ export function pontoNaHitboxArte(artPt, spot, scene) {
   return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
 }
 
-/** Um toque em px do viewport acertou a ovelha? Usa a hitbox px (inflada). PURO. */
+/** Um toque em px do viewport acertou a ovelha? Usa a hitbox px (via contentRect). PURO. */
 export function toqueAcertou(px, py, spot, scene, viewport) {
   const r = hitboxPxRect(spot, scene, viewport);
   return px >= r.x0 && px <= r.x1 && py >= r.y0 && py <= r.y1;
 }
 
-/** Célula grossa (4×4) de um ponto — id para o anti-spam de erros por região. */
+/** Célula grossa (4×4) de um ponto de ARTE — id para o anti-spam de erros por região. */
 export function celulaToque(artPt, scene, cols = 4, rows = 4) {
-  const dw = scene?.designWidth || 1;
-  const dh = scene?.designHeight || 1;
+  const dw = scene?.designWidth || OVELHA_ART_W;
+  const dh = scene?.designHeight || OVELHA_ART_H;
   const c = clamp(Math.floor(((Number(artPt?.x) || 0) / dw) * cols), 0, cols - 1);
   const l = clamp(Math.floor(((Number(artPt?.y) || 0) / dh) * rows), 0, rows - 1);
   return `cell-${l}-${c}`;
@@ -189,11 +227,54 @@ export function clipValido(spot) {
   return ['left', 'right', 'top', 'bottom'].includes(s) && f >= 0.45 && f <= 0.75;
 }
 
-/** A hitbox px (inflada) fica dentro do viewport, sem estourar as bordas? */
-export function spotHitboxDentroViewport(spot, scene, viewport) {
-  const r = hitboxPxRect(spot, scene, viewport);
-  return r.w >= OVELHA_HITBOX_MIN && r.h >= OVELHA_HITBOX_MIN
-    && r.x0 >= -0.5 && r.y0 >= -0.5 && r.x1 <= viewport.w + 0.5 && r.y1 <= viewport.h + 0.5;
+/**
+ * Coerência MODO × clip:
+ *   CAMOUFLAGE → sem clip · PEEK → clip lateral (left/right) · PARTIAL → clip inferior (bottom).
+ */
+export function modoCoerente(spot) {
+  if (spot?.modo === 'CAMOUFLAGE') return !spot.clip;
+  if (spot?.modo === 'PEEK') return !!spot.clip && (spot.clip.side === 'left' || spot.clip.side === 'right');
+  if (spot?.modo === 'PARTIAL') return !!spot.clip && spot.clip.side === 'bottom';
+  return false;
+}
+
+/**
+ * Contrato de DIREÇÃO por pose (regra visual 2.2c):
+ *   peekLeft  exige clip.side === 'right' (objeto esconde o corpo à direita);
+ *   peekRight exige clip.side === 'left'  (objeto esconde o corpo à esquerda);
+ *   front sem clip OU clip inferior ('bottom'). Nunca peek com o corpo exposto no lado errado.
+ */
+export function poseLadoValido(spot) {
+  const pose = spot?.pose;
+  const side = spot?.clip?.side;
+  if (pose === 'peekLeft') return side === 'right';
+  if (pose === 'peekRight') return side === 'left';
+  if (pose === 'front') return !spot?.clip || side === 'bottom';
+  // found/celebrating/crouched não são usados como esconderijo autoral neste bloco
+  return false;
+}
+
+/** Banda vertical (normalizada) permitida — nada no céu (topo) nem abaixo da arte. */
+export const SPOT_Y_MIN = 0.28;
+export const SPOT_Y_MAX = 0.94;
+export const FRONT_Y_MIN = 0.42;   // front nunca "aéreo": só na metade inferior (chão/mercadorias)
+
+/** O esconderijo não é aéreo (céu/parede alta)? front exige estar na parte baixa. */
+export function spotNaoAereo(spot, scene) {
+  const dh = scene?.designHeight || OVELHA_ART_H;
+  const yN = (Number(spot?.pos?.y) || 0) / dh;
+  if (yN < SPOT_Y_MIN || yN > SPOT_Y_MAX) return false;
+  if (spot?.pose === 'front' && yN < FRONT_Y_MIN) return false;
+  return true;
+}
+
+/** Objetos/regiões PROIBIDOS como apoio (janela, céu, parede, teto, pessoas). */
+const APOIO_PROIBIDO = /janela|c[eé]u|sky|window|parede|teto|telhado|vendedor|crian|pessoa|homem|mulher|beb[eê]|rosto|face/i;
+
+/** Todo esconderijo precisa citar um apoio visual REAL (e não uma região proibida). */
+export function spotComApoio(spot) {
+  const a = typeof spot?.apoio === 'string' ? spot.apoio.trim() : '';
+  return a.length > 0 && !APOIO_PROIBIDO.test(a);
 }
 
 /** Sprite VISÍVEL dentro da safe area (não corta a ovelha de forma inválida). */
@@ -204,6 +285,13 @@ export function spriteDentroSafeArea(spot, scene) {
   // Folga pequena tolerada: o clip/borda pode encostar num objeto real da cena.
   return b.x0 >= sa.x - b.w * 0.10 && b.y0 >= sa.y - b.h * 0.10
     && b.x1 <= sa.x + sa.w + b.w * 0.10 && b.y1 <= sa.y + sa.h + b.h * 0.10;
+}
+
+/** A hitbox px (inflada) fica dentro do viewport, sem estourar as bordas? */
+export function spotHitboxDentroViewport(spot, scene, viewport) {
+  const r = hitboxPxRect(spot, scene, viewport);
+  return r.w >= OVELHA_HITBOX_MIN && r.h >= OVELHA_HITBOX_MIN
+    && r.x0 >= -0.5 && r.y0 >= -0.5 && r.x1 <= viewport.w + 0.5 && r.y1 <= viewport.h + 0.5;
 }
 
 /** Visibilidade mínima: peek/partial mantêm 45–75% visível; camuflagem ~100%. */
@@ -224,9 +312,13 @@ export function spotContratoValido(spot, scene, dificuldade = 'facil') {
     && poseValida(spot.pose)
     && orientacaoValida(spot.orientacao)
     && modoValido(spot.modo)
+    && modoCoerente(spot)
+    && poseLadoValido(spot)
     && escalaValida(spot)
     && clipValido(spot)
     && spotVisibilidadeOk(spot)
+    && spotNaoAereo(spot, scene)
+    && spotComApoio(spot)
     && spotDificuldadeOk(spot, dificuldade)
     && spriteDentroSafeArea(spot, scene);
 }
@@ -234,7 +326,7 @@ export function spotContratoValido(spot, scene, dificuldade = 'facil') {
 export function sceneValida(scene, dificuldade = 'facil') {
   const dif = getDifficulty(dificuldade);
   const spots = (scene?.hidingSpots || []).filter((s) => spotDificuldadeOk(s, dificuldade));
-  if (spots.length < (dif.minEsconderijos || 6)) return false;
+  if (spots.length < (dif.minEsconderijos || 4)) return false;
   return !!scene?.background && spots.every((s) => spotContratoValido(s, scene, dificuldade));
 }
 
@@ -306,7 +398,6 @@ export function planPartida({ rounds = 5, rnd = Math.random, dificuldade = 'faci
     const alvoPose = poses[0];
     const alt = shuffle(todos.filter((x) => x.pose !== alvoPose), rnd)[0];
     if (alt) {
-      // troca a rodada 3 (meio), evitando colidir com vizinhas
       const idx = Math.min(2, plano.length - 1);
       if (plano[idx].spotId !== plano[Math.max(0, idx - 1)].spotId) plano[idx] = alt;
       else plano[Math.min(plano.length - 1, idx + 1)] = alt;

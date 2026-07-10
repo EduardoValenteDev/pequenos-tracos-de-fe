@@ -1,19 +1,24 @@
 /**
- * CadeAOvelhinhaScreen — "Cadê a Ovelhinha?" (2.1→2.1b protótipo · 2.2a→2.2b cenas reais).
+ * CadeAOvelhinhaScreen — "Cadê a Ovelhinha?" (2.1→2.2c enquadramento + transição atômica).
  *
- * ── Cenas e ovelhas REAIS (2.2b) ──────────────────────────────────────────────
- * A rodada segue um PLANO determinístico (ver planPartida) sobre ESCONDERIJOS autorais
- * (ver ovelhaScenes) dentro de cenas 4:5. Duas paisagens reais em WebP (armazém/fazenda)
- * e três poses da ovelha recortadas por alpha bbox (front/peekLeft/peekRight). A CENA
- * INTEIRA recebe o toque; o acerto é o ponto cair na hitbox DERIVADA do sprite. A oclusão
- * PEEK/PARTIAL é feita por CLIP (janela overflow hidden alinhada a um objeto real), nunca
- * por oclusor geométrico colorido.
+ * ── Enquadramento correto (2.2c) ──────────────────────────────────────────────
+ * O background aparece INTEIRO (CONTAIN, sem zoom/cover). O viewport tem a razão real da
+ * arte (1122×1402); a imagem preenche esse viewport e qualquer folga mínima vira um
+ * `contentRect` REAL. TODA conversão arte<->pixel (ovelha, hitbox, toque) passa pelo
+ * contentRect — é o que alinha a ovelha ao que o olho vê.
+ *
+ * ── Transição atômica de rodada (2.2c) ────────────────────────────────────────
+ * Dois estados: `activeRound` (o que está na tela) e `pendingRound` (o que está sendo
+ * preparado). A troca é: bloqueia input → fade-out do SceneLayer atual → promove o
+ * pendente (remonta o SceneLayer com KEY nova) → só quando `sceneReady` (background E pose
+ * carregados para AQUELE roundId) a ovelha aparece e faz fade-in → libera input. A ovelha
+ * nunca aparece sobre o background antigo, e não "anda" entre esconderijos.
  *
  * A rota só existe sob o gate interno; o card fica "Em teste". Ferramentas dev
  * (OVELHA_DEBUG_HITBOX / OVELHA_CALIBRACAO) são SEMPRE false em produção.
  *
- * Preservado do protótipo: máquina de estados, 5 rodadas, persistência, teto
- * compartilhado, salvamento único, anti-spam + reset de dica por rodada, ciclo de vida.
+ * Preservado: máquina de estados, 5 rodadas, persistência, teto compartilhado, salvamento
+ * único, anti-spam + reset de dica por rodada, ciclo de vida.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -23,6 +28,7 @@ import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { Asset } from 'expo-asset';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import FaithIcon from '../components/ui/FaithIcon';
@@ -38,15 +44,18 @@ import { warn } from '../utils/logger';
 import { OVELHA_BENI } from '../data/ovelhaSceneData';
 import { getScene, OVELHA_SCENES } from '../data/ovelhaScenes';
 import {
-  buildRoundFromSpot, roundValido, planPartida, computeViewport, escalaArte, artToPx, pxToArt,
-  spriteBoxArt, visibleBoxArt, hitboxPxRect, spriteAspect,
-  toqueAcertou, celulaToque, erroElegivel, nivelDica, estagioDica,
-  MISS_ID, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS,
+  buildRoundFromSpot, roundValido, planPartida, computeViewport, contentRect, artToPx, pxToArt,
+  spriteBoxArt, visibleBoxArt, hitboxPxRect, toqueAcertou, celulaToque, erroElegivel,
+  nivelDica, estagioDica, MISS_ID, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS, OVELHA_ART_W, OVELHA_ART_H,
 } from '../services/ovelhaGameService';
+import {
+  FASES, criarJogo, iniciarRodada, cenaPronta, tocar, liberarErro, avancar, encerrar,
+} from '../services/ovelhaGameMachine';
 
 /**
- * Assets REAIS (2.2b). Backgrounds em WebP processado; ovelhas recortadas por alpha bbox.
- * `require` estático. Um fallback interno (só dev/segurança) cobre uma cena sem background.
+ * Assets REAIS. Backgrounds em WebP processado (exibidos por CONTAIN); ovelhas recortadas
+ * por alpha bbox. `require` estático. Um fallback interno (só segurança) cobre uma cena
+ * sem background.
  */
 const OVELHA_BG = {
   warehouse_01: require('../../assets/games/cade_a_ovelhinha/backgrounds/processed/warehouse_01.webp'),
@@ -57,20 +66,42 @@ const OVELHA_POSE_IMG = {
   peekLeft: require('../../assets/games/cade_a_ovelhinha/sheep/processed/sheep_peek_left.png'),
   peekRight: require('../../assets/games/cade_a_ovelhinha/sheep/processed/sheep_peek_right.png'),
 };
-import {
-  FASES, criarJogo, iniciarRodada, cenaPronta, tocar, liberarErro, avancar, encerrar,
-} from '../services/ovelhaGameMachine';
 
 /**
- * Ferramentas internas (2.2b). SEMPRE `false` em produção — nunca aparecem no jogo real.
- *   OVELHA_DEBUG_HITBOX  — overlay: sprite box, alpha bbox, hitbox, clip, centro, ids, pose.
- *   OVELHA_CALIBRACAO    — modo de calibração: navega esconderijos sem consumir rodada/salvar.
+ * Pré-carrega os 5 assets do jogo (2 backgrounds + 3 poses) uma única vez, via expo-asset
+ * (sem dependência nova). Assim o `pendingRound` só usa assets já resolvidos e a transição
+ * atômica não pisca. Idempotente e resiliente (não quebra se um download demorar).
+ */
+const OVELHA_ASSET_MODULES = [...Object.values(OVELHA_BG), ...Object.values(OVELHA_POSE_IMG)];
+let ovelhaPreloadPromise = null;
+function preloadOvelhaAssets() {
+  if (ovelhaPreloadPromise) return ovelhaPreloadPromise;
+  ovelhaPreloadPromise = Promise.allSettled(
+    OVELHA_ASSET_MODULES.map((m) => Asset.fromModule(m).downloadAsync()),
+  ).then(() => true).catch(() => true);
+  return ovelhaPreloadPromise;
+}
+
+/**
+ * Ferramentas internas. SEMPRE `false` em produção — nunca aparecem no jogo real.
+ *   OVELHA_DEBUG_HITBOX  — overlay: sprite box, hitbox, clip, centro, ids, pose, escala.
+ *   OVELHA_CALIBRACAO    — calibração: navega/ajusta esconderijos sem consumir rodada/salvar.
  */
 const OVELHA_DEBUG_HITBOX = false;
 const OVELHA_CALIBRACAO = false;
 
 /** Tempos das animações (ms). */
-const T = { entrada: 320, acerto: 720, erro: 460 };
+const T = { acerto: 720, erro: 460, fadeOut: 170, fadeIn: 210 };
+
+/** Passos da calibração (dev). */
+const CALIB_PASSO_XY = 6;        // px de arte por toque
+const CALIB_PASSO_ESC = 0.005;   // fração por toque
+
+const clampEsc = (v) => Math.max(0.06, Math.min(0.18, v));
+const wrap = (i, n) => ((i % n) + n) % n;
+
+/** Lista achatada de todos os esconderijos (para calibração). */
+const CALIB_SPOTS = OVELHA_SCENES.flatMap((sc) => sc.hidingSpots.map((sp) => ({ sceneId: sc.id, spot: sp })));
 
 function vibrar() {
   try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* segue */ }
@@ -92,19 +123,28 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const [pausado, setPausado] = useState(false);
 
   const [vista, setVista] = useState(() => criarJogo({ rounds: OVELHA_ROUNDS }));
-  const [round, setRound] = useState(null);
+  const [activeRound, setActiveRound] = useState(null);   // rodada PINTADA na tela
+  const [pendingRound, setPendingRound] = useState(null); // rodada em preparação (invisível)
+  const [sceneReady, setSceneReady] = useState(false);    // background E pose prontos p/ activeRound
   const [nivel, setNivel] = useState(0);
-  const [ripple, setRipple] = useState(null);      // { key, x, y } — feedback de erro no ponto
+  const [ripple, setRipple] = useState(null);             // { key, x, y } — feedback de erro no ponto
   const [errouAgora, setErrouAgora] = useState(false);
+  const [areaVersion, setAreaVersion] = useState(0);      // bump quando a área medida muda
+  const [calibSel, setCalibSel] = useState(null);         // { sceneId, spot } em calibração
 
   const jogoRef = useRef(vista);
   const roundIdRef = useRef(0);
-  const planoRef = useRef([]);        // plano determinístico das 5 rodadas (cena+spot+pose)
-  const calibIdxRef = useRef(0);      // índice do esconderijo no modo calibração
+  const planoRef = useRef([]);          // plano determinístico das 5 rodadas (cena+spot+pose)
+  const calibIdxRef = useRef(0);        // índice do esconderijo no modo calibração
+  const activeRoundRef = useRef(null);  // espelho síncrono de activeRound
   const salvoRef = useRef(false);
   const timeouts = useRef([]);
   const montado = useRef(true);
   const areaRef = useRef({ largura: 0, altura: 0 });
+  // Transição atômica:
+  const layerAnim = useRef(new Animated.Value(0)).current;   // opacidade do SceneLayer
+  const readyRef = useRef({ roundId: -1, bg: false, pose: false, seq: 0 });
+  const transSeqRef = useRef(0);
   // Dica — tudo por rodada (nada vaza):
   const buscaMsRef = useRef(0);
   const nivelRef = useRef(0);
@@ -115,8 +155,11 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const fn = useRef({});
 
   const viewport = useMemo(
-    () => computeViewport({ largura: areaRef.current.largura || Math.min(width - 24, 520), altura: areaRef.current.altura || 9999 }),
-    [width, round, tela],  // recompõe quando a área muda (medida via onLayout força re-render por round)
+    () => computeViewport({
+      largura: areaRef.current.largura || Math.min(width - 20, 560),
+      altura: areaRef.current.altura || 9999,
+    }),
+    [width, areaVersion, tela],
   );
 
   /* ── Timers centralizados ── */
@@ -171,38 +214,69 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     return r;
   }, [executar, resetarDica]);
 
-  /* ── Monta a rodada seguindo o PLANO determinístico da partida (cena+esconderijo). ──
-     Idempotente por rodada (só age em `trocandoCena`). Em CALIBRAÇÃO, o esconderijo vem
-     do índice de navegação, não do plano. */
-  const montarRodada = useCallback(() => {
-    if (jogoRef.current.fase !== FASES.TROCANDO) return;
+  /* ── Prontidão: só quando background E pose carregam para o roundId corrente. ──
+     Callback de load de rodada antiga é ignorado (roundId não bate). */
+  const marcarCarregado = useCallback((qual, roundId) => {
+    const r = readyRef.current;
+    if (!r || r.roundId !== roundId) return;
+    if (qual === 'bg') r.bg = true; else r.pose = true;
+    if (r.bg && r.pose && montado.current) setSceneReady(true);
+  }, []);
 
-    let sceneId, spotId;
-    if (OVELHA_CALIBRACAO) {
-      const todos = OVELHA_SCENES.flatMap((sc) => sc.hidingSpots.map((sp) => ({ sceneId: sc.id, spotId: sp.id })));
-      const cur = todos[((calibIdxRef.current % todos.length) + todos.length) % todos.length];
-      sceneId = cur.sceneId; spotId = cur.spotId;
+  /* ── Transição ATÔMICA: prepara a rodada, faz fade-out, promove e espera sceneReady. ──
+     A ovelha nova nunca aparece sobre o background antigo. */
+  const iniciarTransicao = useCallback((round, { comFade }) => {
+    const iniciou = aplicar(iniciarRodada, { targetId: round.targetId, itemIds: [round.targetId, MISS_ID] });
+    if (!iniciou.aceito) return;   // rodada inválida: a máquina não inicia
+    const seq = (transSeqRef.current += 1);
+    readyRef.current = { roundId: round.roundId, bg: false, pose: false, seq };
+    setPendingRound(round);
+
+    const promover = () => {
+      if (transSeqRef.current !== seq || !montado.current) return;
+      setSceneReady(false);            // esconde a ovelha até o novo background carregar
+      setActiveRound(round);           // remonta o SceneLayer (key nova), opacidade 0
+      activeRoundRef.current = round;
+      setPendingRound(null);
+      setRipple(null);
+    };
+
+    if (comFade && activeRoundRef.current) {
+      Animated.timing(layerAnim, { toValue: 0, duration: T.fadeOut, useNativeDriver: true })
+        .start(({ finished }) => { if (finished) promover(); });
     } else {
-      const rodada = jogoRef.current.rodada;                 // 1-based
-      const plano = planoRef.current;
-      const entry = plano[(rodada - 1) % plano.length] || plano[0];
-      sceneId = entry.sceneId; spotId = entry.spotId;
+      layerAnim.setValue(0);
+      promover();
     }
+  }, [aplicar, layerAnim]);
 
-    const scene = getScene(sceneId);
-    const spot = scene.hidingSpots.find((s) => s.id === spotId) || scene.hidingSpots[0];
+  /* ── Fade-in + liberação: quando a cena fica pronta, revela e passa a aceitar toque. ── */
+  useEffect(() => {
+    if (!sceneReady) return undefined;
+    if (jogoRef.current.fase !== FASES.ENTRANDO) return undefined;
+    const a = Animated.timing(layerAnim, { toValue: 1, duration: T.fadeIn, useNativeDriver: true });
+    a.start(({ finished }) => {
+      if (finished && montado.current) {
+        fn.current.aplicar(cenaPronta);       // ENTRANDO → PROCURANDO (libera input)
+        rodadaSeqRef.current += 1;            // nova sequência de dica
+        resetarDica();
+      }
+    });
+    return () => a.stop();
+  }, [sceneReady, layerAnim, resetarDica]);
+
+  /* ── Monta a rodada seguindo o PLANO determinístico da partida. ── */
+  const buildRoundParaRodada = useCallback((rodada1based) => {
+    const plano = planoRef.current;
+    if (!plano.length) return null;
+    const entry = plano[(rodada1based - 1) % plano.length] || plano[0];
+    const scene = getScene(entry.sceneId);
+    const spot = scene.hidingSpots.find((s) => s.id === entry.spotId) || scene.hidingSpots[0];
     roundIdRef.current += 1;
     const r = buildRoundFromSpot({ scene, spot, roundId: roundIdRef.current });
-    if (!r || !roundValido(r, 'facil')) { warn('CadeAOvelhinha: rodada inválida (contrato).'); return; }
-
-    const iniciou = aplicar(iniciarRodada, { targetId: r.targetId, itemIds: [r.targetId, MISS_ID] });
-    if (!iniciou.aceito) return;
-    rodadaSeqRef.current += 1;
-    setRound(r);
-    setRipple(null);
-    resetarDica();
-    fn.current.agendar(() => fn.current.aplicar(cenaPronta), T.entrada);
-  }, [aplicar, resetarDica]);
+    if (!r || !roundValido(r, 'facil')) { warn('CadeAOvelhinha: rodada inválida (contrato).'); return null; }
+    return r;
+  }, []);
 
   /* ── Fim da partida: salva UMA vez. Nunca salva em CALIBRAÇÃO. ── */
   const finalizar = useCallback(async () => {
@@ -226,16 +300,17 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     setTela('resultado');
   }, [refreshProgress, limparTimers, resetarDica]);
 
-  fn.current = { aplicar, agendar, montarRodada, finalizar, aplicarNivel };
+  fn.current = { aplicar, agendar, finalizar, aplicarNivel };
 
   /* ── Ciclo de vida ── */
   useEffect(() => {
     montado.current = true;
     preloadGameSfx();
+    preloadOvelhaAssets();
     let vivo = true;
     getDailyRounds().then((r) => vivo && setRounds(r)).catch((e) => warn('CadeAOvelhinha.rounds:', e));
     readStats().then((s) => vivo && setStats(s)).catch((e) => warn('CadeAOvelhinha.stats:', e));
-    return () => { vivo = false; montado.current = false; limparTimers(); releaseGameSfx(); };
+    return () => { vivo = false; montado.current = false; transSeqRef.current += 1; limparTimers(); releaseGameSfx(); };
   }, [limparTimers]);
 
   useEffect(() => {
@@ -246,7 +321,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   }, [navigation]);
 
   const jogando = tela === 'jogando';
-  const procurando = jogando && vista.fase === FASES.PROCURANDO;
+  const procurando = jogando && vista.fase === FASES.PROCURANDO && sceneReady;
 
   /* ── Controlador de dica (por rodada; usa erro ELEGÍVEL, não o cumulativo) ── */
   useEffect(() => {
@@ -263,55 +338,100 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     return () => clearInterval(t);
   }, [procurando, pausado]);
 
-  /* ── Começar. Em CALIBRAÇÃO não consome rodada nem sorteia (navega os esconderijos). ── */
+  /* ── Dispara a preparação da rodada quando a máquina entra em TROCANDO. ── */
+  useEffect(() => {
+    if (!jogando || OVELHA_CALIBRACAO) return;
+    if (vista.fase !== FASES.TROCANDO) return;
+    if (jogoRef.current.fase !== FASES.TROCANDO) return;   // idempotente
+    const r = buildRoundParaRodada(vista.rodada);
+    if (r) iniciarTransicao(r, { comFade: true });
+  }, [jogando, vista.fase, vista.rodada, buildRoundParaRodada, iniciarTransicao]);
+
+  /* ── Começar. Em CALIBRAÇÃO não consome rodada nem sorteia. ── */
   const comecar = useCallback(async () => {
     if (!OVELHA_CALIBRACAO) {
       const r = await consumeRound();
       if (!r.ok) { setRounds(await getDailyRounds()); setTela('entrada'); return; }
     }
+    await preloadOvelhaAssets();
+    if (!montado.current) return;
     limparTimers();
     resetarDica();
     salvoRef.current = false;
-    // Plano determinístico da partida (alterna cenas, ≥2 poses, sem repetir spot).
+    transSeqRef.current += 1;
+    layerAnim.setValue(0);
     planoRef.current = planPartida({ rounds: OVELHA_ROUNDS, rnd: Math.random });
     calibIdxRef.current = 0;
     jogoRef.current = criarJogo({ rounds: OVELHA_ROUNDS });
     setVista(jogoRef.current);
-    setRound(null);
+    setActiveRound(null);
+    activeRoundRef.current = null;
+    setPendingRound(null);
+    setSceneReady(false);
     setResultado(null);
     setRipple(null);
     setPausado(AppState.currentState !== 'active');
+    if (OVELHA_CALIBRACAO) setCalibSel({ sceneId: CALIB_SPOTS[0].sceneId, spot: { ...CALIB_SPOTS[0].spot, pos: { ...CALIB_SPOTS[0].spot.pos } } });
     setTela('jogando');
     if (!OVELHA_CALIBRACAO) setRounds(await getDailyRounds());
-    if (areaRef.current.largura) fn.current.montarRodada();
-  }, [limparTimers, resetarDica]);
+  }, [limparTimers, resetarDica, layerAnim]);
 
-  /* ── Calibração: navega entre esconderijos sem tocar em rodada/estrelinha. ── */
-  const calibNavegar = useCallback((delta) => {
-    calibIdxRef.current += delta;
+  /* ── CALIBRAÇÃO: monta o esconderijo selecionado sem consumir rodada nem salvar. ── */
+  useEffect(() => {
+    if (!OVELHA_CALIBRACAO || tela !== 'jogando' || !calibSel) return;
     limparTimers();
-    resetarDica();
+    transSeqRef.current += 1;
+    layerAnim.setValue(0);
     jogoRef.current = criarJogo({ rounds: OVELHA_ROUNDS });
     setVista(jogoRef.current);
-    setRound(null);
-    setRipple(null);
-    if (areaRef.current.largura) fn.current.montarRodada();
-  }, [limparTimers, resetarDica]);
+    setActiveRound(null);
+    activeRoundRef.current = null;
+    const scene = getScene(calibSel.sceneId);
+    roundIdRef.current += 1;
+    const r = buildRoundFromSpot({ scene, spot: calibSel.spot, roundId: roundIdRef.current });
+    if (r) iniciarTransicao(r, { comFade: false });
+  }, [calibSel, tela, limparTimers, layerAnim, iniciarTransicao]);
+
+  const calibNavegar = useCallback((delta) => {
+    calibIdxRef.current = wrap(calibIdxRef.current + delta, CALIB_SPOTS.length);
+    const base = CALIB_SPOTS[calibIdxRef.current];
+    setCalibSel({ sceneId: base.sceneId, spot: { ...base.spot, pos: { ...base.spot.pos } } });
+  }, []);
+  const calibNudge = useCallback((campo, delta) => {
+    setCalibSel((prev) => {
+      if (!prev) return prev;
+      const sp = { ...prev.spot, pos: { ...prev.spot.pos } };
+      if (campo === 'x') sp.pos.x = Math.max(0, Math.min(OVELHA_ART_W, sp.pos.x + delta));
+      if (campo === 'y') sp.pos.y = Math.max(0, Math.min(OVELHA_ART_H, sp.pos.y + delta));
+      if (campo === 'e') sp.escala = clampEsc(Math.round((sp.escala + delta) * 1000) / 1000);
+      return { ...prev, spot: sp };
+    });
+  }, []);
+  const calibPose = useCallback(() => {
+    setCalibSel((prev) => {
+      if (!prev) return prev;
+      const ordem = ['front', 'peekLeft', 'peekRight'];
+      const prox = ordem[(ordem.indexOf(prev.spot.pose) + 1) % ordem.length];
+      const sp = { ...prev.spot, pos: { ...prev.spot.pos }, pose: prox };
+      if (prox === 'front') { sp.modo = 'CAMOUFLAGE'; delete sp.clip; }
+      else { sp.modo = 'PEEK'; sp.clip = { side: prox === 'peekLeft' ? 'right' : 'left', visibleFraction: 0.6 }; }
+      return { ...prev, spot: sp };
+    });
+  }, []);
 
   const abandonar = useCallback(() => {
-    limparTimers(); resetarDica(); aplicar(encerrar); setTela('entrada');
+    limparTimers(); transSeqRef.current += 1; resetarDica(); aplicar(encerrar); setTela('entrada');
   }, [aplicar, limparTimers, resetarDica]);
 
-  /* ── Toque na CENA inteira: converte para arte e decide acerto/erro ── */
-  const scene = getScene(round?.sceneId);
+  /* ── Toque na CENA inteira: só conta com a cena pronta e a máquina procurando. ── */
+  const scene = getScene(activeRound?.sceneId);
   const tocarCena = useCallback((e) => {
-    if (pausado || !round) return;
+    if (pausado || !activeRound || !sceneReady) return;   // input bloqueado durante transição
     const { locationX: px, locationY: py } = e?.nativeEvent ?? {};
     if (OVELHA_CALIBRACAO) { setRipple({ key: `${Date.now()}`, x: px, y: py }); return; }  // só inspeção
-    const acertou = toqueAcertou(px, py, round.spot, scene, viewport);
-    const r = aplicar(tocar, acertou ? round.targetId : MISS_ID);
+    const acertou = toqueAcertou(px, py, activeRound.spot, scene, viewport);
+    const r = aplicar(tocar, acertou ? activeRound.targetId : MISS_ID);
     if (r.aceito && r.acerto === false) {
-      // Feedback de erro NO PONTO tocado (ripple) + balanço da mensagem.
       setRipple({ key: `${Date.now()}`, x: px, y: py });
       setErrouAgora(true);
       agendar(() => montado.current && setErrouAgora(false), T.erro);
@@ -326,19 +446,15 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
       ultimoErroIdRef.current = cel;
       aplicarNivel(buscaMsRef.current, erroElegivelRef.current);
     }
-  }, [aplicar, agendar, pausado, round, scene, viewport, aplicarNivel]);
-
-  useEffect(() => {
-    if (jogando && vista.fase === FASES.TROCANDO) fn.current.montarRodada();
-  }, [jogando, vista.fase, vista.rodada]);
+  }, [aplicar, agendar, pausado, activeRound, sceneReady, scene, viewport, aplicarNivel]);
 
   const medirArea = useCallback((e) => {
     const { width: w, height: h } = e?.nativeEvent?.layout ?? {};
     if (!w || !h) return;
     const mudou = Math.abs(areaRef.current.largura - w) > 1 || Math.abs(areaRef.current.altura - h) > 1;
     areaRef.current = { largura: w, altura: h };
-    if (mudou && jogando && jogoRef.current.fase === FASES.TROCANDO) fn.current.montarRodada();
-  }, [jogando]);
+    if (mudou) setAreaVersion((v) => v + 1);
+  }, []);
 
   const semRodadas = !premium && rounds != null && rounds.remaining <= 0;
   const mensagem = pausado
@@ -451,7 +567,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
 
       <Text style={styles.dica} numberOfLines={1}>{mensagem}</Text>
 
-      {/* Container que mede a área; o VIEWPORT 4:5 centrado captura o toque. */}
+      {/* Container que mede a área; o VIEWPORT (razão da arte) captura o toque. */}
       <View style={styles.cenaWrap} onLayout={medirArea}>
         <Pressable
           onPress={tocarCena}
@@ -459,99 +575,94 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
           accessibilityRole="button"
           accessibilityLabel="Procure a ovelhinha na paisagem"
         >
-          {round && (
-            <CenaAutoral
-              round={round}
+          {activeRound && (
+            <SceneLayer
+              key={`${activeRound.roundId}:${activeRound.sceneId}:${activeRound.spot.id}`}
+              round={activeRound}
               scene={scene}
               viewport={viewport}
+              layerAnim={layerAnim}
+              sceneReady={sceneReady}
               encontrada={vista.fase === FASES.ACERTO}
               estagio={estagio}
               ripple={ripple}
               debug={OVELHA_DEBUG_HITBOX}
+              onBgLoad={() => marcarCarregado('bg', activeRound.roundId)}
+              onPoseLoad={() => marcarCarregado('pose', activeRound.roundId)}
             />
           )}
         </Pressable>
 
-        {/* Modo de calibração (dev): navega os esconderijos; nunca em produção. */}
-        {OVELHA_CALIBRACAO && round && (
-          <View style={styles.calibBar} pointerEvents="box-none">
-            <SoundButton style={styles.calibBtn} onPress={() => calibNavegar(-1)} accessibilityLabel="Anterior"><Text style={styles.calibTxt}>‹</Text></SoundButton>
-            <Text style={styles.calibInfo}>{round.sceneId} · {round.spot.id} · {round.pose} · e{round.spot.escala}</Text>
-            <SoundButton style={styles.calibBtn} onPress={() => calibNavegar(1)} accessibilityLabel="Próximo"><Text style={styles.calibTxt}>›</Text></SoundButton>
-          </View>
+        {/* Calibração (dev): navega/ajusta esconderijos; nunca em produção. */}
+        {OVELHA_CALIBRACAO && calibSel && (
+          <CalibBar sel={calibSel} onNav={calibNavegar} onPose={calibPose} onNudge={calibNudge} />
         )}
       </View>
     </View>
   );
 }
 
-/* ══════════════════════════ CENA (camadas com arte real) ══════════════════════════ */
+/* ══════════════════════════ SCENE LAYER (container único) ══════════════════════════ */
 
 /**
- * Renderiza a cena real em camadas por zIndex:
- *   0 background (Image WebP) · 2 ovelha (Image PNG recortada, com clip) · 4 dica (brilho/
- *   contorno) · 5 ripple. Nada aqui recebe toque — a Pressable-pai captura a cena inteira.
- * A oclusão PEEK/PARTIAL é feita por CLIP (View overflow hidden alinhado a um objeto real),
- * nunca por oclusor geométrico colorido.
+ * Um único container visual por rodada (background + ovelha + clip + dica + ripple),
+ * remontado por KEY a cada troca. A opacidade `layerAnim` faz o fade do container INTEIRO
+ * (nunca background e ovelha separados). A ovelha só é renderizada com `sceneReady=true`.
  */
-function CenaAutoral({ round, scene, viewport, encontrada, estagio, ripple, debug }) {
+function SceneLayer({ round, scene, viewport, layerAnim, sceneReady, encontrada, estagio, ripple, debug, onBgLoad, onPoseLoad }) {
   const spot = round.spot;
+  const cr = contentRect(scene, viewport);
+  const s = cr.scale;
   const centro = artToPx(spot.pos, scene, viewport);
   const sb = spriteBoxArt(spot, scene);
   const vb = visibleBoxArt(spot, scene);
-  const s = escalaArte(scene, viewport);
   const spW = sb.w * s;
   const spH = sb.h * s;
   const bg = OVELHA_BG[scene.background?.assetKey];
   const img = OVELHA_POSE_IMG[spot.pose] || OVELHA_POSE_IMG.front;
   const flip = spot.orientacao === 'flip';
 
-  // Janela de CLIP (px do viewport), em torno da caixa visível — o sprite é maior e
-  // posicionado dentro, então a parte fora da janela some (alinhada a um objeto real).
+  // Janela de CLIP (px do viewport) em torno da caixa VISÍVEL; o sprite inteiro vive dentro.
   const clip = spot.clip;
   const clipW = (clip ? vb.w : sb.w) * s;
   const clipH = (clip ? vb.h : sb.h) * s;
-  const clipLeft = (vb.cx * s) - clipW / 2;
-  const clipTop = (vb.cy * s) - clipH / 2;
-  // Deslocamento do sprite dentro da janela (o sprite inteiro, recortado pela janela).
-  const offX = (sb.cx * s) - clipW / 2 - clipLeft + (clipW - spW) / 2;
-  const offY = (sb.cy * s) - clipH / 2 - clipTop + (clipH - spH) / 2;
+  const clipLeft = cr.x + vb.cx * s - clipW / 2;
+  const clipTop = cr.y + vb.cy * s - clipH / 2;
+  const spriteLeft = cr.x + sb.cx * s - spW / 2;
+  const spriteTop = cr.y + sb.cy * s - spH / 2;
+  const offX = spriteLeft - clipLeft;
+  const offY = spriteTop - clipTop;
 
   return (
-    <>
-      {/* 0 — background REAL (WebP), preenche o viewport 4:5 sem deformar. */}
+    <Animated.View style={[StyleSheet.absoluteFill, { opacity: layerAnim }]} pointerEvents="none">
+      {/* 0 — background REAL por CONTAIN (imagem inteira, sem zoom/cover). */}
       {bg
-        ? <Image source={bg} style={styles.bg} resizeMode="cover" pointerEvents="none" />
-        : <><LinearGradient colors={['#CDE8FB', '#E7F4E4', '#DCEBB6']} style={styles.bg} pointerEvents="none" /><View pointerEvents="none" style={styles.chao} /></>}
+        ? <Image source={bg} style={styles.bg} resizeMode="contain" onLoad={onBgLoad} />
+        : <View style={[styles.bg, styles.bgFallback]} />}
+      {/* Detector invisível do load da POSE (a ovelha visível só entra com sceneReady). */}
+      <Image source={img} style={styles.poseLoader} resizeMode="contain" onLoad={onPoseLoad} />
 
-      {/* 4 (brilho) — halo discreto e PEQUENO na região (estágio 3), atrás da ovelha. */}
-      {estagio >= 3 && <BrilhoRegiao cx={centro.px} cy={centro.py} r={Math.min(spW, spH) * 0.55} />}
+      {sceneReady && estagio >= 3 && <BrilhoRegiao cx={centro.px} cy={centro.py} r={Math.min(spW, spH) * 0.55} />}
 
-      {/* 2 — ovelha REAL, recortada pela janela de clip (PEEK/PARTIAL) ou inteira (CAMOUFLAGE). */}
-      <SheepView
-        clipLeft={clipLeft} clipTop={clipTop} clipW={clipW} clipH={clipH}
-        offX={offX} offY={offY} spW={spW} spH={spH} img={img} flip={flip} encontrada={encontrada}
-      />
+      {sceneReady && (
+        <SheepView
+          clipLeft={clipLeft} clipTop={clipTop} clipW={clipW} clipH={clipH}
+          offX={offX} offY={offY} spW={spW} spH={spH} img={img} flip={flip} encontrada={encontrada}
+        />
+      )}
 
-      {/* 4 (contorno) — pequeno contorno tracejado na parte visível (estágio 4). */}
-      {estagio >= 4 && <ContornoVisivel cx={vb.cx * s} cy={vb.cy * s} w={clipW} h={clipH} />}
+      {sceneReady && estagio >= 4 && <ContornoVisivel cx={cr.x + vb.cx * s} cy={cr.y + vb.cy * s} w={clipW} h={clipH} />}
 
-      {/* 5 — ripple de erro no ponto tocado. */}
       {ripple && <TouchRipple key={ripple.key} x={ripple.x} y={ripple.y} />}
 
       {debug && <DebugOverlay round={round} scene={scene} viewport={viewport}
         centro={centro} spW={spW} spH={spH} clipLeft={clipLeft} clipTop={clipTop} clipW={clipW} clipH={clipH} />}
-    </>
+    </Animated.View>
   );
 }
 
 function SheepView({ clipLeft, clipTop, clipW, clipH, offX, offY, spW, spH, img, flip, encontrada }) {
   const pop = useRef(new Animated.Value(1)).current;
-  const entrada = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const a = Animated.timing(entrada, { toValue: 1, duration: 300, useNativeDriver: true });
-    a.start(); return () => a.stop();
-  }, []);
   useEffect(() => {
     if (!encontrada) return undefined;
     const a = Animated.sequence([
@@ -559,12 +670,12 @@ function SheepView({ clipLeft, clipTop, clipW, clipH, offX, offY, spW, spH, img,
       Animated.spring(pop, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }),
     ]);
     a.start(); return () => a.stop();
-  }, [encontrada]);
+  }, [encontrada, pop]);
   return (
     // Janela de CLIP (overflow hidden) alinhada à área visível; o sprite inteiro vive dentro.
     <Animated.View
       pointerEvents="none"
-      style={{ position: 'absolute', left: clipLeft, top: clipTop, width: clipW, height: clipH, overflow: 'hidden', zIndex: 2, opacity: entrada, transform: [{ scale: pop }] }}
+      style={{ position: 'absolute', left: clipLeft, top: clipTop, width: clipW, height: clipH, overflow: 'hidden', zIndex: 2, transform: [{ scale: pop }] }}
     >
       <Image
         source={img}
@@ -584,7 +695,7 @@ function BrilhoRegiao({ cx, cy, r }) {
       Animated.timing(p, { toValue: 0, duration: 900, useNativeDriver: true }),
     ]));
     a.start(); return () => a.stop();
-  }, []);
+  }, [p]);
   return (
     <Animated.View
       pointerEvents="none"
@@ -602,7 +713,7 @@ function ContornoVisivel({ cx, cy, w, h }) {
       Animated.timing(p, { toValue: 0, duration: 700, useNativeDriver: true }),
     ]));
     a.start(); return () => a.stop();
-  }, []);
+  }, [p]);
   const d = Math.min(w, h) * 1.02;
   return (
     <Animated.View pointerEvents="none" style={{ position: 'absolute', left: cx - d / 2, top: cy - d / 2, width: d, height: d, zIndex: 4, opacity: p.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] }) }}>
@@ -619,7 +730,7 @@ function TouchRipple({ x, y }) {
   useEffect(() => {
     const a = Animated.timing(p, { toValue: 1, duration: 420, useNativeDriver: true });
     a.start(); return () => a.stop();
-  }, []);
+  }, [p]);
   const d = 54;
   return (
     <Animated.View
@@ -630,21 +741,47 @@ function TouchRipple({ x, y }) {
   );
 }
 
-/** Overlay de diagnóstico: sprite box, hitbox (visível), clip, centro, ids, pose, escala. */
+/** Overlay de diagnóstico: sprite box, hitbox (px via contentRect), clip, ids, pose, escala. */
 function DebugOverlay({ round, scene, viewport, centro, spW, spH, clipLeft, clipTop, clipW, clipH }) {
   const hb = hitboxPxRect(round.spot, scene, viewport);
   return (
     <>
-      {/* sprite box */}
       <View pointerEvents="none" style={{ position: 'absolute', left: centro.px - spW / 2, top: centro.py - spH / 2, width: spW, height: spH, borderWidth: 1, borderColor: '#3B82F6', zIndex: 6 }} />
-      {/* clip (área visível) */}
       <View pointerEvents="none" style={{ position: 'absolute', left: clipLeft, top: clipTop, width: clipW, height: clipH, borderWidth: 1, borderColor: '#7C3AED', zIndex: 6 }} />
-      {/* hitbox */}
       <View pointerEvents="none" style={{ position: 'absolute', left: hb.x0, top: hb.y0, width: hb.w, height: hb.h, borderWidth: 1.5, borderColor: '#0E9F6E', zIndex: 6 }} />
       <View pointerEvents="none" style={{ position: 'absolute', top: 4, left: 6, zIndex: 6 }}>
-        <Text style={styles.debugTxt}>vp {viewport.w}×{viewport.h} · {round.sceneId} · {round.spot.id} · {round.pose} · e{round.spot.escala} · {round.modo} · vis={Math.round((round.visivelFrac ?? 0) * 100)}%</Text>
+        <Text style={styles.debugTxt}>vp {viewport.w}×{viewport.h} · {round.sceneId} · {round.spot.id} · {round.pose} · e{round.spot.escala} · {round.modo}</Text>
       </View>
     </>
+  );
+}
+
+/* ══════════════════════════ CALIBRAÇÃO (dev) ══════════════════════════ */
+
+/** Barra de calibração: navega esconderijos, troca pose e ajusta x/y/escala; mostra normalizado. */
+function CalibBar({ sel, onNav, onPose, onNudge }) {
+  const sp = sel.spot;
+  const xN = (sp.pos.x / OVELHA_ART_W).toFixed(3);
+  const yN = (sp.pos.y / OVELHA_ART_H).toFixed(3);
+  const side = sp.clip ? sp.clip.side : '—';
+  return (
+    <View style={styles.calibWrap} pointerEvents="box-none">
+      <View style={styles.calibRow}>
+        <SoundButton style={styles.calibBtn} onPress={() => onNav(-1)} accessibilityLabel="Anterior"><Text style={styles.calibTxt}>‹</Text></SoundButton>
+        <SoundButton style={styles.calibBtn} onPress={onPose} accessibilityLabel="Pose"><Text style={styles.calibMini}>{sp.pose}</Text></SoundButton>
+        <SoundButton style={styles.calibBtn} onPress={() => onNav(1)} accessibilityLabel="Próximo"><Text style={styles.calibTxt}>›</Text></SoundButton>
+      </View>
+      <View style={styles.calibRow}>
+        <SoundButton style={styles.calibBtn} onPress={() => onNudge('x', -CALIB_PASSO_XY)}><Text style={styles.calibMini}>x−</Text></SoundButton>
+        <SoundButton style={styles.calibBtn} onPress={() => onNudge('x', CALIB_PASSO_XY)}><Text style={styles.calibMini}>x+</Text></SoundButton>
+        <SoundButton style={styles.calibBtn} onPress={() => onNudge('y', -CALIB_PASSO_XY)}><Text style={styles.calibMini}>y−</Text></SoundButton>
+        <SoundButton style={styles.calibBtn} onPress={() => onNudge('y', CALIB_PASSO_XY)}><Text style={styles.calibMini}>y+</Text></SoundButton>
+        <SoundButton style={styles.calibBtn} onPress={() => onNudge('e', -CALIB_PASSO_ESC)}><Text style={styles.calibMini}>e−</Text></SoundButton>
+        <SoundButton style={styles.calibBtn} onPress={() => onNudge('e', CALIB_PASSO_ESC)}><Text style={styles.calibMini}>e+</Text></SoundButton>
+      </View>
+      <Text style={styles.calibInfo}>{sel.sceneId} · {sp.id}</Text>
+      <Text style={styles.calibInfo}>x {xN} · y {yN} · e {sp.escala.toFixed(3)} · side {side}</Text>
+    </View>
   );
 }
 
@@ -652,7 +789,7 @@ function DebugOverlay({ round, scene, viewport, centro, spW, spH, clipLeft, clip
 
 function Header({ insets, onBack, chip }) {
   return (
-    <LinearGradient colors={['#EAF7EF', '#DDF0E6', '#E8F6EF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
+    <LinearGradient colors={['#EAF7EF', '#DDF0E6', '#E8F6EF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { paddingTop: Math.max(insets.top, 10) }]}>
       <View style={styles.headerRow}>
         <SoundButton style={styles.backPill} onPress={onBack} activeOpacity={0.85} accessibilityLabel="Voltar" accessibilityRole="button">
           <FaithIcon name="back" size={16} color={pt.greenDeep} />
@@ -676,7 +813,7 @@ function Stat({ label, valor }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: pt.background },
 
-  header: { paddingHorizontal: 14, paddingBottom: 10 },
+  header: { paddingHorizontal: 14, paddingBottom: 8 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   backPill: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.75)', borderWidth: 1, borderColor: 'rgba(14,159,110,0.18)' },
   headerTitle: { flex: 1, fontFamily: 'FredokaOne', fontSize: 20, color: pt.text },
@@ -700,23 +837,27 @@ const styles = StyleSheet.create({
   convite: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, backgroundColor: pt.goldSoft, borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: pt.gold + '66' },
   conviteText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: '#7A5800', fontWeight: '700', lineHeight: 17 },
 
-  hud: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, paddingVertical: 8, backgroundColor: '#FFF' },
+  hud: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, paddingVertical: 6, backgroundColor: '#FFF' },
   hudItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   hudText: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: pt.text },
   hudRodada: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.textSoft },
-  dica: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center', height: 24, lineHeight: 24 },
+  dica: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center', height: 22, lineHeight: 22, marginTop: 2 },
 
-  // ── Cena: container mede a área; viewport 4:5 centrado ──
-  cenaWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingBottom: 12 },
-  viewport: { borderRadius: radii.xl, overflow: 'hidden', backgroundColor: '#DDEFF6', ...shadows.soft },
+  // ── Cena: container mede a área; viewport (razão da arte) alinhado ao TOPO (menos vazio). ──
+  cenaWrap: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 10, paddingTop: 4, paddingBottom: 8 },
+  viewport: { borderRadius: radii.xl, overflow: 'hidden', backgroundColor: '#EAF2F5', ...shadows.soft },
   bg: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
-  chao: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '34%', backgroundColor: '#CFE8A6', opacity: 0.5, zIndex: 0 },
+  bgFallback: { backgroundColor: '#DDEFF6' },
+  poseLoader: { position: 'absolute', width: 1, height: 1, left: 0, top: 0, opacity: 0 },
   debugTxt: { fontFamily: 'Nunito', fontSize: 9, color: '#C0392B', fontWeight: '800' },
+
   // ── Barra de calibração (dev; OVELHA_CALIBRACAO) ──
-  calibBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: '#FFF', borderRadius: radii.pill, paddingHorizontal: 8, paddingVertical: 6, ...shadows.soft },
-  calibBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EAF7EF' },
+  calibWrap: { marginTop: 8, backgroundColor: '#FFF', borderRadius: radii.lg, paddingHorizontal: 8, paddingVertical: 8, alignItems: 'center', gap: 6, ...shadows.soft },
+  calibRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  calibBtn: { minWidth: 34, height: 34, paddingHorizontal: 8, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EAF7EF' },
   calibTxt: { fontFamily: 'FredokaOne', fontSize: 20, color: pt.greenDeep, lineHeight: 22 },
-  calibInfo: { fontFamily: 'Nunito', fontSize: 10, fontWeight: '800', color: pt.textSoft },
+  calibMini: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: pt.greenDeep },
+  calibInfo: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: pt.textSoft },
 
   vitoriaCard: { marginTop: 12, backgroundColor: '#FFF', borderRadius: radii.xl, paddingVertical: 18, paddingHorizontal: 14, alignItems: 'center', ...shadows.card },
   vitoriaIconBg: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#DFF3E6', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
