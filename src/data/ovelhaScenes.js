@@ -1,96 +1,67 @@
 /**
- * ovelhaScenes.js — CENAS AUTORAIS de "Cadê a Ovelhinha?" (Bloco 2.2a — contrato).
+ * ovelhaScenes.js — CENAS AUTORAIS reais de "Cadê a Ovelhinha?" (Bloco 2.2b).
  *
- * A partir do 2.2a o jogo deixa de sortear 3 ícones em posições livres e passa a
- * sortear ESCONDERIJOS previamente compostos dentro de cenas ilustradas. Este arquivo
- * é o CONTRATO de dados — não contém arte oficial (só mocks internos claramente
- * provisórios). A arte real (fundo 4:5, ovelha em poses, oclusores) entra num bloco
- * dedicado, depois da validação.
+ * Duas paisagens integradas (armazém e fazenda), com esconderijos calibrados sobre
+ * regiões densas de cada arte (nunca em cima de rostos/pessoas, nunca no vazio). O jogo
+ * sorteia SÓ entre estes esconderijos — nada de posição aleatória.
  *
  * ── Coordenadas ──────────────────────────────────────────────────────────────
- * Tudo em COORDENADAS DE ARTE (px do design `designWidth × designHeight`, 4:5). A tela
+ * Em px de ARTE = dimensões do background (`designWidth × designHeight`, 4:5). A tela
  * converte arte→viewport por um fator de escala único (ver ovelhaGameService).
  *
- * ── Estrutura ────────────────────────────────────────────────────────────────
- *   scene = { id, background, designWidth, designHeight, safeArea, foregrounds,
- *             decorativeLayers, hidingSpots }
- *   hidingSpot = { id, pos, escala, pose, orientacao, foreground, visivelFrac,
- *                  hitbox, dificuldades, ordem }
+ * ── hidingSpot ───────────────────────────────────────────────────────────────
+ *   { id, pos{x,y}, escala (fração da largura da arte), pose, orientacao, modo,
+ *     clip?{side,visibleFraction}, plano (profundidade), dificuldades }
+ *   A hitbox e a caixa visível são DERIVADAS (alpha bbox por pose + escala + clip)
+ *   no ovelhaGameService — não ficam gravadas aqui.
  */
 
-/** Poses que o sistema aceita para a ovelha. Contrato — sem arte neste bloco. */
+/** Poses aceitas (arte integrada tem front/peekLeft/peekRight; found/celebrating reusam). */
 export const OVELHA_POSES = Object.freeze([
   'front', 'peekLeft', 'peekRight', 'crouched', 'found', 'celebrating',
 ]);
-
-/** Orientações válidas (espelhamento horizontal quando não inverte detalhe importante). */
 export const OVELHA_ORIENTACOES = Object.freeze(['normal', 'flip']);
+/** Modos de esconderijo (sem oclusor geométrico: só camuflagem, peek e clip real). */
+export const OVELHA_MODOS = Object.freeze(['CAMOUFLAGE', 'PEEK', 'PARTIAL']);
 
-/**
- * Cena dourada de referência: `campo_com_cerca_01`. Fundo vertical 4:5, quatro
- * esconderijos planejados (arbusto, muro de pedra, feno, cerca baixa).
- *
- * ATENCAO: `background`/`foregrounds` apontam para IDs de asset que AINDA NÃO EXISTEM — o
- * `tipo: 'placeholder'` sinaliza à tela para desenhar um mock interno. Nenhum arquivo
- * de arte é versionado neste bloco.
- */
-const CAMPO_COM_CERCA_01 = Object.freeze({
-  id: 'campo_com_cerca_01',
-  background: { assetId: 'campo_com_cerca_01_bg', tipo: 'placeholder' },
-  designWidth: 1080,
-  designHeight: 1350,   // 4:5
-  safeArea: { x: 64, y: 80, w: 952, h: 1190 },
+const DESIGN_W = 1122;
+const DESIGN_H = 1402;                       // 4:5
+const SAFE = { x: 48, y: 60, w: 1026, h: 1290 };
 
-  // Oclusores autorais da cena (parte da arte). `tipo:'placeholder'` → mock interno.
-  foregrounds: Object.freeze({
-    arbusto_frente: { assetId: 'campo_com_cerca_01_arbusto', tipo: 'placeholder', mock: 'arbusto' },
-    muro_pedra: { assetId: 'campo_com_cerca_01_muro', tipo: 'placeholder', mock: 'pedra' },
-    feno: { assetId: 'campo_com_cerca_01_feno', tipo: 'placeholder', mock: 'feno' },
-    cerca_baixa: { assetId: 'campo_com_cerca_01_cerca', tipo: 'placeholder', mock: 'cerca' },
-  }),
-
-  // Cenário decorativo (não recebe toque; parte da composição). Mock provisório.
-  decorativeLayers: Object.freeze([
-    { id: 'arv-1', tipo: 'arvore', pos: { x: 170, y: 300 }, size: 260 },
-    { id: 'flor-1', tipo: 'flor', pos: { x: 880, y: 360 }, size: 120 },
-    { id: 'grama-1', tipo: 'grama', pos: { x: 520, y: 1180 }, size: 150 },
-    { id: 'grama-2', tipo: 'grama', pos: { x: 210, y: 1120 }, size: 130 },
-    { id: 'flor-2', tipo: 'flor', pos: { x: 900, y: 1150 }, size: 110 },
-  ]),
-
-  // Quatro esconderijos autorais. `pos` = centro da ovelha (arte). `hitbox` = retângulo
-  // tocável (arte). `visivelFrac` = fração da ovelha aparente (o resto fica atrás do
-  // foreground). `ordem` = z dentro da camada de sprite.
+/** Armazém: loja densa (caixas, sacos, barris, cestos, tecidos, vasos, flores, prateleiras). */
+const WAREHOUSE_01 = Object.freeze({
+  id: 'warehouse_01',
+  background: { assetKey: 'warehouse_01', tipo: 'image' },
+  designWidth: DESIGN_W, designHeight: DESIGN_H, safeArea: SAFE,
   hidingSpots: Object.freeze([
-    {
-      id: 'spot_arbusto', pos: { x: 300, y: 980 }, escala: 1.0,
-      pose: 'peekRight', orientacao: 'normal', foreground: 'arbusto_frente',
-      visivelFrac: 0.5, hitbox: { w: 340, h: 320 }, dificuldades: ['facil'], ordem: 1,
-    },
-    {
-      id: 'spot_muro', pos: { x: 800, y: 1030 }, escala: 1.05,
-      pose: 'peekLeft', orientacao: 'flip', foreground: 'muro_pedra',
-      visivelFrac: 0.55, hitbox: { w: 340, h: 300 }, dificuldades: ['facil'], ordem: 2,
-    },
-    {
-      id: 'spot_feno', pos: { x: 360, y: 630 }, escala: 0.95,
-      pose: 'crouched', orientacao: 'normal', foreground: 'feno',
-      visivelFrac: 0.5, hitbox: { w: 320, h: 300 }, dificuldades: ['facil'], ordem: 3,
-    },
-    {
-      id: 'spot_cerca', pos: { x: 760, y: 650 }, escala: 1.0,
-      pose: 'peekLeft', orientacao: 'flip', foreground: 'cerca_baixa',
-      visivelFrac: 0.6, hitbox: { w: 320, h: 300 }, dificuldades: ['facil'], ordem: 4,
-    },
+    { id: 'warehouse_boxes_left', pos: { x: 235, y: 1120 }, escala: 0.145, pose: 'front', orientacao: 'normal', modo: 'CAMOUFLAGE', plano: 'primeiro', dificuldades: ['facil'] },
+    { id: 'warehouse_fabrics_right', pos: { x: 905, y: 1055 }, escala: 0.125, pose: 'peekLeft', orientacao: 'normal', modo: 'PEEK', clip: { side: 'left', visibleFraction: 0.6 }, plano: 'medio', dificuldades: ['facil'] },
+    { id: 'warehouse_sacks_center', pos: { x: 610, y: 930 }, escala: 0.115, pose: 'peekRight', orientacao: 'normal', modo: 'PEEK', clip: { side: 'right', visibleFraction: 0.6 }, plano: 'medio', dificuldades: ['facil'] },
+    { id: 'warehouse_barrels_left', pos: { x: 185, y: 985 }, escala: 0.12, pose: 'front', orientacao: 'normal', modo: 'CAMOUFLAGE', plano: 'medio', dificuldades: ['facil'] },
+    { id: 'warehouse_baskets_front', pos: { x: 760, y: 1235 }, escala: 0.15, pose: 'front', orientacao: 'normal', modo: 'PARTIAL', clip: { side: 'bottom', visibleFraction: 0.6 }, plano: 'primeiro', dificuldades: ['facil'] },
+    { id: 'warehouse_shelf_right', pos: { x: 980, y: 770 }, escala: 0.09, pose: 'peekRight', orientacao: 'normal', modo: 'PEEK', clip: { side: 'right', visibleFraction: 0.58 }, plano: 'distante', dificuldades: ['facil'] },
   ]),
 });
 
-/** Todas as cenas autorais disponíveis. Hoje só a cena dourada. */
-export const OVELHA_SCENES = Object.freeze([CAMPO_COM_CERCA_01]);
+/** Fazenda: quintal denso (feno, celeiro, cabras, vaca, galinhas, patos, coelho, cerca). */
+const FARM_01 = Object.freeze({
+  id: 'farm_01',
+  background: { assetKey: 'farm_01', tipo: 'image' },
+  designWidth: DESIGN_W, designHeight: DESIGN_H, safeArea: SAFE,
+  hidingSpots: Object.freeze([
+    { id: 'farm_hay_barn', pos: { x: 800, y: 210 }, escala: 0.09, pose: 'front', orientacao: 'normal', modo: 'CAMOUFLAGE', plano: 'distante', dificuldades: ['facil'] },
+    { id: 'farm_goats_right', pos: { x: 955, y: 645 }, escala: 0.105, pose: 'peekRight', orientacao: 'normal', modo: 'PEEK', clip: { side: 'right', visibleFraction: 0.6 }, plano: 'medio', dificuldades: ['facil'] },
+    { id: 'farm_vegetables_front', pos: { x: 430, y: 1185 }, escala: 0.15, pose: 'front', orientacao: 'normal', modo: 'PARTIAL', clip: { side: 'bottom', visibleFraction: 0.6 }, plano: 'primeiro', dificuldades: ['facil'] },
+    { id: 'farm_hens_left', pos: { x: 195, y: 1010 }, escala: 0.13, pose: 'peekLeft', orientacao: 'normal', modo: 'PEEK', clip: { side: 'left', visibleFraction: 0.62 }, plano: 'medio', dificuldades: ['facil'] },
+    { id: 'farm_rabbit_right', pos: { x: 875, y: 1130 }, escala: 0.12, pose: 'front', orientacao: 'normal', modo: 'CAMOUFLAGE', plano: 'primeiro', dificuldades: ['facil'] },
+    { id: 'farm_fence_left', pos: { x: 145, y: 770 }, escala: 0.1, pose: 'peekRight', orientacao: 'normal', modo: 'PEEK', clip: { side: 'right', visibleFraction: 0.6 }, plano: 'medio', dificuldades: ['facil'] },
+  ]),
+});
+
+export const OVELHA_SCENES = Object.freeze([WAREHOUSE_01, FARM_01]);
 
 export function getScene(id) {
   return OVELHA_SCENES.find((s) => s.id === id) || OVELHA_SCENES[0];
 }
 
-/** A cena padrão do vertical slice. */
-export const OVELHA_SCENE_PADRAO = 'campo_com_cerca_01';
+export const OVELHA_SCENE_PADRAO = 'warehouse_01';
