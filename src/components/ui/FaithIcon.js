@@ -37,6 +37,14 @@ const ICON_MAP = {
   ovelha: 'eye',
   desenho_guiado: 'color-wand',
   criar_livre: 'create',
+
+  // ── Pares do Beni (Bloco 1.4) — modos, HUD e ações da tela de resultado ──
+  classico: 'infinite',      // sem limite de tempo
+  turbo: 'flash',            // contra o relógio
+  timer: 'timer',
+  combo: 'flame',
+  restart: 'refresh',
+  swap: 'swap-horizontal',
 };
 
 /**

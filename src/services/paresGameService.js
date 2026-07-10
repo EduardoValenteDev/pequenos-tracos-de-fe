@@ -8,6 +8,91 @@
  * Nenhum asset novo é criado.
  */
 
+/* ══════════════════════════ MODOS (Bloco 1.4) ══════════════════════════ */
+
+/**
+ * Dois modos. O Clássico é o jogo do Bloco 1.3, intacto. O Turbo é contra o relógio.
+ * `records` diz QUAL grandeza é o recorde de cada modo — o resto do código deriva daí,
+ * em vez de espalhar `if (modo === 'turbo')`.
+ */
+export const GAME_MODES = Object.freeze([
+  {
+    id: 'classico',
+    label: 'Modo Clássico',
+    desc: 'Encontre todos os pares no seu ritmo.',
+    icon: 'classico',
+    timed: false,
+    records: 'bestMoves',   // menos jogadas é melhor
+  },
+  {
+    id: 'turbo',
+    label: 'Modo Turbo do Beni',
+    desc: 'Encontre muitos pares antes do tempo acabar.',
+    icon: 'turbo',
+    timed: true,
+    records: 'bestScore',   // mais pontos é melhor
+  },
+]);
+
+export const DEFAULT_MODE = 'classico';
+
+export function getMode(id) {
+  return GAME_MODES.find((m) => m.id === id) || GAME_MODES[0];
+}
+
+/** Turbo: 60 s de partida. O bônus por par nunca deixa o relógio passar do teto. */
+export const TURBO_DURATION_MS = 60000;
+export const TURBO_BONUS_MS = 2000;
+export const TURBO_MAX_MS = 90000;
+
+/** Pontuação do Turbo. Economia simples de propósito: 1 par = 100 × multiplicador. */
+export const TURBO_POINTS_PER_PAIR = 100;
+export const TURBO_MAX_MULTIPLIER = 5;
+
+/**
+ * Multiplicador do combo. `streak` = acertos consecutivos JÁ contabilizados,
+ * incluindo o atual. 1º acerto → 1×, 2º → 2×, … teto em 5×.
+ */
+export function comboMultiplier(streak) {
+  const n = Number(streak);
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(Math.floor(n), TURBO_MAX_MULTIPLIER);
+}
+
+/** Pontos ganhos por um par, dado o combo já atualizado. */
+export function pointsForMatch(streak) {
+  return TURBO_POINTS_PER_PAIR * comboMultiplier(streak);
+}
+
+/**
+ * Relógio do Turbo após um acerto: soma o bônus, sem passar do teto e sem ficar
+ * negativo. Erro NÃO tira tempo (o público inclui crianças pequenas).
+ */
+export function addTurboTime(remainingMs, bonusMs = TURBO_BONUS_MS, capMs = TURBO_MAX_MS) {
+  const r = Number(remainingMs);
+  const base = Number.isFinite(r) && r > 0 ? r : 0;
+  const b = Number.isFinite(Number(bonusMs)) ? Number(bonusMs) : 0;
+  return Math.max(0, Math.min(base + b, capMs));
+}
+
+/** Recorde de PONTOS (Turbo): maior é melhor. */
+export function isBetterScore(anterior, novo) {
+  const n = Number(novo);
+  if (!Number.isFinite(n) || n <= 0) return false;
+  const a = Number(anterior);
+  if (!Number.isFinite(a) || a <= 0) return true;
+  return n > a;
+}
+
+/** Recorde de JOGADAS (Clássico): menos é melhor. */
+export function isBetterMoves(anterior, novo) {
+  const n = Number(novo);
+  if (!Number.isFinite(n) || n <= 0) return false;
+  const a = Number(anterior);
+  if (!Number.isFinite(a) || a <= 0) return true;
+  return n < a;
+}
+
 /** Dificuldades oficiais. Médio e Difícil são benefício do Plano Família. */
 export const DIFFICULTIES = Object.freeze([
   { id: 'facil', label: 'Fácil', pairs: 6, cols: 3, premium: false },
@@ -94,12 +179,13 @@ export function formatTime(ms) {
 }
 
 /**
- * Pontos de extensão de SOM (Bloco 1.7 liga isso ao audioManager).
- * Nenhum arquivo de som existe ainda — são só nomes de evento.
+ * Eventos de som do jogo. Os valores são as CHAVES do audioManager (`playGameSfx`),
+ * para a tela nunca conhecer caminho de arquivo.
  */
 export const PARES_SOUND_EVENTS = Object.freeze({
-  FLIP: 'brincar.pares.flip',
-  MATCH: 'brincar.pares.match',
-  MISMATCH: 'brincar.pares.mismatch',
-  WIN: 'brincar.pares.win',
+  FLIP: 'card_flip',
+  MATCH: 'match_success',
+  MISMATCH: 'match_error',
+  WIN: 'game_victory',
+  TURBO_END: 'turbo_end',
 });

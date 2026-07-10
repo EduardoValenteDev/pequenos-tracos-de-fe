@@ -16044,11 +16044,13 @@ check(
       })(),
       'a rodada é consumida fora do início da partida (ex.: ao abrir a tela)');
 
-    check('1.3 (estrelinha): só é creditada dentro de concluir(), atrás de starAwarded',
+    // Bloco 1.4 — MIGRADO: `concluir` virou `finalizar` (dois modos terminam por ele).
+    // A garantia é a mesma: 1 crédito, dentro do fim de partida, atrás de starAwarded.
+    check('1.3 (estrelinha): só é creditada dentro de finalizar(), atrás de starAwarded',
       (() => {
-        const concluir = (pdbNoCom.match(/const concluir = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
+        const fim = (pdbNoCom.match(/const finalizar = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
         return (pdbNoCom.match(/addBonusStars\(/g) || []).length === 1
-          && /if \(r\.starAwarded\) \{\s*await addBonusStars\(1\);\s*await refreshProgress\?\.\(\);/.test(concluir);
+          && /if \(r\.starAwarded\) \{\s*await addBonusStars\(1\);\s*await refreshProgress\?\.\(\);/.test(fim);
       })(),
       'estrelinha creditada sem partida concluída, ou sem refreshProgress');
 
@@ -16062,9 +16064,13 @@ check(
       /getStoryCoverImage/.test(pdbNoCom) && !/require\(/.test(pdbNoCom),
       'a tela do jogo passou a exigir assets próprios');
 
-    check('1.3 (som): pontos de extensão nomeados, sem áudio de Beni ainda',
-      /FLIP: 'brincar\.pares\.flip'/.test(pgSrc) && /WIN: 'brincar\.pares\.win'/.test(pgSrc),
-      'os eventos de som do Pares sumiram — o Bloco 1.7 depende deles');
+    // Bloco 1.4 — MIGRADO: os eventos deixaram de ser nomes soltos e passaram a apontar
+    // para as CHAVES reais do audioManager. A tela segue sem conhecer caminho de arquivo.
+    check('1.3 (som): eventos do Pares apontam para as chaves do audioManager',
+      /FLIP: 'card_flip'/.test(pgSrc) && /WIN: 'game_victory'/.test(pgSrc)
+      && /TURBO_END: 'turbo_end'/.test(pgSrc)
+      && !/assets\//.test(a1StripComments(pdb)),
+      'os eventos de som do Pares sumiram, ou a tela passou a conhecer caminho de asset');
 
     check('1.3 (sem emoji): a tela do jogo usa FaithIcon e nenhum emoji',
       /<FaithIcon/.test(pdb) && !/\p{Extended_Pictographic}/u.test(pdb),
@@ -16143,13 +16149,14 @@ check(
       && /const refreshProgress = progressCtx\?\.refreshProgress/.test(pdbA),
       'ParesDoBeniScreen importa um hook inexistente ou não protege a ausência do contexto');
 
-    check('1.3a (guarda): falha ao registrar recorde/estrelinha não derruba a vitória',
+    // Bloco 1.4 — MIGRADO: `concluir`→`finalizar`, `vitoria`→`resultado` (dois modos).
+    check('1.3a (guarda): falha ao registrar recorde/estrelinha não derruba o resultado',
       (() => {
-        const concluir = (pdbA.match(/const concluir = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
-        return /try \{/.test(concluir) && /catch \(e\) \{\s*warn\(/.test(concluir)
-          && /setFase\('vitoria'\);/.test(concluir);
+        const fim = (pdbA.match(/const finalizar = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
+        return /try \{/.test(fim) && /catch \(e\) \{\s*warn\(/.test(fim)
+          && /setFase\('resultado'\);/.test(fim);
       })(),
-      'concluir() pode lançar e impedir a tela de vitória de aparecer');
+      'finalizar() pode lançar e impedir a tela de resultado de aparecer');
 
     check('1.3a (produto): "Desenho guiado pelo Beni" não é mais card da aba Brincar',
       // Só o CÓDIGO: os comentários do arquivo explicam por que o card saiu.
@@ -16182,6 +16189,239 @@ check(
           && !/\p{Extended_Pictographic}/u.test(brcA);
       })(),
       'um card em preparo virou botão, ou entrou emoji na BrincarScreen');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco 1.4 — Polimento do Pares do Beni + acabamento da aba Brincar.
+  //   · dois modos (Clássico sem relógio · Turbo de 60 s), recordes SEPARADOS
+  //   · flip real, chacoalhada no erro, pop no acerto
+  //   · som com fallback seguro; nenhuma recompensa duplicada; timers limpos
+  //   · enquadramento por ponto focal (Abraão estava fora da carta)
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco 1.4: Pares polido ──');
+  {
+    const pg14 = readSrc('src/services/paresGameService.js');
+    const bs14 = readSrc('src/services/brincarStatsService.js');
+    const am14 = a1StripComments(readSrc('src/services/audioManager.js'));
+    const fr14 = readSrc('src/data/gameCardFraming.js');
+    const pdb14raw = readSrc('src/screens/ParesDoBeniScreen.js');
+    const pdb14 = a1StripComments(pdb14raw);
+    const brc14 = a1StripComments(readSrc('src/screens/BrincarScreen.js'));
+
+    // Núcleo puro dos dois módulos, avaliado de verdade.
+    const evalJogo = () => {
+      const limpa = (s) => a1StripComments(s)
+        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+/gm, '');
+      return new Function(
+        'AsyncStorage', 'STORAGE_KEYS', 'warn',
+        limpa(pg14) + '\n' + limpa(bs14)
+        + ';return { GAME_MODES, getMode, DEFAULT_MODE, TURBO_DURATION_MS, TURBO_MAX_MS, addTurboTime,'
+        + ' comboMultiplier, pointsForMatch, TURBO_MAX_MULTIPLIER, isBetterScore, isBetterMoves,'
+        + ' sanitizeStats, applyResult, toAchievementCtx };',
+      )({}, {}, () => {});
+    };
+
+    check('1.4 (modos): Clássico (sem relógio) e Turbo (60 s) existem; Clássico é o padrão',
+      (() => { try {
+        const J = evalJogo();
+        const [c, t] = J.GAME_MODES;
+        return J.DEFAULT_MODE === 'classico'
+          && c.id === 'classico' && c.timed === false && c.records === 'bestMoves'
+          && t.id === 'turbo' && t.timed === true && t.records === 'bestScore'
+          && J.TURBO_DURATION_MS === 60000
+          && J.getMode('inexistente').id === 'classico';   // fallback seguro
+      } catch (e) { return false; } })(),
+      'os modos saíram do contrato (Clássico padrão e sem relógio; Turbo de 60 s)');
+
+    check('1.4 (cronômetro): só o Turbo é cronometrado; o tempo nunca fica negativo nem cresce sem teto',
+      (() => { try {
+        const J = evalJogo();
+        return J.GAME_MODES.filter((m) => m.timed).length === 1
+          && J.addTurboTime(58000) === 60000
+          && J.addTurboTime(J.TURBO_MAX_MS) === J.TURBO_MAX_MS      // teto respeitado
+          && J.addTurboTime(-5000) === 2000                          // nunca negativo
+          && J.addTurboTime(1000, -9999) === 0;                      // piso em zero
+      } catch (e) { return false; } })(),
+      'o relógio do Turbo pode ficar negativo, crescer sem teto, ou o Clássico virou cronometrado');
+
+    check('1.4 (combo): multiplicador cresce com acertos seguidos e trava em 5×',
+      (() => { try {
+        const J = evalJogo();
+        return J.comboMultiplier(1) === 1 && J.comboMultiplier(3) === 3
+          && J.comboMultiplier(9) === J.TURBO_MAX_MULTIPLIER
+          && J.comboMultiplier(0) === 1 && J.comboMultiplier('x') === 1
+          && J.pointsForMatch(1) === 100 && J.pointsForMatch(2) === 200
+          && J.pointsForMatch(99) === 500;
+      } catch (e) { return false; } })(),
+      'a pontuação/combo do Turbo saiu da regra (100 por par, teto de 5×)');
+
+    check('1.4 (recordes): Clássico e Turbo têm recordes SEPARADOS e não se contaminam',
+      (() => { try {
+        const J = evalJogo();
+        const hoje = '2026-07-10';
+        // Uma partida de cada modo, mesma dificuldade.
+        let s = J.applyResult(null, { modo: 'classico', dificuldade: 'facil', day: hoje, elapsedMs: 40000, erros: 2, jogadas: 9 }).stats;
+        s = J.applyResult(s, { modo: 'turbo', dificuldade: 'facil', day: hoje, pontos: 700, pares: 5, maiorCombo: 3 }).stats;
+        if (s.pares.facil.bestMoves !== 9 || s.pares.facil.bestMs !== 40000) return false;
+        if (s.turbo.facil.bestScore !== 700 || s.turbo.facil.bestCombo !== 3) return false;
+        // O Turbo não mexeu no recorde do Clássico, nem o contrário.
+        if (s.pares.facil.wins !== 1 || s.turbo.facil.plays !== 1) return false;
+        // Menos jogadas é melhor; mais pontos é melhor.
+        const melhorC = J.applyResult(s, { modo: 'classico', dificuldade: 'facil', day: hoje, elapsedMs: 90000, erros: 0, jogadas: 7 });
+        const piorT = J.applyResult(s, { modo: 'turbo', dificuldade: 'facil', day: hoje, pontos: 300, pares: 2, maiorCombo: 1 });
+        return melhorC.isBest === true && melhorC.stats.pares.facil.bestMoves === 7
+          && piorT.isBest === false && piorT.stats.turbo.facil.bestScore === 700
+          && J.isBetterMoves(9, 7) === true && J.isBetterMoves(7, 9) === false
+          && J.isBetterScore(300, 700) === true && J.isBetterScore(700, 300) === false;
+      } catch (e) { return false; } })(),
+      'os recordes dos dois modos se misturaram, ou a direção do recorde está invertida');
+
+    check('1.4 (recompensa): o teto diário é COMPARTILHADO — o Turbo não farma estrelinha',
+      (() => { try {
+        const J = evalJogo();
+        const hoje = '2026-07-10';
+        const c = { modo: 'classico', dificuldade: 'facil', day: hoje, elapsedMs: 30000, erros: 1, jogadas: 8 };
+        const t = { modo: 'turbo', dificuldade: 'facil', day: hoje, pontos: 500, pares: 4, maiorCombo: 2 };
+        const r1 = J.applyResult(null, c);      // 1ª estrelinha (Clássico)
+        const r2 = J.applyResult(r1.stats, t);  // 2ª estrelinha (Turbo)
+        const r3 = J.applyResult(r2.stats, t);  // teto atingido: sem estrelinha
+        const r4 = J.applyResult(r3.stats, c);  // segue sem estrelinha, no outro modo
+        return r1.starAwarded && r2.starAwarded && !r3.starAwarded && !r4.starAwarded
+          && r4.stats.turbo.facil.plays === 2;  // mas a partida continua contando
+      } catch (e) { return false; } })(),
+      'o Turbo abriu um caminho de recompensa infinita, ou o teto deixou de ser compartilhado');
+
+    check('1.4 (storage): formato antigo (sem turbo/bestMoves) é migrado sem perder dados',
+      (() => { try {
+        const J = evalJogo();
+        const antigo = { day: '2026-07-09', starsToday: 1, pares: { facil: { plays: 3, wins: 3, bestMs: 25000, bestErros: 1 } } };
+        const s = J.sanitizeStats(antigo);
+        return s.pares.facil.bestMs === 25000 && s.pares.facil.wins === 3   // dados antigos preservados
+          && s.pares.facil.bestMoves === null                               // campo novo nasce vazio
+          && s.turbo.facil.bestScore === 0 && s.lastMode === 'classico';
+      } catch (e) { return false; } })(),
+      'a migração do formato antigo de recordes perde dados de quem já jogou');
+
+    // ── Tela: animações, travas e limpeza ────────────────────────────────────
+    check('1.4 (flip): giro real no eixo Y, sem imagem espelhada, no driver nativo',
+      /rotateY: rotVerso/.test(pdb14) && /rotateY: rotFrente/.test(pdb14)
+      && /outputRange: \['180deg', '360deg'\]/.test(pdb14)
+      && /backfaceVisibility: 'hidden'/.test(pdb14)
+      && /duration: T\.flip/.test(pdb14) && /flip: 300/.test(pdb14)
+      && !/useNativeDriver: false/.test(pdb14),
+      'o flip não é um giro real em Y, ou deixou de usar backfaceVisibility/driver nativo');
+
+    check('1.4 (erro): observar → som → chacoalhar → virar de volta, e só então liberar',
+      (() => {
+        const seq = (pdb14.match(/g\.erros \+= 1;[\s\S]*?\}, T\.observar\);/) || [''])[0];
+        const ordemOk = seq.indexOf('MISMATCH') < seq.indexOf('setErrando(novas)')
+          && seq.indexOf('setErrando(novas)') < seq.indexOf('travado.current = false');
+        return seq.length > 0 && ordemOk
+          && /T\.observar/.test(seq)
+          && /observar: 550/.test(pdb14) && /chacoalhar: 380/.test(pdb14);  // 300–450 ms
+      })(),
+      'a sequência de erro libera a grade cedo demais, ou perdeu a chacoalhada');
+
+    check('1.4 (acerto): pop de crescer e voltar; as cartas continuam na grade',
+      /if \(!casada\) return undefined;/.test(pdb14)
+      && /toValue: 1\.1/.test(pdb14) && /Animated\.spring\(pop/.test(pdb14)
+      && /PARES_SOUND_EVENTS\.MATCH/.test(pdb14)
+      && !/filter\(\(c\) => !casadas/.test(pdb14),   // nada é removido do baralho
+      'o acerto perdeu o pop, o som, ou passou a remover cartas da grade');
+
+    check('1.4 (3ª carta): a grade tranca quando a 2ª carta abre',
+      (() => {
+        const t = (pdb14.match(/const tocarCarta = useCallback\(\(i\) => \{[\s\S]*?\n  \}, \[/) || [''])[0];
+        const guarda = /if \(travado\.current \|\| finalizado\.current \|\| fase !== 'jogando' \|\| pausado\) return;/.test(t);
+        // a trava é ligada logo após a 2ª carta abrir, antes de qualquer verificação
+        const trancaCedo = t.indexOf('if (novas.length < 2) return;') < t.indexOf('travado.current = true;')
+          && t.indexOf('travado.current = true;') < t.indexOf('isPair(a, b)');
+        return guarda && trancaCedo;
+      })(),
+      'uma terceira carta pode abrir durante a verificação do par');
+
+    check('1.4 (recompensa única): finalizado.current impede 2 resultados / 2 estrelinhas',
+      /if \(finalizado\.current\) return;\s*finalizado\.current = true;/.test(pdb14)
+      && (pdb14.match(/setFase\('resultado'\)/g) || []).length === 1
+      && (pdb14.match(/addBonusStars\(/g) || []).length === 1,
+      'a partida pode gerar dois resultados ou creditar a estrelinha duas vezes');
+
+    check('1.4 (timers): todo timeout passa por agendar() e é limpo no unmount',
+      /timeouts\.current\.forEach\(clearTimeout\)/.test(pdb14)
+      && /montado\.current = false;\s*limparTimers\(\);\s*releaseGameSfx\(\);/.test(pdb14)
+      // nenhum setTimeout solto fora do helper
+      && (pdb14.match(/setTimeout\(/g) || []).length === 1,
+      'existe um setTimeout fora do agendar(), ou os timers/sons sobrevivem à saída da tela');
+
+    check('1.4 (pausa): app em segundo plano ou tela sem foco param o relógio',
+      /AppState\.addEventListener\('change'/.test(pdb14)
+      && /navigation\.addListener\('blur', \(\) => setPausado\(true\)\)/.test(pdb14)
+      && /if \(fase !== 'jogando' \|\| pausado\) return undefined;/.test(pdb14),
+      'o cronômetro continua correndo com o app em segundo plano ou fora da tela');
+
+    check('1.4 (som): efeitos com fallback seguro, throttle e liberação',
+      /export function playGameSfx/.test(am14) && /export function releaseGameSfx/.test(am14)
+      && /export function preloadGameSfx/.test(am14)
+      && /if \(!prefs\.soundsEnabled\) return;/.test(am14.split('export function playGameSfx')[1] || '')
+      && /SFX_MIN_INTERVAL_MS/.test(am14)
+      && /catch \{/.test(am14.split('export function playGameSfx')[1] || '')
+      && !/expo-av/.test(am14),   // segue em expo-audio
+      'os efeitos do jogo podem quebrar a tela, empilhar sons, ou voltaram para expo-av');
+
+    check('1.4 (Abraão): enquadramento por ponto focal corrige a carta cortada',
+      /abraham_stars: \{ focalX: 1, focalY: 0\.55, zoom: 1\.45 \}/.test(fr14)
+      && /export function getCardFraming/.test(fr14)
+      && /getCardFraming\(storyId\)/.test(pdb14)
+      && /computeCardImageLayout/.test(pdb14),
+      'o ajuste de enquadramento de Abraão sumiu, ou a carta deixou de usá-lo');
+
+    check('1.4 (enquadramento/puro): sem ajuste = recorte centrado (nada muda nas outras cartas)',
+      (() => { try {
+        const src = a1StripComments(fr14)
+          .replace(/^export\s+default[\s\S]*$/m, '')
+          .replace(/^export\s+/gm, '');
+        const F = new Function(src + ';return { getCardFraming, computeCardImageLayout };')();
+        const padrao = F.getCardFraming('historia_sem_ajuste');
+        if (padrao.focalX !== 0.5 || padrao.zoom !== 1) return false;
+        // capa panorâmica 1456×816 numa carta 100×112: "cover" pela largura da carta
+        const l = F.computeCardImageLayout(1456, 816, 100, 112, padrao);
+        if (Math.round(l.height) !== 112) return false;             // cobre a carta
+        if (Math.abs(l.left + (l.width - 100) / 2) > 0.01) return false; // centrado
+        // Abraão: o recorte anda para a direita (left mais negativo) e aproxima.
+        const a = F.computeCardImageLayout(1456, 816, 100, 112, F.getCardFraming('abraham_stars'));
+        return a.left < l.left && a.width > l.width && a.top <= 0;
+      } catch (e) { return false; } })(),
+      'o enquadramento padrão deixou de ser o recorte centrado, ou o de Abraão não desloca');
+
+    // ── Aba Brincar ──────────────────────────────────────────────────────────
+    check('1.4 (hub): 5 cards, Desenho guiado fora da UI, legado do Ateliê preservado',
+      (brc14.match(/<ActiveTile\b/g) || []).length === 2
+      && (brc14.match(/\{ id: '[a-z]+', icon:/g) || []).length === 3
+      && !/Desenho guiado/.test(brc14)
+      && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brc14)
+      && /navigate\(ROUTES\.ATELIER_GALLERY\)/.test(brc14)
+      && /export const MISSIONS/.test(readSrc('src/data/atelierData.js')),
+      'a aba Brincar saiu dos 5 cards, ou o fluxo legado do Ateliê foi tocado');
+
+    check('1.4 (hub visual): Beni no topo, safe area no fim da rolagem, estados pressionados',
+      /<BeniAvatar variant="happy"/.test(brc14)
+      && /paddingBottom: insets\.bottom \+ 28/.test(brc14)
+      && /tileAtivo/.test(brc14)
+      && /accessibilityRole="button"/.test(brc14)
+      && !/\p{Extended_Pictographic}/u.test(readSrc('src/screens/BrincarScreen.js')),
+      'o acabamento da aba Brincar regrediu (Beni, safe area, toque ou emoji)');
+
+    check('1.4 (protegidos): o bloco não tocou histórias, quizzes nem áudio de narração',
+      (() => {
+        const st = readSrc('src/data/stories.js');
+        const qz = readSrc('src/data/quizzes.js');
+        // Nada do jogo vaza para o conteúdo, e o conteúdo segue com seu formato.
+        return !/pares|turbo|brincar/i.test(qz.slice(0, 2000))
+          && /export const stories/.test(st)
+          && !/audio\/(?!sfx)/.test(a1StripComments(readSrc('src/services/audioManager.js')).split('GAME_SFX')[1] || '');
+      })(),
+      'o Bloco 1.4 vazou para histórias, quizzes ou para o áudio de narração');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

@@ -28,6 +28,26 @@ const UI_SOUNDS = {
 // Volume sutil por tipo (tap bem discreto para não cansar).
 const UI_VOLUME = { tap: 0.4, success: 0.55, reward: 0.6 };
 
+// Efeitos dos jogos da aba Brincar (Bloco 1.4). Curtos, sintetizados para o app.
+// Ficam separados dos sons de UI: têm volume próprio e podem ser liberados quando
+// a tela do jogo sai, sem afetar os botões do resto do app.
+const GAME_SFX = {
+  card_flip: require('../../assets/audio/sfx/card_flip.wav'),
+  match_success: require('../../assets/audio/sfx/match_success.wav'),
+  match_error: require('../../assets/audio/sfx/match_error.wav'),
+  game_victory: require('../../assets/audio/sfx/game_victory.wav'),
+  turbo_end: require('../../assets/audio/sfx/turbo_end.wav'),
+};
+
+const GAME_SFX_VOLUME = {
+  card_flip: 0.30, match_success: 0.50, match_error: 0.34,
+  game_victory: 0.55, turbo_end: 0.5,
+};
+
+// Intervalo mínimo entre duas execuções do MESMO efeito. Toques rápidos numa carta
+// não podem empilhar dezenas de reproduções.
+const SFX_MIN_INTERVAL_MS = 70;
+
 // Trilha de fundo: NÃO há asset final/seguro ainda. Mantido null de propósito
 // (sem buscar música externa, sem trilha protegida). A infraestrutura já existe.
 const MUSIC_TRACK = null;
@@ -39,6 +59,8 @@ let prefsLoaded = false;
 
 let audioModeReady = false;
 const uiPlayers = {};       // type → expo-audio player (criado sob demanda)
+const sfxPlayers = {};      // nome → expo-audio player dos jogos
+const sfxLastPlayedAt = {}; // nome → timestamp (throttle)
 let musicPlayer = null;
 let musicPlaying = false;            // música deveria estar tocando agora?
 let musicPausedForNarration = false; // foi pausada por causa de narração?
@@ -127,6 +149,60 @@ export function playUiSound(type = 'tap') {
     player.play();
   } catch {
     // som falhou silenciosamente — app continua funcionando
+  }
+}
+
+// ── Efeitos dos jogos (Brincar) ──────────────────────────────────────────────
+// Nenhuma destas funções lança: um jogo NUNCA quebra por causa de som.
+
+function sfxPlayer(nome) {
+  const src = GAME_SFX[nome];
+  if (!src) return null;
+  if (!sfxPlayers[nome]) {
+    const p = createAudioPlayer(src, { keepAudioSessionActive: true });
+    p.volume = GAME_SFX_VOLUME[nome] ?? 0.45;
+    sfxPlayers[nome] = p;
+  }
+  return sfxPlayers[nome];
+}
+
+/**
+ * Pré-carrega os efeitos do jogo (evita atraso no primeiro toque de carta).
+ * `nomes` limita ao que a tela realmente usa.
+ */
+export function preloadGameSfx(nomes = Object.keys(GAME_SFX)) {
+  ensureAudioMode();
+  for (const nome of nomes) {
+    try { sfxPlayer(nome); } catch { /* segue sem som */ }
+  }
+}
+
+/**
+ * Toca um efeito do jogo. Respeita `soundsEnabled` (mesma preferência global dos
+ * botões) e ignora repetições coladas do mesmo efeito.
+ */
+export function playGameSfx(nome) {
+  if (!prefs.soundsEnabled) return;
+  const agora = Date.now();
+  if (agora - (sfxLastPlayedAt[nome] || 0) < SFX_MIN_INTERVAL_MS) return;
+  sfxLastPlayedAt[nome] = agora;
+  ensureAudioMode();
+  try {
+    const p = sfxPlayer(nome);
+    if (!p) return;
+    p.seekTo(0);
+    p.play();
+  } catch {
+    // som falhou silenciosamente — o jogo continua
+  }
+}
+
+/** Libera os players dos efeitos (chamar no unmount da tela do jogo). */
+export function releaseGameSfx() {
+  for (const nome of Object.keys(sfxPlayers)) {
+    try { sfxPlayers[nome].remove(); } catch { /* ignora */ }
+    delete sfxPlayers[nome];
+    delete sfxLastPlayedAt[nome];
   }
 }
 

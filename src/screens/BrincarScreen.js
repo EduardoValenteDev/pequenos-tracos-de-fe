@@ -31,7 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import FaithIcon from '../components/ui/FaithIcon';
-import { BeniGuideBubble } from '../components/beni';
+import { BeniAvatar } from '../components/beni';
 import CenteredContent from '../components/layout/CenteredContent';
 import { ROUTES } from '../constants/routes';
 import { listArts } from '../services/atelierStorage';
@@ -68,12 +68,18 @@ function AnimatedCard({ delay, children, style }) {
   );
 }
 
-/** Card de atividade ATIVA — abre agora. */
+/** Card de atividade ATIVA — abre agora. `activeOpacity` dá o estado pressionado. */
 function ActiveTile({ icon, title, desc, cta, tint, border, bg, btnColor, onPress }) {
   return (
-    <SoundButton style={[styles.tile, { backgroundColor: tint, borderColor: border }]} onPress={onPress} activeOpacity={0.85}>
+    <SoundButton
+      style={[styles.tile, styles.tileAtivo, { backgroundColor: tint, borderColor: border }]}
+      onPress={onPress}
+      activeOpacity={0.82}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${desc}`}
+    >
       <View style={[styles.tileIconBg, { backgroundColor: bg }]}>
-        <FaithIcon name={icon} size={22} color={btnColor} />
+        <FaithIcon name={icon} size={24} color={btnColor} />
       </View>
       <Text style={styles.tileTitle}>{title}</Text>
       <Text style={styles.tileDesc} numberOfLines={2}>{desc}</Text>
@@ -87,7 +93,11 @@ function ActiveTile({ icon, title, desc, cta, tint, border, bg, btnColor, onPres
 /** Card de atividade EM PREPARO — não abre tela, e não parece um erro. */
 function ComingTile({ icon, title, desc, tint, border, bg }) {
   return (
-    <View style={[styles.tile, styles.tileComing, { backgroundColor: tint, borderColor: border }]}>
+    <View
+      style={[styles.tile, styles.tileComing, { backgroundColor: tint, borderColor: border }]}
+      accessibilityRole="text"
+      accessibilityLabel={`${title}. Chegando em breve.`}
+    >
       <View style={styles.comingBadge}>
         <Text style={styles.comingBadgeText}>Chegando</Text>
       </View>
@@ -142,12 +152,13 @@ export default function BrincarScreen({ navigation, route }) {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: 28 }}
+      // Safe area real: em iPhone com barra inferior, 28px cortavam o último card.
+      contentContainerStyle={{ paddingBottom: insets.bottom + 28 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* ── HEADER ── */}
+      {/* ── HEADER — o Beni recebe a criança; a mensagem é curta ── */}
       <LinearGradient
-        colors={['#F0E8FF', '#E0D4FF', '#D0EAFF']}
+        colors={['#F0E8FF', '#E4D6FF', '#D6ECFF']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: Math.max(insets.top, 32) }]}
       >
@@ -161,35 +172,31 @@ export default function BrincarScreen({ navigation, route }) {
             <Text style={styles.backPillText}>‹ {backLabelFor(from)}</Text>
           </SoundButton>
         )}
-        <Text style={styles.headerTitle}>Brincar com o Beni</Text>
-        <Text style={styles.headerSub}>Jogos e desenhos para aprender se divertindo.</Text>
+        <View style={styles.headerRow}>
+          <BeniAvatar variant="happy" size="medium" />
+          <View style={styles.headerTexts}>
+            <Text style={styles.headerTitle}>Brincar com o Beni</Text>
+            <Text style={styles.headerSub}>Escolha uma brincadeira. Eu fico aqui do seu lado!</Text>
+          </View>
+        </View>
+        {roundsPill}
       </LinearGradient>
 
       <CenteredContent>
-        <AnimatedCard delay={40} style={styles.panel}>
-          <BeniGuideBubble
-            message="Escolha uma brincadeira! Eu fico aqui do seu lado."
-            avatarVariant="happy"
-            tone="purple"
-            compact
-            style={{ marginBottom: 4 }}
-          />
-          {roundsPill}
-        </AnimatedCard>
-
         {/* ── ATIVAS ── */}
-        <AnimatedCard delay={110} style={styles.sectionHead}>
+        <AnimatedCard delay={70} style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>Para brincar agora</Text>
+          <Text style={styles.sectionSub}>Duas atividades prontinhas para você.</Text>
         </AnimatedCard>
 
-        <AnimatedCard delay={150} style={styles.row}>
+        <AnimatedCard delay={120} style={styles.row}>
           <View style={styles.rowItem}>
             <ActiveTile
               icon="pares"
               title="Pares do Beni"
               desc="Encontre as figuras iguais das histórias."
               cta="Jogar"
-              tint="#E8F0FF" border="#BFD6FF" bg="#3B82F620" btnColor="#2B5BA1"
+              tint="#E8F0FF" border="#BFD6FF" bg="#3B82F620" btnColor={pt.faithBlue}
               onPress={() => navigation.navigate(ROUTES.PARES_DO_BENI)}
             />
           </View>
@@ -221,8 +228,18 @@ export default function BrincarScreen({ navigation, route }) {
         </AnimatedCard>
 
         {/* ── Minhas artes ── */}
+        <AnimatedCard delay={300} style={styles.sectionHead}>
+          <Text style={styles.sectionTitle}>Suas coisas</Text>
+        </AnimatedCard>
+
         <AnimatedCard delay={330} style={styles.cardCompact}>
-          <SoundButton style={styles.compactRow} onPress={() => navigation.navigate(ROUTES.ATELIER_GALLERY)} activeOpacity={0.85}>
+          <SoundButton
+            style={styles.compactRow}
+            onPress={() => navigation.navigate(ROUTES.ATELIER_GALLERY)}
+            activeOpacity={0.82}
+            accessibilityRole="button"
+            accessibilityLabel="Ver minhas artes"
+          >
             <View style={[styles.compactIconBg, { backgroundColor: '#D8F2E2' }]}>
               <FaithIcon name="gallery" size={20} color={pt.greenDeep} />
             </View>
@@ -257,33 +274,31 @@ export default function BrincarScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: pt.background },
 
-  header: { paddingHorizontal: 20, paddingBottom: 18, marginBottom: 4 },
+  header: {
+    paddingHorizontal: 20, paddingBottom: 16, marginBottom: 2,
+    borderBottomLeftRadius: 26, borderBottomRightRadius: 26,
+  },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  headerTexts: { flex: 1 },
   backPill: {
     alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.7)',
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6,
     marginBottom: 10, borderWidth: 1, borderColor: 'rgba(124,58,237,0.18)',
   },
   backPillText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#6E3FB5' },
-  headerTitle: { fontFamily: 'FredokaOne', fontSize: 26, color: pt.text, marginBottom: 6 },
+  headerTitle: { fontFamily: 'FredokaOne', fontSize: 24, color: pt.text, marginBottom: 4 },
   headerSub: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, lineHeight: 19 },
-
-  panel: {
-    marginTop: 12, marginHorizontal: 16,
-    backgroundColor: '#FBF7FF', borderRadius: radii.xl,
-    borderWidth: 1.5, borderColor: '#E5D9F7',
-    paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12,
-    ...shadows.card,
-  },
 
   roundsPill: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: radii.pill, paddingHorizontal: 12, paddingVertical: 8,
-    marginTop: 8,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    borderRadius: radii.pill, paddingHorizontal: 12, paddingVertical: 9,
+    marginTop: 14,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.12)',
   },
   roundsText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: pt.text, fontWeight: '700', lineHeight: 17 },
 
-  sectionHead: { marginTop: 18, marginHorizontal: 18 },
+  sectionHead: { marginTop: 20, marginHorizontal: 18 },
   sectionTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: pt.text },
   sectionSub: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, marginTop: 2 },
 
@@ -299,13 +314,15 @@ const styles = StyleSheet.create({
   gridItem: { flexBasis: '48%', flexGrow: 0, flexShrink: 1 },
 
   tile: {
-    flex: 1, borderRadius: radii.lg, borderWidth: 1.5, padding: 12,
+    flex: 1, borderRadius: radii.lg, borderWidth: 1.5, padding: 13,
     alignItems: 'flex-start', ...shadows.soft,
   },
-  tileComing: { opacity: 0.94 },
+  // Card jogável: borda mais firme e sombra de cartão — pesa mais que o "Chegando".
+  tileAtivo: { borderWidth: 2, ...shadows.card },
+  tileComing: { opacity: 0.9 },
   tileIconBg: {
-    width: 40, height: 40, borderRadius: 13,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
+    width: 42, height: 42, borderRadius: 14,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 9,
   },
   tileTitle: { fontFamily: 'FredokaOne', fontSize: 14, color: pt.text, marginBottom: 3, minHeight: 38 },
   tileTitleComing: { color: pt.textSoft },
