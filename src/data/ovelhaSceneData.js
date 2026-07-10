@@ -11,6 +11,8 @@ export const OVELHA_BENI = {
   procurando: 'Cadê a ovelhinha? Toque nela!',
   acerto: 'Achou! Que olhar espertinho!',
   erro: 'Quase! Essa não é a ovelhinha. Procura de novo!',
+  // Incentivo NÃO espacial (dica nível 1): anima sem apontar onde está.
+  incentivo: 'Olha com carinho… a ovelhinha tá aí pertinho!',
   vitoria: 'Você achou todas as ovelhinhas! Muito bem!',
   semRodadas: 'As rodadas de hoje acabaram. Amanhã a gente brinca de novo!',
 };

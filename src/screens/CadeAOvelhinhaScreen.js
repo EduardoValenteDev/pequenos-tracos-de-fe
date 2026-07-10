@@ -1,24 +1,25 @@
 /**
- * CadeAOvelhinhaScreen — vertical slice de "Cadê a Ovelhinha?" (Bloco 2.1).
+ * CadeAOvelhinhaScreen — vertical slice de "Cadê a Ovelhinha?" (Bloco 2.1 · corrigido no 2.1a).
  *
- * A criança acha a ovelhinha entre distratores espalhados numa mini-cena. Prova a
- * mecânica antes de produzir a arte oficial: usa 1 sprite temporário (ovelha) e
- * distratores desenhados em SVG. Só a dificuldade Fácil, 5 rodadas, sem cronômetro.
+ * A criança acha a ovelhinha entre distratores numa mini-cena. Prova a mecânica antes
+ * da arte oficial: 1 sprite temporário (ovelha, com fallback SVG) + distratores SVG.
+ * Só Fácil, 5 rodadas, sem cronômetro.
  *
- * ── Quem manda ───────────────────────────────────────────────────────────────
- * Toda a regra vive em `ovelhaGameMachine` (pura, num ref) e `ovelhaGameService`
- * (geometria pura). A tela só desenha o estado e executa os efeitos que a máquina
- * emite. O ref é atualizado SÍNCRONAMENTE no toque — impossível aceitar toque durante
- * a resolução. Este padrão é herdado do Pares, mas NADA é importado de lá.
+ * ── Modelo ÚNICO (2.1a) ──────────────────────────────────────────────────────
+ * A rodada é UM objeto `{ roundId, targetId, items }` (fonte única). A tela RENDERIZA
+ * a mesma coleção que a máquina VALIDA, e o Pressable envia `item.id`. O acerto compara
+ * o ID tocado com `targetId` — nunca índice de array. Não há listas paralelas que
+ * possam divergir (era a causa do "distrator contava como acerto").
  *
- * Sem emoji: só FaithIcon. Sons reaproveitados (nenhum arquivo novo). Assets
- * temporários → a rota só existe sob o gate interno; em produção o card fica "Chegando".
+ * `montarRodada` só age em `trocandoCena` (idempotente por rodada) — mata a corrida de
+ * dupla-montagem. Cada rodada REMONTA os sprites (key = roundId+item.id) → Animated.Value
+ * sempre fresco. Halo = anel atrás dos sprites, pointerEvents "none".
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, Image, Animated, Pressable, AppState, StyleSheet, useWindowDimensions,
 } from 'react-native';
-import Svg, { Circle, Ellipse, Polygon } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Polygon, Rect } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -36,18 +37,25 @@ import { playGameSfx, preloadGameSfx, releaseGameSfx } from '../services/audioMa
 import { warn } from '../utils/logger';
 import { OVELHA_BENI, OVELHA_DISTRATORES_DEV, OVELHA_ALVO_DEV } from '../data/ovelhaSceneData';
 import {
-  getDifficulty, buildRound, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS,
+  getDifficulty, buildRound, roundValido, margemDe, nivelDica, DICA,
+  OVELHA_ROUNDS, OVELHA_SOUND_EVENTS,
 } from '../services/ovelhaGameService';
 import {
   FASES, EFEITOS, criarJogo, iniciarRodada, cenaPronta, tocar, liberarErro, avancar, encerrar,
 } from '../services/ovelhaGameMachine';
 
-/** Tempos das animações. Constantes: não são estado. */
+/**
+ * Overlay de diagnóstico interno (2.1a §12). DESLIGADO por padrão. Ativado só por esta
+ * constante em desenvolvimento — NÃO depende do banner Modo Criador, pointerEvents none,
+ * nunca em produção. Serve para provar visual e hitbox alinhados; remover após validar.
+ */
+const OVELHA_DEBUG_HITBOX = false;
+
+/** Tempos das animações (ms). Constantes: não são estado. */
 const T = {
   entrada: 320,     // entrada escalonada da cena
   acerto: 700,      // celebração antes de trocar de cena
   erro: 480,        // balanço + respiro antes de voltar a procurar
-  dicaMs: 5000,     // halo após 5 s sem acerto
 };
 
 const DIF_FACIL = getDifficulty('facil');
@@ -57,23 +65,73 @@ function vibrar() {
   try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* segue */ }
 }
 
+/* ══════════════════════════ VISUAIS ══════════════════════════ */
+
+/** Ovelha (asset temporário) com FALLBACK SVG se o PNG falhar. */
+function OvelhaVisual({ size }) {
+  const [falhou, setFalhou] = useState(false);
+  if (falhou) return <OvelhaSvgSprite size={size} />;
+  return (
+    <Image
+      source={OVELHA_ALVO_DEV}
+      style={{ width: size, height: size }}
+      resizeMode="contain"
+      onError={() => {
+        if (typeof __DEV__ !== 'undefined' && __DEV__) warn('CadeAOvelhinha: PNG temporário falhou; usando fallback SVG.');
+        setFalhou(true);
+      }}
+    />
+  );
+}
+
+/** Ovelha desenhada (fallback e diagnóstico). Nunca deixa o alvo invisível. */
+function OvelhaSvgSprite({ size }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      <Rect x="38" y="70" width="7" height="18" rx="3.5" fill="#6B5B4E" />
+      <Rect x="56" y="70" width="7" height="18" rx="3.5" fill="#6B5B4E" />
+      <Circle cx="38" cy="52" r="20" fill="#FBF7F1" />
+      <Circle cx="54" cy="46" r="22" fill="#FFFFFF" />
+      <Circle cx="66" cy="54" r="17" fill="#FBF7F1" />
+      <Ellipse cx="72" cy="44" rx="12" ry="14" fill="#6B5B4E" />
+      <Circle cx="72" cy="34" r="7" fill="#FFFFFF" />
+      <Circle cx="68" cy="45" r="2.4" fill="#2F241D" />
+      <Circle cx="77" cy="45" r="2.4" fill="#2F241D" />
+    </Svg>
+  );
+}
+
+/** Distrator TEMPORÁRIO em SVG. "Claramente diferente" da ovelha. Trocado no 2.2. */
+function DistratorSvg({ visualId, size }) {
+  const c = OVELHA_DISTRATORES_DEV[visualId] ?? OVELHA_DISTRATORES_DEV.gato;
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      <Polygon points="30,26 42,8 50,30" fill={c.orelha} />
+      <Polygon points="70,26 58,8 50,30" fill={c.orelha} />
+      <Circle cx="50" cy="58" r="40" fill={c.corpo} />
+      <Circle cx="38" cy="52" r="5" fill={c.rosto} />
+      <Circle cx="62" cy="52" r="5" fill={c.rosto} />
+      <Ellipse cx="50" cy="68" rx="6.5" ry="4.5" fill={c.rosto} />
+    </Svg>
+  );
+}
+
 /* ══════════════════════════ SPRITE ══════════════════════════ */
 
 /**
- * Um elemento tocável. A ovelha é o asset temporário; os distratores são SVG.
- * A HITBOX é maior que o sprite (Pressable dimensionado pela hitbox), então o toque
- * é confortável mesmo com o desenho menor. `pointerEvents` do halo é "none".
+ * Item tocável. A key (roundId+item.id) muda a cada rodada → REMONTA → Animated.Value
+ * fresco (corrige "opacidade presa em zero"/estado de acerto sobrevivendo). A hitbox é a
+ * do PRÓPRIO item, centrada no sprite; o Pressable ocupa exatamente essa hitbox.
  */
-const Sprite = React.memo(function Sprite({ item, encontrada, errando, comHalo, onPress }) {
+const Sprite = React.memo(function Sprite({ item, indice, encontrada, errando, onPress }) {
   const entrada = useRef(new Animated.Value(0)).current;
   const pop = useRef(new Animated.Value(1)).current;
   const shake = useRef(new Animated.Value(0)).current;
-  const halo = useRef(new Animated.Value(0)).current;
   const [press, setPress] = useState(false);
 
   useEffect(() => {
     const a = Animated.timing(entrada, {
-      toValue: 1, duration: 260, delay: Math.min(item.indice * 60, 240), useNativeDriver: true,
+      toValue: 1, duration: 260, delay: Math.min(indice * 60, 240), useNativeDriver: true,
     });
     a.start();
     return () => a.stop();
@@ -97,65 +155,62 @@ const Sprite = React.memo(function Sprite({ item, encontrada, errando, comHalo, 
     return () => a.stop();
   }, [errando]);
 
-  useEffect(() => {
-    if (!comHalo) { halo.stopAnimation(); halo.setValue(0); return undefined; }
-    const a = Animated.loop(Animated.sequence([
-      Animated.timing(halo, { toValue: 1, duration: 620, useNativeDriver: true }),
-      Animated.timing(halo, { toValue: 0, duration: 620, useNativeDriver: true }),
-    ]));
-    a.start();
-    return () => a.stop();
-  }, [comHalo]);
-
   const shakeX = shake.interpolate({ inputRange: [-1, 1], outputRange: [-8, 8] });
-  const entradaScale = entrada.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+  const entradaScale = entrada.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
   const hb = item.hitbox;
+  const alvo = item.role === 'target';
 
   return (
     <Pressable
       onPress={onPress}
       onPressIn={() => setPress(true)}
       onPressOut={() => setPress(false)}
-      style={[styles.hit, { left: item.cx - hb / 2, top: item.cy - hb / 2, width: hb, height: hb }]}
+      // Pressable = EXATAMENTE a hitbox do item (desenho = área tocável, sem hitSlop).
+      style={[styles.hit, { left: item.cx - hb / 2, top: item.cy - hb / 2, width: hb, height: hb, zIndex: 2 }]}
       accessibilityRole="button"
-      accessibilityLabel={item.tipo === 'alvo' ? 'ovelhinha' : (OVELHA_DISTRATORES_DEV[item.kind]?.label ?? 'bichinho')}
+      accessibilityLabel={alvo ? 'ovelhinha' : (OVELHA_DISTRATORES_DEV[item.visualId]?.label ?? 'bichinho')}
     >
-      {/* halo da dica — decorativo, atrás do sprite, não recebe toque */}
-      {comHalo && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.halo,
-            { width: hb, height: hb, borderRadius: hb / 2,
-              opacity: halo.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.6] }),
-              transform: [{ scale: halo.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.12] }) }] },
-          ]}
-        />
-      )}
       <Animated.View
         style={{ opacity: entrada, transform: [{ translateX: shakeX }, { scale: Animated.multiply(pop, entradaScale) }, { scale: press ? 0.94 : 1 }] }}
       >
-        {item.tipo === 'alvo'
-          ? <Image source={OVELHA_ALVO_DEV} style={{ width: item.size, height: item.size }} resizeMode="contain" />
-          : <DistratorDev kind={item.kind} size={item.size} />}
+        {alvo ? <OvelhaVisual size={item.visualSize} /> : <DistratorSvg visualId={item.visualId} size={item.visualSize} />}
       </Animated.View>
+
+      {OVELHA_DEBUG_HITBOX && (
+        <View pointerEvents="none" style={[styles.debugRect, { borderColor: alvo ? '#0E9F6E' : '#C0392B' }]}>
+          <Text style={styles.debugTxt}>{item.role[0]}·{item.id.slice(-2)}</Text>
+        </View>
+      )}
     </Pressable>
   );
 });
 
-/** Distrator TEMPORÁRIO em SVG (nenhum asset). Trocado por arte oficial no Bloco 2.2. */
-function DistratorDev({ kind, size }) {
-  const c = OVELHA_DISTRATORES_DEV[kind] ?? OVELHA_DISTRATORES_DEV.gato;
-  const r = size / 2;
+/** Halo em ANEL (centro transparente), ATRÁS dos sprites, sem receber toque. */
+function HaloAnel({ item, evidente }) {
+  const pulso = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.loop(Animated.sequence([
+      Animated.timing(pulso, { toValue: 1, duration: 900, useNativeDriver: true }),
+      Animated.timing(pulso, { toValue: 0, duration: 900, useNativeDriver: true }),
+    ]));
+    a.start();
+    return () => a.stop();
+  }, []);
+  // Diâmetro ≈ 1,5× o sprite (entre 1,35 e 1,65).
+  const d = Math.round(item.visualSize * (evidente ? 1.6 : 1.45));
   return (
-    <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Polygon points="30,25 42,8 50,28" fill={c.orelha} />
-      <Polygon points="70,25 58,8 50,28" fill={c.orelha} />
-      <Circle cx="50" cy="56" r="38" fill={c.corpo} />
-      <Circle cx="38" cy="50" r="5" fill={c.rosto} />
-      <Circle cx="62" cy="50" r="5" fill={c.rosto} />
-      <Ellipse cx="50" cy="66" rx="6" ry="4" fill={c.rosto} />
-    </Svg>
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.halo,
+        {
+          left: item.cx - d / 2, top: item.cy - d / 2, width: d, height: d, borderRadius: d / 2,
+          borderWidth: evidente ? 5 : 4,
+          opacity: pulso.interpolate({ inputRange: [0, 1], outputRange: [evidente ? 0.5 : 0.35, evidente ? 0.85 : 0.6] }),
+          transform: [{ scale: pulso.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.06] }) }],
+        },
+      ]}
+    />
   );
 }
 
@@ -175,18 +230,19 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const [pausado, setPausado] = useState(false);
 
   const [vista, setVista] = useState(() => criarJogo({ rounds: OVELHA_ROUNDS }));
-  const [sprites, setSprites] = useState([]);      // geometria da rodada atual
-  const [dicaVisivel, setDicaVisivel] = useState(false);
-  const [errandoIndice, setErrandoIndice] = useState(-1);   // qual distrator balança
-  const [area, setArea] = useState({ largura: 0, altura: 0 });
+  const [round, setRound] = useState(null);       // fonte única da cena renderizada
+  const [erradoId, setErradoId] = useState(null); // qual item balança (id, não índice)
+  const [nivel, setNivel] = useState(0);          // 0..3 — controlador de dica
 
   const jogoRef = useRef(vista);
+  const roundIdRef = useRef(0);
   const regiaoAnteriorRef = useRef(null);
-  const dicaAtivaRef = useRef(false);
   const salvoRef = useRef(false);
   const timeouts = useRef([]);
   const montado = useRef(true);
   const areaRef = useRef({ largura: 0, altura: 0 });
+  const buscaMsRef = useRef(0);       // tempo ACUMULADO procurando (pausa não conta)
+  const nivelRef = useRef(0);
   const fn = useRef({});
 
   /* ── Timers centralizados ── */
@@ -198,15 +254,20 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     timeouts.current.push(id);
     return id;
   }, []);
-
   const limparTimers = useCallback(() => {
     timeouts.current.forEach(clearTimeout);
     timeouts.current = [];
   }, []);
 
-  const cancelarDica = useCallback(() => {
-    dicaAtivaRef.current = false;
-    if (montado.current) setDicaVisivel(false);
+  const resetarDica = useCallback(() => {
+    buscaMsRef.current = 0;
+    nivelRef.current = 0;
+    if (montado.current) setNivel(0);
+  }, []);
+
+  const aplicarNivel = useCallback((elapsedMs, erros) => {
+    const n = nivelDica(elapsedMs, erros);
+    if (n > nivelRef.current) { nivelRef.current = n; if (montado.current) setNivel(n); }
   }, []);
 
   /* ── Efeitos pedidos pela máquina ── */
@@ -219,13 +280,6 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
         case EFEITOS.VIBRAR_ACERTO: vibrar(); break;
         case EFEITOS.AGENDAR_LIBERAR_ERRO: fn.current.agendar(() => fn.current.aplicar(liberarErro), T.erro); break;
         case EFEITOS.AGENDAR_PROXIMA: fn.current.agendar(() => fn.current.aplicar(avancar), T.acerto); break;
-        case EFEITOS.AGENDAR_DICA:
-          // Uma dica por rodada. Dispara após T.dicaMs sem acerto (o erro também mostra
-          // o halo, imediatamente — ver `aplicar` no ramo de erro).
-          fn.current.agendar(() => {
-            if (montado.current && jogoRef.current.fase === FASES.PROCURANDO) fn.current.mostrarDica();
-          }, T.dicaMs);
-          break;
         case EFEITOS.FINALIZAR: fn.current.finalizar(); break;
         default: break;
       }
@@ -237,43 +291,49 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     const r = transicao(jogoRef.current, ...args);
     jogoRef.current = r.estado;
     if (montado.current) setVista(r.estado);
-    // Sair de "procurando" cancela qualquer dica pendente/visível.
-    if (r.estado.fase !== FASES.PROCURANDO) cancelarDica();
+    if (r.estado.fase !== FASES.PROCURANDO) resetarDica();   // sair de procurando cancela a dica
     if (r.efeitos?.length) executar(r.efeitos);
     return r;
-  }, [executar, cancelarDica]);
+  }, [executar, resetarDica]);
 
-  const mostrarDica = useCallback(() => {
-    if (dicaAtivaRef.current) return;   // nunca dois halos
-    dicaAtivaRef.current = true;
-    if (montado.current) setDicaVisivel(true);
-  }, []);
-
-  /* ── Monta a geometria de uma rodada e entra em cena ── */
+  /* ── Monta a geometria de UMA rodada e entra em cena ──
+     Idempotente por rodada: só age em `trocandoCena`. Mata a corrida de dupla-montagem. */
   const montarRodada = useCallback(() => {
+    if (jogoRef.current.fase !== FASES.TROCANDO) return;   // já montada → no-op total
     const a = areaRef.current;
-    if (!a.largura || !a.altura) return;   // ainda sem medida; o onLayout re-chama
-    const cena = buildRound({
-      dif: DIF_FACIL, largura: a.largura, altura: a.altura,
-      regiaoAnterior: regiaoAnteriorRef.current,
-    });
-    regiaoAnteriorRef.current = cena.regiaoAlvo;
-    setSprites(cena.sprites.map((s, i) => ({ ...s, indice: i })));
-    aplicar(iniciarRodada, { alvoIndex: cena.alvoIndex, n: cena.sprites.length });
-    // A cena entra e libera o toque (procurando) ao fim da animação.
-    agendar(() => aplicar(cenaPronta), T.entrada);
-  }, [aplicar, agendar]);
+    if (!a.largura || !a.altura) return;                    // sem medida ainda; onLayout re-chama
+
+    // Gera uma rodada VÁLIDA (invariantes). Se sair inválida, tenta de novo (rnd avança).
+    const margem = margemDe(DIF_FACIL, a.largura, a.altura);
+    let r = null;
+    for (let tent = 0; tent < 6; tent++) {
+      roundIdRef.current += 1;
+      const cand = buildRound({
+        dif: DIF_FACIL, largura: a.largura, altura: a.altura,
+        regiaoAnterior: regiaoAnteriorRef.current, roundId: roundIdRef.current,
+      });
+      if (roundValido(cand, a.largura, a.altura, margem)) { r = cand; break; }
+    }
+    if (!r) { warn('CadeAOvelhinha: rodada inválida após retries; abortando a montagem.'); return; }
+
+    regiaoAnteriorRef.current = r.regiaoAlvo;
+    const iniciou = aplicar(iniciarRodada, { targetId: r.targetId, itemIds: r.items.map((it) => it.id) });
+    if (!iniciou.aceito) return;               // barreira: nunca inicia rodada sem alvo válido
+    setRound(r);
+    setErradoId(null);
+    resetarDica();
+    fn.current.agendar(() => fn.current.aplicar(cenaPronta), T.entrada);
+  }, [aplicar, resetarDica]);
 
   /* ── Fim da partida: salva UMA vez; resultado aparece mesmo se o storage falhar ── */
   const finalizar = useCallback(async () => {
     if (salvoRef.current) return;
     salvoRef.current = true;
     limparTimers();
-    cancelarDica();
+    resetarDica();
     playGameSfx(OVELHA_SOUND_EVENTS.VITORIA);
 
     const g = jogoRef.current;
-    const anterior = stats?.ovelha?.facil?.bestSequencia ?? 0;
     let r = { stats: null, isBest: false, starAwarded: false };
     try {
       const day = toDayKey(new Date());
@@ -281,10 +341,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
         dificuldade: 'facil', day,
         encontradas: g.encontradas, sequencia: g.bestSequencia,
       });
-      if (r.starAwarded) {
-        await addBonusStars(1);
-        await refreshProgress?.();
-      }
+      if (r.starAwarded) { await addBonusStars(1); await refreshProgress?.(); }
     } catch (e) {
       warn('CadeAOvelhinha.finalizar:', e);
     }
@@ -293,14 +350,13 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     if (r.stats) setStats(r.stats);
     setResultado({
       encontradas: g.encontradas, bestSequencia: g.bestSequencia,
-      recorde: Math.max(anterior, g.bestSequencia),
       isBest: r.isBest, starAwarded: r.starAwarded,
     });
     setTela('resultado');
-  }, [stats, refreshProgress, limparTimers, cancelarDica]);
+  }, [refreshProgress, limparTimers, resetarDica]);
 
-  // Publica handlers frescos (evita closure preso ao primeiro render, quando stats=null).
-  fn.current = { aplicar, agendar, mostrarDica, montarRodada, finalizar };
+  // Publica handlers frescos (evita closure preso ao primeiro render).
+  fn.current = { aplicar, agendar, montarRodada, finalizar };
 
   /* ── Ciclo de vida ── */
   useEffect(() => {
@@ -317,7 +373,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     };
   }, [limparTimers]);
 
-  /* ── Pausa: segundo plano ou tela sem foco. Só interrompe timers/dica visualmente ── */
+  /* ── Pausa: segundo plano ou tela sem foco ── */
   useEffect(() => {
     const sub = AppState.addEventListener('change', (e) => setPausado(e !== 'active'));
     const off = navigation.addListener('blur', () => setPausado(true));
@@ -325,72 +381,86 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     return () => { sub.remove(); off(); on(); };
   }, [navigation]);
 
-  useEffect(() => {
-    // Pausou durante a busca → esconde a dica (ela reaparece pela regra ao voltar).
-    if (pausado) cancelarDica();
-  }, [pausado, cancelarDica]);
-
   const jogando = tela === 'jogando';
+  const procurando = jogando && vista.fase === FASES.PROCURANDO;
+
+  /* ── Controlador de dica: acumula tempo SÓ enquanto procura e não pausado ── */
+  useEffect(() => {
+    if (!procurando || pausado) return undefined;
+    let ultimo = Date.now();
+    const t = setInterval(() => {
+      const agora = Date.now();
+      buscaMsRef.current += agora - ultimo;
+      ultimo = agora;
+      fn.current.aplicarNivel?.(buscaMsRef.current, jogoRef.current.erros);
+    }, 500);
+    return () => clearInterval(t);
+  }, [procurando, pausado]);
+
+  // aplicarNivel no ref (para o intervalo pegar sempre a versão fresca).
+  fn.current.aplicarNivel = aplicarNivel;
 
   /* ── Começar: SÓ AQUI a rodada é consumida ── */
   const comecar = useCallback(async () => {
     const r = await consumeRound();
-    if (!r.ok) {
-      setRounds(await getDailyRounds());
-      setTela('entrada');
-      return;
-    }
+    if (!r.ok) { setRounds(await getDailyRounds()); setTela('entrada'); return; }
     limparTimers();
-    cancelarDica();
+    resetarDica();
     regiaoAnteriorRef.current = null;
     salvoRef.current = false;
     jogoRef.current = criarJogo({ rounds: OVELHA_ROUNDS });
     setVista(jogoRef.current);
+    setRound(null);
     setResultado(null);
-    setSprites([]);
+    setErradoId(null);
     setPausado(AppState.currentState !== 'active');
     setTela('jogando');
     setRounds(await getDailyRounds());
-    // Se a área já foi medida, monta já; senão o onLayout dispara.
     if (areaRef.current.largura) fn.current.montarRodada();
-  }, [limparTimers, cancelarDica]);
+  }, [limparTimers, resetarDica]);
 
   const abandonar = useCallback(() => {
     limparTimers();
-    cancelarDica();
+    resetarDica();
     aplicar(encerrar);
     setTela('entrada');
-  }, [aplicar, limparTimers, cancelarDica]);
+  }, [aplicar, limparTimers, resetarDica]);
 
-  /* ── Toque num sprite: a máquina decide, de forma síncrona ── */
-  const tocarSprite = useCallback((i) => {
+  /* ── Toque num item, por ID: a máquina decide, de forma síncrona ── */
+  const tocarItem = useCallback((id) => {
     if (pausado) return;
-    const r = aplicar(tocar, i);
-    if (r.aceito && jogoRef.current.fase === FASES.ERRO) {
-      setErrandoIndice(i);                 // balança o distrator tocado
-      agendar(() => montado.current && setErrandoIndice(-1), T.erro);
-      mostrarDica();                       // o erro também revela o halo
+    const r = aplicar(tocar, id);
+    if (r.aceito && r.acerto === false) {
+      setErradoId(id);
+      agendar(() => montado.current && setErradoId(null), T.erro);
+      // O erro pode elevar o nível da dica (2/3/5 erros), mas NUNCA revela no 1º.
+      aplicarNivel(buscaMsRef.current, jogoRef.current.erros);
     }
-  }, [aplicar, agendar, pausado, mostrarDica]);
+  }, [aplicar, agendar, pausado, aplicarNivel]);
 
-  // Quando a máquina volta para "trocandoCena" (após avançar), monta a próxima rodada.
+  // Após avançar, a máquina volta a `trocandoCena` → monta a próxima rodada.
   useEffect(() => {
     if (jogando && vista.fase === FASES.TROCANDO) fn.current.montarRodada();
   }, [jogando, vista.fase, vista.rodada]);
 
-  /* ── Medição da área de jogo ── */
+  /* ── Medição da área ── */
   const medirArea = useCallback((e) => {
     const { width: w, height: h } = e?.nativeEvent?.layout ?? {};
     if (!w || !h) return;
     const mudou = Math.abs(areaRef.current.largura - w) > 1 || Math.abs(areaRef.current.altura - h) > 1;
     areaRef.current = { largura: w, altura: h };
-    if (mudou) setArea({ largura: w, altura: h });
-    // Primeira medição durante a partida sem cena montada → monta agora.
-    if (jogando && jogoRef.current.fase === FASES.TROCANDO && !sprites.length) fn.current.montarRodada();
-  }, [jogando, sprites.length]);
+    if (mudou && jogando && jogoRef.current.fase === FASES.TROCANDO) fn.current.montarRodada();
+  }, [jogando]);
 
   const semRodadas = !premium && rounds != null && rounds.remaining <= 0;
-  const alvoIndex = vista.alvoIndex;
+
+  // Mensagem do Beni: incentivo a partir do nível 1 (não espacial).
+  const mensagem = pausado
+    ? 'Joguinho pausado. Volte quando quiser!'
+    : nivel >= 1 ? OVELHA_BENI.incentivo : OVELHA_BENI.procurando;
+
+  const alvoItem = round?.items?.find((it) => it.id === round.targetId) || null;
+  const mostraHalo = procurando && nivel >= 2 && !pausado && !!alvoItem;
 
   /* ══════════════ ENTRADA ══════════════ */
   if (tela === 'entrada') {
@@ -459,7 +529,6 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
             </Text>
             <View style={styles.statsRow}>
               <Stat label="Melhor sequência" valor={`${resultado?.bestSequencia ?? 0}`} />
-              <Stat label="Recorde do Fácil" valor={`${resultado?.recorde ?? 0}`} />
             </View>
             {resultado?.isBest && (
               <View style={styles.faixaBoa}>
@@ -491,6 +560,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   }
 
   /* ══════════════ JOGANDO ══════════════ */
+  const items = round?.items ?? [];
   return (
     <View style={styles.root}>
       <Header insets={insets} onBack={abandonar} chip="Em teste" />
@@ -499,26 +569,30 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
           <FaithIcon name="ovelha" size={16} color={pt.textSoft} />
           <Text style={styles.hudText}>{vista.encontradas} de {vista.rounds}</Text>
         </View>
-        <View style={styles.hudItem}>
-          <Text style={styles.hudRodada}>Rodada {Math.min(vista.rodada, vista.rounds)} de {vista.rounds}</Text>
-        </View>
+        <Text style={styles.hudRodada}>Rodada {Math.min(vista.rodada, vista.rounds)} de {vista.rounds}</Text>
       </View>
 
-      <Text style={styles.dica} numberOfLines={1}>
-        {pausado ? 'Joguinho pausado. Volte quando quiser!' : OVELHA_BENI.procurando}
-      </Text>
+      <Text style={styles.dica} numberOfLines={1}>{mensagem}</Text>
 
       <LinearGradient colors={['#EAF7EF', '#DFF3E6', '#EFF9F2']} style={styles.cena} onLayout={medirArea}>
-        {sprites.map((s, i) => (
+        {/* Camada 1 — halo em anel, ATRÁS de tudo, sem toque. */}
+        {mostraHalo && <HaloAnel item={alvoItem} evidente={nivel >= 3} />}
+        {/* Camada 2 — sprites (zIndex 2). key = roundId+item.id → remonta a cada rodada. */}
+        {items.map((it, i) => (
           <Sprite
-            key={`${vista.rodada}-${s.id}`}
-            item={s}
-            encontrada={vista.fase === FASES.ACERTO && i === alvoIndex}
-            errando={errandoIndice === i}
-            comHalo={dicaVisivel && i === alvoIndex}
-            onPress={() => tocarSprite(i)}
+            key={`${round.roundId}-${it.id}`}
+            item={it}
+            indice={i}
+            encontrada={vista.fase === FASES.ACERTO && it.id === round.targetId}
+            errando={erradoId === it.id}
+            onPress={() => tocarItem(it.id)}
           />
         ))}
+        {OVELHA_DEBUG_HITBOX && round && (
+          <View pointerEvents="none" style={styles.debugHud}>
+            <Text style={styles.debugTxt}>target={round.targetId.slice(-8)}</Text>
+          </View>
+        )}
       </LinearGradient>
     </View>
   );
@@ -606,7 +680,7 @@ const styles = StyleSheet.create({
   conviteText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: '#7A5800', fontWeight: '700', lineHeight: 17 },
 
   // ── HUD ──
-  hud: { flexDirection: 'row', justifyContent: 'center', gap: 22, paddingVertical: 8, backgroundColor: '#FFF' },
+  hud: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, paddingVertical: 8, backgroundColor: '#FFF' },
   hudItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   hudText: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: pt.text },
   hudRodada: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.textSoft },
@@ -616,7 +690,12 @@ const styles = StyleSheet.create({
   // ── Cena ──
   cena: { flex: 1, marginHorizontal: 12, marginBottom: 12, borderRadius: radii.xl, overflow: 'hidden', ...shadows.soft },
   hit: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  halo: { position: 'absolute', backgroundColor: pt.gold },
+  // Halo em ANEL: centro transparente (só borda). zIndex 1 → atrás dos sprites (zIndex 2).
+  halo: { position: 'absolute', backgroundColor: 'transparent', borderColor: pt.gold, zIndex: 1 },
+
+  debugRect: { ...StyleSheet.absoluteFillObject, borderWidth: 1.5, alignItems: 'flex-start', justifyContent: 'flex-start' },
+  debugHud: { position: 'absolute', top: 4, left: 6 },
+  debugTxt: { fontFamily: 'Nunito', fontSize: 9, color: '#C0392B', fontWeight: '800' },
 
   // ── Resultado ──
   vitoriaCard: {
@@ -626,9 +705,9 @@ const styles = StyleSheet.create({
   vitoriaIconBg: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#DFF3E6', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   destaque: { fontFamily: 'FredokaOne', fontSize: 44, color: pt.text, lineHeight: 50 },
   destaqueLabel: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.textSoft, marginBottom: 14 },
-  statsRow: { flexDirection: 'row', alignSelf: 'stretch', justifyContent: 'space-around' },
-  stat: { alignItems: 'center', flex: 1 },
-  statValor: { fontFamily: 'FredokaOne', fontSize: 20, color: pt.text },
+  statsRow: { flexDirection: 'row', alignSelf: 'stretch', justifyContent: 'center' },
+  stat: { alignItems: 'center' },
+  statValor: { fontFamily: 'FredokaOne', fontSize: 22, color: pt.text },
   statLabel: { fontFamily: 'Nunito', fontSize: 11, color: pt.textSoft, textAlign: 'center', marginTop: 1 },
   faixaBoa: {
     flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 12,

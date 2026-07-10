@@ -1,20 +1,14 @@
 /**
- * ovelhaGameMachine.js — máquina de estados PURA de "Cadê a Ovelhinha?" (Bloco 2.1).
+ * ovelhaGameMachine.js — máquina de estados PURA de "Cadê a Ovelhinha?" (2.1 · corrigida no 2.1a).
  *
- * Mesma filosofia da máquina do Pares: UMA fonte de verdade (`fase`), guardada num ref
- * pela tela e atualizada SÍNCRONAMENTE no primeiro instante do toque — antes de qualquer
- * setState, som, animação ou timer. É isso que impede toque durante a resolução.
+ * Fonte única `fase`, gravada no ref pela tela e atualizada SÍNCRONAMENTE no toque.
+ * O acerto é decidido comparando o ID TOCADO com `targetId` — nunca por índice de array.
  *
- * Puro: sem React, sem relógio, sem I/O, sem navegação, nunca lança. Devolve sempre
- * `{ estado, efeitos }` (e `aceito` no toque). Quem executa os efeitos é a tela.
+ * Puro: sem React, relógio, I/O, navegação. Devolve `{ estado, efeitos }` (e `aceito`).
  *
  * ── Fases ────────────────────────────────────────────────────────────────────
- *   trocandoCena     — entre rodadas (e no início); NÃO aceita toque
- *   entrandoCena     — a cena está entrando (animação); NÃO aceita toque
- *   procurando       — a criança pode tocar; ÚNICA fase que aceita
- *   resolvendoErro   — distrator tocado; NÃO aceita
- *   resolvendoAcerto — ovelha encontrada; NÃO aceita
- *   finalizado       — 5 rodadas concluídas; NÃO aceita, nunca mais
+ *   trocandoCena · entrandoCena · procurando · resolvendoErro · resolvendoAcerto · finalizado
+ *   Só `procurando` aceita toque.
  */
 
 export const FASES = Object.freeze({
@@ -26,31 +20,28 @@ export const FASES = Object.freeze({
   FIM: 'finalizado',
 });
 
-/** A ÚNICA fase que aceita toque. Fonte única — sem booleano paralelo. */
 export const FASES_QUE_ACEITAM = Object.freeze([FASES.PROCURANDO]);
 
 export const EFEITOS = Object.freeze({
-  SOM_TOQUE: 'somToque',           // reservado (SoundButton já cobre a UI)
   SOM_ACERTO: 'somAcerto',
   SOM_ERRO: 'somErro',
   SOM_TROCA: 'somTroca',
   VIBRAR_ACERTO: 'vibrarAcerto',
   AGENDAR_LIBERAR_ERRO: 'agendarLiberarErro',
   AGENDAR_PROXIMA: 'agendarProximaRodada',
-  AGENDAR_DICA: 'agendarDica',
   FINALIZAR: 'finalizarPartida',
 });
 
 const sem = (estado) => ({ estado, efeitos: [] });
 
-/** Estado inicial de uma partida. Começa em `trocandoCena` (a tela monta a rodada 1). */
+/** Estado inicial. Começa em `trocandoCena` (a tela monta a rodada 1). */
 export function criarJogo({ rounds = 5 } = {}) {
   return {
     fase: FASES.TROCANDO,
     rounds: Number(rounds) > 0 ? Math.floor(rounds) : 5,
     rodada: 1,
-    alvoIndex: null,
-    n: 0,
+    targetId: null,
+    itemIds: [],
     encontradas: 0,
     erros: 0,
     sequencia: 0,
@@ -59,37 +50,38 @@ export function criarJogo({ rounds = 5 } = {}) {
 }
 
 /**
- * A tela montou a geometria da rodada e informa qual índice é o alvo e quantos sprites.
- * Válido a partir de `trocandoCena`. Vai para `entrandoCena` (a cena vai animar a entrada).
+ * A tela montou a rodada e informa `targetId` + os `itemIds` renderizados.
+ * Só aceita a partir de `trocandoCena` E se o `targetId` estiver entre os `itemIds` —
+ * é a barreira que impede iniciar uma rodada sem alvo válido (invariante).
  */
-export function iniciarRodada(estado, { alvoIndex, n }) {
-  if (!estado || estado.fase !== FASES.TROCANDO) return sem(estado);
-  const total = Number.isInteger(n) && n > 0 ? n : 0;
-  const alvo = Number.isInteger(alvoIndex) && alvoIndex >= 0 && alvoIndex < total ? alvoIndex : 0;
-  return sem({ ...estado, fase: FASES.ENTRANDO, alvoIndex: alvo, n: total });
+export function iniciarRodada(estado, { targetId, itemIds }) {
+  if (!estado || estado.fase !== FASES.TROCANDO) return { ...sem(estado), aceito: false };
+  const ids = Array.isArray(itemIds) ? itemIds : [];
+  const alvoOk = typeof targetId === 'string' && ids.includes(targetId);
+  if (!alvoOk) return { ...sem(estado), aceito: false };   // rodada inválida: NÃO inicia
+  return { ...sem({ ...estado, fase: FASES.ENTRANDO, targetId, itemIds: ids }), aceito: true };
 }
 
-/** Fim da animação de entrada da cena: agora aceita toque. Agenda a dica (uma vez). */
+/** Fim da animação de entrada: agora aceita toque. */
 export function cenaPronta(estado) {
   if (!estado || estado.fase !== FASES.ENTRANDO) return sem(estado);
-  return { estado: { ...estado, fase: FASES.PROCURANDO }, efeitos: [EFEITOS.AGENDAR_DICA] };
+  return sem({ ...estado, fase: FASES.PROCURANDO });
 }
 
-/** A grade aceita um toque nesta posição AGORA? Única porta de entrada. */
-export function aceitaToque(estado, i) {
+/** A grade aceita um toque neste ID AGORA? Única porta de entrada. */
+export function aceitaToque(estado, id) {
   if (!estado || !FASES_QUE_ACEITAM.includes(estado.fase)) return false;
-  return Number.isInteger(i) && i >= 0 && i < estado.n;
+  return typeof id === 'string' && estado.itemIds.includes(id);
 }
 
 /**
- * Toque num sprite. Recusado → `aceito:false` e NENHUM efeito (sem som/haptic/estatística).
- * Acerto → conta a ovelhinha, cresce a sequência, agenda a próxima rodada.
- * Erro → zera a sequência (não perde ovelhinhas), agenda a volta ao "procurando".
+ * Toque num item, por ID. Recusado → `aceito:false`, zero efeitos.
+ * ID === targetId → acerto. Outro item conhecido → erro suave.
  */
-export function tocar(estado, i) {
-  if (!aceitaToque(estado, i)) return { ...sem(estado), aceito: false };
+export function tocar(estado, id) {
+  if (!aceitaToque(estado, id)) return { ...sem(estado), aceito: false };
 
-  if (i === estado.alvoIndex) {
+  if (id === estado.targetId) {
     const sequencia = estado.sequencia + 1;
     return {
       estado: {
@@ -101,14 +93,15 @@ export function tocar(estado, i) {
       },
       efeitos: [EFEITOS.SOM_ACERTO, EFEITOS.VIBRAR_ACERTO, EFEITOS.AGENDAR_PROXIMA],
       aceito: true,
+      acerto: true,
     };
   }
 
-  // Erro suave: a sequência quebra, mas nenhuma ovelhinha é perdida.
   return {
     estado: { ...estado, fase: FASES.ERRO, erros: estado.erros + 1, sequencia: 0 },
     efeitos: [EFEITOS.SOM_ERRO, EFEITOS.AGENDAR_LIBERAR_ERRO],
     aceito: true,
+    acerto: false,
   };
 }
 
@@ -118,22 +111,19 @@ export function liberarErro(estado) {
   return sem({ ...estado, fase: FASES.PROCURANDO });
 }
 
-/**
- * Fim da celebração do acerto. Última rodada → `finalizado`. Senão, prepara a próxima
- * (a tela vai montar a geometria e chamar `iniciarRodada`).
- */
+/** Fim da celebração do acerto. Última rodada → `finalizado`; senão, prepara a próxima. */
 export function avancar(estado) {
   if (!estado || estado.fase !== FASES.ACERTO) return sem(estado);
   if (estado.rodada >= estado.rounds) {
     return { estado: { ...estado, fase: FASES.FIM }, efeitos: [EFEITOS.FINALIZAR] };
   }
   return {
-    estado: { ...estado, fase: FASES.TROCANDO, rodada: estado.rodada + 1, alvoIndex: null },
+    estado: { ...estado, fase: FASES.TROCANDO, rodada: estado.rodada + 1, targetId: null, itemIds: [] },
     efeitos: [EFEITOS.SOM_TROCA],
   };
 }
 
-/** Saída/encerramento forçado (voltar, unmount): trava tudo. */
+/** Encerramento forçado (voltar, unmount): trava tudo. */
 export function encerrar(estado) {
   if (!estado || estado.fase === FASES.FIM) return sem(estado);
   return sem({ ...estado, fase: FASES.FIM });

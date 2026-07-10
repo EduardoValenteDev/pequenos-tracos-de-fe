@@ -17368,7 +17368,7 @@ check(
   //   concorrentes, geometria em várias resoluções, fallback, persistência com teto
   //   COMPARTILHADO. Card só ativo em dev; Pares/Turbo intactos.
   // ════════════════════════════════════════════════════════════════════════════
-  console.log('\n── Bloco 2.1: Cadê a Ovelhinha? (vertical slice) ──');
+  console.log('\n── Bloco 2.1 / 2.1a: Cadê a Ovelhinha? (modelo único de item) ──');
   {
     const svc = readSrc('src/services/ovelhaGameService.js');
     const mq = readSrc('src/services/ovelhaGameMachine.js');
@@ -17386,18 +17386,18 @@ check(
       .replace(/^export\s+default[\s\S]*$/m, '')
       .replace(/^export\s+/gm, '');
 
-    /** Serviço de geometria puro, avaliado de verdade. */
+    /** Serviço puro, avaliado de verdade (modelo único de item). */
     const evalSvc = () => new Function(limpa(svc)
-      + ';return { OVELHA_DIFFICULTIES, getDifficulty, buildRound, posicionarSprites,'
-      + ' fallbackGrade, tamanhoSprite, semSobreposicao, todosDentro, regiaoDe,'
-      + ' OVELHA_HITBOX_MIN, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS };')();
+      + ';return { OVELHA_DIFFICULTIES, getDifficulty, buildRound, posicionarItens, fallbackGrade,'
+      + ' tamanhoSprite, rectsIntersect, semSobreposicao, todosDentro, regiaoDe, margemDe,'
+      + ' exactlyOneTarget, targetIsRenderable, targetInsideBounds, roundValido, nivelDica, DICA,'
+      + ' shuffle, OVELHA_HITBOX_MIN, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS };')();
 
-    /** Máquina pura. */
+    /** Máquina pura (identidade por targetId). */
     const evalMq = () => new Function(limpa(mq)
       + ';return { FASES, FASES_QUE_ACEITAM, EFEITOS, criarJogo, iniciarRodada, cenaPronta,'
       + ' aceitaToque, tocar, liberarErro, avancar, encerrar };')();
 
-    /** brincarStatsService com deps injetadas (as constantes/ajudas vêm do paresGameService). */
     const evalStats = () => new Function(
       'AsyncStorage', 'STORAGE_KEYS', 'warn',
       'BRINCAR_DAILY_STAR_CAP', 'DEFAULT_MODE', 'isBetterTime', 'isBetterScore', 'isBetterMoves',
@@ -17412,174 +17412,256 @@ check(
         (ant, novo) => Number.isFinite(novo) && novo > 0 && (!(Number.isFinite(ant) && ant > 0) || novo < ant),
       );
 
-    // RNG determinístico (LCG) — reproduz a aleatoriedade sem depender de Math.random.
     const lcg = (seed) => { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; };
 
-    // ── GEOMETRIA ────────────────────────────────────────────────────────────
-    check('2.1 (geometria): 3 sprites cabem, sem sobreposição, em várias resoluções',
+    // Uma rodada de teste com IDs conhecidos, para os testes de toque (2.1a §5).
+    const rodadaTeste = () => ({
+      roundId: 9, targetId: 'r9-target',
+      items: [
+        { id: 'r9-distractor-01', role: 'distractor', visualId: 'gato', cx: 80, cy: 90, visualSize: 70, hitbox: 84, region: 0 },
+        { id: 'r9-target', role: 'target', visualId: 'ovelha', cx: 220, cy: 260, visualSize: 78, hitbox: 92, region: 4 },
+        { id: 'r9-distractor-02', role: 'distractor', visualId: 'pato', cx: 150, cy: 400, visualSize: 70, hitbox: 84, region: 7 },
+      ],
+    });
+
+    /* ── GEOMETRIA: 100 seeds × 7 dimensões (2.1a §13) ── */
+    check('2.1a (geometria): 3 itens, 1 alvo, sem sobreposição, dentro dos limites — 100 seeds × 7 telas',
       (() => { try {
         const S = evalSvc();
         const dif = S.getDifficulty('facil');
-        const RES = [[320, 420], [375, 500], [390, 540], [430, 620], [768, 900]];
-        for (const [w, h] of RES) {
-          for (let seed = 1; seed <= 25; seed++) {
-            const cena = S.buildRound({ dif, largura: w, altura: h, rnd: lcg(seed) });
-            const m = Math.round(Math.min(w, h) * dif.margemFrac);
-            if (cena.sprites.length !== 3) return false;
-            if (!S.semSobreposicao(cena.sprites)) return false;
-            if (!S.todosDentro(cena.sprites, w, h, m)) return false;
-            if (!cena.sprites.every((s) => s.hitbox >= S.OVELHA_HITBOX_MIN)) return false;
+        const DIMS = [[320, 568], [375, 667], [390, 844], [360, 760], [834, 1112], [400, 300], [900, 420]];
+        for (const [w, h] of DIMS) {
+          const m = S.margemDe(dif, w, h);
+          for (let seed = 1; seed <= 100; seed++) {
+            const r = S.buildRound({ dif, largura: w, altura: h, rnd: lcg(seed * 31 + 7), roundId: seed });
+            if (r.items.length !== 3) return false;
+            if (!S.exactlyOneTarget(r) || !S.targetIsRenderable(r)) return false;
+            if (!S.semSobreposicao(r.items)) return false;               // interseção REAL
+            if (!S.todosDentro(r.items, w, h, m)) return false;
+            if (!S.targetInsideBounds(r, w, h, m)) return false;
+            if (!S.roundValido(r, w, h, m)) return false;
           }
         }
         return S.OVELHA_HITBOX_MIN === 56;
       } catch (e) { return false; } })(),
-      'a geometria sobrepõe, vaza, encolhe a hitbox abaixo de 56, ou muda o nº de sprites');
+      'a geometria falha em alguma resolução (sobrepõe, vaza, alvo ausente/inválido)');
 
-    check('2.1 (geometria): RNG fixo é determinístico; o alvo não repete a região',
+    check('2.1a (geometria): interseção por RETÂNGULO real, não só distância entre centros',
+      (() => { try {
+        const S = evalSvc();
+        return S.rectsIntersect({ cx: 0, cy: 0, hitbox: 60 }, { cx: 30, cy: 0, hitbox: 60 }, 0) === true
+          && S.rectsIntersect({ cx: 0, cy: 0, hitbox: 60 }, { cx: 70, cy: 0, hitbox: 60 }, 0) === false
+          && S.rectsIntersect({ cx: 0, cy: 0, hitbox: 60 }, { cx: 65, cy: 0, hitbox: 60 }, 10) === true;
+      } catch (e) { return false; } })(),
+      'rectsIntersect não detecta corretamente a interseção de hitboxes');
+
+    check('2.1a (geometria): determinístico por seed; alvo não repete a região',
       (() => { try {
         const S = evalSvc();
         const dif = S.getDifficulty('facil');
-        const a = S.buildRound({ dif, largura: 390, altura: 540, rnd: lcg(7) });
-        const b = S.buildRound({ dif, largura: 390, altura: 540, rnd: lcg(7) });
+        const a = S.buildRound({ dif, largura: 390, altura: 620, rnd: lcg(7), roundId: 3 });
+        const b = S.buildRound({ dif, largura: 390, altura: 620, rnd: lcg(7), roundId: 3 });
         if (JSON.stringify(a) !== JSON.stringify(b)) return false;
-        // 30 rodadas seguidas: a região do alvo nunca repete a anterior.
-        let reg = null, repetiu = 0, rnd = lcg(42);
+        let reg = null, rep = 0, rnd = lcg(42);
         for (let i = 0; i < 30; i++) {
-          const c = S.buildRound({ dif, largura: 390, altura: 620, rnd, regiaoAnterior: reg });
-          if (reg !== null && c.regiaoAlvo === reg) repetiu++;
+          const c = S.buildRound({ dif, largura: 390, altura: 700, rnd, regiaoAnterior: reg, roundId: i });
+          if (reg !== null && c.regiaoAlvo === reg) rep++;
           reg = c.regiaoAlvo;
         }
-        return repetiu === 0;
+        return rep === 0;
       } catch (e) { return false; } })(),
-      'a geometria não é determinística sob RNG fixo, ou o alvo repete a região');
+      'a geometria não é determinística, ou o alvo repete a região anterior');
 
-    check('2.1 (geometria): o fallback é acionado e produz posições válidas',
+    check('2.1a (geometria): fallback é acionado, é válido e varia com o RNG',
       (() => { try {
         const S = evalSvc();
-        // Área apertada (força a grade), mas geométricamente viável para 3 hitboxes.
         const specs = [{ hitbox: 56, size: 44 }, { hitbox: 56, size: 44 }, { hitbox: 56, size: 44 }];
         const fb = S.fallbackGrade({ largura: 280, altura: 240, margem: 8, gap: 4, specs, rnd: lcg(3) });
-        if (fb.length !== 3) return false;
-        if (!fb.every((p) => Number.isFinite(p.cx) && Number.isFinite(p.cy))) return false;
-        const comHb = fb.map((p, i) => ({ ...p, hitbox: specs[i].hitbox }));
+        if (fb.length !== 3 || !fb.every((p) => Number.isFinite(p.cx) && Number.isFinite(p.cy))) return false;
+        const comHb = fb.map((p) => ({ ...p, hitbox: 56 }));
         if (!S.semSobreposicao(comHb)) return false;
-        // varia com o rnd (não é sempre a mesma composição)
         const fb2 = S.fallbackGrade({ largura: 280, altura: 240, margem: 8, gap: 4, specs, rnd: lcg(9) });
         return JSON.stringify(fb) !== JSON.stringify(fb2);
       } catch (e) { return false; } })(),
-      'o fallback não é acionado, sobrepõe, ou não varia com o RNG');
+      'o fallback não é válido ou não varia com o RNG');
 
-    check('2.1 (geometria): hitbox uniforme e ≥ o sprite; alvo maior que o distrator',
+    check('2.1a (composição): tamanhos semelhantes (≤15%); alvo um pouco maior; hitbox por-item ≥56',
       (() => { try {
         const S = evalSvc();
-        const cena = S.buildRound({ dif: S.getDifficulty('facil'), largura: 390, altura: 540, rnd: lcg(5) });
-        const hbs = cena.sprites.map((s) => s.hitbox);
-        const uniforme = hbs.every((h) => h === hbs[0]);
-        const alvo = cena.sprites.find((s) => s.tipo === 'alvo');
-        const dist = cena.sprites.find((s) => s.tipo === 'distrator');
-        return uniforme && alvo.size > dist.size && hbs[0] >= alvo.size;
+        const r = S.buildRound({ dif: S.getDifficulty('facil'), largura: 390, altura: 640, rnd: lcg(5), roundId: 1 });
+        const alvo = r.items.find((i) => i.role === 'target');
+        const dist = r.items.find((i) => i.role === 'distractor');
+        const diff = (alvo.visualSize - dist.visualSize) / alvo.visualSize;
+        return alvo.visualSize >= dist.visualSize && diff <= 0.15
+          && r.items.every((i) => i.hitbox >= 56 && i.hitbox >= i.visualSize);
       } catch (e) { return false; } })(),
-      'a hitbox deixou de ser uniforme/≥ sprite, ou o alvo não é maior que o distrator');
+      'os tamanhos diferem demais, ou a hitbox por-item ficou abaixo de 56/menor que o sprite');
 
-    // ── MÁQUINA (comportamento) ──────────────────────────────────────────────
-    const M = evalMq();
-    const jogar = (e, i) => {
-      const r = M.tocar(e, i);
-      return r;
-    };
-
-    check('2.1 (máquina): só "procurando" aceita toque',
+    /* ── IDENTIDADE por id / toque no distrator (2.1a §5) ── */
+    check('2.1a (identidade): distrator NUNCA vira acerto; alvo conta 1×; ordem não muda o alvo',
       (() => { try {
-        const bloqueadas = [M.FASES.TROCANDO, M.FASES.ENTRANDO, M.FASES.ERRO, M.FASES.ACERTO, M.FASES.FIM];
+        const M = evalMq(); const S = evalSvc();
+        const round = rodadaTeste();
+        const jogar = (r0) => { let e = M.criarJogo({ rounds: 5 });
+          e = M.iniciarRodada(e, { targetId: r0.targetId, itemIds: r0.items.map((i) => i.id) }).estado;
+          return M.cenaPronta(e).estado; };
+        let e = jogar(round);
+        // toca cada distrator → zero acertos, erro suave, encontradas inalterado
+        for (const d of round.items.filter((i) => i.role === 'distractor')) {
+          const r = M.tocar(e, d.id);
+          if (r.acerto !== false || r.estado.encontradas !== 0) return false;
+          if (!r.efeitos.includes(M.EFEITOS.SOM_ERRO)) return false;
+          e = M.liberarErro(r.estado).estado;
+        }
+        // toca o alvo → exatamente 1 acerto; de novo → não conta 2×
+        const a1 = M.tocar(e, round.targetId);
+        if (!(a1.acerto === true && a1.estado.encontradas === 1)) return false;
+        if (M.tocar(a1.estado, round.targetId).aceito !== false) return false;
+        // embaralha a ordem visual: o alvo continua sendo o mesmo id
+        const emb = { ...round, items: S.shuffle(round.items, lcg(9)) };
+        let e2 = jogar(emb);
+        return M.tocar(e2, emb.targetId).acerto === true
+          && emb.items.filter((i) => i.role === 'distractor')
+            .every((d) => { const r = M.tocar(e2, d.id); const ok = r.acerto === false; e2 = M.liberarErro(r.estado).estado; return ok; });
+      } catch (e) { return false; } })(),
+      'um distrator pode ser contado como acerto, ou a ordem do array muda o alvo');
+
+    check('2.1a (identidade): a máquina decide por targetId, não por índice',
+      /id === estado\.targetId/.test(mq)
+      && /itemIds\.includes\(id\)/.test(mq)
+      && !/alvoIndex/.test(mq),
+      'a máquina voltou a decidir o acerto por índice de array');
+
+    /* ── OVELHA SEMPRE PRESENTE / invariantes (2.1a §6) ── */
+    check('2.1a (alvo sempre presente): iniciarRodada rejeita rodada sem alvo válido',
+      (() => { try {
+        const M = evalMq();
         let e = M.criarJogo({ rounds: 5 });
-        e = M.iniciarRodada(e, { alvoIndex: 1, n: 3 }).estado;   // entrandoCena
-        const base = e;
-        const todasBloqueiam = bloqueadas.every((fase) => !M.aceitaToque({ ...base, n: 3, alvoIndex: 1, fase }, 1));
+        const rej = M.iniciarRodada(e, { targetId: 'inexistente', itemIds: ['a', 'b'] });
+        const okRej = rej.aceito === false && rej.estado.fase === M.FASES.TROCANDO;
+        const bom = M.iniciarRodada(e, { targetId: 't', itemIds: ['t', 'd1', 'd2'] });
+        return okRej && bom.aceito === true && bom.estado.fase === M.FASES.ENTRANDO;
+      } catch (e) { return false; } })(),
+      'a máquina inicia uma rodada sem alvo válido');
+
+    check('2.1a (invariantes): exactlyOneTarget / targetIsRenderable / targetInsideBounds existem e valem',
+      (() => { try {
+        const S = evalSvc();
+        const r = S.buildRound({ dif: S.getDifficulty('facil'), largura: 390, altura: 640, rnd: lcg(11), roundId: 2 });
+        const m = S.margemDe(S.getDifficulty('facil'), 390, 640);
+        // rodada boa passa em tudo; rodada adulterada (alvo fora) falha
+        const boa = S.exactlyOneTarget(r) && S.targetIsRenderable(r) && S.targetInsideBounds(r, 390, 640, m);
+        const ruim = { ...r, items: r.items.map((i) => i.id === r.targetId ? { ...i, cx: -999 } : i) };
+        return boa && S.targetInsideBounds(ruim, 390, 640, m) === false && S.roundValido(ruim, 390, 640, m) === false;
+      } catch (e) { return false; } })(),
+      'os invariantes de alvo renderizável não funcionam');
+
+    /* ── TELA: modelo único, guarda de dupla-montagem, halo em anel, dica ── */
+    check('2.1a (tela): fonte ÚNICA — renderiza round.items e envia item.id (sem índice como identidade)',
+      /const \[round, setRound\] = useState/.test(tela21)
+      && /items\.map\(\(it, i\)/.test(tela21)
+      && /const items = round\?\.items/.test(tela21)
+      && /onPress=\{\(\) => tocarItem\(it\.id\)\}/.test(tela21)
+      && /aplicar\(tocar, id\)/.test(tela21)
+      && !/alvoIndex/.test(tela21)
+      && !/setSprites/.test(tela21),
+      'a tela voltou a usar arrays paralelos ou índice como identidade');
+
+    check('2.1a (tela): montarRodada é idempotente por rodada (mata a dupla-montagem)',
+      /const montarRodada = useCallback\(\(\) => \{\s*if \(jogoRef\.current\.fase !== FASES\.TROCANDO\) return;/.test(tela21),
+      'montarRodada pode rodar duas vezes na mesma rodada e divergir visual×lógica');
+
+    check('2.1a (tela): rodada REMONTA os sprites (key = roundId + item.id)',
+      /key=\{`\$\{round\.roundId\}-\$\{it\.id\}`\}/.test(tela21),
+      'a key não inclui roundId+item.id → Animated.Value preso entre rodadas');
+
+    check('2.1a (halo): anel de centro TRANSPARENTE, atrás dos sprites, sem toque, ~1,45–1,6× o sprite',
+      (() => {
+        const comp = (tela21.match(/function HaloAnel[\s\S]*?\n\}/) || [''])[0];
+        return comp.length > 0
+          && /pointerEvents="none"/.test(comp)
+          && /item\.visualSize \* \(evidente \? 1\.6 : 1\.45\)/.test(comp)
+          && /borderWidth:/.test(comp)
+          && /halo: \{ position: 'absolute', backgroundColor: 'transparent', borderColor: pt\.gold, zIndex: 1 \}/.test(tela21)
+          && /zIndex: 2/.test(tela21);   // sprites acima do halo
+      })(),
+      'o halo voltou a ser um círculo cheio, cobre o alvo, ou recebe toque');
+
+    check('2.1a (dica): não revela no 1º erro; espacial só nível ≥2 (8s/2 · 12s/3 · 17s/5)',
+      (() => { try {
+        const S = evalSvc();
+        return S.nivelDica(0, 1) < 2 && S.nivelDica(0, 0) === 0
+          && S.nivelDica(0, 2) === 1 && S.nivelDica(0, 3) >= 2 && S.nivelDica(0, 5) === 3
+          && S.nivelDica(8000, 0) === 1 && S.nivelDica(12000, 0) >= 2 && S.nivelDica(17000, 0) === 3
+          && S.DICA.T1_MS === 8000 && S.DICA.E1 === 2
+          // a tela só mostra o halo em nível ≥2 e cancela ao sair de procurando
+          && /nivel >= 2/.test(tela21) && /if \(r\.estado\.fase !== FASES\.PROCURANDO\) resetarDica\(\)/.test(tela21);
+      } catch (e) { return false; } })(),
+      'a dica revela cedo demais, ou não segue os limiares 8/12/17s e 2/3/5 erros');
+
+    check('2.1a (dica): controlador acumula tempo só procurando; halo some ao pausar; reseta por rodada',
+      /const resetarDica = useCallback/.test(tela21)
+      && /buscaMsRef\.current \+= agora - ultimo/.test(tela21)
+      && /if \(!procurando \|\| pausado\) return undefined;/.test(tela21)
+      && /procurando && nivel >= 2 && !pausado/.test(tela21)   // pausar esconde o halo
+      && /setRound\(r\);\s*setErradoId\(null\);\s*resetarDica\(\);/.test(tela21),  // reset por rodada
+      'o controlador de dica não pausa/reseta corretamente');
+
+    check('2.1a (fallback visual): o alvo tem fallback SVG se o PNG falhar; onError warn só em dev',
+      /function OvelhaVisual/.test(tela21)
+      && /onError=\{\(\) => \{/.test(tela21)
+      && /setFalhou\(true\)/.test(tela21)
+      && /if \(falhou\) return <OvelhaSvgSprite/.test(tela21)
+      && /__DEV__/.test(tela21),
+      'a ovelha pode ficar invisível se o PNG temporário falhar');
+
+    check('2.1a (diagnóstico): overlay interno DESLIGADO por padrão, pointerEvents none, sem Modo Criador',
+      /const OVELHA_DEBUG_HITBOX = false;/.test(tela21)
+      && /OVELHA_DEBUG_HITBOX &&/.test(tela21)
+      && !/MODO CRIADOR|creatorMode|isCreatorQaModeAllowed/i.test(tela21)
+      && /debugRect|debugHud/.test(tela21),
+      'o overlay de diagnóstico está ligado por padrão ou depende do Modo Criador');
+
+    /* ── MÁQUINA: fases, 5 rodadas, sequência (2.1a §11) ── */
+    check('2.1a (máquina): só "procurando" aceita toque; recusado = zero efeitos',
+      (() => { try {
+        const M = evalMq();
+        const bloqueadas = [M.FASES.TROCANDO, M.FASES.ENTRANDO, M.FASES.ERRO, M.FASES.ACERTO, M.FASES.FIM];
+        const base = { ...M.criarJogo({ rounds: 5 }), targetId: 't', itemIds: ['t', 'd1', 'd2'] };
+        const todas = bloqueadas.every((fase) => !M.aceitaToque({ ...base, fase }, 't'));
         const so1 = M.FASES_QUE_ACEITAM.length === 1 && M.FASES_QUE_ACEITAM[0] === M.FASES.PROCURANDO;
-        // durante entrandoCena o toque é recusado, sem efeitos
-        const t = M.tocar(base, 1);
-        return todasBloqueiam && so1 && t.aceito === false && t.efeitos.length === 0;
+        const rec = M.tocar({ ...base, fase: M.FASES.ENTRANDO }, 't');
+        return todas && so1 && rec.aceito === false && rec.efeitos.length === 0;
       } catch (e) { return false; } })(),
       'alguma fase fora de "procurando" aceita toque');
 
-    check('2.1 (máquina): alvo → 1 acerto; o mesmo alvo não conta duas vezes',
+    check('2.1a (máquina): 5 rodadas encerram; a 6ª não é criada; sequência correta',
       (() => { try {
-        let e = M.criarJogo({ rounds: 5 });
-        e = M.iniciarRodada(e, { alvoIndex: 2, n: 3 }).estado;
-        e = M.cenaPronta(e).estado;
-        const a = M.tocar(e, 2);
-        if (!(a.aceito && a.estado.encontradas === 1 && a.estado.fase === M.FASES.ACERTO)) return false;
-        if (!a.efeitos.includes(M.EFEITOS.SOM_ACERTO) || !a.efeitos.includes(M.EFEITOS.VIBRAR_ACERTO)) return false;
-        // já em ACERTO: segundo toque recusado, encontradas não muda
-        const b = M.tocar(a.estado, 2);
-        return b.aceito === false && a.estado.encontradas === 1;
-      } catch (e) { return false; } })(),
-      'o alvo não gera exatamente um acerto, ou conta duas vezes');
-
-    check('2.1 (máquina): distrator → erro suave, sem reduzir encontradas',
-      (() => { try {
-        let e = M.criarJogo({ rounds: 5 });
-        e = M.iniciarRodada(e, { alvoIndex: 1, n: 3 }).estado;
-        e = M.cenaPronta(e).estado;
-        // acerta primeiro para ter encontradas=1... mas alvo é 1; para errar toco 0
-        const err = M.tocar(e, 0);
-        return err.aceito === true && err.estado.fase === M.FASES.ERRO
-          && err.estado.erros === 1 && err.estado.encontradas === 0
-          && err.estado.sequencia === 0
-          && err.efeitos.includes(M.EFEITOS.SOM_ERRO)
-          && !err.efeitos.includes(M.EFEITOS.SOM_ACERTO);
-      } catch (e) { return false; } })(),
-      'o erro reduz encontradas, ou toca som de acerto');
-
-    check('2.1 (máquina): toque recusado não gera NENHUM efeito',
-      (() => { try {
-        let e = M.criarJogo({ rounds: 5 });
-        e = M.iniciarRodada(e, { alvoIndex: 1, n: 3 }).estado;
-        e = M.cenaPronta(e).estado;
-        const fora = M.tocar(e, 9);   // índice inexistente
-        return fora.aceito === false && fora.efeitos.length === 0
-          && fora.estado.erros === 0 && fora.estado.encontradas === 0;
-      } catch (e) { return false; } })(),
-      'um toque recusado gera som, estatística ou efeito');
-
-    check('2.1 (máquina): 5 rodadas encerram a partida; a 6ª não é criada',
-      (() => { try {
-        let e = M.criarJogo({ rounds: 5 });
-        const efeitos = [];
-        for (let r = 1; r <= 5; r++) {
-          e = M.iniciarRodada(e, { alvoIndex: 1, n: 3 }).estado;
+        const M = evalMq();
+        const round = (e, erra) => {
+          e = M.iniciarRodada(e, { targetId: 't', itemIds: ['t', 'd1', 'd2'] }).estado;
           e = M.cenaPronta(e).estado;
-          const a = M.tocar(e, 1); e = a.estado; a.efeitos.forEach((x) => efeitos.push(x));
-          const av = M.avancar(e); e = av.estado; av.efeitos.forEach((x) => efeitos.push(x));
-        }
-        if (e.fase !== M.FASES.FIM || e.encontradas !== 5) return false;
-        if (efeitos.filter((x) => x === M.EFEITOS.FINALIZAR).length !== 1) return false;
-        // finalizado não aceita toque, e avançar de novo não muda a rodada
-        const depois = M.avancar(e);
-        return M.aceitaToque(e, 1) === false && depois.estado.fase === M.FASES.FIM
-          && depois.estado.rodada === 5;
-      } catch (e) { return false; } })(),
-      'as 5 rodadas não encerram, ou uma 6ª rodada é criada');
-
-    check('2.1 (máquina): erro quebra a sequência; melhor sequência é preservada',
-      (() => { try {
-        let e = M.criarJogo({ rounds: 5 });
-        const round = (alvo, toque) => {
-          e = M.iniciarRodada(e, { alvoIndex: alvo, n: 3 }).estado;
-          e = M.cenaPronta(e).estado;
-          e = M.tocar(e, toque).estado;
-          if (e.fase === M.FASES.ERRO) { e = M.liberarErro(e).estado; e = M.tocar(e, alvo).estado; }
-          e = M.avancar(e).estado;
+          if (erra) { e = M.tocar(e, 'd1').estado; e = M.liberarErro(e).estado; }
+          e = M.tocar(e, 't').estado;
+          return M.avancar(e).estado;
         };
-        round(1, 1);  // acerto (seq 1)
-        round(1, 1);  // acerto (seq 2)
-        round(1, 0);  // erro → seq 0, depois acerto (seq 1)
-        round(1, 1);  // acerto (seq 2)
-        return e.encontradas === 4 && e.bestSequencia === 2;
+        // best 5 (sem erro)
+        let e = M.criarJogo({ rounds: 5 });
+        for (let r = 0; r < 5; r++) e = round(e, false);
+        if (e.fase !== M.FASES.FIM || e.encontradas !== 5 || e.bestSequencia !== 5) return false;
+        if (M.aceitaToque(e, 't') !== false) return false;
+        if (M.avancar(e).estado.rodada !== 5) return false;      // sem 6ª
+        // 2 acertos, erro, 3 acertos → best 3
+        let f = M.criarJogo({ rounds: 5 });
+        [false, false, true, false, false].forEach((erra) => { f = round(f, erra); });
+        // erro em toda rodada → best 1, mas 5 encontradas
+        let g = M.criarJogo({ rounds: 5 });
+        for (let r = 0; r < 5; r++) g = round(g, true);
+        return f.bestSequencia === 3 && g.bestSequencia === 1 && g.encontradas === 5;
       } catch (e) { return false; } })(),
-      'a sequência não zera no erro, ou a melhor sequência se perde');
+      'as 5 rodadas não encerram, criam uma 6ª, ou a melhor sequência está errada');
 
-    check('2.1 (máquina): é PURA — sem React, relógio, I/O, navegação',
+    check('2.1a (máquina): é PURA — sem React, relógio, I/O, navegação',
       (() => { const codigo = a1StripComments(mq);
         return !/useState|useEffect|useRef|from 'react|require\('react/i.test(codigo)
           && !/Date\.now|setTimeout|setInterval|Math\.random/.test(codigo)
@@ -17587,64 +17669,37 @@ check(
           && /export function aceitaToque/.test(mq); })(),
       'a máquina da ovelhinha deixou de ser pura');
 
-    // ── PERSISTÊNCIA ─────────────────────────────────────────────────────────
-    check('2.1 (persistência): grava ovelha, dá 1 estrelinha, respeita o teto',
+    /* ── PERSISTÊNCIA (inalterada pelo 2.1a) ── */
+    check('2.1 (persistência): grava ovelha, dá 1 estrelinha, teto compartilhado com o Pares',
       (() => { try {
         const B = evalStats();
         const hoje = '2026-07-10';
         const p = { dificuldade: 'facil', day: hoje, encontradas: 5, sequencia: 4 };
         const r1 = B.applyOvelhaResult(null, p);
-        if (!(r1.starAwarded && r1.stats.ovelha.facil.plays === 1
-          && r1.stats.ovelha.facil.encontradas === 5 && r1.stats.ovelha.facil.bestSequencia === 4)) return false;
-        const r2 = B.applyOvelhaResult(r1.stats, { ...p, encontradas: 3, sequencia: 2 });
-        const r3 = B.applyOvelhaResult(r2.stats, { ...p, encontradas: 5, sequencia: 5 });
-        return r2.starAwarded === true && r3.starAwarded === false     // teto de 2
-          && r3.stats.ovelha.facil.plays === 3                          // mas conta a partida
-          && r3.stats.ovelha.facil.encontradas === 13
-          && r3.stats.ovelha.facil.bestSequencia === 5 && r3.isBest === true;
-      } catch (e) { return false; } })(),
-      'a persistência da ovelha não grava certo ou fura o teto de estrelinhas');
-
-    check('2.1 (persistência): o teto é COMPARTILHADO com o Pares',
-      (() => { try {
-        const B = evalStats();
-        const hoje = '2026-07-10';
+        if (!(r1.starAwarded && r1.stats.ovelha.facil.plays === 1 && r1.stats.ovelha.facil.bestSequencia === 4)) return false;
+        const r2 = B.applyOvelhaResult(r1.stats, { ...p, sequencia: 2 });
+        const r3 = B.applyOvelhaResult(r2.stats, { ...p, sequencia: 5 });
+        if (!(r2.starAwarded && !r3.starAwarded && r3.stats.ovelha.facil.plays === 3 && r3.isBest)) return false;
+        // teto compartilhado com o Pares
         const par = B.applyResult(null, { modo: 'classico', dificuldade: 'facil', day: hoje, elapsedMs: 30000, erros: 0, jogadas: 6 });
         const ov = B.applyOvelhaResult(par.stats, { dificuldade: 'facil', day: hoje, encontradas: 5, sequencia: 5 });
         const ov2 = B.applyOvelhaResult(ov.stats, { dificuldade: 'facil', day: hoje, encontradas: 5, sequencia: 5 });
-        // Pares deu 1, Ovelha deu 1, a 3ª (ovelha) já não dá: teto único de 2.
         return par.starAwarded && ov.starAwarded && !ov2.starAwarded;
       } catch (e) { return false; } })(),
-      'o teto de estrelinhas não é compartilhado entre os jogos da Brincar');
+      'a persistência da ovelha regrediu ou o teto deixou de ser compartilhado');
 
-    check('2.1 (persistência): dados antigos migram; Pares e Turbo intactos',
+    check('2.1 (persistência): dados antigos migram; Pares/Turbo intactos; applyResult do Pares limpo',
       (() => { try {
         const B = evalStats();
-        const antigo = { day: 'x', starsToday: 1, pares: { facil: { plays: 3, wins: 3, bestMs: 25000, bestErros: 1 } } };
-        const s = B.sanitizeStats(antigo);
-        return s.ovelha.facil.plays === 0 && s.ovelha.facil.bestSequencia === 0   // nasce zerado
-          && s.pares.facil.bestMs === 25000 && s.pares.facil.wins === 3            // Pares preservado
-          && s.turbo.facil.bestScore === 0                                          // Turbo intacto
-          && B.sanitizeStats('lixo').ovelha.facil.plays === 0;                      // corrompido saneado
+        const s = B.sanitizeStats({ day: 'x', starsToday: 1, pares: { facil: { plays: 3, wins: 3, bestMs: 25000, bestErros: 1 } } });
+        const ok = s.ovelha.facil.plays === 0 && s.pares.facil.bestMs === 25000 && s.turbo.facil.bestScore === 0
+          && B.sanitizeStats('lixo').ovelha.facil.plays === 0;
+        const applyPares = (bs21.match(/export function applyResult[\s\S]*?\n\}/) || [''])[0];
+        return ok && !/ovelha/.test(applyPares) && /export function applyOvelhaResult/.test(bs21);
       } catch (e) { return false; } })(),
-      'a migração perde dados antigos, ou toca em Pares/Turbo');
+      'a migração perde dados, ou o applyResult do Pares foi contaminado');
 
-    check('2.1 (persistência): applyResult do Pares NÃO mudou (nada de ovelha nele)',
-      /export function applyResult\(stats, partida/.test(bs21)
-      && /export function applyOvelhaResult\(stats, partida/.test(bs21)
-      && !/ovelha/.test((bs21.match(/export function applyResult[\s\S]*?\n\}/) || [''])[0]),
-      'o applyResult do Pares foi contaminado com lógica da ovelhinha');
-
-    // ── TELA / INTEGRAÇÃO ────────────────────────────────────────────────────
-    check('2.1 (tela): a lógica não é decidida por estado React — a máquina manda',
-      (() => {
-        const t = (tela21.match(/const tocarSprite = useCallback\(\(i\) => \{[\s\S]*?\n  \}/) || [''])[0];
-        return /aplicar\(tocar, i\)/.test(t)
-          && /jogoRef\.current = r\.estado;/.test(tela21)
-          && !/aceitaToque/.test(t);   // a tela não reimplementa a regra de aceite
-      })(),
-      'a tela reimplementa a regra de toque em vez de delegar à máquina');
-
+    /* ── ÁUDIO / EMOJI / ROTA / CARD / ÍCONE / PROTEGIDOS ── */
     check('2.1 (tela): rodada consumida só em comecar(); estrelinha uma vez em finalizar()',
       (() => {
         const com = (tela21.match(/const comecar = useCallback\(async[\s\S]*?\n  \}/) || [''])[0];
@@ -17653,7 +17708,7 @@ check(
           && (tela21.match(/addBonusStars\(/g) || []).length === 1
           && (tela21.match(/recordOvelhaResult\(/g) || []).length === 1
           && /if \(salvoRef\.current\) return;\s*salvoRef\.current = true;/.test(fin)
-          && /if \(r\.starAwarded\) \{\s*await addBonusStars\(1\);\s*await refreshProgress\?\.\(\);/.test(fin);
+          && /if \(r\.starAwarded\) \{ await addBonusStars\(1\); await refreshProgress\?\.\(\); \}/.test(fin);
       })(),
       'a rodada/estrelinha pode ser consumida/creditada fora do lugar ou duas vezes');
 
@@ -17662,62 +17717,34 @@ check(
       && /navigation\.addListener\('blur'/.test(tela21)
       && /montado\.current = false;\s*limparTimers\(\);\s*releaseGameSfx\(\);/.test(tela21)
       && /timeouts\.current\.forEach\(clearTimeout\)/.test(tela21)
-      && (tela21.match(/setTimeout\(/g) || []).length === 1   // só dentro de agendar()
       && /if \(montado\.current\) cb\(\);/.test(tela21),
-      'a tela não limpa timers/sons no unmount, ou tem setTimeout solto');
+      'a tela não limpa timers/sons no unmount');
 
-    check('2.1 (tela): dica única — halo só na região do alvo, cancelável, sem múltiplos',
-      /if \(dicaAtivaRef\.current\) return;/.test(tela21)
-      && /dicaVisivel && i === alvoIndex/.test(tela21)
-      && /pointerEvents="none"/.test(tela21)   // o halo não rouba o toque
-      && /const cancelarDica = useCallback/.test(tela21)
-      && /if \(r\.estado\.fase !== FASES\.PROCURANDO\) cancelarDica\(\);/.test(tela21),
-      'a dica pode gerar múltiplos halos, cobrir o toque, ou não ser cancelada');
-
-    check('2.1 (tela): áudio reaproveitado; nenhum arquivo de som novo',
+    check('2.1 (tela): áudio reaproveitado; nenhum arquivo de som novo; sem emoji',
       /OVELHA_SOUND_EVENTS\.ACERTO/.test(tela21) && /playGameSfx/.test(tela21)
       && /ACERTO: 'match_success'/.test(svc) && /VITORIA: 'classic_victory_jingle'/.test(svc)
-      && !/assets\/audio/.test(tela21),
-      'a ovelhinha passou a depender de um som novo, ou conhece caminho de asset de áudio');
+      && !/assets\/audio/.test(tela21)
+      && !/\p{Extended_Pictographic}/u.test(telaRaw) && /<FaithIcon/.test(telaRaw),
+      'a ovelhinha depende de som novo, conhece caminho de áudio, ou tem emoji');
 
-    check('2.1 (tela): sem emoji — só FaithIcon e SVG',
-      !/\p{Extended_Pictographic}/u.test(telaRaw) && /<FaithIcon/.test(telaRaw),
-      'entrou emoji na tela da ovelhinha');
-
-    // ── ROTA, CARD, PRODUÇÃO ─────────────────────────────────────────────────
-    check('2.1 (rota): CADE_A_OVELHINHA existe e é registrada SÓ sob o gate interno',
+    check('2.1 (rota): CADE_A_OVELHINHA registrada SÓ sob o gate interno',
       /CADE_A_OVELHINHA: 'CadeAOvelhinha'/.test(rt21)
       && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="CadeAOvelhinha"/.test(nav21),
-      'a rota da ovelhinha não existe, ou é registrada em produção');
+      'a rota da ovelhinha não existe ou é registrada em produção');
 
-    check('2.1 (card): ativo SÓ em dev; em produção continua "Chegando"',
-      (() => {
-        // o card "ovelha" continua em EM_PREPARO (produção usa ComingTile)
-        const emPreparo = /\{ id: 'ovelha', icon: 'ovelha'/.test(brc21);
-        // e só vira TestingTile sob o gate
-        const gated = /id === 'ovelha' && isInternalToolsEnabled\(\) \?/.test(brc21)
-          && /navigate\(ROUTES\.CADE_A_OVELHINHA\)/.test(brc21);
-        // o TestingTile não é usado sem o gate (nenhuma outra referência de navegação solta)
-        return emPreparo && gated
-          && /function TestingTile/.test(brc21)
-          && /Em teste/.test(brc21);
-      })(),
-      'o card da ovelhinha fica ativo em produção, ou não abre o jogo em dev');
+    check('2.1 (card): ativo SÓ em dev; em produção continua "Chegando"; tela "Em teste"',
+      /\{ id: 'ovelha', icon: 'ovelha'/.test(brc21)
+      && /id === 'ovelha' && isInternalToolsEnabled\(\) \?/.test(brc21)
+      && /navigate\(ROUTES\.CADE_A_OVELHINHA\)/.test(brc21)
+      && /function TestingTile/.test(brc21) && /Em teste/.test(brc21)
+      && /chip="Em teste"/.test(tela21),
+      'o card fica ativo em produção, ou não abre o jogo em dev');
 
-    check('2.1 (produção): a tela declara-se "Em teste"; o smoke não afrouxa o gate',
-      /chip="Em teste"/.test(tela21)
-      && /export function isInternalToolsEnabled/.test(readSrc('src/config/internalTools.js')),
-      'a tela não sinaliza "Em teste", ou o gate interno foi alterado');
-
-    // ── ÍCONE ────────────────────────────────────────────────────────────────
     check('2.1 (ícone): ovelha é SVG próprio; o placeholder "eye" não é mais usado',
-      /function OvelhaSvg/.test(fi21)
-      && /if \(name === 'ovelha'\) return <OvelhaSvg/.test(fi21)
-      && !/ovelha: 'eye'/.test(fi21)
-      && !/ovelha: '[a-z-]+'/.test(fi21),   // não voltou para o mapa de Ionicons
+      /function OvelhaSvg/.test(fi21) && /if \(name === 'ovelha'\) return <OvelhaSvg/.test(fi21)
+      && !/ovelha: 'eye'/.test(fi21) && !/ovelha: '[a-z-]+'/.test(fi21),
       'a ovelha voltou a usar o ícone "eye" do Ionicons');
 
-    // ── PROTEGIDOS ───────────────────────────────────────────────────────────
     check('2.1 (protegidos): Pares e Modo Criador intocados por este bloco',
       /aplicar\(tocar, i\)/.test(a1StripComments(readSrc('src/screens/ParesDoBeniScreen.js')))
       && /export function isInternalToolsEnabled/.test(readSrc('src/config/internalTools.js'))
