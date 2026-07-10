@@ -1,33 +1,20 @@
 /**
- * ovelhaSceneData.js — dados de apresentação de "Cadê a Ovelhinha?" (Bloco 2.1).
+ * ovelhaSceneData.js — falas do Beni de "Cadê a Ovelhinha?".
  *
- * Só CONTEÚDO/estilo — nenhuma regra de jogo (essa vive na máquina/serviço puros).
- * Nada de leitura obrigatória para a criança: os textos são para o adulto/ambiente.
+ * Só CONTEÚDO — nenhuma regra de jogo (essa vive na máquina/serviço puros).
+ * O contrato de CENAS autorais vive em `ovelhaScenes.js` (Bloco 2.2a). O modelo antigo
+ * de "distratores dev" saiu com a mudança de direção; o PNG dev (assets/games/.../dev)
+ * fica no repo como placeholder histórico, sem uso em código.
  */
 
 /** Falas do Beni (texto por enquanto; a voz vem num bloco de áudio futuro). */
 export const OVELHA_BENI = {
-  entrada: 'Uma ovelhinha se escondeu entre os amiguinhos. Vamos achar?',
-  procurando: 'Cadê a ovelhinha? Toque nela!',
+  entrada: 'A ovelhinha se escondeu na paisagem. Vamos achar?',
+  procurando: 'Cadê a ovelhinha? Procure com atenção!',
   acerto: 'Achou! Que olhar espertinho!',
-  erro: 'Quase! Essa não é a ovelhinha. Procura de novo!',
+  erro: 'Quase! Ali não é a ovelhinha. Procura de novo!',
   // Incentivo NÃO espacial (dica nível 1): anima sem apontar onde está.
   incentivo: 'Olha com carinho… a ovelhinha tá aí pertinho!',
   vitoria: 'Você achou todas as ovelhinhas! Muito bem!',
   semRodadas: 'As rodadas de hoje acabaram. Amanhã a gente brinca de novo!',
 };
-
-/**
- * Aparência TEMPORÁRIA dos distratores (formas vetoriais desenhadas na tela — nenhum
- * asset). "Claramente diferentes" entre si e da ovelha. Trocados por arte oficial no
- * Bloco 2.2.
- */
-export const OVELHA_DISTRATORES_DEV = Object.freeze({
-  gato: { corpo: '#F4A259', orelha: '#E07A2F', rosto: '#3B2A1A', label: 'gatinho' },
-  pato: { corpo: '#F7C948', orelha: '#E8A100', rosto: '#3B2A1A', label: 'patinho' },
-  coelho: { corpo: '#CBB7E8', orelha: '#B49BDD', rosto: '#3B2A1A', label: 'coelhinho' },
-  porco: { corpo: '#F6A6B2', orelha: '#E888A0', rosto: '#3B2A1A', label: 'porquinho' },
-});
-
-/** Asset TEMPORÁRIO do alvo. Isolado na pasta dev; substituído no Bloco 2.2. */
-export const OVELHA_ALVO_DEV = require('../../assets/games/cade_a_ovelhinha/dev/ovelha_alvo_dev.png');

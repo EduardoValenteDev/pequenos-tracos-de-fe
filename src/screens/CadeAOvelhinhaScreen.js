@@ -1,25 +1,23 @@
 /**
- * CadeAOvelhinhaScreen — vertical slice de "Cadê a Ovelhinha?" (Bloco 2.1 · corrigido no 2.1a).
+ * CadeAOvelhinhaScreen — "Cadê a Ovelhinha?" (2.1→2.1b protótipo · 2.2a cenas autorais).
  *
- * A criança acha a ovelhinha entre distratores numa mini-cena. Prova a mecânica antes
- * da arte oficial: 1 sprite temporário (ovelha, com fallback SVG) + distratores SVG.
- * Só Fácil, 5 rodadas, sem cronômetro.
+ * ── Mudança de direção (2.2a) ─────────────────────────────────────────────────
+ * Saiu o modelo de "3 ícones tocáveis em posições livres". Agora a rodada sorteia um
+ * ESCONDERIJO autoral (ver ovelhaScenes) dentro de uma cena 4:5. A CENA INTEIRA recebe
+ * o toque; o acerto é o ponto cair na hitbox do esconderijo. Distratores são parte da
+ * ARTE (não Pressables). A ovelha fica ATRÁS do foreground, mas a hitbox segue tocável.
  *
- * ── Modelo ÚNICO (2.1a) ──────────────────────────────────────────────────────
- * A rodada é UM objeto `{ roundId, targetId, items }` (fonte única). A tela RENDERIZA
- * a mesma coleção que a máquina VALIDA, e o Pressable envia `item.id`. O acerto compara
- * o ID tocado com `targetId` — nunca índice de array. Não há listas paralelas que
- * possam divergir (era a causa do "distrator contava como acerto").
+ * ATENCAO: Nenhuma arte oficial neste bloco: fundo/ovelha/oclusores são MOCKS internos
+ * (`tipo:'placeholder'`). A rota só existe sob o gate interno; o card fica "Em teste".
  *
- * `montarRodada` só age em `trocandoCena` (idempotente por rodada) — mata a corrida de
- * dupla-montagem. Cada rodada REMONTA os sprites (key = roundId+item.id) → Animated.Value
- * sempre fresco. Halo = anel atrás dos sprites, pointerEvents "none".
+ * Preservado do protótipo: máquina de estados, 5 rodadas, persistência, teto
+ * compartilhado, salvamento único, anti-spam + reset de dica por rodada, ciclo de vida.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, Image, Animated, Pressable, AppState, StyleSheet, useWindowDimensions,
+  View, Text, Animated, Pressable, AppState, StyleSheet, useWindowDimensions,
 } from 'react-native';
-import Svg, { Circle, Ellipse, Polygon, Rect, Path } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Rect, Path, G } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -35,251 +33,111 @@ import { getDailyRounds, consumeRound, toDayKey } from '../services/brincarDaily
 import { readStats, recordOvelhaResult } from '../services/brincarStatsService';
 import { playGameSfx, preloadGameSfx, releaseGameSfx } from '../services/audioManager';
 import { warn } from '../utils/logger';
-import { OVELHA_BENI, OVELHA_DISTRATORES_DEV, OVELHA_ALVO_DEV } from '../data/ovelhaSceneData';
+import { OVELHA_BENI } from '../data/ovelhaSceneData';
+import { getScene, OVELHA_SCENE_PADRAO } from '../data/ovelhaScenes';
 import {
-  getDifficulty, buildRound, roundValido, margemDe, nivelDica,
-  erroElegivel, visivelFrac,
-  OVELHA_ROUNDS, OVELHA_SOUND_EVENTS,
+  buildRound, roundValido, computeViewport, escalaArte, artToPx, pxToArt,
+  toqueAcertou, celulaToque, erroElegivel, nivelDica, estagioDica,
+  MISS_ID, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS,
 } from '../services/ovelhaGameService';
 import {
-  FASES, EFEITOS, criarJogo, iniciarRodada, cenaPronta, tocar, liberarErro, avancar, encerrar,
+  FASES, criarJogo, iniciarRodada, cenaPronta, tocar, liberarErro, avancar, encerrar,
 } from '../services/ovelhaGameMachine';
 
-/**
- * Overlay de diagnóstico interno (2.1a §12). DESLIGADO por padrão. Ativado só por esta
- * constante em desenvolvimento — NÃO depende do banner Modo Criador, pointerEvents none,
- * nunca em produção. Serve para provar visual e hitbox alinhados; remover após validar.
- */
+/** Overlay de diagnóstico interno (2.2a §11). DESLIGADO por padrão, nunca em produção. */
 const OVELHA_DEBUG_HITBOX = false;
 
-/** Tempos das animações (ms). Constantes: não são estado. */
-const T = {
-  entrada: 320,     // entrada escalonada da cena
-  acerto: 700,      // celebração antes de trocar de cena
-  erro: 480,        // balanço + respiro antes de voltar a procurar
-};
+/** Tempos das animações (ms). */
+const T = { entrada: 320, acerto: 720, erro: 460 };
 
-const DIF_FACIL = getDifficulty('facil');
-
-/** Cores dos oclusores provisórios de cenário (2.1b). Trocados por arte oficial no 2.2. */
-const OCLUSOR_CORES = Object.freeze({
+/** Cor de cada mock de foreground/oclusor autoral (provisório; trocado por arte no bloco de assets). */
+const FG_CORES = Object.freeze({
   arbusto: { corpo: '#6FA84A', sombra: '#588A38' },
-  moita: { corpo: '#7FB456', sombra: '#639542' },
   pedra: { corpo: '#A9A29B', sombra: '#8A837C' },
   feno: { corpo: '#E0B85C', sombra: '#C69B3E' },
+  cerca: { corpo: '#B98A57', sombra: '#946A3E' },
 });
 
-/** Vibração leve. expo-haptics já é dependência; falhar é irrelevante. */
 function vibrar() {
   try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* segue */ }
 }
 
-/* ══════════════════════════ VISUAIS ══════════════════════════ */
+/* ══════════════════════════ VISUAIS (mocks provisórios) ══════════════════════════ */
 
-/** Ovelha (asset temporário) com FALLBACK SVG se o PNG falhar. */
-function OvelhaVisual({ size }) {
-  const [falhou, setFalhou] = useState(false);
-  if (falhou) return <OvelhaSvgSprite size={size} />;
-  return (
-    <Image
-      source={OVELHA_ALVO_DEV}
-      style={{ width: size, height: size }}
-      resizeMode="contain"
-      onError={() => {
-        if (typeof __DEV__ !== 'undefined' && __DEV__) warn('CadeAOvelhinha: PNG temporário falhou; usando fallback SVG.');
-        setFalhou(true);
-      }}
-    />
-  );
-}
-
-/** Ovelha desenhada (fallback e diagnóstico). Nunca deixa o alvo invisível. */
-function OvelhaSvgSprite({ size }) {
+/** Ovelha MOCK (fallback interno até a arte oficial). Poses aproximadas por transformação. */
+function OvelhaMock({ size, pose, flip }) {
+  const crouch = pose === 'crouched' ? 0.86 : 1;
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Rect x="38" y="70" width="7" height="18" rx="3.5" fill="#6B5B4E" />
-      <Rect x="56" y="70" width="7" height="18" rx="3.5" fill="#6B5B4E" />
-      <Circle cx="38" cy="52" r="20" fill="#FBF7F1" />
-      <Circle cx="54" cy="46" r="22" fill="#FFFFFF" />
-      <Circle cx="66" cy="54" r="17" fill="#FBF7F1" />
-      <Ellipse cx="72" cy="44" rx="12" ry="14" fill="#6B5B4E" />
-      <Circle cx="72" cy="34" r="7" fill="#FFFFFF" />
-      <Circle cx="68" cy="45" r="2.4" fill="#2F241D" />
-      <Circle cx="77" cy="45" r="2.4" fill="#2F241D" />
+      <G scale={flip ? -1 : 1} originX={50} originY={50}>
+        <G scaleY={crouch} originY={90}>
+          <Rect x="38" y="70" width="7" height="18" rx="3.5" fill="#6B5B4E" />
+          <Rect x="56" y="70" width="7" height="18" rx="3.5" fill="#6B5B4E" />
+          <Circle cx="38" cy="52" r="20" fill="#FBF7F1" />
+          <Circle cx="54" cy="46" r="22" fill="#FFFFFF" />
+          <Circle cx="66" cy="54" r="17" fill="#FBF7F1" />
+          <Ellipse cx="72" cy="44" rx="12" ry="14" fill="#6B5B4E" />
+          <Circle cx="72" cy="34" r="7" fill="#FFFFFF" />
+          <Circle cx="68" cy="45" r="2.4" fill="#2F241D" />
+          <Circle cx="77" cy="45" r="2.4" fill="#2F241D" />
+        </G>
+      </G>
     </Svg>
   );
 }
 
-/**
- * Distrator TEMPORÁRIO em SVG. "Claramente diferente" da ovelha (sem lã, corpo liso,
- * patinhas), com sombra de contato para coexistir com o cenário. Trocado no 2.2.
- */
-function DistratorSvg({ visualId, size }) {
-  const c = OVELHA_DISTRATORES_DEV[visualId] ?? OVELHA_DISTRATORES_DEV.gato;
+/** Foreground/oclusor MOCK (arbusto/pedra/feno/cerca) que esconde a base da ovelha. */
+function ForegroundMock({ mock, w, h }) {
+  const c = FG_CORES[mock] ?? FG_CORES.arbusto;
   return (
-    <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Ellipse cx="50" cy="92" rx="30" ry="6" fill="#000000" opacity={0.10} />
-      <Rect x="36" y="74" width="8" height="16" rx="4" fill={c.corpo} />
-      <Rect x="56" y="74" width="8" height="16" rx="4" fill={c.corpo} />
-      <Polygon points="30,28 42,10 50,32" fill={c.orelha} />
-      <Polygon points="70,28 58,10 50,32" fill={c.orelha} />
-      <Circle cx="50" cy="54" r="34" fill={c.corpo} />
-      <Ellipse cx="50" cy="60" rx="20" ry="16" fill="#FFFFFF" opacity={0.18} />
-      <Circle cx="40" cy="50" r="4.5" fill={c.rosto} />
-      <Circle cx="60" cy="50" r="4.5" fill={c.rosto} />
-      <Ellipse cx="50" cy="63" rx="5.5" ry="4" fill={c.rosto} />
-    </Svg>
-  );
-}
-
-/* ══════════════════════════ SPRITE ══════════════════════════ */
-
-/**
- * Item tocável. A key (roundId+item.id) muda a cada rodada → REMONTA → Animated.Value
- * fresco (corrige "opacidade presa em zero"/estado de acerto sobrevivendo). A hitbox é a
- * do PRÓPRIO item, centrada no sprite; o Pressable ocupa exatamente essa hitbox.
- */
-const Sprite = React.memo(function Sprite({ item, indice, encontrada, errando, onPress }) {
-  const entrada = useRef(new Animated.Value(0)).current;
-  const pop = useRef(new Animated.Value(1)).current;
-  const shake = useRef(new Animated.Value(0)).current;
-  const [press, setPress] = useState(false);
-
-  useEffect(() => {
-    const a = Animated.timing(entrada, {
-      toValue: 1, duration: 260, delay: Math.min(indice * 60, 240), useNativeDriver: true,
-    });
-    a.start();
-    return () => a.stop();
-  }, []);
-
-  useEffect(() => {
-    if (!encontrada) return undefined;
-    const a = Animated.sequence([
-      Animated.timing(pop, { toValue: 1.22, duration: 160, useNativeDriver: true }),
-      Animated.spring(pop, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }),
-    ]);
-    a.start();
-    return () => a.stop();
-  }, [encontrada]);
-
-  useEffect(() => {
-    if (!errando) return undefined;
-    const passo = (v, d) => Animated.timing(shake, { toValue: v, duration: d, useNativeDriver: true });
-    const a = Animated.sequence([passo(-1, 55), passo(1, 65), passo(-0.6, 65), passo(0.6, 65), passo(0, 70)]);
-    a.start();
-    return () => a.stop();
-  }, [errando]);
-
-  const shakeX = shake.interpolate({ inputRange: [-1, 1], outputRange: [-8, 8] });
-  const entradaScale = entrada.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
-  const hb = item.hitbox;
-  const vs = item.visualSize;
-  const alvo = item.role === 'target';
-
-  return (
-    <Pressable
-      onPress={onPress}
-      onPressIn={() => setPress(true)}
-      onPressOut={() => setPress(false)}
-      // Pressable = EXATAMENTE a hitbox do item (desenho = área tocável, sem hitSlop).
-      style={[styles.hit, { left: item.cx - hb / 2, top: item.cy - hb / 2, width: hb, height: hb, zIndex: 3 }]}
-      accessibilityRole="button"
-      accessibilityLabel={alvo ? 'ovelhinha' : (OVELHA_DISTRATORES_DEV[item.visualId]?.label ?? 'bichinho')}
-    >
-      <Animated.View
-        style={{ width: vs, height: vs, opacity: entrada, transform: [{ translateX: shakeX }, { scale: Animated.multiply(pop, entradaScale) }, { scale: press ? 0.94 : 1 }] }}
-      >
-        {alvo ? <OvelhaVisual size={vs} /> : <DistratorSvg visualId={item.visualId} size={vs} />}
-        {/* OCLUSOR FRONTAL: cobre a BASE do sprite (oclusão parcial). pointerEvents none
-            → o toque passa por ele para o Pressable. Nunca cobre 100% (invariante). */}
-        <OccluderSvg occluder={item.occluder} size={vs} />
-      </Animated.View>
-
-      {OVELHA_DEBUG_HITBOX && (
-        <View pointerEvents="none" style={[styles.debugRect, { borderColor: alvo ? '#0E9F6E' : '#C0392B' }]}>
-          <Text style={styles.debugTxt}>{item.role[0]}·{item.id.slice(-2)}</Text>
-        </View>
+    <Svg width={w} height={h} viewBox="0 0 100 100" preserveAspectRatio="none">
+      {mock === 'pedra' ? (
+        <Path d="M2,100 Q6,45 26,40 Q42,20 60,38 Q84,34 96,64 L100,100 Z" fill={c.corpo} />
+      ) : mock === 'feno' ? (
+        <Path d="M0,100 Q10,50 24,54 Q34,32 50,50 Q66,32 78,56 Q92,50 100,100 Z" fill={c.corpo} />
+      ) : mock === 'cerca' ? (
+        <>
+          <Rect x="6" y="30" width="88" height="12" rx="3" fill={c.corpo} />
+          <Rect x="14" y="24" width="10" height="70" rx="3" fill={c.sombra} />
+          <Rect x="46" y="24" width="10" height="70" rx="3" fill={c.sombra} />
+          <Rect x="78" y="24" width="10" height="70" rx="3" fill={c.sombra} />
+        </>
+      ) : (
+        <Path d="M0,100 Q4,55 22,54 Q30,32 48,50 Q60,30 74,52 Q94,52 100,100 Z" fill={c.corpo} />
       )}
-    </Pressable>
-  );
-});
-
-/** Oclusor frontal provisório (arbusto/pedra/feno/moita) cobrindo a base do sprite. */
-function OccluderSvg({ occluder, size }) {
-  if (!occluder || !(occluder.coberturaFrac > 0)) return null;
-  const cor = OCLUSOR_CORES[occluder.tipo] ?? OCLUSOR_CORES.arbusto;
-  const h = Math.max(1, Math.round(size * occluder.coberturaFrac));
-  const w = Math.round(size * 1.18);   // um pouco mais largo que o sprite
-  return (
-    <View pointerEvents="none" style={{ position: 'absolute', bottom: -2, left: (size - w) / 2, width: w, height: h }}>
-      <Svg width={w} height={h} viewBox="0 0 100 100" preserveAspectRatio="none">
-        {occluder.tipo === 'pedra' ? (
-          <Path d="M2,100 Q6,45 26,40 Q42,20 60,38 Q84,34 96,64 L100,100 Z" fill={cor.corpo} />
-        ) : occluder.tipo === 'feno' ? (
-          <Path d="M0,100 Q10,52 24,54 Q34,34 50,50 Q66,34 78,56 Q92,52 100,100 Z" fill={cor.corpo} />
-        ) : (
-          // arbusto / moita — lóbulos arredondados
-          <Path d="M0,100 Q4,58 22,56 Q30,34 48,50 Q60,32 74,52 Q94,52 100,100 Z" fill={cor.corpo} />
-        )}
-        <Path d="M0,100 Q4,70 22,68 Q30,52 48,64 Q60,50 74,66 Q94,66 100,100 Z" fill={cor.sombra} opacity={0.5} />
-      </Svg>
-    </View>
+      {mock !== 'cerca' && <Path d="M0,100 Q4,72 22,70 Q30,54 48,64 Q60,50 74,66 Q94,66 100,100 Z" fill={c.sombra} opacity={0.5} />}
+    </Svg>
   );
 }
 
-/** Decoração de fundo (tufos/flores). pointerEvents none, atrás de tudo. */
-function DecorSvg({ decor }) {
-  const s = decor.size;
-  const alvo = decor.tipo === 'flor';
-  return (
-    <View pointerEvents="none" style={{ position: 'absolute', left: decor.cx - s / 2, top: decor.cy - s / 2, width: s, height: s, zIndex: 0, opacity: 0.7 }}>
-      <Svg width={s} height={s} viewBox="0 0 100 100">
-        {alvo ? (
-          <>
-            <Circle cx="50" cy="46" r="12" fill="#F6B6C8" />
-            <Circle cx="34" cy="52" r="10" fill="#F6B6C8" />
-            <Circle cx="66" cy="52" r="10" fill="#F6B6C8" />
-            <Circle cx="50" cy="50" r="7" fill="#F4D06A" />
-          </>
-        ) : (
-          <>
-            <Path d="M50,95 Q40,55 34,42" stroke="#8BBE5A" strokeWidth="7" fill="none" strokeLinecap="round" />
-            <Path d="M50,95 Q50,55 50,40" stroke="#7FB350" strokeWidth="7" fill="none" strokeLinecap="round" />
-            <Path d="M50,95 Q60,55 66,42" stroke="#8BBE5A" strokeWidth="7" fill="none" strokeLinecap="round" />
-          </>
-        )}
+/** Cenário decorativo MOCK (árvore/flor/grama). Parte da arte, sem toque. */
+function DecorMock({ tipo, size }) {
+  if (tipo === 'arvore') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 100 100">
+        <Rect x="44" y="60" width="12" height="38" rx="4" fill="#9A6B3F" />
+        <Circle cx="50" cy="42" r="30" fill="#7FB350" />
+        <Circle cx="32" cy="52" r="20" fill="#8BBE5A" />
+        <Circle cx="68" cy="52" r="20" fill="#8BBE5A" />
       </Svg>
-    </View>
-  );
-}
-
-/** Halo em ANEL (centro transparente), ATRÁS dos sprites, sem receber toque. */
-function HaloAnel({ item, evidente }) {
-  const pulso = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const a = Animated.loop(Animated.sequence([
-      Animated.timing(pulso, { toValue: 1, duration: 900, useNativeDriver: true }),
-      Animated.timing(pulso, { toValue: 0, duration: 900, useNativeDriver: true }),
-    ]));
-    a.start();
-    return () => a.stop();
-  }, []);
-  // Diâmetro ≈ 1,5× o sprite (entre 1,35 e 1,65).
-  const d = Math.round(item.visualSize * (evidente ? 1.6 : 1.45));
+    );
+  }
+  if (tipo === 'flor') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 100 100">
+        <Circle cx="50" cy="46" r="14" fill="#F6B6C8" />
+        <Circle cx="32" cy="54" r="12" fill="#F6B6C8" />
+        <Circle cx="68" cy="54" r="12" fill="#F6B6C8" />
+        <Circle cx="50" cy="50" r="8" fill="#F4D06A" />
+      </Svg>
+    );
+  }
   return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.halo,
-        {
-          left: item.cx - d / 2, top: item.cy - d / 2, width: d, height: d, borderRadius: d / 2,
-          borderWidth: evidente ? 5 : 4,
-          opacity: pulso.interpolate({ inputRange: [0, 1], outputRange: [evidente ? 0.5 : 0.35, evidente ? 0.85 : 0.6] }),
-          transform: [{ scale: pulso.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.06] }) }],
-        },
-      ]}
-    />
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      <Path d="M50,95 Q40,55 34,42" stroke="#8BBE5A" strokeWidth="7" fill="none" strokeLinecap="round" />
+      <Path d="M50,95 Q50,55 50,40" stroke="#7FB350" strokeWidth="7" fill="none" strokeLinecap="round" />
+      <Path d="M50,95 Q60,55 66,42" stroke="#8BBE5A" strokeWidth="7" fill="none" strokeLinecap="round" />
+    </Svg>
   );
 }
 
@@ -292,32 +150,38 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const refreshProgress = progressCtx?.refreshProgress;
   const premium = isPremiumUser();
 
-  const [tela, setTela] = useState('entrada');    // entrada | jogando | resultado
+  const [tela, setTela] = useState('entrada');
   const [rounds, setRounds] = useState(null);
   const [stats, setStats] = useState(null);
   const [resultado, setResultado] = useState(null);
   const [pausado, setPausado] = useState(false);
 
   const [vista, setVista] = useState(() => criarJogo({ rounds: OVELHA_ROUNDS }));
-  const [round, setRound] = useState(null);       // fonte única da cena renderizada
-  const [erradoId, setErradoId] = useState(null); // qual item balança (id, não índice)
-  const [nivel, setNivel] = useState(0);          // 0..3 — controlador de dica
+  const [round, setRound] = useState(null);
+  const [nivel, setNivel] = useState(0);
+  const [ripple, setRipple] = useState(null);      // { key, x, y } — feedback de erro no ponto
+  const [errouAgora, setErrouAgora] = useState(false);
 
   const jogoRef = useRef(vista);
   const roundIdRef = useRef(0);
-  const regiaoAnteriorRef = useRef(null);
+  const spotAnteriorRef = useRef(null);
   const salvoRef = useRef(false);
   const timeouts = useRef([]);
   const montado = useRef(true);
   const areaRef = useRef({ largura: 0, altura: 0 });
-  // ── Estado de DICA, TUDO por rodada (nada vaza para a próxima) ──
-  const buscaMsRef = useRef(0);        // tempo acumulado procurando (pausa não conta)
+  // Dica — tudo por rodada (nada vaza):
+  const buscaMsRef = useRef(0);
   const nivelRef = useRef(0);
-  const erroElegivelRef = useRef(0);   // erros que CONTAM para a dica (anti-spam) — por rodada
+  const erroElegivelRef = useRef(0);
   const ultimoErroIdRef = useRef(null);
   const ultimoErroMsRef = useRef(0);
-  const rodadaSeqRef = useRef(0);      // sobe a cada rodada; timers antigos abortam se divergir
+  const rodadaSeqRef = useRef(0);
   const fn = useRef({});
+
+  const viewport = useMemo(
+    () => computeViewport({ largura: areaRef.current.largura || Math.min(width - 24, 520), altura: areaRef.current.altura || 9999 }),
+    [width, round, tela],  // recompõe quando a área muda (medida via onLayout força re-render por round)
+  );
 
   /* ── Timers centralizados ── */
   const agendar = useCallback((cb, ms) => {
@@ -333,8 +197,6 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     timeouts.current = [];
   }, []);
 
-  /** Zera TODO o sistema de dica. Chamado ao montar rodada, no acerto (via aplicar),
-   *  na pausa/saída/unmount/reinício. Nada de tempo, erro ou halo sobrevive à troca. */
   const resetarDica = useCallback(() => {
     buscaMsRef.current = 0;
     nivelRef.current = 0;
@@ -349,94 +211,78 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     if (n > nivelRef.current) { nivelRef.current = n; if (montado.current) setNivel(n); }
   }, []);
 
-  /* ── Efeitos pedidos pela máquina ── */
   const executar = useCallback((efeitos) => {
     for (const e of efeitos) {
       switch (e) {
-        case EFEITOS.SOM_ACERTO: playGameSfx(OVELHA_SOUND_EVENTS.ACERTO); break;
-        case EFEITOS.SOM_ERRO: playGameSfx(OVELHA_SOUND_EVENTS.ERRO); break;
-        case EFEITOS.SOM_TROCA: playGameSfx(OVELHA_SOUND_EVENTS.TROCA); break;
-        case EFEITOS.VIBRAR_ACERTO: vibrar(); break;
-        case EFEITOS.AGENDAR_LIBERAR_ERRO: fn.current.agendar(() => fn.current.aplicar(liberarErro), T.erro); break;
-        case EFEITOS.AGENDAR_PROXIMA: fn.current.agendar(() => fn.current.aplicar(avancar), T.acerto); break;
-        case EFEITOS.FINALIZAR: fn.current.finalizar(); break;
+        case 'somAcerto': playGameSfx(OVELHA_SOUND_EVENTS.ACERTO); break;
+        case 'somErro': playGameSfx(OVELHA_SOUND_EVENTS.ERRO); break;
+        case 'somTroca': playGameSfx(OVELHA_SOUND_EVENTS.TROCA); break;
+        case 'vibrarAcerto': vibrar(); break;
+        case 'agendarLiberarErro': fn.current.agendar(() => fn.current.aplicar(liberarErro), T.erro); break;
+        case 'agendarProximaRodada': fn.current.agendar(() => fn.current.aplicar(avancar), T.acerto); break;
+        case 'finalizarPartida': fn.current.finalizar(); break;
         default: break;
       }
     }
   }, []);
 
-  /* ── Único caminho de transição: grava no ref (síncrono), depois avisa o React ── */
   const aplicar = useCallback((transicao, ...args) => {
     const r = transicao(jogoRef.current, ...args);
     jogoRef.current = r.estado;
     if (montado.current) setVista(r.estado);
-    if (r.estado.fase !== FASES.PROCURANDO) resetarDica();   // sair de procurando cancela a dica
+    if (r.estado.fase !== FASES.PROCURANDO) resetarDica();
     if (r.efeitos?.length) executar(r.efeitos);
     return r;
   }, [executar, resetarDica]);
 
-  /* ── Monta a geometria de UMA rodada e entra em cena ──
-     Idempotente por rodada: só age em `trocandoCena`. Mata a corrida de dupla-montagem. */
+  /* ── Monta UMA rodada a partir da cena autoral. Idempotente por rodada. ── */
   const montarRodada = useCallback(() => {
-    if (jogoRef.current.fase !== FASES.TROCANDO) return;   // já montada → no-op total
-    const a = areaRef.current;
-    if (!a.largura || !a.altura) return;                    // sem medida ainda; onLayout re-chama
-
-    // Gera uma rodada VÁLIDA (invariantes). Se sair inválida, tenta de novo (rnd avança).
-    const margem = margemDe(DIF_FACIL, a.largura, a.altura);
+    if (jogoRef.current.fase !== FASES.TROCANDO) return;
     let r = null;
     for (let tent = 0; tent < 6; tent++) {
       roundIdRef.current += 1;
       const cand = buildRound({
-        dif: DIF_FACIL, largura: a.largura, altura: a.altura,
-        regiaoAnterior: regiaoAnteriorRef.current, roundId: roundIdRef.current,
+        sceneId: OVELHA_SCENE_PADRAO, dificuldade: 'facil',
+        spotAnterior: spotAnteriorRef.current, roundId: roundIdRef.current,
       });
-      if (roundValido(cand, a.largura, a.altura, margem)) { r = cand; break; }
+      if (cand && roundValido(cand, 'facil')) { r = cand; break; }
     }
-    if (!r) { warn('CadeAOvelhinha: rodada inválida após retries; abortando a montagem.'); return; }
+    if (!r) { warn('CadeAOvelhinha: rodada inválida (contrato de cena); abortando.'); return; }
 
-    regiaoAnteriorRef.current = r.regiaoAlvo;
-    const iniciou = aplicar(iniciarRodada, { targetId: r.targetId, itemIds: r.items.map((it) => it.id) });
-    if (!iniciou.aceito) return;               // barreira: nunca inicia rodada sem alvo válido
-    rodadaSeqRef.current += 1;                  // nova sequência: timers antigos abortam
+    spotAnteriorRef.current = r.spot.id;
+    // itemIds = [alvo, MISS] → a máquina segue igual: alvo=acerto, MISS=erro suave.
+    const iniciou = aplicar(iniciarRodada, { targetId: r.targetId, itemIds: [r.targetId, MISS_ID] });
+    if (!iniciou.aceito) return;
+    rodadaSeqRef.current += 1;
     setRound(r);
-    setErradoId(null);
-    resetarDica();                             // rodada nova NASCE limpa (tempo/erro/halo zerados)
+    setRipple(null);
+    resetarDica();
     fn.current.agendar(() => fn.current.aplicar(cenaPronta), T.entrada);
   }, [aplicar, resetarDica]);
 
-  /* ── Fim da partida: salva UMA vez; resultado aparece mesmo se o storage falhar ── */
+  /* ── Fim da partida: salva UMA vez ── */
   const finalizar = useCallback(async () => {
     if (salvoRef.current) return;
     salvoRef.current = true;
     limparTimers();
     resetarDica();
     playGameSfx(OVELHA_SOUND_EVENTS.VITORIA);
-
     const g = jogoRef.current;
     let r = { stats: null, isBest: false, starAwarded: false };
     try {
       const day = toDayKey(new Date());
-      r = await recordOvelhaResult({
-        dificuldade: 'facil', day,
-        encontradas: g.encontradas, sequencia: g.bestSequencia,
-      });
+      r = await recordOvelhaResult({ dificuldade: 'facil', day, encontradas: g.encontradas, sequencia: g.bestSequencia });
       if (r.starAwarded) { await addBonusStars(1); await refreshProgress?.(); }
     } catch (e) {
       warn('CadeAOvelhinha.finalizar:', e);
     }
-
     if (!montado.current) return;
     if (r.stats) setStats(r.stats);
-    setResultado({
-      encontradas: g.encontradas, bestSequencia: g.bestSequencia,
-      isBest: r.isBest, starAwarded: r.starAwarded,
-    });
+    setResultado({ encontradas: g.encontradas, bestSequencia: g.bestSequencia, isBest: r.isBest, starAwarded: r.starAwarded });
     setTela('resultado');
   }, [refreshProgress, limparTimers, resetarDica]);
 
-  // Publica handlers frescos (evita closure preso ao primeiro render).
-  fn.current = { aplicar, agendar, montarRodada, finalizar };
+  fn.current = { aplicar, agendar, montarRodada, finalizar, aplicarNivel };
 
   /* ── Ciclo de vida ── */
   useEffect(() => {
@@ -445,15 +291,9 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     let vivo = true;
     getDailyRounds().then((r) => vivo && setRounds(r)).catch((e) => warn('CadeAOvelhinha.rounds:', e));
     readStats().then((s) => vivo && setStats(s)).catch((e) => warn('CadeAOvelhinha.stats:', e));
-    return () => {
-      vivo = false;
-      montado.current = false;
-      limparTimers();
-      releaseGameSfx();
-    };
+    return () => { vivo = false; montado.current = false; limparTimers(); releaseGameSfx(); };
   }, [limparTimers]);
 
-  /* ── Pausa: segundo plano ou tela sem foco ── */
   useEffect(() => {
     const sub = AppState.addEventListener('change', (e) => setPausado(e !== 'active'));
     const off = navigation.addListener('blur', () => setPausado(true));
@@ -464,15 +304,13 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const jogando = tela === 'jogando';
   const procurando = jogando && vista.fase === FASES.PROCURANDO;
 
-  /* ── Controlador de dica: acumula tempo SÓ procurando e não pausado.
-     A progressão usa o ERRO ELEGÍVEL DA RODADA (erroElegivelRef), NUNCA o cumulativo
-     da máquina — era o vazamento. O `seq` capturado aborta um tick de rodada antiga. */
+  /* ── Controlador de dica (por rodada; usa erro ELEGÍVEL, não o cumulativo) ── */
   useEffect(() => {
     if (!procurando || pausado) return undefined;
     const seq = rodadaSeqRef.current;
     let ultimo = Date.now();
     const t = setInterval(() => {
-      if (rodadaSeqRef.current !== seq) return;   // rodada mudou → tick órfão, ignora
+      if (rodadaSeqRef.current !== seq) return;
       const agora = Date.now();
       buscaMsRef.current += agora - ultimo;
       ultimo = agora;
@@ -481,22 +319,19 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     return () => clearInterval(t);
   }, [procurando, pausado]);
 
-  // aplicarNivel no ref (para o intervalo pegar sempre a versão fresca).
-  fn.current.aplicarNivel = aplicarNivel;
-
-  /* ── Começar: SÓ AQUI a rodada é consumida ── */
+  /* ── Começar ── */
   const comecar = useCallback(async () => {
     const r = await consumeRound();
     if (!r.ok) { setRounds(await getDailyRounds()); setTela('entrada'); return; }
     limparTimers();
     resetarDica();
-    regiaoAnteriorRef.current = null;
+    spotAnteriorRef.current = null;
     salvoRef.current = false;
     jogoRef.current = criarJogo({ rounds: OVELHA_ROUNDS });
     setVista(jogoRef.current);
     setRound(null);
     setResultado(null);
-    setErradoId(null);
+    setRipple(null);
     setPausado(AppState.currentState !== 'active');
     setTela('jogando');
     setRounds(await getDailyRounds());
@@ -504,38 +339,38 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   }, [limparTimers, resetarDica]);
 
   const abandonar = useCallback(() => {
-    limparTimers();
-    resetarDica();
-    aplicar(encerrar);
-    setTela('entrada');
+    limparTimers(); resetarDica(); aplicar(encerrar); setTela('entrada');
   }, [aplicar, limparTimers, resetarDica]);
 
-  /* ── Toque num item, por ID: a máquina decide, de forma síncrona ── */
-  const tocarItem = useCallback((id) => {
-    if (pausado) return;
-    const r = aplicar(tocar, id);
+  /* ── Toque na CENA inteira: converte para arte e decide acerto/erro ── */
+  const scene = getScene(round?.sceneId);
+  const tocarCena = useCallback((e) => {
+    if (pausado || !round) return;
+    const { locationX: px, locationY: py } = e?.nativeEvent ?? {};
+    const acertou = toqueAcertou(px, py, round.spot, scene, viewport);
+    const r = aplicar(tocar, acertou ? round.targetId : MISS_ID);
     if (r.aceito && r.acerto === false) {
-      // Feedback (balanço + som) em TODO erro.
-      setErradoId(id);
-      agendar(() => montado.current && setErradoId(null), T.erro);
-      // Mas só ERROS ELEGÍVEIS progridem a dica: spam no mesmo item dentro do cooldown
-      // não conta. Alternar entre itens errados conta mais.
+      // Feedback de erro NO PONTO tocado (ripple) + balanço da mensagem.
+      setRipple({ key: `${Date.now()}`, x: px, y: py });
+      setErrouAgora(true);
+      agendar(() => montado.current && setErrouAgora(false), T.erro);
+      // Anti-spam: a "identidade" do erro é a CÉLULA tocada (mesma região no cooldown não conta).
+      const artPt = pxToArt(px, py, scene, viewport);
+      const cel = celulaToque(artPt, scene);
       const agora = Date.now();
-      if (erroElegivel({ id, ultimoId: ultimoErroIdRef.current, agoraMs: agora, ultimoMs: ultimoErroMsRef.current })) {
+      if (erroElegivel({ id: cel, ultimoId: ultimoErroIdRef.current, agoraMs: agora, ultimoMs: ultimoErroMsRef.current })) {
         erroElegivelRef.current += 1;
         ultimoErroMsRef.current = agora;
       }
-      ultimoErroIdRef.current = id;
+      ultimoErroIdRef.current = cel;
       aplicarNivel(buscaMsRef.current, erroElegivelRef.current);
     }
-  }, [aplicar, agendar, pausado, aplicarNivel]);
+  }, [aplicar, agendar, pausado, round, scene, viewport, aplicarNivel]);
 
-  // Após avançar, a máquina volta a `trocandoCena` → monta a próxima rodada.
   useEffect(() => {
     if (jogando && vista.fase === FASES.TROCANDO) fn.current.montarRodada();
   }, [jogando, vista.fase, vista.rodada]);
 
-  /* ── Medição da área ── */
   const medirArea = useCallback((e) => {
     const { width: w, height: h } = e?.nativeEvent?.layout ?? {};
     if (!w || !h) return;
@@ -545,17 +380,13 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   }, [jogando]);
 
   const semRodadas = !premium && rounds != null && rounds.remaining <= 0;
-
-  // Mensagem do Beni: no erro recente, fala leve; do nível 1, incentivo (não espacial).
   const mensagem = pausado
     ? 'Joguinho pausado. Volte quando quiser!'
-    : erradoId ? OVELHA_BENI.erro
+    : errouAgora ? OVELHA_BENI.erro
       : nivel >= 1 ? OVELHA_BENI.incentivo
         : OVELHA_BENI.procurando;
 
-  const alvoItem = round?.items?.find((it) => it.id === round.targetId) || null;
-  // Halo (ajuda espacial) só do nível 2; some ao pausar/acertar/trocar.
-  const mostraHalo = procurando && nivel >= 2 && !pausado && !!alvoItem;
+  const estagio = procurando && !pausado ? estagioDica(nivel) : 0;
 
   /* ══════════════ ENTRADA ══════════════ */
   if (tela === 'entrada') {
@@ -566,32 +397,27 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
           <View style={styles.painel}>
             <BeniGuideBubble message={OVELHA_BENI.entrada} avatarVariant="teaching" tone="purple" compact />
             <Text style={styles.explica}>
-              Ache a ovelhinha escondida entre os bichinhos. São 5 ovelhinhas para encontrar!
+              A ovelhinha se escondeu na paisagem. Procure com atenção — são 5 para encontrar!
             </Text>
           </View>
-
           {!premium && (
             <View style={styles.pill}>
               <FaithIcon name="star" size={14} color={pt.goldDeep} />
               <Text style={styles.pillText}>
-                {rounds == null
-                  ? 'Preparando suas rodadas…'
-                  : rounds.remaining > 0
-                    ? `Você tem ${rounds.remaining} rodada${rounds.remaining === 1 ? '' : 's'} hoje.`
+                {rounds == null ? 'Preparando suas rodadas…'
+                  : rounds.remaining > 0 ? `Você tem ${rounds.remaining} rodada${rounds.remaining === 1 ? '' : 's'} hoje.`
                     : 'As rodadas de hoje acabaram. Amanhã tem mais!'}
               </Text>
             </View>
           )}
-
           <View style={styles.difCard}>
             <View style={styles.difIconBg}><FaithIcon name="ovelha" size={22} color={pt.greenDeep} /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.difTitulo}>Fácil</Text>
-              <Text style={styles.difDesc}>3 bichinhos por cena · 5 rodadas</Text>
+              <Text style={styles.difDesc}>Paisagem com esconderijos · 5 rodadas</Text>
             </View>
             <FaithIcon name="check" size={20} color={pt.greenDeep} />
           </View>
-
           {semRodadas ? (
             <View style={styles.convite}>
               <FaithIcon name="family" size={16} color="#7A5800" />
@@ -642,11 +468,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
             <FaithIcon name="restart" size={18} color="#FFF" />
             <Text style={styles.btnPrimarioText}>Jogar novamente</Text>
           </SoundButton>
-          <SoundButton
-            style={styles.btnTerciario}
-            onPress={() => navigation.navigate(ROUTES.HOME, { screen: ROUTES.ACTIVITIES })}
-            activeOpacity={0.9}
-          >
+          <SoundButton style={styles.btnTerciario} onPress={() => navigation.navigate(ROUTES.HOME, { screen: ROUTES.ACTIVITIES })} activeOpacity={0.9}>
             <Text style={styles.btnTerciarioText}>Voltar para Brincar</Text>
           </SoundButton>
         </View>
@@ -655,7 +477,6 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   }
 
   /* ══════════════ JOGANDO ══════════════ */
-  const items = round?.items ?? [];
   return (
     <View style={styles.root}>
       <Header insets={insets} onBack={abandonar} chip="Em teste" />
@@ -669,35 +490,202 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
 
       <Text style={styles.dica} numberOfLines={1}>{mensagem}</Text>
 
-      {/* Fundo de campo (gradiente + chão). Camadas empilhadas por zIndex explícito. */}
-      <LinearGradient colors={['#DCEFFB', '#EAF7EF', '#E7F3D9']} style={styles.cena} onLayout={medirArea}>
-        <View pointerEvents="none" style={styles.chao} />
-
-        {/* Camada 1 — cenário decorativo (tufos/flores), atrás de tudo, sem toque. */}
-        {(round?.decor ?? []).map((d) => <DecorSvg key={d.id} decor={d} />)}
-
-        {/* Camada 2 — halo em anel, ATRÁS dos sprites (some sob o oclusor frontal). */}
-        {mostraHalo && <HaloAnel item={alvoItem} evidente={nivel >= 3} />}
-
-        {/* Camada 3+4 — sprites (zIndex 3) com o OCLUSOR frontal (dentro, sem toque). */}
-        {items.map((it, i) => (
-          <Sprite
-            key={`${round.roundId}-${it.id}`}
-            item={it}
-            indice={i}
-            encontrada={vista.fase === FASES.ACERTO && it.id === round.targetId}
-            errando={erradoId === it.id}
-            onPress={() => tocarItem(it.id)}
-          />
-        ))}
-
-        {OVELHA_DEBUG_HITBOX && round && (
-          <View pointerEvents="none" style={styles.debugHud}>
-            <Text style={styles.debugTxt}>target={round.targetId.slice(-8)} · vis={Math.round(visivelFrac(alvoItem) * 100)}%</Text>
-          </View>
-        )}
-      </LinearGradient>
+      {/* Container que mede a área; o VIEWPORT 4:5 centrado captura o toque. */}
+      <View style={styles.cenaWrap} onLayout={medirArea}>
+        <Pressable
+          onPress={tocarCena}
+          style={[styles.viewport, { width: viewport.w, height: viewport.h }]}
+          accessibilityRole="button"
+          accessibilityLabel="Procure a ovelhinha na paisagem"
+        >
+          {round && (
+            <CenaAutoral
+              round={round}
+              scene={scene}
+              viewport={viewport}
+              encontrada={vista.fase === FASES.ACERTO}
+              estagio={estagio}
+              ripple={ripple}
+              debug={OVELHA_DEBUG_HITBOX}
+            />
+          )}
+        </Pressable>
+      </View>
     </View>
+  );
+}
+
+/* ══════════════════════════ CENA (camadas) ══════════════════════════ */
+
+/**
+ * Renderiza a cena em camadas por zIndex:
+ *   0 background · 1 decor · 2 ovelha · 3 foreground(sem toque) · 4 dica · 5 ripple
+ * O toque é capturado pela Pressable-pai (cena inteira), então nada aqui recebe toque.
+ */
+function CenaAutoral({ round, scene, viewport, encontrada, estagio, ripple, debug }) {
+  const s = escalaArte(scene, viewport);
+  const spot = round.spot;
+  const centro = artToPx(spot.pos, scene, viewport);
+  const hbW = spot.hitbox.w * s;
+  const hbH = spot.hitbox.h * s;
+  const ovSize = Math.min(hbW, hbH) * 0.92 * (spot.escala || 1);
+  const fgH = ovSize * (1 - (spot.visivelFrac ?? 0.5));   // altura coberta pelo foreground
+  const fgW = ovSize * 1.2;
+  const fgMock = scene.foregrounds?.[spot.foreground]?.mock ?? 'arbusto';
+
+  return (
+    <>
+      {/* 0 — background placeholder (gradiente de campo/céu). */}
+      <LinearGradient colors={['#CDE8FB', '#E7F4E4', '#DCEBB6']} style={styles.bg} pointerEvents="none" />
+      <View pointerEvents="none" style={styles.chao} />
+
+      {/* 1 — cenário decorativo (parte da arte, sem toque). */}
+      {(scene.decorativeLayers ?? []).map((d) => {
+        const p = artToPx(d.pos, scene, viewport);
+        const sz = d.size * s;
+        return (
+          <View key={d.id} pointerEvents="none" style={{ position: 'absolute', left: p.px - sz / 2, top: p.py - sz / 2, width: sz, height: sz, zIndex: 1, opacity: 0.85 }}>
+            <DecorMock tipo={d.tipo} size={sz} />
+          </View>
+        );
+      })}
+
+      {/* 4 (parte) — brilho discreto na região (estágio 3), ATRÁS da ovelha. Sem círculo grande. */}
+      {estagio >= 3 && <BrilhoRegiao cx={centro.px} cy={centro.py} r={ovSize * 0.62} zIndex={1} />}
+
+      {/* 2 — ovelha (atrás do foreground). */}
+      <SheepView cx={centro.px} cy={centro.py} size={ovSize} pose={spot.pose} flip={spot.orientacao === 'flip'} encontrada={encontrada} />
+
+      {/* 4 (contorno) — pequeno contorno na PARTE VISÍVEL (estágio 4). */}
+      {estagio >= 4 && <ContornoVisivel cx={centro.px} cy={centro.py} size={ovSize} visivelFrac={spot.visivelFrac} />}
+
+      {/* 3 — foreground/oclusor (cobre a base da ovelha; NÃO recebe toque). */}
+      <View pointerEvents="none" style={{ position: 'absolute', left: centro.px - fgW / 2, top: centro.py + ovSize / 2 - fgH, width: fgW, height: fgH, zIndex: 3 }}>
+        <ForegroundMock mock={fgMock} w={fgW} h={fgH} />
+      </View>
+
+      {/* 2 (folha) — movimento de folha/arbusto próximo (estágio 2), reforço não-espacial. */}
+      {estagio >= 2 && <FolhaMovimento cx={centro.px} cy={centro.py} size={ovSize} />}
+
+      {/* 5 — ripple de erro no ponto tocado. */}
+      {ripple && <TouchRipple key={ripple.key} x={ripple.x} y={ripple.y} />}
+
+      {debug && <DebugOverlay round={round} scene={scene} viewport={viewport} centro={centro} hbW={hbW} hbH={hbH} />}
+    </>
+  );
+}
+
+function SheepView({ cx, cy, size, pose, flip, encontrada }) {
+  const pop = useRef(new Animated.Value(1)).current;
+  const entrada = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.timing(entrada, { toValue: 1, duration: 300, useNativeDriver: true });
+    a.start(); return () => a.stop();
+  }, []);
+  useEffect(() => {
+    if (!encontrada) return undefined;
+    const a = Animated.sequence([
+      Animated.timing(pop, { toValue: 1.2, duration: 160, useNativeDriver: true }),
+      Animated.spring(pop, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }),
+    ]);
+    a.start(); return () => a.stop();
+  }, [encontrada]);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{ position: 'absolute', left: cx - size / 2, top: cy - size / 2, width: size, height: size, zIndex: 2, opacity: entrada, transform: [{ scale: pop }] }}
+    >
+      <OvelhaMock size={size} pose={encontrada ? 'celebrating' : pose} flip={flip} />
+    </Animated.View>
+  );
+}
+
+/** Brilho discreto (estágio 3) — halo suave e PEQUENO, atrás da ovelha. Não preenche. */
+function BrilhoRegiao({ cx, cy, r, zIndex = 1 }) {
+  const p = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.loop(Animated.sequence([
+      Animated.timing(p, { toValue: 1, duration: 900, useNativeDriver: true }),
+      Animated.timing(p, { toValue: 0, duration: 900, useNativeDriver: true }),
+    ]));
+    a.start(); return () => a.stop();
+  }, []);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{ position: 'absolute', left: cx - r, top: cy - r, width: r * 2, height: r * 2, borderRadius: r, zIndex, backgroundColor: pt.gold, opacity: p.interpolate({ inputRange: [0, 1], outputRange: [0.08, 0.20] }) }}
+    />
+  );
+}
+
+/** Contorno na parte visível (estágio 4) — arco fino no topo da ovelha, sem tapar. */
+function ContornoVisivel({ cx, cy, size, visivelFrac }) {
+  const p = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.loop(Animated.sequence([
+      Animated.timing(p, { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.timing(p, { toValue: 0, duration: 700, useNativeDriver: true }),
+    ]));
+    a.start(); return () => a.stop();
+  }, []);
+  const d = size * 0.92;
+  return (
+    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: cx - d / 2, top: cy - d / 2, width: d, height: d, zIndex: 4, opacity: p.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] }) }}>
+      <Svg width={d} height={d} viewBox="0 0 100 100">
+        <Path d="M12,54 A38,38 0 0 1 88,54" stroke={pt.goldDeep} strokeWidth="4" fill="none" strokeLinecap="round" strokeDasharray="6 6" />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+/** Movimento de folha/arbusto próximo (estágio 2) — balanço leve, reforço não-espacial. */
+function FolhaMovimento({ cx, cy, size }) {
+  const r = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.loop(Animated.sequence([
+      Animated.timing(r, { toValue: 1, duration: 260, useNativeDriver: true }),
+      Animated.timing(r, { toValue: -1, duration: 260, useNativeDriver: true }),
+      Animated.timing(r, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]));
+    a.start(); return () => a.stop();
+  }, []);
+  const rot = r.interpolate({ inputRange: [-1, 1], outputRange: ['-10deg', '10deg'] });
+  const s = size * 0.28;
+  return (
+    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: cx + size * 0.32, top: cy + size * 0.18, width: s, height: s, zIndex: 3, transform: [{ rotate: rot }] }}>
+      <Svg width={s} height={s} viewBox="0 0 100 100">
+        <Path d="M50,90 Q30,50 50,15 Q70,50 50,90 Z" fill="#7FB350" />
+        <Path d="M50,85 L50,25" stroke="#588A38" strokeWidth="4" />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+/** Ripple de erro no ponto tocado. */
+function TouchRipple({ x, y }) {
+  const p = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.timing(p, { toValue: 1, duration: 420, useNativeDriver: true });
+    a.start(); return () => a.stop();
+  }, []);
+  const d = 54;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{ position: 'absolute', left: x - d / 2, top: y - d / 2, width: d, height: d, borderRadius: d / 2, borderWidth: 3, borderColor: '#E8A33D', zIndex: 5,
+        opacity: p.interpolate({ inputRange: [0, 1], outputRange: [0.7, 0] }), transform: [{ scale: p.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1.3] }) }] }}
+    />
+  );
+}
+
+function DebugOverlay({ round, scene, viewport, centro, hbW, hbH }) {
+  return (
+    <>
+      <View pointerEvents="none" style={{ position: 'absolute', left: centro.px - hbW / 2, top: centro.py - hbH / 2, width: hbW, height: hbH, borderWidth: 1.5, borderColor: '#0E9F6E', zIndex: 6 }} />
+      <View pointerEvents="none" style={{ position: 'absolute', top: 4, left: 6, zIndex: 6 }}>
+        <Text style={styles.debugTxt}>vp {viewport.w}×{viewport.h} · {round.spot.id} · {round.pose} · fg={round.foreground} · vis={Math.round((round.visivelFrac ?? 0) * 100)}%</Text>
+      </View>
+    </>
   );
 }
 
@@ -705,19 +693,13 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
 
 function Header({ insets, onBack, chip }) {
   return (
-    <LinearGradient
-      colors={['#EAF7EF', '#DDF0E6', '#E8F6EF']}
-      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-      style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}
-    >
+    <LinearGradient colors={['#EAF7EF', '#DDF0E6', '#E8F6EF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
       <View style={styles.headerRow}>
         <SoundButton style={styles.backPill} onPress={onBack} activeOpacity={0.85} accessibilityLabel="Voltar" accessibilityRole="button">
           <FaithIcon name="back" size={16} color={pt.greenDeep} />
         </SoundButton>
         <Text style={styles.headerTitle} numberOfLines={1}>Cadê a Ovelhinha?</Text>
-        {chip ? (
-          <View style={styles.chip}><Text style={styles.chipText}>{chip}</Text></View>
-        ) : <View style={styles.chipVazio} />}
+        {chip ? <View style={styles.chip}><Text style={styles.chipText}>{chip}</Text></View> : <View style={styles.chipVazio} />}
       </View>
     </LinearGradient>
   );
@@ -737,76 +719,42 @@ const styles = StyleSheet.create({
 
   header: { paddingHorizontal: 14, paddingBottom: 10 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  backPill: {
-    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.75)', borderWidth: 1, borderColor: 'rgba(14,159,110,0.18)',
-  },
+  backPill: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.75)', borderWidth: 1, borderColor: 'rgba(14,159,110,0.18)' },
   headerTitle: { flex: 1, fontFamily: 'FredokaOne', fontSize: 20, color: pt.text },
   chip: { borderRadius: radii.pill, borderWidth: 1, borderColor: '#E8A33D80', backgroundColor: '#F7C9481F', paddingHorizontal: 11, paddingVertical: 5 },
   chipText: { fontFamily: 'FredokaOne', fontSize: 12, color: '#9A6A00' },
   chipVazio: { width: 0 },
 
   entradaWrap: { paddingHorizontal: 16, paddingTop: 12 },
-  painel: {
-    backgroundColor: '#F3FBF6', borderRadius: radii.xl, borderWidth: 1.5, borderColor: '#CDEBD9',
-    padding: 12, ...shadows.card,
-  },
+  painel: { backgroundColor: '#F3FBF6', borderRadius: radii.xl, borderWidth: 1.5, borderColor: '#CDEBD9', padding: 12, ...shadows.card },
   explica: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, lineHeight: 19, marginTop: 8 },
-
-  pill: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12,
-    backgroundColor: '#FFF', borderRadius: radii.pill, paddingHorizontal: 12, paddingVertical: 9, ...shadows.soft,
-  },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, backgroundColor: '#FFF', borderRadius: radii.pill, paddingHorizontal: 12, paddingVertical: 9, ...shadows.soft },
   pillText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: pt.text, fontWeight: '700' },
-
-  difCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14, padding: 12,
-    backgroundColor: '#FFF', borderRadius: radii.lg, borderWidth: 1.5, borderColor: pt.greenDeep, ...shadows.soft,
-  },
+  difCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14, padding: 12, backgroundColor: '#FFF', borderRadius: radii.lg, borderWidth: 1.5, borderColor: pt.greenDeep, ...shadows.soft },
   difIconBg: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#DFF3E6', alignItems: 'center', justifyContent: 'center' },
   difTitulo: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text },
   difDesc: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, marginTop: 1 },
-
-  btnPrimario: {
-    flexDirection: 'row', gap: 8, justifyContent: 'center',
-    marginTop: 16, backgroundColor: pt.greenDeep, borderRadius: radii.lg,
-    paddingVertical: 15, alignItems: 'center', ...shadows.card,
-  },
+  btnPrimario: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 16, backgroundColor: pt.greenDeep, borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center', ...shadows.card },
   btnPrimarioText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
   btnTerciario: { marginTop: 10, paddingVertical: 12, alignItems: 'center' },
   btnTerciarioText: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: pt.textSoft },
-
-  convite: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, backgroundColor: pt.goldSoft,
-    borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: pt.gold + '66',
-  },
+  convite: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, backgroundColor: pt.goldSoft, borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: pt.gold + '66' },
   conviteText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: '#7A5800', fontWeight: '700', lineHeight: 17 },
 
-  // ── HUD ──
   hud: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, paddingVertical: 8, backgroundColor: '#FFF' },
   hudItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   hudText: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: pt.text },
   hudRodada: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.textSoft },
-
   dica: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center', height: 24, lineHeight: 24 },
 
-  // ── Cena (camadas por zIndex: chão/decor 0 · halo 1 · sprites 3 · oclusor no sprite) ──
-  cena: { flex: 1, marginHorizontal: 12, marginBottom: 12, borderRadius: radii.xl, overflow: 'hidden', ...shadows.soft },
-  chao: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '34%', backgroundColor: '#CFE8A6', opacity: 0.55, zIndex: 0 },
-  hit: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  // Halo em ANEL: centro transparente (só borda). zIndex 1 → ATRÁS dos sprites (zIndex 3)
-  // e atrás do oclusor frontal, para não "desenhar" a resposta por cima do cenário.
-  halo: { position: 'absolute', backgroundColor: 'transparent', borderColor: pt.gold, zIndex: 1 },
-
-  debugRect: { ...StyleSheet.absoluteFillObject, borderWidth: 1.5, alignItems: 'flex-start', justifyContent: 'flex-start' },
-  debugHud: { position: 'absolute', top: 4, left: 6 },
+  // ── Cena: container mede a área; viewport 4:5 centrado ──
+  cenaWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingBottom: 12 },
+  viewport: { borderRadius: radii.xl, overflow: 'hidden', backgroundColor: '#DDEFF6', ...shadows.soft },
+  bg: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
+  chao: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '34%', backgroundColor: '#CFE8A6', opacity: 0.5, zIndex: 0 },
   debugTxt: { fontFamily: 'Nunito', fontSize: 9, color: '#C0392B', fontWeight: '800' },
 
-  // ── Resultado ──
-  vitoriaCard: {
-    marginTop: 12, backgroundColor: '#FFF', borderRadius: radii.xl, paddingVertical: 18, paddingHorizontal: 14,
-    alignItems: 'center', ...shadows.card,
-  },
+  vitoriaCard: { marginTop: 12, backgroundColor: '#FFF', borderRadius: radii.xl, paddingVertical: 18, paddingHorizontal: 14, alignItems: 'center', ...shadows.card },
   vitoriaIconBg: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#DFF3E6', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   destaque: { fontFamily: 'FredokaOne', fontSize: 44, color: pt.text, lineHeight: 50 },
   destaqueLabel: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.textSoft, marginBottom: 14 },
@@ -814,19 +762,10 @@ const styles = StyleSheet.create({
   stat: { alignItems: 'center' },
   statValor: { fontFamily: 'FredokaOne', fontSize: 22, color: pt.text },
   statLabel: { fontFamily: 'Nunito', fontSize: 11, color: pt.textSoft, textAlign: 'center', marginTop: 1 },
-  faixaBoa: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 12,
-    backgroundColor: '#DDF3E7', borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 9,
-  },
+  faixaBoa: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 12, backgroundColor: '#DDF3E7', borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 9 },
   faixaBoaText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: '#0E5A3C' },
-  faixaEstrela: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 10,
-    backgroundColor: pt.goldSoft, borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 9,
-  },
+  faixaEstrela: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 10, backgroundColor: pt.goldSoft, borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 9 },
   faixaEstrelaText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: '#7A5800' },
-  faixaSuave: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 10,
-    backgroundColor: '#F3EFE9', borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 9,
-  },
+  faixaSuave: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 10, backgroundColor: '#F3EFE9', borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 9 },
   faixaSuaveText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, fontWeight: '700' },
 });

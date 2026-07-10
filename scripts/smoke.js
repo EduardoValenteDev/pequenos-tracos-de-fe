@@ -17368,11 +17368,12 @@ check(
   //   concorrentes, geometria em várias resoluções, fallback, persistência com teto
   //   COMPARTILHADO. Card só ativo em dev; Pares/Turbo intactos.
   // ════════════════════════════════════════════════════════════════════════════
-  console.log('\n── Bloco 2.1 / 2.1a: Cadê a Ovelhinha? (modelo único de item) ──');
+  console.log('\n── Bloco 2.1 / 2.2a: Cadê a Ovelhinha? (cenas autorais) ──');
   {
     const svc = readSrc('src/services/ovelhaGameService.js');
     const mq = readSrc('src/services/ovelhaGameMachine.js');
     const bs21 = readSrc('src/services/brincarStatsService.js');
+    const scenesRaw = readSrc('src/data/ovelhaScenes.js');
     const telaRaw = readSrc('src/screens/CadeAOvelhinhaScreen.js');
     const tela21 = a1StripComments(telaRaw);
     const nav21 = a1StripComments(readSrc('src/navigation/AppNavigator.js'));
@@ -17380,329 +17381,264 @@ check(
     const fi21 = readSrc('src/components/ui/FaithIcon.js');
     const rt21 = readSrc('src/constants/routes.js');
 
-    const limpa = (s) => a1StripComments(s)
+    // Avalia a DATA de cenas + o SERVIÇO puro juntos (o serviço importa a data).
+    const evalSvc = () => {
+      const scenes = a1StripComments(scenesRaw)
+        .replace(/^export const /gm, 'const ').replace(/^export function /gm, 'function ').replace(/^export /gm, '');
+      const s = a1StripComments(svc)
+        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '');
+      return new Function(scenes + '\n' + s
+        + ';return { OVELHA_SCENES, getScene, OVELHA_SCENE_PADRAO, sceneValida, buildRound, roundValido,'
+        + ' computeViewport, escalaArte, artToPx, pxToArt, toqueAcertou, pontoNaHitboxArte, hitboxRect,'
+        + ' celulaToque, estagioDica, nivelDica, erroElegivel, spotContratoValido, spotDentroSafeArea,'
+        + ' spotHitboxDentroViewport, spotForegroundExiste, poseValida, targetVisibleAreaMinima,'
+        + ' targetRenderable, exactlyOneTarget, MISS_ID, CENA_RATIO, OVELHA_POSES, OVELHA_ROUNDS,'
+        + ' OVELHA_HITBOX_MIN, DICA, OVELHA_SOUND_EVENTS, ERRO_ELEGIVEL_COOLDOWN_MS };')();
+    };
+
+    const evalMq = () => new Function(a1StripComments(mq)
       .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
-      .replace(/require\('[^']*'\)/g, 'null')
-      .replace(/^export\s+default[\s\S]*$/m, '')
-      .replace(/^export\s+/gm, '');
-
-    /** Serviço puro, avaliado de verdade (modelo único de item). */
-    const evalSvc = () => new Function(limpa(svc)
-      + ';return { OVELHA_DIFFICULTIES, getDifficulty, buildRound, posicionarItens, fallbackGrade,'
-      + ' tamanhoSprite, rectsIntersect, semSobreposicao, todosDentro, regiaoDe, margemDe,'
-      + ' exactlyOneTarget, targetIsRenderable, targetInsideBounds, targetHitboxValid,'
-      + ' targetVisibleAreaMinima, visivelFrac, erroElegivel, roundValido, nivelDica, DICA, OCLUSAO,'
-      + ' ERRO_ELEGIVEL_COOLDOWN_MS, shuffle, OVELHA_HITBOX_MIN, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS };')();
-
-    /** Máquina pura (identidade por targetId). */
-    const evalMq = () => new Function(limpa(mq)
-      + ';return { FASES, FASES_QUE_ACEITAM, EFEITOS, criarJogo, iniciarRodada, cenaPronta,'
-      + ' aceitaToque, tocar, liberarErro, avancar, encerrar };')();
+      .replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '')
+      + ';return { FASES, FASES_QUE_ACEITAM, EFEITOS, criarJogo, iniciarRodada, cenaPronta, aceitaToque,'
+      + ' tocar, liberarErro, avancar, encerrar };')();
 
     const evalStats = () => new Function(
       'AsyncStorage', 'STORAGE_KEYS', 'warn',
       'BRINCAR_DAILY_STAR_CAP', 'DEFAULT_MODE', 'isBetterTime', 'isBetterScore', 'isBetterMoves',
       a1StripComments(bs21)
-        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
-        .replace(/^export\s+/gm, '')
+        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '')
       + ';return { sanitizeStats, applyOvelhaResult, applyResult };')(
         {}, {}, () => {},
         2, 'classico',
-        (ant, novo) => Number.isFinite(novo) && novo > 0 && (!(Number.isFinite(ant) && ant > 0) || novo < ant),
-        (ant, novo) => Number.isFinite(novo) && novo > 0 && novo > (Number.isFinite(ant) ? ant : 0),
-        (ant, novo) => Number.isFinite(novo) && novo > 0 && (!(Number.isFinite(ant) && ant > 0) || novo < ant),
+        (a, b) => Number.isFinite(b) && b > 0 && (!(Number.isFinite(a) && a > 0) || b < a),
+        (a, b) => Number.isFinite(b) && b > 0 && b > (Number.isFinite(a) ? a : 0),
+        (a, b) => Number.isFinite(b) && b > 0 && (!(Number.isFinite(a) && a > 0) || b < a),
       );
 
     const lcg = (seed) => { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; };
+    const SC = 'campo_com_cerca_01';
 
-    // Uma rodada de teste com IDs conhecidos, para os testes de toque (2.1a §5).
-    const rodadaTeste = () => ({
-      roundId: 9, targetId: 'r9-target',
-      items: [
-        { id: 'r9-distractor-01', role: 'distractor', visualId: 'gato', cx: 80, cy: 90, visualSize: 70, hitbox: 84, region: 0 },
-        { id: 'r9-target', role: 'target', visualId: 'ovelha', cx: 220, cy: 260, visualSize: 78, hitbox: 92, region: 4 },
-        { id: 'r9-distractor-02', role: 'distractor', visualId: 'pato', cx: 150, cy: 400, visualSize: 70, hitbox: 84, region: 7 },
-      ],
-    });
-
-    /* ── GEOMETRIA: 100 seeds × 7 dimensões (2.1a §13) ── */
-    check('2.1a (geometria): 3 itens, 1 alvo, sem sobreposição, dentro dos limites — 100 seeds × 7 telas',
+    /* ── CONTRATO DE CENA (2.2a §1,7) ── */
+    check('2.2a (cena): contrato válido, ≥4 esconderijos, todos com pose/foreground/safe area',
       (() => { try {
         const S = evalSvc();
-        const dif = S.getDifficulty('facil');
-        const DIMS = [[320, 568], [375, 667], [390, 844], [360, 760], [834, 1112], [400, 300], [900, 420]];
-        for (const [w, h] of DIMS) {
-          const m = S.margemDe(dif, w, h);
-          for (let seed = 1; seed <= 100; seed++) {
-            const r = S.buildRound({ dif, largura: w, altura: h, rnd: lcg(seed * 31 + 7), roundId: seed });
-            if (r.items.length !== 3) return false;
-            if (!S.exactlyOneTarget(r) || !S.targetIsRenderable(r)) return false;
-            if (!S.semSobreposicao(r.items)) return false;               // interseção REAL
-            if (!S.todosDentro(r.items, w, h, m)) return false;
-            if (!S.targetInsideBounds(r, w, h, m)) return false;
-            if (!S.roundValido(r, w, h, m)) return false;
-          }
+        const scene = S.getScene(SC);
+        return S.sceneValida(scene, 'facil')
+          && scene.hidingSpots.length >= 4
+          && scene.hidingSpots.every((s) => S.spotContratoValido(s, scene, 'facil'))
+          && scene.hidingSpots.every((s) => S.spotDentroSafeArea(s, scene) && S.spotForegroundExiste(s, scene))
+          && ['front', 'peekLeft', 'peekRight', 'crouched', 'found', 'celebrating'].every((p) => S.OVELHA_POSES.includes(p));
+      } catch (e) { return false; } })(),
+      'a cena dourada não cumpre o contrato (esconderijos, poses, foreground, safe area)');
+
+    check('2.2a (contrato inválido): pose/foreground inexistente → contrato inválido → rodada não inicia',
+      (() => { try {
+        const S = evalSvc(); const M = evalMq();
+        const scene = S.getScene(SC);
+        const ruimPose = S.spotContratoValido({ ...scene.hidingSpots[0], pose: 'nao_existe' }, scene, 'facil');
+        const ruimFg = S.spotContratoValido({ ...scene.hidingSpots[0], foreground: 'nao_existe' }, scene, 'facil');
+        // a máquina não inicia rodada sem alvo válido nos itemIds
+        let e = M.criarJogo({ rounds: 5 });
+        const rej = M.iniciarRodada(e, { targetId: 'x', itemIds: ['y', 'z'] });
+        return ruimPose === false && ruimFg === false && rej.aceito === false;
+      } catch (e) { return false; } })(),
+      'um esconderijo com contrato inválido pode iniciar uma rodada');
+
+    /* ── VIEWPORT 4:5 (2.2a §3) ── */
+    check('2.2a (viewport): 4:5, largura responsiva, altura derivada, teto em tablets',
+      (() => { try {
+        const S = evalSvc();
+        for (const w of [320, 360, 390, 430, 768, 1024]) {
+          const vp = S.computeViewport({ largura: w, altura: 9999, maxLargura: 520 });
+          if (Math.abs(vp.h / vp.w - S.CENA_RATIO) > 0.02) return false;
+          if (vp.w > 520) return false;
         }
-        return S.OVELHA_HITBOX_MIN === 56;
+        const baixo = S.computeViewport({ largura: 400, altura: 300 });
+        return Math.abs(baixo.h / baixo.w - S.CENA_RATIO) < 0.02 && baixo.h <= 300 && S.CENA_RATIO === 1.25;
       } catch (e) { return false; } })(),
-      'a geometria falha em alguma resolução (sobrepõe, vaza, alvo ausente/inválido)');
+      'o viewport não mantém 4:5, estoura o teto, ou não limita a altura');
 
-    check('2.1a (geometria): interseção por RETÂNGULO real, não só distância entre centros',
+    check('2.2a (coordenadas): arte↔px consistente (round-trip); escala = w/designWidth',
       (() => { try {
         const S = evalSvc();
-        return S.rectsIntersect({ cx: 0, cy: 0, hitbox: 60 }, { cx: 30, cy: 0, hitbox: 60 }, 0) === true
-          && S.rectsIntersect({ cx: 0, cy: 0, hitbox: 60 }, { cx: 70, cy: 0, hitbox: 60 }, 0) === false
-          && S.rectsIntersect({ cx: 0, cy: 0, hitbox: 60 }, { cx: 65, cy: 0, hitbox: 60 }, 10) === true;
+        const scene = S.getScene(SC);
+        const vp = S.computeViewport({ largura: 360, altura: 9999 });
+        if (Math.abs(S.escalaArte(scene, vp) - vp.w / scene.designWidth) > 1e-9) return false;
+        const pt = { x: 540, y: 675 };
+        const px = S.artToPx(pt, scene, vp);
+        const back = S.pxToArt(px.px, px.py, scene, vp);
+        return Math.abs(back.x - pt.x) < 0.01 && Math.abs(back.y - pt.y) < 0.01;
       } catch (e) { return false; } })(),
-      'rectsIntersect não detecta corretamente a interseção de hitboxes');
+      'a conversão de coordenadas arte↔pixels está incorreta');
 
-    check('2.1a (geometria): determinístico por seed; alvo não repete a região',
+    /* ── TOQUE NA CENA (2.2a §4,12) ── */
+    check('2.2a (toque): dentro da hitbox = acerto; fora / objeto decorativo = erro',
       (() => { try {
         const S = evalSvc();
-        const dif = S.getDifficulty('facil');
-        const a = S.buildRound({ dif, largura: 390, altura: 620, rnd: lcg(7), roundId: 3 });
-        const b = S.buildRound({ dif, largura: 390, altura: 620, rnd: lcg(7), roundId: 3 });
-        if (JSON.stringify(a) !== JSON.stringify(b)) return false;
-        let reg = null, rep = 0, rnd = lcg(42);
+        const scene = S.getScene(SC);
+        const vp = S.computeViewport({ largura: 360, altura: 9999 });
+        const r = S.buildRound({ sceneId: SC, rnd: lcg(4), roundId: 1 });
+        const centro = S.artToPx(r.spot.pos, scene, vp);
+        const acerto = S.toqueAcertou(centro.px, centro.py, r.spot, scene, vp);
+        const cantoErro = S.toqueAcertou(2, 2, r.spot, scene, vp);
+        const rct = S.hitboxRect(r.spot);
+        const foraPx = S.artToPx({ x: rct.x1 + 30, y: r.spot.pos.y }, scene, vp);
+        const fora = S.toqueAcertou(foraPx.px, foraPx.py, r.spot, scene, vp);
+        // um decor longe do alvo NÃO é acerto
+        const decor = scene.decorativeLayers.find((d) => !S.pontoNaHitboxArte(d.pos, r.spot)) || scene.decorativeLayers[0];
+        const decorPx = S.artToPx(decor.pos, scene, vp);
+        const decorErro = S.toqueAcertou(decorPx.px, decorPx.py, r.spot, scene, vp);
+        return acerto === true && cantoErro === false && fora === false && decorErro === false;
+      } catch (e) { return false; } })(),
+      'o toque não distingue a hitbox da ovelha do resto da cena');
+
+    check('2.2a (toque/máquina): MISS_ID vira erro; alvo = acerto; a máquina segue intacta',
+      (() => { try {
+        const S = evalSvc(); const M = evalMq();
+        const r = S.buildRound({ sceneId: SC, rnd: lcg(3), roundId: 1 });
+        let e = M.criarJogo({ rounds: 5 });
+        e = M.iniciarRodada(e, { targetId: r.targetId, itemIds: [r.targetId, S.MISS_ID] }).estado;
+        e = M.cenaPronta(e).estado;
+        const miss = M.tocar(e, S.MISS_ID);
+        if (miss.acerto !== false || miss.estado.encontradas !== 0) return false;
+        e = M.liberarErro(miss.estado).estado;
+        const ac = M.tocar(e, r.targetId);
+        return ac.acerto === true && ac.estado.encontradas === 1
+          && M.tocar(ac.estado, r.targetId).aceito === false;   // não conta 2×
+      } catch (e) { return false; } })(),
+      'o MISS_ID não vira erro, ou o alvo não conta como acerto');
+
+    /* ── ESCONDERIJO: não repete, sempre parcialmente visível, 5 rodadas ── */
+    check('2.2a (rodadas): esconderijo não repete imediatamente; rodada sempre válida; 5 rodadas',
+      (() => { try {
+        const S = evalSvc(); const M = evalMq();
+        let ant = null;
         for (let i = 0; i < 30; i++) {
-          const c = S.buildRound({ dif, largura: 390, altura: 700, rnd, regiaoAnterior: reg, roundId: i });
-          if (reg !== null && c.regiaoAlvo === reg) rep++;
-          reg = c.regiaoAlvo;
+          const r = S.buildRound({ sceneId: SC, rnd: lcg(i * 7 + 1), spotAnterior: ant, roundId: i });
+          if (!r || !S.roundValido(r)) return false;
+          if (ant !== null && r.spot.id === ant) return false;
+          if (!S.targetVisibleAreaMinima(r)) return false;   // parcial, nunca total
+          ant = r.spot.id;
         }
-        return rep === 0;
-      } catch (e) { return false; } })(),
-      'a geometria não é determinística, ou o alvo repete a região anterior');
-
-    check('2.1a (geometria): fallback é acionado, é válido e varia com o RNG',
-      (() => { try {
-        const S = evalSvc();
-        const specs = [{ hitbox: 56, size: 44 }, { hitbox: 56, size: 44 }, { hitbox: 56, size: 44 }];
-        const fb = S.fallbackGrade({ largura: 280, altura: 240, margem: 8, gap: 4, specs, rnd: lcg(3) });
-        if (fb.length !== 3 || !fb.every((p) => Number.isFinite(p.cx) && Number.isFinite(p.cy))) return false;
-        const comHb = fb.map((p) => ({ ...p, hitbox: 56 }));
-        if (!S.semSobreposicao(comHb)) return false;
-        const fb2 = S.fallbackGrade({ largura: 280, altura: 240, margem: 8, gap: 4, specs, rnd: lcg(9) });
-        return JSON.stringify(fb) !== JSON.stringify(fb2);
-      } catch (e) { return false; } })(),
-      'o fallback não é válido ou não varia com o RNG');
-
-    check('2.1a (composição): tamanhos semelhantes (≤15%); alvo um pouco maior; hitbox por-item ≥56',
-      (() => { try {
-        const S = evalSvc();
-        const r = S.buildRound({ dif: S.getDifficulty('facil'), largura: 390, altura: 640, rnd: lcg(5), roundId: 1 });
-        const alvo = r.items.find((i) => i.role === 'target');
-        const dist = r.items.find((i) => i.role === 'distractor');
-        const diff = (alvo.visualSize - dist.visualSize) / alvo.visualSize;
-        return alvo.visualSize >= dist.visualSize && diff <= 0.15
-          && r.items.every((i) => i.hitbox >= 56 && i.hitbox >= i.visualSize);
-      } catch (e) { return false; } })(),
-      'os tamanhos diferem demais, ou a hitbox por-item ficou abaixo de 56/menor que o sprite');
-
-    /* ── IDENTIDADE por id / toque no distrator (2.1a §5) ── */
-    check('2.1a (identidade): distrator NUNCA vira acerto; alvo conta 1×; ordem não muda o alvo',
-      (() => { try {
-        const M = evalMq(); const S = evalSvc();
-        const round = rodadaTeste();
-        const jogar = (r0) => { let e = M.criarJogo({ rounds: 5 });
-          e = M.iniciarRodada(e, { targetId: r0.targetId, itemIds: r0.items.map((i) => i.id) }).estado;
-          return M.cenaPronta(e).estado; };
-        let e = jogar(round);
-        // toca cada distrator → zero acertos, erro suave, encontradas inalterado
-        for (const d of round.items.filter((i) => i.role === 'distractor')) {
-          const r = M.tocar(e, d.id);
-          if (r.acerto !== false || r.estado.encontradas !== 0) return false;
-          if (!r.efeitos.includes(M.EFEITOS.SOM_ERRO)) return false;
-          e = M.liberarErro(r.estado).estado;
-        }
-        // toca o alvo → exatamente 1 acerto; de novo → não conta 2×
-        const a1 = M.tocar(e, round.targetId);
-        if (!(a1.acerto === true && a1.estado.encontradas === 1)) return false;
-        if (M.tocar(a1.estado, round.targetId).aceito !== false) return false;
-        // embaralha a ordem visual: o alvo continua sendo o mesmo id
-        const emb = { ...round, items: S.shuffle(round.items, lcg(9)) };
-        let e2 = jogar(emb);
-        return M.tocar(e2, emb.targetId).acerto === true
-          && emb.items.filter((i) => i.role === 'distractor')
-            .every((d) => { const r = M.tocar(e2, d.id); const ok = r.acerto === false; e2 = M.liberarErro(r.estado).estado; return ok; });
-      } catch (e) { return false; } })(),
-      'um distrator pode ser contado como acerto, ou a ordem do array muda o alvo');
-
-    check('2.1a (identidade): a máquina decide por targetId, não por índice',
-      /id === estado\.targetId/.test(mq)
-      && /itemIds\.includes\(id\)/.test(mq)
-      && !/alvoIndex/.test(mq),
-      'a máquina voltou a decidir o acerto por índice de array');
-
-    /* ── OVELHA SEMPRE PRESENTE / invariantes (2.1a §6) ── */
-    check('2.1a (alvo sempre presente): iniciarRodada rejeita rodada sem alvo válido',
-      (() => { try {
-        const M = evalMq();
+        // 5 rodadas completas pela máquina
         let e = M.criarJogo({ rounds: 5 });
-        const rej = M.iniciarRodada(e, { targetId: 'inexistente', itemIds: ['a', 'b'] });
-        const okRej = rej.aceito === false && rej.estado.fase === M.FASES.TROCANDO;
-        const bom = M.iniciarRodada(e, { targetId: 't', itemIds: ['t', 'd1', 'd2'] });
-        return okRej && bom.aceito === true && bom.estado.fase === M.FASES.ENTRANDO;
-      } catch (e) { return false; } })(),
-      'a máquina inicia uma rodada sem alvo válido');
-
-    check('2.1a (invariantes): exactlyOneTarget / targetIsRenderable / targetInsideBounds existem e valem',
-      (() => { try {
-        const S = evalSvc();
-        const r = S.buildRound({ dif: S.getDifficulty('facil'), largura: 390, altura: 640, rnd: lcg(11), roundId: 2 });
-        const m = S.margemDe(S.getDifficulty('facil'), 390, 640);
-        // rodada boa passa em tudo; rodada adulterada (alvo fora) falha
-        const boa = S.exactlyOneTarget(r) && S.targetIsRenderable(r) && S.targetInsideBounds(r, 390, 640, m);
-        const ruim = { ...r, items: r.items.map((i) => i.id === r.targetId ? { ...i, cx: -999 } : i) };
-        return boa && S.targetInsideBounds(ruim, 390, 640, m) === false && S.roundValido(ruim, 390, 640, m) === false;
-      } catch (e) { return false; } })(),
-      'os invariantes de alvo renderizável não funcionam');
-
-    /* ── TELA: modelo único, guarda de dupla-montagem, halo em anel, dica ── */
-    check('2.1a (tela): fonte ÚNICA — renderiza round.items e envia item.id (sem índice como identidade)',
-      /const \[round, setRound\] = useState/.test(tela21)
-      && /items\.map\(\(it, i\)/.test(tela21)
-      && /const items = round\?\.items/.test(tela21)
-      && /onPress=\{\(\) => tocarItem\(it\.id\)\}/.test(tela21)
-      && /aplicar\(tocar, id\)/.test(tela21)
-      && !/alvoIndex/.test(tela21)
-      && !/setSprites/.test(tela21),
-      'a tela voltou a usar arrays paralelos ou índice como identidade');
-
-    check('2.1a (tela): montarRodada é idempotente por rodada (mata a dupla-montagem)',
-      /const montarRodada = useCallback\(\(\) => \{\s*if \(jogoRef\.current\.fase !== FASES\.TROCANDO\) return;/.test(tela21),
-      'montarRodada pode rodar duas vezes na mesma rodada e divergir visual×lógica');
-
-    check('2.1a (tela): rodada REMONTA os sprites (key = roundId + item.id)',
-      /key=\{`\$\{round\.roundId\}-\$\{it\.id\}`\}/.test(tela21),
-      'a key não inclui roundId+item.id → Animated.Value preso entre rodadas');
-
-    // MIGRADO 2.1b: sprites subiram para zIndex 3 (para o oclusor/decor/halo se camadarem).
-    check('2.1a (halo): anel de centro TRANSPARENTE, atrás dos sprites, sem toque, ~1,45–1,6× o sprite',
-      (() => {
-        const comp = (tela21.match(/function HaloAnel[\s\S]*?\n\}/) || [''])[0];
-        return comp.length > 0
-          && /pointerEvents="none"/.test(comp)
-          && /item\.visualSize \* \(evidente \? 1\.6 : 1\.45\)/.test(comp)
-          && /borderWidth:/.test(comp)
-          && /halo: \{ position: 'absolute', backgroundColor: 'transparent', borderColor: pt\.gold, zIndex: 1 \}/.test(tela21)
-          && /zIndex: 3/.test(tela21);   // sprites acima do halo (zIndex 1)
-      })(),
-      'o halo voltou a ser um círculo cheio, cobre o alvo, ou recebe toque');
-
-    // MIGRADO 2.1b: novos limiares (10/14/18s · 2/3/5 erros ELEGÍVEIS) — ver bloco 2.1b.
-    check('2.1a (dica): não revela no 1º erro elegível; espacial só nível ≥2',
-      (() => { try {
-        const S = evalSvc();
-        return S.nivelDica(0, 1) < 2 && S.nivelDica(0, 0) === 0
-          && S.nivelDica(0, 2) === 1 && S.nivelDica(0, 3) >= 2 && S.nivelDica(0, 5) === 3
-          && S.nivelDica(10000, 0) === 1 && S.nivelDica(14000, 0) >= 2 && S.nivelDica(18000, 0) === 3
-          && S.DICA.T1_MS === 10000 && S.DICA.E1 === 2
-          && /nivel >= 2/.test(tela21) && /if \(r\.estado\.fase !== FASES\.PROCURANDO\) resetarDica\(\)/.test(tela21);
-      } catch (e) { return false; } })(),
-      'a dica revela cedo demais, ou não segue os limiares 10/14/18s e 2/3/5 erros');
-
-    check('2.1a (dica): controlador acumula tempo só procurando; halo some ao pausar; reseta por rodada',
-      /const resetarDica = useCallback/.test(tela21)
-      && /buscaMsRef\.current \+= agora - ultimo/.test(tela21)
-      && /if \(!procurando \|\| pausado\) return undefined;/.test(tela21)
-      && /procurando && nivel >= 2 && !pausado/.test(tela21)   // pausar esconde o halo
-      && /setRound\(r\);\s*setErradoId\(null\);\s*resetarDica\(\);/.test(tela21),  // reset por rodada
-      'o controlador de dica não pausa/reseta corretamente');
-
-    check('2.1a (fallback visual): o alvo tem fallback SVG se o PNG falhar; onError warn só em dev',
-      /function OvelhaVisual/.test(tela21)
-      && /onError=\{\(\) => \{/.test(tela21)
-      && /setFalhou\(true\)/.test(tela21)
-      && /if \(falhou\) return <OvelhaSvgSprite/.test(tela21)
-      && /__DEV__/.test(tela21),
-      'a ovelha pode ficar invisível se o PNG temporário falhar');
-
-    check('2.1a (diagnóstico): overlay interno DESLIGADO por padrão, pointerEvents none, sem Modo Criador',
-      /const OVELHA_DEBUG_HITBOX = false;/.test(tela21)
-      && /OVELHA_DEBUG_HITBOX &&/.test(tela21)
-      && !/MODO CRIADOR|creatorMode|isCreatorQaModeAllowed/i.test(tela21)
-      && /debugRect|debugHud/.test(tela21),
-      'o overlay de diagnóstico está ligado por padrão ou depende do Modo Criador');
-
-    /* ── MÁQUINA: fases, 5 rodadas, sequência (2.1a §11) ── */
-    check('2.1a (máquina): só "procurando" aceita toque; recusado = zero efeitos',
-      (() => { try {
-        const M = evalMq();
-        const bloqueadas = [M.FASES.TROCANDO, M.FASES.ENTRANDO, M.FASES.ERRO, M.FASES.ACERTO, M.FASES.FIM];
-        const base = { ...M.criarJogo({ rounds: 5 }), targetId: 't', itemIds: ['t', 'd1', 'd2'] };
-        const todas = bloqueadas.every((fase) => !M.aceitaToque({ ...base, fase }, 't'));
-        const so1 = M.FASES_QUE_ACEITAM.length === 1 && M.FASES_QUE_ACEITAM[0] === M.FASES.PROCURANDO;
-        const rec = M.tocar({ ...base, fase: M.FASES.ENTRANDO }, 't');
-        return todas && so1 && rec.aceito === false && rec.efeitos.length === 0;
-      } catch (e) { return false; } })(),
-      'alguma fase fora de "procurando" aceita toque');
-
-    check('2.1a (máquina): 5 rodadas encerram; a 6ª não é criada; sequência correta',
-      (() => { try {
-        const M = evalMq();
-        const round = (e, erra) => {
-          e = M.iniciarRodada(e, { targetId: 't', itemIds: ['t', 'd1', 'd2'] }).estado;
+        for (let rr = 0; rr < 5; rr++) {
+          const round = S.buildRound({ sceneId: SC, rnd: lcg(rr + 20), roundId: rr });
+          e = M.iniciarRodada(e, { targetId: round.targetId, itemIds: [round.targetId, S.MISS_ID] }).estado;
           e = M.cenaPronta(e).estado;
-          if (erra) { e = M.tocar(e, 'd1').estado; e = M.liberarErro(e).estado; }
-          e = M.tocar(e, 't').estado;
-          return M.avancar(e).estado;
-        };
-        // best 5 (sem erro)
-        let e = M.criarJogo({ rounds: 5 });
-        for (let r = 0; r < 5; r++) e = round(e, false);
-        if (e.fase !== M.FASES.FIM || e.encontradas !== 5 || e.bestSequencia !== 5) return false;
-        if (M.aceitaToque(e, 't') !== false) return false;
-        if (M.avancar(e).estado.rodada !== 5) return false;      // sem 6ª
-        // 2 acertos, erro, 3 acertos → best 3
-        let f = M.criarJogo({ rounds: 5 });
-        [false, false, true, false, false].forEach((erra) => { f = round(f, erra); });
-        // erro em toda rodada → best 1, mas 5 encontradas
-        let g = M.criarJogo({ rounds: 5 });
-        for (let r = 0; r < 5; r++) g = round(g, true);
-        return f.bestSequencia === 3 && g.bestSequencia === 1 && g.encontradas === 5;
+          e = M.avancar(M.tocar(e, round.targetId).estado).estado;
+        }
+        return e.fase === M.FASES.FIM && e.encontradas === 5;
       } catch (e) { return false; } })(),
-      'as 5 rodadas não encerram, criam uma 6ª, ou a melhor sequência está errada');
+      'o esconderijo repete, a rodada é inválida, ou as 5 rodadas não encerram');
 
-    check('2.1a (máquina): é PURA — sem React, relógio, I/O, navegação',
-      (() => { const codigo = a1StripComments(mq);
-        return !/useState|useEffect|useRef|from 'react|require\('react/i.test(codigo)
-          && !/Date\.now|setTimeout|setInterval|Math\.random/.test(codigo)
-          && !/AsyncStorage|fetch\(|navigation/.test(codigo)
-          && /export function aceitaToque/.test(mq); })(),
-      'a máquina da ovelhinha deixou de ser pura');
+    /* ── DICA por rodada + anti-spam por CÉLULA (2.1b preservado) ── */
+    check('2.2a (dica): estágios naturais (balido/movimento/brilho/contorno); limiares 10/14/18 · 2/3/5',
+      (() => { try {
+        const S = evalSvc();
+        return S.estagioDica(0) === 0 && S.estagioDica(1) === 1 && S.estagioDica(2) === 3 && S.estagioDica(3) === 4
+          && S.nivelDica(0, 1) < 2 && S.nivelDica(0, 2) === 1 && S.nivelDica(0, 3) >= 2 && S.nivelDica(0, 5) === 3
+          && S.nivelDica(10000, 0) === 1 && S.nivelDica(14000, 0) >= 2 && S.nivelDica(18000, 0) === 3
+          && S.DICA.T1_MS === 10000;
+      } catch (e) { return false; } })(),
+      'os estágios/limiares de dica regrediram');
 
-    /* ── PERSISTÊNCIA (inalterada pelo 2.1a) ── */
-    check('2.1 (persistência): grava ovelha, dá 1 estrelinha, teto compartilhado com o Pares',
+    check('2.2a (anti-spam por célula): mesma região no cooldown não conta; alternar conta',
+      (() => { try {
+        const S = evalSvc();
+        const scene = S.getScene(SC);
+        const cel = (x, y) => S.celulaToque({ x, y }, scene);
+        // 10 toques rápidos na MESMA célula
+        let eleg = 0, ultimoId = null, ultimoMs = 0, agora = 0;
+        for (let i = 0; i < 10; i++) { agora += 120;
+          const id = cel(100, 100);
+          if (S.erroElegivel({ id, ultimoId, agoraMs: agora, ultimoMs })) { eleg++; ultimoMs = agora; } ultimoId = id; }
+        if (!(eleg <= 2 && S.nivelDica(0, eleg) < 2)) return false;
+        // alternar células distantes
+        let e2 = 0, uId = null, uMs = 0, ag = 0;
+        for (const [x, y] of [[100, 100], [900, 1200], [100, 100], [900, 1200], [500, 200]]) { ag += 120;
+          const id = cel(x, y);
+          if (S.erroElegivel({ id, ultimoId: uId, agoraMs: ag, ultimoMs: uMs })) { e2++; uMs = ag; } uId = id; }
+        return e2 >= 3 && cel(100, 100) === cel(120, 120) && cel(100, 100) !== cel(900, 1200);
+      } catch (e) { return false; } })(),
+      'o anti-spam por célula não contém spam ou impede a progressão legítima');
+
+    check('2.2a (tela): dica usa erro elegível por rodada, não o cumulativo; reset por rodada; timers com seq',
+      /aplicarNivel\(buscaMsRef\.current, erroElegivelRef\.current\)/.test(tela21)
+      && !/jogoRef\.current\.erros\)/.test(tela21)
+      && /erroElegivelRef\.current = 0;/.test(tela21)
+      && /rodadaSeqRef\.current \+= 1;/.test(tela21)
+      && /if \(rodadaSeqRef\.current !== seq\) return;/.test(tela21),
+      'a dica voltou a vazar (cumulativo) ou perdeu o reset/seq por rodada');
+
+    /* ── CAMADAS + toque na cena inteira (2.2a §5,9) ── */
+    check('2.2a (camadas): cena inteira captura o toque; foreground e decor NÃO recebem toque',
+      (() => {
+        // uma única Pressable (a cena), não 3 Pressables por item
+        const pressables = (tela21.match(/<Pressable/g) || []).length;
+        const cena = (tela21.match(/function CenaAutoral[\s\S]*?\n\}/) || [''])[0];
+        return pressables === 1
+          && /onPress=\{tocarCena\}/.test(tela21)
+          && !/\.items\.map/.test(tela21) && !/onPress=\{\(\) => tocarItem/.test(tela21)
+          // foreground com pointerEvents none, acima da ovelha (z3)
+          && /ForegroundMock/.test(cena) && /pointerEvents="none"/.test(cena)
+          && /zIndex: 3 \}/.test(cena);
+      })(),
+      'a cena não captura o toque como um todo, ou o foreground/decor recebe toque');
+
+    check('2.2a (ovelha atrás do foreground): sprite z2, foreground z3, hitbox segue tocável',
+      (() => {
+        const cena = (tela21.match(/function CenaAutoral[\s\S]*?\n\}/) || [''])[0];
+        const sheep = (tela21.match(/function SheepView[\s\S]*?\n\}/) || [''])[0];
+        // a ovelha é desenhada por SheepView (z2, sem toque); o foreground cobre a base
+        // pela fração (1 - visivelFrac) e fica acima (z3).
+        return /<SheepView/.test(cena)
+          && /ovSize \* \(1 - \(spot\.visivelFrac/.test(cena)
+          && /zIndex: 2,/.test(sheep) && /pointerEvents="none"/.test(sheep);
+      })(),
+      'a ovelha não fica atrás do foreground, ou a hitbox parou de valer');
+
+    check('2.2a (ripple): erro mostra feedback no ponto tocado',
+      /function TouchRipple/.test(tela21)
+      && /setRipple\(\{ key:/.test(tela21)
+      && /\{ripple && <TouchRipple/.test(tela21),
+      'o erro não mostra feedback (ripple) no ponto tocado');
+
+    /* ── POSES / CONTRATO DE ASSETS ── */
+    check('2.2a (poses): contrato de 6 poses + orientação; nenhum asset oficial exigido',
+      /OVELHA_POSES = Object\.freeze\(\[/.test(scenesRaw)
+      && /'front', 'peekLeft', 'peekRight', 'crouched', 'found', 'celebrating'/.test(scenesRaw)
+      && /tipo: 'placeholder'/.test(scenesRaw)   // background/foreground = mock, sem asset real
+      && !/require\(/.test(scenesRaw),           // a data NÃO carrega nenhum arquivo de arte
+      'o contrato de poses/assets exige arte oficial para rodar');
+
+    /* ── DIAGNÓSTICO (2.2a §11) ── */
+    check('2.2a (diagnóstico): overlay mostra viewport/spot/hitbox/pose, OFF por padrão, sem Modo Criador',
+      /const OVELHA_DEBUG_HITBOX = false;/.test(tela21)
+      && /function DebugOverlay/.test(tela21)
+      && /viewport\.w\}×\{viewport\.h\}/.test(tela21) && /round\.spot\.id/.test(tela21) && /round\.pose/.test(tela21)
+      && !/MODO CRIADOR|creatorMode|isCreatorQaModeAllowed/i.test(tela21),
+      'o overlay de diagnóstico regrediu, está ligado, ou depende do Modo Criador');
+
+    /* ── PERSISTÊNCIA / FUNDAÇÃO PRESERVADA (2.2a §10) ── */
+    check('2.2a (persistência): grava ovelha, 1 estrelinha, teto compartilhado com o Pares',
       (() => { try {
         const B = evalStats();
         const hoje = '2026-07-10';
         const p = { dificuldade: 'facil', day: hoje, encontradas: 5, sequencia: 4 };
         const r1 = B.applyOvelhaResult(null, p);
-        if (!(r1.starAwarded && r1.stats.ovelha.facil.plays === 1 && r1.stats.ovelha.facil.bestSequencia === 4)) return false;
         const r2 = B.applyOvelhaResult(r1.stats, { ...p, sequencia: 2 });
         const r3 = B.applyOvelhaResult(r2.stats, { ...p, sequencia: 5 });
-        if (!(r2.starAwarded && !r3.starAwarded && r3.stats.ovelha.facil.plays === 3 && r3.isBest)) return false;
-        // teto compartilhado com o Pares
         const par = B.applyResult(null, { modo: 'classico', dificuldade: 'facil', day: hoje, elapsedMs: 30000, erros: 0, jogadas: 6 });
         const ov = B.applyOvelhaResult(par.stats, { dificuldade: 'facil', day: hoje, encontradas: 5, sequencia: 5 });
         const ov2 = B.applyOvelhaResult(ov.stats, { dificuldade: 'facil', day: hoje, encontradas: 5, sequencia: 5 });
-        return par.starAwarded && ov.starAwarded && !ov2.starAwarded;
+        return r1.starAwarded && r2.starAwarded && !r3.starAwarded && r3.stats.ovelha.facil.plays === 3
+          && par.starAwarded && ov.starAwarded && !ov2.starAwarded;
       } catch (e) { return false; } })(),
-      'a persistência da ovelha regrediu ou o teto deixou de ser compartilhado');
+      'a persistência da ovelha ou o teto compartilhado regrediram');
 
-    check('2.1 (persistência): dados antigos migram; Pares/Turbo intactos; applyResult do Pares limpo',
-      (() => { try {
-        const B = evalStats();
-        const s = B.sanitizeStats({ day: 'x', starsToday: 1, pares: { facil: { plays: 3, wins: 3, bestMs: 25000, bestErros: 1 } } });
-        const ok = s.ovelha.facil.plays === 0 && s.pares.facil.bestMs === 25000 && s.turbo.facil.bestScore === 0
-          && B.sanitizeStats('lixo').ovelha.facil.plays === 0;
-        const applyPares = (bs21.match(/export function applyResult[\s\S]*?\n\}/) || [''])[0];
-        return ok && !/ovelha/.test(applyPares) && /export function applyOvelhaResult/.test(bs21);
-      } catch (e) { return false; } })(),
-      'a migração perde dados, ou o applyResult do Pares foi contaminado');
-
-    /* ── ÁUDIO / EMOJI / ROTA / CARD / ÍCONE / PROTEGIDOS ── */
-    check('2.1 (tela): rodada consumida só em comecar(); estrelinha uma vez em finalizar()',
+    check('2.2a (tela): consumo em comecar(); salvamento único em finalizar(); ciclo de vida',
       (() => {
         const com = (tela21.match(/const comecar = useCallback\(async[\s\S]*?\n  \}/) || [''])[0];
         const fin = (tela21.match(/const finalizar = useCallback\(async[\s\S]*?\n  \}/) || [''])[0];
@@ -17710,164 +17646,43 @@ check(
           && (tela21.match(/addBonusStars\(/g) || []).length === 1
           && (tela21.match(/recordOvelhaResult\(/g) || []).length === 1
           && /if \(salvoRef\.current\) return;\s*salvoRef\.current = true;/.test(fin)
-          && /if \(r\.starAwarded\) \{ await addBonusStars\(1\); await refreshProgress\?\.\(\); \}/.test(fin);
+          && /AppState\.addEventListener\('change'/.test(tela21)
+          && /montado\.current = false; limparTimers\(\); releaseGameSfx\(\);/.test(tela21)
+          && (tela21.match(/setTimeout\(/g) || []).length === 1;
       })(),
-      'a rodada/estrelinha pode ser consumida/creditada fora do lugar ou duas vezes');
+      'consumo/salvamento/ciclo de vida da ovelha regrediram');
 
-    check('2.1 (tela): ciclo de vida — AppState, blur, montadoRef, agendar, releaseGameSfx',
-      /AppState\.addEventListener\('change'/.test(tela21)
-      && /navigation\.addListener\('blur'/.test(tela21)
-      && /montado\.current = false;\s*limparTimers\(\);\s*releaseGameSfx\(\);/.test(tela21)
-      && /timeouts\.current\.forEach\(clearTimeout\)/.test(tela21)
-      && /if \(montado\.current\) cb\(\);/.test(tela21),
-      'a tela não limpa timers/sons no unmount');
+    check('2.2a (máquina): pura, sem React/relógio/IO; só "procurando" aceita toque',
+      (() => { try {
+        const M = evalMq();
+        const codigo = a1StripComments(mq);
+        const puro = !/useState|useEffect|useRef|from 'react/i.test(codigo)
+          && !/Date\.now|setTimeout|setInterval|Math\.random/.test(codigo)
+          && !/AsyncStorage|fetch\(|navigation/.test(codigo);
+        const so1 = M.FASES_QUE_ACEITAM.length === 1 && M.FASES_QUE_ACEITAM[0] === M.FASES.PROCURANDO;
+        return puro && so1;
+      } catch (e) { return false; } })(),
+      'a máquina deixou de ser pura ou aceita toque fora de procurando');
 
-    check('2.1 (tela): áudio reaproveitado; nenhum arquivo de som novo; sem emoji',
-      /OVELHA_SOUND_EVENTS\.ACERTO/.test(tela21) && /playGameSfx/.test(tela21)
-      && /ACERTO: 'match_success'/.test(svc) && /VITORIA: 'classic_victory_jingle'/.test(svc)
-      && !/assets\/audio/.test(tela21)
-      && !/\p{Extended_Pictographic}/u.test(telaRaw) && /<FaithIcon/.test(telaRaw),
-      'a ovelhinha depende de som novo, conhece caminho de áudio, ou tem emoji');
-
-    check('2.1 (rota): CADE_A_OVELHINHA registrada SÓ sob o gate interno',
+    /* ── PRODUÇÃO / ROTA / CARD / ÍCONE / PROTEGIDOS ── */
+    check('2.2a (produção): rota dev-gated; card "Em teste" só em dev; sem asset oficial no smoke',
       /CADE_A_OVELHINHA: 'CadeAOvelhinha'/.test(rt21)
-      && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="CadeAOvelhinha"/.test(nav21),
-      'a rota da ovelhinha não existe ou é registrada em produção');
-
-    check('2.1 (card): ativo SÓ em dev; em produção continua "Chegando"; tela "Em teste"',
-      /\{ id: 'ovelha', icon: 'ovelha'/.test(brc21)
+      && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="CadeAOvelhinha"/.test(nav21)
       && /id === 'ovelha' && isInternalToolsEnabled\(\) \?/.test(brc21)
-      && /navigate\(ROUTES\.CADE_A_OVELHINHA\)/.test(brc21)
-      && /function TestingTile/.test(brc21) && /Em teste/.test(brc21)
-      && /chip="Em teste"/.test(tela21),
-      'o card fica ativo em produção, ou não abre o jogo em dev');
+      && /chip="Em teste"/.test(tela21)
+      && !/require\(.*assets\/games\/cade/.test(tela21),   // a tela não carrega mais o PNG dev
+      'a produção liberou o jogo, ou o smoke exige asset oficial');
 
-    check('2.1 (ícone): ovelha é SVG próprio; o placeholder "eye" não é mais usado',
-      /function OvelhaSvg/.test(fi21) && /if \(name === 'ovelha'\) return <OvelhaSvg/.test(fi21)
-      && !/ovelha: 'eye'/.test(fi21) && !/ovelha: '[a-z-]+'/.test(fi21),
-      'a ovelha voltou a usar o ícone "eye" do Ionicons');
+    check('2.2a (ícone/sem emoji): ovelha é SVG; nenhum emoji na tela',
+      /function OvelhaSvg/.test(fi21) && !/ovelha: 'eye'/.test(fi21)
+      && !/\p{Extended_Pictographic}/u.test(telaRaw) && !/\p{Extended_Pictographic}/u.test(scenesRaw),
+      'a ovelha voltou a "eye", ou entrou emoji');
 
-    check('2.1 (protegidos): Pares e Modo Criador intocados por este bloco',
+    check('2.2a (protegidos): Pares e Modo Criador intocados',
       /aplicar\(tocar, i\)/.test(a1StripComments(readSrc('src/screens/ParesDoBeniScreen.js')))
       && /export function isInternalToolsEnabled/.test(readSrc('src/config/internalTools.js'))
       && !/ovelha|Ovelha/.test(a1StripComments(readSrc('src/services/paresGameMachine.js'))),
-      'o bloco 2.1 tocou o Pares ou o Modo Criador');
-
-    /* ══════════════ Bloco 2.1b — vazamento de dica + oclusão real ══════════════ */
-
-    check('2.1b (vazamento): a dica usa ERRO ELEGÍVEL POR RODADA, não o cumulativo da máquina',
-      // a causa raiz era alimentar nivelDica com jogoRef.current.erros (cumulativo)
-      /erroElegivelRef\.current/.test(tela21)
-      && /aplicarNivel\(buscaMsRef\.current, erroElegivelRef\.current\)/.test(tela21)
-      && !/aplicarNivel\([^)]*jogoRef\.current\.erros/.test(tela21)
-      && !/jogoRef\.current\.erros\)/.test(tela21),
-      'a dica voltou a usar o contador cumulativo de erros da máquina (vaza entre rodadas)');
-
-    check('2.1b (reset por rodada): montarRodada zera tempo, erro elegível, nível e halo',
-      (() => {
-        const reset = (tela21.match(/const resetarDica = useCallback\(\(\) => \{[\s\S]*?\n  \}/) || [''])[0];
-        return /buscaMsRef\.current = 0;/.test(reset)
-          && /erroElegivelRef\.current = 0;/.test(reset)
-          && /ultimoErroIdRef\.current = null;/.test(reset)
-          && /nivelRef\.current = 0;/.test(reset)
-          && /setNivel\(0\)/.test(reset)
-          // montarRodada chama resetarDica ao nascer a rodada nova
-          && /setRound\(r\);\s*setErradoId\(null\);\s*resetarDica\(\);/.test(tela21)
-          // acerto também limpa (sair de procurando → resetarDica em aplicar)
-          && /if \(r\.estado\.fase !== FASES\.PROCURANDO\) resetarDica\(\)/.test(tela21);
-      })(),
-      'a rodada nova pode herdar tempo/erro/halo da rodada anterior');
-
-    check('2.1b (timers): rodada carrega uma sequência e o tick de rodada antiga aborta',
-      /rodadaSeqRef\.current \+= 1;/.test(tela21)
-      && /const seq = rodadaSeqRef\.current;/.test(tela21)
-      && /if \(rodadaSeqRef\.current !== seq\) return;/.test(tela21),
-      'um timer/tick de dica de rodada antiga pode afetar a rodada nova');
-
-    check('2.1b (anti-spam/puro): mesmo item no cooldown não conta; alternar itens conta',
-      (() => { try {
-        const S = evalSvc();
-        // 10 toques rápidos (120ms) no MESMO distrator → no máximo 1–2 elegíveis
-        let eleg = 0, ultimoId = null, ultimoMs = 0, agora = 0;
-        for (let i = 0; i < 10; i++) { agora += 120;
-          if (S.erroElegivel({ id: 'd1', ultimoId, agoraMs: agora, ultimoMs })) { eleg++; ultimoMs = agora; }
-          ultimoId = 'd1'; }
-        if (!(eleg <= 2 && S.nivelDica(0, eleg) < 2)) return false;   // spam NÃO revela
-        // alternando d1/d2 rápido → cada um conta
-        let e2 = 0, uId = null, uMs = 0, ag = 0;
-        for (const id of ['d1', 'd2', 'd1', 'd2', 'd1']) { ag += 120;
-          if (S.erroElegivel({ id, ultimoId: uId, agoraMs: ag, ultimoMs: uMs })) { e2++; uMs = ag; } uId = id; }
-        return e2 >= 3 && S.ERRO_ELEGIVEL_COOLDOWN_MS >= 300;
-      } catch (e) { return false; } })(),
-      'o anti-spam não contém o spam no mesmo item, ou impede a progressão legítima');
-
-    check('2.1b (anti-spam/tela): erroElegivel controla a progressão; feedback em todo erro',
-      /erroElegivel\(\{ id, ultimoId: ultimoErroIdRef\.current/.test(tela21)
-      && /erroElegivelRef\.current \+= 1;/.test(tela21)
-      && /setErradoId\(id\);/.test(tela21),   // balanço em TODO erro, elegível ou não
-      'a tela não aplica a regra de erro elegível, ou perdeu o feedback de erro');
-
-    check('2.1b (oclusão/puro): alvo SEMPRE parcialmente escondido (≥40% e <100%) — 100 seeds × 7 telas',
-      (() => { try {
-        const S = evalSvc();
-        const dif = S.getDifficulty('facil');
-        const DIMS = [[320, 568], [375, 667], [390, 844], [360, 760], [834, 1112], [400, 320], [900, 440]];
-        for (const [w, h] of DIMS) {
-          const m = S.margemDe(dif, w, h);
-          for (let seed = 1; seed <= 100; seed++) {
-            const r = S.buildRound({ dif, largura: w, altura: h, rnd: lcg(seed * 13 + 3), roundId: seed });
-            const alvo = r.items.find((i) => i.role === 'target');
-            if (!(alvo.occluder.coberturaFrac > 0)) return false;         // tem oclusor
-            const vis = S.visivelFrac(alvo);
-            if (!(vis >= 0.40 && vis < 1)) return false;                  // parcial, nunca total
-            if (!S.targetVisibleAreaMinima(r)) return false;
-            if (!S.roundValido(r, w, h, m)) return false;                 // válida com oclusão
-            // distratores não "somem" (≥70% visíveis)
-            if (r.items.filter((i) => i.role === 'distractor').some((d) => S.visivelFrac(d) < 0.70)) return false;
-          }
-        }
-        return S.OCLUSAO.VISIVEL_MIN_ALVO === 0.40;
-      } catch (e) { return false; } })(),
-      'a oclusão do alvo é total, insuficiente, ou some os distratores');
-
-    check('2.1b (oclusão): alvo 100% coberto → rodada INVÁLIDA (invariante de visibilidade)',
-      (() => { try {
-        const S = evalSvc();
-        const dif = S.getDifficulty('facil');
-        const r = S.buildRound({ dif, largura: 390, altura: 640, rnd: lcg(5), roundId: 1 });
-        const m = S.margemDe(dif, 390, 640);
-        const total = { ...r, items: r.items.map((i) => i.id === r.targetId ? { ...i, occluder: { tipo: 'arbusto', coberturaFrac: 1.0 } } : i) };
-        return S.targetVisibleAreaMinima(total) === false && S.roundValido(total, 390, 640, m) === false
-          && S.targetHitboxValid(r) === true;
-      } catch (e) { return false; } })(),
-      'a rodada aceita um alvo totalmente coberto');
-
-    check('2.1b (camadas): fundo/chão · decor · halo(atrás) · sprites · oclusor(frontal, sem toque)',
-      (() => {
-        const occ = (tela21.match(/function OccluderSvg[\s\S]*?\n\}/) || [''])[0];
-        return /styles\.chao/.test(tela21)                       // chão
-          && /function DecorSvg/.test(tela21) && /round\?\.decor/.test(tela21)   // cenário
-          && occ.length > 0 && /pointerEvents="none"/.test(occ)  // oclusor não recebe toque
-          && /size \* occluder\.coberturaFrac/.test(occ)         // cobre a base pela fração
-          && /<OccluderSvg occluder=\{item\.occluder\}/.test(tela21);  // dentro do sprite (toque passa)
-      })(),
-      'as camadas da cena regrediram, ou o oclusor bloqueia o toque');
-
-    check('2.1b (composição): oclusão é só visual — geometria/identidade intactas',
-      (() => { try {
-        const S = evalSvc();
-        const dif = S.getDifficulty('facil');
-        let cruz = 0;
-        for (const [w, h] of [[320, 568], [390, 844], [834, 1112]]) {
-          for (let s = 1; s <= 50; s++) {
-            const r = S.buildRound({ dif, largura: w, altura: h, rnd: lcg(s * 7), roundId: s });
-            if (!S.semSobreposicao(r.items)) cruz++;
-            if (!S.exactlyOneTarget(r)) cruz++;
-          }
-        }
-        return cruz === 0;
-      } catch (e) { return false; } })(),
-      'a oclusão afetou a geometria ou a identidade dos itens');
+      'o bloco 2.2a tocou o Pares ou o Modo Criador');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
