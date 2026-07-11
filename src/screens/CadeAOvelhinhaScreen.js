@@ -33,6 +33,7 @@ import FaithIcon from '../components/ui/FaithIcon';
 import { BeniGuideBubble } from '../components/beni';
 import { ROUTES } from '../constants/routes';
 import { isInternalToolsEnabled } from '../config/internalTools';
+import { isCreatorQaModeAllowed, isCreatorQaModeEnabled } from '../services/creatorQaMode';
 import { isPremiumUser } from '../services/accessControl';
 import { addBonusStars } from '../services/postStoryStorage';
 import { useProgressContext } from '../context/ProgressContext';
@@ -45,9 +46,10 @@ import { getScene, cenasHabilitadas } from '../data/ovelhaScenes';
 import { OVELHA_BG, OVELHA_POSE_IMG } from '../data/ovelhaAssets';
 import {
   buildRoundFromSpot, roundValido, planPartida, computeViewport, contentRect, artToPx, pxToArt,
-  spriteBoxArt, visibleBoxArt, hitboxPxRect, toqueAcertou, celulaToque, erroElegivel,
-  nivelDica, estagioDica, MISS_ID, OVELHA_ROUNDS, OVELHA_SOUND_EVENTS,
+  spriteBoxArt, hitboxPxRect, celulaToque, erroElegivel,
+  MISS_ID, OVELHA_SOUND_EVENTS, OVELHA_DIFFICULTIES, getDifficulty, criarRng, novaSeed, assinaturaDeck,
 } from '../services/ovelhaGameService';
+import { OVELHA_POSE_JOGO } from '../data/ovelhaAssets';
 import {
   loadingReducer, initialLoading, prontoParaRevelar, temErro, botaoHabilitado, inputBloqueado,
 } from '../services/ovelhaTransition';
@@ -95,18 +97,28 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const [resultado, setResultado] = useState(null);
   const [pausado, setPausado] = useState(false);
 
-  const [vista, setVista] = useState(() => criarJogo({ rounds: OVELHA_ROUNDS }));
+  const [dificuldade, setDificuldade] = useState('facil');   // modo escolhido (persiste em "jogar de novo")
+  const [vista, setVista] = useState(() => criarJogo({ rounds: getDifficulty('facil').rounds }));
   const [lstate, ldispatch] = useReducer(loadingReducer, undefined, initialLoading);
   const [rodada, setRodada] = useState(null);        // round object corrente (cena+spot)
   const [retryNonce, setRetryNonce] = useState(0);   // muda o recyclingKey para recarregar
-  const [nivel, setNivel] = useState(0);
+  const [nivel, setNivel] = useState(0);             // nível de dica 0..3 (por rodada)
+  const [dicaPronta, setDicaPronta] = useState(false); // botão de dica liberado (médio/difícil)
   const [ripple, setRipple] = useState(null);
   const [errouAgora, setErrouAgora] = useState(false);
   const [areaVersion, setAreaVersion] = useState(0);
+  const [coverFading, setCoverFading] = useState(false);   // overlay ainda montado durante o fade de saída
+  const [mostrarHitbox, setMostrarHitbox] = useState(false); // Modo Criador: contorno da área clicável (off por padrão)
 
+  const dif = getDifficulty(dificuldade);
   const jogoRef = useRef(vista);
   const roundIdRef = useRef(0);
   const planoRef = useRef([]);
+  const seedRef = useRef(0);
+  // Baralho rotativo + histórico recente (só em memória da sessão): "jogar novamente" continua
+  // o ciclo em vez de recomeçar, reduzindo a repetição percebida de posições.
+  const deckStateRef = useRef(null);
+  const planIdRef = useRef('');
   const salvoRef = useRef(false);
   const timeouts = useRef([]);
   const rafs = useRef([]);
@@ -164,11 +176,11 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     erroElegivelRef.current = 0;
     ultimoErroIdRef.current = null;
     ultimoErroMsRef.current = 0;
-    if (montado.current) setNivel(0);
+    if (montado.current) { setNivel(0); setDicaPronta(false); }
   }, []);
 
-  const aplicarNivel = useCallback((elapsedMs, errosElegiveis) => {
-    const n = nivelDica(elapsedMs, errosElegiveis);
+  /** Sobe o nível de dica (0→1→2→3), nunca regride, sempre por rodada. Não pontua/avança. */
+  const subirDica = useCallback((n) => {
     if (n > nivelRef.current) { nivelRef.current = n; if (montado.current) setNivel(n); }
   }, []);
 
@@ -205,14 +217,15 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     const spot = scene.hidingSpots.find((s) => s.id === entry.spotId) || scene.hidingSpots[0];
     roundIdRef.current += 1;
     const token = roundIdRef.current;
-    const r = buildRoundFromSpot({ scene, spot, roundId: token });
-    if (!r || !roundValido(r, 'facil')) { warn('CadeAOvelhinha: rodada inválida (contrato).'); return; }
+    const r = buildRoundFromSpot({ scene, spot, roundId: token, dificuldade });
+    if (!r || !roundValido(r)) { warn('CadeAOvelhinha: rodada inválida (contrato).'); return; }
     const iniciou = aplicar(iniciarRodada, { targetId: r.targetId, itemIds: [r.targetId, MISS_ID] });
     if (!iniciou.aceito) return;
     setRodada(r);
     setRipple(null);
+    resetarDica();
     ldispatch({ type: 'NOVA_RODADA', token, sceneId: r.sceneId, spotId: r.spot.id, pose: r.pose });
-  }, [aplicar]);
+  }, [aplicar, dificuldade, resetarDica]);
 
   /* ── Fim da partida: salva UMA vez. Nunca em CALIBRAÇÃO. ── */
   const finalizar = useCallback(async () => {
@@ -225,18 +238,18 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     let r = { stats: null, isBest: false, starAwarded: false };
     try {
       const day = toDayKey(new Date());
-      r = await recordOvelhaResult({ dificuldade: 'facil', day, encontradas: g.encontradas, sequencia: g.bestSequencia });
+      r = await recordOvelhaResult({ dificuldade, day, encontradas: g.encontradas, sequencia: g.bestSequencia });
       if (r.starAwarded) { await addBonusStars(1); await refreshProgress?.(); }
     } catch (e) {
       warn('CadeAOvelhinha.finalizar:', e);
     }
     if (!montado.current) return;
     if (r.stats) setStats(r.stats);
-    setResultado({ encontradas: g.encontradas, bestSequencia: g.bestSequencia, isBest: r.isBest, starAwarded: r.starAwarded });
+    setResultado({ encontradas: g.encontradas, total: g.rounds, bestSequencia: g.bestSequencia, isBest: r.isBest, starAwarded: r.starAwarded });
     setTela('resultado');
-  }, [refreshProgress, limparTimers, resetarDica]);
+  }, [refreshProgress, limparTimers, resetarDica, dificuldade]);
 
-  fn.current = { aplicar, agendar, finalizar, aplicarNivel };
+  fn.current = { aplicar, agendar, finalizar, subirDica, montarRodada };
 
   /* ── Ciclo de vida ── */
   useEffect(() => {
@@ -264,20 +277,31 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     if (lstate.coverVisible) coverAnim.setValue(1);
   }, [lstate.coverVisible, coverAnim]);
 
-  /* ── Controlador de dica (por rodada; usa erro ELEGÍVEL, não o cumulativo) ── */
+  /* ── Controlador de dica POR DIFICULDADE ──
+     Fácil: automática — sobe os níveis 1→2→3 sozinha a partir de dif.dicaMs (~8s).
+     Médio/Difícil: libera o BOTÃO de dica após dif.dicaMs (~12/18s); a criança escolhe pedir.
+     A dica NUNCA pontua, NUNCA avança a rodada e é cancelada na troca (rodadaSeqRef). */
   useEffect(() => {
     if (!procurando || pausado) return undefined;
     const seq = rodadaSeqRef.current;
+    const base = dif.dicaMs || 8000;
     let ultimo = Date.now();
     const t = setInterval(() => {
       if (rodadaSeqRef.current !== seq) return;
       const agora = Date.now();
       buscaMsRef.current += agora - ultimo;
       ultimo = agora;
-      fn.current.aplicarNivel?.(buscaMsRef.current, erroElegivelRef.current);
+      const ms = buscaMsRef.current;
+      if (dif.dicaAuto) {
+        if (ms >= base) fn.current.subirDica(1);
+        if (ms >= base + 4000) fn.current.subirDica(2);
+        if (ms >= base + 8000) fn.current.subirDica(3);
+      } else if (ms >= base && montado.current) {
+        setDicaPronta(true);   // botão disponível
+      }
     }, 500);
     return () => clearInterval(t);
-  }, [procurando, pausado]);
+  }, [procurando, pausado, dif.dicaMs, dif.dicaAuto]);
 
   /* ── Entre rodadas: máquina em TROCANDO → cobre, espera 1 frame, só então troca a cena. ── */
   useEffect(() => {
@@ -306,8 +330,17 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     trocaSeqRef.current += 1;
     coverAnim.setValue(1);
     ldispatch({ type: 'RESET' });
-    planoRef.current = planPartida({ rounds: OVELHA_ROUNDS, rnd: Math.random });
-    jogoRef.current = criarJogo({ rounds: OVELHA_ROUNDS });
+    // Seed de sessão → percurso determinístico e reproduzível (mostrada no Modo Criador).
+    const seed = novaSeed();
+    seedRef.current = seed;
+    const modo = getDifficulty(dificuldade);
+    // Baralho rotativo em memória: mesma seed + mesmo deckState → mesmo plano; o deckState é
+    // atualizado (não muta a entrada) para a próxima partida continuar consumindo o ciclo.
+    const plano = planPartida({ rng: criarRng(seed), dificuldade, deckState: deckStateRef.current });
+    planoRef.current = plano.plano;
+    deckStateRef.current = plano.deckState;
+    planIdRef.current = plano.planId;
+    jogoRef.current = criarJogo({ rounds: modo.rounds });
     setVista(jogoRef.current);
     setRodada(null);
     setResultado(null);
@@ -315,8 +348,9 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     setPausado(AppState.currentState !== 'active');
     setTela('jogando');
     if (!OVELHA_CALIBRACAO) setRounds(await getDailyRounds());
-    fn.current.montarRodada(1);   // rodada 1 (já coberta pelo RESET)
-  }, [limparTimers, resetarDica, coverAnim]);
+    // A rodada 1 é montada pelo ÚNICO caminho autoritativo: o efeito de TROCANDO abaixo
+    // (a máquina nasce em TROCANDO). Nada de montagem direta aqui — evita rodada duplicada.
+  }, [limparTimers, resetarDica, coverAnim, dificuldade]);
 
   const abandonar = useCallback(() => {
     limparTimers(); trocaSeqRef.current += 1; resetarDica(); aplicar(encerrar); setTela('entrada');
@@ -330,19 +364,23 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     ldispatch({ type: 'ERRO', alvo, token });
   }, []);
 
-  /* ── Procurar: revela (só o overlay sai) e libera input após a saída. ── */
+  /* ── Procurar: revela a cena e libera o jogo de forma DETERMINÍSTICA. ──
+     A liberação (máquina PROCURANDO + input) NÃO depende do callback da animação — o fade do
+     overlay é só cosmético (o overlay fica montado, sem receber toque, até terminar). Assim o
+     bug antigo (native driver cancela o fade ao desmontar → callback com finished:false →
+     cenaPronta/LIBERAR nunca rodavam) deixa de existir. */
   const procurar = useCallback(() => {
     if (!botaoHabilitado(lstate)) return;
     const token = lstate.roundToken;
-    ldispatch({ type: 'REVELAR', token });
-    Animated.timing(coverAnim, { toValue: 0, duration: T.coverOut, useNativeDriver: true }).start(({ finished }) => {
-      if (!finished || !montado.current) return;
-      fn.current.aplicar(cenaPronta);       // ENTRANDO → PROCURANDO
-      ldispatch({ type: 'LIBERAR', token });
-      rodadaSeqRef.current += 1;
-      resetarDica();
-      setRipple(null);
-    });
+    fn.current.aplicar(cenaPronta);          // ENTRANDO → PROCURANDO (síncrono)
+    ldispatch({ type: 'REVELAR', token });   // coverVisible = false (cena aparece)
+    ldispatch({ type: 'LIBERAR', token });   // inputEnabled = true
+    rodadaSeqRef.current += 1;
+    resetarDica();
+    setRipple(null);
+    setCoverFading(true);                     // mantém o overlay montado durante o fade de saída
+    Animated.timing(coverAnim, { toValue: 0, duration: T.coverOut, useNativeDriver: true })
+      .start(({ finished }) => { if (finished && montado.current) setCoverFading(false); });
   }, [lstate, coverAnim, resetarDica]);
 
   /* ── Tentar novamente (após erro): recarrega a MESMA rodada. ── */
@@ -351,29 +389,33 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     setRetryNonce((n) => n + 1);   // novo recyclingKey → imagens remontam e reportam onDisplay/onError
   }, [lstate.roundToken]);
 
-  /* ── Toque na CENA: só com input liberado (não coberto/carregando/erro) e máquina procurando. ── */
+  /* ── Toque na OVELHA (wrapper clicável dedicado): ACERTO. ── */
   const scene = sceneAtiva;
-  const tocarCena = useCallback((e) => {
+  const interativo = !pausado && !inputBloqueado(lstate) && !!rodada && vista.fase === FASES.PROCURANDO;
+  const aoTocarOvelha = useCallback(() => {
+    if (pausado || inputBloqueado(lstate) || !rodada) return;   // coberto/carregando/erro/transição
+    // A máquina só aceita em PROCURANDO; um 2º toque no mesmo acerto é recusado (sem duplicar placar).
+    aplicar(tocar, rodada.targetId);
+  }, [aplicar, pausado, lstate, rodada]);
+
+  /* ── Toque no RESTO do cenário: ERRO leve (feedback), sem avançar rodada nem punir. ── */
+  const aoTocarCena = useCallback((e) => {
     if (pausado || inputBloqueado(lstate) || !rodada) return;
     const { locationX: px, locationY: py } = e?.nativeEvent ?? {};
     if (OVELHA_CALIBRACAO) { setRipple({ key: `${Date.now()}`, x: px, y: py }); return; }
-    const acertou = toqueAcertou(px, py, rodada.spot, scene, viewport);
-    const r = aplicar(tocar, acertou ? rodada.targetId : MISS_ID);
+    const r = aplicar(tocar, MISS_ID);
     if (r.aceito && r.acerto === false) {
       setRipple({ key: `${Date.now()}`, x: px, y: py });
       setErrouAgora(true);
       agendar(() => montado.current && setErrouAgora(false), T.erro);
-      const artPt = pxToArt(px, py, scene, viewport);
-      const cel = celulaToque(artPt, scene);
-      const agora = Date.now();
-      if (erroElegivel({ id: cel, ultimoId: ultimoErroIdRef.current, agoraMs: agora, ultimoMs: ultimoErroMsRef.current })) {
-        erroElegivelRef.current += 1;
-        ultimoErroMsRef.current = agora;
-      }
-      ultimoErroIdRef.current = cel;
-      aplicarNivel(buscaMsRef.current, erroElegivelRef.current);
     }
-  }, [aplicar, agendar, pausado, lstate, rodada, scene, viewport, aplicarNivel]);
+  }, [aplicar, agendar, pausado, lstate, rodada]);
+
+  /* ── Botão de dica (médio/difícil): sobe um nível. NÃO pontua nem avança. ── */
+  const pedirDica = useCallback(() => {
+    if (!procurando || !dicaPronta) return;
+    fn.current.subirDica(Math.min(3, (nivelRef.current || 0) + 1));
+  }, [procurando, dicaPronta]);
 
   const medirArea = useCallback((e) => {
     const { width: w, height: h } = e?.nativeEvent?.layout ?? {};
@@ -390,9 +432,11 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
       : nivel >= 1 ? OVELHA_BENI.incentivo
         : OVELHA_BENI.procurando;
 
-  const estagio = procurando && !pausado ? estagioDica(nivel) : 0;
-  const posePreview = lstate.pose || rodada?.pose || 'front';
+  const dicaNivel = procurando && !pausado ? nivel : 0;   // 0..3 (1 região · 2 brilho · 3 pulso)
+  const dicaBotaoVisivel = procurando && !dif.dicaAuto && dicaPronta;
   const rodadaNum = Math.min(vista.rodada, vista.rounds);
+  // Pose ÚNICA frontal no jogo: cartão, miniatura e cena usam sempre o MESMO asset.
+  const criadorAtivo = isCreatorQaModeAllowed() && isCreatorQaModeEnabled();
 
   /* ══════════════ ENTRADA ══════════════ */
   if (tela === 'entrada') {
@@ -403,7 +447,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
           <View style={styles.painel}>
             <BeniGuideBubble message={OVELHA_BENI.entrada} avatarVariant="teaching" tone="purple" compact />
             <Text style={styles.explica}>
-              A ovelhinha se escondeu na paisagem. Antes de cada rodada eu mostro qual procurar — são 5!
+              A ovelhinha se escondeu na paisagem. Antes de cada rodada eu mostro qual procurar — são {dif.rounds}!
             </Text>
           </View>
           {!premium && (
@@ -416,13 +460,24 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
               </Text>
             </View>
           )}
-          <View style={styles.difCard}>
-            <View style={styles.difIconBg}><FaithIcon name="ovelha" size={22} color={pt.greenDeep} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.difTitulo}>Fácil</Text>
-              <Text style={styles.difDesc}>Paisagem com esconderijos · 5 rodadas</Text>
-            </View>
-            <FaithIcon name="check" size={20} color={pt.greenDeep} />
+          <Text style={styles.difLabel}>Escolha a dificuldade</Text>
+          <View style={styles.difRow}>
+            {OVELHA_DIFFICULTIES.map((m) => {
+              const sel = m.id === dificuldade;
+              return (
+                <SoundButton
+                  key={m.id}
+                  style={[styles.difChip, sel && styles.difChipSel]}
+                  onPress={() => setDificuldade(m.id)}
+                  activeOpacity={0.9}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: sel }}
+                >
+                  <Text style={[styles.difChipTitulo, sel && styles.difChipTituloSel]}>{m.label}</Text>
+                  <Text style={[styles.difChipRodadas, sel && styles.difChipRodadasSel]}>{m.rounds} rodadas</Text>
+                </SoundButton>
+              );
+            })}
           </View>
           {semRodadas ? (
             <View style={styles.convite}>
@@ -455,9 +510,9 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
           </View>
           <View style={styles.vitoriaCard}>
             <View style={styles.vitoriaIconBg}><FaithIcon name="ovelha" size={34} color={pt.greenDeep} /></View>
-            <Text style={styles.destaque}>{resultado?.encontradas ?? 0}</Text>
+            <Text style={styles.destaque}>{resultado?.encontradas ?? 0} de {resultado?.total ?? dif.rounds}</Text>
             <Text style={styles.destaqueLabel}>
-              {resultado?.encontradas === 1 ? 'ovelhinha encontrada' : 'ovelhinhas encontradas'}
+              {resultado?.encontradas === 1 ? 'ovelhinha encontrada' : 'ovelhinhas encontradas'} · {dif.label}
             </Text>
             <View style={styles.statsRow}>
               <Stat label="Melhor sequência" valor={`${resultado?.bestSequencia ?? 0}`} />
@@ -475,9 +530,13 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
               </Text>
             </View>
           </View>
+          {/* Jogar novamente: NOVA seed (percurso diferente), mesma dificuldade. */}
           <SoundButton style={styles.btnPrimario} onPress={comecar} activeOpacity={0.9} soundType="success">
             <FaithIcon name="restart" size={18} color="#FFF" />
             <Text style={styles.btnPrimarioText}>Jogar novamente</Text>
+          </SoundButton>
+          <SoundButton style={styles.btnSecundario} onPress={() => setTela('entrada')} activeOpacity={0.9}>
+            <Text style={styles.btnSecundarioText}>Trocar dificuldade</Text>
           </SoundButton>
           <SoundButton style={styles.btnTerciario} onPress={() => navigation.navigate(ROUTES.HOME, { screen: ROUTES.ACTIVITIES })} activeOpacity={0.9}>
             <Text style={styles.btnTerciarioText}>Voltar para Brincar</Text>
@@ -491,21 +550,34 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const coberto = lstate.coverVisible;
   return (
     <View style={styles.root}>
-      <Header insets={insets} onBack={abandonar} chip="Em teste" />
+      <Header insets={insets} onBack={abandonar} chip="Em teste" criadorAtivo={criadorAtivo} />
       <View style={styles.hud}>
         <View style={styles.hudItem}>
           <FaithIcon name="ovelha" size={16} color={pt.textSoft} />
           <Text style={styles.hudText}>{vista.encontradas} de {vista.rounds}</Text>
         </View>
-        <HudRetrato pose={rodada?.pose || posePreview} />
-        <Text style={styles.hudRodada}>Rodada {rodadaNum}/{vista.rounds}</Text>
+        <HudRetrato />
+        <View style={styles.hudDir}>
+          <View style={styles.difTag}><Text style={styles.difTagTxt}>{dif.label}</Text></View>
+          <Text style={styles.hudRodada}>Rodada {rodadaNum}/{vista.rounds}</Text>
+        </View>
       </View>
 
-      <Text style={styles.dica} numberOfLines={1}>{mensagem}</Text>
+      <View style={styles.dicaRow}>
+        <Text style={styles.dica} numberOfLines={1}>{mensagem}</Text>
+        {dicaBotaoVisivel && (
+          <SoundButton style={styles.btnDica} onPress={pedirDica} activeOpacity={0.9}>
+            <FaithIcon name="star" size={12} color="#7A5800" />
+            <Text style={styles.btnDicaTxt}>Dica</Text>
+          </SoundButton>
+        )}
+      </View>
 
       <View style={[styles.cenaWrap, { paddingBottom: Math.max(insets.bottom, 8) + 4 }]} onLayout={medirArea}>
+        {/* Pressable-pai = ERRO (toque fora da ovelha). O wrapper da ovelha (dentro do
+            SceneLayer) captura o ACERTO e impede que o pai dispare no mesmo toque. */}
         <Pressable
-          onPress={tocarCena}
+          onPress={aoTocarCena}
           style={[styles.viewport, { width: viewport.w, height: viewport.h }]}
           accessibilityRole="button"
           accessibilityLabel="Procure a ovelhinha na paisagem"
@@ -518,9 +590,14 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
               viewport={viewport}
               retryNonce={retryNonce}
               encontrada={vista.fase === FASES.ACERTO}
-              estagio={estagio}
+              dicaNivel={dicaNivel}
               ripple={ripple}
+              hitboxMin={dif.hitboxMin}
               debugHitbox={OVELHA_DEBUG_HITBOX}
+              criadorAtivo={criadorAtivo}
+              mostrarHitbox={mostrarHitbox}
+              diag={criadorAtivo ? { dificuldade, sceneId: rodada.sceneId, spotId: rodada.spot.id, zone: rodada.spot.zone, cluster: rodada.spot.cluster, roundId: rodada.roundId, seed: seedRef.current, planId: planIdRef.current, deck: assinaturaDeck(deckStateRef.current, dificuldade), fase: vista.fase, interativo } : null}
+              onTocarOvelha={aoTocarOvelha}
               onBgDisplay={() => aoExibir('background', rodada.roundId)}
               onBgError={() => aoErro('background', rodada.roundId)}
               onSheepDisplay={() => aoExibir('sceneSheep', rodada.roundId)}
@@ -530,11 +607,21 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
 
           {OVELHA_DEBUG_FRAME && <FrameDebug scene={scene} viewport={viewport} />}
 
-          {/* Overlay OPACO = card do alvo. Cobre a cena até estar pronta e revelada. */}
-          {coberto && (
-            <Animated.View style={[StyleSheet.absoluteFill, styles.cover, { opacity: coverAnim }]}>
+          {/* Controle EXCLUSIVO do Modo Criador: liga/desliga o contorno da área clicável. */}
+          {criadorAtivo && (
+            <SoundButton style={styles.criadorToggle} onPress={() => setMostrarHitbox((v) => !v)} activeOpacity={0.85}>
+              <Text style={styles.criadorToggleTxt}>{mostrarHitbox ? '[x]' : '[ ]'} Mostrar área de toque</Text>
+            </SoundButton>
+          )}
+
+          {/* Overlay OPACO = card do alvo. Fica montado (sem receber toque) durante o fade de
+              saída, então não intercepta a cena já revelada. */}
+          {(coberto || coverFading) && (
+            <Animated.View
+              style={[StyleSheet.absoluteFill, styles.cover, { opacity: coverAnim }]}
+              pointerEvents={coberto ? 'auto' : 'none'}
+            >
               <TargetCard
-                pose={posePreview}
                 rodada={rodadaNum}
                 total={vista.rounds}
                 roundToken={lstate.roundToken}
@@ -557,42 +644,39 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
 /* ══════════════════════════ SCENE LAYER (cena única, opacidade 1) ══════════════════════════ */
 
 /**
- * Uma cena real (background em retângulo explícito + ovelha com clip), montada com
- * opacidade 1. As imagens usam expo-image com recyclingKey estável e onDisplay/onError.
- * A prontidão vem do onDisplay (não onLoadEnd).
+ * Uma cena real: background em retângulo explícito (SEM receber toque) + ovelha FRONTAL num
+ * WRAPPER CLICÁVEL (área ≥56×56, acima do bg). O toque no wrapper é o ACERTO; a imagem
+ * interna usa pointerEvents="none". Não há clip/peek (pose única frontal). As imagens usam
+ * expo-image com recyclingKey estável e onDisplay/onError (prontidão vem do onDisplay).
  */
-function SceneLayer({ round, scene, viewport, retryNonce, encontrada, estagio, ripple, debugHitbox, onBgDisplay, onBgError, onSheepDisplay, onSheepError }) {
+function SceneLayer({ round, scene, viewport, retryNonce, encontrada, dicaNivel = 0, ripple, hitboxMin, debugHitbox, criadorAtivo, mostrarHitbox, diag, onTocarOvelha, onBgDisplay, onBgError, onSheepDisplay, onSheepError }) {
   const spot = round.spot;
   const cr = contentRect(scene, viewport);
   const s = cr.scale;
   const centro = artToPx(spot.pos, scene, viewport);
   const sb = spriteBoxArt(spot, scene);
-  const vb = visibleBoxArt(spot, scene);
   const spW = sb.w * s;
   const spH = sb.h * s;
   const bg = OVELHA_BG[scene.background?.assetKey];
-  const img = OVELHA_POSE_IMG[spot.pose] || OVELHA_POSE_IMG.front;
-  const flip = spot.orientacao === 'flip';
+  const img = OVELHA_POSE_IMG[OVELHA_POSE_JOGO];   // POSE ÚNICA frontal (mesmo asset do card/HUD)
+  const aquatico = round.aquatico === true;
 
-  const clip = spot.clip;
-  const clipW = (clip ? vb.w : sb.w) * s;
-  const clipH = (clip ? vb.h : sb.h) * s;
-  const clipLeft = cr.x + vb.cx * s - clipW / 2;
-  const clipTop = cr.y + vb.cy * s - clipH / 2;
+  // Retângulo do sprite (px do viewport) e área CLICÁVEL (hitbox px, piso do modo).
   const spriteLeft = cr.x + sb.cx * s - spW / 2;
   const spriteTop = cr.y + sb.cy * s - spH / 2;
-  const offX = spriteLeft - clipLeft;
-  const offY = spriteTop - clipTop;
+  const hb = hitboxPxRect(spot, scene, viewport, hitboxMin);
 
   const kBg = `background:${round.roundId}:${scene.id}:${retryNonce}`;
-  const kSheep = `sheep:${round.roundId}:${scene.id}:${spot.id}:${spot.pose}:${retryNonce}`;
+  const kSheep = `sheep:${round.roundId}:${scene.id}:${spot.id}:${OVELHA_POSE_JOGO}:${retryNonce}`;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {/* 0 — background REAL no retângulo explícito (proporção exata da cena → sem cover/zoom). */}
+    <View style={StyleSheet.absoluteFill}>
+      {/* 0 — background REAL no retângulo explícito (proporção exata da cena → sem cover/zoom).
+             NÃO recebe toque: o wrapper da ovelha é quem captura o acerto. */}
       {bg
         ? <ExpoImage
             source={bg}
+            pointerEvents="none"
             style={{ position: 'absolute', left: cr.x, top: cr.y, width: cr.w, height: cr.h }}
             contentFit="fill"
             cachePolicy="memory-disk"
@@ -601,25 +685,45 @@ function SceneLayer({ round, scene, viewport, retryNonce, encontrada, estagio, r
             onDisplay={onBgDisplay}
             onError={onBgError}
           />
-        : <View style={[styles.bgFallback, { position: 'absolute', left: cr.x, top: cr.y, width: cr.w, height: cr.h }]} />}
+        : <View pointerEvents="none" style={[styles.bgFallback, { position: 'absolute', left: cr.x, top: cr.y, width: cr.w, height: cr.h }]} />}
 
-      {estagio >= 3 && <BrilhoRegiao cx={centro.px} cy={centro.py} r={Math.min(spW, spH) * 0.55} />}
+      {/* DICA nível 1 — REGIÃO ampla (não aponta a resposta). */}
+      {dicaNivel >= 1 && <DicaRegiao cx={centro.px} cy={centro.py} viewport={viewport} />}
+      {/* DICA nível 2 — brilho/pulso perto da região correta. */}
+      {dicaNivel >= 2 && <BrilhoRegiao cx={centro.px} cy={centro.py} r={Math.min(spW, spH) * 0.75} />}
 
-      {/* 2 — ovelha REAL recortada pela janela de clip. */}
-      <SheepView clipLeft={clipLeft} clipTop={clipTop} clipW={clipW} clipH={clipH}
-        offX={offX} offY={offY} spW={spW} spH={spH} img={img} flip={flip} encontrada={encontrada}
-        recyclingKey={kSheep} onDisplay={onSheepDisplay} onError={onSheepError} />
-
-      {estagio >= 4 && <ContornoVisivel cx={cr.x + vb.cx * s} cy={cr.y + vb.cy * s} w={clipW} h={clipH} />}
+      {/* 2 — WRAPPER CLICÁVEL da ovelha (área do modo, acima do bg). Toque aqui = ACERTO. */}
+      <Pressable
+        onPress={onTocarOvelha}
+        hitSlop={8}
+        style={{ position: 'absolute', left: hb.x0, top: hb.y0, width: hb.w, height: hb.h, zIndex: 3 }}
+        accessibilityRole="button"
+        accessibilityLabel="Ovelhinha"
+      >
+        <View pointerEvents="none" style={{ position: 'absolute', left: spriteLeft - hb.x0, top: spriteTop - hb.y0, width: spW, height: spH }}>
+          {/* Fundo do mar: bolha mágica ATRÁS da ovelha frontal (mesmo Pressable, sem nova pose). */}
+          {aquatico && <MagicBubble size={Math.max(spW, spH) * 1.32} />}
+          <SheepImage spW={spW} spH={spH} img={img} encontrada={encontrada} pulsar={dicaNivel >= 3}
+            recyclingKey={kSheep} onDisplay={onSheepDisplay} onError={onSheepError} />
+        </View>
+      </Pressable>
 
       {ripple && <TouchRipple key={ripple.key} x={ripple.x} y={ripple.y} />}
 
-      {debugHitbox && <HitboxDebug round={round} scene={scene} viewport={viewport} centro={centro} spW={spW} spH={spH} clipLeft={clipLeft} clipTop={clipTop} clipW={clipW} clipH={clipH} />}
+      {/* Contorno da área clicável — SÓ no Modo Criador COM o toggle ligado (off por padrão). */}
+      {criadorAtivo && mostrarHitbox && (
+        <View pointerEvents="none" style={{ position: 'absolute', left: hb.x0, top: hb.y0, width: hb.w, height: hb.h, borderWidth: 2, borderColor: '#7C3AED', borderRadius: 8, zIndex: 6 }} />
+      )}
+      {/* Diagnóstico discreto do Modo Criador (texto pequeno; não cobre a cena). */}
+      {diag && <CriadorDiag diag={diag} />}
+
+      {debugHitbox && <HitboxDebug round={round} scene={scene} viewport={viewport} centro={centro} spW={spW} spH={spH} hb={hb} />}
     </View>
   );
 }
 
-function SheepView({ clipLeft, clipTop, clipW, clipH, offX, offY, spW, spH, img, flip, encontrada, recyclingKey, onDisplay, onError }) {
+/** Ovelha frontal (pose única). Pop no acerto; pulso suave na dica nível 3. */
+function SheepImage({ spW, spH, img, encontrada, pulsar, recyclingKey, onDisplay, onError }) {
   const pop = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (!encontrada) return undefined;
@@ -629,10 +733,16 @@ function SheepView({ clipLeft, clipTop, clipW, clipH, offX, offY, spW, spH, img,
     ]);
     a.start(); return () => a.stop();
   }, [encontrada, pop]);
+  useEffect(() => {
+    if (encontrada || !pulsar) return undefined;
+    const a = Animated.loop(Animated.sequence([
+      Animated.timing(pop, { toValue: 1.14, duration: 380, useNativeDriver: true }),
+      Animated.timing(pop, { toValue: 1, duration: 380, useNativeDriver: true }),
+    ]));
+    a.start(); return () => { a.stop(); pop.setValue(1); };
+  }, [pulsar, encontrada, pop]);
   return (
-    <Animated.View
-      style={{ position: 'absolute', left: clipLeft, top: clipTop, width: clipW, height: clipH, overflow: 'hidden', zIndex: 2, transform: [{ scale: pop }] }}
-    >
+    <Animated.View style={{ width: spW, height: spH, transform: [{ scale: pop }] }}>
       <ExpoImage
         source={img}
         contentFit="contain"
@@ -641,11 +751,64 @@ function SheepView({ clipLeft, clipTop, clipW, clipH, offX, offY, spW, spH, img,
         recyclingKey={recyclingKey}
         onDisplay={onDisplay}
         onError={onError}
-        style={{ position: 'absolute', left: offX, top: offY, width: spW, height: spH, transform: [{ scaleX: flip ? -1 : 1 }] }}
+        style={{ width: spW, height: spH }}
       />
     </Animated.View>
   );
 }
+
+/** Bolha mágica (fundo do mar) — círculo translúcido sutil com brilho; construída em RN. */
+function MagicBubble({ size }) {
+  const p = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.loop(Animated.sequence([
+      Animated.timing(p, { toValue: 1, duration: 1600, useNativeDriver: true }),
+      Animated.timing(p, { toValue: 0, duration: 1600, useNativeDriver: true }),
+    ]));
+    a.start(); return () => a.stop();
+  }, [p]);
+  const op = p.interpolate({ inputRange: [0, 1], outputRange: [0.16, 0.28] });
+  return (
+    <Animated.View pointerEvents="none"
+      style={{ position: 'absolute', left: '50%', top: '50%', width: size, height: size, marginLeft: -size / 2, marginTop: -size / 2, borderRadius: size / 2, backgroundColor: 'rgba(210,240,255,0.16)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.55)', opacity: op }}
+    >
+      <View style={{ position: 'absolute', left: size * 0.22, top: size * 0.18, width: size * 0.2, height: size * 0.2, borderRadius: size * 0.1, backgroundColor: 'rgba(255,255,255,0.6)' }} />
+    </Animated.View>
+  );
+}
+
+/** Diagnóstico do Modo Criador (texto discreto): difficulty/sceneId/spotId/roundId/seed/máquina/toque. */
+function CriadorDiag({ diag }) {
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', top: 4, left: 6, backgroundColor: 'rgba(124,58,237,0.85)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, zIndex: 6, maxWidth: '92%' }}>
+      <Text style={styles.criadorTxt}>{diag.dificuldade} · {diag.sceneId} · {diag.spotId} · {diag.zone} · {diag.cluster}</Text>
+      <Text style={styles.criadorTxt}>#{diag.roundId} · seed {diag.seed} · plano {diag.planId} · {diag.fase} · toque {diag.interativo ? 'ON' : 'OFF'}</Text>
+      <Text style={styles.criadorTxt}>baralho {diag.deck}</Text>
+    </View>
+  );
+}
+
+/** DICA nível 1 — região ampla (elipse suave grande em torno da área correta, sem apontar). */
+function DicaRegiao({ cx, cy, viewport }) {
+  const p = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.loop(Animated.sequence([
+      Animated.timing(p, { toValue: 1, duration: 1100, useNativeDriver: true }),
+      Animated.timing(p, { toValue: 0, duration: 1100, useNativeDriver: true }),
+    ]));
+    a.start(); return () => a.stop();
+  }, [p]);
+  const rw = Math.min(viewport.w, viewport.h) * 0.42;   // região ampla (não pontual)
+  const rh = rw * 0.8;
+  const left = clampNum(cx - rw / 2, 0, viewport.w - rw);
+  const top = clampNum(cy - rh / 2, 0, viewport.h - rh);
+  return (
+    <Animated.View pointerEvents="none"
+      style={{ position: 'absolute', left, top, width: rw, height: rh, borderRadius: rw / 2, zIndex: 1, backgroundColor: pt.gold, opacity: p.interpolate({ inputRange: [0, 1], outputRange: [0.05, 0.14] }) }}
+    />
+  );
+}
+const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /* ── Dica visual ── */
 function BrilhoRegiao({ cx, cy, r }) {
@@ -698,21 +861,21 @@ function TouchRipple({ x, y }) {
 
 /* ══════════════════════════ CARD DO ALVO + HUD ══════════════════════════ */
 
-/** Card = overlay opaco: mostra a pose a procurar; o botão só habilita quando tudo exibiu. */
-function TargetCard({ pose, rodada, total, roundToken, retryNonce, pronto, erro, onPreviewDisplay, onPreviewError, onProcurar, onRetry }) {
+/** Card = overlay opaco: mostra a ovelha frontal a procurar; botão só habilita quando tudo exibiu. */
+function TargetCard({ rodada, total, roundToken, retryNonce, pronto, erro, onPreviewDisplay, onPreviewError, onProcurar, onRetry }) {
   const ent = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const a = Animated.spring(ent, { toValue: 1, friction: 7, tension: 60, useNativeDriver: true });
     a.start(); return () => a.stop();
   }, [ent]);
-  const kPreview = `preview:${roundToken}:${pose}:${retryNonce}`;
+  const kPreview = `preview:${roundToken}:${OVELHA_POSE_JOGO}:${retryNonce}`;
   return (
     <View style={styles.cardWrap} accessibilityRole="alert">
       <Animated.View style={[styles.cardBox, { opacity: ent, transform: [{ scale: ent.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] }]}>
         <Text style={styles.cardTitulo}>Encontre esta ovelhinha!</Text>
         <View style={styles.cardSheepBg}>
           <ExpoImage
-            source={OVELHA_POSE_IMG[pose] || OVELHA_POSE_IMG.front}
+            source={OVELHA_POSE_IMG[OVELHA_POSE_JOGO]}
             style={styles.cardSheep}
             contentFit="contain"
             cachePolicy="memory-disk"
@@ -745,15 +908,15 @@ function TargetCard({ pose, rodada, total, roundToken, retryNonce, pronto, erro,
   );
 }
 
-/** Retrato pequeno da ovelha a procurar (expo-image, memory-disk); com fallback visual. */
-function HudRetrato({ pose }) {
+/** Retrato da ovelha a procurar — MESMA pose frontal do card e da cena; com fallback visual. */
+function HudRetrato() {
   const [falhou, setFalhou] = useState(false);
   return (
     <View style={styles.hudRetrato}>
       <View style={styles.hudRetratoImg}>
         {falhou
-          ? <FaithIcon name="ovelha" size={22} color={pt.greenDeep} />
-          : <ExpoImage source={OVELHA_POSE_IMG[pose] || OVELHA_POSE_IMG.front} style={styles.hudSheep} contentFit="contain" cachePolicy="memory-disk" transition={0} recyclingKey={`hud:${pose}`} onError={() => setFalhou(true)} />}
+          ? <FaithIcon name="ovelha" size={30} color={pt.greenDeep} />
+          : <ExpoImage source={OVELHA_POSE_IMG[OVELHA_POSE_JOGO]} style={styles.hudSheep} contentFit="contain" cachePolicy="memory-disk" transition={0} recyclingKey={`hud:${OVELHA_POSE_JOGO}`} onError={() => setFalhou(true)} />}
       </View>
       <Text style={styles.hudRetratoLabel}>Procure esta</Text>
     </View>
@@ -782,12 +945,10 @@ function FrameDebug({ scene, viewport }) {
     </View>
   );
 }
-function HitboxDebug({ round, scene, viewport, centro, spW, spH, clipLeft, clipTop, clipW, clipH }) {
-  const hb = hitboxPxRect(round.spot, scene, viewport);
+function HitboxDebug({ round, centro, spW, spH, hb }) {
   return (
     <>
       <View pointerEvents="none" style={{ position: 'absolute', left: centro.px - spW / 2, top: centro.py - spH / 2, width: spW, height: spH, borderWidth: 1, borderColor: '#3B82F6', zIndex: 6 }} />
-      <View pointerEvents="none" style={{ position: 'absolute', left: clipLeft, top: clipTop, width: clipW, height: clipH, borderWidth: 1, borderColor: '#7C3AED', zIndex: 6 }} />
       <View pointerEvents="none" style={{ position: 'absolute', left: hb.x0, top: hb.y0, width: hb.w, height: hb.h, borderWidth: 1.5, borderColor: '#0E9F6E', zIndex: 6 }} />
       <View pointerEvents="none" style={{ position: 'absolute', bottom: 4, left: 6, zIndex: 6 }}>
         <Text style={styles.debugTxt}>{round.sceneId} · {round.spot.id} · {round.pose} · e{round.spot.escala} · {round.modo}</Text>
@@ -798,9 +959,12 @@ function HitboxDebug({ round, scene, viewport, centro, spW, spH, clipLeft, clipT
 
 /* ══════════════════════════ PEÇAS ══════════════════════════ */
 
-function Header({ insets, onBack, chip }) {
+function Header({ insets, onBack, chip, criadorAtivo }) {
+  // A faixa "MODO CRIADOR ATIVO" é um overlay fixo no topo (paddingTop = insets.top + ~17).
+  // Quando ativa, empurramos o conteúdo do cabeçalho para baixo dela (título/voltar visíveis).
+  const topo = Math.max(insets.top, 10) + (criadorAtivo ? 22 : 0);
   return (
-    <LinearGradient colors={['#EAF7EF', '#DDF0E6', '#E8F6EF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { paddingTop: Math.max(insets.top, 10) }]}>
+    <LinearGradient colors={['#EAF7EF', '#DDF0E6', '#E8F6EF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { paddingTop: topo }]}>
       <View style={styles.headerRow}>
         <SoundButton style={styles.backPill} onPress={onBack} activeOpacity={0.85} accessibilityLabel="Voltar" accessibilityRole="button">
           <FaithIcon name="back" size={16} color={pt.greenDeep} />
@@ -837,12 +1001,18 @@ const styles = StyleSheet.create({
   explica: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, lineHeight: 19, marginTop: 8 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, backgroundColor: '#FFF', borderRadius: radii.pill, paddingHorizontal: 12, paddingVertical: 9, ...shadows.soft },
   pillText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: pt.text, fontWeight: '700' },
-  difCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14, padding: 12, backgroundColor: '#FFF', borderRadius: radii.lg, borderWidth: 1.5, borderColor: pt.greenDeep, ...shadows.soft },
-  difIconBg: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#DFF3E6', alignItems: 'center', justifyContent: 'center' },
-  difTitulo: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text },
-  difDesc: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, marginTop: 1 },
+  difLabel: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: pt.textSoft, marginTop: 14, marginBottom: 6, marginLeft: 2 },
+  difRow: { flexDirection: 'row', gap: 8 },
+  difChip: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: radii.lg, backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#DCE6E0', ...shadows.soft },
+  difChipSel: { borderColor: pt.greenDeep, backgroundColor: '#EAF7EF' },
+  difChipTitulo: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.textSoft },
+  difChipTituloSel: { color: pt.greenDeep },
+  difChipRodadas: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: pt.textSoft, marginTop: 1 },
+  difChipRodadasSel: { color: '#0E5A3C' },
   btnPrimario: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 16, backgroundColor: pt.greenDeep, borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center', ...shadows.card },
   btnPrimarioText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
+  btnSecundario: { marginTop: 10, paddingVertical: 12, alignItems: 'center', borderRadius: radii.lg, borderWidth: 1.5, borderColor: pt.greenDeep, backgroundColor: '#FFF' },
+  btnSecundarioText: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.greenDeep },
   btnTerciario: { marginTop: 10, paddingVertical: 12, alignItems: 'center' },
   btnTerciarioText: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: pt.textSoft },
   btnDev: { marginTop: 10, paddingVertical: 10, alignItems: 'center', borderRadius: radii.md, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#F1F5F9' },
@@ -854,13 +1024,22 @@ const styles = StyleSheet.create({
   hudItem: { flexDirection: 'row', alignItems: 'center', gap: 5, minWidth: 66 },
   hudText: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: pt.text },
   hudRetrato: { alignItems: 'center' },
-  hudRetratoImg: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#EAF7EF', borderWidth: 1, borderColor: '#CDEBD9', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  hudSheep: { width: 34, height: 34 },
-  hudRetratoLabel: { fontFamily: 'Nunito', fontSize: 9, fontWeight: '800', color: pt.textSoft, marginTop: 1 },
-  hudRodada: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.textSoft, minWidth: 66, textAlign: 'right' },
-  dica: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center', height: 22, lineHeight: 22, marginTop: 2 },
+  hudRetratoImg: { width: 54, height: 54, borderRadius: 14, backgroundColor: '#EAF7EF', borderWidth: 1.5, borderColor: '#CDEBD9', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  hudSheep: { width: 46, height: 46 },
+  hudRetratoLabel: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: pt.text, marginTop: 2 },
+  hudDir: { minWidth: 66, alignItems: 'flex-end', gap: 2 },
+  hudRodada: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.textSoft, textAlign: 'right' },
+  difTag: { backgroundColor: '#EAF7EF', borderRadius: radii.pill, borderWidth: 1, borderColor: '#CDEBD9', paddingHorizontal: 8, paddingVertical: 2 },
+  difTagTxt: { fontFamily: 'Nunito', fontSize: 10, fontWeight: '800', color: pt.greenDeep },
+  criadorTxt: { fontFamily: 'Nunito', fontSize: 9, fontWeight: '800', color: '#FFF' },
+  dicaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 24, marginTop: 1 },
+  dica: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center', lineHeight: 22, flexShrink: 1 },
+  btnDica: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: pt.goldSoft, borderRadius: radii.pill, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: pt.gold + '66' },
+  btnDicaTxt: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: '#7A5800' },
+  criadorToggle: { position: 'absolute', bottom: 6, alignSelf: 'center', backgroundColor: 'rgba(124,58,237,0.9)', borderRadius: radii.pill, paddingHorizontal: 12, paddingVertical: 5, zIndex: 9 },
+  criadorToggleTxt: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: '#FFF' },
 
-  cenaWrap: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 10, paddingTop: 4 },
+  cenaWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, paddingTop: 4 },
   viewport: { borderRadius: radii.xl, overflow: 'hidden', backgroundColor: '#EAF2F5', ...shadows.soft },
   bgFallback: { backgroundColor: '#DDEFF6' },
   debugTxt: { fontFamily: 'Nunito', fontSize: 9, color: '#C0392B', fontWeight: '800' },

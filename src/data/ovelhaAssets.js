@@ -23,6 +23,14 @@ export const OVELHA_POSE_IMG = {
   peekRight: require('../../assets/games/cade_a_ovelhinha/sheep/processed/sheep_peek_right.png'),
 };
 
+/**
+ * POSE ÚNICA OFICIAL do jogo (2.2e-fix): somente a frontal. O cartão "Procure esta", a
+ * miniatura do HUD e a ovelha da cena usam EXATAMENTE este asset. As laterais seguem no
+ * disco (peekLeft/peekRight) mas fora do runtime — a Asset Gallery as marca como legado.
+ */
+export const OVELHA_POSE_JOGO = 'front';
+export const OVELHA_SHEEP_JOGO = OVELHA_POSE_IMG.front;
+
 /** Rótulos amigáveis para a galeria interna. */
 export const OVELHA_BG_LABELS = {
   farm_lively_01: 'Fazenda animada',

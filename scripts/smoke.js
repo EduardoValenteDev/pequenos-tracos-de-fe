@@ -17401,15 +17401,17 @@ check(
         .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
         .replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '');
       return new Function(scenes + '\n' + s
-        + ';return { OVELHA_SCENES, getScene, cenasHabilitadas, sceneValida, buildRoundFromSpot, planPartida,'
-        + ' roundValido, computeViewport, contentRect, artToPx, spriteBoxArt, visibleBoxArt, hitboxArt,'
-        + ' hitboxPxRect, toqueAcertou, spotContratoValido, poseLadoValido, spotHitboxDentroViewport,'
-        + ' estagioDica, nivelDica, MISS_ID, OVELHA_HITBOX_MIN, DICA };')();
+        + ';return { OVELHA_SCENES, getScene, cenasHabilitadas, sceneValida, sceneCompleta, buildRoundFromSpot, planPartida,'
+        + ' montarBaralhoCenas, montarBaralhoSpots, criarRng, novaSeed, spotElegivel, escalaEfetiva, tierValido,'
+        + ' OVELHA_DIFFICULTIES, getDifficulty, roundValido, computeViewport, contentRect, artToPx, spriteBoxArt,'
+        + ' hitboxArt, hitboxPxRect, toqueAcertou, spotContratoValido, spotHitboxDentroViewport,'
+        + ' auditarSpots, zoneValida, clusterValida, criarDeckState, clonarDeckState, assinaturaDeck, planId,'
+        + ' MISS_ID, OVELHA_HITBOX_MIN };')();
     };
     const evalMq = () => new Function(a1StripComments(mq)
       .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
       .replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '')
-      + ';return { FASES, criarJogo, iniciarRodada, cenaPronta, tocar, avancar };')();
+      + ';return { FASES, criarJogo, iniciarRodada, cenaPronta, tocar, liberarErro, avancar };')();
     const evalTr = () => new Function(a1StripComments(tr)
       .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
       .replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '')
@@ -17458,45 +17460,66 @@ check(
       'o gate de auditoria perceptual não foi generalizado para os 5 pares/faixas/transformações');
 
     /* ── CENAS: 4 habilitadas + underwater desabilitada ── */
-    check('2.2e (cenas): 4 terrestres habilitadas + underwater registrada e DESABILITADA (requires_sheep_diver)',
+    /* ── 2.2f: cenas, underwater, spots, dificuldades, baralhos, seed, dicas, bolha ── */
+    const N = { facil: 5, medio: 7, dificil: 10 };
+
+    check('2.2f (cenas): 5 cenas JOGÁVEIS (underwater REATIVADA e aquática); todos os spots válidos',
       (() => { try {
         const S = evalSvc();
         const hab = S.cenasHabilitadas().map((s) => s.id).sort().join(',');
-        if (hab !== 'bakery_01,farm_lively_01,laundry_yard_01,toy_workshop_01') return false;
+        if (hab !== 'bakery_01,farm_lively_01,laundry_yard_01,toy_workshop_01,underwater_01') return false;
         const uw = S.getScene('underwater_01');
-        return uw.enabled === false && uw.reason === 'requires_sheep_diver' && !S.sceneValida(uw, 'facil')
-          && S.cenasHabilitadas().every((s) => S.sceneValida(s, 'facil'));
+        return uw.enabled !== false && uw.aquatico === true
+          && S.cenasHabilitadas().every((s) => ['facil', 'medio', 'dificil'].every((d) => S.sceneValida(s, d)));
       } catch (e) { return false; } })(),
-      'as cenas habilitadas/desabilitada regrediram');
+      'as 5 cenas jogáveis (incl. underwater aquática) regrediram');
 
-    check('2.2e (underwater nunca no plano): 200 planos jamais selecionam underwater_01',
+    check('2.2f (underwater 1×): no modo fácil (5 rodadas, 5 cenas), underwater aparece EXATAMENTE uma vez',
       (() => { try {
         const S = evalSvc();
-        for (let seed = 1; seed <= 200; seed++) {
-          if (S.planPartida({ rounds: 5, rnd: lcg(seed) }).some((p) => p.sceneId === 'underwater_01')) return false;
+        for (let seed = 1; seed <= 300; seed++) {
+          const pl = S.planPartida({ rng: S.criarRng(seed), dificuldade: 'facil' }).plano;
+          if (pl.filter((p) => p.sceneId === 'underwater_01').length !== 1) return false;
         }
         return true;
       } catch (e) { return false; } })(),
-      'o plano pode selecionar a cena desabilitada underwater_01');
+      'underwater não aparece exatamente uma vez no fácil');
 
-    check('2.2e (12 spots): 3 por ambiente terrestre; direção correta; front só CAMOUFLAGE sem clip',
+    check('2.2f-ref2 (≥90 spots · ≥18/cena · ≥6/tier · zona+cluster · pose única frontal): TODOS front/CAMOUFLAGE/sem clip; ids únicos; ≥10 clusters/cena; dentro dos limites',
       (() => { try {
         const S = evalSvc();
         const cenas = S.cenasHabilitadas();
         const todos = cenas.flatMap((sc) => sc.hidingSpots);
-        if (todos.length !== 12 || !cenas.every((sc) => sc.hidingSpots.length === 3)) return false;
-        return todos.every((s) => {
-          if (!S.spotContratoValido(s, cenas.find((c) => c.hidingSpots.includes(s)), 'facil')) return false;
-          if (s.pose === 'front') return s.modo === 'CAMOUFLAGE' && !s.clip;
-          if (s.pose === 'peekLeft') return s.clip && s.clip.side === 'right';
-          if (s.pose === 'peekRight') return s.clip && s.clip.side === 'left';
-          return false;
-        });
+        if (cenas.length !== 5 || todos.length < 90) return false;
+        for (const sc of cenas) {
+          if (sc.hidingSpots.length < 18) return false;
+          if (new Set(sc.hidingSpots.map((s) => s.id)).size !== sc.hidingSpots.length) return false;   // ids únicos na cena
+          if (!sc.hidingSpots.every((s) => S.spotContratoValido(s, sc))) return false;
+          // ≥6 por tier em CADA cena (facil/medio/dificil)
+          if (!['facil', 'medio', 'dificil'].every((t) => sc.hidingSpots.filter((s) => s.difficulty === t).length >= 6)) return false;
+          // ≥10 clusters distintos por cena
+          if (new Set(sc.hidingSpots.map((s) => s.cluster)).size < 10) return false;
+          if (!S.sceneCompleta(sc)) return false;
+        }
+        // ids globalmente únicos entre as cenas
+        if (new Set(todos.map((s) => s.id)).size !== todos.length) return false;
+        return todos.every((s) => s.pose === 'front' && s.modo === 'CAMOUFLAGE' && !s.clip
+          && ['facil', 'medio', 'dificil'].includes(s.difficulty)
+          && S.zoneValida(s) && S.clusterValida(s)
+          && s.pos.x / 1122 > 0.05 && s.pos.x / 1122 < 0.95 && s.pos.y / 1402 > 0.28 && s.pos.y / 1402 < 0.95);
       } catch (e) { return false; } })(),
-      'os 12 spots / direção de pose / front-camuflagem regrediram');
+      'a expansão de esconderijos (≥90 total, ≥18/cena, ≥6/tier, zona+cluster, ≥10 clusters/cena, front, ids únicos) regrediu');
 
-    /* ── VIEWPORT por cena + hitbox/toque ── */
-    check('2.2e (viewport por cena): usa designWidth/Height da cena ativa; sem cover; retângulo explícito',
+    check('2.2f-ref2 (auditoria de configuração): auditarSpots() não acusa NENHUM problema (cena<18, tier<6, total<90, sem zona/cluster, id, escala, limites, duplicados, par próximo em clusters diferentes, concentração de cluster, <10 clusters)',
+      (() => { try {
+        const S = evalSvc();
+        const probs = S.auditarSpots(S.OVELHA_SCENES);
+        if (probs.length) { console.log('   auditarSpots →', probs.slice(0, 8).join(' | ')); return false; }
+        return true;
+      } catch (e) { return false; } })(),
+      'auditarSpots() acusou problemas de configuração nos esconderijos');
+
+    check('2.2f (viewport por cena): usa designWidth/Height da cena ativa; sem cover; retângulo explícito',
       (() => { try {
         const S = evalSvc();
         const scene = S.getScene('bakery_01');
@@ -17504,7 +17527,6 @@ check(
         const cr = S.contentRect(scene, vp);
         const razaoOk = Math.abs((cr.w / cr.h) - (scene.designWidth / scene.designHeight)) < 1e-6;
         const cabe = cr.x >= -0.6 && cr.y >= -0.6 && cr.x + cr.w <= vp.w + 0.6 && cr.y + cr.h <= vp.h + 0.6;
-        // a tela desenha o bg em retângulo explícito com contentFit fill, sem cover/transform
         const bgTag = (layer.match(/<ExpoImage[\s\S]*?onError=\{onBgError\}[\s\S]*?\/>/) || [''])[0];
         const semCover = !/resizeMode="cover"/.test(tela) && !/contentFit="cover"/.test(tela);
         return razaoOk && cabe && /left: cr\.x, top: cr\.y, width: cr\.w, height: cr\.h/.test(bgTag)
@@ -17513,48 +17535,225 @@ check(
       } catch (e) { return false; } })(),
       'o viewport não usa a dimensão da cena ativa, ou o bg usa cover/transform');
 
-    check('2.2e (hitbox/toque): via contentRect, piso 56, dentro do viewport; centro=acerto, canto=erro (12 spots, 360/768)',
+    check('2.2f (hitbox por dificuldade): piso 64 (fácil) / 56 (médio/difícil), dentro do viewport; centro=acerto, canto=erro (todos os spots, 360/768)',
       (() => { try {
         const S = evalSvc();
-        for (const scene of S.cenasHabilitadas()) for (const w of [360, 768]) {
-          const vp = S.computeViewport({ largura: w, altura: 9999, artW: scene.designWidth, artH: scene.designHeight });
-          for (const spot of scene.hidingSpots) {
-            const hb = S.hitboxPxRect(spot, scene, vp);
-            if (hb.w < S.OVELHA_HITBOX_MIN - 0.5 || hb.h < S.OVELHA_HITBOX_MIN - 0.5) return false;
-            if (!S.spotHitboxDentroViewport(spot, scene, vp)) return false;
-            if (!S.toqueAcertou(hb.cx, hb.cy, spot, scene, vp)) return false;
-            const mx = hb.cx < vp.w / 2 ? vp.w - 1 : 1, my = hb.cy < vp.h / 2 ? vp.h - 1 : 1;
-            if (S.toqueAcertou(mx, my, spot, scene, vp)) return false;
+        for (const d of ['facil', 'medio', 'dificil']) {
+          const dif = S.getDifficulty(d);
+          for (const scene of S.cenasHabilitadas()) {
+            for (const sp of scene.hidingSpots.filter((x) => S.spotElegivel(x, d))) {
+              const round = S.buildRoundFromSpot({ scene, spot: sp, roundId: 1, dificuldade: d });
+              for (const w of [360, 768]) {
+                const vp = S.computeViewport({ largura: w, altura: 9999, artW: scene.designWidth, artH: scene.designHeight });
+                const hb = S.hitboxPxRect(round.spot, scene, vp, dif.hitboxMin);
+                if (hb.w < dif.hitboxMin - 0.5 || hb.h < dif.hitboxMin - 0.5) return false;
+                if (!S.spotHitboxDentroViewport(round.spot, scene, vp, dif.hitboxMin)) return false;
+                if (!S.toqueAcertou(hb.cx, hb.cy, round.spot, scene, vp, dif.hitboxMin)) return false;
+                const mx = hb.cx < vp.w / 2 ? vp.w - 1 : 1, my = hb.cy < vp.h / 2 ? vp.h - 1 : 1;
+                if (S.toqueAcertou(mx, my, round.spot, scene, vp, dif.hitboxMin)) return false;
+              }
+            }
           }
         }
         return true;
       } catch (e) { return false; } })(),
-      'a hitbox/toque dos 12 spots regrediu');
+      'a hitbox/toque por dificuldade regrediu');
 
-    check('2.2e (5 rodadas): ≥3 ambientes, sem repetir cena/spot imediatamente, ≥2 poses, determinístico; máquina encerra em 5',
+    check('2.2f (modos 5/7/10): fácil 5 · médio 7 · difícil 10 rodadas; máquina encerra em cada um',
       (() => { try {
         const S = evalSvc(); const M = evalMq();
-        for (let seed = 1; seed <= 80; seed++) {
-          const pl = S.planPartida({ rounds: 5, rnd: lcg(seed) });
-          if (pl.length !== 5) return false;
-          if (new Set(pl.map((p) => p.sceneId)).size < 3) return false;
-          if (new Set(pl.map((p) => p.pose)).size < 2) return false;
-          for (let i = 1; i < pl.length; i++) if (pl[i].spotId === pl[i - 1].spotId) return false;
-          if (JSON.stringify(pl) !== JSON.stringify(S.planPartida({ rounds: 5, rnd: lcg(seed) }))) return false;
+        for (const d of ['facil', 'medio', 'dificil']) {
+          const pl = S.planPartida({ rng: S.criarRng(9), dificuldade: d }).plano;
+          if (pl.length !== N[d]) return false;
+          let e = M.criarJogo({ rounds: N[d] });
+          for (let rr = 0; rr < N[d]; rr++) {
+            const scene = S.getScene(pl[rr].sceneId);
+            const spot = scene.hidingSpots.find((s) => s.id === pl[rr].spotId);
+            const round = S.buildRoundFromSpot({ scene, spot, roundId: rr + 1, dificuldade: d });
+            e = M.iniciarRodada(e, { targetId: round.targetId, itemIds: [round.targetId, S.MISS_ID] }).estado;
+            e = M.cenaPronta(e).estado;
+            e = M.avancar(M.tocar(e, round.targetId).estado).estado;
+          }
+          if (e.fase !== M.FASES.FIM || e.encontradas !== N[d]) return false;
         }
-        let e = M.criarJogo({ rounds: 5 });
-        const pl = S.planPartida({ rounds: 5, rnd: lcg(4) });
-        for (let rr = 0; rr < 5; rr++) {
-          const scene = S.getScene(pl[rr].sceneId);
-          const spot = scene.hidingSpots.find((s) => s.id === pl[rr].spotId);
-          const round = S.buildRoundFromSpot({ scene, spot, roundId: rr + 1 });
-          e = M.iniciarRodada(e, { targetId: round.targetId, itemIds: [round.targetId, S.MISS_ID] }).estado;
-          e = M.cenaPronta(e).estado;
-          e = M.avancar(M.tocar(e, round.targetId).estado).estado;
-        }
-        return e.fase === M.FASES.FIM && e.encontradas === 5;
+        return true;
       } catch (e) { return false; } })(),
-      'o plano de 5 rodadas (≥3 ambientes) ou o encerramento regrediu');
+      'os modos (5/7/10 rodadas) ou o encerramento regrediram');
+
+    check('2.2f (baralho de cenas): sem repetição antes de todas aparecerem; sem repetição consecutiva (inclusive entre ciclos); só pose front; tier do modo',
+      (() => { try {
+        const S = evalSvc();
+        const nC = S.cenasHabilitadas().length;
+        for (const d of ['facil', 'medio', 'dificil']) {
+          const tiers = S.getDifficulty(d).tiers;
+          for (let seed = 1; seed <= 120; seed++) {
+            const pl = S.planPartida({ rng: S.criarRng(seed), dificuldade: d }).plano;
+            for (let i = 1; i < pl.length; i++) {
+              if (pl[i].sceneId === pl[i - 1].sceneId) return false;   // consecutivo (inclusive entre ciclos)
+              if (pl[i].spotId === pl[i - 1].spotId) return false;
+            }
+            const prim = pl.slice(0, Math.min(nC, pl.length)).map((p) => p.sceneId);
+            if (new Set(prim).size !== prim.length) return false;      // sem repetir antes de todas aparecerem
+            if (pl.some((p) => p.pose !== 'front')) return false;
+            if (pl.some((p) => !tiers.includes(p.difficulty))) return false;
+          }
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'o baralho de cenas (ciclos, consecutivos, tiers) regrediu');
+
+    check('2.2f (baralho de spots): cena repetida usa spot DIFERENTE quando há alternativa (difícil, cada cena 2×)',
+      (() => { try {
+        const S = evalSvc();
+        for (let seed = 1; seed <= 200; seed++) {
+          const pl = S.planPartida({ rng: S.criarRng(seed), dificuldade: 'dificil' }).plano;
+          const pc = {};
+          for (const p of pl) (pc[p.sceneId] = pc[p.sceneId] || []).push(p.spotId);
+          for (const k in pc) if (new Set(pc[k]).size !== pc[k].length) return false;
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'uma cena repetida reusou o mesmo spot havendo alternativa');
+
+    check('2.2f-ref (zona ao reaparecer): cena repetida na MESMA partida prefere ZONA diferente da anterior (difícil, 300 seeds)',
+      (() => { try {
+        const S = evalSvc();
+        for (let seed = 1; seed <= 300; seed++) {
+          const pl = S.planPartida({ rng: S.criarRng(seed), dificuldade: 'dificil' }).plano;
+          const ultimaZona = {};
+          for (const p of pl) {
+            const sc = S.getScene(p.sceneId);
+            const zonasElegiveis = new Set(sc.hidingSpots.filter((s) => S.spotElegivel(s, 'dificil')).map((s) => s.zone));
+            // se há >1 zona elegível na cena, a reaparição não pode repetir a zona anterior
+            if (p.sceneId in ultimaZona && zonasElegiveis.size > 1 && p.zone === ultimaZona[p.sceneId]) return false;
+            ultimaZona[p.sceneId] = p.zone;
+          }
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'uma cena que reaparece repetiu a zona anterior havendo zona alternativa');
+
+    check('2.2f-ref2 (cluster ao reaparecer): cena repetida na MESMA partida prefere CLUSTER diferente do anterior (difícil, 300 seeds)',
+      (() => { try {
+        const S = evalSvc();
+        for (let seed = 1; seed <= 300; seed++) {
+          const pl = S.planPartida({ rng: S.criarRng(seed), dificuldade: 'dificil' }).plano;
+          const ultimoCluster = {};
+          for (const p of pl) {
+            const sc = S.getScene(p.sceneId);
+            const clustersElegiveis = new Set(sc.hidingSpots.filter((s) => S.spotElegivel(s, 'dificil')).map((s) => s.cluster));
+            if (p.sceneId in ultimoCluster && clustersElegiveis.size > 1 && p.cluster === ultimoCluster[p.sceneId]) return false;
+            ultimoCluster[p.sceneId] = p.cluster;
+          }
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'uma cena que reaparece repetiu o cluster anterior havendo cluster alternativo');
+
+    check('2.2f-ref2 (memória recente): histórico reduz repetição — jogando de novo com o MESMO deck, nenhuma combinação cena+spot no mesmo índice (médio, 200 seeds)',
+      (() => { try {
+        const S = evalSvc();
+        for (let seed = 1; seed <= 200; seed++) {
+          const a = S.planPartida({ rng: S.criarRng(seed), dificuldade: 'medio' });
+          const b = S.planPartida({ rng: S.criarRng(seed + 1), dificuldade: 'medio', deckState: a.deckState });
+          for (let i = 0; i < Math.min(a.plano.length, b.plano.length); i++) {
+            if (a.plano[i].sceneId === b.plano[i].sceneId && a.plano[i].spotId === b.plano[i].spotId) {
+              // só é falha se havia alternativa de spot elegível naquela cena
+              const sc = S.getScene(b.plano[i].sceneId);
+              const elegiveis = sc.hidingSpots.filter((s) => S.spotElegivel(s, 'medio'));
+              if (elegiveis.length > 1) return false;
+            }
+          }
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'o histórico recente não evitou a mesma combinação cena+spot no mesmo índice ao jogar de novo');
+
+    check('2.2f-ref2 (jogar novamente continua o baralho): 6 partidas fáceis seguidas com o MESMO deck NÃO repetem spot no mesmo cenário (deck contínuo)',
+      (() => { try {
+        const S = evalSvc();
+        let deck = S.criarDeckState();
+        const porCena = {};
+        for (let g = 0; g < 6; g++) {
+          const r = S.planPartida({ rng: S.criarRng(1000 + g), dificuldade: 'facil', deckState: deck });
+          deck = r.deckState;
+          for (const p of r.plano) (porCena[p.sceneId] = porCena[p.sceneId] || []).push(p.spotId);
+        }
+        for (const k in porCena) if (new Set(porCena[k]).size !== porCena[k].length) return false;   // 6 partidas sem repetir spot/cena
+        // deck não muta a entrada
+        const d0 = S.criarDeckState(); const snap = JSON.stringify(d0);
+        S.planPartida({ rng: S.criarRng(1), dificuldade: 'facil', deckState: d0 });
+        return JSON.stringify(d0) === snap;
+      } catch (e) { return false; } })(),
+      'o baralho rotativo não sustenta 6 partidas fáceis sem repetição, ou mutou o deck de entrada');
+
+    check('2.2f-ref2 (renovação do ciclo): ao esgotar o baralho fácil (7ª partida), o 1º spot da cena ≠ último do ciclo anterior e o cluster muda quando há alternativa',
+      (() => { try {
+        const S = evalSvc();
+        let deck = S.criarDeckState();
+        const ultimoPorCena = {};   // último {spotId,cluster} usado por cena até a 6ª partida
+        for (let g = 0; g < 6; g++) {
+          const r = S.planPartida({ rng: S.criarRng(2000 + g), dificuldade: 'facil', deckState: deck });
+          deck = r.deckState;
+          for (const p of r.plano) ultimoPorCena[p.sceneId] = { spotId: p.spotId, cluster: p.cluster };
+        }
+        // 7ª partida: ciclo renova (todos os 6 fáceis já usados por cena)
+        const r7 = S.planPartida({ rng: S.criarRng(2006), dificuldade: 'facil', deckState: deck });
+        for (const p of r7.plano) {
+          const ant = ultimoPorCena[p.sceneId];
+          if (!ant) continue;
+          const sc = S.getScene(p.sceneId);
+          const elig = sc.hidingSpots.filter((s) => S.spotElegivel(s, 'facil'));
+          if (elig.length > 1 && p.spotId === ant.spotId) return false;              // 1º do novo ciclo ≠ último
+          const outrosClusters = new Set(elig.map((s) => s.cluster));
+          if (outrosClusters.size > 1 && p.cluster === ant.cluster) return false;     // cluster muda quando há alternativa
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'a renovação do ciclo repetiu o último spot ou o último cluster havendo alternativa');
+
+    check('2.2f-ref2 (planId + determinismo com deck): mesma seed + mesmo deckState → mesmo plano e mesmo planId; seed diferente → planId diferente',
+      (() => { try {
+        const S = evalSvc();
+        const base = S.criarDeckState();
+        const a = S.planPartida({ rng: S.criarRng(77), dificuldade: 'medio', deckState: base });
+        const b = S.planPartida({ rng: S.criarRng(77), dificuldade: 'medio', deckState: base });
+        if (JSON.stringify(a.plano) !== JSON.stringify(b.plano) || a.planId !== b.planId) return false;
+        if (!/^[0-9a-z]{6}$/.test(a.planId)) return false;
+        let dif = 0;
+        for (let s = 1; s <= 40; s++) if (S.planPartida({ rng: S.criarRng(s), dificuldade: 'medio' }).planId !== a.planId) dif++;
+        return dif >= 30;   // maioria das seeds → planId diferente
+      } catch (e) { return false; } })(),
+      'o planId/determinismo do plano com deckState regrediu');
+
+    check('2.2f-ref (alcance): TODO spot elegível (fácil e difícil) é escolhido em ALGUMA partida — nenhum permanentemente inacessível (deck contínuo)',
+      (() => { try {
+        const S = evalSvc();
+        for (const d of ['facil', 'dificil']) {
+          const alvo = new Set();
+          for (const sc of S.cenasHabilitadas()) for (const s of sc.hidingSpots.filter((x) => S.spotElegivel(x, d))) alvo.add(`${sc.id}:${s.id}`);
+          const vistos = new Set(); let deck = S.criarDeckState();
+          for (let seed = 1; seed <= 2000 && vistos.size < alvo.size; seed++) {
+            const r = S.planPartida({ rng: S.criarRng(seed), dificuldade: d, deckState: deck });
+            deck = r.deckState;
+            for (const p of r.plano) if (p.spotId) vistos.add(`${p.sceneId}:${p.spotId}`);
+          }
+          for (const k of alvo) if (!vistos.has(k)) { console.log('   spot nunca escolhido:', d, k); return false; }
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'algum spot elegível nunca foi escolhido em 2000 seeds (viés de ordem / inacessível)');
+
+    check('2.2f (seed): mesma seed → mesmo percurso; seeds diferentes → percursos diferentes',
+      (() => { try {
+        const S = evalSvc();
+        const a = JSON.stringify(S.planPartida({ rng: S.criarRng(1234), dificuldade: 'medio' }));
+        const a2 = JSON.stringify(S.planPartida({ rng: S.criarRng(1234), dificuldade: 'medio' }));
+        let diff = 0;
+        for (let s = 1; s <= 50; s++) if (JSON.stringify(S.planPartida({ rng: S.criarRng(s), dificuldade: 'medio' })) !== a) diff++;
+        return a === a2 && diff >= 40;   // maioria das seeds difere
+      } catch (e) { return false; } })(),
+      'a seed não reproduz/varia o percurso corretamente');
 
     /* ── REDUCER DE CARREGAMENTO (comportamental, PURO) ── */
     check('2.2e (só onDisplay libera): 3 EXIBIDA (sem nenhum toque) → pronto e botão habilitado; cena pode revelar',
@@ -17632,7 +17831,7 @@ check(
     check('2.2e (sem duplo buffer / cena opacidade 1): sem staging visual, sem opacity 0; cena única em absoluteFill',
       !/stagingRound/.test(tela) && !/opStaging/.test(tela) && !/opAtiva/.test(tela)
       && !/opacity: 0[,\s}]/.test(layer)
-      && /<View style=\{StyleSheet\.absoluteFill\} pointerEvents="none">/.test(layer),
+      && /<View style=\{StyleSheet\.absoluteFill\}>/.test(layer),
       'ainda há duplo buffer/staging com opacidade 0');
 
     check('2.2e (cobertura antes de trocar): COBRIR e, no frame seguinte, montarRodada; token cancela troca antiga',
@@ -17650,16 +17849,253 @@ check(
       && /if \(!botaoHabilitado\(lstate\)\) return;/.test(tela),
       'o card do alvo (estados/imagem/botão) regrediu');
 
-    check('2.2e (HUD retrato): miniatura da pose via expo-image (memory-disk) com fallback',
+    check('2.2e-fix (HUD retrato): miniatura via expo-image usa a MESMA pose frontal do jogo (OVELHA_POSE_JOGO); com fallback',
       /function HudRetrato/.test(tela)
       && /Procure esta/.test(tela)
-      && /<ExpoImage source=\{OVELHA_POSE_IMG\[pose\]/.test(tela)
+      && /<ExpoImage source=\{OVELHA_POSE_IMG\[OVELHA_POSE_JOGO\]\}/.test(tela)
       && /falhou/.test(tela),
-      'o retrato do HUD regrediu');
+      'o retrato do HUD não usa a pose frontal única do jogo');
 
     check('2.2e (input bloqueado): toque exige !inputBloqueado(lstate); durante cobertura/erro fica bloqueado',
       /if \(pausado \|\| inputBloqueado\(lstate\) \|\| !rodada\) return;/.test(tela),
       'o input não fica bloqueado durante preview/erro');
+
+    /* ── 2.2e-FIX: interação por toque, pose única, montagem única, visual ── */
+
+    // Handlers do toque exercitados na MÁQUINA REAL (não regex): acerto processa e incrementa
+    // UMA vez; 2º toque no mesmo acerto é recusado; erro (MISS) não incrementa.
+    check('2.2e-fix (toque/máquina): acerto processa e soma 1; 2º toque recusado; MISS não soma',
+      (() => { try {
+        const S = evalSvc(); const M = evalMq();
+        const scene = S.cenasHabilitadas()[0];
+        const round = S.buildRoundFromSpot({ scene, spot: scene.hidingSpots[0], roundId: 1 });
+        let e = M.criarJogo({ rounds: 5 });
+        e = M.iniciarRodada(e, { targetId: round.targetId, itemIds: [round.targetId, S.MISS_ID] }).estado;
+        // coberto/ENTRANDO: máquina NÃO aceita toque
+        if (M.tocar(e, round.targetId).aceito !== false) return false;
+        e = M.cenaPronta(e).estado;   // PROCURANDO (revelado)
+        // MISS = erro, sem somar placar
+        const miss = M.tocar(e, S.MISS_ID);
+        if (miss.acerto !== false || miss.estado.encontradas !== 0) return false;
+        e = M.liberarErro(miss.estado).estado;
+        // ACERTO na ovelha: soma 1
+        const ac = M.tocar(e, round.targetId);
+        if (ac.acerto !== true || ac.estado.encontradas !== 1) return false;
+        // 2º toque no mesmo acerto: recusado (sem duplicar placar)
+        return M.tocar(ac.estado, round.targetId).aceito === false && ac.estado.encontradas === 1;
+      } catch (e) { return false; } })(),
+      'o acerto/erro/duplo-toque na máquina regrediu');
+
+    check('2.2e-fix (wrapper clicável da ovelha): Pressable no hitbox (zIndex acima do bg), imagem sem toque; bg pointerEvents none',
+      (() => {
+        // wrapper Pressable posicionado no hitbox, com onPress do acerto e imagem interna sem toque
+        const temWrapper = /<Pressable\s+onPress=\{onTocarOvelha\}[\s\S]*?left: hb\.x0, top: hb\.y0, width: hb\.w, height: hb\.h[\s\S]*?zIndex: 3/.test(layer);
+        const imgSemToque = /<View pointerEvents="none"[\s\S]*?<SheepImage/.test(layer);
+        const bgSemToque = /<ExpoImage\s+source=\{bg\}\s+pointerEvents="none"/.test(layer);
+        const paiErro = /onPress=\{aoTocarCena\}/.test(tela) && /const r = aplicar\(tocar, MISS_ID\)/.test(tela);
+        const filhoAcerto = /const aoTocarOvelha = useCallback[\s\S]*?aplicar\(tocar, rodada\.targetId\)/.test(tela);
+        return temWrapper && imgSemToque && bgSemToque && paiErro && filhoAcerto;
+      })(),
+      'a ovelha não tem wrapper clicável dedicado (acerto), ou o bg/imagem interceptam o toque');
+
+    check('2.2e-fix (área clicável ≥56): o hitbox px (área do wrapper) tem piso 56×56 em todos os 90 spots (360/768)',
+      (() => { try {
+        const S = evalSvc();
+        for (const scene of S.cenasHabilitadas()) for (const w of [360, 768]) {
+          const vp = S.computeViewport({ largura: w, altura: 9999, artW: scene.designWidth, artH: scene.designHeight });
+          for (const spot of scene.hidingSpots) {
+            const hb = S.hitboxPxRect(spot, scene, vp);
+            if (hb.w < 56 - 0.5 || hb.h < 56 - 0.5) return false;
+          }
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'a área clicável da ovelha ficou abaixo de 56×56 em algum spot');
+
+    check('2.2e-fix (revelar DETERMINÍSTICO): procurar() chama cenaPronta + REVELAR + LIBERAR fora do callback da animação',
+      (() => {
+        const proc = (tela.match(/const procurar = useCallback\(\(\) => \{[\s\S]*?\n  \}, \[/) || [''])[0];
+        // as três ações críticas ficam ANTES do Animated.timing (não dentro do .start)
+        const idxCena = proc.indexOf('aplicar(cenaPronta)');
+        const idxRevelar = proc.indexOf("type: 'REVELAR'");
+        const idxLiberar = proc.indexOf("type: 'LIBERAR'");
+        const idxAnim = proc.indexOf('Animated.timing(coverAnim');
+        return idxCena > 0 && idxRevelar > 0 && idxLiberar > 0 && idxAnim > 0
+          && idxCena < idxAnim && idxRevelar < idxAnim && idxLiberar < idxAnim
+          && !/if \(!finished[\s\S]*?return;[\s\S]*?aplicar\(cenaPronta\)/.test(proc);   // não gateado por finished
+      })(),
+      'a liberação (cenaPronta/REVELAR/LIBERAR) voltou a depender do callback da animação');
+
+    check('2.2e-fix (overlay não intercepta ao revelar): cover montado no fade com pointerEvents none; interceptação só quando coberto',
+      /\(coberto \|\| coverFading\) && \(/.test(tela)
+      && /pointerEvents=\{coberto \? 'auto' : 'none'\}/.test(tela),
+      'a cobertura pode continuar interceptando toques após revelar');
+
+    check('2.2e-fix (montagem única da rodada 1): comecar() NÃO chama montarRodada direto; caminho único = efeito TROCANDO',
+      (() => {
+        const com = (tela.match(/const comecar = useCallback\(async[\s\S]*?\n  \}, \[/) || [''])[0];
+        // comecar não chama fn.current.montarRodada; só o efeito de TROCANDO monta
+        return !/fn\.current\.montarRodada\(/.test(com)
+          && /if \(vista\.fase !== FASES\.TROCANDO\) return;[\s\S]*?fn\.current\.montarRodada\(vista\.rodada\)/.test(tela);
+      })(),
+      'a rodada 1 ainda é montada por dois caminhos (comecar + efeito)');
+
+    check('2.2e-fix (montarRodada gera 1 NOVA_RODADA e 1 roundId por rodada): idempotência do dispatch por rodada',
+      // montarRodada incrementa roundIdRef UMA vez e despacha UMA NOVA_RODADA por invocação válida;
+      // o efeito é o único chamador e usa token (trocaSeqRef) para descartar rAF antigo.
+      /roundIdRef\.current \+= 1;/.test(tela)
+      && (tela.match(/ldispatch\(\{ type: 'NOVA_RODADA'/g) || []).length === 1
+      && /if \(trocaSeqRef\.current !== seq\) return;/.test(tela),
+      'montarRodada pode gerar NOVA_RODADA/roundId duplicados');
+
+    check('2.2e-fix (pose única): OVELHA_POSE_JOGO="front"; card/HUD/cena usam o MESMO asset frontal',
+      (() => {
+        const assets = readSrc('src/data/ovelhaAssets.js');
+        return /export const OVELHA_POSE_JOGO = 'front'/.test(assets)
+          && /OVELHA_POSE_IMG\[OVELHA_POSE_JOGO\]/.test(tela)        // cena e card
+          && (tela.match(/OVELHA_POSE_IMG\[OVELHA_POSE_JOGO\]/g) || []).length >= 2;
+      })(),
+      'a pose única frontal não é compartilhada por card/HUD/cena');
+
+    check('2.2f (Modo Criador): toggle "Mostrar área de toque" OFF por padrão; contorno só com o toggle; diag discreto (difficulty/scene/spot/round/seed/máquina/toque)',
+      (() => {
+        const off = /const \[mostrarHitbox, setMostrarHitbox\] = useState\(false\)/.test(tela);   // OFF por padrão
+        const contornoGate = /criadorAtivo && mostrarHitbox &&/.test(tela);                       // contorno só com toggle
+        const toggleSoCriador = /criadorAtivo && \(\s*<SoundButton style=\{styles\.criadorToggle\}/.test(tela);
+        const diagCampos = /function CriadorDiag/.test(tela)
+          && /diag\.dificuldade/.test(tela) && /diag\.sceneId/.test(tela) && /diag\.spotId/.test(tela)
+          && /diag\.roundId|#\{diag\.roundId\}/.test(tela) && /diag\.seed/.test(tela)
+          && /diag\.fase/.test(tela) && /diag\.interativo \? 'ON' : 'OFF'/.test(tela);
+        const diagSoCriador = /diag=\{criadorAtivo \?/.test(tela);
+        return off && contornoGate && toggleSoCriador && diagCampos && diagSoCriador;
+      })(),
+      'o Modo Criador não tem toggle OFF por padrão, ou o contorno/diag regrediu');
+
+    check('2.2f (dicas): níveis 1 região · 2 brilho · 3 pulso; auto no fácil (dicaAuto) e botão no médio/difícil; nunca pontua/avança',
+      (() => {
+        const S = evalSvc();
+        const conf = S.getDifficulty('facil').dicaAuto === true
+          && S.getDifficulty('medio').dicaAuto === false && S.getDifficulty('dificil').dicaAuto === false;
+        const niveis = /dicaNivel >= 1 && <DicaRegiao/.test(tela)
+          && /dicaNivel >= 2 && <BrilhoRegiao/.test(tela)
+          && /pulsar=\{dicaNivel >= 3\}/.test(tela);
+        const controlador = /if \(dif\.dicaAuto\)/.test(tela) && /setDicaPronta\(true\)/.test(tela)
+          && /const pedirDica = useCallback/.test(tela) && /dicaBotaoVisivel/.test(tela);
+        // a dica NÃO chama tocar/aplicar (não pontua/avança): pedirDica só sobe o nível
+        const pedir = (tela.match(/const pedirDica = useCallback\(\(\) => \{[\s\S]*?\n  \}, \[/) || [''])[0];
+        const naoPontua = pedir && !/aplicar\(/.test(pedir) && /subirDica/.test(pedir);
+        return conf && niveis && controlador && naoPontua;
+      })(),
+      'o sistema de dicas (níveis/auto-botão/não-pontua) regrediu');
+
+    check('2.2f (bolha mágica): underwater usa a MESMA pose front dentro de uma bolha RN, no MESMO Pressable, sem remover o toque',
+      (() => {
+        const S = evalSvc();
+        const uwFront = S.getScene('underwater_01').hidingSpots.every((s) => s.pose === 'front');
+        // MagicBubble é componente RN (sem asset novo) e fica DENTRO do wrapper clicável, atrás da ovelha
+        const bolhaNoWrapper = /aquatico && <MagicBubble/.test(layer)
+          && /<SheepImage /.test(layer)
+          && /function MagicBubble/.test(tela)
+          && !/OVELHA_POSE_IMG\[['"]diver/.test(tela);   // nenhuma pose nova
+        // a bolha está no mesmo <Pressable onPress={onTocarOvelha}> da ovelha
+        const dentroPressable = /<Pressable[\s\S]*?onPress=\{onTocarOvelha\}[\s\S]*?aquatico && <MagicBubble[\s\S]*?<SheepImage[\s\S]*?<\/Pressable>/.test(layer);
+        return uwFront && bolhaNoWrapper && dentroPressable;
+      })(),
+      'a bolha do fundo do mar criou nova pose, saiu do Pressable, ou quebrou o toque');
+
+    check('2.2f (seleção de dificuldade): entrada lista os 3 modos e seleciona; começa com a dificuldade escolhida',
+      /OVELHA_DIFFICULTIES\.map\(\(m\) =>/.test(tela)
+      && /onPress=\{\(\) => setDificuldade\(m\.id\)\}/.test(tela)
+      && /planPartida\(\{ rng: criarRng\(seed\), dificuldade, deckState: deckStateRef\.current \}\)/.test(tela)
+      && /criarJogo\(\{ rounds: modo\.rounds \}\)/.test(tela),
+      'a seleção de dificuldade na entrada regrediu');
+
+    check('2.2f-ref2 (baralho na tela): comecar() usa deckStateRef, guarda o novo deckState e o planId; plano montado uma vez (planoRef); Modo Criador mostra cluster/plano/baralho',
+      (() => {
+        const usaDeck = /planPartida\(\{ rng: criarRng\(seed\), dificuldade, deckState: deckStateRef\.current \}\)/.test(tela)
+          && /deckStateRef\.current = plano\.deckState/.test(tela)
+          && /planIdRef\.current = plano\.planId/.test(tela)
+          && /planoRef\.current = plano\.plano/.test(tela);
+        // montarRodada apenas LÊ o plano (imutável após o início): não chama planPartida
+        const montar = (tela.match(/const montarRodada = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+        const planoImutavel = /const plano = planoRef\.current/.test(montar) && !/planPartida\(/.test(montar);
+        // diag do Criador expõe cluster, planId e assinatura do baralho
+        const diag = /cluster: rodada\.spot\.cluster/.test(tela) && /planId: planIdRef\.current/.test(tela)
+          && /deck: assinaturaDeck\(deckStateRef\.current, dificuldade\)/.test(tela);
+        return usaDeck && planoImutavel && diag;
+      })(),
+      'a tela não integra o baralho rotativo (deckState/planId/plano imutável) ou o diag do Criador');
+
+    check('2.2f (rejogabilidade): "Jogar novamente" gera NOVA seed; "Trocar dificuldade" volta à seleção; dificuldade preservada',
+      (() => {
+        // comecar cria uma nova seed a cada chamada → percurso diferente; "jogar novamente" chama comecar
+        const novaSeedEmComecar = /const seed = novaSeed\(\);/.test(tela) && /seedRef\.current = seed;/.test(tela);
+        const jogarDeNovo = /onPress=\{comecar\}[\s\S]*?Jogar novamente/.test(tela);
+        const trocar = /onPress=\{\(\) => setTela\('entrada'\)\}[\s\S]*?Trocar dificuldade/.test(tela);
+        return novaSeedEmComecar && jogarDeNovo && trocar;
+      })(),
+      'a rejogabilidade (nova seed / trocar dificuldade) regrediu');
+
+    check('2.2f (placar/rodada com total real): usa vista.rounds e resultado.total, não texto fixo em 5',
+      /Rodada \{rodadaNum\}\/\{vista\.rounds\}/.test(tela)
+      && /\{vista\.encontradas\} de \{vista\.rounds\}/.test(tela)
+      && /resultado\?\.total \?\? dif\.rounds/.test(tela)
+      && /criarJogo\(\{ rounds: getDifficulty\('facil'\)\.rounds \}\)/.test(tela),
+      'o placar/rodada voltou a assumir 5 rodadas fixas');
+
+    check('2.2e-fix (cabeçalho respeita a faixa do Modo Criador): offset extra quando criadorAtivo',
+      /function Header\(\{ insets, onBack, chip, criadorAtivo \}\)/.test(tela)
+      && /criadorAtivo \? 22 : 0/.test(tela)
+      && /criadorAtivo=\{criadorAtivo\}/.test(tela),
+      'o cabeçalho não compensa a faixa do Modo Criador');
+
+    check('2.2e-fix (Asset Gallery pose oficial): marca a frontal como oficial do jogo',
+      (() => {
+        const g = (() => { try { return readSrc('src/screens/OvelhaAssetGalleryScreen.js'); } catch (_) { return ''; } })();
+        return /OVELHA_POSE_JOGO/.test(g) && /oficial do jogo/.test(g) && /legado/.test(g);
+      })(),
+      'a Asset Gallery não marca a pose frontal como oficial');
+
+    check('2.2f-ref2 (Inspetor + Simulador): galeria tem inspetor (cena/tier/todos-um/navegação/hitbox real/tamanho do modo/tela peq-grande/zona/cluster) e Simulador de partidas, sem tocar progresso',
+      (() => {
+        const g = a1StripComments((() => { try { return readSrc('src/screens/OvelhaAssetGalleryScreen.js'); } catch (_) { return ''; } })());
+        const inspetor = /function SpotInspector/.test(g) && /<SpotInspector \/>/.test(g)
+          && /hitboxPxRect\(/.test(g) && /spriteBoxArt\(/.test(g) && /contentRect\(/.test(g)
+          && /getDifficulty\(/.test(g) && /OVELHA_DIFFICULTIES/.test(g)
+          && /setTelaGrande/.test(g) && /setTier/.test(g) && /setUmPorVez/.test(g)
+          && /\.zone/.test(g) && /\.cluster/.test(g);          // mostra zona e cluster
+        const simulador = /function SimuladorPartidas/.test(g) && /<SimuladorPartidas \/>/.test(g)
+          && /planPartida\(/.test(g) && /criarDeckState\(/.test(g)
+          && /SIM_QTD\s*=\s*\{\s*facil:\s*6,\s*medio:\s*4,\s*dificil:\s*3/.test(g)   // 6/4/3 partidas
+          && /cobertura/.test(g) && /repSpot/.test(g) && /repCluster/.test(g) && /maxSeq/.test(g);
+        return inspetor && simulador
+          && !/consumeRound|recordOvelhaResult|addBonusStars/.test(g);   // continua só diagnóstico
+      })(),
+      'o Inspetor de esconderijos ou o Simulador de partidas da Asset Gallery está incompleto');
+
+    // REGRESSÃO (crash iPhone 2.2e): "fn.current.montarRodada is not a function".
+    // TODA função chamada via `fn.current.X()` — inclusive a agendada no requestAnimationFrame
+    // (montarRodada) — precisa existir no objeto atribuído a `fn.current = { ... }`. Falha se
+    // alguma chamada não estiver provida (como montarRodada estava faltando).
+    check('2.2e (contrato fn.current): montarRodada existe no objeto fn.current usado pelo requestAnimationFrame',
+      (() => {
+        // nomes chamados como fn.current.X( (tolera optional chaining fn.current.X?.( )
+        const chamadas = new Set(
+          [...tela.matchAll(/fn\.current\.(\w+)\s*(?:\?\.)?\s*\(/g)].map((m) => m[1]),
+        );
+        // chaves do objeto atribuído a fn.current = { ... } (shorthand ou k: v)
+        const corpo = (tela.match(/fn\.current\s*=\s*\{([^}]*)\}/) || [, ''])[1];
+        const providos = new Set(
+          corpo.split(',').map((s) => s.trim().split(':')[0].trim()).filter(Boolean),
+        );
+        // a função agendada no rAF (montarRodada) é chamada e TEM de estar provida;
+        // e, em geral, toda função chamada via fn.current precisa existir no objeto.
+        const rafMonta = /proximoFrame\([\s\S]*?fn\.current\.montarRodada\(/.test(tela);
+        return rafMonta
+          && chamadas.has('montarRodada') && providos.has('montarRodada')
+          && [...chamadas].every((c) => providos.has(c));
+      })(),
+      'alguma função chamada via fn.current não está no objeto fn.current (ex.: montarRodada faltando)');
 
     /* ── ASSET GALLERY ── */
     check('2.2e (Asset Gallery): rota dev-gated; tela mostra onLoad/onDisplay/onError/recyclingKey/source; sem consumir/salvar',

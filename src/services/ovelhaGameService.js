@@ -7,7 +7,7 @@
  * O background é exibido por CONTAIN (nunca cover, nunca zoom): a arte inteira aparece,
  * na razão real do asset (1122×1402). O viewport tem a MESMA razão da arte; qualquer
  * folga mínima de arredondamento vira um `contentRect` (retângulo REAL exibido pela
- * imagem). TODA conversão arte↔pixel passa pelo `contentRect` — é ele que alinha a ovelha
+ * imagem). TODA conversão arte<->pixel passa pelo `contentRect` — é ele que alinha a ovelha
  * e a hitbox ao que o olho vê.
  *
  * ── Cenas autorais reais ──────────────────────────────────────────────────────
@@ -46,12 +46,42 @@ export function spriteAspect(pose) {
   return OVELHA_SPRITE_ASPECT[pose] || OVELHA_SPRITE_ASPECT.front;
 }
 
+/** Níveis de esconderijo (tier por spot). O modo de jogo escolhe QUAIS tiers entram. */
+export const OVELHA_TIERS = Object.freeze(['facil', 'medio', 'dificil']);
+export function tierValido(t) { return OVELHA_TIERS.includes(t); }
+
+/**
+ * Modos de dificuldade (2.2f). Cada modo define: nº de rodadas, piso da área clicável (pt),
+ * multiplicador de escala da ovelha, quais TIERS de spot entram (+ tier predominante e a
+ * probabilidade de puxar o predominante), e o tempo/forma da dica (auto no fácil; botão no
+ * médio/difícil). NÃO há cronômetro punitivo em nenhum modo.
+ */
 export const OVELHA_DIFFICULTIES = Object.freeze([
-  { id: 'facil', label: 'Fácil', premium: false, minEsconderijos: 3 },
+  { id: 'facil', label: 'Fácil', premium: false, rounds: 5, hitboxMin: 64, escalaMul: 1.10, tiers: ['facil'], tierPrincipal: 'facil', predominancia: 1, dicaAuto: true, dicaMs: 8000 },
+  { id: 'medio', label: 'Médio', premium: false, rounds: 7, hitboxMin: 56, escalaMul: 1.00, tiers: ['facil', 'medio'], tierPrincipal: 'medio', predominancia: 0.7, dicaAuto: false, dicaMs: 12000 },
+  { id: 'dificil', label: 'Difícil', premium: false, rounds: 10, hitboxMin: 56, escalaMul: 0.92, tiers: ['medio', 'dificil'], tierPrincipal: 'dificil', predominancia: 0.7, dicaAuto: false, dicaMs: 18000 },
 ]);
 
 export function getDifficulty(id) {
   return OVELHA_DIFFICULTIES.find((d) => d.id === id) || OVELHA_DIFFICULTIES[0];
+}
+
+/** Um spot é elegível num modo se o TIER dele está entre os tiers do modo. */
+export function spotElegivel(spot, dificuldade = 'facil') {
+  const dif = getDifficulty(dificuldade);
+  return tierValido(spot?.difficulty) && dif.tiers.includes(spot.difficulty);
+}
+
+/* ─────────────────────────── RNG determinístico por seed (sem lib) ─────────────────────────── */
+
+/** Gera uma seed de sessão (uso na UI; o núcleo puro só recebe a seed pronta). */
+export function novaSeed() {
+  return (Math.floor(Math.random() * 0x7fffffff) ^ (Date.now() & 0xffff)) >>> 0;
+}
+/** LCG determinístico a partir de uma seed → função rnd() em [0,1). PURO. */
+export function criarRng(seed) {
+  let s = (Number(seed) >>> 0) || 1;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 }
 
 /* ─────────────────────────── Utilidades ─────────────────────────── */
@@ -175,13 +205,14 @@ export function hitboxRect(spot, scene) {
  * tocável pode ser maior que o sprite visível quando a ovelha é pequena/distante — evita
  * alvo microscópico sem mover o desenho). Centrada na área visível.
  */
-export function hitboxPxRect(spot, scene, viewport) {
+export function hitboxPxRect(spot, scene, viewport, hitMin = OVELHA_HITBOX_MIN) {
   const cr = contentRect(scene, viewport);
   const a = hitboxArt(spot, scene);
+  const piso = Number(hitMin) > 0 ? hitMin : OVELHA_HITBOX_MIN;
   const cx = cr.x + a.cx * cr.scale;
   const cy = cr.y + a.cy * cr.scale;
-  const w = Math.max(OVELHA_HITBOX_MIN, a.w * cr.scale);
-  const h = Math.max(OVELHA_HITBOX_MIN, a.h * cr.scale);
+  const w = Math.max(piso, a.w * cr.scale);
+  const h = Math.max(piso, a.h * cr.scale);
   return { cx, cy, w, h, x0: cx - w / 2, y0: cy - h / 2, x1: cx + w / 2, y1: cy + h / 2 };
 }
 
@@ -193,8 +224,8 @@ export function pontoNaHitboxArte(artPt, spot, scene) {
 }
 
 /** Um toque em px do viewport acertou a ovelha? Usa a hitbox px (via contentRect). PURO. */
-export function toqueAcertou(px, py, spot, scene, viewport) {
-  const r = hitboxPxRect(spot, scene, viewport);
+export function toqueAcertou(px, py, spot, scene, viewport, hitMin = OVELHA_HITBOX_MIN) {
+  const r = hitboxPxRect(spot, scene, viewport, hitMin);
   return px >= r.x0 && px <= r.x1 && py >= r.y0 && py <= r.y1;
 }
 
@@ -288,9 +319,9 @@ export function spriteDentroSafeArea(spot, scene) {
 }
 
 /** A hitbox px (inflada) fica dentro do viewport, sem estourar as bordas? */
-export function spotHitboxDentroViewport(spot, scene, viewport) {
-  const r = hitboxPxRect(spot, scene, viewport);
-  return r.w >= OVELHA_HITBOX_MIN && r.h >= OVELHA_HITBOX_MIN
+export function spotHitboxDentroViewport(spot, scene, viewport, hitMin = OVELHA_HITBOX_MIN) {
+  const r = hitboxPxRect(spot, scene, viewport, hitMin);
+  return r.w >= (hitMin || OVELHA_HITBOX_MIN) && r.h >= (hitMin || OVELHA_HITBOX_MIN)
     && r.x0 >= -0.5 && r.y0 >= -0.5 && r.x1 <= viewport.w + 0.5 && r.y1 <= viewport.h + 0.5;
 }
 
@@ -301,12 +332,30 @@ export function spotVisibilidadeOk(spot) {
   return f >= 0.45 && f <= 0.75;   // PEEK/PARTIAL
 }
 
+/** Retrocompat: um spot serve ao modo? (delega ao tier). */
 export function spotDificuldadeOk(spot, dificuldade) {
-  return Array.isArray(spot?.dificuldades) && spot.dificuldades.includes(dificuldade);
+  return spotElegivel(spot, dificuldade);
 }
 
-/** Contrato COMPLETO de um esconderijo (sem depender do viewport). PURO. */
-export function spotContratoValido(spot, scene, dificuldade = 'facil') {
+/** Zona (banda visual ampla) válida: string não-vazia. */
+export function zoneValida(spot) {
+  return typeof spot?.zone === 'string' && spot.zone.trim().length > 0;
+}
+
+/**
+ * Cluster (grupo visual fino) válido: string não-vazia. Dois spots no MESMO objeto/pequena
+ * região compartilham cluster; o seletor evita repetir clusters recentes. spotId diferente
+ * NÃO garante esconderijo visualmente diferente — o cluster é que representa isso.
+ */
+export function clusterValida(spot) {
+  return typeof spot?.cluster === 'string' && spot.cluster.trim().length > 0;
+}
+
+/**
+ * Contrato COMPLETO de um esconderijo (sem depender do viewport). PURO.
+ * Valida a estrutura, o TIER (facil/medio/dificil), a ZONA e o CLUSTER — independente do modo.
+ */
+export function spotContratoValido(spot, scene) {
   return !!spot
     && typeof spot.id === 'string'
     && poseValida(spot.pose)
@@ -319,124 +368,261 @@ export function spotContratoValido(spot, scene, dificuldade = 'facil') {
     && spotVisibilidadeOk(spot)
     && spotNaoAereo(spot, scene)
     && spotComApoio(spot)
-    && spotDificuldadeOk(spot, dificuldade)
+    && tierValido(spot.difficulty)
+    && zoneValida(spot)
+    && clusterValida(spot)
     && spriteDentroSafeArea(spot, scene);
 }
 
+/**
+ * Auditoria de configuração dos esconderijos (dev). PURO. Retorna lista de PROBLEMAS
+ * (string[]) — vazia = ok. Detecta (refino 2.2f cluster): cena <18, tier <6, total <90,
+ * sem zona, sem CLUSTER, id repetido, tier/escala inválidos, fora dos limites/safe area,
+ * duplicados, PAR PRÓXIMO em clusters DIFERENTES (deveria compartilhar cluster),
+ * concentração excessiva de um cluster e menos de N clusters distintos por cena.
+ */
+export function auditarSpots(
+  scenes = OVELHA_SCENES,
+  { minSpots = 18, minPorTier = 6, minTotal = 90, minClusters = 10, minSepDiffCluster = 0.09 } = {},
+) {
+  const probs = [];
+  const dist = (a, bb) => Math.hypot((a.pos.x - bb.pos.x) / a._dw, (a.pos.y - bb.pos.y) / a._dh);
+  let total = 0;
+  for (const sc of scenes) {
+    const spots = (sc.hidingSpots || []).map((s) => ({ ...s, _dw: sc.designWidth, _dh: sc.designHeight }));
+    total += spots.length;
+    if (spots.length < minSpots) probs.push(`${sc.id}: cena com ${spots.length} spots (<${minSpots})`);
+    const ids = new Set();
+    const clusters = new Set();
+    const porTier = { facil: 0, medio: 0, dificil: 0 };
+    const clusterPorTier = { facil: {}, medio: {}, dificil: {} };
+    for (const s of spots) {
+      if (!s.id || ids.has(s.id)) probs.push(`${sc.id}: id repetido/ausente "${s.id}"`); else ids.add(s.id);
+      if (!tierValido(s.difficulty)) probs.push(`${sc.id}/${s.id}: tier inválido`); else porTier[s.difficulty]++;
+      if (!escalaValida(s)) probs.push(`${sc.id}/${s.id}: escala inválida`);
+      if (!zoneValida(s)) probs.push(`${sc.id}/${s.id}: sem zona`);
+      if (!clusterValida(s)) probs.push(`${sc.id}/${s.id}: sem cluster`); else clusters.add(s.cluster);
+      if (tierValido(s.difficulty) && clusterValida(s)) clusterPorTier[s.difficulty][s.cluster] = (clusterPorTier[s.difficulty][s.cluster] || 0) + 1;
+      const xN = s.pos.x / sc.designWidth, yN = s.pos.y / sc.designHeight;
+      if (xN < 0.05 || xN > 0.95 || yN < SPOT_Y_MIN || yN > SPOT_Y_MAX) probs.push(`${sc.id}/${s.id}: fora dos limites`);
+      if (!spriteDentroSafeArea(s, sc)) probs.push(`${sc.id}/${s.id}: fora da safe area`);
+    }
+    for (const t of ['facil', 'medio', 'dificil']) {
+      if (porTier[t] < minPorTier) probs.push(`${sc.id}: tier ${t} com ${porTier[t]} spots (<${minPorTier})`);
+      // nenhum cluster pode concentrar TODOS os spots de um tier
+      const maxNoCluster = Math.max(0, ...Object.values(clusterPorTier[t]));
+      if (porTier[t] > 0 && maxNoCluster >= porTier[t]) probs.push(`${sc.id}: tier ${t} concentrado em 1 cluster (${maxNoCluster}/${porTier[t]})`);
+    }
+    if (clusters.size < minClusters) probs.push(`${sc.id}: ${clusters.size} clusters (<${minClusters})`);
+    for (let i = 0; i < spots.length; i++) for (let j = i + 1; j < spots.length; j++) {
+      const d = dist(spots[i], spots[j]);
+      const mesmoCluster = spots[i].cluster === spots[j].cluster;
+      if (d < 0.02) probs.push(`${sc.id}: ${spots[i].id}/${spots[j].id} DUPLICADOS (${d.toFixed(3)})`);
+      // par visualmente próximo em clusters DIFERENTES → deveria compartilhar cluster
+      else if (!mesmoCluster && d < minSepDiffCluster) probs.push(`${sc.id}: ${spots[i].id}/${spots[j].id} próximos (${d.toFixed(3)}) mas clusters diferentes`);
+    }
+  }
+  if (total < minTotal) probs.push(`TOTAL: ${total} spots (<${minTotal})`);
+  return probs;
+}
+
+/**
+ * Cena jogável num modo: habilitada, TODOS os spots com contrato válido, e com pelo menos
+ * DOIS spots elegíveis no modo (garante spot diferente quando a cena repete num ciclo).
+ */
 export function sceneValida(scene, dificuldade = 'facil') {
-  if (!scene || scene.enabled === false) return false;   // cena desabilitada nunca é jogável
-  const dif = getDifficulty(dificuldade);
-  const spots = (scene.hidingSpots || []).filter((s) => spotDificuldadeOk(s, dificuldade));
-  if (spots.length < (dif.minEsconderijos || 3)) return false;
-  return !!scene.background && spots.every((s) => spotContratoValido(s, scene, dificuldade));
+  if (!scene || scene.enabled === false) return false;
+  if (!scene.background) return false;
+  const spots = scene.hidingSpots || [];
+  if (!spots.every((s) => spotContratoValido(s, scene))) return false;
+  return spots.filter((s) => spotElegivel(s, dificuldade)).length >= 2;
+}
+
+/** Cena "completa" para expansão de conteúdo: ≥18 spots com contrato válido. */
+export function sceneCompleta(scene) {
+  const spots = scene?.hidingSpots || [];
+  return spots.length >= 18 && spots.every((s) => spotContratoValido(s, scene));
 }
 
 /* ─────────────────────────── Composição da rodada ─────────────────────────── */
 
-/** Monta a rodada a partir de uma cena+esconderijo já escolhidos. PURO. */
-export function buildRoundFromSpot({ scene, spot, roundId = 0 }) {
+/** Escala efetiva do spot no modo (aplica escalaMul, mantém dentro da faixa jogável). */
+export function escalaEfetiva(spot, dificuldade = 'facil') {
+  const mul = getDifficulty(dificuldade).escalaMul || 1;
+  return clamp((Number(spot?.escala) || 0.08) * mul, 0.06, 0.18);
+}
+
+/**
+ * Monta a rodada a partir de uma cena+esconderijo já escolhidos. PURO. `escalaMul` (do modo)
+ * é embutido no spot efetivo, então TODA a geometria (sprite/hitbox) usa o tamanho do modo.
+ */
+export function buildRoundFromSpot({ scene, spot, roundId = 0, dificuldade = 'facil' }) {
   if (!scene || !spot) return null;
+  const spotEf = { ...spot, escala: escalaEfetiva(spot, dificuldade) };
   return {
     roundId,
     sceneId: scene.id,
-    spot,
-    pose: spot.pose,
-    orientacao: spot.orientacao,
-    modo: spot.modo,
-    clip: spot.clip || null,
-    visivelFrac: visivelFracEfetiva(spot),
-    targetHitbox: hitboxArt(spot, scene),
-    spriteBox: spriteBoxArt(spot, scene),
+    spot: spotEf,
+    pose: spotEf.pose,
+    difficulty: spot.difficulty,
+    aquatico: scene.aquatico === true,
+    orientacao: spotEf.orientacao,
+    modo: spotEf.modo,
+    clip: spotEf.clip || null,
+    visivelFrac: visivelFracEfetiva(spotEf),
+    targetHitbox: hitboxArt(spotEf, scene),
+    spriteBox: spriteBoxArt(spotEf, scene),
     targetId: `${scene.id}:${spot.id}:${roundId}`,
   };
 }
 
-/** Sorteia UMA rodada (uma cena, um esconderijo), evitando repetir cena/esconderijo. */
-export function buildRound({ dificuldade = 'facil', rnd = Math.random, sceneAnterior = null, spotAnterior = null, roundId = 0, scenes = cenasHabilitadas() }) {
-  const validas = scenes.filter((sc) => sceneValida(sc, dificuldade));
-  if (!validas.length) return null;
-  const semCena = validas.filter((sc) => sc.id !== sceneAnterior);
-  const cenaPool = semCena.length ? semCena : validas;
-  const scene = shuffle(cenaPool, rnd)[0];
+/* ─────────────────────────── Baralho de CENAS (Parte 3) ─────────────────────────── */
 
-  const elegiveis = scene.hidingSpots.filter((s) => spotDificuldadeOk(s, dificuldade));
-  const semSpot = elegiveis.filter((s) => s.id !== spotAnterior);
-  const spotPool = semSpot.length ? semSpot : elegiveis;
-  const spot = shuffle(spotPool, rnd)[0];
-  if (!spotContratoValido(spot, scene, dificuldade)) return null;
+/**
+ * Baralho de CENAS da sessão. PURO. Regras: nenhuma cena repete antes de todas aparecerem
+ * (cada ciclo = embaralhada de todas); o 1º de um ciclo novo ≠ último do ciclo anterior;
+ * logo, nunca há repetição consecutiva. Se rounds > nº de cenas, começa novo ciclo.
+ * @returns string[] (sceneIds), tamanho = rounds.
+ */
+export function montarBaralhoCenas({ rounds, rng = Math.random, cenaIds = [] }) {
+  const ids = Array.from(new Set(cenaIds));
+  if (!ids.length) return [];
+  const out = [];
+  let ultimo = null;
+  while (out.length < rounds) {
+    let ciclo = shuffle(ids, rng);
+    // 1º do novo ciclo não pode ser igual ao último já colocado (evita repetição consecutiva).
+    if (ultimo != null && ciclo.length > 1 && ciclo[0] === ultimo) {
+      const j = 1 + Math.floor(rng() * (ciclo.length - 1));
+      [ciclo[0], ciclo[j]] = [ciclo[j], ciclo[0]];
+    }
+    for (const id of ciclo) { if (out.length >= rounds) break; out.push(id); ultimo = id; }
+  }
+  return out;
+}
 
-  return buildRoundFromSpot({ scene, spot, roundId });
+/* ─────────────────────────── Baralho ROTATIVO de ESCONDERIJOS (Parte 3/4) ─────────────────────────── */
+
+/** Quantas rodadas de histórico manter por cena e quantas contam como "cluster recente". */
+export const OVELHA_HIST_MAX = 12;
+export const OVELHA_CLUSTER_RECENTE = 3;
+
+/** Estado inicial do baralho rotativo (por cena×dificuldade) + histórico recente (por cena). */
+export function criarDeckState() {
+  return { ver: 1, decks: {}, hist: {} };
+}
+
+/** Clona o estado do baralho (mantém a pureza: a entrada nunca é mutada). PURO. */
+export function clonarDeckState(ds) {
+  const base = ds || criarDeckState();
+  return {
+    ver: 1,
+    decks: Object.fromEntries(Object.entries(base.decks || {}).map(([k, v]) => [k, { restantes: (v.restantes || []).slice(), ultimoSpot: v.ultimoSpot ?? null, ultimoCluster: v.ultimoCluster ?? null }])),
+    hist: Object.fromEntries(Object.entries(base.hist || {}).map(([k, v]) => [k, (v || []).slice()])),
+  };
+}
+
+/** Assinatura curta do estado do baralho para um modo (Modo Criador): "cena:restantes …". */
+export function assinaturaDeck(ds, dificuldade) {
+  const base = ds || criarDeckState();
+  const parts = Object.entries(base.decks || {})
+    .filter(([k]) => k.endsWith(`::${dificuldade}`))
+    .map(([k, v]) => `${k.split('::')[0].split('_')[0]}:${(v.restantes || []).length}`);
+  return parts.length ? parts.join(' ') : '—';
+}
+
+/** Identificador determinístico curto (FNV-1a → base36) de um plano de partida. PURO. */
+export function planId(plano) {
+  const str = (plano || []).map((p) => `${p.sceneId}:${p.spotId}`).join('|');
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h.toString(36).padStart(6, '0').slice(-6);
 }
 
 /**
- * Plano DETERMINÍSTICO da partida (5 rodadas). Usa SÓ cenas habilitadas (nunca underwater),
- * garante ≥3 AMBIENTES distintos (quando houver ≥3), não repete cena/esconderijo
- * imediatamente, garante ≥2 poses distintas e nunca só `front`. PURO.
- * @returns Array<{ sceneId, spotId, pose }>
+ * Para um baralho de cenas, escolhe um SPOT por rodada consumindo um BARALHO ROTATIVO por
+ * cena×dificuldade e evitando clusters/spots recentes. PURO (clona o estado, não muta a
+ * entrada). Regras (Partes 3/4):
+ *  - baralho por cena×dif: spot usado sai do ciclo; só retorna quando todas as alternativas
+ *    elegíveis foram usadas (renova embaralhando); 1º do novo ciclo ≠ último do anterior e,
+ *    quando há alternativa, cluster ≠ último cluster;
+ *  - dentro da partida: nunca repete spot; evita repetir cluster;
+ *  - histórico recente (por cena): evita cluster recente e a mesma combinação cena+spot no
+ *    mesmo índice de rodada; prefere zona diferente da aparição anterior na partida;
+ *  - predominância do tier principal; determinístico sob `rng`.
+ * @returns {{ baralho: Array<{sceneId,spotId,difficulty,pose,zone,cluster}>, deckState }}
  */
-export function planPartida({ rounds = 5, rnd = Math.random, dificuldade = 'facil', scenes = cenasHabilitadas() }) {
+export function montarBaralhoSpots({ baralhoCenas = [], dificuldade = 'facil', rng = Math.random, scenes = cenasHabilitadas(), deckState = null }) {
+  const dif = getDifficulty(dificuldade);
+  const ds = clonarDeckState(deckState);
+  const spotById = (scene, id) => (scene.hidingSpots || []).find((s) => s.id === id);
+  const preferir = (pool, pred) => { const s = pool.filter(pred); return s.length ? s : pool; };
+  const usadosGame = new Set();            // spotIds usados NESTA partida
+  const clustersGame = new Set();          // clusters usados NESTA partida
+  const ultimaZonaGame = {};               // zona da última aparição da cena nesta partida
+  const ultimoClusterGame = {};            // cluster da última aparição da cena nesta partida
+  const out = [];
+  for (let i = 0; i < baralhoCenas.length; i++) {
+    const sceneId = baralhoCenas[i];
+    const scene = scenes.find((s) => s.id === sceneId) || getScene(sceneId);
+    const elegiveis = (scene.hidingSpots || []).filter((s) => spotElegivel(s, dificuldade));
+    if (!elegiveis.length) { out.push({ sceneId, spotId: null, difficulty: null, pose: 'front', zone: null, cluster: null }); continue; }
+    const key = `${sceneId}::${dificuldade}`;
+    const deck = ds.decks[key] || (ds.decks[key] = { restantes: [], ultimoSpot: null, ultimoCluster: null });
+    // renova o ciclo quando esgota
+    if (!deck.restantes.length) {
+      let ciclo = shuffle(elegiveis.map((s) => s.id), rng);
+      if (deck.ultimoSpot && ciclo.length > 1 && ciclo[0] === deck.ultimoSpot) {
+        const j = ciclo.findIndex((id, k) => k > 0 && id !== deck.ultimoSpot);
+        if (j > 0) { const t = ciclo[0]; ciclo[0] = ciclo[j]; ciclo[j] = t; }
+      }
+      if (deck.ultimoCluster && ciclo.length > 1 && spotById(scene, ciclo[0])?.cluster === deck.ultimoCluster) {
+        const j = ciclo.findIndex((id, k) => k > 0 && spotById(scene, id)?.cluster !== deck.ultimoCluster && id !== deck.ultimoSpot);
+        if (j > 0) { const t = ciclo[0]; ciclo[0] = ciclo[j]; ciclo[j] = t; }
+      }
+      deck.restantes = ciclo;
+    }
+    let pool = deck.restantes.map((id) => spotById(scene, id)).filter(Boolean);
+    const histCena = ds.hist[sceneId] || [];
+    const clustersRecentes = new Set(histCena.slice(-OVELHA_CLUSTER_RECENTE).map((h) => h.cluster));
+    const spotMesmoIndice = new Set(histCena.filter((h) => h.roundIndex === i).map((h) => h.spotId));
+    pool = preferir(pool, (s) => !usadosGame.has(s.id));                       // nunca repete spot na partida
+    pool = preferir(pool, (s) => !clustersRecentes.has(s.cluster));           // cluster não usado recentemente (histórico)
+    pool = preferir(pool, (s) => !clustersGame.has(s.cluster));               // evita repetir cluster na partida
+    pool = preferir(pool, (s) => !spotMesmoIndice.has(s.id));                 // combinação cena+spot nova no índice
+    if (ultimaZonaGame[sceneId]) pool = preferir(pool, (s) => s.zone !== ultimaZonaGame[sceneId]);         // zona diferente ao reaparecer
+    if (ultimoClusterGame[sceneId]) pool = preferir(pool, (s) => s.cluster !== ultimoClusterGame[sceneId]); // cluster diferente ao reaparecer
+    const doPrincipal = pool.filter((s) => s.difficulty === dif.tierPrincipal);
+    const escolhaPool = (doPrincipal.length && rng() < (dif.predominancia ?? 1)) ? doPrincipal : pool;
+    const pick = shuffle(escolhaPool, rng)[0];
+    // consome do baralho + atualiza memórias
+    deck.restantes = deck.restantes.filter((id) => id !== pick.id);
+    deck.ultimoSpot = pick.id; deck.ultimoCluster = pick.cluster;
+    usadosGame.add(pick.id); clustersGame.add(pick.cluster);
+    ultimaZonaGame[sceneId] = pick.zone; ultimoClusterGame[sceneId] = pick.cluster;
+    const h = ds.hist[sceneId] || (ds.hist[sceneId] = []);
+    h.push({ spotId: pick.id, cluster: pick.cluster, roundIndex: i, dificuldade });
+    while (h.length > OVELHA_HIST_MAX) h.shift();
+    out.push({ sceneId, spotId: pick.id, difficulty: pick.difficulty, pose: pick.pose, zone: pick.zone, cluster: pick.cluster });
+  }
+  return { baralho: out, deckState: ds };
+}
+
+/**
+ * Plano da partida = baralho de cenas + baralho rotativo de esconderijos. PURO e
+ * determinístico: MESMA seed + MESMO deckState inicial → MESMO plano (o deckState de entrada
+ * nunca é mutado). Retorna o novo deckState (para "jogar novamente" continuar o ciclo) e um
+ * planId curto para reproduzir a partida. Rodadas vêm do modo (facil 5 · medio 7 · dificil 10).
+ * @returns {{ plano: Array, deckState: object, planId: string }}
+ */
+export function planPartida({ rng = Math.random, dificuldade = 'facil', scenes = cenasHabilitadas(), rounds, deckState = null } = {}) {
+  const dif = getDifficulty(dificuldade);
+  const total = Number(rounds) > 0 ? rounds : dif.rounds;
   const validas = scenes.filter((sc) => sceneValida(sc, dificuldade));
-  const todos = validas.flatMap((sc) => sc.hidingSpots
-    .filter((s) => spotDificuldadeOk(s, dificuldade))
-    .map((s) => ({ sceneId: sc.id, spotId: s.id, pose: s.pose })));
-  if (!todos.length) return [];
-
-  const nCenas = validas.length;
-  const alvoDistintas = Math.min(3, nCenas);
-  const usadas = new Set();
-  const plano = [];
-  let prevScene = null, prevSpot = null;
-  for (let i = 0; i < rounds; i++) {
-    // base: não repete cena nem esconderijo imediatamente (quando há alternativa).
-    let base = todos.filter((x) => x.sceneId !== prevScene && x.spotId !== prevSpot);
-    if (!base.length) base = todos.filter((x) => x.spotId !== prevSpot);
-    if (!base.length) base = todos;
-    // enquanto faltam ambientes distintos, prefere uma cena ainda não usada.
-    let cand = base;
-    if (usadas.size < alvoDistintas) {
-      const novas = base.filter((x) => !usadas.has(x.sceneId));
-      if (novas.length) cand = novas;
-    }
-    const pick = shuffle(cand, rnd)[0];
-    plano.push(pick);
-    usadas.add(pick.sceneId);
-    prevScene = pick.sceneId; prevSpot = pick.spotId;
-  }
-
-  // Garante ≥2 poses distintas e não-só-front trocando uma rodada por um spot de pose diferente.
-  const poses = plano.map((p) => p.pose);
-  const soFront = poses.every((p) => p === 'front');
-  const umaPoseSo = new Set(poses).size < 2;
-  if (soFront || umaPoseSo) {
-    const alvoPose = poses[0];
-    const alt = shuffle(todos.filter((x) => x.pose !== alvoPose), rnd)[0];
-    if (alt) {
-      const idx = Math.min(2, plano.length - 1);
-      if (plano[idx].spotId !== plano[Math.max(0, idx - 1)].spotId) plano[idx] = alt;
-      else plano[Math.min(plano.length - 1, idx + 1)] = alt;
-    }
-  }
-
-  // Reparo de DIVERSIDADE: se faltarem ambientes distintos, troca uma rodada por um spot
-  // de uma cena ainda não usada, sem repetir a cena/esconderijo das rodadas vizinhas.
-  const distintas = () => new Set(plano.map((p) => p.sceneId)).size;
-  let guarda = 0;
-  while (distintas() < alvoDistintas && guarda++ < todos.length) {
-    const usadasAgora = new Set(plano.map((p) => p.sceneId));
-    const nova = shuffle(todos.filter((x) => !usadasAgora.has(x.sceneId)), rnd)[0];
-    if (!nova) break;
-    // procura uma rodada cuja cena se repete e cujos vizinhos não colidam com a nova.
-    let trocou = false;
-    for (let i = 0; i < plano.length; i++) {
-      const cenaRep = plano.filter((p) => p.sceneId === plano[i].sceneId).length > 1;
-      const antes = plano[i - 1], depois = plano[i + 1];
-      const okVizinhos = (!antes || (antes.sceneId !== nova.sceneId && antes.spotId !== nova.spotId))
-        && (!depois || (depois.sceneId !== nova.sceneId && depois.spotId !== nova.spotId));
-      if (cenaRep && okVizinhos) { plano[i] = nova; trocou = true; break; }
-    }
-    if (!trocou) break;
-  }
-  return plano;
+  if (!validas.length) return { plano: [], deckState: clonarDeckState(deckState), planId: planId([]) };
+  const baralhoCenas = montarBaralhoCenas({ rounds: total, rng, cenaIds: validas.map((s) => s.id) });
+  const { baralho, deckState: ds } = montarBaralhoSpots({ baralhoCenas, dificuldade, rng, scenes: validas, deckState });
+  return { plano: baralho, deckState: ds, planId: planId(baralho) };
 }
 
 /* ─────────────────────────── Invariantes da rodada ─────────────────────────── */
@@ -458,14 +644,14 @@ export function targetHitboxValid(round, scene, viewport) {
 export function targetVisibleAreaMinima(round, min = 0.40) {
   return !!round?.spot && visivelFracEfetiva(round.spot) >= min;
 }
-export function roundValido(round, dificuldade = 'facil') {
+export function roundValido(round) {
   if (!round || !round.spot) return false;
   const scene = getScene(round.sceneId);
   return exactlyOneTarget(round)
     && targetRenderable(round)
     && targetInsideBounds(round)
     && targetVisibleAreaMinima(round)
-    && spotContratoValido(round.spot, scene, dificuldade);
+    && spotContratoValido(round.spot, scene);
 }
 
 /* ─────────────────────────── Som ─────────────────────────── */
