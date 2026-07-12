@@ -8,6 +8,12 @@
 
 ---
 
+> ## ⚠️ SUPERSESSÃO — Redefinição do P4 (Portão Visual 1 reprovado 2×)
+> **A abordagem baseada em IMAGENS por palavra está CANCELADA.** "Palavrinhas do Beni" **não** depende de figura/ilustração da palavra. Nenhuma imagem de ARCA/PEIXE/OVELHA/POMBA/ESTRELA (nem de qualquer palavra) é necessária ao funcionamento principal. **A PALAVRA é o elemento visual central**; **o Beni é o personagem visual e o guia pedagógico**.
+> O protótipo **P4 atual** (`src/screens/PalavrinhasDoBeniScreen.js`, não commitado) foi **REPROVADO** e **não poderá ser commitado**. A reconstrução é o **Bloco P4R** (ver [plan-palavrinhas.md](plan-palavrinhas.md) §14 e [tasks-palavrinhas.md](tasks-palavrinhas.md)). As seções desta spec que assumiam imagem por palavra (§10.2/§17/§22 image rows e a decisão §2.1.2) ficam **SUPERSEDIDAS** pelas novas decisões em **§2.2** e pelo banco expandido em **§10R**. As decisões travadas do Portão 1 sobre acesso/estrelas/persistência/Beni-poses/traçado **permanecem**; muda apenas a **concepção visual/pedagógica sem imagem**.
+
+---
+
 ## 0. Sumário executivo
 
 **Palavrinhas do Beni** é o segundo jogo da aba Brincar. A criança reconstrói o "Livro Mágico de Palavrinhas do Beni" por meio de três micro-atividades — **COMPLETE** (tocar a letra que falta), **MONTE** (montar a palavra a partir da bandeja) e **TRACE** (percorrer com o dedo o contorno de uma letra) — sem teclado, sem cronômetro punitivo, sem derrota. Erros nunca bloqueiam: convergem para o **Resgate da Palavra** (a criança sempre participa) e para uma **fila de reforço**. A rejogabilidade reusa o modelo determinístico já validado na Ovelhinha (seed → planId → plano imutável → baralho rotativo).
@@ -101,6 +107,19 @@ Estas decisões **resolvem** as pendências de §25 e passam a reger a implement
 7. **Traçado — abordagem nativa aprovada, protótipo isolado primeiro.** Aprovado `react-native-svg` + `react-native-gesture-handler` (não WebView). O **primeiro passo** é um **protótipo técnico isolado**, sem integração prematura ao jogo, usando **somente as letras A, O e L**, validando: (a) coordenadas independentes de resolução; (b) corredor tolerante; (c) distância toque→polilinha; (d) cobertura por amostragem de arco; (e) checkpoints em ordem; (f) entrada/saída do corredor; (g) escalonamento para telas pequenas; (h) movimento reduzido; (i) comportamento no Dev Client; (j) **ausência de dependência de fonte raster** para a geometria oficial. A **expansão para outras letras só ocorre após esse protótipo ser aprovado**.
 
 > **Nota de infraestrutura (confirmada na auditoria de raiz):** `GestureHandlerRootView` **já** envolve toda a árvore do app (`App.js:57`) e `react-native-gesture-handler` **já** é a primeira importação (`App.js:1`). Portanto **não há mudança de raiz a fazer** para o traçado — o risco de "registrar o RootView" está **de fato mitigado**; resta apenas validar `Gesture.Pan` dentro de uma tela de jogo. Ver o Plano.
+
+## 2.2 Redefinição do P4 — concepção sem imagem (APROVADA; supersede §2.1.2)
+
+Após 2 reprovações do Portão Visual 1, o proprietário redefiniu a **concepção central**:
+
+1. **Sem imagem por palavra.** A atividade **não** exibe figura/ilustração da palavra. **Nenhum asset de imagem** é necessário ao funcionamento principal. Remove-se a obrigação (§10.2/§17/§22) de mostrar uma imagem representando cada palavra. `imageRef` deixa de ser requisito de jogabilidade — vira **metadado opcional futuro** (álbum), podendo ser `null`.
+2. **A PALAVRA é o herói visual.** Palavra grande e central, letras claramente separadas, **lacunas grandes e animadas**, peças de letra próximas. A palavra **nunca** fica pequena/secundária; **proibida** a quebra em duas linhas (salvo decisão documentada), com **redução progressiva de tamanho** para palavras longas mantendo a legibilidade.
+3. **Beni é o personagem visual central** e o guia pedagógico, presente em toda a experiência (entrada, início da palavra, 1º erro, 2º erro, Resgate, acerto, combo, tempo acabando, fim). **Beni nunca diz "Olhe para a figura"** (não há figura).
+4. **Acentos e Ç passam a ser SUPORTADOS na atividade de COMPLETAR** (supersede a decisão anterior de `enabled:false`): palavras acentuadas/Ç **entram** no jogo (sobretudo no Difícil), com **cartões de letra acentuada/Ç** na bandeja. A **normalização interna** (`normalizedWord`) segue existindo só para lógica e **não** remove a grafia correta exibida (`displayWord`/`letters`). Apenas o **traçado** dessas letras (Bloco P8+) permanece separado/futuro.
+5. **Tempo real reutilizando o jogo dos Pares** (não uma imitação parcial): mesmo contrato de contador, borda vermelha nas **bordas externas da experiência**, som de relógio, limpeza ao sair e comportamento de bônus (ver §8.1 e o Plano §7-timer).
+6. **Combo por acertos consecutivos** e **escalada de erro** (1º/2º/3º) com consequências de jogo não-agressivas (ver §5R).
+
+O protótipo P4 atual **fica reprovado e não será commitado**. A reconstrução é o **P4R** (plano/tasks).
 
 ---
 
@@ -574,3 +593,94 @@ Ordem sugerida de execução: 3.1 → 3.2 → 3.3 → 3.4 → 3.5 → 3.6 → 3.
 - **Nenhum asset** foi registrado/criado; nenhum `require` inexistente.
 - **Sem commit, sem push, sem build EAS, sem instalação de bibliotecas.**
 - Único artefato novo: **este arquivo de especificação**.
+
+---
+
+# R. Redefinição funcional e visual do P4 (P4R) — sem imagem
+
+> Esta seção rege a reconstrução (P4R). Supersede, no que conflitar, §10.2 (banco de 36 com imagem), §17 (Beni "figura") e §22 (linhas de imagem de palavra).
+
+## R.1 Banco de palavras expandido (≥120 · 40/40/40) — sem depender de assets
+
+`imageRef` é **opcional** (metadado futuro de álbum; pode ser `null`). Acentos/Ç **suportados** no COMPLETE. `displayWord` preserva a grafia; `normalizedWord` (só lógica) = maiúsculas sem acento e Ç→C, **sem** apagar a exibição. Letras repetidas por `letterInstances[].iid`. Evitar repetição entre partidas consecutivas (baralho rotativo já existente).
+
+**Fácil (40)** — 3–5 letras, ortografia simples, sem acento/Ç:
+SOL, LUA, UVA, OVO, ASA, REI, MEL, PAI, BOI, PATO, GATO, BOLA, CASA, BOLO, SAPO, RATO, DADO, VACA, LOBO, URSO, PEIXE, SUCO, FACA, MOTO, SINO, NAVE, ROSA, PIPA, MALA, GELO, FOCA, DEDO, CAMA, MESA, SAIA, FADA, TREM, BICO, LIXO, PANO.
+
+**Médio (40)** — 5–8 letras, dígrafos (LH/NH/CH) e encontros consonantais (BR/CR/PL/TR/FL), sem acento pesado:
+OVELHA, POMBA, ESTRELA, CAVALO, CHUVA, GALINHA, COELHO, BONECA, SAPATO, BANANA, IGREJA, CHAVE, ABELHA, FORMIGA, JANELA, ESCOLA, CADERNO, BALEIA, MACACO, PANELA, TOMATE, LARANJA, CENOURA, MORANGO, CEBOLA, GIRAFA, ZEBRA, COBRA, CASTELO, ESTRADA, PLANETA, CHINELO, TELHADO, PIPOCA, VESTIDO, SORVETE, CAMINHO, FLORESTA, BISCOITO, PRESENTE.
+
+**Difícil (40)** — 7–12 letras **e/ou** acentos, Ç, letras repetidas, encontros consonantais:
+LEÃO, CORAÇÃO, AVIÃO, PÁSSARO, CAMINHÃO, AEROMOÇA, FAMÍLIA, MAÇÃ, LIMÃO, BOTÃO, ARARA, ELEFANTE, BORBOLETA, TARTARUGA, MACARRÃO, DINOSSAURO, BICICLETA, ABACAXI, CHOCOLATE, PROFESSORA, COMPUTADOR, CROCODILO, JOANINHA, PASSARINHO, CACHOEIRA, ESTRELINHA, BRINQUEDO, TRENZINHO, MARGARIDA, ABÓBORA, PIRULITO, BORRACHA, PINGUIM, GAROTINHO, PRESÉPIO, CORUJINHA, GIRASSOL, CAVALINHO, MELÃO, FEIJÃO.
+
+**Organização (atributos por palavra, para o validador do P4R):** quantidade de letras; dificuldade ortográfica; sílabas simples/complexas; letras repetidas; encontros consonantais; acentos; Ç; categoria de vocabulário (animais/natureza/objetos/alimentos/família/bíblia/app/corpo/transporte). A dificuldade **não** é definida só por tamanho — acento/Ç/encontro/ortografia elevam o tier.
+
+## R.2 Dificuldade (redefinida)
+
+| Modo | Letras | Lacunas | Opções | Tempo | Ritmo |
+|---|---|---|---|---|---|
+| **Fácil** | 3–5 | 1 | 3 | **sem** temporizador obrigatório | pedagógico/calmo |
+| **Médio** | 5–8 | 2–3 | 4 | **com tempo** (+5s/palavra) | desafio moderado |
+| **Difícil** | 7–12 | 3–5 | 5 | **com tempo** (+5s/palavra) | desafio real; lacunas distribuídas pela palavra; pode incluir acento/Ç/repetidas/encontros |
+
+Lacunas **distribuídas** (espalhadas, nunca a 1ª letra, preservando a leitura), nº conforme tamanho **e** ortografia (não só tamanho).
+
+## R.3 Fluxo completo de ACERTO (sequência imediata)
+
+(a) a letra pressionada responde no **1º frame** (pressed instantâneo); (b) a peça **anima até a lacuna**; (c) a lacuna **acende**; (d) a palavra recebe **brilho/pulso**; (e) o **Beni celebra**; (f) toca **som de acerto** (`match_success`); (g) o **combo aumenta**; (h) nos modos com tempo, o relógio **+5s**; (i) o **progresso** da rodada avança visualmente. Tudo **respeita movimento reduzido** (sem animação de voo/pulso quando ativo; o resultado ainda acontece).
+
+## R.4 Fluxo completo de ERRO (consequência de jogo, não-agressiva)
+
+- **1º erro:** a letra **balança e retorna**; **combo reinicia**; Beni dá orientação curta ("Essa quase entrou. Tente outra letrinha.").
+- **2º erro na MESMA lacuna:** **opções reorganizadas** (reshuffle); nos modos com tempo, **−2s**; reação visual curta do ambiente.
+- **3º erro:** ativa **Resgate do Beni** — destaca uma **pista verdadeira**, a criança **ainda toca e conclui**, e o **brilho máximo** daquela palavra cai conforme o contrato aprovado (§5/máquina). **Sem X agressivo, sem tela de derrota, sem mensagem negativa.**
+
+> **Nota de contrato de máquina (P4R):** a máquina pura da Fase 0 já cobre erros/Resgate/brilho por `letrasRestantes`. O **combo** e o **−2s no 2º erro na mesma lacuna** são estado de **sessão/UI** (não alteram o plano imutável nem a identidade da palavra); o **reshuffle** de opções é da UI. Avaliar no P4R se o "2º erro na mesma lacuna" precisa de um efeito novo na máquina (ex.: `PENALIDADE_TEMPO`) — se sim, **volta ao artefato** (spec/máquina) antes de implementar.
+
+## R.5 Contrato do temporizador (reuso REAL do jogo dos Pares)
+
+Auditoria do timer dos Pares (fonte a reutilizar):
+
+| Item | Onde (Pares) | Reuso no P4R |
+|---|---|---|
+| Constantes | `paresGameService.js`: `TURBO_ALERTA_MS=10000` (alerta ≤10s), `TURBO_TICK_MS=10000` (tique/seg nos últimos 10s), `TURBO_BONUS_MS`, `TURBO_MAX_MS=90000` (teto), `segundosRestantes(ms)=ceil(ms/1000)`, `addTurboTime(ms,bonus,cap)` (puro) | **Reutilizar** os helpers puros; bônus do P4R = **+5s** (Pares é +2s) → passar `bonusMs` próprio a `addTurboTime` |
+| Efeito de bônus | `paresGameMachine.js` `EFEITOS.BONUS_TEMPO` → tela chama `addTurboTime` | mesmo padrão (efeito → `addTurboTime(restante, 5000, cap)`) |
+| Som de relógio | `PARES_SOUND_EVENTS.COUNTDOWN_TICK='countdown_tick'`, `TIME_UP='time_up_alarm'` (já no `audioManager`) | **Reutilizar** as MESMAS chaves |
+| Loop do relógio | `ParesDoBeniScreen.js` `setInterval` (~1s): decrementa, toca `countdown_tick` 1×/seg nos últimos 10s (`seg<=TURBO_TICK_MS/1000`), `tique` (bump de escala do número), chama `tempoEsgotou()` no zero | replicar a estrutura |
+| Borda vermelha | `MolduraAlerta({pulso,largura})` = **4 faixas absolutas** (topo/base/esq/dir) nos limites da **janela**, espessura `min(10,max(6,largura*0.018))`, opacidade `pulso:0.35→1`; cor `ALERTA='#C0392B'` | **Reutilizar o padrão** — bordas EXTERNAS da experiência (não a borda do card) |
+| Limiar do alerta | `emAlerta = jogando && timed && !pausado && restanteMs>0 && restanteMs<=TURBO_ALERTA_MS` | mesmo limiar (10s) |
+| Pulso | `Animated.loop(sequence(timing 410ms in/out, Easing.inOut(quad)))` | mesmo; **gate por movimento reduzido** (novo) |
+| Início/parada do som | tique 1×/seg no alerta; **parado** em pausa (`AppState`/blur), em `tempoEsgotou` e no **unmount** (`stopGameSfx(COUNTDOWN_TICK)` + `releaseGameSfx()`) | **replicar exatamente** — som não sobrevive à saída |
+| Limpeza ao sair | unmount → `pulso.stopAnimation()`, `tique.stopAnimation()`, `stopGameSfx(countdown_tick)`, `releaseGameSfx()` | idem |
+| Movimento reduzido | Pares **não** gateia o pulso em reduce-motion | **P4R DEVE** gatear: sem pulso/tique animado quando reduzido, mantendo cor/contador |
+| Adicionar tempo | `addTurboTime(restante,bonus,cap)` puro, com teto | +5s por palavra, teto documentado |
+
+Quando o tempo estiver acabando (≤10s): **bordas externas vermelhas** + **pulso perceptível** + **som de relógio** + **contador muda** + **Beni alerta**. O som **para** quando o tempo sobe (bônus tira do alerta), termina, pausa ou a tela é desmontada.
+
+## R.6 Falas do Beni por estado (sem "figura")
+
+| Estado | Fala (exemplos) |
+|---|---|
+| entrada | "Vamos descobrir quais letrinhas estão escondidas?" |
+| início da palavra | "Quais letrinhas estão faltando nesta palavrinha?" |
+| 1º erro | "Essa quase entrou. Tente outra letrinha." |
+| 2º erro | "Vamos com calma. Olhe as letrinhas de novo." |
+| Resgate | "Deixa eu te ajudar: toque na letrinha que brilha." |
+| acerto | "Boa! A palavra está ficando completa." |
+| combo | "Uau! Você está voando!" |
+| tempo acabando | "O tempo está correndo. Vamos juntos!" · (bônus) "Você ganhou mais cinco segundos!" |
+| fim | "Você completou seu livrinho! Que orgulho!" / (sem 1ª palavra) "Você começou seu livrinho. Vamos tentar de novo?" |
+
+## R.7 Estrutura visual (palco mágico da palavra)
+
+(a) **sem vazio** grande no topo; (b) **palavra na área principal** (herói); (c) **Beni integrado ao palco** (ao lado/abaixo, reagindo); (d) **letras disponíveis próximas** da palavra; (e) **progresso e relógio sem colisão** com o banner de Modo Criador (§R.9); (f) Safe Area correta; (g) **título totalmente visível**; (h) layout adaptável a palavras longas; (i) **redução progressiva** do tamanho da letra para palavras maiores sem perder legibilidade; (j) **proibida a quebra** da palavra em duas linhas (salvo decisão documentada). A tela parece **um jogo mágico de palavras**, não um questionário com cards.
+
+## R.8 Tela final
+
+Conter: (a) **mensagem contextual do Beni**; (b) palavras concluídas; (c) **melhor combo**; (d) brilhos conquistados; (e) **tempo bônus** recebido (quando aplicável); (f) **Jogar de novo**; (g) **Trocar dificuldade**; (h) **Voltar ao Brincar**; (i) **Voltar ao Início**. Se o tempo acabar **antes da 1ª palavra**, **não** mostrar três caixas com zero — mostrar mensagem de participação ("Você começou seu livrinho. Vamos tentar novamente e completar a primeira palavra?"), reconhecendo a participação **sem** recompensa indevida.
+
+## R.9 Cabeçalho e compensação do banner "Modo Criador Ativo"
+
+Auditoria: `src/components/dev/CreatorModeBanner.js` é um **overlay absoluto no topo** (`top:0`, `zIndex:9999`, `pointerEvents:none`), montado **globalmente** em `AppNavigator.js:273`. Ocupa `paddingTop: max(insets.top,4)` + texto (FredokaOne 10) + `paddingBottom:3` → cobre a Safe Area **mais ~18–22px** de faixa. Só aparece com `isCreatorQaModeAllowed() && isCreatorQaModeEnabled()`.
+
+**Regra P4R:** o cabeçalho compensa a **altura do banner** (não margem fixa por aparelho): `paddingTop = max(insets.top, N) + (isCreatorQaModeEnabled() ? ALTURA_BANNER_CRIADOR : 0)`, com `ALTURA_BANNER_CRIADOR` **derivada do layout do próprio banner** (linha ~14 + paddings ≈ ~22), como já faz `CadeAOvelhinhaScreen` (`criadorAtivo ? 22 : 0`). Reagir a `subscribeCreatorQaMode` para ligar/desligar em runtime.

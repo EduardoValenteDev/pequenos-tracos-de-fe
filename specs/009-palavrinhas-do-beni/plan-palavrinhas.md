@@ -343,3 +343,52 @@ P1 → P2 → P3 → P4 → 🚦V1 → P5a → P5 → 🚦T → P6 → P7 → P8
 ## 13. Estado do Git nesta etapa
 
 HEAD **`e1cffdd`** (inalterado). Nenhum `git add`/commit/push. Único artefato: os documentos da spec (`spec-palavrinhas.md` atualizado + `plan-palavrinhas.md` novo), **untracked** em `specs/009-palavrinhas-do-beni/`. Nenhum código, asset, build ou dependência.
+
+---
+
+## 14. P4R — Reconstrução funcional e visual do P4 (sem imagem)
+
+> **Status do P4:** o protótipo `src/screens/PalavrinhasDoBeniScreen.js` (não commitado) foi **REPROVADO no Portão Visual 1 (2×)** e **NÃO poderá ser commitado**. A abordagem baseada em **imagem por palavra está CANCELADA**. O **P4R** substitui a metade de UI do P4; as fundações puras (Fase 0, commit `c906903`) **permanecem** e são reutilizadas. Ver spec §2.2 e §R.
+
+### 14.1 Objetivo
+Palco mágico de palavras guiado pelo Beni: **palavra como herói visual** (sem figura), COMPLETE com 1–5 lacunas por dificuldade, **combo**, **escalada de erro** (1/2/3 → Resgate), **tempo real reutilizado dos Pares** (Médio/Difícil), Beni-guia com **falas por estado**, cabeçalho que **compensa o banner de Modo Criador**, e tela final rica com 4 botões.
+
+### 14.2 Escopo do P4R
+- **Banco expandido para ≥120 palavras (40/40/40)** com acentos/Ç **habilitados no COMPLETE** (spec §R.1) → altera `src/data/palavrinhasWords.js` (que hoje tem 36 e acentuadas `enabled:false`). Isso **muda a regra do Portão 1 §3** (acentos só depois): agora acento/Ç entram no COMPLETE; **só o traçado** dessas letras fica adiado. Atualizar o validador e os testes P2 de acordo.
+- **Dificuldade** por letras+lacunas+ortografia (spec §R.2); lacunas distribuídas.
+- **Fluxos de acerto/erro** (spec §R.3/R.4): letra→lacuna animada, brilho, combo, +5s; erro balança/reshuffle/−2s/Resgate.
+- **Tempo** reutilizando o contrato REAL dos Pares (spec §R.5): `addTurboTime`/`segundosRestantes`, `countdown_tick`/`time_up_alarm`, moldura vermelha de 4 faixas (bordas externas), pulso (com gate de movimento reduzido), limpeza de som no unmount/pausa.
+- **Beni-guia** com falas por estado (spec §R.6), **sem "figura"**.
+- **Estrutura visual** (spec §R.7) e **tela final** (spec §R.8).
+- **Cabeçalho compensando o banner** (spec §R.9), reagindo a `subscribeCreatorQaMode`.
+
+### 14.3 Fora de escopo (mantido)
+Traçado (P8), MONTE por bandeja, Diretor/Página Tranquila completos, estrelas/persistência, Modo Criador/simulador, assets de imagem, poses órfãs do Beni (P9). Imagens de palavra: **removidas** (não voltam).
+
+### 14.4 Arquivos previstos
+- `src/data/palavrinhasWords.js` — **expandir a 120** (40/40/40); acentuadas `enabled:true` para COMPLETE; `imageRef` opcional/`null`. *(módulo puro — regra §3.)*
+- `src/services/palavrinhasGameService.js` — ajustar `PALAVRINHAS_DIFFICULTIES` (letras/lacunas/opções/tempo) e o validador (120, faixas de letras, acentos/Ç suportados). *(puro.)*
+- `src/services/palavrinhasGameMachine.js` — reusar; avaliar efeito novo de penalidade de tempo (2º erro na mesma lacuna) — se necessário, **volta ao artefato** antes. *(puro.)*
+- `src/screens/PalavrinhasDoBeniScreen.js` — **reescrita P4R** (palco da palavra, Beni-guia, timer-Pares, combo, tela final, compensação de banner).
+- `scripts/smoke.js` — bloco **P4R** (substitui checks P4/P4-rev).
+- **Reuso do timer dos Pares:** `paresGameService.js` (`addTurboTime`, `segundosRestantes`, `TURBO_*`), `PARES_SOUND_EVENTS` (via `audioManager`), padrão `MolduraAlerta`.
+- **Proibidos/protegidos:** `App.js`, `storageKeys.js`, `achievements.js`, acesso/paywall, `beniImages.js` (poses órfãs).
+
+### 14.5 Critérios de aceite do **novo Portão Visual 1** (P4R)
+1. **Sem imagem de palavra** em nenhum lugar da rodada; **nenhuma imagem contraditória**; nenhum `require` de imagem de palavra.
+2. **Palavra é o herói** (grande, central, legível; sem quebra em 2 linhas; redução progressiva em palavras longas).
+3. **Beni presente e reagindo** em todos os estados; **nunca** diz "olhe a figura".
+4. **Toque instantâneo** (pressed no 1º frame) + **letra anima até a lacuna** (acerto) e **balança** (erro), respeitando movimento reduzido.
+5. **Dificuldade** por lacunas (Fácil 1 · Médio 2–3 · Difícil 3–5) e faixas de letras; acentos/Ç aparecem e são completáveis no Difícil.
+6. **Tempo** (Médio/Difícil): contador, **+5s por palavra**, **−2s no 2º erro na mesma lacuna**, **bordas vermelhas + pulso + som de relógio** ao acabar, som **parando** ao subir/terminar/pausar/desmontar.
+7. **Combo** visível aumentando por acertos e reiniciando no erro.
+8. **Sem linha cortando texto**; **sem vazio grande no topo**; **cabeçalho não encoberto** pelo banner de Modo Criador; Safe Area correta; iPhone (com recorte) **e** Android; tela pequena.
+9. **Tela final** com Beni contextual + páginas + melhor combo + brilhos + tempo bônus + 4 botões (Jogar de novo / Trocar dificuldade / Voltar ao Brincar / Voltar ao Início) + mensagem de participação quando o tempo acaba antes da 1ª palavra.
+10. Gates verdes; regressão intacta; **P5/traçado não iniciados**; **nenhuma pose órfã**; **nenhum asset novo**.
+
+### 14.6 Sequência
+`(Fase 0 ✅) → P4R (reconstrução) → 🚦 PORTÃO VISUAL 1 (novo) → [P5a/P5 traçado, só após aprovação]`.
+O antigo P4 e seus critérios ficam **superados** por P4R. Nada de P5/traçado antes do novo Portão Visual 1.
+
+### 14.7 Blocos CANCELADOS pela concepção sem imagem
+Como não há imagem por palavra, ficam **CANCELADOS**: **🚦 Portão Visual 2**, **Bloco P13 (produção/registro das 30–36 imagens de palavra)** e **🚦 Portão de Assets** (§6/§7/§8 acima, no que se referem a imagens de palavra). O **manifesto de imagens** e a **Lista de Imagens** deixam de existir. A produção de assets remanescente do roteiro é apenas o **wire das poses órfãs do Beni (P9)** — que **não** depende de imagens de palavra. As demais fases (traçado, mecânicas, estrelas, Modo Criador, regressão) seguem, sem qualquer dependência de figura de palavra.

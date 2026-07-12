@@ -346,3 +346,55 @@
 | 5 (integração/regressão → 🚦 Integração Final) | T-G1, T-G2 | (g) |
 
 **Totais:** 27 tarefas · 5 portões humanos (Visual 1, Técnico, Visual 2, Assets, Integração Final). Por categoria: (a) 5 · (b) 8 · (c) 6 · (d) 2 · (e) 2 · (f) 2 · (g) 2.
+
+---
+
+## P4R — Tarefas da reconstrução (sem imagem) · substitui T-B2 e cancela T-E2
+
+> **T-B2 (tela base do P4) e o protótipo `PalavrinhasDoBeniScreen.js` atual estão REPROVADOS** e não serão commitados. A tela é **reescrita** por P4R. **T-E2 (produção das 30–36 imagens de palavra) e o Portão Visual 2 / Portão de Assets ficam CANCELADOS** (não há imagem por palavra). As tarefas puras da Fase 0 (T-A1/A2/A3, commit `c906903`) **permanecem**; T-A1/A2 ganham um ajuste (banco 120 + acentos no COMPLETE).
+
+Cada tarefa: Objetivo · Arquivos novos · Alterados · Proibidos · Dependências · Passos · Testes · Aceite · Evidência · Aparelho? · Portão.
+
+### T-R1 · Banco 120 (40/40/40) + acentos/Ç no COMPLETE (puro)
+- **Objetivo:** expandir `palavrinhasWords.js` para ≥120 palavras (spec §R.1); acentuadas/Ç passam a `enabled:true` (COMPLETE), com `letterInstances` e `normalizedWord` preservando a grafia; `imageRef` opcional/`null`.
+- **Novos:** —. **Alterados:** `src/data/palavrinhasWords.js`. **Proibidos:** RN/Expo/UI/imagem/`require` de asset; `storageKeys.js`.
+- **Dependências:** aprovação desta redefinição.
+- **Passos:** inserir 40/40/40; cartões de acento/Ç; atributos (letras/ortografia/repetidas/encontros/categoria).
+- **Testes:** P2 atualizado (120; 40/tier; acentos habilitados; instâncias; `normalizedWord`; nenhum `require`).
+- **Aceite:** `validarBanco` 0; 120 palavras; acentuadas jogáveis no COMPLETE; grafia preservada.
+- **Evidência:** contagens + exemplos (AEROMOÇA/CORAÇÃO instâncias e normalização). **Aparelho:** não. **Portão:** —.
+
+### T-R2 · Dificuldade + validador (puro)
+- **Objetivo:** `PALAVRINHAS_DIFFICULTIES` por letras/lacunas/opções/tempo (spec §R.2); validador cobre faixas de letras e acentos.
+- **Alterados:** `src/services/palavrinhasGameService.js`. **Proibidos:** RN/Expo/UI.
+- **Testes:** P2 (rodadas/lacunas por nível; determinismo mantido). **Aceite:** Fácil 3–5/1 · Médio 5–8/2–3 · Difícil 7–12/3–5; dificuldade não só por tamanho. **Aparelho:** não.
+
+### T-R3 · Máquina — avaliar penalidade de tempo (puro)
+- **Objetivo:** reusar a máquina; **decidir** se o "2º erro na mesma lacuna" precisa de efeito novo (ex.: `PENALIDADE_TEMPO`). Se sim, **volta ao artefato** (spec/máquina) antes de codar a UI.
+- **Alterados:** `src/services/palavrinhasGameMachine.js` (só se aprovado). **Testes:** P3 (transições/efeitos). **Aceite:** combo/−2s como estado de sessão/UI OU efeito puro documentado. **Aparelho:** não.
+
+### T-R4 · Tela P4R — palco da palavra + Beni-guia (UI)
+- **Objetivo:** reescrever `PalavrinhasDoBeniScreen.js`: **palavra herói** (sem figura), lacunas grandes animadas, peças próximas, Beni integrado com **falas por estado** (spec §R.6), progresso; **sem linha**, **sem vazio no topo**, **compensação do banner** (spec §R.9), Safe Area, palavra sem quebra + redução progressiva.
+- **Novos:** —. **Alterados:** `src/screens/PalavrinhasDoBeniScreen.js` (reescrita). **Proibidos:** imagem de palavra/`require`; `App.js`; storage/achievements/paywall; poses órfãs.
+- **Dependências:** T-R1, T-R2 (T-R3 se aprovado).
+- **Testes:** P4R smoke (sem imagem; sem "figura"; Beni por estado; herói; compensação do banner).
+- **Aceite:** critérios 1–3, 8 do novo Portão Visual 1 (plano §14.5). **Evidência:** vídeo/print aparelho. **Aparelho:** **sim**.
+
+### T-R5 · Acerto/erro + combo (UI)
+- **Objetivo:** fluxo de acerto (letra→lacuna animada, brilho, combo++, som) e erro (balança/reshuffle/−2s/Resgate), respeitando movimento reduzido (spec §R.3/R.4).
+- **Alterados:** `PalavrinhasDoBeniScreen.js`. **Testes:** P4R (combo; escalada de erro; toque instantâneo). **Aceite:** critérios 4,5,7. **Aparelho:** **sim**.
+
+### T-R6 · Tempo reutilizando o contrato dos Pares (UI)
+- **Objetivo:** implementar o timer **reusando o comportamento real dos Pares** (spec §R.5): `addTurboTime`/`segundosRestantes`/`TURBO_*`, `countdown_tick`/`time_up_alarm`, moldura vermelha de 4 faixas nas bordas externas, pulso (gate de movimento reduzido), +5s/palavra, −2s no 2º erro, limpeza de som (pausa/fim/unmount).
+- **Novos:** —. **Alterados:** `PalavrinhasDoBeniScreen.js`. **Reuso:** `paresGameService.js`, `PARES_SOUND_EVENTS`, padrão `MolduraAlerta`. **Proibidos:** duplicar/alterar o serviço dos Pares.
+- **Testes:** P4R (tempo/−2s/+5s; alerta; som para no unmount/pausa; reduce-motion). **Aceite:** critério 6. **Aparelho:** **sim (iPhone + Android)**.
+
+### T-R7 · Tela final rica (UI)
+- **Objetivo:** tela final (spec §R.8): Beni contextual + páginas + melhor combo + brilhos + tempo bônus + **4 botões** (Jogar de novo/Trocar dificuldade/Voltar ao Brincar/Voltar ao Início) + mensagem de participação quando o tempo acaba antes da 1ª palavra.
+- **Alterados:** `PalavrinhasDoBeniScreen.js`. **Testes:** P4R (4 botões; sem "3 zeros"). **Aceite:** critério 9. **Aparelho:** **sim**.
+
+### T-R8 · Smoke P4R (substitui P4/P4-rev)
+- **Objetivo:** bloco P4R no `scripts/smoke.js` cobrindo os itens do novo Portão Visual 1; remover/atualizar os checks P4/P4-rev que assumiam imagem (**sem** reduzir cobertura real).
+- **Alterados:** `scripts/smoke.js`. **Aceite:** smoke verde; nenhum check enfraquecido; P5 não iniciado. **Aparelho:** não. **Portão:** **🚦 PORTÃO VISUAL 1 (novo)** após T-R4…T-R8.
+
+> **Cancelados:** T-E2 (imagens de palavra), 🚦 Portão Visual 2, 🚦 Portão de Assets, manifesto/Lista de Imagens. O wire das poses órfãs do Beni (T-E1/P9) segue, sem depender de imagem de palavra.
