@@ -18151,6 +18151,232 @@ check(
       'o bloco 2.2e tocou o Pares ou o Modo Criador');
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco P2/P3: Palavrinhas do Beni (Fase 0 · módulos puros) ──');
+  {
+    const wordsRaw = readSrc('src/data/palavrinhasWords.js');
+    const svcRaw = readSrc('src/services/palavrinhasGameService.js');
+    const mqRaw = readSrc('src/services/palavrinhasGameMachine.js');
+
+    const stripMod = (s) => a1StripComments(s)
+      .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+      .replace(/^export\s+default[\s\S]*$/m, '')
+      .replace(/^export\s+/gm, '');
+
+    const evalSvc = () => new Function(stripMod(wordsRaw) + '\n' + stripMod(svcRaw)
+      + ';return { PALAVRINHAS_WORDS, palavrasHabilitadas, PALAVRINHAS_DIFFICULTIES, getDifficulty, palavraElegivel,'
+      + ' novaSeed, criarRng, shuffle, validarBanco, criarDeckState, clonarDeckState, assinaturaDeck, planId,'
+      + ' montarBaralhoPalavras, planPartida, PALAVRINHAS_CATEGORIAS };')();
+    const evalMq = () => new Function(stripMod(mqRaw)
+      + ';return { FASES, FASES_QUE_ACEITAM, EFEITOS, EVENTOS, brilhoDaPalavra, criarSessao, reduzir, aceitaEvento,'
+      + ' terminou, paginaAtual, iniciarReforco, PALAVRINHAS_MAX_ERROS, REFORCO_MAX };')();
+
+    /* ── T-A1: banco ── */
+    check('P2 (banco): 36 palavras (12/12/12), validarBanco 0 problemas, 30 habilitadas',
+      (() => { try {
+        const S = evalSvc();
+        if (S.PALAVRINHAS_WORDS.length !== 36) return false;
+        const c = { facil: 0, medio: 0, dificil: 0 };
+        S.PALAVRINHAS_WORDS.forEach((w) => c[w.difficulty]++);
+        if (c.facil !== 12 || c.medio !== 12 || c.dificil !== 12) return false;
+        const probs = S.validarBanco();
+        if (probs.length) { console.log('   validarBanco →', probs.slice(0, 6).join(' | ')); return false; }
+        return S.palavrasHabilitadas().length === 30;
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'o banco (36, 12/12/12, validador, 30 habilitadas) regrediu');
+
+    check('P2 (letras repetidas por instância): ARARA = 5 instâncias com iid único; cada ch/pos coerente',
+      (() => { try {
+        const S = evalSvc();
+        const a = S.PALAVRINHAS_WORDS.find((w) => w.id === 'arara');
+        const iids = new Set(a.letterInstances.map((li) => li.iid));
+        return a.letterInstances.length === 5 && iids.size === 5
+          && a.letterInstances.every((li, k) => li.ch === a.letters[k] && li.pos === k)
+          && a.letterInstances.filter((li) => li.ch === 'A').length === 3
+          && a.letterInstances.filter((li) => li.ch === 'R').length === 2;
+      } catch (e) { return false; } })(),
+      'as instâncias de letras repetidas regrediram');
+
+    check('P2 (acentos/Ç enabled:false): as 6 palavras acentuadas/Ç ficam fora do jogo na v1',
+      (() => { try {
+        const S = evalSvc();
+        const off = S.PALAVRINHAS_WORDS.filter((w) => w.enabled === false).map((w) => w.id).sort().join(',');
+        return off === 'aviao,caminhao,coracao,familia,leao,passaro';
+      } catch (e) { return false; } })(),
+      'a regra de acentos/Ç (enabled:false na v1) regrediu');
+
+    check('P2 (imageRef seguro): todo imageRef é metadado {key,status}, sem caminho/require de asset',
+      (() => { try {
+        const S = evalSvc();
+        return S.PALAVRINHAS_WORDS.every((w) => w.imageRef && typeof w.imageRef.key === 'string'
+          && !/[./\\]/.test(w.imageRef.key) && ['novo', 'reuso-candidato'].includes(w.imageRef.status));
+      } catch (e) { return false; } })(),
+      'algum imageRef deixou de ser metadado seguro');
+
+    check('P2/P3 (módulos puros): words/service/machine SEM import de RN/Expo/UI/áudio/storage/imagem',
+      (() => {
+        const proibido = /from\s+['"]react-native|from\s+['"]expo|from\s+['"][^'"]*\/(components|screens|context)\/|AsyncStorage|audioManager|require\([^)]*\.(png|jpg|jpeg|webp)/;
+        return [wordsRaw, svcRaw, mqRaw].every((s) => !proibido.test(a1StripComments(s)))
+          // service só pode importar do banco (dado puro)
+          && !/import[\s\S]*?from\s*['"](?!\.\.\/data\/palavrinhasWords)[^'"]+['"]/.test(a1StripComments(svcRaw).replace(/import[\s\S]*?palavrinhasWords['"];?/, ''))
+          && !/^import/m.test(a1StripComments(mqRaw));   // máquina sem imports
+      })(),
+      'um módulo puro importou RN/Expo/UI/áudio/storage/imagem');
+
+    /* ── T-A2: seed / baralho / plano / planId ── */
+    check('P2 (rodadas por modo): fácil 5 · médio 7 · difícil 10',
+      (() => { try {
+        const S = evalSvc();
+        return S.planPartida({ rng: S.criarRng(1), dificuldade: 'facil' }).plano.length === 5
+          && S.planPartida({ rng: S.criarRng(1), dificuldade: 'medio' }).plano.length === 7
+          && S.planPartida({ rng: S.criarRng(1), dificuldade: 'dificil' }).plano.length === 10;
+      } catch (e) { return false; } })(),
+      'as rodadas por modo (5/7/10) regrediram');
+
+    check('P2 (determinismo): mesma seed → mesmo plano; seeds diferentes → planId diferente',
+      (() => { try {
+        const S = evalSvc();
+        const a = S.planPartida({ rng: S.criarRng(42), dificuldade: 'medio' });
+        const b = S.planPartida({ rng: S.criarRng(42), dificuldade: 'medio' });
+        if (JSON.stringify(a.plano) !== JSON.stringify(b.plano) || a.planId !== b.planId) return false;
+        let diff = 0;
+        for (let s = 1; s <= 40; s++) if (S.planPartida({ rng: S.criarRng(s), dificuldade: 'medio' }).planId !== a.planId) diff++;
+        return diff >= 30 && /^[0-9a-z]{6}$/.test(a.planId);
+      } catch (e) { return false; } })(),
+      'o determinismo (seed → plano/planId) regrediu');
+
+    check('P2 (planId): mesmo plano → mesmo planId (FNV-1a base36, 6 chars)',
+      (() => { try {
+        const S = evalSvc();
+        const p = S.planPartida({ rng: S.criarRng(9), dificuldade: 'facil' });
+        return p.planId === S.planId(p.plano) && /^[0-9a-z]{6}$/.test(p.planId);
+      } catch (e) { return false; } })(),
+      'o planId deixou de ser determinístico');
+
+    check('P2 (baralho não altera o banco): PALAVRINHAS_WORDS intacto após planPartida',
+      (() => { try {
+        const S = evalSvc();
+        const snap = JSON.stringify(S.PALAVRINHAS_WORDS);
+        S.planPartida({ rng: S.criarRng(7), dificuldade: 'dificil' });
+        S.montarBaralhoPalavras({ rng: S.criarRng(3), dificuldade: 'medio' });
+        return JSON.stringify(S.PALAVRINHAS_WORDS) === snap;
+      } catch (e) { return false; } })(),
+      'o baralho mutou o banco original');
+
+    check('P2 (clonagem sem refs mutáveis): clonarDeckState não compartilha arrays',
+      (() => { try {
+        const S = evalSvc();
+        const d = S.criarDeckState();
+        d.decks.facil = { restantes: ['a'], ultimo: null, ultimaCategoria: null };
+        d.hist.facil = [{ wordId: 'a' }];
+        const c = S.clonarDeckState(d);
+        c.decks.facil.restantes.push('b');
+        c.hist.facil.push({ wordId: 'b' });
+        return d.decks.facil.restantes.length === 1 && c.decks.facil.restantes.length === 2
+          && d.hist.facil.length === 1 && c.hist.facil.length === 2;
+      } catch (e) { return false; } })(),
+      'a clonagem compartilhou referências mutáveis');
+
+    check('P2 (deckState entrada imutável): planPartida não muta o deckState recebido',
+      (() => { try {
+        const S = evalSvc();
+        const d0 = S.criarDeckState();
+        const snap = JSON.stringify(d0);
+        S.planPartida({ rng: S.criarRng(3), dificuldade: 'facil', deckState: d0 });
+        return JSON.stringify(d0) === snap;
+      } catch (e) { return false; } })(),
+      'planPartida mutou o deckState de entrada');
+
+    check('P2 (sem repetição prematura + alternância de atividade): partida sem palavra repetida; sem 3 atividades iguais seguidas',
+      (() => { try {
+        const S = evalSvc();
+        for (let seed = 1; seed <= 100; seed++) {
+          const pl = S.planPartida({ rng: S.criarRng(seed), dificuldade: 'medio' }).plano;
+          if (new Set(pl.map((p) => p.wordId)).size !== pl.length) return false;
+          for (let i = 2; i < pl.length; i++) if (pl[i].activity === pl[i - 1].activity && pl[i - 1].activity === pl[i - 2].activity) return false;
+          if (pl.some((p) => !['complete', 'monte'].includes(p.activity))) return false;
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'o baralho repetiu palavra na partida ou empilhou 3 atividades iguais');
+
+    /* ── T-A3: máquina pura ── */
+    check('P3 (partida completa): chega a FINALIZADO; efeitos são retornados separados do estado',
+      (() => { try {
+        const S = evalSvc(); const Mq = evalMq(); const E = Mq.EVENTOS;
+        const { plano } = S.planPartida({ rng: S.criarRng(5), dificuldade: 'facil' });
+        let e = Mq.criarSessao();
+        const r0 = Mq.reduzir(e, { tipo: E.ESCOLHER_DIFICULDADE, dificuldade: 'facil' });
+        if (!Array.isArray(r0.efeitos)) return false;   // efeitos sempre array, separados do estado
+        const step = (ev) => { const r = Mq.reduzir(e, ev); e = r.estado; return r.efeitos; };
+        step({ tipo: E.ESCOLHER_DIFICULDADE, dificuldade: 'facil' });
+        step({ tipo: E.SESSAO_PRONTA, plano });
+        step({ tipo: E.LIVRO_ABERTO });
+        for (let i = 0; i < e.rounds; i++) {
+          step({ tipo: E.PALAVRA_PRONTA, letras: 3 });
+          for (let k = 0; k < 3; k++) { step({ tipo: E.TOCAR_LETRA, correta: true }); step({ tipo: E.RESOLVER }); }
+          step({ tipo: E.TRACADO_PRONTO }); step({ tipo: E.TRACADO_OK }); step({ tipo: E.RESOLVER });
+          step({ tipo: E.PROXIMA_PAGINA }); step({ tipo: E.AVANCAR_PAGINA });
+        }
+        return e.fase === Mq.FASES.FINALIZADO && e.concluidas === 5 && e.independentes === 5 && e.brilhoTotal === 15;
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'a partida completa da máquina regrediu');
+
+    check('P3 (plano imutável na máquina): SESSAO_PRONTA congela o plano; a máquina nunca o altera',
+      (() => { try {
+        const S = evalSvc(); const Mq = evalMq(); const E = Mq.EVENTOS;
+        const { plano } = S.planPartida({ rng: S.criarRng(5), dificuldade: 'facil' });
+        const snap = JSON.stringify(plano);
+        let e = Mq.criarSessao();
+        e = Mq.reduzir(e, { tipo: E.ESCOLHER_DIFICULDADE, dificuldade: 'facil' }).estado;
+        e = Mq.reduzir(e, { tipo: E.SESSAO_PRONTA, plano }).estado;
+        return Object.isFrozen(e.plano) && JSON.stringify(plano) === snap;
+      } catch (e) { return false; } })(),
+      'a máquina alterou o plano recebido');
+
+    check('P3 (transições inválidas seguras): evento fora de fase e evento desconhecido = no-op (mesmo estado, 0 efeitos)',
+      (() => { try {
+        const Mq = evalMq(); const E = Mq.EVENTOS;
+        const e = Mq.criarSessao();
+        const antes = JSON.stringify(e);
+        const r = Mq.reduzir(e, { tipo: E.TOCAR_LETRA, correta: true });   // TOCAR fora de PENSANDO
+        const r2 = Mq.reduzir(e, { tipo: 'EVENTO_INEXISTENTE' });
+        const r3 = Mq.reduzir(e, null);
+        return JSON.stringify(r.estado) === antes && r.efeitos.length === 0
+          && JSON.stringify(r2.estado) === antes && JSON.stringify(r3.estado) === antes;
+      } catch (e) { return false; } })(),
+      'uma transição inválida deixou de ser no-op segura');
+
+    check('P3 (3 erros → Resgate; brilho 3/2/1): brilho limpo=3, 1 erro/1 dica=2, Resgate=1; ENTRAR_RESGATE emitido',
+      (() => { try {
+        const S = evalSvc(); const Mq = evalMq(); const E = Mq.EVENTOS;
+        if (Mq.brilhoDaPalavra({}) !== 3 || Mq.brilhoDaPalavra({ erros: 1 }) !== 2
+          || Mq.brilhoDaPalavra({ dicas: 1 }) !== 2 || Mq.brilhoDaPalavra({ resgate: true, erros: 9 }) !== 1) return false;
+        const { plano } = S.planPartida({ rng: S.criarRng(1), dificuldade: 'facil' });
+        let e = Mq.criarSessao();
+        e = Mq.reduzir(e, { tipo: E.ESCOLHER_DIFICULDADE, dificuldade: 'facil' }).estado;
+        e = Mq.reduzir(e, { tipo: E.SESSAO_PRONTA, plano }).estado;
+        e = Mq.reduzir(e, { tipo: E.LIVRO_ABERTO }).estado;
+        e = Mq.reduzir(e, { tipo: E.PALAVRA_PRONTA, letras: 3 }).estado;
+        let efs = [];
+        for (let k = 0; k < 3; k++) { e = Mq.reduzir(e, { tipo: E.TOCAR_LETRA, correta: false }).estado; const r = Mq.reduzir(e, { tipo: E.RESOLVER }); e = r.estado; efs = efs.concat(r.efeitos); }
+        return e.fase === Mq.FASES.RESGATANDO && efs.includes(Mq.EFEITOS.ENTRAR_RESGATE);
+      } catch (e) { return false; } })(),
+      'o caminho de 3 erros → Resgate ou o brilho 3/2/1 regrediu');
+
+    check('P3 (só PENSANDO/TRACANDO aceitam entrada): aceitaEvento reflete FASES_QUE_ACEITAM',
+      (() => { try {
+        const Mq = evalMq(); const E = Mq.EVENTOS;
+        const base = Mq.criarSessao();
+        const pensando = { ...base, fase: Mq.FASES.PENSANDO };
+        const tracando = { ...base, fase: Mq.FASES.TRACANDO };
+        return Mq.aceitaEvento(pensando, E.TOCAR_LETRA) && !Mq.aceitaEvento(base, E.TOCAR_LETRA)
+          && Mq.aceitaEvento(tracando, E.TRACADO_OK) && !Mq.aceitaEvento(pensando, E.TRACADO_OK)
+          && Mq.FASES_QUE_ACEITAM.length === 2;
+      } catch (e) { return false; } })(),
+      'o contrato de fases que aceitam entrada regrediu');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
