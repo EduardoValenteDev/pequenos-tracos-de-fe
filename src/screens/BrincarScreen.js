@@ -51,14 +51,12 @@ import { backLabelFor, isFromTab } from '../utils/originBack';
  */
 const EM_PREPARO = [
   { id: 'ovelha', icon: 'ovelha', title: 'Cadê a Ovelhinha?', desc: 'Procure a ovelhinha escondida.', tint: '#E6F7EE', border: '#B7E4CB', bg: '#0E9F6E20' },
-  { id: 'palavrinhas', icon: 'palavrinhas', title: 'Palavrinhas do Beni', desc: 'Monte palavras da Bíblia.', tint: '#FFF4D6', border: '#F4D08A', bg: '#F4B23C20' },
   { id: 'bichinhos', icon: 'bichinhos', title: 'Bichinhos da Bíblia', desc: 'Descubra os animais das histórias.', tint: '#F3E8FF', border: '#D7C2F5', bg: '#7C3AED20' },
 ];
 
 /** Jogos que abrem uma tela SÓ em desenvolvimento (sob isInternalToolsEnabled). */
 const DEV_ROTAS = {
   ovelha: ROUTES.CADE_A_OVELHINHA,
-  palavrinhas: ROUTES.PALAVRINHAS_DO_BENI,
 };
 
 function AnimatedCard({ delay, children, style }) {
@@ -94,6 +92,31 @@ function ActiveTile({ icon, title, desc, cta, tint, border, bg, btnColor, onPres
       <Text style={styles.tileDesc} numberOfLines={2}>{desc}</Text>
       <View style={[styles.tileBtn, { backgroundColor: btnColor }]}>
         <Text style={styles.tileBtnText}>{cta}</Text>
+      </View>
+    </SoundButton>
+  );
+}
+
+/** Card ATIVO LARGO (linha) — usado para Palavrinhas do Beni (user-facing, UF1). */
+function WideActiveTile({ icon, title, desc, cta, hint, tint, border, bg, btnColor, onPress }) {
+  return (
+    <SoundButton
+      style={[styles.wideTile, { backgroundColor: tint, borderColor: border }]}
+      onPress={onPress}
+      activeOpacity={0.82}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${desc}`}
+    >
+      <View style={[styles.wideIconBg, { backgroundColor: bg }]}>
+        <FaithIcon name={icon} size={26} color={btnColor} />
+      </View>
+      <View style={styles.wideTexts}>
+        <Text style={styles.wideTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.compactDesc} numberOfLines={2}>{desc}</Text>
+        {hint ? <Text style={styles.wideHint}>{hint}</Text> : null}
+      </View>
+      <View style={[styles.compactBtn, { backgroundColor: btnColor }]}>
+        <Text style={styles.compactBtnText}>{cta}</Text>
       </View>
     </SoundButton>
   );
@@ -161,6 +184,7 @@ export default function BrincarScreen({ navigation, route }) {
   const [rounds, setRounds] = useState(null);
 
   const premium = hasAtelierUnlimitedAccess();
+  const semRodadas = !premium && rounds != null && rounds.remaining <= 0;   // UF1 — limite diário grátis atingido
   const montadoRef = useRef(true);
 
   // P4R8: aquecimento ANTECIPADO das poses do Beni já na aba Brincar (não bloqueia esta tela).
@@ -238,7 +262,7 @@ export default function BrincarScreen({ navigation, route }) {
         {/* ── ATIVAS ── */}
         <AnimatedCard delay={70} style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>Para brincar agora</Text>
-          <Text style={styles.sectionSub}>Duas atividades prontinhas para você.</Text>
+          <Text style={styles.sectionSub}>Atividades prontinhas para você.</Text>
         </AnimatedCard>
 
         <AnimatedCard delay={120} style={styles.row}>
@@ -262,6 +286,19 @@ export default function BrincarScreen({ navigation, route }) {
               onPress={() => navigation.navigate(ROUTES.ATELIER_CANVAS, {})}
             />
           </View>
+        </AnimatedCard>
+
+        {/* UF1 — Palavrinhas do Beni: jogo de soletração user-facing (card largo, próprio). */}
+        <AnimatedCard delay={165} style={styles.wideRow}>
+          <WideActiveTile
+            icon="palavrinhas"
+            title="Palavrinhas do Beni"
+            desc="Soletre e descubra as letrinhas escondidas nas palavras."
+            cta="Jogar"
+            hint={semRodadas ? 'As rodadas de hoje acabaram — amanhã tem mais.' : null}
+            tint="#FFF4D6" border="#F4D08A" bg="#F4B23C20" btnColor={pt.goldDeep}
+            onPress={abrirPalavrinhas}
+          />
         </AnimatedCard>
 
         {/* ── EM PREPARO ── */}
@@ -367,6 +404,17 @@ const styles = StyleSheet.create({
 
   row: { flexDirection: 'row', gap: 10, marginTop: 10, marginHorizontal: 16 },
   rowItem: { flex: 1 },
+
+  // UF1 — card largo (linha) do Palavrinhas do Beni.
+  wideRow: { marginTop: 10, marginHorizontal: 16 },
+  wideTile: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: radii.lg, borderWidth: 2, padding: 13, ...shadows.card,
+  },
+  wideIconBg: { width: 46, height: 46, borderRadius: 14, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  wideTexts: { flex: 1 },
+  wideTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 2 },
+  wideHint: { fontFamily: 'Nunito', fontSize: 11, color: '#7A5800', fontWeight: '800', marginTop: 3 },
 
   // Grade dos cards em preparo: 2 por linha, e o 3º ocupa metade da linha seguinte
   // (não estica para a largura toda — ficaria desproporcional ao lado dos outros).

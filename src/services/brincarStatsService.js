@@ -264,6 +264,19 @@ export function applyOvelhaResult(stats, partida, cap = BRINCAR_DAILY_STAR_CAP) 
   };
 }
 
+/**
+ * Concede 1 estrelinha de "Palavrinhas do Beni" respeitando o TETO DIÁRIO COMPARTILHADO
+ * (`starsToday`/`BRINCAR_DAILY_STAR_CAP`), sem tocar nenhum recorde específico do jogo
+ * (recordes de Palavrinhas ficam para depois do MVP). PURO. Reusa a MESMA chave/cap dos
+ * demais jogos — nada de contador ou chave paralela. @returns {{ stats, starAwarded }}
+ */
+export function applyPalavrinhasStar(stats, day, cap = BRINCAR_DAILY_STAR_CAP) {
+  const s = sanitizeStats(stats);
+  const proximoDia = s.day === day ? s.starsToday : 0;
+  const starAwarded = proximoDia < cap;
+  return { stats: { ...s, day, starsToday: proximoDia + (starAwarded ? 1 : 0) }, starAwarded };
+}
+
 /** Flags derivadas para as conquistas. PURO. */
 export function toAchievementCtx(stats) {
   const s = sanitizeStats(stats);
@@ -328,6 +341,18 @@ export async function recordOvelhaResult(partida) {
   const r = applyOvelhaResult(atual, partida);
   await writeStats(r.stats);
   return { isBest: r.isBest, starAwarded: r.starAwarded, stats: r.stats };
+}
+
+/**
+ * Registra a estrelinha de uma partida VÁLIDA de "Palavrinhas do Beni". Mesmo contrato dos
+ * demais: NÃO credita a estrelinha (quem credita é a tela, via `addBonusStars`) — só diz se
+ * foi autorizada pelo teto diário compartilhado. `day` = 'YYYY-MM-DD' (fonte oficial `toDayKey`).
+ */
+export async function recordPalavrinhasStar(day) {
+  const atual = await readStats();
+  const r = applyPalavrinhasStar(atual, day);
+  await writeStats(r.stats);
+  return { starAwarded: r.starAwarded };
 }
 
 /** Lembra o último modo escolhido (preferência leve; falha não atrapalha o jogo). */

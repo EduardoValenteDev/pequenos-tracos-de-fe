@@ -43,6 +43,12 @@ import {
 } from '../services/palavrinhasVisualDirector';
 import { addTurboTime, segundosRestantes } from '../services/paresGameService';
 import { FASES, EVENTOS, brilhoDaPalavra, criarSessao, reduzir } from '../services/palavrinhasGameMachine';
+// UF1 — acesso (rodadas diárias) e recompensa (estrela), REUSANDO os serviços oficiais do Brincar.
+import { consumeRound, getDailyRounds, toDayKey } from '../services/brincarDailyService';
+import { recordPalavrinhasStar } from '../services/brincarStatsService';
+import { addBonusStars } from '../services/postStoryStorage';
+import { useProgressContext } from '../context/ProgressContext';
+import { warn } from '../utils/logger';
 
 const ALERTA = '#C0392B';
 const TICK = 'countdown_tick';
@@ -138,6 +144,8 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const cardW = Math.min(width - 20, 500);
+  const progressCtx = useProgressContext();
+  const refreshProgress = progressCtx?.refreshProgress;   // UF1 — atualiza o total de estrelas após recompensa
 
   const [tela, setTela] = useState('entrada');
   const [nivel, setNivel] = useState('facil');
@@ -179,6 +187,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const [dourada, setDourada] = useState(false);
   const [minimasProntas, setMinimasProntas] = useState(minimasProntasCache());
   const [beniEntradaPronto, setBeniEntradaPronto] = useState(false);   // Beni VISÍVEL da entrada carregou (não offscreen)
+  const [rounds, setRounds] = useState(null);   // UF1 — estado das rodadas diárias (serviço oficial); null = carregando
   const [diag, setDiag] = useState(false);
   const [diagCena, setDiagCena] = useState('poses');
   const [, setTickPoses] = useState(0);
@@ -235,6 +244,10 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const contextoBauRef = useRef({ origem: null, rodadaId: null });   // 'entre_rodadas' | 'durante_rodada'
   const proximaPublicadaParaRef = useRef(-1);            // id da rodada concluída p/ a qual já publicamos a próxima
   const rodadaConcluidaIdRef = useRef(-1);              // id da rodada recém-concluída (aguardando avanço)
+  // UF1 — sessão de PARTIDA (rodada diária): guarda de consumo/recompensa por partida.
+  const sessaoIdRef = useRef(0);                        // id incremental de partida (uma por "comecar")
+  const estrelaSessaoRef = useRef(-1);                  // sessão que já recebeu a estrela (não repete no resultado)
+  const consumindoRef = useRef(false);                  // guarda contra consumo duplicado por toque rápido
   const superGrandeFeitoRef = useRef(false);   // Super grande só na PRIMEIRA vez (seq 5)
   const superSeqRef = useRef(0);
   const preenchidasRef = useRef({});
@@ -262,6 +275,8 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const bPose = rodadaVisual.pose;
   // 1ª rodada só libera com um conjunto MÍNIMO de poses de portrait prontas NO PRÓPRIO STACK persistente.
   const beniStackPronto = PORTRAIT_POSES.filter((pp) => stackProntas.has(pp)).length >= 3;
+  // UF1 — limite diário atingido (grátis, 0 rodadas): convite amigável em vez de "Abrir o Livro".
+  const semRodadas = !!rounds && !rounds.premium && rounds.remaining <= 0;
   const tempoBaixo = cfg.timed && tela === 'jogando' && restante > 0 && restante <= (cfg.alertaMs || 0);
   const tempoCritico = tempoBaixo && restante <= 3000;
   const faltam = pagina ? pagina.lacunas.length - Object.keys(preenchidas).length : 0;
@@ -311,6 +326,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     montado.current = true;
     preloadGameSfx(SFX_KEYS);   // sons prontos antes da partida
     iniciarWarmup();            // reutiliza o cache já iniciado na BrincarScreen
+    getDailyRounds().then((r) => { if (montado.current) setRounds(r); }).catch(() => {});   // UF1 — estado das rodadas do dia
     setMinimasProntas(minimasProntasCache());
     const off = assinar(() => { if (montado.current) { setMinimasProntas(minimasProntasCache()); setTickPoses((n) => n + 1); } });
     AccessibilityInfo.isReduceMotionEnabled?.().then((v) => { if (montado.current) setReduzMovim(!!v); }).catch(() => {});
@@ -338,6 +354,21 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     anim.start();
     return () => anim.stop();
   }, [bauPronto, reduzMovim, bauCtaAnim]);
+
+  // UF1 — RECOMPENSA: 1 estrelinha por PARTIDA VÁLIDA (chegou ao resultado com ≥1 palavra concluída),
+  // uma única vez por sessão, respeitando o teto diário COMPARTILHADO. Abandono (não vai ao 'fim') não concede.
+  useEffect(() => {
+    if (tela !== 'fim') return;
+    if (estrelaSessaoRef.current === sessaoIdRef.current) return;   // já concedida nesta partida (não repete no resultado)
+    if ((estadoRef.current?.concluidas || 0) < 1) return;           // sem nenhuma palavra concluída → não concede
+    estrelaSessaoRef.current = sessaoIdRef.current;
+    (async () => {
+      try {
+        const r = await recordPalavrinhasStar(toDayKey(new Date()) || '1970-01-01');
+        if (r.starAwarded) { await addBonusStars(1); await refreshProgress?.(); }
+      } catch (e) { warn('Palavrinhas.estrela:', e); }
+    })();
+  }, [tela, refreshProgress]);
 
   const setSt = useCallback((st) => { estadoRef.current = st; setEstado(st); }, []);
   const disparar = useCallback((ev) => { const r = reduzir(estadoRef.current, ev); setSt(r.estado); return r; }, [setSt]);
@@ -874,7 +905,20 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     voltarParaBrincar();                                        // de entrada / resultado → aba Brincar (oficial)
   }, [diag, tela, limparTimers, pararRelogio, limparEvento, voltarParaBrincar]);
 
-  const comecar = useCallback(() => {
+  // UF1 — a rodada diária é CONSUMIDA aqui (única entrada da partida). Guarda contra consumo duplo.
+  const comecar = useCallback(async () => {
+    if (consumindoRef.current) return;
+    consumindoRef.current = true;
+    let r;
+    try { r = await consumeRound(); }
+    catch (e) { warn('Palavrinhas.consumeRound:', e); consumindoRef.current = false; return; }
+    if (!montado.current) { consumindoRef.current = false; return; }
+    if (!r.ok) {   // limite diário atingido → NÃO publica palavra, NÃO consome a mais; mostra o convite amigável
+      try { setRounds(await getDailyRounds()); } catch (_) { /* noop */ }
+      consumindoRef.current = false;
+      return;
+    }
+    sessaoIdRef.current += 1;   // nova PARTIDA → nova elegibilidade de estrela
     limparTimers(); pararRelogio(); setDiag(false); limparEvento();
     validandoRef.current = false; finalizadoRef.current = false; motivoFimRef.current = null; comboRef.current = 0; melhorRef.current = 0; seqRef.current = 0;
     magiaRef.current = 0; bausRef.current = 0; bauPendenteRef.current = false; poderesUsadosRef.current = 0; poderEscolhidoRef.current = null; bonusSegRef.current = 0; maiorPalavraRef.current = 0; brilhoBonusRef.current = 0;
@@ -896,6 +940,8 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     st = reduzir(st, { tipo: EVENTOS.LIVRO_ABERTO }).estado;
     setSt(st); setFase('jogando'); setTela('jogando'); iniciarRelogio();
     agendar(() => apresentarPagina(true), 0);
+    getDailyRounds().then((rr) => { if (montado.current) setRounds(rr); }).catch(() => {});   // reflete a rodada consumida
+    consumindoRef.current = false;
   }, [nivel, limparTimers, pararRelogio, limparEvento, setSt, iniciarRelogio, agendar, apresentarPagina, cfg.rounds, setFase]);
 
   /* ─────────────────────────── Render ─────────────────────────── */
@@ -1029,7 +1075,13 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
               })}
             </View>
           </LinearGradient>
-          {beniStackPronto && beniEntradaPronto ? (
+          {semRodadas ? (
+            <View style={styles.limitePanel}>
+              <FaithIcon name="star" size={22} color={pt.goldDeep} />
+              <Text style={styles.limiteTitulo}>As rodadas de hoje acabaram. Amanhã a gente joga de novo!</Text>
+              <Text style={styles.limiteSub}>Com o Plano Família você brinca sem limite de rodadas.</Text>
+            </View>
+          ) : beniStackPronto && beniEntradaPronto ? (
             <SoundButton style={styles.btnPrimario} soundType="success" onPress={comecar}><FaithIcon name="palavrinhas" size={20} color="#FFF" /><Text style={styles.btnPrimarioTxt}>Abrir o Livro</Text></SoundButton>
           ) : (
             <View style={[styles.btnPrimario, styles.btnPrimarioOff]}><FaithIcon name="palavrinhas" size={20} color="#FFF" /><Text style={styles.btnPrimarioTxt}>Preparando o Beni...</Text></View>
@@ -1382,6 +1434,10 @@ const styles = StyleSheet.create({
   balaoTxt: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: pt.text, textAlign: 'center' },
   btnPrimario: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: pt.beni, paddingVertical: 14, paddingHorizontal: 30, borderRadius: radii.pill, ...shadows.card },
   btnPrimarioOff: { backgroundColor: '#D9CBB8' },
+  // UF1 — convite amigável quando o limite diário grátis foi atingido (sem termos técnicos).
+  limitePanel: { alignItems: 'center', gap: 6, maxWidth: 360, paddingVertical: 14, paddingHorizontal: 18, borderRadius: radii.lg, backgroundColor: pt.goldSoft, borderWidth: 1.5, borderColor: pt.gold + '66' },
+  limiteTitulo: { fontFamily: 'FredokaOne', fontSize: 15, color: '#7A5800', textAlign: 'center' },
+  limiteSub: { fontFamily: 'Nunito_700Bold', fontSize: 12.5, color: '#7A5800', textAlign: 'center', lineHeight: 17 },
   btnPrimarioTxt: { fontFamily: 'FredokaOne', fontSize: 18, color: '#FFF' },
   btnSecundario: { paddingVertical: 11, paddingHorizontal: 22, borderRadius: radii.pill, backgroundColor: pt.surface, borderWidth: 1, borderColor: '#EBD9AE', alignItems: 'center' },
   btnSecundarioTxt: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: pt.textSoft },

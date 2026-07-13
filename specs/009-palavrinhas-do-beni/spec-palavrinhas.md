@@ -1,5 +1,13 @@
 # Palavrinhas do Beni — Especificação de Produto e Arquitetura
 
+> ## ⚠️ NOTA DE DECISÃO POSTERIOR (2026-07-13) — prevalece sobre o roadmap abaixo
+> Por decisão do fundador registrada em `docs/DECISIONS.md` → **`D-PALAVRINHAS-UF1`** (o **árbitro** vence este spec):
+> - **Nome final = "Palavrinhas do Beni"** (era "Soletrando"); o jogo entra **user-facing no v1** na aba Brincar (não mais dev-gated).
+> - **Traçado (TRACE) e MONTE estão ADIADOS para depois do MVP** (não descartados). O roadmap histórico abaixo trata TRACE como **P5–P8** e MONTE como parte do núcleo; esse **sequenciamento fica suspenso** até nova decisão. **P5 permanece reservado** ao protótipo técnico isolado de traçado.
+> - **Acesso v1:** Plano Grátis = 2 rodadas/dia compartilhadas entre os jogos do Brincar (`brincarDailyService`); Plano Família = ilimitado; **1 estrelinha por partida válida** com teto diário compartilhado (`brincarStatsService`). Sem chave nova.
+> - Laboratório/grade de poses/`rodadaId`/diagnósticos seguem **restritos ao Modo Criador**.
+> Este spec permanece como **registro histórico do SDD** (não reescrito); apenas esta nota sinaliza a decisão posterior.
+
 > **Feature:** `009-palavrinhas-do-beni` · **Etapa SDD:** 1 (Specify → **aprovada**) · **🚦 Portão 1: APROVADO** (decisões em §2.1). Plano em [plan-palavrinhas.md](plan-palavrinhas.md).
 > **Base:** `content-integrate-coloring-3` @ `e1cffdd` ("Cadê a Ovelhinha?" concluído, commit local, sem push).
 > **Natureza:** novo jogo da aba **Brincar** (dev-gated), reaproveitando a arquitetura da Ovelhinha (máquina pura, baralho por seed/planId, Modo Criador, gallery+simulador).

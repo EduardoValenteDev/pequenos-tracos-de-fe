@@ -16183,17 +16183,18 @@ check(
       && /ATELIER_CANVAS: 'AtelierCanvas'/.test(readSrc('src/constants/routes.js')),
       'o fluxo legado do Desenho guiado foi apagado — só a UI deveria ter mudado');
 
-    check('1.3a (grade): 2 cards ativos (Pares, Criar livre) e exatamente 3 em preparo',
+    check('1.3a/UF1 (grade): 2 ActiveTile (Pares, Criar livre) + 1 WideActiveTile (Palavrinhas user-facing) + 2 em preparo',
       (() => {
         const emPreparo = (brcAn.match(/\{ id: '[a-z]+', icon:/g) || []).length;
         const ativos = (brcAn.match(/<ActiveTile\b/g) || []).length;
-        return emPreparo === 3 && ativos === 2
+        const wide = (brcAn.match(/<WideActiveTile\b/g) || []).length;
+        return emPreparo === 2 && ativos === 2 && wide === 1
           && /navigate\(ROUTES\.PARES_DO_BENI\)/.test(brcAn)
           && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brcAn);
       })(),
-      'a aba Brincar não está com 2 cards ativos e 3 em preparo');
+      'a aba Brincar não está com 2 ActiveTile + 1 WideActiveTile (Palavrinhas) + 2 em preparo');
 
-    check('1.3a (em preparo): os 3 cards não navegam, e nenhum emoji voltou',
+    check('1.3a (em preparo): os cards em preparo não navegam, e nenhum emoji voltou',
       (() => {
         const corpo = (brcAn.match(/function ComingTile[\s\S]*?\n\}/) || [''])[0];
         return corpo.length > 0 && !/onPress|navigate\(/.test(corpo)
@@ -16411,9 +16412,10 @@ check(
       'o enquadramento padrão deixou de ser o recorte centrado, ou o de Abraão não desloca');
 
     // ── Aba Brincar ──────────────────────────────────────────────────────────
-    check('1.4 (hub): 5 cards, Desenho guiado fora da UI, legado do Ateliê preservado',
+    check('1.4/UF1 (hub): 5 cards (2 ActiveTile + 1 WideActiveTile + 2 em preparo), Desenho guiado fora da UI, legado do Ateliê preservado',
       (brc14.match(/<ActiveTile\b/g) || []).length === 2
-      && (brc14.match(/\{ id: '[a-z]+', icon:/g) || []).length === 3
+      && (brc14.match(/<WideActiveTile\b/g) || []).length === 1
+      && (brc14.match(/\{ id: '[a-z]+', icon:/g) || []).length === 2
       && !/Desenho guiado/.test(brc14)
       && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brc14)
       && /navigate\(ROUTES\.ATELIER_GALLERY\)/.test(brc14)
@@ -18718,12 +18720,77 @@ check(
       && /source=\{fonte\(pose\)\}/.test(rd('src/components/palavrinhas/PalavrinhasBeniPortraitStack.js')),
       'a tela principal voltou a depender de imagem de palavra');
 
-    check('P4R9 (rota+card+gate + áreas protegidas): rota/card sob gate; não toca storage/achievements/estrelas/paywall',
+    check('P4R9/UF1 (rota+card USER-FACING + serviços oficiais): rota SEMPRE registrada; card na aba Brincar; usa daily/estrela OFICIAIS (sem chave nova); Lab ainda por Modo Criador',
       /PALAVRINHAS_DO_BENI:\s*'PalavrinhasDoBeni'/.test(rt)
-      && /palavrinhas:\s*ROUTES\.PALAVRINHAS_DO_BENI/.test(brc) && /DEV_ROTAS\[id\] && isInternalToolsEnabled\(\)/.test(brc)
-      && /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s*name="PalavrinhasDoBeni"/.test(nav)
-      && !/AsyncStorage|storageKeys|achievements|addBonusStars|accessControl|paywall|isPremiumUser/.test(tela),
-      'a rota/gate ou a proteção de áreas sensíveis regrediu');
+      && /<Stack\.Screen\s*name="PalavrinhasDoBeni"/.test(nav)
+      && !/isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s*name="PalavrinhasDoBeni"/.test(nav)   // rota NÃO mais gated
+      && !/palavrinhas:\s*ROUTES\.PALAVRINHAS_DO_BENI/.test(brc)   // saiu do DEV_ROTAS
+      && /<WideActiveTile[\s\S]*?onPress=\{abrirPalavrinhas\}/.test(brc)   // card user-facing
+      // reusa os serviços OFICIAIS (nada de chave/contador paralelo do Palavrinhas)
+      && /from '\.\.\/services\/brincarDailyService'/.test(tela) && /from '\.\.\/services\/brincarStatsService'/.test(tela)
+      && !/@ptf_palavrinhas|AsyncStorage|storageKeys/.test(tela),   // Palavrinhas não cria chave/persistência própria
+      'a exposição user-facing ou o reuso dos serviços oficiais regrediu');
+
+    check('UF1 (decisões §1–4): DECISIONS.md registra nome final, traçado pós-MVP, MONTE pós-MVP, P5 reservado; spec com nota de decisão posterior',
+      (() => { try {
+        const dec = readSrc('docs/DECISIONS.md');
+        const spec = readSrc('specs/009-palavrinhas-do-beni/spec-palavrinhas.md');
+        return /D-PALAVRINHAS-UF1/.test(dec)
+          && /Nome final aprovado = "Palavrinhas do Beni"/.test(dec)
+          && /Traçado ADIADO para depois do MVP/.test(dec)
+          && /MONTE.*ADIADO para depois do MVP/.test(dec)
+          && /P5 permanece reservado/.test(dec)
+          && /NOTA DE DECISÃO POSTERIOR/.test(spec) && /D-PALAVRINHAS-UF1/.test(spec);
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'as decisões UF1 (nome/traçado/MONTE/P5) não foram registradas corretamente');
+
+    check('UF1 (exposição §5–8): card user-facing com nome final + desc de soletração; Lab AINDA por Modo Criador; sem indicação de DEV ao usuário',
+      /title="Palavrinhas do Beni"/.test(brc)
+      && /Soletre e descubra as letrinhas/.test(brc)
+      && /cta="Jogar"/.test(brc)
+      && /tela === 'entrada' && diag && criadorAtivo/.test(tela)   // Laboratório continua protegido
+      && /criadorAtivo \? <SoundButton style=\{styles\.btnDev\}/.test(tela)   // botão Laboratório só no Modo Criador
+      && !/Em teste|comingBadge|isInternalToolsEnabled|Chegando/i.test((brc.match(/function WideActiveTile[\s\S]*?\n\}/) || [''])[0]),   // o card user-facing (WideActiveTile) não tem selo/indicação DEV
+      'a exposição do card (nome/desc/Lab protegido/sem DEV) regrediu');
+
+    check('UF1 (consumo §9–21): consumeRound SÓ em comecar (1 ocorrência); guarda de consumo; abrir seleção não consome; Baú durante_rodada/pausa/retomada não consomem',
+      /const comecar = useCallback\(async \(\) => \{\s*if \(consumindoRef\.current\) return;\s*consumindoRef\.current = true;\s*let r;\s*try \{ r = await consumeRound\(\); \}/.test(tela)
+      && /if \(!r\.ok\) \{[\s\S]*?return;/.test(tela)   // limite → não inicia, não consome a mais
+      && /sessaoIdRef\.current \+= 1;/.test(tela)          // nova partida
+      && (tela.match(/consumeRound\(\)/g) || []).length === 1   // consumo APENAS em comecar (Baú/pausa/retomada não consomem)
+      && !/if \(origem === 'durante_rodada'\) \{[^}]*?consumeRound/.test(tela),   // retomada do Baú manual não consome
+      'o consumo da rodada (uma vez em comecar, guarda, sem consumo em Baú/pausa/retomada) regrediu');
+
+    check('UF1 (recompensa §22–28): 1 estrela ao chegar ao resultado com ≥1 palavra; guarda por sessão; addBonusStars 1x; não concede ao abrir/abandonar; teto diário COMPARTILHADO',
+      /if \(tela !== 'fim'\) return;/.test(tela)
+      && /if \(estrelaSessaoRef\.current === sessaoIdRef\.current\) return;/.test(tela)   // não repete no resultado
+      && /if \(\(estadoRef\.current\?\.concluidas \|\| 0\) < 1\) return;/.test(tela)      // abandono sem palavra → não concede
+      && /await recordPalavrinhasStar\(toDayKey\(new Date\(\)\)/.test(tela)
+      && /if \(r\.starAwarded\) \{ await addBonusStars\(1\); await refreshProgress/.test(tela)
+      && (tela.match(/addBonusStars\(1\)/g) || []).length === 1
+      && (() => { try {
+        const stripMod = (s) => a1StripComments(s).replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '');
+        const S = new Function('BRINCAR_DAILY_STAR_CAP', 'DEFAULT_MODE', 'isBetterTime', 'isBetterScore', 'isBetterMoves',
+          stripMod(readSrc('src/services/brincarStatsService.js')) + ';return { applyPalavrinhasStar };')(2, 'classico', () => false, () => false, () => false);
+        const r1 = S.applyPalavrinhasStar(null, '2026-07-13');
+        const r2 = S.applyPalavrinhasStar(r1.stats, '2026-07-13');
+        const r3 = S.applyPalavrinhasStar(r2.stats, '2026-07-13');   // 3ª no mesmo dia → teto (não concede)
+        const r4 = S.applyPalavrinhasStar(r2.stats, '2026-07-14');   // dia virou → concede
+        return r1.starAwarded && r2.starAwarded && !r3.starAwarded && r4.starAwarded && r2.stats.starsToday === 2;
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'a recompensa (1 por partida válida, guarda, teto compartilhado) regrediu');
+
+    check('UF1 (regressões §29–37): jogo aprovado intacto (stack/voo/Baú/deck/Modo Criador); traçado e MONTE NÃO iniciados',
+      /<PalavrinhasBeniPortraitStack activePose=\{bPose\}/.test(tela)   // stack persistente
+      && /from: \{ x: ox \+ ow \/ 2 - hx, y: oy \+ oh \/ 2 - hy \}/.test(tela)   // voo host-relativo
+      && /if \(origem === 'durante_rodada'\)/.test(tela) && /abrirBau\('entre_rodadas'\)/.test(tela)   // Baú transacional
+      && /const prontas = cands\.filter\(\(p\) => stackProntasRef\.current\.has\(p\)\);/.test(tela)   // deck/pose
+      && /tela === 'entrada' && diag && criadorAtivo/.test(tela)   // Modo Criador
+      && !fs.existsSync(path.join(root, 'src/screens/PalavrinhasTraceLabScreen.js'))
+      && !fs.existsSync(path.join(root, 'src/services/tracadoService.js'))
+      && !fs.existsSync(path.join(root, 'src/data/letterPaths.js'))
+      && !/tracadoService|letterPaths|Gesture\.Pan|montarBandeja|MONTE_/.test(tela),
+      'uma regressão no jogo aprovado, ou traçado/MONTE foram iniciados');
 
     check('P4R9 (finalização ATÔMICA §6): rotina única; PROXIMA_PAGINA (concluidas/sequência) ANTES dos efeitos; UM evento pelo marco; Magia só após conclusão; celebrar só troca página',
       /const finalizarPalavra = useCallback/.test(tela)

@@ -398,16 +398,14 @@ export default function AppNavigator() {
             options={{ headerShown: false }}
           />
         )}
-        {/* Feature 009 — "Palavrinhas do Beni" (P4, protótipo visual). Registrada SÓ sob
-            o gate interno enquanto está em desenvolvimento; em produção a rota não existe
-            e o card da Brincar continua "Chegando em breve". */}
-        {isInternalToolsEnabled() && (
-          <Stack.Screen
-            name="PalavrinhasDoBeni"
-            component={PalavrinhasDoBeniScreen}
-            options={{ headerShown: false }}
-          />
-        )}
+        {/* Feature 009 — "Palavrinhas do Beni" (UF1): user-facing no v1 (jogo de soletração da
+            aba Brincar). Rota SEMPRE registrada. O Laboratório/diagnósticos internos DENTRO da
+            tela continuam gated por Modo Criador (isCreatorQaModeEnabled). Ver D-PALAVRINHAS-UF1. */}
+        <Stack.Screen
+          name="PalavrinhasDoBeni"
+          component={PalavrinhasDoBeniScreen}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="AtelierGallery"
           component={AtelierGalleryScreen}
