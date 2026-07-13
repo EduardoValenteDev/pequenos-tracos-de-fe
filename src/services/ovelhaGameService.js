@@ -21,6 +21,7 @@
  *   front     → só atrás de objeto baixo/entre mercadorias → sem clip ou clip.side='bottom'
  */
 import { getScene, OVELHA_SCENES, OVELHA_POSES, OVELHA_ORIENTACOES, OVELHA_MODOS, cenasHabilitadas } from '../data/ovelhaScenes';
+import { FASES, EFEITOS } from './ovelhaGameMachine';   // enums PUROS (import read-only; a máquina não é alterada)
 
 export const OVELHA_HITBOX_MIN = 56;
 export const OVELHA_ROUNDS = 5;
@@ -56,10 +57,22 @@ export function tierValido(t) { return OVELHA_TIERS.includes(t); }
  * probabilidade de puxar o predominante), e o tempo/forma da dica (auto no fácil; botão no
  * médio/difícil). NÃO há cronômetro punitivo em nenhum modo.
  */
+// OV2 — campos adicionais (não alteram gameplay existente):
+//   timerTipo: 'nenhum' (Fácil) · 'fase' (Médio, regressiva por fase) · 'partida' (Difícil, relógio
+//              ÚNICO da partida inteira) · 'sessao_infinita' (Infinito, sessão com pontuação).
+//   tempoLimiteMs: regressiva POR FASE (só 'fase'); tempoGlobalMs: relógio da PARTIDA (só 'partida').
+//   dicaErros: [limite1, limite2] em ERROS ELEGÍVEIS — 1º limite acende brilho regional;
+//              +2 (limite2) revela contorno. A dica NUNCA aponta a resposta.
 export const OVELHA_DIFFICULTIES = Object.freeze([
-  { id: 'facil', label: 'Fácil', premium: false, rounds: 5, hitboxMin: 64, escalaMul: 1.10, tiers: ['facil'], tierPrincipal: 'facil', predominancia: 1, dicaAuto: true, dicaMs: 8000 },
-  { id: 'medio', label: 'Médio', premium: false, rounds: 7, hitboxMin: 56, escalaMul: 1.00, tiers: ['facil', 'medio'], tierPrincipal: 'medio', predominancia: 0.7, dicaAuto: false, dicaMs: 12000 },
-  { id: 'dificil', label: 'Difícil', premium: false, rounds: 10, hitboxMin: 56, escalaMul: 0.92, tiers: ['medio', 'dificil'], tierPrincipal: 'dificil', predominancia: 0.7, dicaAuto: false, dicaMs: 18000 },
+  { id: 'facil', label: 'Fácil', premium: false, rounds: 5, hitboxMin: 64, escalaMul: 1.10, tiers: ['facil'], tierPrincipal: 'facil', predominancia: 1, dicaAuto: true, dicaMs: 8000, timerTipo: 'nenhum', tempoLimiteMs: null, tempoGlobalMs: null, dicaErros: [4, 6] },
+  { id: 'medio', label: 'Médio', premium: false, rounds: 7, hitboxMin: 56, escalaMul: 1.00, tiers: ['facil', 'medio'], tierPrincipal: 'medio', predominancia: 0.7, dicaAuto: false, dicaMs: 12000, timerTipo: 'fase', tempoLimiteMs: 45000, tempoGlobalMs: null, dicaErros: [6, 8] },
+  // OV3R3 — Difícil: relógio ÚNICO da PARTIDA (2min30s de busca ATIVA para encontrar as 10). NÃO usa
+  // mais regressiva por fase (tempoLimiteMs: null). Zero antes das 10 → DERROTA da partida inteira.
+  { id: 'dificil', label: 'Difícil', premium: false, rounds: 10, hitboxMin: 56, escalaMul: 0.92, tiers: ['medio', 'dificil'], tierPrincipal: 'dificil', predominancia: 0.7, dicaAuto: false, dicaMs: 18000, timerTipo: 'partida', tempoLimiteMs: null, tempoGlobalMs: 150000, dicaErros: [8, 10] },
+  // OV3 — Modo Infinito: sem nº fixo de fases; sessão de 60s de busca ATIVA (cronômetro global,
+  // não por fase). `rounds` alto é só o teto da máquina (a sessão termina pelo tempo, não por
+  // contagem). Dificuldade progressiva por getInfiniteStageConfig; dica por erros [3,5]/tempo [8s,12s].
+  { id: 'infinito', label: 'Infinito', premium: false, rounds: 999, hitboxMin: 56, escalaMul: 1.00, tiers: ['facil', 'medio', 'dificil'], tierPrincipal: 'medio', predominancia: 0.7, dicaAuto: false, dicaMs: 12000, timerTipo: 'sessao_infinita', tempoLimiteMs: null, tempoGlobalMs: null, dicaErros: [3, 5], infinito: true, sessaoMs: 60000 },
 ]);
 
 export function getDifficulty(id) {
@@ -95,6 +108,28 @@ export function shuffle(arr, rnd = Math.random) {
   return out;
 }
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/* ─────────────── Faixa horizontal (OV2: guarda contra padrões perceptíveis) ─────────────── */
+
+/** Classifica um spot em 'esq' | 'cen' | 'dir' pela ZONA declarada (fallback: coordenada x real). PURO. */
+export function bandaDe(spot) {
+  const z = (spot && spot.zone) || '';
+  const b = z.split('_')[1];
+  if (b === 'esq' || b === 'cen' || b === 'dir') return b;
+  const fx = spot && spot.pos ? spot.pos.x / OVELHA_ART_W : 0.5;   // art coords normalizadas
+  return fx < 0.38 ? 'esq' : fx > 0.62 ? 'dir' : 'cen';
+}
+
+/** Sorteio PONDERADO determinístico (usa o RNG injetável). Peso 0/total 0 → uniforme. PURO. */
+export function pickWeighted(arr, pesos, rng = Math.random) {
+  const list = Array.isArray(arr) ? arr : [];
+  if (!list.length) return null;
+  const total = pesos.reduce((a, b) => a + (b > 0 ? b : 0), 0);
+  if (!(total > 0)) return list[Math.floor((rng() || 0) * list.length)] || list[0];
+  let r = rng() * total;
+  for (let i = 0; i < list.length; i++) { r -= (pesos[i] > 0 ? pesos[i] : 0); if (r < 0) return list[i]; }
+  return list[list.length - 1];
+}
 
 /* ─────────────────────────── Viewport + contentRect (contain) ─────────────────────────── */
 
@@ -552,8 +587,9 @@ export function planId(plano) {
  *  - predominância do tier principal; determinístico sob `rng`.
  * @returns {{ baralho: Array<{sceneId,spotId,difficulty,pose,zone,cluster}>, deckState }}
  */
-export function montarBaralhoSpots({ baralhoCenas = [], dificuldade = 'facil', rng = Math.random, scenes = cenasHabilitadas(), deckState = null }) {
-  const dif = getDifficulty(dificuldade);
+export function montarBaralhoSpots({ baralhoCenas = [], dificuldade = 'facil', rng = Math.random, scenes = cenasHabilitadas(), deckState = null, stageResolver = null }) {
+  // OV3 — `stageResolver(i)` opcional permite dificuldade progressiva POR ÍNDICE (Modo Infinito):
+  // retorna { difId, predominancia }. Ausente (modos finitos) → comportamento IDÊNTICO ao anterior.
   const ds = clonarDeckState(deckState);
   const spotById = (scene, id) => (scene.hidingSpots || []).find((s) => s.id === id);
   const preferir = (pool, pred) => { const s = pool.filter(pred); return s.length ? s : pool; };
@@ -561,13 +597,19 @@ export function montarBaralhoSpots({ baralhoCenas = [], dificuldade = 'facil', r
   const clustersGame = new Set();          // clusters usados NESTA partida
   const ultimaZonaGame = {};               // zona da última aparição da cena nesta partida
   const ultimoClusterGame = {};            // cluster da última aparição da cena nesta partida
+  const bandasPlano = [];                  // OV2: faixas horizontais escolhidas no plano (cruzando cenas)
   const out = [];
   for (let i = 0; i < baralhoCenas.length; i++) {
     const sceneId = baralhoCenas[i];
     const scene = scenes.find((s) => s.id === sceneId) || getScene(sceneId);
-    const elegiveis = (scene.hidingSpots || []).filter((s) => spotElegivel(s, dificuldade));
+    // Dificuldade EFETIVA da rodada (fixa nos modos finitos; progressiva no Infinito).
+    const stage = stageResolver ? stageResolver(i) : null;
+    const difIdRod = stage && stage.difId ? stage.difId : dificuldade;
+    const dif = getDifficulty(difIdRod);
+    const predominancia = stage && stage.predominancia != null ? stage.predominancia : (dif.predominancia ?? 1);
+    const elegiveis = (scene.hidingSpots || []).filter((s) => spotElegivel(s, difIdRod));
     if (!elegiveis.length) { out.push({ sceneId, spotId: null, difficulty: null, pose: 'front', zone: null, cluster: null }); continue; }
-    const key = `${sceneId}::${dificuldade}`;
+    const key = `${sceneId}::${difIdRod}`;
     const deck = ds.decks[key] || (ds.decks[key] = { restantes: [], ultimoSpot: null, ultimoCluster: null });
     // renova o ciclo quando esgota
     if (!deck.restantes.length) {
@@ -593,15 +635,42 @@ export function montarBaralhoSpots({ baralhoCenas = [], dificuldade = 'facil', r
     if (ultimaZonaGame[sceneId]) pool = preferir(pool, (s) => s.zone !== ultimaZonaGame[sceneId]);         // zona diferente ao reaparecer
     if (ultimoClusterGame[sceneId]) pool = preferir(pool, (s) => s.cluster !== ultimoClusterGame[sceneId]); // cluster diferente ao reaparecer
     const doPrincipal = pool.filter((s) => s.difficulty === dif.tierPrincipal);
-    const escolhaPool = (doPrincipal.length && rng() < (dif.predominancia ?? 1)) ? doPrincipal : pool;
-    const pick = shuffle(escolhaPool, rng)[0];
+    const escolhaPool = (doPrincipal.length && rng() < predominancia) ? doPrincipal : pool;
+    // OV2 — guarda de FAIXA HORIZONTAL (sem alternância fixa): os contratos (dif/cluster/zona/
+    // hist/safe) já filtraram `escolhaPool`. Aqui: (a) proíbe a 3ª faixa igual seguida quando há
+    // alternativa; (b) penaliza (não proíbe) repetir a faixa anterior; (c) penaliza continuar A,B,A,B.
+    const nb = bandasPlano.length;
+    const b1 = nb >= 1 ? bandasPlano[nb - 1] : null;   // faixa da rodada anterior
+    const b2 = nb >= 2 ? bandasPlano[nb - 2] : null;
+    const b3 = nb >= 3 ? bandasPlano[nb - 3] : null;
+    const b4 = nb >= 4 ? bandasPlano[nb - 4] : null;
+    let candBanda = escolhaPool;
+    if (b1 && b1 === b2) {                              // NUNCA 3 faixas iguais quando há alternativa VÁLIDA
+      // "válida" = respeita os contratos DUROS (tier elegível + não repetir spot na partida); as
+      // preferências macias (cluster/zona/hist/predominância) cedem para quebrar o run de 3.
+      const poolHard = deck.restantes.map((id) => spotById(scene, id)).filter((s) => s && !usadosGame.has(s.id));
+      let outros = escolhaPool.filter((s) => bandaDe(s) !== b1);
+      if (!outros.length) outros = pool.filter((s) => bandaDe(s) !== b1);
+      if (!outros.length) outros = poolHard.filter((s) => bandaDe(s) !== b1);
+      if (outros.length) candBanda = outros;            // (se NENHUM candidato de outra faixa: 3ª igual inevitável)
+    }
+    const abab = !!b4 && b4 === b2 && b3 === b1 && b4 !== b3;   // últimas 4 = A,B,A,B → penaliza a continuação A (=b2)
+    const pesos = candBanda.map((s) => {
+      const b = bandaDe(s);
+      let w = 1;
+      if (b1 && b === b1) w *= 0.30;                    // repetir a faixa anterior fica improvável (não proibido)
+      if (abab && b === b2) w *= 0.18;                  // quebra o padrão alternado longo
+      return w;
+    });
+    const pick = pickWeighted(candBanda, pesos, rng);
     // consome do baralho + atualiza memórias
     deck.restantes = deck.restantes.filter((id) => id !== pick.id);
     deck.ultimoSpot = pick.id; deck.ultimoCluster = pick.cluster;
     usadosGame.add(pick.id); clustersGame.add(pick.cluster);
+    bandasPlano.push(bandaDe(pick));
     ultimaZonaGame[sceneId] = pick.zone; ultimoClusterGame[sceneId] = pick.cluster;
     const h = ds.hist[sceneId] || (ds.hist[sceneId] = []);
-    h.push({ spotId: pick.id, cluster: pick.cluster, roundIndex: i, dificuldade });
+    h.push({ spotId: pick.id, cluster: pick.cluster, roundIndex: i, dificuldade: difIdRod });
     while (h.length > OVELHA_HIST_MAX) h.shift();
     out.push({ sceneId, spotId: pick.id, difficulty: pick.difficulty, pose: pick.pose, zone: pick.zone, cluster: pick.cluster });
   }
@@ -623,6 +692,107 @@ export function planPartida({ rng = Math.random, dificuldade = 'facil', scenes =
   const baralhoCenas = montarBaralhoCenas({ rounds: total, rng, cenaIds: validas.map((s) => s.id) });
   const { baralho, deckState: ds } = montarBaralhoSpots({ baralhoCenas, dificuldade, rng, scenes: validas, deckState });
   return { plano: baralho, deckState: ds, planId: planId(baralho) };
+}
+
+/* ─────────────────────────── Modo Infinito (OV3) ─────────────────────────── */
+
+/** Constantes do Infinito. Pontuação transparente, sem punição, sem moedas/vidas/energia. */
+export const INFINITO = Object.freeze({
+  SESSAO_MS: 60000,            // 60s de busca ATIVA (cronômetro global; não por fase)
+  PLANO_MAX: 60,               // fases pré-sorteadas por sessão (folga p/ a sessão inteira)
+  BASE: 100,                   // pontos por ovelha encontrada
+  VEL_5S_MS: 5000, VEL_10S_MS: 10000, BONUS_VEL_5: 50, BONUS_VEL_10: 25,
+  BONUS_PERFEITO: 25,          // sem erro elegível e sem dica
+  BONUS_SEQ_POR_NIVEL: 20, BONUS_SEQ_TETO: 100,
+  MARCO_A_CADA: 5, BONUS_MARCO: 200,
+  DICA_ERROS: [3, 5],          // 1º brilho após 3 erros elegíveis; contorno após 5
+  DICA_MS: [8000, 12000],      // ou 8s / 12s ativos na mesma fase
+});
+
+/**
+ * Dificuldade progressiva do Infinito por nº de ovelhas já encontradas (0-based no índice da
+ * fase a sortear). Faixa 1 (1–5) ≈ Médio; Faixa 2 (6–12) ≈ Difícil; Faixa 3 (13+) = Difícil com
+ * prioridade a spots mais difíceis. NÃO altera scene/hitbox/escala/assets — só escolhe tiers. PURO.
+ */
+export function getInfiniteStageConfig(encontradas) {
+  const n = Math.max(0, Math.floor(Number(encontradas) || 0));
+  if (n < 5) return { faixa: 1, difId: 'medio', predominancia: 0.7, priorizarDificil: false };
+  if (n < 12) return { faixa: 2, difId: 'dificil', predominancia: 0.7, priorizarDificil: false };
+  return { faixa: 3, difId: 'dificil', predominancia: 0.85, priorizarDificil: true };
+}
+
+/**
+ * Plano do Infinito: baralho de cenas + spots com dificuldade PROGRESSIVA por índice (Faixas).
+ * Reusa integralmente as sacolas, o guarda de faixa e o ABABA (via montarBaralhoSpots + stageResolver).
+ * PURO/determinístico sob `rng`. `total` grande cobre a sessão sem repetir a sequência. PURO.
+ * @returns {{ plano: Array, deckState: object, planId: string }}
+ */
+export function planPartidaInfinito({ rng = Math.random, scenes = cenasHabilitadas(), total = INFINITO.PLANO_MAX, deckState = null } = {}) {
+  // Cenas válidas para AMBAS as bases usadas (médio e difícil) — todas têm 6/6/6 spots por tier.
+  const validas = scenes.filter((sc) => sceneValida(sc, 'medio') && sceneValida(sc, 'dificil'));
+  if (!validas.length) return { plano: [], deckState: clonarDeckState(deckState), planId: planId([]) };
+  const baralhoCenas = montarBaralhoCenas({ rounds: total, rng, cenaIds: validas.map((s) => s.id) });
+  const stageResolver = (i) => { const c = getInfiniteStageConfig(i); return { difId: c.difId, predominancia: c.predominancia }; };
+  const { baralho, deckState: ds } = montarBaralhoSpots({ baralhoCenas, dificuldade: 'medio', rng, scenes: validas, deckState, stageResolver });
+  return { plano: baralho, deckState: ds, planId: planId(baralho) };
+}
+
+/**
+ * Pontuação de UMA fase do Infinito. PURO/determinístico. `sequenciaAntes` = sequência perfeita
+ * ANTES desta fase. Base 100 sempre; velocidade (sem dica); perfeito (sem erro e sem dica);
+ * sequência perfeita (20×seq, teto 100). Nunca desconta. Não usa moeda/vida/energia.
+ * @returns {{ pontos, perfeita, novaSequencia }}
+ */
+export function pontosFaseInfinito({ ms, houveErro = false, usouDica = false, sequenciaAntes = 0 } = {}) {
+  const t = Math.max(0, Number(ms) || 0);
+  const semErro = !houveErro;
+  const semDica = !usouDica;
+  let pontos = INFINITO.BASE;
+  if (semDica) {
+    if (t <= INFINITO.VEL_5S_MS) pontos += INFINITO.BONUS_VEL_5;
+    else if (t <= INFINITO.VEL_10S_MS) pontos += INFINITO.BONUS_VEL_10;
+  }
+  const perfeita = semErro && semDica;
+  if (perfeita) pontos += INFINITO.BONUS_PERFEITO;
+  const seqAntes = Math.max(0, Math.floor(Number(sequenciaAntes) || 0));
+  const novaSequencia = perfeita ? seqAntes + 1 : 0;   // erro/dica quebram a sequência
+  if (novaSequencia > 0) pontos += Math.min(INFINITO.BONUS_SEQ_TETO, INFINITO.BONUS_SEQ_POR_NIVEL * novaSequencia);
+  return { pontos, perfeita, novaSequencia };
+}
+
+/** Bônus de MARCO: +200 a cada 5 ovelhas encontradas (encontradas > 0). PURO. */
+export function bonusMarcoInfinito(encontradas) {
+  const n = Math.floor(Number(encontradas) || 0);
+  return (n > 0 && n % INFINITO.MARCO_A_CADA === 0) ? INFINITO.BONUS_MARCO : 0;
+}
+
+/** Nível de dica do Infinito por tempo ATIVO na fase (8s→brilho, 12s→contorno). Combina com erros. PURO. */
+export function nivelDicaInfinitoPorTempo(msAtivos) {
+  const t = Math.max(0, Number(msAtivos) || 0);
+  if (t >= INFINITO.DICA_MS[1]) return 3;
+  if (t >= INFINITO.DICA_MS[0]) return 2;
+  return 0;
+}
+
+/* ─────────────────────────── OV3R2 — Tempo esgotado encerra a fase (finitos) ─────────────────────────── */
+
+/**
+ * Resolução PURA de "tempo esgotado" numa fase FINITA (Médio/Difícil). Espelha `avancar` da máquina,
+ * porém a partir de PROCURANDO e SEM contabilizar ovelha: NÃO incrementa `encontradas`, ZERA a
+ * sequência corrente (mantém `bestSequencia`) e avança a fase. Última fase → FIM (finaliza); senão →
+ * TROCANDO (próxima rodada). Determinística; devolve `{ estado, efeitos }` no mesmo contrato da máquina.
+ * A máquina de estados NÃO é alterada — este helper só reusa os enums FASES/EFEITOS.
+ */
+export function expirarFaseFinita(estado) {
+  if (!estado || estado.fase !== FASES.PROCURANDO) return { estado, efeitos: [] };
+  const base = { ...estado, sequencia: 0 };   // timeout quebra a sequência atual (bestSequencia intacto)
+  if (estado.rodada >= estado.rounds) {
+    return { estado: { ...base, fase: FASES.FIM }, efeitos: [EFEITOS.FINALIZAR] };
+  }
+  return {
+    estado: { ...base, fase: FASES.TROCANDO, rodada: estado.rodada + 1, targetId: null, itemIds: [] },
+    efeitos: [EFEITOS.SOM_TROCA],
+  };
 }
 
 /* ─────────────────────────── Invariantes da rodada ─────────────────────────── */
@@ -683,4 +853,30 @@ export function nivelDica(elapsedMs, errosElegiveis) {
   if (t >= DICA.T2_MS || e >= DICA.E2) nivel = 2;
   if (t >= DICA.T3_MS || e >= DICA.E3) nivel = 3;
   return nivel;
+}
+
+/**
+ * OV2 — dica POR ERROS ELEGÍVEIS (independe de tempo). `limites` = [limite1, limite2].
+ *   e >= limite1  → nível 2 (brilho regional; o nível 1 região é implícito).
+ *   e >= limite2  → nível 3 (contorno). Nunca aponta a resposta.
+ * Sem limites válidos → 0 (o modo não escala dica por erro).
+ */
+export function nivelDicaPorErros(errosElegiveis, limites) {
+  const e = Number(errosElegiveis) || 0;
+  const l1 = Array.isArray(limites) ? Number(limites[0]) : NaN;
+  const l2 = Array.isArray(limites) ? Number(limites[1]) : NaN;
+  if (l2 > 0 && e >= l2) return 3;
+  if (l1 > 0 && e >= l1) return 2;
+  return 0;
+}
+
+/** OV2 — formata ms para exibição infantil: "8s" (<1min) ou "1:05". `ceil` p/ regressiva.
+ *  OV3R3 — `mmss` força SEMPRE M:SS (ex.: relógio da PARTIDA do Difícil: "2:30", "0:09", "0:00"). */
+export function formatarTempoMs(ms, ceil = false, mmss = false) {
+  const seg = (Number(ms) || 0) / 1000;
+  const n = Math.max(0, ceil ? Math.ceil(seg) : Math.round(seg));
+  const m = Math.floor(n / 60);
+  const s = n % 60;
+  if (mmss) return `${m}:${String(s).padStart(2, '0')}`;
+  return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${s}s`;
 }

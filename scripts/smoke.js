@@ -17402,12 +17402,18 @@ check(
       const s = a1StripComments(svc)
         .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
         .replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '');
-      return new Function(scenes + '\n' + s
+      // FASES/EFEITOS vêm da máquina (import removido no eval) — injeta os enums reais dela.
+      const enums = "const FASES = Object.freeze({ TROCANDO:'trocandoCena', ENTRANDO:'entrandoCena', PROCURANDO:'procurando', ERRO:'resolvendoErro', ACERTO:'resolvendoAcerto', FIM:'finalizado' });"
+        + " const EFEITOS = Object.freeze({ SOM_ACERTO:'somAcerto', SOM_ERRO:'somErro', SOM_TROCA:'somTroca', VIBRAR_ACERTO:'vibrarAcerto', AGENDAR_LIBERAR_ERRO:'agendarLiberarErro', AGENDAR_PROXIMA:'agendarProximaRodada', FINALIZAR:'finalizarPartida' });";
+      return new Function(enums + '\n' + scenes + '\n' + s
         + ';return { OVELHA_SCENES, getScene, cenasHabilitadas, sceneValida, sceneCompleta, buildRoundFromSpot, planPartida,'
         + ' montarBaralhoCenas, montarBaralhoSpots, criarRng, novaSeed, spotElegivel, escalaEfetiva, tierValido,'
         + ' OVELHA_DIFFICULTIES, getDifficulty, roundValido, computeViewport, contentRect, artToPx, spriteBoxArt,'
         + ' hitboxArt, hitboxPxRect, toqueAcertou, spotContratoValido, spotHitboxDentroViewport,'
         + ' auditarSpots, zoneValida, clusterValida, criarDeckState, clonarDeckState, assinaturaDeck, planId,'
+        + ' bandaDe, pickWeighted, nivelDicaPorErros, formatarTempoMs, erroElegivel,'
+        + ' planPartidaInfinito, getInfiniteStageConfig, pontosFaseInfinito, bonusMarcoInfinito, nivelDicaInfinitoPorTempo, INFINITO,'
+        + ' expirarFaseFinita, FASES,'
         + ' MISS_ID, OVELHA_HITBOX_MIN };')();
     };
     const evalMq = () => new Function(a1StripComments(mq)
@@ -17421,7 +17427,9 @@ check(
     const evalStats = () => new Function(
       'AsyncStorage', 'STORAGE_KEYS', 'warn', 'BRINCAR_DAILY_STAR_CAP', 'DEFAULT_MODE', 'isBetterTime', 'isBetterScore', 'isBetterMoves',
       a1StripComments(bs21).replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '')
-      + ';return { sanitizeStats, applyOvelhaResult, applyResult };')(
+      + ';return { sanitizeStats, applyOvelhaResult, applyResult, sanitizeBestTimeByScene, novoRecordeTempo,'
+      + ' aplicarTempoFaseOvelha, ovelhaApresentouHoje, aplicarApresentacaoOvelha, sanitizeInfinito, applyInfinitoResult,'
+      + ' aplicarCompletionDificil };')(
         {}, {}, () => {}, 2, 'classico',
         (a, b) => Number.isFinite(b) && b > 0 && (!(Number.isFinite(a) && a > 0) || b < a),
         (a, b) => Number.isFinite(b) && b > 0 && b > (Number.isFinite(a) ? a : 0),
@@ -17842,21 +17850,21 @@ check(
       && /const id = requestAnimationFrame/.test(tela) && /cancelAnimationFrame/.test(tela),
       'o overlay não cobre antes de trocar a rodada (frame + token)');
 
-    check('2.2e (card do alvo): 3 estados (Preparando/Procurar/Tentar novamente); imagem via expo-image; botão só habilita quando pronto',
-      /Encontre esta ovelhinha!/.test(tela)
-      && /Preparando a brincadeira…/.test(tela)
-      && /Não conseguimos preparar a cena\./.test(tela)
-      && /Tentar novamente/.test(tela)
-      && /pronto \? \(/.test(tela) && /onProcurar\}/.test(tela)
-      && /if \(!botaoHabilitado\(lstate\)\) return;/.test(tela),
-      'o card do alvo (estados/imagem/botão) regrediu');
+    check('OV3 (capa técnica): overlay DISCRETO sem botão; sonda de prontidão (preview onDisplay) preservada; auto-reveal sem "Procurar" grande',
+      (() => {
+        const capa = (tela.match(/function CapaTecnica[\s\S]*?\n\}/) || [''])[0];
+        const temSonda = /onDisplay=\{onPreviewDisplay\}/.test(capa) && /onError=\{onPreviewError\}/.test(capa) && /OVELHA_POSE_IMG\[OVELHA_POSE_JOGO\]/.test(capa);
+        const semBotao = !/SoundButton/.test(capa) && !/onProcurar/.test(capa) && !/Procurar</.test(capa);
+        const textoCurto = /Preparando o próximo esconderijo…/.test(capa) && /Ops, recarregando…/.test(capa);
+        // a antiga capa grande (card com alvo + botão) não existe mais
+        const semCardGrande = !/function TargetCard/.test(tela) && !/Onde ela se escondeu agora/.test(tela);
+        return temSonda && semBotao && textoCurto && semCardGrande && /if \(!botaoHabilitado\(lstate\)\) return;/.test(tela);
+      })(),
+      'a capa técnica (discreta/sem botão/sonda de prontidão) regrediu');
 
-    check('2.2e-fix (HUD retrato): miniatura via expo-image usa a MESMA pose frontal do jogo (OVELHA_POSE_JOGO); com fallback',
-      /function HudRetrato/.test(tela)
-      && /Procure esta/.test(tela)
-      && /<ExpoImage source=\{OVELHA_POSE_IMG\[OVELHA_POSE_JOGO\]\}/.test(tela)
-      && /falhou/.test(tela),
-      'o retrato do HUD não usa a pose frontal única do jogo');
+    check('OV3 (HUD sem miniatura): a miniatura "Procure esta"/HudRetrato foi REMOVIDA do HUD (sem referência dupla do alvo)',
+      !/function HudRetrato/.test(tela) && !/Procure esta/.test(tela) && !/<HudRetrato/.test(tela),
+      'a miniatura duplicada do alvo (Procure esta) voltou ao HUD');
 
     check('2.2e (input bloqueado): toque exige !inputBloqueado(lstate); durante cobertura/erro fica bloqueado',
       /if \(pausado \|\| inputBloqueado\(lstate\) \|\| !rodada\) return;/.test(tela),
@@ -17973,22 +17981,28 @@ check(
       })(),
       'o Modo Criador não tem toggle OFF por padrão, ou o contorno/diag regrediu');
 
-    check('2.2f (dicas): níveis 1 região · 2 brilho · 3 pulso; auto no fácil (dicaAuto) e botão no médio/difícil; nunca pontua/avança',
+    check('OV2 (dicas por ERROS): níveis 1 região · 2 brilho · 3 contorno; limiares Fácil 4/6 · Médio 6/8 · Difícil 8/10; sem botão; dica ≥2 invalida recorde; nunca pontua/avança',
       (() => {
         const S = evalSvc();
-        const conf = S.getDifficulty('facil').dicaAuto === true
-          && S.getDifficulty('medio').dicaAuto === false && S.getDifficulty('dificil').dicaAuto === false;
+        const conf = Array.isArray(S.getDifficulty('facil').dicaErros)
+          && S.getDifficulty('facil').dicaErros.join(',') === '4,6'
+          && S.getDifficulty('medio').dicaErros.join(',') === '6,8'
+          && S.getDifficulty('dificil').dicaErros.join(',') === '8,10';
         const niveis = /dicaNivel >= 1 && <DicaRegiao/.test(tela)
           && /dicaNivel >= 2 && <BrilhoRegiao/.test(tela)
-          && /pulsar=\{dicaNivel >= 3\}/.test(tela);
-        const controlador = /if \(dif\.dicaAuto\)/.test(tela) && /setDicaPronta\(true\)/.test(tela)
-          && /const pedirDica = useCallback/.test(tela) && /dicaBotaoVisivel/.test(tela);
-        // a dica NÃO chama tocar/aplicar (não pontua/avança): pedirDica só sobe o nível
-        const pedir = (tela.match(/const pedirDica = useCallback\(\(\) => \{[\s\S]*?\n  \}, \[/) || [''])[0];
-        const naoPontua = pedir && !/aplicar\(/.test(pedir) && /subirDica/.test(pedir);
-        return conf && niveis && controlador && naoPontua;
+          && /dicaNivel >= 3 && <ContornoVisivel/.test(tela);
+        // dica agora vem de ERROS ELEGÍVEIS (cooldown 700ms) — não de tempo, não de botão
+        const porErros = /nivelDicaPorErros\(errosElegivelRef\.current, dif\.dicaErros\)/.test(tela)
+          && /erroElegivel\(\{ id: MISS_ID/.test(tela)
+          && !/setDicaPronta/.test(tela) && !/const pedirDica/.test(tela) && !/dicaBotaoVisivel/.test(tela);
+        // dica VISÍVEL (≥2) marca a fase "com ajuda" e tira a elegibilidade a recorde
+        const invalida = /if \(n >= 2\) \{ faseComDicaRef\.current = true; faseElegivelRef\.current = false; \}/.test(tela);
+        // subirDica NÃO chama tocar/aplicar (não pontua/avança): só sobe o nível
+        const subir = (tela.match(/const subirDica = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+        const naoPontua = subir && !/aplicar\(/.test(subir) && /setNivel\(n\)/.test(subir);
+        return conf && niveis && porErros && invalida && naoPontua;
       })(),
-      'o sistema de dicas (níveis/auto-botão/não-pontua) regrediu');
+      'o sistema de dicas por erros (níveis/limiares/sem-botão/invalida-recorde/não-pontua) regrediu');
 
     check('2.2f (bolha mágica): underwater usa a MESMA pose front dentro de uma bolha RN, no MESMO Pressable, sem remover o toque',
       (() => {
@@ -18030,26 +18044,27 @@ check(
 
     check('2.2f (rejogabilidade): "Jogar novamente" gera NOVA seed; "Trocar dificuldade" volta à seleção; dificuldade preservada',
       (() => {
-        // comecar cria uma nova seed a cada chamada → percurso diferente; "jogar novamente" chama comecar
+        // comecar cria uma nova seed a cada chamada → percurso diferente; "jogar novamente" chama comecar()
         const novaSeedEmComecar = /const seed = novaSeed\(\);/.test(tela) && /seedRef\.current = seed;/.test(tela);
-        const jogarDeNovo = /onPress=\{comecar\}[\s\S]*?Jogar novamente/.test(tela);
+        const jogarDeNovo = /onPress=\{\(\) => comecar\(\)\}[\s\S]*?Jogar novamente/.test(tela);
         const trocar = /onPress=\{\(\) => setTela\('entrada'\)\}[\s\S]*?Trocar dificuldade/.test(tela);
         return novaSeedEmComecar && jogarDeNovo && trocar;
       })(),
       'a rejogabilidade (nova seed / trocar dificuldade) regrediu');
 
-    check('2.2f (placar/rodada com total real): usa vista.rounds e resultado.total, não texto fixo em 5',
-      /Rodada \{rodadaNum\}\/\{vista\.rounds\}/.test(tela)
+    check('2.2f (placar/rodada com total real): usa vista.rounds e resultado.total, não texto fixo em 5 (Difícil mostra "Tempo total")',
+      /Rodada \$\{rodadaNum\}\/\$\{vista\.rounds\}/.test(tela)   // OV3R3: agora em template (ramo não-partida)
       && /\{vista\.encontradas\} de \{vista\.rounds\}/.test(tela)
       && /resultado\?\.total \?\? dif\.rounds/.test(tela)
       && /criarJogo\(\{ rounds: getDifficulty\('facil'\)\.rounds \}\)/.test(tela),
       'o placar/rodada voltou a assumir 5 rodadas fixas');
 
-    check('2.2e-fix (cabeçalho respeita a faixa do Modo Criador): offset extra quando criadorAtivo',
+    check('OV3 (cabeçalho reserva a faixa do Modo Criador): altura = safe-area + faixa (sem offset por aparelho); título nunca coberto',
       /function Header\(\{ insets, onBack, chip, criadorAtivo \}\)/.test(tela)
-      && /criadorAtivo \? 22 : 0/.test(tela)
+      && /const bannerH = Math\.max\(insets\.top, 4\) \+ 20;/.test(tela)
+      && /criadorAtivo \? bannerH \+ 8 : Math\.max\(insets\.top, 10\)/.test(tela)
       && /criadorAtivo=\{criadorAtivo\}/.test(tela),
-      'o cabeçalho não compensa a faixa do Modo Criador');
+      'o cabeçalho não reserva a altura correta da faixa do Modo Criador');
 
     check('2.2e-fix (Asset Gallery pose oficial): marca a frontal como oficial do jogo',
       (() => {
@@ -18125,12 +18140,13 @@ check(
       } catch (e) { return false; } })(),
       'a persistência da ovelha ou o teto compartilhado regrediram');
 
-    check('2.2e (tela): consumo único; salvamento único; ciclo de vida (rAF cancelados)',
+    check('2.2e/OV3 (tela): consumo único; salvamento por modo; ciclo de vida (rAF cancelados)',
       (() => {
         const fin = (tela.match(/const finalizar = useCallback\(async[\s\S]*?\n  \}/) || [''])[0];
-        return (tela.match(/consumeRound\(/g) || []).length === 1
-          && (tela.match(/addBonusStars\(/g) || []).length === 1
-          && (tela.match(/recordOvelhaResult\(/g) || []).length === 1
+        return (tela.match(/consumeRound\(/g) || []).length === 1                 // 1 rodada por sessão (todos os modos)
+          && (tela.match(/addBonusStars\(/g) || []).length === 3                  // OV3/OV3R3: finalizar + finalizarInfinito + finalizarDificil
+          && (tela.match(/recordOvelhaResult\(/g) || []).length === 2             // finito (Fácil/Médio) + Difícil (vitória/derrota)
+          && (tela.match(/recordInfinitoResult\(/g) || []).length === 1           // infinito
           && /salvoRef\.current = true;/.test(fin)
           && /cancelAnimationFrame/.test(tela)
           && /montado\.current = false;/.test(tela) && /releaseGameSfx\(\);/.test(tela);
@@ -18152,6 +18168,970 @@ check(
       && /export function isInternalToolsEnabled/.test(readSrc('src/config/internalTools.js'))
       && !/ovelha|Ovelha/.test(a1StripComments(readSrc('src/services/paresGameMachine.js'))),
       'o bloco 2.2e tocou o Pares ou o Modo Criador');
+
+    /* ══════════════════════════════════════════════════════════════════════════
+       OV2 — Cadê a Ovelhinha? Polimento de lançamento (randomização · apresentação ·
+       cronômetro · recordes · dicas por erros · entrada/HUD/resultado). Dev-gated.
+       ══════════════════════════════════════════════════════════════════════════ */
+
+    // ── ETAPA 2: randomização sem sequência/padrão perceptível ──
+    check('OV2.1 (bandaDe): deriva esq/cen/dir da zone; fallback por pos.x quando a banda não é padrão',
+      (() => { try {
+        const S = evalSvc();
+        const a = S.bandaDe({ zone: 'inf_cen' }) === 'cen' && S.bandaDe({ zone: 'meio_dir' }) === 'dir' && S.bandaDe({ zone: 'sup_esq' }) === 'esq';
+        const fb = S.bandaDe({ zone: 'x_y', pos: { x: 100 } }) === 'esq' && S.bandaDe({ zone: '', pos: { x: 1000 } }) === 'dir';
+        return a && fb;
+      } catch (e) { return false; } })(),
+      'bandaDe regrediu (zone/ fallback por posição)');
+
+    check('OV2.2 (pickWeighted): determinístico por rng; peso 0 nunca é escolhido; degrada para uniforme sem pesos válidos',
+      (() => { try {
+        const S = evalSvc();
+        const arr = ['a', 'b', 'c'];
+        const so_b = S.pickWeighted(arr, [0, 1, 0], () => 0.99) === 'b' && S.pickWeighted(arr, [0, 1, 0], () => 0.0) === 'b';
+        const uni = ['a', 'b', 'c'].includes(S.pickWeighted(arr, [0, 0, 0], () => 0.5));
+        const vazio = S.pickWeighted([], [], () => 0.5) === null;
+        return so_b && uni && vazio;
+      } catch (e) { return false; } })(),
+      'pickWeighted regrediu (peso 0 / uniforme / vazio)');
+
+    check('OV2.3 (randomização): reprodutível por seed+deck; 0 cenas e 0 spots consecutivos repetidos; todos os spots elegíveis usados',
+      (() => { try {
+        const S = evalSvc();
+        const rep = (() => {
+          const a = S.planPartida({ rng: S.criarRng(7), dificuldade: 'medio' });
+          const b = S.planPartida({ rng: S.criarRng(7), dificuldade: 'medio' });
+          return a.planId === b.planId && JSON.stringify(a.plano) === JSON.stringify(b.plano);
+        })();
+        let okConsec = true;
+        for (const dif of ['facil', 'medio', 'dificil']) {
+          const usados = new Set(); let ds = S.criarDeckState();
+          for (let g = 0; g < 200; g++) {
+            const r = S.planPartida({ rng: S.criarRng(((g + 1) * 2654435761) >>> 0), dificuldade: dif, deckState: ds });
+            ds = r.deckState;
+            for (let i = 0; i < r.plano.length; i++) {
+              usados.add(r.plano[i].spotId);
+              if (i > 0 && (r.plano[i].sceneId === r.plano[i - 1].sceneId || r.plano[i].spotId === r.plano[i - 1].spotId)) okConsec = false;
+            }
+          }
+          const eleg = S.OVELHA_SCENES.reduce((s, sc) => s + sc.hidingSpots.filter((x) => S.spotElegivel(x, dif)).length, 0);
+          if (usados.size !== eleg) okConsec = false;
+        }
+        return rep && okConsec;
+      } catch (e) { return false; } })(),
+      'a randomização regrediu (reprodutibilidade / repetição consecutiva / cobertura de spots)');
+
+    check('OV2.4 (band-guard): 3+ faixas iguais seguidas são raras (<15%) sem alternância fixa/par-ímpar; sempre termina',
+      (() => { try {
+        const S = evalSvc();
+        let ok = true;
+        for (const dif of ['facil', 'medio', 'dificil']) {
+          let ds = S.criarDeckState(); let jogos3 = 0; const NG = 400;
+          for (let g = 0; g < NG; g++) {
+            const r = S.planPartida({ rng: S.criarRng(((g + 11) * 40503) >>> 0), dificuldade: dif, deckState: ds });
+            ds = r.deckState;
+            if (r.plano.length !== N[dif]) { ok = false; break; }   // sempre termina com o nº de fases
+            const b = r.plano.map((p) => S.bandaDe(p));
+            for (let i = 2; i < b.length; i++) if (b[i] === b[i - 1] && b[i - 1] === b[i - 2]) { jogos3++; break; }
+          }
+          if (jogos3 / NG >= 0.15) ok = false;
+        }
+        return ok;
+      } catch (e) { return false; } })(),
+      'o band-guard regrediu (muitos 3-runs de faixa) ou a partida não termina');
+
+    check('OV2.5 (código band-guard): bandaDe + pickWeighted + penalidades de faixa presentes no serviço; sem alternância modular/fixa',
+      (() => {
+        const svcSrc = a1StripComments(svc);
+        const tem = /export function bandaDe/.test(svcSrc) && /export function pickWeighted/.test(svcSrc)
+          && /bandasPlano\.push\(bandaDe\(pick\)\)/.test(svcSrc)
+          && /if \(b1 && b === b1\) w \*= 0\.30;/.test(svcSrc)
+          && /abab/.test(svcSrc);
+        const semModular = !/% 2 ===|indexOf.*% 2|paridade|alterna\w*Fixa/.test(svcSrc);
+        return tem && semModular;
+      })(),
+      'o núcleo do band-guard (helpers/penalidades) regrediu ou virou alternância fixa');
+
+    // ── ETAPA 3: apresentação 1×/dia (persistência não destrutiva) ──
+    check('OV2.6 (stats/migração): sanitizeStats adiciona ovelha.apresentacaoDay=null e bestTimeByScene={}, preserva antigo e o Pares',
+      (() => { try {
+        const B = evalStats();
+        const m = B.sanitizeStats({ ovelha: { facil: { plays: 2, encontradas: 5, bestSequencia: 3 } }, pares: { facil: { plays: 1 } } });
+        return JSON.stringify(m.ovelha.facil.bestTimeByScene) === '{}' && m.ovelha.apresentacaoDay === null
+          && m.ovelha.facil.plays === 2 && m.ovelha.facil.bestSequencia === 3 && m.pares.facil.plays === 1;
+      } catch (e) { return false; } })(),
+      'a migração de stats (apresentacaoDay/bestTimeByScene) regrediu ou é destrutiva');
+
+    check('OV2.7 (sanitizeBestTimeByScene): mantém ms positivos por chave string; descarta não-numérico, negativo e zero',
+      (() => { try {
+        const B = evalStats();
+        const r = B.sanitizeBestTimeByScene({ farm_lively_01: 1234, x: 'lixo', y: -5, z: 0, bakery_01: 900 });
+        return JSON.stringify(r) === '{"farm_lively_01":1234,"bakery_01":900}';
+      } catch (e) { return false; } })(),
+      'sanitizeBestTimeByScene regrediu (não filtra inválidos)');
+
+    check('OV2.8 (apresentação): ovelhaApresentouHoje false→marca→true; outro dia continua false; helper puro não persiste',
+      (() => { try {
+        const B = evalStats();
+        const st = B.sanitizeStats(null);
+        const antes = B.ovelhaApresentouHoje(st, '2026-07-13') === false;
+        const dep = B.aplicarApresentacaoOvelha(st, '2026-07-13');
+        const marcado = B.ovelhaApresentouHoje(dep.stats, '2026-07-13') === true && B.ovelhaApresentouHoje(dep.stats, '2026-07-14') === false;
+        const semDia = JSON.stringify(B.aplicarApresentacaoOvelha(st, '').stats) === JSON.stringify(B.sanitizeStats(st));
+        return antes && marcado && semDia;
+      } catch (e) { return false; } })(),
+      'a apresentação diária (helpers puros) regrediu');
+
+    check('OV2.9 (tela apresentação): rota "apresentacao"; entrada chama iniciarComApresentacao; marca só após consumeRound ok; "Vamos procurar" inicia com marcarApresentacao',
+      (() => {
+        const temTela = /tela === 'apresentacao'/.test(tela) && /Encontre esta ovelhinha!/.test(tela);
+        const gate = /const iniciarComApresentacao = useCallback/.test(tela)
+          && /ovelhaApresentouHoje\(statsRef\.current, hoje\)/.test(tela)
+          && /onPress=\{iniciarComApresentacao\}/.test(tela);
+        // dentro de comecar: só marca DEPOIS do consumeRound (autorização real)
+        const com = (tela.match(/const comecar = useCallback\(async[\s\S]*?\n  \}, \[/) || [''])[0];
+        const ordem = com.indexOf('consumeRound(') >= 0 && com.indexOf('consumeRound(') < com.indexOf('marcarApresentacaoOvelha(');
+        const botao = /onPress=\{\(\) => comecar\(\{ marcarApresentacao: true \}\)\}[\s\S]*?Vamos procurar/.test(tela);
+        const naoMarca = /onPress=\{\(\) => setTela\('entrada'\)\}[\s\S]*?Agora não/.test(tela);
+        return temTela && gate && ordem && botao && naoMarca;
+      })(),
+      'a apresentação 1×/dia (gate/ordem/consumeRound-antes-de-marcar) regrediu');
+
+    check('OV2.10 (apresentação sem 5 backgrounds): a tela de apresentação mostra só a ovelha (OVELHA_POSE_IMG), não referencia OVELHA_BG',
+      (() => {
+        const bloco = (tela.match(/tela === 'apresentacao'\)[\s\S]*?\n  \}\n/) || [''])[0];
+        return bloco.length > 0 && /OVELHA_POSE_IMG\[OVELHA_POSE_JOGO\]/.test(bloco) && !/OVELHA_BG/.test(bloco);
+      })(),
+      'a apresentação passou a carregar backgrounds (deveria mostrar só a ovelha)');
+
+    // ── ETAPA 5/6: cronômetro por fase + recordes ──
+    check('OV2/OV3R3.11 (dificuldades): timerTipo nenhum/fase/partida/sessao; Fácil sem tempo · Médio 45000/fase · Difícil 150000/partida (não 30000/fase nem 300000); premium/rounds/hitbox intactos',
+      (() => { try {
+        const S = evalSvc();
+        const f = S.getDifficulty('facil'), m = S.getDifficulty('medio'), d = S.getDifficulty('dificil'), inf = S.getDifficulty('infinito');
+        const tipos = f.timerTipo === 'nenhum' && m.timerTipo === 'fase' && d.timerTipo === 'partida' && inf.timerTipo === 'sessao_infinita';
+        const tempos = f.tempoLimiteMs === null && m.tempoLimiteMs === 45000
+          && d.tempoLimiteMs === null && d.tempoGlobalMs === 150000 && d.tempoGlobalMs !== 300000 && d.tempoGlobalMs !== 30000   // OV3R3 final — 2min30s
+          && m.tempoGlobalMs === null && f.tempoGlobalMs === null;
+        return tipos && tempos
+          && f.premium === false && m.premium === false && d.premium === false
+          && f.rounds === 5 && m.rounds === 7 && d.rounds === 10
+          && f.hitboxMin === 64 && m.hitboxMin === 56 && d.hitboxMin === 56;
+      } catch (e) { return false; } })(),
+      'a matriz de timers por dificuldade (timerTipo/tempoGlobalMs) regrediu');
+
+    check('OV2.12 (cronômetro): componente <Cronometro> com setInterval interno + clearInterval; deadline monotônico via getUsadoMs (não acumulativo)',
+      (() => {
+        const comp = (tela.match(/function Cronometro\([\s\S]*?\n\}/) || [''])[0];
+        const usado = (tela.match(/const getUsadoMs = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+        // getUsadoMs recomputa do relógio (Date.now - desde), não soma a cada tick
+        const monotonico = /base \+ Math\.max\(0, Date\.now\(\) - desde\)/.test(usado);
+        const interno = /setInterval\(/.test(comp) && /clearInterval\(t\)/.test(comp) && /if \(!rodando\) return undefined;/.test(comp);
+        // fora do <Cronometro> não há setInterval na tela (sem timer acumulativo espalhado)
+        const semOutroInterval = (tela.match(/setInterval\(/g) || []).length === 1;
+        return monotonico && interno && semOutroInterval;
+      })(),
+      'o cronômetro (componente/monotônico/setInterval único) regrediu');
+
+    check('OV2/OV3.13 (cronômetro rodando/pausa): "rodando" = procurando && !pausado && !derrotaFase; efeito acumula ms ativos (fase E sessão) e congela na pausa',
+      (() => {
+        const rod = /const rodando = procurando && !pausado && !derrotaFase;/.test(tela);
+        const ef = (tela.match(/const rid = rodada\?\.roundId;[\s\S]*?\}, \[jogando, rodando, rodada\?\.roundId\]\);/) || [''])[0];
+        const acumula = /faseAcumMsRef\.current \+= Math\.max\(0, agora - faseAtivaDesdeRef\.current\);/.test(ef)
+          && /faseAtivaDesdeRef\.current = agora;/.test(ef)
+          && /faseAtivaDesdeRef\.current = null;/.test(ef);
+        // OV3 — a MESMA transição move a sessão global do Infinito (não zera por fase).
+        const sessao = /sessaoAtivaDesdeRef\.current = agora;/.test(ef)
+          && /sessaoAcumMsRef\.current \+= Math\.max\(0, agora - sessaoAtivaDesdeRef\.current\);/.test(ef);
+        return rod && ef.length > 0 && acumula && sessao;
+      })(),
+      'a contabilização de tempo ativo (fase/sessão/pausa) regrediu');
+
+    check('OV3R2.14 (tempo esgotado ENCERRA a fase): aoEsgotarTempo delega à resolução atômica com motivo tempo_esgotado (não é mais só uma dica)',
+      (() => {
+        const fn = (tela.match(/const aoEsgotarTempo = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+        // agora o callback do timer só encaminha para o resolvedor atômico (a lógica vive lá)
+        return /fn\.current\.resolverFaseFinita\(rid, 'tempo_esgotado'\)/.test(fn)
+          && !/faseEsgotouRef\.current = true;/.test(fn);   // deixou de ser um no-op de dica
+      })(),
+      'o tempo esgotado não encerra mais a fase (regressão do comportamento antigo)');
+
+    check('OV2.15 (Fácil sem regressiva): limiteMs null → cronômetro só aparece após o acerto (encontrada)',
+      (() => {
+        const comp = (tela.match(/function Cronometro\([\s\S]*?\n\}/) || [''])[0];
+        return /if \(limiteMs == null\) \{/.test(comp) && /if \(!encontrada\) return <View style=\{styles\.cronoVazio\}/.test(comp);
+      })(),
+      'o modo Fácil (sem regressiva; tempo só após achar) regrediu');
+
+    check('OV2.16 (recorde por fase): registrarTempoFase só no acerto; elegível = !esgotou && !comDica && sceneId; grava via recordOvelhaFaseTime; decide com aplicarTempoFaseOvelha',
+      (() => {
+        const reg = (tela.match(/const registrarTempoFase = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+        // OV3R2 — o acerto agora passa pela resolução atômica; lá registra o tempo da fase.
+        const soAcerto = /if \(r\.aceito && r\.acerto === true\) registrarTempoFase\(round\);/.test(tela);
+        const eleg = /faseElegivelRef\.current && !faseEsgotouRef\.current && !faseComDicaRef\.current && !!sceneId/.test(reg);
+        const grava = /recordOvelhaFaseTime\(\{ dificuldade, sceneId, ms: usado, elegivel: true \}\)/.test(reg)
+          && /aplicarTempoFaseOvelha\(statsRef\.current, \{ dificuldade, sceneId, ms: usado, elegivel: true \}\)/.test(reg);
+        const congela = /faseAcumMsRef\.current = usado;/.test(reg) && /faseAtivaDesdeRef\.current = null;/.test(reg);
+        return soAcerto && eleg && grava && congela;
+      })(),
+      'o registro de recorde por fase (acerto/elegibilidade/persistência) regrediu');
+
+    check('OV2.17 (recorde: teto separado): registrarTempoFase NÃO dá estrela; addBonusStars só nos finalizadores (finito+infinito)',
+      (() => {
+        const reg = (tela.match(/const registrarTempoFase = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+        // recorde por fase não credita estrela; addBonusStars só existe em finalizar + finalizarInfinito (2)
+        return !/addBonusStars/.test(reg) && (tela.match(/addBonusStars\(/g) || []).length === 3;
+      })(),
+      'o recorde passou a conceder estrela (deve ser desacoplado do teto de estrelas)');
+
+    check('OV2.18 (aplicarTempoFaseOvelha): 1º vira recorde; menor substitui; empate/maior não; inelegível não grava; entradas inválidas não gravam',
+      (() => { try {
+        const B = evalStats();
+        const st = B.sanitizeStats(null);
+        const r1 = B.aplicarTempoFaseOvelha(st, { dificuldade: 'medio', sceneId: 'farm_lively_01', ms: 8000, elegivel: true });
+        const primeiro = r1.novoRecorde && r1.stats.ovelha.medio.bestTimeByScene.farm_lively_01 === 8000;
+        const maior = B.aplicarTempoFaseOvelha(r1.stats, { dificuldade: 'medio', sceneId: 'farm_lively_01', ms: 9000, elegivel: true }).novoRecorde === false;
+        const empate = B.aplicarTempoFaseOvelha(r1.stats, { dificuldade: 'medio', sceneId: 'farm_lively_01', ms: 8000, elegivel: true }).novoRecorde === false;
+        const menor = B.aplicarTempoFaseOvelha(r1.stats, { dificuldade: 'medio', sceneId: 'farm_lively_01', ms: 6000, elegivel: true }).novoRecorde === true;
+        const ineleg = B.aplicarTempoFaseOvelha(r1.stats, { dificuldade: 'medio', sceneId: 'farm_lively_01', ms: 1, elegivel: false }).novoRecorde === false;
+        const inval = B.aplicarTempoFaseOvelha(st, { dificuldade: 'x', sceneId: 'farm_lively_01', ms: 100, elegivel: true }).novoRecorde === false
+          && B.aplicarTempoFaseOvelha(st, { dificuldade: 'medio', sceneId: '', ms: 100, elegivel: true }).novoRecorde === false
+          && B.aplicarTempoFaseOvelha(st, { dificuldade: 'medio', sceneId: 'farm_lively_01', ms: 0, elegivel: true }).novoRecorde === false;
+        return primeiro && maior && empate && menor && ineleg && inval;
+      } catch (e) { return false; } })(),
+      'aplicarTempoFaseOvelha (regras de recorde) regrediu');
+
+    check('OV2.19 (novoRecordeTempo): menor vence; empate/maior não; nulos tratados',
+      (() => { try {
+        const B = evalStats();
+        return B.novoRecordeTempo(null, 5) === true && B.novoRecordeTempo(10, 5) === true
+          && B.novoRecordeTempo(5, 5) === false && B.novoRecordeTempo(5, 10) === false
+          && B.novoRecordeTempo(5, null) === false && B.novoRecordeTempo(5, -1) === false;
+      } catch (e) { return false; } })(),
+      'novoRecordeTempo regrediu');
+
+    check('OV2.20 (applyOvelhaResult preserva bestTimeByScene): a sequência/plays não apaga os recordes de tempo',
+      (() => { try {
+        const B = evalStats();
+        const base = B.aplicarTempoFaseOvelha(B.sanitizeStats(null), { dificuldade: 'facil', sceneId: 'bakery_01', ms: 4000, elegivel: true }).stats;
+        const r = B.applyOvelhaResult(base, { dificuldade: 'facil', day: '2026-07-13', encontradas: 5, sequencia: 5 });
+        return r.stats.ovelha.facil.bestTimeByScene.bakery_01 === 4000;
+      } catch (e) { return false; } })(),
+      'applyOvelhaResult apagou os recordes de tempo (bestTimeByScene)');
+
+    // ── ETAPA 7: dicas por erros (formato/reset/cooldown) ──
+    check('OV2.21 (nivelDicaPorErros): l1→2 (brilho), l2→3 (contorno), abaixo→0; sem limites→0',
+      (() => { try {
+        const S = evalSvc();
+        return S.nivelDicaPorErros(3, [4, 6]) === 0 && S.nivelDicaPorErros(4, [4, 6]) === 2 && S.nivelDicaPorErros(6, [4, 6]) === 3
+          && S.nivelDicaPorErros(99, null) === 0 && S.nivelDicaPorErros(7, [6, 8]) === 2 && S.nivelDicaPorErros(8, [6, 8]) === 3;
+      } catch (e) { return false; } })(),
+      'nivelDicaPorErros regrediu');
+
+    check('OV2.22 (dica reset por fase + cooldown): resetarDica zera errosElegivelRef; erroElegivel usa cooldown 700ms',
+      (() => {
+        const S = evalSvc();
+        const reset = /const resetarDica = useCallback[\s\S]*?errosElegivelRef\.current = 0;[\s\S]*?\}, \[\]\);/.test(tela);
+        const cd = /erroElegivel\(\{ id: MISS_ID, ultimoId: ultimoErroIdRef\.current, agoraMs: agora, ultimoMs: ultimoErroMsRef\.current \}\)/.test(tela);
+        const svcCd = S.erroElegivel({ id: 'm', ultimoId: 'm', agoraMs: 1000, ultimoMs: 500 }) === false
+          && S.erroElegivel({ id: 'm', ultimoId: 'm', agoraMs: 1300, ultimoMs: 500 }) === true;
+        return reset && cd && svcCd;
+      })(),
+      'a dica por erros (reset por fase / cooldown 700ms) regrediu');
+
+    // ── OV3: entrada VERTICAL + HUD simplificado ──
+    check('OV3.23 (entrada vertical): 4 modos em lista (modoCard), descrição/info/tempo/recorde; seleção por check (não só cor); recorde Infinito em pontos',
+      /OVELHA_DIFFICULTIES\.map\(\(m\) =>/.test(tela)
+      && /const meta = MODO_INFO\[m\.id\] \|\| \{\}/.test(tela)
+      && /styles\.modoCard/.test(tela) && /<View style=\{\[styles\.modoCheck, sel \? styles\.modoCheckOn : styles\.modoCheckOff\]\}>/.test(tela)
+      && /m\.infinito\s*\n?\s*\? \(melhorPontosInfinito\(stats\) > 0 \? `Melhor: \$\{milhar\(melhorPontosInfinito\(stats\)\)\} pontos`/.test(tela)
+      && /melhorTempoDaDificuldade\(stats, m\.id\) != null \? `Melhor fase: \$\{formatarTempoMs\(melhorTempoDaDificuldade\(stats, m\.id\)\)\}`/.test(tela),
+      'a entrada vertical (4 modos/recorde/seleção por check) regrediu');
+
+    check('OV3.24 (HUD): cronômetro no HUD (Infinito=sessão, finito=fase); fora do viewport/dicaRow; HUD Infinito com Ovelhas/Sequência/pontos',
+      (() => {
+        const hasInfCrono = /<Cronometro\s+roundId=\{seedRef\.current\}/.test(tela) && /limiteMs=\{INFINITO\.SESSAO_MS\}/.test(tela) && /getUsadoMs=\{getSessaoMs\}/.test(tela);
+        // OV3R3 — HUD finito serve Fácil/Médio (fase) E Difícil (partida) via seleção por partidaGlobal
+        const hasFinitoCrono = /roundId=\{partidaGlobal \? seedRef\.current : \(rodada\?\.roundId \?\? 0\)\}/.test(tela) && /limiteMs=\{partidaGlobal \? dif\.tempoGlobalMs : dif\.tempoLimiteMs\}/.test(tela);
+        const dicaRow = (tela.match(/<View style=\{styles\.dicaRow\}>[\s\S]*?<\/View>/) || [''])[0];
+        const viewport = (tela.match(/<Pressable\s+onPress=\{aoTocarCena\}[\s\S]*?<\/Pressable>/) || [''])[0];
+        const foraDaCena = !/<Cronometro/.test(viewport) && !/<Cronometro/.test(dicaRow);
+        const infHud = /Ovelhas \{vista\.encontradas\}/.test(tela) && /Sequência \{seqPerfeitaRef\.current\}/.test(tela) && /\{milhar\(pontos\)\} pts/.test(tela);
+        return hasInfCrono && hasFinitoCrono && foraDaCena && infHud;
+      })(),
+      'o HUD (cronômetro no HUD fora da cena / HUD Infinito) regrediu');
+
+    // ── ETAPA 10: resultado com tempos ──
+    check('OV2.25 (resultado): ScrollView rolável; lista de fases (FaseLinha) com tempo por cena; "Fases sem dica"; nota tempo≠estrela',
+      /<ScrollView contentContainerStyle=\{styles\.resultadoScroll\}/.test(tela)
+      && /<FaseLinha key=\{i\} indice=\{i \+ 1\} fase=\{f\} \/>/.test(tela)
+      && /function FaseLinha/.test(tela)
+      && /label="Fases sem dica"/.test(tela)
+      && /As estrelinhas não dependem dele/.test(tela),
+      'a tela de resultado (rolável / tempos por fase / nota) regrediu');
+
+    check('OV2.26 (resultado: rótulos de fase): recorde/perfeita/com ajuda/tempo esgotado sem ranking nem moeda',
+      (() => {
+        const fl = (tela.match(/function FaseLinha[\s\S]*?\n\}/) || [''])[0];
+        const rotulos = /tempo esgotado/.test(fl) && /novo recorde!/.test(fl) && /com ajuda/.test(fl) && /fase perfeita/.test(fl);
+        const semRankMoeda = !/ranking|moeda|coins?/i.test(fl);
+        return rotulos && semRankMoeda;
+      })(),
+      'os rótulos de fase (recorde/perfeita/ajuda/esgotado) regrediram ou entraram ranking/moeda');
+
+    // ── ETAPA 11/12: persistência única + desempenho (memo) ──
+    check('OV2.27 (persistência única): tela não cria chave AsyncStorage nova; só brincarStatsService/brincarDailyService gravam',
+      !/@ptf_/.test(tela) && !/AsyncStorage/.test(tela)
+      && /from '..\/services\/brincarStatsService'/.test(telaRaw),
+      'a tela passou a persistir fora do brincarStatsService (chave nova/AsyncStorage direto)');
+
+    check('OV2.28 (perf): SceneLayer é React.memo com callbacks estáveis (onBgDisplay/onSheepDisplay useCallback) → zero re-render por tick',
+      /const SceneLayer = React\.memo\(function SceneLayer/.test(tela)
+      && /const onBgDisplay = useCallback\(\(\) => aoExibir\('background', rodadaRef\.current\?\.roundId\)/.test(tela)
+      && /const onSheepDisplay = useCallback\(\(\) => aoExibir\('sceneSheep', rodadaRef\.current\?\.roundId\)/.test(tela)
+      && /onBgDisplay=\{onBgDisplay\}/.test(tela) && /onSheepDisplay=\{onSheepDisplay\}/.test(tela),
+      'a memoização do SceneLayer / callbacks estáveis regrediu (risco de re-render por tick)');
+
+    check('OV2.29 (preservação do carregamento): loadingReducer/onDisplay/token/roundId/recyclingKey/contentFit-fill/contentRect intactos',
+      /useReducer\(loadingReducer/.test(tela)
+      && /onDisplay=\{onBgDisplay\}/.test(tela) && /onDisplay=\{onSheepDisplay\}/.test(tela)
+      && /roundToken=\{lstate\.roundToken\}/.test(tela)
+      && /recyclingKey=\{kBg\}/.test(layer) && /recyclingKey=\{kSheep\}/.test(layer)
+      && /contentFit="fill"/.test(layer) && /contentRect\(scene, viewport\)/.test(layer),
+      'o carregamento aprovado (reducer/onDisplay/token/recyclingKey/contentFit) regrediu');
+
+    // ── GATES/BUSCAS FINAIS OV2 ──
+    check('OV2.30 (higiene): sem debugger, sem console.log, sem instrumentação de render/temporária na tela',
+      !/\bdebugger\b/.test(telaRaw) && !/console\.log/.test(telaRaw)
+      && !/renderCount|__RENDER__|useRef\(0\).*render/i.test(telaRaw),
+      'sobrou debugger/console.log/instrumentação temporária na tela');
+
+    check('OV2.31 (dica nível 3 = contorno): SceneLayer renderiza ContornoVisivel em dicaNivel>=3 (dica direta/erros)',
+      /dicaNivel >= 3 && <ContornoVisivel cx=\{centro\.px\} cy=\{centro\.py\} w=\{spW\} h=\{spH\} \/>/.test(layer)
+      && /function ContornoVisivel/.test(tela),
+      'a dica de contorno (nível 3) regrediu');
+
+    /* ══════════════════════════════════════════════════════════════════════════
+       OV3 — Revisão visual final + Modo Infinito. Preserva backgrounds/spots/sacolas/
+       carregamento atômico/contentRect/hitboxes/pose única/daily rounds/teto de estrelas.
+       ══════════════════════════════════════════════════════════════════════════ */
+
+    // ── Entrada vertical / hero / status único / CTA rodapé / DEV recolhido ──
+    check('OV3 (entrada vertical): hero + ScrollView + 4 modos verticais; CTA FORA da ScrollView (rodapé)',
+      (() => {
+        const scroll = (tela.match(/<ScrollView contentContainerStyle=\{styles\.entradaScroll\}[\s\S]*?<\/ScrollView>/) || [''])[0];
+        const cta = /<View style=\{\[styles\.ctaBar/.test(tela);
+        // a barra de CTA aparece DEPOIS do fechamento da ScrollView (fora dela)
+        const ctaFora = tela.indexOf('</ScrollView>\n        <View style={[styles.ctaBar') >= 0 || /<\/ScrollView>\s*\{\/\* CTA[\s\S]*?styles\.ctaBar/.test(telaRaw);
+        return scroll.length > 0 && /styles\.hero\b/.test(tela) && /A ovelhinha adora se esconder\. Vamos procurar\?/.test(tela)
+          && /OVELHA_DIFFICULTIES\.map\(\(m\) =>/.test(scroll) && cta && ctaFora;
+      })(),
+      'a entrada vertical (hero/ScrollView/CTA no rodapé) regrediu');
+
+    check('OV3 (status único): uma só mensagem diária ("N vezes"/"1 vez"/"acabaram"); sem texto antigo "Antes de cada rodada"',
+      /Hoje você ainda pode brincar \$\{rounds\.remaining\} \$\{rounds\.remaining === 1 \? 'vez' : 'vezes'\}/.test(tela)
+      && /As rodadas de hoje acabaram\. Amanhã tem mais!/.test(tela)
+      && !/Antes de cada rodada/.test(tela)
+      && (tela.match(/rounds\.remaining/g) || []).length >= 1,
+      'o status diário duplicou ou o texto antigo permaneceu');
+
+    check('OV3 (CTA reflete o modo): "Começar no {dif.label}"; sem rodada = desabilitado "Volte amanhã" (sem duplicar limite)',
+      /Começar no \{dif\.label\}/.test(tela)
+      && /Volte amanhã/.test(tela)
+      && /styles\.btnPrimarioOff/.test(tela),
+      'o CTA por modo / estado sem rodada regrediu');
+
+    check('OV3 (DEV recolhido): "Ferramentas de teste" gated + recolhível; Asset Gallery só quando aberto',
+      /Ferramentas de teste/.test(tela)
+      && /isInternalToolsEnabled\(\) && \(/.test(tela)
+      && /ferramentasAbertas &&[\s\S]*?ROUTES\.OVELHA_ASSET_GALLERY/.test(tela)
+      && /setFerramentasAbertas\(\(v\) => !v\)/.test(tela),
+      'a seção de ferramentas (recolhida/gated) regrediu');
+
+    // ── Transição automática + capa técnica sem botão ──
+    check('OV3 (auto-reveal): efeito revela sozinho quando pronto (procurar); sem botão "Procurar"; auto-retry buttonless em erro',
+      /if \(botaoHabilitado\(lstate\)\) \{ procurar\(\); return; \}/.test(tela)
+      && /if \(temErro\(lstate\) && !retryAgendadoRef\.current\)/.test(tela)
+      && !/Procurar</.test(tela) && !/onProcurar/.test(tela),
+      'a transição automática (auto-reveal / capa sem botão) regrediu');
+
+    check('OV3 (timer não corre na capa): "rodando" exige procurando (input liberado); durante a capa fica pausado',
+      /const procurando = jogando && vista\.fase === FASES\.PROCURANDO && !inputBloqueado\(lstate\)/.test(tela)
+      && /const rodando = procurando && !pausado/.test(tela),
+      'o cronômetro poderia correr durante o carregamento (capa)');
+
+    // ── Modo Infinito: config, tempo, pontuação, dificuldade, dicas ──
+    check('OV3 (Infinito config): 4º modo premium:false, tempoLimiteMs null, sessaoMs 60000, dicaErros [3,5]; rounds finitos 5/7/10 intactos',
+      (() => { try {
+        const S = evalSvc();
+        const inf = S.getDifficulty('infinito');
+        return inf && inf.infinito === true && inf.premium === false && inf.tempoLimiteMs === null && inf.sessaoMs === 60000
+          && Array.isArray(inf.dicaErros) && inf.dicaErros.join(',') === '3,5'
+          && S.INFINITO.SESSAO_MS === 60000
+          && S.getDifficulty('facil').rounds === 5 && S.getDifficulty('medio').rounds === 7 && S.getDifficulty('dificil').rounds === 10;
+      } catch (e) { return false; } })(),
+      'a configuração do Modo Infinito regrediu ou tocou os modos finitos');
+
+    check('OV3 (getInfiniteStageConfig): Faixa 1 (0-4)=médio; Faixa 2 (5-11)=difícil; Faixa 3 (12+)=difícil priorizado',
+      (() => { try {
+        const S = evalSvc();
+        const c0 = S.getInfiniteStageConfig(0), c4 = S.getInfiniteStageConfig(4), c5 = S.getInfiniteStageConfig(5), c11 = S.getInfiniteStageConfig(11), c12 = S.getInfiniteStageConfig(12);
+        return c0.faixa === 1 && c0.difId === 'medio' && c4.faixa === 1
+          && c5.faixa === 2 && c5.difId === 'dificil' && c11.faixa === 2
+          && c12.faixa === 3 && c12.difId === 'dificil' && c12.priorizarDificil === true && c12.predominancia > c5.predominancia;
+      } catch (e) { return false; } })(),
+      'a progressão de dificuldade do Infinito regrediu');
+
+    check('OV3 (pontuação): base 100; velocidade +50(≤5s)/+25(≤10s); perfeito +25; sequência 20×n (teto 100); dica zera bônus; erro quebra perfeição; nunca desconta',
+      (() => { try {
+        const S = evalSvc();
+        const P = (o) => S.pontosFaseInfinito(o);
+        const rapidaPerf = P({ ms: 3000, houveErro: false, usouDica: false, sequenciaAntes: 0 });  // 100+50+25+20
+        const media = P({ ms: 8000, houveErro: false, usouDica: false, sequenciaAntes: 0 });         // 100+25+25+20
+        const lenta = P({ ms: 12000, houveErro: false, usouDica: false, sequenciaAntes: 0 });         // 100+0+25+20
+        const comErro = P({ ms: 3000, houveErro: true, usouDica: false, sequenciaAntes: 4 });         // 100+50+0+0 (seq reset)
+        const comDica = P({ ms: 3000, houveErro: false, usouDica: true, sequenciaAntes: 4 });         // 100+0+0+0
+        const teto = P({ ms: 1000, houveErro: false, usouDica: false, sequenciaAntes: 4 });           // 100+50+25+100
+        return rapidaPerf.pontos === 195 && rapidaPerf.novaSequencia === 1 && rapidaPerf.perfeita === true
+          && media.pontos === 170 && lenta.pontos === 145
+          && comErro.pontos === 150 && comErro.novaSequencia === 0 && comErro.perfeita === false
+          && comDica.pontos === 100 && comDica.novaSequencia === 0
+          && teto.pontos === 275;   // sequência limitada a 100
+      } catch (e) { return false; } })(),
+      'a fórmula de pontuação do Infinito regrediu');
+
+    check('OV3 (marco): +200 a cada 5 ovelhas (5/10/15); 0 fora do marco; determinístico',
+      (() => { try {
+        const S = evalSvc();
+        return [1, 4, 6].every((n) => S.bonusMarcoInfinito(n) === 0)
+          && [5, 10, 15].every((n) => S.bonusMarcoInfinito(n) === 200)
+          && S.bonusMarcoInfinito(0) === 0;
+      } catch (e) { return false; } })(),
+      'o bônus de marco (a cada 5) regrediu');
+
+    check('OV3 (dicas Infinito): erros [3,5] via nivelDicaPorErros; tempo [8s,12s] via nivelDicaInfinitoPorTempo; ambos sobem a dica sem apontar',
+      (() => { try {
+        const S = evalSvc();
+        const erros = S.nivelDicaPorErros(3, S.getDifficulty('infinito').dicaErros) === 2 && S.nivelDicaPorErros(5, S.getDifficulty('infinito').dicaErros) === 3;
+        const tempo = S.nivelDicaInfinitoPorTempo(7000) === 0 && S.nivelDicaInfinitoPorTempo(8000) === 2 && S.nivelDicaInfinitoPorTempo(12000) === 3;
+        const naTela = /nivelDicaInfinitoPorTempo\(getUsadoMs\(\)\)/.test(tela) && /onTick=\{aoTickInfinitoFase\}/.test(tela);
+        return erros && tempo && naTela;
+      } catch (e) { return false; } })(),
+      'as dicas do Infinito (erros/tempo) regrediram');
+
+    check('OV3 (timer global): sessão via <Cronometro> roundId=seed, limiteMs=SESSAO_MS, getSessaoMs; esgotar → aoEsgotarSessao (encerra + "Tempo!" + finaliza); único setInterval',
+      (() => {
+        const esg = (tela.match(/const aoEsgotarSessao = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+        const guard = /seedRef\.current !== sid \|\| sessaoEncerradaRef\.current/.test(esg) && /aplicar\(encerrar\)/.test(esg) && /setTempoEsgotadoInf\(true\)/.test(esg) && /finalizarInfinito\(\), 700\)/.test(esg);
+        const semInterval = (tela.match(/setInterval\(/g) || []).length === 1;   // só o do <Cronometro>
+        const monot = /const base = sessaoAcumMsRef\.current;[\s\S]*?desde != null \? base \+ Math\.max\(0, Date\.now\(\) - desde\)/.test(tela);
+        return guard && semInterval && monot;
+      })(),
+      'o timer global do Infinito (sessão/esgotar/monotônico) regrediu');
+
+    check('OV3 (Infinito sessão): plano por planPartidaInfinito; buildRoundFromSpot usa Faixa; não consome rodada por acerto (consumeRound único)',
+      /planPartidaInfinito\(\{ rng: criarRng\(seed\), deckState: deckStateRef\.current \}\)/.test(tela)
+      && /getInfiniteStageConfig\(jogoRef\.current\.encontradas\)\.difId : dificuldade/.test(tela)
+      && (tela.match(/consumeRound\(/g) || []).length === 1,
+      'a sessão do Infinito (plano progressivo / rodada única) regrediu');
+
+    // ── Randomização do Infinito (10k sessões) ──
+    check('OV3 (Infinito randomização, 10k): reprodutível; 0 cena/spot consecutivos; 90 spots; sacolas renovam; sempre termina; band-guard OK',
+      (() => { try {
+        const S = evalSvc();
+        const bandOf = (z) => (z || '').split('_')[1] || '?';
+        const rep = (() => { const a = S.planPartidaInfinito({ rng: S.criarRng(42) }); const b = S.planPartidaInfinito({ rng: S.criarRng(42) }); return a.planId === b.planId && JSON.stringify(a.plano) === JSON.stringify(b.plano); })();
+        let ds = S.criarDeckState(); let sceneConsec = 0, spotConsec = 0, triples = 0, triplesSame = 0, semTermino = 0; const usados = new Set(); const NG = 10000;
+        for (let g = 0; g < NG; g++) {
+          const r = S.planPartidaInfinito({ rng: S.criarRng(((g + 1) * 2654435761) >>> 0), deckState: ds });
+          ds = r.deckState;
+          if (r.plano.length !== S.INFINITO.PLANO_MAX) semTermino++;
+          const b = r.plano.map((p) => bandOf(p.zone));
+          for (let i = 0; i < r.plano.length; i++) {
+            usados.add(r.plano[i].spotId);
+            if (i > 0 && r.plano[i].sceneId === r.plano[i - 1].sceneId) sceneConsec++;
+            if (i > 0 && r.plano[i].spotId === r.plano[i - 1].spotId) spotConsec++;
+            if (i >= 2) { triples++; if (b[i] === b[i - 1] && b[i - 1] === b[i - 2]) triplesSame++; }
+          }
+        }
+        // 90 spots usados prova que as sacolas renovam (cada cena×dif recicla todos os elegíveis)
+        return rep && sceneConsec === 0 && spotConsec === 0 && usados.size === 90 && semTermino === 0 && (triplesSame / triples) < 0.05;
+      } catch (e) { return false; } })(),
+      'a randomização do Infinito regrediu (repetição/cobertura/renovação/band-guard)');
+
+    // ── Persistência do Infinito ──
+    check('OV3 (stats infinito): sanitizeStats cria infinito zerado; migra sem perda; sanitizeInfinito filtra',
+      (() => { try {
+        const B = evalStats();
+        const m = B.sanitizeStats({ ovelha: { facil: { plays: 3, bestSequencia: 2 }, apresentacaoDay: '2026-07-13' }, pares: { facil: { plays: 1 } } });
+        const zerado = JSON.stringify(m.ovelha.infinito) === '{"plays":0,"bestScore":0,"bestEncontradas":0,"bestSequencia":0}';
+        const preserva = m.ovelha.facil.plays === 3 && m.ovelha.apresentacaoDay === '2026-07-13' && m.pares.facil.plays === 1;
+        const filtra = JSON.stringify(B.sanitizeInfinito({ plays: -2, bestScore: 'x', bestEncontradas: 4, bestSequencia: 3.9 })) === '{"plays":0,"bestScore":0,"bestEncontradas":4,"bestSequencia":3}';
+        return zerado && preserva && filtra;
+      } catch (e) { return false; } })(),
+      'a persistência do Infinito (migração/sanitização) regrediu');
+
+    check('OV3 (applyInfinitoResult): sessão sem ovelha inválida; recordes só sobem; empate não; teto compartilhado; ≥1 ovelha = 1 estrela',
+      (() => { try {
+        const B = evalStats();
+        const s0 = B.sanitizeStats(null);
+        const vazia = B.applyInfinitoResult(s0, { score: 999, encontradas: 0, sequencia: 0, day: 'D' });
+        const inval = vazia.starAwarded === false && vazia.stats.ovelha.infinito.plays === 0;
+        const r1 = B.applyInfinitoResult(s0, { score: 1500, encontradas: 8, sequencia: 4, day: 'D' });
+        const um = r1.starAwarded === true && r1.isBestScore === true && r1.stats.ovelha.infinito.bestScore === 1500 && r1.stats.ovelha.infinito.plays === 1;
+        const empate = B.applyInfinitoResult(r1.stats, { score: 1500, encontradas: 6, sequencia: 2, day: 'D' });
+        const naoRec = empate.isBestScore === false && empate.stats.ovelha.infinito.bestScore === 1500 && empate.stats.ovelha.infinito.bestEncontradas === 8 && empate.stats.ovelha.infinito.bestSequencia === 4;
+        const cap = empate.starAwarded === true && B.applyInfinitoResult(empate.stats, { score: 3000, encontradas: 20, sequencia: 9, day: 'D' }).starAwarded === false;
+        return inval && um && naoRec && cap;
+      } catch (e) { return false; } })(),
+      'a aplicação de resultado do Infinito (validade/recorde/teto) regrediu');
+
+    check('OV3 (recompensa Infinito): recordInfinitoResult grava uma vez; addBonusStars só se autorizado; tela credita no finalizarInfinito',
+      (() => {
+        const fin = (tela.match(/const finalizarInfinito = useCallback\(async[\s\S]*?\n  \}, \[/) || [''])[0];
+        return /recordInfinitoResult\(\{ score, encontradas, sequencia, day \}\)/.test(fin)
+          && /if \(r\.starAwarded\) \{ await addBonusStars\(1\); await refreshProgress\?\.\(\); \}/.test(fin)
+          && /salvoRef\.current = true;/.test(fin);
+      })(),
+      'a recompensa do Infinito (gravação única / estrela autorizada) regrediu');
+
+    // ── Resultado finito compacto + resultado Infinito ──
+    check('OV3 (resultado finito): 3 ResumoCards SEPARADOS (rótulos não concatenam); CTAs ANTES dos detalhes; detalhes recolhidos por padrão',
+      (() => {
+        const rr = (tela.match(/<View style=\{styles\.resumoRow\}>[\s\S]*?<\/View>/) || [''])[0];
+        const tresCards = /label="Encontradas"/.test(rr) && /label="Fases sem dica"/.test(rr) && /label="Melhor sequência"/.test(rr);
+        // CTAs (constante) aparecem antes do bloco de detalhes recolhido
+        const ctasAntes = tela.indexOf('{CTAs}') >= 0 && tela.indexOf('{CTAs}') < tela.indexOf('Ver detalhes das fases');
+        const recolhido = /setDetalhesFasesAbertos\(\(v\) => !v\)/.test(tela) && /detalhesFasesAbertos &&/.test(tela) && /const \[detalhesFasesAbertos, setDetalhesFasesAbertos\] = useState\(false\)/.test(tela);
+        return tresCards && ctasAntes && recolhido && /Ver detalhes das fases/.test(tela);
+      })(),
+      'o resultado finito (cards separados / CTA antes / detalhes recolhidos) regrediu');
+
+    check('OV3 (resultado Infinito): score em destaque + Ovelhinhas/Melhor sequência/Fases perfeitas; "Novo recorde!"; sem lista de fases/ranking/moeda',
+      (() => {
+        const bloco = (tela.match(/if \(ehInfinito\) \{[\s\S]*?^    \}/m) || [''])[0];
+        const temCampos = /\{milhar\(resultado\?\.score \?\? 0\)\}/.test(bloco) && /label="Ovelhinhas"/.test(bloco) && /label="Melhor sequência"/.test(bloco) && /label="Fases perfeitas"/.test(bloco);
+        const recorde = /resultado\?\.isBestScore &&[\s\S]*?Novo recorde!/.test(bloco);
+        const semRankMoeda = !/ranking|moeda|coins?/i.test(bloco) && !/FaseLinha/.test(bloco);
+        return temCampos && recorde && semRankMoeda;
+      })(),
+      'o resultado do Infinito (score/campos/novo recorde/sem lista) regrediu');
+
+    // ── Desempenho + preservação do carregamento ──
+    check('OV3 (perf): SceneLayer React.memo; callbacks estáveis; cronômetro tica no componente (parent não re-renderiza por tick); sem instrumentação de render',
+      /const SceneLayer = React\.memo\(function SceneLayer/.test(tela)
+      && /const onBgDisplay = useCallback/.test(tela) && /const onSheepDisplay = useCallback/.test(tela)
+      && /function Cronometro\([\s\S]*?setInterval\(/.test(tela)
+      && !/renderCount|__RENDER__|console\.log|\bdebugger\b/.test(telaRaw),
+      'a memoização/isolamento do timer (perf) regrediu ou sobrou instrumentação');
+
+    check('OV3 (preservação do carregamento): loadingReducer/onDisplay/token/recyclingKey/contentFit-fill/contentRect intactos; ExpoImage mantido',
+      /useReducer\(loadingReducer/.test(tela)
+      && /onDisplay=\{onBgDisplay\}/.test(tela) && /onDisplay=\{onSheepDisplay\}/.test(tela) && /onDisplay=\{onPreviewDisplay\}/.test(tela)
+      && /roundToken=\{lstate\.roundToken\}/.test(tela)
+      && /recyclingKey=\{kBg\}/.test(layer) && /recyclingKey=\{kSheep\}/.test(layer)
+      && /contentFit="fill"/.test(layer) && /contentRect\(scene, viewport\)/.test(layer),
+      'o carregamento aprovado (reducer/onDisplay/token/recyclingKey/contentFit) regrediu');
+
+    check('OV3 (invariantes preservadas): 5 cenas · 90 spots · pose front única · daily rounds · sem chave AsyncStorage nova · sem emoji',
+      (() => { try {
+        const S = evalSvc();
+        const hab = S.cenasHabilitadas ? S.cenasHabilitadas() : S.OVELHA_SCENES.filter((sc) => sc.enabled !== false);
+        const cinco = hab.length === 5 && hab.reduce((a, sc) => a + sc.hidingSpots.length, 0) === 90;
+        const front = hab.every((sc) => sc.hidingSpots.every((x) => x.pose === 'front'));
+        const semChave = !/@ptf_/.test(tela) && !/AsyncStorage/.test(tela);
+        const semEmoji = !/\p{Extended_Pictographic}/u.test(telaRaw);
+        return cinco && front && semChave && semEmoji;
+      } catch (e) { return false; } })(),
+      'uma invariante protegida (cenas/spots/pose/chave/emoji) regrediu');
+
+    /* ══════════════════════════════════════════════════════════════════════════
+       OV3R — Alerta sonoro de "relógio acabando". Reutiliza o MESMO padrão/SFX
+       (`countdown_tick`, tick 1×/segundo) já aprovado em Palavrinhas/Pares.
+       ══════════════════════════════════════════════════════════════════════════ */
+    const am = readSrc('src/services/audioManager.js');
+    const palav = readSrc('src/screens/PalavrinhasDoBeniScreen.js');
+    const crono = (tela.match(/function Cronometro\([\s\S]*?\n\}/) || [''])[0];
+    const cronoEfeito = (tela.match(/useEffect\(\(\) => \{\s*if \(!rodando\) return undefined;[\s\S]*?\}, \[rodando, roundId, limiteMs, getUsadoMs, onEsgotado, onTick\]\);/) || [''])[0];
+
+    check('OV3R.1 (reuso do SFX oficial): usa `countdown_tick` do audioManager — o MESMO de Palavrinhas/Pares; sem áudio novo',
+      /countdown_tick:\s*require\(/.test(am)
+      && /const COUNTDOWN_TICK = 'countdown_tick';/.test(tela)
+      && /const TICK = 'countdown_tick';/.test(palav)
+      && !/require\([^)]*\.(wav|mp3|m4a|ogg)['"]\)/.test(tela),   // a TELA não referencia arquivo de áudio novo
+      'o alerta não reutiliza o SFX oficial (countdown_tick) ou criou áudio novo');
+
+    check('OV3R.2 (threshold oficial 10s): ALERTA_TEMPO_MS = 10000 (mesmo do alerta visual e do padrão dominante)',
+      /const ALERTA_TEMPO_MS = 10000;/.test(tela)
+      && /const alerta = restante <= ALERTA_TEMPO_MS;/.test(tela),
+      'o threshold do alerta sonoro regrediu (deveria ser 10000ms)');
+
+    check('OV3R.3 (tick 1×/segundo, nunca em zero, nunca acima do threshold): rem>0 && rem<=ALERTA; dedup por segundo inteiro',
+      /if \(rem > 0 && rem <= ALERTA_TEMPO_MS\) \{/.test(crono)
+      && /const seg = Math\.ceil\(rem \/ 1000\);/.test(crono)
+      && /if \(seg !== ultimoSegRef\.current\) \{ ultimoSegRef\.current = seg; playGameSfx\(COUNTDOWN_TICK\); \}/.test(crono)
+      && /else if \(rem <= 0\) \{\s*stopGameSfx\(COUNTDOWN_TICK\);/.test(crono),
+      'o disparo por segundo / guarda de zero / dedup regrediram');
+
+    check('OV3R.4 (só em busca ativa): o alerta vive DENTRO do interval que só roda com `rodando` (procurando && !pausado)',
+      (() => {
+        // o disparo do tick está dentro do efeito que retorna cedo se !rodando
+        const dentro = /if \(!rodando\) return undefined;/.test(cronoEfeito) && /playGameSfx\(COUNTDOWN_TICK\)/.test(cronoEfeito);
+        const rodando = /const rodando = procurando && !pausado && !derrotaFase;/.test(tela)
+          && /const procurando = jogando && vista\.fase === FASES\.PROCURANDO && !inputBloqueado\(lstate\)/.test(tela);
+        // fora do interval (em render) NÃO há playGameSfx do relógio
+        const soNoInterval = (tela.match(/playGameSfx\(COUNTDOWN_TICK\)/g) || []).length === 1;
+        return dentro && rodando && soNoInterval;
+      })(),
+      'o alerta sonoro pode tocar fora da busca ativa (capa/celebração/pausa/blur/resultado)');
+
+    check('OV3R.5 (Fácil nunca ativa): o alerta só existe no ramo limiteMs != null (Fácil tem timer nenhum)',
+      (() => { try {
+        const S = evalSvc();
+        const facilNull = S.getDifficulty('facil').tempoLimiteMs === null && S.getDifficulty('facil').timerTipo === 'nenhum';
+        const medio = S.getDifficulty('medio').tempoLimiteMs === 45000;
+        const dif = S.getDifficulty('dificil').tempoGlobalMs === 150000;   // OV3R3 final — Difícil = partida global (2min30s)
+        const inf = S.getDifficulty('infinito').sessaoMs === 60000;
+        // o bloco do alerta está sob `if (limiteMs != null) {` no interval
+        const soCountdown = /if \(limiteMs != null\) \{[\s\S]*?playGameSfx\(COUNTDOWN_TICK\)/.test(crono);
+        return facilNull && medio && dif && inf && soCountdown;
+      } catch (e) { return false; } })(),
+      'o Fácil poderia tocar o alerta (deveria ser exclusivo dos modos com regressiva)');
+
+    check('OV3R/OV3R3.6 (Médio=fase · Difícil=partida · Infinito=sessão): cronômetro liga a fonte certa; todos com limiteMs no threshold',
+      // finito: Médio por fase, Difícil pela PARTIDA (seed + tempoGlobalMs + getPartidaMs)
+      /limiteMs=\{partidaGlobal \? dif\.tempoGlobalMs : dif\.tempoLimiteMs\}/.test(tela)
+      && /getUsadoMs=\{partidaGlobal \? getPartidaMs : getUsadoMs\}/.test(tela)
+      && /onEsgotado=\{partidaGlobal \? aoEsgotarPartidaDificil : aoEsgotarTempo\}/.test(tela)
+      // Infinito por sessão
+      && /roundId=\{seedRef\.current\}\s*\n?\s*limiteMs=\{INFINITO\.SESSAO_MS\}\s*\n?\s*rodando=\{rodando\}\s*\n?\s*encontrada=\{false\}\s*\n?\s*getUsadoMs=\{getSessaoMs\}/.test(tela),
+      'a vinculação do alerta (Médio fase / Difícil partida / Infinito sessão) regrediu');
+
+    check('OV3R.7 (para/limpa): cleanup do interval corta o alerta (acerto/troca/capa/pausa/blur/AppState/resultado/unmount); som de uma fase não vaza',
+      /return \(\) => \{ clearInterval\(t\); stopGameSfx\(COUNTDOWN_TICK\); \};/.test(crono),
+      'o alerta não é cortado ao sair da busca ativa (poderia vazar entre fases)');
+
+    check('OV3R.8 (round/sessão antigos + reinício): ultimoSegRef zera no roundId (fase nova/sessão nova começa sem som); não zera por tick',
+      (() => {
+        const reset = /useEffect\(\(\) => \{ esgRef\.current = false; ultimoSegRef\.current = 0; \}, \[roundId\]\);/.test(tela);
+        // ultimoSegRef só é resetado no efeito de [roundId] (não em cada tick/pausa) → retoma certo após pausa
+        const resets = (tela.match(/ultimoSegRef\.current = 0/g) || []).length === 1;
+        return reset && resets && /const ultimoSegRef = useRef\(0\)/.test(tela);
+      })(),
+      'o controle de round/sessão antigos (ultimoSegRef) regrediu');
+
+    check('OV3R.9 (uma instância / sem player paralelo): 1 setInterval no total; sem novo player; audioManager oficial (playGameSfx/stopGameSfx)',
+      (() => {
+        const umInterval = (tela.match(/setInterval\(/g) || []).length === 1;
+        const oficial = /import \{ playGameSfx, stopGameSfx, preloadGameSfx, releaseGameSfx \} from '\.\.\/services\/audioManager'/.test(tela);
+        const semPlayerNovo = !/new Audio|createAudioPlayer|expo-av|expo-audio/.test(tela) && !/AudioPlayer/.test(tela);
+        return umInterval && oficial && semPlayerNovo;
+      })(),
+      'há player paralelo / setInterval extra / não usa o audioManager oficial');
+
+    check('OV3R.10 (preferência global + falha silenciosa): playGameSfx respeita soundsEnabled e é try/catch; stopGameSfx é seguro; countdown_tick pré-carregado',
+      /export function playGameSfx\(nome\) \{\s*if \(!prefs\.soundsEnabled\) return;/.test(am)
+      && /export function stopGameSfx\(nome\) \{\s*try \{/.test(am)
+      && /preloadGameSfx\(\);/.test(tela) && /releaseGameSfx\(\);/.test(tela),
+      'a preferência global de som / falha silenciosa / preload regrediram');
+
+    check('OV3R.11 (regressões): fórmula/pontuação/timer monotônico intactos; SceneLayer memo; sem instrumentação/áudio no render',
+      (() => { try {
+        const S = evalSvc();
+        const formula = S.pontosFaseInfinito({ ms: 3000, houveErro: false, usouDica: false, sequenciaAntes: 0 }).pontos === 195;
+        const memo = /const SceneLayer = React\.memo\(function SceneLayer/.test(tela);
+        const monot = /const rem = Math\.max\(0, limiteMs - getUsadoMs\(\)\);/.test(tela);   // recomputa do relógio, não acumula
+        const higiene = !/\bdebugger\b/.test(telaRaw) && !/console\.log/.test(telaRaw);
+        return formula && memo && monot && higiene;
+      } catch (e) { return false; } })(),
+      'uma regressão (fórmula/memo/monotônico/higiene) apareceu com o alerta sonoro');
+
+    /* ══════════════════════════════════════════════════════════════════════════
+       OV3R2 — Tempo esgotado ENCERRA a fase (Médio/Difícil). Resolução atômica por
+       roundId; autoridade do deadline no toque; revelação pedagógica; avanço automático.
+       ══════════════════════════════════════════════════════════════════════════ */
+    const resolver = (tela.match(/const resolverFaseFinita = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+    const aoTocar = (tela.match(/const aoTocarOvelha = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+
+    check('OV3R2.1 (helper puro expirarFaseFinita): timeout avança SEM ovelha; zera sequência; mantém bestSequencia; última→FIM',
+      (() => { try {
+        const S = evalSvc();
+        const st = { fase: S.FASES.PROCURANDO, rounds: 7, rodada: 3, encontradas: 5, sequencia: 4, bestSequencia: 4, targetId: 't', itemIds: ['t', '__miss__'] };
+        const r = S.expirarFaseFinita(st);
+        const naoUltima = r.estado.fase === S.FASES.TROCANDO && r.estado.rodada === 4 && r.estado.encontradas === 5
+          && r.estado.sequencia === 0 && r.estado.bestSequencia === 4 && r.efeitos[0] === 'somTroca';
+        const ultima = (() => { const u = S.expirarFaseFinita({ ...st, rodada: 7 }); return u.estado.fase === S.FASES.FIM && u.estado.encontradas === 5 && u.efeitos[0] === 'finalizarPartida'; })();
+        const noop = S.expirarFaseFinita({ ...st, fase: S.FASES.ACERTO }).efeitos.length === 0 && S.expirarFaseFinita(null).estado === null;
+        return naoUltima && ultima && noop;
+      } catch (e) { return false; } })(),
+      'expirarFaseFinita (avanço sem ovelha / sequência / FIM) regrediu');
+
+    check('OV3R2.2 (resolução ATÔMICA): trava por roundId; ignora fase antiga; só em PROCURANDO; resolve 1× (toque+timeout no mesmo frame não avançam 2×)',
+      /if \(rid == null\) return;/.test(resolver)
+      && /if \(!round \|\| round\.roundId !== rid\) return;/.test(resolver)
+      && /if \(jogoRef\.current\.fase !== FASES\.PROCURANDO\) return;/.test(resolver)
+      && /if \(faseResolvidaRef\.current === rid\) return;/.test(resolver)
+      && /faseResolvidaRef\.current = rid;/.test(resolver)
+      && /faseResolvidaRef\.current = null;/.test(tela),   // destrava só na nova fase (montarRodada)
+      'a resolução atômica da fase (trava por roundId) regrediu');
+
+    check('OV3R2.3 (autoridade do deadline no toque): Médio/Difícil calculam restante monotônico; toque após prazo vira tempo_esgotado; Infinito sem deadline por fase',
+      /const limiteMs = dif\.tempoLimiteMs;/.test(aoTocar)
+      && /if \(limiteMs != null && \(limiteMs - getUsadoMs\(\)\) <= 0\) \{/.test(aoTocar)
+      && /fn\.current\.resolverFaseFinita\(rid, 'tempo_esgotado'\)/.test(aoTocar)
+      && /fn\.current\.resolverFaseFinita\(rid, 'acerto'\)/.test(aoTocar)
+      && /if \(infinitoRef\.current\) \{[\s\S]*?registrarAcertoInfinito\(\)/.test(aoTocar)
+      && /if \(faseResolvidaRef\.current === rid\) return;/.test(aoTocar),
+      'a autoridade do deadline no toque (Médio/Difícil) regrediu');
+
+    check('OV3R2.4 (timeout Médio/Difícil): bloqueia input, para som, congela timer, revela contorno, registra fase PERDIDA (encontrada=false, esgotou=true), sem recorde/estrela',
+      (() => {
+        const bloqueiaInput = /if \(faseResolvidaRef\.current === rodada\.roundId\) return;/.test(tela);   // nos handlers de toque
+        const paraSom = /stopGameSfx\(COUNTDOWN_TICK\);/.test(resolver);
+        const congela = /faseAcumMsRef\.current = usado;/.test(resolver) && /faseAtivaDesdeRef\.current = null;/.test(resolver);
+        const inelegivel = /faseEsgotouRef\.current = true;/.test(resolver) && /faseElegivelRef\.current = false;/.test(resolver);
+        const revela = /fn\.current\.subirDica\(3\);/.test(resolver) && /setDerrotaFase\(true\)/.test(resolver);
+        const registra = /esgotou: true, encontrada: false/.test(resolver) && !/addBonusStars/.test(resolver) && !/recordOvelhaFaseTime/.test(resolver);
+        return bloqueiaInput && paraSom && congela && inelegivel && revela && registra;
+      })(),
+      'o comportamento de timeout finito (bloqueio/som/registro perdido) regrediu');
+
+    check('OV3R2.5 (avanço automático após feedback ~1s, atado ao roundId): agenda expirarFaseFinita; cancela se partida mudou; T.derrota entre 900–1200ms',
+      (() => {
+        const agenda = /agendar\(\(\) => \{\s*if \(!montado\.current \|\| rodadaRef\.current\?\.roundId !== rid\) return;\s*setDerrotaFase\(false\);\s*aplicar\(expirarFaseFinita\);\s*\}, T\.derrota\);/.test(resolver);
+        const dur = /derrota: (\d+)/.exec(tela);
+        const janela = dur && Number(dur[1]) >= 900 && Number(dur[1]) <= 1200;
+        return agenda && janela;
+      })(),
+      'o avanço automático após a derrota (agendamento/roundId/janela) regrediu');
+
+    check('OV3R2.6 (timer PARA na revelação): rodando exclui derrotaFase → cronômetro/tick param durante o feedback',
+      /const rodando = procurando && !pausado && !derrotaFase;/.test(tela)
+      && /derrotaFase \? MSG_DERROTA/.test(tela)
+      && /const MSG_DERROTA = 'O tempo acabou! A ovelhinha estava aqui\.';/.test(tela),
+      'a parada do timer / mensagem pedagógica na revelação regrediu');
+
+    check('OV3R2.7 (Infinito preservado): tempo global esgotado encerra a SESSÃO (não usa fluxo finito de derrota); não revela fase; vai ao resultado do Infinito',
+      (() => {
+        const esg = (tela.match(/const aoEsgotarSessao = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+        const sessao = /aplicar\(encerrar\)/.test(esg) && /finalizarInfinito\(\), 700\)/.test(esg) && !/resolverFaseFinita/.test(esg) && !/expirarFaseFinita/.test(esg);
+        // no toque, o ramo do Infinito NÃO calcula deadline por fase
+        const semDeadlineInf = /if \(infinitoRef\.current\) \{\s*const r = aplicar\(tocar, rodada\.targetId\);/.test(aoTocar);
+        return sessao && semDeadlineInf;
+      })(),
+      'o Infinito passou a usar o fluxo finito de derrota (regressão)');
+
+    check('OV3R2.8 (Fácil intacto): sem regressiva → nunca chega a timeout; acerto resolve normalmente',
+      (() => { try {
+        const S = evalSvc();
+        // Fácil não tem limiteMs → no toque cai direto em resolverFaseFinita('acerto')
+        const facilNull = S.getDifficulty('facil').tempoLimiteMs === null;
+        const cronoFacil = /if \(limiteMs == null\) \{/.test(tela) && /if \(!encontrada\) return <View style=\{styles\.cronoVazio\}/.test(tela);
+        return facilNull && cronoFacil;
+      } catch (e) { return false; } })(),
+      'o Fácil (sem timeout) regrediu');
+
+    check('OV3R2.9 (resultado): placar conta só encontradas (máquina); fase perdida mostra só "tempo esgotado" (esgotou tem prioridade sobre com-ajuda)',
+      (() => {
+        const fl = (tela.match(/function FaseLinha[\s\S]*?\n\}/) || [''])[0];
+        const prioridade = /const tag = esgotou\s*\n?\s*\? \{ txt: 'tempo esgotado'/.test(fl);
+        const placar = /ResumoCard icon="ovelha" valor=\{`\$\{resultado\?\.encontradas \?\? 0\}\/\$\{resultado\?\.total \?\? dif\.rounds\}`\}/.test(tela);
+        return prioridade && placar;
+      })(),
+      'o resultado (placar por encontradas / rótulo tempo esgotado) regrediu');
+
+    check('OV3R2.10 (estrelas/recordes/storage intactos): sem addBonusStars no resolvedor; timeout não grava bestTimeByScene; sem chave nova; brincarStatsService não tocado por OV3R2',
+      (() => {
+        const semStar = !/addBonusStars/.test(resolver);
+        const semRecordeTimeout = !/recordOvelhaFaseTime/.test(resolver) && !/aplicarTempoFaseOvelha/.test(resolver);
+        const addBonus3 = (tela.match(/addBonusStars\(/g) || []).length === 3;   // finalizar + finalizarInfinito + finalizarDificil
+        const semChave = !/@ptf_/.test(tela) && !/AsyncStorage/.test(tela);
+        return semStar && semRecordeTimeout && addBonus3 && semChave;
+      })(),
+      'o timeout tocou estrelas/recordes/storage (deveria preservar)');
+
+    check('OV3R2.11 (ciclo de vida): pausa/blur/AppState congelam o tempo (rodando); montarRodada destrava a resolução e a derrota da fase anterior não vaza',
+      (() => {
+        const montar = (tela.match(/const montarRodada = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+        const destrava = /faseResolvidaRef\.current = null;/.test(montar) && /faseEsgotouRef\.current = false;/.test(montar);
+        const pausa = /const rodando = procurando && !pausado && !derrotaFase;/.test(tela)
+          && /setPausado\(e !== 'active'\)/.test(tela) && /addListener\('blur', \(\) => setPausado\(true\)\)/.test(tela);
+        const cleanup = /return \(\) => \{ vivo = false; montado\.current = false;[\s\S]*?limparTimers\(\); releaseGameSfx\(\); \};/.test(tela);
+        return destrava && pausa && cleanup;
+      })(),
+      'o ciclo de vida do timeout (pausa/destrava/cleanup) regrediu');
+
+    check('OV3R2.12 (higiene + máquina intacta): sem debugger/console.log; sem novo setInterval/setTimeout-sem-cleanup; ovelhaGameMachine.js NÃO alterado; sem áudio novo',
+      (() => {
+        const higiene = !/\bdebugger\b/.test(telaRaw) && !/console\.log/.test(telaRaw);
+        const umInterval = (tela.match(/setInterval\(/g) || []).length === 1;
+        const agendarOficial = /const agendar = useCallback/.test(tela) && /timeouts\.current\.push\(id\)/.test(tela);   // setTimeout centralizado c/ cleanup
+        const maquinaIntacta = /export function expirarFaseFinita/.test(svc) && !/export function expirarFaseFinita/.test(mq);   // helper no service, não na máquina
+        const semAudioNovo = !/require\([^)]*\.(wav|mp3|m4a|ogg)['"]\)/.test(tela);
+        return higiene && umInterval && agendarOficial && maquinaIntacta && semAudioNovo;
+      })(),
+      'higiene / máquina intacta / agendamento oficial regrediram');
+
+    /* ══════════════════════════════════════════════════════════════════════════
+       OV3R3 — Difícil com TEMPO TOTAL e DERROTA DA PARTIDA (5 min · 10 ovelhas).
+       Vitória (10/10 antes do tempo) ou derrota (tempo→0). Timer da partida (não por fase).
+       ══════════════════════════════════════════════════════════════════════════ */
+    const resolverP = (tela.match(/const resolverPartidaDificil = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+    const finDificil = (tela.match(/const finalizarDificil = useCallback\(async[\s\S]*?\n  \}, \[/) || [''])[0];
+    const aoTocarD = (tela.match(/const aoTocarOvelha = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+
+    check('OV3R3.1 (config final): Difícil timerTipo "partida" + tempoGlobalMs 150000 (2min30s, NÃO 300000/30000) + tempoLimiteMs null; Médio 45000/fase; Infinito 60000; Fácil nenhum',
+      (() => { try {
+        const S = evalSvc();
+        const d = S.getDifficulty('dificil');
+        return d.timerTipo === 'partida' && d.tempoGlobalMs === 150000 && d.tempoGlobalMs !== 300000 && d.tempoLimiteMs === null && d.rounds === 10
+          // formato M:SS do relógio da PARTIDA: 2:30 / 2:09 / 1:00 / 0:09 / 0:00 (mmss); Médio segue "9s"
+          && S.formatarTempoMs(150000, true, true) === '2:30' && S.formatarTempoMs(129000, true, true) === '2:09'
+          && S.formatarTempoMs(60000, true, true) === '1:00' && S.formatarTempoMs(9000, true, true) === '0:09'
+          && S.formatarTempoMs(0, true, true) === '0:00' && S.formatarTempoMs(9000, true) === '9s'
+          && S.getDifficulty('medio').timerTipo === 'fase' && S.getDifficulty('medio').tempoLimiteMs === 45000
+          && S.getDifficulty('infinito').timerTipo === 'sessao_infinita' && S.getDifficulty('infinito').sessaoMs === 60000
+          && S.getDifficulty('facil').timerTipo === 'nenhum';
+      } catch (e) { return false; } })(),
+      'a configuração final do Difícil (partida 150000) regrediu');
+
+    check('OV3R3.2 (timer da PARTIDA): getPartidaMs acumula ms ATIVOS monotônicos; efeito congela na pausa; NÃO zera por fase; ligado ao seed (não roundId)',
+      (() => {
+        const get = (tela.match(/const getPartidaMs = useCallback[\s\S]*?\n  \}, \[\]\);/) || [''])[0];
+        const monot = /const base = partidaAcumMsRef\.current;[\s\S]*?desde != null \? base \+ Math\.max\(0, Date\.now\(\) - desde\) : base/.test(get);
+        const efeito = /if \(partidaAtivaDesdeRef\.current == null\) partidaAtivaDesdeRef\.current = agora;/.test(tela)
+          && /partidaAcumMsRef\.current \+= Math\.max\(0, agora - partidaAtivaDesdeRef\.current\);/.test(tela);
+        const ligadoSeed = /roundId=\{partidaGlobal \? seedRef\.current : \(rodada\?\.roundId \?\? 0\)\}/.test(tela);
+        return monot && efeito && ligadoSeed;
+      })(),
+      'o timer da partida (monotônico/pausa/seed) regrediu');
+
+    check('OV3R3.3 (NÃO reinicia entre cenas): comecar zera o relógio da partida; montarRodada NÃO mexe em partidaAcumMsRef',
+      (() => {
+        const com = (tela.match(/const comecar = useCallback\(async[\s\S]*?\n  \}, \[/) || [''])[0];
+        const montar = (tela.match(/const montarRodada = useCallback[\s\S]*?\n  \}, \[/) || [''])[0];
+        const zeraNoComecar = /partidaAcumMsRef\.current = 0;/.test(com) && /partidaAtivaDesdeRef\.current = null;/.test(com) && /partidaResolvidaRef\.current = null;/.test(com);
+        const naoZeraNaFase = !/partidaAcumMsRef\.current = 0/.test(montar);   // troca de cena não reinicia o relógio
+        return zeraNoComecar && naoZeraNaFase;
+      })(),
+      'o relógio da partida reinicia entre cenas (deveria atravessar)');
+
+    check('OV3R3.4 (deadline no toque): Difícil valida (tempoGlobalMs - getPartidaMs()) <= 0 → derrota; 10º acerto → vitória; antes disso registra tempo da fase',
+      /if \(partidaGlobalRef\.current\) \{/.test(aoTocarD)
+      && /const limiteGlobal = dif\.tempoGlobalMs;/.test(aoTocarD)
+      && /if \(limiteGlobal != null && \(limiteGlobal - getPartidaMs\(\)\) <= 0\) \{/.test(aoTocarD)
+      && /fn\.current\.resolverPartidaDificil\('derrota_tempo'\)/.test(aoTocarD)
+      && /registrarTempoFase\(rodada\);/.test(aoTocarD)
+      && /if \(jogoRef\.current\.encontradas >= jogoRef\.current\.rounds\) \{[\s\S]*?resolverPartidaDificil\('vitoria'\)/.test(aoTocarD),
+      'a autoridade do deadline / detecção de vitória no toque regrediu');
+
+    check('OV3R3.5 (resolução ATÔMICA da partida): partidaResolvidaRef trava 1×; timer antigo não encerra nova partida; décimo acerto e timeout no mesmo frame → 1 resultado',
+      /if \(partidaResolvidaRef\.current != null \|\| salvoRef\.current\) return;/.test(resolverP)
+      && /partidaResolvidaRef\.current = motivo;/.test(resolverP)
+      && /if \(seedRef\.current !== sid\) return;/.test(tela)   // aoEsgotarPartidaDificil guarda por seed
+      && /partidaResolvidaRef\.current = null/.test(tela),      // destrava só em comecar
+      'a resolução atômica da partida (trava/seed) regrediu');
+
+    check('OV3R3.6 (vitória): celebração e resultado 1×; para som; sem preparar cena 11; finalizar delega ao Difícil quando é partida',
+      (() => {
+        const cel = /agendar\(\(\) => fn\.current\.finalizarDificil\('vitoria'\), T\.acerto\)/.test(resolverP) && /stopGameSfx\(COUNTDOWN_TICK\)/.test(resolverP) && /limparTimers\(\)/.test(resolverP);
+        const finalDelega = /if \(partidaGlobalRef\.current\) \{ fn\.current\.finalizarDificil\('vitoria'\); return; \}/.test(tela);
+        return cel && finalDelega;
+      })(),
+      'a vitória do Difícil (celebração/uma vez/delegação) regrediu');
+
+    check('OV3R3.7 (derrota): encerra a partida (encerrar), NÃO revela como fase, sem avanço OV3R2; feedback curto (T.derrota) atado ao id; abre resultado',
+      /faseResolvidaRef\.current = rodadaRef\.current\?\.roundId \?\? null;/.test(resolverP)
+      && /aplicar\(encerrar\)/.test(resolverP)
+      && /setDerrotaDificil\(true\)/.test(resolverP)
+      && /agendar\(\(\) => fn\.current\.finalizarDificil\('derrota_tempo'\), T\.derrota\)/.test(resolverP)
+      && !/expirarFaseFinita/.test(resolverP) && !/subirDica/.test(resolverP),   // não usa fluxo OV3R2 nem revela
+      'a derrota do Difícil (encerra partida / sem fluxo de fase) regrediu');
+
+    check('OV3R3.8 (estrela só na vitória): finalizarDificil usa permitirEstrela=vitoria; addBonusStars só se vitória; derrota não concede',
+      /recordOvelhaResult\(\{ dificuldade, day, encontradas: g\.encontradas, sequencia: g\.bestSequencia, permitirEstrela: vitoria \}\)/.test(finDificil)
+      && /if \(vitoria\) \{[\s\S]*?if \(r\.starAwarded\) \{ await addBonusStars\(1\)/.test(finDificil)
+      && /starAwarded: vitoria && r\.starAwarded/.test(finDificil),
+      'a regra de estrela do Difícil (só vitória) regrediu');
+
+    check('OV3R3.9 (permitirEstrela puro): derrota não concede nem consome estrela; vitória concede; recordes sobem',
+      (() => { try {
+        const B = evalStats();
+        const s0 = B.sanitizeStats(null);
+        const der = B.applyOvelhaResult(s0, { dificuldade: 'dificil', day: 'D', encontradas: 7, sequencia: 3, permitirEstrela: false });
+        const derOk = der.starAwarded === false && der.stats.starsToday === 0 && der.stats.ovelha.dificil.plays === 1 && der.stats.ovelha.dificil.encontradas === 7;
+        const vit = B.applyOvelhaResult(der.stats, { dificuldade: 'dificil', day: 'D', encontradas: 10, sequencia: 5, permitirEstrela: true });
+        const vitOk = vit.starAwarded === true && vit.stats.starsToday === 1;
+        return derOk && vitOk;
+      } catch (e) { return false; } })(),
+      'permitirEstrela (guarda de derrota) regrediu');
+
+    check('OV3R3.10 (bestCompletionMs): só vitória; menor substitui; empate/maior não; ausente→null; preserva bestTimeByScene; sem chave nova',
+      (() => { try {
+        const B = evalStats();
+        const m = B.sanitizeStats({ ovelha: { dificil: { bestTimeByScene: { farm_lively_01: 900 } } } });
+        const migra = m.ovelha.dificil.bestCompletionMs === null && m.ovelha.dificil.bestTimeByScene.farm_lively_01 === 900;
+        const c1 = B.aplicarCompletionDificil(m, 222000);
+        const primeiro = c1.novoRecorde === true && c1.stats.ovelha.dificil.bestCompletionMs === 222000 && c1.stats.ovelha.dificil.bestTimeByScene.farm_lively_01 === 900;
+        const maior = B.aplicarCompletionDificil(c1.stats, 240000).novoRecorde === false;
+        const empate = B.aplicarCompletionDificil(c1.stats, 222000).novoRecorde === false;
+        const menor = B.aplicarCompletionDificil(c1.stats, 200000).novoRecorde === true;
+        const semChave = !/bestCompletionMs/.test('') && !/@ptf_/.test(tela);   // chave é a oficial ovelha.dificil
+        return migra && primeiro && maior && empate && menor && semChave;
+      } catch (e) { return false; } })(),
+      'bestCompletionMs (só vitória / menor substitui) regrediu');
+
+    check('OV3R3.11 (recordes por cenário preservados na derrota): registrarTempoFase segue gravando bestTimeByScene por acerto; derrota não apaga nem grava cena incompleta',
+      (() => {
+        // no Difícil, cada acerto chama registrarTempoFase (recorde por cena); a derrota NÃO chama registrarTempoFase
+        const acertoRegistra = /registrarTempoFase\(rodada\);/.test(aoTocarD);
+        const derrotaNaoRegistra = !/registrarTempoFase/.test(resolverP) && !/recordOvelhaFaseTime/.test(resolverP);
+        return acertoRegistra && derrotaNaoRegistra;
+      })(),
+      'os recordes por cenário no Difícil (grava no acerto / não na derrota) regrediram');
+
+    check('OV3R3.12 (resultado): distingue vitória/derrota; título "O tempo acabou!"; derrota SEM faixa de estrela; detalhes só de fases jogadas',
+      (() => {
+        const bloco = (tela.match(/if \(ehDificil\) \{[\s\S]*?^    \}/m) || [''])[0];
+        const titulos = /vit \? 'Você encontrou todas as ovelhinhas!' : 'O tempo acabou!'/.test(bloco);
+        const derSemEstrela = /vit \? faixaEstrela : \(/.test(bloco);   // faixaEstrela SÓ na vitória
+        const detalhes = /fasesD\.map\(\(f, i\) => \(<FaseLinha/.test(bloco) && !/Array\.from\(\{ length: 10/.test(bloco);   // não cria 10 falsas
+        const tempos = /formatarTempoMs\(usadoMs\)/.test(bloco) && /Tempo restante:/.test(bloco);
+        return titulos && derSemEstrela && detalhes && tempos;
+      })(),
+      'o resultado do Difícil (vitória/derrota/estrela/detalhes) regrediu');
+
+    check('OV3R3.13 (card + apresentação final): card Difícil "2min30s no total"/"10 ovelhinhas" (sem "30s por fase"/"5 minutos"); recorde "Melhor partida"; apresentação coerente (2:30 via dif.tempoGlobalMs)',
+      /dificil: \{ desc: 'Um desafio completo', info: '10 ovelhinhas', tempo: '2min30s no total' \}/.test(tela)
+      && !/30s por fase/.test(tela) && !/5 minutos no total/.test(tela)
+      && /m\.timerTipo === 'partida'/.test(tela) && /Melhor partida: \$\{formatarTempoMs\(melhorCompletionDificil\(stats\)\)\}/.test(tela)
+      && /partidaGlobal \? `\$\{formatarTempoMs\(dif\.tempoGlobalMs\)\} no total`/.test(tela),
+      'o card/apresentação do Difícil (2min30s / melhor partida) regrediu');
+
+    check('OV3R3.14 (som + formato no Difícil): countdown_tick usa o relógio da partida (getPartidaMs) nos 10s finais; relógio em M:SS (formatoMMSS); não reinicia por fase; único setInterval',
+      (() => {
+        // o Cronometro finito recebe getPartidaMs e formatoMMSS quando partidaGlobal
+        const usaPartida = /getUsadoMs=\{partidaGlobal \? getPartidaMs : getUsadoMs\}/.test(tela)
+          && /formatoMMSS=\{partidaGlobal\}/.test(tela)
+          && /formatarTempoMs\(restante, true, formatoMMSS\)/.test(tela);
+        const umInterval = (tela.match(/setInterval\(/g) || []).length === 1;
+        const semAudioNovo = !/require\([^)]*\.(wav|mp3|m4a|ogg)['"]\)/.test(tela);
+        return usaPartida && umInterval && semAudioNovo;
+      })(),
+      'o som/formato do Difícil (relógio da partida M:SS / único interval) regrediu');
+
+    check('OV3R3.15 (regressões): Médio preserva OV3R2; Infinito intacto; Fácil sem timeout; máquina intacta; SceneLayer memo; sem debugger/console.log',
+      (() => { try {
+        const S = evalSvc();
+        const medioFase = /const limiteMs = dif\.tempoLimiteMs;/.test(aoTocarD) && /fn\.current\.resolverFaseFinita\(rid, 'tempo_esgotado'\)/.test(aoTocarD);
+        const infinito = /if \(infinitoRef\.current\) \{[\s\S]*?registrarAcertoInfinito\(\)/.test(aoTocarD) && S.getDifficulty('infinito').sessaoMs === 60000;
+        const facil = S.getDifficulty('facil').timerTipo === 'nenhum';
+        const maquina = !/export function expirarFaseFinita/.test(mq) && !/expirarFaseFinita/.test(readSrc('src/services/ovelhaGameMachine.js'));
+        const memo = /const SceneLayer = React\.memo\(function SceneLayer/.test(tela);
+        const higiene = !/\bdebugger\b/.test(telaRaw) && !/console\.log/.test(telaRaw);
+        return medioFase && infinito && facil && maquina && memo && higiene;
+      } catch (e) { return false; } })(),
+      'uma regressão (Médio OV3R2 / Infinito / Fácil / máquina / memo / higiene) apareceu');
   }
 
   // ════════════════════════════════════════════════════════════════════════════

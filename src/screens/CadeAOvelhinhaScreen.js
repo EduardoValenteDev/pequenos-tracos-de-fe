@@ -19,7 +19,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
-  View, Text, Animated, Pressable, AppState, StyleSheet, useWindowDimensions,
+  View, Text, Animated, Pressable, AppState, StyleSheet, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import Svg, { Path } from 'react-native-svg';
@@ -38,15 +38,21 @@ import { isPremiumUser } from '../services/accessControl';
 import { addBonusStars } from '../services/postStoryStorage';
 import { useProgressContext } from '../context/ProgressContext';
 import { getDailyRounds, consumeRound, toDayKey } from '../services/brincarDailyService';
-import { readStats, recordOvelhaResult } from '../services/brincarStatsService';
-import { playGameSfx, preloadGameSfx, releaseGameSfx } from '../services/audioManager';
+import {
+  readStats, recordOvelhaResult, recordOvelhaFaseTime, marcarApresentacaoOvelha,
+  ovelhaApresentouHoje, aplicarApresentacaoOvelha, aplicarTempoFaseOvelha, recordInfinitoResult,
+  recordCompletionDificil,
+} from '../services/brincarStatsService';
+import { playGameSfx, stopGameSfx, preloadGameSfx, releaseGameSfx } from '../services/audioManager';
 import { warn } from '../utils/logger';
 import { OVELHA_BENI } from '../data/ovelhaSceneData';
 import { getScene, cenasHabilitadas } from '../data/ovelhaScenes';
 import { OVELHA_BG, OVELHA_POSE_IMG } from '../data/ovelhaAssets';
 import {
-  buildRoundFromSpot, roundValido, planPartida, computeViewport, contentRect, artToPx, pxToArt,
-  spriteBoxArt, hitboxPxRect, celulaToque, erroElegivel,
+  buildRoundFromSpot, roundValido, planPartida, planPartidaInfinito, computeViewport, contentRect, artToPx, pxToArt,
+  spriteBoxArt, hitboxPxRect, celulaToque, erroElegivel, nivelDicaPorErros, formatarTempoMs,
+  getInfiniteStageConfig, pontosFaseInfinito, bonusMarcoInfinito, nivelDicaInfinitoPorTempo, INFINITO,
+  expirarFaseFinita,
   MISS_ID, OVELHA_SOUND_EVENTS, OVELHA_DIFFICULTIES, getDifficulty, criarRng, novaSeed, assinaturaDeck,
 } from '../services/ovelhaGameService';
 import { OVELHA_POSE_JOGO } from '../data/ovelhaAssets';
@@ -76,10 +82,58 @@ const OVELHA_DEBUG_HITBOX = false;
 const OVELHA_DEBUG_FRAME = false;
 const OVELHA_CALIBRACAO = false;
 
-const T = { acerto: 720, erro: 460, coverOut: 190 };
+const T = { acerto: 720, erro: 460, coverOut: 190, derrota: 1050 };
+
+// OV3R2 — mensagem acolhedora de fase perdida por tempo (Médio). Sem "perdeu/errou/falhou".
+const MSG_DERROTA = 'O tempo acabou! A ovelhinha estava aqui.';
+
+// OV3R — alerta sonoro de "relógio acabando": MESMO SFX e padrão (tick 1×/segundo) já aprovados
+// em Palavrinhas/Pares. Threshold oficial dominante = 10s (Pares Turbo e Palavrinhas médio),
+// que também é o mesmo limiar do alerta VISUAL do cronômetro (restante <= 10000). Sem áudio novo.
+const COUNTDOWN_TICK = 'countdown_tick';
+const ALERTA_TEMPO_MS = 10000;
 
 function vibrar() {
   try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* segue */ }
+}
+
+/** Nomes carinhosos das cenas (só p/ exibição no resultado; a fonte é sempre o sceneId). */
+const NOME_CENA = Object.freeze({
+  farm_lively_01: 'Fazendinha',
+  bakery_01: 'Padaria',
+  toy_workshop_01: 'Oficina de brinquedos',
+  laundry_yard_01: 'Quintal do varal',
+  underwater_01: 'Fundo do mar',
+});
+const nomeCena = (id) => NOME_CENA[id] || 'Paisagem';
+
+/** Textos por modo (só exibição na entrada; a fonte é sempre OVELHA_DIFFICULTIES). */
+const MODO_INFO = Object.freeze({
+  facil: { desc: 'Sem pressa', info: '5 fases', tempo: 'Sem cronômetro' },
+  medio: { desc: 'Atenção e velocidade', info: '7 fases', tempo: '45s por fase' },
+  dificil: { desc: 'Um desafio completo', info: '10 ovelhinhas', tempo: '2min30s no total' },
+  infinito: { desc: 'Encontre o máximo que conseguir', info: 'Sem número fixo de fases', tempo: '60s de busca ativa' },
+});
+
+/** Número com separador de milhar PT-BR ("2450" → "2.450"). */
+const milhar = (n) => String(Math.max(0, Math.floor(Number(n) || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+/** Melhor pontuação do Infinito (0 se nenhuma). */
+const melhorPontosInfinito = (stats) => Number(stats?.ovelha?.infinito?.bestScore) || 0;
+
+/** Melhor tempo de conclusão do Difícil em ms (0/null se nenhum). */
+const melhorCompletionDificil = (stats) => Number(stats?.ovelha?.dificil?.bestCompletionMs) || 0;
+
+/** Melhor tempo (menor ms) já registrado numa dificuldade, entre todas as cenas. null se nenhum. */
+function melhorTempoDaDificuldade(stats, difId) {
+  const mapa = stats?.ovelha?.[difId]?.bestTimeByScene;
+  if (!mapa || typeof mapa !== 'object') return null;
+  let menor = null;
+  for (const v of Object.values(mapa)) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0 && (menor == null || n < menor)) menor = n;
+  }
+  return menor;
 }
 
 /* ══════════════════════════ TELA ══════════════════════════ */
@@ -102,13 +156,21 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const [lstate, ldispatch] = useReducer(loadingReducer, undefined, initialLoading);
   const [rodada, setRodada] = useState(null);        // round object corrente (cena+spot)
   const [retryNonce, setRetryNonce] = useState(0);   // muda o recyclingKey para recarregar
-  const [nivel, setNivel] = useState(0);             // nível de dica 0..3 (por rodada)
-  const [dicaPronta, setDicaPronta] = useState(false); // botão de dica liberado (médio/difícil)
+  const [nivel, setNivel] = useState(0);             // nível de dica 0..3 (por rodada, por ERROS)
   const [ripple, setRipple] = useState(null);
   const [errouAgora, setErrouAgora] = useState(false);
   const [areaVersion, setAreaVersion] = useState(0);
   const [coverFading, setCoverFading] = useState(false);   // overlay ainda montado durante o fade de saída
   const [mostrarHitbox, setMostrarHitbox] = useState(false); // Modo Criador: contorno da área clicável (off por padrão)
+  const [ferramentasAbertas, setFerramentasAbertas] = useState(false); // seção DEV recolhida na entrada
+  const [detalhesFasesAbertos, setDetalhesFasesAbertos] = useState(false); // detalhes das fases (resultado) recolhidos
+  // OV3 — Modo Infinito (estado exibido; refs guardam a fonte síncrona):
+  const [pontos, setPontos] = useState(0);
+  const [ganhoRecente, setGanhoRecente] = useState(null);   // "+100" efêmero após o acerto
+  const [marcoBeni, setMarcoBeni] = useState(null);         // microcelebração de marco (≤400ms)
+  const [tempoEsgotadoInf, setTempoEsgotadoInf] = useState(false); // "Tempo!" antes do resultado
+  const [derrotaFase, setDerrotaFase] = useState(false);           // OV3R2 — revelação da fase perdida (Médio)
+  const [derrotaDificil, setDerrotaDificil] = useState(false);     // OV3R3 — feedback de derrota da PARTIDA (Difícil)
 
   const dif = getDifficulty(dificuldade);
   const jogoRef = useRef(vista);
@@ -126,14 +188,51 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const areaRef = useRef({ largura: 0, altura: 0 });
   const trocaSeqRef = useRef(0);
   const coverAnim = useRef(new Animated.Value(1)).current;   // 1 = coberto
-  // Dica — tudo por rodada:
-  const buscaMsRef = useRef(0);
+  // Dica — tudo por rodada (OV2: por ERROS ELEGÍVEIS, não por tempo):
   const nivelRef = useRef(0);
-  const erroElegivelRef = useRef(0);
+  const errosElegivelRef = useRef(0);          // contador de erros elegíveis da fase (cooldown 700ms)
   const ultimoErroIdRef = useRef(null);
   const ultimoErroMsRef = useRef(0);
   const rodadaSeqRef = useRef(0);
   const fn = useRef({});
+
+  // OV2 — cronômetro por fase (contabiliza só tempo ATIVO; pausa em blur/AppState/overlays/dica direta).
+  const faseTimingRoundRef = useRef(null);     // roundId ao qual o tempo atual pertence
+  const faseAcumMsRef = useRef(0);             // ms ativos acumulados antes do segmento corrente
+  const faseAtivaDesdeRef = useRef(null);      // início (Date.now) do segmento ativo, ou null se pausado
+  const faseElegivelRef = useRef(true);        // fase ainda pode virar recorde? (dica/tempo esgotado invalidam)
+  const faseComDicaRef = useRef(false);        // alguma dica visível apareceu nesta fase
+  const faseEsgotouRef = useRef(false);        // o tempo desta fase esgotou
+  const fasesRef = useRef([]);                 // registro por fase para a tela de resultado
+  const statsRef = useRef(stats);              // snapshot síncrono p/ decidir recorde sem corrida
+  statsRef.current = stats;
+  const rodadaRef = useRef(null);              // espelho síncrono da rodada (p/ callbacks estáveis)
+  rodadaRef.current = rodada;
+  const faseTeveErroRef = useRef(false);       // houve QUALQUER erro nesta fase (quebra "perfeita")
+  const retryAgendadoRef = useRef(false);      // OV3 — evita reagendar auto-retry da capa na mesma fase
+  const faseResolvidaRef = useRef(null);       // OV3R2 — roundId já RESOLVIDO (acerto/tempo esgotado): trava atômica
+
+  // OV3 — Modo Infinito: cronômetro GLOBAL de 60s ATIVOS + pontuação/sequência da sessão.
+  const infinito = dif.infinito === true;
+  const infinitoRef = useRef(infinito);
+  infinitoRef.current = infinito;
+  const sessaoAcumMsRef = useRef(0);           // ms ATIVOS acumulados na sessão (não zera por fase)
+  const sessaoAtivaDesdeRef = useRef(null);    // início do segmento ativo da sessão, ou null se pausado
+  const pontosRef = useRef(0);                 // pontuação síncrona
+  const seqPerfeitaRef = useRef(0);            // sequência perfeita corrente (0 quebra por erro/dica)
+  const melhorSeqInfRef = useRef(0);           // maior sequência perfeita da sessão
+  const fasesPerfeitasRef = useRef(0);         // nº de fases perfeitas na sessão
+  const sessaoEncerradaRef = useRef(false);    // sessão do Infinito terminou (tempo esgotado)
+
+  // OV3R3 — Modo Difícil: cronômetro GLOBAL da PARTIDA (5 min ativos p/ encontrar as 10). Estado
+  // PRÓPRIO (não compartilha com a sessão do Infinito). Vitória (10/10) ou derrota (tempo→0).
+  const timerTipo = dif.timerTipo;
+  const partidaGlobal = timerTipo === 'partida';
+  const partidaGlobalRef = useRef(partidaGlobal);
+  partidaGlobalRef.current = partidaGlobal;
+  const partidaAcumMsRef = useRef(0);          // ms ATIVOS acumulados na PARTIDA (não zera por fase)
+  const partidaAtivaDesdeRef = useRef(null);   // início do segmento ativo da partida, ou null se pausado
+  const partidaResolvidaRef = useRef(null);    // null | 'vitoria' | 'derrota_tempo' (trava atômica da partida)
 
   const sceneAtiva = getScene(rodada?.sceneId);
   const viewport = useMemo(
@@ -171,17 +270,244 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   }, []);
 
   const resetarDica = useCallback(() => {
-    buscaMsRef.current = 0;
     nivelRef.current = 0;
-    erroElegivelRef.current = 0;
+    errosElegivelRef.current = 0;
     ultimoErroIdRef.current = null;
     ultimoErroMsRef.current = 0;
-    if (montado.current) { setNivel(0); setDicaPronta(false); }
+    if (montado.current) setNivel(0);
   }, []);
 
-  /** Sobe o nível de dica (0→1→2→3), nunca regride, sempre por rodada. Não pontua/avança. */
+  /** Sobe o nível de dica (0→1→2→3), nunca regride, sempre por rodada. Não pontua/avança.
+   *  Qualquer dica VISÍVEL (≥2: brilho/contorno) marca a fase como "com ajuda" → sem recorde. */
   const subirDica = useCallback((n) => {
-    if (n > nivelRef.current) { nivelRef.current = n; if (montado.current) setNivel(n); }
+    if (n > nivelRef.current) {
+      nivelRef.current = n;
+      if (n >= 2) { faseComDicaRef.current = true; faseElegivelRef.current = false; }
+      if (montado.current) setNivel(n);
+    }
+  }, []);
+
+  /* ── Cronômetro por fase: ms ATIVOS decorridos (congela quando pausado). ── */
+  const getUsadoMs = useCallback(() => {
+    const base = faseAcumMsRef.current;
+    const desde = faseAtivaDesdeRef.current;
+    return desde != null ? base + Math.max(0, Date.now() - desde) : base;
+  }, []);
+
+  /* ── Infinito: ms ATIVOS acumulados na SESSÃO (não zera por fase; congela quando pausado). ── */
+  const getSessaoMs = useCallback(() => {
+    const base = sessaoAcumMsRef.current;
+    const desde = sessaoAtivaDesdeRef.current;
+    return desde != null ? base + Math.max(0, Date.now() - desde) : base;
+  }, []);
+
+  /* ── Difícil: ms ATIVOS acumulados na PARTIDA (atravessa as cenas; congela quando pausado). ── */
+  const getPartidaMs = useCallback(() => {
+    const base = partidaAcumMsRef.current;
+    const desde = partidaAtivaDesdeRef.current;
+    return desde != null ? base + Math.max(0, Date.now() - desde) : base;
+  }, []);
+
+  /* ── Tempo esgotado (Médio/Difícil): DERROTA da fase (OV3R2). Resolução ATÔMICA por roundId. ── */
+  const aoEsgotarTempo = useCallback((rid) => {
+    fn.current.resolverFaseFinita(rid, 'tempo_esgotado');
+  }, []);
+
+  /* ── No ACERTO: congela o tempo da fase, decide recorde (síncrono) e registra a fase. ── */
+  const registrarTempoFase = useCallback((round) => {
+    const usado = getUsadoMs();
+    faseAcumMsRef.current = usado;
+    faseAtivaDesdeRef.current = null;
+    const sceneId = round?.sceneId;
+    const elegivel = faseElegivelRef.current && !faseEsgotouRef.current && !faseComDicaRef.current && !!sceneId;
+    let recorde = false;
+    if (elegivel) {
+      // Fonte única de recordes = brincarStatsService. Decide contra o snapshot local
+      // (determinístico, sem corrida) e persiste em paralelo.
+      const res = aplicarTempoFaseOvelha(statsRef.current, { dificuldade, sceneId, ms: usado, elegivel: true });
+      recorde = res.novoRecorde;
+      if (recorde) { statsRef.current = res.stats; if (montado.current) setStats(res.stats); }
+      recordOvelhaFaseTime({ dificuldade, sceneId, ms: usado, elegivel: true }).catch(() => {});
+    }
+    fasesRef.current.push({
+      sceneId, ms: usado, elegivel, recorde,
+      comDica: faseComDicaRef.current, esgotou: faseEsgotouRef.current, erros: errosElegivelRef.current,
+    });
+  }, [dificuldade, getUsadoMs]);
+
+  /* ── Infinito: no ACERTO, pontua a fase (transparente, sem punição) e mostra "+pontos"/marco. ── */
+  const registrarAcertoInfinito = useCallback(() => {
+    const usadoFase = getUsadoMs();
+    faseAcumMsRef.current = usadoFase;
+    faseAtivaDesdeRef.current = null;   // congela o tempo da fase (velocidade)
+    const houveErro = faseTeveErroRef.current;
+    const usouDica = faseComDicaRef.current;
+    const res = pontosFaseInfinito({ ms: usadoFase, houveErro, usouDica, sequenciaAntes: seqPerfeitaRef.current });
+    seqPerfeitaRef.current = res.novaSequencia;
+    if (res.novaSequencia > melhorSeqInfRef.current) melhorSeqInfRef.current = res.novaSequencia;
+    if (res.perfeita) fasesPerfeitasRef.current += 1;
+    let ganho = res.pontos;
+    const enc = jogoRef.current.encontradas;   // já incrementado pela máquina
+    const marco = bonusMarcoInfinito(enc);
+    if (marco > 0) {
+      ganho += marco;
+      setMarcoBeni(`${enc} ovelhinhas!`);
+      agendar(() => montado.current && setMarcoBeni(null), 400);
+    }
+    pontosRef.current += ganho;
+    if (montado.current) {
+      setPontos(pontosRef.current);
+      setGanhoRecente({ key: enc, valor: ganho });
+      agendar(() => montado.current && setGanhoRecente((g) => (g && g.key === enc ? null : g)), 600);
+    }
+  }, [getUsadoMs, agendar]);
+
+  /* ── OV3R2 — RESOLUÇÃO ATÔMICA de uma fase FINITA (Médio/Difícil/Fácil) ──
+     Cada roundId resolve EXATAMENTE UMA VEZ (trava síncrona `faseResolvidaRef`); o 1º resultado
+     válido vence; callback/toque de fase antiga é ignorado; toque e timeout no mesmo frame não
+     avançam duas vezes. `motivo`: 'acerto' | 'tempo_esgotado'. ── */
+  const resolverFaseFinita = useCallback((rid, motivo) => {
+    if (rid == null) return;
+    const round = rodadaRef.current;
+    if (!round || round.roundId !== rid) return;            // fase antiga: ignora
+    if (jogoRef.current.fase !== FASES.PROCURANDO) return;  // só resolve durante busca ativa
+    if (faseResolvidaRef.current === rid) return;           // já resolvida: trava atômica
+    faseResolvidaRef.current = rid;                         // (síncrono, antes de qualquer async)
+    stopGameSfx(COUNTDOWN_TICK);                            // corta o alerta imediatamente
+
+    if (motivo === 'acerto') {
+      const r = aplicar(tocar, round.targetId);             // ACERTO na máquina (encontradas+1, agenda próxima)
+      if (r.aceito && r.acerto === true) registrarTempoFase(round);
+      return;
+    }
+
+    // motivo === 'tempo_esgotado' → DERROTA da fase (não da partida). Sem ovelha, sem recorde/bônus.
+    const usado = getUsadoMs();
+    faseAcumMsRef.current = usado;
+    faseAtivaDesdeRef.current = null;                       // congela o cronômetro da fase
+    faseEsgotouRef.current = true;
+    faseElegivelRef.current = false;
+    fn.current.subirDica(3);                                // revela o contorno (não vira sucesso)
+    if (montado.current) setDerrotaFase(true);              // mensagem do Beni + bloqueia input
+    // Registra a fase PERDIDA no resumo (status tempo esgotado; NÃO grava bestTimeByScene).
+    fasesRef.current.push({
+      sceneId: round.sceneId, ms: dif.tempoLimiteMs ?? null, elegivel: false, recorde: false,
+      comDica: faseComDicaRef.current, esgotou: true, encontrada: false, erros: errosElegivelRef.current,
+    });
+    // Após o feedback (~1s), avança a fase (ou finaliza se última). Atado ao roundId; cleanup no unmount/partida.
+    agendar(() => {
+      if (!montado.current || rodadaRef.current?.roundId !== rid) return;
+      setDerrotaFase(false);
+      aplicar(expirarFaseFinita);   // PROCURANDO → TROCANDO(próxima) [somTroca] ou FIM [finalizarPartida]
+    }, T.derrota);
+  }, [aplicar, agendar, getUsadoMs, registrarTempoFase, dif.tempoLimiteMs]);
+
+  /* ── Infinito: hint por TEMPO ATIVO na fase (8s→brilho, 12s→contorno). Chamado pelo tick do
+     cronômetro (sem setInterval extra). Erros (3/5) seguem pelo caminho comum (aoTocarCena). ── */
+  const aoTickInfinitoFase = useCallback(() => {
+    if (!rodadaRef.current || jogoRef.current.fase !== FASES.PROCURANDO) return;
+    const nv = nivelDicaInfinitoPorTempo(getUsadoMs());
+    if (nv > 0) fn.current.subirDica(nv);
+  }, [getUsadoMs]);
+
+  /* ── Infinito: fim da SESSÃO (60s ativos). Salva UMA vez; não consome rodada nem inicia dica. ── */
+  const finalizarInfinito = useCallback(async () => {
+    if (salvoRef.current) return;
+    salvoRef.current = true;
+    sessaoEncerradaRef.current = true;
+    limparTimers();
+    resetarDica();
+    aplicar(encerrar);   // trava a máquina (FIM): não aceita mais toque
+    playGameSfx(OVELHA_SOUND_EVENTS.VITORIA);
+    const g = jogoRef.current;
+    const encontradas = g.encontradas;
+    const score = pontosRef.current;
+    const sequencia = melhorSeqInfRef.current;
+    let r = { stats: null, isBestScore: false, starAwarded: false };
+    try {
+      const day = toDayKey(new Date());
+      r = await recordInfinitoResult({ score, encontradas, sequencia, day });
+      if (r.starAwarded) { await addBonusStars(1); await refreshProgress?.(); }
+    } catch (e) {
+      warn('CadeAOvelhinha.finalizarInfinito:', e);
+    }
+    if (!montado.current) return;
+    if (r.stats) { statsRef.current = r.stats; setStats(r.stats); }
+    setResultado({
+      modo: 'infinito', score, encontradas, sequencia,
+      fasesPerfeitas: fasesPerfeitasRef.current, isBestScore: r.isBestScore, starAwarded: r.starAwarded,
+    });
+    setTela('resultado');
+  }, [aplicar, limparTimers, resetarDica, refreshProgress]);
+
+  /* ── Infinito: cronômetro global chegou a zero → "Tempo!" curto e vai ao resultado. ── */
+  const aoEsgotarSessao = useCallback((sid) => {
+    if (seedRef.current !== sid || sessaoEncerradaRef.current) return;
+    sessaoEncerradaRef.current = true;
+    setTempoEsgotadoInf(true);
+    aplicar(encerrar);   // bloqueia novos toques imediatamente
+    agendar(() => fn.current.finalizarInfinito(), 700);
+  }, [aplicar, agendar]);
+
+  /* ══════════════ OV3R3 — Modo Difícil: partida inteira (vitória/derrota) ══════════════ */
+
+  /* Salva a PARTIDA do Difícil UMA vez. Vitória: estrela + bestCompletionMs. Derrota: sem estrela. */
+  const finalizarDificil = useCallback(async (tipo) => {
+    if (salvoRef.current) return;
+    salvoRef.current = true;
+    limparTimers();
+    resetarDica();
+    const vitoria = tipo === 'vitoria';
+    if (vitoria) playGameSfx(OVELHA_SOUND_EVENTS.VITORIA);
+    const g = jogoRef.current;
+    const usadoPartida = getPartidaMs();
+    let r = { stats: null, isBest: false, starAwarded: false };
+    let novoCompletion = false;
+    try {
+      const day = toDayKey(new Date());
+      // Estrela SÓ na vitória (permitirEstrela). Derrota persiste plays/seq SEM conceder/consumir estrela.
+      r = await recordOvelhaResult({ dificuldade, day, encontradas: g.encontradas, sequencia: g.bestSequencia, permitirEstrela: vitoria });
+      if (vitoria) {
+        const c = await recordCompletionDificil(usadoPartida);   // bestCompletionMs (só 10/10)
+        novoCompletion = c.novoRecorde;
+        if (r.starAwarded) { await addBonusStars(1); await refreshProgress?.(); }
+      }
+    } catch (e) {
+      warn('CadeAOvelhinha.finalizarDificil:', e);
+    }
+    if (!montado.current) return;
+    if (r.stats) { statsRef.current = r.stats; setStats(r.stats); }
+    setResultado({
+      modo: 'dificil', vitoria,
+      encontradas: g.encontradas, total: g.rounds, bestSequencia: g.bestSequencia,
+      tempoUsadoMs: usadoPartida, tempoTotalMs: dif.tempoGlobalMs,
+      isBest: r.isBest, novoCompletion, starAwarded: vitoria && r.starAwarded,
+      dificuldade, fases: fasesRef.current.slice(),
+    });
+    setTela('resultado');
+  }, [dificuldade, limparTimers, resetarDica, refreshProgress, getPartidaMs, dif.tempoGlobalMs]);
+
+  /* Resolve a PARTIDA do Difícil ATOMICAMENTE (1×). Vitória vem do 10º acerto; derrota do tempo→0. */
+  const resolverPartidaDificil = useCallback((motivo) => {
+    if (partidaResolvidaRef.current != null || salvoRef.current) return;   // trava atômica da partida
+    partidaResolvidaRef.current = motivo;
+    limparTimers();                 // cancela avanço/celebração pendentes (sem 2º resultado)
+    stopGameSfx(COUNTDOWN_TICK);
+    if (motivo === 'vitoria') {
+      // deixa a celebração do ACERTO tocar; depois abre o resultado de vitória
+      agendar(() => fn.current.finalizarDificil('vitoria'), T.acerto);
+    } else {
+      faseResolvidaRef.current = rodadaRef.current?.roundId ?? null;   // bloqueia toque na fase corrente
+      aplicar(encerrar);            // FIM: para o timer e trava a máquina (NÃO revela como fase comum)
+      if (montado.current) setDerrotaDificil(true);
+      agendar(() => fn.current.finalizarDificil('derrota_tempo'), T.derrota);
+    }
+  }, [aplicar, agendar, limparTimers]);
+
+  /* Cronômetro global da partida chegou a zero → DERROTA (se ainda não resolvida por vitória). */
+  const aoEsgotarPartidaDificil = useCallback((sid) => {
+    if (seedRef.current !== sid) return;
+    fn.current.resolverPartidaDificil('derrota_tempo');
   }, []);
 
   const executar = useCallback((efeitos) => {
@@ -217,19 +543,35 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     const spot = scene.hidingSpots.find((s) => s.id === entry.spotId) || scene.hidingSpots[0];
     roundIdRef.current += 1;
     const token = roundIdRef.current;
-    const r = buildRoundFromSpot({ scene, spot, roundId: token, dificuldade });
+    // Infinito: a dificuldade EFETIVA (hitbox/escala) da fase segue a Faixa progressiva pelo nº já
+    // encontrado; modos finitos usam a dificuldade fixa. Assets/spots/contentRect intactos.
+    const difBuild = infinitoRef.current ? getInfiniteStageConfig(jogoRef.current.encontradas).difId : dificuldade;
+    const r = buildRoundFromSpot({ scene, spot, roundId: token, dificuldade: difBuild });
     if (!r || !roundValido(r)) { warn('CadeAOvelhinha: rodada inválida (contrato).'); return; }
     const iniciou = aplicar(iniciarRodada, { targetId: r.targetId, itemIds: [r.targetId, MISS_ID] });
     if (!iniciou.aceito) return;
+    // OV2 — zera o cronômetro da nova fase. O tempo só passa a contar quando a cena for revelada
+    // (efeito de timing ao entrar em PROCURANDO), então durante a capa a regressiva fica cheia.
+    faseTimingRoundRef.current = null;
+    faseAcumMsRef.current = 0;
+    faseAtivaDesdeRef.current = null;
+    faseElegivelRef.current = true;
+    faseComDicaRef.current = false;
+    faseEsgotouRef.current = false;
+    faseTeveErroRef.current = false;   // OV3 — reinicia "perfeita" da fase (qualquer erro quebra)
+    retryAgendadoRef.current = false;  // OV3 — libera 1 auto-retry desta fase, se a capa falhar
+    faseResolvidaRef.current = null;   // OV3R2 — nova fase publicada: destrava a resolução atômica
     setRodada(r);
     setRipple(null);
     resetarDica();
     ldispatch({ type: 'NOVA_RODADA', token, sceneId: r.sceneId, spotId: r.spot.id, pose: r.pose });
   }, [aplicar, dificuldade, resetarDica]);
 
-  /* ── Fim da partida: salva UMA vez. Nunca em CALIBRAÇÃO. ── */
+  /* ── Fim da partida (Fácil/Médio finitos). Difícil concluído = VITÓRIA → finalizarDificil. ── */
   const finalizar = useCallback(async () => {
     if (OVELHA_CALIBRACAO || salvoRef.current) return;
+    // OV3R3 — chegar aqui no Difícil = 10/10 concluídas = VITÓRIA (o resultado é o da partida).
+    if (partidaGlobalRef.current) { fn.current.finalizarDificil('vitoria'); return; }
     salvoRef.current = true;
     limparTimers();
     resetarDica();
@@ -244,12 +586,16 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
       warn('CadeAOvelhinha.finalizar:', e);
     }
     if (!montado.current) return;
-    if (r.stats) setStats(r.stats);
-    setResultado({ encontradas: g.encontradas, total: g.rounds, bestSequencia: g.bestSequencia, isBest: r.isBest, starAwarded: r.starAwarded });
+    if (r.stats) { statsRef.current = r.stats; setStats(r.stats); }
+    setResultado({
+      encontradas: g.encontradas, total: g.rounds, bestSequencia: g.bestSequencia,
+      isBest: r.isBest, starAwarded: r.starAwarded,
+      dificuldade, fases: fasesRef.current.slice(),
+    });
     setTela('resultado');
   }, [refreshProgress, limparTimers, resetarDica, dificuldade]);
 
-  fn.current = { aplicar, agendar, finalizar, subirDica, montarRodada };
+  fn.current = { aplicar, agendar, finalizar, finalizarInfinito, finalizarDificil, resolverPartidaDificil, subirDica, montarRodada, resolverFaseFinita };
 
   /* ── Ciclo de vida ── */
   useEffect(() => {
@@ -271,37 +617,55 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
 
   const jogando = tela === 'jogando';
   const procurando = jogando && vista.fase === FASES.PROCURANDO && !inputBloqueado(lstate);
+  // OV2 — fase "rodando": revelada, procurando e sem pausa. Governa o cronômetro por fase.
+  // OV3R2 — durante a revelação da fase perdida (derrotaFase) o cronômetro PARA (sem tick/som).
+  const rodando = procurando && !pausado && !derrotaFase;
 
   /* ── Cobertura: sempre que coberto, o overlay cobre IMEDIATAMENTE (sem fade lento). ── */
   useEffect(() => {
     if (lstate.coverVisible) coverAnim.setValue(1);
   }, [lstate.coverVisible, coverAnim]);
 
-  /* ── Controlador de dica POR DIFICULDADE ──
-     Fácil: automática — sobe os níveis 1→2→3 sozinha a partir de dif.dicaMs (~8s).
-     Médio/Difícil: libera o BOTÃO de dica após dif.dicaMs (~12/18s); a criança escolhe pedir.
-     A dica NUNCA pontua, NUNCA avança a rodada e é cancelada na troca (rodadaSeqRef). */
+  /* ── Cronômetro por fase (OV2) ──
+     Contabiliza SÓ tempo ativo: ao entrar em PROCURANDO revelado e sem pausa, começa/retoma o
+     segmento; ao pausar (AppState/blur/overlay/troca) acumula o decorrido. O tempo esgotado
+     (Médio/Difícil) é detectado pelo componente <Cronometro> e tratado por aoEsgotarTempo. */
   useEffect(() => {
-    if (!procurando || pausado) return undefined;
-    const seq = rodadaSeqRef.current;
-    const base = dif.dicaMs || 8000;
-    let ultimo = Date.now();
-    const t = setInterval(() => {
-      if (rodadaSeqRef.current !== seq) return;
-      const agora = Date.now();
-      buscaMsRef.current += agora - ultimo;
-      ultimo = agora;
-      const ms = buscaMsRef.current;
-      if (dif.dicaAuto) {
-        if (ms >= base) fn.current.subirDica(1);
-        if (ms >= base + 4000) fn.current.subirDica(2);
-        if (ms >= base + 8000) fn.current.subirDica(3);
-      } else if (ms >= base && montado.current) {
-        setDicaPronta(true);   // botão disponível
+    const rid = rodada?.roundId;
+    if (!jogando || !rid) return;
+    const agora = Date.now();
+    if (rodando) {
+      if (faseTimingRoundRef.current !== rid) {
+        // Fase nova: zera acumulador e elegibilidade (o tempo só conta a partir daqui).
+        faseTimingRoundRef.current = rid;
+        faseAcumMsRef.current = 0;
+        faseElegivelRef.current = true;
+        faseComDicaRef.current = false;
+        faseEsgotouRef.current = false;
       }
-    }, 500);
-    return () => clearInterval(t);
-  }, [procurando, pausado, dif.dicaMs, dif.dicaAuto]);
+      faseAtivaDesdeRef.current = agora;
+      // OV3 — sessão do Infinito: retoma o segmento ATIVO (não zera por fase).
+      if (sessaoAtivaDesdeRef.current == null) sessaoAtivaDesdeRef.current = agora;
+      // OV3R3 — partida do Difícil: retoma o segmento ATIVO (atravessa as cenas; não zera por fase).
+      if (partidaAtivaDesdeRef.current == null) partidaAtivaDesdeRef.current = agora;
+    } else {
+      // Pausa/saída do segmento ativo (fase): acumula o tempo já decorrido e congela.
+      if (faseTimingRoundRef.current === rid && faseAtivaDesdeRef.current != null) {
+        faseAcumMsRef.current += Math.max(0, agora - faseAtivaDesdeRef.current);
+        faseAtivaDesdeRef.current = null;
+      }
+      // OV3 — sessão do Infinito: congela (pausa capa/celebração/blur/AppState/overlay).
+      if (sessaoAtivaDesdeRef.current != null) {
+        sessaoAcumMsRef.current += Math.max(0, agora - sessaoAtivaDesdeRef.current);
+        sessaoAtivaDesdeRef.current = null;
+      }
+      // OV3R3 — partida do Difícil: congela (mesma pausa; NÃO reinicia ao trocar de cena).
+      if (partidaAtivaDesdeRef.current != null) {
+        partidaAcumMsRef.current += Math.max(0, agora - partidaAtivaDesdeRef.current);
+        partidaAtivaDesdeRef.current = null;
+      }
+    }
+  }, [jogando, rodando, rodada?.roundId]);
 
   /* ── Entre rodadas: máquina em TROCANDO → cobre, espera 1 frame, só então troca a cena. ── */
   useEffect(() => {
@@ -316,16 +680,49 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     });
   }, [jogando, vista.fase, vista.rodada, proximoFrame]);
 
-  /* ── Começar. Em CALIBRAÇÃO não consome rodada nem sorteia. ── */
-  const comecar = useCallback(async () => {
+  /* ── Começar. Em CALIBRAÇÃO não consome rodada nem sorteia. ──
+     `marcarApresentacao`: só quando a partida REALMENTE inicia (autorização real via consumeRound)
+     é que a apresentação diária conta como vista — antes disso, não marca. */
+  const comecar = useCallback(async ({ marcarApresentacao = false } = {}) => {
     if (!OVELHA_CALIBRACAO) {
       const r = await consumeRound();
       if (!r.ok) { setRounds(await getDailyRounds()); setTela('entrada'); return; }
+    }
+    if (marcarApresentacao) {
+      const hoje = toDayKey(new Date());
+      statsRef.current = aplicarApresentacaoOvelha(statsRef.current, hoje).stats;
+      if (montado.current) setStats(statsRef.current);
+      marcarApresentacaoOvelha(hoje).catch(() => {});
     }
     await preloadOvelhaAssets();
     if (!montado.current) return;
     limparTimers();
     resetarDica();
+    fasesRef.current = [];
+    faseTimingRoundRef.current = null;
+    faseAtivaDesdeRef.current = null;
+    faseAcumMsRef.current = 0;
+    faseTeveErroRef.current = false;
+    // OV3 — reinicia a sessão do Infinito (cronômetro global + pontuação/sequência).
+    sessaoAcumMsRef.current = 0;
+    sessaoAtivaDesdeRef.current = null;
+    sessaoEncerradaRef.current = false;
+    pontosRef.current = 0;
+    seqPerfeitaRef.current = 0;
+    melhorSeqInfRef.current = 0;
+    fasesPerfeitasRef.current = 0;
+    setPontos(0);
+    setGanhoRecente(null);
+    setMarcoBeni(null);
+    setTempoEsgotadoInf(false);
+    setDerrotaFase(false);            // OV3R2 — nova sessão nunca começa em revelação de derrota
+    setDerrotaDificil(false);         // OV3R3 — nova partida Difícil nunca começa em derrota
+    faseResolvidaRef.current = null;
+    // OV3R3 — reinicia o relógio e a trava da PARTIDA (Difícil): novos 5 minutos, guarda destravada.
+    partidaAcumMsRef.current = 0;
+    partidaAtivaDesdeRef.current = null;
+    partidaResolvidaRef.current = null;
+    setDetalhesFasesAbertos(false);   // OV3 — detalhes do resultado sempre começam recolhidos
     salvoRef.current = false;
     trocaSeqRef.current += 1;
     coverAnim.setValue(1);
@@ -336,7 +733,10 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     const modo = getDifficulty(dificuldade);
     // Baralho rotativo em memória: mesma seed + mesmo deckState → mesmo plano; o deckState é
     // atualizado (não muta a entrada) para a próxima partida continuar consumindo o ciclo.
-    const plano = planPartida({ rng: criarRng(seed), dificuldade, deckState: deckStateRef.current });
+    // Infinito: plano progressivo (Faixas) e grande (cobre a sessão); modos finitos: plano fixo.
+    const plano = modo.infinito
+      ? planPartidaInfinito({ rng: criarRng(seed), deckState: deckStateRef.current })
+      : planPartida({ rng: criarRng(seed), dificuldade, deckState: deckStateRef.current });
     planoRef.current = plano.plano;
     deckStateRef.current = plano.deckState;
     planIdRef.current = plano.planId;
@@ -353,8 +753,15 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   }, [limparTimers, resetarDica, coverAnim, dificuldade]);
 
   const abandonar = useCallback(() => {
-    limparTimers(); trocaSeqRef.current += 1; resetarDica(); aplicar(encerrar); setTela('entrada');
+    limparTimers(); trocaSeqRef.current += 1; resetarDica(); setDerrotaFase(false); aplicar(encerrar); setTela('entrada');
   }, [aplicar, limparTimers, resetarDica]);
+
+  /* ── Entrada → apresentação da ovelha (1×/dia) ou início direto se já vista hoje. ── */
+  const iniciarComApresentacao = useCallback(() => {
+    const hoje = toDayKey(new Date());
+    if (ovelhaApresentouHoje(statsRef.current, hoje)) { comecar(); return; }
+    setTela('apresentacao');
+  }, [comecar]);
 
   /* ── onDisplay / onError de cada imagem REAL (gate de prontidão). ── */
   const aoExibir = useCallback((alvo, token) => {
@@ -363,6 +770,12 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const aoErro = useCallback((alvo, token) => {
     ldispatch({ type: 'ERRO', alvo, token });
   }, []);
+  // Callbacks ESTÁVEIS das imagens da cena (lêem a rodada por ref) → SceneLayer memoizado NÃO
+  // re-renderiza a cada tick do cronômetro (só quando muda rodada/dica/acerto/ripple).
+  const onBgDisplay = useCallback(() => aoExibir('background', rodadaRef.current?.roundId), [aoExibir]);
+  const onBgError = useCallback(() => aoErro('background', rodadaRef.current?.roundId), [aoErro]);
+  const onSheepDisplay = useCallback(() => aoExibir('sceneSheep', rodadaRef.current?.roundId), [aoExibir]);
+  const onSheepError = useCallback(() => aoErro('sceneSheep', rodadaRef.current?.roundId), [aoErro]);
 
   /* ── Procurar: revela a cena e libera o jogo de forma DETERMINÍSTICA. ──
      A liberação (máquina PROCURANDO + input) NÃO depende do callback da animação — o fade do
@@ -394,28 +807,67 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const interativo = !pausado && !inputBloqueado(lstate) && !!rodada && vista.fase === FASES.PROCURANDO;
   const aoTocarOvelha = useCallback(() => {
     if (pausado || inputBloqueado(lstate) || !rodada) return;   // coberto/carregando/erro/transição
-    // A máquina só aceita em PROCURANDO; um 2º toque no mesmo acerto é recusado (sem duplicar placar).
-    aplicar(tocar, rodada.targetId);
-  }, [aplicar, pausado, lstate, rodada]);
+    const rid = rodada.roundId;
+    if (faseResolvidaRef.current === rid) return;               // fase já resolvida (derrota/acerto): input bloqueado
+
+    // Infinito: sem deadline POR FASE (só o global da sessão) — acerto normal.
+    if (infinitoRef.current) {
+      const r = aplicar(tocar, rodada.targetId);
+      if (r.aceito && r.acerto === true) registrarAcertoInfinito();
+      return;
+    }
+    // OV3R3 — Difícil: AUTORIDADE DO DEADLINE da PARTIDA (relógio único). Toque após o prazo → DERROTA
+    // da partida; 10º acerto antes do prazo → VITÓRIA. Cada acerto grava o tempo da fase (recorde/cena).
+    if (partidaGlobalRef.current) {
+      if (partidaResolvidaRef.current != null) return;
+      const limiteGlobal = dif.tempoGlobalMs;
+      if (limiteGlobal != null && (limiteGlobal - getPartidaMs()) <= 0) {
+        fn.current.resolverPartidaDificil('derrota_tempo');   // toque fora do prazo → derrota da partida
+        return;
+      }
+      const r = aplicar(tocar, rodada.targetId);
+      if (r.aceito && r.acerto === true) {
+        registrarTempoFase(rodada);                            // recorde por cenário (tempo da busca)
+        if (jogoRef.current.encontradas >= jogoRef.current.rounds) {
+          fn.current.resolverPartidaDificil('vitoria');        // 10/10 antes do tempo → vitória
+        }
+      }
+      return;
+    }
+    // Médio/Fácil: AUTORIDADE DO DEADLINE por FASE (não o texto "0s"). Toque após o prazo nunca vence.
+    const limiteMs = dif.tempoLimiteMs;
+    if (limiteMs != null && (limiteMs - getUsadoMs()) <= 0) {
+      fn.current.resolverFaseFinita(rid, 'tempo_esgotado');    // toque fora do prazo → resolve como derrota
+      return;
+    }
+    fn.current.resolverFaseFinita(rid, 'acerto');
+  }, [pausado, lstate, rodada, aplicar, registrarAcertoInfinito, registrarTempoFase, getUsadoMs, getPartidaMs, dif.tempoLimiteMs, dif.tempoGlobalMs]);
 
   /* ── Toque no RESTO do cenário: ERRO leve (feedback), sem avançar rodada nem punir. ── */
   const aoTocarCena = useCallback((e) => {
     if (pausado || inputBloqueado(lstate) || !rodada) return;
+    if (faseResolvidaRef.current === rodada.roundId) return;   // OV3R2 — fase resolvida: sem toque na revelação
     const { locationX: px, locationY: py } = e?.nativeEvent ?? {};
     if (OVELHA_CALIBRACAO) { setRipple({ key: `${Date.now()}`, x: px, y: py }); return; }
     const r = aplicar(tocar, MISS_ID);
     if (r.aceito && r.acerto === false) {
+      faseTeveErroRef.current = true;   // OV3 — qualquer erro quebra a "fase perfeita" (Infinito)
       setRipple({ key: `${Date.now()}`, x: px, y: py });
       setErrouAgora(true);
       agendar(() => montado.current && setErrouAgora(false), T.erro);
+      // OV2 — dica por ERROS ELEGÍVEIS (cooldown 700ms evita spam de toques). Ao cruzar os
+      // limites do modo (Fácil 4/6 · Médio 6/8 · Difícil 8/10) sobe a dica: brilho e depois contorno.
+      const agora = Date.now();
+      const elig = erroElegivel({ id: MISS_ID, ultimoId: ultimoErroIdRef.current, agoraMs: agora, ultimoMs: ultimoErroMsRef.current });
+      ultimoErroIdRef.current = MISS_ID;
+      ultimoErroMsRef.current = agora;
+      if (elig) {
+        errosElegivelRef.current += 1;
+        const nv = nivelDicaPorErros(errosElegivelRef.current, dif.dicaErros);
+        if (nv > 0) fn.current.subirDica(nv);
+      }
     }
-  }, [aplicar, agendar, pausado, lstate, rodada]);
-
-  /* ── Botão de dica (médio/difícil): sobe um nível. NÃO pontua nem avança. ── */
-  const pedirDica = useCallback(() => {
-    if (!procurando || !dicaPronta) return;
-    fn.current.subirDica(Math.min(3, (nivelRef.current || 0) + 1));
-  }, [procurando, dicaPronta]);
+  }, [aplicar, agendar, pausado, lstate, rodada, dif.dicaErros]);
 
   const medirArea = useCallback((e) => {
     const { width: w, height: h } = e?.nativeEvent?.layout ?? {};
@@ -425,6 +877,18 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
     if (mudou) setAreaVersion((v) => v + 1);
   }, []);
 
+  /* ── OV3 — Transição AUTOMÁTICA entre fases (capa técnica SEM botão) ──
+     Assim que as 3 imagens exibem (sceneReady, sem erro), revela sozinha; nada de tocar "Procurar".
+     Em falha de imagem, recarrega a MESMA fase uma vez (buttonless). Nunca durante pausa/apresentação. */
+  useEffect(() => {
+    if (!jogando || pausado) return;
+    if (botaoHabilitado(lstate)) { procurar(); return; }
+    if (temErro(lstate) && !retryAgendadoRef.current) {
+      retryAgendadoRef.current = true;
+      agendar(() => { if (montado.current) tentarNovamente(); }, 500);
+    }
+  }, [jogando, pausado, lstate, procurar, tentarNovamente, agendar]);
+
   const semRodadas = !premium && rounds != null && rounds.remaining <= 0;
   const mensagem = pausado
     ? 'Joguinho pausado. Volte quando quiser!'
@@ -432,66 +896,161 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
       : nivel >= 1 ? OVELHA_BENI.incentivo
         : OVELHA_BENI.procurando;
 
-  const dicaNivel = procurando && !pausado ? nivel : 0;   // 0..3 (1 região · 2 brilho · 3 pulso)
-  const dicaBotaoVisivel = procurando && !dif.dicaAuto && dicaPronta;
+  const dicaNivel = procurando && !pausado ? nivel : 0;   // 0..3 (1 região · 2 brilho · 3 contorno)
   const rodadaNum = Math.min(vista.rodada, vista.rounds);
+  const encontrada = vista.fase === FASES.ACERTO;
   // Pose ÚNICA frontal no jogo: cartão, miniatura e cena usam sempre o MESMO asset.
   const criadorAtivo = isCreatorQaModeAllowed() && isCreatorQaModeEnabled();
 
-  /* ══════════════ ENTRADA ══════════════ */
-  if (tela === 'entrada') {
+  /* ══════════════ APRESENTAÇÃO (1×/dia, antes da 1ª fase jogável) ══════════════ */
+  if (tela === 'apresentacao') {
     return (
       <View style={styles.root}>
-        <Header insets={insets} onBack={() => navigation.goBack()} />
+        <Header insets={insets} onBack={() => setTela('entrada')} />
         <View style={styles.entradaWrap}>
           <View style={styles.painel}>
             <BeniGuideBubble message={OVELHA_BENI.entrada} avatarVariant="teaching" tone="purple" compact />
-            <Text style={styles.explica}>
-              A ovelhinha se escondeu na paisagem. Antes de cada rodada eu mostro qual procurar — são {dif.rounds}!
-            </Text>
           </View>
-          {!premium && (
-            <View style={styles.pill}>
-              <FaithIcon name="star" size={14} color={pt.goldDeep} />
-              <Text style={styles.pillText}>
-                {rounds == null ? 'Preparando suas rodadas…'
-                  : rounds.remaining > 0 ? `Você tem ${rounds.remaining} rodada${rounds.remaining === 1 ? '' : 's'} hoje.`
-                    : 'As rodadas de hoje acabaram. Amanhã tem mais!'}
-              </Text>
+          <View style={styles.apreCard}>
+            <Text style={styles.apreTitulo}>Encontre esta ovelhinha!</Text>
+            <View style={styles.apreSheepBg}>
+              <ExpoImage
+                source={OVELHA_POSE_IMG[OVELHA_POSE_JOGO]}
+                style={styles.apreSheep}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+                transition={0}
+                recyclingKey={`apre:${OVELHA_POSE_JOGO}`}
+              />
+            </View>
+            <Text style={styles.apreFrase}>
+              Ela é a mesma o dia todo. Guarde bem o rostinho dela — em cada fase ela se esconde numa paisagem diferente!
+            </Text>
+            <View style={styles.apreInfoRow}>
+              <View style={styles.apreInfoPill}>
+                <FaithIcon name="ovelha" size={13} color={pt.greenDeep} />
+                <Text style={styles.apreInfoTxt}>{dif.label} · {infinito ? 'sem fim' : partidaGlobal ? `${dif.rounds} ovelhinhas` : `${dif.rounds} fases`}</Text>
+              </View>
+              <View style={styles.apreInfoPill}>
+                <FaithIcon name="timer" size={13} color={pt.greenDeep} />
+                <Text style={styles.apreInfoTxt}>
+                  {infinito ? '60s de busca'
+                    : partidaGlobal ? `${formatarTempoMs(dif.tempoGlobalMs)} no total`
+                      : dif.tempoLimiteMs ? `${formatarTempoMs(dif.tempoLimiteMs)} por fase` : 'Sem tempo'}
+                </Text>
+              </View>
+            </View>
+          </View>
+          <SoundButton style={styles.btnPrimario} onPress={() => comecar({ marcarApresentacao: true })} activeOpacity={0.9} soundType="success">
+            <FaithIcon name="ovelha" size={18} color="#FFF" />
+            <Text style={styles.btnPrimarioText}>Vamos procurar!</Text>
+          </SoundButton>
+          <SoundButton style={styles.btnSecundario} onPress={() => setTela('entrada')} activeOpacity={0.9}>
+            <Text style={styles.btnSecundarioText}>Agora não</Text>
+          </SoundButton>
+        </View>
+      </View>
+    );
+  }
+
+  /* ══════════════ ENTRADA (lista vertical + CTA fixo no rodapé) ══════════════ */
+  if (tela === 'entrada') {
+    const statusText = rounds == null
+      ? 'Preparando suas rodadas…'
+      : premium
+        ? 'Modo Família: brinque à vontade!'
+        : rounds.remaining <= 0
+          ? 'As rodadas de hoje acabaram. Amanhã tem mais!'
+          : `Hoje você ainda pode brincar ${rounds.remaining} ${rounds.remaining === 1 ? 'vez' : 'vezes'}.`;
+    return (
+      <View style={styles.root}>
+        <Header insets={insets} onBack={() => navigation.goBack()} criadorAtivo={criadorAtivo} />
+        <ScrollView contentContainerStyle={styles.entradaScroll} showsVerticalScrollIndicator={false}>
+          {/* Hero compacto e CONVIDATIVO (Beni + ovelha + 1 frase). Sem WebP, sem blur, sem loop. */}
+          <View style={styles.hero}>
+            <View style={styles.heroSheepBg}>
+              <ExpoImage
+                source={OVELHA_POSE_IMG[OVELHA_POSE_JOGO]}
+                style={styles.heroSheep}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+                transition={0}
+                recyclingKey={`hero:${OVELHA_POSE_JOGO}`}
+              />
+            </View>
+            <View style={styles.heroTexto}>
+              <Text style={styles.heroTitulo}>Cadê a Ovelhinha?</Text>
+              <Text style={styles.heroFrase}>A ovelhinha adora se esconder. Vamos procurar?</Text>
+            </View>
+          </View>
+
+          {/* Status diário ÚNICO (sem mensagem duplicada). */}
+          <View style={styles.statusPill}>
+            <FaithIcon name="star" size={14} color={pt.goldDeep} />
+            <Text style={styles.statusText}>{statusText}</Text>
+          </View>
+
+          {/* Lista VERTICAL dos 4 modos. Seleção clara (borda + check + fundo), não só cor. */}
+          {OVELHA_DIFFICULTIES.map((m) => {
+            const sel = m.id === dificuldade;
+            const meta = MODO_INFO[m.id] || {};
+            const recordeTxt = m.infinito
+              ? (melhorPontosInfinito(stats) > 0 ? `Melhor: ${milhar(melhorPontosInfinito(stats))} pontos` : 'Sem recorde')
+              : m.timerTipo === 'partida'
+                ? (melhorCompletionDificil(stats) > 0 ? `Melhor partida: ${formatarTempoMs(melhorCompletionDificil(stats))}`
+                  : melhorTempoDaDificuldade(stats, m.id) != null ? `Melhor fase: ${formatarTempoMs(melhorTempoDaDificuldade(stats, m.id))}` : 'Sem recorde')
+                : (melhorTempoDaDificuldade(stats, m.id) != null ? `Melhor fase: ${formatarTempoMs(melhorTempoDaDificuldade(stats, m.id))}` : 'Sem recorde');
+            return (
+              <SoundButton
+                key={m.id}
+                style={[styles.modoCard, sel && styles.modoCardSel, m.infinito && styles.modoCardInf, m.infinito && sel && styles.modoCardInfSel]}
+                onPress={() => setDificuldade(m.id)}
+                activeOpacity={0.9}
+                accessibilityRole="button"
+                accessibilityState={{ selected: sel }}
+              >
+                <View style={styles.modoCardTopo}>
+                  <Text style={[styles.modoTitulo, sel && styles.modoTituloSel]}>{m.label}</Text>
+                  <View style={[styles.modoCheck, sel ? styles.modoCheckOn : styles.modoCheckOff]}>
+                    {sel && <FaithIcon name="check" size={13} color="#FFF" />}
+                  </View>
+                </View>
+                <Text style={styles.modoDesc}>{meta.desc}</Text>
+                <View style={styles.modoMetaRow}>
+                  <View style={styles.modoTag}><FaithIcon name="ovelha" size={11} color={pt.textSoft} /><Text style={styles.modoTagTxt}>{meta.info}</Text></View>
+                  <View style={styles.modoTag}><FaithIcon name="timer" size={11} color={pt.textSoft} /><Text style={styles.modoTagTxt}>{meta.tempo}</Text></View>
+                </View>
+                <Text style={styles.modoRecorde}>{recordeTxt}</Text>
+              </SoundButton>
+            );
+          })}
+
+          {/* Ferramentas de teste (Modo Criador) — recolhidas, discretas, sem competir com o CTA. */}
+          {isInternalToolsEnabled() && (
+            <View style={styles.devSec}>
+              <Pressable style={styles.devSecHead} onPress={() => setFerramentasAbertas((v) => !v)} accessibilityRole="button">
+                <Text style={styles.devSecTitulo}>Ferramentas de teste</Text>
+                <Text style={styles.devSecChevron}>{ferramentasAbertas ? '▾' : '▸'}</Text>
+              </Pressable>
+              {ferramentasAbertas && (
+                <SoundButton style={styles.btnDev} onPress={() => navigation.navigate(ROUTES.OVELHA_ASSET_GALLERY)} activeOpacity={0.9}>
+                  <Text style={styles.btnDevText}>Asset Gallery (dev)</Text>
+                </SoundButton>
+              )}
             </View>
           )}
-          <Text style={styles.difLabel}>Escolha a dificuldade</Text>
-          <View style={styles.difRow}>
-            {OVELHA_DIFFICULTIES.map((m) => {
-              const sel = m.id === dificuldade;
-              return (
-                <SoundButton
-                  key={m.id}
-                  style={[styles.difChip, sel && styles.difChipSel]}
-                  onPress={() => setDificuldade(m.id)}
-                  activeOpacity={0.9}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: sel }}
-                >
-                  <Text style={[styles.difChipTitulo, sel && styles.difChipTituloSel]}>{m.label}</Text>
-                  <Text style={[styles.difChipRodadas, sel && styles.difChipRodadasSel]}>{m.rounds} rodadas</Text>
-                </SoundButton>
-              );
-            })}
-          </View>
+        </ScrollView>
+
+        {/* CTA fixo no rodapé SEGURO (fora da ScrollView). Reflete o modo; desabilita sem rodada. */}
+        <View style={[styles.ctaBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           {semRodadas ? (
-            <View style={styles.convite}>
-              <FaithIcon name="family" size={16} color="#7A5800" />
-              <Text style={styles.conviteText}>{OVELHA_BENI.semRodadas}</Text>
+            <View style={[styles.btnPrimario, styles.btnPrimarioOff]} accessibilityState={{ disabled: true }}>
+              <Text style={styles.btnPrimarioOffText}>Volte amanhã</Text>
             </View>
           ) : (
-            <SoundButton style={styles.btnPrimario} onPress={comecar} activeOpacity={0.9} soundType="success">
-              <Text style={styles.btnPrimarioText}>Começar a brincar</Text>
-            </SoundButton>
-          )}
-          {isInternalToolsEnabled() && (
-            <SoundButton style={styles.btnDev} onPress={() => navigation.navigate(ROUTES.OVELHA_ASSET_GALLERY)} activeOpacity={0.9}>
-              <Text style={styles.btnDevText}>Asset Gallery (dev)</Text>
+            <SoundButton style={styles.btnPrimario} onPress={iniciarComApresentacao} activeOpacity={0.9} soundType="success">
+              <FaithIcon name={infinito ? 'timer' : 'ovelha'} size={18} color="#FFF" />
+              <Text style={styles.btnPrimarioText}>Começar no {dif.label}</Text>
             </SoundButton>
           )}
         </View>
@@ -501,47 +1060,174 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
 
   /* ══════════════ RESULTADO ══════════════ */
   if (tela === 'resultado') {
+    const ehInfinito = resultado?.modo === 'infinito';
+    const ehDificil = resultado?.modo === 'dificil';
+    const CTAs = (
+      <>
+        <SoundButton style={styles.btnPrimario} onPress={() => comecar()} activeOpacity={0.9} soundType="success">
+          <FaithIcon name="restart" size={18} color="#FFF" />
+          <Text style={styles.btnPrimarioText}>Jogar novamente</Text>
+        </SoundButton>
+        <SoundButton style={styles.btnSecundario} onPress={() => setTela('entrada')} activeOpacity={0.9}>
+          <Text style={styles.btnSecundarioText}>{ehInfinito ? 'Trocar modo' : 'Trocar dificuldade'}</Text>
+        </SoundButton>
+        <SoundButton style={styles.btnTerciario} onPress={() => navigation.navigate(ROUTES.HOME, { screen: ROUTES.ACTIVITIES })} activeOpacity={0.9}>
+          <Text style={styles.btnTerciarioText}>Voltar para Brincar</Text>
+        </SoundButton>
+      </>
+    );
+    const faixaEstrela = (
+      <View style={resultado?.starAwarded ? styles.faixaEstrela : styles.faixaSuave}>
+        <FaithIcon name="star" size={15} color={resultado?.starAwarded ? pt.goldDeep : pt.textSoft} />
+        <Text style={resultado?.starAwarded ? styles.faixaEstrelaText : styles.faixaSuaveText}>
+          {resultado?.starAwarded ? '+1 estrelinha!' : 'Você já ganhou as estrelinhas de hoje. Amanhã tem mais!'}
+        </Text>
+      </View>
+    );
+
+    /* ── Resultado do DIFÍCIL (vitória 10/10 antes do tempo · derrota por tempo→0) ── */
+    if (ehDificil) {
+      const vit = resultado?.vitoria === true;
+      const enc = resultado?.encontradas ?? 0;
+      const total = resultado?.total ?? 10;
+      const usadoMs = resultado?.tempoUsadoMs ?? 0;
+      const totalMs = resultado?.tempoTotalMs ?? dif.tempoGlobalMs;
+      const restanteMs = Math.max(0, totalMs - usadoMs);
+      const fasesD = resultado?.fases ?? [];
+      const semDicaD = fasesD.filter((f) => !f.comDica && !f.esgotou).length;
+      return (
+        <View style={styles.root}>
+          <Header insets={insets} onBack={() => setTela('entrada')} />
+          <ScrollView contentContainerStyle={styles.resultadoScroll} showsVerticalScrollIndicator={false}>
+            <View style={styles.painel}>
+              <BeniGuideBubble
+                message={vit ? 'Você encontrou todas as ovelhinhas!' : 'Você chegou pertinho. Tente novamente e bata seu resultado!'}
+                avatarVariant={vit ? 'celebrating' : 'teaching'} tone="purple" compact
+              />
+            </View>
+            <View style={styles.vitoriaCard}>
+              <Text style={styles.resultadoTitulo}>{vit ? 'Você encontrou todas as ovelhinhas!' : 'O tempo acabou!'}</Text>
+              <Text style={styles.destaque}>{enc} de {total}</Text>
+              <Text style={styles.destaqueLabel}>ovelhinhas encontradas · Difícil</Text>
+              <View style={styles.statsRow3}>
+                <Stat label={vit ? 'Tempo usado' : 'Tempo total'} valor={vit ? formatarTempoMs(usadoMs) : formatarTempoMs(totalMs)} />
+                <Stat label="Melhor sequência" valor={`${resultado?.bestSequencia ?? 0}`} />
+                <Stat label="Fases sem dica" valor={`${semDicaD}`} />
+              </View>
+              {vit && <Text style={styles.recordeAnterior}>Tempo restante: {formatarTempoMs(restanteMs)}</Text>}
+              {vit && resultado?.novoCompletion && (
+                <View style={styles.faixaBoa}>
+                  <FaithIcon name="trophies" size={16} color="#0E5A3C" />
+                  <Text style={styles.faixaBoaText}>Nova melhor partida!</Text>
+                </View>
+              )}
+              {vit && !resultado?.novoCompletion && melhorCompletionDificil(stats) > 0 && (
+                <Text style={styles.recordeAnterior}>Melhor partida: {formatarTempoMs(melhorCompletionDificil(stats))}</Text>
+              )}
+              {/* Estrela SÓ na vitória; a derrota NUNCA insinua recompensa. */}
+              {vit ? faixaEstrela : (
+                <View style={styles.faixaSuave}>
+                  <FaithIcon name="ovelha" size={15} color={pt.textSoft} />
+                  <Text style={styles.faixaSuaveText}>Encontre todas antes do tempo para ganhar a estrelinha!</Text>
+                </View>
+              )}
+            </View>
+            {CTAs}
+            {/* Detalhes: só as fases realmente jogadas (a cena incompleta não vira registro). */}
+            {fasesD.length > 0 && (
+              <View style={styles.fasesCard}>
+                <Pressable style={styles.fasesHead} onPress={() => setDetalhesFasesAbertos((v) => !v)} accessibilityRole="button">
+                  <Text style={styles.fasesTitulo}>Ver detalhes das fases</Text>
+                  <Text style={styles.devSecChevron}>{detalhesFasesAbertos ? '▾' : '▸'}</Text>
+                </Pressable>
+                {detalhesFasesAbertos && fasesD.map((f, i) => (<FaseLinha key={i} indice={i + 1} fase={f} />))}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      );
+    }
+
+    /* ── Resultado do INFINITO (próprio, compacto; sem lista de fases, sem ranking) ── */
+    if (ehInfinito) {
+      const beniMsg = resultado?.isBestScore
+        ? 'Novo recorde! Vamos comemorar!'
+        : resultado?.encontradas >= 5 ? 'Você encontrou um montão de ovelhinhas!' : 'Cada busca deixa você ainda mais atento!';
+      return (
+        <View style={styles.root}>
+          <Header insets={insets} onBack={() => setTela('entrada')} />
+          <ScrollView contentContainerStyle={styles.resultadoScroll} showsVerticalScrollIndicator={false}>
+            <View style={styles.painel}>
+              <BeniGuideBubble message={beniMsg} avatarVariant="celebrating" tone="purple" compact />
+            </View>
+            <View style={styles.vitoriaCard}>
+              <Text style={styles.destaque}>{milhar(resultado?.score ?? 0)}</Text>
+              <Text style={styles.destaqueLabel}>pontos · Infinito</Text>
+              {resultado?.isBestScore && (
+                <View style={styles.faixaBoa}>
+                  <FaithIcon name="trophies" size={16} color="#0E5A3C" />
+                  <Text style={styles.faixaBoaText}>Novo recorde!</Text>
+                </View>
+              )}
+              <View style={styles.statsRow3}>
+                <Stat label="Ovelhinhas" valor={`${resultado?.encontradas ?? 0}`} />
+                <Stat label="Melhor sequência" valor={`${resultado?.sequencia ?? 0}`} />
+                <Stat label="Fases perfeitas" valor={`${resultado?.fasesPerfeitas ?? 0}`} />
+              </View>
+              {melhorPontosInfinito(stats) > 0 && (
+                <Text style={styles.recordeAnterior}>Melhor pontuação: {milhar(melhorPontosInfinito(stats))}</Text>
+              )}
+              {faixaEstrela}
+            </View>
+            {CTAs}
+          </ScrollView>
+        </View>
+      );
+    }
+
+    /* ── Resultado dos modos FINITOS (compacto; CTAs ANTES dos detalhes recolhidos) ── */
+    const fases = resultado?.fases ?? [];
+    const semDica = fases.filter((f) => !f.comDica && !f.esgotou).length;
     return (
       <View style={styles.root}>
         <Header insets={insets} onBack={() => setTela('entrada')} />
-        <View style={styles.entradaWrap}>
+        <ScrollView contentContainerStyle={styles.resultadoScroll} showsVerticalScrollIndicator={false}>
           <View style={styles.painel}>
             <BeniGuideBubble message={OVELHA_BENI.vitoria} avatarVariant="celebrating" tone="purple" compact />
           </View>
-          <View style={styles.vitoriaCard}>
-            <View style={styles.vitoriaIconBg}><FaithIcon name="ovelha" size={34} color={pt.greenDeep} /></View>
-            <Text style={styles.destaque}>{resultado?.encontradas ?? 0} de {resultado?.total ?? dif.rounds}</Text>
-            <Text style={styles.destaqueLabel}>
-              {resultado?.encontradas === 1 ? 'ovelhinha encontrada' : 'ovelhinhas encontradas'} · {dif.label}
-            </Text>
-            <View style={styles.statsRow}>
-              <Stat label="Melhor sequência" valor={`${resultado?.bestSequencia ?? 0}`} />
-            </View>
-            {resultado?.isBest && (
-              <View style={styles.faixaBoa}>
-                <FaithIcon name="trophies" size={16} color="#0E5A3C" />
-                <Text style={styles.faixaBoaText}>Nova melhor sequência!</Text>
-              </View>
-            )}
-            <View style={resultado?.starAwarded ? styles.faixaEstrela : styles.faixaSuave}>
-              <FaithIcon name="star" size={15} color={resultado?.starAwarded ? pt.goldDeep : pt.textSoft} />
-              <Text style={resultado?.starAwarded ? styles.faixaEstrelaText : styles.faixaSuaveText}>
-                {resultado?.starAwarded ? '+1 estrelinha!' : 'Você já ganhou as estrelinhas de hoje. Amanhã tem mais!'}
-              </Text>
-            </View>
+          {/* Topo compacto: 3 cards SEPARADOS (rótulos nunca concatenam). */}
+          <View style={styles.resumoRow}>
+            <ResumoCard icon="ovelha" valor={`${resultado?.encontradas ?? 0}/${resultado?.total ?? dif.rounds}`} label="Encontradas" />
+            <ResumoCard icon="star" valor={`${semDica}`} label="Fases sem dica" />
+            <ResumoCard icon="trophies" valor={`${resultado?.bestSequencia ?? 0}`} label="Melhor sequência" />
           </View>
-          {/* Jogar novamente: NOVA seed (percurso diferente), mesma dificuldade. */}
-          <SoundButton style={styles.btnPrimario} onPress={comecar} activeOpacity={0.9} soundType="success">
-            <FaithIcon name="restart" size={18} color="#FFF" />
-            <Text style={styles.btnPrimarioText}>Jogar novamente</Text>
-          </SoundButton>
-          <SoundButton style={styles.btnSecundario} onPress={() => setTela('entrada')} activeOpacity={0.9}>
-            <Text style={styles.btnSecundarioText}>Trocar dificuldade</Text>
-          </SoundButton>
-          <SoundButton style={styles.btnTerciario} onPress={() => navigation.navigate(ROUTES.HOME, { screen: ROUTES.ACTIVITIES })} activeOpacity={0.9}>
-            <Text style={styles.btnTerciarioText}>Voltar para Brincar</Text>
-          </SoundButton>
-        </View>
+          {resultado?.isBest && (
+            <View style={styles.faixaBoa}>
+              <FaithIcon name="trophies" size={16} color="#0E5A3C" />
+              <Text style={styles.faixaBoaText}>Nova melhor sequência!</Text>
+            </View>
+          )}
+          {faixaEstrela}
+
+          {/* CTAs ANTES dos detalhes (o essencial não exige rolar a lista). */}
+          {CTAs}
+
+          {/* Detalhes recolhidos por padrão: "Ver detalhes das fases". */}
+          {fases.length > 0 && (
+            <View style={styles.fasesCard}>
+              <Pressable style={styles.fasesHead} onPress={() => setDetalhesFasesAbertos((v) => !v)} accessibilityRole="button">
+                <Text style={styles.fasesTitulo}>Ver detalhes das fases</Text>
+                <Text style={styles.devSecChevron}>{detalhesFasesAbertos ? '▾' : '▸'}</Text>
+              </Pressable>
+              {detalhesFasesAbertos && (
+                <>
+                  {fases.map((f, i) => (<FaseLinha key={i} indice={i + 1} fase={f} />))}
+                  <Text style={styles.fasesNota}>O tempo é só para você superar o próprio recorde. As estrelinhas não dependem dele.</Text>
+                </>
+              )}
+            </View>
+          )}
+        </ScrollView>
       </View>
     );
   }
@@ -551,26 +1237,65 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   return (
     <View style={styles.root}>
       <Header insets={insets} onBack={abandonar} chip="Em teste" criadorAtivo={criadorAtivo} />
-      <View style={styles.hud}>
-        <View style={styles.hudItem}>
-          <FaithIcon name="ovelha" size={16} color={pt.textSoft} />
-          <Text style={styles.hudText}>{vista.encontradas} de {vista.rounds}</Text>
+
+      {infinito ? (
+        /* HUD do Infinito: Ovelhas · Sequência · Tempo (sem rodada X/Y, sem dificuldade, sem "Procure esta"). */
+        <View style={styles.hud}>
+          <View style={styles.hudItem}>
+            <FaithIcon name="ovelha" size={16} color={pt.textSoft} />
+            <Text style={styles.hudText}>Ovelhas {vista.encontradas}</Text>
+          </View>
+          <View style={styles.hudCentro}>
+            <Text style={styles.hudSeq}>Sequência {seqPerfeitaRef.current}</Text>
+            <View style={styles.hudPontosRow}>
+              <Text style={styles.hudPontos}>{milhar(pontos)} pts</Text>
+              {ganhoRecente && <Text style={styles.hudGanho}>+{ganhoRecente.valor}</Text>}
+            </View>
+          </View>
+          <View style={styles.hudDir}>
+            <Cronometro
+              roundId={seedRef.current}
+              limiteMs={INFINITO.SESSAO_MS}
+              rodando={rodando}
+              encontrada={false}
+              getUsadoMs={getSessaoMs}
+              onEsgotado={aoEsgotarSessao}
+              onTick={aoTickInfinitoFase}
+            />
+          </View>
         </View>
-        <HudRetrato />
-        <View style={styles.hudDir}>
-          <View style={styles.difTag}><Text style={styles.difTagTxt}>{dif.label}</Text></View>
-          <Text style={styles.hudRodada}>Rodada {rodadaNum}/{vista.rounds}</Text>
+      ) : (
+        /* HUD finito: Fácil/Médio (por fase) e Difícil (relógio da PARTIDA — "Tempo total"). */
+        <View style={styles.hud}>
+          <View style={styles.hudItem}>
+            <FaithIcon name="ovelha" size={16} color={pt.textSoft} />
+            <Text style={styles.hudText}>{vista.encontradas} de {vista.rounds}</Text>
+          </View>
+          <Cronometro
+            roundId={partidaGlobal ? seedRef.current : (rodada?.roundId ?? 0)}
+            limiteMs={partidaGlobal ? dif.tempoGlobalMs : dif.tempoLimiteMs}
+            rodando={rodando}
+            encontrada={partidaGlobal ? false : encontrada}
+            getUsadoMs={partidaGlobal ? getPartidaMs : getUsadoMs}
+            onEsgotado={partidaGlobal ? aoEsgotarPartidaDificil : aoEsgotarTempo}
+            formatoMMSS={partidaGlobal}
+          />
+          <View style={styles.hudDir}>
+            <View style={styles.difTag}><Text style={styles.difTagTxt}>{dif.label}</Text></View>
+            <Text style={styles.hudRodada} accessibilityLabel={partidaGlobal ? 'Tempo total restante' : undefined}>
+              {partidaGlobal ? 'Tempo total' : `Rodada ${rodadaNum}/${vista.rounds}`}
+            </Text>
+          </View>
         </View>
-      </View>
+      )}
 
       <View style={styles.dicaRow}>
-        <Text style={styles.dica} numberOfLines={1}>{mensagem}</Text>
-        {dicaBotaoVisivel && (
-          <SoundButton style={styles.btnDica} onPress={pedirDica} activeOpacity={0.9}>
-            <FaithIcon name="star" size={12} color="#7A5800" />
-            <Text style={styles.btnDicaTxt}>Dica</Text>
-          </SoundButton>
-        )}
+        <Text style={styles.dica} numberOfLines={1}>
+          {derrotaDificil ? `O tempo acabou! Você encontrou ${vista.encontradas} de ${vista.rounds} ovelhinhas.`
+            : derrotaFase ? MSG_DERROTA
+              : marcoBeni ? marcoBeni
+                : tempoEsgotadoInf ? 'Tempo!' : mensagem}
+        </Text>
       </View>
 
       <View style={[styles.cenaWrap, { paddingBottom: Math.max(insets.bottom, 8) + 4 }]} onLayout={medirArea}>
@@ -598,10 +1323,10 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
               mostrarHitbox={mostrarHitbox}
               diag={criadorAtivo ? { dificuldade, sceneId: rodada.sceneId, spotId: rodada.spot.id, zone: rodada.spot.zone, cluster: rodada.spot.cluster, roundId: rodada.roundId, seed: seedRef.current, planId: planIdRef.current, deck: assinaturaDeck(deckStateRef.current, dificuldade), fase: vista.fase, interativo } : null}
               onTocarOvelha={aoTocarOvelha}
-              onBgDisplay={() => aoExibir('background', rodada.roundId)}
-              onBgError={() => aoErro('background', rodada.roundId)}
-              onSheepDisplay={() => aoExibir('sceneSheep', rodada.roundId)}
-              onSheepError={() => aoErro('sceneSheep', rodada.roundId)}
+              onBgDisplay={onBgDisplay}
+              onBgError={onBgError}
+              onSheepDisplay={onSheepDisplay}
+              onSheepError={onSheepError}
             />
           )}
 
@@ -614,29 +1339,31 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
             </SoundButton>
           )}
 
-          {/* Overlay OPACO = card do alvo. Fica montado (sem receber toque) durante o fade de
-              saída, então não intercepta a cena já revelada. */}
+          {/* Capa TÉCNICA discreta (OV3): cobre a cena durante o carregamento, SEM botão. Revela
+              sozinha quando as 3 imagens exibem. O preview é só a SONDA de prontidão (pequeno). */}
           {(coberto || coverFading) && (
             <Animated.View
               style={[StyleSheet.absoluteFill, styles.cover, { opacity: coverAnim }]}
               pointerEvents={coberto ? 'auto' : 'none'}
             >
-              <TargetCard
-                rodada={rodadaNum}
-                total={vista.rounds}
+              <CapaTecnica
                 roundToken={lstate.roundToken}
                 retryNonce={retryNonce}
-                pronto={botaoHabilitado(lstate)}
                 erro={temErro(lstate)}
                 onPreviewDisplay={() => aoExibir('preview', lstate.roundToken)}
                 onPreviewError={() => aoErro('preview', lstate.roundToken)}
-                onProcurar={procurar}
-                onRetry={tentarNovamente}
               />
             </Animated.View>
           )}
         </Pressable>
       </View>
+
+      {/* Infinito: "Tempo!" curto antes do resultado (bloqueia toque; sem ajuda automática). */}
+      {infinito && tempoEsgotadoInf && (
+        <View pointerEvents="none" style={styles.tempoOverlay}>
+          <View style={styles.tempoBolha}><Text style={styles.tempoTxt}>Tempo!</Text></View>
+        </View>
+      )}
     </View>
   );
 }
@@ -649,7 +1376,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
  * interna usa pointerEvents="none". Não há clip/peek (pose única frontal). As imagens usam
  * expo-image com recyclingKey estável e onDisplay/onError (prontidão vem do onDisplay).
  */
-function SceneLayer({ round, scene, viewport, retryNonce, encontrada, dicaNivel = 0, ripple, hitboxMin, debugHitbox, criadorAtivo, mostrarHitbox, diag, onTocarOvelha, onBgDisplay, onBgError, onSheepDisplay, onSheepError }) {
+const SceneLayer = React.memo(function SceneLayer({ round, scene, viewport, retryNonce, encontrada, dicaNivel = 0, ripple, hitboxMin, debugHitbox, criadorAtivo, mostrarHitbox, diag, onTocarOvelha, onBgDisplay, onBgError, onSheepDisplay, onSheepError }) {
   const spot = round.spot;
   const cr = contentRect(scene, viewport);
   const s = cr.scale;
@@ -691,6 +1418,8 @@ function SceneLayer({ round, scene, viewport, retryNonce, encontrada, dicaNivel 
       {dicaNivel >= 1 && <DicaRegiao cx={centro.px} cy={centro.py} viewport={viewport} />}
       {/* DICA nível 2 — brilho/pulso perto da região correta. */}
       {dicaNivel >= 2 && <BrilhoRegiao cx={centro.px} cy={centro.py} r={Math.min(spW, spH) * 0.75} />}
+      {/* DICA nível 3 — contorno tracejado em torno da ovelha (dica direta / muitos erros). */}
+      {dicaNivel >= 3 && <ContornoVisivel cx={centro.px} cy={centro.py} w={spW} h={spH} />}
 
       {/* 2 — WRAPPER CLICÁVEL da ovelha (área do modo, acima do bg). Toque aqui = ACERTO. */}
       <Pressable
@@ -720,7 +1449,7 @@ function SceneLayer({ round, scene, viewport, retryNonce, encontrada, dicaNivel 
       {debugHitbox && <HitboxDebug round={round} scene={scene} viewport={viewport} centro={centro} spW={spW} spH={spH} hb={hb} />}
     </View>
   );
-}
+});
 
 /** Ovelha frontal (pose única). Pop no acerto; pulso suave na dica nível 3. */
 function SheepImage({ spW, spH, img, encontrada, pulsar, recyclingKey, onDisplay, onError }) {
@@ -859,24 +1588,23 @@ function TouchRipple({ x, y }) {
   );
 }
 
-/* ══════════════════════════ CARD DO ALVO + HUD ══════════════════════════ */
+/* ══════════════════════════ CAPA TÉCNICA + HUD ══════════════════════════ */
 
-/** Card = overlay opaco: mostra a ovelha frontal a procurar; botão só habilita quando tudo exibiu. */
-function TargetCard({ rodada, total, roundToken, retryNonce, pronto, erro, onPreviewDisplay, onPreviewError, onProcurar, onRetry }) {
-  const ent = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const a = Animated.spring(ent, { toValue: 1, friction: 7, tension: 60, useNativeDriver: true });
-    a.start(); return () => a.stop();
-  }, [ent]);
+/**
+ * Capa TÉCNICA (OV3): overlay curto e discreto que cobre a cena durante o carregamento e some
+ * SOZINHO (auto-reveal) quando as 3 imagens exibem — SEM botão, SEM alvo grande, SEM revelar a
+ * posição. O preview (pequeno, ~44px) é apenas a SONDA de prontidão (dispara onDisplay). Preserva
+ * roundId/recyclingKey/onDisplay. Em falha, a tela reagenda o carregamento (buttonless).
+ */
+function CapaTecnica({ roundToken, retryNonce, erro, onPreviewDisplay, onPreviewError }) {
   const kPreview = `preview:${roundToken}:${OVELHA_POSE_JOGO}:${retryNonce}`;
   return (
-    <View style={styles.cardWrap} accessibilityRole="alert">
-      <Animated.View style={[styles.cardBox, { opacity: ent, transform: [{ scale: ent.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] }]}>
-        <Text style={styles.cardTitulo}>Encontre esta ovelhinha!</Text>
-        <View style={styles.cardSheepBg}>
+    <View style={styles.capaWrap} accessibilityRole="alert">
+      <View style={styles.capaPill}>
+        <View style={styles.capaSondaBg}>
           <ExpoImage
             source={OVELHA_POSE_IMG[OVELHA_POSE_JOGO]}
-            style={styles.cardSheep}
+            style={styles.capaSonda}
             contentFit="contain"
             cachePolicy="memory-disk"
             transition={0}
@@ -885,40 +1613,91 @@ function TargetCard({ rodada, total, roundToken, retryNonce, pronto, erro, onPre
             onError={onPreviewError}
           />
         </View>
-        <Text style={styles.cardRodada}>Rodada {rodada} de {total}</Text>
-
-        {erro ? (
-          <>
-            <Text style={styles.cardErro}>Não conseguimos preparar a cena.</Text>
-            <SoundButton style={styles.cardBtn} onPress={onRetry} activeOpacity={0.9}>
-              <Text style={styles.cardBtnText}>Tentar novamente</Text>
-            </SoundButton>
-          </>
-        ) : pronto ? (
-          <SoundButton style={styles.cardBtn} onPress={onProcurar} activeOpacity={0.9} soundType="success">
-            <Text style={styles.cardBtnText}>Procurar</Text>
-          </SoundButton>
-        ) : (
-          <View style={[styles.cardBtn, styles.cardBtnOff]} accessibilityState={{ disabled: true }}>
-            <Text style={styles.cardBtnOffText}>Preparando a brincadeira…</Text>
-          </View>
-        )}
-      </Animated.View>
+        <Text style={styles.capaTxt}>{erro ? 'Ops, recarregando…' : 'Preparando o próximo esconderijo…'}</Text>
+      </View>
     </View>
   );
 }
 
-/** Retrato da ovelha a procurar — MESMA pose frontal do card e da cena; com fallback visual. */
-function HudRetrato() {
-  const [falhou, setFalhou] = useState(false);
-  return (
-    <View style={styles.hudRetrato}>
-      <View style={styles.hudRetratoImg}>
-        {falhou
-          ? <FaithIcon name="ovelha" size={30} color={pt.greenDeep} />
-          : <ExpoImage source={OVELHA_POSE_IMG[OVELHA_POSE_JOGO]} style={styles.hudSheep} contentFit="contain" cachePolicy="memory-disk" transition={0} recyclingKey={`hud:${OVELHA_POSE_JOGO}`} onError={() => setFalhou(true)} />}
+/**
+ * Cronômetro por fase (OV2). Tica INTERNAMENTE (só re-renderiza a si mesmo → SceneLayer intacto:
+ * zero re-render da cena por tick). Deadline monotônico via getUsadoMs() (ms ativos, recomputado
+ * do relógio a cada tick — nunca acumulativo). Countdown (Médio/Difícil) mostra o tempo restante
+ * e avisa uma única vez ao esgotar; Fácil mostra o tempo só APÓS o acerto.
+ */
+function Cronometro({ roundId, limiteMs, rodando, encontrada, getUsadoMs, onEsgotado, onTick, formatoMMSS = false }) {
+  const [, tick] = useState(0);
+  const esgRef = useRef(false);
+  const ultimoSegRef = useRef(0);   // OV3R — último segundo já sonorizado (dedup 1×/segundo)
+  // Fase/sessão nova (roundId muda): rearma esgotado E o alerta sonoro (começa sem som).
+  useEffect(() => { esgRef.current = false; ultimoSegRef.current = 0; }, [roundId]);
+  useEffect(() => {
+    if (!rodando) return undefined;
+    // ÚNICO setInterval do jogo (250ms). Reaproveitado p/ o hint por tempo do Infinito (onTick) e
+    // p/ o alerta sonoro de relógio — sem cronômetros paralelos. Deadline monotônico via getUsadoMs.
+    const t = setInterval(() => {
+      tick((v) => (v + 1) % 1000000);
+      if (onTick) onTick();
+      if (limiteMs != null) {
+        const rem = Math.max(0, limiteMs - getUsadoMs());
+        // OV3R — alerta sonoro (mesmo `countdown_tick` dos outros jogos): 1× por SEGUNDO INTEIRO,
+        // só com rem>0 && rem<=ALERTA. Nunca toca em zero; nunca mais de 1×/segundo (ultimoSegRef +
+        // dedup de 300ms do audioManager). Fora do intervalo/condições → cortado no cleanup.
+        if (rem > 0 && rem <= ALERTA_TEMPO_MS) {
+          const seg = Math.ceil(rem / 1000);
+          if (seg !== ultimoSegRef.current) { ultimoSegRef.current = seg; playGameSfx(COUNTDOWN_TICK); }
+        } else if (rem <= 0) {
+          stopGameSfx(COUNTDOWN_TICK);   // tempo esgotado: silêncio imediato
+        }
+        if (!esgRef.current && getUsadoMs() >= limiteMs) {
+          esgRef.current = true;
+          onEsgotado(roundId);
+        }
+      }
+    }, 250);
+    // Sai da busca ativa (acerto/troca/capa/pausa/blur/AppState/resultado/unmount) → interval para
+    // E o alerta é cortado. O som de uma fase/sessão nunca vaza para a seguinte.
+    return () => { clearInterval(t); stopGameSfx(COUNTDOWN_TICK); };
+  }, [rodando, roundId, limiteMs, getUsadoMs, onEsgotado, onTick]);
+
+  const usado = getUsadoMs();
+  if (limiteMs == null) {
+    if (!encontrada) return <View style={styles.cronoVazio} />;   // Fácil: sem regressiva; tempo só ao achar
+    return (
+      <View style={styles.cronoPill}>
+        <FaithIcon name="timer" size={12} color={pt.greenDeep} />
+        <Text style={styles.cronoTxt}>{formatarTempoMs(usado)}</Text>
       </View>
-      <Text style={styles.hudRetratoLabel}>Procure esta</Text>
+    );
+  }
+  const restante = Math.max(0, limiteMs - usado);
+  const alerta = restante <= ALERTA_TEMPO_MS;   // mesmo limiar do alerta sonoro
+  return (
+    <View style={[styles.cronoPill, alerta && styles.cronoPillAlerta]}>
+      <FaithIcon name="timer" size={12} color={alerta ? '#B4460F' : pt.greenDeep} />
+      <Text style={[styles.cronoTxt, alerta && styles.cronoTxtAlerta]}>{formatarTempoMs(restante, true, formatoMMSS)}</Text>
+    </View>
+  );
+}
+
+/** Linha de uma fase no resultado: nº, cenário, tempo e estado (recorde/ajuda/tempo esgotado). */
+function FaseLinha({ indice, fase }) {
+  const esgotou = !!fase.esgotou;
+  const comDica = !!fase.comDica;
+  const recorde = !!fase.recorde;
+  const tag = esgotou
+    ? { txt: 'tempo esgotado', style: styles.faseTagAviso }
+    : recorde ? { txt: 'novo recorde!', style: styles.faseTagRecorde }
+      : comDica ? { txt: 'com ajuda', style: styles.faseTagNeutra }
+        : { txt: 'fase perfeita', style: styles.faseTagBoa };
+  return (
+    <View style={styles.faseLinha}>
+      <View style={styles.faseNumBolha}><Text style={styles.faseNumTxt}>{indice}</Text></View>
+      <View style={styles.faseMeio}>
+        <Text style={styles.faseCena} numberOfLines={1}>{nomeCena(fase.sceneId)}</Text>
+        <View style={[styles.faseTag, tag.style]}><Text style={styles.faseTagTxt}>{tag.txt}</Text></View>
+      </View>
+      <Text style={styles.faseTempo}>{formatarTempoMs(fase.ms)}</Text>
     </View>
   );
 }
@@ -960,9 +1739,11 @@ function HitboxDebug({ round, centro, spW, spH, hb }) {
 /* ══════════════════════════ PEÇAS ══════════════════════════ */
 
 function Header({ insets, onBack, chip, criadorAtivo }) {
-  // A faixa "MODO CRIADOR ATIVO" é um overlay fixo no topo (paddingTop = insets.top + ~17).
-  // Quando ativa, empurramos o conteúdo do cabeçalho para baixo dela (título/voltar visíveis).
-  const topo = Math.max(insets.top, 10) + (criadorAtivo ? 22 : 0);
+  // A faixa "MODO CRIADOR ATIVO" (CreatorModeBanner) é um overlay fixo: altura = safe-area do topo
+  // + a faixa (texto ~14 + paddingBottom 3 ≈ 20). Quando ativa, o cabeçalho RESERVA essa altura
+  // (+ folga) para o título/voltar nunca ficarem cobertos — sem offset específico por aparelho.
+  const bannerH = Math.max(insets.top, 4) + 20;
+  const topo = criadorAtivo ? bannerH + 8 : Math.max(insets.top, 10);
   return (
     <LinearGradient colors={['#EAF7EF', '#DDF0E6', '#E8F6EF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { paddingTop: topo }]}>
       <View style={styles.headerRow}>
@@ -985,6 +1766,17 @@ function Stat({ label, valor }) {
   );
 }
 
+/** Card compacto do resumo (resultado finito): ícone + valor + rótulo, SEMPRE separado (nunca concatena). */
+function ResumoCard({ icon, valor, label }) {
+  return (
+    <View style={styles.resumoCard}>
+      <FaithIcon name={icon} size={16} color={pt.greenDeep} />
+      <Text style={styles.resumoValor}>{valor}</Text>
+      <Text style={styles.resumoLabel} numberOfLines={2}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: pt.background },
 
@@ -1003,12 +1795,15 @@ const styles = StyleSheet.create({
   pillText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: pt.text, fontWeight: '700' },
   difLabel: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: pt.textSoft, marginTop: 14, marginBottom: 6, marginLeft: 2 },
   difRow: { flexDirection: 'row', gap: 8 },
-  difChip: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: radii.lg, backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#DCE6E0', ...shadows.soft },
-  difChipSel: { borderColor: pt.greenDeep, backgroundColor: '#EAF7EF' },
+  difChip: { flex: 1, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, borderRadius: radii.lg, backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#DCE6E0', ...shadows.soft },
+  difChipSel: { borderColor: pt.greenDeep, backgroundColor: '#EAF7EF', borderWidth: 2 },
+  difChipCheck: { position: 'absolute', top: 6, right: 6, width: 18, height: 18, borderRadius: 9, backgroundColor: pt.greenDeep, alignItems: 'center', justifyContent: 'center' },
   difChipTitulo: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.textSoft },
   difChipTituloSel: { color: pt.greenDeep },
   difChipRodadas: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: pt.textSoft, marginTop: 1 },
   difChipRodadasSel: { color: '#0E5A3C' },
+  difChipMeta: { fontFamily: 'Nunito', fontSize: 10, fontWeight: '700', color: pt.textSoft, marginTop: 2, textAlign: 'center' },
+  difChipMetaSel: { color: '#0E5A3C' },
   btnPrimario: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 16, backgroundColor: pt.greenDeep, borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center', ...shadows.card },
   btnPrimarioText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
   btnSecundario: { marginTop: 10, paddingVertical: 12, alignItems: 'center', borderRadius: radii.lg, borderWidth: 1.5, borderColor: pt.greenDeep, backgroundColor: '#FFF' },
@@ -1032,10 +1827,14 @@ const styles = StyleSheet.create({
   difTag: { backgroundColor: '#EAF7EF', borderRadius: radii.pill, borderWidth: 1, borderColor: '#CDEBD9', paddingHorizontal: 8, paddingVertical: 2 },
   difTagTxt: { fontFamily: 'Nunito', fontSize: 10, fontWeight: '800', color: pt.greenDeep },
   criadorTxt: { fontFamily: 'Nunito', fontSize: 9, fontWeight: '800', color: '#FFF' },
-  dicaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 24, marginTop: 1 },
+  dicaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 26, marginTop: 1, paddingHorizontal: 12 },
   dica: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center', lineHeight: 22, flexShrink: 1 },
-  btnDica: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: pt.goldSoft, borderRadius: radii.pill, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: pt.gold + '66' },
-  btnDicaTxt: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: '#7A5800' },
+  // Cronômetro por fase (HUD discreto; nunca cobre a cena).
+  cronoPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EAF7EF', borderRadius: radii.pill, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: '#CDEBD9', minWidth: 52, justifyContent: 'center' },
+  cronoPillAlerta: { backgroundColor: '#FCE9DF', borderColor: '#F1B79A' },
+  cronoTxt: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: pt.greenDeep, fontVariant: ['tabular-nums'] },
+  cronoTxtAlerta: { color: '#B4460F' },
+  cronoVazio: { minWidth: 52 },
   criadorToggle: { position: 'absolute', bottom: 6, alignSelf: 'center', backgroundColor: 'rgba(124,58,237,0.9)', borderRadius: radii.pill, paddingHorizontal: 12, paddingVertical: 5, zIndex: 9 },
   criadorToggleTxt: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: '#FFF' },
 
@@ -1072,4 +1871,90 @@ const styles = StyleSheet.create({
   faixaEstrelaText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: '#7A5800' },
   faixaSuave: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 10, backgroundColor: '#F3EFE9', borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 9 },
   faixaSuaveText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, fontWeight: '700' },
+
+  // ── Apresentação diária ──
+  apreCard: { marginTop: 12, backgroundColor: '#FFF', borderRadius: radii.xl, paddingVertical: 18, paddingHorizontal: 16, alignItems: 'center', ...shadows.card, borderWidth: 1.5, borderColor: '#CDEBD9' },
+  apreTitulo: { fontFamily: 'FredokaOne', fontSize: 20, color: pt.text, textAlign: 'center' },
+  apreSheepBg: { width: 168, height: 168, borderRadius: 28, backgroundColor: '#F3FBF6', borderWidth: 1, borderColor: '#DDEFE4', alignItems: 'center', justifyContent: 'center', marginVertical: 14 },
+  apreSheep: { width: 146, height: 146 },
+  apreFrase: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, lineHeight: 19, textAlign: 'center' },
+  apreInfoRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 14 },
+  apreInfoPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#EAF7EF', borderRadius: radii.pill, paddingHorizontal: 11, paddingVertical: 6, borderWidth: 1, borderColor: '#CDEBD9' },
+  apreInfoTxt: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: '#0E5A3C' },
+
+  // ── Resultado (rolável) + tempos por fase ──
+  resultadoScroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 28 },
+  fasesCard: { marginTop: 12, backgroundColor: '#FFF', borderRadius: radii.xl, paddingVertical: 14, paddingHorizontal: 14, ...shadows.card },
+  fasesTitulo: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 8 },
+  fasesNota: { fontFamily: 'Nunito', fontSize: 11, color: pt.textSoft, lineHeight: 16, marginTop: 8 },
+  faseLinha: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, borderTopWidth: 1, borderTopColor: '#EEF3F0' },
+  faseNumBolha: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#EAF7EF', borderWidth: 1, borderColor: '#CDEBD9', alignItems: 'center', justifyContent: 'center' },
+  faseNumTxt: { fontFamily: 'FredokaOne', fontSize: 13, color: pt.greenDeep },
+  faseMeio: { flex: 1 },
+  faseCena: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.text },
+  faseTag: { alignSelf: 'flex-start', borderRadius: radii.pill, paddingHorizontal: 8, paddingVertical: 2, marginTop: 2 },
+  faseTagTxt: { fontFamily: 'Nunito', fontSize: 10, fontWeight: '800', color: '#4B4B4B' },
+  faseTagBoa: { backgroundColor: '#DDF3E7' },
+  faseTagRecorde: { backgroundColor: pt.goldSoft },
+  faseTagNeutra: { backgroundColor: '#EEF1F4' },
+  faseTagAviso: { backgroundColor: '#FCE9DF' },
+  faseTempo: { fontFamily: 'FredokaOne', fontSize: 16, color: pt.text, fontVariant: ['tabular-nums'] },
+
+  /* ══════════ OV3 — Entrada vertical + hero + CTA rodapé ══════════ */
+  entradaScroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F3FBF6', borderRadius: radii.xl, borderWidth: 1.5, borderColor: '#CDEBD9', padding: 12, ...shadows.card },
+  heroSheepBg: { width: 76, height: 76, borderRadius: 20, backgroundColor: '#EAF7EF', borderWidth: 1, borderColor: '#DDEFE4', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  heroSheep: { width: 64, height: 64 },
+  heroTexto: { flex: 1 },
+  heroTitulo: { fontFamily: 'FredokaOne', fontSize: 20, color: pt.text },
+  heroFrase: { fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, lineHeight: 18, marginTop: 3 },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, backgroundColor: '#FFF', borderRadius: radii.pill, paddingHorizontal: 12, paddingVertical: 9, ...shadows.soft },
+  statusText: { flex: 1, fontFamily: 'Nunito', fontSize: 12.5, color: pt.text, fontWeight: '700' },
+  modoCard: { marginTop: 10, backgroundColor: '#FFF', borderRadius: radii.lg, borderWidth: 1.5, borderColor: '#DCE6E0', paddingVertical: 12, paddingHorizontal: 14, ...shadows.soft },
+  modoCardSel: { borderColor: pt.greenDeep, borderWidth: 2, backgroundColor: '#EAF7EF' },
+  modoCardInf: { borderColor: '#B9A6E8', backgroundColor: '#F6F2FE' },
+  modoCardInfSel: { borderColor: '#7C3AED', backgroundColor: '#EFE7FD' },
+  modoCardTopo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modoTitulo: { fontFamily: 'FredokaOne', fontSize: 18, color: pt.textSoft },
+  modoTituloSel: { color: pt.greenDeep },
+  modoCheck: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  modoCheckOn: { backgroundColor: pt.greenDeep },
+  modoCheckOff: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#CBD5C9' },
+  modoDesc: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '700', color: pt.text, marginTop: 2 },
+  modoMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  modoTag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F1F5F3', borderRadius: radii.pill, paddingHorizontal: 9, paddingVertical: 4 },
+  modoTagTxt: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: pt.textSoft },
+  modoRecorde: { fontFamily: 'Nunito', fontSize: 11.5, fontWeight: '800', color: pt.greenDeep, marginTop: 8 },
+  devSec: { marginTop: 16, borderTopWidth: 1, borderTopColor: '#E7ECE9', paddingTop: 8 },
+  devSecHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
+  devSecTitulo: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: '#94A3B8' },
+  devSecChevron: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: '#94A3B8' },
+  ctaBar: { paddingHorizontal: 16, paddingTop: 8, backgroundColor: pt.background, borderTopWidth: 1, borderTopColor: '#EAF0EC' },
+  btnPrimarioOff: { backgroundColor: '#DCE6E0' },
+  btnPrimarioOffText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#6B837A' },
+
+  /* ══════════ OV3 — HUD Infinito + capa técnica + "Tempo!" ══════════ */
+  hudCentro: { alignItems: 'center', flex: 1 },
+  hudSeq: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: pt.textSoft },
+  hudPontosRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  hudPontos: { fontFamily: 'FredokaOne', fontSize: 16, color: pt.text, fontVariant: ['tabular-nums'] },
+  hudGanho: { fontFamily: 'FredokaOne', fontSize: 13, color: pt.greenDeep },
+  capaWrap: { alignItems: 'center', justifyContent: 'center' },
+  capaPill: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFF', borderRadius: radii.pill, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: '#CDEBD9', ...shadows.soft },
+  capaSondaBg: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F3FBF6', borderWidth: 1, borderColor: '#DDEFE4', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  capaSonda: { width: 34, height: 34 },
+  capaTxt: { fontFamily: 'Nunito', fontSize: 13, fontWeight: '800', color: pt.textSoft },
+  tempoOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', zIndex: 20 },
+  tempoBolha: { backgroundColor: 'rgba(20,40,30,0.86)', borderRadius: radii.xl, paddingHorizontal: 30, paddingVertical: 16 },
+  tempoTxt: { fontFamily: 'FredokaOne', fontSize: 30, color: '#FFF' },
+
+  /* ══════════ OV3 — Resultado (resumo em 3 cards + detalhes recolhidos) ══════════ */
+  statsRow3: { flexDirection: 'row', alignSelf: 'stretch', justifyContent: 'space-around', marginTop: 6 },
+  recordeAnterior: { fontFamily: 'Nunito', fontSize: 12, fontWeight: '800', color: pt.textSoft, marginTop: 12 },
+  resultadoTitulo: { fontFamily: 'FredokaOne', fontSize: 18, color: pt.text, textAlign: 'center', marginBottom: 6 },
+  resumoRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  resumoCard: { flex: 1, alignItems: 'center', backgroundColor: '#FFF', borderRadius: radii.lg, paddingVertical: 12, paddingHorizontal: 6, ...shadows.soft },
+  resumoValor: { fontFamily: 'FredokaOne', fontSize: 20, color: pt.text, marginTop: 4 },
+  resumoLabel: { fontFamily: 'Nunito', fontSize: 10.5, fontWeight: '800', color: pt.textSoft, textAlign: 'center', marginTop: 1 },
+  fasesHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });

@@ -49,6 +49,21 @@ const posOrNull = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.flo
 const zeroOrNull = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.floor(Number(v)) : null);
 
 /**
+ * OV2 — recorde de MELHOR TEMPO por cenário: mapa `{ [sceneId]: ms inteiro > 0 }`. Sanitiza qualquer
+ * coisa vinda do disco (chaves não-string / valores inválidos são descartados; recordes válidos NUNCA
+ * são reduzidos ou apagados). PURO. Não importa dados de cena (mantém o serviço desacoplado).
+ */
+export function sanitizeBestTimeByScene(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const out = {};
+  for (const k of Object.keys(src)) {
+    const v = posOrNull(src[k]);
+    if (typeof k === 'string' && k && v != null) out[k] = v;
+  }
+  return out;
+}
+
+/**
  * Normaliza qualquer coisa vinda do storage. Corrompido → estado zerado.
  * Tolera o formato ANTIGO (sem `turbo`, sem `bestMoves`): quem já jogou o Clássico
  * mantém tempo e erros; os campos novos nascem vazios.
@@ -74,12 +89,18 @@ export function sanitizeStats(raw) {
         .map(sanitizeRankingEntry).filter(Boolean)
         .sort(compararTurbo).slice(0, RANKING_MAX),
     };
-    // Bloco 2.1 — "Cadê a Ovelhinha?". Formato antigo (sem `ovelha`) nasce zerado.
+    // Bloco 2.1 — "Cadê a Ovelhinha?". Formato antigo (sem `ovelha`/`bestTimeByScene`) nasce zerado/vazio.
     const o = (src.ovelha && src.ovelha[d]) || {};
     ovelha[d] = {
       plays: nOr0(o.plays), encontradas: nOr0(o.encontradas), bestSequencia: nOr0(o.bestSequencia),
+      bestTimeByScene: sanitizeBestTimeByScene(o.bestTimeByScene),   // OV2 — melhor tempo por cenário
+      bestCompletionMs: posOrNull(o.bestCompletionMs),               // OV3R3 — melhor tempo p/ concluir (só Difícil); antigo → null
     };
   }
+  // OV2 — apresentação diária "Encontre esta ovelhinha" (dia local já apresentado). Fica DENTRO de `ovelha`. Antigo → null.
+  ovelha.apresentacaoDay = (src.ovelha && typeof src.ovelha.apresentacaoDay === 'string') ? src.ovelha.apresentacaoDay : null;
+  // OV3 — Modo Infinito. Fica DENTRO de `ovelha` (mesma chave). Ausente/antigo → objeto zerado.
+  ovelha.infinito = sanitizeInfinito(src.ovelha && src.ovelha.infinito);
   return {
     day: typeof src.day === 'string' ? src.day : null,
     starsToday: nOr0(src.starsToday),
@@ -235,11 +256,12 @@ export function applyResult(stats, partida, cap = BRINCAR_DAILY_STAR_CAP) {
  */
 export function applyOvelhaResult(stats, partida, cap = BRINCAR_DAILY_STAR_CAP) {
   const s = sanitizeStats(stats);
-  const { dificuldade, day } = partida || {};
+  const { dificuldade, day, permitirEstrela = true } = partida || {};
   if (!DIFS.includes(dificuldade)) return { stats: s, isBest: false, starAwarded: false };
 
   const proximoDia = s.day === day ? s.starsToday : 0;
-  const starAwarded = proximoDia < cap;
+  // OV3R3 — `permitirEstrela` false (ex.: DERROTA por tempo no Difícil) NÃO concede nem consome estrela.
+  const starAwarded = permitirEstrela && proximoDia < cap;
 
   const antes = s.ovelha[dificuldade];
   const sequencia = nOr0(partida.sequencia);
@@ -256,11 +278,130 @@ export function applyOvelhaResult(stats, partida, cap = BRINCAR_DAILY_STAR_CAP) 
           plays: antes.plays + 1,
           encontradas: antes.encontradas + nOr0(partida.encontradas),
           bestSequencia: Math.max(antes.bestSequencia, sequencia),
+          bestTimeByScene: antes.bestTimeByScene,   // OV2 — preservado (tempos gravados por fase, não aqui)
+          bestCompletionMs: antes.bestCompletionMs, // OV3R3 — preservado (gravado só na vitória Difícil)
         },
       },
     },
     isBest,
     starAwarded,
+  };
+}
+
+/* ─────────────── OV2: recorde de TEMPO por fase + apresentação diária (PUROS) ─────────────── */
+
+/** Já mostrou a apresentação "Encontre esta ovelhinha" no dia `today`? PURO. */
+export function ovelhaApresentouHoje(stats, today) {
+  const s = sanitizeStats(stats);
+  return !!today && s.ovelha.apresentacaoDay === today;
+}
+
+/** Marca a apresentação diária como vista em `day`. PURO (devolve o próximo estado). */
+export function aplicarApresentacaoOvelha(stats, day) {
+  const s = sanitizeStats(stats);
+  if (!day) return { stats: s };
+  return { stats: { ...s, ovelha: { ...s.ovelha, apresentacaoDay: day } } };
+}
+
+/* ─────────────── OV3: Modo Infinito (PUROS) ─────────────── */
+
+/** Normaliza o objeto `infinito` (inteiros não-negativos). Ausente/corrompido → zerado. PURO. */
+export function sanitizeInfinito(raw) {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  return {
+    plays: nOr0(o.plays),
+    bestScore: nOr0(o.bestScore),
+    bestEncontradas: nOr0(o.bestEncontradas),
+    bestSequencia: nOr0(o.bestSequencia),
+  };
+}
+
+/**
+ * Aplica o resultado de UMA sessão do Modo Infinito. PURO. Só é válida com ≥1 ovelha encontrada.
+ * Recordes só AUMENTAM (empate não é recorde). Divide o MESMO teto diário de estrelinhas.
+ * Nenhuma chave nova, nenhum ranking global. @returns {{ stats, isBestScore, starAwarded }}
+ */
+export function applyInfinitoResult(stats, partida, cap = BRINCAR_DAILY_STAR_CAP) {
+  const s = sanitizeStats(stats);
+  const { day } = partida || {};
+  const score = nOr0(partida && partida.score);
+  const encontradas = nOr0(partida && partida.encontradas);
+  const sequencia = nOr0(partida && partida.sequencia);
+  if (encontradas < 1) return { stats: s, isBestScore: false, starAwarded: false };   // sessão sem ovelha não é válida
+
+  const proximoDia = s.day === day ? s.starsToday : 0;
+  const starAwarded = proximoDia < cap;
+  const antes = s.ovelha.infinito;
+  const isBestScore = score > antes.bestScore;   // empate NÃO é recorde
+  return {
+    stats: {
+      ...s,
+      day,
+      starsToday: proximoDia + (starAwarded ? 1 : 0),
+      ovelha: {
+        ...s.ovelha,
+        infinito: {
+          plays: antes.plays + 1,
+          bestScore: Math.max(antes.bestScore, score),
+          bestEncontradas: Math.max(antes.bestEncontradas, encontradas),
+          bestSequencia: Math.max(antes.bestSequencia, sequencia),
+        },
+      },
+    },
+    isBestScore,
+    starAwarded,
+  };
+}
+
+/** Novo recorde? menor tempo (estrito) substitui; empate/maior NÃO. PURO. */
+export function novoRecordeTempo(atualMs, novoMs) {
+  const n = posOrNull(novoMs);
+  if (n == null) return false;
+  const a = posOrNull(atualMs);
+  return a == null || n < a;
+}
+
+/**
+ * Aplica o MELHOR TEMPO de uma FASE (cenário) numa dificuldade. Só registra se `elegivel`
+ * (sem dica direta e sem tempo esgotado) e se for recorde novo (menor tempo estrito). PURO.
+ * Nunca reduz/apaga um recorde válido. @returns {{ stats, novoRecorde }}
+ */
+export function aplicarTempoFaseOvelha(stats, { dificuldade, sceneId, ms, elegivel = true } = {}) {
+  const s = sanitizeStats(stats);
+  const n = posOrNull(ms);
+  if (!DIFS.includes(dificuldade) || typeof sceneId !== 'string' || !sceneId || n == null || !elegivel) {
+    return { stats: s, novoRecorde: false };
+  }
+  const antes = s.ovelha[dificuldade];
+  const atual = antes.bestTimeByScene[sceneId];
+  if (!novoRecordeTempo(atual, n)) return { stats: s, novoRecorde: false };
+  return {
+    stats: {
+      ...s,
+      ovelha: {
+        ...s.ovelha,
+        [dificuldade]: { ...antes, bestTimeByScene: { ...antes.bestTimeByScene, [sceneId]: n } },
+      },
+    },
+    novoRecorde: true,
+  };
+}
+
+/**
+ * OV3R3 — Melhor tempo para CONCLUIR o Difícil (10/10 antes do tempo). PURO. Só grava se for
+ * menor (estrito); empate/maior NÃO. Fica em `ovelha.dificil.bestCompletionMs` (sem chave nova).
+ * @returns {{ stats, novoRecorde }}
+ */
+export function aplicarCompletionDificil(stats, ms) {
+  const s = sanitizeStats(stats);
+  const n = posOrNull(ms);
+  if (n == null) return { stats: s, novoRecorde: false };
+  const antes = s.ovelha.dificil;
+  const atual = antes.bestCompletionMs;
+  if (!(atual == null || n < atual)) return { stats: s, novoRecorde: false };   // empate/maior não substitui
+  return {
+    stats: { ...s, ovelha: { ...s.ovelha, dificil: { ...antes, bestCompletionMs: n } } },
+    novoRecorde: true,
   };
 }
 
@@ -341,6 +482,47 @@ export async function recordOvelhaResult(partida) {
   const r = applyOvelhaResult(atual, partida);
   await writeStats(r.stats);
   return { isBest: r.isBest, starAwarded: r.starAwarded, stats: r.stats };
+}
+
+/** OV2 — grava o MELHOR TEMPO de uma FASE (cenário×dif). Falha de storage não impede o resultado. */
+export async function recordOvelhaFaseTime(partida) {
+  try {
+    const atual = await readStats();
+    const r = aplicarTempoFaseOvelha(atual, partida);
+    if (r.novoRecorde) await writeStats(r.stats);
+    return { novoRecorde: r.novoRecorde, stats: r.stats };
+  } catch (e) { warn('brincarStatsService.recordOvelhaFaseTime:', e); return { novoRecorde: false, stats: null }; }
+}
+
+/** OV3 — registra UMA sessão do Modo Infinito. Mesmo contrato: NÃO credita a estrelinha (a tela
+ *  credita via addBonusStars) — só diz se foi autorizada. Falha de storage não impede o resultado. */
+export async function recordInfinitoResult(partida) {
+  try {
+    const atual = await readStats();
+    const r = applyInfinitoResult(atual, partida);
+    await writeStats(r.stats);
+    return { isBestScore: r.isBestScore, starAwarded: r.starAwarded, stats: r.stats };
+  } catch (e) { warn('brincarStatsService.recordInfinitoResult:', e); return { isBestScore: false, starAwarded: false, stats: null }; }
+}
+
+/** OV3R3 — grava o melhor tempo de CONCLUSÃO do Difícil (só na vitória). Falha não impede o resultado. */
+export async function recordCompletionDificil(ms) {
+  try {
+    const atual = await readStats();
+    const r = aplicarCompletionDificil(atual, ms);
+    if (r.novoRecorde) await writeStats(r.stats);
+    return { novoRecorde: r.novoRecorde, stats: r.stats };
+  } catch (e) { warn('brincarStatsService.recordCompletionDificil:', e); return { novoRecorde: false, stats: null }; }
+}
+
+/** OV2 — marca a apresentação diária "Encontre esta ovelhinha" como vista em `day`. */
+export async function marcarApresentacaoOvelha(day) {
+  try {
+    const atual = await readStats();
+    const r = aplicarApresentacaoOvelha(atual, day);
+    await writeStats(r.stats);
+    return true;
+  } catch (e) { warn('brincarStatsService.marcarApresentacaoOvelha:', e); return false; }
 }
 
 /**
