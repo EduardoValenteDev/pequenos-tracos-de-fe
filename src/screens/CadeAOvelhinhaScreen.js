@@ -1236,7 +1236,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const coberto = lstate.coverVisible;
   return (
     <View style={styles.root}>
-      <Header insets={insets} onBack={abandonar} chip="Em teste" criadorAtivo={criadorAtivo} />
+      <Header insets={insets} onBack={abandonar} chip={isInternalToolsEnabled() ? 'Em teste' : undefined} criadorAtivo={criadorAtivo} />
 
       {infinito ? (
         /* HUD do Infinito: Ovelhas · Sequência · Tempo (sem rodada X/Y, sem dificuldade, sem "Procure esta"). */

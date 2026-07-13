@@ -50,14 +50,12 @@ import { backLabelFor, isFromTab } from '../utils/originBack';
  * A chave é passada explicitamente no `map`.
  */
 const EM_PREPARO = [
-  { id: 'ovelha', icon: 'ovelha', title: 'Cadê a Ovelhinha?', desc: 'Procure a ovelhinha escondida.', tint: '#E6F7EE', border: '#B7E4CB', bg: '#0E9F6E20' },
   { id: 'bichinhos', icon: 'bichinhos', title: 'Bichinhos da Bíblia', desc: 'Descubra os animais das histórias.', tint: '#F3E8FF', border: '#D7C2F5', bg: '#7C3AED20' },
 ];
 
-/** Jogos que abrem uma tela SÓ em desenvolvimento (sob isInternalToolsEnabled). */
-const DEV_ROTAS = {
-  ovelha: ROUTES.CADE_A_OVELHINHA,
-};
+/** Jogos que abrem uma tela SÓ em desenvolvimento (sob isInternalToolsEnabled). Vazio no v1:
+ *  "Cadê a Ovelhinha?" tornou-se user-facing (OV4) — abre pela seção "Para brincar agora". */
+const DEV_ROTAS = {};
 
 function AnimatedCard({ delay, children, style }) {
   const fade = useRef(new Animated.Value(0)).current;
@@ -301,6 +299,20 @@ export default function BrincarScreen({ navigation, route }) {
           />
         </AnimatedCard>
 
+        {/* OV4 — Cadê a Ovelhinha?: jogo de observação user-facing (card largo). O limite diário
+            oficial (brincarDailyService) é aplicado DENTRO da tela, ao iniciar a partida. */}
+        <AnimatedCard delay={185} style={styles.wideRow}>
+          <WideActiveTile
+            icon="ovelha"
+            title="Cadê a Ovelhinha?"
+            desc="Observe com atenção e encontre a ovelhinha escondida!"
+            cta="Jogar"
+            hint={semRodadas ? 'As brincadeiras de hoje acabaram — amanhã tem mais.' : null}
+            tint="#E6F7EE" border="#B7E4CB" bg="#0E9F6E20" btnColor={pt.greenDeep}
+            onPress={() => navigation.navigate(ROUTES.CADE_A_OVELHINHA)}
+          />
+        </AnimatedCard>
+
         {/* ── EM PREPARO ── */}
         <AnimatedCard delay={210} style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>Chegando em breve</Text>
@@ -308,8 +320,8 @@ export default function BrincarScreen({ navigation, route }) {
         </AnimatedCard>
 
         {/* `key` explícita no elemento; o resto do objeto vai por spread (sem `key` dentro).
-            Bloco 2.1: em DEV, "Cadê a Ovelhinha?" abre o vertical slice (selo "Em teste").
-            Em produção a rota nem existe → o card continua "Chegando em breve". */}
+            "Chegando em breve" agora lista só jogos ainda sem tela (ex.: Bichinhos). Jogos com
+            rota interna de DEV (DEV_ROTAS) abririam sob isInternalToolsEnabled — hoje vazio. */}
         <AnimatedCard delay={250} style={styles.grid}>
           {EM_PREPARO.map(({ id, ...tileProps }) => (
             <View key={id} style={styles.gridItem}>

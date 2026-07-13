@@ -16183,16 +16183,17 @@ check(
       && /ATELIER_CANVAS: 'AtelierCanvas'/.test(readSrc('src/constants/routes.js')),
       'o fluxo legado do Desenho guiado foi apagado — só a UI deveria ter mudado');
 
-    check('1.3a/UF1 (grade): 2 ActiveTile (Pares, Criar livre) + 1 WideActiveTile (Palavrinhas user-facing) + 2 em preparo',
+    check('1.3a/UF1/OV4 (grade): 2 ActiveTile (Pares, Criar livre) + 2 WideActiveTile (Palavrinhas, Cadê a Ovelhinha? user-facing) + 1 em preparo (Bichinhos)',
       (() => {
         const emPreparo = (brcAn.match(/\{ id: '[a-z]+', icon:/g) || []).length;
         const ativos = (brcAn.match(/<ActiveTile\b/g) || []).length;
         const wide = (brcAn.match(/<WideActiveTile\b/g) || []).length;
-        return emPreparo === 2 && ativos === 2 && wide === 1
+        return emPreparo === 1 && ativos === 2 && wide === 2   // OV4: ovelha saiu de "em preparo" e virou WideActiveTile
           && /navigate\(ROUTES\.PARES_DO_BENI\)/.test(brcAn)
-          && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brcAn);
+          && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brcAn)
+          && /navigate\(ROUTES\.CADE_A_OVELHINHA\)/.test(brcAn);
       })(),
-      'a aba Brincar não está com 2 ActiveTile + 1 WideActiveTile (Palavrinhas) + 2 em preparo');
+      'a aba Brincar não está com 2 ActiveTile + 2 WideActiveTile (Palavrinhas + Ovelhinha) + 1 em preparo');
 
     check('1.3a (em preparo): os cards em preparo não navegam, e nenhum emoji voltou',
       (() => {
@@ -16412,10 +16413,10 @@ check(
       'o enquadramento padrão deixou de ser o recorte centrado, ou o de Abraão não desloca');
 
     // ── Aba Brincar ──────────────────────────────────────────────────────────
-    check('1.4/UF1 (hub): 5 cards (2 ActiveTile + 1 WideActiveTile + 2 em preparo), Desenho guiado fora da UI, legado do Ateliê preservado',
+    check('1.4/UF1/OV4 (hub): 5 cards (2 ActiveTile + 2 WideActiveTile + 1 em preparo), Desenho guiado fora da UI, legado do Ateliê preservado',
       (brc14.match(/<ActiveTile\b/g) || []).length === 2
-      && (brc14.match(/<WideActiveTile\b/g) || []).length === 1
-      && (brc14.match(/\{ id: '[a-z]+', icon:/g) || []).length === 2
+      && (brc14.match(/<WideActiveTile\b/g) || []).length === 2   // OV4: Palavrinhas + Cadê a Ovelhinha?
+      && (brc14.match(/\{ id: '[a-z]+', icon:/g) || []).length === 1   // OV4: só Bichinhos em preparo
       && !/Desenho guiado/.test(brc14)
       && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brc14)
       && /navigate\(ROUTES\.ATELIER_GALLERY\)/.test(brc14)
@@ -17379,11 +17380,14 @@ check(
     const scenesRaw = readSrc('src/data/ovelhaScenes.js');
     const assetsRaw = readSrc('src/data/ovelhaAssets.js');
     const telaRaw = readSrc('src/screens/CadeAOvelhinhaScreen.js');
-    const tela = a1StripComments(telaRaw);
+    // OV4 — normaliza line endings (CRLF/CR → LF) ANTES das asserções estruturais, para que os
+    // regexes de fronteira (ex.: `\n  }\n` em OV2.10) passem tanto em LF quanto em CRLF, sem
+    // depender de core.autocrlf. `telaRaw` fica cru para checagens de caractere (emoji/console).
+    const tela = a1StripComments(telaRaw).replace(/\r\n?/g, '\n');
     const layer = (tela.match(/function SceneLayer[\s\S]*?\n\}/) || [''])[0];
     const galeria = a1StripComments((() => { try { return readSrc('src/screens/OvelhaAssetGalleryScreen.js'); } catch (_) { return ''; } })());
-    const nav = a1StripComments(readSrc('src/navigation/AppNavigator.js'));
-    const brc = a1StripComments(readSrc('src/screens/BrincarScreen.js'));
+    const nav = a1StripComments(readSrc('src/navigation/AppNavigator.js')).replace(/\r\n?/g, '\n');
+    const brc = a1StripComments(readSrc('src/screens/BrincarScreen.js')).replace(/\r\n?/g, '\n');
     const fi = readSrc('src/components/ui/FaithIcon.js');
     const rt = readSrc('src/constants/routes.js');
     const auditRaw = (() => { try { return fs.readFileSync(path.join(root, 'scripts/audit-ovelha-backgrounds.js'), 'utf8'); } catch (_) { return ''; } })();
@@ -18153,15 +18157,16 @@ check(
       })(),
       'consumo/salvamento/ciclo de vida regrediram');
 
-    check('2.2e (produção/ícone): rota dev-gated; card "Em teste" só em dev; ovelha é SVG; sem emoji',
+    check('OV4 (produção/ícone): rota user-facing (NÃO gated); selo "Em teste" só sob gate interno; ovelha é SVG; sem emoji',
       /CADE_A_OVELHINHA: 'CadeAOvelhinha'/.test(rt)
-      && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="CadeAOvelhinha"/.test(nav)
-      && /ovelha:\s*ROUTES\.CADE_A_OVELHINHA/.test(brc)
-      && /DEV_ROTAS\[id\] && isInternalToolsEnabled\(\) \?/.test(brc)
-      && /chip="Em teste"/.test(tela)
+      // rota principal SEMPRE registrada (não sob isInternalToolsEnabled)
+      && /<Stack\.Screen\s*name="CadeAOvelhinha"/.test(nav)
+      && !/isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="CadeAOvelhinha"/.test(nav)
+      // selo "Em teste" só quando ferramentas internas estão ligadas (invisível ao usuário comum)
+      && /chip=\{isInternalToolsEnabled\(\) \? 'Em teste' : undefined\}/.test(tela)
       && /function OvelhaSvg/.test(fi) && !/ovelha: 'eye'/.test(fi)
       && !/\p{Extended_Pictographic}/u.test(telaRaw) && !/\p{Extended_Pictographic}/u.test(scenesRaw) && !/\p{Extended_Pictographic}/u.test(assetsRaw),
-      'a produção liberou o jogo, ou entrou emoji, ou o ícone regrediu');
+      'a exposição user-facing / o selo "Em teste" / o ícone regrediram');
 
     check('2.2e (protegidos): Pares e Modo Criador intocados',
       /aplicar\(tocar, i\)/.test(a1StripComments(readSrc('src/screens/ParesDoBeniScreen.js')))
@@ -19132,6 +19137,173 @@ check(
         return medioFase && infinito && facil && maquina && memo && higiene;
       } catch (e) { return false; } })(),
       'uma regressão (Médio OV3R2 / Infinito / Fácil / máquina / memo / higiene) apareceu');
+
+    /* ══════════════════════════════════════════════════════════════════════════
+       OV4 — "Cadê a Ovelhinha?" user-facing v1 (exposição na aba Brincar). Só acesso:
+       rota pública + card user-facing; mecânicas/modos/tempos/assets INTACTOS.
+       ══════════════════════════════════════════════════════════════════════════ */
+
+    // ── EXPOSIÇÃO ──
+    check('OV4.1 (rota pública): CadeAOvelhinha SEMPRE registrada (não sob isInternalToolsEnabled); Asset Gallery segue gated',
+      /<Stack\.Screen\s*name="CadeAOvelhinha"/.test(nav)
+      && !/isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="CadeAOvelhinha"/.test(nav)
+      && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="OvelhaAssetGallery"/.test(nav),
+      'a rota principal não está pública ou a Asset Gallery deixou de ser gated');
+
+    check('OV4.2 (card user-facing): WideActiveTile "Cadê a Ovelhinha?" com CTA Jogar e descrição de observação; navega para a rota; sai de "em preparo"/DEV_ROTAS',
+      (() => {
+        const wide = (brc.match(/<WideActiveTile[\s\S]*?\/>/g) || []).join('\n');
+        const cardOvelha = /icon="ovelha"[\s\S]*?title="Cadê a Ovelhinha\?"[\s\S]*?desc="Observe com atenção e encontre a ovelhinha escondida!"[\s\S]*?cta="Jogar"[\s\S]*?onPress=\{\(\) => navigation\.navigate\(ROUTES\.CADE_A_OVELHINHA\)\}/.test(wide);
+        const foraPreparo = !/\{ id: 'ovelha'/.test(brc) && /const DEV_ROTAS = \{\}/.test(brc);
+        return cardOvelha && foraPreparo;
+      })(),
+      'o card user-facing de Cadê a Ovelhinha? (título/CTA/descrição/rota) regrediu');
+
+    check('OV4.3 (sem termos técnicos no card): a descrição não menciona DEV/teste/laboratório/seed/spot/hitbox',
+      (() => {
+        const wide = (brc.match(/<WideActiveTile[\s\S]*?icon="ovelha"[\s\S]*?\/>/) || [''])[0];
+        return wide.length > 0 && !/\b(DEV|teste|laborat[óo]rio|seed|spot|hitbox)\b/i.test(wide.replace(/icon="ovelha"/, ''));
+      })(),
+      'o card de Cadê a Ovelhinha? expôs termos técnicos ao usuário comum');
+
+    check('OV4.4 (visível sem rodadas): o card usa hint de "acabaram" quando semRodadas (card permanece; bloqueio real fica na tela)',
+      /hint=\{semRodadas \? 'As brincadeiras de hoje acabaram — amanhã tem mais\.' : null\}[\s\S]*?onPress=\{\(\) => navigation\.navigate\(ROUTES\.CADE_A_OVELHINHA\)\}/.test(brc)
+      || /icon="ovelha"[\s\S]*?hint=\{semRodadas \?/.test(brc),
+      'o card não permanece visível / sem aviso ao esgotar as rodadas');
+
+    // ── FERRAMENTAS INTERNAS INVISÍVEIS ──
+    check('OV4.5 (selo "Em teste" gated): o chip só aparece sob isInternalToolsEnabled (invisível ao usuário comum)',
+      /chip=\{isInternalToolsEnabled\(\) \? 'Em teste' : undefined\}/.test(tela)
+      && !/chip="Em teste"/.test(tela),
+      'o selo "Em teste" aparece para o usuário comum');
+
+    check('OV4.6 (diagnósticos internos gated): Asset Gallery/Ferramentas de teste por isInternalToolsEnabled; overlay/hitbox/seed/deck por criadorAtivo (Modo Criador)',
+      (() => {
+        // Ferramentas de teste (Asset Gallery) na entrada, gated
+        const ferramentas = /isInternalToolsEnabled\(\) && \(/.test(tela) && /Ferramentas de teste/.test(tela) && /ROUTES\.OVELHA_ASSET_GALLERY/.test(tela);
+        // overlay do Criador (diag) e "Mostrar área de toque" só com criadorAtivo
+        const criador = /criadorAtivo && \(/.test(tela) && /Mostrar área de toque/.test(tela)
+          && /const criadorAtivo = isCreatorQaModeAllowed\(\) && isCreatorQaModeEnabled\(\)/.test(tela)
+          && /diag=\{criadorAtivo \?/.test(tela);
+        return ferramentas && criador;
+      })(),
+      'as ferramentas internas (Asset Gallery / overlay do Criador / hitbox) deixaram de ser gated');
+
+    // ── ACESSO DIÁRIO (brincarDailyService oficial; sem contador paralelo) ──
+    check('OV4.7 (rodada oficial única): consumeRound do brincarDailyService, 1x, só no início (comecar); abrir/escolher/trocar modo NÃO consome; sem contador paralelo',
+      (() => {
+        const com = (tela.match(/const comecar = useCallback\(async[\s\S]*?\n  \}, \[/) || [''])[0];
+        const consomeNoComecar = /const r = await consumeRound\(\);/.test(com) && /if \(!r\.ok\) \{ setRounds\(await getDailyRounds\(\)\); setTela\('entrada'\); return; \}/.test(com);
+        const umConsumo = (tela.match(/consumeRound\(/g) || []).length === 1;
+        const importaOficial = /from '\.\.\/services\/brincarDailyService'/.test(telaRaw) && /getDailyRounds, consumeRound, toDayKey/.test(telaRaw);
+        const semParalelo = !/@ptf_.*daily|rodadasHoje|dailyCount/.test(tela);
+        // seleção de modo não consome (só setDificuldade)
+        const selNaoConsome = /onPress=\{\(\) => setDificuldade\(m\.id\)\}/.test(tela);
+        return consomeNoComecar && umConsumo && importaOficial && semParalelo && selNaoConsome;
+      })(),
+      'o acesso diário (consumeRound único / oficial / sem paralelo) regrediu');
+
+    check('OV4.8 (todos os modos = 1 rodada): comecar é o ÚNICO caminho de início (Fácil/Médio/Difícil/Infinito) e consome 1x; timeout/acerto não consomem extra',
+      (() => {
+        // iniciarComApresentacao e "Vamos procurar" chegam a comecar; jogar novamente = comecar()
+        const inicia = /const iniciarComApresentacao = useCallback/.test(tela)
+          && /if \(ovelhaApresentouHoje\(statsRef\.current, hoje\)\) \{ comecar\(\); return; \}/.test(tela)
+          && /onPress=\{\(\) => comecar\(\{ marcarApresentacao: true \}\)\}/.test(tela)
+          && /onPress=\{\(\) => comecar\(\)\}/.test(tela);   // jogar novamente
+        // timeout/derrota/vitória não chamam consumeRound (só finalizadores/resolvers, sem consumo)
+        const resolvers = (tela.match(/consumeRound\(/g) || []).length === 1;
+        return inicia && resolvers;
+      })(),
+      'o consumo por modo / jogar novamente / não-consumo em timeout regrediu');
+
+    check('OV4.9 (apresentação diária): consumeRound ANTES de marcar; limite negado (retorno cedo) NÃO marca apresentação',
+      (() => {
+        const com = (tela.match(/const comecar = useCallback\(async[\s\S]*?\n  \}, \[/) || [''])[0];
+        // ordem: consumeRound (com return se !ok) ANTES de marcarApresentacaoOvelha
+        const iConsume = com.indexOf('consumeRound(');
+        const iReturn = com.indexOf("setTela('entrada'); return;");
+        const iMarca = com.indexOf('marcarApresentacaoOvelha(');
+        return iConsume >= 0 && iReturn > iConsume && iMarca > iReturn;   // return do limite vem antes de marcar
+      })(),
+      'a apresentação diária pode ser marcada mesmo com limite negado');
+
+    // ── ESTRELAS (regras por modo preservadas) ──
+    check('OV4.10 (estrelas por modo): finalizadores concedem via teto compartilhado; Difícil só na vitória; sem duplicar; addBonusStars = 3 finalizadores',
+      (() => {
+        const finInf = /recordInfinitoResult\(\{ score, encontradas, sequencia, day \}\)/.test(tela);
+        const finDif = /permitirEstrela: vitoria/.test(tela) && /starAwarded: vitoria && r\.starAwarded/.test(tela);
+        const finFinito = /recordOvelhaResult\(\{ dificuldade, day, encontradas: g\.encontradas, sequencia: g\.bestSequencia \}\)/.test(tela);
+        const umaVez = /salvoRef\.current = true;/.test(tela) && (tela.match(/addBonusStars\(/g) || []).length === 3;
+        const tetoCompartilhado = /from '\.\.\/services\/brincarStatsService'/.test(telaRaw);
+        return finInf && finDif && finFinito && umaVez && tetoCompartilhado;
+      })(),
+      'as regras de estrela por modo (teto compartilhado / Difícil só vitória / uma vez) regrediram');
+
+    check('OV4.11 (teto compartilhado puro): applyOvelhaResult respeita cap e permitirEstrela; derrota do Difícil não concede nem consome',
+      (() => { try {
+        const B = evalStats();
+        const s0 = B.sanitizeStats(null);
+        const derrota = B.applyOvelhaResult(s0, { dificuldade: 'dificil', day: 'D', encontradas: 5, sequencia: 2, permitirEstrela: false });
+        const vitoria = B.applyOvelhaResult(derrota.stats, { dificuldade: 'dificil', day: 'D', encontradas: 10, sequencia: 5, permitirEstrela: true });
+        const cap2 = B.applyOvelhaResult(vitoria.stats, { dificuldade: 'facil', day: 'D', encontradas: 5, sequencia: 3 });
+        const terceira = B.applyOvelhaResult(cap2.stats, { dificuldade: 'medio', day: 'D', encontradas: 7, sequencia: 3 });
+        return derrota.starAwarded === false && derrota.stats.starsToday === 0
+          && vitoria.starAwarded === true && cap2.starAwarded === true && terceira.starAwarded === false;   // teto 2/dia
+      } catch (e) { return false; } })(),
+      'o teto compartilhado / permitirEstrela regrediu');
+
+    // ── PERFIS EAS ──
+    check('OV4.12 (perfis): rota principal NÃO depende de __DEV__/isInternalToolsEnabled; ferramentas internas dependem de isInternalToolsEnabled/Modo Criador',
+      (() => {
+        // rota principal aparece em produção (registro incondicional); a linha da rota não tem __DEV__
+        const rotaBloco = (nav.match(/<Stack\.Screen\s*name="CadeAOvelhinha"[\s\S]*?\/>/) || [''])[0];
+        const rotaSemGate = rotaBloco.length > 0 && !/__DEV__|isInternalToolsEnabled/.test(rotaBloco);
+        // as ferramentas internas seguem gated → em screenshot/production somem
+        const galeriaGated = /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="OvelhaAssetGallery"/.test(nav);
+        return rotaSemGate && galeriaGated;
+      })(),
+      'a rota principal depende de gate de produção, ou as ferramentas deixaram de ser gated');
+
+    // ── LINE ENDINGS (robustez LF/CRLF, sem depender de core.autocrlf) ──
+    check('OV4.13 (asserções LF/CRLF-agnósticas): `tela`/`nav`/`brc` normalizam CRLF→LF antes das asserções; OV2.10 passa em ambos',
+      (() => {
+        // a normalização está no código do smoke (este arquivo)
+        const self = readSrc('scripts/smoke.js');
+        const normaliza = /const tela = a1StripComments\(telaRaw\)\.replace\(\/\\r\\n\?\/g, '\\n'\);/.test(self)
+          && /const nav = a1StripComments\(readSrc\('src\/navigation\/AppNavigator\.js'\)\)\.replace\(\/\\r\\n\?\/g, '\\n'\)/.test(self);
+        // amostra: o mesmo regex de fronteira (OV2.10) sobre a mesma amostra em LF e CRLF
+        const amostraLF = "if (tela === 'apresentacao') {\n    return (\n      <View>OVELHA_POSE_IMG[OVELHA_POSE_JOGO]</View>\n  }\n";
+        const amostraCRLF = amostraLF.replace(/\n/g, '\r\n');
+        const norm = (s) => s.replace(/\r\n?/g, '\n');
+        const regexOV210 = (t) => (t.match(/tela === 'apresentacao'\)[\s\S]*?\n  \}\n/) || [''])[0];
+        const lfOk = regexOV210(norm(amostraLF)).length > 0;
+        const crlfOk = regexOV210(norm(amostraCRLF)).length > 0;   // após normalização, CRLF também casa
+        const crlfCruFalha = regexOV210(amostraCRLF).length === 0;  // sem normalizar, CRLF cru falharia (prova o motivo)
+        return normaliza && lfOk && crlfOk && crlfCruFalha;
+      })(),
+      'as asserções não são LF/CRLF-agnósticas (dependeriam de core.autocrlf)');
+
+    // ── REGRESSÕES (mecânicas intactas) ──
+    check('OV4.14 (mecânicas intactas): 4 modos + tempos (Médio 45000/fase · Difícil 150000/partida · Infinito 60000); 5 cenas · 90 spots; máquina/assets intactos',
+      (() => { try {
+        const S = evalSvc();
+        const modos = S.OVELHA_DIFFICULTIES.map((d) => d.id).join(',') === 'facil,medio,dificil,infinito';
+        const tempos = S.getDifficulty('medio').tempoLimiteMs === 45000 && S.getDifficulty('dificil').tempoGlobalMs === 150000 && S.getDifficulty('infinito').sessaoMs === 60000
+          && S.getDifficulty('facil').timerTipo === 'nenhum';
+        const hab = S.cenasHabilitadas();
+        const cenas = hab.length === 5 && hab.reduce((a, sc) => a + sc.hidingSpots.length, 0) === 90;
+        const maquina = !/export function expirarFaseFinita/.test(mq);
+        return modos && tempos && cenas && maquina;
+      } catch (e) { return false; } })(),
+      'uma mecânica aprovada (modos/tempos/cenas/spots/máquina) regrediu no OV4');
+
+    check('OV4.15 (só exposição): countdown_tick / SceneLayer memo / randomização / higiene intactos; sem asset novo na tela',
+      /const COUNTDOWN_TICK = 'countdown_tick';/.test(tela)
+      && /const SceneLayer = React\.memo\(function SceneLayer/.test(tela)
+      && /export function bandaDe/.test(svc) && /export function pickWeighted/.test(svc)
+      && !/\bdebugger\b/.test(telaRaw) && !/console\.log/.test(telaRaw)
+      && !/require\([^)]*\.(wav|mp3|m4a|ogg|png|webp|jpg)['"]\)/.test(tela),
+      'o OV4 alterou mecânica/áudio/assets além da exposição');
   }
 
   // ════════════════════════════════════════════════════════════════════════════

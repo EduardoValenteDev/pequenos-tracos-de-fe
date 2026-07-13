@@ -379,16 +379,15 @@ export default function AppNavigator() {
           component={ParesDoBeniScreen}
           options={{ headerShown: false }}
         />
-        {/* Bloco 2.1 — vertical slice de "Cadê a Ovelhinha?". Registrado SÓ sob o gate
-            interno enquanto usa assets temporários: em produção a rota não existe e o
-            card da Brincar continua "Chegando em breve". Liberação no Bloco 2.2. */}
-        {isInternalToolsEnabled() && (
-          <Stack.Screen
-            name="CadeAOvelhinha"
-            component={CadeAOvelhinhaScreen}
-            options={{ headerShown: false }}
-          />
-        )}
+        {/* OV4 — "Cadê a Ovelhinha?" (user-facing v1): rota SEMPRE registrada (aba Brincar).
+            Os diagnósticos internos DENTRO da tela (Asset Gallery, Simulador, calibração,
+            hitbox, seed, deck, overlay do Criador) continuam gated por Modo Criador /
+            isInternalToolsEnabled. Ver D-OVELHINHA-UF1. */}
+        <Stack.Screen
+          name="CadeAOvelhinha"
+          component={CadeAOvelhinhaScreen}
+          options={{ headerShown: false }}
+        />
         {/* Bloco 2.2e — Asset Gallery interna (diagnóstico de carregamento por onDisplay).
             SÓ sob o gate interno; nunca em produção. */}
         {isInternalToolsEnabled() && (
