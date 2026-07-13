@@ -684,3 +684,206 @@ Conter: (a) **mensagem contextual do Beni**; (b) palavras concluídas; (c) **mel
 Auditoria: `src/components/dev/CreatorModeBanner.js` é um **overlay absoluto no topo** (`top:0`, `zIndex:9999`, `pointerEvents:none`), montado **globalmente** em `AppNavigator.js:273`. Ocupa `paddingTop: max(insets.top,4)` + texto (FredokaOne 10) + `paddingBottom:3` → cobre a Safe Area **mais ~18–22px** de faixa. Só aparece com `isCreatorQaModeAllowed() && isCreatorQaModeEnabled()`.
 
 **Regra P4R:** o cabeçalho compensa a **altura do banner** (não margem fixa por aparelho): `paddingTop = max(insets.top, N) + (isCreatorQaModeEnabled() ? ALTURA_BANNER_CRIADOR : 0)`, com `ALTURA_BANNER_CRIADOR` **derivada do layout do próprio banner** (linha ~14 + paddings ≈ ~22), como já faz `CadeAOvelhinhaScreen` (`criadorAtivo ? 22 : 0`). Reagir a `subscribeCreatorQaMode` para ligar/desligar em runtime.
+
+---
+
+# R3. Revisão P4R3 — Beni personagem, Magia do Livro, Baú Mágico, modos distintos
+
+> **🚦 Portão Visual 1 ainda PENDENTE.** Supersede as decisões visuais anteriores no que conflitar. Remoção de imagem de palavra permanece **definitiva**.
+
+## R3.1 Combo de LETRAS × combo de PALAVRAS (separados)
+- **Sequência de letras** (`seqRef`): sobe a cada letra correta consecutiva. Papel secundário.
+- **Combo de PALAVRAS** (`comboRef`/`comboPalavras`): sobe **só quando uma palavra é concluída SEM Resgate**; zera no Resgate. É o combo **destacado** na interface e no resultado.
+- **Brilho Triplo** = **3 palavras** seguidas · **Super Beni** = **5 palavras** seguidas. **Nunca** por completar letras dentro de uma única palavra.
+
+## R3.2 Magia do Livro + Baú Mágico
+- Medidor **"Magia do Livro N de 3"**: cada palavra completa +1. Ao chegar a 3 → **Baú Mágico** (medidor zera após a escolha).
+- **Baú Mágico do Beni:** usa a pose **comBau**; **pausa o timer**; apresenta **2 cartas de poder**; a criança escolhe uma; o poder é aplicado; a partida retoma. Sem assets novos (FaithIcon + gradientes + Animated).
+- **Poderes:** Lanterna do Beni (destaca a correta na próxima lacuna) · Relógio de Luz (+6s, **só em modo com tempo**) · Vento Mágico (remove 2 alternativas incorretas) · Escudo de Estrelas (o próximo erro não quebra combo nem retira tempo) · Palavra Dourada (a próxima palavra vale brilho dobrado). No **Livro Tranquilo** o Relógio de Luz **não** é oferecido.
+
+## R3.3 Modos realmente distintos
+- **Livro Tranquilo:** 8 palavras · sem tempo · 1 lacuna · 3 opções · Baú a cada 3 · foco em aprendizagem.
+- **Corrida das Palavras:** **meta 8 palavras** (vitória ao completar) · 45s (máx 60) · 2 lacunas padrão · 4 opções · +5s/palavra · 1º erro dá pista · 2º erro −1s · **timer pausado** em celebrações/transições/Baú.
+- **Turbo Relâmpago:** **sobrevivência** (sem quantidade fixa) · 22s (máx 32) · 5 opções · 2 lacunas → 3 após combo de 3 palavras → 4 após combo de 6 · 2º erro −2s · **timer ativo só quando a criança pode responder** · Baú a cada 3 · resultado pelo recorde de palavras. **Palavra Relâmpago:** mostra a palavra inteira (~900ms, timer pausado, brilho da esquerda para a direita) antes de transformar em lacunas; equivalente estático em movimento reduzido; a 1ª palavra continua acessível.
+
+## R3.4 Novo componente de personagem (`BeniStageCharacter`)
+Componente próprio do palco (**não** BeniCircularArt): `resizeMode="contain"`, **pose inteira sem crop**, `overflow: visible`, camada/zIndex próprios, **contêiner externo estável** (sem `key` de pose). **Transição de duas camadas** (pose atual permanece enquanto a próxima entra: opacity 0→1, scale 0.96→1, translateY; anterior 1→0; ~210ms) com **permanência mínima ~600ms**; **mudança de texto não troca a pose**. Mantém a **última pose válida** se a próxima falhar; usa `avatarBase` só sem nenhuma pose válida; **pré-carregamento** de todas as poses. Respeita movimento reduzido.
+**Causa do corte (corrigida):** o Beni era renderizado por `BeniCircularArt` (recorte circular + crop negativo dentro de camada `overflow: hidden`), cortando cabeça/pés/braços em `celebrando`/`celebrando2`. Agora o personagem fica em **camada própria `beniCamada` (overlay absoluto, irmão do card recortado)**, com `overflow: visible` e a arte inteira — nunca cortado.
+**Prioridade de poses:** Baú > Resgate > tempo crítico > palavra completa/Super > Brilho Triplo > erro > letra correta > esperando.
+**Poses órfãs registradas** (aprovado): `08_beni_celebrando_2`, `09_beni_descansando`, `10/11_beni_apontando_*` em `beniImages.js` (fallback `avatarBase` no `onError` de `BeniCircularArt`).
+
+## R3.5 Palco e efeitos
+Palco em camadas: **fundo** (gradiente + estrelas de baixa opacidade, pode recortar) · **palavra** (herói, dominante, fonte progressiva, linha única) · **personagem** (camada não recortada) · **efeitos**. Página virando: palavra pulsa + **brilho percorre as letras** + Beni celebra sem corte + bônus de tempo + entrada por translateX. Acerto: **peça voa em curva** até a lacuna (measure + Animated) + salto + slot iluminado. Erro: shake + retorno + reação. Resgate: destaque da correta. Baú: cartas com destaque.
+
+## R3.6 Tela final por modo
+Livro: "N palavras aprendidas". Corrida: "N de 8 palavras" (+ **VITÓRIA!**). Turbo: "N palavras completadas". Estatísticas secundárias (peso menor): melhor combo de palavras · brilhos · bônus de tempo · maior palavra (N letras) · baús abertos · poderes usados. Ações: **Jogar de novo** (principal) · **Trocar modo** · **Brincar** + **Início** (linha inferior compacta com ícones). Sem palavras → mensagem de participação.
+
+## R3.7 Textos
+`plural(n,s,p)` ("1 palavra"/"N palavras"). Combo destacado = combo de palavras. "Maior palavra" + "N letras". Sem abreviação "rec".
+
+---
+
+# R4. Revisão P4R4 — modos definitivos, Baú só na Corrida, Turbo sem preview, Beni enquadrado
+
+> **🚦 Portão Visual 1 ainda PENDENTE.** Supersede o que conflitar em §R3. Remoção de imagem de palavra permanece **definitiva**.
+
+## R4.1 Identidade definitiva dos modos
+- **Livro Tranquilo:** 8 palavras · sem tempo · 1 lacuna · 3 opções · **SEM Magia/Baú/poderes** · dicas pedagógicas generosas.
+- **Corrida das Palavras:** meta **8** · 45s (máx 60) · 2 lacunas · 4 opções · +5s/palavra · **Magia do Livro EXCLUSIVA** · Baú **só após a 5ª palavra completa**, **1 por partida**, 2 cartas, timer pausado na escolha · vitória ao completar 8.
+- **Turbo Relâmpago:** **sobrevivência** (sem quantidade fixa) · 22s (máx 32) · 5 opções · **SEM Magia/Baú/poderes** · **SEM pré-visualização da resposta** · lacunas 2 → 3 (após 3 palavras) → 4 (após 6 palavras e sem sequência recente de erros) · resultado pelo recorde.
+
+## R4.2 Turbo sem resposta antecipada (removido)
+Removidos por completo: a "Palavra Relâmpago", o estado de apresentação da palavra completa, o timer de 900ms de revelação e a fala "vai virar lacunas". A entrada de página é **sem resposta**: os slots aparecem, as letras que permanecem visíveis (não-lacunas) entram, as lacunas ficam vazias, uma **faixa de energia** percorre o palco e o timer começa. A criança **nunca** vê a palavra completa antes de jogar (`mostra = !isGap || val`).
+
+## R4.3 Beni nunca cobre as letras (enquadramento unificado)
+O Beni deixa de ter overlay absoluto sobre os slots. O palco é dividido em **áreas reservadas empilhadas**: **faixa do guia** (Beni em `presentation="portrait"`, moldura constante, + fala ao lado) · **área da palavra** (linha própria, largura total, sem o Beni) · **área de efeitos** (badge Brilho Triplo/Super + partículas) · **área de opções**. Em eventos, a apresentação **event** (personagem maior, contain, área exclusiva) é usada nas telas de entrada, Baú e final. Nenhuma imagem retangular do Beni aparece solta: `BeniStageCharacter` sempre renderiza dentro de uma **moldura coerente** (arredondada, com borda e fundo, `overflow: hidden`), com a arte **contain** (nunca recortada no personagem).
+
+## R4.4 Transição de poses
+Contêiner fixo, duas camadas internas, duração **220ms** (faixa 180–240), permanência mínima **~600ms**, mudança de texto não troca a pose, mantém a última pose válida em falha e cai em `avatarBase` só sem pose válida.
+
+## R4.5 Magia do Livro e Baú (exclusivos da Corrida)
+Só quando `modo === medio`. Contador **"Magia do Livro N de 5"**: +1 por palavra completa. Na 5ª palavra: pausa timer → abre Baú (pose comBau) → 2 cartas → aplica escolha → retoma timer → **não abre outro Baú** na mesma partida. Livro Tranquilo e Turbo **não** renderizam Magia, contador, Baú, cartas, poder ativo ou estatísticas de Baú/poder.
+
+## R4.6 Auditoria dos poderes (elegibilidade PURA)
+Função pura `poderElegivel(poder, ctx)`: Relógio de Luz só com tempo **e** folga (senão o bônus seria desperdiçado); nunca oferece poder **já ativo**; nunca oferece poder **incompatível**. Consumo: Lanterna (revela a letra da lacuna atual só **após um período sem resposta**; nunca em Resgate; consumida na pista) · Relógio (+6s, respeita o teto) · Vento (remove 2 incorretas, nunca a correta, nunca deixa < 2 opções) · Escudo (protege o próximo erro, consumido nele) · Palavra Dourada (próxima palavra vale brilho dobrado + palco dourado, consumida ao concluir/abandonar). Indicador do poder ativo no HUD da Corrida, removido no consumo.
+
+## R4.7 HUD, efeitos e tela final por modo
+HUD: Livro (trilha de 8 + "N de 8 palavras" + brilhos) · Corrida (N de 8 + Magia N de 5 + poder ativo) · Turbo ("N palavras" + "sequência N" + "recorde N"), sem "N/M" ambíguo e com pluralização. Efeitos: opção com profundidade/press (escala+borda), erro com shake + lacuna laranja + reação do Beni, palavra completa com brilho + partículas + troca de gradiente + página saindo/entrando (Beni celebra sem cobrir a palavra). Temas por modo (`TEMAS`) sobre `productTheme`. Tela final específica por modo; Baús/poderes **não** aparecem fora da Corrida; estatística inaplicável não é mostrada.
+
+---
+
+# R5. Revisão P4R5 — estabilização: Beni renderiza, finalização atômica, efeitos/sons/destaques
+
+> **🚦 Portão Visual 1 ainda PENDENTE.** Etapa de estabilização/polimento (sem nova mecânica principal).
+
+## R5.1 Correção do carregamento do Beni (bloqueador crítico)
+**Causa:** no P4R4 a `<Animated.Image>` era dimensionada só por `StyleSheet.absoluteFill`; na New Architecture (Fabric, RN 0.81) a Image sem width/height numéricos explícitos pode resolver 0×0 e ficar invisível (só o fundo da moldura aparecia). **Correção:** a MESMA receita que já funciona no `BeniCircularArt` — `Image` do react-native (via `Animated.Image`, **nunca** expo-image; sem misturar APIs), `source` = require **estático** de `beniImages.js` (sem uri/Asset/`resolveAssetSource`), **width/height numéricos explícitos** (`size×size`), `resizeMode="contain"`, `onLoad`/`onError` (log em `__DEV__` com pose e `nativeEvent`). A pose inicial começa **visível** (opacity 1). Fallback: mantém a última pose válida → `avatarBase`; **nunca** só o fundo. Grade de **diagnóstico das 11 poses** (dev, gated por Modo Criador, fora de produção) para validar no aparelho.
+
+## R5.2 Sincronização atômica da palavra (§6)
+Rotina única `finalizarPalavra`: dispara `PROXIMA_PAGINA` (concluídas/sequência/brilho sobem) **antes** dos efeitos; o combo destacado vem da **sequência do núcleo** (`estado.sequencia`); a Magia só sobe **após** a conclusão. Assim o HUD e o efeito ficam sempre coerentes (Brilho Triplo só quando a interface já indica 3 palavras; Magia nunca à frente do contador). `AVANCAR_PAGINA` (troca de página/Baú) fica em `celebrarEAvancar`.
+
+## R5.3 Efeitos, sons e destaques
+- **Poderes (§7):** indicador do poder ativo no HUD; Lanterna escurece o palco + destaque na correta (após período sem resposta, não em Resgate); Palavra Dourada com palco e slots dourados; Vento reorganiza opções (nunca a correta, nunca < 2); Escudo com feedback/consumo. Só Animated/FaithIcon/gradientes/assets atuais.
+- **Seleção/acerto/erro/palavra completa (§8–11):** toque responde no 1º frame (escala/borda/som imediato); acerto com peça voando + partículas + salto; erro com shake + lacuna **laranja** (sem vermelho agressivo) + reação acolhedora + −Ns só quando há penalidade; palavra completa com brilho + partículas + troca de gradiente + Beni celebrando + entrada da próxima página.
+- **Brilho Triplo (§12):** três estrelas orbitando + selo animado (entra/sai) + som especial + salto/brilho das letras — não é só texto.
+- **Sons (§13):** mapa único `SONS` sobre o catálogo existente (sem áudio novo); eventos maiores interrompem o tick; `playGameSfx` respeita as preferências (soundsEnabled); limpeza no unmount.
+- **Destaques locais (§14):** até 2, **não persistentes**, só os conquistados (Palavra Perfeita, Resposta Relâmpago, Sequência Brilhante, Mestre da Corrida, Guardião da Magia, Recorde do Turbo). **`achievements.js` intocado.**
+
+## R5.4 Interface, acessibilidade e desempenho (§15–16)
+Baú mais compacto (Beni/título/cartas próximos). Tela final: 1 resultado principal + ≤4 estatísticas + ≤2 destaques; nada inaplicável/zerado; ações mantidas. Movimento reduzido respeitado (trajetórias viram mudanças de estado/brilho, sem perder feedback). Slots **memoizados** (`useMemo`) sem depender de `restante` → o tick do relógio não reconstrói o palco. Cor nunca é o único indicador (ícones + texto).
+
+---
+
+# R6. Revisão P4R6 — direção visual, coreografia de eventos, enquadramento e navegação
+
+> **🚦 Portão Visual 1 ainda PENDENTE.** Etapa de direção visual (sem nova mecânica principal).
+
+## R6.1 Poses por apresentação + presets
+Novo módulo PURO `palavrinhasVisualDirector.js`. **Portrait (rodada):** avatarBase, acenando, ensinando, descansando, apontandoDireita, apontandoEsquerda. **Event (celebrações/telas/Baú):** celebrando, celebrando2, comBau, orando, atelie. O portrait **nunca** renderiza pose event (guarda em `BeniStageCharacter` via `posePortraitSegura`). `BENI_STAGE_PRESETS` define `scale/translateX/translateY` por pose e apresentação: no portrait normaliza rosto/gesto (tamanho aparente do rosto constante); no event preserva a composição. A moldura (borda/tamanho) **não** muda por pose. Grade DEV mostra as poses **nos dois formatos** (portrait quando permitido + event).
+
+## R6.2 Diretor visual + coreografia
+Eventos visuais (IDLE/LETRA_CORRETA/ERRO/PALAVRA_COMPLETA/BRILHO_TRIPLO/SUPER_BENI/PODER_ATIVADO/TRANSICAO_PAGINA/TEMPO_CRITICO) com **prioridade** (Super > Triplo > Palavra Completa > Poder > Tempo > Erro > Letra > Transição > Idle): só **um** evento principal domina. Permanências mínimas: comum ~650ms, palavra 700, Triplo 1000, Super 1500. A tela usa um **token de evento** (`eventoTokenRef`) para ignorar callbacks antigos; `BeniStageCharacter` mantém permanência mínima de 600ms e não troca 3× em 1s.
+
+## R6.3 Regra da última letra + Super vence Triplo
+Quando a letra correta completa a palavra, a rotina única `finalizarPalavra` conclui no núcleo, calcula UM evento por `eventoDoMarco(seq)` (Super vence Triplo no mesmo marco), e **não** mostra pose intermediária de letra (o som de letra só toca quando NÃO completa). A pose do evento é mantida durante toda a celebração; a página sai/entra e só então há uma troca para a pose da nova palavra.
+
+## R6.4 Super Beni e Brilho Triplo como acontecimentos
+**Super Beni** (overlay dedicado): bloqueia input (`inputTravado`) + pausa o timer, escurece o fundo, mostra **raios** dourados/laranja, personagem `celebrando2` (event) aumentado, "SUPER BENI!" + "N palavras seguidas", estrelas, `game_victory` (exclusivo). Ao fim, retira o evento, a próxima palavra entra e retoma timer/input. **Brilho Triplo** (overlay): borda dourada, três estrelas orbitando, `celebrando` (event), só "BRILHO TRIPLO!", `classic_victory_jingle`; limpo antes da próxima palavra.
+
+## R6.5 Limpeza, sons e navegação
+Ao iniciar a próxima palavra: overlay/selo/partículas/pose de evento/travas/timers de celebração são **limpos** (o token invalida callbacks pendentes). **Hierarquia sonora** (§10) sobre o catálogo existente: toque=`card_flip`, letra=`match_success`, erro=`match_error`, palavra=`board_complete`, Triplo=`classic_victory_jingle`, Super=`game_victory`, Baú=`card_flip`+conclusão, poder=`card_flip`, tempo=`countdown_tick`, esgotado=`time_up_alarm`; os menores são interrompidos pelos maiores (`game_victory` nunca é encoberto). **Navegação corrigida:** o botão Brincar usava `navigate('Ateliê')` (rota não aninhada → warning). Agora usa a rota **aninhada real** `navigate(HOME, { screen: ACTIVITIES })`, o mesmo padrão de `ParesDoBeniScreen`/`CadeAOvelhinhaScreen`; Início usa `navigate(HOME)`.
+
+---
+
+# R7. Revisão P4R7 — carregamento determinístico, Bolso Mágico (8 poderes), Turbo autoritativo
+
+> **🚦 Portão Visual 1 ainda PENDENTE.** Validação visual/vídeo é humana (agente sem aparelho).
+
+## R7.1 Auditoria REAL das 11 imagens (via sharp)
+Todas as artes são **ilustrações OPACAS full-bleed** (sem transparência, preenchimento 100%, com fundo próprio). Ratios mistos: 01–07 = **4:5 (960×1200)**; 08–11 = **1:1 (1024×1024)**.
+
+| Pose | Arquivo | Tamanho | Ratio | Fundo | Preenchimento |
+|---|---|---|---|---|---|
+| avatarBase | 01 | 960×1200 | 4:5 | opaco (106,143,156) | 100% |
+| acenando | 02 | 960×1200 | 4:5 | opaco | 100% |
+| celebrando | 03 | 960×1200 | 4:5 | opaco (marrom) | 100% |
+| comBau | 04 | 960×1200 | 4:5 | opaco | 100% |
+| ensinando | 05 | 960×1200 | 4:5 | opaco | 100% |
+| orando | 06 | 960×1200 | 4:5 | opaco | 100% |
+| atelie | 07 | 960×1200 | 4:5 | opaco | 100% |
+| celebrando2 | 08 | 1024×1024 | 1:1 | opaco (azul-petróleo) | 100% |
+| descansando | 09 | 1024×1024 | 1:1 | opaco | 100% |
+| apontandoDireita | 10 | 1024×1024 | 1:1 | opaco | 100% |
+| apontandoEsquerda | 11 | 1024×1024 | 1:1 | opaco | 100% |
+
+## R7.2 Causa das bordas brancas + correção
+`contain` numa moldura quadrada letterboxava as artes 4:5 → o `backgroundColor` da moldura aparecia como **bandas/cantos retos**; os ~1–1.6 MB decodificavam com atraso → **moldura vazia**. **Correção:** `resizeMode="cover"` (a arte opaca preenche o quadro; sem bandas) + `overscan`/`translateYf` por pose; **carregamento determinístico** (warmer offscreen força a decodificação; `POSES_MINIMAS` liberam "Abrir o Livro"; overlays só abrem com a pose event **ready** ou fallback já carregado; crossfade só após o `onLoad` da próxima imagem — a atual nunca some antes).
+
+## R7.3 Bolso Mágico + 8 poderes (só Corrida)
+Módulo PURO `palavrinhasPoderes.js`: 8 poderes (Lanterna, Relógio, Vento, Escudo [armado], Palavra Dourada, Ímã de Letras, Chuva de Vogais, Troca Mágica) com elegibilidade por contexto e sorteio determinístico de 2 cartas distintas. A carta escolhida vai para o **Bolso Mágico** (até 2 slots ≥50) e é **ativada MANUALMENTE** — nunca automática; o consumo só ocorre **após o efeito iniciar**; se inelegível no momento, reação curta sem consumo. Dica única por partida. Livro e Turbo não têm inventário/Baú/poderes.
+
+## R7.4 Turbo AUTORITATIVO (bug crítico)
+Novo evento terminal **`TEMPO_ESGOTADO`** na máquina pura, aceito de **qualquer estado ativo** → `FINALIZADO` (callbacks atrasados RESOLVER/RESGATE_CONCLUIDO ignorados). A tela usa relógio por **deadline** (`Date.now()`, tick 250ms → 0s finaliza em ≤250ms), `esgotarTempo` cancela timers + invalida token + bloqueia input + dispara o evento; `AppState` recalcula o deadline ao voltar do background.
+
+## R7.5 Direção visual
+Poses separadas por apresentação (portrait/event) com presets `cover`. Diretor com prioridade **TEMPO_ESGOTADO > Super > Triplo > Poder > Palavra > Erro > Letra > Idle**; permanências 800/700/1200/1700ms. Overlays reconstruídos com **partículas determinísticas** (posições fixas do diretor, sem Math.random; estrelas grandes de alto contraste), anéis e raios. Hierarquia sonora sobre o catálogo (sem áudio novo; maiores calam menores; `game_victory` nunca encoberto). Navegação da tela final por rota aninhada. Laboratório DEV expandido (abas poses/triplo/super/poderes/tempo, status ready/error). Textos curtos.
+
+---
+
+# R8. Revisão P4R8 — warmup compartilhado, modos infinitos, encerramento manual, dock inferior
+
+> **🚦 Portão Visual 1 ainda PENDENTE.** Validação por vídeo é humana (agente sem aparelho).
+
+## R8.1 Carregamento antecipado do Beni (fim do atraso visível)
+Causa do atraso: o preload começava **dentro** do jogo. Correção: serviço **singleton** `beniAssetWarmup.js` (promessa única de download + estado por pose idle/loading/ready/error, cache em nível de módulo). O aquecimento **começa na BrincarScreen** (`iniciarWarmup()` + `<PalavrinhasBeniWarmer/>` montado, offscreen, Image RN com dimensões numéricas 128/210, opacity 0, `onLoadEnd`). O card Palavrinhas só navega quando as **poses mínimas** estão prontas ("Preparando o Beni..."). No jogo, `BeniStageCharacter` semeia de `poseReady` (cache compartilhado) → a 1ª moldura nunca fica vazia; o crossfade só ocorre após `onLoadEnd` da próxima; overlays só abrem com pose event ready (senão fallback já pronto).
+
+## R8.2 Modos INFINITOS + encerramento manual
+Corrida e Turbo são **infinitos** (`metaPalavras: null`, `infinito: true`), sem meta de 8/vitória/trilha de 8. Terminam por **tempo** ou por **encerramento manual** (botão de pausa no cabeçalho → modal Continuar/Encerrar; pausa o deadline; encerrar invalida callbacks + ABANDONAR). A tela final distingue **Livro concluído / Tempo esgotado / Partida encerrada**. HUD infinito: "N palavras · sequência N · recorde N".
+
+## R8.3 Baú a cada 4 (Corrida) + múltiplos + pendente
+Só a Corrida usa Magia (medidor **N de 4**, na barra inferior). A cada 4 palavras o Baú abre entre palavras; **vários por partida**. Se o inventário (2 slots) estiver cheio, o prêmio é **segurado** ("Baú pronto") e abre quando um slot libera, após a palavra atual. Turbo/Livro sem Baú.
+
+## R8.4 Bolso Mágico na barra inferior + ativação manual + FSM
+O inventário saiu do topo para a **barra inferior** (`PalavrinhasPowerDock`, só na Corrida): medidor de Magia + 2 slots ≥56, coach único. A ativação é **manual** (toque no slot); o efeito roda numa **máquina visual** (`PalavrinhasPowerEffect`: prepare → impact → resolve → finish) com timer pausado e input bloqueado; o **consumo ocorre no `impact`**; poder inelegível não é consumido. Oito poderes (cor/rótulo próprios): Lanterna, Relógio, Vento, Escudo (armado), Palavra Dourada, Ímã, Chuva de Vogais, Troca Mágica.
+
+## R8.5 Organização, sons e hierarquia
+Componentes extraídos: `beniAssetWarmup`, `PalavrinhasBeniWarmer`, `PalavrinhasHud`, `PalavrinhasPowerDock`, `PalavrinhasChest`, `PalavrinhasPowerEffect`. Prioridade de eventos: TEMPO_ESGOTADO > SUPER > TRIPLO > **BAU** > PODER > PALAVRA > ERRO > LETRA > IDLE (Super executa antes do Baú; nunca dois overlays). Sons: preparo ≠ impacto do poder; Baú ≠ palavra completa; maiores calam menores; sem áudio novo. Mantidas todas as correções do P4R7 (Turbo autoritativo por deadline + TEMPO_ESGOTADO). "Novo capítulo" curto a cada 8 na Corrida.
+
+---
+
+# R9. Revisão P4R9 — imagens estáveis, pose por palavra, Vento, painel de poder
+
+> **🚦 Portão Visual 1 ainda PENDENTE.** Validação por vídeo (iPhone/Android/mov. reduzido) é humana.
+
+## R9.1 Primeiro toque + carregamento por TAMANHO
+O card Palavrinhas na BrincarScreen agora **navega imediatamente** (nunca ignora o toque); a tela de destino mostra "Preparando o Beni..." (com ícone) se as poses mínimas ainda não decodificaram. O warmup distingue **download** de **decode**, e decode por **tamanho**: `readyPortrait`/`readyEvent` só ficam true no `onLoadEnd` da Image persistente daquele tamanho (portrait 128, event 220). `BeniStageCharacter` mostra um **placeholder com ícone** enquanto a textura não decodificou — **nunca** uma moldura colorida vazia.
+
+## R9.2 Retrato estável (não pisca, não troca por acerto/erro)
+A pose do guia é **estável por palavra**: `bPose = portraitPose`, escolhida por **RNG da partida** (sem repetir a anterior, entre as 6 poses portrait) **só quando uma nova palavra entra**. Acerto, erro, evento, tempo baixo, Resgate e mudança de fala **não** trocam a source — animam o contêiner. `BeniStageCharacter` nunca transiciona para a mesma pose/source (`fonte(nova) === fonte(atual)` → retorna).
+
+## R9.3 Eventos mais raros
+Brilho Triplo e Super posterior viram **celebração COMPACTA** (abaixo do palco, 3 estrelas + texto, ≤700ms, sem overlay de personagem, sem trocar a pose). O **Super grande** (overlay com celebrando2 + raios + game_victory) acontece **só na primeira vez** que a sequência chega a 5 — e só abre com a pose event **ready** (senão, compacto). Overlays só abrem com `readyEvent`.
+
+## R9.4 Botão Encerrar + painel de poder + Vento
+O botão circular ambíguo virou botão com **texto "Encerrar"**; a modal diz "Encerrar a partida?" / "Seu resultado será salvo nesta rodada." / "Continuar jogando" / "Encerrar partida". Tocar num slot do Bolso **abre um painel LARGO** (`PalavrinhasPowerDetailsPanel`, largura tela−32, horizontal, texto ≤2 linhas) — nunca ativa em silêncio. Nova função pura **`avaliarUsoDoPoder(poder, contexto) → {podeUsar, motivo, quantidadeDeEfeito}`**; "Usar agora" só executa se `podeUsar`, senão o painel mostra o motivo (sem consumir). **Vento corrigido:** `quantidade = min(2, incorretas, opcoesVisíveis − 2)` (4→2, 3→1, 2→0), nunca a correta, nunca depende do total original; timeout de segurança garante que o efeito nunca deixa timer/input travados. 1º Baú abre automático (onboarding); os seguintes ficam "Baú pronto" manual na barra.
+
+---
+
+# R9a. Correção P4R9a — dica do poder (faixa larga) + auditoria final
+
+> **🚦 Portão Visual 1 PENDENTE.** Correção pontual + auditoria (auditoria NÃO implementada nesta rodada).
+
+## R9a.1 Causa da dica estreita
+A dica "Toque quando quiser usar" era renderizada **dentro do contêiner do slot** (≈56px) como `position:absolute` com apenas `right:0` (sem `left`) e `maxWidth:160`. No Yoga, um filho absoluto ancorado só à direita dentro de um pai estreito tem a largura **limitada pela largura do pai** → o texto quebrava palavra por palavra. (Componente: `PalavrinhasPowerDock`.)
+
+## R9a.2 Novo layout
+Faixa horizontal LARGA **acima do dock** (`coachBand`): `left:0/right:0` (responsiva, sem width fixa), `bottom:'100%'` + margem, `minHeight:52`, cantos arredondados, fundo lilás + borda roxa, sombra discreta, ícone à esquerda, texto até 2 linhas (`numberOfLines={2}`), `pointerEvents="none"`. Texto oficial: **"Poder guardado! Toque nele quando quiser usar."**
+
+## R9a.3 Regras de aparição/desaparecimento
+Aparece ao guardar o **primeiro** poder da partida (guard `dicaBolsoRef`, uma vez), some após **3,8s** ou ao tocar num poder/abrir o painel (`setDicaBolso(false)` em `abrirPainelPoder`). **Não** aparece durante Baú/Super/Triplo/modal (gate `dicaBolso && !overlay && !poderFxAtivo && !pausaModal`). Reinicia em nova partida (`dicaBolsoRef.current = false`). Sem storage persistente (estado local).
+
+## R9a.4 Responsividade, acessibilidade, movimento reduzido
+Left/right em vez de width fixa → legível em telas pequenas; não cobre slots/palavra/relógio/Encerrar (fica acima do dock, com `pointerEvents none`, slot continua tocável). `accessibilityRole="text"` + `accessibilityLabel` com a frase completa (o leitor não soletra linha a linha). Entrada fade (+translateY 8→0 quando há movimento), ~240ms; **movimento reduzido = só fade** (`coachTy = reduzMovim ? 0 : ...`).
+
+## R9a.5 Cabeçalho (auditoria, não alterado)
+O título "Palavrinhas do Beni" trunca para "Palavrinhas..." em aparelhos pequenos quando relógio + Encerrar ocupam a direita. Como qualquer correção envolve o layout do cabeçalho (risco de regressão), **não foi alterado** nesta rodada — registrado como recomendação P1 (ver auditoria). O ícone do botão Encerrar (`home`) é subótimo — recomendação P2.

@@ -28,6 +28,7 @@ import BrincarScreen from '../screens/BrincarScreen';
 import ParesDoBeniScreen from '../screens/ParesDoBeniScreen';
 import CadeAOvelhinhaScreen from '../screens/CadeAOvelhinhaScreen';
 import OvelhaAssetGalleryScreen from '../screens/OvelhaAssetGalleryScreen';
+import PalavrinhasDoBeniScreen from '../screens/PalavrinhasDoBeniScreen';
 import AtelierCanvasScreen from '../screens/AtelierCanvasScreen';
 import AtelierGalleryScreen from '../screens/AtelierGalleryScreen';
 import PostStoryHubScreen from '../screens/PostStoryHubScreen';
@@ -394,6 +395,16 @@ export default function AppNavigator() {
           <Stack.Screen
             name="OvelhaAssetGallery"
             component={OvelhaAssetGalleryScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+        {/* Feature 009 — "Palavrinhas do Beni" (P4, protótipo visual). Registrada SÓ sob
+            o gate interno enquanto está em desenvolvimento; em produção a rota não existe
+            e o card da Brincar continua "Chegando em breve". */}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="PalavrinhasDoBeni"
+            component={PalavrinhasDoBeniScreen}
             options={{ headerShown: false }}
           />
         )}

@@ -32,6 +32,10 @@ const CROP_PRESETS = {
   ensinando:  { cropScale: 1.10, cropX: 0, cropY: 0 },
   orando:     { cropScale: 1.08, cropX: 0, cropY: 0 },
   atelie:     { cropScale: 1.12, cropX: 0, cropY: 0 },
+  celebrando2:       { cropScale: 1.08, cropX: 0, cropY: 0 },
+  descansando:       { cropScale: 1.08, cropX: 0, cropY: 0 },
+  apontandoDireita:  { cropScale: 1.10, cropX: 0, cropY: 0 },
+  apontandoEsquerda: { cropScale: 1.10, cropX: 0, cropY: 0 },
 };
 const DEFAULT_CROP = { cropScale: 1.08, cropX: 0, cropY: 0 };
 
@@ -52,7 +56,10 @@ export default function BeniCircularArt({
   children,
   accessibilityLabel,
 }) {
-  const source = BENI_IMAGES[variant] || BENI_IMAGES[BENI_DEFAULT_VARIANT];
+  // Fallback de CARREGAMENTO: se a pose falhar ao carregar, cai para avatarBase (nunca fica vazio).
+  const [erroCarga, setErroCarga] = React.useState(false);
+  React.useEffect(() => { setErroCarga(false); }, [variant]);
+  const source = (!erroCarga && BENI_IMAGES[variant]) || BENI_IMAGES[BENI_DEFAULT_VARIANT];
   const preset = CROP_PRESETS[variant] || DEFAULT_CROP;
   const sScale = cropScale ?? preset.cropScale;
   const sX = cropX ?? preset.cropX;
@@ -110,6 +117,7 @@ export default function BeniCircularArt({
       <Image
         source={source}
         resizeMode="cover"
+        onError={() => setErroCarga(true)}
         accessible={!!accessibilityLabel}
         accessibilityLabel={accessibilityLabel || 'Beni, o cordeirinho guia'}
         style={{

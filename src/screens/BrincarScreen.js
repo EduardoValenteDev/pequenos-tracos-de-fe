@@ -35,6 +35,8 @@ import { BeniAvatar } from '../components/beni';
 import CenteredContent from '../components/layout/CenteredContent';
 import { isInternalToolsEnabled } from '../config/internalTools';
 import { ROUTES } from '../constants/routes';
+import PalavrinhasBeniWarmer from '../components/palavrinhas/PalavrinhasBeniWarmer';
+import { iniciarWarmup } from '../services/beniAssetWarmup';
 import { listArts } from '../services/atelierStorage';
 import { hasAtelierUnlimitedAccess } from '../services/accessControl';
 import { getDailyRounds } from '../services/brincarDailyService';
@@ -52,6 +54,12 @@ const EM_PREPARO = [
   { id: 'palavrinhas', icon: 'palavrinhas', title: 'Palavrinhas do Beni', desc: 'Monte palavras da Bíblia.', tint: '#FFF4D6', border: '#F4D08A', bg: '#F4B23C20' },
   { id: 'bichinhos', icon: 'bichinhos', title: 'Bichinhos da Bíblia', desc: 'Descubra os animais das histórias.', tint: '#F3E8FF', border: '#D7C2F5', bg: '#7C3AED20' },
 ];
+
+/** Jogos que abrem uma tela SÓ em desenvolvimento (sob isInternalToolsEnabled). */
+const DEV_ROTAS = {
+  ovelha: ROUTES.CADE_A_OVELHINHA,
+  palavrinhas: ROUTES.PALAVRINHAS_DO_BENI,
+};
 
 function AnimatedCard({ delay, children, style }) {
   const fade = useRef(new Animated.Value(0)).current;
@@ -153,6 +161,20 @@ export default function BrincarScreen({ navigation, route }) {
   const [rounds, setRounds] = useState(null);
 
   const premium = hasAtelierUnlimitedAccess();
+  const montadoRef = useRef(true);
+
+  // P4R8: aquecimento ANTECIPADO das poses do Beni já na aba Brincar (não bloqueia esta tela).
+  useEffect(() => {
+    montadoRef.current = true;
+    iniciarWarmup();
+    return () => { montadoRef.current = false; };
+  }, []);
+
+  // P4R9 §1/§4: o primeiro toque NUNCA parece ignorado — navega IMEDIATAMENTE. A tela de destino
+  // mostra "Preparando o Beni..." se as poses ainda não decodificaram (nunca moldura vazia).
+  const abrirPalavrinhas = useCallback(() => {
+    navigation.navigate(ROUTES.PALAVRINHAS_DO_BENI);
+  }, [navigation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -254,10 +276,10 @@ export default function BrincarScreen({ navigation, route }) {
         <AnimatedCard delay={250} style={styles.grid}>
           {EM_PREPARO.map(({ id, ...tileProps }) => (
             <View key={id} style={styles.gridItem}>
-              {id === 'ovelha' && isInternalToolsEnabled() ? (
+              {DEV_ROTAS[id] && isInternalToolsEnabled() ? (
                 <TestingTile
                   {...tileProps}
-                  onPress={() => navigation.navigate(ROUTES.CADE_A_OVELHINHA)}
+                  onPress={id === 'palavrinhas' ? abrirPalavrinhas : () => navigation.navigate(DEV_ROTAS[id])}
                 />
               ) : (
                 <ComingTile {...tileProps} />
@@ -306,6 +328,8 @@ export default function BrincarScreen({ navigation, route }) {
         </AnimatedCard>
       </CenteredContent>
       <View style={{ height: 8 }} />
+      {/* Aquecedor offscreen das poses do Beni (decodifica em segundo plano; não bloqueia a tela). */}
+      <PalavrinhasBeniWarmer />
     </ScrollView>
   );
 }

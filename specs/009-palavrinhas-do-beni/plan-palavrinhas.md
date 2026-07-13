@@ -392,3 +392,51 @@ O antigo P4 e seus critérios ficam **superados** por P4R. Nada de P5/traçado a
 
 ### 14.7 Blocos CANCELADOS pela concepção sem imagem
 Como não há imagem por palavra, ficam **CANCELADOS**: **🚦 Portão Visual 2**, **Bloco P13 (produção/registro das 30–36 imagens de palavra)** e **🚦 Portão de Assets** (§6/§7/§8 acima, no que se referem a imagens de palavra). O **manifesto de imagens** e a **Lista de Imagens** deixam de existir. A produção de assets remanescente do roteiro é apenas o **wire das poses órfãs do Beni (P9)** — que **não** depende de imagens de palavra. As demais fases (traçado, mecânicas, estrelas, Modo Criador, regressão) seguem, sem qualquer dependência de figura de palavra.
+
+---
+
+## P4R3 — Beni personagem + Magia/Baú + modos distintos (Portão Visual 1 pendente)
+
+Ver `spec-palavrinhas.md` §R3. Alterações de código (não commitadas): novo `src/components/beni/BeniStageCharacter.js` (personagem do palco, sem crop, camada própria — corrige o corte do Beni); `beniImages.js` (poses órfãs 08/09/10/11 registradas — aprovado); `BeniCircularArt.js` (fallback onError); serviço (modos distintos Livro/Corrida/Turbo Relâmpago + poderes do Baú + Diretor por combo de palavras); tela reescrita (combo de letras × combo de palavras, Magia do Livro, Baú Mágico com 5 poderes, Palavra Relâmpago, página virando, peça voando, tela final por modo). Testes P2R/P4R3 atualizados. **Sem commit; Portão Visual 1 ainda pendente.**
+
+---
+
+## P4R4 — modos definitivos, Baú só na Corrida, Turbo sem preview, Beni enquadrado (Portão Visual 1 pendente)
+
+Ver `spec-palavrinhas.md` §R4. Código (não commitado): serviço com `magia/poderes/bauApos/bauMax` por modo (Baú só na Corrida, após 5, 1 por partida) + `poderElegivel` puro; `BeniStageCharacter` com `presentation="portrait"|"event"` (moldura coerente, sem imagem solta, sem corte do personagem); tela reescrita em áreas reservadas (guia/palavra/efeitos/opções), Beni nunca sobre as letras, Turbo sem qualquer pré-visualização, HUD/tema/tela final por modo, consumo+indicador de poderes. Testes P2R/P4R4 (smoke 2107/2107). **Sem commit; Portão Visual 1 pendente.**
+
+---
+
+## P4R5 — estabilização: Beni renderiza, finalização atômica, efeitos/sons/destaques (Portão Visual 1 pendente)
+
+Ver `spec-palavrinhas.md` §R5. Código (não commitado): `BeniStageCharacter` reescrito com a receita provada (Image RN + require estático + width/height explícitos + contain + onLoad/onError + fallback); tela com finalização ATÔMICA (`finalizarPalavra`: conclui no núcleo antes dos efeitos), mapa de sons único, destaques locais não persistentes, grade de diagnóstico de poses (dev), slots memoizados. Testes P4R5 (smoke 2113/2113). **Sem commit; Portão Visual 1 pendente.**
+
+---
+
+## P4R6 — direção visual, coreografia, poses por apresentação, navegação (Portão Visual 1 pendente)
+
+Ver `spec-palavrinhas.md` §R6. Código (não commitado): novo módulo PURO `palavrinhasVisualDirector.js` (grupos de poses, presets, prioridade, permanências, mapeadores); `BeniStageCharacter` com guarda de apresentação + presets; tela com coreografia por token, Super Beni/Brilho Triplo como overlays, limpeza entre palavras, hierarquia sonora, grade DEV nos dois formatos e **navegação da tela final corrigida** (rota aninhada). Testes P4R6d (diretor puro) + P4R6 (tela). Smoke 2122/2122. **Sem commit; Portão Visual 1 pendente.**
+
+---
+
+## P4R7 — carregamento determinístico, Bolso Mágico, Turbo autoritativo (Portão Visual 1 pendente)
+
+Ver `spec-palavrinhas.md` §R7. Código (não commitado): novo `palavrinhasPoderes.js` (8 poderes puros); máquina com `TEMPO_ESGOTADO`; `BeniStageCharacter` cover + crossfade load-gated; diretor com presets cover + partículas determinísticas + prioridade TEMPO_ESGOTADO; tela com warmer/preload, relógio por deadline, Bolso Mágico manual, overlays reconstruídos, laboratório DEV. Testes P4R7m/P4R7p/P4R6d/P4R7 (smoke 2131/2131). **Sem commit; Portão Visual 1 pendente.**
+
+---
+
+## P4R8 — warmup compartilhado, infinitos, encerramento manual, dock inferior (Portão Visual 1 pendente)
+
+Ver `spec-palavrinhas.md` §R8. Código (não commitado): `beniAssetWarmup.js` (singleton) + warmup iniciado na BrincarScreen + `PalavrinhasBeniWarmer`; `BeniStageCharacter` cache compartilhado + onLoadEnd; Corrida/Turbo infinitos; encerramento manual; Baú a cada 4 + múltiplos + pendente; Bolso na barra inferior (`PalavrinhasPowerDock`) com ativação manual + FSM (`PalavrinhasPowerEffect`, consumo no impact); HUD/Chest extraídos. Testes P2R/P4R7m/P4R7p/P4R6d/P4R8 (smoke 2133/2133). **Sem commit; Portão Visual 1 pendente.**
+
+---
+
+## P4R9 — imagens estáveis, pose por palavra, Vento, painel de poder (Portão Visual 1 pendente)
+
+Ver `spec-palavrinhas.md` §R9. Código (não commitado): warmup por TAMANHO (readyPortrait/readyEvent) + warmer 2 Images (128/220); `BeniStageCharacter` placeholder + guarda mesma-source + ready por tamanho; pose portrait ESTÁVEL por palavra (RNG); BrincarScreen navega imediatamente; `avaliarUsoDoPoder` puro + `PalavrinhasPowerDetailsPanel`; Vento corrigido + timeout de segurança; botão "Encerrar" com texto + modal; Triplo compacto + Super grande só 1ª vez; 1º Baú automático / seguintes manuais. Testes P4R9/P4R9p (smoke 2134/2134). **Sem commit; Portão Visual 1 pendente.**
+
+---
+
+## P4R9a — dica do poder (faixa larga) + auditoria (Portão Visual 1 pendente)
+
+Causa: dica dentro do slot (≈56px) absoluta só com right → largura limitada pelo slot. Correção mínima: `coachBand` LARGA acima do dock (left/right, ≤2 linhas, pointerEvents none, ícone), texto "Poder guardado! Toque nele quando quiser usar.", onboarding único 3,8s, some ao tocar/painel, não durante eventos, reinicia na partida, mov. reduzido só fade. Cabeçalho truncado = recomendação P1 (não alterado). Teste P4R9a; smoke 2135/2135. Sem commit. Auditoria final registrada no relatório (não implementada).

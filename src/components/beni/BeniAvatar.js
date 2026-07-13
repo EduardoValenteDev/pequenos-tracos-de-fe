@@ -33,6 +33,11 @@ const VARIANT_POSE = {
   praying:     'orando',
   chest:       'comBau',
   atelie:      'atelie',
+  // poses adicionais (P4R2)
+  celebrating2: 'celebrando2',
+  resting:      'descansando',
+  pointRight:   'apontandoDireita',
+  pointLeft:    'apontandoEsquerda',
 };
 
 // Tamanhos com um pouco mais de presença (Beni mais fácil de identificar nos

@@ -41,6 +41,9 @@ export const ROUTES = Object.freeze({
   // Bloco 2.1 — vertical slice. Rota registrada SÓ sob o gate interno enquanto os
   // assets forem temporários (ver AppNavigator); em produção ela não existe.
   CADE_A_OVELHINHA: 'CadeAOvelhinha',
+  // Feature 009 — "Palavrinhas do Beni". P4 = protótipo visual (Portão Visual 1).
+  // Registrada SÓ sob o gate interno enquanto o jogo está em desenvolvimento.
+  PALAVRINHAS_DO_BENI: 'PalavrinhasDoBeni',
 
   // ── Outros ────────────────────────────────────────────────────────────────
   PARENT_AREA: 'ParentArea',

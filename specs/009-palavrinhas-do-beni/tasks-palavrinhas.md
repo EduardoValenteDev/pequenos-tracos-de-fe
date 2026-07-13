@@ -398,3 +398,51 @@ Cada tarefa: Objetivo · Arquivos novos · Alterados · Proibidos · Dependênci
 - **Alterados:** `scripts/smoke.js`. **Aceite:** smoke verde; nenhum check enfraquecido; P5 não iniciado. **Aparelho:** não. **Portão:** **🚦 PORTÃO VISUAL 1 (novo)** após T-R4…T-R8.
 
 > **Cancelados:** T-E2 (imagens de palavra), 🚦 Portão Visual 2, 🚦 Portão de Assets, manifesto/Lista de Imagens. O wire das poses órfãs do Beni (T-E1/P9) segue, sem depender de imagem de palavra.
+
+---
+
+## P4R3 — tarefas de código (não commitadas)
+
+T-R3.1 BeniStageCharacter (novo) · T-R3.2 registro das poses órfãs + fallback · T-R3.3 serviço (modos distintos + poderes + Diretor por combo de palavras) · T-R3.4 tela (combos separados, Magia do Livro, Baú+poderes, Palavra Relâmpago, página virando, tela final por modo) · T-R3.5 smoke P2R/P4R3. Portão Visual 1 pendente. Sem commit.
+
+---
+
+## P4R4 — tarefas de código (não commitadas)
+
+T-R4.1 serviço: identidade dos modos (Magia/Baú só na Corrida; Baú após 5, 1/partida; Turbo sem relâmpago) + `poderElegivel` puro · T-R4.2 `BeniStageCharacter` portrait/event com moldura · T-R4.3 tela: áreas reservadas + Beni fora da palavra + Turbo sem preview + HUD/tema/final por modo + consumo/indicador de poderes · T-R4.4 smoke P2R/P4R4. Portão Visual 1 pendente. Sem commit.
+
+---
+
+## P4R5 — tarefas de código (não commitadas)
+
+T-R5.1 `BeniStageCharacter` receita provada (Image RN, require estático, width/height explícitos, onLoad/onError, fallback) + grade de diagnóstico dev · T-R5.2 finalização atômica (`finalizarPalavra` conclui antes dos efeitos; combo do núcleo; Magia após conclusão) · T-R5.3 efeitos dos poderes + acerto/erro/palavra completa + Brilho Triplo · T-R5.4 mapa de sons único + destaques locais + memoização dos slots · T-R5.5 smoke P4R5. Portão Visual 1 pendente. Sem commit.
+
+---
+
+## P4R6 — tarefas de código (não commitadas)
+
+T-R6.1 diretor visual PURO (poses por apresentação, presets, prioridade, permanências, mapeadores) · T-R6.2 `BeniStageCharacter` guarda portrait + presets · T-R6.3 coreografia (token, evento único do marco, última letra, limpeza) · T-R6.4 overlays Super Beni/Brilho Triplo + hierarquia sonora · T-R6.5 correção da navegação (rota aninhada Brincar) · T-R6.6 smoke P4R6d/P4R6. Portão Visual 1 pendente. Sem commit.
+
+---
+
+## P4R7 — tarefas de código (não commitadas)
+
+T-R7.1 auditoria real dos 11 arquivos (sharp) + presets cover/overscan · T-R7.2 `BeniStageCharacter` cover + load-gated crossfade + fallback · T-R7.3 preload/ready (warmer, POSES_MINIMAS, Abrir o Livro gated) · T-R7.4 máquina `TEMPO_ESGOTADO` + relógio deadline + esgotarTempo autoritativo + AppState · T-R7.5 `palavrinhasPoderes.js` (8) + Bolso Mágico manual + elegibilidade/consumo · T-R7.6 overlays reconstruídos + partículas determinísticas + sons · T-R7.7 laboratório DEV · T-R7.8 smoke P4R7m/p + P4R7. Portão Visual 1 pendente. Sem commit.
+
+---
+
+## P4R8 — tarefas de código (não commitadas)
+
+T-R8.1 `beniAssetWarmup` singleton + warmup na BrincarScreen + `PalavrinhasBeniWarmer` · T-R8.2 `BeniStageCharacter` cache compartilhado/onLoadEnd · T-R8.3 modos infinitos (config) + encerramento manual + motivo do fim · T-R8.4 Baú a cada 4 + múltiplos + pendente com inventário cheio · T-R8.5 `PalavrinhasPowerDock` (barra inferior) + `PalavrinhasPowerEffect` (FSM, consumo no impact) + `PalavrinhasHud`/`PalavrinhasChest` · T-R8.6 prioridade de eventos com BAU + Novo capítulo · T-R8.7 smoke P4R8. Portão Visual 1 pendente. Sem commit.
+
+---
+
+## P4R9 — tarefas de código (não commitadas)
+
+T-R9.1 warmup por tamanho + warmer 2 Images · T-R9.2 `BeniStageCharacter` placeholder + guarda mesma-source · T-R9.3 pose portrait estável por palavra (RNG) · T-R9.4 BrincarScreen navegação imediata · T-R9.5 `avaliarUsoDoPoder` + `PalavrinhasPowerDetailsPanel` + Vento corrigido + timeout · T-R9.6 botão Encerrar + modal + Triplo compacto + Super 1ª-vez + 1º Baú automático/seguintes manuais · T-R9.7 smoke P4R9/P4R9p. Portão Visual 1 pendente. Sem commit.
+
+---
+
+## P4R9a — dica do poder (faixa larga) + auditoria (Portão Visual 1 pendente)
+
+Causa: dica dentro do slot (≈56px) absoluta só com right → largura limitada pelo slot. Correção mínima: `coachBand` LARGA acima do dock (left/right, ≤2 linhas, pointerEvents none, ícone), texto "Poder guardado! Toque nele quando quiser usar.", onboarding único 3,8s, some ao tocar/painel, não durante eventos, reinicia na partida, mov. reduzido só fade. Cabeçalho truncado = recomendação P1 (não alterado). Teste P4R9a; smoke 2135/2135. Sem commit. Auditoria final registrada no relatório (não implementada).

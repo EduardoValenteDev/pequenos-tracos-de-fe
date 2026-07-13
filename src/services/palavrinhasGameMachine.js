@@ -61,7 +61,14 @@ export const EVENTOS = Object.freeze({
   PROXIMA_PAGINA: 'PROXIMA_PAGINA',
   AVANCAR_PAGINA: 'AVANCAR_PAGINA',
   ABANDONAR: 'ABANDONAR',
+  TEMPO_ESGOTADO: 'TEMPO_ESGOTADO',   // (P4R7) término AUTORITATIVO por tempo — vence qualquer estado ativo
 });
+
+/** Estados ativos em que o tempo pode esgotar (todos exceto seleção/preparo/final). */
+export const FASES_ATIVAS = Object.freeze([
+  FASES.ABRINDO_LIVRO, FASES.APRESENTANDO_PALAVRA, FASES.PENSANDO, FASES.VALIDANDO_LETRA, FASES.RESGATANDO,
+  FASES.PREPARANDO_TRACADO, FASES.TRACANDO, FASES.VALIDANDO_TRACADO, FASES.CELEBRANDO, FASES.PREPARANDO_REFORCO, FASES.TROCANDO_PAGINA,
+]);
 
 export const PALAVRINHAS_MAX_ERROS = 3;   // 3ª tentativa incorreta ⇒ Resgate
 export const REFORCO_MAX = 2;             // até 2 páginas extras de reforço
@@ -246,6 +253,14 @@ export function reduzir(estado, evento) {
         return sem({ ...estado, fase: FASES.PREPARANDO_REFORCO });
       }
       return com({ ...estado, fase: FASES.FINALIZADO }, [EFEITOS.SOM_RESULTADO, EFEITOS.FINALIZAR]);
+    }
+
+    case EVENTOS.TEMPO_ESGOTADO: {
+      // Término AUTORITATIVO (P4R7): aceito de QUALQUER estado ativo → FINALIZADO. Uma vez
+      // finalizado, RESOLVER/RESGATE_CONCLUIDO atrasados são no-op (não reabrem a rodada).
+      if (f === FASES.FINALIZADO) return sem(estado);
+      if (!FASES_ATIVAS.includes(f)) return sem(estado);
+      return com({ ...estado, fase: FASES.FINALIZADO, tempoEsgotado: true }, [EFEITOS.SOM_RESULTADO, EFEITOS.FINALIZAR]);
     }
 
     case EVENTOS.ABANDONAR:

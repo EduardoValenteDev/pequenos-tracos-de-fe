@@ -110,3 +110,51 @@ Não foi só acabamento: a **concepção central divergiu da visão do propriet�
 
 ### 5.5 Critérios do novo Portão Visual 1 (P4R)
 Ver plano §14.5 (10 critérios): sem imagem/contradição; palavra herói; Beni reagindo em todos os estados; toque instantâneo + letra→lacuna; dificuldade por lacunas + acentos no Difícil; tempo (+5s/−2s/alerta vermelho/som/limpeza); combo; sem linha/sem vazio/cabeçalho livre do banner/Safe Area/iPhone+Android; tela final com 4 botões + mensagem de participação; gates verdes + P5 não iniciado + sem pose órfã + sem asset novo.
+
+---
+
+## 6. P4R3 — consistência (Portão Visual 1 pendente)
+
+Corte do Beni: **causa** = BeniCircularArt (recorte circular + crop negativo em camada overflow hidden); **correção** = BeniStageCharacter (contain, camada própria overflow visible, sem crop). Combo de LETRAS separado do combo de PALAVRAS (Brilho Triplo/Super por PALAVRAS). Magia do Livro + Baú Mágico (comBau, timer pausado, 2 poderes, Magia zera). Modos distintos (Corrida meta 8; Turbo sobrevivência + Palavra Relâmpago). Áreas protegidas intactas (App.js/storageKeys/achievements/paywall). P5/traçado não iniciados. Gates verdes (smoke 2102/2102). Sem commit.
+
+---
+
+## 7. P4R4 — consistência (Portão Visual 1 pendente)
+
+Magia/Baú/poderes SÓ na Corrida (medio): flags `magia/poderes/bauApos=5/bauMax=1`; Livro/Turbo sem qualquer renderização de Magia/Baú/poder. Turbo sem pré-visualização (removidos relâmpago/estado/timer 900ms/fala; `mostra = !isGap || val`). Beni em área reservada (portrait, moldura coerente), nunca sobre as letras; sem overlay absoluto; `presentation="event"` nas telas. Poderes com elegibilidade pura (`poderElegivel`) + consumo/indicador. Áreas protegidas intactas (App.js/storageKeys/achievements/paywall). P5/traçado não iniciados. Gates verdes (smoke 2107/2107). Sem commit.
+
+---
+
+## 8. P4R5 — consistência (Portão Visual 1 pendente)
+
+Beni renderiza (Image RN + width/height explícitos, corrige o 0×0 no Fabric); fallback nunca deixa só o fundo; 11 poses validáveis por grade dev gated. Contadores sincronizados (conclusão no núcleo antes dos efeitos; Magia só após conclusão; Triplo só em múltiplo de 3). Sons por mapa único (sem áudio novo), soundsEnabled + limpeza no unmount. Destaques locais não persistentes; `achievements.js` intocado; sem storage/paywall/chaves. Perf: slots memoizados sem `restante`. P5/traçado não iniciados. Gates verdes (smoke 2113/2113). Sem commit.
+
+---
+
+## 9. P4R6 — consistência (Portão Visual 1 pendente)
+
+Poses separadas por apresentação (portrait nunca mostra pose event; presets por pose; grade DEV dois formatos). Coreografia com prioridade (um evento domina) + token (ignora callbacks antigos) + permanências mínimas; última letra sem pose intermediária; Super vence Triplo (eventoDoMarco). Super/Triplo como overlays; Super pausa timer + bloqueia input + game_victory exclusivo. Limpeza total entre palavras. Navegação da tela final corrigida (rota aninhada real de ParesDoBeni). Diretor é módulo PURO. Áreas protegidas intactas; achievements/paywall/chaves intocados. P5/traçado não iniciados. Gates verdes (smoke 2122/2122). Sem commit.
+
+---
+
+## 10. P4R7 — consistência (Portão Visual 1 pendente)
+
+Auditoria real: artes opacas full-bleed, ratios 4:5/1:1 → cover elimina bandas/cantos. Carregamento determinístico (warmer + ready-gating; overlay só com pose ready/fallback; crossfade após onLoad). Bolso Mágico manual (8 poderes só na Corrida; consumo só após início; nunca automático). Turbo autoritativo: `TEMPO_ESGOTADO` terminal na máquina pura + relógio por deadline + esgotarTempo (cancela timers, invalida token, ignora callbacks atrasados) + AppState recalcula. Partículas determinísticas (sem Math.random). Sons: maiores calam menores. Navegação aninhada. Áreas protegidas intactas; máquina alterada só p/ o evento terminal testado; achievements/paywall/chaves intocados. P5/traçado não iniciados. Gates verdes (smoke 2131/2131). Sem commit.
+
+---
+
+## 11. P4R8 — consistência (Portão Visual 1 pendente)
+
+Warmup compartilhado (singleton) iniciado na BrincarScreen → 1ª moldura nunca vazia; crossfade após onLoadEnd; overlay só com pose ready/fallback. Corrida/Turbo infinitos (sem meta 8); encerramento manual (pausa deadline + ABANDONAR); motivo do fim distinto. Baú a cada 4 na Corrida (vários; pendente se inventário cheio). Bolso na barra INFERIOR (topo enxuto); ativação manual; FSM prepare/impact/resolve/finish; consumo no impact; inelegível não consome. Prioridade de eventos com BAU (Super antes do Baú; sem dois overlays). Componentes extraídos. Turbo autoritativo mantido. Áreas protegidas intactas (máquina só TEMPO_ESGOTADO; BrincarScreen só warmup/gate aditivo; achievements/paywall/chaves intocados). P5/traçado não iniciados. Gates verdes (smoke 2133/2133). Sem commit.
+
+---
+
+## 12. P4R9 — consistência (Portão Visual 1 pendente)
+
+Primeiro toque navega imediatamente (sem bloqueio silencioso); estado de preparo com ícone; nunca moldura vazia (placeholder + ready por tamanho). Pose portrait estável por palavra (RNG; sem repetir); acerto/erro/evento não trocam a source; nunca transiciona p/ mesma pose. Triplo/Super posterior compactos; Super grande só na 1ª vez, gated por readyEvent. Botão Encerrar com texto + modal. Painel largo de poder; `avaliarUsoDoPoder` puro (nunca bloqueia sem motivo); Vento corrigido (4→2/3→1/2→0, nunca a correta, min 2 opções) + timeout de segurança. 1º Baú automático, seguintes manuais. Áreas protegidas intactas (BrincarScreen só warmup/navegação aditiva; máquina intocada nesta rodada; achievements/paywall/storage intocados). P5/traçado não iniciados. Gates verdes (smoke 2134/2134). Sem commit.
+
+---
+
+## P4R9a — dica do poder (faixa larga) + auditoria (Portão Visual 1 pendente)
+
+Causa: dica dentro do slot (≈56px) absoluta só com right → largura limitada pelo slot. Correção mínima: `coachBand` LARGA acima do dock (left/right, ≤2 linhas, pointerEvents none, ícone), texto "Poder guardado! Toque nele quando quiser usar.", onboarding único 3,8s, some ao tocar/painel, não durante eventos, reinicia na partida, mov. reduzido só fade. Cabeçalho truncado = recomendação P1 (não alterado). Teste P4R9a; smoke 2135/2135. Sem commit. Auditoria final registrada no relatório (não implementada).

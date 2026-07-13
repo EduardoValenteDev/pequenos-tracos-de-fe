@@ -24,6 +24,11 @@ export const BENI_IMAGES = {
   ensinando:  require('../../../assets/mascot/beni/05_beni_ensinando.png'),
   orando:     require('../../../assets/mascot/beni/06_beni_orando.png'),
   atelie:     require('../../../assets/mascot/beni/07_beni_atelie.png'),
+  // Poses adicionais (arquivos já no disco) — registradas no P4R2 (aprovado).
+  celebrando2:       require('../../../assets/mascot/beni/08_beni_celebrando_2.png'),
+  descansando:       require('../../../assets/mascot/beni/09_beni_descansando.png'),
+  apontandoDireita:  require('../../../assets/mascot/beni/10_beni_apontando_direita.png'),
+  apontandoEsquerda: require('../../../assets/mascot/beni/11_beni_apontando_esquerda.png'),
 };
 
 /** Pose padrão segura (fallback universal). */
@@ -37,6 +42,13 @@ export const beniComBau     = BENI_IMAGES.comBau;
 export const beniEnsinando  = BENI_IMAGES.ensinando;
 export const beniOrando     = BENI_IMAGES.orando;
 export const beniAtelie     = BENI_IMAGES.atelie;
+export const beniCelebrando2       = BENI_IMAGES.celebrando2;
+export const beniDescansando       = BENI_IMAGES.descansando;
+export const beniApontandoDireita  = BENI_IMAGES.apontandoDireita;
+export const beniApontandoEsquerda = BENI_IMAGES.apontandoEsquerda;
 
-/** Lista dos 7 arquivos reais — usada pelo pré-carregamento de assets. */
+/** Chaves oficiais de pose (fonte estável para render e testes de existência). */
+export const BENI_POSE_KEYS = Object.freeze(Object.keys(BENI_IMAGES));
+
+/** Lista de TODOS os módulos reais — usada pelo pré-carregamento de assets. */
 export const BENI_IMAGE_LIST = Object.values(BENI_IMAGES);

@@ -1,157 +1,134 @@
 /**
- * palavrinhasWords.js — BANCO de palavras de "Palavrinhas do Beni" (Fase 0 · T-A1).
+ * palavrinhasWords.js — BANCO de "Palavrinhas do Beni" (P4R · ≥120 palavras · SEM imagem).
  *
- * MÓDULO PURO: sem React Native, sem Expo, sem UI, sem áudio, sem imagem (nenhum `require`
- * de asset), sem storage. Só dados + derivações determinísticas. Avaliável fora do RN
- * (smoke via `new Function`). Ver spec §10 e plan (regra de módulos puros).
+ * MÓDULO PURO: sem React Native, sem Expo, sem UI, sem áudio, **sem imagem** (nenhum `require`
+ * de asset), sem storage. A PALAVRA é o centro visual — não há figura representando a palavra.
  *
- * ── Estrutura por palavra (spec §10.1) ────────────────────────────────────────
- *   id · word · displayWord · normalizedWord · letters · letterInstances · syllables? ·
- *   difficulty · category · imageRef · enabled · activityEligibility · missingPatterns ·
- *   distractors · focusLetters · traceTargets · accentRules · confusableLetters ·
- *   reinforcementPatterns.
- *
- * ── Regras (Portão 1) ─────────────────────────────────────────────────────────
- *   - Letras repetidas = INSTÂNCIAS próprias (`letterInstances[].iid`), não só o caractere.
- *   - `displayWord` preserva o glifo visual (acentos/Ç); `normalizedWord` é só lógica.
- *   - Acentos/Ç ficam RESTRITOS ao Difícil e só depois da infra validada → tais palavras
- *     nascem `enabled: false` (não entram no jogo na v1).
- *   - `imageRef` é METADADO SEGURO (chave + status), nunca um caminho de asset exigido.
- *     Status: 'reuso-candidato' (avaliado no Portão Visual 2) · 'novo' (produção P13).
+ * ── Regras (P4R) ──────────────────────────────────────────────────────────────
+ *   - 120 palavras únicas (40 fácil · 40 médio · 40 difícil), sem depender de assets.
+ *   - `displayWord` preserva a grafia (acentos/Ç); `normalizedWord` é SÓ lógica (sem acento,
+ *     Ç→C, maiúsculas) e NUNCA apaga a exibição. Letras repetidas por `letterInstances[].iid`.
+ *   - Acentos/Ç são SUPORTADOS no COMPLETE (LEÃO, CORAÇÃO, AEROMOÇA, PÁSSARO, CAMINHÃO, AVIÃO…).
+ *     O traçado dessas letras fica fora do P4R.
+ *   - `orthographicFeatures` descreve a palavra (comprimento, acento, Ç, dígrafo, encontro
+ *     consonantal, letras repetidas) — usado pela seleção e pelo validador.
  */
 
-/** Categorias válidas (spec §10). */
+/** Categorias válidas. */
 export const PALAVRINHAS_CATEGORIAS = Object.freeze([
-  'animais', 'natureza', 'objetos', 'alimentos', 'familia', 'biblia', 'app',
+  'animais', 'natureza', 'objetos', 'alimentos', 'familia', 'biblia', 'app', 'corpo', 'transporte', 'lugares',
 ]);
 
-/** Confusões de letras a tratar (spec §20) — nunca exploradas por distratores enganosos. */
+/** Confusões de letras a tratar (nunca exploradas por distratores enganosos). */
 export const PALAVRINHAS_CONFUSOES = Object.freeze([
   ['B', 'D'], ['P', 'B'], ['M', 'N'], ['F', 'T'], ['C', 'G'], ['O', 'Q'], ['I', 'L'],
 ]);
 
+/** Faixas de comprimento por tier (difícil aceita curtas quando têm acento/Ç). */
+export const PALAVRINHAS_FAIXAS = Object.freeze({
+  facil: { min: 3, max: 5 }, medio: { min: 5, max: 8 }, dificil: { min: 7, max: 12 },
+});
+
 const POOL_DISTRATOR = 'ABCDEFGHIJLMNOPQRSTUVZ'.split('');
-
-/** Remove acentos (mantém caixa). PURO. */
 const semAcento = (w) => w.normalize('NFD').replace(/[̀-ͯ]/g, '');
-/** Normalização de lógica: sem acento, Ç→C, maiúsculas. NUNCA usado para exibir. PURO. */
 const normalizar = (w) => semAcento(w).replace(/[Çç]/g, 'C').toUpperCase();
-/** A palavra depende de infraestrutura de acentos/Ç ainda não validada? PURO. */
-const dependeInfra = (w) => /[ÁÉÍÓÚÂÊÔÀÃÕÇ]/.test(w);
+const temAcento = (w) => /[ÁÉÍÓÚÂÊÔÀÃÕ]/.test(w);
+const temCedilha = (w) => /Ç/.test(w);
+const temDigrafo = (w) => /(LH|NH|CH|RR|SS|QU|GU)/.test(w);
+const temEncontro = (w) => /(BR|CR|DR|FR|GR|PR|TR|VR|BL|CL|FL|GL|PL)/.test(normalizar(w));
+const temRepetida = (letters) => { const c = {}; for (const ch of letters) { c[ch] = (c[ch] || 0) + 1; if (c[ch] >= 2) return true; } return false; };
 
-/** missingPatterns padrão por dificuldade (índices sempre válidos, dentro do tamanho). */
-const gerarMissing = (letters, difficulty) => {
-  const n = letters.length;
-  const complete = [];
-  for (let i = 0; i < n; i++) complete.push([i]);            // lacunas de 1 letra em cada posição
-  if (difficulty !== 'facil' && n >= 4) complete.push([1, n - 1]); // 1 padrão de 2 letras nos modos maiores
-  return Object.freeze({ complete: Object.freeze(complete.map((p) => Object.freeze(p))), monte: Object.freeze(['ALL']) });
-};
-
-/** Distratores padrão: letras maiúsculas que NÃO estão na palavra (determinístico). */
-const gerarDistratores = (letters) => POOL_DISTRATOR.filter((c) => !letters.includes(c)).slice(0, 3);
-
-/** Letras confundíveis presentes na palavra (spec §20). */
+const gerarDistratores = (letters) => POOL_DISTRATOR.filter((c) => !letters.includes(c)).slice(0, 4);
 const gerarConfundiveis = (letters) => {
   const set = new Set();
   for (const [a, b] of PALAVRINHAS_CONFUSOES) if (letters.includes(a) || letters.includes(b)) { set.add(a); set.add(b); }
   return [...set];
 };
 
-/**
- * Fábrica de palavra. Deriva letters/letterInstances/normalizedWord de `displayWord` e
- * aplica defaults determinísticos. `enabled` cai para false quando a palavra depende de
- * acentos/Ç (infra não validada). PURO.
- */
-const palavra = ({ id, displayWord, difficulty, category, img, enabled }) => {
-  const word = displayWord;                          // canônica = exibida (maiúsculas, com acento)
-  const letters = Array.from(displayWord);           // cada glifo é um cartão (Ç/acento = 1 cartão)
+/** Fábrica de palavra. Deriva letters/letterInstances/normalizedWord/orthographicFeatures. PURO. */
+const palavra = ({ id, displayWord, difficulty, category }) => {
+  const letters = Array.from(displayWord);
   const letterInstances = letters.map((ch, pos) => ({ iid: `${id}#${pos}`, ch, pos }));
-  const normalizedWord = normalizar(displayWord);
-  const infra = dependeInfra(displayWord);
-  const focusLetters = [...new Set(letters.filter((c) => !dependeInfra(c)))]; // sem acento/Ç no traçado
+  const of = {
+    length: letters.length,
+    hasAccent: temAcento(displayWord),
+    hasCedilha: temCedilha(displayWord),
+    hasDigrafo: temDigrafo(displayWord),
+    hasCluster: temEncontro(displayWord),
+    hasRepeated: temRepetida(letters),
+  };
+  of.especial = of.hasAccent || of.hasCedilha;
+  of.complexa = of.hasCluster || of.hasDigrafo || of.especial || of.hasRepeated;
   return Object.freeze({
     id,
-    word,
+    word: displayWord,
     displayWord,
-    normalizedWord,
+    normalizedWord: normalizar(displayWord),
     letters: Object.freeze(letters),
     letterInstances: Object.freeze(letterInstances.map((li) => Object.freeze(li))),
-    syllables: null,                                 // opcional; não usado na Fase 0
     difficulty,
     category,
-    imageRef: Object.freeze({ key: img.key, status: img.status }),   // METADADO seguro (sem require)
-    enabled: enabled != null ? enabled : !infra,     // acentuadas/Ç ⇒ false até infra validar
-    activityEligibility: Object.freeze({ complete: true, monte: true, trace: focusLetters.length > 0 }),
-    missingPatterns: gerarMissing(letters, difficulty),
+    enabled: true,                                   // P4R: todas jogáveis no COMPLETE (inclui acento/Ç)
+    orthographicFeatures: Object.freeze(of),
     distractors: Object.freeze(gerarDistratores(letters)),
-    focusLetters: Object.freeze(focusLetters),
-    traceTargets: Object.freeze(focusLetters.slice()),   // metadados (geometria real só no protótipo)
-    accentRules: Object.freeze({ hasAccent: infra, accentChars: Object.freeze([...new Set(letters.filter(dependeInfra))]), introducedAt: 'dificil' }),
     confusableLetters: Object.freeze(gerarConfundiveis(letters)),
-    reinforcementPatterns: Object.freeze({ pattern: Object.freeze([Math.max(0, letters.length - 2)]), options: 2 }),
   });
 };
 
-const R = (key) => ({ key, status: 'reuso-candidato' });   // 6 candidatas (avaliadas no Portão Visual 2)
-const N = (id) => ({ key: `palavra_${id}`, status: 'novo' }); // 30 obrigatórias (produção P13)
+const mk = (difficulty) => (id, displayWord, category) => palavra({ id, displayWord, difficulty, category });
 
-/* ── FÁCIL (12) — sem acento/Ç/dígrafo ── */
+/* ── FÁCIL (40) — 3–5 letras, sem acento/Ç ── */
+const F = mk('facil');
 const FACIL = [
-  palavra({ id: 'sol', displayWord: 'SOL', difficulty: 'facil', category: 'natureza', img: N('sol') }),
-  palavra({ id: 'lua', displayWord: 'LUA', difficulty: 'facil', category: 'natureza', img: N('lua') }),
-  palavra({ id: 'bola', displayWord: 'BOLA', difficulty: 'facil', category: 'objetos', img: N('bola') }),
-  palavra({ id: 'pato', displayWord: 'PATO', difficulty: 'facil', category: 'animais', img: N('pato') }),
-  palavra({ id: 'gato', displayWord: 'GATO', difficulty: 'facil', category: 'animais', img: N('gato') }),
-  palavra({ id: 'casa', displayWord: 'CASA', difficulty: 'facil', category: 'objetos', img: N('casa') }),
-  palavra({ id: 'uva', displayWord: 'UVA', difficulty: 'facil', category: 'alimentos', img: N('uva') }),
-  palavra({ id: 'bolo', displayWord: 'BOLO', difficulty: 'facil', category: 'alimentos', img: N('bolo') }),
-  palavra({ id: 'rei', displayWord: 'REI', difficulty: 'facil', category: 'biblia', img: N('rei') }),
-  palavra({ id: 'arca', displayWord: 'ARCA', difficulty: 'facil', category: 'biblia', img: R('avatar_ark') }),
-  palavra({ id: 'peixe', displayWord: 'PEIXE', difficulty: 'facil', category: 'animais', img: R('avatar_fish') }),
-  palavra({ id: 'mel', displayWord: 'MEL', difficulty: 'facil', category: 'alimentos', img: N('mel') }),
+  F('f_sol', 'SOL', 'natureza'), F('f_lua', 'LUA', 'natureza'), F('f_uva', 'UVA', 'alimentos'), F('f_ovo', 'OVO', 'alimentos'),
+  F('f_asa', 'ASA', 'natureza'), F('f_rei', 'REI', 'biblia'), F('f_mel', 'MEL', 'alimentos'), F('f_pai', 'PAI', 'familia'),
+  F('f_boi', 'BOI', 'animais'), F('f_pato', 'PATO', 'animais'), F('f_gato', 'GATO', 'animais'), F('f_bola', 'BOLA', 'objetos'),
+  F('f_casa', 'CASA', 'lugares'), F('f_bolo', 'BOLO', 'alimentos'), F('f_sapo', 'SAPO', 'animais'), F('f_rato', 'RATO', 'animais'),
+  F('f_dado', 'DADO', 'objetos'), F('f_vaca', 'VACA', 'animais'), F('f_lobo', 'LOBO', 'animais'), F('f_urso', 'URSO', 'animais'),
+  F('f_peixe', 'PEIXE', 'animais'), F('f_suco', 'SUCO', 'alimentos'), F('f_faca', 'FACA', 'objetos'), F('f_moto', 'MOTO', 'transporte'),
+  F('f_sino', 'SINO', 'objetos'), F('f_nave', 'NAVE', 'transporte'), F('f_rosa', 'ROSA', 'natureza'), F('f_pipa', 'PIPA', 'objetos'),
+  F('f_mala', 'MALA', 'objetos'), F('f_gelo', 'GELO', 'natureza'), F('f_foca', 'FOCA', 'animais'), F('f_dedo', 'DEDO', 'corpo'),
+  F('f_cama', 'CAMA', 'objetos'), F('f_mesa', 'MESA', 'objetos'), F('f_saia', 'SAIA', 'objetos'), F('f_fada', 'FADA', 'app'),
+  F('f_trem', 'TREM', 'transporte'), F('f_bico', 'BICO', 'animais'), F('f_lixo', 'LIXO', 'objetos'), F('f_pano', 'PANO', 'objetos'),
 ];
 
-/* ── MÉDIO (12) — dígrafos LH/NH/CH; sem acento/Ç ── */
+/* ── MÉDIO (40) — 5–8 letras, dígrafos/encontros, sem acento pesado ── */
+const M = mk('medio');
 const MEDIO = [
-  palavra({ id: 'ovelha', displayWord: 'OVELHA', difficulty: 'medio', category: 'animais', img: R('avatar_sheep') }),
-  palavra({ id: 'pomba', displayWord: 'POMBA', difficulty: 'medio', category: 'biblia', img: R('avatar_dove') }),
-  palavra({ id: 'estrela', displayWord: 'ESTRELA', difficulty: 'medio', category: 'natureza', img: R('avatar_star') }),
-  palavra({ id: 'cavalo', displayWord: 'CAVALO', difficulty: 'medio', category: 'animais', img: N('cavalo') }),
-  palavra({ id: 'chuva', displayWord: 'CHUVA', difficulty: 'medio', category: 'natureza', img: N('chuva') }),
-  palavra({ id: 'galinha', displayWord: 'GALINHA', difficulty: 'medio', category: 'animais', img: N('galinha') }),
-  palavra({ id: 'coelho', displayWord: 'COELHO', difficulty: 'medio', category: 'animais', img: N('coelho') }),
-  palavra({ id: 'boneca', displayWord: 'BONECA', difficulty: 'medio', category: 'objetos', img: N('boneca') }),
-  palavra({ id: 'sapato', displayWord: 'SAPATO', difficulty: 'medio', category: 'objetos', img: N('sapato') }),
-  palavra({ id: 'banana', displayWord: 'BANANA', difficulty: 'medio', category: 'alimentos', img: N('banana') }),
-  palavra({ id: 'igreja', displayWord: 'IGREJA', difficulty: 'medio', category: 'biblia', img: N('igreja') }),
-  palavra({ id: 'chave', displayWord: 'CHAVE', difficulty: 'medio', category: 'objetos', img: N('chave') }),
+  M('m_ovelha', 'OVELHA', 'animais'), M('m_pomba', 'POMBA', 'biblia'), M('m_estrela', 'ESTRELA', 'natureza'), M('m_cavalo', 'CAVALO', 'animais'),
+  M('m_chuva', 'CHUVA', 'natureza'), M('m_galinha', 'GALINHA', 'animais'), M('m_coelho', 'COELHO', 'animais'), M('m_boneca', 'BONECA', 'objetos'),
+  M('m_sapato', 'SAPATO', 'objetos'), M('m_banana', 'BANANA', 'alimentos'), M('m_igreja', 'IGREJA', 'biblia'), M('m_chave', 'CHAVE', 'objetos'),
+  M('m_abelha', 'ABELHA', 'animais'), M('m_formiga', 'FORMIGA', 'animais'), M('m_janela', 'JANELA', 'objetos'), M('m_escola', 'ESCOLA', 'lugares'),
+  M('m_caderno', 'CADERNO', 'objetos'), M('m_baleia', 'BALEIA', 'animais'), M('m_macaco', 'MACACO', 'animais'), M('m_panela', 'PANELA', 'objetos'),
+  M('m_tomate', 'TOMATE', 'alimentos'), M('m_laranja', 'LARANJA', 'alimentos'), M('m_cenoura', 'CENOURA', 'alimentos'), M('m_morango', 'MORANGO', 'alimentos'),
+  M('m_cebola', 'CEBOLA', 'alimentos'), M('m_girafa', 'GIRAFA', 'animais'), M('m_zebra', 'ZEBRA', 'animais'), M('m_cobra', 'COBRA', 'animais'),
+  M('m_castelo', 'CASTELO', 'lugares'), M('m_estrada', 'ESTRADA', 'lugares'), M('m_planeta', 'PLANETA', 'natureza'), M('m_chinelo', 'CHINELO', 'objetos'),
+  M('m_telhado', 'TELHADO', 'lugares'), M('m_pipoca', 'PIPOCA', 'alimentos'), M('m_vestido', 'VESTIDO', 'objetos'), M('m_sorvete', 'SORVETE', 'alimentos'),
+  M('m_caminho', 'CAMINHO', 'lugares'), M('m_floresta', 'FLORESTA', 'natureza'), M('m_biscoito', 'BISCOITO', 'alimentos'), M('m_presente', 'PRESENTE', 'objetos'),
 ];
 
-/* ── DIFÍCIL (12) — maiores, letras repetidas; acentuadas/Ç nascem enabled:false ── */
+/* ── DIFÍCIL (40) — 7–12 letras E/OU acento/Ç/repetidas/encontros ── */
+const D = mk('dificil');
 const DIFICIL = [
-  palavra({ id: 'leao', displayWord: 'LEÃO', difficulty: 'dificil', category: 'animais', img: R('avatar_lion') }),
-  palavra({ id: 'coracao', displayWord: 'CORAÇÃO', difficulty: 'dificil', category: 'familia', img: N('coracao') }),
-  palavra({ id: 'arara', displayWord: 'ARARA', difficulty: 'dificil', category: 'animais', img: N('arara') }),
-  palavra({ id: 'elefante', displayWord: 'ELEFANTE', difficulty: 'dificil', category: 'animais', img: N('elefante') }),
-  palavra({ id: 'borboleta', displayWord: 'BORBOLETA', difficulty: 'dificil', category: 'natureza', img: N('borboleta') }),
-  palavra({ id: 'macaco', displayWord: 'MACACO', difficulty: 'dificil', category: 'animais', img: N('macaco') }),
-  palavra({ id: 'passaro', displayWord: 'PÁSSARO', difficulty: 'dificil', category: 'animais', img: N('passaro') }),
-  palavra({ id: 'caminhao', displayWord: 'CAMINHÃO', difficulty: 'dificil', category: 'objetos', img: N('caminhao') }),
-  palavra({ id: 'tartaruga', displayWord: 'TARTARUGA', difficulty: 'dificil', category: 'animais', img: N('tartaruga') }),
-  palavra({ id: 'aviao', displayWord: 'AVIÃO', difficulty: 'dificil', category: 'objetos', img: N('aviao') }),
-  palavra({ id: 'familia', displayWord: 'FAMÍLIA', difficulty: 'dificil', category: 'familia', img: N('familia') }),
-  palavra({ id: 'girafa', displayWord: 'GIRAFA', difficulty: 'dificil', category: 'animais', img: N('girafa') }),
+  D('d_leao', 'LEÃO', 'animais'), D('d_coracao', 'CORAÇÃO', 'familia'), D('d_aviao', 'AVIÃO', 'transporte'), D('d_passaro', 'PÁSSARO', 'animais'),
+  D('d_caminhao', 'CAMINHÃO', 'transporte'), D('d_aeromoca', 'AEROMOÇA', 'transporte'), D('d_familia', 'FAMÍLIA', 'familia'), D('d_maca', 'MAÇÃ', 'alimentos'),
+  D('d_limao', 'LIMÃO', 'alimentos'), D('d_botao', 'BOTÃO', 'objetos'), D('d_arara', 'ARARA', 'animais'), D('d_elefante', 'ELEFANTE', 'animais'),
+  D('d_borboleta', 'BORBOLETA', 'animais'), D('d_tartaruga', 'TARTARUGA', 'animais'), D('d_macarrao', 'MACARRÃO', 'alimentos'), D('d_dinossauro', 'DINOSSAURO', 'animais'),
+  D('d_bicicleta', 'BICICLETA', 'transporte'), D('d_abacaxi', 'ABACAXI', 'alimentos'), D('d_chocolate', 'CHOCOLATE', 'alimentos'), D('d_professora', 'PROFESSORA', 'familia'),
+  D('d_computador', 'COMPUTADOR', 'objetos'), D('d_crocodilo', 'CROCODILO', 'animais'), D('d_joaninha', 'JOANINHA', 'animais'), D('d_passarinho', 'PASSARINHO', 'animais'),
+  D('d_cachoeira', 'CACHOEIRA', 'natureza'), D('d_estrelinha', 'ESTRELINHA', 'natureza'), D('d_brinquedo', 'BRINQUEDO', 'objetos'), D('d_trenzinho', 'TRENZINHO', 'transporte'),
+  D('d_margarida', 'MARGARIDA', 'natureza'), D('d_abobora', 'ABÓBORA', 'alimentos'), D('d_pirulito', 'PIRULITO', 'alimentos'), D('d_borracha', 'BORRACHA', 'objetos'),
+  D('d_pinguim', 'PINGUIM', 'animais'), D('d_garotinho', 'GAROTINHO', 'familia'), D('d_presepio', 'PRESÉPIO', 'biblia'), D('d_corujinha', 'CORUJINHA', 'animais'),
+  D('d_girassol', 'GIRASSOL', 'natureza'), D('d_cavalinho', 'CAVALINHO', 'animais'), D('d_melao', 'MELÃO', 'alimentos'), D('d_feijao', 'FEIJÃO', 'alimentos'),
 ];
 
-/** Banco completo (36 palavras: 12 fácil · 12 médio · 12 difícil). */
+/** Banco completo (120: 40 fácil · 40 médio · 40 difícil). */
 export const PALAVRINHAS_WORDS = Object.freeze([...FACIL, ...MEDIO, ...DIFICIL]);
 
 export function getWord(id) {
   return PALAVRINHAS_WORDS.find((w) => w.id === id) || null;
 }
 
-/** Palavras realmente jogáveis (enabled !== false). */
 export function palavrasHabilitadas() {
   return PALAVRINHAS_WORDS.filter((w) => w.enabled !== false);
 }

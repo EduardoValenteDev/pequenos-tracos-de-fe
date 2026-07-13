@@ -18138,7 +18138,8 @@ check(
     check('2.2e (produção/ícone): rota dev-gated; card "Em teste" só em dev; ovelha é SVG; sem emoji',
       /CADE_A_OVELHINHA: 'CadeAOvelhinha'/.test(rt)
       && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="CadeAOvelhinha"/.test(nav)
-      && /id === 'ovelha' && isInternalToolsEnabled\(\) \?/.test(brc)
+      && /ovelha:\s*ROUTES\.CADE_A_OVELHINHA/.test(brc)
+      && /DEV_ROTAS\[id\] && isInternalToolsEnabled\(\) \?/.test(brc)
       && /chip="Em teste"/.test(tela)
       && /function OvelhaSvg/.test(fi) && !/ovelha: 'eye'/.test(fi)
       && !/\p{Extended_Pictographic}/u.test(telaRaw) && !/\p{Extended_Pictographic}/u.test(scenesRaw) && !/\p{Extended_Pictographic}/u.test(assetsRaw),
@@ -18152,230 +18153,800 @@ check(
   }
 
   // ════════════════════════════════════════════════════════════════════════════
-  console.log('\n── Bloco P2/P3: Palavrinhas do Beni (Fase 0 · módulos puros) ──');
+  console.log('\n── Bloco P2R/P3: Palavrinhas do Beni (núcleo puro · P4R) ──');
   {
     const wordsRaw = readSrc('src/data/palavrinhasWords.js');
     const svcRaw = readSrc('src/services/palavrinhasGameService.js');
     const mqRaw = readSrc('src/services/palavrinhasGameMachine.js');
-
     const stripMod = (s) => a1StripComments(s)
       .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
       .replace(/^export\s+default[\s\S]*$/m, '')
       .replace(/^export\s+/gm, '');
-
     const evalSvc = () => new Function(stripMod(wordsRaw) + '\n' + stripMod(svcRaw)
-      + ';return { PALAVRINHAS_WORDS, palavrasHabilitadas, PALAVRINHAS_DIFFICULTIES, getDifficulty, palavraElegivel,'
-      + ' novaSeed, criarRng, shuffle, validarBanco, criarDeckState, clonarDeckState, assinaturaDeck, planId,'
-      + ' montarBaralhoPalavras, planPartida, PALAVRINHAS_CATEGORIAS };')();
+      + ';return { PALAVRINHAS_WORDS, palavrasHabilitadas, PALAVRINHAS_DIFFICULTIES, getDifficulty, palavraElegivel, comprimentoCompativel,'
+      + ' novaSeed, criarRng, shuffle, validarBanco, escolherLacunas, montarOpcoes, criarDeckState, clonarDeckState, assinaturaDeck, planId,'
+      + ' montarBaralhoPalavras, planPartida, perfilCombo, complexidade, nLacunasAdaptativo, montarOpcoesAdaptativo, proximaPaginaAdaptativa,'
+      + ' PALAVRINHAS_PODERES, sortearPoderes, poderElegivel, RELOGIO_FOLGA_MIN_MS, PALAVRINHAS_CATEGORIAS, PALAVRINHAS_FAIXAS, getWord };')();
     const evalMq = () => new Function(stripMod(mqRaw)
-      + ';return { FASES, FASES_QUE_ACEITAM, EFEITOS, EVENTOS, brilhoDaPalavra, criarSessao, reduzir, aceitaEvento,'
-      + ' terminou, paginaAtual, iniciarReforco, PALAVRINHAS_MAX_ERROS, REFORCO_MAX };')();
+      + ';return { FASES, FASES_QUE_ACEITAM, EFEITOS, EVENTOS, brilhoDaPalavra, criarSessao, reduzir, aceitaEvento, terminou, paginaAtual };')();
 
-    /* ── T-A1: banco ── */
-    check('P2 (banco): 36 palavras (12/12/12), validarBanco 0 problemas, 30 habilitadas',
+    check('P2R (banco): 120 palavras (40/40/40), validarBanco 0 problemas, todas habilitadas',
       (() => { try {
         const S = evalSvc();
-        if (S.PALAVRINHAS_WORDS.length !== 36) return false;
+        if (S.PALAVRINHAS_WORDS.length < 120) return false;
         const c = { facil: 0, medio: 0, dificil: 0 };
         S.PALAVRINHAS_WORDS.forEach((w) => c[w.difficulty]++);
-        if (c.facil !== 12 || c.medio !== 12 || c.dificil !== 12) return false;
+        if (c.facil < 40 || c.medio < 40 || c.dificil < 40) return false;
         const probs = S.validarBanco();
         if (probs.length) { console.log('   validarBanco →', probs.slice(0, 6).join(' | ')); return false; }
-        return S.palavrasHabilitadas().length === 30;
+        return S.palavrasHabilitadas().length === S.PALAVRINHAS_WORDS.length;
       } catch (e) { console.log('   erro', e.message); return false; } })(),
-      'o banco (36, 12/12/12, validador, 30 habilitadas) regrediu');
+      'o banco (≥120, 40/40/40, validador, habilitadas) regrediu');
 
-    check('P2 (letras repetidas por instância): ARARA = 5 instâncias com iid único; cada ch/pos coerente',
+    check('P2R (acentos/Ç no COMPLETE): LEÃO/CORAÇÃO/AEROMOÇA/PÁSSARO/CAMINHÃO/AVIÃO habilitadas, elegíveis e com grafia preservada',
       (() => { try {
         const S = evalSvc();
-        const a = S.PALAVRINHAS_WORDS.find((w) => w.id === 'arara');
-        const iids = new Set(a.letterInstances.map((li) => li.iid));
-        return a.letterInstances.length === 5 && iids.size === 5
-          && a.letterInstances.every((li, k) => li.ch === a.letters[k] && li.pos === k)
-          && a.letterInstances.filter((li) => li.ch === 'A').length === 3
-          && a.letterInstances.filter((li) => li.ch === 'R').length === 2;
+        const ex = ['LEÃO', 'CORAÇÃO', 'AEROMOÇA', 'PÁSSARO', 'CAMINHÃO', 'AVIÃO'];
+        return ex.every((dw) => {
+          const w = S.PALAVRINHAS_WORDS.find((x) => x.displayWord === dw);
+          return w && w.enabled === true && S.palavraElegivel(w, 'dificil')
+            && w.displayWord === dw && /[ÁÉÍÓÚÂÊÔÀÃÕÇ]/.test(w.displayWord) && !/[ÁÉÍÓÚÂÊÔÀÃÕÇ]/.test(w.normalizedWord);
+        });
       } catch (e) { return false; } })(),
-      'as instâncias de letras repetidas regrediram');
+      'acentos/Ç deixaram de ser suportados no COMPLETE ou a grafia foi perdida');
 
-    check('P2 (acentos/Ç enabled:false): as 6 palavras acentuadas/Ç ficam fora do jogo na v1',
+    check('P2R (sem imagem): nenhuma palavra tem imageRef; letras repetidas por instância (ARARA/DINOSSAURO)',
       (() => { try {
         const S = evalSvc();
-        const off = S.PALAVRINHAS_WORDS.filter((w) => w.enabled === false).map((w) => w.id).sort().join(',');
-        return off === 'aviao,caminhao,coracao,familia,leao,passaro';
+        if (S.PALAVRINHAS_WORDS.some((w) => 'imageRef' in w)) return false;
+        const ar = S.getWord('d_arara'), di = S.getWord('d_dinossauro');
+        return ar.letterInstances.length === 5 && new Set(ar.letterInstances.map((l) => l.iid)).size === 5
+          && ar.letterInstances.filter((l) => l.ch === 'A').length === 3
+          && di.letterInstances.filter((l) => l.ch === 'S').length === 2;
       } catch (e) { return false; } })(),
-      'a regra de acentos/Ç (enabled:false na v1) regrediu');
+      'o banco voltou a depender de imagem ou as instâncias regrediram');
 
-    check('P2 (imageRef seguro): todo imageRef é metadado {key,status}, sem caminho/require de asset',
-      (() => { try {
-        const S = evalSvc();
-        return S.PALAVRINHAS_WORDS.every((w) => w.imageRef && typeof w.imageRef.key === 'string'
-          && !/[./\\]/.test(w.imageRef.key) && ['novo', 'reuso-candidato'].includes(w.imageRef.status));
-      } catch (e) { return false; } })(),
-      'algum imageRef deixou de ser metadado seguro');
-
-    check('P2/P3 (módulos puros): words/service/machine SEM import de RN/Expo/UI/áudio/storage/imagem',
+    check('P2R/P3 (módulos puros): words/service/machine SEM RN/Expo/UI/áudio/storage/imagem',
       (() => {
         const proibido = /from\s+['"]react-native|from\s+['"]expo|from\s+['"][^'"]*\/(components|screens|context)\/|AsyncStorage|audioManager|require\([^)]*\.(png|jpg|jpeg|webp)/;
         return [wordsRaw, svcRaw, mqRaw].every((s) => !proibido.test(a1StripComments(s)))
-          // service só pode importar do banco (dado puro)
-          && !/import[\s\S]*?from\s*['"](?!\.\.\/data\/palavrinhasWords)[^'"]+['"]/.test(a1StripComments(svcRaw).replace(/import[\s\S]*?palavrinhasWords['"];?/, ''))
-          && !/^import/m.test(a1StripComments(mqRaw));   // máquina sem imports
+          && !/^import/m.test(a1StripComments(mqRaw));
       })(),
-      'um módulo puro importou RN/Expo/UI/áudio/storage/imagem');
+      'um módulo puro passou a importar RN/Expo/UI/áudio/storage/imagem');
 
-    /* ── T-A2: seed / baralho / plano / planId ── */
-    check('P2 (rodadas por modo): fácil 5 · médio 7 · difícil 10',
+    check('P2R (modos P4R8): Livro finito (8, sem tempo/Baú) · Corrida INFINITA (Baú a cada 4, vários) · Turbo INFINITO (sem Baú/poderes)',
       (() => { try {
         const S = evalSvc();
-        return S.planPartida({ rng: S.criarRng(1), dificuldade: 'facil' }).plano.length === 5
-          && S.planPartida({ rng: S.criarRng(1), dificuldade: 'medio' }).plano.length === 7
-          && S.planPartida({ rng: S.criarRng(1), dificuldade: 'dificil' }).plano.length === 10;
+        const f = S.getDifficulty('facil'), m = S.getDifficulty('medio'), d = S.getDifficulty('dificil');
+        return f.label === 'Livro Tranquilo' && !f.timed && f.rounds === 8 && f.metaPalavras === 8 && f.infinito === false && f.opcoes === 3 && f.lacunasMax === 1
+            && f.magia === false && f.poderes === false && f.bauApos === 0
+          && m.label === 'Corrida das Palavras' && m.timed && m.infinito === true && m.metaPalavras === null && m.tempoInicialMs === 45000 && m.tempoMaxMs === 60000 && m.opcoes === 4
+            && m.magia === true && m.poderes === true && m.bauApos === 4 && m.bauMax >= 999
+          && d.label === 'Turbo Relâmpago' && d.timed && d.infinito === true && d.metaPalavras === null && d.tempoInicialMs === 22000 && d.tempoMaxMs === 30000 && d.opcoes === 5
+            && d.magia === false && d.poderes === false && d.bauApos === 0;
       } catch (e) { return false; } })(),
-      'as rodadas por modo (5/7/10) regrediram');
+      'a identidade P4R8 dos modos (Corrida/Turbo infinitos, Baú a cada 4) regrediu');
 
-    check('P2 (determinismo): mesma seed → mesmo plano; seeds diferentes → planId diferente',
+    check('P2R (poderes do Baú): 5 poderes; sempre 2 cartas distintas; só a Corrida é cronometrada com Baú',
+      (() => { try {
+        const S = evalSvc();
+        if (S.PALAVRINHAS_PODERES.length !== 5) return false;
+        for (let seed = 1; seed <= 60; seed++) {
+          const m = S.sortearPoderes('medio', S.criarRng(seed), { restanteMs: 20000, tempoMaxMs: 60000 });
+          if (m.length !== 2 || m[0].id === m[1].id) return false;
+        }
+        // no Médio (com folga de tempo) o Relógio de Luz pode aparecer
+        let temRelogio = false; for (let s = 1; s <= 60; s++) if (S.sortearPoderes('medio', S.criarRng(s), { restanteMs: 20000, tempoMaxMs: 60000 }).some((p) => p.id === 'relogio')) temRelogio = true;
+        return temRelogio;
+      } catch (e) { return false; } })(),
+      'os poderes do Baú (5, 2 distintas, Relógio na Corrida) regrediram');
+
+    check('P2R (elegibilidade PURA de poderes §7): Relógio só com tempo E folga; nunca poder já ativo; nunca incompatível',
+      (() => { try {
+        const S = evalSvc();
+        const relogio = S.PALAVRINHAS_PODERES.find((p) => p.id === 'relogio');
+        const vento = S.PALAVRINHAS_PODERES.find((p) => p.id === 'vento');
+        // Relógio: exige timed
+        if (S.poderElegivel(relogio, { timed: false })) return false;
+        // Relógio: sem folga (quase no teto) → não oferecer
+        if (S.poderElegivel(relogio, { timed: true, restanteMs: 59500, tempoMaxMs: 60000 })) return false;
+        // Relógio: com folga → oferecer
+        if (!S.poderElegivel(relogio, { timed: true, restanteMs: 20000, tempoMaxMs: 60000 })) return false;
+        // poder já ativo nunca é oferecido
+        if (S.poderElegivel(vento, { timed: true, ativos: ['vento'] })) return false;
+        if (!S.poderElegivel(vento, { timed: true, ativos: ['escudo'] })) return false;
+        // sortearPoderes com Vento ativo nunca devolve Vento; e sem folga nunca devolve Relógio
+        for (let s = 1; s <= 40; s++) {
+          const semFolga = S.sortearPoderes('medio', S.criarRng(s), { ativos: ['vento'], restanteMs: 59800, tempoMaxMs: 60000 });
+          if (semFolga.some((p) => p.id === 'vento' || p.id === 'relogio')) return false;
+          if (semFolga.length !== 2 || semFolga[0].id === semFolga[1].id) return false;
+        }
+        return typeof S.RELOGIO_FOLGA_MIN_MS === 'number';
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'a elegibilidade pura de poderes (Relógio/folga/ativo/incompatível) regrediu');
+
+    check('P2R (determinismo): mesma seed → mesmo plano+planId; seeds diferentes diferem; banco intacto; deckState imutável',
       (() => { try {
         const S = evalSvc();
         const a = S.planPartida({ rng: S.criarRng(42), dificuldade: 'medio' });
         const b = S.planPartida({ rng: S.criarRng(42), dificuldade: 'medio' });
         if (JSON.stringify(a.plano) !== JSON.stringify(b.plano) || a.planId !== b.planId) return false;
-        let diff = 0;
-        for (let s = 1; s <= 40; s++) if (S.planPartida({ rng: S.criarRng(s), dificuldade: 'medio' }).planId !== a.planId) diff++;
-        return diff >= 30 && /^[0-9a-z]{6}$/.test(a.planId);
+        let diff = 0; for (let s = 1; s <= 40; s++) if (S.planPartida({ rng: S.criarRng(s), dificuldade: 'medio' }).planId !== a.planId) diff++;
+        const snap = JSON.stringify(S.PALAVRINHAS_WORDS); S.planPartida({ rng: S.criarRng(7), dificuldade: 'dificil' });
+        const d0 = S.criarDeckState(); const ds = JSON.stringify(d0); S.planPartida({ rng: S.criarRng(3), dificuldade: 'facil', deckState: d0 });
+        return diff >= 30 && /^[0-9a-z]{6}$/.test(a.planId) && JSON.stringify(S.PALAVRINHAS_WORDS) === snap && JSON.stringify(d0) === ds;
       } catch (e) { return false; } })(),
-      'o determinismo (seed → plano/planId) regrediu');
+      'o determinismo/imutabilidade do plano regrediu');
 
-    check('P2 (planId): mesmo plano → mesmo planId (FNV-1a base36, 6 chars)',
+    check('P2R (lacunas por modo): Fácil 1 · Médio 2–3 · Difícil 2–4 (clampado por tamanho); NUNCA a 1ª letra; Fácil sem repetir palavra',
       (() => { try {
         const S = evalSvc();
-        const p = S.planPartida({ rng: S.criarRng(9), dificuldade: 'facil' });
-        return p.planId === S.planId(p.plano) && /^[0-9a-z]{6}$/.test(p.planId);
-      } catch (e) { return false; } })(),
-      'o planId deixou de ser determinístico');
-
-    check('P2 (baralho não altera o banco): PALAVRINHAS_WORDS intacto após planPartida',
-      (() => { try {
-        const S = evalSvc();
-        const snap = JSON.stringify(S.PALAVRINHAS_WORDS);
-        S.planPartida({ rng: S.criarRng(7), dificuldade: 'dificil' });
-        S.montarBaralhoPalavras({ rng: S.criarRng(3), dificuldade: 'medio' });
-        return JSON.stringify(S.PALAVRINHAS_WORDS) === snap;
-      } catch (e) { return false; } })(),
-      'o baralho mutou o banco original');
-
-    check('P2 (clonagem sem refs mutáveis): clonarDeckState não compartilha arrays',
-      (() => { try {
-        const S = evalSvc();
-        const d = S.criarDeckState();
-        d.decks.facil = { restantes: ['a'], ultimo: null, ultimaCategoria: null };
-        d.hist.facil = [{ wordId: 'a' }];
-        const c = S.clonarDeckState(d);
-        c.decks.facil.restantes.push('b');
-        c.hist.facil.push({ wordId: 'b' });
-        return d.decks.facil.restantes.length === 1 && c.decks.facil.restantes.length === 2
-          && d.hist.facil.length === 1 && c.hist.facil.length === 2;
-      } catch (e) { return false; } })(),
-      'a clonagem compartilhou referências mutáveis');
-
-    check('P2 (deckState entrada imutável): planPartida não muta o deckState recebido',
-      (() => { try {
-        const S = evalSvc();
-        const d0 = S.criarDeckState();
-        const snap = JSON.stringify(d0);
-        S.planPartida({ rng: S.criarRng(3), dificuldade: 'facil', deckState: d0 });
-        return JSON.stringify(d0) === snap;
-      } catch (e) { return false; } })(),
-      'planPartida mutou o deckState de entrada');
-
-    check('P2 (sem repetição prematura + alternância de atividade): partida sem palavra repetida; sem 3 atividades iguais seguidas',
-      (() => { try {
-        const S = evalSvc();
-        for (let seed = 1; seed <= 100; seed++) {
-          const pl = S.planPartida({ rng: S.criarRng(seed), dificuldade: 'medio' }).plano;
-          if (new Set(pl.map((p) => p.wordId)).size !== pl.length) return false;
-          for (let i = 2; i < pl.length; i++) if (pl[i].activity === pl[i - 1].activity && pl[i - 1].activity === pl[i - 2].activity) return false;
-          if (pl.some((p) => !['complete', 'monte'].includes(p.activity))) return false;
+        const faMin = { facil: 1, medio: 2, dificil: 2 }, faMax = { facil: 1, medio: 3, dificil: 4 };
+        for (const d of ['facil', 'medio', 'dificil']) {
+          for (let seed = 1; seed <= 60; seed++) {
+            const pl = S.planPartida({ rng: S.criarRng(seed), dificuldade: d }).plano;
+            if (d === 'facil' && new Set(pl.map((p) => p.wordId)).size !== pl.length) return false;
+            for (const pg of pl) {
+              const k = pg.lacunas.length;
+              const teto = Math.max(1, S.getWord(pg.wordId).letters.length - 2);
+              if (pg.lacunas.includes(0)) return false;
+              if (k > faMax[d] || k > teto) return false;
+              if (k < Math.min(faMin[d], teto)) return false;
+            }
+          }
         }
         return true;
       } catch (e) { return false; } })(),
-      'o baralho repetiu palavra na partida ou empilhou 3 atividades iguais');
+      'as lacunas por modo (contagem, 1ª letra, repetição) regrediram');
 
-    /* ── T-A3: máquina pura ── */
-    check('P3 (partida completa): chega a FINALIZADO; efeitos são retornados separados do estado',
+    check('P2R (Diretor adaptativo): perfilCombo por combo/erros; Turbo 1ª página curta (2 lacunas); rampa até 4 no combo alto; determinístico; banco intacto',
+      (() => { try {
+        const S = evalSvc();
+        const p0 = S.perfilCombo(0, 0), p3 = S.perfilCombo(3, 0), p6 = S.perfilCombo(6, 0), pa = S.perfilCombo(6, 2);
+        if (p0.lacunasBias !== 'min' || p3.lacunasBias !== 'mais' || p6.lacunasBias !== 'max' || pa.faixa !== 'apoio') return false;
+        // Turbo 1ª página: nunca longa; lacunas = mínimo (2)
+        for (let seed = 1; seed <= 40; seed++) {
+          const r = S.proximaPaginaAdaptativa({ dificuldade: 'dificil', rng: S.criarRng(seed), deckState: S.criarDeckState(), combo: 0, primeira: true });
+          if (r.pagina.lacunas.length !== 2 || r.pagina.length > 8 || r.pagina.lacunas.includes(0)) return false;
+        }
+        // rampa: combo alto chega a 4 lacunas
+        let deck = S.criarDeckState(); const rng = S.criarRng(9); let mx = 0;
+        for (let i = 0; i < 40; i++) { const r = S.proximaPaginaAdaptativa({ dificuldade: 'dificil', rng, deckState: deck, combo: 8, primeira: false }); deck = r.deckState; mx = Math.max(mx, r.pagina.lacunas.length); }
+        if (mx !== 4) return false;
+        // determinismo + banco intacto
+        const a = S.proximaPaginaAdaptativa({ dificuldade: 'medio', rng: S.criarRng(5), deckState: S.criarDeckState(), combo: 3 });
+        const b = S.proximaPaginaAdaptativa({ dificuldade: 'medio', rng: S.criarRng(5), deckState: S.criarDeckState(), combo: 3 });
+        const snap = JSON.stringify(S.PALAVRINHAS_WORDS); S.proximaPaginaAdaptativa({ dificuldade: 'dificil', rng: S.criarRng(1), deckState: S.criarDeckState(), combo: 6 });
+        return a.pagina.wordId === b.pagina.wordId && JSON.stringify(a.pagina.lacunas) === JSON.stringify(b.pagina.lacunas) && JSON.stringify(S.PALAVRINHAS_WORDS) === snap;
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'o Diretor adaptativo (perfil, Turbo 1ª página, rampa, determinismo) regrediu');
+
+    /* ── Máquina (P3) ── */
+    check('P3 (partida): Fácil completa 8 páginas → FINALIZADO; efeitos separados do estado',
       (() => { try {
         const S = evalSvc(); const Mq = evalMq(); const E = Mq.EVENTOS;
         const { plano } = S.planPartida({ rng: S.criarRng(5), dificuldade: 'facil' });
         let e = Mq.criarSessao();
         const r0 = Mq.reduzir(e, { tipo: E.ESCOLHER_DIFICULDADE, dificuldade: 'facil' });
-        if (!Array.isArray(r0.efeitos)) return false;   // efeitos sempre array, separados do estado
-        const step = (ev) => { const r = Mq.reduzir(e, ev); e = r.estado; return r.efeitos; };
+        if (!Array.isArray(r0.efeitos)) return false;
+        const step = (ev) => { const r = Mq.reduzir(e, ev); e = r.estado; };
         step({ tipo: E.ESCOLHER_DIFICULDADE, dificuldade: 'facil' });
         step({ tipo: E.SESSAO_PRONTA, plano });
         step({ tipo: E.LIVRO_ABERTO });
         for (let i = 0; i < e.rounds; i++) {
-          step({ tipo: E.PALAVRA_PRONTA, letras: 3 });
-          for (let k = 0; k < 3; k++) { step({ tipo: E.TOCAR_LETRA, correta: true }); step({ tipo: E.RESOLVER }); }
+          const K = plano[i].lacunas.length;
+          step({ tipo: E.PALAVRA_PRONTA, letras: K });
+          for (let k = 0; k < K; k++) { step({ tipo: E.TOCAR_LETRA, correta: true }); step({ tipo: E.RESOLVER }); }
           step({ tipo: E.TRACADO_PRONTO }); step({ tipo: E.TRACADO_OK }); step({ tipo: E.RESOLVER });
           step({ tipo: E.PROXIMA_PAGINA }); step({ tipo: E.AVANCAR_PAGINA });
         }
-        return e.fase === Mq.FASES.FINALIZADO && e.concluidas === 5 && e.independentes === 5 && e.brilhoTotal === 15;
+        return e.fase === Mq.FASES.FINALIZADO && e.concluidas === 8;
       } catch (e) { console.log('   erro', e.message); return false; } })(),
-      'a partida completa da máquina regrediu');
+      'a partida completa (fácil 8 páginas) regrediu');
 
-    check('P3 (plano imutável na máquina): SESSAO_PRONTA congela o plano; a máquina nunca o altera',
+    check('P3 (plano imutável / transições seguras / 3 erros→Resgate / brilho 3-2-1)',
       (() => { try {
         const S = evalSvc(); const Mq = evalMq(); const E = Mq.EVENTOS;
+        if (Mq.brilhoDaPalavra({}) !== 3 || Mq.brilhoDaPalavra({ erros: 1 }) !== 2 || Mq.brilhoDaPalavra({ dicas: 1 }) !== 2 || Mq.brilhoDaPalavra({ resgate: true, erros: 9 }) !== 1) return false;
         const { plano } = S.planPartida({ rng: S.criarRng(5), dificuldade: 'facil' });
         const snap = JSON.stringify(plano);
         let e = Mq.criarSessao();
         e = Mq.reduzir(e, { tipo: E.ESCOLHER_DIFICULDADE, dificuldade: 'facil' }).estado;
         e = Mq.reduzir(e, { tipo: E.SESSAO_PRONTA, plano }).estado;
-        return Object.isFrozen(e.plano) && JSON.stringify(plano) === snap;
-      } catch (e) { return false; } })(),
-      'a máquina alterou o plano recebido');
-
-    check('P3 (transições inválidas seguras): evento fora de fase e evento desconhecido = no-op (mesmo estado, 0 efeitos)',
-      (() => { try {
-        const Mq = evalMq(); const E = Mq.EVENTOS;
-        const e = Mq.criarSessao();
+        if (!Object.isFrozen(e.plano) || JSON.stringify(plano) !== snap) return false;
         const antes = JSON.stringify(e);
-        const r = Mq.reduzir(e, { tipo: E.TOCAR_LETRA, correta: true });   // TOCAR fora de PENSANDO
-        const r2 = Mq.reduzir(e, { tipo: 'EVENTO_INEXISTENTE' });
-        const r3 = Mq.reduzir(e, null);
-        return JSON.stringify(r.estado) === antes && r.efeitos.length === 0
-          && JSON.stringify(r2.estado) === antes && JSON.stringify(r3.estado) === antes;
-      } catch (e) { return false; } })(),
-      'uma transição inválida deixou de ser no-op segura');
-
-    check('P3 (3 erros → Resgate; brilho 3/2/1): brilho limpo=3, 1 erro/1 dica=2, Resgate=1; ENTRAR_RESGATE emitido',
-      (() => { try {
-        const S = evalSvc(); const Mq = evalMq(); const E = Mq.EVENTOS;
-        if (Mq.brilhoDaPalavra({}) !== 3 || Mq.brilhoDaPalavra({ erros: 1 }) !== 2
-          || Mq.brilhoDaPalavra({ dicas: 1 }) !== 2 || Mq.brilhoDaPalavra({ resgate: true, erros: 9 }) !== 1) return false;
-        const { plano } = S.planPartida({ rng: S.criarRng(1), dificuldade: 'facil' });
-        let e = Mq.criarSessao();
-        e = Mq.reduzir(e, { tipo: E.ESCOLHER_DIFICULDADE, dificuldade: 'facil' }).estado;
-        e = Mq.reduzir(e, { tipo: E.SESSAO_PRONTA, plano }).estado;
+        const inv = Mq.reduzir(e, { tipo: E.TOCAR_LETRA, correta: true });
+        if (JSON.stringify(inv.estado) !== antes || inv.efeitos.length !== 0) return false;
         e = Mq.reduzir(e, { tipo: E.LIVRO_ABERTO }).estado;
-        e = Mq.reduzir(e, { tipo: E.PALAVRA_PRONTA, letras: 3 }).estado;
+        e = Mq.reduzir(e, { tipo: E.PALAVRA_PRONTA, letras: 1 }).estado;
         let efs = [];
         for (let k = 0; k < 3; k++) { e = Mq.reduzir(e, { tipo: E.TOCAR_LETRA, correta: false }).estado; const r = Mq.reduzir(e, { tipo: E.RESOLVER }); e = r.estado; efs = efs.concat(r.efeitos); }
-        return e.fase === Mq.FASES.RESGATANDO && efs.includes(Mq.EFEITOS.ENTRAR_RESGATE);
+        return e.fase === Mq.FASES.RESGATANDO && efs.includes(Mq.EFEITOS.ENTRAR_RESGATE) && Mq.FASES_QUE_ACEITAM.length === 2;
       } catch (e) { return false; } })(),
-      'o caminho de 3 erros → Resgate ou o brilho 3/2/1 regrediu');
-
-    check('P3 (só PENSANDO/TRACANDO aceitam entrada): aceitaEvento reflete FASES_QUE_ACEITAM',
-      (() => { try {
-        const Mq = evalMq(); const E = Mq.EVENTOS;
-        const base = Mq.criarSessao();
-        const pensando = { ...base, fase: Mq.FASES.PENSANDO };
-        const tracando = { ...base, fase: Mq.FASES.TRACANDO };
-        return Mq.aceitaEvento(pensando, E.TOCAR_LETRA) && !Mq.aceitaEvento(base, E.TOCAR_LETRA)
-          && Mq.aceitaEvento(tracando, E.TRACADO_OK) && !Mq.aceitaEvento(pensando, E.TRACADO_OK)
-          && Mq.FASES_QUE_ACEITAM.length === 2;
-      } catch (e) { return false; } })(),
-      'o contrato de fases que aceitam entrada regrediu');
+      'a máquina (plano imutável / no-op / Resgate / brilho) regrediu');
   }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco P4R7m: Palavrinhas — Máquina (TEMPO_ESGOTADO terminal) ──');
+  {
+    const mqRaw = readSrc('src/services/palavrinhasGameMachine.js');
+    const stripMod = (s) => a1StripComments(s).replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '');
+    const evalMq = () => new Function(stripMod(mqRaw) + ';return { FASES, FASES_ATIVAS, EVENTOS, criarSessao, reduzir };')();
+    check('P4R7m (TEMPO_ESGOTADO terminal §15): aceito em TODO estado ativo → FINALIZADO; callbacks atrasados (RESOLVER/RESGATE_CONCLUIDO) NÃO reabrem',
+      (() => { try {
+        const M = evalMq(); const E = M.EVENTOS; const F = M.FASES;
+        const mk = () => { let e = M.criarSessao();
+          e = M.reduzir(e, { tipo: E.ESCOLHER_DIFICULDADE, dificuldade: 'dificil' }).estado;
+          e = M.reduzir(e, { tipo: E.SESSAO_PRONTA, plano: [{}, {}] }).estado;
+          e = M.reduzir(e, { tipo: E.LIVRO_ABERTO }).estado;
+          e = M.reduzir(e, { tipo: E.PALAVRA_PRONTA, letras: 1 }).estado; return e; };
+        const r = M.reduzir(mk(), { tipo: E.TEMPO_ESGOTADO });
+        if (r.estado.fase !== F.FINALIZADO || r.estado.tempoEsgotado !== true) return false;
+        // callbacks atrasados não reabrem
+        if (M.reduzir(r.estado, { tipo: E.RESOLVER }).estado.fase !== F.FINALIZADO) return false;
+        if (M.reduzir(r.estado, { tipo: E.RESGATE_CONCLUIDO }).estado.fase !== F.FINALIZADO) return false;
+        // aceito em todos os estados ativos
+        if (!Array.isArray(M.FASES_ATIVAS) || M.FASES_ATIVAS.length < 8) return false;
+        for (const fase of M.FASES_ATIVAS) { const est = { ...mk(), fase }; if (M.reduzir(est, { tipo: E.TEMPO_ESGOTADO }).estado.fase !== F.FINALIZADO) return false; }
+        // já finalizado não reabre
+        if (M.reduzir(r.estado, { tipo: E.TEMPO_ESGOTADO }).estado.fase !== F.FINALIZADO) return false;
+        return true;
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'o evento terminal TEMPO_ESGOTADO regrediu');
+  }
+
+  console.log('\n── Bloco P4R7p: Palavrinhas — Banco de 8 poderes (PURO) ──');
+  {
+    const pdRaw = (() => { try { return readSrc('src/services/palavrinhasPoderes.js'); } catch (_) { return ''; } })();
+    const stripMod = (s) => a1StripComments(s).replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '');
+    const evalP = () => new Function(stripMod(pdRaw) + ';return { PALAVRINHAS_PODERES, VOGAIS, RELOGIO_FOLGA_MIN_MS, getPoder, poderElegivel, avaliarUsoDoPoder, fxDuracaoTotal, POWER_FX_FASES, sortearCartas, parKey };')();
+    const rng = (seed) => { let s = (seed >>> 0) || 1; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; };
+
+    check('P4R7p (módulo PURO): banco de poderes sem RN/Expo/UI/áudio/storage',
+      pdRaw.length > 0 && !/from\s+['"]react-native|from\s+['"]expo|AsyncStorage|Animated|StyleSheet/.test(a1StripComments(pdRaw)),
+      'o módulo de poderes deixou de ser puro');
+
+    check('P4R7p (8 poderes §11): pool ≥ 8; ids esperados; ativacao válida; nome curto + ícone',
+      (() => { try {
+        const P = evalP(); const ids = P.PALAVRINHAS_PODERES.map((x) => x.id);
+        const esperados = ['lanterna', 'relogio', 'vento', 'escudo', 'dourada', 'ima', 'vogais', 'troca'];
+        return P.PALAVRINHAS_PODERES.length >= 8 && esperados.every((id) => ids.includes(id))
+          && P.PALAVRINHAS_PODERES.every((p) => ['imediata', 'armado'].includes(p.ativacao) && p.curto && p.icon)
+          && P.PALAVRINHAS_PODERES.find((p) => p.id === 'escudo').ativacao === 'armado';
+      } catch (e) { return false; } })(),
+      'o banco de 8 poderes regrediu');
+
+    check('P4R7p (elegibilidade §11–12): Relógio exige tempo+folga; Vogais sem vogal não; Vento sem 2 removíveis não; poder no inventário não; Dourada após começar não',
+      (() => { try {
+        const P = evalP(); const g = (id) => P.getPoder(id);
+        if (P.poderElegivel(g('relogio'), { timed: false })) return false;
+        if (P.poderElegivel(g('relogio'), { timed: true, restanteMs: 59500, tempoMaxMs: 60000 })) return false;
+        if (!P.poderElegivel(g('relogio'), { timed: true, restanteMs: 20000, tempoMaxMs: 60000 })) return false;
+        if (P.poderElegivel(g('vogais'), { vogalNaLacunaAtual: false })) return false;
+        if (!P.poderElegivel(g('vogais'), { vogalNaLacunaAtual: true })) return false;
+        if (P.poderElegivel(g('vento'), { nOpcoes: 4, nIncorretasRemoviveis: 1 })) return false;
+        if (!P.poderElegivel(g('vento'), { nOpcoes: 4, nIncorretasRemoviveis: 2 })) return false;
+        if (P.poderElegivel(g('ima'), { ativos: ['ima'] })) return false;
+        if (P.poderElegivel(g('dourada'), { palavraComecada: true })) return false;
+        if (!P.poderElegivel(g('dourada'), { palavraComecada: false })) return false;
+        if (!P.poderElegivel(g('escudo'), {})) return false;   // armado sempre guardável
+        return true;
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'a elegibilidade dos poderes regrediu');
+
+    check('P4R7p (sorteio §12): 2 cartas distintas; determinístico; filtra Relógio quase no teto; usa RNG (sem Math.random)',
+      (() => { try {
+        const P = evalP();
+        for (let s = 1; s <= 60; s++) { const c = P.sortearCartas(rng(s), { timed: true, restanteMs: 20000, tempoMaxMs: 60000, ativos: [] }); if (c.length !== 2 || c[0].id === c[1].id) return false; }
+        const a = P.sortearCartas(rng(5), { timed: true, restanteMs: 20000, tempoMaxMs: 60000, ativos: [] });
+        const b = P.sortearCartas(rng(5), { timed: true, restanteMs: 20000, tempoMaxMs: 60000, ativos: [] });
+        if (P.parKey(a) !== P.parKey(b)) return false;
+        for (let s = 1; s <= 40; s++) { const c = P.sortearCartas(rng(s), { timed: true, restanteMs: 59800, tempoMaxMs: 60000, ativos: [] }); if (c.some((x) => x.id === 'relogio')) return false; }
+        // sorteio dirigido por `rng` injetado (Math.random só como default param, nunca no corpo)
+        return /shuffle\(validos, rng\)/.test(a1StripComments(pdRaw));
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'o sorteio de 2 cartas regrediu');
+
+    check('P4R9p (avaliarUsoDoPoder §17–18): retorna {podeUsar,motivo,quantidadeDeEfeito}; Vento 4→2, 3→1, 2→0; nunca bloqueia sem motivo; fases prepare/impact/resolve/finish',
+      (() => { try {
+        const P = evalP(); const g = (id) => P.getPoder(id);
+        const r = (id, ctx) => P.avaliarUsoDoPoder(g(id), ctx);
+        // formato
+        const a = r('vento', { nOpcoes: 4, nIncorretasRemoviveis: 2 });
+        if (typeof a.podeUsar !== 'boolean' || !('motivo' in a) || typeof a.quantidadeDeEfeito !== 'number') return false;
+        // Vento: 4 opções → remove 2; 3 → 1; 2 → 0 (com motivo)
+        if (!(r('vento', { nOpcoes: 4, nIncorretasRemoviveis: 2 }).quantidadeDeEfeito === 2)) return false;
+        if (!(r('vento', { nOpcoes: 3, nIncorretasRemoviveis: 2 }).quantidadeDeEfeito === 1)) return false;
+        const dois = r('vento', { nOpcoes: 2, nIncorretasRemoviveis: 2 });
+        if (dois.podeUsar || dois.quantidadeDeEfeito !== 0 || !dois.motivo) return false;
+        // nunca depende do total original (só das visíveis): 5 visíveis também remove 2
+        if (r('vento', { nOpcoes: 5, nIncorretasRemoviveis: 3 }).quantidadeDeEfeito !== 2) return false;
+        // inelegíveis sempre têm motivo (nunca bloqueio silencioso)
+        if (r('vogais', { vogalNaLacunaAtual: false }).motivo == null) return false;
+        if (r('dourada', { palavraComecada: true }).motivo == null) return false;
+        if (r('relogio', { timed: true, restanteMs: 59500, tempoMaxMs: 60000 }).motivo == null) return false;
+        // elegíveis não têm motivo
+        if (r('escudo', {}).podeUsar !== true) return false;
+        if (r('lanterna', { lacunaAtiva: true, nOpcoes: 4 }).motivo != null) return false;
+        // fases da máquina de efeito
+        return Array.isArray(P.POWER_FX_FASES) && ['prepare', 'impact', 'resolve', 'finish'].every((f) => P.POWER_FX_FASES.includes(f)) && P.fxDuracaoTotal('vento') > 0;
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'a avaliação de uso do poder (Vento/motivos/fases) regrediu');
+  }
+
+  console.log('\n── Bloco P4R6d: Palavrinhas — Diretor Visual (módulo PURO) ──');
+  {
+    const dirRaw = (() => { try { return readSrc('src/services/palavrinhasVisualDirector.js'); } catch (_) { return ''; } })();
+    const stripMod = (s) => a1StripComments(s)
+      .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+      .replace(/^export\s+default[\s\S]*$/m, '')
+      .replace(/^export\s+/gm, '');
+    const evalDir = () => new Function(stripMod(dirRaw)
+      + ';return { PORTRAIT_POSES, EVENT_POSES, BENI_STAGE_PRESETS, poseSuportada, posePortraitSegura, presetDe,'
+      + ' EVENTOS_VISUAIS, PRIORIDADE_EVENTOS, eventoDominante, eventoDoMarco, PERMANENCIA_MS, permanenciaDe, posePortraitDe, poseEventDe };')();
+
+    check('P4R6d (módulo PURO): diretor visual sem RN/Expo/UI/áudio/storage',
+      dirRaw.length > 0 && !/from\s+['"]react-native|from\s+['"]expo|AsyncStorage|Animated|StyleSheet/.test(a1StripComments(dirRaw)),
+      'o diretor visual deixou de ser um módulo puro');
+
+    check('P4R6d (grupos de poses): 6 portrait + 5 event disjuntos; pose event NUNCA suportada em portrait; portrait aceita em ambos',
+      (() => { try {
+        const D = evalDir();
+        const P = D.PORTRAIT_POSES, E = D.EVENT_POSES;
+        if (P.length !== 6 || E.length !== 5) return false;
+        if (P.some((x) => E.includes(x))) return false;   // disjuntos
+        // event nunca em portrait
+        if (E.some((x) => D.poseSuportada(x, 'portrait'))) return false;
+        // portrait suportada em portrait e em event
+        if (!P.every((x) => D.poseSuportada(x, 'portrait') && D.poseSuportada(x, 'event'))) return false;
+        // posePortraitSegura devolve pose portrait (event → avatarBase)
+        if (D.posePortraitSegura('celebrando2') !== 'avatarBase') return false;
+        if (D.posePortraitSegura('acenando') !== 'acenando') return false;
+        return true;
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'os grupos de poses por apresentação regrediram');
+
+    check('P4R6d (presets): TODAS as 11 poses têm preset; portrait para poses de rodada; event para todas; presetDe sempre válido',
+      (() => { try {
+        const D = evalDir();
+        const todas = [...D.PORTRAIT_POSES, ...D.EVENT_POSES];
+        for (const pose of todas) {
+          if (!D.BENI_STAGE_PRESETS[pose]) return false;
+          const ev = D.presetDe(pose, 'event');
+          if (typeof ev.scale !== 'number') return false;
+        }
+        for (const pose of D.PORTRAIT_POSES) {
+          const pt = D.presetDe(pose, 'portrait');
+          if (typeof pt.scale !== 'number') return false;
+        }
+        // pose desconhecida → preset neutro válido (cover)
+        const nn = D.presetDe('inexistente', 'portrait');
+        return nn.scale === 1 && nn.translateXf === 0 && nn.translateYf === 0 && nn.resizeMode === 'cover';
+      } catch (e) { return false; } })(),
+      'os presets de enquadramento regrediram');
+
+    check('P4R6d (prioridade + marco): Super vence Triplo no mesmo marco (15); eventoDominante respeita a ordem; permanências crescentes',
+      (() => { try {
+        const D = evalDir();
+        if (D.eventoDoMarco(15) !== 'SUPER_BENI') return false;      // 15 é %5 e %3 → Super vence
+        if (D.eventoDoMarco(3) !== 'BRILHO_TRIPLO') return false;
+        if (D.eventoDoMarco(5) !== 'SUPER_BENI') return false;
+        if (D.eventoDoMarco(2) !== 'PALAVRA_COMPLETA') return false;
+        if (D.eventoDominante(['ERRO', 'SUPER_BENI', 'LETRA_CORRETA']) !== 'SUPER_BENI') return false;
+        if (D.eventoDominante(['BRILHO_TRIPLO', 'PALAVRA_COMPLETA']) !== 'BRILHO_TRIPLO') return false;
+        if (D.eventoDominante([]) !== 'IDLE') return false;
+        // permanências P4R7: comum 800, palavra 700, triplo 1200, super 1700
+        return D.PERMANENCIA_MS.LETRA_CORRETA === 800 && D.PERMANENCIA_MS.PALAVRA_COMPLETA === 700
+          && D.PERMANENCIA_MS.BRILHO_TRIPLO === 1200 && D.PERMANENCIA_MS.SUPER_BENI === 1700;
+      } catch (e) { return false; } })(),
+      'a prioridade/marco/permanência do diretor visual regrediu');
+
+    check('P4R6d (mapeadores de pose): posePortraitDe só devolve poses portrait; poseEventDe devolve poses event',
+      (() => { try {
+        const D = evalDir();
+        const ctxs = [
+          { evento: 'SUPER_BENI' }, { evento: 'BRILHO_TRIPLO' }, { evento: 'PALAVRA_COMPLETA' }, { evento: 'LETRA_CORRETA' },
+          { evento: 'ERRO' }, { evento: 'PODER_ATIVADO' }, { evento: 'IDLE' },
+          { evento: 'IDLE', modoResgate: true }, { evento: 'IDLE', tempoCritico: true },
+        ];
+        for (const c of ctxs) if (!D.PORTRAIT_POSES.includes(D.posePortraitDe(c))) return false;
+        if (D.poseEventDe('SUPER_BENI') !== 'celebrando2') return false;
+        if (D.poseEventDe('BRILHO_TRIPLO') !== 'celebrando') return false;
+        if (D.poseEventDe('BAU') !== 'comBau') return false;
+        return D.EVENT_POSES.includes(D.poseEventDe('SUPER_BENI'));
+      } catch (e) { return false; } })(),
+      'os mapeadores de pose (portrait/event) regrediram');
+  }
+
+  console.log('\n── Bloco P4R9: Palavrinhas do Beni (imagens estáveis · pose por palavra · Vento · painel de poder) ──');
+  {
+    const telaRaw = (() => { try { return readSrc('src/screens/PalavrinhasDoBeniScreen.js'); } catch (_) { return ''; } })();
+    const tela = a1StripComments(telaRaw);
+    const bsc = a1StripComments((() => { try { return readSrc('src/components/beni/BeniStageCharacter.js'); } catch (_) { return ''; } })());
+    const rt = readSrc('src/constants/routes.js');
+    const nav = a1StripComments(readSrc('src/navigation/AppNavigator.js'));
+    const brc = a1StripComments(readSrc('src/screens/BrincarScreen.js'));
+    const rd = (f) => a1StripComments((() => { try { return readSrc(f); } catch (_) { return ''; } })());
+    const warmup = rd('src/services/beniAssetWarmup.js');
+    const warmer = rd('src/components/palavrinhas/PalavrinhasBeniWarmer.js');
+    const hudC = rd('src/components/palavrinhas/PalavrinhasHud.js');
+    const dockC = rd('src/components/palavrinhas/PalavrinhasPowerDock.js');
+    const chestC = rd('src/components/palavrinhas/PalavrinhasChest.js');
+    const fxC = rd('src/components/palavrinhas/PalavrinhasPowerEffect.js');
+
+    check('P4R9 (Beni RENDERIZA — cover + load-gated): Image RN; require estático; width/height explícitos; COVER (sem bandas); sem expo-image/uri/Asset; crossfade só após onLoad da próxima; opacity inicial 1',
+      bsc.length > 0
+      && /export default function BeniStageCharacter/.test(bsc)
+      && /from 'react-native'/.test(bsc) && /\bImage\b/.test(bsc)
+      && !/expo-image/.test(bsc) && !/contentFit/.test(bsc)
+      && !/resolveAssetSource/.test(bsc) && !/\buri:/.test(bsc) && !/Asset\./.test(bsc)
+      && /source=\{fonte\(atual\)\}/.test(bsc) && /BENI_IMAGES\[p\]/.test(bsc)
+      && /width: size, height: size/.test(bsc)
+      && /resizeMode="cover"/.test(bsc) && !/resizeMode="contain"/.test(bsc)   // cover elimina as faixas do fundo
+      && /fadeDuration=\{0\}/.test(bsc)
+      && /opAtual = useRef\(new Animated\.Value\(1\)\)\.current;/.test(bsc)
+      && /onLoadEnd=\{onLoadEndAtual\}/.test(bsc) && /onError=\{onErroAtual\}/.test(bsc)
+      // ready por TAMANHO (readyPortrait/readyEvent) + NUNCA transiciona p/ mesma source + placeholder
+      && /import \{ readyPortrait, readyEvent, marcarProntaPortrait, marcarProntaEvent, assinar \} from '\.\.\/\.\.\/services\/beniAssetWarmup'/.test(bsc)
+      && /const jaPronta = \(p\) => \(isEvent \? readyEvent\(p\) : readyPortrait\(p\)\)/.test(bsc)
+      && /if \(!montado\.current \|\| nova === atualRef\.current \|\| fonte\(nova\) === fonte\(atualRef\.current\)\) return;/.test(bsc)   // mesma source → não pisca
+      && /if \(jaPronta\(nova\)\) \{ aguardando\.current = null; rodarFade\(\); \}/.test(bsc)
+      && /\{!prontaAtual \?/.test(bsc)   // placeholder (nunca moldura vazia)
+      && !/BeniCircularArt/.test(bsc),
+      'o pipeline de imagem do BeniStageCharacter (ready por tamanho, sem piscar mesma pose, placeholder) regrediu');
+
+    check('P4R9 (fallback do Beni): nunca só o fundo — mantém última pose válida → avatarBase; 11 poses registradas',
+      /const alvo = \(ultimoValido\.current && ultimoValido\.current !== atualRef\.current\) \? ultimoValido\.current : BENI_DEFAULT_VARIANT/.test(bsc)
+      && /const fonte = \(p\) => BENI_IMAGES\[p\] \|\| BENI_IMAGES\[BENI_DEFAULT_VARIANT\]/.test(bsc)
+      && (() => { try {
+        const bi = a1StripComments(readSrc('src/assets/mascot/beniImages.js'));
+        const poses = ['avatarBase', 'acenando', 'celebrando', 'comBau', 'ensinando', 'orando', 'atelie', 'celebrando2', 'descansando', 'apontandoDireita', 'apontandoEsquerda'];
+        return poses.every((p) => new RegExp(`${p}:\\s*require\\(`).test(bi)) && /BENI_POSE_KEYS/.test(bi);
+      } catch (_) { return false; } })(),
+      'o fallback do Beni ou o registro das 11 poses regrediu');
+
+    check('P4R9 (grade de diagnóstico DEV): 11 poses via BeniStageCharacter, gated por criadorAtivo, fora de produção',
+      /tela === 'entrada' && diag && criadorAtivo/.test(tela)
+      && /BENI_POSE_KEYS\.map\(\(pose\)/.test(tela)
+      && /<BeniStageCharacter presentation="portrait" pose=\{pose\}/.test(tela)
+      && /criadorAtivo \?[\s\S]*?setDiag\(true\)/.test(tela),
+      'a grade de diagnóstico de poses (dev, gated) regrediu');
+
+    check('P4R9 (Beni NUNCA sobre as letras): guia em área reservada (portrait) fora da área da palavra; sem overlay absoluto do Beni; palavra em área própria',
+      /<BeniStageCharacter presentation="portrait" pose=\{bPose\}/.test(tela)
+      && /guiaRow:/.test(tela) && /styles\.guiaRow/.test(tela)
+      && !/beniCamada/.test(tela)                       // não há mais overlay absoluto do Beni
+      && !/position: 'absolute'[^}]*<BeniStageCharacter/.test(tela)
+      && /styles\.palcoCard/.test(tela) && /styles\.slots/.test(tela)
+      // dentro da área da palavra (palcoCard) NÃO há BeniStageCharacter
+      && !/palcoCard[\s\S]{0,600}<BeniStageCharacter/.test(tela),
+      'o Beni pode estar sobreposto às letras ou em overlay absoluto');
+
+    check('P4R9 (áreas reservadas): faixa do guia · área da palavra · área de efeitos · área de opções, empilhadas',
+      /guiaRow: \{ flexDirection: 'row'/.test(tela)
+      && /palcoCard: \{/.test(tela)
+      && /efeitosArea: \{/.test(tela) && /styles\.efeitosArea/.test(tela)
+      && /opcoes: \{/.test(tela) && /styles\.opcoes/.test(tela),
+      'a divisão em áreas reservadas do palco regrediu');
+
+    check('P4R9 (unificação do enquadramento): jogo usa presentation="portrait"; entrada/Baú/fim usam presentation="event"',
+      /<BeniStageCharacter presentation="portrait"/.test(tela)
+      && (tela.match(/<BeniStageCharacter presentation="event"/g) || []).length >= 3,
+      'a unificação do enquadramento (portrait no jogo / event nas telas) regrediu');
+
+    check('P4R9 (pose portrait ESTÁVEL por palavra §5–6): bPose = portraitPose (não muda por acerto/erro/evento); escolhida por RNG na nova palavra, sem repetir; overlay usa readyEvent',
+      !/function poseKey/.test(tela) && !/posePortraitDe/.test(tela)   // não deriva a pose do evento
+      && /const bPose = portraitPose;/.test(tela)
+      && /const escolherPosePortrait = useCallback/.test(tela)
+      && /const cands = PORTRAIT_POSES\.filter\(\(p\) => p !== anterior\)/.test(tela)
+      && /const r = rngRef\.current \? rngRef\.current\(\) : 0\.5/.test(tela)   // RNG controlado, não Math.random
+      && /escolherPosePortrait\(\);/.test(tela)   // chamada quando a palavra entra (montarPagina)
+      && /pose=\{overlayPose\}/.test(tela) && /setOverlayPose\(poseEv\)/.test(tela)
+      && /<BeniStageCharacter presentation="portrait" pose=\{bPose\}/.test(tela),
+      'a estabilidade da pose portrait por palavra regrediu');
+
+    check('P4R9 (anti-imagem de palavra): sem imageRef/figura/require(png); <Image> só no WARMER do Beni (source BENI_IMAGES), nunca imagem de palavra',
+      telaRaw.length > 0
+      && !/imagemDaPalavra/.test(tela) && !/AVATAR_IMG/.test(tela) && !/POOL_WORDS/.test(tela)
+      && !/imageRef/.test(tela) && !/avatar_ark|avatar_fish|avatar_sheep|avatar_dove|avatar_star/.test(tela)
+      && !/figura/.test(tela) && !/<ExpoImage/.test(tela)
+      && !/require\([^)]*\.(png|jpg|jpeg|webp)/.test(tela)
+      // a tela NÃO tem <Image> (o warmer virou componente PalavrinhasBeniWarmer, com source BENI_IMAGES)
+      && !/<Image\b/.test(tela) && /<PalavrinhasBeniWarmer \/>/.test(tela)
+      && /source=\{BENI_IMAGES\[pose\]\}/.test(warmer),
+      'a tela principal voltou a depender de imagem de palavra');
+
+    check('P4R9 (rota+card+gate + áreas protegidas): rota/card sob gate; não toca storage/achievements/estrelas/paywall',
+      /PALAVRINHAS_DO_BENI:\s*'PalavrinhasDoBeni'/.test(rt)
+      && /palavrinhas:\s*ROUTES\.PALAVRINHAS_DO_BENI/.test(brc) && /DEV_ROTAS\[id\] && isInternalToolsEnabled\(\)/.test(brc)
+      && /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s*name="PalavrinhasDoBeni"/.test(nav)
+      && !/AsyncStorage|storageKeys|achievements|addBonusStars|accessControl|paywall|isPremiumUser/.test(tela),
+      'a rota/gate ou a proteção de áreas sensíveis regrediu');
+
+    check('P4R9 (finalização ATÔMICA §6): rotina única; PROXIMA_PAGINA (concluidas/sequência) ANTES dos efeitos; UM evento pelo marco; Magia só após conclusão; celebrar só troca página',
+      /const finalizarPalavra = useCallback/.test(tela)
+      // conclui no núcleo primeiro, captura a sequência nova, e só depois o evento
+      && /const rp = disparar\(\{ tipo: EVENTOS\.PROXIMA_PAGINA \}\);[\s\S]*?const seqNova = rp\.estado\.sequencia;[\s\S]*?comboRef\.current = seqNova; setComboPalavras\(seqNova\)/.test(tela)
+      // Magia só sobe dentro de finalizarPalavra (após a conclusão), guardada por cfg.magia
+      && /if \(cfg\.magia\) \{ magiaRef\.current = Math\.min\(cfg\.bauApos, magiaRef\.current \+ 1\)/.test(tela)
+      && /const celebrarEAvancar = useCallback[\s\S]*?disparar\(\{ tipo: EVENTOS\.AVANCAR_PAGINA \}\)/.test(tela)
+      && /const ev = eventoDoMarco\(seqNova\);/.test(tela)
+      && /iniciarEventoCelebracao\(kind, seqNova\)/.test(tela)
+      && /seqRef\.current \+= 1/.test(tela) && /setSequencia/.test(tela),
+      'a finalização atômica (conclusão antes dos efeitos, evento único do marco, Magia após conclusão) regrediu');
+
+    check('P4R9 (coreografia §3–5,12): token de evento ignora callbacks antigos; permanência mínima (PERMANENCIA_MS); limpeza total; última letra sem pose intermediária (som só quando não completa)',
+      /eventoTokenRef = useRef\(0\)/.test(tela)
+      && /const token = \(eventoTokenRef\.current \+= 1\)/.test(tela)
+      && /if \(!montado\.current \|\| finalizadoRef\.current \|\| eventoTokenRef\.current !== token\) return;/.test(tela)
+      && /dwell = PERMANENCIA_MS\.SUPER_BENI/.test(tela) && /dwell = PERMANENCIA_MS\.PALAVRA_COMPLETA/.test(tela)
+      && /const limparEvento = useCallback/.test(tela) && /setOverlay\(null\); overlayAtivoRef\.current = false; setEfeito\(null\); setPalcoDim\(false\); setCompacto\(null\)/.test(tela)
+      && /eventoTokenRef\.current \+= 1;\s*setOverlay\(null\); overlayAtivoRef\.current = false; setEfeito\(null\); setPalcoDim\(false\); inputTravadoRef\.current = false/.test(tela)
+      && /const completa = r\.estado\.fase === FASES\.PREPARANDO_TRACADO;\s*if \(!completa\) tocar\('letraOk'\)/.test(tela),
+      'a coreografia (token/permanência/limpeza/última letra) regrediu');
+
+    check('P4R9 (Super Beni SÓ na 1ª vez §12): overlay grande apenas com seq===5 && !superGrandeFeito && pose event ready; seguintes = compacto; raios; game_victory; texto + N seguidas',
+      /const superGrande = kind === 'super' && seq === 5 && !superGrandeFeitoRef\.current;/.test(tela)
+      && /const poseEv = superGrande \? poseEventProntaOuFallback\('celebrando2'\) : null;/.test(tela)
+      && /if \(superGrande && poseEv\) \{/.test(tela)
+      && /superGrandeFeitoRef\.current = true; superSeqRef\.current = seq;/.test(tela)
+      && /telaBauRef\.current \|\| inputTravadoRef\.current \|\| overlayAtivoRef\.current \|\| pausaModalRef\.current \|\| !!poderFxAtivoRef\.current/.test(tela)
+      && /function RaiosSuper/.test(tela) && /<RaiosSuper anim=\{raiosAnim\}/.test(tela)
+      && /SUPER BENI!/.test(tela) && /\{superSeqRef\.current\} palavras seguidas/.test(tela)
+      && /const MENORES = \['card_flip', 'match_success', 'match_error', 'board_complete', TICK\]/.test(tela),
+      'o Super Beni (grande só na 1ª vez, compacto depois) regrediu');
+
+    check('P4R9 (celebração COMPACTA §12): Triplo e Super posterior = compacto (sem overlay de personagem, ≤700ms); 3 estrelas + texto; não troca portrait',
+      /\} else if \(kind === 'super' \|\| kind === 'triplo'\) \{/.test(tela)
+      && /setCompacto\(\{ tipo: kind, seq \}\)/.test(tela)
+      && /dwell = 680;/.test(tela)
+      && /\{compacto \?/.test(tela) && /compactoStars/.test(tela)
+      && /Brilho Triplo!/.test(tela)
+      && !/setOverlay\('triplo'\)/.test(tela),   // Triplo não usa mais overlay de tela inteira
+      'a celebração compacta (Triplo/Super posterior) regrediu');
+
+    check('P4R9 (navegação da tela final): Brincar usa rota ANINHADA (Home,{screen:ACTIVITIES}); Início usa Home; sem navigate(ACTIVITIES) cru; mesmo padrão de ParesDoBeni',
+      /navigation\.navigate\(ROUTES\.HOME, \{ screen: ROUTES\.ACTIVITIES \}\)/.test(tela)
+      && /navigation\.navigate\(ROUTES\.HOME\)\}><FaithIcon name="home"/.test(tela)
+      && !/navigation\.navigate\(ROUTES\.ACTIVITIES\)/.test(tela)
+      && (() => { try {
+        const par = a1StripComments(readSrc('src/screens/ParesDoBeniScreen.js'));
+        return /navigate\(ROUTES\.HOME, \{ screen: ROUTES\.ACTIVITIES \}\)/.test(par);
+      } catch (_) { return false; } })(),
+      'a navegação da tela final (rota aninhada Brincar/Início) regrediu');
+
+    check('P4R9 (mapa de sons §13): SONS único sobre catálogo existente; eventos maiores interrompem o tick; playGameSfx (respeita soundsEnabled); limpeza no unmount; sem áudio novo',
+      /const SONS = \{/.test(tela)
+      && /const MENORES = \['card_flip', 'match_success', 'match_error', 'board_complete', TICK\]/.test(tela)
+      && /if \(maior\) MENORES\.forEach\(\(m\) => \{ if \(m !== s\) stopGameSfx\(m\); \}\)/.test(tela)   // maiores calam menores
+      && /tocar\('palavra', true\)/.test(tela) && /tocar\('superx', true\)/.test(tela)
+      && /superCompacto: 'board_complete'/.test(tela) && /tocar\(kind === 'super' \? 'superCompacto' : 'triplo', true\)/.test(tela)   // Super posterior ≠ Super grande
+      && /tocar\('bauAbrir', true\)/.test(tela) && /tocar\('bauPronto'\)/.test(tela)   // Baú pronto ≠ Baú aberto
+      && /poderPreparo: 'card_flip', poderImpacto: 'board_complete'/.test(tela)   // preparo ≠ impacto
+      && /playGameSfx\(SONS\.poderPreparo\)/.test(tela) && /playGameSfx\(SONS\.poderImpacto\)/.test(tela)
+      && /tocar\('erro'\)/.test(tela) && /tocar\('toque'\)/.test(tela)
+      && /stopGameSfx\(TICK\); releaseGameSfx\(\)/.test(tela)
+      && !/require\([^)]*\.(mp3|wav|m4a|aac|ogg)/.test(tela),
+      'o mapa de sons (único, interrupção, preparo≠impacto, limpeza) regrediu');
+
+    check('P4R9 (destaques locais §14): até 2, não persistentes, só conquistados; achievements.js intocado; sem storage',
+      /const destaques = \[\];/.test(tela)
+      && /destaques\.slice\(0, 2\)/.test(tela)
+      && /Palavra Perfeita/.test(tela) && /Resposta Relâmpago/.test(tela) && /Sequência Brilhante/.test(tela)
+      && /Guardião da Magia/.test(tela) && /Recorde do Turbo/.test(tela)
+      && /perfeitaRef\.current/.test(tela) && /relampagoRef\.current/.test(tela)
+      && !/achievements/.test(tela) && !/AsyncStorage|storageKeys/.test(tela),
+      'os destaques locais (≤2, não persistentes, sem tocar conquistas) regrediram');
+
+    check('P4R9 (perf §16): slots memoizados (useMemo) sem depender de restante; timer não reconstrói o palco a cada tick; movimento reduzido respeitado',
+      /const slotsEl = useMemo\(\(\) => \{/.test(tela)
+      && /\}, \[p, preenchidas, slotErro, dourada, slotW, fSize, reduzMovim, shineX, cardW\]\);/.test(tela)   // restante NÃO está nas deps
+      && /\{slotsEl\}/.test(tela)
+      && /reduzMovim/.test(tela) && /AccessibilityInfo\.isReduceMotionEnabled/.test(tela),
+      'a memoização dos slots / respeito ao movimento reduzido regrediu');
+
+    check('P4R9 (efeitos dos poderes §7–8): PalavrinhasPowerEffect (FSM prepare/impact/resolve/finish); Lanterna escurece; Dourada slots dourados; Vento ≥2; Escudo armado no dock + absorve erro',
+      /<PalavrinhasPowerEffect poder=\{poderFxAtivo\}/.test(tela) && /onImpact=\{onPoderImpact\}/.test(tela) && /onFinish=\{onPoderFinish\}/.test(tela)
+      && /prepare/.test(fxC) && /impact/.test(fxC) && /resolve/.test(fxC) && /finish/.test(fxC) && /onImpact/.test(fxC) && /onFinish/.test(fxC)
+      && /\(lanternaAlvo \|\| palcoDim\) && !reduzMovim \? <View pointerEvents="none" style=\{styles\.lanternaDim\}/.test(tela) && /lanternaDim: \{/.test(tela)
+      && /dourada && styles\.slotDourado/.test(tela) && /slotDourado: \{/.test(tela)
+      && /Math\.min\(2, Math\.max\(0, pg\.options\.length - 2\), erradas\.length\)/.test(tela)
+      && /escudoArmado=\{escudoArmado\}/.test(tela) && /escudoBadge/.test(dockC)
+      && /escudoRef\.current = false; setEscudoArmado\(false\); setFeedback\('erro'\); tocar\('erro'\)/.test(tela),
+      'os efeitos visuais dos poderes (FSM/Lanterna/Dourada/Vento/Escudo) regrediram');
+
+    check('P4R9 (Magia SÓ na Corrida, na BARRA inferior): medidor "Magia N de 4" no dock (não no topo); +1 guardado por cfg.magia',
+      /Magia \{magia\} de \{bauApos\}/.test(dockC)
+      && /if \(cfg\.magia\) \{ magiaRef\.current = Math\.min\(cfg\.bauApos, magiaRef\.current \+ 1\)/.test(tela)
+      && !/Magia do Livro/.test(hudC)   // o HUD superior NÃO mostra Magia
+      && /nivel === 'medio' \?/.test(tela) && /<PalavrinhasPowerDock magia=\{magia\}/.test(tela),
+      'a Magia deixou de ser exclusiva da Corrida ou não está na barra inferior');
+
+    check('P4R9 (Baú a cada 4, VÁRIOS por partida, pendente com inventário cheio): querBau por magia≥4 ou pendente; abre se há slot; senão segura ("Baú pronto")',
+      /const querBau = cfg\.magia && \(magiaRef\.current >= cfg\.bauApos \|\| bauPendenteRef\.current\)/.test(tela)
+      && /const auto = bausRef\.current === 0;/.test(tela)   // 1º Baú = onboarding automático
+      && /if \(auto && bolsoRef\.current\.length < 2 && poseBauOk\) \{ bausRef\.current \+= 1; abrirBau\(\); return; \}/.test(tela)
+      && /bauPendenteRef\.current = true; setBauPronto\(true\); tocar\('bauPronto'\)/.test(tela)   // seguintes: manual
+      && /const abrirBauManual = useCallback/.test(tela) && /onAbrirBau=\{abrirBauManual\}/.test(tela)
+      && /<PalavrinhasChest/.test(tela)
+      && /telaBauRef\.current = true; bauPendenteRef\.current = false/.test(tela)
+      && /escolherCarta/.test(tela) && /magiaRef\.current = 0; setMagia\(0\)/.test(tela),
+      'o Baú a cada 4 / 1º automático / seguintes manuais / pendente regrediu');
+
+    check('P4R9 (Bolso inferior + PAINEL §16–17): toque abre PAINEL (não ativa); PowerDetailsPanel largo; avaliarUsoDoPoder no "Usar agora"; slot sempre responde',
+      /<PalavrinhasPowerDock magia=\{magia\} bauApos=\{cfg\.bauApos\} bauPronto=\{bauPronto\} bolso=\{bolso\} onUsar=\{abrirPainelPoder\}/.test(tela)
+      && /minWidth: 56, minHeight: 56/.test(dockC) && /onPress=\{\(\) => onUsar\(pd\)\}/.test(dockC) && /accessibilityRole="button"/.test(dockC)
+      && /const abrirPainelPoder = useCallback/.test(tela) && /setPoderDetalhe\(poder\)/.test(tela)
+      && /<PalavrinhasPowerDetailsPanel/.test(tela) && /aval=\{avaliarUsoDoPoder\(poderDetalhe, ctxAtivacao\(poderDetalhe\.id\)\)\}/.test(tela)
+      && /const usarPoderDoPainel = useCallback/.test(tela) && /if \(!aval\.podeUsar\) return;/.test(tela)   // não consome se inelegível
+      && /largura=\{Math\.min\(width - 32, 460\)\}/.test(tela)   // painel LARGO
+      && /if \(bolsoRef\.current\.length >= 2\) return;/.test(tela),
+      'o Bolso inferior / painel de poder / avaliarUsoDoPoder regrediu');
+
+    check('P4R9 (8 efeitos de poder, consumo no IMPACT): sortearCartas; onPoderImpact remove do bolso + Relógio/Vento/Escudo/Dourada; onPoderFinish Ímã/Vogais/Troca; Vogais checa vogal real',
+      /sortearCartas\(rngRef\.current, ctx, ultimoParRef\.current\)/.test(tela)
+      && /const onPoderImpact = useCallback[\s\S]*?removerDoBolso\(poder\.id\)/.test(tela)   // consumo NO IMPACT
+      && /poder\.id === 'relogio'\) ajustarTempo\(6000\)/.test(tela)
+      && /poder\.id === 'vento'\) aplicarVento\(\)/.test(tela)
+      && /poder\.id === 'escudo'\) \{ escudoRef\.current = true; setEscudoArmado\(true\); \}/.test(tela)
+      && /poder\.id === 'dourada'\) \{ douradaRef\.current = true; setDourada\(true\); \}/.test(tela)
+      && /poder\.id === 'ima' \|\| poder\.id === 'vogais'\)\) preencherLacunaAtual\(true\)/.test(tela)
+      && /poder\.id === 'troca'\) trocarPalavra\(\)/.test(tela)
+      && /VOGAIS\.includes\(\(pg\.word\.normalizedWord \|\| ''\)\[pos\]\)/.test(tela),
+      'os 8 efeitos de poder (consumo no impact) regrediram');
+
+    check('P4R9 (Turbo SEM pré-visualização): removidos setRelampago/RELAMPAGO_MS/estado de preview/"vai virar lacunas"; slots nunca revelam a resposta (mostra = !isGap || val); entrada por faixa de energia',
+      !/setRelampago/.test(tela) && !/RELAMPAGO_MS/.test(tela) && !/const \[relampago[,\]]/.test(tela) && !/vai virar lacunas/i.test(tela)
+      && !/cfg\.relampago/.test(tela)
+      && /const mostra = !isGap \|\| val;/.test(tela)
+      && /montarPagina[\s\S]*?correrShine\(\);/.test(tela)   // entrada sem resposta: faixa de energia percorre o palco
+      && /fase !== FASES\.PENSANDO \|\| telaBauRef\.current \|\| inputTravadoRef\.current \|\| overlayAtivoRef\.current \|\| pausaModalRef\.current \|\| !!poderFxAtivoRef\.current/.test(tela),
+      'o Turbo pode estar revelando a resposta antes da interação');
+
+    check('P4R9 (HUD compacto por modo, componente): Livro trilha + "de N palavras" + brilhos; infinitos "N palavras · sequência N · recorde N"; topo sem Magia/Bolso',
+      /nivel === 'facil'[\s\S]*?styles\.trilha[\s\S]*?de \{cfg\.metaPalavras\} palavras/.test(hudC)
+      && /sequência \{comboPalavras\}/.test(hudC) && /recorde \{melhorCombo\}/.test(hudC)
+      && /<PalavrinhasHud nivel=\{nivel\}/.test(tela)
+      && !/Magia/.test(hudC) && !/bolso/i.test(hudC)   // topo enxuto: sem Magia/Bolso
+      && !/\}\/\$\{cfg\.metaPalavras\} palavras/.test(tela),
+      'o HUD compacto por modo regrediu');
+
+    check('P4R9 (temas por modo): TEMAS facil/medio/dificil sobre productTheme; gradiente do palco por tema; palco dourado com a Palavra Dourada',
+      /const TEMAS = \{/.test(tela) && /facil: \{ grad:/.test(tela) && /medio: \{ grad:/.test(tela) && /dificil: \{ grad:/.test(tela)
+      && /const gradPalco = dourada \? GRAD_DOURADO/.test(tela) && /colors=\{gradPalco\}/.test(tela)
+      && /dourada && styles\.palcoDourado/.test(tela),
+      'os temas por modo / palco dourado regrediram');
+
+    check('P4R9 (efeitos de opção/erro/palavra completa): press escala+borda; lacuna laranja no erro; peça voa; partículas; brilho; gradiente muda; página entra',
+      /optPress: \{ transform: \[\{ scale: 0\.9 \}\], backgroundColor: pt\.beniSoft, borderColor: pt\.beniDeep/.test(tela)
+      && /slotErro: \{/.test(tela) && /erroAqui && styles\.slotErro/.test(tela) && /balancarErro\(idx, pos\)/.test(tela)
+      && /const voarPeca/.test(tela) && /measureInWindow/.test(tela) && /setVoo\(\{ letra/.test(tela)
+      && /<Particulas layout=\{PARTICULAS_PALAVRA\}/.test(tela) && /particulasWrap: \{/.test(tela)
+      && /correrShine/.test(tela) && /shineX/.test(tela)
+      && /translateX: entrada\.interpolate/.test(tela),
+      'os efeitos de opção/erro/palavra completa regrediram');
+
+    check('P4R9 (timer reuso Pares + limpeza): addTurboTime/segundosRestantes; countdown_tick/time_up_alarm; +5s; limpeza no blur/AppState/unmount',
+      /from '\.\.\/services\/paresGameService'/.test(tela) && /addTurboTime\(/.test(tela) && /segundosRestantes\(/.test(tela)
+      && /countdown_tick/.test(tela) && /time_up_alarm/.test(tela) && /ajustarTempo\(cfg\.bonusMs/.test(tela)
+      && /stopGameSfx\(/.test(tela) && /releaseGameSfx\(\)/.test(tela) && /clearInterval\(/.test(tela)
+      && /AppState\.addEventListener/.test(tela) && /navigation\.addListener\('blur'/.test(tela),
+      'o temporizador/limpeza (reuso dos Pares) regrediu');
+
+    check('P4R9 (alerta vermelho + shake + penalidade): MolduraAlerta 4 faixas; pulso ≤3s; contagem grande; shake; 2º erro reorganiza e penaliza',
+      /const ALERTA\s*=\s*'#C0392B'/.test(tela) && /function MolduraAlerta/.test(tela)
+      && /<MolduraAlerta pulso=\{pulso\} largura=\{width\}/.test(tela) && /contagemGrande/.test(tela) && /restante <= 3000 \? 240 : 410/.test(tela)
+      && /shakeAnim/.test(tela)
+      && /options: \[\.\.\.prev\.options\]\.reverse\(\)/.test(tela) && /ajustarTempo\(-\(cfg\.penalidade2oErroMs/.test(tela),
+      'o alerta / shake / reorganização / penalidade regrediram');
+
+    check('P4R9 (falas por estado + pluralização): falaBeni por estado; plural(); "Maior palavra"+"N letras"; sem "figura"; sem "rec"',
+      /function falaBeni\(\{[^}]*estado[^}]*feedback[^}]*modoResgate[^}]*tempoBaixo[^}]*faltam/.test(tela)
+      && /const plural\s*=\s*\(n, s, p\)/.test(tela)
+      && /Maior palavra/.test(tela) && /plural\(maior, 'letra', 'letras'\)/.test(tela)
+      && /const falaAtual = \(overlay \|\| poderFxAtivo\) \? '' : falaBeni/.test(tela)   // sem fala durante evento/poder
+      && !/ · rec |rec \$\{/.test(tela) && !/figura/.test(tela),
+      'as falas por estado ou a pluralização regrediram');
+
+    check('P4R9 (tela final + MOTIVO §2): Livro/Corrida infinita/Turbo; motivo (Livro concluído/Tempo esgotado/Partida encerrada); poder só na Corrida; 4 ações + rota aninhada',
+      /const motivo = motivoFimRef\.current;/.test(tela)
+      && /Tempo esgotado/.test(tela) && /Partida encerrada/.test(tela) && /Livro concluído/.test(tela)
+      && /const principal = cfg\.infinito \? plural\(estado\.concluidas, 'palavra', 'palavras'\)/.test(tela)
+      && /palavra aprendida', 'palavras aprendidas/.test(tela)
+      && /Melhor sequência/.test(tela) && /Tempo bônus/.test(tela) && /Recorde/.test(tela)
+      && /cfg\.magia && poderesUsadosRef\.current > 0\) stats\.push/.test(tela)   // poderes usados só na Corrida
+      && !/Baús abertos/.test(tela)
+      && /Jogar de novo/.test(tela) && /Trocar modo/.test(tela) && />Brincar</.test(tela) && />Início</.test(tela)
+      && /navigation\.navigate\(ROUTES\.HOME, \{ screen: ROUTES\.ACTIVITIES \}\)/.test(tela) && /navigation\.navigate\(ROUTES\.HOME\)/.test(tela),
+      'a tela final (motivo, infinitos, ações) regrediu');
+
+    check('P4R9 (banner + fonte progressiva + topo): compensa altura do banner; fonte por tamanho; conteúdo no topo',
+      /headerTop\s*=\s*Math\.max\(insets\.top, 10\) \+ \(criadorAtivo \? ALTURA_BANNER_CRIADOR : 0\)/.test(tela)
+      && /subscribeCreatorQaMode/.test(tela) && /ALTURA_BANNER_CRIADOR\s*=\s*22/.test(tela)
+      && /nLetras <= 5 \? 48 : nLetras <= 8 \? 40 : nLetras <= 10 \? 32 : 26/.test(tela)
+      && /justifyContent: 'flex-start'/.test(tela),
+      'a compensação do banner / fonte progressiva regrediram');
+
+    check('P4R9 (Turbo AUTORITATIVO na tela §15): relógio por deadline (tick 250ms); esgotarTempo cancela timers + invalida token + dispara TEMPO_ESGOTADO; AppState recalcula; guardas finalizadoRef',
+      /deadlineRef = useRef/.test(tela) && /setInterval\(\(\) => tick\(\), 250\)/.test(tela)
+      && /const rem = Math\.max\(0, deadlineRef\.current - Date\.now\(\)\)/.test(tela)
+      && /if \(rem <= 0\) esgotarTempo\(\)/.test(tela)
+      && /const esgotarTempo = useCallback/.test(tela)
+      && /finalizadoRef\.current = true; motivoFimRef\.current = 'tempo';\s*limparTimers\(\); pararRelogio\(\); eventoTokenRef\.current \+= 1;/.test(tela)
+      && /disparar\(\{ tipo: EVENTOS\.TEMPO_ESGOTADO \}\)/.test(tela)
+      && /recalcularDeadline\(\)/.test(tela)
+      && /const onTapLetra = useCallback\(\(letra, idx\) => \{\s*if \(finalizadoRef\.current\) return;/.test(tela),
+      'o término autoritativo do Turbo (deadline/esgotar/AppState/guardas) regrediu');
+
+    check('P4R9 (botão ENCERRAR claro §15): botão com TEXTO "Encerrar" no cabeçalho; modal "Encerrar a partida?" + Continuar jogando / Encerrar partida; pausa o deadline; ABANDONAR + motivo',
+      /const abrirPausa = useCallback/.test(tela) && /style=\{styles\.encerrarBtn\} onPress=\{abrirPausa\}[\s\S]*?>Encerrar<\/Text>/.test(tela)
+      && /encerrarBtn: \{[\s\S]*?paddingHorizontal: 12/.test(tela)   // largura suficiente p/ o texto
+      && /pausaModalRef\.current = true; setPausaModal\(true\); stopGameSfx\(TICK\)/.test(tela)
+      && /const continuarPartida = useCallback[\s\S]*?pausaModalRef\.current = false; setPausaModal\(false\)/.test(tela)
+      && /const encerrarManual = useCallback/.test(tela)
+      && /finalizadoRef\.current = true; motivoFimRef\.current = 'encerrada';/.test(tela)
+      && /reduzir\(st, \{ tipo: EVENTOS\.ABANDONAR \}\)\.estado/.test(tela)
+      && /Encerrar a partida\?/.test(tela) && /Seu resultado será salvo nesta rodada\./.test(tela)
+      && /Continuar jogando/.test(tela) && /Encerrar partida/.test(tela),
+      'o botão Encerrar com texto / modal regrediu');
+
+    check('P4R9 (Novo capítulo §21 + dock inferior): "Novo capítulo" a cada 8 na Corrida (transição curta ≤600ms); Bolso na barra INFERIOR (após espaço flexível)',
+      /cfg\.id === 'medio' && rp\.estado\.concluidas > 0 && rp\.estado\.concluidas % 8 === 0\) \{ setCapitulo\(true\)/.test(tela)
+      && /if \(montado\.current\) setCapitulo\(false\); \}, 600\)/.test(tela)
+      && /Novo capítulo/.test(tela)
+      && /<View style=\{\{ flex: 1 \}\} \/>\s*\{\/\*[\s\S]*?\*\/\}\s*\{nivel === 'medio' \?/.test(telaRaw),   // dock após espaço flexível
+      'o Novo capítulo / dock inferior regrediu');
+
+    check('P4R9 (preload por TAMANHO §2–4): download ≠ decode; readyPortrait/readyEvent por onLoadEnd; warmer 2 Images (128/220); BrincarScreen navega IMEDIATAMENTE (sem bloqueio silencioso)',
+      // serviço: download separado do decode; ready por tamanho
+      /let promessa = null;/.test(warmup) && /export function iniciarWarmup\(\) \{\s*if \(promessa\) return promessa;/.test(warmup)
+      && /download = 'downloaded'/.test(warmup) && /export function readyPortrait\(p\)/.test(warmup) && /export function readyEvent\(p\)/.test(warmup)
+      && /export function marcarProntaPortrait\(pose\)/.test(warmup) && /export function marcarProntaEvent\(pose\)/.test(warmup)
+      // warmer: DUAS Images por pose (portrait 128, event 220), offscreen, opacity 0, onLoadEnd por tamanho, sem display none
+      && /onLoadEnd=\{\(\) => marcarProntaPortrait\(pose\)\}/.test(warmer) && /onLoadEnd=\{\(\) => marcarProntaEvent\(pose\)\}/.test(warmer)
+      && /width: 128, height: 128/.test(warmer) && /width: 220, height: 220/.test(warmer) && /opacity: 0/.test(warmer) && !/display: 'none'/.test(warmer)
+      // BrincarScreen: warmup + warmer + navegação IMEDIATA (primeiro toque nunca ignorado)
+      && /iniciarWarmup\(\)/.test(brc) && /<PalavrinhasBeniWarmer \/>/.test(brc)
+      && /const abrirPalavrinhas = useCallback\(\(\) => \{\s*navigation\.navigate\(ROUTES\.PALAVRINHAS_DO_BENI\);/.test(brc)
+      // tela: estado de preparação com ÍCONE + fallback do overlay por readyEvent
+      && /Preparando o Beni\.\.\./.test(tela) && /PRELOAD_TIMEOUT_MS/.test(tela)
+      && /const poseEventProntaOuFallback/.test(tela) && /readyEvent\(EVENT_FALLBACK\)/.test(tela),
+      'o preload por tamanho (download≠decode, warmer 2 Images, navegação imediata) regrediu');
+
+    check('P4R9 (buscas estáticas §21): sem placeholder; sem contain no componente; sem Math.random na tela; ativação de poder só por toque (dock)',
+      !/placeholder/i.test(tela) && !/resizeMode="contain"/.test(bsc)
+      && !/Math\.random/.test(tela)
+      && /onPress=\{\(\) => onUsar\(pd\)\}/.test(dockC)
+      && !/agendar\([^)]*ativarPoder/.test(tela),
+      'uma busca estática de proibições (placeholder/contain/random/auto-poder) falhou');
+
+    check('P4R9a (dica do poder = faixa LARGA §2–6): fora do slot; left/right responsivo (sem width do slot/maxWidth 160); texto oficial; ≤2 linhas; pointerEvents none; some ao tocar; não durante eventos; mov. reduzido sem translate',
+      // faixa larga: left:0/right:0 acima do dock; NÃO presa à largura do slot; sem maxWidth 160
+      /coachBand: \{[\s\S]*?left: 0, right: 0, bottom: '100%'/.test(dockC) && !/maxWidth: 160/.test(dockC)
+      && /<Animated\.View[\s\S]*?pointerEvents="none"[\s\S]*?style=\{\[styles\.coachBand/.test(dockC)   // informativa (slot continua tocável)
+      && /Poder guardado! Toque nele quando quiser usar\./.test(dockC)   // texto oficial
+      && /numberOfLines=\{2\}/.test(dockC)   // limite de linhas
+      && !/styles\.coach\b/.test(dockC)   // some a antiga dica estreita (styles.coach)
+      && /accessibilityRole="text"/.test(dockC) && /accessibilityLabel="Poder guardado! Toque nele quando quiser usar\."/.test(dockC)
+      && /const coachTy = reduzMovim \? 0 :/.test(dockC)   // mov. reduzido: sem translate
+      // tela: onboarding único (3,5–4s), some ao tocar/abrir painel, não durante eventos bloqueadores, reinicia na partida
+      && /dicaBolsoRef\.current = true; setDicaBolso\(true\)[\s\S]*?\}, 3800\)/.test(tela)
+      && /const abrirPainelPoder = useCallback[\s\S]*?setDicaBolso\(false\);/.test(tela)   // some ao abrir o painel
+      && /coach=\{dicaBolso && !overlay && !poderFxAtivo && !pausaModal\}/.test(tela)
+      && /dicaBolsoRef\.current = false;/.test(tela),   // reinicia em comecar
+      'a faixa de onboarding do poder (larga/responsiva/regras) regrediu');
+
+    check('P4R9 (escopo): P5/traçado/gallery não iniciados; sem asset novo',
+      !fs.existsSync(path.join(root, 'src/screens/PalavrinhasTraceLabScreen.js'))
+      && !fs.existsSync(path.join(root, 'src/services/tracadoService.js'))
+      && !fs.existsSync(path.join(root, 'src/data/letterPaths.js'))
+      && !/tracadoService|letterPaths|Gesture\.Pan|coberturaPct/.test(tela)
+      && !/assets\/games\/palavrinhas/.test(tela),
+      'algum artefato de P5/traçado ou asset novo apareceu');
+  }
+
+
+
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
