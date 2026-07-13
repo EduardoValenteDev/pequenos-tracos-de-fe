@@ -34,7 +34,7 @@ import { isCreatorQaModeEnabled, subscribeCreatorQaMode } from '../services/crea
 import { playGameSfx, preloadGameSfx, releaseGameSfx, stopGameSfx } from '../services/audioManager';
 import { getWord } from '../data/palavrinhasWords';
 import {
-  criarRng, novaSeed, criarDeckState, getDifficulty, PALAVRINHAS_DIFFICULTIES, proximaPaginaAdaptativa,
+  criarRng, novaSeed, criarDeckState, getDifficulty, PALAVRINHAS_DIFFICULTIES, proximaPaginaAdaptativa, devePausarBloco, PAUSA_BLOCO,
 } from '../services/palavrinhasGameService';
 import { PALAVRINHAS_PODERES, avaliarUsoDoPoder, sortearCartas, parKey, VOGAIS, fxDuracaoTotal } from '../services/palavrinhasPoderes';
 import {
@@ -163,6 +163,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const [palcoDim, setPalcoDim] = useState(false);
   const [dicaBolso, setDicaBolso] = useState(false);
   const [pausaModal, setPausaModal] = useState(false);
+  const [pausaPedago, setPausaPedago] = useState(null);   // pausa pedagógica { n } (modos infinitos)
   const [capitulo, setCapitulo] = useState(false);
   const [portraitPose, setPortraitPose] = useState('avatarBase');   // pose ESTÁVEL da palavra (só muda entre palavras)
   const [poderDetalhe, setPoderDetalhe] = useState(null);           // poder aberto no painel
@@ -219,6 +220,8 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const inputTravadoRef = useRef(false);
   const overlayAtivoRef = useRef(false);
   const pausaModalRef = useRef(false);
+  const pausaPedagoRef = useRef(false);   // pausa pedagógica aberta (congela deadline + bloqueia input)
+  const pausaMarcoRef = useRef(0);        // último marco (16/32/…) em que a pausa já abriu
   const poderFxAtivoRef = useRef(null);
   const portraitPoseRef = useRef(null);
   const superGrandeFeitoRef = useRef(false);   // Super grande só na PRIMEIRA vez (seq 5)
@@ -303,7 +306,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   }, [beniJump, reduzMovim]);
 
   /* ─── Relógio por DEADLINE (mantém o Turbo AUTORITATIVO do P4R7) ─── */
-  const pausadoAgora = useCallback(() => estadoRef.current.fase !== FASES.PENSANDO || telaBauRef.current || inputTravadoRef.current || overlayAtivoRef.current || pausaModalRef.current || !!poderFxAtivoRef.current, []);
+  const pausadoAgora = useCallback(() => estadoRef.current.fase !== FASES.PENSANDO || telaBauRef.current || inputTravadoRef.current || overlayAtivoRef.current || pausaModalRef.current || pausaPedagoRef.current || !!poderFxAtivoRef.current, []);
 
   const tick = useCallback(() => {
     if (!montado.current || finalizadoRef.current) return;
@@ -428,18 +431,32 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   /* ─── Encerramento MANUAL (§2) ─── */
   const abrirPausa = useCallback(() => { if (finalizadoRef.current) return; pausaModalRef.current = true; setPausaModal(true); stopGameSfx(TICK); }, []);
   const continuarPartida = useCallback(() => { pausaModalRef.current = false; setPausaModal(false); }, []);
-  const encerrarManual = useCallback(() => {
+  const encerrarManual = useCallback((comSom = true) => {
     if (finalizadoRef.current) return;
     finalizadoRef.current = true; motivoFimRef.current = 'encerrada';
     limparTimers(); pararRelogio(); eventoTokenRef.current += 1;
     inputTravadoRef.current = true;
     const st = estadoRef.current;
     if (st && st.fase !== FASES.FINALIZADO) estadoRef.current = reduzir(st, { tipo: EVENTOS.ABANDONAR }).estado;
-    pausaModalRef.current = false; setPausaModal(false);
+    pausaModalRef.current = false; setPausaModal(false); pausaPedagoRef.current = false; setPausaPedago(null);
     limparEvento();
-    tocar('fim', true);
+    if (comSom) tocar('fim', true);   // encerramento manual do cabeçalho; a pausa pedagógica encerra SEM alarme
     setTela('fim');
   }, [limparTimers, pararRelogio, limparEvento]);
+
+  /* ─── Pausa PEDAGÓGICA (P4.1) — só nos modos infinitos, a cada 16 palavras ─── */
+  const abrirPausaPedagogica = useCallback((n) => {
+    pausaMarcoRef.current = n;   // não repete no mesmo marco
+    pausaPedagoRef.current = true; inputTravadoRef.current = true; setInputTravado(true);
+    stopGameSfx(TICK);
+    setPausaPedago({ n });       // deadline congelado por pausadoAgora (pausaPedagoRef)
+  }, []);
+  const continuarPausaPedago = useCallback(() => {
+    if (finalizadoRef.current) return;
+    pausaPedagoRef.current = false; setPausaPedago(null);
+    inputTravadoRef.current = false; setInputTravado(false);
+    apresentarPagina(false);     // monta a próxima palavra; deadline retoma sem perder tempo da pausa
+  }, [apresentarPagina]);   // eslint-disable-line no-use-before-define
 
   const abrirBau = useCallback(() => {
     telaBauRef.current = true; bauPendenteRef.current = false; setBauPronto(false); setTela('bau');
@@ -481,12 +498,16 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     const querBau = cfg.magia && (magiaRef.current >= cfg.bauApos || bauPendenteRef.current);
     if (querBau) {
       const poseBauOk = readyEvent('comBau') || readyEvent(EVENT_FALLBACK) || readyEvent('avatarBase');
-      const auto = bausRef.current === 0;   // primeiro Baú = onboarding automático
+      const auto = bausRef.current === 0;   // primeiro Baú = onboarding automático (prioridade sobre a pausa)
       if (auto && bolsoRef.current.length < 2 && poseBauOk) { bausRef.current += 1; abrirBau(); return; }
-      bauPendenteRef.current = true; setBauPronto(true); tocar('bauPronto');   // seguintes: manual via barra
+      bauPendenteRef.current = true; setBauPronto(true); tocar('bauPronto');   // seguintes: "Baú pronto" manual
+    }
+    // Pausa PEDAGÓGICA (P4.1): ponto SEGURO entre palavras; só nos modos infinitos, a cada 16.
+    if (devePausarBloco(cfg, a.estado.concluidas, pausaMarcoRef.current)) {
+      abrirPausaPedagogica(a.estado.concluidas); return;   // NÃO monta a próxima palavra ainda
     }
     apresentarPagina(false);
-  }, [disparar, apresentarPagina, pararRelogio, abrirBau, limparEvento, cfg.magia, cfg.bauApos, cfg.infinito]);
+  }, [disparar, apresentarPagina, pararRelogio, abrirBau, limparEvento, abrirPausaPedagogica, cfg]);
 
   // Abertura MANUAL do Baú (barra "Baú pronto") — só na palavra, sem interromper evento/poder.
   const abrirBauManual = useCallback(() => {
@@ -751,6 +772,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     errosSeguidosRef.current = 0; telaBauRef.current = false; lanternaRef.current = false; escudoRef.current = false; douradaRef.current = false;
     pageStartRef.current = 0; relampagoRef.current = false; perfeitaRef.current = false; assistidaRef.current = false; eventoTokenRef.current += 1;
     bolsoRef.current = []; ultimoParRef.current = null; dicaBolsoRef.current = false; pausaModalRef.current = false; poderFxAtivoRef.current = null;
+    pausaPedagoRef.current = false; pausaMarcoRef.current = 0; setPausaPedago(null);
     portraitPoseRef.current = null; superGrandeFeitoRef.current = false;
     setComboPalavras(0); setMelhorCombo(0); setSequencia(0); setMagia(0); setBauPronto(false); setDourada(false); setLanternaAlvo(null); setBolso([]); setEscudoArmado(false); setDicaBolso(false); setPausaModal(false); setPoderFxAtivo(null); setCapitulo(false); setPoderDetalhe(null); setCompacto(null);
     const seed = novaSeed(); rngRef.current = criarRng(seed); deckStateRef.current = criarDeckState();
@@ -799,12 +821,15 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     );
   }, [p, preenchidas, slotErro, dourada, slotW, fSize, reduzMovim, shineX, cardW]);
 
+  // Título COMPACTO só durante partida ativa com controles concorrentes (relógio + Encerrar) — P4.1.
+  const emPartidaComControles = tela === 'jogando' && cfg.timed;
+  const tituloHeader = emPartidaComControles ? 'Palavrinhas' : 'Palavrinhas do Beni';
   const Header = (
     <LinearGradient colors={[pt.beniSoft, '#FFF7EC']} style={[styles.header, { paddingTop: headerTop }]}>
       <View style={styles.headerRow}>
         <SoundButton style={styles.backPill} onPress={sairComSeguranca} accessibilityLabel="Voltar"><FaithIcon name="back" size={16} color={pt.text} /></SoundButton>
-        <Text style={styles.headerTitle} numberOfLines={1}>Palavrinhas do Beni</Text>
-        {tela === 'jogando' && cfg.timed ? (
+        <Text style={styles.headerTitle} numberOfLines={1}>{tituloHeader}</Text>
+        {emPartidaComControles ? (
           <View style={styles.headerDir}>
             <Animated.View style={[styles.relogio, tempoBaixo && { backgroundColor: ALERTA + '22', borderColor: ALERTA }, tempoBaixo && !reduzMovim && { transform: [{ scale: pulso.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) }] }]}>
               <FaithIcon name="timer" size={13} color={tempoBaixo ? ALERTA : pt.beniDeep} />
@@ -1080,7 +1105,20 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
             <Text style={styles.modalTitulo}>Encerrar a partida?</Text>
             <Text style={styles.modalSub}>Seu resultado será salvo nesta rodada.</Text>
             <SoundButton style={styles.btnPrimario} soundType="success" onPress={continuarPartida}><Text style={styles.btnPrimarioTxt}>Continuar jogando</Text></SoundButton>
-            <SoundButton style={styles.btnSecundario} onPress={encerrarManual}><Text style={styles.btnSecundarioTxt}>Encerrar partida</Text></SoundButton>
+            <SoundButton style={styles.btnSecundario} onPress={() => encerrarManual(true)}><Text style={styles.btnSecundarioTxt}>Encerrar partida</Text></SoundButton>
+          </View>
+        </View>
+      ) : null}
+
+      {/* Pausa PEDAGÓGICA (P4.1) — acolhedora, reutiliza a pose portrait já decodificada */}
+      {pausaPedago ? (
+        <View style={[StyleSheet.absoluteFill, styles.modalWrap]}>
+          <View style={styles.modalCard}>
+            <BeniStageCharacter presentation="portrait" pose={bPose} size={84} reduzMovim={reduzMovim} />
+            <Text style={styles.modalTitulo}>Você já completou {pausaPedago.n} palavras!</Text>
+            <Text style={styles.modalSub}>Quer continuar brincando ou encerrar por aqui?</Text>
+            <SoundButton style={styles.btnPrimario} soundType="success" onPress={continuarPausaPedago} accessibilityRole="button" accessibilityLabel="Continuar jogando"><Text style={styles.btnPrimarioTxt}>Continuar jogando</Text></SoundButton>
+            <SoundButton style={styles.btnSecundario} onPress={() => encerrarManual(false)} accessibilityRole="button" accessibilityLabel="Encerrar partida"><Text style={styles.btnSecundarioTxt}>Encerrar partida</Text></SoundButton>
           </View>
         </View>
       ) : null}

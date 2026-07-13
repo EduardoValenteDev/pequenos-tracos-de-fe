@@ -887,3 +887,21 @@ Left/right em vez de width fixa → legível em telas pequenas; não cobre slots
 
 ## R9a.5 Cabeçalho (auditoria, não alterado)
 O título "Palavrinhas do Beni" trunca para "Palavrinhas..." em aparelhos pequenos quando relógio + Encerrar ocupam a direita. Como qualquer correção envolve o layout do cabeçalho (risco de regressão), **não foi alterado** nesta rodada — registrado como recomendação P1 (ver auditoria). O ícone do botão Encerrar (`home`) é subótimo — recomendação P2.
+
+---
+
+# R4.1 (microbloco P4.1) — cabeçalho responsivo + pausa pedagógica
+
+> **🚦 Novo Portão Visual PENDENTE.** Dois aperfeiçoamentos de baixo risco sobre o P4 commitado (9bcdcf5).
+
+## Motivo do título compacto
+Durante Corrida/Turbo, `headerTitle` (`flex:1, numberOfLines={1}`) divide a linha com o relógio + botão Encerrar → o título encolhe e trunca ("Palavrinhas..."). Correção: título **compacto "Palavrinhas"** só quando `tela==='jogando' && cfg.timed` (partida ativa com controles concorrentes); **"Palavrinhas do Beni"** em todas as demais telas. Fonte 18 mantida, uma linha, sem escala artificial; ordem: Voltar · Título · Relógio · Encerrar (com texto).
+
+## Pausa a cada 16 palavras (só modos infinitos)
+Helper PURO `devePausarBloco(cfg, concluidas, ultimoMarco, 16)` (fonte única = `concluidas`; só `cfg.infinito`; múltiplos exatos; uma vez por marco). Aplicada em Corrida e Turbo; **nunca** no Livro Tranquilo. A pausa abre no ponto SEGURO **entre palavras** (`celebrarEAvancar`, após a celebração e a limpeza de eventos) — nunca durante letra voando/palavra incompleta/Resgate/poder/Baú aberto/Super/Triplo/modal/celebração.
+
+## Prioridade de eventos (Corrida)
+Celebração da palavra → Baú (só o 1º, automático) → **pausa pedagógica**. Se o Baú for manual ("Baú pronto"), a pausa abre depois da celebração e o poder guardado permanece intacto. **TEMPO_ESGOTADO** tem prioridade absoluta (guarda `finalizadoRef` em `celebrarEAvancar`); com a pausa aberta, o deadline fica **congelado** (`pausaPedagoRef` em `pausadoAgora`) e o tempo não chega a zero.
+
+## Continuar / Encerrar
+Continuar: fecha a pausa e monta a próxima palavra; o relógio retoma **sem perder o tempo da pausa**; sequência/recorde/brilhos/poderes/Magia preservados; próxima pausa só após +16. Encerrar: reutiliza o fluxo oficial (`encerrarManual`), mas **sem alarme** (`encerrarManual(false)`) — não é derrota; salva e mostra o resultado. Interface acolhedora (reutiliza a pose portrait já decodificada; sem imagem nova; sem palavras de advertência; movimento reduzido respeitado; labels de acessibilidade nos dois botões). Reinicia em nova partida.

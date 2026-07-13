@@ -77,6 +77,23 @@ export function getDifficulty(id) {
   return PALAVRINHAS_DIFFICULTIES.find((d) => d.id === id) || PALAVRINHAS_DIFFICULTIES[0];
 }
 
+/** Tamanho do bloco da pausa pedagógica (modos infinitos). P4.1. */
+export const PAUSA_BLOCO = 16;
+
+/**
+ * Decide, de forma PURA, se a pausa pedagógica deve abrir agora (P4.1). Só em modos INFINITOS,
+ * a cada `tamanhoBloco` palavras concluídas, uma única vez por marco. Fonte única = `concluidas`.
+ * @returns {boolean}
+ */
+export function devePausarBloco(cfg, concluidas, ultimoMarco, tamanhoBloco = PAUSA_BLOCO) {
+  if (!cfg || !cfg.infinito) return false;                 // Livro Tranquilo nunca pausa
+  const n = Number(concluidas) || 0;
+  const t = Number(tamanhoBloco) || PAUSA_BLOCO;
+  if (n <= 0 || n % t !== 0) return false;                 // só nos múltiplos exatos (16, 32, 48…)
+  if (n === ultimoMarco) return false;                     // não repete no mesmo marco
+  return true;
+}
+
 const DIFS = ['facil', 'medio', 'dificil'];
 const tierValido = (t) => DIFS.includes(t);
 

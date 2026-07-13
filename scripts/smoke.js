@@ -18166,7 +18166,7 @@ check(
       + ';return { PALAVRINHAS_WORDS, palavrasHabilitadas, PALAVRINHAS_DIFFICULTIES, getDifficulty, palavraElegivel, comprimentoCompativel,'
       + ' novaSeed, criarRng, shuffle, validarBanco, escolherLacunas, montarOpcoes, criarDeckState, clonarDeckState, assinaturaDeck, planId,'
       + ' montarBaralhoPalavras, planPartida, perfilCombo, complexidade, nLacunasAdaptativo, montarOpcoesAdaptativo, proximaPaginaAdaptativa,'
-      + ' PALAVRINHAS_PODERES, sortearPoderes, poderElegivel, RELOGIO_FOLGA_MIN_MS, PALAVRINHAS_CATEGORIAS, PALAVRINHAS_FAIXAS, getWord };')();
+      + ' PALAVRINHAS_PODERES, sortearPoderes, poderElegivel, RELOGIO_FOLGA_MIN_MS, PALAVRINHAS_CATEGORIAS, PALAVRINHAS_FAIXAS, getWord, devePausarBloco, PAUSA_BLOCO };')();
     const evalMq = () => new Function(stripMod(mqRaw)
       + ';return { FASES, FASES_QUE_ACEITAM, EFEITOS, EVENTOS, brilhoDaPalavra, criarSessao, reduzir, aceitaEvento, terminou, paginaAtual };')();
 
@@ -18320,6 +18320,27 @@ check(
         return a.pagina.wordId === b.pagina.wordId && JSON.stringify(a.pagina.lacunas) === JSON.stringify(b.pagina.lacunas) && JSON.stringify(S.PALAVRINHAS_WORDS) === snap;
       } catch (e) { console.log('   erro', e.message); return false; } })(),
       'o Diretor adaptativo (perfil, Turbo 1ª página, rampa, determinismo) regrediu');
+
+    check('P4.1 (pausa pedagógica PURA): PAUSA_BLOCO=16; Livro nunca; Corrida/Turbo em 16/32/48; não em 15/17/31/33; não repete o mesmo marco',
+      (() => { try {
+        const S = evalSvc();
+        if (S.PAUSA_BLOCO !== 16) return false;
+        const f = S.getDifficulty('facil'), m = S.getDifficulty('medio'), d = S.getDifficulty('dificil');
+        // Livro (finito) NUNCA pausa
+        if (S.devePausarBloco(f, 16, 0) || S.devePausarBloco(f, 32, 0)) return false;
+        // Corrida e Turbo (infinitos) pausam em 16/32/48
+        for (const cfg of [m, d]) {
+          if (!S.devePausarBloco(cfg, 16, 0) || !S.devePausarBloco(cfg, 32, 16) || !S.devePausarBloco(cfg, 48, 32)) return false;
+          // fora dos múltiplos: não
+          if (S.devePausarBloco(cfg, 15, 0) || S.devePausarBloco(cfg, 17, 16) || S.devePausarBloco(cfg, 31, 16) || S.devePausarBloco(cfg, 33, 32)) return false;
+          // não repete no mesmo marco (já disparou em 16)
+          if (S.devePausarBloco(cfg, 16, 16)) return false;
+          // 0 nunca
+          if (S.devePausarBloco(cfg, 0, 0)) return false;
+        }
+        return true;
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'a regra pura da pausa pedagógica (16 palavras, só infinitos, sem repetição) regrediu');
 
     /* ── Máquina (P3) ── */
     check('P3 (partida): Fácil completa 8 páginas → FINALIZADO; efeitos separados do estado',
@@ -18690,7 +18711,7 @@ check(
       && /const poseEv = superGrande \? poseEventProntaOuFallback\('celebrando2'\) : null;/.test(tela)
       && /if \(superGrande && poseEv\) \{/.test(tela)
       && /superGrandeFeitoRef\.current = true; superSeqRef\.current = seq;/.test(tela)
-      && /telaBauRef\.current \|\| inputTravadoRef\.current \|\| overlayAtivoRef\.current \|\| pausaModalRef\.current \|\| !!poderFxAtivoRef\.current/.test(tela)
+      && /telaBauRef\.current \|\| inputTravadoRef\.current \|\| overlayAtivoRef\.current \|\| pausaModalRef\.current \|\| pausaPedagoRef\.current \|\| !!poderFxAtivoRef\.current/.test(tela)
       && /function RaiosSuper/.test(tela) && /<RaiosSuper anim=\{raiosAnim\}/.test(tela)
       && /SUPER BENI!/.test(tela) && /\{superSeqRef\.current\} palavras seguidas/.test(tela)
       && /const MENORES = \['card_flip', 'match_success', 'match_error', 'board_complete', TICK\]/.test(tela),
@@ -18800,7 +18821,7 @@ check(
       && !/cfg\.relampago/.test(tela)
       && /const mostra = !isGap \|\| val;/.test(tela)
       && /montarPagina[\s\S]*?correrShine\(\);/.test(tela)   // entrada sem resposta: faixa de energia percorre o palco
-      && /fase !== FASES\.PENSANDO \|\| telaBauRef\.current \|\| inputTravadoRef\.current \|\| overlayAtivoRef\.current \|\| pausaModalRef\.current \|\| !!poderFxAtivoRef\.current/.test(tela),
+      && /fase !== FASES\.PENSANDO \|\| telaBauRef\.current \|\| inputTravadoRef\.current \|\| overlayAtivoRef\.current \|\| pausaModalRef\.current \|\| pausaPedagoRef\.current \|\| !!poderFxAtivoRef\.current/.test(tela),
       'o Turbo pode estar revelando a resposta antes da interação');
 
     check('P4R9 (HUD compacto por modo, componente): Livro trilha + "de N palavras" + brilhos; infinitos "N palavras · sequência N · recorde N"; topo sem Magia/Bolso',
@@ -18935,6 +18956,26 @@ check(
       && /coach=\{dicaBolso && !overlay && !poderFxAtivo && !pausaModal\}/.test(tela)
       && /dicaBolsoRef\.current = false;/.test(tela),   // reinicia em comecar
       'a faixa de onboarding do poder (larga/responsiva/regras) regrediu');
+
+    check('P4.1 (cabeçalho responsivo): título COMPACTO "Palavrinhas" só em partida ativa com controles; "Palavrinhas do Beni" nas demais; Encerrar com texto; numberOfLines 1',
+      /const emPartidaComControles = tela === 'jogando' && cfg\.timed;/.test(tela)
+      && /const tituloHeader = emPartidaComControles \? 'Palavrinhas' : 'Palavrinhas do Beni';/.test(tela)
+      && /<Text style=\{styles\.headerTitle\} numberOfLines=\{1\}>\{tituloHeader\}<\/Text>/.test(tela)
+      && /style=\{styles\.encerrarBtn\} onPress=\{abrirPausa\}[\s\S]*?>Encerrar<\/Text>/.test(tela),
+      'o cabeçalho responsivo (título compacto em partida) regrediu');
+
+    check('P4.1 (pausa pedagógica na TELA §2–3): entre palavras via devePausarBloco; congela deadline (pausaPedagoRef); Continuar monta próxima palavra; Encerrar reusa o fluxo oficial SEM alarme; TEMPO_ESGOTADO vence; reinicia na partida',
+      /devePausarBloco\(cfg, a\.estado\.concluidas, pausaMarcoRef\.current\)\) \{\s*abrirPausaPedagogica\(a\.estado\.concluidas\); return;/.test(tela)
+      && /pausaModalRef\.current \|\| pausaPedagoRef\.current \|\| !!poderFxAtivoRef\.current/.test(tela)   // deadline congelado durante a pausa
+      && /const abrirPausaPedagogica = useCallback[\s\S]*?pausaPedagoRef\.current = true; inputTravadoRef\.current = true; setInputTravado\(true\)/.test(tela)
+      && /const continuarPausaPedago = useCallback[\s\S]*?apresentarPagina\(false\)/.test(tela)   // Continuar monta a próxima palavra
+      && /const encerrarManual = useCallback\(\(comSom = true\)/.test(tela) && /if \(comSom\) tocar\('fim', true\)/.test(tela)   // pausa encerra sem alarme
+      && /onPress=\{\(\) => encerrarManual\(false\)\}/.test(tela)
+      && /const celebrarEAvancar = useCallback[\s\S]*?if \(finalizadoRef\.current\) return;/.test(tela)   // TEMPO_ESGOTADO (finalizadoRef) tem prioridade
+      && /pausaPedagoRef\.current = false; pausaMarcoRef\.current = 0; setPausaPedago\(null\)/.test(tela)   // reinicia em comecar
+      && /Você já completou \{pausaPedago\.n\} palavras!/.test(tela) && /Quer continuar brincando ou encerrar por aqui\?/.test(tela)
+      && !/cansa|limite de tempo|bloqueio|excessiv/i.test(tela),   // linguagem acolhedora (sem advertência)
+      'a pausa pedagógica na tela (marco/deadline/continuar/encerrar/prioridade) regrediu');
 
     check('P4R9 (escopo): P5/traçado/gallery não iniciados; sem asset novo',
       !fs.existsSync(path.join(root, 'src/screens/PalavrinhasTraceLabScreen.js'))

@@ -446,3 +446,9 @@ T-R9.1 warmup por tamanho + warmer 2 Images · T-R9.2 `BeniStageCharacter` place
 ## P4R9a — dica do poder (faixa larga) + auditoria (Portão Visual 1 pendente)
 
 Causa: dica dentro do slot (≈56px) absoluta só com right → largura limitada pelo slot. Correção mínima: `coachBand` LARGA acima do dock (left/right, ≤2 linhas, pointerEvents none, ícone), texto "Poder guardado! Toque nele quando quiser usar.", onboarding único 3,8s, some ao tocar/painel, não durante eventos, reinicia na partida, mov. reduzido só fade. Cabeçalho truncado = recomendação P1 (não alterado). Teste P4R9a; smoke 2135/2135. Sem commit. Auditoria final registrada no relatório (não implementada).
+
+---
+
+## P4.1 — cabeçalho responsivo + pausa pedagógica (novo Portão Visual pendente)
+
+Ver `spec-palavrinhas.md` §R4.1. Título compacto "Palavrinhas" só em partida ativa com controles (senão "Palavrinhas do Beni"). Pausa pedagógica a cada 16 palavras só nos modos infinitos (`devePausarBloco` puro), entre palavras; congela o deadline (pausaPedagoRef), Continuar monta a próxima palavra sem perder tempo, Encerrar reusa o fluxo oficial SEM alarme; TEMPO_ESGOTADO prioritário; reinicia na partida. Testes P4.1 (puro + tela); smoke 2138/2138; gates verdes. Sem commit; sobre 9bcdcf5.
