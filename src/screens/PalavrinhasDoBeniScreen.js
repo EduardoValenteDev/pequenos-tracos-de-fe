@@ -2,8 +2,8 @@
  * PalavrinhasDoBeniScreen — "Palavrinhas do Beni" (Feature 009 · P4R8 · SEM imagem de palavra).
  *
  * Coordena estados; os desenhos vivem em componentes próprios (PalavrinhasHud, PalavrinhasPowerDock,
- * PalavrinhasChest, PalavrinhasPowerEffect, PalavrinhasBeniWarmer) + cache compartilhado
- * (beniAssetWarmup, aquecido já na BrincarScreen). Novidades P4R8:
+ * PalavrinhasChest, PalavrinhasPowerEffect) + o portrait PERSISTENTE PalavrinhasBeniPortraitStack
+ * (P4.3, opacity-only) e overlays via BeniStageCharacter (mapa OTIMIZADO). Novidades P4R8:
  *  1. carregamento antecipado/decodificado do Beni (sem moldura vazia);
  *  2. Corrida e Turbo INFINITOS (terminam por tempo ou encerramento manual);
  *  3. Baú a cada 4 palavras na Corrida (vários por partida; segura o prêmio se o inventário estiver cheio);
@@ -22,14 +22,14 @@ import { ROUTES } from '../constants/routes';
 import SoundButton from '../components/SoundButton';
 import FaithIcon from '../components/ui/FaithIcon';
 import BeniStageCharacter from '../components/beni/BeniStageCharacter';
-import PalavrinhasBeniWarmer from '../components/palavrinhas/PalavrinhasBeniWarmer';
+import PalavrinhasBeniPortraitStack from '../components/palavrinhas/PalavrinhasBeniPortraitStack';
 import PalavrinhasHud from '../components/palavrinhas/PalavrinhasHud';
 import PalavrinhasPowerDock from '../components/palavrinhas/PalavrinhasPowerDock';
 import PalavrinhasChest from '../components/palavrinhas/PalavrinhasChest';
 import PalavrinhasPowerEffect from '../components/palavrinhas/PalavrinhasPowerEffect';
 import PalavrinhasPowerDetailsPanel from '../components/palavrinhas/PalavrinhasPowerDetailsPanel';
 import { BENI_POSE_KEYS } from '../assets/mascot/beniImages';
-import { iniciarWarmup, minimasProntas as minimasProntasCache, poseReady, readyEvent, assinar } from '../services/beniAssetWarmup';
+import { iniciarWarmup, minimasProntas as minimasProntasCache, readyPortrait, readyEvent, assinar } from '../services/beniAssetWarmup';
 import { isCreatorQaModeEnabled, subscribeCreatorQaMode } from '../services/creatorQaMode';
 import { playGameSfx, preloadGameSfx, releaseGameSfx, stopGameSfx } from '../services/audioManager';
 import { getWord } from '../data/palavrinhasWords';
@@ -142,7 +142,8 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const [tela, setTela] = useState('entrada');
   const [nivel, setNivel] = useState('facil');
   const [estado, setEstado] = useState(() => criarSessao());
-  const [pagina, setPagina] = useState(null);
+  // ETAPA 2 — ESTADO ATÔMICO DA RODADA: palavra + pose publicadas SEMPRE juntas, por um único setRodadaVisual.
+  const [rodadaVisual, setRodadaVisual] = useState({ id: 0, pagina: null, pose: 'avatarBase' });
   const [preenchidas, setPreenchidas] = useState({});
   const [feedback, setFeedback] = useState(null);
   const [modoResgate, setModoResgate] = useState(false);
@@ -165,7 +166,8 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const [pausaModal, setPausaModal] = useState(false);
   const [pausaPedago, setPausaPedago] = useState(null);   // pausa pedagógica { n } (modos infinitos)
   const [capitulo, setCapitulo] = useState(false);
-  const [portraitPose, setPortraitPose] = useState('avatarBase');   // pose ESTÁVEL da palavra (só muda entre palavras)
+  const [faseJogo, setFaseJogo] = useState('entrada');              // ETAPA 6 — fase EXPLÍCITA: entrada|jogando|celebrando|bau|pausa|resultado
+  const [stackProntas, setStackProntas] = useState(() => new Set());   // poses carregadas NO PRÓPRIO stack persistente do portrait
   const [poderDetalhe, setPoderDetalhe] = useState(null);           // poder aberto no painel
   const [compacto, setCompacto] = useState(null);                   // celebração compacta { tipo, seq }
   const [criadorAtivo, setCriadorAtivo] = useState(isCreatorQaModeEnabled());
@@ -176,6 +178,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const [lanternaAlvo, setLanternaAlvo] = useState(null);
   const [dourada, setDourada] = useState(false);
   const [minimasProntas, setMinimasProntas] = useState(minimasProntasCache());
+  const [beniEntradaPronto, setBeniEntradaPronto] = useState(false);   // Beni VISÍVEL da entrada carregou (não offscreen)
   const [diag, setDiag] = useState(false);
   const [diagCena, setDiagCena] = useState('poses');
   const [, setTickPoses] = useState(0);
@@ -224,12 +227,21 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const pausaMarcoRef = useRef(0);        // último marco (16/32/…) em que a pausa já abriu
   const poderFxAtivoRef = useRef(null);
   const portraitPoseRef = useRef(null);
+  // ETAPA 2/6/7 — rodada atômica, fase explícita, Baú transacional, guarda anti-duplo-avanço.
+  const rodadaVisualRef = useRef({ id: 0, pagina: null, pose: 'avatarBase' });
+  const rodadaIdRef = useRef(0);                          // gerador de id; muda SÓ em rodada nova
+  const faseJogoRef = useRef('entrada');
+  const stackProntasRef = useRef(new Set());             // verdade síncrona das poses prontas no stack
+  const contextoBauRef = useRef({ origem: null, rodadaId: null });   // 'entre_rodadas' | 'durante_rodada'
+  const proximaPublicadaParaRef = useRef(-1);            // id da rodada concluída p/ a qual já publicamos a próxima
+  const rodadaConcluidaIdRef = useRef(-1);              // id da rodada recém-concluída (aguardando avanço)
   const superGrandeFeitoRef = useRef(false);   // Super grande só na PRIMEIRA vez (seq 5)
   const superSeqRef = useRef(0);
   const preenchidasRef = useRef({});
   const paginaRef = useRef(null);
   const slotRefs = useRef([]);
   const optRefs = useRef([]);
+  const hostRef = useRef(null);   // P4.4 — HOST da letra voadora (mesmo referencial de origem/destino)
   const entrada = useRef(new Animated.Value(0)).current;
   const pulso = useRef(new Animated.Value(0)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
@@ -241,9 +253,15 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const beniJump = useRef(new Animated.Value(0)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const shineX = useRef(new Animated.Value(0)).current;
+  const bauCtaAnim = useRef(new Animated.Value(0)).current;   // entrada/pulsação ÚNICA do aviso "BAÚ CHEIO!"
 
   const cfg = getDifficulty(nivel);
   const tema = TEMAS[nivel] || TEMAS.facil;
+  // Derivados da RODADA ATÔMICA (fonte única): palavra e pose vêm SEMPRE do mesmo rodadaVisual.
+  const pagina = rodadaVisual.pagina;
+  const bPose = rodadaVisual.pose;
+  // 1ª rodada só libera com um conjunto MÍNIMO de poses de portrait prontas NO PRÓPRIO STACK persistente.
+  const beniStackPronto = PORTRAIT_POSES.filter((pp) => stackProntas.has(pp)).length >= 3;
   const tempoBaixo = cfg.timed && tela === 'jogando' && restante > 0 && restante <= (cfg.alertaMs || 0);
   const tempoCritico = tempoBaixo && restante <= 3000;
   const faltam = pagina ? pagina.lacunas.length - Object.keys(preenchidas).length : 0;
@@ -254,13 +272,39 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
   const aplicarPreench = useCallback((next) => { preenchidasRef.current = next; setPreenchidas(next); }, []);
   // Overlay/Baú só abrem com a pose EVENT decodificada (readyEvent); senão, fallback já pronto.
   const poseEventProntaOuFallback = useCallback((pose) => (readyEvent(pose) ? pose : (readyEvent(EVENT_FALLBACK) ? EVENT_FALLBACK : (readyEvent('avatarBase') ? 'avatarBase' : null))), []);
-  // Pose portrait ESTÁVEL da palavra: escolhida por RNG da partida, sem repetir a anterior.
+  // ETAPA 6 — fase EXPLÍCITA como fonte de verdade (refs protegem contra callbacks atrasados).
+  const setFase = useCallback((f) => { faseJogoRef.current = f; setFaseJogo(f); }, []);
+  // Pose portrait da palavra: RNG da partida, sem repetir a anterior, escolhida SÓ entre poses já
+  // carregadas NO PRÓPRIO STACK persistente (nunca publica palavra com pose não carregada). PURA: retorna a pose.
   const escolherPosePortrait = useCallback(() => {
     const anterior = portraitPoseRef.current;
     const cands = PORTRAIT_POSES.filter((p) => p !== anterior);
+    const prontas = cands.filter((p) => stackProntasRef.current.has(p));
+    const base = prontas.length ? prontas : cands;
     const r = rngRef.current ? rngRef.current() : 0.5;
-    const nova = cands[Math.floor(r * cands.length)] || 'avatarBase';
-    portraitPoseRef.current = nova; setPortraitPose(nova);
+    return base[Math.floor(r * base.length)] || 'avatarBase';
+  }, []);
+  // Publicador ÚNICO da rodada (palavra + pose juntas, mesmo id). ETAPA 2.
+  const publicarRodada = useCallback((rodada) => {
+    paginaRef.current = rodada.pagina; portraitPoseRef.current = rodada.pose;
+    rodadaVisualRef.current = rodada; setRodadaVisual(rodada);
+  }, []);
+  // Atualiza a pagina da rodada ATUAL (ex.: opções após erro/Vento) SEM criar rodada nova (mesmo id e pose).
+  const atualizarPaginaRodada = useCallback((mut) => {
+    const atual = rodadaVisualRef.current; if (!atual || !atual.pagina) return;
+    const novaPag = mut(atual.pagina); const rodada = { ...atual, pagina: novaPag };
+    paginaRef.current = novaPag; rodadaVisualRef.current = rodada; setRodadaVisual(rodada);
+  }, []);
+  // Stack persistente reporta prontidão da PRÓPRIA instância exibida (não readyCanon offscreen).
+  const onStackPoseReady = useCallback((pose) => {
+    if (stackProntasRef.current.has(pose)) return;
+    const nova = new Set(stackProntasRef.current); nova.add(pose);
+    stackProntasRef.current = nova; if (montado.current) setStackProntas(nova);
+  }, []);
+  const onStackPoseErro = useCallback((pose) => {
+    if (!stackProntasRef.current.has(pose)) return;   // falha → remove do conjunto de candidatas
+    const nova = new Set(stackProntasRef.current); nova.delete(pose);
+    stackProntasRef.current = nova; if (montado.current) setStackProntas(nova);
   }, []);
 
   useEffect(() => {
@@ -284,6 +328,16 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ETAPA 8 — animação de ENTRADA ÚNICA do aviso "BAÚ CHEIO!" (≤350ms; depois estático). Reduzido = sem animação.
+  useEffect(() => {
+    if (!bauPronto) { bauCtaAnim.setValue(0); return undefined; }
+    if (reduzMovim) { bauCtaAnim.setValue(1); return undefined; }
+    bauCtaAnim.setValue(0);
+    const anim = Animated.spring(bauCtaAnim, { toValue: 1, friction: 6, tension: 120, useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [bauPronto, reduzMovim, bauCtaAnim]);
 
   const setSt = useCallback((st) => { estadoRef.current = st; setEstado(st); }, []);
   const disparar = useCallback((ev) => { const r = reduzir(estadoRef.current, ev); setSt(r.estado); return r; }, [setSt]);
@@ -385,6 +439,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     }, reduzMovim ? 900 : LANTERNA_DELAY_MS);
   }, [agendar, reduzMovim]);
 
+  // ETAPA 2 — produz a rodada COMPLETA (palavra + pose) e a publica de UMA vez; retorna o objeto.
   const montarPagina = useCallback((pag) => {
     const word = getWord(pag.wordId);
     const options = pag.options.slice();
@@ -395,14 +450,17 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     errosLacunaRef.current = { pos: -1, n: 0 };
     pageStartRef.current = Date.now();
     const nova = { word, lacunas: pag.lacunas.slice(), options };
-    paginaRef.current = nova; setPagina(nova);
+    const pose = escolherPosePortrait();               // pose já carregada NO STACK, escolhida junto da palavra
+    const id = (rodadaIdRef.current += 1);             // id NOVO só em rodada nova
+    const rodada = { id, pagina: nova, pose };
+    publicarRodada(rodada);                            // ÚNICO publish: palavra + pose no mesmo render
     setPoderDetalhe(null); setCompacto(null);
-    escolherPosePortrait();   // NOVA pose portrait só quando a palavra entra (estável durante a palavra)
     disparar({ tipo: EVENTOS.PALAVRA_PRONTA, letras: pag.lacunas.length, dicaAuto: false });
     animarEntradaPagina();
     correrShine();
     armarLanterna();
-  }, [disparar, animarEntradaPagina, correrShine, armarLanterna, aplicarPreench, escolherPosePortrait]);
+    return rodada;
+  }, [disparar, animarEntradaPagina, correrShine, armarLanterna, aplicarPreench, escolherPosePortrait, publicarRodada]);
 
   const apresentarPagina = useCallback((primeira) => {
     if (finalizadoRef.current) return;
@@ -411,9 +469,27 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
       combo: comboRef.current, errosSeguidos: errosSeguidosRef.current, primeira: !!primeira,
     });
     deckStateRef.current = r.deckState;
-    if (!r.pagina) { pararRelogio(); setTela('fim'); return; }
+    if (!r.pagina) { pararRelogio(); faseJogoRef.current = 'resultado'; setFaseJogo('resultado'); setTela('fim'); return; }
     montarPagina(r.pagina);
+    faseJogoRef.current = 'jogando'; setFaseJogo('jogando');
   }, [nivel, pararRelogio, montarPagina]);
+
+  // ETAPA 7 — publica NO MÁXIMO UMA próxima rodada por rodada concluída (guarda anti-duplo-avanço).
+  const avancarRodada = useCallback(() => {
+    if (finalizadoRef.current) return;
+    const cid = rodadaConcluidaIdRef.current;
+    if (cid >= 0 && proximaPublicadaParaRef.current === cid) return;   // já publicamos a próxima p/ esta rodada
+    proximaPublicadaParaRef.current = cid;
+    apresentarPagina(false);
+  }, [apresentarPagina]);
+
+  // Retoma o relógio a partir do RESTANTE preservado (Baú manual durante a rodada) — não reinicia o tempo.
+  const retomarRelogio = useCallback(() => {
+    if (!cfg.timed) return;
+    deadlineRef.current = Date.now() + restanteRef.current; setRestante(restanteRef.current);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => tick(), 250);
+  }, [cfg.timed, tick]);
 
   const esgotarTempo = useCallback(() => {
     if (finalizadoRef.current) return;
@@ -425,7 +501,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     disparar({ tipo: EVENTOS.TEMPO_ESGOTADO });
     limparEvento();
     tocar('fim', true);
-    setTela('fim');
+    faseJogoRef.current = 'resultado'; setFaseJogo('resultado'); setTela('fim');
   }, [limparTimers, pararRelogio, disparar, limparEvento]);
 
   /* ─── Encerramento MANUAL (§2) ─── */
@@ -441,7 +517,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     pausaModalRef.current = false; setPausaModal(false); pausaPedagoRef.current = false; setPausaPedago(null);
     limparEvento();
     if (comSom) tocar('fim', true);   // encerramento manual do cabeçalho; a pausa pedagógica encerra SEM alarme
-    setTela('fim');
+    faseJogoRef.current = 'resultado'; setFaseJogo('resultado'); setTela('fim');
   }, [limparTimers, pararRelogio, limparEvento]);
 
   /* ─── Pausa PEDAGÓGICA (P4.1) — só nos modos infinitos, a cada 16 palavras ─── */
@@ -455,18 +531,22 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     if (finalizadoRef.current) return;
     pausaPedagoRef.current = false; setPausaPedago(null);
     inputTravadoRef.current = false; setInputTravado(false);
-    apresentarPagina(false);     // monta a próxima palavra; deadline retoma sem perder tempo da pausa
-  }, [apresentarPagina]);   // eslint-disable-line no-use-before-define
+    setFase('jogando');
+    avancarRodada();     // publica UMA próxima palavra (guarda anti-duplo-avanço); deadline retoma sem perder tempo
+  }, [avancarRodada, setFase]);
 
-  const abrirBau = useCallback(() => {
-    telaBauRef.current = true; bauPendenteRef.current = false; setBauPronto(false); setTela('bau');
+  // ETAPA 7 — abertura do Baú com CONTEXTO explícito (origem entre_rodadas | durante_rodada + rodadaId).
+  const abrirBau = useCallback((origem) => {
+    contextoBauRef.current = { origem: origem || 'entre_rodadas', rodadaId: rodadaVisualRef.current.id };
+    telaBauRef.current = true; bauPendenteRef.current = false; setBauPronto(false);
+    setFase('bau'); setTela('bau');
     tocar('bauAbrir', true);
     agendar(() => playGameSfx(SONS.bauFim), 170);
     const ctx = { timed: cfg.timed, restanteMs: restanteRef.current, tempoMaxMs: cfg.tempoMaxMs, ativos: bolsoRef.current.map((p) => p.id), nOpcoes: cfg.opcoes };
     const cartas = sortearCartas(rngRef.current, ctx, ultimoParRef.current);
     ultimoParRef.current = parKey(cartas);
     setBauCartas(cartas);
-  }, [cfg.timed, cfg.tempoMaxMs, cfg.opcoes, agendar]);
+  }, [cfg.timed, cfg.tempoMaxMs, cfg.opcoes, agendar, setFase]);
 
   const guardarNoBolso = useCallback((poder) => {
     if (bolsoRef.current.length >= 2) return;
@@ -479,47 +559,59 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     poderEscolhidoRef.current = { nome: poder.nome };
     tocar('cartaGuardada');
     guardarNoBolso(poder);
-    magiaRef.current = 0; setMagia(0);
+    magiaRef.current = 0; setMagia(0);              // Baú consumido → zera a magia
     telaBauRef.current = false;
-    setTela('jogando');
-    agendar(() => apresentarPagina(false), reduzMovim ? 60 : 260);
-  }, [guardarNoBolso, agendar, apresentarPagina, reduzMovim]);
+    const origem = contextoBauRef.current.origem;
+    contextoBauRef.current = { origem: null, rodadaId: null };
+    if (origem === 'durante_rodada') {
+      // CASO 2 — RETOMA exatamente a MESMA rodada: mesmo id/palavra/pose/letras/opções/progresso/tempo.
+      setFase('jogando'); setTela('jogando');
+      retomarRelogio();     // retoma do restante preservado; NÃO monta palavra, NÃO avança
+      return;
+    }
+    // CASO 1 — entre_rodadas: publica EXATAMENTE UMA próxima rodada (após o Baú fechar).
+    setFase('jogando'); setTela('jogando');
+    agendar(() => avancarRodada(), reduzMovim ? 60 : 260);
+  }, [guardarNoBolso, agendar, avancarRodada, retomarRelogio, reduzMovim, setFase]);
 
   const celebrarEAvancar = useCallback((token) => {
     if (finalizadoRef.current) return;
     if (token != null && eventoTokenRef.current !== token) return;
     limparEvento();
+    rodadaConcluidaIdRef.current = rodadaVisualRef.current.id;   // rodada concluída aguardando avanço (1 no máx.)
     const a = disparar({ tipo: EVENTOS.AVANCAR_PAGINA });
     if (a.estado.fase !== FASES.APRESENTANDO_PALAVRA) {   // fim (Livro concluído em modo finito)
-      pararRelogio(); if (!cfg.infinito) motivoFimRef.current = 'livro'; setTela('fim'); return;
+      pararRelogio(); if (!cfg.infinito) motivoFimRef.current = 'livro'; setFase('resultado'); setTela('fim'); return;
     }
-    // Baú a cada 4 palavras (Corrida). 1º Baú abre automático (onboarding); os seguintes ficam
-    // "Baú pronto" na barra (manual). Segura o prêmio se o inventário estiver cheio ou a imagem não pronta.
+    // Baú a cada 4 palavras (Corrida). 1º Baú abre automático (onboarding); os seguintes ficam "Baú cheio"
+    // (manual). NUNCA publica a próxima palavra ANTES de abrir o Baú — o avanço ocorre ao FECHAR o Baú.
     const querBau = cfg.magia && (magiaRef.current >= cfg.bauApos || bauPendenteRef.current);
     if (querBau) {
       const poseBauOk = readyEvent('comBau') || readyEvent(EVENT_FALLBACK) || readyEvent('avatarBase');
       const auto = bausRef.current === 0;   // primeiro Baú = onboarding automático (prioridade sobre a pausa)
-      if (auto && bolsoRef.current.length < 2 && poseBauOk) { bausRef.current += 1; abrirBau(); return; }
-      bauPendenteRef.current = true; setBauPronto(true); tocar('bauPronto');   // seguintes: "Baú pronto" manual
+      if (auto && bolsoRef.current.length < 2 && poseBauOk) { bausRef.current += 1; abrirBau('entre_rodadas'); return; }
+      bauPendenteRef.current = true; setBauPronto(true); tocar('bauPronto');   // seguintes: "BAÚ CHEIO!" manual
     }
     // Pausa PEDAGÓGICA (P4.1): ponto SEGURO entre palavras; só nos modos infinitos, a cada 16.
     if (devePausarBloco(cfg, a.estado.concluidas, pausaMarcoRef.current)) {
-      abrirPausaPedagogica(a.estado.concluidas); return;   // NÃO monta a próxima palavra ainda
+      setFase('pausa'); abrirPausaPedagogica(a.estado.concluidas); return;   // NÃO monta a próxima palavra ainda
     }
-    apresentarPagina(false);
-  }, [disparar, apresentarPagina, pararRelogio, abrirBau, limparEvento, abrirPausaPedagogica, cfg]);
+    avancarRodada();     // UMA próxima rodada (guardada contra duplo-avanço)
+  }, [disparar, avancarRodada, pararRelogio, abrirBau, limparEvento, abrirPausaPedagogica, cfg, setFase]);
 
-  // Abertura MANUAL do Baú (barra "Baú pronto") — só na palavra, sem interromper evento/poder.
+  // Abertura MANUAL do Baú ("BAÚ CHEIO!") — DURANTE a rodada: preserva a rodada e pausa o relógio.
   const abrirBauManual = useCallback(() => {
     if (finalizadoRef.current || !bauPendenteRef.current || bolsoRef.current.length >= 2) return;
     if (inputTravadoRef.current || overlayAtivoRef.current || poderFxAtivoRef.current || estadoRef.current.fase !== FASES.PENSANDO) return;
     if (!(readyEvent('comBau') || readyEvent(EVENT_FALLBACK) || readyEvent('avatarBase'))) return;
-    bausRef.current += 1; abrirBau();
-  }, [abrirBau]);
+    pararRelogio();   // pausa usando o restante atual (restanteRef preservado; retomado ao fechar)
+    bausRef.current += 1; abrirBau('durante_rodada');
+  }, [abrirBau, pararRelogio]);
 
   const iniciarEventoCelebracao = useCallback((kind, seq) => {
     if (finalizadoRef.current) return;
     const token = (eventoTokenRef.current += 1);
+    setFase('celebrando');   // ETAPA 6 — fase que processa a conclusão da palavra
     setFeedback('acerto'); setEfeito('completa');   // portrait NÃO muda (bPose é a pose da palavra)
     correrShine();
     ajustarTempo(cfg.bonusMs || 0);
@@ -532,6 +624,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
       inputTravadoRef.current = true; setInputTravado(true); overlayAtivoRef.current = true;
       setOverlayPose(poseEv); setOverlay('super'); dispararOverlayAnims();   // 1º frame já com imagem ready
       raiosAnim.setValue(0); if (!reduzMovim) Animated.timing(raiosAnim, { toValue: 1, duration: 1400, easing: Easing.linear, useNativeDriver: true }).start();
+      pularBeni();   // "pop" do Beni no Super (destaque; respeita movimento reduzido)
       tocar('superx', true);
       dwell = PERMANENCIA_MS.SUPER_BENI;
     } else if (kind === 'super' || kind === 'triplo') {
@@ -586,17 +679,23 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     else armarLanterna();
   }, [finalizarPalavra, armarLanterna, aplicarPreench]);
 
+  // P4.4 — VOO da letra no MESMO referencial: mede alternativa, slot e HOST em coordenadas de janela e
+  // converte origem/destino para coordenadas LOCAIS do host (subtrai a origem do host). Sem offset mágico.
   const voarPeca = useCallback((idx, pos, letra, faseAposResolver) => {
-    const oRef = optRefs.current[idx]; const sRef = slotRefs.current[pos];
-    if (reduzMovim || !oRef || !sRef || !oRef.measureInWindow) { finalizarAcerto(pos, faseAposResolver); return; }
-    oRef.measureInWindow((ox, oy, ow, oh) => {
-      if (!montado.current) return;
-      sRef.measureInWindow((sx, sy, sw, sh) => {
-        if (!montado.current) { finalizarAcerto(pos, faseAposResolver); return; }
-        setVoo({ letra, from: { x: ox + ow / 2, y: oy + oh / 2 }, to: { x: sx + sw / 2, y: sy + sh / 2 } });
-        vooAnim.setValue(0);
-        Animated.timing(vooAnim, { toValue: 1, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: true })
-          .start(() => { if (montado.current) { setVoo(null); finalizarAcerto(pos, faseAposResolver); } });
+    const oRef = optRefs.current[idx]; const sRef = slotRefs.current[pos]; const hRef = hostRef.current;
+    if (reduzMovim || !oRef || !sRef || !hRef || !oRef.measureInWindow || !hRef.measureInWindow) { finalizarAcerto(pos, faseAposResolver); return; }
+    hRef.measureInWindow((hx, hy) => {
+      if (!montado.current) { finalizarAcerto(pos, faseAposResolver); return; }
+      oRef.measureInWindow((ox, oy, ow, oh) => {
+        if (!montado.current) return;
+        sRef.measureInWindow((sx, sy, sw, sh) => {
+          if (!montado.current) { finalizarAcerto(pos, faseAposResolver); return; }
+          // centro da alternativa (origem) e centro do slot reservado (destino), ambos em coordenadas do host
+          setVoo({ letra, from: { x: ox + ow / 2 - hx, y: oy + oh / 2 - hy }, to: { x: sx + sw / 2 - hx, y: sy + sh / 2 - hy } });
+          vooAnim.setValue(0);
+          Animated.timing(vooAnim, { toValue: 1, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: true })
+            .start(() => { if (montado.current) { setVoo(null); finalizarAcerto(pos, faseAposResolver); } });   // preenche SÓ ao concluir
+        });
       });
     });
   }, [reduzMovim, finalizarAcerto, vooAnim]);
@@ -655,8 +754,8 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     if (podeRemover <= 0) return;
     const remover = new Set(erradas.slice(0, podeRemover));
     const novasOpts = pg.options.filter((o) => !remover.has(o));
-    const np = { ...pg, options: novasOpts }; paginaRef.current = np; setPagina(np);
-  }, []);
+    atualizarPaginaRodada((atualPg) => ({ ...atualPg, options: novasOpts }));   // mesma rodada (id/pose)
+  }, [atualizarPaginaRodada]);
 
   // impacto: consome (remove do bolso) e aplica a lógica imediata
   const onPoderImpact = useCallback(() => {
@@ -746,7 +845,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
       const r = disparar({ tipo: EVENTOS.RESOLVER });
       if (n >= 2) {
         setFeedback('erro2');
-        setPagina((prev) => { const np = prev ? { ...prev, options: [...prev.options].reverse() } : prev; paginaRef.current = np; return np; });
+        atualizarPaginaRodada((pg) => ({ ...pg, options: [...pg.options].reverse() }));   // mesma rodada (id/pose)
         ajustarTempo(-(cfg.penalidade2oErroMs || 0));
       } else {
         setFeedback('erro');
@@ -756,14 +855,24 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
       agendar(() => { if (montado.current) setFeedback((f) => (f === 'erro' || f === 'erro2' ? null : f)); }, 1000);
       if (r.estado.fase === FASES.RESGATANDO) setModoResgate(true);
     }
-  }, [pagina, disparar, agendar, voarPeca, balancarErro, ajustarTempo, cfg]);
+  }, [pagina, disparar, agendar, voarPeca, balancarErro, ajustarTempo, cfg, atualizarPaginaRodada]);
+
+  // Saída OFICIAL da experiência → aba Brincar por rota ANINHADA estável (sem goBack de histórico).
+  const voltarParaBrincar = useCallback(() => {
+    limparTimers(); pararRelogio();
+    navigation.navigate(ROUTES.HOME, { screen: ROUTES.ACTIVITIES });
+  }, [navigation, limparTimers, pararRelogio]);
 
   const sairComSeguranca = useCallback(() => {
-    limparTimers(); pararRelogio();
-    const st = estadoRef.current;
-    if (st && st.fase !== FASES.FINALIZADO && st.fase !== FASES.SELECIONANDO_DIFICULDADE) estadoRef.current = reduzir(st, { tipo: EVENTOS.ABANDONAR }).estado;
-    navigation.goBack();
-  }, [navigation, limparTimers, pararRelogio]);
+    if (diag) { setDiag(false); return; }                       // Voltar fecha o Laboratório (tela interna)
+    if (tela === 'jogando' || tela === 'bau') {                 // Voltar durante a partida → SELEÇÃO DE MODO (interna)
+      limparTimers(); pararRelogio(); limparEvento();
+      const st = estadoRef.current;
+      if (st && st.fase !== FASES.FINALIZADO && st.fase !== FASES.SELECIONANDO_DIFICULDADE) estadoRef.current = reduzir(st, { tipo: EVENTOS.ABANDONAR }).estado;
+      finalizadoRef.current = false; faseJogoRef.current = 'entrada'; setFaseJogo('entrada'); setTela('entrada'); return;
+    }
+    voltarParaBrincar();                                        // de entrada / resultado → aba Brincar (oficial)
+  }, [diag, tela, limparTimers, pararRelogio, limparEvento, voltarParaBrincar]);
 
   const comecar = useCallback(() => {
     limparTimers(); pararRelogio(); setDiag(false); limparEvento();
@@ -774,25 +883,27 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     bolsoRef.current = []; ultimoParRef.current = null; dicaBolsoRef.current = false; pausaModalRef.current = false; poderFxAtivoRef.current = null;
     pausaPedagoRef.current = false; pausaMarcoRef.current = 0; setPausaPedago(null);
     portraitPoseRef.current = null; superGrandeFeitoRef.current = false;
+    // ETAPA 2/7 — reinicia a rodada atômica, o contexto do Baú e as guardas de avanço.
+    rodadaConcluidaIdRef.current = -1; proximaPublicadaParaRef.current = -1; contextoBauRef.current = { origem: null, rodadaId: null };
     setComboPalavras(0); setMelhorCombo(0); setSequencia(0); setMagia(0); setBauPronto(false); setDourada(false); setLanternaAlvo(null); setBolso([]); setEscudoArmado(false); setDicaBolso(false); setPausaModal(false); setPoderFxAtivo(null); setCapitulo(false); setPoderDetalhe(null); setCompacto(null);
-    const seed = novaSeed(); rngRef.current = criarRng(seed); deckStateRef.current = criarDeckState();
+    // P4.4 — novo seed a cada partida (variedade), MAS preserva o deckState (sacola + janela recente)
+    // enquanto o usuário permanecer na tela: Jogar de novo / Trocar modo NÃO reiniciam a janela recente.
+    const seed = novaSeed(); rngRef.current = criarRng(seed);
     const dummy = new Array(Math.min(cfg.rounds, 9999)).fill(0).map(() => ({}));
     let st = criarSessao();
     st = reduzir(st, { tipo: EVENTOS.ESCOLHER_DIFICULDADE, dificuldade: nivel }).estado;
     st = reduzir(st, { tipo: EVENTOS.SESSAO_PRONTA, plano: dummy }).estado;
     st = reduzir(st, { tipo: EVENTOS.LIVRO_ABERTO }).estado;
-    setSt(st); setTela('jogando'); iniciarRelogio();
+    setSt(st); setFase('jogando'); setTela('jogando'); iniciarRelogio();
     agendar(() => apresentarPagina(true), 0);
-  }, [nivel, limparTimers, pararRelogio, limparEvento, setSt, iniciarRelogio, agendar, apresentarPagina, cfg.rounds]);
+  }, [nivel, limparTimers, pararRelogio, limparEvento, setSt, iniciarRelogio, agendar, apresentarPagina, cfg.rounds, setFase]);
 
   /* ─────────────────────────── Render ─────────────────────────── */
   const headerTop = Math.max(insets.top, 10) + (criadorAtivo ? ALTURA_BANNER_CRIADOR : 0);
   const inputBloqueado = estado.fase !== FASES.PENSANDO && estado.fase !== FASES.RESGATANDO;
   const seg = segundosRestantes(restante);
 
-  // A pose do guia é ESTÁVEL na palavra (não muda por acerto/erro/evento/tempo/Resgate).
-  const bPose = portraitPose;
-
+  // bPose e pagina vêm da RODADA ATÔMICA (derivados no topo). ESTÁVEIS na palavra.
   const p = pagina;
   const nLetras = p ? p.word.letters.length : 4;
   const fb = nLetras <= 5 ? 48 : nLetras <= 8 ? 40 : nLetras <= 10 ? 32 : 26;
@@ -842,13 +953,15 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     </LinearGradient>
   );
 
-  /* ── Laboratório DEV ── */
+  /* ── Laboratório DEV (overlay) ── */
+  let labEl = null;
   if (tela === 'entrada' && diag && criadorAtivo) {
     const cenas = ['poses', 'triplo', 'super', 'poderes', 'tempo'];
-    return (
-      <View style={styles.root}>{Header}<PalavrinhasBeniWarmer />
+    labEl = (
+      <View style={styles.overlayFull}>
         <ScrollView contentContainerStyle={[styles.diagWrap, { paddingBottom: insets.bottom + 24 }]}>
           <Text style={styles.diagTitulo}>Laboratório visual (dev)</Text>
+          <Text style={styles.diagSub}>rodada #{rodadaVisual.id} · fase {faseJogo} · stack {stackProntas.size}/11</Text>
           <View style={styles.diagAbas}>
             {cenas.map((c) => <SoundButton key={c} onPress={() => setDiagCena(c)} style={[styles.diagAba, diagCena === c && styles.diagAbaSel]}><Text style={[styles.diagAbaTxt, diagCena === c && styles.diagAbaTxtSel]}>{c}</Text></SoundButton>)}
           </View>
@@ -856,15 +969,17 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
             <View style={styles.diagGrid}>
               {BENI_POSE_KEYS.map((pose) => {
                 const noPortrait = PORTRAIT_POSES.includes(pose);
-                const ready = poseReady(pose);
+                const pOk = readyPortrait(pose);
+                const eOk = readyEvent(pose);
                 return (
                   <View key={pose} style={styles.diagItem}>
+                    {/* MESMO contêiner do jogo (BeniStageCharacter), nos dois tamanhos usados */}
                     <View style={styles.diagDupla}>
                       {noPortrait ? <BeniStageCharacter presentation="portrait" pose={pose} size={64} reduzMovim={reduzMovim} /> : <View style={[styles.diagVazio, { width: 64, height: 64 }]}><Text style={styles.diagNA}>—</Text></View>}
                       <BeniStageCharacter presentation="event" pose={pose} size={72} reduzMovim={reduzMovim} />
                     </View>
                     <Text style={styles.diagLabel}>{pose}</Text>
-                    <Text style={[styles.diagTag, { color: ready ? pt.greenDeep : pt.danger }]}>{ready ? 'ready' : 'loading'}</Text>
+                    <Text style={[styles.diagTag, { color: (eOk && (!noPortrait || pOk)) ? pt.greenDeep : pt.danger }]}>{noPortrait ? `P:${pOk ? 'ok' : '…'} ` : ''}E:{eOk ? 'ok' : '…'}</Text>
                   </View>
                 );
               })}
@@ -890,12 +1005,13 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     );
   }
 
-  /* ── Entrada ── */
-  if (tela === 'entrada') {
-    return (
-      <View style={styles.root}>{Header}<PalavrinhasBeniWarmer />
+  /* ── Entrada (overlay) ── */
+  let entradaEl = null;
+  if (tela === 'entrada' && !(diag && criadorAtivo)) {
+    entradaEl = (
+      <View style={styles.overlayFull}>
         <View style={[styles.centro, { paddingBottom: insets.bottom + 16 }]}>
-          <BeniStageCharacter presentation="event" pose="celebrando" lado="esquerda" size={128} reduzMovim={reduzMovim} />
+          <BeniStageCharacter presentation="event" pose="celebrando" lado="esquerda" size={128} reduzMovim={reduzMovim} onPronta={() => setBeniEntradaPronto(true)} />
           <View style={[styles.balaoSolo, { maxWidth: cardW }]}><Text style={styles.balaoTxt}>{falaBeni({ estado: 'entrada' })}</Text></View>
           <LinearGradient colors={['#FFFDF7', '#FFF3DD']} style={[styles.livro, { width: cardW }]}>
             <View style={styles.livroFaixa}><Text style={styles.livroFaixaTxt}>Livro Mágico de Palavrinhas</Text></View>
@@ -913,7 +1029,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
               })}
             </View>
           </LinearGradient>
-          {minimasProntas ? (
+          {beniStackPronto && beniEntradaPronto ? (
             <SoundButton style={styles.btnPrimario} soundType="success" onPress={comecar}><FaithIcon name="palavrinhas" size={20} color="#FFF" /><Text style={styles.btnPrimarioTxt}>Abrir o Livro</Text></SoundButton>
           ) : (
             <View style={[styles.btnPrimario, styles.btnPrimarioOff]}><FaithIcon name="palavrinhas" size={20} color="#FFF" /><Text style={styles.btnPrimarioTxt}>Preparando o Beni...</Text></View>
@@ -924,10 +1040,11 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     );
   }
 
-  /* ── Baú ── */
+  /* ── Baú (overlay) ── */
+  let bauEl = null;
   if (tela === 'bau') {
-    return (
-      <View style={styles.root}>{Header}<PalavrinhasBeniWarmer />
+    bauEl = (
+      <View style={styles.overlayFull}>
         <LinearGradient colors={['#FFF6E2', '#F3E8FF']} style={[styles.centroBau, { paddingBottom: insets.bottom + 16 }]}>
           <PalavrinhasChest
             cartas={bauCartas}
@@ -939,7 +1056,8 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     );
   }
 
-  /* ── Fim ── */
+  /* ── Fim (overlay) ── */
+  let fimEl = null;
   if (tela === 'fim') {
     const semPalavras = estado.concluidas === 0;
     const brilhos = estado.brilhoTotal + brilhoBonusRef.current;
@@ -961,8 +1079,8 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     if (cfg.magia && bausRef.current > 0) destaques.push({ icon: 'lumi', nome: 'Guardião da Magia' });
     if (cfg.sobrevivencia && estado.concluidas >= 8) destaques.push({ icon: 'star', nome: 'Recorde do Turbo' });
     const destaques2 = destaques.slice(0, 2);
-    return (
-      <View style={styles.root}>{Header}<PalavrinhasBeniWarmer />
+    fimEl = (
+      <View style={styles.overlayFull}>
         <ScrollView contentContainerStyle={[styles.centroFim, { paddingBottom: insets.bottom + 16 }]}>
           <BeniStageCharacter presentation="event" pose="celebrando2" lado="esquerda" size={140} reduzMovim={reduzMovim} />
           {semPalavras ? (
@@ -990,9 +1108,9 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
             </>
           )}
           <SoundButton style={styles.btnPrimario} soundType="success" onPress={comecar}><FaithIcon name="restart" size={18} color="#FFF" /><Text style={styles.btnPrimarioTxt}>Jogar de novo</Text></SoundButton>
-          <SoundButton style={styles.btnSecundario} onPress={() => setTela('entrada')}><Text style={styles.btnSecundarioTxt}>Trocar modo</Text></SoundButton>
+          <SoundButton style={styles.btnSecundario} onPress={() => { faseJogoRef.current = 'entrada'; setFaseJogo('entrada'); setTela('entrada'); }}><Text style={styles.btnSecundarioTxt}>Trocar modo</Text></SoundButton>
           <View style={styles.fimLinha}>
-            <SoundButton style={styles.btnMini} onPress={() => navigation.navigate(ROUTES.HOME, { screen: ROUTES.ACTIVITIES })}><FaithIcon name="brincar" size={15} color={pt.textSoft} /><Text style={styles.btnMiniTxt}>Brincar</Text></SoundButton>
+            <SoundButton style={styles.btnMini} onPress={voltarParaBrincar}><FaithIcon name="brincar" size={15} color={pt.textSoft} /><Text style={styles.btnMiniTxt}>Brincar</Text></SoundButton>
             <SoundButton style={styles.btnMini} onPress={() => navigation.navigate(ROUTES.HOME)}><FaithIcon name="home" size={15} color={pt.textSoft} /><Text style={styles.btnMiniTxt}>Início</Text></SoundButton>
           </View>
         </ScrollView>
@@ -1000,24 +1118,26 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
     );
   }
 
-  /* ── Jogando ── */
+  /* ── Jogando (BASE persistente — o portrait stack permanece montado em todas as telas internas) ── */
   const pulseBorderColor = pulso.interpolate({ inputRange: [0, 1], outputRange: [tema.borda, ALERTA] });
   const gradPalco = dourada ? GRAD_DOURADO : (efeito === 'completa' ? tema.gradOk : tema.grad);
   const falaAtual = (overlay || poderFxAtivo) ? '' : falaBeni({ estado: 'jogo', feedback, modoResgate, tempoBaixo, faltam });
+  const ctaScale = bauCtaAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] });
 
-  return (
-    <View style={styles.root}>{Header}<PalavrinhasBeniWarmer />
+  const jogoBaseEl = (
+    <>
       <View style={[styles.jogo, { paddingBottom: insets.bottom + 6 }]}>
         <PalavrinhasHud nivel={nivel} cfg={cfg} tema={tema} concluidas={estado.concluidas} brilhoTotal={estado.brilhoTotal} comboPalavras={comboPalavras} melhorCombo={melhorCombo} />
         {capitulo ? <View style={styles.capitulo}><Text style={styles.capituloTxt}>Novo capítulo</Text></View> : null}
 
+        {/* guiaRow SEMPRE montada: o stack persiste (aquece na entrada, sobrevive a Baú/pausa/resultado). */}
+        <View style={[styles.guiaRow, { width: cardW }]}>
+          <PalavrinhasBeniPortraitStack activePose={bPose} size={72} lado="esquerda" visivel={tela === 'jogando' && !!p} onPoseReady={onStackPoseReady} onPoseErro={onStackPoseErro} />
+          {p ? <View style={[styles.balaoGuia, { maxWidth: cardW - 96 }]}><Text style={styles.balaoTxt} numberOfLines={2}>{falaAtual}</Text></View> : null}
+        </View>
+
         {p && (
           <Animated.View style={{ width: cardW, opacity: entrada, transform: [{ translateX: entrada.interpolate({ inputRange: [0, 1], outputRange: [36, 0] }) }] }}>
-            <View style={styles.guiaRow}>
-              <BeniStageCharacter presentation="portrait" pose={bPose} lado="esquerda" size={72} reduzMovim={reduzMovim} jump={beniJump} />
-              <View style={[styles.balaoGuia, { maxWidth: cardW - 96 }]}><Text style={styles.balaoTxt} numberOfLines={2}>{falaAtual}</Text></View>
-            </View>
-
             <Animated.View style={[styles.palcoCard, dourada && styles.palcoDourado, efeito === 'super' && styles.palcoSuper, efeito === 'triplo' && styles.palcoTriplo, { borderColor: tempoBaixo && !reduzMovim ? pulseBorderColor : (efeito === 'completa' ? tema.accent : tema.borda) }]}>
               <LinearGradient colors={gradPalco} style={styles.palcoBg}>
                 <View pointerEvents="none" style={styles.fundoStars}>
@@ -1062,9 +1182,25 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
 
         <View style={{ flex: 1 }} />
 
-        {/* Barra INFERIOR do Bolso Mágico (só na Corrida) */}
+        {/* ETAPA 8 — aviso GRANDE, claro e ACIONÁVEL de "BAÚ CHEIO!" (Baú manual disponível na Corrida). */}
+        {nivel === 'medio' && bauPronto ? (
+          <Animated.View style={[styles.bauCtaWrap, { width: cardW, opacity: reduzMovim ? 1 : bauCtaAnim, transform: [{ scale: reduzMovim ? 1 : ctaScale }] }]}>
+            <Pressable onPress={abrirBauManual} accessibilityRole="button"
+              accessibilityLabel="Baú cheio. Toque para escolher um poder."
+              accessibilityHint="Abre a escolha de poderes sem trocar a palavra atual."
+              style={({ pressed }) => [styles.bauCta, pressed && styles.bauCtaPress]}>
+              <View style={styles.bauCtaIcon}><FaithIcon name="lumi" size={30} color="#7A3E00" /></View>
+              <View style={styles.bauCtaTxtCol}>
+                <Text style={styles.bauCtaTitulo}>BAÚ CHEIO!</Text>
+                <Text style={styles.bauCtaSub}>Toque para escolher um poder</Text>
+              </View>
+            </Pressable>
+          </Animated.View>
+        ) : null}
+
+        {/* Barra INFERIOR do Bolso Mágico (só na Corrida) — o aviso grande substitui o chip pequeno de Baú. */}
         {nivel === 'medio' ? (
-          <PalavrinhasPowerDock magia={magia} bauApos={cfg.bauApos} bauPronto={bauPronto} bolso={bolso} onUsar={abrirPainelPoder} onAbrirBau={abrirBauManual} coach={dicaBolso && !overlay && !poderFxAtivo && !pausaModal} reduzMovim={reduzMovim} bloqueado={inputTravado} escudoArmado={escudoArmado} />
+          <PalavrinhasPowerDock magia={magia} bauApos={cfg.bauApos} bauPronto={false} bolso={bolso} onUsar={abrirPainelPoder} onAbrirBau={abrirBauManual} coach={dicaBolso && !overlay && !poderFxAtivo && !pausaModal} reduzMovim={reduzMovim} bloqueado={inputTravado} escudoArmado={escudoArmado} />
         ) : null}
       </View>
 
@@ -1072,9 +1208,9 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
         <Animated.View pointerEvents="none" style={[styles.voo, {
           left: voo.from.x - 22, top: voo.from.y - 22,
           transform: [
+            // trajetória DIRETA até o centro do slot (sem arco, sem overshoot/oscilação); driver nativo.
             { translateX: vooAnim.interpolate({ inputRange: [0, 1], outputRange: [0, voo.to.x - voo.from.x] }) },
-            { translateY: vooAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, -30, voo.to.y - voo.from.y] }) },
-            { scale: vooAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.15, 0.9] }) },
+            { translateY: vooAnim.interpolate({ inputRange: [0, 1], outputRange: [0, voo.to.y - voo.from.y] }) },
           ],
         }]}><Text style={styles.vooTxt}>{voo.letra}</Text></Animated.View>
       ) : null}
@@ -1090,7 +1226,7 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
           <Animated.View style={[styles.anelUm, { opacity: anelAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.7] }), transform: [{ scale: anelAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }]} />
           {overlay === 'super' ? <Animated.View style={[styles.anelDois, { opacity: anelAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.5] }), transform: [{ scale: anelAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.15] }) }] }]} /> : null}
           <View style={styles.overlayCentro}>
-            <BeniStageCharacter presentation="event" pose={overlayPose} size={overlay === 'super' ? 190 : 158} reduzMovim={reduzMovim} jump={beniJump} />
+            <BeniStageCharacter presentation="event" pose={overlayPose} size={overlay === 'super' ? 202 : 158} reduzMovim={reduzMovim} jump={beniJump} />
             <Particulas layout={overlay === 'super' ? PARTICULAS_SUPER : PARTICULAS_TRIPLO} anim={particAnim} cores={overlay === 'super' ? ['#FFD54A', '#FFE9A8', '#F3722C'] : ['#FFD54A', '#FFF0B0']} reduzMovim={reduzMovim} />
             <Animated.Text style={[overlay === 'super' ? styles.superTxt : styles.triploTxt, { opacity: textoAnim, transform: [{ scale: textoAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }] }]}>{overlay === 'super' ? 'SUPER BENI!' : 'BRILHO TRIPLO!'}</Animated.Text>
             {overlay === 'super' ? <Animated.Text style={[styles.superSub, { opacity: textoAnim }]}>{superSeqRef.current} palavras seguidas</Animated.Text> : null}
@@ -1139,12 +1275,36 @@ export default function PalavrinhasDoBeniScreen({ navigation }) {
       ) : null}
 
       {tempoBaixo && !reduzMovim && <MolduraAlerta pulso={pulso} largura={width} />}
+    </>
+  );
+
+  // RETURN ÚNICO: uma só árvore para o stack do portrait NUNCA ser recriado ao mudar de tela interna.
+  return (
+    <View style={styles.root}>
+      {Header}
+      <View ref={hostRef} collapsable={false} style={styles.corpo}>
+        {jogoBaseEl}
+        {entradaEl}
+        {bauEl}
+        {fimEl}
+        {labEl}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: pt.background },
+  corpo: { flex: 1 },
+  overlayFull: { ...StyleSheet.absoluteFillObject, backgroundColor: pt.background },
+  // ETAPA 8 — "BAÚ CHEIO!" grande, contraste forte, área toda clicável.
+  bauCtaWrap: { alignSelf: 'center', marginBottom: 8 },
+  bauCta: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radii.xl, backgroundColor: pt.gold, borderWidth: 3, borderColor: '#7A3E00', ...shadows.card },
+  bauCtaPress: { backgroundColor: '#FFDF7A' },
+  bauCtaIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF3D0', borderWidth: 2, borderColor: '#7A3E00' },
+  bauCtaTxtCol: { flex: 1 },
+  bauCtaTitulo: { fontFamily: 'FredokaOne', fontSize: 22, color: '#5A2E00', letterSpacing: 0.5 },
+  bauCtaSub: { fontFamily: 'Nunito_700Bold', fontSize: 14, color: '#7A3E00' },
   header: { paddingHorizontal: 14, paddingBottom: 10 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerDir: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -1195,14 +1355,14 @@ const styles = StyleSheet.create({
   vooTxt: { fontFamily: 'FredokaOne', fontSize: 26, color: pt.beniDeep },
   overlay: { alignItems: 'center', justifyContent: 'center', zIndex: 30 },
   overlayDim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,12,4,0.32)' },
-  overlayDimForte: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(16,9,2,0.56)' },
+  overlayDimForte: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(14,8,2,0.66)' },
   overlayCentro: { alignItems: 'center', justifyContent: 'center', gap: 10 },
   anelUm: { position: 'absolute', width: 230, height: 230, borderRadius: 115, borderWidth: 6, borderColor: pt.gold },
   anelDois: { position: 'absolute', width: 300, height: 300, borderRadius: 150, borderWidth: 5, borderColor: '#F3722C' },
   raios: { position: 'absolute', width: 360, height: 360, alignItems: 'center', justifyContent: 'center' },
   raio: { position: 'absolute', width: 360, height: 16, borderRadius: 8, opacity: 0.55 },
-  superTxt: { fontFamily: 'FredokaOne', fontSize: 34, color: '#FFF', letterSpacing: 1, textShadowColor: '#8A3B00', textShadowRadius: 8, textShadowOffset: { width: 0, height: 2 } },
-  superSub: { fontFamily: 'FredokaOne', fontSize: 17, color: pt.gold },
+  superTxt: { fontFamily: 'FredokaOne', fontSize: 40, color: '#FFF', letterSpacing: 1.5, textShadowColor: '#8A3B00', textShadowRadius: 10, textShadowOffset: { width: 0, height: 2 } },
+  superSub: { fontFamily: 'FredokaOne', fontSize: 19, color: pt.gold },
   triploTxt: { fontFamily: 'FredokaOne', fontSize: 27, color: '#FFF', letterSpacing: 1, textShadowColor: '#8A6A00', textShadowRadius: 8, textShadowOffset: { width: 0, height: 2 } },
   modalWrap: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(20,12,4,0.4)', zIndex: 40 },
   modalCard: { width: 280, alignItems: 'center', gap: 10, paddingVertical: 22, paddingHorizontal: 18, borderRadius: radii.xl, backgroundColor: pt.surface, ...shadows.card },

@@ -105,6 +105,12 @@ const MEDIO = [
   M('m_castelo', 'CASTELO', 'lugares'), M('m_estrada', 'ESTRADA', 'lugares'), M('m_planeta', 'PLANETA', 'natureza'), M('m_chinelo', 'CHINELO', 'objetos'),
   M('m_telhado', 'TELHADO', 'lugares'), M('m_pipoca', 'PIPOCA', 'alimentos'), M('m_vestido', 'VESTIDO', 'objetos'), M('m_sorvete', 'SORVETE', 'alimentos'),
   M('m_caminho', 'CAMINHO', 'lugares'), M('m_floresta', 'FLORESTA', 'natureza'), M('m_biscoito', 'BISCOITO', 'alimentos'), M('m_presente', 'PRESENTE', 'objetos'),
+  // ── P4.4: +20 médio (5–8 letras, sem acento; objetos/lugares/natureza/transporte/família) ──
+  M('m_tesoura', 'TESOURA', 'objetos'), M('m_martelo', 'MARTELO', 'objetos'), M('m_vassoura', 'VASSOURA', 'objetos'), M('m_cadeira', 'CADEIRA', 'objetos'),
+  M('m_garrafa', 'GARRAFA', 'objetos'), M('m_mochila', 'MOCHILA', 'objetos'), M('m_caneta', 'CANETA', 'objetos'), M('m_pincel', 'PINCEL', 'objetos'),
+  M('m_tambor', 'TAMBOR', 'objetos'), M('m_barco', 'BARCO', 'transporte'), M('m_foguete', 'FOGUETE', 'transporte'), M('m_padaria', 'PADARIA', 'lugares'),
+  M('m_mercado', 'MERCADO', 'lugares'), M('m_fazenda', 'FAZENDA', 'lugares'), M('m_piscina', 'PISCINA', 'lugares'), M('m_parque', 'PARQUE', 'lugares'),
+  M('m_montanha', 'MONTANHA', 'natureza'), M('m_fogueira', 'FOGUEIRA', 'natureza'), M('m_nuvem', 'NUVEM', 'natureza'), M('m_vizinho', 'VIZINHO', 'familia'),
 ];
 
 /* ── DIFÍCIL (40) — 7–12 letras E/OU acento/Ç/repetidas/encontros ── */
@@ -120,9 +126,15 @@ const DIFICIL = [
   D('d_margarida', 'MARGARIDA', 'natureza'), D('d_abobora', 'ABÓBORA', 'alimentos'), D('d_pirulito', 'PIRULITO', 'alimentos'), D('d_borracha', 'BORRACHA', 'objetos'),
   D('d_pinguim', 'PINGUIM', 'animais'), D('d_garotinho', 'GAROTINHO', 'familia'), D('d_presepio', 'PRESÉPIO', 'biblia'), D('d_corujinha', 'CORUJINHA', 'animais'),
   D('d_girassol', 'GIRASSOL', 'natureza'), D('d_cavalinho', 'CAVALINHO', 'animais'), D('d_melao', 'MELÃO', 'alimentos'), D('d_feijao', 'FEIJÃO', 'alimentos'),
+  // ── P4.4: +20 difícil (7–12 letras e/ou acento; objetos/lugares/transporte/natureza) ──
+  D('d_geladeira', 'GELADEIRA', 'objetos'), D('d_televisao', 'TELEVISÃO', 'objetos'), D('d_escorregador', 'ESCORREGADOR', 'objetos'), D('d_brincadeira', 'BRINCADEIRA', 'objetos'),
+  D('d_travesseiro', 'TRAVESSEIRO', 'objetos'), D('d_guardanapo', 'GUARDANAPO', 'objetos'), D('d_ventilador', 'VENTILADOR', 'objetos'), D('d_hospital', 'HOSPITAL', 'lugares'),
+  D('d_biblioteca', 'BIBLIOTECA', 'lugares'), D('d_supermercado', 'SUPERMERCADO', 'lugares'), D('d_aeroporto', 'AEROPORTO', 'transporte'), D('d_helicoptero', 'HELICÓPTERO', 'transporte'),
+  D('d_aquario', 'AQUÁRIO', 'lugares'), D('d_catavento', 'CATAVENTO', 'objetos'), D('d_cachoeirinha', 'CACHOEIRINHA', 'natureza'), D('d_caracol', 'CARACOL', 'animais'),
+  D('d_formiguinha', 'FORMIGUINHA', 'animais'), D('d_passaporte', 'PASSAPORTE', 'objetos'), D('d_escadaria', 'ESCADARIA', 'lugares'), D('d_melancia', 'MELANCIA', 'alimentos'),
 ];
 
-/** Banco completo (120: 40 fácil · 40 médio · 40 difícil). */
+/** Banco completo (P4.4: 160 — 40 fácil · 60 médio · 60 difícil). */
 export const PALAVRINHAS_WORDS = Object.freeze([...FACIL, ...MEDIO, ...DIFICIL]);
 
 export function getWord(id) {

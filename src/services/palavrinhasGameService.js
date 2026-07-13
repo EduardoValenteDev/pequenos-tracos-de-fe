@@ -215,6 +215,31 @@ const padrao = (of) => (of.especial ? 'especial' : of.hasCluster ? 'encontro' : 
 /* ─────────────────────────── Baralho rotativo + deckState ─────────────────────────── */
 
 export const PALAVRINHAS_HIST_MAX = 16;
+/** Janela recente-alvo (meta 12–20; sempre limitada a `pool-1` para nunca ser impossível). P4.4. */
+export const PALAVRINHAS_JANELA_RECENTE = 16;
+
+/** Chave canônica p/ deduplicar duplicatas ACIDENTAIS (espaços/caixa/forma Unicode); PRESERVA acento. P4.4. */
+export function chaveCanonica(w) {
+  const s = (w && (w.displayWord || w.word)) || '';
+  return s.normalize('NFC').trim().toLocaleUpperCase('pt-BR');
+}
+export function dedupCanonico(arr) {
+  const seen = new Set(); const out = [];
+  for (const w of (arr || [])) { const k = chaveCanonica(w); if (k && !seen.has(k)) { seen.add(k); out.push(w); } }
+  return out;
+}
+/** Rotaciona a nova sacola p/ que a 1ª carta evite a JANELA RECENTE (e nunca repita a última). P4.4. PURO. */
+export function evitarRecentesNoInicio(ciclo, deck, hist, poolLen) {
+  if (!Array.isArray(ciclo) || ciclo.length <= 1) return ciclo;
+  const cap = Math.max(0, Math.min(PALAVRINHAS_JANELA_RECENTE, poolLen - 1));
+  const recentes = new Set((hist || []).slice(-cap).map((h) => h && h.wordId).filter(Boolean));
+  if (deck && deck.ultimo) recentes.add(deck.ultimo);
+  let j = ciclo.findIndex((id) => !recentes.has(id));                          // 1ª fora da janela recente
+  if (j < 0) j = ciclo.findIndex((id, k) => k > 0 && id !== (deck && deck.ultimo));   // fallback: só não-imediata (pool pequeno)
+  if (j > 0) { const t = ciclo[0]; ciclo[0] = ciclo[j]; ciclo[j] = t; }
+  return ciclo;
+}
+
 export function criarDeckState() { return { ver: 1, decks: {}, hist: {} }; }
 export function clonarDeckState(ds) {
   const base = ds || criarDeckState();
@@ -247,7 +272,7 @@ export function montarBaralhoPalavras({ dificuldade = 'facil', rng = Math.random
   const dif = getDifficulty(dificuldade);
   const total = Number(rounds) > 0 ? rounds : dif.rounds;
   const ds = clonarDeckState(deckState);
-  const pool = words.filter((w) => palavraElegivel(w, dificuldade));
+  const pool = dedupCanonico(words.filter((w) => palavraElegivel(w, dificuldade)));
   const out = [];
   if (!pool.length) return { baralho: out, deckState: ds };
   const byId = (id) => pool.find((w) => w.id === id);
@@ -259,11 +284,7 @@ export function montarBaralhoPalavras({ dificuldade = 'facil', rng = Math.random
   let ultCat = null, ultBalde = null, ultPad = null;
   for (let i = 0; i < total; i++) {
     if (!deck.restantes.length) {
-      let ciclo = shuffle(pool.map((w) => w.id), rng);
-      if (deck.ultimo && ciclo.length > 1 && ciclo[0] === deck.ultimo) {
-        const j = ciclo.findIndex((id, k) => k > 0 && id !== deck.ultimo);
-        if (j > 0) { const t = ciclo[0]; ciclo[0] = ciclo[j]; ciclo[j] = t; }
-      }
+      const ciclo = evitarRecentesNoInicio(shuffle(pool.map((w) => w.id), rng), deck, hist, pool.length);
       deck.restantes = ciclo;
     }
     let cand = deck.restantes.map(byId).filter(Boolean);
@@ -348,7 +369,7 @@ export function montarOpcoesAdaptativo(word, lacunas, dif, perfil, rng) {
 export function proximaPaginaAdaptativa({ dificuldade = 'facil', rng = Math.random, words = palavrasHabilitadas(), deckState = null, combo = 0, errosSeguidos = 0, primeira = false }) {
   const dif = getDifficulty(dificuldade);
   const ds = clonarDeckState(deckState);
-  const pool = words.filter((w) => palavraElegivel(w, dificuldade));
+  const pool = dedupCanonico(words.filter((w) => palavraElegivel(w, dificuldade)));
   if (!pool.length) return { pagina: null, deckState: ds };
   const byId = (id) => pool.find((w) => w.id === id);
   const preferir = (arr, pred) => { const s = arr.filter(pred); return s.length ? s : arr; };
@@ -357,12 +378,8 @@ export function proximaPaginaAdaptativa({ dificuldade = 'facil', rng = Math.rand
   const deck = ds.decks[key] || (ds.decks[key] = { restantes: [], ultimo: null, ultimaCategoria: null, ultimoBalde: null, ultimoPadrao: null });
   const hist = ds.hist[key] || (ds.hist[key] = []);
   if (!deck.restantes.length) {
-    let ciclo = shuffle(pool.map((w) => w.id), rng);
-    if (deck.ultimo && ciclo.length > 1 && ciclo[0] === deck.ultimo) {
-      const j = ciclo.findIndex((id, k) => k > 0 && id !== deck.ultimo);
-      if (j > 0) { const t = ciclo[0]; ciclo[0] = ciclo[j]; ciclo[j] = t; }
-    }
-    deck.restantes = ciclo;
+    // nova sacola: 1ª carta evita a janela recente (e nunca repete a última do ciclo anterior).
+    deck.restantes = evitarRecentesNoInicio(shuffle(pool.map((w) => w.id), rng), deck, hist, pool.length);
   }
   let cand = deck.restantes.map(byId).filter(Boolean);
   if (deck.ultimaCategoria) cand = preferir(cand, (w) => w.category !== deck.ultimaCategoria);

@@ -18166,11 +18166,12 @@ check(
       + ';return { PALAVRINHAS_WORDS, palavrasHabilitadas, PALAVRINHAS_DIFFICULTIES, getDifficulty, palavraElegivel, comprimentoCompativel,'
       + ' novaSeed, criarRng, shuffle, validarBanco, escolherLacunas, montarOpcoes, criarDeckState, clonarDeckState, assinaturaDeck, planId,'
       + ' montarBaralhoPalavras, planPartida, perfilCombo, complexidade, nLacunasAdaptativo, montarOpcoesAdaptativo, proximaPaginaAdaptativa,'
+      + ' chaveCanonica, dedupCanonico, evitarRecentesNoInicio, PALAVRINHAS_JANELA_RECENTE, PALAVRINHAS_HIST_MAX,'
       + ' PALAVRINHAS_PODERES, sortearPoderes, poderElegivel, RELOGIO_FOLGA_MIN_MS, PALAVRINHAS_CATEGORIAS, PALAVRINHAS_FAIXAS, getWord, devePausarBloco, PAUSA_BLOCO };')();
     const evalMq = () => new Function(stripMod(mqRaw)
       + ';return { FASES, FASES_QUE_ACEITAM, EFEITOS, EVENTOS, brilhoDaPalavra, criarSessao, reduzir, aceitaEvento, terminou, paginaAtual };')();
 
-    check('P2R (banco): 120 palavras (40/40/40), validarBanco 0 problemas, todas habilitadas',
+    check('P2R/P4.4 (banco): ≥120 palavras (40/60/60), validarBanco 0 problemas, todas habilitadas',
       (() => { try {
         const S = evalSvc();
         if (S.PALAVRINHAS_WORDS.length < 120) return false;
@@ -18181,7 +18182,47 @@ check(
         if (probs.length) { console.log('   validarBanco →', probs.slice(0, 6).join(' | ')); return false; }
         return S.palavrasHabilitadas().length === S.PALAVRINHAS_WORDS.length;
       } catch (e) { console.log('   erro', e.message); return false; } })(),
-      'o banco (≥120, 40/40/40, validador, habilitadas) regrediu');
+      'o banco (≥120, 40/60/60, validador, habilitadas) regrediu');
+
+    check('P4.4 (aceite banco §ET8): Livro Tranquilo ≥32 elegíveis; Corrida ≥60; Turbo ≥60; total únicas ≥120',
+      (() => { try {
+        const S = evalSvc();
+        const elig = (dif) => S.PALAVRINHAS_WORDS.filter((w) => S.palavraElegivel(w, dif)).length;
+        const unicas = new Set(S.PALAVRINHAS_WORDS.map(S.chaveCanonica)).size;
+        return elig('facil') >= 32 && elig('medio') >= 60 && elig('dificil') >= 60 && unicas >= 120;
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'os critérios de aceite do banco (Livro≥32, Corrida/Turbo≥60, únicas≥120) regrediram');
+
+    check('P4.4 (deck SACOLA §16–20,28–30): sem duplicatas; Livro 8/8; Corrida/Turbo esgotam o pool antes de repetir; fronteira sem repetição imediata; ciclos completos; 1000 por ciclos; reprodutível',
+      (() => { try {
+        const S = evalSvc();
+        if (S.dedupCanonico(S.PALAVRINHAS_WORDS).length !== S.PALAVRINHAS_WORDS.length) return false;   // 16
+        const poolLen = (dif) => S.PALAVRINHAS_WORDS.filter((w) => S.palavraElegivel(w, dif)).length;
+        const sim = (dif, n, seed, ds0) => { const rng = S.criarRng(seed); let ds = ds0 || S.criarDeckState(); const seq = [];
+          for (let i = 0; i < n; i++) { const r = S.proximaPaginaAdaptativa({ dificuldade: dif, rng, deckState: ds, primeira: i === 0 }); ds = r.deckState; if (!r.pagina) break; seq.push(r.pagina.wordId); } return seq; };
+        if (new Set(sim('facil', 8, 999)).size !== 8) return false;                                     // 17
+        for (const dif of ['medio', 'dificil']) { const pl = poolLen(dif); if (new Set(sim(dif, pl, 12345)).size !== pl) return false; }   // 18/19
+        const pl = poolLen('medio'); const s3 = sim('medio', pl * 3, 4242);
+        for (let i = 1; i < s3.length; i++) if (s3[i] === s3[i - 1]) return false;                       // 20 fronteira
+        for (let c = 0; c < 3; c++) if (new Set(s3.slice(c * pl, (c + 1) * pl)).size !== pl) return false; // 29 ciclos completos
+        const k = sim('medio', 1000, 7); const f = {}; k.forEach((id) => { f[id] = (f[id] || 0) + 1; });
+        const vals = Object.values(f); if (Math.max(...vals) - Math.min(...vals) > 1) return false;      // 30 distribuição por ciclos
+        if (Object.keys(f).length !== pl) return false;
+        return JSON.stringify(sim('medio', 25, 55)) === JSON.stringify(sim('medio', 25, 55));            // 28 reprodutível
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'a sacola embaralhada (dedup/Livro/esgotamento/fronteira/ciclos/reprodutível) regrediu');
+
+    check('P4.4 (janela recente §7,21–22): evita a janela recente na nova sacola e nunca repete a última; sobrevive ao reaproveitar deckState',
+      (() => { try {
+        const S = evalSvc();
+        const rng = S.criarRng(321); let ds = S.criarDeckState();
+        const pl = S.PALAVRINHAS_WORDS.filter((w) => S.palavraElegivel(w, 'medio')).length;
+        const seq = []; for (let i = 0; i < pl + 5; i++) { const r = S.proximaPaginaAdaptativa({ dificuldade: 'medio', rng, deckState: ds, primeira: i === 0 }); ds = r.deckState; seq.push(r.pagina.wordId); }
+        if (seq[pl] === seq[pl - 1]) return false;   // fronteira sem repetição imediata (deckState reaproveitado)
+        const out = S.evitarRecentesNoInicio(['a', 'b', 'c', 'd', 'e'], { ultimo: 'a' }, [{ wordId: 'a' }, { wordId: 'b' }], 5);
+        return out[0] !== 'a' && out[0] !== 'b';   // evitou a última E a janela recente
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'a proteção de janela recente entre ciclos/partidas regrediu');
 
     check('P2R (acentos/Ç no COMPLETE): LEÃO/CORAÇÃO/AEROMOÇA/PÁSSARO/CAMINHÃO/AVIÃO habilitadas, elegíveis e com grafia preservada',
       (() => { try {
@@ -18595,26 +18636,26 @@ check(
     const chestC = rd('src/components/palavrinhas/PalavrinhasChest.js');
     const fxC = rd('src/components/palavrinhas/PalavrinhasPowerEffect.js');
 
-    check('P4R9 (Beni RENDERIZA — cover + load-gated): Image RN; require estático; width/height explícitos; COVER (sem bandas); sem expo-image/uri/Asset; crossfade só após onLoad da próxima; opacity inicial 1',
+    check('P4R9/PERF1 (Beni RENDERIZA — cover + CANÔNICO): Image RN; require estático; Image em BENI_CANON (chave uniforme); COVER (sem bandas); sem expo-image/uri/Asset; crossfade só entre poses prontas; opacity inicial 1',
       bsc.length > 0
       && /export default function BeniStageCharacter/.test(bsc)
       && /from 'react-native'/.test(bsc) && /\bImage\b/.test(bsc)
       && !/expo-image/.test(bsc) && !/contentFit/.test(bsc)
       && !/resolveAssetSource/.test(bsc) && !/\buri:/.test(bsc) && !/Asset\./.test(bsc)
       && /source=\{fonte\(atual\)\}/.test(bsc) && /BENI_IMAGES\[p\]/.test(bsc)
-      && /width: size, height: size/.test(bsc)
+      && /width: BENI_CANON, height: BENI_CANON/.test(bsc)   // PERF1: dimensão NATIVA sempre canônica
       && /resizeMode="cover"/.test(bsc) && !/resizeMode="contain"/.test(bsc)   // cover elimina as faixas do fundo
       && /fadeDuration=\{0\}/.test(bsc)
       && /opAtual = useRef\(new Animated\.Value\(1\)\)\.current;/.test(bsc)
       && /onLoadEnd=\{onLoadEndAtual\}/.test(bsc) && /onError=\{onErroAtual\}/.test(bsc)
-      // ready por TAMANHO (readyPortrait/readyEvent) + NUNCA transiciona p/ mesma source + placeholder
-      && /import \{ readyPortrait, readyEvent, marcarProntaPortrait, marcarProntaEvent, assinar \} from '\.\.\/\.\.\/services\/beniAssetWarmup'/.test(bsc)
-      && /const jaPronta = \(p\) => \(isEvent \? readyEvent\(p\) : readyPortrait\(p\)\)/.test(bsc)
+      // ready CANÔNICO único (readyCanon) + NUNCA transiciona p/ mesma source + placeholder
+      && /import \{ readyCanon, marcarProntaCanon, assinar, BENI_CANON \} from '\.\.\/\.\.\/services\/beniAssetWarmup'/.test(bsc)
+      && /const jaPronta = \(p\) => readyCanon\(p\)/.test(bsc)
       && /if \(!montado\.current \|\| nova === atualRef\.current \|\| fonte\(nova\) === fonte\(atualRef\.current\)\) return;/.test(bsc)   // mesma source → não pisca
-      && /if \(jaPronta\(nova\)\) \{ aguardando\.current = null; rodarFade\(\); \}/.test(bsc)
+      && /if \(!reduzMovim && jaPronta\(nova\) && jaPronta\(atualRef\.current\)\) \{/.test(bsc)   // crossfade SÓ entre poses prontas
       && /\{!prontaAtual \?/.test(bsc)   // placeholder (nunca moldura vazia)
       && !/BeniCircularArt/.test(bsc),
-      'o pipeline de imagem do BeniStageCharacter (ready por tamanho, sem piscar mesma pose, placeholder) regrediu');
+      'o pipeline de imagem do BeniStageCharacter (canônico, crossfade entre prontas, placeholder) regrediu');
 
     check('P4R9 (fallback do Beni): nunca só o fundo — mantém última pose válida → avatarBase; 11 poses registradas',
       /const alvo = \(ultimoValido\.current && ultimoValido\.current !== atualRef\.current\) \? ultimoValido\.current : BENI_DEFAULT_VARIANT/.test(bsc)
@@ -18655,26 +18696,26 @@ check(
       && (tela.match(/<BeniStageCharacter presentation="event"/g) || []).length >= 3,
       'a unificação do enquadramento (portrait no jogo / event nas telas) regrediu');
 
-    check('P4R9 (pose portrait ESTÁVEL por palavra §5–6): bPose = portraitPose (não muda por acerto/erro/evento); escolhida por RNG na nova palavra, sem repetir; overlay usa readyEvent',
+    check('P4R9/P4.3 (pose portrait ESTÁVEL por palavra §5–6): bPose = rodadaVisual.pose (atômico); escolhida por RNG entre poses prontas NO STACK; portrait = PalavrinhasBeniPortraitStack; overlay usa readyEvent',
       !/function poseKey/.test(tela) && !/posePortraitDe/.test(tela)   // não deriva a pose do evento
-      && /const bPose = portraitPose;/.test(tela)
+      && /const bPose = rodadaVisual\.pose;/.test(tela)
       && /const escolherPosePortrait = useCallback/.test(tela)
       && /const cands = PORTRAIT_POSES\.filter\(\(p\) => p !== anterior\)/.test(tela)
       && /const r = rngRef\.current \? rngRef\.current\(\) : 0\.5/.test(tela)   // RNG controlado, não Math.random
-      && /escolherPosePortrait\(\);/.test(tela)   // chamada quando a palavra entra (montarPagina)
+      && /const pose = escolherPosePortrait\(\);/.test(tela)   // pose escolhida em montarPagina, junto da palavra
       && /pose=\{overlayPose\}/.test(tela) && /setOverlayPose\(poseEv\)/.test(tela)
-      && /<BeniStageCharacter presentation="portrait" pose=\{bPose\}/.test(tela),
+      && /<PalavrinhasBeniPortraitStack activePose=\{bPose\}/.test(tela),
       'a estabilidade da pose portrait por palavra regrediu');
 
-    check('P4R9 (anti-imagem de palavra): sem imageRef/figura/require(png); <Image> só no WARMER do Beni (source BENI_IMAGES), nunca imagem de palavra',
+    check('P4R9/P4.3 (anti-imagem de palavra): sem imageRef/figura/require(png) na tela; portrait via stack (mapa OTIMIZADO do Beni), nunca imagem de palavra',
       telaRaw.length > 0
       && !/imagemDaPalavra/.test(tela) && !/AVATAR_IMG/.test(tela) && !/POOL_WORDS/.test(tela)
       && !/imageRef/.test(tela) && !/avatar_ark|avatar_fish|avatar_sheep|avatar_dove|avatar_star/.test(tela)
       && !/figura/.test(tela) && !/<ExpoImage/.test(tela)
       && !/require\([^)]*\.(png|jpg|jpeg|webp)/.test(tela)
-      // a tela NÃO tem <Image> (o warmer virou componente PalavrinhasBeniWarmer, com source BENI_IMAGES)
-      && !/<Image\b/.test(tela) && /<PalavrinhasBeniWarmer \/>/.test(tela)
-      && /source=\{BENI_IMAGES\[pose\]\}/.test(warmer),
+      // a tela NÃO tem <Image> própria: o portrait é o PalavrinhasBeniPortraitStack (Beni, não palavra)
+      && !/<Image\b/.test(tela) && /<PalavrinhasBeniPortraitStack /.test(tela)
+      && /source=\{fonte\(pose\)\}/.test(rd('src/components/palavrinhas/PalavrinhasBeniPortraitStack.js')),
       'a tela principal voltou a depender de imagem de palavra');
 
     check('P4R9 (rota+card+gate + áreas protegidas): rota/card sob gate; não toca storage/achievements/estrelas/paywall',
@@ -18786,7 +18827,7 @@ check(
     check('P4R9 (Baú a cada 4, VÁRIOS por partida, pendente com inventário cheio): querBau por magia≥4 ou pendente; abre se há slot; senão segura ("Baú pronto")',
       /const querBau = cfg\.magia && \(magiaRef\.current >= cfg\.bauApos \|\| bauPendenteRef\.current\)/.test(tela)
       && /const auto = bausRef\.current === 0;/.test(tela)   // 1º Baú = onboarding automático
-      && /if \(auto && bolsoRef\.current\.length < 2 && poseBauOk\) \{ bausRef\.current \+= 1; abrirBau\(\); return; \}/.test(tela)
+      && /if \(auto && bolsoRef\.current\.length < 2 && poseBauOk\) \{ bausRef\.current \+= 1; abrirBau\('entre_rodadas'\); return; \}/.test(tela)
       && /bauPendenteRef\.current = true; setBauPronto\(true\); tocar\('bauPronto'\)/.test(tela)   // seguintes: manual
       && /const abrirBauManual = useCallback/.test(tela) && /onAbrirBau=\{abrirBauManual\}/.test(tela)
       && /<PalavrinhasChest/.test(tela)
@@ -18795,7 +18836,7 @@ check(
       'o Baú a cada 4 / 1º automático / seguintes manuais / pendente regrediu');
 
     check('P4R9 (Bolso inferior + PAINEL §16–17): toque abre PAINEL (não ativa); PowerDetailsPanel largo; avaliarUsoDoPoder no "Usar agora"; slot sempre responde',
-      /<PalavrinhasPowerDock magia=\{magia\} bauApos=\{cfg\.bauApos\} bauPronto=\{bauPronto\} bolso=\{bolso\} onUsar=\{abrirPainelPoder\}/.test(tela)
+      /<PalavrinhasPowerDock magia=\{magia\} bauApos=\{cfg\.bauApos\} bauPronto=\{false\} bolso=\{bolso\} onUsar=\{abrirPainelPoder\}/.test(tela)
       && /minWidth: 56, minHeight: 56/.test(dockC) && /onPress=\{\(\) => onUsar\(pd\)\}/.test(dockC) && /accessibilityRole="button"/.test(dockC)
       && /const abrirPainelPoder = useCallback/.test(tela) && /setPoderDetalhe\(poder\)/.test(tela)
       && /<PalavrinhasPowerDetailsPanel/.test(tela) && /aval=\{avaliarUsoDoPoder\(poderDetalhe, ctxAtivacao\(poderDetalhe\.id\)\)\}/.test(tela)
@@ -18858,7 +18899,7 @@ check(
       /const ALERTA\s*=\s*'#C0392B'/.test(tela) && /function MolduraAlerta/.test(tela)
       && /<MolduraAlerta pulso=\{pulso\} largura=\{width\}/.test(tela) && /contagemGrande/.test(tela) && /restante <= 3000 \? 240 : 410/.test(tela)
       && /shakeAnim/.test(tela)
-      && /options: \[\.\.\.prev\.options\]\.reverse\(\)/.test(tela) && /ajustarTempo\(-\(cfg\.penalidade2oErroMs/.test(tela),
+      && /options: \[\.\.\.pg\.options\]\.reverse\(\)/.test(tela) && /ajustarTempo\(-\(cfg\.penalidade2oErroMs/.test(tela),
       'o alerta / shake / reorganização / penalidade regrediram');
 
     check('P4R9 (falas por estado + pluralização): falaBeni por estado; plural(); "Maior palavra"+"N letras"; sem "figura"; sem "rec"',
@@ -18918,21 +18959,23 @@ check(
       && /<View style=\{\{ flex: 1 \}\} \/>\s*\{\/\*[\s\S]*?\*\/\}\s*\{nivel === 'medio' \?/.test(telaRaw),   // dock após espaço flexível
       'o Novo capítulo / dock inferior regrediu');
 
-    check('P4R9 (preload por TAMANHO §2–4): download ≠ decode; readyPortrait/readyEvent por onLoadEnd; warmer 2 Images (128/220); BrincarScreen navega IMEDIATAMENTE (sem bloqueio silencioso)',
-      // serviço: download separado do decode; ready por tamanho
+    check('P4R9/PERF1 (preload CANÔNICO §2–4): download ≠ decode; readyCanon único; warmer 1 Image/pose em BENI_CANON; BrincarScreen navega IMEDIATAMENTE (sem bloqueio silencioso)',
+      // serviço: download separado do decode; UMA verdade canônica (wrappers de compat mantidos)
       /let promessa = null;/.test(warmup) && /export function iniciarWarmup\(\) \{\s*if \(promessa\) return promessa;/.test(warmup)
-      && /download = 'downloaded'/.test(warmup) && /export function readyPortrait\(p\)/.test(warmup) && /export function readyEvent\(p\)/.test(warmup)
-      && /export function marcarProntaPortrait\(pose\)/.test(warmup) && /export function marcarProntaEvent\(pose\)/.test(warmup)
-      // warmer: DUAS Images por pose (portrait 128, event 220), offscreen, opacity 0, onLoadEnd por tamanho, sem display none
-      && /onLoadEnd=\{\(\) => marcarProntaPortrait\(pose\)\}/.test(warmer) && /onLoadEnd=\{\(\) => marcarProntaEvent\(pose\)\}/.test(warmer)
-      && /width: 128, height: 128/.test(warmer) && /width: 220, height: 220/.test(warmer) && /opacity: 0/.test(warmer) && !/display: 'none'/.test(warmer)
+      && /download = 'downloaded'/.test(warmup) && /export function readyCanon\(p\)/.test(warmup)
+      && /export function readyPortrait\(p\) \{ return readyCanon\(p\); \}/.test(warmup) && /export function readyEvent\(p\) \{ return readyCanon\(p\); \}/.test(warmup)
+      && /export function marcarProntaCanon\(pose\)/.test(warmup) && /export const BENI_CANON = 256;/.test(warmup)
+      // warmer: UMA Image canônica por pose (BENI_CANON), offscreen, opacity 0, onLoadEnd canônico, sem display none
+      && /onLoadEnd=\{\(\) => \{ marcarProntaCanon\(pose\); avancar\(\); \}\}/.test(warmer)
+      && !/marcarProntaEvent/.test(warmer)   // sem duplicação portrait/event
+      && /width: BENI_CANON, height: BENI_CANON/.test(warmer) && /opacity: 0/.test(warmer) && !/display: 'none'/.test(warmer)
       // BrincarScreen: warmup + warmer + navegação IMEDIATA (primeiro toque nunca ignorado)
       && /iniciarWarmup\(\)/.test(brc) && /<PalavrinhasBeniWarmer \/>/.test(brc)
       && /const abrirPalavrinhas = useCallback\(\(\) => \{\s*navigation\.navigate\(ROUTES\.PALAVRINHAS_DO_BENI\);/.test(brc)
-      // tela: estado de preparação com ÍCONE + fallback do overlay por readyEvent
+      // tela: estado de preparação com ÍCONE + fallback do overlay por readyEvent (wrapper canônico)
       && /Preparando o Beni\.\.\./.test(tela) && /PRELOAD_TIMEOUT_MS/.test(tela)
       && /const poseEventProntaOuFallback/.test(tela) && /readyEvent\(EVENT_FALLBACK\)/.test(tela),
-      'o preload por tamanho (download≠decode, warmer 2 Images, navegação imediata) regrediu');
+      'o preload canônico (download≠decode, warmer 1 Image/pose, navegação imediata) regrediu');
 
     check('P4R9 (buscas estáticas §21): sem placeholder; sem contain no componente; sem Math.random na tela; ativação de poder só por toque (dock)',
       !/placeholder/i.test(tela) && !/resizeMode="contain"/.test(bsc)
@@ -18965,10 +19008,10 @@ check(
       'o cabeçalho responsivo (título compacto em partida) regrediu');
 
     check('P4.1 (pausa pedagógica na TELA §2–3): entre palavras via devePausarBloco; congela deadline (pausaPedagoRef); Continuar monta próxima palavra; Encerrar reusa o fluxo oficial SEM alarme; TEMPO_ESGOTADO vence; reinicia na partida',
-      /devePausarBloco\(cfg, a\.estado\.concluidas, pausaMarcoRef\.current\)\) \{\s*abrirPausaPedagogica\(a\.estado\.concluidas\); return;/.test(tela)
+      /devePausarBloco\(cfg, a\.estado\.concluidas, pausaMarcoRef\.current\)\) \{\s*setFase\('pausa'\); abrirPausaPedagogica\(a\.estado\.concluidas\); return;/.test(tela)
       && /pausaModalRef\.current \|\| pausaPedagoRef\.current \|\| !!poderFxAtivoRef\.current/.test(tela)   // deadline congelado durante a pausa
       && /const abrirPausaPedagogica = useCallback[\s\S]*?pausaPedagoRef\.current = true; inputTravadoRef\.current = true; setInputTravado\(true\)/.test(tela)
-      && /const continuarPausaPedago = useCallback[\s\S]*?apresentarPagina\(false\)/.test(tela)   // Continuar monta a próxima palavra
+      && /const continuarPausaPedago = useCallback[\s\S]*?avancarRodada\(\)/.test(tela)   // Continuar publica a próxima palavra (guarda anti-duplo-avanço)
       && /const encerrarManual = useCallback\(\(comSom = true\)/.test(tela) && /if \(comSom\) tocar\('fim', true\)/.test(tela)   // pausa encerra sem alarme
       && /onPress=\{\(\) => encerrarManual\(false\)\}/.test(tela)
       && /const celebrarEAvancar = useCallback[\s\S]*?if \(finalizadoRef\.current\) return;/.test(tela)   // TEMPO_ESGOTADO (finalizadoRef) tem prioridade
@@ -18977,13 +19020,256 @@ check(
       && !/cansa|limite de tempo|bloqueio|excessiv/i.test(tela),   // linguagem acolhedora (sem advertência)
       'a pausa pedagógica na tela (marco/deadline/continuar/encerrar/prioridade) regrediu');
 
+    check('P4.2/PERF1 (transição SUAVE §1): crossfade easing inOut só entre poses prontas; movimento reduzido = troca instantânea; enquadramento centralizado',
+      /import \{ Animated, StyleSheet, Image, View, Text, Easing \} from 'react-native'/.test(bsc)
+      && /const ease = Easing\.inOut\(Easing\.quad\);/.test(bsc)
+      && /Animated\.timing\(opAtual, \{ toValue: 1, duration: DUR, easing: ease/.test(bsc)
+      && /if \(!reduzMovim && jaPronta\(nova\) && jaPronta\(atualRef\.current\)\) \{/.test(bsc)   // reduzido/não-pronta → troca instantânea
+      && /const trocaInstantanea = /.test(bsc)
+      && /import \{ posePortraitSegura, presetDe \} from '\.\.\/\.\.\/services\/palavrinhasVisualDirector'/.test(bsc)   // enquadramento centralizado
+      && /const pr = presetDe\(poseNome, presentation\);/.test(bsc),
+      'a transição suave / enquadramento centralizado regrediu');
+
+    check('P4.2 (enquadramento §2): mapa DECLARATIVO por pose cobre as 11; portrait para poses de rodada; event para todas; contêiner único',
+      (() => { try {
+        const dir = a1StripComments(readSrc('src/services/palavrinhasVisualDirector.js'));
+        const D = (() => { const strip = (s) => a1StripComments(s).replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '');
+          return new Function(strip(readSrc('src/services/palavrinhasVisualDirector.js')) + ';return { BENI_STAGE_PRESETS, PORTRAIT_POSES, EVENT_POSES, presetDe };')(); })();
+        const todas = [...D.PORTRAIT_POSES, ...D.EVENT_POSES];
+        if (todas.length !== 11) return false;
+        for (const pose of todas) { if (!D.BENI_STAGE_PRESETS[pose] || typeof D.presetDe(pose, 'event').scale !== 'number') return false; }
+        for (const pose of D.PORTRAIT_POSES) { if (typeof D.presetDe(pose, 'portrait').scale !== 'number') return false; }
+        return /const P_4x5 =/.test(dir) && /const P_1x1 =/.test(dir);   // mapa explícito e centralizado
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'o mapa declarativo de enquadramento das 11 poses regrediu');
+
+    check('P4.2 (Super Beni destaque §3): 1ª vez seq===5; pop do Beni; tamanho maior (202); dim mais forte; texto maior; recursos existentes (sem asset/som/partícula novos)',
+      /const superGrande = kind === 'super' && seq === 5 && !superGrandeFeitoRef\.current;/.test(tela)
+      && /if \(superGrande && poseEv\) \{[\s\S]*?pularBeni\(\);[\s\S]*?tocar\('superx', true\)/.test(tela)
+      && /size=\{overlay === 'super' \? 202 : 158\}/.test(tela)
+      && /rgba\(14,8,2,0\.66\)/.test(tela) && /superTxt: \{ fontFamily: 'FredokaOne', fontSize: 40/.test(tela)
+      && /superGrandeFeitoRef\.current = false/.test(tela)   // não persiste após reiniciar
+      && !/require\([^)]*\.(png|jpg|jpeg|webp|mp3|wav|m4a)/.test(tela),   // sem asset/som novo
+      'o destaque do Super Beni regrediu');
+
+    check('P4.2 (retorno para Brincar §4): saída oficial por rota ANINHADA (Home,{screen:ACTIVITIES}); Voltar interno durante partida/Baú/Lab; SEM goBack de histórico',
+      /const voltarParaBrincar = useCallback[\s\S]*?navigation\.navigate\(ROUTES\.HOME, \{ screen: ROUTES\.ACTIVITIES \}\)/.test(tela)
+      && /if \(diag\) \{ setDiag\(false\); return; \}/.test(tela)   // Voltar fecha o Lab (interno)
+      && /if \(tela === 'jogando' \|\| tela === 'bau'\) \{[\s\S]*?setTela\('entrada'\); return;\s*\}/.test(tela)   // Voltar → seleção de modo (interno)
+      && /onPress=\{voltarParaBrincar\}/.test(tela)   // botão Brincar no resultado
+      && !/navigation\.goBack\(\)/.test(tela)   // nenhum hack de histórico
+      && /const encerrarManual = useCallback\(\(comSom = true\)/.test(tela)   // encerramento manual = fluxo oficial (preservado)
+      && /disparar\(\{ tipo: EVENTOS\.TEMPO_ESGOTADO \}\)/.test(tela),   // tempo esgotado = fluxo oficial (preservado)
+      'o retorno para Brincar (rota oficial, Voltar interno, sem goBack) regrediu');
+
+    check('P4.2 (grade de poses confiável §5): 11 poses no MESMO contêiner (BeniStageCharacter portrait+event); status readyPortrait/readyEvent; protegida por criadorAtivo',
+      /tela === 'entrada' && diag && criadorAtivo/.test(tela)
+      && /diagCena === 'poses'/.test(tela)
+      && /<BeniStageCharacter presentation="portrait" pose=\{pose\} size=\{64\}/.test(tela)
+      && /<BeniStageCharacter presentation="event" pose=\{pose\} size=\{72\}/.test(tela)
+      && /const pOk = readyPortrait\(pose\);/.test(tela) && /const eOk = readyEvent\(pose\);/.test(tela)
+      && /criadorAtivo \?[\s\S]*?setDiag\(true\)/.test(tela),
+      'a grade de poses (mesmo contêiner, status por tamanho, protegida) regrediu');
+
+    check('P4.2R/P4.3 (palavra+pose = mesma rodada §1–3): pose escolhida entre prontas NO STACK; publicada JUNTO da palavra por um único setRodadaVisual; overlays (bsc) sem DWELL/timeout',
+      /const prontas = cands\.filter\(\(p\) => stackProntasRef\.current\.has\(p\)\);/.test(tela)   // só pose carregada no stack
+      && /const base = prontas\.length \? prontas : cands;/.test(tela)
+      && /const pose = escolherPosePortrait\(\);/.test(tela)   // pose escolhida em montarPagina, junto da palavra
+      && /const rodada = \{ id, pagina: nova, pose \};/.test(tela) && /publicarRodada\(rodada\);/.test(tela)   // UM publish atômico
+      && !/DWELL_MIN/.test(bsc)   // overlays: sem permanência mínima arbitrária
+      && !/setTimeout/.test(bsc),   // overlays: nenhum timeout arbitrário governa a sincronização
+      'a sincronização palavra↔pose (seleção pelo stack + publish atômico) regrediu');
+
+    check('P4.2R/PERF1 (aquecimento CANÔNICO §4–8): warmer 1 Image/pose cobre as 11 (fila ORDEM_CANON); singleton não repete; falha → fallback; crossfade só entre prontas; reduzido/não-pronta = instantâneo',
+      (() => { try {
+        const warmer = readSrc('src/components/palavrinhas/PalavrinhasBeniWarmer.js');
+        const warm = readSrc('src/services/beniAssetWarmup.js');
+        return /ORDEM_CANON\.slice\(0, admitidas\)/.test(warmer) && /fila\.map\(\(pose\)/.test(warmer)   // as 11 poses via fila canônica
+          && /marcarProntaCanon\(pose\); avancar\(\);/.test(warmer)   // UMA decodificação canônica + avanço de fila
+          && /onError=\{\(\) => \{ marcarErro\(pose\); avancar\(\); \}\}/.test(warmer)   // falha individual → fallback + avança
+          && /if \(promessa\) return promessa;/.test(warm)   // singleton: não reexecuta a cada palavra
+          && /if \(!reduzMovim && jaPronta\(nova\) && jaPronta\(atualRef\.current\)\) \{/.test(bsc)   // crossfade SÓ entre prontas
+          && /const trocaInstantanea = /.test(bsc)   // reduzido/não-pronta → troca instantânea correta
+          && (bsc.match(/rodarFade\(\);/g) || []).length === 1   // fade chamado SÓ em aplicar (nem na assinatura nem no onLoadEnd)
+          && /marcarProntaCanon\(atualRef\.current\);/.test(bsc) && !/aguardando\.current === atualRef\.current/.test(bsc);   // onLoadEnd não dispara fade
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'o aquecimento canônico / crossfade-entre-prontas / movimento reduzido regrediu');
+
+    check('P4.2R (fluxos preservados §10): acerto/erro/poder/Baú/pausa pedagógica/tempo esgotado intactos',
+      /iniciarEventoCelebracao\(kind, seqNova\)/.test(tela)   // acerto → celebração
+      && /devePausarBloco\(cfg, a\.estado\.concluidas, pausaMarcoRef\.current\)/.test(tela)   // pausa pedagógica
+      && /const querBau = cfg\.magia/.test(tela)   // Baú
+      && /disparar\(\{ tipo: EVENTOS\.TEMPO_ESGOTADO \}\)/.test(tela)   // tempo esgotado
+      && /avaliarUsoDoPoder/.test(tela),   // poderes
+      'algum fluxo (acerto/erro/poder/Baú/pausa/tempo esgotado) regrediu');
+
+    check('PERF1 (caminho CANÔNICO único §1–6): warmer 1 Image/pose em BENI_CANON; sem caminho portrait/event; mesma dimensão e resizeMode; tamanho visual por CONTÊINER (não muda a dimensão nativa)',
+      // warmer: exatamente 1 <Image> (no map da fila), dimensão canônica, cover, sem duplicação
+      (warmer.match(/<Image\b/g) || []).length === 1
+      && /width: BENI_CANON, height: BENI_CANON/.test(warmer) && /resizeMode="cover"/.test(warmer)
+      && !/marcarProntaEvent/.test(warmer) && !/width: 128|width: 220/.test(warmer)
+      // serviço: ready ÚNICO canônico; wrappers apontam p/ readyCanon; estados sem portrait/event
+      && /export function readyCanon\(p\)/.test(warmup)
+      && /export function readyPortrait\(p\) \{ return readyCanon\(p\); \}/.test(warmup)
+      && /export function readyEvent\(p\) \{ return readyCanon\(p\); \}/.test(warmup)
+      && /\{ download: 'idle', canon: 'idle' \}/.test(warmup) && !/portrait: 'idle'|event: 'idle'/.test(warmup)
+      // BeniStageCharacter: Image em BENI_CANON; tamanho visual por contêiner escalado (fit = size/BENI_CANON)
+      && /const fit = size \/ BENI_CANON;/.test(bsc)
+      && /width: BENI_CANON, height: BENI_CANON, transform: \[\{ scale: fit \}\]/.test(bsc)
+      && /width: BENI_CANON, height: BENI_CANON/.test(bsc) && /resizeMode="cover"/.test(bsc),
+      'o caminho canônico único (warmer 1 Image, dimensão/resizeMode uniformes, escala por contêiner) regrediu');
+
+    check('PERF1 (fila + botão espera Beni VISÍVEL §4,10): prioridade declarada (inicial→mínimas→resto); concorrência limitada; sem timeout na fila; "Abrir o Livro" só com Beni visível pronto',
+      // ordem de prioridade e concorrência declaradas no serviço
+      /export const POSE_INICIAL_CANON = 'celebrando';/.test(warmup)
+      && /export const ORDEM_CANON = Object\.freeze\(\[\s*POSE_INICIAL_CANON,\s*\.\.\.POSES_MINIMAS\.filter/.test(warmup)
+      && /export const CONCORRENCIA_WARMUP = 3;/.test(warmup)
+      // warmer: começa com no máx. CONCORRENCIA_WARMUP; avança por onLoadEnd/onError; SEM timeout
+      && /useState\(Math\.min\(CONCORRENCIA_WARMUP, ORDEM_CANON\.length\)\)/.test(warmer)
+      && /Math\.min\(ORDEM_CANON\.length, n \+ 1\)/.test(warmer)
+      && !/setTimeout/.test(warmer)
+      // tela (P4.3): botão espera o STACK do portrait (min. poses prontas) + a instância visível da entrada
+      && /onPronta=\{\(\) => setBeniEntradaPronto\(true\)\}/.test(tela)
+      && /const beniStackPronto = PORTRAIT_POSES\.filter\(\(pp\) => stackProntas\.has\(pp\)\)\.length >= 3;/.test(tela)
+      && /beniStackPronto && beniEntradaPronto \?/.test(tela)
+      && /Preparando o Beni\.\.\./.test(tela),
+      'a fila de prioridade / concorrência / gate do Beni (stack) regrediu');
+
+    check('PERF1 (superfícies preservadas §14–16): 11 poses cobertas; Super/Baú/resultado/entrada via BeniStageCharacter; Laboratório protegido por Modo Criador',
+      /pose=\{overlayPose\} size=\{overlay === 'super' \? 202 : 158\}/.test(tela)   // Super/overlay
+      && /beni=\{<BeniStageCharacter presentation="event" pose=\{poseEventProntaOuFallback\('comBau'\)/.test(tela)   // Baú
+      && (tela.match(/<BeniStageCharacter presentation="event"/g) || []).length >= 4   // entrada/Baú/fim/overlay/lab
+      && /BENI_POSE_KEYS\.map\(\(pose\)/.test(tela)   // grade das 11 poses
+      && /tela === 'entrada' && diag && criadorAtivo/.test(tela),   // Laboratório protegido
+      'alguma superfície do Beni (Super/Baú/resultado/Lab/11 poses) regrediu');
+
+    check('PERF1R/P4.3 (portrait da partida = STACK opacity-only): 11 Images persistentes; troca só por opacidade; SEM Animated.Image/Animated.timing/crossfade/scale/timeout; source e key estáveis',
+      (() => { try {
+        const stk = a1StripComments(readSrc('src/components/palavrinhas/PalavrinhasBeniPortraitStack.js'));
+        return /BENI_PALAVRINHAS_POSE_KEYS\.map\(\(pose\)/.test(stk)   // 11 Images persistentes
+          && /opacity: pose === poseAtiva \? 1 : 0/.test(stk)   // troca SÓ por opacidade declarativa (derivada de activePose)
+          && !/Animated\.Image/.test(stk) && !/Animated\.timing/.test(stk) && !/crossfade/i.test(stk)
+          && !/setTimeout/.test(stk) && !/useState/.test(stk) && !/useEffect/.test(stk)   // sem estado interno/efeito p/ a pose
+          && /source=\{fonte\(pose\)\}/.test(stk) && /key=\{pose\}/.test(stk)   // source e key ESTÁVEIS por pose
+          // tela: portrait da PARTIDA é o stack; pose escolhida no stack e publicada junto da palavra
+          && /<PalavrinhasBeniPortraitStack activePose=\{bPose\}/.test(tela)
+          && /const prontas = cands\.filter\(\(p\) => stackProntasRef\.current\.has\(p\)\);/.test(tela)
+          && /const pose = escolherPosePortrait\(\);/.test(tela);
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'o portrait da partida (stack opacity-only, 11 Images persistentes) regrediu');
+
+    check('P4.3 (ETAPA 2 — rodada ATÔMICA §1–5): rodadaVisual único {id,pagina,pose}; sem setters separados; montarPagina publica 1x; id só em rodada nova; retomar preserva id',
+      /const \[rodadaVisual, setRodadaVisual\] = useState\(\{ id: 0, pagina: null, pose:/.test(tela)
+      && !/const \[pagina, setPagina\]/.test(tela) && !/const \[portraitPose, setPortraitPose\]/.test(tela)   // fonte única
+      && !/setPagina\(/.test(tela) && !/setPortraitPose\(/.test(tela)
+      && /const rodada = \{ id, pagina: nova, pose \};/.test(tela) && /publicarRodada\(rodada\);/.test(tela)   // publish único
+      && /const id = \(rodadaIdRef\.current \+= 1\);/.test(tela)   // id novo só em rodada nova
+      && /return rodada;/.test(tela)   // montarPagina retorna a rodada completa
+      && /const atualizarPaginaRodada = useCallback[\s\S]*?const rodada = \{ \.\.\.atual, pagina: novaPag \};/.test(tela),   // mesmo id/pose ao mutar opções
+      'o estado atômico da rodada (rodadaVisual único, publish 1x) regrediu');
+
+    check('P4.3 (ETAPA 3 — portrait STACK §6–17): activePose de rodadaVisual.pose; 11 Images persistentes próprias; readiness do próprio stack; 1ª rodada espera o stack; pose escolhida no stack',
+      (() => { try {
+        const stk = a1StripComments(readSrc('src/components/palavrinhas/PalavrinhasBeniPortraitStack.js'));
+        return /<PalavrinhasBeniPortraitStack activePose=\{bPose\}/.test(tela)
+          && /onPoseReady=\{onStackPoseReady\} onPoseErro=\{onStackPoseErro\}/.test(tela)
+          && /const onStackPoseReady = useCallback/.test(tela) && /const onStackPoseErro = useCallback/.test(tela)
+          && /stackProntasRef\.current = nova/.test(tela)
+          && /onLoadEnd=\{\(\) => aoCarregar\(pose\)\}/.test(stk) && /onError=\{\(\) => aoErro\(pose\)\}/.test(stk)   // prontidão das instâncias reais
+          && /const beniStackPronto = PORTRAIT_POSES\.filter\(\(pp\) => stackProntas\.has\(pp\)\)\.length >= 3;/.test(tela)   // 1ª rodada espera o stack
+          && /const prontas = cands\.filter\(\(p\) => stackProntasRef\.current\.has\(p\)\);/.test(tela)   // pose no stack
+          && /styles\.guiaRow[\s\S]{0,220}<PalavrinhasBeniPortraitStack activePose=\{bPose\}/.test(tela);   // portrait da PARTIDA = stack (não BeniStageCharacter)
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'o portrait stack (activePose atômico, readiness própria, gate do stack) regrediu');
+
+    check('P4.3 (ETAPA 4 — assets OTIMIZADOS §18–25): 11 base + 11 @2x + 11 @3x; originais intactos; proporção correta; Palavrinhas usa mapa otimizado; resto do app usa originais',
+      (() => { try {
+        const dir = path.join(root, 'assets/mascot/beni/palavrinhas');
+        if (!fs.existsSync(dir)) return false;
+        const files = fs.readdirSync(dir).filter((f) => f.endsWith('.png'));
+        const base = files.filter((f) => !/@[23]x\.png$/.test(f));
+        const x2 = files.filter((f) => /@2x\.png$/.test(f));
+        const x3 = files.filter((f) => /@3x\.png$/.test(f));
+        if (base.length !== 11 || x2.length !== 11 || x3.length !== 11) return false;
+        const orig = fs.readdirSync(path.join(root, 'assets/mascot/beni')).filter((f) => f.endsWith('.png'));
+        if (orig.length !== 11) return false;   // originais intactos (11)
+        // proporção: 4:5 → 176x220; 1:1 → 220x220 (lê IHDR do PNG base)
+        const dim = (f) => { const b = fs.readFileSync(path.join(dir, f)); return `${b.readUInt32BE(16)}x${b.readUInt32BE(20)}`; };
+        if (dim('01_beni_avatar_base.png') !== '176x220') return false;
+        if (dim('08_beni_celebrando_2.png') !== '220x220') return false;
+        // mapa otimizado usado por stack/overlays; originais (beniImages) seguem para o resto do app
+        const mapa = readSrc('src/assets/mascot/beniPalavrinhasImages.js');
+        return /palavrinhas\/01_beni_avatar_base\.png/.test(mapa)
+          && /beniPalavrinhasImages/.test(readSrc('src/components/palavrinhas/PalavrinhasBeniPortraitStack.js'))
+          && /beniPalavrinhasImages/.test(readSrc('src/components/beni/BeniStageCharacter.js'))
+          && fs.existsSync(path.join(root, 'src/assets/mascot/beniImages.js'))   // originais ainda existem p/ o resto do app
+          && !/<PalavrinhasBeniWarmer /.test(tela);   // warmer não duplica as 11 do stack na tela do jogo
+      } catch (e) { console.log('   erro', e.message); return false; } })(),
+      'os assets otimizados (33 novos, originais intactos, mapa exclusivo) regrediram');
+
+    check('P4.3 (ETAPA 7 — Baú TRANSACIONAL §26–38): contexto origem; auto=entre_rodadas; manual=durante_rodada preserva rodada; guarda anti-duplo-avanço; tempo esgotado prioritário',
+      /const contextoBauRef = useRef\(\{ origem: null, rodadaId: null \}\);/.test(tela)
+      && /contextoBauRef\.current = \{ origem: origem \|\| 'entre_rodadas', rodadaId: rodadaVisualRef\.current\.id \};/.test(tela)
+      && /abrirBau\('entre_rodadas'\)/.test(tela) && /abrirBau\('durante_rodada'\)/.test(tela)
+      // manual DURANTE a rodada: pausa relógio, retoma a MESMA rodada, NÃO monta/avança
+      && /pararRelogio\(\);\s*bausRef\.current \+= 1; abrirBau\('durante_rodada'\);/.test(tela)
+      && /if \(origem === 'durante_rodada'\) \{[^}]*?retomarRelogio\(\);[^}]*?return;/.test(tela)
+      && !/if \(origem === 'durante_rodada'\) \{[^}]*?\b(montarPagina|avancarRodada|apresentarPagina)\b/.test(tela)
+      && /const retomarRelogio = useCallback[\s\S]*?deadlineRef\.current = Date\.now\(\) \+ restanteRef\.current/.test(tela)
+      // guarda anti-duplo-avanço: no máx. 1 próxima rodada por rodada concluída
+      && /if \(cid >= 0 && proximaPublicadaParaRef\.current === cid\) return;/.test(tela)
+      && /proximaPublicadaParaRef\.current = cid;/.test(tela)
+      && /rodadaConcluidaIdRef\.current = rodadaVisualRef\.current\.id;/.test(tela)
+      // tempo esgotado mantém prioridade (finalizadoRef barra avanços)
+      && /const avancarRodada = useCallback\(\(\) => \{\s*if \(finalizadoRef\.current\) return;/.test(tela),
+      'o Baú transacional (origem, retomada, guarda anti-duplo-avanço) regrediu');
+
+    check('P4.3 (ETAPA 8 — aviso "BAÚ CHEIO!" §39–44): título + texto; área toda clicável; animação única (≤350ms); reduzido sem animação; label+hint de acessibilidade',
+      /BAÚ CHEIO!/.test(tela) && /Toque para escolher um poder/.test(tela)
+      && /<Pressable onPress=\{abrirBauManual\} accessibilityRole="button"/.test(tela)   // área clicável dispara o Baú manual
+      && /accessibilityLabel="Baú cheio\. Toque para escolher um poder\."/.test(tela)
+      && /accessibilityHint="Abre a escolha de poderes sem trocar a palavra atual\."/.test(tela)
+      && /Animated\.spring\(bauCtaAnim, \{ toValue: 1/.test(tela)   // entrada ÚNICA (não loop)
+      && /if \(reduzMovim\) \{ bauCtaAnim\.setValue\(1\); return undefined; \}/.test(tela)   // reduzido = estático
+      && /opacity: reduzMovim \? 1 : bauCtaAnim/.test(tela),
+      'o aviso "BAÚ CHEIO!" (título/texto/clicável/animação única/acessibilidade) regrediu');
+
+    check('P4.3 (ETAPA 6 + regressões §45–52): fase EXPLÍCITA (entrada/jogando/celebrando/bau/pausa/resultado); Livro/Corrida/Turbo; Super; resultado; nav Brincar; Lab protegido',
+      /const setFase = useCallback\(\(f\) => \{ faseJogoRef\.current = f; setFaseJogo\(f\); \}/.test(tela)
+      && /setFase\('celebrando'\)/.test(tela) && /setFase\('bau'\)/.test(tela) && /setFase\('pausa'\); abrirPausaPedagogica/.test(tela)
+      && /setFaseJogo\('resultado'\)/.test(tela) && /setFase\('jogando'\); setTela\('jogando'\)/.test(tela)
+      && /const beniJump = /.test(tela)   // Super Beni (jump) preservado
+      && /<PalavrinhasHud /.test(tela) && /voltarParaBrincar/.test(tela)   // resultado + nav Brincar
+      && /tela === 'entrada' && diag && criadorAtivo/.test(tela)   // Laboratório protegido pelo Modo Criador
+      && !/debugger/.test(tela) && !/console\.log\(/.test(tela),   // sem debugger/console.log temporário
+      'a fase explícita / regressões (Super/resultado/Brincar/Lab) regrediu');
+
+    check('P4.4 (VOO §1–15): host + alternativa + slot no MESMO referencial (janela→host); centro→centro; trajetória DIRETA; reduzido preenche direto; 1 letra; preenche só ao concluir; sem arco/overshoot',
+      /const hostRef = useRef\(null\);/.test(tela)
+      && /<View ref=\{hostRef\} collapsable=\{false\} style=\{styles\.corpo\}>/.test(tela)   // host = corpo (ancestral da letra voadora)
+      && /hRef\.measureInWindow\(\(hx, hy\)/.test(tela)                                       // host medido em janela
+      && /oRef\.measureInWindow\(\(ox, oy, ow, oh\)/.test(tela) && /sRef\.measureInWindow\(\(sx, sy, sw, sh\)/.test(tela)
+      && /from: \{ x: ox \+ ow \/ 2 - hx, y: oy \+ oh \/ 2 - hy \}, to: \{ x: sx \+ sw \/ 2 - hx, y: sy \+ sh \/ 2 - hy \}/.test(tela)   // centro→centro em coordenadas do host
+      && /if \(reduzMovim \|\| !oRef \|\| !sRef \|\| !hRef/.test(tela)                          // movimento reduzido → finalizarAcerto direto
+      && /translateY: vooAnim\.interpolate\(\{ inputRange: \[0, 1\], outputRange: \[0, voo\.to\.y - voo\.from\.y\] \}\)/.test(tela)   // trajetória DIRETA
+      && !/outputRange: \[0, -30,/.test(tela)               // sem arco artificial
+      && !/scale: vooAnim\.interpolate/.test(tela)          // sem overshoot de escala
+      && /\.start\(\(\) => \{ if \(montado\.current\) \{ setVoo\(null\); finalizarAcerto/.test(tela),   // preenche SÓ ao concluir; 1 remoção da letra
+      'o voo da letra (referencial único host, trajetória direta, centro→centro) regrediu');
+
+    check('P4.4 (deck na TELA): comecar preserva o deckState (janela recente sobrevive); Baú durante_rodada não consome; sem reinício do deck no avanço',
+      !/deckStateRef\.current = criarDeckState\(\)/.test(tela)   // NENHUM reinício do deck (comecar/avancarRodada)
+      && /const seed = novaSeed\(\); rngRef\.current = criarRng\(seed\);/.test(tela)   // novo seed, deckState preservado
+      && !/if \(origem === 'durante_rodada'\) \{[^}]*?\b(apresentarPagina|avancarRodada|montarPagina)\b/.test(tela)   // durante_rodada NÃO consome palavra
+      && /const avancarRodada = useCallback[\s\S]*?apresentarPagina\(false\)/.test(tela),   // entre_rodadas consome exatamente 1
+      'o deck na tela (preservar janela, Baú durante_rodada sem consumo) regrediu');
+
     check('P4R9 (escopo): P5/traçado/gallery não iniciados; sem asset novo',
       !fs.existsSync(path.join(root, 'src/screens/PalavrinhasTraceLabScreen.js'))
       && !fs.existsSync(path.join(root, 'src/services/tracadoService.js'))
       && !fs.existsSync(path.join(root, 'src/data/letterPaths.js'))
-      && !/tracadoService|letterPaths|Gesture\.Pan|coberturaPct/.test(tela)
-      && !/assets\/games\/palavrinhas/.test(tela),
-      'algum artefato de P5/traçado ou asset novo apareceu');
+      && !/tracadoService|letterPaths|Gesture\.Pan|coberturaPct/.test(tela),
+      'algum artefato de P5/traçado apareceu');
   }
 
 
