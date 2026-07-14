@@ -15872,11 +15872,12 @@ check(
 
     // O CORPO de ComingTile não pode ter onPress/SoundButton: card em preparo não abre tela.
     const corpoComing = (brcNoCom.match(/function ComingTile[\s\S]*?\n\}/) || [''])[0];
-    check('1.2 (em preparo): os jogos ainda não prontos não navegam para lugar nenhum',
+    check('1.2 (em preparo): ComingTile não navega; a abertura interna é gated por isInternalToolsEnabled',
       corpoComing.length > 0
-      && !/onPress|SoundButton|navigate\(/.test(corpoComing)
-      && /Chegando/.test(corpoComing),
-      'um card em preparo virou botão — abriria tela inexistente');
+      && !/navigate\(/.test(corpoComing)                     // ComingTile não hardcoda navegação
+      && /isInternalToolsEnabled\(\) \? \(/.test(brcNoCom)   // ramo interno separado (card largo de teste)
+      && /O Beni está preparando/.test(corpoComing),
+      'a abertura do card em preparo não está gated pelo Modo Criador');
 
     check('1.2 (colorir): "Colorir uma história" NÃO é card da aba Brincar',
       !/Colorir uma hist/.test(brcNoCom) && !/screen: 'Aventuras'/.test(brcNoCom),
@@ -16185,7 +16186,7 @@ check(
 
     check('1.3a/UF1/OV4 (grade): 2 ActiveTile (Pares, Criar livre) + 2 WideActiveTile (Palavrinhas, Cadê a Ovelhinha? user-facing) + 1 em preparo (Bichinhos)',
       (() => {
-        const emPreparo = (brcAn.match(/\{ id: '[a-z]+', icon:/g) || []).length;
+        const emPreparo = (brcAn.match(/\{ id: '[a-z_]+', icon:/g) || []).length;
         const ativos = (brcAn.match(/<ActiveTile\b/g) || []).length;
         const wide = (brcAn.match(/<WideActiveTile\b/g) || []).length;
         return emPreparo === 1 && ativos === 2 && wide === 2   // OV4: ovelha saiu de "em preparo" e virou WideActiveTile
@@ -16195,13 +16196,11 @@ check(
       })(),
       'a aba Brincar não está com 2 ActiveTile + 2 WideActiveTile (Palavrinhas + Ovelhinha) + 1 em preparo');
 
-    check('1.3a (em preparo): os cards em preparo não navegam, e nenhum emoji voltou',
-      (() => {
-        const corpo = (brcAn.match(/function ComingTile[\s\S]*?\n\}/) || [''])[0];
-        return corpo.length > 0 && !/onPress|navigate\(/.test(corpo)
-          && !/\p{Extended_Pictographic}/u.test(brcA);
-      })(),
-      'um card em preparo virou botão, ou entrou emoji na BrincarScreen');
+    check('1.3a (em preparo): abertura do card em preparo é gated; nenhum emoji voltou',
+      /function ComingTile/.test(brcAn)
+      && /isInternalToolsEnabled\(\) \? \(/.test(brcAn)
+      && !/\p{Extended_Pictographic}/u.test(brcA),
+      'a abertura do card em preparo não está gated, ou entrou emoji na BrincarScreen');
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -16416,7 +16415,7 @@ check(
     check('1.4/UF1/OV4 (hub): 5 cards (2 ActiveTile + 2 WideActiveTile + 1 em preparo), Desenho guiado fora da UI, legado do Ateliê preservado',
       (brc14.match(/<ActiveTile\b/g) || []).length === 2
       && (brc14.match(/<WideActiveTile\b/g) || []).length === 2   // OV4: Palavrinhas + Cadê a Ovelhinha?
-      && (brc14.match(/\{ id: '[a-z]+', icon:/g) || []).length === 1   // OV4: só Bichinhos em preparo
+      && (brc14.match(/\{ id: '[a-z_]+', icon:/g) || []).length === 1   // OV: 1 card em preparo (Monte a Cena)
       && !/Desenho guiado/.test(brc14)
       && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brc14)
       && /navigate\(ROUTES\.ATELIER_GALLERY\)/.test(brc14)
@@ -19154,7 +19153,7 @@ check(
       (() => {
         const wide = (brc.match(/<WideActiveTile[\s\S]*?\/>/g) || []).join('\n');
         const cardOvelha = /icon="ovelha"[\s\S]*?title="Cadê a Ovelhinha\?"[\s\S]*?desc="Observe com atenção e encontre a ovelhinha escondida!"[\s\S]*?cta="Jogar"[\s\S]*?onPress=\{\(\) => navigation\.navigate\(ROUTES\.CADE_A_OVELHINHA\)\}/.test(wide);
-        const foraPreparo = !/\{ id: 'ovelha'/.test(brc) && /const DEV_ROTAS = \{\}/.test(brc);
+        const foraPreparo = !/\{ id: 'ovelha'/.test(brc) && !/DEV_ROTAS = \{[^}]*ovelha/.test(brc);
         return cardOvelha && foraPreparo;
       })(),
       'o card user-facing de Cadê a Ovelhinha? (título/CTA/descrição/rota) regrediu');
@@ -20493,6 +20492,1619 @@ check(
 
 
 
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — Architecture Spike M1A (baseline C-SVG, 4 peças). Dev-gated.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1A() {
+    // ── Geometria PURA (ETAPA 21): avalia o módulo import-free via new Function ──
+    let geo = null;
+    let mod = null;
+    try {
+      let gsrc = readSrc('src/services/monteACenaGeometry.js');
+      gsrc = gsrc.replace(/export\s+(function|const)/g, '$1');
+      const fn = new Function(
+        'module', 'exports',
+        gsrc + '\nmodule.exports={buildSpikeGeometry,reverseEdge,rectsIntersect,snapToleranceFor,MONTE_A_CENA_GEOMETRY_VERSION};',
+      );
+      const m = { exports: {} };
+      fn(m, m.exports);
+      mod = m.exports;
+    } catch (e) {
+      fail('M1A: monteACenaGeometry.js pôde ser avaliado (puro)', e.message);
+    }
+
+    if (mod) {
+      const params = {
+        sceneId: 'noah_scene_01', artWidth: 1122, artHeight: 1402,
+        seed: 'noah_scene_01|m1a|v1', seams: { vx: 0.60, hy: 0.62 }, tabDepthPx: 96,
+        protectedRegions: [
+          { x: 0.28, y: 0.12, w: 0.24, h: 0.22 },
+          { x: 0.72, y: 0.42, w: 0.26, h: 0.13 },
+        ],
+      };
+      try {
+        geo = mod.buildSpikeGeometry(params);
+        const geo2 = mod.buildSpikeGeometry(params);
+        // A seed influencia o layout via sinais de aba (4 bits) — alguns seeds colidem.
+        // Robusto: procurar um seed que efetivamente altere o layout completo.
+        const basePaths = geo.pieces.map((p) => p.path).join('|');
+        const seedChanges = ['a', 'b', 'c', 'd', 'z1', 'z2', 'alt', 'flip'].some(
+          (sd) => mod.buildSpikeGeometry({ ...params, seed: sd }).pieces.map((p) => p.path).join('|') !== basePaths,
+        );
+        const ids = geo.pieces.map((p) => p.id);
+        const contains = (a, b) => a.x <= b.x + 1e-6 && a.y <= b.y + 1e-6
+          && a.x + a.w >= b.x + b.w - 1e-6 && a.y + a.h >= b.y + b.h - 1e-6;
+        const inRect = (pt, r) => pt[0] >= r.x - 1e-6 && pt[0] <= r.x + r.w + 1e-6
+          && pt[1] >= r.y - 1e-6 && pt[1] <= r.y + r.h + 1e-6;
+        const coverage = geo.pieces.reduce((a, p) => a + p.cellRect.w * p.cellRect.h, 0);
+
+        check('M1A geometria: exatamente 4 peças com ids únicos p0..p3',
+          geo.pieces.length === 4 && new Set(ids).size === 4
+          && ['p0', 'p1', 'p2', 'p3'].every((x) => ids.includes(x)),
+          `ids=${ids.join(',')}`);
+        check('M1A geometria: seed determinística (mesma entrada → mesmos paths)',
+          JSON.stringify(geo.pieces.map((p) => p.path)) === JSON.stringify(geo2.pieces.map((p) => p.path)),
+          'paths divergiram entre duas construções idênticas');
+        check('M1A geometria: seed influencia o layout (algum seed muda os paths)',
+          seedChanges,
+          'nenhum seed testado alterou o layout');
+        check('M1A geometria: paths começam em M, têm curva C (borda interna) e fecham em Z',
+          geo.pieces.every((p) => /^M /.test(p.path) && /C /.test(p.path) && /Z\s*$/.test(p.path)),
+          'algum path não é M…C…Z');
+        check('M1A geometria: bordas externas retas (comando L presente nas peças de canto)',
+          geo.pieces.every((p) => / L /.test(p.path)),
+          'faltou segmento reto externo');
+        check('M1A geometria: nenhuma peça degenerada (clipBounds com área > 0)',
+          geo.pieces.every((p) => p.clipBounds.w > 0 && p.clipBounds.h > 0),
+          'peça degenerada');
+        check('M1A geometria: visualBounds cobre a célula-base (abas ultrapassam cellRect)',
+          geo.pieces.every((p) => contains(p.visualBounds, p.cellRect)),
+          'visualBounds não contém cellRect');
+        check('M1A geometria: hitBounds cobre visualBounds (touch target ≥ visual)',
+          geo.pieces.every((p) => contains(p.hitBounds, p.visualBounds)),
+          'hitBounds não contém visualBounds');
+        check('M1A geometria: snapPoint dentro do targetRect/cellRect',
+          geo.pieces.every((p) => inRect(p.snapPoint, p.cellRect)),
+          'snapPoint fora da célula');
+        check('M1A geometria: união das células cobre o tabuleiro (área ≈ 1.0, sem buracos)',
+          Math.abs(coverage - 1) < 1e-4,
+          `coverage=${coverage}`);
+        check('M1A geometria: costura NÃO atravessa protectedRegion (seamCrossesProtected=false)',
+          geo.seamCrossesProtected === false,
+          'a costura cruza uma região protegida');
+        check('M1A geometria: layoutVersion/version presentes e serialização estável (round-trip)',
+          !!geo.version && geo.grid && geo.grid.cols === 2 && geo.grid.rows === 2
+          && JSON.stringify(JSON.parse(JSON.stringify(geo))) === JSON.stringify(geo),
+          'versão/grid ausente ou serialização instável');
+
+        // Complemento exato: reverse(reverse(e)) === e (mecanismo anti-seam da borda compartilhada).
+        const e = { start: [0.6, 0], segs: [
+          { c1: [0.6, 0.1], c2: [0.7, 0.2], end: [0.6, 0.31] },
+          { c1: [0.5, 0.4], c2: [0.6, 0.55], end: [0.6, 0.62] },
+        ] };
+        const rr = mod.reverseEdge(mod.reverseEdge(e));
+        check('M1A geometria: reverseEdge é involução exata (bordas complementares idênticas)',
+          JSON.stringify(rr) === JSON.stringify(e),
+          'reverse(reverse(edge)) ≠ edge → costuras não seriam complementares');
+        check('M1A geometria: tolerância de snap derivada do menor lado da peça (> 0)',
+          geo.pieces.every((p) => mod.snapToleranceFor(p) > 0),
+          'tolerância inválida');
+      } catch (e) {
+        fail('M1A: buildSpikeGeometry rodou sem exceção', e.message);
+      }
+    }
+
+    // ── Estrutura / gates (ETAPA 22) ──
+    const routesSrc = readSrc('src/constants/routes.js');
+    const navSrc = readSrc('src/navigation/AppNavigator.js');
+    const brincarSrc = readSrc('src/screens/BrincarScreen.js');
+    const dataSrc = readSrc('src/data/monteACenaSpikeData.js');
+    const screenExists = srcExists('src/screens/MonteACenaSpikeScreen.js');
+    const screenSrc = screenExists ? readSrc('src/screens/MonteACenaSpikeScreen.js') : '';
+
+    check('M1A rota: ROUTES.MONTE_A_CENA_SPIKE definida como "MonteACenaSpike"',
+      /MONTE_A_CENA_SPIKE:\s*'MonteACenaSpike'/.test(routesSrc));
+    check('M1A rota: tela MonteACenaSpikeScreen existe',
+      screenExists, 'src/screens/MonteACenaSpikeScreen.js ausente');
+    check('M1A gate: rota MonteACenaSpike registrada SÓ sob isInternalToolsEnabled()',
+      /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s*\n\s*name="MonteACenaSpike"/.test(navSrc),
+      'a rota não está atrás do gate interno');
+    check('M1A legado: MonteACenaSpikeScreen preservado como referência técnica (existe)',
+      srcExists('src/screens/MonteACenaSpikeScreen.js'),
+      'tela legado do spike foi removida');
+    check('M1A dados: usa o require oficial das histórias (sem cópia de asset)',
+      /getSceneIllustrationAsset\('noah',\s*1\)/.test(dataSrc)
+      && !/require\(.*assets\/(stories|games).*\.webp/.test(dataSrc),
+      'o data file copia/require o asset diretamente');
+    check('M1A dados: pieceCount = 4 e status dev-provisional',
+      /pieceCount:\s*4/.test(dataSrc) && /dev-provisional/.test(dataSrc));
+    check('M1A: nenhuma cópia do asset em assets/games/monte_a_cena/',
+      !fs.existsSync(path.join(root, 'assets', 'games', 'monte_a_cena')),
+      'diretório de pack criado indevidamente');
+    check('M1A deps: Skia/Reanimated/Worklets NÃO importados nos módulos do spike',
+      !/(from\s+['"]|require\(\s*['"])(@shopify\/)?react-native-(skia|reanimated|worklets)/.test(
+        screenSrc + dataSrc + readSrc('src/services/monteACenaGeometry.js')),
+      'import proibido de dep nativa nova');
+    check('M1A/M1R5 deps: package.json sem Skia (Reanimated autorizado no M1R5 → exige nova dev build)',
+      !/@shopify\/react-native-skia/.test(readSrc('package.json')),
+      'dependência Skia apareceu no package.json');
+    check('M1A escopo: nenhuma chave de storage nova (@ptf) nos módulos do spike',
+      !/@ptf_/.test(screenSrc + dataSrc),
+      'chave @ptf criada no spike');
+    check('M1A escopo: sem daily/estrela no spike (não importa brincarDailyService/brincarStatsService/reward)',
+      !/brincarDailyService|brincarStatsService|rewardService|addBonusStars/.test(screenSrc),
+      'o spike ligou rodada/estrela');
+    check('M1A UI: Espiar (press-and-hold) e tap-to-place presentes na tela',
+      /onPressIn=\{\(\) => setPeeking\(true\)\}/.test(screenSrc)
+      && /mode === 'tap'/.test(screenSrc) && /Espiar/.test(screenSrc),
+      'Espiar ou tap-to-place ausente');
+    check('M1A UI: painel DEV e overlays (protectedRegions/paths/visualBounds) presentes',
+      /Painel t[ée]cnico \(DEV\)/.test(screenSrc)
+      && /showProtected/.test(screenSrc) && /showPaths/.test(screenSrc) && /showVisual/.test(screenSrc),
+      'painel DEV incompleto');
+    check('M1A recorte: usa react-native-svg ClipPath/Path/Image (sem Skia/WebView/sprites)',
+      /from 'react-native-svg'/.test(screenSrc)
+      && /ClipPath/.test(screenSrc) && /Image as SvgImage/.test(screenSrc)
+      && !/WebView/.test(screenSrc),
+      'recorte não é por react-native-svg');
+    check('M1A Beni: reutiliza BeniGuideBubble/BeniAvatar (sem asset novo) nos 3 momentos',
+      /BeniGuideBubble/.test(screenSrc)
+      && /Vamos montar esta cena\?/.test(screenSrc)
+      && /Leve a pe[çc]a at[ée] o lugar certo\./.test(screenSrc)
+      && /Conseguimos! A cena ficou completa!/.test(screenSrc),
+      'participação do Beni incompleta');
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R1: protótipo visual estático (tela clara, sem rolagem). Dev-gated.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R1() {
+    const protoExists = srcExists('src/screens/MonteACenaPrototypeScreen.js');
+    const proto = protoExists ? readSrc('src/screens/MonteACenaPrototypeScreen.js') : '';
+    const protoNoCom = protoExists ? a1StripComments(proto) : '';
+    const routesSrc = readSrc('src/constants/routes.js');
+    const navSrc = readSrc('src/navigation/AppNavigator.js');
+    const brincarSrc = readSrc('src/screens/BrincarScreen.js');
+    const brincarNoCom = a1StripComments(brincarSrc);
+
+    check('M1R1 rota: ROUTES.MONTE_A_CENA_PROTOTYPE = "MonteACenaPrototype"',
+      /MONTE_A_CENA_PROTOTYPE:\s*'MonteACenaPrototype'/.test(routesSrc));
+    check('M1R1 tela: MonteACenaPrototypeScreen existe',
+      protoExists, 'src/screens/MonteACenaPrototypeScreen.js ausente');
+    check('M1R1 gate: rota MonteACenaPrototype registrada SÓ sob isInternalToolsEnabled()',
+      /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s*\n\s*name="MonteACenaPrototype"/.test(navSrc),
+      'a rota de validação não está atrás do gate interno');
+
+    check('M1R1 layout: a nova tela NÃO usa ScrollView nem FlatList vertical',
+      protoExists && !/ScrollView/.test(protoNoCom) && !/FlatList/.test(protoNoCom),
+      'a tela de validação tem rolagem');
+    check('M1R1 identidade: fundo claro do Mundo do Beni (pt.background), sem fundo escuro do M1A',
+      /backgroundColor:\s*pt\.background/.test(proto)
+      && !/#0F1220|#161A2C|#12172A|#1E2338/.test(proto),
+      'a tela usa o fundo escuro reprovado');
+    check('M1R1 bandeja: as 4 peças da geometria são renderizadas (map em geometry.pieces)',
+      /geometry\.pieces\.map/.test(proto) && /styles\.traySlot/.test(proto),
+      'a bandeja não mostra as 4 peças');
+    check('M1R1 escalas: trayScale e boardScale distintos (trayScale < boardScale)',
+      /const trayScale/.test(proto) && /boardScale = 1\.0/.test(proto)
+      && /Math\.min\(0\.42/.test(proto),
+      'trayScale/boardScale não separados');
+    check('M1R1 referência: olho por UM TOQUE (onPress), SEM press-and-hold',
+      /onPress=\{\(\) => setRefOpen\(true\)\}/.test(proto)
+      && !/onPressIn/.test(proto) && !/onPressOut/.test(proto),
+      'a referência usa press-and-hold');
+    check('M1R1 responsivo: usa useWindowDimensions + safe area + reserva do banner Criador',
+      /useWindowDimensions/.test(proto) && /useSafeAreaInsets/.test(proto)
+      && /CREATOR_BANNER_EXTRA/.test(proto) && /isCreatorQaModeEnabled/.test(proto),
+      'dimensionamento responsivo incompleto');
+    check('M1R1 recorte: reaproveita react-native-svg ClipPath/Path/Image (1 imagem)',
+      /from 'react-native-svg'/.test(proto) && /ClipPath/.test(proto)
+      && /Image as SvgImage/.test(proto) && /buildSpikeGeometry/.test(proto),
+      'recorte SVG ausente na nova tela');
+    check('M1R1 sem técnico no fluxo: sem painel técnico / leituras de seed/tolerância/FPS visíveis',
+      protoExists
+      && !/Painel t[ée]cnico/.test(protoNoCom) && !/snapTol/.test(protoNoCom)
+      && !/\bFPS\b/.test(protoNoCom) && !/DevToggle|showPaths|showVisual/.test(protoNoCom),
+      'informação técnica vazou para a tela infantil');
+    check('M1R1 sem interação ainda: sem PanResponder/arrasto/snap/som na nova tela',
+      protoExists && !/PanResponder/.test(proto) && !/playGameSfx/.test(proto)
+      && !/Haptics/.test(proto),
+      'a tela estática já tem interação/som');
+
+    // Aba Brincar
+    check('M1R1 Brincar: card "Bichinhos da Bíblia" removido da interface (fora de EM_PREPARO)',
+      !/id: 'bichinhos'/.test(brincarNoCom) && !/title: 'Bichinhos/.test(brincarNoCom),
+      'Bichinhos ainda é um card renderizado');
+    check('M1R1 Brincar: card "Monte a Cena" em "Chegando em breve" com chip "Em preparação"',
+      /id: 'monte_a_cena'[\s\S]{0,200}title: 'Monte a Cena'[\s\S]{0,120}badge: 'Em prepara[çc][ãa]o'/.test(brincarSrc)
+      && /O Beni está preparando/.test(brincarSrc),
+      'card Monte a Cena ausente ou sem chip/rodapé corretos');
+    check('M1R1 Brincar: card só abre internamente (card largo gated → seleção de níveis M1R2)',
+      /isInternalToolsEnabled\(\) \? \(/.test(brincarSrc)
+      && /TestingWideTile[\s\S]{0,220}ROUTES\.MONTE_A_CENA_HOME/.test(brincarSrc),
+      'o card de teste interno não abre a seleção de níveis');
+    check('M1R1 Brincar: a rota de validação NÃO abre MonteACenaSpike (só o protótipo)',
+      !/MONTE_A_CENA_SPIKE/.test(brincarSrc) && !/MonteACenaSpike/.test(brincarSrc),
+      'o fluxo de validação ainda referencia o spike');
+    check('M1R1 Brincar: sem card duplicado de Monte a Cena (Laboratório interno removido)',
+      !/Laborat[óo]rio interno/.test(brincarSrc) && !/LabTile/.test(brincarSrc),
+      'card duplicado de Monte a Cena permanece');
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R2: núcleo jogável (seleção de níveis + rodada). Dev-gated.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R2() {
+    // ── Geometria geral R×C (pura) ──
+    let mod = null;
+    try {
+      let gsrc = readSrc('src/services/monteACenaGeometry.js').replace(/export\s+(function|const)/g, '$1');
+      const fn = new Function('module', 'exports', gsrc + '\nmodule.exports={buildGridGeometry,snapToleranceFor};');
+      const m = { exports: {} }; fn(m, m.exports); mod = m.exports;
+    } catch (e) { fail('M1R2: monteACenaGeometry avaliável (puro)', e.message); }
+
+    if (mod) {
+      const PR = [{ x: 0.28, y: 0.12, w: 0.24, h: 0.22 }, { x: 0.72, y: 0.42, w: 0.26, h: 0.13 }];
+      const grids = [['2x2', 2, 2, 4], ['3x2', 3, 2, 6], ['3x3', 3, 3, 9]];
+      const contains = (a, b) => a.x <= b.x + 1e-6 && a.y <= b.y + 1e-6 && a.x + a.w >= b.x + b.w - 1e-6 && a.y + a.h >= b.y + b.h - 1e-6;
+      const inRect = (pt, r) => pt[0] >= r.x - 1e-6 && pt[0] <= r.x + r.w + 1e-6 && pt[1] >= r.y - 1e-6 && pt[1] <= r.y + r.h + 1e-6;
+      for (const [name, rows, cols, count] of grids) {
+        let g = null;
+        try { g = mod.buildGridGeometry({ sceneId: 'noah', artWidth: 1122, artHeight: 1402, rows, cols, seed: 'noah|' + name, protectedRegions: PR }); } catch (e) { fail('M1R2 grade ' + name + ' construída', e.message); continue; }
+        const ids = new Set(g.pieces.map((p) => p.id));
+        const cov = g.pieces.reduce((a, p) => a + p.cellRect.w * p.cellRect.h, 0);
+        check(`M1R2 grade ${name}: ${count} peças, ids únicos, cobertura ≈ 1.0`,
+          g.pieces.length === count && ids.size === count && Math.abs(cov - 1) < 1e-4,
+          `n=${g.pieces.length} ids=${ids.size} cov=${cov}`);
+        check(`M1R2 grade ${name}: grade correta (${rows}×${cols}) e paths M…C…Z`,
+          g.grid.rows === rows && g.grid.cols === cols
+          && g.pieces.every((p) => /^M /.test(p.path) && /C /.test(p.path) && /Z\s*$/.test(p.path)),
+          'grade/paths inválidos');
+        check(`M1R2 grade ${name}: bordas externas retas (L nas peças de borda) e visualBounds ⊇ cellRect`,
+          // peça interna (ex.: centro do 3×3) não tem borda externa → sem L; só as de borda exigem L
+          g.pieces.filter((p) => p.row === 0 || p.row === rows - 1 || p.column === 0 || p.column === cols - 1).every((p) => / L /.test(p.path))
+          && g.pieces.every((p) => contains(p.visualBounds, p.cellRect))
+          && g.pieces.every((p) => contains(p.overscanBounds, p.clipBounds))
+          && g.pieces.every((p) => contains(p.hitBounds, p.visualBounds)),
+          'bordas/limites inconsistentes');
+        check(`M1R2 grade ${name}: snapPoint no cellRect e nenhuma peça em faixa extrema`,
+          g.pieces.every((p) => inRect(p.snapPoint, p.cellRect))
+          && g.pieces.every((p) => Math.min(p.cellRect.w, p.cellRect.h) >= 0.12),
+          'snap fora / faixa estreita');
+        check(`M1R2 grade ${name}: equilíbrio de áreas dentro do limite (valid=true)`,
+          g.valid === true && g.balance.ok === true && g.balance.areaRatio <= 2.2 && g.seamCrossesProtected === false,
+          `valid=${g.valid} ratio=${g.balance && g.balance.areaRatio} protX=${g.seamCrossesProtected}`);
+      }
+      // Determinismo + complementaridade (bordas compartilhadas → paths estáveis por seed)
+      const a = mod.buildGridGeometry({ sceneId: 'n', artWidth: 1122, artHeight: 1402, rows: 3, cols: 3, seed: 'k', protectedRegions: PR });
+      const b = mod.buildGridGeometry({ sceneId: 'n', artWidth: 1122, artHeight: 1402, rows: 3, cols: 3, seed: 'k', protectedRegions: PR });
+      check('M1R2 geometria: determinística por seed (mesmos paths) e tolerância > 0',
+        JSON.stringify(a.pieces.map((p) => p.path)) === JSON.stringify(b.pieces.map((p) => p.path))
+        && a.pieces.every((p) => mod.snapToleranceFor(p, 0.4) > 0),
+        'geometria não determinística / tolerância inválida');
+    }
+
+    // ── Manifesto de níveis ──
+    const lvlExists = srcExists('src/data/monteACenaLevels.js');
+    const lvl = lvlExists ? readSrc('src/data/monteACenaLevels.js') : '';
+    check('M1R2R manifesto: 3 níveis (fora do JSX), grades 2x2/3x2/3x3, crop, temas',
+      lvlExists
+      && (lvl.match(/id: 'nivel_[123]'/g) || []).length === 3
+      && /pieceCount: 4[\s\S]*?rows: 2[\s\S]*?columns: 2/.test(lvl)
+      && /pieceCount: 6[\s\S]*?rows: 3[\s\S]*?columns: 2/.test(lvl)
+      && /pieceCount: 9[\s\S]*?rows: 3[\s\S]*?columns: 3/.test(lvl)
+      && /guideOpacity/.test(lvl) && /snapFactor/.test(lvl) && /crop:/.test(lvl) && /seamsX/.test(lvl)
+      && /theme:/.test(lvl) && /chip:/.test(lvl) && /indicator:/.test(lvl) && /accessType/.test(lvl)
+      && /getSceneIllustrationAsset/.test(lvl) && !/require\(.*\.webp/.test(lvl),
+      'manifesto de níveis incompleto ou copia asset');
+
+    // ── Tela de seleção ──
+    const selExists = srcExists('src/screens/MonteACenaLevelSelectScreen.js');
+    const sel = selExists ? readSrc('src/screens/MonteACenaLevelSelectScreen.js') : '';
+    check('M1R2 seleção: níveis vêm do manifesto (map), nada escrito no JSX; fundo claro',
+      selExists && /MONTE_A_CENA_LEVELS\.map/.test(sel)
+      && /backgroundColor: pt\.background/.test(sel)
+      && !/#0F1220|#161A2C/.test(sel),
+      'tela de seleção não deriva do manifesto ou usa fundo escuro');
+
+    // ── Tela da rodada ──
+    const gExists = srcExists('src/screens/MonteACenaGameScreen.js');
+    const gs = gExists ? readSrc('src/screens/MonteACenaGameScreen.js') : '';
+    const gsNoCom = gExists ? a1StripComments(gs) : '';
+    check('M1R2 rodada: existe e NÃO usa ScrollView/FlatList (sem rolagem)',
+      gExists && !/ScrollView/.test(gsNoCom) && !/FlatList/.test(gsNoCom));
+    check('M1R2 rodada: fundo claro do Mundo do Beni (sem fundo escuro do M1A)',
+      /backgroundColor: pt\.background/.test(gs) && !/#0F1220|#161A2C|#12172A|#1E2338/.test(gs),
+      'a rodada usa fundo escuro');
+    check('M1R2 gesto: camada absoluta de arrasto (PanResponder + Animated), sem setState por frame',
+      /PanResponder\.create/.test(gs) && /Animated\.ValueXY/.test(gs)
+      && /pan\.x\.setValue\(g\.dx\)/.test(gs)   // move escreve no nó Animated (sem setState)
+      && !/react-native-reanimated/.test(gsNoCom),
+      'arrasto não usa camada absoluta Animated/PanResponder');
+    check('M1R2 âncora: sem salto p/ o centro (usa locationX/Y do toque para o grab, root-local)',
+      /locationX[\s\S]{0,40}\/ trayScale/.test(gs) && /dragBase\.current = \{ x: localX - grabRef\.current\.x/.test(gs),
+      'o arrasto salta para o centro da peça');
+    check('M1R2 snap: resolve UMA vez por gesto (guarda resolvingRef) e progresso derivado',
+      /resolvingRef\.current = true/.test(gs) && /placed\.length === level\.pieceCount/.test(gs)
+      && /placed\.length} de /.test(gs.replace(/\r/g, '')),
+      'snap sem guarda de resolução única / progresso não derivado');
+    check('M1R2 feedback: acerto toca match_success + haptic; conclusão board_complete 1×',
+      /playGameSfx\('match_success'\)/.test(gs)
+      && /Haptics\.impactAsync/.test(gs)
+      && /playGameSfx\('board_complete'\)/.test(gs)
+      && /doneFiredRef/.test(gs),
+      'feedback de acerto/conclusão incompleto');
+    check('M1R2 sem punição: drop incorreto retorna sem vermelho/derrota/som agressivo',
+      /returnToWell/.test(gs) && !/vermelh|derrota|match_error/.test(gsNoCom),
+      'o erro pune a criança');
+    check('M1R2 toque: tap-to-place (seleciona → toca no tabuleiro) com contorno dourado',
+      /onBoardPress/.test(gs) && /selectedId/.test(gs) && /selectedRing/.test(gs)
+      && /accessibilityHint/.test(gs),
+      'tap-to-place ausente/incompleto');
+    check('M1R2 ajuda: inatividade (pulso) + 2 erros (alvo pulsa) sem destaque permanente',
+      /INACTIVITY_MS/.test(gs) && /helpPulseId/.test(gs)
+      && /wrongRef/.test(gs) && /Quase! Veja onde essa parte aparece/.test(gs)
+      && /setGlowTargetId\(\(g\) => \(g === piece\.id \? null : g\)\)/.test(gs),
+      'sistema de ajuda ausente ou destaque permanente');
+    check('M1R2 conclusão: Próximo nível / Jogar novamente / Escolher nível; último → Voltar aos níveis',
+      /Próximo nível/.test(gs) && /Jogar novamente/.test(gs) && /Escolher nível/.test(gs)
+      && /Voltar aos níveis/.test(gs) && /getNextLevel/.test(gs) && /navigation\.replace/.test(gs),
+      'fluxo de conclusão/avanço incompleto');
+    check('M1R2 conclusão: sem estrela/limite/recompensa/persistência',
+      !/brincarStatsService|brincarDailyService|rewardService|addBonusStars|AsyncStorage/.test(gs),
+      'a rodada ligou estrela/limite/persistência');
+    check('M1R2 limpeza: cancelamento em blur e AppState (peça não fica flutuando)',
+      /navigation\.addListener\('blur'/.test(gs) && /AppState\.addEventListener/.test(gs)
+      && /cancelGesture/.test(gs) && /setActiveId\(null\)/.test(gs),
+      'sem cancelamento de gesto em blur/AppState');
+    check('M1R2 referência: um toque (onPress), SEM onPressIn/onPressOut',
+      /onPress=\{\(\) => setRefOpen\(true\)\}/.test(gs)
+      && !/onPressIn/.test(gs) && !/onPressOut/.test(gs)
+      && /Veja a cena/.test(gs) && /Voltar ao jogo/.test(gs),
+      'referência com press-and-hold ou modal incorreto');
+    check('M1R2 escalas: trayScale única na bandeja; peça ativa em tamanho de tabuleiro (scale 1.0)',
+      /const trayScale/.test(gs) && /scale=\{trayScale\}/.test(gs) && /scale=\{1\.0\}/.test(gs),
+      'escalas de bandeja/tabuleiro não separadas');
+    check('M1R2 sem técnico: sem painel/toggles/overlays técnicos visíveis na rodada',
+      gExists && !/Painel t[ée]cnico/.test(gsNoCom) && !/DevToggle/.test(gsNoCom)
+      && !/showPaths|showVisual/.test(gsNoCom) && !/\bFPS\b/.test(gsNoCom),
+      'informação técnica na tela infantil');
+
+    // ── Rotas / navegação / card ──
+    const routesSrc = readSrc('src/constants/routes.js');
+    const navSrc = readSrc('src/navigation/AppNavigator.js');
+    const brincarSrc = readSrc('src/screens/BrincarScreen.js');
+    check('M1R2 rotas: MONTE_A_CENA_LEVELS e MONTE_A_CENA_GAME definidas',
+      /MONTE_A_CENA_LEVELS:\s*'MonteACenaLevels'/.test(routesSrc)
+      && /MONTE_A_CENA_GAME:\s*'MonteACenaGame'/.test(routesSrc));
+    check('M1R2 gate: rotas de níveis e rodada SÓ sob isInternalToolsEnabled()',
+      /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s*\n\s*name="MonteACenaLevels"/.test(navSrc)
+      && /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s*\n\s*name="MonteACenaGame"/.test(navSrc),
+      'rotas de níveis/rodada não gated');
+    check('M1R2 card: em Modo Criador é card LARGO "Em teste"/"Testar" (puzzle) → seleção de níveis',
+      /TestingWideTile/.test(brincarSrc) && /icon="puzzle"/.test(brincarSrc)
+      && /Em teste/.test(brincarSrc) && /Testar/.test(brincarSrc)
+      && /ROUTES.MONTE_A_CENA_HOME/.test(brincarSrc),
+      'card de teste interno ausente ou não abre a seleção');
+    check('M1R2 card: fora do Modo Criador permanece "Em preparação" e NÃO navega',
+      /isInternalToolsEnabled\(\) \? \([\s\S]*?\) : \([\s\S]*?ComingTile[\s\S]*?\)/.test(brincarSrc)
+      && /badge: 'Em prepara[çc][ãa]o'/.test(brincarSrc),
+      'o estado bloqueado (não-criador) do card regrediu');
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R2.1: estabilização do NÍVEL 1 (4 peças). Dev-gated.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R2_1() {
+    const gs = srcExists('src/screens/MonteACenaGameScreen.js') ? readSrc('src/screens/MonteACenaGameScreen.js') : '';
+    const lvl = readSrc('src/data/monteACenaLevels.js');
+    const sel = srcExists('src/screens/MonteACenaLevelSelectScreen.js') ? readSrc('src/screens/MonteACenaLevelSelectScreen.js') : '';
+
+    // (1) sem escala dupla: camada ativa só translate + PieceSprite scale 1.0 (Svg preenche a caixa)
+    check('M1R2.1 escala: peça ativa recebe activeW/H e transform SÓ translate (sem scale duplo)',
+      /width: activePiece\.overscanBounds\.w \* boardW/.test(gs)
+      && /transform: \[\{ translateX: pan\.x \}, \{ translateY: pan\.y \}\]/.test(gs)
+      && !/scale: dragScale/.test(gs),
+      'a peça ativa combina dimensão final com transform scale (escala dupla)');
+    // (2) tap não cria camada absoluta / não cresce
+    check('M1R2.1 toque: soltar sem arrastar seleciona (não cria camada ativa)',
+      /if \(!draggingRef\.current\) \{[\s\S]*?setSelectedId\(\(cur\) => \(cur === piece\.id \? null : piece\.id\)\)/.test(gs),
+      'o toque cria camada absoluta / cresce a peça');
+    // (3) drag só após limite
+    check('M1R2.1 arrasto: só inicia após MOVE_THRESHOLD (6 pt)',
+      /const MOVE_THRESHOLD = 6/.test(gs)
+      && /if \(Math\.abs\(g\.dx\) < MOVE_THRESHOLD && Math\.abs\(g\.dy\) < MOVE_THRESHOLD\) return/.test(gs),
+      'arrasto inicia sem limite de movimento');
+    // (4) boardY não muda ao recolher o Beni (layout não depende de beniExpanded; faixa fixa)
+    check('M1R2.1 layout: faixa Beni de altura FIXA; boardTop não depende de beniExpanded',
+      /const BENI_BAND_H = 54/.test(gs)
+      && /boardTop = beniTop \+ BENI_BAND_H \+ GAP/.test(gs)
+      && /\}, \[screenW, screenH, insets\.top, insets\.bottom, ratio\]\);/.test(gs)
+      && !/beniH = beniExpanded/.test(gs),
+      'o layout do tabuleiro depende do estado do Beni');
+    // (5) coordenadas root-local
+    check('M1R2.1 coordenadas: sistema único root-local (measureInWindow + rootWin)',
+      /measureInWindow/.test(gs) && /rootWin\.current/.test(gs)
+      && /g\.x0 - rootWin\.current\.x/.test(gs),
+      'coordenadas não convertidas para a raiz local');
+    // (6) trayScale única
+    check('M1R2.1 bandeja: um único trayScale (referência = maior visualBounds), proporção preservada',
+      /const trayScale = useMemo/.test(gs) && /maior visualBounds|MAIOR visualBounds/.test(readSrc('src/screens/MonteACenaGameScreen.js') + lvl)
+      && /scale=\{trayScale\}/.test(gs),
+      'trayScale por peça / normalização individual');
+    // (7) Beni não entra no tabuleiro
+    check('M1R2.1 Beni: faixa acima do tabuleiro, sem avatar flutuante sobre a cena',
+      /styles\.beniBand/.test(gs) && /beniBand: \{[\s\S]*?position: 'absolute'/.test(gs)
+      && !/beniReopen/.test(gs),
+      'o Beni pode entrar na área do tabuleiro');
+    // (8) mesa inferior contém "Escolha uma peça"
+    check('M1R2.1 mesa: cartão único inferior com "Escolha uma peça" no cabeçalho da mesa',
+      /styles\.mesa[,\]]/.test(gs.replace(/\r/g, '')) && /mesaHeader/.test(gs)
+      && /<Text style=\{styles\.mesaHeader\}>Escolha uma peça<\/Text>/.test(gs),
+      'texto "Escolha uma peça" não pertence à mesa inferior');
+    // (9) M1R2R: TODOS os níveis abertos (sem tuning/Ajustando/Em breve)
+    check('M1R2R níveis: TODOS abertos (3 available, sem tuning); LevelSelect sem Ajustando/Em breve',
+      (lvl.match(/status: 'available'/g) || []).length === 3
+      && !/status: 'tuning'/.test(lvl)
+      && !/Ajustando|Em breve/.test(a1StripComments(sel)),
+      'algum nível continua bloqueado');
+    // (13-15) snap once / return / progress
+    check('M1R2.1 fluxo: snap resolve 1×, drop incorreto retorna, progresso chega a 4 de 4',
+      /resolvingRef\.current = true/.test(gs) && /returnToWell/.test(gs)
+      && /placed\.length === level\.pieceCount/.test(gs) && /pieceCount: 4/.test(lvl),
+      'fluxo de snap/retorno/progresso incompleto');
+
+    // Geometria pura do NÍVEL 1 (preset) + desarranjo
+    try {
+      let src2 = readSrc('src/services/monteACenaGeometry.js').replace(/export\s+(function|const)/g, '$1');
+      const fn = new Function('module', 'exports', src2 + '\nmodule.exports={buildGridGeometry};');
+      const mm = { exports: {} }; fn(mm, mm.exports);
+      const g1 = mm.exports.buildGridGeometry({
+        sceneId: 'noah', artWidth: 1122, artHeight: 1402, rows: 2, cols: 2,
+        seed: 'noah_scene_01|m1r2_1|2x2', presetSeams: { x: [0.55], y: [0.50] },
+        areaRatioMax: 1.25, protectedRegions: [{ x: 0.28, y: 0.12, w: 0.24, h: 0.22 }],
+      });
+      check('M1R2.1 geometria nível 1: equilíbrio ≤ 1.25 e ROSTO de Noé NÃO cruzado',
+        g1.valid === true && g1.balance.areaRatio <= 1.25 && g1.seamCrossesProtected === false
+        && g1.pieces.every((p) => Math.min(p.cellRect.w, p.cellRect.h) >= 0.75 * 0.5),
+        `ratio=${g1.balance && g1.balance.areaRatio} protX=${g1.seamCrossesProtected}`);
+
+      // Desarranjo: replicar a rotação determinística e checar nenhum id no índice do próprio alvo.
+      const pieces = g1.pieces; const n = pieces.length;
+      let h = 2166136261; const s = 'noah_scene_01|m1r2_1|2x2';
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+      const k = 1 + (Math.abs(h) % (n - 1));
+      const order = []; for (let i = 0; i < n; i++) order.push(pieces[(i + k) % n]);
+      // target index de cada peça = row*cols + col
+      const derangement = order.every((p, slot) => (p.row * 2 + p.column) !== slot);
+      check('M1R2.1 bandeja: ordem é um DESARRANJO (nenhuma peça no índice do próprio alvo)',
+        k !== 0 && derangement && /shuffledTrayOrder/.test(gs),
+        `k=${k} derangement=${derangement}`);
+    } catch (e) {
+      fail('M1R2.1: geometria/desarranjo avaliáveis', e.message);
+    }
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R2R: reconstrução integral (V2). Dev-gated.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R2R() {
+    const files = {
+      hook: 'src/hooks/usePuzzleController.js',
+      screen: 'src/screens/MonteACenaGameV2Screen.js',
+      board: 'src/components/monteACena/PuzzleBoard.js',
+      dock: 'src/components/monteACena/PuzzleDock.js',
+      piece: 'src/components/monteACena/PuzzlePiece.js',
+      overlay: 'src/components/monteACena/PuzzleDragOverlay.js',
+      effects: 'src/components/monteACena/PuzzleEffectsLayer.js',
+      coach: 'src/components/monteACena/PuzzleCoach.js',
+    };
+    check('M1R2R arquitetura: nova tela V2 + 6 componentes + hook (todos existem)',
+      Object.values(files).every((f) => srcExists(f)),
+      'faltam arquivos da nova arquitetura');
+    const hook = srcExists(files.hook) ? readSrc(files.hook) : '';
+    const v2 = srcExists(files.screen) ? readSrc(files.screen) : '';
+    const dock = srcExists(files.dock) ? readSrc(files.dock) : '';
+    const overlay = srcExists(files.overlay) ? readSrc(files.overlay) : '';
+    const routesSrc = readSrc('src/constants/routes.js');
+    const navSrc = readSrc('src/navigation/AppNavigator.js');
+    const brincarSrc = readSrc('src/screens/BrincarScreen.js');
+    const selSrc = readSrc('src/screens/MonteACenaLevelSelectScreen.js');
+    const lvl = readSrc('src/data/monteACenaLevels.js');
+
+    // (A) Modelo "peça acima do dedo" — SEM grabOffset locationX/trayScale
+    check('M1R2R gesto: modelo "peça acima do dedo" (fingerX − activeW/2, fingerY − activeH − 20)',
+      /fingerX - w \/ 2/.test(hook) && /fingerY - h - LIFT/.test(hook) && /const LIFT = 20/.test(hook),
+      'não usa o modelo peça-acima-do-dedo');
+    check('M1R2R gesto: NÃO divide locationX por trayScale (abandona o grabOffset)',
+      !/locationX[^;\n]*\/ trayScale/.test(hook) && !/grabRef/.test(hook),
+      'ainda usa grabOffset locationX/trayScale');
+    check('M1R2R gesto: clamp mantém a peça inteiramente visível (root-local via measureInWindow)',
+      /clamp\(fingerX - w \/ 2, marginL, rootW - marginR - w\)/.test(hook)
+      && /clamp\(fingerY - h - LIFT, minTop, maxBottom - h\)/.test(hook)
+      && /measureInWindow/.test(hook) && /pageX - rootWin\.current\.x|g\.moveX/.test(hook),
+      'sem clamp / coordenadas não root-local');
+
+    // (B) Fórmula pura: activeLeft nunca negativo; visível nas bordas; acima do dedo
+    (function pureFormula() {
+      const clampf = (v, lo, hi) => (v < lo ? lo : (v > hi ? hi : v));
+      const LIFT = 20; const rootW = 375; const marginL = 10; const marginR = 10; const minTop = 138; const maxBottom = 667;
+      const aw = 144; const ah = 180;
+      const pos = (fx, fy) => ({ left: clampf(fx - aw / 2, marginL, rootW - marginR - aw), top: clampf(fy - ah - LIFT, minTop, maxBottom - ah) });
+      const atLeftWell = pos(141, 514);      // dedo no poço esquerdo
+      const atRightEdge = pos(370, 300);
+      const atLeftEdge = pos(2, 300);
+      const centered = pos(200, 400);
+      check('M1R2R fórmula: peça CENTRALIZADA acima do dedo e nunca negativa após clamp',
+        Math.abs((centered.left + aw / 2) - 200) < 0.01
+        && atLeftWell.left >= marginL && atLeftEdge.left >= marginL
+        && (atRightEdge.left + aw) <= (rootW - marginR)
+        && atLeftWell.top >= minTop && atLeftWell.top === (514 - ah - LIFT),
+        `left(leftWell)=${atLeftWell.left} left(rightEdge)+aw=${atRightEdge.left + aw}`);
+    })();
+
+    // (C) tap não cria overlay; drag cria overlay; overlay tamanho exato
+    check('M1R2R interação: tap seleciona (sem overlay); drag cria overlay (>MOVE_THRESHOLD)',
+      /if \(!draggingRef\.current\) \{ gsRef\.current = 'idle'; setSelectedId/.test(hook)
+      && /const MOVE_THRESHOLD = 5/.test(hook)
+      && /draggingRef\.current = true; gsRef\.current = 'dragging'; activeRef\.current = piece\.id;\s*\n\s*setActiveId\(piece\.id\)/.test(hook),
+      'tap/drag não separados corretamente');
+    check('M1R2R overlay: tamanho EXATO do alvo (overscan×board), sem transform scale',
+      /overscanBounds\.w \* boardW/.test(overlay) && /transform: \[\{ translateX: pan\.x \}, \{ translateY: pan\.y \}\]/.test(overlay)
+      && !/scale:/.test(overlay),
+      'overlay com escala/dimensão incorreta');
+
+    // (D) máquina de estados + tap-to-place + sem punição + sem ScrollView na rodada
+    check('M1R2R estados/interação: idle→…→completed; tap-to-place; sem vermelho/derrota; sem ScrollView',
+      /'idle'|gsRef\.current = 'pressed'/.test(hook) && /gsRef\.current = 'snapping'/.test(hook)
+      && /onBoardPress/.test(hook) && /returnToWell/.test(hook)
+      && !/vermelh|derrota/.test(a1StripComments(hook + v2))
+      && !/ScrollView/.test(a1StripComments(v2)),
+      'estados/tap/sem-punição/rolagem incorretos');
+
+    // (E) mesa ocupa o rodapé inteiro; sem área branca vazia
+    check('M1R2R mesa: PuzzleDock ocupa toda a largura e o rodapé (dockTop = screenH − insets − dockH)',
+      /dockTop = screenH - insets\.bottom - dockH/.test(v2) && /dockW=\{screenW\}/.test(v2)
+      && /borderTopLeftRadius/.test(dock) && /Peças restantes/.test(dock) && /Arraste ou toque/.test(dock),
+      'a mesa não ocupa o rodapé restante');
+
+    // (F) efeitos + conclusão
+    check('M1R2R efeitos: encaixe dispara efeito; conclusão dispara board_complete UMA vez',
+      /setEffect\(\{ type: 'snap'/.test(hook) && /setEffect\(\{ type: 'complete'/.test(hook)
+      && /doneFiredRef\.current = true;[\s\S]{0,120}playSfx\('board_complete'\)/.test(hook)
+      && /PuzzleEffectsLayer/.test(v2),
+      'efeitos/conclusão incompletos');
+
+    // (G) áudio real
+    check('M1R2R áudio: match_success e board_complete resolvem para ARQUIVOS reais + preload',
+      fs.existsSync(path.join(root, 'assets/audio/sfx/match_success.wav'))
+      && fs.existsSync(path.join(root, 'assets/audio/sfx/board_complete.wav'))
+      && /preloadGameSfx\(\['match_success', 'board_complete'\]\)/.test(hook)
+      && /Testar encaixe/.test(v2) && /Testar conclusão/.test(v2),
+      'áudio sem arquivo/preload/diagnóstico');
+
+    // (H) rotas / navegação / card
+    check('M1R2R/M1R5 rota: GameV2 (legado) segue gated; o FLUXO REAL vai à rodada M1R5 (TableGame)',
+      /MONTE_A_CENA_GAME_V2:\s*'MonteACenaGameV2'/.test(routesSrc)
+      && /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s*\n\s*name="MonteACenaGameV2"/.test(navSrc)
+      && (srcExists('src/screens/MonteACenaDifficultyScreen.js') && /navigation\.navigate\(ROUTES\.MONTE_A_CENA_TABLE_GAME/.test(readSrc('src/screens/MonteACenaDifficultyScreen.js')))
+      && /ROUTES.MONTE_A_CENA_HOME/.test(brincarSrc),
+      'rota real (Difficulty→TableGame M1R5) não conectada');
+
+    // (I) geometria: células IGUAIS (uniforme) + crop protege rosto, p/ os 3 níveis
+    try {
+      let gsrc = readSrc('src/services/monteACenaGeometry.js').replace(/export\s+(function|const)/g, '$1');
+      const fn = new Function('module', 'exports', gsrc + '\nmodule.exports={buildGridGeometry};');
+      const mm = { exports: {} }; fn(mm, mm.exports);
+      const faceArt = { x: 0.28, y: 0.12, w: 0.24, h: 0.22 };
+      const toCrop = (cr) => ({ x: (faceArt.x - cr.x) / cr.w, y: (faceArt.y - cr.y) / cr.h, w: faceArt.w / cr.w, h: faceArt.h / cr.h });
+      const cases = [
+        ['2x2', 2, 2, [0.5], [0.5], { x: 0.12, y: 0, w: 0.84, h: 0.84 }],
+        ['3x2', 3, 2, [0.5], [1 / 3, 2 / 3], { x: 0.28, y: 0.10, w: 0.72, h: 0.72 }],
+        ['3x3', 3, 3, [1 / 3, 2 / 3], [1 / 3, 2 / 3], { x: 0.28, y: 0.10, w: 0.72, h: 0.72 }],
+      ];
+      let allEqual = true; let allFaceSafe = true;
+      for (const [, rows, cols, sx, sy, cr] of cases) {
+        const gg = mm.exports.buildGridGeometry({ sceneId: 'n', artWidth: 1122, artHeight: 1402, rows, cols, seed: 'k', presetSeams: { x: sx, y: sy }, crop: cr, areaRatioMax: 1.02, protectedRegions: [toCrop(cr)] });
+        if (gg.balance.areaRatio > 1.02) allEqual = false;
+        if (gg.seamCrossesProtected) allFaceSafe = false;
+      }
+      check('M1R2R geometria: CÉLULAS IGUAIS (razão ≈ 1) e rosto protegido nos 3 níveis',
+        allEqual && allFaceSafe, `equal=${allEqual} faceSafe=${allFaceSafe}`);
+
+      // desarranjo + rotação (nenhuma linha inteira coincide)
+      const g22 = mm.exports.buildGridGeometry({ sceneId: 'n', artWidth: 1122, artHeight: 1402, rows: 2, cols: 2, seed: 'noah_scene_01|m1r2r|2x2', presetSeams: { x: [0.5], y: [0.5] }, crop: { x: 0.12, y: 0, w: 0.84, h: 0.84 }, protectedRegions: [toCrop({ x: 0.12, y: 0, w: 0.84, h: 0.84 })] });
+      const n = g22.pieces.length; let hh = 2166136261; const s = 'noah_scene_01|m1r2r|2x2';
+      for (let i = 0; i < s.length; i++) { hh ^= s.charCodeAt(i); hh = Math.imul(hh, 16777619); }
+      const kk = 1 + (Math.abs(hh) % (n - 1));
+      const ord = []; for (let i = 0; i < n; i++) ord.push(g22.pieces[(i + kk) % n]);
+      const derange = ord.every((p, slot) => (p.row * 2 + p.column) !== slot);
+      check('M1R2R desarranjo: rotação não-nula ⇒ nenhuma peça no índice do próprio alvo',
+        kk !== 0 && derange && /shuffledTrayOrder/.test(hook),
+        `k=${kk} derange=${derange}`);
+    } catch (e) { fail('M1R2R: geometria avaliável', e.message); }
+
+    // (J) trayScale único
+    check('M1R2R bandeja: trayScale ÚNICO por nível (referência = maior visualBounds)',
+      /const trayScale = useMemo/.test(hook) && /maior visualBounds/.test(hook)
+      && /scale=\{trayScale\}/.test(dock),
+      'trayScale por peça / normalização individual');
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R3: catálogo, fluxo cena→peças, contemplação, Meus Quadros. Dev-gated.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R3() {
+    const cat = readSrc('src/data/monteACenaCatalog.js');
+    const gal = readSrc('src/services/monteACenaGallery.js');
+    const hook = readSrc('src/hooks/usePuzzleController.js');
+    const v2 = readSrc('src/screens/MonteACenaGameV2Screen.js');
+    const home = srcExists('src/screens/MonteACenaHomeScreen.js') ? readSrc('src/screens/MonteACenaHomeScreen.js') : '';
+    const diff = srcExists('src/screens/MonteACenaDifficultyScreen.js') ? readSrc('src/screens/MonteACenaDifficultyScreen.js') : '';
+    const galScreen = srcExists('src/screens/MonteACenaGalleryScreen.js') ? readSrc('src/screens/MonteACenaGalleryScreen.js') : '';
+    const brincarSrc = readSrc('src/screens/BrincarScreen.js');
+
+    // Catálogo: cena única (nº de peças depois), variedade real, exclui wrong/doubtful/unaudited
+    check('M1R8B catálogo: GERADO (20 histórias × até 10), só aprovadas entram, acesso via isFreePuzzleStory',
+      /MONTE_A_CENA_CATALOG/.test(cat)
+      && /s\.contentStatus === 'approved'/.test(cat)
+      && /storyId: 'noah'/.test(cat) && /storyId: 'david_goliath'/.test(cat)
+      && /export function isFreePuzzleStory/.test(cat) && /const premium = !isFreePuzzleStory\(storyId\)/.test(cat)
+      && /allowedPieceCounts/.test(cat) && /MONTE_A_CENA_REJECTED/.test(cat) && /MONTE_A_CENA_BLOCKED/.test(cat),
+      'catálogo não é gerado / não filtra aprovadas / sem fonte única de acesso');
+    // M1R6/M1R8B: entrada por HISTÓRIA (FlatList virtualizada). Dificuldade vem depois da Mesa.
+    check('M1R8B fluxo: entrada = galeria de HISTÓRIAS (FlatList), quadros e dificuldade vêm depois (Mesa→rodada)',
+      /data=\{MONTE_A_CENA_STORIES\}/.test(home) && /MONTE_A_CENA_STORY/.test(home)
+      && /Escolha uma história/.test(home)
+      && /navigation\.navigate\(ROUTES\.MONTE_A_CENA_TABLE_GAME, \{ puzzleSceneId[\s\S]{0,80}pieceCount: selected/.test(diff),
+      'entrada não é história-primeiro / dificuldade não separada');
+    check('M1R3 entrada: SEM capa fixa de Noé (cabeçalho neutro com recortes de puzzle)',
+      /PuzzleGlyphs/.test(home) && /Monte a Cena/.test(home)
+      && !/storyId: 'noah'/.test(home) && !/noah_scene/.test(a1StripComments(home)),
+      'a entrada usa Noé como capa');
+    check('M1R3 card Brincar: abre a ENTRADA (Home), não a seleção de níveis legada',
+      /ROUTES\.MONTE_A_CENA_HOME/.test(brincarSrc) && !/ROUTES\.MONTE_A_CENA_LEVELS/.test(brincarSrc),
+      'card não abre a nova entrada');
+
+    // M1R6 Mesa do Beni: UMA imagem + 3 placas táteis + UM botão principal (não 3 imagens, não 3 "Jogar")
+    check('M1R6 Mesa do Beni: UMA imagem sobre a mesa + placas 4/6/9 + UM botão "Começar a montar"',
+      /Mesa do Beni/.test(diff) && /Começar a montar/.test(diff)
+      && (diff.match(/<SvgImage/g) || []).length === 1
+      && !/optPlayText|>Jogar</.test(diff)
+      && /count: 4/.test(diff) && /count: 6/.test(diff) && /count: 9/.test(diff),
+      'Mesa do Beni parece configuração / repete a imagem / tem 3 botões Jogar');
+
+    // Som de erro distinto + cancelamento silencioso
+    check('M1R3 som: erro VERDADEIRO toca match_error; cancelamento (área vazia) é silencioso',
+      /isWrongTargetDrop/.test(hook)
+      && /if \(wrongTargetId\) \{[\s\S]{0,220}playSfx\('match_error'\)/.test(hook)
+      && /const wrongId = isWrongTargetDrop\(piece, pos\.left, pos\.top\)/.test(hook),
+      'erro/cancelamento não diferenciados por som');
+    check('M1R3 som: match_error resolve para arquivo real (assets/audio/sfx/match_error.wav)',
+      fs.existsSync(path.join(root, 'assets/audio/sfx/match_error.wav')),
+      'match_error.wav ausente');
+
+    // Contemplação: sem modal imediato; fases; ações abaixo
+    check('M1R3 contemplação: fases celebrating→viewingArtwork→showingActions; SEM modal cobrindo',
+      /setPhase\('celebrating'\)/.test(hook) && /setPhase\('viewingArtwork'\)/.test(hook)
+      && /revealActions/.test(hook)
+      && !/doneBackdrop/.test(v2)
+      && /phase === 'viewingArtwork'/.test(v2) && /phase === 'showingActions'/.test(v2),
+      'conclusão abre modal imediato / sem contemplação');
+    check('M1R3 contemplação: celebração NÃO abre ações no mesmo instante (timeout p/ viewingArtwork)',
+      /setTimeout\(\(\) => \{ if \(mountedRef\.current\) setPhase\('viewingArtwork'\)/.test(hook),
+      'contemplação sem atraso');
+
+    // Retorno sem salto (timing, sem mola/rebote)
+    check('M1R3 retorno: overlay anima com timing (sem mola/rebote); peça da bandeja só reaparece no fim',
+      /Animated\.timing\(pan, \{ toValue: to, duration: 260/.test(hook)
+      && !/Animated\.spring\(pan, \{ toValue: to,/.test(hook),
+      'retorno usa mola com rebote');
+
+    // Meus Quadros: persistência por perfil + free/premium
+    check('M1R3 galeria: serviço por PERFIL, versionado (loadGallery/saveCompletion; sem componentes)',
+      /const KEY_PREFIX = '@ptf_monte_a_cena_gallery_v1:'/.test(gal)
+      && /profileId/.test(gal) && /SCHEMA_VERSION/.test(gal)
+      && /export async function saveCompletion/.test(gal) && /export async function loadGallery/.test(gal),
+      'galeria sem persistência por perfil/versão');
+    check('M1R3 galeria: salva SÓ no Plano Família; grátis vê bloqueio gentil',
+      /if \(isPremium && scene\) \{[\s\S]{0,120}saveCompletion/.test(hook)
+      && /!premium/.test(galScreen) && /Plano Família/.test(galScreen)
+      && /isPremiumUser/.test(home),
+      'persistência/bloqueio grátis×família incorretos');
+    check('M1R3 entrada: cartão "Meus Quadros" premium mostra contagem; grátis mostra cadeado gentil',
+      /Meus Quadros/.test(home) && /Guarde e remonte seus quadros no Plano Família/.test(home)
+      && /FaithIcon name="lock"/.test(home),
+      'cartão Meus Quadros incompleto');
+
+    // Legado inacessível pelo fluxo novo
+    check('M1R3 legado: o fluxo novo (Home/Difficulty/Gallery) não navega para telas legadas',
+      !/MonteACenaSpike|MonteACenaPrototype|MonteACenaLevels|MonteACenaGame['"]/.test(home + diff + galScreen),
+      'o fluxo novo referencia tela legada');
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R4 Portão 1: motor isolado (reducer + laboratório). Dev-gated.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R4G1() {
+    // ── Reducer PURO: o INVARIANTE (seleção nunca encaixa; commit só em SNAP_FINISHED) ──
+    let R = null; let init = null;
+    try {
+      let msrc = readSrc('src/hooks/usePuzzleMachine.js').replace(/export\s+(function|const)/g, '$1').replace(/export default[^;]*;/g, '');
+      const fn = new Function('module', 'exports', msrc + '\nmodule.exports={initialPuzzleState,puzzleReducer};');
+      const m = { exports: {} }; fn(m, m.exports); R = m.exports.puzzleReducer; init = m.exports.initialPuzzleState;
+    } catch (e) { fail('M1R4 G1: usePuzzleMachine avaliável (puro)', e.message); }
+
+    if (R && init) {
+      const sel = R(init(4), { type: 'PIECE_TAPPED', pieceId: 'p0' });
+      check('M1R4 G1 invariante: SELECT não encaixa, não anima, não soa acerto, não muda progresso',
+        sel.status === 'selected' && sel.placedPieceIds.length === 0
+        && sel.lastSound !== 'match_success' && sel.pendingTargetId == null,
+        `status=${sel.status} placed=${sel.placedPieceIds.length}`);
+      const tapWrong = R(sel, { type: 'TARGET_TAPPED', targetId: 'p1' });
+      check('M1R4 G1: TAP em alvo INCORRETO não encaixa e toca wrong_place; peça continua selecionada',
+        tapWrong.placedPieceIds.length === 0 && tapWrong.lastSound === 'wrong_place' && tapWrong.selectedPieceId === 'p0');
+      const tapCorrect = R(sel, { type: 'TARGET_TAPPED', targetId: 'p0' });
+      check('M1R4 G1: TAP correto → snapping (NÃO grava ainda); COMMIT só em SNAP_FINISHED',
+        tapCorrect.status === 'snapping' && tapCorrect.placedPieceIds.length === 0
+        && R(tapCorrect, { type: 'SNAP_FINISHED' }).placedPieceIds.length === 1);
+      check('M1R4 G1: TAP no alvo SEM seleção não encaixa; EMPTY não encaixa e é silencioso',
+        R(init(4), { type: 'TARGET_TAPPED', targetId: 'p0' }).placedPieceIds.length === 0
+        && R(sel, { type: 'EMPTY_AREA_TAPPED' }).placedPieceIds.length === 0
+        && R(sel, { type: 'EMPTY_AREA_TAPPED' }).lastSound == null);
+      const drag = R(init(4), { type: 'PAN_STARTED', pieceId: 'p0' });
+      check('M1R4 G1: PAN área vazia = silencioso; alvo errado = wrong_place; correto = snapping',
+        R(drag, { type: 'PAN_ENDED', hit: 'none' }).lastSound == null
+        && R(drag, { type: 'PAN_ENDED', hit: 'wrong' }).lastSound === 'wrong_place'
+        && R(drag, { type: 'PAN_ENDED', hit: 'correct' }).status === 'snapping'
+        && R(drag, { type: 'PAN_ENDED', hit: 'wrong' }).placedPieceIds.length === 0);
+      let c = init(4);
+      for (const id of ['p0', 'p1', 'p2', 'p3']) { c = R(c, { type: 'PIECE_TAPPED', pieceId: id }); c = R(c, { type: 'TARGET_TAPPED', targetId: id }); c = R(c, { type: 'SNAP_FINISHED' }); }
+      check('M1R4 G1: conclusão (4/4) → celebrating + board_complete',
+        c.status === 'celebrating' && c.placedPieceIds.length === 4 && c.lastSound === 'board_complete');
+      // COMMIT não existe fora de SNAP_FINISHED
+      const machSrc = readSrc('src/hooks/usePuzzleMachine.js');
+      check('M1R4 G1: reducer só adiciona a placedPieceIds no case SNAP_FINISHED',
+        /case 'SNAP_FINISHED': \{[\s\S]*?placedPieceIds = /.test(machSrc)
+        && !/case 'PIECE_TAPPED'[\s\S]*?placedPieceIds: \[\.\.\.s\.placedPieceIds/.test(machSrc)
+        && !/case 'TARGET_TAPPED'[\s\S]*?placedPieceIds: \[\.\.\.s\.placedPieceIds/.test(machSrc),
+        'há commit fora de SNAP_FINISHED');
+    }
+
+    // ── Laboratório isolado: GH Gesture.Race(Pan,Tap); alvo com toque próprio; SEM onPress global ──
+    const lab = srcExists('src/screens/PuzzleGestureLabScreen.js') ? readSrc('src/screens/PuzzleGestureLabScreen.js') : '';
+    const labNoCom = lab ? a1StripComments(lab) : '';
+    check('M1R4 G1 lab: usa react-native-gesture-handler (Gesture.Race(Pan,Tap)); sem imagem/SVG/catálogo',
+      /from 'react-native-gesture-handler'/.test(lab) && /Gesture\.Race\(/.test(lab)
+      && /Gesture\.Pan\(\)\.runOnJS\(true\)\.minDistance\(8\)/.test(lab) && /Gesture\.Tap\(\)\.runOnJS\(true\)\.maxDistance\(6\)/.test(lab)
+      && !/SvgImage|storySceneIllustrations|MONTE_A_CENA_CATALOG/.test(labNoCom),
+      'laboratório não usa o motor GH isolado');
+    check('M1R4 G1 lab: CADA alvo tem seu Gesture.Tap; NÃO existe onPress global no fundo do tabuleiro',
+      /makeTargetGesture/.test(lab) && /Gesture\.Tap\(\)[\s\S]{0,140}TARGET_TAPPED/.test(lab)
+      && !/onPress=\{onBoardPress\}/.test(lab) && !/Pressable style=\{StyleSheet\.absoluteFill\} onPress/.test(lab),
+      'há toque global no tabuleiro no laboratório');
+    check('M1R4 G1 lab: coordenadas root-local (measureInWindow + absoluteX); overlay na raiz',
+      /measureInWindow/.test(lab) && /e\.absoluteX - rootWin\.current\.x/.test(lab)
+      && /overlayPiece/.test(lab) && /interactionId/.test(lab),
+      'coordenadas/overlay do laboratório incorretos');
+    check('M1R4 G1 lab: clamp permite atravessar a tela (esquerda↔direita) + botões de diagnóstico',
+      /clamp\(localX - PIECE \/ 2, MARGIN, layout\.rootW - MARGIN - PIECE\)/.test(lab)
+      && /act\.left|act\.right/.test(lab) && /Selecionar sem encaixar|selectNoPlace/.test(lab),
+      'clamp/diagnóstico do laboratório incompletos');
+    check('M1R4 G1 rota: PUZZLE_GESTURE_LAB registrada SÓ sob isInternalToolsEnabled',
+      /PUZZLE_GESTURE_LAB:\s*'PuzzleGestureLab'/.test(readSrc('src/constants/routes.js'))
+      && /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen name="PuzzleGestureLab"/.test(readSrc('src/navigation/AppNavigator.js')),
+      'rota do laboratório não gated');
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R5: motor DEFINITIVO integrado ao FLUXO REAL (Reanimated). Dev-gated.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R5() {
+    const eng = srcExists('src/hooks/usePuzzleEngine.js') ? readSrc('src/hooks/usePuzzleEngine.js') : '';
+    const game = srcExists('src/screens/MonteACenaTableGameScreen.js') ? readSrc('src/screens/MonteACenaTableGameScreen.js') : '';
+    const gameNoCom = game ? a1StripComments(game) : '';
+    const diff = readSrc('src/screens/MonteACenaDifficultyScreen.js');
+    const brincarSrc = readSrc('src/screens/BrincarScreen.js');
+    const home = readSrc('src/screens/MonteACenaHomeScreen.js');
+    const routesSrc = readSrc('src/constants/routes.js');
+    const navSrc = readSrc('src/navigation/AppNavigator.js');
+    const piece = readSrc('src/components/monteACena/PuzzlePiece.js');
+    const target = srcExists('src/components/monteACena/PuzzleTarget.js') ? readSrc('src/components/monteACena/PuzzleTarget.js') : '';
+
+    // (A) A rota REAL usa o motor novo e a MARCA de integração
+    check('M1R5 integração: a RODADA real (TableGame) usa usePuzzleEngine + MARCA M1R5_INTEGRATED',
+      srcExists('src/screens/MonteACenaTableGameScreen.js')
+      && /usePuzzleEngine/.test(game) && /MONTE_A_CENA_ENGINE_VERSION = 'M1R5_INTEGRATED'/.test(eng)
+      && /Motor: M1R5 integrado/.test(game) && /screen=M1R5 engine=/.test(game),
+      'a rodada real não usa o motor M1R5 / sem marca');
+    check('M1R5 integração: a rodada real NÃO importa o motor antigo/PanResponder/onBoardPress',
+      !/usePuzzleController/.test(gameNoCom) && !/PanResponder/.test(gameNoCom)
+      && !/onBoardPress/.test(gameNoCom) && !/Pressable style=\{StyleSheet\.absoluteFill\} onPress/.test(gameNoCom),
+      'a rodada real ainda arrasta o legado');
+    check('M1R6 fluxo real: card→HOME→STORY→DIFFICULTY→TABLE_GAME (rodada M1R5 js-safe), não GAME_V2',
+      /ROUTES\.MONTE_A_CENA_HOME/.test(brincarSrc) && /ROUTES\.MONTE_A_CENA_STORY/.test(home)
+      && /ROUTES\.MONTE_A_CENA_DIFFICULTY/.test(readSrc('src/screens/MonteACenaStoryScreen.js'))
+      && /ROUTES\.MONTE_A_CENA_TABLE_GAME/.test(diff) && !/MONTE_A_CENA_GAME_V2/.test(diff)
+      && /MONTE_A_CENA_TABLE_GAME:\s*'MonteACenaTableGame'/.test(routesSrc)
+      && /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen name="MonteACenaTableGame"/.test(navSrc),
+      'o fluxo real não chega à rodada M1R5');
+
+    // (B) Motor: reanimated + GH Race + reducer; COMMIT só em SNAP_FINISHED
+    check('M1R5 motor: Reanimated (shared values/useAnimatedStyle) + Gesture.Race(Pan,Tap) + reducer',
+      /from 'react-native-reanimated'/.test(eng) && /useSharedValue|useAnimatedStyle/.test(eng)
+      && /Gesture\.Race\(pan, tap\)/.test(eng) && /puzzleReducer/.test(eng),
+      'motor não usa reanimated/GH/reducer');
+    check('M1R5 commit: SÓ handleSnapFinished dispara SNAP_FINISHED (nenhum outro caminho grava)',
+      /const handleSnapFinished = useCallback[\s\S]{0,420}dispatch\(\{ type: 'SNAP_FINISHED' \}\)/.test(eng)
+      && !/PIECE_TAPPED[\s\S]{0,60}SNAP_FINISHED/.test(eng),
+      'há commit fora do fim do snap');
+
+    // (C) Alvo por toque: compara ids exatos (sem distância/tolerância/nearest); overlay 0,0 gate
+    check('M1R5 alvo por toque: compara selectedPieceId===targetId (sem distância/tolerância/nearest)',
+      /s\.selectedPieceId === targetId/.test(eng)
+      && !/tolPxFor|\* 2\.4|nearest|alvo mais pr[óo]ximo/.test(eng)
+      && /onSound\?\.\('wrong_place'\)/.test(eng),
+      'o toque ainda usa distância ao alvo correto / tolerância');
+    check('M1R5 anti-glitch 0,0: overlay só visível via showOverlayAt com checagem finita (coords prontas)',
+      /if \(!finite\(x\) \|\| !finite\(y\)\)/.test(eng)
+      && /tx\.value = x; ty\.value = y; scale\.value = 1; opacity\.value = 1/.test(eng)
+      && /anti-glitch 0,0/.test(eng),
+      'overlay pode aparecer em 0,0');
+    check('M1R5 hit test: interseção real com CADA alvo (maior taxa ≥ mínimo), sem distância ao próprio',
+      /MIN_INTERSECTION/.test(eng) && /bestRatio/.test(eng)
+      && /bestId === pieceId \? 'correct' : 'wrong'/.test(eng),
+      'hit test não é por interseção');
+    check('M1R5 alvo componente: PuzzleTarget com Gesture.Tap próprio (sem toque global)',
+      /PuzzleTarget/.test(game) && /Gesture\.Tap\(\)[\s\S]{0,60}onTap\(targetPieceId\)/.test(target),
+      'alvo sem gesto próprio');
+
+    // (D) Reducer regressão do vídeo (bottomRight selecionada, topRight tocado → sem encaixe + erro)
+    try {
+      let msrc = readSrc('src/hooks/usePuzzleMachine.js').replace(/export\s+(function|const)/g, '$1').replace(/export default[^;]*;/g, '');
+      const fn = new Function('module', 'exports', msrc + '\nmodule.exports={initialPuzzleState,puzzleReducer};');
+      const mm = { exports: {} }; fn(mm, mm.exports); const R = mm.exports.puzzleReducer; const I = mm.exports.initialPuzzleState;
+      let s = R(I(4), { type: 'PIECE_TAPPED', pieceId: 'p11' });   // seleciona "inferior direita"
+      const wrong = R(s, { type: 'TARGET_TAPPED', targetId: 'p01' }); // toca "superior direita"
+      check('M1R5 regressão(vídeo): selecionar p11 + tocar alvo p01 → sem encaixe, wrong_place, segue selecionada',
+        wrong.placedPieceIds.length === 0 && wrong.lastSound === 'wrong_place' && wrong.selectedPieceId === 'p11'
+        && wrong.status !== 'snapping',
+        `placed=${wrong.placedPieceIds.length} sound=${wrong.lastSound}`);
+    } catch (e) { fail('M1R5: reducer avaliável', e.message); }
+
+    // (E) Reanimated instalado + plugin babel; sem borda branca em peça encaixada
+    check('M1R5 deps: react-native-reanimated no package.json + plugin worklets no babel (exige rebuild)',
+      /react-native-reanimated/.test(readSrc('package.json'))
+      && /react-native-worklets\/plugin/.test(readSrc('babel.config.js')),
+      'reanimated/babel não configurados');
+    check('M1R5 sem borda branca: peça ENCAIXADA (variant placed) não tem stroke branco',
+      /variant === 'placed'/.test(piece) && !/variant === 'placed'[\s\S]{0,200}stroke="#FFFFFF"/.test(piece),
+      'peça encaixada tem contorno branco');
+    check('M1R7 conclusão automática: contemplação → gaveta de ações SEM toque invisível (só timers)',
+      /engine\.phase === 'celebrating'[\s\S]{0,260}revealArtwork/.test(game)
+      && /engine\.phase === 'viewingArtwork'[\s\S]{0,460}showActions/.test(game)
+      && /Quadro concluído!/.test(game) && /phase === 'showingActions'/.test(game)
+      && !/onPress=\{engine\.showActions\}/.test(game),
+      'conclusão depende de toque invisível / não é automática');
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R5R: recuperação P0 (crash, peças invisíveis, zoom). Dev-gated.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R5R() {
+    const babel = readSrc('babel.config.js');
+    const eng = readSrc('src/hooks/usePuzzleEngine.js');
+    const game = readSrc('src/screens/MonteACenaTableGameScreen.js');
+    const cat = readSrc('src/data/monteACenaCatalog.js');
+    const home = readSrc('src/screens/MonteACenaHomeScreen.js');
+
+    // (1) babel SEM plugin manual de worklets/reanimated (o preset já injeta → duplicar = crash)
+    check('M1R5R babel: SEM plugin manual de worklets/reanimated (babel-preset-expo já injeta)',
+      !/plugins:\s*\[[^\]]*react-native-(worklets|reanimated)\/plugin/.test(babel)
+      && /babel-preset-expo/.test(babel),
+      'plugin de worklets duplicado no babel (causa do crash nativo)');
+
+    // (2) MODO SEGURO: gestos em js-safe (runOnJS(true)); SEM worklets semânticos no motor
+    check('M1R5R safe mode: PUZZLE_GESTURE_RUNTIME js-safe + gestos runOnJS(true) + SEM diretiva worklet',
+      /PUZZLE_GESTURE_RUNTIME = 'js-safe'/.test(eng) && /PUZZLE_ENGINE_SAFE_MODE = true/.test(eng)
+      && /Gesture\.Tap\(\)\.runOnJS\(true\)/.test(eng) && /Gesture\.Pan\(\)\.runOnJS\(true\)/.test(eng)
+      && !/'worklet'/.test(eng),
+      'motor não está em modo js-safe / ainda usa worklets semânticos');
+
+    // (3) Conclusão de animação via setTimeout (JS), NÃO callback de withTiming no UI runtime
+    check('M1R5R animação: snap/retorno concluem via setTimeout(JS); withTiming SEM callback semântico',
+      /setTimeout\(\(\) => handleSnapFinished/.test(eng) && /setTimeout\(handleReturnFinished/.test(eng)
+      && !/withTiming\([^)]*,\s*\{[^}]*\},\s*\(/.test(eng),
+      'conclusão depende de callback de withTiming (UI runtime)');
+
+    // (4) try/catch de segurança nas funções críticas
+    check('M1R5R segurança: funções críticas envoltas em guard(try/catch) + devlog',
+      /function guard\(fn/.test(eng) && /guard\(\(\) =>/.test(eng) && /\[PuzzleGesture\]/.test(eng),
+      'sem proteção try/catch nos callbacks');
+
+    // (5) PEÇAS VISÍVEIS: renderizadas no nível da raiz (fora do cartão) + opacity esconde SÓ a ativa
+    check('M1R5R peças visíveis: renderizadas no root (não dentro do dock) e opacity esconde SÓ a ativa',
+      /const isThisActive = engine\.activeId === p\.id/.test(game)
+      && /opacity: isThisActive \? 0 : 1/.test(game)
+      && !/opacity: activeId \? 0 : 1/.test(game)
+      && /renderizados no N[ÍI]VEL DA RAIZ/.test(game),
+      'peças escondidas por activeId global / dentro do cartão (duplo deslocamento)');
+    check('M1R5R diagnóstico: defs/remaining/rendered/visible visíveis no Modo Criador',
+      /defs \{geometry\.pieces\.length\}/.test(game) && /remaining \{unplaced\.length\}/.test(game)
+      && /visible \{unplaced\.filter/.test(game),
+      'diagnóstico de contagem de peças ausente');
+
+    // (6) ZOOM: baseline sem crop (cena inteira 4:5)
+    check('M1R5R zoom: baseline SEM crop (cena inteira 4:5) — CROP_A/CROP_B full',
+      /const CROP_A = \{ x: 0, y: 0, w: 1, h: 1 \}/.test(cat) && /const CROP_B = \{ x: 0, y: 0, w: 1, h: 1 \}/.test(cat)
+      && /BASELINE sem zoom/.test(cat),
+      'crop personalizado ainda amplia/corta a cena');
+
+    // (7) Laboratório fora da Home; motor real é o novo (safe mode)
+    check('M1R5R lab: botão do laboratório REMOVIDO da Home (não abre por criança)',
+      !/PUZZLE_GESTURE_LAB/.test(a1StripComments(home)) && /REMOVIDO da Home/.test(home),
+      'o laboratório continua acessível pela Home');
+    check('M1R5R rota real: continua usando o motor novo em safe mode (usePuzzleEngine)',
+      /usePuzzleEngine/.test(game) && /engine\.safeMode/.test(game) && !/usePuzzleController/.test(a1StripComments(game)),
+      'a rota real não usa o motor novo em safe mode');
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R6 premium: histórias/quadros, Mesa do Beni, feedback tátil, conclusão premium.
+  // Preserva a base js-safe recuperada no M1R5R. Dev-gated.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R6() {
+    const eng = readSrc('src/hooks/usePuzzleEngine.js');
+    const mach = readSrc('src/hooks/usePuzzleMachine.js');
+    const game = readSrc('src/screens/MonteACenaTableGameScreen.js');
+    const gameNoCom = a1StripComments(game);
+    const home = readSrc('src/screens/MonteACenaHomeScreen.js');
+    const storyScreen = readSrc('src/screens/MonteACenaStoryScreen.js');
+    const diff = readSrc('src/screens/MonteACenaDifficultyScreen.js');
+    const galScreen = readSrc('src/screens/MonteACenaGalleryScreen.js');
+    const target = readSrc('src/components/monteACena/PuzzleTarget.js');
+    const piece = readSrc('src/components/monteACena/PuzzlePiece.js');
+    const corridor = readSrc('src/components/monteACena/GuidanceCorridor.js');
+    const burst = readSrc('src/components/monteACena/PuzzleSuccessBurst.js');
+    const pkg = readSrc('package.json');
+    const babel = readSrc('babel.config.js');
+    const navSrc = readSrc('src/navigation/AppNavigator.js');
+    const routesSrc = readSrc('src/constants/routes.js');
+
+    // ── (A) BASE PRESERVADA (js-safe, runOnJS, babel, dependências) ──
+    check('M1R6 preserva js-safe: runtime js-safe + SAFE_MODE + SEM diretiva worklet no motor',
+      /PUZZLE_GESTURE_RUNTIME = 'js-safe'/.test(eng) && /PUZZLE_ENGINE_SAFE_MODE = true/.test(eng) && !/'worklet'/.test(eng),
+      'a base js-safe regrediu');
+    check('M1R6 preserva runOnJS(true): gestos de peça E alvo no runtime JS',
+      /Gesture\.Tap\(\)\.runOnJS\(true\)/.test(eng) && /Gesture\.Pan\(\)\.runOnJS\(true\)/.test(eng)
+      && /Gesture\.Tap\(\)\.runOnJS\(true\)/.test(target),
+      'algum gesto perdeu runOnJS(true)');
+    check('M1R6 babel INALTERADO: sem plugin manual de worklets (preset já injeta)',
+      !/plugins:\s*\[[^\]]*react-native-(worklets|reanimated)\/plugin/.test(babel) && /babel-preset-expo/.test(babel),
+      'babel foi alterado / plugin duplicado');
+    check('M1R6 dependências INALTERADAS: reanimated ~4.1.1 + worklets 0.5.1 (sem lib nova)',
+      /"react-native-reanimated": "~4\.1\.1"/.test(pkg) && /"react-native-worklets": "0\.5\.1"/.test(pkg),
+      'versões de reanimated/worklets mudaram');
+    check('M1R6 commit só em SNAP_FINISHED (nenhum outro caminho grava — invariante preservada)',
+      /const handleSnapFinished = useCallback[\s\S]{0,300}dispatch\(\{ type: 'SNAP_FINISHED' \}\)/.test(eng),
+      'commit fora do fim do snap');
+    check('M1R6 alvo por id (sem distância/tolerância/nearest); sem onBoardPress global; sem controlador legado',
+      /s\.selectedPieceId === targetId/.test(eng) && !/tolPxFor|\* 2\.4|nearest/.test(eng)
+      && !/onBoardPress/.test(gameNoCom) && !/usePuzzleController/.test(gameNoCom) && !/PanResponder/.test(gameNoCom),
+      'reintroduziu tolerância/onBoardPress/controlador legado');
+
+    // ── (B) CATÁLOGO ORIENTADO POR HISTÓRIA (agrupa por história; nova geração M1R8B validada no bloco M1R8A/B) ──
+    const cat = readSrc('src/data/monteACenaCatalog.js');
+    check('M1R6/M1R8B catálogo por história: agrupa cenas aprovadas por história (import do catálogo, sem cap de 4)',
+      /import \{[\s\S]{0,120}MONTE_A_CENA_CATALOG[\s\S]{0,200}\} from '\.\/monteACenaCatalog'/.test(readSrc('src/data/monteACenaStories.js'))
+      && /export const MAX_SCENES_PER_STORY = 10/.test(readSrc('src/data/monteACenaStories.js'))
+      && !/slice\(0, MAX_QUADROS_PER_STORY\)|slice\(0, 4\)/.test(readSrc('src/data/monteACenaStories.js')),
+      'stories não agrupa por história / ainda capa em 4');
+
+    // ── (C) GALERIA DE HISTÓRIAS (FlatList) + "Continue montando" ──
+    check('M1R8B galeria de histórias: FlatList 2-col (20 histórias, só capas) + capa + progresso "X de Y"',
+      /data=\{MONTE_A_CENA_STORIES\}/.test(home) && /numColumns=\{2\}/.test(home)
+      && /getStoryCoverSource/.test(home) && /storyProgressCounts/.test(home) && /width: '48%'/.test(home),
+      'a entrada não é galeria de histórias virtualizada');
+    check('M1R6 "Continue montando": só com sessão em andamento (getActiveSession)',
+      /getActiveSession/.test(home) && /session && sessionScene/.test(home) && /Continue montando/.test(home),
+      'destaque de retomada ausente ou sempre visível');
+    check('M1R6 sem "Jogar" em todo cartão: o cartão inteiro é a área de toque',
+      !/>Jogar</.test(home),
+      'cartões ainda têm botão Jogar');
+
+    // ── (D) TELA DA HISTÓRIA (quadros 2×2 + estados + gate premium gentil) ──
+    check('M1R6 tela da história: quadros em grade + estados Novo/Em andamento/Concluído',
+      /quadroState/.test(storyScreen) && /Em andamento/.test(storyScreen) && /Concluído/.test(storyScreen) && /Novo/.test(storyScreen)
+      && /width: '48%'/.test(storyScreen),
+      'tela da história sem quadros/estados');
+    check('M1R6 gate premium gentil na história: comunicação + retorno imediato (sem venda agressiva)',
+      /scene\.premium && !premium/.test(storyScreen) && /Modal/.test(storyScreen) && /Voltar para a história/.test(storyScreen),
+      'gate premium não é gentil / tira a criança da história');
+
+    // ── (E) MESA DO BENI (imagem sobre mesa, placas táteis, prévia, 1 botão) ──
+    check('M1R6 Mesa do Beni: superfície de mesa + imagem grande + peças decorativas (não configuração)',
+      /Mesa do Beni/.test(diff) && /styles\.table/.test(diff) && /deco1/.test(diff) && /deco2/.test(diff),
+      'a Mesa parece configuração');
+    check('M1R6 placa selecionada com estado próprio (sobe, ouro, escala ~1.05, háptico)',
+      /plateActive/.test(diff) && /scale: 1\.05/.test(diff) && /translateY: -4/.test(diff) && /Haptics\.selectionAsync/.test(diff),
+      'placa selecionada sem estado visual forte');
+    check('M1R6 prévia das divisões sobre a imagem muda com a dificuldade selecionada',
+      /preview\.x\.map/.test(diff) && /preview\.y\.map/.test(diff) && /getDifficultyConfig\(selected\)/.test(diff),
+      'sem prévia das divisões');
+    check('M1R6 Mesa: UM único botão principal "Começar a montar" (sem três "Jogar")',
+      /Começar a montar/.test(diff) && (diff.match(/startBtn/g) || []).length >= 1 && !/optPlay/.test(diff),
+      'Mesa tem múltiplos botões de jogar');
+
+    // ── (F) LAYOUT: cinco zonas, corredor fixo, espaçamento mínimo (PURO) ──
+    try {
+      let s = readSrc('src/services/monteACenaLayout.js').replace(/^import[^\n]*\n/gm, '').replace(/export\s+(function|const)/g, '$1').replace(/export default[^;]*;?/g, '');
+      const fn = new Function('module', 'exports', s + '\nmodule.exports={computeTableLayout,CORRIDOR_H,HEADER_H};');
+      const m = { exports: {} }; fn(m, m.exports);
+      const { computeTableLayout, CORRIDOR_H } = m.exports;
+      const pieces = [0, 1, 2, 3].map((i) => ({ id: 'p' + i, overscanBounds: { w: 0.52, h: 0.52 }, visualBounds: { w: 0.5, h: 0.5 } }));
+      const L = computeTableLayout({ screenW: 375, screenH: 760, insetTop: 44, insetBottom: 34, pieceCount: 4, ratio: 1.2496, pieces });
+      const sum = 44 + L.headerH + L.boardZoneH + L.corridorH + L.trayH + L.safeH;
+      check('M1R6 layout: cinco zonas somam a tela (coluna flex determinística)', Math.abs(sum - 760) < 0.6, `soma=${sum}`);
+      check('M1R6 corredor fixo (48–56 pt) reservado entre tabuleiro e bandeja', L.corridorH >= 48 && L.corridorH <= 56, `corridorH=${L.corridorH}`);
+      check('M1R6 espaçamento mínimo tabuleiro→bandeja ≥ corredor (nenhuma sobreposição)', L.boardToTrayGap >= CORRIDOR_H && (L.boardTop + L.boardH) <= L.trayTop, `gap=${L.boardToTrayGap}`);
+      check('M1R6 board dentro da própria zona (não invade corredor nem bandeja)', L.boardTop >= L.boardZoneTop - 0.6 && (L.boardTop + L.boardH) <= L.corridorTop + 0.6, 'board fora da zona');
+    } catch (e) { fail('M1R6: monteACenaLayout avaliável', e.message); }
+
+    check('M1R6 corredor de orientação é ZONA real (altura CORRIDOR_H), não texto absoluto sobre o tabuleiro',
+      /import \{ computeTableLayout, HEADER_H, CORRIDOR_H \}/.test(game) && /height: CORRIDOR_H/.test(game)
+      && /GuidanceCorridor/.test(game) && /engine\.guidance/.test(game),
+      'corredor não é zona reservada');
+    check('M1R6 nenhum texto de orientação com position absolute entre tabuleiro e bandeja',
+      !/styles\.hint\b/.test(game) && !/top: dockTop - 30/.test(game),
+      'texto absoluto entre tabuleiro e bandeja');
+
+    // ── (G) MATERIALIDADE + SELEÇÃO ──
+    check('M1R7 materialidade: seleção via TrayPieceView (escala 1→1.035 + elevação, SEM overlay)',
+      /variant === 'selected'/.test(piece)
+      && /TrayPieceView/.test(game) && /selected=\{selected\}/.test(game)
+      && /outputRange: \[1, 1\.035\]/.test(readSrc('src/components/monteACena/TrayPieceView.js'))
+      && /variant=\{selected \? 'selected' : 'tray'\}/.test(readSrc('src/components/monteACena/TrayPieceView.js')),
+      'peça selecionada sem estado visual próprio / cria overlay na seleção');
+    check('M1R6 seleção forte: poço iluminado (glow) na peça selecionada / em retorno',
+      /wellGlow/.test(game) && /\(selected \|\| returning\) && styles\.wellGlow/.test(game),
+      'poço não ilumina na seleção');
+    check('M1R6 peça ENCAIXADA sem stroke branco (funde à cena)',
+      /variant === 'placed'/.test(piece) && !/variant === 'placed'[\s\S]{0,200}stroke="#FFFFFF"/.test(piece),
+      'peça encaixada tem contorno branco');
+
+    // ── (H) FEEDBACK: acerto / erro / cancelamento / retorno ──
+    check('M1R6 acerto toca match_success; erro toca (wrong_place→match_error real, não no-op)',
+      /onSound\?\.\('match_success'\)/.test(eng) && /onSound\?\.\('wrong_place'\)/.test(eng)
+      && /name === 'wrong_place' \? 'match_error' : name/.test(game),
+      'som de acerto/erro não conectado ao banco real');
+    check('M1R8A efeito de acerto: UM successEvent por commit; a tela renderiza por key=successEventId',
+      /setSuccessEvent\(\{/.test(eng) && /successEventId: eid/.test(eng)
+      && /PuzzleSuccessBurst key=\{b\.successEventId\}/.test(game) && /bursts\.map/.test(game)
+      && /STAR_ANGLES/.test(burst),
+      'efeito de acerto ausente / não é por evento único');
+    check('M1R6 efeito de erro (pulso âmbar no alvo) dispara UMA vez (wrongKey → pulseKey)',
+      /wrongKey: f\.wrongKey \+ 1/.test(eng) && /pulseKey=\{isWrong \? engine\.fx\.wrongKey : 0\}/.test(game) && /amber/.test(target),
+      'pulso âmbar de erro ausente');
+    check('M1R6 cancelamento (área vazia) é SILENCIOSO (sem som, sem oscilação, sem âmbar)',
+      /startReturn\(pieceId, \{ shake: false \}\)/.test(eng) && /'none' = cancelamento silencioso/.test(eng)
+      && /lastSound: null, hitResult: 'none'/.test(mach),
+      'cancelamento faz barulho de erro');
+    check('M1R6 erro: oscilação + retorno com shake; cancelamento sem shake (diferenciados)',
+      /startReturn\(pieceId, \{ shake: true, wrongTargetId: hit\.id \}\)/.test(eng) && /withSequence/.test(eng),
+      'erro e cancelamento não diferenciados');
+
+    // ── (I) RETORNO SUAVE (visível, sem mola/rebote, encolhe até a bandeja) ──
+    check('M1R7 retorno visível: overlay some SÓ no frame seguinte (troca ATÔMICA por setActiveId, sem opacity UI-thread)',
+      /const handleReturnFinished = useCallback[\s\S]{0,220}dispatch\(\{ type: 'RETURN_FINISHED' \}\)/.test(eng)
+      && /const handleReturnFinished = useCallback[\s\S]{0,520}raf\(\(\) => raf\(\(\) => \{[\s\S]{0,220}setActiveId\(null\); setOverlayShown\(false\)/.test(eng)
+      // o retorno NÃO usa hideOverlay() (canal UI-thread que abriria 1 frame em branco no poço)
+      && !/const handleReturnFinished = useCallback[\s\S]{0,520}hideOverlay\(\)/.test(eng)
+      && /opacity: isThisActive \? 0 : 1/.test(game),
+      'a peça da bandeja reaparece antes da chegada / usa opacity UI-thread no retorno');
+    check('M1R6 retorno SEM mola/rebote: Easing.out(cubic), sem withSpring',
+      /Easing\.out\(Easing\.cubic\)/.test(eng) && !/withSpring/.test(eng),
+      'retorno usa mola/rebote');
+    check('M1R6 retorno encolhe até a escala da bandeja (setTrayScale + toScale no retorno)',
+      /setTrayScale/.test(eng) && /trayScaleRef\.current/.test(eng) && /animateTo\([^)]*toScale\)/.test(eng),
+      'retorno não reduz para o tamanho da bandeja');
+
+    // ── (J) GUIA + AJUDA PROGRESSIVA ──
+    check('M1R6 guia geral: usa level.guideOpacity (0.10–0.12) + guia por-célula um pouco mais forte',
+      /opacity=\{done \? 1 : level\.guideOpacity\}/.test(game) && /célula vazia/.test(game),
+      'guia sem opacidade adequada');
+    check('M1R6 ajuda progressiva: após tentativas erradas na mesma peça, brilho do alvo (sem auto-encaixe)',
+      /HINT_ATTEMPTS_1/.test(eng) && /HINT_ATTEMPTS_2/.test(eng) && /hintTargetId/.test(eng)
+      && /hintLevel=\{isHint \? engine\.hintLevel : 0\}/.test(game) && !/auto.?place|encaixe autom/.test(eng),
+      'ajuda progressiva ausente ou encaixa sozinho');
+    check('M1R7 corredor: 6 mensagens CONTROLADAS (uma vez cada; erro "Quase." com ponto; última peça)',
+      /Escolha uma peça\./.test(eng) && /Agora encontre o lugar dela\./.test(eng) && /Muito bem!/.test(eng)
+      && /Quase\. Tente outro espaço\./.test(eng) && /Observe as cores e os desenhos\./.test(eng)
+      && /Falta só uma!/.test(eng)
+      && /shownMsgRef/.test(eng) && !/Escolha a próxima peça/.test(eng),
+      'mensagens do corredor incompletas / repetem a cada ação');
+
+    // ── (K) CONCLUSÃO PREMIUM + COLEÇÃO ──
+    check('M1R6 conclusão: contemplação (imagem inteira, Beni, partículas) antes das ações',
+      /engine\.phase === 'viewingArtwork'/.test(game) && /BeniAvatar variant="celebrating"/.test(game)
+      && /ContemplationParticles/.test(game),
+      'sem contemplação premium');
+    check('M1R7 tela final SIMPLIFICADA: no máximo 2 botões (Montar novamente + Voltar ao Monte a Cena); sem Próximo/História/Coleção',
+      /Quadro concluído!/.test(game) && /Montar novamente/.test(game) && /Voltar ao Monte a Cena/.test(game)
+      && !/Próximo quadro/.test(game) && !/Voltar à história/.test(game) && !/Ver coleção completa/.test(game)
+      && !/Guardar em Meus Quadros/.test(game),
+      'tela final tem botões demais / ações erradas');
+    check('M1R8B coleção (até 10): "Coleção completa!" com 10/10; senão frase honesta (collectionMessage; SEM hardcode de 4)',
+      /export function collectionMessage/.test(readSrc('src/services/monteACenaProgress.js'))
+      && /availableLen >= 10 \? 'Coleção completa!'/.test(readSrc('src/services/monteACenaProgress.js'))
+      && /Todos os quadros disponíveis foram concluídos\./.test(readSrc('src/services/monteACenaProgress.js'))
+      && !/=== 4 && completedInStoryLen === 4/.test(readSrc('src/services/monteACenaProgress.js'))
+      && /collectionMessage\(sceneIds\.length, completedInStory\)/.test(game),
+      'mensagem de coleção ainda exige 4 / não suporta até 10');
+    check('M1R7 plano grátis: 2 rodadas/dia via contador ÚNICO existente (consumeRound), Família ilimitado',
+      /import \{ consumeRound \} from '\.\.\/services\/brincarDailyService'/.test(game)
+      && /consumeRound\(\)/.test(game) && /canReplay/.test(game)
+      && /Você já montou duas vezes hoje\./.test(game) && /Amanhã tem mais!/.test(game)
+      && !/@ptf_monte_a_cena_daily|BRINCAR_FREE_DAILY_ROUNDS =/.test(game),
+      'regra de 2 rodadas/dia ausente ou com contador paralelo');
+
+    // ── (L) MEUS QUADROS por história ──
+    check('M1R8B Meus Quadros AGRUPADO por história (FlatList de seções, só histórias com conclusão) + molduras vazias',
+      /storiesWithProgress/.test(galScreen) && /MONTE_A_CENA_STORIES\.filter/.test(galScreen)
+      && /storySection/.test(galScreen) && /frameEmpty/.test(galScreen) && /FlatList/.test(galScreen),
+      'Meus Quadros não agrupa/virtualiza por história');
+    check('M1R6 Meus Quadros grátis: bloqueio gentil (salvar = Plano Família)',
+      /!premium/.test(galScreen) && /Plano Família/.test(galScreen),
+      'grátis não recebe bloqueio gentil');
+
+    // ── (M) MOVIMENTO REDUZIDO + DIAGNÓSTICO + ROTA ──
+    check('M1R6 movimento reduzido: AccessibilityInfo + repassado ao motor (mantém retorno/som/mensagens)',
+      /AccessibilityInfo\.isReduceMotionEnabled/.test(game) && /reduceMotion/.test(game) && /reduceMotion,/.test(eng),
+      'movimento reduzido não implementado');
+    check('M1R7 diagnóstico do Modo Criador: estado + handoff (overlay/placedVis/handoff) + ações de teste (gated)',
+      /isInternalToolsEnabled\(\)/.test(game) && /overlayVisible/.test(game) && /handoffReady/.test(game)
+      && /devForcePlace/.test(game) && /testar acerto/.test(game),
+      'diagnóstico premium ausente / não gated');
+    check('M1R6 rota MonteACenaStory registrada e gated (isInternalToolsEnabled)',
+      /MONTE_A_CENA_STORY: 'MonteACenaStory'/.test(routesSrc)
+      && /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen name="MonteACenaStory"/.test(navSrc),
+      'rota da história não registrada/gated');
+    check('M1R6 nenhuma rota legada reativada (Home/Story/Difficulty/Gallery/Game novos)',
+      !/MonteACenaSpike|MonteACenaPrototype|MonteACenaLevels|MonteACenaGameV2|MonteACenaGame['"]/.test(home + storyScreen + diff + galScreen + gameNoCom),
+      'fluxo novo referencia tela legada');
+
+    // ── (N) MÁQUINA: lastTargetId aditivo sem quebrar invariante ──
+    try {
+      let msrc = mach.replace(/export\s+(function|const)/g, '$1').replace(/export default[^;]*;/g, '');
+      const fn = new Function('module', 'exports', msrc + '\nmodule.exports={initialPuzzleState,puzzleReducer};');
+      const mm = { exports: {} }; fn(mm, mm.exports); const R = mm.exports.puzzleReducer; const I = mm.exports.initialPuzzleState;
+      const sel = R(I(4), { type: 'PIECE_TAPPED', pieceId: 'p0' });
+      const wrong = R(sel, { type: 'TARGET_TAPPED', targetId: 'p1' });
+      const correct = R(R(I(4), { type: 'PIECE_TAPPED', pieceId: 'p0' }), { type: 'TARGET_TAPPED', targetId: 'p0' });
+      check('M1R6 máquina: lastTargetId aditivo (diagnóstico) sem violar o invariante de commit',
+        wrong.placedPieceIds.length === 0 && wrong.lastTargetId === 'p1' && wrong.selectedPieceId === 'p0'
+        && correct.status === 'snapping' && correct.placedPieceIds.length === 0
+        && R(correct, { type: 'SNAP_FINISHED' }).placedPieceIds.length === 1,
+        'lastTargetId quebrou o invariante');
+    } catch (e) { fail('M1R6: reducer (lastTargetId) avaliável', e.message); }
+
+    // ── (O) PROGRESSO POR QUADRO (puro) ──
+    try {
+      let s = readSrc('src/services/monteACenaProgress.js').replace(/^import[^\n]*\n/gm, '')
+        .replace(/export\s+async\s+function/g, 'async function').replace(/export\s+(function|const)/g, '$1').replace(/export default[^;]*;?/g, '');
+      const fn = new Function('module', 'exports', 'AsyncStorage', s + '\nmodule.exports={quadroState,storyProgressCounts,isStoryComplete,isResumable};');
+      const m = { exports: {} }; fn(m, m.exports, {});
+      const P = m.exports;
+      check('M1R6 progresso por quadro: concluido/andamento/novo + coleção completa (puro)',
+        P.quadroState('a', ['a'], null) === 'concluido' && P.quadroState('b', [], { puzzleSceneId: 'b', placedCount: 2 }) === 'andamento'
+        && P.quadroState('c', [], null) === 'novo' && P.isStoryComplete(['a', 'b'], ['a', 'b']) === true && P.isStoryComplete(['a', 'b'], ['a']) === false
+        && P.isResumable({ placedCount: 2, total: 4 }) === true && P.isResumable({ placedCount: 4, total: 4 }) === false,
+        'estado de progresso por quadro incorreto');
+    } catch (e) { fail('M1R6: monteACenaProgress avaliável', e.message); }
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R7 polimento: handoff sem piscada, seleção/arrasto suaves, mensagens
+  // controladas, conclusão 4 fases, tela final 2 botões, 2 rodadas/dia. Preserva a base js-safe.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R7() {
+    const eng = readSrc('src/hooks/usePuzzleEngine.js');
+    const game = readSrc('src/screens/MonteACenaTableGameScreen.js');
+    const tray = readSrc('src/components/monteACena/TrayPieceView.js');
+    const tokens = readSrc('src/data/monteACenaMotionTokens.js');
+    const babel = readSrc('babel.config.js');
+    const pkg = readSrc('package.json');
+
+    // (A) BASE PRESERVADA
+    check('M1R7 preserva js-safe + runOnJS + babel + deps inalterados',
+      /PUZZLE_GESTURE_RUNTIME = 'js-safe'/.test(eng) && /PUZZLE_ENGINE_SAFE_MODE = true/.test(eng) && !/'worklet'/.test(eng)
+      && /Gesture\.Tap\(\)\.runOnJS\(true\)/.test(eng) && /Gesture\.Pan\(\)\.runOnJS\(true\)/.test(eng)
+      && !/plugins:\s*\[[^\]]*react-native-(worklets|reanimated)\/plugin/.test(babel)
+      && /"react-native-reanimated": "~4\.1\.1"/.test(pkg) && /"react-native-worklets": "0\.5\.1"/.test(pkg),
+      'a base js-safe/babel/deps regrediu');
+
+    // (B) HANDOFF SEM PISCADA
+    check('M1R7 handoff: COMMIT antes de ocultar o overlay (dispatch SNAP_FINISHED → raf → hideOverlay)',
+      /dispatch\(\{ type: 'SNAP_FINISHED' \}\);[\s\S]{0,120}onCommit/.test(eng)
+      && /raf\(\(\) => raf\(\(\) => \{[\s\S]{0,120}hideOverlay\(\); setActiveId\(null\)/.test(eng),
+      'overlay é ocultado antes da peça fixa aparecer (piscada)');
+    check('M1R7/M1R8A handoff: successEvent (efeito+som+háptico) começa DEPOIS de ocultar o overlay (dentro do raf)',
+      /hideOverlay\(\); setActiveId\(null\); setHandoffReady\(false\);[\s\S]{0,520}setSuccessEvent\(\{/.test(eng)
+      && /setSuccessEvent\(\{[\s\S]{0,360}onSound\?\.\('match_success'\)/.test(eng),
+      'efeito/som de sucesso dispara antes do handoff');
+    check('M1R7 invariante: overlayVisible || placedVisualVisible (nunca ambos invisíveis)',
+      /const handoffInvariant = overlayShown \|\| placedVisualVisible/.test(eng)
+      && /overlayVisible: overlayShown, placedVisualVisible, handoffReady, handoffInvariant/.test(eng),
+      'invariante de handoff ausente');
+    check('M1R7 opacidade da peça mantida: overlay/peça não mudam opacity no efeito (burst = anel+estrelas)',
+      !/opacity[^\n]{0,40}successKey/.test(game) && /PuzzleSuccessBurst/.test(game)
+      && !/flash branco|flashWhite|white flash/i.test(game),
+      'efeito de acerto altera a opacidade da peça');
+
+    // (C) SELEÇÃO / ARRASTO
+    check('M1R7 seleção simples NÃO cria overlay (só PAN cria; PIECE_TAPPED não mostra overlay)',
+      /dispatch\(\{ type: 'PIECE_TAPPED', pieceId \}\); onHaptic\?\.\('select'\)/.test(eng)
+      && !/PIECE_TAPPED[\s\S]{0,80}showOverlayAt/.test(eng),
+      'a seleção simples cria overlay');
+    check('M1R7 seleção não ultrapassa escala 1.035 + elevação (TrayPieceView, sem peça nova)',
+      /outputRange: \[1, 1\.035\]/.test(tray) && /outputRange: \[0, -4\]/.test(tray) && /MOTION\.selectionDuration/.test(tray),
+      'seleção com escala/elevação fora do esperado');
+    check('M1R7 arrasto: overlay nasce nos bounds do poço e ELEVA (trayScale→1 em ~dragLiftDuration)',
+      /const startX = w \? w\.cx - dims\.w \/ 2/.test(eng) && /showOverlayAt\(startX, startY\)/.test(eng)
+      && /scale\.value = ts; scale\.value = withTiming\(1, \{ duration: DRAG_LIFT/.test(eng),
+      'arrasto não nasce no poço / sem elevação inicial');
+    check('M1R7 snap pixel-perfeito: overlay pousa no TOP-LEFT exato da peça fixa (snapLeft/snapTop)',
+      /snapLeft: boardLeft \+ ob\.x \* boardW, snapTop: boardTop \+ ob\.y \* boardH/.test(game)
+      && /finite\(t\.snapLeft\) \? t\.snapLeft/.test(eng),
+      'snap não pousa exatamente onde a peça fixa aparece');
+
+    // (D) SOM / RETORNO / CANCELAMENTO
+    check('M1R7 acerto toca match_success; erro toca wrong_place (→ match_error real)',
+      /onSound\?\.\('match_success'\)/.test(eng) && /onSound\?\.\('wrong_place'\)/.test(eng)
+      && /name === 'wrong_place' \? 'match_error' : name/.test(game),
+      'som de acerto/erro não conectado');
+    check('M1R7 cancelamento (área vazia) SILENCIOSO (sem som, sem shake, sem mensagem)',
+      /startReturn\(pieceId, \{ shake: false \}\)/.test(eng) && /'none' = cancelamento silencioso/.test(eng),
+      'cancelamento não é silencioso');
+    check('M1R7 retorno após erro sem mola/rebote (Easing.out cubic; sem withSpring)',
+      /Easing\.out\(Easing\.cubic\)/.test(eng) && !/withSpring/.test(eng) && /withSequence/.test(eng),
+      'retorno usa mola/rebote');
+
+    // (E) MENSAGENS CONTROLADAS
+    check('M1R7 mensagens: cada uma UMA vez (shownMsgRef) + primeira seleção/erro/última peça',
+      /shownMsgRef\.current\[key\]/.test(eng) && /showMsg\('firstSelect'/.test(eng)
+      && /showMsg\('firstError'/.test(eng) && /showMsg\('lastPiece'/.test(eng) && /showMsg\('firstHit'/.test(eng)
+      && !/Escolha a próxima peça/.test(eng),
+      'mensagens repetem / faltam / usam texto proibido');
+    check('M1R7 sem mensagem ao soltar em área vazia (cancelamento não fala)',
+      /else \{[\s\S]{0,80}setFx\(\(f\) => \(\{ \.\.\.f, lastEffect: 'cancel' \}\)\)/.test(eng),
+      'cancelamento emite mensagem');
+    check('M1R7 corredor mantém ALTURA FIXA (zona CORRIDOR_H; mensagem só troca dentro)',
+      /height: CORRIDOR_H/.test(game) && /GuidanceCorridor message=\{engine\.guidance\}/.test(game),
+      'corredor não tem altura fixa');
+
+    // (F) CONCLUSÃO / TELA FINAL / PLANOS
+    check('M1R7 conclusão em fases antes das ações (celebrating→viewingArtwork→showingActions)',
+      /engine\.phase === 'celebrating'/.test(game) && /engine\.revealArtwork\(\)/.test(game)
+      && /engine\.phase === 'viewingArtwork'/.test(game) && /engine\.showActions\(\)/.test(game)
+      && /MONTE_A_CENA_MOTION as MOTION/.test(game) && /MOTION\.completionRevealDuration/.test(game),
+      'conclusão sem fases / durações fora dos tokens');
+    check('M1R7 tela final com no MÁXIMO 2 botões (Montar novamente condicional + Voltar ao Monte a Cena)',
+      /Montar novamente/.test(game) && /Voltar ao Monte a Cena/.test(game)
+      && !/Próximo quadro|Voltar à história|Ver coleção|Guardar em Meus Quadros/.test(game),
+      'tela final com mais de 2 ações');
+    check('M1R7/M1R8A plano grátis 2 rodadas via consumeRound (contador único); Família ilimitado (canReplay)',
+      /import \{ consumeRound \}/.test(game) && /canReplay = premium \|\| state\.remaining > 0/.test(game)
+      && /Você já montou duas vezes hoje\./.test(game),
+      'regra 2 rodadas/dia ausente');
+
+    // (G) DURAÇÕES CENTRALIZADAS + reduceMotion
+    check('M1R7 durações CENTRALIZADAS em monteACenaMotionTokens (motor lê MOTION.*)',
+      /selectionDuration: 140/.test(tokens) && /snapDuration: 210/.test(tokens) && /wrongReturnDuration: 330/.test(tokens)
+      && /cancelReturnDuration: 290/.test(tokens) && /completionRevealDuration: 2600/.test(tokens)
+      && /MONTE_A_CENA_MOTION as MOTION/.test(eng) && /MOTION\.snapDuration/.test(eng) && /MOTION\.wrongReturnDuration/.test(eng),
+      'durações não centralizadas');
+    check('M1R7 movimento reduzido preservado (mantém retorno visível/som/mensagens; encurta)',
+      /const rm = \(v, floor = 0\) =>/.test(eng) && /AccessibilityInfo\.isReduceMotionEnabled/.test(game),
+      'reduceMotion ausente');
+
+    // (H) coleção incompleta + evals puros
+    try {
+      let s = readSrc('src/services/monteACenaProgress.js').replace(/^import[^\n]*\n/gm, '')
+        .replace(/export\s+async\s+function/g, 'async function').replace(/export\s+(function|const)/g, '$1').replace(/export default[^;]*;?/g, '');
+      const fn = new Function('module', 'exports', 'AsyncStorage', s + '\nmodule.exports={collectionMessage};');
+      const m = { exports: {} }; fn(m, m.exports, {});
+      const C = m.exports.collectionMessage;
+      check('M1R8B coleção (até 10): 10/10 → "Coleção completa!"; disponíveis<10 concluídas → frase honesta; parcial → null',
+        C(10, 10) === 'Coleção completa!' && C(4, 4) === 'Todos os quadros disponíveis foram concluídos.'
+        && C(9, 9) === 'Todos os quadros disponíveis foram concluídos.' && C(10, 5) === null && C(0, 0) === null,
+        'mensagem de coleção incorreta para até 10');
+    } catch (e) { fail('M1R7: collectionMessage avaliável', e.message); }
+
+    try {
+      let msrc = readSrc('src/hooks/usePuzzleMachine.js').replace(/export\s+(function|const)/g, '$1').replace(/export default[^;]*;/g, '');
+      const fn = new Function('module', 'exports', msrc + '\nmodule.exports={initialPuzzleState,puzzleReducer};');
+      const mm = { exports: {} }; fn(mm, mm.exports); const R = mm.exports.puzzleReducer; const I = mm.exports.initialPuzzleState;
+      // invariante de commit continua (seleção nunca grava; commit só em SNAP_FINISHED)
+      const sel = R(I(4), { type: 'PIECE_TAPPED', pieceId: 'p0' });
+      const snap = R(sel, { type: 'TARGET_TAPPED', targetId: 'p0' });
+      check('M1R7 invariante de commit intacto: seleção não grava; commit só em SNAP_FINISHED',
+        sel.placedPieceIds.length === 0 && snap.status === 'snapping' && snap.placedPieceIds.length === 0
+        && R(snap, { type: 'SNAP_FINISHED' }).placedPieceIds.length === 1,
+        'invariante de commit quebrado');
+    } catch (e) { fail('M1R7: reducer avaliável', e.message); }
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R8A consolidação: efeito de acerto por evento, bandeja embaralhada, navegação
+  // da conclusão. Preserva js-safe/handoff. Dev-gated.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R8A() {
+    const eng = readSrc('src/hooks/usePuzzleEngine.js');
+    const game = readSrc('src/screens/MonteACenaTableGameScreen.js');
+    const gameNoCom = a1StripComments(game);
+    const burst = readSrc('src/components/monteACena/PuzzleSuccessBurst.js');
+    const exit = readSrc('src/navigation/monteACenaExit.js');
+    const layout = readSrc('src/services/monteACenaLayout.js');
+    const prog = readSrc('src/services/monteACenaProgress.js');
+    const babel = readSrc('babel.config.js');
+    const pkg = readSrc('package.json');
+
+    // (A) BASE PRESERVADA
+    check('M1R8A preserva js-safe + runOnJS + babel + deps inalterados',
+      /PUZZLE_GESTURE_RUNTIME = 'js-safe'/.test(eng) && /PUZZLE_ENGINE_SAFE_MODE = true/.test(eng) && !/'worklet'/.test(eng)
+      && /Gesture\.Tap\(\)\.runOnJS\(true\)/.test(eng) && /Gesture\.Pan\(\)\.runOnJS\(true\)/.test(eng)
+      && !/plugins:\s*\[[^\]]*react-native-(worklets|reanimated)\/plugin/.test(babel)
+      && /"react-native-reanimated": "~4\.1\.1"/.test(pkg) && /"react-native-worklets": "0\.5\.1"/.test(pkg)
+      && !/usePuzzleController/.test(gameNoCom) && !/PanResponder/.test(gameNoCom) && !/onBoardPress/.test(gameNoCom),
+      'a base js-safe/babel/deps/motor regrediu');
+
+    // (B) EFEITO DE ACERTO — evento único por commit
+    check('M1R8A successEvent: cada SNAP_FINISHED cria UM successEventId (crescente) com os campos exigidos',
+      /const eid = successEventIdRef\.current \+ 1; successEventIdRef\.current = eid/.test(eng)
+      && /successEventId: eid, interactionId: iid, pieceId, targetId: pieceId/.test(eng)
+      && /centerX: t \? t\.cx : 0, centerY: t \? t\.cy : 0/.test(eng) && /createdAt: eid/.test(eng),
+      'successEvent ausente / sem id crescente / campos incompletos');
+    check('M1R8A: 1 commit → 1 efeito (contadores) + invariante successfulCommitCount === successEffectCount',
+      /successCommitRef\.current \+= 1/.test(eng) && /successEffectRef\.current \+= 1/.test(eng)
+      && /const successOk = successCommitRef\.current === successEffectRef\.current/.test(eng)
+      && /successfulCommitCount: successCommitRef\.current, successEffectCount: successEffectRef\.current/.test(eng),
+      'contadores commit/effect ausentes ou sem invariante');
+    check('M1R8A: efeito por key=successEventId (instância independente; efeito antigo não apaga o novo)',
+      /PuzzleSuccessBurst key=\{b\.successEventId\}/.test(game) && /bursts\.map/.test(game)
+      && /removeBurst/.test(game) && /onDone\(eventId\)/.test(burst)
+      && !/first\.current/.test(burst),
+      'efeito compartilha timer / não é keyed por evento');
+    check('M1R8A: efeito e SOM de acerto começam SÓ depois do handoff (dentro do raf), som uma vez',
+      /raf\(\(\) => raf\(\(\) => \{[\s\S]{0,600}setSuccessEvent/.test(eng)
+      && (eng.match(/onSound\?\.\('match_success'\)/g) || []).length === 1,
+      'efeito/som fora do handoff ou som duplicado');
+    check('M1R8A: último encaixe também recebe efeito (bursts renderizados mesmo em done)',
+      /\{bursts\.map\(\(b\) => \(/.test(game) && !/!done && bursts\.map/.test(game),
+      'o último encaixe não recebe efeito');
+
+    // (C) BANDEJA EMBARALHADA (derangement determinístico) — eval puro
+    try {
+      let s = readSrc('src/data/monteACenaShuffle.js').replace(/^import[^\n]*\n/gm, '').replace(/export\s+(function|const)/g, '$1').replace(/export default[^;]*;?/g, '');
+      const fn = new Function('module', 'exports', s + '\nmodule.exports={createSeededDerangement,isDerangement,gridScrambleOk};');
+      const m = { exports: {} }; fn(m, m.exports); const SH = m.exports;
+      const ids = { 4: ['p00', 'p01', 'p10', 'p11'], 6: ['p00', 'p01', 'p10', 'p11', 'p20', 'p21'], 9: ['p00', 'p01', 'p02', 'p10', 'p11', 'p12', 'p20', 'p21', 'p22'] };
+      let derangeAll = true; let gridAll = true;
+      for (const n of [4, 6, 9]) for (let k = 0; k < 120; k++) {
+        const o = SH.createSeededDerangement(ids[n], `noah|${n}|s${k}`);
+        if (!SH.isDerangement(o, ids[n])) derangeAll = false;
+        if (!SH.gridScrambleOk(o, ids[n])) gridAll = false;
+      }
+      check('M1R8A shuffle: NENHUMA peça no índice do seu alvo (derangement) em 4/6/9 (120 seeds cada)', derangeAll, 'shuffle deixa peça no índice do alvo');
+      check('M1R8A shuffle: 4 = fora do quadrante; 6/9 = ≥metade muda linha E coluna', gridAll, 'qualidade de grade insuficiente');
+      const a = SH.createSeededDerangement(ids[4], 'k|4|s0');
+      const shNoCom = a1StripComments(readSrc('src/data/monteACenaShuffle.js'));
+      check('M1R8A shuffle determinístico (mesma seed → mesma ordem); seeds diferentes → ordens diferentes',
+        JSON.stringify(a) === JSON.stringify(SH.createSeededDerangement(ids[4], 'k|4|s0'))
+        && JSON.stringify(a) !== JSON.stringify(SH.createSeededDerangement(ids[4], 'k|4|s1'))
+        && !/Math\.random/.test(shNoCom) && !/sort\([^)]*Math\.random/.test(shNoCom),
+        'shuffle não-determinístico ou usa Math.random/sort aleatório');
+    } catch (e) { fail('M1R8A: monteACenaShuffle avaliável', e.message); }
+
+    check('M1R8A layout: bandeja usa trayOrder (poço i recebe trayOrder[i]); só posição visual',
+      /trayOrder = null/.test(layout) && /poço i recebe trayOrder\[i\]/.test(layout)
+      && /trayOrder: trayPieceOrder/.test(game),
+      'layout não aplica a ordem embaralhada');
+    check('M1R8A ordem estável na rodada + peças restantes não se movem (order do seed via prop; encaixe não recomputa)',
+      /shuffleSeed, trayPieceOrder, initialPlacedIds/.test(game) && /createSeededDerangement\(naturalIds, seed\)/.test(game),
+      'a ordem muda durante a rodada');
+
+    // (D) PERSISTÊNCIA + RESTAURAÇÃO + REMONTAGEM
+    check('M1R8A sessão salva ordem+peças+seed (placedPieceIds/trayPieceOrder/shuffleSeed/sessionId/startedAt)',
+      /placedPieceIds,\s*\n?\s*trayPieceOrder:/.test(prog) && /shuffleSeed:/.test(prog) && /sessionId:/.test(prog) && /startedAt:/.test(prog)
+      && /export async function getRawSession/.test(prog),
+      'sessão não persiste ordem/peças completas');
+    check('M1R8A continuar: restaura ordem+peças, SEM novo shuffle (resume) — motor com initialPlacedIds',
+      /wantResume = !!route\?\.params\?\.resume/.test(game) && /canRestore/.test(game)
+      && /initialPlacedIds: raw\.placedPieceIds/.test(game) && /initialPlacedIds/.test(eng),
+      'continuar não restaura ordem/peças');
+    check('M1R8A remontar: nova seed/ordem/sessionId, peças limpas, MESMO quadro — sem empilhar tela',
+      /replayRef\.current \+= 1/.test(game) && /startFreshSession/.test(game)
+      && /key=\{state\.session\.sessionId\}/.test(game) && !/navigation\.(push|replace)\(ROUTES\.MONTE_A_CENA_TABLE_GAME/.test(gameNoCom),
+      'remontagem empilha tela / não gera nova ordem');
+    check('M1R8A Home "Continue montando" passa resume:true e usa placedOf (não placedCount cru)',
+      /resume: true/.test(readSrc('src/screens/MonteACenaHomeScreen.js'))
+      && /placedOf/.test(readSrc('src/screens/MonteACenaHomeScreen.js')),
+      'Home não sinaliza resume / usa contagem antiga');
+
+    // reducer: restauração + N commits (4/6/9)
+    try {
+      let msrc = readSrc('src/hooks/usePuzzleMachine.js').replace(/export\s+(function|const)/g, '$1').replace(/export default[^;]*;/g, '');
+      const fn = new Function('module', 'exports', msrc + '\nmodule.exports={initialPuzzleState,puzzleReducer};');
+      const mm = { exports: {} }; fn(mm, mm.exports); const R = mm.exports.puzzleReducer; const I = mm.exports.initialPuzzleState;
+      check('M1R8A restauração: initialPuzzleState(total, placed) restaura; RESET volta a vazio',
+        JSON.stringify(I(4, ['p00', 'p01']).placedPieceIds) === JSON.stringify(['p00', 'p01'])
+        && R(I(4, ['p00', 'p01']), { type: 'RESET' }).placedPieceIds.length === 0,
+        'restauração/reset incorretos');
+      const runN = (n, ids) => { let f = I(n); for (const id of ids) { f = R(f, { type: 'PIECE_TAPPED', pieceId: id }); f = R(f, { type: 'TARGET_TAPPED', targetId: id }); f = R(f, { type: 'SNAP_FINISHED' }); } return f.placedPieceIds.length; };
+      check('M1R8A: 4/6/9 peças → 4/6/9 SNAP_FINISHED (1 commit/1 efeito por encaixe, por construção)',
+        runN(4, ['p00', 'p01', 'p10', 'p11']) === 4
+        && runN(6, ['p00', 'p01', 'p10', 'p11', 'p20', 'p21']) === 6
+        && runN(9, ['p00', 'p01', 'p02', 'p10', 'p11', 'p12', 'p20', 'p21', 'p22']) === 9,
+        'contagem de commits diverge do nº de peças');
+    } catch (e) { fail('M1R8A: reducer avaliável', e.message); }
+
+    // (E) NAVEGAÇÃO
+    check('M1R8A navegação: helpers exitToMonteAcenaHome/exitToBrincar via popTo (sem cadeia de goBack)',
+      /export function exitToMonteAcenaHome/.test(exit) && /export function exitToBrincar/.test(exit)
+      && /StackActions\.popTo/.test(exit) && /ROUTES\.MONTE_A_CENA_HOME/.test(exit) && /ROUTES\.HOME/.test(exit) && /ROUTES\.ACTIVITIES/.test(exit)
+      && !/goBack\(\)[\s\S]{0,40}goBack\(\)/.test(exit),
+      'helpers de saída ausentes ou usam cadeia de goBack');
+    check('M1R8A: a conclusão usa os helpers (Voltar ao Monte a Cena / Voltar ao Brincar), sem goBack chain',
+      /exitToMonteAcenaHome\(navigation\)/.test(game) && /exitToBrincar\(navigation\)/.test(game)
+      && /Voltar ao Brincar/.test(game)
+      && !/goBack\(\)[\s\S]{0,60}goBack\(\)/.test(game),
+      'a conclusão não usa os helpers de saída');
+
+    // (F) DIAGNÓSTICO COMPACTO
+    check('M1R8A diagnóstico do Modo Criador inicia COMPACTO ("Ver detalhes" expande); invisível fora do gate',
+      /const \[diagExpanded, setDiagExpanded\] = useState\(false\)/.test(game)
+      && /Ver detalhes/.test(game) && /diagExpanded &&/.test(game) && /isInternalToolsEnabled\(\)/.test(game),
+      'diagnóstico não inicia compacto');
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Monte a Cena — M1R8B expansão do catálogo: 20 histórias × até 10 quadros (191/200), acesso único
+  // (isFreePuzzleStory), cenas bloqueadas fora, telas virtualizadas, salvamento leve. js-safe intacto.
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function monteACenaM1R8B() {
+    const cat = readSrc('src/data/monteACenaCatalog.js');
+    const stSrc = readSrc('src/data/monteACenaStories.js');
+    const home = readSrc('src/screens/MonteACenaHomeScreen.js');
+    const storyScreen = readSrc('src/screens/MonteACenaStoryScreen.js');
+    const galScreen = readSrc('src/screens/MonteACenaGalleryScreen.js');
+    const gal = readSrc('src/services/monteACenaGallery.js');
+    const prog = readSrc('src/services/monteACenaProgress.js');
+    const eng = readSrc('src/hooks/usePuzzleEngine.js');
+    const game = readSrc('src/screens/MonteACenaTableGameScreen.js');
+    const babel = readSrc('babel.config.js');
+    const pkg = readSrc('package.json');
+    const stripML = (s) => s.replace(/import[\s\S]*?from\s*['"][^'"]*['"];?/g, '')
+      .replace(/export\s+\{[^}]*\}\s*from\s*['"][^'"]*['"];?/g, '').replace(/export\s+\{[^}]*\};?/g, '')
+      .replace(/export\s+(function|const)/g, '$1').replace(/export default[^;]*;?/g, '');
+
+    // (A) EVAL do catálogo gerado (20×10 → aprovadas/bloqueadas) — mock: todas as 200 ilustrações existem.
+    let CAT = null;
+    try {
+      const fn = new Function('module', 'exports', 'getSceneIllustrationAsset', 'stories',
+        stripML(cat) + '\nmodule.exports={MONTE_A_CENA_CATALOG,MONTE_A_CENA_BLOCKED,MONTE_A_CENA_REJECTED,MONTE_A_CENA_TOTALS,MONTE_A_CENA_STORY_ORDER,isFreePuzzleStory,getCatalogScene};');
+      const m = { exports: {} }; fn(m, m.exports, (sid, n) => (n >= 1 && n <= 10 ? { m: sid + n } : null), []);
+      CAT = m.exports;
+    } catch (e) { fail('M1R8B: monteACenaCatalog avaliável', e.message); }
+
+    if (CAT) {
+      check('M1R8B: exatamente 20 histórias cadastradas (storyId oficial único)',
+        CAT.MONTE_A_CENA_STORY_ORDER.length === 20
+        && new Set(CAT.MONTE_A_CENA_STORY_ORDER.map((s) => s.storyId)).size === 20,
+        'não são 20 histórias / storyId duplicado');
+      check('M1R8B acesso: A Criação e Noé GRÁTIS; as outras 18 premium (isFreePuzzleStory)',
+        CAT.isFreePuzzleStory('creation') === true && CAT.isFreePuzzleStory('noah') === true
+        && CAT.isFreePuzzleStory('david_goliath') === false
+        && CAT.MONTE_A_CENA_STORY_ORDER.filter((s) => !CAT.isFreePuzzleStory(s.storyId)).length === 18,
+        'regra de acesso grátis/premium incorreta');
+      check('M1R8B totais REAIS: 191/200 disponíveis · 9 bloqueadas · 20 grátis · 171 premium · 0 ausentes',
+        CAT.MONTE_A_CENA_TOTALS.stories === 20 && CAT.MONTE_A_CENA_TOTALS.available === 191
+        && CAT.MONTE_A_CENA_TOTALS.blocked === 9 && CAT.MONTE_A_CENA_TOTALS.missing === 0
+        && CAT.MONTE_A_CENA_TOTALS.free === 20 && CAT.MONTE_A_CENA_TOTALS.premium === 171,
+        `totais divergentes: ${JSON.stringify(CAT.MONTE_A_CENA_TOTALS)}`);
+      const ids = CAT.MONTE_A_CENA_CATALOG.map((s) => s.puzzleSceneId);
+      check('M1R8B: nenhum puzzleSceneId duplicado (191 ids únicos, estáveis por história+cena)',
+        new Set(ids).size === ids.length && ids.length === 191
+        && ids.includes('creation_scene_01') && ids.includes('noah_scene_10'),
+        'puzzleSceneId duplicado / instável');
+      check('M1R8B cenas erradas/duvidosas/quarentena EXCLUÍDAS (lost_sheep 3/6/7/8/9/10, samuel 10, mary 10, good_sam 3)',
+        !ids.includes('lost_sheep_scene_03') && !ids.includes('lost_sheep_scene_08') && !ids.includes('lost_sheep_scene_10')
+        && !ids.includes('samuel_hears_god_scene_10') && !ids.includes('mary_says_yes_scene_10') && !ids.includes('good_samaritan_scene_03')
+        && CAT.MONTE_A_CENA_BLOCKED.length === 9,
+        'cena bloqueada apareceu no catálogo público');
+      check('M1R8B cenas ausentes NÃO derrubam o app: resolver null → status "missing", não crash',
+        (() => {
+          try {
+            const fn = new Function('module', 'exports', 'getSceneIllustrationAsset', 'stories',
+              stripML(cat) + '\nmodule.exports={MONTE_A_CENA_TOTALS};');
+            const m = { exports: {} }; fn(m, m.exports, () => null, []); // TODAS ausentes
+            return m.exports.MONTE_A_CENA_TOTALS.available === 0 && m.exports.MONTE_A_CENA_TOTALS.missing === 200;
+          } catch { return false; }
+        })(),
+        'cena ausente derruba a geração');
+      check('M1R8B free = só creation/noah; premium = todo o resto',
+        CAT.MONTE_A_CENA_CATALOG.filter((s) => !s.premium).every((s) => s.storyId === 'creation' || s.storyId === 'noah'),
+        'cena premium marcada como grátis (ou vice-versa)');
+    }
+
+    // (B) EVAL de stories: 20 histórias, até 10, sem cap de 4, uma cena uma vez, completude por aprovadas.
+    if (CAT) {
+      try {
+        const fn = new Function('module', 'exports', 'MONTE_A_CENA_CATALOG', 'MONTE_A_CENA_STORY_ORDER', 'MONTE_A_CENA_TOTALS', 'MONTE_A_CENA_BLOCKED', 'isFreePuzzleStory', 'getCatalogSceneSource',
+          stripML(stSrc) + '\nmodule.exports={MONTE_A_CENA_STORIES,MAX_SCENES_PER_STORY,getStory,getNextSceneInStory};');
+        const m = { exports: {} }; fn(m, m.exports, CAT.MONTE_A_CENA_CATALOG, CAT.MONTE_A_CENA_STORY_ORDER, CAT.MONTE_A_CENA_TOTALS, CAT.MONTE_A_CENA_BLOCKED, CAT.isFreePuzzleStory, () => 'img');
+        const S = m.exports;
+        check('M1R8B stories: 20 histórias, ATÉ 10 quadros (MAX=10; SEM limitação artificial de 4)',
+          S.MONTE_A_CENA_STORIES.length === 20 && S.MAX_SCENES_PER_STORY === 10
+          && S.MONTE_A_CENA_STORIES.every((x) => x.puzzleScenes.length >= 1 && x.puzzleScenes.length <= 10)
+          && S.MONTE_A_CENA_STORIES.some((x) => x.puzzleScenes.length > 4),
+          'stories não suporta até 10 / capa em 4');
+        check('M1R8B uma cena aparece UMA vez globalmente (191); creation 10 grátis; lost_sheep 4 premium',
+          (() => { const a = S.MONTE_A_CENA_STORIES.flatMap((x) => x.puzzleScenes.map((p) => p.puzzleSceneId)); return new Set(a).size === a.length && a.length === 191; })()
+          && S.getStory('creation').puzzleScenes.length === 10 && S.getStory('creation').accessType === 'free'
+          && S.getStory('lost_sheep').puzzleScenes.length === 4 && S.getStory('lost_sheep').premium === true,
+          'contagem por história incorreta');
+        check('M1R8B próximo quadro dentro da história (creation_01 → creation_02); premium por história coerente',
+          S.getNextSceneInStory('creation_scene_01').puzzleSceneId === 'creation_scene_02'
+          && S.MONTE_A_CENA_STORIES.every((x) => (x.storyId === 'creation' || x.storyId === 'noah') ? !x.premium : x.premium),
+          'navegação/premium por história incorreta');
+      } catch (e) { fail('M1R8B: monteACenaStories avaliável', e.message); }
+    }
+
+    // (C) CATÁLOGO: geração + fonte única de acesso + bloqueio (texto)
+    check('M1R8B catálogo GERADO (não lista manual de 200): fonte única isFreePuzzleStory + blocos :ilu:',
+      /for \(let n = 1; n <= 10; n\+\+\)/.test(cat) && /export function isFreePuzzleStory/.test(cat)
+      && /const premium = !isFreePuzzleStory\(storyId\)/.test(cat) && /MONTE_A_CENA_SCENE_BLOCKS/.test(cat)
+      && !/premium: true,[\s\S]*premium: true,[\s\S]*premium: true,[\s\S]*premium: true/.test(cat), // sem centenas de premium manuais
+      'catálogo é lista manual / repete premium à mão');
+    check('M1R8B semântica de conclusão por aprovadas (approvedScenes>0 && completed===approvedScenes; sem exigir 4)',
+      /availableLen > 0 && completedInStoryLen >= availableLen/.test(prog)
+      && !/=== 4 && completedInStoryLen === 4/.test(prog),
+      'conclusão ainda exige exatamente 4');
+
+    // (D) PERFORMANCE / VIRTUALIZAÇÃO / SALVAMENTO LEVE
+    check('M1R8B Home carrega só CAPAS via FlatList (não pré-carrega os 200 quadros)',
+      /FlatList/.test(home) && /data=\{MONTE_A_CENA_STORIES\}/.test(home) && /getStoryCoverSource/.test(home)
+      && !/MONTE_A_CENA_STORIES\.map/.test(home),
+      'Home não é virtualizada / pré-carrega cenas');
+    check('M1R8B "Novos quadros em breve" no fim da galeria (cartão discreto, sem botão desativado)',
+      /Novos quadros em breve/.test(home) && /ComingSoonCard/.test(home)
+      && /Continuaremos adicionando novas histórias/.test(home),
+      'cartão "em breve" ausente');
+    check('M1R8B tela da história VIRTUALIZADA (FlatList, 1–10 quadros, sem moldura vazia artificial)',
+      /FlatList/.test(storyScreen) && /data=\{story\.puzzleScenes\}/.test(storyScreen) && /numColumns=\{2\}/.test(storyScreen)
+      && /quadros disponíveis/.test(storyScreen),
+      'tela da história não é virtualizada');
+    const galNoCom = a1StripComments(gal); const progNoCom = a1StripComments(prog);
+    check('M1R8B Meus Quadros salva SÓ metadados (ids+contagens+data); NUNCA imagem/base64/thumbnail/path/coord',
+      /completedPieceCounts/.test(gal) && /lastPieceCount/.test(gal)
+      && !/base64|require\(|SvgImage|thumbnail:|previewBase64|coordinates|piece\.path/.test(galNoCom),
+      'Meus Quadros salva dado pesado');
+    check('M1R8B AsyncStorage NÃO guarda imagem/base64 (gallery + progress leves; imagem vem do catálogo por id)',
+      !/base64|dataUri|data:image|require\(/.test(galNoCom) && !/base64|dataUri|data:image/.test(progNoCom)
+      && /imagem é reutilizada do catálogo/.test(gal),
+      'progresso/galeria guardam imagem/base64');
+
+    // (E) BASE PRESERVADA (motor/gestos/nav não tocados no M1R8B)
+    check('M1R8B preserva js-safe + gestos runOnJS + babel + deps + remontagem (motor intacto)',
+      /PUZZLE_GESTURE_RUNTIME = 'js-safe'/.test(eng) && /PUZZLE_ENGINE_SAFE_MODE = true/.test(eng) && !/'worklet'/.test(eng)
+      && /Gesture\.Tap\(\)\.runOnJS\(true\)/.test(eng) && /Gesture\.Pan\(\)\.runOnJS\(true\)/.test(eng)
+      && !/plugins:\s*\[[^\]]*react-native-(worklets|reanimated)\/plugin/.test(babel)
+      && /"react-native-reanimated": "~4\.1\.1"/.test(pkg) && /"react-native-worklets": "0\.5\.1"/.test(pkg)
+      && /startFreshSession/.test(game) && /replayRef\.current \+= 1/.test(game),
+      'M1R8B tocou o motor/gestos/babel/deps ou quebrou a remontagem');
+  })();
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;

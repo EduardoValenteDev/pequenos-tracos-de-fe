@@ -29,6 +29,25 @@ import ParesDoBeniScreen from '../screens/ParesDoBeniScreen';
 import CadeAOvelhinhaScreen from '../screens/CadeAOvelhinhaScreen';
 import OvelhaAssetGalleryScreen from '../screens/OvelhaAssetGalleryScreen';
 import PalavrinhasDoBeniScreen from '../screens/PalavrinhasDoBeniScreen';
+// Monte a Cena — Architecture Spike M1A (baseline técnico, legado). Rota SÓ sob o gate interno.
+import MonteACenaSpikeScreen from '../screens/MonteACenaSpikeScreen';
+// Monte a Cena — protótipo visual M1R1 (legado). Rota SÓ sob o gate interno.
+import MonteACenaPrototypeScreen from '../screens/MonteACenaPrototypeScreen';
+// Monte a Cena — núcleo jogável M1R2 (seleção de níveis + rodada). Rotas SÓ sob o gate interno.
+import MonteACenaLevelSelectScreen from '../screens/MonteACenaLevelSelectScreen';
+import MonteACenaGameScreen from '../screens/MonteACenaGameScreen';
+// Monte a Cena — RODADA V2 (M1R2R, reconstrução integral). Rota de validação atual.
+import MonteACenaGameV2Screen from '../screens/MonteACenaGameV2Screen';
+// Monte a Cena — M1R3: entrada (catálogo), escolha de peças e galeria "Meus Quadros".
+import MonteACenaHomeScreen from '../screens/MonteACenaHomeScreen';
+// M1R6 — tela da história (quadros 2×2), entre a galeria de histórias e a Mesa do Beni.
+import MonteACenaStoryScreen from '../screens/MonteACenaStoryScreen';
+import MonteACenaDifficultyScreen from '../screens/MonteACenaDifficultyScreen';
+import MonteACenaGalleryScreen from '../screens/MonteACenaGalleryScreen';
+// M1R4 Portão 1 — laboratório isolado do motor de gestos.
+import PuzzleGestureLabScreen from '../screens/PuzzleGestureLabScreen';
+// M1R5 — RODADA REAL integrada (motor definitivo usePuzzleEngine). Rota que a criança usa.
+import MonteACenaTableGameScreen from '../screens/MonteACenaTableGameScreen';
 import AtelierCanvasScreen from '../screens/AtelierCanvasScreen';
 import AtelierGalleryScreen from '../screens/AtelierGalleryScreen';
 import PostStoryHubScreen from '../screens/PostStoryHubScreen';
@@ -405,6 +424,63 @@ export default function AppNavigator() {
           component={PalavrinhasDoBeniScreen}
           options={{ headerShown: false }}
         />
+        {/* Monte a Cena — Architecture Spike M1A (legado técnico) + protótipo visual M1R1 (validação).
+            Ambas SÓ sob o gate interno; NUNCA em produção/screenshot. O card do Brincar abre o
+            PROTÓTIPO (M1R1); a rota do Spike permanece apenas como referência técnica, não navegada. */}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="MonteACenaSpike"
+            component={MonteACenaSpikeScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="MonteACenaPrototype"
+            component={MonteACenaPrototypeScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+        {/* M1R2 — núcleo jogável: o card do Brincar abre a SELEÇÃO DE NÍVEIS (que abre a rodada). */}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="MonteACenaLevels"
+            component={MonteACenaLevelSelectScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="MonteACenaGame"
+            component={MonteACenaGameScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="MonteACenaGameV2"
+            component={MonteACenaGameV2Screen}
+            options={{ headerShown: false }}
+          />
+        )}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen name="MonteACenaHome" component={MonteACenaHomeScreen} options={{ headerShown: false }} />
+        )}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen name="MonteACenaStory" component={MonteACenaStoryScreen} options={{ headerShown: false }} />
+        )}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen name="MonteACenaDifficulty" component={MonteACenaDifficultyScreen} options={{ headerShown: false }} />
+        )}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen name="MonteACenaGallery" component={MonteACenaGalleryScreen} options={{ headerShown: false }} />
+        )}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen name="PuzzleGestureLab" component={PuzzleGestureLabScreen} options={{ headerShown: false }} />
+        )}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen name="MonteACenaTableGame" component={MonteACenaTableGameScreen} options={{ headerShown: false }} />
+        )}
         <Stack.Screen
           name="AtelierGallery"
           component={AtelierGalleryScreen}

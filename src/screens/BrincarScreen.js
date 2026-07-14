@@ -50,12 +50,11 @@ import { backLabelFor, isFromTab } from '../utils/originBack';
  * A chave é passada explicitamente no `map`.
  */
 const EM_PREPARO = [
-  { id: 'bichinhos', icon: 'bichinhos', title: 'Bichinhos da Bíblia', desc: 'Descubra os animais das histórias.', tint: '#F3E8FF', border: '#D7C2F5', bg: '#7C3AED20' },
+  // "Bichinhos da Bíblia" permanece no roadmap/documentos; foi removido apenas desta interface.
+  // "Monte a Cena" (SEM Modo Criador): chip "Em preparação" + rodapé "O Beni está preparando",
+  // não navega. COM Modo Criador, é substituído por um card largo "Em teste" (ver render).
+  { id: 'monte_a_cena', icon: 'puzzle', title: 'Monte a Cena', desc: 'Junte as peças e revele uma cena da Bíblia.', badge: 'Em preparação', tint: '#F3E8FF', border: '#D7C2F5', bg: '#7C3AED20' },
 ];
-
-/** Jogos que abrem uma tela SÓ em desenvolvimento (sob isInternalToolsEnabled). Vazio no v1:
- *  "Cadê a Ovelhinha?" tornou-se user-facing (OV4) — abre pela seção "Para brincar agora". */
-const DEV_ROTAS = {};
 
 function AnimatedCard({ delay, children, style }) {
   const fade = useRef(new Animated.Value(0)).current;
@@ -120,16 +119,16 @@ function WideActiveTile({ icon, title, desc, cta, hint, tint, border, bg, btnCol
   );
 }
 
-/** Card de atividade EM PREPARO — não abre tela, e não parece um erro. */
-function ComingTile({ icon, title, desc, tint, border, bg }) {
-  return (
-    <View
-      style={[styles.tile, styles.tileComing, { backgroundColor: tint, borderColor: border }]}
-      accessibilityRole="text"
-      accessibilityLabel={`${title}. Chegando em breve.`}
-    >
+/**
+ * Card de atividade EM PREPARO — não parece um erro. Chip configurável (`badge`, ex.: "Em preparação").
+ * Rodapé fixo "O Beni está preparando". Se `onPress` for passado (só sob Modo Criador), o card vira
+ * tocável e abre a tela interna de validação; sem `onPress`, é apenas informativo (não abre).
+ */
+function ComingTile({ icon, title, desc, tint, border, bg, badge = 'Chegando', onPress }) {
+  const inner = (
+    <>
       <View style={styles.comingBadge}>
-        <Text style={styles.comingBadgeText}>Chegando</Text>
+        <Text style={styles.comingBadgeText}>{badge}</Text>
       </View>
       <View style={[styles.tileIconBg, { backgroundColor: bg }]}>
         <FaithIcon name={icon} size={22} color={pt.textSoft} />
@@ -139,6 +138,29 @@ function ComingTile({ icon, title, desc, tint, border, bg }) {
       <View style={styles.comingFoot}>
         <Text style={styles.comingFootText}>O Beni está preparando</Text>
       </View>
+    </>
+  );
+  const a11y = `${title}. ${badge}.`;
+  if (onPress) {
+    return (
+      <SoundButton
+        style={[styles.tile, styles.tileComing, { backgroundColor: tint, borderColor: border }]}
+        onPress={onPress}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={a11y}
+      >
+        {inner}
+      </SoundButton>
+    );
+  }
+  return (
+    <View
+      style={[styles.tile, styles.tileComing, { backgroundColor: tint, borderColor: border }]}
+      accessibilityRole="text"
+      accessibilityLabel={a11y}
+    >
+      {inner}
     </View>
   );
 }
@@ -167,6 +189,34 @@ function TestingTile({ icon, title, desc, tint, border, bg, onPress }) {
       <Text style={styles.tileDesc} numberOfLines={2}>{desc}</Text>
       <View style={[styles.tileBtn, { backgroundColor: pt.greenDeep }]}>
         <Text style={styles.tileBtnText}>Testar</Text>
+      </View>
+    </SoundButton>
+  );
+}
+
+/**
+ * Card LARGO de TESTE INTERNO (só sob isInternalToolsEnabled) — segue o padrão de Palavrinhas /
+ * Cadê a Ovelhinha (WideActiveTile), com chip "Em teste" e botão "Testar". Fundo roxo claro.
+ */
+function TestingWideTile({ icon, title, desc, onPress }) {
+  return (
+    <SoundButton
+      style={[styles.wideTile, { backgroundColor: '#F3E8FF', borderColor: '#D7C2F5' }]}
+      onPress={onPress}
+      activeOpacity={0.82}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${desc}. Em teste no ambiente de desenvolvimento.`}
+    >
+      <View style={[styles.wideIconBg, { backgroundColor: '#7C3AED20' }]}>
+        <FaithIcon name={icon} size={26} color={pt.purple} />
+      </View>
+      <View style={styles.wideTexts}>
+        <View style={styles.testBadge}><Text style={styles.testBadgeText}>Em teste</Text></View>
+        <Text style={styles.wideTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.compactDesc} numberOfLines={2}>{desc}</Text>
+      </View>
+      <View style={[styles.compactBtn, { backgroundColor: pt.purple }]}>
+        <Text style={styles.compactBtnText}>Testar</Text>
       </View>
     </SoundButton>
   );
@@ -319,23 +369,27 @@ export default function BrincarScreen({ navigation, route }) {
           <Text style={styles.sectionSub}>Novas brincadeiras a caminho.</Text>
         </AnimatedCard>
 
-        {/* `key` explícita no elemento; o resto do objeto vai por spread (sem `key` dentro).
-            "Chegando em breve" agora lista só jogos ainda sem tela (ex.: Bichinhos). Jogos com
-            rota interna de DEV (DEV_ROTAS) abririam sob isInternalToolsEnabled — hoje vazio. */}
-        <AnimatedCard delay={250} style={styles.grid}>
-          {EM_PREPARO.map(({ id, ...tileProps }) => (
-            <View key={id} style={styles.gridItem}>
-              {DEV_ROTAS[id] && isInternalToolsEnabled() ? (
-                <TestingTile
-                  {...tileProps}
-                  onPress={id === 'palavrinhas' ? abrirPalavrinhas : () => navigation.navigate(DEV_ROTAS[id])}
-                />
-              ) : (
+        {/* SÓ sob o Modo Criador (isInternalToolsEnabled), "Monte a Cena" vira um card LARGO
+            "Em teste" que abre a SELEÇÃO DE NÍVEIS (M1R2). Com o modo desligado, permanece
+            "Em preparação" na grade e NÃO navega. `key` explícita; resto por spread. */}
+        {isInternalToolsEnabled() ? (
+          <AnimatedCard delay={250} style={styles.wideRow}>
+            <TestingWideTile
+              icon="puzzle"
+              title="Monte a Cena"
+              desc="Junte as peças e revele uma cena da Bíblia."
+              onPress={() => navigation.navigate(ROUTES.MONTE_A_CENA_HOME)}
+            />
+          </AnimatedCard>
+        ) : (
+          <AnimatedCard delay={250} style={styles.grid}>
+            {EM_PREPARO.map(({ id, ...tileProps }) => (
+              <View key={id} style={styles.gridItem}>
                 <ComingTile {...tileProps} />
-              )}
-            </View>
-          ))}
-        </AnimatedCard>
+              </View>
+            ))}
+          </AnimatedCard>
+        )}
 
         {/* ── Minhas artes ── */}
         <AnimatedCard delay={300} style={styles.sectionHead}>
@@ -427,6 +481,10 @@ const styles = StyleSheet.create({
   wideTexts: { flex: 1 },
   wideTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 2 },
   wideHint: { fontFamily: 'Nunito', fontSize: 11, color: '#7A5800', fontWeight: '800', marginTop: 3 },
+
+  // Card largo de teste interno (Modo Criador) — chip "Em teste".
+  testBadge: { alignSelf: 'flex-start', backgroundColor: '#E7DEFB', borderRadius: radii.pill, paddingHorizontal: 9, paddingVertical: 2, marginBottom: 4 },
+  testBadgeText: { fontFamily: 'FredokaOne', fontSize: 10, color: '#5B4894', letterSpacing: 0.3 },
 
   // Grade dos cards em preparo: 2 por linha, e o 3º ocupa metade da linha seguinte
   // (não estica para a largura toda — ficaria desproporcional ao lado dos outros).

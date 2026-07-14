@@ -55,6 +55,25 @@ export const ROUTES = Object.freeze({
   PACK_SANDBOX_DEV: 'PackSandboxDev',
   SCENE_VALIDATION: 'SceneValidation',
   OVELHA_ASSET_GALLERY: 'OvelhaAssetGallery',
+  // Monte a Cena — Architecture Spike M1A (baseline C-SVG, 4 peças). SÓ dev-gated. Legado técnico.
+  MONTE_A_CENA_SPIKE: 'MonteACenaSpike',
+  // Monte a Cena — protótipo visual M1R1 (tela clara, sem rolagem). SÓ dev-gated. Legado.
+  MONTE_A_CENA_PROTOTYPE: 'MonteACenaPrototype',
+  // Monte a Cena — seleção de níveis + rodada. SÓ dev-gated. GAME = legado M1R2.1; GAME_V2 = M1R2R.
+  MONTE_A_CENA_LEVELS: 'MonteACenaLevels',
+  MONTE_A_CENA_GAME: 'MonteACenaGame',
+  MONTE_A_CENA_GAME_V2: 'MonteACenaGameV2',
+  // M1R3 — entrada (catálogo de cenas), escolha de dificuldade e galeria "Meus Quadros".
+  MONTE_A_CENA_HOME: 'MonteACenaHome',
+  MONTE_A_CENA_DIFFICULTY: 'MonteACenaDifficulty',
+  MONTE_A_CENA_GALLERY: 'MonteACenaGallery',
+  // M1R6 — tela da HISTÓRIA (quadros em grade 2×2). Entra entre Home (galeria de histórias) e a
+  // Mesa do Beni (dificuldade). SÓ dev-gated como o resto de Monte a Cena.
+  MONTE_A_CENA_STORY: 'MonteACenaStory',
+  // M1R4 Portão 1 — laboratório isolado do motor de gestos. SÓ Modo Criador.
+  PUZZLE_GESTURE_LAB: 'PuzzleGestureLab',
+  // M1R5 — RODADA REAL integrada (motor usePuzzleEngine). É a rota que a criança usa.
+  MONTE_A_CENA_TABLE_GAME: 'MonteACenaTableGame',
 });
 
 export default ROUTES;

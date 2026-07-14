@@ -44,6 +44,7 @@ const ICON_MAP = {
   close: 'close',
   check: 'checkmark-circle',
   family: 'people-circle',
+  eye: 'eye',
   // Coloring tool icons
   erase: 'backspace-outline',
   undo: 'arrow-undo',
@@ -56,6 +57,7 @@ const ICON_MAP = {
   pares: 'albums',
   palavrinhas: 'text',
   bichinhos: 'paw',
+  puzzle: 'extension-puzzle',
   // `ovelha` NÃO está aqui: é desenhada por OvelhaSvg (Bloco 2.1), não pelo Ionicons.
   desenho_guiado: 'color-wand',
   criar_livre: 'create',
