@@ -463,23 +463,17 @@ export default function AppNavigator() {
             options={{ headerShown: false }}
           />
         )}
-        {isInternalToolsEnabled() && (
-          <Stack.Screen name="MonteACenaHome" component={MonteACenaHomeScreen} options={{ headerShown: false }} />
-        )}
-        {isInternalToolsEnabled() && (
-          <Stack.Screen name="MonteACenaStory" component={MonteACenaStoryScreen} options={{ headerShown: false }} />
-        )}
-        {isInternalToolsEnabled() && (
-          <Stack.Screen name="MonteACenaDifficulty" component={MonteACenaDifficultyScreen} options={{ headerShown: false }} />
-        )}
-        {isInternalToolsEnabled() && (
-          <Stack.Screen name="MonteACenaGallery" component={MonteACenaGalleryScreen} options={{ headerShown: false }} />
-        )}
+        {/* Monte a Cena — fluxo OFICIAL user-facing (publicado, aprovado no aparelho / fca92f5):
+            Home → Story → Difficulty → TableGame + Gallery ("Meus Quadros", com gate gentil de
+            plano DENTRO da tela). Rotas SEMPRE registradas. Spike/Prototype/Levels/Game/GameV2 e
+            o Laboratório de gestos permanecem gated pelo Modo Criador (legado técnico). */}
+        <Stack.Screen name="MonteACenaHome" component={MonteACenaHomeScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="MonteACenaStory" component={MonteACenaStoryScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="MonteACenaDifficulty" component={MonteACenaDifficultyScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="MonteACenaGallery" component={MonteACenaGalleryScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="MonteACenaTableGame" component={MonteACenaTableGameScreen} options={{ headerShown: false }} />
         {isInternalToolsEnabled() && (
           <Stack.Screen name="PuzzleGestureLab" component={PuzzleGestureLabScreen} options={{ headerShown: false }} />
-        )}
-        {isInternalToolsEnabled() && (
-          <Stack.Screen name="MonteACenaTableGame" component={MonteACenaTableGameScreen} options={{ headerShown: false }} />
         )}
         <Stack.Screen
           name="AtelierGallery"

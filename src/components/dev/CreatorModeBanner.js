@@ -27,26 +27,35 @@ export default function CreatorModeBanner() {
 
   if (!isCreatorQaModeAllowed() || !enabled) return null;
 
+  // R2C/fechamento §3 — SELO minúsculo no canto superior DIREITO, ancorado NA borda da safe
+  // area (não no status bar) e acima da faixa do título: não cobre título, Voltar, seletor de
+  // modo nem status bar. Largura limitada, fonte pequena. Overlay pointerEvents='none'.
   return (
-    <View style={[styles.bar, { paddingTop: Math.max(insets.top, 4) }]} pointerEvents="none">
-      <Text style={styles.text}>🛠️ MODO CRIADOR ATIVO</Text>
+    <View style={[styles.wrap, { top: Math.max(insets.top, 4) }]} pointerEvents="none">
+      <View style={styles.selo}>
+        <Text style={styles.text}>MODO CRIADOR ATIVO</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: {
+  wrap: {
     position: 'absolute',
-    top: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(124,58,237,0.92)',
-    alignItems: 'center',
-    paddingBottom: 3,
+    right: 8,                 // canto superior DIREITO, largura limitada (não ocupa a tela toda)
+    alignItems: 'flex-end',
     zIndex: 9999, elevation: 9999,
+  },
+  selo: {
+    backgroundColor: 'rgba(124,58,237,0.82)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 1,
   },
   text: {
     fontFamily: 'FredokaOne',
-    fontSize: 10,
+    fontSize: 8,
     color: '#FFF',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
 });

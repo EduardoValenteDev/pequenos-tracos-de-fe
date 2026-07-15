@@ -6,16 +6,14 @@
  * navega por ela e trocá-la quebraria a navegação. `AtelierScreen` continua existindo
  * para o fluxo contextual (`AtelierFromContext`, aberto pelo Cultinho).
  *
- * Cinco atividades (Bloco 1.3a):
- *   ATIVAS  — Pares do Beni · Criar livre
- *   EM PREPARO — Cadê a Ovelhinha? · Palavrinhas do Beni · Bichinhos da Bíblia
+ * Atividades user-facing "Para brincar agora": Pares do Beni · Criar livre ·
+ * Palavrinhas do Beni · Cadê a Ovelhinha? · Monte a Cena (todas abrem a rota oficial).
  *
  * "Desenho guiado pelo Beni" saiu DESTA TELA por decisão de produto. O fluxo continua
  * vivo: `MISSIONS` (atelierData), `AtelierScreen` e a rota `AtelierCanvas` seguem
  * intactos — só deixaram de ter card na aba.
  *
- * Os cards em preparo NÃO abrem tela: são parte do produto, com visual próprio e
- * selo honesto. Nenhum placeholder pobre, nenhum emoji — só FaithIcon.
+ * Nenhum placeholder pobre, nenhum emoji — só FaithIcon.
  *
  * Rodadas: o plano gratuito tem 2 por dia (brincarDailyService). Nada é consumido aqui
  * — o hub só INFORMA. Quem consome rodada é o jogo, quando existir.
@@ -33,7 +31,6 @@ import SoundButton from '../components/SoundButton';
 import FaithIcon from '../components/ui/FaithIcon';
 import { BeniAvatar } from '../components/beni';
 import CenteredContent from '../components/layout/CenteredContent';
-import { isInternalToolsEnabled } from '../config/internalTools';
 import { ROUTES } from '../constants/routes';
 import PalavrinhasBeniWarmer from '../components/palavrinhas/PalavrinhasBeniWarmer';
 import { iniciarWarmup } from '../services/beniAssetWarmup';
@@ -41,20 +38,6 @@ import { listArts } from '../services/atelierStorage';
 import { hasAtelierUnlimitedAccess } from '../services/accessControl';
 import { getDailyRounds } from '../services/brincarDailyService';
 import { backLabelFor, isFromTab } from '../utils/originBack';
-
-/**
- * Atividades ainda em preparação. Ordem = ordem de chegada planejada.
- *
- * O campo de identidade chama-se `id`, NÃO `key`: espalhar um objeto com `key` em JSX
- * (`<Tile {...item} />`) faz o React avisar que a chave está sendo tratada como prop.
- * A chave é passada explicitamente no `map`.
- */
-const EM_PREPARO = [
-  // "Bichinhos da Bíblia" permanece no roadmap/documentos; foi removido apenas desta interface.
-  // "Monte a Cena" (SEM Modo Criador): chip "Em preparação" + rodapé "O Beni está preparando",
-  // não navega. COM Modo Criador, é substituído por um card largo "Em teste" (ver render).
-  { id: 'monte_a_cena', icon: 'puzzle', title: 'Monte a Cena', desc: 'Junte as peças e revele uma cena da Bíblia.', badge: 'Em preparação', tint: '#F3E8FF', border: '#D7C2F5', bg: '#7C3AED20' },
-];
 
 function AnimatedCard({ delay, children, style }) {
   const fade = useRef(new Animated.Value(0)).current;
@@ -119,108 +102,6 @@ function WideActiveTile({ icon, title, desc, cta, hint, tint, border, bg, btnCol
   );
 }
 
-/**
- * Card de atividade EM PREPARO — não parece um erro. Chip configurável (`badge`, ex.: "Em preparação").
- * Rodapé fixo "O Beni está preparando". Se `onPress` for passado (só sob Modo Criador), o card vira
- * tocável e abre a tela interna de validação; sem `onPress`, é apenas informativo (não abre).
- */
-function ComingTile({ icon, title, desc, tint, border, bg, badge = 'Chegando', onPress }) {
-  const inner = (
-    <>
-      <View style={styles.comingBadge}>
-        <Text style={styles.comingBadgeText}>{badge}</Text>
-      </View>
-      <View style={[styles.tileIconBg, { backgroundColor: bg }]}>
-        <FaithIcon name={icon} size={22} color={pt.textSoft} />
-      </View>
-      <Text style={[styles.tileTitle, styles.tileTitleComing]}>{title}</Text>
-      <Text style={styles.tileDesc} numberOfLines={2}>{desc}</Text>
-      <View style={styles.comingFoot}>
-        <Text style={styles.comingFootText}>O Beni está preparando</Text>
-      </View>
-    </>
-  );
-  const a11y = `${title}. ${badge}.`;
-  if (onPress) {
-    return (
-      <SoundButton
-        style={[styles.tile, styles.tileComing, { backgroundColor: tint, borderColor: border }]}
-        onPress={onPress}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel={a11y}
-      >
-        {inner}
-      </SoundButton>
-    );
-  }
-  return (
-    <View
-      style={[styles.tile, styles.tileComing, { backgroundColor: tint, borderColor: border }]}
-      accessibilityRole="text"
-      accessibilityLabel={a11y}
-    >
-      {inner}
-    </View>
-  );
-}
-
-/**
- * Card SÓ DE DESENVOLVIMENTO — abre um jogo ainda com assets temporários. O selo
- * "Em teste" deixa claro que não é conteúdo final. Nunca renderiza em produção
- * (só é usado sob `isInternalToolsEnabled()`).
- */
-function TestingTile({ icon, title, desc, tint, border, bg, onPress }) {
-  return (
-    <SoundButton
-      style={[styles.tile, styles.tileAtivo, { backgroundColor: tint, borderColor: border }]}
-      onPress={onPress}
-      activeOpacity={0.82}
-      accessibilityRole="button"
-      accessibilityLabel={`${title}. Em teste no ambiente de desenvolvimento.`}
-    >
-      <View style={styles.comingBadge}>
-        <Text style={styles.comingBadgeText}>Em teste</Text>
-      </View>
-      <View style={[styles.tileIconBg, { backgroundColor: bg }]}>
-        <FaithIcon name={icon} size={24} color={pt.greenDeep} />
-      </View>
-      <Text style={styles.tileTitle}>{title}</Text>
-      <Text style={styles.tileDesc} numberOfLines={2}>{desc}</Text>
-      <View style={[styles.tileBtn, { backgroundColor: pt.greenDeep }]}>
-        <Text style={styles.tileBtnText}>Testar</Text>
-      </View>
-    </SoundButton>
-  );
-}
-
-/**
- * Card LARGO de TESTE INTERNO (só sob isInternalToolsEnabled) — segue o padrão de Palavrinhas /
- * Cadê a Ovelhinha (WideActiveTile), com chip "Em teste" e botão "Testar". Fundo roxo claro.
- */
-function TestingWideTile({ icon, title, desc, onPress }) {
-  return (
-    <SoundButton
-      style={[styles.wideTile, { backgroundColor: '#F3E8FF', borderColor: '#D7C2F5' }]}
-      onPress={onPress}
-      activeOpacity={0.82}
-      accessibilityRole="button"
-      accessibilityLabel={`${title}. ${desc}. Em teste no ambiente de desenvolvimento.`}
-    >
-      <View style={[styles.wideIconBg, { backgroundColor: '#7C3AED20' }]}>
-        <FaithIcon name={icon} size={26} color={pt.purple} />
-      </View>
-      <View style={styles.wideTexts}>
-        <View style={styles.testBadge}><Text style={styles.testBadgeText}>Em teste</Text></View>
-        <Text style={styles.wideTitle} numberOfLines={1}>{title}</Text>
-        <Text style={styles.compactDesc} numberOfLines={2}>{desc}</Text>
-      </View>
-      <View style={[styles.compactBtn, { backgroundColor: pt.purple }]}>
-        <Text style={styles.compactBtnText}>Testar</Text>
-      </View>
-    </SoundButton>
-  );
-}
 
 export default function BrincarScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
@@ -363,33 +244,19 @@ export default function BrincarScreen({ navigation, route }) {
           />
         </AnimatedCard>
 
-        {/* ── EM PREPARO ── */}
-        <AnimatedCard delay={210} style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>Chegando em breve</Text>
-          <Text style={styles.sectionSub}>Novas brincadeiras a caminho.</Text>
+        {/* Monte a Cena — jogo user-facing (aprovado, fca92f5). Card LARGO igual a Palavrinhas/
+            Ovelhinha, abre a ROTA OFICIAL. É conteúdo final (sem selo de desenvolvimento). A
+            seção de "novidades a caminho" saiu por ficar vazia — reintroduzir só com novo jogo. */}
+        <AnimatedCard delay={205} style={styles.wideRow}>
+          <WideActiveTile
+            icon="puzzle"
+            title="Monte a Cena"
+            desc="Junte as peças e revele uma cena da Bíblia."
+            cta="Jogar"
+            tint="#F3E8FF" border="#D7C2F5" bg="#7C3AED20" btnColor={pt.purple}
+            onPress={() => navigation.navigate(ROUTES.MONTE_A_CENA_HOME)}
+          />
         </AnimatedCard>
-
-        {/* SÓ sob o Modo Criador (isInternalToolsEnabled), "Monte a Cena" vira um card LARGO
-            "Em teste" que abre a SELEÇÃO DE NÍVEIS (M1R2). Com o modo desligado, permanece
-            "Em preparação" na grade e NÃO navega. `key` explícita; resto por spread. */}
-        {isInternalToolsEnabled() ? (
-          <AnimatedCard delay={250} style={styles.wideRow}>
-            <TestingWideTile
-              icon="puzzle"
-              title="Monte a Cena"
-              desc="Junte as peças e revele uma cena da Bíblia."
-              onPress={() => navigation.navigate(ROUTES.MONTE_A_CENA_HOME)}
-            />
-          </AnimatedCard>
-        ) : (
-          <AnimatedCard delay={250} style={styles.grid}>
-            {EM_PREPARO.map(({ id, ...tileProps }) => (
-              <View key={id} style={styles.gridItem}>
-                <ComingTile {...tileProps} />
-              </View>
-            ))}
-          </AnimatedCard>
-        )}
 
         {/* ── Minhas artes ── */}
         <AnimatedCard delay={300} style={styles.sectionHead}>
@@ -482,48 +349,20 @@ const styles = StyleSheet.create({
   wideTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 2 },
   wideHint: { fontFamily: 'Nunito', fontSize: 11, color: '#7A5800', fontWeight: '800', marginTop: 3 },
 
-  // Card largo de teste interno (Modo Criador) — chip "Em teste".
-  testBadge: { alignSelf: 'flex-start', backgroundColor: '#E7DEFB', borderRadius: radii.pill, paddingHorizontal: 9, paddingVertical: 2, marginBottom: 4 },
-  testBadgeText: { fontFamily: 'FredokaOne', fontSize: 10, color: '#5B4894', letterSpacing: 0.3 },
-
-  // Grade dos cards em preparo: 2 por linha, e o 3º ocupa metade da linha seguinte
-  // (não estica para a largura toda — ficaria desproporcional ao lado dos outros).
-  grid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 10,
-    marginTop: 10, marginHorizontal: 16,
-  },
-  gridItem: { flexBasis: '48%', flexGrow: 0, flexShrink: 1 },
-
   tile: {
     flex: 1, borderRadius: radii.lg, borderWidth: 1.5, padding: 13,
     alignItems: 'flex-start', ...shadows.soft,
   },
-  // Card jogável: borda mais firme e sombra de cartão — pesa mais que o "Chegando".
+  // Card jogável: borda firme e sombra de cartão.
   tileAtivo: { borderWidth: 2, ...shadows.card },
-  tileComing: { opacity: 0.9 },
   tileIconBg: {
     width: 42, height: 42, borderRadius: 14,
     justifyContent: 'center', alignItems: 'center', marginBottom: 9,
   },
   tileTitle: { fontFamily: 'FredokaOne', fontSize: 14, color: pt.text, marginBottom: 3, minHeight: 38 },
-  tileTitleComing: { color: pt.textSoft },
   tileDesc: { fontFamily: 'Nunito', fontSize: 11, color: pt.textSoft, lineHeight: 15, marginBottom: 10, minHeight: 30 },
   tileBtn: { borderRadius: radii.pill, paddingHorizontal: 10, paddingVertical: 9, alignSelf: 'stretch', alignItems: 'center' },
   tileBtnText: { fontFamily: 'FredokaOne', fontSize: 12, color: '#FFF' },
-
-  comingBadge: {
-    alignSelf: 'flex-end', backgroundColor: 'rgba(255,255,255,0.85)',
-    borderRadius: radii.pill, paddingHorizontal: 9, paddingVertical: 3,
-    marginBottom: 4, borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)',
-  },
-  comingBadgeText: { fontFamily: 'Nunito', fontSize: 10, fontWeight: '800', color: pt.textSoft },
-  comingFoot: {
-    alignSelf: 'stretch', alignItems: 'center',
-    borderRadius: radii.pill, paddingVertical: 9,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)',
-  },
-  comingFootText: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: pt.textSoft },
 
   cardCompact: {
     marginHorizontal: 16, marginTop: 16,

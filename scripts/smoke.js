@@ -15858,9 +15858,9 @@ check(
 
     // Bloco 1.3a — MIGRADO de 6 para 5 cards: "Desenho guiado pelo Beni" saiu da UI
     // (decisão de produto). O fluxo legado segue vivo — ver check 1.3a (legado).
-    check('1.2 (cards): as 5 atividades existem na tela',
+    check('1.2 (cards): as 5 atividades user-facing existem na tela',
       ['Criar livre', 'Pares do Beni',
-        'Palavrinhas do Beni', 'Bichinhos da Bíblia', 'Cadê a Ovelhinha?']
+        'Palavrinhas do Beni', 'Cadê a Ovelhinha?', 'Monte a Cena']
         .every((t) => brc.includes(t)),
       'faltou uma das 5 atividades na BrincarScreen');
 
@@ -15870,14 +15870,14 @@ check(
       && /navigate\(ROUTES\.ATELIER_GALLERY\)/.test(brcNoCom),
       'os cards ativos não abrem AtelierCanvas, ou a galeria sumiu');
 
-    // O CORPO de ComingTile não pode ter onPress/SoundButton: card em preparo não abre tela.
-    const corpoComing = (brcNoCom.match(/function ComingTile[\s\S]*?\n\}/) || [''])[0];
-    check('1.2 (em preparo): ComingTile não navega; a abertura interna é gated por isInternalToolsEnabled',
-      corpoComing.length > 0
-      && !/navigate\(/.test(corpoComing)                     // ComingTile não hardcoda navegação
-      && /isInternalToolsEnabled\(\) \? \(/.test(brcNoCom)   // ramo interno separado (card largo de teste)
-      && /O Beni está preparando/.test(corpoComing),
-      'a abertura do card em preparo não está gated pelo Modo Criador');
+    // Fechamento — Monte a Cena PUBLICADO: card largo user-facing "Jogar" que abre a rota
+    // oficial. Nada de "Em teste"/"Testar", nada de gate por Modo Criador, nada de "em preparo".
+    check('Fechamento (Monte a Cena publicado): card user-facing "Jogar" → rota oficial, sem "Em teste"',
+      /title="Monte a Cena"/.test(brc) && /navigate\(ROUTES\.MONTE_A_CENA_HOME\)/.test(brcNoCom)
+      && !/Em teste/.test(brc) && !/Testar/.test(brc)
+      && !/ComingTile|TestingWideTile|TestingTile|EM_PREPARO/.test(brcNoCom)
+      && !/Chegando em breve/.test(brc),
+      'Monte a Cena não foi publicado como card user-facing, ou sobrou "Em teste"/"em preparo"');
 
     check('1.2 (colorir): "Colorir uma história" NÃO é card da aba Brincar',
       !/Colorir uma hist/.test(brcNoCom) && !/screen: 'Aventuras'/.test(brcNoCom),
@@ -16139,13 +16139,10 @@ check(
 
     check('1.3a (key): nenhum objeto com campo `key` é espalhado em JSX na BrincarScreen',
       (() => {
-        // Os itens em preparo identificam-se por `id`; a chave vai explícita no map.
+        // Fechamento: o map de dados (EM_PREPARO) saiu; não há mais spread de item cru em JSX.
         const temKeyNoDado = /^\s*\{\s*key:\s*'/m.test(brcAn);
         const spreads = brcAn.match(/<\w+\s+\{\.\.\.(\w+)\}/g) || [];
-        const espalhaItemCru = spreads.some((s) => /\{\.\.\.(EM_PREPARO|item)\b/.test(s));
-        return !temKeyNoDado && !espalhaItemCru
-          && /EM_PREPARO\.map\(\(\{ id, \.\.\.tileProps \}\)/.test(brcAn)
-          && /<View key=\{id\}/.test(brcAn);
+        return !temKeyNoDado && spreads.length === 0;
       })(),
       'um objeto contendo `key` voltou a ser espalhado em JSX (aviso do React ao abrir Brincar)');
 
@@ -16164,8 +16161,10 @@ check(
         const fim = (pdbA.match(/const salvarPartida = useCallback\(async \([\s\S]*?\n  \}/) || [''])[0];
         return /try \{/.test(fim) && /catch \(e\) \{\s*warn\(/.test(fim)
           && /setResultado\(\{/.test(fim)
-          // quem troca de tela é o chamador, e ele roda mesmo se o await falhar
-          && /salvarPartida\(\);\s*setTela\('resultado'\);/.test(pdbA)
+          // R2C: o Clássico salva e entra na contemplação; o resultado é agendado (setTela mais tarde).
+          && /salvarPartida\(\);\s*setConclusao\('celebrando'\)/.test(pdbA)
+          && /setConclusao\(null\); setTela\('resultado'\)/.test(pdbA)
+          // Turbo intacto: salva e mostra "Tempo encerrado" antes do resultado.
           && /salvarPartida\(\);\s*setTela\('tempoEsgotado'\);/.test(pdbA);
       })(),
       'salvarPartida() pode lançar e impedir a tela de resultado de aparecer');
@@ -16184,23 +16183,26 @@ check(
       && /ATELIER_CANVAS: 'AtelierCanvas'/.test(readSrc('src/constants/routes.js')),
       'o fluxo legado do Desenho guiado foi apagado — só a UI deveria ter mudado');
 
-    check('1.3a/UF1/OV4 (grade): 2 ActiveTile (Pares, Criar livre) + 2 WideActiveTile (Palavrinhas, Cadê a Ovelhinha? user-facing) + 1 em preparo (Bichinhos)',
+    // Fechamento — grade user-facing: 2 ActiveTile (Pares, Criar livre) + 3 WideActiveTile
+    // (Palavrinhas, Cadê a Ovelhinha?, Monte a Cena publicado). ZERO cards "em preparo".
+    check('1.3a/UF1/OV4/fechamento (grade): 2 ActiveTile + 3 WideActiveTile (Palavrinhas, Ovelhinha, Monte a Cena)',
       (() => {
         const emPreparo = (brcAn.match(/\{ id: '[a-z_]+', icon:/g) || []).length;
         const ativos = (brcAn.match(/<ActiveTile\b/g) || []).length;
         const wide = (brcAn.match(/<WideActiveTile\b/g) || []).length;
-        return emPreparo === 1 && ativos === 2 && wide === 2   // OV4: ovelha saiu de "em preparo" e virou WideActiveTile
+        return emPreparo === 0 && ativos === 2 && wide === 3
           && /navigate\(ROUTES\.PARES_DO_BENI\)/.test(brcAn)
           && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brcAn)
-          && /navigate\(ROUTES\.CADE_A_OVELHINHA\)/.test(brcAn);
+          && /navigate\(ROUTES\.CADE_A_OVELHINHA\)/.test(brcAn)
+          && /navigate\(ROUTES\.MONTE_A_CENA_HOME\)/.test(brcAn);
       })(),
-      'a aba Brincar não está com 2 ActiveTile + 2 WideActiveTile (Palavrinhas + Ovelhinha) + 1 em preparo');
+      'a aba Brincar não está com 2 ActiveTile + 3 WideActiveTile (Palavrinhas + Ovelhinha + Monte a Cena)');
 
-    check('1.3a (em preparo): abertura do card em preparo é gated; nenhum emoji voltou',
-      /function ComingTile/.test(brcAn)
-      && /isInternalToolsEnabled\(\) \? \(/.test(brcAn)
+    check('1.3a/fechamento (sem "em preparo"): seção vazia removida; sem ComingTile; sem emoji',
+      !/function ComingTile/.test(brcAn) && !/Chegando em breve/.test(brcA)
+      && !/isInternalToolsEnabled/.test(brcAn)   // BrincarScreen não gateia mais nenhum card
       && !/\p{Extended_Pictographic}/u.test(brcA),
-      'a abertura do card em preparo não está gated, ou entrou emoji na BrincarScreen');
+      'sobrou a seção "em preparo"/ComingTile/gate na aba Brincar, ou entrou emoji');
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -16218,6 +16220,8 @@ check(
     const fr14 = readSrc('src/data/gameCardFraming.js');
     const pdb14raw = readSrc('src/screens/ParesDoBeniScreen.js');
     const pdb14 = a1StripComments(pdb14raw);
+    // R2A: a carta virou componente próprio (ParesFlipCard) e o verso premium (ParesCardBack).
+    const pfc14 = a1StripComments(readSrc('src/components/pares/ParesFlipCard.js'));
     const brc14 = a1StripComments(readSrc('src/screens/BrincarScreen.js'));
 
     // Núcleo puro dos dois módulos, avaliado de verdade.
@@ -16316,29 +16320,35 @@ check(
       'a migração do formato antigo de recordes perde dados de quem já jogou');
 
     // ── Tela: animações, travas e limpeza ────────────────────────────────────
+    // R2A: o flip permanece em RN Animated (duas faces montadas), agora em ParesFlipCard.
     check('1.4 (flip): giro real no eixo Y, sem imagem espelhada, no driver nativo',
-      /rotateY: rotVerso/.test(pdb14) && /rotateY: rotFrente/.test(pdb14)
-      && /outputRange: \['180deg', '360deg'\]/.test(pdb14)
-      && /backfaceVisibility: 'hidden'/.test(pdb14)
-      && /duration: T\.flip/.test(pdb14) && /flip: 300/.test(pdb14)
-      && !/useNativeDriver: false/.test(pdb14),
+      /rotateY: rotVerso/.test(pfc14) && /rotateY: rotFrente/.test(pfc14)
+      && /outputRange: \['180deg', '360deg'\]/.test(pfc14)
+      && /backfaceVisibility: 'hidden'/.test(pfc14)
+      && /flipDuration = 280/.test(pfc14)   // duração única 240–300 ms
+      && !/useNativeDriver: false/.test(pfc14),
       'o flip não é um giro real em Y, ou deixou de usar backfaceVisibility/driver nativo');
 
     // MIGRADO 1.4b: a sequência saiu do handler e virou máquina de estados. A ordem
     // agora é garantida por transição de fase — o comportamento é testado no bloco 1.4b.
+    // R2A: a chacoalhada e a borda de erro moraram para ParesFlipCard.
     check('1.4 (erro): a chacoalhada existe e a grade só libera ao fim da sequência',
       /chacoalhar: 380/.test(pdb14)   // 300–450 ms
       && /observar: 420/.test(pdb14)  // as duas cartas visíveis antes de verificar
       && /case EFEITOS\.AGENDAR_FECHAR: fn\.current\.agendar\(\(\) => fn\.current\.aplicar\(fechar\), T\.chacoalhar\)/.test(pdb14)
-      && /errando && styles\.cartaFrenteErro/.test(pdb14),
+      && /if \(!errando\) return undefined;/.test(pfc14)   // chacoalhada na carta
+      && /errando \? '#E8A33D'/.test(pfc14),               // borda de erro na frente
       'a sequência de erro libera a grade cedo demais, ou perdeu a chacoalhada');
 
-    check('1.4 (acerto): pop de crescer e voltar; as cartas continuam na grade',
-      /if \(!casada\) return undefined;/.test(pdb14)
-      && /toValue: 1\.1/.test(pdb14) && /Animated\.spring\(pop/.test(pdb14)
-      && /PARES_SOUND_EVENTS\.MATCH/.test(pdb14)
+    // R2A: pop/efeitos de acerto moraram para ParesFlipCard; o baralho nunca perde cartas.
+    // R2B §7: o acerto NÃO escala mais a carta (pop removido). Celebra com pulso de luz +
+    // véu temporário + estrela, e o baralho nunca perde cartas.
+    check('1.4 (acerto): celebra sem escalar a carta; as cartas continuam na grade',
+      /if \(!casada\)/.test(pfc14) && /return undefined;/.test(pfc14)
+      && /Animated\.timing\(pulso/.test(pfc14) && /PARES_SOUND_EVENTS\.MATCH/.test(pdb14)
+      && !/Animated\.spring\(pop/.test(pfc14)   // §7 — sem pop de escala no encontrado
       && !/filter\(\(c\) => !casadas/.test(pdb14),   // nada é removido do baralho
-      'o acerto perdeu o pop, o som, ou passou a remover cartas da grade');
+      'o acerto voltou a escalar a carta, perdeu o som, ou passou a remover cartas da grade');
 
     // MIGRADO 1.4b: a decisão saiu do estado React (que chegava atrasado e permitia a
     // 3ª carta) e virou máquina pura. Aqui só guardamos a ARQUITETURA; o comportamento
@@ -16374,7 +16384,8 @@ check(
     check('1.4 (pausa): app em segundo plano ou tela sem foco param o relógio',
       /AppState\.addEventListener\('change'/.test(pdb14)
       && /navigation\.addListener\('blur', \(\) => setPausado\(true\)\)/.test(pdb14)
-      && /if \(!jogando \|\| pausado\) return undefined;/.test(pdb14),
+      // R2A: o relógio também espera as cartas ficarem prontas (§2) — a pausa continua parando.
+      && /if \(!jogando \|\| pausado \|\| !cartasProntas\) return undefined;/.test(pdb14),
       'o cronômetro continua correndo com o app em segundo plano ou fora da tela');
 
     check('1.4 (som): efeitos com fallback seguro, throttle e liberação',
@@ -16386,11 +16397,12 @@ check(
       && !/expo-av/.test(am14),   // segue em expo-audio
       'os efeitos do jogo podem quebrar a tela, empilhar sons, ou voltaram para expo-av');
 
+    // R2A: o enquadramento é consumido pela carta (ParesFlipCard) via a janela proporcional.
     check('1.4 (Abraão): enquadramento por ponto focal corrige a carta cortada',
       /abraham_stars: \{ focalX: 1, focalY: 0\.55, zoom: 1\.45 \}/.test(fr14)
       && /export function getCardFraming/.test(fr14)
-      && /getCardFraming\(storyId\)/.test(pdb14)
-      && /computeCardImageLayout/.test(pdb14),
+      && /getCardFraming\(storyId\)/.test(pfc14)
+      && /computeProportionalWindow/.test(pfc14),
       'o ajuste de enquadramento de Abraão sumiu, ou a carta deixou de usá-lo');
 
     check('1.4 (enquadramento/puro): sem ajuste = recorte centrado (nada muda nas outras cartas)',
@@ -16412,10 +16424,10 @@ check(
       'o enquadramento padrão deixou de ser o recorte centrado, ou o de Abraão não desloca');
 
     // ── Aba Brincar ──────────────────────────────────────────────────────────
-    check('1.4/UF1/OV4 (hub): 5 cards (2 ActiveTile + 2 WideActiveTile + 1 em preparo), Desenho guiado fora da UI, legado do Ateliê preservado',
+    check('1.4/UF1/OV4/fechamento (hub): 5 cards (2 ActiveTile + 3 WideActiveTile), Desenho guiado fora da UI, legado do Ateliê preservado',
       (brc14.match(/<ActiveTile\b/g) || []).length === 2
-      && (brc14.match(/<WideActiveTile\b/g) || []).length === 2   // OV4: Palavrinhas + Cadê a Ovelhinha?
-      && (brc14.match(/\{ id: '[a-z_]+', icon:/g) || []).length === 1   // OV: 1 card em preparo (Monte a Cena)
+      && (brc14.match(/<WideActiveTile\b/g) || []).length === 3   // Palavrinhas + Ovelhinha + Monte a Cena
+      && (brc14.match(/\{ id: '[a-z_]+', icon:/g) || []).length === 0   // sem "em preparo"
       && !/Desenho guiado/.test(brc14)
       && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brc14)
       && /navigate\(ROUTES\.ATELIER_GALLERY\)/.test(brc14)
@@ -16914,19 +16926,23 @@ check(
       } catch (e) { return false; } })(),
       'o cálculo pode devolver carta zero, negativa ou NaN');
 
+    // R2A §4: a proporção é uma fonte única — computeGridLayout recebe cardAspectRatio: CARD_RATIO,
+    // devolve cardWidth/cardHeight juntos e a carta recebe os dois (não recalcula a altura).
     check('1.4c (proporção): a tela desenha a carta com a MESMA proporção do cálculo',
-      /const h = size \* CARD_RATIO;/.test(pdbC)
-      && /CARD_RATIO/.test(pdbC) && /export const CARD_RATIO/.test(pgC)
+      /cardAspectRatio: CARD_RATIO/.test(pdbC)
+      && /export const CARD_RATIO/.test(pgC)
+      && /width=\{layout\.cardWidth\}/.test(pdbC) && /height=\{layout\.cardHeight\}/.test(pdbC)
       && !/size \* 1\.1[0-9]/.test(pdbC),   // nenhuma proporção solta
       'a carta é desenhada com proporção diferente da usada no cálculo — a conta mente');
 
+    // R2A §4: computeGridLayout substituiu computeCardSize e passou a devolver posições.
     check('1.4c (medição): o tabuleiro mede a altura real que sobrou',
       /onLayout=\{medirTabuleiro\}/.test(pdbC)
       && /const medirTabuleiro = useCallback/.test(pdbC)
-      && /computeCardSize\(\{/.test(pdbC)
-      && /altura: alturaTabuleiro - GRADE_PADDING_V \* 2/.test(pdbC)
+      && /computeGridLayout\(\{/.test(pdbC)
+      && /screenHeight: alturaTabuleiro/.test(pdbC)
       // sem ScrollView na partida: nada de carta escondida atrás de rolagem
-      && !/<ScrollView[\s\S]{0,400}styles\.grade/.test(pdbC),
+      && !/<ScrollView[\s\S]{0,400}ParesFlipCard/.test(pdbC),
       'o tabuleiro não mede a altura útil, ou voltou a rolar durante a partida');
 
     // MIGRADO 1.4d: a moldura DEVE encostar nos limites da janela. Recuar pela safe
@@ -16964,16 +16980,13 @@ check(
       && /headerCompacto/.test(pdbC),
       'o cabeçalho voltou a empilhar título e botão, ou perdeu a safe area');
 
-    check('1.4c (HUD): três itens (tempo · pares · combo) e nada de "faltam X pontos"',
-      (() => {
-        const hud = (pdbC.match(/<View style=\{styles\.hud\}>[\s\S]*?<\/View>\s*\)/) || [''])[0];
-        return !/Faltam \$\{/.test(pdbC) && !/styles\.meta/.test(pdbC)
-          && !/Grades completas:/.test(pdbC)
-          && /icone="combo"/.test(hud) && /icone="pares"/.test(hud) && /name="timer"/.test(hud)
-          // a pontuação saiu do HUD do Turbo
-          && !/icone="star"/.test(hud);
-      })(),
-      'o HUD voltou a exibir pontuação, meta de recorde ou grades completas');
+    // R2B §9: o item "combo" do HUD virou o MEDIDOR de sequência (ParesStreakMeter).
+    check('1.4c (HUD): tempo · pares · medidor de sequência; nada de "faltam X pontos"',
+      !/Faltam \$\{/.test(pdbC) && !/styles\.meta/.test(pdbC)
+      && !/Grades completas:/.test(pdbC)
+      && /icone="pares"/.test(pdbC) && /name="timer"/.test(pdbC)
+      && /<ParesStreakMeter/.test(pdbC),   // o combo virou o medidor de sequência
+      'o HUD voltou a exibir pontuação/meta/grades, ou perdeu o medidor de sequência');
 
     check('1.4c (dica): frase baixa, some depois da primeira jogada e não pula o layout',
       /vista\.jogadas === 0 \? dica : ''/.test(pdbC)
@@ -17356,11 +17369,684 @@ check(
     check('1.4d (nada regrediu): máquina, flip, grade responsiva e recompensa intactos',
       /aplicar\(tocar, i\)/.test(pdbD)
       && /onFlipEnd=\{cartaAbriu\}/.test(pdbD)
-      && /computeCardSize\(\{/.test(pdbD)
+      && /computeGridLayout\(\{/.test(pdbD)   // R2A: geometria única (substituiu computeCardSize)
       && /onLayout=\{medirTabuleiro\}/.test(pdbD)
       && !/travado\.current/.test(pdbD)
       && !/\p{Extended_Pictographic}/u.test(pdbDraw),
       'o bloco 1.4d regrediu a máquina, o flip ou a grade responsiva');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco R2A — Pares do Beni: reconstrução visual e estabilização (Clássico + Turbo).
+  //   · carta reconstruída (ParesFlipCard/ParesCardBack), flip RN Animated mantido
+  //   · janela proporcional marfim (§3/§6): capa 16:9 com proporção preservada
+  //   · geometria única da grade (paresGridLayout): tamanho E posição de cada carta
+  //   · pré-carregamento das capas antes de habilitar as cartas (§2)
+  //   · diagnóstico do criador só sob Modo Criador; Monte a Cena e regras diárias intactos
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco R2A: Pares do Beni (reconstrução visual + estabilização) ──');
+  {
+    const glSrc = readSrc('src/services/paresGridLayout.js');
+    const gcfSrc = readSrc('src/data/gameCardFraming.js');
+    const pmR2 = readSrc('src/services/paresGameMachine.js');
+    const pfcR = a1StripComments(readSrc('src/components/pares/ParesFlipCard.js'));
+    const pcbR = a1StripComments(readSrc('src/components/pares/ParesCardBack.js'));
+    const cdR = a1StripComments(readSrc('src/components/pares/ParesCreatorDiagnostics.js'));
+    const preR = a1StripComments(readSrc('src/services/paresImagePreload.js'));
+    const pdbR = a1StripComments(readSrc('src/screens/ParesDoBeniScreen.js'));
+    const brdR = readSrc('src/services/brincarDailyService.js');
+    const upeR = readSrc('src/hooks/usePuzzleEngine.js');   // invariante do Monte a Cena
+
+    const evalGrid = () => new Function(
+      a1StripComments(glSrc)
+        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+default[\s\S]*$/m, '')
+        .replace(/^export\s+/gm, '')
+      + ';return { computeGridLayout, rowsFor, CARD_MIN_WIDTH, CARD_ASPECT };',
+    )();
+    const evalFraming = () => new Function(
+      a1StripComments(gcfSrc)
+        .replace(/^export\s+default[\s\S]*$/m, '')
+        .replace(/^export\s+/gm, '')
+      + ';return { getCardFraming, computeCardImageLayout, computeProportionalWindow, CARD_WINDOW_ASPECT };',
+    )();
+    const evalPM = () => new Function(
+      'isPair', 'pointsForMatch',
+      a1StripComments(pmR2)
+        .replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+default[\s\S]*$/m, '')
+        .replace(/^export\s+/gm, '')
+      + ';return { FASES, FASES_QUE_ACEITAM, criarJogo, aceitaToque, tocar, flipConcluido, verificar, fechar };',
+    )((a, b) => !!a && !!b && a.key !== b.key && a.storyId === b.storyId, () => 100);
+
+    // ── §2 · A carta (ParesFlipCard) ──────────────────────────────────────────
+    check('R2A §2 (faces montadas): verso e frente coexistem, controlados por ângulo/opacidade',
+      /<ParesCardBack/.test(pfcR) && /<CartaFrenteImagem/.test(pfcR)
+      && /versoOpacity/.test(pfcR) && /frenteOpacity/.test(pfcR)
+      && !/virada \? </.test(pfcR),   // nenhuma face é desmontada ao fechar
+      'a carta desmonta uma face, ou não mantém as duas montadas');
+
+    check('R2A §2 (imagem não troca no giro): a fonte deriva só do storyId, não do flip',
+      /const cover = forceNoCover \? null : getStoryCoverImage\(storyId\)/.test(pfcR)
+      && /source=\{cover\}/.test(pfcR)
+      && !/aberta \? .*getStoryCoverImage/.test(pfcR),
+      'a imagem da frente pode trocar durante o giro');
+
+    check('R2A §2 (backfaceVisibility + driver nativo): giro real, nunca opacidade fingindo rotação',
+      /backfaceVisibility: 'hidden'/.test(pfcR)
+      && /rotateY: rotVerso/.test(pfcR) && /rotateY: rotFrente/.test(pfcR)
+      && !/useNativeDriver: false/.test(pfcR),
+      'o flip perdeu backfaceVisibility, o giro em Y ou o driver nativo');
+
+    check('R2A §2 (duração única 240–300 ms): uma só duração de flip',
+      /flipDuration = 280/.test(pfcR)
+      && !/duration: (2[0-3][0-9]|3[0-9][0-9])[^0-9].*rotate/.test(pfcR),
+      'a duração do flip saiu da faixa 240–300 ms ou virou duas durações');
+
+    check('R2A §2 (movimento reduzido): transição curta, sem rotação completa',
+      /reduceMotion \? 150 : flipDuration/.test(pfcR)
+      && /versoTransform = reduceMotion/.test(pfcR)   // sem rotateY em reduzido
+      && /AccessibilityInfo\.isReduceMotionEnabled/.test(pdbR)
+      && /reduceMotion=\{reduceMotion\}/.test(pdbR),
+      'o modo de movimento reduzido ainda força a rotação completa');
+
+    // ── §2 · Pré-carregamento ────────────────────────────────────────────────
+    check('R2A §2 (preparo): as cartas só aceitam toque depois das capas decodificarem',
+      /if \(pausado \|\| !cartasProntas \|\| conclusao\) return;/.test(pdbR)   // R2C: e nada durante a conclusão
+      && /Beni está preparando as cartas/.test(pdbR)
+      && /preloadCovers\(/.test(pdbR) && /coversReady\(/.test(pdbR),
+      'a criança pode tocar antes de as imagens ficarem prontas, ou o preparo sumiu');
+
+    check('R2A §2 (preload/serviço): aquece via expo-asset, com teto de tempo e idempotência',
+      /Asset\.fromModule\([\s\S]*?\)\.downloadAsync\(\)/.test(preR)
+      && /export function coversReady/.test(preR)
+      && /export async function preloadCovers/.test(preR)
+      && /PRELOAD_TIMEOUT_MS/.test(preR),
+      'o serviço de pré-carregamento não usa expo-asset, ou perdeu o teto de tempo');
+
+    // ── §3/§6 · Janela proporcional (fundo marfim, sem esticar, sem cortar rosto) ──
+    check('R2A §3 (janela/puro): a capa 16:9 fica na janela ~4:3 com proporção preservada e marfim',
+      (() => { try {
+        const F = evalFraming();
+        if (Math.abs(F.CARD_WINDOW_ASPECT - 4 / 3) > 1e-9) return false;
+        const { window: win, image } = F.computeProportionalWindow(1672, 941, 90, 99, F.getCardFraming('x'));
+        // janela limitada pela largura, centralizada (marfim simétrico em cima/embaixo)
+        if (win.width !== 90 || !(win.height < 99)) return false;
+        if (Math.abs(win.y - (99 - win.height) / 2) > 0.01) return false;
+        // imagem cobre a janela e mantém a proporção da fonte (não estica para vertical)
+        if (!(image.width >= win.width - 0.01 && image.height >= win.height - 0.01)) return false;
+        return Math.abs(image.width / image.height - 1672 / 941) < 0.01;
+      } catch (e) { return false; } })(),
+      'a janela estica a capa, corta a proporção ou perde o marfim ao redor');
+
+    check('R2A §6 (fallback de imagem): sem capa/sem dimensões → fundo marfim + ícone, nunca preto',
+      /if \(!cover \|\| !layout\)/.test(pfcR)
+      && /janelaVazia/.test(pfcR) && /name="bible"/.test(pfcR)
+      && /forceNoCover/.test(pfcR),
+      'a carta sem imagem expõe fundo preto/transparente em vez do marfim de fallback');
+
+    // R2C §1: a celebração some por completo; sobra só a estrela. Sem véu, sem contorno interno.
+    check('R2A §6 (acerto): cartas ficam abertas, celebração dourada + estrela — sem sumir a carta',
+      /styles\.contornoGrosso/.test(pfcR) && /styles\.estrela/.test(pfcR)
+      && /casada &&[\s\S]{0,140}styles\.estrela/.test(pfcR)
+      && !/\bcontornoFino\b/.test(pfcR)   // R2C — sem segunda linha dourada interna
+      && !/filter\(\(c\) => !casadas/.test(pdbR),
+      'o acerto esconde a imagem ou remove a carta da grade');
+
+    // ── §5 · Verso premium (SVG, sem raster) ─────────────────────────────────
+    check('R2A §5 (verso premium): SVG com moldura marfim, ouro, gradiente e símbolo — sem raster',
+      /from 'react-native-svg'/.test(pcbR)
+      && /LinearGradient/.test(pcbR) && /RadialGradient/.test(pcbR)
+      && /Circle/.test(pcbR) && /Path/.test(pcbR)
+      && !/<Image/.test(pcbR) && !/require\(/.test(pcbR),
+      'o verso deixou de ser vetor premium (virou raster, ou perdeu moldura/gradiente/símbolo)');
+
+    // ── §4 · Geometria da grade (pura) ───────────────────────────────────────
+    check('R2A §4 (grade/puro): todas as cartas do mesmo tamanho, gaps iguais, bloco centralizado',
+      (() => { try {
+        const G = evalGrid();
+        const L = G.computeGridLayout({
+          screenWidth: 390, screenHeight: 700, cardCount: 24, columns: 4,
+          preferredGap: 7, cardAspectRatio: 1.1, outerPaddingX: 14, outerPaddingY: 6,
+        });
+        // tamanho único + proporção consistente (FLOORED: a carta nunca vaza)
+        if (!(L.cardWidth > 0) || L.cardHeight !== Math.floor(L.cardWidth * 1.1)) return false;
+        // gaps iguais nos dois eixos
+        if (L.gapX !== 7 || L.gapY !== 7) return false;
+        // passo horizontal e vertical = carta + gap (todas iguais, sem space-between)
+        if (L.positions[1].x - L.positions[0].x !== L.cardWidth + L.gapX) return false;
+        if (L.positions[L.columns].y - L.positions[0].y !== L.cardHeight + L.gapY) return false;
+        return L.positions.length === 24;
+      } catch (e) { return false; } })(),
+      'a grade tem cartas de tamanhos diferentes, gaps desiguais ou não usa passo uniforme');
+
+    check('R2A §4 (grade/puro): bloco centralizado (margem esquerda = direita) numa tela larga',
+      (() => { try {
+        const G = evalGrid();
+        const L = G.computeGridLayout({
+          screenWidth: 500, screenHeight: 2000, cardCount: 12, columns: 3,
+          preferredGap: 7, cardAspectRatio: 1.1, outerPaddingX: 14, outerPaddingY: 6,
+        });
+        const leftM = L.offsetX - 14;
+        const rightM = (500 - 14) - (L.offsetX + L.gridWidth);
+        return leftM >= 0 && Math.abs(leftM - rightM) <= 1;
+      } catch (e) { return false; } })(),
+      'a grade não centraliza como bloco (margens laterais diferentes)');
+
+    check('R2A §4 (não vaza em 6 telas): 320/375/390/414/430/360 × Fácil/Médio/Difícil cabem sem piso',
+      (() => { try {
+        const G = evalGrid();
+        const devs = [[320, 568, 20, 0], [375, 667, 20, 0], [390, 844, 47, 34],
+          [414, 896, 48, 34], [430, 932, 59, 34], [360, 800, 24, 24]];
+        const difs = [[6, 3], [8, 4], [12, 4]];
+        const CHROME = 56 + 36 + 5 + 22;   // cabeçalho + HUD + barra + dica
+        for (const [w, h, st, sb] of devs) {
+          const board = h - st - sb - CHROME;
+          for (const [pairs, cols] of difs) {
+            const L = G.computeGridLayout({
+              screenWidth: Math.min(w, 520), screenHeight: board, cardCount: pairs * 2,
+              columns: cols, preferredGap: 7, cardAspectRatio: 1.1, outerPaddingX: 14, outerPaddingY: 6,
+            });
+            const availW = Math.min(w, 520) - 28;
+            const availH = board - 12;
+            // FLOORED: nunca arredonda o tamanho para cima → nunca vaza (nem 1 px)
+            if (L.gridWidth > availW + 0.01 || L.gridHeight > availH + 0.01) return false;
+            if (L.gapX !== 7 || L.gapY !== 7 || L.cardWidth <= 36) return false;
+          }
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'a grade vaza da tela (rounding do tamanho para cima) em algum aparelho/dificuldade');
+
+    check('R2A §4 (grade não encolhe/não move): posição vem do índice; a grade usa a contagem fixa',
+      /left: pos\.x - layout\.offsetX/.test(pdbR)
+      && /top: pos\.y - layout\.offsetY/.test(pdbR)
+      && /cardCount: dif\.pairs \* 2/.test(pdbR)   // fixa por rodada — não some com o acerto
+      && /layout\.positions\[i\]/.test(pdbR),
+      'a carta casada muda de lugar, ou a grade encolhe após o acerto');
+
+    // ── §7 · Lógica de interação (máquina pura) ──────────────────────────────
+    check('R2A §7 (interação): 3ª carta bloqueada, toque duplo na mesma carta não vira par, erro fecha junto',
+      (() => { try {
+        const M = evalPM();
+        const j = M.criarJogo({ deck: [
+          { key: 'a#a', storyId: 'a' }, { key: 'a#b', storyId: 'a' },
+          { key: 'b#a', storyId: 'b' }, { key: 'b#b', storyId: 'b' },
+        ], pares: 2 });
+        const t1 = M.tocar(j, 0);
+        const duplo = M.aceitaToque(t1.estado, 0) === false;      // mesma carta de novo: recusada
+        const f1 = M.flipConcluido(t1.estado, 0);
+        const t2 = M.tocar(f1.estado, 2);                          // histórias diferentes
+        const terceira = M.aceitaToque(t2.estado, 1) === false;    // 3ª carta: recusada
+        const f2 = M.flipConcluido(t2.estado, 2);
+        const v = M.verificar(f2.estado);                          // erro (a ≠ b)
+        const mantemAsDuas = v.estado.abertas.length === 2 && v.estado.fase === M.FASES.ERROR;
+        const c = M.fechar(v.estado);                              // fecha as duas JUNTAS
+        const fechaJunto = c.estado.abertas.length === 0 && c.estado.fase === M.FASES.IDLE;
+        return duplo && terceira && mantemAsDuas && fechaJunto;
+      } catch (e) { return false; } })(),
+      'a máquina aceita a 3ª carta, o toque duplo vira par, ou o erro não fecha as duas juntas');
+
+    // ── §8 · Clássico e Turbo (mesmo componente) ─────────────────────────────
+    check('R2A §8 (Clássico/Turbo): mesma carta e mesma grade — um único componente no tabuleiro',
+      (pdbR.match(/<ParesFlipCard/g) || []).length === 1
+      && /vista\.deck\.map/.test(pdbR)
+      && !/TurboCard|CartaTurbo/.test(pdbR),
+      'o Turbo passou a usar um componente de carta separado do Clássico');
+
+    // ── §10 · Diagnóstico do criador (só sob Modo Criador) ───────────────────
+    check('R2A §10 (diagnóstico): recolhível, invisível em produção, com as ações de teste',
+      /if \(!isInternalToolsEnabled\(\)\) return null;/.test(cdR)
+      && /'giro'/.test(cdR) && /'retorno'/.test(cdR) && /'acerto'/.test(cdR)
+      && /'imagem_lenta'/.test(cdR) && /'imagem_ausente'/.test(cdR)
+      && /'movimento_reduzido'/.test(cdR) && /'reiniciar'/.test(cdR)
+      && /rotationProgress|gridWidth/.test(cdR),
+      'o painel do criador aparece em produção, ou perdeu as ações/estados de teste');
+
+    // ── Regras comerciais e Monte a Cena intactos ────────────────────────────
+    check('R2A (regra diária intacta): 2 rodadas/dia grátis; rodada consumida só em comecar',
+      /BRINCAR_FREE_DAILY_ROUNDS = 2/.test(brdR)
+      && (pdbR.match(/consumeRound\(/g) || []).length === 1
+      && /BRINCAR_DAILY_STAR_CAP/.test(pdbR),
+      'as 2 rodadas diárias compartilhadas ou o ponto único de consumo mudaram');
+
+    check('R2A (Monte a Cena intacto): a tela do Pares não toca o motor do puzzle (js-safe preservado)',
+      !/monteACena/i.test(pdbR) && !/monteACena/i.test(pfcR)
+      && /js-safe/.test(upeR),
+      'o bloco do Pares tocou o Monte a Cena (import cruzado) ou o motor js-safe regrediu');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco R2B — Flip óptico (2.5D), grade premium e Fogo da Memória.
+  //   · flip com 3 camadas (verso/lateral/frente): nada de textura comprimida a ~90°
+  //   · gap ÓPTICO (sombra descontada) para as cartas não parecerem coladas
+  //   · encontrado assenta num contorno interno fino; sem escalar; sem sombra dourada
+  //   · Fogo da Memória: sequência de PARES (combo da máquina), evento único por par
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco R2B: Flip óptico + grade premium + Fogo da Memória ──');
+  {
+    const glR = readSrc('src/services/paresGridLayout.js');
+    const stR = readSrc('src/services/paresStreak.js');
+    const pmR = readSrc('src/services/paresGameMachine.js');
+    const pfcR = a1StripComments(readSrc('src/components/pares/ParesFlipCard.js'));
+    const pcbR = a1StripComments(readSrc('src/components/pares/ParesCardBack.js'));
+    const edgeR = a1StripComments(readSrc('src/components/pares/ParesCardEdge.js'));
+    const meterR = a1StripComments(readSrc('src/components/pares/ParesStreakMeter.js'));
+    const fxR = a1StripComments(readSrc('src/components/pares/ParesStreakFx.js'));
+    const pdbR = a1StripComments(readSrc('src/screens/ParesDoBeniScreen.js'));
+    const upeR = readSrc('src/hooks/usePuzzleEngine.js');
+
+    const evalGrid = () => new Function(
+      a1StripComments(glR).replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '')
+      + ';return { computeGridLayout };')();
+    const evalStreak = () => new Function(
+      a1StripComments(stR).replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '')
+      + ';return { FOGO_THRESHOLD, streakLevel, isFogo, streakLabel, streakSnapshot };')();
+    const evalPM = () => new Function('isPair', 'pointsForMatch',
+      a1StripComments(pmR).replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '')
+      + ';return { FASES, criarJogo, tocar, flipConcluido, verificar, liberar, fechar };',
+    )((a, b) => !!a && !!b && a.key !== b.key && a.storyId === b.storyId, () => 100);
+
+    // ── §2 · Flip 2.5D ────────────────────────────────────────────────────────
+    check('R2B §2 (lateral): existe uma 3ª camada (ParesCardEdge) visível na fase central',
+      /<ParesCardEdge/.test(pfcR)
+      && /inputRange: \[0\.44, 0\.456, 0\.544, 0\.56\], outputRange: \[0, 1, 1, 0\]/.test(pfcR)
+      && /export default/.test(edgeR) && /marfim|IVORY/.test(edgeR),
+      'a lateral 2.5D não existe ou não aparece na janela central do giro');
+
+    check('R2B §2 (texturas ocultas 82°–98°): verso some em ~82° e frente só aparece em ~98°',
+      /inputRange: \[0, 0\.45, 0\.456\], outputRange: \[1, 1, 0\]/.test(pfcR)   // verso opaco até ~82°
+      && /inputRange: \[0, 0\.544, 0\.56\], outputRange: \[0, 0, 1\]/.test(pfcR) // frente invisível antes de ~98°
+      && /backfaceVisibility: 'hidden'/.test(pfcR),
+      'no meio do giro (82°–98°) alguma face ilustrada ainda aparece comprimida');
+
+    check('R2B §2 (source estável): a imagem da frente deriva só do storyId, não do giro',
+      /const cover = forceNoCover \? null : getStoryCoverImage\(storyId\)/.test(pfcR)
+      && /\[storyId, width, height, cover\]/.test(pfcR)   // memo não depende de flip/aberta
+      && !/aberta[\s\S]{0,40}getStoryCoverImage/.test(pfcR),
+      'a fonte da imagem pode mudar durante o flip');
+
+    check('R2B §2 (sem escala no giro): giro normal é perspectiva+rotateY; reduzido é scaleX',
+      /versoTransform = reduceMotion \? \[\{ scaleX: scaleXreduced \}\] : \[\{ perspective: PERSPECTIVE \}, \{ rotateY: rotVerso \}\]/.test(pfcR)
+      && /PERSPECTIVE = 1300/.test(pfcR)   // §2 — 1200–1500
+      && !/Animated\.spring\(pop/.test(pfcR)
+      && !/shouldRasterizeIOS/.test(pfcR),
+      'o flip aplica escala na carta, saiu da faixa de perspectiva, ou usa shouldRasterizeIOS');
+
+    // R2C §1/§6: o véu foi REMOVIDO (imagem nunca opaca). A celebração dourada entra e SAI.
+    check('R2B §2/§6 (frente nítida ao final): sem véu permanente; celebração entra e sai; imagem sem fade',
+      /Animated\.timing\(celebra, \{ toValue: 1[\s\S]{0,240}Animated\.timing\(celebra, \{ toValue: 0/.test(pfcR)
+      && /fadeDuration=\{0\}/.test(pfcR)
+      && !/\bveu\b/.test(pfcR),   // véu removido de vez
+      'a imagem da frente não termina nítida (véu permanente) ou a celebração não sai');
+
+    check('R2B §2 (fechamento inverso): o mesmo Animated.Value volta a 0 (giro reverso exato)',
+      /toValue: virada \? 1 : 0/.test(pfcR),
+      'o fechamento não reproduz a animação inversa do mesmo valor');
+
+    // ── §3/§4 · Grade e sombra ────────────────────────────────────────────────
+    check('R2B §3 (gap óptico/puro): layoutGap = óptico + sombra dos 2 lados; mínimo respeitado',
+      (() => { try {
+        const G = evalGrid();
+        const L = G.computeGridLayout({
+          screenWidth: 390, screenHeight: 700, cardCount: 24, columns: 4,
+          desiredOpticalGapX: 9, desiredOpticalGapY: 9, shadowBleed: 2, minimumOpticalGap: 8,
+          cardAspectRatio: 1.1, outerPaddingX: 14, outerPaddingY: 6,
+        });
+        if (L.layoutGapX !== 13 || L.layoutGapY !== 13) return false;     // 9 + 2×2
+        if (L.opticalGapX !== 9 || L.opticalGapY !== 9) return false;
+        if (L.shadowBleed !== 2) return false;
+        if (!(L.opticalGapX >= L.minimumOpticalGap && L.opticalGapY >= L.minimumOpticalGap)) return false;
+        // passo entre cartas usa o gap de LAYOUT (não o óptico)
+        return L.positions[1].x - L.positions[0].x === L.cardWidth + L.layoutGapX;
+      } catch (e) { return false; } })(),
+      'o gap óptico não desconta a sombra, ou viola o mínimo, ou o passo ignora o layoutGap');
+
+    check('R2B §3 (gap por largura): ≥375 busca 8–10; <375 nunca abaixo de 6',
+      /opticalGapFor = \(w\) => \(w >= 375 \? 9 : 6\)/.test(pdbR)
+      && /minOpticalGapFor = \(w\) => \(w >= 375 \? 8 : 6\)/.test(pdbR)
+      && /desiredOpticalGapX: opticalGapFor/.test(pdbR)
+      && /shadowBleed: CARD_SHADOW_BLEED/.test(pdbR),
+      'a tela não pede o gap óptico por faixa de largura, ou não informa a sombra');
+
+    check('R2B §3 (não vaza c/ gap óptico em 6 telas): 320/360/375/390/414/430 × 3 dificuldades',
+      (() => { try {
+        const G = evalGrid();
+        const devs = [[320, 568, 20, 0], [360, 800, 24, 24], [375, 667, 20, 0], [390, 844, 47, 34], [414, 896, 48, 34], [430, 932, 59, 34]];
+        const difs = [[6, 3], [8, 4], [12, 4]];
+        const CHROME = 56 + 40 + 5 + 22;
+        for (const [w, h, st, sb] of devs) {
+          const board = h - st - sb - CHROME;
+          const opt = w >= 375 ? 9 : 6;
+          const minOpt = w >= 375 ? 8 : 6;
+          for (const [pairs, cols] of difs) {
+            const L = G.computeGridLayout({
+              screenWidth: Math.min(w, 520), screenHeight: board, cardCount: pairs * 2, columns: cols,
+              desiredOpticalGapX: opt, desiredOpticalGapY: opt, shadowBleed: 2, minimumOpticalGap: minOpt,
+              cardAspectRatio: 1.1, outerPaddingX: 14, outerPaddingY: 6,
+            });
+            if (L.gridWidth > (Math.min(w, 520) - 28) + 0.01 || L.gridHeight > (board - 12) + 0.01) return false;
+            if (L.opticalGapX < minOpt || L.cardWidth <= 36) return false;
+          }
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'com o gap óptico maior, a grade vaza ou fura o piso em algum aparelho');
+
+    check('R2B §4 (sombra curta, sem ouro permanente): profundidade pela moldura, não pela sombra',
+      /shadowRadius: 2/.test(pfcR) && /shadowOpacity: 0\.10/.test(pfcR)
+      && /elevation: 0/.test(pfcR) && /boxPressionada: \{ opacity: 0\.92, elevation: 3 \}/.test(pfcR)
+      && !/shadowColor: '#E6B455'|shadowColor: GOLD/.test(pfcR)   // sem sombra dourada
+      && /styles\.bevel/.test(pfcR),                              // bevel interno dá profundidade
+      'a sombra voltou a ser extensa/dourada, ou a elevação não é exclusiva do pressionado');
+
+    // ── §3/§6/§7 · Frame estável e encontrado interno ─────────────────────────
+    check('R2B §6 (frame imutável): pressionado/aberto/encontrado ocupam o MESMO frame externo',
+      /\{ width: w, height: h, borderRadius: radius, transform: \[\{ translateX: shakeX \}, \{ scale: entradaScale \}\] \}/.test(pfcR)
+      && !/casada &&[\s\S]{0,60}width:/.test(pfcR)   // nada de largura dependente de casada
+      && !/casada &&[\s\S]{0,60}scale:/.test(pfcR),  // nada de escala dependente de casada
+      'algum estado (pressionado/encontrado) muda o tamanho externo da carta');
+
+    // R2C §1: a celebração SOME por inteiro (celebra 0→1→0); no fim sobra só a estrela.
+    check('R2B §7 (encontrado assenta): celebração some; sobra só a estrela, dentro do frame',
+      /contornoGrosso: \{ borderWidth: 2\.5/.test(pfcR)
+      && !/\bcontornoFino\b/.test(pfcR)                  // sem contorno interno permanente
+      && /celebraOpacity = celebra/.test(pfcR)           // contorno grosso entra e SAI
+      && /styles\.estrela, \{[\s\S]{0,100}right: 4, bottom: 4/.test(pfcR),   // estrela no canto, dentro
+      'o encontrado mantém contorno extra permanente, ou a estrela escapa do frame');
+
+    // ── §8 · Fogo da Memória (puro) ───────────────────────────────────────────
+    check('R2B §8 (streak conta PARES): níveis 0-1→0 · 2→1 · 3→2 · 4+→3',
+      (() => { try {
+        const S = evalStreak();
+        return S.streakLevel(0) === 0 && S.streakLevel(1) === 0
+          && S.streakLevel(2) === 1 && S.streakLevel(3) === 2
+          && S.streakLevel(4) === 3 && S.streakLevel(9) === 3
+          && S.FOGO_THRESHOLD === 4
+          && /streakLevel\(vista\.combo\)/.test(pdbR);   // a tela deriva do combo (pares), não de cartas
+      } catch (e) { return false; } })(),
+      'o nível da sequência não segue 0-1/2/3/4+, ou não vem do combo (pares)');
+
+    check('R2B §8 (2 pares = 2×): rótulo positivo por sequência',
+      (() => { try {
+        const S = evalStreak();
+        return S.streakLabel(1) === '' && S.streakLabel(2) === 'Sequência 2×'
+          && S.streakLabel(3) === 'Sequência 3×';
+      } catch (e) { return false; } })(),
+      'a sequência não mostra "Sequência 2×/3×"');
+
+    check('R2B §8 (4 pares = Fogo da Memória): rótulo e flag corretos',
+      (() => { try {
+        const S = evalStreak();
+        return S.isFogo(3) === false && S.isFogo(4) === true
+          && S.streakLabel(4) === 'Fogo da Memória!' && S.streakLabel(6) === 'Fogo da Memória!';
+      } catch (e) { return false; } })(),
+      'o Fogo da Memória não acende no 4º par seguido');
+
+    check('R2B §8 (erro zera streak SEM penalidade): combo→0 na máquina; sem bônus de tempo no bloco',
+      (() => { try {
+        const M = evalPM();
+        // 3 pares: dá para ACERTAR um e depois ERRAR com dois de histórias diferentes.
+        const j = M.criarJogo({ deck: [
+          { key: 'a#a', storyId: 'a' }, { key: 'a#b', storyId: 'a' },
+          { key: 'b#a', storyId: 'b' }, { key: 'b#b', storyId: 'b' },
+          { key: 'c#a', storyId: 'c' }, { key: 'c#b', storyId: 'c' },
+        ], pares: 3 });
+        // acerto do par 'a' (0,1) → combo 1
+        let s = M.tocar(j, 0).estado; s = M.flipConcluido(s, 0).estado;
+        s = M.tocar(s, 1).estado; s = M.flipConcluido(s, 1).estado;
+        s = M.verificar(s).estado;
+        const comboAcerto = s.combo;      // 1
+        s = M.liberar(s).estado;          // grade não limpa (1/3) → volta a IDLE
+        // erro: abrir 2 (b) e 4 (c) — histórias diferentes
+        s = M.tocar(s, 2).estado; s = M.flipConcluido(s, 2).estado;
+        s = M.tocar(s, 4).estado; s = M.flipConcluido(s, 4).estado;
+        const err = M.verificar(s).estado;
+        return comboAcerto === 1 && err.combo === 0 && err.fase === M.FASES.ERROR
+          && /combo > prevComboRef\.current/.test(pdbR);   // spark só sobe, nunca no erro
+      } catch (e) { return false; } })(),
+      'o erro não zera a sequência de forma limpa, ou penaliza a criança');
+
+    check('R2B §8 (evento único): a centelha remonta por key do evento (antigo não apaga novo)',
+      /streakEventIdRef\.current \+= 1/.test(pdbR)
+      && /key=\{streakEvent\.id\}/.test(pdbR)
+      && /export function ParesSpark/.test(fxR) && /export function ParesFogoEmbers/.test(fxR),
+      'um evento antigo de sequência pode apagar o efeito do novo');
+
+    // ── §9 · Medidor e §11 movimento reduzido / mesmo sistema ─────────────────
+    check('R2B §9 (medidor): chama cresce por nível, maior; sem streak mostra contorno apagado',
+      /TAM_NIVEL = \[18, 22, 25, 29\]/.test(meterR)
+      && /name="combo"/.test(meterR)
+      && /labelApagado/.test(meterR),
+      'o medidor de sequência não escala a chama por nível, ou some sem streak');
+
+    check('R2B §11 (movimento reduzido): flip curto sem rotação; brasas desligadas',
+      /reduceMotion \? 150 : flipDuration/.test(pfcR) && /scaleXreduced/.test(pfcR)
+      && /const N = reduceMotion \? 0 : 6/.test(fxR) && /if \(!N\) return null/.test(fxR),
+      'o modo de movimento reduzido ainda gira a carta por completo ou dispara brasas');
+
+    check('R2B §11 (Clássico = Turbo): um único medidor de sequência para os dois modos',
+      (pdbR.match(/<ParesStreakMeter/g) || []).length === 1
+      && (pdbR.match(/<ParesFlipCard/g) || []).length === 1,
+      'Clássico e Turbo passaram a usar sistemas de carta/sequência diferentes');
+
+    // ── §5 · Verso refinado ───────────────────────────────────────────────────
+    check('R2B §5 (verso refinado): moldura fina + fio escuro 1pt + medalhão menor, sem +elementos',
+      /Math\.min\(W, H\) \* 0\.058/.test(pcbR)          // moldura mais fina
+      && /stroke=\{depth\}/.test(pcbR) && /strokeWidth="1"/.test(pcbR)   // fio de profundidade 1pt
+      && /med = Math\.min\(pw, ph\) \* 0\.20/.test(pcbR)   // medalhão menor
+      && !/<Image/.test(pcbR) && !/require\(/.test(pcbR),  // segue vetor, sem raster
+      'o verso não afinou a moldura, perdeu o fio de profundidade ou o medalhão menor');
+
+    check('R2B (Monte a Cena intocado): nada dos novos módulos importa Monte a Cena; js-safe vivo',
+      !/monteACena/i.test(pfcR) && !/monteACena/i.test(edgeR) && !/monteACena/i.test(fxR)
+      && !/monteACena/i.test(meterR) && !/monteACena/i.test(a1StripComments(stR))
+      && /js-safe/.test(upeR),
+      'um módulo do R2B tocou o Monte a Cena, ou o motor js-safe regrediu');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco R2C — Acerto limpo (sem borda dupla) + contemplação final de 2,5 s.
+  //   · encontrado assenta na moldura BASE + estrela pequena (sem borda dourada extra)
+  //   · último par → celebração → contemplação (tabuleiro visível) → resultado (fade)
+  //   · grade sobe ~24–36 pt e respeita a safe area de baixo (sem cortar linha)
+  //   · Modo Criador vira selo compacto; ações internas simulam sequência/contemplação
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco R2C: acerto limpo + contemplação final ──');
+  {
+    const glC = readSrc('src/services/paresGridLayout.js');
+    const pfcC = a1StripComments(readSrc('src/components/pares/ParesFlipCard.js'));
+    const pdbC2 = a1StripComments(readSrc('src/screens/ParesDoBeniScreen.js'));
+    const bannerC = a1StripComments(readSrc('src/components/dev/CreatorModeBanner.js'));
+    const cdC = a1StripComments(readSrc('src/components/pares/ParesCreatorDiagnostics.js'));
+    const upeC = readSrc('src/hooks/usePuzzleEngine.js');
+    const evalGridC = () => new Function(
+      a1StripComments(glC).replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '')
+        .replace(/^export\s+default[\s\S]*$/m, '').replace(/^export\s+/gm, '')
+      + ';return { computeGridLayout };')();
+
+    // ── §1 · Carta encontrada limpa ───────────────────────────────────────────
+    check('R2C §1 (frame base): fechada/aberta/encontrada têm a MESMA moldura externa',
+      /\{ width: w, height: h, borderRadius: radius, transform: \[\{ translateX: shakeX \}, \{ scale: entradaScale \}\] \}/.test(pfcC)
+      && /borderColor: errando \? '#E8A33D' : '#EADFC6'/.test(pfcC)   // base NEUTRA
+      && !/borderColor: casada \? GOLD/.test(pfcC),                    // sem borda dourada permanente
+      'a carta encontrada muda o frame base ou fica com borda externa dourada');
+
+    check('R2C §1 (sem borda dupla): settled não tem contorno interno fino nem 2ª linha dourada',
+      !/\bcontornoFino\b/.test(pfcC) && !/\bsettle\b/.test(pfcC) && !/\bveu\b/.test(pfcC),
+      'sobrou contorno interno/segunda linha dourada/véu no estado assentado');
+
+    check('R2C §1 (estrela dentro + reduzida ~18%): canto inferior direito, dentro do frame',
+      /const starSize = Math\.max\(8, Math\.round\(w \* 0\.125\)\)/.test(pfcC)
+      && /const starBadge = Math\.max\(14, Math\.round\(w \* 0\.20\)\)/.test(pfcC)
+      && /styles\.estrela, \{[\s\S]{0,100}right: 4, bottom: 4/.test(pfcC),
+      'a estrela não foi reduzida ~18% ou escapa do frame');
+
+    check('R2C §1 (efeito temporário não altera layout): overlays absolutos + pointerEvents none',
+      /pointerEvents="none" style=\{\[StyleSheet\.absoluteFill, styles\.contornoGrosso/.test(pfcC)
+      && /celebra = useRef/.test(pfcC)
+      && /Animated\.timing\(celebra, \{ toValue: 1[\s\S]{0,240}Animated\.timing\(celebra, \{ toValue: 0/.test(pfcC)   // entra e SAI
+      && /outputRange: \[0\.7, 1\]/.test(pfcC),   // pulso ≤ 1: não invade o gap
+      'a celebração altera o layout, não sai, ou o pulso invade o gap');
+
+    // ── §2 · Gap óptico preservado ────────────────────────────────────────────
+    check('R2C §2 (gap óptico ≥ mínimo, não aumentado): ≥375 ⇒ ≥8; <375 ⇒ ≥6',
+      (() => { try {
+        const G = evalGridC();
+        const a = G.computeGridLayout({ screenWidth: 390, screenHeight: 700, cardCount: 24, columns: 4, desiredOpticalGapX: 9, desiredOpticalGapY: 9, shadowBleed: 2, minimumOpticalGap: 8, cardAspectRatio: 1.1, outerPaddingX: 14, outerPaddingY: 6, footerHeight: 34 });
+        const b = G.computeGridLayout({ screenWidth: 360, screenHeight: 700, cardCount: 24, columns: 4, desiredOpticalGapX: 6, desiredOpticalGapY: 6, shadowBleed: 2, minimumOpticalGap: 6, cardAspectRatio: 1.1, outerPaddingX: 14, outerPaddingY: 6, footerHeight: 24 });
+        return a.opticalGapX >= 8 && a.opticalGapY >= 8 && b.opticalGapX >= 6 && b.opticalGapY >= 6
+          && /opticalGapFor = \(w\) => \(w >= 375 \? 9 : 6\)/.test(pdbC2);   // não aumentou os gaps
+      } catch (e) { return false; } })(),
+      'o gap óptico caiu abaixo do mínimo ou foi aumentado neste bloco');
+
+    // ── §3 · Equilíbrio vertical ──────────────────────────────────────────────
+    check('R2C §3 (reposição vertical): exclui safe area de baixo e sobe sem cortar a 1ª linha',
+      /footerHeight: insets\.bottom/.test(pdbC2)
+      && /folgaTopo = Math\.max\(0, \(alturaTabuleiro - layout\.gridHeight\) \/ 2\)/.test(pdbC2)
+      && /subirGrade = Math\.floor\(Math\.min\(insets\.bottom \/ 2 \+ 28, folgaTopo\)\)/.test(pdbC2)   // FLOOR: nunca passa do topo
+      && /transform: \[\{ translateY: -subirGrade \}\]/.test(pdbC2),
+      'a grade não exclui a safe area de baixo ou pode cortar a primeira linha');
+
+    check('R2C §3 (não corta em 320×568 nem em telas grandes): subida clampada à folga',
+      (() => { try {
+        const G = evalGridC();
+        for (const [w, h, sb] of [[320, 568, 0], [390, 844, 34], [430, 932, 34]]) {
+          const board = h - 123 - sb;   // ~cabeçalho+HUD+barra+dica (safe bottom via footerHeight)
+          const opt = w >= 375 ? 9 : 6;
+          for (const [pairs, cols] of [[6, 3], [8, 4], [12, 4]]) {
+            const L = G.computeGridLayout({ screenWidth: Math.min(w, 520), screenHeight: board, cardCount: pairs * 2, columns: cols, desiredOpticalGapX: opt, desiredOpticalGapY: opt, shadowBleed: 2, minimumOpticalGap: w >= 375 ? 8 : 6, cardAspectRatio: 1.1, outerPaddingX: 14, outerPaddingY: 6, footerHeight: sb });
+            const folgaTopo = Math.max(0, (board - L.gridHeight) / 2);
+            const subir = Math.floor(Math.min(sb / 2 + 28, folgaTopo));
+            // a grade + subida jamais estoura o topo (subir ≤ folgaTopo) nem o fundo útil
+            if (subir > folgaTopo + 0.01) return false;
+            if (L.gridHeight > board + 0.01) return false;
+          }
+        }
+        return true;
+      } catch (e) { return false; } })(),
+      'a subida vertical pode cortar uma linha em algum aparelho');
+
+    // ── §4 · Contemplação final ───────────────────────────────────────────────
+    check('R2C §4 (último par → celebração): FIM_DE_JOGO entra em finalMatchCelebration',
+      /case EFEITOS\.FIM_DE_JOGO: fn\.current\.encerrarClassico/.test(pdbC2)
+      && /if \(conclusaoRef\.current\) return;\s*conclusaoRef\.current = true;/.test(pdbC2)   // roda 1×
+      && /setConclusao\('celebrando'\)/.test(pdbC2),
+      'o último par não entra na celebração final, ou pode reentrar');
+
+    check('R2C §4 (resultado só após 2,5 s): setTela(resultado) agendado em 2500 ms',
+      /agendar\(\(\) => setConclusao\('contemplando'\), 700\)/.test(pdbC2)
+      && /agendar\(\(\) => \{ setConclusao\(null\); setTela\('resultado'\); \}, 2500\)/.test(pdbC2)
+      // durante a conclusão a tela segue 'jogando' (tabuleiro visível), não corta para o resultado
+      && !/setConclusao\('celebrando'\);\s*setTela\('resultado'\)/.test(pdbC2),
+      'o resultado abre antes dos 2,5 s ou o tabuleiro some na conclusão');
+
+    check('R2C §4 (contemplação visível): brilho no conjunto; cartas continuam montadas',
+      /conclusao === 'contemplando'/.test(pdbC2)
+      && /styles\.contemplacaoGlow/.test(pdbC2)
+      && /vista\.deck\.map/.test(pdbC2),
+      'a contemplação não mantém as cartas visíveis com brilho discreto');
+
+    check('R2C §4 (toques bloqueados na conclusão): tocarCarta recusa quando há conclusão',
+      /if \(pausado \|\| !cartasProntas \|\| conclusao\) return;/.test(pdbC2),
+      'a criança ainda pode tocar durante a conclusão');
+
+    check('R2C §4 (timers seguros): passam por agendar() e são limpos no unmount/reinício',
+      /agendar\(\(\) => \{ setConclusao\(null\); setTela\('resultado'\); \}, 2500\)/.test(pdbC2)
+      && /timeouts\.current\.forEach\(clearTimeout\)/.test(pdbC2)          // limparTimers
+      && /montado\.current = false;\s*limparTimers\(\);/.test(pdbC2)        // unmount limpa
+      && /conclusaoRef\.current = false; setConclusao\(null\);/.test(pdbC2), // reinício/abandono cancela
+      'um timer da conclusão pode sobreviver ao unmount ou a um reinício');
+
+    check('R2C §4 (entrada única + suave): resultado com fade e subida ≤8 pt; Clássico=Turbo',
+      /opacity: resultadoAnim/.test(pdbC2)
+      && /outputRange: \[8, 0\]/.test(pdbC2)
+      && /duration: 210/.test(pdbC2)   // 180–240 ms
+      && (pdbC2.match(/tela === 'resultado'/g) || []).length >= 1,   // uma única tela de resultado p/ os 2 modos
+      'a entrada do resultado não é suave, ou Clássico e Turbo divergem na conclusão');
+
+    // ── §5/§6 · Modo Criador compacto + simulação ────────────────────────────
+    check('R2C §5 (Modo Criador não cobre o cabeçalho): virou SELO compacto, não faixa cheia',
+      /alignItems: 'flex-end'/.test(bannerC) && /selo:/.test(bannerC)
+      && /MODO CRIADOR ATIVO/.test(bannerC)
+      && !/top: 0, left: 0, right: 0,\s*backgroundColor:/.test(bannerC),   // não é mais barra de largura total
+      'o aviso de Modo Criador ainda é uma faixa que cobre o título');
+
+    check('R2C §5/§6 (simular sequência/contemplação): ações internas existem e são gated',
+      /'simular_2x'/.test(cdC) && /'simular_3x'/.test(cdC) && /'simular_4x'/.test(cdC)
+      && /'simular_ultimo_par'/.test(cdC) && /'simular_contemplacao'/.test(cdC)
+      && /if \(!isInternalToolsEnabled\(\)\) return null;/.test(cdC)
+      && /case 'simular_2x': case 'simular_3x': case 'simular_4x':/.test(pdbC2)
+      && /if \(isFogo\(n\)\) \{ setFogoEventId\(eid\); vibrarConquista\(\); \}/.test(pdbC2),
+      'faltam as ações de simulação de sequência/Fogo/contemplação, ou não estão gated');
+
+    check('R2C (Monte a Cena intocado): a carta e a tela não tocam o Monte a Cena; js-safe vivo',
+      !/monteACena/i.test(pfcC) && !/monteACena/i.test(pdbC2) && /js-safe/.test(upeC),
+      'o R2C tocou o Monte a Cena ou o motor js-safe regrediu');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Bloco FECHAMENTO — publicação de Monte a Cena + selo do Modo Criador + invariantes.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── Bloco Fechamento: publicação de Monte a Cena + selo do Modo Criador ──');
+  {
+    const bannerF = a1StripComments(readSrc('src/components/dev/CreatorModeBanner.js'));
+    const navF = a1StripComments(readSrc('src/navigation/AppNavigator.js'));
+    const brincarF = readSrc('src/screens/BrincarScreen.js');
+    const brincarFn = a1StripComments(brincarF);
+    const catF = readSrc('src/data/monteACenaCatalog.js');
+
+    // §3 — selo do Modo Criador: compacto, canto direito, sem faixa de largura total, pointerEvents none.
+    check('Fechamento §3 (selo): compacto (canto direito), NÃO faixa de largura total, pointerEvents none',
+      /pointerEvents="none"/.test(bannerF)
+      && /selo:/.test(bannerF) && /right: 8/.test(bannerF)
+      && !/left: 0, right: 0,\s*(?:\n\s*)?backgroundColor:/.test(bannerF)   // não é barra full-width
+      && /MODO CRIADOR ATIVO/.test(bannerF)
+      && /if \(!isCreatorQaModeAllowed\(\) \|\| !enabled\) return null;/.test(bannerF)   // gate + invisível em prod
+      && !/\p{Extended_Pictographic}/u.test(bannerF),   // sem emoji (🛠️ saiu)
+      'o selo do Modo Criador voltou a ser faixa de largura total, perdeu o gate/pointerEvents, ou tem emoji');
+
+    // §8 — Monte a Cena publicado nas rotas OFICIAIS; legado técnico segue gated.
+    check('Fechamento §8 (rotas): Home/Story/Difficulty/Gallery/TableGame publicadas; legado gated',
+      /<Stack\.Screen name="MonteACenaHome" component=/.test(navF)
+      && /<Stack\.Screen name="MonteACenaStory" component=/.test(navF)
+      && /<Stack\.Screen name="MonteACenaDifficulty" component=/.test(navF)
+      && /<Stack\.Screen name="MonteACenaGallery" component=/.test(navF)
+      && /<Stack\.Screen name="MonteACenaTableGame" component=/.test(navF)
+      // legado técnico permanece SÓ sob Modo Criador
+      && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="MonteACenaGameV2"/.test(navF)
+      && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="MonteACenaSpike"/.test(navF)
+      && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen name="PuzzleGestureLab"/.test(navF),
+      'as rotas oficiais de Monte a Cena não foram publicadas, ou o legado deixou de ser gated');
+
+    // §8 — o card aparece UMA vez, com "Jogar", identidade roxa e ícone de quebra-cabeça.
+    check('Fechamento §8 (card único): 1 card "Monte a Cena" · "Jogar" · roxo · ícone puzzle',
+      (brincarFn.match(/title="Monte a Cena"/g) || []).length === 1
+      && /icon="puzzle"[\s\S]{0,180}title="Monte a Cena"[\s\S]{0,180}cta="Jogar"/.test(brincarFn)
+      && /btnColor=\{pt\.purple\}/.test(brincarFn)
+      && !/Em teste/.test(brincarF) && !/Testar<\/Text>/.test(brincarF),
+      'o card de Monte a Cena está duplicado, sem "Jogar", fora da identidade roxa, ou com "Em teste"');
+
+    // §8 — catálogo INTOCADO. O total (20/191/9) é computado do dado real e depende de imports
+    // (não dá para eval isolado); como NENHUM arquivo de Monte a Cena foi tocado neste bloco, o
+    // catálogo é byte-idêntico a fca92f5. Aqui garantimos a ESTRUTURA e a regra de acesso.
+    check('Fechamento §8 (catálogo intocado): estrutura dos totais + Criação/Noé grátis (18 premium)',
+      /export const MONTE_A_CENA_TOTALS/.test(catF)
+      && /stories: MONTE_A_CENA_STORY_ORDER\.length/.test(catF)
+      && /available: approved\.length/.test(catF)
+      && /blocked: RAW\.filter\(\(s\) => s\.contentStatus === 'blocked'\)\.length/.test(catF)
+      && /export function isFreePuzzleStory/.test(catF)
+      && /return storyId === 'creation' \|\| storyId === 'noah';/.test(catF),
+      'a estrutura do catálogo de Monte a Cena mudou (deveria estar intocada: 20/191/9, Criação+Noé grátis)');
+
+    // §5 — "Criar livre" preservado (não é bloco deste fechamento).
+    check('Fechamento (Criar livre intocado): o card ainda abre o AtelierCanvas',
+      /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brincarFn)
+      && /title="Criar livre"/.test(brincarFn),
+      'o card "Criar livre" foi alterado ou removido neste fechamento');
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -20716,14 +21402,14 @@ check(
     check('M1R1 Brincar: card "Bichinhos da Bíblia" removido da interface (fora de EM_PREPARO)',
       !/id: 'bichinhos'/.test(brincarNoCom) && !/title: 'Bichinhos/.test(brincarNoCom),
       'Bichinhos ainda é um card renderizado');
-    check('M1R1 Brincar: card "Monte a Cena" em "Chegando em breve" com chip "Em preparação"',
-      /id: 'monte_a_cena'[\s\S]{0,200}title: 'Monte a Cena'[\s\S]{0,120}badge: 'Em prepara[çc][ãa]o'/.test(brincarSrc)
-      && /O Beni está preparando/.test(brincarSrc),
-      'card Monte a Cena ausente ou sem chip/rodapé corretos');
-    check('M1R1 Brincar: card só abre internamente (card largo gated → seleção de níveis M1R2)',
-      /isInternalToolsEnabled\(\) \? \(/.test(brincarSrc)
-      && /TestingWideTile[\s\S]{0,220}ROUTES\.MONTE_A_CENA_HOME/.test(brincarSrc),
-      'o card de teste interno não abre a seleção de níveis');
+    // Fechamento — Monte a Cena PUBLICADO (não mais "Chegando em breve"/"Em preparação").
+    check('Fechamento Brincar: Monte a Cena é WideActiveTile user-facing "Jogar" → HOME',
+      /<WideActiveTile[\s\S]{0,220}title="Monte a Cena"[\s\S]{0,220}cta="Jogar"[\s\S]{0,220}ROUTES\.MONTE_A_CENA_HOME/.test(brincarSrc)
+      && !/badge: 'Em prepara/.test(brincarSrc) && !/O Beni está preparando/.test(brincarSrc),
+      'Monte a Cena não é um card user-facing "Jogar", ou sobrou "em preparação"');
+    check('Fechamento Brincar: Monte a Cena NÃO é mais gated por Modo Criador na aba',
+      !/TestingWideTile/.test(brincarSrc) && !/isInternalToolsEnabled/.test(brincarNoCom),
+      'o card de Monte a Cena ainda depende do Modo Criador na aba Brincar');
     check('M1R1 Brincar: a rota de validação NÃO abre MonteACenaSpike (só o protótipo)',
       !/MONTE_A_CENA_SPIKE/.test(brincarSrc) && !/MonteACenaSpike/.test(brincarSrc),
       'o fluxo de validação ainda referencia o spike');
@@ -20882,15 +21568,13 @@ check(
       /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s*\n\s*name="MonteACenaLevels"/.test(navSrc)
       && /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s*\n\s*name="MonteACenaGame"/.test(navSrc),
       'rotas de níveis/rodada não gated');
-    check('M1R2 card: em Modo Criador é card LARGO "Em teste"/"Testar" (puzzle) → seleção de níveis',
-      /TestingWideTile/.test(brincarSrc) && /icon="puzzle"/.test(brincarSrc)
-      && /Em teste/.test(brincarSrc) && /Testar/.test(brincarSrc)
-      && /ROUTES.MONTE_A_CENA_HOME/.test(brincarSrc),
-      'card de teste interno ausente ou não abre a seleção');
-    check('M1R2 card: fora do Modo Criador permanece "Em preparação" e NÃO navega',
-      /isInternalToolsEnabled\(\) \? \([\s\S]*?\) : \([\s\S]*?ComingTile[\s\S]*?\)/.test(brincarSrc)
-      && /badge: 'Em prepara[çc][ãa]o'/.test(brincarSrc),
-      'o estado bloqueado (não-criador) do card regrediu');
+    // Fechamento — o card de Monte a Cena virou user-facing (ver bloco de fechamento). As rotas
+    // de níveis/rodada (Levels/Game) seguem gated; a rota OFICIAL (Home) foi publicada.
+    check('Fechamento card: Monte a Cena é "Jogar" (puzzle) → HOME, sem "Em teste" nem "em preparação"',
+      /icon="puzzle"/.test(brincarSrc) && /cta="Jogar"/.test(brincarSrc)
+      && /ROUTES\.MONTE_A_CENA_HOME/.test(brincarSrc)
+      && !/Em teste/.test(brincarSrc) && !/badge: 'Em prepara/.test(brincarSrc),
+      'o card de Monte a Cena não foi publicado como "Jogar" → rota oficial');
   })();
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -21328,7 +22012,8 @@ check(
       && /ROUTES\.MONTE_A_CENA_DIFFICULTY/.test(readSrc('src/screens/MonteACenaStoryScreen.js'))
       && /ROUTES\.MONTE_A_CENA_TABLE_GAME/.test(diff) && !/MONTE_A_CENA_GAME_V2/.test(diff)
       && /MONTE_A_CENA_TABLE_GAME:\s*'MonteACenaTableGame'/.test(routesSrc)
-      && /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen name="MonteACenaTableGame"/.test(navSrc),
+      // Fechamento: TableGame PUBLICADO (rota oficial registrada sem gate).
+      && /<Stack\.Screen name="MonteACenaTableGame" component=/.test(navSrc),
       'o fluxo real não chega à rodada M1R5');
 
     // (B) Motor: reanimated + GH Race + reducer; COMMIT só em SNAP_FINISHED
@@ -21666,10 +22351,12 @@ check(
       /isInternalToolsEnabled\(\)/.test(game) && /overlayVisible/.test(game) && /handoffReady/.test(game)
       && /devForcePlace/.test(game) && /testar acerto/.test(game),
       'diagnóstico premium ausente / não gated');
-    check('M1R6 rota MonteACenaStory registrada e gated (isInternalToolsEnabled)',
+    // Fechamento: a rota oficial foi PUBLICADA (registrada sem gate). Legado segue gated.
+    check('Fechamento rota MonteACenaStory registrada e PUBLICADA (sem gate)',
       /MONTE_A_CENA_STORY: 'MonteACenaStory'/.test(routesSrc)
-      && /isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen name="MonteACenaStory"/.test(navSrc),
-      'rota da história não registrada/gated');
+      && /<Stack\.Screen name="MonteACenaStory" component=/.test(navSrc)
+      && !/isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen name="MonteACenaStory"/.test(navSrc),
+      'rota da história não foi publicada (segue gated) ou sumiu');
     check('M1R6 nenhuma rota legada reativada (Home/Story/Difficulty/Gallery/Game novos)',
       !/MonteACenaSpike|MonteACenaPrototype|MonteACenaLevels|MonteACenaGameV2|MonteACenaGame['"]/.test(home + storyScreen + diff + galScreen + gameNoCom),
       'fluxo novo referencia tela legada');

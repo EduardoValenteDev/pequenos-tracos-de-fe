@@ -38,6 +38,58 @@ export function getCardFraming(storyId) {
 }
 
 /**
+ * Proporção da JANELA da carta (R2A · §3/§6). A carta é quase quadrada (≈1:1.1) e a capa
+ * é 16:9. Em vez de encher a carta (recorte de ~49% da largura, corta personagens) ou de
+ * mostrar o 16:9 inteiro (faixa fina, pequena demais num tabuleiro de 24), a capa vive numa
+ * JANELA ~4:3 centralizada, com marfim em cima e embaixo. Recorte cai para ~25% e o ponto
+ * focal ainda decide o que fica visível.
+ */
+export const CARD_WINDOW_ASPECT = 4 / 3;
+
+/**
+ * Janela proporcional da carta + imagem dentro dela (R2A · §3). PURO.
+ *
+ * A janela (largura da carta × aspecto ~4:3) é centralizada — o excedente vertical vira
+ * marfim. A capa preenche a janela por "cover" com o ponto focal, então nada é esticado e
+ * rostos colados na borda continuam protegidos pelo `focal`/`zoom` de cada história.
+ *
+ * @param {number} srcW  largura real do asset
+ * @param {number} srcH  altura real do asset
+ * @param {number} cardW largura útil da carta (dentro da moldura)
+ * @param {number} cardH altura útil da carta (dentro da moldura)
+ * @param {object} [framing]
+ * @param {number} [windowAspect=CARD_WINDOW_ASPECT]
+ * @returns {{
+ *   window: {x:number,y:number,width:number,height:number},
+ *   image:  {width:number,height:number,left:number,top:number},
+ * }}
+ */
+export function computeProportionalWindow(srcW, srcH, cardW, cardH, framing = PADRAO, windowAspect = CARD_WINDOW_ASPECT) {
+  const cw = Number(cardW) > 0 ? Number(cardW) : 0;
+  const ch = Number(cardH) > 0 ? Number(cardH) : 0;
+  const aspect = Number(windowAspect) > 0 ? Number(windowAspect) : CARD_WINDOW_ASPECT;
+
+  // Janela limitada pela LARGURA (card mais alto que largo + janela mais larga que alta
+  // ⇒ a altura da janela sempre cabe). Se algo vier zerado, a janela é a carta inteira.
+  let winW = cw;
+  let winH = cw > 0 ? cw / aspect : 0;
+  if (winH > ch && ch > 0) { winH = ch; winW = ch * aspect; }
+  if (!(winW > 0) || !(winH > 0)) { winW = cw; winH = ch; }
+
+  const window = {
+    x: (cw - winW) / 2,
+    y: (ch - winH) / 2,
+    width: winW,
+    height: winH,
+  };
+
+  return {
+    window,
+    image: computeCardImageLayout(srcW, srcH, winW, winH, framing),
+  };
+}
+
+/**
  * Traduz o enquadramento para a geometria de uma imagem dentro da carta.
  * Devolve o tamanho da imagem já escalada e o deslocamento (left/top) que coloca
  * o ponto focal no lugar certo. Puro: sem React, sem side effects.

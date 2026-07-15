@@ -30,8 +30,8 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, Image, Animated, Pressable, AppState, Easing,
-  StyleSheet, useWindowDimensions,
+  View, Text, ScrollView, Image, Animated, AppState, Easing,
+  StyleSheet, useWindowDimensions, PixelRatio, AccessibilityInfo,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,10 +40,13 @@ import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import FaithIcon from '../components/ui/FaithIcon';
 import { BeniGuideBubble } from '../components/beni';
+import ParesFlipCard from '../components/pares/ParesFlipCard';
+import ParesCreatorDiagnostics from '../components/pares/ParesCreatorDiagnostics';
+import ParesStreakMeter from '../components/pares/ParesStreakMeter';
+import { ParesSpark, ParesFogoEmbers } from '../components/pares/ParesStreakFx';
 import { ROUTES } from '../constants/routes';
 import { stories } from '../data/stories';
 import { getStoryCoverImage } from '../services/storyImageService';
-import { getCardFraming, computeCardImageLayout } from '../data/gameCardFraming';
 import { isPremiumUser } from '../services/accessControl';
 import { addBonusStars } from '../services/postStoryStorage';
 import { useProgressContext } from '../context/ProgressContext';
@@ -55,12 +58,15 @@ import {
   DIFFICULTIES, getDifficulty, buildDeck, pickStoryIds,
   computeScore, formatTime, BRINCAR_DAILY_STAR_CAP,
   GAME_MODES, getMode, DEFAULT_MODE, getTurboDuration,
-  addTurboTime, comboMultiplier, segundosRestantes,
-  computeCardSize, CARD_RATIO,
+  addTurboTime, segundosRestantes,
+  CARD_RATIO,
   TURBO_ALERTA_MS, TURBO_TICK_MS, TURBO_AVISO_MS, PARES_SOUND_EVENTS,
 } from '../services/paresGameService';
+import { computeGridLayout } from '../services/paresGridLayout';
+import { preloadCovers, coversReady, deckStoryIds } from '../services/paresImagePreload';
+import { streakLevel, streakLabel, isFogo } from '../services/paresStreak';
 import {
-  FASES, EFEITOS, criarJogo, tocar, flipConcluido, verificar,
+  FASES, FASES_QUE_ACEITAM, EFEITOS, criarJogo, tocar, flipConcluido, verificar,
   liberar, fechar, novaGrade, encerrar,
 } from '../services/paresGameMachine';
 
@@ -103,10 +109,14 @@ const T = {
 /** Vermelho do alerta. Um só lugar: moldura, relógio e barra usam o mesmo tom. */
 const ALERTA = '#C0392B';
 
-/** Geometria do tabuleiro. Compartilhada entre o cálculo puro e o estilo. */
-const GRADE_GAP = 7;
+/** Geometria do tabuleiro (R2B §3 · gap ÓPTICO). O gap de layout = óptico + sombra dos dois
+ *  lados; a carta encolhe alguns pontos para caber sem rolagem. `SHADOW_BLEED` acompanha a
+ *  sombra curta da carta (raio 2 + offset 1 ≈ 2 pt por lado). */
 const GRADE_PADDING_H = 14;
 const GRADE_PADDING_V = 6;
+const CARD_SHADOW_BLEED = 2;
+const opticalGapFor = (w) => (w >= 375 ? 9 : 6);   // gap VISÍVEL desejado
+const minOpticalGapFor = (w) => (w >= 375 ? 8 : 6); // invariante: nunca abaixo disto
 
 const IDS_COM_CAPA = stories.map((s) => s.id).filter((id) => !!getStoryCoverImage(id));
 
@@ -120,6 +130,11 @@ function vibrar(tipo) {
   } catch { /* sem vibração — segue o jogo */ }
 }
 
+/** R2B §8 — haptic de CONQUISTA (Fogo da Memória). Nunca punitivo; falhar é irrelevante. */
+function vibrarConquista() {
+  try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch { /* segue o jogo */ }
+}
+
 /** 'YYYY-MM-DD' → 'dd/mm'. Entrada estranha → ''. */
 function dataCurta(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
@@ -127,148 +142,14 @@ function dataCurta(iso) {
 }
 
 /* ══════════════════════════════ CARTA ══════════════════════════════ */
-
-/**
- * Carta com flip real no eixo Y. As duas faces coexistem, giradas 180° entre si,
- * com `backfaceVisibility: hidden` — assim a imagem nunca aparece espelhada.
- *
- * `onFlipEnd` dispara quando o giro de ABERTURA termina. É esse callback — e não um
- * atraso — que autoriza o jogo a verificar o par.
- */
-const Carta = React.memo(function Carta({ carta, aberta, casada, errando, size, indice, onPress, onFlipEnd }) {
-  const virada = aberta || casada;
-  const flip = useRef(new Animated.Value(virada ? 1 : 0)).current;
-  const pop = useRef(new Animated.Value(1)).current;
-  const shake = useRef(new Animated.Value(0)).current;
-  const entrada = useRef(new Animated.Value(0)).current;
-  const [pressionada, setPressionada] = useState(false);
-
-  // Entrada escalonada — a grade "chega", não aparece de repente.
-  useEffect(() => {
-    const anim = Animated.timing(entrada, {
-      toValue: 1, duration: 260, delay: Math.min(indice * 22, 320), useNativeDriver: true,
-    });
-    anim.start();
-    return () => anim.stop();
-  }, []);
-
-  useEffect(() => {
-    const anim = Animated.timing(flip, {
-      toValue: virada ? 1 : 0, duration: T.flip, useNativeDriver: true,
-    });
-    // Só o giro de ABERTURA avisa. Fechar a carta não verifica nada.
-    anim.start(({ finished }) => {
-      if (finished && virada && onFlipEnd) onFlipEnd(indice);
-    });
-    return () => anim.stop();
-  }, [virada]);   // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Acerto: pop curto de crescer e voltar. Só depois da verificação (casada).
-  useEffect(() => {
-    if (!casada) return undefined;
-    const anim = Animated.sequence([
-      Animated.timing(pop, { toValue: 1.1, duration: 140, useNativeDriver: true }),
-      Animated.spring(pop, { toValue: 1, friction: 4, tension: 90, useNativeDriver: true }),
-    ]);
-    anim.start();
-    return () => anim.stop();
-  }, [casada]);
-
-  // Erro: chacoalhada horizontal curta e leve.
-  useEffect(() => {
-    if (!errando) return undefined;
-    const passo = (v, d) => Animated.timing(shake, { toValue: v, duration: d, useNativeDriver: true });
-    const anim = Animated.sequence([
-      passo(-1, 60), passo(1, 70), passo(-0.7, 70), passo(0.7, 70), passo(0, 80),
-    ]);
-    anim.start();
-    return () => anim.stop();
-  }, [errando]);
-
-  const rotVerso = flip.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
-  const rotFrente = flip.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] });
-  const shakeX = shake.interpolate({ inputRange: [-1, 1], outputRange: [-7, 7] });
-  const entradaScale = entrada.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1] });
-
-  const w = size;
-  // MESMA proporção usada por computeCardSize. Se divergirem, o cálculo de altura
-  // mente e o tabuleiro volta a vazar.
-  const h = size * CARD_RATIO;
-
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={virada}
-      hitSlop={2}
-      onPressIn={() => setPressionada(true)}
-      onPressOut={() => setPressionada(false)}
-      accessibilityRole="button"
-      accessibilityLabel={casada ? 'Par encontrado' : virada ? 'Carta virada' : 'Carta fechada'}
-      accessibilityState={{ disabled: virada }}
-    >
-      <Animated.View
-        style={[
-          styles.cartaBox,
-          { width: w, height: h },
-          pressionada && !virada && styles.cartaPressionada,
-          { opacity: entrada, transform: [{ translateX: shakeX }, { scale: Animated.multiply(pop, entradaScale) }] },
-        ]}
-      >
-        <Animated.View style={[styles.face, styles.cartaVerso, { transform: [{ perspective: 800 }, { rotateY: rotVerso }] }]}>
-          <FaithIcon name="pares" size={w * 0.34} color="#FFFFFFAA" />
-        </Animated.View>
-
-        <Animated.View
-          style={[
-            styles.face, styles.cartaFrente,
-            casada && styles.cartaFrenteCasada,
-            errando && styles.cartaFrenteErro,
-            { transform: [{ perspective: 800 }, { rotateY: rotFrente }] },
-          ]}
-        >
-          <CartaImagem storyId={carta.storyId} w={w} h={h} />
-          {casada && (
-            <View style={styles.cartaCheck}>
-              <FaithIcon name="check" size={16} color="#FFF" />
-            </View>
-          )}
-        </Animated.View>
-      </Animated.View>
-    </Pressable>
-  );
-});
-
-/** Capa recortada pelo PONTO FOCAL da história (ver gameCardFraming). */
-function CartaImagem({ storyId, w, h }) {
-  const cover = getStoryCoverImage(storyId);
-  const layout = useMemo(() => {
-    if (!cover) return null;
-    const src = Image.resolveAssetSource(cover);
-    if (!src?.width || !src?.height) return null;
-    return computeCardImageLayout(src.width, src.height, w, h, getCardFraming(storyId));
-  }, [storyId, w, h, cover]);
-
-  if (!cover) {
-    return (
-      <View style={[styles.cartaImgVazia, { width: w, height: h }]}>
-        <FaithIcon name="bible" size={22} color={pt.textSoft} />
-      </View>
-    );
-  }
-  if (!layout) return <Image source={cover} style={{ width: w, height: h }} resizeMode="cover" />;
-
-  return (
-    <View style={{ width: w, height: h, overflow: 'hidden' }}>
-      <Image source={cover} style={{ position: 'absolute', ...layout }} />
-    </View>
-  );
-}
+// A carta virou componente próprio (R2A): `ParesFlipCard` (flip + frente marfim premium) e
+// `ParesCardBack` (verso premium SVG). O flip permanece em RN Animated, na UI thread.
 
 /* ══════════════════════════════ TELA ══════════════════════════════ */
 
 export default function ParesDoBeniScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   // O contexto pode não estar montado. O jogo não depende dele: se faltar, apenas
   // não atualizamos o resumo de estrelinhas.
   const progressCtx = useProgressContext();
@@ -285,6 +166,36 @@ export default function ParesDoBeniScreen({ navigation }) {
   const [dica, setDica] = useState(BENI.entrada);
   const [aviso, setAviso] = useState(null);      // "Novo recorde!" / "Grade completa!"
   const [pausado, setPausado] = useState(false);
+
+  // R2A §2 — a rodada só aceita toque quando as capas estão decodificadas. Enquanto não,
+  // "Beni está preparando as cartas...". `cartasProntas` é true de imediato quando as capas
+  // já estão quentes (preload de boot), evitando um flash desnecessário.
+  const [cartasProntas, setCartasProntas] = useState(true);
+
+  // R2A §2 — movimento reduzido: transição curta, sem rotação completa. Origem: sistema
+  // (AccessibilityInfo) OU override do diagnóstico do criador.
+  const [reduceMotionOS, setReduceMotionOS] = useState(false);
+
+  // R2A §10 — overrides do diagnóstico (só sob Modo Criador). Nunca afetam produção.
+  const [diag, setDiag] = useState({ reduceMotion: false, missingImage: false });
+  const reduceMotion = reduceMotionOS || diag.reduceMotion;
+
+  // R2B §8 — Fogo da Memória. A CONTAGEM vive na máquina (`combo`/`maiorCombo`); aqui só se
+  // dispara a centelha por EVENTO único (para um evento antigo não apagar o novo) e as brasas.
+  const [streakEvent, setStreakEvent] = useState(null);   // { id, x, y, toX, level }
+  const [fogoEventId, setFogoEventId] = useState(0);
+  const streakEventIdRef = useRef(0);
+  const prevComboRef = useRef(0);
+
+  // R2C §4 — contemplação final: null | 'celebrando' | 'contemplando'. Entre o último par e a
+  // tela de resultado há 2,5 s com o tabuleiro inteiro visível. `conclusaoRef` impede reentrada.
+  const [conclusao, setConclusao] = useState(null);
+  const conclusaoRef = useRef(false);
+  const resultadoAnim = useRef(new Animated.Value(1)).current;   // fade/entrada da tela de resultado
+
+  // R2C §5/§6 — override de sequência SÓ do Modo Criador (nunca afeta produção): força o medidor
+  // a mostrar 2×/3×/4× para validar o Fogo da Memória sem precisar de uma sequência real.
+  const [diagStreakOverride, setDiagStreakOverride] = useState(0);
 
   const modo = getMode(modoId);
   const dif = getDifficulty(difId) || DIFFICULTIES[0];
@@ -392,6 +303,10 @@ export default function ParesDoBeniScreen({ navigation }) {
       if (s?.lastMode) setModoId(s.lastMode);
     }).catch((e) => warn('ParesDoBeni.stats:', e));
 
+    // R2A §2 — respeita "reduzir movimento" do sistema; ouve mudanças em tempo real.
+    AccessibilityInfo.isReduceMotionEnabled?.().then((v) => vivo && setReduceMotionOS(!!v)).catch(() => {});
+    const rm = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v) => setReduceMotionOS(!!v));
+
     return () => {
       vivo = false;
       montado.current = false;
@@ -399,6 +314,7 @@ export default function ParesDoBeniScreen({ navigation }) {
       pulso.stopAnimation(); tique.stopAnimation();
       stopGameSfx(PARES_SOUND_EVENTS.COUNTDOWN_TICK);
       releaseGameSfx();   // nenhum som sobrevive à saída da tela
+      rm?.remove?.();
     };
   }, [limparTimers]);   // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -420,7 +336,9 @@ export default function ParesDoBeniScreen({ navigation }) {
   /* ── Relógio único dos dois modos ──
      Acumula por delta: parar o intervalo PAUSA de verdade, sem correr por baixo. */
   useEffect(() => {
-    if (!jogando || pausado) return undefined;
+    // R2A §2 — o relógio só corre depois que as cartas estão prontas: não vale gastar
+    // o tempo do Turbo enquanto o Beni ainda "prepara as cartas".
+    if (!jogando || pausado || !cartasProntas) return undefined;
     let ultimo = Date.now();
     const t = setInterval(() => {
       const agora = Date.now();
@@ -448,7 +366,7 @@ export default function ParesDoBeniScreen({ navigation }) {
       if (restanteRef.current <= 0) fn.current.tempoEsgotou();
     }, 100);
     return () => clearInterval(t);
-  }, [jogando, pausado, modo.timed]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [jogando, pausado, cartasProntas, modo.timed]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Pulso vermelho dos últimos 10 s (borda + relógio) ── */
   const emAlerta = jogando && modo.timed && !pausado && restanteMs > 0 && restanteMs <= TURBO_ALERTA_MS;
@@ -503,13 +421,24 @@ export default function ParesDoBeniScreen({ navigation }) {
     });
   }, [modoId, difId, dif.pairs, duracaoMs, modo.timed, stats, refreshProgress]);
 
-  /** Clássico: grade limpa = fim. Vinheta de vitória e resultado direto. */
+  /**
+   * Clássico: grade limpa = fim. R2C §4 — CONTEMPLAÇÃO de 2,5 s antes do resultado:
+   *   finalMatchCelebration (~700 ms, tabuleiro visível, celebração do último par, som 1×) →
+   *   boardContemplation (cartas abertas, brilho discreto, sem stats/botões) →
+   *   results (após 2.500 ms desde o último par, com fade suave). Roda UMA vez (`conclusaoRef`);
+   *   todos os timers passam por `agendar()` (limpos no unmount/reinício), nunca abrindo uma
+   *   rodada antiga. O som de conclusão toca aqui, uma única vez (não se repete no resultado).
+   */
   const encerrarClassico = useCallback(() => {
+    if (conclusaoRef.current) return;
+    conclusaoRef.current = true;
     limparTimers();
-    playGameSfx(PARES_SOUND_EVENTS.CLASSIC_JINGLE);
-    salvarPartida();
-    setTela('resultado');
-  }, [limparTimers, salvarPartida]);
+    playGameSfx(PARES_SOUND_EVENTS.CLASSIC_JINGLE);   // som de conclusão — UMA vez
+    salvarPartida();                                  // prepara o resultado (não abre ainda)
+    setConclusao('celebrando');                       // tabuleiro segue visível
+    agendar(() => setConclusao('contemplando'), 700); // §4 — finalMatchCelebration ~700 ms
+    agendar(() => { setConclusao(null); setTela('resultado'); }, 2500);   // §4 — results após 2,5 s
+  }, [limparTimers, salvarPartida, agendar]);
 
   /**
    * Turbo: zero no relógio. Roda UMA vez (`tempoAcabouRef`) e faz, em ordem:
@@ -558,8 +487,9 @@ export default function ParesDoBeniScreen({ navigation }) {
     }
     limparTimers();
     const recordeAtual = stats?.turbo?.[difId]?.bestScore ?? 0;
+    const deck = novoDeck(dif.pairs);
     jogoRef.current = criarJogo({
-      deck: novoDeck(dif.pairs), pares: dif.pairs,
+      deck, pares: dif.pairs,
       cronometrado: modo.timed, recordeAtual,
     });
     setVista(jogoRef.current);
@@ -569,10 +499,22 @@ export default function ParesDoBeniScreen({ navigation }) {
     ultimoSegundoRef.current = null;
     tempoAcabouRef.current = false;
     salvoRef.current = false;
+    prevComboRef.current = 0;               // R2B §8 — sequência começa do zero
+    setStreakEvent(null); setFogoEventId(0);
+    conclusaoRef.current = false; setConclusao(null);   // R2C §4 — cancela conclusão antiga
     setResultado(null); setAviso(null);
     setDica(BENI.entrada);
     setPausado(AppState.currentState !== 'active');
+
+    // R2A §2 — só libera as cartas quando as capas estão decodificadas. Quentes (preload
+    // de boot) → começa pronto, sem "preparando". Frias → mostra o preparo e aquece.
+    const ids = deckStoryIds(deck);
+    const jaProntas = coversReady(ids);
+    setCartasProntas(jaProntas);
     setTela('jogando');
+    if (!jaProntas) {
+      preloadCovers(ids).then(() => { if (montado.current) setCartasProntas(true); });
+    }
     setRounds(await getDailyRounds());
   }, [dif.pairs, duracaoMs, modo.timed, difId, stats, limparTimers]);
 
@@ -582,14 +524,15 @@ export default function ParesDoBeniScreen({ navigation }) {
     stopGameSfx(PARES_SOUND_EVENTS.COUNTDOWN_TICK);
     pulso.stopAnimation();
     aplicar(encerrar);
+    conclusaoRef.current = false; setConclusao(null);   // R2C §4 — cancela conclusão em andamento
     setTela('entrada');
   }, [aplicar, limparTimers]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Toque na carta: a máquina decide, de forma síncrona ── */
   const tocarCarta = useCallback((i) => {
-    if (pausado) return;
+    if (pausado || !cartasProntas || conclusao) return;   // §2/§4 — nada durante preparo/conclusão
     aplicar(tocar, i);   // recusado → nenhum efeito: sem som, sem vibração, sem jogada
-  }, [aplicar, pausado]);
+  }, [aplicar, pausado, cartasProntas, conclusao]);
 
   const cartaAbriu = useCallback((i) => { aplicar(flipConcluido, i); }, [aplicar]);
 
@@ -604,6 +547,45 @@ export default function ParesDoBeniScreen({ navigation }) {
   useEffect(() => {
     if (jogando && !modo.timed && vista.erros > 0 && vista.erros % 3 === 0) setDica(BENI.incentivo);
   }, [vista.erros, jogando, modo.timed]);
+
+  /* ── R2B §8 — Fogo da Memória: a cada NOVO par (combo sobe), uma centelha nasce no par.
+     No 4º par seguido, brasas + haptic de conquista. O erro zera o combo na máquina: a
+     chama apaga sozinha (sem texto negativo, sem punição, sem vibração). ── */
+  useEffect(() => {
+    const combo = vista.combo;
+    if (combo > prevComboRef.current && combo > 0) {
+      const L = layoutRef.current;
+      let x = 0; let y = 0; let toX = 0;
+      if (L) {
+        const centros = vista.casadas.slice(-2)
+          .map((k) => vista.deck.findIndex((d) => d.key === k))
+          .filter((i) => i >= 0)
+          .map((i) => {
+            const p = L.positions[i] || { x: L.offsetX, y: L.offsetY };
+            return { x: p.x - L.offsetX + L.cardWidth / 2, y: p.y - L.offsetY + L.cardHeight / 2 };
+          });
+        if (centros.length) {
+          x = centros.reduce((a, c) => a + c.x, 0) / centros.length;
+          y = centros.reduce((a, c) => a + c.y, 0) / centros.length;
+          toX = L.gridWidth / 2;
+        }
+      }
+      const id = (streakEventIdRef.current += 1);
+      setStreakEvent({ id, x, y, toX, level: streakLevel(combo) });
+      if (isFogo(combo)) { setFogoEventId(id); vibrarConquista(); }
+    }
+    prevComboRef.current = combo;
+  }, [vista.combo]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── R2C §4 — entrada suave da tela de resultado: fade 210 ms + subida ≤8 pt. Sem corte
+     brusco, sem repetir o som de conclusão (o som tocou na celebração). ── */
+  useEffect(() => {
+    if (tela !== 'resultado') return undefined;
+    resultadoAnim.setValue(0);
+    const anim = Animated.timing(resultadoAnim, { toValue: 1, duration: 210, useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [tela]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Derivados ── */
   const semRodadas = !premium && rounds != null && rounds.remaining <= 0;
@@ -620,16 +602,112 @@ export default function ParesDoBeniScreen({ navigation }) {
     setAlturaTabuleiro((atual) => (Math.abs(atual - h) > 1 ? h : atual));
   }, []);
 
-  const cardSize = useMemo(() => computeCardSize({
-    largura: Math.min(width, 520),
-    altura: alturaTabuleiro - GRADE_PADDING_V * 2,
-    cols: dif.cols,
-    pairs: dif.pairs,
-    gap: GRADE_GAP,
-    padding: GRADE_PADDING_H * 2,
-  }), [width, alturaTabuleiro, dif.cols, dif.pairs]);
+  // R2A §4 + R2B §3 — geometria numa fonte única, agora com GAP ÓPTICO: o layout separa o
+  // espaço visível desejado da sombra que o invade, para as cartas não parecerem coladas.
+  // R2C §3 — a safe area inferior sai da altura JOGÁVEL (footerHeight): a grade dimensiona e
+  // centraliza dentro da área real entre a barra e a safe area de baixo, não na tela toda.
+  const larguraGrade = Math.min(width, 520);
+  const layout = useMemo(() => computeGridLayout({
+    screenWidth: larguraGrade,
+    screenHeight: alturaTabuleiro,
+    cardCount: dif.pairs * 2,
+    columns: dif.cols,
+    desiredOpticalGapX: opticalGapFor(larguraGrade),
+    desiredOpticalGapY: opticalGapFor(larguraGrade),
+    shadowBleed: CARD_SHADOW_BLEED,
+    minimumOpticalGap: minOpticalGapFor(larguraGrade),
+    cardAspectRatio: CARD_RATIO,
+    outerPaddingX: GRADE_PADDING_H,
+    outerPaddingY: GRADE_PADDING_V,
+    footerHeight: insets.bottom,   // exclui a barra/indicador de baixo do espaço jogável
+    round: PixelRatio.roundToNearestPixel,
+  }), [larguraGrade, alturaTabuleiro, dif.cols, dif.pairs, insets.bottom]);
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
 
   const trocarModo = useCallback((id) => { setModoId(id); saveLastMode(id); }, []);
+
+  /* ── R2A §10 — Ações do diagnóstico do criador (só sob Modo Criador) ── */
+  const diagAction = useCallback((id) => {
+    const g = jogoRef.current;
+    const pares = {};
+    g.deck.forEach((c, i) => { (pares[c.storyId] = pares[c.storyId] || []).push(i); });
+    const parCompleto = Object.values(pares).find((idx) => idx.length >= 2);
+    const doisDiferentes = (() => {
+      const keys = Object.keys(pares);
+      if (keys.length < 2) return null;
+      return [pares[keys[0]][0], pares[keys[1]][0]];
+    })();
+
+    switch (id) {
+      case 'movimento_reduzido':
+        setDiag((d) => ({ ...d, reduceMotion: !d.reduceMotion }));
+        break;
+      case 'imagem_ausente':
+        setDiag((d) => ({ ...d, missingImage: !d.missingImage }));
+        break;
+      case 'imagem_lenta':
+        // Simula capas frias: segura o tabuleiro e libera após o teto de preparo.
+        setCartasProntas(false);
+        agendar(() => setCartasProntas(true), 2500);
+        break;
+      case 'giro':
+        if (parCompleto) tocarCarta(parCompleto[0]);   // vira UMA carta (giro real)
+        break;
+      case 'retorno':
+        // Abre duas cartas DIFERENTES: a máquina fecha as duas juntas (retorno real).
+        if (doisDiferentes) {
+          tocarCarta(doisDiferentes[0]);
+          agendar(() => tocarCarta(doisDiferentes[1]), 340);
+        }
+        break;
+      case 'acerto':
+        // Abre as duas cartas do MESMO par: acerto real (efeitos de ouro/estrela).
+        if (parCompleto) {
+          tocarCarta(parCompleto[0]);
+          agendar(() => tocarCarta(parCompleto[1]), 340);
+        }
+        break;
+      case 'reiniciar':
+        limparTimers();
+        jogoRef.current = criarJogo({
+          deck: novoDeck(dif.pairs), pares: dif.pairs,
+          cronometrado: modo.timed, recordeAtual: stats?.turbo?.[difId]?.bestScore ?? 0,
+        });
+        setVista(jogoRef.current);
+        decorridoRef.current = 0; setDecorridoMs(0);
+        restanteRef.current = duracaoMs; setRestanteMs(duracaoMs);
+        ultimoSegundoRef.current = null; tempoAcabouRef.current = false; salvoRef.current = false;
+        conclusaoRef.current = false; setConclusao(null); setDiagStreakOverride(0);
+        setCartasProntas(true);
+        break;
+      // R2C §5/§6 — validar a sequência/Fogo sem uma partida real: força o medidor + a centelha.
+      case 'simular_2x': case 'simular_3x': case 'simular_4x': {
+        const n = id === 'simular_4x' ? 4 : id === 'simular_3x' ? 3 : 2;
+        setDiagStreakOverride(n);
+        const L = layoutRef.current;
+        const cx = L ? L.gridWidth / 2 : 0;
+        const cy = L ? L.gridHeight / 2 : 0;
+        const eid = (streakEventIdRef.current += 1);
+        setStreakEvent({ id: eid, x: cx, y: cy, toX: cx, level: streakLevel(n) });
+        if (isFogo(n)) { setFogoEventId(eid); vibrarConquista(); }
+        agendar(() => setDiagStreakOverride(0), 2600);
+        break;
+      }
+      // R2C §5 — simular a conclusão para ver a contemplação (sem encerrar a partida real).
+      case 'simular_ultimo_par':
+        setConclusao('celebrando');
+        agendar(() => setConclusao('contemplando'), 700);
+        agendar(() => setConclusao(null), 2500);
+        break;
+      case 'simular_contemplacao':
+        setConclusao('contemplando');
+        agendar(() => setConclusao(null), 2500);
+        break;
+      default:
+        break;
+    }
+  }, [agendar, tocarCarta, limparTimers, dif.pairs, modo.timed, difId, duracaoMs, stats]);
 
   // Publica os handlers frescos deste render. Feito no corpo (não em efeito) para
   // que um toque no mesmo frame já enxergue a versão nova.
@@ -787,8 +865,14 @@ export default function ParesDoBeniScreen({ navigation }) {
   /* ══════════════ RESULTADO ══════════════ */
   if (tela === 'resultado') {
     const turbo = resultado?.modo === 'turbo';
+    // R2C §4 — entrada suave (fade + subida ≤8 pt). Clássico e Turbo usam a MESMA conclusão.
     return (
-      <View style={styles.root}>
+      <Animated.View
+        style={[
+          styles.root,
+          { opacity: resultadoAnim, transform: [{ translateY: resultadoAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] },
+        ]}
+      >
         <Header
           insets={insets}
           onBack={() => setTela('entrada')}
@@ -890,7 +974,7 @@ export default function ParesDoBeniScreen({ navigation }) {
             <Text style={styles.btnTerciarioText}>Voltar para Brincar</Text>
           </SoundButton>
         </ScrollView>
-      </View>
+      </Animated.View>
     );
   }
 
@@ -907,7 +991,22 @@ export default function ParesDoBeniScreen({ navigation }) {
     ? 'Jogo pausado. Volte quando quiser!'
     : (aviso || (vista.jogadas === 0 ? dica : ''));
 
-  const larguraGrade = Math.min(width, 520);
+  // R2A §10 — retrato para o diagnóstico do criador (só computado sob Modo Criador).
+  const diagInfo = buildDiagInfo(vista, layout, cartasProntas);
+
+  // R2B §8/§9 — sequência (Fogo da Memória). Conta PARES (combo da máquina), Clássico=Turbo.
+  // R2C §5 — sob Modo Criador, `diagStreakOverride` força o nível para validação.
+  const streakBase = diagStreakOverride || vista.combo;
+  const streakNivel = streakLevel(streakBase);
+  const streakTexto = streakLabel(streakBase);
+  const streakFogo = isFogo(streakBase);
+
+  // R2C §3 — equilíbrio vertical: centraliza na área jogável (sem a safe area de baixo) e sobe
+  // ~24–36 pt quando há folga; nunca passa do topo (sem cortar a 1ª linha). Em 320×568 (folga
+  // pequena) o valor cai a ~0 e nada é cortado.
+  const folgaTopo = Math.max(0, (alturaTabuleiro - layout.gridHeight) / 2);
+  // FLOOR: a subida nunca passa da folga do topo → JAMAIS corta a primeira linha.
+  const subirGrade = Math.floor(Math.min(insets.bottom / 2 + 28, folgaTopo));
 
   return (
     <View style={styles.root}>
@@ -919,32 +1018,25 @@ export default function ParesDoBeniScreen({ navigation }) {
         compacto
       />
 
-      {/* HUD enxuto: tempo · pares · foguinho. Nada mais compete com o tabuleiro. */}
+      {/* HUD compacto (R2B §9): tempo · pares · MEDIDOR de sequência (fogo maior). */}
       <View style={styles.hud}>
         {modo.timed ? (
-          <>
-            <Animated.View style={[styles.hudItem, contando && { transform: [{ scale: tique }] }]}>
-              <FaithIcon name="timer" size={15} color={critico ? ALERTA : pt.textSoft} />
-              <Text style={[styles.hudText, critico && styles.hudCritico]}>{formatTime(restanteMs)}</Text>
-            </Animated.View>
-            <HudItem icone="pares" texto={`${vista.paresTotais}`} />
-            <HudItem
-              icone="combo"
-              texto={vista.combo > 1 ? `${comboMultiplier(vista.combo)}×` : '—'}
-              cor={vista.combo > 1 ? pt.beniDeep : undefined}
-            />
-          </>
+          <Animated.View style={[styles.hudItem, contando && { transform: [{ scale: tique }] }]}>
+            <FaithIcon name="timer" size={15} color={critico ? ALERTA : pt.textSoft} />
+            <Text style={[styles.hudText, critico && styles.hudCritico]}>{formatTime(restanteMs)}</Text>
+          </Animated.View>
         ) : (
-          <>
-            <HudItem icone="timer" texto={formatTime(decorridoMs)} />
-            <HudItem icone="pares" texto={`${feitosNaGrade}/${dif.pairs}`} />
-            <HudItem
-              icone="combo"
-              texto={vista.combo > 1 ? `${vista.combo}×` : '—'}
-              cor={vista.combo > 1 ? pt.beniDeep : undefined}
-            />
-          </>
+          <HudItem icone="timer" texto={formatTime(decorridoMs)} />
         )}
+        <HudItem icone="pares" texto={modo.timed ? `${vista.paresTotais}` : `${feitosNaGrade}/${dif.pairs}`} />
+        <ParesStreakMeter
+          streak={streakBase}
+          level={streakNivel}
+          label={streakTexto}
+          fogo={streakFogo}
+          eventId={streakEvent?.id || 0}
+          reduceMotion={reduceMotion}
+        />
       </View>
 
       <View style={styles.barraFundo}>
@@ -962,29 +1054,124 @@ export default function ParesDoBeniScreen({ navigation }) {
       {/* Linha única e baixa. Vazia, some sem deixar buraco (altura fixa pequena). */}
       <Text style={styles.dica} numberOfLines={1}>{frase}</Text>
 
-      {/* O tabuleiro MEDE a altura que sobrou e o cardSize sai daí. */}
+      {/* O tabuleiro MEDE a altura que sobrou; a geometria (posições) sai de computeGridLayout.
+          Enquanto as capas não decodificam, "Beni está preparando as cartas..." (§2). */}
       <View style={styles.areaJogo} onLayout={medirTabuleiro}>
-        <View style={[styles.grade, { width: larguraGrade }]}>
-          {vista.deck.map((c, i) => (
-            <Carta
-              key={`${vista.gradesCompletas}-${c.key}`}
-              carta={c}
-              indice={i}
-              aberta={vista.abertas.includes(i)}
-              casada={vista.casadas.includes(c.key)}
-              errando={errando.includes(i)}
-              size={cardSize}
-              onPress={() => tocarCarta(i)}
-              onFlipEnd={cartaAbriu}
-            />
-          ))}
-        </View>
+        {!cartasProntas ? (
+          <View style={styles.preparando} accessibilityLiveRegion="polite">
+            <FaithIcon name="pares" size={34} color={pt.purple} />
+            <Text style={styles.preparandoText}>Beni está preparando as cartas...</Text>
+          </View>
+        ) : (
+          <View style={{ width: layout.gridWidth, height: layout.gridHeight, transform: [{ translateY: -subirGrade }] }}>
+            {/* R2C §4 — brilho MUITO discreto no conjunto durante a contemplação final. */}
+            {conclusao === 'contemplando' && (
+              <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.contemplacaoGlow]} />
+            )}
+            {vista.deck.map((c, i) => {
+              const pos = layout.positions[i] || { x: layout.offsetX, y: layout.offsetY };
+              return (
+                <View
+                  key={`${vista.gradesCompletas}-${c.key}`}
+                  style={{
+                    position: 'absolute',
+                    left: pos.x - layout.offsetX,
+                    top: pos.y - layout.offsetY,
+                    width: layout.cardWidth,
+                    height: layout.cardHeight,
+                  }}
+                >
+                  <ParesFlipCard
+                    carta={c}
+                    indice={i}
+                    aberta={vista.abertas.includes(i)}
+                    casada={vista.casadas.includes(c.key)}
+                    errando={errando.includes(i)}
+                    width={layout.cardWidth}
+                    height={layout.cardHeight}
+                    radius={radii.md}
+                    reduceMotion={reduceMotion}
+                    forceNoCover={diag.missingImage}
+                    onPress={() => tocarCarta(i)}
+                    onFlipEnd={cartaAbriu}
+                  />
+                </View>
+              );
+            })}
+
+            {/* R2B §8 — centelha do par → medidor. `key` do evento reinicia limpo (evento
+                antigo não apaga o novo). Vive no bloco da grade: nasce no centro do par. */}
+            {streakEvent && !reduceMotion && (
+              <ParesSpark
+                key={streakEvent.id}
+                x={streakEvent.x}
+                y={streakEvent.y}
+                toX={streakEvent.toX}
+                level={streakEvent.level}
+                reduceMotion={reduceMotion}
+              />
+            )}
+          </View>
+        )}
       </View>
 
       {/* Moldura de alerta: encosta nos limites da JANELA, por cima de tudo, sem tocar em nada. */}
       {critico && <MolduraAlerta pulso={pulso} largura={width} />}
+
+      {/* R2B §8 — brasas do Fogo da Memória pelas margens (não cobrem cartas). Máx. 700 ms. */}
+      {fogoEventId > 0 && !reduceMotion && (
+        <ParesFogoEmbers key={fogoEventId} width={width} height={height} reduceMotion={reduceMotion} />
+      )}
+
+      {/* Diagnóstico do criador — renderiza null em produção. */}
+      <ParesCreatorDiagnostics info={diagInfo} overrides={diag} onAction={diagAction} />
     </View>
   );
+}
+
+/** Retrato do jogo para o painel do criador (§10). Puro, derivado do estado da máquina. */
+function buildDiagInfo(vista, layout, cartasProntas) {
+  const foco = vista.abertas.length ? vista.abertas[vista.abertas.length - 1] : 0;
+  const cartaFoco = vista.deck[foco];
+  const casada = cartaFoco ? vista.casadas.includes(cartaFoco.key) : false;
+  const aberta = vista.abertas.includes(foco);
+  const girando = vista.fase === FASES.FIRST_FLIP || vista.fase === FASES.SECOND_FLIP;
+  const flipState = casada ? 'casada' : aberta ? (girando ? 'abrindo' : 'aberta') : 'fechada';
+
+  let dims = '—';
+  const cover = cartaFoco && getStoryCoverImage(cartaFoco.storyId);
+  if (cover) {
+    const s = Image.resolveAssetSource(cover);
+    dims = s?.width ? `${s.width}×${s.height}` : 'sem dims';
+  } else if (cartaFoco) {
+    dims = 'sem capa';
+  }
+
+  return {
+    fase: vista.fase,
+    inputLocked: !FASES_QUE_ACEITAM.includes(vista.fase) || vista.abertas.length >= 2,
+    openCardIds: vista.abertas,
+    matchedCardIds: vista.casadas,
+    imageReady: cartasProntas,
+    carta: {
+      cardId: cartaFoco?.key ?? '—',
+      flipState,
+      imageDimensions: dims,
+      rotationProgress: (aberta || casada) ? '→ 1.0' : '0.0',
+    },
+    grade: {
+      gridWidth: layout.gridWidth, gridHeight: layout.gridHeight,
+      cardWidth: layout.cardWidth, cardHeight: layout.cardHeight,
+      layoutGapX: layout.layoutGapX, layoutGapY: layout.layoutGapY,
+      opticalGapX: layout.opticalGapX, opticalGapY: layout.opticalGapY,
+      shadowBleed: layout.shadowBleed,
+      columns: layout.columns, rows: layout.rows,
+    },
+    streak: {
+      current: vista.combo, best: vista.maiorCombo,
+      level: streakLevel(vista.combo), fogo: isFogo(vista.combo),
+    },
+  };
 }
 
 /**
@@ -1235,6 +1422,13 @@ const styles = StyleSheet.create({
 
   areaJogo: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
+  // §2 — enquanto as capas decodificam.
+  preparando: { alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 },
+  preparandoText: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.purpleDeep, textAlign: 'center' },
+
+  // R2C §4 — brilho MUITO discreto sobre a grade durante a contemplação final.
+  contemplacaoGlow: { borderRadius: radii.lg, backgroundColor: '#FFE9B8', opacity: 0.10 },
+
   // Moldura da JANELA: ancorada na raiz, por cima de tudo. Sem insets, sem raio:
   // é decoração e pode passar pela safe area.
   moldura: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
@@ -1247,30 +1441,6 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 0 },
     elevation: 8,
-  },
-
-  grade: {
-    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignContent: 'center',
-    gap: GRADE_GAP, paddingHorizontal: GRADE_PADDING_H, paddingVertical: GRADE_PADDING_V,
-  },
-  cartaBox: { borderRadius: radii.md, ...shadows.soft },
-  cartaPressionada: { opacity: 0.86 },
-  face: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: radii.md, overflow: 'hidden',
-    alignItems: 'center', justifyContent: 'center',
-    backfaceVisibility: 'hidden',
-    borderWidth: 2,
-  },
-  cartaVerso: { backgroundColor: '#7C3AED', borderColor: '#6D28D9' },
-  cartaFrente: { backgroundColor: '#FFF', borderColor: '#E5D9F7' },
-  cartaFrenteCasada: { borderColor: '#0E9F6E' },
-  cartaFrenteErro: { borderColor: '#E8A33D' },
-  cartaImgVazia: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3EFE9' },
-  cartaCheck: {
-    position: 'absolute', right: 4, bottom: 4,
-    width: 24, height: 24, borderRadius: 12, backgroundColor: '#0E9F6E',
-    alignItems: 'center', justifyContent: 'center',
   },
 
   // ── Resultado: um número grande, três métricas, faixas leves ──
