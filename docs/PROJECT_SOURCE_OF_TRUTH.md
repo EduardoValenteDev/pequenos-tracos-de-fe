@@ -12,11 +12,17 @@ Quando houver conflito entre documentos antigos e este arquivo, **este arquivo p
 
 Documentos antigos permanecem como histórico, mas **não devem orientar decisões futuras sem validação contra este arquivo**. Veja o mapa de documentos em [docs/DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md).
 
-**Fase final (execução, otimização, beta e lançamento):** o [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL.md) (v2.0, 01/07/2026) é a **fonte única de verdade da fase final** do projeto. Em conflito entre ele e qualquer plano, prompt ou conversa anterior, **o documento oficial final prevalece**. Decisão de escopo travada: **a aba Brincar completa entra no lançamento**, com **arquitetura híbrida obrigatória** (2 histórias grátis locais no binário, 18 premium por packs remotos no Cloudflare R2).
+**Fase final (execução, otimização, beta e lançamento):** o [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md) (**v4, vigente**) é a **fonte única de verdade da linha de lançamento**, subordinado a este arquivo e às decisões. O árbitro único das **decisões de produto/lançamento** é [`docs/DECISIONS.md`](DECISIONS.md). Em conflito entre um documento e o `docs/DECISIONS.md`, **vence o `docs/DECISIONS.md`**. Decisão de escopo travada: **a aba Brincar completa entra no lançamento**, com **arquitetura híbrida obrigatória** (2 histórias grátis locais no binário, 18 premium por packs remotos no Cloudflare R2).
 
-O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md) foi **substituído** pelo documento oficial final e permanece **apenas como histórico** (a versão anterior sugeria MVP sem a aba Brincar). Os conflitos com o app já entregue continuam registrados em [`docs/launch/DECISOES_E_CONFLITOS.md`](launch/DECISOES_E_CONFLITOS.md); a matriz de acesso em [`docs/launch/MATRIZ_DE_ACESSO.md`](launch/MATRIZ_DE_ACESSO.md).
+> **Reconciliação E1 (2026-07-15):** o antigo `docs/DOCUMENTO_OFICIAL_PROJETO_FINAL.md` (v2.0) foi **superado pelo v4** — é histórico, não normativo. Detalhes em [`docs/launch/RECONCILIACAO_E1.md`](launch/RECONCILIACAO_E1.md).
 
-**Anexo de direção visual:** a [`docs/DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md`](DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md) é o **anexo oficial de direção de arte** (governa visual, tokens, responsividade, componentes e critérios de aceite visuais), subordinado ao Documento Mestre de execução v3.1. As decisões visuais congeladas (D1–D4) estão espelhadas em `DECISIONS.md` (Seção 3).
+O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md) e o `DOCUMENTO_OFICIAL_PROJETO_FINAL.md` (v2.0) foram **substituídos** pelo v4 e permanecem **apenas como histórico**. Os conflitos registrados na Fase 0 estão em [`docs/launch/DECISOES_E_CONFLITOS.md`](launch/DECISOES_E_CONFLITOS.md); a matriz de acesso em [`docs/launch/MATRIZ_DE_ACESSO.md`](launch/MATRIZ_DE_ACESSO.md).
+
+**Precedência documental consolidada (E1):**
+- **Governança técnica:** `docs/PROJECT_SOURCE_OF_TRUTH.md` → `.specify/memory/constitution.md` → `AGENTS.md` → `CLAUDE.md` → spec → plan → tasks → sessão.
+- **Decisões de produto/lançamento:** `docs/DECISIONS.md` (**árbitro único**) → `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md` (vigente) → Direção de Arte v1.1 + docs narrativos/bíblicos vigentes → documentos antigos (**histórico, não normativo**).
+
+**Anexo de direção visual:** a [`docs/DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md`](DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md) é o **anexo oficial de direção de arte** (governa visual, tokens, responsividade, componentes e critérios de aceite visuais), subordinado ao v4 e ao `docs/DECISIONS.md`. As decisões visuais congeladas (D1–D4) estão registradas em `docs/DECISIONS.md` (D-DESIGN-LIVRO-VIVO).
 
 ---
 
@@ -63,10 +69,10 @@ Decisões **fechadas** (não reabrir sem nova decisão estratégica explícita):
 - Ao monetizar, usar **RevenueCat** como backend gerenciado de compras/entitlements.
 - Servidor próprio só após tração real (ex.: sync entre aparelhos ou licenciamento institucional avançado).
 
-**Modelo de receita**
-- Ofertas principais: **anual + vitalício**.
-- **Mensal** pode existir como entrada.
-- **Packs avulsos** como aquisição, não como eixo principal.
+**Modelo de receita** *(atualizado na Reconciliação E1 — ver `docs/DECISIONS.md` D-MONETIZACAO-V1)*
+- Ofertas do v1: **mensal + anual**. **Sem plano trimestral e sem plano vitalício no v1.**
+- **RevenueCat** como fonte de entitlement; paywall só atrás da Área dos Pais + gate parental.
+- **Valores numéricos = pendência controlada** (não inventar; ver decisões pendentes em `docs/DECISIONS.md`).
 - Conteúdo digital no app deve respeitar **compra in-app das lojas**.
 
 **Assets e peso**

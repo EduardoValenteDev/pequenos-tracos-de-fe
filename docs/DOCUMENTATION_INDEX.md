@@ -8,7 +8,27 @@ Este índice classifica a documentação do projeto. Em caso de conflito, vale s
 ## 1. Fonte oficial atual
 
 - **[PROJECT_SOURCE_OF_TRUTH.md](PROJECT_SOURCE_OF_TRUTH.md)** — fonte de verdade
-  operacional e estratégica. **Prevalece sobre qualquer outro documento.**
+  operacional e estratégica (governança técnica). **Prevalece sobre qualquer outro documento.**
+- **[DECISIONS.md](DECISIONS.md)** — **árbitro único** das decisões de produto/lançamento.
+  Em conflito entre um documento e este arquivo, **vence o `docs/DECISIONS.md`**.
+- **[DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md)** —
+  **linha de lançamento vigente (v4)**, subordinada às decisões.
+- **[launch/RECONCILIACAO_E1.md](launch/RECONCILIACAO_E1.md)** — reconciliação da governança
+  (E1, 2026-07-15): precedência, decisões consolidadas, superadas e pendentes.
+
+**Superados (histórico, não normativo):** `DOCUMENTO_OFICIAL_PROJETO_FINAL.md` (v2.0),
+`PLANO_OFICIAL_BENI_LANCAMENTO.md`, e o **`/DECISIONS.md` da raiz** (agora só um aviso SUPERSEDED
+que aponta para `docs/DECISIONS.md`).
+
+**Precedência:** governança técnica (`PROJECT_SOURCE_OF_TRUTH` → constitution → AGENTS → CLAUDE)
+acima das decisões de produto (`docs/DECISIONS.md` → v4 → Direção de Arte v1.1 → docs
+narrativos/bíblicos vigentes → históricos).
+
+**Próximo bloco oficial:** Onboarding **O1** (especificação da primeira experiência) — ver a
+"Ordem oficial dos próximos blocos (E1)" em `docs/DECISIONS.md`.
+
+**Guias de feature vigentes do Brincar/Criar Livre:** [BRINCAR_HUB_GUIDE.md](BRINCAR_HUB_GUIDE.md),
+[ATELIER_GUIDE.md](ATELIER_GUIDE.md) (Seção 0 = Criar Livre atual; seções antigas = histórico).
 
 ---
 

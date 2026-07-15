@@ -64,8 +64,8 @@ F2.4e.5 áudio → offline completo do piloto → build real de medição.)
 - Hardening Android 2–3 GB; ritual de conclusão; QA matriz; beta fechado; loja.
 
 ## 10. Free e Plano Família
-- **Grátis:** A Criação, Noé (narração/quiz/Momento/Livrinho/colorir das grátis); Criar/colorir **sem salvar**; **2 rodadas/dia** por jogo no Brincar.
-- **Plano Família:** 18 premium (download offline), **salvar arte + Galeria + persistência**, avatares exclusivos, rodadas ilimitadas, cartinhas "Arte" do Baú.
+- **Grátis:** A Criação, Noé (narração/quiz/Momento/Livrinho/colorir das grátis); Criar/colorir **sem salvar** (0 salvamentos); **2 rodadas/dia por criança** no Brincar (política central compartilhada; ver E1-RODADAS — código atual por dispositivo); **sem avatares premium**.
+- **Plano Família:** 18 premium (download offline), **salvar arte + Galeria + persistência**, **avatares premium** (adicionais exclusivos; ver E1-AVATARES), rodadas ilimitadas, cartinhas "Arte" do Baú.
 - **Acesso central `can()`** (§ do Adendo): nenhuma tela decide sozinha; UI consome `can(...)`; rotas diretas também passam por `can()`.
 
 ## 11. Plano Free sem salvar (D-FREE-SEM-SALVAR)
@@ -83,12 +83,14 @@ Estado intermediário = **"Quase lá!"** (checklist do que falta: quiz/colorir/g
 set). "Colorir concluído" = **≥ 1 página** (default do adendo, **a confirmar**). *Muda progressão e
 retenção → implementação em bloco próprio POSTERIOR; não agora.*
 
-## 13. Brincar v1 — jogos brutos + naming pendente (D-BRINCAR-JOGOS-V1)
-Itens do Brincar v1: **Folha Livre · Minhas Artes · Soletrando · Adivinhar o Animal · Quebra-Cabeça.**
-- **⚠️ Pares, Palavrinhas e Bichinhos NÃO foram removidos** — eram **nomes amigáveis anteriores/candidatos** para estes mesmos minijogos. Não tratar como excluídos.
-- **Nomes finais amigáveis = PENDENTES** (D-NAMING-JOGOS-PENDENTE) para Soletrando / Adivinhar o Animal / Quebra-Cabeça.
-- 2 rodadas/dia por jogo no grátis (`dailyRounds`); ilimitado no Plano Família. Único com assets novos: **Adivinhar o Animal** (15 ilustrações + 15 sons — encomendar em paralelo). *Implementação = fase Brincar; não agora.*
-- **"Criar com Beni":** status no v1 **conflitante entre documentos → A CONFIRMAR** pelo fundador (D-CRIAR-COM-BENI-STATUS). **Nenhuma remoção de código agora.**
+## 13. Brincar v1 — jogos finais (E1-BRINCAR-4JOGOS · atualizado 2026-07-15)
+Aba Brincar **entregue e fechada** (`1daf4c1`): **quatro jogos** em grade 2×2 — **Pares do Beni · Palavrinhas do Beni · Cadê a Ovelhinha? · Monte a Cena** — mais a **seção criativa** com **Criar Livre** e **Minhas artes**.
+- **Criar Livre** não é um quinto jogo (seção criativa); **Minhas artes** é a galeria oficial.
+- **Bichinhos da Bíblia está FORA do lançamento atual** (E1-BRINCAR-SEM-BICHINHOS).
+- **"Criar com Beni"** deixa de existir como nome público de experiência separada; nome oficial = **Criar Livre** (card legado da Home = redirecionar/remover em bloco futuro; **não** neste bloco).
+- **2 rodadas/dia por criança** (decisão; política central compartilhada `brincarDailyService`), ilimitado no Plano Família. *O código atual conta por dispositivo — correção no bloco de Acesso/RevenueCat (E1-RODADAS).*
+
+> Redação anterior (nomes brutos "Folha Livre/Soletrando/Adivinhar o Animal/Quebra-Cabeça" + "Bichinhos não removidos" + "Criar com Beni A CONFIRMAR") **superada** pela Reconciliação E1 — ver `docs/DECISIONS.md`.
 
 ## 14. Direção visual "O Livro Vivo" (D-DESIGN-LIVRO-VIVO)
 Direção de Arte v1.1 é a oficial (roxo aposentado; Fraunces+Nunito; uma cor de ação; dourado =
