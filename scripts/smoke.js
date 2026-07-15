@@ -10033,6 +10033,167 @@ console.log('\n── Criar livre CF: encerramento (regressões objetivas) ─�
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// Brincar B1 — hub premium, descoberta equilibrada e orientação do Beni.
+// Grade 2×2 com peso igual · fonte declarativa única · sugestão diária determinística
+// e equilibrada · plano por dado real · Modo Criador protegido · a11y · sem emoji/dep.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Brincar B1: hub premium + sugestão equilibrada ──');
+{
+  const brc = readSrc('src/screens/BrincarScreen.js');
+  const brcN = a1StripComments(brc);
+  const sug = readSrc('src/services/brincarSuggestion.js');
+
+  // §18 — FONTE DECLARATIVA ÚNICA: os 4 jogos vêm de BENI_GAMES (grade E sugestão).
+  check('B1 §18 (fonte única): BENI_GAMES com os 4 jogos (id/title/category/route/color) alimenta grade e sugestão',
+    /const BENI_GAMES = \[/.test(brcN)
+    && ["pares", "palavrinhas", "ovelha", "monte"].every((id) => new RegExp(`id: '${id}'`).test(brcN))
+    && ['Pares do Beni', 'Palavrinhas do Beni', 'Cadê a Ovelhinha?', 'Monte a Cena'].every((t) => brc.includes(t))
+    && (brcN.match(/route: ROUTES\.(PARES_DO_BENI|PALAVRINHAS_DO_BENI|CADE_A_OVELHINHA|MONTE_A_CENA_HOME)/g) || []).length === 4
+    && /BENI_GAMES\[pickDailyIndex\(/.test(brcN),   // a sugestão sai da MESMA fonte
+    'os 4 jogos não vêm de uma fonte declarativa única, ou a sugestão usa outra fonte');
+
+  // §9/§22.2 — todos os jogos usam a MESMA variante de card (GameCard), nenhum tile especial.
+  check('B1 §9 (peso igual): todos os jogos usam <GameCard> (mesma variante); sem ActiveTile/WideActiveTile',
+    /function GameCard\(/.test(brcN)
+    && (brcN.match(/<GameCard\b/g) || []).length >= 1
+    && !/<ActiveTile\b/.test(brcN) && !/<WideActiveTile\b/.test(brcN)
+    && !/TestingWideTile|ComingTile|LabTile/.test(brcN),
+    'os jogos não compartilham a mesma variante de card');
+
+  // §9/§22.3 — grade 2×2, nenhum jogo com span permanente de 2 colunas.
+  check('B1 §9 (2×2 sem span): grade em pares [[0,1],[2,3]]; células flex:1; sem coluna dupla',
+    /\[\[0, 1\], \[2, 3\]\]\.map/.test(brcN)
+    && /gridCell: \{ flex: 1 \}/.test(brc)
+    && !/gridColSpan|columnSpan|width: '100%'/.test(brc),
+    'a grade não é 2×2 igual, ou um card ocupa duas colunas');
+
+  // §10/§22.4 — cada jogo tem ação principal "Jogar" e categoria discreta.
+  check('B1 §10 (ação + categoria): botão "Jogar" no card; categorias Memória/Letras/Atenção/Raciocínio',
+    />Jogar<\/Text>/.test(brc)
+    && ['Memória', 'Letras', 'Atenção', 'Raciocínio'].every((c) => new RegExp(`category: '${c}'`).test(brc)),
+    'faltou a ação "Jogar" ou uma categoria discreta por jogo');
+
+  // §11 — famílias de cor oficiais por jogo (azul/dourado/verde/violeta).
+  check('B1 §11 (cores oficiais): Pares azul · Palavrinhas dourado · Ovelhinha verde · Monte violeta',
+    /id: 'pares'[\s\S]{0,220}color: pt\.faithBlue/.test(brc)
+    && /id: 'palavrinhas'[\s\S]{0,220}color: pt\.goldDeep/.test(brc)
+    && /id: 'ovelha'[\s\S]{0,220}color: pt\.greenDeep/.test(brc)
+    && /id: 'monte'[\s\S]{0,220}color: pt\.purple/.test(brc),
+    'as famílias de cor oficiais dos jogos regrediram');
+
+  // §14/§15 — Criar livre FORA da grade (seção criativa) + Minhas artes logo depois.
+  check('B1 §14/§15 (criativo): Criar livre em seção própria (não na grade) + Minhas artes',
+    /Crie do seu jeito/.test(brc)
+    && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brcN)
+    && !/id: 'criar_livre'/.test(brcN) && !/BENI_GAMES[\s\S]{0,400}criar_livre/.test(brcN)   // não é o 5º da grade
+    && /navigate\(ROUTES\.ATELIER_GALLERY\)/.test(brcN),
+    'Criar livre virou um jogo da grade, ou Minhas artes sumiu');
+
+  // §15 — miniatura recente só EXIBIÇÃO (não re-exporta), com fallback seguro (SafeImage).
+  check('B1 §15 (miniatura): usa resolveArtThumbUri + SafeImage (sem re-exportar), fallback seguro',
+    /resolveArtThumbUri\(list\[0\]\)/.test(brcN)
+    && /<SafeImage/.test(brcN) && !/exportState/.test(brcN),
+    'a miniatura recente re-exporta o desenho ou não tem fallback seguro');
+
+  // §6/§20 — plano por DADO REAL; nunca "sem limite" para quem não tem acesso.
+  check('B1 §6/§20 (plano real): chip premium "sem limite" só com hasAtelierUnlimitedAccess; free por getDailyRounds',
+    /hasAtelierUnlimitedAccess\(\)/.test(brcN)
+    && /getDailyRounds/.test(brcN) && !/consumeRound/.test(brcN)   // hub informa, não consome
+    && /premium\s*\?\s*'Brincadeiras sem limite'/.test(brcN)
+    && /rounds\.remaining/.test(brcN),
+    'o estado do plano não usa dado real, ou promete "sem limite" indevidamente');
+
+  // §7 — Modo Criador NÃO é reintroduzido na tela (o selo global já é seguro).
+  check('B1 §7 (Modo Criador): a BrincarScreen não renderiza selo próprio nem gate interno',
+    !/isInternalToolsEnabled/.test(brcN) && !/CreatorModeBanner/.test(brcN)
+    && !/MODO CRIADOR/.test(brc),
+    'a BrincarScreen reintroduziu o selo/gate do Modo Criador');
+
+  // §16 — safe area real: header por insets.top; último card rola acima da barra inferior.
+  check('B1 §16 (safe area): header por insets.top; paddingBottom insets.bottom + 28',
+    /paddingTop: Math\.max\(insets\.top, 28\)/.test(brc)
+    && /paddingBottom: insets\.bottom \+ 28/.test(brc)
+    && /useSafeAreaInsets/.test(brcN),
+    'a safe area do topo/rodapé regrediu');
+
+  // §12/§19 — movimento reduzido respeitado (entrada sem animação quando ativo).
+  check('B1 §12/§19 (movimento reduzido): AccessibilityInfo + AnimatedCard sem animação em reduzido',
+    /AccessibilityInfo\.isReduceMotionEnabled/.test(brcN)
+    && /reduce=\{reduceMotion\}/.test(brcN)
+    && /if \(reduce\) \{ fade\.setValue\(1\); slide\.setValue\(0\); return; \}/.test(brcN),
+    'o movimento reduzido não é respeitado na entrada dos cards');
+
+  // §19 — a11y: rótulos por jogo (nome + tipo + ação) + a sugestão anuncia o jogo.
+  check('B1 §19 (a11y): cada jogo tem accessibilityLabel "nome, jogo de X, jogar"; sugestão anuncia o jogo',
+    /a11y: 'Pares do Beni, jogo de memória, jogar'/.test(brc)
+    && /a11y: 'Monte a Cena, jogo de raciocínio, jogar'/.test(brc)
+    && /accessibilityLabel=\{game\.a11y\}/.test(brcN)
+    && /accessibilityLabel=\{`Beni sugere hoje: \$\{suggested\.a11y\}`\}/.test(brcN)
+    && /accessibilityLabel="Criar livre, atividade de desenho, abrir folha"/.test(brc),
+    'os rótulos de acessibilidade dos jogos/sugestão/Criar livre regrediram');
+
+  // §22.7/8 — Criar livre não está na grade; está na seção criativa.
+  check('B1 (sem emoji + FaithIcon): a tela usa FaithIcon e nenhum emoji/clipart',
+    /<FaithIcon/.test(brcN) && !/\p{Extended_Pictographic}/u.test(brc),
+    'entrou emoji/clipart na BrincarScreen');
+
+  // §8 — o helper de sugestão é PURO e determinístico (avaliado de verdade).
+  let SUG = null;
+  try {
+    const code = sug.replace(/export default[\s\S]*$/m, '').replace(/export /g, '')
+      + '; return { dayOrdinal, childOffset, pickDailyIndex };';
+    SUG = new Function(code)();
+  } catch (e) { SUG = null; }
+
+  check('B1 §8 (sugestão pura): brincarSuggestion avalia sem imports/deps',
+    !!SUG && typeof SUG.pickDailyIndex === 'function',
+    'brincarSuggestion não é um módulo puro avaliável');
+
+  check('B1 §8 (estável no dia): o índice não muda para o mesmo dia+criança',
+    !!SUG && SUG.pickDailyIndex('2026-07-15', 'child-1', 4) === SUG.pickDailyIndex('2026-07-15', 'child-1', 4),
+    'a sugestão muda para o mesmo dia e a mesma criança');
+
+  check('B1 §8 (equilibrada): 4 dias consecutivos cobrem os 4 jogos (rotação cíclica)',
+    (() => {
+      if (!SUG) return false;
+      const idx = ['2026-07-15', '2026-07-16', '2026-07-17', '2026-07-18']
+        .map((d) => SUG.pickDailyIndex(d, 'child-1', 4));
+      return new Set(idx).size === 4;   // dias seguidos → 4 jogos distintos
+    })(),
+    'a sugestão não alterna de forma equilibrada entre os 4 jogos');
+
+  check('B1 §8 (por criança): perfis diferentes podem ver sugestões diferentes no mesmo dia; índice sempre válido',
+    (() => {
+      if (!SUG) return false;
+      const a = SUG.pickDailyIndex('2026-07-15', 'child-A', 4);
+      const b = SUG.pickDailyIndex('2026-07-15', 'child-B-outro', 4);
+      return [a, b].every((v) => v >= 0 && v < 4);
+    })(),
+    'a sugestão não varia por criança / índice fora da coleção');
+
+  check('B1 §8 (fallback seguro): id ausente, count 0/negativo/inválido → 0, nunca lança nem sai da coleção',
+    (() => {
+      if (!SUG) return false;
+      const semId = SUG.pickDailyIndex('2026-07-15', undefined, 4);   // sem criança
+      const vazio = SUG.pickDailyIndex('', '', 4);                     // dia ausente
+      const zero = SUG.pickDailyIndex('2026-07-15', 'x', 0);          // count zero
+      const neg = SUG.pickDailyIndex('2026-07-15', 'x', -3);          // count negativo
+      const nan = SUG.pickDailyIndex('2026-07-15', 'x', 'abc');       // count inválido
+      const undef = SUG.pickDailyIndex('2026-07-15', 'x', undefined); // count ausente
+      return semId >= 0 && semId < 4 && vazio >= 0 && vazio < 4
+        && zero === 0 && neg === 0 && nan === 0 && undef === 0;
+    })(),
+    'o fallback da sugestão (id ausente / count 0/negativo/inválido) regrediu');
+
+  // §21 — isolamento: a tela não importa lógica interna dos jogos.
+  check('B1 §21 (isolamento): a BrincarScreen só NAVEGA para os jogos (não importa a lógica interna)',
+    !/from '\.\.\/services\/(paresGameService|ovelhaGameMachine|palavrinhas)/.test(brcN)
+    && !/from '\.\.\/data\/monteACena/.test(brcN)
+    && /from '\.\.\/constants\/routes'/.test(brcN),
+    'a BrincarScreen passou a importar a lógica interna de um jogo');
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // Sprint Estabilização A — Bloco A1: testes que pegam mentira
 // Validação COMPORTAMENTAL/ESTRUTURAL (disco real, parse, round-trip em sandbox,
 // rotas), reduzindo a dependência de checks que só confirmam que uma string
@@ -16332,12 +16493,13 @@ check(
 
     // Fechamento — Monte a Cena PUBLICADO: card largo user-facing "Jogar" que abre a rota
     // oficial. Nada de "Em teste"/"Testar", nada de gate por Modo Criador, nada de "em preparo".
-    check('Fechamento (Monte a Cena publicado): card user-facing "Jogar" → rota oficial, sem "Em teste"',
-      /title="Monte a Cena"/.test(brc) && /navigate\(ROUTES\.MONTE_A_CENA_HOME\)/.test(brcNoCom)
+    check('Fechamento/B1 (Monte a Cena publicado): jogo na grade → rota oficial, sem "Em teste"',
+      /title: 'Monte a Cena'/.test(brc) && /route: ROUTES\.MONTE_A_CENA_HOME/.test(brc)
+      && /navigation\.navigate\(game\.route\)/.test(brcNoCom)
       && !/Em teste/.test(brc) && !/Testar/.test(brc)
       && !/ComingTile|TestingWideTile|TestingTile|EM_PREPARO/.test(brcNoCom)
       && !/Chegando em breve/.test(brc),
-      'Monte a Cena não foi publicado como card user-facing, ou sobrou "Em teste"/"em preparo"');
+      'Monte a Cena não foi publicado como jogo da grade, ou sobrou "Em teste"/"em preparo"');
 
     check('1.2 (colorir): "Colorir uma história" NÃO é card da aba Brincar',
       !/Colorir uma hist/.test(brcNoCom) && !/screen: 'Aventuras'/.test(brcNoCom),
@@ -16547,7 +16709,8 @@ check(
     check('1.3 (navegação): rota ParesDoBeni registrada e ligada ao card do hub',
       /PARES_DO_BENI: 'ParesDoBeni'/.test(readSrc('src/constants/routes.js'))
       && /name="ParesDoBeni"/.test(navB13)
-      && /navigate\(ROUTES\.PARES_DO_BENI\)/.test(brcB13),
+      && /route: ROUTES\.PARES_DO_BENI/.test(brcB13)
+      && /navigation\.navigate\(game\.route\)/.test(brcB13),
       'o card Pares do Beni não abre o jogo');
 
     check('1.3 (conquistas): 5 conquistas novas em "brincar", sem emoji e sem tocar nas antigas',
@@ -16643,24 +16806,27 @@ check(
       && /ATELIER_CANVAS: 'AtelierCanvas'/.test(readSrc('src/constants/routes.js')),
       'o fluxo legado do Desenho guiado foi apagado — só a UI deveria ter mudado');
 
-    // Fechamento — grade user-facing: 2 ActiveTile (Pares, Criar livre) + 3 WideActiveTile
-    // (Palavrinhas, Cadê a Ovelhinha?, Monte a Cena publicado). ZERO cards "em preparo".
-    check('1.3a/UF1/OV4/fechamento (grade): 2 ActiveTile + 3 WideActiveTile (Palavrinhas, Ovelhinha, Monte a Cena)',
+    // B1 — grade 2×2: 4 jogos vindos da FONTE DECLARATIVA única (BENI_GAMES), renderizados
+    // por <GameCard> (todos idênticos). Criar livre SAI da grade (seção própria). Sem
+    // ActiveTile/WideActiveTile antigos, sem cards "em preparo".
+    check('B1 (grade 2×2): 4 jogos declarativos via GameCard; Criar livre fora da grade; sem tiles antigos',
       (() => {
-        const emPreparo = (brcAn.match(/\{ id: '[a-z_]+', icon:/g) || []).length;
-        const ativos = (brcAn.match(/<ActiveTile\b/g) || []).length;
-        const wide = (brcAn.match(/<WideActiveTile\b/g) || []).length;
-        return emPreparo === 0 && ativos === 2 && wide === 3
-          && /navigate\(ROUTES\.PARES_DO_BENI\)/.test(brcAn)
-          && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brcAn)
-          && /navigate\(ROUTES\.CADE_A_OVELHINHA\)/.test(brcAn)
-          && /navigate\(ROUTES\.MONTE_A_CENA_HOME\)/.test(brcAn);
+        const rotasJogos = (brcAn.match(/route: ROUTES\.(PARES_DO_BENI|PALAVRINHAS_DO_BENI|CADE_A_OVELHINHA|MONTE_A_CENA_HOME)/g) || []).length;
+        const gameCards = (brcAn.match(/<GameCard\b/g) || []).length;
+        return rotasJogos === 4
+          && /const BENI_GAMES = \[/.test(brcAn)
+          && /\[\[0, 1\], \[2, 3\]\]\.map/.test(brcAn)   // grade 2×2
+          && gameCards >= 1
+          && !/<ActiveTile\b/.test(brcAn) && !/<WideActiveTile\b/.test(brcAn)
+          && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brcAn)   // Criar livre (seção criativa)
+          && /navigation\.navigate\(game\.route\)/.test(brcAn);       // abertura única por jogo
       })(),
-      'a aba Brincar não está com 2 ActiveTile + 3 WideActiveTile (Palavrinhas + Ovelhinha + Monte a Cena)');
+      'a aba Brincar não está com a grade 2×2 declarativa (4 jogos por GameCard, Criar livre à parte)');
 
-    check('1.3a/fechamento (sem "em preparo"): seção vazia removida; sem ComingTile; sem emoji',
+    check('1.3a/B1 (sem "em preparo"): sem ComingTile/tiles antigos; sem gate; sem emoji',
       !/function ComingTile/.test(brcAn) && !/Chegando em breve/.test(brcA)
-      && !/isInternalToolsEnabled/.test(brcAn)   // BrincarScreen não gateia mais nenhum card
+      && !/EM_PREPARO|DEV_ROTAS/.test(brcAn)
+      && !/isInternalToolsEnabled/.test(brcAn)   // BrincarScreen não gateia nenhum card
       && !/\p{Extended_Pictographic}/u.test(brcA),
       'sobrou a seção "em preparo"/ComingTile/gate na aba Brincar, ou entrou emoji');
   }
@@ -16884,23 +17050,23 @@ check(
       'o enquadramento padrão deixou de ser o recorte centrado, ou o de Abraão não desloca');
 
     // ── Aba Brincar ──────────────────────────────────────────────────────────
-    check('1.4/UF1/OV4/fechamento (hub): 5 cards (2 ActiveTile + 3 WideActiveTile), Desenho guiado fora da UI, legado do Ateliê preservado',
-      (brc14.match(/<ActiveTile\b/g) || []).length === 2
-      && (brc14.match(/<WideActiveTile\b/g) || []).length === 3   // Palavrinhas + Ovelhinha + Monte a Cena
-      && (brc14.match(/\{ id: '[a-z_]+', icon:/g) || []).length === 0   // sem "em preparo"
+    check('1.4/B1 (hub): 4 jogos declarativos + Criar livre + galeria; Desenho guiado fora; legado do Ateliê preservado',
+      (brc14.match(/route: ROUTES\.(PARES_DO_BENI|PALAVRINHAS_DO_BENI|CADE_A_OVELHINHA|MONTE_A_CENA_HOME)/g) || []).length === 4
+      && !/<ActiveTile\b/.test(brc14) && !/<WideActiveTile\b/.test(brc14)
+      && !/EM_PREPARO|DEV_ROTAS/.test(brc14)   // sem "em preparo"
       && !/Desenho guiado/.test(brc14)
       && /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brc14)
       && /navigate\(ROUTES\.ATELIER_GALLERY\)/.test(brc14)
       && /export const MISSIONS/.test(readSrc('src/data/atelierData.js')),
-      'a aba Brincar saiu dos 5 cards, ou o fluxo legado do Ateliê foi tocado');
+      'a aba Brincar saiu da grade declarativa de 4 jogos, ou o fluxo legado do Ateliê foi tocado');
 
-    check('1.4 (hub visual): Beni no topo, safe area no fim da rolagem, estados pressionados',
+    check('1.4/B1 (hub visual): Beni no topo, safe area no fim da rolagem, cards acessíveis',
       /<BeniAvatar variant="happy"/.test(brc14)
       && /paddingBottom: insets\.bottom \+ 28/.test(brc14)
-      && /tileAtivo/.test(brc14)
+      && /<GameCard\b/.test(brc14)
       && /accessibilityRole="button"/.test(brc14)
       && !/\p{Extended_Pictographic}/u.test(readSrc('src/screens/BrincarScreen.js')),
-      'o acabamento da aba Brincar regrediu (Beni, safe area, toque ou emoji)');
+      'o acabamento da aba Brincar regrediu (Beni, safe area, GameCard, toque ou emoji)');
 
     check('1.4 (protegidos): o bloco não tocou histórias, quizzes nem áudio de narração',
       (() => {
@@ -18483,12 +18649,13 @@ check(
       'as rotas oficiais de Monte a Cena não foram publicadas, ou o legado deixou de ser gated');
 
     // §8 — o card aparece UMA vez, com "Jogar", identidade roxa e ícone de quebra-cabeça.
-    check('Fechamento §8 (card único): 1 card "Monte a Cena" · "Jogar" · roxo · ícone puzzle',
-      (brincarFn.match(/title="Monte a Cena"/g) || []).length === 1
-      && /icon="puzzle"[\s\S]{0,180}title="Monte a Cena"[\s\S]{0,180}cta="Jogar"/.test(brincarFn)
-      && /btnColor=\{pt\.purple\}/.test(brincarFn)
+    check('Fechamento/B1 §8 (Monte a Cena único): 1 entrada · puzzle · violeta · rota HOME',
+      (brincarFn.match(/title: 'Monte a Cena'/g) || []).length === 1
+      && /id: 'monte'[\s\S]{0,200}icon: 'puzzle'/.test(brincarFn)
+      && /route: ROUTES\.MONTE_A_CENA_HOME/.test(brincarFn)
+      && /color: pt\.purple/.test(brincarFn)
       && !/Em teste/.test(brincarF) && !/Testar<\/Text>/.test(brincarF),
-      'o card de Monte a Cena está duplicado, sem "Jogar", fora da identidade roxa, ou com "Em teste"');
+      'a entrada de Monte a Cena está duplicada, sem puzzle, fora da identidade violeta, ou com "Em teste"');
 
     // §8 — catálogo INTOCADO. O total (20/191/9) é computado do dado real e depende de imports
     // (não dá para eval isolado); como NENHUM arquivo de Monte a Cena foi tocado neste bloco, o
@@ -18503,10 +18670,10 @@ check(
       'a estrutura do catálogo de Monte a Cena mudou (deveria estar intocada: 20/191/9, Criação+Noé grátis)');
 
     // §5 — "Criar livre" preservado (não é bloco deste fechamento).
-    check('Fechamento (Criar livre intocado): o card ainda abre o AtelierCanvas',
+    check('Fechamento/B1 (Criar livre intocado): o card ainda abre o AtelierCanvas',
       /navigate\(ROUTES\.ATELIER_CANVAS, \{\}\)/.test(brincarFn)
-      && /title="Criar livre"/.test(brincarFn),
-      'o card "Criar livre" foi alterado ou removido neste fechamento');
+      && /Criar livre/.test(brincarFn),
+      'o card "Criar livre" foi alterado ou removido');
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -20295,26 +20462,26 @@ check(
       && /isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s*name="OvelhaAssetGallery"/.test(nav),
       'a rota principal não está pública ou a Asset Gallery deixou de ser gated');
 
-    check('OV4.2 (card user-facing): WideActiveTile "Cadê a Ovelhinha?" com CTA Jogar e descrição de observação; navega para a rota; sai de "em preparo"/DEV_ROTAS',
+    check('OV4.2/B1 (jogo na grade): "Cadê a Ovelhinha?" com categoria e rota oficial; card sempre visível; fora de "em preparo"',
       (() => {
-        const wide = (brc.match(/<WideActiveTile[\s\S]*?\/>/g) || []).join('\n');
-        const cardOvelha = /icon="ovelha"[\s\S]*?title="Cadê a Ovelhinha\?"[\s\S]*?desc="Observe com atenção e encontre a ovelhinha escondida!"[\s\S]*?cta="Jogar"[\s\S]*?onPress=\{\(\) => navigation\.navigate\(ROUTES\.CADE_A_OVELHINHA\)\}/.test(wide);
-        const foraPreparo = !/\{ id: 'ovelha'/.test(brc) && !/DEV_ROTAS = \{[^}]*ovelha/.test(brc);
-        return cardOvelha && foraPreparo;
+        const entrada = /id: 'ovelha'[\s\S]{0,220}title: 'Cadê a Ovelhinha\?'[\s\S]{0,220}route: ROUTES\.CADE_A_OVELHINHA/.test(brc);
+        const foraPreparo = !/DEV_ROTAS = \{[^}]*ovelha/.test(brc) && !/<WideActiveTile\b/.test(brc);
+        return entrada && foraPreparo;
       })(),
-      'o card user-facing de Cadê a Ovelhinha? (título/CTA/descrição/rota) regrediu');
+      'a entrada de Cadê a Ovelhinha? (título/categoria/rota) na grade declarativa regrediu');
 
-    check('OV4.3 (sem termos técnicos no card): a descrição não menciona DEV/teste/laboratório/seed/spot/hitbox',
+    check('OV4.3/B1 (sem termos técnicos): a entrada de Cadê a Ovelhinha? não menciona DEV/teste/laboratório/seed/spot/hitbox',
       (() => {
-        const wide = (brc.match(/<WideActiveTile[\s\S]*?icon="ovelha"[\s\S]*?\/>/) || [''])[0];
-        return wide.length > 0 && !/\b(DEV|teste|laborat[óo]rio|seed|spot|hitbox)\b/i.test(wide.replace(/icon="ovelha"/, ''));
+        const entrada = (brc.match(/id: 'ovelha'[\s\S]{0,320}?\},/) || [''])[0];
+        return entrada.length > 0 && !/\b(DEV|teste|laborat[óo]rio|seed|spot|hitbox)\b/i.test(entrada);
       })(),
-      'o card de Cadê a Ovelhinha? expôs termos técnicos ao usuário comum');
+      'a entrada de Cadê a Ovelhinha? expôs termos técnicos ao usuário comum');
 
-    check('OV4.4 (visível sem rodadas): o card usa hint de "acabaram" quando semRodadas (card permanece; bloqueio real fica na tela)',
-      /hint=\{semRodadas \? 'As brincadeiras de hoje acabaram — amanhã tem mais\.' : null\}[\s\S]*?onPress=\{\(\) => navigation\.navigate\(ROUTES\.CADE_A_OVELHINHA\)\}/.test(brc)
-      || /icon="ovelha"[\s\S]*?hint=\{semRodadas \?/.test(brc),
-      'o card não permanece visível / sem aviso ao esgotar as rodadas');
+    check('OV4.4/B1 (sempre visível): a grade não esconde/gateia o jogo por rodadas; estado do dia vive no chip de plano',
+      /route: ROUTES\.CADE_A_OVELHINHA/.test(brc)
+      && !/semRodadas \?[\s\S]{0,80}CADE_A_OVELHINHA/.test(brc)   // card não é condicionado por rodadas
+      && !/isInternalToolsEnabled/.test(brc),
+      'o card de Cadê a Ovelhinha? deixou de ser sempre visível na grade');
 
     // ── FERRAMENTAS INTERNAS INVISÍVEIS ──
     check('OV4.5 (selo "Em teste" gated): o chip só aparece sob isInternalToolsEnabled (invisível ao usuário comum)',
@@ -21022,7 +21189,7 @@ check(
       && /<Stack\.Screen\s*name="PalavrinhasDoBeni"/.test(nav)
       && !/isInternalToolsEnabled\(\)\s*&&\s*\(\s*<Stack\.Screen\s*name="PalavrinhasDoBeni"/.test(nav)   // rota NÃO mais gated
       && !/palavrinhas:\s*ROUTES\.PALAVRINHAS_DO_BENI/.test(brc)   // saiu do DEV_ROTAS
-      && /<WideActiveTile[\s\S]*?onPress=\{abrirPalavrinhas\}/.test(brc)   // card user-facing
+      && /route: ROUTES\.PALAVRINHAS_DO_BENI/.test(brc) && /abrirPalavrinhas/.test(brc)   // jogo na grade + navegação imediata
       // reusa os serviços OFICIAIS (nada de chave/contador paralelo do Palavrinhas)
       && /from '\.\.\/services\/brincarDailyService'/.test(tela) && /from '\.\.\/services\/brincarStatsService'/.test(tela)
       && !/@ptf_palavrinhas|AsyncStorage|storageKeys/.test(tela),   // Palavrinhas não cria chave/persistência própria
@@ -21041,14 +21208,14 @@ check(
       } catch (e) { console.log('   erro', e.message); return false; } })(),
       'as decisões UF1 (nome/traçado/MONTE/P5) não foram registradas corretamente');
 
-    check('UF1 (exposição §5–8): card user-facing com nome final + desc de soletração; Lab AINDA por Modo Criador; sem indicação de DEV ao usuário',
-      /title="Palavrinhas do Beni"/.test(brc)
-      && /Soletre e descubra as letrinhas/.test(brc)
-      && /cta="Jogar"/.test(brc)
+    check('UF1/B1 (exposição §5–8): jogo na grade com nome final + categoria "Letras"; Lab AINDA por Modo Criador; sem indicação de DEV ao usuário',
+      /title: 'Palavrinhas do Beni'/.test(brc)
+      && /id: 'palavrinhas'[\s\S]{0,120}category: 'Letras'/.test(brc)
+      && />Jogar<\/Text>/.test(brc)
       && /tela === 'entrada' && diag && criadorAtivo/.test(tela)   // Laboratório continua protegido
       && /criadorAtivo \? <SoundButton style=\{styles\.btnDev\}/.test(tela)   // botão Laboratório só no Modo Criador
-      && !/Em teste|comingBadge|isInternalToolsEnabled|Chegando/i.test((brc.match(/function WideActiveTile[\s\S]*?\n\}/) || [''])[0]),   // o card user-facing (WideActiveTile) não tem selo/indicação DEV
-      'a exposição do card (nome/desc/Lab protegido/sem DEV) regrediu');
+      && !/Em teste|comingBadge|isInternalToolsEnabled|Chegando/i.test((brc.match(/function GameCard[\s\S]*?\n\}/) || [''])[0]),   // o card de jogo (GameCard) não tem selo/indicação DEV
+      'a exposição do jogo (nome/categoria/Lab protegido/sem DEV) regrediu');
 
     check('UF1 (consumo §9–21): consumeRound SÓ em comecar (1 ocorrência); guarda de consumo; abrir seleção não consome; Baú durante_rodada/pausa/retomada não consomem',
       /const comecar = useCallback\(async \(\) => \{\s*if \(consumindoRef\.current\) return;\s*consumindoRef\.current = true;\s*let r;\s*try \{ r = await consumeRound\(\); \}/.test(tela)
@@ -21862,12 +22029,12 @@ check(
     check('M1R1 Brincar: card "Bichinhos da Bíblia" removido da interface (fora de EM_PREPARO)',
       !/id: 'bichinhos'/.test(brincarNoCom) && !/title: 'Bichinhos/.test(brincarNoCom),
       'Bichinhos ainda é um card renderizado');
-    // Fechamento — Monte a Cena PUBLICADO (não mais "Chegando em breve"/"Em preparação").
-    check('Fechamento Brincar: Monte a Cena é WideActiveTile user-facing "Jogar" → HOME',
-      /<WideActiveTile[\s\S]{0,220}title="Monte a Cena"[\s\S]{0,220}cta="Jogar"[\s\S]{0,220}ROUTES\.MONTE_A_CENA_HOME/.test(brincarSrc)
+    // Fechamento/B1 — Monte a Cena PUBLICADO na grade declarativa (não mais "em preparação").
+    check('Fechamento/B1 Brincar: Monte a Cena é jogo da grade → HOME',
+      /id: 'monte'[\s\S]{0,220}title: 'Monte a Cena'[\s\S]{0,220}route: ROUTES\.MONTE_A_CENA_HOME/.test(brincarSrc)
       && !/badge: 'Em prepara/.test(brincarSrc) && !/O Beni está preparando/.test(brincarSrc),
-      'Monte a Cena não é um card user-facing "Jogar", ou sobrou "em preparação"');
-    check('Fechamento Brincar: Monte a Cena NÃO é mais gated por Modo Criador na aba',
+      'Monte a Cena não é um jogo da grade → HOME, ou sobrou "em preparação"');
+    check('Fechamento/B1 Brincar: Monte a Cena NÃO é gated por Modo Criador na aba',
       !/TestingWideTile/.test(brincarSrc) && !/isInternalToolsEnabled/.test(brincarNoCom),
       'o card de Monte a Cena ainda depende do Modo Criador na aba Brincar');
     check('M1R1 Brincar: a rota de validação NÃO abre MonteACenaSpike (só o protótipo)',
@@ -22030,9 +22197,9 @@ check(
       'rotas de níveis/rodada não gated');
     // Fechamento — o card de Monte a Cena virou user-facing (ver bloco de fechamento). As rotas
     // de níveis/rodada (Levels/Game) seguem gated; a rota OFICIAL (Home) foi publicada.
-    check('Fechamento card: Monte a Cena é "Jogar" (puzzle) → HOME, sem "Em teste" nem "em preparação"',
-      /icon="puzzle"/.test(brincarSrc) && /cta="Jogar"/.test(brincarSrc)
-      && /ROUTES\.MONTE_A_CENA_HOME/.test(brincarSrc)
+    check('Fechamento/B1 card: Monte a Cena (puzzle) → HOME, sem "Em teste" nem "em preparação"',
+      /icon: 'puzzle'/.test(brincarSrc) && />Jogar<\/Text>/.test(brincarSrc)
+      && /route: ROUTES\.MONTE_A_CENA_HOME/.test(brincarSrc)
       && !/Em teste/.test(brincarSrc) && !/badge: 'Em prepara/.test(brincarSrc),
       'o card de Monte a Cena não foi publicado como "Jogar" → rota oficial');
   })();
