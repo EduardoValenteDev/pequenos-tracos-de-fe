@@ -377,3 +377,33 @@ As decisões de conceito/UX foram **encerradas** na §0 (aprovação O2). Perman
 
 ### Confirmações do bloco O2
 Esta especificação foi **fechada e commitada** (bloco O2, Etapa 1) com as decisões da §0 e a matriz de áudios corrigida (24 = manter 18 / substituir 2 / remover 4). A **implementação visual** é entregue na Etapa 2 (branch `feature/onboarding-o2-magical-first-experience`), **sem áudio** e **sem commit do código**, aguardando validação no aparelho. **O4 e B1 não iniciados.**
+
+---
+
+## 27. Implementação aprovada e encerramento O2F
+
+A experiência **"O Livro Vivo do Beni"** foi validada visualmente no aparelho e **aprovada pelo proprietário**. O bloco **O2F** consolidou, auditou (regressão + revisão adversarial) e congelou o comportamento aprovado, sem redesenho e sem novas funcionalidades. Registro da arquitetura final:
+
+1. **Arquitetura — Livro Vivo persistente.** O onboarding é **um único livro** (`StorybookBook`) sobre um fundo ilustrado persistente (`StorybookBackground`); o livro **não desmonta** entre os momentos — só o **conteúdo** das páginas muda via `renderPage(i)`. A troca é uma **virada de página** (`rotateY` + `backfaceVisibility: hidden` + `perspective`), com papel marfim de volume (espessura, vinco, sombra, ornamentos de canto) e **abas de capítulo** como indicador de progresso.
+2. **Quatro capítulos.** `MOMENTS = ['encounter', 'world', 'profile', 'creation']` — uma ação principal por capítulo, com **Pular** (exceto no último) e **Voltar**.
+3. **Davi e Golias no capítulo 2.** `StorybookWorldPage` usa a capa oficial `david_goliath`; a capa `creation` **não** aparece aqui.
+4. **A Criação no capítulo 4.** `StorybookCreationPage` usa a capa oficial `creation` como **primeira aventura** (selo "Capítulo 1"), com estado alternativo quando a jornada de A Criação já foi concluída; Davi e Golias **não** aparece aqui.
+5. **Readiness de asset e de render (separados).** `assetReadyState[i]` (arquivo decodificado por `ensurePageReady`/`Asset.loadAsync`) é **distinto** de `renderReady[i]` (um `<Image>` real pintou, medido pela `OnboardingImageProbe` via `onLoad`/`onError`). `pageReady(i) = assetReadyState[i] && renderReady[i]`. A virada (`startTurnGated`) **só começa** quando a próxima página está pronta; um **teto de segurança** (`readyTimeoutMs`) impede travamento e não dispara viradas duplicadas (`lockRef`/`pendingRef`).
+6. **Pré-montagem da página seguinte.** A prova de render (`OnboardingImageProbe`) monta os módulos críticos **ocultos** (sem foco, sem toque, fora do leitor de tela) antes da virada; ao trocar o avatar, o `renderReady` da página final é **invalidado** e o avatar selecionado entra nos assets críticos dessa página.
+7. **Fallbacks reais (sem moldura vazia).** `StorybookCover` (capa → gradiente + ícone + título), `StorybookBeni` (pose → `FaithIcon`) e `getAvatarImage` (nunca `undefined`, com `DEFAULT_AVATAR_IMAGE`) mantêm a **mesma geometria** em erro e **também liberam a virada**.
+8. **Virada sincronizada.** Durante a virada, o CTA anterior some (`ctaFromOp`) e o seguinte surge na segunda metade (`ctaToOp`), **não interativo** e não anunciado até concluir; as abas interpolam até o **valor pós-virada comprometido** (sem "pop"); o rótulo "Capítulo X de 4" só muda ao concluir. O rodapé tem **altura estável** (spacer + `secondarySlot` com `minHeight` da área de toque).
+9. **Estabilidade do teclado.** iOS usa `keyboardWillShow/Hide` com a **duração do evento**; Android usa `keyboardDidShow/Hide`. O deslocamento é **só por transform** (livro e rodapé juntos); nenhuma imagem é remontada, nenhuma `source` muda e nenhum componente depende de `keyboardOpen` para render; listeners são removidos no cleanup.
+10. **Layout responsivo dos avatares.** Só avatares **base** (`ONBOARDING_AVATAR_OPTIONS`). O limiar do 5-em-linha vem da **geometria real** (`fiveRowWidth = AV_CELL·5 + AV_GAP·4`): 5 em linha quando a fileira cabe na largura da página, senão **3 + 2 centralizados** — sem posição vazia e **sem corte** das células externas no `pageArea` (que tem `overflow: hidden`). Seleção por borda + check + acessibilidade (não só por cor).
+11. **Movimento reduzido.** Com `reduceMotion`, a troca é **imediata** (`setIndex`), sem animação de virada e **sem háptico**.
+12. **Ausência de áudio nesta etapa.** O onboarding é **silencioso**; nenhum áudio (novo ou legado) é importado ou tocado. O háptico usa `expo-haptics` (dependência **já instalada**), apenas quando **não** há movimento reduzido.
+13. **Decisões preservadas para O4 e B1.** Guias progressivos por aba (**O4**) e roteiros/áudios do Beni (**B1/B2/B3**) **não** foram iniciados; permanecem conforme a §24. A persistência (`@ptf_onboarding_v1`, perfil, progresso) e as rotas oficiais estão intactas; o **modo de revisão** preserva nome e avatar existentes (inclusive avatares conquistados por estrelinhas), e o **Modo Criador** continua podendo testar o fluxo.
+14. **Limitações opcionais futuras (não são pendências obrigatórias do onboarding atual):** (a) poses do Beni com **transparência real** (hoje são ilustrações impressas opacas sobre fundo creme); (b) **texturas autorais de papel**; (c) **ornamentos ilustrados dedicados** (hoje vetoriais). São melhorias estéticas opcionais — **não** reabrem decisões visuais já aprovadas.
+
+### Correções de congelamento (O2F)
+A auditoria de regressão (revisão adversarial independente) confirmou **dois** defeitos objetivos, ambos corrigidos preservando a direção visual aprovada, além da remoção de código morto:
+
+- **Preservação de avatar na revisão** — em modo revisão, `finish()` chamava `isAvatarUnlocked(candidate, 0, null)`, anulando o *escape-hatch* que preserva o avatar atual e **rebaixando** para `star` avatares conquistados por estrelinhas (lamb/lion/dove/ark/fish). Corrigido passando `currentAvatarId` e mesclando `avatarSkinTones` (sem apagar tons por-avatar existentes).
+- **Corte da fileira de avatares** — o limiar `fiveFit` era um valor fixo (`>= 320`) menor que a largura real de 5 células + 4 gaps (326 px), cortando as células externas no `pageArea` em telas estreitas. Corrigido com limiar derivado da geometria, **preservando** o 5-em-linha nas telas largas já aprovadas.
+- **Código morto removido** (resíduo das iterações anteriores, sem consumo): estilos `tabOn/tabDone/tabFuture/tabNib`; tokens `OB.crease`, `OB.radiusMedallion`, `OB.skyDeep`, `OB.scarfDeep`; export `OB_BENI_POSE`; export `isPageReady`. **Preservado** `resetOnboardingWarmup` (utilitário do Modo Criador/testes).
+
+Portões: `npm run smoke` verde (inclui guardas de regressão O2F para B12/B13 e para a não-reintrodução do código morto). **Sem commit de código antes desta consolidação; O4 e B1 não iniciados.**

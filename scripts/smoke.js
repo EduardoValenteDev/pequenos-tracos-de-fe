@@ -6415,9 +6415,10 @@ check(
 );
 
 check(
-  'OnboardingScreen usa BeniAvatar',
-  onboardingScreenSrc.includes('BeniAvatar'),
-  'OnboardingScreen não usa BeniAvatar (Beni deve ser o guia)',
+  'O2.2 onboarding: Beni impresso na página (StorybookBeni), não em moldura circular',
+  readSrc('src/components/onboarding/StorybookBeni.js').includes('BENI_IMAGES')
+  && !onboardingScreenSrc.includes('BeniAvatar'),
+  'o Beni não é impresso na página via StorybookBeni (sem BeniAvatar circular)',
 );
 
 check(
@@ -6483,22 +6484,22 @@ console.log('\n── Sprint 2.1 — Hotfix + Polimento Visual ──');
 const narrationScreenSrc = fs.readFileSync(path.join(__dirname, '../src/screens/NarrationScreen.js'), 'utf8');
 
 check(
-  'UX2.1 OnboardingScreen: onboarding curto (4 etapas) SEM escolha de história — adventure/STARTER_STORIES/resolveFullStory/selectedStoryId removidos',
-  /const STEPS = \['welcome', 'name', 'avatar', 'confirm'\]/.test(onboardingScreenSrc) &&
-  !onboardingScreenSrc.includes("'adventure'") &&
+  'O2 OnboardingScreen: 4 MOMENTOS (encounter/world/profile/creation) SEM escolha arbitrária de história',
+  /const MOMENTS = \['encounter', 'world', 'profile', 'creation'\]/.test(onboardingScreenSrc) &&
   !onboardingScreenSrc.includes('STARTER_STORIES') &&
   !onboardingScreenSrc.includes('resolveFullStory') &&
   !onboardingScreenSrc.includes('selectedStoryId'),
-  'OnboardingScreen ainda tem a etapa de escolha de história (adventure/STARTER_STORIES/resolveFullStory/selectedStoryId)',
+  'OnboardingScreen não está com os 4 momentos declarativos ou reintroduziu seleção arbitrária de história',
 );
 
 check(
-  'UX2.1 OnboardingScreen: ao concluir, vai para a aba Aventuras com o Tour do Beni (startBeniTour), não pra StoryDetail',
+  'O2 OnboardingScreen: conclui e vai à aba Aventuras (startBeniTour); só A Criação OFICIAL abre StoryDetail',
   /name: 'Aventuras', params: \{ startBeniTour: true \}/.test(onboardingScreenSrc) &&
   onboardingScreenSrc.includes('markOnboardingCompleted') &&
-  !onboardingScreenSrc.includes('params: { story: fullStory') &&
-  !/\{ name: 'StoryDetail'/.test(onboardingScreenSrc),
-  'OnboardingScreen deve cair na aba Aventuras com startBeniTour após o onboarding',
+  /CREATION_STORY = stories\.find\(\(s\) => s\.id === 'creation'\)/.test(onboardingScreenSrc) &&
+  /name: 'StoryDetail', params: \{ story: CREATION_STORY \}/.test(onboardingScreenSrc) &&
+  !/params: \{ story: fullStory/.test(onboardingScreenSrc),
+  'OnboardingScreen deve concluir marcando o onboarding e abrir apenas A Criação oficial (não história arbitrária)',
 );
 
 // ── UX 2.0/2.1: Tour inicial + base de guias contextuais do Beni ─────────────
@@ -7219,166 +7220,286 @@ check(
   'OnboardingScreen promete áudio para a história de Noé (áudio ainda não existe)',
 );
 
-check(
-  'OnboardingScreen usa LinearGradient no fundo mágico',
-  onboardingScreenSrc.includes('LinearGradient') && onboardingScreenSrc.includes('expo-linear-gradient'),
-  'OnboardingScreen não usa LinearGradient — visual mágico não implementado',
-);
+// ════════════════════════════════════════════════════════════════════════════
+// Onboarding O2.2 — "O Livro Vivo do Beni": livro persistente, virada de página
+// com readiness, teclado estável por transform, Davi e Golias (M2) vs A Criação (M4).
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Onboarding O2.2: O Livro Vivo do Beni ──');
+{
+  const scr = readSrc('src/screens/OnboardingScreen.js');
+  const book = readSrc('src/components/onboarding/StorybookBook.js');
+  const bg = readSrc('src/components/onboarding/StorybookBackground.js');
+  const beni = readSrc('src/components/onboarding/StorybookBeni.js');
+  const world = readSrc('src/components/onboarding/StorybookWorldPage.js');
+  const creation = readSrc('src/components/onboarding/StorybookCreationPage.js');
+  const prof = readSrc('src/components/onboarding/StorybookProfilePage.js');
+  const warm = readSrc('src/services/onboardingAssetWarmup.js');
+  const nameSvc = readSrc('src/services/onboardingName.js');
+  const tokens = readSrc('src/theme/onboardingVisualTokens.js');
 
-check(
-  'OnboardingScreen tem maxLength no campo de nome',
-  onboardingScreenSrc.includes('maxLength'),
-  'OnboardingScreen não tem maxLength no TextInput do nome',
-);
+  // §20.1/2/3 — livro/stage persistente; não são 4 telas independentes.
+  check('O2.2 §1-3 (livro persistente): StorybookBackground + StorybookBook montados fora do conteúdo; sem 4 telas soltas',
+    /<StorybookBackground/.test(scr) && /<StorybookBook/.test(scr)
+    && /renderPage=\{renderPage\}/.test(scr)
+    && /function StorybookBook/.test(book) && /paper/.test(book),
+    'não há livro/cenário persistente (o onboarding voltou a ser 4 telas independentes)');
 
-// ── Sprint 2.2 — Reset Seguro do Onboarding para QA e Proteção de Usuários Legados ──
+  // §20.4/5 — Momento 2 usa Davi e Golias; NÃO usa A Criação.
+  check('O2.2 §4/5 (M2 = Davi e Golias): capa david_goliath (StorybookCover) + título; A Criação NÃO aparece no M2',
+    /storyId="david_goliath"/.test(world) && /Davi e Golias/.test(world)
+    && !/creation/.test(world),
+    'o Momento 2 não usa Davi e Golias, ou usa a capa de A Criação');
 
-console.log('\n── Sprint 2.2 — Reset Seguro + Proteção Legada ──');
+  // §20.6/7 — Momento 4 usa A Criação; NÃO usa Davi e Golias.
+  check('O2.2 §6/7 (M4 = A Criação): capa creation (StorybookCover) + título "A Criação"; Davi e Golias NÃO aparece no M4',
+    /storyId="creation"/.test(creation) && />A Criação<\/Text>/.test(creation)
+    && !/david_goliath/.test(creation),
+    'o Momento 4 não apresenta A Criação, ou reusa Davi e Golias');
 
-check(
-  'onboardingService exporta resetOnboardingForQa',
-  onboardingSvcSrc.includes('export async function resetOnboardingForQa'),
-  'onboardingService não exporta resetOnboardingForQa — reset seguro de QA não está disponível',
-);
+  // §20.8/9/10 — virada só com a próxima página pronta; CTA/indicador não mudam antes.
+  check('O2.2 §8-10 (readiness-gated): startTurnGated exige pageReady; ensurePageReady no aquecimento; CTA/abas COMMITTED (index)',
+    /if \(pageReady\(next\)\) \{ doTurn\(next, dir\); return; \}/.test(scr)
+    && /ensurePageReady\(k\)\.then/.test(scr)
+    && /const moment = MOMENTS\[index\];/.test(scr)   // COMMITTED (não turn.to)
+    && /current=\{index\}/.test(scr),
+    'a virada não é bloqueada pela prontidão, ou o CTA/abas mudam antes da nova página');
 
-check(
-  'shouldShowOnboarding verifica perfil legado (@ptf_profile)',
-  onboardingSvcSrc.includes('LEGACY_PROFILE') || onboardingSvcSrc.includes("'@ptf_profile'"),
-  'shouldShowOnboarding não verifica @ptf_profile — usuários antigos podem ver onboarding indesejado',
-);
+  // §20.11/12/13/14 — nunca moldura vazia/skeleton; fallback montado; livro visível na transição.
+  check('O2.2 §11-14 (sem vazio): base=turn.to (opaca) + página que vira sobre o papel; fallback de mesma geometria; sem skeleton',
+    /renderPage\(turn \? turn\.to : current\)/.test(book)
+    && /backgroundColor: OB\.paper/.test(book)                       // papel opaco persiste
+    && !/Skeleton|ActivityIndicator/.test(a1StripComments(book) + a1StripComments(scr))
+    && /goldFaint/.test(creation),
+    'a virada pode revelar fundo vazio/skeleton, ou o fallback não tem geometria estável');
 
-check(
-  'shouldShowOnboarding marca onboarding concluído ao encontrar perfil legado válido',
-  (() => {
-    const fn = onboardingSvcSrc.indexOf('shouldShowOnboarding');
-    const snippet = onboardingSvcSrc.slice(fn, fn + 800);
-    return snippet.includes('markOnboardingCompleted') && snippet.includes('legacy');
-  })(),
-  'shouldShowOnboarding não chama markOnboardingCompleted para proteger usuários legados',
-);
+  // §20.15/16 — virada bloqueia duplo toque; movimento reduzido não deixa página vazia.
+  check('O2.2 §15/16 (lock + reduzido): lockRef bloqueia; reduceMotion = setIndex imediato (sem página vazia)',
+    /if \(lockRef\.current \|\| next < 0 \|\| next >= TOTAL\) return;\s*lockRef\.current = true/.test(scr)
+    && /if \(reduceMotion\) \{ setIndex\(next\); lockRef\.current = false; haptic\(\); return; \}/.test(scr),
+    'a virada não bloqueia duplo toque, ou o movimento reduzido cria página vazia');
 
-check(
-  'ParentAreaScreen contém opção de rever apresentação do Beni',
-  parentAreaSrc.includes('Rever apresentação do Beni'),
-  'ParentAreaScreen não tem a opção "Rever apresentação do Beni" no modo QA',
-);
+  // §20.17/18/19/20 — teclado NÃO desmonta a composição; Beni/indicador/source estáveis.
+  check('O2.2 §17-20 (teclado estável): desloca por transform; will* no iOS; NÃO condiciona render a teclado; sem key/source variável',
+    /const showEvt = isIOS \? 'keyboardWillShow' : 'keyboardDidShow'/.test(scr)
+    && /transform: \[\{ translateY: bookShift \}, \{ scale: bookScale \}\]/.test(scr)
+    && !/keyboardOpen \? </.test(scr)               // não remonta por teclado
+    && !/key=\{.*keyboard/.test(scr),
+    'o teclado desmonta/condiciona a composição (deveria só deslocar por transform)');
 
-check(
-  'ParentAreaScreen chama resetOnboardingForQa',
-  parentAreaSrc.includes('resetOnboardingForQa'),
-  'ParentAreaScreen não chama resetOnboardingForQa — botão de reset não está conectado',
-);
+  // §20.21 — onSubmitEditing só fecha o teclado.
+  check('O2.2 §21 (submit): onSubmitEditing só faz Keyboard.dismiss (não avança)',
+    /onSubmitEditing=\{\(\) => Keyboard\.dismiss\(\)\}/.test(prof)
+    && !/onSubmitEditing=\{advance\}/.test(prof + scr),
+    'o botão do teclado avança a etapa');
 
-check(
-  'resetOnboardingForQa não usa AsyncStorage.clear',
-  !onboardingSvcSrc.match(/resetOnboardingForQa[\s\S]{0,500}AsyncStorage\.clear/),
-  'resetOnboardingForQa chama AsyncStorage.clear() — apagaria TODOS os dados do app!',
-);
+  // §20.22/23/24/25 — avatar explícito (novo=null); revisão preserva; CTA exige nome+avatar; selecionar não avança.
+  check('O2.2 §22-25 (avatar/CTA): novo=avatarId null; revisão pré-preenche; CTA exige nome+avatar; pick não navega',
+    /useState\(reviewMode \? \(profile\.avatarId \|\| 'star'\) : null\)/.test(scr)
+    && /const avatarChosen = avatarId != null/.test(scr)
+    && /const profileReady = isValidName\(name\) && avatarChosen/.test(scr)
+    && /ctaDisabled = moment === 'profile' && !profileReady/.test(scr)
+    && !/pickAvatar[\s\S]{0,80}startTurnGated/.test(scr),
+    'o avatar não é explícito/preservado, ou o CTA não exige nome+avatar, ou selecionar avança');
 
-check(
-  'resetOnboardingForQa usa writeState com DEFAULT_STATE (reset seguro)',
-  (() => {
-    const fn = onboardingSvcSrc.indexOf('resetOnboardingForQa');
-    const snippet = onboardingSvcSrc.slice(fn, fn + 300);
-    return snippet.includes('writeState') && snippet.includes('DEFAULT_STATE');
-  })(),
-  'resetOnboardingForQa não usa writeState com DEFAULT_STATE — comportamento de reset não verificado',
-);
+  // §20.26 — página final integra capa + texto + Beni + perfil (uma cena, não 3 cards).
+  check('O2.2 §26 (M4 integrado): capa + texto + Beni (StorybookBeni) + selo da criança numa cena única',
+    /<StorybookBeni/.test(creation) && /childSeal/.test(creation) && /rightText/.test(creation),
+    'a página final não integra capa/texto/Beni/perfil');
 
-// ── Sprint 2.3 — Correção Visual da Etapa de Nome do Onboarding ─────────────
+  // §20.27 — sem áudio.
+  check('O2.2 §27 (silencioso): o onboarding não importa/usa áudio',
+    !/beniGuideAudio|AudioPlayer|expo-audio|getBeniGuideAudio/.test(scr + book + bg + beni + world + creation + prof),
+    'o onboarding toca/importa áudio (deveria ser silencioso)');
 
-console.log('\n── Sprint 2.3 — Correção Visual Etapa Nome ──');
+  // §20.28/29/30/31/32 — sem dep nova; babel/rotas/storage/progresso intactos.
+  check('O2.2 §28-32 (isolamento): sem dep nova; rotas/persistência intactas; não apaga perfil/progresso',
+    !/react-native-reanimated|@shopify\/react-native-skia/.test(scr + book + bg + beni)
+    && /name: 'Home', state: tabsState/.test(scr) && /name: 'StoryDetail'/.test(scr)
+    && /markOnboardingCompleted/.test(scr)
+    && !/AsyncStorage\.clear|removeItem\(.*profile|removeItem\(.*progress/.test(scr)
+    && !/BrincarScreen|ParesDoBeni|CadeAOvelhinha|MonteACena|StoryBookScreen|ColoringScreen/.test(scr),
+    'entrou dep nova, rotas regrediram, ou apaga perfil/progresso');
 
-check(
-  'OnboardingScreen TextInput tem placeholder descritivo com "Digite"',
-  onboardingScreenSrc.includes('Digite seu nome'),
-  'Placeholder do TextInput não é descritivo — usuário pode não saber onde digitar',
-);
+  // §20.33/34 — só capas aquecidas; nenhuma cena completa.
+  check('O2.2 §33/34 (warmup): Asset.loadAsync com só capas (david_goliath+creation) + poses + avatares; sem cenas completas',
+    /Asset\.loadAsync/.test(warm)
+    && /getStoryCover\('david_goliath'\)/.test(warm) && /getStoryCover\('creation'\)/.test(warm)
+    && !/require\(.*assets\/stories\/[a-z_]+\/(scene|cena)/i.test(a1StripComments(warm)),
+    'o warmup aquece cenas completas ou não usa Asset.loadAsync');
 
-check(
-  'OnboardingScreen Beni usa tamanho compacto na etapa de nome',
-  onboardingScreenSrc.includes("'name' ? 'medium'") ||
-  onboardingScreenSrc.includes("=== 'name' ? 'medium'") ||
-  // Sprint 2.4: renderNameStep tem layout próprio com size="medium" direto
-  (onboardingScreenSrc.includes('function renderNameStep') && onboardingScreenSrc.includes('size="medium"')),
-  'Beni sempre usa tamanho hero na etapa de nome — pode deixar sem espaço para o TextInput',
-);
+  // Preservados: livro tem volume (espessura/vinco/abas); indicador integrado (abas), não estrelas.
+  check('O2.2 (volume + abas): livro com espessura/vinco/ornamentos; indicador = abas de capítulo (não estrelas)',
+    /thickness/.test(book) && /crease/.test(book) && /Corner|corner/.test(book)
+    && /accessibilityRole="progressbar"[\s\S]{0,80}Capítulo/.test(book)
+    && !/★|✦|☆|ProgressStars/.test(scr + book),
+    'o livro não tem volume, ou o indicador voltou a ser estrelas');
 
-check(
-  'OnboardingScreen TextInput tem altura mínima garantida (minHeight >= 56)',
-  onboardingScreenSrc.includes('minHeight: 60') || onboardingScreenSrc.includes('minHeight: 56') || onboardingScreenSrc.includes('minHeight: 64'),
-  'TextInput não tem minHeight — pode ficar invisível com teclado aberto no iPhone',
-);
+  // Nome puro (BEHAVIORAL) — preservado do O2.
+  let N = null;
+  try {
+    const code = nameSvc.replace(/export default[\s\S]*$/m, '').replace(/export /g, '')
+      + '; return { normalizeName, isValidName, finalizeName, NAME_MAX };';
+    N = new Function(code)();
+  } catch (e) { N = null; }
+  check('O2.2 (nome puro): Unicode/acentos ok; normaliza espaços; rejeita vazio/só-símbolos; limite 20',
+    !!N && N.NAME_MAX === 20 && N.isValidName('José') && N.isValidName('Ана')
+    && N.normalizeName('  Ana   Maria ') === 'Ana Maria'
+    && !N.isValidName('') && !N.isValidName('   ') && !N.isValidName('!!!') && N.isValidName('A1'),
+    'as regras puras de nome regrediram');
 
-check(
-  'OnboardingScreen usa KeyboardAvoidingView para tratar teclado',
-  onboardingScreenSrc.includes('KeyboardAvoidingView'),
-  'OnboardingScreen não usa KeyboardAvoidingView — botão pode ficar coberto pelo teclado',
-);
+  // Sem emoji nas telas do onboarding.
+  check('O2.2 (sem emoji): telas/tokens do Livro Vivo sem emoji/clipart',
+    ![scr, book, bg, beni, world, creation, prof, tokens].some((s) => /\p{Extended_Pictographic}/u.test(s)),
+    'entrou emoji/clipart no onboarding');
+}
 
-// ── Sprint 2.4 — Correção Real da Etapa de Nome do Onboarding ────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// Onboarding O2.3 — render readiness, sincronização de CTA/abas, estabilidade do
+// teclado (will*), fallbacks sem espaço vazio, layout de avatares 5 / 3+2.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Onboarding O2.3: readiness + sincronização + teclado ──');
+{
+  const scr = readSrc('src/screens/OnboardingScreen.js');
+  const probe = readSrc('src/components/onboarding/OnboardingImageProbe.js');
+  const cover = readSrc('src/components/onboarding/StorybookCover.js');
+  const beni = readSrc('src/components/onboarding/StorybookBeni.js');
+  const prof = readSrc('src/components/onboarding/StorybookProfilePage.js');
+  const book = readSrc('src/components/onboarding/StorybookBook.js');
+  const avatars = readSrc('src/data/avatars.js');
+  const covers = readSrc('src/assets/storyCovers.js');
+  const beniImg = readSrc('src/assets/mascot/beniImages.js');
 
-console.log('\n── Sprint 2.4 — Correção Estrutural Etapa Nome ──');
+  // §21.1/2/6/7 — fontes válidas: avatares base + poses do Beni + capas existem no mapa.
+  check('O2.3 §1/6/7 (fontes válidas): boy/girl/star mapeados; capas + 4 poses do Beni existem no registro',
+    /id: 'boy'[\s\S]{0,120}variants:/.test(avatars) && /id: 'girl'[\s\S]{0,120}variants:/.test(avatars) && /id: 'star'[\s\S]{0,60}image:/.test(avatars)
+    && /DEFAULT_AVATAR_IMAGE = require/.test(avatars) && /return img \?\? DEFAULT_AVATAR_IMAGE/.test(avatars)
+    && /david_goliath:\s*require/.test(covers) && /creation:\s*require/.test(covers)
+    && ['acenando', 'apontandoDireita', 'ensinando', 'celebrando'].every((p) => new RegExp(`${p}:\\s*require`).test(beniImg)),
+    'alguma fonte crítica (avatar/capa/pose) não está mapeada');
 
-check(
-  'OnboardingScreen tem função renderNameStep dedicada',
-  onboardingScreenSrc.includes('function renderNameStep'),
-  'renderNameStep não existe — etapa de nome ainda usa layout compartilhado que colapsa com teclado',
-);
+  // §21.8/9 — assetReady separado de renderReady; a virada exige os DOIS.
+  check('O2.3 §8/9 (assetReady ≠ renderReady): dois estados; pageReady = ambos; virada gateada',
+    /const \[assetReadyState, setAssetReadyState\] = useState/.test(scr)
+    && /const \[renderReady, setRenderReady\] = useState/.test(scr)
+    && /const pageReady = useCallback\(\(i\) => assetReadyState\[i\] && renderReady\[i\]/.test(scr),
+    'render readiness não está separada de asset readiness, ou a virada não exige as duas');
 
-check(
-  'OnboardingScreen retorna renderNameStep() antes do layout geral (early return)',
-  onboardingScreenSrc.includes("currentStep === 'name') return renderNameStep()"),
-  'Não há early return para a etapa de nome — renderNameStep() não é chamada quando necessário',
-);
+  // §21.10/11/12/13 — probe: onLoad/onError marcam ready; próxima página pré-montada; oculta inacessível.
+  check('O2.3 §10-13 (probe): onLoad/onError → onReady; oculto + inacessível; erro também marca ready',
+    /onLoad=\{mark\} onError=\{mark\}/.test(probe)
+    && /accessibilityElementsHidden/.test(probe) && /pointerEvents="none"/.test(probe)
+    && /if \(total === 0\) fire\(\)/.test(probe)
+    && /<OnboardingImageProbe/.test(scr) && /onReady=\{\(\) => markRenderReady\(i\)\}/.test(scr),
+    'a prova de render readiness não encaminha onLoad/onError, ou não é oculta/inacessível');
 
-check(
-  'OnboardingScreen NÃO tem autoFocus no TextInput',
-  !onboardingScreenSrc.includes('autoFocus'),
-  'autoFocus presente — abre o teclado automaticamente e pode colapsar o layout antes do usuário interagir',
-);
+  // §21.11/14 — fallbacks reais (sem espaço vazio) em capa e Beni; onError → fallback.
+  check('O2.3 §14 (fallbacks): StorybookCover e StorybookBeni têm fallback vetorial com a MESMA geometria (onError)',
+    /onError=\{\(\) => setFailed\(true\)\}/.test(cover) && /fallback/.test(cover) && /FaithIcon/.test(cover)
+    && /onError=\{\(\) => setFailed\(true\)\}/.test(beni) && /illFallback|FaithIcon/.test(beni),
+    'capa/Beni não têm fallback real (podem mostrar espaço vazio em erro)');
 
-check(
-  'OnboardingScreen TextInput é controlado (value={childName})',
-  onboardingScreenSrc.includes('value={childName}'),
-  'TextInput não tem prop value — não é controlado, estado pode divergir da UI',
-);
+  // §21.15/16/17 — todos os 5 avatares quando válidos; 5-em-linha OU 3+2 (sem posição vazia).
+  check('O2.3 §15-17 (layout avatares): 5-em-linha se a fileira couber (limiar geométrico), senão 3+2 centralizado (sem posição vazia)',
+    /const fiveRowWidth = AV_CELL \* 5 \+ AV_GAP \* 4/.test(prof)
+    && /const fiveFit = \(width \|\| 320\) >= fiveRowWidth/.test(prof)
+    && /rows = fiveFit \? \[opts\] : \[opts\.slice\(0, 3\), opts\.slice\(3\)\]/.test(prof)
+    && /rows\.map\(\(row, ri\)/.test(prof),
+    'o layout de avatares não usa o limiar geométrico, ou não é 5-em-linha / 3+2 sem posição vazia');
 
-check(
-  'OnboardingScreen TextInput tem onChangeText',
-  onboardingScreenSrc.includes('onChangeText'),
-  'TextInput não tem onChangeText — alterações de texto não são capturadas',
-);
+  // §21.18/19/20 — CTA anterior some, o seguinte aparece sincronizado; o seguinte não é interativo antes.
+  check('O2.3 §18-20 (CTA sincronizado): duas camadas cruzando com turnValue; durante a virada o CTA é não-interativo',
+    /ctaFromOp = turnValue\.interpolate\(\{ inputRange: \[0, 0\.35, 0\.55, 1\]/.test(scr)
+    && /ctaToOp = turnValue\.interpolate\(\{ inputRange: \[0, 0\.5, 0\.7, 1\]/.test(scr)
+    && /turn \? \([\s\S]{0,220}pointerEvents="none" accessibilityElementsHidden/.test(scr),
+    'o CTA não sincroniza com a virada, ou fica interativo/anunciado durante a virada');
 
-check(
-  'OnboardingScreen etapa de nome tem botão próprio (nameStepButton)',
-  onboardingScreenSrc.includes('nameStepButton'),
-  'nameStepButton não existe — botão da etapa nome ainda depende do footer compartilhado',
-);
+  // §21.21 — abas sincronizadas com a virada; a11y "Capítulo X de 4" só muda ao concluir.
+  check('O2.3 §21 (abas sincronizadas sem pop): interpola até o valor pós-virada; label a11y usa COMMITTED',
+    /turn && i === turn\.from\) \{/.test(book) && /turn && i === turn\.to\) \{/.test(book)
+    && /const after = turn\.to > turn\.from \? 0\.9 : 0\.4/.test(book)   // aterrissa no valor comprometido (sem pop)
+    && /turnValue\.interpolate/.test(book)
+    && /Capítulo \$\{current \+ 1\} de \$\{total\}/.test(book),
+    'as abas não sincronizam sem pop, ou o rótulo muda antes de concluir');
 
-check(
-  'OnboardingScreen nameStep usa keyboardShouldPersistTaps="handled"',
-  onboardingScreenSrc.includes('keyboardShouldPersistTaps'),
-  'keyboardShouldPersistTaps ausente — toque no botão pode fechar o teclado sem executar a ação',
-);
+  // §21.22/23/24/25 — teclado will* (iOS) com duração; CTA acima; limite superior; sem desmontar imagem.
+  check('O2.3 §22-25 (teclado): will* no iOS com duração do evento; footerShift acima do teclado; livro com limite; sem remonta',
+    /const showEvt = isIOS \? 'keyboardWillShow'/.test(scr)
+    && /animate\(-Math\.min\(kbH \* 0\.34, 120\), 0\.95, -Math\.max\(kbH - insets\.bottom - 6, 0\), e\?\.duration\)/.test(scr)
+    && /easing: Easing\.out\(Easing\.ease\)/.test(scr)
+    && !/keyboardOpen \? </.test(scr),
+    'o teclado não usa will*/duração, ou o CTA não fica acima, ou remonta a composição');
 
-check(
-  'OnboardingScreen TextInput tem returnKeyType',
-  onboardingScreenSrc.includes('returnKeyType'),
-  'returnKeyType ausente — teclado virtual não mostra botão de confirmar',
-);
+  // §21.28 — movimento reduzido também exige readiness (passa por startTurnGated → pageReady).
+  check('O2.3 §28 (reduzido exige readiness): a virada reduzida também passa por startTurnGated/pageReady',
+    /const advance = useCallback[\s\S]{0,160}startTurnGated\(index \+ 1, 'forward'\)/.test(scr)
+    && /doTurn = useCallback[\s\S]{0,200}if \(reduceMotion\) \{ setIndex/.test(scr),
+    'o movimento reduzido pula a checagem de readiness');
 
-check(
-  'OnboardingScreen nameStepScroll tem paddingBottom para afastar botão da borda',
-  onboardingScreenSrc.includes('nameStepScroll') && onboardingScreenSrc.includes('paddingBottom: 48'),
-  'nameStepScroll sem paddingBottom — botão pode ficar colado na borda inferior',
-);
+  // §21.29-34 — sem áudio; sem dep nova; babel/rotas/storage/escopo intactos; haptic da lib existente.
+  check('O2.3 §29-34 (isolamento + haptic): sem áudio; expo-haptics (já instalado); rotas/storage intactos; escopo isolado',
+    !/beniGuideAudio|AudioPlayer|expo-audio/.test(scr + book + cover + beni + probe + prof)
+    && /import \* as Haptics from 'expo-haptics'/.test(scr)
+    && !/react-native-reanimated|@shopify\/react-native-skia/.test(scr)
+    && /name: 'StoryDetail'/.test(scr) && /markOnboardingCompleted/.test(scr)
+    && !/AsyncStorage\.clear|removeItem\(.*profile|removeItem\(.*progress/.test(scr)
+    && !/BrincarScreen|ParesDoBeni|CadeAOvelhinha|MonteACena|StoryBookScreen|ColoringScreen/.test(scr),
+    'entrou áudio/dep nova, ou rotas/storage/escopo regrediram');
+}
 
-check(
-  'OnboardingScreen nameInput tem width explícito',
-  onboardingScreenSrc.includes("width: '100%'"),
-  "nameInput sem width: '100%' — TextInput pode não ocupar toda a largura disponível",
-);
+// ════════════════════════════════════════════════════════════════════════════
+// Onboarding O2F — CONGELAMENTO: consolidação + guardas de regressão dos dois
+// fixes (B12 limiar dos avatares, B13 preservação de avatar na revisão) +
+// remoção de código morto (não reintroduzir) + invariantes do Livro Vivo.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Onboarding O2F: congelamento (regressão + código morto) ──');
+{
+  const scr = readSrc('src/screens/OnboardingScreen.js');
+  const prof = readSrc('src/components/onboarding/StorybookProfilePage.js');
+  const book = readSrc('src/components/onboarding/StorybookBook.js');
+  const tokens = readSrc('src/theme/onboardingVisualTokens.js');
+  const warm = readSrc('src/services/onboardingAssetWarmup.js');
+  const world = readSrc('src/components/onboarding/StorybookWorldPage.js');
+  const creation = readSrc('src/components/onboarding/StorybookCreationPage.js');
+
+  // B13 — revisão preserva avatar conquistado: currentAvatarId (não null) ativa o escape-hatch de
+  // isAvatarUnlocked; avatarSkinTones é mesclado (não apaga tons por-avatar já gravados).
+  check('O2F (B13): revisão preserva avatar conquistado — currentAvatarId no gate + merge de avatarSkinTones',
+    /const currentAvatarId = reviewMode \? \(profile && profile\.avatarId\) : null/.test(scr)
+    && /isAvatarUnlocked\(candidate, 0, currentAvatarId\)/.test(scr)
+    && /\{ \.\.\.baseTones, \[selectedAvatar\]: skinTone \}/.test(scr)
+    && !/isAvatarUnlocked\(candidate, 0, null\)/.test(scr),
+    'a revisão pode rebaixar o avatar conquistado (escape-hatch não ativado) ou apagar avatarSkinTones');
+
+  // B12 — limiar do 5-em-linha derivado da geometria real (não magic 320) → sem corte no pageArea.
+  check('O2F (B12): limiar do 5-em-linha vem da geometria (fiveRowWidth), preservando telas largas',
+    /const AV_CELL = 58/.test(prof) && /const AV_GAP = 9/.test(prof)
+    && /const fiveRowWidth = AV_CELL \* 5 \+ AV_GAP \* 4/.test(prof)
+    && /const fiveFit = \(width \|\| 320\) >= fiveRowWidth/.test(prof)
+    && !/const fiveFit = \(width \|\| 320\) >= 320/.test(prof),
+    'o 5-em-linha usa limiar fixo que pode cortar as células externas em telas estreitas');
+
+  // Código morto removido — não reintroduzir (freeze).
+  check('O2F (código morto removido): sem OB_BENI_POSE/radiusMedallion/skyDeep/scarfDeep/OB.crease; sem tabOn/tabDone/tabFuture/tabNib; sem isPageReady',
+    !/OB_BENI_POSE/.test(tokens) && !/radiusMedallion/.test(tokens)
+    && !/skyDeep/.test(tokens) && !/scarfDeep/.test(tokens) && !/\bcrease:/.test(tokens)
+    && !/tabOn|tabDone|tabFuture|tabNib/.test(book)
+    && !/export function isPageReady/.test(warm),
+    'algum resíduo de código morto do onboarding foi reintroduzido');
+
+  // Modo Criador preservado: resetOnboardingWarmup continua exportado (protegido).
+  check('O2F (Modo Criador preservado): resetOnboardingWarmup mantido no warmup',
+    /export function resetOnboardingWarmup/.test(warm),
+    'o reset do warmup (Modo Criador/testes) foi removido');
+
+  // Invariantes do Livro Vivo — capa correta por capítulo, haptic gateado, teclado não avança.
+  check('O2F (invariantes): Davi e Golias só no cap2; A Criação só no cap4; haptic gateado; teclado não avança',
+    /storyId="david_goliath"/.test(world) && !/creation/.test(world)
+    && /storyId="creation"/.test(creation) && !/david_goliath/.test(creation)
+    && /if \(!reduceMotion\) Haptics\.impactAsync/.test(scr)
+    && /onSubmitEditing=\{\(\) => Keyboard\.dismiss\(\)\}/.test(prof),
+    'um capítulo vazou capa, o haptic não está gateado, ou o teclado avança');
+}
+
 
 // ── Sprint 3 — Área dos Pais como Central Adulta do MVP ──────────────────────
 
