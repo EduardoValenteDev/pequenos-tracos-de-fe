@@ -1984,35 +1984,20 @@ check(
   'AtelierCanvasScreen limit modal does not navigate to ParentArea — premium upsell broken',
 );
 
+// C1 — o modal de limite virou um convite GENTIL de plano (FamilySheet), sem venda agressiva.
 check(
-  'AtelierCanvasScreen limit modal message matches official text',
-  atelierCanvasSrc.includes('use o Modo Criador nos testes ou aguarde o Plano Família'),
-  'AtelierCanvasScreen limit modal text does not match official product copy',
+  'Criar livre C1: convite de plano gentil navega à Área dos Pais, sem venda agressiva',
+  atelierCanvasSrc.includes('Guardar é do Plano Família')
+    && atelierCanvasSrc.includes("navigation.navigate('ParentArea')")
+    && !/assine já|compre agora|pague/i.test(atelierCanvasSrc),
+  'o convite de plano do Criar livre sumiu ou virou venda agressiva',
 );
 
+// C1 §3 — cabeçalho compacto: SEM subtítulo permanente ("Desenhe do seu jeito").
 check(
-  'AtelierCanvasScreen limit modal has "Ver Área dos Pais" button',
-  atelierCanvasSrc.includes('Ver Área dos Pais'),
-  'AtelierCanvasScreen limit modal missing "Ver Área dos Pais" button text',
-);
-
-// ── Hotfix: texto do Desenho guiado não pode cortar ───────────────────────────
-check(
-  'AtelierCanvasScreen headerSub NÃO usa numberOfLines={1} (texto da missão não pode cortar)',
-  atelierCanvasSrc.includes('<Text style={styles.headerSub}>'),
-  'AtelierCanvasScreen headerSub ganhou atributos (ex.: numberOfLines) — frase do Desenho guiado pode cortar',
-);
-
-check(
-  'AtelierCanvasScreen headerSub tem lineHeight (multi-linha legível)',
-  atelierCanvasSrc.includes('lineHeight') && atelierCanvasSrc.includes('headerSub'),
-  'AtelierCanvasScreen headerSub sem lineHeight — texto multi-linha fica apertado',
-);
-
-check(
-  'AtelierCanvasScreen headerCenter mantém flex: 1 (texto não empurra botão Salvar)',
-  atelierCanvasSrc.includes('headerCenter') && atelierCanvasSrc.includes('flex: 1'),
-  'AtelierCanvasScreen headerCenter sem flex:1 — texto da missão pode ultrapassar o botão Salvar',
+  'Criar livre C1: cabeçalho compacto sem subtítulo permanente',
+  !atelierCanvasSrc.includes('styles.headerSub') && !atelierCanvasSrc.includes('Desenhe do seu jeito'),
+  'o subtítulo permanente do cabeçalho voltou',
 );
 
 // Gallery
@@ -2608,20 +2593,25 @@ check(
   coloringScreenSrc92.includes('COLOR_PALETTE.map'),
   'ColoringScreen does not use COLOR_PALETTE.map — palette rendering not updated',
 );
+// C1 §9 — a paleta agora é CRIAR_LIVRE_COLORS (18 cores, 6×3), reaproveitando hexes de
+// colorPalette (via createLivreVisualTokens) — 100% compatível com artes salvas.
 check(
-  'AtelierCanvasScreen imports from colorPalette (not atelierData)',
-  atelierScreenSrc92.includes("from '../constants/colorPalette'"),
-  'AtelierCanvasScreen does not import from colorPalette.js — palette not unified',
+  'Criar livre C1: paleta curada CRIAR_LIVRE_COLORS (não mais famílias)',
+  atelierScreenSrc92.includes('CRIAR_LIVRE_COLORS')
+    && atelierScreenSrc92.includes("from '../theme/createLivreVisualTokens'")
+    && !atelierScreenSrc92.includes('ATELIER_PALETTE') && !atelierScreenSrc92.includes('COLOR_FAMILIES.map'),
+  'Criar livre não usa a paleta curada CRIAR_LIVRE_COLORS dos tokens',
 );
 check(
-  'AtelierCanvasScreen has no ATELIER_PALETTE import',
-  !atelierScreenSrc92.includes("ATELIER_PALETTE"),
-  'AtelierCanvasScreen still uses ATELIER_PALETTE — should use COLOR_PALETTE',
-);
-check(
-  'AtelierCanvasScreen renderiza a paleta por famílias (COLOR_FAMILIES)',
-  atelierScreenSrc92.includes('COLOR_FAMILIES.map'),
-  'AtelierCanvasScreen não renderiza a paleta organizada por famílias',
+  'Criar livre C1: as 18 cores derivam de hexes de colorPalette (compat. com artes salvas)',
+  (() => { try {
+    const src = a1StripComments(readSrc('src/theme/createLivreVisualTokens.js'));
+    const paletteHexes = new Set((a1StripComments(readSrc('src/constants/colorPalette.js')).match(/#[0-9A-Fa-f]{6}/g) || []).map((h) => h.toUpperCase()));
+    const block = (src.match(/CRIAR_LIVRE_COLORS = Object\.freeze\(\[([\s\S]*?)\]\)/) || ['', ''])[1];
+    const hexes = (block.match(/#[0-9A-Fa-f]{6}/g) || []).map((h) => h.toUpperCase());
+    return hexes.length === 18 && hexes.every((h) => paletteHexes.has(h));
+  } catch (e) { return false; } })(),
+  'as cores do Criar livre não são 18 ou não vêm todas de colorPalette',
 );
 check(
   'AtelierCanvas drawStamp uses actualBoundingBoxLeft (glyph centering)',
@@ -3009,17 +2999,16 @@ check(
 );
 {
   const atelierSrc21 = readSrc('src/screens/AtelierCanvasScreen.js');
+  // C1 — o papel é protagonista: sem painel de altura reservada; os painéis SOBREPÕEM o canvas.
   check(
-    'Ateliê V2.1: mesmo padrão do Colorir — painel mais baixo + canvas sem moldura "card grande"',
-    atelierSrc21.includes('PANEL_CONTENT_H = 116') &&
-    !/canvasFrame:\s*\{[\s\S]{0,200}borderWidth:\s*5/.test(atelierSrc21) &&
-    /panelTab:\s*\{[\s\S]{0,200}paddingVertical:\s*7/.test(atelierSrc21),
-    'AtelierCanvasScreen não foi compactado para o padrão do Colorir (moldura/painel/abas)',
+    'Criar livre C1: papel protagonista (paperArea flex:1) sem painel reservado fixo',
+    atelierSrc21.includes('paperArea: { flex: 1') && atelierSrc21.includes('paperFrame')
+    && !atelierSrc21.includes('PANEL_CONTENT_H'),
+    'o papel deixou de ser protagonista, ou voltou o painel de altura reservada',
   );
   check(
-    'Ateliê V2.1: motor de pintura (AtelierCanvas) e Salvar preservados',
-    atelierSrc21.includes('<AtelierCanvas') &&
-    atelierSrc21.includes('handleSavePress'),
+    'Criar livre C1: motor de pintura (AtelierCanvas) e Salvar preservados',
+    atelierSrc21.includes('<AtelierCanvas') && atelierSrc21.includes('doSave'),
     'AtelierCanvasScreen perdeu o canvas ou o Salvar',
   );
 }
@@ -8254,31 +8243,30 @@ check(
 );
 
 const canvasSrc2 = readSrc('src/screens/AtelierCanvasScreen.js');
+// C1 §6 — barra principal com 6 controles; ferramentas essenciais: Cor · Pincel · Apagar (+ Desfazer/Refazer/Mais).
 check(
-  'Canvas: ferramentas Desenhar / Borracha / Carimbos (sem Apagar/Enfeitar)',
-  canvasSrc2.includes("label: 'Borracha'") && canvasSrc2.includes("label: 'Carimbos'") &&
-  canvasSrc2.includes("label: 'Desenhar'") &&
-  !canvasSrc2.includes("label: 'Apagar'") && !canvasSrc2.includes("label: 'Enfeitar'"),
-  'Canvas não renomeou as ferramentas para Borracha/Carimbos',
+  'Criar livre C1: barra tem Cor · Pincel · Apagar (sem "Carimbos", sem stamps na UI)',
+  canvasSrc2.includes("label=\"Cor\"") && canvasSrc2.includes("label=\"Pincel\"") && canvasSrc2.includes("label=\"Apagar\"")
+  && !canvasSrc2.includes('Carimbos') && !canvasSrc2.includes('CORE_STAMPS') && !canvasSrc2.includes('STAMPS_ENABLED'),
+  'Criar livre não tem os 3 controles essenciais, ou sobrou UI de carimbos',
 );
 check(
-  'Canvas: pincel Pequeno/Médio/Grande (sem Fino/Grosso)',
-  canvasSrc2.includes("label: 'Pequeno'") && canvasSrc2.includes("label: 'Grande'") &&
-  !canvasSrc2.includes("label: 'Fino'") && !canvasSrc2.includes("label: 'Grosso'"),
-  'Canvas ainda usa Fino/Grosso no pincel',
+  'Criar livre C1: pincel Fino/Médio/Grosso (presets dos tokens, sem Pequeno/Grande)',
+  canvasSrc2.includes('BRUSH_PRESETS') && canvasSrc2.includes('ERASER_PRESETS')
+  && !canvasSrc2.includes("label: 'Pequeno'") && !canvasSrc2.includes("label: 'Grande'"),
+  'Criar livre não usa os presets Fino/Médio/Grosso dos tokens',
 );
 check(
-  'Canvas: Carimbos da Fé = 5 itens (com Cordeirinho, sem Cruz); Limpar tudo separado',
-  canvasSrc2.includes("label: 'Cordeirinho'") && !canvasSrc2.includes("label: 'Cruz'") &&
-  canvasSrc2.includes("label: 'Pombinha'") &&
-  canvasSrc2.includes('Limpar tudo'),
-  'Canvas não rebaixou os Carimbos da Fé para 5 itens / removeu a cruz',
+  'Criar livre C1: SEM carimbos e SEM emoji como ícone (nenhum caractere de emoji)',
+  !a1StripComments(canvasSrc2).includes('Cordeirinho') && !a1StripComments(canvasSrc2).includes('Pombinha')
+  && !/\p{Extended_Pictographic}/u.test(canvasSrc2),
+  'sobrou carimbo/emoji no Criar livre',
 );
 check(
-  'Canvas: salvar é emocional ("Beni salvou sua criação com carinho")',
-  canvasSrc2.includes('Beni salvou sua criação com carinho') &&
-  canvasSrc2.includes('Ver minhas artes'),
-  'Canvas não tem feedback emocional de salvamento',
+  'Criar livre C1: salvar dá feedback curto ("Arte guardada.") sem confete/nota',
+  canvasSrc2.includes('Arte guardada.')
+  && !canvasSrc2.includes('confete') && !canvasSrc2.includes('rewardVisible'),
+  'o feedback de salvar do Criar livre regrediu (confete/nota/reward pesado)',
 );
 
 const paletteSrc = readSrc('src/constants/colorPalette.js');
@@ -8291,57 +8279,45 @@ check(
 
 // ── Sprint Canvas Premium 2.0 e Retenção ────────────────────────────────────
 const canvasV2 = readSrc('src/screens/AtelierCanvasScreen.js');
+// C1 §2 — as 3 abas (Cores/Pincel/Ferramentas) saíram; a barra principal é única e fixa.
 check(
-  'Canvas 2.0: painel inferior por abas Cores / Pincel / Ferramentas',
-  canvasV2.includes('panelTab') &&
-  canvasV2.includes("label: 'Cores'") && canvasV2.includes("label: 'Pincel'") &&
-  canvasV2.includes("label: 'Ferramentas'"),
-  'AtelierCanvasScreen não tem painel inferior por abas (Cores/Pincel/Ferramentas)',
+  'Criar livre C1: SEM painel por abas (Cores/Pincel/Ferramentas) — barra única fixa',
+  !canvasV2.includes('panelTab') && !canvasV2.includes("label: 'Ferramentas'")
+  && canvasV2.includes('styles.bar'),
+  'as abas antigas voltaram, ou a barra principal única sumiu',
 );
 check(
-  'Canvas 2.0: aba Pincel mostra preview do traço',
+  'Criar livre C1: painel de pincel mostra prévia do traço (brushPreview)',
   canvasV2.includes('brushPreview'),
-  'AtelierCanvasScreen não mostra preview do traço na aba Pincel',
+  'o painel de pincel não mostra prévia do traço',
 );
 check(
-  'Canvas 2.0: diferencia modo guiado / criar livre',
-  canvasV2.includes("mission ? 'guided' : 'free'") &&
-  canvasV2.includes('Desenho guiado pelo Beni') && canvasV2.includes('Criar livre'),
+  'Criar livre C1: diferencia modo guiado / criar livre',
+  canvasV2.includes("mission ? 'guided' : 'free'")
+  && canvasV2.includes("'Desenho guiado'") && canvasV2.includes("'Criar livre'"),
   'AtelierCanvasScreen não diferencia os modos da mesa',
 );
 check(
-  // H1.1: a dica de altura foi removida do modo borracha para os tamanhos
-  // (Pequena/Média/Grande) caberem sem rolagem. Agora os rótulos orientam.
-  'Canvas: borracha mostra os tamanhos (Pequena/Média/Grande) no modo borracha',
-  canvasV2.includes("activeTool === 'borracha'") && canvasV2.includes('ERASER_SIZES.map'),
-  'AtelierCanvasScreen não mostra os tamanhos da borracha',
+  'Criar livre C1: borracha REAL (destination-out no motor), ativa com um toque',
+  (() => {
+    const eng = readSrc('src/components/AtelierCanvas.js');
+    return /globalCompositeOperation\s*=\s*s\.eraser\s*\?\s*'destination-out'/.test(eng)
+      && canvasV2.includes("setTool('eraser')") && canvasV2.includes('useEraser');
+  })(),
+  'a borracha não é real (destination-out) ou não ativa com um toque',
 );
 check(
-  'Canvas 2.0: recompensa ao salvar com progresso + Livrinho + Ver minhas artes',
-  canvasV2.includes('rewardVisible') &&
-  canvasV2.includes('Beni salvou sua criação com carinho') &&
-  canvasV2.includes('entrar no seu Livrinho da Fé') &&
-  canvasV2.includes('Continuar desenhando'),
-  'AtelierCanvasScreen sem microfeedback de retenção ao salvar',
+  'Criar livre C1: salvar dá feedback curto + conquistas, sem reward pesado',
+  canvasV2.includes('savedToast') && canvasV2.includes('Arte guardada.')
+  && !canvasV2.includes('rewardVisible') && !canvasV2.includes('entrar no seu Livrinho da Fé'),
+  'o feedback de salvar do Criar livre regrediu (reward pesado voltou)',
 );
 check(
-  'Canvas 2.0: salvar arte aciona verificação de conquistas (Parte 7)',
+  'Criar livre C1: salvar arte aciona verificação de conquistas (preservado)',
   canvasV2.includes('useAchievementCelebration') &&
   canvasV2.includes('checkForNewAchievements') &&
   canvasV2.includes('AchievementUnlockModal'),
   'AtelierCanvasScreen não aciona conquistas ao salvar',
-);
-check(
-  'Canvas 2.0: comentário de ganchos de retenção (Cultinho / Domingo / Relatório)',
-  canvasV2.includes('Modo Cultinho em Casa') &&
-  canvasV2.includes('História do Domingo') &&
-  canvasV2.includes('Relatório semanal'),
-  'AtelierCanvasScreen sem nota de preparação de retenção (Plano Mestre)',
-);
-check(
-  'Canvas 2.0: TODO de assets próprios para os carimbos',
-  canvasV2.includes('TODO(assets)'),
-  'AtelierCanvasScreen sem TODO de assets próprios dos carimbos',
 );
 
 // ── Sprint Álbum de Conquistas e Recompensas 1.0 ────────────────────────────
@@ -9123,29 +9099,28 @@ check(
   'StoryBookScreen: cards de modo sem descrição/prévia visual distinta',
 );
 
+// C1 — a UI de carimbos saiu do Criar livre por completo (sem STAMPS_ENABLED, sem CORE_STAMPS).
 check(
-  'Bloco 3: Canvas importa STAMPS_ENABLED e esconde carimbos por flag',
-  ux3Canvas.includes("from '../config/featureFlags'") &&
-  ux3Canvas.includes('STAMPS_ENABLED ? [{ id:') &&
-  ux3Canvas.includes('STAMPS_ENABLED && activeTool === \'carimbos\'') &&
-  ux3Canvas.includes("STAMPS_ENABLED && openTab === 'carimbos'"),
-  'AtelierCanvasScreen não esconde os carimbos (chip + painel + init) por STAMPS_ENABLED',
+  'Criar livre C1: sem UI de carimbos (nem STAMPS_ENABLED, nem CORE_STAMPS, nem carimbos)',
+  !ux3Canvas.includes('STAMPS_ENABLED') && !ux3Canvas.includes('CORE_STAMPS')
+  && !ux3Canvas.includes('handleStampPress') && !ux3Canvas.includes('Carimbos'),
+  'sobrou UI/código de carimbos no Criar livre',
+);
+
+// O motor (AtelierCanvas) PRESERVA o render de carimbos — compatibilidade com artes antigas.
+check(
+  'Criar livre C1: motor preserva o render de carimbos (compat. com artes salvas)',
+  (() => { const eng = readSrc('src/components/AtelierCanvas.js'); return eng.includes('function drawStamp') && eng.includes('stamps'); })(),
+  'o motor perdeu o render de carimbos — quebraria artes antigas com carimbos',
 );
 
 check(
-  'Bloco 3: código de carimbos preservado (não deletado) no Canvas',
-  ux3Canvas.includes('CORE_STAMPS') &&
-  ux3Canvas.includes('handleStampPress') &&
-  ux3Canvas.includes('handleResizeStamp'),
-  'AtelierCanvasScreen perdeu o código de carimbos — deveria apenas escondê-lo',
-);
-
-check(
-  'Bloco 3: Canvas mantém ferramentas essenciais (cores/pincel/borracha/desfazer/limpar/pronto)',
-  ux3Canvas.includes("id: 'desenhar'") && ux3Canvas.includes("id: 'borracha'") &&
-  ux3Canvas.includes('handleUndo') && ux3Canvas.includes('handleClearAll') &&
-  ux3Canvas.includes('BRUSH_SIZES'),
-  'AtelierCanvasScreen perdeu alguma ferramenta essencial do fluxo principal',
+  'Criar livre C1: ferramentas essenciais (cor/pincel/borracha/desfazer/refazer/limpar/salvar)',
+  ux3Canvas.includes("tool === 'eraser'") && ux3Canvas.includes('usePencil')
+  && ux3Canvas.includes('doUndo') && ux3Canvas.includes('doRedo')
+  && ux3Canvas.includes('doClear') && ux3Canvas.includes('doSave')
+  && ux3Canvas.includes('BRUSH_PRESETS'),
+  'Criar livre perdeu alguma ferramenta essencial do fluxo principal',
 );
 
 // ── Sprint Reestruturação UX 1.0 — Bloco 4A: Baú valor percebido ─────────────
@@ -9516,10 +9491,9 @@ check(
 );
 
 check(
-  'Bloco 5: sons de clique não tocam em ações repetitivas do Ateliê/Colorir (silent)',
-  (ux5Canvas.match(/\bsilent\b/g) || []).length >= 4 &&
-  ux5Coloring.includes('silent'),
-  'Botões repetitivos do Ateliê/Colorir ainda tocam som',
+  'Bloco 5 / C1: Criar livre sem sons de clique (usa Pressable, não SoundButton); Colorir mantém silent',
+  !ux5Canvas.includes('SoundButton') && ux5Coloring.includes('silent'),
+  'o Criar livre voltou a tocar som de clique, ou o Colorir perdeu o silent',
 );
 
 check(
@@ -9533,44 +9507,530 @@ check(
   'ParentAreaScreen sem os toggles de áudio na seção recolhível',
 );
 
-// ── Hotfix H1 — Ateliê canvas clipping (painel com altura reservada) ─────────
-console.log('\n── Hotfix H1: Ateliê canvas clipping ──');
+// ── Criar livre C1 — estabilidade do canvas (painéis SOBREPÕEM, não redimensionam) ──
+console.log('\n── Criar livre C1: estabilidade do canvas ──');
 
 const h1Atelier = readSrc('src/screens/AtelierCanvasScreen.js');
 
+// §4/§18 — os painéis contextuais são overlays ABSOLUTOS ancorados ao fundo (não empurram o
+// papel). O canvas (AtelierCanvas) é montado UMA vez, sem key dinâmica → nunca remonta.
 check(
-  'H1: painel inferior tem altura RESERVADA fixa (não cresce com a aba/Borracha)',
-  /const PANEL_CONTENT_H\s*=\s*\d+/.test(h1Atelier) &&
-  /panelContent:\s*\{\s*height:\s*PANEL_CONTENT_H\s*\}/.test(h1Atelier) &&
-  !/panelContent:\s*\{[^}]*minHeight/.test(h1Atelier),
-  'AtelierCanvasScreen: painelContent não usa altura reservada fixa (canvas pode encolher de novo)',
+  'Criar livre C1: painéis são overlays absolutos (não redimensionam o papel)',
+  /panel:\s*\{[\s\S]{0,120}position:\s*'absolute'/.test(h1Atelier)
+  && h1Atelier.includes('backdrop') && !h1Atelier.includes('PANEL_CONTENT_H'),
+  'os painéis não são overlays absolutos — poderiam redimensionar o canvas',
 );
 
 check(
-  'H1: conteúdo do painel rola por dentro, sem empurrar o canvas (panelScroll)',
-  h1Atelier.includes('panelScroll') &&
-  /style=\{styles\.panelScroll\}/.test(h1Atelier),
-  'AtelierCanvasScreen: painel não rola internamente — conteúdo alto pode comprimir o canvas',
+  'Criar livre C1: canvas com identidade estável (sem key dinâmica que remonta)',
+  /<AtelierCanvas ref=\{canvasRef\}/.test(h1Atelier)
+  && !/<AtelierCanvas[\s\S]{0,60}key=\{canvasKey/.test(h1Atelier)
+  && !h1Atelier.includes('setCanvasKey'),
+  'o canvas ganhou uma key dinâmica — remontaria o desenho ao abrir painéis',
 );
 
 check(
-  'H1: área do canvas permanece estável (canvasOuter flex:1), sem mexer no motor',
-  /canvasOuter:\s*\{\s*\n?\s*flex:\s*1/.test(h1Atelier),
-  'AtelierCanvasScreen: canvasOuter perdeu o flex estável da área do canvas',
+  'Criar livre C1: área do papel estável (paperArea flex:1) entre cabeçalho e barra',
+  /paperArea:\s*\{\s*flex:\s*1/.test(h1Atelier) && /paperFrame:\s*\{\s*\n?\s*flex:\s*1/.test(h1Atelier),
+  'a área do papel deixou de ser estável (flex:1)',
 );
 
 check(
-  'H1.1: painel compactado (PANEL_CONTENT_H <= 160) — devolve área de canvas',
-  (() => { const m = h1Atelier.match(/const PANEL_CONTENT_H\s*=\s*(\d+)/); return !!m && Number(m[1]) <= 160; })(),
-  'AtelierCanvasScreen: painel não foi compactado (PANEL_CONTENT_H > 160)',
+  'Criar livre C1: painel contextual limitado a ~32% da altura útil (§8)',
+  h1Atelier.includes('panelMaxHeightRatio') && /panelMaxHeightRatio:\s*0\.32/.test(readSrc('src/theme/createLivreVisualTokens.js')),
+  'o painel contextual não respeita o teto de ~32% da altura útil',
 );
 
 check(
-  'H1.1: tamanhos da borracha sem rolagem (dica não rouba altura no modo borracha)',
-  !h1Atelier.includes('Passe por cima para apagar') &&
-  /activeTool === 'borracha'[\s\S]{0,400}styles\.sizeRow/.test(h1Atelier),
-  'AtelierCanvasScreen: modo borracha ainda usa a dica que rouba altura / tamanhos podem exigir rolagem',
+  'Criar livre C1: borracha com presets dos tokens (sem rolagem, sem dica que rouba altura)',
+  !h1Atelier.includes('Passe por cima para apagar') && h1Atelier.includes('ERASER_PRESETS'),
+  'o modo borracha ainda usa a dica antiga ou não usa os presets dos tokens',
 );
+
+// ════════════════════════════════════════════════════════════════════════════
+// Criar livre C1 — Ateliê essencial premium (§26): barra, painéis, histórico, saída, motor.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Criar livre C1: Ateliê essencial premium ──');
+{
+  const scr = readSrc('src/screens/AtelierCanvasScreen.js');
+  const scrN = a1StripComments(scr);
+  const eng = readSrc('src/components/AtelierCanvas.js');
+  const icon = readSrc('src/components/criarLivre/CriarLivreIcon.js');
+
+  // §6 — barra principal única com 6 controles vetoriais.
+  check('C1 §6 (barra): 6 controles — Cor · Pincel · Apagar · Desfazer · Refazer · Mais (ícones vetoriais)',
+    (scrN.match(/<ToolButton\b/g) || []).length === 6
+    && /name="brush"/.test(scrN) && /name="eraser"/.test(scrN) && /name="undo"/.test(scrN)
+    && /name="redo"/.test(scrN) && /name="more"/.test(scrN)
+    && /CriarLivreIcon/.test(scrN),
+    'a barra principal não tem exatamente 6 controles vetoriais');
+
+  // §7 — ícones consistentes, SVG, sem emoji, sem nova dependência.
+  check('C1 §7 (ícones): CriarLivreIcon é SVG (react-native-svg), sem emoji, sem nova lib',
+    /from 'react-native-svg'/.test(icon) && !/\p{Extended_Pictographic}/u.test(icon)
+    && /strokeWidth/.test(icon),
+    'os ícones do Criar livre não são SVG consistentes');
+
+  // §2/§8 — painéis contextuais (color/brush/more) e UM aberto por vez.
+  check('C1 §8 (painéis contextuais): color/brush/more com um único openPanel por vez',
+    /overlay === 'color'/.test(scrN) && /overlay === 'brush'/.test(scrN) && /overlay === 'more'/.test(scrN)
+    && /const \[overlay, setOverlay\] = useState\(null\)/.test(scrN)
+    && /<ColorPanel/.test(scrN) && /<BrushPanel/.test(scrN),
+    'os painéis contextuais não existem ou permitem mais de um aberto');
+
+  // §18 — traço captura cor/espessura NO INÍCIO; mudar depois não altera traços antigos.
+  check('C1 §18 (traço): cor e espessura são capturadas no início do traço (motor)',
+    /curStroke=\{[\s\S]{0,120}color:curColor[\s\S]{0,120}size:tool==='eraser'\?eraserSz:brushSz/.test(eng),
+    'o traço não captura cor/espessura no início — mudar depois alteraria traços antigos');
+
+  // §11 — borracha real (destination-out) e ativa com um toque; preserva a cor.
+  check('C1 §11 (borracha real + 1 toque + preserva cor): destination-out; setColor não é chamado ao apagar',
+    /globalCompositeOperation\s*=\s*s\.eraser\s*\?\s*'destination-out'/.test(eng)
+    && /const useEraser = useCallback/.test(scrN)
+    && /setTool\('eraser'\)/.test(scrN) && !/tinta branca/i.test(scrN)
+    && /const usePencil = useCallback/.test(scrN),   // volta ao pincel restaurando a cor
+    'a borracha não é real, não ativa com um toque, ou não preserva a cor');
+
+  // §12 — Desfazer/Refazer por operação; novo traço limpa o futuro; Limpar é desfazível.
+  check('C1 §12 (histórico): undo pop past + push future; redo inverso; commit limpa o futuro; clear desfazível',
+    /window\.undo=function\(\)\{[\s\S]{0,140}future\.push\(snap\(\)\);[\s\S]{0,60}restore\(past\.pop\(\)\)/.test(eng)
+    && /window\.redo=function\(\)\{[\s\S]{0,140}past\.push\(snap\(\)\);[\s\S]{0,60}restore\(future\.pop\(\)\)/.test(eng)
+    && /function commit\(\)\{[\s\S]{0,140}future=\[\];/.test(eng)
+    && /window\.clearAll=function\(\)\{\s*commit\(\);/.test(eng)
+    && /HIST_LIMIT=150/.test(eng),
+    'o histórico não é por operação com past/future, ou Limpar não é desfazível');
+
+  // §13/§14 — Limpar em Mais + confirmação; diagnóstico só sob Modo Criador.
+  check('C1 §13/§14 (Mais): Limpar desenho com confirmação; Mais sem carimbos/fundos/formas',
+    /onClear=\{\(\) => setOverlay\('clear'\)\}/.test(scrN)
+    && /<ConfirmSheet[\s\S]{0,200}Limpar todo o desenho\?/.test(scrN)
+    && !/Carimbo|Fundo|Forma|Camada|Filtro|Adesivo/.test(scrN),
+    'Limpar não está em Mais com confirmação, ou Mais ganhou opções proibidas');
+
+  // §16 — Salvar desabilitado em papel vazio; export único; sem duplo toque.
+  check('C1 §16 (salvar): desabilitado em papel vazio; sem duplo toque; regra de acesso preservada',
+    /disabled=\{!canSave\}/.test(scrN) && /const canSave = !isBlank && !isSaving/.test(scrN)
+    && /savingRef\.current/.test(scrN)
+    && /ATELIER_FREE_SAVE_LIMIT/.test(scrN) && /hasAtelierUnlimitedAccess/.test(scrN),
+    'Salvar não desabilita no vazio, permite duplo toque, ou perdeu a regra de acesso');
+
+  // §17 — estados explícitos isBlank/isDirty/isSaving/lastSavedRevision.
+  check('C1 §17 (estados): isBlank/isDirty/isSaving/lastSavedRevision explícitos (dirty por revisão)',
+    /const \[isBlank/.test(scrN) && /const \[isSaving/.test(scrN)
+    && /const \[lastSavedRevision/.test(scrN) && /const isDirty = rev !== lastSavedRevision/.test(scrN)
+    && /setLastSavedRevision\(rev\)/.test(scrN),
+    'os estados vazio/sujo/salvando/revisão-salva não são explícitos');
+
+  // §15 — proteção ao sair com desenho sujo; saída direta quando vazio.
+  check('C1 §15 (saída): beforeRemove protege sujo; vazio/limpo sai direto; 2º toque consciente',
+    /addListener\('beforeRemove'/.test(scrN)
+    && /if \(leavingRef\.current \|\| isBlank \|\| !isDirty \|\| isSaving\) return;/.test(scrN)
+    && /<ExitSheet/.test(scrN) && /armed \? onLeave : onLeaveArm/.test(scrN),
+    'a proteção ao sair não intercepta o desenho sujo, ou não sai direto quando vazio');
+
+  // §16 — erro de salvamento mantém o desenho e permite tentar de novo (não sai da tela).
+  check('C1 §16 (erro salvar): mantém o desenho e permite tentar de novo',
+    /overlay === 'saveError'/.test(scrN) && /Tentar de novo/.test(scrN)
+    && /catch \{[\s\S]{0,160}setOverlay\('saveError'\)/.test(scrN),
+    'o erro de salvamento não mantém o desenho / não permite tentar de novo');
+
+  // §16/§25 — a interface (RN) fica FORA do canvas (WebView) → não entra na arte exportada.
+  check('C1 §16 (export limpo): a interface é RN, fora da WebView; export achata contra o fundo',
+    /var st=JSON\.stringify\(\{v:2,strokes:strokes,stamps:stamps,bgColor:bgColor\}\)/.test(eng)
+    && /fctx\.fillStyle=bgColor; fctx\.fillRect\(0,0,W,H\)/.test(eng)   // achata contra o fundo
+    && !/CriarLivreIcon|styles\.toolBtn|styles\.header/.test(eng),      // nenhuma UI RN dentro do motor
+    'a interface pode entrar na arte exportada');
+
+  // §20 — Modo Criador NÃO flutua sobre Salvar; diagnóstico em Mais, gated.
+  check('C1 §20 (Modo Criador): diagnóstico dentro de Mais, gated; sem selo flutuante cobrindo Salvar',
+    /overlay === 'diag' && isInternalToolsEnabled\(\)/.test(scrN)
+    && /isInternalToolsEnabled\(\) && \(\s*\n?\s*<Pressable style=\{styles\.moreRow\} onPress=\{onDiag\}/.test(scrN)
+    && !/CreatorModeBanner/.test(scrN),
+    'o diagnóstico do Criador não está gated dentro de Mais, ou há selo flutuante na tela');
+
+  // §22/§23 — movimento reduzido respeitado.
+  check('C1 §22 (movimento reduzido): AccessibilityInfo + painéis/glow sem animação em reduzido',
+    /AccessibilityInfo\.isReduceMotionEnabled/.test(scrN) && /reduceMotion \? 0 :/.test(scrN),
+    'o movimento reduzido não é respeitado');
+
+  // §21 — tokens centralizados.
+  check('C1 §21 (tokens): createLivreVisualTokens centraliza métricas/cores/durações',
+    /export const CL = Object\.freeze/.test(readSrc('src/theme/createLivreVisualTokens.js'))
+    && /headerHeight/.test(readSrc('src/theme/createLivreVisualTokens.js'))
+    && /export const CRIAR_LIVRE_COLORS/.test(readSrc('src/theme/createLivreVisualTokens.js')),
+    'os tokens visuais do Criar livre não estão centralizados');
+
+  // §28 — nenhum arquivo de outros jogos alterado (import cruzado proibido).
+  check('C1 (isolamento): o Criar livre não importa Pares/Monte a Cena/Palavrinhas/Ovelhinha',
+    !/pares|monteACena|palavrinhas|ovelha/i.test(scrN)
+    && !/pares|monteACena|palavrinhas|ovelha/i.test(a1StripComments(readSrc('src/components/criarLivre/CriarLivreIcon.js'))),
+    'o Criar livre tocou outro jogo (import cruzado)');
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Criar livre C1.1 — rodada corretiva (slider, presets, borracha, nome, paletas).
+// Cobre §2 (slider estável), §3 (presets não fecham), §4 (borracha real, fonte única),
+// §5/§7 (nome + identidade), §6/§8 (compat. de títulos), §9 (paletas + recentes).
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Criar livre C1.1: correção slider/borracha/nome/paletas ──');
+{
+  const scr = readSrc('src/screens/AtelierCanvasScreen.js');
+  const scrN = a1StripComments(scr);
+  const slider = readSrc('src/components/criarLivre/CriarLivreSlider.js');
+  const sliderN = a1StripComments(slider);
+  const eng = readSrc('src/components/AtelierCanvas.js');
+  const tokens = readSrc('src/theme/createLivreVisualTokens.js');
+  const naming = readSrc('src/services/atelierArtNaming.js');
+  const storage = readSrc('src/services/atelierStorage.js');
+  const migSvc = readSrc('src/services/storageMigrationService.js');
+  const gallery = readSrc('src/screens/AtelierGalleryScreen.js');
+
+  // ── §5/§6 — serviço de nomes (BEHAVIORAL: eval do módulo puro) ──
+  let N = null;
+  try {
+    const code = naming.replace(/export default[\s\S]*$/m, '').replace(/export /g, '')
+      + '; return { normalizeArtName, cleanArtName, resolveArtTitle, displayTitle, DEFAULT_ART_BASE };';
+    N = new Function(code)();
+  } catch (e) { N = null; }
+
+  check('C1.1 §5 (nome): módulo atelierArtNaming avalia (puro, sem imports)',
+    !!N && typeof N.resolveArtTitle === 'function' && N.DEFAULT_ART_BASE === 'Desenho de fé',
+    'atelierArtNaming não é um módulo puro avaliável');
+
+  check('C1.1 §5 (nome vazio → base): "" → "Desenho de fé"',
+    !!N && N.resolveArtTitle('', []) === 'Desenho de fé',
+    'nome vazio não caiu no padrão "Desenho de fé"');
+
+  check('C1.1 §5 (vazio repetido → 2): base existente → "Desenho de fé 2"',
+    !!N && N.resolveArtTitle('', ['Desenho de fé']) === 'Desenho de fé 2',
+    'segundo desenho sem nome não recebeu sufixo 2');
+
+  check('C1.1 §5 (vazio → 3): base + "2" existentes → "Desenho de fé 3"',
+    !!N && N.resolveArtTitle('', ['Desenho de fé', 'Desenho de fé 2']) === 'Desenho de fé 3',
+    'terceiro desenho sem nome não recebeu sufixo 3');
+
+  check('C1.1 §5 (nome livre): "Meu desenho" inédito → mantém',
+    !!N && N.resolveArtTitle('Meu desenho', ['Barquinho']) === 'Meu desenho',
+    'nome inédito foi alterado sem necessidade');
+
+  check('C1.1 §5 (duplicado digitado → sufixo): "Meu desenho" existente → "Meu desenho 2"',
+    !!N && N.resolveArtTitle('Meu desenho', ['Meu desenho']) === 'Meu desenho 2',
+    'nome duplicado não recebeu o menor sufixo livre');
+
+  check('C1.1 §5 (maior sufixo + 1): "Meu desenho" + "…4" → "Meu desenho 5"',
+    !!N && N.resolveArtTitle('Meu desenho', ['Meu desenho', 'Meu desenho 4']) === 'Meu desenho 5',
+    'o sufixo não usou o MAIOR existente + 1');
+
+  check('C1.1 §5 (dedup por caixa): "meu desenho" ≡ "MEU DESENHO" (normalizado)',
+    !!N && N.resolveArtTitle('meu desenho', ['MEU DESENHO']) === 'meu desenho 2',
+    'a duplicidade ignora a caixa? deveria colidir e receber sufixo');
+
+  check('C1.1 §5 (dedup por espaços): "  Meu   desenho " colide com "Meu desenho"',
+    !!N && N.resolveArtTitle('  Meu   desenho ', ['Meu desenho']) === 'Meu desenho 2',
+    'espaços duplicados/pontas não são normalizados para comparar');
+
+  check('C1.1 §6 (displayTitle fallback): vazio/nulo/espaços → "Desenho de fé"; real preserva',
+    !!N && N.displayTitle('') === 'Desenho de fé' && N.displayTitle('   ') === 'Desenho de fé'
+    && N.displayTitle(null) === 'Desenho de fé' && N.displayTitle(undefined) === 'Desenho de fé'
+    && N.displayTitle('Barquinho') === 'Barquinho',
+    'displayTitle não protege contra vazio/nulo ou destrói o título real');
+
+  check('C1.1 §5 (nunca lança): entradas estranhas devolvem string',
+    !!N && typeof N.resolveArtTitle(123, null) === 'string'
+    && typeof N.resolveArtTitle(undefined, undefined) === 'string'
+    && typeof N.displayTitle({}) === 'string',
+    'o serviço de nomes lançou com entrada inesperada');
+
+  // ── §9 — paletas nos tokens ──
+  check('C1.1 §9 (paletas): 4 paletas; "Essenciais" == as 18 cores aprovadas',
+    /export const ORGANIZED_PALETTES = Object\.freeze\(\[/.test(tokens)
+    && (tokens.match(/id:\s*'(essenciais|pasteis|natureza|terra)'/g) || []).length === 4
+    && /id:\s*'essenciais',\s*name:\s*'Essenciais',\s*colors:\s*CRIAR_LIVRE_COLORS/.test(tokens)
+    && (tokens.match(/{ hex: '#[0-9A-Fa-f]{6}', label: '[^']+' }/g) || []).length >= 18 + 36,
+    'as paletas organizadas não têm 4 grupos ou "Essenciais" mudou');
+
+  check('C1.1 §9 (18 essenciais intactas): CRIAR_LIVRE_COLORS mantém as 18 cores',
+    (tokens.match(/export const CRIAR_LIVRE_COLORS[\s\S]*?\]\);/)[0].match(/hex:/g) || []).length === 18,
+    'a paleta Essenciais deixou de ter 18 cores');
+
+  check('C1.1 §9 (rótulos PT-BR): toda cor de toda paleta tem label não vazio',
+    (() => {
+      const block = tokens.match(/export const ORGANIZED_PALETTES[\s\S]*?\n\]\);/);
+      if (!block) return false;
+      const labels = block[0].match(/label:\s*'([^']*)'/g) || [];
+      return labels.length >= 12 * 3 && labels.every((l) => /label:\s*'[^']+'/.test(l));
+    })(),
+    'há cor sem rótulo PT-BR nas paletas');
+
+  check('C1.1 §9 (recentes ≤ 5): RECENT_COLORS_MAX definido e usado no push',
+    /export const RECENT_COLORS_MAX = 5/.test(tokens)
+    && /slice\(0, RECENT_COLORS_MAX\)/.test(scrN),
+    'o limite de cores recentes não é 5 / não é aplicado no push');
+
+  // ── §9 — seletor de paletas + recentes na tela ──
+  check('C1.1 §9 (ColorPanel): consome paletteId/onPalette/recent e mapeia a paleta ATIVA',
+    /function ColorPanel\(\{ color, tool, onPick, paletteId, onPalette, recent \}\)/.test(scrN)
+    && /ORGANIZED_PALETTES\.find\(\(p\) => p\.id === paletteId\)/.test(scrN)
+    && /palette\.colors\.map/.test(scrN)
+    && /<ColorPanel[\s\S]{0,120}paletteId=\{paletteId\}[\s\S]{0,60}onPalette=\{setPaletteId\}[\s\S]{0,40}recent=\{recentColors\}/.test(scrN),
+    'o ColorPanel não consome as novas props / não mapeia a paleta ativa');
+
+  check('C1.1 §9 (trocar paleta ≠ trocar cor): onPalette só muda paletteId; cor é estado à parte',
+    /const \[paletteId, setPaletteId\] = useState/.test(scrN)
+    && /const \[color, setColor\] = useState/.test(scrN)
+    && /onPalette=\{setPaletteId\}/.test(scrN)
+    && !/setColor\([^)]*paletteId/.test(scrN),
+    'trocar de paleta pode alterar a cor selecionada');
+
+  check('C1.1 §9 (recentes dedup + cap): pushRecent remove repetido e corta em 5',
+    /\[hex, \.\.\.prev\.filter\(\(h\) => h !== hex\)\]\.slice\(0, RECENT_COLORS_MAX\)/.test(scrN),
+    'as cores recentes não deduplicam ou não respeitam o teto');
+
+  check('C1.1 §9 (grade sem corte): grade de cores continua 6 por linha',
+    /swatchCell: \{ width: `\$\{100 \/ 6\}%`/.test(scr),
+    'a grade de cores deixou de ser 6 por linha');
+
+  // ── §2 — slider estável (coordenada ABSOLUTA, sem locationX) ──
+  check('C1.1 §2 (slider absoluto): usa measureInWindow + pageX/moveX; NUNCA locationX',
+    /measureInWindow/.test(sliderN)
+    && /e\.nativeEvent\.pageX/.test(sliderN) && /g\.moveX/.test(sliderN)
+    && !/locationX/.test(sliderN),
+    'o slider ainda usa locationX (relativo ao elemento tocado → saltos)');
+
+  check('C1.1 §2 (referência única): trilha medida em ABSOLUTO + clamp por (absX - trackX)',
+    /trackXRef\.current/.test(sliderN) && /trackWRef\.current/.test(sliderN)
+    && /clamp\(absX - trackXRef\.current, 0, trackWRef\.current\)/.test(sliderN),
+    'o slider não usa uma referência única estável com clamp');
+
+  check('C1.1 §2/§3 (painel não fecha ao arrastar): guardas de terminação do PanResponder',
+    /onPanResponderTerminationRequest:\s*\(\) => false/.test(sliderN)
+    && /onShouldBlockNativeResponder:\s*\(\) => true/.test(sliderN)
+    && /onStartShouldSetPanResponderCapture:\s*\(\) => true/.test(sliderN),
+    'o slider pode ceder o gesto ao fundo → painel fecha ao arrastar');
+
+  check('C1.1 §2 (PanResponder estável): criado UMA vez (useRef) e lê config por ref',
+    /const pan = useRef\(PanResponder\.create/.test(sliderN)
+    && /const cfg = useRef\(\{ min, max, onChange, onPreset, presets \}\)/.test(sliderN)
+    && /cfg\.current = \{ min, max, onChange, onPreset, presets \}/.test(sliderN),
+    'o PanResponder é recriado a cada render / não lê config por ref (fonte de saltos)');
+
+  check('C1.1 §2 (tamanho restaurado): value externo reposiciona o polegar quando não arrasta',
+    /if \(!draggingRef\.current\) syncThumb\(\)/.test(sliderN)
+    && /useEffect\(\(\) => \{ if \(!draggingRef\.current\) syncThumb\(\); \}, \[value, min, max\]\)/.test(sliderN),
+    'o polegar não é reposicionado pelo value (tamanho não restaura ao reabrir)');
+
+  // ── §3 — presets NÃO fecham o painel ──
+  check('C1.1 §3 (preset não fecha): applyWidth não chama setOverlay(null)',
+    /const applyWidth = useCallback\(\(w, isPreset\) => \{[\s\S]{0,320}\}, \[syncTool\]\)/.test(scrN)
+    && !/const applyWidth = useCallback\(\(w, isPreset\) => \{[\s\S]{0,320}setOverlay\(null\)/.test(scrN),
+    'selecionar um preset ainda fecha o painel');
+
+  check('C1.1 §3 (preset destacado): BrushPanel marca o preset ativo por proximidade',
+    /const on = Math\.abs\(width - p\.width\) <= 1/.test(scrN)
+    && /on && styles\.presetBtnActive/.test(scrN),
+    'o preset selecionado não fica destacado');
+
+  // ── §4 — borracha real + fonte única + config atômica ──
+  check('C1.1 §4 (motor atômico): window.applyTool aplica tool+color+brush+eraser de uma vez',
+    /window\.applyTool=function\(cfg\)\{[\s\S]{0,260}cfg\.tool==='eraser'[\s\S]{0,260}curColor=cfg\.color[\s\S]{0,120}brushSz=b[\s\S]{0,120}eraserSz=e/.test(eng),
+    'o motor não tem applyTool atômico (tool+cor+tamanhos juntos)');
+
+  check('C1.1 §4 (sem efeito colateral): setColor NÃO força tool="draw"',
+    /window\.setColor=function\(c\)\{[\s\S]{0,120}\};/.test(eng)
+    && !/window\.setColor=function\(c\)\{[\s\S]{0,120}tool='draw'/.test(eng),
+    'setColor ainda força tool="draw" (efeito colateral que quebra a borracha)');
+
+  check('C1.1 §4 (wrapper expõe applyTool): a ponte RN→WebView chama window.applyTool',
+    /applyTool\(cfg\)\s*\{[\s\S]{0,120}window\.applyTool\(\$\{JSON\.stringify/.test(eng),
+    'o wrapper RN não expõe applyTool para o motor');
+
+  check('C1.1 §4 (fonte única): refs tool/color/brush/eraser + syncTool atômico',
+    /toolRef\.current = tool/.test(scrN) && /colorRef\.current = color/.test(scrN)
+    && /brushRef\.current = brushWidth/.test(scrN) && /eraserRef\.current = eraserWidth/.test(scrN)
+    && /canvasRef\.current\?\.applyTool\?\.\(\{[\s\S]{0,140}tool: toolRef\.current/.test(scrN),
+    'a tela não tem fonte única de ferramenta com sincronização atômica');
+
+  check('C1.1 §4 (nenhum traço colorido com borracha): useEraser fixa tool="eraser" + syncTool',
+    /const useEraser = useCallback\(\(\) => \{[\s\S]{0,260}toolRef\.current = 'eraser'; setTool\('eraser'\);[\s\S]{0,120}syncTool\(\)/.test(scrN),
+    'ativar a borracha não fixa a ferramenta como "eraser" de forma atômica');
+
+  check('C1.1 §4 (cor sai da borracha): pickColor volta para tool="draw"',
+    /const pickColor = useCallback\(\(hex\) => \{[\s\S]{0,200}toolRef\.current = 'draw'; setTool\('draw'\)/.test(scrN),
+    'escolher cor não sai da borracha (deveria voltar ao pincel)');
+
+  check('C1.1 §4 (tamanhos independentes): applyWidth grava eraserRef no modo borracha, brushRef no pincel',
+    /if \(toolRef\.current === 'eraser'\) \{ eraserRef\.current = w; setEraserWidth\(w\); \}\s*else \{ brushRef\.current = w; setBrushWidth\(w\); \}/.test(scrN),
+    'pincel e borracha não têm tamanhos independentes');
+
+  check('C1.1 §4 (traço captura tool/cor/tamanho no início): motor mantém a captura por traço',
+    /curStroke=\{[\s\S]{0,140}color:curColor[\s\S]{0,140}size:tool==='eraser'\?eraserSz:brushSz[\s\S]{0,80}eraser:tool==='eraser'/.test(eng),
+    'o traço não captura tool/cor/tamanho no início (mudar depois alteraria traços)');
+
+  // BEHAVIORAL — regressão dirigida da borracha: simula o CONTRATO do motor
+  // (fonte única via applyTool + captura no início do traço) e prova que
+  // NENHUM movimento cria traço colorido enquanto a borracha está ativa.
+  check('C1.1 §4 (REGRESSÃO borracha): sob applyTool(eraser) nenhum traço sai colorido; volta ao pincel colore',
+    (() => {
+      // Modelo fiel do motor: estado tool/curColor/brushSz/eraserSz + captura no início.
+      let tool = 'draw', curColor = '#F44336', brushSz = 10, eraserSz = 30;
+      function applyTool(cfg) {
+        if (!cfg || typeof cfg !== 'object') return;
+        if (cfg.tool === 'draw' || cfg.tool === 'eraser') tool = cfg.tool;
+        if (typeof cfg.color === 'string') curColor = cfg.color;
+        const b = Number(cfg.brush); if (b > 0) brushSz = b;
+        const e = Number(cfg.eraser); if (e > 0) eraserSz = e;
+      }
+      function startStroke() {
+        return { color: curColor, size: tool === 'eraser' ? eraserSz : brushSz, eraser: tool === 'eraser' };
+      }
+      // 1) Borracha ativa (config atômica) → traço é apagador, não colorido.
+      applyTool({ tool: 'eraser', color: curColor, brush: brushSz, eraser: 52 });
+      const s1 = startStroke();
+      // 2) setColor (sem efeito colateral) NÃO deve reativar o pincel.
+      curColor = '#3498DB';
+      const s2 = startStroke();
+      // 3) Voltar ao pincel via applyTool → volta a colorir com a espessura do pincel.
+      applyTool({ tool: 'draw', color: '#3498DB', brush: brushSz, eraser: eraserSz });
+      const s3 = startStroke();
+      return s1.eraser === true && s1.size === 52
+        && s2.eraser === true          // enquanto borracha ativa, nunca colore
+        && s3.eraser === false && s3.size === 10 && s3.color === '#3498DB';
+    })(),
+    'a borracha vaza traço colorido / não volta ao pincel corretamente');
+
+  // ── §5/§7 — nome no 1º save; identidade estável nos próximos ──
+  check('C1.1 §7 (identidade): 1º save aprende id; saves seguintes atualizam a MESMA arte',
+    /const \[savedArtId, setSavedArtId\]/.test(scrN)
+    && /artId: savedArtId \?\? null/.test(scrN)
+    && /setSavedArtId\(id\)/.test(scrN)
+    && /if \(savedArtId\) \{ performSave\(savedTitleRef\.current/.test(scrN),
+    'a identidade da arte não persiste na sessão (poderia criar cópias)');
+
+  check('C1.1 §5 (1º save pede nome): desenho novo abre o sheet "name"',
+    /setNameInput\(''\);\s*setOverlay\('name'\)/.test(scrN)
+    && /overlay === 'name'/.test(scrN) && /Nomeie seu desenho/.test(scr)
+    && /Guardar desenho/.test(scr),
+    'o primeiro salvamento não abre o painel de nome');
+
+  check('C1.1 §5 (teclado não cobre): sheet de nome usa KeyboardAvoidingView',
+    /<KeyboardAvoidingView[\s\S]{0,200}styles\.nameKav/.test(scr)
+    && /behavior=\{Platform\.OS === 'ios' \? 'padding' : 'height'\}/.test(scr),
+    'o sheet de nome não protege o campo do teclado');
+
+  check('C1.1 §5 (confirmName resolve único): usa resolveArtTitle sobre os títulos existentes',
+    /const existing = \(await listArts\(\)\)\.map\(\(a\) => a && a\.title\)\.filter\(Boolean\)/.test(scrN)
+    && /performSave\(resolveArtTitle\(nameInput, existing\)\)/.test(scrN),
+    'o nome confirmado não passa por resolveArtTitle (poderia repetir)');
+
+  check('C1.1 §7 (sem duplo save): savingRef bloqueia o segundo toque',
+    /if \(savingRef\.current\) return;\s*savingRef\.current = true/.test(scrN)
+    && /if \(!canSave \|\| savingRef\.current\) return/.test(scrN),
+    'o salvamento não bloqueia toque duplo');
+
+  // ── §6/§8 — compatibilidade de títulos + galeria ──
+  check('C1.1 §6 (migração de títulos): migrateArtTitles idempotente, só preenche vazios',
+    /export async function migrateArtTitles\(\)/.test(storage)
+    && /const hasTitle = !!cleanArtName\(meta\.title\)/.test(storage)
+    && /if \(hasTitle\) continue;/.test(storage)
+    && /resolveArtTitle\(''/.test(storage),
+    'a migração de títulos não é idempotente / mexe em títulos reais');
+
+  check('C1.1 §6 (migração registrada): schema v3 + migrateToV3 no runner',
+    /APP_STORAGE_SCHEMA_VERSION = 3/.test(readSrc('src/services/storageKeys.js'))
+    && /export async function migrateToV3\(\)/.test(migSvc)
+    && /\{ version: 3, run: migrateToV3 \}/.test(migSvc)
+    && /migrateArtTitles/.test(migSvc),
+    'a migração v3 de títulos não está ligada ao runner');
+
+  check('C1.1 §8 (galeria fallback): displayTitle no card, no viewer e ao apagar',
+    /import \{ displayTitle \} from '\.\.\/services\/atelierArtNaming'/.test(gallery)
+    && /displayTitle\(art\.title\)/.test(gallery)
+    && /displayTitle\(viewingArt\?\.title\)/.test(gallery),
+    'a galeria não usa displayTitle como nome de exibição seguro');
+
+  // ── §11 — nada proibido entrou (carimbos/formas/filtros/balde/conta-gotas) ──
+  check('C1.1 §11 (sem itens proibidos): nenhum carimbo/adesivo/filtro/forma/balde/conta-gotas/camada',
+    !/Carimbo|Adesivo|Sticker|Filtro|Forma\b|Balde|Conta-gotas|Camada|Layer|eyedropper|bucket/i.test(scrN)
+    && !/\p{Extended_Pictographic}/u.test(scrN),
+    'entrou um recurso proibido pelo §11');
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Criar livre CF — bloco de encerramento: regressões objetivas (data de criação,
+// exclusão precisa, atualização da galeria, borracha ativa ao mudar tamanho).
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── Criar livre CF: encerramento (regressões objetivas) ──');
+{
+  const storage = readSrc('src/services/atelierStorage.js');
+  const gallery = readSrc('src/screens/AtelierGalleryScreen.js');
+  const galleryN = a1StripComments(gallery);
+  const scrN = a1StripComments(readSrc('src/screens/AtelierCanvasScreen.js'));
+
+  // §5.14 — a data de CRIAÇÃO é preservada no update; updatedAt reflete a modificação.
+  check('CF §5.14 (createdAt preservado): update reusa createdAt existente; só cria no 1º save',
+    /const existingIdx = list\.findIndex\(a => a\.id === id\)/.test(storage)
+    && /const createdAt = \(existingIdx >= 0 && list\[existingIdx\] && list\[existingIdx\]\.createdAt\)/.test(storage)
+    && /createdAt,\s*\/\/ preservado no update/.test(storage)
+    && /updatedAt: now,/.test(storage),
+    'saveArt ainda reseta createdAt no update (data de criação mudaria)');
+
+  // BEHAVIORAL — prova da seleção de createdAt (update mantém; criação usa now).
+  check('CF §5.14 (REGRESSÃO data): update mantém createdAt="A"; arte nova usa now',
+    (() => {
+      function pickCreatedAt(list, id, now) {
+        const i = list.findIndex((a) => a.id === id);
+        return (i >= 0 && list[i] && list[i].createdAt) ? list[i].createdAt : now;
+      }
+      const list = [{ id: 'art_1', createdAt: 'A', updatedAt: 'A' }];
+      const upd = pickCreatedAt(list, 'art_1', 'B');   // update → mantém 'A'
+      const neu = pickCreatedAt(list, 'art_2', 'B');   // novo → 'B'
+      return upd === 'A' && neu === 'B';
+    })(),
+    'a lógica de preservação de createdAt está incorreta');
+
+  // §5.18 — exclusão remove SÓ a arte alvo (índice + blobs), sem tocar as demais.
+  check('CF §5.18 (exclusão precisa): deleteArt filtra por id e apaga blobs da arte alvo',
+    /export async function deleteArt\(id\)/.test(storage)
+    && /const filtered = list\.filter\(a => a\.id !== id\)/.test(storage)
+    && /deleteBlob\(full\.previewUri\)/.test(storage)
+    && /deleteBlob\(meta\.thumbnailUri\)/.test(storage),
+    'deleteArt não remove exatamente a arte alvo / não limpa seus blobs');
+
+  // BEHAVIORAL — exclusão só remove o card certo.
+  check('CF §5.18 (REGRESSÃO exclusão): remover "b" preserva "a" e "c"',
+    (() => {
+      const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+      const filtered = list.filter((x) => x.id !== 'b');
+      return filtered.length === 2 && filtered.some((x) => x.id === 'a')
+        && filtered.some((x) => x.id === 'c') && !filtered.some((x) => x.id === 'b');
+    })(),
+    'a exclusão removeria o card errado');
+
+  // §4.9/§4.12/§4.13 — galeria mostra miniatura e recarrega ao focar (sem reiniciar o app).
+  check('CF §4 (galeria): miniatura via resolveArtThumbUri/SafeImage + recarrega no foco',
+    /resolveArtThumbUri/.test(galleryN)
+    && /<SafeImage/.test(galleryN)
+    && /useFocusEffect/.test(galleryN),
+    'a galeria não exibe miniatura ou não recarrega ao focar');
+
+  // §6.3/§7.11 — mudar o tamanho da borracha NÃO reativa o pincel (fonte única).
+  check('CF §6.3 (borracha ativa ao mudar tamanho): applyWidth não altera a ferramenta',
+    /const applyWidth = useCallback\(\(w, isPreset\) => \{[\s\S]{0,320}\}, \[syncTool\]\)/.test(scrN)
+    && !/const applyWidth = useCallback\(\(w, isPreset\) => \{[\s\S]{0,320}setTool\(/.test(scrN),
+    'ajustar o tamanho pode trocar a ferramenta ativa (reativaria o pincel)');
+
+  // BEHAVIORAL — sob borracha, ajustar tamanho mantém tool='eraser' e traço apagador.
+  check('CF §6 (REGRESSÃO tamanho): ajustar borracha mantém eraser; traço segue apagador',
+    (() => {
+      let tool = 'eraser', curColor = '#F44336', brushSz = 10, eraserSz = 30;
+      // applyWidth no modo borracha só mexe no eraserSz (não toca tool).
+      function applyWidth(w) { if (tool === 'eraser') eraserSz = w; else brushSz = w; }
+      applyWidth(48);
+      const s = { size: tool === 'eraser' ? eraserSz : brushSz, eraser: tool === 'eraser' };
+      return tool === 'eraser' && s.eraser === true && s.size === 48;
+    })(),
+    'mudar o tamanho da borracha vazaria para o pincel');
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // Sprint Estabilização A — Bloco A1: testes que pegam mentira
@@ -9931,12 +10391,12 @@ check(
   'AtelierCanvas alterou o stateJson — edição futura pode quebrar',
 );
 
+// C1 §16 — o salvamento não usa mais um modal de recompensa: só um toast curto "Arte guardada."
 check(
-  'H2: modal "Arte guardada" empilha os botões secundários (sem aperto lado a lado)',
-  h2Screen.includes('Ver minhas artes') &&
-  !/rewardBtnRow:\s*\{\s*flexDirection:\s*'row'/.test(h2Screen) &&
-  !/rewardBtnSecondary:\s*\{\s*flex:\s*1/.test(h2Screen),
-  'Modal de sucesso ainda aperta os botões secundários lado a lado (flex:1 em row)',
+  'Criar livre C1: salvar mostra toast curto "Arte guardada." (sem modal de recompensa)',
+  h2Screen.includes('Arte guardada.') && h2Screen.includes('savedToast')
+  && !h2Screen.includes('rewardBox') && !h2Screen.includes('Ver minhas artes'),
+  'o salvamento voltou a usar um modal de recompensa pesado',
 );
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -10018,13 +10478,13 @@ check(
 );
 
 check(
-  'A5 migração: migrateToV2 registrada no runner + schema bump p/ 2, escopo só atelier+drawings',
+  'A5 migração: migrateToV2 registrada no runner + schema ≥ 2, escopo só atelier+drawings',
   a5Migration.includes('export async function migrateToV2') &&
   a5Migration.includes('{ version: 2, run: migrateToV2 }') &&
   a5Migration.includes('migrateArtsToFiles') &&
   a5Migration.includes('migrateDrawingsToFiles') &&
-  a5Keys.includes('APP_STORAGE_SCHEMA_VERSION = 2'),
-  'migrateToV2 não está registrada / schema não foi para 2',
+  (() => { const m = a5Keys.match(/APP_STORAGE_SCHEMA_VERSION = (\d+)/); return m && parseInt(m[1], 10) >= 2; })(),
+  'migrateToV2 não está registrada / schema regrediu abaixo de 2',
 );
 
 check(

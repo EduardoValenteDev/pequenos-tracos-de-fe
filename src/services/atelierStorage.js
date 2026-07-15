@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { log } from '../utils/logger';
 import { writeBlob, deleteBlob, safeName, recomposeBlobUri, currentBlobsRoot } from './fileBlobStore';
+import { resolveArtTitle, cleanArtName } from './atelierArtNaming';
 
 /**
  * Bloco 1.1 — decisão oficial do Eduardo: o plano GRATUITO **não salva artes** (0).
@@ -89,6 +90,14 @@ export async function saveArt({ artId, title, mission, stateJson, thumbnailBase6
   const id = artId || generateId();
   const now = new Date().toISOString();
 
+  // Índice lido UMA vez: identifica atualização vs criação e preserva a data de
+  // CRIAÇÃO ao re-salvar a MESMA arte (§5.14 — createdAt não muda em update).
+  const list = await listArts();
+  const existingIdx = list.findIndex(a => a.id === id);
+  const createdAt = (existingIdx >= 0 && list[existingIdx] && list[existingIdx].createdAt)
+    ? list[existingIdx].createdAt
+    : now;
+
   // Move blobs grandes para arquivos. Caminhos determinísticos por id →
   // re-salvar a mesma arte sobrescreve o mesmo arquivo (sem órfãos).
   let previewUri = null;
@@ -106,8 +115,8 @@ export async function saveArt({ artId, title, mission, stateJson, thumbnailBase6
     id,
     title: title || 'Minha arte especial',
     mission: mission || null,
-    createdAt: now,
-    updatedAt: now,
+    createdAt,            // preservado no update; agora só na criação
+    updatedAt: now,       // sempre reflete a última modificação
     schema: 2,
     stateJson,
     previewUri,
@@ -118,7 +127,7 @@ export async function saveArt({ artId, title, mission, stateJson, thumbnailBase6
   const meta = {
     id,
     title: fullArt.title,
-    createdAt: now,
+    createdAt,
     updatedAt: now,
     schema: 2,
     thumbnailUri,
@@ -128,9 +137,7 @@ export async function saveArt({ artId, title, mission, stateJson, thumbnailBase6
   // Save full art
   await AsyncStorage.setItem(artKey(id), JSON.stringify(fullArt));
 
-  // Update index
-  const list = await listArts();
-  const existingIdx = list.findIndex(a => a.id === id);
+  // Update index (reusa a lista já lida; update mantém a posição, sem cópia)
   if (existingIdx >= 0) {
     list[existingIdx] = meta;
   } else {
@@ -157,6 +164,53 @@ export async function deleteArt(id) {
   } catch (e) {
     log('atelierStorage.deleteArt:', e);
   }
+}
+
+/**
+ * Migração C1.1 (§6): garante que TODA arte tenha um título de exibição válido e ÚNICO.
+ *
+ * - Só age em artes SEM título (undefined/null/vazio/só espaços). Títulos reais são preservados
+ *   intactos — nunca renomeia o que o usuário/produto já nomeou.
+ * - Nomes atribuídos são únicos entre si e frente aos títulos existentes (via resolveArtTitle),
+ *   então não há repetição: "Desenho de fé", "Desenho de fé 2", …
+ * - Idempotente: numa 2ª execução todos os títulos já são válidos → nada muda.
+ * - Não destrói metadados: só escreve o campo `title` (índice + registro completo).
+ * - Falha em um item não aborta os demais.
+ *
+ * Retorna a quantidade de títulos preenchidos.
+ */
+export async function migrateArtTitles() {
+  let count = 0;
+  let indexChanged = false;
+  const list = await listArts();
+  // Conjunto acumulado de títulos já "ocupados" (reais + os que formos atribuindo).
+  const existing = list.map((m) => cleanArtName(m && m.title)).filter(Boolean);
+
+  for (const meta of list) {
+    if (!meta || !meta.id) continue;
+    const hasTitle = !!cleanArtName(meta.title);
+    if (hasTitle) continue;   // título real → não toca
+    try {
+      const title = resolveArtTitle('', existing);   // vazio → "Desenho de fé N" único
+      existing.push(title);
+      meta.title = title;
+      indexChanged = true;
+      count++;
+      // Espelha no registro completo (sem destruir outros campos).
+      const full = await getArt(meta.id);
+      if (full) {
+        full.title = title;
+        await AsyncStorage.setItem(artKey(meta.id), JSON.stringify(full));
+      }
+    } catch (e) {
+      log('atelierStorage.migrateArtTitles.item:', e);
+    }
+  }
+
+  if (indexChanged) {
+    await AsyncStorage.setItem(LIST_KEY, JSON.stringify(list));
+  }
+  return count;
 }
 
 /**

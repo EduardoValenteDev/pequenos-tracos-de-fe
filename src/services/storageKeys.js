@@ -16,7 +16,7 @@
  */
 
 /** Versão atual do schema local. Incrementar a cada sprint que mude a estrutura. */
-export const APP_STORAGE_SCHEMA_VERSION = 2;
+export const APP_STORAGE_SCHEMA_VERSION = 3;
 
 /**
  * Chaves estáticas do AsyncStorage.

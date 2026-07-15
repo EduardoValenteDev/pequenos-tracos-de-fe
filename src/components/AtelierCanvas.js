@@ -69,8 +69,13 @@ var W=0,H=0;
 /* Estado principal */
 var bgColor='#FFFDF8';
 var strokes=[];  /* [{id,color,size,eraser,points:[{x,y}]}] */
-var stamps=[];   /* [{id,emoji,label,x,y,size}] */
-var history=[];  /* snapshots para undo */
+var stamps=[];   /* [{id,emoji,label,x,y,size}] (legado: renderiza artes antigas; sem UI nova) */
+/* C1 — historico por OPERACAO (nao bitmap, nao por-ponto): pilhas past/future de estados
+   leves (JSON dos tracos). rev e o contador de mutacao — o RN deriva isDirty comparando
+   com lastSavedRevision. Limite alto e seguro. */
+var past=[], future=[];
+var rev=0;
+var HIST_LIMIT=150;
 
 /* Ferramenta */
 var tool='draw';
@@ -88,15 +93,31 @@ var pendingStamp=null; /* {emoji,label} */
 
 function genId(){return 'i'+Date.now()+'_'+(Math.random()*9999|0);}
 
-function saveSnap(){
+function snap(){
+  return {
+    strokes:JSON.parse(JSON.stringify(strokes)),
+    stamps:JSON.parse(JSON.stringify(stamps)),
+    bgColor:bgColor
+  };
+}
+function restore(s){ strokes=s.strokes; stamps=s.stamps; bgColor=s.bgColor; }
+function isEmptyState(){ return strokes.length===0 && stamps.length===0; }
+/* Chamar ANTES de uma ação que muda o conteúdo: empilha o estado atual e limpa o futuro
+   (um novo traço depois de Desfazer descarta o Refazer). */
+function commit(){
   try{
-    history.push({
-      strokes:JSON.parse(JSON.stringify(strokes)),
-      stamps:JSON.parse(JSON.stringify(stamps)),
-      bgColor:bgColor
-    });
-    if(history.length>25)history.shift();
+    past.push(snap());
+    if(past.length>HIST_LIMIT) past.shift();
+    future=[];
   }catch(e){}
+}
+/* Chamar DEPOIS de uma mutação de conteúdo: avança a revisão e avisa o RN. */
+function bump(){ rev++; notifyHist(); }
+function notifyHist(){
+  notify('HIST:'+JSON.stringify({
+    canUndo:past.length>0, canRedo:future.length>0,
+    empty:isEmptyState(), rev:rev, strokes:strokes.length
+  }));
 }
 
 /* ── Renderização ── */
@@ -205,15 +226,16 @@ C.addEventListener('touchstart',function(e){
   if(e.touches.length!==1) return;
   var p=getP(e.touches[0]);
 
-  /* 1. Colocar carimbo pendente */
+  /* 1. Colocar carimbo pendente (legado: só se o RN pedir; a UI nova não pede) */
   if(pendingStamp){
-    saveSnap();
+    commit();
     var ns={id:genId(),emoji:pendingStamp.emoji,label:pendingStamp.label||'',x:p.x,y:p.y,size:72};
     stamps.push(ns);
     pendingStamp=null;
     doSelect(ns.id);
     notify('PAINTED');
     notify('PLACED');
+    bump();
     return;
   }
 
@@ -287,22 +309,34 @@ C.addEventListener('touchend',function(e){
     return;
   }
   if(drawing&&curStroke){
-    saveSnap();
+    commit();
     strokes.push(curStroke);
     curStroke=null;
     drawing=false;
     notify('PAINTED');
     render();
+    bump();
   }
 },{passive:false});
 
 /* ── API exposta ao React Native ── */
-window.setTool=function(t){ tool=t; };
-window.setColor=function(c){ curColor=c; tool='draw'; };
-window.setBrushSize=function(sz){ brushSz=sz; };
-window.setEraserSize=function(sz){ eraserSz=sz; };
+/* C1.1 — setColor NÃO força mais tool='draw' (isso silenciosamente revertia a borracha).
+   Quem manda na ferramenta é o RN, via setTool/applyTool. Fonte única, injeção ATÔMICA. */
+window.setTool=function(t){ if(t==='draw'||t==='eraser') tool=t; };
+window.setColor=function(c){ if(typeof c==='string') curColor=c; };
+window.setBrushSize=function(sz){ var n=Number(sz); if(n>0) brushSz=n; };
+window.setEraserSize=function(sz){ var n=Number(sz); if(n>0) eraserSz=n; };
+/* Config ATÔMICA (C1.1 §4): ferramenta + cor + tamanhos numa injeção só — a WebView nunca
+   fica num estado intermediário entre ferramenta e tamanho. */
+window.applyTool=function(cfg){
+  if(!cfg||typeof cfg!=='object') return;
+  if(cfg.tool==='draw'||cfg.tool==='eraser') tool=cfg.tool;
+  if(typeof cfg.color==='string') curColor=cfg.color;
+  var b=Number(cfg.brush); if(b>0) brushSz=b;
+  var e=Number(cfg.eraser); if(e>0) eraserSz=e;
+};
 window.setBackground=function(c){
-  saveSnap(); bgColor=c; notify('PAINTED'); render();
+  commit(); bgColor=c; notify('PAINTED'); render(); bump();
 };
 window.setPendingStamp=function(emoji,label){
   pendingStamp={emoji:emoji,label:label||''};
@@ -322,23 +356,37 @@ window.resizeSelectedStamp=function(delta){
 };
 window.deleteSelectedStamp=function(){
   if(!selId) return;
-  saveSnap();
+  commit();
   stamps=stamps.filter(function(s){return s.id!==selId;});
-  selId=null; notify('STAMP_DESEL'); render();
+  selId=null; notify('STAMP_DESEL'); render(); bump();
 };
 window.undo=function(){
-  if(history.length===0) return;
-  var snap=history.pop();
-  strokes=snap.strokes; stamps=snap.stamps; bgColor=snap.bgColor;
-  selId=null; notify('STAMP_DESEL'); render();
+  if(past.length===0) return;
+  future.push(snap());
+  restore(past.pop());
+  selId=null; notify('STAMP_DESEL'); render(); bump();
+};
+window.redo=function(){
+  if(future.length===0) return;
+  past.push(snap());
+  restore(future.pop());
+  selId=null; notify('STAMP_DESEL'); render(); bump();
 };
 window.clearAll=function(){
-  saveSnap();
+  commit();
   strokes=[]; stamps=[]; bgColor='#FFFDF8';
   selId=null; pendingStamp=null;
-  notify('STAMP_DESEL'); render(); notify('CLEARED');
+  notify('STAMP_DESEL'); render(); notify('CLEARED'); bump();
 };
-window.isEmpty=function(){ return strokes.length===0&&stamps.length===0; };
+window.isEmpty=function(){ return isEmptyState(); };
+/* Diagnóstico do Modo Criador (§20). Puro relatório; não muda estado. */
+window.getStats=function(){
+  notify('STATS:'+JSON.stringify({
+    W:W,H:H,strokes:strokes.length,stamps:stamps.length,
+    past:past.length,future:future.length,rev:rev,
+    tool:tool,color:curColor,brush:brushSz,eraser:eraserSz,empty:isEmptyState()
+  }));
+};
 window.exportState=function(){
   try{
     var prevSel=selId; selId=null; render();
@@ -367,16 +415,18 @@ window.exportState=function(){
     notify('CANVAS_ERROR:'+JSON.stringify({message:'export:'+err.message}));
   }
 };
+/* Zera o histórico e a revisão — o estado recém-carregado é a base "salva". */
+function resetHist(){ past=[]; future=[]; rev=0; }
 window.loadState=function(jsonStr){
   try{
     if(!jsonStr||typeof jsonStr!=='string'){
-      strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; history=[]; render();
-      notify('STATE_LOADED'); return;
+      strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist(); render();
+      notifyHist(); notify('STATE_LOADED'); return;
     }
     var d=JSON.parse(jsonStr);
     if(!d||typeof d!=='object'){
-      strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; history=[]; render();
-      notify('STATE_LOADED'); return;
+      strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist(); render();
+      notifyHist(); notify('STATE_LOADED'); return;
     }
     if(d.v===2){
       strokes=Array.isArray(d.strokes)?d.strokes:[];
@@ -390,12 +440,12 @@ window.loadState=function(jsonStr){
     } else {
       strokes=[]; stamps=[]; bgColor='#FFFDF8';
     }
-    selId=null; history=[]; render();
-    notify('STATE_LOADED');
+    selId=null; resetHist(); render();
+    notifyHist(); notify('STATE_LOADED');
   }catch(err){
-    strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; history=[];
+    strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist();
     render();
-    notify('LOAD_CORRUPTED');
+    notifyHist(); notify('LOAD_CORRUPTED');
   }
 };
 
@@ -406,6 +456,7 @@ function resize(){
 }
 window.addEventListener('resize',resize);
 resize();
+notifyHist();
 notify('READY');
 
 })();
@@ -415,13 +466,14 @@ notify('READY');
 
 /* ─── Componente React Native ─────────────────────────────────── */
 const AtelierCanvas = forwardRef(function AtelierCanvas(
-  { onReady, onPainted, onPlaced, onStampSelected, onStampDeselected, onLoadCorrupted },
+  { onReady, onPainted, onPlaced, onStampSelected, onStampDeselected, onLoadCorrupted, onHist },
   ref,
 ) {
   const webViewRef        = useRef(null);
   const isReadyRef        = useRef(false);
   const pendingLoadRef    = useRef(null);
   const pendingExportRef  = useRef(null);
+  const pendingStatsRef   = useRef(null);
   const timeoutRef        = useRef(null);
   const [webViewKey, setWebViewKey] = useState(0);
   const [loadState, setLoadState]   = useState('loading');
@@ -444,6 +496,7 @@ const AtelierCanvas = forwardRef(function AtelierCanvas(
     setColor(hex)     { inject(`window.setColor(${JSON.stringify(hex)});true;`); },
     setBrushSize(sz)  { inject(`window.setBrushSize(${Number(sz)});true;`); },
     setEraserSize(sz) { inject(`window.setEraserSize(${Number(sz)});true;`); },
+    applyTool(cfg)    { inject(`window.applyTool(${JSON.stringify(cfg || {})});true;`); },
     setBackground(hex){ inject(`window.setBackground(${JSON.stringify(hex)});true;`); },
     setPendingStamp(emoji, label) {
       inject(`window.setPendingStamp(${JSON.stringify(emoji)},${JSON.stringify(label||'')});true;`);
@@ -452,7 +505,12 @@ const AtelierCanvas = forwardRef(function AtelierCanvas(
     resizeSelectedStamp(delta) { inject(`window.resizeSelectedStamp(${Number(delta)});true;`); },
     deleteSelectedStamp()      { inject('window.deleteSelectedStamp();true;'); },
     undo()            { inject('window.undo();true;'); },
+    redo()            { inject('window.redo();true;'); },
     clearAll()        { inject('window.clearAll();true;'); },
+    getStats(cb) {
+      pendingStatsRef.current = cb;
+      inject('window.getStats();true;');
+    },
     exportState(cb) {
       pendingExportRef.current = cb;
       inject('window.exportState();true;');
@@ -498,6 +556,13 @@ const AtelierCanvas = forwardRef(function AtelierCanvas(
       } catch (err) {
         console.warn('[AtelierCanvas] STATE_EXPORT parse error:', err);
       }
+    } else if (msg.startsWith('HIST:')) {
+      try { onHist?.(JSON.parse(msg.slice('HIST:'.length))); } catch {}
+    } else if (msg.startsWith('STATS:')) {
+      try {
+        pendingStatsRef.current?.(JSON.parse(msg.slice('STATS:'.length)));
+        pendingStatsRef.current = null;
+      } catch {}
     } else if (msg === 'LOAD_CORRUPTED') {
       onLoadCorrupted?.();
     } else if (msg.startsWith('CANVAS_ERROR:')) {
@@ -542,11 +607,10 @@ const AtelierCanvas = forwardRef(function AtelierCanvas(
 
       {loadState === 'error' && (
         <View style={styles.overlay}>
-          <Text style={styles.errorEmoji}>😕</Text>
           <Text style={styles.errorTitle}>A folha não abriu.</Text>
           <Text style={styles.errorSub}>Toque para tentar novamente.</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={handleRetry} activeOpacity={0.8}>
-            <Text style={styles.retryBtnText}>🔄 Tentar novamente</Text>
+            <Text style={styles.retryBtnText}>Tentar novamente</Text>
           </TouchableOpacity>
         </View>
       )}

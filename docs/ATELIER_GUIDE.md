@@ -1,6 +1,119 @@
-# ATELIER_GUIDE — Sprint 9.2
+# ATELIER_GUIDE
 
-**Última atualização:** Sprint 9.2 (2026-05-26)
+**Última atualização:** Criar Livre CF — bloco de encerramento (2026-07-15)
+
+> ⚠️ **Precedência das seções.** A **Seção 0 (Criar Livre CF)** descreve o estado
+> ATUAL e APROVADO do "Criar livre" e da galeria "Meus desenhos". As seções 1–13
+> a seguir são **históricas (Sprint 9.2)** e permanecem para rastreabilidade —
+> onde conflitarem com a Seção 0, **vale a Seção 0**. Em especial estão
+> **SUPERADOS**: limite gratuito 3 (hoje é 0), UI de carimbos/stickers, painel por
+> abas, ícones em emoji e miniatura base64 no índice (hoje `file://`).
+
+---
+
+## 0. Criar Livre CF — estado de fechamento (2026-07-15)
+
+Blocos C1 (redesenho premium) → C1.1 (correções de slider/borracha/nome/paletas) →
+**CF (consolidação, regressão, limpeza, fechamento)**. Validado no aparelho e
+aprovado pelo proprietário. **Nenhuma funcionalidade nova nesta etapa.**
+
+### 0.1 Conclusão
+- **Criar livre** concluído: cabeçalho compacto, papel protagonista, barra fixa de
+  6 controles (Cor · Pincel · Apagar · Desfazer · Refazer · Mais) e painéis
+  contextuais que **sobrepõem** o papel (nunca redimensionam o canvas).
+- **Galeria "Meus desenhos"** concluída: lista, viewer em tela cheia, exclusão
+  com confirmação, nomes de exibição sempre válidos.
+
+### 0.2 Arquitetura
+| Camada | Arquivo | Papel |
+|---|---|---|
+| Tela | `src/screens/AtelierCanvasScreen.js` | Casca premium, histórico, saída, salvamento |
+| Motor | `src/components/AtelierCanvas.js` | WebView + canvas 2D; traços vetoriais; borracha real |
+| Galeria | `src/screens/AtelierGalleryScreen.js` | Cards, viewer, exclusão |
+| Slider | `src/components/criarLivre/CriarLivreSlider.js` | Espessura estável (coordenada absoluta) |
+| Ícones | `src/components/criarLivre/CriarLivreIcon.js` | SVG (react-native-svg), sem emoji |
+| Tokens | `src/theme/createLivreVisualTokens.js` | Métricas, cores, durações, paletas, presets |
+| Nomes | `src/services/atelierArtNaming.js` | Nomes únicos e amigáveis (puro) |
+| Orientação | `src/services/criarLivreOrientation.js` | Dica inicial (uma vez por perfil) |
+| Storage | `src/services/atelierStorage.js` | Persistência das artes |
+
+A ferramenta ativa tem **fonte única** na tela (`tool = 'draw' | 'eraser'` + refs de
+cor/pincel/borracha) e é enviada ao motor por **injeção atômica** `window.applyTool({tool,color,brush,eraser})`.
+Isso elimina estados intermediários entre ferramenta e tamanho. Painéis são
+**overlays absolutos** com `key` estável do canvas → **o canvas nunca remonta**.
+
+### 0.3 Modelo de armazenamento das artes
+- Chaves legadas (NÃO renomear): índice `ptf_atelier_arts_v1_index`; arte completa
+  `ptf_atelier_arts_v1_{id}`.
+- Blobs grandes (preview full-res + thumbnail) vão para **arquivos** (`writeBlob` →
+  `previewUri`/`thumbnailUri` = `file://`); o AsyncStorage guarda ponteiros + `stateJson`
+  leve. Fallback inline `previewBase64`/`thumbnailBase64` só quando a escrita em arquivo falha.
+- Campos: `{ id, title, mission, createdAt, updatedAt, schema, stateJson, previewUri }`
+  (completo) e `{ id, title, createdAt, updatedAt, schema, thumbnailUri }` (índice).
+- **`createdAt` é preservado ao atualizar** a mesma arte; **`updatedAt`** reflete a
+  última modificação (corrigido no CF — antes `createdAt` era resetado a cada save).
+- **`id` único e estável** por arte (`art_{ts}_{rand}`); update reusa o mesmo `id`,
+  sobrescrevendo os mesmos arquivos (sem órfãos).
+- `deleteArt(id)` remove **só** a arte alvo (índice + blobs); as demais permanecem.
+
+### 0.4 Convenção de nomes (`atelierArtNaming.js`)
+- Campo oficial único: **`title`**.
+- Nome vazio → base **"Desenho de fé"**, depois "Desenho de fé 2", "3", …
+- Nome digitado que já existe (normalizado) → menor sufixo livre ("Meu desenho 2", …),
+  usando o **maior** sufixo existente + 1.
+- Duplicidade por nome **normalizado**: ignora caixa, espaços nas pontas, espaços
+  duplicados e normalização Unicode (NFC).
+- `displayTitle(title)` garante nome de exibição válido (nunca vazio/undefined/null).
+
+### 0.5 Compatibilidade com artes antigas
+- Exibição: a galeria usa `displayTitle()` — nenhuma arte aparece sem nome, com
+  `undefined`, `null` ou vazio.
+- Persistência: migração **v3** `migrateArtTitles()` (schema `APP_STORAGE_SCHEMA_VERSION = 3`,
+  registrada no runner) **só preenche** títulos vazios com um nome único; **idempotente**
+  (2ª execução não muda nada) e **não destrói** outros metadados.
+
+### 0.6 Fluxo de salvamento
+- **1º salvamento de desenho novo:** abre o painel "Nomeie seu desenho"
+  (`KeyboardAvoidingView` — teclado não cobre campo/botões); vazio → nome automático.
+- **Salvamentos seguintes na mesma sessão:** atualizam a **mesma** arte (a tela
+  aprendeu o `id`); **não** re-perguntam nome e **não** criam cópia.
+- `savingRef` bloqueia duplo toque; papel vazio não salva; erro mantém o desenho
+  (painel "Tentar de novo").
+- Acesso: no **Plano Grátis** salvar é bloqueado (`ATELIER_FREE_SAVE_LIMIT = 0`) com
+  convite gentil ao **Plano Família** (`hasAtelierUnlimitedAccess()`); premium salva sem limite.
+
+### 0.7 Paletas e pincel/borracha
+- Paletas organizadas (`ORGANIZED_PALETTES`): **Essenciais** (as 18 cores aprovadas,
+  intactas) + **Pastéis**, **Natureza**, **Terra e pele** (~12 cada). Seletor
+  horizontal; **trocar de paleta não altera a cor selecionada**; "Recentes" (≤5, em
+  memória); toda cor tem rótulo PT-BR.
+- **Pincel:** presets Fino/Médio/Grosso + slider contínuo; prévia real do traço.
+- **Borracha:** apagamento **real** (`globalCompositeOperation='destination-out'`);
+  tamanho **independente** do pincel; voltar ao pincel restaura o tamanho anterior;
+  escolher cor sai da borracha; nenhum movimento cria traço colorido com Apagar ativo.
+- O traço captura **tool/cor/tamanho no início** — mudar depois não altera traços já feitos.
+
+### 0.8 Slider estável
+Coordenada **absoluta** de tela (`measureInWindow` da trilha + `pageX`/`moveX`),
+`clamp` min/max, `PanResponder` criado **uma vez** (lê config por ref). Guardas de
+terminação (`onPanResponderTerminationRequest: false`, `onShouldBlockNativeResponder: true`)
+→ **o painel não fecha durante o gesto** e presets **não fecham** o painel.
+
+### 0.9 Limitações técnicas conhecidas
+- O motor é uma **WebView** (canvas 2D), não nativo/Skia — redimensionar a WebView
+  reiniciaria o desenho (por isso painéis são overlays, nunca redimensionam o papel).
+- Base64 é usado apenas de forma **transitória** no pipeline de exportação; a
+  persistência é por `file://`.
+- "Recentes" é apenas em memória (não persiste entre sessões — por decisão).
+- Dois locais definem o limite gratuito (0) — `atelierStorage` e `accessControl`;
+  devem permanecer iguais.
+
+### 0.10 Possibilidades futuras (sem compromisso de implementação)
+- **Pincéis alternativos** (Canetinha/Lápis suave/Marca-texto) — proposta C1.2.
+- **Carimbos/adesivos** — fora do escopo atual (não implementar sem decisão de produto).
+- **Migração para Skia** — apenas hipótese; exigiria spec própria e regressão ampla.
+
+Estes itens são **possibilidades**, não pendências obrigatórias deste bloco.
 
 ---
 

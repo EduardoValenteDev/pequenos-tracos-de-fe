@@ -13,6 +13,7 @@ import {
   listArts, getArt, deleteArt, ATELIER_FREE_SAVE_LIMIT,
   resolveArtThumbUri, resolveArtPreviewUri,
 } from '../services/atelierStorage';
+import { displayTitle } from '../services/atelierArtNaming';
 
 function formatDate(iso) {
   try {
@@ -57,7 +58,7 @@ export default function AtelierGalleryScreen({ navigation }) {
   function handleDelete(art) {
     Alert.alert(
       '🗑️ Apagar arte?',
-      `Quer apagar "${art.title}" das suas artes? Isso não pode ser desfeito.`,
+      `Quer apagar "${displayTitle(art.title)}" das suas artes? Isso não pode ser desfeito.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -149,7 +150,7 @@ export default function AtelierGalleryScreen({ navigation }) {
 
             {/* Info */}
             <View style={styles.cardInfo}>
-              <Text style={styles.artTitle} numberOfLines={1}>{art.title}</Text>
+              <Text style={styles.artTitle} numberOfLines={1}>{displayTitle(art.title)}</Text>
               <Text style={styles.artDate}>{formatDate(art.createdAt)}</Text>
               <View style={styles.btnRow}>
                 <SoundButton
@@ -195,7 +196,7 @@ export default function AtelierGalleryScreen({ navigation }) {
             </SoundButton>
             <View style={styles.viewerTitleWrap}>
               <Text style={styles.viewerTitle} numberOfLines={1}>
-                {viewingArt?.title}
+                {displayTitle(viewingArt?.title)}
               </Text>
               <Text style={styles.viewerDate}>{formatDate(viewingArt?.createdAt)}</Text>
             </View>

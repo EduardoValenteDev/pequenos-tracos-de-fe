@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS, APP_STORAGE_SCHEMA_VERSION } from './storageKeys';
 import { createMigrationResult } from '../data/appDataModel';
 import { migrateLegacyProfileIfNeeded } from './childProfileService';
-import { migrateArtsToFiles } from './atelierStorage';
+import { migrateArtsToFiles, migrateArtTitles } from './atelierStorage';
 import { migrateDrawingsToFiles } from './drawingStorage';
 import { log } from '../utils/logger';
 
@@ -98,6 +98,29 @@ export async function migrateToV2() {
   return { changed, errors };
 }
 
+/**
+ * Migração para schema v3 (Criar livre C1.1 · §6).
+ * - Garante que toda arte do Ateliê tenha um título de exibição válido e ÚNICO.
+ * - Só preenche artes SEM título; títulos reais permanecem intactos.
+ * - Idempotente e não destrói metadados (só o campo `title`).
+ * - Escopo restrito: toca SOMENTE o campo título das artes. Nada de progresso,
+ *   quizzes, reflexões, plano, perfil, preferências, flags ou blobs.
+ */
+export async function migrateToV3() {
+  const changed = [];
+  const errors = [];
+
+  try {
+    const n = await migrateArtTitles();
+    if (n > 0) changed.push(`atelier_titles_filled:${n}`);
+  } catch (e) {
+    errors.push(`migrateToV3.titles: ${e?.message || e}`);
+    log('storageMigration.v3.titles:', e);
+  }
+
+  return { changed, errors };
+}
+
 // ── Runner principal ──────────────────────────────────────────────────────────
 
 /**
@@ -130,6 +153,7 @@ export async function runLocalMigrations() {
   const migrations = [
     { version: 1, run: migrateToV1 },
     { version: 2, run: migrateToV2 },
+    { version: 3, run: migrateToV3 },
   ];
 
   for (const m of migrations) {
