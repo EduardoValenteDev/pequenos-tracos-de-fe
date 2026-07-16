@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler'; // DEVE ser a primeira importação
-import React, { useEffect, useState } from 'react';
+import './src/services/bootMark';      // LP1M-A: t0 do boot JS — 2º, antes do grafo de telas
+import React, { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -26,9 +27,16 @@ import { loadCreatorQaMode } from './src/services/creatorQaMode';
 import { initEntitlement } from './src/services/entitlementService';
 import { runLocalMigrations } from './src/services/storageMigrationService';
 import { FONT_TIMEOUT_MS, isWaitingForFonts } from './src/services/bootRoute';
+import { mark, markOnce } from './src/services/performanceTrace';
 import { warn } from './src/utils/logger';
 
 export default function App() {
+  // LP1M-A: o gate de fontes começa AQUI, na 1ª renderização, junto do useFonts — não na avaliação
+  // do módulo (senão a linha "Fonte" incluiria module-eval → 1ª renderização, que não é tempo de
+  // fonte). `mark` é em memória, idempotente pelo ref e não faz setState.
+  const firstRenderRef = useRef(true);
+  if (firstRenderRef.current) { firstRenderRef.current = false; mark('font_gate_start'); }
+
   // LP1A: `useFonts` devolve [loaded, error]. Consumir só o primeiro tratava "ainda carregando" e
   // "falhou de vez" como o MESMO estado — qualquer .ttf que falhasse prendia o app num spinner
   // eterno (LP0-BOOT-01, P0). Agora o erro é um estado de saída, não de espera.
@@ -80,8 +88,25 @@ export default function App() {
     runLocalMigrations().catch(e => console.warn('[Migration]', e));
   }, []);
 
+  // LP1M-A: evento TERMINAL do gate de fontes — exatamente UM por boot (o ref cobre inclusive o
+  // caso de a fonte chegar depois do teto). Só observa; não altera a lógica do LP1A.
+  const fontGateDoneRef = useRef(false);
+  useEffect(() => {
+    if (fontGateDoneRef.current) return;
+    if (fontsLoaded) { fontGateDoneRef.current = true; markOnce('font_gate_loaded'); }
+    else if (fontError) { fontGateDoneRef.current = true; markOnce('font_gate_error'); }
+    else if (fontTimedOut) { fontGateDoneRef.current = true; markOnce('font_gate_timeout'); }
+  }, [fontsLoaded, fontError, fontTimedOut]);
+
+  const waitingForFonts = isWaitingForFonts(fontsLoaded, fontError, fontTimedOut);
+
+  // LP1M-A: a árvore (providers) foi montada — o efeito roda após o commit da renderização real.
+  useEffect(() => {
+    if (!waitingForFonts) markOnce('providers_mounted');
+  }, [waitingForFonts]);
+
   // Espera SÓ enquanto está de fato carregando. Em erro OU no teto, segue (nunca prende).
-  if (isWaitingForFonts(fontsLoaded, fontError, fontTimedOut)) {
+  if (waitingForFonts) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF8F0' }}>
         <ActivityIndicator size="large" color="#FF8C42" />

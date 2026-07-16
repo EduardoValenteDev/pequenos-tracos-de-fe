@@ -30,6 +30,7 @@ import { getBeniLine } from '../data/beniLines';
 import { listArts } from '../services/atelierStorage';
 import { buildCtx } from '../services/achievementService';
 import { buildBeniChestCards, getBeniChestSummary } from '../services/beniChestService';
+import { markOnce } from '../services/performanceTrace';
 import { MISSIONS } from '../data/atelierData';
 
 /* ── Conteúdo rotativo ─────────────────────────────────────────── */
@@ -725,7 +726,9 @@ export default function HomeScreen({ navigation }) {
   );
 
   return (
-    <View style={{ flex: 1 }}>
+    // LP1M-A: `onLayout` só OBSERVA o primeiro layout da raiz (uma vez por boot). Não muda
+    // geometria, não cria View e não afirma "interativo" — só que o layout foi confirmado.
+    <View style={{ flex: 1 }} onLayout={() => markOnce('home_first_layout')}>
     <ScrollView
       ref={scrollRef}
       style={styles.container}

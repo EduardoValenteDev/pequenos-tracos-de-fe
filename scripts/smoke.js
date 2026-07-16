@@ -7558,15 +7558,15 @@ console.log('\n── LP1A: boot à prova de falhas ──');
 
   // (8) Fallback determinístico quando o storage falha.
   check('LP1A §6 (fallback de storage): falha de shouldShowOnboarding cai em BOOT_FALLBACK_ROUTE navegável',
-    /\.catch\(\(\) => \{ route = BOOT_FALLBACK_ROUTE; \}\)/.test(splashC)
+    /\.catch\(\(\) => \{[\s\S]{0,200}route = BOOT_FALLBACK_ROUTE;/.test(splashC)
     && /BOOT_FALLBACK_ROUTE = 'Home'/.test(a1StripComments(gate)),
     'a falha de storage deixou de ter fallback determinístico');
 
   // Watchdog é TETO, não piso: só age se a decisão não chegou, e só é cancelado DEPOIS de o replace
   // ter êxito — o caminho de falha faz `return` ANTES de chegar ao clearTimeout.
   check('LP1A §6 (watchdog = teto): só preenche a rota se ela ainda não foi decidida, e só é cancelado após o replace ter êxito',
-    /if \(route == null\) route = BOOT_FALLBACK_ROUTE;/.test(splashC)
-    && /\} catch \(e\) \{[\s\S]{0,600}return;\s*\n\s*\}\s*\n\s*if \(watchdog\) \{ clearTimeout\(watchdog\); watchdog = null; \}/.test(splashC),
+    /if \(route == null\) \{\s*route = BOOT_FALLBACK_ROUTE;/.test(splashC)
+    && /\} catch \(e\) \{[\s\S]{0,700}return;\s*\n\s*\}\s*\n[\s\S]{0,140}if \(watchdog\) \{ clearTimeout\(watchdog\); watchdog = null; \}/.test(splashC),
     'o watchdog virou piso, ou é cancelado antes de a navegação ter êxito (splash presa se o replace falhar)');
 
   // replace que lança não pode deixar a splash presa: devolve a trava e AGENDA a própria repescagem.
@@ -7660,6 +7660,230 @@ console.log('\n── LP1A: boot à prova de falhas ──');
     && B.canNavigate({ ...baseGate, route: null }) === false         // rota não decidida → espera
     && B.canNavigate({ ...baseGate, animationDone: false }) === false, // animação em curso → espera
     'o gate de navegação do boot regrediu (unmount/dupla navegação/prontidão)');
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// LP1M-A — Instrumentação LOCAL do boot: mede antes de otimizar. Sem rede, sem
+// storage, sem dependência, sem PII, desativável e incapaz de quebrar o app.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP1M-A: instrumentação local do boot ──');
+{
+  const trace = readSrc('src/services/performanceTrace.js');
+  const traceC = a1StripComments(trace);
+  const app = a1StripComments(readSrc('App.js'));
+  const splash = a1StripComments(readSrc('src/screens/SplashScreen.js'));
+  const home = a1StripComments(readSrc('src/screens/HomeScreen.js'));
+  const onb = a1StripComments(readSrc('src/screens/OnboardingScreen.js'));
+  const prof = a1StripComments(readSrc('src/context/ProfileContext.js'));
+  const prog = a1StripComments(readSrc('src/context/ProgressContext.js'));
+  const packs = a1StripComments(readSrc('src/context/PacksContext.js'));
+
+  // (11)(12) Nada de rede, storage ou arquivo na instrumentação.
+  check('LP1M-A (sem rede/persistência): o trace não usa fetch/AsyncStorage/FileSystem nem dependência externa',
+    !/fetch\(|XMLHttpRequest|WebSocket|axios/.test(traceC)
+    && !/AsyncStorage|expo-file-system|FileSystem|setItem|writeAsStringAsync/.test(traceC)
+    && !/^import /m.test(traceC),
+    'a instrumentação passou a enviar/persistir dados, ou ganhou dependência');
+
+  // (1) Buffer com limite + (2) relógio monotônico com fallback.
+  check('LP1M-A (buffer + relógio): teto de eventos declarado; performance.now() com fallback Date.now()',
+    /TRACE_BUFFER_LIMIT = 200/.test(traceC)
+    && /events\.length >= TRACE_BUFFER_LIMIT/.test(traceC)
+    && /globalThis\.performance/.test(traceC) && /perf\.now\(\)/.test(traceC) && /return Date\.now\(\)/.test(traceC),
+    'o buffer perdeu o teto, ou o relógio deixou de ser monotônico com fallback');
+
+  // (3) Falha da instrumentação nunca lança + (9) sem console por marca + (13) setState.
+  check('LP1M-A (nunca afeta o app): mark/measure/snapshot/reset em try/catch; sem console por marca; sem setState',
+    (traceC.match(/catch \(e\) \{/g) || []).length >= 6
+    && !/console\.(log|warn|error)/.test(traceC)
+    && !/setState|useState/.test(traceC),
+    'a instrumentação pode lançar, loga por marca, ou mexe em estado do React');
+
+  // (4)(10) Metadata proibida é descartada — allowlist fechada + primitivos seguros.
+  // A allowlist é a defesa primária: nenhuma chave de PII pode existir nela. O comportamento em si
+  // (descarte real) é provado no bloco comportamental abaixo, não por regex.
+  const allowRow = (traceC.match(/const ALLOWED_META_KEYS = \[([^\]]*)\]/) || [])[1] || '';
+  check('LP1M-A (privacidade): allowlist fechada (sem chave de PII) + valores só primitivos seguros',
+    /const ALLOWED_META_KEYS = \['reason', 'route', 'status', 'attempt', 'count', 'ok'\]/.test(traceC)
+    && /SAFE_VALUE = \/\^\[A-Za-z_\]\[A-Za-z0-9_\]\{0,23\}\$\//.test(traceC)
+    && !/(childName|profileId|avatarId|email|userId|storyText|\bname\b)/i.test(allowRow)
+    && /if \(!ALLOWED_META_KEYS/.test(traceC.replace(/\n/g, ' ')) === false
+    && /if \(!Object\.prototype\.hasOwnProperty\.call\(metadata, key\)\) continue;/.test(traceC),
+    'a sanitização de metadata regrediu (risco de PII na allowlist)');
+
+  // (8) Marcas de ativação: DEV ou flag explícita.
+  check('LP1M-A (desativável): liga em __DEV__ ou com EXPO_PUBLIC_PTF_PERF_TRACE=1; mark sai cedo quando desligado',
+    /if \(typeof __DEV__ !== 'undefined' && __DEV__\) return true;/.test(traceC)
+    && /process\.env\.EXPO_PUBLIC_PTF_PERF_TRACE === '1'/.test(traceC)
+    && /if \(!isPerformanceTraceEnabled\(\)\) return;/.test(traceC),
+    'a instrumentação deixou de ser desativável');
+
+  // (5) Evento terminal de fontes não duplica (guard único cobrindo os 3 nomes).
+  check('LP1M-A §7 (fonte: terminal único): um ref guarda os 3 desfechos (loaded/error/timeout)',
+    /fontGateDoneRef = useRef\(false\)/.test(app)
+    && /if \(fontGateDoneRef\.current\) return;/.test(app)
+    && /markOnce\('font_gate_loaded'\)/.test(app) && /markOnce\('font_gate_error'\)/.test(app) && /markOnce\('font_gate_timeout'\)/.test(app),
+    'o evento terminal do gate de fontes pode duplicar');
+
+  // §6 — t0 REAL: `import` é hoisted, então um mark no corpo de App.js rodaria depois de TODO o
+  // grafo (AppNavigator arrasta 30+ telas). O t0 tem de vir de um módulo de efeito colateral
+  // importado logo após o gesture-handler (que segue sendo o primeiro).
+  const bootMark = a1StripComments(readSrc('src/services/bootMark.js'));
+  const appImports = app.split('\n').filter((l) => l.trim().startsWith('import ')).map((l) => l.trim());
+  check('LP1M-A §6 (t0 antes do grafo): bootMark é a 2ª importação de App.js e marca app_render_start; gesture-handler segue 1º',
+    /^import 'react-native-gesture-handler';$/.test(appImports[0] || '')
+    && /^import '\.\/src\/services\/bootMark';$/.test(appImports[1] || '')
+    && /mark\('app_render_start'\)/.test(bootMark)
+    && !/mark\('app_render_start'\)/.test(app)      // não pode voltar para o corpo de App.js
+    && (bootMark.match(/^import /gm) || []).length === 1,   // só depende do trace (não arrasta grafo)
+    'o t0 do boot voltou a ser marcado depois da avaliação do grafo de módulos (baseline cega)');
+
+  // §4.1 — "Fonte" tem de medir o GATE, não module-eval → 1ª renderização.
+  check('LP1M-A §4.1 (font_gate_start no gate): marcado na 1ª renderização (junto do useFonts), não na avaliação do módulo',
+    /const firstRenderRef = useRef\(true\);/.test(app)
+    && /if \(firstRenderRef\.current\) \{ firstRenderRef\.current = false; mark\('font_gate_start'\); \}/.test(app),
+    'a linha "Fonte" voltou a incluir o intervalo module-eval → 1ª renderização');
+
+  // (6) Decisão de rota: sucesso, erro e timeout — com TERMINAL ÚNICO (markOnce dedupa por NOME,
+  // e os 3 desfechos têm nomes diferentes: sem a trava, uma resposta tardia mascara o timeout).
+  check('LP1M-A §8 (decisão de rota): start + end/error/timeout com trava de terminal único',
+    /mark\('route_decision_start'\)/.test(splash)
+    && /let decisionMarked = false;/.test(splash)
+    && /const markDecision = \(name, meta\) => \{\s*if \(decisionMarked\) return;\s*decisionMarked = true;/.test(splash)
+    && /markDecision\('route_decision_end', \{ route \}\)/.test(splash)
+    && /markDecision\('route_decision_error'/.test(splash)
+    && /markDecision\('route_decision_timeout'/.test(splash)
+    && !/markOnce\('route_decision_/.test(splash)   // os 3 pontos passam pela trava
+    && /markOnce\('splash_mount'\)/.test(splash)
+    && /markOnce\('splash_animation_end'\)/.test(splash),
+    'a decisão de rota pode emitir dois terminais (resposta tardia mascarando o timeout real)');
+
+  // §11 — o resumo não pode escolher o terminal por ordem de lista nem atribuir o first layout
+  // a uma rota que não governou o boot.
+  check('LP1M-A §11 (resumo honesto): terminal pelo MENOR t (não por ordem de lista); first layout só da rota do boot',
+    /const terminalOf = \(names\) => \{[\s\S]{0,200}sort\(\(a, b\) => a\.t - b\.t\)/.test(traceC)
+    && /\(\+\$\{n\} terminais\)/.test(traceC)
+    && /routeName === routeId \? fmt\(since\(markName\)\)/.test(traceC)
+    && /n\/a \(não foi a rota do boot\)/.test(traceC)
+    && !/\['route_decision_end', 'route_decision_error', 'route_decision_timeout'\]\.find/.test(traceC),
+    'o resumo voltou a escolher terminal por ordem de lista, ou atribui first layout à rota errada');
+
+  // (7) Replace: sucesso, erro e retentativa — e o sucesso é marcado FORA do try.
+  check('LP1M-A §8 (replace): start/success/error/retry; o success fica FORA do try (falha do trace ≠ falha de navegação)',
+    /mark\('navigation_replace_start'/.test(splash)
+    && /mark\('navigation_replace_error'/.test(splash)
+    && /mark\('navigation_replace_retry'/.test(splash)
+    && /return;\s*\n\s*\}\s*\n\s*mark\('navigation_replace_success'/.test(splash),
+    'o replace não registra os 3 desfechos, ou o success está dentro do try (contamina o catch)');
+
+  // (8) Providers: início e fim (e erro), sem coordenar/reescrever.
+  check('LP1M-A §9 (providers): profile/progress/packs com start/end/error; sem multiGet novo e sem await no boot',
+    /markOnce\('profile_hydration_start'\)/.test(prof) && /markOnce\('profile_hydration_end'\)/.test(prof) && /markOnce\('profile_hydration_error'/.test(prof)
+    && /markOnce\('progress_hydration_start'\)/.test(prog) && /markOnce\('progress_hydration_end'\)/.test(prog) && /markOnce\('progress_hydration_error'/.test(prog)
+    && /markOnce\('packs_hydration_start'\)/.test(packs) && /markOnce\('packs_hydration_end'\)/.test(packs) && /markOnce\('packs_hydration_error'/.test(packs)
+    && /AsyncStorage\.getItem\(PROFILE_KEY\)/.test(prof)   // leitura original preservada
+    && /markOnce\('providers_mounted'\)/.test(app),
+    'a instrumentação dos providers está incompleta, ou alterou a forma de leitura');
+
+  // (9) Primeiro layout de Home e Onboarding, uma vez por boot, sem View nova.
+  check('LP1M-A §10 (primeiro layout): Home e Onboarding marcam onLayout na raiz existente, uma vez por boot',
+    /<View style=\{\{ flex: 1 \}\} onLayout=\{\(\) => markOnce\('home_first_layout'\)\}>/.test(home)
+    && /<View style=\{styles\.fill\} onLayout=\{\(\) => markOnce\('onboarding_first_layout'\)\}>/.test(onb),
+    'o primeiro layout deixou de ser observado, ou criou View/geometria nova');
+
+  // (13) Nenhum evento altera readiness + (14)(15) LP1A e Modo Criador intactos.
+  check('LP1M-A (não invade o produto): LP1A intacto (teto de fontes/gate) e Modo Criador preservado',
+    /isWaitingForFonts\(fontsLoaded, fontError, fontTimedOut\)/.test(app)
+    && /FONT_TIMEOUT_MS/.test(app)
+    && /loadCreatorQaMode\(\)\.catch\(/.test(app)
+    && !/markOnce\([^)]*\)\s*&&|isWaitingForFonts\([^)]*mark/.test(app),
+    'a instrumentação mexeu no contrato do LP1A ou no Modo Criador');
+
+  // ── COMPORTAMENTAL: executa o serviço de verdade ──
+  let T = null;
+  let clock = 0;   // relógio incremental: permite provar a ordenação cronológica do resumo
+  try {
+    const code = traceC
+      .replace(/export default[\s\S]*$/m, '')
+      .replace(/^try \{[\s\S]*?globalThis\.__ptfPerf[\s\S]*?\n\} catch \(e\) \{[^}]*\}/m, '')  // bloco do global DEV
+      .replace(/export /g, '')
+      + '; return { mark, markOnce, measure, getSnapshot, reset, summarize, sanitizeMetadata,'
+      + ' isPerformanceTraceEnabled, TRACE_BUFFER_LIMIT, TRACE_MAX_META_KEYS };';
+    T = new Function('__DEV__', 'globalThis', '__tick', code)(
+      true, { performance: { now: () => (clock += 10) } }, () => clock,
+    );
+  } catch (e) { T = null; }
+
+  // O resumo tem de eleger o terminal que CHEGOU PRIMEIRO. Cenário real: o teto decide o boot
+  // (timeout) e a resposta do storage chega atrasada — o resumo não pode reportar a tardia.
+  check('LP1M-A (comportamental): resumo elege o terminal cronológico — timeout real não é mascarado por resposta tardia',
+    !!T
+    && (() => {
+      T.reset();
+      T.mark('app_render_start');
+      T.mark('route_decision_start');
+      T.mark('route_decision_timeout', { route: 'Home', reason: 'timeout' });  // o teto decidiu
+      T.mark('route_decision_end', { route: 'Onboarding' });                   // chegou depois
+      const s = T.summarize() || '';
+      // reporta o timeout (que governou o boot) e sinaliza o segundo terminal
+      if (!/Decisão de rota:.*Home/.test(s)) return false;
+      if (/Decisão de rota:.*Onboarding/.test(s)) return false;
+      if (!/\(\+1 terminais\)/.test(s)) return false;
+      // e o first layout da Home só conta se a Home foi mesmo a rota do boot
+      T.mark('onboarding_first_layout');
+      return /Onboarding first layout: n\/a \(não foi a rota do boot\)/.test(T.summarize() || '');
+    })(),
+    'o resumo voltou a mascarar o terminal real (ordem de lista) ou a atribuir layout à rota errada');
+
+  check('LP1M-A (comportamental): metadata proibida é descartada; só primitivos seguros da allowlist passam',
+    !!T
+    && T.sanitizeMetadata({ route: 'Home' }).route === 'Home'
+    && T.sanitizeMetadata({ attempt: 2 }).attempt === 2
+    && T.sanitizeMetadata({ ok: true }).ok === true
+    && T.sanitizeMetadata({ childName: 'Ana' }) === undefined            // chave fora da allowlist
+    && T.sanitizeMetadata({ profileId: 'abc' }) === undefined            // idem
+    && T.sanitizeMetadata({ route: 'Ana Maria da Silva' }) === undefined // string livre (espaços)
+    && T.sanitizeMetadata({ route: 'a@b.com' }) === undefined            // e-mail
+    && T.sanitizeMetadata({ reason: { nested: 1 } }) === undefined       // objeto
+    && T.sanitizeMetadata({ count: [1, 2] }) === undefined               // array
+    && T.sanitizeMetadata(null) === undefined,
+    'a sanitização deixou passar metadata proibida (risco de PII)');
+
+  check('LP1M-A (comportamental): buffer com teto; markOnce não duplica; reset limpa; falha não lança',
+    !!T
+    && (() => {
+      T.reset();
+      for (let i = 0; i < T.TRACE_BUFFER_LIMIT + 25; i += 1) T.mark('app_render_start');
+      const snap = T.getSnapshot();
+      if (!snap || snap.events.length !== T.TRACE_BUFFER_LIMIT || snap.dropped !== 25) return false;
+      T.reset();
+      T.markOnce('splash_mount'); T.markOnce('splash_mount'); T.markOnce('splash_mount');
+      if (T.getSnapshot().events.length !== 1) return false;             // terminal não duplica
+      T.mark('NomeInvalido'); T.mark(''); T.mark(null); T.mark(42);      // nomes inválidos ignorados
+      if (T.getSnapshot().events.length !== 1) return false;
+      T.reset();
+      return T.getSnapshot().events.length === 0;                        // reset limpa
+    })(),
+    'o buffer/markOnce/reset do trace regrediram');
+
+  check('LP1M-A (comportamental): measure devolve duração e null quando falta marca; nada lança',
+    !!T
+    && (() => {
+      T.reset();
+      let threw = false;
+      try {
+        T.mark('font_gate_start'); T.mark('font_gate_loaded');
+        const d = T.measure('font_gate', 'font_gate_start', 'font_gate_loaded');
+        if (typeof d !== 'number') return false;
+        if (T.measure('x', 'font_gate_start', 'inexistente') !== null) return false;
+        T.mark(undefined, { route: 'Home' });
+        T.markOnce(undefined);
+        T.measure(null, null, null);
+      } catch (e) { threw = true; }
+      T.reset();
+      return !threw;
+    })(),
+    'measure regrediu, ou a instrumentação lança em entrada inválida');
 }
 
 

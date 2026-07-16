@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_AVATAR_ID, DEFAULT_SKIN_TONE } from '../data/avatars';
+import { markOnce } from '../services/performanceTrace';
 import { log } from '../utils/logger';
 
 const PROFILE_KEY = '@ptf_profile';
@@ -21,11 +22,13 @@ export function ProfileProvider({ children }) {
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [loading, setLoading] = useState(true);
 
+  // LP1M-A: só OBSERVA a hidratação (mesma ordem, mesma leitura, mesmos estados de loading).
   useEffect(() => {
+    markOnce('profile_hydration_start');
     AsyncStorage.getItem(PROFILE_KEY)
       .then(raw => { if (raw) setProfile(JSON.parse(raw)); })
-      .catch(e => log('ProfileContext.load:', e))
-      .finally(() => setLoading(false));
+      .catch(e => { markOnce('profile_hydration_error', { reason: 'error' }); log('ProfileContext.load:', e); })
+      .finally(() => { markOnce('profile_hydration_end'); setLoading(false); });
   }, []);
 
   const saveProfile = useCallback(async (updates) => {

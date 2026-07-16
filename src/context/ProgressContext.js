@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { stories } from '../data/stories';
+import { markOnce } from '../services/performanceTrace';
 import { warn } from '../utils/logger';
 import {
   isQuizDone,
@@ -166,6 +167,9 @@ export function ProgressProvider({ children }) {
   const [progressError, setProgressError] = useState(null);
 
   const loadAll = useCallback(async () => {
+    // LP1M-A: só OBSERVA. `markOnce` = mede a hidratação do BOOT (a 1ª carga); os refreshes
+    // seguintes não remarcam. Nenhuma leitura foi reordenada, agrupada ou trocada por multiGet.
+    markOnce('progress_hydration_start');
     setIsLoadingProgress(true);
     setProgressError(null);
     try {
@@ -180,9 +184,11 @@ export function ProgressProvider({ children }) {
       setColoringDoneByStory(coloringDone);
       setProgressSummary(computeSummary(progress, postStatus, bonusStars));
     } catch (e) {
+      markOnce('progress_hydration_error', { reason: 'error' });
       warn('ProgressContext.loadAll:', e);
       setProgressError(e);
     } finally {
+      markOnce('progress_hydration_end');
       setIsLoadingProgress(false);
     }
   }, []);

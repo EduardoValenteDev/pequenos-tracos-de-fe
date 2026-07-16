@@ -30,6 +30,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { getPackIndex, getPackLocalDir, PACK_STATUS } from '../services/packStorageService';
 import { needsDiskCheck, computeInvalidReadyIds, reconcileEntry } from '../services/packReconcileService';
 import { getContentLayer, CONTENT_LAYERS } from '../data/contentManifest';
+import { markOnce } from '../services/performanceTrace';
 import { warn } from '../utils/logger';
 
 const EMPTY_STATE = Object.freeze({
@@ -81,16 +82,20 @@ export function PacksProvider({ children }) {
 
   // READ-ONLY: só lê o índice. Nunca grava/instala/baixa.
   const loadPacks = useCallback(async () => {
+    // LP1M-A: só OBSERVA a hidratação do BOOT (`markOnce`); refreshes seguintes não remarcam.
+    markOnce('packs_hydration_start');
     setIsLoadingPacks(true);
     setPacksError(null);
     try {
       const index = await getPackIndex(); // {} se vazio/erro (packStorageService nunca lança)
       setPackIndex(index && typeof index === 'object' ? index : {});
     } catch (e) {
+      markOnce('packs_hydration_error', { reason: 'error' });
       warn('PacksContext.loadPacks:', e);
       setPacksError(e);
       setPackIndex({});
     } finally {
+      markOnce('packs_hydration_end');
       setIsLoadingPacks(false);
     }
   }, []);
