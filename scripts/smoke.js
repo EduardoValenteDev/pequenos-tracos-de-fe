@@ -8673,6 +8673,145 @@ console.log('\n── LP2.1a-i: reconciliação de story packs (funções reais)
     })();
   }
 
+  // ══ LP2.1a-iR2: failWith só preserva um READY com EVIDÊNCIA de disco ══
+  // Executa o failWith REAL (extraído do fonte, sem reimplementar) com doubles mínimos de
+  // índice + getInfoAsync. Não constrói o harness de download/move/hash (isso é LP2.1a-ii).
+  {
+    const dlSrc2 = readSrc('src/services/packDownloadService.js');
+    // Extrai o corpo REAL do failWith e da sonda, e monta um executável com as deps injetadas.
+    const probeSrc = (dlSrc2.match(/async function probeInstalledPackDisk[\s\S]*?\n\}/) || [''])[0];
+    const failSrc = (dlSrc2.match(/ {2}const failWith = async \(reason, errors, extra\) => \{[\s\S]*?\n {2}\};/) || [''])[0];
+
+    const makeFail = ({ index, getInfoAsync }) => {
+      const store = { ...index };
+      const deps = {
+        FileSystem: { deleteAsync: async () => {}, getInfoAsync },
+        PACK_STATUS,
+        isReadyEntryValid: R.isReadyEntryValid,          // a MESMA regra da reconciliação
+        getPackLocalDir: (sid, v) => `file:///doc-NOVO/packs/${sid}@${v}/`,  // container ATUAL
+        getPackEntry: async (sid) => store[sid] || null, // índice CRU
+        setPackEntry: async (sid, e) => { store[sid] = { ...(store[sid] || {}), storyId: sid, ...e }; return store[sid]; },
+        report: () => {},
+        storyId: 'david_goliath',
+        version: '2.0.0',                                // a versão NOVA (a que falhou)
+        tempDir: 'file:///doc/packs/.tmp/david_goliath@2.0.0/',
+      };
+      const code = `${probeSrc}\n${failSrc}\nreturn { failWith, store: __store };`
+        .replace('return { failWith, store: __store };', 'return { failWith };');
+      const fn = new Function(...Object.keys(deps), code)(...Object.values(deps));
+      return { failWith: fn.failWith, store };
+    };
+
+    const prevReady = { storyId: 'david_goliath', version: '1.0.0', status: 'ready',
+      localDir: 'file:///doc/packs/david_goliath@1.0.0/', manifestPath: 'm', totalBytes: 1,
+      downloadedBytes: 1, updatedAt: 1, errorMessage: null };
+    const infoOk = async (uri) => ({ exists: true });
+    const infoNoDir = async (uri) => ({ exists: false });
+    const infoNoManifest = async (uri) => ({ exists: !uri.endsWith('manifest.json') });
+    const infoThrows = async () => { throw new Error('FS transitório'); };
+
+    globalThis.__LP21AIR2 = (async () => {
+      // §7.1 — READY sem localDir (null/undefined/''): NÃO preserva; registra a falha.
+      // O campo persistido não é a verdade (o boundary recompõe por storyId+version) — a verdade
+      // é o DISCO. Sem evidência no disco (dir recomposto ausente), não se preserva.
+      const semDir = [];
+      for (const localDir of [null, undefined, '']) {
+        const { failWith, store } = makeFail({ index: { david_goliath: { ...prevReady, localDir } }, getInfoAsync: infoNoDir });
+        await failWith('erro novo');
+        semDir.push(store.david_goliath.status === 'failed' && store.david_goliath.errorMessage === 'erro novo');
+      }
+      // E sem version NEM localDir não há sequer caminho a sondar → nunca preservável.
+      const semNada = await (async () => {
+        const { failWith, store } = makeFail({ index: { david_goliath: { ...prevReady, localDir: null, version: null } }, getInfoAsync: infoOk });
+        await failWith('erro novo');
+        return store.david_goliath.status === 'failed';
+      })();
+      check('LP2.1a-iR2 §7.1 (READY sem localDir): null/undefined/"" sem evidência no disco NÃO são preservados',
+        semDir.every(Boolean) && semNada,
+        'um READY sem localDir e sem evidência no disco continua sendo preservado');
+
+      // §7.2 — diretório ausente: não preserva.
+      {
+        const { failWith, store } = makeFail({ index: { david_goliath: prevReady }, getInfoAsync: infoNoDir });
+        await failWith('erro novo');
+        check('LP2.1a-iR2 §7.2 (diretório ausente): READY não comprovado NÃO é preservado',
+          store.david_goliath.status === 'failed',
+          'um READY cujo diretório sumiu continua persistido como READY');
+      }
+      // §7.3 — manifest.json ausente (move não concluiu): não preserva.
+      {
+        const { failWith, store } = makeFail({ index: { david_goliath: prevReady }, getInfoAsync: infoNoManifest });
+        await failWith('erro novo');
+        check('LP2.1a-iR2 §7.3 (manifesto ausente): instalação incompleta NÃO conta como anterior válida',
+          store.david_goliath.status === 'failed',
+          'um diretório sem manifest.json está sendo tratado como instalação anterior válida');
+      }
+      // §7.4 — READY VÁLIDO: preserva (versão e caminho anteriores intactos).
+      {
+        const { failWith, store } = makeFail({ index: { david_goliath: prevReady }, getInfoAsync: infoOk });
+        await failWith('erro novo');
+        check('LP2.1a-iR2 §7.4 (READY válido): preservado — não vira FAILED e mantém versão/caminho',
+          store.david_goliath.status === 'ready'
+          && store.david_goliath.version === '1.0.0'
+          && store.david_goliath.localDir === prevReady.localDir,
+          'uma atualização que falhou destruiu a instalação anterior VÁLIDA');
+      }
+      // §7.5 — probe inconclusivo (getInfoAsync lança): conservador — preserva, sem esconder a falha.
+      {
+        const { failWith, store } = makeFail({ index: { david_goliath: prevReady }, getInfoAsync: infoThrows });
+        const res = await failWith('erro original');
+        check('LP2.1a-iR2 §7.5 (probe inconclusivo): conservador (preserva) e a falha ORIGINAL é devolvida',
+          store.david_goliath.status === 'ready'          // não destrói o que pode ser válido
+          && res.ok === false && res.reason === 'erro original',  // 2ª exceção não escondeu a 1ª
+          'um erro transitório de FS destrói a instalação anterior, ou esconde a falha original');
+      }
+      // §7.4b — o localDir PERSISTIDO aponta para um container ANTIGO (iOS troca o UUID), mas o
+      // pack está VÁLIDO no disco recomposto. Sondar o caminho cru rebaixaria um READY válido.
+      {
+        const antigo = { ...prevReady, localDir: 'file:///doc-ANTIGO-UUID/packs/david_goliath@1.0.0/' };
+        const vistos = [];
+        const infoRecomposto = async (uri) => { vistos.push(uri); return { exists: uri.startsWith('file:///doc-NOVO/') }; };
+        const { failWith, store } = makeFail({ index: { david_goliath: antigo }, getInfoAsync: infoRecomposto });
+        await failWith('erro novo');
+        check('LP2.1a-iR2 §7.4b (container trocado): sonda o dir RECOMPOSTO — READY válido não vira FAILED',
+          store.david_goliath.status === 'ready'                       // preservado
+          && vistos.some((u) => u.startsWith('file:///doc-NOVO/'))     // sondou o recomposto
+          && !vistos.some((u) => u.includes('doc-ANTIGO-UUID')),       // NÃO sondou o cru
+          'failWith sonda o localDir cru e rebaixa um READY válido quando o container do iOS muda');
+      }
+
+      // §7.6 — sem READY anterior: registra a falha normalmente.
+      {
+        const { failWith, store } = makeFail({ index: {}, getInfoAsync: infoOk });
+        await failWith('erro novo');
+        check('LP2.1a-iR2 §7.6 (sem READY anterior): a falha é registrada e nenhum READY é fabricado',
+          store.david_goliath.status === 'failed' && store.david_goliath.version === '2.0.0',
+          'sem instalação anterior, a falha não é registrada corretamente');
+      }
+      // §7.7 — estados não-READY nunca contam como instalação anterior válida.
+      {
+        const oks = [];
+        for (const status of ['failed', 'downloading', 'verifying', 'needs_update', 'not_downloaded']) {
+          const { failWith, store } = makeFail({ index: { david_goliath: { ...prevReady, status } }, getInfoAsync: infoOk });
+          await failWith('erro novo');
+          oks.push(store.david_goliath.status === 'failed');
+        }
+        check('LP2.1a-iR2 §7.7 (não-READY): nenhum outro estado é preservado como instalação válida',
+          oks.every(Boolean),
+          'um estado não-READY está sendo preservado como se fosse instalação anterior válida');
+      }
+      // §7.8 — índice PERSISTIDO deixa de declarar READY inválido (nova leitura reflete).
+      {
+        const { failWith, store } = makeFail({ index: { david_goliath: { ...prevReady, localDir: null } }, getInfoAsync: infoNoDir });
+        await failWith('erro novo');
+        const relido = store.david_goliath;                 // nova leitura do "storage"
+        check('LP2.1a-iR2 §7.8 (índice persistido): após a falha, o storage não declara mais READY inválido',
+          relido.status === 'failed' && relido.status !== 'ready',
+          'o índice persistido continua declarando um READY inválido');
+      }
+    })();
+  }
+
   // ── MUTATION CHECKS (§7): a prova falha se a proteção sumir? ──
   // Rodamos as MESMAS asserções contra versões MUTADAS do código real.
   {
@@ -16433,11 +16572,15 @@ check(
       'ramo de cancelamento grava índice ou não limpa .tmp / não retorna cancelled:true');
 
     // ── failWith preserva READY anterior (regra do Portão 3) ──
-    check('F2.5-hardening-3: failWith NÃO rebaixa READY — só grava FAILED quando não há READY anterior',
+    // LP2.1a-iR2: a intenção original (não rebaixar um READY anterior) CONTINUA — mas agora exige
+    // EVIDÊNCIA de disco. Preservar por status preservava também um READY inválido.
+    check('F2.5-hardening-3: failWith NÃO rebaixa READY VÁLIDO — só grava FAILED quando não há READY utilizável',
       /const prev = await getPackEntry\(storyId\)/.test(pds3)
-        && /if \(!\(prev && prev\.status === PACK_STATUS\.READY\)\)/.test(pds3)
+        && /const preservable = isReadyPrev && isReadyEntryValid\(prev, probe\)/.test(pds3)
+        && /if \(!preservable\)/.test(pds3)
+        && !/if \(!\(prev && prev\.status === PACK_STATUS\.READY\)\)/.test(pds3)
         && /import \{[^}]*getPackEntry[^}]*\} from '\.\/packStorageService'/.test(pds3),
-      'failWith pode rebaixar um pack READY anterior (deveria preservar)');
+      'failWith pode rebaixar um pack READY válido anterior, ou voltou a preservar por status sem prova');
 
     // ── GATE DE REDE (sem dep) ──
     check('F2.5-hardening-3: gate de rede — !gm.ok retorna networkError ANTES de criar .tmp/índice',
@@ -16538,7 +16681,7 @@ check(
       (() => {
         const mvIdx = pds2bi.search(/moveAsync\(\{ from: tempDir, to: localDir \}\)/);
         return mvIdx >= 0 && /setPackEntry\(storyId, \{\s*version,\s*status: PACK_STATUS\.READY/.test(pds2bi.slice(mvIdx))
-          && /if \(!\(prev && prev\.status === PACK_STATUS\.READY\)\)/.test(pds2bi);
+          && /const preservable = isReadyPrev && isReadyEntryValid\(prev, probe\)/.test(pds2bi);
       })(),
       'READY não está após move OU failWith deixou de preservar READY');
 
@@ -24798,6 +24941,12 @@ check(
   check('LP2.1a-iR (harness): a prova integrada do consumidor concluiu sem estourar',
     !lp21airErr,
     `a prova integrada lançou (${lp21airErr && lp21airErr.message}) — o check dela não rodou`);
+
+  let lp21air2Err = null;
+  try { await globalThis.__LP21AIR2; } catch (e) { lp21air2Err = e; }
+  check('LP2.1a-iR2 (harness): as provas do failWith concluíram sem estourar',
+    !lp21air2Err,
+    `as provas do failWith lançaram (${lp21air2Err && lp21air2Err.message}) — os checks delas não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;

@@ -10,6 +10,7 @@
  */
 import * as FileSystem from 'expo-file-system/legacy';
 import { PACK_STATUS, getPackLocalDir, getPackTempDir, setPackEntry, getPackEntry } from './packStorageService';
+import { isReadyEntryValid } from './packReconcileService';
 import { validatePackManifest, computeFileSha256 } from './packIntegrityService';
 import { fetchGlobalContentManifest, getPackFromGlobalManifest } from './globalManifestService';
 import { warn } from '../utils/logger';
@@ -73,6 +74,31 @@ export async function markPackReady(storyId, version, localDir, manifest) {
     downloadedBytes: totalBytes,
     errorMessage: null,
   });
+}
+
+/**
+ * Casca de disco do downloader: o `localDir` existe? e o `manifest.json` dentro dele?
+ *
+ * Mesmo CONTRATO da casca do PacksContext (`probePackDisk`) — de propósito: a DECISÃO é a mesma
+ * função pura (`isReadyEntryValid`), então UI e downloader nunca discordam sobre o que é um pack
+ * instalado. A casca é duplicada porque o núcleo de reconciliação é PURO (sem I/O) e o
+ * packStorageService é protegido (F2.5-hardening-2 exige que ele fique sem essa lógica);
+ * `failWith` também não pode depender de React/PacksContext.
+ *
+ * `localDir` ausente/vazio → `{false,false}` SEM I/O (ausência de caminho é evidência conclusiva).
+ * `getInfoAsync` lançando → `{null,null}` = INDETERMINADO → o núcleo é conservador (preserva).
+ * Nunca lança.
+ */
+async function probeInstalledPackDisk(localDir) {
+  if (!localDir) return { localDirExists: false, manifestExists: false };
+  try {
+    const d = await FileSystem.getInfoAsync(localDir);
+    if (!d || !d.exists) return { localDirExists: false, manifestExists: false };
+    const m = await FileSystem.getInfoAsync(`${localDir}manifest.json`);
+    return { localDirExists: true, manifestExists: !!(m && m.exists) };
+  } catch (e) {
+    return { localDirExists: null, manifestExists: null };
+  }
 }
 
 /** Kinds de mídia conhecidos de um pack (bate com o manifesto por-pack e o resolver). */
@@ -181,8 +207,25 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
   const failWith = async (reason, errors, extra) => {
     try { await FileSystem.deleteAsync(tempDir, { idempotent: true }); } catch { /* noop */ }
     try {
-      const prev = await getPackEntry(storyId);
-      if (!(prev && prev.status === PACK_STATUS.READY)) {
+      const prev = await getPackEntry(storyId);   // índice CRU (a reconciliação do contexto é só em memória)
+      // LP2.1a-iR2: só preserva um READY anterior com EVIDÊNCIA de disco. Preservar por status
+      // deixava um `ready` inválido (sem localDir, ou sem diretório/manifest.json) persistido como
+      // READY e impedia registrar a falha. A decisão usa a MESMA regra da reconciliação
+      // (isReadyEntryValid) — não uma regra paralela; só a casca de I/O é do storage.
+      // Probe INDETERMINADO (getInfoAsync lançou) → conservador: preserva (não destrói uma
+      // instalação possivelmente válida por causa de um erro transitório de FS).
+      const isReadyPrev = !!prev && prev.status === PACK_STATUS.READY;
+      // O `localDir` PERSISTIDO não é confiável: no iOS o container muda de UUID entre
+      // updates/restores, então o file:// absoluto gravado fica inválido. O boundary de leitura
+      // do app recompõe por (storyId, version) — F2.5-hardening-1 C3, mesma regra do
+      // PacksContext (normalizedIndex). Sondar o caminho CRU aqui rebaixaria para FAILED um
+      // READY que está VÁLIDO no disco (falso-negativo). Sem version → cai no cru.
+      const prevDir = (isReadyPrev && prev.version)
+        ? (getPackLocalDir(prev.storyId || storyId, prev.version) || prev.localDir)
+        : (prev && prev.localDir) || null;
+      const probe = isReadyPrev ? await probeInstalledPackDisk(prevDir) : null;
+      const preservable = isReadyPrev && isReadyEntryValid(prev, probe);
+      if (!preservable) {
         await setPackEntry(storyId, { version, status: PACK_STATUS.FAILED, errorMessage: reason });
       }
     } catch { /* noop */ }
