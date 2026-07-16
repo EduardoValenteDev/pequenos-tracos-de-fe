@@ -8213,6 +8213,220 @@ console.log('\n── LP1M-B: amostra reproduzível + agregador ──');
 }
 
 
+// ════════════════════════════════════════════════════════════════════════════
+// LP2 — Concorrência e integridade da instalação de story packs.
+// PK-01: single-flight por identidade. PK-02: fila serializada do índice.
+// Sem rede real: as dependências são injetadas como doubles controlados.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2: concorrência e integridade dos story packs ──');
+{
+  const storeSrc = readSrc('src/services/packStorageService.js');
+  const dlSrc = readSrc('src/services/packDownloadService.js');
+  const storeC = a1StripComments(storeSrc);
+  const dlC = a1StripComments(dlSrc);
+  const hook = a1StripComments(readSrc('src/hooks/useStoryPackDownload.js'));
+
+  // ── Estáticos ──
+  check('LP2 PK-02 (fila do índice): setPackEntry e clearPackEntry passam por runSerialized, com a LEITURA dentro',
+    /let indexWriteChain = Promise\.resolve\(\)/.test(storeC)
+    && /function runSerialized\(task\) \{\s*const run = indexWriteChain\.then\(task\);\s*indexWriteChain = run\.then\(\(\) => undefined, \(\) => undefined\);\s*return run;/.test(storeC)
+    && /export async function setPackEntry[\s\S]{0,220}return runSerialized\(async \(\) => \{[\s\S]{0,120}const index = await getPackIndex\(\)/.test(storeC)
+    && /export async function clearPackEntry[\s\S]{0,220}return runSerialized\(async \(\) => \{[\s\S]{0,120}const index = await getPackIndex\(\)/.test(storeC),
+    'as mutações do índice não são serializadas, ou leem o índice fora da seção (lost update)');
+
+  check('LP2 PK-01 (single-flight): mapa por chave canônica, compartilhado, com delete em finally',
+    /const inFlightInstalls = new Map\(\)/.test(dlC)
+    && /export function packInstallKey/.test(dlC)
+    && /const existing = inFlightInstalls\.get\(key\);\s*if \(existing\) return existing;/.test(dlC)
+    && /\.finally\(\(\) => \{ inFlightInstalls\.delete\(key\); \}\)/.test(dlC)
+    && /async function downloadStoryPackScenesFromGlobalManifestImpl/.test(dlC),
+    'a instalação não compartilha operação por chave, ou a chave pode ficar travada após falha');
+
+  check('LP2 §4.5 (cancelamento não mata operação alheia): isCancelled = dono exclusivo, mas AINDA passa pela fila física',
+    /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstall\(params\);/.test(dlC)
+    && !/isCancelled/.test(hook),   // o caminho de produto não cancela: "cancelar" = parar de observar
+    'um chamador que desiste pode cancelar a operação de outro, ou escapa da fila física e disputa o .tmp');
+
+  // A exclusão tem de seguir o RECURSO (.tmp/localDir = storyId@version), não a chave do pedido
+  // (que inclui kinds): senão duas instalações da mesma história com kinds diferentes se destroem.
+  check('LP2 PK-01 (recurso físico): instalação serializada por storyId; a chave canônica só compartilha resultado',
+    /const storyInstallChains = new Map\(\)/.test(dlC)
+    && /function runExclusiveByStory\(storyId, task\)/.test(dlC)
+    && /const settled = run\.then\(\(\) => undefined, \(\) => undefined\);/.test(dlC)
+    && /function guardedInstall\(params\) \{\s*return runExclusiveByStory\(params && params\.storyId,/.test(dlC),
+    'duas instalações da mesma história (kinds diferentes) podem disputar o mesmo .tmp');
+
+  // ── COMPORTAMENTAL: índice real, com AsyncStorage/FileSystem como doubles ──
+  const makeStore = () => {
+    let mem = null;
+    const AsyncStorage = {
+      getItem: async () => { await null; return mem; },
+      setItem: async (k, v) => { await null; mem = v; },
+    };
+    const code = storeC
+      .replace(/^import[\s\S]*?;$/gm, '')
+      .replace(/export /g, '')
+      + '; return { setPackEntry, clearPackEntry, getPackIndex, whenIndexQueueDrained, runSerialized, PACK_STATUS };';
+    return new Function('AsyncStorage', 'STORAGE_KEYS', 'FileSystem', 'warn', code)(
+      AsyncStorage, { PACKS_INDEX: '@ptf_packs_v1' }, { documentDirectory: 'file:///doc/' }, () => {},
+    );
+  };
+
+  // Single-flight REAL: avalia o trecho do serviço (chave + mapa + wrapper) com o corpo da
+  // instalação substituído por um double — nenhuma rede, nenhum arquivo.
+  const makeFlight = (impl) => {
+    const slice = dlC.slice(dlC.indexOf('const inFlightInstalls = new Map()'));
+    const code = "const KNOWN_KINDS = ['cover','scene','coloring','audio'];\n"
+      + slice.replace(/export /g, '')
+      + '; return { downloadStoryPackScenesFromGlobalManifest, packInstallKey, inFlightInstallCount };';
+    return new Function('downloadStoryPackScenesFromGlobalManifestImpl', code)(impl);
+  };
+
+  // Fila do índice + single-flight são assíncronos; o sumário do smoke aguarda esta promise.
+  globalThis.__LP2_ASYNC = (async () => {
+    // (6) Duas instalações concorrentes de histórias DIFERENTES: nenhuma entrada se perde.
+    {
+      const S = makeStore();
+      await Promise.all([
+        S.setPackEntry('david_goliath', { version: '1.0.0', status: 'ready' }),
+        S.setPackEntry('noah', { version: '2.0.0', status: 'ready' }),
+      ]);
+      const idx = await S.getPackIndex();
+      check('LP2 PK-02 (comportamental): instalações concorrentes de histórias diferentes preservam AS DUAS entradas',
+        !!idx.david_goliath && !!idx.noah
+        && idx.david_goliath.version === '1.0.0' && idx.noah.version === '2.0.0',
+        'lost update: uma instalação concorrente apagou a entrada da outra no índice');
+    }
+    // (7) Instalação e remoção concorrentes: serializado e determinístico.
+    {
+      const S = makeStore();
+      await S.setPackEntry('noah', { version: '1.0.0', status: 'ready' });
+      await Promise.all([
+        S.setPackEntry('david_goliath', { version: '1.0.0', status: 'ready' }),
+        S.clearPackEntry('noah'),
+      ]);
+      const idx = await S.getPackIndex();
+      check('LP2 PK-02 (comportamental): instalação + remoção concorrentes não se sobrescrevem',
+        !!idx.david_goliath && !idx.noah,
+        'instalação e remoção concorrentes se sobrescreveram (alteração independente perdida)');
+    }
+    // (8) Uma task que REJEITA de verdade não envenena a fila: a próxima mutação executa.
+    // (setPackEntry engole os próprios erros, então enfileiramos direto uma task que lança —
+    // sem isso o teste passaria mesmo com a normalização da corrente removida.)
+    {
+      const S = makeStore();
+      let threw = false;
+      await S.runSerialized(async () => { throw new Error('boom'); }).catch(() => { threw = true; });
+      const after = await S.setPackEntry('noah', { version: '2.0.0', status: 'ready' });
+      const idx = await S.getPackIndex();
+      check('LP2 PK-02 (comportamental): task que REJEITA não envenena a fila — a próxima mutação executa',
+        threw && !!after && !!idx.noah && idx.noah.version === '2.0.0',
+        'uma falha deixou a fila do índice permanentemente travada');
+    }
+    // (1)(12) Dez chamadas simultâneas para a MESMA chave: uma única operação física.
+    {
+      let physical = 0;
+      const F = makeFlight(async () => { physical += 1; await new Promise((r) => setTimeout(r, 5)); return { ok: true, storyId: 'david_goliath' }; });
+      const p = { storyId: 'david_goliath', globalManifestUrl: 'https://r2/m.json', appVersion: '1.0.0', requestedKinds: ['scene'] };
+      const rs = await Promise.all(Array.from({ length: 10 }, () => F.downloadStoryPackScenesFromGlobalManifest({ ...p })));
+      check('LP2 PK-01 (comportamental): 10 chamadas na mesma chave = 1 download físico; todos resolvem igual',
+        physical === 1 && rs.length === 10 && rs.every((r) => r && r.ok === true)
+        && F.inFlightInstallCount() === 0,   // finally limpou o mapa
+        'chamadas concorrentes para o mesmo pack duplicam o download ou não compartilham a conclusão');
+    }
+    // (2)(3) Histórias diferentes, versões/manifestos diferentes e kinds diferentes NÃO compartilham.
+    {
+      let physical = 0;
+      const F = makeFlight(async () => { physical += 1; await new Promise((r) => setTimeout(r, 5)); return { ok: true }; });
+      const base = { globalManifestUrl: 'https://r2/m.json', appVersion: '1.0.0', requestedKinds: ['scene'] };
+      await Promise.all([
+        F.downloadStoryPackScenesFromGlobalManifest({ ...base, storyId: 'david_goliath' }),
+        F.downloadStoryPackScenesFromGlobalManifest({ ...base, storyId: 'noah' }),                       // outra história
+        F.downloadStoryPackScenesFromGlobalManifest({ ...base, storyId: 'david_goliath', appVersion: '2.0.0' }), // outra versão de app
+        F.downloadStoryPackScenesFromGlobalManifest({ ...base, storyId: 'david_goliath', globalManifestUrl: 'https://r2/outro.json' }), // outro manifesto
+        F.downloadStoryPackScenesFromGlobalManifest({ ...base, storyId: 'david_goliath', requestedKinds: ['cover', 'scene', 'coloring', 'audio'] }), // outros kinds
+      ]);
+      const k = F.packInstallKey;
+      check('LP2 PK-01 (comportamental): história/versão/manifesto/kinds diferentes = operações independentes',
+        physical === 5
+        && k({ storyId: 'a', globalManifestUrl: 'u', appVersion: '1', requestedKinds: ['scene'] })
+          !== k({ storyId: 'b', globalManifestUrl: 'u', appVersion: '1', requestedKinds: ['scene'] })
+        && k({ storyId: 'a', globalManifestUrl: 'u', appVersion: '1', requestedKinds: ['scene'] })
+          !== k({ storyId: 'a', globalManifestUrl: 'u', appVersion: '2', requestedKinds: ['scene'] })
+        && k({ storyId: 'a', globalManifestUrl: 'u', appVersion: '1', requestedKinds: ['scene', 'cover'] })
+          === k({ storyId: 'a', globalManifestUrl: 'u', appVersion: '1', requestedKinds: ['cover', 'scene'] }),  // ordem não importa
+        'a chave canônica confunde packs diferentes ou separa chamadas equivalentes');
+    }
+    // (4) Primeira tentativa falha: mapa limpo e retry executa.
+    {
+      let n = 0;
+      const F = makeFlight(async () => { n += 1; if (n === 1) throw new Error('rede'); return { ok: true }; });
+      const p = { storyId: 'noah', globalManifestUrl: 'https://r2/m.json', appVersion: '1.0.0', requestedKinds: ['scene'] };
+      let failed = false;
+      try { await F.downloadStoryPackScenesFromGlobalManifest({ ...p }); } catch { failed = true; }
+      const freed = F.inFlightInstallCount() === 0;
+      const retry = await F.downloadStoryPackScenesFromGlobalManifest({ ...p });
+      check('LP2 PK-01 (comportamental): falha libera a chave (finally) e o retry seguinte executa',
+        failed && freed && retry && retry.ok === true && n === 2 && F.inFlightInstallCount() === 0,
+        'uma falha deixa a chave permanentemente travada ou o retry não executa');
+    }
+    // RECURSO FÍSICO: a mesma história com kinds DIFERENTES tem chaves diferentes (não
+    // compartilha), mas usa o MESMO .tmp — então as execuções não podem se sobrepor no tempo.
+    {
+      let concurrent = 0;
+      let maxConcurrent = 0;
+      const F = makeFlight(async () => {
+        concurrent += 1; maxConcurrent = Math.max(maxConcurrent, concurrent);
+        await new Promise((r) => setTimeout(r, 8));
+        concurrent -= 1;
+        return { ok: true };
+      });
+      const base = { storyId: 'david_goliath', globalManifestUrl: 'https://r2/m.json', appVersion: '1.0.0' };
+      await Promise.all([
+        F.downloadStoryPackScenesFromGlobalManifest({ ...base, requestedKinds: ['scene'] }),
+        F.downloadStoryPackScenesFromGlobalManifest({ ...base, requestedKinds: ['cover', 'scene', 'coloring', 'audio'] }),
+        F.downloadStoryPackScenesFromGlobalManifest({ ...base, requestedKinds: ['cover'], isCancelled: () => false }),
+      ]);
+      check('LP2 PK-01 (comportamental): mesma história com kinds diferentes NUNCA executa em paralelo (mesmo .tmp)',
+        maxConcurrent === 1,
+        'duas instalações da mesma história rodaram ao mesmo tempo e disputariam o mesmo .tmp/localDir');
+    }
+    // Histórias diferentes NÃO são serializadas entre si (a fila é por história, não global).
+    {
+      let concurrent = 0;
+      let maxConcurrent = 0;
+      const F = makeFlight(async () => {
+        concurrent += 1; maxConcurrent = Math.max(maxConcurrent, concurrent);
+        await new Promise((r) => setTimeout(r, 8));
+        concurrent -= 1;
+        return { ok: true };
+      });
+      const base = { globalManifestUrl: 'https://r2/m.json', appVersion: '1.0.0', requestedKinds: ['scene'] };
+      await Promise.all([
+        F.downloadStoryPackScenesFromGlobalManifest({ ...base, storyId: 'david_goliath' }),
+        F.downloadStoryPackScenesFromGlobalManifest({ ...base, storyId: 'noah' }),
+      ]);
+      check('LP2 PK-01 (comportamental): histórias diferentes progridem em paralelo (a fila é por história)',
+        maxConcurrent === 2,
+        'a fila por recurso virou uma fila global e serializou histórias independentes');
+    }
+    // (5) Um consumidor deixa de observar: a operação dos demais continua.
+    {
+      let finished = false;
+      const F = makeFlight(async () => { await new Promise((r) => setTimeout(r, 10)); finished = true; return { ok: true }; });
+      const p = { storyId: 'noah', globalManifestUrl: 'https://r2/m.json', appVersion: '1.0.0', requestedKinds: ['scene'] };
+      const a = F.downloadStoryPackScenesFromGlobalManifest({ ...p });
+      const b = F.downloadStoryPackScenesFromGlobalManifest({ ...p });
+      a.catch(() => {});          // consumidor A "desmonta": para de observar
+      const rb = await b;         // B continua e conclui
+      check('LP2 §7 (comportamental): um consumidor parar de observar não interrompe a operação dos demais',
+        finished === true && rb && rb.ok === true,
+        'a desistência de um consumidor cancelou a operação que outro ainda precisava');
+    }
+  })();
+}
+
+
 // ── Sprint 3 — Área dos Pais como Central Adulta do MVP ──────────────────────
 
 console.log('\n── Sprint 3 — Área dos Pais Central Adulta ──');
@@ -24257,6 +24471,16 @@ check(
       && /startFreshSession/.test(game) && /replayRef\.current \+= 1/.test(game),
       'M1R8B tocou o motor/gestos/babel/deps ou quebrou a remontagem');
   })();
+
+  // LP2: os cenários de concorrência (fila do índice + single-flight) são assíncronos —
+  // o sumário só fecha depois que eles terminam, senão não seriam contados.
+  // Se o bloco assíncrono estourar no meio, os checks seguintes dele NÃO rodam — e um check que
+  // some não falha sozinho. Então a própria conclusão do bloco é um check.
+  let lp2AsyncErr = null;
+  try { await globalThis.__LP2_ASYNC; } catch (e) { lp2AsyncErr = e; }
+  check('LP2 (harness): o bloco assíncrono de concorrência concluiu sem estourar',
+    !lp2AsyncErr,
+    `o bloco async do LP2 lançou (${lp2AsyncErr && lp2AsyncErr.message}) — os checks seguintes dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;

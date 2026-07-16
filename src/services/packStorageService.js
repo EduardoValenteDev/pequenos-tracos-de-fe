@@ -84,6 +84,36 @@ export async function savePackIndex(index) {
   }
 }
 
+/* ───────────────── Fila serializada das mutações do índice (LP2 / PK-02) ───────────────── */
+/*
+ * O índice é uma ÚNICA chave de AsyncStorage (não um arquivo), e toda mutação é um ciclo
+ * ler→mesclar→gravar. Sem serialização, duas instalações concorrentes liam o MESMO índice e a
+ * segunda gravava por cima: a entrada da primeira sumia (lost update). A fila abaixo garante que
+ * a LEITURA aconteça dentro da seção serializada, junto da escrita.
+ *
+ * Garantia obtida: as mutações do índice são serializadas DENTRO deste processo JS. Não é uma
+ * transação entre processos — `AsyncStorage.setItem` grava a chave inteira de uma vez (não há
+ * escrita parcial de meia entrada), e não existe API de rename/compare-and-swap para AsyncStorage
+ * na versão instalada. Nada é inventado aqui.
+ */
+let indexWriteChain = Promise.resolve();
+
+/**
+ * Executa `task` em série com as demais mutações do índice.
+ * Uma tarefa que rejeita NÃO envenena a fila: a corrente é sempre normalizada para resolvida,
+ * então a próxima mutação executa mesmo depois de um erro.
+ */
+function runSerialized(task) {
+  const run = indexWriteChain.then(task);
+  indexWriteChain = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+/** Só para teste/diagnóstico: aguarda a fila drenar. */
+export function whenIndexQueueDrained() {
+  return indexWriteChain.then(() => undefined, () => undefined);
+}
+
 /** CacheEntry de uma história (ou null se não houver). */
 export async function getPackEntry(storyId) {
   if (!storyId) return null;
@@ -94,6 +124,9 @@ export async function getPackEntry(storyId) {
 /** Normaliza/mescla e grava um CacheEntry. Retorna a entry salva (ou null em erro). */
 export async function setPackEntry(storyId, entry) {
   if (!storyId || !entry || typeof entry !== 'object') return null;
+  // LP2/PK-02: ler→mesclar→gravar acontece INTEIRO dentro da fila. Ler fora daqui e gravar
+  // depois faria a mutação concorrente sumir.
+  return runSerialized(async () => {
   try {
     const index = await getPackIndex();
     const prev = index[storyId] || {};
@@ -115,11 +148,15 @@ export async function setPackEntry(storyId, entry) {
     warn('packStorageService.setPackEntry:', e);
     return null;
   }
+  });
 }
 
 /** Remove o CacheEntry de uma história do índice (não apaga arquivos). */
 export async function clearPackEntry(storyId) {
   if (!storyId) return false;
+  // LP2/PK-02: serializado junto com setPackEntry — instalação e remoção concorrentes não
+  // podem sobrescrever a alteração independente uma da outra.
+  return runSerialized(async () => {
   try {
     const index = await getPackIndex();
     if (index[storyId]) {
@@ -131,6 +168,7 @@ export async function clearPackEntry(storyId) {
     warn('packStorageService.clearPackEntry:', e);
     return false;
   }
+  });
 }
 
 /** Estado do pack de uma história (a partir do índice; NOT_DOWNLOADED se ausente). */

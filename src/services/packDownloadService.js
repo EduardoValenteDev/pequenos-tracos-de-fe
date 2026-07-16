@@ -138,7 +138,7 @@ function spaceNeededBytes(estimateBytes) {
  *   kinds?:string[], counts?:object, sceneCount?:number, totalBytes?:number,
  *   requiresAppUpdate?:boolean, entry?:object, errors?:string[] }>}
  */
-export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
+async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
   const { storyId, globalManifestUrl, appVersion = '1.0.0', onProgress, requestedKinds = ['scene'],
     isCancelled, manifestTimeoutMs = 15000, fileTimeoutMs = 60000 } = params || {};
   if (!storyId || typeof storyId !== 'string') return { ok: false, reason: 'storyId inválido' };
@@ -358,4 +358,99 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
     // timeout de download → networkError no retorno (erro de rede controlado).
     return failWith(String((e && e.message) || e), undefined, { networkError: !!(e && e.__timeout) });
   }
+}
+
+/* ───────────────── Single-flight por identidade de pack (LP2 / PK-01) ───────────────── */
+/*
+ * Antes, a única trava era o `busyRef` do hook — por INSTÂNCIA. Duas telas pedindo a mesma
+ * história abriam DUAS instalações físicas que calculam o MESMO `.tmp`
+ * (packs/.tmp/<id>@<version>/): a primeira coisa que o fluxo faz é limpar esse diretório, então
+ * uma destruía o download da outra. Agora a operação é compartilhada por chave canônica.
+ */
+const inFlightInstalls = new Map();
+
+/**
+ * Chave canônica da instalação.
+ *
+ * A VERSÃO não entra: ela só é conhecida DEPOIS de buscar o manifesto — mas é função de
+ * (manifesto, storyId, appVersion), então duas chamadas com a mesma chave resolvem
+ * necessariamente a mesma versão. Manifesto ou appVersion diferentes → chaves diferentes →
+ * não compartilham (é assim que versões/manifestos incompatíveis ficam separados).
+ * `requestedKinds` entra normalizado e ordenado: quem pediu o pack completo não pode receber a
+ * operação de quem pediu só cenas.
+ */
+export function packInstallKey(params = {}) {
+  const { storyId, globalManifestUrl, appVersion = '1.0.0', requestedKinds = ['scene'] } = params || {};
+  const kinds = (Array.isArray(requestedKinds) ? requestedKinds : [])
+    .filter((k) => KNOWN_KINDS.includes(k))
+    .slice()
+    .sort();
+  return [String(storyId || ''), String(globalManifestUrl || ''), String(appVersion || ''), kinds.join(',')].join('|');
+}
+
+/** Só para teste/diagnóstico: quantas instalações físicas estão em voo. */
+export function inFlightInstallCount() {
+  return inFlightInstalls.size;
+}
+
+/* ── Exclusão pelo RECURSO FÍSICO (não pela chave do pedido) ── */
+/*
+ * A chave canônica serve para COMPARTILHAR o resultado, e inclui `requestedKinds`. Mas o recurso
+ * que o fluxo destrói e publica — `.tmp` e `localDir` — deriva de storyId@version, SEM kinds.
+ * Logo, duas chamadas da MESMA história com kinds diferentes têm chaves diferentes, não
+ * compartilham e cairiam no MESMO `.tmp`, uma apagando o download da outra (o fluxo começa
+ * limpando o `.tmp`). A fila abaixo garante que só exista UMA execução física por história de
+ * cada vez — inclusive para o chamador com `isCancelled`, que não entra no mapa de compartilhamento.
+ */
+const storyInstallChains = new Map();
+
+function runExclusiveByStory(storyId, task) {
+  const key = String(storyId || '');
+  const prev = storyInstallChains.get(key) || Promise.resolve();
+  const run = prev.then(task);
+  // A corrente nunca carrega rejeição: uma instalação que falha não trava a próxima da mesma história.
+  const settled = run.then(() => undefined, () => undefined);
+  storyInstallChains.set(key, settled);
+  settled.then(() => { if (storyInstallChains.get(key) === settled) storyInstallChains.delete(key); });
+  return run;
+}
+
+/** Executa a instalação física em série por história (uma por vez, sem disputa de `.tmp`). */
+function guardedInstall(params) {
+  return runExclusiveByStory(params && params.storyId, () => downloadStoryPackScenesFromGlobalManifestImpl(params));
+}
+
+/**
+ * Instala o pack de uma história a partir do manifesto global.
+ *
+ * SINGLE-FLIGHT: chamadas concorrentes com a mesma chave canônica compartilham UMA operação
+ * física (download + validação + extração + publicação + registro) e recebem a mesma conclusão
+ * lógica. A entrada sai do mapa em `finally`, então uma falha nunca deixa a chave travada e o
+ * retry seguinte executa de verdade.
+ *
+ * Cancelamento: um chamador que passa `isCancelled` é DONO EXCLUSIVO do RESULTADO (não é
+ * compartilhado), justamente para que a desistência dele nunca cancele o que outro ainda
+ * precisa — mas ele ainda passa pela fila física, senão disputaria o `.tmp`. Hoje nenhum
+ * chamador de produto passa `isCancelled`: a UI que "cancela" apenas deixa de observar.
+ *
+ * LIMITAÇÃO CONHECIDA (aceita neste bloco): quem JOINA um voo em andamento não recebe
+ * `onProgress` — só o `onProgress` de quem criou o voo é repassado. O resultado final é o mesmo
+ * para todos; apenas a barra de progresso de um segundo observador ficaria parada em 0% até a
+ * conclusão. Resolver exige multiplexar os inscritos ({ promise, subscribers }) — mudança de
+ * estrutura que não é necessária para a integridade e fica para quando houver caso real.
+ *
+ * Contrato público inalterado (mesmos parâmetros, mesmo formato de retorno).
+ */
+export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
+  // Dono exclusivo (cancelável): não compartilha o resultado, mas AINDA passa pela fila física —
+  // senão disputaria o `.tmp` com uma instalação compartilhada da mesma história.
+  if (typeof (params && params.isCancelled) === 'function') return guardedInstall(params);
+
+  const key = packInstallKey(params);
+  const existing = inFlightInstalls.get(key);
+  if (existing) return existing;   // mesma operação física, mesma conclusão lógica
+
+  const flight = guardedInstall(params).finally(() => { inFlightInstalls.delete(key); });
+  inFlightInstalls.set(key, flight);
+  return flight;
 }
