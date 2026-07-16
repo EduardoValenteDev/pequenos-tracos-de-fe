@@ -8052,6 +8052,97 @@ console.log('\n── LP1M-B: amostra reproduzível + agregador ──');
   let R = null;
   try { R = require('./perf-baseline-report.js'); } catch (e) { R = null; }
 
+  // ── Portabilidade de encoding: o PowerShell (Tee-Object) grava UTF-16LE com BOM. Ler como
+  // UTF-8 fixo fazia o agregador achar ZERO amostras num log com 11 (defeito reproduzido no
+  // portão humano). Os testes abaixo geram os próprios arquivos — não dependem do log real.
+  const os = require('os');
+  const pathMod = require('path');
+  const tmpDir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'ptf-perf-enc-'));
+  const SAMPLE_OK = '[PTF_PERF_SAMPLE] {"schema":1,"route":"Home","fontReason":"loaded","routeReason":"end",'
+    + '"fontGateMs":40,"routeDecisionMs":18,"splashReactMs":810,"firstLayoutMs":860,'
+    + '"profileHydrationMs":11,"progressHydrationMs":90,"packsHydrationMs":20,"bufferDropped":0}';
+  const logText = ['Starting Metro Bundler', 'iOS Bundled 1200ms (1234 modules)', SAMPLE_OK,
+    'LOG  [Migration] ok', SAMPLE_OK, 'ruido final'].join('\r\n');
+
+  const writeAs = (name, buf) => { const p = pathMod.join(tmpDir, name); fs.writeFileSync(p, buf); return p; };
+  const utf16leBuf = (text, bom) => {
+    const body = Buffer.from(text, 'utf16le');
+    return bom ? Buffer.concat([Buffer.from([0xFF, 0xFE]), body]) : body;
+  };
+  const utf16beBuf = (text) => {
+    const body = Buffer.from(text, 'utf16le');
+    const swapped = Buffer.from(body); swapped.swap16();
+    return Buffer.concat([Buffer.from([0xFE, 0xFF]), swapped]);
+  };
+  const countAccepted = (file) => {
+    const { text } = R.readTextFile(file);
+    const out = text.split(/\r?\n/).filter((l) => l.indexOf(R.PREFIX) !== -1)
+      .map(R.parseLine).map(R.validate).filter((v) => v.ok);
+    return out.length;
+  };
+
+  const fUtf8 = writeAs('utf8.log', Buffer.from(logText, 'utf8'));
+  const fUtf8Bom = writeAs('utf8bom.log', Buffer.concat([Buffer.from([0xEF, 0xBB, 0xBF]), Buffer.from(logText, 'utf8')]));
+  const fLeBom = writeAs('utf16le-bom.log', utf16leBuf(logText, true));    // = o do PowerShell
+  const fBeBom = writeAs('utf16be-bom.log', utf16beBuf(logText));
+  const fLeNoBom = writeAs('utf16le-nobom.log', utf16leBuf(logText, false));
+
+  check('LP1M-B §1 (encoding): UTF-8, UTF-8+BOM, UTF-16LE+BOM (PowerShell), UTF-16BE+BOM e UTF-16LE sem BOM são lidos',
+    !!R && !!R.readTextFile
+    && R.readTextFile(fUtf8).encoding === 'utf8' && countAccepted(fUtf8) === 2
+    && R.readTextFile(fUtf8Bom).encoding === 'utf8-bom' && countAccepted(fUtf8Bom) === 2
+    && R.readTextFile(fLeBom).encoding === 'utf16le-bom' && countAccepted(fLeBom) === 2
+    && R.readTextFile(fBeBom).encoding === 'utf16be-bom' && countAccepted(fBeBom) === 2
+    && R.readTextFile(fLeNoBom).encoding === 'utf16le-sem-bom' && countAccepted(fLeNoBom) === 2,
+    'o agregador não lê o log do PowerShell (UTF-16) ou regrediu em algum encoding');
+
+  check('LP1M-B §1 (BOM não vaza): a 1ª linha não começa com U+FEFF em nenhum encoding',
+    !!R
+    && [fUtf8Bom, fLeBom, fBeBom].every((f) => R.readTextFile(f).text.charCodeAt(0) !== 0xFEFF)
+    && R.readTextFile(fLeBom).text.startsWith('Starting Metro'),
+    'o BOM sobrevive na primeira linha e pode quebrar o match do prefixo');
+
+  check('LP1M-B §1 (sem falso positivo): UTF-8 legítimo com acentos NÃO é detectado como UTF-16',
+    !!R
+    && (() => {
+      const acc = writeAs('acentos.log', Buffer.from(['Configuração de áudio ok', SAMPLE_OK, 'ção — não'].join('\n'), 'utf8'));
+      const r = R.readTextFile(acc);
+      return r.encoding === 'utf8' && r.text.includes('Configuração') && countAccepted(acc) === 1;
+    })(),
+    'UTF-8 legítimo está sendo lido como UTF-16 (falso positivo da heurística)');
+
+  check('LP1M-B §1 (11 continuam 11 + entrada intacta + truncado controlado)',
+    !!R
+    && (() => {
+      const eleven = Array.from({ length: 11 }, () => SAMPLE_OK).join('\r\n');
+      const f11 = writeAs('onze.log', utf16leBuf(`ruido\r\n${eleven}\r\nfim`, true));
+      const before = fs.readFileSync(f11);
+      if (countAccepted(f11) !== 11) return false;
+      const after = fs.readFileSync(f11);
+      if (!before.equals(after)) return false;                       // byte a byte inalterado
+      // número ÍMPAR de bytes (Tee-Object interrompido): não pode lançar
+      const odd = writeAs('impar.log', Buffer.concat([utf16leBuf(`${SAMPLE_OK}\r\n`, true), Buffer.from([0x41])]));
+      const r = R.readTextFile(odd);
+      return r.truncated === true && r.encoding === 'utf16le-bom';
+    })(),
+    '11 amostras não sobrevivem à leitura, a entrada foi alterada, ou arquivo ímpar quebra o leitor');
+
+  check('LP1M-B §1 (erro controlado): arquivo inexistente lança (o main sai com código ≠ 0)',
+    !!R
+    && (() => {
+      try { R.readTextFile(pathMod.join(tmpDir, 'nao-existe.log')); return false; }
+      catch (e) { return /ENOENT/.test(String(e.code || e.message)); }
+    })(),
+    'arquivo ilegível não gera erro controlado');
+
+  check('LP1M-B §2 (saída ASCII): nenhum box drawing/travessão/acento no que vai ao terminal',
+    (() => {
+      const src = readSrc('scripts/perf-baseline-report.js');
+      const outLines = src.split('\n').filter((l) => /console\.(log|error)/.test(l) && !/^\s*(\*|\/\/)/.test(l));
+      return outLines.length > 0 && outLines.every((l) => !/[^\x00-\x7F]/.test(l));
+    })(),
+    'a saída do agregador tem caractere não-ASCII (vira mojibake no PowerShell do Windows)');
+
   check('LP1M-B (agregador): amostra sem nenhuma métrica medida é rejeitada (defesa em profundidade)',
     !!R
     && R.validate({

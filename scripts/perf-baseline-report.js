@@ -33,6 +33,82 @@ const METRICS = [
 /** Campos obrigatórios (podem ser null, mas têm de existir). */
 const FIELDS = ['schema', 'route', 'fontReason', 'routeReason', ...METRICS, 'bufferDropped'];
 
+/* ─────────────────────────── Leitura tolerante a encoding ─────────────────────────── */
+/*
+ * O PowerShell do Windows grava `Tee-Object`/`>` em UTF-16LE com BOM. Ler o arquivo como UTF-8
+ * (fixo) fazia o agregador encontrar ZERO amostras num log que tinha 11 — ou seja, ele não era
+ * compatível com o fluxo de coleta que ele mesmo documenta. A detecção abaixo é por BOM (fato,
+ * não palpite) com uma heurística defensiva só para UTF-16LE sem BOM.
+ */
+
+/** Só é UTF-16LE sem BOM se os bytes ímpares forem NUL de forma sistemática. */
+function looksLikeUtf16LeNoBom(buf) {
+  const n = Math.min(buf.length, 512);
+  if (n < 4) return false;
+  let pairs = 0;
+  let oddNul = 0;
+  let evenNul = 0;
+  for (let i = 0; i + 1 < n; i += 2) {
+    pairs += 1;
+    if (buf[i] === 0x00) evenNul += 1;
+    if (buf[i + 1] === 0x00) oddNul += 1;
+  }
+  if (!pairs) return false;
+  // Texto UTF-8 legítimo praticamente não tem NUL, então oddNul/pairs fica ~0 e isto dá false.
+  return (oddNul / pairs) >= 0.9 && (evenNul / pairs) <= 0.1;
+}
+
+/**
+ * Decodifica o Buffer para texto. Devolve { text, encoding, truncated }.
+ * NÃO adivinha conteúdo: só escolhe o decodificador. Lança em caso não suportado.
+ */
+function decodeBuffer(buf) {
+  if (buf.length === 0) return { text: '', encoding: 'vazio', truncated: false };
+
+  // UTF-8 com BOM
+  if (buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
+    return { text: buf.slice(3).toString('utf8'), encoding: 'utf8-bom', truncated: false };
+  }
+  // UTF-16LE com BOM (o caso do PowerShell)
+  if (buf.length >= 2 && buf[0] === 0xFF && buf[1] === 0xFE) {
+    const body = buf.slice(2);
+    const even = body.length - (body.length % 2);
+    return {
+      text: body.slice(0, even).toString('utf16le'),
+      encoding: 'utf16le-bom',
+      truncated: even !== body.length,
+    };
+  }
+  // UTF-16BE com BOM: Node não decodifica BE, então trocamos os bytes numa CÓPIA.
+  if (buf.length >= 2 && buf[0] === 0xFE && buf[1] === 0xFF) {
+    const body = buf.slice(2);
+    const even = body.length - (body.length % 2);
+    const copy = Buffer.from(body.slice(0, even));   // cópia: o buffer de entrada não é mexido
+    copy.swap16();                                   // exige comprimento par (garantido acima)
+    return { text: copy.toString('utf16le'), encoding: 'utf16be-bom', truncated: even !== body.length };
+  }
+  // UTF-16LE sem BOM (defensivo)
+  if (looksLikeUtf16LeNoBom(buf)) {
+    const even = buf.length - (buf.length % 2);
+    return {
+      text: buf.slice(0, even).toString('utf16le'),
+      encoding: 'utf16le-sem-bom',
+      truncated: even !== buf.length,
+    };
+  }
+  // UTF-8 sem BOM (padrão)
+  return { text: buf.toString('utf8'), encoding: 'utf8', truncated: false };
+}
+
+/** Lê o arquivo (somente leitura) e devolve texto normalizado só para parsing. */
+function readTextFile(file) {
+  const buf = fs.readFileSync(file);          // Buffer: nunca escreve, nunca altera a entrada
+  const out = decodeBuffer(buf);
+  // Um BOM residual viraria lixo na 1a linha e quebraria o match do prefixo.
+  if (out.text.charCodeAt(0) === 0xFEFF) out.text = out.text.slice(1);
+  return out;
+}
+
 /** Extrai o JSON de uma linha com o prefixo. Ruído → null. */
 function parseLine(line) {
   const at = line.indexOf(PREFIX);
@@ -48,27 +124,27 @@ function parseLine(line) {
 
 /** Valida o schema. Devolve { ok, reason }. */
 function validate(sample) {
-  if (!sample) return { ok: false, reason: 'json inválido' };
-  if (sample.schema !== SCHEMA) return { ok: false, reason: `schema ${JSON.stringify(sample.schema)} ≠ ${SCHEMA}` };
+  if (!sample) return { ok: false, reason: 'json invalido' };
+  if (sample.schema !== SCHEMA) return { ok: false, reason: `schema ${JSON.stringify(sample.schema)} != ${SCHEMA}` };
   for (const f of FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(sample, f)) return { ok: false, reason: `campo ausente: ${f}` };
   }
   for (const m of METRICS) {
     const v = sample[m];
     if (v !== null && (typeof v !== 'number' || !Number.isFinite(v))) {
-      return { ok: false, reason: `${m} não é número nem null` };
+      return { ok: false, reason: `${m} nao e numero nem null` };
     }
   }
-  if (sample.route !== null && typeof sample.route !== 'string') return { ok: false, reason: 'route inválida' };
+  if (sample.route !== null && typeof sample.route !== 'string') return { ok: false, reason: 'route invalida' };
   // Defesa em profundidade: amostra com TODAS as métricas nulas não é boot medido — é ruído
   // (ex.: emissor destravado por reavaliação de módulo com o buffer já limpo). Não entra.
-  if (METRICS.every((m) => sample[m] === null)) return { ok: false, reason: 'amostra sem nenhuma métrica medida' };
+  if (METRICS.every((m) => sample[m] === null)) return { ok: false, reason: 'amostra sem nenhuma metrica medida' };
   return { ok: true };
 }
 
 const sortNum = (a, b) => a - b;
 
-/** Percentil por interpolação linear (o método padrão de "percentil exclusivo/linear"). */
+/** Percentil por interpolação linear — método INCLUSIVO (R-7 / PERCENTILE.INC). */
 function percentile(values, p) {
   if (!values.length) return null;
   const v = values.slice().sort(sortNum);
@@ -98,14 +174,14 @@ function statsFor(samples, metric) {
   };
 }
 
-function fmt(v) { return v == null ? '—' : String(v); }
+function fmt(v) { return v == null ? '-' : String(v); }
 function pad(s, n) { s = String(s); return s + ' '.repeat(Math.max(0, n - s.length)); }
 
 function table(title, samples) {
   const lines = [];
   lines.push('');
   lines.push(`${title}  (n=${samples.length})`);
-  lines.push(`  ${pad('métrica', 22)}${pad('n', 5)}${pad('ausente', 9)}${pad('min', 9)}${pad('mediana', 10)}${pad('p90', 9)}${pad('máx', 9)}`);
+  lines.push(`  ${pad('metrica', 22)}${pad('n', 5)}${pad('ausente', 9)}${pad('min', 9)}${pad('mediana', 10)}${pad('p90', 9)}${pad('max', 9)}`);
   for (const m of METRICS) {
     const s = statsFor(samples, m);
     lines.push(`  ${pad(m, 22)}${pad(s.n, 5)}${pad(s.missing, 9)}${pad(fmt(s.min), 9)}${pad(fmt(s.median), 10)}${pad(fmt(s.p90), 9)}${pad(fmt(s.max), 9)}`);
@@ -129,13 +205,14 @@ function main() {
     console.error('uso: node scripts/perf-baseline-report.js <arquivo.log>');
     process.exit(2);
   }
-  let text;
+  let decoded;
   try {
-    text = fs.readFileSync(file, 'utf8');   // somente leitura — a entrada nunca é alterada
+    decoded = readTextFile(file);           // somente leitura; detecta UTF-8/UTF-16 por BOM
   } catch (e) {
-    console.error(`não foi possível ler ${file}: ${e.message}`);
+    console.error(`ERRO: nao foi possivel ler ${file}: ${e.message}`);
     process.exit(2);
   }
+  const text = decoded.text;
 
   const lines = text.split(/\r?\n/);
   const accepted = [];
@@ -151,16 +228,17 @@ function main() {
     else rejected.push(v.reason);
   }
 
-  console.log('── Baseline do caminho JavaScript (LP1M-B) ──');
+  console.log('== Baseline do caminho JavaScript (LP1M-B) ==');
+  console.log(`encoding detectado: ${decoded.encoding}${decoded.truncated ? ' (arquivo truncado: byte final impar descartado)' : ''}`);
   console.log(`arquivo: ${file}`);
-  console.log(`linhas com ${PREFIX}: ${withPrefix} · aceitas: ${accepted.length} · descartadas: ${rejected.length}`);
+  console.log(`linhas com ${PREFIX}: ${withPrefix} | aceitas: ${accepted.length} | descartadas: ${rejected.length}`);
   if (rejected.length) {
     const why = new Map();
     rejected.forEach((r) => why.set(r, (why.get(r) || 0) + 1));
-    for (const [reason, count] of why) console.log(`  descartada ×${count}: ${reason}`);
+    for (const [reason, count] of why) console.log(`  descartada x${count}: ${reason}`);
   }
   if (!accepted.length) {
-    console.log('\nNenhuma amostra válida — nada a reportar. (Não são inventados números.)');
+    console.log('\nNenhuma amostra valida - nada a reportar. (Numeros nao sao inventados.)');
     process.exit(1);
   }
 
@@ -180,11 +258,15 @@ function main() {
   }
 
   console.log('');
-  console.log('Indicadores = mediana e p90 (média omitida de propósito: outlier engana com n pequeno).');
-  console.log('Ausente = não medido neste boot; NUNCA lido como zero.');
-  console.log('Esta baseline NÃO mede init nativo, splash nativa, parse do bundle nem nada anterior ao bootMark.');
+  console.log('Indicadores = mediana e p90 (media omitida de proposito: outlier engana com n pequeno).');
+  console.log('Ausente = nao medido neste boot; NUNCA lido como zero.');
+  console.log('Esta baseline NAO mede init nativo, splash nativa, parse do bundle nem nada anterior ao bootMark.');
 }
 
 if (require.main === module) main();
 
-module.exports = { parseLine, validate, percentile, median, statsFor, groupBy, PREFIX, SCHEMA, METRICS };
+module.exports = {
+  parseLine, validate, percentile, median, statsFor, groupBy,
+  readTextFile, decodeBuffer, looksLikeUtf16LeNoBom,
+  PREFIX, SCHEMA, METRICS,
+};
