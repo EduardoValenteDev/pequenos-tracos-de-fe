@@ -7693,9 +7693,15 @@ console.log('\n── LP1M-A: instrumentação local do boot ──');
     'o buffer perdeu o teto, ou o relógio deixou de ser monotônico com fallback');
 
   // (3) Falha da instrumentação nunca lança + (9) sem console por marca + (13) setState.
-  check('LP1M-A (nunca afeta o app): mark/measure/snapshot/reset em try/catch; sem console por marca; sem setState',
+  // O ÚNICO console permitido é a amostra do LP1M-B: uma linha por processo, dentro de
+  // emitSummaryOnce. Marca nenhuma pode logar (senão a instrumentação polui e custa no boot).
+  const markBody = (traceC.match(/export function mark\(name, metadata\) \{[\s\S]*?\n\}/) || [''])[0];
+  const markOnceBody = (traceC.match(/export function markOnce\(name, metadata\) \{[\s\S]*?\n\}/) || [''])[0];
+  check('LP1M-A (nunca afeta o app): try/catch; sem console POR MARCA (só a amostra 1×/processo); sem setState',
     (traceC.match(/catch \(e\) \{/g) || []).length >= 6
-    && !/console\.(log|warn|error)/.test(traceC)
+    && !/console\./.test(markBody) && !/console\./.test(markOnceBody)
+    && (traceC.match(/console\.log/g) || []).length === 1          // só a linha da amostra
+    && /console\.log\(`\$\{SAMPLE_PREFIX\}/.test(traceC)
     && !/setState|useState/.test(traceC),
     'a instrumentação pode lançar, loga por marca, ou mexe em estado do React');
 
@@ -7787,8 +7793,8 @@ console.log('\n── LP1M-A: instrumentação local do boot ──');
 
   // (9) Primeiro layout de Home e Onboarding, uma vez por boot, sem View nova.
   check('LP1M-A §10 (primeiro layout): Home e Onboarding marcam onLayout na raiz existente, uma vez por boot',
-    /<View style=\{\{ flex: 1 \}\} onLayout=\{\(\) => markOnce\('home_first_layout'\)\}>/.test(home)
-    && /<View style=\{styles\.fill\} onLayout=\{\(\) => markOnce\('onboarding_first_layout'\)\}>/.test(onb),
+    /<View style=\{\{ flex: 1 \}\} onLayout=\{\(\) => \{ markOnce\('home_first_layout'\); emitSummaryOnce\(\); \}\}>/.test(home)
+    && /<View style=\{styles\.fill\} onLayout=\{\(\) => \{ markOnce\('onboarding_first_layout'\); emitSummaryOnce\(\); \}\}>/.test(onb),
     'o primeiro layout deixou de ser observado, ou criou View/geometria nova');
 
   // (13) Nenhum evento altera readiness + (14)(15) LP1A e Modo Criador intactos.
@@ -7834,7 +7840,6 @@ console.log('\n── LP1M-A: instrumentação local do boot ──');
       return /Onboarding first layout: n\/a \(não foi a rota do boot\)/.test(T.summarize() || '');
     })(),
     'o resumo voltou a mascarar o terminal real (ordem de lista) ou a atribuir layout à rota errada');
-
   check('LP1M-A (comportamental): metadata proibida é descartada; só primitivos seguros da allowlist passam',
     !!T
     && T.sanitizeMetadata({ route: 'Home' }).route === 'Home'
@@ -7884,6 +7889,236 @@ console.log('\n── LP1M-A: instrumentação local do boot ──');
       return !threw;
     })(),
     'measure regrediu, ou a instrumentação lança em entrada inválida');
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// LP1M-B — Coleta reproduzível: 1 amostra JSON por processo + agregador local.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP1M-B: amostra reproduzível + agregador ──');
+{
+  const traceC = a1StripComments(readSrc('src/services/performanceTrace.js'));
+  const home = a1StripComments(readSrc('src/screens/HomeScreen.js'));
+  const onb = a1StripComments(readSrc('src/screens/OnboardingScreen.js'));
+
+  // (2)(5)(7) Prefixo fixo; emissão presa ao primeiro layout; sem tela/botão/storage/rede.
+  check('LP1M-B §4 (emissão): prefixo fixo, presa ao primeiro layout, sem UI/persistência/rede',
+    /SAMPLE_PREFIX = '\[PTF_PERF_SAMPLE\]'/.test(traceC)
+    && /if \(!firstEvent\('home_first_layout'\) && !firstEvent\('onboarding_first_layout'\)\) return false;/.test(traceC)
+    && /emitSummaryOnce\(\)/.test(home) && /emitSummaryOnce\(\)/.test(onb)
+    && !/AsyncStorage|FileSystem|fetch\(|Alert|Modal/.test(traceC),
+    'a amostra perdeu o prefixo/gate de primeiro layout, ou ganhou UI/persistência/rede');
+
+  // (1)(6) Uma por processo; nada quando desligado.
+  check('LP1M-B §4 (uma por processo + desligável): sampleEmitted trava; sai cedo sem a flag/DEV',
+    /let sampleEmitted = false;/.test(traceC)
+    && /if \(sampleEmitted\) return false;/.test(traceC)
+    && /if \(!isPerformanceTraceEnabled\(\)\) return false;/.test(traceC),
+    'a amostra pode sair mais de uma vez por processo, ou sai com o trace desligado');
+
+  // (8)(12) Teto dos providers sem bloquear o app + cleanup do timer.
+  check('LP1M-B §4 (teto dos providers): espera adiando só a IMPRESSÃO, com teto e cancelamento',
+    /SAMPLE_PROVIDERS_CEILING_MS = 3000/.test(traceC)
+    && /providersSettled\(\) \|\| \(now\(\) - startedAt\) >= SAMPLE_PROVIDERS_CEILING_MS/.test(traceC)
+    && /export function cancelSampleEmission/.test(traceC)
+    && !/await /.test(traceC),   // nada de bloquear o app esperando provider
+    'a espera dos providers virou bloqueio, perdeu o teto, ou não é cancelável');
+
+  // ── COMPORTAMENTAL: o serviço de verdade ──
+  let S = null;
+  let clock = 0;
+  const printed = [];
+  try {
+    const code = a1StripComments(readSrc('src/services/performanceTrace.js'))
+      .replace(/export default[\s\S]*$/m, '')
+      .replace(/^try \{[\s\S]*?globalThis\.__ptfPerf[\s\S]*?\n\} catch \(e\) \{[^}]*\}/m, '')
+      .replace(/export /g, '')
+      + '; return { mark, markOnce, reset, emitSummaryOnce, buildSample, SAMPLE_PREFIX, SAMPLE_SCHEMA };';
+    S = new Function('__DEV__', 'globalThis', 'console', 'setTimeout', 'clearTimeout', code)(
+      true,
+      { performance: { now: () => (clock += 10) } },
+      { log: (line) => printed.push(line) },
+      () => 1, () => {},   // timers neutralizados: só o caminho síncrono é exercido aqui
+    );
+  } catch (e) { S = null; }
+
+  const bootHome = () => {
+    S.reset(); printed.length = 0;
+    S.mark('app_render_start'); S.mark('font_gate_start'); S.markOnce('font_gate_loaded');
+    S.mark('route_decision_start'); S.markOnce('route_decision_end', { route: 'Home' });
+    S.markOnce('splash_mount'); S.mark('navigation_replace_success', { route: 'Home' });
+    ['profile', 'progress', 'packs'].forEach((p) => {
+      S.markOnce(`${p}_hydration_start`); S.markOnce(`${p}_hydration_end`);
+    });
+    S.markOnce('home_first_layout');
+  };
+
+  // (1)(2)(3) Emissão única, prefixo fixo, JSON válido.
+  check('LP1M-B (comportamental): emite UMA linha, com prefixo fixo e JSON válido',
+    !!S
+    && (() => {
+      bootHome();
+      S.emitSummaryOnce(); S.emitSummaryOnce(); S.emitSummaryOnce();   // 3 chamadas
+      if (printed.length !== 1) return false;                          // → 1 linha
+      if (!printed[0].startsWith('[PTF_PERF_SAMPLE] ')) return false;
+      const json = JSON.parse(printed[0].slice('[PTF_PERF_SAMPLE] '.length));
+      return json.schema === 1 && json.route === 'Home' && json.fontReason === 'loaded'
+        && typeof json.fontGateMs === 'number' && typeof json.firstLayoutMs === 'number';
+    })(),
+    'a amostra não é única, perdeu o prefixo, ou não é JSON válido');
+
+  // (7) Nada antes do primeiro layout.
+  check('LP1M-B (comportamental): não emite antes do primeiro layout da rota inicial',
+    !!S
+    && (() => {
+      S.reset(); printed.length = 0;
+      S.mark('app_render_start'); S.markOnce('font_gate_loaded');
+      S.markOnce('route_decision_end', { route: 'Home' });
+      const before = S.emitSummaryOnce();          // ainda SEM first layout
+      if (before !== false || printed.length !== 0) return false;
+      S.markOnce('home_first_layout');
+      ['profile', 'progress', 'packs'].forEach((p) => S.markOnce(`${p}_hydration_end`));
+      S.emitSummaryOnce();
+      return printed.length === 1;
+    })(),
+    'a amostra pode sair antes do primeiro layout (durações ainda inexistentes)');
+
+  // (4) Ausentes viram null — nunca zero, nunca inventado.
+  check('LP1M-B (comportamental): valor não medido vira null (nunca 0, nunca inventado)',
+    !!S
+    && (() => {
+      S.reset(); printed.length = 0;
+      S.mark('app_render_start');
+      S.markOnce('route_decision_end', { route: 'Home' });
+      S.markOnce('home_first_layout');
+      ['profile', 'progress', 'packs'].forEach((p) => S.markOnce(`${p}_hydration_end`));
+      const s = S.buildSample();
+      // sem font_gate_start/terminal, sem splash_mount e sem *_hydration_start
+      return s.fontGateMs === null && s.fontReason === null && s.splashReactMs === null
+        && s.profileHydrationMs === null && s.progressHydrationMs === null;
+    })(),
+    'valores ausentes deixaram de ser null (risco de ler "não medido" como zero)');
+
+  // (5) Sem PII na amostra.
+  check('LP1M-B (comportamental): a amostra não carrega PII, mesmo se o call site tentar',
+    !!S
+    && (() => {
+      bootHome();
+      S.markOnce('route_decision_error', { route: 'Ana Maria', reason: 'error' });  // tentativa
+      S.emitSummaryOnce();
+      const line = printed[0] || '';
+      return !/Ana|Maria|@|childName|profileId|avatar/i.test(line)
+        && Object.keys(JSON.parse(line.slice('[PTF_PERF_SAMPLE] '.length)))
+          .every((k) => ['schema', 'route', 'fontReason', 'routeReason', 'fontGateMs', 'routeDecisionMs',
+            'splashReactMs', 'firstLayoutMs', 'profileHydrationMs', 'progressHydrationMs',
+            'packsHydrationMs', 'bufferDropped'].includes(k));
+    })(),
+    'a amostra pode vazar PII ou campos fora do schema');
+
+  // (6) Desligado: nada sai.
+  check('LP1M-B (comportamental): com o trace desligado não há marca nem amostra',
+    (() => {
+      const out = [];
+      let D = null;
+      try {
+        const code = a1StripComments(readSrc('src/services/performanceTrace.js'))
+          .replace(/export default[\s\S]*$/m, '')
+          .replace(/^try \{[\s\S]*?globalThis\.__ptfPerf[\s\S]*?\n\} catch \(e\) \{[^}]*\}/m, '')
+          .replace(/export /g, '')
+          + '; return { mark, markOnce, emitSummaryOnce, getSnapshot };';
+        D = new Function('__DEV__', 'globalThis', 'console', 'process', code)(
+          false, { performance: { now: () => 1 } }, { log: (l) => out.push(l) }, { env: {} },
+        );
+      } catch (e) { return false; }
+      D.mark('app_render_start'); D.markOnce('home_first_layout');
+      const emitted = D.emitSummaryOnce();
+      return emitted === false && out.length === 0 && D.getSnapshot() === null;
+    })(),
+    'a instrumentação emite mesmo desligada (fora de DEV e sem a flag)');
+
+  // Sem t0 não há boot: um reset/Fast Refresh destrava o emissor E limpa as marcas ao mesmo
+  // tempo (mesmo estado de módulo) — sem o guard sairia uma 2ª amostra toda nula.
+  check('LP1M-B (comportamental): sem app_render_start não sai amostra (Fast Refresh/reset não gera linha nula)',
+    !!S
+    && (() => {
+      S.reset(); printed.length = 0;
+      S.markOnce('home_first_layout');   // layout existe, mas o buffer não tem t0
+      ['profile', 'progress', 'packs'].forEach((p) => S.markOnce(`${p}_hydration_end`));
+      S.emitSummaryOnce();
+      return printed.length === 0 && S.buildSample() === null;
+    })(),
+    'uma amostra sem t0 (toda nula) pode ser emitida e poluir a baseline');
+
+  // ── Agregador (require real do módulo CommonJS) ──
+  let R = null;
+  try { R = require('./perf-baseline-report.js'); } catch (e) { R = null; }
+
+  check('LP1M-B (agregador): amostra sem nenhuma métrica medida é rejeitada (defesa em profundidade)',
+    !!R
+    && R.validate({
+      schema: 1, route: 'Home', fontReason: null, routeReason: null,
+      fontGateMs: null, routeDecisionMs: null, splashReactMs: null, firstLayoutMs: null,
+      profileHydrationMs: null, progressHydrationMs: null, packsHydrationMs: null, bufferDropped: 0,
+    }).ok === false,
+    'o agregador aceita amostra vazia como boot válido');
+
+  // (9)(10) Parser ignora ruído e rejeita schema incorreto.
+  check('LP1M-B (agregador): ignora ruído do Metro e rejeita schema/campos inválidos',
+    !!R
+    && R.parseLine('iOS Bundled 1200ms (1234 modules)') === null
+    && R.parseLine('[PTF_PERF_SAMPLE] {truncado') === null
+    && R.validate({ schema: 2 }).ok === false
+    && R.validate(null).ok === false
+    && R.validate({ schema: 1, route: 'Home' }).ok === false            // campos faltando
+    && R.validate({
+      schema: 1, route: 'Home', fontReason: 'loaded', routeReason: 'end',
+      fontGateMs: 40, routeDecisionMs: 18, splashReactMs: 810, firstLayoutMs: 860,
+      profileHydrationMs: 11, progressHydrationMs: 90, packsHydrationMs: null, bufferDropped: 0,
+    }).ok === true,
+    'o agregador aceita ruído/amostra inválida, ou rejeita amostra boa');
+
+  // (11)(12) Mediana e p90 corretos.
+  check('LP1M-B (agregador): mediana e p90 corretos (interpolação linear), sem usar média',
+    !!R
+    && R.median([1, 2, 3]) === 2
+    && R.median([1, 2, 3, 4]) === 2.5
+    && R.percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.9) === 9.1
+    && R.percentile([5], 0.9) === 5
+    && R.percentile([], 0.5) === null
+    && !/\bmean\b|média(?! omitida)/i.test(readSrc('scripts/perf-baseline-report.js').replace(/[\s\S]*Indicadores/, '')),
+    'a estatística do agregador está incorreta, ou a média virou indicador');
+
+  // (13) Agrupamento por rota + ausentes contados.
+  check('LP1M-B (agregador): agrupa por rota e CONTA ausentes (não trata null como 0)',
+    !!R
+    && (() => {
+      const base = {
+        schema: 1, fontReason: 'loaded', routeReason: 'end', fontGateMs: 10, routeDecisionMs: 10,
+        splashReactMs: 10, firstLayoutMs: 10, profileHydrationMs: 10, progressHydrationMs: 10,
+        bufferDropped: 0,
+      };
+      const rows = [
+        { ...base, route: 'Home', packsHydrationMs: 20 },
+        { ...base, route: 'Home', packsHydrationMs: null },
+        { ...base, route: 'Onboarding', packsHydrationMs: 30 },
+      ];
+      const g = R.groupBy(rows, 'route');
+      if (g.get('Home').length !== 2 || g.get('Onboarding').length !== 1) return false;
+      const st = R.statsFor(rows, 'packsHydrationMs');
+      return st.n === 2 && st.missing === 1 && st.min === 20 && st.max === 30;   // null NÃO virou 0
+    })(),
+    'o agregador não agrupa por rota, ou conta ausente como zero');
+}
+{
+  // Reaberto para não quebrar o escopo dos checks LP1A abaixo.
+  const gate = readSrc('src/services/bootRoute.js');
+  let B = null;
+  try {
+    const code = a1StripComments(gate).replace(/export default[\s\S]*$/m, '').replace(/export /g, '')
+      + '; return { BOOT_FALLBACK_ROUTE, resolveBootRoute, canNavigate };';
+    B = new Function(code)();
+  } catch (e) { B = null; }
+  const baseGate = { route: 'Home', animationDone: true, alive: true, navigated: false };
+
 }
 
 

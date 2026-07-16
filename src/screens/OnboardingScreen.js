@@ -34,7 +34,7 @@ import { markOnboardingCompleted } from '../services/onboardingService';
 import { requestInitialTour } from '../services/beniTourService';
 import { warmupOnboarding, ensurePageReady } from '../services/onboardingAssetWarmup';
 import { finalizeName, isValidName, normalizeName } from '../services/onboardingName';
-import { markOnce } from '../services/performanceTrace';
+import { emitSummaryOnce, markOnce } from '../services/performanceTrace';
 import { BENI_IMAGES } from '../assets/mascot/beniImages';
 import { getStoryCover } from '../assets/storyCovers';
 import { DEFAULT_AVATAR_ID, DEFAULT_SKIN_TONE, getAvatarImage, isAvatarUnlocked } from '../data/avatars';
@@ -309,7 +309,7 @@ export default function OnboardingScreen({ navigation }) {
   return (
     // LP1M-A: `onLayout` só OBSERVA o primeiro layout da raiz (uma vez por boot). Não muda
     // geometria, não cria View e não afirma "interativo" — só que o layout foi confirmado.
-    <View style={styles.fill} onLayout={() => markOnce('onboarding_first_layout')}>
+    <View style={styles.fill} onLayout={() => { markOnce('onboarding_first_layout'); emitSummaryOnce(); }}>
       <StorybookBackground width={width} height={height} bookRect={{ x: (width - bookW) / 2, y: insets.top + 52, w: bookW, h: bookH }} />
 
       {/* Provas de render readiness (ocultas): garantem que as páginas já pintaram antes da virada */}

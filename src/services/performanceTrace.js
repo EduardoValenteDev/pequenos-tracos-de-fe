@@ -141,6 +141,8 @@ export function reset() {
     measures.length = 0;
     onceEmitted.clear();
     dropped = 0;
+    sampleEmitted = false;
+    if (sampleTimer) { clearTimeout(sampleTimer); sampleTimer = null; }
   } catch (e) { /* noop */ }
 }
 
@@ -201,11 +203,130 @@ export function summarize() {
   }
 }
 
+/* ───────────────────────── Amostra reproduzível (LP1M-B) ───────────────────────── */
+
+/** Prefixo fixo da amostra — é o que o agregador procura. */
+export const SAMPLE_PREFIX = '[PTF_PERF_SAMPLE]';
+/** Versão do schema da amostra (o agregador rejeita o que não bater). */
+export const SAMPLE_SCHEMA = 1;
+/** Teto para esperar os terminais dos providers. Não bloqueia o app: só adia a IMPRESSÃO. */
+export const SAMPLE_PROVIDERS_CEILING_MS = 3000;
+
+let sampleEmitted = false;
+let sampleTimer = null;
+
+const TERMINAL_FONT = ['font_gate_loaded', 'font_gate_error', 'font_gate_timeout'];
+const TERMINAL_ROUTE = ['route_decision_end', 'route_decision_error', 'route_decision_timeout'];
+/** Terminal de um gate = o que chegou PRIMEIRO (menor t). Nunca por ordem de lista. */
+function terminalEvent(names) {
+  return names.map(firstEvent).filter(Boolean).sort((a, b) => a.t - b.t)[0] || null;
+}
+function deltaBetween(a, b) {
+  const x = firstEvent(a);
+  const y = firstEvent(b);
+  return (x && y) ? Math.round(y.t - x.t) : null;   // ausente = null, nunca inventado
+}
+
+/** Os 3 providers já publicaram um terminal (end OU error)? */
+function providersSettled() {
+  return ['profile', 'progress', 'packs'].every(
+    (p) => firstEvent(`${p}_hydration_end`) || firstEvent(`${p}_hydration_error`),
+  );
+}
+
+/** Monta a amostra. Só lê o que foi medido; o que não existe vira `null`. */
+export function buildSample() {
+  try {
+    if (!isPerformanceTraceEnabled()) return null;
+    // Sem t0 não houve boot observado: `sampleEmitted` e `events` vivem no MESMO estado de módulo,
+    // então uma reavaliação (Fast Refresh) ou um `reset()` destrava o emissor E apaga as marcas ao
+    // mesmo tempo. Sem este guard, sairia uma 2ª amostra inteiramente nula poluindo a baseline.
+    if (!firstEvent('app_render_start')) return null;
+    const fontEv = terminalEvent(TERMINAL_FONT);
+    const routeEv = terminalEvent(TERMINAL_ROUTE);
+    const route = routeEv && routeEv.meta && routeEv.meta.route ? routeEv.meta.route : null;
+    // A rota do boot decide QUAL first layout conta — o da outra rota seria tempo de interação.
+    const layoutMark = route === 'Onboarding' ? 'onboarding_first_layout'
+      : route === 'Home' ? 'home_first_layout' : null;
+    return {
+      schema: SAMPLE_SCHEMA,
+      route,
+      fontReason: fontEv ? fontEv.name.replace('font_gate_', '') : null,
+      routeReason: routeEv ? routeEv.name.replace('route_decision_', '') : null,
+      fontGateMs: fontEv ? deltaBetween('font_gate_start', fontEv.name) : null,
+      routeDecisionMs: routeEv ? deltaBetween('route_decision_start', routeEv.name) : null,
+      splashReactMs: deltaBetween('splash_mount', 'navigation_replace_success'),
+      firstLayoutMs: layoutMark ? deltaBetween('app_render_start', layoutMark) : null,
+      profileHydrationMs: deltaBetween('profile_hydration_start', 'profile_hydration_end'),
+      progressHydrationMs: deltaBetween('progress_hydration_start', 'progress_hydration_end'),
+      packsHydrationMs: deltaBetween('packs_hydration_start', 'packs_hydration_end'),
+      bufferDropped: dropped,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Emite UMA linha de amostra por processo, para coleta reproduzível.
+ *
+ * Regras: só com o trace ligado; nunca antes do primeiro layout da rota inicial (senão as
+ * durações ainda não existem); espera os terminais dos providers SEM bloquear o app (adia só a
+ * impressão, com teto); imprime uma única linha JSON (nunca marca a marca); nunca lança.
+ * A emissão NÃO altera durações: todas as marcas já foram gravadas antes.
+ */
+export function emitSummaryOnce() {
+  try {
+    if (!isPerformanceTraceEnabled()) return false;
+    // 1 por INSTÂNCIA DO MÓDULO (é o que o estado de módulo garante — um Fast Refresh que
+    // reavalie este arquivo zera a trava; nesse caso o guard de t0 em buildSample é quem barra).
+    if (sampleEmitted) return false;
+    if (!firstEvent('home_first_layout') && !firstEvent('onboarding_first_layout')) return false;
+
+    const print = () => {
+      try {
+        if (sampleEmitted) return;
+        sampleEmitted = true;
+        if (sampleTimer) { clearTimeout(sampleTimer); sampleTimer = null; }
+        const sample = buildSample();
+        if (!sample) return;
+        // Uma linha, prefixo fixo, JSON válido. Não imprime marca por marca.
+        console.log(`${SAMPLE_PREFIX} ${JSON.stringify(sample)}`);
+      } catch (e) { /* noop */ }
+    };
+
+    if (providersSettled()) { print(); return true; }
+
+    // Providers ainda hidratando: adia a IMPRESSÃO (o app segue normal) com teto defensivo.
+    if (!sampleTimer) {
+      const startedAt = now();
+      const poll = () => {
+        try {
+          if (sampleEmitted) return;
+          if (providersSettled() || (now() - startedAt) >= SAMPLE_PROVIDERS_CEILING_MS) { print(); return; }
+          sampleTimer = setTimeout(poll, 100);
+        } catch (e) { /* noop */ }
+      };
+      sampleTimer = setTimeout(poll, 100);
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/** Cancela a espera pendente da amostra (cleanup). Nunca lança. */
+export function cancelSampleEmission() {
+  try {
+    if (sampleTimer) { clearTimeout(sampleTimer); sampleTimer = null; }
+  } catch (e) { /* noop */ }
+}
+
 // Leitura em DEV sem tela nova e sem botão user-facing: no console do dev,
 // `__ptfPerf.summary()` ou `__ptfPerf.snapshot()`. Não existe quando desligado.
 try {
   if (isPerformanceTraceEnabled()) {
-    globalThis.__ptfPerf = { summary: summarize, snapshot: getSnapshot, reset };
+    globalThis.__ptfPerf = { summary: summarize, snapshot: getSnapshot, sample: buildSample, reset };
   }
 } catch (e) { /* noop */ }
 
