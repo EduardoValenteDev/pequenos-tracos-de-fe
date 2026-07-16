@@ -8272,14 +8272,35 @@ console.log('\n── LP2: concorrência e integridade dos story packs ──');
     );
   };
 
-  // Single-flight REAL: avalia o trecho do serviço (chave + mapa + wrapper) com o corpo da
-  // instalação substituído por um double — nenhuma rede, nenhum arquivo.
+  // Single-flight REAL: avalia o trecho do serviço (mapas + fila por história + wrapper) com o
+  // corpo da instalação substituído por um double — nenhuma rede, nenhum arquivo. Assim
+  // "quantas instalações FÍSICAS ocorreram" é contado direto, sem inferir do disco.
+  // (O caminho feliz completo, com o Impl REAL, é provado no bloco LP2.1a-ii-A.)
+  const FLIGHT_START = 'const inFlightInstalls = new Map();';
+  const FLIGHT_END = 'return { downloadStoryPackScenesFromGlobalManifest, inFlightInstallCount, packInstallKey };';
+  const iFlightStart = dlC.indexOf(FLIGHT_START);
+  const iFlightEnd = dlC.indexOf(FLIGHT_END);
+  const flightSlice = (iFlightStart >= 0 && iFlightEnd > iFlightStart) ? dlC.slice(iFlightStart, iFlightEnd) : '';
+
+  // ANTITAUTOLOGIA: se a extração falhar (código reformatado/renomeado), os testes abaixo
+  // rodariam sobre um corpo vazio e "passariam" sem exercitar nada. Isto falha primeiro e alto.
+  check('LP2 (extração): o trecho real do single-flight foi extraído do fonte com os 4 elementos esperados',
+    !!flightSlice
+    && flightSlice.includes('const storyInstallChains = new Map()')
+    && flightSlice.includes('function runExclusiveByStory(')
+    && flightSlice.includes('function guardedInstall(')
+    && flightSlice.includes('async function downloadStoryPackScenesFromGlobalManifest(params = {})'),
+    'não foi possível extrair o single-flight do fonte — os testes de concorrência abaixo não provariam nada');
+
+  // `packInstallKey` é injetado REAL (módulo, puro) — não é uma cópia dentro do recorte.
+  const realPackInstallKey = require('./testing/packInstallHarness').loadPackDownloader().packInstallKey;
   const makeFlight = (impl) => {
-    const slice = dlC.slice(dlC.indexOf('const inFlightInstalls = new Map()'));
-    const code = "const KNOWN_KINDS = ['cover','scene','coloring','audio'];\n"
-      + slice.replace(/export /g, '')
-      + '; return { downloadStoryPackScenesFromGlobalManifest, packInstallKey, inFlightInstallCount };';
-    return new Function('downloadStoryPackScenesFromGlobalManifestImpl', code)(impl);
+    const code = flightSlice
+      + '\n; return { downloadStoryPackScenesFromGlobalManifest, inFlightInstallCount };';
+    return {
+      ...new Function('downloadStoryPackScenesFromGlobalManifestImpl', 'packInstallKey', code)(impl, realPackInstallKey),
+      packInstallKey: realPackInstallKey,
+    };
   };
 
   // Fila do índice + single-flight são assíncronos; o sumário do smoke aguarda esta promise.
@@ -8873,6 +8894,315 @@ console.log('\n── LP2.1a-i: reconciliação de story packs (funções reais)
     && /localDirExists === false/.test(recC) && /manifestExists === false/.test(recC)
     && !/manifestSha256/.test(a1StripComments(readSrc('src/services/packStorageService.js'))),
     'a reconciliação passou a verificar hash/arquivos (ou o manifestSha256 entrou na entry) — atualize a limitação declarada');
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-ii-A — Seam de injeção + harness + prova da instalação VÁLIDA.
+// Produção e teste executam a MESMA implementação (createPackDownloadService).
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-ii-A: instalação de story pack (fluxo real via seam) ──');
+{
+  const { createPackInstallHarness, loadPackDownloader } = require('./testing/packInstallHarness');
+  const dlCA = a1StripComments(readSrc('src/services/packDownloadService.js'));
+
+  // O downloader REAL, carregado do fonte. Quem decide as dependências é a seam, não o require.
+  const { createPackDownloadService } = loadPackDownloader();
+
+  // Cenário VÁLIDO: manifesto por-pack no schema REAL (packManifestService valida de verdade).
+  const BASE = 'https://r2/david_goliath/v1/';
+  const GLOBAL_URL = 'https://r2/content-manifest.json';
+  const FILES = [
+    { kind: 'scene', path: 'scenes/01.webp', text: 'CENA-UM-BYTES' },
+    { kind: 'scene', path: 'scenes/02.webp', text: 'CENA-DOIS-BYTES' },
+    { kind: 'audio', path: 'audio/01.mp3', text: 'AUDIO-UM-BYTES' },
+  ];
+  const setupValid = (h, { storyId = 'david_goliath', version = '1.0.0' } = {}) => {
+    const files = FILES.map((f) => ({
+      kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text),
+    }));
+    const manifest = {
+      schemaVersion: 1, id: storyId, version, type: 'story', minAppVersion: '1.0.0',
+      totalBytes: files.reduce((a, f) => a + f.bytes, 0),
+      files,
+      metadata: { storyId, title: 'Davi e Golias', language: 'pt-BR' },
+    };
+    const manifestText = JSON.stringify(manifest);
+    h.setGlobalManifest({
+      manifestVersion: 1, minAppVersion: '1.0.0',
+      packs: [{ storyId, version, baseUrl: BASE, manifestPath: 'manifest.json',
+        manifestSha256: h.sha256OfText(manifestText), requiresAppUpdate: false }],
+    });
+    h.route(`${BASE}manifest.json`, { text: manifestText });
+    FILES.forEach((f) => h.route(BASE + f.path, { text: f.text }));
+    return { manifest, manifestText };
+  };
+  const install = (svc, extra) => svc.downloadStoryPackScenesFromGlobalManifest({
+    storyId: 'david_goliath', globalManifestUrl: GLOBAL_URL, appVersion: '1.0.0',
+    requestedKinds: ['scene', 'audio'], ...extra,
+  });
+
+  // ── §8.7 API pública preservada (estático) ──
+  check('LP2.1a-ii-A §8.7 (API pública): os 7 exports seguem presentes e delegam ao defaultService; sem flag de teste',
+    /export const DOWNLOAD_FLOW/.test(dlCA)
+    && /export async function downloadPackFromManifest/.test(dlCA)
+    && /export async function simulateInstallLocalPack/.test(dlCA)
+    && /export async function markPackReady/.test(dlCA)
+    && /export function packInstallKey/.test(dlCA)
+    && /export function inFlightInstallCount\(\) \{\s*return defaultService\.inFlightInstallCount\(\);/.test(dlCA)
+    && /export async function downloadStoryPackScenesFromGlobalManifest\(params = \{\}\) \{\s*return defaultService\.downloadStoryPackScenesFromGlobalManifest\(params\);/.test(dlCA)
+    && /const defaultService = createPackDownloadService\(\{/.test(dlCA)
+    && !/globalThis|process\.env|__TEST__|monkey/.test(dlCA),   // seam não é ativável por fora
+    'a API pública mudou, não delega ao singleton, ou apareceu flag/global de teste no runtime');
+
+  // ── Produção e teste executam o MESMO algoritmo ──
+  check('LP2.1a-ii-A §5 (um só algoritmo): existe UMA implementação, dentro da factory, e o singleton usa deps REAIS',
+    (dlCA.match(/async function downloadStoryPackScenesFromGlobalManifestImpl/g) || []).length === 1
+    && dlCA.indexOf('async function downloadStoryPackScenesFromGlobalManifestImpl') > dlCA.indexOf('export function createPackDownloadService')
+    && /const defaultService = createPackDownloadService\(\{[\s\S]{0,400}FileSystem,[\s\S]{0,400}fetchGlobalContentManifest,/.test(dlCA)
+    && /const REQUIRED_DEPS = Object\.freeze\(\[/.test(dlCA),
+    'existe mais de uma implementação, ou o singleton não usa as dependências reais');
+
+  // ── §8.6 isolamento entre instâncias (estático: os mapas nascem DENTRO da factory) ──
+  const iFactory = dlCA.indexOf('function createPackDownloadService');
+  const iReturnF = dlCA.indexOf('return { downloadStoryPackScenesFromGlobalManifest, inFlightInstallCount, packInstallKey };');
+  check('LP2.1a-ii-A §8.6 (estado por instância): inFlightInstalls e storyInstallChains vivem DENTRO da factory',
+    iFactory >= 0 && iReturnF > iFactory
+    && dlCA.indexOf('const inFlightInstalls = new Map()') > iFactory
+    && dlCA.indexOf('const inFlightInstalls = new Map()') < iReturnF
+    && dlCA.indexOf('const storyInstallChains = new Map()') > iFactory
+    && dlCA.indexOf('const storyInstallChains = new Map()') < iReturnF,
+    'os mapas voltaram para escopo de módulo — duas instâncias compartilhariam voos e filas');
+
+  globalThis.__LP21AIIA = (async () => {
+    // ══ §8.1–§8.4: instalação válida completa ══
+    const h = createPackInstallHarness();
+    setupValid(h);
+    const svc = createPackDownloadService(h.deps);
+    const local = 'file:///doc/packs/david_goliath@1.0.0/';
+    const tmp = 'file:///doc/packs/.tmp/david_goliath@1.0.0/';
+    const antesLocal = h.mem.exists(local);
+    const res = await install(svc);
+
+    check('LP2.1a-ii-A §8.1 (resultado): a instalação conclui com storyId/version corretos, sem erro nem cancelamento',
+      res.ok === true && res.storyId === 'david_goliath' && res.version === '1.0.0'
+      && res.reason === undefined && res.cancelled === undefined
+      && res.counts.scene === 2 && res.counts.audio === 1,
+      'a instalação válida não conclui, ou devolve resultado incoerente');
+
+    check('LP2.1a-ii-A §8.2 (diretórios): final publicado com manifesto e arquivos; .tmp não permanece',
+      antesLocal === false                                   // não existia antes
+      && h.mem.exists(local) === true                         // existe depois do move
+      && h.mem.exists(`${local}manifest.json`) === true
+      && FILES.every((f) => h.mem.exists(local + f.path))     // todos os exigidos
+      && h.mem.fileText(`${local}scenes/01.webp`) === 'CENA-UM-BYTES'
+      && h.mem.exists(tmp) === false                          // .tmp não fica como instalação paralela
+      && h.mem.listFiles(tmp).length === 0,
+      'o diretório final não foi publicado corretamente, ou o .tmp sobreviveu');
+
+    const entry = await h.entry('david_goliath');
+    const readyWrites = h.events.filter((e) => e === 'set-entry:david_goliath:ready');
+    check('LP2.1a-ii-A §8.3 (índice): READY uma única vez, com versão, caminho, manifestPath e bytes coerentes',
+      entry.status === 'ready' && entry.version === '1.0.0'
+      && entry.localDir === local && entry.manifestPath === `${local}manifest.json`
+      && entry.totalBytes === FILES.reduce((a, f) => a + Buffer.byteLength(f.text), 0)
+      && entry.downloadedBytes === entry.totalBytes && entry.errorMessage === null
+      && readyWrites.length === 1,
+      'o índice final não está READY coerente, ou READY foi escrito mais de uma vez');
+
+    // ── §8.4 ORDEM (pelo log REAL do harness) ──
+    const ix = (needle) => h.events.findIndex((e) => e.includes(needle));
+    const iFetchGlobal = ix('fetch-global-manifest');
+    const iDelTmp = h.events.findIndex((e) => e === `delete:${tmp}`);
+    const iMkTmp = h.events.findIndex((e) => e === `mkdir:${tmp}`);
+    const iDlManifest = ix('download:https://r2/david_goliath/v1/manifest.json');
+    const iHashManifest = h.events.findIndex((e) => e === `hash:${tmp}manifest.json`);
+    const iValidate = ix('validate-manifest');
+    const iDlFirstFile = h.events.findIndex((e) => e.startsWith('download:') && e.includes('scenes/01.webp'));
+    const iMove = ix('move:');
+    const iReady = h.events.findIndex((e) => e === 'set-entry:david_goliath:ready');
+    // TODO arquivo pedido tem de ser conferido, não só o primeiro: ancorar a ordem no primeiro
+    // deixaria passar um verify que confere só o arquivo 1 e publica os demais sem olhar.
+    const iHashDe = (p) => h.events.indexOf(`hash:${tmp}${p}`);
+    const semHash = FILES.filter((f) => iHashDe(f.path) < 0).map((f) => f.path);
+    const iHashFile = iHashDe('scenes/01.webp');
+    const iHashUltimo = Math.max(...FILES.map((f) => iHashDe(f.path)));
+    const totalHashes = h.events.filter((e) => e.startsWith('hash:')).length;
+
+    // CUIDADO: findIndex devolve -1 para evento AUSENTE, e -1 < N é sempre verdadeiro. Sem exigir
+    // que cada passo tenha OCORRIDO, remover a âncora (ou o hash por arquivo) faria a ordem
+    // "passar" por omissão. Os passos são exigidos presentes antes de comparar posições.
+    const passos = { iFetchGlobal, iDelTmp, iMkTmp, iDlManifest, iHashManifest, iValidate, iDlFirstFile, iHashFile, iMove, iReady };
+    const ausentes = Object.keys(passos).filter((k) => passos[k] < 0);
+
+    check('LP2.1a-ii-A §8.4 (ordem): tmp → manifesto → âncora → validar → arquivos → hash → move → READY',
+      ausentes.length === 0                           // todo passo OCORREU (senão a ordem passaria por omissão)
+      && iFetchGlobal < iDelTmp                       // resolve o global ANTES de tocar o disco
+      && iDelTmp < iMkTmp && iMkTmp < iDlManifest
+      && iDlManifest < iHashManifest                  // baixa o manifesto e então confere a âncora
+      && iHashManifest < iValidate                    // âncora ANTES de confiar no schema
+      && iValidate < iDlFirstFile                     // nenhum arquivo do pack antes de validar
+      && iHashManifest < iDlFirstFile                 // (explícito) âncora antes de qualquer arquivo
+      && iDlFirstFile < iHashFile                     // hash por arquivo depois do download
+      && iHashUltimo < iMove                          // TODAS as validações antes de publicar
+      && iMove < iReady,                              // READY só depois do move
+      `a ordem real do fluxo regrediu${ausentes.length ? ` — passos que NÃO ocorreram: ${ausentes.join(', ')}` : ' (âncora tardia, arquivo antes de validar, ou READY antes do move)'}`);
+
+    check('LP2.1a-ii-A §8.4a (cobertura do verify): TODO arquivo pedido é conferido por hash antes de publicar — não só o primeiro',
+      semHash.length === 0                            // nenhum arquivo publicado sem conferência
+      && totalHashes === FILES.length + 1             // exatamente os arquivos + a âncora do manifesto
+      && FILES.every((f) => iHashDe(f.path) < iMove),
+      `arquivos publicados sem conferência de hash: ${semHash.join(', ') || '(nenhum, mas a contagem não bate: ' + totalHashes + ' != ' + (FILES.length + 1) + ')'}`);
+
+    // O diretório final SÓ é destruído na hora de publicar. Se o fluxo o apagasse no início
+    // (como faz com o .tmp), um download que falhasse levaria junto a instalação que funcionava.
+    const iDelLocal = h.events.indexOf(`delete:${local}`);
+    check('LP2.1a-ii-A §8.4b (atomicidade observável): o diretório final só é removido depois de tudo validado, colado no move',
+      iDelLocal > 0 && iDelLocal > iHashFile   // depois das validações, não no começo do fluxo
+      && iDelLocal === iMove - 1               // imediatamente antes de publicar (nada entre os dois)
+      && !h.events.slice(0, iDelLocal).some((e) => e.startsWith(`delete:${local}`)),  // nenhum outro antes
+      'o diretório instalado é removido cedo demais — uma falha no meio do caminho destruiria o pack que já funcionava');
+
+    check('LP2.1a-ii-A §8.4c (índice não vaza estado parcial): instalação nova grava o índice UMA vez, e é READY, após o move',
+      h.counters.setEntry === 1                          // nenhuma gravação intermediária
+      && readyWrites.length === 1 && iReady > iMove
+      && !h.events.slice(0, iMove).some((e) => e.startsWith('set-entry')),
+      'a instalação persistiu estado intermediário no índice, ou marcou READY antes de publicar');
+
+    // ══ §8.5: 10 chamadas simultâneas = UMA instalação física ══
+    {
+      const h2 = createPackInstallHarness();
+      setupValid(h2);
+      const svc2 = createPackDownloadService(h2.deps);
+      const rs = await Promise.all(Array.from({ length: 10 }, () => install(svc2)));
+      const dlManifest = h2.counters.byUrl[`${BASE}manifest.json`] || 0;
+      const dlScene1 = h2.counters.byUrl[`${BASE}scenes/01.webp`] || 0;
+      check('LP2.1a-ii-A §8.5 (single-flight): 10 chamadas idênticas = 1 manifesto, 1 download por arquivo, 1 move, 1 READY',
+        rs.every((r) => r && r.ok === true) && rs.length === 10
+        && dlManifest === 1 && dlScene1 === 1
+        && h2.counters.downloads === 1 + FILES.length
+        && h2.eventsOfType('move').length === 1
+        && h2.events.filter((e) => e === 'set-entry:david_goliath:ready').length === 1
+        && svc2.inFlightInstallCount() === 0,
+        'dez chamadas concorrentes produziram mais de uma instalação física');
+    }
+
+    // ══ §8.6: isolamento COMPORTAMENTAL entre instâncias ══
+    {
+      const hA = createPackInstallHarness(); setupValid(hA);
+      const hB = createPackInstallHarness(); setupValid(hB);
+      const svcA = createPackDownloadService(hA.deps);
+      const svcB = createPackDownloadService(hB.deps);
+      const [rA, rB] = await Promise.all([install(svcA), install(svcB)]);
+      check('LP2.1a-ii-A §8.6 (isolamento): duas factories não compartilham voos/filas; cada uma instala no seu mundo',
+        rA.ok === true && rB.ok === true
+        && hA.counters.byUrl[`${BASE}manifest.json`] === 1     // cada uma baixou o seu
+        && hB.counters.byUrl[`${BASE}manifest.json`] === 1
+        && hA.mem.exists('file:///doc/packs/david_goliath@1.0.0/') === true
+        && hB.mem.exists('file:///doc/packs/david_goliath@1.0.0/') === true
+        && svcA.inFlightInstallCount() === 0 && svcB.inFlightInstallCount() === 0,
+        'as instâncias compartilham estado — uma contaminou a outra');
+    }
+
+    // ══ §9: testes da própria seam ══
+    {
+      let erroDepFaltando = null;
+      try { createPackDownloadService({ FileSystem: {}, PACK_STATUS: {} }); }
+      catch (e) { erroDepFaltando = e; }
+      let erroSemDeps = null;
+      try { createPackDownloadService(); } catch (e) { erroSemDeps = e; }
+      check('LP2.1a-ii-A §9.1 (seam): dependência obrigatória ausente falha claramente na criação',
+        !!erroDepFaltando && /dependências ausentes/.test(erroDepFaltando.message)
+        && /getPackLocalDir/.test(erroDepFaltando.message)
+        && !!erroSemDeps && /deps obrigatório/.test(erroSemDeps.message),
+        'uma dependência ausente passa em silêncio (viraria undefined no meio do download)');
+
+      // §9.2 — um double que LANÇA faz a Promise rejeitar/erro real, não some.
+      const hX = createPackInstallHarness(); setupValid(hX);
+      const depsX = { ...hX.deps, fetchGlobalContentManifest: async () => { throw new Error('boom-rede'); } };
+      const svcX = createPackDownloadService(depsX);
+      let rejeitou = false;
+      let rx = null;
+      try { rx = await install(svcX); } catch (e) { rejeitou = /boom-rede/.test(e.message); }
+      check('LP2.1a-ii-A §9.2 (seam): double que lança propaga — a falha não desaparece',
+        rejeitou === true || (rx && rx.ok === false),
+        'uma exceção do double sumiu silenciosamente (o teste passaria sem executar o fluxo)');
+    }
+
+    // ══ §10: MUTATION CHECKS — cada proteção é comprovadamente load-bearing ══
+    /*
+     * Mutam o TEXTO do fonte em memória (nada é escrito no disco) e rodam o MESMO cenário no
+     * original e no mutante. A proteção só está provada se os DESFECHOS DIFEREM: com ela, o
+     * pack corrompido é rejeitado / o pack válido é publicado; sem ela, não.
+     *
+     * Comparar desfechos (e não "o mutante falhou") importa: sem âncora, o mutante ACEITA um
+     * manifesto que o original rejeita — o dano é aceitar, não falhar. E o M1 devolve ok:true
+     * sem publicar nada, então "retornou ok" não seria critério.
+     */
+    {
+      const MUTANTES = [
+        { id: 'M1', nome: 'move removido (nada é publicado no diretório final)',
+          mut: (s) => s.replace('    await FileSystem.moveAsync({ from: tempDir, to: localDir });', '') },
+        { id: 'M2', nome: 'mkdir do diretório-pai por arquivo removido (caminhos aninhados não baixam)',
+          mut: (s) => s.replace('await FileSystem.makeDirectoryAsync(parent, { intermediates: true });', '') },
+        { id: 'M3', nome: 'âncora do manifesto (manifestSha256) não conferida', corrompe: 'manifesto',
+          mut: (s) => s.replace("    if (mh.sha256 !== expectedManifestSha) return failWith('manifest.json com sha256 divergente da âncora (pack remoto rejeitado)');", '') },
+        { id: 'M4', nome: 'hash por arquivo não conferido', corrompe: 'arquivo-1',
+          mut: (s) => s.replace('        const h = await computeFileSha256(fileUri);', '        const h = { ok: true, sha256: String(f.sha256).toLowerCase() };') },
+        { id: 'M5', nome: 'verify confere SÓ o primeiro arquivo (os demais entram sem olhar)', corrompe: 'arquivo-2',
+          mut: (s) => s.replace('    for (const f of wanted) {\n      const fileUri', '    for (const f of wanted.slice(0, 1)) {\n      const fileUri') },
+      ];
+      // Sem algo para esconder, o mutante não se revela: cada proteção de integridade precisa de
+      // um conteúdo que ELA rejeitaria. M5 exige corrupção DEPOIS do primeiro arquivo — é essa a
+      // diferença que a ancoragem só-no-primeiro deixava passar.
+      // A troca preserva o TAMANHO: o fluxo confere bytes ANTES do hash, e uma corrupção de
+      // tamanho diferente seria pega pela contagem de bytes — o hash nunca seria exercitado.
+      const mesmoTamanho = (t) => `X${t.slice(1)}`;
+      const corromper = (hm, tipo, manifestText) => {
+        if (tipo === 'manifesto') hm.route(`${BASE}manifest.json`, { text: manifestText.replace('Davi e Golias', 'Davi e Golias!') });
+        if (tipo === 'arquivo-1') hm.route(BASE + FILES[0].path, { text: mesmoTamanho(FILES[0].text) });
+        if (tipo === 'arquivo-2') hm.route(BASE + FILES[1].path, { text: mesmoTamanho(FILES[1].text) });
+      };
+      // Desfecho observável: instalou? o índice ficou pronto? os arquivos estão publicados?
+      const rodar = async (mut, corrompe) => {
+        const hm = createPackInstallHarness();
+        const { manifestText } = setupValid(hm);
+        if (corrompe) corromper(hm, corrompe, manifestText);
+        let r;
+        try {
+          r = await loadPackDownloader(mut).createPackDownloadService(hm.deps)
+            .downloadStoryPackScenesFromGlobalManifest({
+              storyId: 'david_goliath', globalManifestUrl: GLOBAL_URL, appVersion: '1.0.0', requestedKinds: ['scene', 'audio'],
+            });
+        } catch (e) { r = { ok: false, reason: `lançou: ${e.message}` }; }
+        const e2 = await hm.entry('david_goliath');
+        return `ok=${r && r.ok === true}|status=${(e2 && e2.status) || 'ausente'}|publicados=${FILES.filter((f) => hm.mem.exists(local + f.path)).length}`;
+      };
+
+      const veredito = [];
+      for (const m of MUTANTES) {
+        const original = await rodar(undefined, m.corrompe);
+        const mutante = await rodar(m.mut, m.corrompe);
+        veredito.push({ id: m.id, nome: m.nome, original, mutante, morreu: original !== mutante });
+      }
+
+      const sobreviventes = veredito.filter((x) => !x.morreu);
+      check('LP2.1a-ii-A §10 (mutation checks): remover qualquer uma das 5 proteções muda o desfecho — nenhuma é decorativa',
+        sobreviventes.length === 0 && veredito.length === 5,
+        `proteções que podem ser removidas SEM mudar nada (a prova não as vigia): ${sobreviventes.map((x) => `${x.id} ${x.nome} [${x.original}]`).join(' | ')}`);
+
+      // Sem isto, "os desfechos diferem" poderia ser satisfeito por dois modos de falhar.
+      const integridade = veredito.filter((x) => ['M3', 'M4', 'M5'].includes(x.id));
+      check('LP2.1a-ii-A §10b (direção): nas 3 proteções de integridade, o original REJEITA o corrompido e o mutante ACEITA',
+        integridade.length === 3
+        && integridade.every((x) => x.original.startsWith('ok=false') && x.mutante.startsWith('ok=true')),
+        `direção errada: ${integridade.map((x) => `${x.id} original[${x.original}] mutante[${x.mutante}]`).join(' | ')}`);
+    }
+  })();
+  // O sumário só observa esta promise lá no fim. Sem um handler agora, uma falha aqui vira
+  // `unhandledRejection` e o Node derruba o processo ANTES da guarda §9.3 conseguir reportar —
+  // vermelho de qualquer jeito, mas como stack trace cru em vez da mensagem que aponta o bloco.
+  globalThis.__LP21AIIA.catch(() => {});
 }
 
 
@@ -24947,6 +25277,14 @@ check(
   check('LP2.1a-iR2 (harness): as provas do failWith concluíram sem estourar',
     !lp21air2Err,
     `as provas do failWith lançaram (${lp21air2Err && lp21air2Err.message}) — os checks delas não rodaram`);
+
+  // §9.3 — uma exceção assíncrona do harness TEM de virar falha do smoke (senão os checks
+  // seguintes somem em silêncio e o total fica verde por engano).
+  let lp21aiiaErr = null;
+  try { await globalThis.__LP21AIIA; } catch (e) { lp21aiiaErr = e; }
+  check('LP2.1a-ii-A §9.3 (harness): o bloco assíncrono da instalação concluiu sem estourar',
+    !lp21aiiaErr,
+    `o bloco da instalação lançou (${lp21aiiaErr && lp21aiiaErr.stack ? String(lp21aiiaErr.stack).split('\n').slice(0, 3).join(' | ') : lp21aiiaErr}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;

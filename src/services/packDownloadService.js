@@ -76,31 +76,6 @@ export async function markPackReady(storyId, version, localDir, manifest) {
   });
 }
 
-/**
- * Casca de disco do downloader: o `localDir` existe? e o `manifest.json` dentro dele?
- *
- * Mesmo CONTRATO da casca do PacksContext (`probePackDisk`) — de propósito: a DECISÃO é a mesma
- * função pura (`isReadyEntryValid`), então UI e downloader nunca discordam sobre o que é um pack
- * instalado. A casca é duplicada porque o núcleo de reconciliação é PURO (sem I/O) e o
- * packStorageService é protegido (F2.5-hardening-2 exige que ele fique sem essa lógica);
- * `failWith` também não pode depender de React/PacksContext.
- *
- * `localDir` ausente/vazio → `{false,false}` SEM I/O (ausência de caminho é evidência conclusiva).
- * `getInfoAsync` lançando → `{null,null}` = INDETERMINADO → o núcleo é conservador (preserva).
- * Nunca lança.
- */
-async function probeInstalledPackDisk(localDir) {
-  if (!localDir) return { localDirExists: false, manifestExists: false };
-  try {
-    const d = await FileSystem.getInfoAsync(localDir);
-    if (!d || !d.exists) return { localDirExists: false, manifestExists: false };
-    const m = await FileSystem.getInfoAsync(`${localDir}manifest.json`);
-    return { localDirExists: true, manifestExists: !!(m && m.exists) };
-  } catch (e) {
-    return { localDirExists: null, manifestExists: null };
-  }
-}
-
 /** Kinds de mídia conhecidos de um pack (bate com o manifesto por-pack e o resolver). */
 const KNOWN_KINDS = ['cover', 'scene', 'coloring', 'audio'];
 
@@ -138,6 +113,84 @@ const SPACE_MARGIN_FLOOR_BYTES = 20 * 1024 * 1024; // 20 MB
 function spaceNeededBytes(estimateBytes) {
   const e = Number.isFinite(estimateBytes) && estimateBytes > 0 ? estimateBytes : 0;
   return e + Math.max(Math.ceil(e * 0.2), SPACE_MARGIN_FLOOR_BYTES);
+}
+
+/**
+ * Chave canônica da instalação.
+ *
+ * A VERSÃO não entra: ela só é conhecida DEPOIS de buscar o manifesto — mas é função de
+ * (manifesto, storyId, appVersion), então duas chamadas com a mesma chave resolvem
+ * necessariamente a mesma versão. Manifesto ou appVersion diferentes → chaves diferentes →
+ * não compartilham (é assim que versões/manifestos incompatíveis ficam separados).
+ * `requestedKinds` entra normalizado e ordenado: quem pediu o pack completo não pode receber a
+ * operação de quem pediu só cenas.
+ */
+export function packInstallKey(params = {}) {
+  const { storyId, globalManifestUrl, appVersion = '1.0.0', requestedKinds = ['scene'] } = params || {};
+  const kinds = (Array.isArray(requestedKinds) ? requestedKinds : [])
+    .filter((k) => KNOWN_KINDS.includes(k))
+    .slice()
+    .sort();
+  return [String(storyId || ''), String(globalManifestUrl || ''), String(appVersion || ''), kinds.join(',')].join('|');
+}
+
+/* ═══════════════ Seam de injeção (LP2.1a-ii-A) ═══════════════ */
+/*
+ * UMA implementação do algoritmo, usada por produção E por teste. A factory recebe as
+ * dependências explicitamente; `defaultService` (abaixo) é criado com as REAIS e os exports
+ * públicos delegam a ele — nenhum call site muda.
+ *
+ * Por que factory e não um módulo com imports diretos: os mapas de single-flight e a fila física
+ * precisam ser POR INSTÂNCIA. Em escopo de módulo, dois cenários de teste compartilhariam voos e
+ * filas (um contaminaria o outro) e não haveria como provar o isolamento.
+ *
+ * A desestruturação abaixo SOMBREIA os imports do módulo dentro de todo o corpo da factory — por
+ * isso o algoritmo permanece byte-idêntico ao anterior, sem renomeações.
+ *
+ * Não há flag de teste, global ou monkey patch: quem quiser doubles chama a factory.
+ */
+const REQUIRED_DEPS = Object.freeze([
+  'FileSystem', 'PACK_STATUS', 'getPackLocalDir', 'getPackTempDir', 'setPackEntry', 'getPackEntry',
+  'isReadyEntryValid', 'validatePackManifest', 'computeFileSha256', 'fetchGlobalContentManifest',
+  'getPackFromGlobalManifest', 'warn',
+]);
+
+export function createPackDownloadService(deps) {
+  // Dependência ausente falha AQUI, alto e claro — nunca vira `undefined is not a function`
+  // no meio de um download (nenhuma dep é opcional em silêncio).
+  if (!deps || typeof deps !== 'object') throw new Error('createPackDownloadService: deps obrigatório');
+  const missing = REQUIRED_DEPS.filter((k) => deps[k] == null);
+  if (missing.length) throw new Error(`createPackDownloadService: dependências ausentes: ${missing.join(', ')}`);
+
+  const {
+    FileSystem, PACK_STATUS, getPackLocalDir, getPackTempDir, setPackEntry, getPackEntry,
+    isReadyEntryValid, validatePackManifest, computeFileSha256, fetchGlobalContentManifest,
+    getPackFromGlobalManifest, warn,
+  } = deps;
+
+/**
+ * Casca de disco do downloader: o `localDir` existe? e o `manifest.json` dentro dele?
+ *
+ * Mesmo CONTRATO da casca do PacksContext (`probePackDisk`) — de propósito: a DECISÃO é a mesma
+ * função pura (`isReadyEntryValid`), então UI e downloader nunca discordam sobre o que é um pack
+ * instalado. A casca é duplicada porque o núcleo de reconciliação é PURO (sem I/O) e o
+ * packStorageService é protegido (F2.5-hardening-2 exige que ele fique sem essa lógica);
+ * `failWith` também não pode depender de React/PacksContext.
+ *
+ * `localDir` ausente/vazio → `{false,false}` SEM I/O (ausência de caminho é evidência conclusiva).
+ * `getInfoAsync` lançando → `{null,null}` = INDETERMINADO → o núcleo é conservador (preserva).
+ * Nunca lança.
+ */
+async function probeInstalledPackDisk(localDir) {
+  if (!localDir) return { localDirExists: false, manifestExists: false };
+  try {
+    const d = await FileSystem.getInfoAsync(localDir);
+    if (!d || !d.exists) return { localDirExists: false, manifestExists: false };
+    const m = await FileSystem.getInfoAsync(`${localDir}manifest.json`);
+    return { localDirExists: true, manifestExists: !!(m && m.exists) };
+  } catch (e) {
+    return { localDirExists: null, manifestExists: null };
+  }
 }
 
 /**
@@ -412,29 +465,11 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
  */
 const inFlightInstalls = new Map();
 
-/**
- * Chave canônica da instalação.
- *
- * A VERSÃO não entra: ela só é conhecida DEPOIS de buscar o manifesto — mas é função de
- * (manifesto, storyId, appVersion), então duas chamadas com a mesma chave resolvem
- * necessariamente a mesma versão. Manifesto ou appVersion diferentes → chaves diferentes →
- * não compartilham (é assim que versões/manifestos incompatíveis ficam separados).
- * `requestedKinds` entra normalizado e ordenado: quem pediu o pack completo não pode receber a
- * operação de quem pediu só cenas.
- */
-export function packInstallKey(params = {}) {
-  const { storyId, globalManifestUrl, appVersion = '1.0.0', requestedKinds = ['scene'] } = params || {};
-  const kinds = (Array.isArray(requestedKinds) ? requestedKinds : [])
-    .filter((k) => KNOWN_KINDS.includes(k))
-    .slice()
-    .sort();
-  return [String(storyId || ''), String(globalManifestUrl || ''), String(appVersion || ''), kinds.join(',')].join('|');
-}
 
-/** Só para teste/diagnóstico: quantas instalações físicas estão em voo. */
-export function inFlightInstallCount() {
-  return inFlightInstalls.size;
-}
+/** Só para teste/diagnóstico: quantas instalações físicas estão em voo NESTA instância. */
+  function inFlightInstallCount() {
+    return inFlightInstalls.size;
+  }
 
 /* ── Exclusão pelo RECURSO FÍSICO (não pela chave do pedido) ── */
 /*
@@ -484,7 +519,7 @@ function guardedInstall(params) {
  *
  * Contrato público inalterado (mesmos parâmetros, mesmo formato de retorno).
  */
-export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
+async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
   // Dono exclusivo (cancelável): não compartilha o resultado, mas AINDA passa pela fila física —
   // senão disputaria o `.tmp` com uma instalação compartilhada da mesma história.
   if (typeof (params && params.isCancelled) === 'function') return guardedInstall(params);
@@ -496,4 +531,38 @@ export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
   const flight = guardedInstall(params).finally(() => { inFlightInstalls.delete(key); });
   inFlightInstalls.set(key, flight);
   return flight;
+  }
+
+  return { downloadStoryPackScenesFromGlobalManifest, inFlightInstallCount, packInstallKey };
+}
+
+/* ═══════════════ Instância de PRODUÇÃO (singleton, dependências reais) ═══════════════ */
+const defaultService = createPackDownloadService({
+  FileSystem,
+  PACK_STATUS,
+  getPackLocalDir,
+  getPackTempDir,
+  setPackEntry,
+  getPackEntry,
+  isReadyEntryValid,
+  validatePackManifest,
+  computeFileSha256,
+  fetchGlobalContentManifest,
+  getPackFromGlobalManifest,
+  warn,
+});
+
+/* Exports públicos INALTERADOS — delegam ao singleton (nenhum call site muda). */
+
+/**
+ * Instala o pack de uma história a partir do manifesto global. Ver createPackDownloadService.
+ * SINGLE-FLIGHT + exclusão física por história; contrato de retorno inalterado.
+ */
+export async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
+  return defaultService.downloadStoryPackScenesFromGlobalManifest(params);
+}
+
+/** Só para teste/diagnóstico: quantas instalações físicas estão em voo (instância de produção). */
+export function inFlightInstallCount() {
+  return defaultService.inFlightInstallCount();
 }
