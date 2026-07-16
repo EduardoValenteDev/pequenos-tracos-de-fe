@@ -7500,6 +7500,168 @@ console.log('\n── Onboarding O2F: congelamento (regressão + código morto) 
     'um capítulo vazou capa, o haptic não está gateado, ou o teclado avança');
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// LP1A — Boot à prova de falhas: fonte com erro tem saída (P0 LP0-BOOT-01) e a
+// primeira rota sai por PRONTIDÃO, não por relógio (o piso fixo de 2500 ms saiu).
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP1A: boot à prova de falhas ──');
+{
+  const app = readSrc('App.js');
+  const splash = readSrc('src/screens/SplashScreen.js');
+  const gate = readSrc('src/services/bootRoute.js');
+  const appC = a1StripComments(app);
+  const splashC = a1StripComments(splash);
+
+  // (1)(2) Fontes: o erro é capturado e a espera distingue "carregando" de "falhou" e do teto.
+  check('LP1A §5 (fontes): useFonts captura fontError e a espera distingue carregando × erro × teto',
+    /const \[fontsLoaded, fontError\] = useFonts\(/.test(appC)
+    && /isWaitingForFonts\(fontsLoaded, fontError, fontTimedOut\)/.test(appC)
+    && !/if \(!fontsLoaded\) \{/.test(appC),
+    'o erro de fonte voltou a ser descartado, ou a espera não distingue carregando/erro/teto');
+
+  // LP1A-RV §4 — teto REAL da espera das fontes (o `error` do hook não cobre Promise pendente).
+  check('LP1A-RV §4 (teto de fontes): timeout ≤1500ms com cleanup, sem setState após unmount e só avisa em DEV',
+    /FONT_TIMEOUT_MS = 1500/.test(a1StripComments(gate))
+    && /const \[fontTimedOut, setFontTimedOut\] = useState\(false\)/.test(appC)
+    && /if \(fontsLoaded \|\| fontError\) return undefined;/.test(appC)   // já resolveu → não arma o teto
+    && /let alive = true;[\s\S]{0,260}setTimeout\([\s\S]{0,200}if \(!alive\) return;[\s\S]{0,120}setFontTimedOut\(true\)/.test(appC)
+    && /return \(\) => \{ alive = false; clearTimeout\(timer\); \};/.test(appC)
+    && /}, \[fontsLoaded, fontError\]\);/.test(appC),
+    'a espera das fontes não tem teto (Promise pendente = spinner eterno), ou o teto vaza estado após unmount');
+
+  // Aviso de fonte só em DEV (logger) e sem erro fatal.
+  check('LP1A §5 (degradação segura): erro de fonte só avisa em DEV e não lança',
+    /import \{ warn \} from '\.\/src\/utils\/logger'/.test(appC)
+    && /if \(fontError\) warn\(/.test(appC)
+    && !/throw /.test(appC),
+    'o erro de fonte lança, ou o aviso não é DEV-only');
+
+  // (3) Sem piso fixo de 2500 ms na Splash.
+  check('LP1A §6 (sem piso fixo): a SplashScreen não tem mais setTimeout de 2500 ms',
+    !/setTimeout\([\s\S]{0,400}?,\s*2500\s*\)/.test(splashC)
+    && !/2500/.test(splashC),
+    'a espera fixa de 2500 ms voltou à SplashScreen');
+
+  // (4) A decisão começa imediatamente — fora de qualquer timer.
+  check('LP1A §6 (decisão imediata): shouldShowOnboarding() é chamado direto no efeito, não dentro de um timer',
+    /shouldShowOnboarding\(\)\s*\n\s*\.then\(/.test(splashC)
+    && !/setTimeout\([\s\S]{0,120}shouldShowOnboarding/.test(splashC),
+    'a decisão de rota voltou a depender de um relógio');
+
+  // (5)(6)(7) Cleanup, unmount e navegação dupla.
+  check('LP1A §6 (lifecycle): cleanup limpa o watchdog; unmount e navegação dupla protegidos',
+    /return \(\) => \{[\s\S]{0,200}aliveRef\.current = false;[\s\S]{0,120}clearTimeout\(watchdog\)/.test(splashC)
+    && /navigatedRef = useRef\(false\)/.test(splashC)
+    && /aliveRef = useRef\(true\)/.test(splashC)
+    && /navigatedRef\.current = true;[\s\S]{0,120}navigation\.replace\(route\)/.test(splashC),
+    'a Splash perdeu cleanup, ou a proteção de unmount/navegação dupla');
+
+  // (8) Fallback determinístico quando o storage falha.
+  check('LP1A §6 (fallback de storage): falha de shouldShowOnboarding cai em BOOT_FALLBACK_ROUTE navegável',
+    /\.catch\(\(\) => \{ route = BOOT_FALLBACK_ROUTE; \}\)/.test(splashC)
+    && /BOOT_FALLBACK_ROUTE = 'Home'/.test(a1StripComments(gate)),
+    'a falha de storage deixou de ter fallback determinístico');
+
+  // Watchdog é TETO, não piso: só age se a decisão não chegou, e só é cancelado DEPOIS de o replace
+  // ter êxito — o caminho de falha faz `return` ANTES de chegar ao clearTimeout.
+  check('LP1A §6 (watchdog = teto): só preenche a rota se ela ainda não foi decidida, e só é cancelado após o replace ter êxito',
+    /if \(route == null\) route = BOOT_FALLBACK_ROUTE;/.test(splashC)
+    && /\} catch \(e\) \{[\s\S]{0,600}return;\s*\n\s*\}\s*\n\s*if \(watchdog\) \{ clearTimeout\(watchdog\); watchdog = null; \}/.test(splashC),
+    'o watchdog virou piso, ou é cancelado antes de a navegação ter êxito (splash presa se o replace falhar)');
+
+  // replace que lança não pode deixar a splash presa: devolve a trava e AGENDA a própria repescagem.
+  // Caso A (falha antes do teto) e Caso B (é o PRÓPRIO teto que chama go(): o timer já disparou e
+  // não repete — sem repescagem própria, a splash ficaria presa).
+  check('LP1A-RV §5 (replace à prova de falha, casos A e B): devolve a trava e agenda repescagem própria (não depende do watchdog)',
+    /try \{\s*\n\s*navigation\.replace\(route\);\s*\n\s*\} catch \(e\) \{/.test(splashC)
+    && /navigatedRef\.current = false;/.test(splashC)
+    && /navAttempts \+= 1;/.test(splashC)
+    && /canRetryNavigation\(\{ attempts: navAttempts, alive: aliveRef\.current, scheduled: !!retryTimer \}\)/.test(splashC)
+    && /retryTimer = setTimeout\(\(\) => \{ retryTimer = null; go\(\); \}, NAV_RETRY_MS\)/.test(splashC),
+    'uma falha do replace (sobretudo vinda do próprio watchdog) deixaria a splash presa para sempre');
+
+  // Repescagem limpa: cancelada ao navegar e no unmount; nunca loop rápido nem infinito.
+  check('LP1A-RV §5 (repescagem limpa): retryTimer é cancelado ao navegar e no cleanup; espaçamento e limite declarados',
+    /if \(retryTimer\) \{ clearTimeout\(retryTimer\); retryTimer = null; \}[\s\S]{0,40}\n\s*\};/.test(splashC)
+    && /aliveRef\.current = false;[\s\S]{0,200}if \(retryTimer\) \{ clearTimeout\(retryTimer\); retryTimer = null; \}/.test(splashC)
+    && /MAX_NAV_ATTEMPTS = 3/.test(a1StripComments(gate))
+    && /NAV_RETRY_MS = 250/.test(a1StripComments(gate)),
+    'a repescagem do replace vaza timer, ou perdeu limite/espaçamento');
+
+  // LP1A-RV §6 — resposta atrasada do onboarding não pode mexer em nada persistido.
+  check('LP1A-RV §6 (resposta atrasada): a Splash não escreve storage nem marca onboarding concluído',
+    !/markOnboardingCompleted|AsyncStorage|setItem|saveProfile/.test(splashC),
+    'a Splash passou a escrever estado persistido — uma resposta atrasada poderia corromper o fluxo');
+
+  // (9) Warmups não participam da condição que libera a 1ª rota.
+  check('LP1A §7 (warmup não bloqueia): a Splash não espera preload/warmup/contextos/áudio/packs',
+    !/preloadCriticalAssets|assetPreload|beniAssetWarmup|onboardingAssetWarmup|paresImagePreload|useProfile|useProgressContext|usePacks|audio/i.test(splashC)
+    && !/await preloadCriticalAssets|await loadCreatorQaMode|await initEntitlement|await runLocalMigrations/.test(appC),
+    'a primeira rota voltou a depender de warmup/contexto/áudio');
+
+  // Boot não crítico: sem rejeição solta; initEntitlement (não-Promise) não recebe .catch.
+  check('LP1A §7 (rejeição tratada): preload/creatorQa/migração têm catch; initEntitlement (síncrono) não recebe .catch',
+    /preloadCriticalAssets\(\)\.catch\(/.test(appC)
+    && /loadCreatorQaMode\(\)\.catch\(/.test(appC)
+    && /runLocalMigrations\(\)\.catch\(/.test(appC)
+    && !/initEntitlement\(\)\.catch\(/.test(appC),
+    'sobrou rejeição sem tratamento no boot, ou encadearam .catch no initEntitlement (que não retorna Promise)');
+
+  // (10) O2F e Modo Criador intactos.
+  check('LP1A §11 (O2F + Modo Criador intactos): rotas oficiais preservadas e creatorQaMode ainda carrega no boot',
+    /navigation\.replace\(route\)/.test(splashC)
+    && /'Onboarding'/.test(a1StripComments(gate)) && /'Home'/.test(a1StripComments(gate))
+    && /loadCreatorQaMode/.test(appC)
+    && /markOnboardingCompleted/.test(a1StripComments(readSrc('src/screens/OnboardingScreen.js'))),
+    'o O2F ou o Modo Criador regrediram no boot');
+
+  // ── COMPORTAMENTAL: as 7 transições do boot, executando o módulo puro de verdade ──
+  let B = null;
+  try {
+    const code = a1StripComments(gate).replace(/export default[\s\S]*$/m, '').replace(/export /g, '')
+      + '; return { BOOT_FALLBACK_ROUTE, FONT_TIMEOUT_MS, MAX_NAV_ATTEMPTS, NAV_RETRY_MS,'
+      + ' resolveBootRoute, isWaitingForFonts, canNavigate, canRetryNavigation };';
+    B = new Function(code)();
+  } catch (e) { B = null; }
+
+  const baseGate = { route: 'Home', animationDone: true, alive: true, navigated: false };
+  check('LP1A-RV (comportamental): fontes esperando × carregadas × erro × teto estourado',
+    !!B
+    && B.isWaitingForFonts(false, null, false) === true          // esperando (ainda carregando)
+    && B.isWaitingForFonts(true, null, false) === false          // liberado (carregou)
+    && B.isWaitingForFonts(false, new Error('x'), false) === false // liberado (falhou)
+    && B.isWaitingForFonts(false, null, true) === false          // liberado (teto: Promise pendente)
+    && B.FONT_TIMEOUT_MS <= 1500,
+    'a regra de espera de fontes regrediu (erro/teto voltando a ser tratados como espera)');
+
+  // Retentativa do replace: limitada por construção, sem loop rápido, morta após unmount.
+  check('LP1A-RV (comportamental): repescagem do replace é limitada — sem retentativa infinita',
+    !!B
+    && B.canRetryNavigation({ attempts: 1, alive: true, scheduled: false }) === true
+    && B.canRetryNavigation({ attempts: B.MAX_NAV_ATTEMPTS, alive: true, scheduled: false }) === false  // limite
+    && B.canRetryNavigation({ attempts: B.MAX_NAV_ATTEMPTS + 5, alive: true, scheduled: false }) === false
+    && B.canRetryNavigation({ attempts: 1, alive: false, scheduled: false }) === false   // unmount
+    && B.canRetryNavigation({ attempts: 1, alive: true, scheduled: true }) === false     // já agendada
+    && B.NAV_RETRY_MS >= 100,                                                            // sem loop rápido
+    'a repescagem do replace virou infinita, sobreviveu ao unmount, ou vira loop rápido');
+
+  check('LP1A (comportamental): onboarding necessário × já concluído × falha de storage',
+    !!B
+    && B.resolveBootRoute(true) === 'Onboarding'   // (3) primeiro acesso
+    && B.resolveBootRoute(false) === 'Home'        // (4) usuário retornando
+    && B.BOOT_FALLBACK_ROUTE === 'Home',           // (5) storage falhou → destino determinístico
+    'a decisão de rota do boot regrediu');
+
+  check('LP1A (comportamental): desmontado antes da decisão × conclusão em dobro × rota indecisa',
+    !!B
+    && B.canNavigate(baseGate) === true
+    && B.canNavigate({ ...baseGate, alive: false }) === false        // (6) unmount → não navega
+    && B.canNavigate({ ...baseGate, navigated: true }) === false     // (7) 2ª conclusão → não repete
+    && B.canNavigate({ ...baseGate, route: null }) === false         // rota não decidida → espera
+    && B.canNavigate({ ...baseGate, animationDone: false }) === false, // animação em curso → espera
+    'o gate de navegação do boot regrediu (unmount/dupla navegação/prontidão)');
+}
+
 
 // ── Sprint 3 — Área dos Pais como Central Adulta do MVP ──────────────────────
 
@@ -12479,8 +12641,13 @@ check(
       'useFonts não registra Fraunces/Nunito/Nunito-Bold, ou FredokaOne foi removida (regressão)',
     );
     check(
-      'A0.2: o app ainda aguarda fontsLoaded (sem regressão de boot)',
-      /const \[fontsLoaded\] = useFonts/.test(appSrc) && /if \(!fontsLoaded\)/.test(appSrc),
+      // LP1A: a espera PERMANECE (protege contra flash/boot sem fonte), mas o erro é uma SAÍDA, não
+      // uma espera eterna (P0 LP0-BOOT-01), e LP1A-RV acrescentou o TETO (Promise pendente).
+      // A regra é provada de verdade no bloco comportamental:
+      // isWaitingForFonts(false, null, false) === true (ainda carregando → espera).
+      'A0.2: o app ainda aguarda fontsLoaded enquanto carrega (sem regressão de boot)',
+      /const \[fontsLoaded, fontError\] = useFonts/.test(appSrc)
+      && /isWaitingForFonts\(fontsLoaded, fontError, fontTimedOut\)/.test(appSrc),
       'App.js não aguarda mais fontsLoaded (risco de flash/boot sem fonte)',
     );
     check(
