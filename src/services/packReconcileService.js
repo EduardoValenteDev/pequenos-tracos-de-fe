@@ -17,13 +17,19 @@
 import { PACK_STATUS } from './packStorageService';
 
 /**
- * True se a entry PRECISA de checagem de disco: só `ready` COM `localDir` reivindica arquivos.
+ * True se a entry PRECISA de checagem de disco: TODA entry `ready` reivindica arquivos.
  * (`included`/`not_downloaded`/`downloading`/`failed`/… não servem `file://` → nada a invalidar.)
+ *
+ * `localDir` NÃO entra na condição: um `ready` SEM caminho local é evidência CONCLUSIVA de
+ * invalidez, não motivo para pular a verificação. Exigir `!!entry.localDir` aqui fazia essa
+ * entry ser ignorada pelo loop do PacksContext (`if (!needsDiskCheck(e)) continue;`) e
+ * permanecer `ready` para os consumidores. A casca já trata o caso sem I/O extra:
+ * `probePackDisk(null|'')` devolve `{ localDirExists:false, manifestExists:false }`.
  * @param {object|null} entry CacheEntry do índice
  * @returns {boolean}
  */
 export function needsDiskCheck(entry) {
-  return !!entry && entry.status === PACK_STATUS.READY && !!entry.localDir;
+  return !!entry && entry.status === PACK_STATUS.READY;
 }
 
 /**
@@ -39,6 +45,27 @@ export function isReadyEntryValid(entry, diskProbe) {
   if (p.localDirExists === false) return false;       // localDir sumiu → inválido
   if (p.manifestExists === false) return false;       // move não concluiu → inválido
   return true;                                        // true/null → mantém (conservador)
+}
+
+/**
+ * Coleta os probes de disco das entries que reivindicam arquivos.
+ *
+ * Extraído do loop do PacksContext para que a SEQUÊNCIA real (quem é sondado → quem é
+ * invalidado) seja testável sem duplicar a lógica num mock. Continua PURO: o I/O entra por
+ * `probeFn` (no app, `probePackDisk`, que faz o `getInfoAsync`).
+ * @param {Record<string, object>} index    mapa storyId→entry (já normalizado)
+ * @param {(localDir:string|null)=>Promise<object>} probeFn  casca de disco
+ * @returns {Promise<Record<string, object>>} mapa storyId→diskProbe (só dos sondados)
+ */
+export async function collectPackProbes(index, probeFn) {
+  const probes = {};
+  if (!index || typeof index !== 'object' || typeof probeFn !== 'function') return probes;
+  for (const sid of Object.keys(index)) {
+    const e = index[sid];
+    if (!needsDiskCheck(e)) continue;          // só entries `ready` reivindicam arquivos
+    probes[sid] = await probeFn(e.localDir);   // localDir ausente → a casca devolve exists:false
+  }
+  return probes;
 }
 
 /**

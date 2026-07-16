@@ -28,7 +28,7 @@ import React, {
 } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getPackIndex, getPackLocalDir, PACK_STATUS } from '../services/packStorageService';
-import { needsDiskCheck, computeInvalidReadyIds, reconcileEntry } from '../services/packReconcileService';
+import { collectPackProbes, computeInvalidReadyIds, reconcileEntry } from '../services/packReconcileService';
 import { getContentLayer, CONTENT_LAYERS } from '../data/contentManifest';
 import { markOnce } from '../services/performanceTrace';
 import { warn } from '../utils/logger';
@@ -129,12 +129,9 @@ export function PacksProvider({ children }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const probes = {};
-      for (const sid of Object.keys(normalizedIndex)) {
-        const e = normalizedIndex[sid];
-        if (!needsDiskCheck(e)) continue; // só entries `ready` com localDir
-        probes[sid] = await probePackDisk(e.localDir);
-      }
+      // Sonda só o que reivindica arquivos (toda entry `ready`). A coleta vive no núcleo puro
+      // para que a sequência sondar→invalidar seja testável sem duplicar a lógica.
+      const probes = await collectPackProbes(normalizedIndex, probePackDisk);
       if (cancelled) return;
       const invalid = computeInvalidReadyIds(normalizedIndex, probes); // núcleo PURO
       setInvalidReadyIds(prev => (sameIds(prev, invalid) ? prev : new Set(invalid)));

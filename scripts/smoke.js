@@ -8536,10 +8536,10 @@ console.log('\n── LP2.1a-i: reconciliação de story packs (funções reais)
         && R.reconcileEntry(e, true).status === status      // NÃO vira ready nem muda
         && R.reconcileEntry(e, true) === e;                 // mesma referência
     });
-    const readyNoLocalDir = Object.freeze({ ...readyEntry(), localDir: null });
+    // LP2.1a-iR: um `ready` SEM localDir AGORA reivindica verificação (antes era pulado e
+    // permanecia ready). Ausência de caminho é evidência conclusiva, não motivo para pular.
     check('LP2.1a-i §5.6 (não-READY): reconciliação nunca promove para READY nem altera o estado',
       noPromote
-      && R.needsDiskCheck(readyNoLocalDir) === false        // ready SEM localDir não reivindica disco
       && R.needsDiskCheck(null) === false && R.needsDiskCheck(undefined) === false
       && R.reconcileEntry(null, true) === null,
       'a reconciliação promove ou altera indevidamente estados não-READY');
@@ -8583,6 +8583,96 @@ console.log('\n── LP2.1a-i: reconciliação de story packs (funções reais)
       'a reconciliação muta a entrada, depende de estado global, ou não é determinística');
   }
 
+  // ══ LP2.1a-iR: READY SEM localDir (defeito corrigido) ══
+  // Antes, needsDiskCheck exigia `!!entry.localDir` → o loop do PacksContext fazia `continue`
+  // e a entry permanecia READY. Ausência de caminho é evidência CONCLUSIVA de invalidez.
+  {
+    const semCaminho = (localDir) => Object.freeze({ ...readyEntry(), localDir });
+    // A casca real: probePackDisk(null|'') devolve {false,false} SEM I/O (PacksContext.js:60).
+    const probeReal = (localDir) => (!localDir
+      ? { localDirExists: false, manifestExists: false }
+      : OK);
+
+    const provaPara = (localDir) => {
+      const e = semCaminho(localDir);
+      const probe = probeReal(e.localDir);
+      const invalid = R.computeInvalidReadyIds({ d: e }, { d: probe });
+      const out = R.reconcileEntry(e, invalid.includes('d'));
+      return R.needsDiskCheck(e) === true          // entra na verificação (antes: false)
+        && R.isReadyEntryValid(e, probe) === false // é invalidado
+        && invalid.length === 1
+        && out.status === 'not_downloaded'         // reconciliado
+        && out !== e;                              // retry permitido (não é mais ready)
+    };
+
+    check('LP2.1a-iR §5.1/5.2/5.3 (READY sem localDir): null, undefined e string vazia entram na verificação e são invalidados',
+      provaPara(null) && provaPara(undefined) && provaPara(''),
+      'um READY sem localDir continua sendo pulado pela reconciliação e permanece READY');
+
+    // §5.7 — INCLUDED (starter no binário) não pode ser tratado como pack remoto inválido.
+    check('LP2.1a-iR §5.7 (INCLUDED): starter sem localDir NÃO é rebaixado nem sondado',
+      R.needsDiskCheck(Object.freeze({ ...readyEntry(), status: 'included', localDir: null })) === false
+      && R.computeInvalidReadyIds(
+        { creation: { ...readyEntry('creation'), status: 'included', localDir: null } },
+        {},
+      ).length === 0,
+      'uma história do binário (included) está sendo tratada como pack remoto inválido');
+  }
+
+  // ══ §6 — PROVA INTEGRADA DO CONSUMIDOR ══
+  // Exercita a sequência REAL do PacksContext: collectPackProbes (a MESMA função que o loop
+  // usa) → computeInvalidReadyIds → reconcileEntry. Não duplica a lógica: injeta apenas a
+  // casca de disco, com o comportamento real de probePackDisk (PacksContext.js:59-69).
+  {
+    const Rfull = (() => {
+      const code = a1StripComments(recSrc)
+        .replace(/^import[\s\S]*?;$/gm, '')
+        .replace(/export /g, '')
+        + '; return { collectPackProbes, computeInvalidReadyIds, reconcileEntry, needsDiskCheck };';
+      return new Function('PACK_STATUS', code)(PACK_STATUS);
+    })();
+
+    const probed = [];
+    const probePackDiskReal = async (localDir) => {
+      probed.push(localDir);
+      if (!localDir) return { localDirExists: false, manifestExists: false };   // PacksContext:60
+      if (localDir.includes('sumiu')) return { localDirExists: false, manifestExists: false };
+      return { localDirExists: true, manifestExists: true };
+    };
+
+    globalThis.__LP21AIR = (async () => {
+      const index = {
+        sem_dir: { ...readyEntry('sem_dir'), localDir: null },   // o defeito
+        ok: readyEntry('ok'),
+        sumiu: readyEntry('sumiu'),
+        baixando: { ...readyEntry('baixando'), status: 'downloading' },
+        starter: { ...readyEntry('starter'), status: 'included', localDir: null },
+      };
+      const probes = await Rfull.collectPackProbes(index, probePackDiskReal);
+      const invalid = Rfull.computeInvalidReadyIds(index, probes);
+      const out = {};
+      for (const sid of Object.keys(index)) out[sid] = Rfull.reconcileEntry(index[sid], invalid.includes(sid));
+
+      check('LP2.1a-iR §6 (consumidor integrado): READY sem localDir → sondado → invalidado → NOT_DOWNLOADED',
+        // a entry sem caminho FOI sondada (antes o loop a pulava com `continue`)
+        probed.includes(null)
+        && Object.prototype.hasOwnProperty.call(probes, 'sem_dir')
+        && invalid.includes('sem_dir')
+        && out.sem_dir.status === 'not_downloaded'
+        // e o resto da sequência segue correta
+        && out.ok.status === 'ready' && out.ok === index.ok        // válido: mesma referência
+        && out.sumiu.status === 'not_downloaded'                   // dir ausente: rebaixado
+        && out.baixando.status === 'downloading'                   // não-ready: intocado
+        && out.starter.status === 'included'                       // included: intocado
+        // included NÃO foi sondado — prova pela AUSÊNCIA da chave (o localDir dele é null, e
+        // `probed` contém null por causa do sem_dir: usar includes(null) confundiria os dois).
+        && !Object.prototype.hasOwnProperty.call(probes, 'starter')
+        && !Object.prototype.hasOwnProperty.call(probes, 'baixando')
+        && Object.keys(probes).length === 3,                       // só os 3 ready
+        'o loop real ainda pula o READY sem localDir, ou a sequência sondar→invalidar regrediu');
+    })();
+  }
+
   // ── MUTATION CHECKS (§7): a prova falha se a proteção sumir? ──
   // Rodamos as MESMAS asserções contra versões MUTADAS do código real.
   {
@@ -8592,8 +8682,8 @@ console.log('\n── LP2.1a-i: reconciliação de story packs (funções reais)
     const noDir = mut("if (p.localDirExists === false) return false;", "");
     const noManifest = mut("if (p.manifestExists === false) return false;", "");
     const noReadyFilter = mut(
-      "return !!entry && entry.status === PACK_STATUS.READY && !!entry.localDir;",
-      "return !!entry && !!entry.localDir;",
+      "return !!entry && entry.status === PACK_STATUS.READY;",
+      "return !!entry;",
     );
     const mutating = mut(
       "if (entry.status === PACK_STATUS.READY && isInvalid) {\n    return { ...entry, status: PACK_STATUS.NOT_DOWNLOADED };\n  }",
@@ -8617,6 +8707,22 @@ console.log('\n── LP2.1a-i: reconciliação de story packs (funções reais)
       // se mutar a entrada → §5.8 detecta (a entrada original muda)
       && !!mutating && (() => { mutating.reconcileEntry(mutantEntry, true); return mutantEntry.status === 'not_downloaded'; })(),
       'as provas passariam mesmo sem a proteção (teste tautológico)');
+
+    // LP2.1a-iR: mutação que RESTAURA o defeito original (needsDiskCheck exigindo localDir).
+    // Isola a dimensão: a entry é READY, o único sinal é a AUSÊNCIA de localDir.
+    const defeitoRestaurado = mut(
+      "return !!entry && entry.status === PACK_STATUS.READY;",
+      "return !!entry && entry.status === PACK_STATUS.READY && !!entry.localDir;",
+    );
+    const semDir = Object.freeze({ ...readyEntry(), localDir: null });
+    check('LP2.1a-iR §7 (mutation check): restaurar `&& !!entry.localDir` FAZ a prova do READY sem localDir falhar',
+      !!defeitoRestaurado                                        // a mutação aplicou de verdade
+      && R.needsDiskCheck(semDir) === true                       // real: entra na verificação
+      && defeitoRestaurado.needsDiskCheck(semDir) === false      // mutado: volta a pular
+      // e, com o defeito, o loop real NÃO invalidaria (probe nem seria coletado)
+      && defeitoRestaurado.computeInvalidReadyIds({ d: semDir }, {}).length === 0
+      && R.computeInvalidReadyIds({ d: semDir }, { d: { localDirExists: false, manifestExists: false } }).length === 1,
+      'a prova do READY sem localDir passaria mesmo com o defeito restaurado (tautológica)');
   }
 
   // §6 — LIMITAÇÃO REAL declarada no teste (não escondida): a reconciliação só olha
@@ -24685,6 +24791,13 @@ check(
   check('LP2 (harness): o bloco assíncrono de concorrência concluiu sem estourar',
     !lp2AsyncErr,
     `o bloco async do LP2 lançou (${lp2AsyncErr && lp2AsyncErr.message}) — os checks seguintes dele não rodaram`);
+
+  // Idem para a prova integrada do consumidor (LP2.1a-iR §6): um estouro sumiria com o check.
+  let lp21airErr = null;
+  try { await globalThis.__LP21AIR; } catch (e) { lp21airErr = e; }
+  check('LP2.1a-iR (harness): a prova integrada do consumidor concluiu sem estourar',
+    !lp21airErr,
+    `a prova integrada lançou (${lp21airErr && lp21airErr.message}) — o check dela não rodou`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
