@@ -8347,7 +8347,11 @@ console.log('\n── LP2: concorrência e integridade dos story packs ──');
         F.downloadStoryPackScenesFromGlobalManifest({ ...base, storyId: 'david_goliath', requestedKinds: ['cover', 'scene', 'coloring', 'audio'] }), // outros kinds
       ]);
       const k = F.packInstallKey;
-      check('LP2 PK-01 (comportamental): história/versão/manifesto/kinds diferentes = operações independentes',
+      // HONESTIDADE DO TESTE: isto NÃO prova separação por VERSÃO DE PACK. A versão do pack só é
+      // conhecida DENTRO do Impl (depois do manifesto) e NÃO entra na chave — logo um joiner pode
+      // receber a versão resolvida no início do voo. O que este teste prova é: storyId, URL do
+      // manifesto, appVersion e kinds diferentes geram operações independentes.
+      check('LP2 PK-01 (comportamental): storyId/URL-do-manifesto/appVersion/kinds diferentes = operações independentes',
         physical === 5
         && k({ storyId: 'a', globalManifestUrl: 'u', appVersion: '1', requestedKinds: ['scene'] })
           !== k({ storyId: 'b', globalManifestUrl: 'u', appVersion: '1', requestedKinds: ['scene'] })
