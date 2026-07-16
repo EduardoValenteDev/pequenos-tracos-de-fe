@@ -8431,6 +8431,206 @@ console.log('\n── LP2: concorrência e integridade dos story packs ──');
 }
 
 
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-i — Provas COMPORTAMENTAIS da reconciliação índice↔disco.
+// Executa as funções REAIS de packReconcileService (núcleo puro), não uma cópia.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-i: reconciliação de story packs (funções reais) ──');
+{
+  const recSrc = readSrc('src/services/packReconcileService.js');
+  const recC = a1StripComments(recSrc);
+
+  // Carrega o módulo REAL injetando só o que ele importa (PACK_STATUS).
+  const PACK_STATUS = {
+    INCLUDED: 'included', NOT_DOWNLOADED: 'not_downloaded', DOWNLOADING: 'downloading',
+    VERIFYING: 'verifying', READY: 'ready', FAILED: 'failed', NEEDS_UPDATE: 'needs_update',
+    REQUIRES_APP_UPDATE: 'requires_app_update',
+  };
+  const loadRec = (src) => {
+    const code = a1StripComments(src)
+      .replace(/^import[\s\S]*?;$/gm, '')
+      .replace(/export /g, '')
+      + '; return { needsDiskCheck, isReadyEntryValid, computeInvalidReadyIds, reconcileEntry };';
+    return new Function('PACK_STATUS', code)(PACK_STATUS);
+  };
+  const R = loadRec(recSrc);
+
+  // Entry no formato REAL do índice (packStorageService.setPackEntry).
+  const readyEntry = (storyId = 'david_goliath') => Object.freeze({
+    storyId, version: '1.0.0', status: 'ready',
+    localDir: `file:///doc/packs/${storyId}@1.0.0/`,
+    manifestPath: `file:///doc/packs/${storyId}@1.0.0/manifest.json`,
+    totalBytes: 100, downloadedBytes: 100, updatedAt: 1, errorMessage: null,
+  });
+  // Probes no formato REAL de probePackDisk (PacksContext.js:59-69).
+  const OK = { localDirExists: true, manifestExists: true };
+  const NO_DIR = { localDirExists: false, manifestExists: false };
+  const NO_MANIFEST = { localDirExists: true, manifestExists: false };
+  const INCONCLUSIVE = { localDirExists: null, manifestExists: null };
+
+  // 5.1 — READY íntegro no limite atual: não rebaixa e preserva a MESMA referência.
+  {
+    const e = readyEntry();
+    const invalid = R.computeInvalidReadyIds({ david_goliath: e }, { david_goliath: OK });
+    check('LP2.1a-i §5.1 (READY íntegro): não é invalidado e reconcileEntry preserva a mesma referência',
+      R.needsDiskCheck(e) === true
+      && R.isReadyEntryValid(e, OK) === true
+      && invalid.length === 0
+      && R.reconcileEntry(e, false) === e,          // identidade referencial (sem re-render à toa)
+      'um READY íntegro está sendo rebaixado, ou perdeu a estabilidade referencial');
+  }
+
+  // 5.2 — READY sem diretório: inválido → rebaixado → nova instalação possível.
+  {
+    const e = readyEntry();
+    const out = R.reconcileEntry(e, R.computeInvalidReadyIds({ d: e }, { d: NO_DIR }).length === 1);
+    check('LP2.1a-i §5.2 (READY sem diretório): invalidado, rebaixado p/ not_downloaded, sem expor caminho inexistente',
+      R.isReadyEntryValid(e, NO_DIR) === false
+      && out.status === 'not_downloaded'
+      && out !== e                                   // nova referência (mudou de estado)
+      && out.localDir === e.localDir,                // o caminho continua na entry, mas NÃO como ready
+      'um READY sem diretório permanece READY (o resolver entregaria caminho inexistente)');
+  }
+
+  // 5.3 — READY com diretório mas SEM manifesto (move não concluiu): não é instalação válida.
+  {
+    const e = readyEntry();
+    check('LP2.1a-i §5.3 (READY sem manifesto): conteúdo incompleto não é tratado como instalado; retry possível',
+      R.isReadyEntryValid(e, NO_MANIFEST) === false
+      && R.computeInvalidReadyIds({ d: e }, { d: NO_MANIFEST }).length === 1
+      && R.reconcileEntry(e, true).status === 'not_downloaded',
+      'um diretório sem manifest.json está sendo aceito como instalação válida');
+  }
+
+  // 5.4 — Combinação inconsistente. NOTA: inalcançável no runtime — probePackDisk devolve
+  // {false,false} assim que o diretório não existe. Aqui provamos o contrato defensivo da função.
+  {
+    const e = readyEntry();
+    check('LP2.1a-i §5.4 (dir ausente + manifesto "presente"): manifesto sozinho não torna utilizável',
+      R.isReadyEntryValid(e, { localDirExists: false, manifestExists: true }) === false,
+      'a presença do manifesto está mascarando a ausência do diretório');
+  }
+
+  // 5.5 — Probe INCONCLUSIVO (getInfoAsync lançou). Contrato real: NÃO conclusivamente
+  // invalidado — mantém, para não rebaixar sem evidência (falso-negativo é pior).
+  {
+    const e = readyEntry();
+    check('LP2.1a-i §5.5 (probe inconclusivo): não conclusivamente invalidado — mantém sem evidência de ausência',
+      R.isReadyEntryValid(e, INCONCLUSIVE) === true
+      && R.isReadyEntryValid(e, null) === true
+      && R.isReadyEntryValid(e, undefined) === true
+      && R.isReadyEntryValid(e, {}) === true
+      && R.computeInvalidReadyIds({ d: e }, { d: INCONCLUSIVE }).length === 0
+      && R.reconcileEntry(e, false) === e,
+      'um probe inconclusivo está sendo tratado como confirmação de ausência (rebaixa sem evidência)');
+  }
+
+  // 5.6 — Estados não-READY: a reconciliação NUNCA promove nada para READY.
+  {
+    const states = ['included', 'not_downloaded', 'downloading', 'verifying', 'failed', 'needs_update', 'requires_app_update'];
+    const noPromote = states.every((status) => {
+      const e = Object.freeze({ ...readyEntry(), status });
+      return R.needsDiskCheck(e) === false                 // não reivindica arquivos
+        && R.isReadyEntryValid(e, NO_DIR) === true          // "nada a invalidar" ≠ "íntegro"
+        && R.computeInvalidReadyIds({ d: e }, { d: NO_DIR }).length === 0
+        && R.reconcileEntry(e, true).status === status      // NÃO vira ready nem muda
+        && R.reconcileEntry(e, true) === e;                 // mesma referência
+    });
+    const readyNoLocalDir = Object.freeze({ ...readyEntry(), localDir: null });
+    check('LP2.1a-i §5.6 (não-READY): reconciliação nunca promove para READY nem altera o estado',
+      noPromote
+      && R.needsDiskCheck(readyNoLocalDir) === false        // ready SEM localDir não reivindica disco
+      && R.needsDiskCheck(null) === false && R.needsDiskCheck(undefined) === false
+      && R.reconcileEntry(null, true) === null,
+      'a reconciliação promove ou altera indevidamente estados não-READY');
+  }
+
+  // 5.7 — Lote misto: só as realmente inválidas entram.
+  {
+    const index = {
+      valido: readyEntry('valido'),
+      sem_dir: readyEntry('sem_dir'),
+      sem_manifesto: readyEntry('sem_manifesto'),
+      baixando: Object.freeze({ ...readyEntry('baixando'), status: 'downloading' }),
+      inconclusivo: readyEntry('inconclusivo'),
+    };
+    const probes = {
+      valido: OK, sem_dir: NO_DIR, sem_manifesto: NO_MANIFEST, baixando: NO_DIR, inconclusivo: INCONCLUSIVE,
+    };
+    const invalid = R.computeInvalidReadyIds(index, probes).slice().sort();
+    check('LP2.1a-i §5.7 (lote misto): só READY comprovadamente inválido entra no resultado',
+      invalid.length === 2 && invalid[0] === 'sem_dir' && invalid[1] === 'sem_manifesto',
+      'o lote misto invalida entradas que não deveria (ou deixa passar inválidas)');
+  }
+
+  // 5.8 — Determinismo e imutabilidade.
+  {
+    const e = { ...readyEntry() };                    // objeto MUTÁVEL de propósito
+    const snapshot = JSON.stringify(e);
+    const index = { d: e };
+    const probes = { d: NO_DIR };
+    const a = R.computeInvalidReadyIds(index, probes);
+    const b = R.computeInvalidReadyIds(index, probes);
+    const r1 = R.reconcileEntry(e, true);
+    const r2 = R.reconcileEntry(e, true);
+    check('LP2.1a-i §5.8 (determinismo + imutabilidade): mesma entrada → mesmo resultado; entrada e índice intocados',
+      JSON.stringify(a) === JSON.stringify(b)
+      && JSON.stringify(e) === snapshot                // a entrada NÃO foi mutada
+      && Object.keys(index).length === 1              // o índice original não foi alterado
+      && r1 !== e && r1.status === 'not_downloaded'
+      && JSON.stringify(r1) === JSON.stringify(r2)    // determinístico
+      && r1 !== r2,                                   // cópia nova a cada chamada (sem estado global)
+      'a reconciliação muta a entrada, depende de estado global, ou não é determinística');
+  }
+
+  // ── MUTATION CHECKS (§7): a prova falha se a proteção sumir? ──
+  // Rodamos as MESMAS asserções contra versões MUTADAS do código real.
+  {
+    const mut = (find, repl) => { try { return loadRec(recSrc.replace(find, repl)); } catch (e) { return null; } };
+    const e = readyEntry();
+
+    const noDir = mut("if (p.localDirExists === false) return false;", "");
+    const noManifest = mut("if (p.manifestExists === false) return false;", "");
+    const noReadyFilter = mut(
+      "return !!entry && entry.status === PACK_STATUS.READY && !!entry.localDir;",
+      "return !!entry && !!entry.localDir;",
+    );
+    const mutating = mut(
+      "if (entry.status === PACK_STATUS.READY && isInvalid) {\n    return { ...entry, status: PACK_STATUS.NOT_DOWNLOADED };\n  }",
+      "if (entry.status === PACK_STATUS.READY && isInvalid) {\n    entry.status = PACK_STATUS.NOT_DOWNLOADED;\n    return entry;\n  }",
+    );
+
+    const mutantEntry = { ...readyEntry() };
+    // Para ISOLAR a proteção de localDirExists, o probe precisa ter manifestExists=true —
+    // senão a outra proteção rejeitaria sozinha e a mutação passaria despercebida.
+    const ONLY_NO_DIR = { localDirExists: false, manifestExists: true };
+    check('LP2.1a-i §7 (mutation checks): remover cada proteção FAZ a prova correspondente falhar',
+      // sem localDirExists → um dir ausente passaria a ser "válido"
+      !!noDir && R.isReadyEntryValid(e, ONLY_NO_DIR) === false      // real: rejeita
+      && noDir.isReadyEntryValid(e, ONLY_NO_DIR) === true           // mutado: aceitaria
+      // sem manifestExists → §5.3 passaria a dizer "válido"
+      && !!noManifest && R.isReadyEntryValid(e, NO_MANIFEST) === false   // real: rejeita
+      && noManifest.isReadyEntryValid(e, NO_MANIFEST) === true           // mutado: aceitaria
+      // sem filtro de READY → §5.6 passaria a checar disco de um 'downloading'
+      && R.needsDiskCheck({ ...e, status: 'downloading' }) === false     // real: ignora
+      && !!noReadyFilter && noReadyFilter.needsDiskCheck({ ...e, status: 'downloading' }) === true
+      // se mutar a entrada → §5.8 detecta (a entrada original muda)
+      && !!mutating && (() => { mutating.reconcileEntry(mutantEntry, true); return mutantEntry.status === 'not_downloaded'; })(),
+      'as provas passariam mesmo sem a proteção (teste tautológico)');
+  }
+
+  // §6 — LIMITAÇÃO REAL declarada no teste (não escondida): a reconciliação só olha
+  // existência de diretório e de manifest.json. Não valida manifestSha256 (nem sequer é
+  // armazenado na entry), não relê o manifesto, não enumera arquivos obrigatórios e não
+  // recalcula hashes. Um diretório COM manifest.json mas SEM arquivos passa por este limite.
+  check('LP2.1a-i §6 (limitação declarada): a reconciliação NÃO verifica hash/arquivos — só existência',
+    !/manifestSha256|computeFileSha256|readAsStringAsync|files/.test(recC)
+    && /localDirExists === false/.test(recC) && /manifestExists === false/.test(recC)
+    && !/manifestSha256/.test(a1StripComments(readSrc('src/services/packStorageService.js'))),
+    'a reconciliação passou a verificar hash/arquivos (ou o manifestSha256 entrou na entry) — atualize a limitação declarada');
+}
+
+
 // ── Sprint 3 — Área dos Pais como Central Adulta do MVP ──────────────────────
 
 console.log('\n── Sprint 3 — Área dos Pais Central Adulta ──');
