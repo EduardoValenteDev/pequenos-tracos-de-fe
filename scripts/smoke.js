@@ -10324,6 +10324,153 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
     && /await recoverStoryPack\(\{ storyId, requestedKinds: kinds, appVersion \}\)/.test(dlSrcC),  // é sob demanda, no downloader
     `o recovery vazou para o caminho de boot: ${bootAval.infratores.join(', ')}`);
 
+  /* ═══════════ LEDGER de contabilidade dos 29 itens do plano de QA (plan §15) ═══════════
+   * Reconciliação (QA3R-B3-R) sob DECISÃO OFICIAL DE GOVERNANÇA do proprietário:
+   *   B1 → consolidado em A1 (mutante C1 compartilhado)   B6 → consolidado em A8 (C11 compartilhado)
+   *   B5, B13 → C17 compartilhado (com A15)                B9 → compound (história C19 + versão C20)
+   *   B10 → inaplicável (o recovery não apaga/move)        A7 → arquitetural (§19.24)
+   *   A6 → compound (candidateIsolation §19.25-cand + directoryIsolation §19.25-arq)
+   *   Extras (FORA dos 29): C2, C14, C15, C16, C18
+   * Cada um dos 29 conta UMA vez; mutantes compartilhados contam UMA vez em uniqueBehavioralMutants. */
+  {
+    const REC = 'src/services/packRecoveryService.js';
+    const MK = 'src/services/packPublishMarker.js';
+    const L = (planId, group, officialContract, disposition, canonicalEvidence, evidenceIds, targetFiles, mutationIds, architecturalProofIds, consolidatedInto, inapplicableReason) =>
+      ({ planId, group, officialContract, disposition, canonicalEvidence, evidenceIds, targetFiles, mutationIds, architecturalProofIds, consolidatedInto, inapplicableReason, countsAsOfficialItem: true });
+    const QA_LEDGER = [
+      // ── Base (14) ──
+      L('B1', 'B', 'promover só por existir', 'consolidated', 'C1', ['C1'], [MK], ['C1'], [], 'A1', null),
+      L('B2', 'B', 'ignorar arquivo ausente', 'behavioral', 'C5', ['C5'], [REC], ['C5'], [], null, null),
+      L('B3', 'B', 'ignorar hash divergente', 'behavioral', 'C6', ['C6'], [REC], ['C6'], [], null, null),
+      L('B4', 'B', 'ignorar tamanho divergente', 'behavioral', 'C7', ['C7'], [REC], ['C7'], [], null, null),
+      L('B5', 'B', 'exigir rede com candidato inequívoco', 'consolidated', 'C17', ['C17'], [REC], ['C17'], [], 'A15', null),
+      L('B6', 'B', 'apagar READY anterior', 'consolidated', 'C11', ['C11'], [REC], ['C11'], [], 'A8', null),
+      L('B7', 'B', 'recuperação não idempotente', 'behavioral', 'QA1-B7', ['QA1-B7'], [REC], ['QA1-B7'], [], null, null),
+      L('B8', 'B', 'manter DOWNLOADING indefinidamente', 'behavioral', 'QA1-B8', ['QA1-B8'], [REC], ['QA1-B8'], [], null, null),
+      L('B9', 'B', 'não promover versão ou história incompatível', 'compound', 'C19+C20', ['C19', 'C20'], [MK], ['C19', 'C20'], [], null, null),
+      L('B10', 'B', 'limpar/apagar antes de validar', 'inapplicable', null, [], [REC], [], [], null, 'o recovery NUNCA apaga nem move (sem deleteAsync/moveAsync no fonte) — não há operação destrutiva para mutar'),
+      L('B11', 'B', 'não persistir READY', 'behavioral', 'QA1-B11', ['QA1-B11'], [REC], ['QA1-B11'], [], null, null),
+      L('B12', 'B', 'caminhos/metadados inconsistentes', 'behavioral', 'QA1-B12', ['QA1-B12'], [REC], ['QA1-B12'], [], null, null),
+      L('B13', 'B', 'retry re-baixar à toa', 'consolidated', 'C17', ['C17'], [REC], ['C17'], [], 'A15', null),
+      L('B14', 'B', 'misturar com identidade resolvida', 'behavioral', 'QA1-B14', ['QA1-B14'], [REC], ['QA1-B14'], [], null, null),
+      // ── Adicionais (15) ──
+      L('A1', 'A', 'aceitar candidato sem marcador', 'behavioral', 'C1', ['C1'], [MK], ['C1'], [], null, null),
+      L('A2', 'A', 'ignorar manifestSha256 divergente', 'behavioral', 'C4', ['C4'], [MK], ['C4'], [], null, null),
+      L('A3', 'A', 'aceitar marcador incompleto', 'behavioral', 'C3', ['C3'], [MK], ['C3'], [], null, null),
+      L('A4', 'A', 'escolher o primeiro candidato', 'behavioral', 'C8', ['C8'], [REC], ['C8'], [], null, null),
+      L('A5', 'A', 'escolher a maior versão', 'behavioral', 'C9', ['C9'], [REC], ['C9'], [], null, null),
+      L('A6', 'A', 'validar todos os packs da raiz (isolamento entre histórias)', 'compound', 'C10', ['§19.25-cand', '§19.25-arq'], [MK, REC], ['§19.25-cand'], ['§19.25-arq'], null, null),
+      L('A7', 'A', 'executar recovery no boot', 'architectural', '§19.24', ['QA1-A7', '§19.24'], bootFiles, [], ['§19.24'], null, null),
+      L('A8', 'A', 'apagar candidato antigo antes de substituição segura', 'behavioral', 'C11', ['C11'], [REC], ['C11'], [], null, null),
+      L('A9', 'A', 'promover READY antes de validar os arquivos', 'behavioral', 'C12', ['C12'], [REC], ['C12'], [], null, null),
+      L('A10', 'A', 'reutilizar totalBytes do índice', 'behavioral', 'C13', ['C13'], [REC], ['C13'], [], null, null),
+      L('A11', 'A', 'aceitar marcador de outra história', 'behavioral', 'C19', ['C19'], [MK], ['C19'], [], null, null),
+      L('A12', 'A', 'aceitar marcador de outra versão', 'behavioral', 'C20', ['C20'], [MK], ['C20'], [], null, null),
+      L('A13', 'A', 'não serializar a promoção (lost update)', 'behavioral', 'QA1-A13', ['QA1-A13'], [REC], ['QA1-A13'], [], null, null),
+      L('A14', 'A', 'recovery em paralelo com instalação ativa', 'behavioral', 'QA1-A14', ['QA1-A14'], [REC], ['QA1-A14'], [], null, null),
+      L('A15', 'A', 're-baixar após recuperação inequívoca', 'behavioral', 'C17', ['C17'], [REC], ['C17'], [], null, null),
+    ];
+    const QA_EXTRAS = [
+      { id: 'C2', officialContract: 'rejeição de marcador ilegível', countsAsOfficialItem: false },
+      { id: 'C14', officialContract: 'não incluir o marcador em totalBytes', countsAsOfficialItem: false },
+      { id: 'C15', officialContract: 'rejeitar colisão do marcador', countsAsOfficialItem: false },
+      { id: 'C16', officialContract: 'limpar errorMessage na promoção', countsAsOfficialItem: false },
+      { id: 'C18', officialContract: 'sem I/O de descoberta com entrada já READY', countsAsOfficialItem: false },
+    ];
+
+    // ── Métricas derivadas (nunca predeterminadas) ──
+    const ids = QA_LEDGER.map((e) => e.planId);
+    const esperados = [...Array(14)].map((_, i) => `B${i + 1}`).concat([...Array(15)].map((_, i) => `A${i + 1}`));
+    const ausentes = esperados.filter((id) => !ids.includes(id));
+    const desconhecidos = ids.filter((id) => !esperados.includes(id));
+    const duplicados = ids.filter((id, i) => ids.indexOf(id) !== i);
+    const mutBrutos = QA_LEDGER.flatMap((e) => e.mutationIds || []);   // com repetição (compartilhados)
+    const mutSet = new Set(mutBrutos);                                  // deduplicado
+    const archSet = new Set(QA_LEDGER.flatMap((e) => e.architecturalProofIds || []));
+    const ocorr = (id) => mutBrutos.filter((m) => m === id).length;
+    const counts = {
+      officialPlanItems: ids.length,
+      coveredOfficialItems: QA_LEDGER.filter((e) => (e.evidenceIds && e.evidenceIds.length > 0) || e.disposition === 'inapplicable').length,
+      uniqueBehavioralMutants: mutSet.size,
+      architecturalProofs: archSet.size,
+      compoundOfficialItems: QA_LEDGER.filter((e) => e.disposition === 'compound').length,
+      consolidatedOfficialItems: QA_LEDGER.filter((e) => e.disposition === 'consolidated').length,
+      inapplicableOfficialItems: QA_LEDGER.filter((e) => e.disposition === 'inapplicable').length,
+      behavioralOfficialItems: QA_LEDGER.filter((e) => e.disposition === 'behavioral').length,
+      architecturalOfficialItems: QA_LEDGER.filter((e) => e.disposition === 'architectural').length,
+      extraEvidenceItems: QA_EXTRAS.length,
+    };
+
+    // ── Existência REAL das evidências (lidas do próprio smoke) ──
+    const smokeSrc = readSrc('scripts/smoke.js');
+    const mutCReais = new Set([...smokeSrc.matchAll(/id: '(C\d+)'/g)].map((m) => m[1]));
+    const qa1Reais = new Set([...smokeSrc.matchAll(/registrar\('(QA1-[BA]\d+)'/g)].map((m) => m[1]));
+    const evidenciaExiste = (id) => mutCReais.has(id) || qa1Reais.has(id) || (id.startsWith('§') && smokeSrc.includes(id));
+    const referenciadas = [...new Set(QA_LEDGER.flatMap((e) => [...(e.evidenceIds || []), ...(e.mutationIds || []), ...(e.architecturalProofIds || [])]))];
+    const inexistentes = referenciadas.filter((id) => !evidenciaExiste(id));
+
+    const get = (id) => QA_LEDGER.find((e) => e.planId === id);
+
+    // §7.1-7.5 — cobertura exata dos 29 + contrato por item
+    check('QA3R-B3 §7 (ledger — cobertura exata dos 29): B1-B14 e A1-A15, sem ausente/duplicado/desconhecido, total 29, cada item com contrato',
+      counts.officialPlanItems === 29 && ausentes.length === 0 && duplicados.length === 0 && desconhecidos.length === 0
+      && QA_LEDGER.every((e) => typeof e.officialContract === 'string' && e.officialContract.length > 0)
+      && QA_LEDGER.every((e) => e.countsAsOfficialItem === true),
+      `ledger incompleto: ausentes[${ausentes}] duplicados[${duplicados}] desconhecidos[${desconhecidos}] total=${counts.officialPlanItems}`);
+
+    // §7.6 — toda evidência referenciada existe no smoke; itens cobertos ou inaplicáveis justificados
+    check('QA3R-B3 §7 (evidências reais): coveredOfficialItems=29; toda evidência referenciada existe no smoke; inaplicável tem razão',
+      counts.coveredOfficialItems === 29 && inexistentes.length === 0
+      && QA_LEDGER.filter((e) => e.disposition !== 'inapplicable').every((e) => e.evidenceIds.length > 0)
+      && QA_LEDGER.filter((e) => e.disposition === 'inapplicable').every((e) => typeof e.inapplicableReason === 'string' && e.inapplicableReason.length > 20),
+      `cobertura/evidência: covered=${counts.coveredOfficialItems} inexistentes[${inexistentes.join(',')}]`);
+
+    // §7.7-7.8 — consolidações compartilham a MESMA evidência e não inflam mutantes
+    check('QA3R-B3 §7 (consolidações sem inflação): B1/A1→C1, B6/A8→C11, B5/B13/A15→C17 compartilham 1 mutante cada',
+      get('B1').consolidatedInto === 'A1' && get('B1').mutationIds[0] === 'C1' && get('A1').mutationIds[0] === 'C1'
+      && get('B6').consolidatedInto === 'A8' && get('B6').mutationIds[0] === 'C11' && get('A8').mutationIds[0] === 'C11'
+      && get('B5').consolidatedInto === 'A15' && get('B13').consolidatedInto === 'A15'
+      && get('B5').mutationIds[0] === 'C17' && get('B13').mutationIds[0] === 'C17' && get('A15').mutationIds[0] === 'C17'
+      && ocorr('C1') === 2 && ocorr('C11') === 2 && ocorr('C17') === 3          // aparecem repetidos no bruto
+      && mutSet.has('C1') && mutSet.has('C11') && mutSet.has('C17')             // mas 1x em uniqueBehavioralMutants
+      && mutBrutos.length > mutSet.size,                                        // houve dedup real
+      `consolidação: C1×${ocorr('C1')} C11×${ocorr('C11')} C17×${ocorr('C17')} bruto=${mutBrutos.length} unico=${mutSet.size}`);
+
+    // §7.9-7.10 — B9 compound com C19 E C20, sem mutante próprio novo
+    check('QA3R-B3 §7 (B9 compound): tem C19 E C20 (compartilhados com A11/A12), disposition compound, sem mutante adicional',
+      get('B9').disposition === 'compound' && get('B9').mutationIds.includes('C19') && get('B9').mutationIds.includes('C20')
+      && get('B9').mutationIds.length === 2 && ocorr('C19') === 2 && ocorr('C20') === 2
+      && get('A11').mutationIds[0] === 'C19' && get('A12').mutationIds[0] === 'C20',
+      `B9 inválido: ${JSON.stringify(get('B9'))}`);
+
+    // §7.11 — B10 inaplicável, sem mutante, revalidado no FONTE real
+    // revalida no fonte SEM comentários: procura CHAMADA `.deleteAsync(`/`.moveAsync(`, não menção em doc
+    const recSemComentarios = a1StripComments(readSrc('src/services/packRecoveryService.js'));
+    check('QA3R-B3 §7 (B10 inaplicável): disposition inapplicable, mutationIds vazio, razão registrada; fonte sem CHAMADA a deleteAsync/moveAsync',
+      get('B10').disposition === 'inapplicable' && get('B10').mutationIds.length === 0
+      && typeof get('B10').inapplicableReason === 'string'
+      && !/\.(deleteAsync|moveAsync)\s*\(/.test(recSemComentarios),
+      `B10 inválido: ${JSON.stringify(get('B10'))} | chamada destrutiva no recovery=${/\.(deleteAsync|moveAsync)\s*\(/.test(recSemComentarios)}`);
+
+    // §7.12-7.14 — C10 uma vez; extras (5) fora dos 29; C2 não é oficial
+    check('QA3R-B3 §7 (C10 uma vez + extras fora dos 29): A6 é o único compound com C10; 5 extras (C2,C14,C15,C16,C18) não-oficiais',
+      QA_LEDGER.filter((e) => e.canonicalEvidence === 'C10').length === 1 && get('A6').disposition === 'compound'
+      && counts.extraEvidenceItems === 5 && QA_EXTRAS.every((x) => x.countsAsOfficialItem === false)
+      && QA_EXTRAS.map((x) => x.id).sort().join(',') === 'C14,C15,C16,C18,C2'
+      && !ids.includes('C2') && !QA_EXTRAS.some((x) => esperados.includes(x.id)),
+      `C10/extras: c10=${QA_LEDGER.filter((e) => e.canonicalEvidence === 'C10').length} extras=${counts.extraEvidenceItems}`);
+
+    // §5 — totais derivados coerentes (a soma das disposições fecha em 29)
+    check('QA3R-B3 §5 (contagem derivada): 29 oficiais / 29 cobertos / 5 extras; disposições somam 29; arquiteturais ≠ comportamentais',
+      counts.officialPlanItems === 29 && counts.coveredOfficialItems === 29 && counts.extraEvidenceItems === 5
+      && counts.behavioralOfficialItems + counts.compoundOfficialItems + counts.consolidatedOfficialItems
+        + counts.inapplicableOfficialItems + counts.architecturalOfficialItems === 29
+      && counts.compoundOfficialItems === 2 && counts.consolidatedOfficialItems === 4
+      && counts.inapplicableOfficialItems === 1 && counts.architecturalOfficialItems === 1
+      && counts.architecturalProofs === 2 && counts.uniqueBehavioralMutants === 22,
+      `contagem: ${JSON.stringify(counts)}`);
+  }
+
   // §19.34 — nada de D/E/F
   check('LP2.1a-ii-C §19.34 (sem ampliar para D/E/F): o bloco não toca identidade resolvida, progresso compartilhado nem cancelamento',
     !/subscribers|multiplex|progresso compartilhado|resolvedIdentity|identidade resolvida da opera/i.test(recSrc + mkSrc)
@@ -10880,7 +11027,7 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
       // contá-lo aqui afirmava uma morte que não era pelo contrato (corrigido no QA3R-B2B).
       check('LP2.1a-ii-C §20 (mutation checks): as 19 proteções comportamentais do recovery e do marcador são load-bearing — quebrar qualquer uma muda o observável',
         vivosC.length === 0 && vereditoC.length === 19,
-        `proteções removíveis SEM mudar nada (a prova não as vigia): ${vivosC.map((x) => `${x.id} ${x.nome} [prova ${x.prova}] orig[${x.orig}]`).join(' | ')}`);
+        `proteções removíveis SEM mudar nada (a prova não as vigia): ${vivosC.map((x) => `${x.id} ${x.nome} [${x.contrato || x.prova}] orig[${x.orig}]`).join(' | ')}`);
 
       // Direção: nas proteções de EVIDÊNCIA, o mutante ACEITA (promove) o que o original RECUSA.
       const aceitam = vereditoC.filter((x) => ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C12'].includes(x.id));
