@@ -10834,8 +10834,10 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         { id: 'C9', nome: 'escolher a MAIOR versão', cen: 'doisValidosEsperada1', prova: '§19.8-9',
           mut: { recovery: (s) => s.replace('      const v = validos[0];', '      const v = validos.slice().sort((a, b) => (a.version < b.version ? 1 : -1))[0];')
             .replace('      if (validos.length > 1) {', '      if (false) {') } },
-        { id: 'C10', nome: 'deixar a versão de OUTRA história virar candidata desta', cen: 'outraHistoriaVersaoNova', prova: '§19.25',
-          mut: { marker: (s) => s.replace('    if (parsed.storyId !== storyId) continue; // igualdade, NUNCA prefixo', '') } },
+        // C10 saiu daqui: como mutante COMPORTAMENTAL ele morria por caminho RECOMPOSTO inexistente
+        // (sondar `david_goliath@<versão do noah>`), não pelo isolamento entre histórias — o recovery
+        // nunca chega a validar o diretório estrangeiro. O contrato é ARQUITETURAL e vive na prova
+        // §19.25-arq abaixo (categoria B). Ver a arbitragem no comentário dessa prova.
         { id: 'C11', nome: 'apagar o pack anterior cedo demais', cen: 'anteriorValido', prova: '§19.28',
           mut: { downloader: (s) => s.replace('  const rec0 = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion });', '  try { await FileSystem.deleteAsync(getPackLocalDir(storyId, "1.0.0"), { idempotent: true }); } catch {}\n  const rec0 = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion });') } },
         { id: 'C12', nome: 'promover READY antes de validar os arquivos', cen: 'arquivoAusente', prova: '§19.5',
@@ -10873,8 +10875,11 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         vereditoC.push({ ...m, orig, mutado, morreu: orig !== mutado });
       }
       const vivosC = vereditoC.filter((x) => !x.morreu);
-      check('LP2.1a-ii-C §20 (mutation checks): as 20 proteções do recovery e do marcador são load-bearing — quebrar qualquer uma muda o observável',
-        vivosC.length === 0 && vereditoC.length === 20,
+      // 19, não 20: o C10 foi reclassificado como contrato ARQUITETURAL (§19.25-arq, abaixo). Como
+      // mutante comportamental ele morria por caminho recomposto inexistente, não pelo isolamento —
+      // contá-lo aqui afirmava uma morte que não era pelo contrato (corrigido no QA3R-B2B).
+      check('LP2.1a-ii-C §20 (mutation checks): as 19 proteções comportamentais do recovery e do marcador são load-bearing — quebrar qualquer uma muda o observável',
+        vivosC.length === 0 && vereditoC.length === 19,
         `proteções removíveis SEM mudar nada (a prova não as vigia): ${vivosC.map((x) => `${x.id} ${x.nome} [prova ${x.prova}] orig[${x.orig}]`).join(' | ')}`);
 
       // Direção: nas proteções de EVIDÊNCIA, o mutante ACEITA (promove) o que o original RECUSA.
@@ -10882,6 +10887,52 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
       check('LP2.1a-ii-C §20b (direção): sem as checagens de evidência, o mutante PROMOVE candidatos que o original recusa',
         aceitam.length === 8 && aceitam.every((x) => /recuperou=false/.test(x.orig) && /recuperou=true/.test(x.mutado)),
         `direção errada: ${aceitam.filter((x) => !(/recuperou=false/.test(x.orig) && /recuperou=true/.test(x.mutado))).map((x) => `${x.id} orig[${x.orig}] mut[${x.mutado}]`).join(' | ')}`);
+
+      /* ═══ C10 §19.25-arq — ISOLAMENTO entre histórias é ARQUITETURAL (categoria B) ═══
+       * ARBITRAGEM (QA3R-B2B): o mutante comportamental antigo (remover o filtro de storyId em
+       * selectStoryPackDirs) NÃO viola o isolamento — o recovery recompõe todo caminho a partir do
+       * storyId SOLICITADO em DUAS camadas: (1) o candidato é `${storyId}@${version}`
+       * (collectCandidates) e (2) o diretório lido é `getPackLocalDir(storyId, version)`
+       * (validateCandidate). O nome bruto do diretório do disco (ex.: `noah@3.0.0`) NUNCA é
+       * aproveitado como caminho — `d.name` não aparece no fonte. Sem o filtro, o pior é sondar
+       * `david_goliath@<versão estrangeira>` (inexistente): morte por caminho inexistente, não pelo
+       * contrato. Logo o contrato é estrutural e se prova mutando a RECOMPOSIÇÃO, não o filtro. */
+      {
+        const A10_ALVO = 'src/services/packRecoveryService.js';
+        // Verificador arquitetural reutilizável: as duas recomposições existem e o nome bruto do
+        // diretório NUNCA é usado como caminho de candidato/leitura. Puro sobre texto.
+        const avaliarIsolamentoRecovery = (fonte) => {
+          const src = String(fonte || '');
+          const recompoeName = /out\.set\(version, `\$\{storyId\}@\$\{version\}`\)/.test(src);   // candidato do storyId solicitado
+          const recompoeDir = /const dir = getPackLocalDir\(storyId, version\)/.test(src);        // leitura do storyId solicitado
+          const usaNomeBruto = /\bd\.name\b/.test(src);   // nome bruto do diretório do disco vira caminho → VAZAMENTO
+          return { recompoeName, recompoeDir, usaNomeBruto, valido: recompoeName && recompoeDir && !usaNomeBruto };
+        };
+        // Mutante ARQUITETURAL: em vez de aproveitar só a versão do diretório (add(d.version), que
+        // recompõe), passa a gravar o NOME BRUTO do diretório como identidade do candidato —
+        // contrariando a recomposição a partir do storyId solicitado. (Na prática a 2ª camada — o
+        // `getPackLocalDir(storyId, version)` da leitura — ainda barraria o conteúdo estrangeiro;
+        // por isso a invariante de defesa-em-profundidade se trava por TEXTO, não por comportamento.)
+        // Âncora única (linha 194 do fonte).
+        const a10Mut = (s) => s.replace(
+          'for (const d of selectStoryPackDirs(names, storyId)) add(d.version);',
+          'for (const d of selectStoryPackDirs(names, storyId)) out.set(d.version, d.name);');
+        const hashText = (t) => require('crypto').createHash('sha256').update(String(t)).digest('hex');
+
+        const a10Orig = readSrc(A10_ALVO);
+        const a10Mutado = a10Mut(a10Orig);
+        const avalOrig = avaliarIsolamentoRecovery(a10Orig);
+        const avalMut = avaliarIsolamentoRecovery(a10Mutado);
+
+        check('LP2.1a-ii-C §19.25-arq (C10 — isolamento por recomposição): o recovery recompõe o caminho do storyId solicitado; introduzir o nome bruto do diretório é rejeitado',
+          a10Mutado !== a10Orig                       // a transformação alterou a fonte
+          && hashText(a10Mutado) !== hashText(a10Orig)
+          && avalOrig.valido                          // ORIGINAL: recompõe as duas camadas, sem nome bruto
+          && avalOrig.recompoeName && avalOrig.recompoeDir && !avalOrig.usaNomeBruto
+          && !avalMut.valido                          // MUTANTE: passa a usar o nome bruto → rejeitado
+          && avalMut.usaNomeBruto,                    // e é EXATAMENTE por isso (não por outra invariante)
+          `C10 arq original[valido=${avalOrig.valido} recName=${avalOrig.recompoeName} recDir=${avalOrig.recompoeDir}] mutante[valido=${avalMut.valido} usaNomeBruto=${avalMut.usaNomeBruto}]`);
+      }
     }
 
     /* ═════════ QA1 — os 8 mutantes que a auditoria de aceitação achou AUSENTES ═════════ */
