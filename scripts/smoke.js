@@ -10888,16 +10888,50 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         aceitam.length === 8 && aceitam.every((x) => /recuperou=false/.test(x.orig) && /recuperou=true/.test(x.mutado)),
         `direção errada: ${aceitam.filter((x) => !(/recuperou=false/.test(x.orig) && /recuperou=true/.test(x.mutado))).map((x) => `${x.id} orig[${x.orig}] mut[${x.mutado}]`).join(' | ')}`);
 
-      /* ═══ C10 §19.25-arq — ISOLAMENTO entre histórias é ARQUITETURAL (categoria B) ═══
-       * ARBITRAGEM (QA3R-B2B): o mutante comportamental antigo (remover o filtro de storyId em
-       * selectStoryPackDirs) NÃO viola o isolamento — o recovery recompõe todo caminho a partir do
-       * storyId SOLICITADO em DUAS camadas: (1) o candidato é `${storyId}@${version}`
-       * (collectCandidates) e (2) o diretório lido é `getPackLocalDir(storyId, version)`
-       * (validateCandidate). O nome bruto do diretório do disco (ex.: `noah@3.0.0`) NUNCA é
-       * aproveitado como caminho — `d.name` não aparece no fonte. Sem o filtro, o pior é sondar
-       * `david_goliath@<versão estrangeira>` (inexistente): morte por caminho inexistente, não pelo
-       * contrato. Logo o contrato é estrutural e se prova mutando a RECOMPOSIÇÃO, não o filtro. */
+      /* ═══ C10 §19.25 — ISOLAMENTO entre histórias é um contrato COMPOSTO ═══
+       * ARBITRAGEM (QA3R-B2B + B2B-R): §19.25 tem DUAS garantias independentes, provadas separadamente
+       * (C10 continua sendo UM item oficial, não dois):
+       *   C10 A (seleção)  — a versão achada no diretório de OUTRA história não pode entrar na lista de
+       *     candidatos da história solicitada. Prova COMPORTAMENTAL: mutar o filtro por storyId em
+       *     selectStoryPackDirs e observar a SELEÇÃO (quais versões viram candidatas).
+       *   C10 B (diretório) — mesmo com a seleção contaminada, o recovery nunca abre/valida/promove o
+       *     diretório BRUTO de outra história: todo caminho é recomposto do storyId solicitado em DUAS
+       *     camadas (candidato `${storyId}@${version}` + leitura `getPackLocalDir(storyId, version)`);
+       *     `d.name` (nome bruto) não aparece no fonte. Prova ARQUITETURAL (por TEXTO).
+       * Nota: sem o filtro, o recovery apenas SONDA `david_goliath@<versão estrangeira>` (recomposto);
+       * essa sondagem é o observável de C10 A. Nunca chega a abrir `noah@3.0.0` — isso é o que C10 B trava. */
       {
+        // ── C10 A (candidateIsolation) — COMPORTAMENTAL: a versão estrangeira não entra na seleção ──
+        // Oráculo = a SELEÇÃO de candidatos, não o resultado final nem abrir noah@. No cenário
+        // david@1.0.0 + noah@3.0.0, o recovery de david recompõe candidatos `david_goliath@<versão>`:
+        // com o filtro só a 1.0.0 (própria); sem o filtro, a 3.0.0 (do noah) contamina a seleção e o
+        // recovery passa a sondar `david_goliath@3.0.0`. david@1.0.0 recupera nos dois casos.
+        const C10A_ALVO = 'src/services/packPublishMarker.js';
+        const C10A_ANCORA = '    if (parsed.storyId !== storyId) continue; // igualdade, NUNCA prefixo';
+        const c10aMut = (s) => s.replace(C10A_ANCORA, '');
+        const c10aOrig = readSrc(C10A_ALVO);
+        const versoesCandidatas = async (mut) => {
+          const h = createPackInstallHarness({ markerMutate: mut });
+          semearOrfao(h, { version: '1.0.0' });                      // david_goliath@1.0.0 (própria)
+          semearOrfao(h, { storyId: 'noah', version: '3.0.0' });     // noah@3.0.0 (estrangeira)
+          h.resetEvents();
+          const mod = mut ? loadPackDownloader((x) => `${x}\n/* mut */`, mut) : { createPackDownloadService };
+          try { await instalarC(mod.createPackDownloadService(h.deps)); } catch { /* o resultado final NÃO é o oráculo */ }
+          const vs = new Set();
+          for (const e of h.events) { const mm = /david_goliath@([0-9.]+)\//.exec(e); if (mm) vs.add(mm[1]); }
+          return { sondadas: [...vs].sort(), tocaNoah: h.events.some((x) => /noah/.test(x)) };
+        };
+        const c10aO = await versoesCandidatas();
+        const c10aM = await versoesCandidatas(c10aMut);
+        check('LP2.1a-ii-C §19.25-cand (C10 A — isolamento da seleção): a versão de OUTRA história não entra nos candidatos; sem o filtro, entra e é sondada',
+          c10aMut(c10aOrig) !== c10aOrig                             // âncora existe e altera a fonte
+          && c10aO.sondadas.includes('1.0.0')                        // a própria versão É candidata
+          && !c10aO.sondadas.includes('3.0.0')                       // ORIGINAL exclui a versão estrangeira
+          && c10aM.sondadas.includes('3.0.0')                        // MUTANTE contamina: 3.0.0 (do noah) vira candidata
+          && !c10aO.tocaNoah && !c10aM.tocaNoah,                     // oráculo = SELEÇÃO, não abrir noah@ (isso é C10 B)
+          `C10 A original sondadas[${c10aO.sondadas.join(',')}] mutante sondadas[${c10aM.sondadas.join(',')}] tocaNoah[o=${c10aO.tocaNoah} m=${c10aM.tocaNoah}]`);
+
+        // ── C10 B (directoryIsolation) — ARQUITETURAL: o diretório bruto de outra história nunca vira caminho ──
         const A10_ALVO = 'src/services/packRecoveryService.js';
         // Verificador arquitetural reutilizável: as duas recomposições existem e o nome bruto do
         // diretório NUNCA é usado como caminho de candidato/leitura. Puro sobre texto.
@@ -10932,6 +10966,37 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
           && !avalMut.valido                          // MUTANTE: passa a usar o nome bruto → rejeitado
           && avalMut.usaNomeBruto,                    // e é EXATAMENTE por isso (não por outra invariante)
           `C10 arq original[valido=${avalOrig.valido} recName=${avalOrig.recompoeName} recDir=${avalOrig.recompoeDir}] mutante[valido=${avalMut.valido} usaNomeBruto=${avalMut.usaNomeBruto}]`);
+
+        // ── Rastreabilidade COMPOSTA (estrutural, verificável — não narrativa) ──
+        // C10 = UM item oficial (§19.25), coberto por DUAS subprovas com alvos, mutantes e mortes
+        // distintos. `itemOficialUnico` deixa explícito que não conta como dois na contabilidade.
+        const C10 = {
+          id: 'C10', item: '§19.25', categoria: 'composto', itemOficialUnico: true,
+          subprovas: {
+            candidateIsolation: {
+              tipo: 'comportamental', alvo: C10A_ALVO, mutante: 'remove o filtro por storyId em selectStoryPackDirs',
+              origSondadas: c10aO.sondadas, mutSondadas: c10aM.sondadas,
+              morte: 'a versão de outra história entra na seleção de candidatos',
+            },
+            directoryIsolation: {
+              tipo: 'arquitetural', alvo: A10_ALVO, verificador: 'avaliarIsolamentoRecovery',
+              origValido: avalOrig.valido, mutValido: avalMut.valido,
+              morte: 'o nome bruto do diretório vira identidade do candidato',
+            },
+          },
+        };
+        check('LP2.1a-ii-C §19.25-comp (C10 rastreabilidade composta): UM item oficial coberto por 2 subprovas — candidateIsolation (comportamental) + directoryIsolation (arquitetural)',
+          C10.itemOficialUnico === true && C10.categoria === 'composto'
+          && C10.subprovas.candidateIsolation.tipo === 'comportamental'
+          && C10.subprovas.candidateIsolation.alvo === 'src/services/packPublishMarker.js'
+          && C10.subprovas.directoryIsolation.tipo === 'arquitetural'
+          && C10.subprovas.directoryIsolation.alvo === 'src/services/packRecoveryService.js'
+          // as subprovas refletem os observáveis REAIS medidos acima (não valores fixos)
+          && C10.subprovas.candidateIsolation.mutSondadas.includes('3.0.0')
+          && !C10.subprovas.candidateIsolation.origSondadas.includes('3.0.0')
+          && C10.subprovas.directoryIsolation.origValido === true
+          && C10.subprovas.directoryIsolation.mutValido === false,
+          `C10 composto inconsistente: ${JSON.stringify(C10)}`);
       }
     }
 
