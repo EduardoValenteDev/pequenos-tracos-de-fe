@@ -2,7 +2,10 @@
 
 > **Feature:** `012-loading-performance-foundation` · **Bloco:** LP2.1-GOV-01 (governança/congelamento) · **Data:** 2026-07-16
 > **Branch:** `fix/loading-performance-foundation` · **HEAD na criação:** `3485b95`
-> **Etapa SDD:** 1 (Specify). **Portão Humano 1 (spec): PENDENTE — nenhum bloco de implementação pode começar antes da aprovação do Eduardo.**
+> **Etapa SDD:** 1 (Specify). **Portão Humano 1 (spec): APROVADO por Eduardo em 2026-07-16.**
+> Aprovados na íntegra: esta spec como **fonte oficial versionada** da trilha; a **nomenclatura congelada** (C = recuperação depois do move e antes de `READY`; D = identidade resolvida; E = progresso compartilhado; F = cancelamento e ciclo de vida); e a **ordem C → D → E → F**.
+> As decisões marcadas **[ABERTO]** (§15) **continuam abertas** e **não podem ser resolvidas silenciosamente durante a implementação**.
+> **Autorizado apenas o PLANEJAMENTO do `LP2.1a-ii-C`** (Etapa SDD 4 → [plan-lp2.1a-ii-c.md](./plan-lp2.1a-ii-c.md)). **Implementação ainda NÃO autorizada** — depende do Portão Humano 2. Blocos D, E e F não iniciados.
 > **Precedência:** `docs/PROJECT_SOURCE_OF_TRUTH.md` → `.specify/memory/constitution.md` → `AGENTS.md` → `CLAUDE.md` → **esta spec** → plan → tasks.
 > **Risco:** S1 (concorrência + persistência de conteúdo pago; um defeito aqui deixa a criança sem a história que a família comprou).
 
