@@ -10294,11 +10294,35 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
   // §19.24 — recovery NÃO no boot
   const bootFiles = ['App.js', 'src/services/bootRoute.js', 'src/services/bootMark.js',
     'src/screens/SplashScreen.js', 'src/context/PacksContext.js'];
-  const bootImporta = bootFiles.filter((f) => /packRecoveryService|recoverStoryPack/.test(readSrc(f)));
+
+  /**
+   * Verificador ARQUITETURAL do contrato A7 (§19.24). Recebe um mapa { arquivo: fonte } e classifica,
+   * SÓ SOBRE TEXTO, quem viola o desacoplamento boot↔recovery. É estático de propósito: o contrato
+   * PROÍBE a dependência — importar/referenciar o recovery — antes de qualquer execução, então não
+   * compila nem renderiza React. Reutilizado pelo mutante estático de A7 (QA1-A7).
+   * @returns {{ importamService: string[], referenciamRecover: string[], chamamRecover: string[],
+   *             infratores: string[], valido: boolean }}
+   */
+  const avaliarBootSemRecovery = (fontes) => {
+    const importamService = [];
+    const referenciamRecover = [];
+    const chamamRecover = [];
+    for (const nome of Object.keys(fontes)) {
+      const src = String(fontes[nome] || '');
+      if (/packRecoveryService/.test(src)) importamService.push(nome);
+      if (/\brecoverStoryPack\b/.test(src)) referenciamRecover.push(nome);
+      if (/\brecoverStoryPack\s*\(/.test(src)) chamamRecover.push(nome);
+    }
+    const infratores = [...new Set([...importamService, ...referenciamRecover, ...chamamRecover])];
+    return { importamService, referenciamRecover, chamamRecover, infratores, valido: infratores.length === 0 };
+  };
+  const fontesBoot = {};
+  bootFiles.forEach((f) => { fontesBoot[f] = readSrc(f); });
+  const bootAval = avaliarBootSemRecovery(fontesBoot);
   check('LP2.1a-ii-C §19.24 (sem recovery no boot): nenhum arquivo do caminho de boot importa ou chama o recovery',
-    bootImporta.length === 0
+    bootAval.valido
     && /await recoverStoryPack\(\{ storyId, requestedKinds: kinds, appVersion \}\)/.test(dlSrcC),  // é sob demanda, no downloader
-    `o recovery vazou para o caminho de boot: ${bootImporta.join(', ')}`);
+    `o recovery vazou para o caminho de boot: ${bootAval.infratores.join(', ')}`);
 
   // §19.34 — nada de D/E/F
   check('LP2.1a-ii-C §19.34 (sem ampliar para D/E/F): o bloco não toca identidade resolvida, progresso compartilhado nem cancelamento',
@@ -10798,7 +10822,12 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
           mut: { recovery: (s) => s.replace("if (!info || !info.exists) return { ok: false, reason: `${f.path}: ausente` };", 'if (!info || !info.exists) continue;') } },
         { id: 'C6', nome: 'ignorar hash divergente', cen: 'hashDivergente', prova: '§19.6',
           mut: { recovery: (s) => s.replace("if (h.sha256 !== String(f.sha256).toLowerCase()) return { ok: false, reason: `${f.path}: sha256 divergente` };", '') } },
-        { id: 'C7', nome: 'ignorar tamanho divergente', cen: 'tamanhoDivergente', prova: '§19.6b',
+        // C7: a etiqueta de seção antiga apontava para uma prova inexistente. A rastreabilidade real
+        // vive na própria entrada: alvo `packRecoveryService.js`, âncora da checagem `info.size !== f.bytes`,
+        // cenário `tamanhoDivergente`, executado no loop MUT_C (original vs mutado) e vigiado pelos
+        // checks §20/§20b. `alvo`/`contrato` tornam isso estrutural, não só um rótulo.
+        { id: 'C7', nome: 'ignorar tamanho divergente', cen: 'tamanhoDivergente',
+          alvo: 'src/services/packRecoveryService.js', contrato: 'recuperação rejeita arquivo com tamanho divergente do manifesto',
           mut: { recovery: (s) => s.replace('      if (typeof f.bytes === \'number\' && info.size !== f.bytes) {\n        return { ok: false, reason: `${f.path}: bytes ${info.size} != ${f.bytes}` };\n      }', '') } },
         { id: 'C8', nome: 'escolher o PRIMEIRO candidato retornado', cen: 'doisValidos', prova: '§19.8-9',
           mut: { recovery: (s) => s.replace('      if (validos.length > 1) {', '      if (false) {') } },
@@ -11014,35 +11043,39 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
           `original[fetches=${o.fetches} moves=${o.moves}] mutante[fetches=${m.fetches} moves=${m.moves}]`);
       }
 
-      // ── QA1-A7: recovery executado no BOOT ───────────────────────────────────────────
-      // Não basta regex no fonte original: constrói-se a variante e observa-se I/O REAL. O boot é
-      // representado pelo que o app faz ao subir SEM ninguém pedir pack: reconciliação do índice.
-      // O mutante injeta o recovery nesse caminho; o original não faz I/O algum.
+      // ── QA1-A7: recovery no BOOT (mutação ARQUITETURAL estática de fonte) ─────────────
+      // O contrato A7 é arquitetural: nenhum arquivo do caminho de boot pode DEPENDER do recovery
+      // (importar packRecoveryService ou referenciar recoverStoryPack) — a proibição vale ANTES da
+      // execução. Então o mutante não simula I/O nem renderiza React (o A7 fabricado antigo chamava
+      // recoverStoryPack DENTRO do teste, sem tocar fonte — não era mutação de fonte). Aqui o mutante
+      // INJETA a dependência proibida no fonte REAL de um arquivo de boot (cópia em memória) e o
+      // verificador arquitetural REAL do §19.24 (avaliarBootSemRecovery) o mata, identificando o
+      // arquivo infrator. Fonte de verdade = os textos lidos do repo em `fontesBoot`.
       {
-        const bootReal = async (comRecovery) => {
-          const h = createPackInstallHarness();
-          // C1: entrada no índice, para o "boot" ter o que iterar (é o pior caso para o contrato).
-          semearOrfao(h, { entry: { status: 'downloading', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 999, downloadedBytes: 999, errorMessage: null } });
-          h.resetEvents();
-          // "boot": carrega o índice e reconcilia (o que o PacksContext faz), sem pedir pack nenhum.
-          const idx = await h.index();
-          if (comRecovery) {
-            // MUTANTE QA1-A7: o boot passa a recuperar packs — exatamente o que o contrato proíbe.
-            for (const sid of Object.keys(idx)) {
-              await h.deps.recoverStoryPack({ storyId: sid, requestedKinds: ['scene', 'audio'], appVersion: '1.0.0' });
-            }
-          }
-          return { historias: Object.keys(idx).length,
-            readdir: h.eventsOfType('readdir').length, hashes: h.events.filter((x) => x.startsWith('hash:')).length,
-            leituras: h.events.filter((x) => x.startsWith('read:')).length, setEntry: h.counters.setEntry };
-        };
-        const o = await bootReal(false);
-        const m = await bootReal(true);
-        registrar('QA1-A7', 'A7', 'recovery executado no boot', '§QA1.A7',
-          o.historias === 1                                                            // havia o que recuperar
-          && o.readdir === 0 && o.hashes === 0 && o.leituras === 0 && o.setEntry === 0 // boot correto: ZERO I/O
-          && (m.readdir > 0 || m.hashes > 0 || m.leituras > 0) && m.setEntry > 0,      // o mutante faz I/O observável
-          `boot original[readdir=${o.readdir} hash=${o.hashes} read=${o.leituras} setEntry=${o.setEntry}] mutante[readdir=${m.readdir} hash=${m.hashes} read=${m.leituras} setEntry=${m.setEntry}]`);
+        const A7_ALVO = 'src/context/PacksContext.js';
+        // Âncora única: o import do packStorageService (1 ocorrência). Injeta ao lado dele um import
+        // de packRecoveryService — a dependência que o contrato proíbe no caminho de boot.
+        const a7Mut = (s) => s.replace(
+          "import { getPackIndex, getPackLocalDir, PACK_STATUS } from '../services/packStorageService';",
+          "import { getPackIndex, getPackLocalDir, PACK_STATUS } from '../services/packStorageService';\nimport { recoverStoryPack } from '../services/packRecoveryService';");
+        const hashText = (t) => require('crypto').createHash('sha256').update(String(t)).digest('hex');
+
+        const srcOrig = fontesBoot[A7_ALVO];
+        const srcMut = a7Mut(srcOrig);
+        const fontesMut = { ...fontesBoot, [A7_ALVO]: srcMut };
+        const avalOrig = avaliarBootSemRecovery(fontesBoot);     // conjunto REAL do repo
+        const avalMut = avaliarBootSemRecovery(fontesMut);       // conjunto com o arquivo mutado
+
+        registrar('QA1-A7', 'A7', 'boot importa/referencia o recovery', '§19.24',
+          srcMut !== srcOrig                                     // a transformação alterou a fonte
+          && hashText(srcMut) !== hashText(srcOrig)              // assinaturas diferentes
+          && avalOrig.valido                                     // ORIGINAL: boot limpo → aceito
+          && !avalMut.valido                                     // MUTANTE: dependência proibida → rejeitado
+          && avalMut.infratores.length === 1                     // exatamente UM infrator
+          && avalMut.infratores[0] === A7_ALVO                   // e é o arquivo que foi mutado
+          && avalMut.importamService.includes(A7_ALVO)          // pegou o import do packRecoveryService
+          && avalMut.referenciamRecover.includes(A7_ALVO),      // e a referência a recoverStoryPack
+          `A7 original[valido=${avalOrig.valido}] mutante[valido=${avalMut.valido} infratores=${avalMut.infratores.join(',')}]`);
       }
 
       // ── QA1-A13: promoção FORA da serialização (lost update do índice) ────────────────
