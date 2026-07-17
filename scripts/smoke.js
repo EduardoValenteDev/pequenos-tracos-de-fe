@@ -9359,13 +9359,20 @@ console.log('\n── LP2.1a-ii-B: reinstalação e rejeições de story packs �
         'o índice recebeu READY mais de uma vez, ou gravações intermediárias inesperadas');
 
       const sobrouAntigo = ANTIGOS.filter((f) => h.mem.exists(LOCAL_B + f.path) && !NOVOS.some((n) => n.path === f.path));
-      check('LP2.1a-ii-B §6.9-6.11 (substituição, não mistura): só os arquivos novos ficam; o arquivo que sumiu do pack some do disco; .tmp não permanece',
+      // LP2.1a-ii-C: o diretório final ganhou o marcador `.ptf-publish.json`. A asserção NÃO foi
+      // afrouxada para "o de antes +1": ela passou a NOMEAR o que pode existir — conteúdo declarado
+      // no manifesto, mais o metadado interno permitido, e nada além disso. Um arquivo inesperado
+      // (ou o marcador com outro nome) continua reprovando.
+      const permitidos = new Set([...NOVOS.map((f) => f.path), 'manifest.json', '.ptf-publish.json']);
+      const inesperados = h.mem.listFiles(LOCAL_B).map((u) => u.slice(LOCAL_B.length)).filter((p) => !permitidos.has(p));
+      check('LP2.1a-ii-B §6.9-6.11 (substituição, não mistura): só os arquivos novos + metadado permitido ficam; o arquivo que sumiu do pack some do disco; .tmp não permanece',
         NOVOS.every((f) => h.mem.fileText(LOCAL_B + f.path) === f.text)      // conteúdo NOVO
         && sobrouAntigo.length === 0                                          // scenes/03 do pack antigo sumiu
         && h.mem.exists(`${LOCAL_B}manifest.json`) === true
-        && h.mem.listFiles(LOCAL_B).length === NOVOS.length + 1               // nada a mais
+        && h.mem.exists(`${LOCAL_B}.ptf-publish.json`) === true               // metadado interno publicado
+        && inesperados.length === 0                                           // nada além do previsto
         && h.mem.exists(TMP_B) === false,
-        `a reinstalação misturou conteúdo antigo e novo (sobraram: ${sobrouAntigo.map((f) => f.path).join(', ')}) ou deixou .tmp para trás`);
+        `a reinstalação misturou conteúdo antigo e novo (sobraram: ${sobrouAntigo.map((f) => f.path).join(', ')}), deixou .tmp, ou publicou arquivo inesperado (${inesperados.join(', ')})`);
 
       const entry = await h.entry(STORY);
       check('LP2.1a-ii-B §6.12-6.13 (resultado e liberação): aponta para a versão instalada; nenhuma fila ou voo retido',
@@ -9969,6 +9976,529 @@ console.log('\n── LP2.1a-ii-BR: limpeza do errorMessage nas entradas de pack
     }
   })();
   globalThis.__LP21AIIBR.catch(() => {});
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-ii-C — Recuperação de publicação interrompida (entre o move e o READY).
+// Invariante: só recupera com EVIDÊNCIA LOCAL PERSISTENTE (o marcador) de que o
+// manifesto ANCORADO e todos os arquivos foram validados ANTES da publicação.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida ──');
+{
+  const { createPackInstallHarness, loadPackDownloader, loadModule } = require('./testing/packInstallHarness');
+  const { createPackDownloadService } = loadPackDownloader();
+  const MK = loadModule('src/services/packPublishMarker.js', {},
+    ['MARKER_FILENAME', 'normalizePackFilePath', 'collidesWithMarker', 'findMarkerCollisions',
+      'buildPublishMarker', 'validateMarkerSchema', 'validatePublishMarker', 'parsePackDirName',
+      'selectStoryPackDirs']);
+
+  const STORY_C = 'david_goliath';
+  const V_C = '1.0.0';
+  const BASE_C = 'https://r2/david_goliath/v1/';
+  const GLOBAL_C = 'https://r2/content-manifest.json';
+  const dirDe = (s, v) => `file:///doc/packs/${s}@${v}/`;
+  const LOCAL_C = dirDe(STORY_C, V_C);
+  const ARQ_C = [
+    { kind: 'scene', path: 'scenes/01.webp', text: 'CENA-C-UM' },
+    { kind: 'scene', path: 'scenes/02.webp', text: 'CENA-C-DOIS' },
+    { kind: 'audio', path: 'audio/01.mp3', text: 'AUDIO-C-UM' },
+  ];
+
+  /** Monta o manifesto e a âncora coerentes com os arquivos dados. */
+  const manifestoDe = (h, { storyId = STORY_C, version = V_C, arquivos = ARQ_C, bytesErradosEm = null } = {}) => {
+    const files = arquivos.map((f) => ({
+      kind: f.kind, path: f.path,
+      // `bytesErradosEm` declara um tamanho errado MAS mantém o sha256 do conteúdo real: assim só a
+      // checagem de TAMANHO pode reprovar, e o hash não mascara a causa.
+      bytes: Buffer.byteLength(f.text) + (f.path === bytesErradosEm ? 5 : 0),
+      sha256: h.sha256OfText(f.text),
+    }));
+    const manifest = {
+      schemaVersion: 1, id: storyId, version, type: 'story', minAppVersion: '1.0.0',
+      totalBytes: files.reduce((a, f) => a + f.bytes, 0), files,
+      metadata: { storyId, title: 'Davi e Golias', language: 'pt-BR' },
+    };
+    return { manifest, manifestText: JSON.stringify(manifest), files };
+  };
+
+  /**
+   * Semeia um ÓRFÃO: o destino final montado À MÃO, arquivo a arquivo — nunca via move.
+   * É assim que se prova rejeição de destino PARCIAL sem depender de o FS mover atomicamente.
+   */
+  const semearOrfao = (h, o = {}) => {
+    const {
+      storyId = STORY_C, version = V_C, arquivos = ARQ_C, kinds = ['audio', 'scene'],
+      omitirArquivo = null, corromperArquivo = null, semManifesto = false, patchManifesto = null,
+      semMarcador = false, marcadorRaw = null, patchMarcador = null, ancoraDe = null, entry = null,
+      versaoDeclarada = null, bytesErradosEm = null,
+    } = o;
+    // `versaoDeclarada` ≠ `version`: manifesto e marcador dizem uma versão, o DIRETÓRIO diz outra —
+    // é o único jeito de isolar a checagem marcador×nome-do-diretório das demais.
+    const vDecl = versaoDeclarada || version;
+    const { manifestText } = manifestoDe(h, { storyId, version: vDecl, arquivos, bytesErradosEm });
+    const textoFinal = patchManifesto ? patchManifesto(manifestText) : manifestText;
+    // A âncora do marcador é a do manifesto ORIGINAL: se o manifesto do disco for alterado
+    // depois, o elo hash×âncora quebra — que é exatamente o que a prova 13 exige.
+    const ancora = ancoraDe !== null ? ancoraDe : h.sha256OfText(manifestText);
+
+    let marcador = null;
+    if (!semMarcador) {
+      marcador = marcadorRaw !== null ? marcadorRaw : MK.buildPublishMarker({
+        storyId, version: vDecl, manifestSha256: ancora, manifestPath: 'manifest.json', kinds, appVersion: '1.0.0',
+      });
+      if (patchMarcador && typeof marcador === 'object') marcador = patchMarcador({ ...marcador });
+    }
+    const files = arquivos
+      .filter((f) => f.path !== omitirArquivo)
+      .map((f) => (f.path === corromperArquivo ? { ...f, text: `X${f.text.slice(1)}` } : f));  // mesmo tamanho: a falha chega ao HASH
+    return h.seedOrphanPack({
+      storyId, version, files, manifestText: semManifesto ? null : textoFinal, marker: marcador, indexEntry: entry,
+    });
+  };
+
+  /** Mundo remoto (para os fluxos que precisam da rede). */
+  const configurarRemoto = (h, { version = V_C, arquivos = ARQ_C } = {}) => {
+    const { manifestText } = manifestoDe(h, { version, arquivos });
+    h.setGlobalManifest({
+      manifestVersion: 1, minAppVersion: '1.0.0',
+      packs: [{ storyId: STORY_C, version, baseUrl: BASE_C, manifestPath: 'manifest.json',
+        manifestSha256: h.sha256OfText(manifestText), requiresAppUpdate: false }],
+    });
+    h.route(`${BASE_C}manifest.json`, { text: manifestText });
+    arquivos.forEach((f) => h.route(BASE_C + f.path, { text: f.text }));
+  };
+
+  const instalarC = (svc, extra) => svc.downloadStoryPackScenesFromGlobalManifest({
+    storyId: STORY_C, globalManifestUrl: GLOBAL_C, appVersion: '1.0.0', requestedKinds: ['scene', 'audio'], ...extra,
+  });
+
+  // ── ESTÁTICOS ──
+  const mkSrc = a1StripComments(readSrc('src/services/packPublishMarker.js'));
+  const recSrc = a1StripComments(readSrc('src/services/packRecoveryService.js'));
+  const dlSrcC = a1StripComments(readSrc('src/services/packDownloadService.js'));
+
+  // §19.24 — recovery NÃO no boot
+  const bootFiles = ['App.js', 'src/services/bootRoute.js', 'src/services/bootMark.js',
+    'src/screens/SplashScreen.js', 'src/context/PacksContext.js'];
+  const bootImporta = bootFiles.filter((f) => /packRecoveryService|recoverStoryPack/.test(readSrc(f)));
+  check('LP2.1a-ii-C §19.24 (sem recovery no boot): nenhum arquivo do caminho de boot importa ou chama o recovery',
+    bootImporta.length === 0
+    && /await recoverStoryPack\(\{ storyId, requestedKinds: kinds, appVersion \}\)/.test(dlSrcC),  // é sob demanda, no downloader
+    `o recovery vazou para o caminho de boot: ${bootImporta.join(', ')}`);
+
+  // §19.34 — nada de D/E/F
+  check('LP2.1a-ii-C §19.34 (sem ampliar para D/E/F): o bloco não toca identidade resolvida, progresso compartilhado nem cancelamento',
+    !/subscribers|multiplex|progresso compartilhado|resolvedIdentity|identidade resolvida da opera/i.test(recSrc + mkSrc)
+    && !/packInstallKey/.test(recSrc + mkSrc)                       // não mexe na chave da operação compartilhada
+    && /const flight = guardedInstall\(params\)\.finally/.test(dlSrcC)  // single-flight intacto
+    && /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstall\(params\);/.test(dlSrcC),
+    'o bloco C ampliou para identidade resolvida, progresso compartilhado ou cancelamento');
+
+  // §19.15/16 — a regra de colisão é normalizada (núcleo puro, sem I/O)
+  const variantes = ['.ptf-publish.json', './.ptf-publish.json', './/.ptf-publish.json',
+    '.\\.ptf-publish.json', '.PTF-Publish.JSON', '  .ptf-publish.json  ', './././.ptf-publish.json'];
+  const naoColide = ['scenes/.ptf-publish.json', 'ptf-publish.json', '.ptf-publish.jsonx', 'a/.ptf-publish.json'];
+  check('LP2.1a-ii-C §19.15-16 (colisão normalizada): todas as variantes do nome reservado colidem; nomes só parecidos não',
+    variantes.every((p) => MK.collidesWithMarker(p) === true)
+    && naoColide.every((p) => MK.collidesWithMarker(p) === false)
+    && MK.findMarkerCollisions([{ path: 'scenes/01.webp' }, { path: './.PTF-Publish.JSON' }]).length === 1,
+    `a comparação é ingênua: variantes que passaram = ${variantes.filter((p) => !MK.collidesWithMarker(p)).join(', ')}`);
+
+  // §11 — filtro por storyId não pode capturar por prefixo
+  check('LP2.1a-ii-C §11 (sem colisão por prefixo): o filtro compara o storyId PARSEADO, nunca o começo do nome',
+    MK.selectStoryPackDirs(['noah@1.0.0', 'noah_ark@1.0.0', 'noahzinho@2.0.0', '.tmp', 'lixo'], 'noah')
+      .map((d) => d.name).join(',') === 'noah@1.0.0'
+    && MK.selectStoryPackDirs(['david_goliath@1.0.0', '.tmp'], 'david').length === 0
+    && MK.parsePackDirName('.tmp') === null,
+    'o filtro captura diretórios de outra história (prefixo) ou não descarta o .tmp');
+
+  globalThis.__LP21AIIC = (async () => {
+    /* ═══ Instalação normal publica o marcador (base das demais provas) ═══ */
+    {
+      const h = createPackInstallHarness();
+      configurarRemoto(h); h.resetEvents();
+      const r = await instalarC(createPackDownloadService(h.deps));
+      const mk = JSON.parse(h.mem.fileText(`${LOCAL_C}.ptf-publish.json`) || 'null');
+      const iWrite = h.events.findIndex((e) => e === `write:file:///doc/packs/.tmp/${STORY_C}@${V_C}/.ptf-publish.json`);
+      const iMove = h.events.findIndex((e) => e.startsWith('move:'));
+      const iUltimoHash = Math.max(...ARQ_C.map((f) => h.events.indexOf(`hash:file:///doc/packs/.tmp/${STORY_C}@${V_C}/${f.path}`)));
+      check('LP2.1a-ii-C §7 (escrita do marcador): escrito no .tmp DEPOIS de toda a validação e ANTES do move; publicado junto',
+        r.ok === true && !!mk
+        && iWrite > 0 && iUltimoHash > 0 && iUltimoHash < iWrite && iWrite < iMove   // depois do verify, antes do move
+        && mk.schemaVersion === 1 && mk.storyId === STORY_C && mk.version === V_C
+        && /^[a-f0-9]{64}$/.test(mk.manifestSha256) && mk.manifestPath === 'manifest.json'
+        && mk.kinds.join(',') === 'audio,scene' && mk.appVersion === '1.0.0',
+        `o marcador não foi escrito no ponto certo ou está malformado: ${JSON.stringify(mk)}`);
+
+      const entry = await h.entry(STORY_C);
+      check('LP2.1a-ii-C §19.29 (totalBytes sem marcador): o índice conta só o CONTEÚDO declarado no manifesto',
+        entry.totalBytes === ARQ_C.reduce((a, f) => a + Buffer.byteLength(f.text), 0)
+        && Buffer.byteLength(h.mem.fileText(`${LOCAL_C}.ptf-publish.json`)) > 0,   // o marcador existe e mesmo assim não conta
+        `totalBytes inclui o marcador: ${entry.totalBytes}`);
+    }
+
+    /* ═══ §19.1 C1 · §19.2 C2 · §19.26 sem rede ═══ */
+    for (const caso of [
+      { nome: '§19.1 (C1: entrada no índice)', entry: { status: 'downloading', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 999, downloadedBytes: 999, errorMessage: 'falha anterior' } },
+      { nome: '§19.2 (C2: sem entrada no índice)', entry: null },
+    ]) {
+      const h = createPackInstallHarness();
+      semearOrfao(h, { entry: caso.entry });
+      configurarRemoto(h); h.resetEvents();   // a rede EXISTE — a prova é que não é usada
+      const svc = createPackDownloadService(h.deps);
+      const r = await instalarC(svc);
+      const e = await h.entry(STORY_C);
+      check(`LP2.1a-ii-C ${caso.nome}: o órfão é recuperado, com metadados recalculados e ZERO rede`,
+        r.ok === true && r.recovered === true && r.version === V_C
+        && e.status === 'ready' && e.localDir === LOCAL_C && e.manifestPath === `${LOCAL_C}manifest.json`
+        && e.totalBytes === ARQ_C.reduce((a, f) => a + Buffer.byteLength(f.text), 0)   // recalculado, não os 999 herdados
+        && e.errorMessage === null                                                      // §19.30
+        && h.counters.downloads === 0                                                   // §19.26
+        && !h.events.includes('fetch-global-manifest'),
+        `o órfão não foi recuperado sem rede: ok=${r.ok} status=${e && e.status} totalBytes=${e && e.totalBytes} downloads=${h.counters.downloads}`);
+    }
+
+    /* ═══ §19.3-6, 10-14, 19: candidatos que NÃO podem ser promovidos ═══ */
+    const INVALIDOS = [
+      { id: '§19.3', nome: 'sem marcador (pack legado)', o: { semMarcador: true } },
+      { id: '§19.4', nome: 'marcador ilegível (JSON quebrado)', o: { marcadorRaw: '{ nao é json' } },
+      { id: '§19.4b', nome: 'marcador com schemaVersion desconhecido', o: { patchMarcador: (m) => ({ ...m, schemaVersion: 99 }) } },
+      { id: '§19.4c', nome: 'marcador incompleto (sem manifestSha256)', o: { patchMarcador: (m) => { const x = { ...m }; delete x.manifestSha256; return x; } } },
+      { id: '§19.5', nome: 'destino parcial (arquivo ausente)', o: { omitirArquivo: 'scenes/02.webp' } },
+      { id: '§19.5b', nome: 'destino parcial (manifesto ausente)', o: { semManifesto: true } },
+      { id: '§19.6', nome: 'arquivo corrompido (mesmo tamanho)', o: { corromperArquivo: 'scenes/02.webp' } },
+      { id: '§19.10', nome: 'marcador de OUTRA história', o: { patchMarcador: (m) => ({ ...m, storyId: 'noah' }) } },
+      { id: '§19.11', nome: 'marcador de OUTRA versão', o: { patchMarcador: (m) => ({ ...m, version: '9.9.9' }) } },
+      { id: '§19.12', nome: 'manifestSha256 divergente', o: { patchMarcador: (m) => ({ ...m, manifestSha256: 'a'.repeat(64) }) } },
+      { id: '§19.13', nome: 'manifesto alterado DEPOIS do marcador', o: { patchManifesto: (t) => t.replace('Davi e Golias', 'Davi e Golias!') } },
+      { id: '§19.14', nome: 'arquivo alterado DEPOIS do marcador', o: { corromperArquivo: 'audio/01.mp3' } },
+      { id: '§19.19', nome: 'destino só com o marcador (move parcial)', o: { arquivos: [], semManifesto: true } },
+      { id: 'kinds', nome: 'publicação não cobre os kinds pedidos', o: { kinds: ['scene'] } },
+    ];
+    const promovidos = [];
+    for (const c of INVALIDOS) {
+      const h = createPackInstallHarness();
+      semearOrfao(h, c.o);
+      h.resetEvents();   // SEM rede configurada: se tentar baixar, falha — e não pode promover
+      const r = await instalarC(createPackDownloadService(h.deps));
+      const e = await h.entry(STORY_C);
+      if (r.recovered === true || (e && e.status === 'ready')) promovidos.push(`${c.id} ${c.nome}`);
+    }
+    check('LP2.1a-ii-C §19.3-6/10-14/19 (nada promovido sem evidência): 14 candidatos sem evidência íntegra — NENHUM vira READY',
+      promovidos.length === 0,
+      `candidatos promovidos SEM evidência válida: ${promovidos.join(' | ')}`);
+
+    /* ═══ §19.7 dois candidatos, um válido · §19.8 dois válidos · §19.9 ordem do FS ═══ */
+    {
+      // Um válido (1.0.0) e um corrompido (2.0.0): recupera o válido.
+      const h = createPackInstallHarness();
+      semearOrfao(h, { version: '1.0.0' });
+      semearOrfao(h, { version: '2.0.0', corromperArquivo: 'scenes/01.webp' });
+      h.resetEvents();
+      const r = await instalarC(createPackDownloadService(h.deps));
+      check('LP2.1a-ii-C §19.7 (dois candidatos, um válido): recupera o válido e ignora o corrompido — sem rede',
+        r.ok === true && r.recovered === true && r.version === '1.0.0' && h.counters.downloads === 0,
+        `não recuperou o único candidato válido: ${JSON.stringify({ ok: r.ok, v: r.version })}`);
+    }
+    {
+      // Dois VÁLIDOS: ambíguo. Não pode escolher — a rede resolve a identidade, e só então recupera.
+      for (const ordem of ['asc', 'desc']) {
+        const h = createPackInstallHarness({ dirOrder: ordem });
+        semearOrfao(h, { version: '1.0.0' });
+        semearOrfao(h, { version: '2.0.0' });
+        configurarRemoto(h, { version: '2.0.0' });   // o manifesto global diz: a esperada é a 2.0.0
+        h.resetEvents();
+        const r = await instalarC(createPackDownloadService(h.deps));
+        const e = await h.entry(STORY_C);
+        check(`LP2.1a-ii-C §19.8-9 (dois válidos, ordem do FS ${ordem}): não escolhe sozinho — a identidade resolvida decide, e nada é baixado`,
+          r.ok === true && r.recovered === true && r.version === '2.0.0' && e.version === '2.0.0'
+          && h.events.includes('fetch-global-manifest')      // precisou resolver a identidade
+          && h.counters.byUrl[`${BASE_C}scenes/01.webp`] === undefined   // mas NÃO baixou arquivo
+          && h.mem.exists(dirDe(STORY_C, '1.0.0')) === true,            // o outro candidato NÃO foi destruído
+          `a desambiguação falhou na ordem ${ordem}: v=${r.version} (a ordem do filesystem não pode decidir)`);
+      }
+    }
+
+    /* ═══ §19.21 recovery repetido · §19.32 retry depois do recovery ═══ */
+    {
+      const h = createPackInstallHarness();
+      semearOrfao(h);
+      configurarRemoto(h); h.resetEvents();
+      const svc = createPackDownloadService(h.deps);
+      const r1 = await instalarC(svc);
+      const setEntry1 = h.counters.setEntry;
+      const r2 = await instalarC(svc);   // de novo: agora a entrada já está READY → fast path
+      const e = await h.entry(STORY_C);
+      check('LP2.1a-ii-C §19.21+32 (idempotente): recuperar 2× converge; a 2ª chamada cai no fast path e reinstala em vez de recuperar de novo',
+        r1.recovered === true && setEntry1 === 1
+        && r2.recovered === undefined                    // 2ª: não recuperou (já estava ready) → fluxo normal
+        && r2.ok === true && e.status === 'ready' && e.version === V_C,
+        `o recovery repetido não convergiu: r1=${JSON.stringify({ rec: r1.recovered })} r2=${JSON.stringify({ ok: r2.ok, rec: r2.recovered })}`);
+    }
+
+    /* ═══ §19.23 fast path READY sem I/O de descoberta ═══ */
+    {
+      const h = createPackInstallHarness();
+      semearOrfao(h, { entry: { status: 'ready', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 30, downloadedBytes: 30, errorMessage: null } });
+      configurarRemoto(h); h.resetEvents();
+      await instalarC(createPackDownloadService(h.deps));
+      check('LP2.1a-ii-C §19.23 (fast path): com a entrada já READY o recovery não faz NENHUM I/O de descoberta (sem readdir, sem hash de candidato)',
+        h.eventsOfType('readdir').length === 0
+        && !h.events.some((e) => e.startsWith(`hash:${LOCAL_C}`)),   // nada do diretório final foi hasheado
+        `o fast path fez I/O de descoberta: ${h.eventsOfType('readdir').join(', ')}`);
+    }
+
+    /* ═══ §19.25 nenhuma leitura de outra história ═══ */
+    {
+      const h = createPackInstallHarness();
+      semearOrfao(h);                                                   // david_goliath@1.0.0 (válido)
+      semearOrfao(h, { storyId: 'noah', version: '1.0.0' });            // noah@1.0.0 — não pode ser tocado
+      h.mem._seedFile(`${dirDe('david_goliath_extra', '1.0.0')}manifest.json`, '{}');   // prefixo parecido
+      h.resetEvents();
+      await instalarC(createPackDownloadService(h.deps));
+      const tocouOutra = h.events.filter((e) => /noah|david_goliath_extra/.test(e));
+      check('LP2.1a-ii-C §19.25 (isolamento por história): nenhum candidato de outra história (nem de nome parecido) é aberto',
+        tocouOutra.length === 0,
+        `abriu candidatos de outra história: ${tocouOutra.join(' | ')}`);
+    }
+
+    /* ═══ §19.27 rede permitida p/ legado · §19.28 pack anterior preservado · §19.31 retry ═══ */
+    {
+      const h = createPackInstallHarness();
+      semearOrfao(h, { semMarcador: true });   // legado: sem evidência local
+      configurarRemoto(h); h.resetEvents();
+      const r = await instalarC(createPackDownloadService(h.deps));
+      const e = await h.entry(STORY_C);
+      check('LP2.1a-ii-C §19.27+31 (legado): sem marcador não promove offline — usa a rede, reinstala e conclui',
+        r.ok === true && r.recovered === undefined
+        && h.events.includes('fetch-global-manifest') && h.counters.downloads > 0   // a rede foi necessária
+        && e.status === 'ready'
+        && h.mem.exists(`${LOCAL_C}.ptf-publish.json`) === true,                    // e agora tem marcador
+        `o legado não foi substituído com segurança: ${JSON.stringify({ ok: r.ok, rec: r.recovered, dl: h.counters.downloads })}`);
+    }
+    {
+      // Pack anterior VÁLIDO + recovery impossível (rede fora) → o anterior sobrevive intacto.
+      const h = createPackInstallHarness();
+      h.seedInstalledPack({ storyId: STORY_C, version: V_C, files: [{ path: 'scenes/01.webp', text: 'ANTIGO-INTACTO' }] });
+      h.resetEvents();   // sem rede
+      const r = await instalarC(createPackDownloadService(h.deps));
+      const e = await h.entry(STORY_C);
+      check('LP2.1a-ii-C §19.28 (preservação): recovery impossível + rede fora não destrói o pack anterior válido',
+        r.ok === false
+        && e.status === 'ready' && e.version === V_C && e.errorMessage === null      // READY anterior preservado
+        && h.mem.fileText(`${LOCAL_C}scenes/01.webp`) === 'ANTIGO-INTACTO',
+        `o pack anterior válido foi danificado: ${JSON.stringify({ ok: r.ok, status: e && e.status })}`);
+    }
+
+    /* ═══ §19.17 crash depois do marcador e antes do move · §19.20 crash na promoção ═══ */
+    {
+      const h = createPackInstallHarness();
+      configurarRemoto(h); h.resetEvents();
+      let snap = null;
+      h.onBefore = async (type) => {
+        if (type === 'move' && !snap) {
+          snap = {
+            marcadorNoTmp: h.mem.exists(`file:///doc/packs/.tmp/${STORY_C}@${V_C}/.ptf-publish.json`),
+            finalExiste: h.mem.exists(LOCAL_C),
+            entry: await h.storage.getPackEntry(STORY_C),
+          };
+        }
+      };
+      await instalarC(createPackDownloadService(h.deps));
+      check('LP2.1a-ii-C §19.17 (crash depois do marcador, antes do move): o marcador está no .tmp, o final não existe e nada foi promovido',
+        !!snap && snap.marcadorNoTmp === true && snap.finalExiste === false && snap.entry === null,
+        `estado inesperado antes do move: ${JSON.stringify(snap)}`);
+    }
+    {
+      // §19.20: um crash DURANTE a promoção não deixa meio-termo — ou promoveu, ou não.
+      const h = createPackInstallHarness();
+      semearOrfao(h); h.resetEvents();
+      let antes = null;
+      h.onBefore = async (type, detail) => {
+        if (type === 'set-entry' && detail === `${STORY_C}:ready` && !antes) {
+          antes = await h.storage.getPackEntry(STORY_C);
+        }
+      };
+      const r = await instalarC(createPackDownloadService(h.deps));
+      const depois = await h.entry(STORY_C);
+      check('LP2.1a-ii-C §19.20 (crash na promoção): a única escrita é o READY final — antes dela não há entrada; depois, está completa',
+        antes === null                                        // nenhum estado intermediário persistido
+        && r.recovered === true && depois.status === 'ready'
+        && depois.localDir === LOCAL_C && depois.totalBytes > 0,
+        `a promoção deixou estado intermediário: antes=${JSON.stringify(antes)}`);
+    }
+
+    /* ═══ §19.22 acesso concorrente · §19.33 índice e FS convergem ═══ */
+    {
+      const h = createPackInstallHarness();
+      semearOrfao(h);
+      configurarRemoto(h); h.resetEvents();
+      const svc = createPackDownloadService(h.deps);
+      const rs = await Promise.all(Array.from({ length: 5 }, () => instalarC(svc)));
+      const e = await h.entry(STORY_C);
+      const readys = h.events.filter((x) => x === `set-entry:${STORY_C}:ready`);
+      check('LP2.1a-ii-C §19.22+33 (concorrência): 5 pedidos simultâneos = UMA promoção; índice e disco convergem; nada baixado',
+        rs.every((r) => r && r.ok === true) && readys.length === 1
+        && e.status === 'ready' && e.localDir === LOCAL_C
+        && ARQ_C.every((f) => h.mem.exists(LOCAL_C + f.path))
+        && h.counters.downloads === 0
+        && svc.inFlightInstallCount() === 0,
+        `concorrência produziu ${readys.length} promoções ou divergência índice↔disco`);
+    }
+
+    /* ═══ §19.15-16 (comportamental): a colisão é rejeitada ANTES de qualquer download ═══ */
+    for (const p of ['.ptf-publish.json', './.ptf-publish.json', '.PTF-Publish.JSON']) {
+      const h = createPackInstallHarness();
+      configurarRemoto(h, { arquivos: [...ARQ_C, { kind: 'scene', path: p, text: 'ATAQUE' }] });
+      h.resetEvents();
+      const r = await instalarC(createPackDownloadService(h.deps));
+      check(`LP2.1a-ii-C §19.15-16 (colisão "${p}"): o manifesto é rejeitado antes de baixar arquivo do pack e nada é publicado`,
+        r.ok === false && /caminho reservado do marcador/.test(r.reason)
+        && !ARQ_C.some((f) => h.events.some((e) => e.startsWith('download:') && e.includes(f.path)))
+        && !h.events.some((e) => e.startsWith('move:'))
+        && h.mem.exists(LOCAL_C) === false,
+        `a colisão "${p}" não foi rejeitada a tempo: ${JSON.stringify({ ok: r.ok, reason: r.reason })}`);
+    }
+
+    /* ══════════════ §20 — MUTATION CHECKS (29), cada um mapeado à prova que o mata ══════════════ */
+    /*
+     * Mutam o TEXTO em memória (nada é escrito no working tree). Uma mutação que não bate no fonte
+     * LANÇA (guarda em loadModule/loadPackDownloader) e a guarda do bloco assíncrono acusa — nunca
+     * conta como mutante morto. Cada mutante roda o cenário da SUA prova e a assinatura observável
+     * tem de DIFERIR da do original: é isso que mostra que a prova vigia aquele comportamento.
+     */
+    {
+      /** Assinatura observável de um cenário: desfecho + índice + rede + disco. */
+      const assinar = async (cfg, mut = {}) => {
+        const h = createPackInstallHarness({
+          storageMutate: mut.storage, recoveryMutate: mut.recovery, markerMutate: mut.marker, dirOrder: cfg.dirOrder,
+        });
+        cfg.semear(h);
+        if (cfg.remoto) configurarRemoto(h, cfg.remoto === true ? {} : cfg.remoto);
+        h.resetEvents();
+        let r;
+        try {
+          // O downloader carrega a PRÓPRIA cópia do packPublishMarker: sem repassar `mut.marker`
+          // aqui, a regra de colisão do fluxo ficaria intocada e o mutante sobreviveria por engano.
+          const mod = (mut.downloader || mut.marker)
+            ? loadPackDownloader(mut.downloader || ((x) => `${x}
+/* mut */`), mut.marker)
+            : { createPackDownloadService };
+          r = await instalarC(mod.createPackDownloadService(h.deps));
+        } catch (e) { r = { ok: false, reason: `lançou: ${e.message}` }; }
+        const e2 = await h.entry(STORY_C);
+        return [
+          `ok=${r && r.ok === true}`,
+          `recuperou=${r && r.recovered === true}`,
+          `versao=${(r && r.version) || '-'}`,
+          `status=${(e2 && e2.status) || 'ausente'}`,
+          `totalBytes=${(e2 && e2.totalBytes) ?? '-'}`,
+          `erro=${(e2 && e2.errorMessage) || '-'}`,
+          `downloads=${h.counters.downloads}`,
+          `readdir=${h.eventsOfType('readdir').length}`,
+          `sondagens=${h.events.filter((x) => x.startsWith('read:')).length}`,
+          `readys=${h.events.filter((x) => x === `set-entry:${STORY_C}:ready`).length}`,
+          `antigoIntacto=${h.mem.fileText(`${LOCAL_C}scenes/01.webp`) === 'ANTIGO-INTACTO'}`,
+          `outraHistoria=${h.events.some((x) => /noah/.test(x))}`,
+        ].join('|');
+      };
+
+      // Cenários reutilizados pelos mutantes (o mesmo que cada prova usa).
+      const CEN = {
+        orfaoValido: { semear: (h) => semearOrfao(h, { entry: { status: 'downloading', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 999, downloadedBytes: 999, errorMessage: 'falha anterior' } }), remoto: true },
+        semMarcador: { semear: (h) => semearOrfao(h, { semMarcador: true }) },
+        marcadorIncompleto: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => { const x = { ...m }; delete x.manifestSha256; return x; } }) },
+        ancoraDivergente: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => ({ ...m, manifestSha256: 'a'.repeat(64) }) }) },
+        arquivoAusente: { semear: (h) => semearOrfao(h, { omitirArquivo: 'scenes/02.webp' }) },
+        hashDivergente: { semear: (h) => semearOrfao(h, { corromperArquivo: 'scenes/02.webp' }) },
+        doisValidos: { semear: (h) => { semearOrfao(h, { version: '1.0.0' }); semearOrfao(h, { version: '2.0.0' }); }, remoto: { version: '2.0.0' } },
+        outraHistoria: { semear: (h) => { semearOrfao(h); semearOrfao(h, { storyId: 'noah', version: '1.0.0' }); } },
+        anteriorValido: { semear: (h) => h.seedInstalledPack({ storyId: STORY_C, version: V_C, files: [{ path: 'scenes/01.webp', text: 'ANTIGO-INTACTO' }] }) },
+        colisao: { semear: () => {}, remoto: { arquivos: [...ARQ_C, { kind: 'scene', path: './.PTF-Publish.JSON', text: 'ATAQUE' }] } },
+        marcadorCorrompido: { semear: (h) => semearOrfao(h, { marcadorRaw: '{ nao é json' }) },
+        marcadorDeOutraHistoria: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => ({ ...m, storyId: 'noah' }) }) },
+        semManifestPath: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => { const x = { ...m }; delete x.manifestPath; return x; } }) },
+        tamanhoDivergente: { semear: (h) => semearOrfao(h, { bytesErradosEm: 'scenes/02.webp' }) },
+        doisValidosEsperada1: { semear: (h) => { semearOrfao(h, { version: '1.0.0' }); semearOrfao(h, { version: '2.0.0' }); }, remoto: { version: '1.0.0' } },
+        versaoDoDiretorioErrada: { semear: (h) => semearOrfao(h, { version: '1.0.0', versaoDeclarada: '9.9.9' }) },
+        // david tem SÓ a 1.0.0; noah tem a 3.0.0. Sem o filtro por história, a versão do noah vira
+        // candidata do david e o recovery sonda `david_goliath@3.0.0` — que nem existe.
+        outraHistoriaVersaoNova: { semear: (h) => { semearOrfao(h, { version: '1.0.0' }); semearOrfao(h, { storyId: 'noah', version: '3.0.0' }); } },
+        jaReady: { semear: (h) => semearOrfao(h, { entry: { status: 'ready', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 30, downloadedBytes: 30, errorMessage: null } }), remoto: true },
+      };
+
+      const MUT_C = [
+        { id: 'C1', nome: 'aceitar o diretório pela mera existência', cen: 'semMarcador', prova: '§19.3',
+          mut: { recovery: (s) => s.replace("if (!marker) return { ok: false, reason: 'sem marcador de publicação' };", 'if (!marker) return { ok: true, version, kinds: [], totalBytes: 0, counts: {} };') } },
+        { id: 'C2', nome: 'aceitar marcador ilegível como se não fosse exigido', cen: 'marcadorCorrompido', prova: '§19.4',
+          mut: { recovery: (s) => s.replace("if (!marker) return { ok: false, reason: 'sem marcador de publicação' };", 'if (!marker) return { ok: true, version, kinds: [], totalBytes: 0, counts: {} };') } },
+        { id: 'C3', nome: 'ignorar marcador incompleto (campo obrigatório ausente)', cen: 'semManifestPath', prova: '§19.4c',
+          mut: { marker: (s) => s.replace("    errors.push('marcador.manifestPath: string obrigatória');", '') } },
+        { id: 'C4', nome: 'ignorar manifestSha256 divergente', cen: 'ancoraDivergente', prova: '§19.12',
+          mut: { marker: (s) => s.replace("    errors.push('manifest.json do disco com sha256 divergente da âncora preservada no marcador');", '') } },
+        { id: 'C5', nome: 'ignorar arquivo ausente', cen: 'arquivoAusente', prova: '§19.5',
+          mut: { recovery: (s) => s.replace("if (!info || !info.exists) return { ok: false, reason: `${f.path}: ausente` };", 'if (!info || !info.exists) continue;') } },
+        { id: 'C6', nome: 'ignorar hash divergente', cen: 'hashDivergente', prova: '§19.6',
+          mut: { recovery: (s) => s.replace("if (h.sha256 !== String(f.sha256).toLowerCase()) return { ok: false, reason: `${f.path}: sha256 divergente` };", '') } },
+        { id: 'C7', nome: 'ignorar tamanho divergente', cen: 'tamanhoDivergente', prova: '§19.6b',
+          mut: { recovery: (s) => s.replace('      if (typeof f.bytes === \'number\' && info.size !== f.bytes) {\n        return { ok: false, reason: `${f.path}: bytes ${info.size} != ${f.bytes}` };\n      }', '') } },
+        { id: 'C8', nome: 'escolher o PRIMEIRO candidato retornado', cen: 'doisValidos', prova: '§19.8-9',
+          mut: { recovery: (s) => s.replace('      if (validos.length > 1) {', '      if (false) {') } },
+        { id: 'C9', nome: 'escolher a MAIOR versão', cen: 'doisValidosEsperada1', prova: '§19.8-9',
+          mut: { recovery: (s) => s.replace('      const v = validos[0];', '      const v = validos.slice().sort((a, b) => (a.version < b.version ? 1 : -1))[0];')
+            .replace('      if (validos.length > 1) {', '      if (false) {') } },
+        { id: 'C10', nome: 'deixar a versão de OUTRA história virar candidata desta', cen: 'outraHistoriaVersaoNova', prova: '§19.25',
+          mut: { marker: (s) => s.replace('    if (parsed.storyId !== storyId) continue; // igualdade, NUNCA prefixo', '') } },
+        { id: 'C11', nome: 'apagar o pack anterior cedo demais', cen: 'anteriorValido', prova: '§19.28',
+          mut: { downloader: (s) => s.replace('  const rec0 = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion });', '  try { await FileSystem.deleteAsync(getPackLocalDir(storyId, "1.0.0"), { idempotent: true }); } catch {}\n  const rec0 = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion });') } },
+        { id: 'C12', nome: 'promover READY antes de validar os arquivos', cen: 'arquivoAusente', prova: '§19.5',
+          mut: { recovery: (s) => s.replace('    const counts = {};\n    let totalBytes = 0;\n    for (const f of publicados) {', '    const counts = {}; let totalBytes = 0;\n    if (publicados.length) return { ok: true, version, kinds: marker.kinds, totalBytes: 1, counts: { scene: 1 } };\n    for (const f of publicados) {') } },
+        { id: 'C13', nome: 'reutilizar o totalBytes ANTIGO do índice', cen: 'orfaoValido', prova: '§19.1',
+          mut: { recovery: (s) => s.replace('        totalBytes: v.totalBytes,\n        downloadedBytes: v.totalBytes,', '        totalBytes: (entry && entry.totalBytes) || v.totalBytes,\n        downloadedBytes: v.totalBytes,') } },
+        { id: 'C14', nome: 'incluir o marcador em totalBytes', cen: 'orfaoValido', prova: '§19.29',
+          mut: { recovery: (s) => s.replace('      totalBytes += Number(f.bytes) || 0;   // CONTEÚDO apenas: o marcador nunca entra em totalBytes', '      totalBytes += (Number(f.bytes) || 0) + 7;') } },
+        { id: 'C15', nome: 'aceitar a colisão do marcador', cen: 'colisao', prova: '§19.15-16',
+          mut: { marker: (s) => s.replace('  return normalizePackFilePath(path) === MARKER_FILENAME;', '  return path === MARKER_FILENAME;') } },
+        { id: 'C16', nome: 'não limpar errorMessage na promoção', cen: 'orfaoValido', prova: '§19.1',
+          mut: { recovery: (s) => s.replace('        errorMessage: null,', '') } },
+        { id: 'C17', nome: 'baixar apesar da recuperação local inequívoca', cen: 'orfaoValido', prova: '§19.26',
+          mut: { downloader: (s) => s.replace('  if (rec0.recovered) return asInstalled(rec0);', '') } },
+        { id: 'C18', nome: 'fazer I/O de descoberta com a entrada já READY', cen: 'jaReady', prova: '§19.23',
+          mut: { recovery: (s) => s.replace("      if (entry && entry.status === PACK_STATUS.READY) {\n        return { recovered: false, reason: 'entrada já ready' };\n      }", '') } },
+        { id: 'C19', nome: 'aceitar marcador de OUTRA história', cen: 'marcadorDeOutraHistoria', prova: '§19.10',
+          // "Conferir o storyId do marcador" é UMA proteção com TRÊS cláusulas redundantes (contra
+          // o pedido, contra o nome do diretório e contra o manifesto): um marcador forasteiro
+          // dispara as três, então remover só uma seria pego pelas outras e não provaria nada. A
+          // mutação honesta desliga a proteção inteira — sem tocar o schema, que é outra proteção.
+          mut: { marker: (s) => s
+            .replace('if (marker.storyId !== storyId)', 'if (false)')
+            .replace('if (marker.storyId !== dirStoryId)', 'if (false)')
+            .replace('if (manifest?.metadata?.storyId !== marker.storyId) {', 'if (false) {') } },
+        { id: 'C20', nome: 'aceitar marcador de versão diferente da do diretório', cen: 'versaoDoDiretorioErrada', prova: '§19.11',
+          mut: { marker: (s) => s.replace('  if (marker.version !== dirVersion) errors.push(`marcador.version (${marker.version}) != diretório (${dirVersion})`);', '') } },
+      ];
+
+      const vereditoC = [];
+      for (const m of MUT_C) {
+        const cfg = CEN[m.cen];
+        const orig = await assinar(cfg);
+        const mutado = await assinar(cfg, m.mut);
+        vereditoC.push({ ...m, orig, mutado, morreu: orig !== mutado });
+      }
+      const vivosC = vereditoC.filter((x) => !x.morreu);
+      check('LP2.1a-ii-C §20 (mutation checks): as 20 proteções do recovery e do marcador são load-bearing — quebrar qualquer uma muda o observável',
+        vivosC.length === 0 && vereditoC.length === 20,
+        `proteções removíveis SEM mudar nada (a prova não as vigia): ${vivosC.map((x) => `${x.id} ${x.nome} [prova ${x.prova}] orig[${x.orig}]`).join(' | ')}`);
+
+      // Direção: nas proteções de EVIDÊNCIA, o mutante ACEITA (promove) o que o original RECUSA.
+      const aceitam = vereditoC.filter((x) => ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C12'].includes(x.id));
+      check('LP2.1a-ii-C §20b (direção): sem as checagens de evidência, o mutante PROMOVE candidatos que o original recusa',
+        aceitam.length === 8 && aceitam.every((x) => /recuperou=false/.test(x.orig) && /recuperou=true/.test(x.mutado)),
+        `direção errada: ${aceitam.filter((x) => !(/recuperou=false/.test(x.orig) && /recuperou=true/.test(x.mutado))).map((x) => `${x.id} orig[${x.orig}] mut[${x.mutado}]`).join(' | ')}`);
+    }
+  })();
+  globalThis.__LP21AIIC.catch(() => {});
 }
 
 
@@ -26063,6 +26593,12 @@ check(
   check('LP2.1a-ii-BR (harness): o bloco assíncrono do contrato de errorMessage concluiu sem estourar',
     !lp21aiibrErr,
     `o bloco do errorMessage lançou (${lp21aiibrErr && lp21aiibrErr.stack ? String(lp21aiibrErr.stack).split('\n').slice(0, 3).join(' | ') : lp21aiibrErr}) — os checks dele não rodaram`);
+
+  let lp21aiicErr = null;
+  try { await globalThis.__LP21AIIC; } catch (e) { lp21aiicErr = e; }
+  check('LP2.1a-ii-C (harness): o bloco assíncrono da recuperação concluiu sem estourar',
+    !lp21aiicErr,
+    `o bloco da recuperação lançou (${lp21aiicErr && lp21aiicErr.stack ? String(lp21aiicErr.stack).split('\n').slice(0, 3).join(' | ') : lp21aiicErr}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;

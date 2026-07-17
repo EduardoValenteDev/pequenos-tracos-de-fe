@@ -62,9 +62,12 @@ function loadModule(rel, deps = {}, exportNames = [], mutate) {
 const DOWNLOADER_DEPS = [
   'FileSystem', 'PACK_STATUS', 'getPackLocalDir', 'getPackTempDir', 'setPackEntry', 'getPackEntry',
   'isReadyEntryValid', 'validatePackManifest', 'computeFileSha256', 'fetchGlobalContentManifest',
-  'getPackFromGlobalManifest', 'warn', '__DEV__',
+  'getPackFromGlobalManifest', 'warn', 'recoverStoryPack',
+  // símbolos de packPublishMarker usados pelo downloader (a regra de colisão e o marcador)
+  'MARKER_FILENAME', 'buildPublishMarker', 'findMarkerCollisions',
+  '__DEV__',
 ];
-function loadPackDownloader(mutate) {
+function loadPackDownloader(mutate, markerMutate) {
   let src = readSrc('src/services/packDownloadService.js');
   if (mutate) {
     const mutado = mutate(src);
@@ -77,8 +80,21 @@ function loadPackDownloader(mutate) {
     .replace(/^import[\s\S]*?;$/gm, '')
     .replace(/export /g, '')
     + '; return { createPackDownloadService, packInstallKey, DOWNLOAD_FLOW };';
-  const inert = DOWNLOADER_DEPS.map((k) => (k === '__DEV__' ? false : (k === 'FileSystem' || k === 'PACK_STATUS' ? {} : () => {})));
-  return new Function(...DOWNLOADER_DEPS, code)(...inert);
+  // packPublishMarker é núcleo PURO (sem I/O): entra REAL, não como stub. O Impl chama
+  // `findMarkerCollisions`/`buildPublishMarker` direto — dublá-los desativaria a regra de colisão
+  // e o marcador nos testes, que é justamente o que se quer provar.
+  const marker = loadModule('src/services/packPublishMarker.js', {},
+    ['MARKER_FILENAME', 'MARKER_SCHEMA_VERSION', 'normalizePackFilePath', 'collidesWithMarker',
+      'findMarkerCollisions', 'buildPublishMarker', 'validateMarkerSchema', 'validatePublishMarker',
+      'parsePackDirName', 'selectStoryPackDirs'], markerMutate);
+  const inertes = {
+    __DEV__: false, FileSystem: {}, PACK_STATUS: {},
+    MARKER_FILENAME: marker.MARKER_FILENAME,
+    buildPublishMarker: marker.buildPublishMarker,
+    findMarkerCollisions: marker.findMarkerCollisions,
+  };
+  const args = DOWNLOADER_DEPS.map((k) => (k in inertes ? inertes[k] : () => {}));
+  return new Function(...DOWNLOADER_DEPS, code)(...args);
 }
 
 /* ────────────────────────────── FileSystem em memória ────────────────────────────── */
@@ -86,7 +102,7 @@ function loadPackDownloader(mutate) {
  * Modela SÓ o que o fluxo usa. Diretórios e arquivos num Map por URI.
  * Um diretório é uma chave terminada em '/'. Arquivo guarda bytes (Uint8Array).
  */
-function createMemoryFileSystem({ freeBytes = 10 * 1024 * 1024 * 1024, log, fire = async () => {} } = {}) {
+function createMemoryFileSystem({ freeBytes = 10 * 1024 * 1024 * 1024, log, fire = async () => {}, dirOrder = 'asc' } = {}) {
   const files = new Map();   // uri -> Uint8Array
   const dirs = new Set(['file:///doc/']);
   const enc = new TextEncoder();
@@ -160,6 +176,38 @@ function createMemoryFileSystem({ freeBytes = 10 * 1024 * 1024 * 1024, log, fire
       return opts.encoding === 'base64' ? toB64(bytes) : dec.decode(bytes);
     },
 
+    /** Espelha o expo: escrever num diretório inexistente LANÇA (não cria o caminho por conta). */
+    async writeAsStringAsync(uri, contents) {
+      log && log('write', uri);
+      requireParent(uri);
+      files.set(uri, enc.encode(String(contents)));
+    },
+
+    /**
+     * Espelha o expo: `readDirectoryAsync` de um diretório inexistente LANÇA, e devolve os NOMES
+     * simples dos filhos diretos (arquivos e subdiretórios), não caminhos.
+     */
+    async readDirectoryAsync(uri) {
+      log && log('readdir', uri);
+      const dir = isDir(uri) ? uri : `${uri}/`;
+      if (!dirs.has(dir)) throw new Error(`ENOENT readdir: ${dir}`);
+      const out = new Set();
+      for (const k of files.keys()) {
+        if (!k.startsWith(dir)) continue;
+        const rest = k.slice(dir.length);
+        if (rest && !rest.includes('/')) out.add(rest);          // arquivo filho direto
+      }
+      for (const d of dirs) {
+        if (d === dir || !d.startsWith(dir)) continue;
+        const rest = d.slice(dir.length).replace(/\/$/, '');
+        if (rest && !rest.includes('/')) out.add(rest);          // subdiretório filho direto
+      }
+      // A ordem de um readdir real NÃO é contratual. `dirOrder` permite provar que o algoritmo
+      // não depende dela (o FS pode devolver em qualquer ordem, em qualquer plataforma).
+      const list = [...out].sort();
+      return dirOrder === 'desc' ? list.reverse() : list;
+    },
+
     async getFreeDiskStorageAsync() { return freeBytes; },
   };
 
@@ -223,7 +271,7 @@ function createDownloadLayer({ mem, routes, log, counters }) {
  *   REALMENTE falha quando a regra do índice regride. Lança se a mutação não bater no fonte, para
  *   que uma âncora obsoleta nunca seja contada como mutante morto. Nada no disco é alterado.
  */
-function createPackInstallHarness({ freeBytes, storageMutate } = {}) {
+function createPackInstallHarness({ freeBytes, storageMutate, recoveryMutate, markerMutate, dirOrder } = {}) {
   const events = [];
   const log = (type, detail) => { events.push(detail === undefined ? type : `${type}:${detail}`); };
   const counters = { downloads: 0, byUrl: {}, setEntry: 0 };
@@ -236,7 +284,7 @@ function createPackInstallHarness({ freeBytes, storageMutate } = {}) {
   const hooks = { before: null };
   const fire = async (type, detail) => { if (hooks.before) await hooks.before(type, detail); };
 
-  const mem = createMemoryFileSystem({ freeBytes, log, fire });
+  const mem = createMemoryFileSystem({ freeBytes, log, fire, dirOrder });
   const routes = new Map();
 
   // ── AsyncStorage em memória + packStorageService REAL (fila serializada de verdade) ──
@@ -268,6 +316,12 @@ function createPackInstallHarness({ freeBytes, storageMutate } = {}) {
     PACK_STATUS: storage.PACK_STATUS,
   }, ['isReadyEntryValid']);
 
+  // ── packPublishMarker REAL (núcleo puro, sem I/O — não há o que dublar) ──
+  const markerSvc = loadModule('src/services/packPublishMarker.js', {},
+    ['MARKER_FILENAME', 'MARKER_SCHEMA_VERSION', 'normalizePackFilePath', 'collidesWithMarker',
+      'findMarkerCollisions', 'buildPublishMarker', 'validateMarkerSchema', 'validatePublishMarker',
+      'parsePackDirName', 'selectStoryPackDirs'], markerMutate);
+
   // ── globalManifestService: getPackFromGlobalManifest REAL (puro); fetch é DOUBLE (rede) ──
   const globalSvc = loadModule('src/services/globalManifestService.js', {
     STORY_CONTENT_LAYER: {},
@@ -291,6 +345,33 @@ function createPackInstallHarness({ freeBytes, storageMutate } = {}) {
     return storage.setPackEntry(storyId, entry);
   };
 
+  // ── packRecoveryService REAL (LP2.1a-ii-C), sobre o mesmo disco/índice em memória ──
+  // Nada de mock: o recovery é o que este bloco prova. Só as fronteiras (disco, índice) são doubles.
+  const recoverySvc = loadModule('src/services/packRecoveryService.js', {
+    FileSystem: mem.FileSystem,
+    PACK_STATUS: storage.PACK_STATUS,
+    getPackLocalDir: storage.getPackLocalDir,
+    getPackEntry: storage.getPackEntry,
+    setPackEntry: storage.setPackEntry,
+    validatePackManifest: (m, o) => integrity.validatePackManifest(m, o),
+    computeFileSha256: async (uri) => integrity.computeFileSha256(uri),
+    MARKER_FILENAME: markerSvc.MARKER_FILENAME,
+    validatePublishMarker: markerSvc.validatePublishMarker,
+    selectStoryPackDirs: markerSvc.selectStoryPackDirs,
+    parsePackDirName: markerSvc.parsePackDirName,
+    warn: () => {},
+  }, ['createPackRecoveryService'], recoveryMutate);
+  const recovery = recoverySvc.createPackRecoveryService({
+    FileSystem: mem.FileSystem,
+    PACK_STATUS: storage.PACK_STATUS,
+    getPackLocalDir: storage.getPackLocalDir,
+    getPackEntry: storage.getPackEntry,
+    setPackEntry: setEntrySpy,           // o mesmo spy: as gravações do recovery aparecem no log
+    validatePackManifest: (m, o) => { log('validate-manifest'); return integrity.validatePackManifest(m, o); },
+    computeFileSha256: async (uri) => { log('hash', uri); return integrity.computeFileSha256(uri); },
+    warn: () => {},
+  });
+
   const deps = {
     FileSystem: mem.FileSystem,
     PACK_STATUS: storage.PACK_STATUS,
@@ -304,6 +385,7 @@ function createPackInstallHarness({ freeBytes, storageMutate } = {}) {
     fetchGlobalContentManifest,
     getPackFromGlobalManifest: globalSvc.getPackFromGlobalManifest,
     warn: () => {},
+    recoverStoryPack: (p) => recovery.recoverStoryPack(p),
   };
   deps.FileSystem.createDownloadResumable = createDownloadLayer({ mem, routes, log, counters });
 
@@ -355,6 +437,38 @@ function createPackInstallHarness({ freeBytes, storageMutate } = {}) {
           errorMessage: null,
         },
       });
+      return dir;
+    },
+
+    /**
+     * Semeia um ÓRFÃO: o diretório final publicado, SEM entrada READY no índice — exatamente o
+     * que um encerramento entre o `moveAsync` e o `setPackEntry(READY)` deixa.
+     *
+     * Monta o destino À MÃO, arquivo a arquivo: é assim que se prova que o recovery rejeita um
+     * destino PARCIAL. Depender do move do FS em memória (que é atômico) esconderia o caso.
+     *
+     * @param {object} p
+     * @param {string} p.storyId
+     * @param {string} p.version
+     * @param {Array<{path:string,text:string}>} p.files  arquivos a colocar (omita um → parcial)
+     * @param {string|null} [p.manifestText]  conteúdo do manifest.json (null → manifesto ausente)
+     * @param {object|string|null} [p.marker] marcador (objeto → JSON; string → cru; null → ausente)
+     * @param {object|null} [p.indexEntry]    entrada do índice (null → C2; objeto → C1)
+     * @returns {string} o diretório final semeado
+     */
+    seedOrphanPack: ({ storyId, version, files = [], manifestText = null, marker = null, indexEntry = null }) => {
+      const dir = storage.getPackLocalDir(storyId, version);
+      if (manifestText !== null) mem._seedFile(`${dir}manifest.json`, manifestText);
+      for (const f of files) mem._seedFile(dir + f.path, f.text);
+      if (marker !== null) {
+        mem._seedFile(`${dir}.ptf-publish.json`, typeof marker === 'string' ? marker : JSON.stringify(marker));
+      }
+      if (indexEntry !== null) {
+        store.raw = JSON.stringify({
+          ...(store.raw ? JSON.parse(store.raw) : {}),
+          [storyId]: { storyId, version, updatedAt: 1, ...indexEntry },
+        });
+      }
       return dir;
     },
 

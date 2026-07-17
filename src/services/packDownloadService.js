@@ -13,6 +13,8 @@ import { PACK_STATUS, getPackLocalDir, getPackTempDir, setPackEntry, getPackEntr
 import { isReadyEntryValid } from './packReconcileService';
 import { validatePackManifest, computeFileSha256 } from './packIntegrityService';
 import { fetchGlobalContentManifest, getPackFromGlobalManifest } from './globalManifestService';
+import { MARKER_FILENAME, buildPublishMarker, findMarkerCollisions } from './packPublishMarker';
+import { recoverStoryPack } from './packRecoveryService';
 import { warn } from '../utils/logger';
 
 /** Passos oficiais do fluxo de download (documentação executável). */
@@ -152,7 +154,7 @@ export function packInstallKey(params = {}) {
 const REQUIRED_DEPS = Object.freeze([
   'FileSystem', 'PACK_STATUS', 'getPackLocalDir', 'getPackTempDir', 'setPackEntry', 'getPackEntry',
   'isReadyEntryValid', 'validatePackManifest', 'computeFileSha256', 'fetchGlobalContentManifest',
-  'getPackFromGlobalManifest', 'warn',
+  'getPackFromGlobalManifest', 'warn', 'recoverStoryPack',
 ]);
 
 export function createPackDownloadService(deps) {
@@ -165,7 +167,7 @@ export function createPackDownloadService(deps) {
   const {
     FileSystem, PACK_STATUS, getPackLocalDir, getPackTempDir, setPackEntry, getPackEntry,
     isReadyEntryValid, validatePackManifest, computeFileSha256, fetchGlobalContentManifest,
-    getPackFromGlobalManifest, warn,
+    getPackFromGlobalManifest, warn, recoverStoryPack,
   } = deps;
 
 /**
@@ -230,6 +232,23 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
     try { if (onProgress) onProgress({ status, downloadedBytes: 0, totalBytes: 0, ...extra }); } catch { /* noop */ }
   };
 
+  /** Resultado de um recovery bem-sucedido, no MESMO formato de uma instalação. */
+  const asInstalled = (rec) => {
+    report(PACK_STATUS.READY, { downloadedBytes: rec.totalBytes, totalBytes: rec.totalBytes });
+    return {
+      ok: true, storyId, version: rec.version, kinds: rec.kinds, counts: rec.counts,
+      sceneCount: rec.counts.scene || 0, totalBytes: rec.totalBytes, entry: rec.entry, recovered: true,
+    };
+  };
+
+  // 0) LP2.1a-ii-C: RECOVERY SOB DEMANDA — antes de qualquer rede. Uma publicação interrompida
+  //    entre o move e o READY deixa o pack ÍNTEGRO no disco; se a evidência local (marcador) provar
+  //    que ele foi validado, promove e devolve SEM baixar nada. Roda aqui dentro porque o Impl já
+  //    está na fila física por história (guardedInstall → runExclusiveByStory): nunca concorre com
+  //    uma instalação da mesma história. Com o índice já READY, sai no fast path sem I/O algum.
+  const rec0 = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion });
+  if (rec0.recovered) return asInstalled(rec0);
+
   // 1) manifesto global + 2) pack por storyId (read-only)
   const gm = await fetchGlobalContentManifest(globalManifestUrl, { appVersion });
   if (!gm.ok) {
@@ -251,6 +270,16 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
   const localDir = getPackLocalDir(storyId, version);
   const tempDir = getPackTempDir(storyId, version);
   if (!localDir || !tempDir) return { ok: false, reason: 'documentDirectory indisponível' };
+
+  // 3b) LP2.1a-ii-C: 2ª tentativa de recovery — SÓ quando a 1ª encontrou candidatos ambíguos (duas
+  //     versões da mesma história, ambas íntegras). Escolher entre elas por versão/data/ordem do
+  //     filesystem é proibido; quem desempata é a identidade que o manifesto global acabou de
+  //     resolver. Agora sabemos a versão esperada, então recupera-se SÓ o candidato correspondente
+  //     — e ainda sem baixar arquivo nenhum.
+  if (rec0.ambiguous) {
+    const rec1 = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion, expectedVersion: version });
+    if (rec1.recovered) return asInstalled(rec1);
+  }
 
   // F2.5-hardening-3: uma tentativa que falha NÃO pode rebaixar um pack já READY que estava
   // funcionando no device. Preserva a entry anterior se for READY (só limpa o .tmp e retorna
@@ -331,6 +360,17 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
       return failWith(`version do pack (${manifest?.version}) != version global (${version})`);
     }
 
+    // 8b) LP2.1a-ii-C: `.ptf-publish.json` é nome RESERVADO do marcador de publicação. Um manifesto
+    //     que o declare sobrescreveria (ou seria sobrescrito por) a evidência de validação — e como
+    //     o marcador é escrito DEPOIS do verify, o pack seria publicado com o arquivo trocado, sem
+    //     ninguém notar. Rejeita ANTES de baixar qualquer coisa. Verifica a lista INTEIRA (não só os
+    //     kinds pedidos): declarar o nome reservado torna o manifesto malformado, ponto. A
+    //     comparação é NORMALIZADA (`./x`, `\`, caixa) — a string crua deixaria variantes passarem.
+    const collisions = findMarkerCollisions(manifest.files);
+    if (collisions.length) {
+      return failWith(`manifesto usa o caminho reservado do marcador (${MARKER_FILENAME}): ${collisions.join(', ')}`);
+    }
+
     // 9) seleciona os arquivos dos KINDS solicitados (path seguro). Default: só 'scene'
     //    (compat F2.4d). F2.4e.1: cover/scene/coloring/audio quando a camada dev pedir.
     const wanted = (manifest.files || []).filter((f) => f && kinds.includes(f.kind)
@@ -408,6 +448,22 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
       if ((doneByKind[k] || 0) !== expectedPerKind[k]) errors.push(`kind ${k}: ${doneByKind[k] || 0}/${expectedPerKind[k]} baixados`);
     }
     if (errors.length) return failWith(`validação falhou (${errors.length})`, errors);
+
+    // 11b) LP2.1a-ii-C: MARCADOR DE PUBLICAÇÃO VALIDADA. Só chega aqui com TUDO validado: manifesto
+    //      global resolvido, âncora manifestSha256 conferida, schema do manifesto, storyId/version,
+    //      lista + contagem por kind, e bytes + sha256 de cada arquivo. Escrito no .tmp para que o
+    //      MESMO moveAsync publique o conteúdo e a prova de que ele foi validado — é isso que torna
+    //      um pack recuperável offline depois de um crash antes do READY (o manifestSha256 não é
+    //      persistido em lugar nenhum, então sem o marcador não há evidência da âncora no disco).
+    //      Falhar aqui ABORTA a publicação: sem marcador, nenhuma instalação nova é publicada.
+    const marker = buildPublishMarker({
+      storyId, version, manifestSha256: expectedManifestSha, manifestPath: pack.manifestPath, kinds, appVersion,
+    });
+    try {
+      await FileSystem.writeAsStringAsync(`${tempDir}${MARKER_FILENAME}`, JSON.stringify(marker));
+    } catch (e) {
+      return failWith(`marcador de publicação não pôde ser escrito: ${(e && e.message) || e}`);
+    }
 
     throwIfCancelled(isCancelled); // F2.5-hardening-3: ÚLTIMO ponto cancelável — o swap não é cancelável
     // 12) promove .tmp → localDir (troca atômica) — só depois de TUDO validado.
@@ -550,6 +606,7 @@ const defaultService = createPackDownloadService({
   fetchGlobalContentManifest,
   getPackFromGlobalManifest,
   warn,
+  recoverStoryPack,
 });
 
 /* Exports públicos INALTERADOS — delegam ao singleton (nenhum call site muda). */
