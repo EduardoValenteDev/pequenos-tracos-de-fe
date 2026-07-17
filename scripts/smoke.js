@@ -8928,10 +8928,12 @@ console.log('\n── LP2.1a-ii-A: instalação de story pack (fluxo real via se
       metadata: { storyId, title: 'Davi e Golias', language: 'pt-BR' },
     };
     const manifestText = JSON.stringify(manifest);
+    // `packEntry` completa o schema que `validateGlobalContentManifest` exige de verdade — o double
+    // do fetch agora roda essa validação pura (QA3R §5.6), então uma fixture incompleta seria
+    // EXCLUÍDA aqui, como seria no aparelho.
     h.setGlobalManifest({
       manifestVersion: 1, minAppVersion: '1.0.0',
-      packs: [{ storyId, version, baseUrl: BASE, manifestPath: 'manifest.json',
-        manifestSha256: h.sha256OfText(manifestText), requiresAppUpdate: false }],
+      packs: [h.packEntry({ storyId, version, baseUrl: BASE, manifestSha256: h.sha256OfText(manifestText) })],
     });
     h.route(`${BASE}manifest.json`, { text: manifestText });
     FILES.forEach((f) => h.route(BASE + f.path, { text: f.text }));
@@ -9262,12 +9264,11 @@ console.log('\n── LP2.1a-ii-B: reinstalação e rejeições de story packs �
     const ancoraCerta = h.sha256OfText(manifestText);
     h.setGlobalManifest({
       manifestVersion: 1, minAppVersion: '1.0.0',
-      packs: [{
-        storyId: STORY, version: VERSAO, baseUrl: BASE_B, manifestPath: 'manifest.json',
+      packs: [h.packEntry({
+        storyId: STORY, version: VERSAO, baseUrl: BASE_B,
         // Só a ÂNCORA muda; tudo o mais fica constante. 64-hex válido, porém de outro conteúdo.
         manifestSha256: defeito === 'ancora' ? h.sha256OfText('outro conteúdo qualquer') : ancoraCerta,
-        requiresAppUpdate: false,
-      }],
+      })],
     });
     h.route(`${BASE_B}manifest.json`, { text: manifestText });
     NOVOS.forEach((f) => h.route(BASE_B + f.path, { text: f.text }));
@@ -9984,6 +9985,219 @@ console.log('\n── LP2.1a-ii-BR: limpeza do errorMessage nas entradas de pack
 // Invariante: só recupera com EVIDÊNCIA LOCAL PERSISTENTE (o marcador) de que o
 // manifesto ANCORADO e todos os arquivos foram validados ANTES da publicação.
 // ════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-ii-C-QA3R — Fidelidade dos doubles ao contrato real do SDK 54.
+// Um double mais estrito (ou mais frouxo) que o real fabrica morte de mutante e
+// esconde defeito: as provas abaixo falham com os doubles ANTIGOS.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-ii-C-QA3R: fidelidade dos doubles ──');
+{
+  const { createPackInstallHarness, loadModule } = require('./testing/packInstallHarness');
+
+  globalThis.__QA3R_DOUBLES = (async () => {
+    /* ═══ §5.5 + A2/F1 + A2/F3 — getInfoAsync fiel ao NATIVO instalado ═══ */
+    {
+      const h = createPackInstallHarness();
+      h.mem._seedFile('file:///doc/x.txt', 'abc');
+      h.mem._seedFile('file:///doc/p/a.txt', '12345');            // 5 bytes
+      h.mem._seedFile('file:///doc/p/sub/b.txt', '1234567890');   // 10 bytes (descendente)
+      const FS = h.deps.FileSystem;
+      const semOpts = await FS.getInfoAsync('file:///doc/x.txt');            // SEM {size:true}
+      const comMd5 = await FS.getInfoAsync('file:///doc/x.txt', { md5: true });
+      const ausente = await FS.getInfoAsync('file:///doc/nao-existe.txt');
+      const dirCheio = await FS.getInfoAsync('file:///doc/p/');
+      const dirAninhado = await FS.getInfoAsync('file:///doc/p/sub/');
+      const MD5_ABC = '900150983cd24fb0d6963f7d28e17f72';   // md5('abc') — valor conhecido
+
+      const h2 = createPackInstallHarness();
+      await h2.deps.FileSystem.makeDirectoryAsync('file:///doc/vazio/', { intermediates: true });
+      const dirVazio = await h2.deps.FileSystem.getInfoAsync('file:///doc/vazio/');
+
+      check('LP2.1a-ii-C-QA3R §5.5 (getInfoAsync fiel ao NATIVO): size sem {size:true}; md5 só quando pedido; diretório soma recursivamente os descendentes; ausente sem uri/size/md5',
+        semOpts.exists === true && semOpts.size === 3          // size vem SEM pedir — como no SDK 54
+        && semOpts.isDirectory === false
+        && semOpts.md5 === undefined && comMd5.md5 === MD5_ABC
+        // (mtime NÃO é asserido: o nativo o devolve, o harness omite por não modelá-lo. Congelar a
+        //  ausência como contrato proibiria aproximar o double do nativo — o inverso do objetivo.)
+        // A2/F1: iOS e Android devolvem SÓ {exists:false, isDirectory:false} — sem uri (o .d.ts é
+        // mais amplo que o objeto real; aqui vale o nativo).
+        && ausente.exists === false && ausente.isDirectory === false
+        && ausente.uri === undefined && ausente.size === undefined && ausente.md5 === undefined
+        // A2/F3: o nativo soma RECURSIVAMENTE o conteúdo do diretório — 5 + 10 = 15
+        && dirCheio.exists === true && dirCheio.isDirectory === true && dirCheio.size === 15
+        && dirAninhado.size === 10                            // só o descendente dele
+        && dirVazio.exists === true && dirVazio.isDirectory === true && dirVazio.size === 0,
+        `o double diverge do nativo: arquivo=${JSON.stringify(semOpts)} ausente=${JSON.stringify(ausente)} dir=${JSON.stringify(dirCheio)} vazio=${JSON.stringify(dirVazio)}`);
+
+      // CONTROLE NEGATIVO: os dois doubles ANTIGOS (o original e o do QA3R-A) reprovam esta prova.
+      const antigoOriginal = async (uri, opts = {}) => {
+        if (uri === 'file:///doc/x.txt') {
+          return opts.size ? { exists: true, isDirectory: false, size: 3, uri } : { exists: true, isDirectory: false, uri };
+        }
+        return { exists: false, uri };
+      };
+      const antigoQA3RA = async (uri) => (uri === 'file:///doc/nao-existe.txt'
+        ? { exists: false, uri, isDirectory: false }                              // fabricava uri
+        : { exists: true, uri, size: 0, isDirectory: true, modificationTime: 1 }); // size/mtime inventados
+      const aSem = await antigoOriginal('file:///doc/x.txt');
+      const aAus = await antigoOriginal('file:///doc/nao-existe.txt');
+      const bAus = await antigoQA3RA('file:///doc/nao-existe.txt');
+      const bDir = await antigoQA3RA('file:///doc/p/');
+      check('LP2.1a-ii-C-QA3R §5.5b (controle negativo): o double ORIGINAL omitia size/isDirectory; o do QA3R-A fabricava uri no ausente e size/mtime de diretório',
+        aSem.size === undefined && aAus.isDirectory === undefined      // defeitos do original
+        && bAus.uri !== undefined                                      // A2/F1: fabricava uri
+        && bDir.size === 0 && bDir.modificationTime === 1,             // A2/F3: valores inventados
+        'os doubles antigos não reproduzem os defeitos — o controle não prova nada');
+    }
+
+    /* ═══ §5.6 — fetchGlobalContentManifest roda a validação PURA real ═══ */
+    {
+      const g = loadModule('src/data/contentManifest.js', {}, ['STORY_CONTENT_LAYER']);
+      const gm = loadModule('src/services/globalManifestService.js', { STORY_CONTENT_LAYER: g.STORY_CONTENT_LAYER, warn: () => {} },
+        ['validateGlobalContentManifest']);
+
+      const h = createPackInstallHarness();
+      // (a) manifesto VÁLIDO é aceito
+      h.setGlobalManifest({ manifestVersion: 1, minAppVersion: '1.0.0', packs: [h.packEntry({ storyId: 'david_goliath', version: '1.0.0' })] });
+      const ok = await h.deps.fetchGlobalContentManifest('https://r2/c.json', { appVersion: '1.0.0' });
+
+      // (b) manifesto INVÁLIDO é rejeitado — o double antigo aceitaria
+      const h2 = createPackInstallHarness();
+      h2.setGlobalManifest({ manifestVersion: 'errado', packs: 'não é array' });
+      const mau = await h2.deps.fetchGlobalContentManifest('https://r2/c.json', { appVersion: '1.0.0' });
+
+      // (c) requiresAppUpdate DERIVADO pela função real (requiredAppVersion > appVersion)
+      const h3 = createPackInstallHarness();
+      h3.setGlobalManifest({ manifestVersion: 1, minAppVersion: '1.0.0', packs: [h3.packEntry({ requiredAppVersion: '9.9.9' })] });
+      const futuro = await h3.deps.fetchGlobalContentManifest('https://r2/c.json', { appVersion: '1.0.0' });
+      const packFuturo = futuro.data && futuro.data.packs && futuro.data.packs[0];
+
+      check('LP2.1a-ii-C-QA3R §5.6 (manifesto global fiel): o double roda a validação PURA real — aceita o válido, rejeita o inválido e DERIVA requiresAppUpdate',
+        ok.ok === true && ok.data && ok.data.packs.length === 1
+        && ok.data.packs[0].requiresAppUpdate === false
+        && mau.ok === false && mau.errors.length > 0                       // inválido REJEITADO
+        && !!packFuturo && packFuturo.requiresAppUpdate === true,          // derivado, não copiado
+        `a validação pura não está sendo executada: ok=${ok.ok} mau.ok=${mau.ok} requiresAppUpdate=${packFuturo && packFuturo.requiresAppUpdate}`);
+
+      // CONTROLE NEGATIVO: o double ANTIGO devolvia o manifesto cru com ok:true forçado.
+      const antigo = async (manifest) => (manifest ? { ok: true, data: manifest, errors: [], warnings: [] } : { ok: false, data: null, errors: ['rede indisponível'], warnings: [] });
+      const aMau = await antigo({ manifestVersion: 'errado', packs: 'não é array' });
+      const aFuturo = await antigo({ manifestVersion: 1, packs: [{ requiredAppVersion: '9.9.9' }] });
+      check('LP2.1a-ii-C-QA3R §5.6b (controle negativo): o double ANTIGO aceitava manifesto inválido e nunca derivava requiresAppUpdate',
+        aMau.ok === true                                                    // aceitava o inválido
+        && aFuturo.data.packs[0].requiresAppUpdate === undefined            // nunca derivava
+        && gm.validateGlobalContentManifest({ manifestVersion: 'errado', packs: 'não é array' }, { appVersion: '1.0.0' }).ok === false,
+        'o double antigo não reproduz o defeito — o controle não prova nada');
+    }
+
+    /* ═══ A2/F2 — os passos que o double antigo ENGOLIA rodam de verdade ═══
+     * Agora só o transporte (fetch) é dublado: validação de URL, status HTTP e JSON.parse são do
+     * `fetchGlobalContentManifest` REAL. Cada passo abaixo falha porque o real falha. */
+    {
+      const packOk = { manifestVersion: 1, minAppVersion: '1.0.0', packs: [] };
+      const chamar = async (url, modo, opts = {}) => {
+        const h = createPackInstallHarness();
+        h.setGlobalManifest(packOk);
+        h.setModoRede(modo);
+        const r = await h.deps.fetchGlobalContentManifest(url, { appVersion: '1.0.0', ...opts });
+        return { ok: r.ok, erro: (r.errors && r.errors[0]) || '', rede: h.events.includes('fetch-global-manifest') };
+      };
+
+      const httpBloqueado = await chamar('http://r2/c.json', 'ok');       // não-https reprovado ANTES da rede
+      const vazia = await chamar('   ', 'ok');
+      const naoUrl = await chamar(null, 'ok');
+      const httpDev = await chamar('http://r2/c.json', 'ok', { allowHttp: true });  // exceção explícita
+      const status404 = await chamar('https://r2/c.json', 'http-erro');
+      const jsonMau = await chamar('https://r2/c.json', 'json-invalido');
+      const semRede = await chamar('https://r2/c.json', 'offline');
+
+      check('LP2.1a-ii-C-QA3R A2/F2 (só o transporte é dublado): URL inválida barra ANTES da rede; 404, JSON inválido e falha de rede não viram sucesso',
+        httpBloqueado.ok === false && httpBloqueado.rede === false      // reprovou sem chegar a buscar
+        && vazia.ok === false && vazia.rede === false
+        && naoUrl.ok === false && naoUrl.rede === false
+        && httpDev.ok === true && httpDev.rede === true                 // allowHttp explícito passa
+        && status404.ok === false && /404/.test(status404.erro) && status404.rede === true
+        // `/JSON/i` NÃO serviria: as 4 mensagens do serviço contêm "content-manifest.json", então o
+        // regex casaria até com "rede indisponível". Ancorar no texto que só o ramo do parse produz.
+        && jsonMau.ok === false && /inválido \(JSON\)/.test(jsonMau.erro)
+        && semRede.ok === false && /rede indisponível/.test(semRede.erro)
+        // DENTES: cada âncora tem de REJEITAR os outros ramos. Sem isto a prova não distingue os
+        // desfechos — foi assim que `/JSON/i` (que casa com as 4 mensagens) passou por prova.
+        && !/inválido \(JSON\)/.test(semRede.erro) && !/inválido \(JSON\)/.test(status404.erro)
+        && !/rede indisponível/.test(jsonMau.erro) && !/404/.test(jsonMau.erro),
+        `algum passo real está sendo pulado: http=${JSON.stringify(httpBloqueado)} 404=${JSON.stringify(status404)} json=${JSON.stringify(jsonMau)} offline=${JSON.stringify(semRede)}`);
+
+      // O modo pedido MANDA mesmo sem manifesto configurado (achado B da revisão QA3R-B): antes,
+      // um `|| !globalManifest` no double devolvia "offline" para quem pediu 404 ou JSON inválido —
+      // e a prova, ancorada em /JSON/i, aprovava a mensagem errada.
+      const semManifesto = async (modo) => {
+        const h = createPackInstallHarness();
+        h.setModoRede(modo);                       // sem setGlobalManifest de propósito
+        const r = await h.deps.fetchGlobalContentManifest('https://r2/c.json', { appVersion: '1.0.0' });
+        return (r.errors && r.errors[0]) || '';
+      };
+      check('LP2.1a-ii-C-QA3R A2/F2c (o modo de rede manda): sem manifesto configurado, 404 é 404 e JSON inválido é JSON inválido — nunca "rede indisponível"',
+        /404/.test(await semManifesto('http-erro'))
+        && /inválido \(JSON\)/.test(await semManifesto('json-invalido'))
+        && /rede indisponível/.test(await semManifesto('offline'))
+        && /404/.test(await semManifesto('ok')),            // manifesto ausente ≠ rede caída
+        'o double atropela o modo pedido — cenários distintos colapsam na mesma mensagem');
+
+      // CONTROLE NEGATIVO: o double ANTIGO substituía a função inteira e só reexecutava a cauda —
+      // qualquer URL virava sucesso, e 404/JSON inválido eram inalcançáveis.
+      const antigo = async (_url) => ({ ok: true, data: packOk, errors: [], warnings: [] });
+      const aHttp = await antigo('http://r2/c.json');
+      const aNulo = await antigo(null);
+      check('LP2.1a-ii-C-QA3R A2/F2b (controle negativo): o double ANTIGO aprovava URL não-https e até url nula — os passos reais nunca rodavam',
+        aHttp.ok === true && aNulo.ok === true,
+        'o double antigo não reproduz o defeito — o controle não prova nada');
+    }
+
+    /* ═══ §8 — h.packEntry() não pode "consertar" uma fixture que o cenário quer inválida ═══ */
+    {
+      const h = createPackInstallHarness();
+      const base = h.packEntry();
+      // Sobrescritas FALSY e inválidas têm de sobreviver ao helper E ser reprovadas pelo validador.
+      const vazio = h.packEntry({ storyId: '' });
+      const zero = h.packEntry({ bytes: 0 });
+      const desconhecida = h.packEntry({ storyId: 'historia_que_nao_existe' });
+
+      const rejeita = async (pack) => {
+        const hx = createPackInstallHarness();
+        hx.setGlobalManifest({ manifestVersion: 1, minAppVersion: '1.0.0', packs: [pack] });
+        const r = await hx.deps.fetchGlobalContentManifest('https://r2/c.json', { appVersion: '1.0.0' });
+        // pack excluído (warning) ou manifesto reprovado (error): nos dois casos NÃO é candidato
+        return (r.data ? r.data.packs.length : 0) === 0;
+      };
+
+      check('LP2.1a-ii-C-QA3R §8 (packEntry honesto): o default é válido, mas sobrescritas falsy/inválidas sobrevivem ao helper e chegam INVÁLIDAS ao validador real',
+        base.storyId === 'david_goliath' && base.id === 'david_goliath-1.0.0'
+        && base.baseUrl === 'https://r2/david_goliath/v1/'
+        && base.requiresAppUpdate === undefined                 // quem deriva é o validador, não o helper
+        && vazio.storyId === '' && vazio.id === '-1.0.0'        // derivados vêm do valor FINAL
+        && vazio.baseUrl === 'https://r2//v1/'
+        && zero.bytes === 0                                     // falsy legítimo preservado
+        && await rejeita(vazio) && await rejeita(zero) && await rejeita(desconhecida)
+        && await rejeita(h.packEntry({ type: 'errado' })) && await rejeita(h.packEntry({ manifestPath: 'outro.json' })),
+        `o helper normaliza fixtures inválidas antes do validador: vazio=${JSON.stringify(vazio.storyId)} id=${vazio.id} zero=${zero.bytes}`);
+
+      // DENTES para L2: o validador só confere a FORMA de mediaKinds, então nada impediria uma
+      // regressão silenciosa do default de volta a ['scene'] — o smoke seguiria verde. Aqui a
+      // honestidade da fixture é asserida diretamente: o default cobre os kinds que as 3 fixtures
+      // (A/B/C) realmente servem — cena E áudio — e continua sobrescritível.
+      const kindsDefault = base.mediaKinds;
+      const sobrescrito = h.packEntry({ mediaKinds: ['scene'] });
+      check('LP2.1a-ii-C-QA3R §8b (L2 falsificável): o default mediaKinds é ["scene","audio"] (o que as fixtures servem) e permanece sobrescritível',
+        Array.isArray(kindsDefault) && kindsDefault.length === 2
+        && kindsDefault.includes('scene') && kindsDefault.includes('audio')
+        && sobrescrito.mediaKinds.length === 1 && sobrescrito.mediaKinds[0] === 'scene',   // override vence
+        `o default mediaKinds regrediu ou não é sobrescritível: default=${JSON.stringify(kindsDefault)} override=${JSON.stringify(sobrescrito.mediaKinds)}`);
+    }
+  })();
+  globalThis.__QA3R_DOUBLES.catch(() => {});
+}
+
+
 console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida ──');
 {
   const { createPackInstallHarness, loadPackDownloader, loadModule } = require('./testing/packInstallHarness');
@@ -10062,8 +10276,7 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
     const { manifestText } = manifestoDe(h, { version, arquivos });
     h.setGlobalManifest({
       manifestVersion: 1, minAppVersion: '1.0.0',
-      packs: [{ storyId: STORY_C, version, baseUrl: BASE_C, manifestPath: 'manifest.json',
-        manifestSha256: h.sha256OfText(manifestText), requiresAppUpdate: false }],
+      packs: [h.packEntry({ storyId: STORY_C, version, baseUrl: BASE_C, manifestSha256: h.sha256OfText(manifestText) })],
     });
     h.route(`${BASE_C}manifest.json`, { text: manifestText });
     arquivos.forEach((f) => h.route(BASE_C + f.path, { text: f.text }));
@@ -27020,6 +27233,12 @@ check(
   check('LP2.1a-ii-C (harness): o bloco assíncrono da recuperação concluiu sem estourar',
     !lp21aiicErr,
     `o bloco da recuperação lançou (${lp21aiicErr && lp21aiicErr.stack ? String(lp21aiicErr.stack).split('\n').slice(0, 3).join(' | ') : lp21aiicErr}) — os checks dele não rodaram`);
+
+  let qa3rErr = null;
+  try { await globalThis.__QA3R_DOUBLES; } catch (e) { qa3rErr = e; }
+  check('LP2.1a-ii-C-QA3R (harness): o bloco assíncrono da fidelidade dos doubles concluiu sem estourar',
+    !qa3rErr,
+    `o bloco dos doubles lançou (${qa3rErr && qa3rErr.stack ? String(qa3rErr.stack).split('\n').slice(0, 3).join(' | ') : qa3rErr}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;

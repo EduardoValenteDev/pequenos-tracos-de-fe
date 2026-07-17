@@ -25,6 +25,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { createHash } = require('crypto');   // só para o md5 do double de getInfoAsync (built-in do Node)
 const { sha256 } = require('@noble/hashes/sha2.js');
 const { bytesToHex } = require('@noble/hashes/utils.js');
 
@@ -144,14 +145,45 @@ function createMemoryFileSystem({ freeBytes = 10 * 1024 * 1024 * 1024, log, fire
       dirs.add(dir);
     },
 
+    /**
+     * SUBCONJUNTO do contrato do expo-file-system/legacy (SDK 54) que este harness modela.
+     * Onde modela, segue o nativo; o que não modela, OMITE (nunca inventa um valor).
+     *
+     * FONTE DE VERDADE = a implementação NATIVA instalada, não o `.d.ts`. O tipo declara
+     * `{ exists:false; uri:string; isDirectory:false }` para o ramo ausente, mas o nativo NÃO
+     * devolve `uri` ali — iOS (`EXFileSystemLocalFileHandler.m`) resolve `{exists:NO, isDirectory:NO}`
+     * e Android (`FileSystemLegacyModule.kt`) devolve um Bundle só com esses dois booleanos. O JS
+     * apenas repassa o nativo, então o `.d.ts` é mais amplo que o objeto real: aqui vale o nativo.
+     *
+     *   opções    → InfoOptions = { md5?: boolean }   ← NÃO existe opção `size`
+     *   arquivo   → { exists:true, uri, size, isDirectory:false, md5? }
+     *   diretório → { exists:true, uri, size (SOMA RECURSIVA dos descendentes), isDirectory:true }
+     *   ausente   → { exists:false, isDirectory:false }        ← sem uri, sem size, sem md5
+     *
+     * `modificationTime` é a exceção consciente: o NATIVO sempre o devolve no ramo `exists:true`,
+     * mas aqui é OMITIDO — nenhum consumidor em `src/` o lê (grep: zero) e um placeholder fixo
+     * deixaria uma prova verde por acidente. Omitir é mais ESTRITO que o nativo (quem ler recebe
+     * `undefined` e quebra no teste, não no aparelho). Nenhuma prova assere essa ausência: modelar
+     * mtime de verdade um dia é evolução válida, não regressão.
+     */
     async getInfoAsync(uri, opts = {}) {
       if (files.has(uri)) {
         const b = files.get(uri);
-        return opts.size ? { exists: true, isDirectory: false, size: b.length, uri } : { exists: true, isDirectory: false, uri };
+        const info = { exists: true, uri, size: b.length, isDirectory: false };
+        if (opts.md5) info.md5 = createHash('md5').update(Buffer.from(b)).digest('hex');
+        return info;
       }
       const dir = isDir(uri) ? uri : `${uri}/`;
-      if (dirs.has(dir) || dirs.has(uri)) return { exists: true, isDirectory: true, uri };
-      return { exists: false, uri };
+      if (dirs.has(dir) || dirs.has(uri)) {
+        // Nativo: o tamanho de um diretório é a soma RECURSIVA dos arquivos que ele contém
+        // (iOS acumula em getFileSize; Android reduz `listFiles()`). `size: 0` fixo era inventado.
+        // O prefixo já garante "descendentes" e não conta ninguém duas vezes (cada arquivo é uma
+        // chave única do Map). Diretório vazio → 0, que é o resultado real.
+        let size = 0;
+        for (const [k, v] of files) if (k.startsWith(dir)) size += v.length;
+        return { exists: true, uri, size, isDirectory: true };
+      }
+      return { exists: false, isDirectory: false };
     },
 
     async moveAsync({ from, to }) {
@@ -322,18 +354,48 @@ function createPackInstallHarness({ freeBytes, storageMutate, recoveryMutate, ma
       'findMarkerCollisions', 'buildPublishMarker', 'validateMarkerSchema', 'validatePublishMarker',
       'parsePackDirName', 'selectStoryPackDirs'], markerMutate);
 
-  // ── globalManifestService: getPackFromGlobalManifest REAL (puro); fetch é DOUBLE (rede) ──
-  const globalSvc = loadModule('src/services/globalManifestService.js', {
-    STORY_CONTENT_LAYER: {},
-    warn: () => {},
-  }, ['getPackFromGlobalManifest']);
+  /*
+   * ── globalManifestService REAL: a ÚNICA fronteira dublada é o `fetch` ──
+   *
+   * `fetchGlobalContentManifest` NÃO é dublado: o módulo real é carregado e executado. Ele faz, em
+   * ordem: valida a URL (https; http só em dev) → AbortController/timeout → `fetch` → confere
+   * `res.ok`/`res.status` → `res.json()` → `validateGlobalContentManifest(json, opts)`. Dublar a
+   * função inteira e reexecutar só a cauda (como se fazia) deixava de fora 3 dos 4 passos: uma URL
+   * inválida, um HTTP 404 e um JSON quebrado viravam sucesso nos testes e falha no aparelho.
+   *
+   * `STORY_CONTENT_LAYER` entra REAL (objeto puro): é ele que faz o validador rejeitar
+   * `storyId: desconhecido pelo app`. `__DEV__: false` = regra de PRODUÇÃO (exige https) — a mais
+   * estrita, para o teste nunca ser mais frouxo que a loja.
+   */
+  const contentSvc = loadModule('src/data/contentManifest.js', {}, ['STORY_CONTENT_LAYER']);
 
   let globalManifest = null;
-  const fetchGlobalContentManifest = async () => {
+  let modoRede = 'ok';   // 'ok' | 'offline' | 'http-erro' | 'json-invalido'
+
+  /** Único double: o transporte. Devolve uma Response mínima (o que o real consome dela). */
+  const fetchDouble = async (_url, _init) => {
     log('fetch-global-manifest');
-    if (!globalManifest) return { ok: false, data: null, errors: ['rede indisponível'], warnings: [] };
-    return { ok: true, data: globalManifest, errors: [], warnings: [] };
+    // O modo pedido MANDA. Um `|| !globalManifest` aqui atropelaria o modo e devolveria "offline"
+    // para um cenário que pediu 404 — foi assim que uma prova tautológica passou despercebida.
+    if (modoRede === 'offline') throw new TypeError('Network request failed');
+    if (modoRede === 'http-erro') return { ok: false, status: 404 };
+    if (modoRede === 'json-invalido') {
+      // Corpo ilegível independe de haver manifesto configurado — é defeito do transporte.
+      return { ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token < in JSON'); } };
+    }
+    // Manifesto não configurado ≠ rede caída: na rede real isso é 404, nunca TypeError.
+    if (!globalManifest) return { ok: false, status: 404 };
+    return { ok: true, status: 200, json: async () => globalManifest };
   };
+
+  const globalSvc = loadModule('src/services/globalManifestService.js', {
+    STORY_CONTENT_LAYER: contentSvc.STORY_CONTENT_LAYER,
+    warn: () => {},
+    __DEV__: false,
+    fetch: fetchDouble,
+  }, ['getPackFromGlobalManifest', 'validateGlobalContentManifest', 'fetchGlobalContentManifest']);
+
+  const fetchGlobalContentManifest = globalSvc.fetchGlobalContentManifest;
 
   // sha256 REAL de um texto (para montar manifestos coerentes nos cenários)
   const sha256OfText = (text) => bytesToHex(sha256(new TextEncoder().encode(text)));
@@ -405,6 +467,53 @@ function createPackInstallHarness({ freeBytes, storageMutate, recoveryMutate, ma
     sha256OfText,
     route: (url, cfg) => routes.set(url, cfg),
     setGlobalManifest: (m) => { globalManifest = m; },
+
+    /**
+     * Modo do TRANSPORTE do manifesto global (a única fronteira dublada):
+     *   'ok' (default) · 'offline' (fetch lança) · 'http-erro' (404) · 'json-invalido' (json() lança)
+     * Serve para exercitar os passos do `fetchGlobalContentManifest` REAL que antes eram engolidos.
+     */
+    setModoRede: (m) => { modoRede = m; },
+
+    /**
+     * Entrada de pack VÁLIDA por default para o manifesto global.
+     *
+     * A fonte de verdade do schema é `validateGlobalContentManifest` (globalManifestService) — este
+     * helper NÃO o reimplementa nem o descreve por extenso; só monta um pack que ele aceita, para
+     * cada cenário sobrescrever o que quer testar.
+     *
+     * Campos fornecidos por default = os OBRIGATÓRIOS. `manifestSha256` e `status` são OPCIONAIS no
+     * validador (ausentes não geram defeito) e por isso ficam de fora: quem quer testar a âncora a
+     * informa explicitamente.
+     *
+     * Existe porque o double antigo do fetch devolvia o manifesto CRU e nunca chamava a validação:
+     * fixtures com meia dúzia de campos passavam nos testes e seriam EXCLUÍDAS no aparelho.
+     */
+    packEntry: (over = {}) => {
+      // A sobrescrita VENCE sempre — inclusive valores falsy ('' , 0, null). Um cenário que quer
+      // uma entrada INVÁLIDA precisa que ela chegue inválida ao validador; `over.x || default`
+      // "consertaria" o defeito em silêncio e o teste provaria o oposto do que pretende.
+      const p = {
+        storyId: 'david_goliath',
+        version: '1.0.0',
+        type: 'story',
+        access: 'premium',
+        title: 'Pack de teste',
+        bytes: 1024,
+        manifestPath: 'manifest.json',
+        requiredAppVersion: '1.0.0',
+        // As fixtures dos blocos A/B/C servem cena E áudio e pedem requestedKinds ['scene','audio'];
+        // declarar só 'scene' descrevia um pack que se contradiz. Um cenário que precise de outro
+        // conjunto sobrescreve — o helper não força.
+        mediaKinds: ['scene', 'audio'],
+        ...over,
+      };
+      // Derivados: calculados dos valores FINAIS (nunca dos defaults), e só quando o cenário não
+      // os informou. `requiresAppUpdate` NÃO entra: quem o deriva é o validador real.
+      if (!('baseUrl' in over)) p.baseUrl = `https://r2/${p.storyId}/v1/`;
+      if (!('id' in over)) p.id = `${p.storyId}-${p.version}`;
+      return p;
+    },
     index: () => storage.getPackIndex(),
     entry: (storyId) => storage.getPackEntry(storyId),
     seedIndexRaw: (raw) => { store.raw = JSON.stringify(raw); },
