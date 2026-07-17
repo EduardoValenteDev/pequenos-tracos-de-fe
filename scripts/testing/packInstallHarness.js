@@ -76,7 +76,7 @@ function loadPackDownloader(mutate) {
  * Modela SÓ o que o fluxo usa. Diretórios e arquivos num Map por URI.
  * Um diretório é uma chave terminada em '/'. Arquivo guarda bytes (Uint8Array).
  */
-function createMemoryFileSystem({ freeBytes = 10 * 1024 * 1024 * 1024, log } = {}) {
+function createMemoryFileSystem({ freeBytes = 10 * 1024 * 1024 * 1024, log, fire = async () => {} } = {}) {
   const files = new Map();   // uri -> Uint8Array
   const dirs = new Set(['file:///doc/']);
   const enc = new TextEncoder();
@@ -98,6 +98,7 @@ function createMemoryFileSystem({ freeBytes = 10 * 1024 * 1024 * 1024, log } = {
     documentDirectory: 'file:///doc/',
 
     async deleteAsync(uri, opts = {}) {
+      await fire('delete', uri);   // checkpoint: o estado AQUI é o que um crash deixaria
       log && log('delete', uri);
       const exists = dirs.has(uri) || files.has(uri);
       if (!exists && !opts.idempotent) throw new Error(`ENOENT: ${uri}`);
@@ -128,6 +129,7 @@ function createMemoryFileSystem({ freeBytes = 10 * 1024 * 1024 * 1024, log } = {
     },
 
     async moveAsync({ from, to }) {
+      await fire('move', `${from} -> ${to}`);   // checkpoint: depois do delete, antes do move
       log && log('move', `${from} -> ${to}`);
       if (!dirs.has(from) && !files.has(from)) throw new Error(`ENOENT move: ${from}`);
       if (isDir(from)) {
@@ -142,6 +144,7 @@ function createMemoryFileSystem({ freeBytes = 10 * 1024 * 1024 * 1024, log } = {
     },
 
     async readAsStringAsync(uri, opts = {}) {
+      log && log('read', uri);   // registrado: é como se prova que o manifesto não é lido antes da âncora
       if (!files.has(uri)) throw new Error(`ENOENT read: ${uri}`);
       const bytes = files.get(uri);
       return opts.encoding === 'base64' ? toB64(bytes) : dec.decode(bytes);
@@ -163,6 +166,9 @@ function createMemoryFileSystem({ freeBytes = 10 * 1024 * 1024 * 1024, log } = {
     // arquivo (packDownloadService.js:373) — a única coisa que permite baixar caminhos aninhados.
     _write: (uri, text) => { requireParent(uri); files.set(uri, enc.encode(text)); },
     _writeBytes: (uri, bytes) => { requireParent(uri); files.set(uri, bytes); },
+    // SÓ para montar o cenário (um pack já instalado ANTES do teste). Não passa pelas APIs
+    // observadas, então o log de eventos não ganha operações que o fluxo não executou.
+    _seedFile: (uri, text) => { ensureParents(uri); files.set(uri, enc.encode(text)); },
     setFreeBytes: (n) => { freeBytes = n; },
   };
 }
@@ -181,6 +187,11 @@ function createDownloadLayer({ mem, routes, log, counters }) {
         log('download', `${url} -> ${to}`);
         const route = routes.get(url);
         if (!route) throw new Error(`404: ${url}`);
+        // Rede que cai NO MEIO do lote (depois de arquivos já gravados no .tmp).
+        if (route.throws) throw new Error(route.throws);
+        // Download que RESOLVE sem produzir arquivo: exercita o `if (!info.exists)` do verify
+        // (packDownloadService.js:397), que é uma checagem REAL do serviço, não inventada aqui.
+        if (route.noFile) return { uri: to, status: route.status || 200 };
         if (typeof route.text !== 'string') throw new Error(`rota sem conteúdo: ${url}`);
         if (Array.isArray(route.progressEvents) && typeof onProgress === 'function') {
           for (const ev of route.progressEvents) onProgress(ev);
@@ -199,7 +210,15 @@ function createPackInstallHarness({ freeBytes } = {}) {
   const log = (type, detail) => { events.push(detail === undefined ? type : `${type}:${detail}`); };
   const counters = { downloads: 0, byUrl: {}, setEntry: 0 };
 
-  const mem = createMemoryFileSystem({ freeBytes, log });
+  /*
+   * Checkpoints: `onBefore` é chamado ANTES de uma operação real acontecer, então o estado que
+   * ele observa é exatamente o que um encerramento do app naquele instante deixaria persistido.
+   * É inspeção, não simulação — o gatilho é a operação de verdade, não um marcador do teste.
+   */
+  const hooks = { before: null };
+  const fire = async (type, detail) => { if (hooks.before) await hooks.before(type, detail); };
+
+  const mem = createMemoryFileSystem({ freeBytes, log, fire });
   const routes = new Map();
 
   // ── AsyncStorage em memória + packStorageService REAL (fila serializada de verdade) ──
@@ -247,6 +266,7 @@ function createPackInstallHarness({ freeBytes } = {}) {
   const sha256OfText = (text) => bytesToHex(sha256(new TextEncoder().encode(text)));
 
   const setEntrySpy = async (storyId, entry) => {
+    await fire('set-entry', `${storyId}:${entry && entry.status}`);   // checkpoint: antes do READY
     counters.setEntry += 1;
     log('set-entry', `${storyId}:${entry && entry.status}`);
     return storage.setPackEntry(storyId, entry);
@@ -268,10 +288,17 @@ function createPackInstallHarness({ freeBytes } = {}) {
   };
   deps.FileSystem.createDownloadResumable = createDownloadLayer({ mem, routes, log, counters });
 
-  return {
+  // `onProgress` do CONTRATO REAL da API (o mesmo que a UI passa) — captura as transições
+  // reportadas, que são distintas das gravações persistidas no índice.
+  const progress = [];
+  const onProgress = (p) => { progress.push(p && p.status); };
+
+  const h = {
     deps,
     mem,
     events,
+    progress,
+    onProgress,
     counters,
     storage,
     sha256OfText,
@@ -282,7 +309,40 @@ function createPackInstallHarness({ freeBytes } = {}) {
     seedIndexRaw: (raw) => { store.raw = JSON.stringify(raw); },
     eventsOfType: (type) => events.filter((e) => e === type || e.startsWith(`${type}:`)),
     indexOfEvent: (needle) => events.findIndex((e) => e.includes(needle)),
+
+    /** Instala o hook de checkpoint: `fn(type, detail)` roda ANTES da operação real. */
+    set onBefore(fn) { hooks.before = fn; },
+    get onBefore() { return hooks.before; },
+
+    /**
+     * Monta um pack JÁ INSTALADO antes do teste: arquivos no diretório canônico + entry READY
+     * no índice. Não passa pelas APIs observadas — o log de eventos só terá o que o FLUXO fez.
+     */
+    seedInstalledPack: ({ storyId, version, files, manifestText = '{"anterior":true}' }) => {
+      const dir = storage.getPackLocalDir(storyId, version);
+      mem._seedFile(`${dir}manifest.json`, manifestText);
+      for (const f of files) mem._seedFile(dir + f.path, f.text);
+      store.raw = JSON.stringify({
+        ...(store.raw ? JSON.parse(store.raw) : {}),
+        [storyId]: {
+          storyId,
+          version,
+          status: storage.PACK_STATUS.READY,
+          localDir: dir,
+          manifestPath: `${dir}manifest.json`,
+          totalBytes: files.reduce((a, f) => a + Buffer.byteLength(f.text), 0),
+          downloadedBytes: files.reduce((a, f) => a + Buffer.byteLength(f.text), 0),
+          updatedAt: 1,
+          errorMessage: null,
+        },
+      });
+      return dir;
+    },
+
+    /** Zera o log depois do setup, para as asserções verem só o que o fluxo executou. */
+    resetEvents: () => { events.length = 0; progress.length = 0; counters.downloads = 0; counters.byUrl = {}; counters.setEntry = 0; },
   };
+  return h;
 }
 
 module.exports = { createPackInstallHarness, createMemoryFileSystem, loadModule, loadPackDownloader };

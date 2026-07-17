@@ -9206,6 +9206,539 @@ console.log('\n── LP2.1a-ii-A: instalação de story pack (fluxo real via se
 }
 
 
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-ii-B — Reinstalação segura + rejeições durante download e validação.
+// Executa o MESMO algoritmo de produção (createPackDownloadService) sobre um pack
+// JÁ INSTALADO. Fronteira: falhas DEPOIS do delete (move/READY) são da etapa C.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-ii-B: reinstalação e rejeições de story packs ──');
+{
+  const { createPackInstallHarness, loadPackDownloader } = require('./testing/packInstallHarness');
+  const { createPackDownloadService } = loadPackDownloader();
+
+  const STORY = 'david_goliath';
+  const VERSAO = '1.0.0';
+  const BASE_B = 'https://r2/david_goliath/v1/';
+  const GLOBAL_B = 'https://r2/content-manifest.json';
+  const LOCAL_B = `file:///doc/packs/${STORY}@${VERSAO}/`;
+  const TMP_B = `file:///doc/packs/.tmp/${STORY}@${VERSAO}/`;
+
+  // O pack anterior tem um arquivo (03) que NÃO existe no pack novo: é assim que se prova
+  // substituição em vez de mistura. Mesma VERSÃO de propósito — é o único caso em que o
+  // localDir colide e o ramo preExisting roda (bump de versão usa outro diretório).
+  const ANTIGOS = [
+    { path: 'scenes/01.webp', text: 'ANTIGO-UM-BYTES' },
+    { path: 'scenes/02.webp', text: 'ANTIGO-DOIS-BYTES' },
+    { path: 'scenes/03.webp', text: 'ANTIGO-TRES-BYTES' },
+  ];
+  const NOVOS = [
+    { kind: 'scene', path: 'scenes/01.webp', text: 'NOVO-UM-BYTES' },
+    { kind: 'scene', path: 'scenes/02.webp', text: 'NOVO-DOIS-BYTES' },   // não é o primeiro: hash/ausência/queda vão aqui
+    { kind: 'audio', path: 'audio/01.mp3', text: 'NOVO-AUDIO-BYTES' },
+  ];
+  const ALVO = NOVOS[1];   // arquivo POSTERIOR ao primeiro
+
+  /**
+   * Configura APENAS o mundo remoto (manifesto global + rotas). Cada `defeito` altera UMA
+   * dimensão, mantendo storyId/version/baseUrl/manifestPath/kinds constantes.
+   *
+   * Separado do semear de propósito: o retry precisa corrigir só a CAUSA e partir do estado que
+   * a falha deixou. Re-semear o índice antes do retry provaria uma instalação nova disfarçada.
+   */
+  const configurar = (h, defeito) => {
+    const files = NOVOS.map((f) => ({
+      kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text),
+    }));
+    // Tamanho: declara bytes errado MAS mantém o sha256 do conteúdo servido — assim só a
+    // checagem de tamanho pode reprovar, e o hash não mascara a causa.
+    if (defeito === 'tamanho') files[1] = { ...files[1], bytes: files[1].bytes + 5 };
+
+    const manifest = {
+      schemaVersion: 1, id: STORY, version: VERSAO, type: 'story', minAppVersion: '1.0.0',
+      totalBytes: files.reduce((a, f) => a + f.bytes, 0), files,
+      metadata: { storyId: STORY, title: 'Davi e Golias', language: 'pt-BR' },
+    };
+    const manifestText = JSON.stringify(manifest);
+    const ancoraCerta = h.sha256OfText(manifestText);
+    h.setGlobalManifest({
+      manifestVersion: 1, minAppVersion: '1.0.0',
+      packs: [{
+        storyId: STORY, version: VERSAO, baseUrl: BASE_B, manifestPath: 'manifest.json',
+        // Só a ÂNCORA muda; tudo o mais fica constante. 64-hex válido, porém de outro conteúdo.
+        manifestSha256: defeito === 'ancora' ? h.sha256OfText('outro conteúdo qualquer') : ancoraCerta,
+        requiresAppUpdate: false,
+      }],
+    });
+    h.route(`${BASE_B}manifest.json`, { text: manifestText });
+    NOVOS.forEach((f) => h.route(BASE_B + f.path, { text: f.text }));
+
+    // Mesmo tamanho: a falha precisa chegar ao HASH, não parar na contagem de bytes.
+    if (defeito === 'hash') h.route(BASE_B + ALVO.path, { text: `X${ALVO.text.slice(1)}` });
+    // Download resolve sem produzir arquivo → exercita o `if (!info.exists)` REAL do verify.
+    if (defeito === 'ausente') h.route(BASE_B + ALVO.path, { noFile: true });
+    // Rede cai DEPOIS que o primeiro arquivo já está no .tmp.
+    if (defeito === 'queda') h.route(BASE_B + ALVO.path, { throws: 'rede caiu no meio do lote' });
+
+    h.resetEvents();   // o setup não é operação do fluxo: o log só vê o que o algoritmo fez
+    return { manifestText, ancoraCerta };
+  };
+
+  /** Pack anterior JÁ instalado (disco + índice READY) + mundo remoto configurado. */
+  const montar = (h, defeito) => {
+    h.seedInstalledPack({ storyId: STORY, version: VERSAO, files: ANTIGOS });
+    return configurar(h, defeito);
+  };
+
+  const instalar = (svc, extra) => svc.downloadStoryPackScenesFromGlobalManifest({
+    storyId: STORY, globalManifestUrl: GLOBAL_B, appVersion: '1.0.0', requestedKinds: ['scene', 'audio'], ...extra,
+  });
+  const rodar = async (defeito, extra) => {
+    const h = createPackInstallHarness();
+    const ctx = montar(h, defeito);
+    const svc = createPackDownloadService(h.deps);
+    let r;
+    try { r = await instalar(svc, extra); } catch (e) { r = { ok: false, reason: `lançou: ${e.message}`, __lancou: true }; }
+    return { h, svc, r, ...ctx };
+  };
+
+  globalThis.__LP21AIIB = (async () => {
+    /* ══════════════ §6 — REINSTALAÇÃO VÁLIDA ══════════════ */
+    {
+      const h = createPackInstallHarness();
+      montar(h);
+      const antesDir = h.mem.exists(LOCAL_B);
+      const antesArquivos = ANTIGOS.map((f) => h.mem.fileText(LOCAL_B + f.path));
+      const svc = createPackDownloadService(h.deps);
+      const r = await instalar(svc, { onProgress: h.onProgress });
+
+      const ix = (needle) => h.events.findIndex((e) => e.includes(needle));
+      const iDown = h.events.indexOf(`set-entry:${STORY}:downloading`);
+      const iDelLocal = h.events.indexOf(`delete:${LOCAL_B}`);
+      const iMove = ix('move:');
+      const iReady = h.events.indexOf(`set-entry:${STORY}:ready`);
+      const iUltimoHash = Math.max(...NOVOS.map((f) => h.events.indexOf(`hash:${TMP_B}${f.path}`)));
+      const iUltimoDl = Math.max(...NOVOS.map((f) => h.events.findIndex((e) => e.startsWith('download:') && e.includes(f.path))));
+      const setEntries = h.events.filter((e) => e.startsWith('set-entry:'));
+
+      check('LP2.1a-ii-B §6.1-6.2 (ponto de partida): o pack anterior está instalado e o novo só é baixado no .tmp',
+        antesDir === true && antesArquivos.every((t) => t && t.startsWith('ANTIGO'))
+        && h.events.filter((e) => e.startsWith('download:')).every((e) => e.includes(` -> ${TMP_B}`)),
+        'o cenário não parte de um pack instalado, ou algum download escreveu fora do .tmp');
+
+      // Cada índice vale -1 quando a etapa NÃO ocorreu, e -1 < iDelLocal é sempre verdadeiro:
+      // sem exigir PRESENÇA, esta prova ficaria verde justamente quando a validação sumisse.
+      // O rótulo também não promete "tudo": storyId, version, contagem por kind e precheck de
+      // espaço não emitem evento — o que se ordena aqui é download + âncora + schema + hash.
+      const antesDoDelete = {
+        ancora: h.events.indexOf(`hash:${TMP_B}manifest.json`),
+        schema: ix('validate-manifest'),
+        ultimoDownload: iUltimoDl,
+        ultimoHash: iUltimoHash,
+      };
+      NOVOS.forEach((f) => { antesDoDelete[`hash:${f.path}`] = h.events.indexOf(`hash:${TMP_B}${f.path}`); });
+      const naoOcorreram = Object.keys(antesDoDelete).filter((k) => antesDoDelete[k] < 0);
+
+      check('LP2.1a-ii-B §6.3 (validar antes de destruir): o anterior só é removido depois de baixar tudo e validar âncora, schema e o hash de cada arquivo',
+        iDelLocal > 0
+        && naoOcorreram.length === 0                                            // cada etapa OCORREU
+        && Object.keys(antesDoDelete).every((k) => antesDoDelete[k] < iDelLocal),  // e veio antes do delete
+        `o diretório anterior foi removido antes de a nova tentativa estar baixada e validada${naoOcorreram.length ? ` — etapas que nem chegaram a ocorrer: ${naoOcorreram.join(', ')}` : ''}`);
+
+      check('LP2.1a-ii-B §6.4-6.5 (marca antes da janela): a 1ª escrita de estado é DOWNLOADING, e ela precede o delete',
+        iDown >= 0 && setEntries[0] === `set-entry:${STORY}:downloading` && iDown < iDelLocal,
+        'a marca DOWNLOADING não é a primeira escrita, ou não precede a operação destrutiva');
+
+      check('LP2.1a-ii-B §6.6-6.7 (janela mínima): delete colado no move, sem download/hash entre eles; move antes do READY',
+        iDelLocal === iMove - 1 && iMove < iReady
+        && !h.events.slice(iDelLocal, iMove).some((e) => e.startsWith('download:') || e.startsWith('hash:')),
+        'há operações entre o delete e o move (janela destrutiva maior que o necessário), ou READY veio antes do move');
+
+      check('LP2.1a-ii-B §6.8 (READY único): exatamente duas escritas no índice — DOWNLOADING e depois READY',
+        h.events.filter((e) => e === `set-entry:${STORY}:ready`).length === 1
+        && setEntries.length === 2 && h.counters.setEntry === 2,
+        'o índice recebeu READY mais de uma vez, ou gravações intermediárias inesperadas');
+
+      const sobrouAntigo = ANTIGOS.filter((f) => h.mem.exists(LOCAL_B + f.path) && !NOVOS.some((n) => n.path === f.path));
+      check('LP2.1a-ii-B §6.9-6.11 (substituição, não mistura): só os arquivos novos ficam; o arquivo que sumiu do pack some do disco; .tmp não permanece',
+        NOVOS.every((f) => h.mem.fileText(LOCAL_B + f.path) === f.text)      // conteúdo NOVO
+        && sobrouAntigo.length === 0                                          // scenes/03 do pack antigo sumiu
+        && h.mem.exists(`${LOCAL_B}manifest.json`) === true
+        && h.mem.listFiles(LOCAL_B).length === NOVOS.length + 1               // nada a mais
+        && h.mem.exists(TMP_B) === false,
+        `a reinstalação misturou conteúdo antigo e novo (sobraram: ${sobrouAntigo.map((f) => f.path).join(', ')}) ou deixou .tmp para trás`);
+
+      const entry = await h.entry(STORY);
+      check('LP2.1a-ii-B §6.12-6.13 (resultado e liberação): aponta para a versão instalada; nenhuma fila ou voo retido',
+        r.ok === true && r.version === VERSAO && r.counts.scene === 2 && r.counts.audio === 1
+        && entry.status === 'ready' && entry.version === VERSAO && entry.localDir === LOCAL_B
+        && svc.inFlightInstallCount() === 0,
+        'o resultado não reflete a versão instalada, ou o single-flight/fila ficou retido');
+
+      const iDelTmp = h.events.indexOf(`delete:${TMP_B}`);
+      check('LP2.1a-ii-B §14 (event log): delete do .tmp × delete do localDir, DOWNLOADING × READY, move, download por URL e hash por arquivo são todos distinguíveis',
+        iDelTmp >= 0 && iDelLocal >= 0 && iDelTmp !== iDelLocal    // os dois deletes não se confundem
+        && iDelTmp < iDelLocal
+        && iDown >= 0 && iReady >= 0 && iDown < iReady             // as duas escritas do índice são distintas
+        && NOVOS.every((f) => h.events.includes(`download:${BASE_B}${f.path} -> ${TMP_B}${f.path}`))  // por URL
+        && NOVOS.every((f) => h.events.includes(`hash:${TMP_B}${f.path}`))                            // por arquivo
+        && h.events.filter((e) => e.startsWith('move:')).length === 1
+        && h.progress.includes('downloading') && h.progress.includes('verifying') && h.progress.includes('ready'),
+        'o log de eventos não distingue as operações reais do fluxo');
+    }
+
+    /* ══════════════ §7 — CHECKPOINTS (o estado que um encerramento deixaria) ══════════════ */
+    {
+      // 7.1 — antes de DOWNLOADING: falha na validação (hash de arquivo posterior).
+      const a = await rodar('hash');
+      const eA = await a.h.entry(STORY);
+      check('LP2.1a-ii-B §7.1 (antes de DOWNLOADING): índice segue READY anterior e o diretório anterior fica intacto',
+        !a.h.events.includes(`set-entry:${STORY}:downloading`)
+        && eA.status === 'ready' && eA.version === VERSAO
+        && ANTIGOS.every((f) => a.h.mem.fileText(LOCAL_B + f.path) === f.text),
+        'uma falha antes da janela destrutiva mexeu no índice ou no diretório anterior');
+
+      // 7.2 — depois de DOWNLOADING, antes do delete: inspeciona no instante exato.
+      const h2 = createPackInstallHarness();
+      montar(h2);
+      let snap = null;
+      h2.onBefore = async (type, detail) => {
+        if (type === 'delete' && detail === LOCAL_B && !snap) {
+          snap = {
+            entry: await h2.storage.getPackEntry(STORY),
+            dirAnterior: h2.mem.exists(LOCAL_B),
+            arquivosAnteriores: ANTIGOS.every((f) => h2.mem.exists(LOCAL_B + f.path)),
+            tmpPronto: NOVOS.every((f) => h2.mem.exists(TMP_B + f.path)),
+          };
+        }
+      };
+      await instalar(createPackDownloadService(h2.deps));
+      check('LP2.1a-ii-B §7.2 (depois de DOWNLOADING, antes do delete): índice não declara READY, anterior intacto, retry possível',
+        !!snap
+        && snap.entry.status === 'downloading'          // ≠ READY: nenhuma mentira de disponibilidade
+        && snap.dirAnterior === true && snap.arquivosAnteriores === true   // ainda utilizável
+        && snap.tmpPronto === true                      // tudo já validado no .tmp
+        && snap.entry.version === VERSAO
+        && snap.entry.localDir === LOCAL_B,             // dados suficientes p/ reconciliar/retry
+        `um encerramento nessa janela deixaria estado inconsistente: ${JSON.stringify(snap)}`);
+
+      // 7.3 — depois do delete, antes do move (recuperação COMPLETA é da etapa C).
+      const h3 = createPackInstallHarness();
+      montar(h3);
+      let snap3 = null;
+      h3.onBefore = async (type) => {
+        if (type === 'move' && !snap3) {
+          snap3 = { entry: await h3.storage.getPackEntry(STORY), dirAnterior: h3.mem.exists(LOCAL_B) };
+        }
+      };
+      await instalar(createPackDownloadService(h3.deps));
+      check('LP2.1a-ii-B §7.3 (depois do delete, antes do move): índice já não está READY — instalação incompleta é detectável, não mentira',
+        !!snap3 && snap3.entry.status === 'downloading' && snap3.entry.status !== 'ready'
+        && snap3.dirAnterior === false,   // o diretório sumiu: por isso o índice NÃO pode dizer ready
+        `estado persistido mente sobre disponibilidade nessa janela: ${JSON.stringify(snap3)}`);
+
+      // 7.4 — depois do move, antes do READY: só REGISTRADO (recuperação = LP2.1a-ii-C).
+      const h4 = createPackInstallHarness();
+      montar(h4);
+      let snap4 = null;
+      h4.onBefore = async (type, detail) => {
+        if (type === 'set-entry' && detail === `${STORY}:ready` && !snap4) {
+          snap4 = { entry: await h4.storage.getPackEntry(STORY), dirCompleto: NOVOS.every((f) => h4.mem.exists(LOCAL_B + f.path)) };
+        }
+      };
+      await instalar(createPackDownloadService(h4.deps));
+      check('LP2.1a-ii-B §7.4 (FRONTEIRA, etapa C): depois do move e antes do READY o disco está completo mas o índice diz DOWNLOADING — órfão registrado, não resolvido aqui',
+        !!snap4 && snap4.dirCompleto === true && snap4.entry.status === 'downloading',
+        `a fronteira da etapa C mudou de forma: ${JSON.stringify(snap4)}`);
+    }
+
+    /* ══════════════ §8-§12 — REJEIÇÕES ══════════════ */
+
+    // §8 — âncora manifestSha256 inválida
+    {
+      const { h, r } = await rodar('ancora');
+      const iHashMan = h.events.indexOf(`hash:${TMP_B}manifest.json`);
+      const leituras = h.events.filter((e) => e === `read:${TMP_B}manifest.json`).length;
+      // O manifesto É lido uma vez — por DENTRO do próprio hash, para calcular a âncora. O que
+      // não pode acontecer antes da âncora é INTERPRETAR o conteúdo: o caminho feliz tem 2
+      // leituras (a do hash + a do JSON.parse); aqui só pode existir a do hash.
+      check('LP2.1a-ii-B §8.1-8.2 (âncora): rejeita, e o manifesto não é interpretado (parse/schema) antes de conferir os bytes',
+        r.ok === false && /sha256 divergente da âncora/.test(r.reason)
+        && iHashMan >= 0
+        && leituras === 1                                          // só a leitura interna do hash
+        && h.events.indexOf('validate-manifest') === -1,           // nunca confiado no schema
+        'a âncora não é um portão: o manifesto foi interpretado/validado antes de conferir os bytes');
+
+      check('LP2.1a-ii-B §8.3-8.6 (âncora): nenhum arquivo do pack baixado, nenhum delete do anterior, nenhum move, nenhum READY',
+        !NOVOS.some((f) => h.events.some((e) => e.startsWith('download:') && e.includes(f.path)))
+        && !h.events.includes(`delete:${LOCAL_B}`)
+        && !h.events.some((e) => e.startsWith('move:'))
+        && !h.events.some((e) => e === `set-entry:${STORY}:ready`),
+        'a âncora inválida ainda assim baixou arquivos, destruiu o anterior, moveu ou marcou READY');
+    }
+
+    // §9 — hash inválido, em arquivo POSTERIOR ao primeiro
+    {
+      const { h, r } = await rodar('hash');
+      check('LP2.1a-ii-B §9.1-9.3 (hash): o arquivo posterior é baixado, passa no tamanho e reprova no hash',
+        r.ok === false && /validação falhou/.test(r.reason)
+        && (r.errors || []).some((e) => e.includes(ALVO.path) && e.includes('sha256 divergente'))
+        && !(r.errors || []).some((e) => e.includes('bytes'))       // não foi o tamanho
+        && h.events.some((e) => e.startsWith('download:') && e.includes(ALVO.path))
+        && h.events.includes(`hash:${TMP_B}${ALVO.path}`),
+        `o hash do arquivo posterior não foi a causa da rejeição: ${JSON.stringify(r.errors)}`);
+    }
+
+    // §10 — tamanho inválido (hash configurado para passar)
+    {
+      const { h, r } = await rodar('tamanho');
+      check('LP2.1a-ii-B §10.1-10.3 (tamanho): baixa, reprova no tamanho antes de aceitar, e o hash não mascara a causa',
+        r.ok === false
+        && (r.errors || []).some((e) => e.includes(ALVO.path) && e.includes('bytes'))
+        && !(r.errors || []).some((e) => e.includes('sha256'))       // hash passaria: a causa é só tamanho
+        && h.events.some((e) => e.startsWith('download:') && e.includes(ALVO.path))
+        && !h.events.includes(`hash:${TMP_B}${ALVO.path}`),          // reprovado ANTES do hash
+        `a rejeição por tamanho não é limpa: ${JSON.stringify(r.errors)}`);
+    }
+
+    // §11 — arquivo obrigatório ausente (download resolve sem produzir arquivo)
+    {
+      const { h, r } = await rodar('ausente');
+      check('LP2.1a-ii-B §11.1-11.3 (ausente): a falta é detectada pelo verify REAL do serviço; nenhum diretório incompleto é publicado',
+        r.ok === false
+        && (r.errors || []).some((e) => e.includes(ALVO.path) && e.includes('ausente'))
+        && !h.events.some((e) => e.startsWith('move:'))
+        && !h.events.some((e) => e === `set-entry:${STORY}:ready`),
+        `a ausência de arquivo obrigatório não foi detectada: ${JSON.stringify(r)}`);
+    }
+
+    // §12 — download interrompido depois de arquivos já baixados
+    {
+      const { h, r, svc } = await rodar('queda');
+      check('LP2.1a-ii-B §12.1-12.6 (queda de rede): rejeita com a causa original, sem destruir nada, sem move e sem READY',
+        r.ok === false && /rede caiu no meio do lote/.test(r.reason)
+        && h.events.some((e) => e.startsWith('download:') && e.includes(NOVOS[0].path))   // o 1º já tinha baixado
+        && !h.events.includes(`delete:${LOCAL_B}`)
+        && !h.events.some((e) => e.startsWith('move:'))
+        && !h.events.some((e) => e === `set-entry:${STORY}:ready`),
+        `a queda de rede no meio do lote não foi tratada com segurança: ${JSON.stringify(r)}`);
+
+      check('LP2.1a-ii-B §12.4+12.8 (queda de rede): o .tmp parcial é limpo e o single-flight é liberado',
+        h.events.filter((e) => e === `delete:${TMP_B}`).length >= 2   // limpeza inicial + limpeza do failWith
+        && h.mem.exists(TMP_B) === false
+        && h.mem.listFiles(TMP_B).length === 0
+        && svc.inFlightInstallCount() === 0,
+        'o .tmp parcial sobreviveu à falha, ou o single-flight ficou travado');
+    }
+
+    /* ══════════════ §13 — PRESERVAÇÃO PARAMETRIZADA DO PACK ANTERIOR ══════════════ */
+    {
+      const DEFEITOS = ['ancora', 'hash', 'tamanho', 'ausente', 'queda'];
+      const falhas = [];
+      for (const d of DEFEITOS) {
+        const { h, r } = await rodar(d);
+        const e = await h.entry(STORY);
+        const ok = r.ok === false
+          && e.status === 'ready'                                   // nenhum FAILED substitui o READY válido
+          && e.version === VERSAO
+          && e.localDir === LOCAL_B
+          && e.manifestPath === `${LOCAL_B}manifest.json`
+          && e.errorMessage === null
+          && h.mem.exists(`${LOCAL_B}manifest.json`) === true
+          && ANTIGOS.every((f) => h.mem.fileText(LOCAL_B + f.path) === f.text)
+          && !h.events.includes(`set-entry:${STORY}:failed`);
+        if (!ok) falhas.push(`${d} → status=${e.status} version=${e.version} err=${e.errorMessage}`);
+      }
+      check('LP2.1a-ii-B §13 (preservação): âncora/hash/tamanho/ausente/queda — o pack anterior segue READY, íntegro e sem FAILED por cima',
+        falhas.length === 0,
+        `falhas que rebaixaram ou corromperam o pack anterior válido: ${falhas.join(' | ')}`);
+    }
+
+    /* ══════════════ §8.9-8.10, §9.8, §10.6, §11.6, §12.7 — RETRIES ══════════════ */
+    {
+      const retries = [];
+      for (const d of ['ancora', 'hash', 'tamanho', 'ausente', 'queda']) {
+        const h = createPackInstallHarness();
+        montar(h, d);
+        const svc = createPackDownloadService(h.deps);
+        const r1 = await instalar(svc);
+        // Se a chave da tentativa falha ficasse retida, a próxima chamada receberia a operação
+        // velha de volta em vez de executar. É isto que libera o retry — não a Promise em si.
+        const chaveLiberada = svc.inFlightInstallCount() === 0;
+
+        // Corrige SÓ a causa. O índice e o disco continuam como a falha os deixou — é daí que
+        // um retry de verdade parte. (Re-semear aqui viraria uma instalação nova disfarçada.)
+        configurar(h);
+        const r2 = await instalar(svc);
+
+        const e = await h.entry(STORY);
+        const ok = r1.ok === false && r2.ok === true    // o retry muda o desfecho: não é a resposta velha
+          && chaveLiberada
+          && e.status === 'ready' && e.version === VERSAO
+          && h.counters.downloads === NOVOS.length + 1  // baixou manifesto + arquivos DE NOVO
+          && NOVOS.every((f) => h.mem.fileText(LOCAL_B + f.path) === f.text)
+          && svc.inFlightInstallCount() === 0;
+        if (!ok) {
+          retries.push(`${d} → r1.ok=${r1.ok} r2.ok=${r2.ok} status=${e.status} chaveLiberada=${chaveLiberada} downloads=${h.counters.downloads}`);
+        }
+      }
+      check('LP2.1a-ii-B §8.9-8.10/§9.8/§10.6/§11.6/§12.7 (retry): corrigida a causa, a chave é liberada e uma NOVA operação física executa e conclui',
+        retries.length === 0,
+        `retries que não executaram, não baixaram de novo, ou ficaram com a chave retida: ${retries.join(' | ')}`);
+
+      /*
+       * CARACTERIZAÇÃO DE DEFEITO CONHECIDO — este check descreve o comportamento ATUAL, que
+       * está ERRADO, para que ele fique visível e não mude sem alguém perceber. NÃO leia como
+       * "correto".
+       *
+       * A escrita READY passa `errorMessage: null` querendo limpar o erro da tentativa anterior,
+       * mas o merge do setPackEntry faz `entry.errorMessage ?? prev.errorMessage ?? null` — e
+       * `null` é nullish, então o null do chamador nunca sobrescreve. Um pack que FALHA e depois
+       * instala fica READY carregando o motivo da falha antiga. É o único campo que a instalação
+       * bem-sucedida não consegue corrigir.
+       *
+       * Não corrigido aqui de propósito: packStorageService é área protegida, o merge é
+       * compartilhado por todos os chamadores, e o `?? prev` é deliberadamente load-bearing na
+       * escrita DOWNLOADING (é o que preserva localDir/manifestPath para o retry — §7.2). A
+       * correção pede bloco próprio. Quando ela vier, ESTE check falha e força a atualização.
+       */
+      {
+        const h = createPackInstallHarness();
+        configurar(h, 'hash');                       // instalação NOVA (sem pack anterior) que falha
+        const svc = createPackDownloadService(h.deps);
+        const r1 = await instalar(svc);
+        const eFalha = await h.entry(STORY);
+        configurar(h);                               // corrige a causa
+        const r2 = await instalar(svc);
+        const eOk = await h.entry(STORY);
+        check('LP2.1a-ii-B (defeito conhecido, caracterizado): após falha→retry o pack fica READY mas CARREGA o errorMessage antigo — `errorMessage: null` é inerte no merge',
+          r1.ok === false && r2.ok === true
+          && eFalha.status === 'failed' && typeof eFalha.errorMessage === 'string'
+          && eOk.status === 'ready'
+          && eOk.errorMessage === eFalha.errorMessage,   // <- o defeito: deveria ser null
+          `o comportamento do errorMessage mudou (talvez CORRIGIDO — se sim, troque este check por errorMessage === null): falha="${eFalha.errorMessage}" ready="${eOk.errorMessage}"`);
+      }
+    }
+
+    /* ══════════════ §15 — MUTATION CHECKS (codificados, não manuais) ══════════════ */
+    /*
+     * Mutam o TEXTO do fonte em memória e rodam o MESMO cenário no original e no mutante. A
+     * proteção só está provada se a ASSINATURA observável diferir. A assinatura carrega tanto o
+     * desfecho (ok/status/arquivos) quanto a ORDEM da janela destrutiva — sem a ordem, mover a
+     * marca DOWNLOADING para depois do delete passaria (o pack instala igual nos dois casos).
+     */
+    {
+      const assinatura = async (mut, defeito) => {
+        // FORA do try: `loadPackDownloader` lança se a mutação não bater no fonte (código
+        // reformatado). Se isso caísse no catch abaixo, a assinatura viraria "falhou" — DIFERENTE
+        // da original — e o mutante seria contado como MORTO sem nunca ter mutado nada. Aqui o
+        // erro escapa e a guarda do bloco assíncrono acusa alto.
+        const mod = loadPackDownloader(mut);
+        const h = createPackInstallHarness();
+        montar(h, defeito);
+        let r;
+        try {
+          r = await mod.createPackDownloadService(h.deps)
+            .downloadStoryPackScenesFromGlobalManifest({
+              storyId: STORY, globalManifestUrl: GLOBAL_B, appVersion: '1.0.0', requestedKinds: ['scene', 'audio'],
+            });
+        } catch (e) { r = { ok: false, reason: `lançou: ${e.message}` }; }
+        const e2 = await h.entry(STORY);
+        const iDown = h.events.indexOf(`set-entry:${STORY}:downloading`);
+        const iDelLocal = h.events.indexOf(`delete:${LOCAL_B}`);
+        const iMove = h.events.findIndex((x) => x.startsWith('move:'));
+        const iReady = h.events.indexOf(`set-entry:${STORY}:ready`);
+        const iUltimoHash = Math.max(...NOVOS.map((f) => h.events.indexOf(`hash:${TMP_B}${f.path}`)));
+        // Portão da âncora: o hash do manifesto tem de vir ANTES da leitura que o interpreta.
+        // Sem isto, reordenar parse/âncora não mudaria nada observável (ambos rejeitam igual).
+        const iHashMan = h.events.indexOf(`hash:${TMP_B}manifest.json`);
+        const iRead1 = h.events.findIndex((x) => x === `read:${TMP_B}manifest.json`);
+        const ordem = [
+          `ancora=${iHashMan >= 0 && iRead1 >= 0 ? (iHashMan < iRead1 ? 'antes-do-parse' : 'depois-do-parse') : 'nao-houve'}`,
+          `down=${iDown >= 0 ? (iDelLocal >= 0 && iDown < iDelLocal ? 'antes-do-delete' : 'depois-do-delete') : 'ausente'}`,
+          `delete=${iDelLocal >= 0 ? (iUltimoHash >= 0 && iUltimoHash < iDelLocal ? 'pos-validacao' : 'pre-validacao') : 'nao-houve'}`,
+          `ready=${iReady >= 0 ? (iMove >= 0 && iMove < iReady ? 'pos-move' : 'pre-move') : 'nao-houve'}`,
+        ].join(',');
+        // A CAUSA importa: engolir o erro de rede ainda rejeita, mas troca "rede caiu" por um
+        // "validação falhou" genérico — a falha real fica escondida do usuário e do diagnóstico.
+        const causa = !r || r.ok ? 'nenhuma' : /rede caiu/.test(r.reason || '') ? 'rede'
+          : /âncora/.test(r.reason || '') ? 'ancora' : /validação falhou/.test(r.reason || '') ? 'validacao' : 'outra';
+        const antigoIntacto = ANTIGOS.every((f) => h.mem.fileText(LOCAL_B + f.path) === f.text);
+        return `ok=${r && r.ok === true}|causa=${causa}|status=${(e2 && e2.status) || 'ausente'}|${ordem}|antigoIntacto=${antigoIntacto}`;
+      };
+
+      const MUT_B = [
+        // ── Reinstalação ──
+        { id: 'B1', nome: 'DOWNLOADING movido para DEPOIS do delete',
+          mut: (s) => s.replace(
+            '    if (preExisting) {\n      await setPackEntry(storyId, { version, status: PACK_STATUS.DOWNLOADING });\n    }\n    await FileSystem.deleteAsync(localDir, { idempotent: true });',
+            '    await FileSystem.deleteAsync(localDir, { idempotent: true });\n    if (preExisting) {\n      await setPackEntry(storyId, { version, status: PACK_STATUS.DOWNLOADING });\n    }') },
+        { id: 'B2', nome: 'DOWNLOADING removido (janela destrutiva sem marca)',
+          mut: (s) => s.replace('      await setPackEntry(storyId, { version, status: PACK_STATUS.DOWNLOADING });', '') },
+        { id: 'B3', nome: 'anterior apagado ANTES das validações',
+          mut: (s) => s.replace(
+            '    const errors = [];\n    const tVerify = Date.now();',
+            '    await FileSystem.deleteAsync(localDir, { idempotent: true });\n    const errors = [];\n    const tVerify = Date.now();') },
+        { id: 'B4', nome: 'READY escrito antes do move',
+          mut: (s) => s.replace(
+            '    await FileSystem.moveAsync({ from: tempDir, to: localDir });',
+            '    await setPackEntry(storyId, { version, status: PACK_STATUS.READY, localDir });\n    await FileSystem.moveAsync({ from: tempDir, to: localDir });') },
+        // ── Rejeições ──
+        { id: 'B5', nome: 'validação de manifestSha256 removida', defeito: 'ancora',
+          mut: (s) => s.replace("    if (mh.sha256 !== expectedManifestSha) return failWith('manifest.json com sha256 divergente da âncora (pack remoto rejeitado)');", '') },
+        { id: 'B6', nome: 'manifesto confiado ANTES da âncora', defeito: 'ancora',
+          mut: (s) => s.replace(
+            '    const mh = await computeFileSha256(mTo);\n    if (!mh.ok) return failWith(`manifest.json: sha256 indisponível (${mh.reason})`);\n    if (mh.sha256 !== expectedManifestSha) return failWith(\'manifest.json com sha256 divergente da âncora (pack remoto rejeitado)\');\n\n    let manifest;\n    try { manifest = JSON.parse(await FileSystem.readAsStringAsync(mTo)); }\n    catch { return failWith(\'manifest.json do pack inválido (JSON)\'); }',
+            '    let manifest;\n    try { manifest = JSON.parse(await FileSystem.readAsStringAsync(mTo)); }\n    catch { return failWith(\'manifest.json do pack inválido (JSON)\'); }\n    const mh = await computeFileSha256(mTo);\n    if (!mh.ok) return failWith(`manifest.json: sha256 indisponível (${mh.reason})`);\n    if (mh.sha256 !== expectedManifestSha) return failWith(\'manifest.json com sha256 divergente da âncora (pack remoto rejeitado)\');') },
+        { id: 'B7', nome: 'hash validado só no primeiro arquivo', defeito: 'hash',
+          mut: (s) => s.replace('    for (const f of wanted) {\n      const fileUri', '    for (const f of wanted.slice(0, 1)) {\n      const fileUri') },
+        { id: 'B8', nome: 'checagem de tamanho removida', defeito: 'tamanho',
+          mut: (s) => s.replace('      if (typeof f.bytes === \'number\' && info.size !== f.bytes) { errors.push(`${f.path}: bytes ${info.size} != ${f.bytes}`); continue; }', '') },
+        { id: 'B9', nome: 'erro de download engolido', defeito: 'queda',
+          mut: (s) => s.replace(
+            '      await withTimeout(() => dl.downloadAsync(), fileTimeoutMs, () => { try { dl.cancelAsync(); } catch (_) { /* noop */ } });',
+            '      try { await withTimeout(() => dl.downloadAsync(), fileTimeoutMs, () => { try { dl.cancelAsync(); } catch (_) { /* noop */ } }); } catch (_) { /* MUTANTE: engole */ }') },
+        { id: 'B10', nome: 'delete destrutivo executado mesmo na falha', defeito: 'hash',
+          mut: (s) => s.replace(
+            '  const failWith = async (reason, errors, extra) => {\n    try { await FileSystem.deleteAsync(tempDir, { idempotent: true }); } catch { /* noop */ }',
+            '  const failWith = async (reason, errors, extra) => {\n    try { await FileSystem.deleteAsync(tempDir, { idempotent: true }); } catch { /* noop */ }\n    try { await FileSystem.deleteAsync(localDir, { idempotent: true }); } catch { /* noop */ }') },
+      ];
+
+      const vereditoB = [];
+      for (const m of MUT_B) {
+        const orig = await assinatura(undefined, m.defeito);
+        const mutado = await assinatura(m.mut, m.defeito);
+        vereditoB.push({ id: m.id, nome: m.nome, orig, mutado, morreu: orig !== mutado });
+      }
+      const vivosB = vereditoB.filter((x) => !x.morreu);
+      check('LP2.1a-ii-B §15 (mutation checks): as 10 proteções da reinstalação e das rejeições são load-bearing — remover qualquer uma muda o observável',
+        vivosB.length === 0 && vereditoB.length === 10,
+        `proteções removíveis SEM mudar nada observável: ${vivosB.map((x) => `${x.id} ${x.nome} [${x.orig}]`).join(' | ')}`);
+
+      // Sem isto, "as assinaturas diferem" poderia ser satisfeito por dois jeitos de dar errado.
+      const aceitaInvalido = vereditoB.filter((x) => ['B5', 'B7', 'B8'].includes(x.id));
+      check('LP2.1a-ii-B §15b (direção): sem âncora / sem hash dos demais / sem tamanho, o mutante ACEITA e publica o que o original RECUSA',
+        aceitaInvalido.length === 3
+        && aceitaInvalido.every((x) => x.orig.startsWith('ok=false') && x.mutado.startsWith('ok=true')),
+        `direção errada: ${aceitaInvalido.map((x) => `${x.id} orig[${x.orig}] mut[${x.mutado}]`).join(' | ')}`);
+
+      // Engolir o erro de rede não faz o pack instalar — faz algo pior de diagnosticar: troca a
+      // causa real por uma genérica. É essa troca que o teste tem de enxergar.
+      const b9 = vereditoB.find((x) => x.id === 'B9');
+      check('LP2.1a-ii-B §15d (causa preservada): engolir o erro de download mascara "rede caiu" como "validação falhou" — e isso é detectado',
+        !!b9 && /causa=rede/.test(b9.orig) && /causa=validacao/.test(b9.mutado),
+        `a troca de causa não é detectada: orig[${b9 && b9.orig}] mut[${b9 && b9.mutado}]`);
+
+      // B10: a prova de preservação tem de cair — o anterior válido não pode ser destruído na falha.
+      const b10 = vereditoB.find((x) => x.id === 'B10');
+      check('LP2.1a-ii-B §15c (preservação vigiada): apagar o diretório anterior durante uma falha derruba a prova de preservação',
+        !!b10 && /antigoIntacto=true/.test(b10.orig) && /antigoIntacto=false/.test(b10.mutado),
+        `a prova de preservação não vigia a destruição do anterior: orig[${b10 && b10.orig}] mut[${b10 && b10.mutado}]`);
+    }
+  })();
+  globalThis.__LP21AIIB.catch(() => {});
+}
+
+
 // ── Sprint 3 — Área dos Pais como Central Adulta do MVP ──────────────────────
 
 console.log('\n── Sprint 3 — Área dos Pais Central Adulta ──');
@@ -25285,6 +25818,12 @@ check(
   check('LP2.1a-ii-A §9.3 (harness): o bloco assíncrono da instalação concluiu sem estourar',
     !lp21aiiaErr,
     `o bloco da instalação lançou (${lp21aiiaErr && lp21aiiaErr.stack ? String(lp21aiiaErr.stack).split('\n').slice(0, 3).join(' | ') : lp21aiiaErr}) — os checks dele não rodaram`);
+
+  let lp21aiibErr = null;
+  try { await globalThis.__LP21AIIB; } catch (e) { lp21aiibErr = e; }
+  check('LP2.1a-ii-B (harness): o bloco assíncrono de reinstalação e rejeições concluiu sem estourar',
+    !lp21aiibErr,
+    `o bloco de reinstalação lançou (${lp21aiibErr && lp21aiibErr.stack ? String(lp21aiibErr.stack).split('\n').slice(0, 3).join(' | ') : lp21aiibErr}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
