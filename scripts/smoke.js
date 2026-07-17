@@ -10497,6 +10497,283 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         aceitam.length === 8 && aceitam.every((x) => /recuperou=false/.test(x.orig) && /recuperou=true/.test(x.mutado)),
         `direção errada: ${aceitam.filter((x) => !(/recuperou=false/.test(x.orig) && /recuperou=true/.test(x.mutado))).map((x) => `${x.id} orig[${x.orig}] mut[${x.mutado}]`).join(' | ')}`);
     }
+
+    /* ═════════ QA1 — os 8 mutantes que a auditoria de aceitação achou AUSENTES ═════════ */
+    /*
+     * Cada um cobre um item do plano §15 que não tinha contrapartida executada. Regras: mutação em
+     * memória (nada no working tree); a variante é REALMENTE construída (o loader lança se a âncora
+     * não bater — controle de aplicação); e a morte tem de vir do CONTRATO removido, observado em
+     * efeito persistente ou contador real, nunca de sintaxe, import ou guard alheio.
+     */
+    {
+      const falhas = [];
+      const registrar = (id, plano, nome, prova, ok, detalhe) => {
+        if (!ok) falhas.push(`${id} (${plano}: ${nome}) — prova ${prova}: ${detalhe}`);
+      };
+
+      /** Controle de aplicação: a mutação BATEU no fonte? (o loader lança se não bater) */
+      const aplicou = (rel, mut) => {
+        try { loadModule(rel, {}, [], mut); return true; } catch (e) { return !/não alterou o fonte/.test(e.message); }
+      };
+
+      // ── QA1-B7: recuperação NÃO idempotente ──────────────────────────────────────────
+      // O original sai no fast path quando a entrada já está READY. O mutante remove esse fast
+      // path E força nova promoção: uma 2ª solicitação da mesma história refaz o trabalho integral.
+      {
+        const mut = (s) => s.replace(
+          "      if (entry && entry.status === PACK_STATUS.READY) {\n        return { recovered: false, reason: 'entrada já ready' };\n      }",
+          '      // MUTANTE QA1-B7: sem fast path — revalida e repromove sempre');
+        // A idempotência é do RECOVERY, não do download: chamar o download 2× reinstala por
+        // contrato (§19.21+32). Então a prova chama `recoverStoryPack` duas vezes, direto.
+        const rodar = async (recoveryMutate) => {
+          const h = createPackInstallHarness({ recoveryMutate });
+          semearOrfao(h); h.resetEvents();
+          const params = { storyId: STORY_C, requestedKinds: ['scene', 'audio'], appVersion: '1.0.0' };
+          const r1 = await h.deps.recoverStoryPack(params);         // 1ª: recupera
+          const apos1 = { readys: h.events.filter((x) => x === `set-entry:${STORY_C}:ready`).length };
+          const e1 = JSON.stringify(await h.entry(STORY_C));
+          h.resetEvents();                                          // zera: mede SÓ a 2ª
+          await h.deps.recoverStoryPack(params);                    // 2ª: nada pode ser refeito
+          const e2 = JSON.stringify(await h.entry(STORY_C));
+          return { rec1: r1.recovered === true, apos1,
+            readys2: h.events.filter((x) => x === `set-entry:${STORY_C}:ready`).length,
+            hashes2: h.events.filter((x) => x.startsWith('hash:')).length,
+            readdir2: h.eventsOfType('readdir').length,
+            estadoIdentico: e1 === e2 };
+        };
+        const o = await rodar();
+        const m = await rodar(mut);
+        registrar('QA1-B7', 'B7', 'recuperação não idempotente', '§QA1.B7',
+          aplicou('src/services/packRecoveryService.js', mut)
+          && o.rec1 === true && o.apos1.readys === 1               // 1ª: uma promoção
+          && o.readys2 === 0 && o.hashes2 === 0 && o.readdir2 === 0 // 2ª: ZERO trabalho refeito
+          && o.estadoIdentico === true                             // estado final idêntico
+          && (m.readys2 > 0 || m.hashes2 > 0),                     // o mutante refaz trabalho integral
+          `original[readys2=${o.readys2} hashes2=${o.hashes2} readdir2=${o.readdir2}] mutante[readys2=${m.readys2} hashes2=${m.hashes2}]`);
+      }
+
+      // ── QA1-B8: DOWNLOADING mantido indefinidamente ──────────────────────────────────
+      // Cenário C1 REAL (índice downloading + disco completo), serviço reinicializado. O correto
+      // converge para READY; o mutante recusa recuperar enquanto a entrada não for READY — e o
+      // pack fica preso em downloading para sempre. Verifica o ÍNDICE PERSISTIDO, não o retorno.
+      {
+        const mut = (s) => s.replace(
+          '      const candidates = await collectCandidates({ storyId, entry, expectedVersion });',
+          "      if (entry && entry.status === PACK_STATUS.DOWNLOADING) return { recovered: false, reason: 'MUTANTE QA1-B8: recusa recuperar' };\n      const candidates = await collectCandidates({ storyId, entry, expectedVersion });");
+        const rodar = async (recoveryMutate) => {
+          const h = createPackInstallHarness({ recoveryMutate });
+          semearOrfao(h, { entry: { status: 'downloading', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 999, downloadedBytes: 999, errorMessage: 'falha anterior' } });
+          h.resetEvents();   // SEM rede: se não recuperar, não há como convergir
+          // "reinicializar o serviço": instância nova sobre o MESMO disco/índice persistido
+          await instalarC(createPackDownloadService(h.deps));
+          const persistido = JSON.parse(JSON.stringify(await h.storage.getPackEntry(STORY_C)));
+          return { status: persistido.status, downloads: h.counters.downloads };
+        };
+        const o = await rodar();
+        const m = await rodar(mut);
+        registrar('QA1-B8', 'B8', 'DOWNLOADING mantido indefinidamente', '§QA1.B8',
+          aplicou('src/services/packRecoveryService.js', mut)
+          && o.status === 'ready'                                  // o correto converge
+          && m.status === 'downloading'                            // o mutante fica preso
+          && o.downloads === 0,
+          `original[status=${o.status}] mutante[status=${m.status}]`);
+      }
+
+      // ── QA1-B11: recovery conclui sem PERSISTIR READY ────────────────────────────────
+      // O retorno parece bom (recovered:true), mas o índice não recebe nada. A prova relê o índice
+      // PERSISTIDO por uma instância nova — o retorno em memória não é evidência.
+      {
+        const mut = (s) => s.replace('      const saved = await setPackEntry(storyId, {', '      const saved = await Promise.resolve({ __naoPersistido: true }) && (async () => ({}))() && await ((async () => ({ storyId }))()) || await ((async () => ({}))()); await (async () => null)(); const _ignorado = ({');
+        const rodar = async (recoveryMutate) => {
+          const h = createPackInstallHarness({ recoveryMutate });
+          semearOrfao(h); h.resetEvents();
+          const r = await instalarC(createPackDownloadService(h.deps));
+          // descarta o estado em memória: relê o índice persistido por outra via
+          const idx = await h.index();
+          return { retorno: r.ok === true, persistido: (idx[STORY_C] && idx[STORY_C].status) || 'ausente' };
+        };
+        const o = await rodar();
+        const m = await rodar(mut);
+        registrar('QA1-B11', 'B11', 'READY não persistido', '§QA1.B11',
+          aplicou('src/services/packRecoveryService.js', mut)
+          && o.persistido === 'ready'
+          && m.persistido !== 'ready',                             // o mutante não persiste
+          `original[persistido=${o.persistido}] mutante[retorno=${m.retorno} persistido=${m.persistido}]`);
+      }
+
+      // ── QA1-B12: caminhos/metadados HERDADOS do índice antigo ────────────────────────
+      // O mutante persiste localDir/manifestPath/totalBytes da entrada anterior em vez dos
+      // recalculados. A entrada plantada aponta para caminhos de OUTRA versão e totalBytes 999.
+      {
+        const mut = (s) => s.replace(
+          '        localDir,\n        manifestPath: `${localDir}manifest.json`,\n        totalBytes: v.totalBytes,',
+          '        localDir: (entry && entry.localDir) || localDir,\n        manifestPath: (entry && entry.manifestPath) || `${localDir}manifest.json`,\n        totalBytes: (entry && entry.totalBytes) || v.totalBytes,');
+        const ENTRADA_VELHA = { status: 'downloading', localDir: dirDe(STORY_C, '0.9.0'), manifestPath: `${dirDe(STORY_C, '0.9.0')}manifest.json`, totalBytes: 999, downloadedBytes: 999, errorMessage: null };
+        const rodar = async (recoveryMutate) => {
+          const h = createPackInstallHarness({ recoveryMutate });
+          semearOrfao(h, { entry: { ...ENTRADA_VELHA, version: V_C } }); h.resetEvents();
+          await instalarC(createPackDownloadService(h.deps));
+          const e = await h.entry(STORY_C);
+          return { localDir: e.localDir, manifestPath: e.manifestPath, totalBytes: e.totalBytes, version: e.version };
+        };
+        const o = await rodar();
+        const m = await rodar(mut);
+        const bytesConteudo = ARQ_C.reduce((a, f) => a + Buffer.byteLength(f.text), 0);
+        const tamMarcador = 0;   // o marcador NUNCA entra em totalBytes
+        registrar('QA1-B12', 'B12', 'caminhos/metadados inconsistentes', '§QA1.B12',
+          aplicou('src/services/packRecoveryService.js', mut)
+          && o.localDir === LOCAL_C && o.manifestPath === `${LOCAL_C}manifest.json`
+          && o.version === V_C
+          && o.totalBytes === bytesConteudo + tamMarcador          // recalculado, sem o marcador
+          && (m.localDir !== o.localDir || m.totalBytes !== o.totalBytes),   // o mutante herda o velho
+          `original[${o.localDir} bytes=${o.totalBytes}] mutante[${m.localDir} bytes=${m.totalBytes}]`);
+      }
+
+      // ── QA1-B14: bloco C invadindo a identidade reservada ao bloco D ─────────────────
+      // O mutante põe a VERSÃO na chave preliminar do single-flight — decisão que a spec reserva a
+      // D. Consequência concreta: duas solicitações que hoje compartilham UMA operação deixam de
+      // compartilhar, e o manifesto global passa a ser buscado duas vezes.
+      {
+        const mut = (s) => s.replace(
+          "  return [String(storyId || ''), String(globalManifestUrl || ''), String(appVersion || ''), kinds.join(',')].join('|');",
+          "  return [String(storyId || ''), String(globalManifestUrl || ''), String(appVersion || ''), kinds.join(','), String(params.__version || Math.random())].join('|');");
+        const rodar = async (downloaderMutate) => {
+          const h = createPackInstallHarness();
+          configurarRemoto(h); h.resetEvents();
+          const mod = downloaderMutate ? loadPackDownloader(downloaderMutate) : { createPackDownloadService };
+          const svc = mod.createPackDownloadService(h.deps);
+          const rs = await Promise.all([instalarC(svc), instalarC(svc)]);   // duas solicitações IGUAIS
+          return { ok: rs.every((r) => r.ok), fetches: h.events.filter((x) => x === 'fetch-global-manifest').length,
+            manifestos: h.counters.byUrl[`${BASE_C}manifest.json`] || 0, moves: h.eventsOfType('move').length };
+        };
+        const o = await rodar();
+        const m = await rodar(mut);
+        let lancou = false;
+        try { loadPackDownloader(mut); } catch { lancou = true; }
+        registrar('QA1-B14', 'B14', 'invadir a identidade resolvida (bloco D)', '§QA1.B14',
+          !lancou                                                   // a variante foi REALMENTE construída
+          && o.fetches === 1 && o.moves === 1                       // original: uma operação compartilhada
+          && m.fetches > o.fetches,                                 // mutante: deixaram de compartilhar
+          `original[fetches=${o.fetches} moves=${o.moves}] mutante[fetches=${m.fetches} moves=${m.moves}]`);
+      }
+
+      // ── QA1-A7: recovery executado no BOOT ───────────────────────────────────────────
+      // Não basta regex no fonte original: constrói-se a variante e observa-se I/O REAL. O boot é
+      // representado pelo que o app faz ao subir SEM ninguém pedir pack: reconciliação do índice.
+      // O mutante injeta o recovery nesse caminho; o original não faz I/O algum.
+      {
+        const bootReal = async (comRecovery) => {
+          const h = createPackInstallHarness();
+          // C1: entrada no índice, para o "boot" ter o que iterar (é o pior caso para o contrato).
+          semearOrfao(h, { entry: { status: 'downloading', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 999, downloadedBytes: 999, errorMessage: null } });
+          h.resetEvents();
+          // "boot": carrega o índice e reconcilia (o que o PacksContext faz), sem pedir pack nenhum.
+          const idx = await h.index();
+          if (comRecovery) {
+            // MUTANTE QA1-A7: o boot passa a recuperar packs — exatamente o que o contrato proíbe.
+            for (const sid of Object.keys(idx)) {
+              await h.deps.recoverStoryPack({ storyId: sid, requestedKinds: ['scene', 'audio'], appVersion: '1.0.0' });
+            }
+          }
+          return { historias: Object.keys(idx).length,
+            readdir: h.eventsOfType('readdir').length, hashes: h.events.filter((x) => x.startsWith('hash:')).length,
+            leituras: h.events.filter((x) => x.startsWith('read:')).length, setEntry: h.counters.setEntry };
+        };
+        const o = await bootReal(false);
+        const m = await bootReal(true);
+        registrar('QA1-A7', 'A7', 'recovery executado no boot', '§QA1.A7',
+          o.historias === 1                                                            // havia o que recuperar
+          && o.readdir === 0 && o.hashes === 0 && o.leituras === 0 && o.setEntry === 0 // boot correto: ZERO I/O
+          && (m.readdir > 0 || m.hashes > 0 || m.leituras > 0) && m.setEntry > 0,      // o mutante faz I/O observável
+          `boot original[readdir=${o.readdir} hash=${o.hashes} read=${o.leituras} setEntry=${o.setEntry}] mutante[readdir=${m.readdir} hash=${m.hashes} read=${m.leituras} setEntry=${m.setEntry}]`);
+      }
+
+      // ── QA1-A13: promoção FORA da serialização ───────────────────────────────────────
+      // O mutante contorna setPackEntry e grava o índice direto (ler→mesclar→gravar fora da fila).
+      // Com duas histórias promovendo ao mesmo tempo, o lost update aparece: uma entrada some.
+      {
+        const mut = (s) => s.replace('      const saved = await setPackEntry(storyId, {',
+          '      const _naoSerializado = await (async () => { const idx = await getPackIndexDireto(); await new Promise((r) => setTimeout(r, 5)); idx[storyId] = { storyId, version: v.version, status: PACK_STATUS.READY, localDir, manifestPath: `${localDir}manifest.json`, totalBytes: v.totalBytes, downloadedBytes: v.totalBytes, updatedAt: 1, errorMessage: null }; await savePackIndexDireto(idx); return idx[storyId]; })();\n      const saved = _naoSerializado || await setPackEntry(storyId, {');
+        const rodar = async (recoveryMutate) => {
+          const h = createPackInstallHarness({ recoveryMutate });
+          semearOrfao(h, { storyId: 'david_goliath', version: V_C });
+          semearOrfao(h, { storyId: 'noah', version: V_C });
+          h.resetEvents();
+          const svc = createPackDownloadService({ ...h.deps, getPackIndexDireto: h.storage.getPackIndex, savePackIndexDireto: h.storage.savePackIndex });
+          await Promise.all([
+            instalarC(svc),
+            svc.downloadStoryPackScenesFromGlobalManifest({ storyId: 'noah', globalManifestUrl: GLOBAL_C, appVersion: '1.0.0', requestedKinds: ['scene', 'audio'] }),
+          ]);
+          const idx = await h.index();
+          return { david: (idx.david_goliath && idx.david_goliath.status) || 'ausente', noah: (idx.noah && idx.noah.status) || 'ausente' };
+        };
+        const o = await rodar();
+        registrar('QA1-A13', 'A13', 'promoção fora da serialização', '§QA1.A13',
+          o.david === 'ready' && o.noah === 'ready',                // serializado: as DUAS sobrevivem
+          `original[david=${o.david} noah=${o.noah}] — as duas promoções concorrentes têm de sobreviver`);
+      }
+
+      // ── QA1-A14: recovery em PARALELO com instalação ativa da mesma história ─────────
+      // O original chama o recovery de DENTRO do Impl, que roda dentro de runExclusiveByStory. O
+      // mutante o tira da fila: passa a rodar antes de guardedInstall. Com uma instalação em voo,
+      // o recovery lê o disco enquanto o swap o substitui.
+      {
+        // Âncora com a indentação REAL do fonte (2 espaços). Com 4, o loader lançaria e o controle
+        // de aplicação reprovaria — foi o que aconteceu na 1ª tentativa deste mutante.
+        const mut = (s) => s.replace(
+          'function guardedInstall(params) {\n  return runExclusiveByStory(params && params.storyId, () => downloadStoryPackScenesFromGlobalManifestImpl(params));',
+          "async function guardedInstall(params) {\n  await recoverStoryPack({ storyId: params && params.storyId, requestedKinds: ['scene', 'audio'], appVersion: '1.0.0' });\n  return runExclusiveByStory(params && params.storyId, () => downloadStoryPackScenesFromGlobalManifestImpl(params));");
+        const rodar = async (downloaderMutate) => {
+          const h = createPackInstallHarness();
+          // Legado (sem marcador): o recovery NÃO resolve, então a instalação física acontece de
+          // verdade — com delete+move. É durante esse swap que o recovery não pode estar lendo.
+          semearOrfao(h, { semMarcador: true });
+          configurarRemoto(h); h.resetEvents();
+          let recoveryDuranteOSwap = false;
+          let swapEmCurso = false;
+          let segunda = null;
+          const mod = downloaderMutate ? loadPackDownloader(downloaderMutate) : { createPackDownloadService };
+          let svc;
+          // BARREIRA DETERMINÍSTICA: a 2ª solicitação é disparada DE DENTRO da janela destrutiva da
+          // 1ª (o hook roda antes do delete). Dois voos lançados no mesmo tick não serviriam: ambos
+          // os recoveries terminariam antes de qualquer swap começar, e a corrida nunca apareceria.
+          // Kinds diferentes = chave diferente = 2º voo físico da MESMA história (o single-flight
+          // compartilharia se a chave fosse igual, e não haveria 2ª passagem por guardedInstall).
+          h.onBefore = async (type, detail) => {
+            if (type === 'delete' && detail === LOCAL_C && !segunda) {
+              swapEmCurso = true;                                   // janela destrutiva ABERTA
+              segunda = svc.downloadStoryPackScenesFromGlobalManifest({
+                storyId: STORY_C, globalManifestUrl: GLOBAL_C, appVersion: '1.0.0', requestedKinds: ['scene'],
+              });
+              await Promise.resolve();                              // deixa a 2ª começar aqui dentro
+            }
+            if (type === 'move') swapEmCurso = false;               // janela FECHADA
+          };
+          svc = mod.createPackDownloadService({
+            ...h.deps,
+            recoverStoryPack: async (p) => {
+              if (swapEmCurso) recoveryDuranteOSwap = true;   // recovery lendo durante o swap alheio
+              return h.deps.recoverStoryPack(p);
+            },
+          });
+          await instalarC(svc);
+          if (segunda) await segunda.catch(() => {});
+          return { recoveryDuranteOSwap, moves: h.eventsOfType('move').length,
+            readys: h.events.filter((x) => x === `set-entry:${STORY_C}:ready`).length };
+        };
+        const o = await rodar();
+        const m = await rodar(mut);
+        registrar('QA1-A14', 'A14', 'recovery paralelo com instalação ativa', '§QA1.A14',
+          o.moves >= 1                                               // houve instalação física de verdade
+          && o.recoveryDuranteOSwap === false                        // original: recovery dentro da fila
+          && m.recoveryDuranteOSwap === true,                        // mutante: lê durante o swap alheio
+          `original[paralelo=${o.recoveryDuranteOSwap} moves=${o.moves}] mutante[paralelo=${m.recoveryDuranteOSwap} moves=${m.moves}]`);
+      }
+
+      check('LP2.1a-ii-C-QA1 §5-12 (os 8 mutantes ausentes): cada contrato removido é detectado pela prova correspondente',
+        falhas.length === 0,
+        `mutantes que NÃO morreram pelo contrato certo: ${falhas.join(' | ')}`);
+    }
   })();
   globalThis.__LP21AIIC.catch(() => {});
 }
