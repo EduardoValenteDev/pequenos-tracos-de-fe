@@ -11045,29 +11045,63 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
           `boot original[readdir=${o.readdir} hash=${o.hashes} read=${o.leituras} setEntry=${o.setEntry}] mutante[readdir=${m.readdir} hash=${m.hashes} read=${m.leituras} setEntry=${m.setEntry}]`);
       }
 
-      // ── QA1-A13: promoção FORA da serialização ───────────────────────────────────────
-      // O mutante contorna setPackEntry e grava o índice direto (ler→mesclar→gravar fora da fila).
-      // Com duas histórias promovendo ao mesmo tempo, o lost update aparece: uma entrada some.
+      // ── QA1-A13: promoção FORA da serialização (lost update do índice) ────────────────
+      // A promoção concorrente de duas histórias passa por setPackEntry, cuja fila `runSerialized`
+      // (packStorageService, PK-02) faz o ler→mesclar→gravar INTEIRO em série. O mutante remove a
+      // fila: as duas gravações se sobrepõem e a entrada de uma some (lost update). As duas histórias
+      // são órfãs recuperáveis (marcador válido) E o manifesto global declara AS DUAS — assim nenhuma
+      // pode morrer por ausência no manifesto: a única causa possível da perda é a serialização removida.
       {
-        const mut = (s) => s.replace('      const saved = await setPackEntry(storyId, {',
-          '      const _naoSerializado = await (async () => { const idx = await getPackIndexDireto(); await new Promise((r) => setTimeout(r, 5)); idx[storyId] = { storyId, version: v.version, status: PACK_STATUS.READY, localDir, manifestPath: `${localDir}manifest.json`, totalBytes: v.totalBytes, downloadedBytes: v.totalBytes, updatedAt: 1, errorMessage: null }; await savePackIndexDireto(idx); return idx[storyId]; })();\n      const saved = _naoSerializado || await setPackEntry(storyId, {');
-        const rodar = async (recoveryMutate) => {
-          const h = createPackInstallHarness({ recoveryMutate });
-          semearOrfao(h, { storyId: 'david_goliath', version: V_C });
-          semearOrfao(h, { storyId: 'noah', version: V_C });
+        const mut = (s) => s.replace(
+          'function runSerialized(task) {\n  const run = indexWriteChain.then(task);\n  indexWriteChain = run.then(() => undefined, () => undefined);\n  return run;\n}',
+          'function runSerialized(task) {\n  return task();\n}');
+        const HISTORIAS_A13 = ['david_goliath', 'noah'];
+        const rodar = async (storageMutate) => {
+          const h = createPackInstallHarness({ storageMutate });
+          const recuperou = {};
+          HISTORIAS_A13.forEach((s) => semearOrfao(h, { storyId: s, version: V_C }));
+          // Manifesto global + rotas para AS DUAS histórias (mesma versão): blindagem contra morte por
+          // ausência. Como ambas são recuperáveis, o recovery resolve e o download nem toca a rede —
+          // mas se algum dia tocasse, cada história tem pack declarado e coerente.
+          h.setGlobalManifest({
+            manifestVersion: 1, minAppVersion: '1.0.0',
+            packs: HISTORIAS_A13.map((s) => h.packEntry({
+              storyId: s, version: V_C, baseUrl: `https://r2/${s}/v1/`,
+              manifestSha256: h.sha256OfText(manifestoDe(h, { storyId: s }).manifestText),
+            })),
+          });
+          HISTORIAS_A13.forEach((s) => {
+            const { manifestText } = manifestoDe(h, { storyId: s });
+            h.route(`https://r2/${s}/v1/manifest.json`, { text: manifestText });
+            ARQ_C.forEach((f) => h.route(`https://r2/${s}/v1/${f.path}`, { text: f.text }));
+          });
           h.resetEvents();
-          const svc = createPackDownloadService({ ...h.deps, getPackIndexDireto: h.storage.getPackIndex, savePackIndexDireto: h.storage.savePackIndex });
-          await Promise.all([
-            instalarC(svc),
-            svc.downloadStoryPackScenesFromGlobalManifest({ storyId: 'noah', globalManifestUrl: GLOBAL_C, appVersion: '1.0.0', requestedKinds: ['scene', 'audio'] }),
-          ]);
+          const svc = createPackDownloadService({
+            ...h.deps,
+            recoverStoryPack: async (p) => { const r = await h.deps.recoverStoryPack(p); recuperou[p.storyId] = r.recovered === true; return r; },
+          });
+          await Promise.all(HISTORIAS_A13.map((s) => svc.downloadStoryPackScenesFromGlobalManifest({
+            storyId: s, globalManifestUrl: GLOBAL_C, appVersion: '1.0.0', requestedKinds: ['scene', 'audio'],
+          })));
           const idx = await h.index();
-          return { david: (idx.david_goliath && idx.david_goliath.status) || 'ausente', noah: (idx.noah && idx.noah.status) || 'ausente' };
+          return {
+            david: (idx.david_goliath && idx.david_goliath.status) || 'ausente',
+            noah: (idx.noah && idx.noah.status) || 'ausente',
+            consultou: h.events.includes('fetch-global-manifest'),
+            recDavid: recuperou.david_goliath === true, recNoah: recuperou.noah === true,
+          };
         };
-        const o = await rodar();
+        const original = await rodar();
+        const mutado = await rodar(mut);
         registrar('QA1-A13', 'A13', 'promoção fora da serialização', '§QA1.A13',
-          o.david === 'ready' && o.noah === 'ready',                // serializado: as DUAS sobrevivem
-          `original[david=${o.david} noah=${o.noah}] — as duas promoções concorrentes têm de sobreviver`);
+          aplicou('src/services/packStorageService.js', mut)          // 1. a fonte É transformada (âncora bate)
+          && original.david === 'ready' && original.noah === 'ready'  // original serializado: as DUAS sobrevivem
+          && !original.consultou                                      // resolve por recovery, sem tocar a rede
+          && (mutado.david !== 'ready' || mutado.noah !== 'ready')    // sem a fila: lost update — ao menos uma some
+          && mutado.recDavid && mutado.recNoah                        // ambas promoveram: a perda NÃO é exceção incidental
+          && !mutado.consultou                                        // morte NÃO por ausência no manifesto
+          && JSON.stringify(original) !== JSON.stringify(mutado),     // original ≠ mutante (não é tautologia)
+          `original[${original.david}/${original.noah} consultou=${original.consultou}] mutado[${mutado.david}/${mutado.noah} rec=${mutado.recDavid}/${mutado.recNoah} consultou=${mutado.consultou}]`);
       }
 
       // ── QA1-A14: recovery em PARALELO com instalação ativa da mesma história ─────────
