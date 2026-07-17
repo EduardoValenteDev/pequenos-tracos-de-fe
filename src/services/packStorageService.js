@@ -139,7 +139,12 @@ export async function setPackEntry(storyId, entry) {
       totalBytes: entry.totalBytes ?? prev.totalBytes ?? 0,
       downloadedBytes: entry.downloadedBytes ?? prev.downloadedBytes ?? 0,
       updatedAt: entry.updatedAt ?? Date.now(),
-      errorMessage: entry.errorMessage ?? prev.errorMessage ?? null,
+      // `??` trataria null e undefined igual, e por isso o `errorMessage: null` das escritas de
+      // READY nunca limpava o erro da tentativa anterior: um pack instalado com sucesso ficava
+      // READY carregando a mensagem da falha antiga. Aqui `undefined` (campo omitido, como na
+      // escrita parcial de DOWNLOADING) herda; `null` limpa; string substitui. Os demais campos
+      // seguem com `?? prev` de propósito — é o que preserva localDir/manifestPath no DOWNLOADING.
+      errorMessage: entry.errorMessage !== undefined ? entry.errorMessage : (prev.errorMessage ?? null),
     };
     index[storyId] = merged;
     await savePackIndex(index);

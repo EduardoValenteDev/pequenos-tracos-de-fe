@@ -31,9 +31,19 @@ const { bytesToHex } = require('@noble/hashes/utils.js');
 const ROOT = path.join(__dirname, '..', '..');
 const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
-/** Carrega um módulo ES do projeto injetando suas dependências. Sem transpilar: só remove imports. */
-function loadModule(rel, deps = {}, exportNames = []) {
-  const code = readSrc(rel)
+/**
+ * Carrega um módulo ES do projeto injetando suas dependências. Sem transpilar: só remove imports.
+ * `mutate` (opcional, só para mutation check) altera o TEXTO antes de avaliar; se não bater no
+ * fonte, LANÇA — uma âncora obsoleta jamais pode passar por mutante morto.
+ */
+function loadModule(rel, deps = {}, exportNames = [], mutate) {
+  let src = readSrc(rel);
+  if (mutate) {
+    const mutado = mutate(src);
+    if (mutado === src) throw new Error(`loadModule(${rel}): a mutação não alterou o fonte (âncora não encontrada)`);
+    src = mutado;
+  }
+  const code = src
     .replace(/^import[\s\S]*?;$/gm, '')
     .replace(/export default[\s\S]*$/m, '')
     .replace(/export /g, '')
@@ -205,7 +215,15 @@ function createDownloadLayer({ mem, routes, log, counters }) {
 }
 
 /* ────────────────────────────── Harness completo ────────────────────────────── */
-function createPackInstallHarness({ freeBytes } = {}) {
+/**
+ * @param {object}   [opts]
+ * @param {number}   [opts.freeBytes]
+ * @param {function} [opts.storageMutate] — muta o TEXTO do packStorageService antes de carregá-lo.
+ *   Existe só para mutation check: permite provar que uma prova de ponta a ponta (downloader real)
+ *   REALMENTE falha quando a regra do índice regride. Lança se a mutação não bater no fonte, para
+ *   que uma âncora obsoleta nunca seja contada como mutante morto. Nada no disco é alterado.
+ */
+function createPackInstallHarness({ freeBytes, storageMutate } = {}) {
   const events = [];
   const log = (type, detail) => { events.push(detail === undefined ? type : `${type}:${detail}`); };
   const counters = { downloads: 0, byUrl: {}, setEntry: 0 };
@@ -232,7 +250,8 @@ function createPackInstallHarness({ freeBytes } = {}) {
     FileSystem: mem.FileSystem,
     STORAGE_KEYS: { PACKS_INDEX: '@ptf_packs_v1' },
     warn: () => {},
-  }, ['PACK_STATUS', 'getPackLocalDir', 'getPackTempDir', 'getPackIndex', 'getPackEntry', 'setPackEntry', 'clearPackEntry']);
+  }, ['PACK_STATUS', 'getPackLocalDir', 'getPackTempDir', 'getPackIndex', 'getPackEntry', 'setPackEntry', 'clearPackEntry'],
+  storageMutate);
 
   // ── packManifestService + packIntegrityService REAIS (sha256 noble sobre os bytes reais) ──
   const manifestSvc = loadModule('src/services/packManifestService.js', {}, ['validateManifest', 'validateFileEntry']);

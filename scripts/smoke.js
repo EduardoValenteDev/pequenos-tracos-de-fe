@@ -9586,20 +9586,11 @@ console.log('\n── LP2.1a-ii-B: reinstalação e rejeições de story packs �
         `retries que não executaram, não baixaram de novo, ou ficaram com a chave retida: ${retries.join(' | ')}`);
 
       /*
-       * CARACTERIZAÇÃO DE DEFEITO CONHECIDO — este check descreve o comportamento ATUAL, que
-       * está ERRADO, para que ele fique visível e não mude sem alguém perceber. NÃO leia como
-       * "correto".
-       *
-       * A escrita READY passa `errorMessage: null` querendo limpar o erro da tentativa anterior,
-       * mas o merge do setPackEntry faz `entry.errorMessage ?? prev.errorMessage ?? null` — e
-       * `null` é nullish, então o null do chamador nunca sobrescreve. Um pack que FALHA e depois
-       * instala fica READY carregando o motivo da falha antiga. É o único campo que a instalação
-       * bem-sucedida não consegue corrigir.
-       *
-       * Não corrigido aqui de propósito: packStorageService é área protegida, o merge é
-       * compartilhado por todos os chamadores, e o `?? prev` é deliberadamente load-bearing na
-       * escrita DOWNLOADING (é o que preserva localDir/manifestPath para o retry — §7.2). A
-       * correção pede bloco próprio. Quando ela vier, ESTE check falha e força a atualização.
+       * REGRESSÃO EVITADA (LP2.1a-ii-BR): o merge do índice usava `entry.errorMessage ?? prev...`,
+       * e `??` trata null igual a undefined — então o `errorMessage: null` das escritas de READY
+       * era inerte e o pack instalado ficava READY carregando a mensagem da falha anterior. Este
+       * é o cenário do usuário: a história falha, ele tenta de novo, dá certo — e o índice não
+       * pode continuar dizendo que deu erro. Roda o downloader REAL, não só o storage.
        */
       {
         const h = createPackInstallHarness();
@@ -9607,15 +9598,32 @@ console.log('\n── LP2.1a-ii-B: reinstalação e rejeições de story packs �
         const svc = createPackDownloadService(h.deps);
         const r1 = await instalar(svc);
         const eFalha = await h.entry(STORY);
-        configurar(h);                               // corrige a causa
+        configurar(h);                               // corrige SÓ a causa; o índice segue como a falha deixou
         const r2 = await instalar(svc);
         const eOk = await h.entry(STORY);
-        check('LP2.1a-ii-B (defeito conhecido, caracterizado): após falha→retry o pack fica READY mas CARREGA o errorMessage antigo — `errorMessage: null` é inerte no merge',
+        check('LP2.1a-ii-BR §6.1 (fluxo real): falha → retry bem-sucedido deixa o pack READY e SEM o erro antigo',
           r1.ok === false && r2.ok === true
-          && eFalha.status === 'failed' && typeof eFalha.errorMessage === 'string'
+          && eFalha.status === 'failed' && typeof eFalha.errorMessage === 'string'   // houve erro de verdade
           && eOk.status === 'ready'
-          && eOk.errorMessage === eFalha.errorMessage,   // <- o defeito: deveria ser null
-          `o comportamento do errorMessage mudou (talvez CORRIGIDO — se sim, troque este check por errorMessage === null): falha="${eFalha.errorMessage}" ready="${eOk.errorMessage}"`);
+          && eOk.errorMessage === null,                                              // e ele foi limpo
+          `o pack instalou mas o índice ainda carrega o erro da tentativa anterior: falha="${eFalha.errorMessage}" ready="${eOk.errorMessage}"`);
+
+        // A prova acima só vale se ela CAI quando a regra do índice regride. Mesmo cenário, mesmo
+        // downloader real, mas com o `??` antigo carregado em memória (nada é escrito no disco).
+        const hOld = createPackInstallHarness({
+          storageMutate: (s) => s.replace(
+            'errorMessage: entry.errorMessage !== undefined ? entry.errorMessage : (prev.errorMessage ?? null),',
+            'errorMessage: entry.errorMessage ?? prev.errorMessage ?? null,'),
+        });
+        configurar(hOld, 'hash');
+        const svcOld = createPackDownloadService(hOld.deps);
+        await instalar(svcOld);
+        configurar(hOld);
+        await instalar(svcOld);
+        const eOld = await hOld.entry(STORY);
+        check('LP2.1a-ii-BR §8.1b (a prova tem dentes): com o `??` antigo, o MESMO fluxo real deixa o erro grudado no pack READY',
+          eOld.status === 'ready' && typeof eOld.errorMessage === 'string' && eOld.errorMessage !== null,
+          `restaurar o defeito no índice não derruba a prova de ponta a ponta — ela não vigia a limpeza: errorMessage=${eOld.errorMessage}`);
       }
     }
 
@@ -9736,6 +9744,231 @@ console.log('\n── LP2.1a-ii-B: reinstalação e rejeições de story packs �
     }
   })();
   globalThis.__LP21AIIB.catch(() => {});
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-ii-BR — Contrato de limpeza do errorMessage no índice de packs.
+//   campo omitido/undefined → herda · null → limpa · string → substitui
+// Só `errorMessage` muda: os demais campos seguem com `?? prev` (load-bearing).
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-ii-BR: limpeza do errorMessage nas entradas de packs ──');
+{
+  const storeSrcBR = readSrc('src/services/packStorageService.js');
+
+  // packStorageService REAL sobre AsyncStorage em memória — inclusive a fila serializada.
+  const novaStore = () => {
+    let mem = null;
+    const AsyncStorage = {
+      getItem: async () => { await null; return mem; },
+      setItem: async (k, v) => { await null; mem = v; },
+    };
+    const code = storeSrcBR
+      .replace(/^import[\s\S]*?;$/gm, '')
+      .replace(/export /g, '')
+      + '; return { setPackEntry, clearPackEntry, getPackIndex, getPackEntry, whenIndexQueueDrained, runSerialized, PACK_STATUS };';
+    return new Function('AsyncStorage', 'STORAGE_KEYS', 'FileSystem', 'warn', code)(
+      AsyncStorage, { PACKS_INDEX: '@ptf_packs_v1' }, { documentDirectory: 'file:///doc/' }, () => {},
+    );
+  };
+
+  // ── Estático: só a resolução de errorMessage mudou; os demais campos intactos ──
+  const storeCBR = a1StripComments(storeSrcBR);
+  check('LP2.1a-ii-BR §5 (correção mínima): só errorMessage distingue undefined de null; os demais campos seguem com `?? prev`',
+    /errorMessage: entry\.errorMessage !== undefined \? entry\.errorMessage : \(prev\.errorMessage \?\? null\)/.test(storeCBR)
+    && /version: entry\.version \?\? prev\.version \?\? null/.test(storeCBR)
+    && /localDir: entry\.localDir \?\? prev\.localDir \?\? null/.test(storeCBR)
+    && /manifestPath: entry\.manifestPath \?\? prev\.manifestPath \?\? null/.test(storeCBR)
+    && /totalBytes: entry\.totalBytes \?\? prev\.totalBytes \?\? 0/.test(storeCBR)
+    && /downloadedBytes: entry\.downloadedBytes \?\? prev\.downloadedBytes \?\? 0/.test(storeCBR)
+    && /return runSerialized\(async \(\) => \{/.test(storeCBR),   // continua dentro da fila
+    'a correção vazou para outros campos do merge, ou saiu de dentro da fila serializada');
+
+  globalThis.__LP21AIIBR = (async () => {
+    const comErro = async (S, msg = 'erro anterior') => {
+      await S.setPackEntry('david_goliath', { version: '1.0.0', status: 'failed', errorMessage: msg });
+      return S;
+    };
+
+    // ── §6.2 null LIMPA ──
+    {
+      const S = await comErro(novaStore());
+      const e = await S.setPackEntry('david_goliath', { errorMessage: null });
+      check('LP2.1a-ii-BR §6.2 (null limpa): escrever errorMessage: null zera o erro anterior',
+        e.errorMessage === null && (await S.getPackEntry('david_goliath')).errorMessage === null,
+        'o null explícito não limpou o erro — é o defeito original');
+    }
+
+    // ── §6.3 campo OMITIDO herda ──
+    {
+      const S = await comErro(novaStore());
+      const e = await S.setPackEntry('david_goliath', { status: 'downloading' });
+      check('LP2.1a-ii-BR §6.3 (omitido herda): escrita parcial sem o campo preserva a mensagem anterior',
+        e.errorMessage === 'erro anterior' && e.status === 'downloading',
+        'uma escrita parcial apagou o erro que não pretendia tocar');
+    }
+
+    // ── §6.4 undefined EXPLÍCITO herda (mesmo contrato de omitido) ──
+    {
+      const S = await comErro(novaStore());
+      const e = await S.setPackEntry('david_goliath', { errorMessage: undefined });
+      check('LP2.1a-ii-BR §6.4 (undefined herda): passar undefined equivale a omitir — preserva o valor anterior',
+        e.errorMessage === 'erro anterior',
+        'undefined passou a limpar: o contrato confundiu "não informei" com "quero limpar"');
+    }
+
+    // ── §6.5 string SUBSTITUI ──
+    {
+      const S = await comErro(novaStore(), 'erro antigo');
+      const e = await S.setPackEntry('david_goliath', { status: 'failed', errorMessage: 'erro novo' });
+      check('LP2.1a-ii-BR §6.5 (string substitui): uma mensagem nova troca a anterior',
+        e.errorMessage === 'erro novo',
+        'a mensagem nova não substituiu a antiga');
+    }
+
+    // ── §6.6 entry NOVA (sem anterior) ──
+    {
+      const S1 = novaStore(); const a = await S1.setPackEntry('noah', { version: '1.0.0', status: 'ready' });
+      const S2 = novaStore(); const b = await S2.setPackEntry('noah', { version: '1.0.0', status: 'ready', errorMessage: null });
+      const S3 = novaStore(); const c = await S3.setPackEntry('noah', { version: '1.0.0', status: 'failed', errorMessage: 'x' });
+      check('LP2.1a-ii-BR §6.6 (entry nova): omitido → null; null → null; string → string',
+        a.errorMessage === null && b.errorMessage === null && c.errorMessage === 'x',
+        `entry nova recebeu valor incorreto: omitido=${a.errorMessage} null=${b.errorMessage} string=${c.errorMessage}`);
+    }
+
+    // ── §6.7 DOWNLOADING: herda o erro E preserva os demais campos (o `?? prev` load-bearing) ──
+    {
+      const S = novaStore();
+      await S.setPackEntry('david_goliath', {
+        version: '1.0.0', status: 'failed', localDir: 'file:///doc/packs/david_goliath@1.0.0/',
+        manifestPath: 'file:///doc/packs/david_goliath@1.0.0/manifest.json',
+        totalBytes: 42, downloadedBytes: 42, errorMessage: 'rede caiu',
+      });
+      const e = await S.setPackEntry('david_goliath', { version: '1.0.0', status: 'downloading' });
+      check('LP2.1a-ii-BR §6.7 (DOWNLOADING): a escrita parcial herda erro E mantém localDir/manifestPath/bytes — nada do `?? prev` regrediu',
+        e.status === 'downloading' && e.errorMessage === 'rede caiu'
+        && e.localDir === 'file:///doc/packs/david_goliath@1.0.0/'
+        && e.manifestPath === 'file:///doc/packs/david_goliath@1.0.0/manifest.json'
+        && e.totalBytes === 42 && e.downloadedBytes === 42 && e.version === '1.0.0',
+        'a escrita parcial de DOWNLOADING perdeu campos herdados — a correção vazou para outros campos');
+    }
+
+    // ── §6.8 READY sobre READY sem erro não INVENTA erro ──
+    {
+      const S = novaStore();
+      await S.setPackEntry('david_goliath', { version: '1.0.0', status: 'ready', errorMessage: null });
+      const e = await S.setPackEntry('david_goliath', { version: '1.0.0', status: 'ready', errorMessage: null });
+      const e2 = await S.setPackEntry('david_goliath', { version: '1.0.0', status: 'ready' });
+      check('LP2.1a-ii-BR §6.8 (READY sem erro): regravar READY não introduz erro inexistente',
+        e.errorMessage === null && e2.errorMessage === null,
+        'regravar READY passou a inventar um errorMessage');
+    }
+
+    // ── §6.9 a correção NÃO contorna a fila: as garantias do PK-02 seguem ──
+    {
+      const S = novaStore();
+      await Promise.all([
+        S.setPackEntry('david_goliath', { version: '1.0.0', status: 'ready', errorMessage: null }),
+        S.setPackEntry('noah', { version: '2.0.0', status: 'failed', errorMessage: 'x' }),
+      ]);
+      const idx = await S.getPackIndex();
+      let envenenou = false;
+      await S.runSerialized(async () => { throw new Error('boom'); }).catch(() => {});
+      const depois = await S.setPackEntry('timothy', { version: '1.0.0', status: 'ready' });
+      envenenou = !depois;
+      check('LP2.1a-ii-BR §6.9 (concorrência preservada): sem lost update entre histórias e a fila segue viva após uma rejeição',
+        !!idx.david_goliath && !!idx.noah
+        && idx.david_goliath.errorMessage === null && idx.noah.errorMessage === 'x'
+        && !envenenou && depois.storyId === 'timothy',
+        'a correção de um campo contornou ou quebrou a fila serializada do índice');
+    }
+
+    // ── §6.10 sandbox dev: os seeds passam errorMessage: null e agora limpam de verdade ──
+    {
+      const devC = a1StripComments(readSrc('src/services/packSandboxDevService.js'));
+      const S = await comErro(novaStore(), 'falha antiga da sandbox');
+      // Mesma FORMA das escritas dev (packSandboxDevService.js:91-99 e :213-221).
+      const e = await S.setPackEntry('david_goliath', {
+        version: '1.0.0', status: 'ready', localDir: 'file:///doc/packs/david_goliath@1.0.0/',
+        manifestPath: null, totalBytes: 10, downloadedBytes: 10, errorMessage: null,
+      });
+      check('LP2.1a-ii-BR §6.10 (sandbox dev): os seeds READY passam errorMessage: null e agora limpam o erro, como já pretendiam',
+        (devC.match(/errorMessage: null/g) || []).length === 2      // os dois seeds seguem passando null
+        && /status: PACK_STATUS\.FAILED, errorMessage: reason/.test(devC)   // e a falha dev segue com string
+        && e.errorMessage === null && e.status === 'ready',
+        'os seeds da sandbox não limpam o erro, ou a forma das escritas dev mudou');
+    }
+
+    /* ══════════════ §8 — MUTATION CHECKS (codificados; mutam o TEXTO em memória) ══════════════ */
+    {
+      const MUT_BR = [
+        { id: 'R1', nome: 'restaurar o `??` antigo (null volta a ser ignorado)',
+          mut: (s) => s.replace(
+            'errorMessage: entry.errorMessage !== undefined ? entry.errorMessage : (prev.errorMessage ?? null),',
+            'errorMessage: entry.errorMessage ?? prev.errorMessage ?? null,') },
+        { id: 'R2', nome: 'tratar null como campo omitido (não limpa)',
+          mut: (s) => s.replace(
+            'errorMessage: entry.errorMessage !== undefined ? entry.errorMessage : (prev.errorMessage ?? null),',
+            'errorMessage: (entry.errorMessage !== undefined && entry.errorMessage !== null) ? entry.errorMessage : (prev.errorMessage ?? null),') },
+        { id: 'R3', nome: 'tratar campo omitido como limpeza (herança quebrada)',
+          mut: (s) => s.replace(
+            'errorMessage: entry.errorMessage !== undefined ? entry.errorMessage : (prev.errorMessage ?? null),',
+            'errorMessage: entry.errorMessage ?? null,') },
+        { id: 'R4', nome: 'impedir uma string nova de substituir a anterior',
+          mut: (s) => s.replace(
+            'errorMessage: entry.errorMessage !== undefined ? entry.errorMessage : (prev.errorMessage ?? null),',
+            'errorMessage: prev.errorMessage ?? (entry.errorMessage !== undefined ? entry.errorMessage : null),') },
+        { id: 'R5', nome: 'a correção vaza para outro campo do merge (localDir)',
+          mut: (s) => s.replace(
+            'localDir: entry.localDir ?? prev.localDir ?? null,',
+            'localDir: entry.localDir !== undefined ? entry.localDir : (prev.localDir ?? null),') },
+      ];
+
+      // FORA do try: uma mutação que não bate no fonte tem de ESTOURAR, nunca virar "morreu".
+      const storeMutada = (mut) => {
+        const mutado = mut(storeSrcBR);
+        if (mutado === storeSrcBR) throw new Error('LP2.1a-ii-BR: mutação não alterou o fonte (âncora não encontrada)');
+        let mem = null;
+        const AsyncStorage = { getItem: async () => { await null; return mem; }, setItem: async (k, v) => { await null; mem = v; } };
+        const code = mutado.replace(/^import[\s\S]*?;$/gm, '').replace(/export /g, '')
+          + '; return { setPackEntry, getPackEntry };';
+        return new Function('AsyncStorage', 'STORAGE_KEYS', 'FileSystem', 'warn', code)(
+          AsyncStorage, { PACKS_INDEX: '@ptf_packs_v1' }, { documentDirectory: 'file:///doc/' }, () => {},
+        );
+      };
+
+      // Assinatura = as 4 semânticas do contrato + um campo vizinho (para pegar vazamento).
+      const assinaturaBR = async (S) => {
+        await S.setPackEntry('a', { version: '1.0.0', status: 'failed', localDir: 'file:///d/', errorMessage: 'velho' });
+        const limpa = (await S.setPackEntry('a', { status: 'ready', errorMessage: null })).errorMessage;
+        await S.setPackEntry('b', { version: '1.0.0', status: 'failed', localDir: 'file:///d/', errorMessage: 'velho' });
+        const herda = (await S.setPackEntry('b', { status: 'downloading' })).errorMessage;
+        await S.setPackEntry('c', { version: '1.0.0', status: 'failed', errorMessage: 'velho' });
+        const troca = (await S.setPackEntry('c', { status: 'failed', errorMessage: 'novo' })).errorMessage;
+        await S.setPackEntry('d', { version: '1.0.0', status: 'failed', localDir: 'file:///d/', errorMessage: 'velho' });
+        const vizinho = (await S.setPackEntry('d', { status: 'downloading', localDir: null })).localDir;
+        return `limpa=${limpa}|herda=${herda}|troca=${troca}|vizinhoLocalDir=${vizinho}`;
+      };
+
+      const orig = await assinaturaBR(novaStore());
+      const vereditoBR = [];
+      for (const m of MUT_BR) {
+        const mutada = await assinaturaBR(storeMutada(m.mut));
+        vereditoBR.push({ id: m.id, nome: m.nome, orig, mutada, morreu: orig !== mutada });
+      }
+      const vivosBR = vereditoBR.filter((x) => !x.morreu);
+      check('LP2.1a-ii-BR §8 (mutation checks): cada semântica do contrato é load-bearing — quebrar qualquer uma muda o observável',
+        vivosBR.length === 0 && vereditoBR.length === 5,
+        `semânticas que podem ser quebradas sem nada mudar: ${vivosBR.map((x) => `${x.id} ${x.nome} [${x.orig}]`).join(' | ')}`);
+
+      // O §8.1 do prompt em específico: com o `??` antigo, a limpeza volta a falhar.
+      const r1 = vereditoBR.find((x) => x.id === 'R1');
+      check('LP2.1a-ii-BR §8.1 (direção): com o `??` antigo o null NÃO limpa (é exatamente o defeito corrigido)',
+        !!r1 && /limpa=null\|/.test(r1.orig) && /limpa=velho\|/.test(r1.mutada),
+        `a mutação que restaura o defeito não é detectada: orig[${r1 && r1.orig}] mut[${r1 && r1.mutada}]`);
+    }
+  })();
+  globalThis.__LP21AIIBR.catch(() => {});
 }
 
 
@@ -25824,6 +26057,12 @@ check(
   check('LP2.1a-ii-B (harness): o bloco assíncrono de reinstalação e rejeições concluiu sem estourar',
     !lp21aiibErr,
     `o bloco de reinstalação lançou (${lp21aiibErr && lp21aiibErr.stack ? String(lp21aiibErr.stack).split('\n').slice(0, 3).join(' | ') : lp21aiibErr}) — os checks dele não rodaram`);
+
+  let lp21aiibrErr = null;
+  try { await globalThis.__LP21AIIBR; } catch (e) { lp21aiibrErr = e; }
+  check('LP2.1a-ii-BR (harness): o bloco assíncrono do contrato de errorMessage concluiu sem estourar',
+    !lp21aiibrErr,
+    `o bloco do errorMessage lançou (${lp21aiibrErr && lp21aiibrErr.stack ? String(lp21aiibrErr.stack).split('\n').slice(0, 3).join(' | ') : lp21aiibrErr}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
