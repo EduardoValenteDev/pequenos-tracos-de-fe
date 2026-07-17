@@ -1,93 +1,95 @@
 # Plan — LP2.1a-ii-C: recuperação de instalação interrompida entre o `move` e o `READY`
 
 > **Feature:** `012-loading-performance-foundation` · **Cobre APENAS o bloco `LP2.1a-ii-C`.** D, E e F têm planos próprios, não iniciados.
-> **Etapa SDD:** 4 (Plan). **Portão Humano 2: PENDENTE.**
-> **Branch:** `fix/loading-performance-foundation` · **HEAD na criação:** `00c2d44` · Spec: [spec.md](./spec.md) (Portão 1 APROVADO em 2026-07-16).
+> **Etapa SDD:** 4 (Plan) — **CONCLUÍDO**. **🚦 Portão Humano 2: PENDENTE.**
+> **Branch:** `fix/loading-performance-foundation` · **HEAD na conclusão:** `5213688` · Spec: [spec.md](./spec.md) (Portão 1 APROVADO em 2026-07-16).
 > **Risco:** S1 (conteúdo pago íntegro no disco, inacessível).
-
-> ## ⛔ ESTE PLANO ESTÁ DELIBERADAMENTE INCONCLUSO
 >
-> A classificação das decisões abertas (§2) encontrou **dois itens `C-BLOCKING`**. Conforme o contrato do bloco, **paro antes de concluir o plano** e apresento alternativas, consequências e evidências — **sem escolher sozinho**.
+> **Decisões humanas de 2026-07-16 incorporadas:** AB-2 (C cobre C1+C2; `readDirectoryAsync` só em descoberta direcionada), AB-3 (recovery **sob demanda**), direção arquitetural (**Alternativa C — marcador de publicação validada**).
 >
-> Tudo que **não** depende dessas duas decisões está completo e verificado abaixo: auditoria do intervalo crítico (§3), matriz de cenários (§4), evidência local disponível (§5), alternativas arquiteturais (§6). O que **depende** está explicitamente marcado **[BLOQUEADO — decisão do Eduardo]**.
->
-> **Nada de código foi escrito. Nenhum arquivo candidato foi tocado.**
+> **Nenhum código foi escrito. Nenhum arquivo candidato foi tocado.**
 
 ---
 
-## 1. Fonte oficial e método
+## 1. Invariante central (aprovado)
 
-Fonte principal: [spec.md](./spec.md) §6 (contrato do bloco C), com os 9 princípios congelados e aprovados no Portão 1.
+> **Um pack só pode ser recuperado como `READY` quando existe evidência local persistente de que o manifesto ancorado e todos os seus arquivos foram integralmente validados antes da publicação do diretório final.**
+>
+> A mera existência do diretório final, do `manifest.json` ou de uma entrada `DOWNLOADING` **não é evidência suficiente**.
 
-Cruzamentos feitos (read-only, 2026-07-16, HEAD `00c2d44`):
-
-| Fonte | Uso |
-|---|---|
-| `src/services/packDownloadService.js` | fluxo real do intervalo crítico |
-| `src/services/packStorageService.js` | índice, merge, fila serializada |
-| `src/services/packReconcileService.js` | o que a reconciliação percorre |
-| `src/context/PacksContext.js` | onde a reconciliação roda hoje |
-| `scripts/smoke.js` | provas existentes (LP2, LP2.1a-i, LP2.1a-ii-A/B/BR) |
-| `scripts/testing/packInstallHarness.js` | harness real (hook `onBefore` de checkpoint) |
-| Commits `6466c75`, `824aec1`, `478b0a5`, `1c84773`, `ead7f18`, `3485b95` | contratos já provados |
-
-**Método:** toda afirmação de estado atual foi **executada** pelo harness real, não inferida por leitura. As saídas estão citadas em §3 e §5.
+Este invariante é o que decide toda a arquitetura abaixo: a evidência precisa ser **persistente** (sobreviver ao crash), **local** (sem rede) e **anterior à publicação** (escrita antes do move).
 
 ---
 
-## 2. As oito decisões abertas — classificação
+## 2. Decisões AB-2 e AB-3 (resolvidas por decisão humana, 2026-07-16)
 
-Da spec §15, verificadas uma a uma contra o código.
+### AB-2 — escopo: C1 **e** C2, com descoberta direcionada
 
-| ID | Pergunta aberta | Bloco | Evidência | Consequência de errar | Resolver até | Classificação |
-|---|---|---|---|---|---|---|
-| **AB-1** | Estados concretos do índice na janela; metadados disponíveis; validação necessária e suficiente | C | **RESOLVIDA por esta auditoria** (§3, §5) — executada no harness real | — | — | **NON-BLOCKING** *(resolvida por evidência + princípios já aprovados; ver §5.3 para o limite da âncora, registrado como risco residual)* |
-| **AB-2** | O órfão C2 (instalação nova, sem entrada no índice) é detectável sem varrer o disco, e a que custo? | C | **Metade factual RESOLVIDA:** `collectPackProbes` itera `Object.keys(index)` e pula tudo que não é `READY` (`packReconcileService.js:31-32,77+`) → **C2 é invisível** e C1 (`downloading`) **nem é sondado**. `readDirectoryAsync` **nunca é usado no projeto** (grep vazio). **Metade em aberto:** varrer o disco, ou não? | Não varrer = o caso **mais comum** (instalação nova) fica sem recuperação. Varrer = I/O novo no caminho de boot, que é o tema da própria trilha | **Antes de concluir este plano** | **C-BLOCKING** |
-| **AB-3** | Onde o recovery roda (boot, foco, sob demanda)? | C | Nenhuma. Hoje **não existe recovery**. A reconciliação roda no `PacksContext` (`useMemo`/`useEffect`, `:113-151`) | Boot: custo direto no tempo de abertura (o que a trilha existe para proteger). Sob demanda: conteúdo íntegro segue inacessível até o usuário tentar de novo | **Antes de concluir este plano** | **C-BLOCKING** |
-| **AB-4** | Como coordenar as duas fases da identidade | D | spec §7.6 | — | Bloco D | **D-DEFERRED** |
-| **AB-5** | Joiner pode receber a versão que o voo resolveu? | D | spec §7.5.1 | — | Bloco D | **D-DEFERRED** |
-| **AB-6** | Há *replay* do último evento de progresso? | E | spec §8.4.2 | — | Bloco E | **E-DEFERRED** |
-| **AB-7** | Progresso monotônico por participante? | E | spec §8.4 | — | Bloco E | **E-DEFERRED** |
-| **AB-8** | Toda a política de cancelamento | F | spec §9.3 | — | Bloco F | **F-DEFERRED** |
+`readDirectoryAsync` **aprovado**, com estas restrições congeladas:
 
-**Nenhuma decisão foi resolvida para eliminar a marcação.** AB-1 é a única que muda de estado, e muda porque a **auditoria a respondeu com fatos executados**, não porque escolhi uma política.
+1. **Proibida** varredura global com validação de todos os packs.
+2. **C1:** localizar o candidato **diretamente** pelos dados do índice (sem listar).
+3. **C2:** listar **apenas os nomes** da raiz `packs/`.
+4. Filtrar **imediatamente** os nomes do `storyId` solicitado.
+5. Validar **somente** candidatos daquela história.
+6. **Nunca** abrir ou validar packs de outras histórias.
+7. **Não** virar garbage collection nem limpeza geral.
+8. **Não** remover candidatos antes de existir decisão segura.
 
-> **AB-2 e AB-3 são `C-BLOCKING` e estão inter-relacionadas.** As alternativas estão em §6 e a decisão pedida em §8.
+### AB-3 — disparo: sob demanda
+
+Acionado **quando uma história pede seu pack**, antes de o sistema concluir que precisa baixar/reinstalar. **Sem varredura nem validação geral no boot.**
+
+Ordem conceitual aprovada:
+
+1. Receber a solicitação do pack da história.
+2. Verificar entrada do índice e operação ativa.
+3. Procurar evidência local recuperável **só daquela história**.
+4. Validar o candidato local quando existir.
+5. Promover `READY` **apenas** se toda a evidência necessária for válida.
+6. Prosseguir para o fluxo normal de resolução/download quando a recuperação não for possível.
+
+### Estado das oito decisões
+
+| ID | Bloco | Situação |
+|---|---|---|
+| AB-1 estados/metadados/validação | C | **RESOLVIDA pela auditoria** (§3, §5) — fatos executados |
+| **AB-2** escopo/descoberta | C | **RESOLVIDA por decisão humana** (2026-07-16) |
+| **AB-3** disparo | C | **RESOLVIDA por decisão humana** (2026-07-16) |
+| AB-4, AB-5 | D | **ABERTAS** |
+| AB-6, AB-7 | E | **ABERTAS** |
+| AB-8 | F | **ABERTA** |
 
 ---
 
-## 3. Auditoria do intervalo crítico (fato, executado)
+## 3. Auditoria do intervalo crítico (fato, executado no harness real)
 
-### 3.1 O fluxo real, passo a passo
+### 3.1 O fluxo real
 
-Fonte: `packDownloadService.js`. Todo o trecho roda dentro de `guardedInstall` → `runExclusiveByStory(storyId)` (fila física por história) e, para chamadores sem `isCancelled`, dentro do single-flight.
+Tudo dentro de `guardedInstall` → `runExclusiveByStory(storyId)` e, para chamadores sem `isCancelled`, dentro do single-flight.
 
 | # | Passo | Linha |
 |---|---|---|
-| 1 | Verify completo: existência + bytes + sha256 de **todos** os arquivos + contagem por kind | `:392-410` |
+| 1 | Verify: existência + bytes + sha256 de **todos** + contagem por kind | `:392-410` |
 | 2 | `if (errors.length) return failWith(...)` — última saída por validação | `:410` |
-| 3 | `throwIfCancelled` — **último ponto cancelável; o swap não é cancelável** | `:412` |
-| 4 | `getInfoAsync(localDir)` → `preExisting` (try/catch: se lançar, `false`) | `:420-424` |
-| 5 | **`setPackEntry(DOWNLOADING)` — só se `preExisting`** | `:425-427` |
-| 6 | `deleteAsync(localDir, {idempotent:true})` — **ato destrutivo** | `:428` |
-| 7 | `moveAsync({from: tempDir, to: localDir})` — publicação | `:429` |
-| 8 | `setPackEntry(READY, {version, localDir, manifestPath, totalBytes, downloadedBytes, errorMessage:null})` | `:432-440` |
-| 9 | `report(READY)` → `onProgress` (UI, não índice) | `:441` |
+| 3 | `throwIfCancelled` — **último ponto cancelável; o swap não é** | `:412` |
+| 4 | `getInfoAsync(localDir)` → `preExisting` | `:420-424` |
+| 5 | `setPackEntry(DOWNLOADING)` — **só se `preExisting`** | `:425-427` |
+| 6 | `deleteAsync(localDir)` — **ato destrutivo** | `:428` |
+| 7 | `moveAsync(tempDir → localDir)` — publicação | `:429` |
+| 8 | `setPackEntry(READY, {...})` | `:432-440` |
+| 9 | `report(READY)` → `onProgress` (UI) | `:441` |
 | 10 | `return {ok:true, ...}` | `:444` |
-| 11 | `.finally(() => inFlightInstalls.delete(key))` — libera a chave | `:531` |
-| 12 | `runExclusiveByStory`: a corrente normaliza e a entrada sai do mapa | `:489-492` |
+| 11 | `.finally(() => inFlightInstalls.delete(key))` | `:531` |
 
-**Não há passo de "atualização de caminhos em memória" separado** (item 5 do roteiro de auditoria): os caminhos são recomputados por `getPackLocalDir(storyId, version)` a cada leitura (`PacksContext.normalizedIndex`, `:113-151`), justamente porque o `localDir` persistido não é confiável no iOS (F2.5-hardening-1 C3). **Não há limpeza de temporários após o move** (item 8): o `.tmp` deixa de existir porque **foi renomeado** pelo move — verificado (`.tmp restante: 0`).
+**Não existe** passo de "atualização de caminhos em memória": os caminhos são recompostos por `getPackLocalDir(storyId, version)` a cada leitura (`PacksContext.normalizedIndex`, `:113-151`). **Não existe** limpeza de temporários após o move: o `.tmp` some porque **foi renomeado**.
 
-### 3.2 Pontos de interrupção e o estado que cada um deixa
-
-Executado com o harness real (hook `onBefore`, que observa o estado **no instante da operação de verdade**):
+### 3.2 O estado que o crash deixa (executado)
 
 ```
 ══ CRASH depois do move / antes do READY — C1 (havia pack anterior) ══
   índice:  {"status":"downloading","version":"1.0.0",
-            "localDir":"file:///doc/packs/david_goliath@1.0.0/",
-            "manifestPath":".../manifest.json",
+            "localDir":".../david_goliath@1.0.0/","manifestPath":".../manifest.json",
             "totalBytes":15,"downloadedBytes":15,"errorMessage":null}
   final:   audio/01.mp3, manifest.json, scenes/01.webp, scenes/02.webp   (COMPLETO)
   .tmp:    0 arquivo(s)
@@ -98,219 +100,361 @@ Executado com o harness real (hook `onBefore`, que observa o estado **no instant
   .tmp:    0 arquivo(s)
 ```
 
-> **Achado novo, não previsto na spec:** em C1 o `totalBytes` do índice é **15 — o do pack ANTIGO**, não os 44 do novo. Causa: a marca `DOWNLOADING` (`:426`) passa só `{version, status}`, e o merge herda o resto via `?? prev` (`packStorageService.js:135-147`). O mesmo vale para `localDir`/`manifestPath` (que **coincidem** aqui só porque a versão é a mesma). **Consequência para C:** `totalBytes` do índice **não é evidência confiável** para validar um órfão. A verdade está no `manifest.json` do disco.
+> **Achado:** em C1 o `totalBytes` do índice é **15 — o do pack ANTIGO**, não os 44 do novo. A marca `DOWNLOADING` passa só `{version, status}` e o merge herda o resto via `?? prev` (`packStorageService.js:135-147`). **`totalBytes` do índice não é evidência confiável** para validar um órfão.
 
-### 3.3 Tabela do intervalo
+### 3.3 Por que hoje nada recupera
 
-| Ponto de interrupção | `.tmp` | Diretório final | Índice | Metadados disponíveis | Boot/reconciliação hoje | Recuperável offline? | Perda de pack válido | Promover incompleto | Retry duplicado |
-|---|---|---|---|---|---|---|---|---|---|
-| Antes do passo 5 | cheio, validado | **anterior intacto** | `READY` anterior (ou ausente) | índice + `.tmp` | reconcilia normal | n/a — nada a recuperar | não | não | não |
-| Entre 5 e 6 (após `DOWNLOADING`) | cheio, validado | **anterior intacto** | `downloading` + campos herdados | índice + `.tmp` + final antigo | **não sonda** (`needsDiskCheck` só `READY`) → trata como não-pronto → bundle | **sim, em tese** (o pack antigo está lá) | não | não | re-baixa |
-| Entre 6 e 7 (após delete, antes do move) | cheio, validado | **REMOVIDO** | `downloading` | `.tmp` + manifesto no `.tmp` | não-pronto → bundle | **sim, em tese** (o `.tmp` está completo) | **o anterior já foi apagado** | não | re-baixa |
-| **Entre 7 e 8 (após move, antes do READY) — C1** | vazio | **NOVO, completo** | `downloading`, `totalBytes` **estale** | **`manifest.json` no final + todos os arquivos** | não-pronto → bundle | **SIM** | não | não | re-baixa |
-| **Entre 7 e 8 — C2 (fresh)** | vazio | **NOVO, completo** | **ausente** → `NOT_DOWNLOADED` | **`manifest.json` no final + todos os arquivos** | **invisível** (não há entrada) | **SIM, mas indetectável sem varrer** | não | não | re-baixa |
-| Após 8, antes de 10/11 | vazio | novo, completo | `READY` coerente | tudo | pronto ✓ | n/a | não | não | não |
+`collectPackProbes` (`packReconcileService.js:77+`) percorre `Object.keys(index)` e pula tudo que não é `READY` (`needsDiskCheck`, `:31-32`). Logo **C1 nem é sondado** e **C2 é invisível**.
 
-**Nenhum ponto perde dado de forma permanente** — verificado: o retry sobre um órfão funciona hoje (`ok: true`, `status: ready`, 2 downloads). O dano real é: **conteúdo pago, íntegro no disco, inacessível — e inacessível para sempre se o usuário estiver offline**, até que ele consiga rede para re-baixar o que já tem.
+O retry **funciona** hoje (executado: `ok:true`, `status:ready`, 2 downloads) — re-baixando. **Nenhum ponto perde dado permanentemente.** O dano é: **conteúdo pago, íntegro no disco, inacessível — e inacessível para sempre se o usuário estiver offline.**
 
 ---
 
-## 4. Matriz de cenários
+## 4. Alternativa selecionada e justificativa
 
-| # | Cenário | Evidência detectável | Ação candidata | Resultado esperado | Prova necessária | Risco residual |
-|---|---|---|---|---|---|---|
-| 1 | Crash **antes** do move | índice `downloading` (C1) ou `READY` anterior; `.tmp` cheio | nenhuma (o retry cobre) | pack anterior segue usável | já provado (`smoke.js` "§7.2") | `.tmp` órfão ocupa disco → cache (fora da trilha) |
-| 2 | Crash **durante** o move | **[ABERTO — auditar em C]** `moveAsync` é rename atômico no mesmo volume? Se sim, não há estado parcial observável | depende | — | exige prova por plataforma | **não verificável no harness** (o FS em memória move de forma atômica); só device |
-| 3 | Crash **depois** do move, antes de qualquer persistência | disco completo + manifesto | validar local e promover | `READY` | executado (§3.2) | é o alvo do bloco |
-| 4 | Crash **durante** a persistência do índice | `AsyncStorage.setItem` grava a chave inteira de uma vez (`packStorageService.js:88-97` documenta: "não há escrita parcial de meia entrada") | nenhuma (não há meio-estado) | índice íntegro | leitura do contrato existente | AsyncStorage não oferece transação entre processos |
-| 5 | Crash depois dos caminhos, antes de `READY` | **não existe** — `:432` grava caminhos e `READY` **na mesma** chamada | n/a | n/a | — | cenário do roteiro que **não é alcançável** neste código |
-| 6 | Crash depois de `READY`, antes da limpeza | `READY` coerente; `.tmp` já não existe (consumido pelo move) | nenhuma | pronto | executado | **cenário sem conteúdo** aqui |
-| 7 | Final completo + índice `DOWNLOADING` (**C1**) | índice + disco | validar e promover | `READY` | harness + hook | âncora não verificável offline (§5.3) |
-| 8 | Final completo + índice `FAILED` | índice + disco | **[BLOQUEADO]** depende de AB-2/AB-3 | — | — | `FAILED` pode ser de outra versão |
-| 9 | Final **incompleto** + índice `DOWNLOADING` | manifesto local lista arquivo ausente | **não promover** | segue não-pronto; retry | harness com arquivo removido | — |
-| 10 | Final **corrompido** | hash diverge do manifesto local | **não promover** | segue não-pronto | harness com byte trocado de mesmo tamanho | — |
-| 11 | Final válido **sem entrada no índice** (**C2**) | **só o disco** | **[BLOQUEADO — AB-2]** | — | — | é o caso **mais comum** |
-| 12 | Entrada apontando para diretório inexistente | índice `READY` sem disco | **já resolvido** — reconciliação rebaixa em memória (`824aec1`) | não-pronto | já provado | — |
-| 13 | `READY` anterior preservado enquanto a nova versão falha | índice | **já resolvido** (`478b0a5`) | anterior intacto | já provado (`smoke.js` "§13") | — |
-| 14 | Retry depois da recuperação | — | recovery roda antes; retry vira no-op ou download | coerente | harness | — |
-| 15 | Recovery 2+ vezes | — | idempotente (princípio 5) | mesmo resultado | assinatura observável | — |
-| 16 | App encerrado **durante o próprio recovery** | — | recovery só escreve o índice **depois** de validar tudo; a escrita é atômica por chave | ou promoveu, ou não | harness com hook antes da escrita | recovery parcial = nenhum efeito |
+**Selecionada: Alternativa C — marcador local de publicação validada.**
 
-**Nenhuma ação candidata virou decisão.** Os cenários 8 e 11 dependem de AB-2/AB-3.
+**Justificativa ancorada no invariante (§1),** não em contagem de linhas:
 
-> **Correção ao roteiro:** o cenário 5 ("crash depois da persistência de caminhos, mas antes de `READY`") **não existe neste código** — caminhos e `READY` são gravados na mesma chamada `setPackEntry` (`:432-440`). Registro em vez de inventar um passo para preenchê-lo.
-
----
-
-## 5. Evidência local disponível para validar offline
-
-### 5.1 O que está no diretório final (fato, executado)
-
-O `manifest.json` **está lá** — foi baixado para o `.tmp` e **movido junto**. Logo o disco contém, sem rede:
-
-| Dado | Onde | Suficiente para validar? |
+| | Por que não | Por que C |
 |---|---|---|
-| Manifesto local | `<final>/manifest.json` | **sim** — schema completo |
-| Lista de arquivos | `manifest.files[]` | sim |
-| Hash individual | `manifest.files[].sha256` | sim |
-| Tamanho | `manifest.files[].bytes` | sim |
-| Versão | `manifest.version` + nome do diretório `<storyId>@<version>` | sim — **cruzáveis entre si** |
-| `storyId` | `manifest.metadata.storyId` + nome do diretório | sim — cruzáveis |
-| `kinds` | `manifest.files[].kind` | sim |
-| Caminho do manifesto | derivável de `getPackLocalDir` | sim |
-| `totalBytes` | `manifest.totalBytes` (= Σ `files[].bytes`, exigido pelo schema) | sim |
-| **`manifestSha256` (âncora)** | **NÃO ESTÁ NO DISCO** — só no manifesto global (rede). O índice não o guarda (grep vazio em `packStorageService.js`) | **não** — ver §5.3 |
-| Marcador de publicação completa | **não existe** | — |
-
-### 5.2 Classificação dos dados
-
-- **Já no diretório:** manifesto, arquivos, hashes, tamanhos, versão, storyId, kinds.
-- **Já no índice:** `status`, `version`, `localDir`/`manifestPath` (**recompostos na leitura**, não confiáveis como persistidos), `totalBytes`/`downloadedBytes` (**podem estar estale** — §3.2).
-- **Só em memória:** o `pack` do manifesto global (baseUrl, manifestPath, `manifestSha256`) — perdido no crash.
-- **Precisariam ser persistidos antes do move:** apenas o `manifestSha256`, **se** a decisão for exigir a âncora na promoção (Alternativa B/C).
-- **Não necessários para C:** `baseUrl`, `manifestPath` remoto, `appVersion`.
-- **Pertencem ao bloco D:** a identidade resolvida completa (7 campos). **Este plano não a antecipa.**
-
-### 5.3 O limite da validação offline (risco a registrar)
-
-Offline é possível provar que **o diretório é internamente consistente com o próprio manifesto** e que **a identidade bate com o nome do diretório** (`storyId@version` × `manifest.metadata.storyId`/`manifest.version`).
-
-**Não** é possível provar, offline, que aquele `manifest.json` é **o que o R2 ancorou** — a âncora não está no disco.
-
-Avaliação: o conteúdo chegou ao `localDir` pelo **nosso** `move`, a partir do **nosso** `.tmp`, que **foi** validado contra a âncora (`:307-316`). Plantar um diretório auto-consistente exigiria acesso ao sandbox do app — fora do modelo de ameaça. O princípio 2 aprovado exige "validar o **conteúdo e a identidade**", e ambos são verificáveis localmente. **Portanto o contrato aprovado é satisfazível offline** — mas o limite fica registrado como risco residual, e a Alternativa B/C existe justamente para fechá-lo.
+| **A** (revalidar o final e promover) | Prova que o diretório é **auto-consistente com o próprio manifesto**, mas **não** que aquele manifesto é o que o R2 **ancorou** — o `manifestSha256` **não está no disco nem no índice** (§5.3). Isso **fere o invariante**, que exige evidência do *manifesto ancorado*. | — |
+| **B** (journal antes do move) | Guardaria a âncora, mas o journal é **estado fora do pack**: precisa ser limpo, pode ficar órfão sozinho, e cria um segundo problema transacional para resolver o primeiro. | — |
+| **D** (reinstalar sempre) | **Eliminada pelo princípio 6 aprovado** — sempre depende de rede. É o comportamento de hoje. | — |
+| **C** (marcador dentro do pack) | — | A evidência **viaja com o conteúdo**: o mesmo `moveAsync` que publica os arquivos publica a prova de que eles foram validados. Não há estado a limpar, não há órfão de journal, e a atomicidade é a **do próprio move**. Marcador presente ⇒ tudo foi validado **antes** da publicação. É exatamente o invariante, materializado. |
 
 ---
 
-## 6. Alternativas arquiteturais
+## 5. Evidência local (fato, executado)
 
-**Eliminada pelo contrato, não por preferência:** a **Alternativa D** ("considerar toda publicação sem `READY` inválida e reinstalar") **viola o princípio 6 aprovado** — *"Recovery não pode depender de rede quando o disco já contém evidência suficiente"* —, porque sempre exige rede. É exatamente o comportamento de hoje (retry re-baixa: verificado, 2 downloads). Fica registrada como **linha de base**, não como candidata.
+### 5.1 O que já está no diretório final
 
-| Critério | **A** — revalidar o final na reconciliação e promover | **B** — journal/intenção antes do move, finalizar no próximo boot | **C** — marcador atômico de publicação completa |
-|---|---|---|---|
-| Compat. com a arquitetura | **Alta** — reconciliação já existe (`packReconcileService` puro + casca no `PacksContext`) | Média — introduz artefato de estado novo | Média — introduz arquivo/marcador novo no pack |
-| Mudança mínima | `needsDiskCheck` (hoje só `READY`) + uma casca de validação + promoção via `setPackEntry` | escrita extra **antes** do move + leitor no boot + limpeza do journal | escrita do marcador **depois** do move + leitura na reconciliação |
-| Recuperação offline | **Sim** (§5.1) | **Sim** — e com a âncora, se o journal a persistir | Sim |
-| Segurança contra falso `READY` | Boa: valida tudo. **Não prova a âncora** (§5.3) | **Melhor**: o journal pode guardar o `manifestSha256` → âncora verificável offline | Boa: o marcador prova "nós publicamos", mas não prova integridade sozinho — ainda exige validar |
-| Preserva versão anterior | Sim (não destrói nada; só promove) | Sim | Sim |
-| Idempotência | Natural (validar+promover é idempotente) | Exige apagar o journal ao concluir — mais estado a manter coerente | Natural |
-| Complexidade | **Menor** | **Maior** (2 escritas extras + limpeza + estado órfão do próprio journal) | Média |
-| Migração | Nenhuma | Nenhuma (journal ausente = nada a fazer) | **Packs já instalados não têm o marcador** → precisaria de fallback ou seriam vistos como não-publicados |
-| Android/iOS | Igual — `getInfoAsync`/`readAsStringAsync` já usados nos dois | Igual | Igual |
-| Relação com D/E/F | **Neutra** — usa a identidade atual (`storyId@version`) | **Toca D**: o journal guardaria `manifestSha256`, que é campo da identidade resolvida → **risco de antecipar D** | Neutra |
-| Provas exigidas | promover válido; não promover incompleto/corrompido; idempotência; sem rede; preservar anterior | idem + journal escrito/limpo + crash durante o journal | idem + marcador + compat. com packs legados |
-| Mutantes possíveis | promover só por existir; ignorar hash/bytes/ausente; exigir rede; não idempotente | não escrever o journal; não limpar; confiar no journal sem validar | escrever o marcador antes do move; confiar só no marcador |
+O `manifest.json` **está lá** — foi baixado no `.tmp` e **movido junto**.
 
-**Nenhuma escolha é feita aqui.** A escolha depende de AB-2 e AB-3 (§8) — e a Alternativa B em especial esbarra no limite de escopo com D.
-
----
-
-## 7. Plano técnico — parte não bloqueada
-
-1. **Causa raiz (fato):** a publicação (`move`, `:429`) e o registro (`setPackEntry READY`, `:432`) são **dois passos não atômicos**, e **nada** no sistema reconcilia o disco quando o segundo não acontece: `collectPackProbes` (`packReconcileService.js:77+`) percorre **o índice** e só sonda entries **`READY`** (`needsDiskCheck`, `:31-32`). Um pack completo no disco fica invisível.
-2. **Invariante central (do contrato aprovado):** *um pack só é promovido a `READY` com evidência local de que o conteúdo e a identidade estão íntegros — nunca por existir; nunca dependendo de rede quando o disco basta; sempre idempotente.*
-3. **Arquivos candidatos** (**nenhum tocado nesta etapa**):
-   - `src/services/packReconcileService.js` — núcleo **puro** (regra de decisão). Hoje `needsDiskCheck` só admite `READY`.
-   - `src/context/PacksContext.js` — casca de I/O da reconciliação (`probePackDisk`, `:59-69`).
-   - `src/services/packStorageService.js` — **área protegida**; só se a promoção exigir escrita nova (a existente `setPackEntry` deve bastar).
-   - `scripts/smoke.js` + `scripts/testing/packInstallHarness.js` — provas.
-   - **[BLOQUEADO]** um serviço novo de recovery e/ou o ponto de disparo dependem de **AB-3**.
-4. **Funções candidatas:** `needsDiskCheck`, `collectPackProbes`, `reconcileEntry` (puras); `probePackDisk` (casca); **[BLOQUEADO]** a função de validação local e a de promoção dependem da alternativa escolhida.
-5. **Ordem de execução:** **[BLOQUEADO]** — depende de AB-2/AB-3.
-6. **Compatibilidade:** nenhuma migração de dados. Índices legados sem `errorMessage` normalizam igual (já provado, `3485b95`). Packs já instalados e `READY` **não podem** ser afetados.
-7. **Rollback:** o bloco é aditivo — não altera o caminho de instalação. Reverter = reverter o commit. Nenhum dado do usuário muda de forma irreversível (o recovery só **promove**; nunca apaga).
-8. **Packs anteriores:** intocáveis. O princípio 3 ("não destruir por inferência incompleta") e a prova `smoke.js` "§13" seguem valendo.
-9. **Temporários:** fora do escopo — o `.tmp` já é consumido pelo move; `.tmp` órfão de crash anterior é limpo pelo próximo download (`:292`). Política de cache **não** entra aqui.
-10. **Estados do índice:** só `downloading` (C1) e ausente (C2) interessam. **[BLOQUEADO]** `failed` + disco completo (cenário 8) depende de AB-2/AB-3.
-11. **Reentrada/idempotência:** exigidas pelo princípio 5; a estratégia depende da alternativa.
-12. **Política de rede:** princípio 6 — **nenhuma chamada de rede** quando o disco basta. Prova: contar `fetch-global-manifest` e `download:` no harness (= 0).
-13. **Exclusões:** identidade resolvida (D), progresso (E), cancelamento (F), política de cache, `errorMessage` (`3485b95` congelado), UI, assets, dependências.
-14. **Critérios de aceite:** os 6 da spec §6.6, mais os que AB-2/AB-3 determinarem.
-15. **Gates:** classe "recovery de crash" (spec §12) — smoke + Babel + mutation checks + `expo-doctor` + `expo install --check` + `git diff --check` + revisão adversarial + hashes + **validação no iPhone pelo Eduardo**.
-16. **Riscos residuais:** §5.3 (âncora não verificável offline); custo de validação no boot (**AB-3**); cenário 2 (crash *durante* o move) não é provável no harness — só device.
-
----
-
-## 8. ⛔ Decisão pedida ao Eduardo (Portão Humano 2 parcial)
-
-### AB-2 — Recuperar o caso C2 (instalação nova) exige varrer o disco. Varremos?
-
-**Evidência:** `collectPackProbes` é *index-driven* e só sonda `READY`. C2 não tem entrada → invisível. `readDirectoryAsync` nunca foi usado no projeto. **C2 é provavelmente o caso mais comum** (toda primeira instalação).
-
-| Opção | Consequência |
-|---|---|
-| **Só C1** (sem varredura) | Corrige o caso **raro** (re-download da mesma versão). O caso comum segue exigindo rede. Mudança menor, zero I/O novo no boot. |
-| **C1 + C2** (com varredura de `packs/`) | Corrige o caso comum. Introduz `readDirectoryAsync` — padrão novo. Custo: listar **um** diretório (barato); **validar** cada candidato é que custa (hash de todos os arquivos). |
-
-### AB-3 — Onde o recovery roda?
-
-| Opção | Consequência |
-|---|---|
-| **Boot** | Recupera antes de o usuário perceber. **Custa tempo de abertura** — exatamente o que esta trilha existe para proteger. Hash de todos os arquivos de um pack pode custar segundos. |
-| **Sob demanda** (ao abrir a história) | Custo zero no boot; o usuário só espera quando vai usar aquele pack. Mas a Estante mostra "não baixado" até ele tentar. |
-| **Ao focar a tela de histórias** | Meio-termo; complexidade de disparo. |
-
-**Interação:** varrer no boot (AB-2 = C1+C2, AB-3 = boot) é a combinação mais cara. Sob demanda + só a história pedida é a mais barata e resolve o caso que importa **no momento em que importa**.
-
-**Não escolho.** As duas decisões mudam arquitetura e experiência, e a spec §15 as declarou abertas com aprovação do Portão 1.
-
----
-
-## 9. Estratégia de provas (planejada, não escrita)
-
-Todas pelo **harness real** (`packInstallHarness.js`) + downloader real. Mocks que contornem move, storage ou reconciliação **não servem** como prova principal (spec §12, classe "recovery de crash").
-
-| # | Prova | Como |
+| Dado | Onde | Suficiente? |
 |---|---|---|
-| 1 | Crash depois do move e antes do `READY` | hook `onBefore('set-entry', ':ready')` — já existe e já é usado (`smoke.js` "§7.4") |
-| 2 | Reinicialização | nova instância de serviço/contexto sobre o **mesmo** `mem`/índice |
-| 3 | Recuperar **sem rede** | contar `fetch-global-manifest` e `download:` = **0** |
-| 4 | Completo é promovido | índice → `ready`, caminhos coerentes |
-| 5 | **Incompleto não** é promovido | remover um arquivo do final antes do recovery |
-| 6 | **Corrompido não** é promovido | trocar bytes **preservando o tamanho** (senão a checagem de bytes reprova antes e o hash não é exercitado — lição do bloco B) |
-| 7 | Idempotência | rodar 2× e comparar assinatura observável |
-| 8 | Retry depois do recovery | `ok`, sem download redundante |
-| 9 | `READY` anterior preservado | pack anterior íntegro antes e depois |
-| 10 | Sem operação ativa após restart | `inFlightInstallCount() === 0` |
-| 11 | Índice e FS convergem | entry × disco |
-| 12 | Não mexe em `errorMessage` | as provas de `3485b95` seguem verdes |
-| 13 | Não mexe em single-flight/filas | as provas de `6466c75`/`1c84773` seguem verdes |
-| 14 | Sem dependência de D/E/F | nenhuma referência a identidade resolvida/progresso/cancelamento |
+| Manifesto local, lista de arquivos, `sha256`/`bytes` por arquivo, `version`, `metadata.storyId`, `kinds`, `totalBytes` | `<final>/manifest.json` | sim |
+| Nome do diretório `<storyId>@<version>` | filesystem | sim — **cruzável** com o manifesto |
+| **`manifestSha256` (âncora)** | **NÃO ESTÁ** — só no manifesto global (rede); o índice não o guarda | **não** |
+| Marcador de publicação | **não existe hoje** | — |
+
+### 5.2 Classificação
+
+- **No diretório:** manifesto + arquivos + hashes + tamanhos + identidade parcial.
+- **No índice:** `status`, `version`, caminhos (**recompostos na leitura**), `totalBytes` (**pode estar estale** — §3.2).
+- **Só em memória (perdido no crash):** o `pack` do manifesto global — inclusive `manifestSha256`.
+- **A persistir antes do move:** **o marcador** (§6) — é a peça que falta.
+- **Não necessários para C:** `baseUrl`, `manifestPath` remoto.
+- **Pertencem a D:** a coordenação de identidade **entre solicitações**. Não antecipados aqui.
+
+### 5.3 A lacuna que o marcador fecha
+
+Sem marcador, offline só se prova auto-consistência — **não** que o manifesto é o ancorado. Com marcador escrito **após** a validação da âncora, a evidência da âncora passa a existir no disco. É por isso que a Alternativa A não basta.
 
 ---
 
-## 10. Mutation plan (planejado)
+## 6. Contrato do marcador
 
-Em memória (`loadModule`/`loadPackDownloader` com `mutate`), **nunca** no working tree. Guarda antitautológica obrigatória: mutação que não aplica **estoura** (já implementada, `packInstallHarness.js`).
+### 6.1 Nome e localização
+
+- **Nome:** `.ptf-publish.json` (ponto inicial = convenção de metadado interno, não conteúdo).
+- **Local:** raiz do diretório do pack — escrito em `${tempDir}.ptf-publish.json`, transportado pelo `moveAsync` para `${localDir}.ptf-publish.json`.
+
+> **⚠ Achado da auditoria — colisão de nome é alcançável.** O schema só rejeita `path` que começa com `/` ou contém `..` (`packManifestService.js:38-42`; filtro em `packDownloadService.js:336-337`). **Nada impede** um manifesto de declarar `files[].path = ".ptf-publish.json"`. Como o marcador é escrito **depois** dos downloads, ele **sobrescreveria** o arquivo declarado — e o verify já teria passado, publicando um pack com conteúdo corrompido em silêncio.
+>
+> **Regra obrigatória:** rejeitar (via `failWith`) qualquer manifesto cujo `files[].path` colida com o nome do marcador. É uma checagem nova e necessária, no filtro do downloader. Mutante 11 e prova 21 cobrem isso.
+
+### 6.2 Schema
+
+```json
+{
+  "schemaVersion": 1,
+  "storyId": "david_goliath",
+  "version": "1.0.0",
+  "manifestSha256": "<64-hex minúsculo>",
+  "manifestPath": "manifest.json",
+  "kinds": ["audio", "scene"],
+  "appVersion": "1.0.0"
+}
+```
+
+Sem segredos, sem URLs (o `baseUrl` é temporário e não pertence à evidência). `kinds` normalizados e ordenados, como em `packInstallKey`. `manifestSha256` em minúsculas, como o downloader já normaliza (`:310`).
+
+### 6.3 Quando é escrito
+
+**Somente depois** de todas estas validações — que já existem no fluxo:
+
+| # | Validação | Linha atual |
+|---|---|---|
+| 1 | Manifesto global resolvido | `:241-243` |
+| 2 | `manifestSha256` ancorado confirmado | `:310-316` |
+| 3 | Manifesto local validado (schema) | `:323-324` |
+| 4 | `storyId` e `version` confirmados | `:327-332` |
+| 5 | Lista de arquivos + contagem por kind | `:336-346`, `:407-409` |
+| 6 | Tamanho de cada arquivo | `:398` |
+| 7 | `sha256` de cada arquivo | `:399-403` |
+| 8 | Compatibilidade (`requiresAppUpdate`, `minAppVersion`) | `:246-248`, `:323` |
+
+**Ponto exato:** logo após `if (errors.length) return failWith(...)` (`:410`) e **antes** do `throwIfCancelled` (`:412`) — ou seja, dentro da região já validada e **antes** do swap. Escrito no `.tmp`, viaja no move.
+
+### 6.4 Escrita segura
+
+- `writeAsStringAsync(${tempDir}.ptf-publish.json, JSON.stringify(marker))`.
+- Uma escrita, arquivo pequeno, **dentro do `.tmp`** — se falhar, `failWith` limpa o `.tmp` e o pack anterior é preservado (comportamento já provado).
+- **Não** exige atomicidade própria: o `.tmp` **não é conteúdo servido**. A atomicidade que importa é a do `moveAsync`, que publica marcador e arquivos **juntos**.
+
+### 6.5 Validação do marcador no recovery
+
+1. Existe? Senão → **não recuperável** (§7).
+2. `JSON.parse` ok? `schemaVersion === 1`? Senão → não recuperável.
+3. Campos obrigatórios presentes e bem formados (`manifestSha256` = 64-hex)?
+4. `storyId` **bate** com o solicitado **e** com o nome do diretório **e** com `manifest.metadata.storyId`?
+5. `version` **bate** com o nome do diretório **e** com `manifest.version`?
+6. `sha256` real do `<final>/manifest.json` **bate** com `marker.manifestSha256`? — **este é o elo que fecha a lacuna §5.3.**
+7. Cada arquivo de `manifest.files[]` dos `kinds` do marcador: existe, `bytes` batem, `sha256` bate?
+8. Só então → promover.
+
+### 6.6 Compatibilidade futura
+
+`schemaVersion` presente desde o início. Marcador com `schemaVersion` desconhecido → **não recuperável** (conservador), nunca "tenta adivinhar".
+
+### 6.7 Ausente / incompleto / divergente
+
+| Situação | Ação | Razão |
+|---|---|---|
+| **Ausente** | **Não promover.** Seguir para o fluxo normal (pode usar rede). | Sem marcador não há evidência do manifesto **ancorado** (§5.3) — o invariante não é satisfeito. |
+| **Incompleto** (falta campo, JSON inválido, `schemaVersion` desconhecido) | **Não promover.** | Idem. Conservador. |
+| **Divergente** do diretório/manifesto (storyId, version, `manifestSha256`, arquivo, byte) | **Não promover.** | Evidência contraditória é pior que ausente. |
+
+Em **todos** os casos: **não destruir** o candidato (princípio 3 + §8).
+
+---
+
+## 7. Fluxos
+
+### 7.1 Instalação normal (com marcador) — mudança mínima
+
+```
+… verify de todos os arquivos (:392-410)
+  └─ errors? → failWith                                    [inalterado]
+  ├─ NOVO: escrever .ptf-publish.json no .tmp              ← única escrita nova
+  ├─ throwIfCancelled (:412)                               [inalterado]
+  ├─ preExisting? → setPackEntry(DOWNLOADING) (:425-427)   [inalterado]
+  ├─ deleteAsync(localDir) (:428)                          [inalterado]
+  ├─ moveAsync(.tmp → localDir) (:429)   ← publica arquivos E marcador juntos
+  └─ setPackEntry(READY, …) (:432-440)                     [inalterado]
+```
+
+Mais a regra de colisão de nome (§6.1) no filtro de `files[]`.
+
+### 7.2 Recovery sob demanda
+
+```
+solicitação do pack da história (storyId)
+  │
+  ├─ 1. operação ativa para esta história? ──sim──► não faz nada; deixa o fluxo normal seguir
+  │       (o recovery NÃO compete com uma instalação em andamento)
+  │
+  ├─ 2. ler o índice (getPackEntry)
+  │       ├─ status === READY ──────────────────► nada a recuperar; fluxo normal
+  │       └─ senão (downloading | failed | ausente) → segue
+  │
+  ├─ 3. reunir candidatos SÓ desta história
+  │       ├─ C1: entry.version existe? → candidato direto = getPackLocalDir(storyId, entry.version)
+  │       │       (getInfoAsync; NÃO lista o diretório)
+  │       └─ C2/complemento: readDirectoryAsync(`${doc}packs/`)
+  │               → filtrar nomes: descartar '.tmp'; manter apenas `${storyId}@*`
+  │               → NUNCA abrir nomes de outras histórias
+  │
+  ├─ 4. validar cada candidato desta história (§6.5) — marcador → manifesto → identidade → arquivos
+  │
+  ├─ 5. decidir (§8)
+  │       ├─ exatamente 1 válido  → promover READY (via setPackEntry, dentro da fila)
+  │       ├─ 0 válidos           → não promove; fluxo normal (pode usar rede)
+  │       └─ 2+ válidos          → AMBÍGUO: não escolhe; fluxo normal resolve a identidade
+  │
+  └─ 6. devolver ao chamador: recuperado (pronto) ou "prossiga para download"
+```
+
+**Custo no caminho feliz:** um `getPackEntry` (já feito pelo fluxo) + **zero** I/O quando o índice já está `READY`. O `readDirectoryAsync` só ocorre quando o índice **não** está `READY` — isto é, quando o app já ia baixar de qualquer forma.
+
+---
+
+## 8. Múltiplos candidatos (política congelada)
+
+1. **C1:** priorizar o candidato da versão indicada pelo índice.
+2. **Mesmo em C1: validar integralmente.** O índice não é evidência (§3.2).
+3. **C2:** um **único** candidato integralmente válido **e com marcador válido** pode ser recuperado.
+4. Candidatos inválidos **não** contam como opção; sua remoção respeita a política segura (item 8).
+5. Com **2+ válidos**, **proibido** escolher por: maior versão · data mais recente · ordem do filesystem · nome lexicográfico.
+6. Havendo ambiguidade → **o fluxo normal resolve a identidade esperada** (busca o manifesto global).
+7. Depois de resolvida, **somente** o candidato correspondente pode ser recuperado.
+8. **Nenhum pack válido é destruído** antes de a recuperação/substituição terminar com sucesso.
+
+> **Quando 2+ candidatos válidos são possíveis?** Duas versões da mesma história instaladas (`story@1.0.0` e `story@2.0.0`) — o bump **não apaga** o diretório antigo (spec §7.5.2, vazamento conhecido, cache = fora da trilha). Ambos podem ter marcador válido. **Nenhum é "o certo" sem saber a versão esperada** — que só o manifesto global diz. Daí a regra 6.
+
+**Packs legados (sem marcador) — congelado:**
+
+1. **Nunca** promovidos automaticamente a `READY`.
+2. Ausência de marcador = **não há evidência local do `manifestSha256` ancorado**.
+3. **Não destruir** antes de substituição segura.
+4. O fluxo normal pode **resolver o manifesto de novo** para decidir se o candidato antigo corresponde ao esperado.
+5. **Rede é permitida** quando a evidência local é insuficiente — o princípio 6 se aplica *"quando o disco já contém evidência suficiente"*, e aqui não contém. **Não há violação.**
+6. **Sem migração retroativa insegura.**
+7. **Decisão recomendada:** candidatos antigos **permanecem** (nem quarentena, nem remoção). A substituição já ocorre naturalmente: o fluxo normal faz `deleteAsync(localDir)` + `move` da mesma versão, ou instala outra versão em outro diretório. Criar quarentena seria estado novo a manter; remover seria garbage collection — **ambos fora do escopo**.
+
+---
+
+## 9. Interações
+
+| Com | Como |
+|---|---|
+| **Índice** | Ler por `getPackEntry`. Promover por `setPackEntry(READY, {version, localDir, manifestPath, totalBytes, downloadedBytes, errorMessage: null})` — **a mesma** escrita do fluxo normal. `totalBytes` vem do **manifesto do disco**, nunca do índice (§3.2). |
+| **`runSerialized`** | A promoção passa por `setPackEntry`, que já roda **inteiro** dentro da fila (`packStorageService.js:129`). **Nada a fazer** — e nada pode contorná-la. |
+| **Fila por história** | O recovery **deve** rodar dentro de `runExclusiveByStory(storyId)`, senão poderia ler o disco enquanto uma instalação faz `delete`/`move` da mesma história. É a mesma fila física; reusar, não criar outra. |
+| **Single-flight** | O recovery **não** cria voo nem entra em `inFlightInstalls`. Se há voo ativo para a história, o recovery **não roda** (§7.2 passo 1): quem está instalando vai gravar `READY` de qualquer forma. |
+| **`errorMessage`** | A promoção passa `errorMessage: null` → **limpa** (contrato `3485b95`). Coerente: o pack está pronto. **Não reabrir** a semântica. |
+| **Reconciliação** | **Não alterar** `needsDiskCheck`. Ele existe para rebaixar `READY` **inválido** em memória; o recovery é o caminho oposto (promover com evidência) e é **sob demanda**, não na reconciliação. Mantê-los separados evita que o boot herde custo. |
+
+---
+
+## 10. Idempotência, crash no recovery e rollback
+
+- **Idempotente:** validar+promover não tem efeito colateral acumulativo. Rodar 2× → o 2º vê `READY` e sai no passo 2 (§7.2). Prova 7/16.
+- **Crash durante o recovery:** a única escrita é o `setPackEntry(READY)` final, **depois** de toda a validação, e `AsyncStorage.setItem` grava a chave inteira de uma vez (`packStorageService.js:88-97` documenta: "não há escrita parcial de meia entrada"). Logo: **ou promoveu, ou não**. Um recovery interrompido antes disso não deixa efeito nenhum.
+- **Rollback:** o bloco é **aditivo**. O recovery só **promove**; nunca apaga. Reverter = reverter o commit; nenhum dado do usuário muda de forma irreversível. O marcador em packs já instalados vira arquivo inerte e ignorado.
+
+---
+
+## 11. Política de rede
+
+- **Zero rede** quando um candidato **inequívoco** tem evidência local suficiente (marcador válido + manifesto + arquivos). Prova: `fetch-global-manifest` e `download:` = **0**.
+- **Rede permitida** quando: não há candidato; nenhum é válido; falta marcador (legado); ou há **ambiguidade** (2+ válidos). Nesses casos o disco **não** contém evidência suficiente — o princípio 6 não se aplica.
+
+---
+
+## 12. Arquivos e funções candidatos (**nenhum tocado**)
+
+| Arquivo | Mudança prevista |
+|---|---|
+| **`src/services/packPublishMarker.js`** *(novo)* | Núcleo **puro**: `buildPublishMarker(...)`, `validatePublishMarker(marker, {storyId, version, manifest})`, `MARKER_FILENAME`. Sem I/O — testável como `packReconcileService`. |
+| **`src/services/packRecoveryService.js`** *(novo)* | Casca do recovery: candidatos (C1 direto / C2 direcionado), leitura, validação, promoção. Recebe deps por injeção (padrão `1c84773`). |
+| `src/services/packDownloadService.js` | (a) escrever o marcador no `.tmp` após `:410`; (b) rejeitar colisão de `path` com o marcador no filtro `:336-337`; (c) chamar o recovery no início do fluxo, dentro da fila. |
+| `src/services/packStorageService.js` | **Área protegida — não alterar.** `setPackEntry` já basta. |
+| `src/services/packReconcileService.js` | **Não alterar** (§9). |
+| `scripts/testing/packInstallHarness.js` | Duas APIs novas no FS em memória — **`readDirectoryAsync`** (auditado: existe no `expo-file-system/legacy`, `FileSystem.d.ts:88`) e **`writeAsStringAsync`** (`:58`), que o marcador usa e o double **ainda não tem**. Mais helper para semear órfão com/sem marcador. Ambas devem **falhar onde o real falha** (ler diretório inexistente lança; escrever sem diretório-pai lança — a lição do achado A do bloco A). |
+| `scripts/smoke.js` | Bloco `LP2.1a-ii-C`. |
+
+## 13. Ordem exata de implementação
+
+1. `packPublishMarker.js` (puro) + provas do núcleo.
+2. `readDirectoryAsync` no harness + helpers de órfão (com/sem marcador).
+3. Escrita do marcador no fluxo normal + **regra de colisão** + provas 13/21.
+4. `packRecoveryService.js` (candidatos + validação + promoção) + provas 1–12.
+5. Ligação sob demanda no downloader, dentro da fila + provas 14–20.
+6. Mutation checks (§15).
+7. Revisão adversarial + gates + validação no iPhone.
+
+Cada passo mantém o smoke verde. Passos 1–2 não mudam comportamento; o passo 3 muda o conteúdo publicado (mais um arquivo) — atenção a `listFiles` nas provas do bloco B.
+
+---
+
+## 14. Estratégia de provas
+
+Todas pelo **harness real** + downloader real. Mocks que contornem move, storage ou reconciliação **não servem** (spec §12, classe "recovery de crash").
+
+**Base (14, do plano anterior):** crash depois do move · restart · recuperar sem rede · completo promovido · incompleto **não** · corrompido **não** (byte trocado **preservando tamanho**) · idempotência · retry depois do recovery · `READY` anterior preservado · sem operação ativa após restart · índice e FS convergem · não mexe em `errorMessage` · não mexe em single-flight/filas · sem dependência de D/E/F.
+
+**Adicionais (20, exigidas):**
+
+| # | Prova |
+|---|---|
+| 1 | C2 com **um** candidato válido → promovido |
+| 2 | C2 com candidato **sem marcador** → não promovido |
+| 3 | C2 com **marcador inválido** (JSON quebrado / `schemaVersion` desconhecido) → não promovido |
+| 4 | C2 com **dois candidatos, um válido** → promove o válido |
+| 5 | C2 com **dois válidos**, identidade não resolvida → **não escolhe**; devolve ao fluxo normal |
+| 6 | Resolução posterior escolhe o candidato **correto** |
+| 7 | **Ordem do filesystem não influencia** — mesma entrada, `readDirectoryAsync` devolvendo ordem invertida → **mesmo** resultado |
+| 8 | Marcador com `storyId` divergente → não promovido |
+| 9 | Marcador com `version` divergente → não promovido |
+| 10 | Marcador com `manifestSha256` divergente → não promovido |
+| 11 | Marcador válido + **manifesto alterado** → não promovido (o hash do manifesto não bate) |
+| 12 | Marcador válido + **arquivo alterado** → não promovido |
+| 13 | Crash **depois do marcador, antes do move** → `.tmp` tem marcador, final intacto; nada promovido |
+| 14 | Crash **depois do move, antes do `READY`** → recuperado |
+| 15 | Crash **durante a promoção** → ou promoveu, ou não; nunca meio-termo |
+| 16 | Recovery repetido **depois** de promoção concluída → no-op |
+| 17 | Pack **legado sem marcador preservado** até substituição segura |
+| 18 | **Nenhum acesso a candidatos de outras histórias** — semear `noah@1.0.0`; contar eventos: nenhum `read:`/`hash:` em `noah` |
+| 19 | **Nenhuma varredura no boot** — nenhum `readDirectoryAsync` sem solicitação |
+| 20 | **Zero rede** com candidato inequívoco |
+| 21 | Manifesto que declara `path` = nome do marcador → **rejeitado** (§6.1) |
+
+---
+
+## 15. Mutation checks
+
+Em memória (`loadModule`/`loadPackDownloader` com `mutate`), **nunca** no working tree. Guarda antitautológica já implementada: mutação que não aplica **estoura**.
+
+**Base (14):** promover só por existir · ignorar ausente · ignorar hash · ignorar tamanho · exigir rede · apagar `READY` anterior · não idempotente · manter `DOWNLOADING` para sempre · promover versão/história incompatível · limpar antes de validar · não persistir `READY` · caminhos inconsistentes · retry re-baixar à toa · misturar com identidade resolvida.
+
+**Adicionais (15):**
 
 | # | Mutante | Morre por |
 |---|---|---|
-| 1 | Promover `READY` só porque o diretório existe | prova 5 e 6 |
-| 2 | Ignorar arquivo ausente | prova 5 |
-| 3 | Ignorar hash divergente | prova 6 |
-| 4 | Ignorar tamanho divergente | prova 6 (variante de tamanho) |
-| 5 | Exigir rede mesmo com evidência local | prova 3 |
-| 6 | Apagar `READY` anterior válido | prova 9 |
-| 7 | Recovery não idempotente | prova 7 |
-| 8 | Manter `DOWNLOADING` indefinidamente | prova 4 (princípio 4) |
-| 9 | Promover versão/história incompatível | prova de identidade (manifesto × nome do diretório) |
-| 10 | Limpar o diretório antes de validar | prova 9 |
-| 11 | Não persistir `READY` | prova 4 |
-| 12 | Deixar caminhos inconsistentes no índice | prova 11 |
-| 13 | Retry re-baixar desnecessariamente | prova 8 |
-| 14 | Misturar recuperação com identidade resolvida | prova 14 |
+| 1 | Aceitar candidato **sem marcador** | prova 2 |
+| 2 | Ignorar `manifestSha256` divergente | prova 10/11 |
+| 3 | Aceitar marcador **incompleto** | prova 3 |
+| 4 | Escolher **o primeiro** candidato retornado | provas 5 e 7 |
+| 5 | Escolher a **maior versão** sem identidade resolvida | prova 5 |
+| 6 | Validar **todos** os packs da raiz | prova 18 |
+| 7 | Executar recovery **no boot** | prova 19 |
+| 8 | Apagar candidato antigo antes de substituição segura | prova 17 |
+| 9 | Promover `READY` antes de validar todos os arquivos | prova 12 |
+| 10 | Reutilizar `totalBytes` **do índice** | prova 11 (índice tem valor estale — §3.2) |
+| 11 | Aceitar marcador **de outra história** | prova 8 |
+| 12 | Aceitar marcador **de outra versão** | prova 9 |
+| 13 | **Não serializar** a promoção (escrever fora de `setPackEntry`) | provas PK-02 existentes |
+| 14 | Rodar recovery **em paralelo** com instalação ativa da mesma história | prova de concorrência (fila) |
+| 15 | Re-baixar mesmo após recuperação inequívoca | prova 20 |
 
-**Critério:** cada mutante morre por uma prova **específica**. Falha de sintaxe, âncora ausente ou infraestrutura **não conta** como mutante morto.
-
----
-
-## 11. Revisão adversarial do plano (read-only)
-
-18 lentes: falso positivo/negativo de recuperação; perda de pack anterior; conteúdo parcial; hash/tamanho; idempotência; crash durante recovery; concorrência; índice; filesystem; rede; Android; iOS; migração; testabilidade; ampliação para D/E/F; testes que passam por acidente; complexidade sem benefício.
-
-**Executada nesta etapa** sobre a auditoria e as alternativas — resultados no relatório da sessão. A revisão das **decisões** só faz sentido depois que AB-2/AB-3 forem resolvidas.
+Cada mutante morre por prova **específica**. Erro de sintaxe, âncora ou infraestrutura **não conta** como mutante morto.
 
 ---
 
-## 12. O que este plano NÃO faz
+## 16. Gates
 
-Não escreve código. Não escolhe alternativa. Não resolve AB-2 nem AB-3. Não toca os arquivos candidatos. Não inicia D, E ou F. Não reabre `errorMessage` (`3485b95`) nem a decisão da spec §5.3.
+Classe **"recovery de crash"** (spec §12): smoke + Babel dos arquivos de aplicação + mutation checks codificados + `expo-doctor` + `expo install --check` + `git diff --check` + revisão adversarial read-only + integridade de hashes + **validação real no iPhone pelo Eduardo**. Único drift autorizado: `expo@54.0.35` → `~54.0.36`.
+
+## 17. Exclusões
+
+Identidade resolvida (D) · progresso (E) · cancelamento (F) · política de cache/garbage collection (inclui o diretório da versão antiga) · `errorMessage` (`3485b95`) · reconciliação (`needsDiskCheck`) · UI · assets · áudios · dependências · builds.
+
+## 18. Critérios de aceite
+
+1. Um órfão **com marcador válido** e conteúdo íntegro é promovido a `READY` **sem rede**.
+2. Órfão **sem marcador**, com marcador inválido/divergente, ou com conteúdo incompleto/corrompido **não** é promovido.
+3. Recovery é **idempotente**.
+4. **Nenhum** candidato de outra história é aberto.
+5. **Nenhuma** varredura ocorre no boot.
+6. Com **2+ candidatos válidos**, nada é escolhido arbitrariamente.
+7. Packs válidos e legados **não** são destruídos.
+8. As provas de `6466c75`, `824aec1`, `478b0a5`, `1c84773`, `ead7f18`, `3485b95` seguem **verdes**.
+9. Todos os mutantes (§15) morrem por prova específica.
+10. Validação no iPhone pelo Eduardo.
+
+## 19. Riscos residuais
+
+1. **Colisão de nome do marcador** — alcançável hoje (§6.1); mitigada por regra nova + prova 21. **Se a regra falhar, publica-se conteúdo corrompido em silêncio.** É o risco mais sério do bloco.
+2. **Crash *durante* o `moveAsync`** — não reproduzível no harness (o FS em memória move atomicamente). Se a plataforma não garantir rename atômico, um diretório meio-movido teria marcador sem arquivos → **prova 12 o rejeita**. Verificação real só no device.
+3. **Packs legados** ficam sem recuperação offline até serem substituídos — aceito (§8).
+4. **Diretórios de versões antigas** acumulam no disco — vazamento conhecido, cache, fora da trilha.
+5. **`.tmp` órfão** de crash anterior — limpo pelo próximo download (`:292`).
+6. **O marcador aumenta o pack em um arquivo** — as provas do bloco B que contam `listFiles` precisarão de ajuste (previsto no passo 3 da §13).
+
+---
+
+## 20. 🚦 Portão Humano 2 — PENDENTE
+
+Este plano está **concluído** e aguarda aprovação. Nada será implementado antes dela.

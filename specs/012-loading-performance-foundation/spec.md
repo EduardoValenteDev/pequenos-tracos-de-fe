@@ -188,7 +188,13 @@ O bloco C **deve** começar por uma auditoria read-only que determine, com ânco
 3. Que **validação** é necessária e suficiente para promover — e qual é o custo dela no boot.
 4. Onde o recovery roda (boot? foco? sob demanda?) e quem o dispara.
 
-> **[ABERTO]** Nada disso é decidido aqui. **Não** determine antecipadamente que a presença do diretório basta para promover `READY`.
+> **[RESOLVIDO por decisão humana em 2026-07-16]** A auditoria foi executada (ver [plan-lp2.1a-ii-c.md](./plan-lp2.1a-ii-c.md) §3) e as decisões que dela dependiam foram tomadas pelo Eduardo:
+>
+> - **AB-2 (escopo):** o bloco C cobre **C1 e C2**. `readDirectoryAsync` está **aprovado**, restrito a **descoberta direcionada**: listar apenas os nomes da raiz de packs, filtrar de imediato pelo `storyId` solicitado e validar **somente** candidatos daquela história. **Proibido** varrer/validar todos os packs ou virar garbage collection.
+> - **AB-3 (disparo):** o recovery roda **sob demanda**, quando uma história pede o pack e **antes** de o sistema concluir que precisa baixar. **Sem varredura nem validação geral no boot.**
+> - **Direção arquitetural aprovada:** **Alternativa C — marcador local de publicação validada**, escrito no `.tmp` **depois** de todas as validações e **antes** do move, para ser transportado junto. Os detalhes (nome, schema, escrita segura, ausência/divergência) são do **plano**, não desta spec.
+>
+> Segue valendo: **não** determinar que a presença do diretório basta para promover `READY` (princípio 1).
 
 ### 6.4 Princípios congelados
 
@@ -208,7 +214,7 @@ O bloco C **deve** começar por uma auditoria read-only que determine, com ânco
 | # | Momento do encerramento | Estado esperado no disco | Estado no índice | Coberto hoje? |
 |---|---|---|---|---|
 | C1 | Depois do `move`, antes do `READY`, **com** pack anterior (`preExisting=true`) | final completo | `downloading` | Registrado (`smoke.js:9449`); **recovery não existe** |
-| C2 | Depois do `move`, antes do `READY`, **sem** pack anterior (instalação nova) | final completo | **entrada ausente** | **Não registrado** — auditar em C |
+| C2 | Depois do `move`, antes do `READY`, **sem** pack anterior (instalação nova) | final completo | **entrada ausente** | Auditado e **executado** (plan §3.2); **no escopo de C** (AB-2 resolvida) |
 | C3 | Depois do `delete`, antes do `move` | final **removido**, `.tmp` completo | `downloading` | Registrado (`smoke.js:9436`); **recovery não existe** |
 | C4 | Recovery interrompido pela metade | — | — | Exige idempotência (princípio 5) |
 
@@ -459,16 +465,18 @@ A trilha LP2 só pode ser declarada concluída quando **todos** forem verdade:
 
 Reunidas para o Portão Humano 1:
 
-| # | Em aberto | Bloco |
-|---|---|---|
-| 1 | Estados concretos do índice na janela de crash; metadados disponíveis; validação necessária e suficiente | C (§6.3) |
-| 2 | Se o órfão C2 (instalação nova, sem entrada no índice) é detectável sem varrer o disco, e a que custo | C (§6.5) |
-| 3 | Onde o recovery roda (boot, foco, sob demanda) | C (§6.3.4) |
-| 4 | Como coordenar as duas fases da identidade (duas chaves? promoção? revalidação do joiner?) | D (§7.6) |
-| 5 | Se um joiner pode receber a versão que o voo resolveu, e não a que ele resolveria agora | D (§7.5.1) |
-| 6 | Se há *replay* do último evento de progresso para quem entra no meio | E (§8.4.2) |
-| 7 | Se o progresso deve ser monotônico por participante | E (§8.4) |
-| 8 | Toda a política de cancelamento | F (§9.3) |
+| # | Em aberto | Bloco | Situação |
+|---|---|---|---|
+| 1 | Estados concretos do índice na janela de crash; metadados disponíveis; validação necessária e suficiente | C (§6.3) | **RESOLVIDA pela auditoria** (2026-07-16) — fatos executados no harness real: [plan §3](./plan-lp2.1a-ii-c.md) e [plan §5](./plan-lp2.1a-ii-c.md) |
+| 2 | Se o órfão C2 (instalação nova, sem entrada no índice) é detectável sem varrer o disco, e a que custo | C (§6.5) | **RESOLVIDA por decisão humana** (2026-07-16): C cobre **C1 e C2**; `readDirectoryAsync` aprovado **só** para descoberta direcionada por `storyId` (§6.3) |
+| 3 | Onde o recovery roda (boot, foco, sob demanda) | C (§6.3.4) | **RESOLVIDA por decisão humana** (2026-07-16): **sob demanda**, sem varredura no boot (§6.3) |
+| 4 | Como coordenar as duas fases da identidade (duas chaves? promoção? revalidação do joiner?) | D (§7.6) | **ABERTA** |
+| 5 | Se um joiner pode receber a versão que o voo resolveu, e não a que ele resolveria agora | D (§7.5.1) | **ABERTA** |
+| 6 | Se há *replay* do último evento de progresso para quem entra no meio | E (§8.4.2) | **ABERTA** |
+| 7 | Se o progresso deve ser monotônico por participante | E (§8.4) | **ABERTA** |
+| 8 | Toda a política de cancelamento | F (§9.3) | **ABERTA** |
+
+> As decisões 4 a 8 **permanecem abertas** e pertencem aos seus blocos. A resolução de 1–3 **não** as toca. O marcador aprovado para C preserva a identidade **de uma instalação específica já resolvida**, para fins transacionais — **não** é a implementação do bloco D, que segue responsável pela identidade e pela coordenação **entre solicitações**.
 
 ---
 
