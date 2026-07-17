@@ -160,12 +160,27 @@ export function createPackRecoveryService(deps) {
       return [...out].map(([version, name]) => ({ version, name }));
     }
 
-    // C1: a entrada do índice diz a versão. Só isso é usado — `localDir`, `manifestPath` e
-    // `totalBytes` herdados NÃO são evidência da instalação nova (a marca DOWNLOADING passa só
-    // {version, status} e o merge herda o resto do READY anterior).
-    if (entry && entry.version) add(entry.version);
+    // C1: a entrada do índice diz a versão — isso É identidade resolvida, então o candidato é
+    // ÚNICO e direto, sem listar o diretório (plan §7.2: "C1: entry.version existe? → candidato
+    // direto; NÃO lista o diretório"; §8.1: "priorizar o candidato da versão indicada pelo índice").
+    //
+    // Só a VERSÃO é aproveitada — `localDir`, `manifestPath` e `totalBytes` herdados NÃO são
+    // evidência da instalação nova (a marca DOWNLOADING passa só {version, status} e o merge herda
+    // o resto do READY anterior).
+    //
+    // Por que retornar aqui em vez de somar os candidatos do disco: um bump NÃO apaga o diretório
+    // antigo (spec §7.5.2), então um `story@1.0.0` íntegro convive com o `story@2.0.0` que o índice
+    // aponta. Somando os dois: (a) o par vira "2+ válidos" e o fluxo declara ambiguidade ARTIFICIAL,
+    // recusando offline um pack cuja identidade o índice já resolveu; (b) pior, se o candidato
+    // indicado estiver corrompido, o antigo passa a ser o "único válido" e é PROMOVIDO — servindo
+    // uma versão que o índice nunca indicou, contra §8.7. Se o candidato indicado não for íntegro,
+    // o certo é "0 válidos" → fluxo normal com rede (§7.2 passo 5), nunca um fallback silencioso.
+    if (entry && entry.version) {
+      add(entry.version);
+      return [...out].map(([version, name]) => ({ version, name }));
+    }
 
-    // C2: sem entrada (ou complementando C1), a evidência está só no disco.
+    // C2: sem identidade no índice, a evidência está só no disco.
     const root = packsRoot();
     if (root) {
       let names = [];

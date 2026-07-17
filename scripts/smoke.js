@@ -10347,6 +10347,150 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         `concorrência produziu ${readys.length} promoções ou divergência índice↔disco`);
     }
 
+    /* ══════ FIX1 — C-01/C-02: a versão do índice é identidade resolvida e tem prioridade ══════ */
+    /*
+     * Um bump NÃO apaga o diretório antigo (spec §7.5.2), então conviver com um `story@1.0.0`
+     * íntegro é estado NORMAL. Antes desta correção, o recovery somava esse stale aos candidatos
+     * do índice e (a) declarava ambiguidade artificial no C1 — recusando offline um pack cuja
+     * identidade o índice já resolvia; (b) pior: com o candidato indicado corrompido, PROMOVIA o
+     * antigo, servindo uma versão que o índice nunca indicou.
+     *
+     * Contrato: plan §8.1 ("C1: priorizar o candidato da versão indicada pelo índice"),
+     * §7.2 ("candidato direto; NÃO lista o diretório") e §8.7 ("só o candidato correspondente").
+     */
+    {
+      const V2 = '2.0.0';
+      const LOCAL_V2 = dirDe(STORY_C, V2);
+      const LOCAL_V1 = dirDe(STORY_C, '1.0.0');
+      const indiceEm = (v) => ({
+        status: 'downloading', version: v, localDir: dirDe(STORY_C, v),
+        manifestPath: `${dirDe(STORY_C, v)}manifest.json`, totalBytes: 999, downloadedBytes: 999, errorMessage: 'falha anterior',
+      });
+      /** Monta: stale 1.0.0 íntegro + 2.0.0 (íntegro ou corrompido) + índice apontando 2.0.0. */
+      const cenarioC1ComStale = (h, { corromperIndicado = false } = {}) => {
+        semearOrfao(h, { version: '1.0.0' });                                   // stale de um bump: íntegro
+        semearOrfao(h, { version: V2, corromperArquivo: corromperIndicado ? ARQ_C[0].path : null });
+        h.seedOrphanPack({ storyId: STORY_C, version: V2, files: [], manifestText: null, marker: null, indexEntry: indiceEm(V2) });
+      };
+
+      // ── Prova C1 principal: prioriza a versão do índice, offline, sem tocar no stale ──
+      {
+        const h = createPackInstallHarness();
+        cenarioC1ComStale(h);
+        h.resetEvents();   // SEM rede configurada: recuperar aqui é obrigatoriamente offline
+        const r = await instalarC(createPackDownloadService(h.deps));
+        const e = await h.entry(STORY_C);
+        const tocouStale = h.events.some((x) => x.includes(`${STORY_C}@1.0.0`));
+        check('LP2.1a-ii-C FIX1 §6.C1 (prioridade do índice): com um diretório antigo íntegro ao lado, recupera a versão que o índice resolveu — offline, sem ambiguidade e sem validar o antigo',
+          r.ok === true && r.recovered === true && r.version === V2
+          && r.ambiguous !== true
+          && e.status === 'ready' && e.version === V2
+          && e.localDir === LOCAL_V2 && e.errorMessage === null
+          && h.counters.downloads === 0 && !h.events.includes('fetch-global-manifest')   // zero rede
+          && tocouStale === false                                                        // o antigo nem foi aberto
+          && h.eventsOfType('readdir').length === 0                                      // §7.2: C1 não lista
+          && ARQ_C.every((f) => h.events.includes(`hash:${LOCAL_V2}${f.path}`))          // validação INTEGRAL do indicado
+          && h.mem.exists(LOCAL_V1) === true,                                            // e o antigo segue no disco
+          `não priorizou a versão do índice: ok=${r.ok} rec=${r.recovered} amb=${r.ambiguous} v=${r.version} tocouStale=${tocouStale} readdir=${h.eventsOfType('readdir').length}`);
+      }
+
+      // ── Controle negativo LOCAL: sem a priorização, o cenário volta a quebrar ──
+      // (mutação em memória, estreita; NÃO entra na contabilidade dos 29 do QA1/QA3)
+      {
+        const semPrioridade = (s) => s.replace(
+          '    if (entry && entry.version) {\n      add(entry.version);\n      return [...out].map(([version, name]) => ({ version, name }));\n    }',
+          '    if (entry && entry.version) add(entry.version);');
+        // Observa o RECOVERY direto: o retorno do downloader não carrega `ambiguous` (ele traduz o
+        // recovery para o formato de instalação), e é justamente a ambiguidade que se quer ver.
+        const rodar = async (recoveryMutate, opts) => {
+          const h = createPackInstallHarness({ recoveryMutate });
+          cenarioC1ComStale(h, opts);
+          h.resetEvents();
+          const r = await h.deps.recoverStoryPack({ storyId: STORY_C, requestedKinds: ['scene', 'audio'], appVersion: '1.0.0' });
+          const e = await h.entry(STORY_C);
+          return `rec=${r.recovered === true}|amb=${r.ambiguous === true}|v=${(e && e.version) || '-'}|status=${(e && e.status) || '-'}`;
+        };
+        let construiu = true;
+        try { loadModule('src/services/packRecoveryService.js', {}, [], semPrioridade); } catch (e) { construiu = !/não alterou o fonte/.test(e.message); }
+        const oIntegro = await rodar(undefined, {});
+        const mIntegro = await rodar(semPrioridade, {});
+        const oCorrompido = await rodar(undefined, { corromperIndicado: true });
+        const mCorrompido = await rodar(semPrioridade, { corromperIndicado: true });
+        check('LP2.1a-ii-C FIX1 §6.neg (controle negativo): remover a priorização faz o cenário voltar a falhar — ambiguidade artificial, e promoção da versão errada quando a indicada está corrompida',
+          construiu
+          && oIntegro === 'rec=true|amb=false|v=2.0.0|status=ready'            // com a correção: recupera a certa
+          && mIntegro === 'rec=false|amb=true|v=2.0.0|status=downloading'      // sem ela: ambiguidade artificial
+          && oCorrompido === 'rec=false|amb=false|v=2.0.0|status=downloading'  // indicada corrompida → não recupera
+          && /rec=true\|amb=false\|v=1\.0\.0/.test(mCorrompido),               // sem ela: PROMOVE a versão errada
+          `o controle negativo não reproduz a regressão: orig[${oIntegro}] mut[${mIntegro}] | corrompido orig[${oCorrompido}] mut[${mCorrompido}]`);
+      }
+
+      // ── Versão indicada AUSENTE/INVÁLIDA: não cai para outra versão (§7.2 passo 5, §8.7) ──
+      {
+        const h = createPackInstallHarness();
+        cenarioC1ComStale(h, { corromperIndicado: true });
+        configurarRemoto(h, { version: V2 }); h.resetEvents();
+        const r = await instalarC(createPackDownloadService(h.deps));
+        const e = await h.entry(STORY_C);
+        check('LP2.1a-ii-C FIX1 §6.inval (indicada inválida): o candidato do índice corrompido NÃO cai para a versão antiga — vai ao fluxo normal e reinstala a versão certa',
+          e.status === 'ready' && e.version === V2 && r.ok === true
+          && r.recovered === undefined                       // não foi recuperado: foi reinstalado
+          && h.counters.downloads > 0                        // pela rede, como o contrato manda
+          && h.mem.exists(LOCAL_V1) === true,                // e o antigo NÃO foi destruído
+          `a versão indicada inválida caiu para outra versão ou destruiu o antigo: v=${e && e.version} rec=${r.recovered}`);
+      }
+
+      // ── C2 puro PRESERVADO: sem entrada no índice, dois válidos seguem ambíguos ──
+      {
+        const h = createPackInstallHarness();
+        semearOrfao(h, { version: '1.0.0' });
+        semearOrfao(h, { version: V2 });
+        configurarRemoto(h, { version: V2 }); h.resetEvents();
+        const r = await instalarC(createPackDownloadService(h.deps));
+        const e = await h.entry(STORY_C);
+        check('LP2.1a-ii-C FIX1 §6.C2 (C2 preservado): sem identidade no índice, dois candidatos válidos seguem ambíguos — a rede desempata e nada é baixado',
+          r.ok === true && r.recovered === true && r.version === V2 && e.version === V2
+          && h.events.includes('fetch-global-manifest')                          // precisou desempatar
+          && h.eventsOfType('readdir').length > 0                                // C2 lista, como antes
+          && h.counters.byUrl[`${BASE_C}${ARQ_C[0].path}`] === undefined         // mas não baixou arquivo
+          && h.mem.exists(LOCAL_V1) === true,
+          `o C2 puro regrediu: rec=${r.recovered} v=${r.version} readdir=${h.eventsOfType('readdir').length}`);
+      }
+
+      // ── Candidato único sem índice: comportamento anterior preservado ──
+      {
+        const h = createPackInstallHarness();
+        semearOrfao(h, { version: V2 });
+        h.resetEvents();
+        const r = await instalarC(createPackDownloadService(h.deps));
+        const e = await h.entry(STORY_C);
+        check('LP2.1a-ii-C FIX1 §6.unico (candidato único sem índice): segue recuperando pelo disco, sem rede',
+          r.recovered === true && r.version === V2 && e.status === 'ready'
+          && h.eventsOfType('readdir').length > 0 && h.counters.downloads === 0,
+          `o caminho C2 de candidato único regrediu: rec=${r.recovered} v=${r.version}`);
+      }
+
+      // ── Idempotência: recuperar de novo depois da promoção não corrompe nem duplica ──
+      {
+        const h = createPackInstallHarness();
+        cenarioC1ComStale(h);
+        h.resetEvents();
+        const p = { storyId: STORY_C, requestedKinds: ['scene', 'audio'], appVersion: '1.0.0' };
+        const r1 = await h.deps.recoverStoryPack(p);
+        const e1 = JSON.stringify(await h.entry(STORY_C));
+        h.resetEvents();
+        const r2 = await h.deps.recoverStoryPack(p);
+        const e2 = JSON.stringify(await h.entry(STORY_C));
+        check('LP2.1a-ii-C FIX1 §6.idem (idempotência): recuperar 2× converge — a 2ª não promove de novo, não valida de novo e não usa rede',
+          r1.recovered === true && r2.recovered !== true
+          && e1 === e2                                                              // índice idêntico
+          && h.events.filter((x) => x === `set-entry:${STORY_C}:ready`).length === 0 // 2ª: zero promoção
+          && h.events.filter((x) => x.startsWith('hash:')).length === 0              // 2ª: zero validação
+          && h.counters.downloads === 0,
+          `a idempotência quebrou: r2.recovered=${r2.recovered} índiceIgual=${e1 === e2}`);
+      }
+    }
+
     /* ═══ §19.15-16 (comportamental): a colisão é rejeitada ANTES de qualquer download ═══ */
     for (const p of ['.ptf-publish.json', './.ptf-publish.json', '.PTF-Publish.JSON']) {
       const h = createPackInstallHarness();
