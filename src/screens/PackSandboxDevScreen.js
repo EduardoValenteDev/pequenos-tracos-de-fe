@@ -21,6 +21,14 @@ import {
 } from '../services/packSandboxDevService';
 // F2.4d.4: downloader GENÉRICO por storyId via manifesto global (só cenas).
 import { downloadStoryPackScenesFromGlobalManifest } from '../services/packDownloadService';
+// DEVICE-TOOLS1: Laboratório de Recovery (dev) — semeia estados e chama o recovery REAL.
+import {
+  RECOVERY_LAB_PRESETS,
+  applyRecoveryLabPreset,
+  inspectRecoveryState,
+  runRecoveryReal,
+  cleanupRecoveryLab,
+} from '../services/recoveryLabDevService';
 
 // baseUrl padrão (dev): pode vir de env; editável na tela. Nunca em produção (duplo gate).
 const DEFAULT_BASE_URL = process.env.EXPO_PUBLIC_PACK_SANDBOX_BASE_URL || 'http://192.168.0.10:8787/';
@@ -48,6 +56,14 @@ export default function PackSandboxDevScreen({ navigation }) {
   const [storyId, setStoryId] = useState(DEFAULT_STORY_ID);
   const [dlG, setDlG] = useState(null); // progresso do fluxo genérico
   const [verify, setVerify] = useState(null); // resumo sha256 (do download OU do verify profundo)
+  // DEVICE-TOOLS1 — Laboratório de Recovery: storyId de teste dedicado (isolado do sandbox david_goliath).
+  const [labStoryId, setLabStoryId] = useState('recovery_lab');
+  const [labVersion, setLabVersion] = useState('2.0.0');
+  const [labPrev, setLabPrev] = useState('1.0.0');
+  const [labOther, setLabOther] = useState('recovery_lab_b');
+  const [labMsg, setLabMsg] = useState('');
+  const [labState, setLabState] = useState(null); // inspeção estruturada por história
+  const [labRun, setLabRun] = useState(null);     // resultado do recovery REAL (antes/depois)
   const enabled = isPackSandboxDevEnabled();
 
   // F2.4e.2pR — guardas de concorrência/ciclo de vida:
@@ -154,6 +170,41 @@ export default function PackSandboxDevScreen({ navigation }) {
       : { source: 'deep', ok: false, byKind: v.byKind, reason: v.reason, ms: v.ms });
     safeSet(setMsg, v.ok ? `sha256 profundo OK (${v.checked} arquivos, ${v.ms}ms)` : `sha256 profundo: ${v.reason || 'divergência'}`);
   }), [runExclusive, safeSet]);
+
+  // DEVICE-TOOLS1 — as histórias tocadas pelo laboratório (só as selecionadas).
+  const labIds = useCallback(() => (labOther ? [labStoryId, labOther] : [labStoryId]), [labStoryId, labOther]);
+
+  const onApplyPreset = useCallback((presetId) => runExclusive(async () => {
+    safeSet(setLabMsg, `Aplicando ${presetId}…`); safeSet(setLabRun, null);
+    const r = await applyRecoveryLabPreset(presetId, { storyId: labStoryId, version: labVersion, prevVersion: labPrev, otherStoryId: labOther });
+    safeSet(setLabMsg, r.ok ? `${presetId} aplicado (${(r.envolvidos || []).join(', ')})` : `${presetId} falhou: ${r.reason}`);
+    const st = await inspectRecoveryState(labIds());
+    safeSet(setLabState, st.enabled ? st : null);
+  }), [runExclusive, safeSet, labStoryId, labVersion, labPrev, labOther, labIds]);
+
+  const onLabInspect = useCallback(() => runExclusive(async () => {
+    const st = await inspectRecoveryState(labIds());
+    safeSet(setLabState, st.enabled ? st : null);
+    safeSet(setLabMsg, 'Estado inspecionado');
+  }), [runExclusive, safeSet, labIds]);
+
+  const onLabRecovery = useCallback(() => runExclusive(async () => {
+    safeSet(setLabMsg, 'Executando recovery REAL…');
+    const r = await runRecoveryReal(labStoryId, labOther || undefined);
+    safeSet(setLabRun, r.enabled ? r : null);
+    if (r.enabled) safeSet(setLabState, r.depois);
+    await refreshPacks();
+    safeSet(setLabMsg, 'Recovery executado');
+  }), [runExclusive, safeSet, labStoryId, labOther, refreshPacks]);
+
+  const onLabCleanup = useCallback(() => runExclusive(async () => {
+    safeSet(setLabMsg, 'Limpando histórias de teste…');
+    const r = await cleanupRecoveryLab(labIds());
+    await refreshPacks();
+    const st = await inspectRecoveryState(labIds());
+    safeSet(setLabState, st.enabled ? st : null); safeSet(setLabRun, null);
+    safeSet(setLabMsg, r.ok ? `Limpo: ${(r.limpos || []).join(', ')}` : `Limpeza falhou: ${r.reason}`);
+  }), [runExclusive, safeSet, labIds, refreshPacks]);
 
   if (!enabled) {
     return (
@@ -299,6 +350,67 @@ export default function PackSandboxDevScreen({ navigation }) {
         </View>
       ))}
 
+      {/* DEVICE-TOOLS1 — Laboratório de Recovery (dev): semeia estados e chama o recovery REAL. Só toca os storyId abaixo. */}
+      <View style={styles.card}>
+        <Text style={styles.title}>🧪 Laboratório de Recovery</Text>
+        <Text style={styles.warn}>Ferramenta interna (dev/QA). Semeia estados de teste e chama o recovery REAL — toca apenas os storyId abaixo; não altera progresso, perfil ou outras histórias.</Text>
+        <Text style={styles.k}>storyId de teste</Text>
+        <TextInput style={styles.input} value={labStoryId} onChangeText={setLabStoryId} autoCapitalize="none" placeholderTextColor="#6A6A78" />
+        <View style={styles.btnRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.k}>versão atual</Text>
+            <TextInput style={styles.input} value={labVersion} onChangeText={setLabVersion} autoCapitalize="none" placeholderTextColor="#6A6A78" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.k}>versão antiga</Text>
+            <TextInput style={styles.input} value={labPrev} onChangeText={setLabPrev} autoCapitalize="none" placeholderTextColor="#6A6A78" />
+          </View>
+        </View>
+        <Text style={styles.k}>2º storyId (P5 — duas histórias)</Text>
+        <TextInput style={styles.input} value={labOther} onChangeText={setLabOther} autoCapitalize="none" placeholderTextColor="#6A6A78" />
+        <Text style={styles.k}>URL do manifesto global (não-secreta, editável)</Text>
+        <TextInput style={styles.input} value={globalUrl} onChangeText={setGlobalUrl} autoCapitalize="none" placeholderTextColor="#6A6A78" />
+        <Text style={styles.help}>Presets (limpam só os storyId acima antes de semear):</Text>
+        {RECOVERY_LAB_PRESETS.map((p) => (
+          <TouchableOpacity key={p.id} style={[styles.btn, styles.btnPreset]} onPress={() => onApplyPreset(p.id)} disabled={busy}>
+            <Text style={styles.btnTxt}>{p.id} — {p.nome}</Text>
+          </TouchableOpacity>
+        ))}
+        <View style={styles.btnRow}>
+          <TouchableOpacity style={[styles.btn, styles.btnGeneric]} onPress={onLabRecovery} disabled={busy}><Text style={styles.btnTxt}>Executar recovery</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btn, styles.btnRefresh]} onPress={onLabInspect} disabled={busy}><Text style={styles.btnTxt}>Inspecionar</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btn, styles.btnReset]} onPress={onLabCleanup} disabled={busy}><Text style={styles.btnTxt}>Limpar</Text></TouchableOpacity>
+        </View>
+        {!!labMsg && <Text style={styles.msg}>{labMsg}</Text>}
+        {labRun && labRun.resultados && Object.keys(labRun.resultados).map((sid) => {
+          const r = labRun.resultados[sid];
+          return (
+            <Text key={sid} style={styles.k}>{sid}: <Text style={r.recovered ? styles.ok : styles.no}>recovered={String(r.recovered)}</Text>{r.ambiguous ? ' · ambíguo' : ''}{r.version ? ` · v${r.version}` : ''}{r.reason ? ` · ${r.reason}` : ''}</Text>
+          );
+        })}
+        {labState && labState.historias && Object.keys(labState.historias).map((sid) => {
+          const hh = labState.historias[sid];
+          return (
+            <View key={sid} style={styles.scene}>
+              <Text style={styles.sceneHead}>{sid} · índice: <Text style={styles.v}>{hh.indexEntry ? `${hh.indexEntry.status}@${hh.indexEntry.version}` : 'ausente'}</Text> · disco: {hh.versoesNoDisco.map((x) => x.version).join(',') || '—'}{hh.tmpPresente ? ' · .tmp' : ''}</Text>
+              {hh.versoesNoDisco.map((x) => (
+                <Text key={x.version} style={styles.k}>  {x.version}: manifest {x.temManifest ? '✓' : '✗'} · marcador {x.temMarcador ? '✓' : '✗'} · arquivos {x.arquivos.filter((a) => a.exists).length}/{x.arquivos.length}</Text>
+              ))}
+            </View>
+          );
+        })}
+        {(labRun || labState) && (
+          <>
+            <Text style={styles.k}>Diagnóstico textual (selecione para copiar):</Text>
+            <TextInput
+              style={[styles.input, { minHeight: 80 }]}
+              value={JSON.stringify({ resultados: labRun && labRun.resultados, estado: labState && labState.historias, when: (labRun && labRun.when) || (labState && labState.when) }, null, 1)}
+              multiline editable={false} selectTextOnFocus
+            />
+          </>
+        )}
+      </View>
+
       <View style={styles.card}>
         <Text style={styles.k}>Validação no iPhone</Text>
         <Text style={styles.help}>1) Seed → status deve virar "ready", arquivos 10/10, usesPack true, sourceType "file".</Text>
@@ -321,6 +433,7 @@ const styles = StyleSheet.create({
   btnGeneric: { backgroundColor: '#2E7D6A', marginTop: 8 },
   btnGenericAll: { backgroundColor: '#3A6EA5', marginTop: 8 },
   btnVerify: { backgroundColor: '#7A5C2E', marginTop: 4 },
+  btnPreset: { backgroundColor: '#4A3A6E', marginTop: 4 },
   input: { backgroundColor: '#0F0F16', color: '#FFF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: 'Nunito', fontSize: 12, marginTop: 6, marginBottom: 6, borderWidth: 1, borderColor: '#2A2A38' },
   btnTxt: { fontFamily: 'Nunito', fontWeight: '700', color: '#FFF', fontSize: 13 },
   btnGhost: { alignSelf: 'center', marginTop: 20 }, btnGhostTxt: { fontFamily: 'Nunito', color: '#8FB7FF', fontSize: 13 },

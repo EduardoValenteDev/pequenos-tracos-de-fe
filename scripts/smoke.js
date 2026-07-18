@@ -10198,6 +10198,149 @@ console.log('\n── LP2.1a-ii-C-QA3R: fidelidade dos doubles ──');
 }
 
 
+console.log('\n── LP2.1a-ii-C-DEVICE-TOOLS1: Laboratório de Recovery (dev) ──');
+{
+  const { createPackInstallHarness, loadModule } = require('./testing/packInstallHarness');
+  const labSrc = readSrc('src/services/recoveryLabDevService.js');
+
+  // §9.10 + §9.11 (estáticos): gating de produção e ausência de segredo/token.
+  check('DEVICE-TOOLS1 §9.10 (gated p/ produção): o laboratório só executa sob isPackSandboxDevEnabled; toda ação retorna cedo com o gate falso',
+    /export function isRecoveryLabEnabled\(\) \{\s*return isPackSandboxDevEnabled\(\);/.test(labSrc)
+    && /if \(!isRecoveryLabEnabled\(\)\) return \{ ok: false, reason: 'gate desligado' \};/.test(labSrc)   // applyPreset
+    && /if \(!isRecoveryLabEnabled\(\)\) return \{ enabled: false \};/.test(labSrc)                          // inspect/run
+    && (labSrc.match(/isRecoveryLabEnabled\(\)/g) || []).length >= 5,   // gate em todas as ações públicas
+    'o laboratório não está integralmente gated por isRecoveryLabEnabled');
+  check('DEVICE-TOOLS1 §9.11 (sem segredo): nenhum token/segredo/URL secreta embutida; a URL é editável e não-secreta',
+    !/(sk-|secret|token|password|api[_-]?key|Bearer\s)/i.test(labSrc)
+    && !/https?:\/\/[^\s'"]*(amazonaws|r2\.cloudflarestorage|\.dev\/|token=)/i.test(labSrc),
+    'possível segredo/token/URL secreta no laboratório');
+
+  // §9.1-9.9 (dinâmicos): carrega o serviço REAL sobre o mem FS do harness e roda os presets.
+  const carregarLab = () => {
+    const h = createPackInstallHarness();
+    const mk = loadModule('src/services/packPublishMarker.js', {}, ['buildPublishMarker', 'MARKER_FILENAME', 'selectStoryPackDirs']);
+    const lab = loadModule('src/services/recoveryLabDevService.js', {
+      FileSystem: h.mem.FileSystem,
+      getPackLocalDir: h.storage.getPackLocalDir, getPackTempDir: h.storage.getPackTempDir,
+      getPackIndex: h.storage.getPackIndex, setPackEntry: h.storage.setPackEntry,
+      getPackEntry: h.storage.getPackEntry, clearPackEntry: h.storage.clearPackEntry,
+      PACK_STATUS: h.storage.PACK_STATUS,
+      buildPublishMarker: mk.buildPublishMarker, MARKER_FILENAME: mk.MARKER_FILENAME, selectStoryPackDirs: mk.selectStoryPackDirs,
+      validatePackManifest: h.deps.validatePackManifest, computeFileSha256: h.deps.computeFileSha256,
+      recoverStoryPack: h.deps.recoverStoryPack,
+      isPackSandboxDevEnabled: () => true, warn: () => {},
+    }, ['isRecoveryLabEnabled', 'applyRecoveryLabPreset', 'inspectRecoveryState', 'runRecoveryReal', 'cleanupRecoveryLab', 'RECOVERY_LAB_PRESETS']);
+    return { h, lab };
+  };
+
+  globalThis.__RECOVERY_LAB = (async () => {
+    // §9.1 — P1 órfão: cria manifesto + marcador + índice NÃO-ready (nunca READY antes do recovery)
+    {
+      const { lab } = carregarLab();
+      const ap = await lab.applyRecoveryLabPreset('P1', { storyId: 'david_goliath', version: '2.0.0' });
+      const st = await lab.inspectRecoveryState(['david_goliath']);
+      const dg = st.historias.david_goliath, v = dg.versoesNoDisco[0];
+      check('DEVICE-TOOLS1 §9.1 (P1 órfão recuperável): manifesto+marcador no disco, índice downloading (NÃO-ready), e o recovery REAL promove a READY',
+        ap.ok === true && dg.indexEntry && dg.indexEntry.status === 'downloading'
+        && v && v.temManifest === true && v.temMarcador === true
+        && await (async () => { const r = await lab.runRecoveryReal('david_goliath'); return r.resultados.david_goliath.recovered === true && r.entryFinal.david_goliath.status === 'ready'; })(),
+        `P1 inconsistente: ap=${ap.ok} idx=${dg.indexEntry && dg.indexEntry.status} man=${v && v.temManifest} mk=${v && v.temMarcador}`);
+    }
+    // §9.2 — P2 duas versões coexistem e o recovery escolhe a INDICADA pelo índice
+    {
+      const { lab } = carregarLab();
+      await lab.applyRecoveryLabPreset('P2', { storyId: 'david_goliath', version: '2.0.0', prevVersion: '1.0.0' });
+      const st = await lab.inspectRecoveryState(['david_goliath']);
+      const versoes = st.historias.david_goliath.versoesNoDisco.map((x) => x.version).sort();
+      const rec = await lab.runRecoveryReal('david_goliath');
+      check('DEVICE-TOOLS1 §9.2 (P2 duas versões): 1.0.0 e 2.0.0 coexistem no disco; o recovery recupera a indicada (2.0.0)',
+        versoes.length === 2 && versoes[0] === '1.0.0' && versoes[1] === '2.0.0'
+        && rec.resultados.david_goliath.recovered === true && rec.resultados.david_goliath.version === '2.0.0',
+        `P2: versões=[${versoes}] rec=${JSON.stringify(rec.resultados.david_goliath)}`);
+    }
+    // §9.3 — P3 corrupção só na versão selecionada; o recovery NÃO promove a antiga (contrato FIX1)
+    {
+      const { lab } = carregarLab();
+      await lab.applyRecoveryLabPreset('P3', { storyId: 'david_goliath', version: '2.0.0', prevVersion: '1.0.0' });
+      const rec = await lab.runRecoveryReal('david_goliath');
+      const r = rec.resultados.david_goliath;
+      check('DEVICE-TOOLS1 §9.3 (P3 atual corrompida): corrupção só na 2.0.0; o recovery NÃO recupera nem promove a antiga 1.0.0',
+        r.recovered === false && r.version !== '1.0.0'
+        && rec.entryFinal.david_goliath.status !== 'ready',
+        `P3: ${JSON.stringify(r)} entryFinal=${rec.entryFinal.david_goliath && rec.entryFinal.david_goliath.status}`);
+    }
+    // §9.4 — P4 sem índice: a entrada é removida, mas o pack (marcador) persiste no disco e é recuperável
+    {
+      const { lab } = carregarLab();
+      await lab.applyRecoveryLabPreset('P4', { storyId: 'david_goliath', version: '2.0.0' });
+      const st = await lab.inspectRecoveryState(['david_goliath']);
+      const rec = await lab.runRecoveryReal('david_goliath');
+      check('DEVICE-TOOLS1 §9.4 (P4 sem índice): entrada REMOVIDA do índice; pack no disco recuperável (C2, enumera o diretório)',
+        st.historias.david_goliath.indexEntry === null
+        && st.historias.david_goliath.versoesNoDisco[0] && st.historias.david_goliath.versoesNoDisco[0].temMarcador === true
+        && rec.resultados.david_goliath.recovered === true,
+        `P4: idx=${JSON.stringify(st.historias.david_goliath.indexEntry)} rec=${JSON.stringify(rec.resultados.david_goliath)}`);
+    }
+    // §9.5 — P5 duas histórias não colidem: cada uma tem seu estado; ambas recuperam
+    {
+      const { lab } = carregarLab();
+      await lab.applyRecoveryLabPreset('P5', { storyId: 'david_goliath', version: '1.0.0', otherStoryId: 'noah' });
+      const st = await lab.inspectRecoveryState(['david_goliath', 'noah']);
+      const rec = await lab.runRecoveryReal('david_goliath', 'noah');
+      check('DEVICE-TOOLS1 §9.5 (P5 duas histórias): estados independentes (ambos downloading); recovery recupera AS DUAS sem colisão',
+        st.historias.david_goliath.indexEntry.status === 'downloading' && st.historias.noah.indexEntry.status === 'downloading'
+        && rec.resultados.david_goliath.recovered === true && rec.resultados.noah.recovered === true,
+        `P5: ${JSON.stringify(rec.resultados)}`);
+    }
+    // §9.6 — P6 parcial sem marcador NÃO é recuperável (descarte seguro)
+    {
+      const { lab } = carregarLab();
+      await lab.applyRecoveryLabPreset('P6', { storyId: 'david_goliath', version: '2.0.0' });
+      const st = await lab.inspectRecoveryState(['david_goliath']);
+      const rec = await lab.runRecoveryReal('david_goliath');
+      check('DEVICE-TOOLS1 §9.6 (P6 parcial sem marcador): conteúdo só em .tmp, sem diretório final; o recovery NÃO recupera',
+        st.historias.david_goliath.tmpPresente === true && st.historias.david_goliath.versoesNoDisco.length === 0
+        && rec.resultados.david_goliath.recovered === false,
+        `P6: tmp=${st.historias.david_goliath.tmpPresente} disco=${st.historias.david_goliath.versoesNoDisco.length} rec=${JSON.stringify(rec.resultados.david_goliath)}`);
+    }
+    // §9.7 — limpeza RESTRITA aos storyIds selecionados (não toca as demais histórias)
+    {
+      const { lab } = carregarLab();
+      await lab.applyRecoveryLabPreset('P5', { storyId: 'david_goliath', version: '1.0.0', otherStoryId: 'noah' });
+      await lab.cleanupRecoveryLab(['david_goliath']);
+      const st = await lab.inspectRecoveryState(['david_goliath', 'noah']);
+      check('DEVICE-TOOLS1 §9.7 (limpeza isolada): limpar david remove seu índice+disco; noah PRESERVADO intacto',
+        st.historias.david_goliath.indexEntry === null && st.historias.david_goliath.versoesNoDisco.length === 0
+        && st.historias.noah.indexEntry && st.historias.noah.indexEntry.status === 'downloading' && st.historias.noah.versoesNoDisco.length === 1,
+        `limpeza vazou: david=${JSON.stringify(st.historias.david_goliath.indexEntry)} noah=${JSON.stringify(st.historias.noah.indexEntry)}/${st.historias.noah.versoesNoDisco.length}`);
+    }
+    // §9.8 — schema REAL: o manifesto sintético do preset passa no validador do app (senão semearVersao lança)
+    {
+      const { lab } = carregarLab();
+      const ap = await lab.applyRecoveryLabPreset('P1', { storyId: 'jonas', version: '1.2.3' });
+      check('DEVICE-TOOLS1 §9.8 (schemas reais): o manifesto+marcador do preset são aceitos pelos validadores reais (applyPreset conclui sem lançar)',
+        ap.ok === true,
+        `o preset falhou na validação real: ${ap.reason}`);
+    }
+    // §9.9 — nenhum preset grava READY por conta própria (o READY só existe APÓS o recovery real)
+    {
+      const { lab } = carregarLab();
+      let algumReadyAntesDoRecovery = false;
+      for (const p of ['P1', 'P2', 'P3', 'P4', 'P6']) {
+        await lab.applyRecoveryLabPreset(p, { storyId: 'david_goliath', version: '2.0.0', prevVersion: '1.0.0' });
+        const st = await lab.inspectRecoveryState(['david_goliath']);
+        const e = st.historias.david_goliath.indexEntry;
+        if (e && e.status === 'ready') algumReadyAntesDoRecovery = true;
+      }
+      check('DEVICE-TOOLS1 §9.9 (nenhum READY fabricado): nenhum preset grava status ready — o READY só vem do recovery REAL',
+        algumReadyAntesDoRecovery === false,
+        'algum preset gravou READY por conta própria — o laboratório estaria fabricando o resultado');
+    }
+  })();
+  globalThis.__RECOVERY_LAB.catch(() => {});
+}
+
+
 console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida ──');
 {
   const { createPackInstallHarness, loadPackDownloader, loadModule } = require('./testing/packInstallHarness');
@@ -27569,6 +27712,12 @@ check(
   check('LP2.1a-ii-C-QA3R (harness): o bloco assíncrono da fidelidade dos doubles concluiu sem estourar',
     !qa3rErr,
     `o bloco dos doubles lançou (${qa3rErr && qa3rErr.stack ? String(qa3rErr.stack).split('\n').slice(0, 3).join(' | ') : qa3rErr}) — os checks dele não rodaram`);
+
+  let recoveryLabErr = null;
+  try { await globalThis.__RECOVERY_LAB; } catch (e) { recoveryLabErr = e; }
+  check('LP2.1a-ii-C-DEVICE-TOOLS1 (harness): o bloco assíncrono do Laboratório de Recovery concluiu sem estourar',
+    !recoveryLabErr,
+    `o bloco do laboratório lançou (${recoveryLabErr && recoveryLabErr.stack ? String(recoveryLabErr.stack).split('\n').slice(0, 3).join(' | ') : recoveryLabErr}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
