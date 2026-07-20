@@ -195,6 +195,173 @@ async function probeInstalledPackDisk(localDir) {
   }
 }
 
+/* ═══════════════ LP2.1a-ii-D — Identidade resolvida e coordenação segura ═══════════════ */
+
+/** Kinds normalizados (só conhecidos, ordenados, SEM deduplicação) — igual à chave preliminar. */
+function normalizeKinds(requestedKinds) {
+  return (Array.isArray(requestedKinds) ? requestedKinds : [])
+    .filter((k) => KNOWN_KINDS.includes(k))
+    .slice()
+    .sort();
+}
+
+/** Emissor de progresso seguro (mesmo contrato de onProgress; nunca lança). */
+function makeReport(onProgress) {
+  return (status, extra) => {
+    try { if (onProgress) onProgress({ status, downloadedBytes: 0, totalBytes: 0, ...extra }); } catch { /* noop */ }
+  };
+}
+
+/** Resultado de um recovery bem-sucedido, no MESMO formato público de uma instalação. */
+function asInstalledResult(storyId, rec, report) {
+  report(PACK_STATUS.READY, { downloadedBytes: rec.totalBytes, totalBytes: rec.totalBytes });
+  return {
+    ok: true, storyId, version: rec.version, kinds: rec.kinds, counts: rec.counts,
+    sceneCount: rec.counts.scene || 0, totalBytes: rec.totalBytes, entry: rec.entry, recovered: true,
+  };
+}
+
+/**
+ * FASE 1 — resolução autoritativa ÚNICA. Executa exatamente uma vez por invocação pública: valida
+ * os parâmetros, busca o manifesto global, resolve o pack por storyId, checa requires_app_update e
+ * extrai a identidade de 7 campos. A fase física NÃO volta a buscar o manifesto. READ-ONLY.
+ * @returns {Promise<{ok:boolean, resolved?:object, networkError?:boolean, requiresAppUpdate?:boolean, reason?:string}>}
+ */
+async function resolveInstallIdentity(params = {}) {
+  const { storyId, globalManifestUrl, appVersion = '1.0.0', requestedKinds = ['scene'] } = params || {};
+  if (!storyId || typeof storyId !== 'string') return { ok: false, reason: 'storyId inválido' };
+  if (!globalManifestUrl || typeof globalManifestUrl !== 'string') return { ok: false, reason: 'globalManifestUrl inválido' };
+  const kinds = normalizeKinds(requestedKinds);
+  if (kinds.length === 0) return { ok: false, reason: 'requestedKinds inválido (use cover/scene/coloring/audio)' };
+
+  const gm = await fetchGlobalContentManifest(globalManifestUrl, { appVersion });
+  if (!gm.ok) {
+    // GATE DE REDE — rede/timeout dispara o caminho offline; manifesto inválido/história ausente NÃO.
+    const networkError = /rede indispon[ií]vel|timeout/i.test(gm.errors.join(' '));
+    return { ok: false, reason: `manifesto global inválido: ${gm.errors.join(' | ')}`, networkError };
+  }
+  const gp = getPackFromGlobalManifest(gm.data, storyId);
+  if (!gp.ok) return { ok: false, reason: gp.errors.join(' | ') };
+  const pack = gp.data;
+  if (pack.requiresAppUpdate) {
+    return { ok: false, requiresAppUpdate: true, reason: `requires_app_update (requiredAppVersion ${pack.requiredAppVersion} > appVersion ${appVersion})` };
+  }
+  const resolved = {
+    storyId,
+    version: pack.version,
+    baseUrl: pack.baseUrl,
+    manifestPath: pack.manifestPath,
+    manifestSha256: typeof pack.manifestSha256 === 'string' ? pack.manifestSha256.toLowerCase() : null,
+    kinds,
+    appVersion,
+  };
+  return { ok: true, resolved };
+}
+
+/**
+ * FASE 2 — canonicalização determinística dos SETE campos. storyId/version/baseUrl/manifestPath/
+ * appVersion: exatos (crus). manifestSha256: minúsculo, 64-hex obrigatório. kinds: filtrados,
+ * ordenados, sem dedupe. Campo ausente (≠ '') ou sha inválido → null (identidade inadmissível).
+ * Tupla serializada em JSON — sem delimitador vulnerável a colisão.
+ */
+function canonicalResolvedKey(resolved) {
+  if (!resolved) return null;
+  const { storyId, version, baseUrl, manifestPath, manifestSha256, kinds, appVersion } = resolved;
+  if (!storyId || !version || !baseUrl || !manifestPath || !appVersion) return null;
+  if (typeof manifestSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(manifestSha256)) return null;
+  const k = normalizeKinds(kinds);
+  if (k.length === 0) return null;
+  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion]);
+}
+
+/* ── Inspeção local SOMENTE LEITURA (preflight da reutilização de pack já instalado) ── */
+async function readLocalPublishMarker(localDir) {
+  try { return JSON.parse(await FileSystem.readAsStringAsync(`${localDir}${MARKER_FILENAME}`)); }
+  catch { return null; }
+}
+async function readLocalPackManifest(localDir) {
+  try { return JSON.parse(await FileSystem.readAsStringAsync(`${localDir}manifest.json`)); }
+  catch { return null; }
+}
+/**
+ * LP2.1a-ii-D3 — ÂNCORA REAL do manifesto local: sha256 dos BYTES de `manifest.json` no disco
+ * (não a declaração do marcador). READ-ONLY, nunca escreve. Reusa `computeFileSha256` (dep), sem
+ * duplicar a função de hash. Falha ao calcular → local NÃO confiável. sha normalizado minúsculo.
+ * @returns {Promise<{ok:boolean, actualManifestSha256:string|null, reason:string|null}>}
+ */
+async function computeLocalManifestAnchor(localDir) {
+  const mh = await computeFileSha256(`${localDir}manifest.json`);
+  if (!mh || !mh.ok) return { ok: false, actualManifestSha256: null, reason: `sha256 do manifest.json indisponível (${mh && mh.reason})` };
+  return { ok: true, actualManifestSha256: String(mh.sha256).toLowerCase(), reason: null };
+}
+/**
+ * Estrutura mínima de um marcador de publicação. A validação OFICIAL (validatePublishMarker) é a
+ * condição vinculante do D3; aqui o preflight do downloader confere a estrutura E exige igualdade
+ * MATERIAL com a identidade resolvida (mais forte que schema: rejeita marcador de outra identidade).
+ */
+function markerStructureOk(m) {
+  return !!m && typeof m === 'object' && !Array.isArray(m) && m.schemaVersion === 1
+    && typeof m.storyId === 'string' && typeof m.version === 'string'
+    && typeof m.manifestSha256 === 'string' && /^[a-f0-9]{64}$/.test(String(m.manifestSha256).toLowerCase())
+    && typeof m.manifestPath === 'string' && Array.isArray(m.kinds) && typeof m.appVersion === 'string';
+}
+/**
+ * Igualdade de IDENTIDADE (campos I/O-free) do pack local (marcador) × identidade resolvida — 5
+ * campos; baseUrl FORA. LP2.1a-ii-D3: o `manifestSha256` NÃO entra aqui — ele é a ÂNCORA dos bytes,
+ * verificada contra os BYTES REAIS de manifest.json (computeLocalManifestAnchor) contra o marcador E
+ * a resolvida. Comparar declaração×declaração não prova integridade.
+ */
+function markerMatchesResolved(marker, resolved) {
+  if (!markerStructureOk(marker) || !resolved) return false;
+  return marker.storyId === resolved.storyId
+    && marker.version === resolved.version
+    && marker.manifestPath === resolved.manifestPath
+    && normalizeKinds(marker.kinds).join(',') === normalizeKinds(resolved.kinds).join(',')
+    && marker.appVersion === resolved.appVersion;
+}
+/**
+ * Classifica o pack local para a identidade resolvida. SOMENTE LEITURA — NÃO chama recovery, NÃO
+ * baixa, NÃO escreve. Reutiliza o probe real do disco, a igualdade material do marcador,
+ * validatePackManifest (contrato oficial) e isReadyEntryValid.
+ * @returns {Promise<{coincident:boolean, ready:boolean, marker?, manifest?, entry?, localDir?}>}
+ */
+async function inspectLocalPackIdentity(resolved) {
+  const storyId = resolved.storyId;
+  const localDir = getPackLocalDir(storyId, resolved.version);
+  if (!localDir) return { coincident: false, ready: false };
+  const probe = await probeInstalledPackDisk(localDir);
+  if (probe.localDirExists !== true || probe.manifestExists !== true) return { coincident: false, ready: false };
+  const marker = await readLocalPublishMarker(localDir);
+  if (!markerMatchesResolved(marker, resolved)) return { coincident: false, ready: false, marker };
+  const manifest = await readLocalPackManifest(localDir);
+  const mv = manifest ? validatePackManifest(manifest, { appVersion: resolved.appVersion }) : { ok: false };
+  if (!mv.ok) return { coincident: false, ready: false, marker };
+  if (manifest.version !== resolved.version || !manifest.metadata || manifest.metadata.storyId !== storyId) {
+    return { coincident: false, ready: false, marker };
+  }
+  // LP2.1a-ii-D3 — ÂNCORA REAL: calcula o sha256 dos BYTES de manifest.json (o elo que fecha a lacuna).
+  const anchor = await computeLocalManifestAnchor(localDir);
+  const entry = await getPackEntry(storyId);
+  const ready = !!entry && entry.status === PACK_STATUS.READY && isReadyEntryValid(entry, probe);
+  return { coincident: true, ready, marker, manifest, entry, localDir, actualSha: anchor.actualManifestSha256 };
+}
+
+/**
+ * Resultado público de um READY COINCIDENTE — sem recovery, sem download, sem escrita no índice.
+ * kinds/counts/totalBytes derivam SÓ do manifesto local validado (dos kinds pedidos); nunca fabrica.
+ */
+function asReadyEntry(resolved, entry, localManifest, report) {
+  const wanted = (localManifest.files || []).filter((f) => f && resolved.kinds.includes(f.kind));
+  const counts = {};
+  for (const f of wanted) counts[f.kind] = (counts[f.kind] || 0) + 1;
+  const totalBytes = wanted.reduce((a, f) => a + (Number(f.bytes) || 0), 0);
+  report(PACK_STATUS.READY, { downloadedBytes: totalBytes, totalBytes });
+  return {
+    ok: true, storyId: resolved.storyId, version: resolved.version, kinds: resolved.kinds.slice(),
+    counts, sceneCount: counts.scene || 0, totalBytes, entry, recovered: false,
+  };
+}
+
 /**
  * Download GENÉRICO por storyId de um pack (F2.4d.3 → F2.4e.1), descobrindo
  * baseUrl/version/manifestPath pelo MANIFESTO GLOBAL (content-manifest.json) — sem
@@ -219,67 +386,41 @@ async function probeInstalledPackDisk(localDir) {
  *   kinds?:string[], counts?:object, sceneCount?:number, totalBytes?:number,
  *   requiresAppUpdate?:boolean, entry?:object, errors?:string[] }>}
  */
-async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
-  const { storyId, globalManifestUrl, appVersion = '1.0.0', onProgress, requestedKinds = ['scene'],
-    isCancelled, manifestTimeoutMs = 15000, fileTimeoutMs = 60000 } = params || {};
-  if (!storyId || typeof storyId !== 'string') return { ok: false, reason: 'storyId inválido' };
-  if (!globalManifestUrl || typeof globalManifestUrl !== 'string') return { ok: false, reason: 'globalManifestUrl inválido' };
-  // Kinds solicitados: só os conhecidos; default scenes-only (compat F2.4d).
-  const kinds = Array.isArray(requestedKinds) ? requestedKinds.filter((k) => KNOWN_KINDS.includes(k)) : [];
-  if (kinds.length === 0) return { ok: false, reason: 'requestedKinds inválido (use cover/scene/coloring/audio)' };
+async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = {}) {
+  const { onProgress, isCancelled, manifestTimeoutMs = 15000, fileTimeoutMs = 60000 } = params || {};
+  const storyId = resolved.storyId;
+  const kinds = resolved.kinds;
+  const appVersion = resolved.appVersion;
+  const version = resolved.version;
+  const report = makeReport(onProgress);
 
-  const report = (status, extra) => {
-    try { if (onProgress) onProgress({ status, downloadedBytes: 0, totalBytes: 0, ...extra }); } catch { /* noop */ }
-  };
-
-  /** Resultado de um recovery bem-sucedido, no MESMO formato de uma instalação. */
-  const asInstalled = (rec) => {
-    report(PACK_STATUS.READY, { downloadedBytes: rec.totalBytes, totalBytes: rec.totalBytes });
-    return {
-      ok: true, storyId, version: rec.version, kinds: rec.kinds, counts: rec.counts,
-      sceneCount: rec.counts.scene || 0, totalBytes: rec.totalBytes, entry: rec.entry, recovered: true,
-    };
-  };
-
-  // 0) LP2.1a-ii-C: RECOVERY SOB DEMANDA — antes de qualquer rede. Uma publicação interrompida
-  //    entre o move e o READY deixa o pack ÍNTEGRO no disco; se a evidência local (marcador) provar
-  //    que ele foi validado, promove e devolve SEM baixar nada. Roda aqui dentro porque o Impl já
-  //    está na fila física por história (guardedInstall → runExclusiveByStory): nunca concorre com
-  //    uma instalação da mesma história. Com o índice já READY, sai no fast path sem I/O algum.
-  const rec0 = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion });
-  if (rec0.recovered) return asInstalled(rec0);
-
-  // 1) manifesto global + 2) pack por storyId (read-only)
-  const gm = await fetchGlobalContentManifest(globalManifestUrl, { appVersion });
-  if (!gm.ok) {
-    // F2.5-hardening-3: GATE DE REDE — falha de rede/timeout no fetch do manifesto global (já com
-    // timeout no globalManifestService) retorna erro LIMPO ANTES de criar .tmp ou tocar o índice.
-    const networkError = /rede indispon[ií]vel|timeout/i.test(gm.errors.join(' '));
-    return { ok: false, reason: `manifesto global inválido: ${gm.errors.join(' | ')}`, networkError };
+  // LP2.1a-ii-D — PREFLIGHT LOCAL (read-only) contra a identidade RESOLVIDA. O recovery mutável só
+  // é chamado DEPOIS de confirmar a identidade local; nunca antes (isso substitui a antiga ordem do
+  // bloco C "recuperar antes de qualquer rede", superseded pela identidade resolvida).
+  const insp = await inspectLocalPackIdentity(resolved);
+  if (insp.coincident) {
+    // LP2.1a-ii-D3 — ÂNCORA REAL: o pack local só é reutilizável se os BYTES de manifest.json batem
+    // com o sha do MARCADOR E com o da identidade RESOLVIDA (autoridade online). Declaração ≠
+    // integridade: um manifesto adulterado (schema-válido, sha real ≠ âncora) NÃO é reutilizado.
+    const markerSha = String(insp.marker.manifestSha256).toLowerCase();
+    const anchored = insp.actualSha != null && insp.actualSha === markerSha && insp.actualSha === resolved.manifestSha256;
+    if (anchored) {
+      //  a) READY coincidente E ancorado → sucesso local sem recovery/download/escrita (D-ID-25/30).
+      if (insp.ready) return asReadyEntry(resolved, insp.entry, insp.manifest, report);
+      //  b) coincidente-não-READY E ancorado → promove SÓ o candidato correspondente (expectedVersion),
+      //     sem baixar. O recovery recalcula o sha real (validatePublishMarker) — dupla proteção.
+      const rec1 = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion, expectedVersion: version });
+      if (rec1.recovered) return asInstalledResult(storyId, rec1, report);
+    }
+    // âncora real divergente/indisponível → NÃO reusa nem recupera o candidato; download abaixo (D-ID-31/32/35).
   }
-  const gp = getPackFromGlobalManifest(gm.data, storyId);
-  if (!gp.ok) return { ok: false, reason: gp.errors.join(' | ') };
-  const pack = gp.data;
+  //  c) divergente/ausente/inválido/âncora-divergente → instala a identidade resolvida (download abaixo).
+  //     NÃO chama recovery mutável para candidato divergente; um READY anterior válido é preservado no
+  //     failWith (hardening-3) e NUNCA é devolvido como sucesso desta identidade.
 
-  // 3) requiredAppVersion — não baixa se o app for antigo demais (requires_app_update)
-  if (pack.requiresAppUpdate) {
-    return { ok: false, requiresAppUpdate: true, reason: `requires_app_update (requiredAppVersion ${pack.requiredAppVersion} > appVersion ${appVersion})` };
-  }
-
-  const version = pack.version;
   const localDir = getPackLocalDir(storyId, version);
   const tempDir = getPackTempDir(storyId, version);
   if (!localDir || !tempDir) return { ok: false, reason: 'documentDirectory indisponível' };
-
-  // 3b) LP2.1a-ii-C: 2ª tentativa de recovery — SÓ quando a 1ª encontrou candidatos ambíguos (duas
-  //     versões da mesma história, ambas íntegras). Escolher entre elas por versão/data/ordem do
-  //     filesystem é proibido; quem desempata é a identidade que o manifesto global acabou de
-  //     resolver. Agora sabemos a versão esperada, então recupera-se SÓ o candidato correspondente
-  //     — e ainda sem baixar arquivo nenhum.
-  if (rec0.ambiguous) {
-    const rec1 = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion, expectedVersion: version });
-    if (rec1.recovered) return asInstalled(rec1);
-  }
 
   // F2.5-hardening-3: uma tentativa que falha NÃO pode rebaixar um pack já READY que estava
   // funcionando no device. Preserva a entry anterior se for READY (só limpa o .tmp e retorna
@@ -324,8 +465,8 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
 
     // 4) URL do manifesto por-pack = baseUrl + manifestPath. baseUrl é AUTORITATIVO para o
     //    path (já traz o segmento de versão, ex.: /v1/) — NÃO montamos v1 a partir de version.
-    const base = pack.baseUrl; // validado terminando com '/'
-    const manifestUrl = `${base}${pack.manifestPath}`;
+    const base = resolved.baseUrl; // validado terminando com '/'
+    const manifestUrl = `${base}${resolved.manifestPath}`;
 
     // 5) baixa o manifesto por-pack para o .tmp (com TIMEOUT + cancelável — F2.5-hardening-3)
     const mTo = `${tempDir}manifest.json`;
@@ -336,7 +477,7 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
     // 5b) manifestSha256 OBRIGATÓRIO (F2.5-hardening-3): verifica os BYTES do manifest.json baixado
     //     contra a âncora do manifesto global — ANTES de confiar no schema e de baixar arquivos.
     //     Ausente/inválido/divergente → rejeita (fallback local intacto; .tmp limpo; nunca ready).
-    const expectedManifestSha = typeof pack.manifestSha256 === 'string' ? pack.manifestSha256.toLowerCase() : null;
+    const expectedManifestSha = typeof resolved.manifestSha256 === 'string' ? resolved.manifestSha256.toLowerCase() : null;
     if (!expectedManifestSha || !/^[a-f0-9]{64}$/.test(expectedManifestSha)) {
       return failWith('manifestSha256 ausente/inválido no manifesto global (pack remoto rejeitado)');
     }
@@ -457,7 +598,7 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
     //      persistido em lugar nenhum, então sem o marcador não há evidência da âncora no disco).
     //      Falhar aqui ABORTA a publicação: sem marcador, nenhuma instalação nova é publicada.
     const marker = buildPublishMarker({
-      storyId, version, manifestSha256: expectedManifestSha, manifestPath: pack.manifestPath, kinds, appVersion,
+      storyId, version, manifestSha256: expectedManifestSha, manifestPath: resolved.manifestPath, kinds, appVersion,
     });
     try {
       await FileSystem.writeAsStringAsync(`${tempDir}${MARKER_FILENAME}`, JSON.stringify(marker));
@@ -512,29 +653,68 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(params = {}) {
   }
 }
 
-/* ───────────────── Single-flight por identidade de pack (LP2 / PK-01) ───────────────── */
+/* ── Caminho OFFLINE (LP2.1a-ii-D): resolveInstallIdentity falhou com networkError=true ── */
 /*
- * Antes, a única trava era o `busyRef` do hook — por INSTÂNCIA. Duas telas pedindo a mesma
- * história abriam DUAS instalações físicas que calculam o MESMO `.tmp`
- * (packs/.tmp/<id>@<version>/): a primeira coisa que o fluxo faz é limpar esse diretório, então
- * uma destruía o download da outra. Agora a operação é compartilhada por chave canônica.
+ * Preserva os RESULTADOS FUNCIONAIS do bloco C sob indisponibilidade REAL de rede. A tentativa de
+ * fetch registrada ANTES do recovery é agora comportamento AUTORIZADO (Opção 1 — a ordem antiga
+ * "recuperar antes de qualquer rede" foi superseded pela identidade resolvida). Melhor esforço:
+ *   1) READY local VÁLIDO (índice + probe + marcador coerente + manifesto válido) → sucesso local.
+ *   2) candidato recuperável → recovery de melhor esforço promove.
+ *   3) nenhum local válido → erro de indisponibilidade.
+ * `recovered=false` NÃO é "indisponível": só significa que não houve promoção agora.
+ */
+async function installOfflineBestEffort(params = {}) {
+  const { storyId, appVersion = '1.0.0', requestedKinds = ['scene'] } = params || {};
+  const kinds = normalizeKinds(requestedKinds);
+  const report = makeReport(params && params.onProgress);
+  const entry = await getPackEntry(storyId);
+  if (entry && entry.status === PACK_STATUS.READY && entry.version) {
+    const localDir = getPackLocalDir(storyId, entry.version);
+    const probe = await probeInstalledPackDisk(localDir);
+    if (isReadyEntryValid(entry, probe)) {
+      const marker = await readLocalPublishMarker(localDir);
+      const manifest = await readLocalPackManifest(localDir);
+      const mv = manifest ? validatePackManifest(manifest, { appVersion }) : { ok: false };
+      // READY VÁLIDO com evidência coerente → sucesso local (D-ID-26). Sem evidência (READY legado/
+      // inválido) NÃO fabrica sucesso (D-ID-29): cai no recovery, que sem promoção devolve erro.
+      if (markerStructureOk(marker) && marker.storyId === storyId && marker.version === entry.version && mv.ok) {
+        // LP2.1a-ii-D3 — ÂNCORA REAL offline: sem identidade remota, os BYTES de manifest.json têm de
+        // bater com o sha do MARCADOR. Adulterado (sha real ≠ marcador) ou hash indisponível → NÃO
+        // reusa e NÃO chama recovery (índice já READY tem fast-path); devolve indisponibilidade sem
+        // declarar o índice íntegro (D-ID-33/35). Preserva o índice anterior.
+        const anchor = await computeLocalManifestAnchor(localDir);
+        if (anchor.ok && anchor.actualManifestSha256 === String(marker.manifestSha256).toLowerCase()) {
+          return asReadyEntry({ storyId, version: entry.version, kinds, appVersion }, entry, manifest, report);
+        }
+        return { ok: false, networkError: true, reason: 'rede indisponível (READY local não verificável: sha do manifest.json diverge da âncora)' };
+      }
+    }
+  }
+  const rec = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion });
+  if (rec.recovered) return asInstalledResult(storyId, rec, report);
+  return { ok: false, networkError: true, reason: 'rede indisponível ao buscar content-manifest.json' };
+}
+
+/* ───────────── Single-flight por IDENTIDADE RESOLVIDA (LP2.1a-ii-D / PK-01) ───────────── */
+/*
+ * O compartilhamento é pela identidade RESOLVIDA de 7 campos (não mais pela chave preliminar):
+ * duas solicitações só compartilham a instalação física quando resolvem EXATAMENTE a mesma
+ * identidade. Versões/SHAs diferentes → conclusões lógicas INDEPENDENTES. `packInstallKey`
+ * (preliminar) permanece exportado só por compatibilidade de testes — NÃO decide mais o voo.
  */
 const inFlightInstalls = new Map();
 
+/** Só para teste/diagnóstico: quantas instalações físicas estão em voo NESTA instância (mapa resolvido). */
+function inFlightInstallCount() {
+  return inFlightInstalls.size;
+}
 
-/** Só para teste/diagnóstico: quantas instalações físicas estão em voo NESTA instância. */
-  function inFlightInstallCount() {
-    return inFlightInstalls.size;
-  }
-
-/* ── Exclusão pelo RECURSO FÍSICO (não pela chave do pedido) ── */
+/* ── Exclusão pelo RECURSO FÍSICO (storyId@version) — a fila por história permanece ── */
 /*
- * A chave canônica serve para COMPARTILHAR o resultado, e inclui `requestedKinds`. Mas o recurso
- * que o fluxo destrói e publica — `.tmp` e `localDir` — deriva de storyId@version, SEM kinds.
- * Logo, duas chamadas da MESMA história com kinds diferentes têm chaves diferentes, não
- * compartilham e cairiam no MESMO `.tmp`, uma apagando o download da outra (o fluxo começa
- * limpando o `.tmp`). A fila abaixo garante que só exista UMA execução física por história de
- * cada vez — inclusive para o chamador com `isCancelled`, que não entra no mapa de compartilhamento.
+ * O recurso que o fluxo destrói e publica (`.tmp`/`localDir`) deriva de storyId@version. Identidades
+ * resolvidas diferentes da MESMA história não compartilham conclusão, mas ainda aguardam a MESMA
+ * fila física (instalam uma depois da outra, reavaliando o estado local ao entrar) — sem disputa
+ * de `.tmp`. O chamador cancelável também passa por aqui, mesmo sem entrar no mapa de compartilhamento.
  */
 const storyInstallChains = new Map();
 
@@ -549,42 +729,43 @@ function runExclusiveByStory(storyId, task) {
   return run;
 }
 
-/** Executa a instalação física em série por história (uma por vez, sem disputa de `.tmp`). */
-function guardedInstall(params) {
-  return runExclusiveByStory(params && params.storyId, () => downloadStoryPackScenesFromGlobalManifestImpl(params));
+/** Executa a instalação física (identidade resolvida) em série por história, sem disputa de `.tmp`. */
+function guardedInstall(resolved, params) {
+  return runExclusiveByStory(resolved.storyId, () => downloadStoryPackScenesFromGlobalManifestImpl(resolved, params));
 }
 
 /**
- * Instala o pack de uma história a partir do manifesto global.
+ * Instala o pack de uma história. LP2.1a-ii-D:
+ *   Fase 1 — resolve a identidade INDEPENDENTEMENTE (uma busca do manifesto por invocação pública).
+ *   Fase 2 — single-flight pela identidade RESOLVIDA (7 campos): mesma identidade compartilha a
+ *            instalação física; identidades diferentes NÃO compartilham a conclusão lógica.
+ *   Fase 3 — a instalação recebe o MESMO objeto resolvido (não busca o manifesto de novo).
  *
- * SINGLE-FLIGHT: chamadas concorrentes com a mesma chave canônica compartilham UMA operação
- * física (download + validação + extração + publicação + registro) e recebem a mesma conclusão
- * lógica. A entrada sai do mapa em `finally`, então uma falha nunca deixa a chave travada e o
- * retry seguinte executa de verdade.
- *
- * Cancelamento: um chamador que passa `isCancelled` é DONO EXCLUSIVO do RESULTADO (não é
- * compartilhado), justamente para que a desistência dele nunca cancele o que outro ainda
- * precisa — mas ele ainda passa pela fila física, senão disputaria o `.tmp`. Hoje nenhum
- * chamador de produto passa `isCancelled`: a UI que "cancela" apenas deixa de observar.
- *
- * LIMITAÇÃO CONHECIDA (aceita neste bloco): quem JOINA um voo em andamento não recebe
- * `onProgress` — só o `onProgress` de quem criou o voo é repassado. O resultado final é o mesmo
- * para todos; apenas a barra de progresso de um segundo observador ficaria parada em 0% até a
- * conclusão. Resolver exige multiplexar os inscritos ({ promise, subscribers }) — mudança de
- * estrutura que não é necessária para a integridade e fica para quando houver caso real.
- *
- * Contrato público inalterado (mesmos parâmetros, mesmo formato de retorno).
+ * Offline (networkError na resolução): melhor esforço serializado por história (preserva o C).
+ * Cancelável (`isCancelled`): DONO EXCLUSIVO do resultado, mas ainda passa pela fila física.
+ * `finally` limpa o mapa: uma falha nunca deixa a chave travada; o retry seguinte executa.
+ * Quem JOINA um voo não recebe `onProgress` (limitação conhecida do bloco F). Contrato público
+ * inalterado (mesmos parâmetros, mesmo formato de retorno).
  */
 async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
-  // Dono exclusivo (cancelável): não compartilha o resultado, mas AINDA passa pela fila física —
-  // senão disputaria o `.tmp` com uma instalação compartilhada da mesma história.
-  if (typeof (params && params.isCancelled) === 'function') return guardedInstall(params);
+  const idr = await resolveInstallIdentity(params);
+  if (!idr.ok) {
+    if (idr.networkError) return runExclusiveByStory(params && params.storyId, () => installOfflineBestEffort(params));
+    return idr.requiresAppUpdate
+      ? { ok: false, requiresAppUpdate: true, reason: idr.reason }
+      : { ok: false, reason: idr.reason };
+  }
+  const resolved = idr.resolved;
 
-  const key = packInstallKey(params);
+  // Dono exclusivo (cancelável): não compartilha o resultado, mas AINDA passa pela fila física.
+  if (typeof (params && params.isCancelled) === 'function') return guardedInstall(resolved, params);
+
+  const key = canonicalResolvedKey(resolved);
+  if (!key) return guardedInstall(resolved, params);   // identidade inadmissível → instala sem compartilhar
   const existing = inFlightInstalls.get(key);
-  if (existing) return existing;   // mesma operação física, mesma conclusão lógica
+  if (existing) return existing;   // mesma identidade resolvida, mesma conclusão lógica
 
-  const flight = guardedInstall(params).finally(() => { inFlightInstalls.delete(key); });
+  const flight = guardedInstall(resolved, params).finally(() => { inFlightInstalls.delete(key); });
   inFlightInstalls.set(key, flight);
   return flight;
   }

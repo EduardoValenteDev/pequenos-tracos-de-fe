@@ -8242,19 +8242,22 @@ console.log('\n── LP2: concorrência e integridade dos story packs ──');
     && /async function downloadStoryPackScenesFromGlobalManifestImpl/.test(dlC),
     'a instalação não compartilha operação por chave, ou a chave pode ficar travada após falha');
 
+  // LP2.1a-ii-D (superseded): o cancelável recebe a identidade RESOLVIDA (guardedInstall(resolved, params)),
+  // mas continua dono exclusivo e AINDA passa pela fila física — a garantia é idêntica.
   check('LP2 §4.5 (cancelamento não mata operação alheia): isCancelled = dono exclusivo, mas AINDA passa pela fila física',
-    /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstall\(params\);/.test(dlC)
+    /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstall\(resolved, params\);/.test(dlC)
     && !/isCancelled/.test(hook),   // o caminho de produto não cancela: "cancelar" = parar de observar
     'um chamador que desiste pode cancelar a operação de outro, ou escapa da fila física e disputa o .tmp');
 
-  // A exclusão tem de seguir o RECURSO (.tmp/localDir = storyId@version), não a chave do pedido
-  // (que inclui kinds): senão duas instalações da mesma história com kinds diferentes se destroem.
-  check('LP2 PK-01 (recurso físico): instalação serializada por storyId; a chave canônica só compartilha resultado',
+  // A exclusão tem de seguir o RECURSO (.tmp/localDir = storyId@version), não a identidade do pedido:
+  // senão duas instalações da mesma história (versões/kinds diferentes) se destroem no mesmo .tmp.
+  // LP2.1a-ii-D (superseded): guardedInstall serializa pela identidade RESOLVIDA (resolved.storyId).
+  check('LP2 PK-01 (recurso físico): instalação serializada por storyId; a identidade resolvida só compartilha resultado',
     /const storyInstallChains = new Map\(\)/.test(dlC)
     && /function runExclusiveByStory\(storyId, task\)/.test(dlC)
     && /const settled = run\.then\(\(\) => undefined, \(\) => undefined\);/.test(dlC)
-    && /function guardedInstall\(params\) \{\s*return runExclusiveByStory\(params && params\.storyId,/.test(dlC),
-    'duas instalações da mesma história (kinds diferentes) podem disputar o mesmo .tmp');
+    && /function guardedInstall\(resolved, params\) \{\s*return runExclusiveByStory\(resolved\.storyId,/.test(dlC),
+    'duas instalações da mesma história (versões/kinds diferentes) podem disputar o mesmo .tmp');
 
   // ── COMPORTAMENTAL: índice real, com AsyncStorage/FileSystem como doubles ──
   const makeStore = () => {
@@ -8294,11 +8297,29 @@ console.log('\n── LP2: concorrência e integridade dos story packs ──');
 
   // `packInstallKey` é injetado REAL (módulo, puro) — não é uma cópia dentro do recorte.
   const realPackInstallKey = require('./testing/packInstallHarness').loadPackDownloader().packInstallKey;
+  // LP2.1a-ii-D (superseded): o single-flight agora dedup pela IDENTIDADE RESOLVIDA. O recorte
+  // referencia resolveInstallIdentity/canonicalResolvedKey — injetados como stubs determinísticos:
+  // stubResolve devolve uma identidade resolvida derivada dos params (mesma entrada → mesma
+  // identidade → 1 voo físico); stubCanonical é a tupla dos 7 campos (a canonicalização REAL é
+  // provada no bloco LP2.1a-ii-A/D). Assim o recorte físico é exercitado sem rede nem manifesto.
+  const stubResolve = async (params = {}) => ({
+    ok: true,
+    resolved: {
+      storyId: params.storyId,
+      version: params.__version || '1.0.0',
+      baseUrl: params.globalManifestUrl,
+      manifestPath: 'manifest.json',
+      manifestSha256: 'a'.repeat(64),
+      kinds: (Array.isArray(params.requestedKinds) ? params.requestedKinds : ['scene']).slice().sort(),
+      appVersion: params.appVersion || '1.0.0',
+    },
+  });
+  const stubCanonical = (r) => (r ? JSON.stringify([r.storyId, r.version, r.baseUrl, r.manifestPath, r.manifestSha256, r.kinds, r.appVersion]) : null);
   const makeFlight = (impl) => {
     const code = flightSlice
       + '\n; return { downloadStoryPackScenesFromGlobalManifest, inFlightInstallCount };';
     return {
-      ...new Function('downloadStoryPackScenesFromGlobalManifestImpl', 'packInstallKey', code)(impl, realPackInstallKey),
+      ...new Function('downloadStoryPackScenesFromGlobalManifestImpl', 'packInstallKey', 'resolveInstallIdentity', 'canonicalResolvedKey', code)(impl, realPackInstallKey, stubResolve, stubCanonical),
       packInstallKey: realPackInstallKey,
     };
   };
@@ -10614,13 +10635,16 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
       `contagem: ${JSON.stringify(counts)}`);
   }
 
-  // §19.34 — nada de D/E/F
-  check('LP2.1a-ii-C §19.34 (sem ampliar para D/E/F): o bloco não toca identidade resolvida, progresso compartilhado nem cancelamento',
+  // §19.34 — o recovery e o marcador (bloco C) continuam FORA de identidade resolvida, progresso (E)
+  // e cancelamento (F). O single-flight do downloader migrou para a identidade RESOLVIDA no D (Opção 1
+  // aprovada): a asserção estrutural aqui acompanha guardedInstall(resolved, params); recovery/marker
+  // permanecem byte-idênticos (checado à parte pelos hashes).
+  check('LP2.1a-ii-C §19.34 (recovery/marcador fora de D/E/F): não tocam identidade resolvida, progresso compartilhado nem cancelamento',
     !/subscribers|multiplex|progresso compartilhado|resolvedIdentity|identidade resolvida da opera/i.test(recSrc + mkSrc)
-    && !/packInstallKey/.test(recSrc + mkSrc)                       // não mexe na chave da operação compartilhada
-    && /const flight = guardedInstall\(params\)\.finally/.test(dlSrcC)  // single-flight intacto
-    && /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstall\(params\);/.test(dlSrcC),
-    'o bloco C ampliou para identidade resolvida, progresso compartilhado ou cancelamento');
+    && !/packInstallKey|canonicalResolvedKey/.test(recSrc + mkSrc)   // recovery/marcador não decidem o voo
+    && /const flight = guardedInstall\(resolved, params\)\.finally/.test(dlSrcC)  // single-flight por identidade resolvida
+    && /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstall\(resolved, params\);/.test(dlSrcC),
+    'o recovery/marcador ampliaram para identidade resolvida, progresso compartilhado ou cancelamento');
 
   // §19.15/16 — a regra de colisão é normalizada (núcleo puro, sem I/O)
   const variantes = ['.ptf-publish.json', './.ptf-publish.json', './/.ptf-publish.json',
@@ -10672,18 +10696,22 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
     ]) {
       const h = createPackInstallHarness();
       semearOrfao(h, { entry: caso.entry });
-      configurarRemoto(h); h.resetEvents();   // a rede EXISTE — a prova é que não é usada
+      configurarRemoto(h); h.resetEvents();
       const svc = createPackDownloadService(h.deps);
       const r = await instalarC(svc);
       const e = await h.entry(STORY_C);
-      check(`LP2.1a-ii-C ${caso.nome}: o órfão é recuperado, com metadados recalculados e ZERO rede`,
+      // LP2.1a-ii-D (superseded): a ordem "recuperar antes da rede" foi substituída pela identidade
+      // resolvida. Agora há UMA resolução do manifesto por chamada online (fetch presente); o órfão
+      // coincidente é promovido pelo recovery SEM baixar assets (downloads===0). A garantia funcional
+      // (recuperado, metadados recalculados, sem download, sem versão divergente) permanece.
+      check(`LP2.1a-ii-C ${caso.nome}: o órfão coincidente é recuperado (1 resolução, sem download de assets)`,
         r.ok === true && r.recovered === true && r.version === V_C
         && e.status === 'ready' && e.localDir === LOCAL_C && e.manifestPath === `${LOCAL_C}manifest.json`
         && e.totalBytes === ARQ_C.reduce((a, f) => a + Buffer.byteLength(f.text), 0)   // recalculado, não os 999 herdados
         && e.errorMessage === null                                                      // §19.30
-        && h.counters.downloads === 0                                                   // §19.26
-        && !h.events.includes('fetch-global-manifest'),
-        `o órfão não foi recuperado sem rede: ok=${r.ok} status=${e && e.status} totalBytes=${e && e.totalBytes} downloads=${h.counters.downloads}`);
+        && h.counters.downloads === 0                                                   // §19.26: recovery não baixa assets
+        && h.events.includes('fetch-global-manifest'),                                  // §19-D: 1 resolução por chamada online
+        `o órfão coincidente não foi recuperado: ok=${r.ok} rec=${r.recovered} status=${e && e.status} totalBytes=${e && e.totalBytes} downloads=${h.counters.downloads}`);
     }
 
     /* ═══ §19.3-6, 10-14, 19: candidatos que NÃO podem ser promovidos ═══ */
@@ -10718,13 +10746,15 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
 
     /* ═══ §19.7 dois candidatos, um válido · §19.8 dois válidos · §19.9 ordem do FS ═══ */
     {
-      // Um válido (1.0.0) e um corrompido (2.0.0): recupera o válido.
+      // Um válido (1.0.0) e um corrompido (2.0.0): recupera o válido. LP2.1a-ii-D: offline REAL
+      // (setModoRede) para disparar o caminho de recovery — no harness "sem configurarRemoto" é 404
+      // (história ausente), que o D corretamente NÃO trata como indisponibilidade de rede.
       const h = createPackInstallHarness();
       semearOrfao(h, { version: '1.0.0' });
       semearOrfao(h, { version: '2.0.0', corromperArquivo: 'scenes/01.webp' });
-      h.resetEvents();
+      h.setModoRede('offline'); h.resetEvents();
       const r = await instalarC(createPackDownloadService(h.deps));
-      check('LP2.1a-ii-C §19.7 (dois candidatos, um válido): recupera o válido e ignora o corrompido — sem rede',
+      check('LP2.1a-ii-C §19.7 (dois candidatos, um válido): offline recupera o válido e ignora o corrompido, sem download',
         r.ok === true && r.recovered === true && r.version === '1.0.0' && h.counters.downloads === 0,
         `não recuperou o único candidato válido: ${JSON.stringify({ ok: r.ok, v: r.version })}`);
     }
@@ -10755,13 +10785,19 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
       const svc = createPackDownloadService(h.deps);
       const r1 = await instalarC(svc);
       const setEntry1 = h.counters.setEntry;
-      const r2 = await instalarC(svc);   // de novo: agora a entrada já está READY → fast path
+      const r2 = await instalarC(svc);   // de novo: agora a entrada já está READY e coincidente
+      const setEntry2 = h.counters.setEntry;
       const e = await h.entry(STORY_C);
-      check('LP2.1a-ii-C §19.21+32 (idempotente): recuperar 2× converge; a 2ª chamada cai no fast path e reinstala em vez de recuperar de novo',
+      // LP2.1a-ii-D (superseded): a 2ª chamada não reinstala mais — reconhece o READY coincidente e
+      // retorna local (asReadyEntry, recovered:false), SEM nova promoção nem novo download nem nova
+      // validação mutável do recovery. Convergência preservada (idempotente).
+      check('LP2.1a-ii-C §19.21+32 (idempotente): 1ª recupera e promove; a 2ª reconhece o READY coincidente e retorna local, sem re-promover',
         r1.recovered === true && setEntry1 === 1
-        && r2.recovered === undefined                    // 2ª: não recuperou (já estava ready) → fluxo normal
+        && r2.recovered === false                        // 2ª: READY coincidente → sucesso local (asReadyEntry)
+        && setEntry2 === setEntry1                        // 2ª NÃO escreve o índice de novo
+        && h.counters.downloads === 0                     // 2ª NÃO baixa
         && r2.ok === true && e.status === 'ready' && e.version === V_C,
-        `o recovery repetido não convergiu: r1=${JSON.stringify({ rec: r1.recovered })} r2=${JSON.stringify({ ok: r2.ok, rec: r2.recovered })}`);
+        `o recovery repetido não convergiu: r1=${JSON.stringify({ rec: r1.recovered })} r2=${JSON.stringify({ ok: r2.ok, rec: r2.recovered })} setEntry=${setEntry1}/${setEntry2}`);
     }
 
     /* ═══ §19.23 fast path READY sem I/O de descoberta ═══ */
@@ -10770,10 +10806,15 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
       semearOrfao(h, { entry: { status: 'ready', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 30, downloadedBytes: 30, errorMessage: null } });
       configurarRemoto(h); h.resetEvents();
       await instalarC(createPackDownloadService(h.deps));
-      check('LP2.1a-ii-C §19.23 (fast path): com a entrada já READY o recovery não faz NENHUM I/O de descoberta (sem readdir, sem hash de candidato)',
+      // LP2.1a-ii-D3: o fast-path READY coincidente NÃO faz descoberta do recovery (sem readdir, sem
+      // hash dos ARQUIVOS candidatos), mas AGORA calcula a ÂNCORA REAL (hash de manifest.json) — é o
+      // elo de integridade que o D3 adicionou. Só o manifest.json pode ser hasheado aqui.
+      const hashesLocal = h.events.filter((e) => e.startsWith(`hash:${LOCAL_C}`));
+      check('LP2.1a-ii-C §19.23 (fast path): READY coincidente sem descoberta do recovery; só a âncora real (manifest.json) é hasheada',
         h.eventsOfType('readdir').length === 0
-        && !h.events.some((e) => e.startsWith(`hash:${LOCAL_C}`)),   // nada do diretório final foi hasheado
-        `o fast path fez I/O de descoberta: ${h.eventsOfType('readdir').join(', ')}`);
+        && hashesLocal.every((e) => e === `hash:${LOCAL_C}manifest.json`)   // nenhum ARQUIVO candidato hasheado; só a âncora
+        && hashesLocal.length <= 1,
+        `o fast path fez I/O de descoberta ou hasheou arquivos candidatos: readdir=${h.eventsOfType('readdir').join(',')} hashes=${hashesLocal.join(',')}`);
     }
 
     /* ═══ §19.25 nenhuma leitura de outra história ═══ */
@@ -10782,7 +10823,7 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
       semearOrfao(h);                                                   // david_goliath@1.0.0 (válido)
       semearOrfao(h, { storyId: 'noah', version: '1.0.0' });            // noah@1.0.0 — não pode ser tocado
       h.mem._seedFile(`${dirDe('david_goliath_extra', '1.0.0')}manifest.json`, '{}');   // prefixo parecido
-      h.resetEvents();
+      h.setModoRede('offline'); h.resetEvents();   // LP2.1a-ii-D: offline REAL para o recovery rodar e provar o isolamento
       await instalarC(createPackDownloadService(h.deps));
       const tocouOutra = h.events.filter((e) => /noah|david_goliath_extra/.test(e));
       check('LP2.1a-ii-C §19.25 (isolamento por história): nenhum candidato de outra história (nem de nome parecido) é aberto',
@@ -10839,8 +10880,10 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
     }
     {
       // §19.20: um crash DURANTE a promoção não deixa meio-termo — ou promoveu, ou não.
+      // LP2.1a-ii-D: offline REAL para o recovery promover o órfão (sem configurarRemoto = 404, que o D
+      // trata como história ausente, não como indisponibilidade de rede).
       const h = createPackInstallHarness();
-      semearOrfao(h); h.resetEvents();
+      semearOrfao(h); h.setModoRede('offline'); h.resetEvents();
       let antes = null;
       h.onBefore = async (type, detail) => {
         if (type === 'set-entry' && detail === `${STORY_C}:ready` && !antes) {
@@ -10904,16 +10947,20 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
       {
         const h = createPackInstallHarness();
         cenarioC1ComStale(h);
-        h.resetEvents();   // SEM rede configurada: recuperar aqui é obrigatoriamente offline
+        // LP2.1a-ii-D (superseded): offline REAL (setModoRede). A resolução TENTA a rede e falha como
+        // networkError; só então o recovery offline prioriza a versão do índice. A garantia funcional
+        // (recupera a versão indicada, não a antiga stale; sem download; sem validar o antigo) permanece.
+        h.setModoRede('offline'); h.resetEvents();
         const r = await instalarC(createPackDownloadService(h.deps));
         const e = await h.entry(STORY_C);
         const tocouStale = h.events.some((x) => x.includes(`${STORY_C}@1.0.0`));
-        check('LP2.1a-ii-C FIX1 §6.C1 (prioridade do índice): com um diretório antigo íntegro ao lado, recupera a versão que o índice resolveu — offline, sem ambiguidade e sem validar o antigo',
+        check('LP2.1a-ii-C FIX1 §6.C1 (prioridade do índice): offline, recupera a versão que o índice resolveu, sem ambiguidade e sem validar o antigo',
           r.ok === true && r.recovered === true && r.version === V2
           && r.ambiguous !== true
           && e.status === 'ready' && e.version === V2
           && e.localDir === LOCAL_V2 && e.errorMessage === null
-          && h.counters.downloads === 0 && !h.events.includes('fetch-global-manifest')   // zero rede
+          && h.counters.downloads === 0                                                  // recovery não baixa assets
+          && h.events.includes('fetch-global-manifest')                                  // §19-D: tentativa de resolução que falha como networkError
           && tocouStale === false                                                        // o antigo nem foi aberto
           && h.eventsOfType('readdir').length === 0                                      // §7.2: C1 não lista
           && ARQ_C.every((f) => h.events.includes(`hash:${LOCAL_V2}${f.path}`))          // validação INTEGRAL do indicado
@@ -10967,7 +11014,10 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
           `a versão indicada inválida caiu para outra versão ou destruiu o antigo: v=${e && e.version} rec=${r.recovered}`);
       }
 
-      // ── C2 puro PRESERVADO: sem entrada no índice, dois válidos seguem ambíguos ──
+      // ── C2 puro PRESERVADO: sem entrada no índice, a identidade remota desempata ──
+      // LP2.1a-ii-D (superseded): a resolução online desempata e o preflight considera APENAS a versão
+      // resolvida (getPackLocalDir(v2)) — não lista os dois candidatos. Recovery promove só o v2
+      // coincidente, sem baixar assets; o v1 é preservado. (Antes o rec0 sem versão fazia readdir.)
       {
         const h = createPackInstallHarness();
         semearOrfao(h, { version: '1.0.0' });
@@ -10975,23 +11025,25 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         configurarRemoto(h, { version: V2 }); h.resetEvents();
         const r = await instalarC(createPackDownloadService(h.deps));
         const e = await h.entry(STORY_C);
-        check('LP2.1a-ii-C FIX1 §6.C2 (C2 preservado): sem identidade no índice, dois candidatos válidos seguem ambíguos — a rede desempata e nada é baixado',
+        check('LP2.1a-ii-C FIX1 §6.C2 (identidade resolvida desempata): considera só a versão resolvida (v2), promove sem baixar, preserva o v1',
           r.ok === true && r.recovered === true && r.version === V2 && e.version === V2
-          && h.events.includes('fetch-global-manifest')                          // precisou desempatar
-          && h.eventsOfType('readdir').length > 0                                // C2 lista, como antes
-          && h.counters.byUrl[`${BASE_C}${ARQ_C[0].path}`] === undefined         // mas não baixou arquivo
-          && h.mem.exists(LOCAL_V1) === true,
+          && h.events.includes('fetch-global-manifest')                          // a identidade remota desempata
+          && h.eventsOfType('readdir').length === 0                              // só a versão resolvida é considerada (sem listar)
+          && h.counters.byUrl[`${BASE_C}${ARQ_C[0].path}`] === undefined         // não baixou arquivo
+          && h.mem.exists(LOCAL_V1) === true,                                    // o outro candidato NÃO foi destruído
           `o C2 puro regrediu: rec=${r.recovered} v=${r.version} readdir=${h.eventsOfType('readdir').length}`);
       }
 
-      // ── Candidato único sem índice: comportamento anterior preservado ──
+      // ── Candidato único sem índice: recuperado offline pelo disco ──
+      // LP2.1a-ii-D: offline REAL (setModoRede). Sem índice, o recovery offline descobre o candidato
+      // único no disco (readdir) e o promove sem baixar.
       {
         const h = createPackInstallHarness();
         semearOrfao(h, { version: V2 });
-        h.resetEvents();
+        h.setModoRede('offline'); h.resetEvents();
         const r = await instalarC(createPackDownloadService(h.deps));
         const e = await h.entry(STORY_C);
-        check('LP2.1a-ii-C FIX1 §6.unico (candidato único sem índice): segue recuperando pelo disco, sem rede',
+        check('LP2.1a-ii-C FIX1 §6.unico (candidato único sem índice): offline recupera pelo disco, sem download',
           r.recovered === true && r.version === V2 && e.status === 'ready'
           && h.eventsOfType('readdir').length > 0 && h.counters.downloads === 0,
           `o caminho C2 de candidato único regrediu: rec=${r.recovered} v=${r.version}`);
@@ -11047,6 +11099,7 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         });
         cfg.semear(h);
         if (cfg.remoto) configurarRemoto(h, cfg.remoto === true ? {} : cfg.remoto);
+        if (cfg.offline) h.setModoRede('offline');   // LP2.1a-ii-D: offline REAL dispara o caminho de recovery/preservação
         h.resetEvents();
         let r;
         try {
@@ -11075,28 +11128,34 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         ].join('|');
       };
 
-      // Cenários reutilizados pelos mutantes (o mesmo que cada prova usa).
+      // Cenários reutilizados pelos mutantes (o mesmo que cada prova usa). LP2.1a-ii-D (superseded):
+      // os cenários de candidato INVÁLIDO/órfão sem rede rodam o recovery pelo caminho OFFLINE (antes
+      // era rec0-antes-do-fetch); no harness "sem configurarRemoto" é 404 (história ausente), então
+      // `offline: true` dispara a indisponibilidade REAL de rede que leva ao recovery.
       const CEN = {
         orfaoValido: { semear: (h) => semearOrfao(h, { entry: { status: 'downloading', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 999, downloadedBytes: 999, errorMessage: 'falha anterior' } }), remoto: true },
-        semMarcador: { semear: (h) => semearOrfao(h, { semMarcador: true }) },
-        marcadorIncompleto: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => { const x = { ...m }; delete x.manifestSha256; return x; } }) },
-        ancoraDivergente: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => ({ ...m, manifestSha256: 'a'.repeat(64) }) }) },
-        arquivoAusente: { semear: (h) => semearOrfao(h, { omitirArquivo: 'scenes/02.webp' }) },
-        hashDivergente: { semear: (h) => semearOrfao(h, { corromperArquivo: 'scenes/02.webp' }) },
-        doisValidos: { semear: (h) => { semearOrfao(h, { version: '1.0.0' }); semearOrfao(h, { version: '2.0.0' }); }, remoto: { version: '2.0.0' } },
-        outraHistoria: { semear: (h) => { semearOrfao(h); semearOrfao(h, { storyId: 'noah', version: '1.0.0' }); } },
-        anteriorValido: { semear: (h) => h.seedInstalledPack({ storyId: STORY_C, version: V_C, files: [{ path: 'scenes/01.webp', text: 'ANTIGO-INTACTO' }] }) },
+        semMarcador: { semear: (h) => semearOrfao(h, { semMarcador: true }), offline: true },
+        marcadorIncompleto: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => { const x = { ...m }; delete x.manifestSha256; return x; } }), offline: true },
+        ancoraDivergente: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => ({ ...m, manifestSha256: 'a'.repeat(64) }) }), offline: true },
+        arquivoAusente: { semear: (h) => semearOrfao(h, { omitirArquivo: 'scenes/02.webp' }), offline: true },
+        hashDivergente: { semear: (h) => semearOrfao(h, { corromperArquivo: 'scenes/02.webp' }), offline: true },
+        doisValidos: { semear: (h) => { semearOrfao(h, { version: '1.0.0' }); semearOrfao(h, { version: '2.0.0' }); }, offline: true },
+        outraHistoria: { semear: (h) => { semearOrfao(h); semearOrfao(h, { storyId: 'noah', version: '1.0.0' }); }, offline: true },
+        anteriorValido: { semear: (h) => h.seedInstalledPack({ storyId: STORY_C, version: V_C, files: [{ path: 'scenes/01.webp', text: 'ANTIGO-INTACTO' }] }), offline: true },
         colisao: { semear: () => {}, remoto: { arquivos: [...ARQ_C, { kind: 'scene', path: './.PTF-Publish.JSON', text: 'ATAQUE' }] } },
-        marcadorCorrompido: { semear: (h) => semearOrfao(h, { marcadorRaw: '{ nao é json' }) },
-        marcadorDeOutraHistoria: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => ({ ...m, storyId: 'noah' }) }) },
-        semManifestPath: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => { const x = { ...m }; delete x.manifestPath; return x; } }) },
-        tamanhoDivergente: { semear: (h) => semearOrfao(h, { bytesErradosEm: 'scenes/02.webp' }) },
-        doisValidosEsperada1: { semear: (h) => { semearOrfao(h, { version: '1.0.0' }); semearOrfao(h, { version: '2.0.0' }); }, remoto: { version: '1.0.0' } },
-        versaoDoDiretorioErrada: { semear: (h) => semearOrfao(h, { version: '1.0.0', versaoDeclarada: '9.9.9' }) },
+        marcadorCorrompido: { semear: (h) => semearOrfao(h, { marcadorRaw: '{ nao é json' }), offline: true },
+        marcadorDeOutraHistoria: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => ({ ...m, storyId: 'noah' }) }), offline: true },
+        semManifestPath: { semear: (h) => semearOrfao(h, { patchMarcador: (m) => { const x = { ...m }; delete x.manifestPath; return x; } }), offline: true },
+        tamanhoDivergente: { semear: (h) => semearOrfao(h, { bytesErradosEm: 'scenes/02.webp' }), offline: true },
+        doisValidosEsperada1: { semear: (h) => { semearOrfao(h, { version: '1.0.0' }); semearOrfao(h, { version: '2.0.0' }); }, offline: true },
+        versaoDoDiretorioErrada: { semear: (h) => semearOrfao(h, { version: '1.0.0', versaoDeclarada: '9.9.9' }), offline: true },
         // david tem SÓ a 1.0.0; noah tem a 3.0.0. Sem o filtro por história, a versão do noah vira
         // candidata do david e o recovery sonda `david_goliath@3.0.0` — que nem existe.
-        outraHistoriaVersaoNova: { semear: (h) => { semearOrfao(h, { version: '1.0.0' }); semearOrfao(h, { storyId: 'noah', version: '3.0.0' }); } },
-        jaReady: { semear: (h) => semearOrfao(h, { entry: { status: 'ready', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 30, downloadedBytes: 30, errorMessage: null } }), remoto: true },
+        outraHistoriaVersaoNova: { semear: (h) => { semearOrfao(h, { version: '1.0.0' }); semearOrfao(h, { storyId: 'noah', version: '3.0.0' }); }, offline: true },
+        // LP2.1a-ii-D: o fast-path do recovery (entrada já READY → sem descoberta) agora é exercitado
+        // pelo caminho OFFLINE quando o READY não tem evidência de marcador (asReadyEntry é pulado e o
+        // recovery é chamado com o índice READY). Sem o fast-path, o recovery faz descoberta (readdir).
+        jaReady: { semear: (h) => semearOrfao(h, { semMarcador: true, entry: { status: 'ready', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 30, downloadedBytes: 30, errorMessage: null } }), offline: true },
       };
 
       const MUT_C = [
@@ -11128,8 +11187,10 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         // (sondar `david_goliath@<versão do noah>`), não pelo isolamento entre histórias — o recovery
         // nunca chega a validar o diretório estrangeiro. O contrato é ARQUITETURAL e vive na prova
         // §19.25-arq abaixo (categoria B). Ver a arbitragem no comentário dessa prova.
+        // LP2.1a-ii-D (superseded): sem rede, o pack anterior é preservado pelo caminho OFFLINE (não
+        // mais por rec0-antes-do-fetch). O mutante injeta a exclusão prematura logo após ler a entrada.
         { id: 'C11', nome: 'apagar o pack anterior cedo demais', cen: 'anteriorValido', prova: '§19.28',
-          mut: { downloader: (s) => s.replace('  const rec0 = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion });', '  try { await FileSystem.deleteAsync(getPackLocalDir(storyId, "1.0.0"), { idempotent: true }); } catch {}\n  const rec0 = await recoverStoryPack({ storyId, requestedKinds: kinds, appVersion });') } },
+          mut: { downloader: (s) => s.replace('  const entry = await getPackEntry(storyId);\n  if (entry && entry.status === PACK_STATUS.READY && entry.version) {', '  const entry = await getPackEntry(storyId);\n  try { await FileSystem.deleteAsync(getPackLocalDir(storyId, "1.0.0"), { idempotent: true }); } catch {}\n  if (entry && entry.status === PACK_STATUS.READY && entry.version) {') } },
         { id: 'C12', nome: 'promover READY antes de validar os arquivos', cen: 'arquivoAusente', prova: '§19.5',
           mut: { recovery: (s) => s.replace('    const counts = {};\n    let totalBytes = 0;\n    for (const f of publicados) {', '    const counts = {}; let totalBytes = 0;\n    if (publicados.length) return { ok: true, version, kinds: marker.kinds, totalBytes: 1, counts: { scene: 1 } };\n    for (const f of publicados) {') } },
         { id: 'C13', nome: 'reutilizar o totalBytes ANTIGO do índice', cen: 'orfaoValido', prova: '§19.1',
@@ -11140,8 +11201,10 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
           mut: { marker: (s) => s.replace('  return normalizePackFilePath(path) === MARKER_FILENAME;', '  return path === MARKER_FILENAME;') } },
         { id: 'C16', nome: 'não limpar errorMessage na promoção', cen: 'orfaoValido', prova: '§19.1',
           mut: { recovery: (s) => s.replace('        errorMessage: null,', '') } },
+        // LP2.1a-ii-D (superseded): a recuperação local inequívoca agora ocorre no ramo coincidente do
+        // preflight; remover o retorno da promoção força o download apesar da recuperação (o vício C17).
         { id: 'C17', nome: 'baixar apesar da recuperação local inequívoca', cen: 'orfaoValido', prova: '§19.26',
-          mut: { downloader: (s) => s.replace('  if (rec0.recovered) return asInstalled(rec0);', '') } },
+          mut: { downloader: (s) => s.replace('    if (rec1.recovered) return asInstalledResult(storyId, rec1, report);', '') } },
         { id: 'C18', nome: 'fazer I/O de descoberta com a entrada já READY', cen: 'jaReady', prova: '§19.23',
           mut: { recovery: (s) => s.replace("      if (entry && entry.status === PACK_STATUS.READY) {\n        return { recovered: false, reason: 'entrada já ready' };\n      }", '') } },
         { id: 'C19', nome: 'aceitar marcador de OUTRA história', cen: 'marcadorDeOutraHistoria', prova: '§19.10',
@@ -11204,7 +11267,7 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
           const h = createPackInstallHarness({ markerMutate: mut });
           semearOrfao(h, { version: '1.0.0' });                      // david_goliath@1.0.0 (própria)
           semearOrfao(h, { storyId: 'noah', version: '3.0.0' });     // noah@3.0.0 (estrangeira)
-          h.resetEvents();
+          h.setModoRede('offline'); h.resetEvents();   // LP2.1a-ii-D: offline REAL para o recovery selecionar candidatos
           const mod = mut ? loadPackDownloader((x) => `${x}\n/* mut */`, mut) : { createPackDownloadService };
           try { await instalarC(mod.createPackDownloadService(h.deps)); } catch { /* o resultado final NÃO é o oráculo */ }
           const vs = new Set();
@@ -11355,7 +11418,7 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         const rodar = async (recoveryMutate) => {
           const h = createPackInstallHarness({ recoveryMutate });
           semearOrfao(h, { entry: { status: 'downloading', localDir: LOCAL_C, manifestPath: `${LOCAL_C}manifest.json`, totalBytes: 999, downloadedBytes: 999, errorMessage: 'falha anterior' } });
-          h.resetEvents();   // SEM rede: se não recuperar, não há como convergir
+          h.setModoRede('offline'); h.resetEvents();   // LP2.1a-ii-D: offline REAL; recuperar é o único caminho de convergência
           // "reinicializar o serviço": instância nova sobre o MESMO disco/índice persistido
           await instalarC(createPackDownloadService(h.deps));
           const persistido = JSON.parse(JSON.stringify(await h.storage.getPackEntry(STORY_C)));
@@ -11378,7 +11441,7 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         const mut = (s) => s.replace('      const saved = await setPackEntry(storyId, {', '      const saved = await Promise.resolve({ __naoPersistido: true }) && (async () => ({}))() && await ((async () => ({ storyId }))()) || await ((async () => ({}))()); await (async () => null)(); const _ignorado = ({');
         const rodar = async (recoveryMutate) => {
           const h = createPackInstallHarness({ recoveryMutate });
-          semearOrfao(h); h.resetEvents();
+          semearOrfao(h); h.setModoRede('offline'); h.resetEvents();   // LP2.1a-ii-D: offline REAL para o recovery persistir READY
           const r = await instalarC(createPackDownloadService(h.deps));
           // descarta o estado em memória: relê o índice persistido por outra via
           const idx = await h.index();
@@ -11403,7 +11466,7 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         const ENTRADA_VELHA = { status: 'downloading', localDir: dirDe(STORY_C, '0.9.0'), manifestPath: `${dirDe(STORY_C, '0.9.0')}manifest.json`, totalBytes: 999, downloadedBytes: 999, errorMessage: null };
         const rodar = async (recoveryMutate) => {
           const h = createPackInstallHarness({ recoveryMutate });
-          semearOrfao(h, { entry: { ...ENTRADA_VELHA, version: V_C } }); h.resetEvents();
+          semearOrfao(h, { entry: { ...ENTRADA_VELHA, version: V_C } }); h.setModoRede('offline'); h.resetEvents();   // LP2.1a-ii-D: offline REAL
           await instalarC(createPackDownloadService(h.deps));
           const e = await h.entry(STORY_C);
           return { localDir: e.localDir, manifestPath: e.manifestPath, totalBytes: e.totalBytes, version: e.version };
@@ -11421,14 +11484,17 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
           `original[${o.localDir} bytes=${o.totalBytes}] mutante[${m.localDir} bytes=${m.totalBytes}]`);
       }
 
-      // ── QA1-B14: bloco C invadindo a identidade reservada ao bloco D ─────────────────
-      // O mutante põe a VERSÃO na chave preliminar do single-flight — decisão que a spec reserva a
-      // D. Consequência concreta: duas solicitações que hoje compartilham UMA operação deixam de
-      // compartilhar, e o manifesto global passa a ser buscado duas vezes.
+      // ── QA1-B14: a identidade RESOLVIDA governa o single-flight (bloco D implementado) ───
+      // LP2.1a-ii-D (superseded): o `packInstallKey` preliminar não decide mais o voo. Duas
+      // solicitações IGUAIS fazem DUAS resoluções independentes do manifesto (fetches===2) e
+      // COMPARTILHAM uma única instalação física (canonicalResolvedKey) — ambas recebem o MESMO
+      // resultado (a conclusão do único download; `recovered` indefinido nas duas). O mutante torna a
+      // chave resolvida única por chamada: o compartilhamento quebra, as duas passam pela fila física
+      // e a SEGUNDA reconhece o pack já READY (asReadyEntry, recovered:false) — desfecho distinto.
       {
         const mut = (s) => s.replace(
-          "  return [String(storyId || ''), String(globalManifestUrl || ''), String(appVersion || ''), kinds.join(',')].join('|');",
-          "  return [String(storyId || ''), String(globalManifestUrl || ''), String(appVersion || ''), kinds.join(','), String(params.__version || Math.random())].join('|');");
+          '  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion]);',
+          '  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion, Math.random()]);');
         const rodar = async (downloaderMutate) => {
           const h = createPackInstallHarness();
           configurarRemoto(h); h.resetEvents();
@@ -11436,17 +11502,18 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
           const svc = mod.createPackDownloadService(h.deps);
           const rs = await Promise.all([instalarC(svc), instalarC(svc)]);   // duas solicitações IGUAIS
           return { ok: rs.every((r) => r.ok), fetches: h.events.filter((x) => x === 'fetch-global-manifest').length,
-            manifestos: h.counters.byUrl[`${BASE_C}manifest.json`] || 0, moves: h.eventsOfType('move').length };
+            recovereds: rs.map((r) => r.recovered), moves: h.eventsOfType('move').length };
         };
         const o = await rodar();
         const m = await rodar(mut);
         let lancou = false;
         try { loadPackDownloader(mut); } catch { lancou = true; }
-        registrar('QA1-B14', 'B14', 'invadir a identidade resolvida (bloco D)', '§QA1.B14',
+        registrar('QA1-B14', 'B14', 'identidade resolvida governa o single-flight (bloco D)', '§QA1.B14',
           !lancou                                                   // a variante foi REALMENTE construída
-          && o.fetches === 1 && o.moves === 1                       // original: uma operação compartilhada
-          && m.fetches > o.fetches,                                 // mutante: deixaram de compartilhar
-          `original[fetches=${o.fetches} moves=${o.moves}] mutante[fetches=${m.fetches} moves=${m.moves}]`);
+          && o.fetches === 2 && o.moves === 1                       // D2: 2 resoluções independentes, 1 instalação física
+          && o.recovereds.every((x) => x === undefined)            // compartilhado: as duas recebem a conclusão do MESMO download
+          && m.recovereds.includes(false),                         // mutante: a 2ª deixou de compartilhar e caiu no asReadyEntry
+          `original[fetches=${o.fetches} moves=${o.moves} rec=${JSON.stringify(o.recovereds)}] mutante[fetches=${m.fetches} moves=${m.moves} rec=${JSON.stringify(m.recovereds)}]`);
       }
 
       // ── QA1-A7: recovery no BOOT (mutação ARQUITETURAL estática de fonte) ─────────────
@@ -11535,10 +11602,10 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         registrar('QA1-A13', 'A13', 'promoção fora da serialização', '§QA1.A13',
           aplicou('src/services/packStorageService.js', mut)          // 1. a fonte É transformada (âncora bate)
           && original.david === 'ready' && original.noah === 'ready'  // original serializado: as DUAS sobrevivem
-          && !original.consultou                                      // resolve por recovery, sem tocar a rede
+          && original.consultou                                       // LP2.1a-ii-D: resolve online (1 resolução por chamada), depois promove por recovery
           && (mutado.david !== 'ready' || mutado.noah !== 'ready')    // sem a fila: lost update — ao menos uma some
           && mutado.recDavid && mutado.recNoah                        // ambas promoveram: a perda NÃO é exceção incidental
-          && !mutado.consultou                                        // morte NÃO por ausência no manifesto
+          && mutado.consultou                                         // manifesto RESOLVIDO p/ ambas → morte é por serialização, não por ausência
           && JSON.stringify(original) !== JSON.stringify(mutado),     // original ≠ mutante (não é tautologia)
           `original[${original.david}/${original.noah} consultou=${original.consultou}] mutado[${mutado.david}/${mutado.noah} rec=${mutado.recDavid}/${mutado.recNoah} consultou=${mutado.consultou}]`);
       }
@@ -11550,9 +11617,11 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
       {
         // Âncora com a indentação REAL do fonte (2 espaços). Com 4, o loader lançaria e o controle
         // de aplicação reprovaria — foi o que aconteceu na 1ª tentativa deste mutante.
+        // LP2.1a-ii-D (superseded): guardedInstall passou a receber a identidade RESOLVIDA. A âncora
+        // acompanha a nova assinatura; o mutante continua tirando o recovery da fila (o vício A14).
         const mut = (s) => s.replace(
-          'function guardedInstall(params) {\n  return runExclusiveByStory(params && params.storyId, () => downloadStoryPackScenesFromGlobalManifestImpl(params));',
-          "async function guardedInstall(params) {\n  await recoverStoryPack({ storyId: params && params.storyId, requestedKinds: ['scene', 'audio'], appVersion: '1.0.0' });\n  return runExclusiveByStory(params && params.storyId, () => downloadStoryPackScenesFromGlobalManifestImpl(params));");
+          'function guardedInstall(resolved, params) {\n  return runExclusiveByStory(resolved.storyId, () => downloadStoryPackScenesFromGlobalManifestImpl(resolved, params));',
+          "async function guardedInstall(resolved, params) {\n  await recoverStoryPack({ storyId: resolved.storyId, requestedKinds: ['scene', 'audio'], appVersion: '1.0.0' });\n  return runExclusiveByStory(resolved.storyId, () => downloadStoryPackScenesFromGlobalManifestImpl(resolved, params));");
         const rodar = async (downloaderMutate) => {
           const h = createPackInstallHarness();
           // Legado (sem marcador): o recovery NÃO resolve, então a instalação física acontece de
@@ -11606,6 +11675,748 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
     }
   })();
   globalThis.__LP21AIIC.catch(() => {});
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-ii-D1 — Provas da LACUNA de identidade (identidade resolvida).
+//
+// Objetivo (bloco de PROVA, não de correção): demonstrar, sobre o CÓDIGO ATUAL, que o
+// single-flight compartilha por IDENTIDADE PRELIMINAR (storyId|globalManifestUrl|appVersion|
+// kinds — packInstallKey), e não pela IDENTIDADE RESOLVIDA (que inclui version + manifestSha256).
+// Consequência: quando duas chamadas com a MESMA chave preliminar resolveriam manifestos
+// DIFERENTES, a segunda (que JOINA o voo da primeira) recebe a conclusão da PRIMEIRA — a resolução
+// dela nunca acontece.
+//
+// As provas D-ID-03 (versão), D-ID-04 (sha) e D-ID-08 (dono) DEVEM FICAR VERMELHAS aqui: elas
+// asseveram o CONTRATO CORRETO (cada chamada recebe a própria resolução), que o código atual viola.
+// A correção é do bloco D2/D3 — NÃO deste. Os controles (positivo, sequencial, concorrência real)
+// ficam VERDES e existem para impedir falso-positivo: provam que o double resolve DE FATO dois
+// manifestos distintos e que a divergência só some quando a concorrência é removida.
+//
+// Mecânica: a factory (createPackDownloadService(deps)) é a MESMA de produção; só a fronteira
+// `fetchGlobalContentManifest` é um double controlado (como o §9.2 já faz), servindo um manifesto
+// diferente por CHAMADA, com uma barreira que segura a chamada A em voo enquanto B entra. Tudo o
+// mais (storage/FS/recovery/getPackFromGlobalManifest/validação de manifesto/sha256) é REAL.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-ii-D1: provas da lacuna de identidade resolvida ──');
+{
+  const { createPackInstallHarness, loadPackDownloader } = require('./testing/packInstallHarness');
+  const { createPackDownloadService } = loadPackDownloader();
+
+  const STORY_D = 'david_goliath';
+  const GLOBAL_URL_D = 'https://r2/content-manifest.json';
+  const FILES_D = [
+    { kind: 'scene', path: 'scenes/01.webp', text: 'CENA-UM-BYTES' },
+    { kind: 'audio', path: 'audio/01.mp3', text: 'AUDIO-UM-BYTES' },
+  ];
+  // Roteia o manifesto por-pack + arquivos de UMA versão (baseUrl próprio). Devolve o sha256 REAL
+  // do manifest.json roteado — é a âncora que o pack resolvido precisa declarar para instalar.
+  const routeVersaoD = (h, { version, base }) => {
+    const files = FILES_D.map((f) => ({
+      kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text),
+    }));
+    const manifest = {
+      schemaVersion: 1, id: STORY_D, version, type: 'story', minAppVersion: '1.0.0',
+      totalBytes: files.reduce((a, f) => a + f.bytes, 0), files,
+      metadata: { storyId: STORY_D, title: 'Davi e Golias', language: 'pt-BR' },
+    };
+    const manifestText = JSON.stringify(manifest);
+    h.route(`${base}manifest.json`, { text: manifestText });
+    FILES_D.forEach((f) => h.route(base + f.path, { text: f.text }));
+    return { manifestText, sha: h.sha256OfText(manifestText) };
+  };
+  // Pack no schema do manifesto GLOBAL (o double do fetch o entrega; getPackFromGlobalManifest REAL
+  // o extrai por storyId). requiresAppUpdate fica undefined (falsy) → fluxo segue normal.
+  const mkPackD = (h, { version, base, manifestSha256 }) =>
+    h.packEntry({ storyId: STORY_D, version, baseUrl: base, manifestSha256 });
+
+  // Double controlado do fetch do manifesto global: serve `packs[n-1]` na n-ésima chamada; registra
+  // as chamadas e a versão servida. `gateFirst` segura a 1ª chamada (A) até `release()`, e sinaliza
+  // `reached` quando A chega ao fetch (A comprovadamente EM VOO quando B entra).
+  const makeFetchCtlD = (packs, { gateFirst = false } = {}) => {
+    const state = { calls: 0, served: [] };
+    let releaseFn = () => {};
+    const gate = gateFirst ? new Promise((r) => { releaseFn = r; }) : Promise.resolve();
+    let reachedResolve = () => {};
+    const reached = new Promise((r) => { reachedResolve = r; });
+    const fetchDouble = async () => {
+      state.calls += 1;
+      const n = state.calls;
+      if (n === 1) { reachedResolve(); await gate; }
+      const pack = packs[Math.min(n - 1, packs.length - 1)];
+      state.served.push(pack.version);
+      return { ok: true, data: { manifestVersion: 1, minAppVersion: '1.0.0', packs: [pack] }, errors: [], warnings: [] };
+    };
+    return { fetchDouble, state, reached, release: () => releaseFn() };
+  };
+
+  const paramsD = (extra) => ({
+    storyId: STORY_D, globalManifestUrl: GLOBAL_URL_D, appVersion: '1.0.0',
+    requestedKinds: ['scene', 'audio'], ...extra,
+  });
+
+  globalThis.__LP21IID1 = (async () => {
+    // ══ CONTROLE POSITIVO (Etapa 3): mesma identidade preliminar E mesma identidade resolvida.
+    //    Concorrente. VERDE hoje E depois da correção (mesma identidade resolvida deve continuar
+    //    compartilhando UMA instalação física). NÃO asserta contagem de fetch (essa é a diferença
+    //    futura) — só o desfecho compartilhado, verdadeiro nos dois mundos. Não forçar a falhar.
+    {
+      const base2 = 'https://r2/david_goliath/v2/';
+      const h = createPackInstallHarness();
+      // A âncora do pack resolvido tem de bater com o sha do manifest.json roteado, senão instala falha.
+      const { sha: shaV2 } = routeVersaoD(h, { version: '2.0.0', base: base2 });
+      const packV2ok = mkPackD(h, { version: '2.0.0', base: base2, manifestSha256: shaV2 });
+      const ctl = makeFetchCtlD([packV2ok, packV2ok], { gateFirst: true });
+      const svc = createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: ctl.fetchDouble });
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(paramsD());
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(paramsD());
+      // A função é `async` → embrulha o `return existing` num novo Promise; a IDENTIDADE de promise
+      // NÃO é sinal de compartilhamento. O sinal real é UMA instalação física (1 move / 1 ready) e o
+      // voo único (inFlightInstallCount) — o desfecho, não a referência do objeto.
+      await ctl.reached;
+      ctl.release();
+      const [rA, rB] = await Promise.all([pA, pB]);
+      const readyWrites = h.events.filter((e) => e === `set-entry:${STORY_D}:ready`).length;
+      const moves = h.eventsOfType('move').length;
+      check('LP2.1a-ii-D1 CONTROLE+ (mesma identidade resolvida): A e B recebem 2.0.0 numa ÚNICA instalação física (voo compartilhado)',
+        rA.ok === true && rB.ok === true && rA.version === '2.0.0' && rB.version === '2.0.0'
+        && moves === 1 && readyWrites === 1
+        && svc.inFlightInstallCount() === 0,
+        `o controle positivo (que deveria passar hoje) não passou: rA=${JSON.stringify(rA.version)} rB=${JSON.stringify(rB.version)} moves=${moves} ready=${readyWrites}`);
+    }
+
+    // ══ D-ID-03 (Etapa 4): versão resolvida diferente (A→2.0.0, B→3.0.0), concorrente.
+    //    + D-ID-08 (Etapa 6): dono do resultado — o retorno de B tem de corresponder à resolução
+    //      de B (3.0.0); sucesso físico de A NÃO basta. Ambas VERMELHAS no código atual.
+    {
+      const base2 = 'https://r2/david_goliath/v2/';
+      const base3 = 'https://r2/david_goliath/v3/';
+      const h = createPackInstallHarness();
+      const { sha: shaV2 } = routeVersaoD(h, { version: '2.0.0', base: base2 });
+      const { sha: shaV3 } = routeVersaoD(h, { version: '3.0.0', base: base3 });
+      const packV2 = mkPackD(h, { version: '2.0.0', base: base2, manifestSha256: shaV2 });
+      const packV3 = mkPackD(h, { version: '3.0.0', base: base3, manifestSha256: shaV3 });
+      const ctl = makeFetchCtlD([packV2, packV3], { gateFirst: true });
+      const svc = createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: ctl.fetchDouble });
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(paramsD());
+      const callsAposA = ctl.state.calls;                 // A resolve a call 1 e PARA na barreira → 1
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(paramsD());
+      const callsAposB = ctl.state.calls;                 // B resolve INDEPENDENTEMENTE a call 2, com A ainda presa → 2
+      await ctl.reached;                                  // confirma A parada no fetch (voo A em andamento)
+      ctl.release();
+      const [rA, rB] = await Promise.all([pA, pB]);
+
+      // ANTITAUTOLOGIA (Etapa 7, #2), sob a identidade resolvida (LP2.1a-ii-D): o voo só é registrado
+      // APÓS a resolução, então o sinal de concorrência é a RESOLUÇÃO INDEPENDENTE. A fica presa na
+      // barreira (call 1) enquanto B resolve a própria identidade (call 2) — duas resoluções ocorrem
+      // com A ainda em andamento. Prova concorrência real + independência (mais forte que "B joinou").
+      check('LP2.1a-ii-D1 D-ID-03 antitautologia (concorrência real): A presa na barreira (call 1) enquanto B resolve independentemente (call 2)',
+        callsAposA === 1 && callsAposB === 2,
+        `a concorrência/resolução independente não foi observada: callsAposA=${callsAposA} callsAposB=${callsAposB}`);
+
+      // PRINCIPAL (VERMELHA hoje): B deve receber a PRÓPRIA versão resolvida (3.0.0), não a de A.
+      check('LP2.1a-ii-D1 D-ID-03 (versão resolvida diferente): B recebe a própria resolução (3.0.0) e há 2 resoluções independentes',
+        rA.ok === true && rA.version === '2.0.0'
+        && rB.version === '3.0.0' && ctl.state.calls === 2,
+        `LACUNA REPRODUZIDA: B herdou a conclusão de A — rB.version=${JSON.stringify(rB.version)} (esperado "3.0.0"), fetchCalls=${ctl.state.calls} (esperado 2). O single-flight compartilhou por identidade PRELIMINAR (packInstallKey), ignorando a versão resolvida.`);
+
+      // D-ID-08 (VERMELHA hoje): atribuição — sucesso FÍSICO de A não justifica a resposta de B.
+      const resolucaoDeB = '3.0.0';
+      check('LP2.1a-ii-D1 D-ID-08 (dono do resultado): a resposta de B corresponde ao manifesto que B resolveria, não ao de A',
+        rB.version === resolucaoDeB,
+        `sucesso físico de A foi atribuído a B: rB.version=${JSON.stringify(rB.version)} deveria ser ${JSON.stringify(resolucaoDeB)} (a resolução de B). Instalar A com sucesso não torna a resposta de B correta.`);
+    }
+
+    // ══ D-ID-03 CONTROLE SEQUENCIAL (Etapa 7, #6): mesma configuração, SEM concorrência (A é
+    //    aguardada até o fim antes de B entrar). Sem voo a compartilhar, B resolve 3.0.0. VERDE hoje.
+    //    Prova que o double serve DE FATO dois manifestos distintos e que a divergência da prova
+    //    principal existe SÓ por causa da barreira concorrente (removê-la faz a lacuna sumir).
+    {
+      const base2 = 'https://r2/david_goliath/v2/';
+      const base3 = 'https://r2/david_goliath/v3/';
+      const h = createPackInstallHarness();
+      const { sha: shaV2 } = routeVersaoD(h, { version: '2.0.0', base: base2 });
+      const { sha: shaV3 } = routeVersaoD(h, { version: '3.0.0', base: base3 });
+      const packV2 = mkPackD(h, { version: '2.0.0', base: base2, manifestSha256: shaV2 });
+      const packV3 = mkPackD(h, { version: '3.0.0', base: base3, manifestSha256: shaV3 });
+      const ctl = makeFetchCtlD([packV2, packV3], { gateFirst: false });
+      const svc = createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: ctl.fetchDouble });
+      const rA = await svc.downloadStoryPackScenesFromGlobalManifest(paramsD());
+      const rB = await svc.downloadStoryPackScenesFromGlobalManifest(paramsD());
+      check('LP2.1a-ii-D1 D-ID-03 controle sequencial (barreira removida): sem concorrência, A=2.0.0 e B=3.0.0 (2 resoluções) — a lacuna some',
+        rA.ok === true && rB.ok === true && rA.version === '2.0.0' && rB.version === '3.0.0'
+        && ctl.state.calls === 2,
+        `o controle sequencial (que deveria passar hoje) não passou: rA=${JSON.stringify(rA.version)} rB=${JSON.stringify(rB.version)} fetchCalls=${ctl.state.calls}`);
+    }
+
+    // ══ D-ID-04 (Etapa 5): mesma versão (2.0.0), manifestSha256 resolvido diferente, concorrente.
+    //    A resolve a âncora QUE BATE com o manifest.json roteado → instala (ok). B resolve uma âncora
+    //    DIVERGENTE → a resolução PRÓPRIA de B rejeitaria (ok:false). No código atual B herda o
+    //    sucesso de A. VERMELHA hoje.
+    {
+      const base = 'https://r2/david_goliath/v2/';
+      const h = createPackInstallHarness();
+      const { sha: shaX } = routeVersaoD(h, { version: '2.0.0', base });   // âncora real do manifesto roteado
+      const shaY = 'a'.repeat(64);                                          // hex 64 válido, porém ≠ shaX
+      const packA = mkPackD(h, { version: '2.0.0', base, manifestSha256: shaX }); // A: âncora bate → instala
+      const packB = mkPackD(h, { version: '2.0.0', base, manifestSha256: shaY }); // B: âncora diverge → rejeita
+      const ctl = makeFetchCtlD([packA, packB], { gateFirst: true });
+      const svc = createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: ctl.fetchDouble });
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(paramsD());
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(paramsD());
+      await ctl.reached;
+      ctl.release();
+      const [rA, rB] = await Promise.all([pA, pB]);
+      // Sharing observável pelo desfecho: rB herdou o ok:true de A e só houve UMA resolução (calls===1).
+      check('LP2.1a-ii-D1 D-ID-04 (sha resolvido diferente): B recebe a PRÓPRIA rejeição de âncora (ok:false), não o sucesso de A',
+        rA.ok === true
+        && rB.ok === false && ctl.state.calls === 2,
+        `LACUNA REPRODUZIDA: B herdou o sucesso de A — rB.ok=${rB.ok} (esperado false), fetchCalls=${ctl.state.calls} (esperado 2). shaX≠shaY não separou as conclusões porque o compartilhamento é por identidade PRELIMINAR (sem manifestSha256).`);
+    }
+
+    // ══ D-ID-04 CONTROLE SEQUENCIAL: prova que a resolução PRÓPRIA de B (sha divergente) de fato
+    //    rejeita por âncora — logo o ok:true herdado na prova concorrente é puramente o defeito de
+    //    compartilhamento, não uma resolução de B que "por acaso" daria certo. VERDE hoje.
+    {
+      const base = 'https://r2/david_goliath/v2/';
+      const h = createPackInstallHarness();
+      const { sha: shaX } = routeVersaoD(h, { version: '2.0.0', base });
+      const shaY = 'a'.repeat(64);
+      const packA = mkPackD(h, { version: '2.0.0', base, manifestSha256: shaX });
+      const packB = mkPackD(h, { version: '2.0.0', base, manifestSha256: shaY });
+      const ctl = makeFetchCtlD([packA, packB], { gateFirst: false });
+      const svc = createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: ctl.fetchDouble });
+      const rA = await svc.downloadStoryPackScenesFromGlobalManifest(paramsD());
+      const rB = await svc.downloadStoryPackScenesFromGlobalManifest(paramsD());
+      check('LP2.1a-ii-D1 D-ID-04 controle sequencial: a resolução própria de B rejeita por âncora divergente (ok:false); A conclui (ok:true)',
+        rA.ok === true && rB.ok === false && ctl.state.calls === 2
+        && /sha256 divergente|âncora/i.test(rB.reason || ''),
+        `o controle sequencial (que deveria passar hoje) não passou: rA.ok=${rA.ok} rB.ok=${rB.ok} fetchCalls=${ctl.state.calls} reason=${JSON.stringify(rB.reason)}`);
+    }
+  })();
+  globalThis.__LP21IID1.catch(() => {});
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-ii-D2 CORE — Identidade resolvida: READY coincidente, preflight, offline.
+// Provas comportamentais das rotas implementadas no packDownloadService (fluxo REAL via seam);
+// só a fronteira fetchGlobalContentManifest é double controlado, o resto é REAL.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-ii-D2: identidade resolvida (READY coincidente, preflight, offline) ──');
+{
+  const { createPackInstallHarness, loadPackDownloader } = require('./testing/packInstallHarness');
+  const { createPackDownloadService } = loadPackDownloader();
+
+  const STORY = 'david_goliath';
+  const GLOBAL = 'https://r2/content-manifest.json';
+  const APPV = '1.0.0';
+  const KINDS = ['scene', 'audio'];
+  const KN = ['audio', 'scene'];   // normalizado (filter+sort)
+  const baseDe = (v) => `https://r2/david_goliath/${v}/`;
+  const FILES = [
+    { kind: 'scene', path: 'scenes/01.webp', text: 'CENA-UM' },
+    { kind: 'audio', path: 'audio/01.mp3', text: 'AUDIO-UM' },
+  ];
+  const manifestDe = (h, { version, filesTxt }) => {
+    const src = filesTxt || FILES;
+    const files = src.map((f) => ({ kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text) }));
+    const manifest = {
+      schemaVersion: 1, id: STORY, version, type: 'story', minAppVersion: '1.0.0',
+      totalBytes: files.reduce((a, f) => a + f.bytes, 0), files, metadata: { storyId: STORY, title: 'Davi', language: 'pt-BR' },
+    };
+    const manifestText = JSON.stringify(manifest);
+    return { manifestText, sha: h.sha256OfText(manifestText), src };
+  };
+  // Roteia manifesto por-pack + arquivos (para um download da `version`).
+  const rotear = (h, { version, filesTxt }) => {
+    const { manifestText, sha, src } = manifestDe(h, { version, filesTxt });
+    const base = baseDe(version);
+    h.route(`${base}manifest.json`, { text: manifestText });
+    src.forEach((f) => h.route(base + f.path, { text: f.text }));
+    return { sha, base };
+  };
+  const mkPack = (h, { version, sha }) => h.packEntry({ storyId: STORY, version, baseUrl: baseDe(version), manifestSha256: sha });
+  const fetchDe = (pack) => async () => ({ ok: true, data: { manifestVersion: 1, minAppVersion: '1.0.0', packs: [pack] }, errors: [], warnings: [] });
+  // Double com CONTADOR de chamadas (o double custom não emite o evento do harness): conta resoluções.
+  const fetchContando = (pack) => { const box = { n: 0 }; box.fn = async () => { box.n += 1; return { ok: true, data: { manifestVersion: 1, minAppVersion: '1.0.0', packs: [pack] }, errors: [], warnings: [] }; }; return box; };
+  // Semeia um pack local (dir + manifesto + arquivos + marcador + índice). Devolve o sha do manifesto local.
+  const semearLocal = (h, { version, status = 'ready', comMarcador = true, markerSha, kinds = KN, filesTxt }) => {
+    const { manifestText, sha: localSha, src } = manifestDe(h, { version, filesTxt });
+    const dir = h.storage.getPackLocalDir(STORY, version);
+    const marker = comMarcador ? { schemaVersion: 1, storyId: STORY, version, manifestSha256: markerSha || localSha, manifestPath: 'manifest.json', kinds, appVersion: APPV } : null;
+    const totalBytes = src.reduce((a, f) => a + Buffer.byteLength(f.text), 0);
+    h.seedOrphanPack({
+      storyId: STORY, version, files: src, manifestText, marker,
+      indexEntry: { status, localDir: dir, manifestPath: `${dir}manifest.json`, totalBytes, downloadedBytes: totalBytes, errorMessage: null },
+    });
+    return { localSha, dir, totalBytes };
+  };
+  const params = (extra) => ({ storyId: STORY, globalManifestUrl: GLOBAL, appVersion: APPV, requestedKinds: KINDS, ...extra });
+  const instalar = (svc, extra) => svc.downloadStoryPackScenesFromGlobalManifest(params(extra));
+  const svcCom = (h, fetchDouble, extraDeps) => createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: fetchDouble, ...extraDeps });
+  const contaRecovery = (h) => { const box = { n: 0 }; box.deps = { recoverStoryPack: (p) => { box.n += 1; return h.deps.recoverStoryPack(p); } }; return box; };
+
+  globalThis.__LP21IID2 = (async () => {
+    // ══ D-ID-25: READY coincidente online → sucesso local (asReadyEntry) sem recovery/download/escrita.
+    {
+      const h = createPackInstallHarness();
+      const { localSha } = semearLocal(h, { version: '2.0.0', status: 'ready' });
+      const pack = mkPack(h, { version: '2.0.0', sha: localSha });
+      const rec = contaRecovery(h);
+      h.resetEvents();
+      const r = await instalar(svcCom(h, fetchDe(pack), rec.deps));
+      check('LP2.1a-ii-D2 D-ID-25 (READY coincidente online): sucesso local sem recovery, download ou nova escrita',
+        r.ok === true && r.recovered === false && r.version === '2.0.0'
+        && r.counts.scene === 1 && r.counts.audio === 1 && r.sceneCount === 1
+        && rec.n === 0 && h.counters.downloads === 0
+        && h.eventsOfType('set-entry').length === 0 && h.eventsOfType('move').length === 0,
+        `D-ID-25 falhou: ${JSON.stringify({ ok: r.ok, rec: r.recovered, recCalls: rec.n, dl: h.counters.downloads, sets: h.eventsOfType('set-entry').length })}`);
+    }
+
+    // ══ D-ID-30: duas chamadas online, mesma identidade, pack já READY → sem download nem nova escrita.
+    {
+      const h = createPackInstallHarness();
+      const { localSha } = semearLocal(h, { version: '2.0.0', status: 'ready' });
+      const pack = mkPack(h, { version: '2.0.0', sha: localSha });
+      h.resetEvents();
+      const svc = svcCom(h, fetchDe(pack));
+      const [rA, rB] = await Promise.all([instalar(svc), instalar(svc)]);
+      check('LP2.1a-ii-D2 D-ID-30 (duas online, READY coincidente): ambas retornam local, zero download, zero escrita',
+        rA.ok === true && rB.ok === true && rA.version === '2.0.0' && rB.version === '2.0.0'
+        && rA.recovered === false && rB.recovered === false
+        && h.counters.downloads === 0 && h.eventsOfType('set-entry').length === 0 && h.eventsOfType('move').length === 0
+        && svc.inFlightInstallCount() === 0,
+        `D-ID-30 falhou: dl=${h.counters.downloads} sets=${h.eventsOfType('set-entry').length}`);
+    }
+
+    // ══ D-ID-11: uma resolução autoritativa por invocação (o Impl NÃO busca o manifesto de novo).
+    {
+      // Instalação NOVA (sem local): exatamente 1 fetch do manifesto global; download físico ocorre.
+      const h = createPackInstallHarness();
+      const { sha } = rotear(h, { version: '2.0.0' });
+      const pack = mkPack(h, { version: '2.0.0', sha });
+      const fc = fetchContando(pack);
+      h.resetEvents();
+      const r = await instalar(svcCom(h, fc.fn));
+      const fetches = fc.n;
+      // Duas concorrentes, mesma identidade: 2 resoluções independentes, 1 instalação física.
+      const h2 = createPackInstallHarness();
+      const { sha: sha2 } = rotear(h2, { version: '2.0.0' });
+      const pack2 = mkPack(h2, { version: '2.0.0', sha: sha2 });
+      const fc2 = fetchContando(pack2);
+      h2.resetEvents();
+      const svc2 = svcCom(h2, fc2.fn);
+      await Promise.all([instalar(svc2), instalar(svc2)]);
+      const fetches2 = fc2.n;
+      check('LP2.1a-ii-D2 D-ID-11 (uma resolução por invocação): 1 chamada = 1 fetch; 2 concorrentes = 2 resoluções, 1 instalação física',
+        r.ok === true && fetches === 1 && h.eventsOfType('move').length === 1
+        && fetches2 === 2 && h2.eventsOfType('move').length === 1,
+        `D-ID-11 falhou: fetches=${fetches} moves=${h.eventsOfType('move').length} | conc fetches=${fetches2} moves=${h2.eventsOfType('move').length}`);
+    }
+
+    // ══ D-ID-19: local coincidente porém NÃO-READY → recovery promove sem download.
+    {
+      const h = createPackInstallHarness();
+      const { localSha } = semearLocal(h, { version: '2.0.0', status: 'downloading' });
+      const pack = mkPack(h, { version: '2.0.0', sha: localSha });
+      const rec = contaRecovery(h);
+      h.resetEvents();
+      const r = await instalar(svcCom(h, fetchDe(pack), rec.deps));
+      const e = await h.entry(STORY);
+      check('LP2.1a-ii-D2 D-ID-19 (coincidente não-READY): recovery promove com expectedVersion, sem download',
+        r.ok === true && r.recovered === true && r.version === '2.0.0'
+        && rec.n === 1 && h.counters.downloads === 0 && e.status === 'ready',
+        `D-ID-19 falhou: ${JSON.stringify({ ok: r.ok, rec: r.recovered, recCalls: rec.n, dl: h.counters.downloads, status: e.status })}`);
+    }
+
+    // ══ D-ID-17: SHA local divergente → NÃO chama recovery e NÃO deixa READY transitório do divergente.
+    {
+      const h = createPackInstallHarness();
+      // Local 2.0.0 com marcador de sha próprio (localSha). O RESOLVIDO tem sha DIFERENTE (do remoto).
+      const { localSha } = semearLocal(h, { version: '2.0.0', status: 'ready', filesTxt: [{ kind: 'scene', path: 'scenes/01.webp', text: 'ANTIGO' }, { kind: 'audio', path: 'audio/01.mp3', text: 'ANTIGO-A' }] });
+      const { sha: remotoSha } = rotear(h, { version: '2.0.0' });   // conteúdo NOVO → sha diverge do local
+      const pack = mkPack(h, { version: '2.0.0', sha: remotoSha });
+      const rec = contaRecovery(h);
+      h.resetEvents();
+      const r = await instalar(svcCom(h, fetchDe(pack), rec.deps));
+      const setsAntesDoMove = (() => { const iMove = h.events.findIndex((e) => e.startsWith('move:')); const sets = h.events.filter((e, i) => e.startsWith('set-entry:') && (iMove < 0 || i < iMove)); return sets; })();
+      check('LP2.1a-ii-D2 D-ID-17 (SHA local divergente): não chama recovery e não promove READY transitório do divergente',
+        localSha !== remotoSha
+        && rec.n === 0                                              // divergente → download, nunca recovery mutável
+        && r.ok === true && r.recovered === undefined              // instalou o RESOLVIDO por download
+        && setsAntesDoMove.filter((e) => e.endsWith(':ready')).length === 0,   // nenhum READY antes do swap
+        `D-ID-17 falhou: ${JSON.stringify({ shaDiff: localSha !== remotoSha, recCalls: rec.n, ok: r.ok, rec: r.recovered })}`);
+    }
+
+    // ══ D-ID-18: SHA divergente + falha do download → identidade divergente NÃO fica em READY (novo).
+    {
+      const h = createPackInstallHarness();
+      const { localSha } = semearLocal(h, { version: '2.0.0', status: 'ready', filesTxt: [{ kind: 'scene', path: 'scenes/01.webp', text: 'ANTIGO' }, { kind: 'audio', path: 'audio/01.mp3', text: 'ANTIGO-A' }] });
+      const { sha: remotoSha, base } = rotear(h, { version: '2.0.0' });
+      h.route(`${base}audio/01.mp3`, { throws: 'rede caiu no meio' });   // o download do resolvido FALHA
+      const pack = mkPack(h, { version: '2.0.0', sha: remotoSha });
+      const rec = contaRecovery(h);
+      h.resetEvents();
+      const r = await instalar(svcCom(h, fetchDe(pack), rec.deps));
+      const e = await h.entry(STORY);
+      check('LP2.1a-ii-D2 D-ID-18 (SHA divergente + download falho): divergente não promovido; READY anterior válido preservado',
+        localSha !== remotoSha && rec.n === 0 && r.ok === false
+        && e.status === 'ready' && h.mem.fileText(`${h.storage.getPackLocalDir(STORY, '2.0.0')}scenes/01.webp`) === 'ANTIGO',   // anterior íntegro
+        `D-ID-18 falhou: ${JSON.stringify({ recCalls: rec.n, ok: r.ok, status: e.status })}`);
+    }
+
+    // ══ D-ID-21: READY local divergente NÃO é retornado como identidade atual (vai ao download do resolvido).
+    {
+      const h = createPackInstallHarness();
+      semearLocal(h, { version: '2.0.0', status: 'ready', filesTxt: [{ kind: 'scene', path: 'scenes/01.webp', text: 'ANTIGO' }, { kind: 'audio', path: 'audio/01.mp3', text: 'ANTIGO-A' }] });
+      const { sha: remotoSha } = rotear(h, { version: '2.0.0' });   // NOVO conteúdo (CENA-UM/AUDIO-UM) → sha diverge
+      const pack = mkPack(h, { version: '2.0.0', sha: remotoSha });
+      h.resetEvents();
+      const r = await instalar(svcCom(h, fetchDe(pack)));
+      const conteudo = h.mem.fileText(`${h.storage.getPackLocalDir(STORY, '2.0.0')}scenes/01.webp`);
+      check('LP2.1a-ii-D2 D-ID-21 (READY divergente não retornado): a resposta é a identidade resolvida (download), não o READY local anterior',
+        r.ok === true && r.recovered === undefined         // veio do download, não do asReadyEntry local
+        && conteudo === 'CENA-UM',                          // o conteúdo servido é o RESOLVIDO, não o 'ANTIGO' local
+        `D-ID-21 falhou: ${JSON.stringify({ ok: r.ok, rec: r.recovered, conteudo })}`);
+    }
+
+    // ══ D-ID-22: manifesto inválido / história ausente NÃO cai no fallback offline.
+    {
+      const h = createPackInstallHarness();
+      semearLocal(h, { version: '2.0.0', status: 'downloading' });   // órfão recuperável presente
+      const rec = contaRecovery(h);
+      h.resetEvents();
+      // http-erro (404) = história ausente, NÃO indisponibilidade de rede.
+      const svc = svcCom(h, async () => ({ ok: false, errors: ['HTTP 404 ao buscar content-manifest.json'], data: null, warnings: [] }), rec.deps);
+      const r = await instalar(svc);
+      const e = await h.entry(STORY);
+      check('LP2.1a-ii-D2 D-ID-22 (manifesto inválido não é offline): erro sem recovery de melhor esforço; órfão não promovido',
+        r.ok === false && r.networkError !== true
+        && rec.n === 0 && e.status === 'downloading',   // não caiu no recovery offline; nada promovido
+        `D-ID-22 falhou: ${JSON.stringify({ ok: r.ok, net: r.networkError, recCalls: rec.n, status: e.status })}`);
+    }
+
+    // ══ D-ID-26: READY VÁLIDO offline → sucesso local (não erro de rede).
+    {
+      const h = createPackInstallHarness();
+      semearLocal(h, { version: '2.0.0', status: 'ready' });   // READY com marcador + manifesto válidos
+      const rec = contaRecovery(h);
+      h.setModoRede('offline'); h.resetEvents();
+      const r = await instalar(svcCom(h, h.deps.fetchGlobalContentManifest, rec.deps));
+      check('LP2.1a-ii-D2 D-ID-26 (READY válido offline): sucesso local, não erro de rede, sem download',
+        r.ok === true && r.recovered === false && r.version === '2.0.0'
+        && r.networkError !== true && h.counters.downloads === 0 && h.eventsOfType('set-entry').length === 0,
+        `D-ID-26 falhou: ${JSON.stringify({ ok: r.ok, rec: r.recovered, net: r.networkError, dl: h.counters.downloads })}`);
+    }
+
+    // ══ D-ID-27: duas chamadas offline serializadas → 1ª promove (recovery), 2ª reconhece o READY.
+    {
+      const h = createPackInstallHarness();
+      semearLocal(h, { version: '2.0.0', status: 'downloading' });   // órfão recuperável (não-READY)
+      h.setModoRede('offline'); h.resetEvents();
+      const svc = svcCom(h, h.deps.fetchGlobalContentManifest);
+      const r1 = await instalar(svc);
+      const r2 = await instalar(svc);
+      check('LP2.1a-ii-D2 D-ID-27 (duas offline serializadas): 1ª recupera e promove, 2ª reconhece o READY (asReadyEntry)',
+        r1.ok === true && r1.recovered === true
+        && r2.ok === true && r2.recovered === false
+        && h.counters.downloads === 0,
+        `D-ID-27 falhou: r1=${JSON.stringify({ ok: r1.ok, rec: r1.recovered })} r2=${JSON.stringify({ ok: r2.ok, rec: r2.recovered })}`);
+    }
+
+    // ══ D-ID-29: READY local INVÁLIDO offline (sem marcador) → NÃO retorna sucesso.
+    {
+      const h = createPackInstallHarness();
+      h.seedInstalledPack({ storyId: STORY, version: '2.0.0', files: [{ path: 'scenes/01.webp', text: 'X' }] });   // READY sem marcador
+      h.setModoRede('offline'); h.resetEvents();
+      const r = await instalar(svcCom(h, h.deps.fetchGlobalContentManifest));
+      check('LP2.1a-ii-D2 D-ID-29 (READY inválido offline): sem marcador válido não fabrica sucesso local',
+        r.ok === false && r.networkError === true,
+        `D-ID-29 falhou: ${JSON.stringify({ ok: r.ok, net: r.networkError, rec: r.recovered })}`);
+    }
+
+    /* ─────────────── CONTROLES NEGATIVOS (Etapa 17) — mutações de fonte ─────────────── */
+    // Cada mutação DEVE mudar o desfecho da prova correspondente (senão a prova não a vigia).
+    {
+      // Base: local coincidente NÃO-READY (para D-ID-17/19); e READY coincidente (para D-ID-25).
+      const cenarioCoincidenteNaoReady = (mut) => {
+        const h = createPackInstallHarness();
+        const { localSha } = semearLocal(h, { version: '2.0.0', status: 'downloading' });
+        const pack = mkPack(h, { version: '2.0.0', sha: localSha });
+        const rec = contaRecovery(h); h.resetEvents();
+        const mod = mut ? loadPackDownloader(mut) : { createPackDownloadService };
+        return { h, rec, run: () => instalar(mod.createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: fetchDe(pack), ...rec.deps })) };
+      };
+      // NC5 — recovery ANTES do preflight (mover a chamada para o topo do Impl) faria o divergente
+      // ser promovido. Aqui provamos o inverso: sem a ÂNCORA REAL (D3), o divergente passa a chamar
+      // recovery. Mutação: forçar `anchored = true` (aceita sem conferir o sha real) → recovery no divergente.
+      const mutIgnoraSha = (s) => s.replace(
+        '    const anchored = insp.actualSha != null && insp.actualSha === markerSha && insp.actualSha === resolved.manifestSha256;',
+        '    const anchored = true;');
+      const c = cenarioCoincidenteNaoReady();
+      const rOrig = await c.run();
+      // divergente: monta local sha != resolved e roda com/sem a mutação
+      const divergente = (mut) => {
+        const h = createPackInstallHarness();
+        const { localSha } = semearLocal(h, { version: '2.0.0', status: 'downloading', filesTxt: [{ kind: 'scene', path: 'scenes/01.webp', text: 'ANTIGO' }, { kind: 'audio', path: 'audio/01.mp3', text: 'ANTIGO-A' }] });
+        const { sha: remotoSha } = rotear(h, { version: '2.0.0' });
+        const pack = mkPack(h, { version: '2.0.0', sha: remotoSha });
+        const rec = contaRecovery(h); h.resetEvents();
+        const mod = mut ? loadPackDownloader(mut) : { createPackDownloadService };
+        return { rec, p: instalar(mod.createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: fetchDe(pack), ...rec.deps })), localSha, remotoSha };
+      };
+      const dO = divergente(); await dO.p; const recOrigDiv = dO.rec.n;
+      const dM = divergente(mutIgnoraSha); await dM.p; const recMutDiv = dM.rec.n;
+      check('LP2.1a-ii-D2 NC (ignorar SHA local): sem a comparação de sha o divergente passa a chamar recovery (D-ID-17/18 vigiam isso)',
+        dO.localSha !== dO.remotoSha && recOrigDiv === 0 && recMutDiv >= 1,
+        `controle NC-sha falhou: recOrig=${recOrigDiv} recMut=${recMutDiv}`);
+
+      // NC7 — tratar todo recovered=false como erro: no READY coincidente (D-ID-25), o recovery nem é
+      // chamado (asReadyEntry). Mutação que REMOVE o ramo READY-coincidente força a chamada de recovery
+      // (index READY → recovered=false) e, se isso virasse erro, D-ID-25 cairia. Provamos que o ramo
+      // READY-coincidente é load-bearing: removê-lo muda o desfecho (deixa de ser asReadyEntry).
+      const mutSemReadyCoincidente = (s) => s.replace(
+        '      if (insp.ready) return asReadyEntry(resolved, insp.entry, insp.manifest, report);\n',
+        '');
+      const readyCoin = (mut) => {
+        const h = createPackInstallHarness();
+        const { localSha } = semearLocal(h, { version: '2.0.0', status: 'ready' });
+        const pack = mkPack(h, { version: '2.0.0', sha: localSha });
+        h.resetEvents();
+        const mod = mut ? loadPackDownloader(mut) : { createPackDownloadService };
+        return instalar(mod.createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: fetchDe(pack) }));
+      };
+      const rcO = await readyCoin();
+      const rcM = await readyCoin(mutSemReadyCoincidente);
+      check('LP2.1a-ii-D2 NC (ramo READY-coincidente load-bearing): removê-lo muda o desfecho de D-ID-25/30',
+        rcO.recovered === false && rcM.recovered !== false,   // original: asReadyEntry; mutante: outro caminho
+        `controle NC-ready falhou: orig.recovered=${rcO.recovered} mut.recovered=${rcM.recovered}`);
+
+      // NC4 — segunda busca do manifesto: se o Impl voltasse a resolver, D-ID-11 (1 fetch/invocação)
+      // cairia. Mutação: injeta um fetch extra no início do Impl → a contagem sobe.
+      const mutSegundaBusca = (s) => s.replace(
+        'async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = {}) {\n',
+        'async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = {}) {\n  await fetchGlobalContentManifest(params && params.globalManifestUrl, { appVersion: resolved.appVersion });\n');
+      const umFetch = async (mut) => {
+        const h = createPackInstallHarness();
+        const { sha } = rotear(h, { version: '2.0.0' });
+        const pack = mkPack(h, { version: '2.0.0', sha });
+        const fc = fetchContando(pack);
+        h.resetEvents();
+        const mod = mut ? loadPackDownloader(mut) : { createPackDownloadService };
+        await instalar(mod.createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: fc.fn }));
+        return fc.n;
+      };
+      const fO = await umFetch();
+      const fM = await umFetch(mutSegundaBusca);
+      check('LP2.1a-ii-D2 NC (segunda busca do manifesto): injetar um fetch no Impl faz a contagem por invocação subir (D-ID-11 vigia isso)',
+        fO === 1 && fM > fO,
+        `controle NC-fetch falhou: orig=${fO} mut=${fM}`);
+    }
+  })();
+  globalThis.__LP21IID2.catch(() => {});
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-ii-D3 FIX — Âncora REAL do manifesto local (integridade da reutilização de READY).
+// Fecha o defeito da auditoria: o caminho READY não pode aceitar um manifest.json cujo SHA REAL
+// diverge da âncora do marcador (e, online, da identidade resolvida). Fluxo REAL via seam.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-ii-D3: âncora real do manifesto local (integridade da reutilização) ──');
+{
+  const { createPackInstallHarness, loadPackDownloader } = require('./testing/packInstallHarness');
+  const { createPackDownloadService } = loadPackDownloader();
+
+  const STORY = 'david_goliath';
+  const GLOBAL = 'https://r2/content-manifest.json';
+  const APPV = '1.0.0';
+  const KINDS = ['scene', 'audio'];
+  const baseDe = (v) => `https://r2/david_goliath/${v}/`;
+  const CLEAN = [{ kind: 'scene', path: 'scenes/01.webp', text: 'CENA-UM' }, { kind: 'audio', path: 'audio/01.mp3', text: 'AUDIO-UM' }];
+  const manifestDe = (h, { version, filesTxt }) => {
+    const src = filesTxt || CLEAN;
+    const files = src.map((f) => ({ kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text) }));
+    const manifest = { schemaVersion: 1, id: STORY, version, type: 'story', minAppVersion: '1.0.0', totalBytes: files.reduce((a, f) => a + f.bytes, 0), files, metadata: { storyId: STORY, title: 'Davi', language: 'pt-BR' } };
+    const manifestText = JSON.stringify(manifest);
+    return { manifestText, sha: h.sha256OfText(manifestText), src };
+  };
+  const rotear = (h, { version }) => {
+    const { manifestText, sha, src } = manifestDe(h, { version });
+    const base = baseDe(version);
+    h.route(`${base}manifest.json`, { text: manifestText });
+    src.forEach((f) => h.route(base + f.path, { text: f.text }));
+    return { sha, base };
+  };
+  const mkPack = (h, { version, sha }) => h.packEntry({ storyId: STORY, version, baseUrl: baseDe(version), manifestSha256: sha });
+  const fetchDe = (pack) => async () => ({ ok: true, data: { manifestVersion: 1, minAppVersion: '1.0.0', packs: [pack] }, errors: [], warnings: [] });
+  const params = (extra) => ({ storyId: STORY, globalManifestUrl: GLOBAL, appVersion: APPV, requestedKinds: KINDS, ...extra });
+  const instalar = (svc, extra) => svc.downloadStoryPackScenesFromGlobalManifest(params(extra));
+  const contaRecovery = (h) => { const box = { n: 0 }; box.deps = { recoverStoryPack: (p) => { box.n += 1; return h.deps.recoverStoryPack(p); } }; return box; };
+  // Semeia um READY: manifest.json com o CONTEÚDO dado (sha real derivado dele) + marcador declarando
+  // `markerSha` + índice READY. Se o conteúdo diverge de `markerSha`, o manifest.json está adulterado.
+  const seedReady = (h, { version, manifestFilesTxt, markerSha, kinds = ['audio', 'scene'] }) => {
+    const { manifestText } = manifestDe(h, { version, filesTxt: manifestFilesTxt });
+    const dir = h.storage.getPackLocalDir(STORY, version);
+    const realSha = h.sha256OfText(manifestText);
+    (manifestFilesTxt || CLEAN).forEach((f) => h.mem._seedFile(dir + f.path, f.text));
+    h.mem._seedFile(`${dir}manifest.json`, manifestText);
+    h.mem._seedFile(`${dir}.ptf-publish.json`, JSON.stringify({ schemaVersion: 1, storyId: STORY, version, manifestSha256: markerSha || realSha, manifestPath: 'manifest.json', kinds, appVersion: APPV }));
+    h.seedIndexRaw({ [STORY]: { storyId: STORY, version, status: 'ready', localDir: dir, manifestPath: `${dir}manifest.json`, totalBytes: 16, downloadedBytes: 16, updatedAt: 1, errorMessage: null } });
+    return { realSha, dir };
+  };
+  // manifesto ADULTERADO (schema-válido, MESMA version/storyId, arquivo extra → counts inflados) → sha ≠ do limpo.
+  const ADULT = [...CLEAN, { kind: 'scene', path: 'scenes/99.webp', text: 'INJETADO-LONGO-XYZ' }];
+
+  globalThis.__LP21IID3 = (async () => {
+    // ══ D-ID-31: READY online com manifest.json adulterado (sha real ≠ âncora) + remoto válido.
+    {
+      const h = createPackInstallHarness();
+      const shaLimpo = manifestDe(h, { version: '2.0.0' }).sha;                 // âncora X (do manifesto limpo)
+      const { realSha } = seedReady(h, { version: '2.0.0', manifestFilesTxt: ADULT, markerSha: shaLimpo }); // real Y, marcador X
+      const { sha: remotoSha } = rotear(h, { version: '2.0.0' });               // remoto = limpo (sha X)
+      const pack = mkPack(h, { version: '2.0.0', sha: remotoSha });
+      const rec = contaRecovery(h);
+      h.resetEvents();
+      const r = await instalar(createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: fetchDe(pack), ...rec.deps }));
+      const hashManifest = h.events.some((e) => /hash:.*manifest\.json/.test(e));
+      check('LP2.1a-ii-D3 D-ID-31 (READY online adulterado): o local adulterado NÃO é reutilizado; baixa o resolvido; counts não adulterados',
+        realSha !== shaLimpo
+        && r.ok === true && r.recovered === undefined                          // veio do DOWNLOAD, não do asReadyEntry local
+        && r.counts.scene === 1 && r.counts.audio === 1                        // counts do manifesto LIMPO, não do adulterado (scene:2)
+        && h.counters.downloads > 0 && hashManifest,                           // hash real calculado + download ocorreu
+        `D-ID-31 falhou: ${JSON.stringify({ ok: r.ok, rec: r.recovered, counts: r.counts, dl: h.counters.downloads, hash: hashManifest })}`);
+    }
+
+    // ══ D-ID-32: READY online adulterado + download remoto FALHA → erro da nova instalação; anterior preservado.
+    {
+      const h = createPackInstallHarness();
+      const shaLimpo = manifestDe(h, { version: '2.0.0' }).sha;
+      seedReady(h, { version: '2.0.0', manifestFilesTxt: ADULT, markerSha: shaLimpo });
+      const { base } = rotear(h, { version: '2.0.0' });
+      h.route(`${base}audio/01.mp3`, { throws: 'rede caiu no meio' });          // download do resolvido FALHA
+      const pack = mkPack(h, { version: '2.0.0', sha: shaLimpo });
+      const rec = contaRecovery(h);
+      h.resetEvents();
+      const r = await instalar(createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: fetchDe(pack), ...rec.deps }));
+      const e = await h.entry(STORY);
+      check('LP2.1a-ii-D3 D-ID-32 (adulterado + download falho): erro da nova instalação; READY anterior preservado; sem falso READY novo',
+        r.ok === false
+        && e.status === 'ready'                                                // hardening: READY anterior preservado
+        && rec.n === 0,                                                        // não recuperou o candidato divergente
+        `D-ID-32 falhou: ${JSON.stringify({ ok: r.ok, status: e.status, recCalls: rec.n })}`);
+    }
+
+    // ══ D-ID-33: READY offline com manifest.json adulterado → sem sucesso, sem download, erro coerente.
+    {
+      const h = createPackInstallHarness();
+      const shaLimpo = manifestDe(h, { version: '2.0.0' }).sha;
+      seedReady(h, { version: '2.0.0', manifestFilesTxt: ADULT, markerSha: shaLimpo });   // real ≠ marcador
+      const rec = contaRecovery(h);
+      h.setModoRede('offline'); h.resetEvents();
+      const r = await instalar(createPackDownloadService({ ...h.deps, ...rec.deps }));
+      check('LP2.1a-ii-D3 D-ID-33 (READY offline adulterado): âncora real calculada; sem sucesso; sem download; erro',
+        r.ok === false && r.networkError === true
+        && h.counters.downloads === 0
+        && h.events.some((e) => /hash:.*manifest\.json/.test(e))               // hash real calculado
+        && h.eventsOfType('set-entry').length === 0,                           // nenhuma nova escrita READY
+        `D-ID-33 falhou: ${JSON.stringify({ ok: r.ok, net: r.networkError, dl: h.counters.downloads, sets: h.eventsOfType('set-entry').length })}`);
+    }
+
+    // ══ D-ID-34: READY VÁLIDO continua reutilizável (fast-path legítimo) — anti-correção-excessiva.
+    {
+      const h = createPackInstallHarness();
+      const { realSha } = seedReady(h, { version: '2.0.0' });                   // limpo: marcador = sha real
+      const pack = mkPack(h, { version: '2.0.0', sha: realSha });               // resolvido = mesmo sha
+      const rec = contaRecovery(h);
+      h.resetEvents();
+      const r = await instalar(createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: fetchDe(pack), ...rec.deps }));
+      check('LP2.1a-ii-D3 D-ID-34 (READY válido reutilizável): âncora real bate → sucesso local, zero download, zero recovery, zero escrita',
+        r.ok === true && r.recovered === false && r.version === '2.0.0'
+        && r.counts.scene === 1 && r.counts.audio === 1
+        && rec.n === 0 && h.counters.downloads === 0
+        && h.events.some((e) => /hash:.*manifest\.json/.test(e))               // âncora real FOI calculada
+        && h.eventsOfType('set-entry').length === 0 && h.eventsOfType('move').length === 0,
+        `D-ID-34 falhou: ${JSON.stringify({ ok: r.ok, rec: r.recovered, recCalls: rec.n, dl: h.counters.downloads, sets: h.eventsOfType('set-entry').length })}`);
+    }
+
+    // ══ D-ID-35: falha ao calcular SHA → local não aceito; online baixa; offline erra.
+    {
+      const shaFail = { computeFileSha256: async () => ({ ok: false, reason: 'hash indisponível (simulado)' }) };
+      // online: hash falha → âncora indisponível → download
+      const hOn = createPackInstallHarness();
+      const { realSha } = seedReady(hOn, { version: '2.0.0' });
+      const { sha: remotoSha } = rotear(hOn, { version: '2.0.0' });
+      // rota do manifesto remoto precisa passar pelo verify (sha real do download) — mas o double de
+      // computeFileSha256 falha SEMPRE, então o download também não conclui; o esperado é NÃO reusar.
+      const pack = mkPack(hOn, { version: '2.0.0', sha: remotoSha });
+      hOn.resetEvents();
+      const rOn = await instalar(createPackDownloadService({ ...hOn.deps, ...shaFail, fetchGlobalContentManifest: fetchDe(pack) }));
+      // offline: hash falha → erro (sem sucesso local fabricado)
+      const hOff = createPackInstallHarness();
+      seedReady(hOff, { version: '2.0.0' });
+      hOff.setModoRede('offline'); hOff.resetEvents();
+      const rOff = await instalar(createPackDownloadService({ ...hOff.deps, ...shaFail }));
+      check('LP2.1a-ii-D3 D-ID-35 (falha de hash): local não aceito como íntegro; online tenta download; offline retorna erro',
+        rOn.recovered !== false                                                // online NÃO reusou via asReadyEntry (foi ao download)
+        && hOn.counters.downloads > 0
+        && rOff.ok === false && rOff.networkError === true,                    // offline: erro, sem sucesso fabricado
+        `D-ID-35 falhou: online[rec=${rOn.recovered} dl=${hOn.counters.downloads}] offline[ok=${rOff.ok} net=${rOff.networkError}]`);
+    }
+
+    /* ─────────────── CONTROLES NEGATIVOS obrigatórios (Etapa 8) ─────────────── */
+    {
+      // Cenário reutilizável: READY online adulterado (marcador X, real Y, resolvido X).
+      const cenarioAdulterado = (mut) => {
+        const h = createPackInstallHarness();
+        const shaLimpo = manifestDe(h, { version: '2.0.0' }).sha;
+        seedReady(h, { version: '2.0.0', manifestFilesTxt: ADULT, markerSha: shaLimpo });
+        const { sha: remotoSha } = rotear(h, { version: '2.0.0' });
+        const pack = mkPack(h, { version: '2.0.0', sha: remotoSha });
+        h.resetEvents();
+        const mod = mut ? loadPackDownloader(mut) : { createPackDownloadService };
+        return instalar(mod.createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: fetchDe(pack) }));
+      };
+      // NC-A: neutralizar a âncora real (anchored := true) → o adulterado é reutilizado (D-ID-31 cai).
+      const mutSemAncora = (s) => s.replace(
+        '    const anchored = insp.actualSha != null && insp.actualSha === markerSha && insp.actualSha === resolved.manifestSha256;',
+        '    const anchored = true;');
+      const ncA_orig = await cenarioAdulterado();
+      const ncA_mut = await cenarioAdulterado(mutSemAncora);
+      check('LP2.1a-ii-D3 NC-A (neutralizar âncora real): sem a comparação de sha real, o manifesto adulterado é reutilizado (D-ID-31 morre)',
+        ncA_orig.recovered === undefined && (ncA_orig.counts.scene === 1)      // original: baixou o limpo
+        && ncA_mut.recovered === false && ncA_mut.counts.scene === 2,          // mutante: asReadyEntry servindo o adulterado (scene:2)
+        `NC-A falhou: orig=${JSON.stringify({ rec: ncA_orig.recovered, counts: ncA_orig.counts })} mut=${JSON.stringify({ rec: ncA_mut.recovered, counts: ncA_mut.counts })}`);
+
+      // NC-B: comparar o SHA real APENAS com o marcador (ignorar o resolvido online). Prova com
+      // actualSha === markerSha porém actualSha !== resolvedSha (local íntegro-consigo, mas divergente do remoto).
+      const cenarioLocalIntegroDivergente = (mut) => {
+        const h = createPackInstallHarness();
+        const { realSha } = seedReady(h, { version: '2.0.0' });                // local íntegro: marcador = real = X
+        const remoto = manifestDe(h, { version: '2.0.0', filesTxt: ADULT });   // remoto DIFERENTE → sha Y
+        h.route(`${baseDe('2.0.0')}manifest.json`, { text: remoto.manifestText });
+        ADULT.forEach((f) => h.route(baseDe('2.0.0') + f.path, { text: f.text }));
+        const pack = mkPack(h, { version: '2.0.0', sha: remoto.sha });         // resolvido = Y (≠ marcador X)
+        h.resetEvents();
+        const mod = mut ? loadPackDownloader(mut) : { createPackDownloadService };
+        const p = instalar(mod.createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: fetchDe(pack) }));
+        return { p, realSha, remotoSha: remoto.sha };
+      };
+      const mutSoMarcador = (s) => s.replace(
+        '    const anchored = insp.actualSha != null && insp.actualSha === markerSha && insp.actualSha === resolved.manifestSha256;',
+        '    const anchored = insp.actualSha != null && insp.actualSha === markerSha;');
+      const ncB_o = cenarioLocalIntegroDivergente(); const ncB_orig = await ncB_o.p;
+      const ncB_m = cenarioLocalIntegroDivergente(mutSoMarcador); const ncB_mut = await ncB_m.p;
+      check('LP2.1a-ii-D3 NC-B (ignorar o SHA resolvido online): actualSha===markerSha porém ≠ resolvedSha; o mutante reusa o local divergente',
+        ncB_o.realSha !== ncB_o.remotoSha
+        && ncB_orig.recovered === undefined                                    // original: âncora vs resolvido falha → baixa o resolvido
+        && ncB_mut.recovered === false,                                        // mutante: só marcador bate → asReadyEntry local (divergente do remoto)
+        `NC-B falhou: orig.recovered=${ncB_orig.recovered} mut.recovered=${ncB_mut.recovered}`);
+    }
+  })();
+  globalThis.__LP21IID3.catch(() => {});
 }
 
 
@@ -17988,8 +18799,10 @@ check(
       genBody.length > 0 && !/david_goliath/.test(genBody),
       'a função genérica não deve conter david_goliath (parametrizada por storyId)');
 
+    // LP2.1a-ii-D: baseUrl/manifestPath são AUTORITATIVOS na identidade resolvida; o download os usa
+    // como `resolved.baseUrl`/`resolved.manifestPath` (a extração `pack.baseUrl` vive em resolveInstallIdentity).
     check('F2.4d.3: usa baseUrl + manifestPath (não monta o segmento de versão a partir de version)',
-      /pack\.baseUrl/.test(genBody) && /pack\.manifestPath/.test(genBody)
+      /resolved\.baseUrl/.test(genBody) && /resolved\.manifestPath/.test(genBody)
         && !/`v\$\{/.test(genBody) && !/\bmajor\b/.test(genBody) && !/version\.split/.test(genBody),
       'deve usar baseUrl + manifestPath; não construir o segmento de versão (ex.: `v${major}`) a partir de version');
 
@@ -27718,6 +28531,27 @@ check(
   check('LP2.1a-ii-C-DEVICE-TOOLS1 (harness): o bloco assíncrono do Laboratório de Recovery concluiu sem estourar',
     !recoveryLabErr,
     `o bloco do laboratório lançou (${recoveryLabErr && recoveryLabErr.stack ? String(recoveryLabErr.stack).split('\n').slice(0, 3).join(' | ') : recoveryLabErr}) — os checks dele não rodaram`);
+
+  // LP2.1a-ii-D1 — as provas da lacuna de identidade resolvida são assíncronas; o bloco NÃO pode
+  // estourar (as provas principais são vermelhas por asserção, não por exceção). Um estouro sumiria
+  // com os controles verdes e mascararia a natureza da falha.
+  let lp21iid1Err = null;
+  try { await globalThis.__LP21IID1; } catch (e) { lp21iid1Err = e; }
+  check('LP2.1a-ii-D1 (harness): o bloco assíncrono das provas da lacuna de identidade concluiu sem estourar',
+    !lp21iid1Err,
+    `o bloco D1 lançou (${lp21iid1Err && lp21iid1Err.stack ? String(lp21iid1Err.stack).split('\n').slice(0, 3).join(' | ') : lp21iid1Err}) — os checks dele não rodaram`);
+
+  let lp21iid2Err = null;
+  try { await globalThis.__LP21IID2; } catch (e) { lp21iid2Err = e; }
+  check('LP2.1a-ii-D2 (harness): o bloco assíncrono do núcleo da identidade resolvida concluiu sem estourar',
+    !lp21iid2Err,
+    `o bloco D2 lançou (${lp21iid2Err && lp21iid2Err.stack ? String(lp21iid2Err.stack).split('\n').slice(0, 3).join(' | ') : lp21iid2Err}) — os checks dele não rodaram`);
+
+  let lp21iid3Err = null;
+  try { await globalThis.__LP21IID3; } catch (e) { lp21iid3Err = e; }
+  check('LP2.1a-ii-D3 (harness): o bloco assíncrono da âncora real do manifesto concluiu sem estourar',
+    !lp21iid3Err,
+    `o bloco D3 lançou (${lp21iid3Err && lp21iid3Err.stack ? String(lp21iid3Err.stack).split('\n').slice(0, 3).join(' | ') : lp21iid3Err}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
