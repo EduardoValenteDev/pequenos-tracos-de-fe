@@ -8234,11 +8234,16 @@ console.log('\n── LP2: concorrência e integridade dos story packs ──');
     && /export async function clearPackEntry[\s\S]{0,220}return runSerialized\(async \(\) => \{[\s\S]{0,120}const index = await getPackIndex\(\)/.test(storeC),
     'as mutações do índice não são serializadas, ou leem o índice fora da seção (lost update)');
 
-  check('LP2 PK-01 (single-flight): mapa por chave canônica, compartilhado, com delete em finally',
+  // LP2.1a-ii-E (superseded): o mapa passou a guardar um FlightRecord por identidade resolvida (não
+  // mais uma Promise nua). A GARANTIA é idêntica — compartilhamento por chave canônica + limpeza da
+  // chave no `finally` (agora via cleanupRecord). As âncoras estruturais acompanham o FlightRecord.
+  check('LP2 PK-01 (single-flight): FlightRecord por chave canônica, compartilhado (joiner recebe existing.promise), limpo no finally',
     /const inFlightInstalls = new Map\(\)/.test(dlC)
     && /export function packInstallKey/.test(dlC)
-    && /const existing = inFlightInstalls\.get\(key\);\s*if \(existing\) return existing;/.test(dlC)
-    && /\.finally\(\(\) => \{ inFlightInstalls\.delete\(key\); \}\)/.test(dlC)
+    && /const existing = inFlightInstalls\.get\(key\);/.test(dlC)
+    && /if \(existing\) \{/.test(dlC) && /return existing\.promise;/.test(dlC)   // joiner compartilha o mesmo voo
+    && /\.finally\(\(\) => cleanupRecord\(key, record\)\)/.test(dlC)              // limpeza no finally
+    && /if \(inFlightInstalls\.get\(key\) === record\) inFlightInstalls\.delete\(key\);/.test(dlC)   // delete guardado por identidade
     && /async function downloadStoryPackScenesFromGlobalManifestImpl/.test(dlC),
     'a instalação não compartilha operação por chave, ou a chave pode ficar travada após falha');
 
@@ -10635,14 +10640,14 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
       `contagem: ${JSON.stringify(counts)}`);
   }
 
-  // §19.34 — o recovery e o marcador (bloco C) continuam FORA de identidade resolvida, progresso (E)
-  // e cancelamento (F). O single-flight do downloader migrou para a identidade RESOLVIDA no D (Opção 1
-  // aprovada): a asserção estrutural aqui acompanha guardedInstall(resolved, params); recovery/marker
-  // permanecem byte-idênticos (checado à parte pelos hashes).
+  // §19.34 — o recovery e o marcador (bloco C) continuam FORA de identidade resolvida (D), progresso
+  // compartilhado (E) e cancelamento (F). O progresso compartilhado do E vive no DOWNLOADER (FlightRecord);
+  // recovery/marcador permanecem byte-idênticos (checado pelos hashes) e sem subscribers/multiplex.
+  // LP2.1a-ii-E (superseded): a âncora estrutural do single-flight acompanha o FlightRecord.
   check('LP2.1a-ii-C §19.34 (recovery/marcador fora de D/E/F): não tocam identidade resolvida, progresso compartilhado nem cancelamento',
     !/subscribers|multiplex|progresso compartilhado|resolvedIdentity|identidade resolvida da opera/i.test(recSrc + mkSrc)
-    && !/packInstallKey|canonicalResolvedKey/.test(recSrc + mkSrc)   // recovery/marcador não decidem o voo
-    && /const flight = guardedInstall\(resolved, params\)\.finally/.test(dlSrcC)  // single-flight por identidade resolvida
+    && !/packInstallKey|canonicalResolvedKey|emitProgress|FlightRecord/.test(recSrc + mkSrc)   // recovery/marcador não decidem o voo nem o fan-out
+    && /inFlightInstalls\.set\(key, record\)/.test(dlSrcC)  // single-flight por identidade resolvida (FlightRecord)
     && /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstall\(resolved, params\);/.test(dlSrcC),
     'o recovery/marcador ampliaram para identidade resolvida, progresso compartilhado ou cancelamento');
 
@@ -11644,7 +11649,11 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
               segunda = svc.downloadStoryPackScenesFromGlobalManifest({
                 storyId: STORY_C, globalManifestUrl: GLOBAL_C, appVersion: '1.0.0', requestedKinds: ['scene'],
               });
-              await Promise.resolve();                              // deixa a 2ª começar aqui dentro
+              // LP2.1a-ii-E (superseded): o FlightRecord adicionou hops de microtask (Promise.resolve().then)
+              // antes de guardedInstall; um flush completo (setTimeout 0) deixa a 2ª resolver e — no mutante —
+              // executar o recovery injetado AINDA nesta janela destrutiva. O contrato (recovery dentro da
+              // fila) é o mesmo; só a barreira determinística foi re-sincronizada aos novos hops.
+              await new Promise((r) => setTimeout(r, 0));           // deixa a 2ª começar aqui dentro
             }
             if (type === 'move') swapEmCurso = false;               // janela FECHADA
           };
@@ -12417,6 +12426,605 @@ console.log('\n── LP2.1a-ii-D3: âncora real do manifesto local (integridade
     }
   })();
   globalThis.__LP21IID3.catch(() => {});
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-ii-E1 RED — Provas VERMELHAS do progresso compartilhado (defeito atual).
+// Baseline correto: instalação física compartilhada + resultado compartilhado, mas o JOINER recebe
+// ZERO eventos de progresso. Estas provas asseveram o CONTRATO FUTURO (E2) e por isso ficam
+// vermelhas hoje. Fluxo REAL via seam; double só na fronteira do manifesto/download. Produto intocado.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-ii-E1 RED: progresso compartilhado (provas vermelhas) ──');
+{
+  const { createPackInstallHarness, loadPackDownloader } = require('./testing/packInstallHarness');
+  const { createPackDownloadService } = loadPackDownloader();
+
+  const STORY = 'david_goliath';
+  const GLOBAL = 'https://r2/content-manifest.json';
+  const base = 'https://r2/david_goliath/2.0.0/';
+  const FILES = [{ kind: 'scene', path: 'scenes/01.webp', text: 'CENA-UM' }, { kind: 'scene', path: 'scenes/02.webp', text: 'CENA-DOIS' }];
+  const setupRemoto = (h) => {
+    const files = FILES.map((f) => ({ kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text) }));
+    const m = { schemaVersion: 1, id: STORY, version: '2.0.0', type: 'story', minAppVersion: '1.0.0', totalBytes: files.reduce((a, f) => a + f.bytes, 0), files, metadata: { storyId: STORY, title: 'D', language: 'pt-BR' } };
+    const text = JSON.stringify(m);
+    h.route(`${base}manifest.json`, { text });
+    FILES.forEach((f) => h.route(base + f.path, { text: f.text }));
+    h.setGlobalManifest({ manifestVersion: 1, minAppVersion: '1.0.0', packs: [h.packEntry({ storyId: STORY, version: '2.0.0', baseUrl: base, manifestSha256: h.sha256OfText(text) })] });
+  };
+  const P = (cb) => ({ storyId: STORY, globalManifestUrl: GLOBAL, appVersion: '1.0.0', requestedKinds: ['scene'], onProgress: cb });
+  const fetches = (h) => h.events.filter((e) => e === 'fetch-global-manifest').length;
+  const moves = (h) => h.eventsOfType('move').length;
+  // Barreira determinística: A cria o voo; no checkpoint `pausa` (onBefore), B é despachado e JOINA o
+  // MESMO voo (A pausado). `aoJoinar` captura o estado de A no instante do join (prova de "durante").
+  const joinDurante = async (h, svc, pausa, onA, onB, aoJoinar) => {
+    let pB = null;
+    h.onBefore = async (type) => {
+      if (type === pausa && !pB) {
+        if (aoJoinar) aoJoinar();
+        pB = svc.downloadStoryPackScenesFromGlobalManifest(P(onB));
+        await new Promise((r) => setTimeout(r, 0));   // deixa B resolver + joinar (A pausado)
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    };
+    const pA = svc.downloadStoryPackScenesFromGlobalManifest(P(onA));
+    const rA = await pA; const rB = await pB;
+    return { rA, rB };
+  };
+
+  globalThis.__LP21IIE1 = (async () => {
+    // ══ E-PROG-01: dois callbacks, mesma identidade → MESMA sequência (futuro). B junta antes do 1º evento.
+    {
+      const h = createPackInstallHarness(); setupRemoto(h);
+      const svc = createPackDownloadService(h.deps);
+      const A = [], B = [];
+      const { rA, rB } = await joinDurante(h, svc, 'delete', (p) => A.push(p.status), (p) => B.push(p.status));
+      check('LP2.1a-ii-E1 E-PROG-01 (dois callbacks, mesma sequência): A e B compartilham UMA instalação e AMBOS recebem a mesma sequência',
+        fetches(h) === 2 && moves(h) === 1                              // 2 resoluções, 1 instalação física
+        && JSON.stringify(rA) === JSON.stringify(rB)                    // mesmo resultado final
+        && svc.inFlightInstallCount() === 0                            // mapa final vazio
+        && A.length > 0                                                 // criador recebeu a sequência
+        && B.length === A.length && B.join(',') === A.join(','),       // FUTURO: joiner recebe a MESMA sequência
+        `E-PROG-01 (vermelha hoje): A=[${A.join(',')}] B=[${B.join(',')}] fetches=${fetches(h)} moves=${moves(h)}`);
+    }
+
+    // ══ E-PROG-02: joiner tardio (após progresso parcial) → replay do último + eventos futuros.
+    {
+      const h = createPackInstallHarness(); setupRemoto(h);
+      const svc = createPackDownloadService(h.deps);
+      const A = [], B = [];
+      let aNoJoin = -1;
+      const { rA, rB } = await joinDurante(h, svc, 'move', (p) => A.push(p.status), (p) => B.push(p.status), () => { aNoJoin = A.length; });
+      check('LP2.1a-ii-E1 E-PROG-02 (joiner tardio + replay): B entra após progresso parcial e recebe replay do último snapshot + eventos futuros',
+        fetches(h) === 2 && moves(h) === 1
+        && aNoJoin >= 1                                                 // B entrou DEPOIS de progresso parcial (A já tinha ≥1 evento)
+        && JSON.stringify(rA) === JSON.stringify(rB)
+        && B.length >= 1                                                // FUTURO: ao menos o replay do último snapshot
+        && B[0] === A[aNoJoin - 1],                                     // FUTURO: 1º evento de B = replay do último snapshot de A no join
+        `E-PROG-02 (vermelha hoje): aNoJoin=${aNoJoin} A=[${A.join(',')}] B=[${B.join(',')}]`);
+    }
+
+    // ══ E-PROG-03: exceção SÍNCRONA no callback de A não impede B nem a instalação.
+    {
+      const h = createPackInstallHarness(); setupRemoto(h);
+      const svc = createPackDownloadService(h.deps);
+      const A = [], B = [];
+      const { rA, rB } = await joinDurante(h, svc, 'delete', (p) => { A.push(p.status); throw new Error('callback A lança'); }, (p) => B.push(p.status));
+      check('LP2.1a-ii-E1 E-PROG-03 (exceção síncrona isolada): callback de A lança a cada evento; instalação conclui e B recebe a sequência completa',
+        rA && rA.ok === true && rB && rB.ok === true                   // ambas as Promises concluem (try/catch atual já protege a instalação)
+        && moves(h) === 1
+        && A.length > 0                                                 // A foi chamado (e lançou) a cada evento
+        && B.length === A.length,                                       // FUTURO: B recebe a sequência apesar da exceção de A
+        `E-PROG-03 (vermelha hoje): A=[${A.join(',')}] B=[${B.join(',')}] rA.ok=${rA && rA.ok} rB.ok=${rB && rB.ok}`);
+    }
+
+    // ══ E-PROG-04: callback de A retorna Promise REJEITADA → absorvida; B recebe a sequência.
+    {
+      const h = createPackInstallHarness(); setupRemoto(h);
+      const svc = createPackDownloadService(h.deps);
+      const A = [], B = [];
+      const rejeicoes = [];
+      const handler = (e) => { rejeicoes.push(e); };
+      process.on('unhandledRejection', handler);
+      let rA, rB;
+      try {
+        const r = await joinDurante(h, svc, 'delete', (p) => { A.push(p.status); return Promise.reject(new Error('rej A')); }, (p) => B.push(p.status));
+        rA = r.rA; rB = r.rB;
+        await new Promise((res) => setTimeout(res, 30));   // deixa unhandledRejection aflorar
+      } finally {
+        process.removeListener('unhandledRejection', handler);
+      }
+      check('LP2.1a-ii-E1 E-PROG-04 (rejeição assíncrona isolada): retorno rejeitado do callback é absorvido (0 unhandled) e B recebe a sequência',
+        rA && rA.ok === true && rB && rB.ok === true && moves(h) === 1
+        && rejeicoes.length === 0                                       // FUTURO: rejeição ABSORVIDA (hoje o retorno é ignorado → unhandled)
+        && A.length > 0 && B.length === A.length,                      // FUTURO: B recebe a sequência
+        `E-PROG-04 (vermelha hoje): unhandled=${rejeicoes.length} A=[${A.join(',')}] B=[${B.join(',')}]`);
+    }
+
+    // ══ E-PROG-11: a MESMA função em A e B = DOIS participantes → 2 notificações por emissão física.
+    {
+      const h = createPackInstallHarness(); setupRemoto(h);
+      const svc = createPackDownloadService(h.deps);
+      let chamadas = 0;
+      const sharedCallback = () => { chamadas += 1; };
+      const soA = [];
+      const { rA, rB } = await joinDurante(h, svc, 'delete', (p) => { soA.push(p.status); sharedCallback(p); }, sharedCallback);
+      // soA conta os eventos físicos (o criador SEMPRE recebe). Contrato futuro: sharedCallback é
+      // chamado 2×/emissão (A e B). Hoje só o criador → chamadas === nº de eventos (1 participante).
+      check('LP2.1a-ii-E1 E-PROG-11 (mesmo callback = dois participantes): 2 notificações por emissão física, uma instalação só',
+        fetches(h) === 2 && moves(h) === 1
+        && JSON.stringify(rA) === JSON.stringify(rB)
+        && soA.length > 0
+        && chamadas === soA.length * 2,                                // FUTURO: 2× por emissão (A e B); hoje = soA.length (só criador)
+        `E-PROG-11 (vermelha hoje): eventos=${soA.length} chamadas=${chamadas} (esperado ${soA.length * 2})`);
+    }
+
+    // ══ E-PROG-15: reentrância ASSÍNCRONA — B despachado no 1º callback de A entra em voo depois (via resolução).
+    {
+      const h = createPackInstallHarness(); setupRemoto(h);
+      const svc = createPackDownloadService(h.deps);
+      const A = [], B = [];
+      let inAntes = -1, inDepois = -1, pB = null, aNoDispatch = -1;
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P((p) => {
+        A.push(p.status);
+        if (!pB) {
+          aNoDispatch = A.length;
+          inAntes = svc.inFlightInstallCount();
+          pB = svc.downloadStoryPackScenesFromGlobalManifest(P((q) => B.push(q.status)));
+          inDepois = svc.inFlightInstallCount();   // NÃO deve mudar sincronamente (resolve-first é async)
+        }
+      }));
+      const rA = await pA; const rB = await pB;
+      check('LP2.1a-ii-E1 E-PROG-15 (reentrância assíncrona): B despachado no 1º callback de A não cria voo síncrono; junta pela resolução e recebe replay + futuros',
+        inAntes === 1 && inDepois === 1                                // count NÃO muda no dispatch (B resolve async)
+        && moves(h) === 1                                              // uma instalação física (B juntou)
+        && JSON.stringify(rA) === JSON.stringify(rB)                   // mesmo resultado
+        && B.length >= 1 && B[0] === A[aNoDispatch - 1],              // FUTURO: B recebe replay do snapshot corrente + futuros
+        `E-PROG-15 (vermelha hoje): inAntes=${inAntes} inDepois=${inDepois} aNoDispatch=${aNoDispatch} A=[${A.join(',')}] B=[${B.join(',')}]`);
+    }
+  })();
+  globalThis.__LP21IIE1.catch(() => {});
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-ii-E3 HARDENING — Provas restantes do progresso compartilhado + mutantes.
+// Cross-talk, cleanup (sucesso/falha), retry, sem-callback, ordem/monotonicidade, sem evento após
+// settlement, replay terminal, isCancelled/offline exclusivos, isolamento de snapshot, thenable
+// problemático, atomicidade e proteção do finally antigo. Fluxo REAL via seam; produto intocado (E2).
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-ii-E3 HARDENING: progresso compartilhado (hardening) ──');
+{
+  const { createPackInstallHarness, loadPackDownloader } = require('./testing/packInstallHarness');
+  const { createPackDownloadService } = loadPackDownloader();
+
+  const GLOBAL = 'https://r2/content-manifest.json';
+  const baseDe = (story, v) => `https://r2/${story}/${v}/`;
+  const FILES2 = [{ kind: 'scene', path: 'scenes/01.webp', text: 'CENA-UM' }, { kind: 'scene', path: 'scenes/02.webp', text: 'CENA-DOIS' }];
+  const manifestDe = (h, story, v, filesTxt) => {
+    const src = filesTxt || FILES2;
+    const files = src.map((f) => ({ kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text) }));
+    const m = { schemaVersion: 1, id: story, version: v, type: 'story', minAppVersion: '1.0.0', totalBytes: files.reduce((a, f) => a + f.bytes, 0), files, metadata: { storyId: story, title: 'D', language: 'pt-BR' } };
+    return { text: JSON.stringify(m), src };
+  };
+  const rotear = (h, story, v, filesTxt) => {
+    const { text, src } = manifestDe(h, story, v, filesTxt);
+    const b = baseDe(story, v);
+    h.route(`${b}manifest.json`, { text });
+    src.forEach((f) => h.route(b + f.path, { text: f.text, progressEvents: [{ totalBytesWritten: 1 }, { totalBytesWritten: Buffer.byteLength(f.text) }] }));
+    return { sha: h.sha256OfText(text), base: b };
+  };
+  const mkPack = (h, story, v, sha) => h.packEntry({ storyId: story, version: v, baseUrl: baseDe(story, v), manifestSha256: sha });
+  const setGM = (h, packs) => h.setGlobalManifest({ manifestVersion: 1, minAppVersion: '1.0.0', packs });
+  const P = (story, cb, extra) => ({ storyId: story, globalManifestUrl: GLOBAL, appVersion: '1.0.0', requestedKinds: ['scene'], onProgress: cb, ...extra });
+  const fetchOne = (pack) => async () => ({ ok: true, data: { manifestVersion: 1, minAppVersion: '1.0.0', packs: [pack] }, errors: [], warnings: [] });
+  const fetchFila = (packs) => { const s = { n: 0 }; s.fn = async () => { s.n += 1; return { ok: true, data: { manifestVersion: 1, minAppVersion: '1.0.0', packs: [packs[Math.min(s.n - 1, packs.length - 1)]] }, errors: [], warnings: [] }; }; return s; };
+  const mv = (h) => h.eventsOfType('move').length;
+  // Barreira: A cria o voo; no checkpoint `pausa` (onBefore), B é despachado e JOINA; `aoJoin` captura.
+  const comJoin = async (svc, h, story, pausa, onA, onB, aoJoin, extraB) => {
+    let pB = null;
+    h.onBefore = async (t) => {
+      if (t === pausa && !pB) {
+        if (aoJoin) aoJoin();
+        pB = svc.downloadStoryPackScenesFromGlobalManifest(P(story, onB, extraB));
+        await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
+      }
+    };
+    const rA = await svc.downloadStoryPackScenesFromGlobalManifest(P(story, onA));
+    const rB = pB ? await pB : null;
+    return { rA, rB };
+  };
+
+  globalThis.__LP21IIE3 = (async () => {
+    /* ══ E-PROG-05: identidades DIFERENTES (mesma história, versões diferentes) — sem cross-talk ══ */
+    {
+      const h = createPackInstallHarness();
+      rotear(h, 'david_goliath', '2.0.0'); rotear(h, 'david_goliath', '3.0.0');
+      const p2 = mkPack(h, 'david_goliath', '2.0.0', rotear(h, 'david_goliath', '2.0.0').sha);
+      const p3 = mkPack(h, 'david_goliath', '3.0.0', rotear(h, 'david_goliath', '3.0.0').sha);
+      const ctl = fetchFila([p2, p3]);
+      const svc = createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: ctl.fn });
+      const A = [], B = [];
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => A.push(p.status)));
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => B.push(p.status)));
+      const [rA, rB] = await Promise.all([pA, pB]);
+      check('LP2.1a-ii-E3 E-PROG-05 (identidades diferentes): cada voo isola seu progresso; nenhum replay cruzado; 2 instalações',
+        ctl.n === 2 && mv(h) === 2
+        && rA.version === '2.0.0' && rB.version === '3.0.0'
+        && A.length >= 1 && B.length >= 1
+        && A[A.length - 1] === 'ready' && B[B.length - 1] === 'ready'
+        && svc.inFlightInstallCount() === 0,
+        `E-PROG-05: rA=${rA.version} rB=${rB.version} A=${A.length} B=${B.length} moves=${mv(h)} mapa=${svc.inFlightInstallCount()}`);
+    }
+
+    /* ══ E-PROG-06: histórias DIFERENTES — progresso isolado, sem broadcast global ══ */
+    {
+      const h = createPackInstallHarness();
+      const s2 = rotear(h, 'david_goliath', '2.0.0'); const sn = rotear(h, 'noah', '2.0.0');
+      setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s2.sha), mkPack(h, 'noah', '2.0.0', sn.sha)]);
+      const svc = createPackDownloadService(h.deps);
+      const A = [], B = [];
+      const [rA, rB] = await Promise.all([
+        svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => A.push(`d:${p.status}`))),
+        svc.downloadStoryPackScenesFromGlobalManifest(P('noah', (p) => B.push(`n:${p.status}`))),
+      ]);
+      check('LP2.1a-ii-E3 E-PROG-06 (histórias diferentes): progresso isolado por história; sem broadcast global; mapa final vazio',
+        rA.ok === true && rB.ok === true && mv(h) === 2
+        && A.every((e) => e.startsWith('d:')) && B.every((e) => e.startsWith('n:'))   // nenhum evento cruzou
+        && A.length >= 1 && B.length >= 1
+        && svc.inFlightInstallCount() === 0,
+        `E-PROG-06: A=[${A.join(',')}] B=[${B.join(',')}] moves=${mv(h)}`);
+    }
+
+    /* ══ E-PROG-07: cleanup após SUCESSO — record removido, sem replay antigo, callback antigo não volta ══ */
+    {
+      const h = createPackInstallHarness();
+      const s = rotear(h, 'david_goliath', '2.0.0'); setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s.sha)]);
+      const svc = createPackDownloadService(h.deps);
+      let velho = 0; const A = [];
+      const { rB } = await comJoin(svc, h, 'david_goliath', 'delete', (p) => { A.push(p.status); velho += 1; }, () => {});
+      const mapaDepois = svc.inFlightInstallCount();
+      const velhoAntes = velho;
+      // nova chamada (mesma identidade): não deve achar o record antigo nem chamar o callback velho
+      const N = [];
+      const rN = await svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => N.push(p.status)));
+      check('LP2.1a-ii-E3 E-PROG-07 (cleanup sucesso): inFlightInstallCount()===0; nova chamada não vê record antigo nem replay; callback antigo não volta',
+        mapaDepois === 0 && rB && rB.ok === true
+        && velho === velhoAntes                                     // o callback velho NÃO foi chamado de novo pela nova chamada
+        && rN.ok === true && N.length >= 1 && N[0] !== undefined
+        && svc.inFlightInstallCount() === 0,
+        `E-PROG-07: mapaDepois=${mapaDepois} velho=${velho}/${velhoAntes} N=[${N.join(',')}]`);
+    }
+
+    /* ══ E-PROG-08: cleanup após FALHA — todos recebem FAILED, mapa vazio, sem record órfão ══ */
+    {
+      const h = createPackInstallHarness();
+      const s = rotear(h, 'david_goliath', '2.0.0');
+      h.route(`${s.base}scenes/02.webp`, { throws: 'rede caiu no meio' });        // falha real durante o download
+      setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s.sha)]);
+      const svc = createPackDownloadService(h.deps);
+      const A = [], B = [];
+      const { rA, rB } = await comJoin(svc, h, 'david_goliath', 'delete', (p) => A.push(p.status), (p) => B.push(p.status));
+      check('LP2.1a-ii-E3 E-PROG-08 (cleanup falha): A e B recebem FAILED; mesmo resultado de falha; mapa final vazio',
+        rA && rA.ok === false && rB && rB.ok === false
+        && A.includes('failed') && B.includes('failed')            // TODOS os subscribers ativos recebem FAILED
+        && JSON.stringify(rA) === JSON.stringify(rB)
+        && svc.inFlightInstallCount() === 0,
+        `E-PROG-08: A=[${A.join(',')}] B=[${B.join(',')}] rA.ok=${rA && rA.ok} rB.ok=${rB && rB.ok} mapa=${svc.inFlightInstallCount()}`);
+    }
+
+    /* ══ E-PROG-09: retry LIMPO após falha — novo record, sem callback/FAILED antigos, termina READY ══ */
+    {
+      const h = createPackInstallHarness();
+      const s = rotear(h, 'david_goliath', '2.0.0');
+      h.route(`${s.base}scenes/02.webp`, { throws: 'rede caiu' });
+      setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s.sha)]);
+      const svc = createPackDownloadService(h.deps);
+      let velho = 0;
+      const r1 = await svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', () => { velho += 1; }));   // falha
+      const velhoAntes = velho;
+      h.route(`${s.base}scenes/02.webp`, { text: FILES2[1].text });               // corrige o double
+      const N = [];
+      const r2 = await svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => N.push(p.status)));
+      check('LP2.1a-ii-E3 E-PROG-09 (retry limpo): novo record; callback antigo não é chamado; sem replay de FAILED; termina READY; mapa vazio',
+        r1.ok === false
+        && velho === velhoAntes                                     // callback antigo NÃO volta no retry
+        && r2.ok === true && N[0] !== 'failed' && N[N.length - 1] === 'ready'   // sem replay de FAILED; termina READY
+        && svc.inFlightInstallCount() === 0,
+        `E-PROG-09: r1.ok=${r1.ok} velho=${velho}/${velhoAntes} N=[${N.join(',')}]`);
+    }
+
+    /* ══ E-PROG-10: participante SEM callback — 1 instalação, A recebe tudo, B só o resultado ══ */
+    {
+      const h = createPackInstallHarness();
+      const s = rotear(h, 'david_goliath', '2.0.0'); setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s.sha)]);
+      const svc = createPackDownloadService(h.deps);
+      const A = [];
+      // B sem onProgress
+      let pB = null;
+      h.onBefore = async (t) => { if (t === 'delete' && !pB) { pB = svc.downloadStoryPackScenesFromGlobalManifest({ storyId: 'david_goliath', globalManifestUrl: GLOBAL, appVersion: '1.0.0', requestedKinds: ['scene'] }); await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0)); } };
+      const rA = await svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => A.push(p.status)));
+      const rB = await pB;
+      check('LP2.1a-ii-E3 E-PROG-10 (sem callback): uma instalação; A recebe a sequência; B compartilha o resultado sem notificação; cleanup ok',
+        mv(h) === 1 && A.length >= 1 && A[A.length - 1] === 'ready'
+        && rA.ok === true && rB.ok === true && JSON.stringify(rA) === JSON.stringify(rB)
+        && svc.inFlightInstallCount() === 0,
+        `E-PROG-10: A=[${A.join(',')}] moves=${mv(h)} rA===rB=${JSON.stringify(rA) === JSON.stringify(rB)}`);
+    }
+
+    /* ══ E-PROG-12: ordem e monotonicidade preservadas para o joiner (a partir do ponto de entrada) ══ */
+    {
+      const h = createPackInstallHarness();
+      const s = rotear(h, 'david_goliath', '2.0.0'); setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s.sha)]);
+      const svc = createPackDownloadService(h.deps);
+      const A = [], B = [];
+      await comJoin(svc, h, 'david_goliath', 'delete',
+        (p) => A.push({ st: p.status, dl: p.downloadedBytes, total: p.totalBytes }),
+        (p) => B.push({ st: p.status, dl: p.downloadedBytes, total: p.totalBytes }));
+      const ORD = { downloading: 0, verifying: 1, ready: 2, failed: 2 };
+      const mono = (seq) => { let dl = -1, tot = 0, ord = -1, ok = true; for (const e of seq) { if (e.dl < dl) ok = false; dl = Math.max(dl, e.dl); if (tot > 0 && e.total > 0 && e.total < tot) ok = false; if (e.total > 0) tot = e.total; if (ORD[e.st] < ord) ok = false; ord = Math.max(ord, ORD[e.st]); } return ok; };
+      check('LP2.1a-ii-E3 E-PROG-12 (ordem/monotonicidade): as sequências de A e B são monotônicas (bytes/total/status), sem clamp/fabricação',
+        A.length >= 3 && B.length >= 1 && mono(A) && mono(B)
+        && A[A.length - 1].st === 'ready' && B[B.length - 1].st === 'ready',
+        `E-PROG-12: A=${A.map((e) => e.st + ':' + e.dl).join(',')} B=${B.map((e) => e.st + ':' + e.dl).join(',')}`);
+    }
+
+    /* ══ E-PROG-13: nenhum evento após settlement ══ */
+    {
+      const h = createPackInstallHarness();
+      const s = rotear(h, 'david_goliath', '2.0.0'); setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s.sha)]);
+      const svc = createPackDownloadService(h.deps);
+      let cA = 0, cB = 0;
+      const { rA } = await comJoin(svc, h, 'david_goliath', 'delete', () => { cA += 1; }, () => { cB += 1; });
+      const cADepois = cA, cBDepois = cB, mapaDepois = svc.inFlightInstallCount();
+      await new Promise((r) => setTimeout(r, 20));   // microtasks + tick de timer
+      check('LP2.1a-ii-E3 E-PROG-13 (nenhum evento após settlement): as contagens não aumentam após a conclusão; mapa vazio',
+        rA.ok === true && mapaDepois === 0
+        && cA === cADepois && cB === cBDepois && cA >= 1 && cB >= 1,
+        `E-PROG-13: cA=${cA}/${cADepois} cB=${cB}/${cBDepois} mapa=${mapaDepois}`);
+    }
+
+    /* ══ E-PROG-16: isCancelled EXCLUSIVO — não entra no FlightRecord, não registra subscriber ══ */
+    {
+      const dlSrc = a1StripComments(readSrc('src/services/packDownloadService.js'));
+      const estatico = /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstall\(resolved, params\);/.test(dlSrc);
+      const h = createPackInstallHarness();
+      const s = rotear(h, 'david_goliath', '2.0.0'); setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s.sha)]);
+      const svc = createPackDownloadService(h.deps);
+      // chamada cancelável: NÃO deve entrar no mapa compartilhado (dono exclusivo)
+      const A = [];
+      let mapaDuranteCancelavel = -1;
+      h.onBefore = async (t) => { if (t === 'delete' && mapaDuranteCancelavel < 0) { mapaDuranteCancelavel = svc.inFlightInstallCount(); } };
+      const rC = await svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => A.push(p.status), { isCancelled: () => false }));
+      check('LP2.1a-ii-E3 E-PROG-16 (isCancelled exclusivo): não entra no FlightRecord compartilhado; usa callback próprio; guarda estática do branch',
+        estatico                                                    // guarda estática do branch do baseline
+        && rC.ok === true && A.length >= 1                          // usa o próprio onProgress
+        && mapaDuranteCancelavel === 0                              // NÃO ocupou o mapa compartilhado (dono exclusivo)
+        && svc.inFlightInstallCount() === 0,
+        `E-PROG-16: estatico=${estatico} mapaDurante=${mapaDuranteCancelavel} A=${A.length}`);
+    }
+
+    /* ══ E-PROG-17: READY online COMPARTILHADO (asReadyEntry) — barreira via computeFileSha256 gated ══ */
+    {
+      const h = createPackInstallHarness();
+      const { text } = manifestDe(h, 'david_goliath', '2.0.0'); const dir = h.storage.getPackLocalDir('david_goliath', '2.0.0'); const sha = h.sha256OfText(text);
+      FILES2.forEach((f) => h.mem._seedFile(dir + f.path, f.text)); h.mem._seedFile(`${dir}manifest.json`, text);
+      h.mem._seedFile(`${dir}.ptf-publish.json`, JSON.stringify({ schemaVersion: 1, storyId: 'david_goliath', version: '2.0.0', manifestSha256: sha, manifestPath: 'manifest.json', kinds: ['scene'], appVersion: '1.0.0' }));
+      h.seedIndexRaw({ david_goliath: { storyId: 'david_goliath', version: '2.0.0', status: 'ready', localDir: dir, manifestPath: `${dir}manifest.json`, totalBytes: 16, downloadedBytes: 16, updatedAt: 1, errorMessage: null } });
+      // gate no computeFileSha256 (âncora): A pausa; B joina; depois libera.
+      let liberar; const gate = new Promise((r) => { liberar = r; }); let usou = 0;
+      const shaGated = async (uri) => { usou += 1; if (usou === 1) await gate; return h.deps.computeFileSha256(uri); };
+      const svc = createPackDownloadService({ ...h.deps, fetchGlobalContentManifest: fetchOne(mkPack(h, 'david_goliath', '2.0.0', sha)), computeFileSha256: shaGated });
+      const A = [], B = [];
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => A.push(p.status)));
+      await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => B.push(p.status)));
+      await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
+      liberar();
+      const [rA, rB] = await Promise.all([pA, pB]);
+      check('LP2.1a-ii-E3 E-PROG-17 (READY online compartilhado): 1 record, 0 download, A e B recebem READY, recovered:false, mapa vazio',
+        rA.ok === true && rB.ok === true && rA.recovered === false && rB.recovered === false
+        && h.counters.downloads === 0 && mv(h) === 0
+        && A.includes('ready') && B.includes('ready')
+        && JSON.stringify(rA) === JSON.stringify(rB)
+        && svc.inFlightInstallCount() === 0,
+        `E-PROG-17: A=[${A.join(',')}] B=[${B.join(',')}] dl=${h.counters.downloads} rec=${rA.recovered}/${rB.recovered}`);
+    }
+
+    /* ══ E-PROG-18: recovery offline EXCLUSIVO — sem FlightRecord resolvido; callbacks não cruzam ══ */
+    {
+      const seedOrfao = (h, story) => {
+        const { text, src } = manifestDe(h, story, '2.0.0'); const dir = h.storage.getPackLocalDir(story, '2.0.0'); const sha = h.sha256OfText(text);
+        src.forEach((f) => h.mem._seedFile(dir + f.path, f.text)); h.mem._seedFile(`${dir}manifest.json`, text);
+        h.mem._seedFile(`${dir}.ptf-publish.json`, JSON.stringify({ schemaVersion: 1, storyId: story, version: '2.0.0', manifestSha256: sha, manifestPath: 'manifest.json', kinds: ['audio', 'scene'], appVersion: '1.0.0' }));
+        h.storage.setPackEntry(story, { version: '2.0.0', status: 'downloading', errorMessage: null });
+      };
+      const h = createPackInstallHarness(); seedOrfao(h, 'david_goliath');
+      h.setModoRede('offline');
+      const svc = createPackDownloadService(h.deps);
+      const A = [];
+      let mapaDurante = -1;
+      const r = await svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => { A.push(p.status); if (mapaDurante < 0) mapaDurante = svc.inFlightInstallCount(); }));
+      // controle: duas chamadas offline não cruzam callbacks
+      const h2 = createPackInstallHarness(); seedOrfao(h2, 'david_goliath'); h2.setModoRede('offline');
+      const svc2 = createPackDownloadService(h2.deps);
+      const X = [], Y = [];
+      const r1 = await svc2.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => X.push(p.status)));
+      const r2 = await svc2.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => Y.push(p.status)));
+      check('LP2.1a-ii-E3 E-PROG-18 (recovery offline exclusivo): READY ao callback próprio; zero FlightRecord resolvido; callbacks não cruzam',
+        r.ok === true && r.recovered === true && A.includes('ready')
+        && mapaDurante === 0                                        // offline NÃO ocupa o FlightRecord resolvido
+        && r1.ok === true && r2.ok === true && X.length >= 1 && Y.length >= 1,   // duas offline, cada callback recebe o seu
+        `E-PROG-18: ok=${r.ok} rec=${r.recovered} A=[${A.join(',')}] mapaDurante=${mapaDurante} X=${X.length} Y=${Y.length}`);
+    }
+
+    /* ══ SNAP-ISO: isolamento de snapshot — A corrompe o objeto recebido; B recebe originais ══ */
+    {
+      const h = createPackInstallHarness();
+      const s = rotear(h, 'david_goliath', '2.0.0'); setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s.sha)]);
+      const svc = createPackDownloadService(h.deps);
+      const B = [];
+      const { rA, rB } = await comJoin(svc, h, 'david_goliath', 'delete',
+        (p) => { p.status = 'corrompido'; p.downloadedBytes = -1; p.extra = 'A'; },     // A muta o próprio objeto
+        (p) => B.push({ st: p.status, dl: p.downloadedBytes, extra: p.extra }));
+      check('LP2.1a-ii-E3 SNAP-ISO (isolamento de snapshot): a mutação do callback de A NÃO contamina B (cópias independentes)',
+        rA && rA.ok === true && rB && rB.ok === true && B.length >= 1
+        && B.every((e) => e.st !== 'corrompido' && e.dl !== -1 && e.extra === undefined),   // B recebeu valores ORIGINAIS
+        `SNAP-ISO: B=${JSON.stringify(B.slice(0, 3))}`);
+    }
+
+    /* ══ THEN-BAD: thenable cujo getter `then` lança — absorvido, sem unhandled ══ */
+    {
+      const h = createPackInstallHarness();
+      const s = rotear(h, 'david_goliath', '2.0.0'); setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s.sha)]);
+      const svc = createPackDownloadService(h.deps);
+      const rej = []; const handler = (e) => rej.push(e);
+      process.on('unhandledRejection', handler);
+      let rA, rB; const B = [];
+      try {
+        const thenableRuim = { get then() { throw new Error('getter then lança'); } };
+        const r = await comJoin(svc, h, 'david_goliath', 'delete', () => thenableRuim, (p) => B.push(p.status));
+        rA = r.rA; rB = r.rB;
+        await new Promise((res) => setTimeout(res, 30));
+      } finally { process.removeListener('unhandledRejection', handler); }
+      check('LP2.1a-ii-E3 THEN-BAD (thenable problemático): getter `then` que lança é absorvido; B recebe tudo; zero unhandledRejection',
+        rA && rA.ok === true && rB && rB.ok === true
+        && B.length >= 1 && rej.length === 0,
+        `THEN-BAD: rA.ok=${rA && rA.ok} rB.ok=${rB && rB.ok} B=${B.length} unhandled=${rej.length}`);
+    }
+
+    /* ══════════ MUTATION CHECKS — cada proteção do E é load-bearing (não tautológica) ══════════ */
+    {
+      // Muta o TEXTO do downloader em memória; roda o MESMO cenário no original e no mutante; a proteção
+      // só está provada se os DESFECHOS DIFEREM (loadPackDownloader lança se a âncora não bater no fonte).
+      const mkSvc = (mut, h, extraDeps) => (mut ? loadPackDownloader(mut) : { createPackDownloadService }).createPackDownloadService({ ...h.deps, ...(extraDeps || {}) });
+      const setupDG = (h) => { const s = rotear(h, 'david_goliath', '2.0.0'); setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s.sha)]); return s; };
+
+      const cenJoin = async (mut, pausa) => {
+        const h = createPackInstallHarness(); setupDG(h); const svc = mkSvc(mut, h); const A = [], B = [];
+        const { rA, rB } = await comJoin(svc, h, 'david_goliath', pausa, (p) => A.push(p.status), (p) => B.push(p.status));
+        return `A=${A.length}|B=${B.join(',')}|okA=${rA && rA.ok}|okB=${rB && rB.ok}`;
+      };
+      const cenMesmoCb = async (mut) => {
+        const h = createPackInstallHarness(); setupDG(h); const svc = mkSvc(mut, h);
+        let n = 0; const cb = () => { n += 1; }; let pB = null;   // A e B usam a MESMA função (mesma referência)
+        h.onBefore = async (t) => { if (t === 'delete' && !pB) { pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', cb)); await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0)); } };
+        await svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', cb)); await pB;
+        return `chamadas=${n}`;   // 2 participantes → 2×/emissão; dedupe por referência → 1×/emissão
+      };
+      const cenSnap = async (mut) => {
+        const h = createPackInstallHarness(); setupDG(h); const svc = mkSvc(mut, h); const B = [];
+        await comJoin(svc, h, 'david_goliath', 'delete', (p) => { p.status = 'X'; p.downloadedBytes = -1; }, (p) => B.push(p.status));
+        return `B_corrompido=${B.some((x) => x === 'X')}`;
+      };
+      const cenRej = async (mut) => {
+        const h = createPackInstallHarness(); setupDG(h); const svc = mkSvc(mut, h);
+        const rej = []; const handler = (e) => rej.push(e); process.on('unhandledRejection', handler); let sig;
+        try { const { rA } = await comJoin(svc, h, 'david_goliath', 'delete', () => Promise.reject(new Error('r')), () => {}); await new Promise((r) => setTimeout(r, 30)); sig = `unhandled=${rej.length}|okA=${rA && rA.ok}`; }
+        finally { process.removeListener('unhandledRejection', handler); }
+        return sig;
+      };
+      const cenExc = async (mut) => {
+        const h = createPackInstallHarness(); setupDG(h); const svc = mkSvc(mut, h); const B = []; let sig;
+        // A (criador) lança a CADA evento. Sem isolamento, o throw quebra o laço do fan-out ANTES de B →
+        // B perde eventos (o makeReport engole o throw a nível de instalação, mas o outro subscriber some).
+        try { const { rA, rB } = await comJoin(svc, h, 'david_goliath', 'delete', () => { throw new Error('x'); }, (p) => B.push(p.status)); sig = `okA=${rA && rA.ok}|okB=${rB && rB.ok}|B=${B.length}`; }
+        catch (e) { sig = `lancou=${e.message}`; }
+        return sig;
+      };
+      const cenCleanup = async (mut) => {
+        const h = createPackInstallHarness(); setupDG(h); const svc = mkSvc(mut, h);
+        await svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', () => {}));
+        return `mapa=${svc.inFlightInstallCount()}`;
+      };
+      const cenConc = async (mut) => {
+        const h = createPackInstallHarness(); setupDG(h); const svc = mkSvc(mut, h);
+        // Duas concorrentes, MESMA identidade. Compartilhado → ambas recebem a conclusão do MESMO
+        // download (recovered undefined). Sem compartilhar → a 2ª acha o pack já READY (asReadyEntry,
+        // recovered:false). `moves` sozinho não distingue (a 2ª instalação não baixa); `recovereds` sim.
+        const rs = await Promise.all([svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', () => {})), svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', () => {}))]);
+        return `recovereds=${rs.map((r) => String(r.recovered)).join(',')}|moves=${mv(h)}`;
+      };
+      const cenCancel = async (mut) => {
+        const h = createPackInstallHarness(); setupDG(h); const svc = mkSvc(mut, h); let mapaDurante = -1;
+        h.onBefore = async (t) => { if (t === 'delete' && mapaDurante < 0) mapaDurante = svc.inFlightInstallCount(); };
+        await svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', () => {}, { isCancelled: () => false }));
+        return `mapaDurante=${mapaDurante}`;
+      };
+
+      const MUT_E = [
+        { id: 'ME1', nome: 'joiner não registrado', prova: 'E-PROG-01', cen: () => cenJoin(undefined, 'delete'), cenM: (m) => cenJoin(m, 'delete'),
+          mut: (x) => x.replace('      existing.subscribers.set(Symbol(), params.onProgress);\n', '') },
+        { id: 'ME2', nome: 'replay removido', prova: 'E-PROG-02', cen: () => cenJoin(undefined, 'move'), cenM: (m) => cenJoin(m, 'move'),
+          mut: (x) => x.replace('      replayLatestProgress(existing, params.onProgress);\n', '') },
+        { id: 'ME3', nome: 'dedupe por referência (Set-like)', prova: 'E-PROG-11', cen: () => cenMesmoCb(undefined), cenM: (m) => cenMesmoCb(m),
+          mut: (x) => x.replace('  if (typeof params.onProgress === \'function\') record.subscribers.set(Symbol(), params.onProgress);', '  if (typeof params.onProgress === \'function\') record.subscribers.set(params.onProgress, params.onProgress);').replace('      existing.subscribers.set(Symbol(), params.onProgress);', '      existing.subscribers.set(params.onProgress, params.onProgress);') },
+        { id: 'ME4', nome: 'mesmo objeto aos callbacks (sem cópia)', prova: 'SNAP-ISO', cen: () => cenSnap(undefined), cenM: (m) => cenSnap(m),
+          mut: (x) => x.replace('    Promise.resolve(callback({ ...snapshot })).catch(() => {});', '    Promise.resolve(callback(snapshot)).catch(() => {});') },
+        { id: 'ME5', nome: 'sem absorção de Promise rejeitada', prova: 'E-PROG-04', cen: () => cenRej(undefined), cenM: (m) => cenRej(m),
+          mut: (x) => x.replace('    Promise.resolve(callback({ ...snapshot })).catch(() => {});', '    callback({ ...snapshot });') },
+        { id: 'ME6', nome: 'sem isolamento de exceção síncrona', prova: 'E-PROG-03', cen: () => cenExc(undefined), cenM: (m) => cenExc(m),
+          mut: (x) => x.replace('  try {\n    Promise.resolve(callback({ ...snapshot })).catch(() => {});\n  } catch { /* o callback não pode afetar o voo, a Promise compartilhada nem os outros participantes */ }', '  Promise.resolve(callback({ ...snapshot })).catch(() => {});') },
+        { id: 'ME7', nome: 'sem cleanup no sucesso', prova: 'E-PROG-07', cen: () => cenCleanup(undefined), cenM: (m) => cenCleanup(m),
+          mut: (x) => x.replace('  if (inFlightInstalls.get(key) === record) inFlightInstalls.delete(key);   // um finally ANTIGO não apaga record novo', '  /* delete removido */') },
+        { id: 'ME8', nome: 'registro do criador removido', prova: 'E-PROG-01', cen: () => cenJoin(undefined, 'delete'), cenM: (m) => cenJoin(m, 'delete'),
+          mut: (x) => x.replace('  if (typeof params.onProgress === \'function\') record.subscribers.set(Symbol(), params.onProgress);\n  const internalParams', '  const internalParams') },
+        { id: 'ME9', nome: 'aleatório na chave (quebra compartilhamento)', prova: 'conc', cen: () => cenConc(undefined), cenM: (m) => cenConc(m),
+          mut: (x) => x.replace('  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion]);', '  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion, Math.random()]);') },
+        { id: 'ME10', nome: 'set na microtask (ATOMIC-2)', prova: 'conc', cen: () => cenConc(undefined), cenM: (m) => cenConc(m),
+          mut: (x) => x.replace('  record.promise = Promise.resolve()\n    .then(() => guardedInstall(resolved, internalParams))\n    .finally(() => cleanupRecord(key, record));\n  inFlightInstalls.set(key, record);', '  record.promise = Promise.resolve()\n    .then(() => { inFlightInstalls.set(key, record); return guardedInstall(resolved, internalParams); })\n    .finally(() => cleanupRecord(key, record));') },
+        { id: 'ME11', nome: 'isCancelled entra no FlightRecord', prova: 'E-PROG-16', cen: () => cenCancel(undefined), cenM: (m) => cenCancel(m),
+          mut: (x) => x.replace('  if (typeof (params && params.isCancelled) === \'function\') return guardedInstall(resolved, params);\n', '') },
+      ];
+
+      const vivos = [];
+      for (const m of MUT_E) {
+        let lancou = false; try { loadPackDownloader(m.mut); } catch { lancou = true; }
+        const orig = await m.cen(); const mut = await m.cenM(m.mut);
+        if (lancou || orig === mut) vivos.push(`${m.id} ${m.nome} [${m.prova}] orig[${orig}] mut[${mut}] lancou=${lancou}`);
+      }
+      check('LP2.1a-ii-E3 §MUT-E (mutation checks): cada proteção do progresso compartilhado é load-bearing — remover muda o desfecho',
+        vivos.length === 0 && MUT_E.length === 11,
+        `mutantes que NÃO morreram pelo contrato certo: ${vivos.join(' | ')}`);
+
+      // ATOMIC-1 (motor físico antes do record completo) e ATOMIC-3 (criador registrado depois do início):
+      // ATOMIC-3 é ME8 (criador não registrado → A perde eventos). ATOMIC-1 (guardedInstall antes de
+      // record.promise/set) não é distinguível de ME8/ME10 sem reordenar a fila — classificado como
+      // GUARDA ESTRUTURAL: a Promise é atribuída ANTES do set (ordem verificada abaixo).
+      const dlSrcE = a1StripComments(readSrc('src/services/packDownloadService.js'));
+      const iPromise = dlSrcE.indexOf('record.promise = Promise.resolve()');
+      const iSet = dlSrcE.indexOf('inFlightInstalls.set(key, record);', iPromise);
+      check('LP2.1a-ii-E3 §ATOMIC (guarda estrutural): record.promise é atribuída ANTES de inFlightInstalls.set (nunca promise:null no mapa); set adjacente ao get',
+        iPromise > 0 && iSet > iPromise                                          // Promise antes do set
+        && /const record = \{ promise: null,/.test(dlSrcE)                       // record montado antes
+        && /const existing = inFlightInstalls\.get\(key\);/.test(dlSrcE),        // get/set sem await entre si
+        `ordem atômica quebrada: iPromise=${iPromise} iSet=${iSet}`);
+
+      // FINALLY ANTIGO: `if (inFlightInstalls.get(key) === record) delete` é DEFENSIVO — pelo single-flight
+      // público, duas chamadas da MESMA key nunca coexistem como records rivais (a 2ª JOINA a 1ª; um novo
+      // record só nasce APÓS o finally da 1ª deletar a key). A corrida não é produzível pela API pública;
+      // logo é GUARDA ESTRUTURAL (auditada por texto), não mutante comportamental.
+      check('LP2.1a-ii-E3 §FINALLY-ANTIGO (guarda estrutural): o delete do cleanup é condicionado à identidade do record (não cego por key)',
+        /if \(inFlightInstalls\.get\(key\) === record\) inFlightInstalls\.delete\(key\);/.test(dlSrcE)
+        && !/^\s*inFlightInstalls\.delete\(key\);\s*$/m.test(dlSrcE.replace(/if \(inFlightInstalls\.get\(key\) === record\) inFlightInstalls\.delete\(key\);/g, '')),   // não há delete cego
+        'o cleanup apaga a key sem conferir a identidade do record (um finally antigo apagaria record novo)');
+
+      // E-PROG-14 (replay terminal) — Abordagem B (ESTRUTURAL): a janela "join após o terminal, antes do
+      // cleanup" não é deterministicamente controlável (a resolução do joiner corre contra o finally).
+      // Provamos que replayLatestProgress encaminha QUALQUER latestProgress sem ramo por status (então
+      // um snapshot READY/FAILED é reproduzido como qualquer outro). O terminal chegando a um joiner
+      // ATIVO já é provado comportamentalmente por E-PROG-08 (FAILED a B via fan-out) e E-PROG-01 (READY).
+      const iReplayFn = dlSrcE.indexOf('function replayLatestProgress(');
+      const corpoReplay = iReplayFn >= 0 ? dlSrcE.slice(iReplayFn, dlSrcE.indexOf('}', iReplayFn) + 1) : '';
+      check('LP2.1a-ii-E3 E-PROG-14 (replay terminal — estrutural): replayLatestProgress encaminha qualquer snapshot, sem filtro por status',
+        corpoReplay.length > 0
+        && /if \(!record\.latestProgress\) return;/.test(corpoReplay)
+        && /notifyProgressSubscriber\(callback, record\.latestProgress\)/.test(corpoReplay)
+        && !/status|ready|failed|downloading|verifying/i.test(corpoReplay),   // sem ramo por status → terminal é reproduzido como qualquer outro
+        'replayLatestProgress ramifica por status ou não encaminha o latestProgress (terminal poderia ser filtrado)');
+    }
+  })();
+  globalThis.__LP21IIE3.catch(() => {});
 }
 
 
@@ -28552,6 +29160,18 @@ check(
   check('LP2.1a-ii-D3 (harness): o bloco assíncrono da âncora real do manifesto concluiu sem estourar',
     !lp21iid3Err,
     `o bloco D3 lançou (${lp21iid3Err && lp21iid3Err.stack ? String(lp21iid3Err.stack).split('\n').slice(0, 3).join(' | ') : lp21iid3Err}) — os checks dele não rodaram`);
+
+  let lp21iie1Err = null;
+  try { await globalThis.__LP21IIE1; } catch (e) { lp21iie1Err = e; }
+  check('LP2.1a-ii-E1 (harness): o bloco assíncrono das provas de progresso compartilhado concluiu sem estourar',
+    !lp21iie1Err,
+    `o bloco E1 lançou (${lp21iie1Err && lp21iie1Err.stack ? String(lp21iie1Err.stack).split('\n').slice(0, 3).join(' | ') : lp21iie1Err}) — os checks dele não rodaram`);
+
+  let lp21iie3Err = null;
+  try { await globalThis.__LP21IIE3; } catch (e) { lp21iie3Err = e; }
+  check('LP2.1a-ii-E3 (harness): o bloco assíncrono do hardening de progresso compartilhado concluiu sem estourar',
+    !lp21iie3Err,
+    `o bloco E3 lançou (${lp21iie3Err && lp21iie3Err.stack ? String(lp21iie3Err.stack).split('\n').slice(0, 3).join(' | ') : lp21iie3Err}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;

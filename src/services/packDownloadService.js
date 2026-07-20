@@ -709,6 +709,45 @@ function inFlightInstallCount() {
   return inFlightInstalls.size;
 }
 
+/* ── LP2.1a-ii-E — Progresso compartilhado: FlightRecord por identidade resolvida ── */
+/*
+ * Cada voo guarda um FlightRecord { promise, subscribers, latestProgress, settled } em vez de uma
+ * Promise nua. Participantes (criador + joiners COM onProgress) recebem CADA evento; um joiner tardio
+ * recebe um replay do ÚLTIMO snapshot. `onProgress` NÃO faz parte da identidade; o MESMO callback em
+ * duas chamadas = DOIS participantes (Symbol por chamada, sem dedupe por referência). Exceção de
+ * callback é isolada e o retorno é ignorado (Promise/thenable rejeitado absorvido). Offline e
+ * `isCancelled` NÃO participam do fan-out (não há resolvedKey/record neles). Nada de cancelamento (F).
+ */
+
+/** Notifica UM participante com cópia PRÓPRIA do snapshot; isola exceção síncrona e retorno rejeitado. */
+function notifyProgressSubscriber(callback, snapshot) {
+  try {
+    Promise.resolve(callback({ ...snapshot })).catch(() => {});
+  } catch { /* o callback não pode afetar o voo, a Promise compartilhada nem os outros participantes */ }
+}
+
+/** Distribui um evento a TODOS os participantes ativos (fotografia); ignora emissões após o settlement. */
+function emitProgress(record, snapshot) {
+  if (record.settled) return;
+  record.latestProgress = { ...snapshot };                       // último snapshot, por-record (nunca cruza keys)
+  const subscribers = Array.from(record.subscribers.values());   // FOTOGRAFIA (reentrância)
+  for (const callback of subscribers) notifyProgressSubscriber(callback, record.latestProgress);
+}
+
+/** Replay do ÚLTIMO snapshot a um joiner recém-registrado; não reproduz histórico nem itera outros. */
+function replayLatestProgress(record, callback) {
+  if (!record.latestProgress) return;
+  notifyProgressSubscriber(callback, record.latestProgress);
+}
+
+/** Higiene do E: ao settle, marca o record, libera subscribers/snapshot e remove o record da PRÓPRIA key. */
+function cleanupRecord(key, record) {
+  record.settled = true;
+  record.subscribers.clear();
+  record.latestProgress = null;
+  if (inFlightInstalls.get(key) === record) inFlightInstalls.delete(key);   // um finally ANTIGO não apaga record novo
+}
+
 /* ── Exclusão pelo RECURSO FÍSICO (storyId@version) — a fila por história permanece ── */
 /*
  * O recurso que o fluxo destrói e publica (`.tmp`/`localDir`) deriva de storyId@version. Identidades
@@ -743,9 +782,9 @@ function guardedInstall(resolved, params) {
  *
  * Offline (networkError na resolução): melhor esforço serializado por história (preserva o C).
  * Cancelável (`isCancelled`): DONO EXCLUSIVO do resultado, mas ainda passa pela fila física.
- * `finally` limpa o mapa: uma falha nunca deixa a chave travada; o retry seguinte executa.
- * Quem JOINA um voo não recebe `onProgress` (limitação conhecida do bloco F). Contrato público
- * inalterado (mesmos parâmetros, mesmo formato de retorno).
+ * `cleanupRecord` limpa o mapa no `finally`: uma falha nunca deixa a chave travada; o retry executa.
+ * LP2.1a-ii-E — PROGRESSO COMPARTILHADO: quem JOINA um voo AGORA recebe os eventos de `onProgress`
+ * (fan-out por FlightRecord) e um replay do último snapshot. Contrato público inalterado.
  */
 async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
   const idr = await resolveInstallIdentity(params);
@@ -762,12 +801,31 @@ async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
 
   const key = canonicalResolvedKey(resolved);
   if (!key) return guardedInstall(resolved, params);   // identidade inadmissível → instala sem compartilhar
-  const existing = inFlightInstalls.get(key);
-  if (existing) return existing;   // mesma identidade resolvida, mesma conclusão lógica
 
-  const flight = guardedInstall(resolved, params).finally(() => { inFlightInstalls.delete(key); });
-  inFlightInstalls.set(key, flight);
-  return flight;
+  const existing = inFlightInstalls.get(key);
+  if (existing) {
+    // JOINER: registra o PRÓPRIO participante (Symbol por chamada) e recebe replay do último snapshot.
+    // NÃO inicia instalação, NÃO altera a identidade, NÃO substitui o callback do criador; chamada sem
+    // callback ainda aguarda a MESMA Promise final sem virar subscriber.
+    if (typeof params.onProgress === 'function') {
+      existing.subscribers.set(Symbol(), params.onProgress);
+      replayLatestProgress(existing, params.onProgress);
+    }
+    return existing.promise;   // mesma identidade resolvida, mesma conclusão lógica
+  }
+
+  // CRIADOR: monta o FlightRecord, inscreve o próprio callback (se houver) e SÓ ENTÃO insere no mapa —
+  // com a Promise JÁ atribuída (o record nunca entra no mapa com promise:null). O motor físico só
+  // começa na microtask do `.then`, então o criador já está inscrito antes do primeiro evento; e o
+  // `set` fica adjacente (sem `await`) ao get, preservando a atomicidade do single-flight.
+  const record = { promise: null, subscribers: new Map(), latestProgress: null, settled: false };
+  if (typeof params.onProgress === 'function') record.subscribers.set(Symbol(), params.onProgress);
+  const internalParams = { ...params, onProgress: (snapshot) => emitProgress(record, snapshot) };
+  record.promise = Promise.resolve()
+    .then(() => guardedInstall(resolved, internalParams))
+    .finally(() => cleanupRecord(key, record));
+  inFlightInstalls.set(key, record);
+  return record.promise;
   }
 
   return { downloadStoryPackScenesFromGlobalManifest, inFlightInstallCount, packInstallKey };
