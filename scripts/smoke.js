@@ -12954,11 +12954,16 @@ console.log('\n── LP2.1a-ii-E3 HARDENING: progresso compartilhado (hardening
 
       const MUT_E = [
         { id: 'ME1', nome: 'joiner não registrado', prova: 'E-PROG-01', cen: () => cenJoin(undefined, 'delete'), cenM: (m) => cenJoin(m, 'delete'),
-          mut: (x) => x.replace('      existing.subscribers.set(Symbol(), params.onProgress);\n', '') },
+          // F2-ledger: o registro do joiner passou a `registerProgressSubscriber(existing, ...)`; neutralizá-lo
+          // (→ id null, sem subscriber nem replay) reproduz o mesmo desfecho do anchor antigo (B sem eventos).
+          mut: (x) => x.replace('registerProgressSubscriber(existing, params.onProgress, params.participantSignal)', 'null') },
         { id: 'ME2', nome: 'replay removido', prova: 'E-PROG-02', cen: () => cenJoin(undefined, 'move'), cenM: (m) => cenJoin(m, 'move'),
-          mut: (x) => x.replace('      replayLatestProgress(existing, params.onProgress);\n', '') },
+          // F2-ledger: a chamada de replay virou `if (id) replayLatestProgress(...)`; removê-la reproduz o anchor antigo.
+          mut: (x) => x.replace('    if (id) replayLatestProgress(existing, params.onProgress);\n', '') },
         { id: 'ME3', nome: 'dedupe por referência (Set-like)', prova: 'E-PROG-11', cen: () => cenMesmoCb(undefined), cenM: (m) => cenMesmoCb(m),
-          mut: (x) => x.replace('  if (typeof params.onProgress === \'function\') record.subscribers.set(Symbol(), params.onProgress);', '  if (typeof params.onProgress === \'function\') record.subscribers.set(params.onProgress, params.onProgress);').replace('      existing.subscribers.set(Symbol(), params.onProgress);', '      existing.subscribers.set(params.onProgress, params.onProgress);') },
+          // F2-ledger: o Symbol por chamada migrou para `registerProgressSubscriber` (`const id = Symbol();`);
+          // trocá-lo pela referência do callback (`= onProgress`) recria o dedupe Set-like (mesmo cb → mesma chave).
+          mut: (x) => x.replace('  const id = Symbol();', '  const id = onProgress;') },
         { id: 'ME4', nome: 'mesmo objeto aos callbacks (sem cópia)', prova: 'SNAP-ISO', cen: () => cenSnap(undefined), cenM: (m) => cenSnap(m),
           mut: (x) => x.replace('    Promise.resolve(callback({ ...snapshot })).catch(() => {});', '    Promise.resolve(callback(snapshot)).catch(() => {});') },
         { id: 'ME5', nome: 'sem absorção de Promise rejeitada', prova: 'E-PROG-04', cen: () => cenRej(undefined), cenM: (m) => cenRej(m),
@@ -12968,7 +12973,8 @@ console.log('\n── LP2.1a-ii-E3 HARDENING: progresso compartilhado (hardening
         { id: 'ME7', nome: 'sem cleanup no sucesso', prova: 'E-PROG-07', cen: () => cenCleanup(undefined), cenM: (m) => cenCleanup(m),
           mut: (x) => x.replace('  if (inFlightInstalls.get(key) === record) inFlightInstalls.delete(key);   // um finally ANTIGO não apaga record novo', '  /* delete removido */') },
         { id: 'ME8', nome: 'registro do criador removido', prova: 'E-PROG-01', cen: () => cenJoin(undefined, 'delete'), cenM: (m) => cenJoin(m, 'delete'),
-          mut: (x) => x.replace('  if (typeof params.onProgress === \'function\') record.subscribers.set(Symbol(), params.onProgress);\n  const internalParams', '  const internalParams') },
+          // F2-ledger: o registro do criador virou `registerProgressSubscriber(record, ...)`; removê-lo reproduz o anchor antigo (A sem eventos).
+          mut: (x) => x.replace('  registerProgressSubscriber(record, params.onProgress, params.participantSignal);\n  const internalParams', '  const internalParams') },
         { id: 'ME9', nome: 'aleatório na chave (quebra compartilhamento)', prova: 'conc', cen: () => cenConc(undefined), cenM: (m) => cenConc(m),
           mut: (x) => x.replace('  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion]);', '  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion, Math.random()]);') },
         { id: 'ME10', nome: 'set na microtask (ATOMIC-2)', prova: 'conc', cen: () => cenConc(undefined), cenM: (m) => cenConc(m),
@@ -13025,6 +13031,454 @@ console.log('\n── LP2.1a-ii-E3 HARDENING: progresso compartilhado (hardening
     }
   })();
   globalThis.__LP21IIE3.catch(() => {});
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LP2.1a-ii-F1 RED — Provas VERMELHAS do cancelamento e ciclo de vida (bloco F).
+// Serviço REAL via loadPackDownloader; hook REAL via seam loadModule (não copia a
+// implementação do hook). As 10 provas descrevem o CONTRATO FUTURO (participantSignal
+// aditivo + lifecycle assíncrono do hook). Hoje o downloader IGNORA participantSignal
+// e o hook não tem cleanup de lifecycle → as 10 FALHAM de propósito. Um único guardião
+// assíncrono fica VERDE. Nenhum arquivo de produto é tocado (F1 só edita este smoke).
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n── LP2.1a-ii-F1 RED: cancelamento e ciclo de vida (provas vermelhas) ──');
+{
+  const { createPackInstallHarness, loadPackDownloader, loadModule } = require('./testing/packInstallHarness');
+  const { createPackDownloadService } = loadPackDownloader();
+
+  const GLOBAL = 'https://r2/content-manifest.json';
+  const baseDe = (s, v) => `https://r2/${s}/${v}/`;
+  const FILES = [{ kind: 'scene', path: 'scenes/01.webp', text: 'CENA-UM' }, { kind: 'scene', path: 'scenes/02.webp', text: 'CENA-DOIS' }];
+  const manifestDe = (h, s, v) => {
+    const files = FILES.map((f) => ({ kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text) }));
+    const m = { schemaVersion: 1, id: s, version: v, type: 'story', minAppVersion: '1.0.0', totalBytes: files.reduce((a, f) => a + f.bytes, 0), files, metadata: { storyId: s, title: 'D', language: 'pt-BR' } };
+    return JSON.stringify(m);
+  };
+  const rotear = (h, s, v) => {
+    const text = manifestDe(h, s, v); const b = baseDe(s, v);
+    h.route(`${b}manifest.json`, { text });
+    FILES.forEach((f) => h.route(b + f.path, { text: f.text, progressEvents: [{ totalBytesWritten: 1 }, { totalBytesWritten: Buffer.byteLength(f.text) }] }));
+    return { sha: h.sha256OfText(text), base: b };
+  };
+  const mkPack = (h, s, v, sha) => h.packEntry({ storyId: s, version: v, baseUrl: baseDe(s, v), manifestSha256: sha });
+  const setGM = (h, packs) => h.setGlobalManifest({ manifestVersion: 1, minAppVersion: '1.0.0', packs });
+  const P = (s, cb, extra) => ({ storyId: s, globalManifestUrl: GLOBAL, appVersion: '1.0.0', requestedKinds: ['scene'], onProgress: cb, ...extra });
+  const mv = (h) => h.eventsOfType('move').length;
+  const setupHist = (story, v) => { const h = createPackInstallHarness(); const s = rotear(h, story, v); setGM(h, [mkPack(h, story, v, s.sha)]); return h; };
+  // participante com signal: aborta após o k-ésimo evento; conta os eventos DEPOIS do abort.
+  const makeParticipant = (controller, abortAfter) => {
+    const st = { events: [], afterAbort: 0, aborted: false };
+    st.cb = (p) => {
+      if (st.aborted) st.afterAbort += 1;
+      st.events.push(p.status);
+      if (!st.aborted && st.events.length >= abortAfter && controller) { st.aborted = true; controller.abort(); }
+    };
+    return st;
+  };
+  const AC = typeof AbortController === 'function' ? AbortController : null;
+
+  // ── seam do hook: emulador mínimo de React hooks (slots estáveis por índice) ──
+  const makeHost = () => {
+    const slots = []; let idx = 0;
+    const log = { setDownloading: [], setProgress: [], setError: [], _mark: 0 };
+    const react = {
+      useState(init) {
+        const i = idx++; if (slots[i] === undefined) slots[i] = { v: typeof init === 'function' ? init() : init };
+        const nm = i === 0 ? 'setDownloading' : i === 1 ? 'setProgress' : 'setError'; const s = slots[i];
+        return [s.v, (nv) => { s.v = typeof nv === 'function' ? nv(s.v) : nv; log[nm].push({ at: log._mark, v: s.v }); }];
+      },
+      useRef(init) { const i = idx++; if (slots[i] === undefined) slots[i] = { current: init }; return slots[i]; },
+      useCallback(fn) { return fn; },
+      useEffect(effect, deps) {
+        const i = idx++; const prev = slots[i];
+        const changed = !prev || !deps || !prev.deps || deps.some((d, k) => d !== prev.deps[k]);
+        if (changed) { if (prev && typeof prev.cleanup === 'function') prev.cleanup(); const rec = { deps, cleanup: undefined }; slots[i] = rec; const c = effect(); rec.cleanup = typeof c === 'function' ? c : undefined; }
+      },
+      _unmount() { for (const s of slots) if (s && typeof s.cleanup === 'function') s.cleanup(); },
+      _reset() { idx = 0; },
+      log,
+    };
+    return react;
+  };
+  // LP2.1a-ii-F4A — host FOCAL com effects DEFERIDOS: o render NÃO roda os effects. Permite observar o
+  // PRIMEIRO render de uma nova história ANTES do effect dela — detecta implementação que só reseta no
+  // effect (mascarada por um host que roda effects durante o render). Não altera o makeHost anterior.
+  const makeHostDeferred = () => {
+    const slots = []; let idx = 0;
+    const log = { setDownloading: [], setProgress: [], setError: [], _mark: 0 };
+    const pending = [];
+    const react = {
+      useState(init) {
+        const i = idx++; if (slots[i] === undefined) slots[i] = { v: typeof init === 'function' ? init() : init };
+        const nm = i === 0 ? 'setDownloading' : i === 1 ? 'setProgress' : 'setError'; const s = slots[i];
+        return [s.v, (nv) => { s.v = typeof nv === 'function' ? nv(s.v) : nv; log[nm].push({ at: log._mark, v: s.v }); }];
+      },
+      useRef(init) { const i = idx++; if (slots[i] === undefined) slots[i] = { current: init }; return slots[i]; },
+      useCallback(fn) { return fn; },
+      useEffect(effect, deps) { const i = idx++; pending.push({ i, effect, deps }); },   // DEFERE: não roda no render
+      _flushEffects() {
+        const items = pending.splice(0);
+        for (const p of items) {
+          const prev = slots[p.i];
+          const changed = !prev || !prev.__eff || !p.deps || !prev.deps || p.deps.some((d, k) => d !== prev.deps[k]);
+          if (changed) { if (prev && typeof prev.cleanup === 'function') prev.cleanup(); const rec = { __eff: true, deps: p.deps, cleanup: undefined }; slots[p.i] = rec; const c = p.effect(); rec.cleanup = typeof c === 'function' ? c : undefined; }
+        }
+      },
+      _unmount() { for (const s of slots) if (s && typeof s.cleanup === 'function') s.cleanup(); },
+      _reset() { idx = 0; },
+      _slots: () => slots, log,
+    };
+    return react;
+  };
+  const makeDL = () => { const calls = []; const svc = (params) => { const d = { params }; d.promise = new Promise((res) => { d.resolve = res; }); calls.push(d); return d.promise; }; return { svc, calls }; };
+  const loadHook = (host, dlsvc, packs) => {
+    const saved = process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL;
+    process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL = GLOBAL;   // capturado sincronicamente no const do módulo
+    try {
+      return loadModule('src/hooks/useStoryPackDownload.js', {
+        useCallback: host.useCallback, useRef: host.useRef, useState: host.useState, useEffect: host.useEffect,
+        usePacks: () => packs, downloadStoryPackScenesFromGlobalManifest: dlsvc,
+      }, ['useStoryPackDownload']);
+    } finally {
+      if (saved === undefined) delete process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL; else process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL = saved;
+    }
+  };
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  globalThis.__LP21IIF1 = (async () => {
+    /* ══ F-LIFE-02: signal JÁ ABORTADO antes da chamada — não vira subscriber ══ */
+    {
+      const h = setupHist('david_goliath', '1.0.0');
+      const svc = createPackDownloadService(h.deps);
+      const ctl = AC ? new AC() : { signal: { aborted: true }, abort() {} };
+      if (AC) ctl.abort();
+      const ev = [];
+      const r = await svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => ev.push(p.status), { participantSignal: ctl.signal }));
+      check('LP2.1a-ii-F1 F-LIFE-02 (signal já abortado): não vira subscriber; 0 eventos; instalação conclui; mapa vazio',
+        ev.length === 0 && r && r.ok === true && svc.inFlightInstallCount() === 0,
+        `F-LIFE-02 [RED futuro]: eventos=${ev.length} (baseline ignora participantSignal → recebe eventos) ok=${r && r.ok} mapa=${svc.inFlightInstallCount()}`);
+    }
+
+    /* ══ F-LIFE-03: saída individual — B (signal) aborta; A (sem signal) segue ══ */
+    {
+      const h = setupHist('david_goliath', '1.0.0');
+      const svc = createPackDownloadService(h.deps);
+      const ctlB = AC ? new AC() : { signal: {}, abort() {} };
+      const A = []; const B = makeParticipant(AC ? ctlB : null, 1);
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => A.push(p.status)));                 // criador
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', B.cb, { participantSignal: ctlB.signal })); // joiner
+      const [rA, rB] = await Promise.all([pA, pB]);
+      check('LP2.1a-ii-F1 F-LIFE-03 (saída individual): B para após o abort; A recebe a sequência completa; 1 instalação; mapa vazio',
+        B.afterAbort === 0 && A[A.length - 1] === 'ready' && rA.ok && rB.ok && mv(h) === 1 && svc.inFlightInstallCount() === 0,
+        `F-LIFE-03 [RED futuro]: B.afterAbort=${B.afterAbort} (baseline: B segue recebendo) A=${A.length} moves=${mv(h)}`);
+    }
+
+    /* ══ F-LIFE-05: criador sai — A (signal) aborta; B (joiner, sem signal) segue ══ */
+    {
+      const h = setupHist('david_goliath', '1.0.0');
+      const svc = createPackDownloadService(h.deps);
+      const ctlA = AC ? new AC() : { signal: {}, abort() {} };
+      const A = makeParticipant(AC ? ctlA : null, 1); const B = [];
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', A.cb, { participantSignal: ctlA.signal })); // criador c/ signal
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => B.push(p.status)));                  // joiner s/ signal
+      const [rA, rB] = await Promise.all([pA, pB]);
+      check('LP2.1a-ii-F1 F-LIFE-05 (criador sai): A para após o abort; B segue até o fim; voo não cancelado; ambos concluem',
+        A.afterAbort === 0 && B[B.length - 1] === 'ready' && rA.ok && rB.ok && svc.inFlightInstallCount() === 0,
+        `F-LIFE-05 [RED futuro]: A.afterAbort=${A.afterAbort} (baseline: criador segue recebendo) B=${B.length}`);
+    }
+
+    /* ══ F-LIFE-07: todos saem — A e B abortam; instalação física continua ══ */
+    {
+      const h = setupHist('david_goliath', '1.0.0');
+      const svc = createPackDownloadService(h.deps);
+      const ctlA = AC ? new AC() : { signal: {}, abort() {} }; const ctlB = AC ? new AC() : { signal: {}, abort() {} };
+      const A = makeParticipant(AC ? ctlA : null, 1); const B = makeParticipant(AC ? ctlB : null, 1);
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', A.cb, { participantSignal: ctlA.signal }));
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', B.cb, { participantSignal: ctlB.signal }));
+      const [rA, rB] = await Promise.all([pA, pB]);
+      check('LP2.1a-ii-F1 F-LIFE-07 (todos saem): nenhum recebe eventos futuros; instalação conclui; pack publicado; mapa vazio',
+        A.afterAbort === 0 && B.afterAbort === 0 && rA.ok && rB.ok && mv(h) === 1 && svc.inFlightInstallCount() === 0,
+        `F-LIFE-07 [RED futuro]: A.afterAbort=${A.afterAbort} B.afterAbort=${B.afterAbort} (baseline: ambos seguem) moves=${mv(h)}`);
+    }
+
+    /* ══ F-LIFE-08: novo joiner após zero subscribers — mesmo voo, sem novo download ══ */
+    {
+      const h = setupHist('david_goliath', '1.0.0');
+      const svc = createPackDownloadService(h.deps);
+      const ctlA = AC ? new AC() : { signal: {}, abort() {} }; const ctlB = AC ? new AC() : { signal: {}, abort() {} };
+      const A = makeParticipant(AC ? ctlA : null, 1); const B = makeParticipant(AC ? ctlB : null, 1);
+      const C = []; let cDone = false; let pC = null;
+      h.onBefore = (t) => { if (t === 'move' && !cDone) { cDone = true; pC = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => C.push(p.status))); } };
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', A.cb, { participantSignal: ctlA.signal }));
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', B.cb, { participantSignal: ctlB.signal }));
+      const rA = await pA; const rB = await pB; const rC = pC ? await pC : null;
+      check('LP2.1a-ii-F1 F-LIFE-08 (novo joiner após zero): A/B silenciam; C entra no MESMO voo e recebe REPLAY (verifying) + evento posterior (ready); 1 instalação física',
+        A.afterAbort === 0 && B.afterAbort === 0
+        && C.length === 2 && C[0] === 'verifying' && C[1] === 'ready'   // C[0]=replay do snapshot preservado enquanto o Map estava vazio; C[1]=evento após a entrada de C
+        && rC && rC.ok && rA.ok && rB.ok && mv(h) === 1,               // só [ready] = replay perdido; ordem trocada = falha; 2º voo (moves≠1) = falha
+        `F-LIFE-08 [RED futuro]: A.afterAbort=${A.afterAbort} B.afterAbort=${B.afterAbort} (baseline: A/B seguem) C=[${C.join('>')}] (esperado verifying>ready; só [ready] = replay perdido) moves=${mv(h)}`);
+    }
+
+    /* ══ F-LIFE-SIGNAL-01: addEventListener lança → fail closed (A não registra) ══ */
+    {
+      const h = setupHist('david_goliath', '1.0.0');
+      const svc = createPackDownloadService(h.deps);
+      const sigHostil = { aborted: false, addEventListener() { throw new Error('boom'); }, removeEventListener() {} };
+      const A = []; const B = [];
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => A.push(p.status), { participantSignal: sigHostil })); // defeituoso
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => B.push(p.status)));                                    // saudável
+      const [rA, rB] = await Promise.all([pA, pB]);
+      check('LP2.1a-ii-F1 F-LIFE-SIGNAL-01 (addEventListener lança): fail closed — A não recebe; B completo; voo conclui; sem exceção escapando',
+        A.length === 0 && B[B.length - 1] === 'ready' && rA.ok && rB.ok,
+        `F-LIFE-SIGNAL-01 [RED futuro]: A=${A.length} (baseline ignora signal → A recebe) B=${B.length}`);
+    }
+
+    /* ══ F-LIFE-SIGNAL-02: getter aborted hostil → broken/fail closed (não registra) ══ */
+    {
+      const h = setupHist('david_goliath', '1.0.0');
+      const svc = createPackDownloadService(h.deps);
+      const sigBroken = { get aborted() { throw new Error('broken signal'); }, addEventListener() {}, removeEventListener() {} };
+      const A = []; const B = [];
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => A.push(p.status), { participantSignal: sigBroken }));
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => B.push(p.status)));
+      const [rA, rB] = await Promise.all([pA, pB]);
+      check('LP2.1a-ii-F1 F-LIFE-SIGNAL-02 (getter aborted hostil): fail closed — A não registra; B normal; voo não falha',
+        A.length === 0 && B[B.length - 1] === 'ready' && rA.ok && rB.ok,
+        `F-LIFE-SIGNAL-02 [RED futuro]: A=${A.length} (baseline não lê o signal → A recebe) B=${B.length}`);
+    }
+
+    /* ══ F-HOOK-01: unmount invalida progresso tardio (hook real via seam) ══ */
+    {
+      const host = makeHost(); const dl = makeDL();
+      const packs = { getStoryPackState: () => ({ layer: 'remote', ready: false }), refreshPacks: async () => {} };
+      const mod = loadHook(host, dl.svc, packs);
+      host._reset(); const api = mod.useStoryPackDownload('david_goliath');
+      const p = api.download();                                    // deferido → pendente
+      const onProg = dl.calls[0].params.onProgress;
+      onProg({ downloadedBytes: 30, totalBytes: 100 });            // ANTES do unmount (aceito)
+      const antes = host.log.setProgress.length;
+      host._unmount();                                             // cleanup de unmount (hoje inexistente → no-op)
+      host.log._mark = 1;
+      onProg({ downloadedBytes: 60, totalBytes: 100 });            // DEPOIS do unmount
+      const depois = host.log.setProgress.filter((e) => e.at === 1).length;
+      dl.calls[0].resolve({ ok: true }); await p; await flush();
+      check('LP2.1a-ii-F1 F-HOOK-01 (unmount invalida progresso): progresso pré-cleanup aceito; progresso pós-cleanup ignorado',
+        depois === 0 && antes >= 1,
+        `F-HOOK-01 [RED futuro]: setProgress após unmount=${depois} (baseline sem cleanup → aplica) antes=${antes}`);
+    }
+
+    /* ══ F-HOOK-02: terminal pós-unmount — zero efeitos locais, mas retorno {ok} fiel ══ */
+    {
+      const doVar = async (resVal) => {
+        const host = makeHost(); const dl = makeDL(); let refresh = 0;
+        const packs = { getStoryPackState: () => ({ layer: 'remote', ready: false }), refreshPacks: async () => { refresh += 1; } };
+        const mod = loadHook(host, dl.svc, packs);
+        host._reset(); const api = mod.useStoryPackDownload('david_goliath');
+        const p = api.download();
+        host._unmount(); host.log._mark = 1;
+        dl.calls[0].resolve(resVal);
+        const ret = await p; await flush();
+        const effAfter = host.log.setProgress.filter((e) => e.at === 1).length + host.log.setDownloading.filter((e) => e.at === 1).length + host.log.setError.filter((e) => e.at === 1).length + refresh;
+        return { ret, effAfter };
+      };
+      const ok = await doVar({ ok: true });
+      const bad = await doVar({ ok: false, reason: 'falha-controlada' });
+      const fidelidade = ok.ret && ok.ret.ok === true && bad.ret && bad.ret.ok === false;
+      const semEfeitos = ok.effAfter === 0 && bad.effAfter === 0;
+      check('LP2.1a-ii-F1 F-HOOK-02 (terminal pós-unmount): nenhum efeito local novo; retorno {ok} permanece fiel a res.ok',
+        semEfeitos && fidelidade,
+        `F-HOOK-02 [RED futuro]: efeitosApósUnmount ok=${ok.effAfter} bad=${bad.effAfter} (baseline aplica) | fidelidade{ok}=${fidelidade} [controle POSITIVO já verde]`);
+    }
+
+    /* ══ F-HOOK-03: troca de storyId libera busyRef e deixa B iniciar ══ */
+    {
+      const host = makeHost(); const dl = makeDL();
+      const packs = { getStoryPackState: () => ({ layer: 'remote', ready: false }), refreshPacks: async () => {} };
+      const mod = loadHook(host, dl.svc, packs);
+      host._reset(); const apiA = mod.useStoryPackDownload('david_goliath');
+      const pA = apiA.download();                                  // A pendente → busyRef=true
+      host._unmount();                                             // cleanup por troca de storyId (hoje inexistente)
+      host._reset(); const apiB = mod.useStoryPackDownload('noah');
+      const pB = apiB.download();                                  // hoje: busyRef de A bloqueia B → {ok:false}, sem 2ª chamada
+      const bStarted = dl.calls.length === 2;
+      if (dl.calls[0]) dl.calls[0].resolve({ ok: true });
+      const rA = await pA;
+      if (dl.calls[1]) dl.calls[1].resolve({ ok: true });
+      const rB = await pB; await flush();
+      // Integridade de B: a execução nova (B) aplicou seu terminal — o finally OBSOLETO de A NÃO pode
+      // ter limpado o controllerRef de B (senão B viraria "obsoleto" e pularia setProgress(1)).
+      const bTerminalAplicado = host.log.setProgress.length > 0 && host.log.setProgress[host.log.setProgress.length - 1].v === 1;
+      check('LP2.1a-ii-F1 F-HOOK-03 (troca de storyId): cleanup libera busyRef; B inicia e aplica seu terminal; finally de A não corrompe B; cada retorno segue seu res.ok',
+        bStarted && rA && rA.ok === true && rB && rB.ok !== undefined && bTerminalAplicado,
+        `F-HOOK-03 [RED futuro]: B iniciou=${bStarted} (baseline: busyRef de A bloqueia B, sem 2ª chamada) rA=${rA && rA.ok} rB=${rB && rB.ok} bTerminal=${bTerminalAplicado}`);
+    }
+
+    /* ══ F-LIFE-SIGNAL-03: getter de addEventListener/removeEventListener lança → fail closed ══ */
+    {
+      const h = setupHist('david_goliath', '1.0.0');
+      const svc = createPackDownloadService(h.deps);
+      // aborted VÁLIDO (isola a falha na interface de eventos); o getter de addEventListener lança.
+      const sigBrokenIface = { aborted: false, get addEventListener() { throw new Error('iface quebrada'); }, removeEventListener() {} };
+      // controle negativo (observável, sem tocar produto): ler a interface REALMENTE lança hoje.
+      let ifaceLanca = false; try { void sigBrokenIface.addEventListener; } catch { ifaceLanca = true; }
+      const A = []; const B = [];
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => A.push(p.status), { participantSignal: sigBrokenIface }));
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => B.push(p.status)));
+      const [rA, rB] = await Promise.all([pA, pB]);
+      check('LP2.1a-ii-F1 F-LIFE-SIGNAL-03 (getter de interface lança): fail closed — A não registra; B completo; sem exceção escapando; 1 instalação',
+        A.length === 0 && B[B.length - 1] === 'ready' && rA.ok && rB.ok && mv(h) === 1,
+        `F-LIFE-SIGNAL-03 [RED futuro]: A=${A.length} (baseline ignora signal → A recebe; interfaceLança=${ifaceLanca}) B=${B.length} moves=${mv(h)}`);
+    }
+
+    /* ══ F-LIFE-SIGNAL-04: métodos dependem de `this` (só funcionam com .call(signal,...)) ══ */
+    {
+      const h = setupHist('david_goliath', '1.0.0');
+      const svc = createPackDownloadService(h.deps);
+      const makeThisSignal = () => {
+        let aborted = false; const listeners = new Set(); const sig = {};
+        Object.defineProperty(sig, 'aborted', { get() { return aborted; } });
+        sig.addEventListener = function (t, hnd) { if (this !== sig) throw new Error('this perdido (add)'); listeners.add(hnd); };
+        sig.removeEventListener = function (t, hnd) { if (this !== sig) throw new Error('this perdido (remove)'); listeners.delete(hnd); };
+        return { signal: sig, abort() { aborted = true; for (const hnd of Array.from(listeners)) hnd(); }, residual: () => listeners.size };
+      };
+      const ctlA = makeThisSignal();
+      // controle negativo: chamar sem .call(signal,...) QUEBRA o this (prova que o método é this-dependente).
+      let thisQuebra = false; try { ctlA.signal.addEventListener.call({}, 'abort', () => {}); } catch { thisQuebra = true; }
+      const A = makeParticipant(ctlA, 1); const B = [];
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', A.cb, { participantSignal: ctlA.signal })); // criador c/ this-signal
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => B.push(p.status)));                  // joiner válido
+      const [rA, rB] = await Promise.all([pA, pB]);
+      check('LP2.1a-ii-F1 F-LIFE-SIGNAL-04 (métodos this-dependentes): listener com this correto; abort remove só A; B segue; sem residual; 1 instalação',
+        A.afterAbort === 0 && B[B.length - 1] === 'ready' && rA.ok && rB.ok && mv(h) === 1 && ctlA.residual() === 0,
+        `F-LIFE-SIGNAL-04 [RED futuro]: A.afterAbort=${A.afterAbort} (baseline não instala listener → A segue; thisQuebraSemCall=${thisQuebra}) B=${B.length} residual=${ctlA.residual()}`);
+    }
+
+    /* ══ F-LIFE-SIGNAL-05: signal inválido {} → degrada para permanente (controle POSITIVO) ══ */
+    {
+      const h = setupHist('david_goliath', '1.0.0');
+      const svc = createPackDownloadService(h.deps);
+      const A = []; const B = [];
+      const pA = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => A.push(p.status), { participantSignal: {} })); // sem interface
+      const pB = svc.downloadStoryPackScenesFromGlobalManifest(P('david_goliath', (p) => B.push(p.status)));
+      const [rA, rB] = await Promise.all([pA, pB]);
+      // Controle NEGATIVO conceitual: se o futuro REJEITASSE o signal inválido, A.length seria 0 e este positivo morreria.
+      check('LP2.1a-ii-F1 F-LIFE-SIGNAL-05 (signal inválido → permanente): A recebe tudo; B recebe tudo; não lança; 1 instalação; mapa vazio',
+        A.length >= 1 && A[A.length - 1] === 'ready' && B[B.length - 1] === 'ready' && rA.ok && rB.ok && mv(h) === 1 && svc.inFlightInstallCount() === 0,
+        `F-LIFE-SIGNAL-05 [controle POSITIVO]: A=${A.length} B=${B.length} moves=${mv(h)} mapa=${svc.inFlightInstallCount()}`);
+    }
+
+    /* ══ F-HOOK-02B: fidelidade do retorno legado {ok} pós-unmount (controle POSITIVO) ══ */
+    {
+      const doVar = async (resVal) => {
+        const host = makeHost(); const dl = makeDL();
+        const packs = { getStoryPackState: () => ({ layer: 'remote', ready: false }), refreshPacks: async () => {} };
+        const mod = loadHook(host, dl.svc, packs);
+        host._reset(); const api = mod.useStoryPackDownload('david_goliath');
+        const p = api.download();
+        host._unmount();                       // obsoleta ANTES de resolver
+        dl.calls[0].resolve(resVal);
+        const ret = await p; await flush();
+        return ret;
+      };
+      const retA = await doVar({ ok: true });
+      const retB = await doVar({ ok: false, reason: 'test' });
+      check('LP2.1a-ii-F1 F-HOOK-02B (fidelidade do retorno pós-unmount): res.ok=true→{ok:true}; res.ok=false→{ok:false}; contrato legado intacto',
+        retA && retA.ok === true && retB && retB.ok === false,
+        `F-HOOK-02B [controle POSITIVO]: retA=${JSON.stringify(retA)} retB=${JSON.stringify(retB)}`);
+    }
+
+    /* ══ F-HOOK-05: obsolescência no encerramento (setters tardios) — retorno {ok:true} fiel ══ */
+    {
+      const host = makeHost(); const dl = makeDL();
+      let refresh = 0; let refreshResolve = null;
+      const packs = { getStoryPackState: () => ({ layer: 'remote', ready: false }), refreshPacks: () => { refresh += 1; return new Promise((r) => { refreshResolve = r; }); } };
+      const mod = loadHook(host, dl.svc, packs);
+      host._reset(); const api = mod.useStoryPackDownload('david_goliath');
+      const p = api.download();
+      dl.calls[0].resolve({ ok: true });         // resolve o downloader; o encerramento resume em microtask
+      await flush(); await flush();               // resume: setters de sucesso + refreshPacks() INICIA (fica pendente)
+      const startedRefresh = refresh === 1;
+      host.log._mark = 1;
+      host._unmount();                            // unmount DURANTE refreshPacks pendente (barreira fiel: após os setters terminais)
+      if (refreshResolve) refreshResolve();       // resolve refreshPacks já com a execução obsoleta
+      const ret = await p; await flush();
+      const effAfter = host.log.setProgress.filter((e) => e.at === 1).length + host.log.setDownloading.filter((e) => e.at === 1).length + host.log.setError.filter((e) => e.at === 1).length;
+      const noSecondRefresh = refresh === 1;
+      check('LP2.1a-ii-F1 F-HOOK-05 (obsoleta durante refreshPacks): nenhum setter tardio; sem 2ª refreshPacks; retorno {ok:true} fiel',
+        effAfter === 0 && noSecondRefresh && startedRefresh && ret && ret.ok === true,
+        `F-HOOK-05: efeitosTardios=${effAfter} (esperado 0) refresh=${refresh} startedRefresh=${startedRefresh} ret=${ret && ret.ok} (unmount durante refreshPacks; setters terminais antes)`);
+    }
+
+    /* ══ F-HOOK-06 (F4A): estado de DOWNLOAD não atravessa storyId (1º render de B, effects DEFERIDOS) ══ */
+    {
+      const host = makeHostDeferred(); const dl = makeDL();
+      const packs = { getStoryPackState: () => ({ layer: 'remote', ready: false }), refreshPacks: async () => {} };
+      const mod = loadHook(host, dl.svc, packs);
+      host._reset(); const apiA = mod.useStoryPackDownload('david_goliath'); host._flushEffects();   // A montada
+      apiA.download();                                              // A baixando (não resolvida) → downloading=true
+      dl.calls[0].params.onProgress({ downloadedBytes: 40, totalBytes: 100 });   // progresso parcial de A
+      const s = host._slots();
+      const aDownloading = s[0].v === true, aProgress = s[1].v > 0;              // estado bruto de A
+      host._reset(); const apiB = mod.useStoryPackDownload('noah');              // 1º render de B — SEM flush do effect de B
+      const bFirstRender = { uiState: apiB.uiState, progress: apiB.progress, error: apiB.error };
+      host._flushEffects();                                        // agora roda cleanup de A + corpo de B
+      const busyLiberado = s[3].current === false;
+      const soUmDownloadFisico = dl.calls.length === 1;            // A continua; nenhum download de B
+      check('LP2.1a-ii-F4 F-HOOK-06 (download não atravessa storyId): 1º render de B = not_downloaded/0/null mesmo com A baixando; busyRef liberado; físico de A segue',
+        aDownloading && aProgress
+        && bFirstRender.uiState === 'not_downloaded' && bFirstRender.progress === 0 && bFirstRender.error === null
+        && busyLiberado && soUmDownloadFisico,
+        `F-HOOK-06: A(downloading=${aDownloading},progress=${aProgress}) B1ºrender=${JSON.stringify(bFirstRender)} busyRef=${s[3].current} calls=${dl.calls.length}`);
+    }
+
+    /* ══ F-HOOK-07 (F4A): ERRO não atravessa storyId ══ */
+    {
+      const host = makeHostDeferred(); const dl = makeDL();
+      const packs = { getStoryPackState: () => ({ layer: 'remote', ready: false }), refreshPacks: async () => {} };
+      const mod = loadHook(host, dl.svc, packs);
+      host._reset(); const apiA = mod.useStoryPackDownload('david_goliath'); host._flushEffects();
+      const pA = apiA.download();
+      dl.calls[0].resolve({ ok: false, reason: 'falha-fisica' });  // A falha → setError
+      await pA; await flush();
+      const s = host._slots();
+      host._reset(); const apiAre = mod.useStoryPackDownload('david_goliath');   // A com erro visível
+      const aError = apiAre.uiState === 'error' && apiAre.error !== null;
+      host._reset(); const apiB = mod.useStoryPackDownload('noah');              // 1º render de B — sem flush
+      const bFirstRender = { uiState: apiB.uiState, progress: apiB.progress, error: apiB.error };
+      host._flushEffects();
+      check('LP2.1a-ii-F4 F-HOOK-07 (erro não atravessa storyId): A=error; 1º render de B = not_downloaded/0/null; erro de A não aparece em B',
+        aError
+        && bFirstRender.uiState === 'not_downloaded' && bFirstRender.error === null && bFirstRender.progress === 0,
+        `F-HOOK-07: A(error=${aError}) B1ºrender=${JSON.stringify(bFirstRender)}`);
+    }
+
+    /* ══ F-HOOK-08 (F4A): conclusão TARDIA de A não reivindica a propriedade de B ══ */
+    {
+      const host = makeHostDeferred(); const dl = makeDL();
+      const packs = { getStoryPackState: () => ({ layer: 'remote', ready: false }), refreshPacks: async () => {} };
+      const mod = loadHook(host, dl.svc, packs);
+      host._reset(); const apiA = mod.useStoryPackDownload('david_goliath'); host._flushEffects();
+      const pA = apiA.download();                                  // A pendente
+      host._reset(); const apiB0 = mod.useStoryPackDownload('noah'); host._flushEffects();   // troca A→B (cleanup A + corpo B)
+      const pB = apiB0.download();                                 // B inicia seu próprio download
+      const s = host._slots();
+      const bStarted = dl.calls.length === 2;
+      const ownerAntes = s[6].current;                            // localStateStoryIdRef (deve 'noah')
+      if (dl.calls[0]) dl.calls[0].resolve({ ok: true });          // A resolve DEPOIS de B começar (A obsoleta)
+      const rA = await pA; await flush();
+      const ownerDepoisDeA = s[6].current;                        // A NÃO pode reivindicar → continua 'noah'
+      if (dl.calls[1]) dl.calls[1].resolve({ ok: true });
+      const rB = await pB; await flush();
+      host._reset(); const apiBfim = mod.useStoryPackDownload('noah');   // estado visível terminal pertence a B
+      const bTerminalVisivel = apiBfim.progress === 1;
+      check('LP2.1a-ii-F4 F-HOOK-08 (conclusão tardia de A não reivindica B): A não altera a propriedade nem o estado visível de B; retornos por res.ok; terminal visível de B',
+        bStarted && rA && rA.ok === true && rB && rB.ok !== undefined
+        && ownerAntes === 'noah' && ownerDepoisDeA === 'noah' && bTerminalVisivel,
+        `F-HOOK-08: bStarted=${bStarted} rA=${rA && rA.ok} rB=${rB && rB.ok} owner=${ownerAntes}->${ownerDepoisDeA} bTerminalVisivel=${bTerminalVisivel}`);
+    }
+  })();
+  globalThis.__LP21IIF1.catch(() => {});
 }
 
 
@@ -29172,6 +29626,12 @@ check(
   check('LP2.1a-ii-E3 (harness): o bloco assíncrono do hardening de progresso compartilhado concluiu sem estourar',
     !lp21iie3Err,
     `o bloco E3 lançou (${lp21iie3Err && lp21iie3Err.stack ? String(lp21iie3Err.stack).split('\n').slice(0, 3).join(' | ') : lp21iie3Err}) — os checks dele não rodaram`);
+
+  let lp21iif1Err = null;
+  try { await globalThis.__LP21IIF1; } catch (e) { lp21iif1Err = e; }
+  check('LP2.1a-ii-F1 (harness): o bloco assíncrono das provas vermelhas de cancelamento/lifecycle concluiu sem estourar',
+    !lp21iif1Err,
+    `o bloco F1 lançou (${lp21iif1Err && lp21iif1Err.stack ? String(lp21iif1Err.stack).split('\n').slice(0, 3).join(' | ') : lp21iif1Err}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;

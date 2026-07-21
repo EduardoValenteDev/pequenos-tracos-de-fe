@@ -731,7 +731,7 @@ function emitProgress(record, snapshot) {
   if (record.settled) return;
   record.latestProgress = { ...snapshot };                       // último snapshot, por-record (nunca cruza keys)
   const subscribers = Array.from(record.subscribers.values());   // FOTOGRAFIA (reentrância)
-  for (const callback of subscribers) notifyProgressSubscriber(callback, record.latestProgress);
+  for (const sub of subscribers) notifyProgressSubscriber(sub.onProgress, record.latestProgress);
 }
 
 /** Replay do ÚLTIMO snapshot a um joiner recém-registrado; não reproduz histórico nem itera outros. */
@@ -743,9 +743,74 @@ function replayLatestProgress(record, callback) {
 /** Higiene do E: ao settle, marca o record, libera subscribers/snapshot e remove o record da PRÓPRIA key. */
 function cleanupRecord(key, record) {
   record.settled = true;
+  for (const sub of record.subscribers.values()) {              // LP2.1a-ii-F: solta os listeners de signal
+    try { sub.detach(); } catch { /* detach nunca afeta o settle nem o resultado */ }
+  }
   record.subscribers.clear();
   record.latestProgress = null;
   if (inFlightInstalls.get(key) === record) inFlightInstalls.delete(key);   // um finally ANTIGO não apaga record novo
+}
+
+/* ── LP2.1a-ii-F — Lifecycle dos participantes: `participantSignal` ADITIVO ──────────────
+ * `participantSignal` controla SÓ a observação (progresso/replay). NÃO aborta a rede nem a
+ * instalação física; NÃO entra na identidade nem em `canonicalResolvedKey`; NÃO altera o
+ * resultado; NÃO é persistido. Signal ausente ou inválido → subscriber PERMANENTE (E). Signal
+ * já abortado, ou com getters/métodos hostis, → NÃO registra (fail closed), sem afetar o voo.
+ * O criador não tem privilégio: sair remove só o próprio subscriber; ZERO subscribers NÃO
+ * cancela a instalação. `isCancelled` (exclusivo) e o caminho offline seguem FORA disto. */
+
+/** Classifica um participantSignal protegendo toda leitura de getter hostil (nunca deixa exceção escapar). */
+function inspectParticipantSignal(signal) {
+  if (!signal) return { kind: 'absent' };
+  try {
+    const aborted = Boolean(signal.aborted);
+    const add = signal.addEventListener;
+    const remove = signal.removeEventListener;
+    if (typeof add !== 'function' || typeof remove !== 'function') return { kind: 'invalid' };
+    return { kind: aborted ? 'aborted' : 'active', signal, add, remove };
+  } catch {
+    return { kind: 'broken' };   // algum getter lançou → fail closed
+  }
+}
+
+/** Remove UM subscriber pelo id e chama seu detach; idempotente; nunca lança; não toca os demais nem o voo. */
+function removeProgressSubscriber(record, subscriberId) {
+  const sub = record.subscribers.get(subscriberId);
+  if (!sub) return false;
+  record.subscribers.delete(subscriberId);
+  try { sub.detach(); } catch { /* detach isola a própria exceção */ }
+  return true;
+}
+
+/** Registra um subscriber de progresso; retorna o Symbol ou null. Fail closed em signal quebrado/abortado. */
+function registerProgressSubscriber(record, onProgress, participantSignal) {
+  if (typeof onProgress !== 'function') return null;   // sem callback → não é subscriber
+  if (record.settled) return null;
+  const inspected = inspectParticipantSignal(participantSignal);
+  if (inspected.kind === 'aborted' || inspected.kind === 'broken') return null;   // não registra
+  const id = Symbol();
+  if (inspected.kind !== 'active') {                   // absent | invalid → permanente (detach no-op idempotente)
+    record.subscribers.set(id, { onProgress, detach: () => {} });
+    return id;
+  }
+  // active: instala o listener com o `this` correto e captura um detach idempotente que não relê getters.
+  const handler = () => { removeProgressSubscriber(record, id); };
+  let detached = false;
+  const detach = () => {
+    if (detached) return;
+    detached = true;
+    try { inspected.remove.call(inspected.signal, 'abort', handler); } catch { /* isola */ }
+  };
+  record.subscribers.set(id, { onProgress, detach });
+  try {
+    inspected.add.call(inspected.signal, 'abort', handler);
+  } catch {
+    record.subscribers.delete(id);   // FAIL CLOSED: a instalação do listener lançou
+    detach();
+    return null;
+  }
+  if (inspectParticipantSignal(participantSignal).kind !== 'active') handler();   // corrida: abortou durante o registro
+  return record.subscribers.has(id) ? id : null;
 }
 
 /* ── Exclusão pelo RECURSO FÍSICO (storyId@version) — a fila por história permanece ── */
@@ -804,22 +869,21 @@ async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
 
   const existing = inFlightInstalls.get(key);
   if (existing) {
-    // JOINER: registra o PRÓPRIO participante (Symbol por chamada) e recebe replay do último snapshot.
-    // NÃO inicia instalação, NÃO altera a identidade, NÃO substitui o callback do criador; chamada sem
-    // callback ainda aguarda a MESMA Promise final sem virar subscriber.
-    if (typeof params.onProgress === 'function') {
-      existing.subscribers.set(Symbol(), params.onProgress);
-      replayLatestProgress(existing, params.onProgress);
-    }
+    // JOINER: registra o PRÓPRIO participante (Symbol por chamada, via registerProgressSubscriber) e,
+    // SE o registro foi bem-sucedido, recebe replay do último snapshot. Signal já abortado/quebrado → sem
+    // registro e sem replay. NÃO inicia instalação, NÃO altera a identidade, NÃO substitui o criador;
+    // chamada sem callback ainda aguarda a MESMA Promise final sem virar subscriber.
+    const id = registerProgressSubscriber(existing, params.onProgress, params.participantSignal);
+    if (id) replayLatestProgress(existing, params.onProgress);
     return existing.promise;   // mesma identidade resolvida, mesma conclusão lógica
   }
 
-  // CRIADOR: monta o FlightRecord, inscreve o próprio callback (se houver) e SÓ ENTÃO insere no mapa —
-  // com a Promise JÁ atribuída (o record nunca entra no mapa com promise:null). O motor físico só
-  // começa na microtask do `.then`, então o criador já está inscrito antes do primeiro evento; e o
+  // CRIADOR: monta o FlightRecord, registra o próprio participante (se houver callback) e SÓ ENTÃO insere
+  // no mapa — com a Promise JÁ atribuída (o record nunca entra no mapa com promise:null). O motor físico
+  // só começa na microtask do `.then`, então o criador já está inscrito antes do primeiro evento; e o
   // `set` fica adjacente (sem `await`) ao get, preservando a atomicidade do single-flight.
   const record = { promise: null, subscribers: new Map(), latestProgress: null, settled: false };
-  if (typeof params.onProgress === 'function') record.subscribers.set(Symbol(), params.onProgress);
+  registerProgressSubscriber(record, params.onProgress, params.participantSignal);
   const internalParams = { ...params, onProgress: (snapshot) => emitProgress(record, snapshot) };
   record.promise = Promise.resolve()
     .then(() => guardedInstall(resolved, internalParams))
