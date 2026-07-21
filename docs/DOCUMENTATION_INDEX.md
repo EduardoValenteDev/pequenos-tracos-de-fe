@@ -17,8 +17,12 @@ Este índice classifica a documentação do projeto. Em caso de conflito, vale s
   (E1, 2026-07-15): precedência, decisões consolidadas, superadas e pendentes.
 
 **Superados (histórico, não normativo):** `DOCUMENTO_OFICIAL_PROJETO_FINAL.md` (v2.0),
-`PLANO_OFICIAL_BENI_LANCAMENTO.md`, e o **`/DECISIONS.md` da raiz** (agora só um aviso SUPERSEDED
-que aponta para `docs/DECISIONS.md`).
+`PLANO_OFICIAL_BENI_LANCAMENTO.md`, o **`/DECISIONS.md` da raiz** (agora só um aviso SUPERSEDED
+que aponta para `docs/DECISIONS.md`), e — desde **2026-07-21 (PTF PRODUCT LOCK 01A)** — os dois
+documentos-mestre da **raiz** **[`/PRODUCT_BLUEPRINT.md`](../PRODUCT_BLUEPRINT.md)** e
+**[`/ACCESS_AND_MONETIZATION_RULES.md`](../ACCESS_AND_MONETIZATION_RULES.md)** (banner SUPERSEDED no
+topo; **não** orientam decisões — ver §3). **Nenhum destes tem autoridade normativa**; em qualquer
+conflito, vale a **Fonte oficial atual** acima, com `docs/DECISIONS.md` como árbitro de produto.
 
 **Precedência:** governança técnica (`PROJECT_SOURCE_OF_TRUTH` → constitution → AGENTS → CLAUDE)
 acima das decisões de produto (`docs/DECISIONS.md` → v4 → Direção de Arte v1.1 → docs
@@ -73,6 +77,14 @@ como histórico.
 
 **Para cada item desta seção: Histórico — validar contra
 [PROJECT_SOURCE_OF_TRUTH.md](PROJECT_SOURCE_OF_TRUTH.md) antes de usar.**
+
+**Documentos-mestre de produto SUPERADOS (raiz) — 2026-07-21 (PTF PRODUCT LOCK 01A)**
+- [`/PRODUCT_BLUEPRINT.md`](../PRODUCT_BLUEPRINT.md) — **SUPERSEDED.** Contém estratégia obsoleta
+  (mascote "Lumi", faixa 3–8, "3 artes grátis"). Autoridade transferida para `docs/DECISIONS.md` +
+  v4. Mantido só para consulta histórica.
+- [`/ACCESS_AND_MONETIZATION_RULES.md`](../ACCESS_AND_MONETIZATION_RULES.md) — **SUPERSEDED.** Planos
+  vitalício/avulso, "3 artes" e "tudo no bundle" **não** valem; monetização vigente = **E1-MONETIZACAO-V1**
+  + **PL01A-15** em `docs/DECISIONS.md`. Mantido só para consulta histórica.
 
 **Auditorias amplas (podem conter estratégia superada)**
 - [APP_360_SCALE_SECURITY_COMPLIANCE_AUDIT.md](APP_360_SCALE_SECURITY_COMPLIANCE_AUDIT.md)
