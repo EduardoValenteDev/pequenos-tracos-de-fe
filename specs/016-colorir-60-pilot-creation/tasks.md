@@ -7,7 +7,7 @@
 > **Specs:** [014](../014-colorir-60/spec-colorir-60.md) · [015](../015-colorir-60-rollout-gates/spec-colorir-60-rollout-gates.md) · [016](./spec-colorir-60-pilot-creation.md) · [017](../017-colorir-60-creation-production-prompts/spec-colorir-60-creation-production-prompts.md) · **Árbitro:** [DECISIONS.md](../../docs/DECISIONS.md).
 
 ## Como ler cada task (16 campos obrigatórios)
-Cada task declara: **ID** (`P<fase>.T<n>`) · **Fase** · **Título** · **Objetivo** · **Dep** (dependências) · **Arq✔** (arquivos autorizados) · **Arq✗** (arquivos proibidos) · **Entradas** · **Passos** (verificáveis) · **Gates** (testes) · **Evidências** · **Parada** (condição de parada) · **Aceite** · **Rollback** · **Commit** (sim/não) · **Push/merge:** SEMPRE proibido sem autorização explícita.
+Cada task declara: **ID** (`P<fase>.T<n>`) · **Fase** · **Título** · **Objetivo** · **Dep** (dependências) · **Arq✔** (arquivos autorizados) · **Arq✗** (arquivos proibidos) · **Entradas** · **Passos** (verificáveis) · **Gates** (testes) · **Evidências** · **Parada** (condição de parada) · **Aceite** · **Rollback** · **Commit** (sim/não) · **Push/merge:** SEMPRE proibido sem autorização explícita. Onde uma task diz "Push/merge: proibido", valem integralmente as **Regras de Git durante a execução** (sem push/merge/amend/squash/reset/rebase/force sem autorização do fundador).
 
 ## Convenções herdadas (specs 004) e reforços deste piloto
 - `require()` **literal com caminho relativo real** — proibido `require()` por string dinâmica; proibido pressupor alias não configurado (o padrão comprovado é `coloringImages.js`, que usa `require('../../assets/stories/...')` a partir de `src/assets/`).
@@ -16,6 +16,15 @@ Cada task declara: **ID** (`P<fase>.T<n>`) · **Fase** · **Título** · **Objet
 - Os **2 PNGs novos** só aparecem em **P5**, sob task e portão autorizados.
 - Inventário canônico: **200 páginas legadas de colorir**; os **10 de A Criação são subconjunto** dos 200; **ilustrações narrativas** = conjunto distinto; **60 do Colorir 60 coexistem**.
 - **Decisões públicas em aberto NÃO são resolvidas** por nenhuma task (posição pública, nome à criança, desbloqueio, métrica "colorir concluído" 1×3).
+
+### Nota de rastreabilidade — exceção de `light` (spec 016 §11 ↔ plan)
+Esclarecimento de rastreabilidade, **não** uma nova decisão de produto:
+1. A spec 016 §11 lista, de forma **nominal**, um caminho futuro `…/coloring/activities/light.png` para a atividade `light`.
+2. A decisão **governante** (plan `9c75a3d`) é **reuso direto** de `assets/stories/creation/coloring/scene_02.png`, **sem criar** `activities/light.png`.
+3. Em caso de conflito, o **plan prevalece** (precedência documental): `light` = reuso, nunca cópia/arquivo novo.
+4. O caminho nominal da spec é registro de intenção; **nenhuma task o materializa** — `activities/light.png` só aparece em contexto de **proibição** e **prova de ausência** (P1.T2/T3, P5.T1, P5.T7).
+5. Esta nota **não** reabre nem redefine a spec 016, o plan ou qualquer decisão de produto.
+6. O gate P5.T2 (`verify-coloring60-assets.js`) valida a ausência de `activities/light.png` como invariante.
 
 ---
 
@@ -157,16 +166,16 @@ Cada task declara: **ID** (`P<fase>.T<n>`) · **Fase** · **Título** · **Objet
 - **Aceite:** cobre P1.T3–T7 (activityIds, ordem, títulos, hashes, dims) como asserts; sem `require()` de PNG.
 - **Rollback:** `git revert`.
 
-### P1.T2 — Registro estático de fontes locais · `src/assets/coloring60LocalAssets.js`
-- **Objetivo:** mapa estático `storyId+activityId → require() literal`, isolado do legado.
+### P1.T2 — Estrutura do registro estático + `require()` ativo **somente** de `light` · `src/assets/coloring60LocalAssets.js`
+- **Objetivo:** criar a estrutura do mapa estático `storyId+activityId → require() literal`, isolada do legado, **com um único `require()` ativo em P1: o de `light`** (via `scene_02.png`). Os `require()` de `living_world` e `people_and_care` **não** entram nesta task.
 - **Dep:** P1.T1 · **Commit:** sim · **Push/merge:** proibido.
-- **Arq✔:** `src/assets/coloring60LocalAssets.js` · **Arq✗:** `coloringImages.js` (sem import), `require()` por string.
+- **Arq✔:** `src/assets/coloring60LocalAssets.js` · **Arq✗:** `coloringImages.js` (sem import), `require()` por string, `require()` de `living_world.png`/`people_and_care.png`, qualquer `require()` de arquivo inexistente.
 - **Entradas:** localização real dos PNGs; padrão comprovado em `coloringImages.js`.
-- **Passos:** 1) calcular caminho relativo real do módulo até `assets/stories/...`; 2) registrar `require()` literais; 3) API `getColoring60LocalSource(storyId, activityId)`.
-- **Gates:** nenhum `require()` dinâmico; sem dependência de `coloringImages.js`.
-- **Evidências:** conteúdo do módulo + resolução Metro.
-- **Parada:** alias não comprovado / caminho relativo incerto → PARAR (regra 17).
-- **Aceite:** fontes resolvem estaticamente no Metro.
+- **Passos:** 1) calcular caminho relativo real do módulo até `assets/stories/...`; 2) registrar **apenas o `require()` literal de `light`** (delegado a P1.T3, que aponta para `scene_02.png`); 3) API `getColoring60LocalSource(storyId, activityId)`.
+- **Gates (7 afirmações):** (a) único `require()` ativo em P1 é o de `light`; (b) `light` resolve para `scene_02.png`; (c) nenhum `require()` de `living_world` em P1; (d) nenhum `require()` de `people_and_care` em P1; (e) nenhuma entrada ativa aponta para arquivo inexistente; (f) sem lineart placeholder/falso/alternativo; (g) os `require()` estáticos de `living_world`/`people_and_care` entram **somente em P5**, atomicamente com os PNGs reais (P5.T4/P5.T6) — o plural "fontes locais" nunca implica 3 atividades ativadas em P1.
+- **Evidências:** conteúdo do módulo + resolução Metro (apenas `light` resolve).
+- **Parada:** alias não comprovado / caminho relativo incerto / tentação de `require()` de PNG inexistente → PARAR (regra 17 e regra Metro).
+- **Aceite:** estrutura pronta; somente `light` resolve estaticamente no Metro em P1.
 - **Rollback:** `git revert`.
 
 ### P1.T3 — Registro estático de `light` (reuso de `scene_02.png`)
@@ -355,7 +364,19 @@ Cada task declara: **ID** (`P<fase>.T<n>`) · **Fase** · **Título** · **Objet
 - **Aceite:** cobre P5(light) 1–5.
 - **Rollback:** n/a.
 
-### P5.T2 — `living_world`: perícia da fonte (hash/magic/dims/modo/tamanho antes da cópia)
+### P5.T2 — Gate determinístico de integridade dos assets Colorir 60 · `scripts/verify-coloring60-assets.js`
+- **Objetivo:** criar o gate auditável e determinístico que prova a integridade dos assets Colorir 60 (`light` por reuso; `living_world` e `people_and_care` por cópia byte a byte), sem reencode, cópia, autofix ou criação de arquivo — deliverable nomeado no plan.md §7 e §6.2/§8.
+- **Dep:** P0.T6 · **Commit:** sim (script + testes, **sem PNG**) · **Push/merge:** proibido · **⚠ script de verificação — não integra nem copia assets.**
+- **Arq✔:** `scripts/verify-coloring60-assets.js` + `scripts/smoke.js` (controles do script) · **Arq✗:** qualquer PNG, linearts legados, `coloringImages.js`, `coloring60LocalAssets.js`, código runtime do app, packs/manifests remotos.
+- **Entradas:** contrato de hashes P0.T6 (spec 017 §15); destinos canônicos dos 2 PNGs novos; regra de reuso de `light` (nunca `activities/light.png`).
+- **Passos:** 1) Node.js puro, **sem dependência nova**; 2) matriz **explícita** de assets aprovados — `light`=reuso de `assets/stories/creation/coloring/scene_02.png` (sem destino em `activities/`), `living_world` fonte `C:\tmp\ptf_colorir60_creation_production\living_world_approved.png` → destino `assets/stories/creation/coloring/activities/living_world.png`, `people_and_care` fonte `C:\tmp\ptf_colorir60_creation_production\people_and_care_approved.png` → destino `assets/stories/creation/coloring/activities/people_and_care.png`; 3) **somente leitura**; 4) por asset: SHA-256, magic bytes PNG, dimensões (1122×1402), modo de cor, tamanho em bytes; 5) existência/ausência esperada — `activities/light.png` deve estar **AUSENTE** (falha se existir); 6) comparação **byte a byte** fonte↔destino nos 2 copiados; 7) `exit ≠ 0` em qualquer divergência; 8) modos **pré-integração** (fontes/destinos ainda ausentes → estado esperado) e **pós-integração** (destinos presentes e íntegros); 9) **nunca** reencode/copiar/autofix/criar arquivo ausente/aceitar fallback; 10) saída determinística e auditável (mesma entrada → mesma saída).
+- **Gates:** script existe e roda **verde antes de qualquer cópia** (P5.T4/P5.T6); controles em `smoke.js` verdes.
+- **Evidências:** saída do script (pré e pós) + testes de controle em `smoke.js`.
+- **Parada:** script precisar copiar/reencode/criar arquivo, aceitar fallback ou depender de lib nova → PARAR (regra 2/14).
+- **Aceite:** gate determinístico presente e verde; cobre P5(script) 1–10; sem nenhum PNG no commit.
+- **Rollback:** `git revert` (script/testes; nenhum asset tocado).
+
+### P5.T3 — `living_world`: perícia da fonte (hash/magic/dims/modo/tamanho antes da cópia)
 - **Objetivo:** validar a fonte externa antes de qualquer cópia.
 - **Dep:** P4 concluído + portão de assets · **Commit:** não · **Push/merge:** proibido.
 - **Arq✔:** relatório · **Arq✗:** destino em `assets/`.
@@ -367,19 +388,19 @@ Cada task declara: **ID** (`P<fase>.T<n>`) · **Fase** · **Título** · **Objet
 - **Aceite:** fonte validada.
 - **Rollback:** n/a.
 
-### P5.T3 — `living_world`: cópia byte a byte + hash depois + comparação + registro estático
-- **Objetivo:** integrar `living_world` sem reencode, com prova antes/depois.
-- **Dep:** P5.T2 · **Commit:** sim (asset isolado) · **Push/merge:** proibido · **⚠ commit de asset, não misturar com código.**
+### P5.T4 — `living_world`: cópia byte a byte + hash depois + comparação + registro estático
+- **Objetivo:** integrar `living_world` sem reencode, com prova antes/depois e gate verde.
+- **Dep:** P5.T2 (gate verde), P5.T3 (perícia), P4 concluído + portão de assets · **Commit:** sim (asset isolado) · **Push/merge:** proibido · **⚠ commit de asset, não misturar com código.**
 - **Arq✔:** `assets/stories/creation/coloring/activities/living_world.png` + `src/assets/coloring60LocalAssets.js` (require definitivo) · **Arq✗:** reencode, outros assets.
-- **Entradas:** perícia P5.T2.
-- **Passos:** 1) cópia byte a byte para o destino; 2) SHA-256 depois == `818cd917...`; 3) comparação byte a byte fonte↔destino; 4) `require()` estático definitivo.
-- **Gates:** hash depois == esperado; diff byte a byte zero.
-- **Evidências:** hash antes/depois + comparação.
-- **Parada:** hash divergente → PARAR + rollback.
+- **Entradas:** perícia P5.T3; gate `verify-coloring60-assets.js` verde (P5.T2).
+- **Passos:** 1) cópia byte a byte para o destino; 2) SHA-256 depois == `818cd917...`; 3) comparação byte a byte fonte↔destino; 4) rodar `verify-coloring60-assets.js` pós-integração (verde); 5) `require()` estático definitivo.
+- **Gates:** hash depois == esperado; diff byte a byte zero; gate do script verde.
+- **Evidências:** hash antes/depois + comparação + saída do script.
+- **Parada:** hash divergente / gate vermelho → PARAR + rollback.
 - **Aceite:** um PNG novo, íntegro, registrado.
 - **Rollback:** remover arquivo + reverter require.
 
-### P5.T4 — `people_and_care`: perícia da fonte
+### P5.T5 — `people_and_care`: perícia da fonte
 - **Objetivo:** validar a fonte externa antes da cópia.
 - **Dep:** P4 concluído + portão de assets · **Commit:** não · **Push/merge:** proibido.
 - **Arq✔:** relatório · **Arq✗:** destino em `assets/`.
@@ -391,26 +412,26 @@ Cada task declara: **ID** (`P<fase>.T<n>`) · **Fase** · **Título** · **Objet
 - **Aceite:** fonte validada (exceção visual PL01G-FIX1 já ratificada; não reabrir).
 - **Rollback:** n/a.
 
-### P5.T5 — `people_and_care`: cópia byte a byte + hash depois + comparação + registro estático
-- **Objetivo:** integrar `people_and_care` sem reencode, com prova antes/depois.
-- **Dep:** P5.T4 · **Commit:** sim (asset isolado) · **Push/merge:** proibido.
+### P5.T6 — `people_and_care`: cópia byte a byte + hash depois + comparação + registro estático
+- **Objetivo:** integrar `people_and_care` sem reencode, com prova antes/depois e gate verde.
+- **Dep:** P5.T2 (gate verde), P5.T5 (perícia), P4 concluído + portão de assets · **Commit:** sim (asset isolado) · **Push/merge:** proibido.
 - **Arq✔:** `assets/stories/creation/coloring/activities/people_and_care.png` + `coloring60LocalAssets.js` · **Arq✗:** reencode.
-- **Entradas:** perícia P5.T4.
-- **Passos:** cópia byte a byte → hash depois == `59988d9a...` → comparação byte a byte → require estático.
-- **Gates:** hash depois == esperado; diff zero.
-- **Evidências:** hash antes/depois.
-- **Parada:** divergência → PARAR + rollback.
+- **Entradas:** perícia P5.T5; gate `verify-coloring60-assets.js` verde (P5.T2).
+- **Passos:** cópia byte a byte → hash depois == `59988d9a...` → comparação byte a byte → `verify-coloring60-assets.js` pós-integração (verde) → require estático.
+- **Gates:** hash depois == esperado; diff zero; gate do script verde.
+- **Evidências:** hash antes/depois + saída do script.
+- **Parada:** divergência / gate vermelho → PARAR + rollback.
 - **Aceite:** segundo PNG novo íntegro.
 - **Rollback:** remover arquivo + reverter require.
 
-### P5.T6 — Reconciliação de inventário: apenas dois PNGs novos, legado intacto
+### P5.T7 — Reconciliação de inventário: apenas dois PNGs novos, legado intacto
 - **Objetivo:** provar que a árvore ganhou exatamente 2 arquivos e os 200 legados seguem idênticos.
-- **Dep:** P5.T3, P5.T5 · **Commit:** não (verificação) · **Push/merge:** proibido.
+- **Dep:** P5.T4, P5.T6 · **Commit:** não (verificação) · **Push/merge:** proibido.
 - **Arq✔:** relatório · **Arq✗:** —.
 - **Entradas:** baseline P0.T3.
-- **Passos:** 1) recomputar hashes dos 200 legados == baseline; 2) confirmar +2 novos (living_world, people_and_care); 3) confirmar ausência de `activities/light.png`.
-- **Gates:** 200 legados idênticos; exatamente +2 novos.
-- **Evidências:** diff de inventário.
+- **Passos:** 1) recomputar hashes dos 200 legados == baseline; 2) confirmar +2 novos (living_world, people_and_care); 3) confirmar ausência de `activities/light.png`; 4) rodar `verify-coloring60-assets.js` pós-integração como gate final de lote (verde).
+- **Gates:** 200 legados idênticos; exatamente +2 novos; gate do script verde.
+- **Evidências:** diff de inventário + saída do script.
 - **Parada:** qualquer legado alterado / mais de 2 novos → PARAR + rollback.
 - **Aceite:** cobre P5 1–14 (reconciliação e ausência de reencode).
 - **Rollback:** reverter cópias.
@@ -421,7 +442,7 @@ Cada task declara: **ID** (`P<fase>.T<n>`) · **Fase** · **Título** · **Objet
 
 ### P6.T1 — Recuperação premium: ponteiro + blob + recomposição de lineart
 - **Objetivo:** provar round-trip premium reabrindo a atividade, com contorno correto por atividade.
-- **Dep:** P3.T3, P5.T6 · **Commit:** sim · **Push/merge:** proibido.
+- **Dep:** P3.T3, P5.T7 · **Commit:** sim · **Push/merge:** proibido.
 - **Arq✔:** `scripts/smoke.js` + código de exibição da atividade (sem Livrinho) · **Arq✗:** `StoryBookScreen.js`, motor.
 - **Entradas:** writer + resolvedor.
 - **Passos:** 1) reabrir atividade premium; 2) recuperar ponteiro/blob; 3) recompor lineart: `light`↔lineart legado correto, `living_world`↔seu lineart, `people_and_care`↔seu lineart; 4) provar ausência de troca entre atividades.
@@ -601,20 +622,21 @@ Cada task declara: **ID** (`P<fase>.T<n>`) · **Fase** · **Título** · **Objet
 - P2.T1→P2.T2→P2.T3.
 - P3.T1→P3.T2→P3.T3→(P3.T4, P3.T5); P3.T1→P4.T1.
 - P4.T1+P3.T3→P4.T2.
-- P5 depende de P4 concluído **+ portão de assets**; P5.T2→P5.T3; P5.T4→P5.T5; (P5.T3,P5.T5)→P5.T6.
-- P6 depende de P3.T3+P5.T6.
+- P5 depende de P4 concluído **+ portão de assets**; P5.T2 (gate do script `verify-coloring60-assets.js`, dep P0.T6) precede as cópias; P5.T3→P5.T4; P5.T5→P5.T6; (P5.T2,P5.T3)→P5.T4; (P5.T2,P5.T5)→P5.T6; (P5.T4,P5.T6)→P5.T7.
+- P6 depende de P3.T3+P5.T7.
 - P7 depende de P2.T3+P0.T7.
 - P8 depende de P1–P7; P9 de P8.T3; P10 de P9.T2.
 
-**Podem ocorrer em paralelo (arquivos disjuntos):** P0.T3/T5/T6 (inventários independentes); P3.T4 e P3.T5 (ambos só em `smoke.js` — ver serialização); P5.T2 e P5.T4 (perícias de fontes distintas, sem escrita).
+**Podem ocorrer em paralelo (arquivos disjuntos):** P0.T3/T5/T6 (inventários independentes); P3.T4 e P3.T5 (ambos só em `smoke.js` — ver serialização); P5.T3 e P5.T5 (perícias de fontes distintas, sem escrita).
 
 **Serialização obrigatória (mesmo arquivo / risco alto) — proibido paralelismo:**
 1. `ColoringScreen.js` — P2.T2, P4.T2 (um de cada vez).
-2. `storageKeys.js`/chaves — P3.T1 (e qualquer toque em chaves).
-3. `scripts/smoke.js` — P0.T8, P1.T5, P2.T3, P3.T4, P3.T5, P7.T2, P8.T1, P8.T2, P8.T3 (serializar todos os toques em smoke).
-4. **feature flags** — P0.T7, P7.T1.
-5. **writer e conclusão** — P3.T1–T3, P4.T1 (serializados).
-6. **cópia e registro dos assets** — P5.T3, P5.T5 (assets isolados, um commit por asset).
+2. **módulo de rotas da `ColoringScreen`** (localizado por auditoria, **sem inventar caminho**) — P2.T2, P7.T1 (edição em série; **P2 antes de P7**; proibido paralelismo no mesmo módulo de navegação).
+3. `storageKeys.js`/chaves — P3.T1 (e qualquer toque em chaves).
+4. `scripts/smoke.js` — P0.T8, P1.T5, P2.T3, P3.T4, P3.T5, P5.T2, P7.T2, P8.T1, P8.T2, P8.T3 (serializar todos os toques em smoke).
+5. **feature flags** — P0.T7, P7.T1.
+6. **writer e conclusão** — P3.T1–T3, P4.T1 (serializados).
+7. **cópia e registro dos assets** — P5.T4, P5.T6 (assets isolados, um commit por asset).
 
 **Bloqueios:** o **writer** é bloqueado por P3.T1/T2; a **integração dos PNGs** por P4 + portão de assets; o **QA no dispositivo** por P8.T3; o **fechamento** por P9.T2 + portão humano.
 
@@ -622,7 +644,7 @@ Cada task declara: **ID** (`P<fase>.T<n>`) · **Fase** · **Título** · **Objet
 
 # Estratégia de commits futuros (Etapa 18)
 
-Commits pequenos, reversíveis, **um bloco lógico = um commit**; **nunca** um único commit com todo o piloto; **não** misturar código e assets; **não** misturar writer e interface pública; sem amend/squash; **sem push antes de autorização**.
+Commits pequenos, reversíveis, **um bloco lógico = um commit**; **nunca** um único commit com todo o piloto; **não** misturar código e assets; **não** misturar writer e interface pública; **sem push antes de autorização**. Todas as operações de reescrita/histórico obedecem às **Regras de Git durante a execução** abaixo.
 
 | Commit sugerido | Tasks | Arquivos | Gates | Rollback |
 |---|---|---|---|---|
@@ -631,12 +653,34 @@ Commits pequenos, reversíveis, **um bloco lógico = um commit**; **nunca** um �
 | `feat: coloring60 resolver + additive route` | P2.T1–T3 | `coloring60Resolver.js`, `ColoringScreen.js`(rota), rotas, `smoke.js` | regressão legado | revert |
 | `feat: coloring60 drawing writer (entitlement gate)` | P3.T1–T5 | `coloring60DrawingStorage.js`, `smoke.js` | negativos + round-trip | revert |
 | `feat: coloring60 activity completion (plan-agnostic)` | P4.T1–T2 | `coloring60ActivityService.js`, `ColoringScreen.js`, `smoke.js` | separação | revert |
-| `chore: integrate living_world approved art` | P5.T2–T3 | `activities/living_world.png` + registro | hash antes/depois | remover arquivo |
-| `chore: integrate people_and_care approved art` | P5.T4–T5 | `activities/people_and_care.png` + registro | hash antes/depois | remover arquivo |
+| `test: add Colorir 60 asset integrity gate` | P5.T2 | `scripts/verify-coloring60-assets.js`, `smoke.js` (**sem PNG**) | script verde + controles | revert |
+| `chore: integrate living_world approved art` | P5.T3–T4 | `activities/living_world.png` + registro | hash antes/depois + gate | remover arquivo |
+| `chore: integrate people_and_care approved art` | P5.T5–T6 | `activities/people_and_care.png` + registro | hash antes/depois + gate | remover arquivo |
 | `feat: coloring60 internal QA entry (3 gates)` | P7.T1–T2 | `ColoringQaScreen`, rotas, `smoke.js` | controles negativos | revert |
 | `test: coloring60 suite consolidation` | P8.T1–T3 | `smoke.js` | smoke/doctor | remover testes |
 
 (P0 inventários, P6 provas de recuperação, P9 device e P10 rollback geram **evidências/relatórios**, não necessariamente commits de código.)
+
+---
+
+# Regras de Git durante a execução (invioláveis)
+
+Durante a implementação do piloto, **sem autorização explícita do fundador**, é **proibido**:
+1. `git push` (para qualquer remoto/branch).
+2. `git merge`.
+3. `git commit --amend`.
+4. `git rebase` (interativo ou não).
+5. `git reset` (`--soft`, `--mixed` ou `--hard`).
+6. `git push --force` / `--force-with-lease`.
+7. Reescrever, remover ou reordenar commits já revisados (`squash`, `fixup`, `filter-branch`, `cherry-pick` sobre histórico revisado).
+
+**Forma permitida de correção:** avançar com **novo commit** aditivo (nunca reescrever histórico). Qualquer necessidade de reescrita **para** e reporta ao fundador antes de agir.
+
+**Exceção operacional já encerrada (registro de rastreabilidade):** durante a autoria deste `tasks.md` (bloco C60-TASKS1) ocorreu **um único** `git reset --soft HEAD~1` para corrigir a mensagem de um commit **antes** de qualquer revisão/aprovação, retornando o HEAD ao plano aprovado `9c75a3d` e recompondo o commit limpo `1bcda27`. Esse evento:
+- foi **local**, restrito à worktree de tasks, e está **encerrado**;
+- **não** constitui precedente;
+- **não** autoriza resets futuros;
+- **não** pode ser repetido durante a implementação do piloto.
 
 ---
 
@@ -652,11 +696,11 @@ Commits pequenos, reversíveis, **um bloco lógico = um commit**; **nunca** um �
 
 # Analyze — rastreabilidade e consistência (Etapa SDD 6)
 
-**Aceite (plan.md §Etapa 13) → tasks:** 1→P1.T2/T5; 2→P1.T3/P5.T1; 3→P1.T3/P5.T6; 4→P3.T3; 5→P3.T4; 6→P3.T4/P3.T5; 7→P4.T2; 8→P5.T3/T5; 9→P0.T6/P1.T5; 10→P3.T1; 11→P7.T1/T2; 12→(nenhuma resolve pública — garantido em P2.T3/P4.T2/P7.T1); 13→P0.T3/P8.T3; 14→P0.T4; 15→P0.T5; 16→P2.T2/P2.T3; 17→P10.T1/T2.
+**Aceite (plan.md §Etapa 13) → tasks:** 1→P1.T2/T5; 2→P1.T3/P5.T1; 3→P1.T3/P5.T7; 4→P3.T3; 5→P3.T4; 6→P3.T4/P3.T5; 7→P4.T2; 8→P5.T2/P5.T4/P5.T6; 9→P0.T6/P1.T5; 10→P3.T1; 11→P7.T1/T2; 12→(nenhuma resolve pública — garantido em P2.T3/P4.T2/P7.T1); 13→P0.T3/P8.T3; 14→P0.T4; 15→P0.T5; 16→P2.T2/P2.T3; 17→P10.T1/T2. **Gate de integridade dos assets (plan §6.2/§7/§8) → P5.T2** (`verify-coloring60-assets.js`).
 
-**Cobertura das enumerações do bloco:** P0(1–10)→P0.T1–T10; P1(1–10)→P1.T1–T5 (validações folded em asserts); P2(1–10)→P2.T1–T3; P3(1–15)→P3.T1–T5; P4(1–14)→P4.T1–T2; P5→P5.T1–T6; P6(1–13)→P6.T1–T2; P7(1–13)→P7.T1–T2; P8(1–20)→P8.T1–T3; P9(1–20 + 7 evid.)→P9.T1–T2; P10(1–12 + regra imagens)→P10.T1–T3.
+**Cobertura das enumerações do bloco:** P0(1–10)→P0.T1–T10; P1(1–10)→P1.T1–T5 (validações folded em asserts); P2(1–10)→P2.T1–T3; P3(1–15)→P3.T1–T5; P4(1–14)→P4.T1–T2; P5→P5.T1–T7 (inclui o gate de integridade P5.T2); P6(1–13)→P6.T1–T2; P7(1–13)→P7.T1–T2; P8(1–20)→P8.T1–T3; P9(1–20 + 7 evid.)→P9.T1–T2; P10(1–12 + regra imagens)→P10.T1–T3.
 
-**Confirmações:** writer com gate interno (P3.T3); Metro por `require()` literal relativo, sem alias presuposto (P1.T2, regra 17); `light` nunca copiado (P1.T3/P5.T1); 2 PNGs só em P5; hashes completos (P0.T6); 10⊆200 (P0.T4); narrativas distintas (P0.T5); testes negativos cobrem arquivos/blobs/ponteiros/chaves (P3.T4); entrada interna com 3 gates (P7.T1/T2); QA device completo (P9); rollback definido (P10); próxima criação de imagens bloqueada até aprovação. **Nenhuma decisão pública em aberto é resolvida.** CONSISTENTE, sem `[NEEDS CLARIFICATION]`.
+**Confirmações:** writer com gate interno (P3.T3); Metro por `require()` literal relativo, sem alias presuposto (P1.T2, regra 17); em P1 só `light` resolve (P1.T2); `light` nunca copiado (P1.T3/P5.T1); gate de integridade determinístico e read-only, verde antes das cópias (P5.T2); 2 PNGs só em P5 (P5.T4/P5.T6); hashes completos (P0.T6); 10⊆200 (P0.T4); narrativas distintas (P0.T5); testes negativos cobrem arquivos/blobs/ponteiros/chaves (P3.T4); módulo de rotas serializado P2.T2 antes de P7.T1; entrada interna com 3 gates (P7.T1/T2); QA device completo (P9); rollback definido (P10); Git durante a execução **sem** reset/rebase/amend/squash/merge/push sem autorização; próxima criação de imagens bloqueada até aprovação. **Nenhuma decisão pública em aberto é resolvida.** CONSISTENTE, sem `[NEEDS CLARIFICATION]`.
 
 ---
 
