@@ -65,6 +65,7 @@ const ASSETS = Object.freeze([
     forbiddenPath: path.join(REPO_ROOT, 'assets', 'stories', 'creation', 'coloring', 'activities', 'light.png'),
     expectedSha256: '35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb',
     expectedDims: EXPECTED_DIMS,
+    expectedBitDepth: 8, // 8 bits por canal (contrato)
     expectedColorType: 6, // RGBA
     expectedColorMode: 'RGBA',
     expectedBytes: 3201048,
@@ -76,6 +77,7 @@ const ASSETS = Object.freeze([
     destPath: path.join(REPO_ROOT, 'assets', 'stories', 'creation', 'coloring', 'activities', 'living_world.png'),
     expectedSha256: '818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5',
     expectedDims: EXPECTED_DIMS,
+    expectedBitDepth: 8, // 8 bits por canal (contrato)
     expectedColorType: 2, // RGB
     expectedColorMode: 'RGB',
     expectedBytes: 973618,
@@ -87,6 +89,7 @@ const ASSETS = Object.freeze([
     destPath: path.join(REPO_ROOT, 'assets', 'stories', 'creation', 'coloring', 'activities', 'people_and_care.png'),
     expectedSha256: '59988d9a58082a8173a328857fccb6a3716815660f4434c0df4491d6bf30d4e9',
     expectedDims: EXPECTED_DIMS,
+    expectedBitDepth: 8, // 8 bits por canal (contrato)
     expectedColorType: 2, // RGB
     expectedColorMode: 'RGB',
     expectedBytes: 1195149,
@@ -95,12 +98,53 @@ const ASSETS = Object.freeze([
 
 // ---------- leitura pura + perícia PNG (sem qualquer efeito colateral) ----------
 
-function isRegularFile(p) {
+// Estados possíveis de uma entrada de filesystem. AUSENTE significa que NENHUMA entrada
+// existe no caminho; qualquer outra coisa (diretório, symlink — inclusive quebrado —,
+// tipo exótico ou erro de inspeção) NÃO é ausência e NUNCA passa num gate de ausência.
+const PATH_KIND = Object.freeze({
+  ABSENT: 'absent',
+  REGULAR_FILE: 'regular_file',
+  DIRECTORY: 'directory',
+  SYMLINK: 'symlink',
+  OTHER: 'other',
+  INSPECTION_ERROR: 'inspection_error',
+});
+
+/**
+ * classifyLstat(err, st) — classificador PURO (sem I/O) de um resultado de lstat.
+ * Separado de inspectPathKind para ser testável com doubles de fs (stat/err fabricados),
+ * sem depender da criação física de symlink (não-portável no Windows sem privilégio).
+ * REGRAS: ENOENT ⇒ absent; qualquer outro erro ⇒ inspection_error; symlink SEMPRE symlink
+ * (mesmo apontando para arquivo ou quebrado — usamos lstat, não seguimos o link).
+ */
+function classifyLstat(err, st) {
+  if (err) return err.code === 'ENOENT' ? PATH_KIND.ABSENT : PATH_KIND.INSPECTION_ERROR;
+  if (st.isSymbolicLink()) return PATH_KIND.SYMLINK;
+  if (st.isFile()) return PATH_KIND.REGULAR_FILE;
+  if (st.isDirectory()) return PATH_KIND.DIRECTORY;
+  return PATH_KIND.OTHER;
+}
+
+/**
+ * inspectPathKind(p) — inspeção read-only do TIPO da entrada em `p`, usando lstatSync
+ * (NÃO segue symlinks). Retorna um dos PATH_KIND. Nunca lança, nunca escreve.
+ */
+function inspectPathKind(p) {
   try {
-    return fs.statSync(p).isFile();
-  } catch {
-    return false;
+    return classifyLstat(null, fs.lstatSync(p));
+  } catch (e) {
+    return classifyLstat(e, null);
   }
+}
+
+/** Verdadeiro somente se `p` é EXATAMENTE ausente (nenhuma entrada de filesystem). */
+function isAbsent(p) {
+  return inspectPathKind(p) === PATH_KIND.ABSENT;
+}
+
+/** Verdadeiro somente se `p` é um ARQUIVO REGULAR (symlink→arquivo NÃO conta). */
+function isRegularFile(p) {
+  return inspectPathKind(p) === PATH_KIND.REGULAR_FILE;
 }
 
 function readBytes(p) {
@@ -122,6 +166,8 @@ function inspectPng(buf) {
   if (buf.length < 33) return { ok: false, reason: 'arquivo curto demais para conter IHDR' };
   if (!buf.subarray(0, 8).equals(PNG_SIGNATURE)) return { ok: false, reason: 'assinatura PNG inválida' };
   // IHDR: comprimento(4)@8, tipo "IHDR"(4)@12, dados@16.
+  // O comprimento declarado do IHDR é SEMPRE exatamente 13 num PNG válido — divergência é falha dura.
+  if (buf.readUInt32BE(8) !== 13) return { ok: false, reason: 'IHDR com comprimento ≠ 13' };
   if (buf.subarray(12, 16).toString('ascii') !== 'IHDR') return { ok: false, reason: 'primeiro chunk não é IHDR' };
   const width = buf.readUInt32BE(16);
   const height = buf.readUInt32BE(20);
@@ -136,14 +182,13 @@ function inspectPng(buf) {
  * Read-only. Retorna um registro estruturado com todos os checks e um agregado `integrityOk`.
  */
 function probe(p, expected) {
-  const rec = { path: p, present: false, isFile: false };
-  if (!isRegularFile(p)) {
-    rec.present = false;
-    rec.isFile = false;
+  const kind = inspectPathKind(p);
+  const rec = { path: p, pathKind: kind, exists: kind !== PATH_KIND.ABSENT, isRegularFile: kind === PATH_KIND.REGULAR_FILE };
+  // Só um ARQUIVO REGULAR pode ser lido e pericíado. Diretório, symlink, tipo exótico,
+  // erro de inspeção ou ausência retornam cedo — integrityOk permanece ausente (falsy).
+  if (kind !== PATH_KIND.REGULAR_FILE) {
     return rec;
   }
-  rec.present = true;
-  rec.isFile = true;
   let buf;
   try {
     buf = readBytes(p);
@@ -160,6 +205,7 @@ function probe(p, expected) {
   rec.shaOk = rec.sha256 === expected.expectedSha256;
   rec.magicOk = png.ok;
   rec.dimsOk = png.ok && png.width === expected.expectedDims.width && png.height === expected.expectedDims.height;
+  rec.bitDepthOk = png.ok && png.bitDepth === expected.expectedBitDepth;
   rec.colorTypeOk = png.ok && png.colorType === expected.expectedColorType;
   rec.colorModeOk = png.ok && png.colorMode === expected.expectedColorMode;
   // Integridade só é verdadeira se TODOS os atributos baterem. Sem fallback, sem tolerância.
@@ -168,12 +214,16 @@ function probe(p, expected) {
     rec.shaOk === true &&
     rec.magicOk === true &&
     rec.dimsOk === true &&
+    rec.bitDepthOk === true &&
     rec.colorTypeOk === true &&
     rec.colorModeOk === true;
   return rec;
 }
 
-/** bytesEqual(a, b) — comparação byte a byte estrita de dois arquivos (ambos devem existir). */
+/**
+ * bytesEqual(a, b) — comparação byte a byte estrita de dois ARQUIVOS REGULARES.
+ * Se qualquer lado não for arquivo regular (ausente/diretório/symlink/erro), retorna false.
+ */
 function bytesEqual(pathA, pathB) {
   if (!isRegularFile(pathA) || !isRegularFile(pathB)) return false;
   const a = readBytes(pathA);
@@ -183,20 +233,35 @@ function bytesEqual(pathA, pathB) {
 
 // ---------- avaliação por asset, por modo ----------
 
+// Rótulos estáveis por tipo de entrada — a saída distingue os estados sem colapsá-los.
+const PATH_KIND_LABEL = Object.freeze({
+  [PATH_KIND.ABSENT]: 'AUSENTE',
+  [PATH_KIND.DIRECTORY]: 'DIRETÓRIO',
+  [PATH_KIND.SYMLINK]: 'SYMLINK',
+  [PATH_KIND.OTHER]: 'NÃO-É-ARQUIVO',
+  [PATH_KIND.INSPECTION_ERROR]: 'ERRO-DE-INSPEÇÃO',
+});
+
 function fmtProbe(rec) {
-  if (!rec.present) return 'AUSENTE';
-  if (!rec.isFile) return 'NÃO-É-ARQUIVO';
-  if (rec.readError) return `ERRO-LEITURA(${rec.readError})`;
+  if (rec.pathKind !== PATH_KIND.REGULAR_FILE) return PATH_KIND_LABEL[rec.pathKind] || 'NÃO-É-ARQUIVO';
+  if (rec.readError) return `ERRO-DE-LEITURA(${rec.readError})`;
   return [
     `bytes=${rec.bytes}`,
     `sha=${rec.sha256}`,
     `sig=${rec.magicOk ? 'ok' : 'X'}`,
     `dims=${rec.png.ok ? `${rec.png.width}x${rec.png.height}` : '?'}`,
     `bd=${rec.png.ok ? rec.png.bitDepth : '?'}`,
+    `bdOk=${rec.bitDepthOk ? 'ok' : 'X'}`,
     `ct=${rec.png.ok ? rec.png.colorType : '?'}`,
     `mode=${rec.png.ok ? rec.png.colorMode : '?'}`,
     `integ=${rec.integrityOk ? 'ok' : 'X'}`,
   ].join(' ');
+}
+
+// fmtKind(p) — rótulo estável do TIPO de uma entrada (para os caminhos de ausência esperada).
+function fmtKind(p) {
+  const kind = inspectPathKind(p);
+  return PATH_KIND_LABEL[kind] || (kind === PATH_KIND.REGULAR_FILE ? 'ARQUIVO' : 'NÃO-É-ARQUIVO');
 }
 
 /**
@@ -206,12 +271,14 @@ function fmtProbe(rec) {
 function evaluateLight(asset) {
   const lines = [];
   const reuse = probe(asset.reusePath, asset);
-  const forbiddenPresent = isRegularFile(asset.forbiddenPath);
-  const reuseOk = reuse.integrityOk === true;
-  const forbiddenOk = forbiddenPresent === false;
+  // O proibido só é aceitável se for EXATAMENTE ausente: diretório, symlink (mesmo quebrado),
+  // tipo exótico ou erro de inspeção reprovam. Nada além de `absent` passa neste gate.
+  const forbiddenKind = inspectPathKind(asset.forbiddenPath);
+  const reuseOk = reuse.integrityOk === true; // exige regular_file íntegro (não symlink)
+  const forbiddenOk = forbiddenKind === PATH_KIND.ABSENT;
   const pass = reuseOk && forbiddenOk;
   lines.push(`  reuse(scene_02.png): ${fmtProbe(reuse)}`);
-  lines.push(`  activities/light.png: ${forbiddenPresent ? 'PRESENTE (PROIBIDO!)' : 'ausente (correto)'}`);
+  lines.push(`  activities/light.png: ${forbiddenOk ? 'AUSENTE (correto)' : `${PATH_KIND_LABEL[forbiddenKind] || 'PRESENTE'} (PROIBIDO!)`}`);
   return { assetId: asset.assetId, role: asset.role, pass, lines };
 }
 
@@ -222,23 +289,26 @@ function evaluateLight(asset) {
  */
 function evaluateExternalCopy(asset, mode) {
   const lines = [];
+  // Fonte deve ser ARQUIVO REGULAR íntegro (probe já rejeita symlink/diretório).
   const source = probe(asset.sourcePath, asset);
-  const destPresent = isRegularFile(asset.destPath);
+  const destKind = inspectPathKind(asset.destPath);
   lines.push(`  fonte: ${fmtProbe(source)}`);
 
   if (mode === 'pre') {
     const sourceOk = source.integrityOk === true;
-    const destAbsentOk = destPresent === false;
-    lines.push(`  destino: ${destPresent ? 'PRESENTE (prematuro em pre!)' : 'ausente (correto para pre)'}`);
+    // Destino em pre deve ser EXATAMENTE ausente: diretório/symlink/arquivo prematuro reprovam.
+    const destAbsentOk = destKind === PATH_KIND.ABSENT;
+    lines.push(`  destino: ${destAbsentOk ? 'AUSENTE (correto para pre)' : `${PATH_KIND_LABEL[destKind] || 'PRESENTE'} (indevido em pre!)`}`);
     return { assetId: asset.assetId, role: asset.role, pass: sourceOk && destAbsentOk, lines };
   }
 
-  // mode === 'post'
+  // mode === 'post' — destino deve ser ARQUIVO REGULAR íntegro E byte-idêntico à fonte.
   const dest = probe(asset.destPath, asset);
   lines.push(`  destino: ${fmtProbe(dest)}`);
-  const destOk = dest.integrityOk === true;
-  // Comparação byte a byte fonte↔destino — obrigatória, sem fallback.
-  const byteEqual = destPresent && source.present ? bytesEqual(asset.sourcePath, asset.destPath) : false;
+  const destOk = dest.integrityOk === true; // exige regular_file (symlink/diretório reprovam)
+  // Comparação byte a byte fonte↔destino — obrigatória, sem fallback; só entre arquivos regulares.
+  const byteEqual =
+    dest.isRegularFile && source.isRegularFile ? bytesEqual(asset.sourcePath, asset.destPath) : false;
   lines.push(`  byte-a-byte fonte==destino: ${byteEqual ? 'ok' : 'X'}`);
   return { assetId: asset.assetId, role: asset.role, pass: destOk && byteEqual, lines };
 }
@@ -272,7 +342,9 @@ function main() {
   const mode = parseMode(process.argv.slice(2));
   const out = [];
   out.push('verify-coloring60-assets · gate de integridade Colorir 60 (A Criação)');
-  out.push(`repo=${REPO_ROOT}`);
+  // Saída determinística: rótulo estável, SEM o caminho absoluto da worktree (que varia por
+  // máquina/scratch). A raiz real segue derivada de __dirname internamente; não é impressa.
+  out.push('repo=<repo>');
 
   if (mode === null) {
     out.push('ERRO: modo inválido ou ausente. Uso: --mode=pre | --mode=post');
@@ -300,4 +372,22 @@ function main() {
   process.exit(allPass ? 0 : 1);
 }
 
-main();
+// Executa como CLI SOMENTE quando rodado diretamente. Quando este arquivo é `require()`-ado
+// (pelos testes do smoke), main() NÃO roda e NÃO chama process.exit — só os helpers são expostos.
+if (require.main === module) {
+  main();
+}
+
+// Helpers internos expostos para os testes carregarem o CÓDIGO REAL (sem cópia manual divergente).
+module.exports = {
+  PATH_KIND,
+  classifyLstat,
+  inspectPathKind,
+  isAbsent,
+  isRegularFile,
+  inspectPng,
+  probe,
+  bytesEqual,
+  ASSETS,
+  EXPECTED_DIMS,
+};

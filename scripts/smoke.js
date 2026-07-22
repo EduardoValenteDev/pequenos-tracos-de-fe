@@ -31496,6 +31496,144 @@ check(
       !fs.existsSync(path.join(activitiesDir, 'people_and_care.png')) &&
       !fs.existsSync(path.join(activitiesDir, 'light.png')),
       'algum PNG de destino já existe');
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // C60-IMPL-P5-GATE1-FIX1 — endurecimento da SEMÂNTICA DE EXISTÊNCIA (ausente ≠
+    // diretório ≠ symlink ≠ erro de inspeção), do BIT DEPTH explícito e do IHDR
+    // length, e da SAÍDA NORMALIZADA. Os controles abaixo carregam o CÓDIGO REAL do
+    // verificador via require() (guard `require.main === module` impede rodar main),
+    // sem manter cópia divergente. Fixtures vivem só em os.tmpdir(), nunca em assets.
+    // ══════════════════════════════════════════════════════════════════════════
+    const os = require('os');
+    // Carrega os helpers REAIS do verificador (não executa main() por causa do guard).
+    const V = require(verifierAbs);
+
+    // Estáticos do endurecimento ──
+    check('C60-P5-GATE1 [29] bit depth explícito no contrato (expectedBitDepth: 8 ×3)',
+      (vSrc.match(/expectedBitDepth:\s*8/g) || []).length === 3, 'expectedBitDepth ausente/divergente');
+    check('C60-P5-GATE1 [30] integridade inclui bitDepthOk',
+      /bitDepthOk\s*===\s*true/.test(vSrc) && /rec\.bitDepthOk\s*=/.test(vSrc), 'bitDepthOk fora da integridade');
+    check('C60-P5-GATE1 [31] IHDR length === 13 validado',
+      /readUInt32BE\(8\)\s*!==\s*13/.test(vSrc), 'comprimento do IHDR não é validado');
+    check('C60-P5-GATE1 [32] existência via lstatSync (não segue symlink), sem statSync',
+      /fs\.lstatSync/.test(vSrc) && !/fs\.statSync/.test(vSrc), 'não usa lstatSync ou ainda usa statSync');
+    check('C60-P5-GATE1 [33] classificador de tipo de path presente (classifyLstat/inspectPathKind)',
+      /classifyLstat/.test(vSrc) && /inspectPathKind/.test(vSrc) && /isAbsent/.test(vSrc), 'modelo de pathKind ausente');
+    check('C60-P5-GATE1 [34] gate de ausência exige EXATAMENTE absent em isAbsent + forbidden + pre-dest (≥3)',
+      (vSrc.match(/===\s*PATH_KIND\.ABSENT/g) || []).length >= 3, 'ausência não é exigida de forma estrita nos 3 pontos');
+    check('C60-P5-GATE1 [35] saída sem caminho absoluto da worktree (repo=<repo>)',
+      vSrc.includes("'repo=<repo>'") && !/repo=\$\{REPO_ROOT\}/.test(vSrc), 'saída ainda imprime path absoluto');
+
+    // Comportamentais com helpers REAIS ──
+    // 1-6: classificação de tipo de entrada (doubles de fs para symlink/erro; reais p/ o resto).
+    check('C60-P5-GATE1 [36] caminho ausente → absent',
+      V.inspectPathKind(path.join(os.tmpdir(), 'ptf_c60_fix1_nao_existe_zzz')) === V.PATH_KIND.ABSENT, 'ausente mal classificado');
+    check('C60-P5-GATE1 [37] classifyLstat: ENOENT→absent, EACCES→inspection_error',
+      V.classifyLstat({ code: 'ENOENT' }, null) === V.PATH_KIND.ABSENT &&
+      V.classifyLstat({ code: 'EACCES' }, null) === V.PATH_KIND.INSPECTION_ERROR, 'erros mal classificados');
+    check('C60-P5-GATE1 [38] classifyLstat: symlink (mesmo p/ arquivo ou quebrado) → symlink',
+      V.classifyLstat(null, { isSymbolicLink: () => true, isFile: () => true, isDirectory: () => false }) === V.PATH_KIND.SYMLINK &&
+      V.classifyLstat(null, { isSymbolicLink: () => true, isFile: () => false, isDirectory: () => false }) === V.PATH_KIND.SYMLINK,
+      'symlink tratado como outra coisa');
+    check('C60-P5-GATE1 [39] classifyLstat: file→regular_file, dir→directory, exótico→other',
+      V.classifyLstat(null, { isSymbolicLink: () => false, isFile: () => true, isDirectory: () => false }) === V.PATH_KIND.REGULAR_FILE &&
+      V.classifyLstat(null, { isSymbolicLink: () => false, isFile: () => false, isDirectory: () => true }) === V.PATH_KIND.DIRECTORY &&
+      V.classifyLstat(null, { isSymbolicLink: () => false, isFile: () => false, isDirectory: () => false }) === V.PATH_KIND.OTHER,
+      'classificação básica incorreta');
+    // Nenhum PATH_KIND diferente de ABSENT pode passar no gate de ausência.
+    check('C60-P5-GATE1 [40] só absent passa no gate de ausência; symlink/dir/other/erro reprovam',
+      [V.PATH_KIND.DIRECTORY, V.PATH_KIND.SYMLINK, V.PATH_KIND.OTHER, V.PATH_KIND.INSPECTION_ERROR, V.PATH_KIND.REGULAR_FILE]
+        .every((k) => k !== V.PATH_KIND.ABSENT) && V.PATH_KIND.ABSENT === 'absent', 'semântica de ausência frouxa');
+
+    // 7-12: usa fixtures reais em os.tmpdir() (arquivo/diretório) + doubles para symlink.
+    const fixRoot = path.join(os.tmpdir(), 'ptf_c60_fix1_fixtures');
+    try {
+      try { fs.rmSync(fixRoot, { recursive: true, force: true }); } catch { /* limpa resquício */ }
+      fs.mkdirSync(fixRoot, { recursive: true });
+      const fFile = path.join(fixRoot, 'arquivo.bin');
+      const fDir = path.join(fixRoot, 'subdir');
+      fs.writeFileSync(fFile, Buffer.from('conteudo'));
+      fs.mkdirSync(fDir);
+
+      check('C60-P5-GATE1 [41] arquivo regular real → regular_file; diretório real → directory',
+        V.inspectPathKind(fFile) === V.PATH_KIND.REGULAR_FILE && V.inspectPathKind(fDir) === V.PATH_KIND.DIRECTORY, 'tipo real mal classificado');
+      check('C60-P5-GATE1 [42] isRegularFile falso p/ diretório; isAbsent falso p/ diretório',
+        V.isRegularFile(fDir) === false && V.isAbsent(fDir) === false, 'diretório passa como arquivo/ausente');
+
+      // Construtor de PNG mínimo determinístico (sig + IHDR len=13 + IHDR + campos).
+      const buildPng = (width, height, bitDepth, colorType, tail) => {
+        const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+        const head = Buffer.alloc(25); // bytes globais 8..33
+        head.writeUInt32BE(13, 0); // length @8
+        head.write('IHDR', 4, 'ascii'); // @12
+        head.writeUInt32BE(width, 8); // @16
+        head.writeUInt32BE(height, 12); // @20
+        head[16] = bitDepth; // @24
+        head[17] = colorType; // @25
+        let buf = Buffer.concat([sig, head]);
+        if (tail > 0) buf = Buffer.concat([buf, Buffer.alloc(tail)]);
+        return buf;
+      };
+      const sha256 = (b) => require('crypto').createHash('sha256').update(b).digest('hex');
+      const expectedFor = (b, bd) => ({
+        expectedBytes: b.length, expectedSha256: sha256(b), expectedDims: { width: 100, height: 200 },
+        expectedBitDepth: bd, expectedColorType: 2, expectedColorMode: 'RGB',
+      });
+
+      // bd=8 correto: todos os atributos batem ⇒ integrityOk true.
+      const png8 = buildPng(100, 200, 8, 2, 16);
+      const f8 = path.join(fixRoot, 'ok8.png');
+      fs.writeFileSync(f8, png8);
+      const rec8 = V.probe(f8, expectedFor(png8, 8));
+      check('C60-P5-GATE1 [43] bit depth 8 passa quando os demais atributos batem',
+        rec8.integrityOk === true && rec8.bitDepthOk === true, 'bd=8 válido reprovado');
+
+      // bd=16 mas expectedBitDepth=8 e sha do PRÓPRIO fixture ⇒ sha bate mas bitDepthOk falha ⇒ integrityOk false.
+      const png16 = buildPng(100, 200, 16, 2, 16);
+      const f16 = path.join(fixRoot, 'bd16.png');
+      fs.writeFileSync(f16, png16);
+      const rec16 = V.probe(f16, expectedFor(png16, 8)); // expected bd=8, arquivo tem bd=16
+      check('C60-P5-GATE1 [44] bit depth ≠ 8 reprova mesmo com sha/tamanho batendo',
+        rec16.shaOk === true && rec16.sizeOk === true && rec16.bitDepthOk === false && rec16.integrityOk === false,
+        'bd divergente passou');
+      check('C60-P5-GATE1 [45] integrityOk depende de bitDepthOk (sha ok + bd ruim ⇒ integ false)',
+        rec16.integrityOk === false && rec16.dimsOk === true && rec16.colorTypeOk === true, 'integridade ignora bitDepth');
+
+      // IHDR length ≠ 13 ⇒ inspectPng.ok false.
+      const pngBadIhdr = buildPng(100, 200, 8, 2, 16);
+      pngBadIhdr.writeUInt32BE(12, 8); // corrompe o comprimento do IHDR (13→12)
+      check('C60-P5-GATE1 [46] IHDR length ≠ 13 reprova (inspectPng.ok=false)',
+        V.inspectPng(pngBadIhdr).ok === false && V.inspectPng(png8).ok === true, 'IHDR length não é validado');
+    } finally {
+      try { fs.rmSync(fixRoot, { recursive: true, force: true }); } catch { /* nada a fazer */ }
+    }
+
+    // 17-19: saída normalizada e determinística (subprocesso real).
+    check('C60-P5-GATE1 [47] saída não contém o caminho absoluto da worktree nem C:\\tmp',
+      !pre.stdout.includes(root) && !/C:\\tmp/i.test(pre.stdout) && !pre.stdout.includes('/tmp/'), 'saída vaza path absoluto');
+    check('C60-P5-GATE1 [48] saída contém rótulo estável repo=<repo>',
+      /repo=<repo>/.test(pre.stdout), 'rótulo repo=<repo> ausente');
+    const pre2 = runVerifier('pre');
+    check('C60-P5-GATE1 [49] duas execuções pre geram saída byte-idêntica',
+      pre.stdout === pre2.stdout && pre.status === pre2.status, 'saída não determinística');
+
+    // 20-23: gate real permanece verde/vermelho e sem efeito colateral após o endurecimento.
+    check('C60-P5-GATE1 [50] pre real continua VERDE com bd=8/bdOk em todas as fontes',
+      pre.status === 0 && (pre.stdout.match(/bdOk=ok/g) || []).length >= 3 && /RESULTADO\(pre\):\s*VERDE/.test(pre.stdout),
+      'pre não confirma bit depth das 3 fontes');
+    check('C60-P5-GATE1 [51] post real continua VERMELHO só pelos 2 destinos ausentes',
+      post.status !== 0 && (post.stdout.match(/destino:\s*AUSENTE/g) || []).length === 2 &&
+      /\[OK\] light/.test(post.stdout) && /activities\/light\.png:\s*AUSENTE/.test(post.stdout),
+      'post não isola a causa nos 2 destinos ausentes');
+    check('C60-P5-GATE1 [52] endurecimento não criou activities/ nem PNG de destino',
+      !fs.existsSync(activitiesDir) &&
+      !fs.existsSync(path.join(activitiesDir, 'living_world.png')) &&
+      !fs.existsSync(path.join(activitiesDir, 'people_and_care.png')) &&
+      !fs.existsSync(path.join(activitiesDir, 'light.png')), 'efeito colateral no repo');
+    check('C60-P5-GATE1 [53] cópia post exige ARQUIVO REGULAR dos dois lados (sem symlink/fallback)',
+      /dest\.isRegularFile\s*&&\s*source\.isRegularFile/.test(vSrc) &&
+      /if\s*\(!isRegularFile\(pathA\)\s*\|\|\s*!isRegularFile\(pathB\)\)\s*return false/.test(vSrc),
+      'gate de cópia post aceita não-arquivo');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
