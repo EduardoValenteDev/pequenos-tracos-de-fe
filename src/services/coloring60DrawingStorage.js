@@ -26,11 +26,28 @@
  *     um de dois slots alternados (`.a.png`/`.b.png`). A gravação usa SEMPRE o slot INATIVO;
  *     só após promover (o ponteiro no AsyncStorage passa a referenciar o novo slot) e verificar
  *     é que o slot antigo é descartado. Qualquer falha (arquivo, ponteiro, verificação) retorna
- *     `write_failed`, restaura a referência anterior e limpa o slot novo — o desenho anterior
- *     válido é PRESERVADO e nenhum resíduo/órfão é deixado.
+ *     `write_failed` e o desenho anterior válido é PRESERVADO sob falha SIMPLES.
+ *
+ * GARANTIAS TRANSACIONAIS (C60-IMPL-P3-FIX1 — honestas quanto ao que a infraestrutura oferece;
+ * o AsyncStorage/FileSystem NÃO dão transação atômica multi-recurso):
+ *   1. ZERO escrita no plano grátis (nem leitura): a fronteira de I/O não é sequer tocada.
+ *   2. INVARIANTE central: nenhuma chave ativa aponta DELIBERADAMENTE para um blob que o próprio
+ *      writer acabou de apagar. O blob novo só é descartado APÓS reler a chave e CONFIRMAR que
+ *      ela não o referencia mais; em estado desconhecido, o blob novo é PRESERVADO (legível).
+ *   3. Sob falha SIMPLES (arquivo, promoção OU verificação), o desenho anterior é preservado e o
+ *      slot novo não referenciado é limpo — sem resíduo.
+ *   4. Sob falha COMPOSTA (ex.: verificação falha E a restauração do anterior também falha), o
+ *      rollback é MELHOR-ESFORÇO: o status continua `write_failed`, a chave pode permanecer com o
+ *      ponteiro novo — e nesse caso o blob novo permanece LEGÍVEL. Pode restar resíduo FÍSICO
+ *      (arquivo sem ponteiro), nunca um ponteiro quebrado.
+ *   5. `saved` só é retornado após o estado novo ser promovido E verificado; nunca otimista.
+ *   6. A limpeza do blob antigo pós-sucesso é best-effort: uma falha física ali deixa no máximo um
+ *      arquivo antigo SEM ponteiro (resíduo), jamais invalida o desenho novo já ativo.
+ *   7. `get` retorna `null` para ponteiro ilegível (arquivo ausente); `has` retorna `false` no mesmo
+ *      caso — `get` e `has` são semanticamente COERENTES (has reusa get, sem healing/escrita).
  *
  * Governança: specs 014/015/016/017 · DECISIONS.md PL01A-03/PL01G · plan.md §6.5/§6.6/§6.7 ·
- * tasks.md P3.T1..T5.
+ * tasks.md P3.T1..T5 · C60-IMPL-P3-QA1 (auditoria) · C60-IMPL-P3-FIX1 (hardening).
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -59,7 +76,9 @@ const FAMILY_PLAN = 'premium';
  * Resultados TIPADOS do salvamento (contrato estável e congelado).
  *   - SAVED               → arte persistida no namespace Colorir 60 (Plano Família).
  *   - NOT_PERSISTED_FREE  → sem entitlement Família confirmado (grátis/indeterminado): ZERO escrita.
- *   - WRITE_FAILED        → premium, mas a persistência falhou; nenhum resíduo, anterior preservado.
+ *   - WRITE_FAILED        → premium, mas a persistência não pôde ser promovida/verificada. Sob falha
+ *                           simples o anterior é preservado; sob falha composta, best-effort (ver
+ *                           GARANTIAS TRANSACIONAIS) — nunca um ponteiro apontando para blob apagado.
  *   - INVALID_IDENTITY    → identidade fora do catálogo/inválida: rejeitada antes de qualquer escrita.
  * `invalid_identity` NUNCA é conflado com `not_persisted_free` (razões distintas).
  */
@@ -202,6 +221,45 @@ async function resolvePointer60(value) {
   return dataUrl; // fmt 1
 }
 
+/**
+ * rollbackFailedPromotion(k, oldRaw, newUri) — desfaz uma promoção que NÃO pôde ser confirmada
+ * (setItem lançou, OU a verificação divergiu), preservando a INVARIANTE central: "nenhuma chave
+ * ativa aponta para um blob que o próprio writer acabou de apagar".
+ *   1) Restaura PRIMEIRO o metadado anterior (`oldRaw`) — ou remove a chave, se não havia estado
+ *      anterior. NUNCA apaga o blob novo antes disto.
+ *   2) RELÊ a chave. O blob novo só é descartado se, comprovadamente, a chave NÃO o referencia mais.
+ *   3) Se a chave não pôde ser relida (estado DESCONHECIDO) ou ainda referencia o blob novo, o blob
+ *      novo é PRESERVADO (permanece legível). Sob falha composta isso pode deixar resíduo físico,
+ *      jamais um ponteiro quebrado.
+ * Não presume que uma rejeição de `setItem` signifique que nada foi gravado (o metadado é tratado
+ * como potencialmente desconhecido após uma falha de escrita).
+ */
+async function rollbackFailedPromotion(k, oldRaw, newUri) {
+  // 1) Restaurar o metadado anterior — melhor-esforço, jamais antes de decidir sobre o blob novo.
+  try {
+    if (oldRaw != null) await AsyncStorage.setItem(k, oldRaw);
+    else await AsyncStorage.removeItem(k);
+  } catch (e) {
+    log('coloring60DrawingStorage.rollback.meta:', e);
+  }
+  if (!newUri) return; // promoção inline (sem blob novo): nada a descartar.
+
+  // 2) Reler a chave e decidir com segurança. `readable === false` ⇒ estado desconhecido.
+  let current;
+  let readable = true;
+  try {
+    current = await AsyncStorage.getItem(k);
+  } catch {
+    readable = false;
+  }
+  const keyStillRefsNew = readable && pointerUri(current) === newUri;
+
+  // 3) Só descarta o blob novo com CONFIRMAÇÃO de que nenhuma chave o referencia; senão, preserva.
+  if (readable && !keyStillRefsNew) {
+    try { await deleteBlob(newUri); } catch (e) { log('coloring60DrawingStorage.rollback.delnew:', e); }
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // API pública (fechada e mínima)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -255,12 +313,14 @@ export async function saveColoring60DrawingState(storyId, activityId, payload) {
       newUri = built.uri;
     }
 
-    // Promover: o ponteiro/valor no AsyncStorage passa a referenciar o novo estado.
+    // Promover: o ponteiro/valor no AsyncStorage passa a referenciar o novo estado. Uma rejeição
+    // de setItem NÃO garante que nada foi gravado — o rollback relê a chave e decide com segurança
+    // (nunca apaga o blob novo enquanto a chave puder referenciá-lo).
     try {
       await AsyncStorage.setItem(k, toStore);
     } catch (e) {
-      if (newUri) await deleteBlob(newUri); // remove o slot novo não referenciado; anterior preservado
       log('coloring60DrawingStorage.save.setItem:', e);
+      await rollbackFailedPromotion(k, oldRaw, newUri);
       return COLORING60_SAVE_RESULT.WRITE_FAILED;
     }
 
@@ -272,18 +332,17 @@ export async function saveColoring60DrawingState(storyId, activityId, payload) {
       check = undefined;
     }
     if (check !== toStore) {
-      if (newUri) await deleteBlob(newUri);
-      // Restaura a referência anterior (preserva o desenho válido quando possível).
-      try {
-        if (oldRaw != null) await AsyncStorage.setItem(k, oldRaw);
-        else await AsyncStorage.removeItem(k);
-      } catch { /* best-effort */ }
+      // Verificação divergiu: desfazer preservando a invariante (restaura o anterior e só descarta
+      // o blob novo se a chave comprovadamente não o referencia mais).
+      await rollbackFailedPromotion(k, oldRaw, newUri);
       return COLORING60_SAVE_RESULT.WRITE_FAILED;
     }
 
-    // Sucesso: descarta o slot ANTIGO (se era um arquivo diferente do novo).
+    // Sucesso: descarta o slot ANTIGO (se era um arquivo diferente do novo). Best-effort — uma
+    // falha física aqui deixa no máximo um arquivo antigo SEM ponteiro (resíduo), nunca invalida
+    // o desenho novo já promovido e verificado.
     if (oldUri && oldUri !== newUri) {
-      try { await deleteBlob(oldUri); } catch { /* best-effort */ }
+      try { await deleteBlob(oldUri); } catch (e) { log('coloring60DrawingStorage.save.cleanupOld:', e); }
     }
     return COLORING60_SAVE_RESULT.SAVED;
   } catch (e) {
@@ -311,34 +370,52 @@ export async function getColoring60SavedDrawing(storyId, activityId) {
 }
 
 /**
- * hasColoring60SavedDrawing(storyId, activityId) — true se há arte com tinta REAL salva.
- * Valida identidade, calcula a chave internamente. NÃO consulta entitlement.
+ * hasColoring60SavedDrawing(storyId, activityId) — true SOMENTE quando existe um desenho
+ * RECUPERÁVEL com tinta real. Reusa `getColoring60SavedDrawing` (que resolve o ponteiro lendo
+ * o arquivo) e aplica `payloadHasPaint` ao payload EFETIVAMENTE recuperado — assim `has` e `get`
+ * ficam semanticamente COERENTES: um ponteiro v3 cujo blob sumiu (órfão) devolve `get === null`
+ * e, portanto, `has === false`. NÃO consulta entitlement, NÃO escreve, NÃO faz healing.
  */
 export async function hasColoring60SavedDrawing(storyId, activityId) {
   if (!validateIdentity(storyId, activityId)) return false;
-  try {
-    const v = await AsyncStorage.getItem(keyDrawing60(storyId, activityId));
-    if (v == null) return false;
-    return payloadHasPaint(v);
-  } catch {
-    return false;
-  }
+  const payload = await getColoring60SavedDrawing(storyId, activityId);
+  return payloadHasPaint(payload);
 }
 
 /**
  * clearColoring60SavedDrawing(storyId, activityId) — remove SOMENTE a arte daquela atividade
- * (metadado + blob). Idempotente; ausência não é erro. NÃO remove conclusão, NÃO remove arte
- * de outra atividade, NÃO toca o namespace legado. Não recebe chave arbitrária.
+ * (metadado + blob). METADATA-FIRST: remove a chave e CONFIRMA a ausência ANTES de apagar o blob,
+ * preservando a invariante — se a remoção da chave falhar (ou não puder ser confirmada), o blob é
+ * PRESERVADO, de modo que a chave remanescente nunca aponte para um arquivo apagado (sem ponteiro
+ * órfão; no máximo resíduo físico sem referência). Idempotente; ausência não é erro. NÃO remove
+ * conclusão, NÃO remove arte de outra atividade, NÃO toca o namespace legado. Não recebe chave arbitrária.
  */
 export async function clearColoring60SavedDrawing(storyId, activityId) {
   if (!validateIdentity(storyId, activityId)) return;
   const k = keyDrawing60(storyId, activityId);
+
+  // 1) Localizar o blob a partir do estado atual. Falha de leitura ⇒ no-op seguro (idempotente).
+  let uri = null;
   try {
-    const raw = await AsyncStorage.getItem(k);
-    const uri = pointerUri(raw);
-    if (uri) await deleteBlob(uri);
-    await AsyncStorage.removeItem(k);
+    uri = pointerUri(await AsyncStorage.getItem(k));
   } catch (e) {
-    log('coloring60DrawingStorage.clear:', e);
+    log('coloring60DrawingStorage.clear.read:', e);
+    return;
+  }
+
+  // 2) METADATA-FIRST: remover a chave e CONFIRMAR a ausência antes de tocar no blob.
+  let removedConfirmed = false;
+  try {
+    await AsyncStorage.removeItem(k);
+    removedConfirmed = (await AsyncStorage.getItem(k)) == null;
+  } catch (e) {
+    log('coloring60DrawingStorage.clear.remove:', e);
+    removedConfirmed = false;
+  }
+
+  // 3) Só apagar o blob depois que a chave PROVADAMENTE não o referencia mais. Se o metadado não
+  //    pôde ser removido/confirmado, PRESERVA o blob (sem ponteiro órfão).
+  if (uri && removedConfirmed) {
+    try { await deleteBlob(uri); } catch (e) { log('coloring60DrawingStorage.clear.delblob:', e); }
   }
 }

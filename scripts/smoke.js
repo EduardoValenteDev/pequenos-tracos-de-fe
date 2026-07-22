@@ -30331,6 +30331,233 @@ check(
     }
   }
 
+  // ── Colorir 60 · A Criação — P3-FIX1 (hardening transacional do rollback/clear/has) ──
+  // C60-IMPL-P3-FIX1: prova as CORREÇÕES das lacunas confirmadas pela auditoria C60-IMPL-P3-QA1.
+  // Usa um harness com faltas GRANULARES (verify divergente uma única vez; setItem que falha só na
+  // restauração OU que muta antes de lançar; removeItem que falha; deleteBlob que não remove de fato)
+  // para exercitar falhas COMPOSTAS — mantendo intacto o harness da suíte C60-P3 acima. Invariante
+  // central verificada em todo cenário: nenhuma chave ativa aponta para um blob que o writer apagou.
+  {
+    const crypto = require('crypto');
+    const { loadModule } = require('./testing/packInstallHarness');
+
+    // Fábrica de ambiente com injeção de falhas por CHAMADA (n): setItemThrowOn(n)/removeItemThrowOn(n)
+    // atuam na enésima chamada; verifyWrongOnce corrompe só a 1ª leitura APÓS o 1º setItem (a leitura de
+    // verificação), deixando a leitura de confirmação do rollback ver o estado REAL; setItemMutateThenThrowOn
+    // grava e SÓ ENTÃO lança (metadado desconhecido); deleteKeep(uri) simula exclusão física sem efeito.
+    const cat = loadModule('src/data/coloring60Catalog.js', {}, ['getColoring60Activity']);
+    const ROOT = 'file://ptf_blobs/';
+    const mkEnv2 = (cfg = {}) => {
+      const store = new Map(Object.entries(cfg.seedStore || {}));
+      const blob = new Map(Object.entries(cfg.seedBlob || {}));
+      const deleted = [];
+      const calls = { getItem: 0, setItem: 0, removeItem: 0, writeBlob: 0, read: 0, deleteBlob: 0 };
+      let verifyArmed = !!cfg.verifyWrongOnce;
+      const deps = {
+        AsyncStorage: {
+          getItem: async (k) => {
+            calls.getItem++;
+            if (cfg.getItemThrowOn && cfg.getItemThrowOn(calls.getItem)) throw new Error('getItem boom');
+            if (verifyArmed && calls.setItem > 0) { verifyArmed = false; return '__CORROMPIDO__'; }
+            return store.has(k) ? store.get(k) : null;
+          },
+          setItem: async (k, v) => {
+            calls.setItem++;
+            if (cfg.setItemMutateThenThrowOn && cfg.setItemMutateThenThrowOn(calls.setItem)) { store.set(k, v); throw new Error('setItem mutate-then-boom'); }
+            if (cfg.setItemThrowOn && cfg.setItemThrowOn(calls.setItem)) throw new Error('setItem boom');
+            store.set(k, v);
+          },
+          removeItem: async (k) => {
+            calls.removeItem++;
+            if (cfg.removeItemThrowOn && cfg.removeItemThrowOn(calls.removeItem)) throw new Error('removeItem boom');
+            store.delete(k);
+          },
+        },
+        log: () => {},
+        getCurrentPlan: () => (typeof cfg.plan === 'function' ? cfg.plan() : (cfg.plan === undefined ? 'premium' : cfg.plan)),
+        getColoring60Activity: cat.getColoring60Activity,
+        writeBlob: async (sub, fn, dataUrl) => {
+          calls.writeBlob++;
+          if (cfg.writeBlobFails) return null;
+          const uri = `${ROOT}${sub}/${fn}`; blob.set(uri, dataUrl); return { uri, mime: 'image/png' };
+        },
+        readBlobAsDataUrl: async (uri) => { calls.read++; return blob.has(uri) ? blob.get(uri) : null; },
+        deleteBlob: async (uri) => { calls.deleteBlob++; deleted.push(uri); if (cfg.deleteKeep && cfg.deleteKeep(uri)) return; blob.delete(uri); },
+        safeName: (id) => String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_'),
+        isDataUrl: (s) => typeof s === 'string' && s.startsWith('data:'),
+        dataUrlMime: (_d, fb = 'image/png') => fb,
+        currentBlobsRoot: () => ROOT,
+      };
+      const W = loadModule('src/services/coloring60DrawingStorage.js', deps, [
+        'saveColoring60DrawingState', 'getColoring60SavedDrawing',
+        'hasColoring60SavedDrawing', 'clearColoring60SavedDrawing', 'COLORING60_SAVE_RESULT',
+      ]);
+      return { W, store, blob, deleted, calls };
+    };
+
+    const PAINT = 'data:image/png;base64,' + 'A'.repeat(3000);
+    const PAINT2 = 'data:image/png;base64,' + 'B'.repeat(3000);
+    const BLANK = 'data:image/png;base64,AAAA';
+    const R = mkEnv2().W.COLORING60_SAVE_RESULT;
+    const KEY = '@ptf_drawing60_screation_alight';
+    const SAFE = KEY.replace(/[^A-Za-z0-9_-]/g, '_');
+    const SLOT_A = `${ROOT}drawings60/${SAFE}.a.png`;
+    const SLOT_B = `${ROOT}drawings60/${SAFE}.b.png`;
+    const ptrTo = (uri) => JSON.stringify({ v: 3, fmt: 1, uri, mime: 'image/png' });
+    const keyUri = (e) => { try { return JSON.parse(e.store.get(KEY)).uri; } catch { return null; } };
+    // Invariante: se a chave existe e é ponteiro v3, o blob referenciado DEVE existir (nunca órfão).
+    const noBrokenPointer = (e) => { const u = keyUri(e); return u == null ? true : e.blob.has(u); };
+    const seedA = (e, payload) => { e.store.set(KEY, ptrTo(SLOT_A)); e.blob.set(SLOT_A, payload); };
+
+    // ── A · HAS e GET COERENTES (has=false para ponteiro ilegível) ──
+    {
+      const e = mkEnv2({ seedStore: { [KEY]: ptrTo(SLOT_A) } }); // ponteiro presente, blob AUSENTE (órfão)
+      const got = await e.W.getColoring60SavedDrawing('creation', 'light');
+      const has = await e.W.hasColoring60SavedDrawing('creation', 'light');
+      check('C60-P3-FIX1 [A]: ponteiro v3 órfão → get=null E has=false (semântica coerente)',
+        got === null && has === false,
+        `has não pode reportar true para ponteiro cujo blob sumiu (get=${got === null ? 'null' : 'val'}, has=${has})`);
+    }
+    {
+      const e = mkEnv2({ plan: 'premium' });
+      await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
+      const got = await e.W.getColoring60SavedDrawing('creation', 'light');
+      const has = await e.W.hasColoring60SavedDrawing('creation', 'light');
+      check('C60-P3-FIX1 [A]: ponteiro legível → get recupera E has=true',
+        got === PAINT && has === true,
+        `has deve refletir arte recuperável (get igual? ${got === PAINT}, has=${has})`);
+    }
+
+    // ── B · ROLLBACK invariante (nenhuma chave aponta para blob apagado pelo rollback) ──
+    {
+      // Verificação diverge + restauração de oldRaw FUNCIONA → anterior restaurado, blob novo removido.
+      const e = mkEnv2({ plan: 'premium', verifyWrongOnce: true });
+      seedA(e, PAINT);
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT2);
+      const got = await e.W.getColoring60SavedDrawing('creation', 'light');
+      check('C60-P3-FIX1 [B3]: verify falha + restore OK → anterior restaurado, slot novo removido, write_failed',
+        r === R.WRITE_FAILED && got === PAINT && !e.blob.has(SLOT_B) && noBrokenPointer(e),
+        `restore bem-sucedido deve recuperar .a e limpar .b (r=${r}, get igual? ${got === PAINT}, .b existe? ${e.blob.has(SLOT_B)})`);
+    }
+    {
+      // Verificação diverge + restauração FALHA → chave permanece no novo, blob novo LEGÍVEL, sem ponteiro quebrado.
+      const e = mkEnv2({ plan: 'premium', verifyWrongOnce: true, setItemThrowOn: (n) => n === 2 });
+      seedA(e, PAINT);
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT2);
+      const got = await e.W.getColoring60SavedDrawing('creation', 'light');
+      check('C60-P3-FIX1 [B4]: verify falha + restore falha → blob novo preservado e legível, SEM ponteiro quebrado',
+        r === R.WRITE_FAILED && noBrokenPointer(e) && got !== null && keyUri(e) === SLOT_B,
+        `sob falha composta a chave não pode apontar para blob apagado (r=${r}, órfão? ${!noBrokenPointer(e)}, get=${got === null ? 'null' : 'val'})`);
+    }
+    {
+      // Sem anterior + verificação diverge + removeItem compensatório FALHA → blob novo permanece legível.
+      const e = mkEnv2({ plan: 'premium', verifyWrongOnce: true, removeItemThrowOn: () => true });
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
+      const got = await e.W.getColoring60SavedDrawing('creation', 'light');
+      check('C60-P3-FIX1 [B5]: sem oldRaw + verify falha + removeItem falha → blob novo legível, SEM ponteiro quebrado',
+        r === R.WRITE_FAILED && noBrokenPointer(e) && got !== null && keyUri(e) === SLOT_A,
+        `se a chave não pôde ser removida, o blob que ela referencia deve permanecer (r=${r}, órfão? ${!noBrokenPointer(e)})`);
+    }
+    {
+      // setItem MUTA e depois lança na promoção → rollback não pode deixar ponteiro para blob apagado.
+      const e = mkEnv2({ plan: 'premium', setItemMutateThenThrowOn: (n) => n === 1 });
+      seedA(e, PAINT);
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT2);
+      const got = await e.W.getColoring60SavedDrawing('creation', 'light');
+      check('C60-P3-FIX1 [B6]: setItem muta e depois lança → sem ponteiro quebrado; desenho recuperável; write_failed',
+        r === R.WRITE_FAILED && noBrokenPointer(e) && got !== null,
+        `rejeição de setItem não garante ausência de mutação — rollback deve reler e nunca deixar órfão (r=${r}, órfão? ${!noBrokenPointer(e)})`);
+    }
+
+    // ── C · CLEAR metadata-first (chave primeiro; blob só após confirmar a ausência) ──
+    {
+      // removeItem FALHA → chave e blob permanecem; desenho ainda recuperável; sem ponteiro órfão.
+      const e = mkEnv2({ plan: 'premium', removeItemThrowOn: () => true });
+      seedA(e, PAINT);
+      await e.W.clearColoring60SavedDrawing('creation', 'light');
+      const got = await e.W.getColoring60SavedDrawing('creation', 'light');
+      check('C60-P3-FIX1 [C7]: clear com removeItem falhando → blob NÃO apagado; chave e desenho recuperáveis',
+        e.store.has(KEY) && e.blob.has(SLOT_A) && got === PAINT && e.calls.deleteBlob === 0,
+        `metadata-first: sem confirmar a remoção da chave, o blob não pode ser apagado (deleteBlob=${e.calls.deleteBlob})`);
+    }
+    {
+      // removeItem OK + deleteBlob não remove de fato → chave some; resta só resíduo físico (sem ponteiro).
+      const e = mkEnv2({ plan: 'premium', deleteKeep: () => true });
+      seedA(e, PAINT);
+      await e.W.clearColoring60SavedDrawing('creation', 'light');
+      const got = await e.W.getColoring60SavedDrawing('creation', 'light');
+      check('C60-P3-FIX1 [C8]: clear removeItem OK + deleteBlob falha → chave some, resta só resíduo físico (sem ponteiro quebrado)',
+        !e.store.has(KEY) && got === null && e.blob.has(SLOT_A) && e.calls.deleteBlob === 1,
+        `com a chave removida, um arquivo remanescente é resíduo físico — nunca ponteiro órfão (chave? ${e.store.has(KEY)})`);
+    }
+
+    // ── D · CLEANUP pós-sucesso best-effort (falha ao apagar o blob antigo não invalida o novo) ──
+    {
+      const e = mkEnv2({ plan: 'premium', deleteKeep: (u) => u === SLOT_A });
+      seedA(e, PAINT);
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT2);
+      const got = await e.W.getColoring60SavedDrawing('creation', 'light');
+      check('C60-P3-FIX1 [D9]: save OK mas delete do blob antigo falha → saved; novo recuperável; chave→novo; antigo é resíduo',
+        r === R.SAVED && got === PAINT2 && keyUri(e) === SLOT_B && noBrokenPointer(e) && e.blob.has(SLOT_A),
+        `resíduo físico do slot antigo não pode invalidar o estado ativo (r=${r}, get=${got === PAINT2}, chave→.b? ${keyUri(e) === SLOT_B})`);
+    }
+
+    // ── E · REGRESSÕES (o hardening não afrouxou nenhuma garantia do P3) ──
+    {
+      const e = mkEnv2({ plan: 'free' });
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
+      check('C60-P3-FIX1 [E10]: plano grátis continua com ZERO escrita (nem leitura de storage)',
+        r === R.NOT_PERSISTED_FREE && e.calls.setItem === 0 && e.calls.writeBlob === 0 && e.calls.getItem === 0,
+        `o gate de entitlement segue fechado após o FIX1 (calls: ${JSON.stringify(e.calls)})`);
+    }
+    {
+      let n = 0; const plans = ['premium', 'free', 'premium'];
+      const e = mkEnv2({ plan: () => plans[n++] });
+      const r1 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
+      const r2 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT2);
+      const r3 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
+      check('C60-P3-FIX1 [E11]: entitlement continua REAVALIADO por tentativa (saved/not_persisted_free/saved)',
+        r1 === R.SAVED && r2 === R.NOT_PERSISTED_FREE && r3 === R.SAVED && e.store.has(KEY),
+        `cada save reconsulta o plano e a tentativa grátis não destrói a arte (r=${r1}/${r2}/${r3})`);
+    }
+    {
+      const e = mkEnv2({ plan: 'premium' });
+      await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
+      check('C60-P3-FIX1 [E12]: namespace continua fechado (@ptf_drawing60_, sem colidir com o legado)',
+        [...e.store.keys()].every((k) => k.startsWith('@ptf_drawing60_') && !/^@ptf_drawing_s.*_c/.test(k))
+          && [...e.blob.keys()].every((u) => u.includes('/drawings60/')),
+        'o FIX1 não pode vazar do namespace/subdir próprios do Colorir 60');
+    }
+    {
+      const sha = (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, rel))).digest('hex');
+      check('C60-P3-FIX1 [E13]: writer legado drawingStorage.js e fileBlobStore.js seguem INALTERADOS',
+        sha('src/services/drawingStorage.js') === '8e09d7bacbcfd8b6fb45724ed641b707bc7b41bfeacaabe6f66a23302cd90e31'
+          && sha('src/services/fileBlobStore.js') === 'b5183ea87382598110a6d822b9f08d45a6243e028f91d66854e89aa802cbf870',
+        'o hardening é confinado ao writer dedicado — legado e helpers de blob permanecem byte-idênticos');
+    }
+    {
+      const walk = (dir, acc = []) => {
+        for (const name of fs.readdirSync(dir)) {
+          const full = path.join(dir, name);
+          if (fs.statSync(full).isDirectory()) walk(full, acc);
+          else if (name.endsWith('.js')) acc.push(full);
+        }
+        return acc;
+      };
+      const writerAbs = path.resolve(path.join(root, 'src/services/coloring60DrawingStorage.js'));
+      const callers = walk(path.join(root, 'src')).filter((f) => path.resolve(f) !== writerAbs
+        && /coloring60DrawingStorage|saveColoring60DrawingState/.test(fs.readFileSync(f, 'utf8')));
+      check('C60-P3-FIX1 [E14]: writer segue SEM chamador em runtime (não integrado à tela)',
+        callers.length === 0,
+        `o FIX1 não integra o writer (encontrados: ${callers.map((f) => path.relative(root, f)).join(', ')})`);
+      check('C60-P3-FIX1 [E15/E16]: camadas de P4+ ausentes e flag do piloto ainda false',
+        !srcExists('src/services/coloring60ActivityService.js')
+          && !srcExists('assets/stories/creation/coloring/activities')
+          && /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
+        'o hardening não antecipa P4 nem liga o piloto');
+    }
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
