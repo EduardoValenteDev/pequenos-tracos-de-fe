@@ -220,6 +220,20 @@ Cada item: **ID · Status · Decisão · Impacto no código · Bloco responsáve
 
 ---
 
+## PL01G — Produção artística do piloto A Criação concluída (Colorir 60) (2026-07-22)
+
+### PL01G-01 · Trio de colorir do piloto A Criação — PRODUÇÃO CONCLUÍDA
+- **Decisão:** a produção artística das **três páginas** do piloto **A Criação** do **Colorir 60** está **concluída e aprovada** pelo fundador. Trio final: **`light`** (reutilização por referência do lineart legado `scene_02.png`, inspeção full-res aprovada), **`living_world`** (nova arte aprovada e normalizada a PNG) e **`people_and_care`** (nova arte aprovada e normalizada a PNG). As aprovações **visuais** são **finais** e não se reabrem.
+- **Motivo:** fechar o piloto de produto (A Criação) com identidade técnica final registrada, antes de qualquer integração.
+- **Identidade técnica / hashes:** todos os detalhes por página (formato, 1122×1402, proporção 4:5, modo, tamanho, **SHA-256** dos aprovados e das fontes, pixel maxdiff = 0) estão na **spec 017 §15** (owner primário do fechamento). A `light` referencia `scene_02.png` (SHA na spec 016 §2). **Não** duplicar hashes aqui.
+- **Anomalia operacional:** o candidato de `people_and_care` chegou como `.png.jpeg` sendo **conteúdo JPEG** (não canônico); foi **preservado como fonte** e **re-encodado para PNG verdadeiro sem alterar aparência** (maxdiff 0). Registro em 017 §15.
+- **Substitui/revoga:** nada. **Registra o resultado** da reversão **PL01A-03** (60 páginas de colorir, 3/história) para o piloto A Criação; convive com as specs owner **014/015/016/017**.
+- **Impactos esperados / limites:** os **PNGs definitivos permanecem FORA do Git** (pasta externa de produção); a **integração** ao app depende de **plan + tasks** próprios do Colorir 60 (arquitetura "Opção C", specs 014/015); a **expansão** para Noé e demais histórias depende da **validação do piloto em dispositivo**.
+- **Proibição:** não integrar catálogo/resolvers/storage/manifestos neste bloco; não copiar/mover assets legados; não reabrir decisões visuais ou teológicas; não sobrescrever `scene_02.png`.
+- **Referência:** `specs/017-colorir-60-creation-production-prompts/` §15 (detalhes e hashes); `specs/016-colorir-60-pilot-creation/` (curadoria e `light`); `specs/014-colorir-60/` (arquitetura Opção C).
+
+---
+
 ## Ordem oficial dos próximos blocos (E1)
 
 1. Proteção e governança (**este bloco E1**).

@@ -162,3 +162,75 @@ Regenerar quando houver: (1) anatomia incorreta; (2) dedo/mão/pata/asa duplicad
 ## Artefatos de evidência (externos, fora do Git)
 
 `C:\tmp\ptf_product_lock_01f_evidence\` — `coloring/scene_02/04/06/07/10.png` (previews 760px) e `scenes/creation_scene_04/06/07/08.png` (previews 640px), usados na reinspeção das nove referências. **Não entram no Git · não substituem assets · evidência visual apenas.** Assets originais intocados.
+
+---
+
+## 15. Resultado final da produção artística do piloto A Criação (fechamento PL01G · 2026-07-22)
+
+> **Seção aditiva de fechamento.** Registra o **resultado** da produção definida pelo contrato acima (§§1–14). **Não** reescreve prompts, decisões (D1–D5) ou critérios já ratificados. As aprovações visuais do fundador são **finais** e não se reabrem.
+
+### Estado geral
+
+A produção artística do piloto **A Criação** está **CONCLUÍDA**. As **três páginas** do trio (`light`, `living_world`, `people_and_care`) têm **identidade técnica final** registrada abaixo. Os PNGs definitivos de `living_world` e `people_and_care` vivem **fora do Git** (pasta externa de produção); `light` é **reutilização por referência** do lineart legado `scene_02.png` (nada gerado, nada copiado). A **integração** ao app depende de **plan + tasks** próprios do Colorir 60 (arquitetura "Opção C", specs 014/015); a **expansão** para Noé e demais histórias depende da **validação do piloto em dispositivo**.
+
+### Página 1 — `light` (reutilização por referência)
+
+| Campo | Valor |
+|---|---|
+| Origem | **Legado reutilizado** — `scene_02.png` (não gerado, não copiado, não movido) |
+| Arquivo | `assets/stories/creation/coloring/scene_02.png` (working dir principal, untracked) |
+| Formato | PNG |
+| Dimensões | 1122×1402 |
+| Proporção | 4:5 (0.800285) |
+| Modo | RGBA |
+| SHA-256 | `35d6f50c72e9…` (registro completo na spec 016 §2) |
+| Path futuro no catálogo | `assets/stories/creation/coloring/activities/light.png` (referência; **não** copiar/mover neste bloco) |
+| Aprovação | Inspeção full-res aprovada pelo fundador (016 §3/§13-E2) |
+
+### Página 2 — `living_world` (nova arte aprovada e normalizada)
+
+| Campo | Valor |
+|---|---|
+| Arquivo aprovado (externo) | `C:\tmp\ptf_colorir60_creation_production\living_world_approved.png` |
+| Formato | PNG (magic `89 50 4e 47`) |
+| Dimensões | 1122×1402 |
+| Proporção | 4:5 (0.800285) |
+| Modo | RGB 8-bit, sem alpha |
+| Tamanho | 973 618 bytes |
+| SHA-256 (aprovado) | `818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5` |
+| Fonte preservada | `C:\tmp\ptf_colorir60_creation_production\living_world_source_original.jpg` |
+| SHA-256 (fonte) | `76a521b6678ab8d8b72e8660335200c8810edadc92a45ae9ad48584a98e72657` |
+| Fidelidade | Pixel maxdiff = **0** vs. fonte decodificada (normalização técnica sem alteração de aparência) |
+| Path futuro no catálogo | `assets/stories/creation/coloring/activities/living_world.png` |
+| Conformidade | D1 (4 animais), D3 (moldura), D4 (hierarquia de linhas) — aprovado pelo fundador |
+
+### Página 3 — `people_and_care` (nova arte aprovada e normalizada)
+
+| Campo | Valor |
+|---|---|
+| Arquivo aprovado (externo) | `C:\tmp\ptf_colorir60_creation_production\people_and_care_approved.png` |
+| Formato | PNG (magic `89 50 4e 47`) |
+| Dimensões | 1122×1402 |
+| Proporção | 4:5 (0.800285) |
+| Modo | RGB 8-bit, sem alpha |
+| Tamanho | 1 195 149 bytes |
+| SHA-256 (aprovado) | `59988d9a58082a8173a328857fccb6a3716815660f4434c0df4491d6bf30d4e9` |
+| Fonte preservada | `C:\tmp\ptf_colorir60_creation_production\people_and_care_source_original.jpg` |
+| SHA-256 (fonte) | `a54617d386f0daa164ad99db7c44ca949c46d6444d551410016f116e4886839f` |
+| Fidelidade | Pixel maxdiff = **0** vs. fonte decodificada (normalização técnica sem alteração de aparência) |
+| Path futuro no catálogo | `assets/stories/creation/coloring/activities/people_and_care.png` |
+| Conformidade | D2 (gestos de cuidado), D3 (moldura), D5 (enquadramento/modéstia) — aprovado pelo fundador |
+
+### Anomalia operacional registrada
+
+O candidato entregue para `people_and_care` chegou nomeado como **`people_and_care_candidate_01.png.jpeg`**, mas seu **conteúdo real era JPEG** (magic `ff d8 ff e0` / JFIF; 233 032 bytes; SHA `a54617d386f0daa164ad99db7c44ca949c46d6444d551410016f116e4886839f`, idêntico à fonte preservada). **Esse arquivo não é canônico** (não é PNG e a extensão dupla contradiz o conteúdo). Tratamento aplicado, **sem alterar a aparência**: (1) o candidato foi **preservado** como `people_and_care_source_original.jpg` (bytes idênticos, mesmo SHA); (2) foi **re-encodado para PNG verdadeiro** (`people_and_care_approved.png`), com verificação de magic bytes, dimensões, proporção, modo e **pixel maxdiff = 0**. O candidato original **não** foi renomeado nem sobrescrito. Nenhuma decisão visual foi reaberta.
+
+### Narrativa final do trio
+
+As três páginas formam um conjunto **coeso e distinto**, na mesma família de estilo de `scene_02`, com **molduras equivalentes** e **sem animais repetidos** entre páginas:
+
+1. **`light`** — a luz rompendo a escuridão (raios entre nuvens sobre a água): áreas grandes, esperança, fidelidade à cena 2.
+2. **`living_world`** — o mundo vivo criado (exatamente 4 animais integrados: girafa, elefante jovem, coelho, ave pequena) e a vida vegetal.
+3. **`people_and_care`** — o cuidado humano (homem à esquerda amparando a planta jovem; mulher à direita acariciando o cordeiro), íntimo e sereno, **antes da queda** (modéstia por pose/ângulo/vegetação, sem vestes de folhas).
+
+Três conceitos reconhecíveis e não sobreponíveis, cumprindo o contrato de separação visual (§8) e as decisões D1–D5 (§12).
