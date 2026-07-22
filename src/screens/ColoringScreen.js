@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Pressable, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +24,12 @@ import { canOpenStoryFullExperience } from '../services/contentAccessService';
 import { isCreatorQaModeEnabled } from '../services/creatorQaMode';
 import FaithIcon from '../components/ui/FaithIcon';
 import { backLabelFor } from '../utils/originBack';
+// P2.T2 (Colorir 60) — resolvedor local ADITIVO por (storyId, activityId). Consumido
+// SOMENTE no ramo aditivo abaixo; o caminho legado por cena não o toca.
+import {
+  resolveColoring60Lineart,
+  COLORING60_RESOLUTION_STATUS,
+} from '../services/coloring60Resolver';
 
 // Orientação inicial do Colorir (UI-pref, não progresso): aparece UMA vez por
 // dispositivo e some ao tocar "Entendi", ao pintar pela 1ª vez ou por tempo.
@@ -46,7 +52,75 @@ function CompactTool({ children, onPress, active, accessibilityLabel }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// P2.T2 — Ramo ADITIVO Colorir 60 por `activityId`.
+//
+// `ColoringScreen` (export default) é um wrapper FINO e SEM hooks: se a rota traz
+// `activityId` (string semântica), delega ao ramo Colorir 60; caso contrário, delega
+// ao corpo LEGADO 100% intocado (`LegacyColoringScreen`). Como o wrapper não chama
+// hooks e cada instância montada tem params fixos, não há violação das Regras de Hooks.
+//
+// Exposição pública: NENHUMA superfície pública passa `activityId` neste bloco (flag
+// COLORIR_60_CREATION_PILOT_ENABLED segue off; nenhum botão/rota criado). O ramo é
+// alcançável apenas por navegação direta com o param — o gate de exposição pertence a P7.
+// ─────────────────────────────────────────────────────────────────────────────
 export default function ColoringScreen({ route, navigation }) {
+  // `activityId` é semântico: presença (não-nula) seleciona o caminho Colorir 60.
+  if (route.params?.activityId != null) {
+    return <Coloring60ActivityScreen route={route} navigation={navigation} />;
+  }
+  return <LegacyColoringScreen route={route} navigation={navigation} />;
+}
+
+// Ramo Colorir 60: presentacional e local-first. Resolve por (storyId, activityId) e
+// respeita os três estados honestos. NÃO persiste, NÃO marca conclusão, NÃO usa o
+// caminho legado (`getColoringImage`/cena), NÃO faz fallback para scene_02 nem para
+// outro lineart. `light` (available) exibe o lineart estático correto; deferred/unknown
+// mostram estado honesto — jamais uma página legada errada (regra anti-fallback).
+function Coloring60ActivityScreen({ route, navigation }) {
+  const insets = useSafeAreaInsets();
+  const storyId = route.params?.storyId ?? route.params?.story?.id ?? null;
+  const activityId = route.params?.activityId ?? null;
+  const resolution = resolveColoring60Lineart(storyId, activityId);
+
+  if (resolution.status === COLORING60_RESOLUTION_STATUS.AVAILABLE) {
+    return (
+      <View style={[c60Styles.container, { paddingTop: insets.top }]}>
+        <Image
+          source={resolution.source}
+          style={c60Styles.lineart}
+          resizeMode="contain"
+          accessibilityLabel={resolution.activity?.title ?? 'Atividade Colorir 60'}
+        />
+      </View>
+    );
+  }
+
+  // deferred OU unknown → estado honesto, SEM lineart, SEM scene_02, SEM legado.
+  const isDeferred = resolution.status === COLORING60_RESOLUTION_STATUS.DEFERRED;
+  return (
+    <View style={[c60Styles.container, c60Styles.emptyCenter, { paddingTop: insets.top }]}>
+      <Text style={c60Styles.emptyTitle}>
+        {isDeferred ? 'Este desenho ainda está a caminho' : 'Atividade indisponível'}
+      </Text>
+      <Text style={c60Styles.emptyText}>
+        {isDeferred
+          ? 'Em breve você poderá colorir esta atividade.'
+          : 'Não encontramos esta atividade.'}
+      </Text>
+    </View>
+  );
+}
+
+const c60Styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  lineart: { flex: 1, width: '100%' },
+  emptyCenter: { alignItems: 'center', justifyContent: 'center', padding: 24 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  emptyText: { fontSize: 15, color: colors.textLight, textAlign: 'center', marginTop: 8 },
+});
+
+function LegacyColoringScreen({ route, navigation }) {
   const { refreshProgress } = useProgressContext();
   const { story, cenaIndex, from } = route.params;
   const cena = story.cenas[cenaIndex];

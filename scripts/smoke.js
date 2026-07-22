@@ -29644,19 +29644,19 @@ check(
     check('C60-P0.T8: flag do piloto NÃO é ligada por padrão (sem = true)',
       !/export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*true\s*;/.test(flagsSrc),
       'a flag do piloto Colorir 60 não pode nascer ligada');
-    // Camadas de FASE POSTERIOR (P2+) que ainda NÃO podem existir. O catálogo (P1.T1) e o
-    // registro estático (P1.T2) saíram desta lista ao entrar P1: são entregáveis legítimos
-    // de P1, provados pelo bloco C60-P1.T5 abaixo. Esta lista trava só o que pertence a P2+
-    // (resolvedor, writer, service de conclusão e a pasta de PNGs `activities/` — só em P5).
+    // Camadas de FASE POSTERIOR que ainda NÃO podem existir. Ao longo do piloto esta lista
+    // AVANÇA DE FASE: catálogo (P1.T1) e registro estático (P1.T2) saíram ao entrar P1; o
+    // resolvedor (P2.T1) sai ao entrar P2 — todos entregáveis legítimos, provados pelos
+    // blocos C60-P1.T5 / C60-P2 abaixo. Esta lista trava só o que pertence a P3+
+    // (writer, service de conclusão e a pasta de PNGs `activities/` — só em P5).
     const premature = [
-      'src/services/coloring60Resolver.js',
       'src/services/coloring60DrawingStorage.js',
       'src/services/coloring60ActivityService.js',
       'assets/stories/creation/coloring/activities',
     ].filter((rel) => fs.existsSync(path.join(root, rel)));
-    check('C60-P0.T8: nenhuma camada/asset de FASE POSTERIOR (P2+) do Colorir 60 integrada (flag off)',
+    check('C60-P0.T8: nenhuma camada/asset de FASE POSTERIOR (P3+) do Colorir 60 integrada (flag off)',
       premature.length === 0,
-      `com a flag off, estes artefatos de P2+ NÃO deviam existir ainda: ${premature.join(', ')}`);
+      `com a flag off, estes artefatos de P3+ NÃO deviam existir ainda: ${premature.join(', ')}`);
     // Nenhuma rota/QA do Colorir 60 registrada ainda:
     const navSrc = readSrc('src/navigation/AppNavigator.js');
     check('C60-P0.T8: nenhuma rota/entrada de QA do Colorir 60 registrada (flag off)',
@@ -29792,6 +29792,169 @@ check(
     check('C60-P1.T5: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P1',
       /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
       'P1 não pode ligar a flag do piloto');
+  }
+
+  // ── Colorir 60 · A Criação — P2 (resolvedor local + navegação aditiva por activityId) ──
+  // C60-IMPL-P2 · P2.T1–T3: resolvedor PURO por (storyId, activityId) com três estados
+  // honestos (available/deferred/unknown); ramo ADITIVO na ColoringScreen; legado por
+  // sceneId/cenaIndex 100% preservado. Provas em Node: resolvedor via loadModule com deps
+  // REAIS (catálogo real + registro real sob require-stub, cujo PNG vira sentinela
+  // controlada); tela e legado por inspeção estática + tripwire de hash dos módulos legados.
+  // Limite honesto: o RENDER RN (Image do lineart, estado vazio) NÃO é provável no Node —
+  // sua verificação pertence à validação visual em dispositivo (não a este gate estático).
+  {
+    const { loadModule } = require('./testing/packInstallHarness');
+    const stripComments = (s) => String(s)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
+    // Registro real (P1.T2) tem require() de PNG → não é carregável por loadModule. Carrego
+    // sua LÓGICA real com um require-stub controlado: o único asset (scene_02.png) vira uma
+    // sentinela. Assim a árvore de decisão light→fonte / null→ausente é a real.
+    const SENT = Object.freeze({ __c60_scene02_sentinel__: true });
+    const regSrc = readSrc('src/assets/coloring60LocalAssets.js')
+      .replace(/^\s*import[\s\S]*?;\s*$/gm, '')
+      .replace(/export\s+default[\s\S]*?;/g, '')
+      .replace(/\bexport\s+/g, '');
+    const reg = new Function('require', regSrc + '\n; return { getColoring60LocalSource };')(
+      (p) => {
+        if (p === '../../assets/stories/creation/coloring/scene_02.png') return SENT;
+        throw new Error('C60-P2 registro: require inesperado ' + p);
+      },
+    );
+
+    // Catálogo real (sem require) + resolvedor real, com deps REAIS injetadas.
+    const cat = loadModule('src/data/coloring60Catalog.js', {}, [
+      'getColoring60Activity', 'getColoring60Activities',
+    ]);
+    const res = loadModule('src/services/coloring60Resolver.js', {
+      getColoring60Activity: cat.getColoring60Activity,
+      getColoring60LocalSource: reg.getColoring60LocalSource,
+    }, ['resolveColoring60Lineart', 'COLORING60_RESOLUTION_STATUS']);
+    const R = res.resolveColoring60Lineart;
+    const ST = res.COLORING60_RESOLUTION_STATUS;
+
+    // ── P2.T1 · três estados honestos ──
+    const rLight = R('creation', 'light');
+    check('C60-P2.T1: (creation, light) → available com metadados e fonte',
+      rLight.status === ST.AVAILABLE && rLight.activity && rLight.activity.activityId === 'light'
+        && rLight.activity.title === 'Haja luz' && rLight.source === SENT,
+      `light deveria resolver available com fonte (recebido: ${JSON.stringify({ s: rLight.status, hasSrc: rLight.source != null })})`);
+    check('C60-P2.T1: available.source é EXATAMENTE a fonte do registro (pass-through fiel, sem fabricar)',
+      rLight.source === reg.getColoring60LocalSource('creation', 'light'),
+      'o resolvedor deve repassar a fonte do registro estático, não fabricar/alterar');
+
+    const rLiving = R('creation', 'living_world');
+    check('C60-P2.T1: (creation, living_world) → deferred, metadados, source null (SEM fallback p/ light)',
+      rLiving.status === ST.DEFERRED && rLiving.activity && rLiving.activity.activityId === 'living_world'
+        && rLiving.source === null && rLiving.source !== SENT,
+      `living_world deveria ser deferred com source null (recebido: ${JSON.stringify({ s: rLiving.status, src: rLiving.source })})`);
+    const rPeople = R('creation', 'people_and_care');
+    check('C60-P2.T1: (creation, people_and_care) → deferred, source null (SEM reusar scene_02)',
+      rPeople.status === ST.DEFERRED && rPeople.source === null && rPeople.source !== SENT,
+      'people_and_care deveria ser deferred com source null, jamais a fonte de light');
+    check('C60-P2.T1: deferred ≠ unknown (distinção honesta preservada)',
+      rLiving.status === ST.DEFERRED && rLiving.status !== ST.UNKNOWN,
+      'atividade conhecida sem fonte é deferred, não unknown');
+
+    const rUnkAct = R('creation', 'nao_existe');
+    check('C60-P2.T1: (creation, activity inexistente) → unknown, sem metadados, sem fonte',
+      rUnkAct.status === ST.UNKNOWN && rUnkAct.activity === null && rUnkAct.source === null,
+      'activityId fora do catálogo deve ser unknown honesto');
+    const rUnkStory = R('noah', 'light');
+    check('C60-P2.T1: (story fora do piloto, light) → unknown (nunca vaza p/ outra história)',
+      rUnkStory.status === ST.UNKNOWN && rUnkStory.activity === null && rUnkStory.source === null,
+      'história fora do piloto deve ser unknown honesto');
+
+    // ── P2.T3 · controles negativos: identidade numérica/legada JAMAIS resolve ──
+    check('C60-P2.T3 [controle negativo]: activityId numérico 2 → unknown (nunca abre "cena 2")',
+      R('creation', 2).status === ST.UNKNOWN && R('creation', 2).source === null,
+      'número JAMAIS é coagido a atividade/índice');
+    check('C60-P2.T3 [controle negativo]: activityId "2" (string) → unknown (não vira índice de cena)',
+      R('creation', '2').status === ST.UNKNOWN,
+      '"2" não casa nenhum activityId semântico');
+    check('C60-P2.T3 [controle negativo]: activityId "scene_02" → unknown (nome de arquivo legado ≠ atividade)',
+      R('creation', 'scene_02').status === ST.UNKNOWN,
+      'nome de asset legado não é activityId');
+    check('C60-P2.T3 [controle negativo]: storyId numérico → unknown',
+      R(2, 'light').status === ST.UNKNOWN,
+      'storyId não-string não resolve');
+    check('C60-P2.T3 [controle negativo]: strings vazias → unknown',
+      R('', 'light').status === ST.UNKNOWN && R('creation', '').status === ST.UNKNOWN,
+      'identidade vazia é unknown');
+    let threw = false;
+    try { R(null, undefined); R('creation', null); R(undefined, 'light'); } catch (e) { threw = true; }
+    check('C60-P2.T3 [controle negativo]: entradas nulas/undefined → unknown sem lançar',
+      !threw && R(null, undefined).status === ST.UNKNOWN,
+      'o resolvedor não pode lançar com identidade inválida');
+
+    // ── P2.T1 · imutabilidade e isolamento ──
+    check('C60-P2.T1: COLORING60_RESOLUTION_STATUS é congelado (contrato estável)',
+      Object.isFrozen(ST) && ST.AVAILABLE === 'available' && ST.DEFERRED === 'deferred' && ST.UNKNOWN === 'unknown',
+      'o mapa de status deve ser frozen com os 3 valores honestos');
+    // Consumidor não consegue mutar os metadados globais via resultado (catálogo congelado).
+    try { R('creation', 'light').activity.title = 'HACK'; } catch (e) { /* frozen: no-op ou throw */ }
+    check('C60-P2.T1: metadados globais imutáveis pelo consumidor (título permanece "Haja luz")',
+      cat.getColoring60Activity('creation', 'light').title === 'Haja luz',
+      'o resultado não pode permitir mutar o catálogo global');
+
+    // ── P2.T1 · pureza estática do resolvedor (sem legado, sem storage, sem entitlement) ──
+    const resCode = stripComments(readSrc('src/services/coloring60Resolver.js'));
+    check('C60-P2.T1: resolvedor importa SÓ catálogo + registro (nenhum caminho legado/remoto)',
+      /coloring60Catalog/.test(resCode) && /coloring60LocalAssets/.test(resCode)
+        && !/coloringImages|getColoringImage|useResolvedColoringImage|useResolvedStoryMedia|contentResolver/.test(resCode),
+      'o resolvedor não pode importar/chamar o resolvedor legado nem o resolvedor de packs remoto');
+    check('C60-P2.T1: resolvedor NÃO toca storage/entitlement/conclusão',
+      !/AsyncStorage|drawingStorage|accessControl|entitlement|coloringActivityService|markStoryColoring/.test(resCode),
+      'o resolvedor é puro: sem storage, sem entitlement, sem conclusão');
+    check('C60-P2.T1: resolvedor NÃO contém require() (sem asset próprio nem dinâmico)',
+      !/require\s*\(/.test(resCode),
+      'o resolvedor consome o registro por import — não faz require de asset');
+    check('C60-P2.T1: resolvedor NÃO coage activityId a número (sem Number/parseInt/+var)',
+      !/\bNumber\s*\(|\bparseInt\s*\(|\bparseFloat\s*\(/.test(resCode),
+      'activityId é string semântica — nunca coagido a número');
+    check('C60-P2.T1: resolvedor NÃO referencia sceneId/cenaIndex/scene_ (identidade é activityId)',
+      !/\b(sceneId|cenaIndex)\b|scene_/.test(resCode),
+      'a identidade é (storyId, activityId) — nunca por cena/índice');
+
+    // ── P2.T2 · ramo aditivo na ColoringScreen (estático) ──
+    const scr = stripComments(readSrc('src/screens/ColoringScreen.js'));
+    check('C60-P2.T2: ColoringScreen lê route.params?.activityId (ramo aditivo)',
+      /route\.params\?\.activityId/.test(scr),
+      'a tela deve bifurcar por activityId presente/ausente');
+    check('C60-P2.T2: ColoringScreen consome o resolvedor Colorir 60 (não o legado) no ramo aditivo',
+      /resolveColoring60Lineart/.test(scr) && /coloring60Resolver/.test(scr),
+      'o ramo Colorir 60 resolve via coloring60Resolver');
+    check('C60-P2.T2: caminho LEGADO preservado (cena/índice + persistência por cena.id intactos)',
+      /story\.cenas\[cenaIndex\]/.test(scr)
+        && /useResolvedColoringImage\(story,\s*cenaIndex\)/.test(scr)
+        && /getSavedDrawing\(story\.id,\s*cena\.id\)/.test(scr)
+        && /markStoryColoringActivityDone\(story\.id,\s*cena\.id\)/.test(scr),
+      'o caminho legado por sceneId/cenaIndex não pode ser alterado');
+    check('C60-P2.T2: ColoringScreen NÃO coage activityId a número (sem Number/parseInt no param)',
+      !/(Number|parseInt|parseFloat)\s*\(\s*[^)]*activityId/.test(scr),
+      'activityId nunca é convertido a número na tela');
+    check('C60-P2.T2: ColoringScreen NÃO usa getColoringImage nem fallback scene_02 (anti-fallback)',
+      !/getColoringImage/.test(scr) && !/scene_02/.test(scr),
+      'o ramo Colorir 60 não pode cair em página legada errada nem em scene_02');
+    check('C60-P2.T2: navegação aditiva sem rota nova — AppNavigator sem token Colorir 60',
+      !/[Cc]oloring60|COLORIR_60|Coloring60Qa/.test(readSrc('src/navigation/AppNavigator.js')),
+      'params opcionais trafegam nativamente — nenhuma rota/entrada Colorir 60 é criada em P2');
+
+    // ── P2.T3 · regressão do legado: módulos legados byte-idênticos (tripwire de hash) ──
+    const crypto = require('crypto');
+    const sha = (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, rel))).digest('hex');
+    check('C60-P2.T3: coloringImages.js (mapa legado de linearts) INALTERADO',
+      sha('src/assets/coloringImages.js') === '03e0818296ae580cda28fb89eb0fc80c724ac925a545455f650154743bb43c43',
+      'o mapa legado coloringImages.js não pode mudar em P2');
+    check('C60-P2.T3: useResolvedStoryMedia.js (resolvedor legado de lineart) INALTERADO',
+      sha('src/hooks/useResolvedStoryMedia.js') === '4d0391611e435be66abc730ecb4187ced79b7df02e3747c6a3a4128065505e21',
+      'o resolvedor legado useResolvedStoryMedia.js não pode mudar em P2');
+
+    // P2 é aditivo e dormente publicamente: a flag do piloto permanece off.
+    check('C60-P2: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P2',
+      /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
+      'P2 não pode ligar a flag do piloto');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
