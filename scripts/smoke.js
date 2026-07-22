@@ -31389,6 +31389,115 @@ check(
     }
   }
 
+  // ══════════════════════════════════════════════════════════════════════════════
+  // C60-IMPL-P5-GATE1 — controles do gate de integridade `verify-coloring60-assets.js`
+  // (P5.T2). Provam: o script existe, é Node PURO read-only (só fs/path/crypto, sem
+  // child_process, sem nenhuma operação de escrita), tem matriz FECHADA de 3 assets, o
+  // contrato de hashes/dims/modos está correto, `light` é reuso de scene_02.png com
+  // `activities/light.png` PROIBIDO, `living_world`/`people_and_care` são cópias externas
+  // para `activities/`, os modos `pre`/`post` existem, e o comportamento é pre-VERDE /
+  // post-VERMELHO ANTES de qualquer cópia (P5.T4/T6/T7 NÃO executados). Rodar o gate não
+  // cria diretório nem PNG. Nenhuma superfície runtime é tocada por este bloco.
+  // ══════════════════════════════════════════════════════════════════════════════
+  {
+    const cp = require('child_process');
+    const verifierRel = 'scripts/verify-coloring60-assets.js';
+    const verifierAbs = path.join(root, verifierRel);
+    const vSrc = fs.existsSync(verifierAbs) ? fs.readFileSync(verifierAbs, 'utf8') : '';
+    const activitiesDir = path.join(root, 'assets/stories/creation/coloring/activities');
+
+    // Roda o verificador REAL como subprocesso e devolve { status, stdout, stderr }.
+    const runVerifier = (mode) => {
+      const args = [verifierAbs];
+      if (mode !== undefined) args.push(`--mode=${mode}`);
+      const r = cp.spawnSync(process.execPath, args, { encoding: 'utf8' });
+      return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
+    };
+
+    // ── Estáticos (fonte do verificador) ──
+    check('C60-P5-GATE1 [01] verify-coloring60-assets.js existe', fs.existsSync(verifierAbs), 'script ausente');
+
+    check('C60-P5-GATE1 [02] Node puro: só requer fs/path/crypto',
+      (() => {
+        const reqs = (vSrc.match(/require\(['"][^'"]+['"]\)/g) || []).map((s) => s.replace(/require\(['"]|['"]\)/g, ''));
+        return reqs.length > 0 && reqs.every((m) => m === 'fs' || m === 'path' || m === 'crypto');
+      })(),
+      'verificador importa módulo fora de fs/path/crypto');
+
+    check('C60-P5-GATE1 [03] verificador não faz require de child_process',
+      vSrc.length > 0 && !/require\(\s*['"]child_process['"]\s*\)/.test(vSrc), 'verificador importa child_process');
+
+    check('C60-P5-GATE1 [04] sem operações de escrita (copy/write/mkdir/rename/rm/unlink/truncate/createWriteStream/appendFile)',
+      vSrc.length > 0 && !/\b(copyFile|copyFileSync|cpSync|writeFile|writeFileSync|appendFile|appendFileSync|mkdir|mkdirSync|rename|renameSync|rmSync|rmdir|rmdirSync|unlink|unlinkSync|truncate|truncateSync|createWriteStream|writeSync)\b/.test(vSrc),
+      'verificador contém operação de escrita/criação/remoção');
+
+    check('C60-P5-GATE1 [05] matriz fechada = exatamente 3 assets',
+      (vSrc.match(/assetId:\s*'/g) || []).length === 3 && /ASSETS\.length\s*!==\s*3/.test(vSrc),
+      'matriz não é fechada de 3');
+
+    check('C60-P5-GATE1 [06] hash light correto (contrato)',
+      vSrc.includes('35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb'), 'hash light ausente/divergente');
+    check('C60-P5-GATE1 [07] hash living_world correto (contrato)',
+      vSrc.includes('818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5'), 'hash living_world ausente/divergente');
+    check('C60-P5-GATE1 [08] hash people_and_care correto (contrato)',
+      vSrc.includes('59988d9a58082a8173a328857fccb6a3716815660f4434c0df4491d6bf30d4e9'), 'hash people_and_care ausente/divergente');
+
+    check('C60-P5-GATE1 [09] dims 1122x1402', /width:\s*1122/.test(vSrc) && /height:\s*1402/.test(vSrc), 'dims divergentes');
+    check('C60-P5-GATE1 [10] people_and_care tamanho 1195149 bytes', vSrc.includes('1195149'), 'tamanho pc ausente');
+    check('C60-P5-GATE1 [11] modos de cor: light RGBA(6), lw RGB(2), pc RGB(2)',
+      /expectedColorType:\s*6/.test(vSrc) && (vSrc.match(/expectedColorType:\s*2/g) || []).length === 2 &&
+      vSrc.includes("expectedColorMode: 'RGBA'") && (vSrc.match(/expectedColorMode:\s*'RGB'/g) || []).length === 2,
+      'modos de cor divergentes');
+
+    check('C60-P5-GATE1 [12] light = reuso de scene_02.png (role reuse, sem cópia)',
+      /assetId:\s*'light'[\s\S]{0,400}?role:\s*'reuse'/.test(vSrc) && vSrc.includes("'scene_02.png'"), 'light não é reuso');
+    check('C60-P5-GATE1 [13] activities/light.png é PROIBIDO (forbiddenPath)',
+      /forbiddenPath/.test(vSrc) && vSrc.includes("'activities', 'light.png'"), 'proibição de activities/light.png ausente');
+
+    check('C60-P5-GATE1 [14] living_world = external_copy → activities/living_world.png',
+      /assetId:\s*'living_world'[\s\S]{0,400}?role:\s*'external_copy'/.test(vSrc) && vSrc.includes("'activities', 'living_world.png'"), 'lw destino divergente');
+    check('C60-P5-GATE1 [15] people_and_care = external_copy → activities/people_and_care.png',
+      /assetId:\s*'people_and_care'[\s\S]{0,400}?role:\s*'external_copy'/.test(vSrc) && vSrc.includes("'activities', 'people_and_care.png'"), 'pc destino divergente');
+
+    check('C60-P5-GATE1 [16] modo --mode=pre suportado', /['"]pre['"]/.test(vSrc), 'pre ausente');
+    check('C60-P5-GATE1 [17] modo --mode=post suportado', /['"]post['"]/.test(vSrc), 'post ausente');
+
+    check('C60-P5-GATE1 [18] comparação byte a byte presente (Buffer.compare + bytesEqual)',
+      /Buffer\.compare/.test(vSrc) && /bytesEqual/.test(vSrc), 'comparação byte a byte ausente');
+    check('C60-P5-GATE1 [19] integridade é conjunção estrita (=== true), sem tolerância/fallback',
+      /integrityOk\s*=/.test(vSrc) && (vSrc.match(/=== true/g) || []).length >= 5, 'agregação de integridade não é estrita');
+    check('C60-P5-GATE1 [20] raiz via __dirname, sem process.cwd()',
+      /path\.resolve\(__dirname/.test(vSrc) && !/process\.cwd\(\)/.test(vSrc), 'raiz não deriva de __dirname');
+
+    // ── Comportamentais (subprocesso do verificador REAL) ──
+    const pre = runVerifier('pre');
+    const post = runVerifier('post');
+    const bad = runVerifier('xyz');
+    const none = runVerifier(undefined);
+
+    check('C60-P5-GATE1 [21] --mode=pre VERDE agora (exit 0)',
+      pre.status === 0 && /RESULTADO\(pre\):\s*VERDE/.test(pre.stdout), `pre status=${pre.status}`);
+    check('C60-P5-GATE1 [22] --mode=post VERMELHO antes das cópias (exit≠0)',
+      post.status !== 0 && /RESULTADO\(post\):\s*VERMELHO/.test(post.stdout), `post status=${post.status}`);
+    check('C60-P5-GATE1 [23] modo inválido → exit≠0', bad.status !== 0 && bad.status != null, `xyz status=${bad.status}`);
+    check('C60-P5-GATE1 [24] sem modo → exit≠0', none.status !== 0 && none.status != null, `none status=${none.status}`);
+
+    check('C60-P5-GATE1 [25] pre valida as 3 fontes íntegras (integ=ok ≥ 3)',
+      (pre.stdout.match(/integ=ok/g) || []).length >= 3, 'pre não confirma 3 integridades');
+    check('C60-P5-GATE1 [26] post: light OK, lw+pc DIVERGENTE (destino ausente, sem fallback)',
+      /\[OK\] light/.test(post.stdout) && /\[DIVERGENTE\] living_world/.test(post.stdout) && /\[DIVERGENTE\] people_and_care/.test(post.stdout),
+      'post não distingue reuse de cópias ausentes');
+
+    // ── Sem efeito colateral / P5.T4/T6/T7 NÃO executados ──
+    check('C60-P5-GATE1 [27] rodar o gate não cria activities/',
+      !fs.existsSync(activitiesDir), 'diretório activities existe (não deveria)');
+    check('C60-P5-GATE1 [28] P5.T4/T6/T7 não executados: nenhum PNG de destino integrado',
+      !fs.existsSync(path.join(activitiesDir, 'living_world.png')) &&
+      !fs.existsSync(path.join(activitiesDir, 'people_and_care.png')) &&
+      !fs.existsSync(path.join(activitiesDir, 'light.png')),
+      'algum PNG de destino já existe');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
