@@ -29644,23 +29644,154 @@ check(
     check('C60-P0.T8: flag do piloto NÃO é ligada por padrão (sem = true)',
       !/export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*true\s*;/.test(flagsSrc),
       'a flag do piloto Colorir 60 não pode nascer ligada');
-    // Nenhuma camada funcional do piloto pode existir ainda em P0 (P1–P7 não implementados):
+    // Camadas de FASE POSTERIOR (P2+) que ainda NÃO podem existir. O catálogo (P1.T1) e o
+    // registro estático (P1.T2) saíram desta lista ao entrar P1: são entregáveis legítimos
+    // de P1, provados pelo bloco C60-P1.T5 abaixo. Esta lista trava só o que pertence a P2+
+    // (resolvedor, writer, service de conclusão e a pasta de PNGs `activities/` — só em P5).
     const premature = [
-      'src/data/coloring60Catalog.js',
-      'src/assets/coloring60LocalAssets.js',
       'src/services/coloring60Resolver.js',
       'src/services/coloring60DrawingStorage.js',
       'src/services/coloring60ActivityService.js',
       'assets/stories/creation/coloring/activities',
     ].filter((rel) => fs.existsSync(path.join(root, rel)));
-    check('C60-P0.T8: nenhuma camada/asset do Colorir 60 integrada prematuramente (flag off)',
+    check('C60-P0.T8: nenhuma camada/asset de FASE POSTERIOR (P2+) do Colorir 60 integrada (flag off)',
       premature.length === 0,
-      `com a flag off, estes artefatos do piloto NÃO deviam existir em P0: ${premature.join(', ')}`);
+      `com a flag off, estes artefatos de P2+ NÃO deviam existir ainda: ${premature.join(', ')}`);
     // Nenhuma rota/QA do Colorir 60 registrada ainda:
     const navSrc = readSrc('src/navigation/AppNavigator.js');
     check('C60-P0.T8: nenhuma rota/entrada de QA do Colorir 60 registrada (flag off)',
       !/[Cc]oloring60|COLORIR_60|Coloring60Qa/.test(navSrc),
       'nenhuma rota Colorir 60 deve estar registrada no AppNavigator em P0');
+  }
+
+  // ── Colorir 60 · A Criação — P1 (catálogo + registro estático local) ──
+  // C60-IMPL-P1 · P1.T1–T5: catálogo semântico SÓ-metadados (3 atividades por `activityId`),
+  // registro estático Metro-safe com SÓ `light` ATIVA (reusa scene_02.png por require literal
+  // relativo) e slots `null` honestos para living_world/people_and_care (integração só em P5).
+  // Provas: catálogo (sem require) via loadModule + nível de DADOS; registro (com require de PNG)
+  // por inspeção textual determinística + existência de arquivo + SHA-256 real do PNG reusado.
+  {
+    const crypto = require('crypto');
+    const { loadModule } = require('./testing/packInstallHarness');
+    // Remove comentários (/* */ e //) para provar propriedades do CÓDIGO, não da prosa dos docs.
+    const stripComments = (s) => String(s)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
+    // ── Catálogo (P1.T1): metadados puros; avaliável sob loadModule (não tem require ativo) ──
+    const catCode = stripComments(readSrc('src/data/coloring60Catalog.js'));
+    check('C60-P1.T5: catálogo NÃO contém require() no código (só metadados)',
+      !/require\s*\(/.test(catCode),
+      'coloring60Catalog.js não pode conter require() — a fonte runtime vive em coloring60LocalAssets.js');
+    check('C60-P1.T5: catálogo NÃO referencia sceneId/cenaIndex no código (identidade é activityId)',
+      !/\b(sceneId|cenaIndex)\b/.test(catCode),
+      'a identidade do Colorir 60 é (storyId, activityId) semântico — nunca sceneId/cenaIndex');
+
+    const cat = loadModule('src/data/coloring60Catalog.js', {}, [
+      'COLORING60_MODEL_VERSION', 'getColoring60Activities', 'getColoring60Activity',
+    ]);
+    check('C60-P1.T5: catálogo reporta modelVersion 2',
+      cat.COLORING60_MODEL_VERSION === 2,
+      `modelVersion do Colorir 60 deve ser 2 (recebido: ${cat.COLORING60_MODEL_VERSION})`);
+
+    const acts = cat.getColoring60Activities('creation');
+    check('C60-P1.T5: catálogo reporta exatamente 3 atividades para "creation"',
+      Array.isArray(acts) && acts.length === 3,
+      `"creation" deve ter 3 atividades (recebido: ${Array.isArray(acts) ? acts.length : typeof acts})`);
+    check('C60-P1.T5: história fora do piloto → lista vazia (aditivo, sem vazamento)',
+      Array.isArray(cat.getColoring60Activities('noah')) && cat.getColoring60Activities('noah').length === 0,
+      'getColoring60Activities de história fora do piloto deve retornar lista vazia');
+
+    const ids = acts.map((a) => a.activityId);
+    const orders = acts.map((a) => a.order);
+    check('C60-P1.T5: activityIds semânticos exatos e em ordem (light/living_world/people_and_care)',
+      ids.join(',') === 'light,living_world,people_and_care' && new Set(ids).size === 3,
+      `activityIds esperados light,living_world,people_and_care em ordem (recebido: ${ids.join(',')})`);
+    check('C60-P1.T5: order sequencial estável 1,2,3',
+      orders.join(',') === '1,2,3',
+      `orders esperados 1,2,3 (recebido: ${orders.join(',')})`);
+
+    // Nível de DADOS (não texto): nenhuma entrada carrega chave sceneId/cenaIndex.
+    const keyLeak = acts.some((a) => Object.keys(a).some((k) => k === 'sceneId' || k === 'cenaIndex'));
+    check('C60-P1.T5: nenhuma entrada de atividade tem chave sceneId/cenaIndex (dados)',
+      !keyLeak,
+      'as entradas do catálogo não podem conter as chaves sceneId/cenaIndex');
+    const EXPECTED_KEYS = ['storyId', 'activityId', 'order', 'title', 'expectedSha256', 'expectedDims', 'localSourceKey']
+      .slice().sort().join(',');
+    check('C60-P1.T5: cada entrada tem exatamente os 7 campos ratificados (nada a mais)',
+      acts.every((a) => Object.keys(a).slice().sort().join(',') === EXPECTED_KEYS),
+      'cada entrada deve ter exatamente {storyId,activityId,order,title,expectedSha256,expectedDims,localSourceKey}');
+    check('C60-P1.T5: expectedDims de todas as atividades = 1122×1402 (spec 017 §15)',
+      acts.every((a) => a.expectedDims && a.expectedDims.width === 1122 && a.expectedDims.height === 1402),
+      'todas as 3 atividades devem declarar expectedDims 1122×1402');
+    check('C60-P1.T5: localSourceKey = "storyId:activityId" em todas',
+      acts.every((a) => a.localSourceKey === `creation:${a.activityId}`),
+      'localSourceKey deve ser a chave estável storyId:activityId');
+
+    const byId = Object.fromEntries(acts.map((a) => [a.activityId, a]));
+    check('C60-P1.T5: expectedSha256 ratificado de light',
+      byId.light.expectedSha256 === '35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb',
+      'hash ratificado de light divergente');
+    check('C60-P1.T5: expectedSha256 ratificado de living_world',
+      byId.living_world.expectedSha256 === '818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5',
+      'hash ratificado de living_world divergente');
+    check('C60-P1.T5: expectedSha256 ratificado de people_and_care',
+      byId.people_and_care.expectedSha256 === '59988d9a58082a8173a328857fccb6a3716815660f4434c0df4491d6bf30d4e9',
+      'hash ratificado de people_and_care divergente');
+
+    check('C60-P1.T5: getColoring60Activity(creation, light) → "Haja luz"',
+      (cat.getColoring60Activity('creation', 'light') || {}).title === 'Haja luz',
+      'lookup composto de light deve retornar a atividade "Haja luz"');
+    check('C60-P1.T5: getColoring60Activity de identidade desconhecida → null',
+      cat.getColoring60Activity('creation', 'nope') === null && cat.getColoring60Activity('noah', 'light') === null,
+      'lookup de identidade desconhecida deve retornar null');
+
+    // ── Registro estático (P1.T2–T4): Metro-safe, SÓ `light` ativa ──
+    // NÃO avaliável sob loadModule (contém require() de PNG binário). Prova textual determinística.
+    const regCode = stripComments(readSrc('src/assets/coloring60LocalAssets.js'));
+    const requireMatches = regCode.match(/require\s*\(/g) || [];
+    check('C60-P1.T5: registro tem EXATAMENTE 1 require() ativo (só light)',
+      requireMatches.length === 1,
+      `coloring60LocalAssets.js deve ter exatamente 1 require() ativo em P1 (recebido: ${requireMatches.length})`);
+    check('C60-P1.T5: o único require() é o literal relativo de scene_02.png',
+      /require\(\s*'\.\.\/\.\.\/assets\/stories\/creation\/coloring\/scene_02\.png'\s*\)/.test(regCode),
+      "o require ativo deve ser exatamente require('../../assets/stories/creation/coloring/scene_02.png')");
+    check('C60-P1.T5: NENHUM require() de living_world/people_and_care/activities em P1',
+      !/require\([^)]*(living_world|people_and_care|activities)/.test(regCode),
+      'nenhum require de living_world/people_and_care/activities pode existir em P1 (integração é P5)');
+    check('C60-P1.T5: NENHUM require() dinâmico (só literal string)',
+      !/require\(\s*[^'")]/.test(regCode),
+      'require dinâmico (variável/concatenação/template) é proibido pelo Metro');
+    check('C60-P1.T5: registro NÃO importa coloringImages nem reusa getColoringImage',
+      !/coloringImages|getColoringImage/.test(regCode),
+      'o registro é fonte estática própria — não reusa o mapa legado coloringImages/getColoringImage');
+    check('C60-P1.T5: slots living_world/people_and_care declarados como null honesto',
+      /living_world:\s*null/.test(regCode) && /people_and_care:\s*null/.test(regCode),
+      'living_world e people_and_care devem ser null em P1 (sem fonte runtime até P5)');
+
+    // ── Metro/asset físico: o alvo do require EXISTE; a pasta activities/ ainda NÃO ──
+    check('C60-P1.T5: scene_02.png (alvo do require de light) existe no disco',
+      srcExists('assets/stories/creation/coloring/scene_02.png'),
+      'o require de light aponta para assets/stories/creation/coloring/scene_02.png, que deve existir');
+    check('C60-P1.T5: activities/light.png NÃO existe (light reusa scene_02, não copia)',
+      !srcExists('assets/stories/creation/coloring/activities/light.png'),
+      'light reusa scene_02.png diretamente; activities/light.png não deve existir em P1');
+    check('C60-P1.T5: pasta activities/ ainda NÃO existe (PNGs novos só em P5)',
+      !srcExists('assets/stories/creation/coloring/activities'),
+      'a pasta activities/ com os PNGs reais só é criada em P5');
+
+    // SHA-256 REAL do scene_02.png == hash ratificado de light: prova que `light` reusa o PNG certo.
+    const scene02Sha = crypto.createHash('sha256')
+      .update(fs.readFileSync(path.join(root, 'assets/stories/creation/coloring/scene_02.png')))
+      .digest('hex');
+    check('C60-P1.T5: SHA-256 real de scene_02.png == expectedSha256 de light',
+      scene02Sha === '35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb',
+      `scene_02.png deve casar o hash ratificado de light (recebido: ${scene02Sha})`);
+
+    // P1 é aditivo e inerte: nada liga o piloto.
+    check('C60-P1.T5: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P1',
+      /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
+      'P1 não pode ligar a flag do piloto');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
