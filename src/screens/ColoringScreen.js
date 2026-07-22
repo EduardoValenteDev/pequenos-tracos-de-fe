@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Pressable } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +30,15 @@ import {
   resolveColoring60Lineart,
   COLORING60_RESOLUTION_STATUS,
 } from '../services/coloring60Resolver';
+// P4.T1/T2 (Colorir 60) — conclusão por identidade (plan-agnóstica) e writer dedicado de
+// pixels (revalida o plano internamente). Ambos consumidos SOMENTE no ramo aditivo abaixo:
+// a CONCLUSÃO é separada do SALVAMENTO (o writer só persiste no Plano Família). O caminho
+// legado por cena não toca nenhum dos dois.
+import { markColoring60ActivityDone } from '../services/coloring60ActivityService';
+import {
+  saveColoring60DrawingState,
+  COLORING60_SAVE_RESULT,
+} from '../services/coloring60DrawingStorage';
 
 // Orientação inicial do Colorir (UI-pref, não progresso): aparece UMA vez por
 // dispositivo e some ao tocar "Entendi", ao pintar pela 1ª vez ou por tempo.
@@ -72,26 +81,164 @@ export default function ColoringScreen({ route, navigation }) {
   return <LegacyColoringScreen route={route} navigation={navigation} />;
 }
 
-// Ramo Colorir 60: presentacional e local-first. Resolve por (storyId, activityId) e
-// respeita os três estados honestos. NÃO persiste, NÃO marca conclusão, NÃO usa o
-// caminho legado (`getColoringImage`/cena), NÃO faz fallback para scene_02 nem para
-// outro lineart. `light` (available) exibe o lineart estático correto; deferred/unknown
-// mostram estado honesto — jamais uma página legada errada (regra anti-fallback).
+// [C60-P4-STORYID] Fonte ÚNICA de storyId (Etapa 8). `route.params.storyId` é a identidade
+// primária. Se `route.params.story?.id` também vier e DIVERGIR, a identidade é contraditória:
+// não escolhe silenciosamente — devolve null (→ resolvedor 'unknown', estado honesto). Sem
+// divergência, aceita a que existir. Nunca coage a número nem interpreta como cena/índice.
+function resolveC60StoryId(params) {
+  const primary = params?.storyId ?? null;
+  const alt = params?.story?.id ?? null;
+  if (primary != null && alt != null && primary !== alt) return null; // contradição → não resolve
+  return primary ?? alt;
+}
+
+// [C60-P4-PAYLOAD] Validação de payload NO CHAMADOR (Etapa 9), SEM alterar o contrato do writer.
+// Aceita SOMENTE um data URL de imagem OU o JSON v2 do canvas ({ v:2, ..., data:<data URL> }).
+// Rejeita null/undefined/vazio/malformado e QUALQUER ponteiro (v3): o writer é quem materializa
+// v3 internamente; o caller nunca lhe envia um ponteiro. Assim o writer nunca recebe lixo.
+function isAcceptableC60Payload(payload) {
+  if (typeof payload !== 'string' || payload.length === 0) return false;
+  if (payload.startsWith('data:image/')) return payload.length > 1000;
+  let obj;
+  try { obj = JSON.parse(payload); } catch { return false; }
+  if (!obj || typeof obj !== 'object') return false;
+  if (obj.v === 3 || typeof obj.uri === 'string') return false; // ponteiro v3 nunca vem do canvas
+  return obj.v === 2
+    && typeof obj.data === 'string'
+    && obj.data.startsWith('data:image/')
+    && obj.data.length > 1000;
+}
+
+// Ramo Colorir 60: presentacional e local-first. Resolve por (storyId, activityId), respeita os
+// três estados honestos e — no estado `available` (P4.T2) — compõe o `ColoringCanvas` existente
+// (SEM alterar seu contrato) com paleta e "Pronto". A CONCLUSÃO (booleano leve, plan-agnóstica) é
+// SEPARADA do SALVAMENTO de pixels (writer, que só persiste no Plano Família): concluir vale para
+// Grátis e Família; salvar pixels é gated pelo writer. NÃO usa o caminho legado (`getColoringImage`/
+// cena), NÃO faz fallback para scene_02, NÃO concede estrela, NÃO conclui cena narrativa, NÃO chama
+// refreshProgress (o ramo dormente não tem métrica pública). deferred/unknown mostram estado honesto.
 function Coloring60ActivityScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
-  const storyId = route.params?.storyId ?? route.params?.story?.id ?? null;
+  const canvasRef = useRef(null);
+  const [c60Color, setC60Color] = useState(COLOR_PALETTE[0].hex);
+  const [c60Ready, setC60Ready] = useState(false);      // D1: lineart carregado no canvas
+  const [c60HasPainted, setC60HasPainted] = useState(false); // D5: houve traço significativo
+  const [c60Saving, setC60Saving] = useState(false);
+
+  const storyId = resolveC60StoryId(route.params);
   const activityId = route.params?.activityId ?? null;
   const resolution = resolveColoring60Lineart(storyId, activityId);
+  const available = resolution.status === COLORING60_RESOLUTION_STATUS.AVAILABLE;
 
-  if (resolution.status === COLORING60_RESOLUTION_STATUS.AVAILABLE) {
+  // [C60-P4-HANDLER-START] Ordem canônica (Etapa 11): D1(lineart pronto) → D5(traço) → export →
+  // validar payload no caller → MARCAR CONCLUSÃO (plan-agnóstica, antes do writer) → chamar o
+  // writer (revalida o plano internamente; Grátis=not_persisted_free, Família=saved) → resultado
+  // tipado tratado SEPARADAMENTE, sem apagar a conclusão nem anunciar salvamento falso → voltar.
+  function handleC60Pronto() {
+    if (!available || c60Saving) return;
+    if (!c60Ready) return;       // D1: sem lineart pronto não conclui nem salva
+    if (!c60HasPainted) return;  // D5: sem traço significativo não conclui nem salva
+    setC60Saving(true);
+    canvasRef.current?.exportPaint(async (exportData) => {
+      // Rejeita payload inválido/ponteiro ANTES de marcar conclusão ou chamar o writer.
+      if (!isAcceptableC60Payload(exportData) || !hasMeaningfulPaint(exportData)) {
+        setC60Saving(false);
+        return;
+      }
+      // CONCLUSÃO ≠ SALVAMENTO: marca a conclusão (plan-agnóstica) ANTES do writer e de forma
+      // INDEPENDENTE do resultado de persistência — Grátis conclui mesmo sem pixels salvos.
+      await markColoring60ActivityDone(storyId, activityId);
+      // Writer dedicado: revalida o plano INTERNAMENTE (Família persiste; Grátis não persiste).
+      const result = await saveColoring60DrawingState(storyId, activityId, exportData);
+      // Resultados tipados tratados SEPARADAMENTE — todos NEUTROS no ramo dormente (sem anúncio):
+      //   SAVED (Família): pixels persistidos; NOT_PERSISTED_FREE (Grátis): conclusão vale, sem
+      //   pixels; WRITE_FAILED: conclusão PRESERVADA, nada de "salvo" falso. Falha JAMAIS apaga
+      //   a conclusão já registrada.
+      const resultLabel =
+        result === COLORING60_SAVE_RESULT.SAVED ? 'saved'
+        : result === COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE ? 'not_persisted_free'
+        : result === COLORING60_SAVE_RESULT.WRITE_FAILED ? 'write_failed'
+        : 'invalid_identity';
+      if (__DEV__) console.log('[Coloring60] conclusão preservada; persistência:', resultLabel);
+      setC60Saving(false);
+      navigation.goBack();
+    });
+  }
+  // [C60-P4-HANDLER-END]
+
+  const eraserActive = c60Color === ERASER_COLOR;
+
+  if (available) {
     return (
-      <View style={[c60Styles.container, { paddingTop: insets.top }]}>
-        <Image
-          source={resolution.source}
-          style={c60Styles.lineart}
-          resizeMode="contain"
-          accessibilityLabel={resolution.activity?.title ?? 'Atividade Colorir 60'}
-        />
+      <View style={styles.container}>
+        <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 8) }]}>
+          <SoundButton style={styles.topBarNavBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+            <Text style={styles.topBarNavBtnText}>← Voltar</Text>
+          </SoundButton>
+          <Text style={styles.topBarTitle} numberOfLines={1}>Hora de Colorir</Text>
+          <View style={styles.topBarActions}>
+            <SoundButton
+              style={[styles.prontoBtn, c60Saving && styles.prontoBtnSaving]}
+              onPress={handleC60Pronto}
+              activeOpacity={0.85}
+              disabled={c60Saving}
+            >
+              <Text style={styles.prontoBtnText}>{c60Saving ? 'Salvando...' : '✓ Pronto!'}</Text>
+            </SoundButton>
+          </View>
+        </View>
+
+        {/* Canvas: composição do motor existente SEM alterar seu contrato. `imageSource` aceita o
+            módulo do resolvedor; sinais D1 (onReadyChange) e D5 (onPainted) são consumidos por
+            composição. Sem sceneNumber numérico (identidade Colorir 60 é semântica). */}
+        <View style={styles.canvasArea}>
+          <ColoringCanvas
+            ref={canvasRef}
+            selectedColor={c60Color}
+            imageSource={resolution.source}
+            storyId={storyId}
+            onReadyChange={setC60Ready}
+            onPainted={() => setC60HasPainted(true)}
+            onGoBack={() => navigation.goBack()}
+          />
+        </View>
+
+        <View style={[styles.overlayPanel, { bottom: insets.bottom + 8 }]}>
+          <View style={styles.toolsRow}>
+            <CompactTool
+              active={eraserActive}
+              accessibilityLabel="Borracha"
+              onPress={() => setC60Color(ERASER_COLOR)}
+            >
+              <MaterialCommunityIcons name="eraser" size={24} color={eraserActive ? '#6B4F00' : '#666'} />
+            </CompactTool>
+            <CompactTool accessibilityLabel="Desfazer" onPress={() => canvasRef.current?.undo()}>
+              <FaithIcon name="undo" size={22} color="#666" />
+            </CompactTool>
+            <CompactTool accessibilityLabel="Ver tudo (centralizar)" onPress={() => canvasRef.current?.resetZoom()}>
+              <FaithIcon name="zoom_reset" size={22} color="#666" />
+            </CompactTool>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.paletteScroll}
+            contentContainerStyle={styles.paletteContent}
+          >
+            {COLOR_PALETTE.map(({ hex }) => (
+              <SoundButton key={hex} silent style={styles.dotWrapper} onPress={() => setC60Color(hex)}>
+                <View
+                  style={[
+                    styles.colorDot,
+                    { backgroundColor: hex },
+                    hex === '#FFFFFF' && styles.colorDotWhiteBorder,
+                    c60Color === hex && styles.colorDotSelected,
+                  ]}
+                />
+              </SoundButton>
+            ))}
+          </ScrollView>
+        </View>
       </View>
     );
   }
@@ -114,7 +261,6 @@ function Coloring60ActivityScreen({ route, navigation }) {
 
 const c60Styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  lineart: { flex: 1, width: '100%' },
   emptyCenter: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.text, textAlign: 'center' },
   emptyText: { fontSize: 15, color: colors.textLight, textAlign: 'center', marginTop: 8 },

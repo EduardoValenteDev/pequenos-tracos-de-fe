@@ -29646,17 +29646,17 @@ check(
       'a flag do piloto Colorir 60 não pode nascer ligada');
     // Camadas de FASE POSTERIOR que ainda NÃO podem existir. Ao longo do piloto esta lista
     // AVANÇA DE FASE: catálogo (P1.T1) e registro estático (P1.T2) saíram ao entrar P1; o
-    // resolvedor (P2.T1) saiu ao entrar P2; o writer dedicado (P3.T1..T3) sai ao entrar P3 —
-    // todos entregáveis legítimos, provados pelos blocos C60-P1.T5 / C60-P2 / C60-P3 abaixo.
-    // Esta lista trava só o que pertence a P4+ (service de CONCLUSÃO e a pasta de PNGs
-    // `activities/` — só em P5). O writer NÃO marca conclusão nem cria `@ptf_coloring60_done_*`.
+    // resolvedor (P2.T1) saiu ao entrar P2; o writer dedicado (P3.T1..T3) saiu ao entrar P3;
+    // o service de CONCLUSÃO (P4.T1) sai ao entrar P4 — todos entregáveis legítimos, provados
+    // pelos blocos C60-P1.T5 / C60-P2 / C60-P3 / C60-P4 abaixo. Esta lista trava só o que
+    // pertence a P5+ (a pasta de PNGs `activities/` — só em P5). A conclusão do P4 é um booleano
+    // leve por identidade, SEPARADA da persistência de pixels e SEM asset novo.
     const premature = [
-      'src/services/coloring60ActivityService.js',
       'assets/stories/creation/coloring/activities',
     ].filter((rel) => fs.existsSync(path.join(root, rel)));
-    check('C60-P0.T8: nenhuma camada/asset de FASE POSTERIOR (P4+) do Colorir 60 integrada (flag off)',
+    check('C60-P0.T8: nenhum asset/pasta de FASE POSTERIOR (P5+) do Colorir 60 integrada (flag off)',
       premature.length === 0,
-      `com a flag off, estes artefatos de P4+ NÃO deviam existir ainda: ${premature.join(', ')}`);
+      `com a flag off, estes artefatos de P5+ NÃO deviam existir ainda: ${premature.join(', ')}`);
     // Nenhuma rota/QA do Colorir 60 registrada ainda:
     const navSrc = readSrc('src/navigation/AppNavigator.js');
     check('C60-P0.T8: nenhuma rota/entrada de QA do Colorir 60 registrada (flag off)',
@@ -30314,20 +30314,31 @@ check(
         }
         return acc;
       };
+      // P4.T2 avança este invariante: o writer passa a ter EXATAMENTE UM chamador AUTORIZADO
+      // (o ramo Colorir 60 em ColoringScreen). O guard permanece contra QUALQUER OUTRO chamador.
       const writerAbs = path.resolve(path.join(root, 'src/services/coloring60DrawingStorage.js'));
-      const callers = walk(path.join(root, 'src')).filter((f) => path.resolve(f) !== writerAbs
-        && /coloring60DrawingStorage|saveColoring60DrawingState/.test(fs.readFileSync(f, 'utf8')));
-      check('C60-P3: writer NÃO tem chamador em runtime (não integrado à tela em P3)',
+      const authorizedCaller = path.resolve(path.join(root, 'src/screens/ColoringScreen.js'));
+      // Menção do writer em COMENTÁRIO (ex.: doc de isolamento do service de conclusão) NÃO é chamador:
+      // remove comentários antes de casar, contando só referência em CÓDIGO.
+      const stripForCaller = (s) => String(s)
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+      const callers = walk(path.join(root, 'src')).filter((f) => {
+        const abs = path.resolve(f);
+        return abs !== writerAbs && abs !== authorizedCaller
+          && /coloring60DrawingStorage|saveColoring60DrawingState/.test(stripForCaller(fs.readFileSync(f, 'utf8')));
+      });
+      check('C60-P3→P4.T2: writer sem chamador NÃO-autorizado (só ColoringScreen integra o writer)',
         callers.length === 0,
-        `nenhum módulo de src/ deve consumir o writer em P3 (encontrados: ${callers.map((f) => path.relative(root, f)).join(', ')})`);
+        `apenas o ramo Colorir 60 em ColoringScreen pode consumir o writer (encontrados extras: ${callers.map((f) => path.relative(root, f)).join(', ')})`);
 
-      // P3 é aditivo e dormente: a flag e as camadas de P4+ permanecem ausentes.
+      // Flag do piloto permanece false; a pasta de PNGs (P5) permanece ausente.
       check('C60-P3: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P3',
         /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
         'P3 não pode ligar a flag do piloto');
-      check('C60-P3: camadas de P4+ ainda ausentes (service de conclusão e pasta activities/)',
-        !srcExists('src/services/coloring60ActivityService.js') && !srcExists('assets/stories/creation/coloring/activities'),
-        'P3 não antecipa a conclusão nem os PNGs de P5');
+      check('C60-P3→P5: pasta de PNGs activities/ ainda ausente (só em P5)',
+        !srcExists('assets/stories/creation/coloring/activities'),
+        'a conclusão do P4 não antecipa os PNGs de P5');
     }
   }
 
@@ -30545,16 +30556,453 @@ check(
         return acc;
       };
       const writerAbs = path.resolve(path.join(root, 'src/services/coloring60DrawingStorage.js'));
-      const callers = walk(path.join(root, 'src')).filter((f) => path.resolve(f) !== writerAbs
-        && /coloring60DrawingStorage|saveColoring60DrawingState/.test(fs.readFileSync(f, 'utf8')));
-      check('C60-P3-FIX1 [E14]: writer segue SEM chamador em runtime (não integrado à tela)',
+      const authorizedCaller = path.resolve(path.join(root, 'src/screens/ColoringScreen.js'));
+      // Menção do writer em COMENTÁRIO (doc de isolamento) NÃO é chamador: remove comentários antes de casar.
+      const stripForCaller = (s) => String(s)
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+      const callers = walk(path.join(root, 'src')).filter((f) => {
+        const abs = path.resolve(f);
+        return abs !== writerAbs && abs !== authorizedCaller
+          && /coloring60DrawingStorage|saveColoring60DrawingState/.test(stripForCaller(fs.readFileSync(f, 'utf8')));
+      });
+      check('C60-P3-FIX1 [E14]→P4.T2: writer sem chamador NÃO-autorizado (só ColoringScreen integra)',
         callers.length === 0,
-        `o FIX1 não integra o writer (encontrados: ${callers.map((f) => path.relative(root, f)).join(', ')})`);
-      check('C60-P3-FIX1 [E15/E16]: camadas de P4+ ausentes e flag do piloto ainda false',
-        !srcExists('src/services/coloring60ActivityService.js')
-          && !srcExists('assets/stories/creation/coloring/activities')
+        `apenas o ramo Colorir 60 em ColoringScreen pode consumir o writer (encontrados extras: ${callers.map((f) => path.relative(root, f)).join(', ')})`);
+      check('C60-P3-FIX1 [E15/E16]→P5: pasta activities/ (PNGs P5) ausente e flag do piloto ainda false',
+        !srcExists('assets/stories/creation/coloring/activities')
           && /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
-        'o hardening não antecipa P4 nem liga o piloto');
+        'o hardening não antecipa os PNGs de P5 nem liga o piloto');
+    }
+  }
+
+  // ── Colorir 60 · A Criação — P4 (conclusão plan-agnóstica + integração interna na tela) ──
+  // C60-IMPL-P4 · P4.T1/T2: a CONCLUSÃO da atividade (booleano leve por identidade) é criada e
+  // provada SEPARADA da persistência de pixels; o ramo Colorir 60 da ColoringScreen integra o
+  // writer aprovado por composição do canvas existente, na ordem canônica (D1→D5→export→validar→
+  // marcar conclusão plan-agnóstica→writer revalida plano→resultado tipado separado→voltar).
+  // Provas: conclusão (comportamental via loadModule), fluxo (estático na tela + comportamental no
+  // writer com payload v2 do canvas) e as 3 dívidas de cobertura da QA2 (clear/rollback).
+  // Limite honesto: o RENDER RN (canvas/WebView, toque, gesto) NÃO roda em Node — pertence à
+  // validação visual em dispositivo; aqui a tela é provada por análise estática de fonte.
+  {
+    const { loadModule } = require('./testing/packInstallHarness');
+    const stripComments = (s) => String(s)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const cat = loadModule('src/data/coloring60Catalog.js', {}, ['getColoring60Activity']);
+
+    // Fábrica do SERVICE DE CONCLUSÃO (booleano leve). Doubles: AsyncStorage + catálogo REAL.
+    const mkDone = (cfg = {}) => {
+      const store = new Map();
+      const calls = { getItem: 0, setItem: 0, removeItem: 0 };
+      const deps = {
+        AsyncStorage: {
+          getItem: async (k) => { calls.getItem++; if (cfg.getItemThrows) throw new Error('boom'); return store.has(k) ? store.get(k) : null; },
+          setItem: async (k, v) => { calls.setItem++; if (cfg.setItemThrows) throw new Error('boom'); store.set(k, v); },
+          removeItem: async (k) => { calls.removeItem++; store.delete(k); },
+        },
+        getColoring60Activity: cat.getColoring60Activity,
+      };
+      const S = loadModule('src/services/coloring60ActivityService.js', deps,
+        ['coloring60DoneKey', 'markColoring60ActivityDone', 'loadColoring60Done']);
+      return { S, store, calls };
+    };
+
+    // ── Etapa 5 · testes de CONCLUSÃO (plan-agnóstica, identidade fechada, sem colisão) ──
+    {
+      const { S } = mkDone();
+      check('C60-P4.T1: service expõe coloring60DoneKey/markColoring60ActivityDone/loadColoring60Done',
+        typeof S.coloring60DoneKey === 'function'
+          && typeof S.markColoring60ActivityDone === 'function'
+          && typeof S.loadColoring60Done === 'function',
+        'o service de conclusão deve exportar o construtor de chave, o marcador e o leitor');
+      check('C60-P4.T1: chave de conclusão EXATA (@ptf_coloring60_done_<storyId>_<activityId>)',
+        S.coloring60DoneKey('creation', 'light') === '@ptf_coloring60_done_creation_light',
+        `chave inesperada: ${S.coloring60DoneKey('creation', 'light')}`);
+      const kLight = S.coloring60DoneKey('creation', 'light');
+      const kLiving = S.coloring60DoneKey('creation', 'living_world');
+      const kPeople = S.coloring60DoneKey('creation', 'people_and_care');
+      check('C60-P4.T1: chaves DISTINTAS por atividade (sem colisão entre light/living_world/people_and_care)',
+        kLight !== kLiving && kLight !== kPeople && kLiving !== kPeople,
+        'cada atividade tem chave de conclusão própria');
+      check('C60-P4.T1: conclusão NÃO colide com o namespace de PIXELS (@ptf_drawing60_)',
+        !kLight.startsWith('@ptf_drawing60_') && !/@ptf_drawing60_/.test(kLight),
+        'conclusão e pixels vivem em namespaces distintos');
+      check('C60-P4.T1: conclusão NÃO colide com a conclusão LEGADA por cena (@ptf_coloring_done_)',
+        !kLight.startsWith('@ptf_coloring_done_'),
+        'a conclusão do Colorir 60 não pode casar o prefixo da conclusão legada por sceneId');
+      check('C60-P4.T1: conclusão NÃO colide com o desenho LEGADO por cena (@ptf_drawing_s)',
+        !kLight.startsWith('@ptf_drawing_s') && !/@ptf_drawing_s/.test(kLight),
+        'a conclusão não pode casar o namespace de desenho legado por sceneId');
+    }
+    {
+      const { S, store } = mkDone();
+      const ok = await S.markColoring60ActivityDone('creation', 'light');
+      check('C60-P4.T1: markColoring60ActivityDone grava "true" na chave EXATA e retorna true',
+        ok === true && store.get('@ptf_coloring60_done_creation_light') === 'true',
+        `mark deveria gravar true na chave fechada (ok=${ok}, keys=${[...store.keys()]})`);
+      check('C60-P4.T1: mark toca SOMENTE a chave de conclusão daquela identidade (sem efeito colateral)',
+        store.size === 1,
+        `mark não pode escrever outras chaves (size=${store.size})`);
+    }
+    {
+      const { S } = mkDone();
+      const before = await S.loadColoring60Done('creation', 'light');
+      await S.markColoring60ActivityDone('creation', 'light');
+      const after = await S.loadColoring60Done('creation', 'light');
+      check('C60-P4.T1: loadColoring60Done false ANTES e true DEPOIS de marcar',
+        before === false && after === true,
+        `esperado false→true (antes=${before}, depois=${after})`);
+    }
+    {
+      const { S } = mkDone();
+      await S.markColoring60ActivityDone('creation', 'light');
+      const other = await S.loadColoring60Done('creation', 'living_world');
+      check('C60-P4.T1: ISOLAMENTO por atividade — marcar light NÃO conclui living_world',
+        other === false,
+        'a conclusão de uma atividade não pode vazar para outra');
+    }
+    {
+      const { S, store } = mkDone();
+      // Identidade SEMÂNTICA: número/"2"/"scene_02"/vazio/null/não-string/fora-do-catálogo ⇒ false, sem escrita.
+      const rNumAct = await S.markColoring60ActivityDone('creation', 2);
+      const rNumStory = await S.markColoring60ActivityDone(2, 'light');
+      const rTwo = await S.markColoring60ActivityDone('creation', '2');
+      const rScene = await S.markColoring60ActivityDone('creation', 'scene_02');
+      const rEmptyA = await S.markColoring60ActivityDone('creation', '');
+      const rEmptyS = await S.markColoring60ActivityDone('', 'light');
+      const rNullA = await S.markColoring60ActivityDone('creation', null);
+      const rNullS = await S.markColoring60ActivityDone(null, 'light');
+      const rUndef = await S.markColoring60ActivityDone('creation', undefined);
+      const rUnkStory = await S.markColoring60ActivityDone('nope', 'light');
+      const rUnkAct = await S.markColoring60ActivityDone('creation', 'nope');
+      const allRejected = [rNumAct, rNumStory, rTwo, rScene, rEmptyA, rEmptyS, rNullA, rNullS, rUndef, rUnkStory, rUnkAct]
+        .every((r) => r === false);
+      check('C60-P4.T1: mark REJEITA identidade inválida (número/"2"/"scene_02"/vazio/null/fora-do-catálogo)',
+        allRejected,
+        'nenhuma identidade inválida pode concluir');
+      check('C60-P4.T1: identidade inválida NÃO provoca escrita (storage permanece vazio)',
+        store.size === 0,
+        `nenhuma chave deveria ter sido escrita (size=${store.size})`);
+    }
+    {
+      const { S } = mkDone();
+      const rNumAct = await S.loadColoring60Done('creation', 2);
+      const rScene = await S.loadColoring60Done('creation', 'scene_02');
+      const rUnk = await S.loadColoring60Done('creation', 'nope');
+      check('C60-P4.T1: load REJEITA identidade inválida (número/"scene_02"/fora-do-catálogo) ⇒ false',
+        rNumAct === false && rScene === false && rUnk === false,
+        'load de identidade inválida deve ser false');
+    }
+    {
+      const { S, store } = mkDone();
+      await S.markColoring60ActivityDone('creation', 'light');
+      const r2 = await S.markColoring60ActivityDone('creation', 'light');
+      const loaded = await S.loadColoring60Done('creation', 'light');
+      check('C60-P4.T1: mark é IDEMPOTENTE (marcar 2× mantém "true", sem chave extra)',
+        r2 === true && loaded === true && store.size === 1,
+        `idempotência quebrada (r2=${r2}, loaded=${loaded}, size=${store.size})`);
+    }
+    {
+      const { S } = mkDone({ setItemThrows: true });
+      const ok = await S.markColoring60ActivityDone('creation', 'light');
+      check('C60-P4.T1: falha de escrita ⇒ mark retorna false (nunca lança, nunca sucesso falso)',
+        ok === false,
+        'setItem falho deve degradar para false');
+    }
+    {
+      const { S } = mkDone({ getItemThrows: true });
+      let threw = false; let r;
+      try { r = await S.loadColoring60Done('creation', 'light'); } catch { threw = true; }
+      check('C60-P4.T1: falha de leitura ⇒ load retorna false sem lançar',
+        threw === false && r === false,
+        'getItem falho deve degradar para false');
+    }
+    {
+      // Plan-agnóstico e SEM efeito de progresso: o service não importa entitlement/pixels/estrela/cena.
+      const svc = stripComments(readSrc('src/services/coloring60ActivityService.js'));
+      check('C60-P4.T1: service PLAN-AGNÓSTICO — não consulta entitlement (concluir vale Grátis e Família)',
+        !/getCurrentPlan|accessControl|entitlement|isPremium|FAMILY_PLAN/.test(svc),
+        'a conclusão não pode depender de plano — quem restringe pixels é o writer');
+      check('C60-P4.T1: service NÃO importa/chama pixels nem o writer (conclusão ≠ salvamento)',
+        !/coloring60DrawingStorage|saveColoring60DrawingState|drawingStorage|fileBlobStore|coloringImages|writeBlob/.test(svc),
+        'conclusão é booleano leve, isolada da persistência de pixels');
+      check('C60-P4.T1: service NÃO concede estrela nem conquista',
+        !/reward|grantStar|estrela|achievement/i.test(svc),
+        'concluir não dá estrela nem conquista');
+      check('C60-P4.T1: service NÃO conclui cena narrativa nem toca conclusão legada por cena',
+        !/coloringActivityService|markStoryColoring|salvarCena|cenaIndex|sceneId|sceneNumber/.test(svc),
+        'a conclusão do Colorir 60 não é a da cena narrativa');
+      check('C60-P4.T1: service NÃO contém require() (consumo só por import)',
+        !/require\s*\(/.test(svc),
+        'o service consome AsyncStorage/catálogo por import');
+    }
+
+    // ── Etapa 13 · testes de FLUXO (estático na tela + comportamental no writer com payload v2) ──
+    {
+      const scrRaw = readSrc('src/screens/ColoringScreen.js');
+      const scr = stripComments(scrRaw);
+      const sliceBetween = (raw, a, b) => {
+        const i = raw.indexOf(a); const j = raw.indexOf(b, i + 1);
+        return (i >= 0 && j > i) ? raw.slice(i, j) : '';
+      };
+      // Fatia o handler e o ramo Colorir 60 do FONTE BRUTO (âncoras em comentário), depois remove
+      // comentários internos — assim indexOf/regex atuam só sobre o CÓDIGO da ordem canônica.
+      const handler = stripComments(sliceBetween(scrRaw, '[C60-P4-HANDLER-START]', '[C60-P4-HANDLER-END]'));
+      const c60Region = stripComments(sliceBetween(scrRaw, '[C60-P4-STORYID]', 'function LegacyColoringScreen'));
+
+      // Grupo A — D1 (lineart pronto): onReadyChange conectado + gate antes do export.
+      check('C60-P4.T2 [A/D1]: canvas conecta onReadyChange={setC60Ready} (sinal de lineart pronto)',
+        /onReadyChange=\{setC60Ready\}/.test(scr),
+        'D1 vem do canvas por composição (onReadyChange), sem alterar seu contrato');
+      check('C60-P4.T2 [A/D1]: handler NÃO conclui/salva sem lineart pronto (gate !c60Ready antes do export)',
+        /!c60Ready/.test(handler)
+          && handler.indexOf('!c60Ready') < handler.indexOf('exportPaint('),
+        'sem D1 o fluxo não pode exportar/concluir/salvar');
+
+      // Grupo B — D5 (traço significativo): onPainted conectado + gate antes do export.
+      check('C60-P4.T2 [B/D5]: canvas conecta onPainted→setC60HasPainted (sinal de traço)',
+        /onPainted=\{\(\) => setC60HasPainted\(true\)\}/.test(scr),
+        'D5 vem do canvas por composição (onPainted)');
+      check('C60-P4.T2 [B/D5]: handler NÃO conclui/salva sem traço (gate !c60HasPainted antes do export)',
+        /!c60HasPainted/.test(handler)
+          && handler.indexOf('!c60HasPainted') < handler.indexOf('exportPaint('),
+        'sem D5 o fluxo não pode exportar/concluir/salvar');
+
+      // Grupo C — ORDEM CANÔNICA: export → validar payload (+hasMeaningfulPaint) → marcar → writer.
+      const iExport = handler.indexOf('exportPaint(');
+      const iValid = handler.indexOf('isAcceptableC60Payload(');
+      const iMeaning = handler.indexOf('hasMeaningfulPaint(');
+      const iMark = handler.indexOf('markColoring60ActivityDone(');
+      const iSave = handler.indexOf('saveColoring60DrawingState(');
+      check('C60-P4.T2 [C]: ordem canônica export→validar payload→marcar conclusão→writer',
+        iExport >= 0 && iValid > iExport && iMeaning > iExport
+          && iMark > iValid && iMark > iMeaning && iSave > iMark,
+        `ordem inesperada (export=${iExport}, valid=${iValid}, meaning=${iMeaning}, mark=${iMark}, save=${iSave})`);
+
+      // Grupo D — SEPARAÇÃO conclusão ≠ salvamento.
+      check('C60-P4.T2 [D]: CONCLUSÃO é marcada ANTES do writer (independe da persistência)',
+        iMark >= 0 && iSave >= 0 && iMark < iSave,
+        'a conclusão precede o writer e não depende do resultado de salvamento');
+      check('C60-P4.T2 [D]: marcação da conclusão NÃO é condicionada a plano/entitlement no handler',
+        !/getCurrentPlan|isPremiumUser|accessControl|entitlement|===\s*['"]premium['"]/.test(handler),
+        'concluir é plan-agnóstico — o handler não checa plano (o writer é quem revalida)');
+      check('C60-P4.T2 [D]: falha de persistência NÃO apaga conclusão (sem remover/limpar a chave de conclusão) e sem refreshProgress',
+        !/removeItem|clearColoring60|coloring60DoneKey/.test(handler) && !/refreshProgress/.test(handler),
+        'o handler não remove a conclusão sob falha nem propaga métrica pública');
+
+      // Grupo E — CONCLUSÃO plan-agnóstica × PIXELS gated pelo plano (writer comportamental v2).
+      const KEY = '@ptf_drawing60_screation_alight';
+      const safeKey = KEY.replace(/[^A-Za-z0-9_-]/g, '_');
+      const SLOT_A = `file://b/drawings60/${safeKey}.a.png`;
+      const SLOT_B = `file://b/drawings60/${safeKey}.b.png`;
+      const PAINT = 'data:image/png;base64,' + 'A'.repeat(3000);
+      const V2 = JSON.stringify({ v: 2, W: 100, H: 100, imgX: 0, imgY: 0, imgW: 100, imgH: 100, data: PAINT });
+      const ptrTo = (uri) => JSON.stringify({ v: 3, fmt: 1, uri, mime: 'image/png' });
+      const mkW = (cfg = {}) => {
+        const store = new Map(Object.entries(cfg.seed || {}));
+        const blob = new Map(Object.entries(cfg.seedBlob || {}));
+        const deleted = [];
+        const state = { verifiedWrong: false };
+        const calls = { getItem: 0, setItem: 0, removeItem: 0, plan: 0 };
+        const deps = {
+          AsyncStorage: {
+            getItem: async (k) => {
+              const n = ++calls.getItem;
+              if (cfg.getItemThrowOn === n) throw new Error('getItem boom');
+              if (cfg.verifyWrongOnce && calls.setItem > 0 && !state.verifiedWrong) { state.verifiedWrong = true; return '__CORRUPT__'; }
+              return store.has(k) ? store.get(k) : null;
+            },
+            setItem: async (k, v) => {
+              const n = ++calls.setItem;
+              if (cfg.setItemMutateThenThrowOn === n) { store.set(k, v); throw new Error('setItem mutate+boom'); }
+              if (cfg.setItemThrowOn === n) throw new Error('setItem boom');
+              store.set(k, v);
+            },
+            removeItem: async (k) => {
+              const n = ++calls.removeItem;
+              if (cfg.removeItemMutateThenThrowOn === n) { store.delete(k); throw new Error('removeItem mutate+boom'); }
+              store.delete(k);
+            },
+          },
+          log: () => {},
+          getCurrentPlan: () => { calls.plan++; return cfg.plan === undefined ? 'premium' : cfg.plan; },
+          getColoring60Activity: cat.getColoring60Activity,
+          writeBlob: async (sub, fn, dataUrl, mime) => { const uri = `file://b/${sub}/${fn}`; blob.set(uri, dataUrl); return { uri, mime: mime || 'image/png' }; },
+          readBlobAsDataUrl: async (u) => (blob.has(u) ? blob.get(u) : null),
+          deleteBlob: async (u) => { deleted.push(u); blob.delete(u); },
+          safeName: (id) => String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_'),
+          isDataUrl: (s) => typeof s === 'string' && s.startsWith('data:'),
+          dataUrlMime: (_d, fb = 'image/png') => fb,
+          currentBlobsRoot: () => 'file://b/',
+        };
+        const W = loadModule('src/services/coloring60DrawingStorage.js', deps, [
+          'saveColoring60DrawingState', 'clearColoring60SavedDrawing',
+          'getColoring60SavedDrawing', 'hasColoring60SavedDrawing', 'COLORING60_SAVE_RESULT',
+        ]);
+        return { W, store, blob, deleted, calls };
+      };
+      const R = mkW().W.COLORING60_SAVE_RESULT;
+
+      {
+        const e = mkW({ plan: 'premium' });
+        const r = await e.W.saveColoring60DrawingState('creation', 'light', V2);
+        check('C60-P4.T2 [E]: FAMÍLIA persiste pixels do payload v2 do canvas (saved) no namespace fechado',
+          r === R.SAVED && e.store.get(KEY) != null,
+          `premium deveria salvar o v2 (r=${r}, keys=${[...e.store.keys()]})`);
+      }
+      {
+        const e = mkW({ plan: 'free' });
+        const r = await e.W.saveColoring60DrawingState('creation', 'light', V2);
+        check('C60-P4.T2 [E]: GRÁTIS NÃO persiste pixels (not_persisted_free) com ZERO I/O',
+          r === R.NOT_PERSISTED_FREE && e.store.size === 0 && e.calls.getItem === 0 && e.calls.setItem === 0,
+          `grátis não pode escrever nada (r=${r}, size=${e.store.size}, get=${e.calls.getItem}, set=${e.calls.setItem})`);
+      }
+
+      // Grupo F — validação de payload: v3-como-payload ⇒ write_failed no writer; validador no caller (estático).
+      {
+        const e = mkW({ plan: 'premium' });
+        const r = await e.W.saveColoring60DrawingState('creation', 'light', ptrTo(SLOT_A));
+        check('C60-P4.T2 [F]: ponteiro v3 enviado como payload ⇒ write_failed (writer não promove lixo)',
+          r === R.WRITE_FAILED && e.store.size === 0,
+          `v3-como-payload deveria falhar sem promover (r=${r}, size=${e.store.size})`);
+      }
+      check('C60-P4.T2 [F]: validador do CALLER rejeita ponteiro v3 antes de marcar/chamar o writer',
+        /function isAcceptableC60Payload\(/.test(scr)
+          && /obj\.v === 3 \|\| typeof obj\.uri === 'string'/.test(scr),
+        'o caller valida o payload e nunca envia ponteiro v3 ao writer');
+      check('C60-P4.T2 [F]: validador do CALLER aceita só data URL de imagem ou JSON v2 com .data',
+        /typeof payload !== 'string' \|\| payload\.length === 0/.test(scr)
+          && /obj\.v === 2/.test(scr)
+          && /obj\.data\.startsWith\('data:image\//.test(scr),
+        'o caller aceita apenas payload de imagem válido (data URL ou v2)');
+
+      // Grupo G — sem falso salvamento/estrela/cena/refreshProgress no ramo Colorir 60.
+      check('C60-P4.T2 [G]: ramo Colorir 60 compõe o ColoringCanvas existente (reuso por composição)',
+        /<ColoringCanvas/.test(c60Region),
+        'o ramo reusa o motor de canvas sem recriá-lo');
+      check('C60-P4.T2 [G]: ramo Colorir 60 NÃO conclui cena/estrela/celebração nem chama refreshProgress',
+        !/refreshProgress|salvarCena|markStoryColoring|UnlockCelebration/.test(c60Region),
+        'o ramo dormente não integra progresso narrativo, estrela nem celebração');
+      check('C60-P4.T2 [G]: ramo Colorir 60 NÃO concede estrela/conquista',
+        !/reward|grantStar|estrela|achievement/i.test(c60Region),
+        'concluir a atividade não concede estrela nem conquista');
+      check('C60-P4.T2 [G]: ramo Colorir 60 NÃO usa useProgressContext (só o legado usa)',
+        !/useProgressContext/.test(c60Region),
+        'o ramo aditivo não depende do contexto de progresso');
+
+      // Integração interna — a tela é o ÚNICO chamador autorizado do writer + conclusão.
+      check('C60-P4.T2 [INT]: ColoringScreen importa e CHAMA markColoring60ActivityDone (conclusão)',
+        /from '\.\.\/services\/coloring60ActivityService'/.test(scr)
+          && /markColoring60ActivityDone\(/.test(handler),
+        'a tela integra o service de conclusão no ramo Colorir 60');
+      check('C60-P4.T2 [INT]: ColoringScreen importa e CHAMA saveColoring60DrawingState (writer)',
+        /from '\.\.\/services\/coloring60DrawingStorage'/.test(scr)
+          && /saveColoring60DrawingState\(/.test(handler),
+        'a tela integra o writer aprovado no ramo Colorir 60');
+      check('C60-P4.T2 [INT]: storyId de FONTE ÚNICA — divergência story?.id × storyId ⇒ null (não escolhe às cegas)',
+        /if \(primary != null && alt != null && primary !== alt\) return null/.test(c60Region),
+        'identidade contraditória não resolve silenciosamente');
+    }
+
+    // ── Etapa 14 · dívidas de cobertura da QA2 (clear/rollback) — sem alterar o contrato do writer ──
+    {
+      const KEY = '@ptf_drawing60_screation_alight';
+      const safeKey = KEY.replace(/[^A-Za-z0-9_-]/g, '_');
+      const SLOT_A = `file://b/drawings60/${safeKey}.a.png`;
+      const SLOT_B = `file://b/drawings60/${safeKey}.b.png`;
+      const PAINT = 'data:image/png;base64,' + 'A'.repeat(3000);
+      const ptrTo = (uri) => JSON.stringify({ v: 3, fmt: 1, uri, mime: 'image/png' });
+      const mkW = (cfg = {}) => {
+        const store = new Map(Object.entries(cfg.seed || {}));
+        const blob = new Map(Object.entries(cfg.seedBlob || {}));
+        const deleted = [];
+        const state = { verifiedWrong: false };
+        const calls = { getItem: 0, setItem: 0, removeItem: 0, plan: 0 };
+        const deps = {
+          AsyncStorage: {
+            getItem: async (k) => {
+              const n = ++calls.getItem;
+              if (cfg.getItemThrowOn === n) throw new Error('getItem boom');
+              if (cfg.verifyWrongOnce && calls.setItem > 0 && !state.verifiedWrong) { state.verifiedWrong = true; return '__CORRUPT__'; }
+              return store.has(k) ? store.get(k) : null;
+            },
+            setItem: async (k, v) => {
+              const n = ++calls.setItem;
+              if (cfg.setItemMutateThenThrowOn === n) { store.set(k, v); throw new Error('setItem mutate+boom'); }
+              store.set(k, v);
+            },
+            removeItem: async (k) => {
+              const n = ++calls.removeItem;
+              if (cfg.removeItemMutateThenThrowOn === n) { store.delete(k); throw new Error('removeItem mutate+boom'); }
+              store.delete(k);
+            },
+          },
+          log: () => {},
+          getCurrentPlan: () => { calls.plan++; return cfg.plan === undefined ? 'premium' : cfg.plan; },
+          getColoring60Activity: cat.getColoring60Activity,
+          writeBlob: async (sub, fn, dataUrl, mime) => { const uri = `file://b/${sub}/${fn}`; blob.set(uri, dataUrl); return { uri, mime: mime || 'image/png' }; },
+          readBlobAsDataUrl: async (u) => (blob.has(u) ? blob.get(u) : null),
+          deleteBlob: async (u) => { deleted.push(u); blob.delete(u); },
+          safeName: (id) => String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_'),
+          isDataUrl: (s) => typeof s === 'string' && s.startsWith('data:'),
+          dataUrlMime: (_d, fb = 'image/png') => fb,
+          currentBlobsRoot: () => 'file://b/',
+        };
+        const W = loadModule('src/services/coloring60DrawingStorage.js', deps, [
+          'saveColoring60DrawingState', 'clearColoring60SavedDrawing', 'COLORING60_SAVE_RESULT',
+        ]);
+        return { W, store, blob, deleted, calls };
+      };
+      const isPtr = (v) => { try { const p = JSON.parse(v); return p && p.v === 3 && typeof p.uri === 'string'; } catch { return false; } };
+      const uriOf = (v) => { try { return JSON.parse(v).uri || null; } catch { return null; } };
+      const noBroken = (store, blob) => {
+        for (const v of store.values()) {
+          if (isPtr(v) && !blob.has(uriOf(v))) return false; // chave apontando para blob apagado
+        }
+        return true;
+      };
+
+      // Dívida #1 — clear: removeItem MUTA (apaga a chave) e então LANÇA. O blob deve ser PRESERVADO
+      // (removedConfirmed=false) e nenhuma chave fica apontando para arquivo apagado.
+      {
+        const e = mkW({ seed: { [KEY]: ptrTo(SLOT_A) }, seedBlob: { [SLOT_A]: PAINT }, removeItemMutateThenThrowOn: 1 });
+        let threw = false;
+        try { await e.W.clearColoring60SavedDrawing('creation', 'light'); } catch { threw = true; }
+        check('C60-P4 [QA2 dívida #1]: clear com removeItem muta-e-lança ⇒ blob PRESERVADO, sem ponteiro órfão, sem lançar',
+          threw === false && !e.deleted.includes(SLOT_A) && e.blob.has(SLOT_A) && noBroken(e.store, e.blob),
+          `clear não pode apagar o blob quando a remoção da chave não é confirmada (threw=${threw}, deleted=${JSON.stringify(e.deleted)})`);
+      }
+
+      // Dívida #2 — clear: removeItem OK, mas a leitura de CONFIRMAÇÃO (getItem #2) LANÇA. Sem confirmação,
+      // o blob deve ser PRESERVADO (best-effort), nunca apagado sob incerteza.
+      {
+        const e = mkW({ seed: { [KEY]: ptrTo(SLOT_A) }, seedBlob: { [SLOT_A]: PAINT }, getItemThrowOn: 2 });
+        let threw = false;
+        try { await e.W.clearColoring60SavedDrawing('creation', 'light'); } catch { threw = true; }
+        check('C60-P4 [QA2 dívida #2]: clear com getItem de confirmação lançando ⇒ blob PRESERVADO, sem lançar',
+          threw === false && !e.deleted.includes(SLOT_A) && e.blob.has(SLOT_A) && noBroken(e.store, e.blob),
+          `sem confirmar a ausência da chave, o blob não pode ser apagado (threw=${threw}, deleted=${JSON.stringify(e.deleted)})`);
+      }
+
+      // Dívida #3 — save/rollback: promoção OK, verificação diverge (verifyWrongOnce) ⇒ rollback; e a
+      // RESTAURAÇÃO do anterior (setItem #2) MUTA e então LANÇA. Deve terminar write_failed, com a chave
+      // restaurada para o anterior (SLOT_A), o slot novo (SLOT_B) descartado e nenhum ponteiro quebrado.
+      {
+        const e = mkW({
+          seed: { [KEY]: ptrTo(SLOT_A) }, seedBlob: { [SLOT_A]: PAINT },
+          verifyWrongOnce: true, setItemMutateThenThrowOn: 2,
+        });
+        const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
+        check('C60-P4 [QA2 dívida #3]: rollback com restore setItem muta-e-lança ⇒ write_failed, anterior restaurado, novo descartado, sem ponteiro quebrado',
+          r === e.W.COLORING60_SAVE_RESULT.WRITE_FAILED
+            && uriOf(e.store.get(KEY)) === SLOT_A
+            && e.blob.has(SLOT_A)
+            && e.deleted.includes(SLOT_B)
+            && noBroken(e.store, e.blob),
+          `rollback deve preservar a invariante sob falha composta (r=${r}, keyUri=${uriOf(e.store.get(KEY))}, deleted=${JSON.stringify(e.deleted)})`);
+      }
     }
   }
 
