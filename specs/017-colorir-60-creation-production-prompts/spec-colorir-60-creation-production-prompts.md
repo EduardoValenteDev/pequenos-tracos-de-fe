@@ -183,7 +183,7 @@ A produção artística do piloto **A Criação** está **CONCLUÍDA**. As **tr�
 | Dimensões | 1122×1402 |
 | Proporção | 4:5 (0.800285) |
 | Modo | RGBA |
-| SHA-256 | `35d6f50c72e9…` (registro completo na spec 016 §2) |
+| SHA-256 | `35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb` (também registrado na spec 016 §2) |
 | Path futuro no catálogo | `assets/stories/creation/coloring/activities/light.png` (referência; **não** copiar/mover neste bloco) |
 | Aprovação | Inspeção full-res aprovada pelo fundador (016 §3/§13-E2) |
 
@@ -219,7 +219,8 @@ A produção artística do piloto **A Criação** está **CONCLUÍDA**. As **tr�
 | SHA-256 (fonte) | `a54617d386f0daa164ad99db7c44ca949c46d6444d551410016f116e4886839f` |
 | Fidelidade | Pixel maxdiff = **0** vs. fonte decodificada (normalização técnica sem alteração de aparência) |
 | Path futuro no catálogo | `assets/stories/creation/coloring/activities/people_and_care.png` |
-| Conformidade | D2 (gestos de cuidado), D3 (moldura), D5 (enquadramento/modéstia) — aprovado pelo fundador |
+| Composição real (aprovada) | **Mulher à esquerda** derramando água de um jarro sobre a **muda** (planta jovem, centro da cena); **homem à direita** cuidando da **terra** ao redor da muda com as mãos. Animais secundários: **ave** (pousada na árvore, topo-esq.), **cervo/corça** pequeno (dir., ao fundo), **coelho** (base-esq.). **Sem cordeiro.** |
+| Conformidade | **D3 (moldura)** cumprida. **D2 e D5 NÃO correspondem** à imagem final aprovada (lados invertidos; sem cordeiro) — registrado como exceção visual final ratificada (ver abaixo). |
 
 ### Anomalia operacional registrada
 
@@ -227,10 +228,20 @@ O candidato entregue para `people_and_care` chegou nomeado como **`people_and_ca
 
 ### Narrativa final do trio
 
-As três páginas formam um conjunto **coeso e distinto**, na mesma família de estilo de `scene_02`, com **molduras equivalentes** e **sem animais repetidos** entre páginas:
+As três páginas formam um conjunto **coeso e distinto**, na mesma família de estilo de `scene_02`, com **molduras equivalentes**:
 
 1. **`light`** — a luz rompendo a escuridão (raios entre nuvens sobre a água): áreas grandes, esperança, fidelidade à cena 2.
-2. **`living_world`** — o mundo vivo criado (exatamente 4 animais integrados: girafa, elefante jovem, coelho, ave pequena) e a vida vegetal.
-3. **`people_and_care`** — o cuidado humano (homem à esquerda amparando a planta jovem; mulher à direita acariciando o cordeiro), íntimo e sereno, **antes da queda** (modéstia por pose/ângulo/vegetação, sem vestes de folhas).
+2. **`living_world`** — o mundo vivo criado (exatamente **4 animais** integrados: girafa, elefante jovem, coelho, ave pequena) e a vida vegetal.
+3. **`people_and_care`** — o cuidado humano em torno de uma **muda** (planta jovem, centro da cena): **mulher à esquerda** derramando água de um jarro sobre a muda; **homem à direita** cuidando da terra ao redor com as mãos. Cena serena, **antes da queda** (modéstia por pose/ângulo/vegetação, sem vestes de folhas). Animais secundários: **ave**, **cervo/corça** pequeno e **coelho**. **Não há cordeiro.**
 
-Três conceitos reconhecíveis e não sobreponíveis, cumprindo o contrato de separação visual (§8) e as decisões D1–D5 (§12).
+**Correção factual (PL01G-FIX1 · 2026-07-22):** a redação anterior desta seção descrevia `people_and_care` como "homem à esquerda amparando a planta; mulher à direita acariciando o cordeiro" — isso corresponde ao **prompt original** (D2/D5), **não** à imagem final aprovada. A **composição real** acima **prevalece**.
+
+**Espécies compartilhadas entre páginas:** `living_world` e `people_and_care` **compartilham ave e coelho**. Portanto a afirmação de "sem animais repetidos entre páginas" **não** se aplica à arte final; a distinção entre as páginas é por **cena/conceito** (animais selvagens em paisagem × casal cuidando de uma muda), **não** por conjuntos de animais mutuamente exclusivos.
+
+### Exceção visual final ratificada pelo fundador (PL01G-FIX1)
+
+A imagem final de `people_and_care` aprovada pelo fundador **difere** da composição prescrita no prompt original e nas decisões **D2** (mulher acaricia a cabeça/dorso do cordeiro; homem cuida da planta) e **D5** (homem à esquerda, ajoelhado junto à planta; mulher à direita, com o cordeiro). Na arte congelada, **os papéis/lados estão invertidos e não há cordeiro**: a **mulher rega a muda (à esquerda)** e o **homem cuida da terra (à direita)**, com ave, cervo/corça e coelho como animais secundários.
+
+Conforme as regras deste bloco: (1) a **aprovação visual do fundador é final** e **prevalece** sobre as restrições composicionais anteriores do prompt para **este asset específico**; (2) essa diferença é registrada como **exceção visual final ratificada**, **não** como defeito; (3) **D1–D5 permanecem preservadas** como o **contrato de produção original** (§§4, 8, 10 e 12) — não são apagadas nem reescritas; (4) esta exceção vale **somente** para os PNGs congelados de A Criação e **não** vira regra para Noé ou futuras histórias, que seguem o contrato/prompt vigente até nova aprovação do fundador.
+
+`living_world` **corresponde** ao contrato (D1: exatamente 4 animais — girafa, elefante, coelho, ave; D3: moldura), **sem exceção a registrar**.
