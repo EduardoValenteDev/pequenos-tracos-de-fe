@@ -30604,36 +30604,61 @@ check(
         },
         getColoring60Activity: cat.getColoring60Activity,
       };
+      // API PÚBLICA FECHADA (FIX1 · Etapa 3): pede SOMENTE o marcador e o leitor. O construtor de
+      // chave é interno — o namespace é observado pelas OPERAÇÕES públicas + AsyncStorage double.
       const S = loadModule('src/services/coloring60ActivityService.js', deps,
-        ['coloring60DoneKey', 'markColoring60ActivityDone', 'loadColoring60Done']);
+        ['markColoring60ActivityDone', 'loadColoring60Done']);
       return { S, store, calls };
     };
 
     // ── Etapa 5 · testes de CONCLUSÃO (plan-agnóstica, identidade fechada, sem colisão) ──
     {
+      // API PÚBLICA FECHADA (FIX1 · Etapa 3): exatamente { mark, load }. O construtor de chave é
+      // INTERNO (não exportado) — provado ESTATICAMENTE no fonte (o adversário que re-exporta
+      // coloring60DoneKey derruba este check). loadModule apaga todos os `export`, então "não
+      // exportado" só é verificável na origem, não pelo módulo carregado.
+      const svcRaw = readSrc('src/services/coloring60ActivityService.js');
+      check('C60-P4.T1: API pública EXATA — exporta markColoring60ActivityDone e loadColoring60Done',
+        /export async function markColoring60ActivityDone\(/.test(svcRaw)
+          && /export async function loadColoring60Done\(/.test(svcRaw),
+        'o service expõe apenas o marcador e o leitor');
+      check('C60-P4.T1: coloring60DoneKey é INTERNO (NÃO exportado) — nenhum chamador recebe a chave pronta',
+        /\n\s*function coloring60DoneKey\(/.test(svcRaw)
+          && !/export\s+(async\s+)?function\s+coloring60DoneKey/.test(svcRaw)
+          && !/export\s*\{[^}]*coloring60DoneKey/.test(svcRaw),
+        'o construtor de chave deve permanecer interno ao módulo');
       const { S } = mkDone();
-      check('C60-P4.T1: service expõe coloring60DoneKey/markColoring60ActivityDone/loadColoring60Done',
-        typeof S.coloring60DoneKey === 'function'
+      check('C60-P4.T1: módulo carregado NÃO expõe o construtor de chave (só mark/load)',
+        typeof S.coloring60DoneKey === 'undefined'
           && typeof S.markColoring60ActivityDone === 'function'
           && typeof S.loadColoring60Done === 'function',
-        'o service de conclusão deve exportar o construtor de chave, o marcador e o leitor');
-      check('C60-P4.T1: chave de conclusão EXATA (@ptf_coloring60_done_<storyId>_<activityId>)',
-        S.coloring60DoneKey('creation', 'light') === '@ptf_coloring60_done_creation_light',
-        `chave inesperada: ${S.coloring60DoneKey('creation', 'light')}`);
-      const kLight = S.coloring60DoneKey('creation', 'light');
-      const kLiving = S.coloring60DoneKey('creation', 'living_world');
-      const kPeople = S.coloring60DoneKey('creation', 'people_and_care');
+        'a API pública carregada deve conter apenas o marcador e o leitor');
+    }
+    {
+      // NAMESPACE observado pelas OPERAÇÕES públicas + AsyncStorage double (SEM chamar o builder
+      // interno): marca cada atividade e inspeciona a CHAVE que a operação efetivamente gravou.
+      const { S, store } = mkDone();
+      await S.markColoring60ActivityDone('creation', 'light');
+      await S.markColoring60ActivityDone('creation', 'living_world');
+      await S.markColoring60ActivityDone('creation', 'people_and_care');
+      const keys = [...store.keys()];
+      const kLight = keys.find((k) => k.endsWith('_light'));
+      const kLiving = keys.find((k) => k.endsWith('_living_world'));
+      const kPeople = keys.find((k) => k.endsWith('_people_and_care'));
+      check('C60-P4.T1: chave EXATA gravada pela operação pública (@ptf_coloring60_done_<storyId>_<activityId>)',
+        kLight === '@ptf_coloring60_done_creation_light',
+        `chave inesperada: ${kLight} (todas: ${JSON.stringify(keys)})`);
       check('C60-P4.T1: chaves DISTINTAS por atividade (sem colisão entre light/living_world/people_and_care)',
-        kLight !== kLiving && kLight !== kPeople && kLiving !== kPeople,
-        'cada atividade tem chave de conclusão própria');
+        kLight && kLiving && kPeople && kLight !== kLiving && kLight !== kPeople && kLiving !== kPeople,
+        `cada atividade grava chave própria (${JSON.stringify(keys)})`);
       check('C60-P4.T1: conclusão NÃO colide com o namespace de PIXELS (@ptf_drawing60_)',
-        !kLight.startsWith('@ptf_drawing60_') && !/@ptf_drawing60_/.test(kLight),
+        keys.every((k) => !k.startsWith('@ptf_drawing60_') && !/@ptf_drawing60_/.test(k)),
         'conclusão e pixels vivem em namespaces distintos');
       check('C60-P4.T1: conclusão NÃO colide com a conclusão LEGADA por cena (@ptf_coloring_done_)',
-        !kLight.startsWith('@ptf_coloring_done_'),
+        keys.every((k) => !k.startsWith('@ptf_coloring_done_')),
         'a conclusão do Colorir 60 não pode casar o prefixo da conclusão legada por sceneId');
       check('C60-P4.T1: conclusão NÃO colide com o desenho LEGADO por cena (@ptf_drawing_s)',
-        !kLight.startsWith('@ptf_drawing_s') && !/@ptf_drawing_s/.test(kLight),
+        keys.every((k) => !k.startsWith('@ptf_drawing_s') && !/@ptf_drawing_s/.test(k)),
         'a conclusão não pode casar o namespace de desenho legado por sceneId');
     }
     {
@@ -30904,6 +30929,83 @@ check(
       check('C60-P4.T2 [INT]: storyId de FONTE ÚNICA — divergência story?.id × storyId ⇒ null (não escolhe às cegas)',
         /if \(primary != null && alt != null && primary !== alt\) return null/.test(c60Region),
         'identidade contraditória não resolve silenciosamente');
+
+      // ── Grupo H (FIX1 · Etapa 4) — SALVAMENTO depende da CONCLUSÃO persistida ─────────────────
+      check('C60-P4.T2 [H]: writer só é chamado se a conclusão foi persistida (const completed = await mark; gate completed !== true antes do writer)',
+        /const completed = await markColoring60ActivityDone\(/.test(handler)
+          && /completed !== true/.test(handler)
+          && handler.indexOf('completed !== true') > handler.indexOf('markColoring60ActivityDone(')
+          && handler.indexOf('completed !== true') < handler.indexOf('saveColoring60DrawingState('),
+        'conclusão não persistida (mark !== true) não pode disparar o writer');
+      check('C60-P4.T2 [H]: conclusão não persistida ⇒ libera c60Saving e retorna ANTES de navegar (tela recuperável, sem goBack de sucesso)',
+        /if \(completed !== true\) \{[\s\S]*?setC60Saving\(false\);[\s\S]*?return;[\s\S]*?\}/.test(handler)
+          && handler.indexOf('completed !== true') < handler.indexOf('navigation.goBack()'),
+        'mark false não pode navegar como sucesso');
+
+      // ── Grupo I (FIX1 · Etapa 5) — RESET por identidade via remontagem (key no wrapper) ────────
+      check('C60-P4.T2 [I]: ramo Colorir 60 REMONTA por identidade (key=storyId+activityId) — reseta D1/D5/saving ao trocar de atividade',
+        /<Coloring60ActivityScreen\s+key=\{c60Key\}/.test(scr)
+          && /const c60Key = /.test(scr)
+          && /::\$\{route\.params\.activityId\}/.test(scr),
+        'sem key por identidade, D1/D5/saving de uma atividade vazariam para a próxima');
+
+      // ── Grupo J (FIX1 · Etapa 6) — concorrência / callback expirado ───────────────────────────
+      check('C60-P4.T2 [J]: duplo-toque bloqueado (disabled={c60Saving} no botão + guard c60Saving no handler)',
+        /disabled=\{c60Saving\}/.test(scr)
+          && /if \(!available \|\| c60Saving\) return/.test(handler),
+        'o duplo-toque é bloqueado por c60Saving (estado + disabled)');
+      check('C60-P4.T2 [J]: callback de export ABORTA em instância inativa (troca de identidade/saída) antes de marcar/salvar',
+        /if \(!activeRef\.current\) return/.test(handler)
+          && handler.indexOf('!activeRef.current') < handler.indexOf('markColoring60ActivityDone('),
+        'callback tardio não pode concluir/persistir em nome de outra identidade');
+      check('C60-P4.T2 [J]: activeRef é desmarcado no unmount (cleanup do useEffect) para invalidar callbacks pendentes',
+        /activeRef\.current = false/.test(c60Region) && /return \(\) =>/.test(c60Region),
+        'a instância deve marcar-se inativa no unmount');
+
+      // ── Grupo K (FIX1 · Etapa 7) — validador de payload COMPORTAMENTAL (fonte real, sem cópia) ─
+      // Avalia a função REAL do fonte (sem imports/JSX): fatia isAcceptableC60Payload e hasMeaningfulPaint
+      // e as executa via new Function — assim os 8 casos exercem o código de produção, não um duplicata.
+      const payFnSlice = scrRaw.slice(
+        scrRaw.indexOf('function isAcceptableC60Payload('),
+        scrRaw.indexOf('function Coloring60ActivityScreen('));
+      const isAcceptableC60Payload = new Function(`${payFnSlice}\n; return isAcceptableC60Payload;`)();
+      const dsRaw = readSrc('src/services/drawingStorage.js');
+      const hStart = dsRaw.indexOf('export function hasMeaningfulPaint(');
+      const hEnd = dsRaw.indexOf('\n}', hStart) + 2;
+      const hmp = new Function(
+        `const POINTER_VERSION = 3;\n${dsRaw.slice(hStart, hEnd).replace('export ', '')}\n; return hasMeaningfulPaint;`)();
+      const BIG = 'data:image/png;base64,' + 'A'.repeat(3000);
+      const SMALL = 'data:image/png;base64,' + 'A'.repeat(10);
+      const V2big = JSON.stringify({ v: 2, W: 1, H: 1, imgX: 0, imgY: 0, imgW: 1, imgH: 1, data: BIG });
+      const V2small = JSON.stringify({ v: 2, data: SMALL });
+      const V2nonImg = JSON.stringify({ v: 2, data: 'x'.repeat(3000) });
+      const V3ptr = JSON.stringify({ v: 3, fmt: 1, uri: 'file://x.png', mime: 'image/png' });
+      check('C60-P4.T2 [K1] payload: data URL de imagem acima do limiar ⇒ ACEITO',
+        isAcceptableC60Payload(BIG) === true, 'data URL de imagem grande deve ser aceito');
+      check('C60-P4.T2 [K2] payload: data URL de imagem no/abaixo do limiar ⇒ REJEITADO',
+        isAcceptableC60Payload(SMALL) === false, 'export minúsculo (canvas em branco) não pode ser aceito');
+      check('C60-P4.T2 [K3] payload: JSON v2 do canvas com data acima do limiar ⇒ ACEITO',
+        isAcceptableC60Payload(V2big) === true, 'v2 com data URL grande deve ser aceito');
+      check('C60-P4.T2 [K4] payload: JSON v2 com data curta ⇒ REJEITADO',
+        isAcceptableC60Payload(V2small) === false, 'v2 com data abaixo do limiar não pode ser aceito');
+      check('C60-P4.T2 [K5] payload: JSON v2 com data NÃO-imagem ⇒ REJEITADO',
+        isAcceptableC60Payload(V2nonImg) === false, 'v2 sem data URL de imagem não pode ser aceito');
+      check('C60-P4.T2 [K6] payload: ponteiro v3 ⇒ REJEITADO no caller (writer materializa v3, caller nunca envia)',
+        isAcceptableC60Payload(V3ptr) === false, 'ponteiro v3 não pode ser aceito pelo caller');
+      check('C60-P4.T2 [K7] payload: malformado/vazio/não-string ⇒ REJEITADO',
+        isAcceptableC60Payload('{nope') === false && isAcceptableC60Payload('') === false
+          && isAcceptableC60Payload(null) === false && isAcceptableC60Payload(undefined) === false,
+        'payload inválido nunca é aceito');
+      check('C60-P4.T2 [K8] D5: export em branco ⇒ hasMeaningfulPaint false E caller rejeita (não conclui)',
+        hmp(SMALL) === false && hmp(BIG) === true && isAcceptableC60Payload(SMALL) === false,
+        'canvas em branco (sem traço significativo) não pode concluir');
+
+      // ── Grupo L (FIX1 · Etapa 8) — LEGADO preservado (tripwire por sha256 do corpo legado) ─────
+      const legacyBody = scrRaw.slice(scrRaw.indexOf('function LegacyColoringScreen'));
+      const legacySha = require('crypto').createHash('sha256').update(legacyBody, 'utf8').digest('hex');
+      check('C60-P4.T2 [L]: corpo do LegacyColoringScreen BYTE-IDÊNTICO (sha256 fixado — fluxo legado intocado por FIX1)',
+        legacySha === '86c68bc414bd62bd7fc74b8bf69d6dcdf94a5cfc944e86872d472e3cf29ace6b',
+        `o corpo legado mudou (sha=${legacySha}) — FIX1 não pode tocar o fluxo legado`);
     }
 
     // ── Etapa 14 · dívidas de cobertura da QA2 (clear/rollback) — sem alterar o contrato do writer ──

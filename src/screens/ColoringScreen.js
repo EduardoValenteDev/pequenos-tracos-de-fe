@@ -76,7 +76,15 @@ function CompactTool({ children, onPress, active, accessibilityLabel }) {
 export default function ColoringScreen({ route, navigation }) {
   // `activityId` é semântico: presença (não-nula) seleciona o caminho Colorir 60.
   if (route.params?.activityId != null) {
-    return <Coloring60ActivityScreen route={route} navigation={navigation} />;
+    // [C60-P4-IDENTITY-KEY] Remontagem SEGURA por identidade (Etapa 5): a `key` deriva da
+    // identidade composta (storyId resolvido + activityId). Quando a identidade muda na MESMA
+    // rota (ex.: light → living_world quando P5 os ativar), o React remonta o ramo do zero —
+    // todos os estados locais voltam ao inicial (c60Ready=false [D1], c60HasPainted=false [D5],
+    // c60Saving=false, cor padrão), o `canvasRef` é novo e nenhum callback de export pendente da
+    // atividade anterior atravessa. Como `resolution.source` é função pura de (storyId,activityId),
+    // trocar o lineart também troca a key. Wrapper permanece SEM hooks (resolveC60StoryId é puro).
+    const c60Key = `${resolveC60StoryId(route.params) ?? 'none'}::${route.params.activityId}`;
+    return <Coloring60ActivityScreen key={c60Key} route={route} navigation={navigation} />;
   }
   return <LegacyColoringScreen route={route} navigation={navigation} />;
 }
@@ -119,6 +127,11 @@ function isAcceptableC60Payload(payload) {
 function Coloring60ActivityScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const canvasRef = useRef(null);
+  // [C60-P4-ACTIVE] Marca a instância como ativa. A remontagem por identidade (key no wrapper) e a
+  // saída da tela desmontam ESTA instância → activeRef.current = false. Um callback de export tardio
+  // (identidade trocada ou tela abandonada) é abortado ANTES de marcar/salvar; e como o closure do
+  // handler capturou a identidade DESTA instância, jamais toca a nova identidade.
+  const activeRef = useRef(true);
   const [c60Color, setC60Color] = useState(COLOR_PALETTE[0].hex);
   const [c60Ready, setC60Ready] = useState(false);      // D1: lineart carregado no canvas
   const [c60HasPainted, setC60HasPainted] = useState(false); // D5: houve traço significativo
@@ -129,16 +142,24 @@ function Coloring60ActivityScreen({ route, navigation }) {
   const resolution = resolveColoring60Lineart(storyId, activityId);
   const available = resolution.status === COLORING60_RESOLUTION_STATUS.AVAILABLE;
 
+  useEffect(() => {
+    activeRef.current = true;
+    return () => { activeRef.current = false; };
+  }, []);
+
   // [C60-P4-HANDLER-START] Ordem canônica (Etapa 11): D1(lineart pronto) → D5(traço) → export →
   // validar payload no caller → MARCAR CONCLUSÃO (plan-agnóstica, antes do writer) → chamar o
   // writer (revalida o plano internamente; Grátis=not_persisted_free, Família=saved) → resultado
   // tipado tratado SEPARADAMENTE, sem apagar a conclusão nem anunciar salvamento falso → voltar.
   function handleC60Pronto() {
-    if (!available || c60Saving) return;
+    if (!available || c60Saving) return; // c60Saving bloqueia duplo-toque (botão também disabled)
     if (!c60Ready) return;       // D1: sem lineart pronto não conclui nem salva
     if (!c60HasPainted) return;  // D5: sem traço significativo não conclui nem salva
     setC60Saving(true);
     canvasRef.current?.exportPaint(async (exportData) => {
+      // Callback tardio / instância inativa (troca de identidade ou saída da tela): aborta sem
+      // marcar/salvar. Nunca conclui/persiste em nome de outra identidade.
+      if (!activeRef.current) return;
       // Rejeita payload inválido/ponteiro ANTES de marcar conclusão ou chamar o writer.
       if (!isAcceptableC60Payload(exportData) || !hasMeaningfulPaint(exportData)) {
         setC60Saving(false);
@@ -146,19 +167,28 @@ function Coloring60ActivityScreen({ route, navigation }) {
       }
       // CONCLUSÃO ≠ SALVAMENTO: marca a conclusão (plan-agnóstica) ANTES do writer e de forma
       // INDEPENDENTE do resultado de persistência — Grátis conclui mesmo sem pixels salvos.
-      await markColoring60ActivityDone(storyId, activityId);
+      const completed = await markColoring60ActivityDone(storyId, activityId);
+      // Só há SALVAMENTO se a CONCLUSÃO foi persistida. Se a conclusão não foi registrada
+      // (completed !== true: identidade inválida/escrita falha), NÃO chama o writer, NÃO navega
+      // como sucesso: libera c60Saving e mantém a tela recuperável (sem salvamento falso).
+      if (completed !== true) {
+        if (__DEV__) console.log('[Coloring60] conclusão NÃO persistida; writer não chamado');
+        setC60Saving(false);
+        return;
+      }
       // Writer dedicado: revalida o plano INTERNAMENTE (Família persiste; Grátis não persiste).
+      // Falha do writer JAMAIS apaga a conclusão já registrada.
       const result = await saveColoring60DrawingState(storyId, activityId, exportData);
       // Resultados tipados tratados SEPARADAMENTE — todos NEUTROS no ramo dormente (sem anúncio):
       //   SAVED (Família): pixels persistidos; NOT_PERSISTED_FREE (Grátis): conclusão vale, sem
-      //   pixels; WRITE_FAILED: conclusão PRESERVADA, nada de "salvo" falso. Falha JAMAIS apaga
-      //   a conclusão já registrada.
+      //   pixels; WRITE_FAILED: conclusão PRESERVADA, nada de "salvo" falso.
       const resultLabel =
         result === COLORING60_SAVE_RESULT.SAVED ? 'saved'
         : result === COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE ? 'not_persisted_free'
         : result === COLORING60_SAVE_RESULT.WRITE_FAILED ? 'write_failed'
         : 'invalid_identity';
       if (__DEV__) console.log('[Coloring60] conclusão preservada; persistência:', resultLabel);
+      if (!activeRef.current) return; // não navega se a tela já saiu durante o writer
       setC60Saving(false);
       navigation.goBack();
     });

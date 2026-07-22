@@ -36,11 +36,13 @@ import { getColoring60Activity } from '../data/coloring60Catalog';
 const DONE_PREFIX = '@ptf_coloring60_done_';
 
 /**
- * coloring60DoneKey(storyId, activityId) — construtor da chave de conclusão. Só produz a chave;
- * o valor gravado é sempre `'true'` (existência = concluído). Espelha o padrão do serviço legado
- * (`coloringActivityKey`) para consistência arquitetural, sem colidir com ele.
+ * coloring60DoneKey(storyId, activityId) — construtor INTERNO da chave de conclusão (NÃO exportado).
+ * A API pública do módulo é EXATAMENTE `{ markColoring60ActivityDone, loadColoring60Done }`; nenhum
+ * chamador fornece a chave pronta — `mark`/`load` a computam internamente após validar a identidade.
+ * Só produz a chave; o valor gravado é sempre `'true'` (existência = concluído). Espelha o padrão do
+ * serviço legado (`coloringActivityKey`) para consistência arquitetural, sem colidir com ele.
  */
-export function coloring60DoneKey(storyId, activityId) {
+function coloring60DoneKey(storyId, activityId) {
   return `${DONE_PREFIX}${storyId}_${activityId}`;
 }
 
