@@ -29633,6 +29633,36 @@ check(
     !lp21iif1Err,
     `o bloco F1 lançou (${lp21iif1Err && lp21iif1Err.stack ? String(lp21iif1Err.stack).split('\n').slice(0, 3).join(' | ') : lp21iif1Err}) — os checks dele não rodaram`);
 
+  // ── Colorir 60 · A Criação — controle negativo P0 (flag off, sem vazamento) ──
+  // C60-IMPL-P0 · P0.T8: com COLORIR_60_CREATION_PILOT_ENABLED desligada, nenhuma
+  // superfície do piloto existe/aparece e o legado (200 linearts) fica intocado.
+  {
+    const flagsSrc = readSrc('src/config/featureFlags.js');
+    check('C60-P0.T8: flag COLORIR_60_CREATION_PILOT_ENABLED existe e default false',
+      /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(flagsSrc),
+      'a flag do piloto Colorir 60 deve ser declarada com default false em featureFlags.js');
+    check('C60-P0.T8: flag do piloto NÃO é ligada por padrão (sem = true)',
+      !/export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*true\s*;/.test(flagsSrc),
+      'a flag do piloto Colorir 60 não pode nascer ligada');
+    // Nenhuma camada funcional do piloto pode existir ainda em P0 (P1–P7 não implementados):
+    const premature = [
+      'src/data/coloring60Catalog.js',
+      'src/assets/coloring60LocalAssets.js',
+      'src/services/coloring60Resolver.js',
+      'src/services/coloring60DrawingStorage.js',
+      'src/services/coloring60ActivityService.js',
+      'assets/stories/creation/coloring/activities',
+    ].filter((rel) => fs.existsSync(path.join(root, rel)));
+    check('C60-P0.T8: nenhuma camada/asset do Colorir 60 integrada prematuramente (flag off)',
+      premature.length === 0,
+      `com a flag off, estes artefatos do piloto NÃO deviam existir em P0: ${premature.join(', ')}`);
+    // Nenhuma rota/QA do Colorir 60 registrada ainda:
+    const navSrc = readSrc('src/navigation/AppNavigator.js');
+    check('C60-P0.T8: nenhuma rota/entrada de QA do Colorir 60 registrada (flag off)',
+      !/[Cc]oloring60|COLORIR_60|Coloring60Qa/.test(navSrc),
+      'nenhuma rota Colorir 60 deve estar registrada no AppNavigator em P0');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
