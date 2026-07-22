@@ -117,6 +117,112 @@ function isAcceptableC60Payload(payload) {
     && obj.data.length > 1000;
 }
 
+// [C60-P4-LOCK] Controlador de tentativa SÍNCRONO (FIX2 · Etapa 3). Serializa as tentativas de
+// conclusão SEM depender da renderização do React: a trava é lida e adquirida no MESMO tick do
+// toque, ANTES de `setC60Saving`/`exportPaint`. Por isso duas chamadas síncronas no mesmo frame
+// não conseguem, ambas, iniciar um export — a segunda recebe token null. É a trava AUTORITATIVA
+// (o estado React `c60Saving`/`disabled` permanece apenas como representação visual complementar).
+//   - acquire(): concede SOMENTE quando não há tentativa vigente; devolve um token monotônico
+//     (nunca reusado). Segunda chamada síncrona ⇒ null.
+//   - isCurrent(token): true só para o token da tentativa AINDA vigente — distingue o callback vivo
+//     de um callback antigo/duplicado/expirado.
+//   - release(token): libera SOMENTE se o token ainda for o vigente — um callback antigo jamais
+//     libera a tentativa nova.
+//   - invalidate(): encerra a tentativa vigente (unmount / remontagem por identidade), tornando
+//     qualquer token anterior inerte.
+// API por instância (um controlador por montagem). NÃO exportada, NÃO global (nenhuma infra externa).
+function createC60AttemptController() {
+  let current = 0; // token da tentativa vigente (0 = nenhuma)
+  let seq = 0;     // gerador monotônico de tokens (nunca reusa)
+  return {
+    acquire() {
+      if (current !== 0) return null; // já há tentativa em curso ⇒ segunda chamada bloqueada
+      seq += 1;
+      current = seq;
+      return current;
+    },
+    isCurrent(token) {
+      return token != null && token === current;
+    },
+    release(token) {
+      if (token === current) current = 0; // só o token vigente libera
+    },
+    invalidate() {
+      current = 0; // encerra a vigente; tokens anteriores deixam de ser current
+    },
+  };
+}
+
+// [C60-P4-HANDLER-START] Núcleo de UMA tentativa de conclusão (FIX2 · Etapas 4-7), isolado do React
+// (recebe TODAS as dependências por injeção) para ser exercitável por testes COMPORTAMENTAIS reais.
+// Ordem canônica: available → D1(ready) → D5(painted) → LOCK SÍNCRONO (acquire) → setSaving(true) →
+// exportPaint ÚNICO. A segunda chamada síncrona para no acquire (token null), ANTES de exportar. O
+// callback captura token+identidade e revalida activeRef+isCurrent(token) antes de qualquer efeito e
+// após cada await; try/catch/finally garantem: sem unhandled rejection; writer nunca chamado sob
+// mark!==true; conclusão nunca apagada por falha do writer; e o token CORRETO sempre liberado (nunca
+// o de uma tentativa nova). canvas ausente / exportPaint lançando ⇒ libera o lock e reabilita a tela.
+function beginC60Attempt(deps) {
+  const {
+    controller, canvasRef, activeRef,
+    available, ready, painted, saving,
+    storyId, activityId, setSaving, goBack,
+  } = deps;
+  if (!available || saving) return; // guard visual complementar (a trava real é o controller)
+  if (!ready) return;       // D1: sem lineart pronto não conclui nem salva
+  if (!painted) return;     // D5: sem traço significativo não conclui nem salva
+  const token = controller.acquire(); // LOCK SÍNCRONO antes de setSaving/exportPaint
+  if (token == null) return;          // segunda tentativa no mesmo tick para AQUI (antes do export)
+  setSaving(true);
+  const attemptStoryId = storyId;     // identidade capturada DESTA tentativa
+  const attemptActivityId = activityId;
+  const canvas = canvasRef.current;
+  if (!canvas) { // canvas ausente: libera o lock e reabilita a tela, sem marcar/salvar/navegar
+    controller.release(token);
+    setSaving(false);
+    return;
+  }
+  try {
+    canvas.exportPaint(async (exportData) => {
+      // Callback antigo/duplicado ou instância inativa (troca de identidade/saída): INERTE — não
+      // marca/salva/navega e não libera uma tentativa nova.
+      if (!activeRef.current || !controller.isCurrent(token)) return;
+      try {
+        if (!isAcceptableC60Payload(exportData) || !hasMeaningfulPaint(exportData)) return;
+        // CONCLUSÃO ≠ SALVAMENTO: marca a conclusão (plan-agnóstica) ANTES do writer.
+        const completed = await markColoring60ActivityDone(attemptStoryId, attemptActivityId);
+        if (completed !== true) { // conclusão não persistida ⇒ writer NÃO é chamado, sem navegar
+          if (__DEV__) console.log('[Coloring60] conclusão NÃO persistida; writer não chamado');
+          return;
+        }
+        // Writer dedicado (revalida o plano internamente). Falha JAMAIS apaga a conclusão.
+        const result = await saveColoring60DrawingState(attemptStoryId, attemptActivityId, exportData);
+        const resultLabel =
+          result === COLORING60_SAVE_RESULT.SAVED ? 'saved'
+          : result === COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE ? 'not_persisted_free'
+          : result === COLORING60_SAVE_RESULT.WRITE_FAILED ? 'write_failed'
+          : 'invalid_identity';
+        if (__DEV__) console.log('[Coloring60] conclusão preservada; persistência:', resultLabel);
+        if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante o writer
+        goBack();
+      } catch (err) { // mark/writer lançou: conclusão preservada, SEM unhandled rejection
+        if (__DEV__) console.log('[Coloring60] erro na conclusão (conclusão preservada):', err?.message);
+      } finally {
+        // Libera SOMENTE o token vigente (um callback antigo não libera a tentativa nova) e reabilita
+        // a tela apenas se a instância ainda estiver ativa.
+        if (controller.isCurrent(token)) {
+          controller.release(token);
+          if (activeRef.current) setSaving(false);
+        }
+      }
+    });
+  } catch (err) { // exportPaint lançou SINCRONICAMENTE: libera o lock e reabilita a tela
+    if (__DEV__) console.log('[Coloring60] exportPaint lançou sincronicamente:', err?.message);
+    controller.release(token);
+    setSaving(false);
+  }
+}
+// [C60-P4-HANDLER-END]
+
 // Ramo Colorir 60: presentacional e local-first. Resolve por (storyId, activityId), respeita os
 // três estados honestos e — no estado `available` (P4.T2) — compõe o `ColoringCanvas` existente
 // (SEM alterar seu contrato) com paleta e "Pronto". A CONCLUSÃO (booleano leve, plan-agnóstica) é
@@ -132,6 +238,11 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // (identidade trocada ou tela abandonada) é abortado ANTES de marcar/salvar; e como o closure do
   // handler capturou a identidade DESTA instância, jamais toca a nova identidade.
   const activeRef = useRef(true);
+  // [C60-P4-LOCK] Trava síncrona AUTORITATIVA por instância (FIX2). Um controlador por montagem;
+  // criado de forma preguiçosa (idempotente) e invalidado no unmount/remontagem. Ver
+  // createC60AttemptController — o estado React `c60Saving`/`disabled` é só complemento visual.
+  const attemptControllerRef = useRef(null);
+  if (attemptControllerRef.current === null) attemptControllerRef.current = createC60AttemptController();
   const [c60Color, setC60Color] = useState(COLOR_PALETTE[0].hex);
   const [c60Ready, setC60Ready] = useState(false);      // D1: lineart carregado no canvas
   const [c60HasPainted, setC60HasPainted] = useState(false); // D5: houve traço significativo
@@ -144,56 +255,33 @@ function Coloring60ActivityScreen({ route, navigation }) {
 
   useEffect(() => {
     activeRef.current = true;
-    return () => { activeRef.current = false; };
+    return () => {
+      activeRef.current = false;
+      // Invalida a tentativa vigente ao desmontar/remontar por identidade: um callback de export
+      // pendente falhará em isCurrent(token) e ficará inerte (não marca/salva/navega/libera novo).
+      attemptControllerRef.current?.invalidate();
+    };
   }, []);
 
-  // [C60-P4-HANDLER-START] Ordem canônica (Etapa 11): D1(lineart pronto) → D5(traço) → export →
-  // validar payload no caller → MARCAR CONCLUSÃO (plan-agnóstica, antes do writer) → chamar o
-  // writer (revalida o plano internamente; Grátis=not_persisted_free, Família=saved) → resultado
-  // tipado tratado SEPARADAMENTE, sem apagar a conclusão nem anunciar salvamento falso → voltar.
+  // [C60-P4-WIRING] Ligação fina React↔núcleo: handleC60Pronto injeta o estado DESTA instância
+  // (D1/D5/saving, refs, navegação e a trava síncrona) no núcleo testável `beginC60Attempt`, onde
+  // vive a ordem canônica e a serialização (acquire ANTES de setC60Saving/exportPaint). Sem lógica
+  // de conclusão aqui — só a composição — para que os testes exerçam o núcleo real.
   function handleC60Pronto() {
-    if (!available || c60Saving) return; // c60Saving bloqueia duplo-toque (botão também disabled)
-    if (!c60Ready) return;       // D1: sem lineart pronto não conclui nem salva
-    if (!c60HasPainted) return;  // D5: sem traço significativo não conclui nem salva
-    setC60Saving(true);
-    canvasRef.current?.exportPaint(async (exportData) => {
-      // Callback tardio / instância inativa (troca de identidade ou saída da tela): aborta sem
-      // marcar/salvar. Nunca conclui/persiste em nome de outra identidade.
-      if (!activeRef.current) return;
-      // Rejeita payload inválido/ponteiro ANTES de marcar conclusão ou chamar o writer.
-      if (!isAcceptableC60Payload(exportData) || !hasMeaningfulPaint(exportData)) {
-        setC60Saving(false);
-        return;
-      }
-      // CONCLUSÃO ≠ SALVAMENTO: marca a conclusão (plan-agnóstica) ANTES do writer e de forma
-      // INDEPENDENTE do resultado de persistência — Grátis conclui mesmo sem pixels salvos.
-      const completed = await markColoring60ActivityDone(storyId, activityId);
-      // Só há SALVAMENTO se a CONCLUSÃO foi persistida. Se a conclusão não foi registrada
-      // (completed !== true: identidade inválida/escrita falha), NÃO chama o writer, NÃO navega
-      // como sucesso: libera c60Saving e mantém a tela recuperável (sem salvamento falso).
-      if (completed !== true) {
-        if (__DEV__) console.log('[Coloring60] conclusão NÃO persistida; writer não chamado');
-        setC60Saving(false);
-        return;
-      }
-      // Writer dedicado: revalida o plano INTERNAMENTE (Família persiste; Grátis não persiste).
-      // Falha do writer JAMAIS apaga a conclusão já registrada.
-      const result = await saveColoring60DrawingState(storyId, activityId, exportData);
-      // Resultados tipados tratados SEPARADAMENTE — todos NEUTROS no ramo dormente (sem anúncio):
-      //   SAVED (Família): pixels persistidos; NOT_PERSISTED_FREE (Grátis): conclusão vale, sem
-      //   pixels; WRITE_FAILED: conclusão PRESERVADA, nada de "salvo" falso.
-      const resultLabel =
-        result === COLORING60_SAVE_RESULT.SAVED ? 'saved'
-        : result === COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE ? 'not_persisted_free'
-        : result === COLORING60_SAVE_RESULT.WRITE_FAILED ? 'write_failed'
-        : 'invalid_identity';
-      if (__DEV__) console.log('[Coloring60] conclusão preservada; persistência:', resultLabel);
-      if (!activeRef.current) return; // não navega se a tela já saiu durante o writer
-      setC60Saving(false);
-      navigation.goBack();
+    beginC60Attempt({
+      controller: attemptControllerRef.current,
+      canvasRef,
+      activeRef,
+      available,
+      ready: c60Ready,
+      painted: c60HasPainted,
+      saving: c60Saving,
+      storyId,
+      activityId,
+      setSaving: setC60Saving,
+      goBack: () => navigation.goBack(),
     });
   }
-  // [C60-P4-HANDLER-END]
 
   const eraserActive = c60Color === ERASER_COLOR;
 

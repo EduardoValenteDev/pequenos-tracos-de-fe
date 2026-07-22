@@ -30781,19 +30781,21 @@ check(
       check('C60-P4.T2 [A/D1]: canvas conecta onReadyChange={setC60Ready} (sinal de lineart pronto)',
         /onReadyChange=\{setC60Ready\}/.test(scr),
         'D1 vem do canvas por composição (onReadyChange), sem alterar seu contrato');
-      check('C60-P4.T2 [A/D1]: handler NÃO conclui/salva sem lineart pronto (gate !c60Ready antes do export)',
-        /!c60Ready/.test(handler)
-          && handler.indexOf('!c60Ready') < handler.indexOf('exportPaint('),
-        'sem D1 o fluxo não pode exportar/concluir/salvar');
+      check('C60-P4.T2 [A/D1]: núcleo NÃO conclui/salva sem lineart pronto (gate !ready antes do lock/export)',
+        /if \(!ready\) return/.test(handler)
+          && handler.indexOf('!ready') < handler.indexOf('exportPaint(')
+          && handler.indexOf('!ready') < handler.indexOf('controller.acquire('),
+        'sem D1 o fluxo não pode adquirir a trava, exportar, concluir nem salvar');
 
       // Grupo B — D5 (traço significativo): onPainted conectado + gate antes do export.
       check('C60-P4.T2 [B/D5]: canvas conecta onPainted→setC60HasPainted (sinal de traço)',
         /onPainted=\{\(\) => setC60HasPainted\(true\)\}/.test(scr),
         'D5 vem do canvas por composição (onPainted)');
-      check('C60-P4.T2 [B/D5]: handler NÃO conclui/salva sem traço (gate !c60HasPainted antes do export)',
-        /!c60HasPainted/.test(handler)
-          && handler.indexOf('!c60HasPainted') < handler.indexOf('exportPaint('),
-        'sem D5 o fluxo não pode exportar/concluir/salvar');
+      check('C60-P4.T2 [B/D5]: núcleo NÃO conclui/salva sem traço (gate !painted antes do lock/export)',
+        /if \(!painted\) return/.test(handler)
+          && handler.indexOf('!painted') < handler.indexOf('exportPaint(')
+          && handler.indexOf('!painted') < handler.indexOf('controller.acquire('),
+        'sem D5 o fluxo não pode adquirir a trava, exportar, concluir nem salvar');
 
       // Grupo C — ORDEM CANÔNICA: export → validar payload (+hasMeaningfulPaint) → marcar → writer.
       const iExport = handler.indexOf('exportPaint(');
@@ -30937,10 +30939,12 @@ check(
           && handler.indexOf('completed !== true') > handler.indexOf('markColoring60ActivityDone(')
           && handler.indexOf('completed !== true') < handler.indexOf('saveColoring60DrawingState('),
         'conclusão não persistida (mark !== true) não pode disparar o writer');
-      check('C60-P4.T2 [H]: conclusão não persistida ⇒ libera c60Saving e retorna ANTES de navegar (tela recuperável, sem goBack de sucesso)',
-        /if \(completed !== true\) \{[\s\S]*?setC60Saving\(false\);[\s\S]*?return;[\s\S]*?\}/.test(handler)
-          && handler.indexOf('completed !== true') < handler.indexOf('navigation.goBack()'),
-        'mark false não pode navegar como sucesso');
+      check('C60-P4.T2 [H]: conclusão não persistida ⇒ retorna ANTES do writer/goBack; c60Saving liberado pelo finally (tela recuperável, sem sucesso falso)',
+        /if \(completed !== true\) \{[\s\S]*?return;[\s\S]*?\}/.test(handler)
+          && handler.indexOf('completed !== true') < handler.indexOf('saveColoring60DrawingState(')
+          && handler.indexOf('completed !== true') < handler.indexOf('goBack()')
+          && /finally \{[\s\S]*?controller\.release\(token\);[\s\S]*?setSaving\(false\);[\s\S]*?\}/.test(handler),
+        'mark false não chama writer nem navega; o finally libera a trava e reabilita a tela');
 
       // ── Grupo I (FIX1 · Etapa 5) — RESET por identidade via remontagem (key no wrapper) ────────
       check('C60-P4.T2 [I]: ramo Colorir 60 REMONTA por identidade (key=storyId+activityId) — reseta D1/D5/saving ao trocar de atividade',
@@ -30950,14 +30954,14 @@ check(
         'sem key por identidade, D1/D5/saving de uma atividade vazariam para a próxima');
 
       // ── Grupo J (FIX1 · Etapa 6) — concorrência / callback expirado ───────────────────────────
-      check('C60-P4.T2 [J]: duplo-toque bloqueado (disabled={c60Saving} no botão + guard c60Saving no handler)',
+      check('C60-P4.T2 [J]: guard visual COMPLEMENTAR presente (disabled={c60Saving} no botão + gate saving no núcleo)',
         /disabled=\{c60Saving\}/.test(scr)
-          && /if \(!available \|\| c60Saving\) return/.test(handler),
-        'o duplo-toque é bloqueado por c60Saving (estado + disabled)');
-      check('C60-P4.T2 [J]: callback de export ABORTA em instância inativa (troca de identidade/saída) antes de marcar/salvar',
-        /if \(!activeRef\.current\) return/.test(handler)
+          && /if \(!available \|\| saving\) return/.test(handler),
+        'o estado c60Saving/disabled permanece como proteção visual complementar (a trava real é o controller)');
+      check('C60-P4.T2 [J]: callback de export ABORTA em instância inativa OU token expirado antes de marcar/salvar',
+        /if \(!activeRef\.current \|\| !controller\.isCurrent\(token\)\) return/.test(handler)
           && handler.indexOf('!activeRef.current') < handler.indexOf('markColoring60ActivityDone('),
-        'callback tardio não pode concluir/persistir em nome de outra identidade');
+        'callback tardio/expirado não pode concluir/persistir em nome de outra identidade/tentativa');
       check('C60-P4.T2 [J]: activeRef é desmarcado no unmount (cleanup do useEffect) para invalidar callbacks pendentes',
         /activeRef\.current = false/.test(c60Region) && /return \(\) =>/.test(c60Region),
         'a instância deve marcar-se inativa no unmount');
@@ -31105,6 +31109,283 @@ check(
             && noBroken(e.store, e.blob),
           `rollback deve preservar a invariante sob falha composta (r=${r}, keyUri=${uriOf(e.store.get(KEY))}, deleted=${JSON.stringify(e.deleted)})`);
       }
+    }
+
+    // ── FIX2 (C60-IMPL-P4-FIX2) · serialização SÍNCRONA das tentativas de conclusão ────────────
+    // Controles estáticos (Etapa 10) + HARNESS COMPORTAMENTAL (Etapa 9) que extrai o controller e o
+    // beginC60Attempt REAIS do fonte e os exercita com colaboradores injetados. Não é regex: uma
+    // mutação no controller ou no núcleo muda os CONTADORES abaixo (ver adversarial, Etapa 12).
+    {
+      const stripComments = (s) => String(s)
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+      const sliceBetween = (raw, a, b) => {
+        const i = raw.indexOf(a); const j = raw.indexOf(b, i + 1);
+        return (i >= 0 && j > i) ? raw.slice(i, j) : '';
+      };
+      const scrF = readSrc('src/screens/ColoringScreen.js');
+      const handlerF = stripComments(sliceBetween(scrF, '[C60-P4-HANDLER-START]', '[C60-P4-HANDLER-END]'));
+      const c60RegionF = stripComments(sliceBetween(scrF, '[C60-P4-STORYID]', 'function LegacyColoringScreen'));
+      const ctrlSrc = scrF.slice(
+        scrF.indexOf('function createC60AttemptController('),
+        scrF.indexOf('function beginC60Attempt('));
+
+      // ── Controles ESTÁTICOS (Etapa 10) — complementam, não substituem, o comportamental ────────
+      check('C60-P4-FIX2 [S1]: LOCK síncrono adquirido ANTES de setSaving(true) e ANTES de exportPaint',
+        handlerF.indexOf('controller.acquire(') >= 0
+          && handlerF.indexOf('controller.acquire(') < handlerF.indexOf('setSaving(true)')
+          && handlerF.indexOf('controller.acquire(') < handlerF.indexOf('exportPaint('),
+        'a trava síncrona precede o setState e o export (não depende de renderização)');
+      check('C60-P4-FIX2 [S2]: token null ⇒ retorno ANTES de setSaving/exportPaint (segunda tentativa síncrona para no lock)',
+        /const token = controller\.acquire\(\);/.test(handlerF)
+          && /if \(token == null\) return;/.test(handlerF)
+          && handlerF.indexOf('if (token == null) return;') < handlerF.indexOf('setSaving(true)'),
+        'sem token não há setState, export, conclusão nem salvamento');
+      check('C60-P4-FIX2 [S3]: callback VERIFICA isCurrent(token) (além de activeRef) antes de qualquer efeito',
+        /if \(!activeRef\.current \|\| !controller\.isCurrent\(token\)\) return;/.test(handlerF)
+          && handlerF.indexOf('controller.isCurrent(token)') < handlerF.indexOf('markColoring60ActivityDone('),
+        'callback antigo/expirado é distinguido por token e fica inerte');
+      check('C60-P4-FIX2 [S4]: try/catch/finally presentes no callback (sem unhandled rejection; liberação garantida)',
+        /try \{/.test(handlerF) && /catch \(err\)/.test(handlerF) && /finally \{/.test(handlerF),
+        'a operação assíncrona é protegida e sempre libera o token correto');
+      check('C60-P4-FIX2 [S5]: finally libera SOMENTE o token vigente (isCurrent antes de release)',
+        /finally \{[\s\S]*?if \(controller\.isCurrent\(token\)\) \{[\s\S]*?controller\.release\(token\);/.test(handlerF),
+        'um callback antigo não libera a trava de uma tentativa nova');
+      check('C60-P4-FIX2 [S6]: mark ANTES do writer e completed !== true bloqueia o writer',
+        handlerF.indexOf('markColoring60ActivityDone(') < handlerF.indexOf('saveColoring60DrawingState(')
+          && /completed !== true/.test(handlerF)
+          && handlerF.indexOf('completed !== true') < handlerF.indexOf('saveColoring60DrawingState('),
+        'conclusão não persistida nunca dispara o writer');
+      check('C60-P4-FIX2 [S7]: hasMeaningfulPaint (D5) permanece no caminho do callback',
+        /hasMeaningfulPaint\(/.test(handlerF)
+          && /isAcceptableC60Payload\(/.test(handlerF),
+        'a validação de payload/traço significativo permanece antes de marcar');
+      check('C60-P4-FIX2 [S8]: exportPaint ausente/lançando ⇒ libera lock e reabilita (release + setSaving(false))',
+        /if \(!canvas\) \{[\s\S]*?controller\.release\(token\);[\s\S]*?setSaving\(false\);[\s\S]*?return;/.test(handlerF)
+          && /catch \(err\) \{[\s\S]*?controller\.release\(token\);[\s\S]*?setSaving\(false\);[\s\S]*?\}/.test(handlerF),
+        'canvas ausente ou export que lança não deixam a tela presa');
+      check('C60-P4-FIX2 [S9]: controller — acquire BLOQUEIA quando há tentativa vigente; release só o token vigente; invalidate zera',
+        /if \(current !== 0\) return null;/.test(ctrlSrc)
+          && /if \(token === current\) current = 0;/.test(ctrlSrc)
+          && /invalidate\(\) \{[\s\S]*?current = 0;/.test(ctrlSrc),
+        'as primitivas do controlador implementam a serialização por token');
+      check('C60-P4-FIX2 [S10]: controller/núcleo NÃO exportados (sem API pública nem infra global)',
+        !/export\s+(async\s+)?function\s+createC60AttemptController/.test(scrF)
+          && !/export\s+(async\s+)?function\s+beginC60Attempt/.test(scrF)
+          && !/export\s*\{[^}]*(createC60AttemptController|beginC60Attempt)/.test(scrF),
+        'a trava é interna à tela; nenhum outro módulo a consome');
+      check('C60-P4-FIX2 [S11]: cleanup do useEffect INVALIDA a tentativa vigente (unmount/remontagem por identidade)',
+        /return \(\) => \{[\s\S]*?activeRef\.current = false;[\s\S]*?attemptControllerRef\.current\?\.invalidate\(\);/.test(c60RegionF),
+        'ao desmontar/remontar, a tentativa pendente é invalidada e o callback fica inerte');
+      check('C60-P4-FIX2 [S12]: wiring injeta o estado REAL da instância (controller/D1/D5/saving/navegação) no núcleo',
+        /controller: attemptControllerRef\.current/.test(c60RegionF)
+          && /ready: c60Ready/.test(c60RegionF)
+          && /painted: c60HasPainted/.test(c60RegionF)
+          && /saving: c60Saving/.test(c60RegionF)
+          && /setSaving: setC60Saving/.test(c60RegionF)
+          && /goBack: \(\) => navigation\.goBack\(\)/.test(c60RegionF),
+        'handleC60Pronto liga D1/D5/saving reais e a trava ao núcleo testável');
+
+      // ── HARNESS COMPORTAMENTAL (Etapa 9) — núcleo REAL exercitado com colaboradores injetados ───
+      const beginSrc = scrF.slice(
+        scrF.indexOf('function beginC60Attempt('),
+        scrF.indexOf('// [C60-P4-HANDLER-END]'));
+      const payFnSrc = scrF.slice(
+        scrF.indexOf('function isAcceptableC60Payload('),
+        scrF.indexOf('// [C60-P4-LOCK]'));
+      const dsRawF = readSrc('src/services/drawingStorage.js');
+      const hSf = dsRawF.indexOf('export function hasMeaningfulPaint(');
+      const hEf = dsRawF.indexOf('\n}', hSf) + 2;
+      const hmpSrc = dsRawF.slice(hSf, hEf).replace('export ', '');
+      const SR = { SAVED: 'saved', NOT_PERSISTED_FREE: 'nfp', WRITE_FAILED: 'wf', INVALID: 'inv' };
+      // Fábrica: injeta os colaboradores (fakes) no controller + beginC60Attempt REAIS extraídos.
+      const buildCore = (collab) => new Function('collab', `
+        const __DEV__ = false;
+        const POINTER_VERSION = 3;
+        ${payFnSrc}
+        ${hmpSrc}
+        const { markColoring60ActivityDone, saveColoring60DrawingState, COLORING60_SAVE_RESULT } = collab;
+        ${ctrlSrc}
+        ${beginSrc}
+        return { createC60AttemptController, beginC60Attempt };
+      `)(collab);
+
+      const BIGpng = 'data:image/png;base64,' + 'A'.repeat(3000);
+      const makeInstance = (cfg = {}) => {
+        const counts = { mark: 0, save: 0, goBack: 0, releases: 0 };
+        const collab = {
+          markColoring60ActivityDone: async () => { counts.mark++; if (cfg.markThrows) throw new Error('mark boom'); return cfg.markReturn === undefined ? true : cfg.markReturn; },
+          saveColoring60DrawingState: async () => { counts.save++; if (cfg.saveThrows) throw new Error('save boom'); return cfg.saveReturn || SR.SAVED; },
+          COLORING60_SAVE_RESULT: SR,
+        };
+        const core = buildCore(collab);
+        const controller = core.createC60AttemptController();
+        const canvas = { exportCalls: 0, captured: [], exportPaint(cb) { this.exportCalls++; if (cfg.exportThrows) throw new Error('export boom'); this.captured.push(cb); } };
+        const canvasRef = { current: cfg.noCanvas ? null : canvas };
+        const activeRef = { current: true };
+        let savingSnapshot = false, pendingSaving = null;
+        const setSaving = (v) => { pendingSaving = v; if (v === false) counts.releases++; };
+        const render = () => { if (pendingSaving !== null) { savingSnapshot = pendingSaving; pendingSaving = null; } };
+        const attempt = () => core.beginC60Attempt({
+          controller, canvasRef, activeRef,
+          available: cfg.available === undefined ? true : cfg.available,
+          ready: cfg.ready === undefined ? true : cfg.ready,
+          painted: cfg.painted === undefined ? true : cfg.painted,
+          saving: savingSnapshot,
+          storyId: 'creation', activityId: 'light',
+          setSaving, goBack: () => { counts.goBack++; },
+        });
+        // fire: entrega o callback como o exportPaint REAL — fire-and-forget (SEM await), deixando
+        // qualquer rejeição virar unhandled (fidelidade ao caminho de produção); assenta via macrotask,
+        // que primeiro drena todos os microtasks da cadeia mark/writer.
+        return { counts, controller, canvas, canvasRef, activeRef, render, attempt,
+          fire: (cb, p = BIGpng) => { cb(p); return new Promise((r) => setTimeout(r, 0)); } };
+      };
+
+      // CENÁRIO A — duplo toque SÍNCRONO no mesmo tick: a TRAVA (não o setState) serializa.
+      {
+        const i = makeInstance();
+        i.attempt(); i.attempt(); // sem render entre: savingSnapshot=false nas duas
+        const exportsAfterDouble = i.canvas.exportCalls;
+        i.render();
+        await i.fire(i.canvas.captured[0]);
+        check('C60-P4-FIX2 [A] duplo toque mesmo tick: 1 export, 1 mark, 1 writer, 1 goBack (segunda aquisição = null)',
+          exportsAfterDouble === 1 && i.canvas.captured.length === 1
+            && i.counts.mark === 1 && i.counts.save === 1 && i.counts.goBack === 1,
+          `duas operações não podem iniciar (exports=${exportsAfterDouble}, mark=${i.counts.mark}, save=${i.counts.save}, goBack=${i.counts.goBack})`);
+      }
+      // CENÁRIO B — segunda tentativa bloqueada enquanto a primeira está ativa (trava direta).
+      {
+        const i = makeInstance();
+        i.attempt();
+        const lockedNow = i.controller.acquire(); // trava DIRETA: com tentativa vigente ⇒ null
+        i.render(); i.attempt(); // mesmo após render, segue bloqueada (token ainda vigente)
+        check('C60-P4-FIX2 [B] segunda tentativa bloqueada enquanto a primeira está ativa (acquire ⇒ null; export não repete)',
+          lockedNow === null && i.canvas.exportCalls === 1,
+          `enquanto vigente, nova tentativa não adquire nem exporta (acquire=${lockedNow}, exports=${i.canvas.exportCalls})`);
+      }
+      // CENÁRIO C — callback DUPLO (mesma cb entregue 2×): token já liberado ⇒ segunda entrega inerte.
+      {
+        const i = makeInstance();
+        i.attempt(); i.render();
+        const cb = i.canvas.captured[0];
+        await i.fire(cb); await i.fire(cb);
+        check('C60-P4-FIX2 [C] callback duplo: sem duplo mark/save/goBack (segunda entrega falha em isCurrent)',
+          i.counts.mark === 1 && i.counts.save === 1 && i.counts.goBack === 1,
+          `entrega dupla não pode duplicar efeitos (mark=${i.counts.mark}, save=${i.counts.save}, goBack=${i.counts.goBack})`);
+      }
+      // CENÁRIO D — callback após INVALIDAÇÃO (invalidate) e após activeRef=false: inerte.
+      {
+        const i = makeInstance();
+        i.attempt(); i.render();
+        i.controller.invalidate();
+        await i.fire(i.canvas.captured[0]);
+        const j = makeInstance();
+        j.attempt(); j.render();
+        j.activeRef.current = false;
+        await j.fire(j.canvas.captured[0]);
+        check('C60-P4-FIX2 [D] callback após invalidação/saída: mark 0, writer 0, goBack 0 (nos dois caminhos)',
+          i.counts.mark === 0 && i.counts.save === 0 && i.counts.goBack === 0
+            && j.counts.mark === 0 && j.counts.save === 0 && j.counts.goBack === 0,
+          `callback invalidado/inativo não pode marcar/salvar/navegar (i=${JSON.stringify(i.counts)}, j=${JSON.stringify(j.counts)})`);
+      }
+      // CENÁRIO E — callback ANTIGO após NOVA tentativa na mesma instância: não é current, não libera o novo.
+      {
+        const i = makeInstance({ markReturn: false }); // 1ª não conclui (libera no finally)
+        i.attempt(); i.render();
+        const cb1 = i.canvas.captured[0];
+        await i.fire(cb1);      // token1 liberado
+        i.render();
+        i.attempt();            // token2 (export #2)
+        i.render();
+        const snap = { mark: i.counts.mark, save: i.counts.save, goBack: i.counts.goBack };
+        await i.fire(cb1);      // reentrega tardia do cb1 (token1) — deve ser inerte
+        const stillHeld = i.controller.acquire(); // token2 ainda vigente ⇒ null
+        check('C60-P4-FIX2 [E] callback antigo após nova tentativa: inerte e NÃO libera o token novo',
+          i.counts.mark === snap.mark && i.counts.save === snap.save && i.counts.goBack === snap.goBack
+            && i.canvas.exportCalls === 2 && stillHeld === null,
+          `token antigo não pode afetar/liberar a tentativa nova (antes=${JSON.stringify(snap)}, depois=${JSON.stringify(i.counts)}, held=${stillHeld})`);
+      }
+      // CENÁRIO F — mark FALSE: writer 0, goBack 0, lock liberado, nova tentativa pode começar.
+      {
+        const i = makeInstance({ markReturn: false });
+        i.attempt(); i.render();
+        await i.fire(i.canvas.captured[0]);
+        i.render(); i.attempt(); // nova tentativa (lock livre) ⇒ export #2
+        check('C60-P4-FIX2 [F] mark false: writer 0, goBack 0, lock liberado (nova tentativa exporta)',
+          i.counts.mark === 1 && i.counts.save === 0 && i.counts.goBack === 0
+            && i.counts.releases >= 1 && i.canvas.exportCalls === 2,
+          `mark false libera a trava sem salvar/navegar (mark=${i.counts.mark}, save=${i.counts.save}, goBack=${i.counts.goBack}, releases=${i.counts.releases}, exports=${i.canvas.exportCalls})`);
+      }
+      // CENÁRIO G — mark LANÇA: sem unhandled rejection; writer 0; goBack 0; lock liberado.
+      {
+        let unhandled = false; const onUnh = () => { unhandled = true; };
+        process.on('unhandledRejection', onUnh);
+        const i = makeInstance({ markThrows: true });
+        i.attempt(); i.render();
+        await i.fire(i.canvas.captured[0]);
+        await new Promise((r) => setTimeout(r, 0));
+        process.removeListener('unhandledRejection', onUnh);
+        i.render(); i.attempt();
+        check('C60-P4-FIX2 [G] mark lança: sem unhandled rejection, writer 0, goBack 0, lock liberado',
+          unhandled === false && i.counts.mark === 1 && i.counts.save === 0 && i.counts.goBack === 0
+            && i.counts.releases >= 1 && i.canvas.exportCalls === 2,
+          `exceção de mark não escapa e libera a trava (unhandled=${unhandled}, save=${i.counts.save}, goBack=${i.counts.goBack}, releases=${i.counts.releases})`);
+      }
+      // CENÁRIO H — writer LANÇA: sem unhandled; conclusão marcada (não apagada); goBack 0; lock liberado.
+      {
+        let unhandled = false; const onUnh = () => { unhandled = true; };
+        process.on('unhandledRejection', onUnh);
+        const i = makeInstance({ saveThrows: true });
+        i.attempt(); i.render();
+        await i.fire(i.canvas.captured[0]);
+        await new Promise((r) => setTimeout(r, 0));
+        process.removeListener('unhandledRejection', onUnh);
+        i.render(); i.attempt();
+        check('C60-P4-FIX2 [H] writer lança: sem unhandled, conclusão marcada (mark 1), goBack 0, lock liberado',
+          unhandled === false && i.counts.mark === 1 && i.counts.save === 1 && i.counts.goBack === 0
+            && i.counts.releases >= 1 && i.canvas.exportCalls === 2,
+          `falha do writer não apaga conclusão nem trava a tela (unhandled=${unhandled}, mark=${i.counts.mark}, goBack=${i.counts.goBack}, releases=${i.counts.releases})`);
+      }
+      // CENÁRIO I — release com TOKEN ANTIGO não libera o token atual.
+      {
+        const core = buildCore({ markColoring60ActivityDone: async () => true, saveColoring60DrawingState: async () => SR.SAVED, COLORING60_SAVE_RESULT: SR });
+        const c = core.createC60AttemptController();
+        const t1 = c.acquire(); c.release(t1);
+        const t2 = c.acquire(); c.release(t1); // t1 não é vigente ⇒ no-op
+        check('C60-P4-FIX2 [I] release com token antigo: não libera o token vigente',
+          c.isCurrent(t2) === true && c.acquire() === null,
+          `token antigo não pode liberar o atual (isCurrent(t2)=${c.isCurrent(t2)})`);
+      }
+      // CENÁRIO J — invalidate torna o token anterior inválido (callback anterior fica inerte).
+      {
+        const core = buildCore({ markColoring60ActivityDone: async () => true, saveColoring60DrawingState: async () => SR.SAVED, COLORING60_SAVE_RESULT: SR });
+        const c = core.createC60AttemptController();
+        const t1 = c.acquire(); c.invalidate();
+        check('C60-P4-FIX2 [J] invalidate: token anterior deixa de ser vigente (callback anterior inerte)',
+          c.isCurrent(t1) === false && t1 != null,
+          `invalidate deve tornar o token anterior inválido (isCurrent(t1)=${c.isCurrent(t1)})`);
+      }
+      // CENÁRIO K — canvas ausente / exportPaint lança sincronicamente: sem efeito, lock liberado.
+      {
+        const i = makeInstance({ noCanvas: true });
+        i.attempt(); i.render();
+        const freeAfterNoCanvas = i.controller.acquire(); // lock livre ⇒ token não-nulo
+        const j = makeInstance({ exportThrows: true });
+        j.attempt(); j.render();
+        const freeAfterThrow = j.controller.acquire();
+        check('C60-P4-FIX2 [K] canvas ausente / export lança: mark 0, writer 0, goBack 0, lock liberado',
+          i.counts.mark === 0 && i.counts.save === 0 && i.counts.goBack === 0 && freeAfterNoCanvas !== null
+            && j.counts.mark === 0 && j.counts.save === 0 && j.counts.goBack === 0 && freeAfterThrow !== null,
+          `caminhos síncronos de falha não deixam a trava presa (noCanvas held=${freeAfterNoCanvas}, throw held=${freeAfterThrow})`);
+      }
+
+      // ── TRIPWIRE do legado (Etapa 11) — corpo do LegacyColoringScreen inalterado pelo FIX2 ───────
+      const legacyBodyF = scrF.slice(scrF.indexOf('function LegacyColoringScreen'));
+      const legacyShaF = require('crypto').createHash('sha256').update(legacyBodyF, 'utf8').digest('hex');
+      check('C60-P4-FIX2 [LEGADO]: LegacyColoringScreen BYTE-IDÊNTICO (sha256 fixado — FIX2 não toca o legado)',
+        legacyShaF === '86c68bc414bd62bd7fc74b8bf69d6dcdf94a5cfc944e86872d472e3cf29ace6b',
+        `o corpo legado mudou (sha=${legacyShaF}) — FIX2 não pode tocar o fluxo legado`);
     }
   }
 
