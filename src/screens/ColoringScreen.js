@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Pressable, Animated } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,7 +34,14 @@ import {
 // pixels (revalida o plano internamente). Ambos consumidos SOMENTE no ramo aditivo abaixo:
 // a CONCLUSÃO é separada do SALVAMENTO (o writer só persiste no Plano Família). O caminho
 // legado por cena não toca nenhum dos dois.
-import { markColoring60ActivityDone } from '../services/coloring60ActivityService';
+import { markColoring60ActivityDone, loadColoring60Done } from '../services/coloring60ActivityService';
+// P8 (Colorir 60) — ordem FECHADA das três atividades (fonte única: o catálogo) e a experiência
+// afetiva de conclusão. O componente é presentacional: recebe o que já aconteceu e devolve a
+// escolha da criança; não decide conclusão, não persiste e não conhece plano.
+import { getColoring60Activities } from '../data/coloring60Catalog';
+import Coloring60CompletionOverlay, {
+  Coloring60ArtGlow,
+} from '../components/coloring60/Coloring60CompletionOverlay';
 // P7 (Colorir 60) — a LEITURA da arte guardada vem do MESMO serviço dedicado do piloto
 // (namespace fechado `@ptf_drawing60_s<storyId>_a<activityId>`), nunca da chave legada de cena.
 // Nenhum sistema de storage novo é criado aqui: o serviço já publica leitura, escrita e limpeza.
@@ -188,11 +195,17 @@ function createC60AttemptController() {
 // P7 · o retorno à tela anterior passa a depender da GRAVAÇÃO confirmada (`saved`): qualquer
 // outro desfecho mantém a criança na atividade, com a pintura ainda na tela, e avisa por
 // `onSaveIssue` (dependência OPCIONAL — o núcleo continua utilizável sem ela).
+// P8 · o desfecho passa a ser CELEBRADO em vez de navegar sozinho (§4.7 — a navegação só
+// acontece depois da escolha da criança). Dois desfechos são conclusão VISUAL da pintura:
+// `saved` (arte guardada) e `not_persisted_free` (não guardada — o que NÃO é erro para a
+// criança, §5). Falhas técnicas de verdade (`write_failed`, `invalid_identity`) continuam
+// no tratamento de erro por `onSaveIssue`. `onCelebrate` é dependência OPCIONAL: sem ela o
+// núcleo mantém EXATAMENTE o comportamento anterior (voltar após gravação confirmada).
 function beginC60Attempt(deps) {
   const {
     controller, canvasRef, activeRef,
     available, ready, painted, saving,
-    storyId, activityId, setSaving, goBack, onSaveIssue,
+    storyId, activityId, setSaving, goBack, onSaveIssue, onCelebrate,
   } = deps;
   if (!available || saving) return; // guard visual complementar (a trava real é o controller)
   if (!ready) return;       // D1: sem lineart pronto não conclui nem salva
@@ -230,11 +243,20 @@ function beginC60Attempt(deps) {
           : 'invalid_identity';
         if (__DEV__) console.log('[Coloring60] conclusão preservada; persistência:', resultLabel);
         if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante o writer
-        // Gravação NÃO confirmada (grátis, falha de escrita ou identidade recusada): a tela NÃO
-        // fecha — fechar aqui seria anunciar sucesso que não houve. A pintura continua visível, a
-        // conclusão já persistida é preservada e o desfecho é comunicado de forma honesta.
-        if (result !== COLORING60_SAVE_RESULT.SAVED) {
+        // FALHA TÉCNICA de verdade (escrita falhou ou identidade recusada): a tela NÃO fecha e NÃO
+        // celebra — anunciar sucesso aqui seria mentir. A pintura continua visível, a conclusão já
+        // persistida é preservada e o desfecho é comunicado de forma honesta.
+        const celebravel = result === COLORING60_SAVE_RESULT.SAVED
+          || result === COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE;
+        if (!celebravel) {
           if (typeof onSaveIssue === 'function') onSaveIssue(resultLabel);
+          return;
+        }
+        // Desfecho celebrável: a experiência assume daqui, e QUEM NAVEGA é a criança (§4.7).
+        // `persisted` é informativo e honesto (nunca vira "salvo" quando não foi) — a experiência
+        // infantil é a mesma nos dois casos e não menciona plano.
+        if (typeof onCelebrate === 'function') {
+          onCelebrate({ persisted: result === COLORING60_SAVE_RESULT.SAVED });
           return;
         }
         goBack();
@@ -285,6 +307,14 @@ function Coloring60ActivityScreen({ route, navigation }) {
   const [c60Ready, setC60Ready] = useState(false);      // D1: lineart carregado no canvas
   const [c60HasPainted, setC60HasPainted] = useState(false); // D5: houve traço significativo
   const [c60Saving, setC60Saving] = useState(false);
+  // [C60-P8-PROGRESS] Progresso das TRÊS atividades do piloto (Luz · Vida · Cuidado). A ORDEM vem
+  // do catálogo fechado e a CONCLUSÃO do serviço plan-agnóstico do piloto — nada aqui é progresso
+  // narrativo, conquista ou métrica pública da história.
+  const [c60DoneMap, setC60DoneMap] = useState({});
+  // [C60-P8-CELEBRATION] Momento de conclusão em exibição. Enquanto ele está ligado, os controles
+  // de pintura somem suavemente e a pintura fica visível e congelada atrás da camada.
+  const [c60Celebrating, setC60Celebrating] = useState(false);
+  const controlsAnim = useRef(new Animated.Value(1)).current;
 
   const storyId = resolveC60StoryId(route.params);
   const activityId = route.params?.activityId ?? null;
@@ -298,6 +328,11 @@ function Coloring60ActivityScreen({ route, navigation }) {
     ? resolveColoring60Lineart(storyId, activityId)
     : { status: COLORING60_RESOLUTION_STATUS.UNKNOWN, activity: null, source: null };
   const available = resolution.status === COLORING60_RESOLUTION_STATUS.AVAILABLE;
+  // As três atividades na ordem do catálogo, com o que já foi concluído. Cálculo barato (3 itens)
+  // e derivado — sem estado duplicado e sem outra fonte de verdade.
+  const c60Steps = getColoring60Activities(storyId)
+    .map((a) => ({ id: a.activityId, done: c60DoneMap[a.activityId] === true }));
+  const c60NextId = c60Steps.find((s) => !s.done)?.id ?? null;
 
   useEffect(() => {
     activeRef.current = true;
@@ -335,6 +370,26 @@ function Coloring60ActivityScreen({ route, navigation }) {
     return () => { alive = false; };
   }, []);
 
+  // [C60-P8-PROGRESS] Lê a conclusão das TRÊS atividades desta história uma única vez, ao abrir.
+  // Leitura plan-agnóstica e somente-leitura: não cria chave, não escreve e não conclui nada.
+  // Falha de leitura não derruba a tela — a experiência mostra o que sabe.
+  useEffect(() => {
+    if (!available) return undefined;
+    let alive = true;
+    const ids = getColoring60Activities(storyId).map((a) => a.activityId);
+    Promise.all(ids.map((id) => loadColoring60Done(storyId, id)))
+      .then((flags) => {
+        if (!alive || !activeRef.current) return;
+        const mapa = {};
+        ids.forEach((id, i) => { mapa[id] = flags[i] === true; });
+        setC60DoneMap(mapa);
+      })
+      .catch((err) => {
+        if (__DEV__) console.log('[Coloring60] leitura do progresso das atividades falhou:', err?.message);
+      });
+    return () => { alive = false; };
+  }, []);
+
   // O canvas confirmou que a arte guardada é aplicável nesta tela: aplica e reconhece que há
   // pintura na frente da criança (D5) — o mesmo par (loadPaint + marcar pintado) que o fluxo
   // legado já usa ao continuar um desenho.
@@ -355,23 +410,39 @@ function Coloring60ActivityScreen({ route, navigation }) {
     if (__DEV__) console.log('[Coloring60] arte guardada não aplicável; abrindo lineart limpo');
   }
 
-  // §5 · desfecho HONESTO quando a gravação não se confirmou: a tela continua aberta com a
-  // pintura visível e a criança recebe um aviso curto, no mesmo padrão de Alert já usado nesta
-  // tela. Nenhuma escrita adicional parte daqui.
-  function handleC60SaveIssue(reason) {
-    if (reason === 'not_persisted_free') {
-      Alert.alert(
-        'Sua pintura ficou aqui 🎨',
-        'Ela não pôde ser guardada neste aparelho. A pintura continua na tela.',
-        [{ text: 'Ok!' }],
-      );
-      return;
-    }
+  // §5 · desfecho HONESTO de FALHA TÉCNICA (escrita falhou / identidade recusada): a tela continua
+  // aberta com a pintura visível e a criança recebe um aviso curto, no mesmo padrão de Alert já
+  // usado nesta tela. Nenhuma escrita adicional parte daqui. O caso "não guardou porque não há
+  // Plano Família" NÃO passa por aqui: para a criança aquilo não é erro (§5) — é conclusão, e
+  // recebe a MESMA celebração, sem alerta e sem falar de plano.
+  function handleC60SaveIssue() {
     Alert.alert(
       'Quase lá! 🎨',
       'Não conseguimos guardar sua pintura agora. Toque em Pronto de novo.',
       [{ text: 'Ok!' }],
     );
+  }
+
+  // §4.6 · a tentativa terminou em conclusão: a atividade recém-concluída entra no progresso e a
+  // experiência aparece por cima da pintura. NENHUMA navegação acontece aqui — quem navega é a
+  // criança, pelas ações do cartão (§4.7).
+  function handleC60Celebrate(outcome) {
+    if (__DEV__) console.log('[Coloring60] conclusão celebrada; arte guardada:', outcome?.persisted === true);
+    setC60DoneMap((prev) => ({ ...prev, [activityId]: true }));
+    setC60Celebrating(true);
+    Animated.timing(controlsAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start();
+  }
+
+  // Ação principal: se ainda falta atividade, troca a IDENTIDADE da mesma rota — o wrapper remonta
+  // o ramo pela `key` (mecanismo já existente do P4), sem rota nova, sem tela nova e sem mexer na
+  // pilha. Com as três concluídas, volta ao ponto interno de seleção, de onde cada atividade reabre
+  // com a pintura da criança.
+  function handleC60Primary() {
+    if (c60NextId != null) {
+      navigation.setParams({ activityId: c60NextId });
+      return;
+    }
+    navigation.goBack();
   }
 
   // [C60-P4-WIRING] Ligação fina React↔núcleo: handleC60Pronto injeta o estado DESTA instância
@@ -392,6 +463,7 @@ function Coloring60ActivityScreen({ route, navigation }) {
       setSaving: setC60Saving,
       goBack: () => navigation.goBack(),
       onSaveIssue: handleC60SaveIssue,
+      onCelebrate: handleC60Celebrate,
     });
   }
 
@@ -409,7 +481,12 @@ function Coloring60ActivityScreen({ route, navigation }) {
           <Text style={styles.topBarTitle} numberOfLines={1}>
             {resolution.activity?.title ?? 'Hora de Colorir'}
           </Text>
-          <View style={styles.topBarActions}>
+          {/* Durante a conclusão os controles somem suavemente (§6) e param de responder ao
+              toque — a pintura fica visível e congelada atrás da camada. */}
+          <Animated.View
+            style={[styles.topBarActions, { opacity: controlsAnim }]}
+            pointerEvents={c60Celebrating ? 'none' : 'auto'}
+          >
             <SoundButton
               style={[styles.prontoBtn, c60Saving && styles.prontoBtnSaving]}
               onPress={handleC60Pronto}
@@ -418,13 +495,13 @@ function Coloring60ActivityScreen({ route, navigation }) {
             >
               <Text style={styles.prontoBtnText}>{c60Saving ? 'Salvando...' : '✓ Pronto!'}</Text>
             </SoundButton>
-          </View>
+          </Animated.View>
         </View>
 
         {/* Canvas: composição do motor existente SEM alterar seu contrato. `imageSource` aceita o
             módulo do resolvedor; sinais D1 (onReadyChange) e D5 (onPainted) são consumidos por
             composição. Sem sceneNumber numérico (identidade Colorir 60 é semântica). */}
-        <View style={styles.canvasArea}>
+        <View style={styles.canvasArea} pointerEvents={c60Celebrating ? 'none' : 'auto'}>
           <ColoringCanvas
             ref={canvasRef}
             selectedColor={c60Color}
@@ -440,9 +517,15 @@ function Coloring60ActivityScreen({ route, navigation }) {
             onLoadCorrupted={handleC60RestoreInvalid}
             onLoadIncompatible={handleC60RestoreInvalid}
           />
+          {/* Moldura luminosa progressiva SOBRE a pintura (§6): não cobre o desenho, só valoriza
+              a borda. Fica inerte enquanto a criança pinta. */}
+          <Coloring60ArtGlow activityId={activityId} active={c60Celebrating} />
         </View>
 
-        <View style={[styles.overlayPanel, { bottom: insets.bottom + 8 }]}>
+        <Animated.View
+          style={[styles.overlayPanel, { bottom: insets.bottom + 8, opacity: controlsAnim }]}
+          pointerEvents={c60Celebrating ? 'none' : 'auto'}
+        >
           <View style={styles.toolsRow}>
             <CompactTool
               active={eraserActive}
@@ -478,7 +561,19 @@ function Coloring60ActivityScreen({ route, navigation }) {
               </SoundButton>
             ))}
           </ScrollView>
-        </View>
+        </Animated.View>
+
+        {/* Momento de conclusão (§4.6): entra sobre a pintura congelada e só sai pela escolha
+            da criança — a navegação acontece nos handlers abaixo, nunca automaticamente. */}
+        {c60Celebrating ? (
+          <Coloring60CompletionOverlay
+            activityId={activityId}
+            steps={c60Steps}
+            bottomInset={insets.bottom}
+            onPrimary={handleC60Primary}
+            onSecondary={() => navigation.goBack()}
+          />
+        ) : null}
       </View>
     );
   }

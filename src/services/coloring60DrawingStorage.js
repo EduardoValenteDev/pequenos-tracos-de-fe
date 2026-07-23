@@ -14,6 +14,12 @@
  *     canônica `accessControl.getCurrentPlan()` (= `entitlementService.getEntitlementPlan()`).
  *     SÓ o Plano Família (`'premium'`) persiste. Grátis, indeterminado, ausente ou erro ⇒
  *     ZERO escrita (`not_persisted_free`). Modo Criador/QA NÃO autoriza salvamento aqui.
+ *   - EXCEÇÃO DE DESENVOLVIMENTO (P8 · §3), que NÃO muda o comportamento de produção: quando
+ *     `__DEV__ === true` E as ferramentas internas estão realmente habilitadas
+ *     (`isInternalToolsEnabled()` — o MESMO mecanismo que abre "Administração (dev)"; nenhuma
+ *     flag paralela é criada), a escrita é autorizada para que o piloto seja testável ponta a
+ *     ponta no Dev Client. Em produção (`__DEV__` falso) a exceção é inerte e a regra pública
+ *     permanece exatamente a mesma: Plano Família persiste, grátis NÃO persiste.
  *   - NAMESPACE PRÓPRIO, SEM COLISÃO: pixels em `@ptf_drawing60_s<storyId>_a<activityId>`
  *     (não casa `startsWith('@ptf_drawing_')` do legado) e blobs em `ptf_blobs/drawings60/`.
  *     NÃO cria chave de conclusão (`@ptf_coloring60_done_*` é P4), NÃO migra legado, NÃO faz
@@ -53,6 +59,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { log } from '../utils/logger';
 import { getCurrentPlan } from './accessControl';
+import { isInternalToolsEnabled } from '../config/internalTools';
 import { getColoring60Activity } from '../data/coloring60Catalog';
 import {
   writeBlob,
@@ -71,6 +78,28 @@ const BLOB_SUBDIR = 'drawings60';
 // Plano Família = `'premium'` na fonte canônica `getCurrentPlan()`. Único valor que autoriza
 // escrita; qualquer outro (free/undefined/null/erro/loading/desconhecido) é NÃO autorizado.
 const FAMILY_PLAN = 'premium';
+
+/**
+ * [C60-P8-DEV-WRITE] Autorização de escrita EXCLUSIVA de desenvolvimento (P8 · §3).
+ *
+ * Existe só para que o piloto possa ser validado ponta a ponta no Dev Client (pintar →
+ * Pronto → sair → voltar → a pintura continua lá) sem depender de assinatura. NÃO é uma
+ * regra de produto e NÃO afeta produção:
+ *   - exige `__DEV__ === true` (falso em qualquer build de loja) E
+ *   - exige o mecanismo ÚNICO de ferramentas internas já existente (`isInternalToolsEnabled`),
+ *     o mesmo que gateia a seção "Administração (dev)". Nenhuma flag paralela é criada.
+ * Fail-closed: qualquer erro ao consultar as ferramentas internas ⇒ NÃO autoriza.
+ * O curto-circuito em `typeof __DEV__` garante ZERO efeito colateral quando o símbolo
+ * sequer existe (ambientes que não são o app).
+ */
+function isDevWriteAuthorized() {
+  if (typeof __DEV__ === 'undefined' || __DEV__ !== true) return false;
+  try {
+    return isInternalToolsEnabled() === true;
+  } catch (e) {
+    return false;
+  }
+}
 
 /**
  * Resultados TIPADOS do salvamento (contrato estável e congelado).
@@ -267,7 +296,8 @@ async function rollbackFailedPromotion(k, oldRaw, newUri) {
 /**
  * saveColoring60DrawingState(storyId, activityId, payload) — AUTORIDADE de escrita.
  * Ordem: (1) valida identidade → `invalid_identity`; (2) reavalia entitlement (D6),
- * fail-closed → só `'premium'` segue, senão `not_persisted_free` com ZERO escrita;
+ * fail-closed → só `'premium'` segue (ou, SOMENTE em desenvolvimento com ferramentas
+ * internas ligadas, a exceção do P8 §3), senão `not_persisted_free` com ZERO escrita;
  * (3) só então calcula a chave e persiste via double-buffer (slot inativo → promover →
  * verificar → descartar o slot antigo); (4) resultado tipado. NUNCA marca conclusão,
  * NUNCA chama o writer legado, NUNCA cai em chave/namespace de cena.
@@ -285,8 +315,9 @@ export async function saveColoring60DrawingState(storyId, activityId, payload) {
   } catch (e) {
     plan = null; // erro ao consultar entitlement ⇒ tratado como não autorizado
   }
-  if (plan !== FAMILY_PLAN) {
+  if (plan !== FAMILY_PLAN && !isDevWriteAuthorized()) {
     // Grátis OU indeterminado (undefined/null/erro/loading/desconhecido): 0 escrita.
+    // A exceção de desenvolvimento (ver isDevWriteAuthorized) é inerte em produção.
     return COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE;
   }
 
