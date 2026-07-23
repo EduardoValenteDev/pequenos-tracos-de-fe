@@ -41,7 +41,6 @@ import { markColoring60ActivityDone, loadColoring60Done } from '../services/colo
 import { getColoring60Activities } from '../data/coloring60Catalog';
 import Coloring60CompletionOverlay, {
   Coloring60ArtGlow,
-  Coloring60EditNotice,
 } from '../components/coloring60/Coloring60CompletionOverlay';
 // P7 (Colorir 60) — a LEITURA da arte guardada vem do MESMO serviço dedicado do piloto
 // (namespace fechado `@ptf_drawing60_s<storyId>_a<activityId>`), nunca da chave legada de cena.
@@ -334,12 +333,17 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // de pintura somem suavemente e a pintura fica visível e congelada atrás da camada.
   const [c60Celebrating, setC60Celebrating] = useState(false);
   const controlsAnim = useRef(new Animated.Value(1)).current;
-  // [C60-P10-CELEBRATION-MACHINE] Qual conclusão está em exibição (Parte 3): 'activity' (curta),
-  // 'finale' (grande conclusão das três) ou 'edit' (só "desenho atualizado"). null = nenhuma. E os
-  // itens já resolvidos da galeria da grande conclusão (3 desenhos: atual em memória + os outros
-  // dois lidos do serviço isolado). A DECISÃO de qual modo vive na máquina de conclusão abaixo.
+  // [C60-P11-CELEBRATION-MACHINE] Qual conclusão está em exibição (Parte 4): 'activity' (primeira
+  // conclusão de uma atividade), 'finale' (grande conclusão das três) ou 'update' (recolorir uma
+  // atividade já concluída — celebração de atualização). null = nenhuma. E os itens já resolvidos da
+  // galeria da grande conclusão (3 desenhos: atual em memória + os outros dois lidos do serviço
+  // isolado). A DECISÃO de qual modo vive na máquina de conclusão abaixo.
   const [c60CelebrateMode, setC60CelebrateMode] = useState(null);
   const [c60FinaleItems, setC60FinaleItems] = useState(null);
+  // [C60-P11-FRAME] Snapshot (payload v2) da arte no momento do "Pronto!". Alimenta o quadro de
+  // brilho (Coloring60ArtGlow) para que a moldura siga os LIMITES REAIS da arte (Parte 3), e a
+  // galeria da grande conclusão quando a arte atual só existe em memória. null = nenhuma celebração.
+  const [c60CelebrateSnapshot, setC60CelebrateSnapshot] = useState(null);
   // [C60-P10-HYDRATION] Estado da HIDRATAÇÃO VISUAL ATÔMICA (Parte 2). `c60RevealMode` decide o que
   // será o PRIMEIRO quadro visível: 'probing' (ainda lendo o storage — capa opaca), 'paint' (há arte
   // salva; capa fica até a pintura estar DESENHADA no canvas) ou 'lineart' (sem arte salva; capa fica
@@ -434,17 +438,20 @@ function Coloring60ActivityScreen({ route, navigation }) {
     return () => { alive = false; };
   }, []);
 
-  // [C60-P8B-PREWARM] Aquece a pose de conclusão do Beni (celebrando2) ANTES do toque em "Pronto!":
-  // no desenvolvimento a textura chegava só quando a camada de conclusão montava (o Beni "aparecia
-  // depois"). Resolve-se a fonte empacotada e pede-se ao próprio RN para aquecer o cache de imagem
-  // uma única vez, de forma preguiçosa e à prova de falha — em produção o recurso já é local, então
-  // o efeito é inerte. Só aquece quando a atividade está de fato disponível (sem trabalho à toa).
+  // [C60-P8B-PREWARM] Aquece as poses de conclusão do Beni ANTES do toque em "Pronto!": no
+  // desenvolvimento a textura chegava só quando a camada de conclusão montava (o Beni "aparecia
+  // depois"). Aquece as DUAS poses usadas na celebração — celebrando2 (atividade/grande conclusão)
+  // e apontandoEsquerda (atualização) — resolvendo a fonte empacotada e pedindo ao próprio RN para
+  // aquecer o cache de imagem uma única vez, de forma preguiçosa e à prova de falha. Em produção o
+  // recurso já é local, então o efeito é inerte. Só aquece com a atividade disponível (sem trabalho à toa).
   useEffect(() => {
     if (!available) return;
-    try {
-      const warm = Image.resolveAssetSource?.(BENI_IMAGES.celebrando2);
-      if (warm?.uri) Image.prefetch(warm.uri)?.catch?.(() => {});
-    } catch { /* aquecimento é best-effort: nunca derruba a tela */ }
+    [BENI_IMAGES.celebrando2, BENI_IMAGES.apontandoEsquerda].forEach((asset) => {
+      try {
+        const warm = Image.resolveAssetSource?.(asset);
+        if (warm?.uri) Image.prefetch(warm.uri)?.catch?.(() => {});
+      } catch { /* aquecimento é best-effort: nunca derruba a tela */ }
+    });
   }, []);
 
   // [C60-P10-HYDRATION] Revela o canvas UMA única vez: esvanece a capa de hidratação. Idempotente
@@ -566,20 +573,23 @@ function Coloring60ActivityScreen({ route, navigation }) {
     }
   }
 
-  // [C60-P10-MACHINE] MÁQUINA DE CONCLUSÃO (§Parte 3). A tentativa terminou em conclusão. ANTES de
-  // mexer no que está visível, tira o RETRATO do que aconteceu — já estava concluída? quantas das três
-  // antes/depois? persistiu? — e decide UM entre três desfechos, cada um com UMA experiência:
-  //   • atividade JÁ concluída  → só "desenho atualizado" (nunca repete a festa; editar não celebra);
+  // [C60-P11-MACHINE] MÁQUINA DE CONCLUSÃO (§Parte 4 — Diretor de Celebração). A tentativa terminou em
+  // conclusão. ANTES de mexer no que está visível, tira o RETRATO do que aconteceu — já estava concluída?
+  // quantas das três antes/depois? persistiu? — e decide UM entre três desfechos, cada um com UMA
+  // celebração (três intensidades; NENHUM desfecho é um simples toast técnico):
+  //   • atividade JÁ concluída  → celebração de ATUALIZAÇÃO curta ("Eu vi suas novas cores!"): a arte
+  //     continua visível, o Beni reage, mas NÃO repete a festa 3/3 nem a página especial de 1ª vez;
   //   • 1ª conclusão, ainda falta → celebração CURTA de atividade (a pintura continua protagonista);
   //   • 1ª conclusão real 2/3→3/3 → GRANDE conclusão (galeria das três).
   // Falha de escrita NÃO chega aqui: o núcleo só chama onCelebrate em desfecho SAVED/NOT_PERSISTED_FREE.
   // O Grátis (não persistido) é conclusão de verdade para a criança e recebe a MESMA celebração — sem
   // uma palavra sobre plano. NENHUMA navegação acontece aqui: quem navega é a criança, pelas ações do
-  // cartão. Reentrância: o overlay/aviso monta UMA vez (som/háptico no seu próprio mount, §Parte 3/8).
-  // [C60-P10-MACHINE-START] Núcleo de DECISÃO da máquina de conclusão (P10 · Parte 3): a partir do
-  // retrato (já concluída? quantas antes/depois? persistiu?) escolhe UM entre três desfechos, sem
+  // cartão. Reentrância: uma tentativa = UM disparo (a trava do controlador garante um único onCelebrate);
+  // o overlay monta UMA vez (som/háptico no seu próprio mount, §Parte 4/8) e re-render NÃO reinicia nada.
+  // [C60-P11-MACHINE-START] Núcleo de DECISÃO da máquina de conclusão (P11 · Parte 4): a partir do
+  // retrato (já concluída? quantas antes/depois? persistiu?) escolhe UM entre três celebrações, sem
   // tocar o writer. Este trecho é extraído e exercitado pelo harness comportamental do smoke
-  // (C60-P10 · provas 1–4/6b): mutar a decisão muda os contadores lá.
+  // (C60-P11 · provas 1–4/6b): mutar a decisão muda os contadores lá.
   function handleC60Celebrate(outcome) {
     const persisted = outcome?.persisted === true;
     const snapshot = typeof outcome?.snapshot === 'string' ? outcome.snapshot : null;
@@ -596,11 +606,18 @@ function Coloring60ActivityScreen({ route, navigation }) {
       );
     }
 
-    // Editar uma atividade JÁ concluída (Regras 4/5): apenas confirma "desenho atualizado" — nunca a
-    // celebração de atividade e JAMAIS a grande conclusão. Não mexe no progresso (já estava done) e
-    // não reenquadra a pintura (a criança fica onde estava editando).
+    // O instantâneo (payload v2) alimenta o quadro de brilho para seguir os LIMITES REAIS da arte
+    // (Parte 3) em TODAS as três celebrações, e a galeria quando a arte atual só existe em memória.
+    // Setado UMA vez antes de qualquer ramo, para que o primeiro quadro da moldura já esteja no lugar.
+    setC60CelebrateSnapshot(snapshot);
+
+    // Editar uma atividade JÁ concluída (Regras 4/5): celebração de ATUALIZAÇÃO — a arte volta ao
+    // ENQUADRAMENTO INTEIRO ("Ver tudo") para ficar inteira e visível durante a festa, o Beni reage e
+    // a mensagem celebra as novas cores. NÃO repete a grande conclusão nem a página especial de 1ª vez,
+    // e NÃO mexe no progresso (já estava done). Sem navegação: a criança escolhe pelas ações do cartão.
     if (wasAlreadyDone) {
-      setC60CelebrateMode('edit');
+      canvasRef.current?.resetZoom();
+      setC60CelebrateMode('update');
       setC60Celebrating(true);
       Animated.timing(controlsAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start();
       return;
@@ -624,15 +641,7 @@ function Coloring60ActivityScreen({ route, navigation }) {
     setC60Celebrating(true);
     Animated.timing(controlsAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start();
   }
-  // [C60-P10-MACHINE-END]
-
-  // [C60-P10-EDIT] Fim da confirmação curta de edição: a criança já sinalizou "Pronto" e não há nada
-  // novo para celebrar, então volta à aventura. Idempotente (o aviso dispara onDone uma única vez;
-  // guarda extra em activeRef para não navegar após desmontar).
-  function handleC60EditNoticeDone() {
-    if (!activeRef.current) return;
-    navigation.goBack();
-  }
+  // [C60-P11-MACHINE-END]
 
   // Ação principal: se ainda falta atividade, troca a IDENTIDADE da mesma rota — o wrapper remonta
   // o ramo pela `key` (mecanismo já existente do P4), sem rota nova, sem tela nova e sem mexer na
@@ -644,6 +653,27 @@ function Coloring60ActivityScreen({ route, navigation }) {
       return;
     }
     navigation.goBack();
+  }
+
+  // [C60-P11-UPDATE] Ação principal da celebração de ATUALIZAÇÃO ("Continuar colorindo"): fecha a
+  // camada de festa e devolve os controles de pintura suavemente, mantendo a criança NA MESMA
+  // atividade que acabou de reencantar. Sem navegação e sem tocar o progresso (a atividade já estava
+  // concluída) — ela simplesmente volta a pintar de onde estava. Limpa também o snapshot da moldura.
+  function handleC60ContinueColoring() {
+    setC60Celebrating(false);
+    setC60CelebrateMode(null);
+    setC60CelebrateSnapshot(null);
+    Animated.timing(controlsAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+  }
+
+  // [C60-P11-FINALE] Terceira ação da GRANDE conclusão ("Colorir novamente"): recomeça a jornada de
+  // cor pela PRIMEIRA atividade do catálogo (Luz), trocando a IDENTIDADE da mesma rota — o wrapper
+  // remonta o ramo pela `key` (mesmo mecanismo do P4), reabrindo com a pintura já guardada da criança.
+  // Sem rota nova e sem mexer na pilha. Guarda em activeRef para não navegar após desmontar.
+  function handleC60ColorAgain() {
+    if (!activeRef.current) return;
+    const firstId = getColoring60Activities(storyId)[0]?.activityId ?? null;
+    if (firstId != null) navigation.setParams({ activityId: firstId });
   }
 
   // [C60-P4-WIRING] Ligação fina React↔núcleo: handleC60Pronto injeta o estado DESTA instância
@@ -727,9 +757,14 @@ function Coloring60ActivityScreen({ route, navigation }) {
             // [C60-P10-HYDRATION] Sinal ADITIVO: a pintura salva já foi DESENHADA neste frame.
             onPaintApplied={handleC60PaintApplied}
           />
-          {/* Moldura luminosa progressiva SOBRE a pintura (§6): não cobre o desenho, só valoriza
-              a borda. Fica inerte enquanto a criança pinta. */}
-          <Coloring60ArtGlow activityId={activityId} active={c60Celebrating} />
+          {/* Moldura luminosa progressiva SOBRE a pintura (§Parte 3): não cobre o desenho, só valoriza
+              a borda — e segue os LIMITES REAIS da arte pelo snapshot (v2), sem envolver área vazia.
+              Fica inerte enquanto a criança pinta; mede continuamente para já nascer no lugar certo. */}
+          <Coloring60ArtGlow
+            activityId={activityId}
+            active={c60Celebrating}
+            snapshot={c60CelebrateSnapshot}
+          />
           {/* [C60-P10-HYDRATION] Capa de hidratação ATÔMICA: cobre a área do canvas na MESMA cor do
               motor (#FFFDF8) — sem lineart e sem texto piscando — até o PRIMEIRO quadro estável (arte
               colorida quando há desenho salvo; lineart limpo quando não há) e só então esvanece.
@@ -786,24 +821,27 @@ function Coloring60ActivityScreen({ route, navigation }) {
           </ScrollView>
         </Animated.View>
 
-        {/* Momento de conclusão (§4.6 / P10 Parte 3): entra sobre a pintura congelada e só sai
-            pela escolha da criança (ou, na edição, após uma confirmação curta). A máquina de
-            conclusão já decidiu o modo — a navegação acontece nos handlers, nunca automaticamente. */}
-        {c60Celebrating && c60CelebrateMode === 'edit' ? (
-          // Editar atividade JÁ concluída: só "Seu desenho foi atualizado" — sem festa, sem galeria.
-          <Coloring60EditNotice bottomInset={insets.bottom} onDone={handleC60EditNoticeDone} />
-        ) : null}
-        {c60Celebrating && (c60CelebrateMode === 'activity' || c60CelebrateMode === 'finale') ? (
+        {/* Momento de conclusão (§Parte 4 · Diretor de Celebração): entra sobre a pintura congelada
+            e só sai pela escolha da criança. A máquina de conclusão já decidiu o modo ('update' |
+            'activity' | 'finale') — CADA modo é uma celebração de intensidade própria (nenhum é um
+            toast técnico). A navegação acontece nos handlers, nunca automaticamente. */}
+        {c60Celebrating
+        && (c60CelebrateMode === 'update'
+          || c60CelebrateMode === 'activity'
+          || c60CelebrateMode === 'finale') ? (
           <Coloring60CompletionOverlay
+            // A máquina de conclusão é AUTORIDADE sobre o desfecho: o overlay não reinfere o modo
+            // do progresso. 'finale' só em 2/3→3/3 real; 'update' só ao recolorir atividade concluída.
+            mode={c60CelebrateMode}
             activityId={activityId}
             steps={c60Steps}
-            // A máquina de conclusão é AUTORIDADE sobre o desfecho: 'finale' só em 2/3→3/3 real
-            // (nunca em edição). O overlay não reinfere allDone do progresso.
-            allDone={c60CelebrateMode === 'finale'}
             finaleItems={c60FinaleItems}
             bottomInset={insets.bottom}
-            onPrimary={handleC60Primary}
+            // 'update' → volta a pintar a MESMA arte; 'activity'/'finale' → próxima atividade ou fim.
+            onPrimary={c60CelebrateMode === 'update' ? handleC60ContinueColoring : handleC60Primary}
             onSecondary={() => navigation.goBack()}
+            // 3ª ação só na grande conclusão: recomeçar a jornada (o overlay a exibe apenas em 'finale').
+            onTertiary={handleC60ColorAgain}
           />
         ) : null}
       </View>

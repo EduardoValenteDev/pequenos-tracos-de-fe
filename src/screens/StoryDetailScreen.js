@@ -451,7 +451,7 @@ export default function StoryDetailScreen({ route, navigation }) {
                   cena={cena}
                   index={index}
                   status={getSceneStatus(cena, index)}
-                  hasDrawing={savedDrawings[cena.id] === true}
+                  hasDrawing={savedDrawings[cena.id] === true && !creationColoringVisible}
                   onPress={() => goToPremium('Narration', { story, cenaIndex: index })}
                 />
               ))}

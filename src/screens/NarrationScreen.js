@@ -23,9 +23,16 @@ import { getStoryCoverImage, getOfficialSceneIllustration } from '../services/st
 import { useResolvedSceneImage, useResolvedStoryAudio } from '../hooks/useResolvedStoryMedia';
 import { canOpenStoryFullExperience, getStoryLockReason } from '../services/contentAccessService';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
+import { isCreationColoringPilotActive } from '../services/coloring60Pilot';
 
 export default function NarrationScreen({ route, navigation }) {
   const { story, cenaIndex } = route.params;
+
+  // Piloto "Colorir com o Beni" (Colorir 60): em "A Criação" com o piloto ativo, o Colorir
+  // TRADICIONAL por cena dá lugar à jornada "Colorir com o Beni" (na StoryDetailScreen).
+  // Aqui isso significa OCULTAR o convite de colorir da cena e o botão de colorir da
+  // celebração — sem apagar nada e sem afetar outras histórias. Piloto off ⇒ tudo como antes.
+  const creationColoringHidden = isCreationColoringPilotActive(story?.id);
 
   // Guard: story must have cenas populated (navigation from onboarding used to crash here)
   const hasCenas = !!(story?.cenas?.length);
@@ -311,39 +318,43 @@ export default function NarrationScreen({ route, navigation }) {
             </LinearGradient>
           </SoundButton>
 
-          {/* ── 8. CONVITE PARA COLORIR — ação central da história ── */}
-          {sceneHasDrawing ? (
-            <SoundButton
-              style={styles.colorDoneCard}
-              onPress={() => navigation.navigate('Coloring', { story, cenaIndex })}
-              activeOpacity={0.85}
-            >
-              <View style={styles.colorIconWrapDone}>
-                <Text style={styles.colorIconEmoji}>🎨</Text>
-              </View>
-              <View style={styles.colorInfo}>
-                <Text style={styles.colorDoneTitle}>Você já coloriu esta cena ✓</Text>
-                <Text style={styles.colorDoneSub}>Ver ou editar seu desenho</Text>
-              </View>
-              <Text style={styles.colorDoneArrow}>→</Text>
-            </SoundButton>
-          ) : (
-            <SoundButton
-              style={styles.colorInviteCard}
-              onPress={() => navigation.navigate('Coloring', { story, cenaIndex })}
-              activeOpacity={0.9}
-            >
-              <View style={styles.colorIconWrap}>
-                <Text style={styles.colorIconEmoji}>🎨</Text>
-              </View>
-              <View style={styles.colorInfo}>
-                <Text style={styles.colorInviteTitle}>Hora de colorir</Text>
-                <Text style={styles.colorInviteSub}>Dê cor a esta parte da história.</Text>
-              </View>
-              <View style={styles.colorBtn}>
-                <Text style={styles.colorBtnText}>Colorir cena</Text>
-              </View>
-            </SoundButton>
+          {/* ── 8. CONVITE PARA COLORIR — ação central da história ──
+              No piloto "A Criação" (Colorir 60) este convite ao Colorir tradicional por cena
+              some: a jornada "Colorir com o Beni" assume o colorir dessa história. */}
+          {!creationColoringHidden && (
+            sceneHasDrawing ? (
+              <SoundButton
+                style={styles.colorDoneCard}
+                onPress={() => navigation.navigate('Coloring', { story, cenaIndex })}
+                activeOpacity={0.85}
+              >
+                <View style={styles.colorIconWrapDone}>
+                  <Text style={styles.colorIconEmoji}>🎨</Text>
+                </View>
+                <View style={styles.colorInfo}>
+                  <Text style={styles.colorDoneTitle}>Você já coloriu esta cena ✓</Text>
+                  <Text style={styles.colorDoneSub}>Ver ou editar seu desenho</Text>
+                </View>
+                <Text style={styles.colorDoneArrow}>→</Text>
+              </SoundButton>
+            ) : (
+              <SoundButton
+                style={styles.colorInviteCard}
+                onPress={() => navigation.navigate('Coloring', { story, cenaIndex })}
+                activeOpacity={0.9}
+              >
+                <View style={styles.colorIconWrap}>
+                  <Text style={styles.colorIconEmoji}>🎨</Text>
+                </View>
+                <View style={styles.colorInfo}>
+                  <Text style={styles.colorInviteTitle}>Hora de colorir</Text>
+                  <Text style={styles.colorInviteSub}>Dê cor a esta parte da história.</Text>
+                </View>
+                <View style={styles.colorBtn}>
+                  <Text style={styles.colorBtnText}>Colorir cena</Text>
+                </View>
+              </SoundButton>
+            )
           )}
 
           {/* ── 9. CENA ANTERIOR — secundário, só a partir da cena 2 ── */}
@@ -363,7 +374,7 @@ export default function NarrationScreen({ route, navigation }) {
       <UnlockCelebration
         visible={showCelebration}
         onContinue={handleContinue}
-        onColorir={handleColorirFromCelebration}
+        onColorir={creationColoringHidden ? null : handleColorirFromCelebration}
         sceneNumber={numeroCena}
         totalCenas={totalCenas}
         sceneHasDrawing={sceneHasDrawing}

@@ -1,7 +1,15 @@
 /**
  * Coloring60CompletionOverlay.js — experiência afetiva de conclusão do piloto Colorir 60
- * (C60-IMPL-P8 · P8B · §6..§12). Reutilizável e SEM estado de negócio: recebe o que aconteceu
- * (atividade concluída + progresso das três) e devolve as duas escolhas da criança.
+ * (C60-IMPL-P8 · P8B · P11 · §6..§12). Reutilizável e SEM estado de negócio: recebe o MODO decidido
+ * pela máquina de conclusão (Diretor de Celebração) + o progresso das três, e devolve a escolha da
+ * criança (duas ou três ações, conforme o modo).
+ *
+ * MODOS (P11 · §Parte 4 — três intensidades, um só componente e uma só linha do tempo):
+ *   - 'update'   → ATUALIZAÇÃO: a criança concluiu de novo uma atividade JÁ concluída. Resposta
+ *                  AFETIVA (Beni REAGE à arte + moldura viva + partículas + a frase exata), sem
+ *                  repetir a festa de atividade e JAMAIS a grande conclusão; sem "3/3" e sem galeria.
+ *   - 'activity' → PRIMEIRA CONCLUSÃO desta atividade: celebração curta (Beni maior, progresso 0→1/1→2).
+ *   - 'finale'   → GRANDE CONCLUSÃO das três (só em 2/3→3/3 real): galeria das três + Beni grande.
  *
  * PRINCÍPIOS (nunca violar):
  *   - A PINTURA CONTINUA SENDO A PROTAGONISTA. Esta camada é translúcida; ela ENQUADRA a arte
@@ -24,12 +32,14 @@
  * + marcadores + selo de contagem) e um FECHO das três claramente mais forte (Beni maior e centrado,
  * aura dourada, três marcadores acesos, partículas de luz/vida/cuidado, uma háptica de conclusão).
  *
- * Beni: usa a pose oficial `celebrating2` (08_beni_celebrando_2), a mais próxima de "feliz e
- * orgulhoso" — e a única celebrando SEM o selo decorativo de estrela do BeniAvatar, que aqui daria
- * a impressão falsa de prêmio concedido. A textura é AQUECIDA pela tela ANTES do toque em "Pronto!"
- * (ver [C60-P8B-PREWARM] em ColoringScreen), então o Beni entra sem atraso perceptível. FICA
- * REGISTRADA a necessidade futura de uma pose exclusiva do Beni olhando/apontando para a pintura da
- * criança: nenhuma pose atual olha para cima, então ele celebra voltado para a criança.
+ * Beni: em 'activity'/'finale' usa a pose oficial `celebrating2` (08_beni_celebrando_2), a mais
+ * próxima de "feliz e orgulhoso" — e a única celebrando SEM o selo decorativo de estrela do
+ * BeniAvatar, que aqui daria a impressão falsa de prêmio concedido. Em 'update' usa `pointLeft`
+ * (11_beni_apontando_esquerda): a pose de "apontar/mostrar" é a que mais LÊ como reação à arte da
+ * criança e também não traz selo de estrela. Ambas são AQUECIDAS pela tela ANTES do toque em
+ * "Pronto!" (ver [C60-P8B-PREWARM] em ColoringScreen), então o Beni entra sem atraso perceptível.
+ * FICA REGISTRADA a necessidade futura de uma pose EXCLUSIVA do Beni olhando para CIMA, para a
+ * pintura: nenhuma pose atual olha para cima — nada de arte improvisada aqui.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Image, StyleSheet, Animated, Easing, AccessibilityInfo } from 'react-native';
@@ -118,8 +128,8 @@ function computePaintStyle(containerW, containerH, v) {
 // ─────────────────────────────────────────────────────────────────────────────
 const ATMOSPHERES = {
   light: {
-    title: 'A luz ganhou cor!',
-    beniLine: 'Você trouxe luz e cor para a criação!',
+    title: 'Sua luz ganhou cor!',
+    beniLine: 'Você escolheu tantas cores para iluminar a Criação!',
     marker: 'Luz',
     icon: 'white-balance-sunny',
     tint: colors.gold,
@@ -130,8 +140,8 @@ const ATMOSPHERES = {
     rays: true,
   },
   living_world: {
-    title: 'O mundo ficou cheio de vida!',
-    beniLine: 'Olha quanta vida você ajudou a colorir!',
+    title: 'A vida floresceu!',
+    beniLine: 'Olha quanta vida você encheu de cor!',
     marker: 'Vida',
     icon: 'leaf',
     tint: colors.green,
@@ -142,8 +152,8 @@ const ATMOSPHERES = {
     rays: false,
   },
   people_and_care: {
-    title: 'Uma criação cheia de carinho!',
-    beniLine: 'Você coloriu a criação com carinho. Deus fez cada pessoa com amor!',
+    title: 'Seu cuidado deixou tudo especial!',
+    beniLine: 'Você cuidou de cada pedacinho com muito carinho!',
     marker: 'Cuidado',
     icon: 'heart',
     tint: colors.coral,
@@ -158,13 +168,19 @@ const ATMOSPHERES = {
 // Fecho das três atividades (§10 / P10 Parte 4): título e mensagem são CONTRATO EXATO (não
 // reformular). A fala do Beni conduz a leitura da galeria (luz · vida · cuidado) sem inventar
 // recompensa nova nem prometer prêmio.
-const ALL_DONE_TITLE = 'Você encheu a Criação de cor';
+const ALL_DONE_TITLE = 'Você encheu a Criação de cor!';
 const ALL_DONE_BENI_LINE = 'Você viu a luz, a vida e o cuidado de Deus. Olha a sua criação!';
 const ALL_DONE_MESSAGE = 'Cada desenho mostrou um jeito especial de ver, cuidar e celebrar o mundo de Deus.';
 const STEP_MESSAGE = {
   1: 'Uma parte da criação ganhou cor!',
   2: 'A criação está ficando cheia de vida!',
 };
+
+// Atualização (P11 · Parte 5): quando a criança conclui DE NOVO uma atividade JÁ concluída, ela
+// recebe uma resposta AFETIVA — não a festa de atividade e JAMAIS a grande conclusão, mas também
+// nunca um "aviso técnico" seco. O Beni REAGE à arte (pose apontando para a pintura) e diz a frase
+// EXATA abaixo (contrato — não reformular). A pintura segue protagonista, com a moldura viva.
+const UPDATE_BENI_LINE = 'Eu vi suas novas cores! Seu desenho ficou ainda mais especial!';
 
 // Cores dos motivos no FECHO (a criação inteira floresce: luz + vida + cuidado juntos).
 const MOTIF_COLOR = { dot: colors.gold, leaf: colors.green, heart: colors.coral };
@@ -202,10 +218,41 @@ function useReduceMotion() {
 // toque. Não cobre o desenho: assenta a arte com uma vinheta suave nas bordas e a emoldura como um
 // "cartão de exposição" (moldura externa luminosa + filete interno), revelado com leve aproximação.
 // ─────────────────────────────────────────────────────────────────────────────
-export function Coloring60ArtGlow({ activityId, active }) {
+// [C60-P11-GEOMETRY] Retângulo REAL da arte a partir do instantâneo v2 exportado (§Parte 3). Os
+// campos imgX/imgY/imgW/imgH e W/H vêm em px de backing (×DPR); as RAZÕES (imgX/W etc.) são, por
+// isso, independentes de DPR e mapeiam direto para a área medida do canvas — a WebView preenche a
+// `canvasArea` exatamente, então o espaço de coordenadas da moldura == o do desenho. v1 (data-URL
+// puro, sem layout) e payloads inválidos → null: a moldura cai no enquadramento do canvas inteiro
+// (a arte continua visível; nunca uma borda deslocada por dado ausente).
+function artRectFromSnapshot(snapshot) {
+  if (typeof snapshot !== 'string' || snapshot.length === 0) return null;
+  if (snapshot.startsWith('data:')) return null; // v1 sem layout → fallback de canvas inteiro
+  let p;
+  try { p = JSON.parse(snapshot); } catch { return null; }
+  if (!p || typeof p !== 'object') return null;
+  const { W, H, imgX, imgY, imgW, imgH } = p;
+  const nums = [W, H, imgX, imgY, imgW, imgH];
+  if (!nums.every((n) => typeof n === 'number' && isFinite(n))) return null;
+  if (!(W > 0 && H > 0 && imgW > 0 && imgH > 0)) return null;
+  const fx = imgX / W;
+  const fy = imgY / H;
+  const fw = imgW / W;
+  const fh = imgH / H;
+  // Sanidade: a arte cabe no canvas (tolerância mínima para o arredondamento do export).
+  if (fw <= 0 || fh <= 0 || fw > 1.02 || fh > 1.02) return null;
+  if (fx < -0.02 || fy < -0.02 || fx + fw > 1.02 || fy + fh > 1.02) return null;
+  return { fx, fy, fw, fh };
+}
+
+const FRAME_PAD = 6;
+
+export function Coloring60ArtGlow({ activityId, active, snapshot = null }) {
   const atmo = atmosphereOf(activityId);
   const reduceMotion = useReduceMotion();
   const anim = useRef(new Animated.Value(0)).current;
+  // Tamanho MEDIDO da área do canvas (a moldura vive no mesmo espaço). Recalcula sozinho em mudança
+  // de orientação/tamanho (onLayout redispara) e em troca de atividade (o ramo remonta pela key).
+  const [box, setBox] = useState(null);
 
   useEffect(() => {
     if (!active) return undefined;
@@ -220,35 +267,89 @@ export function Coloring60ArtGlow({ activityId, active }) {
     return () => a.stop();
   }, [active, reduceMotion]);
 
-  if (!active) return null;
+  // Mede a área continuamente (mesmo inativa): quando a celebração começa, a moldura já nasce no
+  // lugar certo, sem um primeiro quadro deslocado. Só atualiza o estado quando o tamanho muda.
+  const onLayout = (e) => {
+    const { width, height } = e.nativeEvent.layout;
+    setBox((prev) => (prev && prev.w === width && prev.h === height ? prev : { w: width, h: height }));
+  };
 
-  // Revelação: a moldura entra e "assenta" de 1.03 → 1.0 (leve aproximação, §7).
+  // A moldura entra e "assenta" de 1.03 → 1.0 (leve aproximação, §7).
   const frameScale = anim.interpolate({ inputRange: [0, 1], outputRange: [1.03, 1] });
 
+  // §Parte 3 — a moldura segue os LIMITES REAIS da arte (nunca a barra de ferramentas nem a área
+  // vazia embaixo). Com o instantâneo v2 + a área medida, calcula a caixa exata (inflada por uma
+  // folga suave). Sem geometria (v1 / dado ausente / ainda não medido) → enquadra o canvas inteiro,
+  // preservando "a arte visível durante toda a celebração".
+  const rect = artRectFromSnapshot(snapshot);
+  const artBox = (rect && box && box.w > 0 && box.h > 0)
+    ? {
+        left: rect.fx * box.w - FRAME_PAD,
+        top: rect.fy * box.h - FRAME_PAD,
+        width: rect.fw * box.w + FRAME_PAD * 2,
+        height: rect.fh * box.h + FRAME_PAD * 2,
+      }
+    : null;
+
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {/* Vinheta: escurece com delicadeza o topo e a base para dar profundidade e destacar a arte
-          no centro — sem tocar a leitura do desenho (o meio permanece transparente). */}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: anim }]}>
-        <LinearGradient
-          colors={[rgba(atmo.tintDeep, 0.16), 'transparent', 'transparent', rgba(atmo.tintDeep, 0.22)]}
-          locations={[0, 0.2, 0.6, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-      </Animated.View>
-      {/* Moldura de exposição (palco): brilho externo tingido + filete interno suave. */}
-      <Animated.View
-        style={[StyleSheet.absoluteFill, glowStyles.wrap, { opacity: anim, transform: [{ scale: frameScale }] }]}
-      >
-        <View style={[glowStyles.frame, { borderColor: atmo.tint, shadowColor: atmo.tintDeep }]} />
-        <View style={[glowStyles.frameInner, { borderColor: atmo.tintSoft }]} />
-      </Animated.View>
+    <View pointerEvents="none" style={StyleSheet.absoluteFill} onLayout={onLayout}>
+      {!active ? null : (
+        <>
+          {/* Vinheta: escurece com delicadeza o topo e a base para dar profundidade e destacar a
+              arte no centro — sem tocar a leitura do desenho (o meio permanece transparente). */}
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: anim }]}>
+            <LinearGradient
+              colors={[rgba(atmo.tintDeep, 0.16), 'transparent', 'transparent', rgba(atmo.tintDeep, 0.22)]}
+              locations={[0, 0.2, 0.6, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+          {/* Moldura de exposição (palco): brilho externo tingido + filete interno suave. Segue os
+              limites reais da arte quando conhecidos; senão, o canvas inteiro (fallback honesto). */}
+          {artBox ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[glowStyles.frameLayer, artBox, { opacity: anim, transform: [{ scale: frameScale }] }]}
+            >
+              <View style={[glowStyles.frameFill, { borderColor: atmo.tint, shadowColor: atmo.tintDeep }]} />
+              <View style={[glowStyles.frameFillInner, { borderColor: atmo.tintSoft }]} />
+            </Animated.View>
+          ) : (
+            <Animated.View
+              pointerEvents="none"
+              style={[StyleSheet.absoluteFill, glowStyles.wrap, { opacity: anim, transform: [{ scale: frameScale }] }]}
+            >
+              <View style={[glowStyles.frame, { borderColor: atmo.tint, shadowColor: atmo.tintDeep }]} />
+              <View style={[glowStyles.frameInner, { borderColor: atmo.tintSoft }]} />
+            </Animated.View>
+          )}
+        </>
+      )}
     </View>
   );
 }
 
 const glowStyles = StyleSheet.create({
   wrap: { alignItems: 'stretch', justifyContent: 'center' },
+  // Camada da moldura ANCORADA no retângulo real da arte (escala em torno do centro da arte).
+  frameLayer: { position: 'absolute' },
+  frameFill: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 3,
+    borderRadius: 20,
+    elevation: 8,
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  frameFillInner: {
+    ...StyleSheet.absoluteFillObject,
+    margin: 5,
+    borderWidth: 1.5,
+    borderRadius: 15,
+    opacity: 0.65,
+  },
+  // Fallback (sem geometria): emoldura o canvas inteiro — a arte segue visível, sem borda deslocada.
   frame: {
     ...StyleSheet.absoluteFillObject,
     margin: 6,
@@ -433,27 +534,34 @@ const galleryStyles = StyleSheet.create({
 // precisa esperar as partículas descansarem para poder tocar.
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Coloring60CompletionOverlay({
+  mode = 'activity',
   activityId,
   steps = [],
-  allDone: allDoneProp,
   finaleItems = null,
   bottomInset = 0,
   onPrimary,
   onSecondary,
+  onTertiary,
 }) {
   const reduceMotion = useReduceMotion();
   const atmo = atmosphereOf(activityId);
 
+  // O MODO é decidido pela MÁQUINA DE CONCLUSÃO (ColoringScreen), a única autoridade sobre o desfecho
+  // (Diretor de Celebração, §Parte 4): 'update' (atualização afetiva de arte JÁ concluída), 'activity'
+  // (primeira conclusão desta atividade) ou 'finale' (grande conclusão das três, só em 2/3→3/3 real).
+  // O overlay NÃO reinfere o desfecho a partir do progresso — ele apenas APRESENTA o modo recebido.
+  const isUpdate = mode === 'update';
+  const allDone = mode === 'finale';
+
   const doneCount = steps.filter((s) => s.done).length;
   const total = steps.length || 3;
-  // A MÁQUINA DE CONCLUSÃO (ColoringScreen) é a AUTORIDADE sobre o desfecho: 'finale' só em 2/3→3/3
-  // real, JAMAIS em edição. Se o pai não passar `allDone` (compat), cai na derivação por progresso.
-  const allDone = typeof allDoneProp === 'boolean' ? allDoneProp : (total > 0 && doneCount >= total);
 
   const title = allDone ? ALL_DONE_TITLE : atmo.title;
   const beniLine = allDone ? ALL_DONE_BENI_LINE : atmo.beniLine;
-  const message = allDone ? ALL_DONE_MESSAGE : (STEP_MESSAGE[doneCount] ?? null);
-  const primaryLabel = allDone ? 'Ver meus desenhos' : 'Colorir o próximo';
+  const message = allDone ? ALL_DONE_MESSAGE : (isUpdate ? null : (STEP_MESSAGE[doneCount] ?? null));
+  const primaryLabel = isUpdate
+    ? 'Continuar colorindo'
+    : (allDone ? 'Ver meus desenhos' : 'Colorir o próximo');
 
   // FECHO com identidade dourada (mais nobre) sobre a moldura quente da 3ª atividade.
   const accent = allDone ? colors.gold : atmo.tint;
@@ -473,12 +581,15 @@ export default function Coloring60CompletionOverlay({
   const galleryAnims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
-    // Uma única resposta háptica + um som curto de confirmação (o mesmo canal de UI já existente,
-    // que respeita a preferência de sons da Área dos Pais). Nenhum asset novo. No FECHO das três a
-    // háptica é a de "conclusão" (Success), um degrau acima do toque leve de cada etapa.
+    // UMA resposta háptica + UM som curto de confirmação (o mesmo canal de UI já existente, que
+    // respeita a preferência de sons da Área dos Pais). Nenhum asset novo. A intensidade acompanha o
+    // modo: FECHO = Success (conclusão), atividade = Light (impacto), atualização = selection (a mais
+    // leve). O som positivo ('success') vale para os três — a ATUALIZAÇÃO é celebração, não um aviso
+    // técnico seco (§Parte 5) — e playUiSound é internamente à prova de falha (não bloqueia, §Parte 8).
     if (!reduceMotion) {
       try {
         if (allDone) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        else if (isUpdate) Haptics.selectionAsync?.().catch(() => {});
         else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       } catch { /* segue sem háptica */ }
     }
@@ -536,7 +647,10 @@ export default function Coloring60CompletionOverlay({
   // Partículas: sobem devagar e se apagam. No FECHO cada uma é um motivo diferente (luz/vida/cuidado)
   // para a criação inteira "florescer"; nas etapas, o motivo é o da atmosfera atual.
   const motifFor = (i) => (allDone ? ['dot', 'leaf', 'heart'][i % 3] : atmo.motif);
-  const motes = reduceMotion ? [] : MOTES.slice(0, allDone ? MOTES.length : 5).map((m, i) => {
+  // Atualização recebe o conjunto CHEIO de partículas temáticas (§Parte 5: 6–10) — é celebração de
+  // verdade; a atividade fica num conjunto mais enxuto. O FECHO usa todas, com os três motivos.
+  const moteCount = allDone || isUpdate ? MOTES.length : 5;
+  const motes = reduceMotion ? [] : MOTES.slice(0, moteCount).map((m, i) => {
     const v = moteAnims[i];
     const motif = motifFor(i);
     const tint = allDone ? MOTIF_COLOR[motif] : atmo.tint;
@@ -636,14 +750,23 @@ export default function Coloring60CompletionOverlay({
             </View>
           ) : (
             <View style={styles.headRow}>
-              {/* §Parte 4 · celebração de atividade: Beni com presença MAIOR (large), ao lado da
-                  frase da atividade — a pintura da criança continua protagonista, visível atrás. */}
+              {/* §Parte 4/5 · celebração de atividade OU atualização: Beni com presença MAIOR (large),
+                  ao lado do texto — a pintura da criança continua protagonista, visível atrás. Na
+                  ATUALIZAÇÃO o Beni REAGE à arte (pose apontando para a pintura); na atividade, celebra
+                  voltado à criança (celebrating2). Nenhuma pose atual olha para cima — limitação de arte
+                  registrada no cabeçalho deste arquivo; nada é improvisado. */}
               <Animated.View style={beniStyle}>
-                <BeniAvatar variant="celebrating2" size="large" />
+                <BeniAvatar variant={isUpdate ? 'pointLeft' : 'celebrating2'} size="large" />
               </Animated.View>
               <Animated.View style={[styles.headText, rise(textAnim, 10)]}>
-                <Text style={[styles.title, { color: accentDeep }]}>{title}</Text>
-                <Text style={styles.beniLine}>{beniLine}</Text>
+                {isUpdate ? (
+                  <Text style={styles.updateLine}>{UPDATE_BENI_LINE}</Text>
+                ) : (
+                  <>
+                    <Text style={[styles.title, { color: accentDeep }]}>{title}</Text>
+                    <Text style={styles.beniLine}>{beniLine}</Text>
+                  </>
+                )}
               </Animated.View>
             </View>
           )}
@@ -680,7 +803,9 @@ export default function Coloring60CompletionOverlay({
                 </Animated.Text>
               )}
             </>
-          ) : (
+          ) : isUpdate ? null : (
+            // §Parte 5 · a ATUALIZAÇÃO é leve: Beni reagindo + a frase exata + partículas + duas ações.
+            // Sem mensagem de etapa, SEM o bloco de progresso (nunca o "3/3") e SEM a galeria do fecho.
             <>
               {message !== null && (
                 <Animated.Text style={[styles.message, rise(textAnim, 10)]}>{message}</Animated.Text>
@@ -726,6 +851,17 @@ export default function Coloring60CompletionOverlay({
             >
               <Text style={styles.secondaryBtnText}>Voltar à aventura</Text>
             </SoundButton>
+            {allDone && typeof onTertiary === 'function' && (
+              // §Parte 7 · a grande conclusão oferece TRÊS caminhos: ver os desenhos, voltar à
+              // aventura e colorir novamente (recomeçar as três, sem apagar nada do que foi salvo).
+              <SoundButton
+                style={styles.tertiaryBtn}
+                accessibilityLabel="Colorir novamente"
+                onPress={onTertiary}
+              >
+                <Text style={styles.tertiaryBtnText}>Colorir novamente</Text>
+              </SoundButton>
+            )}
           </Animated.View>
         </Animated.View>
       </View>
@@ -827,88 +963,9 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
   secondaryBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
   secondaryBtnText: { color: colors.textSoft, fontSize: 15, fontWeight: '700' },
-});
+  tertiaryBtn: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  tertiaryBtnText: { color: colors.textSoft, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
 
-// ─────────────────────────────────────────────────────────────────────────────
-// [C60-P10-EDIT] Confirmação CURTA de edição (§Parte 4). Aparece quando a criança concluiu DE NOVO
-// uma atividade JÁ concluída: NÃO é a celebração de atividade e JAMAIS a grande conclusão. Um aviso
-// discreto no rodapé — "Seu desenho foi atualizado" — com UM háptico leve + UM som curto (uma vez, no
-// mount) e auto-dispensa em ~1,6 s (ou ao toque). Sem festa, sem partículas, sem galeria. A pintura da
-// criança segue visível e congelada atrás (esta é uma camada leve, não cobre a arte).
-// ─────────────────────────────────────────────────────────────────────────────
-const EDIT_NOTICE_MS = 1600;
-
-export function Coloring60EditNotice({ bottomInset = 0, onDone }) {
-  const reduceMotion = useReduceMotion();
-  const anim = useRef(new Animated.Value(0)).current;
-  const doneRef = useRef(false);
-
-  // onDone dispara UMA vez só — timer e toque compartilham o mesmo caminho (idempotente).
-  const fire = () => {
-    if (doneRef.current) return;
-    doneRef.current = true;
-    onDone?.();
-  };
-
-  useEffect(() => {
-    // UM háptico (seleção — mais leve que a conclusão) + UM som curto de UI. Uma vez, no mount.
-    if (!reduceMotion) {
-      try { Haptics.selectionAsync?.().catch(() => {}); } catch { /* segue sem háptica */ }
-    }
-    playUiSound('tap');
-  }, []);
-
-  useEffect(() => {
-    if (reduceMotion) anim.setValue(1);
-    else {
-      Animated.timing(anim, {
-        toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }).start();
-    }
-    const t = setTimeout(fire, EDIT_NOTICE_MS);
-    return () => clearTimeout(t);
-  }, []);
-
-  const style = {
-    opacity: anim,
-    transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
-  };
-
-  return (
-    <View style={[editStyles.dock, { paddingBottom: bottomInset + 16 }]} pointerEvents="box-none">
-      <Animated.View style={style}>
-        {/* `silent`: o som de confirmação já tocou no mount; o toque de dispensa não soma outro som. */}
-        <SoundButton
-          silent
-          style={editStyles.toast}
-          accessibilityLabel="Seu desenho foi atualizado"
-          onPress={fire}
-        >
-          <MaterialCommunityIcons name="check-circle" size={22} color={colors.green} />
-          <Text style={editStyles.toastText}>Seu desenho foi atualizado</Text>
-        </SoundButton>
-      </Animated.View>
-    </View>
-  );
-}
-
-const editStyles = StyleSheet.create({
-  dock: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-  },
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    ...shadows.card,
-  },
-  toastText: { marginLeft: 10, fontSize: 15, fontWeight: '800', color: colors.text },
+  // §Parte 5 · atualização: a frase EXATA do Beni como uma "fala" presente (sem título técnico seco).
+  updateLine: { fontSize: 16, color: colors.text, fontWeight: '700', lineHeight: 22 },
 });

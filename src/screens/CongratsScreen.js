@@ -20,6 +20,7 @@ import { getBeniGuideMessage } from '../data/beniGuideMessages';
 import { getNextAdventureRecommendation } from '../services/nextAdventureService';
 import StoryCoverImage from '../components/story/StoryCoverImage';
 import { QUIZ_QUESTIONS_PER_STORY } from '../services/quizModel';
+import { isCreationColoringPilotActive } from '../services/coloring60Pilot';
 
 // A0.3: removida a leitura de largura de tela congelada no módulo — era código MORTO
 // (a variável não era usada em lugar nenhum). Sem substituto necessário; esta tela
@@ -79,6 +80,12 @@ export default function CongratsScreen({ route, navigation }) {
 
   const completedScenesCount = Object.values(progresso).filter(Boolean).length;
   const scenesPercent = story.totalCenas > 0 ? completedScenesCount / story.totalCenas : 0;
+
+  // Piloto "Colorir com o Beni" (Colorir 60): em "A Criação" com o piloto ativo, o Colorir
+  // TRADICIONAL por cena dá lugar à jornada "Colorir com o Beni" (na StoryDetailScreen). Aqui
+  // isso oculta a recompensa "Colorir" (que abriria o Colorir legado por cena) — sem apagar
+  // nada e sem afetar outras histórias. Piloto off ⇒ recompensa volta a aparecer.
+  const creationColoringHidden = isCreationColoringPilotActive(story?.id);
 
   // Recomendação inteligente de continuidade (nunca recomenda história concluída)
   const recommendation = getNextAdventureRecommendation({
@@ -234,7 +241,9 @@ export default function CongratsScreen({ route, navigation }) {
             <View style={styles.rewardGrid}>
               <RewardTile emoji="🎴" label="Baú" onPress={() => navigation.navigate('BeniChest', { fromStoryCompletion: true, from: 'storyComplete' })} />
               <RewardTile emoji="⭐" label="Estrelinhas" onPress={() => navigation.navigate('EstrelinhasCena', { fromStoryCompletion: true, from: 'storyComplete' })} />
-              <RewardTile emoji="🎨" label="Colorir" onPress={() => navigation.navigate('Coloring', { story, cenaIndex: 0, from: 'storyComplete' })} />
+              {!creationColoringHidden && (
+                <RewardTile emoji="🎨" label="Colorir" onPress={() => navigation.navigate('Coloring', { story, cenaIndex: 0, from: 'storyComplete' })} />
+              )}
               <RewardTile emoji="✨" label="Guardar no coração" onPress={() => navigation.navigate('Reflection', { story })} />
             </View>
 

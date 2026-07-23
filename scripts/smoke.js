@@ -13859,9 +13859,9 @@ check(
 );
 
 check(
-  'NarrationScreen passa onColorir para UnlockCelebration',
-  narrationSrc20.includes('onColorir={handleColorirFromCelebration}'),
-  'NarrationScreen não passa onColorir — colorir não acessível da celebração',
+  'NarrationScreen passa onColorir para UnlockCelebration (oculto só no piloto Colorir 60 de "A Criação")',
+  narrationSrc20.includes('onColorir={creationColoringHidden ? null : handleColorirFromCelebration}'),
+  'NarrationScreen não passa onColorir — colorir não acessível da celebração (fora do piloto Colorir 60)',
 );
 
 check(
@@ -31824,18 +31824,24 @@ check(
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
-  // C60-IMPL-P10 — PROVAS DETERMINÍSTICAS (Parte 5): hidratação atômica + máquina de
-  // conclusão + experiência visual + isolamento do writer/legado. Doze cenários exigidos:
-  //  (1) 0→1  (2) 1→2  (3) 2→3  (4) editar já concluída  (5) escrita falhou (não celebra)
-  //  (6) not_persisted_free (Grátis celebra igual)  (7) dez toques rápidos = 1 evento
-  //  (8) re-render não repete som/háptico/animação  (9) legado oculto só em creation+piloto
-  //  (10) legado preservado com piloto OFF  (11) outras histórias intactas
-  //  (12) StoryDetailScreen sem acesso ao writer.
+  // C60-IMPL-P11 — PROVAS DETERMINÍSTICAS (Diretor de Celebração + geometria da moldura):
+  // hidratação atômica + máquina de conclusão de TRÊS intensidades + moldura nos limites REAIS
+  // da arte + isolamento do writer/legado. Cenários exigidos (Parte 9):
+  //  (1) 0→1  (2) 1→2  (3) 2→3  (4) recolorir já concluída = ATUALIZAÇÃO (celebra, reenquadra,
+  //      emoldura pelo snapshot, MAS sem festa 3/3 e sem progresso novo — vale 3/3 e 1/3)
+  //  (5) escrita falhou (não celebra)  (6) not_persisted_free (Grátis celebra igual)
+  //  (7) dez toques rápidos = 1 evento  (8) re-render não repete som/háptico/animação
+  //  (Parte 3) moldura segue o retângulo real da arte (artRectFromSnapshot); v1/inválido → fallback
+  //  (Parte 5) atualização usa a fala afetiva EXATA + Beni reagindo (pointLeft), nunca aviso técnico
+  //  (Parte 7) grande conclusão com título "!" + 3ª ação "Colorir novamente"
+  //  (9) legado oculto só em creation+piloto  (10) legado preservado com piloto OFF
+  //  (11) outras histórias intactas  (12) StoryDetailScreen sem acesso ao writer.
   // + critério OBRIGATÓRIO: com desenho salvo, nenhum quadro mostra lineart SEM cor.
-  // O harness COMPORTAMENTAL extrai handleC60Celebrate e beginC60Attempt REAIS do fonte e os
-  // exercita com colaboradores injetados (não é regex: mutar a decisão muda os contadores);
-  // os controles ESTRUTURAIS provam o resto sobre as fontes reais. A validação PÍXEL-A-PÍXEL
-  // e 60fps é HUMANA e não é substituível por gate — este bloco prova a LÓGICA que a sustenta.
+  // O harness COMPORTAMENTAL extrai handleC60Celebrate/beginC60Celebrate REAIS do fonte e os
+  // exercita com colaboradores injetados (não é regex: mutar a decisão muda os contadores); o
+  // harness de GEOMETRIA extrai artRectFromSnapshot REAL e prova a matemática da moldura; os
+  // controles ESTRUTURAIS provam o resto sobre as fontes reais. A validação PÍXEL-A-PÍXEL, a
+  // reação afetiva e 60fps é HUMANA e não é substituível por gate — este bloco prova a LÓGICA.
   // ══════════════════════════════════════════════════════════════════════════════
   {
     const scrP10 = readSrc('src/screens/ColoringScreen.js');
@@ -31850,21 +31856,22 @@ check(
       return (i >= 0 && j > i) ? raw.slice(i, j) : '';
     };
     const sdCode = stripComments(sdRaw);
+    const ovCode = stripComments(ovRaw);
 
     // ── HARNESS A · MÁQUINA DE CONCLUSÃO (handleC60Celebrate REAL) ─────────────────
     // Extrai a função entre os marcadores e a executa com stubs para TODO colaborador React
     // (setState/Animated/canvasRef/loadFinale) e o catálogo. Captura o modo escolhido e os
     // efeitos: marcou progresso? reenquadrou (Ver tudo)? carregou a galeria (e com qual snapshot)?
     const CAT = ['light', 'living_world', 'people_and_care'];
-    let machineRaw = sliceBetween(scrP10, '[C60-P10-MACHINE-START]', '[C60-P10-MACHINE-END]');
+    let machineRaw = sliceBetween(scrP10, '[C60-P11-MACHINE-START]', '[C60-P11-MACHINE-END]');
     machineRaw = machineRaw.slice(
       machineRaw.indexOf('function handleC60Celebrate('),
       machineRaw.lastIndexOf('}') + 1);
     const runMachine = ({ doneMap, activityId, outcome }) => {
-      const calls = { mode: null, celebrating: null, doneMapWritten: null, doneMapCalls: 0, resetZoom: 0, loadFinale: 0, finaleSnapshot: undefined };
+      const calls = { mode: null, celebrating: null, doneMapWritten: null, doneMapCalls: 0, resetZoom: 0, loadFinale: 0, finaleSnapshot: undefined, snapshotWritten: undefined };
       const handler = new Function(
         'getColoring60Activities', 'c60DoneMap', 'activityId', 'storyId',
-        'setC60CelebrateMode', 'setC60Celebrating', 'setC60DoneMap',
+        'setC60CelebrateMode', 'setC60Celebrating', 'setC60DoneMap', 'setC60CelebrateSnapshot',
         'Animated', 'controlsAnim', 'canvasRef', 'loadC60FinaleItems', '__DEV__', 'console',
         machineRaw + '\nreturn handleC60Celebrate;')(
         () => CAT.map((id) => ({ activityId: id })),
@@ -31872,6 +31879,7 @@ check(
         (m) => { calls.mode = m; },
         (v) => { calls.celebrating = v; },
         (up) => { calls.doneMapCalls++; calls.doneMapWritten = typeof up === 'function' ? up(doneMap) : up; },
+        (s) => { calls.snapshotWritten = s; },
         { timing: () => ({ start: () => {} }) },
         {},
         { current: { resetZoom: () => { calls.resetZoom++; } } },
@@ -31882,12 +31890,14 @@ check(
       return calls;
     };
 
-    // Prova 1 — 0→1: primeira conclusão, faltam 2 ⇒ celebração de ATIVIDADE, marca progresso, reenquadra.
+    // Prova 1 — 0→1: primeira conclusão, faltam 2 ⇒ celebração de ATIVIDADE, marca progresso, reenquadra,
+    // e prepara a moldura pelo snapshot (Parte 3: a moldura segue os limites reais da arte em todos os modos).
     {
       const r = runMachine({ doneMap: {}, activityId: 'light', outcome: { persisted: true, snapshot: 'SNAP1' } });
-      check('C60-P10 [prova 1] 0→1: modo ATIVIDADE, progresso marcado (light), reenquadra, sem galeria',
+      check('C60-P11 [prova 1] 0→1: modo ATIVIDADE, progresso marcado (light), reenquadra, snapshot da moldura, sem galeria',
         r.mode === 'activity' && r.celebrating === true && r.doneMapCalls === 1
-          && !!r.doneMapWritten && r.doneMapWritten.light === true && r.resetZoom === 1 && r.loadFinale === 0,
+          && !!r.doneMapWritten && r.doneMapWritten.light === true && r.resetZoom === 1 && r.loadFinale === 0
+          && r.snapshotWritten === 'SNAP1',
         `1ª de 3 deve ser celebração curta de atividade (${JSON.stringify(r)})`);
     }
     // Prova 2 — 1→2: segunda conclusão, ainda falta 1 ⇒ ATIVIDADE.
@@ -31900,30 +31910,66 @@ check(
     // Prova 3 — 2→3: terceira conclusão REAL ⇒ GRANDE conclusão, galeria carregada com o snapshot atual.
     {
       const r = runMachine({ doneMap: { light: true, living_world: true }, activityId: 'people_and_care', outcome: { persisted: true, snapshot: 'SNAP3' } });
-      check('C60-P10 [prova 3] 2→3: modo FINALE, galeria carregada com o snapshot atual, reenquadra',
+      check('C60-P11 [prova 3] 2→3: modo FINALE, galeria carregada com o snapshot atual, reenquadra, snapshot da moldura',
         r.mode === 'finale' && r.loadFinale === 1 && r.finaleSnapshot === 'SNAP3' && r.resetZoom === 1
-          && !!r.doneMapWritten && r.doneMapWritten.people_and_care === true,
+          && !!r.doneMapWritten && r.doneMapWritten.people_and_care === true && r.snapshotWritten === 'SNAP3',
         `a 3ª conclusão real dispara a grande conclusão (${JSON.stringify(r)})`);
     }
-    // Prova 4 — editar já concluída: SÓ aviso "desenho atualizado" — nunca festa, nunca galeria, sem
-    // mexer no progresso e sem reenquadrar. Vale sempre (3/3 e 1/3).
+    // Prova 4 — recolorir já concluída = celebração de ATUALIZAÇÃO (§Parte 5): reenquadra (Ver tudo)
+    // para a arte ficar inteira e visível, e prepara a moldura pelo snapshot — MAS não repete a festa
+    // 3/3 nem a página de 1ª vez, e NÃO mexe no progresso (já estava done). Vale sempre (3/3 e 1/3).
     {
-      const r3 = runMachine({ doneMap: { light: true, living_world: true, people_and_care: true }, activityId: 'light', outcome: { persisted: true, snapshot: 'X' } });
-      const r1 = runMachine({ doneMap: { light: true }, activityId: 'light', outcome: { persisted: true, snapshot: 'X' } });
-      check('C60-P10 [prova 4] editar já concluída: modo EDIT, sem progresso novo, sem reenquadrar, sem galeria (3/3 e 1/3)',
-        r3.mode === 'edit' && r3.doneMapCalls === 0 && r3.resetZoom === 0 && r3.loadFinale === 0
-          && r1.mode === 'edit' && r1.doneMapCalls === 0 && r1.resetZoom === 0 && r1.loadFinale === 0,
-        `editar nunca repete a festa nem altera progresso (3/3=${JSON.stringify(r3)}, 1/3=${JSON.stringify(r1)})`);
+      const r3 = runMachine({ doneMap: { light: true, living_world: true, people_and_care: true }, activityId: 'light', outcome: { persisted: true, snapshot: 'X3' } });
+      const r1 = runMachine({ doneMap: { light: true }, activityId: 'light', outcome: { persisted: true, snapshot: 'X1' } });
+      check('C60-P11 [prova 4] recolorir já concluída: modo UPDATE, reenquadra + snapshot da moldura, sem progresso novo, sem galeria (3/3 e 1/3)',
+        r3.mode === 'update' && r3.celebrating === true && r3.doneMapCalls === 0 && r3.resetZoom === 1 && r3.loadFinale === 0 && r3.snapshotWritten === 'X3'
+          && r1.mode === 'update' && r1.celebrating === true && r1.doneMapCalls === 0 && r1.resetZoom === 1 && r1.loadFinale === 0 && r1.snapshotWritten === 'X1',
+        `recolorir CELEBRA (atualização): reenquadra e emoldura, mas nunca repete a festa nem altera progresso (3/3=${JSON.stringify(r3)}, 1/3=${JSON.stringify(r1)})`);
     }
     // Prova 6b — Grátis (não persistido) recebe a MESMA celebração: persisted=false ⇒ atividade/finale
     // idênticos ao persistido, usando o snapshot em memória (a galeria não depende do writer).
     {
       const rA = runMachine({ doneMap: {}, activityId: 'light', outcome: { persisted: false, snapshot: 'FREE1' } });
       const rF = runMachine({ doneMap: { light: true, living_world: true }, activityId: 'people_and_care', outcome: { persisted: false, snapshot: 'FREE3' } });
-      check('C60-P10 [prova 6b] not_persisted_free: MESMA celebração (atividade e finale); galeria usa o snapshot em memória',
+      check('C60-P11 [prova 6b] not_persisted_free: MESMA celebração (atividade e finale); galeria usa o snapshot em memória',
         rA.mode === 'activity' && !!rA.doneMapWritten && rA.doneMapWritten.light === true
           && rF.mode === 'finale' && rF.loadFinale === 1 && rF.finaleSnapshot === 'FREE3',
         `o Grátis conclui de verdade e recebe a mesma experiência (atividade=${JSON.stringify(rA)}, finale=${JSON.stringify(rF)})`);
+    }
+
+    // ── HARNESS A2 · GEOMETRIA da MOLDURA (artRectFromSnapshot REAL) ────────────────
+    // §Parte 3: a moldura de brilho segue os LIMITES REAIS da arte, nunca a barra de ferramentas nem
+    // a área vazia embaixo. Extrai a função pura do overlay e prova a matemática (razões DPR-safe) e a
+    // defesa: v1 (data-URL puro), payload inválido/fora de faixa → null (fallback do canvas inteiro).
+    {
+      const geoSrc = ovRaw.slice(
+        ovRaw.indexOf('function artRectFromSnapshot('),
+        ovRaw.indexOf('const FRAME_PAD'));
+      const artRectFromSnapshot = new Function(geoSrc + '\nreturn artRectFromSnapshot;')();
+      const close = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
+      // v2 válido: W/H em px de backing (×DPR); as razões imgX/W etc. mapeiam para a área medida.
+      const v2 = JSON.stringify({ v: 2, W: 1000, H: 2000, imgX: 100, imgY: 200, imgW: 800, imgH: 1000, data: 'data:image/png;base64,AAA' });
+      const rOk = artRectFromSnapshot(v2);
+      const geoOk = rOk && close(rOk.fx, 0.1) && close(rOk.fy, 0.1) && close(rOk.fw, 0.8) && close(rOk.fh, 0.5);
+      // v1 (data-URL puro, sem layout) e payloads inválidos/degenerados/fora de faixa → null.
+      const v1Null = artRectFromSnapshot('data:image/png;base64,AAAA') === null;
+      const badJsonNull = artRectFromSnapshot('não é json') === null;
+      const emptyNull = artRectFromSnapshot('') === null && artRectFromSnapshot(null) === null;
+      const missingNull = artRectFromSnapshot(JSON.stringify({ W: 100, H: 100 })) === null;
+      const zeroNull = artRectFromSnapshot(JSON.stringify({ W: 0, H: 100, imgX: 0, imgY: 0, imgW: 10, imgH: 10 })) === null;
+      const overNull = artRectFromSnapshot(JSON.stringify({ W: 100, H: 100, imgX: 0, imgY: 0, imgW: 200, imgH: 50 })) === null; // fw=2>1.02
+      const offNull = artRectFromSnapshot(JSON.stringify({ W: 100, H: 100, imgX: 90, imgY: 0, imgW: 30, imgH: 30 })) === null; // fx+fw=1.2>1.02
+      check('C60-P11 [Parte 3] artRectFromSnapshot: v2 → razões corretas (DPR-safe); v1/inválido/fora de faixa → null (fallback)',
+        geoOk && v1Null && badJsonNull && emptyNull && missingNull && zeroNull && overNull && offNull,
+        `a moldura segue o retângulo real da arte e degrada para fallback com dado ausente (v2=${JSON.stringify(rOk)})`);
+      // Estrutural: o ArtGlow mede a área (onLayout) e ancora a moldura ao retângulo real (artBox),
+      // com fallback honesto de canvas inteiro; mede mesmo inativo (nasce no lugar no 1º quadro).
+      check('C60-P11 [Parte 3] ArtGlow mede a área (onLayout) e ancora ao retângulo real (artBox) com fallback de canvas inteiro',
+        /export function Coloring60ArtGlow\(\{ activityId, active, snapshot = null \}\)/.test(ovRaw)
+          && /onLayout=\{onLayout\}/.test(ovRaw)
+          && /const rect = artRectFromSnapshot\(snapshot\)/.test(ovRaw)
+          && /artBox \?/.test(ovRaw) && /glowStyles\.frameLayer/.test(ovRaw),
+        'a moldura ancora nos limites reais; sem geometria cai no enquadramento do canvas inteiro, sem borda deslocada');
     }
 
     // ── HARNESS B · PORTÃO DE CELEBRAÇÃO a montante (beginC60Attempt REAL) ──────────
@@ -32022,36 +32068,55 @@ check(
     check('C60-P10 [prova 8b] celebração: animação de entrada keyed por [reduceMotion] com cleanup (não reinicia em re-render)',
       /anim\.start\(\);\s*\n\s*return \(\) => anim\.stop\(\);\s*\n\s*\}, \[reduceMotion\]\);/.test(ovRaw),
       'a animação só (re)inicia quando reduceMotion muda; re-render comum não reanima');
-    check('C60-P10 [prova 8c] edição: som+háptico leve em useEffect([]), idempotente (doneRef), SoundButton silent',
-      /doneRef\.current = true;/.test(ovRaw)
-        && /playUiSound\('tap'\);\s*\n\s*\}, \[\]\);/.test(ovRaw)
-        && /Haptics\.selectionAsync/.test(ovRaw)
-        && /<SoundButton\s+silent/.test(ovRaw),
-      'a confirmação de edição dispara um único som/háptico leve e o toque de dispensa não soma som (silent)');
+    check('C60-P11 [prova 8c] atualização é CELEBRAÇÃO afetiva: frase EXATA + Beni reagindo (pointLeft) + háptico leve; sem "3/3" e sem galeria',
+      ovRaw.includes('Eu vi suas novas cores! Seu desenho ficou ainda mais especial!')
+        && /variant=\{isUpdate \? 'pointLeft' : 'celebrating2'\}/.test(ovRaw)
+        && /else if \(isUpdate\) Haptics\.selectionAsync/.test(ovRaw)
+        && /\) : isUpdate \? null : \(/.test(ovRaw)
+        && /isUpdate\s*\?\s*'Continuar colorindo'/.test(ovRaw),
+      'a atualização reage à arte (Beni aponta + frase exata + selection) e oferece "Continuar colorindo" — nunca o progresso 3/3, nunca a galeria');
 
-    // Parte 4 · textos EXATOS + galeria das três + Beni na composição; edição ≠ fecho.
-    check('C60-P10 [Parte 4] fecho: título e mensagem EXATOS + galeria das três (FinaleDrawingThumb/galleryAnims)',
-      ovRaw.includes('Você encheu a Criação de cor')
+    // Parte 6 · textos EXATOS de PRIMEIRA CONCLUSÃO por atividade (contrato — não reformular).
+    check('C60-P11 [Parte 6] 1ª conclusão: títulos e falas EXATOS por atividade (luz · vida · cuidado)',
+      ovRaw.includes('Sua luz ganhou cor!') && ovRaw.includes('Você escolheu tantas cores para iluminar a Criação!')
+        && ovRaw.includes('A vida floresceu!') && ovRaw.includes('Olha quanta vida você encheu de cor!')
+        && ovRaw.includes('Seu cuidado deixou tudo especial!') && ovRaw.includes('Você cuidou de cada pedacinho com muito carinho!'),
+      'cada atividade tem sua página especial com o título e a fala aprovados');
+    // Parte 7 · fecho: título com "!" EXATO + mensagem EXATA + galeria das três + TRÊS ações.
+    check('C60-P11 [Parte 7] fecho: título "!" e mensagem EXATOS + galeria das três + 3ª ação "Colorir novamente"',
+      ovRaw.includes('Você encheu a Criação de cor!')
         && ovRaw.includes('Cada desenho mostrou um jeito especial de ver, cuidar e celebrar o mundo de Deus.')
-        && /FinaleDrawingThumb/.test(ovRaw) && /galleryAnims/.test(ovRaw),
-      'a grande conclusão traz os textos aprovados e apresenta os três desenhos');
-    check('C60-P10 [Parte 4] edição diz "Seu desenho foi atualizado" e NÃO usa a mensagem do fecho',
-      ovRaw.includes('Seu desenho foi atualizado')
-        && !/Você completou as três partes da criação/.test(ovRaw),
-      'editar mostra confirmação curta — nunca a mensagem/animação da grande conclusão');
-    check('C60-P10 [isolamento] overlay do fecho NÃO lê storage (recebe arte por props: paint/lineart)',
+        && /FinaleDrawingThumb/.test(ovRaw) && /galleryAnims/.test(ovRaw)
+        && /allDone && typeof onTertiary === 'function'/.test(ovRaw)
+        && ovRaw.includes('Colorir novamente'),
+      'a grande conclusão traz os textos aprovados, os três desenhos e a terceira ação (recomeçar)');
+    // Parte 5 · atualização celebra com a fala afetiva EXATA e NUNCA um aviso técnico. A negativa roda
+    // sobre o CÓDIGO sem comentários (comentários descritivos citam "payload salvo" etc. legitimamente).
+    check('C60-P11 [Parte 5] atualização usa a fala afetiva EXATA e NÃO um aviso técnico ("salvo"/"atualizado")',
+      ovCode.includes('Eu vi suas novas cores! Seu desenho ficou ainda mais especial!')
+        && !/desenho foi atualizado|[Dd]esenho salvo/.test(ovCode),
+      'a atualização celebra com a frase aprovada — nunca um toast técnico ("desenho salvo/atualizado")');
+    check('C60-P11 [isolamento] overlay NÃO lê storage (recebe arte por props: paint/lineart)',
       !/coloring60DrawingStorage|saveColoring60DrawingState|getColoring60SavedDrawing/.test(stripComments(ovRaw)),
       'a galeria compõe a partir de props; nenhuma leitura de storage no componente visual');
 
-    // Ramo de RENDER de ColoringScreen: três modos distintos, cada um monta UMA camada.
-    check('C60-P10 [render] três modos: edit→aviso curto; activity/finale→overlay (allDone=finale, finaleItems)',
-      /c60CelebrateMode === 'edit' \?[\s\S]*?<Coloring60EditNotice/.test(scrP10)
-        && /c60CelebrateMode === 'activity' \|\| c60CelebrateMode === 'finale'[\s\S]*?<Coloring60CompletionOverlay/.test(scrP10)
-        && /allDone=\{c60CelebrateMode === 'finale'\}/.test(scrP10)
+    // Ramo de RENDER de ColoringScreen: UM overlay unificado, pelo prop `mode` (update|activity|finale).
+    check('C60-P11 [render] modo único: overlay recebe mode (update|activity|finale); sem EditNotice; tertiary ligado',
+      /mode=\{c60CelebrateMode\}/.test(scrP10)
+        && /c60CelebrateMode === 'update'[\s\S]*?c60CelebrateMode === 'activity'[\s\S]*?c60CelebrateMode === 'finale'[\s\S]*?<Coloring60CompletionOverlay/.test(scrP10)
+        && !/Coloring60EditNotice/.test(scrP10)
+        && /onPrimary=\{c60CelebrateMode === 'update' \? handleC60ContinueColoring : handleC60Primary\}/.test(scrP10)
+        && /onTertiary=\{handleC60ColorAgain\}/.test(scrP10)
         && /finaleItems=\{c60FinaleItems\}/.test(scrP10),
-      'cada modo monta a sua camada uma única vez (som/háptico no próprio mount)');
+      'os três modos montam UM overlay unificado pelo prop mode; a antiga camada de edição não existe mais');
+    // §Parte 3 · ColoringScreen alimenta a moldura com o snapshot e a máquina o registra em todos os modos.
+    check('C60-P11 [render] a moldura (ArtGlow) recebe o snapshot da conclusão e a máquina o registra',
+      /<Coloring60ArtGlow[\s\S]*?snapshot=\{c60CelebrateSnapshot\}/.test(scrP10)
+        && /setC60CelebrateSnapshot\(snapshot\)/.test(scrP10)
+        && /const \[c60CelebrateSnapshot, setC60CelebrateSnapshot\] = useState\(null\)/.test(scrP10),
+      'o quadro de brilho recebe o instantâneo v2 para seguir os limites reais da arte');
     // loadC60FinaleItems compõe a galeria pela CONCLUSÃO (reader + resolver), nunca inventa fonte.
-    check('C60-P10 [render] loadC60FinaleItems lê os outros desenhos pelo reader e resolve o lineart pelo resolver',
+    check('C60-P11 [render] loadC60FinaleItems lê os outros desenhos pelo reader e resolve o lineart pelo resolver',
       /async function loadC60FinaleItems\(/.test(scrP10)
         && /getColoring60SavedDrawing\(storyId, a\.activityId\)/.test(scrP10)
         && /resolveColoring60Lineart\(storyId, a\.activityId\)/.test(scrP10),
