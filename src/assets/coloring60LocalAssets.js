@@ -37,7 +37,7 @@ const COLORING60_LOCAL_SOURCES = {
   creation: {
     light: CREATION_LIGHT_SOURCE,
     living_world: require('../../assets/stories/creation/coloring/activities/living_world.png'),
-    people_and_care: null,
+    people_and_care: require('../../assets/stories/creation/coloring/activities/people_and_care.png'),
   },
 };
 
