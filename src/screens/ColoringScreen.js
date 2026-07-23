@@ -511,7 +511,14 @@ function Coloring60ActivityScreen({ route, navigation }) {
             style={[styles.topBarActions, { opacity: controlsAnim }]}
             pointerEvents={c60Celebrating ? 'none' : 'auto'}
           >
+            {/* §3 · UM ÚNICO som de conclusão. O botão "Pronto!" é o gatilho da conclusão, mas
+                quem dá o som de fecho é o overlay de celebração (playUiSound('success') ao montar).
+                Sem `silent`, o SoundButton tocaria automaticamente o 'tap' no toque, somando-se ao
+                'success' do overlay e produzindo a sensação de clique duplo. `silent` suprime SÓ o
+                som automático deste botão, no fluxo do Colorir 60 — sem mexer nos demais botões e
+                sem silenciar a celebração. `disabled` durante o salvamento também evita re-disparo. */}
             <SoundButton
+              silent
               style={[styles.prontoBtn, c60Saving && styles.prontoBtnSaving]}
               onPress={handleC60Pronto}
               activeOpacity={0.85}
