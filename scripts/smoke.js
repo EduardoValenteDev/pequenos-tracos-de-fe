@@ -32103,10 +32103,8 @@ check(
     const cp = require('child_process');
     const runV = (mode) => {
       const r = cp.spawnSync(process.execPath, [path.join(root, C60_VERIFIER_REL), `--mode=${mode}`], { encoding: 'utf8' });
-      return { status: r.status, stdout: r.stdout || '' };
+      return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
     };
-    const pre = runV('pre');
-    const post = runV('post');
     const F = C60_PATH_KIND.REGULAR_FILE;
     // Visões FÍSICAS sintéticas (o que `lstat` veria em cada cenário).
     const vAbsent = { activitiesKind: C60_PATH_KIND.ABSENT, entries: [] };
@@ -32115,16 +32113,130 @@ check(
     const vPcOnly = { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: C60_FILE_PEOPLE_AND_CARE, kind: F }] };
     const vBoth = { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: C60_FILE_LIVING_WORLD, kind: F }, { name: C60_FILE_PEOPLE_AND_CARE, kind: F }] };
 
-    // Registros sintéticos derivados do ARQUIVO REAL (nunca de uma cópia divergente):
-    // a única transformação é ligar/desligar os slots, como P5.T4/P5.T6 fariam.
+    // ══════════════════════════════════════════════════════════════════════════
+    // C60-IMPL-P5-ASSET-PHASE-SMOKE-FIX2 — fixtures INDEPENDENTES DA FASE REAL
+    //
+    // Antes, `regPre` era o próprio arquivo real e a ligação de slot era um
+    // `.replace()` sem validação. Consequência: assim que o repositório saísse de
+    // PRE (P5.T4), as fixtures HERDAVAM a fase real, a ligação virava no-op no slot
+    // e ainda injetava `require()` DUPLICADO — oito provas falhavam por defeito do
+    // harness, não do asset. Agora toda fixture nasce de uma NORMALIZAÇÃO CANÔNICA
+    // para PRE, e tanto desligar quanto ligar recusam qualquer forma não canônica,
+    // qualquer duplicata e qualquer transformação sem efeito.
+    // ══════════════════════════════════════════════════════════════════════════
     const regReal = readSrc(C60_REGISTRY_REL);
-    const wire = (src, slot, req) => src
-      .replace(new RegExp(`${slot}:\\s*null`), `${slot}: C60_${slot.toUpperCase()}_SOURCE`)
-      .replace(/^const CREATION_LIGHT_SOURCE/m, `const C60_${slot.toUpperCase()}_SOURCE = require('${req}');\nconst CREATION_LIGHT_SOURCE`);
-    const regPre = regReal;
-    const regLw = wire(regReal, 'living_world', C60_REQ_LIVING_WORLD);
-    const regBoth = wire(regLw, 'people_and_care', C60_REQ_PEOPLE_AND_CARE);
     const phaseOf = (view, reg) => c60ClassifyAssetPhase(view, reg).phase;
+    const c60EscRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const c60SlotReq = { living_world: C60_REQ_LIVING_WORLD, people_and_care: C60_REQ_PEOPLE_AND_CARE };
+    // Nº de `require()` LITERAIS de um path autorizado (a forma dinâmica é recusada à parte).
+    const c60CountLiteral = (src, req) => (String(src).match(new RegExp(`require\\(\\s*'${c60EscRe(req)}'\\s*\\)`, 'g')) || []).length;
+    // Linha do slot dentro do mapa estático. Tem de existir EXATAMENTE uma vez.
+    const c60SlotHit = (src, slot) => {
+      const re = new RegExp(`^([ \\t]*)${slot}: ([^\\n]*),$`, 'gm');
+      const found = [];
+      let m;
+      while ((m = re.exec(String(src))) !== null) found.push({ indent: m[1], value: m[2], line: m[0] });
+      if (found.length !== 1) throw new Error(`slot ${slot}: deve aparecer EXATAMENTE 1 vez no mapa (achou ${found.length})`);
+      if (String(src).split(found[0].line).length - 1 !== 1) throw new Error(`slot ${slot}: linha ambígua (texto repetido no arquivo)`);
+      return found[0];
+    };
+    // Linhas cujo nº de ocorrências mudou entre dois textos (auditoria de alteração colateral).
+    const c60ChangedLines = (a, b) => {
+      const count = (s) => {
+        const m = new Map();
+        for (const l of String(s).split('\n')) m.set(l, (m.get(l) || 0) + 1);
+        return m;
+      };
+      const ca = count(a); const cb = count(b); const out = [];
+      ca.forEach((n, l) => { if ((cb.get(l) || 0) !== n) out.push(l); });
+      cb.forEach((n, l) => { if ((ca.get(l) || 0) !== n) out.push(l); });
+      return out;
+    };
+    // Desliga um slot LIGADO, aceitando as duas formas canônicas de ligação (require
+    // literal inline OU constante declarada com require literal), e só elas.
+    const c60UnwireSlot = (src, slot) => {
+      const req = c60SlotReq[slot];
+      const before = c60CountLiteral(src, req);
+      if (before === 0) throw new Error(`slot ${slot}: nada a desligar (nenhum require literal de ${req})`);
+      if (before > 1) throw new Error(`slot ${slot}: require literal duplicado (${before}) — estado não canônico`);
+      const hit = c60SlotHit(src, slot);
+      let out;
+      if (hit.value === `require('${req}')`) {
+        out = src.replace(hit.line, `${hit.indent}${slot}: null,`);
+      } else if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(hit.value)) {
+        const declRe = new RegExp(`^const ${hit.value} = require\\('${c60EscRe(req)}'\\);\\n`, 'm');
+        if (!declRe.test(src)) throw new Error(`slot ${slot}: referência "${hit.value}" sem declaração canônica de ${req}`);
+        out = src.replace(declRe, '').replace(hit.line, `${hit.indent}${slot}: null,`);
+      } else {
+        throw new Error(`slot ${slot}: valor fora do contrato canônico ("${hit.value}")`);
+      }
+      if (out === src) throw new Error(`slot ${slot}: transformação sem efeito (substituição silenciosa proibida)`);
+      if (c60CountLiteral(out, req) !== 0) throw new Error(`slot ${slot}: sobrou require literal de ${req} após desligar`);
+      if (c60SlotHit(out, slot).value !== 'null') throw new Error(`slot ${slot}: não terminou em null`);
+      return out;
+    };
+    // Normaliza QUALQUER uma das três fases válidas para o MESMO PRE canônico.
+    const c60NormalizeRegistryToPre = (src) => {
+      const phase = c60ClassifyRegistry(c60ReadRegistryView(src)).phase;
+      if (phase === C60_ASSET_PHASE.INVALID) throw new Error('registro de origem INVÁLIDO: não é normalizável');
+      let out = String(src);
+      if (phase === C60_ASSET_PHASE.COMPLETE) out = c60UnwireSlot(out, 'people_and_care');
+      if (phase !== C60_ASSET_PHASE.PRE) out = c60UnwireSlot(out, 'living_world');
+      if (phase !== C60_ASSET_PHASE.PRE && out === src) throw new Error('mudança obrigatória não ocorreu (texto idêntico ao original)');
+      const view = c60ReadRegistryView(out);
+      if (view.hasDynamicRequire) throw new Error('require dinâmico/não-literal é proibido');
+      if (view.literals.length !== 1 || view.literals[0] !== C60_REQ_LIGHT) throw new Error(`PRE canônico exige EXATAMENTE 1 require literal (light→scene_02.png); achou [${view.literals.join(', ')}]`);
+      if (c60ClassifyRegistry(view).phase !== C60_ASSET_PHASE.PRE) throw new Error('normalização não produziu a fase PRE');
+      const permitted = (l) => /^[ \t]*(living_world|people_and_care): [^\n]*,$/.test(l)
+        || new RegExp(`^const [A-Za-z_$][A-Za-z0-9_$]* = require\\('(${c60EscRe(C60_REQ_LIVING_WORLD)}|${c60EscRe(C60_REQ_PEOPLE_AND_CARE)})'\\);$`).test(l);
+      const offending = c60ChangedLines(src, out).filter((l) => !permitted(l));
+      if (offending.length > 0) throw new Error(`alteração não relacionada durante a normalização: "${offending[0]}"`);
+      return out;
+    };
+    // Liga um slot em `null`, na forma canônica INLINE (a mesma prescrita a P5.T4/P5.T6).
+    const c60WireSlot = (src, slot) => {
+      const req = c60SlotReq[slot];
+      const other = slot === 'living_world' ? 'people_and_care' : 'living_world';
+      const already = c60CountLiteral(src, req);
+      if (already !== 0) throw new Error(`slot ${slot}: já existe require literal de ${req} (${already}) — ligar duas vezes é proibido`);
+      const hit = c60SlotHit(src, slot);
+      if (hit.value !== 'null') throw new Error(`slot ${slot}: só é possível ligar um slot em null (achou "${hit.value}")`);
+      const otherBefore = c60SlotHit(src, other).value;
+      const litsBefore = c60ReadRegistryView(src).literals.length;
+      const out = src.replace(hit.line, `${hit.indent}${slot}: require('${req}'),`);
+      if (out === src) throw new Error(`slot ${slot}: transformação sem efeito (substituição silenciosa proibida)`);
+      if (c60CountLiteral(out, req) !== 1) throw new Error(`slot ${slot}: deveria inserir EXATAMENTE 1 require literal (achou ${c60CountLiteral(out, req)})`);
+      const viewOut = c60ReadRegistryView(out);
+      if (viewOut.hasDynamicRequire) throw new Error(`slot ${slot}: require dinâmico/não-literal é proibido`);
+      if (viewOut.literals.length !== litsBefore + 1) throw new Error(`slot ${slot}: o total de requires literais tem de crescer exatamente 1`);
+      if (viewOut.literals.filter((l) => [C60_REQ_LIGHT, C60_REQ_LIVING_WORLD, C60_REQ_PEOPLE_AND_CARE].indexOf(l) === -1).length > 0) throw new Error(`slot ${slot}: path não autorizado após ligar`);
+      if (c60SlotHit(out, other).value !== otherBefore) throw new Error(`slot ${slot}: o outro slot (${other}) não pode ser modificado`);
+      const offending = c60ChangedLines(src, out).filter((l) => !new RegExp(`^[ \\t]*${slot}: [^\\n]*,$`).test(l));
+      if (offending.length > 0) throw new Error(`alteração não relacionada ao ligar ${slot}: "${offending[0]}"`);
+      return out;
+    };
+    // As QUATRO fixtures canônicas, todas derivadas por normalização + ligação estrita.
+    const c60BuildRegistryFixtures = (regSource) => {
+      const regPreCanon = c60NormalizeRegistryToPre(regSource);
+      const regLivingWorld = c60WireSlot(regPreCanon, 'living_world');
+      return {
+        regPre: regPreCanon,
+        regLivingWorld,
+        regComplete: c60WireSlot(regLivingWorld, 'people_and_care'),
+        regPeopleAndCareOnly: c60WireSlot(regPreCanon, 'people_and_care'),
+      };
+    };
+    const c60Try = (fn) => {
+      try { return { ok: true, value: fn(), error: '' }; } catch (e) { return { ok: false, value: null, error: String((e && e.message) || e) }; }
+    };
+    const c60FxTry = c60Try(() => c60BuildRegistryFixtures(regReal));
+    check('C60-PHASE-FIX2 [fx0]: fixtures canônicas derivam do registro real sem violar o contrato (qualquer que seja a fase real)',
+      c60FxTry.ok, `normalização/ligação recusada: ${c60FxTry.error}`);
+    const c60Fx = c60FxTry.ok ? c60FxTry.value : { regPre: '', regLivingWorld: '', regComplete: '', regPeopleAndCareOnly: '' };
+    const regPre = c60Fx.regPre;
+    const regLw = c60Fx.regLivingWorld;
+    const regBoth = c60Fx.regComplete;
+    const regPcOnly = c60Fx.regPeopleAndCareOnly;
 
     // ── Âncoras de fidelidade das fixtures (sem elas, os sintéticos não provam nada) ──
     check('C60-PHASE-FIX1 [anc1]: PATH_KIND do smoke é IDÊNTICO ao PATH_KIND do verificador real',
@@ -32134,18 +32246,37 @@ check(
       }), 'a taxonomia de tipos de caminho divergiu do verificador real');
     check('C60-PHASE-FIX1 [anc2]: registros sintéticos LIVING_WORLD/COMPLETE são transformações reais (não texto inventado)',
       regLw !== regPre && regBoth !== regLw && regLw.includes(C60_REQ_LIVING_WORLD) && regBoth.includes(C60_REQ_PEOPLE_AND_CARE)
-        && regLw.includes(C60_REQ_LIGHT) && regBoth.includes(C60_REQ_LIGHT),
-      'as fixtures de registro devem derivar do arquivo real por ligação de slot');
-    const c60RealPost = c60RenderVerifierRun('post', C60_ASSET_PHASE.PRE);
-    const c60RealPre = c60RenderVerifierRun('pre', C60_ASSET_PHASE.PRE);
-    check('C60-PHASE-FIX1 [anc3]: renderizador sintético é FIEL à saída real do verificador (post, fase PRE)',
-      !!c60RealPost && c60RealPost.stdout.split('\n').slice(2).join('\n') === post.stdout.split('\n').slice(2).join('\n')
-        && c60RealPost.status === (post.status === 0 ? 0 : 1),
-      'a saída sintética divergiu da saída real do subprocesso em post/PRE');
-    check('C60-PHASE-FIX1 [anc4]: renderizador sintético é FIEL à saída real do verificador (pre, fase PRE)',
-      !!c60RealPre && c60RealPre.stdout.split('\n').slice(2).join('\n') === pre.stdout.split('\n').slice(2).join('\n')
-        && c60RealPre.status === (pre.status === 0 ? 0 : 1),
-      'a saída sintética divergiu da saída real do subprocesso em pre/PRE');
+        && regLw.includes(C60_REQ_LIGHT) && regBoth.includes(C60_REQ_LIGHT)
+        && regPre !== '' && c60ClassifyRegistry(c60ReadRegistryView(regPre)).phase === C60_ASSET_PHASE.PRE,
+      'as fixtures de registro devem derivar do arquivo real por normalização + ligação de slot');
+    // anc3/anc4 — a expectativa sintética segue a FASE REAL DETECTADA NA EXECUÇÃO (nunca
+    // fixada em PRE), a fase é reconferida depois do subprocesso, e a comparação inclui
+    // exit code, stdout INTEGRAL (com as duas primeiras linhas conferidas, não descartadas)
+    // e stderr. Fase real INVÁLIDA reprova a âncora — jamais a dispensa.
+    const c60DetectRealPhase = () => c60ClassifyAssetPhase(c60ReadPhysicalView(C60_ACTIVITIES_ABS), readSrc(C60_REGISTRY_REL)).phase;
+    const c60AnchorAgainstReal = (mode) => {
+      const phaseBefore = c60DetectRealPhase();
+      if (phaseBefore === C60_ASSET_PHASE.INVALID) return { ok: false, why: 'fase real INVÁLIDA: a âncora não pode ser avaliada' };
+      const real = runV(mode);
+      const phaseAfter = c60DetectRealPhase();
+      if (phaseAfter !== phaseBefore) return { ok: false, why: `a fase real mudou durante a execução (${phaseBefore} → ${phaseAfter})` };
+      const synth = c60RenderVerifierRun(mode, phaseBefore);
+      if (!synth) return { ok: false, why: 'renderizador sintético indisponível' };
+      const a = String(synth.stdout).split('\n');
+      const b = String(real.stdout).split('\n');
+      if (a[0] !== b[0]) return { ok: false, why: `cabeçalho divergente em ${mode}/${phaseBefore}` };
+      if (a[1] !== 'repo=<repo>' || b[1] !== 'repo=<repo>') return { ok: false, why: 'a linha "repo=" deixou de ser independente de caminho — a comparação integral não é mais possível' };
+      if (String(synth.stdout) !== String(real.stdout)) return { ok: false, why: `stdout divergente em ${mode}/${phaseBefore}` };
+      if (synth.status !== (real.status === 0 ? 0 : 1)) return { ok: false, why: `exit divergente em ${mode}/${phaseBefore} (sintético=${synth.status}, real=${real.status})` };
+      if (String(real.stderr) !== '') return { ok: false, why: `o verificador real escreveu em stderr: ${real.stderr}` };
+      return { ok: true, why: '', phase: phaseBefore };
+    };
+    const c60Anc3 = c60AnchorAgainstReal('post');
+    const c60Anc4 = c60AnchorAgainstReal('pre');
+    check('C60-PHASE-FIX1 [anc3]: renderizador sintético é FIEL à saída real do verificador (post, na FASE REAL detectada)',
+      c60Anc3.ok, `a saída sintética divergiu da saída real do subprocesso em post: ${c60Anc3.why}`);
+    check('C60-PHASE-FIX1 [anc4]: renderizador sintético é FIEL à saída real do verificador (pre, na FASE REAL detectada)',
+      c60Anc4.ok, `a saída sintética divergiu da saída real do subprocesso em pre: ${c60Anc4.why}`);
 
     // ── ETAPA 3 · as TRÊS fases positivas (e só elas) ──
     check('C60-PHASE-FIX1 [P1]: activities/ ausente + registro (null,null) → C60_ASSET_PHASE_PRE',
@@ -32159,12 +32290,122 @@ check(
         && Object.keys(C60_ASSET_PHASE).length === 4 && C60_ASSET_PHASE.INVALID === 'C60_ASSET_PHASE_INVALID',
       'a máquina de estados deve ter exatamente 3 fases válidas + INVALID');
 
+    // ── ETAPA 3b · CONTROLES ANTIRREINCIDÊNCIA (C60-IMPL-P5-ASSET-PHASE-SMOKE-FIX2) ──
+    // Provam que as fixtures focais NÃO dependem da fase em que o repositório está.
+    const c60SuiteOf = (fx) => ({
+      P1: phaseOf(vAbsent, fx.regPre) === C60_ASSET_PHASE.PRE,
+      P2: phaseOf(vLw, fx.regLivingWorld) === C60_ASSET_PHASE.LIVING_WORLD,
+      P3: phaseOf(vBoth, fx.regComplete) === C60_ASSET_PHASE.COMPLETE,
+      P4: new Set([phaseOf(vAbsent, fx.regPre), phaseOf(vLw, fx.regLivingWorld), phaseOf(vBoth, fx.regComplete)]).size === 3,
+      N4: phaseOf(vLw, fx.regPre) === C60_ASSET_PHASE.INVALID,
+      N15: phaseOf(vBoth, fx.regPeopleAndCareOnly) === C60_ASSET_PHASE.INVALID,
+    });
+    const c60SuiteFails = (fx) => { const s = c60SuiteOf(fx); return Object.keys(s).filter((k) => !s[k]); };
+    // Registros "reais" SIMULADOS nas três fases + a forma alternativa por constante.
+    const c60SimPre = regPre;
+    const c60SimLw = regLw;
+    const c60SimComplete = regBoth;
+    const c60SimLwConst = String(regPre)
+      .replace(/^([ \t]*)living_world: null,$/m, '$1living_world: C60_FIXTURE_LW_SOURCE,')
+      .replace(/^const CREATION_LIGHT_SOURCE/m, `const C60_FIXTURE_LW_SOURCE = require('${C60_REQ_LIVING_WORLD}');\nconst CREATION_LIGHT_SOURCE`);
+
+    // 7.1 — as três fases (e as duas formas de ligação) normalizam para o MESMO PRE.
+    const c60NormAll = c60Try(() => [c60SimPre, c60SimLw, c60SimComplete, c60SimLwConst].map((s) => c60NormalizeRegistryToPre(s)));
+    check('C60-PHASE-FIX2 [fix2-7.1]: registro real em PRE, LIVING_WORLD ou COMPLETE normaliza para o MESMO PRE canônico (paths, slots, ordem e contagem de requires conferidos)',
+      c60NormAll.ok && c60NormAll.value.every((s) => s === regPre)
+      && c60NormAll.value.every((s) => {
+        const v = c60ReadRegistryView(s);
+        return v.literals.length === 1 && v.literals[0] === C60_REQ_LIGHT && v.hasDynamicRequire === false
+          && v.livingWorldNull === true && v.peopleAndCareNull === true
+          && c60ClassifyRegistry(v).phase === C60_ASSET_PHASE.PRE;
+      })
+      && c60SimLw !== c60SimPre && c60SimComplete !== c60SimLw && c60SimLwConst !== c60SimPre,
+      `a normalização não é independente da fase de origem: ${c60NormAll.ok ? 'texto normalizado divergente entre fases' : c60NormAll.error}`);
+
+    // 7.2 — ligação estrita de slot, nos dois slots.
+    const c60WireProof = (slot, expectedPhaseView, expectedPhase) => {
+      const other = slot === 'living_world' ? 'people_and_care' : 'living_world';
+      const wired = c60Try(() => c60WireSlot(regPre, slot));
+      if (!wired.ok) return { ok: false, why: `ligação legítima recusada: ${wired.error}` };
+      const req = c60SlotReq[slot];
+      if (c60CountLiteral(wired.value, req) !== 1) return { ok: false, why: 'não inseriu exatamente 1 require literal' };
+      if (c60ReadRegistryView(wired.value).literals.length !== 2) return { ok: false, why: 'total de requires literais inesperado' };
+      if (c60SlotHit(wired.value, other).value !== 'null') return { ok: false, why: `o slot ${other} foi modificado` };
+      if (phaseOf(expectedPhaseView, wired.value) !== expectedPhase) return { ok: false, why: 'a fase resultante divergiu do contrato' };
+      if (c60Try(() => c60WireSlot(wired.value, slot)).ok) return { ok: false, why: 'ligar um slot JÁ LIGADO deveria ser recusado' };
+      if (c60Try(() => c60WireSlot(String(regPre).replace(new RegExp(`^[ \\t]*${slot}: null,\\n`, 'm'), ''), slot)).ok) return { ok: false, why: 'ligar um slot AUSENTE deveria ser recusado' };
+      if (c60Try(() => c60UnwireSlot(regPre, slot)).ok) return { ok: false, why: 'desligar um slot JÁ DESLIGADO deveria ser recusado' };
+      if (!c60Try(() => c60UnwireSlot(wired.value, slot)).ok || c60UnwireSlot(wired.value, slot) !== regPre) return { ok: false, why: 'ligar+desligar não voltou ao PRE canônico' };
+      return { ok: true, why: '' };
+    };
+    const c60WireLwProof = c60WireProof('living_world', vLw, C60_ASSET_PHASE.LIVING_WORLD);
+    const c60WirePcProof = c60WireProof('people_and_care', vBoth, C60_ASSET_PHASE.INVALID);
+    check('C60-PHASE-FIX2 [fix2-7.2a]: ligar living_world exige slot em null, insere 1 require canônico, não toca no outro slot e recusa religação',
+      c60WireLwProof.ok, `contrato de ligação violado (living_world): ${c60WireLwProof.why}`);
+    check('C60-PHASE-FIX2 [fix2-7.2b]: ligar people_and_care obedece ao mesmo contrato estrito (e sozinho continua sendo violação de ordem)',
+      c60WirePcProof.ok, `contrato de ligação violado (people_and_care): ${c60WirePcProof.why}`);
+
+    // 7.3 — a suíte focal roda IDÊNTICA com `regReal` sintético nas três fases.
+    for (const sim of [
+      { phase: C60_ASSET_PHASE.PRE, src: c60SimPre },
+      { phase: C60_ASSET_PHASE.LIVING_WORLD, src: c60SimLw },
+      { phase: C60_ASSET_PHASE.COMPLETE, src: c60SimComplete },
+    ]) {
+      const built = c60Try(() => c60BuildRegistryFixtures(sim.src));
+      const fails = built.ok ? c60SuiteFails(built.value) : ['(fixtures não construídas)'];
+      check(`C60-PHASE-FIX2 [fix2-7.3/${sim.phase}]: P1-P4/N4/N15 mantêm a MESMA expectativa com registro real simulado em ${sim.phase}`,
+        built.ok && c60ClassifyRegistry(c60ReadRegistryView(sim.src)).phase === sim.phase && fails.length === 0,
+        `a suíte focal depende da fase real: ${built.ok ? `falharam [${fails.join(', ')}]` : built.error}`);
+    }
+
+    // 7.4 — controle NEGATIVO: se o registro real voltar a ser usado como fixture PRE
+    // (com qualquer nome), a suíte focal TEM de reprovar. A prova é comportamental.
+    const c60DefectiveBuild = (src) => {
+      const wireBad = (s, slot, req) => String(s)
+        .replace(new RegExp(`${slot}:\\s*null`), `${slot}: C60_BAD_${slot.toUpperCase()}`)
+        .replace(/^const CREATION_LIGHT_SOURCE/m, `const C60_BAD_${slot.toUpperCase()} = require('${req}');\nconst CREATION_LIGHT_SOURCE`);
+      const lw = wireBad(src, 'living_world', C60_REQ_LIVING_WORLD);
+      return {
+        regPre: String(src),
+        regLivingWorld: lw,
+        regComplete: wireBad(lw, 'people_and_care', C60_REQ_PEOPLE_AND_CARE),
+        regPeopleAndCareOnly: wireBad(src, 'people_and_care', C60_REQ_PEOPLE_AND_CARE),
+      };
+    };
+    check('C60-PHASE-FIX2 [fix2-7.4]: usar o registro real como fixture PRE é DETECTADO (a suíte focal reprova quando o repositório não está em PRE)',
+      c60SuiteFails(c60DefectiveBuild(c60SimLw)).length > 0
+      && c60SuiteFails(c60DefectiveBuild(c60SimComplete)).length > 0
+      && c60SuiteFails(c60Fx).length === 0,
+      'o controle antirreincidência não detecta o uso do registro real como fixture canônica');
+
+    // 7.5 — controle NEGATIVO: a ligação recusa slot já ligado em vez de devolver texto
+    // aparentemente válido (era exatamente o que produzia `require()` duplicado).
+    const c60ReWire = c60Try(() => c60WireSlot(regLw, 'living_world'));
+    const c60ReWireBad = c60DefectiveBuild(c60SimLw).regLivingWorld;
+    check('C60-PHASE-FIX2 [fix2-7.5]: ligar um slot JÁ LIGADO é recusado com erro (a versão permissiva produziria require duplicado e passaria despercebida)',
+      c60ReWire.ok === false && /já existe require literal|ligar duas vezes/.test(c60ReWire.error)
+      && c60CountLiteral(c60ReWireBad, C60_REQ_LIVING_WORLD) === 2
+      && c60ClassifyRegistry(c60ReadRegistryView(c60ReWireBad)).phase === C60_ASSET_PHASE.INVALID,
+      'a ligação de slot não está recusando religação (substituição silenciosa possível)');
+
+    // 7.6 — a expectativa das âncoras acompanha a fase e nunca fica presa em PRE.
+    check('C60-PHASE-FIX2 [fix2-7.6]: expectativa das âncoras acompanha PRE/LIVING_WORLD/COMPLETE (jamais fixada em PRE)',
+      c60Anc3.ok && c60Anc4.ok && c60Anc3.phase === C60_REAL.phase && c60Anc4.phase === C60_REAL.phase
+      && ['pre', 'post'].every((mode) => {
+        const pinned = c60RenderVerifierRun(mode, C60_ASSET_PHASE.PRE);
+        return !!pinned && [C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE].every((ph) => {
+          const r = c60RenderVerifierRun(mode, ph);
+          return !!r && r.stdout !== pinned.stdout;
+        });
+      }),
+      'a expectativa das âncoras não está sendo selecionada pela fase detectada');
+
     // ── ETAPA 4 · vinte controles negativos, todos FALHA DURA (INVALID) ──
     const N = (i, label, view, reg) => check(`C60-PHASE-FIX1 [N${i}]: ${label} → INVALID (falha dura)`,
       phaseOf(view, reg) === C60_ASSET_PHASE.INVALID, `este estado deveria ser inválido, não tolerado (recebido: ${phaseOf(view, reg)})`);
     N(1, 'activities/ existe e está VAZIA', vEmpty, regPre);
     N(2, 'activities/ existe SEM living_world.png (só people_and_care)', vPcOnly, regBoth);
-    N(3, 'só people_and_care integrado no registro (ordem invertida)', vPcOnly, wire(regReal, 'people_and_care', C60_REQ_PEOPLE_AND_CARE));
+    N(3, 'só people_and_care integrado no registro (ordem invertida)', vPcOnly, regPcOnly);
     N(4, 'PNG living_world no disco mas registro ainda null', vLw, regPre);
     N(5, 'registro aponta living_world mas o PNG não existe', vAbsent, regLw);
     N(6, 'os dois PNGs no disco mas registro só com living_world', vBoth, regLw);
@@ -32183,7 +32424,7 @@ check(
       { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: C60_FILE_LIVING_WORLD, kind: C60_PATH_KIND.DIRECTORY }] }, regLw);
     N(14, 'activities/ é um symlink em vez de diretório', { activitiesKind: C60_PATH_KIND.SYMLINK, entries: [] }, regPre);
     N(15, 'people_and_care antes de living_world no registro (ordem obrigatória violada)',
-      vBoth, wire(regReal, 'people_and_care', C60_REQ_PEOPLE_AND_CARE));
+      vBoth, regPcOnly);
     N(16, 'require dinâmico no registro', vLw, regLw.replace(`require('${C60_REQ_LIVING_WORLD}')`, 'require(LW_PATH)'));
     N(17, 'require duplicado do mesmo asset', vLw, regLw.replace(`const CREATION_LIGHT_SOURCE`, `const C60_DUP = require('${C60_REQ_LIVING_WORLD}');\nconst CREATION_LIGHT_SOURCE`));
     N(18, 'require de path não autorizado', vLw, regLw.replace(C60_REQ_LIVING_WORLD, '../../assets/stories/creation/coloring/activities/outro.png'));
@@ -32331,6 +32572,38 @@ check(
             `divergência entre saída sintética e real em ${mode}/${ph}`);
         }
       }
+      // ── FIX2 · os TRÊS estados COMPLETOS provados de ponta a ponta ──
+      // Para cada fase: o repo-scratch tem o conteúdo de diretório daquela fase, o registro
+      // sintético canônico daquela fase, a classificação dupla concorda, as fixtures focais
+      // ficam verdes e a âncora usa a expectativa DAQUELA fase (não a de PRE).
+      const c60RegistryForPhase = {};
+      c60RegistryForPhase[C60_ASSET_PHASE.PRE] = regPre;
+      c60RegistryForPhase[C60_ASSET_PHASE.LIVING_WORLD] = regLw;
+      c60RegistryForPhase[C60_ASSET_PHASE.COMPLETE] = regBoth;
+      for (const ph of [C60_ASSET_PHASE.PRE, C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE]) {
+        const realRun = runScratch(ph, 'post');
+        const physView = c60ReadPhysicalView(path.join(scratchRoot, 'assets', 'stories', 'creation', 'coloring', 'activities'));
+        const regForPh = c60RegistryForPhase[ph];
+        const built = c60Try(() => c60BuildRegistryFixtures(regForPh));
+        const fails = built.ok ? c60SuiteFails(built.value) : ['(fixtures não construídas)'];
+        const synth = c60RenderVerifierRun('post', ph);
+        check(`C60-PHASE-FIX2 [fase-real/${ph}]: disco + registro em ${ph} → classificação dupla concorda, fixtures focais verdes e âncora na fase certa`,
+          c60ClassifyPhysical(physView).phase === ph
+          && c60ClassifyRegistry(c60ReadRegistryView(regForPh)).phase === ph
+          && c60ClassifyAssetPhase(physView, regForPh).phase === ph
+          && built.ok && fails.length === 0
+          && !!synth && synth.stdout === realRun.stdout && synth.status === (realRun.status === 0 ? 0 : 1),
+          `o estado completo da fase ${ph} não se sustentou (fixtures: ${built.ok ? `[${fails.join(', ')}]` : built.error})`);
+      }
+      // 7.6b — controle NEGATIVO: expectativa FIXADA em PRE seria reprovada contra o
+      // BINÁRIO REAL nas fases LIVING_WORLD/COMPLETE (era a causa de anc3/anc4 falharem).
+      check('C60-PHASE-FIX2 [fix2-7.6b]: âncora fixada em PRE seria REPROVADA contra o verificador real em LIVING_WORLD/COMPLETE',
+        [C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE].every((ph) => ['pre', 'post'].every((mode) => {
+          const real = runScratch(ph, mode);
+          const pinned = c60RenderVerifierRun(mode, C60_ASSET_PHASE.PRE);
+          return !!pinned && !(pinned.stdout === real.stdout && pinned.status === (real.status === 0 ? 0 : 1));
+        })), 'uma expectativa presa em PRE passaria fora da fase PRE — a âncora perderia o sentido');
+
       // RR2 documentada e PROVADA: o gate `pre` fica VERMELHO após P5.T4 por contrato próprio.
       check('C60-PHASE-FIX1 [rr2]: `--mode=pre` fica VERMELHO após integrar destinos (contrato próprio do verificador, não relaxamento)',
         runScratch(C60_ASSET_PHASE.LIVING_WORLD, 'pre').status !== 0
