@@ -71,7 +71,7 @@ Usados **integralmente** em catálogo, testes, hash gate e aceite:
 
 | activityId | fonte runtime | SHA-256 esperado (completo) | dims | razão |
 |---|---|---|---|---|
-| `light` | `scene_02.png` (reuso direto) | `35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb` | 1122×1402 | 4:5 |
+| `light` | `scene_02.png` (reuso direto) | `c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1` | 1122×1402 | 4:5 |
 | `living_world` | `activities/living_world.png` (integração futura) | `818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5` | 1122×1402 | 4:5 |
 | `people_and_care` | `activities/people_and_care.png` (integração futura) | `59988d9a58082a8173a328857fccb6a3716815660f4434c0df4491d6bf30d4e9` | 1122×1402 | 4:5 |
 

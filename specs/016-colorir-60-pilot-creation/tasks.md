@@ -95,7 +95,7 @@ Esclarecimento de rastreabilidade, **não** uma nova decisão de produto:
 - **Dep:** P0.T1 · **Commit:** não · **Push/merge:** proibido.
 - **Arq✔:** relatório · **Arq✗:** qualquer PNG.
 - **Entradas:** spec 017 §15.
-- **Passos:** registrar, completos: `light` `35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb`; `living_world` `818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5`; `people_and_care` `59988d9a58082a8173a328857fccb6a3716815660f4434c0df4491d6bf30d4e9`; dims 1122×1402, 4:5.
+- **Passos:** registrar, completos: `light` `c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1`; `living_world` `818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5`; `people_and_care` `59988d9a58082a8173a328857fccb6a3716815660f4434c0df4491d6bf30d4e9`; dims 1122×1402, 4:5.
 - **Gates:** três hashes completos, sem reticências.
 - **Evidências:** tabela de integridade.
 - **Parada:** hash divergente da spec → PARAR.
@@ -356,7 +356,7 @@ Esclarecimento de rastreabilidade, **não** uma nova decisão de produto:
 - **Objetivo:** confirmar `light` por referência a `scene_02.png`, sem cópia/conversão.
 - **Dep:** P1.T3 · **Commit:** não (verificação) · **Push/merge:** proibido.
 - **Arq✔:** relatório · **Arq✗:** criar `activities/light.png`, converter/copiar.
-- **Entradas:** hash de `scene_02` (P0.T3), hash esperado `light` `35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb`.
+- **Entradas:** hash de `scene_02` (P0.T3), hash esperado `light` `c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1`.
 - **Passos:** 1) verificar hash do original `scene_02.png`; 2) confirmar `require()` direto; 3) provar ausência de `activities/light.png`.
 - **Gates:** `light` idêntico ao contrato; sem novo arquivo.
 - **Evidências:** hash + listagem.

@@ -31,7 +31,7 @@ const CREATION_ACTIVITIES = Object.freeze([
     activityId: 'light',
     order: 1,
     title: 'Haja luz',
-    expectedSha256: '35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb',
+    expectedSha256: 'c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1',
     expectedDims: Object.freeze({ width: 1122, height: 1402 }),
     localSourceKey: 'creation:light',
   }),

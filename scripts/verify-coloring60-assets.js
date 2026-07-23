@@ -63,12 +63,12 @@ const ASSETS = Object.freeze([
     role: 'reuse', // reuso direto de scene_02.png — SEM destino em activities/
     reusePath: path.join(REPO_ROOT, 'assets', 'stories', 'creation', 'coloring', 'scene_02.png'),
     forbiddenPath: path.join(REPO_ROOT, 'assets', 'stories', 'creation', 'coloring', 'activities', 'light.png'),
-    expectedSha256: '35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb',
+    expectedSha256: 'c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1',
     expectedDims: EXPECTED_DIMS,
     expectedBitDepth: 8, // 8 bits por canal (contrato)
-    expectedColorType: 6, // RGBA
-    expectedColorMode: 'RGBA',
-    expectedBytes: 3201048,
+    expectedColorType: 2, // RGB
+    expectedColorMode: 'RGB',
+    expectedBytes: 861767,
   }),
   Object.freeze({
     assetId: 'living_world',

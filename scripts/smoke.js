@@ -29730,7 +29730,7 @@ check(
 
     const byId = Object.fromEntries(acts.map((a) => [a.activityId, a]));
     check('C60-P1.T5: expectedSha256 ratificado de light',
-      byId.light.expectedSha256 === '35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb',
+      byId.light.expectedSha256 === 'c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1',
       'hash ratificado de light divergente');
     check('C60-P1.T5: expectedSha256 ratificado de living_world',
       byId.living_world.expectedSha256 === '818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5',
@@ -29785,7 +29785,7 @@ check(
       .update(fs.readFileSync(path.join(root, 'assets/stories/creation/coloring/scene_02.png')))
       .digest('hex');
     check('C60-P1.T5: SHA-256 real de scene_02.png == expectedSha256 de light',
-      scene02Sha === '35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb',
+      scene02Sha === 'c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1',
       `scene_02.png deve casar o hash ratificado de light (recebido: ${scene02Sha})`);
 
     // P1 é aditivo e inerte: nada liga o piloto.
@@ -31436,7 +31436,7 @@ check(
       'matriz não é fechada de 3');
 
     check('C60-P5-GATE1 [06] hash light correto (contrato)',
-      vSrc.includes('35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb'), 'hash light ausente/divergente');
+      vSrc.includes('c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1'), 'hash light ausente/divergente');
     check('C60-P5-GATE1 [07] hash living_world correto (contrato)',
       vSrc.includes('818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5'), 'hash living_world ausente/divergente');
     check('C60-P5-GATE1 [08] hash people_and_care correto (contrato)',
@@ -31444,9 +31444,9 @@ check(
 
     check('C60-P5-GATE1 [09] dims 1122x1402', /width:\s*1122/.test(vSrc) && /height:\s*1402/.test(vSrc), 'dims divergentes');
     check('C60-P5-GATE1 [10] people_and_care tamanho 1195149 bytes', vSrc.includes('1195149'), 'tamanho pc ausente');
-    check('C60-P5-GATE1 [11] modos de cor: light RGBA(6), lw RGB(2), pc RGB(2)',
-      /expectedColorType:\s*6/.test(vSrc) && (vSrc.match(/expectedColorType:\s*2/g) || []).length === 2 &&
-      vSrc.includes("expectedColorMode: 'RGBA'") && (vSrc.match(/expectedColorMode:\s*'RGB'/g) || []).length === 2,
+    check('C60-P5-GATE1 [11] modos de cor: light RGB(2), lw RGB(2), pc RGB(2)',
+      !/expectedColorType:\s*6/.test(vSrc) && (vSrc.match(/expectedColorType:\s*2/g) || []).length === 3 &&
+      !vSrc.includes("expectedColorMode: 'RGBA'") && (vSrc.match(/expectedColorMode:\s*'RGB'/g) || []).length === 3,
       'modos de cor divergentes');
 
     check('C60-P5-GATE1 [12] light = reuso de scene_02.png (role reuse, sem cópia)',

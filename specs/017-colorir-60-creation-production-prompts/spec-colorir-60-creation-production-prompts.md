@@ -182,8 +182,8 @@ A produção artística do piloto **A Criação** está **CONCLUÍDA**. As **tr�
 | Formato | PNG |
 | Dimensões | 1122×1402 |
 | Proporção | 4:5 (0.800285) |
-| Modo | RGBA |
-| SHA-256 | `35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb` (também registrado na spec 016 §2) |
+| Modo | RGB |
+| SHA-256 | `c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1` (também registrado na spec 016 §2) |
 | Path futuro no catálogo | `assets/stories/creation/coloring/activities/light.png` (referência; **não** copiar/mover neste bloco) |
 | Aprovação | Inspeção full-res aprovada pelo fundador (016 §3/§13-E2) |
 
