@@ -31824,6 +31824,279 @@ check(
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
+  // C60-IMPL-P10 — PROVAS DETERMINÍSTICAS (Parte 5): hidratação atômica + máquina de
+  // conclusão + experiência visual + isolamento do writer/legado. Doze cenários exigidos:
+  //  (1) 0→1  (2) 1→2  (3) 2→3  (4) editar já concluída  (5) escrita falhou (não celebra)
+  //  (6) not_persisted_free (Grátis celebra igual)  (7) dez toques rápidos = 1 evento
+  //  (8) re-render não repete som/háptico/animação  (9) legado oculto só em creation+piloto
+  //  (10) legado preservado com piloto OFF  (11) outras histórias intactas
+  //  (12) StoryDetailScreen sem acesso ao writer.
+  // + critério OBRIGATÓRIO: com desenho salvo, nenhum quadro mostra lineart SEM cor.
+  // O harness COMPORTAMENTAL extrai handleC60Celebrate e beginC60Attempt REAIS do fonte e os
+  // exercita com colaboradores injetados (não é regex: mutar a decisão muda os contadores);
+  // os controles ESTRUTURAIS provam o resto sobre as fontes reais. A validação PÍXEL-A-PÍXEL
+  // e 60fps é HUMANA e não é substituível por gate — este bloco prova a LÓGICA que a sustenta.
+  // ══════════════════════════════════════════════════════════════════════════════
+  {
+    const scrP10 = readSrc('src/screens/ColoringScreen.js');
+    const ovRaw = readSrc('src/components/coloring60/Coloring60CompletionOverlay.js');
+    const canvasRaw = readSrc('src/components/ColoringCanvas.js');
+    const sdRaw = readSrc('src/screens/StoryDetailScreen.js');
+    const stripComments = (s) => String(s)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const sliceBetween = (raw, a, b) => {
+      const i = raw.indexOf(a); const j = raw.indexOf(b, i + 1);
+      return (i >= 0 && j > i) ? raw.slice(i, j) : '';
+    };
+    const sdCode = stripComments(sdRaw);
+
+    // ── HARNESS A · MÁQUINA DE CONCLUSÃO (handleC60Celebrate REAL) ─────────────────
+    // Extrai a função entre os marcadores e a executa com stubs para TODO colaborador React
+    // (setState/Animated/canvasRef/loadFinale) e o catálogo. Captura o modo escolhido e os
+    // efeitos: marcou progresso? reenquadrou (Ver tudo)? carregou a galeria (e com qual snapshot)?
+    const CAT = ['light', 'living_world', 'people_and_care'];
+    let machineRaw = sliceBetween(scrP10, '[C60-P10-MACHINE-START]', '[C60-P10-MACHINE-END]');
+    machineRaw = machineRaw.slice(
+      machineRaw.indexOf('function handleC60Celebrate('),
+      machineRaw.lastIndexOf('}') + 1);
+    const runMachine = ({ doneMap, activityId, outcome }) => {
+      const calls = { mode: null, celebrating: null, doneMapWritten: null, doneMapCalls: 0, resetZoom: 0, loadFinale: 0, finaleSnapshot: undefined };
+      const handler = new Function(
+        'getColoring60Activities', 'c60DoneMap', 'activityId', 'storyId',
+        'setC60CelebrateMode', 'setC60Celebrating', 'setC60DoneMap',
+        'Animated', 'controlsAnim', 'canvasRef', 'loadC60FinaleItems', '__DEV__', 'console',
+        machineRaw + '\nreturn handleC60Celebrate;')(
+        () => CAT.map((id) => ({ activityId: id })),
+        doneMap, activityId, 'creation',
+        (m) => { calls.mode = m; },
+        (v) => { calls.celebrating = v; },
+        (up) => { calls.doneMapCalls++; calls.doneMapWritten = typeof up === 'function' ? up(doneMap) : up; },
+        { timing: () => ({ start: () => {} }) },
+        {},
+        { current: { resetZoom: () => { calls.resetZoom++; } } },
+        (snap) => { calls.loadFinale++; calls.finaleSnapshot = snap; },
+        false,
+        { log: () => {} });
+      handler(outcome);
+      return calls;
+    };
+
+    // Prova 1 — 0→1: primeira conclusão, faltam 2 ⇒ celebração de ATIVIDADE, marca progresso, reenquadra.
+    {
+      const r = runMachine({ doneMap: {}, activityId: 'light', outcome: { persisted: true, snapshot: 'SNAP1' } });
+      check('C60-P10 [prova 1] 0→1: modo ATIVIDADE, progresso marcado (light), reenquadra, sem galeria',
+        r.mode === 'activity' && r.celebrating === true && r.doneMapCalls === 1
+          && !!r.doneMapWritten && r.doneMapWritten.light === true && r.resetZoom === 1 && r.loadFinale === 0,
+        `1ª de 3 deve ser celebração curta de atividade (${JSON.stringify(r)})`);
+    }
+    // Prova 2 — 1→2: segunda conclusão, ainda falta 1 ⇒ ATIVIDADE.
+    {
+      const r = runMachine({ doneMap: { light: true }, activityId: 'living_world', outcome: { persisted: true, snapshot: 'SNAP2' } });
+      check('C60-P10 [prova 2] 1→2: modo ATIVIDADE, progresso 2/3, sem galeria',
+        r.mode === 'activity' && !!r.doneMapWritten && r.doneMapWritten.living_world === true && r.resetZoom === 1 && r.loadFinale === 0,
+        `2ª de 3 ainda é celebração de atividade (${JSON.stringify(r)})`);
+    }
+    // Prova 3 — 2→3: terceira conclusão REAL ⇒ GRANDE conclusão, galeria carregada com o snapshot atual.
+    {
+      const r = runMachine({ doneMap: { light: true, living_world: true }, activityId: 'people_and_care', outcome: { persisted: true, snapshot: 'SNAP3' } });
+      check('C60-P10 [prova 3] 2→3: modo FINALE, galeria carregada com o snapshot atual, reenquadra',
+        r.mode === 'finale' && r.loadFinale === 1 && r.finaleSnapshot === 'SNAP3' && r.resetZoom === 1
+          && !!r.doneMapWritten && r.doneMapWritten.people_and_care === true,
+        `a 3ª conclusão real dispara a grande conclusão (${JSON.stringify(r)})`);
+    }
+    // Prova 4 — editar já concluída: SÓ aviso "desenho atualizado" — nunca festa, nunca galeria, sem
+    // mexer no progresso e sem reenquadrar. Vale sempre (3/3 e 1/3).
+    {
+      const r3 = runMachine({ doneMap: { light: true, living_world: true, people_and_care: true }, activityId: 'light', outcome: { persisted: true, snapshot: 'X' } });
+      const r1 = runMachine({ doneMap: { light: true }, activityId: 'light', outcome: { persisted: true, snapshot: 'X' } });
+      check('C60-P10 [prova 4] editar já concluída: modo EDIT, sem progresso novo, sem reenquadrar, sem galeria (3/3 e 1/3)',
+        r3.mode === 'edit' && r3.doneMapCalls === 0 && r3.resetZoom === 0 && r3.loadFinale === 0
+          && r1.mode === 'edit' && r1.doneMapCalls === 0 && r1.resetZoom === 0 && r1.loadFinale === 0,
+        `editar nunca repete a festa nem altera progresso (3/3=${JSON.stringify(r3)}, 1/3=${JSON.stringify(r1)})`);
+    }
+    // Prova 6b — Grátis (não persistido) recebe a MESMA celebração: persisted=false ⇒ atividade/finale
+    // idênticos ao persistido, usando o snapshot em memória (a galeria não depende do writer).
+    {
+      const rA = runMachine({ doneMap: {}, activityId: 'light', outcome: { persisted: false, snapshot: 'FREE1' } });
+      const rF = runMachine({ doneMap: { light: true, living_world: true }, activityId: 'people_and_care', outcome: { persisted: false, snapshot: 'FREE3' } });
+      check('C60-P10 [prova 6b] not_persisted_free: MESMA celebração (atividade e finale); galeria usa o snapshot em memória',
+        rA.mode === 'activity' && !!rA.doneMapWritten && rA.doneMapWritten.light === true
+          && rF.mode === 'finale' && rF.loadFinale === 1 && rF.finaleSnapshot === 'FREE3',
+        `o Grátis conclui de verdade e recebe a mesma experiência (atividade=${JSON.stringify(rA)}, finale=${JSON.stringify(rF)})`);
+    }
+
+    // ── HARNESS B · PORTÃO DE CELEBRAÇÃO a montante (beginC60Attempt REAL) ──────────
+    // Reusa as MESMAS fatias precisas exercitadas pelo FIX2, agora com onCelebrate/onSaveIssue
+    // injetados, para provar onde a decisão de CELEBRAR nasce (Regras 1/6/7).
+    const dsRaw = readSrc('src/services/drawingStorage.js');
+    const hS = dsRaw.indexOf('export function hasMeaningfulPaint(');
+    const hE = dsRaw.indexOf('\n}', hS) + 2;
+    const hmpSrc = dsRaw.slice(hS, hE).replace('export ', '');
+    const payFnSrc = scrP10.slice(scrP10.indexOf('function isAcceptableC60Payload('), scrP10.indexOf('// [C60-P4-LOCK]'));
+    const ctrlSrc = scrP10.slice(scrP10.indexOf('function createC60AttemptController('), scrP10.indexOf('function beginC60Attempt('));
+    const beginSrc = scrP10.slice(scrP10.indexOf('function beginC60Attempt('), scrP10.indexOf('// [C60-P4-HANDLER-END]'));
+    const SR = { SAVED: 'saved', NOT_PERSISTED_FREE: 'nfp', WRITE_FAILED: 'wf', INVALID: 'inv' };
+    const buildCore = (collab) => new Function('collab', `
+      const __DEV__ = false;
+      const POINTER_VERSION = 3;
+      ${payFnSrc}
+      ${hmpSrc}
+      const { markColoring60ActivityDone, saveColoring60DrawingState, COLORING60_SAVE_RESULT } = collab;
+      ${ctrlSrc}
+      ${beginSrc}
+      return { createC60AttemptController, beginC60Attempt };
+    `)(collab);
+    const BIGpng = 'data:image/png;base64,' + 'A'.repeat(3000);
+    const makeGateInstance = (cfg = {}) => {
+      const counts = { mark: 0, save: 0, goBack: 0, celebrate: 0, saveIssue: 0 };
+      const captured = { celebrate: [], issue: [] };
+      const collab = {
+        markColoring60ActivityDone: async () => { counts.mark++; return true; },
+        saveColoring60DrawingState: async () => { counts.save++; return cfg.saveReturn || SR.SAVED; },
+        COLORING60_SAVE_RESULT: SR,
+      };
+      const core = buildCore(collab);
+      const controller = core.createC60AttemptController();
+      const canvas = { exportCalls: 0, captured: [], exportPaint(cb) { this.exportCalls++; this.captured.push(cb); } };
+      const attempt = () => core.beginC60Attempt({
+        controller, canvasRef: { current: canvas }, activeRef: { current: true },
+        available: true, ready: true, painted: true, saving: false,
+        storyId: 'creation', activityId: 'light',
+        setSaving: () => {},
+        goBack: () => { counts.goBack++; },
+        onSaveIssue: (label) => { counts.saveIssue++; captured.issue.push(label); },
+        onCelebrate: (o) => { counts.celebrate++; captured.celebrate.push(o); },
+      });
+      return { counts, captured, canvas, controller, attempt,
+        fire: (cb, p = BIGpng) => { cb(p); return new Promise((r) => setTimeout(r, 0)); } };
+    };
+
+    // Prova 5 — escrita falhou / identidade recusada: NÃO celebra, avisa honestamente, não navega.
+    {
+      const i = makeGateInstance({ saveReturn: SR.WRITE_FAILED });
+      i.attempt(); await i.fire(i.canvas.captured[0]);
+      const j = makeGateInstance({ saveReturn: SR.INVALID });
+      j.attempt(); await j.fire(j.canvas.captured[0]);
+      check('C60-P10 [prova 5] escrita falhou / identidade recusada: NÃO celebra (onCelebrate 0), avisa, não navega',
+        i.counts.celebrate === 0 && i.counts.saveIssue === 1 && i.captured.issue[0] === 'write_failed' && i.counts.goBack === 0
+          && j.counts.celebrate === 0 && j.counts.saveIssue === 1 && j.captured.issue[0] === 'invalid_identity' && j.counts.goBack === 0,
+        `falha técnica nunca anuncia sucesso (wf=${JSON.stringify(i.counts)}/${JSON.stringify(i.captured.issue)}, inv=${JSON.stringify(j.counts)}/${JSON.stringify(j.captured.issue)})`);
+    }
+    // Prova 6a — not_persisted_free: CELEBRA com persisted=false e o snapshot exportado; sem aviso de erro.
+    {
+      const i = makeGateInstance({ saveReturn: SR.NOT_PERSISTED_FREE });
+      i.attempt(); await i.fire(i.canvas.captured[0], BIGpng);
+      const o = i.captured.celebrate[0] || {};
+      check('C60-P10 [prova 6a] not_persisted_free: celebra com persisted=false e o snapshot exportado, sem aviso de erro',
+        i.counts.celebrate === 1 && i.counts.saveIssue === 0 && o.persisted === false && o.snapshot === BIGpng,
+        `Grátis é celebração honesta (persisted=false) com a arte atual (${JSON.stringify({ c: i.counts, o })})`);
+    }
+    // Prova extra (positiva) — SAVED: celebra com persisted=true e o snapshot exportado.
+    {
+      const i = makeGateInstance({ saveReturn: SR.SAVED });
+      i.attempt(); await i.fire(i.canvas.captured[0], BIGpng);
+      const o = i.captured.celebrate[0] || {};
+      check('C60-P10 [prova extra] SAVED: celebra com persisted=true e o snapshot exportado',
+        i.counts.celebrate === 1 && o.persisted === true && o.snapshot === BIGpng,
+        `persistido celebra com a arte salva (${JSON.stringify({ c: i.counts, o })})`);
+    }
+    // Prova 7 — dez toques rápidos no MESMO tick: a trava serializa; 1 export, 1 mark, 1 celebração
+    // (um evento ⇒ um som + um háptico, disparados no mount da camada de conclusão).
+    {
+      const i = makeGateInstance({ saveReturn: SR.SAVED });
+      for (let k = 0; k < 10; k++) i.attempt();
+      const exportsAfter = i.canvas.exportCalls;
+      await i.fire(i.canvas.captured[0], BIGpng);
+      check('C60-P10 [prova 7] dez toques rápidos: 1 export, 1 mark, 1 celebração (um evento ⇒ um som/háptico)',
+        exportsAfter === 1 && i.canvas.captured.length === 1 && i.counts.mark === 1 && i.counts.celebrate === 1,
+        `dez toques colapsam em UMA tentativa/celebração (exports=${exportsAfter}, mark=${i.counts.mark}, celebrate=${i.counts.celebrate})`);
+    }
+
+    // ── HARNESS C · ESTRUTURAIS: re-render, textos do fecho, hidratação atômica ────
+    // Prova 8 — re-render NÃO repete som/háptico/animação: os efeitos vivem em useEffect de mount.
+    check('C60-P10 [prova 8a] celebração: som+háptico em useEffect([]) (uma vez, não repete em re-render); UM playUiSound',
+      /playUiSound\('success'\);\s*\n\s*\}, \[\]\);/.test(ovRaw)
+        && (ovRaw.match(/playUiSound\('success'\)/g) || []).length === 1,
+      'o som/háptico da celebração vive num useEffect([]) — re-render comum não redispara');
+    check('C60-P10 [prova 8b] celebração: animação de entrada keyed por [reduceMotion] com cleanup (não reinicia em re-render)',
+      /anim\.start\(\);\s*\n\s*return \(\) => anim\.stop\(\);\s*\n\s*\}, \[reduceMotion\]\);/.test(ovRaw),
+      'a animação só (re)inicia quando reduceMotion muda; re-render comum não reanima');
+    check('C60-P10 [prova 8c] edição: som+háptico leve em useEffect([]), idempotente (doneRef), SoundButton silent',
+      /doneRef\.current = true;/.test(ovRaw)
+        && /playUiSound\('tap'\);\s*\n\s*\}, \[\]\);/.test(ovRaw)
+        && /Haptics\.selectionAsync/.test(ovRaw)
+        && /<SoundButton\s+silent/.test(ovRaw),
+      'a confirmação de edição dispara um único som/háptico leve e o toque de dispensa não soma som (silent)');
+
+    // Parte 4 · textos EXATOS + galeria das três + Beni na composição; edição ≠ fecho.
+    check('C60-P10 [Parte 4] fecho: título e mensagem EXATOS + galeria das três (FinaleDrawingThumb/galleryAnims)',
+      ovRaw.includes('Você encheu a Criação de cor')
+        && ovRaw.includes('Cada desenho mostrou um jeito especial de ver, cuidar e celebrar o mundo de Deus.')
+        && /FinaleDrawingThumb/.test(ovRaw) && /galleryAnims/.test(ovRaw),
+      'a grande conclusão traz os textos aprovados e apresenta os três desenhos');
+    check('C60-P10 [Parte 4] edição diz "Seu desenho foi atualizado" e NÃO usa a mensagem do fecho',
+      ovRaw.includes('Seu desenho foi atualizado')
+        && !/Você completou as três partes da criação/.test(ovRaw),
+      'editar mostra confirmação curta — nunca a mensagem/animação da grande conclusão');
+    check('C60-P10 [isolamento] overlay do fecho NÃO lê storage (recebe arte por props: paint/lineart)',
+      !/coloring60DrawingStorage|saveColoring60DrawingState|getColoring60SavedDrawing/.test(stripComments(ovRaw)),
+      'a galeria compõe a partir de props; nenhuma leitura de storage no componente visual');
+
+    // Ramo de RENDER de ColoringScreen: três modos distintos, cada um monta UMA camada.
+    check('C60-P10 [render] três modos: edit→aviso curto; activity/finale→overlay (allDone=finale, finaleItems)',
+      /c60CelebrateMode === 'edit' \?[\s\S]*?<Coloring60EditNotice/.test(scrP10)
+        && /c60CelebrateMode === 'activity' \|\| c60CelebrateMode === 'finale'[\s\S]*?<Coloring60CompletionOverlay/.test(scrP10)
+        && /allDone=\{c60CelebrateMode === 'finale'\}/.test(scrP10)
+        && /finaleItems=\{c60FinaleItems\}/.test(scrP10),
+      'cada modo monta a sua camada uma única vez (som/háptico no próprio mount)');
+    // loadC60FinaleItems compõe a galeria pela CONCLUSÃO (reader + resolver), nunca inventa fonte.
+    check('C60-P10 [render] loadC60FinaleItems lê os outros desenhos pelo reader e resolve o lineart pelo resolver',
+      /async function loadC60FinaleItems\(/.test(scrP10)
+        && /getColoring60SavedDrawing\(storyId, a\.activityId\)/.test(scrP10)
+        && /resolveColoring60Lineart\(storyId, a\.activityId\)/.test(scrP10),
+      'a galeria do fecho usa a arte salva das outras atividades + o lineart resolvido (sem tocar o writer)');
+
+    // Critério OBRIGATÓRIO — com desenho salvo, NENHUM quadro mostra lineart sem cor: a capa (mesma
+    // cor do motor, sem lineart) só some quando, no modo 'paint', o canvas confirma PAINT_APPLIED.
+    check('C60-P10 [critério] modo paint só revela após PAINT_APPLIED (nenhum quadro lineart-sem-cor); lineart espera o READY',
+      /if \(c60RevealMode === 'paint' && c60PaintApplied\) revealCanvas\(\);/.test(scrP10)
+        && /else if \(c60RevealMode === 'lineart' && c60Ready\) revealCanvas\(\);/.test(scrP10),
+      'com arte salva a capa espera o DESENHO da pintura; sem arte, espera o lineart pronto');
+    check('C60-P10 [critério] revelação idempotente (hydratedRef) + sinal PAINT_APPLIED aditivo do canvas',
+      /if \(hydratedRef\.current\) return;\s*\n\s*hydratedRef\.current = true;/.test(scrP10)
+        && /onPaintApplied=\{handleC60PaintApplied\}/.test(scrP10)
+        && /function handleC60PaintApplied\(\) \{\s*\n\s*setC60PaintApplied\(true\);/.test(scrP10),
+      'a capa revela uma única vez, disparada pelo sinal aditivo do canvas');
+    check('C60-P10 [critério] ColoringCanvas emite PAINT_APPLIED após aplicar a pintura salva (aditivo, retrocompatível)',
+      /PAINT_APPLIED/.test(canvasRaw) && /onPaintApplied\?\.\(\)/.test(canvasRaw),
+      'o canvas confirma o desenho da pintura; fluxos que não passam onPaintApplied seguem intactos');
+
+    // ── HARNESS D · ESTRUTURAIS de StoryDetailScreen (Parte 1 · provas 9–12) ───────
+    // Prova 9 — card Colorir LEGADO oculto SÓ quando creationColoringVisible (creation + piloto).
+    check('C60-P10 [prova 9] legado oculto SÓ quando creationColoringVisible (creation + piloto)',
+      /const creationColoringVisible\s*=\s*[\s\S]*?story\.id === CREATION_STORY_ID\s*&&\s*[\s\S]*?COLORIR_60_CREATION_PILOT_ENABLED[\s\S]*?isInternalToolsEnabled\(\)/.test(sdCode)
+        && /\{!creationColoringVisible && \(\s*[\s\S]*?<PostStoryCard/.test(sdCode)
+        && /title="Colorir"/.test(sdCode),
+      'o card tradicional de Colorir só some quando a jornada "Colorir com o Beni" está autorizada');
+    // Prova 10 — piloto OFF ⇒ legado preservado: seção nova gated; flag do piloto permanece false; legado presente.
+    check('C60-P10 [prova 10] piloto OFF ⇒ legado preservado: seção nova gated; flag do piloto false; LegacyColoringScreen presente',
+      /\{creationColoringVisible && \(\s*[\s\S]*?<CreationColoringJourneySection/.test(sdCode)
+        && /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js'))
+        && /function LegacyColoringScreen/.test(scrP10),
+      'com o piloto desligado a experiência anterior fica intacta (nada é apagado)');
+    // Prova 11 — outras histórias intactas: gate exige story.id === CREATION_STORY_ID.
+    check('C60-P10 [prova 11] outras histórias: gate exige story.id === CREATION_STORY_ID (nada muda fora de "A Criação")',
+      /const creationColoringVisible\s*=\s*story\.id === CREATION_STORY_ID &&/.test(sdCode),
+      'fora de creation o valor é falso: card tradicional aparece e a seção nova não');
+    // Prova 12 — StoryDetailScreen NÃO acessa o writer (só menção em comentário, jamais em código).
+    check('C60-P10 [prova 12] StoryDetailScreen NÃO acessa o writer (menção só em comentário; sem import)',
+      !/coloring60DrawingStorage|saveColoring60DrawingState/.test(sdCode)
+        && !/from '\.\.\/services\/coloring60DrawingStorage'/.test(sdRaw),
+      'a tela de detalhe deriva estado da CONCLUSÃO canônica; o writer de pixels permanece isolado no ColoringScreen');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // C60-IMPL-P5-GATE1 — controles do gate de integridade `verify-coloring60-assets.js`
   // (P5.T2). Provam: o script existe, é Node PURO read-only (só fs/path/crypto, sem
   // child_process, sem nenhuma operação de escrita), tem matriz FECHADA de 3 assets, o

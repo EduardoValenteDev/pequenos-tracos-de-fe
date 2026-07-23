@@ -408,15 +408,22 @@ export default function StoryDetailScreen({ route, navigation }) {
                   isTablet={isTablet}
                   onPress={() => navigation.navigate('Reflection', { story })}
                 />
-                <PostStoryCard
-                  emoji="🎨"
-                  title="Colorir"
-                  desc="Pintar uma cena"
-                  done={coloringDone}
-                  tagColor={color.gold300}
-                  isTablet={isTablet}
-                  onPress={() => goToPremium('Narration', { story, cenaIndex: 0 })}
-                />
+                {/* P10 · PARTE 1 · Colorir LEGADO oculto SÓ quando a jornada "Colorir com o Beni"
+                    está visível (história "A Criação" + piloto autorizado): ali a seção nova é a
+                    ÚNICA porta de entrada do colorir, e ver dois "Colorir" ao mesmo tempo confundia.
+                    Fora desse caso (qualquer outra história OU piloto desligado) o card legado
+                    continua EXATAMENTE como antes — rota, storage e desenhos legados intactos. */}
+                {!creationColoringVisible && (
+                  <PostStoryCard
+                    emoji="🎨"
+                    title="Colorir"
+                    desc="Pintar uma cena"
+                    done={coloringDone}
+                    tagColor={color.gold300}
+                    isTablet={isTablet}
+                    onPress={() => goToPremium('Narration', { story, cenaIndex: 0 })}
+                  />
+                )}
               </View>
             </View>
           )}

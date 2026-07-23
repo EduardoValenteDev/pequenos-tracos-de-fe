@@ -32,7 +32,7 @@
  * criança: nenhuma pose atual olha para cima, então ele celebra voltado para a criança.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, AccessibilityInfo } from 'react-native';
+import { View, Text, Image, StyleSheet, Animated, Easing, AccessibilityInfo } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -49,6 +49,67 @@ function rgba(hex, a) {
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
   return `rgba(${r},${g},${b},${a})`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [C60-P10-GALLERY] Composição da GALERIA da grande conclusão (§Parte 4). Este componente compõe
+// COR + CONTORNO numa miniatura, portando a MESMA técnica já validada no Livrinho (StoryBookScreen:
+// paint por baixo, lineart por cima com `mixBlendMode: 'multiply'`, ambos invisíveis até carregarem
+// JUNTOS). Aqui a arte já vem PRONTA por PROPS (o ColoringScreen — única tela autorizada — leu o
+// storage do piloto e passou o payload). Este overlay NUNCA importa o writer nem lê storage: recebe
+// `paint` (string do payload salvo, ou null) e `lineart` (fonte local do contorno, ou null).
+// Sem cor (Grátis não persistido / atividade sem arte / falha) → FALLBACK OFICIAL = o próprio
+// contorno sozinho (asset que já existe; nenhuma imagem nova; nunca mancha de cor sem traço).
+// ─────────────────────────────────────────────────────────────────────────────
+const FINALE_ART_TIMEOUT_MS = 7000;
+
+/** Lê o payload salvo (v1 data-URL ou v2 JSON com layout). Cópia local do parser do Livrinho. */
+function parseDrawingPayload(raw) {
+  if (!raw) return null;
+  try {
+    if (raw.startsWith('data:')) {
+      return { uri: raw, W: null, H: null, imgX: null, imgY: null, imgW: null, imgH: null };
+    }
+    const p = JSON.parse(raw);
+    if (!p?.data) return null;
+    return {
+      uri: p.data,
+      W: p.W ?? null, H: p.H ?? null,
+      imgX: p.imgX ?? null, imgY: p.imgY ?? null,
+      imgW: p.imgW ?? null, imgH: p.imgH ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Escala do RETÂNGULO DA ARTE dentro da miniatura (mesma matemática do Livrinho). */
+function computeArtworkScale(containerW, containerH, v) {
+  if (!containerW || !containerH || !v.canvasW || !v.canvasH || !v.lineartImgW || !v.lineartImgH) {
+    return null;
+  }
+  const scale = Math.min(containerW / v.lineartImgW, containerH / v.lineartImgH);
+  const rectW = v.lineartImgW * scale;
+  const rectH = v.lineartImgH * scale;
+  const rectLeft = (containerW - rectW) / 2;
+  const rectTop = (containerH - rectH) / 2;
+  return { scale, rectW, rectH, rectLeft, rectTop };
+}
+function computeLineartStyle(containerW, containerH, v) {
+  const a = computeArtworkScale(containerW, containerH, v);
+  if (!a) return { position: 'absolute', opacity: 0 };
+  return { position: 'absolute', left: a.rectLeft, top: a.rectTop, width: a.rectW, height: a.rectH };
+}
+function computePaintStyle(containerW, containerH, v) {
+  const a = computeArtworkScale(containerW, containerH, v);
+  if (!a) return null;
+  return {
+    position: 'absolute',
+    left: a.rectLeft - v.lineartImgX * a.scale,
+    top: a.rectTop - v.lineartImgY * a.scale,
+    width: v.canvasW * a.scale,
+    height: v.canvasH * a.scale,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -94,10 +155,12 @@ const ATMOSPHERES = {
   },
 };
 
-// Fecho das três atividades (§10): título, fala e mensagem próprios, sem inventar recompensa nova.
-const ALL_DONE_TITLE = 'Minha Criação Cheia de Cor';
-const ALL_DONE_BENI_LINE = 'Você viu a luz, a vida e o cuidado de Deus. Sua criação ficou linda!';
-const ALL_DONE_MESSAGE = 'Você completou as três partes da criação!';
+// Fecho das três atividades (§10 / P10 Parte 4): título e mensagem são CONTRATO EXATO (não
+// reformular). A fala do Beni conduz a leitura da galeria (luz · vida · cuidado) sem inventar
+// recompensa nova nem prometer prêmio.
+const ALL_DONE_TITLE = 'Você encheu a Criação de cor';
+const ALL_DONE_BENI_LINE = 'Você viu a luz, a vida e o cuidado de Deus. Olha a sua criação!';
+const ALL_DONE_MESSAGE = 'Cada desenho mostrou um jeito especial de ver, cuidar e celebrar o mundo de Deus.';
 const STEP_MESSAGE = {
   1: 'Uma parte da criação ganhou cor!',
   2: 'A criação está ficando cheia de vida!',
@@ -256,6 +319,113 @@ const markerStyles = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// [C60-P10-GALLERY] Miniatura de UMA arte no fecho. Compõe COR + CONTORNO (paint por baixo, lineart
+// por cima com multiply) e SÓ revela a composição quando as duas imagens carregam JUNTAS — nunca cor
+// sem traço. Sem cor (Grátis não persistido / atividade sem arte / falha/timeout) → FALLBACK OFICIAL
+// = o contorno sozinho (asset existente). A arte chega por PROPS; este componente não lê storage.
+// ─────────────────────────────────────────────────────────────────────────────
+const FINALE_THUMB_W = 92;
+const FINALE_THUMB_H = 116; // ~4:5 retrato, a mesma proporção dos linearts do piloto (1122×1402)
+
+function FinaleDrawingThumb({ paint, lineart, marker, tint, tintDeep, tintSoft, revealStyle }) {
+  const parsed = paint ? parseDrawingPayload(paint) : null;
+  const positioned = !!(
+    parsed && parsed.W && parsed.H
+    && parsed.imgX !== null && parsed.imgY !== null && parsed.imgW && parsed.imgH
+  );
+  const visual = parsed
+    ? {
+        paintUri: parsed.uri, baseImage: lineart,
+        canvasW: parsed.W, canvasH: parsed.H,
+        lineartImgX: parsed.imgX, lineartImgY: parsed.imgY,
+        lineartImgW: parsed.imgW, lineartImgH: parsed.imgH,
+      }
+    : null;
+  const hasColor = !!(parsed && lineart);
+
+  const [paintLoaded, setPaintLoaded] = useState(false);
+  const [lineartLoaded, setLineartLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+
+  const paintAbsStyle = positioned ? computePaintStyle(FINALE_THUMB_W, FINALE_THUMB_H, visual) : null;
+  const lineartAbsStyle = positioned ? computeLineartStyle(FINALE_THUMB_W, FINALE_THUMB_H, visual) : null;
+  const measured = !positioned || !!paintAbsStyle;
+  const colorReady = hasColor && paintLoaded && lineartLoaded && measured;
+  const giveUp = hasColor && !colorReady && (failed || timedOut);
+
+  useEffect(() => {
+    if (!hasColor || colorReady || failed) return undefined;
+    const t = setTimeout(() => setTimedOut(true), FINALE_ART_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [hasColor, colorReady, failed]);
+
+  // O contorno sozinho serve de placeholder honesto enquanto a cor não chega E de fallback oficial
+  // definitivo (sem cor, ou quando a cor falha/estoura). Some assim que a composição colorida fica
+  // pronta → nunca dois contornos ao mesmo tempo, nunca cor sem traço.
+  const showLineartAlone = !!lineart && !colorReady;
+  const lineartSoloStyle = positioned && lineartAbsStyle ? lineartAbsStyle : StyleSheet.absoluteFill;
+
+  return (
+    <Animated.View style={[galleryStyles.thumbCol, revealStyle]}>
+      <View style={[galleryStyles.frame, { borderColor: tint }]}>
+        <View style={galleryStyles.paper} />
+
+        {hasColor && !giveUp && (
+          <View style={[StyleSheet.absoluteFill, { opacity: colorReady ? 1 : 0 }]}>
+            <Image
+              source={{ uri: visual.paintUri }}
+              style={positioned && paintAbsStyle ? paintAbsStyle : StyleSheet.absoluteFill}
+              resizeMode={positioned ? 'stretch' : 'contain'}
+              fadeDuration={0}
+              onLoad={() => setPaintLoaded(true)}
+              onError={() => setFailed(true)}
+            />
+            <Image
+              source={lineart}
+              style={positioned && lineartAbsStyle
+                ? [lineartAbsStyle, galleryStyles.multiply]
+                : [StyleSheet.absoluteFill, galleryStyles.multiply]}
+              resizeMode={positioned ? 'stretch' : 'contain'}
+              fadeDuration={0}
+              onLoad={() => setLineartLoaded(true)}
+              onError={() => setFailed(true)}
+            />
+          </View>
+        )}
+
+        {showLineartAlone && (
+          <Image source={lineart} style={lineartSoloStyle} resizeMode={positioned ? 'stretch' : 'contain'} fadeDuration={0} />
+        )}
+
+        {!lineart && (
+          <View style={[StyleSheet.absoluteFill, galleryStyles.thumbEmpty]}>
+            <MaterialCommunityIcons name="image-outline" size={22} color={tintSoft} />
+          </View>
+        )}
+      </View>
+      <Text style={[galleryStyles.thumbLabel, { color: tintDeep }]} numberOfLines={1}>{marker}</Text>
+    </Animated.View>
+  );
+}
+
+const galleryStyles = StyleSheet.create({
+  thumbCol: { alignItems: 'center', marginHorizontal: 5 },
+  frame: {
+    width: FINALE_THUMB_W,
+    height: FINALE_THUMB_H,
+    borderRadius: 14,
+    borderWidth: 2,
+    overflow: 'hidden',
+    backgroundColor: '#FFFDF8',
+  },
+  paper: { ...StyleSheet.absoluteFillObject, backgroundColor: '#FFFDF8' },
+  multiply: { mixBlendMode: 'multiply' },
+  thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
+  thumbLabel: { marginTop: 5, fontSize: 12, fontWeight: '800' },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // A experiência em si.
 //
 // Sequência (§6/§12): camada de luz (300 ms) → Beni entra (~450 ms) → texto → progresso → ações.
@@ -265,6 +435,8 @@ const markerStyles = StyleSheet.create({
 export default function Coloring60CompletionOverlay({
   activityId,
   steps = [],
+  allDone: allDoneProp,
+  finaleItems = null,
   bottomInset = 0,
   onPrimary,
   onSecondary,
@@ -274,7 +446,9 @@ export default function Coloring60CompletionOverlay({
 
   const doneCount = steps.filter((s) => s.done).length;
   const total = steps.length || 3;
-  const allDone = total > 0 && doneCount >= total;
+  // A MÁQUINA DE CONCLUSÃO (ColoringScreen) é a AUTORIDADE sobre o desfecho: 'finale' só em 2/3→3/3
+  // real, JAMAIS em edição. Se o pai não passar `allDone` (compat), cai na derivação por progresso.
+  const allDone = typeof allDoneProp === 'boolean' ? allDoneProp : (total > 0 && doneCount >= total);
 
   const title = allDone ? ALL_DONE_TITLE : atmo.title;
   const beniLine = allDone ? ALL_DONE_BENI_LINE : atmo.beniLine;
@@ -295,6 +469,8 @@ export default function Coloring60CompletionOverlay({
   const progressAnim = useRef(new Animated.Value(0)).current;
   const actionsAnim = useRef(new Animated.Value(0)).current;
   const moteAnims = useRef(MOTES.map(() => new Animated.Value(0))).current;
+  // Revelação em sequência das TRÊS artes do fecho (§Parte 4). Uma por atividade (Luz · Vida · Cuidado).
+  const galleryAnims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
     // Uma única resposta háptica + um som curto de confirmação (o mesmo canal de UI já existente,
@@ -314,6 +490,7 @@ export default function Coloring60CompletionOverlay({
     if (reduceMotion) {
       // Movimento reduzido: tudo já no estado final, sem transições e sem partículas.
       values.forEach((v) => v.setValue(1));
+      galleryAnims.forEach((v) => v.setValue(1));
       return undefined;
     }
     const step = (value, duration, delay) => Animated.timing(value, {
@@ -329,11 +506,14 @@ export default function Coloring60CompletionOverlay({
         toValue: 1, delay: 150, tension: 55, friction: 8, useNativeDriver: true,
       }),
       step(textAnim, 240, 480),      // texto SÓ depois do Beni
-      step(progressAnim, 240, 700),  // progresso depois da mensagem
+      step(progressAnim, 240, 700),  // progresso/mensagem do fecho depois do texto
       step(actionsAnim, 220, 880),   // ações por último (ainda assim < 1,1 s)
       Animated.stagger(90, moteAnims.map((v) => Animated.timing(v, {
         toValue: 1, duration: 1400, easing: Easing.out(Easing.quad), useNativeDriver: true,
       }))),
+      // Galeria do fecho: cada arte entra em sequência (Luz → Vida → Cuidado). As ações já estão
+      // tocáveis antes de a última assentar — a criança nunca espera a revelação terminar.
+      Animated.stagger(150, galleryAnims.map((v) => step(v, 300, 620))),
     ]);
     anim.start();
     return () => anim.stop();
@@ -383,6 +563,19 @@ export default function Coloring60CompletionOverlay({
         <MaterialCommunityIcons name={motif === 'leaf' ? 'leaf' : 'heart'} size={m.size + 6} color={tint} />
       </Animated.View>
     );
+  });
+
+  // Dados da galeria do fecho: ordem canônica (Luz · Vida · Cuidado) vinda do progresso; a arte
+  // (payload salvo + contorno) já chega PRONTA por props — este overlay não lê storage nem o writer.
+  const orderIds = steps.length ? steps.map((s) => s.id) : ['light', 'living_world', 'people_and_care'];
+  const finaleById = new Map((finaleItems || []).map((it) => [it.activityId, it]));
+  const galleryData = orderIds.map((id) => {
+    const a = atmosphereOf(id);
+    const it = finaleById.get(id);
+    return {
+      key: id, marker: a.marker, tint: a.tint, tintDeep: a.tintDeep, tintSoft: a.tintSoft,
+      paint: it?.paint ?? null, lineart: it?.lineart ?? null,
+    };
   });
 
   return (
@@ -443,8 +636,10 @@ export default function Coloring60CompletionOverlay({
             </View>
           ) : (
             <View style={styles.headRow}>
+              {/* §Parte 4 · celebração de atividade: Beni com presença MAIOR (large), ao lado da
+                  frase da atividade — a pintura da criança continua protagonista, visível atrás. */}
               <Animated.View style={beniStyle}>
-                <BeniAvatar variant="celebrating2" size="medium" />
+                <BeniAvatar variant="celebrating2" size="large" />
               </Animated.View>
               <Animated.View style={[styles.headText, rise(textAnim, 10)]}>
                 <Text style={[styles.title, { color: accentDeep }]}>{title}</Text>
@@ -453,33 +648,68 @@ export default function Coloring60CompletionOverlay({
             </View>
           )}
 
-          {message !== null && (
-            <Animated.Text style={[styles.message, rise(textAnim, 10)]}>{message}</Animated.Text>
+          {allDone ? (
+            <>
+              {/* GALERIA da grande conclusão (§Parte 4): as TRÊS artes da criança lado a lado, cada
+                  uma com seu marcador (Luz · Vida · Cuidado), reveladas em sequência. A arte é a
+                  PROTAGONISTA do fecho; sem preencher com área vazia. Sem desenho salvo → o próprio
+                  contorno oficial (fallback honesto), nunca cor solta e nunca imagem nova. */}
+              <Animated.View style={[styles.gallery, rise(progressAnim, 8)]}>
+                {galleryData.map((it, i) => (
+                  <FinaleDrawingThumb
+                    key={it.key}
+                    paint={it.paint}
+                    lineart={it.lineart}
+                    marker={it.marker}
+                    tint={it.tint}
+                    tintDeep={it.tintDeep}
+                    tintSoft={it.tintSoft}
+                    revealStyle={reduceMotion ? null : {
+                      opacity: galleryAnims[i],
+                      transform: [
+                        { translateY: galleryAnims[i].interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
+                        { scale: galleryAnims[i].interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
+                      ],
+                    }}
+                  />
+                ))}
+              </Animated.View>
+              {message !== null && (
+                <Animated.Text style={[styles.message, styles.messageFinale, rise(progressAnim, 10)]}>
+                  {message}
+                </Animated.Text>
+              )}
+            </>
+          ) : (
+            <>
+              {message !== null && (
+                <Animated.Text style={[styles.message, rise(textAnim, 10)]}>{message}</Animated.Text>
+              )}
+              <Animated.View style={[styles.progressBox, rise(progressAnim, 10)]}>
+                <Text style={styles.progressTitle}>Colorir com o Beni</Text>
+                <View style={styles.markersRow}>
+                  {steps.map((s, i) => {
+                    const lit = s.done || s.id === activityId;
+                    return (
+                      <React.Fragment key={s.id}>
+                        <StepMarker
+                          step={s.id}
+                          state={s.id === activityId ? 'current' : (s.done ? 'done' : 'todo')}
+                          celebratory={allDone}
+                        />
+                        {i < steps.length - 1 && (
+                          <View style={[markerStyles.connector, lit && { backgroundColor: accent }]} />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </View>
+                <View style={[styles.countPill, { backgroundColor: accentSoft, borderColor: accent }]}>
+                  <Text style={[styles.countPillText, { color: accentDeep }]}>{`${doneCount} de ${total}`}</Text>
+                </View>
+              </Animated.View>
+            </>
           )}
-
-          <Animated.View style={[styles.progressBox, rise(progressAnim, 10)]}>
-            <Text style={styles.progressTitle}>Colorir com o Beni</Text>
-            <View style={styles.markersRow}>
-              {steps.map((s, i) => {
-                const lit = s.done || s.id === activityId;
-                return (
-                  <React.Fragment key={s.id}>
-                    <StepMarker
-                      step={s.id}
-                      state={s.id === activityId ? 'current' : (s.done ? 'done' : 'todo')}
-                      celebratory={allDone}
-                    />
-                    {i < steps.length - 1 && (
-                      <View style={[markerStyles.connector, lit && { backgroundColor: accent }]} />
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </View>
-            <View style={[styles.countPill, { backgroundColor: accentSoft, borderColor: accent }]}>
-              <Text style={[styles.countPillText, { color: accentDeep }]}>{`${doneCount} de ${total}`}</Text>
-            </View>
-          </Animated.View>
 
           <Animated.View style={[styles.actions, rise(actionsAnim, 10)]}>
             <SoundButton
@@ -559,6 +789,14 @@ const styles = StyleSheet.create({
   beniLine: { fontSize: 14, color: colors.text, marginTop: 2, lineHeight: 19 },
   textCenter: { textAlign: 'center' },
   message: { fontSize: 14, color: colors.textSoft, marginTop: spacing.sm, textAlign: 'center' },
+  messageFinale: { fontSize: 14, color: colors.text, lineHeight: 20, marginTop: spacing.sm },
+
+  gallery: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    marginTop: spacing.md,
+  },
 
   progressBox: {
     marginTop: spacing.md,
@@ -589,4 +827,88 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
   secondaryBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
   secondaryBtnText: { color: colors.textSoft, fontSize: 15, fontWeight: '700' },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [C60-P10-EDIT] Confirmação CURTA de edição (§Parte 4). Aparece quando a criança concluiu DE NOVO
+// uma atividade JÁ concluída: NÃO é a celebração de atividade e JAMAIS a grande conclusão. Um aviso
+// discreto no rodapé — "Seu desenho foi atualizado" — com UM háptico leve + UM som curto (uma vez, no
+// mount) e auto-dispensa em ~1,6 s (ou ao toque). Sem festa, sem partículas, sem galeria. A pintura da
+// criança segue visível e congelada atrás (esta é uma camada leve, não cobre a arte).
+// ─────────────────────────────────────────────────────────────────────────────
+const EDIT_NOTICE_MS = 1600;
+
+export function Coloring60EditNotice({ bottomInset = 0, onDone }) {
+  const reduceMotion = useReduceMotion();
+  const anim = useRef(new Animated.Value(0)).current;
+  const doneRef = useRef(false);
+
+  // onDone dispara UMA vez só — timer e toque compartilham o mesmo caminho (idempotente).
+  const fire = () => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    onDone?.();
+  };
+
+  useEffect(() => {
+    // UM háptico (seleção — mais leve que a conclusão) + UM som curto de UI. Uma vez, no mount.
+    if (!reduceMotion) {
+      try { Haptics.selectionAsync?.().catch(() => {}); } catch { /* segue sem háptica */ }
+    }
+    playUiSound('tap');
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion) anim.setValue(1);
+    else {
+      Animated.timing(anim, {
+        toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+      }).start();
+    }
+    const t = setTimeout(fire, EDIT_NOTICE_MS);
+    return () => clearTimeout(t);
+  }, []);
+
+  const style = {
+    opacity: anim,
+    transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+  };
+
+  return (
+    <View style={[editStyles.dock, { paddingBottom: bottomInset + 16 }]} pointerEvents="box-none">
+      <Animated.View style={style}>
+        {/* `silent`: o som de confirmação já tocou no mount; o toque de dispensa não soma outro som. */}
+        <SoundButton
+          silent
+          style={editStyles.toast}
+          accessibilityLabel="Seu desenho foi atualizado"
+          onPress={fire}
+        >
+          <MaterialCommunityIcons name="check-circle" size={22} color={colors.green} />
+          <Text style={editStyles.toastText}>Seu desenho foi atualizado</Text>
+        </SoundButton>
+      </Animated.View>
+    </View>
+  );
+}
+
+const editStyles = StyleSheet.create({
+  dock: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    ...shadows.card,
+  },
+  toastText: { marginLeft: 10, fontSize: 15, fontWeight: '800', color: colors.text },
 });

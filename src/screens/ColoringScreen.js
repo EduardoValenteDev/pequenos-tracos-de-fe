@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Pressable, Animated, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Pressable, Animated, Image, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,6 +41,7 @@ import { markColoring60ActivityDone, loadColoring60Done } from '../services/colo
 import { getColoring60Activities } from '../data/coloring60Catalog';
 import Coloring60CompletionOverlay, {
   Coloring60ArtGlow,
+  Coloring60EditNotice,
 } from '../components/coloring60/Coloring60CompletionOverlay';
 // P7 (Colorir 60) — a LEITURA da arte guardada vem do MESMO serviço dedicado do piloto
 // (namespace fechado `@ptf_drawing60_s<storyId>_a<activityId>`), nunca da chave legada de cena.
@@ -262,7 +263,10 @@ function beginC60Attempt(deps) {
         // `persisted` é informativo e honesto (nunca vira "salvo" quando não foi) — a experiência
         // infantil é a mesma nos dois casos e não menciona plano.
         if (typeof onCelebrate === 'function') {
-          onCelebrate({ persisted: result === COLORING60_SAVE_RESULT.SAVED });
+          // P10 · o instantâneo (snapshot) da pintura recém-exportada acompanha o desfecho: a
+          // experiência de conclusão usa a arte ATUAL mesmo quando o plano não persiste (Grátis),
+          // sem o overlay precisar tocar o writer. `persisted` continua honesto (nunca vira "salvo").
+          onCelebrate({ persisted: result === COLORING60_SAVE_RESULT.SAVED, snapshot: exportData });
           return;
         }
         goBack();
@@ -284,6 +288,15 @@ function beginC60Attempt(deps) {
   }
 }
 // [C60-P4-HANDLER-END]
+
+// [C60-P10-HYDRATION] Constantes da HIDRATAÇÃO VISUAL ATÔMICA (P10 · Parte 2). A "capa de
+// hidratação" cobre a área do canvas na MESMA cor de fundo do motor (#FFFDF8), sem lineart e
+// sem texto piscando, até o PRIMEIRO quadro estável: a arte COLORIDA (quando há desenho salvo)
+// ou o lineart limpo (quando não há). Só então a capa esvanece. O tempo-limite fica pouco ACIMA
+// do timeout interno do canvas — assim um erro do motor aparece DEPOIS da revelação, nunca preso
+// atrás da capa; o atraso do indicador evita que ele "pisque" em cargas muito rápidas.
+const HYDRATION_COVER_TIMEOUT_MS = 8000;
+const HYDRATION_SPINNER_DELAY_MS = 350;
 
 // Ramo Colorir 60: presentacional e local-first. Resolve por (storyId, activityId), respeita os
 // três estados honestos e — no estado `available` (P4.T2) — compõe o `ColoringCanvas` existente
@@ -321,6 +334,23 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // de pintura somem suavemente e a pintura fica visível e congelada atrás da camada.
   const [c60Celebrating, setC60Celebrating] = useState(false);
   const controlsAnim = useRef(new Animated.Value(1)).current;
+  // [C60-P10-CELEBRATION-MACHINE] Qual conclusão está em exibição (Parte 3): 'activity' (curta),
+  // 'finale' (grande conclusão das três) ou 'edit' (só "desenho atualizado"). null = nenhuma. E os
+  // itens já resolvidos da galeria da grande conclusão (3 desenhos: atual em memória + os outros
+  // dois lidos do serviço isolado). A DECISÃO de qual modo vive na máquina de conclusão abaixo.
+  const [c60CelebrateMode, setC60CelebrateMode] = useState(null);
+  const [c60FinaleItems, setC60FinaleItems] = useState(null);
+  // [C60-P10-HYDRATION] Estado da HIDRATAÇÃO VISUAL ATÔMICA (Parte 2). `c60RevealMode` decide o que
+  // será o PRIMEIRO quadro visível: 'probing' (ainda lendo o storage — capa opaca), 'paint' (há arte
+  // salva; capa fica até a pintura estar DESENHADA no canvas) ou 'lineart' (sem arte salva; capa fica
+  // até o canvas ficar pronto, revelando o contorno limpo). `hydratedRef` blinda contra revelar duas
+  // vezes; `hydrationCoverAnim` é a opacidade da capa (1 = opaca, 0 = revelada).
+  const [c60RevealMode, setC60RevealMode] = useState('probing');
+  const [c60PaintApplied, setC60PaintApplied] = useState(false);
+  const [c60Hydrated, setC60Hydrated] = useState(false);
+  const [c60HydrationSpinner, setC60HydrationSpinner] = useState(false);
+  const hydratedRef = useRef(false);
+  const hydrationCoverAnim = useRef(new Animated.Value(1)).current;
 
   const storyId = resolveC60StoryId(route.params);
   const activityId = route.params?.activityId ?? null;
@@ -364,14 +394,22 @@ function Coloring60ActivityScreen({ route, navigation }) {
         if (!alive || !activeRef.current) return;
         if (!saved || !isAcceptableC60Payload(saved) || !hasMeaningfulPaint(saved)) {
           if (__DEV__ && saved) console.log('[Coloring60] arte guardada ignorada: payload sem tinta utilizável');
+          // [C60-P10-HYDRATION] Sem arte salva utilizável: o primeiro quadro será o LINEART limpo.
+          // A capa fica até o canvas ficar pronto (evita mostrar o "Carregando" interno piscando).
+          setC60RevealMode('lineart');
           return;
         }
+        // [C60-P10-HYDRATION] Há arte salva: o primeiro quadro DEVE ser a arte COLORIDA. A capa
+        // permanece opaca até o canvas confirmar que a pintura foi DESENHADA (PAINT_APPLIED) —
+        // nunca revelamos o contorno sem cor. `validatePaint` primeiro, `loadPaint` só se aplicável.
+        setC60RevealMode('paint');
         restoreRef.current = saved;
         canvasRef.current?.validatePaint(saved);
       })
       .catch((err) => {
         // Leitura falhou: abre limpo. Não derruba a tela e não apaga nada do que está guardado.
         if (__DEV__) console.log('[Coloring60] leitura da arte guardada falhou:', err?.message);
+        if (alive && activeRef.current) setC60RevealMode('lineart');
       });
     return () => { alive = false; };
   }, []);
@@ -409,6 +447,46 @@ function Coloring60ActivityScreen({ route, navigation }) {
     } catch { /* aquecimento é best-effort: nunca derruba a tela */ }
   }, []);
 
+  // [C60-P10-HYDRATION] Revela o canvas UMA única vez: esvanece a capa de hidratação. Idempotente
+  // (hydratedRef), sem repetir a animação em re-render. É chamado no momento certo pelo efeito
+  // abaixo (arte desenhada OU lineart pronto) ou pelo tempo-limite de segurança.
+  const revealCanvas = useCallback(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    setC60Hydrated(true);
+    Animated.timing(hydrationCoverAnim, {
+      toValue: 0, duration: 260, useNativeDriver: true,
+    }).start();
+  }, [hydrationCoverAnim]);
+
+  // [C60-P10-HYDRATION] Decide QUANDO a capa some, conforme o primeiro quadro pretendido:
+  //   'paint'   → só quando a pintura salva já foi DESENHADA (PAINT_APPLIED): 1º quadro = arte colorida.
+  //   'lineart' → quando o canvas fica pronto (contorno limpo já desenhado): 1º quadro = lineart.
+  // Enquanto 'probing' (o storage ainda não respondeu) a capa PERMANECE — nunca revela um quadro cru.
+  useEffect(() => {
+    if (!available || c60Hydrated) return;
+    if (c60RevealMode === 'paint' && c60PaintApplied) revealCanvas();
+    else if (c60RevealMode === 'lineart' && c60Ready) revealCanvas();
+  }, [available, c60Hydrated, c60RevealMode, c60PaintApplied, c60Ready, revealCanvas]);
+
+  // [C60-P10-HYDRATION] Rede de segurança: se a hidratação não concluir a tempo (canvas travado,
+  // erro de motor, leitura pendurada), a capa some assim mesmo — a criança nunca fica presa atrás
+  // dela. O tempo fica pouco ACIMA do timeout interno do canvas, então um estado de erro do motor
+  // aparece DEPOIS da revelação (visível e tocável), nunca escondido.
+  useEffect(() => {
+    if (!available) return undefined;
+    const t = setTimeout(() => { revealCanvas(); }, HYDRATION_COVER_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [available, revealCanvas]);
+
+  // [C60-P10-HYDRATION] Indicador calmo e ESTÁVEL (sem texto piscando) só aparece se a hidratação
+  // demorar além de um limiar curto — em cargas rápidas ele nem chega a surgir. Some ao revelar.
+  useEffect(() => {
+    if (!available || c60Hydrated) return undefined;
+    const t = setTimeout(() => { if (!hydratedRef.current) setC60HydrationSpinner(true); }, HYDRATION_SPINNER_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [available, c60Hydrated]);
+
   // O canvas confirmou que a arte guardada é aplicável nesta tela: aplica e reconhece que há
   // pintura na frente da criança (D5) — o mesmo par (loadPaint + marcar pintado) que o fluxo
   // legado já usa ao continuar um desenho.
@@ -427,6 +505,16 @@ function Coloring60ActivityScreen({ route, navigation }) {
   function handleC60RestoreInvalid() {
     restoreRef.current = null;
     if (__DEV__) console.log('[Coloring60] arte guardada não aplicável; abrindo lineart limpo');
+    // [C60-P10-HYDRATION] A arte salva não é aplicável: o primeiro quadro passa a ser o LINEART
+    // limpo. Como isto só chega depois do READY, o efeito de revelação dispara de imediato.
+    setC60RevealMode('lineart');
+  }
+
+  // [C60-P10-HYDRATION] O canvas confirmou que a pintura salva já foi DESENHADA neste frame — só
+  // agora a capa pode sumir (o 1º quadro visível é a arte colorida). Sinal ADITIVO do ColoringCanvas
+  // (o fluxo legado ignora `onPaintApplied`; aqui ele fecha a hidratação atômica sem flash).
+  function handleC60PaintApplied() {
+    setC60PaintApplied(true);
   }
 
   // §5 · desfecho HONESTO de FALHA TÉCNICA (escrita falhou / identidade recusada): a tela continua
@@ -442,19 +530,108 @@ function Coloring60ActivityScreen({ route, navigation }) {
     );
   }
 
-  // §4.6 · a tentativa terminou em conclusão: a atividade recém-concluída entra no progresso e a
-  // experiência aparece por cima da pintura. NENHUMA navegação acontece aqui — quem navega é a
-  // criança, pelas ações do cartão (§4.7).
+  // [C60-P10-FINALE] Monta a GALERIA das três artes da grande conclusão. A atividade ATUAL usa o
+  // instantâneo em memória (`snapshot`) — funciona inclusive no plano Grátis, que conclui mas não
+  // persiste — e as outras duas leem a arte guardada pelo serviço dedicado do piloto (leitura
+  // permitida SÓ nesta tela, que já importa esse serviço; o overlay JAMAIS toca o writer). Cada item
+  // guarda `paint` (payload v2 aceitável e com traço significativo, ou null) e `lineart` (fonte local
+  // AVAILABLE, ou null). Quando um desenho falta, `paint=null` e o overlay cai no fallback oficial (o
+  // próprio lineart). À prova de falha: qualquer erro entrega galeria vazia e o overlay usa fallback.
+  async function loadC60FinaleItems(currentSnapshot) {
+    const activities = getColoring60Activities(storyId); // ordem fechada: Luz · Vida · Cuidado
+    try {
+      const items = await Promise.all(
+        activities.map(async (a) => {
+          let paint = null;
+          if (a.activityId === activityId) {
+            paint = typeof currentSnapshot === 'string' ? currentSnapshot : null;
+          } else {
+            try {
+              const saved = await getColoring60SavedDrawing(storyId, a.activityId);
+              if (saved && isAcceptableC60Payload(saved) && hasMeaningfulPaint(saved)) paint = saved;
+            } catch (readErr) {
+              if (__DEV__) console.log(`[Coloring60] galeria: leitura de ${a.activityId} falhou:`, readErr?.message);
+            }
+          }
+          const res = resolveColoring60Lineart(storyId, a.activityId);
+          const lineart = res.status === COLORING60_RESOLUTION_STATUS.AVAILABLE ? res.source : null;
+          return { activityId: a.activityId, title: a.title, paint, lineart };
+        }),
+      );
+      if (!activeRef.current) return;
+      setC60FinaleItems(items);
+    } catch (err) {
+      if (__DEV__) console.log('[Coloring60] galeria da grande conclusão falhou:', err?.message);
+      if (activeRef.current) setC60FinaleItems([]);
+    }
+  }
+
+  // [C60-P10-MACHINE] MÁQUINA DE CONCLUSÃO (§Parte 3). A tentativa terminou em conclusão. ANTES de
+  // mexer no que está visível, tira o RETRATO do que aconteceu — já estava concluída? quantas das três
+  // antes/depois? persistiu? — e decide UM entre três desfechos, cada um com UMA experiência:
+  //   • atividade JÁ concluída  → só "desenho atualizado" (nunca repete a festa; editar não celebra);
+  //   • 1ª conclusão, ainda falta → celebração CURTA de atividade (a pintura continua protagonista);
+  //   • 1ª conclusão real 2/3→3/3 → GRANDE conclusão (galeria das três).
+  // Falha de escrita NÃO chega aqui: o núcleo só chama onCelebrate em desfecho SAVED/NOT_PERSISTED_FREE.
+  // O Grátis (não persistido) é conclusão de verdade para a criança e recebe a MESMA celebração — sem
+  // uma palavra sobre plano. NENHUMA navegação acontece aqui: quem navega é a criança, pelas ações do
+  // cartão. Reentrância: o overlay/aviso monta UMA vez (som/háptico no seu próprio mount, §Parte 3/8).
+  // [C60-P10-MACHINE-START] Núcleo de DECISÃO da máquina de conclusão (P10 · Parte 3): a partir do
+  // retrato (já concluída? quantas antes/depois? persistiu?) escolhe UM entre três desfechos, sem
+  // tocar o writer. Este trecho é extraído e exercitado pelo harness comportamental do smoke
+  // (C60-P10 · provas 1–4/6b): mutar a decisão muda os contadores lá.
   function handleC60Celebrate(outcome) {
-    if (__DEV__) console.log('[Coloring60] conclusão celebrada; arte guardada:', outcome?.persisted === true);
-    // §2.2/§4.1 · a pintura volta ao ENQUADRAMENTO INTEIRO (scale 1, sem pan) para a revelação: sai o
-    // "modo grande" (1.15×) e qualquer deslocamento que a criança tenha aplicado enquanto pintava, e a
-    // arte passa a ser mostrada por completo e centralizada — nunca cortada nem ampliada demais. Usa a
-    // MESMA API já existente do canvas ("Ver tudo"), sem alterar seu contrato.
+    const persisted = outcome?.persisted === true;
+    const snapshot = typeof outcome?.snapshot === 'string' ? outcome.snapshot : null;
+    const catalogIds = getColoring60Activities(storyId).map((a) => a.activityId);
+    const total = catalogIds.length || 3;
+    const wasAlreadyDone = c60DoneMap[activityId] === true;
+    const doneCountBefore = catalogIds.filter((id) => c60DoneMap[id] === true).length;
+    const doneCountAfter = wasAlreadyDone
+      ? doneCountBefore
+      : catalogIds.filter((id) => id === activityId || c60DoneMap[id] === true).length;
+    if (__DEV__) {
+      console.log(
+        `[Coloring60] máquina de conclusão: already=${wasAlreadyDone} antes=${doneCountBefore} depois=${doneCountAfter}/${total} persistido=${persisted}`,
+      );
+    }
+
+    // Editar uma atividade JÁ concluída (Regras 4/5): apenas confirma "desenho atualizado" — nunca a
+    // celebração de atividade e JAMAIS a grande conclusão. Não mexe no progresso (já estava done) e
+    // não reenquadra a pintura (a criança fica onde estava editando).
+    if (wasAlreadyDone) {
+      setC60CelebrateMode('edit');
+      setC60Celebrating(true);
+      Animated.timing(controlsAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start();
+      return;
+    }
+
+    // §2.2/§4.1 · primeira conclusão desta atividade: a pintura volta ao ENQUADRAMENTO INTEIRO
+    // (scale 1, sem pan) para a revelação — via a MESMA API "Ver tudo" do canvas, sem alterar seu
+    // contrato — e a atividade entra no progresso.
     canvasRef.current?.resetZoom();
     setC60DoneMap((prev) => ({ ...prev, [activityId]: true }));
+
+    if (doneCountAfter >= total) {
+      // 2/3 → 3/3 real: GRANDE conclusão. Resolve a galeria das três (a atual em memória + as outras
+      // duas do storage) ANTES de a criança tocar em qualquer coisa.
+      setC60CelebrateMode('finale');
+      loadC60FinaleItems(snapshot);
+    } else {
+      // Ainda falta atividade: celebração CURTA de atividade (a pintura continua protagonista).
+      setC60CelebrateMode('activity');
+    }
     setC60Celebrating(true);
     Animated.timing(controlsAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start();
+  }
+  // [C60-P10-MACHINE-END]
+
+  // [C60-P10-EDIT] Fim da confirmação curta de edição: a criança já sinalizou "Pronto" e não há nada
+  // novo para celebrar, então volta à aventura. Idempotente (o aviso dispara onDone uma única vez;
+  // guarda extra em activeRef para não navegar após desmontar).
+  function handleC60EditNoticeDone() {
+    if (!activeRef.current) return;
+    navigation.goBack();
   }
 
   // Ação principal: se ainda falta atividade, troca a IDENTIDADE da mesma rota — o wrapper remonta
@@ -547,10 +724,25 @@ function Coloring60ActivityScreen({ route, navigation }) {
             onPaintInvalid={handleC60RestoreInvalid}
             onLoadCorrupted={handleC60RestoreInvalid}
             onLoadIncompatible={handleC60RestoreInvalid}
+            // [C60-P10-HYDRATION] Sinal ADITIVO: a pintura salva já foi DESENHADA neste frame.
+            onPaintApplied={handleC60PaintApplied}
           />
           {/* Moldura luminosa progressiva SOBRE a pintura (§6): não cobre o desenho, só valoriza
               a borda. Fica inerte enquanto a criança pinta. */}
           <Coloring60ArtGlow activityId={activityId} active={c60Celebrating} />
+          {/* [C60-P10-HYDRATION] Capa de hidratação ATÔMICA: cobre a área do canvas na MESMA cor do
+              motor (#FFFDF8) — sem lineart e sem texto piscando — até o PRIMEIRO quadro estável (arte
+              colorida quando há desenho salvo; lineart limpo quando não há) e só então esvanece.
+              Bloqueia o toque enquanto opaca e o libera ao revelar. Um indicador calmo e ESTÁVEL só
+              surge se a hidratação demorar além do limiar — em cargas rápidas nem chega a aparecer. */}
+          <Animated.View
+            style={[c60Styles.hydrationCover, { opacity: hydrationCoverAnim }]}
+            pointerEvents={c60Hydrated ? 'none' : 'auto'}
+          >
+            {c60HydrationSpinner && !c60Hydrated ? (
+              <ActivityIndicator size="large" color="#FF8C42" />
+            ) : null}
+          </Animated.View>
         </View>
 
         <Animated.View
@@ -594,12 +786,21 @@ function Coloring60ActivityScreen({ route, navigation }) {
           </ScrollView>
         </Animated.View>
 
-        {/* Momento de conclusão (§4.6): entra sobre a pintura congelada e só sai pela escolha
-            da criança — a navegação acontece nos handlers abaixo, nunca automaticamente. */}
-        {c60Celebrating ? (
+        {/* Momento de conclusão (§4.6 / P10 Parte 3): entra sobre a pintura congelada e só sai
+            pela escolha da criança (ou, na edição, após uma confirmação curta). A máquina de
+            conclusão já decidiu o modo — a navegação acontece nos handlers, nunca automaticamente. */}
+        {c60Celebrating && c60CelebrateMode === 'edit' ? (
+          // Editar atividade JÁ concluída: só "Seu desenho foi atualizado" — sem festa, sem galeria.
+          <Coloring60EditNotice bottomInset={insets.bottom} onDone={handleC60EditNoticeDone} />
+        ) : null}
+        {c60Celebrating && (c60CelebrateMode === 'activity' || c60CelebrateMode === 'finale') ? (
           <Coloring60CompletionOverlay
             activityId={activityId}
             steps={c60Steps}
+            // A máquina de conclusão é AUTORIDADE sobre o desfecho: 'finale' só em 2/3→3/3 real
+            // (nunca em edição). O overlay não reinfere allDone do progresso.
+            allDone={c60CelebrateMode === 'finale'}
+            finaleItems={c60FinaleItems}
             bottomInset={insets.bottom}
             onPrimary={handleC60Primary}
             onSecondary={() => navigation.goBack()}
@@ -641,6 +842,14 @@ const c60Styles = StyleSheet.create({
   emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.text, textAlign: 'center' },
   emptyText: { fontSize: 15, color: colors.textLight, textAlign: 'center', marginTop: 8 },
   emptyBackBtn: { marginTop: 20 },
+  // [C60-P10-HYDRATION] Capa da hidratação atômica — MESMA cor do fundo do motor de pintura
+  // (#FFFDF8), para a transição capa→arte ser imperceptível. Centraliza o indicador calmo.
+  hydrationCover: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#FFFDF8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
 
 function LegacyColoringScreen({ route, navigation }) {

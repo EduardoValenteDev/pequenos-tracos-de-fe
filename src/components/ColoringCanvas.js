@@ -483,6 +483,10 @@ window.loadPaint=function(jsonStr){
         if(!paintD) paintD=offCtx.createImageData(W,H);
         paintD.data.set(tcCtx.getImageData(0,0,W,H).data);
         hasPainted=true; renderAll();
+        /* Sinal ADITIVO: a pintura salva já foi DECODIFICADA e DESENHADA neste frame.
+           Quem retoma uma arte (ex.: Colorir 60) usa isto para só então revelar o
+           canvas — nunca o contorno sem cor. O fluxo legado ignora a mensagem. */
+        window.ReactNativeWebView.postMessage('PAINT_APPLIED');
         devLog('[COLORING_STATE] load OK W='+W+' H='+H);
       }catch(e){
         window.ReactNativeWebView.postMessage('ERR:loadPaint_draw:'+e.message);
@@ -600,7 +604,7 @@ const lineartCache = new Map();
    React Native component
 ────────────────────────────────────────────────────────────────── */
 const ColoringCanvas = forwardRef(function ColoringCanvas(
-  { selectedColor = '#FF0000', imageSource = null, storyId = null, sceneNumber = null, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected, onReadyChange, onPaintValid, onPaintInvalid },
+  { selectedColor = '#FF0000', imageSource = null, storyId = null, sceneNumber = null, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected, onReadyChange, onPaintValid, onPaintInvalid, onPaintApplied },
   ref,
 ) {
   const webViewRef = useRef(null);
@@ -804,6 +808,8 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
       const exportData = msg.slice('PAINT_EXPORT:'.length);
       pendingExportCallbackRef.current?.(exportData);
       pendingExportCallbackRef.current = null;
+    } else if (msg === 'PAINT_APPLIED') {
+      onPaintApplied?.();
     } else if (msg === 'PAINT_VALID') {
       onPaintValid?.();
     } else if (msg === 'PAINT_INVALID') {
