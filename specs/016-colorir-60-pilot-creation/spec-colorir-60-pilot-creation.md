@@ -337,6 +337,53 @@ Registro consolidado da substituição autorizada. **Não reabre** nenhuma decis
 
 Bloco **documental**: altera **apenas esta spec**. Não toca PNG, catálogo, verificador, smoke, plan, tasks, spec 017, runtime, flags, packs ou dependências. A feature flag `COLORIR_60_CREATION_PILOT_ENABLED` permanece **`false`**.
 
+> **Alcance temporal.** §16.4 descreve o escopo do bloco `C60-IMPL-P5-LIGHT-SPEC-REANCHOR` (2026-07-22), que de fato tocou somente esta spec. As seções **§16.5–§16.7** foram acrescentadas depois, pelo bloco documental `C60-IMPL-P0-T3-BASELINE-ANCHOR1`, que alterou **esta spec e `tasks.md`** — e nada além disso. Nenhum dos dois blocos tocou asset, código, gate, flag ou dependência.
+
+### 16.5 Ancoragem da baseline canônica dos 200 legados
+
+Vinculada a §16.2. Registra, em documentação versionada, **onde** vive a baseline canônica dos 200 linearts legados de colorir e **qual é sua identidade**, de modo que P5.T7 não dependa de nenhuma informação transitória de relatório.
+
+1. O bloco de QA independente **`C60-IMPL-P0-T3-REBASELINE1-QA1` foi APROVADO**: recomputação independente dos 200 assets com **zero divergência**, prova **199 + 1** confirmada e gerador auditado como seguro (incapaz de escrever no repositório).
+2. A **baseline canônica atual** é o arquivo externo `C:\tmp\ptf_colorir60_p0_evidence\baseline_200_legacy_f16491c.tsv`.
+
+| Atributo | Valor canônico |
+|---|---|
+| Diretório de evidências | `C:\tmp\ptf_colorir60_p0_evidence\` |
+| Baseline canônica | `baseline_200_legacy_f16491c.tsv` |
+| SHA-256 da baseline | `a3bc2d10d526ea49e85c92f3a1c61e89038ca3323c56ef8877146e80a87c7a61` |
+| Tamanho | 28441 bytes |
+| Registros · linhas lógicas | 200 · 201 (cabeçalho + 200) |
+| Schema | `ptf-coloring-baseline-v1` |
+| Colunas (nesta ordem) | `path` · `bytes` · `width` · `height` · `bitDepth` · `colorType` · `colorMode` · `sha256` |
+| HEAD de origem | `f16491ca5e05c27fdd8e9d47b672650b444b4ded` |
+| Manifesto | `baseline_200_legacy_f16491c.manifest.txt` |
+| SHA-256 do manifesto | `ccf741b52b4f42eccd397fd50ec4d41647a71ac8fe035e0290fa135ed4faade1` |
+| Gerador (produção da baseline) | `generate_baseline_200_f16491c.js` |
+| SHA-256 do gerador | `36f2f971fdecf44adc33e9b38d60acb5329d01d6bed4d8dca30d469c565c7caa` |
+
+3. A **baseline histórica** `baseline_200_legacy.tsv` (SHA-256 `beb1b4e3cb901ecee3eac26fe8b3c1adc9e043efd6805518a1ee197e28f1bdd9`, 34617 bytes, schema de 9 colunas) permanece **preservada no mesmo diretório**, mas é **BASELINE HISTÓRICA PRÉ-LIGHT-REANCHOR** e **NÃO É CANÔNICA PARA P5.T7**.
+4. O contrato antigo de `scene_02` registrado nela — 3201048 bytes, `35d6f50c72e978e44a9d2727a970a4ace3635ef3184a36729a5e4a13faffaddb`, modo `rgba` — é **somente histórico** (§16.2 itens 2 e 3).
+5. **P5.T7 deve usar o TSV novo** (`baseline_200_legacy_f16491c.tsv`) como contrato dos 200 legados. A linha canônica de `scene_02` nele é: `assets/stories/creation/coloring/scene_02.png` · 861767 bytes · 1122 × 1402 · bitDepth 8 · colorType 2 · `RGB` · `c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1`.
+6. Os artefatos deste diretório **permanecem fora do Git** (P0.T3 é task de evidência, sem commit). Esta seção ancora sua **identidade verificável**, não os versiona.
+7. A verificação de identidade da baseline é feita conferindo o **SHA-256 completo** acima. **Prefixos abreviados nunca são contrato.**
+
+### 16.6 Natureza do manifesto: snapshot pré-P5.T4
+
+Vinculada a §16.2 e §16.5.
+
+1. O manifesto `baseline_200_legacy_f16491c.manifest.txt` é um **snapshot do estado no momento da geração da baseline**, anterior a P5.T4.
+2. `living_world_destination=absent` descreve **o momento de geração**, não uma regra.
+3. `people_and_care_destination=absent` descreve **o momento de geração**, não uma regra.
+4. Esses dois campos **não são invariantes permanentes**.
+5. Após P5.T4 e P5.T6, eles **naturalmente ficarão desatualizados** — comportamento esperado, não falha.
+6. Isso **não invalida** o TSV dos 200 legados: o TSV é chaveado pelos 200 paths fechados e independe dos destinos em `activities/`.
+7. Já `activities_directory=absent` e `light_copy=forbidden` **permanecem invariantes** enquanto a arquitetura atual vigorar (§16.3): `light` é reuso direto e `activities/light.png` é falha dura.
+8. **P5.T7 deve usar o TSV como contrato dos 200** e **não** exigir que os dois campos de destino continuem `absent`. Não é necessário regenerar o manifesto após as cópias.
+
+### 16.7 Escopo do bloco de ancoragem
+
+Bloco **documental** `C60-IMPL-P0-T3-BASELINE-ANCHOR1`: altera **apenas** esta spec e `tasks.md` (nota de execução de P0.T3, algoritmo canônico de P5.T7 e compatibilidade com P5.T4/P5.T6). Não toca PNG, `scene_02.png`, catálogo, `coloring60LocalAssets.js`, `coloringImages.js`, verificador, smoke, plan, spec 017, runtime, flags, packs, R2, Livrinho, dependências, nem qualquer arquivo dos diretórios externos de evidências e de produção. Não cria `activities/`, não copia `living_world` nem `people_and_care`. **P5.T4, P5.T6 e P5.T7 continuam NÃO EXECUTADAS.** A feature flag `COLORIR_60_CREATION_PILOT_ENABLED` permanece **`false`**.
+
 ---
 
 ## Artefatos de evidência (externos, fora do Git)

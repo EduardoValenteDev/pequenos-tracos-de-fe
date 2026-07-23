@@ -66,6 +66,19 @@ Esclarecimento de rastreabilidade, **não** uma nova decisão de produto:
 - **Aceite:** baseline dos 200 gerado, reprodutível.
 - **Rollback:** descartar relatório (nada tocado).
 
+> **Nota de execução e evidência (acréscimo; não substitui os critérios acima).**
+> 1. **Status:** **executada e aprovada por QA independente**.
+> 2. **Baseline canônica:** `C:\tmp\ptf_colorir60_p0_evidence\baseline_200_legacy_f16491c.tsv`.
+> 3. **SHA-256 da baseline:** `a3bc2d10d526ea49e85c92f3a1c61e89038ca3323c56ef8877146e80a87c7a61` (28441 bytes).
+> 4. **Registros:** 200 (201 linhas lógicas: cabeçalho + 200). Schema `ptf-coloring-baseline-v1`; colunas `path`, `bytes`, `width`, `height`, `bitDepth`, `colorType`, `colorMode`, `sha256`.
+> 5. **HEAD de origem:** `f16491ca5e05c27fdd8e9d47b672650b444b4ded`.
+> 6. **Prova 199 + 1:** contra a baseline histórica, **199** registros idênticos em bytes e SHA-256 e **exatamente 1** divergência, isolada em `assets/stories/creation/coloring/scene_02.png` — resultado esperado da substituição autorizada (`cc63e19`), não regressão.
+> 7. **`scene_02` usa `c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1`** (861767 bytes, 1122×1402, bitDepth 8, colorType 2, `RGB`).
+> 8. **Baseline histórica** `baseline_200_legacy.tsv` (SHA-256 `beb1b4e3cb901ecee3eac26fe8b3c1adc9e043efd6805518a1ee197e28f1bdd9`) permanece preservada, porém **NÃO CANÔNICA** para P5.T7.
+> 9. **Manifesto:** `baseline_200_legacy_f16491c.manifest.txt`, SHA-256 `ccf741b52b4f42eccd397fd50ec4d41647a71ac8fe035e0290fa135ed4faade1` — **snapshot pré-P5.T4** (spec 016 §16.6).
+> 10. **Veredito:** **`C60-IMPL-P0-T3-REBASELINE1-QA1` APROVADO**.
+> 11. Contrato completo e vinculante em **spec 016 §16.5**. Artefatos permanecem **fora do Git** (task de evidência, sem commit).
+
 ### P0.T4 — Inventário dos 10 linearts de A Criação como subconjunto dos 200
 - **Objetivo:** provar que os 10 de `creation` pertencem aos 200 (não são acréscimo).
 - **Dep:** P0.T3 · **Commit:** não · **Push/merge:** proibido.
@@ -428,13 +441,45 @@ Esclarecimento de rastreabilidade, **não** uma nova decisão de produto:
 - **Objetivo:** provar que a árvore ganhou exatamente 2 arquivos e os 200 legados seguem idênticos.
 - **Dep:** P5.T4, P5.T6 · **Commit:** não (verificação) · **Push/merge:** proibido.
 - **Arq✔:** relatório · **Arq✗:** —.
-- **Entradas:** baseline P0.T3.
-- **Passos:** 1) recomputar hashes dos 200 legados == baseline; 2) confirmar +2 novos (living_world, people_and_care); 3) confirmar ausência de `activities/light.png`; 4) rodar `verify-coloring60-assets.js` pós-integração como gate final de lote (verde).
-- **Gates:** 200 legados idênticos; exatamente +2 novos; gate do script verde.
-- **Evidências:** diff de inventário + saída do script.
+- **Entradas:** baseline canônica P0.T3 — `C:\tmp\ptf_colorir60_p0_evidence\baseline_200_legacy_f16491c.tsv`, SHA-256 `a3bc2d10d526ea49e85c92f3a1c61e89038ca3323c56ef8877146e80a87c7a61` (contrato em spec 016 §16.5).
+- **Passos:** 1) reconciliar os **200 legados** pelo **algoritmo canônico** abaixo (conjunto fechado do TSV); 2) inventariar **separadamente** os **2 assets novos**; 3) confirmar ausência de `activities/light.png`; 4) rodar `verify-coloring60-assets.js` pós-integração como gate final de lote (verde).
+- **Gates:** **200/200 legados idênticos** ao conjunto fechado do TSV; **exatamente +2 novos**, verificados fora do conjunto legado; gate do script verde.
+- **Evidências:** diff de inventário (legados) + inventário separado dos 2 novos + saída do script.
 - **Parada:** qualquer legado alterado / mais de 2 novos → PARAR + rollback.
 - **Aceite:** cobre P5 1–14 (reconciliação e ausência de reencode).
 - **Rollback:** reverter cópias.
+
+> **Algoritmo canônico de P5.T7 (conjunto fechado do TSV) — obrigatório.**
+> **Proibido** usar `git ls-files -- 'assets/stories/*/coloring/*.png'` isoladamente como conjunto canônico dos legados: no pathspec do Git o `*` **atravessa `/`**, de modo que, após P5.T4 e P5.T6, esse padrão passa a capturar também os PNGs de `assets/stories/creation/coloring/activities/` e retorna **202** entradas. As 2 entradas adicionais **não são legados** e nunca podem ser contadas como tal. O mesmo vale para qualquer glob de filesystem equivalente. A solução canônica é usar os **paths do TSV**:
+> 1. verificar o **SHA-256 do TSV externo**;
+> 2. exigir exatamente `a3bc2d10d526ea49e85c92f3a1c61e89038ca3323c56ef8877146e80a87c7a61`;
+> 3. ler o **cabeçalho** do TSV;
+> 4. exigir schema `ptf-coloring-baseline-v1` e as colunas `path`, `bytes`, `width`, `height`, `bitDepth`, `colorType`, `colorMode`, `sha256`, nessa ordem;
+> 5. ler **exatamente os 200 paths** da coluna `path`;
+> 6. exigir **200 paths únicos**;
+> 7. usar essa lista como **conjunto fechado dos legados** (nunca ampliar);
+> 8. para **cada** path: a) confirmar presença; b) confirmar **arquivo regular**; c) confirmar **ausência de symlink** (`lstat`, nunca `stat`); d) recomputar **bytes**; e) recomputar **dimensões**; f) recomputar **bit depth**; g) recomputar **color type**; h) recomputar **modo**; i) recomputar **SHA-256**; j) **comparar todos os campos** à linha correspondente do TSV;
+> 9. exigir **200 de 200 idênticos**;
+> 10. **não ampliar** o conjunto com glob de filesystem;
+> 11. **não incluir** `activities/` no conjunto legado;
+> 12. **não reexecutar** `generate_baseline_200_f16491c.js` depois que o HEAD mudar — ele é fixado a `f16491ca5e05c27fdd8e9d47b672650b444b4ded` e aborta em qualquer outro HEAD;
+> 13. tratar o gerador como **artefato de produção da baseline daquele HEAD**, **não** como verificador de P5.T7 — a verificação de P5.T7 é recomputação própria contra o TSV.
+
+> **Inventário separado dos 2 assets novos (nunca misturado aos 200 legados).**
+> Após P5.T4 e P5.T6, exigir **exatamente**:
+> 1. `assets/stories/creation/coloring/activities/living_world.png`;
+> 2. `assets/stories/creation/coloring/activities/people_and_care.png`.
+>
+> E ainda: 1) **exatamente dois** PNGs em `activities/`; 2) **nenhum terceiro arquivo** no diretório; 3) `activities/light.png` **ausente** (falha dura se existir); 4) `living_world` **byte-idêntico** à fonte aprovada; 5) `people_and_care` **byte-idêntico** à fonte aprovada; 6) os **dois `require()` literais** presentes em `coloring60LocalAssets.js`; 7) `scene_02.png` **permanece fora** de `activities/` (reuso direto, sem cópia); 8) total conceitual: **200 legados preservados + 2 novos assets físicos** — jamais "202 legados"; 9) Colorir 60 possui **3 atividades**: `light` **por reuso**, `living_world` **por cópia**, `people_and_care` **por cópia**.
+
+> **Compatibilidade da baseline com P5.T4 e P5.T6.**
+> 1. **P5.T4 pode adicionar `living_world` sem alterar o TSV.**
+> 2. **P5.T6 pode adicionar `people_and_care` sem alterar o TSV.**
+> 3. O TSV **continua válido** porque contém apenas os **200 paths fechados** dos legados — nenhum dos 2 novos pertence a esse conjunto.
+> 4. O **manifesto não precisa ser regenerado** após cada cópia.
+> 5. Os campos `living_world_destination` e `people_and_care_destination` do manifesto são **snapshot** do momento da geração (spec 016 §16.6) e ficarão naturalmente desatualizados — isso não invalida o TSV.
+> 6. **P5.T7 executa a reconciliação final** usando **baseline TSV dos 200** **mais** o **inventário separado dos 2 novos**.
+> 7. Nada aqui altera os contratos técnicos de `living_world` (`818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5`) ou de `people_and_care` (`59988d9a58082a8173a328857fccb6a3716815660f4434c0df4491d6bf30d4e9`), definidos em P5.T3/P5.T5 e no gate P5.T2.
 
 ---
 
