@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Pressable, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Pressable, Animated, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -55,6 +55,12 @@ import {
 // configuração paralela de ferramentas internas é criada aqui.
 import { COLORIR_60_CREATION_PILOT_ENABLED } from '../config/featureFlags';
 import { isInternalToolsEnabled } from '../config/internalTools';
+// P8B (Colorir 60) — aquecimento da pose de conclusão do Beni. Usa apenas o `Image.prefetch` do
+// próprio React Native (sem lib nova e sem qualquer primitiva de pack) para aquecer a textura
+// empacotada ANTES do toque em "Pronto!", de modo que a camada de conclusão não precise "buscar"
+// a imagem na hora. Em produção o recurso já é local — o aquecimento é inerte. Nenhuma dependência
+// nova e nada de download de conteúdo remoto: é só a mesma imagem que já vem no app.
+import { BENI_IMAGES } from '../assets/mascot/beniImages';
 
 // Orientação inicial do Colorir (UI-pref, não progresso): aparece UMA vez por
 // dispositivo e some ao tocar "Entendi", ao pintar pela 1ª vez ou por tempo.
@@ -390,6 +396,19 @@ function Coloring60ActivityScreen({ route, navigation }) {
     return () => { alive = false; };
   }, []);
 
+  // [C60-P8B-PREWARM] Aquece a pose de conclusão do Beni (celebrando2) ANTES do toque em "Pronto!":
+  // no desenvolvimento a textura chegava só quando a camada de conclusão montava (o Beni "aparecia
+  // depois"). Resolve-se a fonte empacotada e pede-se ao próprio RN para aquecer o cache de imagem
+  // uma única vez, de forma preguiçosa e à prova de falha — em produção o recurso já é local, então
+  // o efeito é inerte. Só aquece quando a atividade está de fato disponível (sem trabalho à toa).
+  useEffect(() => {
+    if (!available) return;
+    try {
+      const warm = Image.resolveAssetSource?.(BENI_IMAGES.celebrando2);
+      if (warm?.uri) Image.prefetch(warm.uri)?.catch?.(() => {});
+    } catch { /* aquecimento é best-effort: nunca derruba a tela */ }
+  }, []);
+
   // O canvas confirmou que a arte guardada é aplicável nesta tela: aplica e reconhece que há
   // pintura na frente da criança (D5) — o mesmo par (loadPaint + marcar pintado) que o fluxo
   // legado já usa ao continuar um desenho.
@@ -428,6 +447,11 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // criança, pelas ações do cartão (§4.7).
   function handleC60Celebrate(outcome) {
     if (__DEV__) console.log('[Coloring60] conclusão celebrada; arte guardada:', outcome?.persisted === true);
+    // §2.2/§4.1 · a pintura volta ao ENQUADRAMENTO INTEIRO (scale 1, sem pan) para a revelação: sai o
+    // "modo grande" (1.15×) e qualquer deslocamento que a criança tenha aplicado enquanto pintava, e a
+    // arte passa a ser mostrada por completo e centralizada — nunca cortada nem ampliada demais. Usa a
+    // MESMA API já existente do canvas ("Ver tudo"), sem alterar seu contrato.
+    canvasRef.current?.resetZoom();
     setC60DoneMap((prev) => ({ ...prev, [activityId]: true }));
     setC60Celebrating(true);
     Animated.timing(controlsAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start();
