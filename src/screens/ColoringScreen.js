@@ -39,6 +39,11 @@ import {
   saveColoring60DrawingState,
   COLORING60_SAVE_RESULT,
 } from '../services/coloring60DrawingStorage';
+// P6 (Colorir 60) — autorização do piloto visível. Reusa a flag OFICIAL do piloto (default
+// false, inalterada) e o mecanismo ÚNICO de ferramentas internas já existente. Nenhuma
+// configuração paralela de ferramentas internas é criada aqui.
+import { COLORIR_60_CREATION_PILOT_ENABLED } from '../config/featureFlags';
+import { isInternalToolsEnabled } from '../config/internalTools';
 
 // Orientação inicial do Colorir (UI-pref, não progresso): aparece UMA vez por
 // dispositivo e some ao tocar "Entendi", ao pintar pela 1ª vez ou por tempo.
@@ -69,9 +74,10 @@ function CompactTool({ children, onPress, active, accessibilityLabel }) {
 // ao corpo LEGADO 100% intocado (`LegacyColoringScreen`). Como o wrapper não chama
 // hooks e cada instância montada tem params fixos, não há violação das Regras de Hooks.
 //
-// Exposição pública: NENHUMA superfície pública passa `activityId` neste bloco (flag
-// COLORIR_60_CREATION_PILOT_ENABLED segue off; nenhum botão/rota criado). O ramo é
-// alcançável apenas por navegação direta com o param — o gate de exposição pertence a P7.
+// Exposição pública: NENHUMA superfície pública passa `activityId` (flag
+// COLORIR_60_CREATION_PILOT_ENABLED segue off; nenhuma rota nova criada). A ÚNICA entrada
+// é interna (Área dos Pais → "Administração (dev)"), e o param SOZINHO não autoriza nada:
+// o ramo revalida a autorização por `isColoring60PilotAllowed()` (ver abaixo).
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ColoringScreen({ route, navigation }) {
   // `activityId` é semântico: presença (não-nula) seleciona o caminho Colorir 60.
@@ -88,6 +94,29 @@ export default function ColoringScreen({ route, navigation }) {
   }
   return <LegacyColoringScreen route={route} navigation={navigation} />;
 }
+
+// [C60-P6-GATE] Autorização do piloto visível. O PARÂMETRO DE ROTA NÃO AUTORIZA SOZINHO:
+// mesmo com `activityId` na rota, o piloto só abre quando a flag oficial está ligada OU
+// quando estamos em desenvolvimento COM as ferramentas internas realmente habilitadas pelo
+// mecanismo ÚNICO já existente (`isInternalToolsEnabled` — o mesmo que gateia a seção
+// "Administração (dev)" e as rotas internas). Nenhuma configuração paralela é criada e a
+// flag continua `false` por padrão. Em produção (flag falsa, sem `__DEV__`, sem ferramentas
+// internas) esta função devolve false e o piloto permanece INACESSÍVEL mesmo que alguém
+// navegue direto com o parâmetro. Função pura e síncrona — pode ser lida em render.
+function isColoring60PilotAllowed() {
+  if (COLORIR_60_CREATION_PILOT_ENABLED) return true;
+  const dev = typeof __DEV__ !== 'undefined' && __DEV__ === true;
+  return dev && isInternalToolsEnabled();
+}
+
+// [C60-P6-TEMPORARY] Neste PRIMEIRO bloco visível o modo piloto é TEMPORÁRIO: enquanto esta
+// constante for `false`, nada do piloto é persistido — nem a conclusão por identidade, nem os
+// pixels da arte, nem qualquer chave/serviço do caminho legado (que o ramo já não tocava). O
+// bloqueio é aplicado no PONTO MÍNIMO: a borda de entrada do núcleo de conclusão, único lugar
+// de onde partem as duas escritas do piloto. O núcleo P4 (`beginC60Attempt`) permanece intacto
+// e volta a valer trocando SOMENTE esta constante. Não substitui a revalidação de plano do
+// writer nem cria sistema de persistência novo. O fluxo LEGADO não é afetado por esta linha.
+const C60_PILOT_PERSISTENCE_ENABLED = false;
 
 // [C60-P4-STORYID] Fonte ÚNICA de storyId (Etapa 8). `route.params.storyId` é a identidade
 // primária. Se `route.params.story?.id` também vier e DIVERGIR, a identidade é contraditória:
@@ -250,7 +279,15 @@ function Coloring60ActivityScreen({ route, navigation }) {
 
   const storyId = resolveC60StoryId(route.params);
   const activityId = route.params?.activityId ?? null;
-  const resolution = resolveColoring60Lineart(storyId, activityId);
+  // [C60-P6-GATE] Defesa em profundidade: sem autorização o ramo NÃO resolve lineart algum —
+  // devolve o MESMO estado honesto já usado para identidade fora do piloto ('unknown'). Sem
+  // imagem, sem canvas, sem escrita: retorno seguro pelo padrão que a tela já usa. A validação
+  // do `activityId` continua sendo a do resolvedor puro (não é reimplementada aqui): id fora da
+  // lista fechada do catálogo é 'unknown' e NUNCA cai em cena legada.
+  const pilotAllowed = isColoring60PilotAllowed();
+  const resolution = pilotAllowed
+    ? resolveColoring60Lineart(storyId, activityId)
+    : { status: COLORING60_RESOLUTION_STATUS.UNKNOWN, activity: null, source: null };
   const available = resolution.status === COLORING60_RESOLUTION_STATUS.AVAILABLE;
 
   useEffect(() => {
@@ -268,6 +305,15 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // vive a ordem canônica e a serialização (acquire ANTES de setC60Saving/exportPaint). Sem lógica
   // de conclusão aqui — só a composição — para que os testes exerçam o núcleo real.
   function handleC60Pronto() {
+    // [C60-P6-TEMPORARY] Piloto visível 1: com a persistência do piloto desligada, "Pronto!"
+    // apenas encerra a atividade. Nenhuma escrita parte desta tela — nem conclusão, nem pixels,
+    // nem progresso de história, nem arte legada. É o ponto mínimo de bloqueio: as DUAS escritas
+    // do piloto vivem exclusivamente no callback de `exportPaint` dentro de `beginC60Attempt`,
+    // cujo único chamador é esta função; parar aqui evita inclusive o export em memória.
+    if (!C60_PILOT_PERSISTENCE_ENABLED) {
+      navigation.goBack();
+      return;
+    }
     beginC60Attempt({
       controller: attemptControllerRef.current,
       canvasRef,
@@ -292,7 +338,11 @@ function Coloring60ActivityScreen({ route, navigation }) {
           <SoundButton style={styles.topBarNavBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
             <Text style={styles.topBarNavBtnText}>← Voltar</Text>
           </SoundButton>
-          <Text style={styles.topBarTitle} numberOfLines={1}>Hora de Colorir</Text>
+          {/* Título coerente com a atividade escolhida, vindo do catálogo (mesmo componente e
+              mesmo estilo `topBarTitle` já usados na tela). Sem catálogo, mantém o rótulo atual. */}
+          <Text style={styles.topBarTitle} numberOfLines={1}>
+            {resolution.activity?.title ?? 'Hora de Colorir'}
+          </Text>
           <View style={styles.topBarActions}>
             <SoundButton
               style={[styles.prontoBtn, c60Saving && styles.prontoBtnSaving]}
@@ -361,7 +411,10 @@ function Coloring60ActivityScreen({ route, navigation }) {
     );
   }
 
-  // deferred OU unknown → estado honesto, SEM lineart, SEM scene_02, SEM legado.
+  // deferred OU unknown (inclui piloto NÃO autorizado) → estado honesto, SEM lineart, SEM
+  // fallback para cena legada, SEM escrita. Retorno seguro pelo padrão já usado no app:
+  // early return com mensagem curta + botão "Voltar" (mesmo SoundButton e mesmo estilo do
+  // botão de voltar da barra superior desta tela).
   const isDeferred = resolution.status === COLORING60_RESOLUTION_STATUS.DEFERRED;
   return (
     <View style={[c60Styles.container, c60Styles.emptyCenter, { paddingTop: insets.top }]}>
@@ -373,6 +426,13 @@ function Coloring60ActivityScreen({ route, navigation }) {
           ? 'Em breve você poderá colorir esta atividade.'
           : 'Não encontramos esta atividade.'}
       </Text>
+      <SoundButton
+        style={[styles.topBarNavBtn, c60Styles.emptyBackBtn]}
+        onPress={() => navigation.goBack()}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.topBarNavBtnText}>← Voltar</Text>
+      </SoundButton>
     </View>
   );
 }
@@ -382,6 +442,7 @@ const c60Styles = StyleSheet.create({
   emptyCenter: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.text, textAlign: 'center' },
   emptyText: { fontSize: 15, color: colors.textLight, textAlign: 'center', marginTop: 8 },
+  emptyBackBtn: { marginTop: 20 },
 });
 
 function LegacyColoringScreen({ route, navigation }) {

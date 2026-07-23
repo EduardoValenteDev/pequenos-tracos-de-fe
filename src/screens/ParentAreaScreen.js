@@ -977,6 +977,38 @@ export default function ParentAreaScreen({ navigation }) {
                 </SoundButton>
               </InfoCard>
 
+              {/* C60-P6: piloto Colorir 60 de "A Criação" — entrada INTERNA, fora do fluxo do
+                  usuário. Reusa a ROTA EXISTENTE da tela de colorir passando só a identidade
+                  (storyId + activityId); nenhuma rota nova é criada. A própria tela revalida a
+                  autorização e, neste bloco, o piloto é temporário: não salva nada. */}
+              <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
+                <Text style={styles.qaTitle}>Colorir 60, A Criação</Text>
+                <Text style={styles.qaDesc}>
+                  Abre as três atividades do piloto na tela de colorir existente. Temporário: nada é salvo — não altera progresso, desenhos, plano nem conquistas.
+                </Text>
+                <SoundButton
+                  style={styles.qaResetBtn}
+                  onPress={() => navigation.navigate('Coloring', { storyId: 'creation', activityId: 'light' })}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.qaResetBtnText}>Abrir Luz</Text>
+                </SoundButton>
+                <SoundButton
+                  style={[styles.qaResetBtn, { marginTop: 8 }]}
+                  onPress={() => navigation.navigate('Coloring', { storyId: 'creation', activityId: 'living_world' })}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.qaResetBtnText}>Abrir Mundo Cheio de Vida</Text>
+                </SoundButton>
+                <SoundButton
+                  style={[styles.qaResetBtn, { marginTop: 8 }]}
+                  onPress={() => navigation.navigate('Coloring', { storyId: 'creation', activityId: 'people_and_care' })}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.qaResetBtnText}>Abrir Pessoas e Cuidado</Text>
+                </SoundButton>
+              </InfoCard>
+
               {/* V1: revisão humana cena a cena (texto oficial + ilustrada + briefing + colorir).
                   Só leitura: não salva decisões, não toca imagens, áudio, progresso ou plano. */}
               <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
