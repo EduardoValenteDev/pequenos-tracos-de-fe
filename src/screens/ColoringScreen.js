@@ -35,8 +35,12 @@ import {
 // a CONCLUSÃO é separada do SALVAMENTO (o writer só persiste no Plano Família). O caminho
 // legado por cena não toca nenhum dos dois.
 import { markColoring60ActivityDone } from '../services/coloring60ActivityService';
+// P7 (Colorir 60) — a LEITURA da arte guardada vem do MESMO serviço dedicado do piloto
+// (namespace fechado `@ptf_drawing60_s<storyId>_a<activityId>`), nunca da chave legada de cena.
+// Nenhum sistema de storage novo é criado aqui: o serviço já publica leitura, escrita e limpeza.
 import {
   saveColoring60DrawingState,
+  getColoring60SavedDrawing,
   COLORING60_SAVE_RESULT,
 } from '../services/coloring60DrawingStorage';
 // P6 (Colorir 60) — autorização do piloto visível. Reusa a flag OFICIAL do piloto (default
@@ -108,15 +112,6 @@ function isColoring60PilotAllowed() {
   const dev = typeof __DEV__ !== 'undefined' && __DEV__ === true;
   return dev && isInternalToolsEnabled();
 }
-
-// [C60-P6-TEMPORARY] Neste PRIMEIRO bloco visível o modo piloto é TEMPORÁRIO: enquanto esta
-// constante for `false`, nada do piloto é persistido — nem a conclusão por identidade, nem os
-// pixels da arte, nem qualquer chave/serviço do caminho legado (que o ramo já não tocava). O
-// bloqueio é aplicado no PONTO MÍNIMO: a borda de entrada do núcleo de conclusão, único lugar
-// de onde partem as duas escritas do piloto. O núcleo P4 (`beginC60Attempt`) permanece intacto
-// e volta a valer trocando SOMENTE esta constante. Não substitui a revalidação de plano do
-// writer nem cria sistema de persistência novo. O fluxo LEGADO não é afetado por esta linha.
-const C60_PILOT_PERSISTENCE_ENABLED = false;
 
 // [C60-P4-STORYID] Fonte ÚNICA de storyId (Etapa 8). `route.params.storyId` é a identidade
 // primária. Se `route.params.story?.id` também vier e DIVERGIR, a identidade é contraditória:
@@ -190,11 +185,14 @@ function createC60AttemptController() {
 // após cada await; try/catch/finally garantem: sem unhandled rejection; writer nunca chamado sob
 // mark!==true; conclusão nunca apagada por falha do writer; e o token CORRETO sempre liberado (nunca
 // o de uma tentativa nova). canvas ausente / exportPaint lançando ⇒ libera o lock e reabilita a tela.
+// P7 · o retorno à tela anterior passa a depender da GRAVAÇÃO confirmada (`saved`): qualquer
+// outro desfecho mantém a criança na atividade, com a pintura ainda na tela, e avisa por
+// `onSaveIssue` (dependência OPCIONAL — o núcleo continua utilizável sem ela).
 function beginC60Attempt(deps) {
   const {
     controller, canvasRef, activeRef,
     available, ready, painted, saving,
-    storyId, activityId, setSaving, goBack,
+    storyId, activityId, setSaving, goBack, onSaveIssue,
   } = deps;
   if (!available || saving) return; // guard visual complementar (a trava real é o controller)
   if (!ready) return;       // D1: sem lineart pronto não conclui nem salva
@@ -232,6 +230,13 @@ function beginC60Attempt(deps) {
           : 'invalid_identity';
         if (__DEV__) console.log('[Coloring60] conclusão preservada; persistência:', resultLabel);
         if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante o writer
+        // Gravação NÃO confirmada (grátis, falha de escrita ou identidade recusada): a tela NÃO
+        // fecha — fechar aqui seria anunciar sucesso que não houve. A pintura continua visível, a
+        // conclusão já persistida é preservada e o desfecho é comunicado de forma honesta.
+        if (result !== COLORING60_SAVE_RESULT.SAVED) {
+          if (typeof onSaveIssue === 'function') onSaveIssue(resultLabel);
+          return;
+        }
         goBack();
       } catch (err) { // mark/writer lançou: conclusão preservada, SEM unhandled rejection
         if (__DEV__) console.log('[Coloring60] erro na conclusão (conclusão preservada):', err?.message);
@@ -272,6 +277,10 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // createC60AttemptController — o estado React `c60Saving`/`disabled` é só complemento visual.
   const attemptControllerRef = useRef(null);
   if (attemptControllerRef.current === null) attemptControllerRef.current = createC60AttemptController();
+  // [C60-P7-RESTORE] Arte guardada CANDIDATA desta identidade: fica só em memória até o próprio
+  // canvas confirmar que ela é aplicável (onPaintValid). Ref (não estado) porque nada na interface
+  // depende dela antes de ser aplicada — evita re-render sem benefício.
+  const restoreRef = useRef(null);
   const [c60Color, setC60Color] = useState(COLOR_PALETTE[0].hex);
   const [c60Ready, setC60Ready] = useState(false);      // D1: lineart carregado no canvas
   const [c60HasPainted, setC60HasPainted] = useState(false); // D5: houve traço significativo
@@ -300,20 +309,76 @@ function Coloring60ActivityScreen({ route, navigation }) {
     };
   }, []);
 
+  // [C60-P7-RESTORE] Retomada da arte por IDENTIDADE ISOLADA (storyId + activityId), lida pelo
+  // serviço dedicado do piloto — nunca pela chave legada de cena e nunca pela arte de outra
+  // atividade. Só executa com o piloto AUTORIZADO e a atividade resolvida (`available`): sem
+  // autorização não há leitura, não há escrita e nenhuma chave é criada. A validação é
+  // ENFILEIRADA pelo canvas até o READY (mesmo mecanismo do fluxo legado) e a pintura só é
+  // aplicada depois que o canvas confirmar compatibilidade. Sem arte salva → lineart limpo.
+  useEffect(() => {
+    if (!available) return undefined;
+    let alive = true;
+    getColoring60SavedDrawing(storyId, activityId)
+      .then((saved) => {
+        if (!alive || !activeRef.current) return;
+        if (!saved || !isAcceptableC60Payload(saved) || !hasMeaningfulPaint(saved)) {
+          if (__DEV__ && saved) console.log('[Coloring60] arte guardada ignorada: payload sem tinta utilizável');
+          return;
+        }
+        restoreRef.current = saved;
+        canvasRef.current?.validatePaint(saved);
+      })
+      .catch((err) => {
+        // Leitura falhou: abre limpo. Não derruba a tela e não apaga nada do que está guardado.
+        if (__DEV__) console.log('[Coloring60] leitura da arte guardada falhou:', err?.message);
+      });
+    return () => { alive = false; };
+  }, []);
+
+  // O canvas confirmou que a arte guardada é aplicável nesta tela: aplica e reconhece que há
+  // pintura na frente da criança (D5) — o mesmo par (loadPaint + marcar pintado) que o fluxo
+  // legado já usa ao continuar um desenho.
+  function handleC60RestoreValid() {
+    const saved = restoreRef.current;
+    if (!saved) return;
+    restoreRef.current = null;
+    canvasRef.current?.loadPaint(saved);
+    setC60HasPainted(true);
+  }
+
+  // Arte guardada inválida, corrompida ou de outro tamanho de tela: descarta o candidato e segue
+  // com o LINEART LIMPO. Não apaga nada do storage (uma leitura ruim não autoriza destruir a arte
+  // da criança), não recorre à pintura de outra atividade nem ao desenho legado da cena, e o
+  // diagnóstico existe SOMENTE em desenvolvimento.
+  function handleC60RestoreInvalid() {
+    restoreRef.current = null;
+    if (__DEV__) console.log('[Coloring60] arte guardada não aplicável; abrindo lineart limpo');
+  }
+
+  // §5 · desfecho HONESTO quando a gravação não se confirmou: a tela continua aberta com a
+  // pintura visível e a criança recebe um aviso curto, no mesmo padrão de Alert já usado nesta
+  // tela. Nenhuma escrita adicional parte daqui.
+  function handleC60SaveIssue(reason) {
+    if (reason === 'not_persisted_free') {
+      Alert.alert(
+        'Sua pintura ficou aqui 🎨',
+        'Ela não pôde ser guardada neste aparelho. A pintura continua na tela.',
+        [{ text: 'Ok!' }],
+      );
+      return;
+    }
+    Alert.alert(
+      'Quase lá! 🎨',
+      'Não conseguimos guardar sua pintura agora. Toque em Pronto de novo.',
+      [{ text: 'Ok!' }],
+    );
+  }
+
   // [C60-P4-WIRING] Ligação fina React↔núcleo: handleC60Pronto injeta o estado DESTA instância
   // (D1/D5/saving, refs, navegação e a trava síncrona) no núcleo testável `beginC60Attempt`, onde
   // vive a ordem canônica e a serialização (acquire ANTES de setC60Saving/exportPaint). Sem lógica
   // de conclusão aqui — só a composição — para que os testes exerçam o núcleo real.
   function handleC60Pronto() {
-    // [C60-P6-TEMPORARY] Piloto visível 1: com a persistência do piloto desligada, "Pronto!"
-    // apenas encerra a atividade. Nenhuma escrita parte desta tela — nem conclusão, nem pixels,
-    // nem progresso de história, nem arte legada. É o ponto mínimo de bloqueio: as DUAS escritas
-    // do piloto vivem exclusivamente no callback de `exportPaint` dentro de `beginC60Attempt`,
-    // cujo único chamador é esta função; parar aqui evita inclusive o export em memória.
-    if (!C60_PILOT_PERSISTENCE_ENABLED) {
-      navigation.goBack();
-      return;
-    }
     beginC60Attempt({
       controller: attemptControllerRef.current,
       canvasRef,
@@ -326,6 +391,7 @@ function Coloring60ActivityScreen({ route, navigation }) {
       activityId,
       setSaving: setC60Saving,
       goBack: () => navigation.goBack(),
+      onSaveIssue: handleC60SaveIssue,
     });
   }
 
@@ -367,6 +433,12 @@ function Coloring60ActivityScreen({ route, navigation }) {
             onReadyChange={setC60Ready}
             onPainted={() => setC60HasPainted(true)}
             onGoBack={() => navigation.goBack()}
+            // Retomada da arte guardada: o canvas valida ANTES de aplicar (onPaintValid aplica;
+            // qualquer desfecho negativo abre o lineart limpo, sem derrubar a tela).
+            onPaintValid={handleC60RestoreValid}
+            onPaintInvalid={handleC60RestoreInvalid}
+            onLoadCorrupted={handleC60RestoreInvalid}
+            onLoadIncompatible={handleC60RestoreInvalid}
           />
         </View>
 
