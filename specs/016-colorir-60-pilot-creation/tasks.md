@@ -569,13 +569,24 @@ Esclarecimento de rastreabilidade, **não** uma nova decisão de produto:
 - **Objetivo:** provar legado intacto e rodar gates duros + revisão da fronteira de escrita.
 - **Dep:** P8.T2 · **Commit:** sim · **Push/merge:** proibido.
 - **Arq✔:** `scripts/smoke.js` + relatório · **Arq✗:** —.
-- **Entradas:** baseline P0.T3.
-- **Passos:** 1) recomparar hashes dos 200; 2) `npm run smoke`; 3) `npx expo-doctor`; 4) revisão independente da fronteira de escrita.
-- **Gates:** 200 idênticos; smoke/doctor verdes; revisão aprovada.
-- **Evidências:** saídas + parecer de revisão.
+- **Entradas:** baseline canônica P0.T3 — `C:\tmp\ptf_colorir60_p0_evidence\baseline_200_legacy_f16491c.tsv`, SHA-256 `a3bc2d10d526ea49e85c92f3a1c61e89038ca3323c56ef8877146e80a87c7a61` (contrato em spec 016 §16.5).
+- **Passos:** 1) reconciliar os **200 legados** pelo **algoritmo canônico de P5.T7** (conjunto fechado do TSV — referência normativa, ver nota abaixo); 2) inventariar **separadamente** os **2 assets novos**; 3) `npm run smoke`; 4) `npx expo-doctor`; 5) revisão independente da fronteira de escrita.
+- **Gates:** **200/200 legados idênticos** ao conjunto fechado do TSV; inventário dos **2 novos** conforme P5.T7; smoke/doctor verdes; revisão aprovada.
+- **Evidências:** saídas + diff de inventário (legados) + inventário separado dos 2 novos + parecer de revisão.
 - **Parada:** legado alterado / gate vermelho → PARAR.
 - **Aceite:** cobre P8.T16–T20.
 - **Rollback:** n/a.
+
+> **Conjunto canônico dos 200 em P8.T3 (mesma regra de P5.T7 — referência normativa, sem redação paralela).**
+> 1. **Baseline:** `C:\tmp\ptf_colorir60_p0_evidence\baseline_200_legacy_f16491c.tsv`.
+> 2. **SHA-256 exigido:** `a3bc2d10d526ea49e85c92f3a1c61e89038ca3323c56ef8877146e80a87c7a61` — verificar **antes** de usar o arquivo.
+> 3. **Conjunto fechado:** validar schema `ptf-coloring-baseline-v1` e o cabeçalho de 8 colunas; ler **exatamente os 200 paths** da coluna `path`; exigir **200 únicos**; usar essa lista como **conjunto fechado dos legados**, **nunca ampliar**; recomputar os campos físicos de cada um dos 200 e comparar **todos** ao TSV; exigir **200/200 idênticos**.
+> 4. **`activities/` fica FORA dos 200:** `living_world.png` e `people_and_care.png` **não são legados** e nunca entram nesse conjunto.
+> 5. **Inventário separado dos 2 novos:** exigir **exatamente** `activities/living_world.png` e `activities/people_and_care.png`; **exatamente dois** PNGs em `activities/`; **nenhum terceiro arquivo**; `activities/light.png` **ausente** (falha dura).
+> 6. **Não ampliar por glob** e **não** usar isoladamente `git ls-files -- 'assets/stories/*/coloring/*.png'`: o `*` do pathspec **atravessa `/`** e, após P5.T4/P5.T6, esse padrão retorna **202** entradas — as 2 adicionais **não são legados**.
+> 7. Total conceitual: **200 legados preservados + 2 novos assets físicos** — jamais "202 legados".
+> 8. Os **13 passos do algoritmo canônico de P5.T7** valem aqui **integralmente**; esta nota fixa os pontos obrigatórios sem reescrevê-los.
+> 9. A existência legítima de `activities/` após P5.T4 **não é falha** (spec 016 §16.6).
 
 ---
 

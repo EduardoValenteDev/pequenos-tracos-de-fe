@@ -367,22 +367,56 @@ Vinculada a §16.2. Registra, em documentação versionada, **onde** vive a base
 6. Os artefatos deste diretório **permanecem fora do Git** (P0.T3 é task de evidência, sem commit). Esta seção ancora sua **identidade verificável**, não os versiona.
 7. A verificação de identidade da baseline é feita conferindo o **SHA-256 completo** acima. **Prefixos abreviados nunca são contrato.**
 
-### 16.6 Natureza do manifesto: snapshot pré-P5.T4
+### 16.6 Natureza do manifesto: campos de snapshot × invariantes permanentes
 
 Vinculada a §16.2 e §16.5.
 
 1. O manifesto `baseline_200_legacy_f16491c.manifest.txt` é um **snapshot do estado no momento da geração da baseline**, anterior a P5.T4.
-2. `living_world_destination=absent` descreve **o momento de geração**, não uma regra.
-3. `people_and_care_destination=absent` descreve **o momento de geração**, não uma regra.
-4. Esses dois campos **não são invariantes permanentes**.
-5. Após P5.T4 e P5.T6, eles **naturalmente ficarão desatualizados** — comportamento esperado, não falha.
-6. Isso **não invalida** o TSV dos 200 legados: o TSV é chaveado pelos 200 paths fechados e independe dos destinos em `activities/`.
-7. Já `activities_directory=absent` e `light_copy=forbidden` **permanecem invariantes** enquanto a arquitetura atual vigorar (§16.3): `light` é reuso direto e `activities/light.png` é falha dura.
-8. **P5.T7 deve usar o TSV como contrato dos 200** e **não** exigir que os dois campos de destino continuem `absent`. Não é necessário regenerar o manifesto após as cópias.
+
+**Campos de snapshot pré-P5.T4 — são três.** Descrevem **um momento**, não uma regra:
+
+| Campo do manifesto | Natureza |
+|---|---|
+| `activities_directory=absent` | **snapshot pré-P5.T4** |
+| `living_world_destination=absent` | **snapshot pré-P5.T4** |
+| `people_and_care_destination=absent` | **snapshot pré-P5.T4** |
+
+2. `activities_directory=absent` descreve **somente o estado no momento de geração do manifesto**. **Não** é invariante permanente e **não** decorre da arquitetura permanente de §16.3.
+3. `living_world_destination=absent` descreve **o momento de geração**, não uma regra.
+4. `people_and_care_destination=absent` descreve **o momento de geração**, não uma regra.
+5. Esses **três** campos **não são invariantes permanentes**.
+6. **Após P5.T4**, o diretório `assets/stories/creation/coloring/activities/` **passa a existir legitimamente**, contendo `living_world.png`. Sua existência a partir daí é o estado **correto e esperado** — nunca uma falha.
+7. **Após P5.T6**, o diretório **continua existindo**, contendo **exatamente dois** PNGs autorizados: `living_world.png` e `people_and_care.png`.
+8. Os **três** campos **naturalmente ficarão desatualizados** após P5.T4 e P5.T6 — comportamento esperado, não falha.
+9. Isso **não invalida** o TSV dos 200 legados: o TSV é chaveado pelos **200 paths fechados** e independe do conteúdo de `activities/`.
+10. O manifesto **não precisa ser regenerado** após P5.T4 ou P5.T6.
+11. **P5.T7 deve usar o TSV como contrato dos 200** e **não deve exigir** que nenhum dos **três** campos continue `absent`. **Nenhum executor pode reprovar a existência legítima de `activities/`** após P5.T4.
+
+**Estados canônicos de `assets/stories/creation/coloring/activities/`:**
+
+| Fase | Estado canônico do diretório |
+|---|---|
+| Antes de P5.T4 | **ausente** |
+| Após P5.T4 | **presente**, contendo `living_world.png` |
+| Após P5.T6 | **presente**, contendo **exatamente** `living_world.png` e `people_and_care.png` |
+| Em todas as fases | `activities/light.png` **proibido** (falha dura) |
+| Após P5.T6 | **qualquer terceiro arquivo** no diretório é **proibido** |
+
+**Invariantes permanentes da arquitetura atual (§16.3) — não são snapshot:**
+
+12. `light_copy=forbidden`.
+13. `activities/light.png` **ausente e proibido em todas as fases** — falha dura no gate `scripts/verify-coloring60-assets.js` (`forbiddenPath`).
+14. `scene_02.png` **permanece fora** de `activities/`.
+15. `light` **reutiliza diretamente** `assets/stories/creation/coloring/scene_02.png` por `require()` literal, sem cópia.
+16. Dentro de `activities/`, após P5.T6, são autorizados **exatamente** `living_world.png` e `people_and_care.png`.
+17. **Nenhum terceiro arquivo** é autorizado em `activities/`.
+18. `living_world` e `people_and_care` **não fazem parte** dos 200 linearts legados. Os 200 são **sempre** o conjunto fechado dos paths do TSV canônico (§16.5).
 
 ### 16.7 Escopo do bloco de ancoragem
 
 Bloco **documental** `C60-IMPL-P0-T3-BASELINE-ANCHOR1`: altera **apenas** esta spec e `tasks.md` (nota de execução de P0.T3, algoritmo canônico de P5.T7 e compatibilidade com P5.T4/P5.T6). Não toca PNG, `scene_02.png`, catálogo, `coloring60LocalAssets.js`, `coloringImages.js`, verificador, smoke, plan, spec 017, runtime, flags, packs, R2, Livrinho, dependências, nem qualquer arquivo dos diretórios externos de evidências e de produção. Não cria `activities/`, não copia `living_world` nem `people_and_care`. **P5.T4, P5.T6 e P5.T7 continuam NÃO EXECUTADAS.** A feature flag `COLORIR_60_CREATION_PILOT_ENABLED` permanece **`false`**.
+
+> **Alcance temporal.** §16.7 descreve o escopo do bloco `C60-IMPL-P0-T3-BASELINE-ANCHOR1`. O bloco corretivo posterior `C60-IMPL-P0-T3-BASELINE-ANCHOR1-FIX1` alterou **os mesmos dois arquivos** — e nada além deles — para resolver o veredito `C60-IMPL-P0-T3-BASELINE-ANCHOR1-QA1 REPROVADO POR MANIFESTO AMBÍGUO`, corrigindo exclusivamente (a) a classificação de `activities_directory=absent` em §16.6, que passou a ser **snapshot pré-P5.T4**, e (b) a ancoragem do conjunto canônico dos 200 em **P8.T3**. Nenhum dos dois blocos tocou asset, código, gate, flag ou dependência. **P5.T4, P5.T6, P5.T7 e P8.T3 continuam NÃO EXECUTADAS.**
 
 ---
 
