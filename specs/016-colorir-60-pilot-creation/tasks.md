@@ -401,17 +401,30 @@ Esclarecimento de rastreabilidade, **não** uma nova decisão de produto:
 - **Aceite:** fonte validada.
 - **Rollback:** n/a.
 
+### P5.T3b — `C60-IMPL-P5-ASSET-PHASE-SMOKE-FIX1` (bloco próprio) — smoke consciente de fase · **PRÉ-REQUISITO OBRIGATÓRIO DE P5.T4**
+- **Objetivo:** eliminar o bloqueio **RR1** da auditoria `C60-IMPL-P0-T3-BASELINE-ANCHOR1-FIX1-QA1`: até este bloco, `scripts/smoke.js` continha controles válidos **apenas** para o estado pré-P5.T4 — (i) asserção de que `activities/` não existe; (ii) exigência de **exatamente dois** `destino: AUSENTE` em `--mode=post`; (iii) tratamento da existência de `activities/` como falha absoluta. Após a integração **legítima** de `living_world` (P5.T4) e `people_and_care` (P5.T6) esses controles reprovariam um estado **correto**.
+- **Dep:** `C60-IMPL-P0-T3-BASELINE-ANCHOR1-FIX1-QA1` APROVADO · **Commit:** sim (1 commit local, só teste/governança) · **Push/merge:** proibido.
+- **Arq✔:** `scripts/smoke.js` + `specs/016-colorir-60-pilot-creation/tasks.md` · **Arq✗:** qualquer PNG, `activities/`, `coloring60LocalAssets.js`, `coloring60Catalog.js`, `coloringImages.js`, `verify-coloring60-assets.js`, `plan.md`, spec 016/017, feature flags, `package.json`/`package-lock.json`, config Expo, qualquer runtime, qualquer baseline/manifesto/gerador.
+- **Entradas:** matriz fechada de 3 assets do `verify-coloring60-assets.js`; contrato `c960f1bb…83c1`; semântica `199 + 1`; proibição permanente de `activities/light.png`.
+- **Passos:** 1) máquina de estados **fechada** interna ao smoke com as três únicas fases legítimas — `C60_ASSET_PHASE_PRE`, `C60_ASSET_PHASE_LIVING_WORLD`, `C60_ASSET_PHASE_COMPLETE` (mais `INVALID` como falha dura); 2) substituir as suposições absolutas por verificações **condicionadas à fase**, sem deletar cobertura; 3) inventário fechado de `activities/` por `lstat` (sem filtrar ocultos/extensões, sem seguir symlink, sem aceitar subdiretório nem terceiro arquivo); 4) contrato de `--mode=post` por fase (2/1/0 destinos ausentes; VERDE só em COMPLETE); 5) contrato de `--mode=pre` por fase, sem relaxar as provas substantivas; 6) 20 controles negativos + provas por funções puras, fixtures em memória e repo-scratch em `os.tmpdir()` removido ao final.
+- **Gates:** `npm run smoke` verde **sem redução líquida de cobertura**; `npx expo-doctor`; nenhum asset criado/copiado/movido; nenhum resíduo de fixture.
+- **Evidências:** contagem de testes antes/depois; execução do **verificador real** nas três fases via repo-scratch; buscas adversariais; `git diff --cached --name-only` com exatamente os dois arquivos autorizados.
+- **Parada:** máquina de estados incompleta / regressão de cobertura / qualquer relaxamento de integridade / escopo excedido → PARAR.
+- **Aceite:** o smoke reconhece as três fases legítimas e reprova como **falha dura** qualquer estado fora delas; `activities/light.png` continua proibido em **todas** as fases; a ordem `living_world` → `people_and_care` é obrigatória.
+- **Rollback:** `git revert` do commit (só teste/governança; nenhum asset tocado).
+- **⚠ Risco residual RR2 (registrado, não relaxado):** `verify-coloring60-assets.js` é **arquivo proibido** neste bloco e sua função `evaluateExternalCopy(asset, 'pre')` exige `destino: AUSENTE`. Logo, **a partir de P5.T4 o `--mode=pre` fica VERMELHO por contrato próprio do gate** — comportamento provado empiricamente contra o binário real. O smoke passa a **exigir** esse resultado por fase (um `pre` VERDE na fase `LIVING_WORLD`/`COMPLETE` **reprova**), e as cinco provas substantivas do `pre` (matriz fechada de 3, `light` íntegro, `activities/light.png` ausente, 2 fontes externas íntegras, nenhum erro de fonte) permanecem obrigatórias nas três fases. **Consequência para P5.T4/P5.T6:** o gate de aceite é `--mode=post`, não `--mode=pre`.
+
 ### P5.T4 — `living_world`: cópia byte a byte + hash depois + comparação + registro estático
 - **Objetivo:** integrar `living_world` sem reencode, com prova antes/depois e gate verde.
-- **Dep:** P5.T2 (gate verde), P5.T3 (perícia), P4 concluído + portão de assets · **Commit:** sim (asset isolado) · **Push/merge:** proibido · **⚠ commit de asset, não misturar com código.**
-- **Arq✔:** `assets/stories/creation/coloring/activities/living_world.png` + `src/assets/coloring60LocalAssets.js` (require definitivo) · **Arq✗:** reencode, outros assets.
-- **Entradas:** perícia P5.T3; gate `verify-coloring60-assets.js` verde (P5.T2).
-- **Passos:** 1) cópia byte a byte para o destino; 2) SHA-256 depois == `818cd917...`; 3) comparação byte a byte fonte↔destino; 4) rodar `verify-coloring60-assets.js` pós-integração (verde); 5) `require()` estático definitivo.
-- **Gates:** hash depois == esperado; diff byte a byte zero; gate do script verde.
-- **Evidências:** hash antes/depois + comparação + saída do script.
-- **Parada:** hash divergente / gate vermelho → PARAR + rollback.
-- **Aceite:** um PNG novo, íntegro, registrado.
-- **Rollback:** remover arquivo + reverter require.
+- **Dep:** **P5.T3b — bloqueada até C60-IMPL-P5-ASSET-PHASE-SMOKE-FIX1-QA1 APROVADO (pré-requisito obrigatório)**, P5.T2 (gate verde), P5.T3 (perícia), P4 concluído + portão de assets · **Commit:** sim (asset isolado) · **Push/merge:** proibido · **⚠ commit de asset, não misturar com código.**
+- **Arq✔:** `assets/stories/creation/coloring/activities/living_world.png` + `src/assets/coloring60LocalAssets.js` (require definitivo) · **Arq✗:** reencode, outros assets, **`scripts/smoke.js` (já adaptado em P5.T3b — não pode entrar neste commit)**.
+- **Entradas:** perícia P5.T3; gate `verify-coloring60-assets.js` verde (P5.T2); smoke consciente de fase (P5.T3b).
+- **Passos:** 1) cópia byte a byte para o destino; 2) SHA-256 depois == `818cd917...`; 3) comparação byte a byte fonte↔destino; 4) rodar `verify-coloring60-assets.js --mode=post` pós-integração; 5) `require()` estático definitivo.
+- **Gates:** hash depois == esperado; diff byte a byte zero; **`--mode=post` na fase `LIVING_WORLD`: `[OK] light`, `[OK] living_world`, `[DIVERGENTE] people_and_care`, exatamente 1 `destino: AUSENTE`, `RESULTADO(post): VERMELHO` (o VERDE de `post` só é atingível em P5.T6)**; **`--mode=pre` passa a VERMELHO por contrato próprio (ver RR2 em P5.T3b) — isso NÃO é regressão**; `npm run smoke` verde reconhecendo a fase `C60_ASSET_PHASE_LIVING_WORLD`.
+- **Evidências:** hash antes/depois + comparação + saída de `--mode=post` + saída de `npm run smoke`.
+- **Parada:** hash divergente / `post` fora do contrato da fase / smoke classificando `INVALID` → PARAR + rollback.
+- **Aceite:** um PNG novo, íntegro, registrado; repositório na fase `C60_ASSET_PHASE_LIVING_WORLD`.
+- **Rollback:** remover arquivo + reverter require (o repositório volta à fase `C60_ASSET_PHASE_PRE`).
 
 ### P5.T5 — `people_and_care`: perícia da fonte
 - **Objetivo:** validar a fonte externa antes da cópia.
@@ -427,23 +440,23 @@ Esclarecimento de rastreabilidade, **não** uma nova decisão de produto:
 
 ### P5.T6 — `people_and_care`: cópia byte a byte + hash depois + comparação + registro estático
 - **Objetivo:** integrar `people_and_care` sem reencode, com prova antes/depois e gate verde.
-- **Dep:** P5.T2 (gate verde), P5.T5 (perícia), P4 concluído + portão de assets · **Commit:** sim (asset isolado) · **Push/merge:** proibido.
-- **Arq✔:** `assets/stories/creation/coloring/activities/people_and_care.png` + `coloring60LocalAssets.js` · **Arq✗:** reencode.
-- **Entradas:** perícia P5.T5; gate `verify-coloring60-assets.js` verde (P5.T2).
-- **Passos:** cópia byte a byte → hash depois == `59988d9a...` → comparação byte a byte → `verify-coloring60-assets.js` pós-integração (verde) → require estático.
-- **Gates:** hash depois == esperado; diff zero; gate do script verde.
-- **Evidências:** hash antes/depois + saída do script.
-- **Parada:** divergência / gate vermelho → PARAR + rollback.
-- **Aceite:** segundo PNG novo íntegro.
-- **Rollback:** remover arquivo + reverter require.
+- **Dep:** **P5.T3b (smoke consciente de fase)**, P5.T4 (fase `LIVING_WORLD` estabelecida), P5.T2 (gate verde), P5.T5 (perícia), P4 concluído + portão de assets · **Commit:** sim (asset isolado) · **Push/merge:** proibido.
+- **Arq✔:** `assets/stories/creation/coloring/activities/people_and_care.png` + `coloring60LocalAssets.js` · **Arq✗:** reencode, **`scripts/smoke.js`**.
+- **Entradas:** perícia P5.T5; gate `verify-coloring60-assets.js` verde (P5.T2); smoke consciente de fase (P5.T3b).
+- **Passos:** cópia byte a byte → hash depois == `59988d9a...` → comparação byte a byte → `verify-coloring60-assets.js --mode=post` pós-integração → require estático.
+- **Gates:** hash depois == esperado; diff zero; **`--mode=post` na fase `COMPLETE`: `[OK]` nos três assets, ZERO `destino: AUSENTE`, `RESULTADO(post): VERDE` (exit 0)** — é aqui, e só aqui, que o `post` fica verde; **`--mode=pre` permanece VERMELHO por contrato próprio (RR2), com as cinco provas substantivas intactas**; `npm run smoke` verde reconhecendo a fase `C60_ASSET_PHASE_COMPLETE`.
+- **Evidências:** hash antes/depois + saída de `--mode=post` (VERDE) + saída de `npm run smoke`.
+- **Parada:** divergência / `post` não-VERDE / smoke classificando `INVALID` → PARAR + rollback.
+- **Aceite:** segundo PNG novo íntegro; repositório na fase `C60_ASSET_PHASE_COMPLETE`.
+- **Rollback:** remover arquivo + reverter require (o repositório volta à fase `C60_ASSET_PHASE_LIVING_WORLD`).
 
 ### P5.T7 — Reconciliação de inventário: apenas dois PNGs novos, legado intacto
 - **Objetivo:** provar que a árvore ganhou exatamente 2 arquivos e os 200 legados seguem idênticos.
 - **Dep:** P5.T4, P5.T6 · **Commit:** não (verificação) · **Push/merge:** proibido.
 - **Arq✔:** relatório · **Arq✗:** —.
 - **Entradas:** baseline canônica P0.T3 — `C:\tmp\ptf_colorir60_p0_evidence\baseline_200_legacy_f16491c.tsv`, SHA-256 `a3bc2d10d526ea49e85c92f3a1c61e89038ca3323c56ef8877146e80a87c7a61` (contrato em spec 016 §16.5).
-- **Passos:** 1) reconciliar os **200 legados** pelo **algoritmo canônico** abaixo (conjunto fechado do TSV); 2) inventariar **separadamente** os **2 assets novos**; 3) confirmar ausência de `activities/light.png`; 4) rodar `verify-coloring60-assets.js` pós-integração como gate final de lote (verde).
-- **Gates:** **200/200 legados idênticos** ao conjunto fechado do TSV; **exatamente +2 novos**, verificados fora do conjunto legado; gate do script verde.
+- **Passos:** 1) reconciliar os **200 legados** pelo **algoritmo canônico** abaixo (conjunto fechado do TSV); 2) inventariar **separadamente** os **2 assets novos**; 3) confirmar ausência de `activities/light.png`; 4) rodar `verify-coloring60-assets.js --mode=post` pós-integração como gate final de lote (VERDE).
+- **Gates:** **200/200 legados idênticos** ao conjunto fechado do TSV; **exatamente +2 novos**, verificados fora do conjunto legado; **`--mode=post` VERDE**; `npm run smoke` verde na fase `C60_ASSET_PHASE_COMPLETE` (o gate de lote é `post`, não `pre` — ver RR2 em P5.T3b).
 - **Evidências:** diff de inventário (legados) + inventário separado dos 2 novos + saída do script.
 - **Parada:** qualquer legado alterado / mais de 2 novos → PARAR + rollback.
 - **Aceite:** cobre P5 1–14 (reconciliação e ausência de reencode).

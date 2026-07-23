@@ -29633,6 +29633,380 @@ check(
     !lp21iif1Err,
     `o bloco F1 lançou (${lp21iif1Err && lp21iif1Err.stack ? String(lp21iif1Err.stack).split('\n').slice(0, 3).join(' | ') : lp21iif1Err}) — os checks dele não rodaram`);
 
+  // ══════════════════════════════════════════════════════════════════════════════
+  // C60-IMPL-P5-ASSET-PHASE-SMOKE-FIX1 — MÁQUINA DE ESTADOS FECHADA das três fases
+  // legítimas de integração dos assets do piloto Colorir 60 (A Criação).
+  //
+  // MOTIVO (bloqueio RR1 da auditoria C60-IMPL-P0-T3-BASELINE-ANCHOR1-FIX1-QA1): até
+  // aqui o smoke assumia, de forma ABSOLUTA, o estado pré-P5.T4 — `activities/` sempre
+  // ausente, sempre DOIS `destino: AUSENTE`, `--mode=post` sempre VERMELHO. Depois da
+  // integração LEGÍTIMA de `living_world` (P5.T4) e de `people_and_care` (P5.T6) essas
+  // asserções passariam a reprovar um estado CORRETO, contradizendo a spec 016 §16.6.
+  //
+  // O QUE MUDA: as suposições absolutas viram verificações CONDICIONADAS À FASE.
+  // O QUE NÃO MUDA (nada é relaxado): existem EXATAMENTE três fases legítimas; qualquer
+  // estado fora delas é FALHA DURA (jamais aviso); `activities/light.png` continua
+  // PROIBIDO em TODAS as fases; a ordem `living_world` → `people_and_care` é obrigatória;
+  // o estado FÍSICO e o REGISTRO ESTÁTICO têm de concordar sempre.
+  //
+  // ESCOPO: lógica 100% INTERNA ao smoke — nenhum código de produção é criado ou tocado.
+  // ══════════════════════════════════════════════════════════════════════════════
+  const C60_ASSET_PHASE = Object.freeze({
+    PRE: 'C60_ASSET_PHASE_PRE',
+    LIVING_WORLD: 'C60_ASSET_PHASE_LIVING_WORLD',
+    COMPLETE: 'C60_ASSET_PHASE_COMPLETE',
+    INVALID: 'C60_ASSET_PHASE_INVALID',
+  });
+
+  // Mesmos rótulos do verificador (identidade provada contra V.PATH_KIND no bloco de testes).
+  const C60_PATH_KIND = Object.freeze({
+    ABSENT: 'absent',
+    REGULAR_FILE: 'regular_file',
+    DIRECTORY: 'directory',
+    SYMLINK: 'symlink',
+    OTHER: 'other',
+    INSPECTION_ERROR: 'inspection_error',
+  });
+
+  const C60_ACTIVITIES_REL = 'assets/stories/creation/coloring/activities';
+  const C60_ACTIVITIES_ABS = path.join(root, C60_ACTIVITIES_REL);
+  const C60_REGISTRY_REL = 'src/assets/coloring60LocalAssets.js';
+  const C60_VERIFIER_REL = 'scripts/verify-coloring60-assets.js';
+  const C60_REQ_LIGHT = '../../assets/stories/creation/coloring/scene_02.png';
+  const C60_REQ_LIVING_WORLD = '../../assets/stories/creation/coloring/activities/living_world.png';
+  const C60_REQ_PEOPLE_AND_CARE = '../../assets/stories/creation/coloring/activities/people_and_care.png';
+  const C60_FILE_LIVING_WORLD = 'living_world.png';
+  const C60_FILE_PEOPLE_AND_CARE = 'people_and_care.png';
+  const C60_FILE_FORBIDDEN = 'light.png'; // activities/light.png — PROIBIDO em TODAS as fases
+  const C60_CONTRACT_SHA = Object.freeze({
+    light: 'c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1',
+    living_world: '818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5',
+    people_and_care: '59988d9a58082a8173a328857fccb6a3716815660f4434c0df4491d6bf30d4e9',
+  });
+  const C60_CONTRACT_SHA_SET = new Set(Object.values(C60_CONTRACT_SHA));
+
+  // Helpers REAIS do verificador (guard `require.main === module` impede rodar main()).
+  // Carregados com guarda: a ausência do arquivo é reprovada pelos checks, não por exceção.
+  let C60_V = null;
+  try { C60_V = require(path.join(root, C60_VERIFIER_REL)); } catch (e) { C60_V = null; }
+
+  // lstat PURO (NÃO segue symlink): distingue ausente / arquivo regular / diretório /
+  // symlink / tipo exótico / erro de inspeção. Nunca lança, nunca escreve.
+  function c60InspectKind(p) {
+    try {
+      const st = fs.lstatSync(p);
+      if (st.isSymbolicLink()) return C60_PATH_KIND.SYMLINK;
+      if (st.isFile()) return C60_PATH_KIND.REGULAR_FILE;
+      if (st.isDirectory()) return C60_PATH_KIND.DIRECTORY;
+      return C60_PATH_KIND.OTHER;
+    } catch (e) {
+      return e && e.code === 'ENOENT' ? C60_PATH_KIND.ABSENT : C60_PATH_KIND.INSPECTION_ERROR;
+    }
+  }
+
+  // Inventário FECHADO e determinístico de `activities/`: TODAS as entradas — inclusive
+  // ocultas e de extensão inesperada —, ordenadas, com o tipo de cada uma por lstat.
+  // Não filtra nada, não segue symlink, não desce em subdiretórios.
+  function c60ReadPhysicalView(activitiesAbs) {
+    const activitiesKind = c60InspectKind(activitiesAbs);
+    if (activitiesKind !== C60_PATH_KIND.DIRECTORY) return { activitiesKind, entries: [] };
+    let names;
+    try { names = fs.readdirSync(activitiesAbs); } catch (e) {
+      return { activitiesKind: C60_PATH_KIND.INSPECTION_ERROR, entries: [] };
+    }
+    const entries = names.slice().sort().map((name) => ({
+      name, kind: c60InspectKind(path.join(activitiesAbs, name)),
+    }));
+    return { activitiesKind, entries };
+  }
+
+  // Classificação FÍSICA fechada. Só três conjuntos passam; tudo o mais é INVALID.
+  function c60ClassifyPhysical(view) {
+    const reasons = [];
+    const kind = view && view.activitiesKind;
+    if (kind === C60_PATH_KIND.ABSENT) return { phase: C60_ASSET_PHASE.PRE, reasons };
+    if (kind !== C60_PATH_KIND.DIRECTORY) {
+      reasons.push(`físico: activities/ não é ausente nem diretório (${kind})`);
+      return { phase: C60_ASSET_PHASE.INVALID, reasons };
+    }
+    const entries = (Array.isArray(view.entries) ? view.entries.slice() : [])
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const e of entries) {
+      if (e.name === C60_FILE_FORBIDDEN) {
+        reasons.push('físico: activities/light.png é PROIBIDO em todas as fases');
+      } else if (e.name !== C60_FILE_LIVING_WORLD && e.name !== C60_FILE_PEOPLE_AND_CARE) {
+        reasons.push(`físico: entrada não autorizada em activities/ (${e.name})`);
+      }
+      if (e.kind !== C60_PATH_KIND.REGULAR_FILE) {
+        reasons.push(`físico: ${e.name} não é arquivo regular (${e.kind})`);
+      }
+    }
+    if (reasons.length > 0) return { phase: C60_ASSET_PHASE.INVALID, reasons };
+    const names = entries.map((e) => e.name).join(',');
+    if (names === C60_FILE_LIVING_WORLD) return { phase: C60_ASSET_PHASE.LIVING_WORLD, reasons };
+    if (names === `${C60_FILE_LIVING_WORLD},${C60_FILE_PEOPLE_AND_CARE}`) {
+      return { phase: C60_ASSET_PHASE.COMPLETE, reasons };
+    }
+    reasons.push(`físico: conjunto de activities/ fora das fases válidas ([${names}])`);
+    return { phase: C60_ASSET_PHASE.INVALID, reasons };
+  }
+
+  // Leitura FECHADA do registro estático (texto, sem comentários — propriedades do CÓDIGO).
+  function c60ReadRegistryView(src) {
+    const code = String(src)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const literals = [];
+    const re = /require\(\s*'([^']*)'\s*\)/g;
+    let m;
+    while ((m = re.exec(code)) !== null) literals.push(m[1]);
+    const total = (code.match(/require\s*\(/g) || []).length;
+    return {
+      literals,
+      totalRequires: total,
+      hasDynamicRequire: total !== literals.length,
+      livingWorldNull: /living_world:\s*null/.test(code),
+      peopleAndCareNull: /people_and_care:\s*null/.test(code),
+      mentionsForbidden: /activities\/light\.png/.test(code),
+      mentionsLegacy: /coloringImages|getColoringImage/.test(code),
+    };
+  }
+
+  // Classificação do REGISTRO. `light` é invariante permanente; a ordem living_world →
+  // people_and_care é obrigatória; nenhum path alternativo, dinâmico ou duplicado passa.
+  function c60ClassifyRegistry(view) {
+    const reasons = [];
+    const count = (lit) => view.literals.filter((l) => l === lit).length;
+    const nLight = count(C60_REQ_LIGHT);
+    const nLw = count(C60_REQ_LIVING_WORLD);
+    const nPc = count(C60_REQ_PEOPLE_AND_CARE);
+    const authorized = new Set([C60_REQ_LIGHT, C60_REQ_LIVING_WORLD, C60_REQ_PEOPLE_AND_CARE]);
+    for (const l of view.literals) {
+      if (!authorized.has(l)) reasons.push(`registro: require de path não autorizado (${l})`);
+    }
+    if (view.hasDynamicRequire) reasons.push('registro: require dinâmico/não-literal é proibido');
+    if (view.mentionsForbidden) reasons.push('registro: referência a activities/light.png é proibida');
+    if (view.mentionsLegacy) reasons.push('registro: não pode reusar coloringImages/getColoringImage');
+    if (nLight !== 1) reasons.push(`registro: light exige EXATAMENTE 1 require literal de scene_02.png (achou ${nLight})`);
+    if (nLw > 1) reasons.push(`registro: living_world com require duplicado (${nLw})`);
+    if (nPc > 1) reasons.push(`registro: people_and_care com require duplicado (${nPc})`);
+    const slotOf = (n, isNull, id) => {
+      if (n === 0 && isNull === true) return 'null';
+      if (n === 1 && isNull === false) return 'wired';
+      reasons.push(`registro: slot ${id} incoerente (requires=${n}, null=${isNull})`);
+      return 'invalid';
+    };
+    const lw = slotOf(nLw, view.livingWorldNull, 'living_world');
+    const pc = slotOf(nPc, view.peopleAndCareNull, 'people_and_care');
+    if (reasons.length > 0) return { phase: C60_ASSET_PHASE.INVALID, reasons };
+    if (lw === 'null' && pc === 'null') return { phase: C60_ASSET_PHASE.PRE, reasons };
+    if (lw === 'wired' && pc === 'null') return { phase: C60_ASSET_PHASE.LIVING_WORLD, reasons };
+    if (lw === 'wired' && pc === 'wired') return { phase: C60_ASSET_PHASE.COMPLETE, reasons };
+    reasons.push(`registro: ordem obrigatória violada (living_world=${lw}, people_and_care=${pc})`);
+    return { phase: C60_ASSET_PHASE.INVALID, reasons };
+  }
+
+  // Classificação COMBINADA: físico e registro têm de existir na MESMA fase legítima.
+  function c60ClassifyAssetPhase(physicalView, registrySrc) {
+    const phys = c60ClassifyPhysical(physicalView);
+    const reg = c60ClassifyRegistry(c60ReadRegistryView(registrySrc));
+    const reasons = phys.reasons.concat(reg.reasons);
+    if (phys.phase === C60_ASSET_PHASE.INVALID || reg.phase === C60_ASSET_PHASE.INVALID) {
+      return { phase: C60_ASSET_PHASE.INVALID, physical: phys.phase, registry: reg.phase, reasons };
+    }
+    if (phys.phase !== reg.phase) {
+      reasons.push(`incoerência físico(${phys.phase}) × registro(${reg.phase})`);
+      return { phase: C60_ASSET_PHASE.INVALID, physical: phys.phase, registry: reg.phase, reasons };
+    }
+    return { phase: phys.phase, physical: phys.phase, registry: reg.phase, reasons };
+  }
+
+  // ── Contratos esperados do verificador, POR FASE (nenhum é opcional) ──
+  // `post`: PRE → 2 destinos ausentes; LIVING_WORLD → 1; COMPLETE → 0 (VERDE).
+  function c60ExpectedPost(phase) {
+    if (phase === C60_ASSET_PHASE.PRE) {
+      return { status: 1, resultado: 'VERMELHO', ok: ['light'], divergent: ['living_world', 'people_and_care'], destAbsent: 2 };
+    }
+    if (phase === C60_ASSET_PHASE.LIVING_WORLD) {
+      return { status: 1, resultado: 'VERMELHO', ok: ['light', 'living_world'], divergent: ['people_and_care'], destAbsent: 1 };
+    }
+    if (phase === C60_ASSET_PHASE.COMPLETE) {
+      return { status: 0, resultado: 'VERDE', ok: ['light', 'living_world', 'people_and_care'], divergent: [], destAbsent: 0 };
+    }
+    return null;
+  }
+  // `pre`: o verificador (congelado neste bloco) exige destinos AUSENTES em `pre`; logo,
+  // depois de P5.T4 o `--mode=pre` fica VERMELHO POR CONTRATO PRÓPRIO. Isso NÃO é
+  // relaxamento: o exit esperado é EXIGIDO por fase (um `pre` verde na fase COMPLETE
+  // reprova aqui). As cinco provas substantivas do gate `pre` (matriz fechada, light
+  // íntegro, activities/light.png ausente, fontes externas íntegras, nenhum erro de
+  // fonte) continuam obrigatórias em TODAS as três fases.
+  function c60ExpectedPre(phase) {
+    if (phase === C60_ASSET_PHASE.PRE) return { status: 0, resultado: 'VERDE', indevido: 0 };
+    if (phase === C60_ASSET_PHASE.LIVING_WORLD) return { status: 1, resultado: 'VERMELHO', indevido: 1 };
+    if (phase === C60_ASSET_PHASE.COMPLETE) return { status: 1, resultado: 'VERMELHO', indevido: 2 };
+    return null;
+  }
+
+  // Parser da saída determinística do verificador em seções por asset.
+  function c60ParseVerifierOutput(stdout) {
+    const head = { mode: null, matriz: null, resultado: null, resultadoMode: null };
+    const assets = [];
+    let cur = null;
+    for (const raw of String(stdout).split('\n')) {
+      const line = raw.replace(/\r$/, '');
+      let m;
+      if ((m = /^mode=(\S+)$/.exec(line))) { head.mode = m[1]; cur = null; } else if ((m = /^matriz:\s*(\d+)\s+assets\s+\(fechada\)$/.exec(line))) { head.matriz = Number(m[1]); cur = null; } else if ((m = /^\[(OK|DIVERGENTE)\]\s+(\S+)\s+\((\S+)\)$/.exec(line))) {
+        cur = { verdict: m[1], assetId: m[2], role: m[3], lines: [] };
+        assets.push(cur);
+      } else if ((m = /^RESULTADO\((\w+)\):\s*(\S+)$/.exec(line))) {
+        head.resultadoMode = m[1]; head.resultado = m[2]; cur = null;
+      } else if (cur && /^\s{2}\S/.test(line)) cur.lines.push(line.trim());
+    }
+    return { head, assets };
+  }
+
+  // Invariantes que valem em QUALQUER fase e em QUALQUER modo (dimensões 9–15 da Etapa 5).
+  function c60CommonInvariants(stdout, parsed, failures) {
+    if (parsed.head.matriz !== 3) failures.push(`matriz fechada: ${parsed.head.matriz} (esperado 3)`);
+    for (const a of parsed.assets) {
+      for (const l of a.lines) {
+        if (/^fonte:/.test(l) && !/\binteg=ok\b/.test(l)) failures.push(`D9 fonte não íntegra em ${a.assetId}: ${l}`);
+        if (/^reuse\(scene_02\.png\):/.test(l) && !/\binteg=ok\b/.test(l)) failures.push(`D9 reuso de light não íntegro: ${l}`);
+      }
+    }
+    for (const s of (stdout.match(/sha=([0-9a-f]{64})/g) || [])) {
+      if (!C60_CONTRACT_SHA_SET.has(s.slice(4))) failures.push(`D10 sha fora do contrato: ${s}`);
+    }
+    for (const d of (stdout.match(/dims=\S+/g) || [])) if (d !== 'dims=1122x1402') failures.push(`D11 ${d}`);
+    for (const b of (stdout.match(/\bbd=\S+/g) || [])) if (b !== 'bd=8') failures.push(`D12 ${b}`);
+    for (const b of (stdout.match(/\bbdOk=\S+/g) || [])) if (b !== 'bdOk=ok') failures.push(`D12 ${b}`);
+    for (const c of (stdout.match(/\bct=\S+/g) || [])) if (c !== 'ct=2') failures.push(`D13 ${c}`);
+    for (const m of (stdout.match(/\bmode=\S+/g) || [])) {
+      if (m !== 'mode=pre' && m !== 'mode=post' && m !== 'mode=RGB') failures.push(`D14 ${m}`);
+    }
+    for (const s of (stdout.match(/\bsig=\S+/g) || [])) if (s !== 'sig=ok') failures.push(`assinatura PNG inválida: ${s}`);
+    for (const i of (stdout.match(/\binteg=\S+/g) || [])) if (i !== 'integ=ok') failures.push(`integridade divergente: ${i}`);
+    if (!/activities\/light\.png:\s*AUSENTE \(correto\)/.test(stdout)) failures.push('D15 activities/light.png não confirmado AUSENTE');
+    if (/PROIBIDO!/.test(stdout)) failures.push('D15 arquivo proibido presente');
+  }
+
+  // Avaliação das 15 dimensões de `--mode=post` contra o contrato da fase.
+  function c60EvaluatePost(run, phase) {
+    const failures = [];
+    const exp = c60ExpectedPost(phase);
+    if (!exp) { failures.push(`fase sem contrato de post: ${phase}`); return { ok: false, failures }; }
+    const stdout = String(run.stdout || '');
+    const parsed = c60ParseVerifierOutput(stdout);
+    const sorted = (arr) => arr.slice().sort().join(',');
+    const okIds = parsed.assets.filter((a) => a.verdict === 'OK').map((a) => a.assetId);
+    const divIds = parsed.assets.filter((a) => a.verdict === 'DIVERGENTE').map((a) => a.assetId);
+    if (divIds.length !== exp.divergent.length) failures.push(`D1 divergentes=${divIds.length} (esperado ${exp.divergent.length})`);
+    if (sorted(divIds) !== sorted(exp.divergent)) failures.push(`D2 divergentes=[${sorted(divIds)}] (esperado [${sorted(exp.divergent)}])`);
+    for (const a of parsed.assets.filter((x) => x.verdict === 'DIVERGENTE')) {
+      if (!a.lines.some((l) => /^destino:\s*AUSENTE$/.test(l))) failures.push(`D3 ${a.assetId} divergente por causa ≠ destino ausente`);
+    }
+    const destAbsent = (stdout.match(/destino:\s*AUSENTE/g) || []).length;
+    if (destAbsent !== exp.destAbsent) failures.push(`D4 destinos ausentes=${destAbsent} (esperado ${exp.destAbsent})`);
+    const dimOf = { light: 'D5', living_world: 'D6', people_and_care: 'D7' };
+    for (const id of ['light', 'living_world', 'people_and_care']) {
+      const shouldBeOk = exp.ok.indexOf(id) !== -1;
+      const isOk = okIds.indexOf(id) !== -1;
+      if (shouldBeOk !== isOk) failures.push(`${dimOf[id]} [OK] ${id}=${isOk} (esperado ${shouldBeOk})`);
+    }
+    if (parsed.head.resultadoMode !== 'post' || parsed.head.resultado !== exp.resultado) {
+      failures.push(`D8 RESULTADO(${parsed.head.resultadoMode})=${parsed.head.resultado} (esperado post/${exp.resultado})`);
+    }
+    if ((run.status === 0 ? 0 : 1) !== exp.status) failures.push(`D8 exit=${run.status} (esperado ${exp.status})`);
+    c60CommonInvariants(stdout, parsed, failures);
+    return { ok: failures.length === 0, failures };
+  }
+
+  // Avaliação de `--mode=pre` contra o contrato da fase, SEM relaxar nenhuma das cinco provas.
+  function c60EvaluatePre(run, phase) {
+    const failures = [];
+    const exp = c60ExpectedPre(phase);
+    if (!exp) { failures.push(`fase sem contrato de pre: ${phase}`); return { ok: false, failures }; }
+    const stdout = String(run.stdout || '');
+    const parsed = c60ParseVerifierOutput(stdout);
+    if (parsed.head.resultadoMode !== 'pre' || parsed.head.resultado !== exp.resultado) {
+      failures.push(`pre RESULTADO(${parsed.head.resultadoMode})=${parsed.head.resultado} (esperado pre/${exp.resultado})`);
+    }
+    if ((run.status === 0 ? 0 : 1) !== exp.status) failures.push(`pre exit=${run.status} (esperado ${exp.status})`);
+    const indevido = (stdout.match(/\(indevido em pre!\)/g) || []).length;
+    if (indevido !== exp.indevido) failures.push(`pre destinos indevidos=${indevido} (esperado ${exp.indevido})`);
+    const light = parsed.assets.filter((a) => a.assetId === 'light')[0];
+    if (!light || light.verdict !== 'OK') failures.push('pre: light precisa ser [OK] em todas as fases');
+    const sourcesOk = (stdout.match(/^\s{2}fonte:.*\binteg=ok\b/gm) || []).length;
+    if (sourcesOk !== 2) failures.push(`pre: fontes externas íntegras=${sourcesOk} (esperado 2)`);
+    if (/ERRO-DE-LEITURA|ERRO-DE-INSPEÇÃO/.test(stdout)) failures.push('pre: erro de fonte/inspeção presente');
+    c60CommonInvariants(stdout, parsed, failures);
+    return { ok: failures.length === 0, failures };
+  }
+
+  // ── Renderizador FIEL da saída do verificador, por modo e fase ──
+  // Usado só pelas fixtures sintéticas (fases LIVING_WORLD/COMPLETE não existem no disco).
+  // Sua fidelidade é ANCORADA: na fase real PRE, o render tem de ser byte-idêntico à saída
+  // real do subprocesso — se o formato do verificador mudar, a âncora reprova.
+  const C60_KIND_LABEL = Object.freeze({
+    absent: 'AUSENTE', directory: 'DIRETÓRIO', symlink: 'SYMLINK',
+    other: 'NÃO-É-ARQUIVO', inspection_error: 'ERRO-DE-INSPEÇÃO',
+  });
+  function c60FmtProbe(rec) {
+    if (rec.pathKind !== C60_PATH_KIND.REGULAR_FILE) return C60_KIND_LABEL[rec.pathKind] || 'NÃO-É-ARQUIVO';
+    if (rec.readError) return `ERRO-DE-LEITURA(${rec.readError})`;
+    return [
+      `bytes=${rec.bytes}`,
+      `sha=${rec.sha256}`,
+      `sig=${rec.magicOk ? 'ok' : 'X'}`,
+      `dims=${rec.png.ok ? `${rec.png.width}x${rec.png.height}` : '?'}`,
+      `bd=${rec.png.ok ? rec.png.bitDepth : '?'}`,
+      `bdOk=${rec.bitDepthOk ? 'ok' : 'X'}`,
+      `ct=${rec.png.ok ? rec.png.colorType : '?'}`,
+      `mode=${rec.png.ok ? rec.png.colorMode : '?'}`,
+      `integ=${rec.integrityOk ? 'ok' : 'X'}`,
+    ].join(' ');
+  }
+  function c60RenderVerifierRun(mode, phase) {
+    if (!C60_V || !Array.isArray(C60_V.ASSETS) || C60_V.ASSETS.length !== 3) return null;
+    const [light, lw, pc] = C60_V.ASSETS;
+    const integrated = {
+      living_world: phase !== C60_ASSET_PHASE.PRE,
+      people_and_care: phase === C60_ASSET_PHASE.COMPLETE,
+    };
+    const out = [];
+    out.push('verify-coloring60-assets · gate de integridade Colorir 60 (A Criação)');
+    out.push('repo=<repo>');
+    out.push(`mode=${mode}`);
+    out.push(`matriz: ${C60_V.ASSETS.length} assets (fechada)`);
+    out.push('[OK] light (reuse)');
+    out.push(`  reuse(scene_02.png): ${c60FmtProbe(C60_V.probe(light.reusePath, light))}`);
+    out.push('  activities/light.png: AUSENTE (correto)');
+    let allPass = true;
+    for (const asset of [lw, pc]) {
+      const on = integrated[asset.assetId];
+      // Cópia byte a byte ⇒ a perícia do destino é idêntica à da fonte.
+      const fmt = c60FmtProbe(C60_V.probe(asset.sourcePath, asset));
+      const pass = mode === 'pre' ? !on : on;
+      if (!pass) allPass = false;
+      out.push(`[${pass ? 'OK' : 'DIVERGENTE'}] ${asset.assetId} (${asset.role})`);
+      out.push(`  fonte: ${fmt}`);
+      if (mode === 'pre') {
+        out.push(`  destino: ${on ? 'PRESENTE (indevido em pre!)' : 'AUSENTE (correto para pre)'}`);
+      } else {
+        out.push(`  destino: ${on ? fmt : 'AUSENTE'}`);
+        out.push(`  byte-a-byte fonte==destino: ${on ? 'ok' : 'X'}`);
+      }
+    }
+    out.push(`RESULTADO(${mode}): ${allPass ? 'VERDE' : 'VERMELHO'}`);
+    return { status: allPass ? 0 : 1, stdout: `${out.join('\n')}\n` };
+  }
+
+  // FASE REAL do repositório neste momento — fonte única para todos os controles abaixo.
+  const C60_REAL_VIEW = c60ReadPhysicalView(C60_ACTIVITIES_ABS);
+  const C60_REAL = c60ClassifyAssetPhase(C60_REAL_VIEW, readSrc(C60_REGISTRY_REL));
+  const c60InPhase = (...phases) => phases.indexOf(C60_REAL.phase) !== -1;
+
   // ── Colorir 60 · A Criação — controle negativo P0 (flag off, sem vazamento) ──
   // C60-IMPL-P0 · P0.T8: com COLORIR_60_CREATION_PILOT_ENABLED desligada, nenhuma
   // superfície do piloto existe/aparece e o legado (200 linearts) fica intocado.
@@ -29649,14 +30023,31 @@ check(
     // resolvedor (P2.T1) saiu ao entrar P2; o writer dedicado (P3.T1..T3) saiu ao entrar P3;
     // o service de CONCLUSÃO (P4.T1) sai ao entrar P4 — todos entregáveis legítimos, provados
     // pelos blocos C60-P1.T5 / C60-P2 / C60-P3 / C60-P4 abaixo. Esta lista trava só o que
-    // pertence a P5+ (a pasta de PNGs `activities/` — só em P5). A conclusão do P4 é um booleano
+    // pertence a P5+ (a pasta de PNGs `activities/`). A conclusão do P4 é um booleano
     // leve por identidade, SEPARADA da persistência de pixels e SEM asset novo.
-    const premature = [
-      'assets/stories/creation/coloring/activities',
-    ].filter((rel) => fs.existsSync(path.join(root, rel)));
-    check('C60-P0.T8: nenhum asset/pasta de FASE POSTERIOR (P5+) do Colorir 60 integrada (flag off)',
-      premature.length === 0,
-      `com a flag off, estes artefatos de P5+ NÃO deviam existir ainda: ${premature.join(', ')}`);
+    // FIX1 (fase-consciente): `activities/` é artefato LEGÍTIMO a partir de P5.T4. A trava
+    // deixa de ser "não pode existir" e passa a ser "só pode existir em fase legítima e
+    // exatamente com o conteúdo daquela fase". Nada é relaxado: em PRE a exigência de
+    // ausência continua idêntica; nas demais fases o conteúdo é fechado pela máquina de
+    // estados (INVALID ⇒ falha dura). A flag do piloto continua desligada em todas elas.
+    if (c60InPhase(C60_ASSET_PHASE.PRE)) {
+      const premature = [
+        C60_ACTIVITIES_REL,
+      ].filter((rel) => fs.existsSync(path.join(root, rel)));
+      check('C60-P0.T8: nenhum asset/pasta de FASE POSTERIOR (P5+) do Colorir 60 integrada (flag off, fase PRE)',
+        premature.length === 0,
+        `na fase PRE, estes artefatos de P5+ NÃO deviam existir ainda: ${premature.join(', ')}`);
+    } else {
+      check('C60-P0.T8/FIX1: activities/ só existe em FASE LEGÍTIMA de integração (P5.T4/P5.T6), nunca fora dela',
+        c60InPhase(C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE),
+        `estado de assets do Colorir 60 fora das três fases válidas: ${C60_REAL.reasons.join(' | ') || C60_REAL.phase}`);
+    }
+    check('C60-P0.T8/FIX1: fase de assets do Colorir 60 é UMA das três válidas (PRE/LIVING_WORLD/COMPLETE)',
+      c60InPhase(C60_ASSET_PHASE.PRE, C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE),
+      `máquina de estados incompleta/violada: ${C60_REAL.reasons.join(' | ') || C60_REAL.phase}`);
+    check('C60-P0.T8/FIX1: activities/light.png PROIBIDO em TODAS as fases (light reusa scene_02.png)',
+      !fs.existsSync(path.join(C60_ACTIVITIES_ABS, C60_FILE_FORBIDDEN)),
+      'a proibição de activities/light.png é permanente e independe da fase');
     // Nenhuma rota/QA do Colorir 60 registrada ainda:
     const navSrc = readSrc('src/navigation/AppNavigator.js');
     check('C60-P0.T8: nenhuma rota/entrada de QA do Colorir 60 registrada (flag off)',
@@ -29667,9 +30058,11 @@ check(
   // ── Colorir 60 · A Criação — P1 (catálogo + registro estático local) ──
   // C60-IMPL-P1 · P1.T1–T5: catálogo semântico SÓ-metadados (3 atividades por `activityId`),
   // registro estático Metro-safe com SÓ `light` ATIVA (reusa scene_02.png por require literal
-  // relativo) e slots `null` honestos para living_world/people_and_care (integração só em P5).
+  // relativo) e slots `null` honestos para living_world/people_and_care até a fase de integração.
   // Provas: catálogo (sem require) via loadModule + nível de DADOS; registro (com require de PNG)
   // por inspeção textual determinística + existência de arquivo + SHA-256 real do PNG reusado.
+  // FIX1: as contagens/estados do registro passam a ser derivados da FASE (PRE/LIVING_WORLD/
+  // COMPLETE) em vez de fixados no estado pré-P5.T4 — sem afrouxar nenhuma exigência.
   {
     const crypto = require('crypto');
     const { loadModule } = require('./testing/packInstallHarness');
@@ -29750,35 +30143,47 @@ check(
     // NÃO avaliável sob loadModule (contém require() de PNG binário). Prova textual determinística.
     const regCode = stripComments(readSrc('src/assets/coloring60LocalAssets.js'));
     const requireMatches = regCode.match(/require\s*\(/g) || [];
-    check('C60-P1.T5: registro tem EXATAMENTE 1 require() ativo (só light)',
-      requireMatches.length === 1,
-      `coloring60LocalAssets.js deve ter exatamente 1 require() ativo em P1 (recebido: ${requireMatches.length})`);
-    check('C60-P1.T5: o único require() é o literal relativo de scene_02.png',
+    // FIX1 (fase-consciente): o NÚMERO de require() ativos é função da fase — 1 em PRE,
+    // 2 em LIVING_WORLD, 3 em COMPLETE. Cada require continua tendo de ser literal,
+    // autorizado, único e coerente com o slot; nada vira aviso.
+    const c60ExpectedRequires = { [C60_ASSET_PHASE.PRE]: 1, [C60_ASSET_PHASE.LIVING_WORLD]: 2, [C60_ASSET_PHASE.COMPLETE]: 3 }[C60_REAL.phase];
+    check('C60-P1.T5/FIX1: registro tem EXATAMENTE o nº de require() ativos da fase (1/2/3)',
+      requireMatches.length === c60ExpectedRequires,
+      `na fase ${C60_REAL.phase}, coloring60LocalAssets.js deve ter ${c60ExpectedRequires} require() ativo(s) (recebido: ${requireMatches.length})`);
+    check('C60-P1.T5: existe o require() literal relativo de scene_02.png (light, invariante)',
       /require\(\s*'\.\.\/\.\.\/assets\/stories\/creation\/coloring\/scene_02\.png'\s*\)/.test(regCode),
-      "o require ativo deve ser exatamente require('../../assets/stories/creation/coloring/scene_02.png')");
-    check('C60-P1.T5: NENHUM require() de living_world/people_and_care/activities em P1',
-      !/require\([^)]*(living_world|people_and_care|activities)/.test(regCode),
-      'nenhum require de living_world/people_and_care/activities pode existir em P1 (integração é P5)');
+      "light deve sempre ser require('../../assets/stories/creation/coloring/scene_02.png')");
+    check('C60-P1.T5/FIX1: require() de living_world/people_and_care APENAS a partir da fase legítima',
+      c60ClassifyRegistry(c60ReadRegistryView(regCode)).phase === C60_REAL.phase,
+      `os require de living_world/people_and_care devem existir exatamente na fase ${C60_REAL.phase} (nem antes, nem fora de ordem)`);
     check('C60-P1.T5: NENHUM require() dinâmico (só literal string)',
       !/require\(\s*[^'")]/.test(regCode),
       'require dinâmico (variável/concatenação/template) é proibido pelo Metro');
     check('C60-P1.T5: registro NÃO importa coloringImages nem reusa getColoringImage',
       !/coloringImages|getColoringImage/.test(regCode),
       'o registro é fonte estática própria — não reusa o mapa legado coloringImages/getColoringImage');
-    check('C60-P1.T5: slots living_world/people_and_care declarados como null honesto',
-      /living_world:\s*null/.test(regCode) && /people_and_care:\s*null/.test(regCode),
-      'living_world e people_and_care devem ser null em P1 (sem fonte runtime até P5)');
+    check('C60-P1.T5/FIX1: slots ainda não integrados permanecem null honesto (por fase)',
+      (C60_REAL.phase === C60_ASSET_PHASE.COMPLETE
+        ? !/living_world:\s*null/.test(regCode) && !/people_and_care:\s*null/.test(regCode)
+        : C60_REAL.phase === C60_ASSET_PHASE.LIVING_WORLD
+          ? !/living_world:\s*null/.test(regCode) && /people_and_care:\s*null/.test(regCode)
+          : /living_world:\s*null/.test(regCode) && /people_and_care:\s*null/.test(regCode)),
+      `os slots ainda não integrados na fase ${C60_REAL.phase} devem ser null (sem fonte runtime), e os integrados NÃO podem ser null`);
 
-    // ── Metro/asset físico: o alvo do require EXISTE; a pasta activities/ ainda NÃO ──
+    // ── Metro/asset físico: o alvo de cada require EXISTE e a pasta segue a fase ──
     check('C60-P1.T5: scene_02.png (alvo do require de light) existe no disco',
       srcExists('assets/stories/creation/coloring/scene_02.png'),
       'o require de light aponta para assets/stories/creation/coloring/scene_02.png, que deve existir');
     check('C60-P1.T5: activities/light.png NÃO existe (light reusa scene_02, não copia)',
       !srcExists('assets/stories/creation/coloring/activities/light.png'),
-      'light reusa scene_02.png diretamente; activities/light.png não deve existir em P1');
-    check('C60-P1.T5: pasta activities/ ainda NÃO existe (PNGs novos só em P5)',
-      !srcExists('assets/stories/creation/coloring/activities'),
-      'a pasta activities/ com os PNGs reais só é criada em P5');
+      'light reusa scene_02.png diretamente; activities/light.png é proibido em TODAS as fases');
+    check('C60-P1.T5/FIX1: pasta activities/ existe EXATAMENTE conforme a fase (ausente em PRE)',
+      (C60_REAL.phase === C60_ASSET_PHASE.PRE) === !srcExists(C60_ACTIVITIES_REL),
+      `na fase ${C60_REAL.phase}, a presença da pasta activities/ está incoerente com a fase`);
+    check('C60-P1.T5/FIX1: todo require() do registro aponta para arquivo REGULAR existente no disco',
+      c60ReadRegistryView(regCode).literals.every((lit) => c60InspectKind(
+        path.resolve(root, 'src/assets', lit)) === C60_PATH_KIND.REGULAR_FILE),
+      'cada require literal do registro deve resolver para um arquivo regular existente (sem symlink, sem diretório, sem ausente)');
 
     // SHA-256 REAL do scene_02.png == hash ratificado de light: prova que `light` reusa o PNG certo.
     const scene02Sha = crypto.createHash('sha256')
@@ -29811,14 +30216,20 @@ check(
     // Registro real (P1.T2) tem require() de PNG → não é carregável por loadModule. Carrego
     // sua LÓGICA real com um require-stub controlado: o único asset (scene_02.png) vira uma
     // sentinela. Assim a árvore de decisão light→fonte / null→ausente é a real.
+    // FIX1 (fase-consciente): o stub passa a conhecer os TRÊS paths autorizados, cada um com
+    // sentinela DISTINTA — sem isso, o require legítimo de P5.T4 faria este bloco LANÇAR
+    // (não apenas falhar). Qualquer path fora da matriz fechada continua lançando.
     const SENT = Object.freeze({ __c60_scene02_sentinel__: true });
+    const SENT_LW = Object.freeze({ __c60_living_world_sentinel__: true });
+    const SENT_PC = Object.freeze({ __c60_people_and_care_sentinel__: true });
+    const C60_STUB_SOURCES = { [C60_REQ_LIGHT]: SENT, [C60_REQ_LIVING_WORLD]: SENT_LW, [C60_REQ_PEOPLE_AND_CARE]: SENT_PC };
     const regSrc = readSrc('src/assets/coloring60LocalAssets.js')
       .replace(/^\s*import[\s\S]*?;\s*$/gm, '')
       .replace(/export\s+default[\s\S]*?;/g, '')
       .replace(/\bexport\s+/g, '');
     const reg = new Function('require', regSrc + '\n; return { getColoring60LocalSource };')(
       (p) => {
-        if (p === '../../assets/stories/creation/coloring/scene_02.png') return SENT;
+        if (Object.prototype.hasOwnProperty.call(C60_STUB_SOURCES, p)) return C60_STUB_SOURCES[p];
         throw new Error('C60-P2 registro: require inesperado ' + p);
       },
     );
@@ -29844,18 +30255,33 @@ check(
       rLight.source === reg.getColoring60LocalSource('creation', 'light'),
       'o resolvedor deve repassar a fonte do registro estático, não fabricar/alterar');
 
+    // FIX1 (fase-consciente): antes da integração, deferred + source null; DEPOIS dela,
+    // available + a fonte PRÓPRIA do asset. Em NENHUMA fase a fonte pode ser a de light
+    // (proibição de fallback silencioso continua absoluta).
+    const c60LwIntegrated = c60InPhase(C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE);
+    const c60PcIntegrated = c60InPhase(C60_ASSET_PHASE.COMPLETE);
     const rLiving = R('creation', 'living_world');
-    check('C60-P2.T1: (creation, living_world) → deferred, metadados, source null (SEM fallback p/ light)',
-      rLiving.status === ST.DEFERRED && rLiving.activity && rLiving.activity.activityId === 'living_world'
-        && rLiving.source === null && rLiving.source !== SENT,
-      `living_world deveria ser deferred com source null (recebido: ${JSON.stringify({ s: rLiving.status, src: rLiving.source })})`);
+    check('C60-P2.T1/FIX1: (creation, living_world) → deferred/source null antes da fase; available/fonte própria depois (NUNCA a de light)',
+      rLiving.activity && rLiving.activity.activityId === 'living_world' && rLiving.source !== SENT
+        && (c60LwIntegrated
+          ? rLiving.status === ST.AVAILABLE && rLiving.source === SENT_LW
+          : rLiving.status === ST.DEFERRED && rLiving.source === null),
+      `na fase ${C60_REAL.phase}, living_world deveria resolver ${c60LwIntegrated ? 'available com fonte própria' : 'deferred com source null'} (recebido: ${JSON.stringify({ s: rLiving.status, hasSrc: rLiving.source != null })})`);
     const rPeople = R('creation', 'people_and_care');
-    check('C60-P2.T1: (creation, people_and_care) → deferred, source null (SEM reusar scene_02)',
-      rPeople.status === ST.DEFERRED && rPeople.source === null && rPeople.source !== SENT,
-      'people_and_care deveria ser deferred com source null, jamais a fonte de light');
-    check('C60-P2.T1: deferred ≠ unknown (distinção honesta preservada)',
-      rLiving.status === ST.DEFERRED && rLiving.status !== ST.UNKNOWN,
-      'atividade conhecida sem fonte é deferred, não unknown');
+    check('C60-P2.T1/FIX1: (creation, people_and_care) → deferred/source null antes da fase; available/fonte própria depois (SEM reusar scene_02)',
+      rPeople.source !== SENT
+        && (c60PcIntegrated
+          ? rPeople.status === ST.AVAILABLE && rPeople.source === SENT_PC
+          : rPeople.status === ST.DEFERRED && rPeople.source === null),
+      `na fase ${C60_REAL.phase}, people_and_care deveria resolver ${c60PcIntegrated ? 'available com fonte própria' : 'deferred com source null'}, jamais a fonte de light`);
+    check('C60-P2.T1/FIX1: cada atividade integrada tem fonte DISTINTA (sem colisão entre slots)',
+      rLight.source !== rLiving.source && rLight.source !== rPeople.source
+        && (rLiving.source === null || rLiving.source !== rPeople.source),
+      'duas atividades jamais podem compartilhar a mesma fonte de lineart');
+    check('C60-P2.T1/FIX1: deferred ≠ unknown preservado (atividade conhecida sem fonte é deferred)',
+      (c60LwIntegrated ? rLiving.status !== ST.UNKNOWN : rLiving.status === ST.DEFERRED)
+        && (c60PcIntegrated ? rPeople.status !== ST.UNKNOWN : rPeople.status === ST.DEFERRED),
+      'atividade conhecida sem fonte é deferred, não unknown — e jamais vira unknown após integrar');
 
     const rUnkAct = R('creation', 'nao_existe');
     check('C60-P2.T1: (creation, activity inexistente) → unknown, sem metadados, sem fonte',
@@ -30336,9 +30762,13 @@ check(
       check('C60-P3: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P3',
         /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
         'P3 não pode ligar a flag do piloto');
-      check('C60-P3→P5: pasta de PNGs activities/ ainda ausente (só em P5)',
-        !srcExists('assets/stories/creation/coloring/activities'),
-        'a conclusão do P4 não antecipa os PNGs de P5');
+      // FIX1: a pasta de PNGs continua proibida ANTES de P5; a partir de P5.T4 ela é
+      // legítima, e a trava passa a exigir que seu conteúdo esteja em fase válida.
+      check('C60-P3→P5/FIX1: pasta de PNGs activities/ ausente antes de P5 e, a partir de P5, em fase válida',
+        C60_REAL.phase === C60_ASSET_PHASE.PRE
+          ? !srcExists(C60_ACTIVITIES_REL)
+          : c60InPhase(C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE),
+        'a conclusão do P4 não antecipa os PNGs de P5; e, após P5, activities/ só pode estar em fase legítima');
     }
   }
 
@@ -30569,10 +30999,14 @@ check(
       check('C60-P3-FIX1 [E14]→P4.T2: writer sem chamador NÃO-autorizado (só ColoringScreen integra)',
         callers.length === 0,
         `apenas o ramo Colorir 60 em ColoringScreen pode consumir o writer (encontrados extras: ${callers.map((f) => path.relative(root, f)).join(', ')})`);
-      check('C60-P3-FIX1 [E15/E16]→P5: pasta activities/ (PNGs P5) ausente e flag do piloto ainda false',
-        !srcExists('assets/stories/creation/coloring/activities')
+      // FIX1: a flag do piloto continua obrigatoriamente false em TODAS as fases; a pasta
+      // activities/ é avaliada pela fase (ausente em PRE, em fase legítima depois de P5.T4).
+      check('C60-P3-FIX1 [E15/E16]→P5/FIX1: pasta activities/ coerente com a fase e flag do piloto ainda false',
+        (C60_REAL.phase === C60_ASSET_PHASE.PRE
+          ? !srcExists(C60_ACTIVITIES_REL)
+          : c60InPhase(C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE))
           && /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
-        'o hardening não antecipa os PNGs de P5 nem liga o piloto');
+        'o hardening não antecipa PNGs fora de fase legítima nem liga o piloto');
     }
   }
 
@@ -31395,9 +31829,10 @@ check(
   // child_process, sem nenhuma operação de escrita), tem matriz FECHADA de 3 assets, o
   // contrato de hashes/dims/modos está correto, `light` é reuso de scene_02.png com
   // `activities/light.png` PROIBIDO, `living_world`/`people_and_care` são cópias externas
-  // para `activities/`, os modos `pre`/`post` existem, e o comportamento é pre-VERDE /
-  // post-VERMELHO ANTES de qualquer cópia (P5.T4/T6/T7 NÃO executados). Rodar o gate não
-  // cria diretório nem PNG. Nenhuma superfície runtime é tocada por este bloco.
+  // para `activities/`, os modos `pre`/`post` existem, e o comportamento de `pre`/`post`
+  // é EXIGIDO PELA FASE de integração (FIX1: pre-VERDE e post-VERMELHO só na fase PRE;
+  // post-VERDE só na fase COMPLETE). Rodar o gate não muda a fase de assets do repositório.
+  // Nenhuma superfície runtime é tocada por este bloco.
   // ══════════════════════════════════════════════════════════════════════════════
   {
     const cp = require('child_process');
@@ -31475,27 +31910,44 @@ check(
     const bad = runVerifier('xyz');
     const none = runVerifier(undefined);
 
-    check('C60-P5-GATE1 [21] --mode=pre VERDE agora (exit 0)',
-      pre.status === 0 && /RESULTADO\(pre\):\s*VERDE/.test(pre.stdout), `pre status=${pre.status}`);
-    check('C60-P5-GATE1 [22] --mode=post VERMELHO antes das cópias (exit≠0)',
-      post.status !== 0 && /RESULTADO\(post\):\s*VERMELHO/.test(post.stdout), `post status=${post.status}`);
+    // FIX1 (fase-consciente): o exit esperado de cada modo é EXIGIDO por fase — não
+    // tolerado. O verificador (congelado neste bloco) assere destino AUSENTE em `pre`;
+    // portanto, após P5.T4, `pre` é VERMELHO POR CONTRATO PRÓPRIO — e um `pre` VERDE na
+    // fase LIVING_WORLD/COMPLETE reprova aqui, exatamente como um `pre` VERMELHO em PRE.
+    const c60PreEval = c60EvaluatePre(pre, C60_REAL.phase);
+    check('C60-P5-GATE1 [21]/FIX1: --mode=pre com resultado e exit EXIGIDOS pela fase (VERDE só em PRE)',
+      c60PreEval.ok, `pre fora do contrato da fase ${C60_REAL.phase}: ${c60PreEval.failures.join(' | ')}`);
+    const c60PostEval = c60EvaluatePost(post, C60_REAL.phase);
+    check('C60-P5-GATE1 [22]/FIX1: --mode=post com resultado e exit EXIGIDOS pela fase (VERDE só em COMPLETE)',
+      c60PostEval.ok, `post fora do contrato da fase ${C60_REAL.phase}: ${c60PostEval.failures.join(' | ')}`);
     check('C60-P5-GATE1 [23] modo inválido → exit≠0', bad.status !== 0 && bad.status != null, `xyz status=${bad.status}`);
     check('C60-P5-GATE1 [24] sem modo → exit≠0', none.status !== 0 && none.status != null, `none status=${none.status}`);
 
     check('C60-P5-GATE1 [25] pre valida as 3 fontes íntegras (integ=ok ≥ 3)',
       (pre.stdout.match(/integ=ok/g) || []).length >= 3, 'pre não confirma 3 integridades');
-    check('C60-P5-GATE1 [26] post: light OK, lw+pc DIVERGENTE (destino ausente, sem fallback)',
-      /\[OK\] light/.test(post.stdout) && /\[DIVERGENTE\] living_world/.test(post.stdout) && /\[DIVERGENTE\] people_and_care/.test(post.stdout),
-      'post não distingue reuse de cópias ausentes');
+    // FIX1: o conjunto [OK]/[DIVERGENTE] de `post` é fechado POR FASE (PRE: só light OK;
+    // LIVING_WORLD: light+living_world; COMPLETE: os três) — conjunto errado é falha dura.
+    const c60ExpPost = c60ExpectedPost(C60_REAL.phase) || { ok: [], divergent: [], destAbsent: -1 };
+    check('C60-P5-GATE1 [26]/FIX1: post distingue reuse de cópias com o conjunto [OK]/[DIVERGENTE] EXATO da fase',
+      c60ExpPost.ok.every((id) => new RegExp(`\\[OK\\] ${id}`).test(post.stdout))
+        && c60ExpPost.divergent.every((id) => new RegExp(`\\[DIVERGENTE\\] ${id}`).test(post.stdout))
+        && (post.stdout.match(/^\[OK\]/gm) || []).length === c60ExpPost.ok.length
+        && (post.stdout.match(/^\[DIVERGENTE\]/gm) || []).length === c60ExpPost.divergent.length,
+      `na fase ${C60_REAL.phase}, post deveria ter [OK]=[${c60ExpPost.ok.join(',')}] e [DIVERGENTE]=[${c60ExpPost.divergent.join(',')}]`);
+    check('C60-P5-GATE1 [26b]/FIX1: nº de "destino: AUSENTE" em post é EXATAMENTE o da fase (2/1/0)',
+      (post.stdout.match(/destino:\s*AUSENTE/g) || []).length === c60ExpPost.destAbsent,
+      `na fase ${C60_REAL.phase} esperava ${c60ExpPost.destAbsent} destinos ausentes (recebido: ${(post.stdout.match(/destino:\s*AUSENTE/g) || []).length})`);
 
-    // ── Sem efeito colateral / P5.T4/T6/T7 NÃO executados ──
-    check('C60-P5-GATE1 [27] rodar o gate não cria activities/',
-      !fs.existsSync(activitiesDir), 'diretório activities existe (não deveria)');
-    check('C60-P5-GATE1 [28] P5.T4/T6/T7 não executados: nenhum PNG de destino integrado',
-      !fs.existsSync(path.join(activitiesDir, 'living_world.png')) &&
-      !fs.existsSync(path.join(activitiesDir, 'people_and_care.png')) &&
-      !fs.existsSync(path.join(activitiesDir, 'light.png')),
-      'algum PNG de destino já existe');
+    // ── Sem efeito colateral: rodar o gate NÃO altera o estado de assets do repositório ──
+    const c60PhaseAfterRuns = c60ClassifyAssetPhase(c60ReadPhysicalView(C60_ACTIVITIES_ABS), readSrc(C60_REGISTRY_REL)).phase;
+    check('C60-P5-GATE1 [27]/FIX1: rodar o gate NÃO muda a fase de assets (nenhum efeito colateral)',
+      c60PhaseAfterRuns === C60_REAL.phase,
+      `a fase mudou durante a execução do gate (${C60_REAL.phase} → ${c60PhaseAfterRuns})`);
+    check('C60-P5-GATE1 [28]/FIX1: PNGs de destino existem EXATAMENTE conforme a fase; light.png nunca',
+      fs.existsSync(path.join(activitiesDir, 'living_world.png')) === c60InPhase(C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE)
+      && fs.existsSync(path.join(activitiesDir, 'people_and_care.png')) === c60InPhase(C60_ASSET_PHASE.COMPLETE)
+      && !fs.existsSync(path.join(activitiesDir, 'light.png')),
+      `na fase ${C60_REAL.phase}, o conjunto de PNGs de destino está incoerente (ou activities/light.png existe)`);
 
     // ══════════════════════════════════════════════════════════════════════════
     // C60-IMPL-P5-GATE1-FIX1 — endurecimento da SEMÂNTICA DE EXISTÊNCIA (ausente ≠
@@ -31618,22 +32070,281 @@ check(
       pre.stdout === pre2.stdout && pre.status === pre2.status, 'saída não determinística');
 
     // 20-23: gate real permanece verde/vermelho e sem efeito colateral após o endurecimento.
-    check('C60-P5-GATE1 [50] pre real continua VERDE com bd=8/bdOk em todas as fontes',
-      pre.status === 0 && (pre.stdout.match(/bdOk=ok/g) || []).length >= 3 && /RESULTADO\(pre\):\s*VERDE/.test(pre.stdout),
-      'pre não confirma bit depth das 3 fontes');
-    check('C60-P5-GATE1 [51] post real continua VERMELHO só pelos 2 destinos ausentes',
-      post.status !== 0 && (post.stdout.match(/destino:\s*AUSENTE/g) || []).length === 2 &&
-      /\[OK\] light/.test(post.stdout) && /activities\/light\.png:\s*AUSENTE/.test(post.stdout),
-      'post não isola a causa nos 2 destinos ausentes');
-    check('C60-P5-GATE1 [52] endurecimento não criou activities/ nem PNG de destino',
-      !fs.existsSync(activitiesDir) &&
-      !fs.existsSync(path.join(activitiesDir, 'living_world.png')) &&
-      !fs.existsSync(path.join(activitiesDir, 'people_and_care.png')) &&
-      !fs.existsSync(path.join(activitiesDir, 'light.png')), 'efeito colateral no repo');
+    // FIX1: a perícia de bit depth das 3 FONTES é invariante de fase; só o RESULTADO do
+    // modo pre é que depende da fase (contrato próprio do verificador, ver [21]/FIX1).
+    check('C60-P5-GATE1 [50]/FIX1: pre real confirma bd=8/bdOk nas 3 fontes e RESULTADO exigido pela fase',
+      (pre.stdout.match(/bdOk=ok/g) || []).length >= 3
+      && new RegExp(`RESULTADO\\(pre\\):\\s*${(c60ExpectedPre(C60_REAL.phase) || {}).resultado}`).test(pre.stdout),
+      'pre não confirma bit depth das 3 fontes ou o RESULTADO diverge do contrato da fase');
+    check('C60-P5-GATE1 [51]/FIX1: post real isola a causa EXATAMENTE nos destinos ausentes da fase',
+      (post.stdout.match(/destino:\s*AUSENTE/g) || []).length === c60ExpPost.destAbsent
+      && (post.status === 0 ? 0 : 1) === c60ExpPost.status
+      && /\[OK\] light/.test(post.stdout) && /activities\/light\.png:\s*AUSENTE/.test(post.stdout),
+      `post não isola a causa nos ${c60ExpPost.destAbsent} destinos ausentes esperados na fase ${C60_REAL.phase}`);
+    check('C60-P5-GATE1 [52]/FIX1: endurecimento (fixtures em tmpdir) não alterou a fase de assets do repo',
+      c60ClassifyAssetPhase(c60ReadPhysicalView(C60_ACTIVITIES_ABS), readSrc(C60_REGISTRY_REL)).phase === C60_REAL.phase
+      && !fs.existsSync(path.join(activitiesDir, 'light.png')), 'efeito colateral no repo');
     check('C60-P5-GATE1 [53] cópia post exige ARQUIVO REGULAR dos dois lados (sem symlink/fallback)',
       /dest\.isRegularFile\s*&&\s*source\.isRegularFile/.test(vSrc) &&
       /if\s*\(!isRegularFile\(pathA\)\s*\|\|\s*!isRegularFile\(pathB\)\)\s*return false/.test(vSrc),
       'gate de cópia post aceita não-arquivo');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // C60-IMPL-P5-ASSET-PHASE-SMOKE-FIX1 — PROVAS da máquina de estados fechada
+  //
+  // Três fases POSITIVAS (PRE, LIVING_WORLD, COMPLETE) e VINTE controles NEGATIVOS,
+  // todos provados por FUNÇÕES PURAS sobre visões em memória — nenhum PNG é criado,
+  // copiado ou movido; nada é escrito em assets/; nada sai para a rede; nenhuma
+  // dependência nova. Estados inválidos são FALHA DURA, jamais aviso.
+  // ══════════════════════════════════════════════════════════════════════════════
+  {
+    const os = require('os');
+    const cp = require('child_process');
+    const runV = (mode) => {
+      const r = cp.spawnSync(process.execPath, [path.join(root, C60_VERIFIER_REL), `--mode=${mode}`], { encoding: 'utf8' });
+      return { status: r.status, stdout: r.stdout || '' };
+    };
+    const pre = runV('pre');
+    const post = runV('post');
+    const F = C60_PATH_KIND.REGULAR_FILE;
+    // Visões FÍSICAS sintéticas (o que `lstat` veria em cada cenário).
+    const vAbsent = { activitiesKind: C60_PATH_KIND.ABSENT, entries: [] };
+    const vEmpty = { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [] };
+    const vLw = { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: C60_FILE_LIVING_WORLD, kind: F }] };
+    const vPcOnly = { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: C60_FILE_PEOPLE_AND_CARE, kind: F }] };
+    const vBoth = { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: C60_FILE_LIVING_WORLD, kind: F }, { name: C60_FILE_PEOPLE_AND_CARE, kind: F }] };
+
+    // Registros sintéticos derivados do ARQUIVO REAL (nunca de uma cópia divergente):
+    // a única transformação é ligar/desligar os slots, como P5.T4/P5.T6 fariam.
+    const regReal = readSrc(C60_REGISTRY_REL);
+    const wire = (src, slot, req) => src
+      .replace(new RegExp(`${slot}:\\s*null`), `${slot}: C60_${slot.toUpperCase()}_SOURCE`)
+      .replace(/^const CREATION_LIGHT_SOURCE/m, `const C60_${slot.toUpperCase()}_SOURCE = require('${req}');\nconst CREATION_LIGHT_SOURCE`);
+    const regPre = regReal;
+    const regLw = wire(regReal, 'living_world', C60_REQ_LIVING_WORLD);
+    const regBoth = wire(regLw, 'people_and_care', C60_REQ_PEOPLE_AND_CARE);
+    const phaseOf = (view, reg) => c60ClassifyAssetPhase(view, reg).phase;
+
+    // ── Âncoras de fidelidade das fixtures (sem elas, os sintéticos não provam nada) ──
+    check('C60-PHASE-FIX1 [anc1]: PATH_KIND do smoke é IDÊNTICO ao PATH_KIND do verificador real',
+      !!C60_V && JSON.stringify(C60_V.PATH_KIND) === JSON.stringify({
+        ABSENT: 'absent', REGULAR_FILE: 'regular_file', DIRECTORY: 'directory',
+        SYMLINK: 'symlink', OTHER: 'other', INSPECTION_ERROR: 'inspection_error',
+      }), 'a taxonomia de tipos de caminho divergiu do verificador real');
+    check('C60-PHASE-FIX1 [anc2]: registros sintéticos LIVING_WORLD/COMPLETE são transformações reais (não texto inventado)',
+      regLw !== regPre && regBoth !== regLw && regLw.includes(C60_REQ_LIVING_WORLD) && regBoth.includes(C60_REQ_PEOPLE_AND_CARE)
+        && regLw.includes(C60_REQ_LIGHT) && regBoth.includes(C60_REQ_LIGHT),
+      'as fixtures de registro devem derivar do arquivo real por ligação de slot');
+    const c60RealPost = c60RenderVerifierRun('post', C60_ASSET_PHASE.PRE);
+    const c60RealPre = c60RenderVerifierRun('pre', C60_ASSET_PHASE.PRE);
+    check('C60-PHASE-FIX1 [anc3]: renderizador sintético é FIEL à saída real do verificador (post, fase PRE)',
+      !!c60RealPost && c60RealPost.stdout.split('\n').slice(2).join('\n') === post.stdout.split('\n').slice(2).join('\n')
+        && c60RealPost.status === (post.status === 0 ? 0 : 1),
+      'a saída sintética divergiu da saída real do subprocesso em post/PRE');
+    check('C60-PHASE-FIX1 [anc4]: renderizador sintético é FIEL à saída real do verificador (pre, fase PRE)',
+      !!c60RealPre && c60RealPre.stdout.split('\n').slice(2).join('\n') === pre.stdout.split('\n').slice(2).join('\n')
+        && c60RealPre.status === (pre.status === 0 ? 0 : 1),
+      'a saída sintética divergiu da saída real do subprocesso em pre/PRE');
+
+    // ── ETAPA 3 · as TRÊS fases positivas (e só elas) ──
+    check('C60-PHASE-FIX1 [P1]: activities/ ausente + registro (null,null) → C60_ASSET_PHASE_PRE',
+      phaseOf(vAbsent, regPre) === C60_ASSET_PHASE.PRE, 'estado pré-P5.T4 não classificou como PRE');
+    check('C60-PHASE-FIX1 [P2]: só living_world.png + slot living_world ligado → C60_ASSET_PHASE_LIVING_WORLD',
+      phaseOf(vLw, regLw) === C60_ASSET_PHASE.LIVING_WORLD, 'estado pós-P5.T4 não classificou como LIVING_WORLD');
+    check('C60-PHASE-FIX1 [P3]: os dois PNGs + os dois slots ligados → C60_ASSET_PHASE_COMPLETE',
+      phaseOf(vBoth, regBoth) === C60_ASSET_PHASE.COMPLETE, 'estado pós-P5.T6 não classificou como COMPLETE');
+    check('C60-PHASE-FIX1 [P4]: a máquina é FECHADA — exatamente três fases válidas, nada além',
+      new Set([phaseOf(vAbsent, regPre), phaseOf(vLw, regLw), phaseOf(vBoth, regBoth)]).size === 3
+        && Object.keys(C60_ASSET_PHASE).length === 4 && C60_ASSET_PHASE.INVALID === 'C60_ASSET_PHASE_INVALID',
+      'a máquina de estados deve ter exatamente 3 fases válidas + INVALID');
+
+    // ── ETAPA 4 · vinte controles negativos, todos FALHA DURA (INVALID) ──
+    const N = (i, label, view, reg) => check(`C60-PHASE-FIX1 [N${i}]: ${label} → INVALID (falha dura)`,
+      phaseOf(view, reg) === C60_ASSET_PHASE.INVALID, `este estado deveria ser inválido, não tolerado (recebido: ${phaseOf(view, reg)})`);
+    N(1, 'activities/ existe e está VAZIA', vEmpty, regPre);
+    N(2, 'activities/ existe SEM living_world.png (só people_and_care)', vPcOnly, regBoth);
+    N(3, 'só people_and_care integrado no registro (ordem invertida)', vPcOnly, wire(regReal, 'people_and_care', C60_REQ_PEOPLE_AND_CARE));
+    N(4, 'PNG living_world no disco mas registro ainda null', vLw, regPre);
+    N(5, 'registro aponta living_world mas o PNG não existe', vAbsent, regLw);
+    N(6, 'os dois PNGs no disco mas registro só com living_world', vBoth, regLw);
+    N(7, 'registro com os dois slots mas só um PNG no disco', vLw, regBoth);
+    N(8, 'activities/light.png presente (proibição permanente)',
+      { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: C60_FILE_LIVING_WORLD, kind: F }, { name: C60_FILE_FORBIDDEN, kind: F }] }, regLw);
+    N(9, 'terceiro arquivo inesperado em activities/',
+      { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: C60_FILE_LIVING_WORLD, kind: F }, { name: C60_FILE_PEOPLE_AND_CARE, kind: F }, { name: 'extra.png', kind: F }] }, regBoth);
+    N(10, 'subdiretório inesperado dentro de activities/',
+      { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: C60_FILE_LIVING_WORLD, kind: F }, { name: 'nested', kind: C60_PATH_KIND.DIRECTORY }] }, regLw);
+    N(11, 'nome inesperado (oculto/extensão estranha) em activities/',
+      { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: '.DS_Store', kind: F }, { name: C60_FILE_LIVING_WORLD, kind: F }] }, regLw);
+    N(12, 'symlink no lugar do PNG (lstat não segue link)',
+      { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: C60_FILE_LIVING_WORLD, kind: C60_PATH_KIND.SYMLINK }] }, regLw);
+    N(13, 'diretório no lugar do PNG',
+      { activitiesKind: C60_PATH_KIND.DIRECTORY, entries: [{ name: C60_FILE_LIVING_WORLD, kind: C60_PATH_KIND.DIRECTORY }] }, regLw);
+    N(14, 'activities/ é um symlink em vez de diretório', { activitiesKind: C60_PATH_KIND.SYMLINK, entries: [] }, regPre);
+    N(15, 'people_and_care antes de living_world no registro (ordem obrigatória violada)',
+      vBoth, wire(regReal, 'people_and_care', C60_REQ_PEOPLE_AND_CARE));
+    N(16, 'require dinâmico no registro', vLw, regLw.replace(`require('${C60_REQ_LIVING_WORLD}')`, 'require(LW_PATH)'));
+    N(17, 'require duplicado do mesmo asset', vLw, regLw.replace(`const CREATION_LIGHT_SOURCE`, `const C60_DUP = require('${C60_REQ_LIVING_WORLD}');\nconst CREATION_LIGHT_SOURCE`));
+    N(18, 'require de path não autorizado', vLw, regLw.replace(C60_REQ_LIVING_WORLD, '../../assets/stories/creation/coloring/activities/outro.png'));
+    N(19, 'registro referencia activities/light.png (proibido)', vLw, regLw.replace(C60_REQ_LIGHT, '../../assets/stories/creation/coloring/activities/light.png'));
+    N(20, 'light deixa de apontar para scene_02.png', vLw, regLw.replace(C60_REQ_LIGHT, '../../assets/stories/creation/coloring/scene_03.png'));
+
+    // ── ETAPA 5 · `--mode=post` avaliado nas 15 dimensões, nas TRÊS fases ──
+    for (const ph of [C60_ASSET_PHASE.PRE, C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE]) {
+      const run = c60RenderVerifierRun('post', ph);
+      const ev = run ? c60EvaluatePost(run, ph) : { ok: false, failures: ['verificador indisponível'] };
+      check(`C60-PHASE-FIX1 [post/${ph}]: post satisfaz as 15 dimensões do contrato da fase`,
+        ev.ok, `post divergente em ${ph}: ${ev.failures.join(' | ')}`);
+    }
+    // Negativos de post: verde na fase errada e vermelho na fase certa são falhas duras.
+    check('C60-PHASE-FIX1 [N21]: post VERDE na fase PRE → reprovado (não basta o exit code)',
+      !c60EvaluatePost({ status: 0, stdout: c60RenderVerifierRun('post', C60_ASSET_PHASE.COMPLETE).stdout }, C60_ASSET_PHASE.PRE).ok,
+      'um post verde na fase PRE jamais pode passar');
+    check('C60-PHASE-FIX1 [N22]: post VERDE na fase LIVING_WORLD → reprovado',
+      !c60EvaluatePost({ status: 0, stdout: c60RenderVerifierRun('post', C60_ASSET_PHASE.COMPLETE).stdout }, C60_ASSET_PHASE.LIVING_WORLD).ok,
+      'um post verde na fase LIVING_WORLD jamais pode passar');
+    check('C60-PHASE-FIX1 [N23]: post VERMELHO na fase COMPLETE → reprovado',
+      !c60EvaluatePost({ status: 1, stdout: c60RenderVerifierRun('post', C60_ASSET_PHASE.LIVING_WORLD).stdout }, C60_ASSET_PHASE.COMPLETE).ok,
+      'na fase COMPLETE o post tem de ser VERDE');
+    check('C60-PHASE-FIX1 [N24]: nº errado de "destino: AUSENTE" → reprovado, mesmo com exit correto',
+      !c60EvaluatePost({ status: 1, stdout: c60RenderVerifierRun('post', C60_ASSET_PHASE.PRE).stdout }, C60_ASSET_PHASE.LIVING_WORLD).ok,
+      'a contagem de destinos ausentes é exigida por fase');
+    check('C60-PHASE-FIX1 [N25]: conjunto [OK] errado → reprovado (sha/dims/integridade não compensam)',
+      !c60EvaluatePost({ status: 1, stdout: c60RenderVerifierRun('post', C60_ASSET_PHASE.PRE).stdout.replace('[DIVERGENTE] living_world', '[OK] living_world') }, C60_ASSET_PHASE.PRE).ok,
+      'o conjunto [OK] é fechado por fase');
+    check('C60-PHASE-FIX1 [N26]: sha fora do contrato → reprovado mesmo com veredictos corretos',
+      !c60EvaluatePost({ status: 0, stdout: c60RenderVerifierRun('post', C60_ASSET_PHASE.COMPLETE).stdout.replace(C60_CONTRACT_SHA.living_world, 'f'.repeat(64)) }, C60_ASSET_PHASE.COMPLETE).ok,
+      'sha divergente do contrato ratificado é falha dura');
+    check('C60-PHASE-FIX1 [N27]: dims/bit depth/color type divergentes → reprovados',
+      !c60EvaluatePost({ status: 0, stdout: c60RenderVerifierRun('post', C60_ASSET_PHASE.COMPLETE).stdout.replace('dims=1122x1402', 'dims=800x600') }, C60_ASSET_PHASE.COMPLETE).ok
+      && !c60EvaluatePost({ status: 0, stdout: c60RenderVerifierRun('post', C60_ASSET_PHASE.COMPLETE).stdout.replace('bd=8', 'bd=16') }, C60_ASSET_PHASE.COMPLETE).ok
+      && !c60EvaluatePost({ status: 0, stdout: c60RenderVerifierRun('post', C60_ASSET_PHASE.COMPLETE).stdout.replace('ct=2', 'ct=6') }, C60_ASSET_PHASE.COMPLETE).ok,
+      'perícia PNG divergente é falha dura em qualquer fase');
+    check('C60-PHASE-FIX1 [N28]: activities/light.png PROIBIDO na saída → reprovado em qualquer fase',
+      !c60EvaluatePost({ status: 0, stdout: c60RenderVerifierRun('post', C60_ASSET_PHASE.COMPLETE).stdout.replace('activities/light.png: AUSENTE (correto)', 'activities/light.png: PRESENTE (PROIBIDO!)') }, C60_ASSET_PHASE.COMPLETE).ok,
+      'a presença de activities/light.png invalida o gate em qualquer fase');
+
+    // ── ETAPA 6 · `--mode=pre` continua provando o mesmo, sem relaxamento ──
+    // NOTA DE RISCO RESIDUAL (RR2): o verificador está CONGELADO neste bloco e assere
+    // `destino: AUSENTE` em `pre`; logo, o exit de `pre` é VERMELHO após P5.T4 por
+    // contrato PRÓPRIO do gate. Aqui o exit é EXIGIDO por fase (não tolerado) e as cinco
+    // provas substantivas do `pre` permanecem obrigatórias nas TRÊS fases.
+    for (const ph of [C60_ASSET_PHASE.PRE, C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE]) {
+      const run = c60RenderVerifierRun('pre', ph);
+      const ev = run ? c60EvaluatePre(run, ph) : { ok: false, failures: ['verificador indisponível'] };
+      check(`C60-PHASE-FIX1 [pre/${ph}]: pre mantém matriz fechada, light íntegro, light.png ausente e 2 fontes íntegras`,
+        ev.ok, `pre divergente em ${ph}: ${ev.failures.join(' | ')}`);
+    }
+    check('C60-PHASE-FIX1 [pre-neg]: pre VERDE fora da fase PRE → reprovado (gate pre não é relaxado)',
+      !c60EvaluatePre({ status: 0, stdout: c60RenderVerifierRun('pre', C60_ASSET_PHASE.PRE).stdout }, C60_ASSET_PHASE.LIVING_WORLD).ok
+      && !c60EvaluatePre({ status: 0, stdout: c60RenderVerifierRun('pre', C60_ASSET_PHASE.PRE).stdout }, C60_ASSET_PHASE.COMPLETE).ok
+      && !c60EvaluatePre({ status: 1, stdout: c60RenderVerifierRun('pre', C60_ASSET_PHASE.LIVING_WORLD).stdout }, C60_ASSET_PHASE.PRE).ok,
+      'o resultado de pre é exigido por fase, nos dois sentidos');
+
+    // ── ETAPA 7 · inventário fechado por lstat, sem filtro e sem seguir link ──
+    check('C60-PHASE-FIX1 [inv1]: o inventário NÃO filtra ocultos nem extensões inesperadas',
+      c60ReadPhysicalView(path.join(os.tmpdir(), 'ptf_c60_inexistente_' + 'x'.repeat(8))).activitiesKind === C60_PATH_KIND.ABSENT
+      && (function () {
+        const dir = path.join(os.tmpdir(), 'ptf_c60_phase_inv');
+        try {
+          fs.rmSync(dir, { recursive: true, force: true });
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(path.join(dir, '.oculto'), 'x');
+          fs.writeFileSync(path.join(dir, 'z.txt'), 'x');
+          fs.writeFileSync(path.join(dir, C60_FILE_LIVING_WORLD), 'x');
+          fs.mkdirSync(path.join(dir, 'sub'));
+          const v = c60ReadPhysicalView(dir);
+          return v.entries.length === 4
+            && v.entries.map((e) => e.name).join(',') === ['.oculto', 'sub', C60_FILE_LIVING_WORLD, 'z.txt'].sort().join(',')
+            && v.entries.filter((e) => e.kind === C60_PATH_KIND.DIRECTORY).length === 1
+            && c60ClassifyPhysical(v).phase === C60_ASSET_PHASE.INVALID;
+        } finally { try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* nada a fazer */ } }
+      })(),
+      'o inventário deve enxergar TODAS as entradas (ocultas, extensões estranhas, subdiretórios) e reprovar');
+    check('C60-PHASE-FIX1 [inv2]: fixtures do inventário não deixam resíduo em os.tmpdir()',
+      !fs.existsSync(path.join(os.tmpdir(), 'ptf_c60_phase_inv')), 'resíduo de fixture encontrado');
+
+    // ── ETAPA 8 · nove confirmações fechadas sobre o registro estático real ──
+    const rv = c60ReadRegistryView(regReal);
+    check('C60-PHASE-FIX1 [reg1]: registro real tem require literal de scene_02.png (light)', rv.literals.filter((l) => l === C60_REQ_LIGHT).length === 1, 'light ausente/duplicado');
+    check('C60-PHASE-FIX1 [reg2]: registro real não tem require dinâmico', rv.hasDynamicRequire === false, 'require dinâmico detectado');
+    check('C60-PHASE-FIX1 [reg3]: registro real não referencia activities/light.png', rv.mentionsForbidden === false, 'referência proibida detectada');
+    check('C60-PHASE-FIX1 [reg4]: registro real não reusa coloringImages/getColoringImage', rv.mentionsLegacy === false, 'reuso do mapa legado detectado');
+    check('C60-PHASE-FIX1 [reg5]: todo literal do registro real pertence à matriz fechada de 3',
+      rv.literals.every((l) => [C60_REQ_LIGHT, C60_REQ_LIVING_WORLD, C60_REQ_PEOPLE_AND_CARE].indexOf(l) !== -1), 'literal fora da matriz');
+    check('C60-PHASE-FIX1 [reg6]: nenhum literal do registro real aparece duplicado',
+      new Set(rv.literals).size === rv.literals.length, 'literal duplicado');
+    check('C60-PHASE-FIX1 [reg7]: fase do registro real é uma das três válidas',
+      c60ClassifyRegistry(rv).phase !== C60_ASSET_PHASE.INVALID, `registro real inválido: ${c60ClassifyRegistry(rv).reasons.join(' | ')}`);
+    check('C60-PHASE-FIX1 [reg8]: fase do registro real CONCORDA com a fase física do disco',
+      c60ClassifyRegistry(rv).phase === c60ClassifyPhysical(C60_REAL_VIEW).phase,
+      `registro(${c60ClassifyRegistry(rv).phase}) × físico(${c60ClassifyPhysical(C60_REAL_VIEW).phase})`);
+    check('C60-PHASE-FIX1 [reg9]: este bloco NÃO alterou coloring60LocalAssets.js (byte-idêntico ao lido no início)',
+      readSrc(C60_REGISTRY_REL) === regReal, 'o registro estático foi modificado durante o smoke');
+
+    // ── ETAPA 5/6 (reforço) · o VERIFICADOR REAL executado nas três fases ──
+    // As fases LIVING_WORLD/COMPLETE não existem neste repositório, e criá-las aqui é
+    // PROIBIDO. Para não depender só do renderizador sintético, monto um REPO-SCRATCH
+    // descartável em os.tmpdir() (verificador + scene_02.png + os PNGs de destino nas
+    // fases que os têm) e rodo o BINÁRIO REAL contra ele. Nada é escrito no repositório;
+    // o scratch é removido no `finally`. É aqui que fica provado, empiricamente, que
+    // `--mode=post` fica VERDE em COMPLETE e que `--mode=pre` fica VERMELHO após P5.T4.
+    const scratchRoot = path.join(os.tmpdir(), 'ptf_c60_phase_repo');
+    try {
+      const srcOf = (id) => (C60_V.ASSETS.filter((a) => a.assetId === id)[0] || {}).sourcePath;
+      const buildScratch = (phase) => {
+        fs.rmSync(scratchRoot, { recursive: true, force: true });
+        fs.mkdirSync(path.join(scratchRoot, 'scripts'), { recursive: true });
+        const coloring = path.join(scratchRoot, 'assets', 'stories', 'creation', 'coloring');
+        fs.mkdirSync(coloring, { recursive: true });
+        fs.copyFileSync(path.join(root, C60_VERIFIER_REL), path.join(scratchRoot, C60_VERIFIER_REL));
+        fs.copyFileSync(path.join(root, 'assets/stories/creation/coloring/scene_02.png'), path.join(coloring, 'scene_02.png'));
+        if (phase !== C60_ASSET_PHASE.PRE) {
+          fs.mkdirSync(path.join(coloring, 'activities'), { recursive: true });
+          fs.copyFileSync(srcOf('living_world'), path.join(coloring, 'activities', C60_FILE_LIVING_WORLD));
+        }
+        if (phase === C60_ASSET_PHASE.COMPLETE) {
+          fs.copyFileSync(srcOf('people_and_care'), path.join(coloring, 'activities', C60_FILE_PEOPLE_AND_CARE));
+        }
+        return scratchRoot;
+      };
+      const runScratch = (phase, mode) => {
+        const r = cp.spawnSync(process.execPath, [path.join(buildScratch(phase), C60_VERIFIER_REL), `--mode=${mode}`], { encoding: 'utf8' });
+        return { status: r.status, stdout: r.stdout || '' };
+      };
+      for (const ph of [C60_ASSET_PHASE.PRE, C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE]) {
+        const evPost = c60EvaluatePost(runScratch(ph, 'post'), ph);
+        check(`C60-PHASE-FIX1 [real-post/${ph}]: VERIFICADOR REAL em post satisfaz as 15 dimensões da fase`,
+          evPost.ok, `post real divergente em ${ph}: ${evPost.failures.join(' | ')}`);
+        const evPre = c60EvaluatePre(runScratch(ph, 'pre'), ph);
+        check(`C60-PHASE-FIX1 [real-pre/${ph}]: VERIFICADOR REAL em pre mantém as cinco provas substantivas da fase`,
+          evPre.ok, `pre real divergente em ${ph}: ${evPre.failures.join(' | ')}`);
+      }
+      // Fidelidade do renderizador sintético contra o binário real, agora nas TRÊS fases.
+      for (const ph of [C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE]) {
+        for (const mode of ['pre', 'post']) {
+          const real = runScratch(ph, mode);
+          const synth = c60RenderVerifierRun(mode, ph);
+          check(`C60-PHASE-FIX1 [anc-real/${mode}/${ph}]: renderizador sintético é byte-idêntico ao binário real`,
+            !!synth && synth.stdout === real.stdout && synth.status === (real.status === 0 ? 0 : 1),
+            `divergência entre saída sintética e real em ${mode}/${ph}`);
+        }
+      }
+      // RR2 documentada e PROVADA: o gate `pre` fica VERMELHO após P5.T4 por contrato próprio.
+      check('C60-PHASE-FIX1 [rr2]: `--mode=pre` fica VERMELHO após integrar destinos (contrato próprio do verificador, não relaxamento)',
+        runScratch(C60_ASSET_PHASE.LIVING_WORLD, 'pre').status !== 0
+        && runScratch(C60_ASSET_PHASE.COMPLETE, 'pre').status !== 0
+        && runScratch(C60_ASSET_PHASE.COMPLETE, 'post').status === 0,
+        'o contrato de exit por fase do verificador congelado não se confirmou');
+    } finally {
+      try { fs.rmSync(scratchRoot, { recursive: true, force: true }); } catch { /* nada a fazer */ }
+    }
+    check('C60-PHASE-FIX1 [scratch-limpo]: repo-scratch removido; nenhum resíduo em os.tmpdir()',
+      !fs.existsSync(scratchRoot), 'o repo-scratch não foi removido');
+    check('C60-PHASE-FIX1 [scratch-inerte]: o repo-scratch NÃO alterou a fase de assets do repositório real',
+      c60ClassifyAssetPhase(c60ReadPhysicalView(C60_ACTIVITIES_ABS), readSrc(C60_REGISTRY_REL)).phase === C60_REAL.phase
+      && !fs.existsSync(path.join(C60_ACTIVITIES_ABS, C60_FILE_FORBIDDEN)), 'o repositório real foi tocado pelas fixtures');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
