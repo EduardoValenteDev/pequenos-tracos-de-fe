@@ -22,6 +22,7 @@ import { resolveRemoteColoringUri, resolveRemoteAudioSource } from '../hooks/use
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
 import { markStoryBookOpened } from '../services/postStoryStorage';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
+import { isCreationColoringPilotActive } from '../services/coloring60Pilot';
 import { useProgressContext } from '../context/ProgressContext';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
@@ -932,6 +933,14 @@ export default function StoryBookScreen({ route, navigation }) {
     // LIVRINHO_UX_1 — modo colorido só abre com a aventura 100% pintada; CTA leva à 1ª cena pendente.
     const firstUncoloredIndex = story.cenas.findIndex(c => !hasMeaningfulPaint(drawings[c.id]));
     const coloredComplete = totalScenes > 0 && childArtCount === totalScenes;
+    // [C60-P12-LEGACY] Quando o piloto "Colorir com o Beni" está ATIVO para esta história (A Criação),
+    // o Colorir por CENA (rota legada) não é o caminho de colorir desta história — o piloto usa as
+    // TRÊS atividades semânticas (Luz · Vida · Cuidado), acessadas pela jornada da história, não pelo
+    // índice de cena. Então o botão "Pintar próxima cena" (que levaria à cena legada) é OCULTADO aqui,
+    // pela MESMA porta canônica compartilhada (isCreationColoringPilotActive). As demais histórias
+    // seguem com o botão intacto; com o piloto DESLIGADO, o comportamento base volta idêntico. Nenhuma
+    // rota ou chave de storage é removida — só esta ação deixa de aparecer no piloto.
+    const pilotColoringActive = isCreationColoringPilotActive(story.id);
     // Prévia do modo "História ilustrada" — ilustração oficial da 1ª cena (ou capa).
     // F2.1i: via resolveSceneImageForStory (gated a david_goliath; fallback local IDÊNTICO
     // com índice vazio; file:// só com pack ready no sandbox). Reusa scenePackEntry (valor)
@@ -1054,13 +1063,17 @@ export default function StoryBookScreen({ route, navigation }) {
                 Você já pintou {childArtCount} de {totalScenes} cenas. Pinte todas para abrir um livrinho só com as suas pinturas.
               </Text>
               <Text style={styles.blockedProgress}>{childArtCount}/{totalScenes} cenas pintadas</Text>
-              <SoundButton
-                style={styles.startBtn}
-                onPress={() => navigation.navigate('Coloring', { story, cenaIndex: firstUncoloredIndex >= 0 ? firstUncoloredIndex : 0 })}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.startBtnText}>Pintar próxima cena</Text>
-              </SoundButton>
+              {/* [C60-P12-LEGACY] O piloto (A Criação) NÃO usa o Colorir por cena legado: o botão só
+                  aparece fora do piloto (demais histórias) — nunca navega para a cena legada no piloto. */}
+              {!pilotColoringActive && (
+                <SoundButton
+                  style={styles.startBtn}
+                  onPress={() => navigation.navigate('Coloring', { story, cenaIndex: firstUncoloredIndex >= 0 ? firstUncoloredIndex : 0 })}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.startBtnText}>Pintar próxima cena</Text>
+                </SoundButton>
+              )}
               <SoundButton style={styles.blockedSecondaryBtn} onPress={() => handleSelectMode('official')} activeOpacity={0.85}>
                 <Text style={styles.blockedSecondaryText}>Ver história ilustrada</Text>
               </SoundButton>

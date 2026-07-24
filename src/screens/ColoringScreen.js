@@ -344,6 +344,10 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // brilho (Coloring60ArtGlow) para que a moldura siga os LIMITES REAIS da arte (Parte 3), e a
   // galeria da grande conclusão quando a arte atual só existe em memória. null = nenhuma celebração.
   const [c60CelebrateSnapshot, setC60CelebrateSnapshot] = useState(null);
+  // [C60-P12-FRAME] Área MEDIDA do canvas (x/y/largura/altura, no espaço do container), capturada pelo
+  // onLayout da canvasArea. É a mesma geometria da moldura viva (artRectFromSnapshot): passada ao
+  // overlay, faz as partículas e o Beni nascerem ancorados aos LIMITES REAIS do desenho (§Parte 9).
+  const [c60CanvasFrame, setC60CanvasFrame] = useState(null);
   // [C60-P10-HYDRATION] Estado da HIDRATAÇÃO VISUAL ATÔMICA (Parte 2). `c60RevealMode` decide o que
   // será o PRIMEIRO quadro visível: 'probing' (ainda lendo o storage — capa opaca), 'paint' (há arte
   // salva; capa fica até a pintura estar DESENHADA no canvas) ou 'lineart' (sem arte salva; capa fica
@@ -373,6 +377,10 @@ function Coloring60ActivityScreen({ route, navigation }) {
   const c60Steps = getColoring60Activities(storyId)
     .map((a) => ({ id: a.activityId, done: c60DoneMap[a.activityId] === true }));
   const c60NextId = c60Steps.find((s) => !s.done)?.id ?? null;
+  // [C60-P12-SEED] Identidade determinística da celebração vigente (atividade + modo + progresso). É a
+  // semente ESTÁVEL das partículas do overlay (sem Math.random): o mesmo evento gera sempre a mesma
+  // disposição, e re-render não "reembaralha". Derivada — sem estado novo e sem tocar a máquina.
+  const c60CelebrationId = `${activityId ?? 'none'}:${c60CelebrateMode ?? 'idle'}:${c60Steps.filter((s) => s.done).length}`;
 
   useEffect(() => {
     activeRef.current = true;
@@ -440,13 +448,20 @@ function Coloring60ActivityScreen({ route, navigation }) {
 
   // [C60-P8B-PREWARM] Aquece as poses de conclusão do Beni ANTES do toque em "Pronto!": no
   // desenvolvimento a textura chegava só quando a camada de conclusão montava (o Beni "aparecia
-  // depois"). Aquece as DUAS poses usadas na celebração — celebrando2 (atividade/grande conclusão)
-  // e apontandoEsquerda (atualização) — resolvendo a fonte empacotada e pedindo ao próprio RN para
-  // aquecer o cache de imagem uma única vez, de forma preguiçosa e à prova de falha. Em produção o
-  // recurso já é local, então o efeito é inerte. Só aquece com a atividade disponível (sem trabalho à toa).
+  // depois"). Aquece as CINCO poses de celebração do P12 (§Parte 13) — admiraEsquerda/admiraDireita
+  // (atualização), celebraFrente/olhaAcima (primeira conclusão) e apresentaGaleria (grande conclusão)
+  // — resolvendo a fonte empacotada e pedindo ao próprio RN para aquecer o cache de imagem uma única
+  // vez, de forma preguiçosa e à prova de falha. Em produção o recurso já é local, então o efeito é
+  // inerte. Só aquece com a atividade disponível (sem trabalho à toa).
   useEffect(() => {
     if (!available) return;
-    [BENI_IMAGES.celebrando2, BENI_IMAGES.apontandoEsquerda].forEach((asset) => {
+    [
+      BENI_IMAGES.admiraEsquerda,
+      BENI_IMAGES.admiraDireita,
+      BENI_IMAGES.celebraFrente,
+      BENI_IMAGES.apresentaGaleria,
+      BENI_IMAGES.olhaAcima,
+    ].forEach((asset) => {
       try {
         const warm = Image.resolveAssetSource?.(asset);
         if (warm?.uri) Image.prefetch(warm.uri)?.catch?.(() => {});
@@ -739,7 +754,21 @@ function Coloring60ActivityScreen({ route, navigation }) {
         {/* Canvas: composição do motor existente SEM alterar seu contrato. `imageSource` aceita o
             módulo do resolvedor; sinais D1 (onReadyChange) e D5 (onPainted) são consumidos por
             composição. Sem sceneNumber numérico (identidade Colorir 60 é semântica). */}
-        <View style={styles.canvasArea} pointerEvents={c60Celebrating ? 'none' : 'auto'}>
+        <View
+          style={styles.canvasArea}
+          pointerEvents={c60Celebrating ? 'none' : 'auto'}
+          // [C60-P12-FRAME] Mede a área do canvas continuamente (só grava em mudança real). Assim,
+          // quando a celebração começa, a geometria da arte já está disponível ao overlay para ancorar
+          // partículas e Beni aos LIMITES REAIS do desenho — a MESMA base da moldura viva (§Parte 9).
+          onLayout={(e) => {
+            const { x, y, width, height } = e.nativeEvent.layout;
+            setC60CanvasFrame((prev) => (
+              prev && prev.x === x && prev.y === y && prev.width === width && prev.height === height
+                ? prev
+                : { x, y, width, height }
+            ));
+          }}
+        >
           <ColoringCanvas
             ref={canvasRef}
             selectedColor={c60Color}
@@ -836,12 +865,21 @@ function Coloring60ActivityScreen({ route, navigation }) {
             activityId={activityId}
             steps={c60Steps}
             finaleItems={c60FinaleItems}
+            // Geometria REAL da arte (mesma base da moldura viva): partículas e Beni ancorados ao
+            // desenho (§Parte 9); `celebrationId` é a semente determinística das partículas (§Parte 9).
+            snapshot={c60CelebrateSnapshot}
+            canvasFrame={c60CanvasFrame}
+            celebrationId={c60CelebrationId}
             bottomInset={insets.bottom}
-            // 'update' → volta a pintar a MESMA arte; 'activity'/'finale' → próxima atividade ou fim.
+            // Ações por modo (§Parte 5/6/7):
+            //   update   → [Continuar colorindo] volta à MESMA arte; [Voltar à aventura] sai.
+            //   activity → [Colorir a próxima parte] próxima; [Ver meu desenho] fecha a festa e mostra
+            //              o desenho; [Voltar à aventura] sai.
+            //   finale   → [Ver meus desenhos] fim (todas concluídas → volta ao ponto de seleção);
+            //              [Voltar à aventura] sai; [Colorir novamente] recomeça a jornada.
             onPrimary={c60CelebrateMode === 'update' ? handleC60ContinueColoring : handleC60Primary}
-            onSecondary={() => navigation.goBack()}
-            // 3ª ação só na grande conclusão: recomeçar a jornada (o overlay a exibe apenas em 'finale').
-            onTertiary={handleC60ColorAgain}
+            onSecondary={c60CelebrateMode === 'activity' ? handleC60ContinueColoring : () => navigation.goBack()}
+            onTertiary={c60CelebrateMode === 'activity' ? () => navigation.goBack() : handleC60ColorAgain}
           />
         ) : null}
       </View>

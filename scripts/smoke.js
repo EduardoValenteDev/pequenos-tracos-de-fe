@@ -27836,7 +27836,7 @@ check(
         const x3 = files.filter((f) => /@3x\.png$/.test(f));
         if (base.length !== 11 || x2.length !== 11 || x3.length !== 11) return false;
         const orig = fs.readdirSync(path.join(root, 'assets/mascot/beni')).filter((f) => f.endsWith('.png'));
-        if (orig.length !== 11) return false;   // originais intactos (11)
+        if (orig.length !== 16) return false;   // originais intactos (11 base + 5 poses de celebração do Colorir 60 · P12)
         // proporção: 4:5 → 176x220; 1:1 → 220x220 (lê IHDR do PNG base)
         const dim = (f) => { const b = fs.readFileSync(path.join(dir, f)); return `${b.readUInt32BE(16)}x${b.readUInt32BE(20)}`; };
         if (dim('01_beni_avatar_base.png') !== '176x220') return false;
@@ -32061,20 +32061,21 @@ check(
 
     // ── HARNESS C · ESTRUTURAIS: re-render, textos do fecho, hidratação atômica ────
     // Prova 8 — re-render NÃO repete som/háptico/animação: os efeitos vivem em useEffect de mount.
-    check('C60-P10 [prova 8a] celebração: som+háptico em useEffect([]) (uma vez, não repete em re-render); UM playUiSound',
-      /playUiSound\('success'\);\s*\n\s*\}, \[\]\);/.test(ovRaw)
+    check('C60-P12 [prova 8a] celebração: som+háptico no bloco [C60-P12-PEAK] disparado UMA vez (trava peakFiredRef) após a a11y assentar (deps [ready]); UM playUiSound',
+      /\[C60-P12-PEAK\][\s\S]*?if \(!ready \|\| peakFiredRef\.current\) return undefined;\s*\n\s*peakFiredRef\.current = true;[\s\S]*?playUiSound\('success'\);[\s\S]*?\n\s*\}, \[ready\]\);/.test(ovRaw)
         && (ovRaw.match(/playUiSound\('success'\)/g) || []).length === 1,
-      'o som/háptico da celebração vive num useEffect([]) — re-render comum não redispara');
-    check('C60-P10 [prova 8b] celebração: animação de entrada keyed por [reduceMotion] com cleanup (não reinicia em re-render)',
-      /anim\.start\(\);\s*\n\s*return \(\) => anim\.stop\(\);\s*\n\s*\}, \[reduceMotion\]\);/.test(ovRaw),
-      'a animação só (re)inicia quando reduceMotion muda; re-render comum não reanima');
-    check('C60-P11 [prova 8c] atualização é CELEBRAÇÃO afetiva: frase EXATA + Beni reagindo (pointLeft) + háptico leve; sem "3/3" e sem galeria',
-      ovRaw.includes('Eu vi suas novas cores! Seu desenho ficou ainda mais especial!')
-        && /variant=\{isUpdate \? 'pointLeft' : 'celebrating2'\}/.test(ovRaw)
+      'o som/háptico da celebração dispara uma única vez (trava peakFiredRef) quando `ready` assenta — re-render comum não redispara');
+    check('C60-P10 [prova 8b] celebração: animação de entrada keyed por [ready, reduceMotion] com cleanup (não reinicia em re-render)',
+      /anim\.start\(\);\s*\n\s*return \(\) => anim\.stop\(\);\s*\n\s*\}, \[ready, reduceMotion\]\);/.test(ovRaw),
+      'a animação só (re)inicia quando ready/reduceMotion mudam; re-render comum não reanima');
+    check('C60-P12 [prova 8c] atualização é CELEBRAÇÃO afetiva por atividade: fala EXATA + Beni ADMIRA (variant={beniPose}) + háptico leve; sem "3/3" e sem galeria',
+      ovRaw.includes('Sua luz brilhou de novo!')
+        && ovRaw.includes('Uau! Suas novas cores deixaram a luz ainda mais brilhante!')
+        && /variant=\{beniPose\}/.test(ovRaw)
         && /else if \(isUpdate\) Haptics\.selectionAsync/.test(ovRaw)
-        && /\) : isUpdate \? null : \(/.test(ovRaw)
-        && /isUpdate\s*\?\s*'Continuar colorindo'/.test(ovRaw),
-      'a atualização reage à arte (Beni aponta + frase exata + selection) e oferece "Continuar colorindo" — nunca o progresso 3/3, nunca a galeria');
+        && /\{!isUpdate && \(/.test(ovRaw)
+        && /isUpdate \? \([\s\S]*?"Continuar colorindo"/.test(ovRaw),
+      'a atualização reage à arte (Beni admira + fala afetiva por atividade + selection) e oferece "Continuar colorindo" — nunca o progresso 3/3, nunca a galeria');
 
     // Parte 6 · textos EXATOS de PRIMEIRA CONCLUSÃO por atividade (contrato — não reformular).
     check('C60-P11 [Parte 6] 1ª conclusão: títulos e falas EXATOS por atividade (luz · vida · cuidado)',
@@ -32087,15 +32088,17 @@ check(
       ovRaw.includes('Você encheu a Criação de cor!')
         && ovRaw.includes('Cada desenho mostrou um jeito especial de ver, cuidar e celebrar o mundo de Deus.')
         && /FinaleDrawingThumb/.test(ovRaw) && /galleryAnims/.test(ovRaw)
-        && /allDone && typeof onTertiary === 'function'/.test(ovRaw)
+        && /typeof onTertiary === 'function' && \(/.test(ovRaw)
         && ovRaw.includes('Colorir novamente'),
       'a grande conclusão traz os textos aprovados, os três desenhos e a terceira ação (recomeçar)');
     // Parte 5 · atualização celebra com a fala afetiva EXATA e NUNCA um aviso técnico. A negativa roda
     // sobre o CÓDIGO sem comentários (comentários descritivos citam "payload salvo" etc. legitimamente).
-    check('C60-P11 [Parte 5] atualização usa a fala afetiva EXATA e NÃO um aviso técnico ("salvo"/"atualizado")',
-      ovCode.includes('Eu vi suas novas cores! Seu desenho ficou ainda mais especial!')
+    check('C60-P12 [Parte 5] atualização usa a fala afetiva EXATA POR ATIVIDADE e NÃO um aviso técnico ("salvo"/"atualizado")',
+      ovCode.includes('Sua luz brilhou de novo!')
+        && ovCode.includes('Seu mundo ganhou mais vida!')
+        && ovCode.includes('Seu cuidado deixou tudo mais especial!')
         && !/desenho foi atualizado|[Dd]esenho salvo/.test(ovCode),
-      'a atualização celebra com a frase aprovada — nunca um toast técnico ("desenho salvo/atualizado")');
+      'a atualização celebra com a frase afetiva aprovada por atividade — nunca um toast técnico ("desenho salvo/atualizado")');
     check('C60-P11 [isolamento] overlay NÃO lê storage (recebe arte por props: paint/lineart)',
       !/coloring60DrawingStorage|saveColoring60DrawingState|getColoring60SavedDrawing/.test(stripComments(ovRaw)),
       'a galeria compõe a partir de props; nenhuma leitura de storage no componente visual');
@@ -32106,7 +32109,8 @@ check(
         && /c60CelebrateMode === 'update'[\s\S]*?c60CelebrateMode === 'activity'[\s\S]*?c60CelebrateMode === 'finale'[\s\S]*?<Coloring60CompletionOverlay/.test(scrP10)
         && !/Coloring60EditNotice/.test(scrP10)
         && /onPrimary=\{c60CelebrateMode === 'update' \? handleC60ContinueColoring : handleC60Primary\}/.test(scrP10)
-        && /onTertiary=\{handleC60ColorAgain\}/.test(scrP10)
+        && /onSecondary=\{c60CelebrateMode === 'activity' \? handleC60ContinueColoring : \(\) => navigation\.goBack\(\)\}/.test(scrP10)
+        && /onTertiary=\{c60CelebrateMode === 'activity' \? \(\) => navigation\.goBack\(\) : handleC60ColorAgain\}/.test(scrP10)
         && /finaleItems=\{c60FinaleItems\}/.test(scrP10),
       'os três modos montam UM overlay unificado pelo prop mode; a antiga camada de edição não existe mais');
     // §Parte 3 · ColoringScreen alimenta a moldura com o snapshot e a máquina o registra em todos os modos.
@@ -32159,6 +32163,289 @@ check(
       !/coloring60DrawingStorage|saveColoring60DrawingState/.test(sdCode)
         && !/from '\.\.\/services\/coloring60DrawingStorage'/.test(sdRaw),
       'a tela de detalhe deriva estado da CONCLUSÃO canônica; o writer de pixels permanece isolado no ColoringScreen');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // C60-IMPL-P12 — 28 PROVAS DA EXPERIÊNCIA DE CELEBRAÇÃO DEFINITIVA ("Colorir com o Beni").
+  // VERDADE CENTRAL: a criança não salva um arquivo — ela MOSTRA ao Beni o que criou; o Beni OBSERVA,
+  // REAGE, CELEBRA e CONECTA a criação ao significado da história. Estas provas exercem a LÓGICA e a
+  // ESTRUTURA da celebração (poses por composição REAL, diretor único, textos de contrato por modo,
+  // partículas ancoradas à arte, movimento reduzido, Livrinho legado e prewarm). Onde há DECISÃO, o
+  // teste é COMPORTAMENTAL: extrai a função pura do fonte e a executa (mutar a decisão muda o veredito).
+  // A validação PÍXEL-A-PÍXEL, a emoção e os 60fps são HUMANOS — nenhum gate substitui a validação
+  // visual do fundador; estas 28 provam a BASE sobre a qual essa validação acontece.
+  // ══════════════════════════════════════════════════════════════════════════════
+  {
+    const ovRaw = readSrc('src/components/coloring60/Coloring60CompletionOverlay.js');
+    const scrP10 = readSrc('src/screens/ColoringScreen.js');
+    const sbsRaw = readSrc('src/screens/StoryBookScreen.js');
+    const pilotRaw = readSrc('src/services/coloring60Pilot.js');
+    const beniImgRaw = readSrc('src/assets/mascot/beniImages.js');
+    const beniMascotRaw = readSrc('src/components/common/BeniMascotImage.js');
+    const stripC = (s) => String(s).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const ovCode = stripC(ovRaw);
+    const close = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-6;
+
+    // ── Extração de funções/dados PUROS do overlay (provas comportamentais) ──────────
+    // Geometria + pose (artRectFromSnapshot → artScreenRectOf → pickBeniPose → pickBeniSide).
+    const poseSrc = ovRaw.slice(
+      ovRaw.indexOf('function artRectFromSnapshot('),
+      ovRaw.indexOf('export function Coloring60ArtGlow'));
+    const P = new Function(poseSrc + '\nreturn { artRectFromSnapshot, artScreenRectOf, pickBeniPose, pickBeniSide };')();
+    // Partículas (makeSeed → buildParticles).
+    const partSrc = ovRaw.slice(ovRaw.indexOf('function makeSeed('), ovRaw.indexOf('function ParticleGlyph('));
+    const PART = new Function(partSrc + '\nreturn { makeSeed, buildParticles };')();
+    // Constantes de contrato (PARTICLE_COUNT, TIMELINE, UPDATE_TEXTS) — literais puros do fonte.
+    const litOf = (marker, name) => {
+      const i = ovRaw.indexOf(marker);
+      const j = ovRaw.indexOf('};', i) + 2;
+      return new Function(ovRaw.slice(i, j) + `\nreturn ${name};`)();
+    };
+    const PARTICLE_COUNT = litOf('const PARTICLE_COUNT = {', 'PARTICLE_COUNT');
+    const TIMELINE = litOf('const TIMELINE = {', 'TIMELINE');
+    const UPDATE_TEXTS = litOf('const UPDATE_TEXTS = {', 'UPDATE_TEXTS');
+
+    const CF = { x: 0, y: 0, width: 300, height: 400 };   // moldura de canvas de referência
+    const MODES = ['update', 'activity', 'finale'];
+
+    // ── PARTE 1 · integração dos 5 PNGs ──────────────────────────────────────────────
+    check('C60-P12 [prova 1 · Parte 1] beniImages registra as 5 poses do P12 com require ESTÁTICO (12–16) e chaves camelCase',
+      /admiraEsquerda:\s*require\('[^']*12_beni_admira_esquerda\.png'\)/.test(beniImgRaw)
+        && /admiraDireita:\s*require\('[^']*13_beni_admira_direita\.png'\)/.test(beniImgRaw)
+        && /celebraFrente:\s*require\('[^']*14_beni_celebra_frente\.png'\)/.test(beniImgRaw)
+        && /apresentaGaleria:\s*require\('[^']*15_beni_apresenta_galeria\.png'\)/.test(beniImgRaw)
+        && /olhaAcima:\s*require\('[^']*16_beni_olha_acima\.png'\)/.test(beniImgRaw)
+        && !/require\(`/.test(beniImgRaw),
+      'as 5 poses de celebração entram no registro central por require literal, sem caminho dinâmico');
+
+    check('C60-P12 [prova 2 · Parte 1] BeniMascotImage resolve as 5 poses do registro central com fallback seguro + contain',
+      /BENI_IMAGES\[variant\] \|\| BENI_IMAGES\[BENI_DEFAULT_VARIANT\]/.test(beniMascotRaw)
+        && /resizeMode = 'contain'/.test(beniMascotRaw)
+        && ['admiraEsquerda', 'admiraDireita', 'celebraFrente', 'apresentaGaleria', 'olhaAcima']
+          .every((k) => new RegExp(k + ':\\s*require').test(beniImgRaw)),
+      'o Beni entra de corpo inteiro por BeniMascotImage (contain), com fallback — nenhuma pose quebra a tela');
+
+    // ── PARTE 2 · remoção do P11 reprovado (sem medalhão/cartão/modal) ────────────────
+    check('C60-P12 [prova 3 · Parte 2] overlay usa BeniMascotImage (corpo inteiro) e NÃO usa BeniAvatar/medalhão',
+      /import BeniMascotImage from '\.\.\/common\/BeniMascotImage'/.test(ovRaw)
+        && /<BeniMascotImage/.test(ovRaw)
+        && !/BeniAvatar/.test(ovRaw),
+      'o Beni nunca aparece em círculo/medalhão; entra de corpo inteiro com transparência real');
+
+    check('C60-P12 [prova 4 · Parte 2/8] overlay é camada em ÁRVORE (absoluteFill), não Modal/Alert, sem cartão branco central',
+      !/<Modal[\s>]/.test(ovRaw) && !/<Alert[\s>]/.test(ovRaw)
+        && !/import[^\n]*\bModal\b[^\n]*from 'react-native'/.test(ovRaw)
+        && /style=\{StyleSheet\.absoluteFill\}/.test(ovRaw)
+        && /accessibilityViewIsModal/.test(ovRaw),
+      'a pintura permanece visível atrás; não há modal de sistema nem cartão administrativo cobrindo a arte');
+
+    // ── PARTE 3 · ordem de composição em camadas ─────────────────────────────────────
+    check('C60-P12 [prova 5 · Parte 3] ordem de composição: fundo ambiental → partículas → Beni corpo inteiro → ações',
+      (() => {
+        const iAmbient = ovRaw.indexOf('Ato 1 — FUNDO AMBIENTAL');
+        const iParticles = ovRaw.indexOf('PARTÍCULAS nascidas da obra');
+        const iBeni = ovRaw.indexOf('<BeniMascotImage');
+        const iActions = ovRaw.indexOf('styles.actions, actionsEnter');
+        return iAmbient > 0 && iParticles > iAmbient && iBeni > iParticles && iActions > iBeni;
+      })(),
+      'as camadas seguem a ordem do contrato — fundo e partículas emolduram, o Beni entra por cima e as ações por último');
+
+    check('C60-P12 [prova 6 · Parte 3/9] geometria COMPARTILHADA: artScreenRectOf ancora ao retângulo REAL (v2), cai no canvas inteiro (v1) e é null sem frame medido',
+      (() => {
+        const v2 = JSON.stringify({ v: 2, W: 1000, H: 2000, imgX: 100, imgY: 200, imgW: 800, imgH: 1000, data: 'data:image/png;base64,AAA' });
+        const cf = { x: 10, y: 20, width: 300, height: 400 };
+        const r = P.artScreenRectOf(cf, v2);
+        const okReal = r && close(r.x, 40) && close(r.y, 60) && close(r.w, 240) && close(r.h, 200);
+        const full = P.artScreenRectOf(cf, 'data:image/png;base64,AAAA');
+        const okFull = full && full.x === 10 && full.y === 20 && full.w === 300 && full.h === 400;
+        const okNull = P.artScreenRectOf(null, v2) === null;
+        return okReal && okFull && okNull;
+      })(),
+      'partículas e Beni nascem do MESMO retângulo da moldura viva; sem geometria emolduram o canvas inteiro; sem medição não inventam posição');
+
+    // ── PARTE 4 · diretor único + linha do tempo ─────────────────────────────────────
+    check('C60-P12 [prova 7 · Parte 4] diretor ÚNICO: Animated.parallel keyed [ready, reduceMotion] com cleanup, gate `if (!ready)` e Ato 1 em delay 0 (sem período estático > 250 ms)',
+      /const anim = Animated\.parallel\(\[/.test(ovRaw)
+        && /step\(ambientAnim, T\.ambient, 0\)/.test(ovRaw)
+        && /if \(!ready\) return undefined;/.test(ovRaw)
+        && /anim\.start\(\);\s*\n\s*return \(\) => anim\.stop\(\);\s*\n\s*\}, \[ready, reduceMotion\]\);/.test(ovRaw),
+      'um só diretor conduz os 5 atos, mas só depois de a preferência de movimento assentar (`ready`); o ambiente acende imediatamente e sair da tela cancela a linha do tempo');
+
+    check('C60-P12 [prova 8 · Parte 4/5/6/7] janelas DECORATIVAS por modo dentro do alvo (update ~2–2,6 s · atividade ~3,8–4,8 s · fecho ~6–8 s)',
+      (() => {
+        const end = (m) => TIMELINE[m].particleDelay + TIMELINE[m].particleDur;
+        return end('update') >= 2000 && end('update') <= 2600
+          && end('activity') >= 3800 && end('activity') <= 4800
+          && end('finale') >= 6000 && end('finale') <= 8000;
+      })(),
+      'cada modo tem a intensidade de tempo do contrato — o fecho respira mais que a atualização');
+
+    check('C60-P12 [prova 9 · Parte 4] as AÇÕES aparecem bem ANTES do fim decorativo em todos os modos (a criança nunca espera as partículas descansarem)',
+      MODES.every((m) => TIMELINE[m].actionsDelay < TIMELINE[m].particleDelay + TIMELINE[m].particleDur - 250),
+      'os botões ficam tocáveis muito antes de a animação decorativa terminar');
+
+    // ── PARTE 5 · atualização ────────────────────────────────────────────────────────
+    check('C60-P12 [prova 10 · Parte 5] UPDATE_TEXTS: título + fala EXATOS por atividade (luz · vida · cuidado)',
+      UPDATE_TEXTS.light.title === 'Sua luz brilhou de novo!'
+        && UPDATE_TEXTS.light.line === 'Uau! Suas novas cores deixaram a luz ainda mais brilhante!'
+        && UPDATE_TEXTS.living_world.title === 'Seu mundo ganhou mais vida!'
+        && UPDATE_TEXTS.living_world.line === 'Olha só! Suas novas cores deixaram o mundo ainda mais cheio de vida!'
+        && UPDATE_TEXTS.people_and_care.title === 'Seu cuidado deixou tudo mais especial!'
+        && UPDATE_TEXTS.people_and_care.line === 'Que carinho! Suas novas cores deixaram a Criação ainda mais especial!',
+      'cada atividade tem sua fala afetiva de atualização — nunca um aviso técnico');
+
+    check('C60-P12 [prova 11 · Parte 5] update → Beni ADMIRA por composição REAL: arte à esquerda ⇒ admiraEsquerda; à direita ⇒ admiraDireita; sem geometria ⇒ admiraDireita',
+      P.pickBeniPose('update', CF, { x: 20, y: 100, w: 100, h: 100 }) === 'admiraEsquerda'
+        && P.pickBeniPose('update', CF, { x: 180, y: 100, w: 100, h: 100 }) === 'admiraDireita'
+        && P.pickBeniPose('update', null, null) === 'admiraDireita',
+      'o Beni fica no lado oposto à obra e olha para ela; sem geometria mantém uma pose estável');
+
+    check('C60-P12 [prova 12 · Parte 5] update: háptico leve (selectionAsync); ação "Continuar colorindo"; progresso guardado por {!isUpdate}; galeria só no fecho',
+      /else if \(isUpdate\) Haptics\.selectionAsync/.test(ovRaw)
+        && /accessibilityLabel="Continuar colorindo"/.test(ovRaw)
+        && /\{!isUpdate && \(/.test(ovRaw)
+        && /allDone \? \(/.test(ovRaw),
+      'a atualização é curta e afetiva: sem festa de 3/3 e sem galeria');
+
+    // ── PARTE 6 · primeira conclusão ─────────────────────────────────────────────────
+    check('C60-P12 [prova 13 · Parte 6] activity → celebraFrente OU olhaAcima pela geometria (obra no alto ⇒ olhaAcima; senão celebraFrente; fallback celebraFrente)',
+      P.pickBeniPose('activity', CF, { x: 50, y: 10, w: 200, h: 200 }) === 'olhaAcima'
+        && P.pickBeniPose('activity', CF, { x: 50, y: 180, w: 200, h: 200 }) === 'celebraFrente'
+        && P.pickBeniPose('activity', null, null) === 'celebraFrente',
+      'quando a arte ocupa o alto do canvas, o Beni ergue o olhar; senão comemora de frente');
+
+    check('C60-P12 [prova 14 · Parte 6] activity: progresso X→X+1 ({doneCount} de {total}) + 3 ações (próxima parte · ver desenho · voltar)',
+      /\$\{doneCount\} de \$\{total\}/.test(ovRaw)
+        && /styles\.progressTrail/.test(ovRaw)
+        && /accessibilityLabel="Colorir a próxima parte"/.test(ovRaw)
+        && /accessibilityLabel="Ver meu desenho"/.test(ovRaw)
+        && /accessibilityLabel="Voltar à aventura"/.test(ovRaw),
+      'a primeira conclusão mostra o avanço das três atividades e oferece três caminhos');
+
+    // ── PARTE 7 · grande conclusão (fecho) ───────────────────────────────────────────
+    check('C60-P12 [prova 15 · Parte 7] finale → pose apresentaGaleria (fixa, independente da composição)',
+      P.pickBeniPose('finale', CF, { x: 20, y: 100, w: 100, h: 100 }) === 'apresentaGaleria'
+        && P.pickBeniPose('finale', null, null) === 'apresentaGaleria',
+      'no fecho o Beni apresenta a galeria das três criações');
+
+    check('C60-P12 [prova 16 · Parte 7] fecho: título + mensagem + "3 de 3" + "Minha Criação Cheia de Cor" EXATOS',
+      ovRaw.includes('Você encheu a Criação de cor!')
+        && ovRaw.includes('Cada desenho mostrou um jeito especial de ver, cuidar e celebrar o mundo de Deus.')
+        && ovRaw.includes("FINALE_COUNT_LABEL = '3 de 3'")
+        && ovRaw.includes("FINALE_GALLERY_LABEL = 'Minha Criação Cheia de Cor'"),
+      'o fecho traz os textos e rótulos aprovados, sem reformulação');
+
+    check('C60-P12 [prova 17 · Parte 7] fecho: galeria das TRÊS (FinaleDrawingThumb) revelada em stagger (galleryAnims) + 3 ações (ver desenhos · voltar · colorir novamente)',
+      /galleryData\.map\(\(it, i\) => \(/.test(ovRaw)
+        && /<FinaleDrawingThumb/.test(ovRaw)
+        && /Animated\.stagger\(T\.galleryStagger, galleryAnims\.map/.test(ovRaw)
+        && /accessibilityLabel="Ver meus desenhos"/.test(ovRaw)
+        && ovRaw.includes('Colorir novamente'),
+      'as três artes entram em sequência e o fecho oferece três caminhos, incluindo recomeçar');
+
+    check('C60-P12 [prova 18 · Parte 7] Grátis: overlay recebe a arte por PROPS (não lê storage) e a miniatura sem cor cai no FALLBACK do contorno sozinho',
+      !/coloring60DrawingStorage|saveColoring60DrawingState|getColoring60SavedDrawing/.test(ovCode)
+        && /paint=\{it\.paint\}/.test(ovRaw)
+        && /const showLineartAlone = !!lineart && !colorReady;/.test(ovRaw),
+      'a galeria compõe a partir de props (arte em memória no Grátis); sem cor mostra o contorno, nunca mancha sem traço');
+
+    // ── PARTE 8 · balão de fala ──────────────────────────────────────────────────────
+    check('C60-P12 [prova 19 · Parte 8] SpeechBalloon: ≤3 linhas, seta LIGADA ao Beni (tailSide acompanha o lado), não é modal',
+      /numberOfLines=\{3\}/.test(ovRaw)
+        && /function SpeechBalloon\(\{ title, line, tailSide/.test(ovRaw)
+        && /tailSide === 'right' \? balloonStyles\.tailRight : balloonStyles\.tailLeft/.test(ovRaw)
+        && /tailSide=\{beniSide === 'right' \? 'right' : 'left'\}/.test(ovRaw),
+      'a fala é um balão preso ao Beni (seta acompanha o lado dele), no máximo 3 linhas — nunca um modal');
+
+    // ── PARTE 9 · partículas ─────────────────────────────────────────────────────────
+    check('C60-P12 [prova 20 · Parte 9] contagem de partículas por modo dentro do contrato (update 7–12 · 1ª 12–18 · fecho 18–24) e reduzida menor',
+      PARTICLE_COUNT.update >= 7 && PARTICLE_COUNT.update <= 12
+        && PARTICLE_COUNT.activity >= 12 && PARTICLE_COUNT.activity <= 18
+        && PARTICLE_COUNT.finale >= 18 && PARTICLE_COUNT.finale <= 24
+        && /const PARTICLE_COUNT_REDUCED = \d+;/.test(ovRaw),
+      'a densidade de partículas acompanha a intensidade do modo, com um punhado no movimento reduzido');
+
+    check('C60-P12 [prova 21 · Parte 9] semente DETERMINÍSTICA: mesma semente ⇒ mesma disposição; diferente ⇒ diferente; posições relativas dentro da arte; SEM Math.random',
+      (() => {
+        const a = PART.buildParticles('seed-x', 15, false, 'leaf');
+        const b = PART.buildParticles('seed-x', 15, false, 'leaf');
+        const c = PART.buildParticles('seed-y', 15, false, 'leaf');
+        const eq = JSON.stringify(a) === JSON.stringify(b);
+        const diff = JSON.stringify(a) !== JSON.stringify(c);
+        const bounded = a.length === 15 && a.every((p) =>
+          p.fx >= 0.08 - 1e-9 && p.fx <= 0.92 + 1e-9 && p.fy >= 0.08 - 1e-9 && p.fy <= 0.92 + 1e-9);
+        return eq && diff && bounded && !/Math\.random/.test(ovCode);
+      })(),
+      'as partículas nascem de uma semente estável (nunca "pulam" a cada render) e ficam dentro do retângulo real da arte');
+
+    check('C60-P12 [prova 22 · Parte 9/4] UMA Animated.Value nativa interpolada por partícula (sem árvore React nem useEffect por partícula) e UM diretor',
+      (() => {
+        const nodeSrc = ovRaw.slice(ovRaw.indexOf('const particleNodes ='), ovRaw.indexOf('// Dados da galeria do fecho'));
+        return (ovRaw.match(/const particleAnim = useRef\(new Animated\.Value\(0\)\)\.current;/g) || []).length === 1
+          && /particleAnim\.interpolate\(/.test(nodeSrc)
+          && !/new Animated\.Value/.test(nodeSrc)
+          && !/useEffect/.test(nodeSrc);
+      })(),
+      'as partículas são dados puros animados por uma única Animated.Value nativa — nada de hook/elemento por partícula');
+
+    // ── PARTE 10/11 · pico único + movimento reduzido ────────────────────────────────
+    check('C60-P12 [prova 23 · Parte 10] UM pico por modo: háptico por intensidade + UM playUiSound, disparado UMA vez (trava peakFiredRef) após a a11y assentar (ready), sem somar ao "tap" do "Pronto!"',
+      /const peakFiredRef = useRef\(false\);/.test(ovRaw)
+        && /if \(!ready \|\| peakFiredRef\.current\) return undefined;/.test(ovRaw)
+        && /peakFiredRef\.current = true;/.test(ovRaw)
+        && /if \(allDone\) Haptics\.notificationAsync\(Haptics\.NotificationFeedbackType\.Success\)/.test(ovRaw)
+        && /else if \(isUpdate\) Haptics\.selectionAsync/.test(ovRaw)
+        && /else Haptics\.impactAsync\(Haptics\.ImpactFeedbackStyle\.Light\)/.test(ovRaw)
+        && (ovRaw.match(/playUiSound\('success'\)/g) || []).length === 1,
+      'cada modo tem um único pico (háptico + som), disparado uma vez na montagem, só depois de a preferência de movimento assentar — a háptica suprimida sob "Reduzir movimento" é de fato suprimida');
+
+    check('C60-P12 [prova 24 · Parte 11] movimento reduzido: estado final (setValue(1)), MENOS partículas, brilho localizado estático, entradas por FADE (nunca lateral), mantém progresso/galeria',
+      /if \(reduceMotion\) \{\s*values\.forEach\(\(v\) => v\.setValue\(1\)\);\s*particleAnim\.setValue\(1\);\s*galleryAnims\.forEach\(\(v\) => v\.setValue\(1\)\);/.test(ovRaw)
+        && /PARTICLE_COUNT_REDUCED/.test(ovRaw)
+        && /opacity: p\.peak \* 0\.5/.test(ovRaw)
+        && /const beniEnter = reduceMotion \? \{ opacity: 1 \}/.test(ovRaw)
+        && /const balloonEnter = reduceMotion \? \{ opacity: 1 \} : rise\(balloonAnim/.test(ovRaw),
+      'com movimento reduzido tudo assenta no estado final por fade, com brilho suave — o progresso e a galeria seguem presentes');
+
+    // ── PARTE 12 · Livrinho legado ───────────────────────────────────────────────────
+    check('C60-P12 [prova 25 · Parte 12] Livrinho: "Pintar próxima cena" oculto sob {!pilotColoringActive} via isCreationColoringPilotActive; "Ver história ilustrada" preservado; gate só creation+piloto',
+      /import \{ isCreationColoringPilotActive \} from '\.\.\/services\/coloring60Pilot'/.test(sbsRaw)
+        && /const pilotColoringActive = isCreationColoringPilotActive\(story\.id\)/.test(sbsRaw)
+        && /\{!pilotColoringActive && \(/.test(sbsRaw)
+        && /Pintar próxima cena/.test(sbsRaw)
+        && /Ver história ilustrada/.test(sbsRaw)
+        && /return storyId === COLORING60_STORY_ID && isColoring60PilotAllowed\(\);/.test(pilotRaw),
+      'no piloto (A Criação) o botão da cena legada não aparece; as demais histórias seguem intactas');
+
+    // ── PARTE 13 · prewarm das 5 poses ───────────────────────────────────────────────
+    check('C60-P12 [prova 26 · Parte 13] ColoringScreen AQUECE as 5 poses do P12 antes do "Pronto!" (Image.prefetch best-effort)',
+      /\[C60-P8B-PREWARM\]/.test(scrP10)
+        && /BENI_IMAGES\.admiraEsquerda/.test(scrP10) && /BENI_IMAGES\.admiraDireita/.test(scrP10)
+        && /BENI_IMAGES\.celebraFrente/.test(scrP10) && /BENI_IMAGES\.apresentaGaleria/.test(scrP10)
+        && /BENI_IMAGES\.olhaAcima/.test(scrP10)
+        && /Image\.prefetch\(warm\.uri\)/.test(scrP10),
+      'as cinco poses chegam aquecidas — o Beni entra na celebração sem atraso perceptível');
+
+    // ── PARTE 4/10/11 · correção adversarial: a preferência de movimento é ASSÍNCRONA ─
+    // A revisão adversarial da timeline apontou uma corrida: `isReduceMotionEnabled()` resolve DEPOIS
+    // do primeiro render, então o diretor/pico corriam antes de a preferência assentar — quem ativou
+    // "Reduzir movimento" via o surto de animação e a háptica que deveria ser suprimida. A correção
+    // introduz um sinal `ready` (com timeout curto de segurança) que gateia diretor, pico e moldura.
+    check('C60-P12 [prova 27 · Parte 4/10/11 · a11y assíncrona] useReduceMotion expõe { reduceMotion, ready }: nasce não-pronto, assenta por isReduceMotionEnabled OU por timeout curto (150 ms), e limpa timer + listener',
+      /function useReduceMotion\(\) \{/.test(ovRaw)
+        && /const \[ready, setReady\] = useState\(false\);/.test(ovRaw)
+        && /AccessibilityInfo\.isReduceMotionEnabled\?\.\(\)\s*\n\s*\.then\(\(v\) => \{ if \(alive\) \{ setReduceMotion\(!!v\); setReady\(true\); \} \}\)\s*\n\s*\.catch\(\(\) => \{ if \(alive\) setReady\(true\); \}\);/.test(ovRaw)
+        && /const settleGuard = setTimeout\(\(\) => \{ if \(alive\) setReady\(true\); \}, 150\);/.test(ovRaw)
+        && /return \(\) => \{ alive = false; clearTimeout\(settleGuard\); sub\?\.remove\?\.\(\); \};/.test(ovRaw)
+        && /return \{ reduceMotion, ready \};/.test(ovRaw),
+      'a preferência de movimento é assíncrona: o hook começa não-pronto e só sinaliza `ready` quando a consulta resolve OU quando um timeout curto a destrava — sem vazar timer nem listener (celebração jamais fica presa)');
+
+    check('C60-P12 [prova 28 · Parte 3/11 · a11y assíncrona] a moldura viva (ArtGlow) também espera `ready`: reveal de 640 ms gateado por `if (!active || !ready)` e keyed [active, ready, reduceMotion]',
+      /export function Coloring60ArtGlow\(\{ activityId, active, snapshot = null \}\) \{/.test(ovRaw)
+        && /const \{ reduceMotion, ready \} = useReduceMotion\(\);/.test(ovRaw)
+        && /if \(!active \|\| !ready\) return undefined;/.test(ovRaw)
+        && /a\.start\(\);\s*\n\s*return \(\) => a\.stop\(\);\s*\n\s*\}, \[active, ready, reduceMotion\]\);/.test(ovRaw),
+      'quem ativou "Reduzir movimento" não vê o reveal de 640 ms da moldura antes do snap — o ramo correto roda de uma vez, depois que a preferência assenta');
   }
 
   // ══════════════════════════════════════════════════════════════════════════════

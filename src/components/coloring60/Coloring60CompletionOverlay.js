@@ -1,52 +1,54 @@
 /**
- * Coloring60CompletionOverlay.js — experiência afetiva de conclusão do piloto Colorir 60
- * (C60-IMPL-P8 · P8B · P11 · §6..§12). Reutilizável e SEM estado de negócio: recebe o MODO decidido
- * pela máquina de conclusão (Diretor de Celebração) + o progresso das três, e devolve a escolha da
- * criança (duas ou três ações, conforme o modo).
+ * Coloring60CompletionOverlay.js — experiência AFETIVA de conclusão do piloto Colorir 60
+ * (C60-IMPL-P12 · "Colorir com o Beni" · Experiência de Celebração Definitiva).
  *
- * MODOS (P11 · §Parte 4 — três intensidades, um só componente e uma só linha do tempo):
- *   - 'update'   → ATUALIZAÇÃO: a criança concluiu de novo uma atividade JÁ concluída. Resposta
- *                  AFETIVA (Beni REAGE à arte + moldura viva + partículas + a frase exata), sem
- *                  repetir a festa de atividade e JAMAIS a grande conclusão; sem "3/3" e sem galeria.
- *   - 'activity' → PRIMEIRA CONCLUSÃO desta atividade: celebração curta (Beni maior, progresso 0→1/1→2).
- *   - 'finale'   → GRANDE CONCLUSÃO das três (só em 2/3→3/3 real): galeria das três + Beni grande.
+ * VERDADE CENTRAL (nunca esquecer): a criança NÃO está salvando um arquivo. Ela está MOSTRANDO ao
+ * Beni algo que criou. O Beni OBSERVA, REAGE, CELEBRA e CONECTA aquela criação ao significado da
+ * história. Esta camada não é um recibo técnico nem um cartão administrativo — é o momento em que a
+ * obra da criança faz o Beni (e o mundo) reagirem.
  *
- * PRINCÍPIOS (nunca violar):
- *   - A PINTURA CONTINUA SENDO A PROTAGONISTA. Esta camada é translúcida; ela ENQUADRA a arte
- *     (palco + moldura + vinheta) e a valoriza, mas NUNCA a esconde nem a substitui por uma
- *     ilustração genérica. O cartão da conclusão vive no rodapé e deixa a arte respirar acima.
- *   - NÃO é `Modal` de sistema e NÃO é `Alert`: é uma camada em árvore, dentro da própria tela,
- *     para que o desenho permaneça visível e congelado atrás (a tela chama resetZoom antes de
- *     montar esta camada — a arte aparece inteira, centralizada, sem "zoom excessivo").
- *   - NÃO concede nem exibe progresso global, conquista ou moeda de jogo. O único progresso
- *     mostrado é o das TRÊS atividades do piloto (Luz · Vida · Cuidado).
- *   - NÃO menciona plano, pagamento ou assinatura. Se a arte não pôde ser guardada, a criança
- *     ainda assim vê a mesma celebração (a honestidade técnica fica no relatório/log de dev).
- *   - Sem dependência nova: `Animated`/`Easing` do React Native, `expo-linear-gradient`,
- *     `@expo/vector-icons`, `expo-haptics` e o Beni já existentes no projeto.
- *   - Sem loop permanente, sem flashes: cada camada anima UMA vez e descansa. Respeita movimento
- *     reduzido (tudo já no estado final, sem transições e sem partículas).
+ * MODOS (§Parte 4 — três intensidades, UM só componente, UMA só linha do tempo dirigida):
+ *   - 'update'   → ATUALIZAÇÃO (2–2,6 s): a criança recoloriu uma atividade JÁ concluída. O Beni
+ *                  ADMIRA a nova arte (pose admiraEsquerda/admiraDireita, escolhida pela composição
+ *                  real) e diz a frase EXATA da atividade. Sem "3/3" e sem galeria.
+ *   - 'activity' → PRIMEIRA CONCLUSÃO desta atividade (3,8–4,8 s): o Beni CELEBRA de frente
+ *                  (celebraFrente) ou OLHA para a obra acima dele (olhaAcima, quando a geometria põe
+ *                  a arte no alto). Progresso X→X+1. Três ações.
+ *   - 'finale'   → GRANDE CONCLUSÃO das três (6–8 s, só em 2/3→3/3 real): "A Criação Ganha Vida". O
+ *                  Beni APRESENTA a galeria das três (apresentaGaleria). Mostra "3 de 3" e o nome da
+ *                  criação. JAMAIS dispara em edição.
  *
- * P8B — acabamento premium: revelação com leve aproximação da moldura, vinheta que assenta a arte
- * no palco, cartão com acento superior e brilho suave, bloco de progresso em "mini jornada" (trilho
- * + marcadores + selo de contagem) e um FECHO das três claramente mais forte (Beni maior e centrado,
- * aura dourada, três marcadores acesos, partículas de luz/vida/cuidado, uma háptica de conclusão).
+ * PRINCÍPIOS (invioláveis):
+ *   - A PINTURA CONTINUA SENDO A PROTAGONISTA. Esta camada é translúcida; ENQUADRA a arte (fundo
+ *     ambiental + moldura viva + partículas nascidas da própria obra) e a valoriza, mas NUNCA a
+ *     esconde nem a substitui por ilustração genérica. NÃO há cartão branco central nem cara de modal
+ *     administrativo: o Beni entra de CORPO INTEIRO (BeniMascotImage, contain, transparência real) e
+ *     fala por um BALÃO ligado a ele.
+ *   - NÃO é `Modal` de sistema e NÃO é `Alert`: é uma camada em árvore, dentro da própria tela, para
+ *     que o desenho permaneça visível e congelado atrás (a tela chama resetZoom antes de montar).
+ *   - NÃO concede progresso global, conquista ou moeda. O único progresso é o das TRÊS atividades do
+ *     piloto (Luz · Vida · Cuidado). NÃO menciona plano, pagamento ou assinatura — o Grátis (não
+ *     persistido) recebe a MESMA celebração (a honestidade técnica fica no log de dev).
+ *   - Sem dependência nova: `Animated`/`Easing` do RN, `expo-linear-gradient`, `@expo/vector-icons`,
+ *     `expo-haptics`, o Beni já empacotado. UM pico audiovisual por modo; háptica e som UMA vez.
+ *   - Sem loop permanente e sem flashes: um DIRETOR único anima cada ato UMA vez e descansa; re-render
+ *     NÃO reinicia. Respeita movimento reduzido (estado final, fades no lugar de entradas laterais,
+ *     menos partículas com brilho localizado — sem alterar a lógica de estado).
  *
- * Beni: em 'activity'/'finale' usa a pose oficial `celebrating2` (08_beni_celebrando_2), a mais
- * próxima de "feliz e orgulhoso" — e a única celebrando SEM o selo decorativo de estrela do
- * BeniAvatar, que aqui daria a impressão falsa de prêmio concedido. Em 'update' usa `pointLeft`
- * (11_beni_apontando_esquerda): a pose de "apontar/mostrar" é a que mais LÊ como reação à arte da
- * criança e também não traz selo de estrela. Ambas são AQUECIDAS pela tela ANTES do toque em
- * "Pronto!" (ver [C60-P8B-PREWARM] em ColoringScreen), então o Beni entra sem atraso perceptível.
- * FICA REGISTRADA a necessidade futura de uma pose EXCLUSIVA do Beni olhando para CIMA, para a
- * pintura: nenhuma pose atual olha para cima — nada de arte improvisada aqui.
+ * Beni (§Parte 3/5/6/7 — poses do P12, corpo inteiro, 1024×1280 RGBA transparente):
+ *   admiraEsquerda / admiraDireita → ATUALIZAÇÃO (o Beni admira a obra ao seu lado).
+ *   celebraFrente                  → 1ª conclusão, pico frontal.
+ *   olhaAcima                      → 1ª conclusão quando a obra está no alto (o Beni olha para cima).
+ *   apresentaGaleria               → grande conclusão (corpo à esquerda apresentando a galeria).
+ * As cinco são AQUECIDAS pela tela ANTES do toque em "Pronto!" (ver [C60-P8B-PREWARM] em
+ * ColoringScreen), então o Beni entra sem atraso perceptível. NENHUM Beni em círculo/cartão/medalhão.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Image, StyleSheet, Animated, Easing, AccessibilityInfo } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import BeniAvatar from '../beni/BeniAvatar';
+import BeniMascotImage from '../common/BeniMascotImage';
 import SoundButton from '../SoundButton';
 import { playUiSound } from '../../services/audioManager';
 import { colors, radii, spacing, shadows } from '../../theme/productTheme';
@@ -62,14 +64,13 @@ function rgba(hex, a) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// [C60-P10-GALLERY] Composição da GALERIA da grande conclusão (§Parte 4). Este componente compõe
-// COR + CONTORNO numa miniatura, portando a MESMA técnica já validada no Livrinho (StoryBookScreen:
-// paint por baixo, lineart por cima com `mixBlendMode: 'multiply'`, ambos invisíveis até carregarem
-// JUNTOS). Aqui a arte já vem PRONTA por PROPS (o ColoringScreen — única tela autorizada — leu o
-// storage do piloto e passou o payload). Este overlay NUNCA importa o writer nem lê storage: recebe
-// `paint` (string do payload salvo, ou null) e `lineart` (fonte local do contorno, ou null).
+// [C60-P10-GALLERY] Composição da GALERIA da grande conclusão (§Parte 4/7). Compõe COR + CONTORNO
+// numa miniatura, portando a MESMA técnica já validada no Livrinho (paint por baixo, lineart por cima
+// com `mixBlendMode: 'multiply'`, ambos invisíveis até carregarem JUNTOS). A arte já vem PRONTA por
+// PROPS (o ColoringScreen — única tela autorizada — leu o storage do piloto e passou o payload). Este
+// overlay NUNCA importa o writer nem lê storage: recebe `paint` (payload salvo ou null) e `lineart`.
 // Sem cor (Grátis não persistido / atividade sem arte / falha) → FALLBACK OFICIAL = o próprio
-// contorno sozinho (asset que já existe; nenhuma imagem nova; nunca mancha de cor sem traço).
+// contorno sozinho (asset que já existe; nunca mancha de cor sem traço).
 // ─────────────────────────────────────────────────────────────────────────────
 const FINALE_ART_TIMEOUT_MS = 7000;
 
@@ -123,8 +124,9 @@ function computePaintStyle(containerW, containerH, v) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Atmosfera FECHADA por atividade (§7) — textos e paleta são contrato, não sugestão.
-// `marker` é o rótulo curto usado no progresso das três (§9).
+// Atmosfera FECHADA por atividade (§Parte 6) — textos e paleta são contrato, não sugestão.
+// Os títulos/falas da PRIMEIRA conclusão são o contrato EXATO do P12 · Parte 6.
+// `marker` é o rótulo curto usado no progresso das três (§Parte 9).
 // ─────────────────────────────────────────────────────────────────────────────
 const ATMOSPHERES = {
   light: {
@@ -165,65 +167,138 @@ const ATMOSPHERES = {
   },
 };
 
-// Fecho das três atividades (§10 / P10 Parte 4): título e mensagem são CONTRATO EXATO (não
-// reformular). A fala do Beni conduz a leitura da galeria (luz · vida · cuidado) sem inventar
-// recompensa nova nem prometer prêmio.
+// Fecho das três atividades (§Parte 7 · "A Criação Ganha Vida"): título e mensagem são CONTRATO
+// EXATO (não reformular). A fala do Beni conduz a leitura da galeria (luz · vida · cuidado).
 const ALL_DONE_TITLE = 'Você encheu a Criação de cor!';
 const ALL_DONE_BENI_LINE = 'Você viu a luz, a vida e o cuidado de Deus. Olha a sua criação!';
 const ALL_DONE_MESSAGE = 'Cada desenho mostrou um jeito especial de ver, cuidar e celebrar o mundo de Deus.';
-const STEP_MESSAGE = {
-  1: 'Uma parte da criação ganhou cor!',
-  2: 'A criação está ficando cheia de vida!',
+// Rótulos EXATOS visíveis no fecho (§Parte 7): a contagem final e o nome da criação da criança.
+const FINALE_COUNT_LABEL = '3 de 3';
+const FINALE_GALLERY_LABEL = 'Minha Criação Cheia de Cor';
+
+// ATUALIZAÇÃO (§Parte 5): quando a criança conclui DE NOVO uma atividade JÁ concluída, o Beni ADMIRA
+// a nova arte e diz a frase EXATA POR ATIVIDADE (título + fala — contrato, não reformular). Nunca um
+// aviso técnico seco: é celebração afetiva, com a pintura seguindo protagonista.
+const UPDATE_TEXTS = {
+  light: {
+    title: 'Sua luz brilhou de novo!',
+    line: 'Uau! Suas novas cores deixaram a luz ainda mais brilhante!',
+  },
+  living_world: {
+    title: 'Seu mundo ganhou mais vida!',
+    line: 'Olha só! Suas novas cores deixaram o mundo ainda mais cheio de vida!',
+  },
+  people_and_care: {
+    title: 'Seu cuidado deixou tudo mais especial!',
+    line: 'Que carinho! Suas novas cores deixaram a Criação ainda mais especial!',
+  },
 };
 
-// Atualização (P11 · Parte 5): quando a criança conclui DE NOVO uma atividade JÁ concluída, ela
-// recebe uma resposta AFETIVA — não a festa de atividade e JAMAIS a grande conclusão, mas também
-// nunca um "aviso técnico" seco. O Beni REAGE à arte (pose apontando para a pintura) e diz a frase
-// EXATA abaixo (contrato — não reformular). A pintura segue protagonista, com a moldura viva.
-const UPDATE_BENI_LINE = 'Eu vi suas novas cores! Seu desenho ficou ainda mais especial!';
-
 // Cores dos motivos no FECHO (a criação inteira floresce: luz + vida + cuidado juntos).
-const MOTIF_COLOR = { dot: colors.gold, leaf: colors.green, heart: colors.coral };
+const MOTIF_COLOR = { dot: colors.gold, leaf: colors.green, heart: colors.coral, sparkle: colors.gold };
 
-// Partículas discretas, com posição FIXA (nada de aleatório: a cena não pode "pular" a cada
-// render). Ficam na metade de cima, sobre a pintura, e somem sozinhas — sem loop.
-const MOTES = [
-  { left: '11%', top: '46%', size: 11 },
-  { left: '25%', top: '22%', size: 15 },
-  { left: '41%', top: '52%', size: 10 },
-  { left: '57%', top: '18%', size: 14 },
-  { left: '72%', top: '40%', size: 12 },
-  { left: '86%', top: '25%', size: 9 },
-  { left: '33%', top: '10%', size: 11 },
-];
+// [C60-P12-PARTICLES] Quantidade de partículas por modo (§Parte 9): update 7–12, primeira 12–18,
+// fecho 18–24. Movimento reduzido usa um punhado estático (brilho localizado, sem subida).
+const PARTICLE_COUNT = { update: 10, activity: 15, finale: 21 };
+const PARTICLE_COUNT_REDUCED = 5;
+
+// [C60-P12-TIMELINE] O DIRETOR único (§Parte 4). Cada modo é UMA linha do tempo com 5 atos; os
+// atrasos/durações fazem a duração DECORATIVA cair na janela alvo (update ~2,1 s · atividade ~4,0 s ·
+// fecho ~6,4 s). As AÇÕES aparecem MUITO antes do fim (actionsDelay) — a criança nunca espera as
+// partículas descansarem. Nenhum período estático > 250 ms depois do "Pronto" (o Ato 1 começa em 0).
+const TIMELINE = {
+  update: { ambient: 220, beniDelay: 140, balloonDelay: 420, particleDelay: 300, particleDur: 1800, progressDelay: 520, actionsDelay: 660, galleryStagger: 0 },
+  activity: { ambient: 300, beniDelay: 260, balloonDelay: 700, particleDelay: 700, particleDur: 3300, progressDelay: 980, actionsDelay: 1180, galleryStagger: 0 },
+  finale: { ambient: 420, beniDelay: 380, balloonDelay: 900, particleDelay: 820, particleDur: 5600, progressDelay: 1150, actionsDelay: 1500, galleryStagger: 260 },
+};
+
+// [C60-P12-SEED] PRNG determinístico (xfnv1a → mulberry32). Semente por STRING (activityId +
+// celebrationId + modo): mesmo mount ⇒ mesma disposição de partículas (nunca "pula" a cada render);
+// sem `Math.random`. Só posiciona/dimensiona partículas — jamais decide desfecho.
+function makeSeed(str) {
+  const s = String(str);
+  let h = 1779033703 ^ s.length;
+  for (let i = 0; i < s.length; i++) {
+    h = Math.imul(h ^ s.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return () => {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+}
+
+// [C60-P12-PARTICLES] Descreve as partículas de forma DETERMINÍSTICA (posição relativa 0..1 dentro
+// do retângulo REAL da arte, tamanho, fase, motivo). Sem árvore React por partícula: os descritores
+// são dados puros; a animação é UMA Animated.Value nativa interpolada por partícula (ver render).
+function buildParticles(seedStr, count, allDone, baseMotif) {
+  const rnd = makeSeed(seedStr);
+  const motifs = allDone ? ['dot', 'leaf', 'heart', 'sparkle'] : [baseMotif, 'dot', 'sparkle'];
+  const arr = [];
+  for (let i = 0; i < count; i++) {
+    arr.push({
+      fx: +(0.08 + rnd() * 0.84).toFixed(4),
+      fy: +(0.08 + rnd() * 0.84).toFixed(4),
+      size: 9 + Math.round(rnd() * 9),
+      phase: +(rnd() * 0.2).toFixed(4),
+      peak: +(0.7 + rnd() * 0.25).toFixed(3),
+      rise: 42 + Math.round(rnd() * 74),
+      drift: Math.round((rnd() - 0.5) * 36),
+      motif: motifs[Math.floor(rnd() * motifs.length)],
+    });
+  }
+  return arr;
+}
+
+/** Ícone/forma de UMA partícula temática (nunca confete genérico). */
+function ParticleGlyph({ motif, size, tint }) {
+  if (motif === 'dot') {
+    return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: tint }} />;
+  }
+  const icon = motif === 'leaf' ? 'leaf' : (motif === 'heart' ? 'heart' : 'star-four-points');
+  return <MaterialCommunityIcons name={icon} size={size + 6} color={tint} />;
+}
 
 function atmosphereOf(activityId) {
   return ATMOSPHERES[activityId] ?? ATMOSPHERES.light;
 }
 
 /** Preferência de movimento reduzido do sistema (mesmo padrão já usado no app). */
+// [C60-P12-A11Y] A consulta de acessibilidade é ASSÍNCRONA: `reduceMotion` nasce `false` e só é
+// corrigido quando `isReduceMotionEnabled()` resolve. Por isso expomos também `ready`: o diretor e o
+// pico (háptica) só AGEM quando a preferência já assentou — assim quem ativou "Reduzir movimento"
+// nunca vê o surto de animação nem sente a háptica que deveria ser suprimida. Rede de segurança:
+// `ready` também assenta por um timeout curto, para a celebração jamais ficar presa se a consulta
+// nativa faltar (método ausente) ou demorar (thread congestionada logo após montar o overlay).
 function useReduceMotion() {
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     let alive = true;
-    AccessibilityInfo.isReduceMotionEnabled?.().then((v) => alive && setReduceMotion(!!v)).catch(() => {});
-    const sub = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v) => setReduceMotion(!!v));
-    return () => { alive = false; sub?.remove?.(); };
+    AccessibilityInfo.isReduceMotionEnabled?.()
+      .then((v) => { if (alive) { setReduceMotion(!!v); setReady(true); } })
+      .catch(() => { if (alive) setReady(true); });
+    const settleGuard = setTimeout(() => { if (alive) setReady(true); }, 150);
+    const sub = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v) => { if (alive) setReduceMotion(!!v); });
+    return () => { alive = false; clearTimeout(settleGuard); sub?.remove?.(); };
   }, []);
-  return reduceMotion;
+  return { reduceMotion, ready };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Palco da ARTE (§4.1/§6/§7). Vive dentro da área do canvas, por cima da pintura e sem capturar
-// toque. Não cobre o desenho: assenta a arte com uma vinheta suave nas bordas e a emoldura como um
-// "cartão de exposição" (moldura externa luminosa + filete interno), revelado com leve aproximação.
+// Palco da ARTE (§Parte 3). Vive dentro da área do canvas, por cima da pintura e sem capturar toque.
+// Não cobre o desenho: assenta a arte com uma vinheta suave e a emoldura como um "cartão de
+// exposição" (moldura externa luminosa + filete interno), revelado com leve aproximação.
 // ─────────────────────────────────────────────────────────────────────────────
 // [C60-P11-GEOMETRY] Retângulo REAL da arte a partir do instantâneo v2 exportado (§Parte 3). Os
 // campos imgX/imgY/imgW/imgH e W/H vêm em px de backing (×DPR); as RAZÕES (imgX/W etc.) são, por
 // isso, independentes de DPR e mapeiam direto para a área medida do canvas — a WebView preenche a
 // `canvasArea` exatamente, então o espaço de coordenadas da moldura == o do desenho. v1 (data-URL
 // puro, sem layout) e payloads inválidos → null: a moldura cai no enquadramento do canvas inteiro
-// (a arte continua visível; nunca uma borda deslocada por dado ausente).
+// (a arte continua visível; nunca uma borda deslocada por dado ausente). ESTA é a fonte de geometria
+// COMPARTILHADA pela moldura viva E pelas partículas (§Parte 9 · prova "geometria compartilhada").
 function artRectFromSnapshot(snapshot) {
   if (typeof snapshot !== 'string' || snapshot.length === 0) return null;
   if (snapshot.startsWith('data:')) return null; // v1 sem layout → fallback de canvas inteiro
@@ -246,16 +321,68 @@ function artRectFromSnapshot(snapshot) {
 
 const FRAME_PAD = 6;
 
+// [C60-P12-GEOMETRY] Retângulo da arte em COORDENADAS DE TELA. Combina a área medida do canvas
+// (`canvasFrame`, passada pela ColoringScreen via onLayout) com as RAZÕES de `artRectFromSnapshot`
+// (a MESMA fonte da moldura viva) — daí "geometria compartilhada moldura↔partículas". Sem geometria
+// (v1 / ausente) → o retângulo do canvas inteiro (a arte segue visível). Sem `canvasFrame` medido
+// ainda → null (o chamador cai numa faixa medida da própria tela).
+function artScreenRectOf(canvasFrame, snapshot) {
+  if (!canvasFrame || !(canvasFrame.width > 0) || !(canvasFrame.height > 0)) return null;
+  const rect = artRectFromSnapshot(snapshot);
+  if (rect) {
+    return {
+      x: canvasFrame.x + rect.fx * canvasFrame.width,
+      y: canvasFrame.y + rect.fy * canvasFrame.height,
+      w: rect.fw * canvasFrame.width,
+      h: rect.fh * canvasFrame.height,
+    };
+  }
+  return { x: canvasFrame.x, y: canvasFrame.y, w: canvasFrame.width, h: canvasFrame.height };
+}
+
+// [C60-P12-BENI-POSE] Pose do Beni por COMPOSIÇÃO REAL (§Parte 5/6/7):
+//   finale   → apresentaGaleria (fixo).
+//   update   → admira a obra ao seu lado: se a arte está à ESQUERDA do centro do canvas, o Beni fica
+//              à direita e olha para a esquerda (admiraEsquerda); senão, à esquerda olhando à direita
+//              (admiraDireita). Sem geometria → admiraDireita (padrão estável).
+//   activity → olhaAcima quando a geometria põe a obra no ALTO do canvas (fy+fh < 0.62); senão
+//              celebraFrente (pico frontal).
+function pickBeniPose(mode, canvasFrame, artRect) {
+  if (mode === 'finale') return 'apresentaGaleria';
+  if (mode === 'update') {
+    return pickBeniSide(mode, canvasFrame, artRect) === 'right' ? 'admiraEsquerda' : 'admiraDireita';
+  }
+  // Primeira conclusão: se a obra ocupa a parte ALTA do canvas (base < 62% da altura), o Beni ergue
+  // o olhar para ela (olhaAcima); senão, comemora de frente no pico (celebraFrente).
+  if (artRect && canvasFrame && canvasFrame.height > 0) {
+    const fyBottom = (artRect.y - canvasFrame.y + artRect.h) / canvasFrame.height;
+    if (fyBottom < 0.62) return 'olhaAcima';
+  }
+  return 'celebraFrente';
+}
+
+// Lado em que o Beni fica ('left' | 'right'). No update ele fica no lado OPOSTO à arte, para olhá-la.
+// Nas demais composições fica à esquerda (frente/alto/galeria) — leitura estável.
+function pickBeniSide(mode, canvasFrame, artRect) {
+  if (mode !== 'update') return 'left';
+  if (!artRect || !canvasFrame || !(canvasFrame.width > 0)) return 'left';
+  const artCenterX = artRect.x + artRect.w / 2;
+  const canvasMidX = canvasFrame.x + canvasFrame.width / 2;
+  return artCenterX < canvasMidX ? 'right' : 'left';
+}
+
 export function Coloring60ArtGlow({ activityId, active, snapshot = null }) {
   const atmo = atmosphereOf(activityId);
-  const reduceMotion = useReduceMotion();
+  const { reduceMotion, ready } = useReduceMotion();
   const anim = useRef(new Animated.Value(0)).current;
   // Tamanho MEDIDO da área do canvas (a moldura vive no mesmo espaço). Recalcula sozinho em mudança
   // de orientação/tamanho (onLayout redispara) e em troca de atividade (o ramo remonta pela key).
   const [box, setBox] = useState(null);
 
   useEffect(() => {
-    if (!active) return undefined;
+    // Espera a preferência de a11y assentar (§Parte 11): sem `ready`, quem ativou "Reduzir movimento"
+    // veria o reveal de 640ms antes do snap. Com `ready`, o ramo correto roda de uma vez só.
+    if (!active || !ready) return undefined;
     if (reduceMotion) { anim.setValue(1); return undefined; }
     const a = Animated.timing(anim, {
       toValue: 1,
@@ -265,7 +392,7 @@ export function Coloring60ArtGlow({ activityId, active, snapshot = null }) {
     });
     a.start();
     return () => a.stop();
-  }, [active, reduceMotion]);
+  }, [active, ready, reduceMotion]);
 
   // Mede a área continuamente (mesmo inativa): quando a celebração começa, a moldura já nasce no
   // lugar certo, sem um primeiro quadro deslocado. Só atualiza o estado quando o tamanho muda.
@@ -274,7 +401,7 @@ export function Coloring60ArtGlow({ activityId, active, snapshot = null }) {
     setBox((prev) => (prev && prev.w === width && prev.h === height ? prev : { w: width, h: height }));
   };
 
-  // A moldura entra e "assenta" de 1.03 → 1.0 (leve aproximação, §7).
+  // A moldura entra e "assenta" de 1.03 → 1.0 (leve aproximação, §Parte 3).
   const frameScale = anim.interpolate({ inputRange: [0, 1], outputRange: [1.03, 1] });
 
   // §Parte 3 — a moldura segue os LIMITES REAIS da arte (nunca a barra de ferramentas nem a área
@@ -370,8 +497,8 @@ const glowStyles = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Marcador de uma das três atividades (§9). Três estados honestos e distintos, e NENHUM deles é
-// representado por estrela. No fecho (`celebratory`), os concluídos ganham um anel mais firme.
+// Marcador de uma das três atividades (§Parte 9). Três estados honestos e distintos, e NENHUM deles
+// é representado por estrela. No fecho (`celebratory`), os concluídos ganham um anel mais firme.
 // ─────────────────────────────────────────────────────────────────────────────
 function StepMarker({ step, state, celebratory }) {
   const atmo = atmosphereOf(step);
@@ -527,43 +654,81 @@ const galleryStyles = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// A experiência em si.
-//
-// Sequência (§6/§12): camada de luz (300 ms) → Beni entra (~450 ms) → texto → progresso → ações.
-// As ações aparecem por último, mas MUITO antes do fim da animação decorativa — a criança nunca
-// precisa esperar as partículas descansarem para poder tocar.
+// [C60-P12-BALLOON] Balão de fala LIGADO ao Beni (§Parte 8): no máximo 3 linhas, fonte grande,
+// preso ao Beni por uma "seta" que aponta para ele. NÃO cobre o centro da arte (vive no rodapé) e
+// NÃO tem cara de modal — é uma fala de história em quadrinho. O lado da seta acompanha o lado do Beni.
+// ─────────────────────────────────────────────────────────────────────────────
+function SpeechBalloon({ title, line, tailSide, accent, accentDeep }) {
+  return (
+    <View style={[balloonStyles.bubble, { borderColor: accent }]}>
+      {title ? (
+        <Text style={[balloonStyles.title, { color: accentDeep }]} numberOfLines={2}>{title}</Text>
+      ) : null}
+      <Text style={balloonStyles.line} numberOfLines={3}>{line}</Text>
+      <View
+        pointerEvents="none"
+        style={[
+          balloonStyles.tail,
+          { borderColor: accent },
+          tailSide === 'right' ? balloonStyles.tailRight : balloonStyles.tailLeft,
+        ]}
+      />
+    </View>
+  );
+}
+
+const balloonStyles = StyleSheet.create({
+  bubble: {
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: 18,
+    borderWidth: 2,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    maxWidth: 300,
+    ...shadows.soft,
+  },
+  title: { fontSize: 18, fontWeight: '800', lineHeight: 22 },
+  line: { fontSize: 15, color: colors.text, lineHeight: 20, marginTop: 3 },
+  // Seta triangular (quadrado girado) presa à borda inferior do balão, apontando para o Beni.
+  tail: {
+    position: 'absolute',
+    bottom: -8,
+    width: 16,
+    height: 16,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    transform: [{ rotate: '45deg' }],
+  },
+  tailLeft: { left: 26, borderLeftWidth: 2, borderBottomWidth: 2 },
+  tailRight: { right: 26, borderRightWidth: 2, borderBottomWidth: 2 },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A experiência em si — um DIRETOR único (§Parte 4). O MODO é decidido pela MÁQUINA DE CONCLUSÃO
+// (ColoringScreen), a única autoridade sobre o desfecho. O overlay NÃO reinfere o desfecho: apenas
+// APRESENTA o modo recebido, com sua linha do tempo, sua pose de Beni e seus textos de contrato.
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Coloring60CompletionOverlay({
   mode = 'activity',
   activityId,
   steps = [],
   finaleItems = null,
+  snapshot = null,
+  canvasFrame = null,
+  celebrationId = null,
   bottomInset = 0,
   onPrimary,
   onSecondary,
   onTertiary,
 }) {
-  const reduceMotion = useReduceMotion();
+  const { reduceMotion, ready } = useReduceMotion();
   const atmo = atmosphereOf(activityId);
-
-  // O MODO é decidido pela MÁQUINA DE CONCLUSÃO (ColoringScreen), a única autoridade sobre o desfecho
-  // (Diretor de Celebração, §Parte 4): 'update' (atualização afetiva de arte JÁ concluída), 'activity'
-  // (primeira conclusão desta atividade) ou 'finale' (grande conclusão das três, só em 2/3→3/3 real).
-  // O overlay NÃO reinfere o desfecho a partir do progresso — ele apenas APRESENTA o modo recebido.
   const isUpdate = mode === 'update';
   const allDone = mode === 'finale';
 
   const doneCount = steps.filter((s) => s.done).length;
   const total = steps.length || 3;
 
-  const title = allDone ? ALL_DONE_TITLE : atmo.title;
-  const beniLine = allDone ? ALL_DONE_BENI_LINE : atmo.beniLine;
-  const message = allDone ? ALL_DONE_MESSAGE : (isUpdate ? null : (STEP_MESSAGE[doneCount] ?? null));
-  const primaryLabel = isUpdate
-    ? 'Continuar colorindo'
-    : (allDone ? 'Ver meus desenhos' : 'Colorir o próximo');
-
-  // FECHO com identidade dourada (mais nobre) sobre a moldura quente da 3ª atividade.
+  // Acento por modo (fecho = dourado, mais nobre; senão a cor da atividade).
   const accent = allDone ? colors.gold : atmo.tint;
   const accentDeep = allDone ? colors.goldDeep : atmo.tintDeep;
   const accentSoft = allDone ? colors.goldSoft : atmo.tintSoft;
@@ -571,21 +736,59 @@ export default function Coloring60CompletionOverlay({
     ? ['rgba(249,199,79,0)', 'rgba(249,199,79,0.13)', 'rgba(224,162,26,0.32)']
     : atmo.veil;
 
-  const veilAnim = useRef(new Animated.Value(0)).current;
+  // Textos por modo (contrato EXATO do P12 · Partes 5/6/7).
+  const updateText = UPDATE_TEXTS[activityId] ?? UPDATE_TEXTS.light;
+  const title = allDone ? ALL_DONE_TITLE : (isUpdate ? updateText.title : atmo.title);
+  const beniLine = allDone ? ALL_DONE_BENI_LINE : (isUpdate ? updateText.line : atmo.beniLine);
+
+  // Tamanho da tela (fallback de posicionamento quando ainda não há `canvasFrame` medido).
+  const [screen, setScreen] = useState(null);
+  const onRootLayout = (e) => {
+    const { width, height } = e.nativeEvent.layout;
+    setScreen((prev) => (prev && prev.w === width && prev.h === height ? prev : { w: width, h: height }));
+  };
+
+  // [C60-P12-GEOMETRY] Retângulo REAL da arte na tela (mesma base do quadro de brilho:
+  // artRectFromSnapshot + a área do canvas). Origem COMPARTILHADA das partículas e da pose do Beni.
+  const artRect = useMemo(() => artScreenRectOf(canvasFrame, snapshot), [canvasFrame, snapshot]);
+
+  // Pose e lado do Beni por composição real.
+  const beniPose = pickBeniPose(mode, canvasFrame, artRect);
+  const beniSide = pickBeniSide(mode, canvasFrame, artRect); // 'left' | 'right'
+
+  // [C60-P12-SEED] Semente determinística (§Parte 9): capturada UMA vez no mount → mesma disposição
+  // de partículas em todo re-render (nunca "pula"); varia por atividade + celebração + modo.
+  const seedRef = useRef(null);
+  if (seedRef.current === null) {
+    seedRef.current = `${activityId ?? 'light'}|${celebrationId ?? mode}|${mode}`;
+  }
+  const particleCount = reduceMotion
+    ? Math.min(PARTICLE_COUNT_REDUCED, PARTICLE_COUNT[mode] ?? 12)
+    : (PARTICLE_COUNT[mode] ?? 12);
+  const particles = useMemo(
+    () => buildParticles(seedRef.current, particleCount, allDone, atmo.motif),
+    [particleCount, allDone, atmo.motif],
+  );
+
+  // Animated values — UM diretor único (nenhum useEffect espalhado por prop).
+  const ambientAnim = useRef(new Animated.Value(0)).current;
   const beniAnim = useRef(new Animated.Value(0)).current;
-  const textAnim = useRef(new Animated.Value(0)).current;
+  const balloonAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
   const actionsAnim = useRef(new Animated.Value(0)).current;
-  const moteAnims = useRef(MOTES.map(() => new Animated.Value(0))).current;
-  // Revelação em sequência das TRÊS artes do fecho (§Parte 4). Uma por atividade (Luz · Vida · Cuidado).
+  const particleAnim = useRef(new Animated.Value(0)).current;
+  // Revelação em sequência das TRÊS artes do fecho (§Parte 7). Uma por atividade (Luz · Vida · Cuidado).
   const galleryAnims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
 
+  // [C60-P12-PEAK] UM pico audiovisual por modo (§Parte 10): UMA háptica + UM som curto, à prova de
+  // falha (não bloqueia a linha do tempo, §Parte 4/13). O botão "Pronto!" é `silent` na tela — o som
+  // de sucesso NÃO se soma ao 'tap'. Intensidade acompanha o modo. Só dispara quando a preferência de
+  // a11y já assentou (`ready`) e uma ÚNICA vez (`peakFiredRef`): assim a háptica é de fato suprimida
+  // sob "Reduzir movimento" e nunca dobra por re-render/troca de valor. O som é acessível a todos.
+  const peakFiredRef = useRef(false);
   useEffect(() => {
-    // UMA resposta háptica + UM som curto de confirmação (o mesmo canal de UI já existente, que
-    // respeita a preferência de sons da Área dos Pais). Nenhum asset novo. A intensidade acompanha o
-    // modo: FECHO = Success (conclusão), atividade = Light (impacto), atualização = selection (a mais
-    // leve). O som positivo ('success') vale para os três — a ATUALIZAÇÃO é celebração, não um aviso
-    // técnico seco (§Parte 5) — e playUiSound é internamente à prova de falha (não bloqueia, §Parte 8).
+    if (!ready || peakFiredRef.current) return undefined;
+    peakFiredRef.current = true;
     if (!reduceMotion) {
       try {
         if (allDone) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -593,88 +796,107 @@ export default function Coloring60CompletionOverlay({
         else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       } catch { /* segue sem háptica */ }
     }
-    playUiSound('success');
-  }, []);
+    try { playUiSound('success'); } catch { /* som é best-effort: nunca bloqueia */ }
+    return undefined;
+  }, [ready]);
 
+  // [C60-P12-DIRECTOR] Linha do tempo dirigida (§Parte 4): 5 atos, UM só efeito, deps estáveis
+  // ([ready, reduceMotion]) → re-render NÃO reinicia. Sair da tela cancela (anim.stop no cleanup,
+  // §Parte 4). Só arranca quando a preferência de a11y assentou (`ready`, §Parte 11): antes disso a
+  // obra da criança fica visível e a celebração ainda não desabrochou — nada de surto de movimento
+  // para quem pediu "Reduzir movimento". Movimento reduzido: tudo no estado final, sem transições
+  // laterais e sem subida de partículas.
   useEffect(() => {
-    const values = [veilAnim, beniAnim, textAnim, progressAnim, actionsAnim];
+    if (!ready) return undefined;
+    const values = [ambientAnim, beniAnim, balloonAnim, progressAnim, actionsAnim];
     if (reduceMotion) {
-      // Movimento reduzido: tudo já no estado final, sem transições e sem partículas.
       values.forEach((v) => v.setValue(1));
+      particleAnim.setValue(1);
       galleryAnims.forEach((v) => v.setValue(1));
       return undefined;
     }
+    const T = TIMELINE[mode] ?? TIMELINE.activity;
     const step = (value, duration, delay) => Animated.timing(value, {
-      toValue: 1,
-      duration,
-      delay,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      toValue: 1, duration, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true,
     });
     const anim = Animated.parallel([
-      step(veilAnim, 300, 0),        // camada de luz — 250..400 ms
-      Animated.spring(beniAnim, {    // Beni entra com movimento suave — ~450 ms
-        toValue: 1, delay: 150, tension: 55, friction: 8, useNativeDriver: true,
+      step(ambientAnim, T.ambient, 0),                    // Ato 1 — o ambiente acende
+      Animated.spring(beniAnim, {                          // Ato 3 — o Beni entra (fade + leve subida)
+        toValue: 1, delay: T.beniDelay, tension: 55, friction: 8, useNativeDriver: true,
       }),
-      step(textAnim, 240, 480),      // texto SÓ depois do Beni
-      step(progressAnim, 240, 700),  // progresso/mensagem do fecho depois do texto
-      step(actionsAnim, 220, 880),   // ações por último (ainda assim < 1,1 s)
-      Animated.stagger(90, moteAnims.map((v) => Animated.timing(v, {
-        toValue: 1, duration: 1400, easing: Easing.out(Easing.quad), useNativeDriver: true,
-      }))),
+      step(balloonAnim, 240, T.balloonDelay),              // Ato 4 — o Beni fala
+      Animated.timing(particleAnim, {                      // Ato 2/4 — a obra ganha vida (partículas)
+        toValue: 1, duration: T.particleDur, delay: T.particleDelay, easing: Easing.linear, useNativeDriver: true,
+      }),
+      step(progressAnim, 260, T.progressDelay),            // Ato 5 — progresso/galeria
+      step(actionsAnim, 220, T.actionsDelay),              // Ato 5 — ações (bem antes do fim decorativo)
       // Galeria do fecho: cada arte entra em sequência (Luz → Vida → Cuidado). As ações já estão
       // tocáveis antes de a última assentar — a criança nunca espera a revelação terminar.
-      Animated.stagger(150, galleryAnims.map((v) => step(v, 300, 620))),
+      Animated.stagger(T.galleryStagger, galleryAnims.map((v) => step(v, 300, T.progressDelay))),
     ]);
     anim.start();
     return () => anim.stop();
-  }, [reduceMotion]);
+  }, [ready, reduceMotion]);
 
   const rise = (value, distance) => ({
     opacity: value,
     transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [distance, 0] }) }],
   });
 
-  const beniStyle = {
+  // Entradas por FADE (+ leve subida vertical) — nunca lateral (respeita movimento reduzido, §Parte 11).
+  const beniEnter = reduceMotion ? { opacity: 1 } : {
     opacity: beniAnim,
     transform: [
-      { scale: beniAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) },
-      { translateY: beniAnim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) },
+      { scale: beniAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) },
+      { translateY: beniAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
     ],
   };
-  const auraStyle = { opacity: beniAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.9] }) };
+  const balloonEnter = reduceMotion ? { opacity: 1 } : rise(balloonAnim, 10);
+  const progressEnter = reduceMotion ? { opacity: 1 } : rise(progressAnim, 10);
+  const actionsEnter = reduceMotion ? { opacity: 1 } : rise(actionsAnim, 10);
 
-  // Partículas: sobem devagar e se apagam. No FECHO cada uma é um motivo diferente (luz/vida/cuidado)
-  // para a criação inteira "florescer"; nas etapas, o motivo é o da atmosfera atual.
-  const motifFor = (i) => (allDone ? ['dot', 'leaf', 'heart'][i % 3] : atmo.motif);
-  // Atualização recebe o conjunto CHEIO de partículas temáticas (§Parte 5: 6–10) — é celebração de
-  // verdade; a atividade fica num conjunto mais enxuto. O FECHO usa todas, com os três motivos.
-  const moteCount = allDone || isUpdate ? MOTES.length : 5;
-  const motes = reduceMotion ? [] : MOTES.slice(0, moteCount).map((m, i) => {
-    const v = moteAnims[i];
-    const motif = motifFor(i);
-    const tint = allDone ? MOTIF_COLOR[motif] : atmo.tint;
-    const style = {
-      position: 'absolute',
-      left: m.left,
-      top: m.top,
-      opacity: v.interpolate({ inputRange: [0, 0.25, 0.7, 1], outputRange: [0, 0.85, 0.6, 0] }),
-      transform: [
-        { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [12, -22] }) },
-        { scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.05] }) },
-      ],
-    };
-    if (motif === 'dot') {
+  // Tamanho do Beni de corpo inteiro, responsivo à altura da tela (presença sem esmagar a arte).
+  const screenH = screen?.h ?? 760;
+  const beniH = Math.round(Math.min(206, Math.max(150, screenH * 0.27)));
+  const beniW = Math.round(beniH * 0.8); // PNGs 1024×1280 (4:5) — contain
+  const finaleBeniH = Math.round(Math.min(168, Math.max(128, screenH * 0.21)));
+  const finaleBeniW = Math.round(finaleBeniH * 0.8);
+
+  // [C60-P12-PARTICLES] Origem das partículas = retângulo REAL da arte; sem ele, a área do canvas;
+  // sem canvas medido ainda, uma faixa medida da própria tela (nunca confete solto no vazio).
+  const partOrigin = artRect
+    || (canvasFrame && canvasFrame.width > 0
+      ? { x: canvasFrame.x, y: canvasFrame.y, w: canvasFrame.width, h: canvasFrame.height }
+      : (screen ? { x: screen.w * 0.1, y: screen.h * 0.12, w: screen.w * 0.8, h: screen.h * 0.42 } : null));
+
+  const particleNodes = !partOrigin ? null : particles.map((p, i) => {
+    const left = partOrigin.x + p.fx * partOrigin.w;
+    const top = partOrigin.y + p.fy * partOrigin.h;
+    const tint = allDone ? (MOTIF_COLOR[p.motif] ?? atmo.tint) : atmo.tint;
+    if (reduceMotion) {
+      // Brilho LOCALIZADO estático (§Parte 11): sem subida, opacidade suave.
       return (
-        <Animated.View
-          key={`mote-${i}`}
-          style={[style, { width: m.size, height: m.size, borderRadius: m.size / 2, backgroundColor: tint }]}
-        />
+        <View key={`p-${i}`} style={{ position: 'absolute', left, top, opacity: p.peak * 0.5 }} pointerEvents="none">
+          <ParticleGlyph motif={p.motif} size={p.size} tint={tint} />
+        </View>
       );
     }
+    const end = Math.min(1, p.phase + 0.8);
+    const opacity = particleAnim.interpolate({
+      inputRange: [p.phase, p.phase + 0.08, p.phase + 0.55, end],
+      outputRange: [0, p.peak, p.peak * 0.6, 0],
+      extrapolate: 'clamp',
+    });
+    const translateY = particleAnim.interpolate({ inputRange: [p.phase, end], outputRange: [0, -p.rise], extrapolate: 'clamp' });
+    const translateX = particleAnim.interpolate({ inputRange: [p.phase, end], outputRange: [0, p.drift], extrapolate: 'clamp' });
+    const scale = particleAnim.interpolate({ inputRange: [p.phase, end], outputRange: [0.6, 1.05], extrapolate: 'clamp' });
     return (
-      <Animated.View key={`mote-${i}`} style={style}>
-        <MaterialCommunityIcons name={motif === 'leaf' ? 'leaf' : 'heart'} size={m.size + 6} color={tint} />
+      <Animated.View
+        key={`p-${i}`}
+        pointerEvents="none"
+        style={{ position: 'absolute', left, top, opacity, transform: [{ translateY }, { translateX }, { scale }] }}
+      >
+        <ParticleGlyph motif={p.motif} size={p.size} tint={tint} />
       </Animated.View>
     );
   });
@@ -693,9 +915,9 @@ export default function Coloring60CompletionOverlay({
   });
 
   return (
-    <View style={StyleSheet.absoluteFill} accessibilityViewIsModal>
-      {/* Camada de luz: gradiente translúcido que realça sem esconder a pintura. */}
-      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: veilAnim }]}>
+    <View style={StyleSheet.absoluteFill} onLayout={onRootLayout} accessibilityViewIsModal>
+      {/* Ato 1 — FUNDO AMBIENTAL temático (translúcido; realça sem esconder a pintura). */}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: ambientAnim }]}>
         <LinearGradient
           colors={veilColors}
           start={{ x: 0.5, y: 0 }}
@@ -709,162 +931,155 @@ export default function Coloring60CompletionOverlay({
             <View style={[styles.ray, { backgroundColor: atmo.tint, transform: [{ rotate: '24deg' }] }]} />
           </View>
         )}
-        {motes}
       </Animated.View>
 
-      <View style={[styles.dock, { paddingBottom: bottomInset + 12 }]} pointerEvents="box-none">
-        <Animated.View
-          style={[
-            styles.card,
-            allDone && { borderColor: accent, borderWidth: 2 },
-            rise(veilAnim, 14),
-          ]}
-        >
-          {/* Acento superior: um filete de luz na cor da atividade (dourado no fecho). */}
-          <LinearGradient
-            colors={[rgba(accent, 0), accent, rgba(accent, 0)]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={styles.cardAccent}
-          />
+      {/* Ato 2/4 — PARTÍCULAS nascidas da obra (mesma geometria da moldura viva). */}
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>{particleNodes}</View>
 
-          {allDone ? (
-            <View style={styles.headColumn}>
-              <View style={styles.beniWrapCol}>
-                <Animated.View pointerEvents="none" style={[styles.beniAura, auraStyle]}>
-                  <LinearGradient
-                    colors={[rgba(accent, 0.42), rgba(accent, 0)]}
-                    style={StyleSheet.absoluteFill}
-                    start={{ x: 0.5, y: 0.4 }}
-                    end={{ x: 0.5, y: 1 }}
-                  />
-                </Animated.View>
-                <Animated.View style={beniStyle}>
-                  <BeniAvatar variant="celebrating2" size="hero" />
-                </Animated.View>
+      {allDone ? (
+        // ─── FECHO (§Parte 7 · "A Criação Ganha Vida") ────────────────────────────────────────────
+        <View style={[styles.sceneBottom, { paddingBottom: bottomInset + 14 }]} pointerEvents="box-none">
+          <Animated.Text style={[styles.finaleKicker, { color: accentDeep }, progressEnter]} pointerEvents="none">
+            {FINALE_GALLERY_LABEL}
+          </Animated.Text>
+          <Animated.View style={[styles.gallery, progressEnter]} pointerEvents="none">
+            {galleryData.map((it, i) => (
+              <FinaleDrawingThumb
+                key={it.key}
+                paint={it.paint}
+                lineart={it.lineart}
+                marker={it.marker}
+                tint={it.tint}
+                tintDeep={it.tintDeep}
+                tintSoft={it.tintSoft}
+                revealStyle={reduceMotion ? null : {
+                  opacity: galleryAnims[i],
+                  transform: [
+                    { translateY: galleryAnims[i].interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
+                    { scale: galleryAnims[i].interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
+                  ],
+                }}
+              />
+            ))}
+          </Animated.View>
+
+          <View style={styles.finaleHeadRow} pointerEvents="box-none">
+            {/* Beni de CORPO INTEIRO apresentando a galeria (apresentaGaleria) — corpo à esquerda. */}
+            <Animated.View style={[styles.finaleBeni, beniEnter]} pointerEvents="none">
+              <View style={[styles.beniGlow, { width: finaleBeniW, backgroundColor: rgba(accent, 0.20) }]} />
+              <BeniMascotImage
+                variant="apresentaGaleria"
+                style={{ width: finaleBeniW, height: finaleBeniH }}
+                accessibilityLabel="Beni apresentando a sua criação"
+              />
+            </Animated.View>
+            <Animated.View style={[styles.finaleTextCol, balloonEnter]} pointerEvents="none">
+              <Text style={[styles.titleBig, { color: accentDeep }]} numberOfLines={2}>{ALL_DONE_TITLE}</Text>
+              <Text style={styles.beniLine} numberOfLines={2}>{ALL_DONE_BENI_LINE}</Text>
+              <View style={[styles.countPill, styles.countPillStart, { backgroundColor: accentSoft, borderColor: accent }]}>
+                <Text style={[styles.countPillText, { color: accentDeep }]}>{FINALE_COUNT_LABEL}</Text>
               </View>
-              <Animated.View style={[styles.headTextCol, rise(textAnim, 10)]}>
-                <Text style={[styles.titleBig, { color: accentDeep }]}>{title}</Text>
-                <Text style={[styles.beniLine, styles.textCenter]}>{beniLine}</Text>
-              </Animated.View>
-            </View>
-          ) : (
-            <View style={styles.headRow}>
-              {/* §Parte 4/5 · celebração de atividade OU atualização: Beni com presença MAIOR (large),
-                  ao lado do texto — a pintura da criança continua protagonista, visível atrás. Na
-                  ATUALIZAÇÃO o Beni REAGE à arte (pose apontando para a pintura); na atividade, celebra
-                  voltado à criança (celebrating2). Nenhuma pose atual olha para cima — limitação de arte
-                  registrada no cabeçalho deste arquivo; nada é improvisado. */}
-              <Animated.View style={beniStyle}>
-                <BeniAvatar variant={isUpdate ? 'pointLeft' : 'celebrating2'} size="large" />
-              </Animated.View>
-              <Animated.View style={[styles.headText, rise(textAnim, 10)]}>
-                {isUpdate ? (
-                  <Text style={styles.updateLine}>{UPDATE_BENI_LINE}</Text>
-                ) : (
-                  <>
-                    <Text style={[styles.title, { color: accentDeep }]}>{title}</Text>
-                    <Text style={styles.beniLine}>{beniLine}</Text>
-                  </>
-                )}
-              </Animated.View>
-            </View>
-          )}
+            </Animated.View>
+          </View>
 
-          {allDone ? (
-            <>
-              {/* GALERIA da grande conclusão (§Parte 4): as TRÊS artes da criança lado a lado, cada
-                  uma com seu marcador (Luz · Vida · Cuidado), reveladas em sequência. A arte é a
-                  PROTAGONISTA do fecho; sem preencher com área vazia. Sem desenho salvo → o próprio
-                  contorno oficial (fallback honesto), nunca cor solta e nunca imagem nova. */}
-              <Animated.View style={[styles.gallery, rise(progressAnim, 8)]}>
-                {galleryData.map((it, i) => (
-                  <FinaleDrawingThumb
-                    key={it.key}
-                    paint={it.paint}
-                    lineart={it.lineart}
-                    marker={it.marker}
-                    tint={it.tint}
-                    tintDeep={it.tintDeep}
-                    tintSoft={it.tintSoft}
-                    revealStyle={reduceMotion ? null : {
-                      opacity: galleryAnims[i],
-                      transform: [
-                        { translateY: galleryAnims[i].interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
-                        { scale: galleryAnims[i].interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
-                      ],
-                    }}
-                  />
-                ))}
-              </Animated.View>
-              {message !== null && (
-                <Animated.Text style={[styles.message, styles.messageFinale, rise(progressAnim, 10)]}>
-                  {message}
-                </Animated.Text>
-              )}
-            </>
-          ) : isUpdate ? null : (
-            // §Parte 5 · a ATUALIZAÇÃO é leve: Beni reagindo + a frase exata + partículas + duas ações.
-            // Sem mensagem de etapa, SEM o bloco de progresso (nunca o "3/3") e SEM a galeria do fecho.
-            <>
-              {message !== null && (
-                <Animated.Text style={[styles.message, rise(textAnim, 10)]}>{message}</Animated.Text>
-              )}
-              <Animated.View style={[styles.progressBox, rise(progressAnim, 10)]}>
-                <Text style={styles.progressTitle}>Colorir com o Beni</Text>
-                <View style={styles.markersRow}>
-                  {steps.map((s, i) => {
-                    const lit = s.done || s.id === activityId;
-                    return (
-                      <React.Fragment key={s.id}>
-                        <StepMarker
-                          step={s.id}
-                          state={s.id === activityId ? 'current' : (s.done ? 'done' : 'todo')}
-                          celebratory={allDone}
-                        />
-                        {i < steps.length - 1 && (
-                          <View style={[markerStyles.connector, lit && { backgroundColor: accent }]} />
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </View>
-                <View style={[styles.countPill, { backgroundColor: accentSoft, borderColor: accent }]}>
-                  <Text style={[styles.countPillText, { color: accentDeep }]}>{`${doneCount} de ${total}`}</Text>
-                </View>
-              </Animated.View>
-            </>
-          )}
+          <Animated.Text style={[styles.message, styles.messageFinale, progressEnter]} pointerEvents="none">
+            {ALL_DONE_MESSAGE}
+          </Animated.Text>
 
-          <Animated.View style={[styles.actions, rise(actionsAnim, 10)]}>
-            <SoundButton
-              style={[styles.primaryBtn, { backgroundColor: colors.beni }]}
-              accessibilityLabel={primaryLabel}
-              onPress={onPrimary}
-            >
-              <Text style={styles.primaryBtnText}>{primaryLabel}</Text>
+          <Animated.View style={[styles.actions, actionsEnter]}>
+            <SoundButton style={[styles.primaryBtn, { backgroundColor: colors.beni }]} accessibilityLabel="Ver meus desenhos" onPress={onPrimary}>
+              <Text style={styles.primaryBtnText}>Ver meus desenhos</Text>
             </SoundButton>
-            <SoundButton
-              style={styles.secondaryBtn}
-              accessibilityLabel="Voltar à aventura"
-              onPress={onSecondary}
-            >
+            <SoundButton style={styles.secondaryBtn} accessibilityLabel="Voltar à aventura" onPress={onSecondary}>
               <Text style={styles.secondaryBtnText}>Voltar à aventura</Text>
             </SoundButton>
-            {allDone && typeof onTertiary === 'function' && (
-              // §Parte 7 · a grande conclusão oferece TRÊS caminhos: ver os desenhos, voltar à
-              // aventura e colorir novamente (recomeçar as três, sem apagar nada do que foi salvo).
-              <SoundButton
-                style={styles.tertiaryBtn}
-                accessibilityLabel="Colorir novamente"
-                onPress={onTertiary}
-              >
+            {typeof onTertiary === 'function' && (
+              // §Parte 7 · a grande conclusão oferece TRÊS caminhos; a terceira recomeça a jornada.
+              <SoundButton style={styles.tertiaryBtn} accessibilityLabel="Colorir novamente" onPress={onTertiary}>
                 <Text style={styles.tertiaryBtnText}>Colorir novamente</Text>
               </SoundButton>
             )}
           </Animated.View>
-        </Animated.View>
-      </View>
+        </View>
+      ) : (
+        // ─── ATUALIZAÇÃO (§Parte 5) e PRIMEIRA CONCLUSÃO (§Parte 6) ────────────────────────────────
+        <View style={[styles.sceneBottom, { paddingBottom: bottomInset + 14 }]} pointerEvents="box-none">
+          {/* Beni de CORPO INTEIRO + BALÃO de fala (nunca em círculo/cartão/medalhão). O lado do Beni
+              e a seta do balão acompanham a composição real (o Beni "olha" para a obra no update). */}
+          <View style={[styles.beniRow, beniSide === 'right' && styles.beniRowReverse]} pointerEvents="box-none">
+            <Animated.View style={[styles.beniFigure, beniEnter]} pointerEvents="none">
+              <View style={[styles.beniGlow, { width: beniW, backgroundColor: rgba(accent, 0.18) }]} />
+              <BeniMascotImage
+                variant={beniPose}
+                style={{ width: beniW, height: beniH }}
+                accessibilityLabel={isUpdate ? 'Beni admirando as suas novas cores' : 'Beni celebrando o seu desenho'}
+              />
+            </Animated.View>
+            <Animated.View style={[styles.balloonWrap, balloonEnter]} pointerEvents="none">
+              <SpeechBalloon
+                title={title}
+                line={beniLine}
+                tailSide={beniSide === 'right' ? 'right' : 'left'}
+                accent={accent}
+                accentDeep={accentDeep}
+              />
+            </Animated.View>
+          </View>
+
+          {/* Progresso X→X+1 — só na PRIMEIRA conclusão (§Parte 6). A ATUALIZAÇÃO não mostra "3/3". */}
+          {!isUpdate && (
+            <Animated.View style={[styles.progressTrail, progressEnter]} pointerEvents="none">
+              <View style={styles.markersRow}>
+                {steps.map((s, i) => {
+                  const lit = s.done || s.id === activityId;
+                  return (
+                    <React.Fragment key={s.id}>
+                      <StepMarker
+                        step={s.id}
+                        state={s.id === activityId ? 'current' : (s.done ? 'done' : 'todo')}
+                        celebratory={false}
+                      />
+                      {i < steps.length - 1 && (
+                        <View style={[markerStyles.connector, lit && { backgroundColor: accent }]} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </View>
+              <View style={[styles.countPill, { backgroundColor: accentSoft, borderColor: accent }]}>
+                <Text style={[styles.countPillText, { color: accentDeep }]}>{`${doneCount} de ${total}`}</Text>
+              </View>
+            </Animated.View>
+          )}
+
+          <Animated.View style={[styles.actions, actionsEnter]}>
+            {isUpdate ? (
+              // §Parte 5 · duas ações: seguir na mesma arte ou voltar.
+              <>
+                <SoundButton style={[styles.primaryBtn, { backgroundColor: colors.beni }]} accessibilityLabel="Continuar colorindo" onPress={onPrimary}>
+                  <Text style={styles.primaryBtnText}>Continuar colorindo</Text>
+                </SoundButton>
+                <SoundButton style={styles.secondaryBtn} accessibilityLabel="Voltar à aventura" onPress={onSecondary}>
+                  <Text style={styles.secondaryBtnText}>Voltar à aventura</Text>
+                </SoundButton>
+              </>
+            ) : (
+              // §Parte 6 · três ações: próxima parte, ver o desenho ou voltar à aventura.
+              <>
+                <SoundButton style={[styles.primaryBtn, { backgroundColor: colors.beni }]} accessibilityLabel="Colorir a próxima parte" onPress={onPrimary}>
+                  <Text style={styles.primaryBtnText}>Colorir a próxima parte</Text>
+                </SoundButton>
+                <SoundButton style={styles.secondaryBtn} accessibilityLabel="Ver meu desenho" onPress={onSecondary}>
+                  <Text style={styles.secondaryBtnText}>Ver meu desenho</Text>
+                </SoundButton>
+                <SoundButton style={styles.tertiaryBtn} accessibilityLabel="Voltar à aventura" onPress={onTertiary}>
+                  <Text style={styles.tertiaryBtnText}>Voltar à aventura</Text>
+                </SoundButton>
+              </>
+            )}
+          </Animated.View>
+        </View>
+      )}
     </View>
   );
 }
@@ -882,90 +1097,70 @@ const styles = StyleSheet.create({
   },
   ray: { width: 8, height: '100%', borderRadius: 4 },
 
-  dock: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: spacing.md },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    paddingTop: spacing.md + 4,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-    ...shadows.card,
-  },
-  cardAccent: {
+  // Cena no rodapé: cresce de baixo para cima; a arte respira acima (nunca coberta no centro).
+  sceneBottom: {
     position: 'absolute',
-    top: 0,
     left: 0,
     right: 0,
-    height: 4,
+    bottom: 0,
+    paddingHorizontal: spacing.md,
+    justifyContent: 'flex-end',
   },
 
-  headRow: { flexDirection: 'row', alignItems: 'center' },
-  headText: { flex: 1, marginLeft: spacing.sm },
+  // Beni de corpo inteiro + balão lado a lado (row-reverse quando o Beni fica à direita).
+  beniRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: spacing.sm },
+  beniRowReverse: { flexDirection: 'row-reverse' },
+  beniFigure: { alignItems: 'center', justifyContent: 'flex-end' },
+  // "Luz do chão" difusa sob o Beni — NÃO é um medalhão/círculo de moldura; é ambiente.
+  beniGlow: { position: 'absolute', bottom: 6, height: 44, borderRadius: 60, opacity: 0.55 },
+  balloonWrap: { flex: 1, justifyContent: 'flex-end', paddingBottom: 26, paddingHorizontal: spacing.xs },
 
-  headColumn: { alignItems: 'center' },
-  beniWrapCol: { width: 176, height: 148, alignItems: 'center', justifyContent: 'flex-end' },
-  beniAura: {
-    position: 'absolute',
-    width: 176,
-    height: 176,
-    borderRadius: 88,
-    top: '50%',
-    left: '50%',
-    marginTop: -96,
-    marginLeft: -88,
-    overflow: 'hidden',
-  },
-  headTextCol: { alignItems: 'center', marginTop: spacing.xs },
-
-  title: { fontSize: 20, fontWeight: '800' },
-  titleBig: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
-  beniLine: { fontSize: 14, color: colors.text, marginTop: 2, lineHeight: 19 },
-  textCenter: { textAlign: 'center' },
+  titleBig: { fontSize: 23, fontWeight: '800' },
+  beniLine: { fontSize: 14, color: colors.text, marginTop: 3, lineHeight: 19 },
   message: { fontSize: 14, color: colors.textSoft, marginTop: spacing.sm, textAlign: 'center' },
-  messageFinale: { fontSize: 14, color: colors.text, lineHeight: 20, marginTop: spacing.sm },
+  messageFinale: { fontSize: 14, color: colors.text, lineHeight: 20, marginTop: spacing.sm, textAlign: 'center' },
 
-  gallery: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    marginTop: spacing.md,
-  },
+  // Fecho: rótulo da criação + galeria + linha do Beni.
+  finaleKicker: { fontSize: 14, fontWeight: '800', textAlign: 'center', marginBottom: spacing.xs, letterSpacing: 0.3 },
+  gallery: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start' },
+  finaleHeadRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: spacing.md },
+  finaleBeni: { alignItems: 'center', justifyContent: 'flex-end' },
+  finaleTextCol: { flex: 1, marginLeft: spacing.sm, justifyContent: 'flex-end', paddingBottom: 6 },
 
-  progressBox: {
-    marginTop: spacing.md,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    alignItems: 'center',
-  },
-  progressTitle: { fontSize: 13, fontWeight: '700', color: colors.textSoft },
-  markersRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', marginTop: spacing.sm },
+  progressTrail: { alignItems: 'center', marginBottom: spacing.sm },
+  markersRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start' },
   countPill: {
     marginTop: spacing.sm,
     paddingHorizontal: 14,
     paddingVertical: 4,
     borderRadius: radii.pill,
     borderWidth: 1,
+    alignSelf: 'center',
   },
+  countPillStart: { alignSelf: 'flex-start', marginTop: spacing.xs },
   countPillText: { fontSize: 13, fontWeight: '800' },
 
-  actions: { marginTop: spacing.md },
+  actions: { marginTop: spacing.sm, alignSelf: 'stretch', maxWidth: 440, width: '100%' },
   primaryBtn: {
-    minHeight: 52,
+    minHeight: 54,
     borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
+    ...shadows.card,
   },
   primaryBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
-  secondaryBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
-  secondaryBtnText: { color: colors.textSoft, fontSize: 15, fontWeight: '700' },
-  tertiaryBtn: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  secondaryBtn: {
+    minHeight: 46,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.xs,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  secondaryBtnText: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  tertiaryBtn: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   tertiaryBtnText: { color: colors.textSoft, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
-
-  // §Parte 5 · atualização: a frase EXATA do Beni como uma "fala" presente (sem título técnico seco).
-  updateLine: { fontSize: 16, color: colors.text, fontWeight: '700', lineHeight: 22 },
 });
