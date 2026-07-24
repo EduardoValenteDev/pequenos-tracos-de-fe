@@ -601,6 +601,83 @@ if(imgUri){
 const lineartCache = new Map();
 
 /* ──────────────────────────────────────────────────────────────────
+   [C60-P13-PREWARM] Chave de cache e conversão da lineart isoladas em funções de MÓDULO.
+   Motivo (§Parte 10): a transição direta entre as partes da jornada de cores remonta a tela por
+   identidade — e era AQUI que nascia a "tela quase vazia com rodinha" vista no teste físico: a
+   próxima lineart só começava a ser convertida (asset → base64 → data URL) DEPOIS da remontagem.
+   Com a conversão exposta, a celebração consegue AQUECER a próxima parte antes de a criança tocar
+   no botão; quando a tela remonta, o cache já responde HIT e o primeiro quadro chega quase junto.
+   Nenhuma mudança de contrato do componente e nenhuma dependência nova.
+────────────────────────────────────────────────────────────────── */
+function lineartCacheKeyOf(imageSource) {
+  // F2.4e.3: require (id de módulo do Metro) OU { uri: 'file://…' } (colorir remoto do pack).
+  const isUriSource = !!(imageSource && typeof imageSource === 'object' && typeof imageSource.uri === 'string');
+  return isUriSource ? imageSource.uri : imageSource;
+}
+
+/**
+ * Converte a lineart em data URL base64 e MEMORIZA no cache do módulo. Devolve o data URL já
+ * pronto quando ele existe (sem download/leitura). Lança em falha — quem chama decide o que fazer.
+ */
+async function convertLineartToDataUrl(imageSource) {
+  const isUriSource = !!(imageSource && typeof imageSource === 'object' && typeof imageSource.uri === 'string');
+  const cacheKey = lineartCacheKeyOf(imageSource);
+  const cached = lineartCache.get(cacheKey);
+  if (cached) return cached;
+
+  let localUri;
+  if (isUriSource) {
+    localUri = imageSource.uri; // fonte remota já resolvida (file:// persistente do pack)
+  } else {
+    const asset = Asset.fromModule(imageSource);
+    if (!asset.downloaded) await asset.downloadAsync();
+    localUri = asset.localUri || asset.uri;
+  }
+  if (!localUri) throw new Error('asset sem localUri/uri');
+  let dataUrl;
+  if (localUri.startsWith('file')) {
+    // Lê o arquivo local direto em base64 — sem blob/FileReader.
+    const b64 = await FileSystem.readAsStringAsync(localUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    dataUrl = 'data:image/png;base64,' + b64;
+  } else {
+    // URI remota/http (fallback raro): fetch + FileReader.
+    const resp = await fetch(localUri);
+    const blob = await resp.blob();
+    dataUrl = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onloadend = () => (typeof reader.result === 'string'
+        ? res(reader.result) : rej(new Error('FileReader result is not a string')));
+      reader.onerror = () => rej(new Error('FileReader error'));
+      reader.readAsDataURL(blob);
+    });
+  }
+  if (!dataUrl || dataUrl.length < 64) throw new Error('dataUrl vazio');
+  lineartCache.set(cacheKey, dataUrl); // guarda p/ próximas aberturas (require OU uri)
+  return dataUrl;
+}
+
+/**
+ * prewarmLineart(imageSource) — AQUECE a lineart no cache do módulo, fora de qualquer render.
+ * Devolve `true` quando a imagem está pronta em cache e `false` em qualquer falha: NUNCA lança e
+ * NUNCA altera estado de tela. É best-effort — a tela que a consome continua funcionando sem ela
+ * (só perde a vantagem do cache quente). Não baixa conteúdo remoto novo: é a mesma fonte que a
+ * tela usaria de qualquer jeito, só que resolvida ANTES.
+ */
+export async function prewarmLineart(imageSource) {
+  if (!imageSource) return false;
+  try {
+    const cacheKey = lineartCacheKeyOf(imageSource);
+    if (lineartCache.get(cacheKey)) return true; // já quente: nada a fazer
+    const dataUrl = await convertLineartToDataUrl(imageSource);
+    return typeof dataUrl === 'string' && dataUrl.length > 0;
+  } catch {
+    return false; // aquecimento é best-effort: falhar aqui não pode afetar a experiência
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────
    React Native component
 ────────────────────────────────────────────────────────────────── */
 const ColoringCanvas = forwardRef(function ColoringCanvas(
@@ -629,11 +706,12 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
 
     // F2.4e.3: imageSource pode ser um require (módulo) OU { uri: 'file://…' } (colorir remoto
     // do pack). A chave de cache e a resolução do localUri tratam os dois casos; o pipeline
-    // file://→base64→dataURL abaixo é IDÊNTICO (o WebView recebe um data URL self-contained).
-    const isUriSource = !!(imageSource && typeof imageSource === 'object' && typeof imageSource.uri === 'string');
-    const cacheKey = isUriSource ? imageSource.uri : imageSource;
+    // file://→base64→dataURL (em `convertLineartToDataUrl`) é IDÊNTICO nos dois (o WebView
+    // recebe um data URL self-contained).
+    const cacheKey = lineartCacheKeyOf(imageSource);
 
-    // Cache HIT: reaproveita a lineart já convertida (sem download/leitura).
+    // Cache HIT: reaproveita a lineart já convertida (sem download/leitura). É por aqui que a
+    // transição direta da jornada entra "quente" quando a celebração já aqueceu a próxima parte.
     const cached = lineartCache.get(cacheKey);
     if (cached) {
       if (__DEV__) console.log(`[ColoringCanvas] lineart CACHE HIT story=${storyId} scene=${sceneNumber}`);
@@ -644,36 +722,7 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
     (async () => {
       const t0 = Date.now();
       try {
-        let localUri;
-        if (isUriSource) {
-          localUri = imageSource.uri; // fonte remota já resolvida (file:// persistente do pack)
-        } else {
-          const asset = Asset.fromModule(imageSource);
-          if (!asset.downloaded) await asset.downloadAsync();
-          localUri = asset.localUri || asset.uri;
-        }
-        if (!localUri) throw new Error('asset sem localUri/uri');
-        let dataUrl;
-        if (localUri.startsWith('file')) {
-          // Lê o arquivo local direto em base64 — sem blob/FileReader.
-          const b64 = await FileSystem.readAsStringAsync(localUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          dataUrl = 'data:image/png;base64,' + b64;
-        } else {
-          // URI remota/http (fallback raro): fetch + FileReader.
-          const resp = await fetch(localUri);
-          const blob = await resp.blob();
-          dataUrl = await new Promise((res, rej) => {
-            const reader = new FileReader();
-            reader.onloadend = () => (typeof reader.result === 'string'
-              ? res(reader.result) : rej(new Error('FileReader result is not a string')));
-            reader.onerror = () => rej(new Error('FileReader error'));
-            reader.readAsDataURL(blob);
-          });
-        }
-        if (!dataUrl || dataUrl.length < 64) throw new Error('dataUrl vazio');
-        lineartCache.set(cacheKey, dataUrl); // guarda p/ próximas aberturas (require OU uri)
+        const dataUrl = await convertLineartToDataUrl(imageSource);
         if (__DEV__) {
           console.log(`[ColoringCanvas] lineart CACHE MISS story=${storyId} scene=${sceneNumber} convMs=${Date.now() - t0} len=${dataUrl.length}`);
         }

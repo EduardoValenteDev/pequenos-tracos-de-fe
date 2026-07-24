@@ -7,7 +7,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
-import ColoringCanvas, { ERASER_COLOR } from '../components/ColoringCanvas';
+// [C60-P13-PREWARM] `prewarmLineart` aquece a lineart da PRÓXIMA parte no cache do próprio canvas
+// (§Parte 10) — best-effort, nunca lança, nunca mexe em estado de tela. Sem ele a transição direta
+// remontava a tela com a arte ainda por converter (a "tela quase vazia com rodinha" do teste físico).
+import ColoringCanvas, { ERASER_COLOR, prewarmLineart } from '../components/ColoringCanvas';
 import { COLOR_PALETTE } from '../constants/colorPalette';
 import SoundButton from '../components/SoundButton';
 import { useResolvedColoringImage } from '../hooks/useResolvedStoryMedia';
@@ -22,6 +25,9 @@ import { markStoryColoringActivityDone } from '../services/coloringActivityServi
 import { useProgressContext } from '../context/ProgressContext';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
 import { isCreatorQaModeEnabled } from '../services/creatorQaMode';
+// [C60-P13-HEADER] §Parte 13 — sinal de "momento imersivo": recolhe os enfeites globais de
+// desenvolvimento (o selo MODO CRIADOR) enquanto os atos da celebração estão em cena.
+import { beginImmersiveMoment } from '../services/immersiveMoment';
 import FaithIcon from '../components/ui/FaithIcon';
 import { backLabelFor } from '../utils/originBack';
 // P2.T2 (Colorir 60) — resolvedor local ADITIVO por (storyId, activityId). Consumido
@@ -47,6 +53,14 @@ import { getColoring60Activities } from '../data/coloring60Catalog';
 import Coloring60CompletionOverlay, {
   Coloring60ArtGlow,
 } from '../components/coloring60/Coloring60CompletionOverlay';
+// [C60-P13-JOURNEY] §Parte 1 — DERIVAÇÃO CANÔNICA da jornada de cores (puro, sem I/O). É a ÚNICA
+// autoridade sobre "o que acabei de completar / quanto completei / o que vem depois / quais ações".
+// A máquina de conclusão abaixo CONSULTA esta derivação em vez de reinferir contagens na mão.
+import {
+  deriveColoring60Completion,
+  deriveColoring60CollectionView,
+  COLORING60_ACTION,
+} from '../services/coloring60Journey';
 // P7 (Colorir 60) — a LEITURA da arte guardada vem do MESMO serviço dedicado do piloto
 // (namespace fechado `@ptf_drawing60_s<storyId>_a<activityId>`), nunca da chave legada de cena.
 // Nenhum sistema de storage novo é criado aqui: o serviço já publica leitura, escrita e limpeza.
@@ -304,6 +318,11 @@ function beginC60Attempt(deps) {
 const HYDRATION_COVER_TIMEOUT_MS = 8000;
 const HYDRATION_SPINNER_DELAY_MS = 350;
 
+// [C60-P13-PREWARM] Teto do AQUECIMENTO da próxima parte (§Parte 10). O aquecimento é uma vantagem,
+// nunca uma prisão: passado este tempo a ação principal LIBERA de qualquer jeito e a próxima tela
+// abre pelo caminho normal (com a hidratação segura que ela já tem). A criança nunca fica esperando.
+const C60_PREWARM_TIMEOUT_MS = 4000;
+
 // Ramo Colorir 60: presentacional e local-first. Resolve por (storyId, activityId), respeita os
 // três estados honestos e — no estado `available` (P4.T2) — compõe o `ColoringCanvas` existente
 // (SEM alterar seu contrato) com paleta e "Pronto". A CONCLUSÃO (booleano leve, plan-agnóstica) é
@@ -347,6 +366,15 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // isolado). A DECISÃO de qual modo vive na máquina de conclusão abaixo.
   const [c60CelebrateMode, setC60CelebrateMode] = useState(null);
   const [c60FinaleItems, setC60FinaleItems] = useState(null);
+  // [C60-P13-JOURNEY] DERIVAÇÃO da jornada em exibição (§Parte 1), produzida por `coloring60Journey`
+  // no instante da conclusão e guardada como está: o que foi concluído, quanto falta, qual é a próxima
+  // parte e QUAIS ações oferecer. A tela não recalcula nada disso — ela só apresenta e despacha. Na
+  // vista de COLEÇÃO o mesmo campo recebe `deriveColoring60CollectionView` (mesmo formato de ações).
+  const [c60Journey, setC60Journey] = useState(null);
+  // [C60-P13-PREWARM] Estado do AQUECIMENTO da próxima parte (§Parte 10): 'idle' (nada a aquecer),
+  // 'loading' (a ação principal espera), 'ready' (lineart já em cache) ou 'failed' (segue pelo caminho
+  // normal, com o carregamento seguro da própria tela). Só 'loading' segura o botão — e por pouco tempo.
+  const [c60Prewarm, setC60Prewarm] = useState('idle');
   // [C60-P11-FRAME] Snapshot (payload v2) da arte no momento do "Pronto!". Alimenta o quadro de
   // brilho (Coloring60ArtGlow) para que a moldura siga os LIMITES REAIS da arte (Parte 3), e a
   // galeria da grande conclusão quando a arte atual só existe em memória. null = nenhuma celebração.
@@ -384,6 +412,11 @@ function Coloring60ActivityScreen({ route, navigation }) {
   const c60Steps = getColoring60Activities(storyId)
     .map((a) => ({ id: a.activityId, done: c60DoneMap[a.activityId] === true }));
   const c60NextId = c60Steps.find((s) => !s.done)?.id ?? null;
+  // [C60-P13-PREWARM] Alvo do aquecimento (§Parte 10): SÓ quando a ação principal em exibição é
+  // "abrir a próxima parte". Nos demais momentos não há nada a pré-carregar — e nada a esperar.
+  const c60PrewarmTargetId = (c60Celebrating && c60Journey?.primaryAction?.kind === COLORING60_ACTION.OPEN_NEXT)
+    ? (c60Journey.primaryAction.targetActivityId ?? c60NextId)
+    : null;
   // [C60-P12-SEED] Identidade determinística da celebração vigente (atividade + modo + progresso). É a
   // semente ESTÁVEL das partículas do overlay (sem Math.random): o mesmo evento gera sempre a mesma
   // disposição, e re-render não "reembaralha". Derivada — sem estado novo e sem tocar a máquina.
@@ -487,6 +520,10 @@ function Coloring60ActivityScreen({ route, navigation }) {
         const mapa = {};
         ids.forEach((id, i) => { mapa[id] = flags[i] === true; });
         setC60DoneMap(mapa);
+        // [C60-P13-COLLECTION] Entrada pela tela da história ("Ver minha coleção"): a coleção abre
+        // com o retrato RECÉM-LIDO — nunca com o mapa vazio do primeiro quadro, que mostraria a
+        // criação como incompleta por um instante. Continua sendo só uma VISTA: não conclui nada.
+        if (route.params?.showCollection === true) openC60Collection(mapa);
       })
       .catch((err) => {
         if (__DEV__) console.log('[Coloring60] leitura do progresso das atividades falhou:', err?.message);
@@ -516,6 +553,44 @@ function Coloring60ActivityScreen({ route, navigation }) {
       } catch { /* aquecimento é best-effort: nunca derruba a tela */ }
     });
   }, []);
+
+  // [C60-P13-HEADER] §Parte 13 · durante os atos a tela inteira vira história: além do Voltar, do
+  // título e do "Pronto!" (que já somem com `controlsAnim`/`importantForAccessibility`), o SELO
+  // global "MODO CRIADOR ATIVO" também se recolhe — ele é um overlay do navegador e ficava por cima
+  // da festa. O sinal é aberto enquanto a celebração está em cena e ENCERRADO na limpeza do efeito,
+  // então sair da tela no meio do ato restaura o selo do mesmo jeito. Nada do Modo Criador é alterado.
+  useEffect(() => {
+    if (!c60Celebrating) return undefined;
+    return beginImmersiveMoment();
+  }, [c60Celebrating]);
+
+  // [C60-P13-PREWARM] §Parte 10 · AQUECIMENTO da PRÓXIMA PARTE durante a celebração. Enquanto o Beni
+  // comemora, a lineart de destino já é resolvida e convertida no cache do canvas — de modo que a
+  // transição direta encontre a imagem PRONTA (cache HIT) em vez de recomeçar a conversão depois da
+  // remontagem. Regras: (1) roda FORA da máquina de conclusão, para não interferir na decisão; (2) não
+  // bloqueia a animação (é assíncrono e não toca nada do que está na tela); (3) só o estado 'loading'
+  // segura a ação principal, e mesmo assim por no máximo `C60_PREWARM_TIMEOUT_MS`; (4) falha ⇒ o fluxo
+  // segue normal, com o carregamento seguro da própria tela — jamais um beco sem saída.
+  useEffect(() => {
+    if (!available || c60PrewarmTargetId == null) {
+      setC60Prewarm('idle');
+      return undefined;
+    }
+    const res = resolveColoring60Lineart(storyId, c60PrewarmTargetId);
+    if (res.status !== COLORING60_RESOLUTION_STATUS.AVAILABLE || !res.source) {
+      setC60Prewarm('failed'); // sem fonte local: nada a aquecer, e a ação principal não espera
+      return undefined;
+    }
+    let alive = true;
+    setC60Prewarm('loading');
+    // Teto de tempo: libera a ação mesmo que a conversão demore (rede/arquivo lentos).
+    const cap = setTimeout(() => { if (alive) setC60Prewarm('failed'); }, C60_PREWARM_TIMEOUT_MS);
+    prewarmLineart(res.source).then((ok) => {
+      if (!alive || !activeRef.current) return;
+      setC60Prewarm(ok ? 'ready' : 'failed');
+    });
+    return () => { alive = false; clearTimeout(cap); };
+  }, [available, storyId, c60PrewarmTargetId]);
 
   // [C60-P10-HYDRATION] Revela o canvas UMA única vez: esvanece a capa de hidratação. Idempotente
   // (hydratedRef), sem repetir a animação em re-render. É chamado no momento certo pelo efeito
@@ -613,9 +688,13 @@ function Coloring60ActivityScreen({ route, navigation }) {
       const items = await Promise.all(
         activities.map(async (a) => {
           let paint = null;
-          if (a.activityId === activityId) {
-            paint = typeof currentSnapshot === 'string' ? currentSnapshot : null;
+          if (a.activityId === activityId && typeof currentSnapshot === 'string') {
+            // A arte ATUAL, recém-concluída, vem do instantâneo em memória (funciona no Grátis).
+            paint = currentSnapshot;
           } else {
+            // [C60-P13-COLLECTION] Sem instantâneo (a coleção pode ser reaberta a frio, pela tela da
+            // história ou por uma atividade já concluída): a arte atual é lida do storage como as
+            // outras duas. Mesmo serviço isolado, mesma validação — nada de fallback improvisado.
             try {
               const saved = await getColoring60SavedDrawing(storyId, a.activityId);
               if (saved && isAcceptableC60Payload(saved) && hasMeaningfulPaint(saved)) paint = saved;
@@ -658,14 +737,20 @@ function Coloring60ActivityScreen({ route, navigation }) {
     const snapshot = typeof outcome?.snapshot === 'string' ? outcome.snapshot : null;
     const catalogIds = getColoring60Activities(storyId).map((a) => a.activityId);
     const total = catalogIds.length || 3;
-    const wasAlreadyDone = c60DoneMap[activityId] === true;
-    const doneCountBefore = catalogIds.filter((id) => c60DoneMap[id] === true).length;
-    const doneCountAfter = wasAlreadyDone
-      ? doneCountBefore
-      : catalogIds.filter((id) => id === activityId || c60DoneMap[id] === true).length;
+    // [C60-P13-JOURNEY] A DECISÃO é DERIVADA (§Parte 1), não recalculada aqui: modo, contagens,
+    // próxima parte e as três ações vêm da mesma função pura que alimenta o cartão da história. Assim
+    // a celebração, o cartão e a coleção jamais discordam sobre em que ponto da jornada a criança está.
+    const journey = deriveColoring60Completion({
+      doneMapBefore: c60DoneMap,
+      currentActivityId: activityId,
+      order: catalogIds,
+    });
+    const wasAlreadyDone = journey.completionMode === 'update';
+    const doneCountBefore = journey.completedCountBefore;
+    const doneCountAfter = journey.completedCountAfter;
     if (__DEV__) {
       console.log(
-        `[Coloring60] máquina de conclusão: already=${wasAlreadyDone} antes=${doneCountBefore} depois=${doneCountAfter}/${total} persistido=${persisted}`,
+        `[Coloring60] máquina de conclusão: already=${wasAlreadyDone} antes=${doneCountBefore} depois=${doneCountAfter}/${total} persistido=${persisted} modo=${journey.completionMode} próxima=${journey.nextIncompleteActivityId}`,
       );
     }
 
@@ -673,11 +758,13 @@ function Coloring60ActivityScreen({ route, navigation }) {
     // (Parte 3) em TODAS as três celebrações, e a galeria quando a arte atual só existe em memória.
     // Setado UMA vez antes de qualquer ramo, para que o primeiro quadro da moldura já esteja no lugar.
     setC60CelebrateSnapshot(snapshot);
+    setC60Journey(journey);
 
     // Editar uma atividade JÁ concluída (Regras 4/5): celebração de ATUALIZAÇÃO — a arte volta ao
     // ENQUADRAMENTO INTEIRO ("Ver tudo") para ficar inteira e visível durante a festa, o Beni reage e
     // a mensagem celebra as novas cores. NÃO repete a grande conclusão nem a página especial de 1ª vez,
-    // e NÃO mexe no progresso (já estava done). Sem navegação: a criança escolhe pelas ações do cartão.
+    // e NÃO mexe no progresso (já estava done). Sem navegação: a criança escolhe pelas ações do cartão
+    // — e, com a jornada incompleta, a ação principal continua sendo SEGUIR (§Parte 6), não ficar.
     if (wasAlreadyDone) {
       canvasRef.current?.resetZoom();
       setC60CelebrateMode('update');
@@ -692,9 +779,10 @@ function Coloring60ActivityScreen({ route, navigation }) {
     canvasRef.current?.resetZoom();
     setC60DoneMap((prev) => ({ ...prev, [activityId]: true }));
 
-    if (doneCountAfter >= total) {
-      // 2/3 → 3/3 real: GRANDE conclusão. Resolve a galeria das três (a atual em memória + as outras
-      // duas do storage) ANTES de a criança tocar em qualquer coisa.
+    if (journey.allActivitiesComplete) {
+      // 2/3 → 3/3 real: GRANDE conclusão (só na PRIMEIRA vez — em edição posterior o modo é UPDATE e
+      // este ramo não é alcançado). Resolve a galeria das três (a atual em memória + as outras duas do
+      // storage) ANTES de a criança tocar em qualquer coisa.
       setC60CelebrateMode('finale');
       loadC60FinaleItems(snapshot);
     } else {
@@ -706,38 +794,78 @@ function Coloring60ActivityScreen({ route, navigation }) {
   }
   // [C60-P11-MACHINE-END]
 
-  // Ação principal: se ainda falta atividade, troca a IDENTIDADE da mesma rota — o wrapper remonta
-  // o ramo pela `key` (mecanismo já existente do P4), sem rota nova, sem tela nova e sem mexer na
-  // pilha. Com as três concluídas, volta ao ponto interno de seleção, de onde cada atividade reabre
-  // com a pintura da criança.
-  function handleC60Primary() {
-    if (c60NextId != null) {
-      navigation.setParams({ activityId: c60NextId });
-      return;
-    }
-    navigation.goBack();
-  }
-
-  // [C60-P11-UPDATE] Ação principal da celebração de ATUALIZAÇÃO ("Continuar colorindo"): fecha a
-  // camada de festa e devolve os controles de pintura suavemente, mantendo a criança NA MESMA
-  // atividade que acabou de reencantar. Sem navegação e sem tocar o progresso (a atividade já estava
-  // concluída) — ela simplesmente volta a pintar de onde estava. Limpa também o snapshot da moldura.
+  // [C60-P13-CONTINUE] Fecha a camada de festa e devolve os controles de pintura suavemente, mantendo
+  // a criança NA MESMA atividade ("Continuar neste desenho"). Sem navegação e sem tocar o progresso —
+  // ela simplesmente volta a pintar de onde estava. Limpa o snapshot da moldura e a jornada em exibição.
   function handleC60ContinueColoring() {
     setC60Celebrating(false);
     setC60CelebrateMode(null);
     setC60CelebrateSnapshot(null);
+    setC60Journey(null);
+    setC60Prewarm('idle');
     Animated.timing(controlsAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
   }
 
-  // [C60-P11-FINALE] Terceira ação da GRANDE conclusão ("Colorir novamente"): recomeça a jornada de
-  // cor pela PRIMEIRA atividade do catálogo (Luz), trocando a IDENTIDADE da mesma rota — o wrapper
-  // remonta o ramo pela `key` (mesmo mecanismo do P4), reabrindo com a pintura já guardada da criança.
-  // Sem rota nova e sem mexer na pilha. Guarda em activeRef para não navegar após desmontar.
-  function handleC60ColorAgain() {
+  // [C60-P13-DIRECT] TRANSIÇÃO DIRETA (§Parte 3/4/10): abre a atividade de destino trocando a
+  // IDENTIDADE da MESMA rota — o wrapper remonta o ramo pela `key` (mecanismo já existente do P4).
+  // Sem voltar à tela da história, sem empilhar rota nova e sem tela intermediária: a criança sai do
+  // fecho de uma parte e entra na seguinte. A camada de festa é desmontada ANTES da troca (nada de
+  // overlay sobrevivendo à identidade nova) e os controles voltam ao normal. Sem destino → caminho
+  // seguro de sempre (voltar à aventura). Guarda em activeRef para não navegar após desmontar.
+  function openC60Activity(targetActivityId) {
     if (!activeRef.current) return;
-    const firstId = getColoring60Activities(storyId)[0]?.activityId ?? null;
-    if (firstId != null) navigation.setParams({ activityId: firstId });
+    if (targetActivityId == null) { navigation.goBack(); return; }
+    // REVISÃO ADVERSARIAL (Portão 10): destino IGUAL à parte aberta agora — acontece de verdade em
+    // "Colorir novamente" quando a última concluída foi justamente a primeira parte. `setParams` com
+    // a mesma identidade NÃO remonta nada: o toque ficaria mudo, com a festa fechando e nenhum sinal.
+    // Nesse caso o caminho honesto é o mesmo de "continuar neste desenho": a festa sai e o desenho volta.
+    if (targetActivityId === activityId) { handleC60ContinueColoring(); return; }
+    setC60Celebrating(false);
+    setC60CelebrateMode(null);
+    setC60CelebrateSnapshot(null);
+    setC60Journey(null);
+    setC60FinaleItems(null);
+    setC60Prewarm('idle');
+    controlsAnim.setValue(1);
+    navigation.setParams({ activityId: targetActivityId });
   }
+
+  // [C60-P13-COLLECTION] A COLEÇÃO ("as três obras juntas"): mesma camada, modo `collection`. É uma
+  // VISTA revisitável — NÃO conclui nada, NÃO concede recompensa e NÃO repete a grande conclusão
+  // (que só acontece na transição real 2→3, decidida pela derivação). Recebe o retrato de conclusão
+  // explicitamente para poder ser aberta logo após a leitura inicial (entrada pela tela da história),
+  // antes de o estado ter assentado. A galeria é carregada uma vez; sem instantâneo, cada arte vem
+  // do storage — e o que faltar cai no fallback honesto do lineart oficial.
+  function openC60Collection(doneMapForView) {
+    if (!activeRef.current) return;
+    const ids = getColoring60Activities(storyId).map((a) => a.activityId);
+    setC60Journey(deriveColoring60CollectionView({ doneMap: doneMapForView ?? c60DoneMap, order: ids }));
+    setC60CelebrateMode('collection');
+    setC60Celebrating(true);
+    setC60Prewarm('idle');
+    if (c60FinaleItems == null) loadC60FinaleItems(c60CelebrateSnapshot);
+    Animated.timing(controlsAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start();
+  }
+
+  // [C60-P13-DISPATCH] DESPACHANTE ÚNICO das ações da jornada. A derivação diz a INTENÇÃO
+  // (`COLORING60_ACTION`) e o rótulo; a tela decide COMO realizá-la. Assim nenhum rótulo carrega
+  // navegação escondida e nenhum modo precisa de um mapeamento próprio de botões. Intenção
+  // desconhecida cai no caminho seguro de sempre: voltar à aventura, com o progresso guardado.
+  function handleC60Action(action) {
+    if (!activeRef.current) return;
+    const kind = action?.kind ?? null;
+    if (kind === COLORING60_ACTION.OPEN_NEXT || kind === COLORING60_ACTION.RESTART) {
+      openC60Activity(action?.targetActivityId ?? null);
+      return;
+    }
+    if (kind === COLORING60_ACTION.STAY) { handleC60ContinueColoring(); return; }
+    if (kind === COLORING60_ACTION.COLLECTION) { openC60Collection(c60DoneMap); return; }
+    navigation.goBack();
+  }
+
+  function handleC60Primary() { handleC60Action(c60Journey?.primaryAction ?? null); }
+  function handleC60Secondary() { handleC60Action(c60Journey?.secondaryAction ?? null); }
+  function handleC60Tertiary() { handleC60Action(c60Journey?.tertiaryAction ?? null); }
 
   // [C60-P4-WIRING] Ligação fina React↔núcleo: handleC60Pronto injeta o estado DESTA instância
   // (D1/D5/saving, refs, navegação e a trava síncrona) no núcleo testável `beginC60Attempt`, onde
@@ -927,10 +1055,12 @@ function Coloring60ActivityScreen({ route, navigation }) {
         {c60Celebrating
         && (c60CelebrateMode === 'update'
           || c60CelebrateMode === 'activity'
-          || c60CelebrateMode === 'finale') ? (
+          || c60CelebrateMode === 'finale'
+          || c60CelebrateMode === 'collection') ? (
           <Coloring60CompletionOverlay
             // A máquina de conclusão é AUTORIDADE sobre o desfecho: o overlay não reinfere o modo
-            // do progresso. 'finale' só em 2/3→3/3 real; 'update' só ao recolorir atividade concluída.
+            // do progresso. 'finale' só em 2/3→3/3 real; 'update' só ao recolorir atividade concluída;
+            // 'collection' é a VISTA revisitável das três obras (não é conclusão e não repete o fecho).
             mode={c60CelebrateMode}
             activityId={activityId}
             steps={c60Steps}
@@ -941,15 +1071,16 @@ function Coloring60ActivityScreen({ route, navigation }) {
             canvasFrame={c60CanvasFrame}
             celebrationId={c60CelebrationId}
             bottomInset={insets.bottom}
-            // Ações por modo (§Parte 5/6/7):
-            //   update   → [Continuar colorindo] volta à MESMA arte; [Voltar à aventura] sai.
-            //   activity → [Colorir a próxima parte] próxima; [Ver meu desenho] fecha a festa e mostra
-            //              o desenho; [Voltar à aventura] sai.
-            //   finale   → [Ver meus desenhos] fim (todas concluídas → volta ao ponto de seleção);
-            //              [Voltar à aventura] sai; [Colorir novamente] recomeça a jornada.
-            onPrimary={c60CelebrateMode === 'update' ? handleC60ContinueColoring : handleC60Primary}
-            onSecondary={c60CelebrateMode === 'activity' ? handleC60ContinueColoring : () => navigation.goBack()}
-            onTertiary={c60CelebrateMode === 'activity' ? () => navigation.goBack() : handleC60ColorAgain}
+            // [C60-P13-JOURNEY] A DERIVAÇÃO viaja inteira (§Parte 1): contagem com concordância,
+            // trilha, convite da próxima parte e as TRÊS ações com seus rótulos. O overlay apresenta
+            // o que recebe e devolve a escolha; quem realiza a intenção é o despachante da tela.
+            journey={c60Journey}
+            // §Parte 10 · a ação principal só espera enquanto a próxima parte está sendo aquecida —
+            // e no máximo por C60_PREWARM_TIMEOUT_MS. Nos demais estados ela responde de imediato.
+            primaryPending={c60Prewarm === 'loading'}
+            onPrimary={handleC60Primary}
+            onSecondary={handleC60Secondary}
+            onTertiary={handleC60Tertiary}
           />
         ) : null}
       </View>

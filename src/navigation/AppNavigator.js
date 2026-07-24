@@ -19,6 +19,7 @@ import StoryDetailScreen from '../screens/StoryDetailScreen';
 import NarrationScreen from '../screens/NarrationScreen';
 import ColoringScreen from '../screens/ColoringScreen';
 import ColoringQaScreen from '../screens/ColoringQaScreen';
+import Coloring60LabScreen from '../screens/Coloring60LabScreen';
 import SceneValidationScreen from '../screens/SceneValidationScreen';
 import CongratsScreen from '../screens/CongratsScreen';
 import TrophiesScreen from '../screens/TrophiesScreen';
@@ -363,6 +364,15 @@ export default function AppNavigator() {
           <Stack.Screen
             name="ColoringQa"
             component={ColoringQaScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+        {/* §Parte 12: bancada do Colorir 60 (reencenar 0/3→3/3 e as reedições). Rota registrada SÓ
+            sob o gate interno; a TELA ainda exige Modo Criador ligado. Sem rota pública. */}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="Coloring60Lab"
+            component={Coloring60LabScreen}
             options={{ headerShown: false }}
           />
         )}

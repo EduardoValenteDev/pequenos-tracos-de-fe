@@ -22158,7 +22158,10 @@ check(
 
     // M1-2 — banner Modo Criador só sob gate (null sem permissão).
     check('M1 (banner): CreatorModeBanner retorna null sem isCreatorQaModeAllowed()',
-      /if \(!isCreatorQaModeAllowed\(\) \|\| !enabled\) return null/.test(bannerM1),
+      // §Parte 13 acrescentou `|| immersive` (o selo se RECOLHE durante um momento imersivo). O gate
+      // de permissão continua sendo a PRIMEIRA condição — o termo extra só pode ESCONDER mais, nunca
+      // menos: `immersive` aparece depois dos dois gates, num OR.
+      /if \(!isCreatorQaModeAllowed\(\) \|\| !enabled(?: \|\| immersive)?\) return null/.test(bannerM1),
       'CreatorModeBanner deixou de ser gated por isCreatorQaModeAllowed');
 
     // M1-3 — FAB packs global REMOVIDO (sem overlay dev em telas públicas).
@@ -24744,7 +24747,8 @@ check(
       && /selo:/.test(bannerF) && /right: 8/.test(bannerF)
       && !/left: 0, right: 0,\s*(?:\n\s*)?backgroundColor:/.test(bannerF)   // não é barra full-width
       && /MODO CRIADOR ATIVO/.test(bannerF)
-      && /if \(!isCreatorQaModeAllowed\(\) \|\| !enabled\) return null;/.test(bannerF)   // gate + invisível em prod
+      // gate + invisível em prod (§Parte 13 admite o termo extra `|| immersive`, que só esconde MAIS)
+      && /if \(!isCreatorQaModeAllowed\(\) \|\| !enabled(?: \|\| immersive)?\) return null;/.test(bannerF)
       && !/\p{Extended_Pictographic}/u.test(bannerF),   // sem emoji (🛠️ saiu)
       'o selo do Modo Criador voltou a ser faixa de largura total, perdeu o gate/pointerEvents, ou tem emoji');
 
@@ -30050,9 +30054,14 @@ check(
       'a proibição de activities/light.png é permanente e independe da fase');
     // Nenhuma rota/QA do Colorir 60 registrada ainda:
     const navSrc = readSrc('src/navigation/AppNavigator.js');
-    check('C60-P0.T8: nenhuma rota/entrada de QA do Colorir 60 registrada (flag off)',
-      !/[Cc]oloring60|COLORIR_60|Coloring60Qa/.test(navSrc),
-      'nenhuma rota Colorir 60 deve estar registrada no AppNavigator em P0');
+    // §Parte 12 mudou o alvo desta trava — sem afrouxá-la. Continua PROIBIDA qualquer rota PÚBLICA
+    // do Colorir 60 (a experiência da criança segue trafegando por params na rota 'Coloring' que já
+    // existia). A ÚNICA exceção admitida é a BANCADA de desenvolvimento, e mesmo ela só vale se
+    // estiver registrada sob `isInternalToolsEnabled()` — em produção a rota nem é montada.
+    check('C60-P0.T8→P13: nenhuma rota PÚBLICA do Colorir 60 (só a bancada dev, sob isInternalToolsEnabled)',
+      !/[Cc]oloring60|COLORIR_60|Coloring60Qa/.test(navSrc.replace(/Coloring60Lab(?:Screen)?/g, ''))
+        && /\{isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s+name="Coloring60Lab"/.test(navSrc),
+      'a única entrada Colorir 60 no AppNavigator é a bancada dev, obrigatoriamente gateada');
   }
 
   // ── Colorir 60 · A Criação — P1 (catálogo + registro estático local) ──
@@ -30363,9 +30372,13 @@ check(
     check('C60-P2.T2: ColoringScreen NÃO usa getColoringImage nem fallback scene_02 (anti-fallback)',
       !/getColoringImage/.test(scr) && !/scene_02/.test(scr),
       'o ramo Colorir 60 não pode cair em página legada errada nem em scene_02');
-    check('C60-P2.T2: navegação aditiva sem rota nova — AppNavigator sem token Colorir 60',
-      !/[Cc]oloring60|COLORIR_60|Coloring60Qa/.test(readSrc('src/navigation/AppNavigator.js')),
-      'params opcionais trafegam nativamente — nenhuma rota/entrada Colorir 60 é criada em P2');
+    check('C60-P2.T2→P13: navegação aditiva — nenhuma rota Colorir 60 para a criança (só a bancada dev gateada)',
+      (() => {
+        const nav = readSrc('src/navigation/AppNavigator.js');
+        return !/[Cc]oloring60|COLORIR_60|Coloring60Qa/.test(nav.replace(/Coloring60Lab(?:Screen)?/g, ''))
+          && /\{isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s+name="Coloring60Lab"/.test(nav);
+      })(),
+      'params opcionais trafegam nativamente; a bancada de desenvolvimento é a única rota, e é gateada');
 
     // ── P2.T3 · regressão do legado: módulos legados byte-idênticos (tripwire de hash) ──
     const crypto = require('crypto');
@@ -31863,16 +31876,30 @@ check(
     // (setState/Animated/canvasRef/loadFinale) e o catálogo. Captura o modo escolhido e os
     // efeitos: marcou progresso? reenquadrou (Ver tudo)? carregou a galeria (e com qual snapshot)?
     const CAT = ['light', 'living_world', 'people_and_care'];
+    // §Parte 1 · a máquina passou a DELEGAR a decisão à derivação canônica pura. O harness injeta a
+    // função REAL do módulo (não um stub): mutar uma regra da derivação muda o veredito das provas.
+    const C60J = (() => {
+      const src = readSrc('src/services/coloring60Journey.js')
+        .replace(/^import[\s\S]*?;$/gm, '')
+        .replace(/export /g, '');
+      return new Function(src + `\nreturn {
+        deriveColoring60Completion, deriveColoring60CardState, deriveColoring60CollectionView,
+        nextIncompleteActivityId, completionCountLabel, orderedCompleted,
+        COLORING60_MODE, COLORING60_ACTION, COLORING60_STEP_STATE, COLORING60_CANONICAL_ORDER,
+        COLORING60_ACTIVITY_TITLE, COLORING60_ACTIVITY_THEME, COLORING60_NEXT_MESSAGE,
+        COLORING60_HELPER_TEXT, COLORING60_COLLECTION_TITLE, COLORING60_COLLECTION_MODE };`)();
+    })();
     let machineRaw = sliceBetween(scrP10, '[C60-P11-MACHINE-START]', '[C60-P11-MACHINE-END]');
     machineRaw = machineRaw.slice(
       machineRaw.indexOf('function handleC60Celebrate('),
       machineRaw.lastIndexOf('}') + 1);
     const runMachine = ({ doneMap, activityId, outcome }) => {
-      const calls = { mode: null, celebrating: null, doneMapWritten: null, doneMapCalls: 0, resetZoom: 0, loadFinale: 0, finaleSnapshot: undefined, snapshotWritten: undefined };
+      const calls = { mode: null, celebrating: null, doneMapWritten: null, doneMapCalls: 0, resetZoom: 0, loadFinale: 0, finaleSnapshot: undefined, snapshotWritten: undefined, journey: null };
       const handler = new Function(
         'getColoring60Activities', 'c60DoneMap', 'activityId', 'storyId',
         'setC60CelebrateMode', 'setC60Celebrating', 'setC60DoneMap', 'setC60CelebrateSnapshot',
         'Animated', 'controlsAnim', 'canvasRef', 'loadC60FinaleItems', '__DEV__', 'console',
+        'deriveColoring60Completion', 'setC60Journey',
         machineRaw + '\nreturn handleC60Celebrate;')(
         () => CAT.map((id) => ({ activityId: id })),
         doneMap, activityId, 'creation',
@@ -31885,7 +31912,9 @@ check(
         { current: { resetZoom: () => { calls.resetZoom++; } } },
         (snap) => { calls.loadFinale++; calls.finaleSnapshot = snap; },
         false,
-        { log: () => {} });
+        { log: () => {} },
+        C60J.deriveColoring60Completion,
+        (j) => { calls.journey = j; });
       handler(outcome);
       return calls;
     };
@@ -32068,14 +32097,34 @@ check(
     check('C60-P10 [prova 8b] celebração: animação de entrada keyed por [ready, reduceMotion] com cleanup (não reinicia em re-render)',
       /anim\.start\(\);\s*\n\s*return \(\) => anim\.stop\(\);\s*\n\s*\}, \[ready, reduceMotion\]\);/.test(ovRaw),
       'a animação só (re)inicia quando ready/reduceMotion mudam; re-render comum não reanima');
-    check('C60-P12 [prova 8c · contrato P12R] atualização é CELEBRAÇÃO afetiva por atividade: fala EXATA + Beni ADMIRA (variant={beniPose}) + háptico leve; sem "3/3" e sem galeria',
+    // §Parte 6/7 · a reedição continua sendo celebração afetiva, MAS deixou de terminar em si mesma:
+    // "Continuar colorindo" não pode mais ser a única saída (era o que devolvia a criança ao desenho
+    // atual sem nenhuma condução). Os rótulos agora nascem da DERIVAÇÃO — provados executando-a.
+    check('C60-P12 [prova 8c → §Parte 6/7] reedição: fala EXATA + Beni ADMIRA + háptico leve; ações da jornada e NUNCA "Continuar colorindo"',
       ovRaw.includes('Sua luz brilhou!')
         && ovRaw.includes('Uau! Suas cores fizeram a luz brilhar ainda mais!')
         && /variant=\{beniPose\}/.test(ovRaw)
         && /if \(isUpdate\) Haptics\.selectionAsync/.test(ovRaw)
-        && /\{!isUpdate && \(/.test(ovRaw)
-        && /isUpdate \? \([\s\S]*?"Continuar colorindo"/.test(ovRaw),
-      'a atualização reage à arte (Beni admira + fala afetiva por atividade P12R + selection) e oferece "Continuar colorindo" — nunca o progresso 3/3, nunca a galeria');
+        // §Parte 3/4 · a reedição NÃO ganha o convite da próxima parte (a criança já conhece o
+        // caminho): o convite só existe na PRIMEIRA conclusão — invariante lido do próprio render.
+        && /const nextPart = isUpdate \|\| allDone \? null : \(journey\?\.nextPart \?\? null\);/.test(ovRaw)
+        && !/Continuar colorindo/.test(ovRaw) && !/Continuar colorindo/.test(scrP10)
+        && (() => {
+          const inc = C60J.deriveColoring60Completion({ doneMapBefore: { light: true }, currentActivityId: 'light' });
+          const full = C60J.deriveColoring60Completion({
+            doneMapBefore: { light: true, living_world: true, people_and_care: true }, currentActivityId: 'light',
+          });
+          return inc.completionMode === 'update'
+            && inc.primaryAction.label === 'Continuar a jornada'
+            && inc.primaryAction.kind === 'openNext' && inc.primaryAction.targetActivityId === 'living_world'
+            && inc.secondaryAction.label === 'Continuar neste desenho'
+            && inc.tertiaryAction.label === 'Terminar depois'
+            && full.completionMode === 'update'
+            && full.primaryAction.label === 'Ver minha coleção' && full.primaryAction.kind === 'openCollection'
+            && full.secondaryAction.label === 'Continuar neste desenho'
+            && full.tertiaryAction.label === 'Voltar à aventura';
+        })(),
+      'a reedição reage à arte E conduz: com progresso incompleto convida a continuar a jornada; com tudo pronto oferece a coleção — nunca "Continuar colorindo" como saída única');
 
     // Parte 6 · textos EXATOS de PRIMEIRA CONCLUSÃO por atividade (contrato — não reformular).
     check('C60-P11 [Parte 6] 1ª conclusão: títulos e falas EXATOS por atividade (luz · vida · cuidado)',
@@ -32084,13 +32133,27 @@ check(
         && ovRaw.includes('Seu cuidado deixou tudo especial!') && ovRaw.includes('Você cuidou de cada pedacinho com muito carinho!'),
       'cada atividade tem sua página especial com o título e a fala aprovados');
     // Parte 7 · fecho: título com "!" EXATO + mensagem EXATA + galeria das três + TRÊS ações.
-    check('C60-P11 [Parte 7 · contrato P12R ATO 5] fecho: título "!" e mensagem EXATOS + galeria das três + 3ª ação "Colorir novamente"',
+    // §Parte 5 · o fecho mantém título/fala/identificação aprovados no overlay; os RÓTULOS das três
+    // ações migraram para a derivação (fonte única) — a prova executa a derivação para exigi-los.
+    check('C60-P11 [Parte 7 → §Parte 5] fecho: título/fala/"3 de 3"/nome da coleção EXATOS + galeria das três + 3 ações (ver desenhos · voltar · colorir novamente)',
       ovRaw.includes('Você coloriu toda a Criação!')
+        && ovRaw.includes('Olha só! Você encheu tudo de luz, vida e cuidado!')
         && ovRaw.includes('Cada desenho mostrou um jeito especial de ver, cuidar e celebrar o mundo de Deus.')
+        && ovRaw.includes('Minha Criação Cheia de Cor')
         && /FinaleDrawingThumb/.test(ovRaw) && /galleryAnims/.test(ovRaw)
         && /typeof onTertiary === 'function' && \(/.test(ovRaw)
-        && ovRaw.includes('Colorir novamente'),
-      'a grande conclusão traz os textos aprovados, os três desenhos e a terceira ação (recomeçar)');
+        && (() => {
+          const f = C60J.deriveColoring60Completion({
+            doneMapBefore: { light: true, living_world: true }, currentActivityId: 'people_and_care',
+          });
+          return f.completionMode === 'finale'
+            && f.countLabel === '3 de 3 concluídas'
+            && f.primaryAction.label === 'Ver meus desenhos' && f.primaryAction.kind === 'openCollection'
+            && f.secondaryAction.label === 'Voltar à aventura'
+            && f.tertiaryAction.label === 'Colorir novamente' && f.tertiaryAction.link === true
+            && C60J.COLORING60_COLLECTION_TITLE === 'Minha Criação Cheia de Cor';
+        })(),
+      'a grande conclusão traz os textos aprovados, os três desenhos e as três ações (a terceira em estilo de link)');
     // Parte 5 · atualização celebra com a fala afetiva EXATA e NUNCA um aviso técnico. A negativa roda
     // sobre o CÓDIGO sem comentários (comentários descritivos citam "payload salvo" etc. legitimamente).
     check('C60-P12 [Parte 5 · contrato P12R] atualização usa a fala afetiva EXATA POR ATIVIDADE e NÃO um aviso técnico ("salvo"/"atualizado")',
@@ -32104,15 +32167,20 @@ check(
       'a galeria compõe a partir de props; nenhuma leitura de storage no componente visual');
 
     // Ramo de RENDER de ColoringScreen: UM overlay unificado, pelo prop `mode` (update|activity|finale).
-    check('C60-P11 [render] modo único: overlay recebe mode (update|activity|finale); sem EditNotice; tertiary ligado',
+    // §Parte 1/2 · o wiring de ações deixou de ser um encadeado de ternários por MODO (que era onde
+    // nasciam rótulos como "Continuar colorindo" fixos e a ausência de condução): as três ações agora
+    // vêm da DERIVAÇÃO e a tela apenas DESPACHA a intenção. A prova exige exatamente isso — nenhum
+    // ternário por modo nos três handlers e o modo 'collection' montando o MESMO overlay.
+    check('C60-P11→P13 [render] modo único (update|activity|finale|collection) + ações despachadas pela derivação; sem EditNotice',
       /mode=\{c60CelebrateMode\}/.test(scrP10)
-        && /c60CelebrateMode === 'update'[\s\S]*?c60CelebrateMode === 'activity'[\s\S]*?c60CelebrateMode === 'finale'[\s\S]*?<Coloring60CompletionOverlay/.test(scrP10)
+        && /c60CelebrateMode === 'update'[\s\S]*?c60CelebrateMode === 'activity'[\s\S]*?c60CelebrateMode === 'finale'[\s\S]*?c60CelebrateMode === 'collection'[\s\S]*?<Coloring60CompletionOverlay/.test(scrP10)
         && !/Coloring60EditNotice/.test(scrP10)
-        && /onPrimary=\{c60CelebrateMode === 'update' \? handleC60ContinueColoring : handleC60Primary\}/.test(scrP10)
-        && /onSecondary=\{c60CelebrateMode === 'activity' \? handleC60ContinueColoring : \(\) => navigation\.goBack\(\)\}/.test(scrP10)
-        && /onTertiary=\{c60CelebrateMode === 'activity' \? \(\) => navigation\.goBack\(\) : handleC60ColorAgain\}/.test(scrP10)
+        && /onPrimary=\{handleC60Primary\}/.test(scrP10)
+        && /onSecondary=\{handleC60Secondary\}/.test(scrP10)
+        && /onTertiary=\{handleC60Tertiary\}/.test(scrP10)
+        && /journey=\{c60Journey\}/.test(scrP10)
         && /finaleItems=\{c60FinaleItems\}/.test(scrP10),
-      'os três modos montam UM overlay unificado pelo prop mode; a antiga camada de edição não existe mais');
+      'os modos montam UM overlay unificado pelo prop mode, e as ações saem da derivação — não de ternários por modo');
     // §Parte 3 · ColoringScreen alimenta a moldura com o snapshot e a máquina o registra em todos os modos.
     check('C60-P11 [render] a moldura (ArtGlow) recebe o snapshot da conclusão e a máquina o registra',
       /<Coloring60ArtGlow[\s\S]*?snapshot=\{c60CelebrateSnapshot\}/.test(scrP10)
@@ -32204,6 +32272,21 @@ check(
     const PARTICLE_COUNT = litOf('const PARTICLE_COUNT = {', 'PARTICLE_COUNT');
     const TIMELINE = litOf('const TIMELINE = {', 'TIMELINE');
     const UPDATE_TEXTS = litOf('const UPDATE_TEXTS = {', 'UPDATE_TEXTS');
+    // §Parte 1 · a DERIVAÇÃO REAL da jornada (módulo puro, sem imports) roda aqui: as provas de
+    // rótulo/condução executam o mesmo código do app — mudar uma regra muda o veredito.
+    const C60J = (() => {
+      const src = readSrc('src/services/coloring60Journey.js')
+        .replace(/^import[\s\S]*?;$/gm, '')
+        .replace(/export /g, '');
+      return new Function(src + `
+        return {
+          deriveColoring60Completion, deriveColoring60CardState, deriveColoring60CollectionView,
+          nextIncompleteActivityId, completionCountLabel, orderedCompleted,
+          COLORING60_CANONICAL_ORDER, COLORING60_ACTIVITY_TITLE, COLORING60_ACTIVITY_THEME,
+          COLORING60_NEXT_MESSAGE, COLORING60_MODE, COLORING60_ACTION, COLORING60_STEP_STATE,
+          COLORING60_HELPER_TEXT, COLORING60_COLLECTION_TITLE, COLORING60_COLLECTION_MODE,
+        };`)();
+    })();
 
     const CF = { x: 0, y: 0, width: 300, height: 400 };   // moldura de canvas de referência
     const MODES = ['update', 'activity', 'finale'];
@@ -32300,27 +32383,64 @@ check(
         && P.pickBeniPose('update', null, null) === 'admiraDireita',
       'o Beni fica no lado oposto à obra e olha para ela; sem geometria mantém uma pose estável');
 
-    check('C60-P12 [prova 12 · Parte 5] update: háptico leve (selectionAsync, ramo prioritário); ação "Continuar colorindo"; progresso guardado por {!isUpdate}; galeria só no fecho',
+    // §Parte 5/6 · a reedição continua CURTA e afetiva, mas deixou de ser um beco sem saída: a TRILHA
+    // aparece também aqui (a criança sempre vê onde está), o convite da próxima parte NÃO aparece, a
+    // galeria segue exclusiva do fecho e os rótulos nascem da derivação (nunca fixos no render).
+    check('C60-P12 [prova 12 · Parte 5/6] update: háptico leve (selectionAsync); TRILHA visível; SEM convite de próxima parte; galeria só no fecho; rótulos vindos da derivação',
       /if \(isUpdate\) Haptics\.selectionAsync/.test(ovRaw)
-        && /accessibilityLabel="Continuar colorindo"/.test(ovRaw)
-        && /\{!isUpdate && \(/.test(ovRaw)
-        && /allDone \? \(/.test(ovRaw),
-      'a atualização é curta e afetiva: sem festa de 3/3 e sem galeria');
+        && /\[C60-P13-TRAIL\][\s\S]*?<Animated\.View style=\{\[styles\.progressTrail, progressEnter\]\}/.test(ovRaw)
+        && /const nextPart = isUpdate \|\| allDone \? null : \(journey\?\.nextPart \?\? null\);/.test(ovRaw)
+        // a galeria das três obras vive DENTRO do ramo do fecho (`{allDone ? (` … `) : (`) e não
+        // reaparece no ramo de atualização/1ª conclusão — a reedição nunca vira festa de 3/3.
+        && (() => {
+          const iBranch = ovRaw.indexOf('{allDone ? (');
+          const iGallery = ovRaw.indexOf('galleryData.map', iBranch);
+          const iElse = ovRaw.indexOf('\n      ) : (', iBranch);
+          return iBranch > 0 && iGallery > iBranch && iElse > iGallery
+            && ovRaw.indexOf('galleryData.map', iElse) === -1;
+        })()
+        && /accessibilityLabel=\{pending \? 'Preparando a próxima parte' : primaryLabel\}/.test(ovRaw)
+        && /accessibilityLabel=\{secondaryAction\.label\}/.test(ovRaw)
+        && /accessibilityLabel=\{tertiaryAction\.label\}/.test(ovRaw),
+      'a atualização é curta e afetiva (sem festa de 3/3 e sem galeria), mas mostra a trilha e conduz — e cada botão anuncia exatamente o rótulo derivado');
 
     // ── PARTE 6 · primeira conclusão ─────────────────────────────────────────────────
-    check('C60-P12 [prova 13 · Parte 6] activity → celebraFrente OU olhaAcima pela geometria (obra no alto ⇒ olhaAcima; senão celebraFrente; fallback celebraFrente)',
-      P.pickBeniPose('activity', CF, { x: 50, y: 10, w: 200, h: 200 }) === 'olhaAcima'
-        && P.pickBeniPose('activity', CF, { x: 50, y: 180, w: 200, h: 200 }) === 'celebraFrente'
+    check('C60-P12 [prova 13 · Parte 6] activity → pose pela JORNADA: 1→2 (a próxima é a última) ⇒ olhaAcima; 0→1 ⇒ celebraFrente; sem derivação ⇒ celebraFrente',
+      P.pickBeniPose('activity', CF, { x: 50, y: 10, w: 200, h: 200 }, 'living_world', true) === 'olhaAcima'
+        && P.pickBeniPose('activity', CF, { x: 50, y: 10, w: 200, h: 200 }, 'light', false) === 'celebraFrente'
         && P.pickBeniPose('activity', null, null) === 'celebraFrente',
-      'quando a arte ocupa o alto do canvas, o Beni ergue o olhar; senão comemora de frente');
+      'a pose da primeira conclusão não depende da composição nem de sorteio: depende de quanto falta da jornada');
 
-    check('C60-P12 [prova 14 · Parte 6] activity: progresso X→X+1 ({doneCount} de {total}) + 3 ações (próxima parte · ver desenho · voltar)',
+    // §Parte 3/4 · a primeira conclusão mostra o avanço, ANUNCIA a próxima parte pelo nome e oferece
+    // um caminho principal evidente (avançar direto) com uma saída sem culpa ("Terminar depois").
+    check('C60-P12 [prova 14 · Parte 3/4/6] 1ª conclusão: trilha X→X+1 + área da PRÓXIMA parte (seção · título · convite) + primária de avanço e saída sem culpa',
       /\$\{doneCount\} de \$\{total\}/.test(ovRaw)
         && /styles\.progressTrail/.test(ovRaw)
-        && /accessibilityLabel="Colorir a próxima parte"/.test(ovRaw)
-        && /accessibilityLabel="Ver meu desenho"/.test(ovRaw)
-        && /accessibilityLabel="Voltar à aventura"/.test(ovRaw),
-      'a primeira conclusão mostra o avanço das três atividades e oferece três caminhos');
+        && /\[C60-P13-NEXTPART\]/.test(ovRaw)
+        && /\{nextPart\.sectionTitle\}/.test(ovRaw)
+        && /\{nextPart\.activityTitle\}/.test(ovRaw)
+        && /\{nextPart\.message\}/.test(ovRaw)
+        && /\{helperText \? <Text style=\{styles\.helperText\}>\{helperText\}<\/Text> : null\}/.test(ovRaw)
+        && (() => {
+          const d01 = C60J.deriveColoring60Completion({ doneMapBefore: {}, currentActivityId: 'light' });
+          const d12 = C60J.deriveColoring60Completion({ doneMapBefore: { light: true }, currentActivityId: 'living_world' });
+          return d01.completionMode === 'activity'
+            && d01.countLabel === '1 de 3 concluída'
+            && d01.nextPart.sectionTitle === 'Próxima parte'
+            && d01.nextPart.activityTitle === 'O mundo cheio de vida'
+            && d01.nextPart.message === 'Agora vamos colorir plantas, bichos e o mar!'
+            && d01.nextPart.helperText === 'Seu progresso fica guardado.'
+            && d01.primaryAction.label === 'Vamos para a próxima!'
+            && d01.primaryAction.kind === 'openNext' && d01.primaryAction.targetActivityId === 'living_world'
+            && d01.secondaryAction.label === 'Terminar depois' && d01.tertiaryAction === null
+            && d12.countLabel === '2 de 3 concluídas'
+            && d12.nextPart.sectionTitle === 'Última parte'
+            && d12.nextPart.activityTitle === 'Na criação de Deus'
+            && d12.nextPart.message === 'Agora vamos mostrar cuidado em cada cor!'
+            && d12.primaryAction.label === 'Vamos para a última!'
+            && d12.primaryAction.targetActivityId === 'people_and_care';
+        })(),
+      'a primeira conclusão mostra o avanço das três partes, apresenta o que vem depois pelo nome e convida a seguir — sem prender quem quiser parar');
 
     // ── PARTE 7 · grande conclusão (fecho) ───────────────────────────────────────────
     check('C60-P12 [prova 15 · Parte 7] finale → pose apresentaGaleria (fixa, independente da composição)',
@@ -32340,8 +32460,16 @@ check(
       /galleryData\.map\(\(it, i\) => \(/.test(ovRaw)
         && /<FinaleDrawingThumb/.test(ovRaw)
         && /Animated\.stagger\(T\.galleryStagger, galleryAnims\.map/.test(ovRaw)
-        && /accessibilityLabel="Ver meus desenhos"/.test(ovRaw)
-        && ovRaw.includes('Colorir novamente'),
+        && (() => {
+          const fin = C60J.deriveColoring60Completion({
+            doneMapBefore: { light: true, living_world: true }, currentActivityId: 'people_and_care',
+          });
+          return fin.completionMode === 'finale'
+            && fin.primaryAction.label === 'Ver meus desenhos' && fin.primaryAction.kind === 'openCollection'
+            && fin.secondaryAction.label === 'Voltar à aventura' && fin.secondaryAction.kind === 'backToStory'
+            && fin.tertiaryAction.label === 'Colorir novamente' && fin.tertiaryAction.kind === 'restart'
+            && fin.tertiaryAction.link === true && fin.nextPart === null;
+        })(),
       'as três artes entram em sequência e o fecho oferece três caminhos, incluindo recomeçar');
 
     check('C60-P12 [prova 18 · Parte 7] Grátis: overlay recebe a arte por PROPS (não lê storage) e a miniatura sem cor cai no FALLBACK do contorno sozinho',
@@ -32351,12 +32479,16 @@ check(
       'a galeria compõe a partir de props (arte em memória no Grátis); sem cor mostra o contorno, nunca mancha sem traço');
 
     // ── PARTE 8 · balão de fala ──────────────────────────────────────────────────────
-    check('C60-P12 [prova 19 · Parte 8] SpeechBalloon: ≤3 linhas, seta LIGADA ao Beni (tailSide acompanha o lado), não é modal',
-      /numberOfLines=\{3\}/.test(ovRaw)
-        && /function SpeechBalloon\(\{ title, line, tailSide/.test(ovRaw)
-        && /tailSide === 'right' \? balloonStyles\.tailRight : balloonStyles\.tailLeft/.test(ovRaw)
-        && /tailSide=\{beniSide === 'right' \? 'right' : 'left'\}/.test(ovRaw),
-      'a fala é um balão preso ao Beni (seta acompanha o lado dele), no máximo 3 linhas — nunca um modal');
+    // §Parte 8/9 · o balão continua PRESO ao Beni (o rabicho aponta para o lado dele), mas o teto de
+    // linhas caiu: a fala aparece INTEIRA e o balão cresce — sem teto não há reticência possível.
+    check('C60-P12 [prova 19 · Parte 8/9] SpeechBalloon: rabicho LIGADO ao Beni (tailSide acompanha o lado), fala INTEIRA (sem numberOfLines/ellipsizeMode), não é modal',
+      /function SpeechBalloon\(\{ title, line, tailSide/.test(ovRaw)
+        && /tailSide === 'right' \? balloonStyles\.tailWrapRight : balloonStyles\.tailWrapLeft/.test(ovRaw)
+        && /tailSide=\{beniSide === 'right' \? 'right' : 'left'\}/.test(ovRaw)
+        && !/numberOfLines/.test(ovCode.slice(ovCode.indexOf('function SpeechBalloon'), ovCode.indexOf('const balloonStyles')))
+        && !/ellipsizeMode/.test(ovRaw)
+        && !/<Modal/.test(ovRaw),
+      'a fala é um balão preso ao Beni (rabicho no lado dele) e mostra o texto inteiro — nunca um modal, nunca reticências');
 
     // ── PARTE 9 · partículas ─────────────────────────────────────────────────────────
     check('C60-P12 [prova 20 · Parte 9] contagem de partículas por modo dentro do contrato (update 7–12 · 1ª 12–18 · fecho 18–24) e reduzida menor',
@@ -32477,16 +32609,29 @@ check(
     // Mesma extração comportamental do P11: executa a decisão com colaboradores injetados. Aqui ela
     // prova a ARQUITETURA DE RECOMPENSA — os três níveis e a garantia "grande final só uma vez".
     const CAT = ['light', 'living_world', 'people_and_care'];
+    // Mesma injeção da derivação REAL do P11 (a máquina delega a decisão ao módulo puro).
+    const C60J = (() => {
+      const src = readSrc('src/services/coloring60Journey.js')
+        .replace(/^import[\s\S]*?;$/gm, '')
+        .replace(/export /g, '');
+      return new Function(src + `\nreturn {
+        deriveColoring60Completion, deriveColoring60CardState, deriveColoring60CollectionView,
+        nextIncompleteActivityId, completionCountLabel,
+        COLORING60_MODE, COLORING60_ACTION, COLORING60_STEP_STATE, COLORING60_CANONICAL_ORDER,
+        COLORING60_ACTIVITY_TITLE, COLORING60_ACTIVITY_THEME, COLORING60_NEXT_MESSAGE,
+        COLORING60_HELPER_TEXT, COLORING60_COLLECTION_TITLE, COLORING60_COLLECTION_MODE };`)();
+    })();
     let machineRaw = sliceBetween(scrRaw, '[C60-P11-MACHINE-START]', '[C60-P11-MACHINE-END]');
     machineRaw = machineRaw.slice(
       machineRaw.indexOf('function handleC60Celebrate('),
       machineRaw.lastIndexOf('}') + 1);
     const runMachine = ({ doneMap, activityId, outcome }) => {
-      const calls = { mode: null, celebrating: null, doneMapWritten: null, doneMapCalls: 0, resetZoom: 0, loadFinale: 0, finaleSnapshot: undefined, snapshotWritten: undefined };
+      const calls = { mode: null, celebrating: null, doneMapWritten: null, doneMapCalls: 0, resetZoom: 0, loadFinale: 0, finaleSnapshot: undefined, snapshotWritten: undefined, journey: null };
       const handler = new Function(
         'getColoring60Activities', 'c60DoneMap', 'activityId', 'storyId',
         'setC60CelebrateMode', 'setC60Celebrating', 'setC60DoneMap', 'setC60CelebrateSnapshot',
         'Animated', 'controlsAnim', 'canvasRef', 'loadC60FinaleItems', '__DEV__', 'console',
+        'deriveColoring60Completion', 'setC60Journey',
         machineRaw + '\nreturn handleC60Celebrate;')(
         () => CAT.map((id) => ({ activityId: id })),
         doneMap, activityId, 'creation',
@@ -32499,7 +32644,9 @@ check(
         { current: { resetZoom: () => { calls.resetZoom++; } } },
         (snap) => { calls.loadFinale++; calls.finaleSnapshot = snap; },
         false,
-        { log: () => {} });
+        { log: () => {} },
+        C60J.deriveColoring60Completion,
+        (j) => { calls.journey = j; });
       handler(outcome);
       return calls;
     };
@@ -32569,8 +32716,8 @@ check(
       CAT.forEach((id) => reached.add(P.pickBeniPose('update', CF, { x: 100, y: 150, w: 100, h: 100 }, id))); // update centrado alterna
       reached.add(P.pickBeniPose('update', CF, { x: 10, y: 150, w: 80, h: 100 }, 'living_world'));  // arte à esquerda
       reached.add(P.pickBeniPose('update', CF, { x: 210, y: 150, w: 80, h: 100 }, 'light'));         // arte à direita
-      reached.add(P.pickBeniPose('activity', CF, { x: 100, y: 10, w: 100, h: 80 }, 'living_world')); // obra no alto → olhaAcima
-      reached.add(P.pickBeniPose('activity', CF, { x: 100, y: 320, w: 100, h: 70 }, 'people_and_care')); // baixo, não-luz → celebraFrente
+      reached.add(P.pickBeniPose('activity', CF, { x: 100, y: 10, w: 100, h: 80 }, 'living_world', true)); // 1→2 (falta a última) → olhaAcima
+      reached.add(P.pickBeniPose('activity', CF, { x: 100, y: 320, w: 100, h: 70 }, 'light', false)); // 0→1 → celebraFrente
       const all = ['admiraEsquerda', 'admiraDireita', 'celebraFrente', 'apresentaGaleria', 'olhaAcima'];
       check('C60-P12R [prova 6 · Parte 2 · #7] as 5 poses do Beni têm caminho REAL e alcançável (une estados: finale + update laterais + primeira olhaAcima/celebraFrente)',
         all.every((p) => reached.has(p)) && reached.size === 5,
@@ -32586,11 +32733,12 @@ check(
         && P.pickBeniPose('update', CF, { x: 100, y: 150, w: 100, h: 100 }, 'light') === 'admiraDireita'
         && P.pickBeniPose('update', CF, { x: 100, y: 150, w: 100, h: 100 }, 'living_world') === 'admiraEsquerda',
       'o Beni sempre olha para a nova arte; com ela centrada, a alternância por atividade garante as duas laterais');
-    check('C60-P12R [prova 9 · Parte 2] primeira conclusão: obra no ALTO ⇒ olhaAcima; a Luz (1ª atividade) ⇒ olhaAcima garantido; demais no centro-baixo ⇒ celebraFrente',
-      P.pickBeniPose('activity', CF, { x: 100, y: 10, w: 100, h: 80 }, 'living_world') === 'olhaAcima'
-        && P.pickBeniPose('activity', CF, { x: 100, y: 320, w: 100, h: 70 }, 'light') === 'olhaAcima'
-        && P.pickBeniPose('activity', CF, { x: 100, y: 320, w: 100, h: 70 }, 'people_and_care') === 'celebraFrente',
-      'a pose da primeira vez reflete a obra — olhar para cima quando a criação nasce no alto (ou na Luz), celebrar de frente no restante');
+    check('C60-P12R [prova 9 · Parte 2] primeira conclusão: a pose é ESTÁVEL para a mesma etapa da jornada — a composição da obra NÃO a muda',
+      CAT.every((id) => P.pickBeniPose('activity', CF, { x: 100, y: 10, w: 100, h: 80 }, id, false) === 'celebraFrente'
+        && P.pickBeniPose('activity', CF, { x: 100, y: 320, w: 100, h: 70 }, id, false) === 'celebraFrente'
+        && P.pickBeniPose('activity', CF, { x: 100, y: 10, w: 100, h: 80 }, id, true) === 'olhaAcima'
+        && P.pickBeniPose('activity', CF, { x: 100, y: 320, w: 100, h: 70 }, id, true) === 'olhaAcima'),
+      'a mesma etapa mostra sempre a mesma pose: 0→1 comemora de frente, 1→2 ergue o olhar para a última parte');
 
     // ── PARTE 3/4 · textos de contrato (distintos, curtos, sem corte) ───────────────
     check('C60-P12R [prova 10 · Parte 3 · #5 · contrato] os três UPDATE têm título E fala DISTINTOS por atividade (luz · vida · cuidado) — não mais "três testes parecidos"',
@@ -32620,18 +32768,30 @@ check(
         titlesOk && linesOk,
         `orçamento de caracteres respeitado (títulos=${titleStrs.length}, falas=${lineStrs.length}, maior fala=${Math.max(...lineStrs.map((s) => s.length), allDoneLine.length)})`);
     }
-    check('C60-P12R [prova 13 · Parte 4 · #1/#2] o balão NUNCA trunca nem ganha reticências: nenhum `ellipsizeMode`; o TÍTULO do balão admite até 3 linhas (o maior título de 1ª conclusão — "Seu cuidado deixou tudo especial!" — quebra em 3 linhas num balão estreito ~320dp) e pareia numberOfLines com adjustsFontSizeToFit; o corpo idem',
+    // §Parte 9 (revisão definitiva) · o corte deixou de ser uma OPÇÃO do componente: em vez de encolher
+    // a fonte até caber num teto de linhas, o balão simplesmente CRESCE. Sem `numberOfLines` não existe
+    // reticência possível — nem no balão, nem no título/fala do fecho.
+    check('C60-P12R [prova 13 · Parte 4/9 · #1/#2] o balão NUNCA trunca: nenhum `ellipsizeMode`, nenhum `adjustsFontSizeToFit` e nenhum teto de linhas nos textos de celebração — título e fala (balão e fecho) crescem e aparecem inteiros',
       !/ellipsizeMode/.test(ovRaw)
-        && /style=\{\[balloonStyles\.title, \{ color: accentDeep \}\]\}\s+numberOfLines=\{3\}\s+adjustsFontSizeToFit\s+minimumFontScale=\{0\.85\}/.test(ovRaw)
-        && /style=\{balloonStyles\.line\} numberOfLines=\{3\} adjustsFontSizeToFit/.test(ovRaw)
-        && /numberOfLines=\{2\} adjustsFontSizeToFit minimumFontScale=\{0\.85\}>\{ALL_DONE_TITLE\}/.test(ovRaw)
-        && /numberOfLines=\{3\} adjustsFontSizeToFit minimumFontScale=\{0\.85\}>\{ALL_DONE_BENI_LINE\}/.test(ovRaw),
-      'em RN adjustsFontSizeToFit só age com numberOfLines — o par encolhe a fonte até caber, sem reticências; o título do balão ganhou a 3ª linha para acomodar o maior texto de contrato em ~320dp sem corte nem encolher demais');
-    check('C60-P12R [prova 14 · Parte 4 · #1] o rabicho é ANCORADO FORA do corpo (bottom negativo) e pequeno; o texto vive dentro do padding — o rabicho não invade a área visual do texto',
-      /tail:\s*\{[\s\S]*?bottom:\s*-6[\s\S]*?width:\s*13[\s\S]*?height:\s*13/.test(ovRaw)
-        && /bubble:\s*\{[\s\S]*?paddingBottom:\s*spacing\.md \+ 2/.test(ovRaw)
-        && /pointerEvents="none"[\s\S]{0,80}balloonStyles\.tail/.test(ovRaw),
-      'o rabicho sai por baixo do balão (bottom:-6), some do fluxo do texto e não captura toque; o padding interno protege a leitura');
+        && !/adjustsFontSizeToFit/.test(ovCode)
+        // os únicos `numberOfLines` que sobram estão em RÓTULOS de uma palavra (marcador da trilha e
+        // legenda da miniatura) — nunca num título ou numa fala do Beni.
+        && (ovCode.match(/numberOfLines/g) || []).length === 2
+        && /<Text style=\{\[balloonStyles\.title, \{ color: accentDeep \}\]\}>\{title\}<\/Text>/.test(ovRaw)
+        && /<Text style=\{balloonStyles\.line\}>\{line\}<\/Text>/.test(ovRaw)
+        && /<Text style=\{\[styles\.titleBig, \{ color: accentDeep \}\]\}>\{title\}<\/Text>/.test(ovRaw)
+        && /<Text style=\{styles\.beniLine\}>\{beniLine\}<\/Text>/.test(ovRaw),
+      'nenhum texto de celebração pode ser cortado: sem teto de linhas o balão cresce e a criança lê a fala inteira, em fonte legível');
+    // §Parte 8 · o rabicho REPROVADO era um quadrado girado 45°; agora são DOIS TRIÂNGULOS (contorno +
+    // branco menor) numa faixa que começa exatamente na borda inferior do corpo e vive INTEIRA fora dele.
+    check('C60-P12R [prova 14 · Parte 8 · #1] o rabicho é 100% EXTERNO ao corpo (faixa em bottom:-TAIL_H, dois triângulos de borda) e não captura toque; o texto vive no corpo, com padding próprio',
+      /tailWrap:\s*\{[\s\S]*?position: 'absolute',[\s\S]*?bottom: -BALLOON_TAIL_H,[\s\S]*?height: BALLOON_TAIL_H,/.test(ovRaw)
+        && /tailOuter:\s*\{[\s\S]*?borderTopWidth: BALLOON_TAIL_H,/.test(ovRaw)
+        && /tailInner:\s*\{[\s\S]*?top: -BALLOON_BORDER_W,[\s\S]*?borderTopColor: BALLOON_BG,/.test(ovRaw)
+        && /body:\s*\{[\s\S]*?borderRadius: 18,[\s\S]*?paddingVertical: spacing\.sm,[\s\S]*?paddingHorizontal: spacing\.md,/.test(ovRaw)
+        && /outer:\s*\{[^}]*overflow: 'visible'/.test(ovRaw)
+        && /pointerEvents="none"[\s\S]{0,120}balloonStyles\.tailWrap/.test(ovRaw),
+      'o rabicho nasce na borda inferior e desce para fora: nenhum pixel dele entra na área do texto, e ele não captura toque');
 
     // ── PARTE 5 · cabeçalho e navegação durante os atos (corrige #3/#4) ─────────────
     check('C60-P12R [prova 15 · Parte 5 · #3/#4] durante os atos o cabeçalho SOME, PARA de responder e SAI da árvore de acessibilidade: Voltar e ações em Animated.View (opacity controlsAnim) com pointerEvents c60Celebrating?none:auto; o container topBar usa importantForAccessibility no-hide-descendants na celebração (cobre TalkBack/Android, além do accessibilityViewIsModal iOS)',
@@ -32670,11 +32830,13 @@ check(
     check('C60-P12R [prova 21 · Parte 6/7] a GRANDE conclusão tem um ÚNICO pico háptico médio (~900ms), gateado por ready+allDone+!reduceMotion, one-shot (finalePeakRef) e limpo no unmount — suprimido em Movimento Reduzido',
       /\[C60-P12R-FINALE-PEAK\]/.test(ovRaw)
         && /const finalePeakRef = useRef\(false\);/.test(ovRaw)
-        && /if \(!ready \|\| !allDone \|\| reduceMotion \|\| finalePeakRef\.current\) return undefined;/.test(ovRaw)
+        // §Parte 5 · o pico é da GRANDE CONCLUSÃO real (`isFinale`), não de `allDone`: revisitar a
+        // coleção mostra as três obras sem repetir o clímax.
+        && /if \(!ready \|\| !isFinale \|\| reduceMotion \|\| finalePeakRef\.current\) return undefined;/.test(ovRaw)
         && /finalePeakRef\.current = true;/.test(ovRaw)
         && /const t = setTimeout\(\(\) => \{[\s\S]*?Haptics\.impactAsync\(Haptics\.ImpactFeedbackStyle\.Medium\)[\s\S]*?\}, 900\);/.test(ovRaw)
         && /return \(\) => clearTimeout\(t\);/.test(ovRaw)
-        && /\}, \[ready, allDone, reduceMotion\]\);/.test(ovRaw),
+        && /\}, \[ready, isFinale, reduceMotion\]\);/.test(ovRaw),
       'o clímax é um só pico médio (nunca vibração repetitiva) e some sob Reduzir Movimento; sair durante a linha do tempo cancela o timer');
     check('C60-P12R [prova 22 · Parte 6] a háptica de RECONHECIMENTO no início escala por nível: UPDATE leve (selection), FINALE leve (impact Light) e PRIMEIRA média (impact Medium), com UM único som de sucesso',
       /if \(isUpdate\) Haptics\.selectionAsync\?\.\(\)\.catch/.test(ovRaw)
@@ -32729,6 +32891,440 @@ check(
         missing.length === 0,
         `os três arquivos tocados usam só pacotes já aprovados (faltando: ${JSON.stringify(missing)})`);
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // C60-P13 — FINAL JOURNEY CLOSEOUT (§Parte 14). O teste físico mostrou três desenhos
+  // que pareciam avulsos: nenhuma condução entre eles, "Continuar colorindo" devolvendo
+  // ao mesmo desenho e "Voltar à aventura" devolvendo à lista. Estas provas travam a
+  // JORNADA (1. Luz · 2. Vida · 3. Cuidado) de ponta a ponta: os quatro estados, a
+  // próxima parte calculada, a liberdade de escolha, o caminho principal evidente, a
+  // transição direta, o balão sem artefato, a bancada de Dev e o que NÃO pode mudar.
+  // A derivação REAL é executada (não é leitura de string): mudar uma regra reprova.
+  // ══════════════════════════════════════════════════════════════════════════════
+  {
+    const stripComments = (s) => String(s)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1');
+    const sliceBetween = (raw, a, b) => {
+      const i = raw.indexOf(a);
+      if (i < 0) return '';
+      const j = raw.indexOf(b, i + a.length);
+      return raw.slice(i, j < 0 ? undefined : j);
+    };
+    const jrnRaw = readSrc('src/services/coloring60Journey.js');
+    const cardRaw = readSrc('src/components/coloring60/CreationColoringJourneySection.js');
+    const sdRaw = readSrc('src/screens/StoryDetailScreen.js');
+    const clrRaw = readSrc('src/screens/ColoringScreen.js');
+    const ovlRaw = readSrc('src/components/coloring60/Coloring60CompletionOverlay.js');
+    const labSvcRaw = readSrc('src/services/coloring60LabService.js');
+    const labScrRaw = readSrc('src/screens/Coloring60LabScreen.js');
+    const navRaw = readSrc('src/navigation/AppNavigator.js');
+    const catRaw = readSrc('src/data/coloring60Catalog.js');
+    const wrtRaw = readSrc('src/services/coloring60DrawingStorage.js');
+    const pkgDeps = JSON.parse(readSrc('package.json'));
+
+    // Derivação REAL (módulo puro, sem imports) e seletor de pose REAL do overlay.
+    const J = (() => {
+      const src = jrnRaw.replace(/^import[\s\S]*?;$/gm, '').replace(/export /g, '');
+      return new Function(src + `
+        return {
+          deriveColoring60Completion, deriveColoring60CardState, deriveColoring60CollectionView,
+          nextIncompleteActivityId, completionCountLabel,
+          COLORING60_CANONICAL_ORDER, COLORING60_ACTIVITY_TITLE, COLORING60_HELPER_TEXT,
+          COLORING60_ACTION, COLORING60_STEP_STATE, COLORING60_COLLECTION_MODE,
+        };`)();
+    })();
+    const POSE = (() => {
+      const src = ovlRaw.slice(
+        ovlRaw.indexOf('function artRectFromSnapshot('),
+        ovlRaw.indexOf('export function Coloring60ArtGlow'));
+      return new Function(src + '\nreturn { pickBeniPose };')();
+    })();
+    const ORDER = ['light', 'living_world', 'people_and_care'];
+    const CANVAS = { x: 0, y: 0, width: 300, height: 400 };
+
+    // ── Os QUATRO estados da jornada, lidos pelo cartão da história (§Parte 2) ──────
+    check('C60-P13 [prova 1 · Parte 2] estado 0 de 3: cartão convida a COMEÇAR pela primeira parte; trilha completa visível; nenhum passo concluído',
+      (() => {
+        const s = J.deriveColoring60CardState({ doneMap: {}, unlocked: true, order: ORDER });
+        return s.completedCount === 0 && s.progressLabel === '0 de 3'
+          && s.steps.length === 3 && s.steps.every((st) => st.done === false)
+          && s.steps[0].recommended === true
+          && s.primaryAction.label === 'Começar a jornada de cores'
+          && s.primaryAction.kind === 'openNext' && s.primaryAction.targetActivityId === 'light'
+          && s.allComplete === false;
+      })(),
+      'quem ainda não pintou nada vê as três partes e um convite claro para começar pela luz');
+
+    check('C60-P13 [prova 2 · Parte 2] estado 1 de 3: cartão convida a CONTINUAR na segunda parte, com a primeira marcada como concluída',
+      (() => {
+        const s = J.deriveColoring60CardState({ doneMap: { light: true }, unlocked: true, order: ORDER });
+        return s.completedCount === 1 && s.progressLabel === '1 de 3'
+          && s.steps[0].done === true && s.steps[1].recommended === true
+          && s.primaryAction.label === 'Continuar a jornada de cores'
+          && s.primaryAction.targetActivityId === 'living_world';
+      })(),
+      'com uma parte pronta o cartão aponta a seguinte pelo nome — a criança não precisa decidir sozinha');
+
+    check('C60-P13 [prova 3 · Parte 2] estado 2 de 3: cartão convida a COMPLETAR a jornada na última parte que falta',
+      (() => {
+        const s = J.deriveColoring60CardState({ doneMap: { light: true, living_world: true }, unlocked: true, order: ORDER });
+        return s.completedCount === 2 && s.progressLabel === '2 de 3'
+          && s.primaryAction.label === 'Completar a jornada de cores'
+          && s.primaryAction.targetActivityId === 'people_and_care'
+          && s.allComplete === false;
+      })(),
+      'faltando uma parte o convite muda de tom: é o fecho que está ao alcance');
+
+    check('C60-P13 [prova 4 · Parte 2/7] estado 3 de 3: cartão vira "Ver minha coleção" (não sugere próxima parte, porque não há)',
+      (() => {
+        const s = J.deriveColoring60CardState({
+          doneMap: { light: true, living_world: true, people_and_care: true }, unlocked: true, order: ORDER,
+        });
+        return s.allComplete === true && s.progressLabel === '3 de 3'
+          && s.nextIncompleteActivityId === null
+          && s.primaryAction.kind === 'openCollection' && s.primaryAction.label === 'Ver minha coleção'
+          && s.steps.every((st) => st.done === true);
+      })(),
+      'com tudo colorido o cartão deixa de pedir mais e passa a oferecer a criação inteira');
+
+    check('C60-P13 [prova 5 · Parte 2] história ainda travada: trilha aparece apagadinha (todos os passos locked) e NENHUMA ação principal é oferecida',
+      (() => {
+        const s = J.deriveColoring60CardState({ doneMap: { light: true }, unlocked: false, order: ORDER });
+        return s.primaryAction === null && s.allComplete === false
+          && s.steps.every((st) => st.state === 'locked' && st.done === false);
+      })(),
+      'sem a história liberada nada é prometido nem clicável por engano — a trilha só antecipa o que vem');
+
+    // ── Próxima parte e LIBERDADE de escolha (invariantes de produto) ───────────────
+    check('C60-P13 [prova 6 · Parte 1/3] a PRÓXIMA parte é sempre a primeira incompleta NA ORDEM CANÔNICA — inclusive quando a criança começa fora de ordem',
+      J.nextIncompleteActivityId({ people_and_care: true }, ORDER) === 'light'
+        && J.nextIncompleteActivityId({ light: true, people_and_care: true }, ORDER) === 'living_world'
+        && J.nextIncompleteActivityId({ light: true, living_world: true, people_and_care: true }, ORDER) === null
+        && (() => {
+          const d = J.deriveColoring60Completion({ doneMapBefore: { people_and_care: true }, currentActivityId: 'living_world' });
+          return d.nextPart.activityId === 'light' && d.nextPart.activityTitle === 'Haja luz';
+        })(),
+      'quem pinta na ordem que quiser continua sendo conduzido de verdade: o convite nomeia a parte que realmente falta');
+
+    check('C60-P13 [prova 7 · Parte 1/2] a derivação e o CATÁLOGO fechado não podem divergir: mesma ordem e mesmos títulos das três partes',
+      (() => {
+        const ids = [...catRaw.matchAll(/activityId: '([^']+)'/g)].map((m) => m[1]);
+        const titles = [...catRaw.matchAll(/title: '([^']+)'/g)].map((m) => m[1]);
+        return JSON.stringify(ids) === JSON.stringify(J.COLORING60_CANONICAL_ORDER)
+          && ids.every((id, i) => J.COLORING60_ACTIVITY_TITLE[id] === titles[i]);
+      })(),
+      'o nome que a criança lê na trilha é o mesmo nome do catálogo — nenhuma cópia paralela pode envelhecer sozinha');
+
+    check('C60-P13 [prova 8 · Parte 1/2] LIBERDADE preservada: as três partes continuam abríveis uma a uma no cartão (cada linha chama a sua atividade), independentemente da recomendação',
+      /onPress=\{\(\) => onOpenActivity\?\.\(activity\.activityId\)\}/.test(cardRaw)
+        && /activities\.map\(/.test(cardRaw)
+        && !/disabled=\{[^}]*recommended/.test(cardRaw),
+      'a jornada RECOMENDA um caminho, nunca o impõe: qualquer parte continua a um toque de distância');
+
+    // ── Caminho principal evidente: cartão → tela → transição direta ────────────────
+    check('C60-P13 [prova 9 · Parte 2] o CTA do cartão é DINÂMICO e despacha a intenção certa: coleção pela coleção, atividade pela atividade — com o rótulo derivado anunciado à acessibilidade',
+      /const primaryAction = journey\.primaryAction;/.test(cardRaw)
+        && /if \(primaryAction\.kind === COLORING60_ACTION\.COLLECTION\)/.test(cardRaw)
+        && /onOpenCollection\(primaryAction\.targetActivityId \?\? null\)/.test(cardRaw)
+        && /onOpenActivity\?\.\(primaryAction\.targetActivityId\)/.test(cardRaw)
+        && /accessibilityLabel=\{primaryAction\.label\}/.test(cardRaw)
+        && /<Text style=\{styles\.ctaBtnText\}>\{primaryAction\.label\}<\/Text>/.test(cardRaw),
+      'o botão principal do cartão muda com o progresso e leva exatamente aonde promete');
+
+    check('C60-P13 [prova 10 · Parte 2] a tela da história liga as duas saídas do cartão a navegações REAIS (atividade e coleção), sem rota nova e sem passar a história inteira',
+      /onOpenActivity=\{openCreationColoring\}/.test(sdRaw)
+        && /onOpenCollection=\{openCreationColoringCollection\}/.test(sdRaw)
+        && /navigation\.navigate\('Coloring', \{ storyId: CREATION_STORY_ID, activityId \}\);/.test(sdRaw)
+        && /showCollection: true,/.test(sdRaw),
+      'o cartão abre a parte certa ou a coleção reutilizando a mesma tela de colorir — sem inventar rota');
+
+    check('C60-P13 [prova 11 · Parte 3/4/10] TRANSIÇÃO DIRETA: avançar troca a IDENTIDADE da mesma rota (setParams) — não empilha rota, não volta à tela da história e desmonta a festa antes',
+      (() => {
+        const fn = sliceBetween(clrRaw, 'function openC60Activity(targetActivityId) {', 'function openC60Collection(');
+        return /navigation\.setParams\(\{ activityId: targetActivityId \}\);/.test(fn)
+          && !/navigation\.navigate\(/.test(fn) && !/navigation\.push\(/.test(fn) && !/navigation\.replace\(/.test(fn)
+          && /setC60Celebrating\(false\);/.test(fn) && /setC60Journey\(null\);/.test(fn)
+          && /if \(targetActivityId == null\) \{ navigation\.goBack\(\); return; \}/.test(fn)
+          && /if \(!activeRef\.current\) return;/.test(fn);
+      })(),
+      'a criança sai do fecho de uma parte e entra na seguinte na mesma tela — sem passar pela lista e sem pilha crescendo');
+
+    check('C60-P13 [prova 12 · Parte 1/5] DESPACHANTE único: a derivação diz a intenção e a tela escolhe o caminho (avançar/recomeçar · ficar · coleção · voltar) — intenção desconhecida cai em "voltar à aventura"',
+      (() => {
+        const fn = sliceBetween(clrRaw, 'function handleC60Action(action) {', 'function handleC60Primary()');
+        return /kind === COLORING60_ACTION\.OPEN_NEXT \|\| kind === COLORING60_ACTION\.RESTART/.test(fn)
+          && /openC60Activity\(action\?\.targetActivityId \?\? null\)/.test(fn)
+          && /kind === COLORING60_ACTION\.STAY.*handleC60ContinueColoring\(\)/.test(fn)
+          && /kind === COLORING60_ACTION\.COLLECTION.*openC60Collection\(c60DoneMap\)/.test(fn)
+          && /navigation\.goBack\(\);/.test(fn)
+          && /function handleC60Primary\(\) \{ handleC60Action\(c60Journey\?\.primaryAction \?\? null\); \}/.test(clrRaw)
+          && /function handleC60Secondary\(\) \{ handleC60Action\(c60Journey\?\.secondaryAction \?\? null\); \}/.test(clrRaw)
+          && /function handleC60Tertiary\(\) \{ handleC60Action\(c60Journey\?\.tertiaryAction \?\? null\); \}/.test(clrRaw);
+      })(),
+      'nenhum rótulo carrega navegação escondida: o botão diz o quê, a tela sabe o como');
+
+    check('C60-P13 [prova 13 · Parte 3/4/6] SAÍDA SEM CULPA sempre disponível: toda celebração oferece um caminho de voltar com o progresso guardado — nunca só "continuar"',
+      (() => {
+        const cases = [
+          J.deriveColoring60Completion({ doneMapBefore: {}, currentActivityId: 'light' }),
+          J.deriveColoring60Completion({ doneMapBefore: { light: true }, currentActivityId: 'living_world' }),
+          J.deriveColoring60Completion({ doneMapBefore: { light: true, living_world: true }, currentActivityId: 'people_and_care' }),
+          J.deriveColoring60Completion({ doneMapBefore: { light: true }, currentActivityId: 'light' }),
+          J.deriveColoring60Completion({
+            doneMapBefore: { light: true, living_world: true, people_and_care: true }, currentActivityId: 'light',
+          }),
+        ];
+        return cases.every((d) => [d.primaryAction, d.secondaryAction, d.tertiaryAction]
+          .filter(Boolean).some((a) => a.kind === J.COLORING60_ACTION.BACK))
+          && J.COLORING60_HELPER_TEXT === 'Seu progresso fica guardado.';
+      })(),
+      'em qualquer momento dá para parar sem perder nada — a jornada convida, não prende');
+
+    // ── O que NÃO pode acontecer: repetir o fecho, sugerir o que não existe ─────────
+    check('C60-P13 [prova 14 · Parte 5/7] a GRANDE conclusão acontece UMA vez: a transição real 2→3 é "finale", e recolorir depois volta a ser "update" — o fecho nunca se repete',
+      (() => {
+        const first = J.deriveColoring60Completion({
+          doneMapBefore: { light: true, living_world: true }, currentActivityId: 'people_and_care',
+        });
+        const again = J.deriveColoring60Completion({
+          doneMapBefore: { light: true, living_world: true, people_and_care: true }, currentActivityId: 'people_and_care',
+        });
+        return first.completionMode === 'finale' && again.completionMode === 'update'
+          && again.primaryAction.kind === 'openCollection';
+      })(),
+      'a festa de "coloriu toda a Criação" guarda seu peso: reeditar depois celebra a arte, não repete o grande final');
+
+    check('C60-P13 [prova 15 · Parte 6/7] NUNCA se sugere o que não existe: com 3 de 3 nenhuma ação aponta para uma "próxima parte" e nenhum convite é montado',
+      (() => {
+        const full = J.deriveColoring60Completion({
+          doneMapBefore: { light: true, living_world: true, people_and_care: true }, currentActivityId: 'living_world',
+        });
+        const fin = J.deriveColoring60Completion({
+          doneMapBefore: { light: true, living_world: true }, currentActivityId: 'people_and_care',
+        });
+        const noNext = (d) => d.nextPart === null && d.nextIncompleteActivityId === null
+          && [d.primaryAction, d.secondaryAction, d.tertiaryAction].filter(Boolean)
+            .every((a) => a.kind !== J.COLORING60_ACTION.OPEN_NEXT);
+        return noNext(full) && noNext(fin);
+      })(),
+      'quando não há mais parte alguma, a interface para de prometer — só a coleção, a aventura e recomeçar');
+
+    check('C60-P13 [prova 16 · Parte 5] a COLEÇÃO é uma vista revisitável: não conclui, não escreve progresso e não repete a grande conclusão',
+      (() => {
+        const v = J.deriveColoring60CollectionView({
+          doneMap: { light: true, living_world: true, people_and_care: true }, order: ORDER,
+        });
+        const fn = sliceBetween(clrRaw, 'function openC60Collection(doneMapForView) {', 'function handleC60Action(');
+        return v.mode === J.COLORING60_COLLECTION_MODE && v.completionMode === undefined
+          && v.collectionTitle === 'Minha Criação Cheia de Cor' && v.countLabel === '3 de 3'
+          && !/markColoring60ActivityDone/.test(fn) && !/saveColoring60DrawingState/.test(fn)
+          && /setC60CelebrateMode\('collection'\)/.test(fn);
+      })(),
+      'abrir a coleção é rever as três obras — nunca uma conclusão nova nem uma festa repetida');
+
+    // ── Beni: as cinco poses são todas alcançáveis por caminhos REAIS ───────────────
+    check('C60-P13 [prova 17 · Parte 11] as CINCO poses do Beni são alcançáveis por caminhos reais da experiência (2 de admiração · 2 de primeira conclusão · 1 de fecho), sem aleatoriedade',
+      (() => {
+        const reached = new Set([
+          POSE.pickBeniPose('update', CANVAS, { x: 20, y: 100, w: 100, h: 100 }),
+          POSE.pickBeniPose('update', CANVAS, { x: 180, y: 100, w: 100, h: 100 }),
+          POSE.pickBeniPose('activity', CANVAS, { x: 50, y: 10, w: 200, h: 200 }, 'light', false),
+          POSE.pickBeniPose('activity', CANVAS, { x: 50, y: 180, w: 200, h: 200 }, 'living_world', true),
+          POSE.pickBeniPose('finale', CANVAS, { x: 20, y: 100, w: 100, h: 100 }),
+        ]);
+        return reached.size === 5
+          && ['admiraEsquerda', 'admiraDireita', 'celebraFrente', 'olhaAcima', 'apresentaGaleria']
+            .every((p) => reached.has(p))
+          && !/Math\.random/.test(stripComments(ovlRaw));
+      })(),
+      'nenhuma das cinco artes aprovadas fica inalcançável, e a pose é sempre consequência da cena — nunca sorteio');
+
+    // ── Balão: o artefato reprovado não pode voltar ────────────────────────────────
+    check('C60-P13 [prova 18 · Parte 8] o rabicho do balão NÃO é um quadrado girado: nenhuma rotação e nenhum `transform` na construção do balão — só triângulos de borda',
+      (() => {
+        const code = stripComments(ovlRaw);
+        // do primeiro literal do balão até o fim da folha de estilos do balão.
+        const start = code.indexOf('const BALLOON_BG');
+        const end = code.indexOf('});', code.indexOf('const balloonStyles')) + 3;
+        const balloonBlock = start >= 0 && end > start ? code.slice(start, end) : '';
+        return balloonBlock.length > 0
+          && !/rotate/.test(balloonBlock) && !/transform/.test(balloonBlock)
+          && /borderTopWidth: BALLOON_TAIL_H,/.test(balloonBlock)
+          && /borderTopWidth: BALLOON_TAIL_INNER_H,/.test(balloonBlock)
+          && /borderLeftColor: 'transparent',/.test(balloonBlock);
+      })(),
+      'a diagonal vista no aparelho vinha de um quadrado rotacionado; a construção nova não tem rotação alguma');
+
+    // ── Cabeçalho, selo e imersão durante os atos ──────────────────────────────────
+    check('C60-P13 [prova 19 · Parte 13] durante os atos a tela vira história: Voltar/título/"Pronto!" recolhem e o selo global "Modo Criador" também — restaurado na limpeza (sair no meio devolve tudo)',
+      /import \{ beginImmersiveMoment \} from '\.\.\/services\/immersiveMoment';/.test(clrRaw)
+        && /if \(!c60Celebrating\) return undefined;\s*\n\s*return beginImmersiveMoment\(\);/.test(clrRaw)
+        && /pointerEvents=\{c60Celebrating \? 'none' : 'auto'\}/.test(clrRaw)
+        && /importantForAccessibility=\{c60Celebrating \? 'no-hide-descendants' : 'auto'\}/.test(clrRaw),
+      'nada de enfeite global por cima da celebração — e o selo volta sozinho quando o momento acaba');
+
+    // ── Preload da próxima parte: vantagem, nunca prisão (§Parte 10) ────────────────
+    check('C60-P13 [prova 20 · Parte 10] AQUECIMENTO da próxima parte SÓ quando a ação principal é avançar; a espera segura a primária apenas enquanto carrega',
+      /const c60PrewarmTargetId = \(c60Celebrating && c60Journey\?\.primaryAction\?\.kind === COLORING60_ACTION\.OPEN_NEXT\)/.test(clrRaw)
+        && /primaryPending=\{c60Prewarm === 'loading'\}/.test(clrRaw)
+        && /prewarmLineart\(res\.source\)\.then\(\(ok\) => \{/.test(clrRaw),
+      'enquanto o Beni comemora, a próxima arte já é preparada — e só isso segura o botão');
+
+    check('C60-P13 [prova 21 · Parte 10] o aquecimento tem TETO e FALLBACK: passa do tempo ⇒ libera; sem fonte ou falha ⇒ libera; o timer é limpo ao sair — a criança nunca fica presa esperando',
+      /const C60_PREWARM_TIMEOUT_MS = 4000;/.test(clrRaw)
+        && /const cap = setTimeout\(\(\) => \{ if \(alive\) setC60Prewarm\('failed'\); \}, C60_PREWARM_TIMEOUT_MS\);/.test(clrRaw)
+        && /setC60Prewarm\('failed'\); \/\/ sem fonte local/.test(clrRaw)
+        && /setC60Prewarm\(ok \? 'ready' : 'failed'\);/.test(clrRaw)
+        && /return \(\) => \{ alive = false; clearTimeout\(cap\); \};/.test(clrRaw),
+      'o pré-carregamento é uma vantagem: falhando ou demorando, o caminho normal assume e a transição acontece do mesmo jeito');
+
+    // ── Nada fora do piloto pode mudar ─────────────────────────────────────────────
+    check('C60-P13 [prova 22 · escopo] NADA muda fora de "A Criação" nem com o piloto desligado: a seção só monta sob o gate do piloto + storyId === creation, e a derivação não cita nenhuma outra história',
+      /story\.id === CREATION_STORY_ID &&/.test(sdRaw)
+        && /const CREATION_STORY_ID = 'creation';/.test(sdRaw)
+        && /\{creationColoringVisible && \(/.test(sdRaw)
+        // o módulo de derivação só conhece as TRÊS atividades — nenhum storyId, nenhuma rota, nenhum I/O.
+        && !/storyId/.test(stripComments(jrnRaw))
+        && !/navigat|AsyncStorage|require\(/.test(stripComments(jrnRaw))
+        && ORDER.every((id) => stripComments(jrnRaw).includes(`'${id}'`)),
+      'o piloto continua contido: história errada ou piloto desligado ⇒ a linha de base do app permanece exatamente como estava');
+
+    // ── Bancada de Dev (§Parte 12): gateada, cirúrgica e invisível em produção ──────
+    check('C60-P13 [prova 23 · Parte 12] a BANCADA é dupla-gateada: a rota só existe sob ferramentas internas e a tela exige build de desenvolvimento + Modo Criador ligado',
+      /\{isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s+name="Coloring60Lab"/.test(navRaw)
+        && /const dev = typeof __DEV__ !== 'undefined' && __DEV__ === true;\s*\n\s*return dev && isCreatorQaModeEnabled\(\) === true;/.test(labSvcRaw)
+        && /const allowed = isColoring60LabAllowed\(\);/.test(labScrRaw)
+        && !/Coloring60Lab/.test(readSrc('src/screens/HomeScreen.js')),
+      'a ferramenta de teste não existe para a criança: fora do Dev Client com Modo Criador, nem a rota nem a tela respondem');
+
+    check('C60-P13 [prova 24 · Parte 12] o RESET da bancada é cirúrgico: apaga SÓ a conclusão e os ponteiros das 3 atividades de "A Criação" — sem clear(), sem getAllKeys(), sem prefixo aberto',
+      /clearColoring60Done\(COLORING60_LAB_STORY_ID, id\)/.test(labSvcRaw)
+        && /AsyncStorage\.multiRemove\(ids\.map\(\(id\) => drawingPointerKey\(COLORING60_LAB_STORY_ID, id\)\)\)/.test(labSvcRaw)
+        // as proibições valem no CÓDIGO (o cabeçalho do arquivo cita os nomes para explicar por que não existem)
+        && !/AsyncStorage\.clear\(/.test(stripComments(labSvcRaw))
+        && !/getAllKeys/.test(stripComments(labSvcRaw))
+        && !/multiRemove\(keys\)/.test(stripComments(labSvcRaw)),
+      'reencenar 0/3→3/3 no aparelho nunca toca onboarding, perfil, packs, downloads ou o progresso de outras histórias');
+
+    check('C60-P13 [prova 25 · Parte 12] o ponteiro que a bancada apaga é EXATAMENTE o que o writer grava: o prefixo espelhado é idêntico ao do módulo dono dos pixels (drift reprova aqui)',
+      /const C60_DRAWING_KEY_PREFIX = '@ptf_drawing60_s';/.test(labSvcRaw)
+        && /return `\$\{C60_DRAWING_KEY_PREFIX\}\$\{storyId\}_a\$\{activityId\}`;/.test(labSvcRaw)
+        && /return `@ptf_drawing60_s\$\{storyId\}_a\$\{activityId\}`;/.test(wrtRaw)
+        // e o guard de dono único continua valendo: a bancada NÃO importa o writer de pixels.
+        && !/coloring60DrawingStorage|saveColoring60DrawingState/.test(stripComments(labSvcRaw)),
+      'a bancada limpa a chave certa sem virar um segundo dono dos pixels — o writer continua sendo o único');
+
+    // ── Nenhuma dependência nova nos arquivos criados neste bloco ───────────────────
+    {
+      const depNames = new Set([
+        ...Object.keys(pkgDeps.dependencies || {}), ...Object.keys(pkgDeps.devDependencies || {}),
+      ]);
+      const pkgOf = (spec) => (spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]);
+      const bare = (src) => {
+        const out = new Set();
+        let m;
+        const re = /(?:from\s*['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\))/g;
+        while ((m = re.exec(src))) {
+          const spec = m[1] || m[2];
+          if (spec && !spec.startsWith('.')) out.add(pkgOf(spec));
+        }
+        return [...out];
+      };
+      const specs = new Set([...bare(jrnRaw), ...bare(cardRaw), ...bare(labSvcRaw), ...bare(labScrRaw)]);
+      const missing = [...specs].filter((s) => !depNames.has(s));
+      check('C60-P13 [prova 26 · deps] NENHUMA dependência nova: os arquivos criados (derivação, cartão-trilha, serviço e tela da bancada) só importam pacotes já aprovados',
+        missing.length === 0 && bare(jrnRaw).length === 0,
+        `a derivação continua PURA (zero imports) e os demais usam só o que já existe (faltando: ${JSON.stringify(missing)})`);
+    }
+
+    // ── A pose da primeira conclusão vem da JORNADA (§Partes 3/4/11), não da composição ──
+    check('C60-P13 [prova 27 · Parte 3/4/11] a pose da primeira conclusão é decidida pela ETAPA da jornada: 0→1 celebraFrente · 1→2 olhaAcima, e a tela ENTREGA esse dado ao Beni',
+      (() => {
+        const t01 = J.deriveColoring60Completion({ doneMapBefore: {}, currentActivityId: 'light' });
+        const t12 = J.deriveColoring60Completion({ doneMapBefore: { light: true }, currentActivityId: 'living_world' });
+        const derivaCerto = t01.nextPart?.isLast === false && t12.nextPart?.isLast === true;
+        const poseCerta = POSE.pickBeniPose('activity', CANVAS, { x: 50, y: 10, w: 200, h: 200 }, 'light', t01.nextPart.isLast) === 'celebraFrente'
+          && POSE.pickBeniPose('activity', CANVAS, { x: 50, y: 300, w: 200, h: 60 }, 'living_world', t12.nextPart.isLast) === 'olhaAcima';
+        // Fio real: o overlay repassa `nextPart?.isLast` ao escolher a pose (sem isso o contrato seria só teórico).
+        const fio = /pickBeniPose\(\s*mode,\s*canvasFrame,\s*artRect,\s*activityId,\s*nextPart\?\.isLast === true\s*\)/.test(stripComments(ovlRaw));
+        return derivaCerto && poseCerta && fio;
+      })(),
+      'a criança vê sempre a mesma pose na mesma etapa: comemorar de frente na 1ª, erguer o olhar quando falta só a última');
+
+    // ── Balão: revisão adversarial da CONSTRUÇÃO (não basta não girar — tem de fechar) ──
+    check('C60-P13 [prova 28 · Parte 8 · adversarial] o rabicho FECHA sem resíduo: preenchimento OPACO (o triângulo interno apaga mesmo a borda) e contorno de espessura uniforme (~2px) — nenhuma linha fantasma sobra',
+      (() => {
+        const code = stripComments(ovlRaw);
+        const num = (n) => {
+          const m = code.match(new RegExp(`const ${n} = ([0-9.]+);`));
+          return m ? Number(m[1]) : NaN;
+        };
+        const bg = (code.match(/const BALLOON_BG = '([^']+)';/) || [])[1] || '';
+        const opaco = /^#[0-9a-fA-F]{6}$/.test(bg); // sem alfa: rgba(...,0.97) deixaria a borda vazar
+        const W = num('BALLOON_TAIL_W');
+        const H = num('BALLOON_TAIL_H');
+        const iw = num('BALLOON_TAIL_INNER_W');
+        const ih = num('BALLOON_TAIL_INNER_H');
+        const bw = num('BALLOON_BORDER_W');
+        // Distância do centro do triângulo até a aresta lateral: a diferença externa−interna É a
+        // espessura real do contorno lateral. Fora da faixa ⇒ contorno grosso/torto (reprovado).
+        const meia = (b, h) => ((b / 2) * h) / Math.hypot(h, b / 2);
+        const lateral = meia(W, H) - meia(iw, ih);
+        const geometria = iw < W && ih < H && lateral > 1.5 && lateral < 2.5;
+        // O interno sobe exatamente a espessura da borda e é pintado com a MESMA cor do corpo.
+        const cobreABoca = /top: -BALLOON_BORDER_W,/.test(code) && /borderTopColor: BALLOON_BG,/.test(code);
+        return opaco && geometria && cobreABoca && bw === 2;
+      })(),
+      'o balão é um cartão arredondado com um rabicho limpo apontando para o Beni — sem emenda, sem diagonal, sem sombra de borda');
+
+    // ── Transições: revisão adversarial dos três degraus (0→1, 1→2, 2→3) ───────────
+    check('C60-P13 [prova 29 · Parte 3/4/5 · adversarial] NENHUM toque fica mudo: destino igual à parte aberta (caso real de "Colorir novamente" na 1ª parte) fecha a festa e devolve o desenho — nunca um setParams inerte',
+      /if \(targetActivityId === activityId\) \{ handleC60ContinueColoring\(\); return; \}/.test(stripComments(clrRaw))
+        && /if \(targetActivityId == null\) \{ navigation\.goBack\(\); return; \}/.test(stripComments(clrRaw)),
+      'trocar a identidade da rota pela MESMA identidade não remonta nada — a criança veria a festa sumir sem ir a lugar nenhum');
+
+    check('C60-P13 [prova 30 · Parte 3/4/5 · adversarial] os três degraus são estáveis sob uso real: fora de ordem, repetição e reabertura NÃO produzem festa errada, convite morto nem contagem errada',
+      (() => {
+        const ORD = J.COLORING60_CANONICAL_ORDER;
+        // (a) a criança começa pela 3ª parte: conta 1, convida a 1ª da ordem canônica, sem fecho.
+        const fora = J.deriveColoring60Completion({ doneMapBefore: {}, currentActivityId: 'people_and_care' });
+        const okFora = fora.completionMode === 'activity' && fora.countLabel === '1 de 3 concluída'
+          && fora.nextPart.activityId === 'light' && fora.primaryAction.targetActivityId === 'light';
+        // (b) segundo degrau por caminho torto (3ª e 2ª feitas, conclui a 1ª): convite = a que falta.
+        const meio = J.deriveColoring60Completion({
+          doneMapBefore: { people_and_care: true, living_world: true }, currentActivityId: 'light',
+        });
+        const okMeio = meio.completionMode === 'finale' && meio.countLabel === '3 de 3 concluídas';
+        // (c) todas as ordens possíveis de conclusão terminam em UM fecho — nem zero, nem dois.
+        const perms = [
+          [0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0],
+        ].map((p) => p.map((i) => ORD[i]));
+        const okFechoUnico = perms.every((seq) => {
+          const done = {};
+          let fechos = 0;
+          let convitesMortos = 0;
+          seq.forEach((id) => {
+            const d = J.deriveColoring60Completion({ doneMapBefore: { ...done }, currentActivityId: id });
+            if (d.completionMode === 'finale') fechos += 1;
+            // Convite só pode apontar para parte REALMENTE incompleta.
+            if (d.nextPart && done[d.nextPart.activityId] === true) convitesMortos += 1;
+            // Ação principal jamais aponta para a parte que a criança acabou de concluir.
+            if (d.primaryAction?.targetActivityId === id && d.completionMode === 'activity') convitesMortos += 1;
+            done[id] = true;
+          });
+          return fechos === 1 && convitesMortos === 0;
+        });
+        // (d) recolorir depois do fecho: sempre atualização, nunca uma segunda grande conclusão.
+        const cheio = { light: true, living_world: true, people_and_care: true };
+        const okDepois = ORD.every((id) => {
+          const d = J.deriveColoring60Completion({ doneMapBefore: cheio, currentActivityId: id });
+          return d.completionMode === 'update' && d.nextPart === null && d.countLabel === '3 de 3 concluídas';
+        });
+        return okFora && okMeio && okFechoUnico && okDepois;
+      })(),
+      'em qualquer ordem que a criança escolha, a jornada conta certo, convida só o que falta e comemora o fim uma única vez');
   }
 
   // ══════════════════════════════════════════════════════════════════════════════

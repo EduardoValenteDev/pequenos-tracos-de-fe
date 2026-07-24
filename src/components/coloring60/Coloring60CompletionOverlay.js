@@ -177,6 +177,14 @@ const ALL_DONE_MESSAGE = 'Cada desenho mostrou um jeito especial de ver, cuidar 
 const FINALE_COUNT_LABEL = '3 de 3';
 const FINALE_GALLERY_LABEL = 'Minha Criação Cheia de Cor';
 
+// [C60-P13-COLLECTION] VER A COLEÇÃO (§Parte 2/7) — a mesma composição de galeria, mas como um lugar
+// que a criança VISITA (não um evento que acontece). É o destino da ação "Ver minha coleção" (cartão
+// da história e UPDATE 3/3) e de "Ver meus desenhos" (grande conclusão). Não é conclusão: não repete
+// a grande conclusão, não celebra de novo e não altera progresso — só mostra as três obras juntas.
+const COLLECTION_TITLE = 'A sua coleção de cores';
+const COLLECTION_BENI_LINE = 'Aqui estão as três partes que você encheu de cor!';
+const COLLECTION_MESSAGE = 'Luz, vida e cuidado — as três juntas formam a sua Criação.';
+
 // ATUALIZAÇÃO (§Parte 5): quando a criança conclui DE NOVO uma atividade JÁ concluída, o Beni ADMIRA
 // a nova arte e diz a frase EXATA POR ATIVIDADE (contrato P12R — não reformular). Textos CURTOS de
 // propósito (§Parte 4): cabem sem corte inclusive em telas pequenas; é o "Beni percebeu minha nova
@@ -201,7 +209,7 @@ const MOTIF_COLOR = { dot: colors.gold, leaf: colors.green, heart: colors.coral,
 
 // [C60-P12-PARTICLES] Quantidade de partículas por modo (§Parte 9): update 7–12, primeira 12–18,
 // fecho 18–24. Movimento reduzido usa um punhado estático (brilho localizado, sem subida).
-const PARTICLE_COUNT = { update: 10, activity: 15, finale: 21 };
+const PARTICLE_COUNT = { update: 10, activity: 15, finale: 21, collection: 8 };
 const PARTICLE_COUNT_REDUCED = 5;
 
 // [C60-P12R-TIMELINE] O DIRETOR único (§Parte 3). Os TRÊS níveis têm ritmos DELIBERADAMENTE
@@ -217,6 +225,9 @@ const TIMELINE = {
   update: { ambient: 220, beniDelay: 160, balloonDelay: 500, particleDelay: 340, particleDur: 2100, progressDelay: 0, actionsDelay: 2000, galleryStagger: 0 },
   activity: { ambient: 320, beniDelay: 300, balloonDelay: 760, particleDelay: 720, particleDur: 3300, progressDelay: 1500, actionsDelay: 3600, galleryStagger: 0 },
   finale: { ambient: 460, beniDelay: 440, balloonDelay: 1000, particleDelay: 900, particleDur: 5800, progressDelay: 1300, actionsDelay: 5600, galleryStagger: 320 },
+  // VER A COLEÇÃO não é um evento de conclusão: é um lugar. Abre rápido (ações tocáveis em ~0,9 s),
+  // sem o crescendo da grande conclusão — a criança veio VER, não esperar uma cerimônia de novo.
+  collection: { ambient: 200, beniDelay: 120, balloonDelay: 320, particleDelay: 260, particleDur: 1800, progressDelay: 160, actionsDelay: 900, galleryStagger: 110 },
 };
 
 // [C60-P12-SEED] PRNG determinístico (xfnv1a → mulberry32). Semente por STRING (activityId +
@@ -365,21 +376,19 @@ function activityOrderIndex(activityId) {
 //   activity → olhaAcima quando a obra está no ALTO do canvas (a obra fica acima do Beni no rodapé);
 //              e, como fallback determinístico, na PRIMEIRA atividade ("Haja luz" — a luz nasce no
 //              alto, o Beni ergue o olhar). Demais primeiras conclusões → celebraFrente (pico frontal).
-function pickBeniPose(mode, canvasFrame, artRect, activityId) {
-  if (mode === 'finale') return 'apresentaGaleria';
+function pickBeniPose(mode, canvasFrame, artRect, activityId, nextIsLast = false) {
+  // A grande conclusão E a visita à coleção apresentam as três obras: mesma pose, mesmo sentido.
+  if (mode === 'finale' || mode === 'collection') return 'apresentaGaleria';
   if (mode === 'update') {
     return pickBeniSide(mode, canvasFrame, artRect, activityId) === 'right'
       ? 'admiraEsquerda'
       : 'admiraDireita';
   }
-  // Primeira conclusão: obra no ALTO do canvas (base < 66% da altura) → o Beni ergue o olhar.
-  if (artRect && canvasFrame && canvasFrame.height > 0) {
-    const fyBottom = (artRect.y - canvasFrame.y + artRect.h) / canvasFrame.height;
-    if (fyBottom < 0.66) return 'olhaAcima';
-  }
-  // Fallback determinístico e semântico: a Luz (1ª atividade) nasce no alto → olhaAcima garantido;
-  // as outras primeiras conclusões comemoram de frente (celebraFrente). Ambas as poses alcançáveis.
-  return activityId === 'light' ? 'olhaAcima' : 'celebraFrente';
+  // Primeira conclusão (§Partes 3/4/11): a pose é DETERMINADA PELA JORNADA, nunca pela composição
+  // nem por sorteio. 0→1 (ainda faltam duas) → comemora de frente; 1→2 (a próxima é a última, a
+  // jornada está quase no alto) → ergue o olhar. Assim as cinco poses têm caminho real e fixo.
+  if (nextIsLast) return 'olhaAcima';
+  return 'celebraFrente';
 }
 
 // Lado em que o Beni fica ('left' | 'right'). No update ele fica no lado que o faz OLHAR para a obra:
@@ -534,6 +543,10 @@ function StepMarker({ step, state, celebratory }) {
   const atmo = atmosphereOf(step);
   const isCurrent = state === 'current';
   const isDone = state === 'done' || isCurrent;
+  // 'next' = a PRÓXIMA RECOMENDADA (§Parte 3/4): ainda não concluída, mas é o caminho principal.
+  // Ganha um anel tracejado na cor da atividade — visivelmente diferente de "concluída" e de
+  // "disponível", sem prometer que já está pronta.
+  const isNext = state === 'next';
   return (
     <View style={markerStyles.item}>
       <View
@@ -542,16 +555,18 @@ function StepMarker({ step, state, celebratory }) {
           isDone && { backgroundColor: atmo.tintSoft, borderColor: atmo.tint },
           celebratory && isDone && { borderColor: atmo.tint, borderWidth: 3 },
           isCurrent && { backgroundColor: atmo.tint, borderColor: atmo.tintDeep, borderWidth: 3 },
+          isNext && markerStyles.circleNext,
+          isNext && { borderColor: atmo.tint },
         ]}
       >
         <MaterialCommunityIcons
           name={atmo.icon}
           size={isCurrent ? 22 : 20}
-          color={isCurrent ? '#FFFFFF' : (isDone ? atmo.tintDeep : colors.muted)}
+          color={isCurrent ? '#FFFFFF' : (isDone ? atmo.tintDeep : (isNext ? atmo.tintDeep : colors.muted))}
         />
       </View>
       <Text
-        style={[markerStyles.label, isDone && { color: colors.text, fontWeight: '700' }]}
+        style={[markerStyles.label, (isDone || isNext) && { color: colors.text, fontWeight: '700' }]}
         numberOfLines={1}
       >
         {atmo.marker}
@@ -574,6 +589,8 @@ const markerStyles = StyleSheet.create({
   },
   label: { marginTop: 4, fontSize: 12, color: colors.textSoft },
   connector: { width: 16, height: 4, borderRadius: 2, marginTop: 20, marginHorizontal: -2, backgroundColor: colors.border },
+  // Próxima recomendada: anel TRACEJADO (convite), nunca preenchido como as concluídas.
+  circleNext: { borderWidth: 2, borderStyle: 'dashed', backgroundColor: colors.surface },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -684,72 +701,177 @@ const galleryStyles = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// [C60-P12-BALLOON] Balão de fala LIGADO ao Beni (§Parte 8): texto em até 3 linhas, fonte grande,
-// preso ao Beni por uma "seta" que aponta para ele. NÃO cobre o centro da arte (vive no rodapé) e
-// NÃO tem cara de modal — é uma fala de história em quadrinho. O lado da seta acompanha o lado do Beni.
+// [C60-P13-BALLOON] Balão de fala LIGADO ao Beni — RECONSTRUÇÃO DEFINITIVA (§Parte 8).
+//
+// O que estava REPROVADO: o rabicho era um QUADRADO ROTACIONADO a 45° com duas bordas. As bordas do
+// quadrado girado continuam como uma DIAGONAL que sobe pelo canto inferior em direção ao texto — o
+// artefato visto no teste físico. Nenhum deslocamento conserta isso: a construção foi SUBSTITUÍDA.
+//
+// Estrutura obrigatória (§Parte 8, item a item):
+//   1. Wrapper externo (`outer`) com `overflow: 'visible'` — o rabicho pode viver fora dele.
+//   2. Corpo (`body`) arredondado INDEPENDENTE — só ele tem raio, borda e o texto dentro.
+//   3. Rabicho COMPLETAMENTE EXTERNO ao corpo: `tailWrap` começa exatamente na borda inferior do
+//      corpo (`bottom: -TAIL_H`, altura TAIL_H) — nenhum pixel do rabicho entra na área de conteúdo.
+//   4. Triângulo EXTERNO (`tailOuter`) na COR DA BORDA — é o contorno do rabicho.
+//   5. Triângulo INTERNO branco (`tailInner`), MENOR, sobreposto, subido de exatamente a espessura
+//      da borda: apaga a linha da borda na "boca" do rabicho e continua o branco do corpo.
+//   6. Nada do triângulo invade o conteúdo: o texto vive no `body`, o rabicho vive fora dele.
+//   7. Padding do texto INDEPENDENTE do rabicho (não há mais "folga para a seta").
+//   8/9/10. `tailSide` aponta para o Beni e vale nos DOIS lados (esquerda e direita) — o único ajuste
+//      é a âncora horizontal, mantida além do raio do canto para o rabicho nascer em borda reta.
+//
+// PROIBIDO aqui (e provado no smoke): quadrado rotacionado, `rotate: '45deg'`, borda diagonal que
+// continua no cartão, qualquer linha subindo para o texto, rabicho atrás da tipografia, corte de texto.
+// FALLBACK AUTORIZADO (§Parte 8): `tailless` remove o rabicho e mantém o cartão arredondado junto ao
+// Beni — a ausência do rabicho é preferível a qualquer artefato.
 // ─────────────────────────────────────────────────────────────────────────────
-function SpeechBalloon({ title, line, tailSide, accent, accentDeep }) {
+// REVISÃO ADVERSARIAL (Portão 9) — dois defeitos residuais encontrados e corrigidos aqui:
+//   (a) o preenchimento era SEMI-TRANSPARENTE (alfa 0.97). O triângulo interno pinta POR CIMA do
+//       triângulo de contorno e por cima da borda inferior do corpo: com alfa < 1 sobrava um
+//       resíduo da cor da borda atravessando o branco — exatamente o tipo de linha fantasma que
+//       o teste físico reprovou. O preenchimento agora é OPACO, então a boca some por completo.
+//   (b) o triângulo interno tinha medidas "a olho" (16×10), o que engrossava o contorno lateral
+//       (~2,9 px) e deixava a ponta pesada. 18×11 é a solução geométrica para contorno uniforme
+//       de 2 px num triângulo 24×14 (arestas deslocadas 2 px pela normal interna).
+const BALLOON_BG = '#FFFFFF';
+const BALLOON_BORDER_W = 2;
+const BALLOON_TAIL_W = 24;   // base do triângulo externo (contorno)
+const BALLOON_TAIL_H = 14;   // altura do rabicho, INTEIRA fora do corpo
+const BALLOON_TAIL_INNER_W = 18; // base do triângulo interno (menor, contorno de 2 px uniforme)
+const BALLOON_TAIL_INNER_H = 11;
+const BALLOON_TAIL_ANCHOR = 26;  // > raio do canto (18): o rabicho nasce em borda reta
+
+function SpeechBalloon({ title, line, tailSide, accent, accentDeep, maxWidth, tailless = false }) {
   return (
-    <View style={[balloonStyles.bubble, { borderColor: accent }]}>
-      {/* §Parte 4 · o texto NUNCA trunca e nunca ganha reticências. O `numberOfLines` aqui é um TETO
-          VISUAL (título ≤3 linhas, corpo ≤3) que ANDA JUNTO com `adjustsFontSizeToFit`: em RN, o
-          ajuste de fonte só age quando há um limite de linhas — a fonte ENCOLHE (até minimumFontScale)
-          para caber, em vez de cortar. O título admite ATÉ 3 linhas de propósito: o maior título de
-          primeira conclusão ("Seu cuidado deixou tudo especial!") quebra em 3 linhas curtas num balão
-          estreito (~320dp) e assim aparece INTEIRO, em fonte grande, sem encolher ao mínimo nem cortar.
-          O texto vive dentro do padding seguro; o rabicho fica FORA dele (ver balloonStyles.tail). */}
-      {title ? (
-        <Text
-          style={[balloonStyles.title, { color: accentDeep }]}
-          numberOfLines={3}
-          adjustsFontSizeToFit
-          minimumFontScale={0.85}
+    <View style={[balloonStyles.outer, maxWidth ? { maxWidth } : null]}>
+      <View style={[balloonStyles.body, { borderColor: accent }]}>
+        {/* §Parte 9 · SEM `numberOfLines` e SEM `adjustsFontSizeToFit`: o balão CRESCE com o conteúdo
+            e o texto aparece INTEIRO, em fonte legível para criança. Sem teto de linhas não há
+            reticências possíveis — o corte deixou de ser uma opção do componente. */}
+        {title ? <Text style={[balloonStyles.title, { color: accentDeep }]}>{title}</Text> : null}
+        <Text style={balloonStyles.line}>{line}</Text>
+      </View>
+      {!tailless && (
+        <View
+          pointerEvents="none"
+          style={[
+            balloonStyles.tailWrap,
+            tailSide === 'right' ? balloonStyles.tailWrapRight : balloonStyles.tailWrapLeft,
+          ]}
         >
-          {title}
-        </Text>
-      ) : null}
-      <Text style={balloonStyles.line} numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.85}>{line}</Text>
-      <View
-        pointerEvents="none"
-        style={[
-          balloonStyles.tail,
-          { borderColor: accent },
-          tailSide === 'right' ? balloonStyles.tailRight : balloonStyles.tailLeft,
-        ]}
-      />
+          <View style={[balloonStyles.tailOuter, { borderTopColor: accent }]} />
+          <View style={balloonStyles.tailInner} />
+        </View>
+      )}
     </View>
   );
 }
 
 const balloonStyles = StyleSheet.create({
-  // §Parte 4 · área de texto com folga inferior EXTRA (`paddingBottom`) que excede a intrusão do
-  // rabicho: nenhuma linha de texto alcança a faixa onde a seta se ancora. O balão cresce em altura.
-  bubble: {
-    backgroundColor: 'rgba(255,255,255,0.96)',
+  // 1. Wrapper externo: overflow VISÍVEL (o rabicho é desenhado fora dele, por baixo do corpo).
+  outer: { alignSelf: 'stretch', overflow: 'visible' },
+  // 2. Corpo independente. Sem sombra: a sombra do cartão desenhava uma linha própria junto ao
+  //    rabicho no Android (elevation) e ainda o empurrava para trás do corpo. A borda de 2px na cor
+  //    da atividade já dá a separação — e o balão fica limpo, que é o critério do §Parte 8.
+  body: {
+    backgroundColor: BALLOON_BG,
     borderRadius: 18,
-    borderWidth: 2,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md + 2, // folga segura acima do rabicho (intrusão ≤ 7px)
+    borderWidth: BALLOON_BORDER_W,
+    // 7. Padding do texto INDEPENDENTE do rabicho (simétrico; nada de folga extra embaixo).
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    maxWidth: 300,
-    ...shadows.soft,
   },
-  title: { fontSize: 18, fontWeight: '800', lineHeight: 22 },
-  line: { fontSize: 15, color: colors.text, lineHeight: 20, marginTop: 3 },
-  // Seta (quadrado girado) ANCORADA EXTERNAMENTE à borda inferior, apontando para o Beni ao lado. É
-  // menor e mais baixa que antes (13×13, bottom:-6 → só ~7px de intrusão, absorvidos pelo paddingBottom
-  // do balão): nenhuma "linha" do rabicho atravessa a área segura do texto (§Parte 4).
-  tail: {
+  title: { fontSize: 18, fontWeight: '800', lineHeight: 23 },
+  line: { fontSize: 15, color: colors.text, lineHeight: 21, marginTop: 3 },
+  // 3. Faixa do rabicho: começa EXATAMENTE na borda inferior do corpo e desce TAIL_H para fora.
+  tailWrap: {
     position: 'absolute',
-    bottom: -6,
-    width: 13,
-    height: 13,
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    transform: [{ rotate: '45deg' }],
+    bottom: -BALLOON_TAIL_H,
+    width: BALLOON_TAIL_W,
+    height: BALLOON_TAIL_H,
+    zIndex: 2,
   },
-  tailLeft: { left: 24, borderLeftWidth: 2, borderBottomWidth: 2 },
-  tailRight: { right: 24, borderRightWidth: 2, borderBottomWidth: 2 },
+  tailWrapLeft: { left: BALLOON_TAIL_ANCHOR },
+  tailWrapRight: { right: BALLOON_TAIL_ANCHOR },
+  // 4. Triângulo EXTERNO (contorno): técnica de borda do RN — largura/altura zero, laterais
+  //    transparentes e a borda SUPERIOR colorida formando um triângulo que aponta para BAIXO.
+  tailOuter: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderLeftWidth: BALLOON_TAIL_W / 2,
+    borderRightWidth: BALLOON_TAIL_W / 2,
+    borderTopWidth: BALLOON_TAIL_H,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+  // 5. Triângulo INTERNO branco, menor e subido pela espessura da borda: cobre a linha da borda na
+  //    boca do rabicho (o branco do corpo continua no rabicho, sem emenda visível).
+  tailInner: {
+    position: 'absolute',
+    top: -BALLOON_BORDER_W,
+    left: (BALLOON_TAIL_W - BALLOON_TAIL_INNER_W) / 2,
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderLeftWidth: BALLOON_TAIL_INNER_W / 2,
+    borderRightWidth: BALLOON_TAIL_INNER_W / 2,
+    borderTopWidth: BALLOON_TAIL_INNER_H,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: BALLOON_BG,
+  },
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [C60-P13-ACTIONS] Botões da experiência — os RÓTULOS vêm da DERIVAÇÃO CANÔNICA (§Parte 1). Este
+// componente não escolhe texto nem destino: recebe as três ações já decididas e as apresenta na
+// hierarquia certa (principal cheia · secundária discreta · terciária em estilo de link).
+//
+// §Parte 10 · enquanto o preload da próxima parte não termina, a AÇÃO PRINCIPAL mostra um estado
+// curto ("Preparando…") em vez de abrir uma tela vazia com rodinha. Isso NUNCA trava: a tela libera
+// o botão quando o preload conclui, quando ele falha (segue pelo fluxo normal) ou pelo teto de tempo.
+// ─────────────────────────────────────────────────────────────────────────────
+const PRIMARY_PENDING_LABEL = 'Preparando…';
+
+function C60ActionButtons({
+  primaryAction,
+  secondaryAction,
+  tertiaryAction,
+  primaryPending,
+  onPrimary,
+  onSecondary,
+  onTertiary,
+}) {
+  const pending = primaryPending === true;
+  const primaryLabel = pending ? PRIMARY_PENDING_LABEL : (primaryAction?.label ?? '');
+  return (
+    <>
+      <SoundButton
+        style={[styles.primaryBtn, { backgroundColor: colors.beni }, pending && styles.primaryBtnPending]}
+        accessibilityLabel={pending ? 'Preparando a próxima parte' : primaryLabel}
+        accessibilityState={{ disabled: pending }}
+        silent={pending}
+        onPress={pending ? () => {} : onPrimary}
+      >
+        <Text style={styles.primaryBtnText}>{primaryLabel}</Text>
+      </SoundButton>
+      {secondaryAction && typeof onSecondary === 'function' && (
+        <SoundButton style={styles.secondaryBtn} accessibilityLabel={secondaryAction.label} onPress={onSecondary}>
+          <Text style={styles.secondaryBtnText}>{secondaryAction.label}</Text>
+        </SoundButton>
+      )}
+      {tertiaryAction && typeof onTertiary === 'function' && (
+        <SoundButton style={styles.tertiaryBtn} accessibilityLabel={tertiaryAction.label} onPress={onTertiary}>
+          <Text style={styles.tertiaryBtnText}>{tertiaryAction.label}</Text>
+        </SoundButton>
+      )}
+    </>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // A experiência em si — um DIRETOR único (§Parte 4). O MODO é decidido pela MÁQUINA DE CONCLUSÃO
@@ -765,6 +887,13 @@ export default function Coloring60CompletionOverlay({
   canvasFrame = null,
   celebrationId = null,
   bottomInset = 0,
+  // [C60-P13-JOURNEY] §Parte 1 · a DERIVAÇÃO CANÔNICA da jornada (coloring60Journey) chega pronta.
+  // O overlay não reinfere desfecho nem inventa rótulo: ele APRESENTA o que a derivação decidiu
+  // (contagem, trilha, convite da próxima parte e os rótulos das ações primária/secundária/terciária).
+  journey = null,
+  // §Parte 10 · o preload da próxima parte ainda não terminou: a ação principal mostra um estado
+  // curto em vez de abrir uma tela vazia. Nunca trava — a tela libera por conclusão OU por teto.
+  primaryPending = false,
   onPrimary,
   onSecondary,
   onTertiary,
@@ -772,12 +901,19 @@ export default function Coloring60CompletionOverlay({
   const { reduceMotion, ready } = useReduceMotion();
   const atmo = atmosphereOf(activityId);
   const isUpdate = mode === 'update';
-  const allDone = mode === 'finale';
+  const isCollection = mode === 'collection';
+  const isFinale = mode === 'finale';
+  // A visita à coleção usa a MESMA composição de galeria da grande conclusão (as três obras juntas).
+  const allDone = isFinale || isCollection;
 
+  // §Parte 1 · a contagem vem da derivação (concordância correta, sem improviso na interface); os
+  // `steps` continuam sendo a fonte do desenho da trilha.
   const doneCount = steps.filter((s) => s.done).length;
   const total = steps.length || 3;
+  const countLabel = journey?.countLabel ?? `${doneCount} de ${total}`;
+  const nextPart = isUpdate || allDone ? null : (journey?.nextPart ?? null);
 
-  // Acento por modo (fecho = dourado, mais nobre; senão a cor da atividade).
+  // Acento por modo (fecho/coleção = dourado, mais nobre; senão a cor da atividade).
   const accent = allDone ? colors.gold : atmo.tint;
   const accentDeep = allDone ? colors.goldDeep : atmo.tintDeep;
   const accentSoft = allDone ? colors.goldSoft : atmo.tintSoft;
@@ -785,10 +921,19 @@ export default function Coloring60CompletionOverlay({
     ? ['rgba(249,199,79,0)', 'rgba(249,199,79,0.13)', 'rgba(224,162,26,0.32)']
     : atmo.veil;
 
-  // Textos por modo (contrato EXATO do P12 · Partes 5/6/7).
+  // Textos por modo (contrato EXATO do P12 · Partes 5/6/7 + a visita à coleção do P13 · Parte 2/7).
   const updateText = UPDATE_TEXTS[activityId] ?? UPDATE_TEXTS.light;
-  const title = allDone ? ALL_DONE_TITLE : (isUpdate ? updateText.title : atmo.title);
-  const beniLine = allDone ? ALL_DONE_BENI_LINE : (isUpdate ? updateText.line : atmo.beniLine);
+  const title = isCollection ? COLLECTION_TITLE
+    : (isFinale ? ALL_DONE_TITLE : (isUpdate ? updateText.title : atmo.title));
+  const beniLine = isCollection ? COLLECTION_BENI_LINE
+    : (isFinale ? ALL_DONE_BENI_LINE : (isUpdate ? updateText.line : atmo.beniLine));
+
+  // [C60-P13-ACTIONS] §Parte 3–7 · TODOS os rótulos vêm da derivação canônica. Se (e só se) a
+  // jornada não chegar, resta uma saída honesta e nunca um beco sem saída.
+  const primaryAction = journey?.primaryAction ?? { label: 'Voltar à aventura' };
+  const secondaryAction = journey?.secondaryAction ?? null;
+  const tertiaryAction = journey?.tertiaryAction ?? null;
+  const helperText = journey?.nextPart?.helperText ?? null;
 
   // Tamanho da tela (fallback de posicionamento quando ainda não há `canvasFrame` medido).
   const [screen, setScreen] = useState(null);
@@ -802,7 +947,7 @@ export default function Coloring60CompletionOverlay({
   const artRect = useMemo(() => artScreenRectOf(canvasFrame, snapshot), [canvasFrame, snapshot]);
 
   // Pose e lado do Beni por composição real + estado (determinístico, §Parte 2).
-  const beniPose = pickBeniPose(mode, canvasFrame, artRect, activityId);
+  const beniPose = pickBeniPose(mode, canvasFrame, artRect, activityId, nextPart?.isLast === true);
   const beniSide = pickBeniSide(mode, canvasFrame, artRect, activityId); // 'left' | 'right'
 
   // [C60-P12-SEED] Semente determinística (§Parte 9): capturada UMA vez no mount → mesma disposição
@@ -838,6 +983,8 @@ export default function Coloring60CompletionOverlay({
   useEffect(() => {
     if (!ready || peakFiredRef.current) return undefined;
     peakFiredRef.current = true;
+    // VER A COLEÇÃO não é conclusão: nada de háptica nem de som de sucesso (a criança só veio ver).
+    if (isCollection) return undefined;
     // §Parte 6 · háptica de RECONHECIMENTO no início, por nível (nunca vibração repetitiva):
     //   UPDATE   → leve (selection): "o Beni percebeu".
     //   FIRST    → médio (impact Medium): "eu consegui terminar uma parte".
@@ -859,13 +1006,14 @@ export default function Coloring60CompletionOverlay({
   // "Reduzir movimento" (§Parte 7). Não é vibração repetitiva — é o pico afetivo da coleção completa.
   const finalePeakRef = useRef(false);
   useEffect(() => {
-    if (!ready || !allDone || reduceMotion || finalePeakRef.current) return undefined;
+    // Só a GRANDE CONCLUSÃO real tem pico (a visita à coleção, nunca).
+    if (!ready || !isFinale || reduceMotion || finalePeakRef.current) return undefined;
     finalePeakRef.current = true;
     const t = setTimeout(() => {
       try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); } catch { /* sem háptica */ }
     }, 900);
     return () => clearTimeout(t);
-  }, [ready, allDone, reduceMotion]);
+  }, [ready, isFinale, reduceMotion]);
 
   // [C60-P12-DIRECTOR] Linha do tempo dirigida (§Parte 4): 5 atos, UM só efeito, deps estáveis
   // ([ready, reduceMotion]) → re-render NÃO reinicia. Sair da tela cancela (anim.stop no cleanup,
@@ -923,11 +1071,20 @@ export default function Coloring60CompletionOverlay({
   const actionsEnter = reduceMotion ? { opacity: 1 } : rise(actionsAnim, 10);
 
   // Tamanho do Beni de corpo inteiro, responsivo à altura da tela (presença sem esmagar a arte).
+  // §Parte 9 · quando a cena ganha a área "Próxima parte", o Beni cede altura ANTES de qualquer
+  // texto pensar em encolher: adaptar a composição vem sempre antes de cortar palavra.
   const screenH = screen?.h ?? 760;
-  const beniH = Math.round(Math.min(206, Math.max(150, screenH * 0.27)));
+  const beniH = nextPart
+    ? Math.round(Math.min(172, Math.max(126, screenH * 0.22)))
+    : Math.round(Math.min(206, Math.max(150, screenH * 0.27)));
   const beniW = Math.round(beniH * 0.8); // PNGs 1024×1280 (4:5) — contain
   const finaleBeniH = Math.round(Math.min(168, Math.max(128, screenH * 0.21)));
   const finaleBeniW = Math.round(finaleBeniH * 0.8);
+
+  // §Parte 9 · largura do balão ADAPTATIVA: em telas estreitas o balão estreita (e cresce em altura)
+  // em vez de encolher a fonte ou cortar a fala. O piso garante que a fala nunca vire uma coluna.
+  const screenW = screen?.w ?? 390;
+  const balloonMaxWidth = Math.max(168, Math.min(320, screenW - beniW - spacing.md * 2 - spacing.xs * 2));
 
   // [C60-P12-PARTICLES] Origem das partículas = retângulo REAL da arte; sem ele, a área do canvas;
   // sem canvas medido ainda, uma faixa medida da própria tela (nunca confete solto no vazio).
@@ -1045,35 +1202,33 @@ export default function Coloring60CompletionOverlay({
               />
             </Animated.View>
             <Animated.View style={[styles.finaleTextCol, balloonEnter]} pointerEvents="none">
-              {/* §Parte 4 · título e fala do fecho aparecem COMPLETOS (nunca com reticências). O teto
-                  de linhas (título ≤2, fala ≤3) ANDA JUNTO com `adjustsFontSizeToFit` — em RN o ajuste
-                  de fonte só age com limite de linhas: a fonte ENCOLHE para caber em telas estreitas,
-                  em vez de cortar. Os textos de contrato são curtos e, na prática, nunca encolhem. */}
-              <Text style={[styles.titleBig, { color: accentDeep }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>{ALL_DONE_TITLE}</Text>
-              <Text style={styles.beniLine} numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.85}>{ALL_DONE_BENI_LINE}</Text>
+              {/* §Parte 9 · título e fala aparecem COMPLETOS: sem teto de linhas e sem ajuste de
+                  fonte — nada aqui pode virar reticência. Os textos de contrato são curtos e o
+                  bloco cresce em altura se precisar. */}
+              <Text style={[styles.titleBig, { color: accentDeep }]}>{title}</Text>
+              <Text style={styles.beniLine}>{beniLine}</Text>
               <View style={[styles.countPill, styles.countPillStart, { backgroundColor: accentSoft, borderColor: accent }]}>
-                <Text style={[styles.countPillText, { color: accentDeep }]}>{FINALE_COUNT_LABEL}</Text>
+                <Text style={[styles.countPillText, { color: accentDeep }]}>
+                  {isCollection ? `${doneCount} de ${total}` : FINALE_COUNT_LABEL}
+                </Text>
               </View>
             </Animated.View>
           </View>
 
           <Animated.Text style={[styles.message, styles.messageFinale, progressEnter]} pointerEvents="none">
-            {ALL_DONE_MESSAGE}
+            {isCollection ? COLLECTION_MESSAGE : ALL_DONE_MESSAGE}
           </Animated.Text>
 
           <Animated.View style={[styles.actions, actionsEnter]}>
-            <SoundButton style={[styles.primaryBtn, { backgroundColor: colors.beni }]} accessibilityLabel="Ver meus desenhos" onPress={onPrimary}>
-              <Text style={styles.primaryBtnText}>Ver meus desenhos</Text>
-            </SoundButton>
-            <SoundButton style={styles.secondaryBtn} accessibilityLabel="Voltar à aventura" onPress={onSecondary}>
-              <Text style={styles.secondaryBtnText}>Voltar à aventura</Text>
-            </SoundButton>
-            {typeof onTertiary === 'function' && (
-              // §Parte 7 · a grande conclusão oferece TRÊS caminhos; a terceira recomeça a jornada.
-              <SoundButton style={styles.tertiaryBtn} accessibilityLabel="Colorir novamente" onPress={onTertiary}>
-                <Text style={styles.tertiaryBtnText}>Colorir novamente</Text>
-              </SoundButton>
-            )}
+            <C60ActionButtons
+              primaryAction={primaryAction}
+              secondaryAction={secondaryAction}
+              tertiaryAction={tertiaryAction}
+              primaryPending={primaryPending}
+              onPrimary={onPrimary}
+              onSecondary={onSecondary}
+              onTertiary={onTertiary}
+            />
           </Animated.View>
         </View>
       ) : (
@@ -1097,61 +1252,73 @@ export default function Coloring60CompletionOverlay({
                 tailSide={beniSide === 'right' ? 'right' : 'left'}
                 accent={accent}
                 accentDeep={accentDeep}
+                maxWidth={balloonMaxWidth}
               />
             </Animated.View>
           </View>
 
-          {/* Progresso X→X+1 — só na PRIMEIRA conclusão (§Parte 6). A ATUALIZAÇÃO não mostra "3/3". */}
-          {!isUpdate && (
-            <Animated.View style={[styles.progressTrail, progressEnter]} pointerEvents="none">
-              <View style={styles.markersRow}>
-                {steps.map((s, i) => {
-                  const lit = s.done || s.id === activityId;
-                  return (
-                    <React.Fragment key={s.id}>
-                      <StepMarker
-                        step={s.id}
-                        state={s.id === activityId ? 'current' : (s.done ? 'done' : 'todo')}
-                        celebratory={false}
-                      />
-                      {i < steps.length - 1 && (
-                        <View style={[markerStyles.connector, lit && { backgroundColor: accent }]} />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+          {/* [C60-P13-TRAIL] §Parte 1/3/4/6 · a TRILHA das três partes aparece em TODOS os momentos
+              (inclusive na atualização): a criança sempre vê quanto já completou e o que vem depois.
+              O passo recém-preenchido é o `current`; o próximo recomendado ganha o anel pontilhado.
+              A contagem usa a concordância da derivação ("1 de 3 concluída" · "2 de 3 concluídas"). */}
+          <Animated.View style={[styles.progressTrail, progressEnter]} pointerEvents="none">
+            <View style={styles.markersRow}>
+              {steps.map((s, i) => {
+                const lit = s.done || s.id === activityId;
+                const isNext = !!nextPart && s.id === nextPart.activityId;
+                return (
+                  <React.Fragment key={s.id}>
+                    <StepMarker
+                      step={s.id}
+                      state={s.id === activityId ? 'current' : (s.done ? 'done' : (isNext ? 'next' : 'todo'))}
+                      celebratory={false}
+                    />
+                    {i < steps.length - 1 && (
+                      <View style={[markerStyles.connector, lit && { backgroundColor: accent }]} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </View>
+            <View style={[styles.countPill, { backgroundColor: accentSoft, borderColor: accent }]}>
+              <Text style={[styles.countPillText, { color: accentDeep }]}>{countLabel}</Text>
+            </View>
+          </Animated.View>
+
+          {/* [C60-P13-NEXTPART] §Parte 3/4 · a ÁREA DA PRÓXIMA PARTE. É o que transforma três desenhos
+              soltos numa jornada: a criança lê o que vem depois ANTES de decidir. Só na PRIMEIRA
+              conclusão e só quando existe uma próxima parte real (nunca sugerir o que não há). */}
+          {nextPart && (
+            <Animated.View
+              style={[styles.nextPart, { borderColor: accent, backgroundColor: rgba(accent, 0.10) }, progressEnter]}
+              pointerEvents="none"
+            >
+              <Text style={[styles.nextPartKicker, { color: accentDeep }]}>{nextPart.sectionTitle}</Text>
+              <View style={styles.nextPartRow}>
+                <MaterialCommunityIcons
+                  name={atmosphereOf(nextPart.activityId).icon}
+                  size={20}
+                  color={atmosphereOf(nextPart.activityId).tintDeep}
+                />
+                <Text style={styles.nextPartTitle}>{nextPart.activityTitle}</Text>
               </View>
-              <View style={[styles.countPill, { backgroundColor: accentSoft, borderColor: accent }]}>
-                <Text style={[styles.countPillText, { color: accentDeep }]}>{`${doneCount} de ${total}`}</Text>
-              </View>
+              <Text style={styles.nextPartMessage}>{nextPart.message}</Text>
             </Animated.View>
           )}
 
           <Animated.View style={[styles.actions, actionsEnter]}>
-            {isUpdate ? (
-              // §Parte 5 · duas ações: seguir na mesma arte ou voltar.
-              <>
-                <SoundButton style={[styles.primaryBtn, { backgroundColor: colors.beni }]} accessibilityLabel="Continuar colorindo" onPress={onPrimary}>
-                  <Text style={styles.primaryBtnText}>Continuar colorindo</Text>
-                </SoundButton>
-                <SoundButton style={styles.secondaryBtn} accessibilityLabel="Voltar à aventura" onPress={onSecondary}>
-                  <Text style={styles.secondaryBtnText}>Voltar à aventura</Text>
-                </SoundButton>
-              </>
-            ) : (
-              // §Parte 6 · três ações: próxima parte, ver o desenho ou voltar à aventura.
-              <>
-                <SoundButton style={[styles.primaryBtn, { backgroundColor: colors.beni }]} accessibilityLabel="Colorir a próxima parte" onPress={onPrimary}>
-                  <Text style={styles.primaryBtnText}>Colorir a próxima parte</Text>
-                </SoundButton>
-                <SoundButton style={styles.secondaryBtn} accessibilityLabel="Ver meu desenho" onPress={onSecondary}>
-                  <Text style={styles.secondaryBtnText}>Ver meu desenho</Text>
-                </SoundButton>
-                <SoundButton style={styles.tertiaryBtn} accessibilityLabel="Voltar à aventura" onPress={onTertiary}>
-                  <Text style={styles.tertiaryBtnText}>Voltar à aventura</Text>
-                </SoundButton>
-              </>
-            )}
+            <C60ActionButtons
+              primaryAction={primaryAction}
+              secondaryAction={secondaryAction}
+              tertiaryAction={tertiaryAction}
+              primaryPending={primaryPending}
+              onPrimary={onPrimary}
+              onSecondary={onSecondary}
+              onTertiary={onTertiary}
+            />
+            {/* §Parte 3/4 · "Seu progresso fica guardado." — a criança pode parar sem perder nada.
+                Nenhuma urgência, nenhuma punição: é só a garantia de que dá para voltar depois. */}
+            {helperText ? <Text style={styles.helperText}>{helperText}</Text> : null}
           </Animated.View>
         </View>
       )}
@@ -1215,6 +1382,21 @@ const styles = StyleSheet.create({
   countPillStart: { alignSelf: 'flex-start', marginTop: spacing.xs },
   countPillText: { fontSize: 13, fontWeight: '800' },
 
+  // [C60-P13-NEXTPART] Área da PRÓXIMA PARTE (§Parte 3/4): um convite curto e legível, com a cor da
+  // atividade de DESTINO no ícone. Sem teto de linhas em nenhum texto — cresce se precisar.
+  nextPart: {
+    alignSelf: 'stretch',
+    borderWidth: 1.5,
+    borderRadius: radii.lg ?? 18,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  nextPartKicker: { fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
+  nextPartRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  nextPartTitle: { flex: 1, marginLeft: 6, fontSize: 17, fontWeight: '800', color: colors.text },
+  nextPartMessage: { marginTop: 2, fontSize: 14, color: colors.text, lineHeight: 19 },
+
   actions: { marginTop: spacing.sm, alignSelf: 'stretch', maxWidth: 440, width: '100%' },
   primaryBtn: {
     minHeight: 54,
@@ -1225,6 +1407,10 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   primaryBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
+  // §Parte 10 · estado curto de preparo: o botão continua no lugar (nada "pula"), só mais discreto.
+  primaryBtnPending: { opacity: 0.72 },
+  // §Parte 3/4 · "Seu progresso fica guardado." — discreto, logo abaixo das ações.
+  helperText: { marginTop: spacing.xs, fontSize: 13, color: colors.textSoft, textAlign: 'center' },
   secondaryBtn: {
     minHeight: 46,
     borderRadius: radii.pill,

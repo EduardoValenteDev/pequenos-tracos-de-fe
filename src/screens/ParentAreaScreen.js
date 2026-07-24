@@ -1009,6 +1009,20 @@ export default function ParentAreaScreen({ navigation }) {
                 </SoundButton>
               </InfoCard>
 
+              {/* §Parte 12: BANCADA do Colorir 60 — reencena os momentos que só acontecem UMA vez
+                  (0→1, 1→2 e a grande conclusão 2→3) e as reedições, no aparelho real. Gate próprio
+                  na tela (desenvolvimento + Modo Criador). O reset dela apaga SÓ as três conclusões
+                  e as três artes de "A Criação". */}
+              <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
+                <Text style={styles.qaTitle}>Bancada · Colorir 60 (A Criação)</Text>
+                <Text style={styles.qaDesc}>
+                  Define o ponto de partida (0/3, 1/3, 2/3, 3/3), abre a reedição de cada parte e limpa SÓ o Colorir 60 de "A Criação". Não toca onboarding, perfil, plano, packs, downloads, estrelas, conquistas nem o progresso das outras histórias.
+                </Text>
+                <SoundButton style={styles.qaResetBtn} onPress={() => navigation.navigate('Coloring60Lab')} activeOpacity={0.85}>
+                  <Text style={styles.qaResetBtnText}>Abrir bancada</Text>
+                </SoundButton>
+              </InfoCard>
+
               {/* V1: revisão humana cena a cena (texto oficial + ilustrada + briefing + colorir).
                   Só leitura: não salva decisões, não toca imagens, áudio, progresso ou plano. */}
               <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
