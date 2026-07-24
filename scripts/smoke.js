@@ -30054,14 +30054,28 @@ check(
       'a proibição de activities/light.png é permanente e independe da fase');
     // Nenhuma rota/QA do Colorir 60 registrada ainda:
     const navSrc = readSrc('src/navigation/AppNavigator.js');
-    // §Parte 12 mudou o alvo desta trava — sem afrouxá-la. Continua PROIBIDA qualquer rota PÚBLICA
-    // do Colorir 60 (a experiência da criança segue trafegando por params na rota 'Coloring' que já
-    // existia). A ÚNICA exceção admitida é a BANCADA de desenvolvimento, e mesmo ela só vale se
-    // estiver registrada sob `isInternalToolsEnabled()` — em produção a rota nem é montada.
-    check('C60-P0.T8→P13: nenhuma rota PÚBLICA do Colorir 60 (só a bancada dev, sob isInternalToolsEnabled)',
-      !/[Cc]oloring60|COLORIR_60|Coloring60Qa/.test(navSrc.replace(/Coloring60Lab(?:Screen)?/g, ''))
-        && /\{isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s+name="Coloring60Lab"/.test(navSrc),
-      'a única entrada Colorir 60 no AppNavigator é a bancada dev, obrigatoriamente gateada');
+    // §Parte 12 e, agora, §C60-PARTE-7 mudaram o ALVO desta trava — de novo sem afrouxá-la. A
+    // COLEÇÃO deixou de ser uma camada desenhada por cima do desenho aberto (a falha física: fundo,
+    // contraste e composição mudavam conforme a atividade de origem) e passou a ser TELA PRÓPRIA.
+    // Então o navegador passa a admitir EXATAMENTE DUAS entradas Colorir 60, e nenhuma a mais:
+    //   1. `Coloring60Collection` — registrada sem gate de navegação PORQUE a autorização do piloto
+    //      é decidida DENTRO da tela (mesma regra da tela de colorir), o que o check abaixo exige;
+    //   2. `Coloring60Lab` — a bancada dev, que continua obrigatoriamente sob isInternalToolsEnabled().
+    // Continua PROIBIDO: qualquer outra rota Colorir 60, `Coloring60Qa`, ou a flag do piloto no
+    // navegador. A experiência de COLORIR segue trafegando por params na rota 'Coloring' já existente.
+    const c60NavNames = navSrc.match(/name="Coloring60[A-Za-z]*"/g) || [];
+    const c60NavResidue = navSrc
+      .replace(/Coloring60Lab(?:Screen)?/g, '')
+      .replace(/Coloring60Collection(?:Screen)?/g, '');
+    check('C60-P0.T8→P13/P7: EXATAMENTE 2 entradas Colorir 60 no navegador (coleção autorizada NA TELA + bancada dev sob isInternalToolsEnabled)',
+      !/[Cc]oloring60|COLORIR_60|Coloring60Qa/.test(c60NavResidue)
+        && c60NavNames.length === 2
+        && c60NavNames.indexOf('name="Coloring60Collection"') >= 0
+        && c60NavNames.indexOf('name="Coloring60Lab"') >= 0
+        && /\{isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s+name="Coloring60Lab"/.test(navSrc)
+        && /function isColoring60PilotAllowed\(\)/.test(readSrc('src/screens/Coloring60CollectionScreen.js'))
+        && /COLORIR_60_CREATION_PILOT_ENABLED/.test(readSrc('src/screens/Coloring60CollectionScreen.js')),
+      'só a coleção (que se autoriza sozinha) e a bancada dev gateada podem existir no AppNavigator');
   }
 
   // ── Colorir 60 · A Criação — P1 (catálogo + registro estático local) ──
@@ -30372,13 +30386,21 @@ check(
     check('C60-P2.T2: ColoringScreen NÃO usa getColoringImage nem fallback scene_02 (anti-fallback)',
       !/getColoringImage/.test(scr) && !/scene_02/.test(scr),
       'o ramo Colorir 60 não pode cair em página legada errada nem em scene_02');
-    check('C60-P2.T2→P13: navegação aditiva — nenhuma rota Colorir 60 para a criança (só a bancada dev gateada)',
+    check('C60-P2.T2→P13/P7: navegação aditiva — COLORIR continua por params; a única rota nova para a criança é a COLEÇÃO (autorizada na tela)',
       (() => {
         const nav = readSrc('src/navigation/AppNavigator.js');
-        return !/[Cc]oloring60|COLORIR_60|Coloring60Qa/.test(nav.replace(/Coloring60Lab(?:Screen)?/g, ''))
+        const names = nav.match(/name="Coloring60[A-Za-z]*"/g) || [];
+        const residue = nav
+          .replace(/Coloring60Lab(?:Screen)?/g, '')
+          .replace(/Coloring60Collection(?:Screen)?/g, '');
+        // A rota 'Coloring' segue sendo a porta da ATIVIDADE (params opcionais, sem rota nova); a
+        // coleção é tela própria justamente para não herdar o fundo/contraste do desenho aberto.
+        return !/[Cc]oloring60|COLORIR_60|Coloring60Qa/.test(residue)
+          && names.length === 2
+          && /<Stack\.Screen\s+name="Coloring"\s/.test(nav)
           && /\{isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s+name="Coloring60Lab"/.test(nav);
       })(),
-      'params opcionais trafegam nativamente; a bancada de desenvolvimento é a única rota, e é gateada');
+      'params opcionais trafegam nativamente na rota Coloring; só a coleção (tela própria) e a bancada dev gateada são rotas Colorir 60');
 
     // ── P2.T3 · regressão do legado: módulos legados byte-idênticos (tripwire de hash) ──
     const crypto = require('crypto');
@@ -30753,23 +30775,36 @@ check(
         }
         return acc;
       };
-      // P4.T2 avança este invariante: o writer passa a ter EXATAMENTE UM chamador AUTORIZADO
-      // (o ramo Colorir 60 em ColoringScreen). O guard permanece contra QUALQUER OUTRO chamador.
+      // P4.T2 avançou este invariante: o writer passa a ter EXATAMENTE UM chamador AUTORIZADO.
+      // C60-PARTES 4/6/7/10 o avançam DE NOVO — e é preciso dizer com precisão o que mudou, porque
+      // relaxar aqui por descuido é exatamente como um app volta a ter duas fontes de pixels.
+      // O módulo do writer passou a expor, além da ESCRITA, uma LEITURA (exibir a arte guardada),
+      // uma LIMPEZA (reset canônico / limpar desenho) e uma SONDA LEVE (contador da jornada). Esses
+      // três consumos têm donos legítimos e NOMEADOS. Esta prova fecha a LISTA de arquivos que podem
+      // sequer TOCAR o módulo; a prova irmã ([E14], adiante) fecha o chamador ÚNICO da ESCRITA.
       const writerAbs = path.resolve(path.join(root, 'src/services/coloring60DrawingStorage.js'));
-      const authorizedCaller = path.resolve(path.join(root, 'src/screens/ColoringScreen.js'));
       // Menção do writer em COMENTÁRIO (ex.: doc de isolamento do service de conclusão) NÃO é chamador:
       // remove comentários antes de casar, contando só referência em CÓDIGO.
       const stripForCaller = (s) => String(s)
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-      const callers = walk(path.join(root, 'src')).filter((f) => {
-        const abs = path.resolve(f);
-        return abs !== writerAbs && abs !== authorizedCaller
-          && /coloring60DrawingStorage|saveColoring60DrawingState/.test(stripForCaller(fs.readFileSync(f, 'utf8')));
-      });
-      check('C60-P3→P4.T2: writer sem chamador NÃO-autorizado (só ColoringScreen integra o writer)',
-        callers.length === 0,
-        `apenas o ramo Colorir 60 em ColoringScreen pode consumir o writer (encontrados extras: ${callers.map((f) => path.relative(root, f)).join(', ')})`);
+      const relPath = (f) => path.relative(root, f).split(path.sep).join('/');
+      const C60_WRITER_CONSUMERS = new Set([
+        'src/screens/ColoringScreen.js',             // editor: ESCREVE, lê e limpa a folha aberta
+        'src/screens/Coloring60CollectionScreen.js', // coleção: SÓ LÊ (evidência forte, exibe a arte)
+        'src/services/coloring60ResetService.js',    // reset canônico: SÓ LIMPA
+        'src/services/coloring60ProgressReader.js',  // contador da jornada: SÓ a sonda leve
+        'src/services/coloring60LabService.js',      // bancada dev (gateada): semeia/limpa cenários
+      ]);
+      const c60WriterTouchers = walk(path.join(root, 'src')).filter((f) => (
+        path.resolve(f) !== writerAbs
+        && /coloring60DrawingStorage|saveColoring60DrawingState|getColoring60SavedDrawing|hasColoring60SavedDrawing|hasColoring60SnapshotRecord|clearColoring60SavedDrawing/
+          .test(stripForCaller(fs.readFileSync(f, 'utf8')))
+      )).map(relPath);
+      const c60WriterIntruders = c60WriterTouchers.filter((r) => !C60_WRITER_CONSUMERS.has(r));
+      check('C60-P3→P4.T2/P7: módulo de pixels com LISTA FECHADA de consumidores (editor, coleção, reset, contador, bancada dev)',
+        c60WriterIntruders.length === 0,
+        `nenhum arquivo fora da lista pode tocar o módulo de pixels (encontrados extras: ${c60WriterIntruders.join(', ')})`);
 
       // Flag do piloto permanece false; a pasta de PNGs (P5) permanece ausente.
       check('C60-P3: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P3',
@@ -31004,14 +31039,18 @@ check(
       const stripForCaller = (s) => String(s)
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-      const callers = walk(path.join(root, 'src')).filter((f) => {
-        const abs = path.resolve(f);
-        return abs !== writerAbs && abs !== authorizedCaller
-          && /coloring60DrawingStorage|saveColoring60DrawingState/.test(stripForCaller(fs.readFileSync(f, 'utf8')));
-      });
-      check('C60-P3-FIX1 [E14]→P4.T2: writer sem chamador NÃO-autorizado (só ColoringScreen integra)',
-        callers.length === 0,
-        `apenas o ramo Colorir 60 em ColoringScreen pode consumir o writer (encontrados extras: ${callers.map((f) => path.relative(root, f)).join(', ')})`);
+      // Prova IRMÃ da lista fechada (P3→P4.T2/P7): aqui o alvo é APENAS a ESCRITA de pixels. Ler,
+      // limpar e sondar têm donos declarados; GRAVAR não: `saveColoring60DrawingState` só pode ser
+      // chamada de UM lugar — o ramo Colorir 60 da ColoringScreen, dentro da transação atômica.
+      // Duas fontes de gravação é como se volta a ter arte guardada sem conclusão (e vice-versa).
+      const c60Writers = walk(path.join(root, 'src')).filter((f) => (
+        path.resolve(f) !== writerAbs
+        && /saveColoring60DrawingState\s*\(/.test(stripForCaller(fs.readFileSync(f, 'utf8')))
+      ));
+      const c60WriterIntruders2 = c60Writers.filter((f) => path.resolve(f) !== authorizedCaller);
+      check('C60-P3-FIX1 [E14]→P4.T2/P4: ESCRITA de pixels com chamador ÚNICO (só a transação da ColoringScreen grava)',
+        c60WriterIntruders2.length === 0 && c60Writers.length === 1,
+        `apenas o ramo Colorir 60 em ColoringScreen pode GRAVAR pixels (chamadores: ${c60Writers.map((f) => path.relative(root, f)).join(', ') || 'nenhum — a integração sumiu'})`);
       // FIX1: a flag do piloto continua obrigatoriamente false em TODAS as fases; a pasta
       // activities/ é avaliada pela fase (ausente em PRE, em fase legítima depois de P5.T4).
       check('C60-P3-FIX1 [E15/E16]→P5/FIX1: pasta activities/ coerente com a fase e flag do piloto ainda false',
@@ -31039,22 +31078,58 @@ check(
       .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
     const cat = loadModule('src/data/coloring60Catalog.js', {}, ['getColoring60Activity']);
 
+    // MÓDULOS DE DOMÍNIO REAIS (C60 · Partes 2/3/11). A conclusão passou a depender da MEDIDA de
+    // cor e do DESFECHO canônico do instantâneo. Estes dois módulos são PUROS (não importam nada),
+    // então entram aqui carregados do FONTE — nunca como double. Trocá-los por stubs tornaria a
+    // prova tautológica: quem recusa folha em branco tem de ser o código que roda no aparelho.
+    const c60Metrics = loadModule('src/services/coloring60PaintMetrics.js', {},
+      ['snapshotHasMeaningfulColor', 'hasMeaningfulColor', 'readPaintMetricsFromSnapshot',
+        'normalizePaintMetrics', 'snapshotMatchesRevision',
+        'C60_MIN_PAINTED_PX', 'C60_MIN_PAINT_COVERAGE', 'EMPTY_PAINT_METRICS']);
+    const c60State = loadModule('src/services/coloring60State.js', {},
+      ['SNAPSHOT_STATUS', 'HYDRATION_STATUS', 'isSnapshotAcceptable', 'reconcileSnapshotStatus',
+        'createColoring60ActivityState', 'deriveColoring60ActivityState', 'countsAsComplete',
+        'hasIntegrityBreak', 'canCompleteNow', 'applyClear', 'deriveColoring60JourneyState',
+        'createResetColoring60JourneyState']);
+    const SS = c60State.SNAPSHOT_STATUS;
+    // Instantâneo v2 REAL: MESMO envelope que o motor posta em PAINT_EXPORT
+    // ({v,W,H,imgX,imgY,imgW,imgH,rev,paintedPx,paintablePx,data}).
+    const c60Snap = ({ rev = 7, paintedPx = 6000, paintablePx = 300000, data = 'A' } = {}) =>
+      JSON.stringify({
+        v: 2, W: 1000, H: 1500, imgX: 0, imgY: 0, imgW: 1000, imgH: 1500,
+        rev, paintedPx, paintablePx, data: `data:image/png;base64,${data.repeat(3000)}`,
+      });
+    const PROOF = c60Snap();                        // pintura com cor de sobra (2% de cobertura)
+    const PROOF_EMPTY = c60Snap({ paintedPx: 0 });  // folha em branco / desenho apagado
+
     // Fábrica do SERVICE DE CONCLUSÃO (booleano leve). Doubles: AsyncStorage + catálogo REAL.
     const mkDone = (cfg = {}) => {
       const store = new Map();
-      const calls = { getItem: 0, setItem: 0, removeItem: 0 };
+      const calls = {
+        getItem: 0, setItem: 0, removeItem: 0, multiSet: 0, multiGet: 0, multiRemove: 0,
+      };
       const deps = {
         AsyncStorage: {
           getItem: async (k) => { calls.getItem++; if (cfg.getItemThrows) throw new Error('boom'); return store.has(k) ? store.get(k) : null; },
           setItem: async (k, v) => { calls.setItem++; if (cfg.setItemThrows) throw new Error('boom'); store.set(k, v); },
           removeItem: async (k) => { calls.removeItem++; store.delete(k); },
+          multiSet: async (pairs) => { calls.multiSet++; if (cfg.setItemThrows) throw new Error('boom'); pairs.forEach(([k, v]) => store.set(k, v)); },
+          multiGet: async (keys) => { calls.multiGet++; if (cfg.getItemThrows) throw new Error('boom'); return keys.map((k) => [k, store.has(k) ? store.get(k) : null]); },
+          multiRemove: async (keys) => { calls.multiRemove++; if (cfg.removeThrows) throw new Error('boom'); keys.forEach((k) => store.delete(k)); },
         },
         getColoring60Activity: cat.getColoring60Activity,
+        // Domínio REAL (ver acima): medida de cor + desfecho canônico do instantâneo.
+        snapshotHasMeaningfulColor: c60Metrics.snapshotHasMeaningfulColor,
+        SNAPSHOT_STATUS: c60State.SNAPSHOT_STATUS,
+        isSnapshotAcceptable: c60State.isSnapshotAcceptable,
       };
-      // API PÚBLICA FECHADA (FIX1 · Etapa 3): pede SOMENTE o marcador e o leitor. O construtor de
-      // chave é interno — o namespace é observado pelas OPERAÇÕES públicas + AsyncStorage double.
+      // API PÚBLICA FECHADA (FIX1 · Etapa 3 · ampliada na Parte 4/6): marcador, leitor, leitura em
+      // lote e os limpadores. O construtor de chave continua INTERNO — o namespace é observado
+      // pelas OPERAÇÕES públicas + AsyncStorage double.
       const S = loadModule('src/services/coloring60ActivityService.js', deps,
-        ['markColoring60ActivityDone', 'loadColoring60Done']);
+        ['markColoring60ActivityDone', 'loadColoring60Done', 'clearColoring60Done',
+          'loadColoring60JourneyRecord', 'loadColoring60Ever',
+          'loadColoring60FinaleSeen', 'markColoring60FinaleSeen', 'clearColoring60Completion']);
       return { S, store, calls };
     };
 
@@ -31085,13 +31160,14 @@ check(
       // NAMESPACE observado pelas OPERAÇÕES públicas + AsyncStorage double (SEM chamar o builder
       // interno): marca cada atividade e inspeciona a CHAVE que a operação efetivamente gravou.
       const { S, store } = mkDone();
-      await S.markColoring60ActivityDone('creation', 'light');
-      await S.markColoring60ActivityDone('creation', 'living_world');
-      await S.markColoring60ActivityDone('creation', 'people_and_care');
+      await S.markColoring60ActivityDone('creation', 'light', PROOF, SS.READY);
+      await S.markColoring60ActivityDone('creation', 'living_world', PROOF, SS.READY);
+      await S.markColoring60ActivityDone('creation', 'people_and_care', PROOF, SS.READY);
       const keys = [...store.keys()];
-      const kLight = keys.find((k) => k.endsWith('_light'));
-      const kLiving = keys.find((k) => k.endsWith('_living_world'));
-      const kPeople = keys.find((k) => k.endsWith('_people_and_care'));
+      const doneKeys = keys.filter((k) => k.startsWith('@ptf_coloring60_done_'));
+      const kLight = doneKeys.find((k) => k.endsWith('_light'));
+      const kLiving = doneKeys.find((k) => k.endsWith('_living_world'));
+      const kPeople = doneKeys.find((k) => k.endsWith('_people_and_care'));
       check('C60-P4.T1: chave EXATA gravada pela operação pública (@ptf_coloring60_done_<storyId>_<activityId>)',
         kLight === '@ptf_coloring60_done_creation_light',
         `chave inesperada: ${kLight} (todas: ${JSON.stringify(keys)})`);
@@ -31109,19 +31185,25 @@ check(
         'a conclusão não pode casar o namespace de desenho legado por sceneId');
     }
     {
-      const { S, store } = mkDone();
-      const ok = await S.markColoring60ActivityDone('creation', 'light');
+      const { S, store, calls } = mkDone();
+      const ok = await S.markColoring60ActivityDone('creation', 'light', PROOF, SS.READY);
       check('C60-P4.T1: markColoring60ActivityDone grava "true" na chave EXATA e retorna true',
         ok === true && store.get('@ptf_coloring60_done_creation_light') === 'true',
         `mark deveria gravar true na chave fechada (ok=${ok}, keys=${[...store.keys()]})`);
-      check('C60-P4.T1: mark toca SOMENTE a chave de conclusão daquela identidade (sem efeito colateral)',
-        store.size === 1,
-        `mark não pode escrever outras chaves (size=${store.size})`);
+      // PARTE 4 · a conclusão passou a ser UMA ÚNICA AÇÃO com TRÊS registros da MESMA identidade:
+      // conclusão reversível, desfecho do instantâneo e memória monotônica. "Sem efeito colateral"
+      // agora significa: exatamente estas três chaves, num único multiSet, e nada de outra camada.
+      check('C60-P4.T1→P4: mark grava as 3 chaves da MESMA identidade num único multiSet (sem efeito colateral)',
+        store.size === 3
+          && calls.multiSet === 1 && calls.setItem === 0
+          && store.get('@ptf_coloring60_snap_creation_light') === SS.READY
+          && store.get('@ptf_coloring60_ever_creation_light') === 'true',
+        `mark não pode escrever outras chaves nem em duas idas (size=${store.size}, multiSet=${calls.multiSet}, keys=${[...store.keys()]})`);
     }
     {
       const { S } = mkDone();
       const before = await S.loadColoring60Done('creation', 'light');
-      await S.markColoring60ActivityDone('creation', 'light');
+      await S.markColoring60ActivityDone('creation', 'light', PROOF, SS.READY);
       const after = await S.loadColoring60Done('creation', 'light');
       check('C60-P4.T1: loadColoring60Done false ANTES e true DEPOIS de marcar',
         before === false && after === true,
@@ -31129,7 +31211,7 @@ check(
     }
     {
       const { S } = mkDone();
-      await S.markColoring60ActivityDone('creation', 'light');
+      await S.markColoring60ActivityDone('creation', 'light', PROOF, SS.READY);
       const other = await S.loadColoring60Done('creation', 'living_world');
       check('C60-P4.T1: ISOLAMENTO por atividade — marcar light NÃO conclui living_world',
         other === false,
@@ -31138,17 +31220,17 @@ check(
     {
       const { S, store } = mkDone();
       // Identidade SEMÂNTICA: número/"2"/"scene_02"/vazio/null/não-string/fora-do-catálogo ⇒ false, sem escrita.
-      const rNumAct = await S.markColoring60ActivityDone('creation', 2);
-      const rNumStory = await S.markColoring60ActivityDone(2, 'light');
-      const rTwo = await S.markColoring60ActivityDone('creation', '2');
-      const rScene = await S.markColoring60ActivityDone('creation', 'scene_02');
-      const rEmptyA = await S.markColoring60ActivityDone('creation', '');
-      const rEmptyS = await S.markColoring60ActivityDone('', 'light');
-      const rNullA = await S.markColoring60ActivityDone('creation', null);
-      const rNullS = await S.markColoring60ActivityDone(null, 'light');
-      const rUndef = await S.markColoring60ActivityDone('creation', undefined);
-      const rUnkStory = await S.markColoring60ActivityDone('nope', 'light');
-      const rUnkAct = await S.markColoring60ActivityDone('creation', 'nope');
+      const rNumAct = await S.markColoring60ActivityDone('creation', 2, PROOF, SS.READY);
+      const rNumStory = await S.markColoring60ActivityDone(2, 'light', PROOF, SS.READY);
+      const rTwo = await S.markColoring60ActivityDone('creation', '2', PROOF, SS.READY);
+      const rScene = await S.markColoring60ActivityDone('creation', 'scene_02', PROOF, SS.READY);
+      const rEmptyA = await S.markColoring60ActivityDone('creation', '', PROOF, SS.READY);
+      const rEmptyS = await S.markColoring60ActivityDone('', 'light', PROOF, SS.READY);
+      const rNullA = await S.markColoring60ActivityDone('creation', null, PROOF, SS.READY);
+      const rNullS = await S.markColoring60ActivityDone(null, 'light', PROOF, SS.READY);
+      const rUndef = await S.markColoring60ActivityDone('creation', undefined, PROOF, SS.READY);
+      const rUnkStory = await S.markColoring60ActivityDone('nope', 'light', PROOF, SS.READY);
+      const rUnkAct = await S.markColoring60ActivityDone('creation', 'nope', PROOF, SS.READY);
       const allRejected = [rNumAct, rNumStory, rTwo, rScene, rEmptyA, rEmptyS, rNullA, rNullS, rUndef, rUnkStory, rUnkAct]
         .every((r) => r === false);
       check('C60-P4.T1: mark REJEITA identidade inválida (número/"2"/"scene_02"/vazio/null/fora-do-catálogo)',
@@ -31169,16 +31251,16 @@ check(
     }
     {
       const { S, store } = mkDone();
-      await S.markColoring60ActivityDone('creation', 'light');
-      const r2 = await S.markColoring60ActivityDone('creation', 'light');
+      await S.markColoring60ActivityDone('creation', 'light', PROOF, SS.READY);
+      const r2 = await S.markColoring60ActivityDone('creation', 'light', PROOF, SS.READY);
       const loaded = await S.loadColoring60Done('creation', 'light');
       check('C60-P4.T1: mark é IDEMPOTENTE (marcar 2× mantém "true", sem chave extra)',
-        r2 === true && loaded === true && store.size === 1,
+        r2 === true && loaded === true && store.size === 3,
         `idempotência quebrada (r2=${r2}, loaded=${loaded}, size=${store.size})`);
     }
     {
       const { S } = mkDone({ setItemThrows: true });
-      const ok = await S.markColoring60ActivityDone('creation', 'light');
+      const ok = await S.markColoring60ActivityDone('creation', 'light', PROOF, SS.READY);
       check('C60-P4.T1: falha de escrita ⇒ mark retorna false (nunca lança, nunca sucesso falso)',
         ok === false,
         'setItem falho deve degradar para false');
@@ -31234,31 +31316,59 @@ check(
           && handler.indexOf('!ready') < handler.indexOf('controller.acquire('),
         'sem D1 o fluxo não pode adquirir a trava, exportar, concluir nem salvar');
 
-      // Grupo B — D5 (traço significativo): onPainted conectado + gate antes do export.
-      check('C60-P4.T2 [B/D5]: canvas conecta onPainted→setC60HasPainted (sinal de traço)',
-        /onPainted=\{\(\) => setC60HasPainted\(true\)\}/.test(scr),
-        'D5 vem do canvas por composição (onPainted)');
-      check('C60-P4.T2 [B/D5]: núcleo NÃO conclui/salva sem traço (gate !painted antes do lock/export)',
-        /if \(!painted\) return/.test(handler)
-          && handler.indexOf('!painted') < handler.indexOf('exportPaint(')
-          && handler.indexOf('!painted') < handler.indexOf('controller.acquire('),
-        'sem D5 o fluxo não pode adquirir a trava, exportar, concluir nem salvar');
+      // Grupo B — D5 (COR REAL na tela). C60-PARTE-3: o sinal `onPainted` era de MÃO ÚNICA — uma vez
+      // verdadeiro, apagar tudo não o derrubava, e por isso desenho apagado seguia "concluível". Ele
+      // foi SUBSTITUÍDO pela MEDIDA (`onPaintState` → paintedPx/paintablePx/rev a cada operação).
+      check('C60-P4.T2 [B/D5]→P3: canvas entrega MEDIDA de mão dupla (onPaintState) e a promessa de mão única saiu do ramo',
+        /onPaintState=\{handleC60PaintState\}/.test(scr)
+          && !/onPainted=\{\(\) => setC60HasPainted\(true\)\}/.test(scr)
+          && /const c60HasColor = hasMeaningfulColor\(c60PaintMetrics\)/.test(scr),
+        'D5 deixa de ser promessa do canvas e passa a ser medida real recalculada a cada toque');
+      check('C60-P4.T2 [B/D5]→P3: núcleo NÃO conclui/salva sem COR REAL (gate !hasColor antes do lock/export)',
+        /if \(!hasColor\) \{/.test(handler)
+          && handler.indexOf('!hasColor') < handler.indexOf('exportPaint(')
+          && handler.indexOf('!hasColor') < handler.indexOf('controller.acquire('),
+        'sem cor medida o fluxo não pode adquirir a trava, exportar, concluir nem salvar');
+      check('C60-P4.T2 [B/D5]→P3: folha sem cor é CONVITE, não falha — avisa onEmptyPaint e não chama onSaveIssue',
+        /if \(typeof onEmptyPaint === 'function'\) onEmptyPaint\(\);/.test(handler)
+          && handler.indexOf('onEmptyPaint()') < handler.indexOf('controller.acquire('),
+        'folha em branco não pode virar erro técnico para a criança');
 
-      // Grupo C — ORDEM CANÔNICA: export → validar payload (+hasMeaningfulPaint) → marcar → writer.
+      // Grupo C — ORDEM CANÔNICA **DA TRANSAÇÃO ATÔMICA** (C60-PARTE-4). A ordem anterior (marcar a
+      // conclusão ANTES de persistir a pintura) é EXATAMENTE a falha comprovada no aparelho: gerava
+      // "3 de 3" sem três artes e conclusão sobrevivendo a desenho apagado. A ordem agora é:
+      //   validar cor real → congelar revisão → persistir → verificar mesma revisão → marcar.
       const iExport = handler.indexOf('exportPaint(');
       const iValid = handler.indexOf('isAcceptableC60Payload(');
-      const iMeaning = handler.indexOf('hasMeaningfulPaint(');
-      const iMark = handler.indexOf('markColoring60ActivityDone(');
+      const iMeasure = handler.indexOf('readPaintMetricsFromSnapshot(');
+      const iColor = handler.indexOf('hasMeaningfulColor(metrics)');
+      const iFreeze = handler.indexOf('const revisionId = metrics.revisionId');
       const iSave = handler.indexOf('saveColoring60DrawingState(');
-      check('C60-P4.T2 [C]: ordem canônica export→validar payload→marcar conclusão→writer',
-        iExport >= 0 && iValid > iExport && iMeaning > iExport
-          && iMark > iValid && iMark > iMeaning && iSave > iMark,
-        `ordem inesperada (export=${iExport}, valid=${iValid}, meaning=${iMeaning}, mark=${iMark}, save=${iSave})`);
+      const iVerify = handler.indexOf('snapshotMatchesRevision(');
+      const iMark = handler.indexOf('markColoring60ActivityDone(');
+      check('C60-P4.T2 [C]→P4: ordem da TRANSAÇÃO — export→validar cor REAL→congelar revisão→persistir→verificar revisão→marcar',
+        iExport >= 0 && iValid > iExport && iMeasure > iValid && iColor > iMeasure
+          && iFreeze > iColor && iSave > iFreeze && iVerify > iSave && iMark > iVerify,
+        `ordem inesperada (export=${iExport}, valid=${iValid}, medir=${iMeasure}, cor=${iColor}, congelar=${iFreeze}, salvar=${iSave}, verificar=${iVerify}, marcar=${iMark})`);
+      check('C60-P4.T2 [C]→P4: a prova de cor VEM DO INSTANTÂNEO exportado (não do estado da tela) e mata folha em branco antes de escrever',
+        /const metrics = readPaintMetricsFromSnapshot\(exportData\)/.test(handler)
+          && /if \(!hasMeaningfulColor\(metrics\)\) \{/.test(handler)
+          && handler.indexOf('hasMeaningfulColor(metrics)') < iSave,
+        'quem autoriza a escrita é a medida do artefato que será gravado, não a promessa da interface');
 
-      // Grupo D — SEPARAÇÃO conclusão ≠ salvamento.
-      check('C60-P4.T2 [D]: CONCLUSÃO é marcada ANTES do writer (independe da persistência)',
-        iMark >= 0 && iSave >= 0 && iMark < iSave,
-        'a conclusão precede o writer e não depende do resultado de salvamento');
+      // Grupo D — CONCLUSÃO depende da PINTURA GRAVADA (inversão deliberada da regra antiga).
+      check('C60-P4.T2 [D]→P4: CONCLUSÃO é marcada DEPOIS da pintura persistida e verificada (não existe conclusão sem arte)',
+        iMark >= 0 && iSave >= 0 && iMark > iSave && iMark > iVerify,
+        'a conclusão passa a ser consequência da arte guardada — nunca a precede');
+      check('C60-P4.T2 [D]→P4: falha de persistência NÃO marca, NÃO celebra e NÃO abre a coleção',
+        /if \(result !== COLORING60_SAVE_RESULT\.SAVED[\s\S]{0,400}?return;/.test(handler)
+          && handler.indexOf('COLORING60_SAVE_RESULT.WRITE_FAILED') < iMark,
+        'qualquer desfecho que não seja arte guardada (ou Grátis, que por decisão não guarda) interrompe a transação');
+      check('C60-P4.T2 [D]→P4: o desfecho do instantâneo VIAJA JUNTO com a marcação (mark recebe prova + snapshotStatus)',
+        /markColoring60ActivityDone\(\s*attemptStoryId, attemptActivityId, exportData, snapshotStatus,?\s*\)/.test(handler)
+          && /snapshotStatus = SNAPSHOT_STATUS\.READY/.test(handler)
+          && /let snapshotStatus = SNAPSHOT_STATUS\.NOT_PERSISTED/.test(handler),
+        'sem prova de cor e desfecho do instantâneo o serviço de domínio recusa a conclusão');
       check('C60-P4.T2 [D]: marcação da conclusão NÃO é condicionada a plano/entitlement no handler',
         !/getCurrentPlan|isPremiumUser|accessControl|entitlement|===\s*['"]premium['"]/.test(handler),
         'concluir é plan-agnóstico — o handler não checa plano (o writer é quem revalida)');
@@ -31379,19 +31489,21 @@ check(
         /if \(primary != null && alt != null && primary !== alt\) return null/.test(c60Region),
         'identidade contraditória não resolve silenciosamente');
 
-      // ── Grupo H (FIX1 · Etapa 4) — SALVAMENTO depende da CONCLUSÃO persistida ─────────────────
-      check('C60-P4.T2 [H]: writer só é chamado se a conclusão foi persistida (const completed = await mark; gate completed !== true antes do writer)',
+      // ── Grupo H (FIX1 · Etapa 4 → C60-PARTE-4) — a DEPENDÊNCIA FOI INVERTIDA ──────────────────
+      // Antes: o writer só rodava se a conclusão tivesse sido gravada. Isso permitia conclusão sem
+      // arte. Agora a conclusão é o ÚLTIMO passo e só acontece se a arte estiver gravada e conferida;
+      // e mesmo assim, `completed !== true` continua bloqueando a CELEBRAÇÃO (nada de festa falsa).
+      check('C60-P4.T2 [H]→P4: conclusão é o ÚLTIMO passo (const completed = await mark, DEPOIS do writer e da verificação)',
         /const completed = await markColoring60ActivityDone\(/.test(handler)
-          && /completed !== true/.test(handler)
-          && handler.indexOf('completed !== true') > handler.indexOf('markColoring60ActivityDone(')
-          && handler.indexOf('completed !== true') < handler.indexOf('saveColoring60DrawingState('),
-        'conclusão não persistida (mark !== true) não pode disparar o writer');
-      check('C60-P4.T2 [H]: conclusão não persistida ⇒ retorna ANTES do writer/goBack; c60Saving liberado pelo finally (tela recuperável, sem sucesso falso)',
+          && handler.indexOf('markColoring60ActivityDone(') > handler.indexOf('saveColoring60DrawingState(')
+          && handler.indexOf('markColoring60ActivityDone(') > handler.indexOf('snapshotMatchesRevision('),
+        'a conclusão não pode voltar a preceder a persistência da pintura');
+      check('C60-P4.T2 [H]→P4: conclusão não persistida ⇒ retorna ANTES de celebrar/voltar; c60Saving liberado pelo finally (tela recuperável, sem sucesso falso)',
         /if \(completed !== true\) \{[\s\S]*?return;[\s\S]*?\}/.test(handler)
-          && handler.indexOf('completed !== true') < handler.indexOf('saveColoring60DrawingState(')
+          && handler.indexOf('completed !== true') < handler.indexOf('onCelebrate(')
           && handler.indexOf('completed !== true') < handler.indexOf('goBack()')
           && /finally \{[\s\S]*?controller\.release\(token\);[\s\S]*?setSaving\(false\);[\s\S]*?\}/.test(handler),
-        'mark false não chama writer nem navega; o finally libera a trava e reabilita a tela');
+        'mark false não celebra nem navega; o finally libera a trava e reabilita a tela');
 
       // ── Grupo I (FIX1 · Etapa 5) — RESET por identidade via remontagem (key no wrapper) ────────
       check('C60-P4.T2 [I]: ramo Colorir 60 REMONTA por identidade (key=storyId+activityId) — reseta D1/D5/saving ao trocar de atividade',
@@ -31598,15 +31710,18 @@ check(
       check('C60-P4-FIX2 [S5]: finally libera SOMENTE o token vigente (isCurrent antes de release)',
         /finally \{[\s\S]*?if \(controller\.isCurrent\(token\)\) \{[\s\S]*?controller\.release\(token\);/.test(handlerF),
         'um callback antigo não libera a trava de uma tentativa nova');
-      check('C60-P4-FIX2 [S6]: mark ANTES do writer e completed !== true bloqueia o writer',
-        handlerF.indexOf('markColoring60ActivityDone(') < handlerF.indexOf('saveColoring60DrawingState(')
+      check('C60-P4-FIX2 [S6]→P4: writer ANTES do mark e completed !== true bloqueia a CELEBRAÇÃO (dependência invertida)',
+        handlerF.indexOf('saveColoring60DrawingState(') < handlerF.indexOf('markColoring60ActivityDone(')
           && /completed !== true/.test(handlerF)
-          && handlerF.indexOf('completed !== true') < handlerF.indexOf('saveColoring60DrawingState('),
-        'conclusão não persistida nunca dispara o writer');
-      check('C60-P4-FIX2 [S7]: hasMeaningfulPaint (D5) permanece no caminho do callback',
-        /hasMeaningfulPaint\(/.test(handlerF)
-          && /isAcceptableC60Payload\(/.test(handlerF),
-        'a validação de payload/traço significativo permanece antes de marcar');
+          && handlerF.indexOf('completed !== true') < handlerF.indexOf('onCelebrate('),
+        'a arte é gravada e conferida ANTES de existir conclusão; conclusão que falha não celebra');
+      check('C60-P4-FIX2 [S7]→P3: o caminho do callback mede COR REAL — e a heurística de TAMANHO de base64 saiu de vez',
+        /isAcceptableC60Payload\(/.test(handlerF)
+          && /readPaintMetricsFromSnapshot\(/.test(handlerF)
+          && /hasMeaningfulColor\(/.test(handlerF)
+          && /snapshotMatchesRevision\(/.test(handlerF)
+          && !/hasMeaningfulPaint\(/.test(handlerF),
+        'hasMeaningfulPaint media o tamanho do texto base64 (um PNG transparente passava): não pode voltar ao caminho do Colorir 60');
       check('C60-P4-FIX2 [S8]: exportPaint ausente/lançando ⇒ libera lock e reabilita (release + setSaving(false))',
         /if \(!canvas\) \{[\s\S]*?controller\.release\(token\);[\s\S]*?setSaving\(false\);[\s\S]*?return;/.test(handlerF)
           && /catch \(err\) \{[\s\S]*?controller\.release\(token\);[\s\S]*?setSaving\(false\);[\s\S]*?\}/.test(handlerF),
@@ -31624,14 +31739,17 @@ check(
       check('C60-P4-FIX2 [S11]: cleanup do useEffect INVALIDA a tentativa vigente (unmount/remontagem por identidade)',
         /return \(\) => \{[\s\S]*?activeRef\.current = false;[\s\S]*?attemptControllerRef\.current\?\.invalidate\(\);/.test(c60RegionF),
         'ao desmontar/remontar, a tentativa pendente é invalidada e o callback fica inerte');
-      check('C60-P4-FIX2 [S12]: wiring injeta o estado REAL da instância (controller/D1/D5/saving/navegação) no núcleo',
+      check('C60-P4-FIX2 [S12]→P3/P4: wiring injeta o estado REAL da instância (controller/D1/COR MEDIDA/saving/desfechos)',
         /controller: attemptControllerRef\.current/.test(c60RegionF)
           && /ready: c60Ready/.test(c60RegionF)
-          && /painted: c60HasPainted/.test(c60RegionF)
+          && /hasColor: c60HasColor/.test(c60RegionF)
           && /saving: c60Saving/.test(c60RegionF)
           && /setSaving: setC60Saving/.test(c60RegionF)
-          && /goBack: \(\) => navigation\.goBack\(\)/.test(c60RegionF),
-        'handleC60Pronto liga D1/D5/saving reais e a trava ao núcleo testável');
+          && /goBack: \(\) => navigation\.goBack\(\)/.test(c60RegionF)
+          && /onSaveIssue: handleC60SaveIssue/.test(c60RegionF)
+          && /onCelebrate: handleC60Celebrate/.test(c60RegionF)
+          && /onEmptyPaint: handleC60EmptyPaint/.test(c60RegionF),
+        'handleC60Pronto liga D1, a COR MEDIDA (não a promessa onPainted), saving, a trava e os três desfechos ao núcleo testável');
 
       // ── HARNESS COMPORTAMENTAL (Etapa 9) — núcleo REAL exercitado com colaboradores injetados ───
       const beginSrc = scrF.slice(
@@ -31640,31 +31758,52 @@ check(
       const payFnSrc = scrF.slice(
         scrF.indexOf('function isAcceptableC60Payload('),
         scrF.indexOf('// [C60-P4-LOCK]'));
-      const dsRawF = readSrc('src/services/drawingStorage.js');
-      const hSf = dsRawF.indexOf('export function hasMeaningfulPaint(');
-      const hEf = dsRawF.indexOf('\n}', hSf) + 2;
-      const hmpSrc = dsRawF.slice(hSf, hEf).replace('export ', '');
       const SR = { SAVED: 'saved', NOT_PERSISTED_FREE: 'nfp', WRITE_FAILED: 'wf', INVALID: 'inv' };
-      // Fábrica: injeta os colaboradores (fakes) no controller + beginC60Attempt REAIS extraídos.
+      // Fábrica: injeta os colaboradores no controller + beginC60Attempt REAIS extraídos do fonte.
+      // Os colaboradores de EFEITO (writer, mark, releitura) são doubles — é o que permite provar
+      // ordem e falhas. Os colaboradores de DECISÃO (medir cor, conferir revisão, desfecho do
+      // instantâneo) são os módulos PUROS REAIS: se fossem stubs, a prova de "folha em branco não
+      // conclui" provaria apenas o stub. `hasMeaningfulPaint` (heurística de TAMANHO de base64) saiu
+      // do harness junto com a saída dela do caminho de produção — ver [S7].
       const buildCore = (collab) => new Function('collab', `
         const __DEV__ = false;
         const POINTER_VERSION = 3;
         ${payFnSrc}
-        ${hmpSrc}
-        const { markColoring60ActivityDone, saveColoring60DrawingState, COLORING60_SAVE_RESULT } = collab;
+        const {
+          markColoring60ActivityDone, saveColoring60DrawingState, COLORING60_SAVE_RESULT,
+          getColoring60SavedDrawing, SNAPSHOT_STATUS,
+          readPaintMetricsFromSnapshot, hasMeaningfulColor, snapshotMatchesRevision,
+        } = collab;
         ${ctrlSrc}
         ${beginSrc}
         return { createC60AttemptController, beginC60Attempt };
       `)(collab);
 
-      const BIGpng = 'data:image/png;base64,' + 'A'.repeat(3000);
       const makeInstance = (cfg = {}) => {
-        const counts = { mark: 0, save: 0, goBack: 0, releases: 0 };
+        const counts = { mark: 0, save: 0, goBack: 0, releases: 0, empty: 0, celebrate: 0, issues: [] };
+        let lastSaved = null;      // o que o writer recebeu (a releitura devolve exatamente isso)
+        let markArgs = null;       // prova de que a conclusão viaja com pintura + desfecho
         const collab = {
-          markColoring60ActivityDone: async () => { counts.mark++; if (cfg.markThrows) throw new Error('mark boom'); return cfg.markReturn === undefined ? true : cfg.markReturn; },
-          saveColoring60DrawingState: async () => { counts.save++; if (cfg.saveThrows) throw new Error('save boom'); return cfg.saveReturn || SR.SAVED; },
+          markColoring60ActivityDone: async (_s, _a, snapshot, status) => {
+            counts.mark++; markArgs = { snapshot, status };
+            if (cfg.markThrows) throw new Error('mark boom');
+            return cfg.markReturn === undefined ? true : cfg.markReturn;
+          },
+          saveColoring60DrawingState: async (_s, _a, payload) => {
+            counts.save++; lastSaved = payload;
+            if (cfg.saveThrows) throw new Error('save boom');
+            return cfg.saveReturn || SR.SAVED;
+          },
           COLORING60_SAVE_RESULT: SR,
+          // Releitura do disco: por padrão devolve o que foi gravado (transação íntegra). `stored`
+          // permite encenar divergência de revisão/arte irrecuperável sem tocar no fonte.
+          getColoring60SavedDrawing: async () => (cfg.stored !== undefined ? cfg.stored : lastSaved),
+          SNAPSHOT_STATUS: c60State.SNAPSHOT_STATUS,
+          readPaintMetricsFromSnapshot: c60Metrics.readPaintMetricsFromSnapshot,
+          hasMeaningfulColor: c60Metrics.hasMeaningfulColor,
+          snapshotMatchesRevision: c60Metrics.snapshotMatchesRevision,
         };
+        counts.markArgsOf = () => markArgs;
         const core = buildCore(collab);
         const controller = core.createC60AttemptController();
         const canvas = { exportCalls: 0, captured: [], exportPaint(cb) { this.exportCalls++; if (cfg.exportThrows) throw new Error('export boom'); this.captured.push(cb); } };
@@ -31677,16 +31816,20 @@ check(
           controller, canvasRef, activeRef,
           available: cfg.available === undefined ? true : cfg.available,
           ready: cfg.ready === undefined ? true : cfg.ready,
-          painted: cfg.painted === undefined ? true : cfg.painted,
+          hasColor: cfg.hasColor === undefined ? true : cfg.hasColor,
           saving: savingSnapshot,
           storyId: 'creation', activityId: 'light',
           setSaving, goBack: () => { counts.goBack++; },
+          onSaveIssue: (reason) => { counts.issues.push(reason); },
+          onEmptyPaint: () => { counts.empty++; },
+          ...(cfg.withCelebrate ? { onCelebrate: () => { counts.celebrate++; } } : {}),
         });
         // fire: entrega o callback como o exportPaint REAL — fire-and-forget (SEM await), deixando
         // qualquer rejeição virar unhandled (fidelidade ao caminho de produção); assenta via macrotask,
-        // que primeiro drena todos os microtasks da cadeia mark/writer.
+        // que primeiro drena todos os microtasks da cadeia writer/releitura/mark. O payload padrão é
+        // um instantâneo v2 com MEDIDA de pintura (PROOF) — sem medida, a transação morre no passo 1.
         return { counts, controller, canvas, canvasRef, activeRef, render, attempt,
-          fire: (cb, p = BIGpng) => { cb(p); return new Promise((r) => setTimeout(r, 0)); } };
+          fire: (cb, p = PROOF) => { cb(p); return new Promise((r) => setTimeout(r, 0)); } };
       };
 
       // CENÁRIO A — duplo toque SÍNCRONO no mesmo tick: a TRAVA (não o setState) serializa.
@@ -31753,18 +31896,20 @@ check(
             && i.canvas.exportCalls === 2 && stillHeld === null,
           `token antigo não pode afetar/liberar a tentativa nova (antes=${JSON.stringify(snap)}, depois=${JSON.stringify(i.counts)}, held=${stillHeld})`);
       }
-      // CENÁRIO F — mark FALSE: writer 0, goBack 0, lock liberado, nova tentativa pode começar.
+      // CENÁRIO F — mark FALSE: a arte JÁ foi gravada (writer 1), mas não há conclusão ⇒ não navega,
+      // avisa por onSaveIssue e libera o lock. É o caso "gravou a pintura, falhou o registro".
       {
         const i = makeInstance({ markReturn: false });
         i.attempt(); i.render();
         await i.fire(i.canvas.captured[0]);
         i.render(); i.attempt(); // nova tentativa (lock livre) ⇒ export #2
-        check('C60-P4-FIX2 [F] mark false: writer 0, goBack 0, lock liberado (nova tentativa exporta)',
-          i.counts.mark === 1 && i.counts.save === 0 && i.counts.goBack === 0
+        check('C60-P4-FIX2 [F]→P4 mark false: writer 1 (arte preservada), goBack 0, aviso complete_failed, lock liberado',
+          i.counts.mark === 1 && i.counts.save === 1 && i.counts.goBack === 0
+            && i.counts.issues.join(',') === 'complete_failed'
             && i.counts.releases >= 1 && i.canvas.exportCalls === 2,
-          `mark false libera a trava sem salvar/navegar (mark=${i.counts.mark}, save=${i.counts.save}, goBack=${i.counts.goBack}, releases=${i.counts.releases}, exports=${i.canvas.exportCalls})`);
+          `mark false não navega e não apaga a pintura (mark=${i.counts.mark}, save=${i.counts.save}, goBack=${i.counts.goBack}, issues=${i.counts.issues}, exports=${i.canvas.exportCalls})`);
       }
-      // CENÁRIO G — mark LANÇA: sem unhandled rejection; writer 0; goBack 0; lock liberado.
+      // CENÁRIO G — mark LANÇA: sem unhandled rejection; goBack 0; lock liberado (arte já gravada).
       {
         let unhandled = false; const onUnh = () => { unhandled = true; };
         process.on('unhandledRejection', onUnh);
@@ -31774,12 +31919,14 @@ check(
         await new Promise((r) => setTimeout(r, 0));
         process.removeListener('unhandledRejection', onUnh);
         i.render(); i.attempt();
-        check('C60-P4-FIX2 [G] mark lança: sem unhandled rejection, writer 0, goBack 0, lock liberado',
-          unhandled === false && i.counts.mark === 1 && i.counts.save === 0 && i.counts.goBack === 0
+        check('C60-P4-FIX2 [G] mark lança: sem unhandled rejection, goBack 0, lock liberado (pintura gravada intacta)',
+          unhandled === false && i.counts.mark === 1 && i.counts.save === 1 && i.counts.goBack === 0
             && i.counts.releases >= 1 && i.canvas.exportCalls === 2,
           `exceção de mark não escapa e libera a trava (unhandled=${unhandled}, save=${i.counts.save}, goBack=${i.counts.goBack}, releases=${i.counts.releases})`);
       }
-      // CENÁRIO H — writer LANÇA: sem unhandled; conclusão marcada (não apagada); goBack 0; lock liberado.
+      // CENÁRIO H — writer LANÇA: NÃO existe conclusão sem arte gravada (mark 0). É a inversão da
+      // dependência que a evidência física 7/8 exigiu: antes, a conclusão vinha primeiro e sobrevivia
+      // à falha do writer — um "concluído" sem desenho nenhum.
       {
         let unhandled = false; const onUnh = () => { unhandled = true; };
         process.on('unhandledRejection', onUnh);
@@ -31789,10 +31936,57 @@ check(
         await new Promise((r) => setTimeout(r, 0));
         process.removeListener('unhandledRejection', onUnh);
         i.render(); i.attempt();
-        check('C60-P4-FIX2 [H] writer lança: sem unhandled, conclusão marcada (mark 1), goBack 0, lock liberado',
-          unhandled === false && i.counts.mark === 1 && i.counts.save === 1 && i.counts.goBack === 0
+        check('C60-P4-FIX2 [H]→P4 writer lança: mark 0 (não existe conclusão sem arte), goBack 0, sem unhandled, lock liberado',
+          unhandled === false && i.counts.mark === 0 && i.counts.save === 1 && i.counts.goBack === 0
             && i.counts.releases >= 1 && i.canvas.exportCalls === 2,
-          `falha do writer não apaga conclusão nem trava a tela (unhandled=${unhandled}, mark=${i.counts.mark}, goBack=${i.counts.goBack}, releases=${i.counts.releases})`);
+          `falha do writer não pode gerar conclusão nem travar a tela (unhandled=${unhandled}, mark=${i.counts.mark}, goBack=${i.counts.goBack}, releases=${i.counts.releases})`);
+      }
+      // CENÁRIO L — FOLHA EM BRANCO / DESENHO APAGADO chegando pelo callback (a medida do motor diz
+      // 0 pixel pintado): morre no passo 1 — writer 0, mark 0, goBack 0, e o convite (onEmptyPaint)
+      // é disparado. Evidências físicas 7 e 8.
+      {
+        const i = makeInstance();
+        i.attempt(); i.render();
+        await i.fire(i.canvas.captured[0], PROOF_EMPTY);
+        check('C60-P4-FIX2 [L]→P3/P4 instantâneo SEM cor: writer 0, mark 0, goBack 0, convite para pintar (1×)',
+          i.counts.save === 0 && i.counts.mark === 0 && i.counts.goBack === 0
+            && i.counts.empty === 1 && i.counts.issues.length === 0,
+          `folha em branco/apagada não pode virar conclusão (save=${i.counts.save}, mark=${i.counts.mark}, empty=${i.counts.empty})`);
+      }
+      // CENÁRIO M — o que ficou guardado DIVERGE da revisão validada (arte de outro estado /
+      // gravação parcial): transação abortada no passo 6 — mark 0, goBack 0, aviso snapshot_mismatch.
+      {
+        const i = makeInstance({ stored: c60Snap({ rev: 99 }) });
+        i.attempt(); i.render();
+        await i.fire(i.canvas.captured[0]);
+        const j = makeInstance({ stored: null }); // releitura não devolve nada (arte irrecuperável)
+        j.attempt(); j.render();
+        await j.fire(j.canvas.captured[0]);
+        check('C60-P4-FIX2 [M]→P4 releitura diverge da revisão validada: mark 0, goBack 0, aviso snapshot_mismatch',
+          i.counts.save === 1 && i.counts.mark === 0 && i.counts.goBack === 0
+            && i.counts.issues.join(',') === 'snapshot_mismatch'
+            && j.counts.save === 1 && j.counts.mark === 0 && j.counts.goBack === 0
+            && j.counts.issues.join(',') === 'snapshot_mismatch',
+          `só a MESMA revisão relida do disco autoriza conclusão (i=${JSON.stringify(i.counts.issues)}, j=${JSON.stringify(j.counts.issues)})`);
+      }
+      // CENÁRIO N — desfechos legítimos: `saved` conclui com instantâneo READY; `not_persisted_free`
+      // (Grátis, decisão travada: pixels não vão ao disco) conclui com NOT_PERSISTED e SEM releitura.
+      // Nos dois, a conclusão viaja com a PINTURA e o desfecho — o serviço recusa qualquer um faltando.
+      {
+        const i = makeInstance({ withCelebrate: true });
+        i.attempt(); i.render();
+        await i.fire(i.canvas.captured[0]);
+        const a = i.counts.markArgsOf();
+        const j = makeInstance({ withCelebrate: true, saveReturn: SR.NOT_PERSISTED_FREE, stored: null });
+        j.attempt(); j.render();
+        await j.fire(j.canvas.captured[0]);
+        const b = j.counts.markArgsOf();
+        check('C60-P4-FIX2 [N]→P4 desfechos: saved ⇒ mark(READY) e livre ⇒ mark(NOT_PERSISTED); conclusão sempre com a pintura',
+          i.counts.mark === 1 && i.counts.celebrate === 1 && i.counts.goBack === 0
+            && a && a.status === SS.READY && a.snapshot === PROOF
+            && j.counts.mark === 1 && j.counts.celebrate === 1 && j.counts.goBack === 0
+            && b && b.status === SS.NOT_PERSISTED && b.snapshot === PROOF,
+          `conclusão registra o desfecho honesto do instantâneo (saved=${a && a.status}, livre=${b && b.status})`);
       }
       // CENÁRIO I — release com TOKEN ANTIGO não libera o token atual.
       {
@@ -31893,13 +32087,18 @@ check(
     machineRaw = machineRaw.slice(
       machineRaw.indexOf('function handleC60Celebrate('),
       machineRaw.lastIndexOf('}') + 1);
-    const runMachine = ({ doneMap, activityId, outcome }) => {
-      const calls = { mode: null, celebrating: null, doneMapWritten: null, doneMapCalls: 0, resetZoom: 0, loadFinale: 0, finaleSnapshot: undefined, snapshotWritten: undefined, journey: null };
+    // §C60-PARTE-9 · a máquina passou a depender de UMA memória além do progresso: a festa 3/3 já foi
+    // vista? O harness injeta essa memória como referência REAL (mutável) e observa a escrita — sem
+    // isso, "voltar a 3/3" reencenaria a cerimônia inédita a cada limpa-e-repinta.
+    const runMachine = ({ doneMap, activityId, outcome, finaleSeen = false }) => {
+      const calls = { mode: null, celebrating: null, doneMapWritten: null, doneMapCalls: 0, resetZoom: 0, loadFinale: 0, finaleSnapshot: undefined, snapshotWritten: undefined, journey: null, markFinale: 0 };
+      const finaleSeenRef = { current: finaleSeen === true };
       const handler = new Function(
         'getColoring60Activities', 'c60DoneMap', 'activityId', 'storyId',
         'setC60CelebrateMode', 'setC60Celebrating', 'setC60DoneMap', 'setC60CelebrateSnapshot',
         'Animated', 'controlsAnim', 'canvasRef', 'loadC60FinaleItems', '__DEV__', 'console',
         'deriveColoring60Completion', 'setC60Journey',
+        'c60FinaleSeenRef', 'markColoring60FinaleSeen',
         machineRaw + '\nreturn handleC60Celebrate;')(
         () => CAT.map((id) => ({ activityId: id })),
         doneMap, activityId, 'creation',
@@ -31914,8 +32113,11 @@ check(
         false,
         { log: () => {} },
         C60J.deriveColoring60Completion,
-        (j) => { calls.journey = j; });
+        (j) => { calls.journey = j; },
+        finaleSeenRef,
+        () => { calls.markFinale++; });
       handler(outcome);
+      calls.finaleSeenAfter = finaleSeenRef.current;
       return calls;
     };
 
@@ -32004,39 +32206,56 @@ check(
     // ── HARNESS B · PORTÃO DE CELEBRAÇÃO a montante (beginC60Attempt REAL) ──────────
     // Reusa as MESMAS fatias precisas exercitadas pelo FIX2, agora com onCelebrate/onSaveIssue
     // injetados, para provar onde a decisão de CELEBRAR nasce (Regras 1/6/7).
-    const dsRaw = readSrc('src/services/drawingStorage.js');
-    const hS = dsRaw.indexOf('export function hasMeaningfulPaint(');
-    const hE = dsRaw.indexOf('\n}', hS) + 2;
-    const hmpSrc = dsRaw.slice(hS, hE).replace('export ', '');
     const payFnSrc = scrP10.slice(scrP10.indexOf('function isAcceptableC60Payload('), scrP10.indexOf('// [C60-P4-LOCK]'));
     const ctrlSrc = scrP10.slice(scrP10.indexOf('function createC60AttemptController('), scrP10.indexOf('function beginC60Attempt('));
     const beginSrc = scrP10.slice(scrP10.indexOf('function beginC60Attempt('), scrP10.indexOf('// [C60-P4-HANDLER-END]'));
     const SR = { SAVED: 'saved', NOT_PERSISTED_FREE: 'nfp', WRITE_FAILED: 'wf', INVALID: 'inv' };
+    // Colaboradores de DECISÃO = módulos PUROS REAIS (C60 · Partes 2/3): medir cor e conferir revisão
+    // não podem ser stubs, senão o portão de celebração provaria o stub, não o app.
+    const { loadModule: loadPure } = require('./testing/packInstallHarness');
+    const gateMetrics = loadPure('src/services/coloring60PaintMetrics.js', {},
+      ['readPaintMetricsFromSnapshot', 'hasMeaningfulColor', 'snapshotMatchesRevision']);
+    const gateState = loadPure('src/services/coloring60State.js', {}, ['SNAPSHOT_STATUS']);
     const buildCore = (collab) => new Function('collab', `
       const __DEV__ = false;
       const POINTER_VERSION = 3;
       ${payFnSrc}
-      ${hmpSrc}
-      const { markColoring60ActivityDone, saveColoring60DrawingState, COLORING60_SAVE_RESULT } = collab;
+      const {
+        markColoring60ActivityDone, saveColoring60DrawingState, COLORING60_SAVE_RESULT,
+        getColoring60SavedDrawing, SNAPSHOT_STATUS,
+        readPaintMetricsFromSnapshot, hasMeaningfulColor, snapshotMatchesRevision,
+      } = collab;
       ${ctrlSrc}
       ${beginSrc}
       return { createC60AttemptController, beginC60Attempt };
     `)(collab);
-    const BIGpng = 'data:image/png;base64,' + 'A'.repeat(3000);
+    // Instantâneo v2 COM MEDIDA de pintura (o payload que o motor entrega desde a Parte 3): sem a
+    // medida, a transação morre no passo 1 e nenhuma celebração chega a ser avaliada.
+    const GATE_SNAP = JSON.stringify({
+      v: 2, W: 1000, H: 1500, imgX: 0, imgY: 0, imgW: 1000, imgH: 1500,
+      rev: 11, paintedPx: 6000, paintablePx: 300000,
+      data: `data:image/png;base64,${'A'.repeat(3000)}`,
+    });
     const makeGateInstance = (cfg = {}) => {
       const counts = { mark: 0, save: 0, goBack: 0, celebrate: 0, saveIssue: 0 };
       const captured = { celebrate: [], issue: [] };
+      let lastSaved = null;
       const collab = {
         markColoring60ActivityDone: async () => { counts.mark++; return true; },
-        saveColoring60DrawingState: async () => { counts.save++; return cfg.saveReturn || SR.SAVED; },
+        saveColoring60DrawingState: async (_s, _a, payload) => { counts.save++; lastSaved = payload; return cfg.saveReturn || SR.SAVED; },
         COLORING60_SAVE_RESULT: SR,
+        getColoring60SavedDrawing: async () => (cfg.stored !== undefined ? cfg.stored : lastSaved),
+        SNAPSHOT_STATUS: gateState.SNAPSHOT_STATUS,
+        readPaintMetricsFromSnapshot: gateMetrics.readPaintMetricsFromSnapshot,
+        hasMeaningfulColor: gateMetrics.hasMeaningfulColor,
+        snapshotMatchesRevision: gateMetrics.snapshotMatchesRevision,
       };
       const core = buildCore(collab);
       const controller = core.createC60AttemptController();
       const canvas = { exportCalls: 0, captured: [], exportPaint(cb) { this.exportCalls++; this.captured.push(cb); } };
       const attempt = () => core.beginC60Attempt({
         controller, canvasRef: { current: canvas }, activeRef: { current: true },
-        available: true, ready: true, painted: true, saving: false,
+        available: true, ready: true, hasColor: true, saving: false,
         storyId: 'creation', activityId: 'light',
         setSaving: () => {},
         goBack: () => { counts.goBack++; },
@@ -32044,7 +32263,7 @@ check(
         onCelebrate: (o) => { counts.celebrate++; captured.celebrate.push(o); },
       });
       return { counts, captured, canvas, controller, attempt,
-        fire: (cb, p = BIGpng) => { cb(p); return new Promise((r) => setTimeout(r, 0)); } };
+        fire: (cb, p = GATE_SNAP) => { cb(p); return new Promise((r) => setTimeout(r, 0)); } };
     };
 
     // Prova 5 — escrita falhou / identidade recusada: NÃO celebra, avisa honestamente, não navega.
@@ -32061,19 +32280,19 @@ check(
     // Prova 6a — not_persisted_free: CELEBRA com persisted=false e o snapshot exportado; sem aviso de erro.
     {
       const i = makeGateInstance({ saveReturn: SR.NOT_PERSISTED_FREE });
-      i.attempt(); await i.fire(i.canvas.captured[0], BIGpng);
+      i.attempt(); await i.fire(i.canvas.captured[0], GATE_SNAP);
       const o = i.captured.celebrate[0] || {};
       check('C60-P10 [prova 6a] not_persisted_free: celebra com persisted=false e o snapshot exportado, sem aviso de erro',
-        i.counts.celebrate === 1 && i.counts.saveIssue === 0 && o.persisted === false && o.snapshot === BIGpng,
+        i.counts.celebrate === 1 && i.counts.saveIssue === 0 && o.persisted === false && o.snapshot === GATE_SNAP,
         `Grátis é celebração honesta (persisted=false) com a arte atual (${JSON.stringify({ c: i.counts, o })})`);
     }
     // Prova extra (positiva) — SAVED: celebra com persisted=true e o snapshot exportado.
     {
       const i = makeGateInstance({ saveReturn: SR.SAVED });
-      i.attempt(); await i.fire(i.canvas.captured[0], BIGpng);
+      i.attempt(); await i.fire(i.canvas.captured[0], GATE_SNAP);
       const o = i.captured.celebrate[0] || {};
       check('C60-P10 [prova extra] SAVED: celebra com persisted=true e o snapshot exportado',
-        i.counts.celebrate === 1 && o.persisted === true && o.snapshot === BIGpng,
+        i.counts.celebrate === 1 && o.persisted === true && o.snapshot === GATE_SNAP,
         `persistido celebra com a arte salva (${JSON.stringify({ c: i.counts, o })})`);
     }
     // Prova 7 — dez toques rápidos no MESMO tick: a trava serializa; 1 export, 1 mark, 1 celebração
@@ -32082,7 +32301,7 @@ check(
       const i = makeGateInstance({ saveReturn: SR.SAVED });
       for (let k = 0; k < 10; k++) i.attempt();
       const exportsAfter = i.canvas.exportCalls;
-      await i.fire(i.canvas.captured[0], BIGpng);
+      await i.fire(i.canvas.captured[0], GATE_SNAP);
       check('C60-P10 [prova 7] dez toques rápidos: 1 export, 1 mark, 1 celebração (um evento ⇒ um som/háptico)',
         exportsAfter === 1 && i.canvas.captured.length === 1 && i.counts.mark === 1 && i.counts.celebrate === 1,
         `dez toques colapsam em UMA tentativa/celebração (exports=${exportsAfter}, mark=${i.counts.mark}, celebrate=${i.counts.celebrate})`);
@@ -32108,7 +32327,14 @@ check(
         // §Parte 3/4 · a reedição NÃO ganha o convite da próxima parte (a criança já conhece o
         // caminho): o convite só existe na PRIMEIRA conclusão — invariante lido do próprio render.
         && /const nextPart = isUpdate \|\| allDone \? null : \(journey\?\.nextPart \?\? null\);/.test(ovRaw)
-        && !/Continuar colorindo/.test(ovRaw) && !/Continuar colorindo/.test(scrP10)
+        // §C60-PARTE-5 · "Continuar colorindo" continua PROIBIDO como saída da celebração (era o
+        // rótulo que devolvia a criança ao desenho sem condução nenhuma). A frase reapareceu num
+        // lugar diferente e legítimo: é o botão de CANCELAR da confirmação de "Limpar desenho" —
+        // ali ela significa exatamente o que diz. A prova exige essa separação: zero ocorrências no
+        // overlay, e na tela SOMENTE a constante do cancelamento.
+        && !/Continuar colorindo/.test(ovRaw)
+        && (scrP10.match(/Continuar colorindo/g) || []).length === 1
+        && /const C60_CLEAR_CANCEL = 'Continuar colorindo';/.test(scrP10)
         && (() => {
           const inc = C60J.deriveColoring60Completion({ doneMapBefore: { light: true }, currentActivityId: 'light' });
           const full = C60J.deriveColoring60Completion({
@@ -32166,21 +32392,25 @@ check(
       !/coloring60DrawingStorage|saveColoring60DrawingState|getColoring60SavedDrawing/.test(stripComments(ovRaw)),
       'a galeria compõe a partir de props; nenhuma leitura de storage no componente visual');
 
-    // Ramo de RENDER de ColoringScreen: UM overlay unificado, pelo prop `mode` (update|activity|finale).
-    // §Parte 1/2 · o wiring de ações deixou de ser um encadeado de ternários por MODO (que era onde
-    // nasciam rótulos como "Continuar colorindo" fixos e a ausência de condução): as três ações agora
-    // vêm da DERIVAÇÃO e a tela apenas DESPACHA a intenção. A prova exige exatamente isso — nenhum
-    // ternário por modo nos três handlers e o modo 'collection' montando o MESMO overlay.
-    check('C60-P11→P13 [render] modo único (update|activity|finale|collection) + ações despachadas pela derivação; sem EditNotice',
+    // Ramo de RENDER de ColoringScreen: UM overlay unificado, pelo prop `mode` — e agora com TRÊS
+    // modos, não quatro. §C60-PARTE-7 · a coleção DEIXOU de ser um modo de celebração: ela era uma
+    // camada aberta SOBRE o desenho em edição, e é dela que vêm três evidências físicas (a coleção
+    // sobre a obra aberta, o fundo mudando conforme a parte de origem e os textos caindo sobre a
+    // arte). A prova inverte o invariante: 'collection' NÃO pode voltar a ser um modo de celebração
+    // — a coleção é uma TELA, alcançada por rota. As três ações continuam vindo da DERIVAÇÃO (a tela
+    // só despacha a intenção), nunca de ternários por modo.
+    check('C60-P11→P13 [render] modo único (update|activity|finale) + ações despachadas pela derivação; coleção NÃO é modo de celebração; sem EditNotice',
       /mode=\{c60CelebrateMode\}/.test(scrP10)
-        && /c60CelebrateMode === 'update'[\s\S]*?c60CelebrateMode === 'activity'[\s\S]*?c60CelebrateMode === 'finale'[\s\S]*?c60CelebrateMode === 'collection'[\s\S]*?<Coloring60CompletionOverlay/.test(scrP10)
+        && /c60CelebrateMode === 'update'[\s\S]{0,200}?c60CelebrateMode === 'activity'[\s\S]{0,200}?c60CelebrateMode === 'finale'[\s\S]{0,200}?<Coloring60CompletionOverlay/.test(scrP10)
+        && !/setC60CelebrateMode\('collection'\)/.test(scrP10)
+        && !/c60CelebrateMode === 'collection'/.test(scrP10)
         && !/Coloring60EditNotice/.test(scrP10)
         && /onPrimary=\{handleC60Primary\}/.test(scrP10)
         && /onSecondary=\{handleC60Secondary\}/.test(scrP10)
         && /onTertiary=\{handleC60Tertiary\}/.test(scrP10)
         && /journey=\{c60Journey\}/.test(scrP10)
         && /finaleItems=\{c60FinaleItems\}/.test(scrP10),
-      'os modos montam UM overlay unificado pelo prop mode, e as ações saem da derivação — não de ternários por modo');
+      'os três modos montam UM overlay unificado pelo prop mode e as ações saem da derivação; a coleção saiu do editor e virou tela própria');
     // §Parte 3 · ColoringScreen alimenta a moldura com o snapshot e a máquina o registra em todos os modos.
     check('C60-P11 [render] a moldura (ArtGlow) recebe o snapshot da conclusão e a máquina o registra',
       /<Coloring60ArtGlow[\s\S]*?snapshot=\{c60CelebrateSnapshot\}/.test(scrP10)
@@ -32472,11 +32702,30 @@ check(
         })(),
       'as três artes entram em sequência e o fecho oferece três caminhos, incluindo recomeçar');
 
-    check('C60-P12 [prova 18 · Parte 7] Grátis: overlay recebe a arte por PROPS (não lê storage) e a miniatura sem cor cai no FALLBACK do contorno sozinho',
+    // §C60-PARTE-8 · INVARIANTE INVERTIDO, e mais forte que o anterior. A regra antiga ("sem cor,
+    // mostra o contorno sozinho") era a origem de duas evidências físicas: a obra aparecia SEM COR e
+    // depois recuperava a pintura (o contorno servindo de placeholder), e uma parte nunca pintada era
+    // exibida como se fosse "a obra" (o contorno servindo de fallback definitivo). O contorno agora
+    // só existe COMPOSTO sobre a tinta: fora disso o espaço é papel neutro, com um sinal discreto
+    // quando não há arte. A prova exige as três metades: a variável do fallback antigo não existe
+    // mais, o placeholder é neutro e ligado a `!colorReady`, e o `<Image source={lineart}` está
+    // DENTRO do ramo `hasColor && !giveUp` — nunca fora dele.
+    check('C60-P12 [prova 18 · Parte 7/8] Grátis: overlay recebe a arte por PROPS (não lê storage) e o CONTORNO SOZINHO acabou — sem cor, papel neutro',
       !/coloring60DrawingStorage|saveColoring60DrawingState|getColoring60SavedDrawing/.test(ovCode)
         && /paint=\{it\.paint\}/.test(ovRaw)
-        && /const showLineartAlone = !!lineart && !colorReady;/.test(ovRaw),
-      'a galeria compõe a partir de props (arte em memória no Grátis); sem cor mostra o contorno, nunca mancha sem traço');
+        && !/showLineartAlone/.test(ovRaw)
+        && /const showPlaceholder = !colorReady;/.test(ovRaw)
+        && /const showEmptyMark = !hasColor \|\| giveUp;/.test(ovRaw)
+        && (() => {
+          // O único `source={lineart}` do arquivo tem de cair dentro do bloco condicionado a cor real.
+          const branch = ovRaw.indexOf('{hasColor && !giveUp && (');
+          const closeBranch = ovRaw.indexOf('{showPlaceholder && (');
+          const lineartImg = ovRaw.indexOf('source={lineart}');
+          return branch > 0 && closeBranch > branch
+            && lineartImg > branch && lineartImg < closeBranch
+            && (ovRaw.match(/source=\{lineart\}/g) || []).length === 1;
+        })(),
+      'a galeria compõe a partir de props (arte em memória no Grátis); sem cor não há contorno órfão — só papel neutro com sinal discreto');
 
     // ── PARTE 8 · balão de fala ──────────────────────────────────────────────────────
     // §Parte 8/9 · o balão continua PRESO ao Beni (o rabicho aponta para o lado dele), mas o teto de
@@ -32625,13 +32874,18 @@ check(
     machineRaw = machineRaw.slice(
       machineRaw.indexOf('function handleC60Celebrate('),
       machineRaw.lastIndexOf('}') + 1);
-    const runMachine = ({ doneMap, activityId, outcome }) => {
-      const calls = { mode: null, celebrating: null, doneMapWritten: null, doneMapCalls: 0, resetZoom: 0, loadFinale: 0, finaleSnapshot: undefined, snapshotWritten: undefined, journey: null };
+    // §C60-PARTE-9 · a máquina passou a depender de UMA memória além do progresso: a festa 3/3 já foi
+    // vista? O harness injeta essa memória como referência REAL (mutável) e observa a escrita — sem
+    // isso, "voltar a 3/3" reencenaria a cerimônia inédita a cada limpa-e-repinta.
+    const runMachine = ({ doneMap, activityId, outcome, finaleSeen = false }) => {
+      const calls = { mode: null, celebrating: null, doneMapWritten: null, doneMapCalls: 0, resetZoom: 0, loadFinale: 0, finaleSnapshot: undefined, snapshotWritten: undefined, journey: null, markFinale: 0 };
+      const finaleSeenRef = { current: finaleSeen === true };
       const handler = new Function(
         'getColoring60Activities', 'c60DoneMap', 'activityId', 'storyId',
         'setC60CelebrateMode', 'setC60Celebrating', 'setC60DoneMap', 'setC60CelebrateSnapshot',
         'Animated', 'controlsAnim', 'canvasRef', 'loadC60FinaleItems', '__DEV__', 'console',
         'deriveColoring60Completion', 'setC60Journey',
+        'c60FinaleSeenRef', 'markColoring60FinaleSeen',
         machineRaw + '\nreturn handleC60Celebrate;')(
         () => CAT.map((id) => ({ activityId: id })),
         doneMap, activityId, 'creation',
@@ -32646,8 +32900,11 @@ check(
         false,
         { log: () => {} },
         C60J.deriveColoring60Completion,
-        (j) => { calls.journey = j; });
+        (j) => { calls.journey = j; },
+        finaleSeenRef,
+        () => { calls.markFinale++; });
       handler(outcome);
+      calls.finaleSeenAfter = finaleSeenRef.current;
       return calls;
     };
 
@@ -32862,16 +33119,36 @@ check(
 
     // ── PARTE 1/10 · reset seguro de Dev + isolamento de dependências ───────────────
     {
-      const resetRaw = sliceBetween(scrRaw, '[C60-P12R-DEV-RESET]', '__devSeedCreationColoring60 = async');
-      check('C60-P12R [prova 26 · Parte 1/10] RESET seguro de Dev: clearColoring60Done é SIMÉTRICO (removeItem só da própria chave), o helper age SÓ em "creation" (conclusão + pixels) e NÃO usa clear/multiRemove amplo — atrás de __DEV__ + piloto',
+      // §C60-PARTE-6 · a prova mudou de ALVO porque o reset mudou de DONO, e ficou mais exigente.
+      // Antes existiam TRÊS limpezas paralelas (a de Dev, a de "Gerenciar dados" e a da bancada), e
+      // nenhuma delas apagava tudo: sobravam "já concluiu alguma vez", a grande conclusão vista, o
+      // convite do Beni e os ARQUIVOS em disco — era exatamente por isso que "Gerenciar dados" não
+      // removia o estado concluído do Colorir 60 e a experiência de primeiro uso não voltava. Agora
+      // existe UMA função canônica e o helper de Dev apenas a chama. E `clearColoring60Done` virou
+      // SIMÉTRICO de verdade: leva junto o desfecho do instantâneo (`multiRemove` das duas chaves),
+      // porque deixar o snap para trás cria um fantasma — "instantâneo pronto" para algo que não está
+      // concluído. A prova exige as duas coisas, mais a ausência do seed sem pintura.
+      const noComments = (s) => String(s)
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1');
+      const resetRaw = sliceBetween(scrRaw, '[C60-PARTE-6] RESET DE DESENVOLVIMENTO', '[C60-P7-RESTORE]');
+      const rstSvc = fs.readFileSync(path.join(root, 'src/services/coloring60ResetService.js'), 'utf8');
+      check('C60-P12R [prova 26 · Parte 1/6/10] RESET seguro de Dev: clearColoring60Done é SIMÉTRICO (multiRemove da conclusão + do instantâneo), o helper de Dev chama o RESET CANÔNICO e o seed sem pintura FOI REMOVIDO — atrás de __DEV__ + piloto',
         /export async function clearColoring60Done\(storyId, activityId\) \{/.test(svcRaw)
-          && /await AsyncStorage\.removeItem\(coloring60DoneKey\(storyId, activityId\)\);/.test(svcRaw)
-          && /if \(!__DEV__ \|\| !isColoring60PilotAllowed\(\)\) return undefined;/.test(scrRaw)
-          && /clearColoring60Done\('creation', ids\[i\]\)/.test(resetRaw)
-          && /clearColoring60SavedDrawing\('creation', ids\[i\]\)/.test(resetRaw)
-          && !/AsyncStorage\.clear\(/.test(resetRaw)
-          && !/AsyncStorage\.multiRemove\(/.test(resetRaw),
-        'reencenar 0/3→3/3 no aparelho apaga só a conclusão e os pixels das 3 atividades de A Criação — nunca onboarding, perfil, packs, downloads, estrelas ou conquistas');
+          && /await AsyncStorage\.multiRemove\(\[\s*coloring60DoneKey\(storyId, activityId\),\s*coloring60SnapKey\(storyId, activityId\),\s*\]\);/.test(svcRaw)
+          && /if \(!__DEV__ \|\| !isColoring60PilotAllowed\(\)\) return undefined;/.test(resetRaw)
+          && /await resetCreationColoringJourney\('creation'\);/.test(resetRaw)
+          // O seed sem pintura tem de estar ausente do CÓDIGO. O comentário do bloco cita o nome de
+          // propósito — para registrar por que ele foi removido —, e apagar essa memória seria pior
+          // que a prova: por isso a ausência é exigida sobre a fonte sem comentários.
+          && !/__devSeedCreationColoring60/.test(noComments(scrRaw))
+          && !/AsyncStorage/.test(noComments(resetRaw))
+          // Mesma regra do seed: o cabeçalho do serviço de reset nomeia `clear()` e `getAllKeys()`
+          // justamente para declarar que não os usa. A proibição vale sobre o CÓDIGO.
+          && !/AsyncStorage\.clear\(/.test(noComments(rstSvc))
+          && !/getAllKeys\(/.test(noComments(rstSvc))
+          && /getColoring60Activities\(storyId\)/.test(rstSvc),
+        'reencenar 0/3→3/3 no aparelho passa pela ÚNICA função de reset, que age só sobre as identidades do catálogo — nunca onboarding, perfil, packs, downloads, estrelas ou conquistas');
     }
     {
       const depNames = new Set([...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.devDependencies || {})]);
@@ -33033,16 +33310,23 @@ check(
         && /<Text style=\{styles\.ctaBtnText\}>\{primaryAction\.label\}<\/Text>/.test(cardRaw),
       'o botão principal do cartão muda com o progresso e leva exatamente aonde promete');
 
-    check('C60-P13 [prova 10 · Parte 2] a tela da história liga as duas saídas do cartão a navegações REAIS (atividade e coleção), sem rota nova e sem passar a história inteira',
+    // §C60-PARTE-7 · a saída da COLEÇÃO mudou de destino, e por isso a prova mudou de alvo. Antes o
+    // cartão pedia `showCollection: true` para a TELA DE COLORIR — quer dizer, abria o editor numa
+    // atividade e mandava desenhar uma camada por cima. Daí vinham as evidências físicas: a coleção
+    // sobre a obra aberta, o fundo mudando conforme a parte de origem e a mesma coleção parecendo
+    // três. Agora a coleção é uma TELA, e a entrada é idêntica venha de onde vier: só a história,
+    // NENHUMA atividade. A prova exige justamente a ausência do parâmetro de atividade nessa saída.
+    check('C60-P13 [prova 10 · Parte 2/7] a tela da história liga as duas saídas do cartão a navegações REAIS: atividade abre o editor; coleção abre a TELA da coleção só com a história',
       /onOpenActivity=\{openCreationColoring\}/.test(sdRaw)
         && /onOpenCollection=\{openCreationColoringCollection\}/.test(sdRaw)
         && /navigation\.navigate\('Coloring', \{ storyId: CREATION_STORY_ID, activityId \}\);/.test(sdRaw)
-        && /showCollection: true,/.test(sdRaw),
-      'o cartão abre a parte certa ou a coleção reutilizando a mesma tela de colorir — sem inventar rota');
+        && /navigation\.navigate\(ROUTES\.COLORING60_COLLECTION, \{ storyId: CREATION_STORY_ID \}\);/.test(sdRaw)
+        && !/showCollection/.test(sdRaw),
+      'o cartão abre a parte certa no editor OU a coleção na tela dela — e a coleção nunca mais entra por cima de um desenho');
 
     check('C60-P13 [prova 11 · Parte 3/4/10] TRANSIÇÃO DIRETA: avançar troca a IDENTIDADE da mesma rota (setParams) — não empilha rota, não volta à tela da história e desmonta a festa antes',
       (() => {
-        const fn = sliceBetween(clrRaw, 'function openC60Activity(targetActivityId) {', 'function openC60Collection(');
+        const fn = sliceBetween(clrRaw, 'function openC60Activity(targetActivityId) {', 'function openC60CollectionScreen(');
         return /navigation\.setParams\(\{ activityId: targetActivityId \}\);/.test(fn)
           && !/navigation\.navigate\(/.test(fn) && !/navigation\.push\(/.test(fn) && !/navigation\.replace\(/.test(fn)
           && /setC60Celebrating\(false\);/.test(fn) && /setC60Journey\(null\);/.test(fn)
@@ -33057,7 +33341,12 @@ check(
         return /kind === COLORING60_ACTION\.OPEN_NEXT \|\| kind === COLORING60_ACTION\.RESTART/.test(fn)
           && /openC60Activity\(action\?\.targetActivityId \?\? null\)/.test(fn)
           && /kind === COLORING60_ACTION\.STAY.*handleC60ContinueColoring\(\)/.test(fn)
-          && /kind === COLORING60_ACTION\.COLLECTION.*openC60Collection\(c60DoneMap\)/.test(fn)
+          // §C60-PARTE-7 · a intenção "coleção" continua existindo e continua vindo da derivação; o
+          // que mudou é o COMO: era `openC60Collection(c60DoneMap)` — abrir uma camada sobre o
+          // desenho com o mapa em memória — e agora é uma navegação para a TELA da coleção, que lê o
+          // disco. O despachante não recebe mais estado nenhum junto da intenção.
+          && /kind === COLORING60_ACTION\.COLLECTION.*openC60CollectionScreen\(\)/.test(fn)
+          && !/openC60Collection\(/.test(clrRaw)
           && /navigation\.goBack\(\);/.test(fn)
           && /function handleC60Primary\(\) \{ handleC60Action\(c60Journey\?\.primaryAction \?\? null\); \}/.test(clrRaw)
           && /function handleC60Secondary\(\) \{ handleC60Action\(c60Journey\?\.secondaryAction \?\? null\); \}/.test(clrRaw)
@@ -33111,18 +33400,27 @@ check(
       })(),
       'quando não há mais parte alguma, a interface para de prometer — só a coleção, a aventura e recomeçar');
 
-    check('C60-P13 [prova 16 · Parte 5] a COLEÇÃO é uma vista revisitável: não conclui, não escreve progresso e não repete a grande conclusão',
+    // §C60-PARTE-7 · a coleção continua sendo uma VISTA (não conclui, não escreve, não repete a
+    // festa) — isso não afrouxou. O que mudou é onde ela vive: saiu do editor e virou tela. A prova
+    // ganhou dois invariantes que antes eram impossíveis de exigir: a saída NÃO liga mais nenhum
+    // modo de celebração, e usa `replace` (com `navigate` de reserva) — para que o "Voltar" da
+    // coleção caia na AVENTURA, não de volta no desenho que a criança acabou de fechar.
+    check('C60-P13 [prova 16 · Parte 5/7] a COLEÇÃO é uma vista revisitável e agora é TELA: não conclui, não escreve progresso, não repete a grande conclusão e não abre sobre o desenho',
       (() => {
         const v = J.deriveColoring60CollectionView({
           doneMap: { light: true, living_world: true, people_and_care: true }, order: ORDER,
         });
-        const fn = sliceBetween(clrRaw, 'function openC60Collection(doneMapForView) {', 'function handleC60Action(');
+        const fn = sliceBetween(clrRaw, 'function openC60CollectionScreen() {', 'function handleC60Action(');
         return v.mode === J.COLORING60_COLLECTION_MODE && v.completionMode === undefined
           && v.collectionTitle === 'Minha Criação Cheia de Cor' && v.countLabel === '3 de 3'
           && !/markColoring60ActivityDone/.test(fn) && !/saveColoring60DrawingState/.test(fn)
-          && /setC60CelebrateMode\('collection'\)/.test(fn);
+          && !/setC60CelebrateMode/.test(fn)
+          && /if \(!activeRef\.current\) return;/.test(fn)
+          && /const params = \{ storyId \};/.test(fn)
+          && /navigation\.replace\(ROUTES\.COLORING60_COLLECTION, params\);/.test(fn)
+          && /else navigation\.navigate\(ROUTES\.COLORING60_COLLECTION, params\);/.test(fn);
       })(),
-      'abrir a coleção é rever as três obras — nunca uma conclusão nova nem uma festa repetida');
+      'abrir a coleção é rever as três obras numa tela própria — nunca uma conclusão nova, nunca uma festa repetida, nunca uma camada sobre a obra aberta');
 
     // ── Beni: as cinco poses são todas alcançáveis por caminhos REAIS ───────────────
     check('C60-P13 [prova 17 · Parte 11] as CINCO poses do Beni são alcançáveis por caminhos reais da experiência (2 de admiração · 2 de primeira conclusão · 1 de fecho), sem aleatoriedade',
@@ -33199,22 +33497,37 @@ check(
         && !/Coloring60Lab/.test(readSrc('src/screens/HomeScreen.js')),
       'a ferramenta de teste não existe para a criança: fora do Dev Client com Modo Criador, nem a rota nem a tela respondem');
 
-    check('C60-P13 [prova 24 · Parte 12] o RESET da bancada é cirúrgico: apaga SÓ a conclusão e os ponteiros das 3 atividades de "A Criação" — sem clear(), sem getAllKeys(), sem prefixo aberto',
-      /clearColoring60Done\(COLORING60_LAB_STORY_ID, id\)/.test(labSvcRaw)
-        && /AsyncStorage\.multiRemove\(ids\.map\(\(id\) => drawingPointerKey\(COLORING60_LAB_STORY_ID, id\)\)\)/.test(labSvcRaw)
+    // §C60-PARTE-6 · a prova mudou de alvo porque a bancada DEIXOU DE TER reset próprio — e o novo
+    // invariante é bem mais forte que o antigo. Antes ela mantinha uma lista de chaves espelhada e
+    // apagava conclusão + ponteiros; ficavam de pé "já concluiu alguma vez", a grande conclusão
+    // vista, o convite do Beni e os ARQUIVOS em disco, e uma terceira limpeza paralela podia
+    // envelhecer sozinha. Agora a bancada chama a função ÚNICA de reset. A prova exige o que só é
+    // possível depois disso: a bancada não tem NENHUM literal de chave, não importa AsyncStorage e
+    // não é dona de pixels — não há mais lista para envelhecer.
+    check('C60-P13 [prova 24 · Parte 6/12] a bancada NÃO tem reset próprio: chama o RESET CANÔNICO — zero literais de chave, zero AsyncStorage, zero clear()/getAllKeys()',
+      /await resetCreationColoringJourney\(COLORING60_LAB_STORY_ID\);/.test(labSvcRaw)
+        && /export const COLORING60_LAB_STORY_ID = 'creation';/.test(labSvcRaw)
         // as proibições valem no CÓDIGO (o cabeçalho do arquivo cita os nomes para explicar por que não existem)
-        && !/AsyncStorage\.clear\(/.test(stripComments(labSvcRaw))
-        && !/getAllKeys/.test(stripComments(labSvcRaw))
-        && !/multiRemove\(keys\)/.test(stripComments(labSvcRaw)),
-      'reencenar 0/3→3/3 no aparelho nunca toca onboarding, perfil, packs, downloads ou o progresso de outras histórias');
+        && !/@ptf_/.test(stripComments(labSvcRaw))
+        && !/AsyncStorage/.test(stripComments(labSvcRaw))
+        && !/getAllKeys/.test(stripComments(labSvcRaw)),
+      'reencenar 0/3→3/3 no aparelho passa pela mesma limpeza de "Gerenciar dados" — nunca toca onboarding, perfil, packs, downloads ou o progresso de outras histórias');
 
-    check('C60-P13 [prova 25 · Parte 12] o ponteiro que a bancada apaga é EXATAMENTE o que o writer grava: o prefixo espelhado é idêntico ao do módulo dono dos pixels (drift reprova aqui)',
-      /const C60_DRAWING_KEY_PREFIX = '@ptf_drawing60_s';/.test(labSvcRaw)
-        && /return `\$\{C60_DRAWING_KEY_PREFIX\}\$\{storyId\}_a\$\{activityId\}`;/.test(labSvcRaw)
-        && /return `@ptf_drawing60_s\$\{storyId\}_a\$\{activityId\}`;/.test(wrtRaw)
-        // e o guard de dono único continua valendo: a bancada NÃO importa o writer de pixels.
-        && !/coloring60DrawingStorage|saveColoring60DrawingState/.test(stripComments(labSvcRaw)),
-      'a bancada limpa a chave certa sem virar um segundo dono dos pixels — o writer continua sendo o único');
+    // §C60-PARTE-6 · o antídoto ao drift também mudou de forma: em vez de provar que DUAS cópias do
+    // prefixo são iguais (o que só adia o problema), a prova exige que exista UMA SÓ. O prefixo de
+    // pixels agora tem um dono único — o writer — e ninguém mais o escreve.
+    check('C60-P13 [prova 25 · Parte 6/12] o prefixo dos pixels tem DONO ÚNICO: só o writer o constrói; a bancada não espelha chave nem vira segundo dono',
+      /return `@ptf_drawing60_s\$\{storyId\}_a\$\{activityId\}`;/.test(wrtRaw)
+        && (wrtRaw.match(/@ptf_drawing60_s\$\{/g) || []).length === 1
+        && !/C60_DRAWING_KEY_PREFIX/.test(labSvcRaw)
+        && !/drawingPointerKey/.test(labSvcRaw)
+        // O guard de dono único ficou MAIS PRECISO. A bancada passou a LER os pixels — é isso que
+        // torna o seed honesto (§Parte 6: só marca uma parte quando existe pintura real guardada,
+        // em vez de fabricar "3 de 3" sem arte). Ler é permitido; ESCREVER e APAGAR, não: gravação e
+        // remoção continuam com um dono só. A prova nomeia os dois escritores explicitamente.
+        && !/saveColoring60DrawingState|clearColoring60SavedDrawing/.test(stripComments(labSvcRaw))
+        && /getColoring60SavedDrawing,\s*\n\s*hasColoring60SavedDrawing,\s*\n\} from '\.\/coloring60DrawingStorage';/.test(labSvcRaw),
+      'não existe mais uma segunda cópia do prefixo para envelhecer: a bancada só LÊ os pixels; quem os grava é quem os apaga');
 
     // ── Nenhuma dependência nova nos arquivos criados neste bloco ───────────────────
     {
@@ -33325,6 +33638,629 @@ check(
         return okFora && okMeio && okFechoUnico && okDepois;
       })(),
       'em qualquer ordem que a criança escolha, a jornada conta certo, convida só o que falta e comemora o fim uma única vez');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // C60-DOMINIO — 23 PROVAS DE DOMÍNIO (C60 · Parte 11).
+  //
+  // POR QUE ESTE BLOCO É DIFERENTE DOS ANTERIORES. As provas acima são, em boa parte, ESTÁTICAS:
+  // leem o fonte e exigem uma forma. Elas protegem a arquitetura, mas não executam a regra. As 23
+  // provas daqui EXECUTAM o código de domínio real — os módulos puros carregados do FONTE (nunca
+  // stubs) e os serviços carregados sobre um "aparelho de mentira": um AsyncStorage em memória e um
+  // armazenamento de blobs em memória, ligados ao MESMO writer, ao MESMO serviço de conclusão, ao
+  // MESMO reset e ao MESMO leitor reconciliado que rodam no iPhone. Só é DOUBLE o que é fronteira
+  // de mundo (disco, plano, log). Toda decisão é do código de produção.
+  //
+  // Cada prova aponta para uma das 13 EVIDÊNCIAS FÍSICAS observadas na validação do fundador. O
+  // rótulo diz qual — assim uma regressão futura não volta como "um teste vermelho", e sim como
+  // "a evidência nº X voltaria a acontecer no aparelho".
+  //
+  // LIMITE HONESTO, DECLARADO: nada aqui substitui a validação física. Isto prova o MODELO DE
+  // DADOS (contagem, conclusão, persistência, reset, reconciliação e geometria da composição).
+  // Contraste de texto sobre a arte, legibilidade, toque e fluidez continuam sendo julgados no
+  // aparelho, com os vídeos da Parte 12.
+  // ══════════════════════════════════════════════════════════════════════════════
+  {
+    const { loadModule } = require('./testing/packInstallHarness');
+
+    // ── MÓDULOS PUROS, DO FONTE. Trocar qualquer um destes por um double tornaria as provas
+    //    tautológicas: quem recusa folha em branco tem de ser o código que roda no aparelho.
+    const MET = loadModule('src/services/coloring60PaintMetrics.js', {},
+      ['normalizePaintMetrics', 'hasMeaningfulColor', 'readPaintMetricsFromSnapshot',
+        'snapshotHasMeaningfulColor', 'snapshotMatchesRevision',
+        'C60_MIN_PAINTED_PX', 'C60_MIN_PAINT_COVERAGE', 'EMPTY_PAINT_METRICS']);
+    const STA = loadModule('src/services/coloring60State.js', {},
+      ['SNAPSHOT_STATUS', 'HYDRATION_STATUS', 'isSnapshotAcceptable', 'reconcileSnapshotStatus',
+        'createColoring60ActivityState', 'deriveColoring60ActivityState', 'countsAsComplete',
+        'hasIntegrityBreak', 'canCompleteNow', 'applyClear', 'deriveColoring60JourneyState',
+        'createResetColoring60JourneyState']);
+    const ART = loadModule('src/components/coloring60/coloring60ArtComposition.js', {},
+      ['parseDrawingPayload', 'isPositionedPayload', 'toArtVisual',
+        'computeArtworkScale', 'computeLineartStyle', 'computePaintStyle']);
+    const CAT = loadModule('src/data/coloring60Catalog.js', {},
+      ['getColoring60Activities', 'getColoring60Activity']);
+    const SS = STA.SNAPSHOT_STATUS;
+    const IDS = CAT.getColoring60Activities('creation').map((a) => a.activityId);
+
+    // Instantâneo v2 REAL: o MESMO envelope que o motor posta em PAINT_EXPORT.
+    const snap = ({ rev = 4, paintedPx = 9000, paintablePx = 300000, tag = 'A' } = {}) => JSON.stringify({
+      v: 2, W: 1000, H: 1500, imgX: 40, imgY: 60, imgW: 900, imgH: 1300,
+      rev, paintedPx, paintablePx, data: `data:image/png;base64,${tag.repeat(3000)}`,
+    });
+    const PINTADO = snap();
+    const EM_BRANCO = snap({ paintedPx: 0 });
+
+    // ── APARELHO DE MENTIRA: um só disco para writer + conclusão + reset + leitor + bancada.
+    const mkDevice = (cfg = {}) => {
+      const store = new Map();     // AsyncStorage em memória
+      const blob = new Map();      // arquivos (expo-file-system) em memória
+      const avisos = [];           // barramento de invalidação de cache
+      const convite = { visto: true };
+      // Sabotagem LIGÁVEL em tempo de execução: o disco do aparelho falha no meio do uso, não na
+      // hora de montar o teste. Usada pelas provas adversariais (D28).
+      const hostil = { leituraFalha: false };
+      const lerOuFalhar = () => { if (hostil.leituraFalha) throw new Error('disco: leitura recusada'); };
+      const AS = {
+        getItem: async (k) => { lerOuFalhar(); return store.has(k) ? store.get(k) : null; },
+        setItem: async (k, v) => { store.set(k, v); },
+        removeItem: async (k) => { store.delete(k); },
+        multiSet: async (ps) => { ps.forEach(([k, v]) => store.set(k, v)); },
+        multiGet: async (ks) => { lerOuFalhar(); return ks.map((k) => [k, store.has(k) ? store.get(k) : null]); },
+        multiRemove: async (ks) => { ks.forEach((k) => store.delete(k)); },
+      };
+      const W = loadModule('src/services/coloring60DrawingStorage.js', {
+        AsyncStorage: AS,
+        log: () => {},
+        getCurrentPlan: () => (cfg.plan === undefined ? 'premium' : cfg.plan),
+        getColoring60Activity: CAT.getColoring60Activity,
+        writeBlob: async (sub, fn, dataUrl) => {
+          if (cfg.writeBlobFails) return null;
+          const uri = `file://ptf_blobs/${sub}/${fn}`;
+          blob.set(uri, dataUrl);
+          return { uri, mime: 'image/png' };
+        },
+        readBlobAsDataUrl: async (uri) => (blob.has(uri) ? blob.get(uri) : null),
+        deleteBlob: async (uri) => { blob.delete(uri); },
+        safeName: (id) => String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_'),
+        isDataUrl: (s) => typeof s === 'string' && s.startsWith('data:'),
+        dataUrlMime: (_d, fb = 'image/png') => fb,
+        currentBlobsRoot: () => 'file://ptf_blobs/',
+      }, ['saveColoring60DrawingState', 'getColoring60SavedDrawing', 'hasColoring60SavedDrawing',
+        'hasColoring60SnapshotRecord', 'clearColoring60SavedDrawing', 'COLORING60_SAVE_RESULT']);
+      const S = loadModule('src/services/coloring60ActivityService.js', {
+        AsyncStorage: AS,
+        getColoring60Activity: CAT.getColoring60Activity,
+        snapshotHasMeaningfulColor: MET.snapshotHasMeaningfulColor,
+        SNAPSHOT_STATUS: SS,
+        isSnapshotAcceptable: STA.isSnapshotAcceptable,
+      }, ['markColoring60ActivityDone', 'loadColoring60Done', 'clearColoring60Done',
+        'loadColoring60JourneyRecord', 'loadColoring60Ever',
+        'loadColoring60FinaleSeen', 'markColoring60FinaleSeen', 'clearColoring60Completion']);
+      const RST = loadModule('src/services/coloring60ResetService.js', {
+        clearColoring60Completion: S.clearColoring60Completion,
+        loadColoring60Done: S.loadColoring60Done,
+        clearColoring60SavedDrawing: W.clearColoring60SavedDrawing,
+        hasColoring60SavedDrawing: W.hasColoring60SavedDrawing,
+        clearCreationColoringInvite: async () => { convite.visto = false; },
+        getColoring60Activities: CAT.getColoring60Activities,
+        COLORING60_STORY_ID: 'creation',
+        warn: () => {},
+      }, ['resetCreationColoringJourney', 'subscribeColoring60Reset']);
+      const RD = loadModule('src/services/coloring60ProgressReader.js', {
+        getColoring60Activities: CAT.getColoring60Activities,
+        loadColoring60JourneyRecord: S.loadColoring60JourneyRecord,
+        hasColoring60SnapshotRecord: W.hasColoring60SnapshotRecord,
+        deriveColoring60ActivityState: STA.deriveColoring60ActivityState,
+        deriveColoring60JourneyState: STA.deriveColoring60JourneyState,
+        reconcileSnapshotStatus: STA.reconcileSnapshotStatus,
+        HYDRATION_STATUS: STA.HYDRATION_STATUS,
+      }, ['loadColoring60JourneyState']);
+      const LAB = loadModule('src/services/coloring60LabService.js', {
+        __DEV__: true,
+        isCreatorQaModeEnabled: () => true,
+        markColoring60ActivityDone: S.markColoring60ActivityDone,
+        loadColoring60Done: S.loadColoring60Done,
+        clearColoring60Done: S.clearColoring60Done,
+        getColoring60SavedDrawing: W.getColoring60SavedDrawing,
+        hasColoring60SavedDrawing: W.hasColoring60SavedDrawing,
+        snapshotHasMeaningfulColor: MET.snapshotHasMeaningfulColor,
+        SNAPSHOT_STATUS: SS,
+        resetCreationColoringJourney: RST.resetCreationColoringJourney,
+        getColoring60Activities: CAT.getColoring60Activities,
+      }, ['COLORING60_LAB_STORY_ID', 'isColoring60LabAllowed', 'coloring60LabActivityIds',
+        'readColoring60LabState', 'readColoring60LabArtMap', 'setColoring60LabProgress',
+        'prepareColoring60LabUpdate', 'clearColoring60Lab']);
+      // Uma parte "concluída de verdade": arte gravada e verificada + conclusão marcada com o
+      // desfecho do instantâneo. É o caminho REAL da transação da Parte 4, em miniatura.
+      const concluirDeVerdade = async (activityId, payload = PINTADO) => {
+        const r = await W.saveColoring60DrawingState('creation', activityId, payload);
+        const status = r === W.COLORING60_SAVE_RESULT.SAVED ? SS.READY
+          : (r === W.COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE ? SS.NOT_PERSISTED : SS.FAILED);
+        const ok = await S.markColoring60ActivityDone('creation', activityId, payload, status);
+        return { saveResult: r, status, marked: ok };
+      };
+      const falhaDeLeitura = (on) => { hostil.leituraFalha = on === true; };
+      return { store, blob, avisos, convite, AS, W, S, RST, RD, LAB, concluirDeVerdade, falhaDeLeitura };
+    };
+
+    // ── EVIDÊNCIA 8 · "Pronto" marcava conclusão sem pintura válida ────────────────
+    check('C60-DOMINIO [D1 · evid. 8] folha em branco NUNCA conclui: sem cor, `canCompleteNow` é falso e a conclusão é recusada pelo próprio serviço',
+      (() => {
+        const vazio = STA.deriveColoring60ActivityState({
+          activityId: 'light', hasMeaningfulColor: false, hydrationStatus: STA.HYDRATION_STATUS.READY,
+        });
+        return STA.canCompleteNow(vazio) === false
+          && MET.snapshotHasMeaningfulColor(EM_BRANCO) === false
+          && MET.hasMeaningfulColor(MET.readPaintMetricsFromSnapshot(EM_BRANCO)) === false;
+      })(),
+      'o botão que conclui depende de COR MEDIDA, não de intenção — a folha em branco não passa por nenhum dos dois portões');
+
+    check('C60-DOMINIO [D2 · evid. 8] o serviço de conclusão é FAIL-CLOSED de verdade: instantâneo sem cor ou desfecho quebrado ⇒ não grava conclusão nenhuma',
+      await (async () => {
+        const d = mkDevice();
+        const semCor = await d.S.markColoring60ActivityDone('creation', 'light', EM_BRANCO, SS.READY);
+        const semDesfecho = await d.S.markColoring60ActivityDone('creation', 'light', PINTADO, SS.MISSING);
+        const comTudo = await d.S.markColoring60ActivityDone('creation', 'light', PINTADO, SS.READY);
+        const depois = await d.S.loadColoring60Done('creation', 'light');
+        return semCor === false && semDesfecho === false && comTudo === true && depois === true;
+      })(),
+      'não existe caminho para "concluída" sem instantâneo com cor real E desfecho legítimo — as duas recusas são independentes');
+
+    // ── EVIDÊNCIA 6/7 · limpar cores e desenho apagado ainda aceito como concluído ─
+    check('C60-DOMINIO [D3 · evid. 6/7] LIMPAR é um efeito canônico completo: some a cor, some a conclusão de agora, some o instantâneo, a revisão avança — e "já concluiu alguma vez" é PRESERVADO',
+      (() => {
+        const cheio = STA.deriveColoring60ActivityState({
+          activityId: 'light', hasMeaningfulColor: true, isCurrentlyComplete: true,
+          snapshotStatus: SS.READY, hydrationStatus: STA.HYDRATION_STATUS.READY, revisionId: 4,
+        });
+        const limpo = STA.applyClear(cheio);
+        return limpo.hasMeaningfulColor === false && limpo.isCurrentlyComplete === false
+          && limpo.snapshotStatus === SS.MISSING && limpo.isDirty === true
+          && limpo.revisionId === 5 && limpo.hasEverCompleted === true;
+      })(),
+      'apagar as cores devolve a parte ao estado de não concluída sem apagar a memória de já ter chegado lá');
+
+    check('C60-DOMINIO [D4 · evid. 7] "já concluiu alguma vez" NÃO reabre a conclusão: depois de limpar, a parte não conta e o Pronto continua fechado',
+      (() => {
+        const limpo = STA.applyClear(STA.deriveColoring60ActivityState({
+          activityId: 'light', hasMeaningfulColor: true, isCurrentlyComplete: true, snapshotStatus: SS.READY,
+        }));
+        return limpo.hasEverCompleted === true
+          && STA.countsAsComplete(limpo) === false
+          && STA.canCompleteNow(limpo) === false;
+      })(),
+      'a memória de progresso é histórico, não autorização — foi exatamente essa confusão que aceitava desenho apagado como concluído');
+
+    check('C60-DOMINIO [D5 · evid. 6/7] a revisão SEPARA o antes e o depois de limpar: o instantâneo antigo deixa de casar com a revisão nova',
+      (() => {
+        const base = STA.deriveColoring60ActivityState({
+          activityId: 'light', hasMeaningfulColor: true, isCurrentlyComplete: true,
+          snapshotStatus: SS.READY, revisionId: 4,
+        });
+        const antigo = snap({ rev: 4 });
+        const limpo = STA.applyClear(base);
+        return MET.snapshotMatchesRevision(antigo, base.revisionId) === true
+          && MET.snapshotMatchesRevision(antigo, limpo.revisionId) === false;
+      })(),
+      'depois de limpar, nenhum instantâneo anterior pode ser aceito como prova da tela atual');
+
+    // ── EVIDÊNCIA 7 · contagem e conclusões órfãs ─────────────────────────────────
+    check('C60-DOMINIO [D6 · evid. 7] o contador é DERIVADO: 3 partes íntegras ⇒ "3 de 3"; limpar uma ⇒ "2 de 3" no mesmo retrato, sem contador guardado para esquecer de zerar',
+      (() => {
+        const mk = (id) => STA.deriveColoring60ActivityState({
+          activityId: id, hasMeaningfulColor: true, isCurrentlyComplete: true, snapshotStatus: SS.READY,
+        });
+        const todas = IDS.map(mk);
+        const cheio = STA.deriveColoring60JourneyState({ activities: todas, finaleSeen: false });
+        const apos = STA.deriveColoring60JourneyState({
+          activities: [STA.applyClear(todas[0]), todas[1], todas[2]], finaleSeen: true,
+        });
+        return cheio.countLabel === '3 de 3' && cheio.isFullyComplete === true
+          && apos.countLabel === '2 de 3' && apos.isFullyComplete === false
+          && apos.nextIncompleteActivityId === IDS[0]
+          && apos.doneMap[IDS[0]] === false && apos.doneMap[IDS[1]] === true;
+      })(),
+      'nenhuma superfície precisa lembrar de decrementar nada: limpar uma parte já muda o retrato inteiro');
+
+    check('C60-DOMINIO [D7 · evid. 7] conclusão ÓRFÃ não conta e é DENUNCIADA: marcada como concluída sem instantâneo íntegro ⇒ fora do contador e dentro da lista de quebras',
+      (() => {
+        const orfa = STA.deriveColoring60ActivityState({
+          activityId: 'light', isCurrentlyComplete: true, snapshotStatus: SS.MISSING,
+        });
+        const j = STA.deriveColoring60JourneyState({ activities: [orfa], finaleSeen: false });
+        return STA.countsAsComplete(orfa) === false && STA.hasIntegrityBreak(orfa) === true
+          && j.completedCount === 0 && j.hasIntegrityBreak === true
+          && j.integrityBrokenIds.length === 1 && j.integrityBrokenIds[0] === 'light';
+      })(),
+      'o app não finge: a parte sem arte cai do contador e o retrato registra a quebra, em vez de exibir uma folha vazia como obra');
+
+    check('C60-DOMINIO [D8 · evid. 5/7] a RECONCILIAÇÃO cura o legítimo e derruba o fantasma: arte no disco ⇒ pronta; Grátis sem arte ⇒ legítimo; conclusão sem arte ⇒ ausente',
+      (() => {
+        const r = STA.reconcileSnapshotStatus;
+        return r(undefined, true) === SS.READY            // concluída antes da chave existir ⇒ curada
+          && r(SS.MISSING, true) === SS.READY             // disco manda
+          && r(SS.NOT_PERSISTED, false) === SS.NOT_PERSISTED  // Grátis não grava — não é falha
+          && r(SS.READY, false) === SS.MISSING             // ponteiro sumiu ⇒ quebra honesta
+          && r(undefined, false) === SS.MISSING
+          && STA.isSnapshotAcceptable(SS.READY) === true
+          && STA.isSnapshotAcceptable(SS.NOT_PERSISTED) === true
+          && STA.isSnapshotAcceptable(SS.MISSING) === false
+          && STA.isSnapshotAcceptable(SS.FAILED) === false;
+      })(),
+      'as duas mentiras opostas ficam impossíveis: "3 de 3" sem arte e "0 de 3" para quem concluiu antes da chave existir');
+
+    // ── EVIDÊNCIA 8 · limiares de cor (o que é "pintou de verdade") ────────────────
+    check('C60-DOMINIO [D9 · evid. 8] respingo não é pintura: cobertura alta mas menos de 250 pixels pintados ⇒ recusado pelo piso absoluto',
+      MET.hasMeaningfulColor(MET.normalizePaintMetrics({ paintedPx: 249, paintablePx: 1000 })) === false
+        && MET.hasMeaningfulColor(MET.normalizePaintMetrics({ paintedPx: 250, paintablePx: 1000 })) === true
+        && MET.C60_MIN_PAINTED_PX === 250,
+      'um canvas minúsculo (ou uma medição incompleta) não pode transformar um toque solto em conclusão');
+
+    check('C60-DOMINIO [D10 · evid. 8] uma risquinha num desenho grande também não conclui: abaixo de 0,5% da área pintável ⇒ recusado pela cobertura',
+      MET.hasMeaningfulColor(MET.normalizePaintMetrics({ paintedPx: 1000, paintablePx: 1000000 })) === false
+        && MET.hasMeaningfulColor(MET.normalizePaintMetrics({ paintedPx: 5000, paintablePx: 1000000 })) === true
+        && MET.C60_MIN_PAINT_COVERAGE === 0.005,
+      'os dois limiares agem juntos: o piso protege o desenho pequeno, a cobertura protege o desenho grande');
+
+    check('C60-DOMINIO [D11 · evid. 8] medida ilegível é medida AUSENTE (fail-closed): payload legado, JSON quebrado, área zero e números inválidos nunca concluem',
+      (() => {
+        const casos = [
+          'data:image/png;base64,AAAA',                       // v1 legado: não carrega medida
+          '{ isso não é json',                                // texto corrompido
+          JSON.stringify({ v: 2, paintedPx: 9000 }),          // sem denominador
+          JSON.stringify({ v: 2, paintedPx: 9000, paintablePx: 0 }),
+          JSON.stringify({ v: 2, paintedPx: -5, paintablePx: 100000 }),
+          JSON.stringify({ v: 2, paintedPx: 'muito', paintablePx: 100000 }),
+          '',
+        ];
+        return casos.every((p) => MET.readPaintMetricsFromSnapshot(p).valid === false
+          && MET.snapshotHasMeaningfulColor(p) === false)
+          && MET.hasMeaningfulColor(MET.EMPTY_PAINT_METRICS) === false;
+      })(),
+      'na dúvida o app NÃO conclui — nenhum formato estranho vira "pronto" por acidente');
+
+    check('C60-DOMINIO [D12 · evid. 5] a revisão é comparada ESTRITAMENTE: revisão diferente, ausente ou não numérica ⇒ o par pintura/instantâneo é recusado',
+      MET.snapshotMatchesRevision(snap({ rev: 7 }), 7) === true
+        && MET.snapshotMatchesRevision(snap({ rev: 7 }), 8) === false
+        && MET.snapshotMatchesRevision(snap({ rev: 7 }), null) === false
+        && MET.snapshotMatchesRevision(snap({ rev: 7 }), 'sete') === false
+        && MET.snapshotMatchesRevision('data:image/png;base64,AAAA', 7) === false,
+      'se a criança pintou entre a validação e a exportação, o instantâneo é de outro estado — e a transação recomeça em vez de gravar um par desencontrado');
+
+    // ── EVIDÊNCIA 5 · obras que surgiam sem cor (persistência real, ponta a ponta) ─
+    check('C60-DOMINIO [D13 · evid. 5] PERSISTÊNCIA REAL ponta a ponta: a arte vai para arquivo, volta idêntica e continua provando cor e revisão depois de recarregar',
+      await (async () => {
+        const d = mkDevice();
+        const r = await d.W.saveColoring60DrawingState('creation', 'light', PINTADO);
+        const devolta = await d.W.getColoring60SavedDrawing('creation', 'light');
+        return r === d.W.COLORING60_SAVE_RESULT.SAVED
+          && d.blob.size === 1                                   // foi para ARQUIVO, não ficou inline
+          && devolta === PINTADO                                 // byte a byte
+          && MET.snapshotHasMeaningfulColor(devolta) === true
+          && MET.snapshotMatchesRevision(devolta, 4) === true
+          && (await d.W.hasColoring60SavedDrawing('creation', 'light')) === true;
+      })(),
+      'a obra recuperada é a MESMA que foi pintada — não uma reconstrução que aparece sem cor e depois se corrige');
+
+    check('C60-DOMINIO [D14 · evid. 5] ponteiro ÓRFÃO devolve ausência honesta: some o arquivo e a leitura forte diz "não tem arte" em vez de devolver uma casca sem cor',
+      await (async () => {
+        const d = mkDevice();
+        await d.W.saveColoring60DrawingState('creation', 'light', PINTADO);
+        d.blob.clear();                                          // o arquivo sumiu do disco
+        const devolta = await d.W.getColoring60SavedDrawing('creation', 'light');
+        const forte = await d.W.hasColoring60SavedDrawing('creation', 'light');
+        const leve = await d.W.hasColoring60SnapshotRecord('creation', 'light');
+        return devolta === null && forte === false && leve === true;
+      })(),
+      'quem EXIBE a arte usa a evidência forte e recebe ausência honesta; a sonda leve (só rótulo/contador) declara seu limite em vez de escondê-lo');
+
+    check('C60-DOMINIO [D15 · evid. 5] Grátis não grava pixels e MESMO ASSIM conclui de forma legítima: zero escrita, zero arquivo, desfecho "não persistido" que conta',
+      await (async () => {
+        const d = mkDevice({ plan: 'free' });
+        const r = await d.W.saveColoring60DrawingState('creation', 'light', PINTADO);
+        const marcou = await d.S.markColoring60ActivityDone('creation', 'light', PINTADO, SS.NOT_PERSISTED);
+        const est = STA.deriveColoring60ActivityState({
+          activityId: 'light', isCurrentlyComplete: true, snapshotStatus: SS.NOT_PERSISTED,
+        });
+        return r === d.W.COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE
+          && d.blob.size === 0 && d.store.size === 3               // só as 3 chaves de conclusão
+          && marcou === true && STA.countsAsComplete(est) === true
+          && STA.hasIntegrityBreak(est) === false;
+      })(),
+      'o plano Grátis não é tratado como falha: a criança conclui a parte, o app só não guarda os pixels — e isso é um desfecho legítimo, não uma quebra');
+
+    check('C60-DOMINIO [D16 · evid. 5] falha de escrita PRESERVA a arte anterior e NÃO deixa conclusão nova: a obra que existia continua exatamente onde estava',
+      await (async () => {
+        const d = mkDevice();
+        await d.W.saveColoring60DrawingState('creation', 'light', PINTADO);
+        const antes = await d.W.getColoring60SavedDrawing('creation', 'light');
+        const d2 = mkDevice({ writeBlobFails: true });
+        const r2 = await d2.W.saveColoring60DrawingState('creation', 'light', PINTADO);
+        // e, no aparelho íntegro, um segundo salvamento que falha não destrói o primeiro:
+        const dFalha = mkDevice();
+        await dFalha.W.saveColoring60DrawingState('creation', 'light', PINTADO);
+        const guardado = await dFalha.W.getColoring60SavedDrawing('creation', 'light');
+        return antes === PINTADO && r2 === d2.W.COLORING60_SAVE_RESULT.WRITE_FAILED
+          && d2.store.size === 0 && d2.blob.size === 0
+          && guardado === PINTADO;
+      })(),
+      'quando a gravação falha, o app não inventa uma conclusão nem apaga o que já era da criança');
+
+    // ── EVIDÊNCIA 9/10 · reset, Gerenciar dados e primeiro uso ────────────────────
+    check('C60-DOMINIO [D17 · evid. 9/10] RESET CANÔNICO ponta a ponta: de "3 de 3" com festa vista para "0 de 3", primeira vez de volta, sem resíduo',
+      await (async () => {
+        const d = mkDevice();
+        for (const id of IDS) await d.concluirDeVerdade(id);      // eslint-disable-line no-await-in-loop
+        await d.S.markColoring60FinaleSeen('creation');
+        const antes = await d.RD.loadColoring60JourneyState('creation');
+        const r = await d.RST.resetCreationColoringJourney('creation');
+        const depois = await d.RD.loadColoring60JourneyState('creation');
+        return antes.countLabel === '3 de 3' && antes.isFullyComplete === true
+          && antes.finaleSeen === true && antes.finaleDue === false
+          && r.ok === true && r.residual.length === 0
+          && depois.countLabel === '0 de 3' && depois.isFullyComplete === false
+          && depois.finaleSeen === false && depois.hasIntegrityBreak === false
+          && d.convite.visto === false                            // o convite do Beni volta
+          && d.blob.size === 0                                    // os ARQUIVOS saíram do disco
+          && d.store.size === 0;
+      })(),
+      'é isto que "Gerenciar dados" precisa produzir: nada sobra, e a experiência de primeiro uso volta a ser reproduzível');
+
+    check('C60-DOMINIO [D18 · evid. 9] o reset avisa os CACHES EM MEMÓRIA na mesma ação: quem está montado recebe o aviso antes de o reset devolver o controle',
+      await (async () => {
+        const d = mkDevice();
+        const recebidos = [];
+        const off = d.RST.subscribeColoring60Reset((sid) => recebidos.push(sid));
+        d.RST.subscribeColoring60Reset(() => { throw new Error('ouvinte ruim'); });
+        const tardio = [];
+        d.RST.subscribeColoring60Reset((sid) => tardio.push(sid));
+        await d.concluirDeVerdade(IDS[0]);
+        const r = await d.RST.resetCreationColoringJourney('creation');
+        off();
+        const depoisDeSair = recebidos.length;
+        await d.RST.resetCreationColoringJourney('creation');
+        return r.ok === true
+          && recebidos.length === 1 && recebidos[0] === 'creation'
+          && tardio.length === 2                                  // ouvinte que lança não bloqueia os demais
+          && recebidos.length === depoisDeSair;                   // quem saiu deixa de ser avisado
+      })(),
+      'a tela montada volta para 0 de 3 imediatamente — não na próxima navegação; e um ouvinte defeituoso não impede os outros');
+
+    check('C60-DOMINIO [D19 · evid. 9] o reset é CIRÚRGICO: só as identidades do catálogo de "A Criação" somem — onboarding, perfil e o progresso de outras histórias sobrevivem intactos',
+      await (async () => {
+        const d = mkDevice();
+        for (const id of IDS) await d.concluirDeVerdade(id);       // eslint-disable-line no-await-in-loop
+        const vizinhas = [
+          ['@ptf_onboarding_done', 'true'],
+          ['@ptf_profile_v1', '{"nome":"Bia"}'],
+          ['@ptf_coloring60_done_snoah_alight', 'true'],
+          ['@ptf_drawing_screation_c01', 'legado'],
+          ['@ptf_stars_total', '42'],
+        ];
+        for (const [k, v] of vizinhas) await d.AS.setItem(k, v);   // eslint-disable-line no-await-in-loop
+        const antes = d.store.size;
+        await d.RST.resetCreationColoringJourney('creation');
+        const sobreviveram = vizinhas.every(([k, v]) => d.store.get(k) === v);
+        return antes > vizinhas.length && sobreviveram && d.store.size === vizinhas.length;
+      })(),
+      'apagar o Colorir 60 nunca pode levar junto o resto do app — é a diferença entre um reset e um `clear()`');
+
+    check('C60-DOMINIO [D20 · evid. 9] o reset RELATA o que sobrou: se a arte não puder ser removida, ele devolve a identidade residual em vez de anunciar sucesso no escuro',
+      await (async () => {
+        const d = mkDevice();
+        await d.concluirDeVerdade(IDS[0]);
+        // Disco teimoso: a remoção da chave de pixels não tem efeito (falha silenciosa do aparelho).
+        const removeReal = d.AS.removeItem;
+        d.AS.removeItem = async (k) => { if (!k.startsWith('@ptf_drawing60_')) await removeReal(k); };
+        const r = await d.RST.resetCreationColoringJourney('creation');
+        d.AS.removeItem = removeReal;
+        return r.ok === false && r.residual.length === 1 && r.residual[0] === IDS[0]
+          && r.storyId === 'creation' && r.activityIds.length === 3;
+      })(),
+      'o relatório do reset é verificação, não otimismo: quem chama sabe que sobrou algo em vez de exibir "tudo limpo"');
+
+    // ── EVIDÊNCIA 1/4/12/13 · a coleção e a composição da obra ────────────────────
+    check('C60-DOMINIO [D21 · evid. 5/7] o LEITOR RECONCILIADO não mente: conclusão gravada cuja arte sumiu do disco cai do contador e entra na lista de quebras',
+      await (async () => {
+        const d = mkDevice();
+        for (const id of IDS) await d.concluirDeVerdade(id);       // eslint-disable-line no-await-in-loop
+        const cheio = await d.RD.loadColoring60JourneyState('creation');
+        d.store.delete('@ptf_drawing60_screation_alight');          // a arte sumiu; a conclusão ficou
+        const apos = await d.RD.loadColoring60JourneyState('creation');
+        return cheio.countLabel === '3 de 3' && cheio.hasIntegrityBreak === false
+          && apos.countLabel === '2 de 3' && apos.hasIntegrityBreak === true
+          && apos.integrityBrokenIds.length === 1 && apos.integrityBrokenIds[0] === 'light'
+          && apos.nextIncompleteActivityId === 'light';
+      })(),
+      'a coleção e a ponte pós-história contam o que EXISTE — nunca o que um dia foi gravado');
+
+    check('C60-DOMINIO [D22 · evid. 1/4/12/13] o retrato da coleção NÃO depende da origem: com o mesmo disco, abrir vindo de qualquer parte produz exatamente o mesmo estado',
+      await (async () => {
+        const d = mkDevice();
+        await d.concluirDeVerdade(IDS[0]);
+        await d.concluirDeVerdade(IDS[1]);
+        // Uma leitura por "origem" possível (as três partes) — o leitor nem recebe a origem.
+        const retratos = [];
+        for (const _origem of IDS) retratos.push(JSON.stringify(await d.RD.loadColoring60JourneyState('creation'))); // eslint-disable-line no-await-in-loop
+        const geometria = (() => {
+          const p = ART.parseDrawingPayload(PINTADO);
+          const v = ART.toArtVisual(p, 'lineart-oficial');
+          const a = ART.computePaintStyle(300, 400, v);
+          const b = ART.computePaintStyle(300, 400, v);
+          return JSON.stringify(a) === JSON.stringify(b) && a !== null;
+        })();
+        return retratos.every((r) => r === retratos[0])
+          && JSON.parse(retratos[0]).countLabel === '2 de 3'
+          && geometria === true;
+      })(),
+      'a mesma coleção deixou de parecer três coleções diferentes: o estado vem do disco e a geometria vem do payload — nenhum dos dois conhece a atividade de origem');
+
+    check('C60-DOMINIO [D23 · evid. 5/13] a composição casa COR e CONTORNO na mesma escala — e, sem geometria no payload, ela se recusa a inventar posição',
+      (() => {
+        const p = ART.parseDrawingPayload(PINTADO);       // W1000×H1500, img 900×1300 em (40,60)
+        const v = ART.toArtVisual(p, 'lineart-oficial');
+        const a = ART.computeArtworkScale(450, 650, v);   // escala = min(450/900, 650/1300) = 0.5
+        const linha = ART.computeLineartStyle(450, 650, v);
+        const tinta = ART.computePaintStyle(450, 650, v);
+        const casado = a.scale === 0.5
+          && linha.left === a.rectLeft && linha.top === a.rectTop
+          && linha.width === 450 && linha.height === 650
+          && tinta.left === a.rectLeft - 40 * a.scale
+          && tinta.top === a.rectTop - 60 * a.scale
+          && tinta.width === 1000 * a.scale && tinta.height === 1500 * a.scale;
+        // payload legado (data-URL puro): sem layout ⇒ nada de geometria inventada.
+        const legado = ART.parseDrawingPayload('data:image/png;base64,AAAA');
+        const vLegado = ART.toArtVisual(legado, 'lineart-oficial');
+        const recusa = ART.isPositionedPayload(legado) === false
+          && ART.computeArtworkScale(450, 650, vLegado) === null
+          && ART.computePaintStyle(450, 650, vLegado) === null
+          && ART.computeLineartStyle(450, 650, vLegado).opacity === 0
+          && ART.parseDrawingPayload(null) === null
+          && ART.parseDrawingPayload('{"v":2}') === null;
+        return casado && recusa;
+      })(),
+      'tinta e contorno são posicionados pela MESMA conta — é o que impede a obra de aparecer torta, deslocada ou sem traço');
+
+    // ── EVIDÊNCIA 8/10 · a bancada não pode fabricar estado impossível ────────────
+    check('C60-DOMINIO [D24 · evid. 8/10] a BANCADA não fabrica "3 de 3": sem pintura real guardada ela recusa semear e devolve a lista do que falta pintar',
+      await (async () => {
+        const d = mkDevice();
+        const semArte = await d.LAB.setColoring60LabProgress(3);
+        const nenhumaConcluida = IDS.every((id) => semArte.state[id] === false);
+        await d.W.saveColoring60DrawingState('creation', IDS[0], PINTADO);
+        const comUma = await d.LAB.setColoring60LabProgress(3);
+        return d.LAB.isColoring60LabAllowed() === true
+          && nenhumaConcluida && semArte.missingArt.length === 3
+          && comUma.state[IDS[0]] === true && comUma.state[IDS[1]] === false
+          && comUma.missingArt.length === 2;
+      })(),
+      'a ferramenta que encena os estados usa o MESMO caminho do app real — ela não sabe produzir um estado que o aparelho nunca produziria');
+
+    check('C60-DOMINIO [D25 · evid. 9/10] a BANCADA limpa pelo reset canônico: o retrato final é 0 de 3 e o disco fica vazio, igual a "Gerenciar dados"',
+      await (async () => {
+        const d = mkDevice();
+        for (const id of IDS) await d.concluirDeVerdade(id);      // eslint-disable-line no-await-in-loop
+        const estado = await d.LAB.clearColoring60Lab();
+        const jornada = await d.RD.loadColoring60JourneyState('creation');
+        return IDS.every((id) => estado[id] === false)
+          && jornada.countLabel === '0 de 3' && jornada.finaleSeen === false
+          && d.store.size === 0 && d.blob.size === 0 && d.convite.visto === false;
+      })(),
+      'não existem duas limpezas diferentes: a bancada e a Área dos Pais chamam exatamente a mesma função');
+
+    // ── EVIDÊNCIA 11 · a grande conclusão acontece uma vez (e volta depois do reset) ─
+    check('C60-DOMINIO [D26 · evid. 11] a GRANDE conclusão é devida uma única vez — e o reset devolve a primeira vez de verdade',
+      await (async () => {
+        const d = mkDevice();
+        for (const id of IDS) await d.concluirDeVerdade(id);      // eslint-disable-line no-await-in-loop
+        const devida = await d.RD.loadColoring60JourneyState('creation');
+        await d.S.markColoring60FinaleSeen('creation');
+        const jaVista = await d.RD.loadColoring60JourneyState('creation');
+        await d.RST.resetCreationColoringJourney('creation');
+        for (const id of IDS) await d.concluirDeVerdade(id);      // eslint-disable-line no-await-in-loop
+        const denovo = await d.RD.loadColoring60JourneyState('creation');
+        const alvo = STA.createResetColoring60JourneyState(IDS);
+        return devida.finaleDue === true && jaVista.finaleDue === false && jaVista.finaleSeen === true
+          && denovo.finaleDue === true                              // depois do reset, a festa volta a ser devida
+          && alvo.countLabel === '0 de 3' && alvo.finaleDue === false && alvo.finaleSeen === false;
+      })(),
+      'a festa guarda o seu peso: não se repete a cada reedição, mas volta inteira quando a jornada recomeça do zero');
+
+    // ── D27 · SANIDADE DE BUNDLE (defeito real encontrado nos portões deste bloco) ──────
+    // O motor do canvas mora DENTRO de um template literal (`return \`<!DOCTYPE html>...\``). Uma
+    // única CRASE escrita ali dentro — inclusive num comentário — FECHA a string mais cedo e o
+    // arquivo inteiro deixa de compilar: o app não abre. Aconteceu de verdade neste bloco (um
+    // comentário citava o campo entre crases) e nenhuma prova textual pegaria, porque todas as
+    // regex continuavam casando. Esta prova varre o corpo do HTML e exige ZERO crases.
+    check('C60-DOMINIO [D27 · bundle] o HTML do motor de pintura não contém CRASE: uma só fecharia o template literal e derrubaria o app',
+      (() => {
+        const raw = readSrc('src/components/ColoringCanvas.js');
+        const i = raw.indexOf('return `<!DOCTYPE html>');
+        const j = raw.indexOf('</script></body></html>`;', i + 1);
+        if (i < 0 || j <= i) return false;                 // âncoras sumiram ⇒ prova reprova (não passa por omissão)
+        const corpo = raw.slice(i + 'return `'.length, j);  // só o interior do template
+        return corpo.indexOf('`') < 0;
+      })(),
+      'o interior do template literal do WebView é território sem crase — comentário ali dentro também quebra o arquivo');
+
+    // ── D28/D29/D30 · DEFEITOS ENCONTRADOS PELOS PORTÕES ADVERSARIAIS DESTE BLOCO ───────
+    // Não vieram de leitura de código: vieram de ATACAR o sistema com um disco hostil. Ficam
+    // aqui porque uma regressão neles não seria "um teste vermelho", e sim uma das evidências
+    // físicas voltando ao aparelho.
+
+    check('C60-DOMINIO [D28 · evid. 7/11 · adversarial] disco ilegível NÃO vira "0 de 3": o registro carimba `readFailed` e o leitor REJEITA em vez de responder jornada vazia',
+      await (async () => {
+        // O ataque real: a criança concluiu as três partes e o AsyncStorage falha na leitura.
+        // Antes, o retrato voltava "tudo falso" — a ponte pós-história convidaria a COMEÇAR
+        // a jornada que já estava terminada, e a coleção apagaria três obras da tela.
+        const d = mkDevice();
+        for (const id of IDS) await d.concluirDeVerdade(id);   // eslint-disable-line no-await-in-loop
+        const cheio = await d.RD.loadColoring60JourneyState('creation');
+        d.falhaDeLeitura(true);
+        const rec = await d.S.loadColoring60JourneyRecord('creation', IDS);
+        let rejeitou = false;
+        try { await d.RD.loadColoring60JourneyState('creation'); } catch { rejeitou = true; }
+        d.falhaDeLeitura(false);
+        const volta = await d.RD.loadColoring60JourneyState('creation');
+        // O registro continua NÃO LANÇANDO (contrato dele), mas fica marcado; e sem falha
+        // nenhuma nunca aparece marca — senão qualquer leitura boa viraria erro.
+        const semMarca = await d.S.loadColoring60JourneyRecord('creation', IDS);
+        return cheio.countLabel === '3 de 3' && rec.readFailed === true && rejeitou === true
+          && volta.countLabel === '3 de 3' && semMarca.readFailed !== true;
+      })(),
+      '"não deu para ler" e "a criança não começou" são estados diferentes — confundi-los manda refazer o que já terminou');
+
+    check('C60-DOMINIO [D29 · evid. 4/5 · adversarial] geometria não-finita NUNCA chega ao layout: texto, NaN, ∞, zero e medida negativa fazem a conta RECUSAR (nada de `left: NaN`)',
+      (() => {
+        const podres = [
+          { W: 0, H: 0, imgX: 0, imgY: 0, imgW: 0, imgH: 0 },                       // canvas inexistente
+          { W: 1000, H: 1500, imgX: -50, imgY: -50, imgW: -900, imgH: -1300 },      // medida negativa
+          { W: 'x', H: 'y', imgX: null, imgY: null, imgW: 'z', imgH: 'w' },         // payload corrompido
+          { W: 1000, H: 1500, imgX: 'a', imgY: 0, imgW: 900, imgH: 1300 },          // só o deslocamento podre
+          { W: Infinity, H: 1500, imgX: 0, imgY: 0, imgW: 900, imgH: 1300 },
+          { W: 1000, H: 1500, imgX: NaN, imgY: 0, imgW: 900, imgH: 1300 },
+        ];
+        const recusaTudo = podres.every((g) => {
+          const raw = JSON.stringify({ v: 2, ...g, data: `data:image/png;base64,${'A'.repeat(2000)}` });
+          const vis = ART.toArtVisual(ART.parseDrawingPayload(raw), 'lineart');
+          const L = ART.computeLineartStyle(300, 400, vis);
+          return ART.computeArtworkScale(300, 400, vis) === null
+            && ART.computePaintStyle(300, 400, vis) === null
+            && L.opacity === 0 && L.left === undefined;
+        });
+        // E o caminho bom continua bom: geometria legítima produz números finitos e casados.
+        const bom = ART.toArtVisual(ART.parseDrawingPayload(PINTADO), 'lineart');
+        const a = ART.computeArtworkScale(300, 400, bom);
+        const L = ART.computeLineartStyle(300, 400, bom);
+        const P = ART.computePaintStyle(300, 400, bom);
+        const finitos = [a.scale, L.left, L.top, L.width, L.height, P.left, P.top, P.width, P.height]
+          .every((n) => Number.isFinite(n));
+        return recusaTudo && finitos
+          && Math.abs((P.left + bom.lineartImgX * a.scale) - L.left) < 1e-9;
+      })(),
+      'recusar e cair no enquadramento simples é honesto; `NaN` em `left` é comportamento indefinido na tela da criança');
+
+    check('C60-DOMINIO [D30 · evid. 4/13 · adversarial] a conta da composição tem UM dono: coleção e celebração importam o mesmo módulo — nenhuma cópia local de `computeArtworkScale`/`parseDrawingPayload`',
+      (() => {
+        const donos = ['src/components/coloring60/coloring60ArtComposition.js'];
+        const consumidores = [
+          'src/screens/Coloring60CollectionScreen.js',
+          'src/components/coloring60/Coloring60CompletionOverlay.js',
+        ];
+        const donoOk = donos.every((f) => {
+          const s = readSrc(f);
+          return /export function computeArtworkScale/.test(s) && /export function parseDrawingPayload/.test(s);
+        });
+        return donoOk && consumidores.every((f) => {
+          const s = readSrc(f);
+          const importa = /from '[./]*(?:components\/)?coloring60\/?coloring60ArtComposition'/.test(s)
+            || /from '\.\/coloring60ArtComposition'/.test(s);
+          // Nenhuma DEFINIÇÃO local das quatro funções (usar é obrigatório; redefinir é proibido).
+          const redefine = /function (computeArtworkScale|computeLineartStyle|computePaintStyle|parseDrawingPayload)\s*\(/.test(s);
+          return importa && !redefine;
+        });
+      })(),
+      'duas cópias da mesma conta divergem em silêncio — o endurecimento de geometria valeria só numa das telas');
   }
 
   // ══════════════════════════════════════════════════════════════════════════════

@@ -341,9 +341,17 @@ export function deriveColoring60CollectionView({ doneMap = {}, order = null } = 
     next: id === nextId,
   }));
 
+  // AÇÕES DA TELA PRÓPRIA DE COLEÇÃO (C60 · Parte 7). A coleção deixou de ser uma camada sobre o
+  // desenho aberto e virou uma TELA — então "Continuar neste desenho" não existe mais aqui: não há
+  // "este desenho". Com as três prontas, a ação principal é sair pela porta da frente (voltar à
+  // aventura) e a secundária é recomeçar a jornada de cores. Faltando parte, a principal convida a
+  // completar em vez de fingir que a criação está inteira.
   const primaryAction = allComplete
     ? { kind: COLORING60_ACTION.BACK, label: 'Voltar à aventura' }
     : { kind: COLORING60_ACTION.OPEN_NEXT, label: 'Completar a jornada de cores', targetActivityId: nextId };
+  const secondaryAction = allComplete
+    ? { kind: COLORING60_ACTION.RESTART, label: 'Colorir novamente', targetActivityId: ids[0] ?? null }
+    : { kind: COLORING60_ACTION.BACK, label: 'Voltar à aventura' };
 
   return Object.freeze({
     mode: COLORING60_COLLECTION_MODE,
@@ -354,9 +362,73 @@ export function deriveColoring60CollectionView({ doneMap = {}, order = null } = 
     nextIncompleteActivityId: nextId,
     steps: Object.freeze(steps),
     primaryAction: Object.freeze(primaryAction),
-    secondaryAction: Object.freeze({ kind: COLORING60_ACTION.STAY, label: 'Continuar neste desenho' }),
+    secondaryAction: Object.freeze(secondaryAction),
     tertiaryAction: null,
     countLabel: `${completedCount} de ${total}`,
+    progressLabel: `${completedCount} de ${total}`,
+  });
+}
+
+/** Mensagem em superfície sólida sob as três obras (C60 · Parte 7). */
+export const COLORING60_COLLECTION_MESSAGE = 'Você encheu a Criação de luz, vida e cuidado!';
+
+/** Texto do carregamento da coleção — nunca lineart piscando no lugar da obra (C60 · Parte 8). */
+export const COLORING60_COLLECTION_LOADING = 'Montando sua coleção...';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PONTE PÓS-HISTÓRIA (C60 · Parte 10)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Fala do Beni no topo da conclusão da história. Duas linhas, na ordem exata: primeiro reconhece o
+ * que acabou, depois convida ao passo seguinte. É o texto literal aprovado — não parafrasear.
+ */
+export const COLORING60_STORY_BRIDGE_MESSAGE = 'A história terminou.\nAgora vamos dar cor à Criação?';
+
+/**
+ * Título que passa a abrigar TODO o restante da conclusão (livrinho, quiz, próxima aventura,
+ * recompensas, certificado, resumo). A tela pós-história não é redesenhada neste bloco: ela ganha
+ * uma hierarquia — primeiro o próximo passo, depois o que foi conquistado.
+ */
+export const COLORING60_STORY_REST_TITLE = 'Veja tudo que você conquistou';
+
+/**
+ * deriveColoring60StoryBridge — DERIVAÇÃO da ponte entre a história e a jornada de cores (§Parte 10).
+ *
+ * Uma ÚNICA ação, dinâmica pelo progresso REAL (o mesmo `doneMap` reconciliado que a coleção usa):
+ *   0 de 3   ⇒ "Começar a jornada de cores"   (abre a primeira parte que falta)
+ *   1–2 de 3 ⇒ "Continuar a jornada de cores" (abre a próxima parte que falta, na ordem canônica)
+ *   3 de 3   ⇒ "Ver minha coleção"            (abre a coleção; não há parte a sugerir)
+ *
+ * Por que a ponte NÃO oferece um leque de opções: a evidência física era justamente uma tela
+ * sobrecarregada, em que o próximo passo (colorir com o Beni) não aparecia. Aqui existe UM convite;
+ * tudo o mais continua na tela, abaixo, sob `COLORING60_STORY_REST_TITLE`.
+ *
+ * Puro e síncrono como o resto do módulo: recebe o retrato, devolve a decisão. Não navega, não lê.
+ */
+export function deriveColoring60StoryBridge({ doneMap = {}, order = null } = {}) {
+  const ids = normalizeOrder(order);
+  const total = ids.length;
+  const completedCount = ids.filter((id) => isDone(doneMap, id)).length;
+  const allComplete = total > 0 && completedCount >= total;
+  const nextId = allComplete ? null : nextIncompleteActivityId(doneMap, ids);
+
+  const action = allComplete
+    ? { kind: COLORING60_ACTION.COLLECTION, label: 'Ver minha coleção', targetActivityId: null }
+    : {
+      kind: COLORING60_ACTION.OPEN_NEXT,
+      label: completedCount === 0 ? 'Começar a jornada de cores' : 'Continuar a jornada de cores',
+      targetActivityId: nextId ?? ids[0] ?? null,
+    };
+
+  return Object.freeze({
+    message: COLORING60_STORY_BRIDGE_MESSAGE,
+    restSectionTitle: COLORING60_STORY_REST_TITLE,
+    completedCount,
+    totalActivities: total,
+    allActivitiesComplete: allComplete,
+    nextIncompleteActivityId: nextId,
+    action: Object.freeze(action),
     progressLabel: `${completedCount} de ${total}`,
   });
 }

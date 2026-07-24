@@ -31,9 +31,26 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getColoring60Activity } from '../data/coloring60Catalog';
+import { snapshotHasMeaningfulColor } from './coloring60PaintMetrics';
+import { SNAPSHOT_STATUS, isSnapshotAcceptable } from './coloring60State';
 
 // Prefixo PRÓPRIO da conclusão Colorir 60 (isolado dos namespaces de pixels e do legado).
+// `DONE` responde "está concluída AGORA" — é REVERSÍVEL (limpar o desenho a remove).
 const DONE_PREFIX = '@ptf_coloring60_done_';
+// `EVER` responde "já foi concluída alguma vez" — sobrevive a limpar UMA folha e só é apagada
+// pelo reset canônico da jornada. Existe para que `DONE` possa voltar a falso SEM que a
+// experiência trate quem já chegou lá como quem nunca chegou. NUNCA substitui `DONE` (Parte 2).
+const EVER_PREFIX = '@ptf_coloring60_ever_';
+// `FINALE_SEEN` é por HISTÓRIA (não por atividade): a grande conclusão das três já foi exibida.
+// É o que impede a festa 3/3 de repetir a cada reedição — e o reset total a limpa.
+const FINALE_SEEN_PREFIX = '@ptf_coloring60_finale_seen_';
+// `SNAP` registra QUAL foi o desfecho do instantâneo no momento em que a conclusão foi gravada:
+// `ready` (a arte foi guardada em disco) ou `notPersisted` (o plano Grátis não guarda pixels —
+// decisão travada do projeto). Sem este registro seria impossível cumprir "não permitir 3 de 3 sem
+// três instantâneos válidos" DEPOIS de reabrir o app: uma conclusão órfã (a arte sumiu do disco)
+// seria indistinguível de uma conclusão legítima do plano Grátis. A ausência da chave é tratada
+// como `missing` — quebra de integridade — e NÃO conta para o total.
+const SNAP_PREFIX = '@ptf_coloring60_snap_';
 
 /**
  * coloring60DoneKey(storyId, activityId) — construtor INTERNO da chave de conclusão (NÃO exportado).
@@ -44,6 +61,21 @@ const DONE_PREFIX = '@ptf_coloring60_done_';
  */
 function coloring60DoneKey(storyId, activityId) {
   return `${DONE_PREFIX}${storyId}_${activityId}`;
+}
+
+/** Chave de "já concluiu alguma vez" (mesma identidade validada; namespace próprio). */
+function coloring60EverKey(storyId, activityId) {
+  return `${EVER_PREFIX}${storyId}_${activityId}`;
+}
+
+/** Chave do desfecho do instantâneo (`ready` | `notPersisted`) desta identidade. */
+function coloring60SnapKey(storyId, activityId) {
+  return `${SNAP_PREFIX}${storyId}_${activityId}`;
+}
+
+/** Chave da grande conclusão já exibida — por HISTÓRIA, não por atividade. */
+function coloring60FinaleSeenKey(storyId) {
+  return `${FINALE_SEEN_PREFIX}${storyId}`;
 }
 
 /**
@@ -64,15 +96,41 @@ function isValidIdentity(storyId, activityId) {
 }
 
 /**
- * markColoring60ActivityDone(storyId, activityId) — marca a atividade como concluída (booleano
- * leve). PLAN-AGNÓSTICO (Free e Família concluem). Retorna `true` em sucesso, `false` se a
- * identidade for inválida OU se a escrita falhar (nunca lança, nunca reporta sucesso falso).
- * NÃO persiste pixels, NÃO concede estrela, NÃO conclui cena narrativa.
+ * markColoring60ActivityDone(storyId, activityId, paintProof, snapshotStatus) — passo 7 da
+ * TRANSAÇÃO ATÔMICA (Parte 4): marca a atividade como concluída AGORA. PLAN-AGNÓSTICO (Free e
+ * Família concluem).
+ *
+ * BLOQUEIO NA FUNÇÃO DE DOMÍNIO (Parte 3). Antes, a pré-condição "tem traço" era apenas uma
+ * PROMESSA do chamador — e uma promessa que se provou falsa: folha em branco e desenho apagado
+ * concluíam. Agora a prova viaja junto: `paintProof` é o INSTANTÂNEO exportado pelo motor, que
+ * carrega a contagem real de pixels pintados e pintáveis. Sem prova, ou com prova que não alcança
+ * a cobertura mínima, NADA é escrito e o retorno é `false`. Nenhum chamador consegue mais concluir
+ * uma folha vazia, mesmo que a interface falhe em desabilitar o botão.
+ *
+ * DESFECHO DO INSTANTÂNEO (Parte 4). `snapshotStatus` precisa ser um desfecho ACEITÁVEL — `ready`
+ * (arte guardada em disco) ou `notPersisted` (plano Grátis, que por decisão travada não guarda
+ * pixels). Qualquer outro valor, inclusive ausente, rejeita a conclusão: uma falha de persistência
+ * NÃO vira "3 de 3".
+ *
+ * UMA ÚNICA AÇÃO (passo 9). As três chaves — conclusão, desfecho do instantâneo e memória de "já
+ * concluiu" — vão num único `multiSet`. Se ele falhar, o retorno é `false` e nada é anunciado; um
+ * eventual registro parcial só pode faltar a conclusão (que é o que conta), nunca sobrar.
+ *
+ * Retorna `true` em sucesso; `false` para identidade inválida, prova insuficiente, desfecho
+ * inaceitável ou falha de escrita (nunca lança, nunca reporta sucesso falso). NÃO persiste pixels,
+ * NÃO concede estrela, NÃO conclui cena narrativa. Marca também `hasEverCompleted` — que é
+ * monotônico e NÃO substitui esta conclusão reversível.
  */
-export async function markColoring60ActivityDone(storyId, activityId) {
+export async function markColoring60ActivityDone(storyId, activityId, paintProof, snapshotStatus) {
   if (!isValidIdentity(storyId, activityId)) return false;
+  if (!snapshotHasMeaningfulColor(paintProof)) return false; // fail-closed: sem cor real, sem conclusão
+  if (!isSnapshotAcceptable(snapshotStatus)) return false; // fail-closed: sem instantâneo íntegro, sem conclusão
   try {
-    await AsyncStorage.setItem(coloring60DoneKey(storyId, activityId), 'true');
+    await AsyncStorage.multiSet([
+      [coloring60DoneKey(storyId, activityId), 'true'],
+      [coloring60SnapKey(storyId, activityId), snapshotStatus],
+      [coloring60EverKey(storyId, activityId), 'true'],
+    ]);
     return true;
   } catch {
     return false;
@@ -104,7 +162,156 @@ export async function loadColoring60Done(storyId, activityId) {
 export async function clearColoring60Done(storyId, activityId) {
   if (!isValidIdentity(storyId, activityId)) return false;
   try {
-    await AsyncStorage.removeItem(coloring60DoneKey(storyId, activityId));
+    // SIMÉTRICO de verdade: o desfecho do instantâneo sai JUNTO com a conclusão. Deixá-lo para trás
+    // criaria um registro fantasma — "instantâneo pronto" para uma atividade que não está concluída.
+    await AsyncStorage.multiRemove([
+      coloring60DoneKey(storyId, activityId),
+      coloring60SnapKey(storyId, activityId),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * loadColoring60JourneyRecord(storyId, activityIds) — LEITURA EM LOTE do registro de conclusão da
+ * jornada inteira, numa única ida ao storage (`multiGet`). É a fonte que alimenta a derivação do
+ * estado canônico (`coloring60State.deriveColoring60JourneyState`).
+ *
+ * Devolve `{ storyId, finaleSeen, activities: [{ activityId, isCurrentlyComplete, hasEverCompleted,
+ * storedSnapshotStatus }] }`. `storedSnapshotStatus` é o que está GRAVADO — `ready`,
+ * `notPersisted`, ou `missing` quando não há registro (conclusões antigas, anteriores a esta chave,
+ * caem aqui). Quem tem acesso aos pixels reconcilia isso com a existência da arte antes de derivar;
+ * este serviço não lê pixels (SEPARAÇÃO CONCLUSÃO ≠ SALVAMENTO).
+ *
+ * NUNCA LANÇA — mas também NUNCA CONFUNDE "não fez" com "não deu para ler" (C60 · portão adversarial
+ * de persistência). Quando o `multiGet` falha, o retrato volta todo falso E MARCADO com
+ * `readFailed: true`. A marca existe porque um retrato falso indistinguível de "criança não começou"
+ * é exatamente a mentira que este bloco veio matar: a ponte pós-história convidaria a "começar a
+ * jornada de cores" quem já pintou as três partes. Quem só desenha rótulo pode ignorar a marca;
+ * quem decide o que a criança faz a seguir (o leitor reconciliado, a coleção) é obrigado a olhá-la.
+ */
+export async function loadColoring60JourneyRecord(storyId, activityIds = []) {
+  const ids = isValidStory(storyId) && Array.isArray(activityIds)
+    ? activityIds.filter((id) => isValidIdentity(storyId, id))
+    : [];
+  const empty = {
+    storyId,
+    finaleSeen: false,
+    activities: ids.map((id) => ({
+      activityId: id,
+      isCurrentlyComplete: false,
+      hasEverCompleted: false,
+      storedSnapshotStatus: SNAPSHOT_STATUS.MISSING,
+    })),
+  };
+  if (ids.length === 0) return empty;
+
+  const keys = [];
+  ids.forEach((id) => {
+    keys.push(coloring60DoneKey(storyId, id));
+    keys.push(coloring60SnapKey(storyId, id));
+    keys.push(coloring60EverKey(storyId, id));
+  });
+  keys.push(coloring60FinaleSeenKey(storyId));
+
+  let map;
+  try {
+    const pairs = await AsyncStorage.multiGet(keys);
+    map = new Map(pairs);
+  } catch {
+    // Leitura INDISPONÍVEL ≠ jornada vazia. O valor continua utilizável (tudo falso) para quem só
+    // precisa desenhar, mas carimbado para quem precisa da verdade.
+    return { ...empty, readFailed: true };
+  }
+
+  const readSnap = (raw) => (
+    raw === SNAPSHOT_STATUS.READY || raw === SNAPSHOT_STATUS.NOT_PERSISTED
+      ? raw
+      : SNAPSHOT_STATUS.MISSING
+  );
+
+  return {
+    storyId,
+    finaleSeen: map.get(coloring60FinaleSeenKey(storyId)) === 'true',
+    activities: ids.map((id) => ({
+      activityId: id,
+      isCurrentlyComplete: map.get(coloring60DoneKey(storyId, id)) === 'true',
+      hasEverCompleted: map.get(coloring60EverKey(storyId, id)) === 'true',
+      storedSnapshotStatus: readSnap(map.get(coloring60SnapKey(storyId, id))),
+    })),
+  };
+}
+
+/**
+ * loadColoring60Ever(storyId, activityId) — "esta atividade já foi concluída ALGUMA VEZ?".
+ * Somente-leitura. Este sinal NUNCA é usado no lugar de `loadColoring60Done` para dizer que algo
+ * está concluído agora (Parte 2): ele existe para não repetir a primeira vez e para reconhecer
+ * quem volta. Erro de leitura ⇒ false.
+ */
+export async function loadColoring60Ever(storyId, activityId) {
+  if (!isValidIdentity(storyId, activityId)) return false;
+  try {
+    return (await AsyncStorage.getItem(coloring60EverKey(storyId, activityId))) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * loadColoring60FinaleSeen(storyId) / markColoring60FinaleSeen(storyId) — a GRANDE conclusão das
+ * três já foi exibida nesta história? Registro por HISTÓRIA. É o que impede a festa 3/3 de
+ * repetir a cada reedição (Parte 9); o reset canônico o apaga, devolvendo a primeira vez real.
+ * `storyId` é validado pela existência de PELO MENOS uma atividade do piloto naquela história.
+ */
+function isValidStory(storyId) {
+  return typeof storyId === 'string' && storyId.length > 0;
+}
+
+export async function loadColoring60FinaleSeen(storyId) {
+  if (!isValidStory(storyId)) return false;
+  try {
+    return (await AsyncStorage.getItem(coloring60FinaleSeenKey(storyId))) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export async function markColoring60FinaleSeen(storyId) {
+  if (!isValidStory(storyId)) return false;
+  try {
+    await AsyncStorage.setItem(coloring60FinaleSeenKey(storyId), 'true');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * clearColoring60Completion(storyId, activityIds) — apaga TODO o registro de CONCLUSÃO desta
+ * história: "concluída agora" e "já concluiu alguma vez" de cada atividade informada, mais a
+ * marca da grande conclusão vista.
+ *
+ * FONTE ÚNICA DE CHAVES (Parte 6): este é o único lugar que sabe montar as chaves de conclusão.
+ * O reset canônico (`coloring60ResetService`) chama esta função em vez de repetir prefixos —
+ * assim não existem duas listas de chaves para divergirem. Age SÓ nas identidades informadas:
+ * sem `getAllKeys`, sem prefixo aberto, sem `clear()`. Nunca lança.
+ */
+export async function clearColoring60Completion(storyId, activityIds = []) {
+  if (!isValidStory(storyId)) return false;
+  const ids = Array.isArray(activityIds)
+    ? activityIds.filter((id) => isValidIdentity(storyId, id))
+    : [];
+  const keys = [];
+  ids.forEach((id) => {
+    keys.push(coloring60DoneKey(storyId, id));
+    keys.push(coloring60SnapKey(storyId, id));
+    keys.push(coloring60EverKey(storyId, id));
+  });
+  keys.push(coloring60FinaleSeenKey(storyId));
+  try {
+    await AsyncStorage.multiRemove(keys);
     return true;
   } catch {
     return false;

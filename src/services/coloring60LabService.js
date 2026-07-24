@@ -23,36 +23,38 @@
  *   - Conclusão é sempre escrita/removida pela API pública de `coloring60ActivityService` (a mesma
  *     que o app usa): a bancada não inventa formato de chave de conclusão.
  *
- * PIXELS — por que a chave é montada aqui: o writer de pixels (`coloring60DrawingStorage`) tem UM
- * único chamador autorizado por invariante arquitetural provado no smoke — o `ColoringScreen`.
- * Importá-lo aqui quebraria esse isolamento. Então a bancada apenas REMOVE o ponteiro das artes
- * daquelas três identidades, montando a chave a partir do MESMO literal do writer; o smoke prova
- * que os dois literais continuam idênticos (drift reprova o gate). É remoção de ponteiro: o
- * arquivo de imagem em disco é órfão e será sobrescrito no próximo salvamento — aceitável numa
- * bancada de desenvolvimento e, ainda assim, restrito às três identidades do piloto.
+ * SEEDS COM PINTURA DE VERDADE (C60 · Parte 6). Antes, "definir 2/3" escrevia apenas FLAGS: o
+ * aparelho ficava em um estado que o app real nunca produz — concluído sem arte — e foi exatamente
+ * assim que a bancada passou a MASCARAR os defeitos que deveria expor. Agora a bancada só marca uma
+ * parte como concluída quando existe, no armazenamento, uma PINTURA REAL com instantâneo íntegro
+ * daquela identidade: ela LÊ a arte guardada e a entrega como prova de cor. Sem arte, a bancada
+ * RECUSA e diz o que falta ("pinte esta parte uma vez"). Nenhum estado impossível é fabricado.
+ *
+ * PIXELS — leitura sim, escrita jamais: `saveColoring60DrawingState` continua com UM único chamador
+ * possível em todo o `src/` (o `ColoringScreen`), e o smoke prova isso separadamente. A bancada usa
+ * apenas as APIs de LEITURA e de LIMPEZA do serviço de pixels — nunca cria arte.
+ *
+ * RESET — a bancada NÃO tem reset próprio: ela chama `resetCreationColoringJourney()`, a MESMA
+ * função usada por "Gerenciar dados" na Área dos Pais. Era aqui que ficava a segunda lista de
+ * chaves do piloto (que removia o ponteiro e deixava o ARQUIVO no disco); ela deixou de existir.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   markColoring60ActivityDone,
   loadColoring60Done,
   clearColoring60Done,
 } from './coloring60ActivityService';
+import {
+  getColoring60SavedDrawing,
+  hasColoring60SavedDrawing,
+} from './coloring60DrawingStorage';
+import { snapshotHasMeaningfulColor } from './coloring60PaintMetrics';
+import { SNAPSHOT_STATUS } from './coloring60State';
+import { resetCreationColoringJourney } from './coloring60ResetService';
 import { getColoring60Activities } from '../data/coloring60Catalog';
 import { isCreatorQaModeEnabled } from './creatorQaMode';
 
 /** História do piloto. A bancada NÃO opera em nenhuma outra. */
 export const COLORING60_LAB_STORY_ID = 'creation';
-
-/**
- * Prefixo do PONTEIRO de arte do Colorir 60 — espelho literal do writer
- * (`@ptf_drawing60_s<storyId>_a<activityId>`). Não é uma segunda fonte de verdade: o smoke compara
- * este literal com o do writer e reprova se divergirem.
- */
-const C60_DRAWING_KEY_PREFIX = '@ptf_drawing60_s';
-
-function drawingPointerKey(storyId, activityId) {
-  return `${C60_DRAWING_KEY_PREFIX}${storyId}_a${activityId}`;
-}
 
 /**
  * isColoring60LabAllowed() — DUPLO gate exigido: build de desenvolvimento **E** Modo Criador ligado.
@@ -85,57 +87,87 @@ export async function readColoring60LabState() {
 }
 
 /**
+ * readColoring60LabArtMap() — quais partes têm PINTURA REAL guardada. É o que a bancada mostra ao
+ * lado de cada estado: sem arte, o estado correspondente não pode ser semeado (e a tela explica).
+ */
+export async function readColoring60LabArtMap() {
+  if (!isColoring60LabAllowed()) return {};
+  const ids = coloring60LabActivityIds();
+  const map = {};
+  for (const id of ids) {
+    // eslint-disable-next-line no-await-in-loop -- três leituras pontuais numa tela de bancada.
+    map[id] = (await hasColoring60SavedDrawing(COLORING60_LAB_STORY_ID, id)) === true;
+  }
+  return map;
+}
+
+/**
+ * markLabActivityFromRealArt(activityId) — marca UMA parte como concluída usando a PINTURA REAL
+ * guardada como prova de cor. Devolve `true` só quando existe arte íntegra e com cor suficiente:
+ * flag sem pintura é exatamente o estado impossível que esta bancada não pode mais fabricar.
+ */
+async function markLabActivityFromRealArt(activityId) {
+  const art = await getColoring60SavedDrawing(COLORING60_LAB_STORY_ID, activityId);
+  if (!snapshotHasMeaningfulColor(art)) return false; // sem pintura real ⇒ não semeia
+  return markColoring60ActivityDone(
+    COLORING60_LAB_STORY_ID, activityId, art, SNAPSHOT_STATUS.READY,
+  );
+}
+
+/**
  * setColoring60LabProgress(count) — deixa EXATAMENTE as `count` primeiras partes concluídas (na
  * ordem canônica) e as demais não concluídas. É o que torna cada momento alcançável:
  *   0 → a próxima conclusão encena "0 para 1";
  *   1 → encena "1 para 2";
  *   2 → a próxima conclusão é a GRANDE CONCLUSÃO (2 para 3);
  *   3 → tudo concluído: encena os fluxos de reedição (UPDATE) e a coleção.
- * Não mexe em pixels: a arte já pintada continua lá, e é justamente isso que permite reencenar a
- * primeira conclusão rapidamente. Devolve o novo retrato.
+ *
+ * CONSISTÊNCIA (Parte 6): só marca o que TEM pintura real guardada. As partes sem arte ficam não
+ * concluídas e voltam em `missingArt` — a bancada diz "pinte esta parte uma vez" em vez de fabricar
+ * um "3 de 3" que o app real nunca produziria. Devolve `{ state, missingArt }`.
  */
 export async function setColoring60LabProgress(count) {
-  if (!isColoring60LabAllowed()) return {};
+  if (!isColoring60LabAllowed()) return { state: {}, missingArt: [] };
   const ids = coloring60LabActivityIds();
   const target = Math.max(0, Math.min(ids.length, Number.isFinite(count) ? Math.trunc(count) : 0));
+  const missingArt = [];
   for (let i = 0; i < ids.length; i += 1) {
-    // eslint-disable-next-line no-await-in-loop -- ordem importa: o retrato final precisa ser exato.
-    if (i < target) await markColoring60ActivityDone(COLORING60_LAB_STORY_ID, ids[i]);
-    // eslint-disable-next-line no-await-in-loop
-    else await clearColoring60Done(COLORING60_LAB_STORY_ID, ids[i]);
+    if (i < target) {
+      // eslint-disable-next-line no-await-in-loop -- ordem importa: o retrato final precisa ser exato.
+      const marked = await markLabActivityFromRealArt(ids[i]);
+      if (marked !== true) {
+        missingArt.push(ids[i]);
+        // eslint-disable-next-line no-await-in-loop
+        await clearColoring60Done(COLORING60_LAB_STORY_ID, ids[i]); // sem arte ⇒ não fica concluída
+      }
+    } else {
+      // eslint-disable-next-line no-await-in-loop
+      await clearColoring60Done(COLORING60_LAB_STORY_ID, ids[i]);
+    }
   }
-  return readColoring60LabState();
+  return { state: await readColoring60LabState(), missingArt };
 }
 
 /**
  * prepareColoring60LabUpdate(activityId) — garante que a parte indicada esteja CONCLUÍDA antes de
  * abri-la, para que salvar ali caia no fluxo de REEDIÇÃO (UPDATE) e não numa primeira conclusão.
  * Não altera as outras partes: é assim que se testa "reedição com progresso incompleto" (§Parte 6)
- * separadamente de "reedição com tudo concluído" (§Parte 7).
+ * separadamente de "reedição com tudo concluído" (§Parte 7). Exige pintura real, como todo o resto.
  */
 export async function prepareColoring60LabUpdate(activityId) {
   if (!isColoring60LabAllowed()) return false;
   if (coloring60LabActivityIds().indexOf(activityId) < 0) return false;
-  return markColoring60ActivityDone(COLORING60_LAB_STORY_ID, activityId);
+  return markLabActivityFromRealArt(activityId);
 }
 
 /**
- * clearColoring60Lab() — apaga SÓ o Colorir 60 de "A Criação": as três conclusões e os três
- * ponteiros de arte. Nada mais. As chaves são as três do catálogo, uma a uma — nenhuma varredura,
- * nenhum prefixo aberto, nenhuma chave de outra camada. Devolve o retrato final (tudo falso).
+ * clearColoring60Lab() — volta ao 0/3 chamando o RESET CANÔNICO da jornada, o mesmo de "Gerenciar
+ * dados". A bancada não tem mais lista de chaves própria: conclusão, memória de "já concluiu",
+ * grande conclusão vista, pixels, ARQUIVOS FÍSICOS, convite e caches em memória saem todos pela
+ * função única. Devolve o retrato final (tudo falso) lido do disco.
  */
 export async function clearColoring60Lab() {
   if (!isColoring60LabAllowed()) return {};
-  const ids = coloring60LabActivityIds();
-  for (const id of ids) {
-    // eslint-disable-next-line no-await-in-loop -- três remoções pontuais numa tela de bancada.
-    await clearColoring60Done(COLORING60_LAB_STORY_ID, id);
-  }
-  try {
-    await AsyncStorage.multiRemove(ids.map((id) => drawingPointerKey(COLORING60_LAB_STORY_ID, id)));
-  } catch {
-    // Falhar ao limpar ponteiro de arte NUNCA invalida o reset de conclusão (que é o que encena os
-    // momentos). A bancada segue devolvendo o retrato real do que ficou.
-  }
+  await resetCreationColoringJourney(COLORING60_LAB_STORY_ID);
   return readColoring60LabState();
 }

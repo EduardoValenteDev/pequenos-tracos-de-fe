@@ -52,6 +52,13 @@ import BeniMascotImage from '../common/BeniMascotImage';
 import SoundButton from '../SoundButton';
 import { playUiSound } from '../../services/audioManager';
 import { colors, radii, spacing, shadows } from '../../theme/productTheme';
+import {
+  parseDrawingPayload,
+  isPositionedPayload,
+  toArtVisual,
+  computeLineartStyle,
+  computePaintStyle,
+} from './coloring60ArtComposition';
 
 // Utilitário local: converte um hex de 6 dígitos do tema em rgba com alfa (para vinhetas, auras e
 // acentos translúcidos derivados da MESMA paleta — sem cor nova e sem dependência).
@@ -74,54 +81,11 @@ function rgba(hex, a) {
 // ─────────────────────────────────────────────────────────────────────────────
 const FINALE_ART_TIMEOUT_MS = 7000;
 
-/** Lê o payload salvo (v1 data-URL ou v2 JSON com layout). Cópia local do parser do Livrinho. */
-function parseDrawingPayload(raw) {
-  if (!raw) return null;
-  try {
-    if (raw.startsWith('data:')) {
-      return { uri: raw, W: null, H: null, imgX: null, imgY: null, imgW: null, imgH: null };
-    }
-    const p = JSON.parse(raw);
-    if (!p?.data) return null;
-    return {
-      uri: p.data,
-      W: p.W ?? null, H: p.H ?? null,
-      imgX: p.imgX ?? null, imgY: p.imgY ?? null,
-      imgW: p.imgW ?? null, imgH: p.imgH ?? null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/** Escala do RETÂNGULO DA ARTE dentro da miniatura (mesma matemática do Livrinho). */
-function computeArtworkScale(containerW, containerH, v) {
-  if (!containerW || !containerH || !v.canvasW || !v.canvasH || !v.lineartImgW || !v.lineartImgH) {
-    return null;
-  }
-  const scale = Math.min(containerW / v.lineartImgW, containerH / v.lineartImgH);
-  const rectW = v.lineartImgW * scale;
-  const rectH = v.lineartImgH * scale;
-  const rectLeft = (containerW - rectW) / 2;
-  const rectTop = (containerH - rectH) / 2;
-  return { scale, rectW, rectH, rectLeft, rectTop };
-}
-function computeLineartStyle(containerW, containerH, v) {
-  const a = computeArtworkScale(containerW, containerH, v);
-  if (!a) return { position: 'absolute', opacity: 0 };
-  return { position: 'absolute', left: a.rectLeft, top: a.rectTop, width: a.rectW, height: a.rectH };
-}
-function computePaintStyle(containerW, containerH, v) {
-  const a = computeArtworkScale(containerW, containerH, v);
-  if (!a) return null;
-  return {
-    position: 'absolute',
-    left: a.rectLeft - v.lineartImgX * a.scale,
-    top: a.rectTop - v.lineartImgY * a.scale,
-    width: v.canvasW * a.scale,
-    height: v.canvasH * a.scale,
-  };
-}
+// A MATEMÁTICA DA COMPOSIÇÃO NÃO MORA MAIS AQUI. Ela vive em `coloring60ArtComposition` e é a
+// MESMA usada pela tela de coleção: eram duas cópias idênticas do parser e das três contas, e
+// duas cópias divergem — foi por isso que o endurecimento de geometria do portão adversarial
+// (medida não-finita nunca vira `left`/`width`) precisava ser escrito duas vezes para valer nas
+// duas superfícies. Agora existe um dono só.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Atmosfera FECHADA por atividade (§Parte 6) — textos e paleta são contrato, não sugestão.
@@ -177,13 +141,12 @@ const ALL_DONE_MESSAGE = 'Cada desenho mostrou um jeito especial de ver, cuidar 
 const FINALE_COUNT_LABEL = '3 de 3';
 const FINALE_GALLERY_LABEL = 'Minha Criação Cheia de Cor';
 
-// [C60-P13-COLLECTION] VER A COLEÇÃO (§Parte 2/7) — a mesma composição de galeria, mas como um lugar
-// que a criança VISITA (não um evento que acontece). É o destino da ação "Ver minha coleção" (cartão
-// da história e UPDATE 3/3) e de "Ver meus desenhos" (grande conclusão). Não é conclusão: não repete
-// a grande conclusão, não celebra de novo e não altera progresso — só mostra as três obras juntas.
-const COLLECTION_TITLE = 'A sua coleção de cores';
-const COLLECTION_BENI_LINE = 'Aqui estão as três partes que você encheu de cor!';
-const COLLECTION_MESSAGE = 'Luz, vida e cuidado — as três juntas formam a sua Criação.';
+// [C60-PARTE-7] O MODO 'collection' FOI REMOVIDO DESTA CAMADA. Ele reaproveitava a composição da
+// GRANDE CONCLUSÃO — que nasce sobre a pintura recém-feita, com o véu temático da parte aberta e os
+// textos sobre a arte — para uma coisa de natureza diferente: um lugar que a criança VISITA. Daí a
+// coleção mudar de fundo e de composição conforme a origem, e os textos caírem sobre as obras.
+// A coleção agora é `Coloring60CollectionScreen`: tela própria, fundo neutro, nenhum texto sobre a
+// obra, resultado idêntico venha de onde vier. Esta camada voltou a ser SÓ conclusão.
 
 // ATUALIZAÇÃO (§Parte 5): quando a criança conclui DE NOVO uma atividade JÁ concluída, o Beni ADMIRA
 // a nova arte e diz a frase EXATA POR ATIVIDADE (contrato P12R — não reformular). Textos CURTOS de
@@ -209,7 +172,7 @@ const MOTIF_COLOR = { dot: colors.gold, leaf: colors.green, heart: colors.coral,
 
 // [C60-P12-PARTICLES] Quantidade de partículas por modo (§Parte 9): update 7–12, primeira 12–18,
 // fecho 18–24. Movimento reduzido usa um punhado estático (brilho localizado, sem subida).
-const PARTICLE_COUNT = { update: 10, activity: 15, finale: 21, collection: 8 };
+const PARTICLE_COUNT = { update: 10, activity: 15, finale: 21 };
 const PARTICLE_COUNT_REDUCED = 5;
 
 // [C60-P12R-TIMELINE] O DIRETOR único (§Parte 3). Os TRÊS níveis têm ritmos DELIBERADAMENTE
@@ -225,9 +188,6 @@ const TIMELINE = {
   update: { ambient: 220, beniDelay: 160, balloonDelay: 500, particleDelay: 340, particleDur: 2100, progressDelay: 0, actionsDelay: 2000, galleryStagger: 0 },
   activity: { ambient: 320, beniDelay: 300, balloonDelay: 760, particleDelay: 720, particleDur: 3300, progressDelay: 1500, actionsDelay: 3600, galleryStagger: 0 },
   finale: { ambient: 460, beniDelay: 440, balloonDelay: 1000, particleDelay: 900, particleDur: 5800, progressDelay: 1300, actionsDelay: 5600, galleryStagger: 320 },
-  // VER A COLEÇÃO não é um evento de conclusão: é um lugar. Abre rápido (ações tocáveis em ~0,9 s),
-  // sem o crescendo da grande conclusão — a criança veio VER, não esperar uma cerimônia de novo.
-  collection: { ambient: 200, beniDelay: 120, balloonDelay: 320, particleDelay: 260, particleDur: 1800, progressDelay: 160, actionsDelay: 900, galleryStagger: 110 },
 };
 
 // [C60-P12-SEED] PRNG determinístico (xfnv1a → mulberry32). Semente por STRING (activityId +
@@ -377,8 +337,9 @@ function activityOrderIndex(activityId) {
 //              e, como fallback determinístico, na PRIMEIRA atividade ("Haja luz" — a luz nasce no
 //              alto, o Beni ergue o olhar). Demais primeiras conclusões → celebraFrente (pico frontal).
 function pickBeniPose(mode, canvasFrame, artRect, activityId, nextIsLast = false) {
-  // A grande conclusão E a visita à coleção apresentam as três obras: mesma pose, mesmo sentido.
-  if (mode === 'finale' || mode === 'collection') return 'apresentaGaleria';
+  // A grande conclusão apresenta as três obras. (A COLEÇÃO usa a mesma pose, mas na tela própria —
+  // ver Coloring60CollectionScreen; aqui não existe mais modo de coleção.)
+  if (mode === 'finale') return 'apresentaGaleria';
   if (mode === 'update') {
     return pickBeniSide(mode, canvasFrame, artRect, activityId) === 'right'
       ? 'admiraEsquerda'
@@ -596,26 +557,21 @@ const markerStyles = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────────────────────
 // [C60-P10-GALLERY] Miniatura de UMA arte no fecho. Compõe COR + CONTORNO (paint por baixo, lineart
 // por cima com multiply) e SÓ revela a composição quando as duas imagens carregam JUNTAS — nunca cor
-// sem traço. Sem cor (Grátis não persistido / atividade sem arte / falha/timeout) → FALLBACK OFICIAL
-// = o contorno sozinho (asset existente). A arte chega por PROPS; este componente não lê storage.
+// sem traço. A arte chega por PROPS; este componente não lê storage.
+//
+// [C60-PARTE-8] O CONTORNO SOZINHO SAIU DAQUI. Ele fazia dois papéis proibidos: placeholder enquanto
+// a cor não chegava (a obra "aparecia sem cor e depois recuperava a pintura" — a evidência física) e
+// fallback definitivo quando não havia cor (o que exibe como "obra" justamente o que a criança NÃO
+// pintou). Nos dois casos o lugar agora é um espaço NEUTRO: enquanto carrega, papel silencioso; sem
+// arte para mostrar, papel com um sinal discreto. O contorno só existe COMPOSTO sobre a tinta.
 // ─────────────────────────────────────────────────────────────────────────────
 const FINALE_THUMB_W = 92;
 const FINALE_THUMB_H = 116; // ~4:5 retrato, a mesma proporção dos linearts do piloto (1122×1402)
 
 function FinaleDrawingThumb({ paint, lineart, marker, tint, tintDeep, tintSoft, revealStyle }) {
   const parsed = paint ? parseDrawingPayload(paint) : null;
-  const positioned = !!(
-    parsed && parsed.W && parsed.H
-    && parsed.imgX !== null && parsed.imgY !== null && parsed.imgW && parsed.imgH
-  );
-  const visual = parsed
-    ? {
-        paintUri: parsed.uri, baseImage: lineart,
-        canvasW: parsed.W, canvasH: parsed.H,
-        lineartImgX: parsed.imgX, lineartImgY: parsed.imgY,
-        lineartImgW: parsed.imgW, lineartImgH: parsed.imgH,
-      }
-    : null;
+  const positioned = isPositionedPayload(parsed);
+  const visual = toArtVisual(parsed, lineart);
   const hasColor = !!(parsed && lineart);
 
   const [paintLoaded, setPaintLoaded] = useState(false);
@@ -635,11 +591,11 @@ function FinaleDrawingThumb({ paint, lineart, marker, tint, tintDeep, tintSoft, 
     return () => clearTimeout(t);
   }, [hasColor, colorReady, failed]);
 
-  // O contorno sozinho serve de placeholder honesto enquanto a cor não chega E de fallback oficial
-  // definitivo (sem cor, ou quando a cor falha/estoura). Some assim que a composição colorida fica
-  // pronta → nunca dois contornos ao mesmo tempo, nunca cor sem traço.
-  const showLineartAlone = !!lineart && !colorReady;
-  const lineartSoloStyle = positioned && lineartAbsStyle ? lineartAbsStyle : StyleSheet.absoluteFill;
+  // [C60-PARTE-8] Enquanto a composição colorida não está pronta, o espaço fica NEUTRO (papel).
+  // Quando não há arte a mostrar — ou a leitura falhou/estourou —, ele permanece neutro com um sinal
+  // discreto. Em nenhum dos dois casos aparece contorno sem cor.
+  const showPlaceholder = !colorReady;
+  const showEmptyMark = !hasColor || giveUp;
 
   return (
     <Animated.View style={[galleryStyles.thumbCol, revealStyle]}>
@@ -669,13 +625,9 @@ function FinaleDrawingThumb({ paint, lineart, marker, tint, tintDeep, tintSoft, 
           </View>
         )}
 
-        {showLineartAlone && (
-          <Image source={lineart} style={lineartSoloStyle} resizeMode={positioned ? 'stretch' : 'contain'} fadeDuration={0} />
-        )}
-
-        {!lineart && (
+        {showPlaceholder && (
           <View style={[StyleSheet.absoluteFill, galleryStyles.thumbEmpty]}>
-            <MaterialCommunityIcons name="image-outline" size={22} color={tintSoft} />
+            {showEmptyMark ? <MaterialCommunityIcons name="image-outline" size={22} color={tintSoft} /> : null}
           </View>
         )}
       </View>
@@ -901,10 +853,11 @@ export default function Coloring60CompletionOverlay({
   const { reduceMotion, ready } = useReduceMotion();
   const atmo = atmosphereOf(activityId);
   const isUpdate = mode === 'update';
-  const isCollection = mode === 'collection';
   const isFinale = mode === 'finale';
-  // A visita à coleção usa a MESMA composição de galeria da grande conclusão (as três obras juntas).
-  const allDone = isFinale || isCollection;
+  // [C60-PARTE-7] `allDone` significa "a GRANDE CONCLUSÃO está acontecendo agora" — e só isso. Antes
+  // ele também valia para a visita à coleção, e era esse empate que fazia um LUGAR ser desenhado com
+  // a gramática de um EVENTO (véu, pico, galeria sobre a pintura aberta).
+  const allDone = isFinale;
 
   // §Parte 1 · a contagem vem da derivação (concordância correta, sem improviso na interface); os
   // `steps` continuam sendo a fonte do desenho da trilha.
@@ -913,7 +866,7 @@ export default function Coloring60CompletionOverlay({
   const countLabel = journey?.countLabel ?? `${doneCount} de ${total}`;
   const nextPart = isUpdate || allDone ? null : (journey?.nextPart ?? null);
 
-  // Acento por modo (fecho/coleção = dourado, mais nobre; senão a cor da atividade).
+  // Acento por modo (grande conclusão = dourado, mais nobre; senão a cor da atividade).
   const accent = allDone ? colors.gold : atmo.tint;
   const accentDeep = allDone ? colors.goldDeep : atmo.tintDeep;
   const accentSoft = allDone ? colors.goldSoft : atmo.tintSoft;
@@ -921,12 +874,10 @@ export default function Coloring60CompletionOverlay({
     ? ['rgba(249,199,79,0)', 'rgba(249,199,79,0.13)', 'rgba(224,162,26,0.32)']
     : atmo.veil;
 
-  // Textos por modo (contrato EXATO do P12 · Partes 5/6/7 + a visita à coleção do P13 · Parte 2/7).
+  // Textos por modo (contrato EXATO do P12 · Partes 5/6/7). Três modos, três textos — sem coleção.
   const updateText = UPDATE_TEXTS[activityId] ?? UPDATE_TEXTS.light;
-  const title = isCollection ? COLLECTION_TITLE
-    : (isFinale ? ALL_DONE_TITLE : (isUpdate ? updateText.title : atmo.title));
-  const beniLine = isCollection ? COLLECTION_BENI_LINE
-    : (isFinale ? ALL_DONE_BENI_LINE : (isUpdate ? updateText.line : atmo.beniLine));
+  const title = isFinale ? ALL_DONE_TITLE : (isUpdate ? updateText.title : atmo.title);
+  const beniLine = isFinale ? ALL_DONE_BENI_LINE : (isUpdate ? updateText.line : atmo.beniLine);
 
   // [C60-P13-ACTIONS] §Parte 3–7 · TODOS os rótulos vêm da derivação canônica. Se (e só se) a
   // jornada não chegar, resta uma saída honesta e nunca um beco sem saída.
@@ -983,8 +934,6 @@ export default function Coloring60CompletionOverlay({
   useEffect(() => {
     if (!ready || peakFiredRef.current) return undefined;
     peakFiredRef.current = true;
-    // VER A COLEÇÃO não é conclusão: nada de háptica nem de som de sucesso (a criança só veio ver).
-    if (isCollection) return undefined;
     // §Parte 6 · háptica de RECONHECIMENTO no início, por nível (nunca vibração repetitiva):
     //   UPDATE   → leve (selection): "o Beni percebeu".
     //   FIRST    → médio (impact Medium): "eu consegui terminar uma parte".
@@ -1006,7 +955,6 @@ export default function Coloring60CompletionOverlay({
   // "Reduzir movimento" (§Parte 7). Não é vibração repetitiva — é o pico afetivo da coleção completa.
   const finalePeakRef = useRef(false);
   useEffect(() => {
-    // Só a GRANDE CONCLUSÃO real tem pico (a visita à coleção, nunca).
     if (!ready || !isFinale || reduceMotion || finalePeakRef.current) return undefined;
     finalePeakRef.current = true;
     const t = setTimeout(() => {
@@ -1208,15 +1156,13 @@ export default function Coloring60CompletionOverlay({
               <Text style={[styles.titleBig, { color: accentDeep }]}>{title}</Text>
               <Text style={styles.beniLine}>{beniLine}</Text>
               <View style={[styles.countPill, styles.countPillStart, { backgroundColor: accentSoft, borderColor: accent }]}>
-                <Text style={[styles.countPillText, { color: accentDeep }]}>
-                  {isCollection ? `${doneCount} de ${total}` : FINALE_COUNT_LABEL}
-                </Text>
+                <Text style={[styles.countPillText, { color: accentDeep }]}>{FINALE_COUNT_LABEL}</Text>
               </View>
             </Animated.View>
           </View>
 
           <Animated.Text style={[styles.message, styles.messageFinale, progressEnter]} pointerEvents="none">
-            {isCollection ? COLLECTION_MESSAGE : ALL_DONE_MESSAGE}
+            {ALL_DONE_MESSAGE}
           </Animated.Text>
 
           <Animated.View style={[styles.actions, actionsEnter]}>

@@ -35,6 +35,9 @@ import {
   COLORING60_ACTIVITY_THEME,
 } from '../services/coloring60Journey';
 import { colors as pt, radii } from '../theme/productTheme';
+// [C60-PARTE-7] A bancada abre a MESMA coleção da criança — mesma rota, mesmos parâmetros. Se a
+// bancada tivesse um caminho próprio, ela deixaria de testar o que a criança vê.
+import { ROUTES } from '../constants/routes';
 
 // O que cada ponto de partida encena — texto curto, para não errar o teste no aparelho.
 const PRESETS = [
@@ -81,12 +84,25 @@ export default function Coloring60LabScreen({ navigation }) {
     order: activities.map((a) => a.activityId),
   });
 
+  // [C60-PARTE-6] O preset agora pode RECUSAR: uma parte sem pintura real guardada não vira
+  // "concluída". Em vez de fabricar um estado que o app nunca produz (a origem de metade dos
+  // defeitos deste bloco), a bancada diz exatamente o que falta pintar.
   async function applyPreset(count) {
     if (busy) return;
     setBusy(true);
-    const map = await setColoring60LabProgress(count);
-    setDoneMap(map);
+    const { state, missingArt } = await setColoring60LabProgress(count);
+    setDoneMap(state);
     setBusy(false);
+    if (missingArt && missingArt.length > 0) {
+      const nomes = missingArt
+        .map((id) => activities.find((a) => a.activityId === id)?.title ?? id)
+        .join(', ');
+      Alert.alert(
+        'Falta pintura de verdade',
+        `Estas partes ainda não têm arte guardada: ${nomes}.\n\nPinte cada uma UMA vez (e toque em "Pronto!") para que a bancada possa semeá-las. Estado semeado sem pintura é justamente o que mascarava os defeitos.`,
+        [{ text: 'Entendi' }],
+      );
+    }
   }
 
   async function openUpdate(activityId) {
@@ -99,19 +115,17 @@ export default function Coloring60LabScreen({ navigation }) {
     navigation.navigate('Coloring', { storyId: COLORING60_LAB_STORY_ID, activityId });
   }
 
+  // [C60-PARTE-7] Coleção = tela própria, sem atividade de origem. É exatamente esta ausência de
+  // parâmetro que a bancada precisa exercitar: a coleção tem de sair idêntica vindo daqui, da tela
+  // da história ou do fim de uma parte.
   function openCollection() {
-    const last = activities[activities.length - 1]?.activityId;
-    navigation.navigate('Coloring', {
-      storyId: COLORING60_LAB_STORY_ID,
-      activityId: last,
-      showCollection: true,
-    });
+    navigation.navigate(ROUTES.COLORING60_COLLECTION, { storyId: COLORING60_LAB_STORY_ID });
   }
 
   function confirmClear() {
     Alert.alert(
       'Limpar o Colorir 60 de A Criação?',
-      'Apaga SÓ as três conclusões e as três artes desta história. Onboarding, perfil, plano, packs, downloads, estrelas, conquistas e o progresso das outras histórias NÃO são tocados.',
+      'Usa o MESMO reset de "Gerenciar dados": apaga as três conclusões, as três artes (inclusive os arquivos em disco), a memória de "já concluiu", a grande conclusão vista e o convite do Beni — devolvendo a experiência de primeira vez. Onboarding, perfil, plano, packs, downloads, estrelas, conquistas e o progresso das outras histórias NÃO são tocados.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {

@@ -19,6 +19,7 @@ import StoryDetailScreen from '../screens/StoryDetailScreen';
 import NarrationScreen from '../screens/NarrationScreen';
 import ColoringScreen from '../screens/ColoringScreen';
 import ColoringQaScreen from '../screens/ColoringQaScreen';
+import Coloring60CollectionScreen from '../screens/Coloring60CollectionScreen';
 import Coloring60LabScreen from '../screens/Coloring60LabScreen';
 import SceneValidationScreen from '../screens/SceneValidationScreen';
 import CongratsScreen from '../screens/CongratsScreen';
@@ -356,6 +357,14 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Coloring"
           component={ColoringScreen}
+          options={{ headerShown: false }}
+        />
+        {/* Colorir 60 · Parte 7 — a COLEÇÃO virou TELA PRÓPRIA (antes era uma camada por cima do
+            desenho aberto, o que fazia fundo, contraste e composição mudarem conforme a origem).
+            A rota é pública porque a autorização do piloto é decidida DENTRO da tela. */}
+        <Stack.Screen
+          name="Coloring60Collection"
+          component={Coloring60CollectionScreen}
           options={{ headerShown: false }}
         />
         {/* M1: QA do Criador (testar desenhos) — rota registrada SÓ sob o gate interno,

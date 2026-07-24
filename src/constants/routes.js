@@ -31,6 +31,12 @@ export const ROUTES = Object.freeze({
   CONGRATS: 'Congrats',
   POST_STORY_HUB: 'PostStoryHub',
   COLORING: 'Coloring',
+  /**
+   * Colorir 60 — a COLEÇÃO das três obras (C60 · Parte 7). Tela PRÓPRIA, e não mais uma camada
+   * sobre o desenho aberto: é o que garante composição idêntica venha de onde vier. O gate do
+   * piloto vive dentro da tela (a rota sozinha não autoriza nada).
+   */
+  COLORING60_COLLECTION: 'Coloring60Collection',
 
   // ── Criação (nomes legados: NÃO renomear, quebram navegação) ──────────────
   ATELIER_CANVAS: 'AtelierCanvas',

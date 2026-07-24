@@ -36,6 +36,8 @@ import {
   hasSeenCreationColoringInvite, markCreationColoringInviteSeen,
 } from '../services/coloring60JourneyInvite';
 import CreationColoringJourneySection from '../components/coloring60/CreationColoringJourneySection';
+// [C60-PARTE-7] A coleção tem rota própria; o nome vem da fonte única de rotas.
+import { ROUTES } from '../constants/routes';
 
 const CREATION_STORY_ID = 'creation';
 
@@ -266,19 +268,13 @@ export default function StoryDetailScreen({ route, navigation }) {
     navigation.navigate('Coloring', { storyId: CREATION_STORY_ID, activityId });
   }
 
-  // [C60-P13-CARD] §Parte 2 · "Ver minha coleção" (cartão em 3 de 3). A coleção mostra as TRÊS obras
-  // REAIS reunidas — e só o ColoringScreen lê pixels salvos (o writer/reader é isolado lá). Por isso
-  // a coleção é a MESMA tela, aberta com `showCollection`, e não uma rota nova: navegamos para a
-  // última parte (contexto coerente para "Continuar neste desenho") pedindo a vista de coleção.
-  // Abrir a coleção NÃO conclui nada e NÃO repete a grande conclusão (§Parte 5).
-  function openCreationColoringCollection(activityId) {
-    const activities = getColoring60Activities(CREATION_STORY_ID);
-    const lastId = activities[activities.length - 1]?.activityId ?? 'people_and_care';
-    navigation.navigate('Coloring', {
-      storyId: CREATION_STORY_ID,
-      activityId: activityId ?? lastId,
-      showCollection: true,
-    });
+  // [C60-PARTE-7] "Ver minha coleção" (cartão em 3 de 3). A coleção é uma TELA PRÓPRIA e lê tudo do
+  // armazenamento: por isso NÃO recebe atividade nenhuma. Antes ela abria a tela de colorir na última
+  // parte pedindo uma camada por cima — e a mesma coleção mudava de fundo e de composição conforme a
+  // parte de origem. Agora a entrada é a mesma venha de onde vier: só a história.
+  // Abrir a coleção NÃO conclui nada e NÃO repete a grande conclusão.
+  function openCreationColoringCollection() {
+    navigation.navigate(ROUTES.COLORING60_COLLECTION, { storyId: CREATION_STORY_ID });
   }
 
   // §7 · "Colorir agora": abre a PRIMEIRA atividade ainda não concluída (ordem do catálogo); se

@@ -216,6 +216,14 @@ async function writeSlot(slotName, payload) {
       W: p.W ?? null, H: p.H ?? null,
       imgX: p.imgX ?? null, imgY: p.imgY ?? null,
       imgW: p.imgW ?? null, imgH: p.imgH ?? null,
+      // MEDIDA DA TINTA (C60 · Parte 4). `rev` casa pintura ↔ instantâneo dentro da transação
+      // atômica; `paintedPx`/`paintablePx` são a prova de que a arte guardada TEM cor de verdade.
+      // Sem carregar isto no ponteiro, o instantâneo relido do disco voltaria "sem medida" e uma
+      // arte legítima seria classificada como vazia na reidratação. São três números — o blob
+      // grande continua no arquivo, o metadado segue leve.
+      rev: p.rev ?? null,
+      paintedPx: p.paintedPx ?? null,
+      paintablePx: p.paintablePx ?? null,
     };
   }
 
@@ -240,10 +248,16 @@ async function resolvePointer60(value) {
   const dataUrl = await readBlobAsDataUrl(p.uri, p.mime || 'image/png');
   if (!dataUrl) return null; // ponteiro órfão (arquivo sumiu): ausência honesta
   if (p.fmt === 2) {
+    // A medida da tinta volta EXATAMENTE como foi gravada (C60 · Parte 4). Ponteiros antigos, sem
+    // esses campos, devolvem `null` — e `coloring60PaintMetrics` trata ausência de medida como
+    // "não comprovado", nunca como "tem cor". Nenhum leitor antigo quebra: `v` continua 2.
     return JSON.stringify({
       v: 2, W: p.W ?? null, H: p.H ?? null,
       imgX: p.imgX ?? null, imgY: p.imgY ?? null,
       imgW: p.imgW ?? null, imgH: p.imgH ?? null,
+      rev: p.rev ?? null,
+      paintedPx: p.paintedPx ?? null,
+      paintablePx: p.paintablePx ?? null,
       data: dataUrl,
     });
   }
@@ -411,6 +425,36 @@ export async function hasColoring60SavedDrawing(storyId, activityId) {
   if (!validateIdentity(storyId, activityId)) return false;
   const payload = await getColoring60SavedDrawing(storyId, activityId);
   return payloadHasPaint(payload);
+}
+
+/**
+ * [C60-PARTE-10] hasColoring60SnapshotRecord(storyId, activityId) — SONDA LEVE: existe REGISTRO de
+ * instantâneo recuperável para esta identidade?
+ *
+ * POR QUE EXISTE (e por que NÃO substitui `hasColoring60SavedDrawing`). Superfícies que só precisam
+ * do CONTADOR da jornada (a ponte pós-história, por exemplo) não podem pagar o preço de carregar
+ * três imagens em base64 só para descobrir "faltam quantas partes" — seria memória grande e leitura
+ * de arquivo numa tela de celebração. Esta sonda lê APENAS o metadado no AsyncStorage:
+ *   - ponteiro v3 (arte em arquivo) ⇒ true SEM abrir o arquivo;
+ *   - valor inline ⇒ aplica o mesmo critério de tinta real do módulo;
+ *   - ausência/erro ⇒ false.
+ *
+ * LIMITE HONESTO, DECLARADO: por não abrir o arquivo, um ponteiro cujo blob sumiu (órfão) ainda
+ * responde `true` aqui. Por isso quem EXIBE a arte (a tela da coleção) continua obrigada a usar
+ * `getColoring60SavedDrawing`/`hasColoring60SavedDrawing` — a evidência FORTE, que resolve o
+ * ponteiro e devolve ausência honesta. Esta sonda serve a rótulo/roteamento, nunca a desenho.
+ * NÃO consulta entitlement, NÃO escreve, NÃO faz healing.
+ */
+export async function hasColoring60SnapshotRecord(storyId, activityId) {
+  if (!validateIdentity(storyId, activityId)) return false;
+  try {
+    const raw = await AsyncStorage.getItem(keyDrawing60(storyId, activityId));
+    if (!raw) return false;
+    if (isPointer60(raw)) return true;
+    return payloadHasPaint(raw);
+  } catch {
+    return false;
+  }
 }
 
 /**

@@ -36,4 +36,18 @@ export async function markCreationColoringInviteSeen() {
   }
 }
 
-export default { hasSeenCreationColoringInvite, markCreationColoringInviteSeen };
+/**
+ * clearCreationColoringInvite() — apaga a memória do convite, devolvendo a EXPERIÊNCIA DE
+ * PRIMEIRO USO (C60 · Parte 6). Chamada apenas pelo reset canônico da jornada de cores: como o
+ * convite pertence a este módulo, é ele quem conhece a chave — o reset não repete o literal.
+ * Melhor esforço; nunca lança.
+ */
+export async function clearCreationColoringInvite() {
+  try {
+    await AsyncStorage.removeItem(INVITE_KEY);
+  } catch (e) {
+    warn('coloring60JourneyInvite.clear:', e);
+  }
+}
+
+export default { hasSeenCreationColoringInvite, markCreationColoringInviteSeen, clearCreationColoringInvite };

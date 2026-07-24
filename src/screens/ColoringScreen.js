@@ -30,6 +30,9 @@ import { isCreatorQaModeEnabled } from '../services/creatorQaMode';
 import { beginImmersiveMoment } from '../services/immersiveMoment';
 import FaithIcon from '../components/ui/FaithIcon';
 import { backLabelFor } from '../utils/originBack';
+// [C60-PARTE-7] A coleção é uma TELA PRÓPRIA (não mais uma camada sobre o desenho aberto). O nome
+// da rota vem da fonte única para que esta tela não conheça a implementação da coleção — só o destino.
+import { ROUTES } from '../constants/routes';
 // P2.T2 (Colorir 60) — resolvedor local ADITIVO por (storyId, activityId). Consumido
 // SOMENTE no ramo aditivo abaixo; o caminho legado por cena não o toca.
 import {
@@ -43,9 +46,27 @@ import {
 import {
   markColoring60ActivityDone,
   loadColoring60Done,
+  // [C60-PARTE-9] A GRANDE conclusão é um acontecimento ÚNICO por história. Estes dois selam isso:
+  // lemos ao abrir e marcamos quando ela é EXIBIDA — assim recolorir uma parte (ou limpar e pintar
+  // de novo) devolve o "3 de 3", mas nunca repete a festa. Só o reset canônico apaga esta marca.
+  loadColoring60FinaleSeen,
+  markColoring60FinaleSeen,
   // [C60-P12R-RESET] Limpeza SIMÉTRICA da conclusão — usada só pelo reset seguro de Dev (§Parte 1/10).
   clearColoring60Done,
 } from '../services/coloring60ActivityService';
+// [C60-PARTE-3/4] MEDIDA REAL DA TINTA e MODELO CANÔNICO DE ESTADO. Puros, sem I/O. `hasMeaningfulColor`
+// substitui a promessa `onPainted` (mão única, que nunca voltava a falso ao apagar) por uma medida do
+// motor; `snapshotMatchesRevision` é o passo 6 da transação; `SNAPSHOT_STATUS` distingue "arte guardada"
+// de "plano Grátis não guarda" — sem essa distinção, ou o Grátis nunca chega a 3 de 3, ou uma conclusão
+// órfã (arte sumida do disco) passaria por legítima.
+import {
+  hasMeaningfulColor,
+  readPaintMetricsFromSnapshot,
+  snapshotMatchesRevision,
+  normalizePaintMetrics,
+  EMPTY_PAINT_METRICS,
+} from '../services/coloring60PaintMetrics';
+import { SNAPSHOT_STATUS } from '../services/coloring60State';
 // P8 (Colorir 60) — ordem FECHADA das três atividades (fonte única: o catálogo) e a experiência
 // afetiva de conclusão. O componente é presentacional: recebe o que já aconteceu e devolve a
 // escolha da criança; não decide conclusão, não persiste e não conhece plano.
@@ -56,9 +77,10 @@ import Coloring60CompletionOverlay, {
 // [C60-P13-JOURNEY] §Parte 1 — DERIVAÇÃO CANÔNICA da jornada de cores (puro, sem I/O). É a ÚNICA
 // autoridade sobre "o que acabei de completar / quanto completei / o que vem depois / quais ações".
 // A máquina de conclusão abaixo CONSULTA esta derivação em vez de reinferir contagens na mão.
+// [C60-PARTE-7] `deriveColoring60CollectionView` saiu daqui junto com a camada de coleção: quem a
+// consome agora é a TELA da coleção. A derivação continua sendo a mesma e única — mudou o consumidor.
 import {
   deriveColoring60Completion,
-  deriveColoring60CollectionView,
   COLORING60_ACTION,
 } from '../services/coloring60Journey';
 // P7 (Colorir 60) — a LEITURA da arte guardada vem do MESMO serviço dedicado do piloto
@@ -74,6 +96,9 @@ import {
 // P6 (Colorir 60) — autorização do piloto visível. Reusa a flag OFICIAL do piloto (default
 // false, inalterada) e o mecanismo ÚNICO de ferramentas internas já existente. Nenhuma
 // configuração paralela de ferramentas internas é criada aqui.
+// [C60-PARTE-6] RESET CANÔNICO — a MESMA função de "Gerenciar dados" e da bancada. O helper de
+// desenvolvimento desta tela deixou de ter limpeza própria: existe uma só, e é esta.
+import { resetCreationColoringJourney } from '../services/coloring60ResetService';
 import { COLORIR_60_CREATION_PILOT_ENABLED } from '../config/featureFlags';
 import { isInternalToolsEnabled } from '../config/internalTools';
 // P8B (Colorir 60) — aquecimento da pose de conclusão do Beni. Usa apenas o `Image.prefetch` do
@@ -228,15 +253,34 @@ function createC60AttemptController() {
 // criança, §5). Falhas técnicas de verdade (`write_failed`, `invalid_identity`) continuam
 // no tratamento de erro por `onSaveIssue`. `onCelebrate` é dependência OPCIONAL: sem ela o
 // núcleo mantém EXATAMENTE o comportamento anterior (voltar após gravação confirmada).
+// P·C60-PARTE-3/4 · A ORDEM MUDOU, e mudou por causa de uma falha comprovada no aparelho: a
+// conclusão era gravada ANTES da pintura, então uma folha em branco (e um desenho apagado) virava
+// "concluída" e o "3 de 3" existia sem três artes. A ordem agora é a da transação atômica:
+//   1. validar que existe COR DE VERDADE (medida do motor, não a promessa `onPainted`);
+//   2. CONGELAR a revisão validada;
+//   3-5. persistir a pintura — que É o instantâneo (um único artefato carrega pixels + revisão,
+//        por isso "gerar" e "persistir o instantâneo da MESMA revisão" não podem divergir aqui);
+//   6. VERIFICAR que o que ficou guardado é a mesma revisão validada;
+//   7. só então marcar `isCurrentlyComplete` (com a prova de cor e o desfecho do instantâneo);
+//   8-9. atualizar contador e memória numa única ação;
+//   10. só depois disso celebrar;
+//   11. e só depois disso a coleção fica disponível.
+// Qualquer falha em 3-6 NÃO marca, NÃO incrementa, NÃO abre a coleção e NÃO some com a pintura:
+// a criança continua na atividade, com a arte na tela, e pode tentar de novo.
 function beginC60Attempt(deps) {
   const {
     controller, canvasRef, activeRef,
-    available, ready, painted, saving,
-    storyId, activityId, setSaving, goBack, onSaveIssue, onCelebrate,
+    available, ready, hasColor, saving,
+    storyId, activityId, setSaving, goBack, onSaveIssue, onCelebrate, onEmptyPaint,
   } = deps;
   if (!available || saving) return; // guard visual complementar (a trava real é o controller)
   if (!ready) return;       // D1: sem lineart pronto não conclui nem salva
-  if (!painted) return;     // D5: sem traço significativo não conclui nem salva
+  if (!hasColor) {
+    // FOLHA SEM COR (Parte 3). Não é erro nem falha técnica: é um convite. Nada é marcado, nada é
+    // gravado, nenhum som de sucesso — a paleta pulsa e o Beni pede um pouquinho de cor.
+    if (typeof onEmptyPaint === 'function') onEmptyPaint();
+    return;
+  }
   const token = controller.acquire(); // LOCK SÍNCRONO antes de setSaving/exportPaint
   if (token == null) return;          // segunda tentativa no mesmo tick para AQUI (antes do export)
   setSaving(true);
@@ -254,44 +298,86 @@ function beginC60Attempt(deps) {
       // marca/salva/navega e não libera uma tentativa nova.
       if (!activeRef.current || !controller.isCurrent(token)) return;
       try {
-        if (!isAcceptableC60Payload(exportData) || !hasMeaningfulPaint(exportData)) return;
-        // CONCLUSÃO ≠ SALVAMENTO: marca a conclusão (plan-agnóstica) ANTES do writer.
-        const completed = await markColoring60ActivityDone(attemptStoryId, attemptActivityId);
-        if (completed !== true) { // conclusão não persistida ⇒ writer NÃO é chamado, sem navegar
-          if (__DEV__) console.log('[Coloring60] conclusão NÃO persistida; writer não chamado');
+        // ── PASSO 1 · VALIDAR COR DE VERDADE ────────────────────────────────────────────────
+        // A prova é o próprio instantâneo: ele carrega a contagem de pixels pintados e pintáveis
+        // medida pelo motor. Uma folha em branco (ou apagada) morre AQUI, antes de qualquer escrita.
+        if (!isAcceptableC60Payload(exportData)) return;
+        const metrics = readPaintMetricsFromSnapshot(exportData);
+        if (!hasMeaningfulColor(metrics)) {
+          if (typeof onEmptyPaint === 'function') onEmptyPaint();
           return;
         }
-        // Writer dedicado (revalida o plano internamente). Falha JAMAIS apaga a conclusão.
+        // ── PASSO 2 · CONGELAR A REVISÃO VALIDADA ───────────────────────────────────────────
+        // Daqui em diante, "a pintura" é ESTA revisão. Se a criança pintar mais durante a gravação,
+        // o que for guardado ainda será exatamente o que foi validado — ou a transação falha.
+        const revisionId = metrics.revisionId;
+
+        // ── PASSOS 3-5 · PERSISTIR A PINTURA (que É o instantâneo desta revisão) ────────────
+        // Um único artefato carrega pixels + revisão; por isso "gerar o instantâneo da MESMA
+        // revisão" e "persistir o instantâneo" não são duas escritas que possam divergir.
         const result = await saveColoring60DrawingState(attemptStoryId, attemptActivityId, exportData);
         const resultLabel =
           result === COLORING60_SAVE_RESULT.SAVED ? 'saved'
           : result === COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE ? 'not_persisted_free'
           : result === COLORING60_SAVE_RESULT.WRITE_FAILED ? 'write_failed'
           : 'invalid_identity';
-        if (__DEV__) console.log('[Coloring60] conclusão preservada; persistência:', resultLabel);
         if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante o writer
-        // FALHA TÉCNICA de verdade (escrita falhou ou identidade recusada): a tela NÃO fecha e NÃO
-        // celebra — anunciar sucesso aqui seria mentir. A pintura continua visível, a conclusão já
-        // persistida é preservada e o desfecho é comunicado de forma honesta.
-        const celebravel = result === COLORING60_SAVE_RESULT.SAVED
-          || result === COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE;
-        if (!celebravel) {
+        // Falha de persistência: NÃO marca, NÃO incrementa, NÃO abre a coleção. A pintura continua
+        // na tela (recuperável) e a criança pode tentar de novo.
+        if (result !== COLORING60_SAVE_RESULT.SAVED
+          && result !== COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE) {
+          if (__DEV__) console.log('[Coloring60] persistência falhou; nada marcado:', resultLabel);
           if (typeof onSaveIssue === 'function') onSaveIssue(resultLabel);
           return;
         }
-        // Desfecho celebrável: a experiência assume daqui, e QUEM NAVEGA é a criança (§4.7).
-        // `persisted` é informativo e honesto (nunca vira "salvo" quando não foi) — a experiência
-        // infantil é a mesma nos dois casos e não menciona plano.
+
+        // ── PASSO 6 · VERIFICAR QUE O GUARDADO É A MESMA REVISÃO ────────────────────────────
+        // Quando houve gravação em disco, RELEMOS o que ficou lá. É a diferença entre "o writer
+        // disse que deu certo" e "a arte certa está guardada". Divergência ⇒ transação abortada.
+        let snapshotStatus = SNAPSHOT_STATUS.NOT_PERSISTED;
+        if (result === COLORING60_SAVE_RESULT.SAVED) {
+          const stored = await getColoring60SavedDrawing(attemptStoryId, attemptActivityId);
+          if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante a releitura
+          if (!snapshotMatchesRevision(stored, revisionId)) {
+            if (__DEV__) console.log('[Coloring60] instantâneo guardado diverge da revisão validada');
+            if (typeof onSaveIssue === 'function') onSaveIssue('snapshot_mismatch');
+            return;
+          }
+          snapshotStatus = SNAPSHOT_STATUS.READY;
+        }
+        // Plano Grátis (`not_persisted_free`): por decisão travada do projeto os pixels não vão para
+        // o disco. O instantâneo validado existe EM MEMÓRIA e acompanha a celebração — o desfecho
+        // registrado é `notPersisted`, que é honesto e conta como conclusão legítima.
+
+        // ── PASSOS 7-9 · CONCLUSÃO, CONTADOR E MEMÓRIA, NUMA ÚNICA AÇÃO ─────────────────────
+        // A prova de cor e o desfecho do instantâneo viajam juntos: o serviço de domínio recusa
+        // qualquer um dos dois faltando. Sem isso, não existe "3 de 3".
+        const completed = await markColoring60ActivityDone(
+          attemptStoryId, attemptActivityId, exportData, snapshotStatus,
+        );
+        if (completed !== true) {
+          if (__DEV__) console.log('[Coloring60] conclusão NÃO persistida; nada celebrado');
+          if (typeof onSaveIssue === 'function') onSaveIssue('complete_failed');
+          return;
+        }
+        if (__DEV__) console.log('[Coloring60] transação concluída; instantâneo:', snapshotStatus);
+        if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante a marcação
+
+        // ── PASSOS 10-11 · SÓ AGORA A RECOMPENSA — E SÓ AGORA A COLEÇÃO ─────────────────────
+        // Quem navega é a criança (§4.7). `persisted` é informativo e honesto (nunca vira "salvo"
+        // quando não foi); a experiência infantil é a mesma nos dois casos e não menciona plano.
         if (typeof onCelebrate === 'function') {
-          // P10 · o instantâneo (snapshot) da pintura recém-exportada acompanha o desfecho: a
-          // experiência de conclusão usa a arte ATUAL mesmo quando o plano não persiste (Grátis),
-          // sem o overlay precisar tocar o writer. `persisted` continua honesto (nunca vira "salvo").
-          onCelebrate({ persisted: result === COLORING60_SAVE_RESULT.SAVED, snapshot: exportData });
+          onCelebrate({
+            persisted: result === COLORING60_SAVE_RESULT.SAVED,
+            snapshot: exportData,
+            snapshotStatus,
+            activityId: attemptActivityId,
+          });
           return;
         }
         goBack();
-      } catch (err) { // mark/writer lançou: conclusão preservada, SEM unhandled rejection
-        if (__DEV__) console.log('[Coloring60] erro na conclusão (conclusão preservada):', err?.message);
+      } catch (err) { // writer/mark lançou: nada anunciado, SEM unhandled rejection
+        if (__DEV__) console.log('[Coloring60] erro na transação (pintura preservada):', err?.message);
       } finally {
         // Libera SOMENTE o token vigente (um callback antigo não libera a tentativa nova) e reabilita
         // a tela apenas se a instância ainda estiver ativa.
@@ -317,6 +403,20 @@ function beginC60Attempt(deps) {
 // atrás da capa; o atraso do indicador evita que ele "pisque" em cargas muito rápidas.
 const HYDRATION_COVER_TIMEOUT_MS = 8000;
 const HYDRATION_SPINNER_DELAY_MS = 350;
+
+// [C60-PARTE-3] Resposta ao "Pronto!" numa folha sem cor. Texto de convite, nunca de erro.
+const C60_EMPTY_PAINT_TITLE = 'Falta um pouquinho de cor';
+const C60_EMPTY_PAINT_MESSAGE = 'Coloque um pouquinho de cor antes de terminar!';
+// Dica lida por leitor de tela quando "Pronto!" está desabilitado — a mesma explicação, sem alarde.
+const C60_EMPTY_PAINT_HINT = 'Coloque um pouquinho de cor antes de terminar!';
+
+// [C60-PARTE-5] "Limpar desenho" — confirmação com os textos exatos do bloco. A frase extra só
+// aparece quando a atividade está concluída AGORA: é a consequência real, dita antes de acontecer.
+const C60_CLEAR_TITLE = 'Começar este desenho de novo?';
+const C60_CLEAR_MESSAGE = 'Todas as cores desta parte serão apagadas.';
+const C60_CLEAR_MESSAGE_DONE_SUFFIX = ' Ela sairá da sua coleção até você colorir novamente.';
+const C60_CLEAR_CONFIRM = 'Limpar desenho';
+const C60_CLEAR_CANCEL = 'Continuar colorindo';
 
 // [C60-P13-PREWARM] Teto do AQUECIMENTO da próxima parte (§Parte 10). O aquecimento é uma vantagem,
 // nunca uma prisão: passado este tempo a ação principal LIBERA de qualquer jeito e a próxima tela
@@ -349,12 +449,27 @@ function Coloring60ActivityScreen({ route, navigation }) {
   const restoreRef = useRef(null);
   const [c60Color, setC60Color] = useState(COLOR_PALETTE[0].hex);
   const [c60Ready, setC60Ready] = useState(false);      // D1: lineart carregado no canvas
-  const [c60HasPainted, setC60HasPainted] = useState(false); // D5: houve traço significativo
+  // [C60-PARTE-3] MEDIDA REAL DA TINTA, publicada pelo motor a cada operação (pintar, apagar,
+  // desfazer, limpar, retomar). Substitui a promessa de mão única `onPainted` — que subia para true
+  // no primeiro toque e NUNCA voltava, e por isso um desenho apagado continuava "concluível".
+  const [c60PaintMetrics, setC60PaintMetrics] = useState(EMPTY_PAINT_METRICS);
   const [c60Saving, setC60Saving] = useState(false);
+  // Pulso da paleta (Parte 3): quando a criança toca "Pronto!" numa folha sem cor, a paleta chama a
+  // atenção UMA vez. Sem som de sucesso, sem conclusão, sem nada gravado — só um convite.
+  const paletteHintAnim = useRef(new Animated.Value(0)).current;
+  // [C60-PARTE-2] `isDirty`: a pintura na tela mudou depois do último instantâneo confirmado. É um
+  // ref (não estado) de propósito — nenhuma parte da interface renderiza por causa dele; ele existe
+  // para que a coleção não sirva um retrato vencido depois de limpar ou repintar.
+  const c60DirtyRef = useRef(false);
   // [C60-P8-PROGRESS] Progresso das TRÊS atividades do piloto (Luz · Vida · Cuidado). A ORDEM vem
   // do catálogo fechado e a CONCLUSÃO do serviço plan-agnóstico do piloto — nada aqui é progresso
   // narrativo, conquista ou métrica pública da história.
   const [c60DoneMap, setC60DoneMap] = useState({});
+  // [C60-PARTE-9] "A grande conclusão desta história já aconteceu?" — em `ref` porque quem consulta é
+  // a máquina de conclusão, um callback, e não a renderização: o valor precisa estar certo no
+  // instante do toque, sem depender de um novo quadro. Começa `false` (conservador): na pior hipótese
+  // de leitura falha, a festa acontece — nunca o contrário, que seria roubar a primeira vez.
+  const c60FinaleSeenRef = useRef(false);
   // [C60-P8-CELEBRATION] Momento de conclusão em exibição. Enquanto ele está ligado, os controles
   // de pintura somem suavemente e a pintura fica visível e congelada atrás da camada.
   const [c60Celebrating, setC60Celebrating] = useState(false);
@@ -409,6 +524,10 @@ function Coloring60ActivityScreen({ route, navigation }) {
   const available = resolution.status === COLORING60_RESOLUTION_STATUS.AVAILABLE;
   // As três atividades na ordem do catálogo, com o que já foi concluído. Cálculo barato (3 itens)
   // e derivado — sem estado duplicado e sem outra fonte de verdade.
+  // [C60-PARTE-3] "Tem cor de verdade?" — a ÚNICA condição que habilita "Pronto!". Derivada da
+  // medida do motor, é de MÃO DUPLA: apagar tudo devolve `false` no mesmo toque, e desfazer devolve
+  // `true` junto com os pixels. Nenhum estado paralelo, nenhuma memória de "já pintou uma vez".
+  const c60HasColor = hasMeaningfulColor(c60PaintMetrics);
   const c60Steps = getColoring60Activities(storyId)
     .map((a) => ({ id: a.activityId, done: c60DoneMap[a.activityId] === true }));
   const c60NextId = c60Steps.find((s) => !s.done)?.id ?? null;
@@ -432,44 +551,35 @@ function Coloring60ActivityScreen({ route, navigation }) {
     };
   }, []);
 
-  // [C60-P12R-DEV-RESET] §Parte 1/10 · RESET SEGURO para reencenar os estados 0/3, 1/3, 2/3 e 3/3 no
-  // Dev Client sem apagar o mundo. Age SÓ nas 3 atividades de "A Criação" (piloto): apaga a CONCLUSÃO
-  // (chave `@ptf_coloring60_done_creation_*`) e os PIXELS (`@ptf_drawing60_screation_a*`). NÃO toca
-  // onboarding, perfil, packs, downloads, estrelas, conquistas nem outra história/cena. Só existe em
-  // __DEV__ e atrás do gate de ferramentas internas do piloto — jamais no app de produção.
-  //   • __devResetCreationColoring60()   → volta ao 0/3 (nada concluído, sem arte).
-  //   • __devSeedCreationColoring60(n)   → marca n concluídas (0..3) para chegar a 1/3 ou 2/3 e então
-  //     colorir a última no aparelho e observar a transição real 2→3 (a GRANDE conclusão só uma vez).
+  // [C60-PARTE-6] RESET DE DESENVOLVIMENTO — agora é o RESET CANÔNICO, não uma terceira limpeza.
+  //
+  // O que existia aqui: um helper que apagava conclusão + ponteiro de pixels, mas não a memória de
+  // "já concluiu", nem a grande conclusão vista, nem o convite, nem os ARQUIVOS em disco — e um
+  // `__devSeedCreationColoring60(n)` que marcava conclusões SEM pintura. Os dois juntos produziam
+  // exatamente os estados impossíveis que o bloco veio corrigir: "3 de 3" sem arte e uma primeira
+  // vez que nunca voltava. O seed por flag FOI REMOVIDO: semear estado agora é papel da bancada
+  // (Coloring60Lab), que só marca uma parte quando existe pintura real guardada.
+  //
+  // Continua SÓ em __DEV__ e atrás do gate do piloto — jamais no app de produção.
   useEffect(() => {
     if (!__DEV__ || !isColoring60PilotAllowed()) return undefined;
-    const ids = getColoring60Activities('creation').map((a) => a.activityId);
     global.__devResetCreationColoring60 = async () => {
-      for (let i = 0; i < ids.length; i += 1) {
-        await clearColoring60Done('creation', ids[i]); // conclusão (booleano leve)
-        await clearColoring60SavedDrawing('creation', ids[i]); // pixels (writer isolado)
-      }
+      const r = await resetCreationColoringJourney('creation');
+      // A tela montada volta ao primeiro estado junto com o disco (o barramento de invalidação
+      // avisa quem tem cache; aqui zeramos o que é local desta instância).
       setC60DoneMap({});
       setC60Celebrating(false);
       setC60CelebrateMode(null);
       setC60CelebrateSnapshot(null);
       setC60FinaleItems(null);
+      c60FinaleSeenRef.current = false;
       controlsAnim.setValue(1);
-      console.log('[DEV Colorir60] Reset "A Criação": conclusão + pixels das 3 atividades apagados. Estado 0/3.');
+      console.log('[DEV Colorir60] Reset canônico "A Criação":',
+        `ok=${r.ok} residual=${r.residual.length ? r.residual.join(',') : 'nenhum'}. Estado 0/3, primeira vez de volta.`);
     };
-    global.__devSeedCreationColoring60 = async (n = 1) => {
-      const k = Math.max(0, Math.min(ids.length, Number(n) || 0));
-      const next = {};
-      for (let i = 0; i < k; i += 1) {
-        await markColoring60ActivityDone('creation', ids[i]);
-        next[ids[i]] = true;
-      }
-      setC60DoneMap(next);
-      console.log(`[DEV Colorir60] Semeado ${k}/${ids.length} concluída(s) (sem pixels). Para a transição 2→3 use __devSeedCreationColoring60(2) e colorir a 3ª no aparelho.`);
-    };
-    console.log('[DEV Colorir60] Helpers: __devResetCreationColoring60() | __devSeedCreationColoring60(n)');
+    console.log('[DEV Colorir60] Helper: __devResetCreationColoring60() — para semear 1/3 ou 2/3 use a bancada (Colorir 60 Lab), que exige pintura real.');
     return () => {
       delete global.__devResetCreationColoring60;
-      delete global.__devSeedCreationColoring60;
     };
   }, []);
 
@@ -514,16 +624,20 @@ function Coloring60ActivityScreen({ route, navigation }) {
     if (!available) return undefined;
     let alive = true;
     const ids = getColoring60Activities(storyId).map((a) => a.activityId);
-    Promise.all(ids.map((id) => loadColoring60Done(storyId, id)))
+    // [C60-PARTE-9] A marca da grande conclusão viaja JUNTO com o progresso, na mesma leitura de
+    // abertura: quando a criança tocar "Pronto!", a máquina já sabe se a festa das três é inédita.
+    Promise.all([...ids.map((id) => loadColoring60Done(storyId, id)), loadColoring60FinaleSeen(storyId)])
       .then((flags) => {
         if (!alive || !activeRef.current) return;
         const mapa = {};
         ids.forEach((id, i) => { mapa[id] = flags[i] === true; });
+        c60FinaleSeenRef.current = flags[ids.length] === true;
         setC60DoneMap(mapa);
-        // [C60-P13-COLLECTION] Entrada pela tela da história ("Ver minha coleção"): a coleção abre
-        // com o retrato RECÉM-LIDO — nunca com o mapa vazio do primeiro quadro, que mostraria a
-        // criação como incompleta por um instante. Continua sendo só uma VISTA: não conclui nada.
-        if (route.params?.showCollection === true) openC60Collection(mapa);
+        // [C60-PARTE-7] O parâmetro `showCollection` NÃO existe mais. Ele era o que fazia a tela do
+        // EDITOR abrir por cima de si mesma uma camada de coleção — e era por isso que a coleção
+        // dependia da parte de origem para existir. A coleção agora tem rota própria, lida do disco:
+        // quem quer vê-la navega para ROUTES.COLORING60_COLLECTION, de qualquer lugar, com o mesmo
+        // resultado. Nenhuma entrada da coleção passa mais por esta tela.
       })
       .catch((err) => {
         if (__DEV__) console.log('[Coloring60] leitura do progresso das atividades falhou:', err?.message);
@@ -779,12 +893,20 @@ function Coloring60ActivityScreen({ route, navigation }) {
     canvasRef.current?.resetZoom();
     setC60DoneMap((prev) => ({ ...prev, [activityId]: true }));
 
-    if (journey.allActivitiesComplete) {
-      // 2/3 → 3/3 real: GRANDE conclusão (só na PRIMEIRA vez — em edição posterior o modo é UPDATE e
-      // este ramo não é alcançado). Resolve a galeria das três (a atual em memória + as outras duas do
-      // storage) ANTES de a criança tocar em qualquer coisa.
+    // [C60-PARTE-9] A GRANDE conclusão exige DUAS condições, não uma: as três completas AGORA **e**
+    // a festa ainda não vista. Antes bastava a primeira — então limpar uma parte e pintá-la de novo
+    // reencenava a cerimônia inteira, e a "primeira vez" deixava de significar alguma coisa. Voltar
+    // a 3/3 continua sendo comemorado (celebração de atividade, com a coleção como próximo passo);
+    // o que não se repete é o acontecimento único. Só o reset canônico devolve a primeira vez.
+    if (journey.allActivitiesComplete && c60FinaleSeenRef.current !== true) {
+      // 2/3 → 3/3 INÉDITO: GRANDE conclusão. Resolve a galeria das três (a atual em memória + as
+      // outras duas do storage) ANTES de a criança tocar em qualquer coisa.
       setC60CelebrateMode('finale');
       loadC60FinaleItems(snapshot);
+      // Exibiu ⇒ está vista. Marca imediatamente (best-effort, sem segurar a festa): se o app for
+      // fechado no meio, ela já não é mais inédita — que é exatamente a verdade do que aconteceu.
+      c60FinaleSeenRef.current = true;
+      markColoring60FinaleSeen(storyId);
     } else {
       // Ainda falta atividade: celebração CURTA de atividade (a pintura continua protagonista).
       setC60CelebrateMode('activity');
@@ -830,21 +952,20 @@ function Coloring60ActivityScreen({ route, navigation }) {
     navigation.setParams({ activityId: targetActivityId });
   }
 
-  // [C60-P13-COLLECTION] A COLEÇÃO ("as três obras juntas"): mesma camada, modo `collection`. É uma
-  // VISTA revisitável — NÃO conclui nada, NÃO concede recompensa e NÃO repete a grande conclusão
-  // (que só acontece na transição real 2→3, decidida pela derivação). Recebe o retrato de conclusão
-  // explicitamente para poder ser aberta logo após a leitura inicial (entrada pela tela da história),
-  // antes de o estado ter assentado. A galeria é carregada uma vez; sem instantâneo, cada arte vem
-  // do storage — e o que faltar cai no fallback honesto do lineart oficial.
-  function openC60Collection(doneMapForView) {
+  // [C60-PARTE-7] A COLEÇÃO SAIU DAQUI. Antes era uma camada aberta SOBRE o desenho em edição
+  // (`c60CelebrateMode = 'collection'`): a obra atual ficava gigante atrás, o fundo herdava a cor
+  // temática da parte de origem e os textos caíam sobre a arte — a mesma coleção parecia três
+  // coleções diferentes conforme a origem. Agora é uma TELA PRÓPRIA, que lê o estado do disco e não
+  // conhece canvas nenhum. Daqui só resta a NAVEGAÇÃO.
+  //
+  // `replace` (e não `navigate`) de propósito: a coleção toma o lugar do editor na pilha, então o
+  // "Voltar" da coleção cai na AVENTURA — não de volta no desenho que a criança acabou de fechar.
+  // Sem `replace` disponível (navegador sem stack), o caminho seguro é o `navigate` comum.
+  function openC60CollectionScreen() {
     if (!activeRef.current) return;
-    const ids = getColoring60Activities(storyId).map((a) => a.activityId);
-    setC60Journey(deriveColoring60CollectionView({ doneMap: doneMapForView ?? c60DoneMap, order: ids }));
-    setC60CelebrateMode('collection');
-    setC60Celebrating(true);
-    setC60Prewarm('idle');
-    if (c60FinaleItems == null) loadC60FinaleItems(c60CelebrateSnapshot);
-    Animated.timing(controlsAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start();
+    const params = { storyId };
+    if (typeof navigation.replace === 'function') navigation.replace(ROUTES.COLORING60_COLLECTION, params);
+    else navigation.navigate(ROUTES.COLORING60_COLLECTION, params);
   }
 
   // [C60-P13-DISPATCH] DESPACHANTE ÚNICO das ações da jornada. A derivação diz a INTENÇÃO
@@ -859,7 +980,7 @@ function Coloring60ActivityScreen({ route, navigation }) {
       return;
     }
     if (kind === COLORING60_ACTION.STAY) { handleC60ContinueColoring(); return; }
-    if (kind === COLORING60_ACTION.COLLECTION) { openC60Collection(c60DoneMap); return; }
+    if (kind === COLORING60_ACTION.COLLECTION) { openC60CollectionScreen(); return; }
     navigation.goBack();
   }
 
@@ -878,7 +999,7 @@ function Coloring60ActivityScreen({ route, navigation }) {
       activeRef,
       available,
       ready: c60Ready,
-      painted: c60HasPainted,
+      hasColor: c60HasColor,
       saving: c60Saving,
       storyId,
       activityId,
@@ -886,7 +1007,77 @@ function Coloring60ActivityScreen({ route, navigation }) {
       goBack: () => navigation.goBack(),
       onSaveIssue: handleC60SaveIssue,
       onCelebrate: handleC60Celebrate,
+      onEmptyPaint: handleC60EmptyPaint,
     });
+  }
+
+  // [C60-PARTE-3] MEDIDA recebida do motor. Guardada normalizada — é a fonte de `c60HasColor` e,
+  // portanto, de "Pronto!" habilitado ou não. Chega a cada operação que muda a tinta, inclusive
+  // apagar e limpar (por isso o botão volta a desabilitado sozinho).
+  function handleC60PaintState(raw) {
+    if (!activeRef.current) return;
+    setC60PaintMetrics(normalizePaintMetrics(raw));
+  }
+
+  // [C60-PARTE-3] "Pronto!" numa folha sem cor. A função de domínio já recusaria, mas a criança
+  // merece uma resposta — e ela é um CONVITE, não um erro: a paleta pulsa uma vez e o Beni pede um
+  // pouquinho de cor. Sem som de sucesso, sem conclusão, sem instantâneo, sem recompensa.
+  function handleC60EmptyPaint() {
+    if (!activeRef.current) return;
+    paletteHintAnim.stopAnimation();
+    paletteHintAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(paletteHintAnim, { toValue: 1, duration: 260, useNativeDriver: true }),
+      Animated.timing(paletteHintAnim, { toValue: 0, duration: 320, useNativeDriver: true }),
+    ]).start();
+    Alert.alert(C60_EMPTY_PAINT_TITLE, C60_EMPTY_PAINT_MESSAGE, [{ text: 'Vou colorir!' }]);
+  }
+
+  // [C60-PARTE-5] LIMPAR DESENHO — a ação que faltava. Antes só existia a borracha (apagar cor por
+  // cor) e, pior, apagar tudo NÃO desfazia a conclusão: o desenho ficava em branco e a coleção
+  // continuava exibindo "concluída". Aqui a limpeza é COMPLETA e HONESTA:
+  //   • limpa SÓ a atividade aberta (as outras duas não são tocadas);
+  //   • entra como UMA operação no histórico do motor — "Desfazer" traz a pintura de volta;
+  //   • remove o INSTANTÂNEO guardado (não sobra arte antiga para reaparecer na coleção);
+  //   • devolve `isCurrentlyComplete` a falso, o contador cai e a coleção reflete na hora;
+  //   • "Pronto!" volta a desabilitado sozinho (a medida do motor vira zero no mesmo toque).
+  // `hasEverCompleted` NÃO é apagado: limpar uma folha não apaga a memória de quem já chegou lá —
+  // só o reset canônico faz isso. O estado vazio jamais é gravado como concluído.
+  function handleC60ClearDrawing() {
+    if (!activeRef.current || c60Saving) return;
+    const wasDone = c60DoneMap[activityId] === true;
+    const message = wasDone
+      ? `${C60_CLEAR_MESSAGE}${C60_CLEAR_MESSAGE_DONE_SUFFIX}`
+      : C60_CLEAR_MESSAGE;
+    Alert.alert(C60_CLEAR_TITLE, message, [
+      { text: C60_CLEAR_CANCEL, style: 'cancel' },
+      {
+        text: C60_CLEAR_CONFIRM,
+        style: 'destructive',
+        onPress: async () => {
+          if (!activeRef.current) return;
+          // 1) Pixels na tela: uma única operação no histórico (o motor empilha o estado anterior
+          //    antes de zerar), e a medida republicada já derruba "Pronto!".
+          canvasRef.current?.clearCanvas();
+          // 2) Instantâneo guardado e conclusão saem JUNTOS. A ordem importa: primeiro o registro
+          //    de conclusão (o que a coleção lê), depois os pixels — assim, se a segunda falhar,
+          //    o pior caso é uma arte órfã invisível, nunca uma conclusão sem arte.
+          try { await clearColoring60Done(storyId, activityId); } catch { /* nunca derruba a tela */ }
+          try { await clearColoring60SavedDrawing(storyId, activityId); } catch { /* idem */ }
+          if (!activeRef.current) return;
+          // 3) Contador e coleção, numa única atualização. Só ESTA atividade muda.
+          setC60DoneMap((prev) => {
+            if (prev[activityId] !== true) return prev;
+            const next = { ...prev };
+            delete next[activityId];
+            return next;
+          });
+          setC60CelebrateSnapshot(null);
+          setC60FinaleItems(null); // cache da coleção invalidado: nada de card colorido antigo
+          c60DirtyRef.current = true;
+        },
+      },
+    ]);
   }
 
   const eraserActive = c60Color === ERASER_COLOR;
@@ -937,12 +1128,23 @@ function Coloring60ActivityScreen({ route, navigation }) {
                 'success' do overlay e produzindo a sensação de clique duplo. `silent` suprime SÓ o
                 som automático deste botão, no fluxo do Colorir 60 — sem mexer nos demais botões e
                 sem silenciar a celebração. `disabled` durante o salvamento também evita re-disparo. */}
+            {/* [C60-PARTE-3] "Pronto!" só existe quando há COR DE VERDADE na folha. Enquanto não há,
+                o botão fica apagado, `accessibilityState.disabled` avisa o leitor de tela e a dica
+                explica o porquê. Ele continua TOCÁVEL de propósito: um botão que não responde parece
+                app quebrado — tocá-lo devolve o convite ("Coloque um pouquinho de cor...") em vez de
+                silêncio. A conclusão em si é impossível: a função de domínio recusa. */}
             <SoundButton
               silent
-              style={[styles.prontoBtn, c60Saving && styles.prontoBtnSaving]}
+              style={[
+                styles.prontoBtn,
+                c60Saving && styles.prontoBtnSaving,
+                !c60HasColor && !c60Saving && c60Styles.prontoBtnDisabled,
+              ]}
               onPress={handleC60Pronto}
               activeOpacity={0.85}
               disabled={c60Saving}
+              accessibilityState={{ disabled: !c60HasColor || c60Saving }}
+              accessibilityHint={!c60HasColor ? C60_EMPTY_PAINT_HINT : undefined}
             >
               <Text style={styles.prontoBtnText}>{c60Saving ? 'Salvando...' : '✓ Pronto!'}</Text>
             </SoundButton>
@@ -973,7 +1175,11 @@ function Coloring60ActivityScreen({ route, navigation }) {
             imageSource={resolution.source}
             storyId={storyId}
             onReadyChange={setC60Ready}
-            onPainted={() => setC60HasPainted(true)}
+            // [C60-PARTE-3] A MEDIDA substitui a promessa: `onPaintState` chega a cada operação que
+            // muda a tinta (inclusive apagar, desfazer e limpar) e é de mão dupla. `onPainted`
+            // (mão única, legado) não é mais consumido aqui — era ele que deixava um desenho
+            // apagado "concluível".
+            onPaintState={handleC60PaintState}
             onGoBack={() => navigation.goBack()}
             // Retomada da arte guardada: o canvas valida ANTES de aplicar (onPaintValid aplica;
             // qualquer desfecho negativo abre o lineart limpo, sem derrubar a tela).
@@ -1022,45 +1228,64 @@ function Coloring60ActivityScreen({ route, navigation }) {
             <CompactTool accessibilityLabel="Desfazer" onPress={() => canvasRef.current?.undo()}>
               <FaithIcon name="undo" size={22} color="#666" />
             </CompactTool>
+            {/* [C60-PARTE-5] LIMPAR DESENHO. Não existia caminho claro para recomeçar uma parte —
+                a criança apagava cor por cor com a borracha. Age só nesta atividade, entra como UMA
+                operação no histórico (Desfazer restaura tudo) e, quando a parte estava concluída,
+                avisa antes que ela sairá da coleção. */}
+            <CompactTool accessibilityLabel="Limpar desenho" onPress={handleC60ClearDrawing}>
+              <FaithIcon name="clear" size={22} color="#666" />
+            </CompactTool>
             <CompactTool accessibilityLabel="Ver tudo (centralizar)" onPress={() => canvasRef.current?.resetZoom()}>
               <FaithIcon name="zoom_reset" size={22} color="#666" />
             </CompactTool>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.paletteScroll}
-            contentContainerStyle={styles.paletteContent}
+          {/* [C60-PARTE-3] A paleta PULSA uma vez quando "Pronto!" é tocado numa folha sem cor:
+              a resposta ao convite fica onde está a solução, não num aviso solto. Escala sutil,
+              no driver nativo, sem alterar o layout nem interromper o toque. */}
+          <Animated.View
+            style={{
+              transform: [{
+                scale: paletteHintAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }),
+              }],
+            }}
           >
-            {COLOR_PALETTE.map(({ hex }) => (
-              <SoundButton key={hex} silent style={styles.dotWrapper} onPress={() => setC60Color(hex)}>
-                <View
-                  style={[
-                    styles.colorDot,
-                    { backgroundColor: hex },
-                    hex === '#FFFFFF' && styles.colorDotWhiteBorder,
-                    c60Color === hex && styles.colorDotSelected,
-                  ]}
-                />
-              </SoundButton>
-            ))}
-          </ScrollView>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.paletteScroll}
+              contentContainerStyle={styles.paletteContent}
+            >
+              {COLOR_PALETTE.map(({ hex }) => (
+                <SoundButton key={hex} silent style={styles.dotWrapper} onPress={() => setC60Color(hex)}>
+                  <View
+                    style={[
+                      styles.colorDot,
+                      { backgroundColor: hex },
+                      hex === '#FFFFFF' && styles.colorDotWhiteBorder,
+                      c60Color === hex && styles.colorDotSelected,
+                    ]}
+                  />
+                </SoundButton>
+              ))}
+            </ScrollView>
+          </Animated.View>
         </Animated.View>
 
         {/* Momento de conclusão (§Parte 4 · Diretor de Celebração): entra sobre a pintura congelada
             e só sai pela escolha da criança. A máquina de conclusão já decidiu o modo ('update' |
             'activity' | 'finale') — CADA modo é uma celebração de intensidade própria (nenhum é um
             toast técnico). A navegação acontece nos handlers, nunca automaticamente. */}
+        {/* [C60-PARTE-7] O modo 'collection' NÃO é mais montado aqui: a coleção é tela própria.
+            Esta camada só existe para os TRÊS desfechos de conclusão, que acontecem sobre a pintura
+            que a criança acabou de fazer — e é justamente por isso que eles podem usar o canvas. */}
         {c60Celebrating
         && (c60CelebrateMode === 'update'
           || c60CelebrateMode === 'activity'
-          || c60CelebrateMode === 'finale'
-          || c60CelebrateMode === 'collection') ? (
+          || c60CelebrateMode === 'finale') ? (
           <Coloring60CompletionOverlay
             // A máquina de conclusão é AUTORIDADE sobre o desfecho: o overlay não reinfere o modo
-            // do progresso. 'finale' só em 2/3→3/3 real; 'update' só ao recolorir atividade concluída;
-            // 'collection' é a VISTA revisitável das três obras (não é conclusão e não repete o fecho).
+            // do progresso. 'finale' só em 2/3→3/3 real; 'update' só ao recolorir atividade concluída.
             mode={c60CelebrateMode}
             activityId={activityId}
             steps={c60Steps}
@@ -1127,6 +1352,8 @@ const c60Styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // [C60-PARTE-3] "Pronto!" sem cor na folha: apagado, mas ainda tocável (tocar devolve o convite).
+  prontoBtnDisabled: { opacity: 0.45 },
 });
 
 function LegacyColoringScreen({ route, navigation }) {
