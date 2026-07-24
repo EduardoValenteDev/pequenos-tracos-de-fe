@@ -92,3 +92,21 @@ export async function loadColoring60Done(storyId, activityId) {
     return false;
   }
 }
+
+/**
+ * clearColoring60Done(storyId, activityId) — REMOVE a marca de conclusão desta atividade
+ * (operação SIMÉTRICA de `markColoring60ActivityDone`). Existe para o RESET seguro do Dev Client
+ * (§Parte 1/10 · P12R): reencenar os estados 0/3, 1/3, 2/3 e 3/3 sem apagar onboarding, perfil,
+ * packs, downloads nem qualquer outro dado. Age SÓ na chave de conclusão desta identidade validada
+ * — NÃO toca pixels (writer), estrelas, conquistas nem o legado. Identidade inválida ⇒ no-op(false).
+ * Nunca lança; falha de escrita ⇒ false. Remover uma chave inexistente é sucesso silencioso (true).
+ */
+export async function clearColoring60Done(storyId, activityId) {
+  if (!isValidIdentity(storyId, activityId)) return false;
+  try {
+    await AsyncStorage.removeItem(coloring60DoneKey(storyId, activityId));
+    return true;
+  } catch {
+    return false;
+  }
+}

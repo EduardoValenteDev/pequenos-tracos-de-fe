@@ -167,30 +167,32 @@ const ATMOSPHERES = {
   },
 };
 
-// Fecho das três atividades (§Parte 7 · "A Criação Ganha Vida"): título e mensagem são CONTRATO
-// EXATO (não reformular). A fala do Beni conduz a leitura da galeria (luz · vida · cuidado).
-const ALL_DONE_TITLE = 'Você encheu a Criação de cor!';
-const ALL_DONE_BENI_LINE = 'Você viu a luz, a vida e o cuidado de Deus. Olha a sua criação!';
+// Fecho das três atividades (§Parte 7 · "A Criação Ganha Vida"): título e fala do Beni são o
+// CONTRATO EXATO do P12R · ATO 5 (não reformular — textos CURTOS, sem risco de corte). A fala
+// conduz a leitura da galeria (luz · vida · cuidado); a mensagem de apoio dá o sentido da coleção.
+const ALL_DONE_TITLE = 'Você coloriu toda a Criação!';
+const ALL_DONE_BENI_LINE = 'Olha só! Você encheu tudo de luz, vida e cuidado!';
 const ALL_DONE_MESSAGE = 'Cada desenho mostrou um jeito especial de ver, cuidar e celebrar o mundo de Deus.';
 // Rótulos EXATOS visíveis no fecho (§Parte 7): a contagem final e o nome da criação da criança.
 const FINALE_COUNT_LABEL = '3 de 3';
 const FINALE_GALLERY_LABEL = 'Minha Criação Cheia de Cor';
 
 // ATUALIZAÇÃO (§Parte 5): quando a criança conclui DE NOVO uma atividade JÁ concluída, o Beni ADMIRA
-// a nova arte e diz a frase EXATA POR ATIVIDADE (título + fala — contrato, não reformular). Nunca um
-// aviso técnico seco: é celebração afetiva, com a pintura seguindo protagonista.
+// a nova arte e diz a frase EXATA POR ATIVIDADE (contrato P12R — não reformular). Textos CURTOS de
+// propósito (§Parte 4): cabem sem corte inclusive em telas pequenas; é o "Beni percebeu minha nova
+// escolha", não a grande festa. Nunca um aviso técnico seco: celebração afetiva, pintura protagonista.
 const UPDATE_TEXTS = {
   light: {
-    title: 'Sua luz brilhou de novo!',
-    line: 'Uau! Suas novas cores deixaram a luz ainda mais brilhante!',
+    title: 'Sua luz brilhou!',
+    line: 'Uau! Suas cores fizeram a luz brilhar ainda mais!',
   },
   living_world: {
-    title: 'Seu mundo ganhou mais vida!',
-    line: 'Olha só! Suas novas cores deixaram o mundo ainda mais cheio de vida!',
+    title: 'Seu mundo ganhou vida!',
+    line: 'Que bonito! Suas cores acordaram a natureza!',
   },
   people_and_care: {
-    title: 'Seu cuidado deixou tudo mais especial!',
-    line: 'Que carinho! Suas novas cores deixaram a Criação ainda mais especial!',
+    title: 'Seu cuidado apareceu!',
+    line: 'Que carinho! Você cuidou de cada pedacinho!',
   },
 };
 
@@ -202,14 +204,19 @@ const MOTIF_COLOR = { dot: colors.gold, leaf: colors.green, heart: colors.coral,
 const PARTICLE_COUNT = { update: 10, activity: 15, finale: 21 };
 const PARTICLE_COUNT_REDUCED = 5;
 
-// [C60-P12-TIMELINE] O DIRETOR único (§Parte 4). Cada modo é UMA linha do tempo com 5 atos; os
-// atrasos/durações fazem a duração DECORATIVA cair na janela alvo (update ~2,1 s · atividade ~4,0 s ·
-// fecho ~6,4 s). As AÇÕES aparecem MUITO antes do fim (actionsDelay) — a criança nunca espera as
-// partículas descansarem. Nenhum período estático > 250 ms depois do "Pronto" (o Ato 1 começa em 0).
+// [C60-P12R-TIMELINE] O DIRETOR único (§Parte 3). Os TRÊS níveis têm ritmos DELIBERADAMENTE
+// distintos, para que a criança sinta a escalada de importância (UPDATE < PRIMEIRA < GRANDE
+// CONCLUSÃO) — não mais três celebrações parecidas. O momento em que as AÇÕES ficam tocáveis
+// (`actionsDelay`) cai na janela de contrato de cada nível:
+//   • update   → ~2,0 s (janela 2–2,5 s): "o Beni percebeu minha nova escolha". Curto e gentil.
+//   • activity → ~3,6 s (janela 3,5–4,5 s): "eu consegui terminar uma parte". Beat maior, com progresso.
+//   • finale   → ~5,6 s (janela 5,5–7 s): a grande conclusão respira; a galeria surge cedo e a criança
+//                a contempla antes de agir (o decorativo segue até ~6,7 s). Só na 1ª transição 2→3.
+// As partículas continuam DEPOIS das ações (decorativo) — a criança nunca espera elas descansarem.
 const TIMELINE = {
-  update: { ambient: 220, beniDelay: 140, balloonDelay: 420, particleDelay: 300, particleDur: 1800, progressDelay: 520, actionsDelay: 660, galleryStagger: 0 },
-  activity: { ambient: 300, beniDelay: 260, balloonDelay: 700, particleDelay: 700, particleDur: 3300, progressDelay: 980, actionsDelay: 1180, galleryStagger: 0 },
-  finale: { ambient: 420, beniDelay: 380, balloonDelay: 900, particleDelay: 820, particleDur: 5600, progressDelay: 1150, actionsDelay: 1500, galleryStagger: 260 },
+  update: { ambient: 220, beniDelay: 160, balloonDelay: 500, particleDelay: 340, particleDur: 2100, progressDelay: 0, actionsDelay: 2000, galleryStagger: 0 },
+  activity: { ambient: 320, beniDelay: 300, balloonDelay: 760, particleDelay: 720, particleDur: 3300, progressDelay: 1500, actionsDelay: 3600, galleryStagger: 0 },
+  finale: { ambient: 460, beniDelay: 440, balloonDelay: 1000, particleDelay: 900, particleDur: 5800, progressDelay: 1300, actionsDelay: 5600, galleryStagger: 320 },
 };
 
 // [C60-P12-SEED] PRNG determinístico (xfnv1a → mulberry32). Semente por STRING (activityId +
@@ -340,35 +347,57 @@ function artScreenRectOf(canvasFrame, snapshot) {
   return { x: canvasFrame.x, y: canvasFrame.y, w: canvasFrame.width, h: canvasFrame.height };
 }
 
-// [C60-P12-BENI-POSE] Pose do Beni por COMPOSIÇÃO REAL (§Parte 5/6/7):
-//   finale   → apresentaGaleria (fixo).
-//   update   → admira a obra ao seu lado: se a arte está à ESQUERDA do centro do canvas, o Beni fica
-//              à direita e olha para a esquerda (admiraEsquerda); senão, à esquerda olhando à direita
-//              (admiraDireita). Sem geometria → admiraDireita (padrão estável).
-//   activity → olhaAcima quando a geometria põe a obra no ALTO do canvas (fy+fh < 0.62); senão
-//              celebraFrente (pico frontal).
-function pickBeniPose(mode, canvasFrame, artRect) {
-  if (mode === 'finale') return 'apresentaGaleria';
-  if (mode === 'update') {
-    return pickBeniSide(mode, canvasFrame, artRect) === 'right' ? 'admiraEsquerda' : 'admiraDireita';
-  }
-  // Primeira conclusão: se a obra ocupa a parte ALTA do canvas (base < 62% da altura), o Beni ergue
-  // o olhar para ela (olhaAcima); senão, comemora de frente no pico (celebraFrente).
-  if (artRect && canvasFrame && canvasFrame.height > 0) {
-    const fyBottom = (artRect.y - canvasFrame.y + artRect.h) / canvasFrame.height;
-    if (fyBottom < 0.62) return 'olhaAcima';
-  }
-  return 'celebraFrente';
+// Ordem canônica FECHADA das três atividades (espelha o catálogo do piloto). Usada só para dar às
+// duas poses laterais e ao "olhar para cima" um caminho DETERMINÍSTICO e ALCANÇÁVEL quando a
+// geometria do instantâneo não desempata (caso comum destes linearts, que preenchem toda a largura).
+const C60_ACTIVITY_ORDER = ['light', 'living_world', 'people_and_care'];
+function activityOrderIndex(activityId) {
+  const i = C60_ACTIVITY_ORDER.indexOf(activityId);
+  return i < 0 ? 0 : i; // fora do piloto → trata como a primeira (estável, nunca quebra)
 }
 
-// Lado em que o Beni fica ('left' | 'right'). No update ele fica no lado OPOSTO à arte, para olhá-la.
-// Nas demais composições fica à esquerda (frente/alto/galeria) — leitura estável.
-function pickBeniSide(mode, canvasFrame, artRect) {
+// [C60-P12R-BENI-POSE] Pose do Beni — DETERMINÍSTICA por estado + composição (§Parte 2). Cada uma
+// das CINCO poses tem um caminho REAL e justificável (nunca aleatório; nunca todas na mesma sessão):
+//   finale   → apresentaGaleria (fixo): a grande conclusão apresenta as três obras.
+//   update   → admira a obra AO LADO. Se a geometria mostra a arte claramente deslocada, o Beni fica
+//              no lado OPOSTO para olhá-la; senão (arte centrada), ALTERNA por atividade — assim
+//              admiraEsquerda E admiraDireita aparecem ao longo das três (corrige "só vi uma pose").
+//   activity → olhaAcima quando a obra está no ALTO do canvas (a obra fica acima do Beni no rodapé);
+//              e, como fallback determinístico, na PRIMEIRA atividade ("Haja luz" — a luz nasce no
+//              alto, o Beni ergue o olhar). Demais primeiras conclusões → celebraFrente (pico frontal).
+function pickBeniPose(mode, canvasFrame, artRect, activityId) {
+  if (mode === 'finale') return 'apresentaGaleria';
+  if (mode === 'update') {
+    return pickBeniSide(mode, canvasFrame, artRect, activityId) === 'right'
+      ? 'admiraEsquerda'
+      : 'admiraDireita';
+  }
+  // Primeira conclusão: obra no ALTO do canvas (base < 66% da altura) → o Beni ergue o olhar.
+  if (artRect && canvasFrame && canvasFrame.height > 0) {
+    const fyBottom = (artRect.y - canvasFrame.y + artRect.h) / canvasFrame.height;
+    if (fyBottom < 0.66) return 'olhaAcima';
+  }
+  // Fallback determinístico e semântico: a Luz (1ª atividade) nasce no alto → olhaAcima garantido;
+  // as outras primeiras conclusões comemoram de frente (celebraFrente). Ambas as poses alcançáveis.
+  return activityId === 'light' ? 'olhaAcima' : 'celebraFrente';
+}
+
+// Lado em que o Beni fica ('left' | 'right'). No update ele fica no lado que o faz OLHAR para a obra:
+//   1) se a arte está nitidamente à esquerda/direita do centro (≥6% da largura), fica no lado oposto;
+//   2) senão (arte centrada — comum aqui), ALTERNA determinado pela ordem da atividade, garantindo
+//      que as duas poses laterais tenham caminho real. Nos demais modos fica à esquerda (leitura estável).
+function pickBeniSide(mode, canvasFrame, artRect, activityId) {
   if (mode !== 'update') return 'left';
-  if (!artRect || !canvasFrame || !(canvasFrame.width > 0)) return 'left';
-  const artCenterX = artRect.x + artRect.w / 2;
-  const canvasMidX = canvasFrame.x + canvasFrame.width / 2;
-  return artCenterX < canvasMidX ? 'right' : 'left';
+  if (artRect && canvasFrame && canvasFrame.width > 0) {
+    const artCenterX = artRect.x + artRect.w / 2;
+    const canvasMidX = canvasFrame.x + canvasFrame.width / 2;
+    const dx = (artCenterX - canvasMidX) / canvasFrame.width;
+    if (dx < -0.06) return 'right'; // arte à esquerda → Beni à direita (admiraEsquerda)
+    if (dx > 0.06) return 'left';   // arte à direita  → Beni à esquerda (admiraDireita)
+  }
+  // Arte centrada: alterna por atividade (Luz=direita→admiraDireita · Vida=esquerda→admiraEsquerda ·
+  // Cuidado=direita→admiraDireita). Determinístico e estável entre re-renders.
+  return activityOrderIndex(activityId) % 2 === 1 ? 'right' : 'left';
 }
 
 export function Coloring60ArtGlow({ activityId, active, snapshot = null }) {
@@ -401,8 +430,9 @@ export function Coloring60ArtGlow({ activityId, active, snapshot = null }) {
     setBox((prev) => (prev && prev.w === width && prev.h === height ? prev : { w: width, h: height }));
   };
 
-  // A moldura entra e "assenta" de 1.03 → 1.0 (leve aproximação, §Parte 3).
-  const frameScale = anim.interpolate({ inputRange: [0, 1], outputRange: [1.03, 1] });
+  // A moldura entra e "assenta" de 1.02 → 1.0 (leve aproximação, dentro do teto de escala ~1.02 da
+  // §Parte 6 — a ARTE em si nunca é escalada nem remontada; só a moldura decorativa respira).
+  const frameScale = anim.interpolate({ inputRange: [0, 1], outputRange: [1.02, 1] });
 
   // §Parte 3 — a moldura segue os LIMITES REAIS da arte (nunca a barra de ferramentas nem a área
   // vazia embaixo). Com o instantâneo v2 + a área medida, calcula a caixa exata (inflada por uma
@@ -654,17 +684,31 @@ const galleryStyles = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// [C60-P12-BALLOON] Balão de fala LIGADO ao Beni (§Parte 8): no máximo 3 linhas, fonte grande,
+// [C60-P12-BALLOON] Balão de fala LIGADO ao Beni (§Parte 8): texto em até 3 linhas, fonte grande,
 // preso ao Beni por uma "seta" que aponta para ele. NÃO cobre o centro da arte (vive no rodapé) e
 // NÃO tem cara de modal — é uma fala de história em quadrinho. O lado da seta acompanha o lado do Beni.
 // ─────────────────────────────────────────────────────────────────────────────
 function SpeechBalloon({ title, line, tailSide, accent, accentDeep }) {
   return (
     <View style={[balloonStyles.bubble, { borderColor: accent }]}>
+      {/* §Parte 4 · o texto NUNCA trunca e nunca ganha reticências. O `numberOfLines` aqui é um TETO
+          VISUAL (título ≤3 linhas, corpo ≤3) que ANDA JUNTO com `adjustsFontSizeToFit`: em RN, o
+          ajuste de fonte só age quando há um limite de linhas — a fonte ENCOLHE (até minimumFontScale)
+          para caber, em vez de cortar. O título admite ATÉ 3 linhas de propósito: o maior título de
+          primeira conclusão ("Seu cuidado deixou tudo especial!") quebra em 3 linhas curtas num balão
+          estreito (~320dp) e assim aparece INTEIRO, em fonte grande, sem encolher ao mínimo nem cortar.
+          O texto vive dentro do padding seguro; o rabicho fica FORA dele (ver balloonStyles.tail). */}
       {title ? (
-        <Text style={[balloonStyles.title, { color: accentDeep }]} numberOfLines={2}>{title}</Text>
+        <Text
+          style={[balloonStyles.title, { color: accentDeep }]}
+          numberOfLines={3}
+          adjustsFontSizeToFit
+          minimumFontScale={0.85}
+        >
+          {title}
+        </Text>
       ) : null}
-      <Text style={balloonStyles.line} numberOfLines={3}>{line}</Text>
+      <Text style={balloonStyles.line} numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.85}>{line}</Text>
       <View
         pointerEvents="none"
         style={[
@@ -678,28 +722,33 @@ function SpeechBalloon({ title, line, tailSide, accent, accentDeep }) {
 }
 
 const balloonStyles = StyleSheet.create({
+  // §Parte 4 · área de texto com folga inferior EXTRA (`paddingBottom`) que excede a intrusão do
+  // rabicho: nenhuma linha de texto alcança a faixa onde a seta se ancora. O balão cresce em altura.
   bubble: {
     backgroundColor: 'rgba(255,255,255,0.96)',
     borderRadius: 18,
     borderWidth: 2,
-    paddingVertical: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md + 2, // folga segura acima do rabicho (intrusão ≤ 7px)
     paddingHorizontal: spacing.md,
     maxWidth: 300,
     ...shadows.soft,
   },
   title: { fontSize: 18, fontWeight: '800', lineHeight: 22 },
   line: { fontSize: 15, color: colors.text, lineHeight: 20, marginTop: 3 },
-  // Seta triangular (quadrado girado) presa à borda inferior do balão, apontando para o Beni.
+  // Seta (quadrado girado) ANCORADA EXTERNAMENTE à borda inferior, apontando para o Beni ao lado. É
+  // menor e mais baixa que antes (13×13, bottom:-6 → só ~7px de intrusão, absorvidos pelo paddingBottom
+  // do balão): nenhuma "linha" do rabicho atravessa a área segura do texto (§Parte 4).
   tail: {
     position: 'absolute',
-    bottom: -8,
-    width: 16,
-    height: 16,
+    bottom: -6,
+    width: 13,
+    height: 13,
     backgroundColor: 'rgba(255,255,255,0.96)',
     transform: [{ rotate: '45deg' }],
   },
-  tailLeft: { left: 26, borderLeftWidth: 2, borderBottomWidth: 2 },
-  tailRight: { right: 26, borderRightWidth: 2, borderBottomWidth: 2 },
+  tailLeft: { left: 24, borderLeftWidth: 2, borderBottomWidth: 2 },
+  tailRight: { right: 24, borderRightWidth: 2, borderBottomWidth: 2 },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -752,9 +801,9 @@ export default function Coloring60CompletionOverlay({
   // artRectFromSnapshot + a área do canvas). Origem COMPARTILHADA das partículas e da pose do Beni.
   const artRect = useMemo(() => artScreenRectOf(canvasFrame, snapshot), [canvasFrame, snapshot]);
 
-  // Pose e lado do Beni por composição real.
-  const beniPose = pickBeniPose(mode, canvasFrame, artRect);
-  const beniSide = pickBeniSide(mode, canvasFrame, artRect); // 'left' | 'right'
+  // Pose e lado do Beni por composição real + estado (determinístico, §Parte 2).
+  const beniPose = pickBeniPose(mode, canvasFrame, artRect, activityId);
+  const beniSide = pickBeniSide(mode, canvasFrame, artRect, activityId); // 'left' | 'right'
 
   // [C60-P12-SEED] Semente determinística (§Parte 9): capturada UMA vez no mount → mesma disposição
   // de partículas em todo re-render (nunca "pula"); varia por atividade + celebração + modo.
@@ -789,16 +838,34 @@ export default function Coloring60CompletionOverlay({
   useEffect(() => {
     if (!ready || peakFiredRef.current) return undefined;
     peakFiredRef.current = true;
+    // §Parte 6 · háptica de RECONHECIMENTO no início, por nível (nunca vibração repetitiva):
+    //   UPDATE   → leve (selection): "o Beni percebeu".
+    //   FIRST    → médio (impact Medium): "eu consegui terminar uma parte".
+    //   FINALE   → leve no início (impact Light) — o PICO médio vem depois (efeito separado abaixo).
     if (!reduceMotion) {
       try {
-        if (allDone) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        else if (isUpdate) Haptics.selectionAsync?.().catch(() => {});
-        else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        if (isUpdate) Haptics.selectionAsync?.().catch(() => {});
+        else if (allDone) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       } catch { /* segue sem háptica */ }
     }
     try { playUiSound('success'); } catch { /* som é best-effort: nunca bloqueia */ }
     return undefined;
   }, [ready]);
+
+  // [C60-P12R-FINALE-PEAK] §Parte 6 · a GRANDE conclusão tem "leve no início + ÚNICO pico médio":
+  // depois do toque leve de reconhecimento, um único impacto médio marca o clímax (a galeria já
+  // revelada). Timer ÚNICO, limpo no unmount (sair durante a timeline cancela), e SUPRIMIDO sob
+  // "Reduzir movimento" (§Parte 7). Não é vibração repetitiva — é o pico afetivo da coleção completa.
+  const finalePeakRef = useRef(false);
+  useEffect(() => {
+    if (!ready || !allDone || reduceMotion || finalePeakRef.current) return undefined;
+    finalePeakRef.current = true;
+    const t = setTimeout(() => {
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); } catch { /* sem háptica */ }
+    }, 900);
+    return () => clearTimeout(t);
+  }, [ready, allDone, reduceMotion]);
 
   // [C60-P12-DIRECTOR] Linha do tempo dirigida (§Parte 4): 5 atos, UM só efeito, deps estáveis
   // ([ready, reduceMotion]) → re-render NÃO reinicia. Sair da tela cancela (anim.stop no cleanup,
@@ -915,7 +982,11 @@ export default function Coloring60CompletionOverlay({
   });
 
   return (
-    <View style={StyleSheet.absoluteFill} onLayout={onRootLayout} accessibilityViewIsModal>
+    // [C60-P12R-BOXNONE] §Parte 5 · a raiz da camada NÃO captura toque por si (box-none): só os
+    // controles reais (os botões de ação, quando surgem) recebem o toque. Durante os atos ativos não
+    // há botão nem controle clicável exposto — a criança apenas assiste, sem nada morto sob o dedo.
+    // O canvas atrás já está inerte (pointerEvents 'none' na tela) e a moldura/partículas são 'none'.
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill} onLayout={onRootLayout} accessibilityViewIsModal>
       {/* Ato 1 — FUNDO AMBIENTAL temático (translúcido; realça sem esconder a pintura). */}
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: ambientAnim }]}>
         <LinearGradient
@@ -974,8 +1045,12 @@ export default function Coloring60CompletionOverlay({
               />
             </Animated.View>
             <Animated.View style={[styles.finaleTextCol, balloonEnter]} pointerEvents="none">
-              <Text style={[styles.titleBig, { color: accentDeep }]} numberOfLines={2}>{ALL_DONE_TITLE}</Text>
-              <Text style={styles.beniLine} numberOfLines={2}>{ALL_DONE_BENI_LINE}</Text>
+              {/* §Parte 4 · título e fala do fecho aparecem COMPLETOS (nunca com reticências). O teto
+                  de linhas (título ≤2, fala ≤3) ANDA JUNTO com `adjustsFontSizeToFit` — em RN o ajuste
+                  de fonte só age com limite de linhas: a fonte ENCOLHE para caber em telas estreitas,
+                  em vez de cortar. Os textos de contrato são curtos e, na prática, nunca encolhem. */}
+              <Text style={[styles.titleBig, { color: accentDeep }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>{ALL_DONE_TITLE}</Text>
+              <Text style={styles.beniLine} numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.85}>{ALL_DONE_BENI_LINE}</Text>
               <View style={[styles.countPill, styles.countPillStart, { backgroundColor: accentSoft, borderColor: accent }]}>
                 <Text style={[styles.countPillText, { color: accentDeep }]}>{FINALE_COUNT_LABEL}</Text>
               </View>

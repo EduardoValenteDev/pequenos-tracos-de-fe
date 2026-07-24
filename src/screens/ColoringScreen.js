@@ -34,7 +34,12 @@ import {
 // pixels (revalida o plano internamente). Ambos consumidos SOMENTE no ramo aditivo abaixo:
 // a CONCLUSÃO é separada do SALVAMENTO (o writer só persiste no Plano Família). O caminho
 // legado por cena não toca nenhum dos dois.
-import { markColoring60ActivityDone, loadColoring60Done } from '../services/coloring60ActivityService';
+import {
+  markColoring60ActivityDone,
+  loadColoring60Done,
+  // [C60-P12R-RESET] Limpeza SIMÉTRICA da conclusão — usada só pelo reset seguro de Dev (§Parte 1/10).
+  clearColoring60Done,
+} from '../services/coloring60ActivityService';
 // P8 (Colorir 60) — ordem FECHADA das três atividades (fonte única: o catálogo) e a experiência
 // afetiva de conclusão. O componente é presentacional: recebe o que já aconteceu e devolve a
 // escolha da criança; não decide conclusão, não persiste e não conhece plano.
@@ -49,6 +54,8 @@ import {
   saveColoring60DrawingState,
   getColoring60SavedDrawing,
   COLORING60_SAVE_RESULT,
+  // [C60-P12R-RESET] Limpeza dos pixels por identidade isolada — usada só pelo reset seguro de Dev.
+  clearColoring60SavedDrawing,
 } from '../services/coloring60DrawingStorage';
 // P6 (Colorir 60) — autorização do piloto visível. Reusa a flag OFICIAL do piloto (default
 // false, inalterada) e o mecanismo ÚNICO de ferramentas internas já existente. Nenhuma
@@ -392,6 +399,47 @@ function Coloring60ActivityScreen({ route, navigation }) {
     };
   }, []);
 
+  // [C60-P12R-DEV-RESET] §Parte 1/10 · RESET SEGURO para reencenar os estados 0/3, 1/3, 2/3 e 3/3 no
+  // Dev Client sem apagar o mundo. Age SÓ nas 3 atividades de "A Criação" (piloto): apaga a CONCLUSÃO
+  // (chave `@ptf_coloring60_done_creation_*`) e os PIXELS (`@ptf_drawing60_screation_a*`). NÃO toca
+  // onboarding, perfil, packs, downloads, estrelas, conquistas nem outra história/cena. Só existe em
+  // __DEV__ e atrás do gate de ferramentas internas do piloto — jamais no app de produção.
+  //   • __devResetCreationColoring60()   → volta ao 0/3 (nada concluído, sem arte).
+  //   • __devSeedCreationColoring60(n)   → marca n concluídas (0..3) para chegar a 1/3 ou 2/3 e então
+  //     colorir a última no aparelho e observar a transição real 2→3 (a GRANDE conclusão só uma vez).
+  useEffect(() => {
+    if (!__DEV__ || !isColoring60PilotAllowed()) return undefined;
+    const ids = getColoring60Activities('creation').map((a) => a.activityId);
+    global.__devResetCreationColoring60 = async () => {
+      for (let i = 0; i < ids.length; i += 1) {
+        await clearColoring60Done('creation', ids[i]); // conclusão (booleano leve)
+        await clearColoring60SavedDrawing('creation', ids[i]); // pixels (writer isolado)
+      }
+      setC60DoneMap({});
+      setC60Celebrating(false);
+      setC60CelebrateMode(null);
+      setC60CelebrateSnapshot(null);
+      setC60FinaleItems(null);
+      controlsAnim.setValue(1);
+      console.log('[DEV Colorir60] Reset "A Criação": conclusão + pixels das 3 atividades apagados. Estado 0/3.');
+    };
+    global.__devSeedCreationColoring60 = async (n = 1) => {
+      const k = Math.max(0, Math.min(ids.length, Number(n) || 0));
+      const next = {};
+      for (let i = 0; i < k; i += 1) {
+        await markColoring60ActivityDone('creation', ids[i]);
+        next[ids[i]] = true;
+      }
+      setC60DoneMap(next);
+      console.log(`[DEV Colorir60] Semeado ${k}/${ids.length} concluída(s) (sem pixels). Para a transição 2→3 use __devSeedCreationColoring60(2) e colorir a 3ª no aparelho.`);
+    };
+    console.log('[DEV Colorir60] Helpers: __devResetCreationColoring60() | __devSeedCreationColoring60(n)');
+    return () => {
+      delete global.__devResetCreationColoring60;
+      delete global.__devSeedCreationColoring60;
+    };
+  }, []);
+
   // [C60-P7-RESTORE] Retomada da arte por IDENTIDADE ISOLADA (storyId + activityId), lida pelo
   // serviço dedicado do piloto — nunca pela chave legada de cena e nunca pela arte de outra
   // atividade. Só executa com o piloto AUTORIZADO e a atividade resolvida (`available`): sem
@@ -718,15 +766,37 @@ function Coloring60ActivityScreen({ route, navigation }) {
   if (available) {
     return (
       <View style={styles.container}>
-        <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 8) }]}>
-          <SoundButton style={styles.topBarNavBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-            <Text style={styles.topBarNavBtnText}>← Voltar</Text>
-          </SoundButton>
+        <View
+          style={[styles.topBar, { paddingTop: Math.max(insets.top, 8) }]}
+          // [C60-P12R-HEADER] §Parte 5 · #4 (a11y) · durante os atos o cabeçalho inteiro (Voltar,
+          // título e Pronto) SAI da árvore de acessibilidade: leitor de tela não alcança um controle
+          // invisível-porém-morto. `accessibilityViewIsModal` do overlay cobre só iOS; isto cobre
+          // TalkBack no Android (e reforça no iOS). Fora da celebração, volta ao normal ('auto').
+          importantForAccessibility={c60Celebrating ? 'no-hide-descendants' : 'auto'}
+        >
+          {/* [C60-P12R-HEADER] §Parte 5 · durante os atos da celebração o Voltar SOME (opacity) e
+              PARA de responder (pointerEvents 'none'): assim não fica um controle visível-porém-morto
+              atrás da camada de festa (problema físico #4). Fora da celebração, volta pleno. */}
+          <Animated.View
+            style={{ opacity: controlsAnim }}
+            pointerEvents={c60Celebrating ? 'none' : 'auto'}
+          >
+            <SoundButton style={styles.topBarNavBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+              <Text style={styles.topBarNavBtnText}>← Voltar</Text>
+            </SoundButton>
+          </Animated.View>
           {/* Título coerente com a atividade escolhida, vindo do catálogo (mesmo componente e
-              mesmo estilo `topBarTitle` já usados na tela). Sem catálogo, mantém o rótulo atual. */}
-          <Text style={styles.topBarTitle} numberOfLines={1}>
+              mesmo estilo `topBarTitle` já usados na tela). Sem catálogo, mantém o rótulo atual.
+              [C60-P12R-HEADER] §Parte 3/5 · `adjustsFontSizeToFit` encolhe ANTES de truncar (o título
+              nunca aparece cortado — problema físico #3); e some junto com os controles na celebração. */}
+          <Animated.Text
+            style={[styles.topBarTitle, { opacity: controlsAnim }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
             {resolution.activity?.title ?? 'Hora de Colorir'}
-          </Text>
+          </Animated.Text>
           {/* Durante a conclusão os controles somem suavemente (§6) e param de responder ao
               toque — a pintura fica visível e congelada atrás da camada. */}
           <Animated.View
