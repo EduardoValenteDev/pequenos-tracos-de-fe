@@ -37,6 +37,13 @@ export const ROUTES = Object.freeze({
    * piloto vive dentro da tela (a rota sozinha não autoriza nada).
    */
   COLORING60_COLLECTION: 'Coloring60Collection',
+  /**
+   * Colorir 60 — PRÉVIA AMPLIADA de UMA obra (C60 · seleção visual). Aberta ao tocar uma criação na
+   * coleção. Recebe só a IDENTIDADE (`storyId` + `activityId` da vaga) — nunca bytes nem pintura pela
+   * navegação; a tela relê pela leitura canônica reconciliada. Como a coleção, é PÚBLICA e o gate do
+   * piloto vive dentro da tela. É uma VISTA (e a rampa para editar), jamais a celebração de 3 de 3.
+   */
+  COLORING60_ART_PREVIEW: 'Coloring60ArtPreview',
 
   // ── Criação (nomes legados: NÃO renomear, quebram navegação) ──────────────
   ATELIER_CANVAS: 'AtelierCanvas',

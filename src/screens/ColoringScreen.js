@@ -32,7 +32,8 @@ import FaithIcon from '../components/ui/FaithIcon';
 import { backLabelFor } from '../utils/originBack';
 // [C60-PARTE-7] A coleção é uma TELA PRÓPRIA (não mais uma camada sobre o desenho aberto). O nome
 // da rota vem da fonte única para que esta tela não conheça a implementação da coleção — só o destino.
-import { ROUTES } from '../constants/routes';
+// [C60-NAV] Rotas do piloto não são mais referenciadas por nome aqui: a navegação do Colorir 60
+// passou a sair pelo contrato central `coloring60Navigation` (por destino semântico).
 // P2.T2 (Colorir 60) — resolvedor local ADITIVO por (storyId, activityId). Consumido
 // SOMENTE no ramo aditivo abaixo; o caminho legado por cena não o toca.
 import {
@@ -81,6 +82,7 @@ import Coloring60CompletionOverlay, {
 // consome agora é a TELA da coleção. A derivação continua sendo a mesma e única — mudou o consumidor.
 import {
   deriveColoring60Completion,
+  reframeColoring60JourneyForMilestone,
   COLORING60_ACTION,
 } from '../services/coloring60Journey';
 // P7 (Colorir 60) — a LEITURA da arte guardada vem do MESMO serviço dedicado do piloto
@@ -99,6 +101,21 @@ import {
 // [C60-PARTE-6] RESET CANÔNICO — a MESMA função de "Gerenciar dados" e da bancada. O helper de
 // desenvolvimento desta tela deixou de ter limpeza própria: existe uma só, e é esta.
 import { resetCreationColoringJourney } from '../services/coloring60ResetService';
+// [C60-NAV] CONTRATO ÚNICO de navegação do piloto. "Voltar à aventura" e "Ver minha coleção" saem
+// daqui por DESTINO SEMÂNTICO (nunca por contagem de goBack): a conclusão volta DIRETO à história e
+// a coleção chega como instância única. Ver src/services/coloring60Navigation.js.
+import {
+  c60ExitToStory,
+  c60OpenCollectionFromCompletion,
+  c60ResumeStoryAfterMilestone,
+  C60_NAV_ORIGIN,
+} from '../services/coloring60Navigation';
+// [C60-A3] Aquecimento do RETRATO da coleção. Terminada a transação de conclusão (blob escrito,
+// relido, ponteiro promovido, instantâneo reconciliado, conclusão marcada — só então `onCelebrate`
+// dispara), pré-reconcilia a coleção em memória SEM bloquear a celebração, para que "Ver minha
+// coleção" já a encontre pronta. Fire-and-forget: não navega, não conclui, não escreve progresso,
+// não emite som nem háptico. Lê disco e atualiza só o retrato em memória.
+import { primeColoring60Collection } from '../services/coloring60CollectionPortrait';
 import { COLORIR_60_CREATION_PILOT_ENABLED } from '../config/featureFlags';
 import { isInternalToolsEnabled } from '../config/internalTools';
 // P8B (Colorir 60) — aquecimento da pose de conclusão do Beni. Usa apenas o `Image.prefetch` do
@@ -148,7 +165,7 @@ export default function ColoringScreen({ route, navigation }) {
     // [C60-P4-IDENTITY-KEY] Remontagem SEGURA por identidade (Etapa 5): a `key` deriva da
     // identidade composta (storyId resolvido + activityId). Quando a identidade muda na MESMA
     // rota (ex.: light → living_world quando P5 os ativar), o React remonta o ramo do zero —
-    // todos os estados locais voltam ao inicial (c60Ready=false [D1], c60HasPainted=false [D5],
+    // todos os estados locais voltam ao inicial (c60Ready=false [D1], c60PaintMetrics vazio [D5],
     // c60Saving=false, cor padrão), o `canvasRef` é novo e nenhum callback de export pendente da
     // atividade anterior atravessa. Como `resolution.source` é função pura de (storyId,activityId),
     // trocar o lineart também troca a key. Wrapper permanece SEM hooks (resolveC60StoryId é puro).
@@ -512,6 +529,14 @@ function Coloring60ActivityScreen({ route, navigation }) {
 
   const storyId = resolveC60StoryId(route.params);
   const activityId = route.params?.activityId ?? null;
+  // [C60-MARCO] Este editor foi aberto por um MARCO da história (NarrationScreen → contrato central)?
+  // Só é fluxo de marco quando a origem é `storyMilestone` E há uma cena de RETOMADA válida (índice
+  // inteiro ≥ 0). Sem esses dois fatos ⇒ é o editor comum (dev-tool/jornada), e nada muda. O índice de
+  // retomada é a PRÓXIMA cena (0-based) que a NarrationScreen derivou do catálogo (resumeScene − 1).
+  const c60ResumeCenaIndex = route.params?.resumeCenaIndex;
+  const c60MilestoneFlow = route.params?.origin === C60_NAV_ORIGIN.STORY_MILESTONE
+    && Number.isInteger(c60ResumeCenaIndex)
+    && c60ResumeCenaIndex >= 0;
   // [C60-P6-GATE] Defesa em profundidade: sem autorização o ramo NÃO resolve lineart algum —
   // devolve o MESMO estado honesto já usado para identidade fora do piloto ('unknown'). Sem
   // imagem, sem canvas, sem escrita: retorno seguro pelo padrão que a tela já usa. A validação
@@ -746,15 +771,16 @@ function Coloring60ActivityScreen({ route, navigation }) {
     return () => clearTimeout(t);
   }, [available, c60Hydrated]);
 
-  // O canvas confirmou que a arte guardada é aplicável nesta tela: aplica e reconhece que há
-  // pintura na frente da criança (D5) — o mesmo par (loadPaint + marcar pintado) que o fluxo
-  // legado já usa ao continuar um desenho.
+  // O canvas confirmou que a arte guardada é aplicável nesta tela: basta reaplicá-la.
+  // loadPaint redesenha a arte e, na sequência, o engine remede a cobertura e reemite
+  // PAINT_STATE (→ c60PaintMetrics → c60HasColor) e PAINT_APPLIED (→ revela o canvas). O
+  // reconhecimento de "há pintura na frente da criança" (D5) é, portanto, derivado do estado
+  // canônico de métricas — não existe mais um booleano local a marcar aqui.
   function handleC60RestoreValid() {
     const saved = restoreRef.current;
     if (!saved) return;
     restoreRef.current = null;
     canvasRef.current?.loadPaint(saved);
-    setC60HasPainted(true);
   }
 
   // Arte guardada inválida, corrompida ou de outro tamanho de tela: descarta o candidato e segue
@@ -872,7 +898,28 @@ function Coloring60ActivityScreen({ route, navigation }) {
     // (Parte 3) em TODAS as três celebrações, e a galeria quando a arte atual só existe em memória.
     // Setado UMA vez antes de qualquer ramo, para que o primeiro quadro da moldura já esteja no lugar.
     setC60CelebrateSnapshot(snapshot);
-    setC60Journey(journey);
+    // [C60-MARCO · CTA contextual] No fluxo de MARCO, a criança está DENTRO da história: a conclusão
+    // não deve oferecer "próxima parte"/"ver coleção"/"continuar" (que a tirariam da narrativa).
+    // Reenquadramos as AÇÕES para um ÚNICO caminho — "Continuar a história" (retoma na cena de retorno)
+    // — pela derivação PURA `reframeColoring60JourneyForMilestone`, que decide por ORIGEM (marco), nunca
+    // pelo texto do botão. O rótulo é DISTINTO de "Voltar à aventura" (a saída para a StoryDetail): dois
+    // destinos, dois textos. A máquina de jornada NÃO é tocada — `journey` (modo, contagens, próxima
+    // parte) segue intacto para o cartão da StoryDetail e a coleção; só as AÇÕES desta celebração mudam.
+    // A celebração VISUAL (modo activity/finale/update decidido abaixo) permanece a que a máquina
+    // escolheu — um 3/3 legítimo ainda é comemorado; apenas o botão passa a ser um só, que retoma a
+    // história na cena de retorno (`c60ResumeCenaIndex` + 1, 1-based).
+    setC60Journey(c60MilestoneFlow
+      ? reframeColoring60JourneyForMilestone(journey, {
+          returnSceneId: Number.isInteger(c60ResumeCenaIndex) ? c60ResumeCenaIndex + 1 : null,
+        })
+      : journey);
+
+    // [C60-A3] TRANSAÇÃO CONCLUÍDA ⇒ AQUECE O RETRATO da coleção. `onCelebrate` só é chamado em
+    // desfecho SAVED/NOT_PERSISTED_FREE — ou seja, a conclusão já está gravada e o disco consistente.
+    // Dispara a reconciliação em segundo plano (dedup em voo por storyId): quando a criança tocar
+    // "Ver minha coleção", o retorno é quente e instantâneo. Fire-and-forget de propósito — NÃO
+    // aguardamos, NÃO navegamos, NÃO tocamos progresso/som/háptico, e um erro aqui não afeta a festa.
+    primeColoring60Collection(storyId);
 
     // Editar uma atividade JÁ concluída (Regras 4/5): celebração de ATUALIZAÇÃO — a arte volta ao
     // ENQUADRAMENTO INTEIRO ("Ver tudo") para ficar inteira e visível durante a festa, o Beni reage e
@@ -958,14 +1005,13 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // coleções diferentes conforme a origem. Agora é uma TELA PRÓPRIA, que lê o estado do disco e não
   // conhece canvas nenhum. Daqui só resta a NAVEGAÇÃO.
   //
-  // `replace` (e não `navigate`) de propósito: a coleção toma o lugar do editor na pilha, então o
-  // "Voltar" da coleção cai na AVENTURA — não de volta no desenho que a criança acabou de fechar.
-  // Sem `replace` disponível (navegador sem stack), o caminho seguro é o `navigate` comum.
+  // [C60-NAV · FLUXO 5] Instância ÚNICA: o `replace` cru daqui criava uma SEGUNDA coleção quando o
+  // editor fora aberto por Coleção→Prévia→Editar (a coleção já estava embaixo). O contrato central
+  // resolve por destino: coleção na pilha → `popTo` até ela (remove prévia+editor); coleção ausente
+  // (StoryDetail→Editor direto) → `replace` (a coleção toma o lugar do editor).
   function openC60CollectionScreen() {
     if (!activeRef.current) return;
-    const params = { storyId };
-    if (typeof navigation.replace === 'function') navigation.replace(ROUTES.COLORING60_COLLECTION, params);
-    else navigation.navigate(ROUTES.COLORING60_COLLECTION, params);
+    c60OpenCollectionFromCompletion(navigation, storyId);
   }
 
   // [C60-P13-DISPATCH] DESPACHANTE ÚNICO das ações da jornada. A derivação diz a INTENÇÃO
@@ -981,7 +1027,19 @@ function Coloring60ActivityScreen({ route, navigation }) {
     }
     if (kind === COLORING60_ACTION.STAY) { handleC60ContinueColoring(); return; }
     if (kind === COLORING60_ACTION.COLLECTION) { openC60CollectionScreen(); return; }
-    navigation.goBack();
+    // [C60-MARCO · CTA contextual] Editor aberto por um MARCO da história ⇒ "Continuar a história"
+    // RETOMA a narrativa na cena de retorno (decisão do fundador), pelo contrato central — consumindo
+    // o editor (replace) e montando uma Narração fresca na cena de retomada. O roteamento decide pela
+    // ORIGEM (`c60MilestoneFlow`), NUNCA pelo texto do botão. Fora do marco, nada muda: BACK/desconhecida
+    // saem para a StoryDetail ("Voltar à aventura") como sempre — dois destinos, dois textos.
+    if (c60MilestoneFlow) {
+      c60ResumeStoryAfterMilestone(navigation, { story: route.params.story, resumeCenaIndex: c60ResumeCenaIndex });
+      return;
+    }
+    // [C60-NAV · FLUXO 5] BACK ("Voltar à aventura") e qualquer intenção desconhecida saem DIRETO
+    // para a história pelo contrato central — nunca `goBack()` cru, que caía na PRÉVIA (a evidência
+    // física) por depender de quantas telas do piloto sobraram na pilha.
+    c60ExitToStory(navigation);
   }
 
   function handleC60Primary() { handleC60Action(c60Journey?.primaryAction ?? null); }

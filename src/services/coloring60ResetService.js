@@ -15,7 +15,8 @@
  * serviço apenas orquestra, na ordem certa:
  *   - conclusão / já-concluiu / grande-conclusão-vista → `coloring60ActivityService`
  *   - pintura, instantâneo e ARQUIVO FÍSICO           → `coloring60DrawingStorage`
- *   - memória do convite do Beni                       → `coloring60JourneyInvite`
+ *   - memória do convite pós-história do Beni          → `coloring60JourneyInvite`
+ *   - memória do convite por MARCO (cena 2/7/9)        → `coloring60MilestoneInviteSeen`
  *   - caches em memória e dados temporários de hidratação → barramento de invalidação daqui
  *
  * FRONTEIRA (o que este reset NUNCA toca): onboarding, perfil, avatares, packs, downloads,
@@ -36,6 +37,7 @@ import {
 } from './coloring60ActivityService';
 import { clearColoring60SavedDrawing, hasColoring60SavedDrawing } from './coloring60DrawingStorage';
 import { clearCreationColoringInvite } from './coloring60JourneyInvite';
+import { clearColoring60MilestoneInviteSeen } from './coloring60MilestoneInviteSeen';
 import { getColoring60Activities } from '../data/coloring60Catalog';
 import { COLORING60_STORY_ID } from './coloring60Pilot';
 import { warn } from '../utils/logger';
@@ -72,7 +74,7 @@ function notifyColoring60Reset(storyId) {
  *   1. a PINTURA e o INSTANTÂNEO, incluindo o ARQUIVO FÍSICO em disco (o writer é quem sabe onde
  *      ele mora e apaga metadado-primeiro, sem deixar ponteiro órfão);
  *   2. `isCurrentlyComplete`, `hasEverCompleted` e `finaleSeen` — os registros de conclusão;
- *   3. a memória do convite do Beni, devolvendo a experiência de PRIMEIRO USO;
+ *   3. a memória do convite do Beni (pós-história E por marco), devolvendo a experiência de PRIMEIRO USO;
  *   4. os caches em memória, a última atividade aberta, a tentativa pendente, a revisão e os
  *      dados temporários de hidratação de quem estiver montado (via barramento).
  * O contador volta a 0 de 3 por DERIVAÇÃO — não existe contador guardado para "esquecer" de zerar.
@@ -107,12 +109,20 @@ export async function resetCreationColoringJourney(storyId = COLORING60_STORY_ID
     warn('coloring60Reset.completion:', e);
   }
 
-  // 3) CONVITE do Beni: sem isso a "primeira vez" nunca voltaria a acontecer.
+  // 3) CONVITE do Beni: sem isso a "primeira vez" nunca voltaria a acontecer. São DUAS memórias
+  //    independentes — a do convite pós-história (uma flag global) e a do convite por MARCO (uma por
+  //    atividade, cena 2/7/9). Ambas precisam voltar ao zero para reencenar o primeiro uso.
   try {
     await clearCreationColoringInvite();
   } catch (e) {
     ok = false;
     warn('coloring60Reset.invite:', e);
+  }
+  try {
+    await clearColoring60MilestoneInviteSeen(storyId, activityIds);
+  } catch (e) {
+    ok = false;
+    warn('coloring60Reset.milestoneInvite:', e);
   }
 
   // 4) CACHES EM MEMÓRIA — na MESMA ação, antes de devolver o controle: a interface montada

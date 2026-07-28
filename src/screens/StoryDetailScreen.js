@@ -6,7 +6,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useProgress } from '../hooks/useProgress';
 import { useStoryPackDownload } from '../hooks/useStoryPackDownload';
 import { hasSavedDrawing } from '../services/drawingStorage';
 import { preloadStorySceneIllustrations } from '../services/storyImageService';
@@ -14,6 +13,9 @@ import { hasAccess } from '../services/accessControl';
 import { isStoryComingSoon, getStoryAccessStatus } from '../services/contentAccessService';
 import { getStoryJourneyStatus, sceneVisualStatus } from '../services/storyJourneyService';
 import { hasStoryColoringActivityDone } from '../services/coloringActivityService';
+// [C60-PONTE] Em "A Criação" com o piloto ativo, coloringComplete vem da jornada Colorir 60 (ponte
+// READ-ONLY), não da fonte legada por cena. Falha de leitura preserva o valor atual (não força false).
+import { loadStoryColoringCompletionState } from '../services/storyColoringCompletion';
 import { useProgressContext } from '../context/ProgressContext';
 import { isQuizDone, getReflection, isStoryBookOpened } from '../services/postStoryStorage';
 import StoryBookHero from '../components/story/StoryBookHero';
@@ -37,7 +39,9 @@ import {
 } from '../services/coloring60JourneyInvite';
 import CreationColoringJourneySection from '../components/coloring60/CreationColoringJourneySection';
 // [C60-PARTE-7] A coleção tem rota própria; o nome vem da fonte única de rotas.
-import { ROUTES } from '../constants/routes';
+// [C60-NAV] CONTRATO ÚNICO de navegação do piloto (FLUXO 1): as entradas "Colorir" e "Ver minha
+// coleção" partem daqui por destino semântico, dedup por rota. Ver src/services/coloring60Navigation.
+import { c60OpenEditorFromStory, c60OpenCollectionFromStory } from '../services/coloring60Navigation';
 
 const CREATION_STORY_ID = 'creation';
 
@@ -68,9 +72,21 @@ export default function StoryDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const isTablet = width >= 768;
 
-  const { isStorySequenceUnlocked } = useProgressContext();
-  const { progresso } = useProgress(story.id);
-  const progressCount = Object.values(progresso).filter(Boolean).length;
+  // [P4 · FONTE ÚNICA] O progresso de cenas desta tela vem do ProgressContext — a MESMA fonte que a
+  // NarrationScreen atualiza (refreshProgress após salvar cada cena) — e não mais de uma leitura
+  // própria só-no-mount (useProgress lia o AsyncStorage uma vez no useEffect de montagem e nunca
+  // revia). Sem isto, ao SAIR da história antes do fim a StoryDetail seguia mostrando o "N de 10", o
+  // passo recomendado e o selo do ESTADO ANTIGO até sair ao Mapa e reentrar (defeito físico observado).
+  // O formato é idêntico ao do useProgress ({ [cenaId]: true }): getStoryProgress devolve o mesmo
+  // objeto salvo por cena; a contagem usa a mesma derivação Object.values(...).filter(Boolean).length.
+  const {
+    isStorySequenceUnlocked,
+    getStoryProgress,
+    getCompletedScenesCount,
+    refreshProgress,
+  } = useProgressContext();
+  const progresso = getStoryProgress(story.id);
+  const progressCount = getCompletedScenesCount(story.id);
   const totalScenes = story.totalCenas ?? 0;
   const xpPercent = totalScenes > 0 ? progressCount / totalScenes : 0;
   const isCompleted = progressCount >= totalScenes && totalScenes > 0;
@@ -132,14 +148,31 @@ export default function StoryDetailScreen({ route, navigation }) {
     checkDrawings();
   }, [progressCount]);
 
+  // [P4 · REVALIDAÇÃO COMPLEMENTAR] Ao focar (voltar da história ou do Colorir), revalida o progresso
+  // na fonte única. A sincronização PRIMÁRIA já vem da NarrationScreen (refreshProgress após cada cena
+  // salva); esta é a rede complementar para qualquer caminho que não passe por lá. refreshProgress é
+  // estável (loadAll com deps []), então o efeito roda uma vez por foco — sem laço de re-render.
+  useFocusEffect(
+    useCallback(() => { refreshProgress(); }, [refreshProgress]),
+  );
+
   useFocusEffect(
     useCallback(() => {
       if (!isCompleted) return;
       isQuizDone(story.id).then(setQuizDone);
       getReflection(story.id).then(r => setReflectionDone(!!r));
       isStoryBookOpened(story.id).then(setBookOpened);
-      hasStoryColoringActivityDone(story.id).then(setColoringDone);
-    }, [story.id, isCompleted]),
+      // [C60-PONTE] "A Criação" (piloto) tira coloringComplete da jornada Colorir 60; as demais
+      // histórias — e "A Criação" com o piloto off — mantêm a fonte legada por cena. `creationColoringVisible`
+      // é exatamente o gate do piloto. Falha de leitura PRESERVA o valor atual (não chama setColoringDone).
+      if (creationColoringVisible) {
+        loadStoryColoringCompletionState(story.id).then((r) => {
+          if (r.applicable && !r.readFailed) setColoringDone(r.coloringComplete === true);
+        });
+      } else {
+        hasStoryColoringActivityDone(story.id).then(setColoringDone);
+      }
+    }, [story.id, isCompleted, creationColoringVisible]),
   );
 
   // §5/§10 · Carrega a CONCLUSÃO real das 3 atividades ao focar a tela (reflete conclusões feitas no
@@ -254,7 +287,7 @@ export default function StoryDetailScreen({ route, navigation }) {
   function getSceneStatus(cena, index) {
     return sceneVisualStatus({
       isComingSoon,
-      isDone: progresso[cena.id] === true, // progresso REAL salvo (useProgress), independe de canAccess
+      isDone: progresso[cena.id] === true, // progresso REAL salvo (ProgressContext · fonte única), independe de canAccess
       canAccess,
       isCurrent: index === progressCount,
     });
@@ -265,7 +298,7 @@ export default function StoryDetailScreen({ route, navigation }) {
   // NÃO passa o `story` completo nem cria rota nova: só (storyId, activityId). O retorno da
   // celebração ("Voltar à aventura"/"Ver meus desenhos") volta a ESTA tela pelo goBack já existente.
   function openCreationColoring(activityId) {
-    navigation.navigate('Coloring', { storyId: CREATION_STORY_ID, activityId });
+    c60OpenEditorFromStory(navigation, CREATION_STORY_ID, activityId);
   }
 
   // [C60-PARTE-7] "Ver minha coleção" (cartão em 3 de 3). A coleção é uma TELA PRÓPRIA e lê tudo do
@@ -274,7 +307,7 @@ export default function StoryDetailScreen({ route, navigation }) {
   // parte de origem. Agora a entrada é a mesma venha de onde vier: só a história.
   // Abrir a coleção NÃO conclui nada e NÃO repete a grande conclusão.
   function openCreationColoringCollection() {
-    navigation.navigate(ROUTES.COLORING60_COLLECTION, { storyId: CREATION_STORY_ID });
+    c60OpenCollectionFromStory(navigation, CREATION_STORY_ID);
   }
 
   // §7 · "Colorir agora": abre a PRIMEIRA atividade ainda não concluída (ordem do catálogo); se

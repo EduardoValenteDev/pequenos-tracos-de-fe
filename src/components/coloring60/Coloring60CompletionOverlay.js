@@ -1236,7 +1236,14 @@ export default function Coloring60CompletionOverlay({
               conclusão e só quando existe uma próxima parte real (nunca sugerir o que não há). */}
           {nextPart && (
             <Animated.View
-              style={[styles.nextPart, { borderColor: accent, backgroundColor: rgba(accent, 0.10) }, progressEnter]}
+              style={[
+                styles.nextPart,
+                // EV4/EV5 · fundo VERDADEIRAMENTE OPACO na cor pálida da atividade de DESTINO (tintSoft
+                // é hex sólido: goldSoft/greenSoft/beniSoft) — nunca mais uma borda sobre transparência.
+                // A borda usa a cor cheia da mesma atividade, para o convite "pertencer" à próxima parte.
+                { borderColor: atmosphereOf(nextPart.activityId).tint, backgroundColor: atmosphereOf(nextPart.activityId).tintSoft },
+                progressEnter,
+              ]}
               pointerEvents="none"
             >
               <Text style={[styles.nextPartKicker, { color: accentDeep }]}>{nextPart.sectionTitle}</Text>
@@ -1306,16 +1313,73 @@ const styles = StyleSheet.create({
   titleBig: { fontSize: 23, fontWeight: '800' },
   beniLine: { fontSize: 14, color: colors.text, marginTop: 3, lineHeight: 19 },
   message: { fontSize: 14, color: colors.textSoft, marginTop: spacing.sm, textAlign: 'center' },
-  messageFinale: { fontSize: 14, color: colors.text, lineHeight: 20, marginTop: spacing.sm, textAlign: 'center' },
+  // EV6 · a mensagem final também sai de cima da arte para uma cápsula opaca própria.
+  messageFinale: {
+    alignSelf: 'center',
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.lg ?? 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
 
   // Fecho: rótulo da criação + galeria + linha do Beni.
-  finaleKicker: { fontSize: 14, fontWeight: '800', textAlign: 'center', marginBottom: spacing.xs, letterSpacing: 0.3 },
+  // EV6 · o rótulo da criação fica sobre a arte no fecho 3/3 — ganha cápsula opaca própria para não se
+  // misturar ao contorno por baixo (mesma correção de legibilidade das conclusões 1/3 e 2/3).
+  finaleKicker: {
+    alignSelf: 'center',
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    fontSize: 14,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+    letterSpacing: 0.3,
+  },
   gallery: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start' },
   finaleHeadRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: spacing.md },
   finaleBeni: { alignItems: 'center', justifyContent: 'flex-end' },
-  finaleTextCol: { flex: 1, marginLeft: spacing.sm, justifyContent: 'flex-end', paddingBottom: 6 },
+  // EV6 · título + fala do Beni no fecho vivem sobre a arte — passam a morar num cartão opaco ao lado
+  // do Beni (nunca texto solto sobre o contorno). Os elementos de texto internos ficam intactos.
+  finaleTextCol: {
+    flex: 1,
+    marginLeft: spacing.sm,
+    justifyContent: 'flex-end',
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg ?? 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    ...shadows.card,
+  },
 
-  progressTrail: { alignItems: 'center', marginBottom: spacing.sm },
+  // EV4/EV5 · a TRILHA vira uma cápsula OPACA e centrada: os marcadores Luz/Vida/Cuidado e a contagem
+  // não podem se perder sobre a arte por baixo. É superfície sólida própria, não transparência.
+  progressTrail: {
+    alignSelf: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.lg ?? 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.sm,
+    ...shadows.soft,
+  },
   markersRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start' },
   countPill: {
     marginTop: spacing.sm,
@@ -1332,11 +1396,16 @@ const styles = StyleSheet.create({
   // atividade de DESTINO no ícone. Sem teto de linhas em nenhum texto — cresce se precisar.
   nextPart: {
     alignSelf: 'stretch',
+    // Superfície OPACA de segurança (o inline sobrepõe com a cor da atividade de destino): mesmo que o
+    // inline falte, a área nunca vira transparência sobre a arte. Padding confortável + elevação leve
+    // para o convite ler como um cartão sólido acima da cena (EV4/EV5).
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
     borderRadius: radii.lg ?? 18,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
+    ...shadows.card,
   },
   nextPartKicker: { fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
   nextPartRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
@@ -1356,7 +1425,22 @@ const styles = StyleSheet.create({
   // §Parte 10 · estado curto de preparo: o botão continua no lugar (nada "pula"), só mais discreto.
   primaryBtnPending: { opacity: 0.72 },
   // §Parte 3/4 · "Seu progresso fica guardado." — discreto, logo abaixo das ações.
-  helperText: { marginTop: spacing.xs, fontSize: 13, color: colors.textSoft, textAlign: 'center' },
+  // EV4 · o texto de apoio fica logo abaixo dos botões, sobre a arte — então ganha uma cápsula opaca
+  // própria para permanecer legível. (A HONESTIDADE por plano — o que ele diz — é tratada na derivação
+  // em ETAPA 3; aqui a mudança é só de LEGIBILIDADE da superfície.)
+  helperText: {
+    alignSelf: 'center',
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textSoft,
+    textAlign: 'center',
+  },
   secondaryBtn: {
     minHeight: 46,
     borderRadius: radii.pill,

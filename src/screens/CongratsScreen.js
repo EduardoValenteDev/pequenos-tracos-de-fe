@@ -133,9 +133,10 @@ export default function CongratsScreen({ route, navigation }) {
   const creationColoringHidden = creationColoringPilot;
 
   // [C60-PARTE-10] Progresso REAL da jornada de cores, reconciliado (conclusão + instantâneo).
-  // `null` = ainda lendo OU leitura falhou: nos dois casos a ponte não é renderizada. Preferimos
-  // não convidar a convidar errado — um "Começar" para quem já pintou duas partes seria uma mentira
-  // pequena com custo grande (refazer o que já estava pronto).
+  // `null` = ANTES da primeira leitura (nada a mostrar ainda). Quando a leitura FALHA depois de já
+  // termos uma ponte válida, PRESERVAMOS a última (não voltamos a "nada" nem a "0 de 3"); se falhar
+  // sem estado anterior, caímos numa ponte HONESTA (readFailed) em vez de convidar errado — um
+  // "Começar" para quem já pintou duas partes seria uma mentira pequena com custo grande.
   const [c60Bridge, setC60Bridge] = useState(null);
 
   // Recarrega ao FOCAR: a criança pode sair daqui para colorir e voltar. O rótulo do convite tem de
@@ -153,7 +154,9 @@ export default function CongratsScreen({ route, navigation }) {
       })
       .catch((err) => {
         if (__DEV__) console.log('[Coloring60] ponte pós-história: leitura falhou:', err?.message);
-        if (alive) setC60Bridge(null);
+        // Leitura falhou: PRESERVA a última ponte válida; sem estado anterior, mostra a ponte
+        // honesta (readFailed) — nunca volta a `null`/branco e nunca assume 0 de 3.
+        if (alive) setC60Bridge((prev) => prev ?? deriveColoring60StoryBridge({ readFailed: true }));
       });
     return () => { alive = false; };
   }, [creationColoringPilot, story.id]));

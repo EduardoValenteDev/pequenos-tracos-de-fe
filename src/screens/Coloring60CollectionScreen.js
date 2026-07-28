@@ -1,5 +1,5 @@
 /**
- * Coloring60CollectionScreen.js — A COLEÇÃO como LUGAR (C60 · Partes 7, 8 e 9).
+ * Coloring60CollectionScreen.js — A COLEÇÃO como LUGAR (C60 · Partes 7, 8, 9 · Retorno instantâneo A1/A2/A5/A6).
  *
  * O QUE ESTAVA ERRADO (evidência física do fundador, itens 1, 2, 3, 4, 12 e 13). A coleção era uma
  * CAMADA aberta por cima do desenho que estava sendo pintado. Consequências observadas no aparelho:
@@ -9,27 +9,30 @@
  *   • os textos caíam SOBRE a arte e perdiam legibilidade;
  *   • a composição inteira dependia de por onde a criança entrou.
  *
- * A CORREÇÃO É ESTRUTURAL, não cosmética: a coleção virou uma TELA PRÓPRIA, com rota própria. Ela não
- * conhece canvas, não recebe pintura em memória e não tem "esta parte" — por isso o resultado é
- * IDÊNTICO vindo da conclusão, do cartão da história ou da bancada de desenvolvimento. Regras visuais
- * que este arquivo cumpre e que não podem regredir:
- *   • fundo NEUTRO (creme, gradiente suave) — nunca a cor temática de uma das partes;
- *   • nenhum texto desenhado SOBRE uma obra; todo texto vive em superfície sólida própria;
- *   • as três obras ficam visíveis ao mesmo tempo, cada uma no seu contêiner, na mesma proporção;
- *   • sem cartão branco gigante cobrindo a tela e sem a obra atual ampliada ao fundo.
+ * A CORREÇÃO ESTRUTURAL (Partes 7-9) segue intacta: a coleção é uma TELA PRÓPRIA, com rota própria,
+ * fundo NEUTRO, texto só em superfície sólida, três obras na mesma proporção 4:5. Nada disso muda aqui.
  *
- * HIDRATAÇÃO ATÔMICA (Parte 8). Enquanto a coleção carrega, a tela mostra TRÊS espaços neutros e a
- * linha "Montando sua coleção..." — JAMAIS o contorno sem cor. O contorno só aparece COMPOSTO com a
- * pintura, quando as duas imagens já carregaram. As três obras entram JUNTAS, num crossfade curto:
- * era o "aparece sem cor e depois recupera a pintura" (evidência 5) que isto elimina.
+ * O QUE ESTE BLOCO CORRIGE (PARTE A · retorno instantâneo). A tela DESCARTAVA um resultado válido e
+ * re-derivava do disco a CADA foco, atrás de uma BARREIRA GLOBAL: reset síncrono ao esqueleto, três
+ * leituras de blob base64 em `Promise.all`, e um portão que só revelava quando as TRÊS vagas
+ * decodificavam (teto de 7 s). Daí a espera intermitente em "Montando sua coleção…". Agora:
+ *   • STALE-WHILE-REVALIDATE (A2): o RETRATO em memória (`coloring60CollectionPortrait`) é mostrado de
+ *     imediato no retorno quente; a reconciliação do disco acontece em segundo plano e troca SÓ a vaga
+ *     que mudou — a tela nunca volta a esqueleto por cima de obras válidas.
+ *   • ESTADO POR VAGA (A1): cada `CollectionSlot` revela a SUA arte quando tinta E contorno carregam.
+ *     Não há mais portão global — uma vaga lenta/erro não bloqueia as outras duas.
+ *   • KEY POR VAGA (A5): `coloring60SlotKey` remonta uma vaga só quando a obra muda de verdade; vagas
+ *     inalteradas mantêm a imagem quente, sem piscar.
+ *   • TIMEOUT POR VAGA (A6): o teto de espera é de cada vaga; "Montando sua coleção…" (global) só
+ *     aparece na PRIMEIRA carga real (frio, sem retrato), nunca dominando o retorno quente.
  *
- * INTEGRIDADE (Partes 4 e 9). A tela LÊ o retrato gravado e o RECONCILIA com o que existe de fato no
- * disco (`reconcileSnapshotStatus`): concluída sem arte recuperável é QUEBRA DE INTEGRIDADE e não é
- * contada — não existe "3 de 3" sem três obras. Limpar uma parte concluída faz o contador cair aqui
- * na volta, porque a contagem vem de `countsAsComplete`, nunca de um booleano solto.
+ * INTEGRIDADE (Partes 4 e 9). A contagem vem de `countsAsComplete` (nunca de um booleano solto):
+ * concluída sem arte recuperável é QUEBRA DE INTEGRIDADE e não conta; limpar uma parte faz o contador
+ * cair na volta. A hidratação atômica por vaga continua proibindo o contorno sem cor.
  *
  * O que esta tela NÃO faz: não conclui atividade, não concede recompensa, não repete a grande
- * conclusão, não escreve NADA. Ela só lê, compõe e oferece duas saídas.
+ * conclusão, não escreve NADA, não duplica blob. Ela só lê o retrato reconciliado, compõe e oferece
+ * as saídas.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -41,29 +44,37 @@ import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from '../components/SoundButton';
 import BeniMascotImage from '../components/common/BeniMascotImage';
 import { colors, radii, shadows } from '../theme/productTheme';
+// [C60-ETAPA4] COR TEMÁTICA por parte — FONTE ÚNICA compartilhada com a PRÉVIA AMPLIADA. A miniatura
+// da coleção e a prévia da mesma obra herdam a MESMA cor (dois mapas não podem divergir). Ver
+// src/theme/coloring60ActivityTheme.js.
+import { getColoring60ActivityTheme } from '../theme/coloring60ActivityTheme';
 import { getColoring60Activities } from '../data/coloring60Catalog';
-import {
-  resolveColoring60Lineart,
-  COLORING60_RESOLUTION_STATUS,
-} from '../services/coloring60Resolver';
-import { loadColoring60JourneyRecord } from '../services/coloring60ActivityService';
-import { getColoring60SavedDrawing } from '../services/coloring60DrawingStorage';
-import { snapshotHasMeaningfulColor } from '../services/coloring60PaintMetrics';
 // [C60-PARTE-6] O reset canônico avisa quem tem cache em memória. Sem isto, apagar tudo em
 // "Gerenciar dados" deixaria esta tela exibindo a coleção antiga até uma navegação nova.
 import { subscribeColoring60Reset } from '../services/coloring60ResetService';
 import {
   HYDRATION_STATUS,
-  SNAPSHOT_STATUS,
-  reconcileSnapshotStatus,
   deriveColoring60ActivityState,
   deriveColoring60JourneyState,
 } from '../services/coloring60State';
+// `SLOT` (os quatro estados de uma vaga) segue vindo do leitor canônico. A LEITURA em si já não é
+// feita aqui: quem lê o disco e mantém o retrato reconciliado é o serviço de retrato (A2/A3).
+import { SLOT } from '../services/coloring60CollectionReader';
+// [C60-A2/A3] RETRATO EM MEMÓRIA por storyId — o coração do retorno instantâneo. `getColoring60Portrait`
+// devolve (síncrono) o último retrato válido; `primeColoring60Collection` reconcilia do disco em
+// segundo plano (dedup em voo, geração de leitura, merge SWR). A tela nunca lê blob direto.
+import {
+  getColoring60Portrait,
+  primeColoring60Collection,
+} from '../services/coloring60CollectionPortrait';
+// [C60-A5] KEY por vaga (muda só quando a obra muda de verdade) — a MESMA regra pura provada no smoke.
+import { coloring60SlotKey } from '../services/coloring60PortraitMerge';
 import {
   deriveColoring60CollectionView,
   COLORING60_ACTION,
   COLORING60_COLLECTION_MESSAGE,
   COLORING60_COLLECTION_LOADING,
+  COLORING60_COLLECTION_TAP_HINT,
 } from '../services/coloring60Journey';
 import {
   parseDrawingPayload,
@@ -74,30 +85,18 @@ import {
 } from '../components/coloring60/coloring60ArtComposition';
 import { COLORIR_60_CREATION_PILOT_ENABLED } from '../config/featureFlags';
 import { isInternalToolsEnabled } from '../config/internalTools';
-import { ROUTES } from '../constants/routes';
+// [C60-NAV] CONTRATO ÚNICO de navegação do piloto. A coleção é o SELETOR: abre a prévia por
+// identidade, abre o editor por identidade e "Voltar à aventura" sai DIRETO à história — tudo por
+// destino semântico, nunca por contagem de goBack. Ver src/services/coloring60Navigation.js.
+import {
+  c60ExitToStory,
+  c60OpenPreview,
+  c60OpenEditorFromStory,
+} from '../services/coloring60Navigation';
 
-// Rótulo curto de cada parte, EXIBIDO SOB a obra (nunca por cima). Mesma nomenclatura da celebração.
-const MARKERS = { light: 'Luz', living_world: 'Vida', people_and_care: 'Cuidado' };
-
-// Estados possíveis de UM espaço da coleção. Só `art` desenha imagem; nenhum outro estado usa o
-// contorno sozinho — um contorno sem cor no lugar da obra é justamente a mentira que a Parte 8 proíbe.
-const SLOT = Object.freeze({
-  ART: 'art',                 // pintura recuperável: cor + contorno compostos
-  NOT_PERSISTED: 'notPersisted', // concluída, mas o plano atual não guarda os pixels
-  NEEDS_COLOR: 'needsColor',  // quebra de integridade: concluída sem arte recuperável
-  EMPTY: 'empty',             // ainda não concluída
-});
-
-// Teto de espera das imagens. Estourado, a tela REVELA mesmo assim: os espaços que não chegaram caem
-// no estado honesto, e a criança nunca fica presa num carregamento infinito.
-const COLLECTION_ART_TIMEOUT_MS = 7000;
-
-// [C60-P8-CACHE] Cache em MEMÓRIA (Parte 8), invalidado pela ASSINATURA de revisão: id + situação do
-// instantâneo + tamanho do payload de cada parte. Ele NÃO guarda arte: guarda apenas a informação de
-// que ESTA revisão já foi revelada nesta sessão — e então a volta à coleção não repete a espera nem o
-// carregamento (as imagens já estão quentes no cache do RN). Qualquer pintura nova, limpeza ou
-// mudança de plano muda a assinatura, o cache é descartado e a hidratação atômica volta a valer.
-let collectionCache = null; // { storyId, signature, revealed }
+// [C60-A6] Teto de espera POR VAGA (não global). Estourado, a vaga para de esperar a composição e
+// permanece no papel neutro do quadro — SEM revelar contorno sem tinta e SEM prender as outras duas.
+const COLLECTION_SLOT_TIMEOUT_MS = 7000;
 
 /** Gate do piloto — a MESMA regra da tela de colorir (flag oficial OU dev com ferramentas internas). */
 function isColoring60PilotAllowed() {
@@ -106,142 +105,145 @@ function isColoring60PilotAllowed() {
   return dev && isInternalToolsEnabled();
 }
 
-function signatureOf(slots) {
-  return slots.map((s) => `${s.activityId}:${s.snapshotStatus}:${s.paint ? s.paint.length : 0}`).join('|');
-}
-
 /**
- * loadCollectionSlots(storyId) — LEITURA ÚNICA e completa: retrato de conclusão (um multiGet) +
- * pintura guardada de cada parte + contorno oficial. Devolve os espaços já reconciliados. Nunca
- * escreve; qualquer falha vira estado honesto (nunca uma obra inventada).
+ * deriveCollectionFromSlots(slots, finaleSeen) — deriva contador, integridade e ações a partir das
+ * vagas do retrato. Estado visual (`kind`) já vem anexado pelo retrato; aqui só se derivam a jornada
+ * (para o "N de 3" honesto via `countsAsComplete`) e a view de ações. Pura, sem I/O.
  */
-async function loadCollectionSlots(storyId) {
-  const activities = getColoring60Activities(storyId); // ordem fechada: Luz · Vida · Cuidado
-  const ids = activities.map((a) => a.activityId);
-  const record = await loadColoring60JourneyRecord(storyId, ids);
-  // Sem conseguir ler o registro, TODOS os espaços cairiam em "Ainda falta colorir" — a coleção
-  // apagaria três obras existentes na tela. Falha de leitura vira ERRO honesto (o `.catch` da
-  // hidratação leva ao estado de erro, com caminho de volta), nunca uma coleção vazia inventada.
-  if (record.readFailed === true) {
-    throw new Error('coloring60: leitura da coleção indisponível');
-  }
-  const byId = new Map((record.activities || []).map((a) => [a.activityId, a]));
-
-  const slots = await Promise.all(activities.map(async (a) => {
-    const stored = byId.get(a.activityId) || {};
-    let paint = null;
-    try {
-      const saved = await getColoring60SavedDrawing(storyId, a.activityId);
-      if (snapshotHasMeaningfulColor(saved)) paint = saved;
-    } catch (err) {
-      if (__DEV__) console.log(`[Coloring60] coleção: leitura de ${a.activityId} falhou:`, err?.message);
-    }
-    const snapshotStatus = reconcileSnapshotStatus(stored.storedSnapshotStatus, paint != null);
-    const res = resolveColoring60Lineart(storyId, a.activityId);
-    const lineart = res.status === COLORING60_RESOLUTION_STATUS.AVAILABLE ? res.source : null;
-    return {
-      activityId: a.activityId,
-      title: a.title,
-      marker: MARKERS[a.activityId] ?? a.title,
-      isCurrentlyComplete: stored.isCurrentlyComplete === true,
-      hasEverCompleted: stored.hasEverCompleted === true,
-      snapshotStatus,
-      paint: paint && lineart ? paint : null, // sem contorno não há composição possível
-      lineart,
-    };
+function deriveCollectionFromSlots(slots, finaleSeen) {
+  const states = slots.map((s) => deriveColoring60ActivityState({
+    activityId: s.activityId,
+    isCurrentlyComplete: s.isCurrentlyComplete,
+    hasEverCompleted: s.hasEverCompleted,
+    snapshotStatus: s.snapshotStatus,
+    hydrationStatus: HYDRATION_STATUS.READY,
   }));
-
-  return { slots, finaleSeen: record.finaleSeen === true };
-}
-
-/**
- * Estado visual de UM espaço, derivado do modelo canônico (nunca de um booleano solto).
- * A ordem importa: a coleção reflete `isCurrentlyComplete` (Parte 9). Uma parte que NÃO está
- * concluída agora aparece como espaço vazio mesmo que exista pintura antiga no disco — é isso que
- * impede a obra limpa de continuar exposta como se nada tivesse acontecido.
- */
-function slotKindOf(slot, state) {
-  if (state.isCurrentlyComplete !== true) return SLOT.EMPTY;
-  if (slot.paint && slot.lineart && slot.snapshotStatus === SNAPSHOT_STATUS.READY) return SLOT.ART;
-  if (slot.snapshotStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return SLOT.NOT_PERSISTED;
-  return SLOT.NEEDS_COLOR; // concluída sem arte recuperável = integridade quebrada (Parte 8)
+  const journey = deriveColoring60JourneyState({ activities: states, finaleSeen });
+  const view = deriveColoring60CollectionView({
+    doneMap: journey.doneMap,
+    order: slots.map((s) => s.activityId),
+  });
+  return { journey, view };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// UM espaço da coleção. Contêiner PRÓPRIO, proporção fixa (4:5, a mesma dos linearts 1122×1402) e
-// rótulo SOB a obra. Quando há pintura, compõe cor + contorno (multiply) e avisa o pai assim que as
-// DUAS imagens carregam — é o pai quem revela as três juntas.
+// UMA obra da coleção. A ARTE é a PROTAGONISTA: preenche a moldura, na proporção fixa 4:5 (a mesma dos
+// linearts 1122×1402). Uma ÚNICA moldura fina, com a cor TEMÁTICA da parte — sem matte branco interno,
+// sem superfície branca dupla, sem borda artificial (evidência 3/9). O rótulo vive SOB a obra, em chip
+// próprio. Quando há pintura, compõe cor + contorno (multiply).
+//
+// [C60-A1] REVELAÇÃO POR VAGA. Esta vaga revela a SUA arte quando tinta E contorno já carregaram (ou,
+// como rede, quando o teto por vaga estoura) — as duas imagens vivem numa camada de opacidade própria,
+// de 0 → 1. Não existe portão global: enquanto uma vaga espera, as outras já podem estar reveladas. O
+// invariante da Parte 8 (nunca contorno sem cor) é preservado POR VAGA: as duas imagens sobem juntas.
 // ─────────────────────────────────────────────────────────────────────────────
-function CollectionSlot({ slot, kind, cardW, cardH, onSettled }) {
-  const artW = cardW - 6;
-  const artH = cardH - 6;
+function CollectionSlot({ slot, theme, cardW, cardH, onOpen }) {
+  const kind = slot.kind;
+  // Só o descolamento da borda (2px de cada lado): a arte ocupa quase toda a moldura, sem matte.
+  const artW = cardW - 4;
+  const artH = cardH - 4;
   const parsed = kind === SLOT.ART ? parseDrawingPayload(slot.paint) : null;
   const positioned = isPositionedPayload(parsed);
   const visual = parsed ? toArtVisual(parsed, slot.lineart) : null;
   const paintStyle = positioned ? computePaintStyle(artW, artH, visual) : null;
   const lineartStyle = positioned ? computeLineartStyle(artW, artH, visual) : null;
 
+  const artOpacity = useRef(new Animated.Value(0)).current;
   const loadedRef = useRef({ paint: false, lineart: false, done: false });
+  const mountedAtRef = useRef(typeof __DEV__ !== 'undefined' && __DEV__ ? Date.now() : 0);
 
-  // Espaço sem arte já nasce resolvido: nada a carregar, nada a esperar.
-  useEffect(() => {
-    if (kind !== SLOT.ART) onSettled(slot.activityId, true);
-  }, [kind, slot.activityId]);
-
-  function report(which, ok) {
+  const revealArt = useCallback(() => {
     const st = loadedRef.current;
     if (st.done) return;
-    if (!ok) { st.done = true; onSettled(slot.activityId, false); return; }
+    st.done = true;
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log(`[C60-perf] slot:art-ready ${slot.activityId} Δ=${Date.now() - mountedAtRef.current}ms`);
+    }
+    Animated.timing(artOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+  }, [artOpacity, slot.activityId]);
+
+  // Uma imagem que carregou some com sucesso; a que falhou NÃO revela (o timeout por vaga assume, e a
+  // vaga fica no papel neutro — honesto, nunca contorno sem cor).
+  const report = useCallback((which, ok) => {
+    const st = loadedRef.current;
+    if (st.done || !ok) return;
     st[which] = true;
-    if (st.paint && st.lineart) { st.done = true; onSettled(slot.activityId, true); }
-  }
+    if (st.paint && st.lineart) revealArt();
+  }, [revealArt]);
+
+  // [C60-A6] Timeout POR VAGA: para de esperar sem revelar arte incompleta e sem travar as vizinhas.
+  useEffect(() => {
+    if (kind !== SLOT.ART) return undefined;
+    const t = setTimeout(() => {
+      const st = loadedRef.current;
+      if (st.done) return;
+      st.done = true; // desiste desta vaga: permanece o papel neutro (sem contorno sem tinta)
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.log(`[C60-perf] slot:timeout ${slot.activityId}`);
+      }
+    }, COLLECTION_SLOT_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [kind, slot.activityId]);
 
   const emptyText = kind === SLOT.NOT_PERSISTED
     ? 'Você coloriu esta parte!'
     : (kind === SLOT.NEEDS_COLOR ? 'Precisa de cor de novo' : 'Ainda falta colorir');
 
   const a11y = kind === SLOT.ART
-    ? `${slot.marker}: obra colorida por você`
-    : `${slot.marker}: ${emptyText}`;
+    ? `Ver de perto: ${slot.marker}, obra colorida por você`
+    : `Ver de perto: ${slot.marker}, ${emptyText}`;
 
+  // A obra INTEIRA (moldura + rótulo) é a área de toque — a coleção É o seletor visual. Tocar leva
+  // à PRÉVIA AMPLIADA da PRÓPRIA obra (o `slot.activityId` da vaga), jamais uma parte fixa. Toda
+  // obra é tocável, inclusive as honestas: a prévia mostra o estado real e convida a colorir.
   return (
-    <View style={styles.slotCol} accessible accessibilityLabel={a11y}>
-      <View style={[styles.slotFrame, { width: cardW, height: cardH }]}>
-        <View style={[styles.slotPaper, { width: artW, height: artH }]}>
-          {kind === SLOT.ART ? (
-            <>
-              <Image
-                source={{ uri: visual.paintUri }}
-                style={positioned && paintStyle ? paintStyle : StyleSheet.absoluteFill}
-                resizeMode={positioned ? 'stretch' : 'contain'}
-                fadeDuration={0}
-                onLoad={() => report('paint', true)}
-                onError={() => report('paint', false)}
-              />
-              <Image
-                source={slot.lineart}
-                style={positioned && lineartStyle
-                  ? [lineartStyle, styles.multiply]
-                  : [StyleSheet.absoluteFill, styles.multiply]}
-                resizeMode={positioned ? 'stretch' : 'contain'}
-                fadeDuration={0}
-                onLoad={() => report('lineart', true)}
-                onError={() => report('lineart', false)}
-              />
-            </>
-          ) : (
-            // Estado honesto: NUNCA o contorno sozinho no lugar da obra.
-            <View style={styles.slotEmpty}>
-              <Text style={styles.slotEmptyText}>{emptyText}</Text>
-            </View>
-          )}
-        </View>
+    <SoundButton
+      style={styles.slotCol}
+      onPress={() => onOpen(slot.activityId)}
+      activeOpacity={0.85}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={a11y}
+    >
+      {/* Moldura ÚNICA e fina, na cor temática da parte. O papel creme do fundo é o estado neutro
+          enquanto a arte desta vaga ainda não compôs — nunca uma segunda superfície branca competindo,
+          nunca o contorno sozinho. */}
+      <View style={[styles.slotFrame, { width: cardW, height: cardH, borderColor: theme.frame }]}>
+        {kind === SLOT.ART ? (
+          // Camada de arte com opacidade PRÓPRIA (A1): tinta + contorno sobem juntos, só quando ambos
+          // carregam. Antes disso, o papel neutro do quadro é o que se vê.
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: artOpacity }]}>
+            <Image
+              source={{ uri: visual.paintUri }}
+              style={positioned && paintStyle ? paintStyle : StyleSheet.absoluteFill}
+              resizeMode={positioned ? 'stretch' : 'contain'}
+              fadeDuration={0}
+              onLoad={() => report('paint', true)}
+              onError={() => report('paint', false)}
+            />
+            <Image
+              source={slot.lineart}
+              style={positioned && lineartStyle
+                ? [lineartStyle, styles.multiply]
+                : [StyleSheet.absoluteFill, styles.multiply]}
+              resizeMode={positioned ? 'stretch' : 'contain'}
+              fadeDuration={0}
+              onLoad={() => report('lineart', true)}
+              onError={() => report('lineart', false)}
+            />
+          </Animated.View>
+        ) : (
+          // Estado honesto: NUNCA o contorno sozinho no lugar da obra.
+          <View style={styles.slotEmpty}>
+            <Text style={styles.slotEmptyText}>{emptyText}</Text>
+          </View>
+        )}
       </View>
-      {/* Rótulo SOB a obra, em superfície própria — nenhum texto sobre a arte. */}
-      <View style={styles.slotLabelPill}>
-        <Text style={styles.slotLabelText} numberOfLines={1}>{slot.marker}</Text>
+      {/* Rótulo SOB a obra, em chip temático próprio — nenhum texto sobre a arte. */}
+      <View style={[styles.slotLabelPill, { backgroundColor: theme.chipBg, borderColor: theme.frame }]}>
+        <Text style={[styles.slotLabelText, { color: theme.chipText }]} numberOfLines={1}>{slot.marker}</Text>
       </View>
-    </View>
+    </SoundButton>
   );
 }
 
@@ -255,15 +257,9 @@ export default function Coloring60CollectionScreen({ route, navigation }) {
   const [slots, setSlots] = useState([]);
   const [journey, setJourney] = useState(null);
   const [view, setView] = useState(null);
-  // Os espaços neutros só somem DEPOIS do crossfade terminar — desmontá-los junto com o início da
-  // animação deixaria a obra aparecendo sobre o fundo vazio (o "flash" que a Parte 8 proíbe).
-  const [showPlaceholders, setShowPlaceholders] = useState(true);
-  const revealAnim = useRef(new Animated.Value(0)).current;
-  const settledRef = useRef(new Set());
   const activeRef = useRef(true);
-  // Geração da hidratação: cada leitura carimba a sua e só aplica o resultado se ainda for a mais
-  // recente. Sem isso, uma leitura antiga ainda em voo (foco seguido de reset, por exemplo) poderia
-  // pousar DEPOIS da nova e repor a coleção velha — o retrato errado, sem erro nenhum aparente.
+  // Geração da hidratação: cada foco carimba a sua e só aplica o resultado da revalidação se ainda for
+  // a mais recente. Uma revalidação antiga (foco seguido de foco) não repõe o retrato errado.
   const hydrationIdRef = useRef(0);
 
   useEffect(() => () => { activeRef.current = false; }, []);
@@ -271,93 +267,71 @@ export default function Coloring60CollectionScreen({ route, navigation }) {
   const cardW = Math.max(84, Math.floor((Math.min(width, 560) - 36 - 20) / 3));
   const cardH = Math.round(cardW * 1.25);
 
-  // [C60-P8-HYDRATION] Carrega ao FOCAR: voltar de "Colorir novamente" (ou de uma limpeza) precisa
-  // refletir o estado NOVO, não o retrato de quando a tela montou (Parte 9).
+  // Aplica um retrato à tela: deriva contador/ações e revela como PRONTO. As vagas com key estável
+  // (A5) não remontam; só a que mudou de verdade troca — sem piscar as outras.
+  const applyPortrait = useCallback((portrait) => {
+    const sl = (portrait && Array.isArray(portrait.slots)) ? portrait.slots : [];
+    const { journey: j, view: v } = deriveCollectionFromSlots(sl, portrait?.finaleSeen === true);
+    if (__DEV__ && j.hasIntegrityBreak) {
+      console.log('[Coloring60] coleção: integridade quebrada em', j.integrityBrokenIds.join(', '));
+    }
+    setSlots(sl);
+    setJourney(j);
+    setView(v);
+    setStatus(HYDRATION_STATUS.READY);
+  }, []);
+
+  // [C60-A2] Carrega ao FOCAR com STALE-WHILE-REVALIDATE:
+  //   • RETORNO QUENTE (há retrato) → mostra o retrato AGORA (sem esqueleto, sem "Montando…"), e
+  //     revalida o disco em segundo plano, trocando só a vaga que mudou.
+  //   • CARGA FRIA (sem retrato) → esqueleto + "Montando sua coleção…" só nesta primeira vez (A6),
+  //     até a leitura reconciliar; falha sem retrato vira erro honesto.
   const hydrate = useCallback(() => {
     if (!allowed) { setStatus(HYDRATION_STATUS.ERROR); return undefined; }
     hydrationIdRef.current += 1;
     const runId = hydrationIdRef.current;
     const isCurrent = () => activeRef.current && hydrationIdRef.current === runId;
-    settledRef.current = new Set();
-    revealAnim.setValue(0);
-    setShowPlaceholders(true);
-    setStatus(HYDRATION_STATUS.LOADING);
+    const t0 = (typeof __DEV__ !== 'undefined' && __DEV__) ? Date.now() : 0;
 
-    loadCollectionSlots(storyId)
-      .then(({ slots: loaded, finaleSeen }) => {
-        if (!isCurrent()) return;
-        // Cache QUENTE = mesma história, MESMA revisão e já revelada nesta sessão. Qualquer
-        // divergência de assinatura invalida (o objeto é substituído com `revealed: false`).
-        const warm = !!(collectionCache
-          && collectionCache.storyId === storyId
-          && collectionCache.signature === signatureOf(loaded)
-          && collectionCache.revealed === true);
-        collectionCache = { storyId, signature: signatureOf(loaded), revealed: warm };
+    const portrait = getColoring60Portrait(storyId);
+    const hot = !!(portrait && Array.isArray(portrait.slots) && portrait.slots.length > 0);
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log(`[C60-perf] hydrate:start gen=${runId} portrait=${hot ? 'hit' : 'miss'}`);
+    }
 
-        const states = loaded.map((s) => deriveColoring60ActivityState({
-          activityId: s.activityId,
-          isCurrentlyComplete: s.isCurrentlyComplete,
-          hasEverCompleted: s.hasEverCompleted,
-          snapshotStatus: s.snapshotStatus,
-          hydrationStatus: HYDRATION_STATUS.READY,
-        }));
-        const journeyState = deriveColoring60JourneyState({ activities: states, finaleSeen });
-        if (__DEV__ && journeyState.hasIntegrityBreak) {
-          console.log('[Coloring60] coleção: integridade quebrada em', journeyState.integrityBrokenIds.join(', '));
-        }
-        setSlots(loaded.map((s, i) => ({ ...s, kind: slotKindOf(s, states[i]) })));
-        setJourney(journeyState);
-        setView(deriveColoring60CollectionView({
-          doneMap: journeyState.doneMap,
-          order: loaded.map((s) => s.activityId),
-        }));
-        // Revisão já revelada nesta sessão: as imagens estão quentes, então a coleção volta pronta —
-        // sem espera e sem repetir o crossfade. Revisão nova segue a hidratação atômica normal.
-        if (warm) {
-          revealAnim.setValue(1);
-          setShowPlaceholders(false);
-          setStatus(HYDRATION_STATUS.READY);
-        }
-      })
-      .catch((err) => {
-        if (__DEV__) console.log('[Coloring60] coleção: leitura falhou:', err?.message);
-        if (isCurrent()) setStatus(HYDRATION_STATUS.ERROR);
-      });
+    if (hot) {
+      applyPortrait(portrait); // instantâneo: nada de esqueleto por cima de obras válidas
+    } else {
+      setSlots([]);
+      setStatus(HYDRATION_STATUS.LOADING); // frio: "Montando sua coleção…" (só a 1ª vez)
+    }
 
-    // Sair de foco invalida a geração: um resultado atrasado desta leitura já não pousa.
+    primeColoring60Collection(storyId).then((next) => {
+      if (!isCurrent()) return;
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.log(`[C60-perf] prime:resolved gen=${runId} Δ=${Date.now() - t0}ms slots=${next?.slots?.length ?? 0}`);
+      }
+      if (next && Array.isArray(next.slots) && next.slots.length > 0) {
+        applyPortrait(next);
+      } else if (!hot) {
+        // Frio e a leitura falhou (sem retrato para segurar) → erro honesto. No retorno quente uma
+        // falha de revalidação NUNCA derruba o retrato já exibido.
+        setStatus(HYDRATION_STATUS.ERROR);
+      }
+    });
+
+    // Sair de foco invalida a geração: um resultado atrasado desta revalidação já não pousa.
     return () => { hydrationIdRef.current += 1; };
-  }, [allowed, storyId]);
+  }, [allowed, storyId, applyPortrait]);
 
   useFocusEffect(hydrate);
 
-  // [C60-PARTE-6] Reset canônico enquanto esta tela está montada: o cache de módulo é DESCARTADO
-  // (não apenas marcado como frio — a assinatura de uma coleção vazia poderia coincidir) e a tela
-  // volta a hidratar do zero. É o que faz "Gerenciar dados" refletir aqui na mesma ação.
+  // [C60-PARTE-6] Reset canônico enquanto esta tela está montada: o serviço de retrato (inscrito no
+  // carregamento do módulo, ANTES desta tela) já invalidou o retrato em memória; aqui só re-hidratamos.
+  // Como o retrato está nulo, a hidratação cai no caminho frio e reflete 0 de 3 por derivação.
   useEffect(() => subscribeColoring60Reset(() => {
-    collectionCache = null;
     if (activeRef.current) hydrate();
   }), [hydrate]);
-
-  // Revelação ATÔMICA: só depois que TODOS os espaços se resolveram (ou do teto de tempo) as três
-  // entram juntas, num crossfade curto sobre os espaços neutros.
-  const reveal = useCallback(() => {
-    if (!activeRef.current) return;
-    setStatus(HYDRATION_STATUS.READY);
-    if (collectionCache) collectionCache.revealed = true;
-    Animated.timing(revealAnim, { toValue: 1, duration: 280, useNativeDriver: true })
-      .start(() => { if (activeRef.current) setShowPlaceholders(false); });
-  }, [revealAnim]);
-
-  const handleSettled = useCallback((activityId) => {
-    settledRef.current.add(activityId);
-    if (slots.length > 0 && settledRef.current.size >= slots.length) reveal();
-  }, [slots.length, reveal]);
-
-  useEffect(() => {
-    if (slots.length === 0 || status !== HYDRATION_STATUS.LOADING) return undefined;
-    const t = setTimeout(reveal, COLLECTION_ART_TIMEOUT_MS);
-    return () => clearTimeout(t);
-  }, [slots.length, status, reveal]);
 
   // ── AÇÕES ────────────────────────────────────────────────────────────────────
   // A derivação diz a INTENÇÃO; a tela decide como realizá-la. Não há "continuar neste desenho":
@@ -366,12 +340,24 @@ export default function Coloring60CollectionScreen({ route, navigation }) {
     const kind = action?.kind ?? null;
     if (kind === COLORING60_ACTION.OPEN_NEXT || kind === COLORING60_ACTION.RESTART) {
       const target = action?.targetActivityId ?? null;
-      if (target == null) { navigation.goBack(); return; }
-      navigation.navigate(ROUTES.COLORING, { storyId, activityId: target });
+      if (target == null) { c60ExitToStory(navigation); return; }
+      c60OpenEditorFromStory(navigation, storyId, target);
       return;
     }
-    navigation.goBack();
+    // [C60-NAV · FLUXO 6] BACK ("Voltar à aventura") → DIRETO à história pelo contrato central,
+    // removendo toda tela do piloto acima — nunca `goBack()` cru dependente da pilha.
+    c60ExitToStory(navigation);
   }
+
+  // A coleção É o SELETOR: tocar uma obra abre a PRÉVIA AMPLIADA da PRÓPRIA obra. Passa só a
+  // IDENTIDADE (storyId + o activityId DA VAGA) — a prévia relê pela leitura canônica reconciliada,
+  // sem receber bytes, URI temporária nem estado de pintura pela navegação. Jamais 'light': cada
+  // obra abre a si mesma.
+  const openArtPreview = useCallback((activityId) => {
+    if (activityId == null) return;
+    // [C60-NAV · FLUXO 2] Prévia por identidade (storyId + o activityId DA VAGA) — jamais 'light'.
+    c60OpenPreview(navigation, storyId, activityId);
+  }, [navigation, storyId]);
 
   const total = view?.totalActivities ?? getColoring60Activities(storyId).length;
   const countLabel = view?.countLabel ?? `0 de ${total}`;
@@ -382,7 +368,7 @@ export default function Coloring60CollectionScreen({ route, navigation }) {
       <View style={[styles.screen, styles.centered, { paddingTop: insets.top + 24 }]}>
         <Text style={styles.errorTitle}>Não conseguimos abrir sua coleção agora</Text>
         <Text style={styles.errorText}>Suas pinturas continuam guardadas. Tente de novo em instantes.</Text>
-        <SoundButton style={styles.primaryBtn} onPress={() => navigation.goBack()} activeOpacity={0.85}>
+        <SoundButton style={styles.primaryBtn} onPress={() => c60ExitToStory(navigation)} activeOpacity={0.85}>
           <Text style={styles.primaryBtnText}>Voltar à aventura</Text>
         </SoundButton>
       </View>
@@ -398,61 +384,70 @@ export default function Coloring60CollectionScreen({ route, navigation }) {
         end={{ x: 0.5, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
+
+      {/* Cabeçalho fixo: apenas o chevron de navegação. O CTA "Voltar à aventura" mora no RODAPÉ
+          ancorado — assim a galeria é a protagonista da altura e a saída fica sempre ao alcance. */}
+      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+        <SoundButton
+          style={styles.backBtn}
+          onPress={() => c60ExitToStory(navigation)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar à aventura"
+        >
+          <Text style={styles.backBtnText}>← Voltar</Text>
+        </SoundButton>
+      </View>
+
       <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 20 },
-        ]}
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.topBar}>
-          <SoundButton style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-            <Text style={styles.backBtnText}>← Voltar</Text>
-          </SoundButton>
-        </View>
-
         <Text style={styles.title}>{view?.collectionTitle ?? 'Minha Criação Cheia de Cor'}</Text>
         <View style={styles.countPill}>
           <Text style={styles.countPillText}>{countLabel}</Text>
         </View>
 
-        {/* ── AS TRÊS OBRAS ───────────────────────────────────────────────────────────────────
-            Camada da arte (opacidade 0 enquanto carrega, para as imagens carregarem sem aparecer)
-            e camada de espaços neutros por cima. O crossfade troca as duas de uma vez só. */}
-        <View style={[styles.galleryBox, { height: cardH + 34 }]}>
-          <Animated.View style={[styles.galleryRow, { opacity: revealAnim }]}>
-            {slots.map((s) => (
-              <CollectionSlot
-                key={s.activityId}
-                slot={s}
-                kind={s.kind}
-                cardW={cardW}
-                cardH={cardH}
-                onSettled={handleSettled}
-              />
-            ))}
-          </Animated.View>
-          {showPlaceholders ? (
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.galleryRow,
-                StyleSheet.absoluteFill,
-                { opacity: revealAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) },
-              ]}
-            >
-              {[0, 1, 2].map((i) => (
-                <View key={i} style={styles.slotCol}>
-                  <View style={[styles.placeholder, { width: cardW, height: cardH }]} />
-                  <View style={styles.placeholderLabel} />
-                </View>
-              ))}
-            </Animated.View>
-          ) : null}
+        {/* ── A GALERIA é a PROTAGONISTA ───────────────────────────────────────────────────────
+            As três obras DIRETO sobre o fundo neutro — sem palco branco cobrindo a tela e sem a
+            prateleira decorativa que não servia a nada (evidência 3). Cada obra na sua moldura
+            temática, todas na mesma proporção 4:5. No RETORNO QUENTE (A2) as vagas vêm do retrato e
+            aparecem de imediato; cada vaga revela a sua arte por conta própria (A1). Só na CARGA FRIA
+            (sem retrato) aparecem os três espaços neutros com "Montando sua coleção…" (A6). A dica de
+            toque vem logo ABAIXO das obras, colada a elas — nunca solta no meio da tela. */}
+        <View style={styles.gallery}>
+          <View style={[styles.galleryBox, { height: cardH + 34 }]}>
+            {slots.length > 0 ? (
+              <View style={styles.galleryRow}>
+                {slots.map((s) => (
+                  <CollectionSlot
+                    key={coloring60SlotKey(storyId, s)}
+                    slot={s}
+                    theme={getColoring60ActivityTheme(s.activityId)}
+                    cardW={cardW}
+                    cardH={cardH}
+                    onOpen={openArtPreview}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.galleryRow}>
+                {[0, 1, 2].map((i) => (
+                  <View key={i} style={styles.slotCol}>
+                    <View style={[styles.placeholder, { width: cardW, height: cardH }]} />
+                    <View style={styles.placeholderLabel} />
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+          {loading
+            ? <Text style={styles.loadingText}>{COLORING60_COLLECTION_LOADING}</Text>
+            : <Text style={styles.tapHint}>{COLORING60_COLLECTION_TAP_HINT}</Text>}
         </View>
-        {loading ? <Text style={styles.loadingText}>{COLORING60_COLLECTION_LOADING}</Text> : null}
 
-        {/* ── BENI + MENSAGEM em SUPERFÍCIE SÓLIDA (nenhum texto sobre a obra) ───────────────── */}
+        {/* ── BENI + MENSAGEM integrados, em SUPERFÍCIE SÓLIDA (nenhum texto sobre a obra) ────── */}
         <View style={styles.beniRow}>
           <BeniMascotImage
             variant="apresentaGaleria"
@@ -467,28 +462,33 @@ export default function Coloring60CollectionScreen({ route, navigation }) {
             </Text>
           </View>
         </View>
-
-        <View style={styles.actions}>
-          <SoundButton
-            style={styles.primaryBtn}
-            onPress={() => handleAction(view?.primaryAction)}
-            activeOpacity={0.85}
-            accessibilityLabel={view?.primaryAction?.label ?? 'Voltar à aventura'}
-          >
-            <Text style={styles.primaryBtnText}>{view?.primaryAction?.label ?? 'Voltar à aventura'}</Text>
-          </SoundButton>
-          {view?.secondaryAction ? (
-            <SoundButton
-              style={styles.secondaryBtn}
-              onPress={() => handleAction(view.secondaryAction)}
-              activeOpacity={0.85}
-              accessibilityLabel={view.secondaryAction.label}
-            >
-              <Text style={styles.secondaryBtnText}>{view.secondaryAction.label}</Text>
-            </SoundButton>
-          ) : null}
-        </View>
       </ScrollView>
+
+      {/* ── RODAPÉ ANCORADO: a saída principal fica sempre acessível, fora da rolagem. Com 3 de 3
+          há UMA única ação (Voltar à aventura) — o antigo "Colorir novamente" saiu; a coleção é o
+          seletor. Faltando parte, aparece também a saída sem culpa. */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}>
+        <SoundButton
+          style={styles.primaryBtn}
+          onPress={() => handleAction(view?.primaryAction)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={view?.primaryAction?.label ?? 'Voltar à aventura'}
+        >
+          <Text style={styles.primaryBtnText}>{view?.primaryAction?.label ?? 'Voltar à aventura'}</Text>
+        </SoundButton>
+        {view?.secondaryAction ? (
+          <SoundButton
+            style={styles.secondaryBtn}
+            onPress={() => handleAction(view.secondaryAction)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={view.secondaryAction.label}
+          >
+            <Text style={styles.secondaryBtnText}>{view.secondaryAction.label}</Text>
+          </SoundButton>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -496,9 +496,10 @@ export default function Coloring60CollectionScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
-  content: { paddingHorizontal: 18, alignItems: 'center' },
+  scroll: { flex: 1, width: '100%' },
+  content: { paddingHorizontal: 18, alignItems: 'center', paddingBottom: 14 },
 
-  topBar: { width: '100%', alignItems: 'flex-start', marginBottom: 4 },
+  topBar: { width: '100%', paddingHorizontal: 18, alignItems: 'flex-start' },
   backBtn: {
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -527,21 +528,31 @@ const styles = StyleSheet.create({
   },
   countPillText: { fontSize: 15, fontWeight: '800', color: colors.goldDeep },
 
-  galleryBox: { width: '100%', marginTop: 18, justifyContent: 'flex-start' },
+  // A galeria vive DIRETO sobre o fundo neutro: sem palco branco cobrindo a tela, sem sombra de
+  // painel, sem borda de cartão — as obras e suas molduras temáticas SÃO o acabamento. Só o
+  // espaçamento para respirarem (evidência 3: fim do "grande painel branco" e do espaço sem função).
+  gallery: {
+    width: '100%',
+    marginTop: 18,
+    alignItems: 'center',
+  },
+  galleryBox: { width: '100%', justifyContent: 'flex-start' },
   galleryRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start' },
+  // Instrução discreta, COLADA às obras: a coleção É o seletor. Um texto miúdo, jamais outro cartão.
+  tapHint: { marginTop: 12, fontSize: 13, fontWeight: '700', color: colors.muted, textAlign: 'center' },
 
   slotCol: { alignItems: 'center', marginHorizontal: 5 },
+  // Moldura ÚNICA e fina (a cor da borda vem inline, por parte — Luz/Vida/Cuidado). A arte preenche
+  // por dentro; o papel claro aparece só nos vazios do contorno (fidelidade ao que foi pintado).
+  // Sem segunda superfície branca e sem matte artificial competindo com a obra (evidência 3/9).
   slotFrame: {
     borderRadius: radii.md,
     backgroundColor: '#FFFDF8',
     borderWidth: 2,
     borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
     overflow: 'hidden',
     ...shadows.soft,
   },
-  slotPaper: { overflow: 'hidden', backgroundColor: '#FFFDF8' },
   multiply: { mixBlendMode: 'multiply' },
   slotEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   slotEmptyText: { fontSize: 12, fontWeight: '700', color: colors.muted, textAlign: 'center' },
@@ -575,10 +586,10 @@ const styles = StyleSheet.create({
   beniRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 22,
+    marginTop: 16,
     width: '100%',
   },
-  beni: { width: 92, height: 115, resizeMode: 'contain' },
+  beni: { width: 104, height: 130, resizeMode: 'contain' },
   messageCard: {
     flex: 1,
     marginLeft: 10,
@@ -591,7 +602,16 @@ const styles = StyleSheet.create({
   },
   messageText: { fontSize: 15, fontWeight: '700', color: colors.text, lineHeight: 21 },
 
-  actions: { width: '100%', marginTop: 22 },
+  // Rodapé ANCORADO fora da rolagem: a saída principal sempre ao alcance do polegar. Sem hairline e
+  // sem slab — o fundo `cream` casa com a BASE do gradiente da tela, então a saída lê como parte da
+  // composição, não como uma barra colada por cima (evidência 3: o "Voltar à aventura" separado era a
+  // linha dura + o painel; ambos saíram, a saída segue sempre acessível).
+  footer: {
+    width: '100%',
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    backgroundColor: colors.cream,
+  },
   primaryBtn: {
     paddingVertical: 14,
     borderRadius: radii.pill,

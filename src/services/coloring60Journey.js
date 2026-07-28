@@ -243,6 +243,95 @@ export function deriveColoring60Completion({
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AÇÃO PRIMÁRIA POR ORIGEM — MARCO NARRATIVO vs JORNADA INDEPENDENTE (C60 · CTA contextual)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Origem da abertura do editor Colorir 60. Decide o CONTRATO da ação primária após "Pronto" — e o faz
+ * por FATO estrutural (de onde a criança veio), NUNCA pelo texto de um botão.
+ *   STORY_MILESTONE — o editor foi aberto por um MARCO da narrativa: a criança está DENTRO da história.
+ *   STANDALONE      — aberto fora da narrativa (cartão-trilha/coleção): a jornada de cores é o contexto.
+ */
+export const COLORING60_OPEN_ORIGIN = Object.freeze({
+  STORY_MILESTONE: 'storyMilestone',
+  STANDALONE: 'standalone',
+});
+
+/**
+ * Dois destinos DISTINTOS ⇒ dois textos DISTINTOS (decisão do bloco: "não usar o mesmo texto para
+ * dois destinos"):
+ *   CONTINUAR A HISTÓRIA — RETOMA a narrativa na cena de retorno do marco (a criança volta para a
+ *                          história de onde veio; não "sai" do Colorir 60 para fora).
+ *   VOLTAR À AVENTURA    — SAI do Colorir 60 para a StoryDetail de "A Criação" (encerra a jornada de
+ *                          cores). Reservado ao fluxo INDEPENDENTE — nunca reaproveitado no marco.
+ */
+export const COLORING60_CONTINUE_STORY_LABEL = 'Continuar a história';
+export const COLORING60_BACK_TO_STORY_LABEL = 'Voltar à aventura';
+
+/**
+ * deriveColoring60PrimaryAction — a AÇÃO PRIMÁRIA do cartão de conclusão após "Pronto", decidida por
+ * FATOS estruturados, JAMAIS lendo o texto de um botão. Entradas: origin, activityId, returnSceneId
+ * (cena 1-based de retorno do marco), completionMode e collectionComplete.
+ *
+ * FLUXO DE MARCO (origin = STORY_MILESTONE): a criança está DENTRO da história ⇒ a ação é SEMPRE
+ * CONTINUAR A HISTÓRIA (retoma na cena de retorno). Isso NÃO varia por `completionMode` (parcial,
+ * 3/3/finale, atualização) nem por `collectionComplete` — mesmo num 3/3 legítimo dentro da narrativa,
+ * não se oferece "ver coleção"/"próxima parte", que tirariam a criança da história. `activityId` entra
+ * no contrato mas não altera a decisão do marco (o `activityId` real segue no roteamento da tela). O
+ * `kind` é BACK (a tela roteia o marco pela retomada, por `origin`, não pelo texto); o RÓTULO é distinto
+ * do da saída, para os dois destinos nunca se confundirem.
+ *
+ * SEM `storyId` DE PROPÓSITO: este módulo é STORY-AGNOSTIC (invariante travado — só conhece as três
+ * atividades). A identidade da obra vive na camada de navegação/catálogo, e a decisão do marco não
+ * depende dela (o piloto é exclusivo de "A Criação" e o rótulo é o mesmo para qualquer história).
+ *
+ * FLUXO INDEPENDENTE (qualquer outra origem): devolve `null` — a tela mantém a ação da PRÓPRIA jornada
+ * (onde "Voltar à aventura" segue significando SAIR para a StoryDetail).
+ */
+export function deriveColoring60PrimaryAction({
+  origin = null,
+  activityId = null,
+  returnSceneId = null,
+  completionMode = null,
+  collectionComplete = null,
+} = {}) {
+  // activityId/completionMode/collectionComplete são ACEITOS de propósito e IGNORADOS no marco: fazê-los
+  // parte da assinatura torna a INVARIÂNCIA por modo/estado provável no smoke (mudar qualquer um deles
+  // não muda a ação do marco). Referência inócua para deixar a intenção explícita no código.
+  void activityId; void completionMode; void collectionComplete;
+  if (origin === COLORING60_OPEN_ORIGIN.STORY_MILESTONE) {
+    return Object.freeze({
+      kind: COLORING60_ACTION.BACK,
+      label: COLORING60_CONTINUE_STORY_LABEL,
+      returnSceneId: Number.isInteger(returnSceneId) ? returnSceneId : null,
+    });
+  }
+  return null;
+}
+
+/**
+ * reframeColoring60JourneyForMilestone — reenquadra a jornada de conclusão para o MARCO: UMA única
+ * ação primária (CONTINUAR A HISTÓRIA), sem secundária/terciária. A jornada VISUAL (contagens, modo,
+ * trilha, celebração) segue INTACTA — só as AÇÕES exibidas mudam. Puro; deriva a ação por
+ * `deriveColoring60PrimaryAction` (origem = marco), nunca pelo texto do botão original.
+ */
+export function reframeColoring60JourneyForMilestone(journey, { returnSceneId = null } = {}) {
+  const base = journey && typeof journey === 'object' ? journey : {};
+  return {
+    ...base,
+    primaryAction: deriveColoring60PrimaryAction({
+      origin: COLORING60_OPEN_ORIGIN.STORY_MILESTONE,
+      activityId: base.currentActivityId ?? null,
+      returnSceneId,
+      completionMode: base.completionMode ?? null,
+      collectionComplete: base.allActivitiesComplete === true,
+    }),
+    secondaryAction: null,
+    tertiaryAction: null,
+  };
+}
+
 /**
  * deriveColoring60CardState — DERIVAÇÃO do cartão-trilha "Colorir com o Beni" na tela da história
  * (§Parte 2). Mesma ordem canônica, mesma noção de "próxima recomendada" e a AÇÃO PRINCIPAL dinâmica
@@ -341,16 +430,22 @@ export function deriveColoring60CollectionView({ doneMap = {}, order = null } = 
     next: id === nextId,
   }));
 
-  // AÇÕES DA TELA PRÓPRIA DE COLEÇÃO (C60 · Parte 7). A coleção deixou de ser uma camada sobre o
-  // desenho aberto e virou uma TELA — então "Continuar neste desenho" não existe mais aqui: não há
-  // "este desenho". Com as três prontas, a ação principal é sair pela porta da frente (voltar à
-  // aventura) e a secundária é recomeçar a jornada de cores. Faltando parte, a principal convida a
-  // completar em vez de fingir que a criação está inteira.
+  // AÇÕES DA TELA PRÓPRIA DE COLEÇÃO (C60 · Parte 7 + seleção visual). A coleção deixou de ser uma
+  // camada sobre o desenho aberto e virou uma TELA — então "Continuar neste desenho" não existe
+  // mais aqui: não há "este desenho".
+  //
+  // Com as três prontas há UMA única ação: "Voltar à aventura". O antigo botão global "Colorir
+  // novamente" foi REMOVIDO de propósito: ele reabria SEMPRE a primeira parte (Luz), uma
+  // preferência arbitrária, sem deixar a criança escolher qual obra rever. A própria COLEÇÃO é
+  // agora o seletor — cada uma das três obras é tocável e abre a SUA prévia ampliada (com o SEU
+  // activityId, jamais 'light'). Por isso `secondaryAction` é `null` no estado completo: nada de
+  // botão que atropela a escolha. Faltando parte, a principal convida a completar (sem fingir que
+  // a criação está inteira) e a secundária continua sendo a saída sem culpa.
   const primaryAction = allComplete
     ? { kind: COLORING60_ACTION.BACK, label: 'Voltar à aventura' }
     : { kind: COLORING60_ACTION.OPEN_NEXT, label: 'Completar a jornada de cores', targetActivityId: nextId };
   const secondaryAction = allComplete
-    ? { kind: COLORING60_ACTION.RESTART, label: 'Colorir novamente', targetActivityId: ids[0] ?? null }
+    ? null
     : { kind: COLORING60_ACTION.BACK, label: 'Voltar à aventura' };
 
   return Object.freeze({
@@ -375,15 +470,114 @@ export const COLORING60_COLLECTION_MESSAGE = 'Você encheu a Criação de luz, v
 /** Texto do carregamento da coleção — nunca lineart piscando no lugar da obra (C60 · Parte 8). */
 export const COLORING60_COLLECTION_LOADING = 'Montando sua coleção...';
 
+/**
+ * Instrução DISCRETA sob as obras: ensina que a coleção é o seletor (tocar abre a prévia ampliada).
+ * É uma linha curta, não um cartão — a galeria continua sendo a protagonista da tela.
+ */
+export const COLORING60_COLLECTION_TAP_HINT = 'Toque em uma criação para ver de perto.';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRÉVIA AMPLIADA DE UMA OBRA (C60 · seleção visual)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Reconhecimento do Beni na PRÉVIA de uma obra CONCLUÍDA (kind = art), POR ATIVIDADE. O bloco reprovou
+ * a fala ÚNICA e genérica ("Que obra linda! Olhe de pertinho.") repetida IGUAL nas três prévias — cara
+ * de template (EVID 7). Cada parte da Criação merece um reconhecimento próprio, ligado ao que a criança
+ * pintou. Texto literal aprovado — não parafrasear. Uma atividade fora do mapa cai numa admiração
+ * neutra: nunca a frase-template reprovada e nunca "de pertinho".
+ */
+export const COLORING60_PREVIEW_ART_REACTION = Object.freeze({
+  light: 'Olha como a sua luz ficou brilhante!',
+  living_world: 'Quanta vida você encheu de cor!',
+  people_and_care: 'Seu cuidado deixou a Criação especial!',
+});
+export const COLORING60_PREVIEW_ART_REACTION_FALLBACK = 'Que obra linda você fez!';
+
+/**
+ * Pose do Beni na prévia, por TIPO de vaga. São poses JÁ EXISTENTES (nenhum asset novo) e a reação
+ * é CURTA — jamais a grande celebração de 3 de 3, que aqui não se repete. Ver/editar uma obra
+ * concluída é uma vista, não uma festa.
+ */
+export const COLORING60_PREVIEW_POSE = Object.freeze({
+  art: 'admiraDireita',       // admira a obra ao lado — reconhecimento, não celebração
+  notPersisted: 'ensinando',  // acolhe com honestidade: "você coloriu, o plano não guardou os pixels"
+  needsColor: 'atelie',       // convida a dar cor de novo
+  empty: 'atelie',            // convida a colorir esta parte
+});
+
+/**
+ * deriveColoring60ArtPreview — DERIVAÇÃO da PRÉVIA AMPLIADA de UMA obra (C60 · seleção visual).
+ *
+ * PURO e SÍNCRONO: recebe o TIPO já reconciliado da vaga (`kind` ∈ art | notPersisted | needsColor |
+ * empty — os MESMOS literais de `SLOT` no leitor canônico) e devolve o que a tela mostra: se a arte
+ * aparece, a reação curta do Beni, a pose (existente) e os rótulos das DUAS saídas. Um `kind`
+ * desconhecido cai em `empty` (estado honesto) — jamais em "arte válida".
+ *
+ * O `activityId` entra APENAS para escolher o reconhecimento por atividade (EVID 7) — NUNCA decide
+ * navegação: `editAction` jamais carrega `targetActivityId`, então a tela injeta o id da vaga e é
+ * impossível esta derivação "cair em light". E NÃO conclui, NÃO celebra, NÃO escreve: é uma vista.
+ *
+ * ESTADOS HONESTOS (exigência do bloco):
+ *   art          — pintura válida ⇒ a prévia mostra a obra; ação principal edita o desenho.
+ *   notPersisted — concluída no plano Grátis, sem pixels guardados ⇒ não finge uma prévia; oferece
+ *                  colorir a parte de novo.
+ *   needsColor   — concluída sem arte recuperável (ponteiro órfão) ⇒ "precisa de cor de novo".
+ *   empty        — ainda não concluída ⇒ não se apresenta como concluída; convida a colorir.
+ */
+export function deriveColoring60ArtPreview({ kind = 'empty', activityId = null } = {}) {
+  const k = ['art', 'notPersisted', 'needsColor', 'empty'].indexOf(kind) >= 0 ? kind : 'empty';
+  const artVisible = k === 'art';
+
+  const editLabel = k === 'art'
+    ? 'Editar desenho'
+    : (k === 'empty' ? 'Colorir esta parte' : 'Colorir esta parte novamente');
+
+  // Obra CONCLUÍDA (art): reconhecimento POR ATIVIDADE (EVID 7) — cada parte tem a sua fala, jamais a
+  // frase-template única. Estados honestos seguem por TIPO: a mensagem acolhedora não depende de qual
+  // parte é (só de "concluída-sem-pixels" / "precisa de cor" / "ainda falta colorir").
+  const reaction = k === 'art'
+    ? (COLORING60_PREVIEW_ART_REACTION[activityId] ?? COLORING60_PREVIEW_ART_REACTION_FALLBACK)
+    : {
+        notPersisted: 'Você coloriu esta parte!',
+        needsColor: 'Esta parte precisa de cor de novo.',
+        empty: 'Ainda falta colorir esta parte.',
+      }[k];
+
+  return Object.freeze({
+    kind: k,
+    artVisible,
+    // A ação principal SEMPRE leva ao editor da PRÓPRIA obra (a tela injeta o activityId da vaga).
+    editAction: Object.freeze({ kind: COLORING60_ACTION.RESTART, label: editLabel }),
+    backAction: Object.freeze({ kind: COLORING60_ACTION.BACK, label: 'Voltar' }),
+    reaction,
+    beniPose: COLORING60_PREVIEW_POSE[k],
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PONTE PÓS-HISTÓRIA (C60 · Parte 10)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Fala do Beni no topo da conclusão da história. Duas linhas, na ordem exata: primeiro reconhece o
- * que acabou, depois convida ao passo seguinte. É o texto literal aprovado — não parafrasear.
+ * Fala do Beni no topo da conclusão da história, VARIÁVEL pelo progresso REAL reconciliado da coleção.
+ * O bug físico era uma mensagem ÚNICA ("A história terminou. Agora vamos dar cor à Criação?") que
+ * convidava a "começar" mesmo para quem já tinha 1, 2 ou 3 partes coloridas. Agora cada estado tem sua
+ * própria fala + rótulo de ação, na linguagem infantil aprovada pelo fundador:
+ *   start      (0 de N)   — ainda não começou            → "Colorir com o Beni"
+ *   continue   (1..N-2)   — começou, faltam algumas       → "Continuar colorindo"
+ *   lastOne    (N-1 de N)  — falta só a última            → "Colorir a última parte"
+ *   complete   (N de N)    — coleção completa             → "Ver minha coleção"
+ *   readFailed (?)         — leitura indisponível: HONESTO → "Ver minha coleção" (nunca "começar")
+ * `message` e `label` ficam JUNTOS por estado para não espalhar a lógica 0/1/2/3 por várias telas.
  */
-export const COLORING60_STORY_BRIDGE_MESSAGE = 'A história terminou.\nAgora vamos dar cor à Criação?';
+export const COLORING60_STORY_BRIDGE_COPY = Object.freeze({
+  start: Object.freeze({ message: 'A história terminou. Vamos começar a dar cor à Criação?', label: 'Colorir com o Beni' }),
+  continue: Object.freeze({ message: 'Você começou sua coleção! Vamos colorir mais uma parte?', label: 'Continuar colorindo' }),
+  lastOne: Object.freeze({ message: 'Falta só uma criação para completar sua coleção!', label: 'Colorir a última parte' }),
+  complete: Object.freeze({ message: 'Sua coleção da Criação está completa!', label: 'Ver minha coleção' }),
+  readFailed: Object.freeze({ message: 'Não consegui carregar sua coleção agora.', label: 'Ver minha coleção' }),
+});
 
 /**
  * Título que passa a abrigar TODO o restante da conclusão (livrinho, quiz, próxima aventura,
@@ -393,36 +587,62 @@ export const COLORING60_STORY_BRIDGE_MESSAGE = 'A história terminou.\nAgora vam
 export const COLORING60_STORY_REST_TITLE = 'Veja tudo que você conquistou';
 
 /**
- * deriveColoring60StoryBridge — DERIVAÇÃO da ponte entre a história e a jornada de cores (§Parte 10).
+ * deriveColoring60StoryBridge — DERIVAÇÃO da mensagem pós-história pelo estado REAL reconciliado
+ * (§Parte 10 · PROBLEMA 4). A mensagem e o rótulo variam pelo MESMO `doneMap` reconciliado que a
+ * coleção usa — nunca uma frase única que convida a "começar" para quem já pintou 1, 2 ou 3 partes:
+ *   0 de N   ⇒ start      "…Vamos começar a dar cor à Criação?"  · ação "Colorir com o Beni"     (OPEN_NEXT)
+ *   1..N-2   ⇒ continue   "Você começou sua coleção!…"           · ação "Continuar colorindo"    (OPEN_NEXT)
+ *   N-1 de N ⇒ lastOne    "Falta só uma criação…"                · ação "Colorir a última parte" (OPEN_NEXT)
+ *   N de N   ⇒ complete   "Sua coleção da Criação está completa!" · ação "Ver minha coleção"       (COLLECTION)
  *
- * Uma ÚNICA ação, dinâmica pelo progresso REAL (o mesmo `doneMap` reconciliado que a coleção usa):
- *   0 de 3   ⇒ "Começar a jornada de cores"   (abre a primeira parte que falta)
- *   1–2 de 3 ⇒ "Continuar a jornada de cores" (abre a próxima parte que falta, na ordem canônica)
- *   3 de 3   ⇒ "Ver minha coleção"            (abre a coleção; não há parte a sugerir)
+ * LEITURA INDISPONÍVEL (`readFailed: true`): o chamador só passa isso quando a leitura reconciliada
+ * FALHOU. Aqui NÃO se assume 0 de 3, NÃO se exibe o convite de "começar" e NÃO se olha "já concluiu
+ * alguma vez" — devolve uma fala HONESTA e uma ação segura ("Ver minha coleção"), com `completedCount`
+ * nulo para a tela esconder o contador. A tela, por sua vez, preserva a última ponte válida quando a
+ * tem; este ramo é a rede honesta quando não há estado anterior para preservar.
  *
- * Por que a ponte NÃO oferece um leque de opções: a evidência física era justamente uma tela
- * sobrecarregada, em que o próximo passo (colorir com o Beni) não aparecia. Aqui existe UM convite;
- * tudo o mais continua na tela, abaixo, sob `COLORING60_STORY_REST_TITLE`.
- *
- * Puro e síncrono como o resto do módulo: recebe o retrato, devolve a decisão. Não navega, não lê.
+ * A lógica 0/1/2/3 vive AQUI e só aqui — mensagem e rótulo saem juntos de `COLORING60_STORY_BRIDGE_COPY`,
+ * um par por estado, para não se espalhar por várias telas. Puro e síncrono: recebe o retrato, devolve
+ * a decisão. Não navega, não lê. `state` é exposto para o smoke provar cada estado sem inferir por texto.
  */
-export function deriveColoring60StoryBridge({ doneMap = {}, order = null } = {}) {
+export function deriveColoring60StoryBridge({ doneMap = {}, order = null, readFailed = false } = {}) {
+  if (readFailed) {
+    const copy = COLORING60_STORY_BRIDGE_COPY.readFailed;
+    return Object.freeze({
+      state: 'readFailed',
+      readFailed: true,
+      message: copy.message,
+      restSectionTitle: COLORING60_STORY_REST_TITLE,
+      completedCount: null,
+      totalActivities: 0,
+      allActivitiesComplete: false,
+      nextIncompleteActivityId: null,
+      action: Object.freeze({ kind: COLORING60_ACTION.COLLECTION, label: copy.label, targetActivityId: null }),
+      progressLabel: null,
+    });
+  }
+
   const ids = normalizeOrder(order);
   const total = ids.length;
   const completedCount = ids.filter((id) => isDone(doneMap, id)).length;
   const allComplete = total > 0 && completedCount >= total;
   const nextId = allComplete ? null : nextIncompleteActivityId(doneMap, ids);
 
+  let state;
+  if (allComplete) state = 'complete';
+  else if (completedCount === 0) state = 'start';
+  else if (total > 0 && completedCount === total - 1) state = 'lastOne';
+  else state = 'continue';
+
+  const copy = COLORING60_STORY_BRIDGE_COPY[state];
   const action = allComplete
-    ? { kind: COLORING60_ACTION.COLLECTION, label: 'Ver minha coleção', targetActivityId: null }
-    : {
-      kind: COLORING60_ACTION.OPEN_NEXT,
-      label: completedCount === 0 ? 'Começar a jornada de cores' : 'Continuar a jornada de cores',
-      targetActivityId: nextId ?? ids[0] ?? null,
-    };
+    ? { kind: COLORING60_ACTION.COLLECTION, label: copy.label, targetActivityId: null }
+    : { kind: COLORING60_ACTION.OPEN_NEXT, label: copy.label, targetActivityId: nextId ?? ids[0] ?? null };
 
   return Object.freeze({
-    message: COLORING60_STORY_BRIDGE_MESSAGE,
+    state,
+    readFailed: false,
+    message: copy.message,
     restSectionTitle: COLORING60_STORY_REST_TITLE,
     completedCount,
     totalActivities: total,

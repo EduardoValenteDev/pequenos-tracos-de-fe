@@ -20,6 +20,7 @@ import NarrationScreen from '../screens/NarrationScreen';
 import ColoringScreen from '../screens/ColoringScreen';
 import ColoringQaScreen from '../screens/ColoringQaScreen';
 import Coloring60CollectionScreen from '../screens/Coloring60CollectionScreen';
+import Coloring60ArtPreviewScreen from '../screens/Coloring60ArtPreviewScreen';
 import Coloring60LabScreen from '../screens/Coloring60LabScreen';
 import SceneValidationScreen from '../screens/SceneValidationScreen';
 import CongratsScreen from '../screens/CongratsScreen';
@@ -365,6 +366,14 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Coloring60Collection"
           component={Coloring60CollectionScreen}
+          options={{ headerShown: false }}
+        />
+        {/* Colorir 60 · seleção visual — PRÉVIA AMPLIADA de UMA obra, aberta ao tocar uma criação
+            na coleção. Pública pela mesma razão da coleção: recebe só a IDENTIDADE (storyId +
+            activityId) e o gate do piloto é decidido DENTRO da tela; nenhuma pintura viaja na nav. */}
+        <Stack.Screen
+          name="Coloring60ArtPreview"
+          component={Coloring60ArtPreviewScreen}
           options={{ headerShown: false }}
         />
         {/* M1: QA do Criador (testar desenhos) — rota registrada SÓ sob o gate interno,
