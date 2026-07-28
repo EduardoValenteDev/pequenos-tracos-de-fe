@@ -13481,6 +13481,226 @@ console.log('\n── LP2.1a-ii-F1 RED: cancelamento e ciclo de vida (provas ver
   globalThis.__LP21IIF1.catch(() => {});
 }
 
+// ── LP2.1a-ii-01F: correção funcional (registro global observável de instalação) ──────────────
+console.log('\n── LP2.1a-ii-01F: registro global observável + propagação de READY ──');
+{
+  const { createPackInstallHarness: mkH01f, loadPackDownloader: loadDl01f, loadModule: loadMod01f } = require('./testing/packInstallHarness');
+  const { createPackDownloadService: mkSvc01f } = loadDl01f();
+  const REG01F = loadMod01f('src/services/packInstallRegistry.js', {}, ['getStoryPackInstallSnapshot', 'subscribeStoryPackInstall', 'subscribePackReady', 'beginInstall', 'reportInstall', 'settleReady', 'settleError', 'clearStoryPackInstall', 'isCurrentOperation']);
+
+  // ── Fontes (estático): o hook observa o registro; o PacksContext reconcilia só em READY ──
+  const hook01f = a1StripComments(readSrc('src/hooks/useStoryPackDownload.js'));
+  const packs01f = a1StripComments(readSrc('src/context/PacksContext.js'));
+  const svc01f = a1StripComments(readSrc('src/services/packDownloadService.js'));
+  const sandbox01f = a1StripComments(readSrc('src/services/packSandboxDevService.js'));
+  check('LP2.1a-ii-01F (hook observa registro): importa subscribeStoryPackInstall e NÃO é dono único do progresso',
+    /subscribeStoryPackInstall/.test(hook01f) && /getStoryPackInstallSnapshot/.test(hook01f)
+      && /installActive[\s\S]{0,40}installSnapshot\.progress/.test(hook01f),
+    'o hook não espelha o registro global (progresso continua exclusivo do useState local)');
+  check('LP2.1a-ii-01F (READY global no PacksContext): subscribePackReady recarrega o índice, independente da tela',
+    /subscribePackReady\([\s\S]{0,260}loadPacks\(\)[\s\S]{0,60}catch/.test(packs01f),
+    'o PacksContext não reconcilia por evento global de READY (ou sem isolar a rejeição async)');
+  check('LP2.1a-ii-01F (sem tempestade): PacksContext NÃO assina progresso por arquivo (só READY)',
+    !/reportInstall|subscribeStoryPackInstall/.test(packs01f),
+    'o PacksContext passou a receber progresso por arquivo (risco de tempestade de renders)');
+  check('LP2.1a-ii-01F FIX1R (dono único da reconciliação): refreshPacks do hook só como FALLBACK sem registro',
+    /typeof subscribeStoryPackInstall !== 'function'[\s\S]{0,80}refreshPacks\(\)/.test(hook01f),
+    'o hook chama refreshPacks mesmo com registro (reconciliação dupla)');
+  check('LP2.1a-ii-01F FIX1R (fonte única do progresso): setProgress por evento só como FALLBACK sem registro',
+    /if \(typeof subscribeStoryPackInstall === 'function'\) return;[\s\S]{0,320}setProgress\(Math/.test(hook01f),
+    'o hook faz setProgress local mesmo com registro (progresso duplo)');
+  check('LP2.1a-ii-01F FIX1R (fence de publicação): serviço checa isCurrentOperation antes/depois de setPackEntry READY',
+    /isAuthorizedToPublish/.test(svc01f) && (svc01f.match(/isAuthorizedToPublish\(\)/g) || []).length >= 2 && /isCurrentOperation/.test(svc01f) && /resetInvalidated/.test(svc01f),
+    'o serviço não tem fence de publicação (voo antigo pode gravar READY após Reset)');
+  check('LP2.1a-ii-01F FIX1R (joiner-guard): não joina voo cuja operação foi invalidada por Reset',
+    /__stillAuth/.test(svc01f) && /isCurrentOperation\(resolved\.storyId, existing\.__opId\)/.test(svc01f),
+    'o joiner compartilha um voo invalidado por Reset');
+  check('LP2.1a-ii-01F FIX1R (terminal físico): settleReady/settleError derivam do resultado da Promise, não de onProgress',
+    /record\.promise\.then\(/.test(svc01f) && /res && res\.ok\) __reg\.settleReady/.test(svc01f)
+      && !/st === PACK_STATUS\.READY\) \{ __reg\.settleReady/.test(svc01f),
+    'o terminal do registro ainda depende de eventos de onProgress');
+  check('LP2.1a-ii-01F FIX1R (Reset ordena invalidação antes do índice): clearStoryPackInstall antes de clearPackEntry',
+    /clearStoryPackInstall\(STORY_ID\);\s*await clearPackEntry\(STORY_ID\)/.test(sandbox01f),
+    'o Reset limpa o índice antes de invalidar a operação (janela de READY tardio)');
+  check('LP2.1a-ii-01F (serviço publica no registro): beginInstall/settleReady/settleError guardados por typeof',
+    /installRegistry/.test(svc01f) && /beginInstall/.test(svc01f) && /settleReady/.test(svc01f) && /settleError/.test(svc01f)
+      && /typeof installRegistry/.test(svc01f),
+    'o serviço não publica o estado no registro global (ou sem guarda typeof)');
+  check('LP2.1a-ii-01F (reset limpa registro): resetDavidGoliathPackSandbox invalida o snapshot global',
+    /clearStoryPackInstall\(STORY_ID\)/.test(sandbox01f),
+    'o Reset não invalida o snapshot global (settlement antigo poderia restaurar READY)');
+
+  // ── Controles negativos das provas estáticas: desfazer a correção precisa REPROVAR ──
+  // Sem eles, um detector que "sempre passa" daria falso verde. Os regex abaixo são os MESMOS
+  // das provas acima; cada check confirma que ele aprova a fonte real E reprova o mutante.
+  {
+    const detReadyGlobal01f = (s) => /subscribePackReady\([\s\S]{0,260}loadPacks\(\)[\s\S]{0,60}catch/.test(s);
+    const detHookObserva01f = (s) => /subscribeStoryPackInstall/.test(s) && /getStoryPackInstallSnapshot/.test(s)
+      && /installActive[\s\S]{0,40}installSnapshot\.progress/.test(s);
+    const detProgressoUnico01f = (s) => /if \(typeof subscribeStoryPackInstall === 'function'\) return;[\s\S]{0,320}setProgress\(Math/.test(s);
+    const detReconcUnica01f = (s) => /typeof subscribeStoryPackInstall !== 'function'[\s\S]{0,80}refreshPacks\(\)/.test(s);
+
+    // MUTANTE 1 — o PacksContext deixa de assinar o READY global: volta a depender da tela
+    // iniciadora (era exatamente o defeito do 01F: história só aparecia instalada no 2º toque).
+    const cruPacks01f = readSrc('src/context/PacksContext.js');
+    const mutSemReady01f = cruPacks01f.replace(/\n\s*useEffect\(\(\) => subscribePackReady\([\s\S]*?\}\), \[loadPacks\]\);\n/, '\n');
+    const mutouPacks01f = mutSemReady01f !== cruPacks01f; // âncora achada = o mutante é real
+    const semReady01f = a1StripComments(mutSemReady01f);
+    check('LP2.1a-ii-01F NEG-1 (controle negativo do READY global): remover a assinatura subscribePackReady REPROVA a prova — ela não passa por acaso',
+      mutouPacks01f && detReadyGlobal01f(packs01f) && !detReadyGlobal01f(semReady01f),
+      `mutante aplicado=${mutouPacks01f} real=${detReadyGlobal01f(packs01f)} mutante=${detReadyGlobal01f(semReady01f)}`);
+
+    // MUTANTE 2 — o progresso volta a ser SÓ local: sem os símbolos do registro, os próprios
+    // fallbacks `typeof ... !== 'function'` do arquivo reativam o caminho pré-01F (useState local,
+    // que zera ao desmontar a tela). As três provas de fonte única precisam cair juntas.
+    const soLocal01f = a1StripComments(readSrc('src/hooks/useStoryPackDownload.js')
+      .replace(/subscribeStoryPackInstall/g, '__semRegistro01f')
+      .replace(/getStoryPackInstallSnapshot/g, '__semSnapshot01f'));
+    const realOk01f = detHookObserva01f(hook01f) && detProgressoUnico01f(hook01f) && detReconcUnica01f(hook01f);
+    const mutOk01f = detHookObserva01f(soLocal01f) || detProgressoUnico01f(soLocal01f) || detReconcUnica01f(soLocal01f);
+    check('LP2.1a-ii-01F NEG-2 (controle negativo do progresso global): um hook com progresso apenas LOCAL reprova as três provas de fonte única do progresso',
+      realOk01f && !mutOk01f, `real=${realOk01f} mutante ainda passa em alguma=${mutOk01f}`);
+  }
+
+  // ── Registro (comportamental, síncrono) ──
+  { const seen = []; const un = REG01F.subscribeStoryPackInstall('smk01f', (s) => seen.push(s.status));
+    check('LP2.1a-ii-01F R1 (replay idle): assinar entrega o snapshot atual imediatamente', seen[0] === 'idle');
+    const op = REG01F.beginInstall('smk01f', { resolvedInstallKey: 'k', version: '1.0.0', requestedKinds: ['scene'] });
+    check('LP2.1a-ii-01F R2 (begin): status downloading após iniciar', seen[seen.length - 1] === 'downloading');
+    REG01F.reportInstall('smk01f', op, { phase: 'verifying', progress: 0.5 });
+    check('LP2.1a-ii-01F R3 (report): fase/progresso atualizam', REG01F.getStoryPackInstallSnapshot('smk01f').phase === 'verifying' && REG01F.getStoryPackInstallSnapshot('smk01f').progress === 0.5);
+    REG01F.reportInstall('smk01f', op - 999, { progress: 0.9 });
+    check('LP2.1a-ii-01F R4 (stale-guard): evento de operação ANTIGA não sobrescreve a nova', REG01F.getStoryPackInstallSnapshot('smk01f').progress === 0.5);
+    let ready = 0; const unr = REG01F.subscribePackReady(() => { ready += 1; });
+    REG01F.settleReady('smk01f', op, { version: '1.0.0' });
+    check('LP2.1a-ii-01F R5 (ready + global): settleReady publica ready e dispara o ouvinte global', REG01F.getStoryPackInstallSnapshot('smk01f').status === 'ready' && ready === 1);
+    const before = seen.length; un(); REG01F.reportInstall('smk01f', op, { progress: 0.7 });
+    check('LP2.1a-ii-01F R6 (unsubscribe): após desassinar, não há novos callbacks', seen.length === before);
+    unr();
+  }
+  { const op = REG01F.beginInstall('smk01fB', { version: '1.0.0' }); REG01F.clearStoryPackInstall('smk01fB'); REG01F.settleReady('smk01fB', op, {});
+    check('LP2.1a-ii-01F R7 (reset invalida voo): settlement de operação anterior ao Reset NÃO restaura READY', REG01F.getStoryPackInstallSnapshot('smk01fB').status === 'idle'); }
+  { const sN = []; REG01F.subscribeStoryPackInstall('smk01fNoah', (s) => sN.push(s.status)); REG01F.beginInstall('smk01fDavi', {});
+    check('LP2.1a-ii-01F R8 (isolamento): histórias diferentes não compartilham snapshot', sN.length === 1 && sN[0] === 'idle'); }
+
+  // ── Serviço → registro + hook espelho (comportamental, assíncrono) ──
+  const baseDe01f = (s, v) => `https://r2/${s}/${v}/`;
+  const FILES01F = [{ kind: 'scene', path: 'scenes/01.webp', text: 'CENA-UM' }, { kind: 'scene', path: 'scenes/02.webp', text: 'CENA-DOIS' }];
+  const rotear01f = (h, s, v, tamper) => {
+    const F = FILES01F.map((f) => ({ kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: tamper ? h.sha256OfText(f.text + 'X') : h.sha256OfText(f.text) }));
+    const text = JSON.stringify({ schemaVersion: 1, id: s, version: v, type: 'story', minAppVersion: '1.0.0', totalBytes: F.reduce((a, f) => a + f.bytes, 0), files: F, metadata: { storyId: s, title: 'D', language: 'pt-BR' } });
+    const b = baseDe01f(s, v); h.route(`${b}manifest.json`, { text });
+    FILES01F.forEach((f) => h.route(b + f.path, { text: f.text, progressEvents: [{ totalBytesWritten: 1 }, { totalBytesWritten: Buffer.byteLength(f.text) }] }));
+    return { sha: h.sha256OfText(text) };
+  };
+  const setupDG01f = (h, tamper) => { const s = rotear01f(h, 'david_goliath', '1.0.0', tamper); h.setGlobalManifest({ manifestVersion: 1, minAppVersion: '1.0.0', packs: [h.packEntry({ storyId: 'david_goliath', version: '1.0.0', baseUrl: baseDe01f('david_goliath', '1.0.0'), manifestSha256: s.sha })] }); return s; };
+  const flush01f = (n = 6) => (async () => { for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0)); })();
+  const spyReg01f = () => { const calls = { begin: [], report: [], ready: [], error: [] }; let op = 0; return { calls, beginInstall: (id, m) => { op += 1; calls.begin.push({ id, m, op }); return op; }, reportInstall: (id, o, p) => calls.report.push({ id, o, p }), settleReady: (id, o, e) => calls.ready.push({ id, o, e }), settleError: (id, o, e) => calls.error.push({ id, o, e }) }; };
+  const makeHost01f = () => { const slots = []; let idx = 0; const pending = []; return {
+    useState(init) { const i = idx++; if (slots[i] === undefined) slots[i] = { v: typeof init === 'function' ? init() : init }; const s = slots[i]; return [s.v, (nv) => { s.v = typeof nv === 'function' ? nv(s.v) : nv; }]; },
+    useRef(init) { const i = idx++; if (slots[i] === undefined) slots[i] = { current: init }; return slots[i]; },
+    useCallback(fn) { return fn; },
+    useEffect(effect, deps) { const i = idx++; pending.push({ i, effect, deps }); },
+    _flush() { for (const p of pending.splice(0)) { const prev = slots[p.i]; const ch = !prev || !prev.__e || !p.deps || !prev.deps || p.deps.some((d, k) => d !== prev.deps[k]); if (ch) { if (prev && typeof prev.cleanup === 'function') prev.cleanup(); const rec = { __e: true, deps: p.deps, cleanup: undefined }; slots[p.i] = rec; const c = p.effect(); rec.cleanup = typeof c === 'function' ? c : undefined; } } },
+    _unmount() { for (const s of slots) if (s && typeof s.cleanup === 'function') s.cleanup(); },
+    _reset() { idx = 0; },
+  }; };
+  const packsStub01f = { getStoryPackState: (id) => ({ storyId: id, layer: 'remote', status: 'not_downloaded', ready: false }), refreshPacks: async () => {} };
+  const loadHook01f = (host) => { const saved = process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL; process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL = 'https://r2/content-manifest.json';
+    try { return loadMod01f('src/hooks/useStoryPackDownload.js', { useCallback: host.useCallback, useRef: host.useRef, useState: host.useState, useEffect: host.useEffect, usePacks: () => packsStub01f, downloadStoryPackScenesFromGlobalManifest: async () => ({ ok: true }), subscribeStoryPackInstall: REG01F.subscribeStoryPackInstall, getStoryPackInstallSnapshot: REG01F.getStoryPackInstallSnapshot }, ['useStoryPackDownload']); }
+    finally { if (saved === undefined) delete process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL; else process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL = saved; } };
+
+  globalThis.__LP21IIF01F = (async () => {
+    // Serviço publica no registro (spy) e o resultado físico é inalterado
+    { const h = mkH01f(); setupDG01f(h); const spy = spyReg01f();
+      const svc = mkSvc01f({ ...h.deps, installRegistry: spy });
+      const r = await svc.downloadStoryPackScenesFromGlobalManifest({ storyId: 'david_goliath', globalManifestUrl: 'https://r2/content-manifest.json', appVersion: '1.0.0', requestedKinds: ['scene'], onProgress: () => {} });
+      check('LP2.1a-ii-01F S1 (resultado inalterado): publicar no registro não muda o retorno do serviço', r.ok === true && r.entry && r.entry.status === 'ready');
+      check('LP2.1a-ii-01F S2 (beginInstall): registro recebe início com storyId/version/kinds', spy.calls.begin.length === 1 && spy.calls.begin[0].id === 'david_goliath' && spy.calls.begin[0].m.version === '1.0.0' && Array.isArray(spy.calls.begin[0].m.requestedKinds));
+      check('LP2.1a-ii-01F S3 (settleReady): sucesso publica ready e NÃO publica error', spy.calls.ready.length === 1 && spy.calls.error.length === 0);
+    }
+    // unmount (participantSignal abort) NÃO cancela o físico → registro ainda recebe settleReady
+    { const h = mkH01f(); setupDG01f(h); const spy = spyReg01f();
+      const svc = mkSvc01f({ ...h.deps, installRegistry: spy });
+      const ctl = new AbortController();
+      const p = svc.downloadStoryPackScenesFromGlobalManifest({ storyId: 'david_goliath', globalManifestUrl: 'https://r2/content-manifest.json', appVersion: '1.0.0', requestedKinds: ['scene'], participantSignal: ctl.signal, onProgress: () => {} });
+      await flush01f(3); ctl.abort(); const r = await p;
+      check('LP2.1a-ii-01F S4 (unmount não cancela): abortar o observador não impede o settleReady do voo físico', r.ok === true && spy.calls.ready.length === 1); }
+    // falha (sha divergente) → settleError, NUNCA settleReady
+    { const h = mkH01f(); setupDG01f(h, true); const spy = spyReg01f();
+      const svc = mkSvc01f({ ...h.deps, installRegistry: spy });
+      const r = await svc.downloadStoryPackScenesFromGlobalManifest({ storyId: 'david_goliath', globalManifestUrl: 'https://r2/content-manifest.json', appVersion: '1.0.0', requestedKinds: ['scene'], onProgress: () => {} });
+      check('LP2.1a-ii-01F S5 (falha → error): sha divergente publica error e NUNCA ready', r.ok === false && spy.calls.error.length === 1 && spy.calls.ready.length === 0); }
+    // Hook espelho (registro real)
+    REG01F.clearStoryPackInstall('david_goliath');
+    { const opId = REG01F.beginInstall('david_goliath', { version: '1.0.0' }); REG01F.reportInstall('david_goliath', opId, { phase: 'downloading', progress: 0.42 });
+      const host = makeHost01f(); const mod = loadHook01f(host); host._reset();
+      const api = mod.useStoryPackDownload('david_goliath'); host._flush();
+      check('LP2.1a-ii-01F H1 (montar durante voo): tela nova mostra downloading + progresso (replay)', api.uiState === 'downloading' && Math.abs(api.progress - 0.42) < 1e-9);
+      check('LP2.1a-ii-01F H2 (fase aditiva): expõe phase sem quebrar o contrato', api.phase === 'downloading');
+      const host2 = makeHost01f(); const mod2 = loadHook01f(host2); host2._reset();
+      const api2 = mod2.useStoryPackDownload('david_goliath'); host2._flush();
+      check('LP2.1a-ii-01F H3 (dois assinantes): duas montagens recebem o mesmo progresso', api2.uiState === 'downloading' && Math.abs(api2.progress - 0.42) < 1e-9);
+      REG01F.settleReady('david_goliath', opId, { version: '1.0.0' });
+      host._reset(); const api3 = mod.useStoryPackDownload('david_goliath');
+      check('LP2.1a-ii-01F H4 (READY sem 2º toque): registro pronto → uiState ready sem novo download', api3.uiState === 'ready' && api3.isReady === true);
+      host._unmount(); host._reset(); const api4 = mod.useStoryPackDownload('david_goliath');
+      check('LP2.1a-ii-01F H5 (unmount seguro): desassinar no cleanup não quebra a próxima montagem', api4 && typeof api4.uiState === 'string'); }
+    { REG01F.clearStoryPackInstall('noah'); const host = makeHost01f(); const mod = loadHook01f(host); host._reset();
+      const api = mod.useStoryPackDownload('noah'); host._flush();
+      check('LP2.1a-ii-01F H6 (isolamento): hook de outra história não vê o voo de david', api.uiState === 'not_downloaded'); }
+
+    // ── FIX1R: RESET DURANTE VOO via SERVIÇO + ÍNDICE PERSISTIDO (não só o registro) ──
+    const raceReset01f = async (gateType) => {
+      const h = mkH01f(); setupDG01f(h);
+      let releaseGate; const gate = new Promise((r) => { releaseGate = r; }); let gated = false;
+      const doReset = async () => { REG01F.clearStoryPackInstall('david_goliath'); await h.storage.clearPackEntry('david_goliath'); };
+      let deps = { ...h.deps, installRegistry: REG01F, clearPackEntry: h.storage.clearPackEntry };
+      if (gateType === 'verify') deps = { ...deps, computeFileSha256: async (uri) => { if (!gated && String(uri).includes('scenes')) { gated = true; await doReset(); await gate; } return h.deps.computeFileSha256(uri); } };
+      else h.onBefore = async (t, detail) => { if (t === 'set-entry' && String(detail).endsWith(':ready') && !gated) { gated = true; await doReset(); await gate; } };
+      const svc = mkSvc01f(deps);
+      REG01F.clearStoryPackInstall('david_goliath');
+      const p = svc.downloadStoryPackScenesFromGlobalManifest({ storyId: 'david_goliath', globalManifestUrl: 'https://r2/content-manifest.json', appVersion: '1.0.0', requestedKinds: ['scene'], onProgress: () => {} });
+      await flush01f(12); releaseGate(); const r = await p; await flush01f(25);
+      const entry = await h.storage.getPackEntry('david_goliath');
+      return { resultOk: !!(r && r.ok), indice: entry ? entry.status : 'not_downloaded', registro: REG01F.getStoryPackInstallSnapshot('david_goliath').status };
+    };
+    { const r = await raceReset01f('verify');
+      check('LP2.1a-ii-01F RESET-1 (Reset durante download): índice NÃO fica READY após whenIndexQueueDrained', r.indice !== 'ready' && r.registro !== 'ready', JSON.stringify(r)); }
+    { const r = await raceReset01f('set-entry');
+      check('LP2.1a-ii-01F RESET-2 (Reset imediatamente antes de setPackEntry): índice NÃO fica READY (fence + undo)', r.indice !== 'ready' && r.registro !== 'ready', JSON.stringify(r)); }
+    // RETRY após Reset: voo antigo bloqueado, novo voo publica READY exatamente uma vez
+    { const h = mkH01f(); setupDG01f(h);
+      let releaseGate; const gate = new Promise((r) => { releaseGate = r; }); let gated = false;
+      const deps = { ...h.deps, installRegistry: REG01F, clearPackEntry: h.storage.clearPackEntry, computeFileSha256: async (uri) => { if (!gated && String(uri).includes('scenes')) { gated = true; await gate; } return h.deps.computeFileSha256(uri); } };
+      const svc = mkSvc01f(deps);
+      REG01F.clearStoryPackInstall('david_goliath');
+      const pOld = svc.downloadStoryPackScenesFromGlobalManifest({ storyId: 'david_goliath', globalManifestUrl: 'https://r2/content-manifest.json', appVersion: '1.0.0', requestedKinds: ['scene'], onProgress: () => {} });
+      await flush01f(8);
+      REG01F.clearStoryPackInstall('david_goliath'); await h.storage.clearPackEntry('david_goliath');   // Reset durante o voo
+      const pNew = svc.downloadStoryPackScenesFromGlobalManifest({ storyId: 'david_goliath', globalManifestUrl: 'https://r2/content-manifest.json', appVersion: '1.0.0', requestedKinds: ['scene'], onProgress: () => {} });
+      await flush01f(4); releaseGate();
+      const [rOld, rNew] = await Promise.all([pOld, pNew]); await flush01f(25);
+      const entry = await h.storage.getPackEntry('david_goliath');
+      check('LP2.1a-ii-01F RETRY (não joina voo invalidado): voo antigo NÃO publica; retry novo publica READY uma vez',
+        rOld.ok === false && rNew.ok === true && entry && entry.status === 'ready' && REG01F.getStoryPackInstallSnapshot('david_goliath').status === 'ready',
+        `rOld=${rOld.ok} rNew=${rNew.ok} indice=${entry && entry.status}`); }
+    // MATRIZ TERMINAL: toda chamada com registro chega a um terminal (nunca fica ativa)
+    { const term = async (setup) => { const h = mkH01f(); setup(h); const svc = mkSvc01f({ ...h.deps, installRegistry: REG01F, clearPackEntry: h.storage.clearPackEntry });
+        REG01F.clearStoryPackInstall('david_goliath');
+        const r = await svc.downloadStoryPackScenesFromGlobalManifest({ storyId: 'david_goliath', globalManifestUrl: 'https://r2/content-manifest.json', appVersion: '1.0.0', requestedKinds: ['scene'], onProgress: () => {} });
+        await flush01f(6); const st = REG01F.getStoryPackInstallSnapshot('david_goliath').status; return { ok: r.ok, st }; };
+      const tOffline = await term((h) => { setupDG01f(h); h.setModoRede('offline'); });
+      const tHttp = await term((h) => { setupDG01f(h); h.setModoRede('http-erro'); });
+      const tSha = await term((h) => setupDG01f(h, true));
+      const naoAtivo = (x) => x.st === 'ready' || x.st === 'error' || x.st === 'idle';
+      check('LP2.1a-ii-01F TERMINAL (offline/http/sha): toda operação chega a terminal (nunca resolving/downloading/verifying/publishing)',
+        naoAtivo(tOffline) && naoAtivo(tHttp) && tSha.ok === false && tSha.st === 'error',
+        `offline=${tOffline.st} http=${tHttp.st} sha=${tSha.st}`); }
+  })();
+  globalThis.__LP21IIF01F.catch(() => {});
+}
+
 
 // ── Sprint 3 — Área dos Pais como Central Adulta do MVP ──────────────────────
 
@@ -17095,6 +17315,442 @@ check(
   })(),
   'BeniCircularArt não faz crop circular (cover + presets) — avatar ficaria como retângulo/contain',
 );
+
+// ── LP2.1a-ii-01G-C: capa estável durante o download (correção anti-piscar) ──────────────────
+//
+// CAUSA PROVADA na captura física 01G-B (log `img-ms4y401r`, 5.819 eventos): `Moldura`, `Selo` e
+// `InfoSection` eram declaradas DENTRO do corpo de `StoryBookHero`. Cada render criava novas
+// identidades de função; o React compara `element.type` por posição, então identidade nova = tipo
+// novo = **desmonta e remonta a subárvore**. Com `<StoryCoverImage>` dentro de `Moldura`, a
+// `<Image>` nativa da capa era recriada a cada tique de progresso (≈4,9/s), ficando em branco por
+// ~47 ms (mediana) até o decode — 848 remontagens em 205 s, o piscar reprovado no aparelho.
+//
+// O harness abaixo NÃO é regex superficial: ele transpila o JSX do fonte REAL, executa o
+// componente duas vezes (como um tique de progresso faria) e compara a identidade de `type` em
+// todo o caminho raiz→capa. Os controles negativos reintroduzem o defeito no PRÓPRIO fonte
+// (mutante inline e mutante de key) e exigem que o harness os acuse — sem isso, verde não prova nada.
+console.log('\n── LP2.1a-ii-01G-C: capa estável durante o download (anti-piscar) ──');
+try {
+  const babel01gc = require('@babel/core');
+  const parser01gc = require('@babel/parser');
+  const jsxMod01gc = require('@babel/plugin-transform-react-jsx');
+  const jsxPlugin01gc = jsxMod01gc && jsxMod01gc.default ? jsxMod01gc.default : jsxMod01gc;
+  const { loadModule: loadMod01gc } = require('./testing/packInstallHarness');
+
+  const HERO01GC = readSrc('src/components/story/StoryBookHero.js');
+  const COVER01GC = readSrc('src/components/story/StoryCoverImage.js');
+
+  const parse01gc = (src) => parser01gc.parse(src, { sourceType: 'module', plugins: ['jsx'] });
+
+  const walk01gc = (node, fn) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const n of node) walk01gc(n, fn); return; }
+    if (typeof node.type === 'string') fn(node);
+    for (const k of Object.keys(node)) {
+      if (k === 'loc' || k === 'leadingComments' || k === 'trailingComments' || k === 'innerComments') continue;
+      const v = node[k];
+      if (v && typeof v === 'object') walk01gc(v, fn);
+    }
+  };
+
+  const heroDecl01gc = (ast) => {
+    for (const n of ast.program.body) {
+      if (n.type === 'ExportDefaultDeclaration' && n.declaration && n.declaration.type === 'FunctionDeclaration'
+        && n.declaration.id && n.declaration.id.name === 'StoryBookHero') return n.declaration;
+    }
+    return null;
+  };
+
+  /** Componentes CRIADOS dentro do corpo do render — identidade nova por render = tipo novo. */
+  const componentesInline01gc = (src) => {
+    const hero = heroDecl01gc(parse01gc(src));
+    if (!hero) throw new Error('componentesInline01gc: StoryBookHero não encontrado');
+    const achados = [];
+    const eComponente = (nome) => typeof nome === 'string' && /^[A-Z]/.test(nome);
+    walk01gc(hero.body, (n) => {
+      if (n.type === 'FunctionDeclaration' && n.id && eComponente(n.id.name)) achados.push(n.id.name);
+      if (n.type === 'VariableDeclarator' && n.id && n.id.type === 'Identifier' && eComponente(n.id.name) && n.init) {
+        const t = n.init.type;
+        if (t === 'ArrowFunctionExpression' || t === 'FunctionExpression') achados.push(n.id.name);
+        else if (t === 'CallExpression' && /memo|forwardRef/.test(src.slice(n.init.callee.start, n.init.callee.end))) achados.push(n.id.name);
+      }
+    });
+    return achados;
+  };
+
+  const funcoesDeModulo01gc = (src) =>
+    parse01gc(src).program.body.filter((n) => n.type === 'FunctionDeclaration' && n.id).map((n) => n.id.name);
+
+  /** React mínimo: guarda `type`/`key`/props. Não expande componentes — o que se compara é o TIPO. */
+  const mkReact01gc = () => {
+    const refs = []; let i = 0;
+    const flat = (arr) => arr.reduce((a, c) => a.concat(Array.isArray(c) ? flat(c) : [c]), []);
+    return {
+      Fragment: function Fragment() { return null; },
+      createElement: (type, props, ...children) => ({
+        type, props: props || {}, key: props && props.key != null ? props.key : null, children: flat(children),
+      }),
+      useRef: (init) => { const k = i++; if (!refs[k]) refs[k] = { current: init }; return refs[k]; },
+      useEffect: () => {},
+      _resetHooks: () => { i = 0; },
+    };
+  };
+
+  /** Transpila o JSX do fonte REAL e avalia o módulo com as fronteiras dubladas. */
+  const evalHero01gc = (src) => {
+    const jsx = babel01gc.transformSync(src, {
+      babelrc: false, configFile: false, sourceType: 'module', filename: 'StoryBookHero.js',
+      plugins: [[jsxPlugin01gc, { runtime: 'classic' }]],
+    }).code;
+    const code = jsx
+      .replace(/^import[\s\S]*?;$/gm, '')
+      .replace(/export default function/m, 'function')
+      .replace(/^export /gm, '')
+      + '\n; return { StoryBookHero,'
+      + ' Moldura: (typeof Moldura === "undefined" ? null : Moldura),'
+      + ' InfoSection: (typeof InfoSection === "undefined" ? null : InfoSection) };';
+    const React = mkReact01gc();
+    const px = (v) => new Proxy({}, { get: () => (typeof v === 'function' ? v() : v) });
+    const deps = {
+      React, useRef: React.useRef, useEffect: React.useEffect,
+      View: 'View', Text: 'Text',
+      StyleSheet: { create: (o) => o, absoluteFillObject: {} },
+      StoryCoverImage: function StoryCoverImage() { return null; },
+      CartaoPagina: function CartaoPagina() { return null; },
+      TrilhoProgresso: function TrilhoProgresso() { return null; },
+      color: px('#123456'), font: px('F'), fontSize: px(16), fontWeight: px('600'),
+      radius: px(8), shadow: px(1), seal: px(() => ({ bg: '#fff', border: '#eee', text: '#111' })),
+      storyHasAllRequiredAudio: () => true,
+      __it: () => {}, __itNext: (() => { let i = 0; return () => (i += 1); })(),
+      __DEV__: true,
+    };
+    const keys = Object.keys(deps);
+    const mod = new Function(...keys, code)(...keys.map((k) => deps[k]));
+    return { ...mod, React, Cover: deps.StoryCoverImage, Trilho: deps.TrilhoProgresso };
+  };
+
+  const STORY01GC = Object.freeze({
+    id: 'david_goliath', titulo: 'Davi e Golias', referencia: '1 Samuel 17',
+    licaoCoracao: 'Deus é maior', accessType: 'free', coverSafeArea: 'top',
+  });
+  const props01gc = (isTablet, progressCount) => ({
+    story: STORY01GC, totalScenes: 10, progressCount, isTablet,
+    isFullyComplete: false, isComingSoon: false, isLocked: false,
+  });
+  /** Dois renders consecutivos da MESMA instância — exatamente o que um tique de progresso faz. */
+  const doisRenders01gc = (Hero, React, isTablet) => {
+    React._resetHooks(); const a = Hero(props01gc(isTablet, 3));
+    React._resetHooks(); const b = Hero(props01gc(isTablet, 4));
+    return { a, b };
+  };
+
+  const caminhoAteCapa01gc = (node, Cover, acc) => {
+    const trilha = acc || [];
+    if (!node || typeof node !== 'object') return null;
+    if (Array.isArray(node)) { for (const c of node) { const r = caminhoAteCapa01gc(c, Cover, trilha); if (r) return r; } return null; }
+    if (node.type === undefined) return null;
+    const aqui = trilha.concat([node]);
+    if (node.type === Cover) return aqui;
+    return caminhoAteCapa01gc(node.children, Cover, aqui);
+  };
+  const tiposIguais01gc = (p1, p2) => !!p1 && !!p2 && p1.length === p2.length && p1.every((n, k) => n.type === p2[k].type);
+  const acharElemento01gc = (node, tipo, out) => {
+    const res = out || [];
+    if (!node || typeof node !== 'object') return res;
+    if (Array.isArray(node)) { for (const c of node) acharElemento01gc(c, tipo, res); return res; }
+    if (node.type === undefined) return res;
+    if (node.type === tipo) res.push(node);
+    acharElemento01gc(node.children, tipo, res);
+    return res;
+  };
+  const textoDe01gc = (node, out) => {
+    const res = out || [];
+    if (node == null) return res;
+    if (typeof node === 'string' || typeof node === 'number') { res.push(String(node)); return res; }
+    if (Array.isArray(node)) { for (const c of node) textoDe01gc(c, res); return res; }
+    if (typeof node === 'object') textoDe01gc(node.children, res);
+    return res;
+  };
+
+  const cortar01gc = (src, faixas) => {
+    let out = src;
+    for (const f of faixas.slice().sort((a, b) => b.start - a.start)) out = out.slice(0, f.start) + out.slice(f.end);
+    return out;
+  };
+  /** CONTROLE NEGATIVO: reintroduz o defeito movendo os alvos pedidos para dentro do render. */
+  const mutanteInlineAlvos01gc = (src, alvos) => {
+    const faixas = parse01gc(src).program.body
+      .filter((n) => n.type === 'FunctionDeclaration' && n.id && alvos.includes(n.id.name))
+      .map((n) => ({ start: n.start, end: n.end }));
+    if (faixas.length !== alvos.length) throw new Error(`mutanteInlineAlvos01gc: âncora não encontrada (${alvos.join(', ')})`);
+    const textos = faixas.map((f) => src.slice(f.start, f.end));
+    const sem = cortar01gc(src, faixas);
+    const hero2 = heroDecl01gc(parse01gc(sem));
+    if (!hero2) throw new Error('mutanteInlineAlvos01gc: hero não encontrado após o corte');
+    const at = hero2.body.start + 1;
+    const out = sem.slice(0, at) + '\n' + textos.join('\n\n') + '\n' + sem.slice(at);
+    if (out === src) throw new Error('mutanteInlineAlvos01gc: a mutação não alterou o fonte');
+    parse01gc(out);
+    return out;
+  };
+  const mutanteInline01gc = (src) => mutanteInlineAlvos01gc(src, ['Moldura', 'Selo', 'InfoSection']);
+  /** Todos os tipos da árvore renderizada, em ordem — pega troca de identidade FORA do caminho da capa. */
+  const tiposDaArvore01gc = (node, out) => {
+    const res = out || [];
+    if (!node || typeof node !== 'object') return res;
+    if (Array.isArray(node)) { for (const c of node) tiposDaArvore01gc(c, res); return res; }
+    if (node.type === undefined) return res;
+    res.push(node.type);
+    tiposDaArvore01gc(node.children, res);
+    return res;
+  };
+  const arvoreMesmosTipos01gc = (a, b) => {
+    const t1 = tiposDaArvore01gc(a), t2 = tiposDaArvore01gc(b);
+    return t1.length === t2.length && t1.every((t, k) => t === t2[k]);
+  };
+  /** CONTROLE NEGATIVO: reintroduz key derivada do progresso na capa. */
+  const mutanteKey01gc = (src) => {
+    const out = src.replace(/<StoryCoverImage story=\{story\}/g, '<StoryCoverImage key={progressCount} story={story}');
+    if (out === src) throw new Error('mutanteKey01gc: âncora não encontrada');
+    parse01gc(out);
+    return out;
+  };
+  /** Simula a REMOÇÃO FUTURA do trace: corta o import e todo statement do corpo que o referencia.
+   *  Quando o trace JÁ tiver sido removido (bloco seguinte da trilha), o fonte real já é o "sem
+   *  trace" — devolver `src` mantém a prova válida nas duas fases, sem virar falha por ausência. */
+  const semTrace01gc = (src) => {
+    if (!/lp21ImageTrace|__IMGT|__itNext|__instRef|__it\(/.test(src)) return src;
+    const ast = parse01gc(src);
+    const faixas = ast.program.body
+      .filter((n) => n.type === 'ImportDeclaration' && String(n.source.value).includes('lp21ImageTrace'))
+      .map((n) => ({ start: n.start, end: n.end }));
+    const hero = heroDecl01gc(ast);
+    for (const st of hero.body.body) {
+      if (/__IMGT|__itNext|__instRef|__it\(/.test(src.slice(st.start, st.end))) faixas.push({ start: st.start, end: st.end });
+    }
+    if (faixas.length < 2) throw new Error('semTrace01gc: âncora do trace não encontrada');
+    const out = cortar01gc(src, faixas);
+    if (out === src) throw new Error('semTrace01gc: a remoção não alterou o fonte');
+    parse01gc(out);
+    return out;
+  };
+
+  /* P1/P2 — a CAUSA: componente declarado no corpo do render (tipo novo a cada render). */
+  {
+    const reais = componentesInline01gc(HERO01GC);
+    check('LP2.1a-ii-01G-C P1 (tipo estável, estático): StoryBookHero NÃO declara componente dentro do corpo do render',
+      reais.length === 0, `declarados no render: ${reais.join(', ')}`);
+    const mut = componentesInline01gc(mutanteInline01gc(HERO01GC));
+    check('LP2.1a-ii-01G-C P2 (controle negativo do detector): o mutante que reintroduz Moldura/Selo/InfoSection no render é ACUSADO',
+      ['Moldura', 'Selo', 'InfoSection'].every((n) => mut.includes(n)), `o mutante acusou: ${mut.join(', ')}`);
+  }
+
+  /* P3 — onde a correção vive. */
+  {
+    const mods = funcoesDeModulo01gc(HERO01GC);
+    check('LP2.1a-ii-01G-C P3 (escopo de módulo): Moldura, Selo e InfoSection são declarações de MÓDULO (tipo estável entre renders)',
+      ['Moldura', 'Selo', 'InfoSection'].every((n) => mods.includes(n)), `no escopo de módulo: ${mods.join(', ')}`);
+  }
+
+  /* P4/P5 — prova de comportamento no fonte real: dois renders de progresso, tipos idênticos. */
+  {
+    const { StoryBookHero, React, Cover } = evalHero01gc(HERO01GC);
+    for (const [id, rotulo, isTablet] of [['P4', 'mobile', false], ['P5', 'tablet', true]]) {
+      const { a, b } = doisRenders01gc(StoryBookHero, React, isTablet);
+      const p1 = caminhoAteCapa01gc(a, Cover), p2 = caminhoAteCapa01gc(b, Cover);
+      check(`LP2.1a-ii-01G-C ${id} (render real, ${rotulo}): o caminho raiz→capa mantém os MESMOS tipos entre dois renders de progresso (React reconcilia, não remonta)`,
+        !!p1 && p1.length > 1 && tiposIguais01gc(p1, p2),
+        p1 && p2 ? `posições divergentes: ${p1.map((n, k) => (n.type === p2[k].type ? '' : String(k))).filter(Boolean).join(',') || '(comprimento do caminho)'}` : 'capa não encontrada na árvore');
+    }
+  }
+
+  /* P6 — controle negativo do harness de render. */
+  {
+    const { StoryBookHero, React, Cover } = evalHero01gc(mutanteInline01gc(HERO01GC));
+    const { a, b } = doisRenders01gc(StoryBookHero, React, false);
+    const p1 = caminhoAteCapa01gc(a, Cover), p2 = caminhoAteCapa01gc(b, Cover);
+    check('LP2.1a-ii-01G-C P6 (controle negativo do render): no mutante inline o caminho raiz→capa TROCA de tipo entre renders (o harness enxerga o defeito)',
+      !!p1 && !!p2 && !tiposIguais01gc(p1, p2), 'o harness NÃO detectou o defeito reintroduzido — as provas P4/P5 seriam infalsificáveis');
+  }
+
+  /* P7 — key derivada do progresso remontaria a capa; não pode existir. */
+  {
+    const { StoryBookHero, React, Cover } = evalHero01gc(HERO01GC);
+    const { a, b } = doisRenders01gc(StoryBookHero, React, false);
+    const p1 = caminhoAteCapa01gc(a, Cover), p2 = caminhoAteCapa01gc(b, Cover);
+    check('LP2.1a-ii-01G-C P7 (sem key): nenhum nó do caminho raiz→capa recebe key — muito menos derivada do progresso',
+      p1.every((n) => n.key === null) && p2.every((n) => n.key === null),
+      `keys: ${p1.map((n) => String(n.key)).join('|')} / ${p2.map((n) => String(n.key)).join('|')}`);
+    const m = evalHero01gc(mutanteKey01gc(HERO01GC));
+    const r = doisRenders01gc(m.StoryBookHero, m.React, false);
+    const k1 = caminhoAteCapa01gc(r.a, m.Cover), k2 = caminhoAteCapa01gc(r.b, m.Cover);
+    const kA = k1[k1.length - 1].key, kB = k2[k2.length - 1].key;
+    check('LP2.1a-ii-01G-C P7-neg (controle negativo da key): key derivada do progresso é detectada (muda entre renders → remontaria a capa)',
+      kA !== null && kB !== null && kA !== kB, `key da capa: ${kA} → ${kB}`);
+  }
+
+  /* P8 — a fonte da capa não é substituída durante o download (o req#N constante do trace). */
+  {
+    const { StoryBookHero, React, Cover } = evalHero01gc(HERO01GC);
+    const { a, b } = doisRenders01gc(StoryBookHero, React, false);
+    const ca = acharElemento01gc(a, Cover)[0], cb = acharElemento01gc(b, Cover)[0];
+    const semSource = !('source' in ca.props) && !('source' in cb.props);
+    const mesmaStory = ca.props.story === cb.props.story && ca.props.story === STORY01GC;
+    const doBundle = /imgSource\s*=\s*images\[story\.imagemCapa\]/.test(COVER01GC);
+    check('LP2.1a-ii-01G-C P8 (fonte estável): o hero não passa `source`, `story` é o MESMO objeto e a capa resolve pelo mapa estático do bundle (o req#N não troca durante o download)',
+      semSource && mesmaStory && doBundle, `semSource=${semSource} mesmaStory=${mesmaStory} bundle=${doBundle}`);
+  }
+
+  /* P9 — nenhum callback recriado por render chega à capa. */
+  {
+    const { StoryBookHero, React, Cover } = evalHero01gc(HERO01GC);
+    const { a } = doisRenders01gc(StoryBookHero, React, false);
+    const ons = Object.keys(acharElemento01gc(a, Cover)[0].props).filter((k) => /^on[A-Z]/.test(k));
+    check('LP2.1a-ii-01G-C P9 (sem callback recriado): o hero não passa nenhuma prop on* para a capa (nada a reidentificar a cada render)',
+      ons.length === 0, `props on* encontradas: ${ons.join(', ')}`);
+  }
+
+  /* P10 — não existe flag de carregamento que possa voltar a false. */
+  {
+    let temUseState = false;
+    walk01gc(parse01gc(COVER01GC).program, (n) => { if (n.type === 'Identifier' && n.name === 'useState') temUseState = true; });
+    check('LP2.1a-ii-01G-C P10 (sem flag de carregamento): StoryCoverImage não declara useState — não existe `loaded` para voltar a false por mudança de progresso',
+      !temUseState, 'useState encontrado em StoryCoverImage');
+  }
+
+  /* P11 — a correção NÃO depende de instrumentação: com qualquer trace removido do fonte, ela vale.
+     A instrumentação temporária do 01G-B já saiu; `semTrace01gc` devolve o fonte como está e a prova
+     segue exigindo o mesmo. Se algum dia voltar um trace, ele é retirado aqui antes de julgar. */
+  {
+    const limpo = semTrace01gc(HERO01GC);
+    const semRef = !/lp21ImageTrace|__IMGT|__itNext|__instRef|__it\(/.test(limpo);
+    const mods = funcoesDeModulo01gc(limpo);
+    const inline = componentesInline01gc(limpo);
+    const { StoryBookHero, React, Cover } = evalHero01gc(limpo);
+    const { a, b } = doisRenders01gc(StoryBookHero, React, false);
+    check('LP2.1a-ii-01G-C P11 (a correção NÃO depende da instrumentação): sem trace nenhum, o hero segue sem componente inline e a capa mantém o tipo entre renders',
+      semRef && inline.length === 0 && ['Moldura', 'Selo', 'InfoSection'].every((n) => mods.includes(n))
+      && tiposIguais01gc(caminhoAteCapa01gc(a, Cover), caminhoAteCapa01gc(b, Cover)),
+      `semRef=${semRef} inline=[${inline.join(',')}] módulo=[${mods.join(',')}]`);
+  }
+
+  /* P12 — a instrumentação temporária do 01G-B foi REMOVIDA por inteiro: o arquivo não existe e
+     nenhum módulo de src/ o importa (um import órfão quebraria o bundle no device).
+     O ramo `srcExists` fica para o caso de um trace voltar em um bloco futuro: ali a exigência é
+     que ele seja inerte fora de __DEV__ (execução real do módulo, não regex). */
+  {
+    const TRACE01GC = 'src/dev/lp21ImageTrace.js';
+    if (srcExists(TRACE01GC)) {
+      const carregar01gc = (dev) => {
+        const linhas = [];
+        const mod = loadMod01gc(TRACE01GC,
+          { __DEV__: dev, console: { log: (s) => linhas.push(String(s)) } },
+          ['imgTrace', 'nextId', 'objectIdentity']);
+        return { mod, linhas };
+      };
+      const off = carregar01gc(false); off.mod.imgTrace('cover', 'mount', { instanceId: 1 });
+      const on = carregar01gc(true); on.mod.imgTrace('cover', 'mount', { instanceId: 1 });
+      const gate01gc = /__IMGT\s*=\s*\(typeof __DEV__ !== 'undefined' && __DEV__\)/;
+      const derivaDoDev = (!HERO01GC.includes('__IMGT') || gate01gc.test(HERO01GC))
+        && (!COVER01GC.includes('__IMGT') || gate01gc.test(COVER01GC));
+      check('LP2.1a-ii-01G-C P12 (trace segue gated): com __DEV__ falso o tracer é no-op REAL (0 linhas, nextId 0, objectIdentity null); com __DEV__ verdadeiro emite; __IMGT deriva de __DEV__ no hero e na capa',
+        off.linhas.length === 0 && off.mod.nextId('component') === 0 && off.mod.objectIdentity({}) === null
+        && on.linhas.length >= 1 && on.linhas.every((l) => l.startsWith('[LP21-IMAGE-TRACE] ')) && derivaDoDev,
+        `off=${off.linhas.length} linha(s) on=${on.linhas.length} linha(s) derivaDoDev=${derivaDoDev}`);
+    } else {
+      const orfaos = allFiles.filter((f) => fs.readFileSync(f, 'utf8').includes('lp21ImageTrace'))
+        .map((f) => path.relative(root, f));
+      check('LP2.1a-ii-01G-C P12 (trace removido): nenhum módulo de src/ ainda importa lp21ImageTrace — a remoção da instrumentação foi completa e o bundle não quebra',
+        orfaos.length === 0, `ainda importam o trace ausente: ${orfaos.join(', ')}`);
+    }
+  }
+
+  /* P12b — nenhum resíduo da instrumentação temporária ficou em src/. Não basta o import sumir:
+     handler, contador de instância, marca de log ou comentário de trace também não podem ficar. */
+  {
+    const marcas01gc = [['lp21ImageTrace', /lp21ImageTrace/], ['LP21-IMAGE-TRACE', /LP21-IMAGE-TRACE/],
+      ['__it(', /__it\(/], ['__itImg(', /__itImg\(/], ['__IMGT', /__IMGT/], ['__itNext', /__itNext/],
+      ['__instRef', /__instRef/], ['resolveAttemptId', /resolveAttemptId/], ['sourceFp', /sourceFp/],
+      ['render-downloading', /render-downloading/], ['trace-start', /trace-start/]];
+    const residuos = [];
+    for (const f of allFiles) {
+      const s = fs.readFileSync(f, 'utf8');
+      for (const [nome, re] of marcas01gc) if (re.test(s)) residuos.push(`${path.relative(root, f)}:${nome}`);
+    }
+    check('LP2.1a-ii-01G-C P12b (sem resíduo temporário): nenhum arquivo de src/ carrega marca da instrumentação 01G-B (import, handler de trace, contador de instância ou marca de log)',
+      residuos.length === 0, `resíduos encontrados: ${residuos.join(', ')}`);
+  }
+
+  /* P13/P14 — contenção: a correção não alcança o 01F nem outras histórias. */
+  {
+    const pipeline = ['packInstallRegistry', 'useStoryPackDownload', 'PacksContext', 'packDownloadService', 'usePacks']
+      .filter((p) => HERO01GC.includes(p));
+    check('LP2.1a-ii-01G-C P13 (contenção): a correção não toca o pipeline de packs — o 01F (registro observável, download em segundo plano, READY sem 2º toque) segue intacto',
+      pipeline.length === 0, `referências ao pipeline encontradas no hero: ${pipeline.join(', ')}`);
+    const ids = ['david_goliath', 'noah', 'jonah', 'moses'].filter((i) => HERO01GC.includes(i));
+    check('LP2.1a-ii-01G-C P14 (agnóstico de história): o hero não cita storyId literal — piloto e packs de outras histórias não são afetados',
+      ids.length === 0, `ids literais encontrados: ${ids.join(', ')}`);
+  }
+
+  /* P15 — capa estável SEM congelar o progresso (proibição explícita do bloco). */
+  {
+    const { StoryBookHero, InfoSection, React, Cover, Trilho } = evalHero01gc(HERO01GC);
+    const { a, b } = doisRenders01gc(StoryBookHero, React, false);
+    const i1 = InfoSection(props01gc(false, 3));
+    const i2 = InfoSection(props01gc(false, 4));
+    const t1 = acharElemento01gc(i1, Trilho), t2 = acharElemento01gc(i2, Trilho);
+    const txt1 = textoDe01gc(i1).join(' '), txt2 = textoDe01gc(i2).join(' ');
+    check('LP2.1a-ii-01G-C P15 (capa estável SEM congelar o progresso): o trilho continua presente, o valor avança de 3/10 para 4/10 e a capa mantém o tipo no MESMO par de renders',
+      t1.length === 1 && t2.length === 1 && t1[0].props.progress !== t2[0].props.progress
+      && txt1.includes('3') && txt2.includes('4') && txt1.includes('cenas')
+      && tiposIguais01gc(caminhoAteCapa01gc(a, Cover), caminhoAteCapa01gc(b, Cover)),
+      `trilho=${t1.length}/${t2.length} progress=${t1[0] && t1[0].props.progress}→${t2[0] && t2[0].props.progress}`);
+  }
+
+  /* P16 — a correção é estrutural, não paliativa (as proibições do bloco viram teste). */
+  {
+    const paliativos = [['setTimeout', /setTimeout\s*\(/], ['setInterval', /setInterval\s*\(/],
+      ['debounce', /debounce/i], ['memo', /\bmemo\s*\(/], ['imagem sobreposta', /placeholder|overlayCover/i]]
+      .filter((par) => par[1].test(HERO01GC)).map((par) => par[0]);
+    check('LP2.1a-ii-01G-C P16 (correção estrutural, não paliativa): o hero não usa setTimeout/debounce/memo nem imagem sobreposta para esconder o piscar',
+      paliativos.length === 0, `paliativos encontrados: ${paliativos.join(', ')}`);
+  }
+
+  /* P17/P18 — controles negativos GRANULARES: reintroduzir UM ÚNICO componente no render já
+     precisa reprovar. P2/P6 movem os três de uma vez; sozinhos, não provariam que a prova pega
+     uma regressão parcial (alguém mexer só na Moldura, ou só na InfoSection, num bloco futuro). */
+  {
+    const real = evalHero01gc(HERO01GC);
+    const rr = doisRenders01gc(real.StoryBookHero, real.React, false);
+
+    /* P17 — só a Moldura volta para dentro do render: a capa é filha dela, então o caminho
+       raiz→capa passa a trocar de tipo entre dois renders de progresso (a <Image> remontaria). */
+    const mutM = mutanteInlineAlvos01gc(HERO01GC, ['Moldura']);
+    const acusadosM = componentesInline01gc(mutM);
+    const evM = evalHero01gc(mutM);
+    const rm = doisRenders01gc(evM.StoryBookHero, evM.React, false);
+    check('LP2.1a-ii-01G-C P17 (controle negativo granular — Moldura): reintroduzir SÓ a Moldura no render é acusado pelo detector E faz o caminho raiz→capa trocar de tipo entre renders',
+      acusadosM.includes('Moldura') && !acusadosM.includes('InfoSection')
+      && !tiposIguais01gc(caminhoAteCapa01gc(rm.a, evM.Cover), caminhoAteCapa01gc(rm.b, evM.Cover))
+      && tiposIguais01gc(caminhoAteCapa01gc(rr.a, real.Cover), caminhoAteCapa01gc(rr.b, real.Cover)),
+      `acusados no mutante: [${acusadosM.join(',')}]`);
+
+    /* P18 — só a InfoSection volta para dentro do render. Ela NÃO está no caminho da capa, então
+       o caminho continuaria "estável": quem pega isso é a comparação da ÁRVORE INTEIRA. O fonte
+       real precisa manter todos os tipos da árvore idênticos entre os dois renders. */
+    const mutI = mutanteInlineAlvos01gc(HERO01GC, ['InfoSection']);
+    const acusadosI = componentesInline01gc(mutI);
+    const evI = evalHero01gc(mutI);
+    const ri = doisRenders01gc(evI.StoryBookHero, evI.React, false);
+    check('LP2.1a-ii-01G-C P18 (controle negativo granular — InfoSection): reintroduzir SÓ a InfoSection no render é acusado E troca o tipo na árvore renderizada, enquanto o fonte real mantém a árvore INTEIRA com os mesmos tipos',
+      acusadosI.includes('InfoSection') && !acusadosI.includes('Moldura')
+      && !arvoreMesmosTipos01gc(ri.a, ri.b) && arvoreMesmosTipos01gc(rr.a, rr.b),
+      `acusados no mutante: [${acusadosI.join(',')}] · árvore real estável=${arvoreMesmosTipos01gc(rr.a, rr.b)}`);
+  }
+} catch (e01gc) {
+  check('LP2.1a-ii-01G-C (harness): o bloco das provas anti-piscar concluiu sem estourar',
+    false, `o bloco 01G-C lançou (${e01gc && e01gc.stack ? String(e01gc.stack).split('\n').slice(0, 3).join(' | ') : e01gc}) — as provas dele não rodaram`);
+}
 
 // ── A3 (assíncrono): round-trip REAL do reset (resetProgress agora usa getAllKeys).
 // O resumo só é impresso depois que o reset assíncrono terminar.
@@ -29632,6 +30288,12 @@ check(
   check('LP2.1a-ii-F1 (harness): o bloco assíncrono das provas vermelhas de cancelamento/lifecycle concluiu sem estourar',
     !lp21iif1Err,
     `o bloco F1 lançou (${lp21iif1Err && lp21iif1Err.stack ? String(lp21iif1Err.stack).split('\n').slice(0, 3).join(' | ') : lp21iif1Err}) — os checks dele não rodaram`);
+
+  let lp21iif01fErr = null;
+  try { await globalThis.__LP21IIF01F; } catch (e) { lp21iif01fErr = e; }
+  check('LP2.1a-ii-01F (harness): o bloco assíncrono do registro global observável concluiu sem estourar',
+    !lp21iif01fErr,
+    `o bloco 01F lançou (${lp21iif01fErr && lp21iif01fErr.stack ? String(lp21iif01fErr.stack).split('\n').slice(0, 3).join(' | ') : lp21iif01fErr}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;

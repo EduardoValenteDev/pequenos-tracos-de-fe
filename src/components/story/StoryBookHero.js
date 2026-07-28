@@ -7,18 +7,39 @@ import { color, font, fontSize, fontWeight, radius, shadow, seal } from '../../t
 import { storyHasAllRequiredAudio } from '../../services/audioService';
 
 /**
- * StoryBookHero — hero de detalhe da história (A0.5/A0.6, Direção de Arte v1.1).
+ * LP2.1a-ii-01G-C — ESTES COMPONENTES VIVEM NO ESCOPO DO MÓDULO, NÃO DENTRO DO RENDER.
  *
- * Componente de EXIBIÇÃO do estado pré-história: capa com MOLDURA "Galeria Viva"
- * (borda dourada + papel, arte original intacta — D4), título em Fraunces, SELOS
- * coesos (Grátis verde / Plano Família lilás / Concluída dourada), "Lição do
- * coração" como citação em papel e painel "Nesta aventura" (com variante concluída).
+ * Enquanto eram declarados dentro de `StoryBookHero`, cada render produzia uma nova
+ * identidade de função. O React compara `element.type` por posição: identidade nova =
+ * tipo novo = **desmonta e remonta a subárvore inteira**. Como `<StoryCoverImage>` é
+ * filha de `Moldura`, a `<Image>` nativa da capa era recriada a cada render — e cada
+ * render do download (≈4 por segundo) apagava a capa até o decode terminar.
  *
- * O selo "Concluída" (dourado) SÓ aparece com `isFullyComplete` (cenas + Livrinho +
- * quiz + reflexão) — nunca por 10/10 cenas sozinho. O botão principal NÃO vive aqui
- * (é o StoryDetailScreen que renderiza o BotaoPrimario).
+ * Medido no iPhone antes da correção: 839 remontagens da capa em 205 s de download,
+ * com a capa apagada ~25% do tempo. Depois da correção: 2 montagens (as duas entradas
+ * na tela) e 221 ms de primeira carga, com o progresso subindo normalmente até 100%.
+ *
+ * Mantê-los aqui é o que garante tipo estável: o hero pode re-renderizar à vontade que
+ * a capa apenas reconcilia no lugar, sem reiniciar o carregamento.
  */
-export default function StoryBookHero({
+function Moldura({ children, style }) {
+  return (
+    <View style={[styles.moldura, style]} pointerEvents="box-none">
+      {children}
+    </View>
+  );
+}
+
+function Selo({ label, variant }) {
+  const s = (variant && seal[variant]) || { bg: color.paper100, border: color.paper200, text: color.ink600 };
+  return (
+    <View style={[styles.selo, { backgroundColor: s.bg, borderColor: s.border }]}>
+      <Text style={[styles.seloText, { color: s.text }]} numberOfLines={1}>{label}</Text>
+    </View>
+  );
+}
+
+function InfoSection({
   story,
   progressCount = 0,
   totalScenes = 0,
@@ -29,7 +50,6 @@ export default function StoryBookHero({
 }) {
   const xpPercent = totalScenes > 0 ? Math.min(progressCount / totalScenes, 1) : 0;
   const hasAudio = storyHasAllRequiredAudio(story.id);
-  const focusTop = story.coverSafeArea === 'top';
 
   const isPremium = story.accessType === 'premium';
   const acessoVariant = isPremium ? 'premium' : 'free';
@@ -42,22 +62,7 @@ export default function StoryBookHero({
     : progressCount > 0 ? { label: 'Em andamento', variant: null }
     : null;
 
-  const Moldura = ({ children, style }) => (
-    <View style={[styles.moldura, style]} pointerEvents="box-none">
-      {children}
-    </View>
-  );
-
-  const Selo = ({ label, variant }) => {
-    const s = (variant && seal[variant]) || { bg: color.paper100, border: color.paper200, text: color.ink600 };
-    return (
-      <View style={[styles.selo, { backgroundColor: s.bg, borderColor: s.border }]}>
-        <Text style={[styles.seloText, { color: s.text }]} numberOfLines={1}>{label}</Text>
-      </View>
-    );
-  };
-
-  const InfoSection = () => (
+  return (
     <View style={styles.info}>
       <View style={styles.chipRow}>
         <Selo label={acessoLabel} variant={acessoVariant} />
@@ -117,12 +122,40 @@ export default function StoryBookHero({
       )}
     </View>
   );
+}
+
+/**
+ * StoryBookHero — hero de detalhe da história (A0.5/A0.6, Direção de Arte v1.1).
+ *
+ * Componente de EXIBIÇÃO do estado pré-história: capa com MOLDURA "Galeria Viva"
+ * (borda dourada + papel, arte original intacta — D4), título em Fraunces, SELOS
+ * coesos (Grátis verde / Plano Família lilás / Concluída dourada), "Lição do
+ * coração" como citação em papel e painel "Nesta aventura" (com variante concluída).
+ *
+ * O selo "Concluída" (dourado) SÓ aparece com `isFullyComplete` (cenas + Livrinho +
+ * quiz + reflexão) — nunca por 10/10 cenas sozinho. O botão principal NÃO vive aqui
+ * (é o StoryDetailScreen que renderiza o BotaoPrimario).
+ */
+export default function StoryBookHero({
+  story,
+  progressCount = 0,
+  totalScenes = 0,
+  isTablet = false,
+  isFullyComplete = false,
+  isComingSoon = false,
+  isLocked = false,
+}) {
+  const focusTop = story.coverSafeArea === 'top';
+
+  // `Moldura`, `Selo` e `InfoSection` vivem no ESCOPO DO MÓDULO (topo do arquivo) — ver a
+  // nota do LP2.1a-ii-01G-C. Declará-los aqui dentro remontaria a capa a cada render.
+  const infoProps = { story, progressCount, totalScenes, isTablet, isFullyComplete, isComingSoon, isLocked };
 
   if (isTablet) {
     return (
       <View style={styles.tabletRow}>
         <View style={styles.tabletInfo}>
-          <InfoSection />
+          <InfoSection {...infoProps} />
         </View>
         <View style={styles.tabletCoverCol}>
           <Moldura>
@@ -139,7 +172,7 @@ export default function StoryBookHero({
         <StoryCoverImage story={story} rounded style={styles.coverInner} focusTop={focusTop} />
       </Moldura>
       <View style={styles.mobileInfo}>
-        <InfoSection />
+        <InfoSection {...infoProps} />
       </View>
     </View>
   );

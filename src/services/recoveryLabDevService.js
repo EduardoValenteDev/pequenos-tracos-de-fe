@@ -28,6 +28,7 @@ import {
 import { buildPublishMarker, MARKER_FILENAME, selectStoryPackDirs } from './packPublishMarker';
 import { validatePackManifest, computeFileSha256 } from './packIntegrityService';
 import { recoverStoryPack } from './packRecoveryService';
+import { clearStoryPackInstall } from './packInstallRegistry';
 import { isPackSandboxDevEnabled } from './packSandboxDevService';
 import { warn } from '../utils/logger';
 
@@ -132,6 +133,8 @@ async function limparHistoria(storyId) {
     }
   }
   await clearPackEntry(storyId);
+  // LP2.1a-ii-01F: invalida o snapshot global junto com a remoção (typeof-guard p/ o harness).
+  if (typeof clearStoryPackInstall === 'function') clearStoryPackInstall(storyId);
 }
 
 /** Escreve o índice em estado NÃO-READY para a história (downloading), preservando as demais. */
@@ -179,6 +182,7 @@ export async function applyRecoveryLabPreset(presetId, opts = {}) {
       case 'P4':
         await semearVersao(storyId, version);
         await clearPackEntry(storyId);                              // remove a entrada do índice
+        if (typeof clearStoryPackInstall === 'function') clearStoryPackInstall(storyId);   // LP2.1a-ii-01F
         break;
       case 'P5':
         await semearVersao(storyId, version);

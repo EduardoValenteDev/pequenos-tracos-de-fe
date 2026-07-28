@@ -9,13 +9,15 @@
  * packStorageService), sem sistema de arquivos.
  */
 import * as FileSystem from 'expo-file-system/legacy';
-import { PACK_STATUS, getPackLocalDir, getPackTempDir, setPackEntry, getPackEntry } from './packStorageService';
+import { PACK_STATUS, getPackLocalDir, getPackTempDir, setPackEntry, getPackEntry, clearPackEntry } from './packStorageService';
 import { isReadyEntryValid } from './packReconcileService';
 import { validatePackManifest, computeFileSha256 } from './packIntegrityService';
 import { fetchGlobalContentManifest, getPackFromGlobalManifest } from './globalManifestService';
 import { MARKER_FILENAME, buildPublishMarker, findMarkerCollisions } from './packPublishMarker';
 import { recoverStoryPack } from './packRecoveryService';
 import { warn } from '../utils/logger';
+// LP2.1a-ii-01F: registro global observável (dep OPCIONAL do serviço; só o singleton de produção o injeta).
+import * as installRegistry from './packInstallRegistry';
 
 /** Passos oficiais do fluxo de download (documentação executável). */
 export const DOWNLOAD_FLOW = Object.freeze([
@@ -169,6 +171,13 @@ export function createPackDownloadService(deps) {
     isReadyEntryValid, validatePackManifest, computeFileSha256, fetchGlobalContentManifest,
     getPackFromGlobalManifest, warn, recoverStoryPack,
   } = deps;
+  // LP2.1a-ii-01F: registro global observável (OPCIONAL — não entra em REQUIRED_DEPS). Ausente
+  // (ex.: harness) → o downloader se comporta como antes. Presente (singleton de produção) → publica
+  // o estado da instalação para telas e PacksContext observarem, independente da tela iniciadora.
+  const installRegistry = deps.installRegistry || null;
+  // FIX1R: remoção de entrada do índice (OPCIONAL) — usada só para DESFAZER um READY publicado por um
+  // voo que perdeu a autorização (Reset). Ausente → o undo cai para um downgrade via setPackEntry.
+  const clearPackEntryDep = deps.clearPackEntry || null;
 
 /**
  * Casca de disco do downloader: o `localDir` existe? e o `manifest.json` dentro dele?
@@ -387,7 +396,7 @@ function asReadyEntry(resolved, entry, localManifest, report) {
  *   requiresAppUpdate?:boolean, entry?:object, errors?:string[] }>}
  */
 async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = {}) {
-  const { onProgress, isCancelled, manifestTimeoutMs = 15000, fileTimeoutMs = 60000 } = params || {};
+  const { onProgress, isCancelled, isAuthorizedToPublish, manifestTimeoutMs = 15000, fileTimeoutMs = 60000 } = params || {};
   const storyId = resolved.storyId;
   const kinds = resolved.kinds;
   const appVersion = resolved.appVersion;
@@ -625,6 +634,16 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = 
     await FileSystem.deleteAsync(localDir, { idempotent: true });
     await FileSystem.moveAsync({ from: tempDir, to: localDir });
 
+    // FIX1R — FENCE DE PUBLICAÇÃO (antes de persistir READY): um Reset durante o voo (bump do
+    // operationId via clearStoryPackInstall) REVOGA a autorização global desta operação. Sem registro
+    // (isAuthorizedToPublish ausente) → sempre autorizado (comportamento legado). Revogado → NÃO grava
+    // READY nem FAILED; limpa os diretórios do voo invalidado; o índice fica como o Reset deixou.
+    if (typeof isAuthorizedToPublish === 'function' && !isAuthorizedToPublish()) {
+      try { await FileSystem.deleteAsync(localDir, { idempotent: true }); } catch (_) { /* noop */ }
+      try { await FileSystem.deleteAsync(tempDir, { idempotent: true }); } catch (_) { /* noop */ }
+      return { ok: false, reason: 'reset', resetInvalidated: true };
+    }
+
     // 13) ready (nunca parcial): só chega aqui com todos os kinds pedidos válidos + move
     const entry = await setPackEntry(storyId, {
       version,
@@ -635,6 +654,17 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = 
       downloadedBytes: totalBytes,
       errorMessage: null,
     });
+    // FIX1R — RE-CHECAGEM pós-persistência: se um Reset caiu na janela ESTREITA entre a fence e a
+    // gravação (ex.: Reset exatamente no checkpoint set-entry), DESFAZ o READY. O undo é enfileirado
+    // DEPOIS do setPackEntry(READY) → vence na fila serializada do índice → estado final not_downloaded.
+    if (typeof isAuthorizedToPublish === 'function' && !isAuthorizedToPublish()) {
+      try {
+        if (clearPackEntryDep) await clearPackEntryDep(storyId);
+        else await setPackEntry(storyId, { version, status: PACK_STATUS.NOT_DOWNLOADED, localDir: null, errorMessage: null });
+      } catch (_) { /* noop */ }
+      try { await FileSystem.deleteAsync(localDir, { idempotent: true }); } catch (_) { /* noop */ }
+      return { ok: false, reason: 'reset', resetInvalidated: true };
+    }
     report(PACK_STATUS.READY, { downloadedBytes: totalBytes, totalBytes });
 
     // 14) resultado estruturado (counts por kind; sceneCount mantido p/ compat)
@@ -869,13 +899,21 @@ async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
 
   const existing = inFlightInstalls.get(key);
   if (existing) {
-    // JOINER: registra o PRÓPRIO participante (Symbol por chamada, via registerProgressSubscriber) e,
-    // SE o registro foi bem-sucedido, recebe replay do último snapshot. Signal já abortado/quebrado → sem
-    // registro e sem replay. NÃO inicia instalação, NÃO altera a identidade, NÃO substitui o criador;
-    // chamada sem callback ainda aguarda a MESMA Promise final sem virar subscriber.
-    const id = registerProgressSubscriber(existing, params.onProgress, params.participantSignal);
-    if (id) replayLatestProgress(existing, params.onProgress);
-    return existing.promise;   // mesma identidade resolvida, mesma conclusão lógica
+    // FIX1R: NÃO joinar um voo INVALIDADO por Reset — se a operação do voo existente perdeu a
+    // autorização global (Reset fez bump do operationId), o joiner NÃO compartilha; cai para o CRIADOR
+    // e monta um voo NOVO. `typeof`-guard porque o smoke extrai um slice sem `installRegistry`.
+    const __regJ = (typeof installRegistry !== 'undefined' && installRegistry) ? installRegistry : null;
+    const __stillAuth = !__regJ || existing.__opId == null || typeof __regJ.isCurrentOperation !== 'function' || __regJ.isCurrentOperation(resolved.storyId, existing.__opId);
+    if (__stillAuth) {
+      // JOINER: registra o PRÓPRIO participante (Symbol por chamada, via registerProgressSubscriber) e,
+      // SE o registro foi bem-sucedido, recebe replay do último snapshot. Signal já abortado/quebrado → sem
+      // registro e sem replay. NÃO inicia instalação, NÃO altera a identidade, NÃO substitui o criador;
+      // chamada sem callback ainda aguarda a MESMA Promise final sem virar subscriber.
+      const id = registerProgressSubscriber(existing, params.onProgress, params.participantSignal);
+      if (id) replayLatestProgress(existing, params.onProgress);
+      return existing.promise;   // mesma identidade resolvida, mesma conclusão lógica
+    }
+    // voo invalidado por Reset → segue para o CRIADOR abaixo (sobrescreve a chave com o voo novo)
   }
 
   // CRIADOR: monta o FlightRecord, registra o próprio participante (se houver callback) e SÓ ENTÃO insere
@@ -883,12 +921,41 @@ async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
   // só começa na microtask do `.then`, então o criador já está inscrito antes do primeiro evento; e o
   // `set` fica adjacente (sem `await`) ao get, preservando a atomicidade do single-flight.
   const record = { promise: null, subscribers: new Map(), latestProgress: null, settled: false };
+  // LP2.1a-ii-01F: publica no registro GLOBAL (guardado por `typeof` porque o smoke extrai um SLICE
+  // deste wrapper sem o `installRegistry` do escopo da fábrica). Só o CRIADOR publica (dono do voo);
+  // joiners compartilham o mesmo record e observam o mesmo snapshot via o hook. O settlement é
+  // derivado do `status` do onProgress (o fluxo emite `report(READY)` no sucesso e `report(FAILED)`
+  // no fracasso), preservando a cadeia da Promise (identidade/ordem inalteradas).
+  const __reg = (typeof installRegistry !== 'undefined' && installRegistry) ? installRegistry : null;
+  const __opId = __reg ? __reg.beginInstall(resolved.storyId, { resolvedInstallKey: key, version: resolved.version, requestedKinds: resolved.kinds }) : null;
+  record.__opId = __opId;   // FIX1R: identifica a operação do voo p/ o joiner-guard e a fence de publicação
+  // FIX1R: onProgress publica SOMENTE fase/percentual intermediários (nunca o terminal). O terminal
+  // (ready/error) é derivado do RESULTADO FÍSICO da Promise (abaixo), não de eventos de progresso.
+  const __publishRegistry = (snapshot) => {
+    if (!__reg || __opId == null) return;
+    const st = snapshot && snapshot.status;
+    if (st === PACK_STATUS.READY || st === PACK_STATUS.FAILED) return;   // terminais vêm do resultado físico
+    const total = snapshot && snapshot.totalBytes;
+    const done = snapshot && snapshot.downloadedBytes;
+    __reg.reportInstall(resolved.storyId, __opId, {
+      phase: st === PACK_STATUS.VERIFYING ? 'verifying' : 'downloading',
+      progress: (total > 0 && Number.isFinite(done)) ? done / total : undefined,
+    });
+  };
   registerProgressSubscriber(record, params.onProgress, params.participantSignal);
-  const internalParams = { ...params, onProgress: (snapshot) => emitProgress(record, snapshot) };
+  const internalParams = { ...params, isAuthorizedToPublish: () => (__reg && __opId != null && typeof __reg.isCurrentOperation === 'function' ? __reg.isCurrentOperation(resolved.storyId, __opId) : true), onProgress: (snapshot) => { emitProgress(record, snapshot); __publishRegistry(snapshot); } };
   record.promise = Promise.resolve()
     .then(() => guardedInstall(resolved, internalParams))
     .finally(() => cleanupRecord(key, record));
   inFlightInstalls.set(key, record);
+  // FIX1R: TERMINAL pelo resultado físico canônico (não por onProgress). settleReady/settleError têm
+  // stale-guard: um Reset (bump do operationId) faz este settlement ser ignorado → registro fica idle.
+  if (__reg && __opId != null) {
+    record.promise.then(
+      (res) => { if (res && res.ok) __reg.settleReady(resolved.storyId, __opId, res.entry); else __reg.settleError(resolved.storyId, __opId, res && res.reason); },
+      (err) => { __reg.settleError(resolved.storyId, __opId, (err && err.message) || err); },
+    ).catch(() => { /* o settlement do registro nunca vira unhandled rejection */ });
+  }
   return record.promise;
   }
 
@@ -910,6 +977,11 @@ const defaultService = createPackDownloadService({
   getPackFromGlobalManifest,
   warn,
   recoverStoryPack,
+  // LP2.1a-ii-01F: só a instância de produção observa o registro global. `typeof`-guard porque o
+  // smoke carrega este módulo com os imports removidos (o registro é injetado apenas no app real).
+  installRegistry: (typeof installRegistry !== 'undefined' ? installRegistry : undefined),
+  // FIX1R: remoção do índice para o undo da fence (typeof-guard pelo mesmo motivo).
+  clearPackEntry: (typeof clearPackEntry !== 'undefined' ? clearPackEntry : undefined),
 });
 
 /* Exports públicos INALTERADOS — delegam ao singleton (nenhum call site muda). */

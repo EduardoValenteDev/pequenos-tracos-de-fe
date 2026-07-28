@@ -24,6 +24,7 @@ import {
   PACK_STATUS,
 } from './packStorageService';
 import { validatePackManifest, computeFileSha256 } from './packIntegrityService';
+import { clearStoryPackInstall } from './packInstallRegistry';
 import { resolveStoryMedia, RESOLVE_SOURCE_TYPE } from './contentResolver';
 import { RELEASE_PACK_QA_ENABLED } from '../config/featureFlags';
 import { warn } from '../utils/logger';
@@ -111,6 +112,10 @@ export async function seedDavidGoliathPackSandbox() {
 export async function resetDavidGoliathPackSandbox() {
   if (!isPackSandboxDevEnabled()) return { ok: false, reason: 'gate desligado' };
   try {
+    // FIX1R — ORDEM DO RESET: (1) invalida a operação + o snapshot global ANTES de tudo (bump do
+    // operationId → revoga a autorização de publicação do voo antigo e impede join do FlightRecord);
+    // (2) limpa a entrada persistida; (3) limpa os diretórios. `typeof`-guard p/ o harness.
+    if (typeof clearStoryPackInstall === 'function') clearStoryPackInstall(STORY_ID);
     await clearPackEntry(STORY_ID);
     const localDir = getPackLocalDir(STORY_ID, VERSION);
     const tempDir = getPackTempDir(STORY_ID, VERSION);

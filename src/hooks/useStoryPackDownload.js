@@ -19,6 +19,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePacks } from '../context/PacksContext';
 import { downloadStoryPackScenesFromGlobalManifest } from '../services/packDownloadService';
+// LP2.1a-ii-01F: fonte global observável do estado de instalação (sobrevive ao unmount da tela).
+import { subscribeStoryPackInstall, getStoryPackInstallSnapshot } from '../services/packInstallRegistry';
 
 const GLOBAL_MANIFEST_URL = process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL || null;
 const REQUESTED_KINDS = ['cover', 'scene', 'coloring', 'audio'];
@@ -112,6 +114,10 @@ export function useStoryPackDownload(storyId, options = {}) {
           participantSignal: controller.signal,
           onProgress: (p) => {
             if (!isCurrentExecution()) return;   // progresso de execução obsoleta é ignorado
+            // FIX1R — FONTE ÚNICA DO PROGRESSO: com registro global disponível, o progresso vem do
+            // espelho (setInstallSnapshot). O setProgress LOCAL só roda como FALLBACK sem registro
+            // (harness/ambiente antigo) — evita duas atualizações do hook para o MESMO snapshot.
+            if (typeof subscribeStoryPackInstall === 'function') return;
             const total = p && p.totalBytes;
             const done = p && p.downloadedBytes;
             if (total > 0 && Number.isFinite(done)) {
@@ -125,7 +131,10 @@ export function useStoryPackDownload(storyId, options = {}) {
       const ok = Boolean(res && res.ok);   // retorno público PURO de res.ok (independe da obsolescência)
       if (isCurrentExecution() && ok) {
         setProgress(1);
-        if (isCurrentExecution()) { try { await refreshPacks(); } catch { /* índice recarrega no próximo foco */ } }
+        // FIX1R — DONO ÚNICO DA RECONCILIAÇÃO: em produção o READY reconcilia o PacksContext via
+        // subscribePackReady (registro). O refreshPacks legado só roda como FALLBACK quando NÃO há
+        // registro global (harness/ambiente antigo) → uma única reconciliação por terminal READY.
+        if (typeof subscribeStoryPackInstall !== 'function' && isCurrentExecution()) { try { await refreshPacks(); } catch { /* índice recarrega no próximo foco */ } }
       } else if (isCurrentExecution() && !ok) {
         setError(reasonToError(res));
       }
@@ -140,21 +149,43 @@ export function useStoryPackDownload(storyId, options = {}) {
     }
   }, [storyId, appVersion, refreshPacks]);
 
+  // LP2.1a-ii-01F — ESPELHO DO REGISTRO GLOBAL (slots ADICIONADOS AO FIM para não deslocar os slots
+  // auditados 0–8). Observa a instalação da história pelo registro: uma tela que monta DURANTE um voo
+  // recebe status/phase/progress no replay imediato (sem novo download), e READY chega sozinho. Guardas
+  // `typeof` para o carregamento sob harness (imports removidos) → snapshot nulo → comportamento LEGADO.
+  const [installSnapshot, setInstallSnapshot] = useState(
+    () => (typeof getStoryPackInstallSnapshot === 'function' ? getStoryPackInstallSnapshot(storyId) : null),
+  );
+  useEffect(() => {
+    if (typeof subscribeStoryPackInstall !== 'function') return undefined;
+    setInstallSnapshot(getStoryPackInstallSnapshot(storyId));   // reancora ao trocar de história
+    return subscribeStoryPackInstall(storyId, (snap) => setInstallSnapshot(snap));
+  }, [storyId]);
+  const installBelongs = !!installSnapshot && installSnapshot.storyId === storyId;
+  const installActive = installBelongs && installSnapshot.status === 'downloading';
+  const installReady = installBelongs && installSnapshot.status === 'ready';
+  const installError = installBelongs && installSnapshot.status === 'error';
+
   // LP2.1a-ii-F4A — PROPRIEDADE DO ESTADO: o estado local só é visível quando pertence ao storyId atual.
   // Garante que o PRIMEIRO render de uma nova história (antes de o effect dela rodar) não herde o
   // downloading/progress/error da história anterior. O estado antigo pode existir por um instante no
   // slot, mas fica INVISÍVEL para a nova identidade.
   const localStateBelongsToStory = localStateStoryIdRef.current === storyId;
   const visibleDownloading = localStateBelongsToStory ? downloading : false;
-  const visibleProgress = localStateBelongsToStory ? progress : 0;
   const visibleError = localStateBelongsToStory ? error : null;
+  // Progresso: o registro global (voo ativo) tem precedência sobre o estado local — assim ele
+  // SOBREVIVE ao unmount e reaparece numa nova montagem. Sem voo → estado local legado.
+  const visibleProgress = installActive
+    ? installSnapshot.progress
+    : (localStateBelongsToStory ? progress : 0);
 
-  // Estado de UI derivado (a TELA renderiza a partir daqui).
-  const uiState = visibleDownloading
+  // Estado de UI derivado (a TELA renderiza a partir daqui). READY/downloading do registro global
+  // têm precedência para não voltar a oferecer "Baixar" nem exigir segundo toque.
+  const uiState = (visibleDownloading || installActive)
     ? 'downloading'
-    : visibleError
+    : (visibleError || installError)
       ? 'error'
-      : packState.ready
+      : (packState.ready || installReady)
         ? 'ready'
         : 'not_downloaded';
 
@@ -162,10 +193,11 @@ export function useStoryPackDownload(storyId, options = {}) {
     uiState,
     progress: visibleProgress,
     error: visibleError,
+    phase: installActive ? installSnapshot.phase : null,   // ADITIVO: 'downloading'|'verifying'|'publishing'
     download,
     retry: download,
     isRemote: packState.layer === 'remote',
-    isReady: !!packState.ready,
+    isReady: !!packState.ready || installReady,
     configMissing: !GLOBAL_MANIFEST_URL,
   };
 }

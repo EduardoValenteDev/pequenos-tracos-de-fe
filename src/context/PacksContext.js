@@ -31,6 +31,7 @@ import { getPackIndex, getPackLocalDir, PACK_STATUS } from '../services/packStor
 import { collectPackProbes, computeInvalidReadyIds, reconcileEntry } from '../services/packReconcileService';
 import { getContentLayer, CONTENT_LAYERS } from '../data/contentManifest';
 import { markOnce } from '../services/performanceTrace';
+import { subscribePackReady } from '../services/packInstallRegistry';
 import { warn } from '../utils/logger';
 
 const EMPTY_STATE = Object.freeze({
@@ -101,6 +102,17 @@ export function PacksProvider({ children }) {
   }, []);
 
   useEffect(() => { loadPacks(); }, [loadPacks]);
+
+  // LP2.1a-ii-01F: READY GLOBAL — quando uma instalação conclui (em QUALQUER tela, ou mesmo sem
+  // tela montada), o registro global dispara este ouvinte e o índice é recarregado. Assim READY
+  // chega ao contexto INDEPENDENTE da tela iniciadora (não depende de `isCurrentExecution` nem de
+  // segundo toque). Só reage a READY (disponibilidade persistida) — NÃO recebe progresso por
+  // arquivo, evitando tempestade de renders durante o download.
+  // FIX1R: o callback é async (loadPacks) — isolar a rejeição para NUNCA virar unhandled rejection,
+  // mantendo-a diagnosticável (warn) e sem desfazer o READY persistido (loadPacks só LÊ o índice).
+  useEffect(() => subscribePackReady(() => {
+    loadPacks().catch((e) => warn('PacksContext.readyListener:', e));
+  }), [loadPacks]);
 
   const refreshPacks = useCallback(() => loadPacks(), [loadPacks]);
 
