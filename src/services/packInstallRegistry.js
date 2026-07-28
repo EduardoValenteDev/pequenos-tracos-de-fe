@@ -13,8 +13,21 @@
  * independente de qual tela iniciou o download.
  *
  * NÃO baixa, NÃO grava índice, NÃO toca disco/rede. Só mantém e distribui estado observável.
- * `operationId` monotônico garante que um voo ANTIGO nunca sobrescreva um mais NOVO da mesma
- * história (stale-guard), e que um Reset invalide settlements em voo (nenhum READY indevido).
+ *
+ * ── Correção G1 · TRÊS EIXOS INDEPENDENTES (não confundir) ────────────────────────────────────
+ * 1. SUCESSÃO VISUAL (`operationId` monotônico, `opCounters`): qual tentativa é a ATUAL na tela.
+ *    Serve ao stale-guard de progresso e ao snapshot — um voo ANTIGO nunca sobrescreve o visual
+ *    de um mais NOVO da mesma história. Começar uma segunda tentativa SUPERA a primeira.
+ * 2. REVOGAÇÃO EXPLÍCITA (`revocations`, geração por storyId): SÓ o Reset do usuário
+ *    (`clearStoryPackInstall`) avança esta geração. `beginInstall` NÃO a toca. Um voo é revogado
+ *    quando nasceu numa geração ANTERIOR à vigente — isso distingue voos iniciados antes e depois
+ *    do Reset e é a ÚNICA base legítima da fence de publicação e do joiner-guard.
+ * 3. PUBLICAÇÃO FÍSICA (`notifyReady`): o pack foi realmente gravado no índice. É um FATO do
+ *    disco, não uma opinião da tela: propaga ao PacksContext mesmo quando o voo já foi superado
+ *    visualmente (só um Reset o suprime).
+ *
+ * Antes da correção G1 os eixos 1 e 2 eram o MESMO contador: qualquer nova operação da história
+ * era indistinguível de um Reset, e um voo legítimo de outra identidade apagava o pack do anterior.
  */
 
 /** Fases oficiais do estado de instalação (documentação executável). */
@@ -25,7 +38,8 @@ export const INSTALL_PHASES = Object.freeze([
 const snapshots = new Map();       // storyId -> snapshot canônico
 const listeners = new Map();       // storyId -> Set<listener>
 const readyListeners = new Set();  // ouvintes GLOBAIS de disponibilidade persistida (PacksContext)
-const opCounters = new Map();      // storyId -> operationId corrente
+const opCounters = new Map();      // storyId -> operationId corrente (EIXO 1: sucessão VISUAL)
+const revocations = new Map();     // storyId -> geração de REVOGAÇÃO (EIXO 2: só o Reset avança)
 let seq = 0;                       // contador monotônico global de operações
 
 function idleSnapshot(storyId) {
@@ -94,17 +108,52 @@ function isCurrent(storyId, operationId) {
 }
 
 /**
- * FENCE DE AUTORIZAÇÃO (FIX1R): a operação `operationId` ainda tem autorização GLOBAL para publicar?
- * O serviço consulta isto ANTES de `setPackEntry(READY)` — um Reset (que faz bump do contador via
- * `clearStoryPackInstall`) revoga a autorização e impede o voo antigo de gravar READY no índice.
- * Sem operationId conhecido → autorizado (compatível com chamadas sem registro).
+ * EIXO 1 — SUCESSÃO VISUAL: `operationId` ainda é a tentativa ATUAL da história?
+ *
+ * Correção G1: isto responde "sou a tentativa mais recente?", NÃO "fui revogado?". Serve ao
+ * stale-guard de progresso e ao snapshot da interface. NÃO deve governar publicação física nem
+ * joiner-guard — começar outro voo da mesma história (outra identidade resolvida) supera o
+ * anterior visualmente, mas NÃO o revoga. Para autorização de publicação use `isFlightRevoked`.
+ * Sem operationId conhecido → considerado atual (compatível com chamadas sem registro).
  */
 export function isCurrentOperation(storyId, operationId) {
   if (operationId == null) return true;
   return isCurrent(storyId, operationId);
 }
 
-/** Inicia (ou re-inicia) a operação canônica da história. Retorna um operationId monotônico. */
+function revocationOf(storyId) {
+  const g = revocations.get(storyId);
+  return Number.isFinite(g) ? g : 0;
+}
+
+/**
+ * EIXO 2 — GERAÇÃO DE REVOGAÇÃO vigente da história. O voo CAPTURA este número ao nascer e o
+ * carrega até o fim. Só `clearStoryPackInstall` (Reset explícito) o avança; `beginInstall` não.
+ */
+export function getRevocationGeneration(storyId) {
+  return storyId ? revocationOf(storyId) : 0;
+}
+
+/**
+ * EIXO 2 — o voo nascido na geração `generation` foi REVOGADO por um Reset posterior?
+ *
+ * É a ÚNICA pergunta que autoriza (ou não) uma publicação física e o compartilhamento de um voo.
+ * Não é um booleano global: compara a geração CAPTURADA pelo voo com a vigente, então distingue
+ * voos iniciados ANTES do Reset (revogados) dos iniciados DEPOIS (livres para publicar).
+ * Sem geração conhecida (chamada sem registro / registro dublado) → NÃO revogado (legado).
+ */
+export function isFlightRevoked(storyId, generation) {
+  if (generation == null) return false;
+  return revocationOf(storyId) > generation;
+}
+
+/**
+ * Inicia (ou re-inicia) a operação canônica da história. Retorna um operationId monotônico.
+ *
+ * Correção G1 — INVARIANTE: mexe SÓ no eixo da sucessão visual (`opCounters`/snapshot).
+ * NÃO avança a geração de revogação: iniciar B não revoga A. Duas identidades resolvidas
+ * diferentes da mesma história são voos físicos legítimos e simultâneos; só o Reset revoga.
+ */
 export function beginInstall(storyId, meta = {}) {
   if (!storyId) return null;
   const operationId = ++seq;
@@ -138,10 +187,35 @@ export function reportInstall(storyId, operationId, patch = {}) {
   notify(storyId);
 }
 
-/** Conclui a operação com sucesso: publica READY + dispara o evento global de disponibilidade. */
-export function settleReady(storyId, operationId, entry) {
-  if (!isCurrent(storyId, operationId)) return;   // voo antigo/Reset → NÃO restaura READY
+/**
+ * Conclui a operação com sucesso. Correção G1 — SEPARA dois efeitos que antes eram um só:
+ *
+ *  (a) SNAPSHOT VISUAL: só a operação ATUAL escreve na tela. Um voo superado NÃO reescreve o
+ *      visual da tentativa mais nova (eixo 1 preservado, sem regressão do stale-guard).
+ *  (b) EVENTO GLOBAL DE DISPONIBILIDADE: a publicação FÍSICA aconteceu — o pack está no índice.
+ *      Isso é fato de disco e o PacksContext PRECISA saber, mesmo que a operação já tenha sido
+ *      superada visualmente por outra identidade. Sem isto, um pack válido ficava invisível.
+ *
+ * `generation` é a geração de revogação CAPTURADA pelo voo: revogado por Reset → nada acontece
+ * (nem visual, nem evento global). Chamada sem `generation` → tratada como não revogada (legado).
+ * Cada publicação física produz NO MÁXIMO um evento global (um settlement por voo).
+ */
+export function settleReady(storyId, operationId, entry, generation) {
+  if (isFlightRevoked(storyId, generation)) return;   // Reset explícito → NÃO restaura READY
   const cur = snapshots.get(storyId) || idleSnapshot(storyId);
+  if (!isCurrent(storyId, operationId)) {
+    // Voo SUPERADO (não revogado) que publicou de verdade: não toca o visual, mas reconcilia o índice.
+    notifyReady({
+      ...idleSnapshot(storyId),
+      operationId,
+      version: (entry && entry.version) || null,
+      status: 'ready',
+      phase: 'ready',
+      progress: 1,
+      entry: entry || null,
+    });
+    return;
+  }
   const snap = { ...cur, status: 'ready', phase: 'ready', progress: 1, entry: entry || cur.entry, error: null };
   snapshots.set(storyId, snap);
   notify(storyId);
@@ -157,12 +231,16 @@ export function settleError(storyId, operationId, error) {
 }
 
 /**
- * Reset/remoção de um pack: invalida QUALQUER settlement em voo (bump do contador → operações
- * antigas ficam stale e não restauram READY) e limpa o snapshot (sem ready/progresso/erro antigos).
- * A PRÓXIMA instalação começa numa nova operationId.
+ * Reset/remoção de um pack — ÚNICA fonte de REVOGAÇÃO (correção G1).
+ *
+ * Avança a geração de revogação da história: TODOS os voos nascidos antes deste instante perdem a
+ * autorização de publicar (`isFlightRevoked` passa a responder true para eles), e qualquer voo
+ * iniciado DEPOIS nasce na nova geração e publica normalmente. Também faz bump do eixo visual
+ * (settlements antigos deixam de ser correntes) e limpa o snapshot.
  */
 export function clearStoryPackInstall(storyId) {
   if (!storyId) return;
+  revocations.set(storyId, revocationOf(storyId) + 1);   // REVOGAÇÃO explícita (eixo 2)
   opCounters.set(storyId, ++seq);   // operação "fantasma" → settlements antigos deixam de ser correntes
   snapshots.delete(storyId);
   notify(storyId);
@@ -170,5 +248,11 @@ export function clearStoryPackInstall(storyId) {
 
 /** Só teste/diagnóstico. */
 export function _debugState() {
-  return { stories: [...snapshots.keys()], listeners: [...listeners.keys()], readyListeners: readyListeners.size, seq };
+  return {
+    stories: [...snapshots.keys()],
+    listeners: [...listeners.keys()],
+    readyListeners: readyListeners.size,
+    seq,
+    revocations: Object.fromEntries(revocations),
+  };
 }

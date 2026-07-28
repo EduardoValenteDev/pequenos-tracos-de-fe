@@ -899,11 +899,13 @@ async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
 
   const existing = inFlightInstalls.get(key);
   if (existing) {
-    // FIX1R: NÃO joinar um voo INVALIDADO por Reset — se a operação do voo existente perdeu a
-    // autorização global (Reset fez bump do operationId), o joiner NÃO compartilha; cai para o CRIADOR
-    // e monta um voo NOVO. `typeof`-guard porque o smoke extrai um slice sem `installRegistry`.
+    // FIX1R + correção G1: NÃO joinar um voo REVOGADO por Reset. A pergunta é "foi revogado?"
+    // (geração de revogação do voo × vigente) e NÃO "ainda é a operação visual atual?" — um voo
+    // apenas SUPERADO por outra identidade continua físico e legítimo, e quem resolve a MESMA
+    // identidade dele PRECISA joiná-lo (single-flight por identidade resolvida). Revogado → cai para
+    // o CRIADOR. `typeof`-guard porque o smoke extrai um slice sem `installRegistry`.
     const __regJ = (typeof installRegistry !== 'undefined' && installRegistry) ? installRegistry : null;
-    const __stillAuth = !__regJ || existing.__opId == null || typeof __regJ.isCurrentOperation !== 'function' || __regJ.isCurrentOperation(resolved.storyId, existing.__opId);
+    const __stillAuth = !__regJ || existing.__gen == null || typeof __regJ.isFlightRevoked !== 'function' || !__regJ.isFlightRevoked(resolved.storyId, existing.__gen);
     if (__stillAuth) {
       // JOINER: registra o PRÓPRIO participante (Symbol por chamada, via registerProgressSubscriber) e,
       // SE o registro foi bem-sucedido, recebe replay do último snapshot. Signal já abortado/quebrado → sem
@@ -928,7 +930,12 @@ async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
   // no fracasso), preservando a cadeia da Promise (identidade/ordem inalteradas).
   const __reg = (typeof installRegistry !== 'undefined' && installRegistry) ? installRegistry : null;
   const __opId = __reg ? __reg.beginInstall(resolved.storyId, { resolvedInstallKey: key, version: resolved.version, requestedKinds: resolved.kinds }) : null;
-  record.__opId = __opId;   // FIX1R: identifica a operação do voo p/ o joiner-guard e a fence de publicação
+  // Correção G1: o voo CAPTURA a geração de revogação vigente no seu nascimento (leitura SÍNCRONA,
+  // adjacente ao beginInstall — nenhum await no meio, então nenhum Reset pode se intercalar aqui).
+  // Um Reset POSTERIOR avança a geração e revoga este voo; iniciar outro voo NÃO avança nada.
+  const __gen = (__reg && typeof __reg.getRevocationGeneration === 'function') ? __reg.getRevocationGeneration(resolved.storyId) : null;
+  record.__opId = __opId;   // eixo VISUAL: stale-guard de progresso e snapshot da tela
+  record.__gen = __gen;     // eixo REVOGAÇÃO: joiner-guard e fence de publicação
   // FIX1R: onProgress publica SOMENTE fase/percentual intermediários (nunca o terminal). O terminal
   // (ready/error) é derivado do RESULTADO FÍSICO da Promise (abaixo), não de eventos de progresso.
   const __publishRegistry = (snapshot) => {
@@ -943,16 +950,21 @@ async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
     });
   };
   registerProgressSubscriber(record, params.onProgress, params.participantSignal);
-  const internalParams = { ...params, isAuthorizedToPublish: () => (__reg && __opId != null && typeof __reg.isCurrentOperation === 'function' ? __reg.isCurrentOperation(resolved.storyId, __opId) : true), onProgress: (snapshot) => { emitProgress(record, snapshot); __publishRegistry(snapshot); } };
+  // Correção G1 — FENCE DE PUBLICAÇÃO baseada em REVOGAÇÃO, não em sucessão visual: só um Reset
+  // explícito tira a autorização de gravar READY. Um voo superado por outra identidade continua
+  // autorizado a publicar o pack que baixou e validou (senão bytes íntegros eram apagados sem Reset).
+  const internalParams = { ...params, isAuthorizedToPublish: () => !(__reg && __gen != null && typeof __reg.isFlightRevoked === 'function' && __reg.isFlightRevoked(resolved.storyId, __gen)), onProgress: (snapshot) => { emitProgress(record, snapshot); __publishRegistry(snapshot); } };
   record.promise = Promise.resolve()
     .then(() => guardedInstall(resolved, internalParams))
     .finally(() => cleanupRecord(key, record));
   inFlightInstalls.set(key, record);
-  // FIX1R: TERMINAL pelo resultado físico canônico (não por onProgress). settleReady/settleError têm
-  // stale-guard: um Reset (bump do operationId) faz este settlement ser ignorado → registro fica idle.
+  // FIX1R: TERMINAL pelo resultado físico canônico (não por onProgress).
+  // Correção G1: `__gen` acompanha o settleReady — revogado por Reset → nada; superado mas publicado
+  // de verdade → NÃO reescreve o visual da tentativa nova, mas AVISA o PacksContext (o pack existe).
+  // settleError segue governado pela sucessão VISUAL: o erro de um voo antigo não sobrescreve a tela.
   if (__reg && __opId != null) {
     record.promise.then(
-      (res) => { if (res && res.ok) __reg.settleReady(resolved.storyId, __opId, res.entry); else __reg.settleError(resolved.storyId, __opId, res && res.reason); },
+      (res) => { if (res && res.ok) __reg.settleReady(resolved.storyId, __opId, res.entry, __gen); else __reg.settleError(resolved.storyId, __opId, res && res.reason); },
       (err) => { __reg.settleError(resolved.storyId, __opId, (err && err.message) || err); },
     ).catch(() => { /* o settlement do registro nunca vira unhandled rejection */ });
   }

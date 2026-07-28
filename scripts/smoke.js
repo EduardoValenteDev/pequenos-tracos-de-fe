@@ -12974,7 +12974,9 @@ console.log('\n── LP2.1a-ii-E3 HARDENING: progresso compartilhado (hardening
           mut: (x) => x.replace('  if (inFlightInstalls.get(key) === record) inFlightInstalls.delete(key);   // um finally ANTIGO não apaga record novo', '  /* delete removido */') },
         { id: 'ME8', nome: 'registro do criador removido', prova: 'E-PROG-01', cen: () => cenJoin(undefined, 'delete'), cenM: (m) => cenJoin(m, 'delete'),
           // F2-ledger: o registro do criador virou `registerProgressSubscriber(record, ...)`; removê-lo reproduz o anchor antigo (A sem eventos).
-          mut: (x) => x.replace('  registerProgressSubscriber(record, params.onProgress, params.participantSignal);\n  const internalParams', '  const internalParams') },
+          // Correção G1: o âncora era `...;\n  const internalParams` e passou a ancorar SÓ na própria linha —
+          // o comentário da fence de revogação entrou entre as duas e quebrava a mutação (falso vermelho).
+          mut: (x) => x.replace('  registerProgressSubscriber(record, params.onProgress, params.participantSignal);\n', '') },
         { id: 'ME9', nome: 'aleatório na chave (quebra compartilhamento)', prova: 'conc', cen: () => cenConc(undefined), cenM: (m) => cenConc(m),
           mut: (x) => x.replace('  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion]);', '  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion, Math.random()]);') },
         { id: 'ME10', nome: 'set na microtask (ATOMIC-2)', prova: 'conc', cen: () => cenConc(undefined), cenM: (m) => cenConc(m),
@@ -13486,7 +13488,9 @@ console.log('\n── LP2.1a-ii-01F: registro global observável + propagação 
 {
   const { createPackInstallHarness: mkH01f, loadPackDownloader: loadDl01f, loadModule: loadMod01f } = require('./testing/packInstallHarness');
   const { createPackDownloadService: mkSvc01f } = loadDl01f();
-  const REG01F = loadMod01f('src/services/packInstallRegistry.js', {}, ['getStoryPackInstallSnapshot', 'subscribeStoryPackInstall', 'subscribePackReady', 'beginInstall', 'reportInstall', 'settleReady', 'settleError', 'clearStoryPackInstall', 'isCurrentOperation']);
+  // Correção G1: `getRevocationGeneration`/`isFlightRevoked` PRECISAM entrar aqui — sem elas o serviço
+  // cai no caminho legado (`__gen = null` → nunca revogado) e RESET-1/RESET-2/RETRY viram falso verde.
+  const REG01F = loadMod01f('src/services/packInstallRegistry.js', {}, ['getStoryPackInstallSnapshot', 'subscribeStoryPackInstall', 'subscribePackReady', 'beginInstall', 'reportInstall', 'settleReady', 'settleError', 'clearStoryPackInstall', 'isCurrentOperation', 'getRevocationGeneration', 'isFlightRevoked']);
 
   // ── Fontes (estático): o hook observa o registro; o PacksContext reconcilia só em READY ──
   const hook01f = a1StripComments(readSrc('src/hooks/useStoryPackDownload.js'));
@@ -13509,12 +13513,23 @@ console.log('\n── LP2.1a-ii-01F: registro global observável + propagação 
   check('LP2.1a-ii-01F FIX1R (fonte única do progresso): setProgress por evento só como FALLBACK sem registro',
     /if \(typeof subscribeStoryPackInstall === 'function'\) return;[\s\S]{0,320}setProgress\(Math/.test(hook01f),
     'o hook faz setProgress local mesmo com registro (progresso duplo)');
-  check('LP2.1a-ii-01F FIX1R (fence de publicação): serviço checa isCurrentOperation antes/depois de setPackEntry READY',
-    /isAuthorizedToPublish/.test(svc01f) && (svc01f.match(/isAuthorizedToPublish\(\)/g) || []).length >= 2 && /isCurrentOperation/.test(svc01f) && /resetInvalidated/.test(svc01f),
-    'o serviço não tem fence de publicação (voo antigo pode gravar READY após Reset)');
-  check('LP2.1a-ii-01F FIX1R (joiner-guard): não joina voo cuja operação foi invalidada por Reset',
-    /__stillAuth/.test(svc01f) && /isCurrentOperation\(resolved\.storyId, existing\.__opId\)/.test(svc01f),
-    'o joiner compartilha um voo invalidado por Reset');
+  // Correção G1: as duas provas abaixo mudaram de ÂNCORA junto com o contrato. Antes exigiam
+  // `isCurrentOperation` (sucessão VISUAL) — que é exatamente o defeito G1, pois torna "outra
+  // identidade começou" indistinguível de "houve Reset". Agora exigem `isFlightRevoked` (revogação)
+  // E PROÍBEM o retorno à âncora antiga: a cláusula negativa é o controle estático da regressão.
+  check('LP2.1a-ii-01F FIX1R + G1 (fence de publicação): serviço checa REVOGAÇÃO (não sucessão) antes/depois de setPackEntry READY',
+    /isAuthorizedToPublish/.test(svc01f) && (svc01f.match(/isAuthorizedToPublish\(\)/g) || []).length >= 2
+      && /isFlightRevoked\(resolved\.storyId, __gen\)/.test(svc01f)
+      && !/isCurrentOperation\(resolved\.storyId, __opId\)/.test(svc01f) && /resetInvalidated/.test(svc01f),
+    'a fence de publicação não existe ou voltou a usar sucessão visual (voo superado perde bytes íntegros sem Reset)');
+  check('LP2.1a-ii-01F FIX1R + G1 (joiner-guard): não joina voo REVOGADO por Reset — mas joina voo apenas SUPERADO',
+    /__stillAuth/.test(svc01f) && /isFlightRevoked\(resolved\.storyId, existing\.__gen\)/.test(svc01f)
+      && !/isCurrentOperation\(resolved\.storyId, existing\.__opId\)/.test(svc01f),
+    'o joiner compartilha um voo revogado por Reset, ou voltou a recusar um voo apenas superado (quebra o single-flight por identidade)');
+  check('LP2.1a-ii-01F G1 (captura da geração): o voo captura getRevocationGeneration ao nascer',
+    /const __gen = \(__reg && typeof __reg\.getRevocationGeneration === 'function'\)/.test(svc01f)
+      && /record\.__gen = __gen/.test(svc01f) && /settleReady\(resolved\.storyId, __opId, res\.entry, __gen\)/.test(svc01f),
+    'o voo não carrega a geração de revogação (fence/joiner/settle não conseguem distinguir Reset de sucessão)');
   check('LP2.1a-ii-01F FIX1R (terminal físico): settleReady/settleError derivam do resultado da Promise, não de onProgress',
     /record\.promise\.then\(/.test(svc01f) && /res && res\.ok\) __reg\.settleReady/.test(svc01f)
       && !/st === PACK_STATUS\.READY\) \{ __reg\.settleReady/.test(svc01f),
@@ -13529,6 +13544,27 @@ console.log('\n── LP2.1a-ii-01F: registro global observável + propagação 
   check('LP2.1a-ii-01F (reset limpa registro): resetDavidGoliathPackSandbox invalida o snapshot global',
     /clearStoryPackInstall\(STORY_ID\)/.test(sandbox01f),
     'o Reset não invalida o snapshot global (settlement antigo poderia restaurar READY)');
+  // Correção G1 (fonte do registro): a revogação é um EIXO SEPARADO do operationId. Só o Reset a avança.
+  {
+    const reg01f = a1StripComments(readSrc('src/services/packInstallRegistry.js'));
+    const corpoBegin01f = (reg01f.match(/function beginInstall\([\s\S]*?\n\}/) || [''])[0];
+    const corpoClear01f = (reg01f.match(/function clearStoryPackInstall\([\s\S]*?\n\}/) || [''])[0];
+    check('LP2.1a-ii-01F G1 (eixo de revogação): registro expõe getRevocationGeneration + isFlightRevoked por geração (não booleano global)',
+      /const revocations = new Map\(\)/.test(reg01f) && /function getRevocationGeneration\(storyId\)/.test(reg01f)
+        && /function isFlightRevoked\(storyId, generation\)/.test(reg01f) && /revocationOf\(storyId\) > generation/.test(reg01f),
+      'o registro não tem geração de revogação por história (não distingue voos iniciados antes e depois do Reset)');
+    check('LP2.1a-ii-01F G1 (beginInstall NÃO revoga): iniciar outra operação não avança a geração de revogação',
+      corpoBegin01f.length > 0 && !/revocations/.test(corpoBegin01f),
+      'beginInstall voltou a mexer na geração de revogação (iniciar B revogaria A — defeito G1)');
+    check('LP2.1a-ii-01F G1 (clearStoryPackInstall revoga): o Reset é a ÚNICA fonte de revogação',
+      corpoClear01f.length > 0 && /revocations\.set\(storyId, revocationOf\(storyId\) \+ 1\)/.test(corpoClear01f),
+      'o Reset deixou de revogar os voos em andamento (voo pré-Reset poderia publicar READY)');
+    check('LP2.1a-ii-01F G1 (publicação física × snapshot visual): settleReady superado NÃO escreve snapshot mas AVISA o ouvinte global',
+      /export function settleReady\(storyId, operationId, entry, generation\)/.test(readSrc('src/services/packInstallRegistry.js'))
+        && /if \(isFlightRevoked\(storyId, generation\)\) return;/.test(reg01f)
+        && /if \(!isCurrent\(storyId, operationId\)\) \{[\s\S]{0,420}notifyReady\(\{[\s\S]{0,320}\n    return;\n  \}/.test(reg01f),
+      'a publicação física de um voo superado deixou de reconciliar o índice (pack válido ficaria invisível ao PacksContext)');
+  }
 
   // ── Controles negativos das provas estáticas: desfazer a correção precisa REPROVAR ──
   // Sem eles, um detector que "sempre passa" daria falso verde. Os regex abaixo são os MESMOS
@@ -13699,6 +13735,245 @@ console.log('\n── LP2.1a-ii-01F: registro global observável + propagação 
         `offline=${tOffline.st} http=${tHttp.st} sha=${tSha.st}`); }
   })();
   globalThis.__LP21IIF01F.catch(() => {});
+}
+
+// ── LP2.1 · Correção G1: separar REVOGAÇÃO (Reset) de SUCESSÃO (outra identidade) ─────────────
+// Defeito provado na auditoria §10.7: `opCounters` era avançado tanto pelo Reset quanto por
+// `beginInstall`, então a fence de publicação perguntava "ainda sou a operação atual?" quando
+// precisava perguntar "fui revogado?". Consequência medida: iniciar um voo B de OUTRA identidade
+// resolvida APAGAVA os bytes íntegros e já validados do voo A, sem nenhum Reset do usuário — e o
+// joiner-guard recusava um terceiro chamador da MESMA identidade de A, rompendo o single-flight.
+console.log('\n── LP2.1 G1: revogação por Reset × sucessão de identidades ──');
+{
+  const { createPackInstallHarness: mkHg1, loadPackDownloader: loadDlg1, loadModule: loadModg1 } = require('./testing/packInstallHarness');
+  const REG_EXP_G1 = ['getStoryPackInstallSnapshot', 'subscribeStoryPackInstall', 'subscribePackReady', 'beginInstall',
+    'reportInstall', 'settleReady', 'settleError', 'clearStoryPackInstall', 'isCurrentOperation',
+    'getRevocationGeneration', 'isFlightRevoked', '_debugState'];
+  // Instância NOVA por cenário: o registro é singleton de módulo (gerações/snapshots vazariam entre testes).
+  const novoRegG1 = (mut) => loadModg1('src/services/packInstallRegistry.js', {}, REG_EXP_G1, mut);
+  const novoSvcG1 = (mut) => loadDlg1(mut).createPackDownloadService;
+
+  const STORY_G1 = 'david_goliath';
+  const GLOBAL_G1 = 'https://r2/content-manifest.json';
+  const baseG1 = (v) => `https://r2/${STORY_G1}/${v}/`;
+  const FILES_G1 = [{ kind: 'scene', path: 'scenes/01.webp', text: 'CENA-UM' }, { kind: 'scene', path: 'scenes/02.webp', text: 'CENA-DOIS' }];
+  const rotearG1 = (h, v) => {
+    const F = FILES_G1.map((f) => ({ kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text) }));
+    const text = JSON.stringify({ schemaVersion: 1, id: STORY_G1, version: v, type: 'story', minAppVersion: '1.0.0', totalBytes: F.reduce((a, f) => a + f.bytes, 0), files: F, metadata: { storyId: STORY_G1, title: 'D', language: 'pt-BR' } });
+    const b = baseG1(v); h.route(`${b}manifest.json`, { text });
+    FILES_G1.forEach((f) => h.route(b + f.path, { text: f.text, progressEvents: [{ totalBytesWritten: 1 }, { totalBytesWritten: Buffer.byteLength(f.text) }] }));
+    return h.sha256OfText(text);
+  };
+  const packG1 = (h, v) => h.packEntry({ storyId: STORY_G1, version: v, baseUrl: baseG1(v), manifestSha256: rotearG1(h, v) });
+  const paramsG1 = () => ({ storyId: STORY_G1, globalManifestUrl: GLOBAL_G1, appVersion: '1.0.0', requestedKinds: ['scene'], onProgress: () => {} });
+  // O manifesto global RESPONDE DIFERENTE a cada resolução (republicação no R2 entre duas resoluções):
+  // é isso que produz identidades resolvidas divergentes para a MESMA história — o gatilho real do G1.
+  const filaG1 = (packs) => { const s = { n: 0 }; s.fn = async () => { s.n += 1; return { ok: true, data: { manifestVersion: 1, minAppVersion: '1.0.0', packs: [packs[Math.min(s.n - 1, packs.length - 1)]] }, errors: [], warnings: [] }; }; return s; };
+  const flushG1 = async (n = 8) => { for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0)); };
+  const arquivosG1 = (h, v) => h.mem.listFiles(h.storage.getPackLocalDir(STORY_G1, v)).length;
+  const indiceG1 = (e) => (e ? `${e.version}:${e.status}` : 'ausente');
+
+  /**
+   * Interleaving canônico do G1: o voo A (2.0.0) é interrompido no checkpoint `move` para que um voo
+   * B de OUTRA identidade resolvida (3.0.0) nasça enquanto A ainda está fisicamente em voo.
+   * Opcionalmente um terceiro chamador C resolve a MESMA identidade de A (deve JOINAR A).
+   */
+  const duasIdentidadesG1 = async ({ falhaB = false, jaInstalado = null, terceiro = false, mutReg, mutSvc } = {}) => {
+    const h = mkHg1();
+    if (jaInstalado) h.seedInstalledPack({ storyId: STORY_G1, version: jaInstalado, files: [{ path: 'scenes/01.webp', text: 'ANTIGA-UM' }] });
+    const p2 = packG1(h, '2.0.0');
+    const p3 = packG1(h, '3.0.0');
+    if (falhaB) h.route(`${baseG1('3.0.0')}scenes/02.webp`, { throws: 'rede caiu no voo B' });
+    const fila = filaG1(terceiro ? [p2, p3, p2] : [p2, p3]);
+    const REG = novoRegG1(mutReg);
+    const readys = [];
+    REG.subscribePackReady((s) => readys.push((s && s.version) || null));
+    const svc = novoSvcG1(mutSvc)({ ...h.deps, fetchGlobalContentManifest: fila.fn, installRegistry: REG, clearPackEntry: h.storage.clearPackEntry });
+
+    let pB = null; let pC = null;
+    h.onBefore = async (t, detail) => {
+      if (t !== 'move' || pB || !String(detail).includes('2.0.0')) return;
+      pB = svc.downloadStoryPackScenesFromGlobalManifest(paramsG1());
+      await flushG1(6);
+      if (terceiro) { pC = svc.downloadStoryPackScenesFromGlobalManifest(paramsG1()); await flushG1(6); }
+    };
+    const rA = await svc.downloadStoryPackScenesFromGlobalManifest(paramsG1());
+    const rB = pB ? await pB : null;
+    const rC = pC ? await pC : null;
+    await flushG1(30);
+    return {
+      rA, rB, rC, readys,
+      indice: indiceG1(await h.storage.getPackEntry(STORY_G1)),
+      snapshot: REG.getStoryPackInstallSnapshot(STORY_G1),
+      arq2: arquivosG1(h, '2.0.0'), arq3: arquivosG1(h, '3.0.0'), arqAntigo: jaInstalado ? arquivosG1(h, jaInstalado) : null,
+      moves: h.eventsOfType('move').length,
+      dlManifesto2: h.counters.byUrl[`${baseG1('2.0.0')}manifest.json`] || 0,
+      dlCena2: h.counters.byUrl[`${baseG1('2.0.0')}scenes/01.webp`] || 0,
+      compartilharamAC: JSON.stringify(rA) === JSON.stringify(rC),
+      mapa: svc.inFlightInstallCount(),
+    };
+  };
+
+  /** Reset EXPLÍCITO com A e B ativos; depois um retry que NASCE já na geração nova. */
+  const resetRealG1 = async ({ mutReg, mutSvc } = {}) => {
+    const h = mkHg1();
+    const fila = filaG1([packG1(h, '2.0.0'), packG1(h, '3.0.0'), packG1(h, '4.0.0')]);
+    const REG = novoRegG1(mutReg);
+    const readys = [];
+    REG.subscribePackReady((s) => readys.push((s && s.version) || null));
+    const svc = novoSvcG1(mutSvc)({ ...h.deps, fetchGlobalContentManifest: fila.fn, installRegistry: REG, clearPackEntry: h.storage.clearPackEntry });
+    let pB = null;
+    h.onBefore = async (t, detail) => {
+      if (t !== 'move' || pB || !String(detail).includes('2.0.0')) return;
+      pB = svc.downloadStoryPackScenesFromGlobalManifest(paramsG1());
+      await flushG1(6);
+      REG.clearStoryPackInstall(STORY_G1);                 // RESET explícito, com A e B já nascidos
+      await h.storage.clearPackEntry(STORY_G1);
+    };
+    const rA = await svc.downloadStoryPackScenesFromGlobalManifest(paramsG1());
+    const rB = pB ? await pB : null;
+    await flushG1(20);
+    const rRetry = await svc.downloadStoryPackScenesFromGlobalManifest(paramsG1());   // nasce DEPOIS do Reset
+    await flushG1(20);
+    return { rA, rB, rRetry, readys, indice: indiceG1(await h.storage.getPackEntry(STORY_G1)), arq2: arquivosG1(h, '2.0.0') };
+  };
+
+  /** Reset DEPOIS da publicação de A: B (nascido antes do Reset) não pode ressuscitar o pack. */
+  const resetAposPublicarG1 = async () => {
+    const h = mkHg1();
+    const fila = filaG1([packG1(h, '2.0.0'), packG1(h, '3.0.0'), packG1(h, '4.0.0')]);
+    const REG = novoRegG1();
+    const svc = novoSvcG1()({ ...h.deps, fetchGlobalContentManifest: fila.fn, installRegistry: REG, clearPackEntry: h.storage.clearPackEntry });
+    let pB = null; let liberaB; const portaoB = new Promise((r) => { liberaB = r; });
+    h.onBefore = async (t, detail) => {
+      const d = String(detail || '');
+      if (t === 'move' && !pB && d.includes('2.0.0')) { pB = svc.downloadStoryPackScenesFromGlobalManifest(paramsG1()); await flushG1(6); return; }
+      if (t === 'move' && d.includes('3.0.0')) await portaoB;   // B segura no move até o Reset acontecer
+    };
+    const rA = await svc.downloadStoryPackScenesFromGlobalManifest(paramsG1());
+    const indiceAposA = indiceG1(await h.storage.getPackEntry(STORY_G1));
+    REG.clearStoryPackInstall(STORY_G1); await h.storage.clearPackEntry(STORY_G1);   // Reset DEPOIS do sucesso de A
+    liberaB();
+    const rB = pB ? await pB : null;
+    await flushG1(25);
+    const indiceAposReset = indiceG1(await h.storage.getPackEntry(STORY_G1));
+    const rNova = await svc.downloadStoryPackScenesFromGlobalManifest(paramsG1());   // operação nova, pós-Reset
+    await flushG1(20);
+    return { rA, rB, rNova, indiceAposA, indiceAposReset, indiceFinal: indiceG1(await h.storage.getPackEntry(STORY_G1)), arq3: arquivosG1(h, '3.0.0') };
+  };
+
+  globalThis.__LP21G1 = (async () => {
+    // ── G1-A · A E B TÊM SUCESSO ────────────────────────────────────────────────────────────────
+    const A = await duasIdentidadesG1();
+    check('LP2.1 G1-A/1-2 (voos legítimos): duas identidades resolvidas da mesma história concluem as duas',
+      A.rA.ok === true && A.rA.version === '2.0.0' && A.rB.ok === true && A.rB.version === '3.0.0',
+      `A=${A.rA.ok}/${A.rA.reason} B=${A.rB && A.rB.ok}/${A.rB && A.rB.reason}`);
+    check('LP2.1 G1-A/3 (iniciar B não revoga A): A NÃO é classificada como reset',
+      A.rA.reason !== 'reset' && !A.rA.resetInvalidated, `reason=${A.rA.reason} resetInvalidated=${A.rA.resetInvalidated}`);
+    check('LP2.1 G1-A/4 (índice final): a publicação mais recente vence o índice', A.indice === '3.0.0:ready', A.indice);
+    check('LP2.1 G1-A/5 (snapshot visual): o estado da tela pertence a B, não ao voo superado',
+      A.snapshot.status === 'ready' && A.snapshot.version === '3.0.0', `${A.snapshot.status}/${A.snapshot.version}`);
+    check('LP2.1 G1-A/6 (publicação física preservada): os bytes de A NÃO são apagados por supersessão',
+      A.arq2 > 0 && A.arq3 > 0, `arq2=${A.arq2} arq3=${A.arq3}`);
+    check('LP2.1 G1-A/7 (um ready global por publicação física): duas publicações → exatamente dois eventos, na ordem',
+      A.readys.length === 2 && A.readys[0] === '2.0.0' && A.readys[1] === '3.0.0', JSON.stringify(A.readys));
+    check('LP2.1 G1-A/8 (nenhum voo sem terminal): o mapa de voos fica vazio ao final', A.mapa === 0, `mapa=${A.mapa}`);
+
+    // ── G1-B · A SUCESSO, B FALHA ───────────────────────────────────────────────────────────────
+    const B = await duasIdentidadesG1({ falhaB: true });
+    check('LP2.1 G1-B/1-2 (falha isolada): A publica 2.0.0 e B falha', B.rA.ok === true && B.rB.ok === false, `A=${B.rA.ok} B=${B.rB && B.rB.ok}`);
+    check('LP2.1 G1-B/3 (índice sobrevive à tentativa mais nova): permanece ready 2.0.0', B.indice === '2.0.0:ready', B.indice);
+    check('LP2.1 G1-B/4-5 (bytes íntegros e utilizáveis): o pack 2.0.0 continua em disco e B nada instalou',
+      B.arq2 > 0 && B.arq3 === 0, `arq2=${B.arq2} arq3=${B.arq3}`);
+    check('LP2.1 G1-B/6 (erro é da tentativa mais recente): o snapshot pode ficar em erro sem tornar o pack inacessível',
+      B.snapshot.status === 'error' && B.indice === '2.0.0:ready', `${B.snapshot.status} | ${B.indice}`);
+    check('LP2.1 G1-B/8 (PacksContext sabe do ready de A): a publicação física emitiu o evento global',
+      B.readys.length === 1 && B.readys[0] === '2.0.0', JSON.stringify(B.readys));
+
+    // ── G1-C · EXISTIA 1.0.0, A SUCESSO, B FALHA ────────────────────────────────────────────────
+    const C = await duasIdentidadesG1({ falhaB: true, jaInstalado: '1.0.0' });
+    check('LP2.1 G1-C/4 (não regride para a versão anterior): índice final ready 2.0.0, não 1.0.0', C.indice === '2.0.0:ready', C.indice);
+    check('LP2.1 G1-C/5 (o corretivo não destrói 1.0.0): a versão anterior segue em disco (GC de versões superadas está FORA de escopo)',
+      C.arqAntigo > 0 && C.arq2 > 0, `antigo=${C.arqAntigo} arq2=${C.arq2}`);
+
+    // ── G1-D · TERCEIRO PARTICIPANTE C COM A IDENTIDADE DE A ────────────────────────────────────
+    const D = await duasIdentidadesG1({ terceiro: true });
+    check('LP2.1 G1-D/3 (join por identidade resolvida): C compartilha a MESMA conclusão de A', D.compartilharamAC === true,
+      `A=${JSON.stringify(D.rA && D.rA.version)} C=${JSON.stringify(D.rC && D.rC.version)}`);
+    check('LP2.1 G1-D/4 (sem segundo download da 2.0.0): manifesto e cena baixados uma única vez',
+      D.dlManifesto2 === 1 && D.dlCena2 === 1, `manifesto=${D.dlManifesto2} cena=${D.dlCena2}`);
+    check('LP2.1 G1-D/5 (sem moveAsync duplicado): um move por identidade (2.0.0 e 3.0.0)', D.moves === 2, `moves=${D.moves}`);
+    check('LP2.1 G1-D/6 (B não impede o encontro A↔C): as três chamadas terminam e o mapa esvazia',
+      D.rA.ok === true && D.rB.ok === true && D.rC.ok === true && D.mapa === 0, `mapa=${D.mapa}`);
+    check('LP2.1 G1-D/7 (um ready por publicação física, com 3 chamadas): C não gera um terceiro evento global',
+      D.readys.length === 2 && D.readys[0] === '2.0.0' && D.readys[1] === '3.0.0', JSON.stringify(D.readys));
+
+    // ── G1-E · RESET REAL ───────────────────────────────────────────────────────────────────────
+    const E = await resetRealG1();
+    check('LP2.1 G1-E/1-2 (Reset revoga TODOS os voos anteriores): nem A nem B publicam',
+      E.rA.ok === false && E.rA.reason === 'reset' && E.rB.ok === false && E.rB.reason === 'reset',
+      `A=${E.rA.reason} B=${E.rB && E.rB.reason}`);
+    check('LP2.1 G1-E/3 (voo nascido DEPOIS do Reset publica): o retry conclui na geração nova',
+      E.rRetry.ok === true && E.rRetry.version === '4.0.0' && E.indice === '4.0.0:ready', `retry=${E.rRetry.ok} indice=${E.indice}`);
+    check('LP2.1 G1-E/4 (nenhum ready indevido): só a operação pós-Reset emitiu evento global',
+      E.readys.length === 1 && E.readys[0] === '4.0.0', JSON.stringify(E.readys));
+    check('LP2.1 G1-E/5 (voo revogado limpa o que baixou): os bytes do voo revogado não ficam órfãos', E.arq2 === 0, `arq2=${E.arq2}`);
+
+    // ── G1-F · RESET APÓS A PUBLICAÇÃO ──────────────────────────────────────────────────────────
+    const F = await resetAposPublicarG1();
+    check('LP2.1 G1-F/1 (A publica antes do Reset): índice fica ready 2.0.0', F.rA.ok === true && F.indiceAposA === '2.0.0:ready', F.indiceAposA);
+    check('LP2.1 G1-F/2-3 (Reset vence o voo pré-Reset): B não ressuscita o pack',
+      F.rB.ok === false && F.rB.reason === 'reset' && F.indiceAposReset === 'ausente' && F.arq3 === 0,
+      `B=${F.rB && F.rB.reason} indice=${F.indiceAposReset} arq3=${F.arq3}`);
+    check('LP2.1 G1-F/4 (operação nova pós-Reset publica normalmente): índice final ready 4.0.0',
+      F.rNova.ok === true && F.indiceFinal === '4.0.0:ready', `nova=${F.rNova.ok} indice=${F.indiceFinal}`);
+
+    // ── CONTROLES NEGATIVOS: desfazer cada âncora do corretivo precisa REPROVAR ──────────────────
+    // `loadModule`/`loadPackDownloader` LANÇAM quando a mutação não altera o fonte (antitautologia),
+    // então uma âncora que saiu do lugar vira check VERMELHO aqui, nunca um falso verde silencioso.
+    const negativoG1 = async (nome, exec, quebrou) => {
+      let r = null; let erro = null;
+      try { r = await exec(); } catch (e) { erro = e; }
+      check(`LP2.1 G1 ${nome}`, !erro && quebrou(r),
+        erro ? `âncora do mutante não encontrada: ${String((erro && erro.message) || erro)}` : `o mutante NÃO reprovou: ${JSON.stringify(r && { ok: r.rA && r.rA.ok, indice: r.indice, readys: r.readys, dlCena2: r.dlCena2 })}`);
+    };
+
+    // NEG-1 — beginInstall volta a incrementar a geração de revogação (o defeito G1 original).
+    await negativoG1('NEG-1 (beginInstall revogando): iniciar B volta a revogar A → G1-A REPROVA',
+      () => duasIdentidadesG1({ mutReg: (s) => s.replace('  const operationId = ++seq;\n  opCounters.set(storyId, operationId);', '  const operationId = ++seq;\n  revocations.set(storyId, revocationOf(storyId) + 1);\n  opCounters.set(storyId, operationId);') }),
+      (r) => r.rA.ok === false && r.arq2 === 0);
+    // NEG-2 — a fence de publicação volta a usar sucessão visual.
+    await negativoG1('NEG-2 (fence por sucessão): fence volta a isCurrentOperation → A perde os bytes sem Reset',
+      () => duasIdentidadesG1({ mutSvc: (s) => s.replace("isAuthorizedToPublish: () => !(__reg && __gen != null && typeof __reg.isFlightRevoked === 'function' && __reg.isFlightRevoked(resolved.storyId, __gen))", "isAuthorizedToPublish: () => (__reg && __opId != null && typeof __reg.isCurrentOperation === 'function' ? __reg.isCurrentOperation(resolved.storyId, __opId) : true)") }),
+      (r) => r.rA.ok === false && r.rA.reason === 'reset');
+    // NEG-3 — o joiner-guard volta a usar a operação visual atual.
+    await negativoG1('NEG-3 (joiner por sucessão): guard volta a isCurrentOperation → C não joina A (single-flight rompido)',
+      () => duasIdentidadesG1({ terceiro: true, mutSvc: (s) => s.replace("const __stillAuth = !__regJ || existing.__gen == null || typeof __regJ.isFlightRevoked !== 'function' || !__regJ.isFlightRevoked(resolved.storyId, existing.__gen);", "const __stillAuth = !__regJ || existing.__opId == null || typeof __regJ.isCurrentOperation !== 'function' || __regJ.isCurrentOperation(resolved.storyId, existing.__opId);") }),
+      (r) => r.dlCena2 > 1 || r.compartilharamAC === false);
+    // NEG-4 — clearStoryPackInstall deixa de revogar.
+    await negativoG1('NEG-4 (Reset sem revogação): clearStoryPackInstall para de revogar → voo pré-Reset publica',
+      () => resetRealG1({ mutReg: (s) => s.replace('  revocations.set(storyId, revocationOf(storyId) + 1);   // REVOGAÇÃO explícita (eixo 2)\n', '') }),
+      (r) => r.rA.ok === true || r.rB.ok === true);
+    // NEG-5 — a publicação física superada deixa de avisar o PacksContext.
+    await negativoG1('NEG-5 (ready global suprimido): settleReady superado volta a sair cedo → pack válido fica invisível',
+      () => duasIdentidadesG1({ falhaB: true, mutReg: (s) => s.replace(/ {2}if \(!isCurrent\(storyId, operationId\)\) \{[\s\S]*?\n {4}return;\n {2}\}\n/, '  if (!isCurrent(storyId, operationId)) return;\n') }),
+      (r) => r.readys.length === 0);
+    // NEG-6 — o erro de B sobrescreve o READY publicado por A.
+    await negativoG1('NEG-6 (failWith sem preservação): a falha de B sobrescreve o ready de A → índice vira failed',
+      () => duasIdentidadesG1({ falhaB: true, mutSvc: (s) => s.replace('const preservable = isReadyPrev && isReadyEntryValid(prev, probe);', 'const preservable = false;') }),
+      (r) => r.indice !== '2.0.0:ready');
+    // NEG-7 — C deixa de joinar e monta um voo novo com a identidade idêntica à de A. O voo extra pode
+    // curto-circuitar no pack já instalado (sem rebaixar o contador de download), mas ele EXISTE: o sinal
+    // observável e estável é o evento global de ready EXCEDENTE (3 em vez de 2) — exatamente o que G1-D/7 fixa.
+    await negativoG1('NEG-7 (join desativado): C monta voo próprio com a identidade de A → publicação/ready excedente',
+      () => duasIdentidadesG1({ terceiro: true, mutSvc: (s) => s.replace('    if (__stillAuth) {', '    if (false) {') }),
+      (r) => r.readys.length > 2 || r.dlCena2 > 1 || r.moves > 2);
+    // NEG-8 — a fence apaga o voo mesmo AUTORIZADO (A apagada sem Reset).
+    await negativoG1('NEG-8 (apagar sem Reset): fence deleta o pack mesmo autorizada → nada é publicado',
+      () => duasIdentidadesG1({ mutSvc: (s) => s.replace(/if \(typeof isAuthorizedToPublish === 'function' && !isAuthorizedToPublish\(\)\) \{\n(\s*)try \{ await FileSystem\.deleteAsync\(localDir/, "if (typeof isAuthorizedToPublish === 'function') {\n$1try { await FileSystem.deleteAsync(localDir") }),
+      (r) => r.rA.ok === false && r.arq2 === 0);
+  })();
+  globalThis.__LP21G1.catch(() => {});
 }
 
 
@@ -30294,6 +30569,12 @@ try {
   check('LP2.1a-ii-01F (harness): o bloco assíncrono do registro global observável concluiu sem estourar',
     !lp21iif01fErr,
     `o bloco 01F lançou (${lp21iif01fErr && lp21iif01fErr.stack ? String(lp21iif01fErr.stack).split('\n').slice(0, 3).join(' | ') : lp21iif01fErr}) — os checks dele não rodaram`);
+
+  let lp21g1Err = null;
+  try { await globalThis.__LP21G1; } catch (e) { lp21g1Err = e; }
+  check('LP2.1 G1 (harness): o bloco assíncrono da correção revogação × sucessão concluiu sem estourar',
+    !lp21g1Err,
+    `o bloco G1 lançou (${lp21g1Err && lp21g1Err.stack ? String(lp21g1Err.stack).split('\n').slice(0, 3).join(' | ') : lp21g1Err}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
