@@ -868,6 +868,134 @@ function guardedInstall(resolved, params) {
   return runExclusiveByStory(resolved.storyId, () => downloadStoryPackScenesFromGlobalManifestImpl(resolved, params));
 }
 
+/* ── B1 — ENVELOPE DE PUBLICAÇÃO DAS ROTAS CRIADORAS ──────────────────────────────────────────
+ * Toda rota que CRIA uma instalação publica o desfecho da PRÓPRIA operação no registro global:
+ * `settleReady` no sucesso, `settleError` no `ok:false` e na rejeição. Antes disto só o criador
+ * compartilhado (S6) publicava: o offline de melhor esforço, o dono exclusivo cancelável e a
+ * identidade sem chave canônica instalavam de verdade e deixavam a tela em `idle` — o pack existia
+ * no disco, o índice dizia READY, e ninguém era avisado.
+ *
+ * Quem NÃO passa por aqui, de propósito:
+ *   - o JOINER (S5): não abre operação, não incrementa a sucessão visual e não republica o READY
+ *     do criador — ele apenas aguarda a MESMA Promise;
+ *   - as saídas de resolução que devolvem `ok:false` ANTES de existir operação (requiresAppUpdate,
+ *     manifesto inválido): sem `beginInstall` não há snapshot artificial para desfazer.
+ *
+ * O criador S6 mantém a sua forma inline porque é ele quem possui o FlightRecord e o fan-out de
+ * progresso; a REGRA é a mesma, e `settleCreatorOperation` é a transcrição literal dela para as
+ * rotas que não têm record.
+ *
+ * ORDEM (achado da revisão adversarial do B1): a operação canônica é aberta DENTRO da fila física
+ * da história, nunca antes de adquiri-la. Abrir antes fazia uma rota que ainda vai ESPERAR superar
+ * um voo em ANDAMENTO no eixo visual: o `beginInstall` zerava a fase/progresso na tela e o
+ * stale-guard passava a descartar todo o `reportInstall` do voo real — barra parada em 0% até o
+ * fim. Enfileirar primeiro faz a sucessão visual seguir a ordem de execução física.
+ *
+ * O que esta ordem NÃO conserta, porque é anterior ao B1 e mora no registro: uma operação NOVA que
+ * FALHA sobrescreve o visual de uma operação ANTIGA que teve SUCESSO (`settleError` é guardado só
+ * por `isCurrent`, e o `settleReady` superado avisa o PacksContext sem reescrever a tela). Dois
+ * voos S6 — rota que este bloco não tocou — já produziam exatamente isso. Fica como risco residual.
+ */
+
+/** Abre a operação canônica da rota e captura a geração de revogação vigente. */
+function openCreatorOperation(storyId, meta) {
+  // `typeof`-guard pelo mesmo motivo do S6: o smoke extrai um SLICE deste wrapper sem o
+  // `installRegistry` do escopo da fábrica.
+  const reg = (typeof installRegistry !== 'undefined' && installRegistry) ? installRegistry : null;
+  const opId = reg ? reg.beginInstall(storyId, meta) : null;
+  // Mesma disciplina do S6: leitura SÍNCRONA e ADJACENTE ao beginInstall — sem `await` no meio,
+  // nenhum Reset consegue se intercalar entre abrir a operação e capturar a geração.
+  const gen = (reg && opId != null && typeof reg.getRevocationGeneration === 'function')
+    ? reg.getRevocationGeneration(storyId)
+    : null;
+  return { reg, storyId, opId, gen, active: !!reg && opId != null };
+}
+
+/** FIX1R: publica só fase/percentual INTERMEDIÁRIOS; o terminal vem do resultado físico. */
+function creatorProgressPublisher(op) {
+  return (snapshot) => {
+    if (!op.active) return;
+    const st = snapshot && snapshot.status;
+    if (st === PACK_STATUS.READY || st === PACK_STATUS.FAILED) return;
+    const total = snapshot && snapshot.totalBytes;
+    const done = snapshot && snapshot.downloadedBytes;
+    op.reg.reportInstall(op.storyId, op.opId, {
+      phase: st === PACK_STATUS.VERIFYING ? 'verifying' : 'downloading',
+      progress: (total > 0 && Number.isFinite(done)) ? done / total : undefined,
+    });
+  };
+}
+
+/**
+ * Liga o desfecho FÍSICO da tarefa ao registro e devolve a MESMA Promise recebida — valor
+ * resolvido, rejeição e identidade da Promise ficam inalterados. A publicação vive num ramo
+ * PARALELO com `.catch` próprio: um erro interno do registro nunca transforma um download
+ * bem-sucedido em falha visível, e o erro da tarefa nunca é engolido.
+ */
+function settleCreatorOperation(op, promise) {
+  if (!op.active) return promise;
+  promise.then(
+    (res) => {
+      if (res && res.ok) op.reg.settleReady(op.storyId, op.opId, res.entry, op.gen);
+      else op.reg.settleError(op.storyId, op.opId, res && res.reason);
+    },
+    (err) => { op.reg.settleError(op.storyId, op.opId, (err && err.message) || err); },
+  ).catch(() => { /* o settlement do registro nunca vira unhandled rejection */ });
+  return promise;
+}
+
+/**
+ * Rota EXCLUSIVA (cancelável / identidade sem chave canônica): instala pela fila física e publica
+ * o desfecho da própria operação. Recebe a MESMA cerca de publicação do criador S6 — baseada em
+ * REVOGAÇÃO, não em sucessão visual: só um Reset explícito tira a autorização de gravar READY.
+ * O `onProgress` do chamador é isolado para que um callback hostil não suprima a publicação.
+ *
+ * A operação é aberta DENTRO da fila física, nunca antes dela (ver a nota de ORDEM acima).
+ */
+function guardedInstallPublishing(resolved, params) {
+  return runExclusiveByStory(resolved.storyId, () => {
+    const op = openCreatorOperation(resolved.storyId, {
+      resolvedInstallKey: canonicalResolvedKey(resolved) || null,   // null na identidade inadmissível
+      version: resolved.version,
+      requestedKinds: resolved.kinds,
+    });
+    if (!op.active) return downloadStoryPackScenesFromGlobalManifestImpl(resolved, params);
+    const publish = creatorProgressPublisher(op);
+    const internalParams = {
+      ...params,
+      isAuthorizedToPublish: () => !(op.reg && op.gen != null && typeof op.reg.isFlightRevoked === 'function' && op.reg.isFlightRevoked(op.storyId, op.gen)),
+      onProgress: (snapshot) => {
+        try { if (typeof params.onProgress === 'function') params.onProgress(snapshot); } catch { /* o chamador não afeta a publicação */ }
+        publish(snapshot);
+      },
+    };
+    return settleCreatorOperation(op, downloadStoryPackScenesFromGlobalManifestImpl(resolved, internalParams));
+  });
+}
+
+/**
+ * Rota OFFLINE (melhor esforço): serializada por história, publicando o desfecho. `resolvedInstallKey`
+ * e `version` permanecem null porque, sem manifesto global, essa informação genuinamente NÃO existe
+ * ainda — o `phase: 'recovering'` diz honestamente o que está acontecendo.
+ * NÃO recebe cerca de escrita no índice: `recoverStoryPack` publica por conta própria e essa
+ * assimetria fica registrada como risco residual, fora do escopo deste bloco. `settleReady` continua
+ * respeitando revogação por si mesmo (eixo 2 do registro).
+ */
+function installOfflinePublishing(params) {
+  const storyId = params && params.storyId;
+  return runExclusiveByStory(storyId, () => {
+    const op = openCreatorOperation(storyId, {
+      resolvedInstallKey: null,
+      version: null,
+      requestedKinds: (params && params.requestedKinds) || null,
+      // `verifying` (do vocabulário oficial `INSTALL_PHASES`) e não uma fase inventada: o melhor
+      // esforço offline confere o pack local e recupera o órfão — é verificação, não download.
+      phase: 'verifying',
+    });
+    return settleCreatorOperation(op, installOfflineBestEffort(params));
+  });
+}
+
 /**
  * Instala o pack de uma história. LP2.1a-ii-D:
  *   Fase 1 — resolve a identidade INDEPENDENTEMENTE (uma busca do manifesto por invocação pública).
@@ -884,7 +1012,7 @@ function guardedInstall(resolved, params) {
 async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
   const idr = await resolveInstallIdentity(params);
   if (!idr.ok) {
-    if (idr.networkError) return runExclusiveByStory(params && params.storyId, () => installOfflineBestEffort(params));
+    if (idr.networkError) return installOfflinePublishing(params);   // B1: o offline também publica
     return idr.requiresAppUpdate
       ? { ok: false, requiresAppUpdate: true, reason: idr.reason }
       : { ok: false, reason: idr.reason };
@@ -892,10 +1020,10 @@ async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
   const resolved = idr.resolved;
 
   // Dono exclusivo (cancelável): não compartilha o resultado, mas AINDA passa pela fila física.
-  if (typeof (params && params.isCancelled) === 'function') return guardedInstall(resolved, params);
+  if (typeof (params && params.isCancelled) === 'function') return guardedInstallPublishing(resolved, params);
 
   const key = canonicalResolvedKey(resolved);
-  if (!key) return guardedInstall(resolved, params);   // identidade inadmissível → instala sem compartilhar
+  if (!key) return guardedInstallPublishing(resolved, params);   // identidade inadmissível → instala sem compartilhar
 
   const existing = inFlightInstalls.get(key);
   if (existing) {

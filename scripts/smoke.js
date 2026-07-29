@@ -8263,8 +8263,14 @@ console.log('\n── LP2: concorrência e integridade dos story packs ──');
 
   // LP2.1a-ii-D (superseded): o cancelável recebe a identidade RESOLVIDA (guardedInstall(resolved, params)),
   // mas continua dono exclusivo e AINDA passa pela fila física — a garantia é idêntica.
+  // B1: o desvio passou a ser `guardedInstallPublishing`. A âncora da fila física é a PRIMEIRA linha
+  // do corpo dele — `runExclusiveByStory` envolvendo TUDO — e não uma linha de fallback qualquer que
+  // por acaso mencione `guardedInstall`: a prova precisa apontar o caminho que o código percorre.
+  const envCancelavel = a1StripComments(dlC).split('function guardedInstallPublishing(resolved, params) {')[1] || '';
   check('LP2 §4.5 (cancelamento não mata operação alheia): isCancelled = dono exclusivo, mas AINDA passa pela fila física',
-    /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstall\(resolved, params\);/.test(dlC)
+    /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstallPublishing\(resolved, params\);/.test(dlC)
+    && /^\s*return runExclusiveByStory\(resolved\.storyId, \(\) => \{/.test(envCancelavel)   // a fila envolve TODO o envelope
+    && /settleCreatorOperation\(op, downloadStoryPackScenesFromGlobalManifestImpl\(resolved, internalParams\)\)/.test(envCancelavel)
     && !/isCancelled/.test(hook),   // o caminho de produto não cancela: "cancelar" = parar de observar
     'um chamador que desiste pode cancelar a operação de outro, ou escapa da fila física e disputa o .tmp');
 
@@ -10445,50 +10451,75 @@ console.log('\n── LP2.1a-ii §10.8 · P7: Recovery REAL exercitado pelo pref
    */
   const carregarP7 = ({ semGate = false, semCampoRecovered = false } = {}) => {
     const h = createPackInstallHarness();
-    const { createPackDownloadService } = loadPackDownloader();
-    const registry = loadModule('src/services/packInstallRegistry.js', {},
-      ['clearStoryPackInstall', 'getStoryPackInstallSnapshot', 'beginInstall', 'reportInstall',
-        'settleReady', 'settleError', 'isCurrentOperation', 'getRevocationGeneration', 'isFlightRevoked',
-        'subscribeStoryPackInstall', 'subscribePackReady', 'INSTALL_PHASES']);
     const contadores = { downloaderPublico: 0, recoveryDireto: 0, recoveryPeloDownloader: 0 };
-    const svc = createPackDownloadService({
-      ...h.deps,
-      recoverStoryPack: (p) => { contadores.recoveryPeloDownloader += 1; return h.deps.recoverStoryPack(p); },
-      installRegistry: registry,
-      clearPackEntry: h.storage.clearPackEntry,
-    });
     const mk = loadModule('src/services/packPublishMarker.js', {},
       ['buildPublishMarker', 'MARKER_FILENAME', 'selectStoryPackDirs', 'validatePublishMarker']);
-    const montarLab = (labMutate) => loadModule('src/services/recoveryLabDevService.js', {
-      FileSystem: h.mem.FileSystem,
-      getPackLocalDir: h.storage.getPackLocalDir, getPackTempDir: h.storage.getPackTempDir,
-      getPackIndex: h.storage.getPackIndex, setPackEntry: h.storage.setPackEntry,
-      getPackEntry: h.storage.getPackEntry, clearPackEntry: h.storage.clearPackEntry,
-      PACK_STATUS: h.storage.PACK_STATUS,
-      buildPublishMarker: mk.buildPublishMarker, MARKER_FILENAME: mk.MARKER_FILENAME,
-      selectStoryPackDirs: mk.selectStoryPackDirs, validatePublishMarker: mk.validatePublishMarker,
-      validatePackManifest: h.deps.validatePackManifest, computeFileSha256: h.deps.computeFileSha256,
-      recoverStoryPack: (p) => { contadores.recoveryDireto += 1; return h.deps.recoverStoryPack(p); },
-      clearStoryPackInstall: registry.clearStoryPackInstall,
-      getStoryPackInstallSnapshot: registry.getStoryPackInstallSnapshot,
-      downloadStoryPackScenesFromGlobalManifest: async (p) => {
-        contadores.downloaderPublico += 1;
-        const r = await svc.downloadStoryPackScenesFromGlobalManifest(p);
-        // `semCampoRecovered` simula um retorno público que NÃO expõe `recovered` (controle N07).
-        if (semCampoRecovered && r && typeof r === 'object') { const c = { ...r }; delete c.recovered; return c; }
-        return r;
-      },
-      inFlightInstallCount: () => svc.inFlightInstallCount(),
-      fetchGlobalContentManifest: h.deps.fetchGlobalContentManifest,
-      getPackFromGlobalManifest: h.deps.getPackFromGlobalManifest,
-      isPackSandboxDevEnabled: () => !semGate,
-      warn: () => {},
-    }, ['isRecoveryLabEnabled', 'REAL_RECOVERY_KINDS', 'P7_VERDICTS', 'validateRealRecoveryTarget',
-      'prepareRealOrphan', 'inspectRealOrphan', 'exerciseRealPreflight', 'cleanupRealRecoveryTest',
-      'buildRealRecoveryDiagnostic', 'applyRecoveryLabPreset', 'inspectRecoveryState'], labMutate);
-    // `remontar` = o app fechado e reaberto: o MÓDULO nasce de novo (estado em memória zerado),
-    // o disco e o índice permanecem. É a única forma honesta de provar sobrevivência ao restart.
-    return { h, svc, registry, contadores, montarLab, lab: montarLab() };
+    const ctx = { h, contadores };
+
+    /*
+     * B2 — REINÍCIO REALISTA DOS MÓDULOS VOLÁTEIS.
+     *
+     * `montarLab()` sozinho remonta APENAS o laboratório: o registro global e a instância do
+     * downloader sobreviveriam, e com eles o snapshot, o opCounter, a geração de revogação e o
+     * mapa de voos do processo anterior — um "restart" que preserva justamente o que um processo
+     * novo perde. `bootProcesso()` recarrega os TRÊS módulos voláteis JUNTOS (registro, serviço,
+     * laboratório), zerando de fato `snapshots`, `opCounters`, `seq`, `revocations`,
+     * `inFlightInstalls`, `storyInstallChains` e os ouvintes em memória.
+     *
+     * O que NÃO é recriado é exatamente o que representa persistência física: o harness `h` —
+     * FileSystem em memória, AsyncStorage, índice do pack, bytes, marcador de publicação e o
+     * arquivo de estado do P7. Por isso `h` fica fora do boot.
+     */
+    const bootProcesso = () => {
+      const { createPackDownloadService } = loadPackDownloader();
+      const registry = loadModule('src/services/packInstallRegistry.js', {},
+        ['clearStoryPackInstall', 'getStoryPackInstallSnapshot', 'beginInstall', 'reportInstall',
+          'settleReady', 'settleError', 'isCurrentOperation', 'getRevocationGeneration', 'isFlightRevoked',
+          'subscribeStoryPackInstall', 'subscribePackReady', 'INSTALL_PHASES']);
+      const svc = createPackDownloadService({
+        ...h.deps,
+        recoverStoryPack: (p) => { contadores.recoveryPeloDownloader += 1; return h.deps.recoverStoryPack(p); },
+        installRegistry: registry,
+        clearPackEntry: h.storage.clearPackEntry,
+      });
+      const montarLab = (labMutate) => loadModule('src/services/recoveryLabDevService.js', {
+        FileSystem: h.mem.FileSystem,
+        getPackLocalDir: h.storage.getPackLocalDir, getPackTempDir: h.storage.getPackTempDir,
+        getPackIndex: h.storage.getPackIndex, setPackEntry: h.storage.setPackEntry,
+        getPackEntry: h.storage.getPackEntry, clearPackEntry: h.storage.clearPackEntry,
+        PACK_STATUS: h.storage.PACK_STATUS,
+        buildPublishMarker: mk.buildPublishMarker, MARKER_FILENAME: mk.MARKER_FILENAME,
+        selectStoryPackDirs: mk.selectStoryPackDirs, validatePublishMarker: mk.validatePublishMarker,
+        validatePackManifest: h.deps.validatePackManifest, computeFileSha256: h.deps.computeFileSha256,
+        recoverStoryPack: (p) => { contadores.recoveryDireto += 1; return h.deps.recoverStoryPack(p); },
+        clearStoryPackInstall: registry.clearStoryPackInstall,
+        getStoryPackInstallSnapshot: registry.getStoryPackInstallSnapshot,
+        downloadStoryPackScenesFromGlobalManifest: async (p) => {
+          contadores.downloaderPublico += 1;
+          const r = await svc.downloadStoryPackScenesFromGlobalManifest(p);
+          // `semCampoRecovered` simula um retorno público que NÃO expõe `recovered` (controle N07).
+          if (semCampoRecovered && r && typeof r === 'object') { const c = { ...r }; delete c.recovered; return c; }
+          return r;
+        },
+        inFlightInstallCount: () => svc.inFlightInstallCount(),
+        fetchGlobalContentManifest: h.deps.fetchGlobalContentManifest,
+        getPackFromGlobalManifest: h.deps.getPackFromGlobalManifest,
+        isPackSandboxDevEnabled: () => !semGate,
+        warn: () => {},
+      }, ['isRecoveryLabEnabled', 'REAL_RECOVERY_KINDS', 'P7_VERDICTS', 'validateRealRecoveryTarget',
+        'prepareRealOrphan', 'inspectRealOrphan', 'exerciseRealPreflight', 'cleanupRealRecoveryTest',
+        'buildRealRecoveryDiagnostic', 'applyRecoveryLabPreset', 'inspectRecoveryState'], labMutate);
+      ctx.registry = registry;
+      ctx.svc = svc;
+      ctx.montarLab = montarLab;
+      // `montarLab()` = só o laboratório renasce (usado pelas provas que testam o MÓDULO do lab).
+      ctx.lab = montarLab();
+      return ctx;
+    };
+    // `reiniciarProcesso()` = o app fechado e reaberto de verdade: registro + downloader + laboratório
+    // nascem de novo sobre o MESMO disco. É a única forma honesta de provar sobrevivência ao restart.
+    ctx.reiniciarProcesso = () => bootProcesso();
+    return bootProcesso();
   };
 
   const prepararP7 = async (ctx, mundo) => { montarMundoP7(ctx.h, mundo); return ctx.lab.prepareRealOrphan(P7_ARGS); };
@@ -10855,6 +10886,54 @@ console.log('\n── LP2.1a-ii §10.8 · P7: Recovery REAL exercitado pelo pref
         `o gate não é o que bloqueia: real=${JSON.stringify(vReal)} mutante=${JSON.stringify(vMut && vMut.enabled)}`);
     }
 
+    // ── B2 · REINÍCIO REALISTA ────────────────────────────────────────────────────────────────
+    // N11 — CONTROLE DO PRÓPRIO REINÍCIO. Se o "restart" preservasse o registro e o serviço, o
+    // snapshot `ready` do voo anterior sobreviveria e qualquer prova de `registroFinalReady`
+    // passaria pelo motivo errado. Aqui se exige que o processo novo zere o que é volátil
+    // (snapshot, sucessão visual, geração de revogação, voos, ouvintes) e preserve o disco.
+    {
+      const ctx = carregarP7(); montarMundoP7(ctx.h);
+      await ctx.svc.downloadStoryPackScenesFromGlobalManifest(P7_ARGS);   // rota criadora: publica READY
+      const regAntes = ctx.registry;
+      const svcAntes = ctx.svc;
+      const snapAntes = regAntes.getStoryPackInstallSnapshot(P7_STORY).status;
+      let readysAntes = 0;
+      regAntes.subscribePackReady(() => { readysAntes += 1; });           // ouvinte do processo ANTIGO
+      ctx.reiniciarProcesso();
+      const snapDepois = ctx.registry.getStoryPackInstallSnapshot(P7_STORY).status;
+      let readysDepois = 0;
+      ctx.registry.subscribePackReady(() => { readysDepois += 1; });
+      await ctx.svc.downloadStoryPackScenesFromGlobalManifest(P7_ARGS);   // reinstalação no processo NOVO
+      const idxDepois = await ctx.h.entry(P7_STORY);
+      check('§10.8 P7-N11 (reinício realista): o processo novo zera snapshot, sucessão, revogação, voos e ouvintes — e preserva disco e índice',
+        snapAntes === 'ready' && snapDepois === 'idle'
+        && ctx.registry !== regAntes && ctx.svc !== svcAntes
+        && ctx.registry.getRevocationGeneration(P7_STORY) === 0
+        && svcAntes.inFlightInstallCount() === 0 && ctx.svc.inFlightInstallCount() === 0
+        && readysAntes === 0 && readysDepois === 1
+        && regAntes.getStoryPackInstallSnapshot(P7_STORY).status === 'ready'
+        && !!idxDepois && idxDepois.status === 'ready'
+        && ctx.h.mem.exists(`${P7_DIR()}${P7_MK}`) === true,
+        `o reinício não zerou o estado volátil: ${JSON.stringify({ snapAntes, snapDepois, readysAntes, readysDepois, idx: idxDepois && idxDepois.status })}`);
+    }
+
+    // P7-22 — CENÁRIO OBRIGATÓRIO DO B2: órfão preparado COM rede, processo reiniciado de verdade e
+    // manifesto global INDISPONÍVEL. É a rota S1b do wrapper público (melhor esforço offline), a
+    // única que devolve `ok:true` recuperando bytes reais sem nunca ter criado um voo.
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      ctx.reiniciarProcesso();                  // registro + downloader + laboratório nascem de novo
+      ctx.h.setModoRede('offline');             // a partir daqui o manifesto global não responde
+      const pf = await ctx.lab.exerciseRealPreflight(P7_ARGS);
+      check('§10.8 P7-22 (B2 · restart real + manifesto indisponível): o preflight público recupera o órfão offline e aprova os 12 critérios, inclusive registroFinalReady',
+        pf.ok === true && pf.reprovados.length === 0
+        && pf.criterios.registroFinalReady === true && pf.criterios.recuperado === true
+        && pf.criterios.indiceFinalReady === true && pf.criterios.nenhumaOperacaoAtiva === true
+        && pf.criterios.hashesIdenticos === true && pf.criterios.semDownloading === true
+        && ctx.contadores.recoveryPeloDownloader === 1,
+        `preflight offline após reinício real reprovou: ${JSON.stringify({ rep: pf.reprovados, snap: pf.registrySnapshot })}`);
+    }
+
     // Painel: função PURA de exibição, sem I/O — 20 campos e nenhum conteúdo de arquivo.
     {
       const ctx = carregarP7(); const p = await prepararP7(ctx);
@@ -11158,7 +11237,7 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
     !/subscribers|multiplex|progresso compartilhado|resolvedIdentity|identidade resolvida da opera/i.test(recSrc + mkSrc)
     && !/packInstallKey|canonicalResolvedKey|emitProgress|FlightRecord/.test(recSrc + mkSrc)   // recovery/marcador não decidem o voo nem o fan-out
     && /inFlightInstalls\.set\(key, record\)/.test(dlSrcC)  // single-flight por identidade resolvida (FlightRecord)
-    && /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstall\(resolved, params\);/.test(dlSrcC),
+    && /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstallPublishing\(resolved, params\);/.test(dlSrcC),
     'o recovery/marcador ampliaram para identidade resolvida, progresso compartilhado ou cancelamento');
 
   // §19.15/16 — a regra de colisão é normalizada (núcleo puro, sem I/O)
@@ -13297,7 +13376,7 @@ console.log('\n── LP2.1a-ii-E3 HARDENING: progresso compartilhado (hardening
     /* ══ E-PROG-16: isCancelled EXCLUSIVO — não entra no FlightRecord, não registra subscriber ══ */
     {
       const dlSrc = a1StripComments(readSrc('src/services/packDownloadService.js'));
-      const estatico = /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstall\(resolved, params\);/.test(dlSrc);
+      const estatico = /if \(typeof \(params && params\.isCancelled\) === 'function'\) return guardedInstallPublishing\(resolved, params\);/.test(dlSrc);
       const h = createPackInstallHarness();
       const s = rotear(h, 'david_goliath', '2.0.0'); setGM(h, [mkPack(h, 'david_goliath', '2.0.0', s.sha)]);
       const svc = createPackDownloadService(h.deps);
@@ -13492,7 +13571,7 @@ console.log('\n── LP2.1a-ii-E3 HARDENING: progresso compartilhado (hardening
         { id: 'ME10', nome: 'set na microtask (ATOMIC-2)', prova: 'conc', cen: () => cenConc(undefined), cenM: (m) => cenConc(m),
           mut: (x) => x.replace('  record.promise = Promise.resolve()\n    .then(() => guardedInstall(resolved, internalParams))\n    .finally(() => cleanupRecord(key, record));\n  inFlightInstalls.set(key, record);', '  record.promise = Promise.resolve()\n    .then(() => { inFlightInstalls.set(key, record); return guardedInstall(resolved, internalParams); })\n    .finally(() => cleanupRecord(key, record));') },
         { id: 'ME11', nome: 'isCancelled entra no FlightRecord', prova: 'E-PROG-16', cen: () => cenCancel(undefined), cenM: (m) => cenCancel(m),
-          mut: (x) => x.replace('  if (typeof (params && params.isCancelled) === \'function\') return guardedInstall(resolved, params);\n', '') },
+          mut: (x) => x.replace('  if (typeof (params && params.isCancelled) === \'function\') return guardedInstallPublishing(resolved, params);\n', '') },
       ];
 
       const vivos = [];
@@ -14637,8 +14716,12 @@ console.log('\n── LP2.1 G2: recovery de órfão com consumidores ──');
       G.snapshot.status === 'ready' && G.snapshot.phase === 'ready' && G.snapshot.version === VER_G2
         && !!G.snapshot.entry && G.snapshot.entry.status === 'ready',
       `${G.snapshot.status}/${G.snapshot.phase}/${G.snapshot.version}/${G.snapshot.entry && G.snapshot.entry.status}`);
-    check('LP2.1 G2/10 (um ÚNICO ready global): dois consumidores no mesmo voo → um evento para o PacksContext',
-      G.readys.length === 1 && G.readys[0] === VER_G2, JSON.stringify(G.readys));
+    // B1 — MUDANÇA DELIBERADA DE CONTRATO: A e B (o voo COMPARTILHADO) seguem produzindo UM evento —
+    // o joiner continua sem republicar. O segundo evento é da sonda EXCLUSIVA E, que é outra operação
+    // e termina em `ok:true` (G2/13). Duas operações bem-sucedidas, dois avisos; um único recovery
+    // físico (G2/6), zero downloads (G2/5) e uma única escrita de índice seguem sendo os invariantes.
+    check('LP2.1 G2/10 (um ready global por OPERAÇÃO bem-sucedida): o joiner não republica; a sonda exclusiva avisa a própria',
+      G.readys.length === 2 && G.readys.every((v) => v === VER_G2), JSON.stringify(G.readys));
     check('LP2.1 G2/11 (consumidor montado DEPOIS recebe o terminal): replay imediato do snapshot ready',
       G.vistosC.length === 1 && G.vistosC[0] === `ready:${VER_G2}`, JSON.stringify(G.vistosC));
     check('LP2.1 G2/12 (nada fica eternamente ativo): mapa de voos vazio, nenhum ouvinte pendurado e nenhuma fase intermediária final',
@@ -14659,11 +14742,25 @@ console.log('\n── LP2.1 G2: recovery de órfão com consumidores ──');
     // NEG-1 — o elo do single-flight: sem join, B vira um voo próprio (conclusão e ready duplicados).
     await negativoG2('NEG-1 (join desativado): B deixa de compartilhar o voo do recovery → conclusão e ready duplicados',
       () => orfaoComConsumidoresG2({ mutSvc: (s) => s.replace('    if (__stillAuth) {', '    if (false) {') }),
-      (r) => r.mesmaConclusao === false || r.readys.length !== 1);
-    // NEG-2 — o elo do evento global: settleReady deixa de avisar o PacksContext.
-    await negativoG2('NEG-2 (ready global suprimido): settleReady para de notificar → o pack recuperado fica invisível ao PacksContext',
-      () => orfaoComConsumidoresG2({ mutReg: (s) => s.replace('  snapshots.set(storyId, snap);\n  notify(storyId);\n  notifyReady(snap);', '  snapshots.set(storyId, snap);\n  notify(storyId);') }),
-      (r) => r.readys.length === 0);
+      // B1: o baseline real deste cenário passou a ser DOIS eventos (voo compartilhado + sonda
+      // exclusiva). O sinal discriminante continua sendo B deixar de compartilhar a conclusão de A.
+      (r) => r.mesmaConclusao === false || r.readys.length !== 2);
+    // NEG-2 — o elo do evento global, DOIS controles, um por ramo do `settleReady`. Uma mutação única
+    // que esvaziasse o `notifyReady` inteiro mataria os dois de uma vez e não provaria nenhum: o
+    // cenário tem duas publicações e cada uma cai num ramo diferente (medido, não suposto).
+    //   · o voo COMPARTILHADO settla pelo ramo SUPERADO (`packInstallRegistry.js:206-218`): quando a
+    //     corrente física é liberada, a sonda exclusiva abre a operação dela ANTES de o criador S6
+    //     percorrer o `.finally`/terminal — o pack é dele, o visual já não;
+    //   · a SONDA EXCLUSIVA settla pelo ramo CORRENTE (`:219-222`).
+    // Arrancar QUALQUER um dos ramos tem de derrubar exatamente um aviso (2 → 1) sem mexer no
+    // desfecho físico: o índice continua READY, o disco não muda. Se a ordem microtask entre as duas
+    // operações algum dia inverter, um dos dois controles deixa de reprovar e o smoke acusa.
+    await negativoG2('NEG-2a (ready global do ramo SUPERADO): a publicação física do voo compartilhado deixa de reconciliar → o PacksContext perde um aviso',
+      () => orfaoComConsumidoresG2({ mutReg: (s) => s.replace(/ {2}if \(!isCurrent\(storyId, operationId\)\) \{[\s\S]*?\n {4}return;\n {2}\}\n/, '  if (!isCurrent(storyId, operationId)) return;\n') }),
+      (r) => r.readys.length === 1 && r.indice === `${VER_G2}:ready`);
+    await negativoG2('NEG-2b (ready global do ramo CORRENTE): a operação atual para de avisar → o PacksContext perde o aviso da sonda exclusiva',
+      () => orfaoComConsumidoresG2({ mutReg: (s) => s.replace('  notifyReady(snap);', '  /* mutante: o ramo CORRENTE nunca avisa */') }),
+      (r) => r.readys.length === 1 && r.indice === `${VER_G2}:ready`);
     // NEG-3 — o elo do recovery: a evidência é validada mas a promoção não é declarada → o fluxo baixa tudo de novo.
     await negativoG2('NEG-3 (promoção não declarada): recovery valida mas devolve recovered=false → volta a baixar o que já estava no disco',
       () => orfaoComConsumidoresG2({ mutRec: (s) => s.replace('        recovered: true, version: v.version, kinds: v.kinds,', '        recovered: false, version: v.version, kinds: v.kinds,') }),
@@ -15993,7 +16090,10 @@ console.log('\n── LP2.1 G6: chamador cancelável e voo compartilhado ──'
   };
 
   // ── Âncoras dos controles negativos (uma por elo REAL do contrato mapeado acima) ──────────────
-  const G6_CANCELAVEL = "  if (typeof (params && params.isCancelled) === 'function') return guardedInstall(resolved, params);";
+  // B1: a rota do dono exclusivo passou a publicar o desfecho da própria operação. A âncora
+  // acompanha a linha REAL (o seu papel é apontar o desvio, não congelar o corpo dele) — os quatro
+  // mutantes abaixo continuam substituindo o MESMO elo do contrato.
+  const G6_CANCELAVEL = "  if (typeof (params && params.isCancelled) === 'function') return guardedInstallPublishing(resolved, params);";
   const G6_EXISTING = '  const existing = inFlightInstalls.get(key);';
   const G6_CHAVE = '  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion]);';
   const G6_CANCEL_RETORNO = "      return { ok: false, cancelled: true, reason: 'cancelado' };";
@@ -16187,8 +16287,12 @@ console.log('\n── LP2.1 G6: chamador cancelável e voo compartilhado ──'
     check('LP2.1 G6-A/5 (cancelar C não afeta A nem B): os dois recebem a MESMA sequência terminada em ready',
       ultimoG6(A.progA) === 'ready' && ultimoG6(A.progB) === 'ready' && A.mesmoResultado === true,
       `A=${JSON.stringify(A.progA)} B=${JSON.stringify(A.progB)}`);
-    check('LP2.1 G6-A/6 (A e B recebem READY): índice publicado e evento global emitido uma única vez',
-      A.indice === `${V1_G6}:ready` && A.readys.length === 1,
+    // B1 — MUDANÇA DELIBERADA DE CONTRATO: C (dono exclusivo) termina em `ok:true` reaproveitando o
+    // pack recém-publicado, e agora publica o desfecho da PRÓPRIA operação. São DUAS operações reais
+    // com sucesso real → dois eventos globais. Continua havendo UMA publicação FÍSICA (um move, uma
+    // escrita de índice — G6-A/7 e G6-A/9), que é o invariante que este bloco protege.
+    check('LP2.1 G6-A/6 (A e B recebem READY): índice publicado uma vez e cada operação bem-sucedida avisa o PacksContext',
+      A.indice === `${V1_G6}:ready` && A.readys.length === 2,
       `indice=${A.indice} readys=${JSON.stringify(A.readys)}`);
     check('LP2.1 G6-A/7 (C recebe retorno honesto): sucesso local READ-ONLY, sem download, sem move e sem escrever índice',
       !!A.rC && A.rC.ok === true && A.rC.recovered === false && A.rC.version === V1_G6
@@ -16205,8 +16309,11 @@ console.log('\n── LP2.1 G6: chamador cancelável e voo compartilhado ──'
       `voos=${A.voosFinais} ouvintes=${A.ouvintesFinais}`);
 
     // ── G6-B · CHAMADOR CANCELÁVEL COMEÇA PRIMEIRO ────────────────────────────────────────────────
-    check('LP2.1 G6-B/1 (C começa primeiro e sozinho): nenhum voo no mapa e nenhuma publicação no registro',
-      B.voosDuranteC === 0 && B.registroDuranteC === 'idle',
+    // B1 — MUDANÇA DELIBERADA DE CONTRATO: o dono exclusivo continua FORA do mapa de compartilhamento
+    // (ninguém joina nele), mas deixou de ser invisível: abre a própria operação e a tela mostra que
+    // há uma instalação em curso. O invariante preservado é `voosDuranteC === 0`.
+    check('LP2.1 G6-B/1 (C começa primeiro e sozinho): fora do mapa de voos, mas com operação própria visível',
+      B.voosDuranteC === 0 && B.registroDuranteC === 'downloading',
       `voos=${B.voosDuranteC} registro=${B.registroDuranteC}`);
     check('LP2.1 G6-B/2 (A entra depois com identidade compatível): abre o PRÓPRIO voo, separado de C',
       B.voosComA === 1,
@@ -16278,9 +16385,12 @@ console.log('\n── LP2.1 G6: chamador cancelável e voo compartilhado ──'
     check('LP2.1 G6-D/6 (o voo compartilhado dos outros permanece intacto): A e B publicam normalmente depois',
       D.mesmoResultado === true && D.intactoV1 === true && D.voosFinais === 0,
       `mesmo=${D.mesmoResultado} intacto=${D.intactoV1} voos=${D.voosFinais}`);
-    check('LP2.1 G6-D/7 (cancelado ao nascer COM voo compartilhado vivo): não baixa, não move, não escreve índice e não emite READY global',
+    // B1 — MUDANÇA DELIBERADA DE CONTRATO: C chega tarde, encontra o pack já publicado e devolve
+    // `ok:true` (sucesso local READ-ONLY, `rC.ok === true` desde sempre). Sucesso é sucesso: publica.
+    // O que ele continua NÃO fazendo é o que importa aqui — não baixa, não move, não escreve índice.
+    check('LP2.1 G6-D/7 (cancelado ao nascer COM voo compartilhado vivo): não baixa, não move e não escreve índice — mas o sucesso local é publicado',
       D2.voosNaEntradaDeC === 1 && D2.downloads === 5 && umaVezCada(D2, V1_G6)
-        && D2.moves === 1 && D2.setEntry === 1 && D2.readys.length === 1
+        && D2.moves === 1 && D2.setEntry === 1 && D2.readys.length === 2
         && !!D2.rA && D2.rA.ok === true && D2.mesmoResultado === true && !!D2.rC && D2.rC.ok === true,
       `voosEntrada=${D2.voosNaEntradaDeC} downloads=${D2.downloads} moves=${D2.moves} setEntry=${D2.setEntry} readys=${JSON.stringify(D2.readys)} rC=${JSON.stringify(D2.rC && { ok: D2.rC.ok, recovered: D2.rC.recovered })}`);
 
@@ -16326,7 +16436,9 @@ console.log('\n── LP2.1 G6: chamador cancelável e voo compartilhado ──'
     // NEG-2 — o single-flight some: um chamador COMPATÍVEL abre um segundo voo em vez de joinar.
     await negativoG6('NEG-2 (chamador compatível cria voo duplicado): duas conclusões e dois eventos globais',
       () => cenarioAG6({ mutSvc: mutG6([G6_EXISTING, '  const existing = null;']) }),
-      (r) => r.mesmoResultado !== true || r.readys.length !== 1);
+      // B1: o baseline do cenário A passou a ser DOIS eventos (voo compartilhado + C, que conclui em
+      // ok:true). O sinal discriminante segue sendo B abrir voo próprio em vez de joinar.
+      (r) => r.mesmoResultado !== true || r.readys.length !== 2);
     // NEG-3 — a identidade colapsa em storyId: um chamador INCOMPATÍVEL passa a joinar o voo alheio.
     await negativoG6('NEG-3 (chamador incompatível faz join): recebe a conclusão de OUTRA identidade',
       () => cenarioIncompativelG6({ mutSvc: mutG6([G6_CHAVE, '  return JSON.stringify([storyId]);']) }),
@@ -16377,6 +16489,462 @@ console.log('\n── LP2.1 G6: chamador cancelável e voo compartilhado ──'
     }
   })();
   globalThis.__LP21G6.catch(() => {});
+}
+
+// ── LP2.1 B1+B2 · P8: READY em TODAS as rotas criadoras do downloader público ─────────────────
+console.log('\n── LP2.1 B1+B2 · P8: READY em todas as rotas criadoras ──');
+{
+  /*
+   * O wrapper público tem seis saídas: S1/S1a/S1b (melhor esforço offline), S2 (erro de resolução,
+   * antes de existir operação), S3 (chamador cancelável), S4 (identidade sem chave canônica),
+   * S5 (joiner) e S6 (criador). Só S6 publica no `packInstallRegistry` — as demais podem devolver
+   * `ok:true` com bytes válidos no disco e deixar o registro em `idle`, e a tela então oferece
+   * "Baixar" de novo para conteúdo já instalado.
+   *
+   * CONTRATO fixado aqui: toda rota CRIADORA (a que executa trabalho e produz resultado próprio:
+   * S1/S1a/S1b, S3, S4, S6) publica UMA vez o desfecho da SUA operação — `settleReady` no sucesso,
+   * `settleError` no `ok:false` e na rejeição. O JOINER (S5) continua sem publicar; S2 continua sem
+   * criar operação nenhuma.
+   *
+   * Fronteiras dubladas: disco, rede e índice. Downloader, registro, recovery, integridade,
+   * marcador e o hook entram REAIS, carregados do fonte pelo harness.
+   */
+  const { createPackInstallHarness: mkH8, loadPackDownloader: loadDl8, loadModule: loadMod8 } = require('./testing/packInstallHarness');
+
+  const S8 = 'david_goliath';
+  const V8 = '1.0.0';
+  const BASE8 = 'https://r2/david_goliath/v1/';
+  const GLOBAL8 = 'https://r2/content-manifest.json';
+  const KINDS8 = ['scene'];
+  const ARQ8 = [
+    { kind: 'scene', path: 'scenes/01.webp', text: 'P8-CENA-UM' },
+    { kind: 'scene', path: 'scenes/02.webp', text: 'P8-CENA-DOIS' },
+  ];
+  const ARGS8 = () => ({ storyId: S8, globalManifestUrl: GLOBAL8, appVersion: '1.0.0', requestedKinds: [...KINDS8] });
+  const REG8 = ['clearStoryPackInstall', 'getStoryPackInstallSnapshot', 'beginInstall', 'reportInstall',
+    'settleReady', 'settleError', 'isCurrentOperation', 'getRevocationGeneration', 'isFlightRevoked',
+    'subscribeStoryPackInstall', 'subscribePackReady', 'INSTALL_PHASES'];
+
+  /** Mundo remoto coerente. `comAncora:false` derruba `canonicalResolvedKey` → rota S4. */
+  const mundoP8 = (h, { comAncora = true } = {}) => {
+    const files = ARQ8.map((f) => ({
+      kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text),
+    }));
+    const manifest = {
+      schemaVersion: 1, id: S8, version: V8, type: 'story', minAppVersion: '1.0.0',
+      totalBytes: files.reduce((a, f) => a + f.bytes, 0), files,
+      metadata: { storyId: S8, title: 'Davi e Golias', language: 'pt-BR' },
+    };
+    const manifestText = JSON.stringify(manifest);
+    const over = { storyId: S8, version: V8, baseUrl: BASE8, mediaKinds: [...KINDS8] };
+    if (comAncora) over.manifestSha256 = h.sha256OfText(manifestText);
+    h.setGlobalManifest({ manifestVersion: 1, minAppVersion: '1.0.0', packs: [h.packEntry(over)] });
+    h.route(`${BASE8}manifest.json`, { text: manifestText });
+    ARQ8.forEach((f) => h.route(BASE8 + f.path, { text: f.text }));
+    return h;
+  };
+
+  /*
+   * Um PROCESSO: registro global + instância do downloader nascem JUNTOS sobre o MESMO disco (`h`).
+   * Chamar `bootP8` de novo com o mesmo `h` é o app fechado e reaberto — zera snapshot, sucessão,
+   * geração de revogação, mapa de voos, fila física e ouvintes; preserva bytes, índice e marcador.
+   * Os contadores espionam o REGISTRO REAL (delegam, não substituem): contam publicações sem
+   * trocar o comportamento observado.
+   */
+  const bootP8 = (h, extra = {}, mut = null) => {
+    // `mut` existe SÓ para os controles negativos: carrega o downloader com o elo do contrato
+    // arrancado. `loadPackDownloader` lança quando a âncora não bate, então um mutante que deixou
+    // de casar com o fonte reprova em vez de silenciosamente virar tautologia.
+    const { createPackDownloadService } = loadDl8(mut || undefined);
+    const registry = loadMod8('src/services/packInstallRegistry.js', {}, REG8);
+    const readys = [];
+    registry.subscribePackReady((s) => readys.push(s));
+    const estados = [];
+    const fases = [];
+    registry.subscribeStoryPackInstall(S8, (s) => { estados.push(s && s.status); fases.push(s && s.phase); });
+    const chamadas = { begin: 0, report: 0, ready: 0, error: 0 };
+    const reg = {
+      ...registry,
+      beginInstall: (...a) => { chamadas.begin += 1; return registry.beginInstall(...a); },
+      reportInstall: (...a) => { chamadas.report += 1; return registry.reportInstall(...a); },
+      settleReady: (...a) => { chamadas.ready += 1; return registry.settleReady(...a); },
+      settleError: (...a) => { chamadas.error += 1; return registry.settleError(...a); },
+    };
+    const svc = createPackDownloadService({
+      ...h.deps, installRegistry: reg, clearPackEntry: h.storage.clearPackEntry, ...extra,
+    });
+    return {
+      registry, reg, svc, readys, estados, fases, chamadas,
+      snap: () => registry.getStoryPackInstallSnapshot(S8),
+      baixar: (over = {}) => svc.downloadStoryPackScenesFromGlobalManifest({ ...ARGS8(), ...over }),
+    };
+  };
+
+  /** Instala pelo caminho normal e depois remove SÓ a entrada do índice: o órfão do bloco C. */
+  const orfanizarP8 = async (h) => {
+    const p0 = bootP8(h);
+    const r = await p0.baixar({ onProgress: () => {} });
+    if (!r || r.ok !== true) throw new Error(`preparo P8 falhou: ${JSON.stringify(r)}`);
+    await h.storage.clearPackEntry(S8);
+    return p0;
+  };
+
+  /** Host mínimo de hooks React (mesma forma do bloco 01F): estado por slot e efeitos manuais. */
+  const hostP8 = () => { const slots = []; let idx = 0; const pending = []; return {
+    useState(init) { const i = idx++; if (slots[i] === undefined) slots[i] = { v: typeof init === 'function' ? init() : init }; const s = slots[i]; return [s.v, (nv) => { s.v = typeof nv === 'function' ? nv(s.v) : nv; }]; },
+    useRef(init) { const i = idx++; if (slots[i] === undefined) slots[i] = { current: init }; return slots[i]; },
+    useCallback(fn) { return fn; },
+    useEffect(effect, deps) { const i = idx++; pending.push({ i, effect, deps }); },
+    _flush() { for (const p of pending.splice(0)) { const prev = slots[p.i]; const ch = !prev || !prev.__e || !p.deps || !prev.deps || p.deps.some((d, k) => d !== prev.deps[k]); if (ch) { if (prev && typeof prev.cleanup === 'function') prev.cleanup(); const rec = { __e: true, deps: p.deps, cleanup: undefined }; slots[p.i] = rec; const c = p.effect(); rec.cleanup = typeof c === 'function' ? c : undefined; } } },
+    _reset() { idx = 0; },
+  }; };
+
+  const carregarHookP8 = (host, registry) => {
+    const saved = process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL;
+    process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL = GLOBAL8;
+    try {
+      return loadMod8('src/hooks/useStoryPackDownload.js', {
+        useCallback: host.useCallback, useRef: host.useRef, useState: host.useState, useEffect: host.useEffect,
+        // packState.ready = FALSE de propósito: a prova é que o registro sozinho já basta.
+        usePacks: () => ({ getStoryPackState: (id) => ({ storyId: id, layer: 'remote', status: 'not_downloaded', ready: false }), refreshPacks: async () => {} }),
+        downloadStoryPackScenesFromGlobalManifest: async () => ({ ok: true }),
+        subscribeStoryPackInstall: registry.subscribeStoryPackInstall,
+        getStoryPackInstallSnapshot: registry.getStoryPackInstallSnapshot,
+      }, ['useStoryPackDownload']);
+    } finally {
+      if (saved === undefined) delete process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL;
+      else process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL = saved;
+    }
+  };
+
+  globalThis.__LP21P8 = (async () => {
+    // ── P8-1 · S1b: manifesto global indisponível + órfão válido no disco ──────────────────────
+    {
+      const h = mkH8(); mundoP8(h);
+      await orfanizarP8(h);
+      const p = bootP8(h);                 // processo NOVO: registro e serviço zerados
+      h.setModoRede('offline');
+      const r = await p.baixar({ onProgress: () => {} });
+      const e = await h.entry(S8);
+      check('LP2.1 B1+B2 P8-1 (S1b · órfão recuperado offline publica READY): ok/recovered no retorno, índice READY e registro terminando em ready',
+        r.ok === true && r.recovered === true && !!e && e.status === 'ready'
+        && p.snap().status === 'ready' && p.chamadas.ready === 1 && p.chamadas.error === 0,
+        `S1b não publicou: ${JSON.stringify({ ok: r.ok, rec: r.recovered, idx: e && e.status, snap: p.snap().status, ch: p.chamadas })}`);
+    }
+
+    // ── P8-2 · quem assinou ANTES da recuperação offline recebe exatamente UM evento global ────
+    {
+      const h = mkH8(); mundoP8(h);
+      await orfanizarP8(h);
+      const p = bootP8(h);                 // `subscribePackReady` já instalado dentro do boot
+      h.setModoRede('offline');
+      await p.baixar({ onProgress: () => {} });
+      check('LP2.1 B1+B2 P8-2 (evento único na recuperação offline): o PacksContext é avisado uma vez — nem zero (índice desatualizado) nem duas (recarga dupla)',
+        p.readys.length === 1 && p.readys[0] && p.readys[0].status === 'ready',
+        `eventos ready inesperados: ${p.readys.length} → ${JSON.stringify(p.readys.map((s) => s && s.status))}`);
+    }
+
+    // ── P8-3 · S1a: pack local já READY e válido na rota offline ───────────────────────────────
+    {
+      const h = mkH8(); mundoP8(h);
+      const p0 = bootP8(h); await p0.baixar({ onProgress: () => {} });   // índice permanece READY
+      const p = bootP8(h);                 // processo NOVO: o snapshot do voo anterior NÃO sobrevive
+      h.setModoRede('offline');
+      const r = await p.baixar({ onProgress: () => {} });
+      check('LP2.1 B1+B2 P8-3 (S1a · READY local reaproveitado offline): recovered=false, snapshot ready e um único evento — sem reinstalar nada',
+        r.ok === true && r.recovered === false && p.snap().status === 'ready'
+        && p.readys.length === 1 && p.chamadas.ready === 1 && p.chamadas.error === 0,
+        `S1a não publicou: ${JSON.stringify({ ok: r.ok, rec: r.recovered, snap: p.snap().status, readys: p.readys.length, ch: p.chamadas })}`);
+    }
+
+    // ── P8-4 · S3: chamador cancelável que NÃO cancela ─────────────────────────────────────────
+    {
+      const h = mkH8(); mundoP8(h);
+      const p = bootP8(h);
+      const r = await p.baixar({ isCancelled: () => false, onProgress: () => {} });
+      const e = await h.entry(S8);
+      check('LP2.1 B1+B2 P8-4 (S3 · cancelável bem-sucedido publica READY): o dono exclusivo do resultado também publica o desfecho da própria operação',
+        r.ok === true && !!e && e.status === 'ready'
+        && p.snap().status === 'ready' && p.chamadas.ready === 1 && p.chamadas.error === 0,
+        `S3 não publicou: ${JSON.stringify({ ok: r.ok, idx: e && e.status, snap: p.snap().status, ch: p.chamadas })}`);
+    }
+
+    // ── P8-5 · S4: identidade sem chave canônica (manifesto global SEM manifestSha256) ─────────
+    /*
+     * `manifestSha256` é OPCIONAL no manifesto global (globalManifestService), então esta rota É
+     * alcançável em produção — mas o hardening-3 do fluxo físico EXIGE a âncora para instalar do
+     * remoto, e o fast-path local exige `anchored` (sha real === âncora resolvida). Sem a âncora,
+     * as duas portas fecham: S4 sempre termina em `ok:false`. O que o usuário sente hoje é o
+     * registro em `idle` — a tela oferece "Baixar" outra vez em vez de mostrar a falha. O ramo de
+     * SUCESSO deste mesmo envelope (S3/S4 compartilham `guardedInstall`) é provado por P8-4.
+     */
+    {
+      const h = mkH8(); mundoP8(h, { comAncora: false });
+      const p = bootP8(h);
+      const r = await p.baixar({ onProgress: () => {} });
+      check('LP2.1 B1+B2 P8-5 (S4 · identidade sem chave canônica publica o desfecho): sem manifestSha256 a instalação é rejeitada pelo hardening-3, e o registro tem de terminar em error — nunca em idle',
+        r.ok === false && /manifestSha256/.test(String(r.reason))
+        && p.snap().status === 'error' && p.chamadas.error === 1 && p.chamadas.ready === 0
+        && p.readys.length === 0 && p.svc.inFlightInstallCount() === 0,
+        `S4 não publicou o desfecho: ${JSON.stringify({ ok: r.ok, reason: r.reason, snap: p.snap().status, ch: p.chamadas })}`);
+    }
+
+    // ── P8-6 · S1: rede indisponível e NADA recuperável ────────────────────────────────────────
+    {
+      const h = mkH8(); mundoP8(h);
+      const p = bootP8(h);
+      h.setModoRede('offline');
+      const r = await p.baixar({ onProgress: () => {} });
+      check('LP2.1 B1+B2 P8-6 (S1 · offline sem nada recuperável termina em erro): o registro não pode ficar em idle nem em ready quando a instalação falhou',
+        r.ok === false && r.networkError === true
+        && p.snap().status === 'error' && p.chamadas.error === 1
+        && p.readys.length === 0 && !p.estados.includes('ready'),
+        `S1 sem recuperação não publicou erro: ${JSON.stringify({ ok: r.ok, snap: p.snap().status, est: p.estados, ch: p.chamadas })}`);
+    }
+
+    // ── P8-7 · S5: dois chamadores concorrentes na MESMA identidade ────────────────────────────
+    {
+      const h = mkH8(); mundoP8(h);
+      const p = bootP8(h);
+      const [rA, rB] = await Promise.all([p.baixar({ onProgress: () => {} }), p.baixar({ onProgress: () => {} })]);
+      check('LP2.1 B1+B2 P8-7 (S5 · joiner não republica): um voo criador, um beginInstall, um evento global — e o joiner recebe a MESMA conclusão',
+        rA === rB && rA.ok === true
+        && p.chamadas.begin === 1 && p.chamadas.ready === 1 && p.readys.length === 1
+        && p.svc.inFlightInstallCount() === 0,
+        `concorrência publicou errado: ${JSON.stringify({ mesmo: rA === rB, ch: p.chamadas, readys: p.readys.length, voos: p.svc.inFlightInstallCount() })}`);
+    }
+
+    // ── P8-8 · revogação entre o início e o settlement (criador S6) ────────────────────────────
+    {
+      const h = mkH8(); mundoP8(h);
+      const p = bootP8(h);
+      h.onBefore = (tipo) => { if (tipo === 'move') p.registry.clearStoryPackInstall(S8); };
+      const r = await p.baixar({ onProgress: () => {} });
+      const e = await h.entry(S8);
+      check('LP2.1 B1+B2 P8-8 (S6 · Reset no meio do voo): revogado antes de publicar → nenhum evento global, nenhum READY no índice e nenhuma ressurreição do snapshot',
+        r.ok === false && p.readys.length === 0
+        && p.snap().status !== 'ready' && !(e && e.status === 'ready'),
+        `o Reset não revogou a publicação: ${JSON.stringify({ ok: r.ok, readys: p.readys.length, snap: p.snap().status, idx: e && e.status })}`);
+    }
+
+    // ── P8-8b · a MESMA cerca de revogação na rota S3 (ETAPA 6) ────────────────────────────────
+    // S4 fica de fora por impossibilidade física, não por conveniência: sem `manifestSha256` o
+    // fluxo aborta no hardening-3 ANTES do swap, então nunca existe publicação a cercar (ver P8-5).
+    {
+      const h = mkH8(); mundoP8(h);
+      const p = bootP8(h);
+      h.onBefore = (tipo) => { if (tipo === 'move') p.registry.clearStoryPackInstall(S8); };
+      const r = await p.baixar({ isCancelled: () => false, onProgress: () => {} });
+      const e = await h.entry(S8);
+      check('LP2.1 B1+B2 P8-8b/S3 (cerca de publicação na rota cancelável): um Reset no meio do voo impede o READY no índice e o evento global, como no criador normal',
+        r.ok === false && r.resetInvalidated === true
+        && p.readys.length === 0 && !(e && e.status === 'ready') && p.snap().status !== 'ready',
+        `a rota S3 publicou apesar do Reset: ${JSON.stringify({ ok: r.ok, reset: r.resetInvalidated, readys: p.readys.length, idx: e && e.status, snap: p.snap().status })}`);
+    }
+
+    // ── P8-9 · o hook deriva "ready" do registro mesmo com packState.ready = false ─────────────
+    {
+      const h = mkH8(); mundoP8(h);
+      const p = bootP8(h);
+      const op = p.registry.beginInstall(S8, { version: V8 });
+      p.registry.settleReady(S8, op, { version: V8, status: 'ready' }, p.registry.getRevocationGeneration(S8));
+      const host = hostP8();
+      const mod = carregarHookP8(host, p.registry);
+      host._reset(); const api1 = mod.useStoryPackDownload(S8); host._flush();
+      host._reset(); const api2 = mod.useStoryPackDownload(S8);
+      check('LP2.1 B1+B2 P8-9 (hook: registro basta): com packState.ready=false e snapshot ready, o uiState é ready no primeiro render e continua ready depois do efeito',
+        api1.uiState === 'ready' && api2.uiState === 'ready'
+        && api1.uiState !== 'not_downloaded' && api2.isReady === true,
+        `uiState errado: ${JSON.stringify({ r1: api1.uiState, r2: api2.uiState, ready: api2.isReady })}`);
+    }
+
+    // ── P8-10 · rota criadora que devolve ok:false não pode terminar em idle ───────────────────
+    {
+      const h = mkH8(); mundoP8(h);                            // rota S3 (cancelável), download quebrado
+      h.route(`${BASE8}scenes/02.webp`, { throws: 'rede caiu no meio do lote' });
+      const p = bootP8(h);
+      const r = await p.baixar({ isCancelled: () => false, onProgress: () => {} });
+      check('LP2.1 B1+B2 P8-10 (rota criadora com ok:false): falha física publica erro, não deixa voo pendurado e não vira ready',
+        r.ok === false && p.snap().status === 'error'
+        && p.chamadas.error === 1 && p.chamadas.ready === 0
+        && p.readys.length === 0 && p.svc.inFlightInstallCount() === 0,
+        `ok:false não publicou erro: ${JSON.stringify({ ok: r.ok, snap: p.snap().status, ch: p.chamadas, voos: p.svc.inFlightInstallCount() })}`);
+    }
+
+    // ── P8-11 · rota criadora que REJEITA mantém a rejeição e publica erro ─────────────────────
+    {
+      const h = mkH8(); mundoP8(h);
+      await orfanizarP8(h);
+      const p = bootP8(h, { recoverStoryPack: async () => { throw new Error('falha-recovery'); } });
+      h.setModoRede('offline');
+      let rejeitou = false; let msg = '';
+      try { await p.baixar({ onProgress: () => {} }); } catch (err) { rejeitou = true; msg = String((err && err.message) || err); }
+      check('LP2.1 B1+B2 P8-11 (rota criadora que rejeita): a Promise segue rejeitada para o chamador E o registro termina em erro, sem voo sobrando',
+        rejeitou === true && /falha-recovery/.test(msg)
+        && p.snap().status === 'error' && p.chamadas.error === 1 && p.chamadas.ready === 0
+        && p.readys.length === 0 && p.svc.inFlightInstallCount() === 0,
+        `rejeição mal tratada: ${JSON.stringify({ rejeitou, msg, snap: p.snap().status, ch: p.chamadas })}`);
+    }
+
+    // ── P8-12 · nenhuma rota bem-sucedida publica MAIS DE UMA VEZ ──────────────────────────────
+    {
+      const rotas = [
+        { nome: 'S6', preparar: async (h) => { mundoP8(h); }, over: {} },
+        { nome: 'S3', preparar: async (h) => { mundoP8(h); }, over: { isCancelled: () => false } },
+        { nome: 'S1a', preparar: async (h) => { mundoP8(h); const p0 = bootP8(h); await p0.baixar({ onProgress: () => {} }); h.setModoRede('offline'); }, over: {} },
+        { nome: 'S1b', preparar: async (h) => { mundoP8(h); await orfanizarP8(h); h.setModoRede('offline'); }, over: {} },
+      ];   // S4 fora: não alcança ok:true (hardening-3) — seu desfecho é provado em P8-5.
+      const fora = [];
+      for (const rota of rotas) {
+        const h = mkH8(); await rota.preparar(h);
+        const p = bootP8(h);
+        const r = await p.baixar({ ...rota.over, onProgress: () => {} });
+        if (!(r && r.ok === true && p.chamadas.ready === 1 && p.readys.length === 1
+          && p.chamadas.error === 0 && p.svc.inFlightInstallCount() === 0)) {
+          fora.push({ rota: rota.nome, ok: r && r.ok, ch: p.chamadas, readys: p.readys.length, voos: p.svc.inFlightInstallCount() });
+        }
+      }
+      check('LP2.1 B1+B2 P8-12 (uma publicação por operação): as quatro rotas que alcançam sucesso publicam ready exatamente uma vez, sem erro e sem voo pendurado',
+        fora.length === 0,
+        `rotas com publicação errada: ${JSON.stringify(fora)}`);
+    }
+
+    // ── P8-13 · DUAS rotas criadoras DIFERENTES da MESMA história, concorrentes ────────────────
+    /*
+     * Achado da revisão adversarial (ALVO 11). Antes do B1 havia UM dono do eixo visual por
+     * história (o criador S6). O envelope deu `beginInstall` a mais três rotas — e elas o chamavam
+     * ANTES de adquirir a fila física. Uma segunda chamada pública que caía no offline (a rede caiu
+     * no meio do voo) abria uma operação NOVA, superava a do S6 em andamento e:
+     *   1. engolia todo o `reportInstall` do S6 (stale-guard) — barra parada em 0%;
+     *   2. falhava (nada recuperável ainda) e gravava `error` como operação CORRENTE;
+     *   3. o S6 concluía e o `settleReady` dele caía no ramo SUPERADO — avisa o PacksContext, mas
+     *      NÃO conserta a tela.
+     * Resultado: pack íntegro no disco, índice READY, e a tela oferecendo "Tentar de novo" para
+     * sempre (o snapshot é global e sobrevive ao unmount).
+     *
+     * O cenário é físico, não sintético: a 2ª chamada entra num checkpoint REAL do fluxo (o `move`),
+     * com o S6 segurando a corrente da história.
+     */
+    {
+      const h = mkH8(); mundoP8(h);
+      const p = bootP8(h);
+      let segunda = null; let beginsDuranteOVoo = -1; let faseDuranteOVoo = null;
+      h.onBefore = async (tipo) => {
+        if (tipo !== 'move' || segunda) return;
+        h.setModoRede('offline');                          // a rede cai com o voo do S6 em andamento
+        segunda = p.baixar({ onProgress: () => {} });      // 2ª chamada pública → rota OFFLINE
+        segunda.catch(() => {});
+        // Sem `await segunda`: a rota offline espera a MESMA corrente que este checkpoint segura —
+        // aguardá-la aqui seria deadlock. O laço é INCONDICIONAL de propósito: dá à 2ª rota todo o
+        // espaço de microtasks para agir, para que "não invadiu" signifique isso mesmo, e não
+        // "o teste não esperou o suficiente".
+        for (let i = 0; i < 300; i++) await Promise.resolve();
+        beginsDuranteOVoo = p.chamadas.begin;   // 1 = respeitou a fila · 2 = superou o voo em andamento
+        faseDuranteOVoo = p.snap().phase;       // tem de continuar sendo a fase do voo do S6
+      };
+      const rA = await p.baixar({ onProgress: () => {} });
+      const rB = await segunda;
+      const e = await h.entry(S8);
+      check('LP2.1 B1+B2 P8-13 (rota criadora não invade voo alheio): com o S6 segurando a corrente física da história, a rota offline não abre operação nem zera a fase/progresso da tela',
+        beginsDuranteOVoo === 1 && faseDuranteOVoo === 'verifying'
+        && rA.ok === true && rB.ok === true && !!e && e.status === 'ready'
+        && p.snap().status === 'ready' && p.estados[p.estados.length - 1] === 'ready',
+        `colisão entre rotas criadoras: ${JSON.stringify({ beginsDuranteOVoo, faseDuranteOVoo, okA: rA.ok, okB: rB && rB.ok, idx: e && e.status, snap: p.snap().status, est: p.estados })}`);
+    }
+
+    // ── P8-14 · toda fase publicada pelas rotas novas pertence ao vocabulário oficial ──────────
+    // `INSTALL_PHASES` é "documentação executável" do registro, mas NADA validava contra ela: o
+    // envelope podia inventar uma fase e qualquer `switch (phase)` da tela cairia no default.
+    {
+      const h = mkH8(); mundoP8(h); await orfanizarP8(h);
+      const p = bootP8(h);
+      h.setModoRede('offline');
+      await p.baixar({ onProgress: () => {} });
+      const oficiais = p.registry.INSTALL_PHASES;
+      const forasteiras = p.fases.filter((f) => f != null && !oficiais.includes(f));
+      check('LP2.1 B1+B2 P8-14 (fases dentro do vocabulário): a rota offline não publica fase fora de INSTALL_PHASES',
+        Array.isArray(oficiais) && oficiais.length > 0 && forasteiras.length === 0,
+        `fases fora do vocabulário: ${JSON.stringify({ forasteiras, vistas: p.fases, oficiais })}`);
+    }
+
+    // ── P8 NEG · o envelope B1 é load-bearing (controles negativos) ────────────────────────────
+    /*
+     * Um verde só vale se ficaria vermelho com o código errado. Cada mutante abaixo arranca UM elo
+     * do contrato novo e o cenário correspondente TEM de reprovar. `loadPackDownloader` lança
+     * quando a âncora não bate no fonte, então um mutante desatualizado vira falha explícita — e
+     * nunca um verde vazio (a armadilha do `String.replace` que não casa e vira no-op silencioso).
+     */
+    {
+      const negP8 = async (titulo, cenario, reprova) => {
+        let r = null; let erro = '';
+        try { r = await cenario(); } catch (e) { erro = String((e && e.message) || e); }
+        check(titulo, erro === '' && reprova(r) === true,
+          erro ? `o mutante lançou: ${erro}` : `o mutante NÃO reprovou: ${JSON.stringify(r)}`);
+      };
+
+      // NEG-1 · sem o settlement da rota offline, S1b volta ao bug original: pack no disco, tela em branco.
+      await negP8('LP2.1 B1+B2 P8 NEG-1 (a publicação offline é load-bearing): sem `settleCreatorOperation`, S1b recupera o pack e o registro não avisa ninguém',
+        async () => {
+          const h = mkH8(); mundoP8(h); await orfanizarP8(h);
+          const p = bootP8(h, {}, (s) => s.replace(
+            '    return settleCreatorOperation(op, installOfflineBestEffort(params));',
+            '    return installOfflineBestEffort(params);'));
+          h.setModoRede('offline');
+          const r = await p.baixar({ onProgress: () => {} });
+          return { ok: r.ok, rec: r.recovered, snap: p.snap().status, readys: p.readys.length, ch: p.chamadas };
+        },
+        (r) => r.ok === true && r.snap !== 'ready' && r.readys === 0 && r.ch.ready === 0);
+
+      // NEG-2 · a rota cancelável sem envelope volta a instalar em silêncio (o bug que P8-4 fixa).
+      await negP8('LP2.1 B1+B2 P8 NEG-2 (a publicação do dono exclusivo é load-bearing): voltando a `guardedInstall`, S3 termina bem-sucedida com o registro em idle',
+        async () => {
+          const h = mkH8(); mundoP8(h);
+          const p = bootP8(h, {}, (s) => s.replace(
+            "  if (typeof (params && params.isCancelled) === 'function') return guardedInstallPublishing(resolved, params);",
+            "  if (typeof (params && params.isCancelled) === 'function') return guardedInstall(resolved, params);"));
+          const r = await p.baixar({ isCancelled: () => false, onProgress: () => {} });
+          return { ok: r.ok, snap: p.snap().status, readys: p.readys.length, ch: p.chamadas };
+        },
+        (r) => r.ok === true && r.snap === 'idle' && r.readys === 0 && r.ch.begin === 0 && r.ch.ready === 0);
+
+      // NEG-3 · sem a cerca da ETAPA 6, um Reset no meio do voo de S3 ainda deixa READY no índice.
+      await negP8('LP2.1 B1+B2 P8 NEG-3 (a cerca de revogação de S3 é load-bearing): autorizando sempre, o Reset deixa de invalidar a publicação',
+        async () => {
+          const h = mkH8(); mundoP8(h);
+          const p = bootP8(h, {}, (s) => s.replace(
+            "      isAuthorizedToPublish: () => !(op.reg && op.gen != null && typeof op.reg.isFlightRevoked === 'function' && op.reg.isFlightRevoked(op.storyId, op.gen)),",
+            '      isAuthorizedToPublish: () => true,'));
+          h.onBefore = (tipo) => { if (tipo === 'move') p.registry.clearStoryPackInstall(S8); };
+          const r = await p.baixar({ isCancelled: () => false, onProgress: () => {} });
+          const e = await h.entry(S8);
+          return { ok: r.ok, reset: r.resetInvalidated, idx: e && e.status };
+        },
+        (r) => r.ok === true && r.reset !== true && r.idx === 'ready');
+
+      // NEG-4 · publicar sem olhar `res.ok` transformaria toda falha em ready (P8-6/P8-10/P8-11).
+      await negP8('LP2.1 B1+B2 P8 NEG-4 (o envelope distingue sucesso de falha): ignorando `res.ok`, o offline sem recuperação publicaria ready',
+        async () => {
+          const h = mkH8(); mundoP8(h);
+          const p = bootP8(h, {}, (s) => s.replace(
+            '      if (res && res.ok) op.reg.settleReady(op.storyId, op.opId, res.entry, op.gen);',
+            '      if (true) op.reg.settleReady(op.storyId, op.opId, res.entry, op.gen);'));
+          h.setModoRede('offline');
+          const r = await p.baixar({ onProgress: () => {} });
+          return { ok: r.ok, snap: p.snap().status, ch: p.chamadas };
+        },
+        (r) => r.ok === false && r.ch.error === 0 && r.ch.ready === 1);
+
+      // NEG-5 · a rede de proteção dos próprios controles: âncora inexistente TEM de lançar.
+      {
+        let lancou = false;
+        try { bootP8(mkH8(), {}, (s) => s.replace('âncora que não existe em lugar nenhum do downloader', 'x')); }
+        catch (_) { lancou = true; }
+        check('LP2.1 B1+B2 P8 ANTITAUTOLOGIA: uma âncora inexistente reprova em vez de carregar o módulo íntegro',
+          lancou === true, 'mutação sem efeito passaria despercebida — os NEG acima não provariam nada');
+      }
+    }
+  })();
+  globalThis.__LP21P8.catch(() => {});
 }
 
 
@@ -33153,6 +33721,12 @@ try {
   check('LP2.1 G6 (harness): o bloco assíncrono do chamador cancelável com voo compartilhado concluiu sem estourar',
     !lp21g6Err,
     `o bloco G6 lançou (${lp21g6Err && lp21g6Err.stack ? String(lp21g6Err.stack).split('\n').slice(0, 4).join(' | ') : lp21g6Err}) — os checks dele não rodaram`);
+
+  let lp21p8Err = null;
+  try { await globalThis.__LP21P8; } catch (e) { lp21p8Err = e; }
+  check('LP2.1 B1+B2 P8 (harness): o bloco assíncrono da publicação READY em todas as rotas criadoras concluiu sem estourar',
+    !lp21p8Err,
+    `o bloco P8 lançou (${lp21p8Err && lp21p8Err.stack ? String(lp21p8Err.stack).split('\n').slice(0, 4).join(' | ') : lp21p8Err}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
