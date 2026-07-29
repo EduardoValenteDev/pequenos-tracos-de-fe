@@ -10367,6 +10367,502 @@ console.log('\n── LP2.1a-ii-C-DEVICE-TOOLS1: Laboratório de Recovery (dev) 
 }
 
 
+console.log('\n── LP2.1a-ii §10.8 · P7: Recovery REAL exercitado pelo preflight PÚBLICO ──');
+{
+  /*
+   * O que este bloco prova (e o que ele NÃO prova):
+   *
+   *   PROVA — que a ferramenta DEV do §10.8 (a) instala um pack pelo downloader PÚBLICO, (b) cria o
+   *   órfão exato do bloco C removendo SÓ a entrada do índice, (c) chama de novo o MESMO downloader
+   *   público e (d) só aprova quando o retorno traz `recovered:true` SEM nenhum evento de download.
+   *
+   *   NÃO PROVA — o §10.8 em si. Isto é o PREPARO: a execução física no aparelho continua pendente.
+   *
+   * Doubles só de fronteira (disco, rede, índice, gate). Marcador, integridade, identidade, recovery
+   * e o downloader entram REAIS — carregados do fonte pelo harness.
+   */
+  const { createPackInstallHarness, loadPackDownloader, loadModule } = require('./testing/packInstallHarness');
+  const labSrcP7 = readSrc('src/services/recoveryLabDevService.js');
+  const telaSrcP7 = readSrc('src/screens/PackSandboxDevScreen.js');
+  const navSrcP7 = readSrc('src/navigation/AppNavigator.js');
+
+  const P7_STORY = 'david_goliath';
+  const P7_V = '1.0.0';
+  const P7_BASE = 'https://r2/david_goliath/v1/';
+  const P7_GLOBAL = 'https://r2/content-manifest.json';
+  const P7_KINDS = ['cover', 'scene', 'coloring', 'audio'];
+  const P7_MK = '.ptf-publish.json';
+  const P7_ARQ = [
+    { kind: 'cover', path: 'cover.webp', text: 'P7-COVER' },
+    { kind: 'scene', path: 'scenes/01.webp', text: 'P7-CENA-UM' },
+    { kind: 'scene', path: 'scenes/02.webp', text: 'P7-CENA-DOIS' },
+    { kind: 'coloring', path: 'coloring/01.webp', text: 'P7-COLORIR' },
+    { kind: 'audio', path: 'audio/01.mp3', text: 'P7-AUDIO' },
+  ];
+  const P7_ARGS = { storyId: P7_STORY, globalManifestUrl: P7_GLOBAL, appVersion: '1.0.0' };
+  const P7_DIR = (v = P7_V) => `file:///doc/packs/${P7_STORY}@${v}/`;
+
+  /** Mundo remoto coerente: manifesto do pack, rotas dos 5 arquivos e manifesto global com âncora real. */
+  const montarMundoP7 = (h, { arquivos = P7_ARQ, version = P7_V, comAncora = true, mediaKinds = P7_KINDS } = {}) => {
+    const files = arquivos.map((f) => ({
+      kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text),
+    }));
+    const manifest = {
+      schemaVersion: 1, id: P7_STORY, version, type: 'story', minAppVersion: '1.0.0',
+      totalBytes: files.reduce((a, f) => a + f.bytes, 0), files,
+      metadata: { storyId: P7_STORY, title: 'Davi e Golias', language: 'pt-BR' },
+    };
+    const manifestText = JSON.stringify(manifest);
+    const over = { storyId: P7_STORY, version, baseUrl: P7_BASE, mediaKinds };
+    if (comAncora) over.manifestSha256 = h.sha256OfText(manifestText);
+    h.setGlobalManifest({ manifestVersion: 1, minAppVersion: '1.0.0', packs: [h.packEntry(over)] });
+    h.route(`${P7_BASE}manifest.json`, { text: manifestText });
+    arquivos.forEach((f) => h.route(P7_BASE + f.path, { text: f.text }));
+    return { manifestText };
+  };
+
+  /**
+   * Monta o laboratório REAL sobre o harness. Três contadores separam os três caminhos possíveis
+   * até o recovery — é o que torna falsificável a exigência "a prova principal passa pelo
+   * downloader PÚBLICO":
+   *   • downloaderPublico       — chamadas do laboratório ao downloader público
+   *   • recoveryDireto          — chamadas do LABORATÓRIO a recoverStoryPack (tem de ser 0 no P7)
+   *   • recoveryPeloDownloader  — chamadas do DOWNLOADER a recoverStoryPack (o preflight de produção)
+   */
+  const carregarP7 = ({ semGate = false, semCampoRecovered = false } = {}) => {
+    const h = createPackInstallHarness();
+    const { createPackDownloadService } = loadPackDownloader();
+    const registry = loadModule('src/services/packInstallRegistry.js', {},
+      ['clearStoryPackInstall', 'getStoryPackInstallSnapshot', 'beginInstall', 'reportInstall',
+        'settleReady', 'settleError', 'isCurrentOperation', 'getRevocationGeneration', 'isFlightRevoked',
+        'subscribeStoryPackInstall', 'subscribePackReady', 'INSTALL_PHASES']);
+    const contadores = { downloaderPublico: 0, recoveryDireto: 0, recoveryPeloDownloader: 0 };
+    const svc = createPackDownloadService({
+      ...h.deps,
+      recoverStoryPack: (p) => { contadores.recoveryPeloDownloader += 1; return h.deps.recoverStoryPack(p); },
+      installRegistry: registry,
+      clearPackEntry: h.storage.clearPackEntry,
+    });
+    const mk = loadModule('src/services/packPublishMarker.js', {},
+      ['buildPublishMarker', 'MARKER_FILENAME', 'selectStoryPackDirs', 'validatePublishMarker']);
+    const montarLab = (labMutate) => loadModule('src/services/recoveryLabDevService.js', {
+      FileSystem: h.mem.FileSystem,
+      getPackLocalDir: h.storage.getPackLocalDir, getPackTempDir: h.storage.getPackTempDir,
+      getPackIndex: h.storage.getPackIndex, setPackEntry: h.storage.setPackEntry,
+      getPackEntry: h.storage.getPackEntry, clearPackEntry: h.storage.clearPackEntry,
+      PACK_STATUS: h.storage.PACK_STATUS,
+      buildPublishMarker: mk.buildPublishMarker, MARKER_FILENAME: mk.MARKER_FILENAME,
+      selectStoryPackDirs: mk.selectStoryPackDirs, validatePublishMarker: mk.validatePublishMarker,
+      validatePackManifest: h.deps.validatePackManifest, computeFileSha256: h.deps.computeFileSha256,
+      recoverStoryPack: (p) => { contadores.recoveryDireto += 1; return h.deps.recoverStoryPack(p); },
+      clearStoryPackInstall: registry.clearStoryPackInstall,
+      getStoryPackInstallSnapshot: registry.getStoryPackInstallSnapshot,
+      downloadStoryPackScenesFromGlobalManifest: async (p) => {
+        contadores.downloaderPublico += 1;
+        const r = await svc.downloadStoryPackScenesFromGlobalManifest(p);
+        // `semCampoRecovered` simula um retorno público que NÃO expõe `recovered` (controle N07).
+        if (semCampoRecovered && r && typeof r === 'object') { const c = { ...r }; delete c.recovered; return c; }
+        return r;
+      },
+      inFlightInstallCount: () => svc.inFlightInstallCount(),
+      fetchGlobalContentManifest: h.deps.fetchGlobalContentManifest,
+      getPackFromGlobalManifest: h.deps.getPackFromGlobalManifest,
+      isPackSandboxDevEnabled: () => !semGate,
+      warn: () => {},
+    }, ['isRecoveryLabEnabled', 'REAL_RECOVERY_KINDS', 'P7_VERDICTS', 'validateRealRecoveryTarget',
+      'prepareRealOrphan', 'inspectRealOrphan', 'exerciseRealPreflight', 'cleanupRealRecoveryTest',
+      'buildRealRecoveryDiagnostic', 'applyRecoveryLabPreset', 'inspectRecoveryState'], labMutate);
+    // `remontar` = o app fechado e reaberto: o MÓDULO nasce de novo (estado em memória zerado),
+    // o disco e o índice permanecem. É a única forma honesta de provar sobrevivência ao restart.
+    return { h, svc, registry, contadores, montarLab, lab: montarLab() };
+  };
+
+  const prepararP7 = async (ctx, mundo) => { montarMundoP7(ctx.h, mundo); return ctx.lab.prepareRealOrphan(P7_ARGS); };
+
+  // ── ESTÁTICOS ─────────────────────────────────────────────────────────────────────────────────
+  // Recorta a seção P7 do serviço: as regras abaixo valem só para ela (P1–P6 podem chamar o recovery).
+  const secaoP7 = labSrcP7.slice(Math.max(0, labSrcP7.indexOf('P7 · RECOVERY REAL VIA PREFLIGHT')));
+  check('§10.8 P7-E1 (caminho público): a seção P7 chama o downloader PÚBLICO e NUNCA recoverStoryPack direto',
+    secaoP7.length > 2000
+    && /downloadStoryPackScenesFromGlobalManifest\(\{/.test(secaoP7)
+    && !/recoverStoryPack\s*\(/.test(secaoP7)
+    && /import \{ downloadStoryPackScenesFromGlobalManifest, inFlightInstallCount \} from '\.\/packDownloadService'/.test(labSrcP7),
+    'a seção P7 não usa o downloader público, ou chama recoverStoryPack diretamente (a prova principal perderia o valor)');
+  check('§10.8 P7-E2 (sem segredo): a seção P7 não embute token/segredo e publica a baseUrl SEM query string',
+    !/(sk-|secret|token|password|api[_-]?key|Bearer\s)/i.test(secaoP7)
+    && !/https?:\/\/[^\s'"]*(amazonaws|r2\.cloudflarestorage|token=)/i.test(secaoP7)
+    && /function baseUrlPublica\(u\)/.test(secaoP7) && /baseUrl: base,/.test(secaoP7),
+    'possível segredo na seção P7, ou a baseUrl é exibida com query string');
+  check('§10.8 P7-E3 (gate DEV): as 5 ações do P7 são gated e a tela só existe sob o gate; nenhuma rota nova em produção',
+    (secaoP7.match(/isRecoveryLabEnabled\(\)/g) || []).length >= 5
+    && /P7 · Recovery real via preflight/.test(telaSrcP7)
+    && ['Validar alvo', 'Preparar órfão real', 'Inspecionar órfão', 'Exercitar preflight real', 'Limpar teste']
+      .every((b) => telaSrcP7.includes(`>${b}<`))
+    && /const enabled = isPackSandboxDevEnabled\(\);/.test(telaSrcP7)
+    && /if \(!enabled\) \{/.test(telaSrcP7)
+    && (navSrcP7.match(/name="PackSandboxDev"/g) || []).length === 1
+    && /devPacksEnabled/.test(navSrcP7),
+    'o P7 não está integralmente gated, faltam controles visíveis, ou uma rota nova foi aberta');
+
+  globalThis.__P7_LAB = (async () => {
+    // ── PROVAS POSITIVAS P7-01…P7-20 ────────────────────────────────────────────────────────────
+
+    // P7-01 — alvo real NÃO instalado é aceito (identidade e âncora resolvidas do manifesto global)
+    {
+      const ctx = carregarP7(); montarMundoP7(ctx.h);
+      const v = await ctx.lab.validateRealRecoveryTarget(P7_ARGS);
+      check('§10.8 P7-01 (alvo livre aceito): história real ainda não instalada é aprovada, com versão, âncora e kinds resolvidos',
+        v.ok === true && v.problemas.length === 0 && v.identidade.version === P7_V
+        && /^[a-f0-9]{64}$/.test(String(v.identidade.manifestSha256))
+        && JSON.stringify(v.identidade.requestedKinds) === JSON.stringify(P7_KINDS),
+        `alvo livre recusado: ${JSON.stringify(v.problemas || v.reason)}`);
+    }
+
+    // P7-02 — alvo JÁ instalado é bloqueado (não destrói instalação do proprietário)
+    {
+      const ctx = carregarP7(); montarMundoP7(ctx.h);
+      ctx.h.seedInstalledPack({ storyId: P7_STORY, version: P7_V, files: P7_ARQ });
+      const v = await ctx.lab.validateRealRecoveryTarget(P7_ARGS);
+      check('§10.8 P7-02 (alvo instalado bloqueado): com entrada READY e diretório no disco, a preparação é recusada antes de tocar em qualquer byte',
+        v.ok === false && v.verdict === 'TARGET_NOT_SAFE'
+        && v.problemas.some((p) => /já instalada/.test(p)) && v.problemas.some((p) => /diretório final/.test(p)),
+        `alvo instalado não foi bloqueado: ${JSON.stringify(v)}`);
+    }
+
+    // P7-03 — a instalação de preparação passa pelo downloader público e termina READY
+    {
+      const ctx = carregarP7(); const p = await prepararP7(ctx);
+      check('§10.8 P7-03 (preparação instala de verdade): o pack real é instalado pelo downloader público e o índice fica READY ANTES da órfanização',
+        p.indexReadyAposInstalar === true && ctx.contadores.downloaderPublico === 1
+        && p.installEvents.includes('downloading') && p.installEvents[p.installEvents.length - 1] === 'ready',
+        `preparação não instalou pelo caminho público: ${JSON.stringify({ idx: p.indexReadyAposInstalar, ev: p.installEvents, n: ctx.contadores.downloaderPublico })}`);
+    }
+
+    // P7-04 — a preparação remove SOMENTE o índice
+    {
+      const ctx = carregarP7(); const p = await prepararP7(ctx);
+      const idx = await ctx.h.index();
+      check('§10.8 P7-04 (só o índice some): depois da preparação não há entrada no índice, e o diretório final continua no disco',
+        p.ok === true && p.orphanPrepared === true && p.indexReady === false
+        && !idx[P7_STORY] && p.localDirExists === true && ctx.h.mem.exists(P7_DIR()),
+        `órfão não é o estado do bloco C: ${JSON.stringify({ ok: p.ok, idx: !!idx[P7_STORY], dir: p.localDirExists, reason: p.reason })}`);
+    }
+
+    // P7-05 — o localDir permanece intacto (todos os arquivos do manifesto continuam lá)
+    {
+      const ctx = carregarP7(); const p = await prepararP7(ctx);
+      const noDisco = ctx.h.mem.listFiles(P7_DIR());
+      check('§10.8 P7-05 (conteúdo intacto): os 5 arquivos do manifesto, o manifest.json e o marcador continuam no diretório final',
+        p.fileCount === P7_ARQ.length && p.baseline.missing.length === 0
+        && noDisco.includes(`${P7_DIR()}manifest.json`) && noDisco.includes(P7_DIR() + P7_MK)
+        && P7_ARQ.every((f) => noDisco.includes(P7_DIR() + f.path)),
+        `conteúdo perdido na órfanização: ${p.fileCount} arquivos, faltando ${JSON.stringify(p.baseline.missing)}`);
+    }
+
+    // P7-06 — o marcador permanece VÁLIDO contra a âncora real (é o elo que o preflight exige)
+    {
+      const ctx = carregarP7(); const p = await prepararP7(ctx);
+      check('§10.8 P7-06 (marcador válido): o .ptf-publish.json sobrevive e continua validando contra o manifesto e os kinds pedidos',
+        p.markerValid === true && p.baseline.markerErrors.length === 0
+        && p.baseline.manifestSha256 === p.identidade.manifestSha256,
+        `marcador inválido após a órfanização: ${JSON.stringify(p.baseline.markerErrors)}`);
+    }
+
+    // P7-07 — hashes iguais antes/depois da órfanização
+    {
+      const ctx = carregarP7(); const p = await prepararP7(ctx);
+      check('§10.8 P7-07 (nenhum byte alterado): sha256 de cada arquivo, do manifesto e do marcador continuam idênticos após remover o índice',
+        p.filesUnchanged === true && p.totalBytes === P7_ARQ.reduce((a, f) => a + Buffer.byteLength(f.text), 0),
+        `hashes mudaram na órfanização: ${JSON.stringify({ unchanged: p.filesUnchanged, bytes: p.totalBytes })}`);
+    }
+
+    // P7-08 — o órfão sobrevive ao FECHAR/REABRIR (o laboratório é remontado do zero)
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      const lab2 = ctx.montarLab();                       // módulo novo = app reaberto
+      const st = await lab2.inspectRealOrphan({ storyId: P7_STORY });
+      check('§10.8 P7-08 (sobrevive ao restart): remontado o laboratório, o estado da preparação e o órfão continuam lá, com hashes conferindo',
+        st.temEstadoP7 === true && st.verdict === 'READY_FOR_RESTART'
+        && st.indexEntry === null && st.localDirExists === true && st.markerValid === true && st.filesUnchanged === true,
+        `o órfão não sobreviveu à remontagem: ${JSON.stringify({ e: st.temEstadoP7, v: st.verdict, i: st.indexEntry, u: st.filesUnchanged })}`);
+    }
+
+    // P7-09 — a prova principal passa pelo downloader PÚBLICO; o laboratório nunca chama o recovery
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      const lab2 = ctx.montarLab();
+      const pf = await lab2.exerciseRealPreflight(P7_ARGS);
+      check('§10.8 P7-09 (preflight público): o recovery é alcançado POR DENTRO do downloader público — o laboratório não chama recoverStoryPack nenhuma vez',
+        ctx.contadores.downloaderPublico === 2 && ctx.contadores.recoveryDireto === 0
+        && ctx.contadores.recoveryPeloDownloader === 1 && pf.ok === true,
+        `caminho errado até o recovery: ${JSON.stringify(ctx.contadores)}`);
+    }
+
+    // P7-10 — o retorno PÚBLICO indica `recovered`
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      const pf = await ctx.montarLab().exerciseRealPreflight(P7_ARGS);
+      check('§10.8 P7-10 (campo recovered): o retorno público traz recovered=true e a mesma versão — sem inferência indireta',
+        pf.recovered === true && pf.resultado.recovered === true && pf.resultado.ok === true
+        && pf.resultado.version === P7_V && pf.criterios.mesmaVersao === true,
+        `retorno público não indicou recovery: ${JSON.stringify(pf.resultado)}`);
+    }
+
+    // P7-11 / P7-12 — nenhum evento de download e nenhum evento de verificação de novo download
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      const antes = ctx.h.counters.downloads;
+      const pf = await ctx.montarLab().exerciseRealPreflight(P7_ARGS);
+      check('§10.8 P7-11 (sem novo download): o preflight de recovery não emite um único evento downloading e não baixa nenhum arquivo',
+        pf.criterios.semDownloading === true && !pf.statuses.includes('downloading')
+        && ctx.h.counters.downloads === antes,
+        `houve redownload: eventos=${JSON.stringify(pf.statuses)} downloads=${ctx.h.counters.downloads - antes}`);
+      check('§10.8 P7-12 (sem verificação de novo download): a sequência de progresso do recovery é exatamente um ready, sem verifying',
+        pf.criterios.semVerifying === true && JSON.stringify(pf.statuses) === JSON.stringify(['ready']),
+        `sequência inesperada: ${JSON.stringify(pf.statuses)}`);
+    }
+
+    // P7-13 / P7-14 — índice e registro terminam READY, sem operação pendurada
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      const pf = await ctx.montarLab().exerciseRealPreflight(P7_ARGS);
+      check('§10.8 P7-13 (índice final READY): a entrada volta ao índice com status ready na MESMA versão preparada',
+        pf.entryFinal && pf.entryFinal.status === 'ready' && pf.entryFinal.version === P7_V
+        && pf.criterios.indiceFinalReady === true,
+        `índice final inesperado: ${JSON.stringify(pf.entryFinal)}`);
+      check('§10.8 P7-14 (registro final READY): o registro observável termina em ready e nenhuma instalação fica eternamente em voo',
+        pf.registrySnapshot && pf.registrySnapshot.status === 'ready'
+        && pf.criterios.registroFinalReady === true && pf.criterios.nenhumaOperacaoAtiva === true,
+        `registro/voo inconsistentes: ${JSON.stringify({ snap: pf.registrySnapshot, voo: pf.criterios.nenhumaOperacaoAtiva })}`);
+    }
+
+    // P7-15 / P7-16 — hashes idênticos depois do preflight e nenhuma segunda instalação em .tmp
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      const pf = await ctx.montarLab().exerciseRealPreflight(P7_ARGS);
+      check('§10.8 P7-15 (bytes preservados no recovery): nenhum arquivo é recriado — mesma lista, mesmos bytes e mesmos sha256 antes e depois',
+        pf.criterios.nenhumArquivoRecriado === true && pf.criterios.hashesIdenticos === true
+        && pf.criterios.marcadorValido === true,
+        `o recovery mexeu nos bytes: ${JSON.stringify(pf.reprovados)}`);
+      check('§10.8 P7-16 (sem segunda instalação): o diretório .tmp da versão não recebe nada durante o recovery',
+        pf.criterios.tempSemSegundaInstalacao === true && pf.tempDepois.exists === false
+        && ctx.h.mem.listFiles('file:///doc/packs/').every((u) => !u.includes('.tmp')),
+        `sobrou instalação paralela em .tmp: ${JSON.stringify(pf.tempDepois)}`);
+    }
+
+    // P7-17 — a limpeza remove APENAS o alvo
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      const dirNoah = ctx.h.seedInstalledPack({ storyId: 'noah', version: '1.0.0', files: [{ path: 'scenes/01.webp', text: 'NOAH-INTOCADO' }] });
+      const c = await ctx.lab.cleanupRealRecoveryTest({ storyId: P7_STORY });
+      const idx = await ctx.h.index();
+      check('§10.8 P7-17 (limpeza isolada): some o índice, o diretório e o estado do alvo; a outra história permanece READY e com os arquivos no disco',
+        c.ok === true && c.verdict === 'CLEANED' && !idx[P7_STORY] && !ctx.h.mem.exists(P7_DIR())
+        && idx.noah && idx.noah.status === 'ready' && ctx.h.mem.exists(`${dirNoah}scenes/01.webp`),
+        `a limpeza vazou ou não limpou: ${JSON.stringify({ c, alvo: !!idx[P7_STORY], noah: idx.noah && idx.noah.status })}`);
+    }
+
+    // P7-18 — a limpeza é idempotente
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      const c1 = await ctx.lab.cleanupRealRecoveryTest({ storyId: P7_STORY });
+      const c2 = await ctx.lab.cleanupRealRecoveryTest({ storyId: P7_STORY });
+      const st = await ctx.montarLab().inspectRealOrphan({ storyId: P7_STORY });
+      check('§10.8 P7-18 (limpeza idempotente): rodar duas vezes não lança nem falha; o estado final é CLEANED',
+        c1.ok === true && c2.ok === true && c2.estadoRemovido === false
+        && st.verdict === 'CLEANED' && st.temEstadoP7 === false,
+        `limpeza não é idempotente: ${JSON.stringify({ c1: c1.ok, c2: c2.ok, st: st.verdict })}`);
+    }
+
+    // P7-19 — com o gate DESLIGADO nada opera e nada é escrito
+    {
+      const ctx = carregarP7({ semGate: true }); montarMundoP7(ctx.h);
+      const r = {
+        v: await ctx.lab.validateRealRecoveryTarget(P7_ARGS),
+        p: await ctx.lab.prepareRealOrphan(P7_ARGS),
+        i: await ctx.lab.inspectRealOrphan({ storyId: P7_STORY }),
+        e: await ctx.lab.exerciseRealPreflight(P7_ARGS),
+        c: await ctx.lab.cleanupRealRecoveryTest({ storyId: P7_STORY }),
+      };
+      const idx = await ctx.h.index();
+      check('§10.8 P7-19 (gate desligado): as 5 ações retornam cedo, nada é gravado no disco nem no índice, e o downloader nunca é chamado',
+        ctx.lab.isRecoveryLabEnabled() === false
+        && Object.values(r).every((x) => x.enabled === false)
+        && ctx.contadores.downloaderPublico === 0 && ctx.contadores.recoveryDireto === 0
+        && ctx.h.mem.listFiles('file:///doc/').length === 0 && Object.keys(idx).length === 0,
+        `o gate desligado não impediu a operação: ${JSON.stringify(r)}`);
+    }
+
+    // P7-20 — o modo real recusa cobaia sintética (as histórias de P1–P6 e qualquer estado semeado à mão)
+    {
+      const ctx = carregarP7(); montarMundoP7(ctx.h);
+      const vSint = await ctx.lab.validateRealRecoveryTarget({ ...P7_ARGS, storyId: 'recovery_lab' });
+      await ctx.lab.applyRecoveryLabPreset('P1', { storyId: P7_STORY, version: P7_V });   // estado SINTÉTICO
+      const vSemeado = await ctx.lab.validateRealRecoveryTarget(P7_ARGS);
+      check('§10.8 P7-20 (nada de mídia sintética): o storyId do laboratório é recusado, e um estado semeado à mão bloqueia a preparação real',
+        vSint.ok === false && vSint.problemas.some((p) => /sintético/.test(p))
+        && vSemeado.ok === false && vSemeado.problemas.some((p) => /diretório final|índice já tem entrada/.test(p)),
+        `o modo real aceitou conteúdo sintético: ${JSON.stringify({ sint: vSint.problemas, semeado: vSemeado.problemas })}`);
+    }
+
+    // ── CONTROLES NEGATIVOS N01…N10 (mutantes e cenários adversos) ──────────────────────────────
+    // Todos os mutantes passam por `loadModule(..., mutate)`, que LANÇA se a âncora não existir:
+    // uma âncora obsoleta nunca é contada como mutante morto (antitautologia embutida).
+
+    // N01 — apagar o localDir ao preparar deve REPROVAR
+    {
+      const ctx = carregarP7();
+      const labMut = ctx.montarLab((src) => src.replace(
+        '  // 5) Confirmação do estado órfão.',
+        '  await FileSystem.deleteAsync(getPackLocalDir(storyId, version), { idempotent: true });\n  // 5) Confirmação do estado órfão.',
+      ));
+      montarMundoP7(ctx.h);
+      const p = await labMut.prepareRealOrphan(P7_ARGS);
+      check('§10.8 P7-N01 (mutante: apagar o conteúdo ao preparar): a preparação que remove o localDir NÃO é aceita como órfão',
+        p.ok === false && p.orphanPrepared === false && p.localDirExists === false,
+        'apagar o diretório na preparação passou como órfão válido — a prova do bloco C seria falsa');
+    }
+
+    // N02 — chamar o recovery direto (em vez do downloader público) deve REPROVAR a prova principal
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      const labMut = ctx.montarLab((src) => src.replace(
+        '  const resultado = await downloadStoryPackScenesFromGlobalManifest({',
+        '  const __atalho = async (p) => { const r = await recoverStoryPack({ storyId: p.storyId, requestedKinds: p.requestedKinds, appVersion: p.appVersion, expectedVersion: version }); return { ok: r.recovered === true, recovered: r.recovered === true, version: r.version, entry: r.entry, totalBytes: r.totalBytes }; };\n  const resultado = await __atalho({',
+      ));
+      const pf = await labMut.exerciseRealPreflight(P7_ARGS);
+      check('§10.8 P7-N02 (mutante: atalho pelo recovery direto): trocar o downloader público por recoverStoryPack quebra o invariante do caminho, mesmo com recovered=true',
+        pf.recovered === true && ctx.contadores.recoveryDireto === 1
+        && ctx.contadores.downloaderPublico === 1 && ctx.contadores.recoveryPeloDownloader === 0,
+        `o atalho não foi detectado: ${JSON.stringify(ctx.contadores)}`);
+    }
+
+    // N03 — aceitar alvo já instalado deve REPROVAR
+    {
+      const ctx = carregarP7(); montarMundoP7(ctx.h);
+      // índice READY SEM diretório: isola a checagem do índice da checagem de diretório.
+      ctx.h.seedOrphanPack({ storyId: P7_STORY, version: P7_V, files: [], indexEntry: { status: 'ready', localDir: P7_DIR() } });
+      const vReal = await ctx.lab.validateRealRecoveryTarget(P7_ARGS);
+      const labMut = ctx.montarLab((src) => src.replace('  if (entryAtual) {', '  if (false) {'));
+      const vMut = await labMut.validateRealRecoveryTarget(P7_ARGS);
+      check('§10.8 P7-N03 (mutante: ignorar entrada existente): sem a checagem do índice o alvo instalado passaria — com ela, é bloqueado',
+        vReal.ok === false && vReal.problemas.some((p) => /já instalada/.test(p)) && vMut.ok === true,
+        `a checagem de alvo instalado não é o que bloqueia: real=${vReal.ok} mutante=${vMut.ok}`);
+    }
+
+    // N04 — órfão SEM marcador deve REPROVAR (e o preflight cai para download completo)
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      await ctx.h.mem.FileSystem.deleteAsync(P7_DIR() + P7_MK);
+      const lab2 = ctx.montarLab();
+      const st = await lab2.inspectRealOrphan({ storyId: P7_STORY });
+      const pf = await lab2.exerciseRealPreflight(P7_ARGS);
+      check('§10.8 P7-N04 (sem marcador): sem o .ptf-publish.json o órfão não é reconhecido — a inspeção reprova e o preflight NÃO recupera',
+        st.markerValid === false && st.verdict !== 'READY_FOR_RESTART'
+        && pf.ok === false && pf.criterios.recuperado === false && pf.reprovados.includes('recuperado'),
+        `a ausência de marcador não reprovou: ${JSON.stringify({ mk: st.markerValid, v: st.verdict, rep: pf.reprovados })}`);
+    }
+
+    // N05 — alterar um byte depois da preparação deve REPROVAR
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      ctx.h.mem._write(`${P7_DIR()}scenes/01.webp`, 'BYTE-TROCADO');
+      const pf = await ctx.montarLab().exerciseRealPreflight(P7_ARGS);
+      check('§10.8 P7-N05 (byte alterado): um arquivo corrompido depois da preparação impede o recovery e reprova a prova principal',
+        pf.ok === false && pf.criterios.recuperado === false
+        && (pf.reprovados.includes('recuperado') && pf.reprovados.includes('semDownloading')),
+        `a corrupção passou despercebida: ${JSON.stringify(pf.reprovados)}`);
+    }
+
+    // N06 — se houver redownload, o veredito TEM de reprovar (a checagem de evento é load-bearing)
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      await ctx.h.mem.FileSystem.deleteAsync(P7_DIR() + P7_MK);          // força o caminho de download
+      const pfReal = await ctx.montarLab().exerciseRealPreflight(P7_ARGS);
+      const ctx2 = carregarP7(); await prepararP7(ctx2);
+      await ctx2.h.mem.FileSystem.deleteAsync(P7_DIR() + P7_MK);
+      const labMut = ctx2.montarLab((src) => src.replace(
+        'semDownloading: !statuses.includes(PACK_STATUS.DOWNLOADING),', 'semDownloading: true,',
+      ));
+      const pfMut = await labMut.exerciseRealPreflight(P7_ARGS);
+      check('§10.8 P7-N06 (mutante: critério de downloading neutralizado): o veredito real reprova pelo evento downloading; o mutante deixa de reprová-lo',
+        pfReal.statuses.includes('downloading') && pfReal.reprovados.includes('semDownloading')
+        && !pfMut.reprovados.includes('semDownloading'),
+        `o critério semDownloading não é derivado dos eventos reais: ${JSON.stringify({ real: pfReal.reprovados, mut: pfMut.reprovados })}`);
+    }
+
+    // N07 — retorno público SEM o campo `recovered` deve REPROVAR (não inferir por outro caminho)
+    {
+      const ctx = carregarP7({ semCampoRecovered: true }); await prepararP7(ctx);
+      const pf = await ctx.montarLab().exerciseRealPreflight(P7_ARGS);
+      check('§10.8 P7-N07 (sem o campo recovered): se o retorno público não expõe recovered, a prova reprova em vez de inferir por outro sinal',
+        pf.ok === false && pf.recovered === false && pf.reprovados.includes('recuperado')
+        && pf.criterios.indiceFinalReady === true && pf.criterios.semDownloading === true,
+        `a ausência de recovered foi contornada: ${JSON.stringify({ ok: pf.ok, rep: pf.reprovados })}`);
+    }
+
+    // N08 — limpeza que alcança outra história deve REPROVAR
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      const dirNoah = ctx.h.seedInstalledPack({ storyId: 'noah', version: '1.0.0', files: [{ path: 'scenes/01.webp', text: 'NOAH-INTOCADO' }] });
+      const labMut = ctx.montarLab((src) => src.replace(
+        '    const ld = getPackLocalDir(storyId, v);\n    const td = getPackTempDir(storyId, v);',
+        '    const ld = getPackLocalDir(storyId, v).replace(/[^/]+@[^/]+\\/$/, \'\');\n    const td = getPackTempDir(storyId, v);',
+      ));
+      await labMut.cleanupRealRecoveryTest({ storyId: P7_STORY });
+      const idx = await ctx.h.index();
+      check('§10.8 P7-N08 (mutante: limpeza ampla): apagar o diretório-raiz de packs destrói a outra história — é isso que a limpeza restrita impede',
+        ctx.h.mem.exists(`${dirNoah}scenes/01.webp`) === false && idx.noah && idx.noah.status === 'ready',
+        'o mutante da limpeza ampla não destruiu a outra história — a prova P7-17 não estaria provando isolamento');
+    }
+
+    // N09 — requestedKinds incompletos na preparação devem REPROVAR
+    {
+      const ctx = carregarP7(); montarMundoP7(ctx.h);
+      const labMut = ctx.montarLab((src) => src.replace(
+        "export const REAL_RECOVERY_KINDS = ['cover', 'scene', 'coloring', 'audio'];",
+        "export const REAL_RECOVERY_KINDS = ['scene'];",
+      ));
+      const p = await labMut.prepareRealOrphan(P7_ARGS);
+      check('§10.8 P7-N09 (mutante: kinds incompletos): preparar só com scene deixa mídias do manifesto ausentes e a preparação recusa o órfão',
+        p.ok === false && p.orphanPrepared === false
+        && /incompleta/.test(String(p.reason)) && p.baseline.missing.length === 3,
+        `kinds incompletos passaram: ${JSON.stringify({ ok: p.ok, reason: p.reason, missing: p.baseline && p.baseline.missing })}`);
+    }
+
+    // N10 — gate ausente deve REPROVAR (o gate é o que impede o uso fora de DEV)
+    {
+      const ctx = carregarP7({ semGate: true }); montarMundoP7(ctx.h);
+      const labMut = ctx.montarLab((src) => src.replace('return isPackSandboxDevEnabled();', 'return true;'));
+      const vMut = await labMut.validateRealRecoveryTarget(P7_ARGS);
+      const vReal = await ctx.lab.validateRealRecoveryTarget(P7_ARGS);
+      check('§10.8 P7-N10 (mutante: gate neutralizado): sem o gate a ferramenta operaria com o sandbox desligado — com ele, retorna enabled:false',
+        vReal.enabled === false && vMut.enabled === true && vMut.ok === true,
+        `o gate não é o que bloqueia: real=${JSON.stringify(vReal)} mutante=${JSON.stringify(vMut && vMut.enabled)}`);
+    }
+
+    // Painel: função PURA de exibição, sem I/O — 20 campos e nenhum conteúdo de arquivo.
+    {
+      const ctx = carregarP7(); const p = await prepararP7(ctx);
+      const lab2 = ctx.montarLab();
+      const st = await lab2.inspectRealOrphan({ storyId: P7_STORY });
+      const pf = await lab2.exerciseRealPreflight(P7_ARGS);
+      const d = lab2.buildRealRecoveryDiagnostic({ target: null, prepare: p, inspect: st, preflight: pf, cleanup: null });
+      const txt = JSON.stringify(d);
+      check('§10.8 P7-21 (painel de diagnóstico): o JSON traz identidade, hashes antes/depois, eventos, recovered e veredito — e nenhum conteúdo de arquivo',
+        d.storyId === P7_STORY && d.version === P7_V && typeof d.resolvedInstallKey === 'string'
+        && d.baseUrl === P7_BASE && d.requestedKinds.length === 4 && d.recovered === true
+        && d.orphanPrepared === true && d.verdict === 'RECOVERY_APPROVED'
+        && Object.keys(d.hashesBefore).length === 5 && Object.keys(d.hashesAfter).length === 5
+        && d.markerValidBefore === true && d.markerValidAfter === true
+        && !P7_ARQ.some((f) => txt.includes(f.text)) && !/token|secret|Bearer/i.test(txt),
+        `painel incompleto ou vazando conteúdo: ${JSON.stringify({ v: d.verdict, rec: d.recovered, hb: d.hashesBefore && Object.keys(d.hashesBefore).length })}`);
+    }
+  })();
+  globalThis.__P7_LAB.catch(() => {});
+}
+
+
 console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida ──');
 {
   const { createPackInstallHarness, loadPackDownloader, loadModule } = require('./testing/packInstallHarness');
@@ -32417,6 +32913,14 @@ try {
   check('LP2.1a-ii-C-DEVICE-TOOLS1 (harness): o bloco assíncrono do Laboratório de Recovery concluiu sem estourar',
     !recoveryLabErr,
     `o bloco do laboratório lançou (${recoveryLabErr && recoveryLabErr.stack ? String(recoveryLabErr.stack).split('\n').slice(0, 3).join(' | ') : recoveryLabErr}) — os checks dele não rodaram`);
+
+  // §10.8 P7 — as provas do recovery real são assíncronas. Um estouro aqui apagaria 21 checks
+  // silenciosamente; a rede de segurança tem de ser explícita, como nos blocos acima.
+  let p7Err = null;
+  try { await globalThis.__P7_LAB; } catch (e) { p7Err = e; }
+  check('§10.8 P7 (harness): o bloco assíncrono do Recovery real via preflight concluiu sem estourar',
+    !p7Err,
+    `o bloco P7 lançou (${p7Err && p7Err.stack ? String(p7Err.stack).split('\n').slice(0, 3).join(' | ') : p7Err}) — os checks dele não rodaram`);
 
   // LP2.1a-ii-D1 — as provas da lacuna de identidade resolvida são assíncronas; o bloco NÃO pode
   // estourar (as provas principais são vermelhas por asserção, não por exceção). Um estouro sumiria

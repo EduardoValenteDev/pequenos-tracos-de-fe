@@ -28,6 +28,14 @@ import {
   inspectRecoveryState,
   runRecoveryReal,
   cleanupRecoveryLab,
+  // §10.8 (P7) — recovery REAL exercitado pelo downloader PÚBLICO, com pack e bytes de verdade.
+  REAL_RECOVERY_KINDS,
+  validateRealRecoveryTarget,
+  prepareRealOrphan,
+  inspectRealOrphan,
+  exerciseRealPreflight,
+  cleanupRealRecoveryTest,
+  buildRealRecoveryDiagnostic,
 } from '../services/recoveryLabDevService';
 
 // baseUrl padrão (dev): pode vir de env; editável na tela. Nunca em produção (duplo gate).
@@ -64,6 +72,14 @@ export default function PackSandboxDevScreen({ navigation }) {
   const [labMsg, setLabMsg] = useState('');
   const [labState, setLabState] = useState(null); // inspeção estruturada por história
   const [labRun, setLabRun] = useState(null);     // resultado do recovery REAL (antes/depois)
+  // §10.8 (P7) — recovery real via preflight: história REAL, sem valor padrão (o alvo é escolhido a dedo).
+  const [p7StoryId, setP7StoryId] = useState('');
+  const [p7Msg, setP7Msg] = useState('');
+  const [p7Target, setP7Target] = useState(null);
+  const [p7Prepare, setP7Prepare] = useState(null);
+  const [p7Inspect, setP7Inspect] = useState(null);
+  const [p7Preflight, setP7Preflight] = useState(null);
+  const [p7Cleanup, setP7Cleanup] = useState(null);
   const enabled = isPackSandboxDevEnabled();
 
   // F2.4e.2pR — guardas de concorrência/ciclo de vida:
@@ -205,6 +221,71 @@ export default function PackSandboxDevScreen({ navigation }) {
     safeSet(setLabState, st.enabled ? st : null); safeSet(setLabRun, null);
     safeSet(setLabMsg, r.ok ? `Limpo: ${(r.limpos || []).join(', ')}` : `Limpeza falhou: ${r.reason}`);
   }), [runExclusive, safeSet, labIds, refreshPacks]);
+
+  // ── §10.8 · P7 — recovery real via preflight ────────────────────────────────────────────────
+  // Todas as ações passam pelo mesmo runExclusive (uma por vez) e usam a URL do manifesto global
+  // já editável acima. O storyId aqui é de uma história REAL — o serviço recusa cobaia sintética.
+  const p7Args = useCallback(
+    () => ({ storyId: p7StoryId.trim(), globalManifestUrl: globalUrl.trim(), appVersion: '1.0.0' }),
+    [p7StoryId, globalUrl],
+  );
+
+  const onP7Validate = useCallback(() => runExclusive(async () => {
+    safeSet(setP7Msg, 'Validando alvo real…');
+    safeSet(setP7Prepare, null); safeSet(setP7Preflight, null); safeSet(setP7Cleanup, null);
+    const r = await validateRealRecoveryTarget(p7Args());
+    safeSet(setP7Target, r);
+    safeSet(setP7Msg, r.ok
+      ? `Alvo seguro: ${r.identidade.storyId}@${r.identidade.version} · kinds ${REAL_RECOVERY_KINDS.join('+')}`
+      : `Alvo NÃO seguro: ${(r.problemas || [r.reason]).join(' · ')}`);
+  }), [runExclusive, safeSet, p7Args]);
+
+  const onP7Prepare = useCallback(() => runExclusive(async () => {
+    safeSet(setP7Msg, 'Instalando pack real e criando o órfão (pode demorar)…');
+    safeSet(setP7Preflight, null); safeSet(setP7Cleanup, null);
+    const r = await prepareRealOrphan(p7Args());
+    safeSet(setP7Prepare, r);
+    await refreshPacks();
+    const st = await inspectRealOrphan({ storyId: p7StoryId.trim() });
+    safeSet(setP7Inspect, st.enabled ? st : null);
+    safeSet(setP7Msg, r.ok
+      ? `Órfão pronto (${r.fileCount} arquivos · ${r.totalBytes} bytes). ${r.instrucao}`
+      : `Preparação falhou: ${r.reason || (r.problemas || []).join(' · ')}`);
+  }), [runExclusive, safeSet, p7Args, p7StoryId, refreshPacks]);
+
+  const onP7Inspect = useCallback(() => runExclusive(async () => {
+    safeSet(setP7Msg, 'Inspecionando órfão…');
+    const st = await inspectRealOrphan({ storyId: p7StoryId.trim() });
+    safeSet(setP7Inspect, st.enabled ? st : null);
+    safeSet(setP7Msg, st.enabled
+      ? `${st.verdict} · índice ${st.indexEntry ? `${st.indexEntry.status}@${st.indexEntry.version}` : 'ausente'} · disco ${st.localDirExists ? 'presente' : 'ausente'} · marcador ${st.markerValid ? 'válido' : 'inválido'}`
+      : 'gate desligado');
+  }), [runExclusive, safeSet, p7StoryId]);
+
+  const onP7Preflight = useCallback(() => runExclusive(async () => {
+    safeSet(setP7Msg, 'Chamando o downloader PÚBLICO (preflight real)…');
+    const r = await exerciseRealPreflight(p7Args());
+    safeSet(setP7Preflight, r);
+    await refreshPacks();
+    const st = await inspectRealOrphan({ storyId: p7StoryId.trim() });
+    safeSet(setP7Inspect, st.enabled ? st : null);
+    safeSet(setP7Msg, r.ok
+      ? `RECOVERY_APPROVED · recovered=${String(r.recovered)} · eventos: ${r.statuses.join(', ') || '—'}`
+      : `RECOVERY_REPROVED · ${(r.reprovados || []).join(', ') || r.reason || 'sem detalhe'}`);
+  }), [runExclusive, safeSet, p7Args, p7StoryId, refreshPacks]);
+
+  const onP7Cleanup = useCallback(() => runExclusive(async () => {
+    safeSet(setP7Msg, 'Limpando o estado de teste…');
+    const r = await cleanupRealRecoveryTest({ storyId: p7StoryId.trim() });
+    safeSet(setP7Cleanup, r);
+    await refreshPacks();
+    const st = await inspectRealOrphan({ storyId: p7StoryId.trim() });
+    safeSet(setP7Inspect, st.enabled ? st : null);
+    safeSet(setP7Target, null); safeSet(setP7Prepare, null); safeSet(setP7Preflight, null);
+    safeSet(setP7Msg, r.ok
+      ? `Limpo (${(r.versoesLimpas || []).join(', ') || 'nada a remover'}) — só ${p7StoryId.trim()} foi tocado.`
+      : `Limpeza incompleta: ${r.reason || (r.restos || []).join(', ')}`);
+  }), [runExclusive, safeSet, p7StoryId, refreshPacks]);
 
   if (!enabled) {
     return (
@@ -409,6 +490,45 @@ export default function PackSandboxDevScreen({ navigation }) {
             />
           </>
         )}
+      </View>
+
+      {/* §10.8 (P7) — recovery REAL via preflight público. Instala um pack de verdade, órfaniza SÓ o
+          índice e chama de novo o downloader público: a prova é `recovered=true` SEM downloading/verifying. */}
+      <View style={styles.card}>
+        <Text style={styles.title}>🧷 P7 · Recovery real via preflight</Text>
+        <Text style={styles.warn}>Usa uma história REAL do manifesto global. Instala pelo downloader público, remove só a entrada do índice (nenhum byte é apagado) e depois chama o MESMO downloader — o preflight de produção é quem aciona o recovery.</Text>
+        <Text style={styles.k}>storyId real (precisa existir no manifesto global e ainda NÃO estar instalado)</Text>
+        <TextInput style={styles.input} value={p7StoryId} onChangeText={setP7StoryId} autoCapitalize="none" placeholder="ex.: noe_arca" placeholderTextColor="#6A6A78" />
+        <Text style={styles.help}>Manifesto global: usa o mesmo campo editável acima. Kinds exigidos: {REAL_RECOVERY_KINDS.join(', ')}.</Text>
+        <View style={styles.btnRow}>
+          <TouchableOpacity style={[styles.btn, styles.btnVerify]} onPress={onP7Validate} disabled={busy}><Text style={styles.btnTxt}>Validar alvo</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btn, styles.btnSeed]} onPress={onP7Prepare} disabled={busy}><Text style={styles.btnTxt}>Preparar órfão real</Text></TouchableOpacity>
+        </View>
+        <View style={styles.btnRow}>
+          <TouchableOpacity style={[styles.btn, styles.btnRefresh]} onPress={onP7Inspect} disabled={busy}><Text style={styles.btnTxt}>Inspecionar órfão</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btn, styles.btnGeneric]} onPress={onP7Preflight} disabled={busy}><Text style={styles.btnTxt}>Exercitar preflight real</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btn, styles.btnReset]} onPress={onP7Cleanup} disabled={busy}><Text style={styles.btnTxt}>Limpar teste</Text></TouchableOpacity>
+        </View>
+        {!!p7Msg && <Text style={styles.msg}>{p7Msg}</Text>}
+        {p7Prepare && p7Prepare.ok && (
+          <Text style={styles.k}>órfão: índice <Text style={styles.ok}>removido</Text> · disco <Text style={styles.ok}>intacto</Text> · hashes <Text style={p7Prepare.filesUnchanged ? styles.ok : styles.no}>{p7Prepare.filesUnchanged ? 'iguais' : 'DIVERGENTES'}</Text></Text>
+        )}
+        {p7Preflight && p7Preflight.criterios && Object.keys(p7Preflight.criterios).map((k) => (
+          <Text key={k} style={styles.k}>{k}: <Text style={p7Preflight.criterios[k] ? styles.ok : styles.no}>{p7Preflight.criterios[k] ? 'ok' : 'FALHOU'}</Text></Text>
+        ))}
+        {(p7Target || p7Prepare || p7Inspect || p7Preflight || p7Cleanup) && (
+          <>
+            <Text style={styles.k}>Diagnóstico P7 (selecione para copiar — sem credenciais, sem conteúdo de arquivo):</Text>
+            <TextInput
+              style={[styles.input, { minHeight: 120 }]}
+              value={JSON.stringify(buildRealRecoveryDiagnostic({
+                target: p7Target, prepare: p7Prepare, inspect: p7Inspect, preflight: p7Preflight, cleanup: p7Cleanup,
+              }), null, 1)}
+              multiline editable={false} selectTextOnFocus
+            />
+          </>
+        )}
+        <Text style={styles.help}>Ordem no device: Validar alvo → Preparar órfão real → FECHAR e REABRIR o app → Inspecionar órfão → Exercitar preflight real → abrir a história → Limpar teste.</Text>
       </View>
 
       <View style={styles.card}>
