@@ -1,13 +1,44 @@
 # Plan — LP2.1a-ii-C: recuperação de instalação interrompida entre o `move` e o `READY`
 
-> **Feature:** `012-loading-performance-foundation` · **Cobre APENAS o bloco `LP2.1a-ii-C`.** D, E e F têm planos próprios, não iniciados.
-> **Etapa SDD:** 4 (Plan) — **CONCLUÍDO**. **🚦 Portão Humano 2: PENDENTE.**
+> **Feature:** `012-loading-performance-foundation` · **Cobre APENAS o bloco `LP2.1a-ii-C`.** D, E e F têm planos próprios, não iniciados. *(Frase de 2026-07-16 — **superada**: D, E e F foram implementados sem plano próprio versionado. Ver a reconciliação abaixo.)*
+> **Etapa SDD:** 4 (Plan) — **CONCLUÍDO**. **🚦 Portão Humano 2: PENDENTE.** *(Frase de 2026-07-16 — **superada**: aprovado em 2026-07-16, §20.)*
 > **Branch:** `fix/loading-performance-foundation` · **HEAD na conclusão:** `5213688` · Spec: [spec.md](./spec.md) (Portão 1 APROVADO em 2026-07-16).
 > **Risco:** S1 (conteúdo pago íntegro no disco, inacessível).
 >
 > **Decisões humanas de 2026-07-16 incorporadas:** AB-2 (C cobre C1+C2; `readDirectoryAsync` só em descoberta direcionada), AB-3 (recovery **sob demanda**), direção arquitetural (**Alternativa C — marcador de publicação validada**).
 >
 > **Nenhum código foi escrito. Nenhum arquivo candidato foi tocado.**
+
+> ### 🔄 Reconciliação documental — 2026-07-28
+>
+> Feita na **ETAPA 2 do bloco “Auditoria integrada de concorrência”** (spec §10.7, **em execução**).
+>
+> As linhas acima descrevem o plano **no momento em que foi escrito** (2026-07-16, HEAD `5213688`) e ficam preservadas.
+> **O que mudou desde então:** o **🚦 Portão Humano 2 foi APROVADO** pelo Eduardo em 2026-07-16 e o bloco C foi **implementado** — `82362e6` (2026-07-16) e `0e049f9` (2026-07-17), com as provas de `0d3ee57`, `0b009d1`, `16cba03`, `3b9b2d8`, `4907f3a`, `9a5251f` e `d26330b`, mais o laboratório de device `4ebe639`. Os arquivos previstos na §12 **existem** hoje: `src/services/packPublishMarker.js` e `src/services/packRecoveryService.js`.
+> **Este plano cobre apenas o bloco C.** D, E e F foram implementados depois (`090a928`, `d5a46c1`, `6cf799c`) **sem plano próprio versionado** — dívida documental registrada aqui e no §4.1 da spec.
+> **Estado consolidado da trilha: [spec.md §4.1](./spec.md).**
+>
+> **Nota de composição (2026-07-28):** a auditoria integrada do §10.7 provou que o recovery deste
+> plano convive com um defeito **fora** do bloco C — **G1**, no cruzamento entre identidade
+> resolvida (D) e registro global por `storyId` (01F). Confirmado em `fddd1f0` e corrigido em
+> **`bcfde07`**, com cenários **G1-A a G1-F**, **8 controles negativos** e smoke **3078/3078**.
+> Nada deste plano foi alterado por aquele corretivo: `packRecoveryService.js` e
+> `packPublishMarker.js` seguem **intactos**. **Nenhuma validação física nova** foi realizada —
+> o **§10.8 (iPhone) continua PENDENTE** e o **§10.7 continua EM EXECUÇÃO** (G2–G6 pendentes).
+> A limpeza de diretórios de versões superadas permanece **fora do escopo**.
+>
+> **Fechamento da matriz (2026-07-28):** o §10.7 terminou. Além do **G1**, a auditoria encontrou um
+> segundo defeito **também fora do bloco C** — **G4**, no `PacksContext`: dois `READY` globais
+> concorrentes cujas leituras do índice concluem em ordem invertida faziam uma história **sumir** do
+> estado React (o disco ficava correto). Corrigido em **`746c1f3`**, com **8 controles negativos** e
+> antitautologia. **G2, G3, G5 e G6 foram aprovados.** O **G2** é o que toca este plano diretamente:
+> provou que o **recovery de órfão** convive com consumidores já inscritos e com o registro global sem
+> perder progresso, sem duplicar trabalho físico e sem publicar duas vezes.
+>
+> **Nada deste plano foi alterado por nenhum dos dois corretivos** — `packRecoveryService.js` e
+> `packPublishMarker.js` continuam **intactos**. Smoke final **3231/3231, 0 falhas**.
+> **§10.7 CONCLUÍDO · §10.8 (iPhone) PENDENTE.** As provas são **comportamentais em harness**: nenhum
+> dos interleavings foi observado em dispositivo, e a validação física do recovery segue em aberto.
 
 ---
 
@@ -333,7 +364,9 @@ solicitação do pack da história (storyId)
 
 ---
 
-## 12. Arquivos e funções candidatos (**nenhum tocado**)
+## 12. Arquivos e funções candidatos (**nenhum tocado** *— em 2026-07-16*)
+
+> **[RECONCILIADO 2026-07-28]** Todos foram tocados na implementação do bloco C (`82362e6`, `0e049f9`). `src/services/packPublishMarker.js` e `src/services/packRecoveryService.js` **existem**. `packStorageService.js` e `packReconcileService.js` **permaneceram intactos**, como o plano exigia.
 
 | Arquivo | Mudança prevista |
 |---|---|
@@ -455,6 +488,10 @@ Identidade resolvida (D) · progresso (E) · cancelamento (F) · política de ca
 
 ---
 
-## 20. 🚦 Portão Humano 2 — PENDENTE
+## 20. 🚦 Portão Humano 2 — APROVADO (2026-07-16)
 
-Este plano está **concluído** e aguarda aprovação. Nada será implementado antes dela.
+Este plano está **concluído**. O Portão Humano 2 foi **aprovado pelo Eduardo em 2026-07-16** e a implementação do bloco C ocorreu em seguida — `82362e6` (2026-07-16) e `0e049f9` (2026-07-17).
+
+> *Texto original, preservado:* "Este plano está **concluído** e aguarda aprovação. Nada será implementado antes dela." — a regra foi cumprida: nenhum código do bloco C existe antes de `82362e6`, que é posterior à aprovação.
+>
+> **Validação em iPhone do bloco C: ainda PENDENTE** (spec §10.8). A aprovação do Portão 2 autorizou a implementação, **não** substitui a validação física.

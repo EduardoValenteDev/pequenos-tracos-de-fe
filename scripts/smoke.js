@@ -14846,6 +14846,1029 @@ console.log('\n── LP2.1 G4: dois READY concorrentes no PacksContext ──')
   globalThis.__LP21G4.catch(() => {});
 }
 
+// ── LP2.1 G5: SAÍDA durante a publicação com participante remanescente (auditoria §10.7) ──────
+// Pergunta da auditoria: quando DOIS participantes (A e B) compartilham o MESMO voo de instalação e
+// A DESMONTA no instante mais delicado — depois do `moveAsync` e ANTES do índice virar READY —, a
+// saída de A remove SOMENTE a observação de A, sem cancelar o voo físico, sem desligar B, sem mexer
+// na identidade nem na geração de revogação, e sem deixar nada eternamente ativo?
+//
+// A composição sob prova é REAL de ponta a ponta: hook `useStoryPackDownload` (dois runtimes de
+// hooks independentes) + `participantSignal` + single-flight por identidade resolvida + fila física
+// + registro global + `PacksProvider` do fonte (JSX transpilado) lendo o MESMO índice. Só disco,
+// rede e log são doubles.
+//
+// PORQUE O CHECKPOINT É `set-entry`: o ÚLTIMO `throwIfCancelled` do fluxo está ANTES do swap
+// (packDownloadService.js:618). Desmontar A no `set-entry` (já depois do move) coloca a saída FORA
+// de qualquer ponto cancelável — é exatamente o instante em que "abortar o observador" não pode ter
+// efeito físico. Para que o controle negativo do cancelamento seja FALSIFICÁVEL, o NEG-1 usa o
+// checkpoint `delete-tmp` (o primeiro `deleteAsync`, ainda dentro da janela cancelável) e tem uma
+// execução REAL no MESMO checkpoint como linha de base.
+console.log('\n── LP2.1 G5: saída durante a publicação ──');
+{
+  const babelG5 = require('@babel/core');
+  const jsxModG5 = require('@babel/plugin-transform-react-jsx');
+  const jsxPluginG5 = jsxModG5 && jsxModG5.default ? jsxModG5.default : jsxModG5;
+  const { createPackInstallHarness: mkHg5, loadPackDownloader: loadDlg5, loadModule: loadModg5 } = require('./testing/packInstallHarness');
+  const REG_EXP_G5 = ['getStoryPackInstallSnapshot', 'subscribeStoryPackInstall', 'subscribePackReady', 'beginInstall',
+    'reportInstall', 'settleReady', 'settleError', 'clearStoryPackInstall', 'isCurrentOperation',
+    'getRevocationGeneration', 'isFlightRevoked', '_debugState'];
+  // Instâncias NOVAS por cenário: registro e serviço são singletons de módulo (mapas/gerações vazariam).
+  const novoRegG5 = (mut) => loadModg5('src/services/packInstallRegistry.js', {}, REG_EXP_G5, mut);
+  const novoSvcG5 = (mut) => loadDlg5(mut).createPackDownloadService;
+  const HOOK_EXP_G5 = ['useStoryPackDownload', 'createHookAbortController'];
+  const carregarHookG5 = (deps, mut) => loadModg5('src/hooks/useStoryPackDownload.js', deps, HOOK_EXP_G5, mut);
+
+  const STORY_G5 = 'david_goliath';
+  const VER_G5 = '5.0.0';
+  const GLOBAL_G5 = 'https://r2/content-manifest.json';
+  const BASE_G5 = `https://r2/${STORY_G5}/${VER_G5}/`;
+  // O hook de produção pede os QUATRO kinds; um manifesto sem algum deles é REPROVADO pelo próprio
+  // fluxo (`missingKind`) e o cenário nem chegaria à publicação.
+  const KINDS_G5 = ['cover', 'scene', 'coloring', 'audio'];
+  const FILES_G5 = [
+    { kind: 'cover', path: 'cover/cover.webp', text: 'G5-CAPA' },
+    { kind: 'scene', path: 'scenes/01.webp', text: 'G5-CENA-UM' },
+    { kind: 'coloring', path: 'coloring/01.webp', text: 'G5-COLORIR' },
+    { kind: 'audio', path: 'audio/01.mp3', text: 'G5-AUDIO' },
+  ];
+  const flushG5 = async (n = 8) => { for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0)); };
+  const indiceG5 = (e) => (e ? `${e.version}:${e.status}` : 'ausente');
+  const manifestoG5 = (h) => {
+    const F = FILES_G5.map((f) => ({ kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text) }));
+    const text = JSON.stringify({ schemaVersion: 1, id: STORY_G5, version: VER_G5, type: 'story', minAppVersion: '1.0.0', totalBytes: F.reduce((a, f) => a + f.bytes, 0), files: F, metadata: { storyId: STORY_G5, title: 'D', language: 'pt-BR' } });
+    return { text, sha: h.sha256OfText(text) };
+  };
+
+  const mesmasDepsG5 = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, k) => Object.is(v, b[k]));
+
+  /**
+   * React mínimo de UMA instância (mesmo desenho do G4): estado com inicializador preguiçoso, memo,
+   * callback, ref e efeito com limpeza, mais laço de render dirigido por setState. É a FRONTEIRA do
+   * framework — o que está sob prova é o hook/provider do fonte, não este runtime.
+   */
+  const mkRuntimeG5 = () => {
+    const hooks = []; const pendentes = [];
+    let i = 0; let sujo = true; let saida = null;
+    let desmontado = false; let escritasPosDesmonte = 0;
+    const R = {
+      createContext: (def) => ({ _def: def, Provider: function Provider(p) { return p; }, Consumer: function Consumer(p) { return p; } }),
+      createElement: (type, props, ...children) => ({ type, props: props || {}, children }),
+      useState: (init) => {
+        const k = i++;
+        if (!hooks[k]) hooks[k] = { v: typeof init === 'function' ? init() : init };
+        const h = hooks[k];
+        return [h.v, (nx) => {
+          if (desmontado) escritasPosDesmonte += 1;   // toda TENTATIVA de escrita após o cleanup conta
+          const nv = typeof nx === 'function' ? nx(h.v) : nx;
+          if (!Object.is(nv, h.v)) { h.v = nv; sujo = true; }
+        }];
+      },
+      useRef: (init) => { const h = hooks[i] || (hooks[i] = { v: { current: init } }); i += 1; return h.v; },
+      useCallback: (fn, deps) => { const h = hooks[i] || (hooks[i] = {}); i += 1; if (!('deps' in h) || !mesmasDepsG5(h.deps, deps)) { h.deps = deps; h.v = fn; } return h.v; },
+      useMemo: (fn, deps) => { const h = hooks[i] || (hooks[i] = {}); i += 1; if (!('deps' in h) || !mesmasDepsG5(h.deps, deps)) { h.deps = deps; h.v = fn(); } return h.v; },
+      useEffect: (fn, deps) => { const h = hooks[i] || (hooks[i] = {}); i += 1; if (!('deps' in h) || !mesmasDepsG5(h.deps, deps)) { h.deps = deps; pendentes.push([h, fn]); } },
+      useContext: (c) => c._def,
+    };
+    const passe = (Comp, props) => {
+      i = 0; sujo = false;
+      saida = Comp(props);
+      for (const [h, fn] of pendentes.splice(0)) {
+        if (typeof h.limpar === 'function') { try { h.limpar(); } catch (_) { /* noop */ } }
+        const c = fn();
+        h.limpar = typeof c === 'function' ? c : null;
+      }
+    };
+    const render = (Comp, props) => { let n = 0; while (sujo && n++ < 60) passe(Comp, props); };
+    return {
+      React: R,
+      montar: render,
+      assentar: async (Comp, props, ticks = 20) => {
+        for (let t = 0; t < ticks; t++) { await new Promise((r) => setTimeout(r, 0)); render(Comp, props); }
+      },
+      api: () => saida,                                       // retorno CRU (hook)
+      valor: () => (saida && saida.props ? saida.props.value : null),   // value do Provider
+      desmontar: () => {
+        hooks.forEach((h) => { if (h && typeof h.limpar === 'function') { try { h.limpar(); } catch (_) { /* noop */ } } });
+        desmontado = true;
+      },
+      escritasPosDesmonte: () => escritasPosDesmonte,
+    };
+  };
+
+  /** Transpila o JSX do PacksContext REAL e devolve uma fábrica que injeta as fronteiras. */
+  const carregarProviderG5 = () => {
+    const jsx = babelG5.transformSync(readSrc('src/context/PacksContext.js'), {
+      babelrc: false, configFile: false, sourceType: 'module', filename: 'PacksContext.js',
+      plugins: [[jsxPluginG5, { runtime: 'classic' }]],
+    }).code;
+    const code = jsx.replace(/^import[\s\S]*?;$/gm, '').replace(/^export /gm, '')
+      + '\n; return { PacksProvider, usePacks };';
+    return (deps) => { const keys = Object.keys(deps); return new Function(...keys, code)(...keys.map((k) => deps[k])); };
+  };
+
+  /**
+   * Fábrica de MUTANTES (nunca toca `src/`): cada par [de, para] precisa achar uma ÂNCORA REAL no
+   * fonte. Âncora ausente LANÇA — um controle negativo que deixou de corresponder ao código não
+   * pode passar por "verde".
+   */
+  const mutG5 = (...pares) => (s) => {
+    let out = s;
+    for (const [de, para] of pares) {
+      const nv = out.replace(de, para);
+      if (nv === out) throw new Error(`G5 mutante: âncora não encontrada → ${String(de).slice(0, 76)}`);
+      out = nv;
+    }
+    return out;
+  };
+
+  // ── Âncoras dos controles negativos (uma por elo REAL da composição) ─────────────────────────
+  const G5_INTERNAL_PARAMS = 'onProgress: (snapshot) => { emitProgress(record, snapshot); __publishRegistry(snapshot); } };';
+  const G5_HANDLER = '  const handler = () => { removeProgressSubscriber(record, id); };';
+  const G5_JOIN_RETURN = '      return existing.promise;   // mesma identidade resolvida, mesma conclusão lógica';
+  const G5_STILL_AUTH = '    if (__stillAuth) {';
+  const G5_MAPA_LIMPO = '  if (inFlightInstalls.get(key) === record) inFlightInstalls.delete(key);';
+  const G5_REPLAY = '  try { listener(getStoryPackInstallSnapshot(storyId)); } catch (_) { /* replay isola */ }';
+  const G5_HOOK_UNSUB = '    return subscribeStoryPackInstall(storyId, (snap) => setInstallSnapshot(snap));';
+  const G5_HOOK_CLEANUP = '      busyRef.current = false;                  // 5) libera o gate para a nova história';
+
+  /**
+   * Interleaving canônico do G5.
+   *   desmontarEm : 'set-entry' (padrão — depois do move, antes do índice READY)
+   *               | 'delete-tmp' (primeiro delete, ainda DENTRO da janela cancelável)
+   *   falha       : rede cai num arquivo → o terminal precisa continuar honesto (erro para B)
+   */
+  const saidaNaPublicacaoG5 = async ({ mutSvc, mutReg, mutHook, desmontarEm = 'set-entry', falha = false } = {}) => {
+    const h = mkHg5();
+    const man = manifestoG5(h);
+    h.route(`${BASE_G5}manifest.json`, { text: man.text });
+    FILES_G5.forEach((f) => h.route(BASE_G5 + f.path, (falha && f.kind === 'audio') ? { throws: 'ECONNRESET' } : { text: f.text }));
+    h.setGlobalManifest({
+      manifestVersion: 1,
+      minAppVersion: '1.0.0',
+      packs: [h.packEntry({ storyId: STORY_G5, version: VER_G5, baseUrl: BASE_G5, manifestSha256: man.sha, mediaKinds: KINDS_G5 })],
+    });
+    h.resetEvents();
+
+    const REG = novoRegG5(mutReg);
+    const readys = [];
+    const pararReadys = REG.subscribePackReady((s) => readys.push((s && s.version) || null));
+    const svc = novoSvcG5(mutSvc)({ ...h.deps, installRegistry: REG, clearPackEntry: h.storage.clearPackEntry });
+
+    // ── PacksContext REAL, sobre o MESMO índice e o MESMO registro do voo ──
+    const reconc = loadModg5('src/services/packReconcileService.js', { PACK_STATUS: h.storage.PACK_STATUS },
+      ['collectPackProbes', 'computeInvalidReadyIds', 'reconcileEntry']);
+    const cm = loadModg5('src/data/contentManifest.js', {}, ['CONTENT_LAYERS', 'getContentLayer']);
+    const rtProv = mkRuntimeG5();
+    const { PacksProvider } = carregarProviderG5()({
+      React: rtProv.React,
+      createContext: rtProv.React.createContext, useCallback: rtProv.React.useCallback, useContext: rtProv.React.useContext,
+      useEffect: rtProv.React.useEffect, useMemo: rtProv.React.useMemo, useRef: rtProv.React.useRef, useState: rtProv.React.useState,
+      FileSystem: h.mem.FileSystem,
+      getPackIndex: h.storage.getPackIndex, getPackLocalDir: h.storage.getPackLocalDir, PACK_STATUS: h.storage.PACK_STATUS,
+      collectPackProbes: reconc.collectPackProbes, computeInvalidReadyIds: reconc.computeInvalidReadyIds, reconcileEntry: reconc.reconcileEntry,
+      getContentLayer: cm.getContentLayer, CONTENT_LAYERS: cm.CONTENT_LAYERS,
+      markOnce: () => {}, subscribePackReady: REG.subscribePackReady, warn: () => {},
+    });
+    const propsProv = { children: 'app' };
+    rtProv.montar(PacksProvider, propsProv);
+    await rtProv.assentar(PacksProvider, propsProv, 10);   // boot: índice vazio, ouvinte de READY montado
+
+    // ── Participantes: o hook REAL, um runtime de hooks por participante ──
+    // A instrumentação é só de OBSERVAÇÃO (conta callbacks, captura o signal e a Promise devolvida);
+    // o que decide qualquer coisa continua sendo o fonte.
+    const reg = {
+      prog: { A: [], B: [] }, snaps: { A: [], B: [] },
+      sinais: {}, promessas: {}, assinaturas: { A: 0, B: 0 }, publico: {},
+    };
+    const montarG5 = (marca) => {
+      const rt = mkRuntimeG5();
+      const { useStoryPackDownload } = carregarHookG5({
+        useCallback: rt.React.useCallback, useEffect: rt.React.useEffect, useRef: rt.React.useRef, useState: rt.React.useState,
+        // `GLOBAL_MANIFEST_URL` é const de MÓDULO lida de process.env: injetar `process` é o que
+        // torna o hook executável fora do bundle (sem isso, download() devolve reason 'config').
+        process: { env: { EXPO_PUBLIC_GLOBAL_MANIFEST_URL: GLOBAL_G5 } },
+        usePacks: () => rtProv.valor() || { getStoryPackState: () => ({ layer: 'remote', ready: false }), refreshPacks: async () => {} },
+        downloadStoryPackScenesFromGlobalManifest: (p) => {
+          reg.sinais[marca] = p && p.participantSignal;
+          const prom = svc.downloadStoryPackScenesFromGlobalManifest({
+            ...p,
+            onProgress: (s) => {
+              reg.prog[marca].push((s && s.status) || 'sem-status');
+              if (typeof p.onProgress === 'function') p.onProgress(s);
+            },
+          });
+          reg.promessas[marca] = prom;
+          return prom;
+        },
+        subscribeStoryPackInstall: (id, fn) => {
+          reg.assinaturas[marca] += 1;
+          const un = REG.subscribeStoryPackInstall(id, (s) => { reg.snaps[marca].push(s && s.status); fn(s); });
+          let feito = false;
+          return () => { if (!feito) { feito = true; reg.assinaturas[marca] -= 1; } un(); };
+        },
+        getStoryPackInstallSnapshot: REG.getStoryPackInstallSnapshot,
+        // INERTE no fonte íntegro (o hook não a referencia): é a alavanca do NEG-7, que prova que
+        // um cleanup que revoga a instalação seria detectado.
+        clearStoryPackInstall: REG.clearStoryPackInstall,
+      }, mutHook);
+      const Comp = () => useStoryPackDownload(STORY_G5, { appVersion: '1.0.0' });
+      rt.montar(Comp, undefined);
+      return { rt, Comp };
+    };
+
+    const A = montarG5('A');
+    let B = null;
+    let pubB = null;
+    let entrouB = false; let desmontouA = false;
+    let voosNoJoin = null; let progBnoJoin = null;
+    let indiceNoCheckpoint = null; let movesNoCheckpoint = null; let arquivosNoCheckpoint = null;
+    let progAnoCheckpoint = null; let progBnoCheckpoint = null;
+    let chaveNoCheckpoint = null; let revogacaoNoCheckpoint = null;
+    let voosDepoisDaSaida = null; let assinaturasAposA = null; let assinaturasBAposA = null;
+    let abortadoAnoCheckpoint = null; let abortadoBnoCheckpoint = null;
+
+    /** A tela de A desmonta: cleanup REAL do hook (geração++ e abort SÓ do próprio signal). */
+    const desmontarA = async () => {
+      desmontouA = true;
+      indiceNoCheckpoint = indiceG5(await h.storage.getPackEntry(STORY_G5));
+      movesNoCheckpoint = h.eventsOfType('move').length;
+      arquivosNoCheckpoint = h.mem.listFiles(h.storage.getPackLocalDir(STORY_G5, VER_G5)).length;
+      progAnoCheckpoint = reg.prog.A.length;
+      progBnoCheckpoint = reg.prog.B.length;
+      const sn = REG.getStoryPackInstallSnapshot(STORY_G5);
+      chaveNoCheckpoint = (sn && sn.resolvedInstallKey) || null;
+      revogacaoNoCheckpoint = REG.getRevocationGeneration(STORY_G5);
+      A.rt.desmontar();
+      await flushG5(3);
+      abortadoAnoCheckpoint = !!(reg.sinais.A && reg.sinais.A.aborted);
+      abortadoBnoCheckpoint = !!(reg.sinais.B && reg.sinais.B.aborted);
+      voosDepoisDaSaida = svc.inFlightInstallCount();
+      assinaturasAposA = reg.assinaturas.A;
+      assinaturasBAposA = reg.assinaturas.B;
+    };
+
+    h.onBefore = async (t, detail) => {
+      // 1) B entra no PRIMEIRO `delete` (limpeza do .tmp): o record já está no mapa e nenhum
+      //    report(DOWNLOADING) aconteceu ainda → A e B veem exatamente os MESMOS eventos.
+      if (t === 'delete' && !entrouB) {
+        entrouB = true;
+        voosNoJoin = svc.inFlightInstallCount();
+        B = montarG5('B');
+        await flushG5(2);
+        pubB = B.rt.api().download().then((r) => { reg.publico.B = r; return r; });
+        await flushG5(8);
+        progBnoJoin = reg.prog.B.length;
+        if (desmontarEm === 'delete-tmp') await desmontarA();
+        return;
+      }
+      // 2) A desmonta no `set-entry`: já DEPOIS do moveAsync e ANTES do índice virar READY.
+      if (t === 'set-entry' && desmontarEm === 'set-entry' && entrouB && !desmontouA
+        && String(detail).startsWith(`${STORY_G5}:`)) {
+        await desmontarA();
+      }
+    };
+
+    const pubA = A.rt.api().download().then((r) => { reg.publico.A = r; return r; });
+    const rA = await pubA;
+    const rB = pubB ? await pubB : null;
+    // A função pública é `async`: cada chamador recebe um WRAPPER de Promise próprio. A identidade
+    // observável do voo compartilhado é, portanto, o VALOR RESOLVIDO — o mesmo objeto de resultado
+    // físico para os dois participantes (é o que o join garante e o que um voo paralelo quebraria).
+    const esperarG5 = (p) => (p ? p.catch((e) => ({ ok: false, reason: String((e && e.message) || e) })) : Promise.resolve(null));
+    const rSvcA = await esperarG5(reg.promessas.A);
+    const rSvc = await esperarG5(reg.promessas.B);
+    await flushG5(20);
+    await rtProv.assentar(PacksProvider, propsProv, 30);
+
+    // Consumidor C monta SÓ AGORA (a tela que abre depois de tudo): tem de receber o terminal.
+    const vistosC = [];
+    const unsubC = REG.subscribeStoryPackInstall(STORY_G5, (s) => vistosC.push(`${s.status}:${s.version}`));
+    unsubC();
+
+    const ctx = rtProv.valor() || {};
+    const estadoProvider = Object.keys(ctx.packIndex || {}).sort();
+    const prontoNoProvider = typeof ctx.isPackReady === 'function' ? !!ctx.isPackReady(STORY_G5) : null;
+
+    if (B) B.rt.desmontar();
+    rtProv.desmontar();
+    pararReadys();
+    const ouvintesFinais = REG._debugState().listeners.length;
+
+    const snapshot = REG.getStoryPackInstallSnapshot(STORY_G5);
+    return {
+      rA, rB, rSvc, rSvcA, readys, snapshot, vistosC, estadoProvider, prontoNoProvider, ouvintesFinais,
+      voosNoJoin, progBnoJoin, indiceNoCheckpoint, movesNoCheckpoint, arquivosNoCheckpoint,
+      progAnoCheckpoint, progBnoCheckpoint, chaveNoCheckpoint, revogacaoNoCheckpoint,
+      voosDepoisDaSaida, assinaturasAposA, assinaturasBAposA, abortadoAnoCheckpoint, abortadoBnoCheckpoint,
+      progA: reg.prog.A, progB: reg.prog.B,
+      progADepois: reg.prog.A.length - (progAnoCheckpoint == null ? reg.prog.A.length : progAnoCheckpoint),
+      progBDepois: reg.prog.B.length - (progBnoCheckpoint == null ? reg.prog.B.length : progBnoCheckpoint),
+      mesmoResultadoFisico: !!rSvcA && rSvcA === rSvc,
+      escritasPosDesmonteA: A.rt.escritasPosDesmonte(),
+      chaveFinal: (snapshot && snapshot.resolvedInstallKey) || null,
+      revogacaoFinal: REG.getRevocationGeneration(STORY_G5),
+      indice: indiceG5(await h.storage.getPackEntry(STORY_G5)),
+      arquivosFinais: h.mem.listFiles(h.storage.getPackLocalDir(STORY_G5, VER_G5)).length,
+      downloads: h.counters.downloads,
+      moves: h.eventsOfType('move').length,
+      voosFinais: svc.inFlightInstallCount(),
+      desmontouA, entrouB,
+    };
+  };
+
+  globalThis.__LP21G5 = (async () => {
+    const G = await saidaNaPublicacaoG5();
+
+    // ── 1–3: o cenário é mesmo o que a auditoria pediu ───────────────────────────────────────────
+    check('LP2.1 G5/1 (A e B no MESMO voo): identidade resolvida única → um voo no mapa e o MESMO objeto de resultado',
+      G.mesmoResultadoFisico === true && G.voosNoJoin === 1 && G.entrouB === true,
+      `mesmoResultado=${G.mesmoResultadoFisico} voosNoJoin=${G.voosNoJoin}`);
+    check('LP2.1 G5/2 (ambos recebem progresso inicial): B entra a tempo e vê os mesmos eventos que A',
+      G.progAnoCheckpoint > 0 && G.progBnoCheckpoint > 0 && G.progBnoJoin >= 0
+        && G.progA.includes('downloading') && G.progB.includes('downloading'),
+      `A=${JSON.stringify(G.progA)} B=${JSON.stringify(G.progB)}`);
+    check('LP2.1 G5/3 (checkpoint logo APÓS o moveAsync e ANTES do índice READY): conteúdo publicado no disco, índice ainda ausente',
+      G.desmontouA === true && G.movesNoCheckpoint === 1 && G.indiceNoCheckpoint === 'ausente'
+        && G.arquivosNoCheckpoint >= FILES_G5.length + 2,
+      `moves=${G.movesNoCheckpoint} indice=${G.indiceNoCheckpoint} arquivos=${G.arquivosNoCheckpoint}`);
+
+    // ── 4–8: a saída de A remove SÓ a observação de A ────────────────────────────────────────────
+    check('LP2.1 G5/4 (A aborta SOMENTE o próprio participantSignal): o signal de B continua ativo',
+      G.abortadoAnoCheckpoint === true && G.abortadoBnoCheckpoint === false,
+      `A.aborted=${G.abortadoAnoCheckpoint} B.aborted=${G.abortadoBnoCheckpoint}`);
+    check('LP2.1 G5/5 (B permanece inscrito no voo): continua recebendo callbacks depois da saída de A',
+      G.progBDepois > 0, `progBDepois=${G.progBDepois} B=${JSON.stringify(G.progB)}`);
+    check('LP2.1 G5/6 (o voo FÍSICO continua): a instalação conclui sem repetir trabalho de disco/rede',
+      G.downloads === FILES_G5.length + 1 && G.moves === 1 && G.arquivosFinais >= FILES_G5.length + 2,
+      `downloads=${G.downloads} moves=${G.moves} arquivos=${G.arquivosFinais}`);
+    check('LP2.1 G5/7 (A não recebe nada depois do cleanup): zero callbacks e zero escritas de estado no componente desmontado',
+      G.progADepois === 0 && G.escritasPosDesmonteA === 0,
+      `progADepois=${G.progADepois} escritasPosDesmonte=${G.escritasPosDesmonteA}`);
+    check('LP2.1 G5/8 (B recebe o TERMINAL): o último progresso entregue a B é o ready',
+      G.progB[G.progB.length - 1] === 'ready' && G.rB && G.rB.ok === true,
+      `B=${JSON.stringify(G.progB)} rB=${JSON.stringify(G.rB)}`);
+
+    // ── 9–13: a publicação chega inteira a quem ficou (e a quem chegar depois) ───────────────────
+    check('LP2.1 G5/9 (índice termina READY): a publicação ficou persistida apesar da saída de A',
+      G.indice === `${VER_G5}:ready`, G.indice);
+    check('LP2.1 G5/10 (registro converge para READY): snapshot terminal coerente com a entrada do índice',
+      G.snapshot.status === 'ready' && G.snapshot.phase === 'ready' && G.snapshot.version === VER_G5
+        && !!G.snapshot.entry && G.snapshot.entry.status === 'ready',
+      `${G.snapshot.status}/${G.snapshot.phase}/${G.snapshot.version}/${G.snapshot.entry && G.snapshot.entry.status}`);
+    check('LP2.1 G5/11 (READY global EXATAMENTE uma vez): a saída de um participante não duplica nem suprime o evento',
+      G.readys.length === 1 && G.readys[0] === VER_G5, JSON.stringify(G.readys));
+    check('LP2.1 G5/12 (PacksContext recarrega o índice): a história aparece no contexto e isPackReady responde true',
+      G.estadoProvider.includes(STORY_G5) && G.prontoNoProvider === true,
+      `estado=${JSON.stringify(G.estadoProvider)} pronto=${G.prontoNoProvider}`);
+    check('LP2.1 G5/13 (consumidor C montado DEPOIS recebe replay do terminal): snapshot ready na assinatura',
+      G.vistosC.length === 1 && G.vistosC[0] === `ready:${VER_G5}`, JSON.stringify(G.vistosC));
+
+    // ── 14–16: nada fica pendurado ───────────────────────────────────────────────────────────────
+    check('LP2.1 G5/14 (nenhum listener de A permanece): a assinatura de A cai no unmount e a de B sobrevive',
+      G.assinaturasAposA === 0 && G.assinaturasBAposA === 1 && G.ouvintesFinais === 0,
+      `A=${G.assinaturasAposA} B=${G.assinaturasBAposA} ouvintesFinais=${G.ouvintesFinais}`);
+    check('LP2.1 G5/15 (mapa de voos vazio depois do settle): a chave da identidade resolvida foi liberada',
+      G.voosFinais === 0, `voos=${G.voosFinais}`);
+    check('LP2.1 G5/16 (nada eternamente ativo): nenhuma fase intermediária final e nenhuma promessa pendente',
+      !['idle', 'resolving', 'downloading', 'verifying', 'publishing'].includes(G.snapshot.phase)
+        && G.rA && G.rB, `phase=${G.snapshot.phase}`);
+
+    // ── 17–21: o que a saída de A NÃO pode ter feito ─────────────────────────────────────────────
+    check('LP2.1 G5/17 (a saída de A não altera a IDENTIDADE do voo): mesma chave resolvida antes e depois, e um único voo',
+      !!G.chaveNoCheckpoint && G.chaveNoCheckpoint === G.chaveFinal && G.voosDepoisDaSaida === 1,
+      `checkpoint=${G.chaveNoCheckpoint} final=${G.chaveFinal} voos=${G.voosDepoisDaSaida}`);
+    check('LP2.1 G5/18 (a saída de A não muda a geração de REVOGAÇÃO): só o Reset avança esse eixo',
+      G.revogacaoNoCheckpoint === 0 && G.revogacaoFinal === 0,
+      `checkpoint=${G.revogacaoNoCheckpoint} final=${G.revogacaoFinal}`);
+    check('LP2.1 G5/19 (a saída de A não é interpretada como RESET): nada é desfeito, nem no índice nem no disco',
+      G.indice === `${VER_G5}:ready` && G.arquivosFinais >= FILES_G5.length + 2
+        && !(G.rSvc && G.rSvc.resetInvalidated),
+      `indice=${G.indice} arquivos=${G.arquivosFinais} reset=${G.rSvc && G.rSvc.resetInvalidated}`);
+    check('LP2.1 G5/20 (B recebe o MESMO resultado FÍSICO): o voo compartilhado resolve o mesmo objeto do pack instalado',
+      G.mesmoResultadoFisico === true && G.rSvc && G.rSvc.ok === true && G.rSvc.version === VER_G5
+        && !!G.rSvc.entry && G.rSvc.entry.status === 'ready',
+      `mesmo=${G.mesmoResultadoFisico} ok=${G.rSvc && G.rSvc.ok} version=${G.rSvc && G.rSvc.version}`);
+
+    const E = await saidaNaPublicacaoG5({ falha: true });
+    check('LP2.1 G5/21 (terminal HONESTO em caso de erro): B recebe a falha, nada é publicado e nenhum READY global é emitido',
+      E.rB && E.rB.ok === false && E.rSvc && E.rSvc.ok === false
+        && E.progB[E.progB.length - 1] === 'failed' && E.readys.length === 0
+        && E.indice === `${VER_G5}:failed` && E.snapshot.status === 'error'
+        && E.progADepois === 0 && E.voosFinais === 0,
+      `rB=${JSON.stringify(E.rB)} B=${JSON.stringify(E.progB)} readys=${E.readys.length} indice=${E.indice} snap=${E.snapshot.status}`);
+
+    // Linha de base do NEG-1: a MESMA saída, no checkpoint AINDA cancelável, continua publicando.
+    const D = await saidaNaPublicacaoG5({ desmontarEm: 'delete-tmp' });
+    check('LP2.1 G5 BASELINE (saída dentro da janela cancelável): mesmo saindo antes do último throwIfCancelled, o voo publica para B',
+      D.indice === `${VER_G5}:ready` && D.readys.length === 1 && D.rB && D.rB.ok === true && D.voosFinais === 0,
+      `indice=${D.indice} readys=${D.readys.length} rB=${JSON.stringify(D.rB)}`);
+
+    // ── CONTROLES NEGATIVOS: quebrar cada elo REAL precisa REPROVAR ───────────────────────────────
+    const negativoG5 = async (nome, exec, quebrou) => {
+      let r = null; let erro = null;
+      try { r = await exec(); } catch (e) { erro = e; }
+      check(`LP2.1 G5 ${nome}`, !erro && quebrou(r),
+        erro ? `âncora do mutante não encontrada: ${String((erro && erro.message) || erro)}`
+          : `o mutante NÃO reprovou: ${JSON.stringify(r && {
+            indice: r.indice, readys: r.readys, mesmo: r.mesmoResultadoFisico, progBDepois: r.progBDepois,
+            assinA: r.assinaturasAposA, vistosC: r.vistosC, voos: r.voosFinais, revog: r.revogacaoFinal,
+          })}`);
+    };
+
+    // NEG-1 — o abort do observador vira cancelamento do voo FÍSICO. Medido no checkpoint AINDA
+    // cancelável (`delete-tmp`), onde o BASELINE acima prova que a publicação era possível.
+    await negativoG5('NEG-1 (abort de A cancela o voo físico): a instalação morre e B fica sem pack',
+      () => saidaNaPublicacaoG5({
+        desmontarEm: 'delete-tmp',
+        mutSvc: mutG5([G5_INTERNAL_PARAMS, `${G5_INTERNAL_PARAMS.slice(0, -3)}, isCancelled: () => !!(params.participantSignal && params.participantSignal.aborted) };`]),
+      }),
+      (r) => r.indice !== `${VER_G5}:ready` || r.readys.length !== 1 || !(r.rB && r.rB.ok === true));
+    // NEG-2 — o cleanup de A leva junto os OUTROS subscribers do voo.
+    await negativoG5('NEG-2 (cleanup de A remove também B): B deixa de receber o terminal',
+      () => saidaNaPublicacaoG5({ mutSvc: mutG5([G5_HANDLER, '  const handler = () => { record.subscribers.clear(); };']) }),
+      (r) => r.progBDepois === 0 || r.progB[r.progB.length - 1] !== 'ready');
+    // NEG-3 — o voo termina sem notificar B: o joiner recebe outra conclusão, não a do voo real.
+    await negativoG5('NEG-3 (voo termina sem notificar B): o joiner recebe uma conclusão própria',
+      () => saidaNaPublicacaoG5({ mutSvc: mutG5([G5_JOIN_RETURN, "      return Promise.resolve({ ok: false, reason: 'joiner-desconectado' });"]) }),
+      (r) => r.mesmoResultadoFisico === false || !(r.rB && r.rB.ok === true));
+    // NEG-4 — o hook não desfaz a assinatura do registro no unmount.
+    await negativoG5('NEG-4 (listener de A permanece após o cleanup): a assinatura do registro vaza',
+      () => saidaNaPublicacaoG5({ mutHook: mutG5([G5_HOOK_UNSUB, '    subscribeStoryPackInstall(storyId, (snap) => setInstallSnapshot(snap));\n    return undefined;']) }),
+      (r) => r.assinaturasAposA !== 0 || r.ouvintesFinais !== 0);
+    // NEG-5 — o replay imediato do registro some: quem monta depois não recebe o terminal.
+    await negativoG5('NEG-5 (replay para C removido): consumidor montado depois não recebe nada',
+      () => saidaNaPublicacaoG5({ mutReg: mutG5([G5_REPLAY, '  /* mutante: sem replay imediato do snapshot */']) }),
+      (r) => r.vistosC.length === 0);
+    // NEG-6 — o join morre: B abre um voo próprio e o READY global sai duas vezes.
+    await negativoG5('NEG-6 (READY global emitido duas vezes): sem join, cada participante gera seu próprio evento',
+      () => saidaNaPublicacaoG5({ mutSvc: mutG5([G5_STILL_AUTH, '    if (false) {']) }),
+      (r) => r.readys.length !== 1 || r.mesmoResultadoFisico === false);
+    // NEG-7 — a saída de A revoga a instalação (trata unmount como Reset).
+    await negativoG5('NEG-7 (a saída de A incrementa a revogação): o unmount vira Reset e desfaz a publicação',
+      () => saidaNaPublicacaoG5({ mutHook: mutG5([G5_HOOK_CLEANUP, `${G5_HOOK_CLEANUP}\n      clearStoryPackInstall(storyId);`]) }),
+      (r) => r.revogacaoFinal !== 0 || r.indice === 'ausente' || r.readys.length !== 1);
+    // NEG-8 — o registro do voo nunca sai do mapa depois do settle.
+    await negativoG5('NEG-8 (mapa de voo não é limpo após o settle): a chave da identidade fica presa',
+      () => saidaNaPublicacaoG5({ mutSvc: mutG5([G5_MAPA_LIMPO, '  /* mutante: o record permanece no mapa após o settle */']) }),
+      (r) => r.voosFinais !== 0);
+
+    // ── ANTITAUTOLOGIA: toda âncora dos mutantes existe HOJE no fonte; uma âncora falsa LANÇA ─────
+    {
+      const svcSrc = readSrc('src/services/packDownloadService.js');
+      const regSrc = readSrc('src/services/packInstallRegistry.js');
+      const hookSrc = readSrc('src/hooks/useStoryPackDownload.js');
+      const ancoras = [
+        ['params internos do criador', svcSrc, G5_INTERNAL_PARAMS],
+        ['handler do participantSignal', svcSrc, G5_HANDLER],
+        ['retorno do joiner', svcSrc, G5_JOIN_RETURN],
+        ['guarda de autorização do join', svcSrc, G5_STILL_AUTH],
+        ['limpeza do mapa de voos', svcSrc, G5_MAPA_LIMPO],
+        ['replay imediato do registro', regSrc, G5_REPLAY],
+        ['unsubscribe do espelho no hook', hookSrc, G5_HOOK_UNSUB],
+        ['cleanup do efeito de storyId', hookSrc, G5_HOOK_CLEANUP],
+      ];
+      const ausentes = ancoras.filter(([, src, a]) => !src.includes(a)).map(([n]) => n);
+      let falsaLancou = false;
+      try { mutG5(['âncora que não existe em lugar nenhum', 'x'])(svcSrc); } catch (_) { falsaLancou = true; }
+      check('LP2.1 G5 ANTITAUTOLOGIA: as 8 âncoras dos mutantes existem no fonte e uma âncora falsa reprova',
+        ausentes.length === 0 && falsaLancou === true,
+        `ausentes=${JSON.stringify(ausentes)} falsaLancou=${falsaLancou}`);
+    }
+  })();
+  globalThis.__LP21G5.catch(() => {});
+}
+
+
+// ── LP2.1 G6: chamador CANCELÁVEL × voo COMPARTILHADO (auditoria §10.7) ───────────────────────
+// Pergunta da auditoria: o contrato de `isCancelled` (dono EXCLUSIVO) compõe com segurança com o
+// single-flight por identidade resolvida? Cancelar um chamador pode matar o voo de outros, duplicar
+// download, publicar índice, emitir READY, apagar bytes válidos ou travar a fila física?
+//
+// CONTRATO REAL, derivado do fonte (auditoria read-only — nada aqui é inventado):
+//   1. `isCancelled` chega ao Impl (packDownloadService.js:399) e é consultado em 469, 484, 560,
+//      580 e 618 — o ÚLTIMO ponto cancelável fica ANTES do swap.
+//   2. O caminho de dono exclusivo é a L895: `typeof params.isCancelled === 'function'` →
+//      `return guardedInstall(resolved, params)` com os params CRUS, ANTES de `canonicalResolvedKey`
+//      (L897) e ANTES do `inFlightInstalls.get` (L900).
+//   3. `participantSignal` só é lido em `registerProgressSubscriber` (joiner L914, criador L952);
+//      o caminho cancelável não chama nenhum dos dois — os dois contratos NÃO se cruzam (L790).
+//   4. Uma chamada entra em `inFlightInstalls` só na L960, e só o CRIADOR não-cancelável com chave
+//      admissível; sai por `cleanupRecord` no `finally` (L959).
+//   5. Passam direto a `guardedInstall`: o cancelável (L895) e a identidade inadmissível (L898).
+//   6. `runExclusiveByStory(storyId)` é atravessada por TODOS os caminhos físicos (L868): cancelável
+//      e compartilhado SERIALIZAM no mesmo recurso, nunca se sobrepõem. A corrente nunca carrega
+//      rejeição (L860) e se autolimpa (L862).
+//   7. Um chamador cancelável NÃO encontra voo existente — ele nem consulta o mapa. Ele ENFILEIRA.
+//      Quando sua vez chega, o preflight READ-ONLY (L409-425) reavalia o disco: identidade
+//      coincidente + ancorada + READY → `asReadyEntry` (L418), sem download, sem move e sem escrita
+//      de índice. É ASSIM que "não há segundo download físico" se realiza — por preflight, não por join.
+//   8. Um voo iniciado pelo caminho cancelável NUNCA recebe joiner (não está no mapa).
+//   9. Retorno do cancelado: `{ ok:false, cancelled:true, reason:'cancelado' }` (L678), só o `.tmp`
+//      apagado e o índice INTOCADO (L673-675).
+//  10. Terminal dos não-cancelados: `{ ok:true, …, entry }` + `report(READY)` + `settleReady` →
+//      snapshot `ready` → READY global uma vez por publicação física.
+//
+// ALCANCE HONESTO: hoje NENHUM call site de `src/` passa `isCancelled` (grep: só o próprio
+// downloader). O G6 prova o CONTRATO PÚBLICO — a composição que qualquer consumidor futuro (ou a
+// camada dev) encontraria —, não uma regressão observada em tela.
+console.log('\n── LP2.1 G6: chamador cancelável e voo compartilhado ──');
+{
+  const { createPackInstallHarness: mkHg6, loadPackDownloader: loadDlg6, loadModule: loadModg6 } = require('./testing/packInstallHarness');
+  const REG_EXP_G6 = ['getStoryPackInstallSnapshot', 'subscribeStoryPackInstall', 'subscribePackReady', 'beginInstall',
+    'reportInstall', 'settleReady', 'settleError', 'clearStoryPackInstall', 'isCurrentOperation',
+    'getRevocationGeneration', 'isFlightRevoked', '_debugState'];
+  // Instâncias NOVAS por cenário: registro e serviço são singletons de módulo (mapas/gerações vazariam).
+  const novoRegG6 = (mut) => loadModg6('src/services/packInstallRegistry.js', {}, REG_EXP_G6, mut);
+  const novoSvcG6 = (mut) => loadDlg6(mut).createPackDownloadService;
+
+  const STORY_G6 = 'david_goliath';
+  const V1_G6 = '5.0.0';
+  const V2_G6 = '6.0.0';
+  const GLOBAL_G6 = 'https://r2/content-manifest.json';
+  const KINDS_G6 = ['cover', 'scene', 'coloring', 'audio'];
+  const baseG6 = (v) => `https://r2/${STORY_G6}/${v}/`;
+  const arquivosG6 = (v) => [
+    { kind: 'cover', path: 'cover/cover.webp', text: `G6-${v}-CAPA` },
+    { kind: 'scene', path: 'scenes/01.webp', text: `G6-${v}-CENA` },
+    { kind: 'coloring', path: 'coloring/01.webp', text: `G6-${v}-COLORIR` },
+    { kind: 'audio', path: 'audio/01.mp3', text: `G6-${v}-AUDIO` },
+  ];
+  const URLS_G6 = (v) => [`${baseG6(v)}manifest.json`, ...arquivosG6(v).map((f) => baseG6(v) + f.path)];
+  const flushG6 = async (n = 8) => { for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0)); };
+  const indiceG6 = (e) => (e ? `${e.version}:${e.status}` : 'ausente');
+  const ultimoG6 = (a) => (a.length ? a[a.length - 1] : null);
+  /**
+   * Trava de segurança: um mutante que TRAVA a fila não pode pendurar o smoke (o NEG-7 depende disto).
+   * O limite conta TICKS do event loop, não relógio de parede: a cauda SÍNCRONA do próprio smoke
+   * (transforms e milhares de checks) bloqueia o loop por dezenas de segundos e um limite por tempo
+   * reprovaria uma instalação perfeitamente viva. Promessa pendurada nunca marca `pronto`, então o
+   * contador termina do mesmo jeito.
+   */
+  const comLimiteG6 = async (p, rotulo, ticks = 500) => {
+    if (!p) return null;
+    let pronto = false; let valor = null;
+    p.then((v) => { pronto = true; valor = v; }, () => { pronto = true; });
+    for (let i = 0; i < ticks && !pronto; i++) await new Promise((r) => setTimeout(r, 0));
+    return pronto ? valor : { ok: false, reason: `limite-de-espera:${rotulo}` };
+  };
+  const pedidoG6 = (extra) => ({ storyId: STORY_G6, globalManifestUrl: GLOBAL_G6, appVersion: '1.0.0', requestedKinds: KINDS_G6, ...extra });
+
+  /** Cenário base: disco/rede em memória, DUAS identidades publicáveis (V1 e V2) e registro novo. */
+  const montarG6 = (mutSvc, mutReg) => {
+    const h = mkHg6();
+    const shas = {};
+    for (const v of [V1_G6, V2_G6]) {
+      const F = arquivosG6(v).map((f) => ({ kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text) }));
+      const text = JSON.stringify({ schemaVersion: 1, id: STORY_G6, version: v, type: 'story', minAppVersion: '1.0.0', totalBytes: F.reduce((a, f) => a + f.bytes, 0), files: F, metadata: { storyId: STORY_G6, title: 'D', language: 'pt-BR' } });
+      shas[v] = h.sha256OfText(text);
+      h.route(`${baseG6(v)}manifest.json`, { text });
+      arquivosG6(v).forEach((f) => h.route(baseG6(v) + f.path, { text: f.text }));
+    }
+    const publicar = (v) => h.setGlobalManifest({
+      manifestVersion: 1,
+      minAppVersion: '1.0.0',
+      packs: [h.packEntry({ storyId: STORY_G6, version: v, baseUrl: baseG6(v), manifestSha256: shas[v], mediaKinds: KINDS_G6 })],
+    });
+    publicar(V1_G6);
+    h.resetEvents();
+
+    const REG = novoRegG6(mutReg);
+    const readys = [];
+    const pararReadys = REG.subscribePackReady((s) => readys.push((s && s.version) || null));
+    const svc = novoSvcG6(mutSvc)({ ...h.deps, installRegistry: REG, clearPackEntry: h.storage.clearPackEntry });
+    const baixar = (extra) => svc.downloadStoryPackScenesFromGlobalManifest(pedidoG6(extra));
+    return { h, REG, readys, pararReadys, svc, publicar, baixar };
+  };
+
+  /** Colheita comum: o que o contrato promete é o MESMO conjunto observável em todos os cenários. */
+  const colherG6 = async (ctx, extra) => {
+    const { h, REG, svc, pararReadys, readys } = ctx;
+    await flushG6(25);
+    const intacto = (v) => {
+      const dir = h.storage.getPackLocalDir(STORY_G6, v);
+      return h.mem.fileText(`${dir}manifest.json`) !== null
+        && arquivosG6(v).every((f) => h.mem.fileText(dir + f.path) === f.text);
+    };
+    const saida = {
+      readys: readys.slice(),
+      snapshot: REG.getStoryPackInstallSnapshot(STORY_G6),
+      indice: indiceG6(await h.storage.getPackEntry(STORY_G6)),
+      intactoV1: intacto(V1_G6),
+      intactoV2: intacto(V2_G6),
+      downloads: h.counters.downloads,
+      porUrl: { ...h.counters.byUrl },
+      setEntry: h.counters.setEntry,
+      eventosIndice: h.eventsOfType('set-entry'),
+      moves: h.eventsOfType('move').length,
+      voosFinais: svc.inFlightInstallCount(),
+      ouvintesFinais: REG._debugState().listeners.length,
+      ...extra,
+    };
+    pararReadys();
+    return saida;
+  };
+
+  /**
+   * Fábrica de MUTANTES (nunca toca `src/`): cada par [de, para] precisa achar uma ÂNCORA REAL no
+   * fonte. Âncora ausente LANÇA — um controle que deixou de corresponder ao código não pode passar.
+   */
+  const mutG6 = (...pares) => (s) => {
+    let out = s;
+    for (const [de, para] of pares) {
+      const nv = out.replace(de, para);
+      if (nv === out) throw new Error(`G6 mutante: âncora não encontrada → ${String(de).slice(0, 76)}`);
+      out = nv;
+    }
+    return out;
+  };
+
+  // ── Âncoras dos controles negativos (uma por elo REAL do contrato mapeado acima) ──────────────
+  const G6_CANCELAVEL = "  if (typeof (params && params.isCancelled) === 'function') return guardedInstall(resolved, params);";
+  const G6_EXISTING = '  const existing = inFlightInstalls.get(key);';
+  const G6_CHAVE = '  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion]);';
+  const G6_CANCEL_RETORNO = "      return { ok: false, cancelled: true, reason: 'cancelado' };";
+  const G6_FILA_SETTLED = '  const settled = run.then(() => undefined, () => undefined);';
+
+  /**
+   * G6-A — o voo compartilhado JÁ EXISTE quando o chamador cancelável pede a MESMA identidade.
+   * A cria o voo; B joina no primeiro `delete`; C (cancelável) entra em seguida e é cancelado
+   * durante a publicação de A/B (checkpoint `set-entry`, depois do move e antes do índice READY).
+   */
+  const cenarioAG6 = async ({ mutSvc, mutReg } = {}) => {
+    const ctx = montarG6(mutSvc, mutReg);
+    const { h, svc, baixar } = ctx;
+    const progA = []; const progB = []; const progC = [];
+    let cancelado = false; let entrou = false;
+    let voosAntesDeB = null; let voosComB = null; let voosComC = null;
+    let pB = null; let pC = null;
+
+    h.onBefore = async (t, detalhe) => {
+      if (t === 'delete' && !entrou) {
+        entrou = true;
+        voosAntesDeB = svc.inFlightInstallCount();
+        pB = baixar({ onProgress: (s) => progB.push(s && s.status) });
+        await flushG6(6);
+        voosComB = svc.inFlightInstallCount();
+        pC = baixar({ onProgress: (s) => progC.push(s && s.status), isCancelled: () => cancelado });
+        await flushG6(6);
+        voosComC = svc.inFlightInstallCount();
+        return;
+      }
+      if (t === 'set-entry' && !cancelado && String(detalhe).startsWith(`${STORY_G6}:`)) cancelado = true;
+    };
+
+    const pA = baixar({ onProgress: (s) => progA.push(s && s.status) });
+    const rA = await comLimiteG6(pA, 'A');
+    const rB = await comLimiteG6(pB, 'B');
+    const rC = await comLimiteG6(pC, 'C');
+    return colherG6(ctx, {
+      rA, rB, rC, progA, progB, progC, voosAntesDeB, voosComB, voosComC,
+      mesmoResultado: !!rA && rA === rB,
+    });
+  };
+
+  /**
+   * G6-B — o chamador CANCELÁVEL começa PRIMEIRO. C ocupa a fila física; A entra depois com
+   * identidade compatível e B joina A; C é cancelado. O voo de A/B nasceu SEPARADO (C nunca esteve
+   * no mapa), então nada que aconteça a C pode alcançá-lo.
+   */
+  const cenarioBG6 = async ({ mutSvc, mutReg } = {}) => {
+    const ctx = montarG6(mutSvc, mutReg);
+    const { h, REG, svc, baixar } = ctx;
+    const progA = []; const progB = []; const progC = [];
+    let cancelado = false; let entrou = false;
+    let voosDuranteC = null; let registroDuranteC = null; let voosComA = null; let voosComB = null;
+    let pA = null; let pB = null;
+
+    h.onBefore = async (t) => {
+      if (t !== 'delete' || entrou) return;
+      entrou = true;
+      voosDuranteC = svc.inFlightInstallCount();                             // C NÃO entra no mapa
+      registroDuranteC = REG.getStoryPackInstallSnapshot(STORY_G6).status;   // C NÃO publica no registro
+      pA = baixar({ onProgress: (s) => progA.push(s && s.status) });
+      await flushG6(6);
+      voosComA = svc.inFlightInstallCount();
+      pB = baixar({ onProgress: (s) => progB.push(s && s.status) });
+      await flushG6(6);
+      voosComB = svc.inFlightInstallCount();
+      cancelado = true;   // só AGORA — com o voo compartilhado de A/B já formado
+    };
+
+    const pC = baixar({ onProgress: (s) => progC.push(s && s.status), isCancelled: () => cancelado });
+    const rC = await comLimiteG6(pC, 'C');
+    const rA = await comLimiteG6(pA, 'A');
+    const rB = await comLimiteG6(pB, 'B');
+    return colherG6(ctx, {
+      rA, rB, rC, progA, progB, progC, voosDuranteC, registroDuranteC, voosComA, voosComB,
+      mesmoResultado: !!rA && rA === rB,
+    });
+  };
+
+  /**
+   * G6-D — o chamador cancelável nasce JÁ cancelado (`isCancelled` verdadeiro antes de qualquer
+   * trabalho físico).
+   *   entradaTardia=false → C é o PRIMEIRO a pedir a fila, com o disco vazio: não faz NADA.
+   *   entradaTardia=true  → C entra com o voo compartilhado de A/B VIVO e a mesma identidade.
+   */
+  const cenarioDG6 = async ({ mutSvc, mutReg, entradaTardia = false } = {}) => {
+    const ctx = montarG6(mutSvc, mutReg);
+    const { h, svc, baixar } = ctx;
+    const progA = []; const progB = []; const progC = [];
+    let entrou = false; let soC = !entradaTardia; let pB = null; let pC = null; let voosNaEntradaDeC = null;
+
+    h.onBefore = async (t) => {
+      if (t !== 'delete') return;
+      // Fase "só C": o ÚNICO `delete` aqui é a limpeza do `.tmp` do próprio cancelado (catch do Impl).
+      // É o instante exato em que se pergunta se o dono exclusivo entrou no mapa de voos.
+      if (soC) { voosNaEntradaDeC = svc.inFlightInstallCount(); return; }
+      if (entrou) return;
+      entrou = true;
+      pB = baixar({ onProgress: (s) => progB.push(s && s.status) });
+      await flushG6(6);
+      if (!entradaTardia) return;
+      voosNaEntradaDeC = svc.inFlightInstallCount();
+      pC = baixar({ onProgress: (s) => progC.push(s && s.status), isCancelled: () => true });
+      await flushG6(6);
+    };
+
+    if (!entradaTardia) {
+      pC = baixar({ onProgress: (s) => progC.push(s && s.status), isCancelled: () => true });
+      await comLimiteG6(pC, 'C');   // C resolve, ocupa a fila física e morre no primeiro ponto cancelável
+      soC = false;
+    }
+    const pA = baixar({ onProgress: (s) => progA.push(s && s.status) });
+    const rA = await comLimiteG6(pA, 'A');
+    const rB = await comLimiteG6(pB, 'B');
+    const rC = await comLimiteG6(pC, 'C');
+    return colherG6(ctx, {
+      rA, rB, rC, progA, progB, progC, voosNaEntradaDeC,
+      mesmoResultado: !!rA && rA === rB,
+    });
+  };
+
+  /**
+   * G6-C e G6-E — MESMO interleaving, porque no contrato real eles SÃO o mesmo experimento:
+   * um voo compartilhado (A+B, identidade V1) ocupa a fila física; o manifesto global passa a
+   * resolver V2; um chamador CANCELÁVEL (C) e um chamador COMUM (E) pedem V2 e ficam na fila; C é
+   * cancelado ENQUANTO ESPERA (no `set-entry` de A, antes da sua vez). Cada bloco de checks assere o
+   * seu próprio contrato: G6-C a INCOMPATIBILIDADE de identidade, G6-E a ESPERA na fila.
+   */
+  const cenarioIncompativelG6 = async ({ mutSvc, mutReg } = {}) => {
+    const ctx = montarG6(mutSvc, mutReg);
+    const { h, svc, baixar, publicar } = ctx;
+    const progA = []; const progB = []; const progC = []; const progE = [];
+    let cancelado = false; let entrou = false; let canceladoAntesDaVez = false;
+    let voosComB = null; let voosComIncompativeis = null;
+    let pB = null; let pC = null; let pE = null;
+
+    h.onBefore = async (t, detalhe) => {
+      if (t === 'delete' && !entrou) {
+        entrou = true;
+        pB = baixar({ onProgress: (s) => progB.push(s && s.status) });
+        await flushG6(6);
+        voosComB = svc.inFlightInstallCount();
+        publicar(V2_G6);   // a partir daqui a resolução devolve OUTRA identidade da MESMA história
+        pC = baixar({ onProgress: (s) => progC.push(s && s.status), isCancelled: () => cancelado });
+        await flushG6(6);
+        pE = baixar({ onProgress: (s) => progE.push(s && s.status) });
+        await flushG6(6);
+        voosComIncompativeis = svc.inFlightInstallCount();
+        return;
+      }
+      if (t === 'set-entry' && !cancelado && String(detalhe) === `${STORY_G6}:ready`) {
+        cancelado = true;
+        canceladoAntesDaVez = progC.length === 0;   // C ainda não executou nada: está ESPERANDO
+      }
+    };
+
+    const pA = baixar({ onProgress: (s) => progA.push(s && s.status) });
+    const rA = await comLimiteG6(pA, 'A');
+    const rB = await comLimiteG6(pB, 'B');
+    const rC = await comLimiteG6(pC, 'C');
+    const rE = await comLimiteG6(pE, 'E');
+    return colherG6(ctx, {
+      rA, rB, rC, rE, progA, progB, progC, progE, voosComB, voosComIncompativeis, canceladoAntesDaVez,
+      mesmoResultado: !!rA && rA === rB,
+    });
+  };
+
+  globalThis.__LP21G6 = (async () => {
+    const A = await cenarioAG6();
+    const B = await cenarioBG6();
+    const I = await cenarioIncompativelG6();
+    const D = await cenarioDG6();
+    const D2 = await cenarioDG6({ entradaTardia: true });
+    const MIDIAS_V1 = arquivosG6(V1_G6).map((f) => baseG6(V1_G6) + f.path);
+    const umaVezCada = (r, v) => URLS_G6(v).every((u) => r.porUrl[u] === 1);
+
+    // ── G6-A · VOO COMPARTILHADO JÁ EXISTE ────────────────────────────────────────────────────────
+    check('LP2.1 G6-A/1 (A e B compartilham um voo compatível): um único voo no mapa e a MESMA conclusão física',
+      A.voosAntesDeB === 1 && A.voosComB === 1 && A.mesmoResultado === true,
+      `voosA=${A.voosAntesDeB} voosB=${A.voosComB} mesmo=${A.mesmoResultado}`);
+    check('LP2.1 G6-A/2 (C pede a MESMA identidade sem entrar no mapa de voos): o dono exclusivo não vira participante',
+      A.voosComC === 1,
+      `voos com C=${A.voosComC} (esperado 1: só o voo de A e B)`);
+    check('LP2.1 G6-A/3 (C não cria um segundo download físico): cada URL da identidade é baixada UMA vez',
+      A.downloads === 5 && umaVezCada(A, V1_G6),
+      `downloads=${A.downloads} porUrl=${JSON.stringify(A.porUrl)}`);
+    check('LP2.1 G6-A/4 (C não mata o voo compartilhado): A e B concluem com sucesso mesmo com C cancelado',
+      !!A.rA && A.rA.ok === true && !!A.rB && A.rB.ok === true,
+      `rA=${JSON.stringify(A.rA && { ok: A.rA.ok, reason: A.rA.reason })} rB=${JSON.stringify(A.rB && { ok: A.rB.ok, reason: A.rB.reason })}`);
+    check('LP2.1 G6-A/5 (cancelar C não afeta A nem B): os dois recebem a MESMA sequência terminada em ready',
+      ultimoG6(A.progA) === 'ready' && ultimoG6(A.progB) === 'ready' && A.mesmoResultado === true,
+      `A=${JSON.stringify(A.progA)} B=${JSON.stringify(A.progB)}`);
+    check('LP2.1 G6-A/6 (A e B recebem READY): índice publicado e evento global emitido uma única vez',
+      A.indice === `${V1_G6}:ready` && A.readys.length === 1,
+      `indice=${A.indice} readys=${JSON.stringify(A.readys)}`);
+    check('LP2.1 G6-A/7 (C recebe retorno honesto): sucesso local READ-ONLY, sem download, sem move e sem escrever índice',
+      !!A.rC && A.rC.ok === true && A.rC.recovered === false && A.rC.version === V1_G6
+        && A.setEntry === 1 && A.moves === 1,
+      `rC=${JSON.stringify(A.rC && { ok: A.rC.ok, version: A.rC.version, recovered: A.rC.recovered })} setEntry=${A.setEntry} moves=${A.moves}`);
+    check('LP2.1 G6-A/8 (índice e registro convergem): snapshot terminal coerente com a entrada persistida',
+      A.snapshot.status === 'ready' && A.snapshot.version === V1_G6 && A.indice === `${V1_G6}:ready`,
+      `snap=${A.snapshot.status}:${A.snapshot.version} indice=${A.indice}`);
+    check('LP2.1 G6-A/9 (nenhum byte válido é removido): manifesto e os quatro kinds seguem íntegros no localDir',
+      A.intactoV1 === true,
+      `intactoV1=${A.intactoV1}`);
+    check('LP2.1 G6-A/10 (o mapa de voos termina vazio): nenhuma chave e nenhum ouvinte presos',
+      A.voosFinais === 0 && A.ouvintesFinais === 0,
+      `voos=${A.voosFinais} ouvintes=${A.ouvintesFinais}`);
+
+    // ── G6-B · CHAMADOR CANCELÁVEL COMEÇA PRIMEIRO ────────────────────────────────────────────────
+    check('LP2.1 G6-B/1 (C começa primeiro e sozinho): nenhum voo no mapa e nenhuma publicação no registro',
+      B.voosDuranteC === 0 && B.registroDuranteC === 'idle',
+      `voos=${B.voosDuranteC} registro=${B.registroDuranteC}`);
+    check('LP2.1 G6-B/2 (A entra depois com identidade compatível): abre o PRÓPRIO voo, separado de C',
+      B.voosComA === 1,
+      `voos com A=${B.voosComA}`);
+    check('LP2.1 G6-B/3 (B entra como segundo participante): joina A e recebe a mesma conclusão física',
+      B.voosComB === 1 && B.mesmoResultado === true,
+      `voos com B=${B.voosComB} mesmo=${B.mesmoResultado}`);
+    check('LP2.1 G6-B/4 (A e B não dependem da permanência de C): C cancelado e os dois concluem',
+      !!B.rA && B.rA.ok === true && !!B.rB && B.rB.ok === true,
+      `rA=${JSON.stringify(B.rA && B.rA.ok)} rB=${JSON.stringify(B.rB && B.rB.ok)}`);
+    check('LP2.1 G6-B/5 (C recebe o terminal de cancelamento do contrato): ok:false, cancelled:true, reason cancelado',
+      !!B.rC && B.rC.ok === false && B.rC.cancelled === true && B.rC.reason === 'cancelado',
+      `rC=${JSON.stringify(B.rC)}`);
+    check('LP2.1 G6-B/6 (o voo físico compartilhado não morre): a publicação de A e B acontece depois do cancelamento',
+      B.indice === `${V1_G6}:ready` && B.intactoV1 === true,
+      `indice=${B.indice} intacto=${B.intactoV1}`);
+    check('LP2.1 G6-B/7 (A e B recebem terminal correto): as duas sequências terminam em ready',
+      ultimoG6(B.progA) === 'ready' && ultimoG6(B.progB) === 'ready',
+      `A=${JSON.stringify(B.progA)} B=${JSON.stringify(B.progB)}`);
+    check('LP2.1 G6-B/8 (um único download COMPLETO): cada mídia baixada uma vez; só o manifesto tem a tentativa abortada de C',
+      MIDIAS_V1.every((u) => B.porUrl[u] === 1) && B.porUrl[`${baseG6(V1_G6)}manifest.json`] === 2,
+      `porUrl=${JSON.stringify(B.porUrl)}`);
+    check('LP2.1 G6-B/9 (existe apenas UMA publicação): um move, uma escrita de índice',
+      B.moves === 1 && B.setEntry === 1 && B.eventosIndice.length === 1,
+      `moves=${B.moves} setEntry=${B.setEntry} eventos=${JSON.stringify(B.eventosIndice)}`);
+    check('LP2.1 G6-B/10 (READY global ocorre uma vez): o cancelamento de C não duplica nem suprime o evento',
+      B.readys.length === 1 && B.voosFinais === 0,
+      `readys=${JSON.stringify(B.readys)} voos=${B.voosFinais}`);
+
+    // ── G6-C · IDENTIDADE INCOMPATÍVEL ────────────────────────────────────────────────────────────
+    check('LP2.1 G6-C/1 (existe voo ativo para a identidade V1 quando os incompatíveis pedem)',
+      I.voosComB === 1 && I.mesmoResultado === true,
+      `voos=${I.voosComB} mesmo=${I.mesmoResultado}`);
+    check('LP2.1 G6-C/2 (não ocorre join): o chamador comum de V2 abre voo PRÓPRIO e não recebe a conclusão de V1',
+      I.voosComIncompativeis === 2 && I.rE !== I.rA && !!I.rE && I.rE.version === V2_G6,
+      `voos=${I.voosComIncompativeis} rE=${JSON.stringify(I.rE && { ok: I.rE.ok, version: I.rE.version })}`);
+    check('LP2.1 G6-C/3 (cada identidade mantém a sua própria conclusão): V1 para A e B, V2 para E',
+      !!I.rA && I.rA.version === V1_G6 && I.mesmoResultado === true && !!I.rE && I.rE.ok === true && I.rE.version === V2_G6,
+      `rA=${JSON.stringify(I.rA && I.rA.version)} rE=${JSON.stringify(I.rE && I.rE.version)}`);
+    check('LP2.1 G6-C/4 (o cancelamento do incompatível não afeta A, B nem E): só ele termina cancelado',
+      !!I.rC && I.rC.cancelled === true && !!I.rA && I.rA.ok === true && !!I.rE && I.rE.ok === true,
+      `rC=${JSON.stringify(I.rC)} rA=${JSON.stringify(I.rA && I.rA.ok)} rE=${JSON.stringify(I.rE && I.rE.ok)}`);
+    check('LP2.1 G6-C/5 (o índice final reflete as publicações VÁLIDAS): termina na última identidade publicada, sem falha registrada',
+      I.indice === `${V2_G6}:ready` && !I.eventosIndice.some((e) => /failed/.test(e)),
+      `indice=${I.indice} eventos=${JSON.stringify(I.eventosIndice)}`);
+    check('LP2.1 G6-C/6 (nenhuma identidade sobrescreve a outra indevidamente): os dois localDir seguem íntegros',
+      I.intactoV1 === true && I.intactoV2 === true,
+      `V1=${I.intactoV1} V2=${I.intactoV2}`);
+    check('LP2.1 G6-C/7 (um READY global por publicação FÍSICA real): duas publicações, dois eventos, na ordem',
+      I.readys.join(',') === `${V1_G6},${V2_G6}`,
+      `readys=${JSON.stringify(I.readys)}`);
+
+    // ── G6-D · CANCELAMENTO ANTES DE ENTRAR NA FILA ───────────────────────────────────────────────
+    check('LP2.1 G6-D/1 (isCancelled já verdadeiro antes do trabalho físico → nenhum download de C)',
+      D.downloads === 5 && umaVezCada(D, V1_G6) && D.voosNaEntradaDeC === 0,
+      `downloads=${D.downloads} porUrl=${JSON.stringify(D.porUrl)} voos=${D.voosNaEntradaDeC}`);
+    check('LP2.1 G6-D/2 (nenhum move de C): a única troca atômica é a do voo compartilhado',
+      D.moves === 1,
+      `moves=${D.moves}`);
+    check('LP2.1 G6-D/3 (nenhum índice é escrito por C): uma única gravação, a do READY de A e B',
+      D.setEntry === 1 && D.eventosIndice.length === 1 && D.indice === `${V1_G6}:ready`,
+      `setEntry=${D.setEntry} eventos=${JSON.stringify(D.eventosIndice)} indice=${D.indice}`);
+    check('LP2.1 G6-D/4 (nenhum READY é emitido por C): zero callbacks para o cancelado e um único evento global',
+      D.progC.length === 0 && D.readys.length === 1,
+      `progC=${JSON.stringify(D.progC)} readys=${JSON.stringify(D.readys)}`);
+    check('LP2.1 G6-D/5 (retorno honesto do cancelado): ok:false com cancelled:true, sem inventar falha de instalação',
+      !!D.rC && D.rC.ok === false && D.rC.cancelled === true && D.rC.reason === 'cancelado',
+      `rC=${JSON.stringify(D.rC)}`);
+    check('LP2.1 G6-D/6 (o voo compartilhado dos outros permanece intacto): A e B publicam normalmente depois',
+      D.mesmoResultado === true && D.intactoV1 === true && D.voosFinais === 0,
+      `mesmo=${D.mesmoResultado} intacto=${D.intactoV1} voos=${D.voosFinais}`);
+    check('LP2.1 G6-D/7 (cancelado ao nascer COM voo compartilhado vivo): não baixa, não move, não escreve índice e não emite READY global',
+      D2.voosNaEntradaDeC === 1 && D2.downloads === 5 && umaVezCada(D2, V1_G6)
+        && D2.moves === 1 && D2.setEntry === 1 && D2.readys.length === 1
+        && !!D2.rA && D2.rA.ok === true && D2.mesmoResultado === true && !!D2.rC && D2.rC.ok === true,
+      `voosEntrada=${D2.voosNaEntradaDeC} downloads=${D2.downloads} moves=${D2.moves} setEntry=${D2.setEntry} readys=${JSON.stringify(D2.readys)} rC=${JSON.stringify(D2.rC && { ok: D2.rC.ok, recovered: D2.rC.recovered })}`);
+
+    // ── G6-E · CANCELAMENTO DURANTE A ESPERA NA FILA ──────────────────────────────────────────────
+    check('LP2.1 G6-E/1 (outro trabalho ocupa a fila física quando o cancelável pede): o voo de A e B está vivo',
+      I.voosComB === 1 && !!I.rA && I.rA.ok === true,
+      `voos=${I.voosComB}`);
+    check('LP2.1 G6-E/2 (o cancelável AGUARDA): não executou nenhum passo enquanto a fila estava ocupada',
+      I.canceladoAntesDaVez === true && I.progC.length === 0,
+      `canceladoAntesDaVez=${I.canceladoAntesDaVez} progC=${JSON.stringify(I.progC)}`);
+    check('LP2.1 G6-E/3 (é cancelado antes de adquirir o recurso físico): termina cancelado sem tocar em disco',
+      !!I.rC && I.rC.cancelled === true && I.progC.length === 0,
+      `rC=${JSON.stringify(I.rC)}`);
+    check('LP2.1 G6-E/4 (não executa publicação depois): só as duas publicações legítimas aparecem no índice',
+      I.eventosIndice.length === 2 && !I.eventosIndice.some((e) => /failed/.test(e)) && I.readys.length === 2,
+      `eventos=${JSON.stringify(I.eventosIndice)} readys=${JSON.stringify(I.readys)}`);
+    check('LP2.1 G6-E/5 (não bloqueia o próximo participante): o chamador seguinte adquire a fila e instala',
+      !!I.rE && I.rE.ok === true && I.indice === `${V2_G6}:ready`,
+      `rE=${JSON.stringify(I.rE && I.rE.ok)} indice=${I.indice}`);
+    check('LP2.1 G6-E/6 (não deixa entrada eternamente ativa): mapa de voos e ouvintes liberados',
+      I.voosFinais === 0 && I.ouvintesFinais === 0,
+      `voos=${I.voosFinais} ouvintes=${I.ouvintesFinais}`);
+
+    // ── CONTROLES NEGATIVOS: quebrar cada elo REAL do contrato precisa REPROVAR ────────────────────
+    const negativoG6 = async (nome, exec, quebrou) => {
+      let r = null; let erro = null;
+      try { r = await exec(); } catch (e) { erro = e; }
+      check(`LP2.1 G6 ${nome}`, !erro && quebrou(r),
+        erro ? `âncora do mutante não encontrada: ${String((erro && erro.message) || erro)}`
+          : `o mutante NÃO reprovou: ${JSON.stringify(r && {
+            indice: r.indice, readys: r.readys, mesmo: r.mesmoResultado, downloads: r.downloads,
+            moves: r.moves, setEntry: r.setEntry, eventos: r.eventosIndice, voos: r.voosFinais,
+            rA: r.rA && r.rA.ok, rC: r.rC && (r.rC.cancelled || r.rC.reason), rE: r.rE && (r.rE.ok || r.rE.reason),
+            progC: r.progC,
+          })}`);
+    };
+
+    // NEG-1 — o chamador cancelável deixa de ser dono exclusivo e entra no voo compartilhado:
+    // `isCancelled` passa a viajar nos params internos do criador e MATA o voo de todo mundo.
+    await negativoG6('NEG-1 (isCancelled mata o voo compartilhado): o cancelável vira criador e leva A e B junto',
+      () => cenarioBG6({ mutSvc: mutG6([G6_CANCELAVEL, '  /* mutante: o cancelável entra no voo compartilhado */']) }),
+      (r) => !(r.rA && r.rA.ok === true) || r.indice !== `${V1_G6}:ready` || r.readys.length !== 1);
+    // NEG-2 — o single-flight some: um chamador COMPATÍVEL abre um segundo voo em vez de joinar.
+    await negativoG6('NEG-2 (chamador compatível cria voo duplicado): duas conclusões e dois eventos globais',
+      () => cenarioAG6({ mutSvc: mutG6([G6_EXISTING, '  const existing = null;']) }),
+      (r) => r.mesmoResultado !== true || r.readys.length !== 1);
+    // NEG-3 — a identidade colapsa em storyId: um chamador INCOMPATÍVEL passa a joinar o voo alheio.
+    await negativoG6('NEG-3 (chamador incompatível faz join): recebe a conclusão de OUTRA identidade',
+      () => cenarioIncompativelG6({ mutSvc: mutG6([G6_CHAVE, '  return JSON.stringify([storyId]);']) }),
+      (r) => !(r.rE && r.rE.ok === true && r.rE.version === V2_G6) || r.voosComIncompativeis !== 2);
+    // NEG-4 — o cancelamento passa a gravar no índice (vira falha em vez de retorno limpo).
+    await negativoG6('NEG-4 (chamador cancelado publica índice): o cancelamento vira FAILED persistido',
+      () => cenarioDG6({ mutSvc: mutG6([G6_CANCEL_RETORNO, "      return failWith('cancelado');"]) }),
+      (r) => r.eventosIndice.some((e) => /failed/.test(e)) || r.progC.length !== 0 || r.setEntry !== 1);
+    // NEG-5 — o caminho cancelável passa a publicar no registro global.
+    await negativoG6('NEG-5 (chamador cancelado emite READY global): o dono exclusivo publica disponibilidade',
+      () => cenarioDG6({
+        mutSvc: mutG6([G6_CANCELAVEL, "  if (typeof (params && params.isCancelled) === 'function') { const __rz = (typeof installRegistry !== 'undefined' && installRegistry) ? installRegistry : null; const __pz = guardedInstall(resolved, params); if (__rz) { const __oz = __rz.beginInstall(resolved.storyId, { version: resolved.version }); __pz.then((r) => __rz.settleReady(resolved.storyId, __oz, (r && r.entry) || { version: resolved.version, status: 'ready' })).catch(() => {}); } return __pz; }"]),
+      }),
+      (r) => r.readys.length !== 1);
+    // NEG-6 — o cancelável deixa de passar pela FILA física: passa a disputar o mesmo `.tmp` de um
+    // voo compartilhado vivo, e o `deleteAsync` do cancelamento alcança bytes de outro voo.
+    await negativoG6('NEG-6 (cancelamento apaga bytes válidos de outro voo): sem a fila física, os dois disputam o mesmo .tmp',
+      () => cenarioBG6({ mutSvc: mutG6([G6_CANCELAVEL, "  if (typeof (params && params.isCancelled) === 'function') return downloadStoryPackScenesFromGlobalManifestImpl(resolved, params);"]) }),
+      (r) => !(r.rA && r.rA.ok === true) || r.indice !== `${V1_G6}:ready` || r.readys.length !== 1
+        || r.moves !== 1 || r.intactoV1 !== true);
+    // NEG-7 — a corrente da fila não é liberada quando a tarefa termina cancelada.
+    await negativoG6('NEG-7 (cancelamento deixa a fila bloqueada): o próximo participante nunca adquire o recurso',
+      () => cenarioIncompativelG6({ mutSvc: mutG6([G6_FILA_SETTLED, '  const settled = run.then((r) => ((r && r.cancelled) ? new Promise(() => {}) : undefined), () => undefined);']) }),
+      (r) => !(r.rE && r.rE.ok === true) || r.indice !== `${V2_G6}:ready`);
+    // NEG-8 — o cancelamento passa a revogar a história (trata a saída do dono exclusivo como Reset).
+    await negativoG6('NEG-8 (cancelamento de C revoga os outros): o voo vivo perde a autorização de publicar',
+      () => cenarioIncompativelG6({
+        mutSvc: mutG6([G6_CANCELAVEL, "  if (typeof (params && params.isCancelled) === 'function') { const __rw = (typeof installRegistry !== 'undefined' && installRegistry) ? installRegistry : null; const __pw = guardedInstall(resolved, params); if (__rw && typeof __rw.clearStoryPackInstall === 'function') { __pw.then((r) => { if (r && r.cancelled) __rw.clearStoryPackInstall(resolved.storyId); }).catch(() => {}); } return __pw; }"]),
+      }),
+      (r) => !(r.rE && r.rE.ok === true) || r.readys.length !== 2 || r.indice !== `${V2_G6}:ready`);
+
+    // ── ANTITAUTOLOGIA: toda âncora dos mutantes existe HOJE no fonte; uma âncora falsa LANÇA ─────
+    {
+      const svcSrc = readSrc('src/services/packDownloadService.js');
+      const ancoras = [
+        ['desvio do dono exclusivo (isCancelled)', G6_CANCELAVEL],
+        ['consulta do mapa de voos', G6_EXISTING],
+        ['canonicalização dos 7 campos da identidade', G6_CHAVE],
+        ['retorno terminal do cancelamento', G6_CANCEL_RETORNO],
+        ['liberação da corrente da fila física', G6_FILA_SETTLED],
+      ];
+      const ausentes = ancoras.filter(([, a]) => !svcSrc.includes(a)).map(([n]) => n);
+      let falsaLancou = false;
+      try { mutG6(['âncora que não existe em lugar nenhum', 'x'])(svcSrc); } catch (_) { falsaLancou = true; }
+      check('LP2.1 G6 ANTITAUTOLOGIA: as 5 âncoras dos mutantes existem no fonte e uma âncora falsa reprova',
+        ausentes.length === 0 && falsaLancou === true,
+        `ausentes=${JSON.stringify(ausentes)} falsaLancou=${falsaLancou}`);
+    }
+  })();
+  globalThis.__LP21G6.catch(() => {});
+}
+
 
 // ── Sprint 3 — Área dos Pais como Central Adulta do MVP ──────────────────────
 
@@ -31463,6 +32486,18 @@ try {
   check('LP2.1 G4 (harness): o bloco assíncrono dos dois READY concorrentes concluiu sem estourar',
     !lp21g4Err,
     `o bloco G4 lançou (${lp21g4Err && lp21g4Err.stack ? String(lp21g4Err.stack).split('\n').slice(0, 4).join(' | ') : lp21g4Err}) — os checks dele não rodaram`);
+
+  let lp21g5Err = null;
+  try { await globalThis.__LP21G5; } catch (e) { lp21g5Err = e; }
+  check('LP2.1 G5 (harness): o bloco assíncrono da saída durante a publicação concluiu sem estourar',
+    !lp21g5Err,
+    `o bloco G5 lançou (${lp21g5Err && lp21g5Err.stack ? String(lp21g5Err.stack).split('\n').slice(0, 4).join(' | ') : lp21g5Err}) — os checks dele não rodaram`);
+
+  let lp21g6Err = null;
+  try { await globalThis.__LP21G6; } catch (e) { lp21g6Err = e; }
+  check('LP2.1 G6 (harness): o bloco assíncrono do chamador cancelável com voo compartilhado concluiu sem estourar',
+    !lp21g6Err,
+    `o bloco G6 lançou (${lp21g6Err && lp21g6Err.stack ? String(lp21g6Err.stack).split('\n').slice(0, 4).join(' | ') : lp21g6Err}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
