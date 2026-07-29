@@ -27,11 +27,14 @@ Verificar ANTES de cada build de produção. Uma flag errada pode entregar premi
 | Profile | `distribution` | `buildType` | Uso |
 |---|---|---|---|
 | `development` | `internal` | `apk` | Desenvolvimento local com dev client |
-| `preview` | `internal` | `apk` (Android) / default (iOS) | Testes internos antes de submissão |
+| `preview` | `internal` | `apk` (Android) / default (iOS) | Testes internos antes de submissão — **laboratório de packs, SEM Modo Criador** |
+| `preview-criador` | `internal` | herda `preview` (`extends`) | **B4:** QA interno de conteúdo premium — `preview` + Modo Criador |
 | `production` | `store` (implícito) | `app-bundle` (Android) | Submissão às lojas |
 | `screenshot` | `internal` | `apk` (Android) | **M1:** screenshots oficiais — production-like, SEM flags internas |
 
 **Regra:** Nunca usar `preview` para submeter às lojas. Sempre usar `production`. **Screenshots oficiais nunca saem de `development` nem `preview`** — usar `production` ou `screenshot` (ambos limpos).
+
+**Regra `preview-criador` (B4):** é um perfil **interno de QA**, de distribuição `internal`, criado só para validar conteúdo premium num build Release. **Nunca usar para distribuição pública**, nunca para loja, nunca para screenshots. Ele é o único perfil que declara `EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE=true` — e essa flag, **sozinha, não autoriza nada**: o Modo Criador exige as 5 condições simultâneas de `CREATOR_QA_MODE_RELEASE_ENABLED` (`src/config/featureFlags.js`), incluindo `EXPO_PUBLIC_BUILD_PROFILE === 'preview-criador'` literal.
 
 ---
 
@@ -44,12 +47,15 @@ As ferramentas internas do criador (Modo Criador/premium simulado, packs, reset 
 | Ambiente | `isInternalToolsEnabled()` | Modo Criador (premium simulado) | FAB packs | Seção "Administração (dev)" |
 |---|---|---|---|---|
 | `development` (`__DEV__`) | **true** | ON | (sem FAB — só a seção) | ON |
-| `preview` (QA) | **true** (via `RELEASE_PACK_QA_ENABLED`) | **OFF** (sem `ENABLE_CREATOR_QA_MODE`) | removido | ON (para packs QA) |
+| `preview` (QA packs) | **true** (via `RELEASE_PACK_QA_ENABLED`) | **OFF** (sem `ENABLE_CREATOR_QA_MODE`) — **switch nem é renderizado** | removido | ON (para packs QA) |
+| `preview-criador` (QA premium) | **true** (via `RELEASE_PACK_QA_ENABLED`) | **ON** (5 flags simultâneas) — switch visível e funcional | removido | ON (packs + Modo Criador) |
 | `production` | **false** | OFF | removido | OFF |
 | `screenshot` | **false** | OFF | removido | OFF |
 
 - **FAB packs global REMOVIDO (M1):** sem overlay dev em nenhuma tela; acesso a packs só pela seção "Administração (dev)".
-- **Banner "Modo Criador Ativo":** só onde o Modo Criador é permitido (development ou build com `EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE`). Nunca em production/screenshot.
+- **Banner "Modo Criador Ativo":** só onde o Modo Criador é permitido (`development` ou `preview-criador`). Nunca em `preview`, `production` ou `screenshot`.
+- **Switch do Modo Criador (B4):** renderizado **apenas** quando `isCreatorQaModeAllowed()` é true. Em `preview` a seção "Administração (dev)" continua visível para os packs, mas o switch **não existe** — antes ele aparecia, aceitava o toque e voltava sozinho para `false`, porque a persistência já era (corretamente) recusada pelo gate.
+- **Produção é fail-closed por ausência:** os perfis `production` e `screenshot` não declaram **nenhuma** env. Mesmo que um build anterior tenha deixado `true` salvo no AsyncStorage, `isCreatorQaModeEnabled()` retorna `false` e o valor salvo é ignorado.
 - **"Apagar progresso":** feature PÚBLICA do responsável (gestão de dados, confirmação "APAGAR") — fora da seção dev.
 
 ### Processo de screenshots oficiais

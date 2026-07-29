@@ -925,23 +925,29 @@ export default function ParentAreaScreen({ navigation }) {
               title="🛠️ Administração (dev)"
               hint="Apenas para desenvolvimento e testes neste aparelho. Não aparece em produção."
             >
-              <InfoCard style={styles.qaCard}>
-                <View style={styles.qaRow}>
-                  <View style={styles.qaText}>
-                    <Text style={styles.qaTitle}>Modo Criador</Text>
-                    <Text style={styles.qaDesc}>Desbloquear todo o conteúdo neste aparelho para testes.</Text>
+              {/* B4: o switch só existe onde a ativação É permitida (qaAllowed).
+                  Em `preview` a seção continua visível para o laboratório de packs,
+                  mas o Modo Criador NÃO é renderizado — nunca um controle que aceita
+                  o toque e volta sozinho para false. */}
+              {qaAllowed && (
+                <InfoCard style={styles.qaCard}>
+                  <View style={styles.qaRow}>
+                    <View style={styles.qaText}>
+                      <Text style={styles.qaTitle}>Modo Criador</Text>
+                      <Text style={styles.qaDesc}>Desbloquear todo o conteúdo neste aparelho para testes.</Text>
+                    </View>
+                    <Switch
+                      value={qaEnabled}
+                      onValueChange={handleToggleQa}
+                      trackColor={{ false: '#CBD5E1', true: pt.green }}
+                      thumbColor="#FFF"
+                    />
                   </View>
-                  <Switch
-                    value={qaEnabled}
-                    onValueChange={handleToggleQa}
-                    trackColor={{ false: '#CBD5E1', true: pt.green }}
-                    thumbColor="#FFF"
-                  />
-                </View>
-                <Text style={styles.qaWarning}>
-                  Este modo libera todo o conteúdo apenas neste aparelho para validação do app. Ele não altera o plano dos usuários reais.
-                </Text>
-              </InfoCard>
+                  <Text style={styles.qaWarning}>
+                    Este modo libera todo o conteúdo apenas neste aparelho para validação do app. Ele não altera o plano dos usuários reais.
+                  </Text>
+                </InfoCard>
+              )}
 
               <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
                 {beniResetDone ? (

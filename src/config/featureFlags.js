@@ -44,15 +44,45 @@ export const SHOW_CHURCH_MODE =
  *   - EXPO_PUBLIC_ENABLE_PACK_SANDBOX     === 'true'
  *   - EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA  === 'true'
  *   - EXPO_PUBLIC_QA_BUILD                === 'true'
- *   - EXPO_PUBLIC_BUILD_PROFILE           === 'preview'
+ *   - EXPO_PUBLIC_BUILD_PROFILE           === 'preview' OU 'preview-criador'
+ *
+ * A última condição é uma LISTA FECHADA de perfis internos (`distribution: internal`),
+ * não um curinga: `preview` é o laboratório de packs; `preview-criador` é o MESMO
+ * laboratório acrescido do Modo Criador (B4). Qualquer outro valor — inclusive vazio —
+ * mantém a ferramenta desligada.
  *
  * PRODUÇÃO NUNCA liga: o perfil `production` do eas.json NÃO define nenhuma dessas flags;
  * e mesmo que EXPO_PUBLIC_ENABLE_PACK_SANDBOX vazasse sozinho, faltariam as outras três
- * (em especial BUILD_PROFILE === 'preview'). Flags NÃO são segredo (EXPO_PUBLIC_*). A
- * ferramenta continua TÉCNICA e restrita (FAB/rota dev), NUNCA child-facing.
+ * (em especial BUILD_PROFILE em um perfil interno). Flags NÃO são segredo (EXPO_PUBLIC_*).
+ * A ferramenta continua TÉCNICA e restrita (FAB/rota dev), NUNCA child-facing.
  */
 export const RELEASE_PACK_QA_ENABLED =
   process.env.EXPO_PUBLIC_ENABLE_PACK_SANDBOX === 'true' &&
   process.env.EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA === 'true' &&
   process.env.EXPO_PUBLIC_QA_BUILD === 'true' &&
-  process.env.EXPO_PUBLIC_BUILD_PROFILE === 'preview';
+  (process.env.EXPO_PUBLIC_BUILD_PROFILE === 'preview' ||
+    process.env.EXPO_PUBLIC_BUILD_PROFILE === 'preview-criador');
+
+/**
+ * CREATOR_QA_MODE_RELEASE_ENABLED — autoriza o **Modo Criador** em build Release de QA
+ * interno (B4). É a única porta de entrada do Modo Criador fora de `__DEV__`.
+ *
+ * ⚠️ QUÍNTUPLO gate — reaproveita as 4 condições de RELEASE_PACK_QA_ENABLED e soma duas
+ * exigências próprias, resultando em:
+ *   - EXPO_PUBLIC_ENABLE_PACK_SANDBOX      === 'true'   (via RELEASE_PACK_QA_ENABLED)
+ *   - EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA   === 'true'   (via RELEASE_PACK_QA_ENABLED)
+ *   - EXPO_PUBLIC_QA_BUILD                 === 'true'   (via RELEASE_PACK_QA_ENABLED)
+ *   - EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE   === 'true'
+ *   - EXPO_PUBLIC_BUILD_PROFILE            === 'preview-criador'  (exato, sem 'preview')
+ *
+ * Consequências desenhadas de propósito:
+ *   - Uma flag isolada NÃO libera nada: EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE sozinha é inerte.
+ *   - `preview` (o perfil de packs) continua SEM Modo Criador — o nome do perfil é checado
+ *     literalmente e `preview !== preview-criador`.
+ *   - `production` e `screenshot` não declaram nenhuma env: fail-closed por ausência.
+ *   - Este perfil é de distribuição INTERNA e NÃO deve ser usado para distribuição pública.
+ */
+export const CREATOR_QA_MODE_RELEASE_ENABLED =
+  RELEASE_PACK_QA_ENABLED &&
+  process.env.EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE === 'true' &&
+  process.env.EXPO_PUBLIC_BUILD_PROFILE === 'preview-criador';

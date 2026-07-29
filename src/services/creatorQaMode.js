@@ -5,10 +5,12 @@
  * durante o desenvolvimento, SEM tocar no paywall global nem marcar compra real.
  *
  * Princípios de segurança:
- *   - Só PODE ser usado em ambiente permitido: __DEV__ ou a flag de build
- *     EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE === 'true'. (A flag NÃO é segredo.)
- *   - Em produção sem a flag, o modo é SEMPRE ignorado — mesmo que exista um
- *     valor salvo no AsyncStorage.
+ *   - Só PODE ser usado em ambiente permitido: __DEV__ ou um build Release de QA
+ *     interno que satisfaça o QUÍNTUPLO gate CREATOR_QA_MODE_RELEASE_ENABLED
+ *     (src/config/featureFlags.js). Nenhuma flag isolada libera o modo — em
+ *     particular, EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE sozinha é inerte.
+ *   - Em produção, o modo é SEMPRE ignorado — mesmo que exista um valor salvo
+ *     no AsyncStorage por um build anterior.
  *   - É apenas um OVERRIDE de permissão local. Nunca grava plano Premium, nunca
  *     marca compra, nunca simula recibo de loja.
  *
@@ -16,6 +18,7 @@
  * de forma SÍNCRONA — por isso o valor fica em memória, carregado no boot.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CREATOR_QA_MODE_RELEASE_ENABLED } from '../config/featureFlags';
 
 const STORAGE_KEY = '@ptf_creator_qa_mode';
 
@@ -35,11 +38,15 @@ export function subscribeCreatorQaMode(cb) {
   return () => _listeners.delete(cb);
 }
 
-/** Ambiente onde o Modo Criador PODE existir. Nunca liga sozinho em produção. */
+/**
+ * Ambiente onde o Modo Criador PODE existir. Nunca liga sozinho em produção.
+ *   - Em desenvolvimento (`__DEV__`), continua liberado como sempre foi.
+ *   - Em Release, só o perfil interno `preview-criador` com as 5 flags simultâneas
+ *     (CREATOR_QA_MODE_RELEASE_ENABLED) autoriza. `preview` e `production` = false.
+ */
 export function isCreatorQaModeAllowed() {
   const dev = typeof __DEV__ !== 'undefined' && __DEV__ === true;
-  const buildFlag = process.env.EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE === 'true';
-  return dev || buildFlag;
+  return dev || CREATOR_QA_MODE_RELEASE_ENABLED;
 }
 
 /**

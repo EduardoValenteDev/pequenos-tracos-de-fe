@@ -178,11 +178,18 @@ check(
 const qaSrc = readSrc('src/services/creatorQaMode.js');
 
 check(
-  'creatorQaMode só é permitido em __DEV__ ou flag de build (não liga em prod)',
+  'creatorQaMode só é permitido em __DEV__ ou no gate quíntuplo (não liga em prod)',
   /isCreatorQaModeAllowed/.test(qaSrc) &&
   qaSrc.includes('__DEV__') &&
-  qaSrc.includes("EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE === 'true'"),
-  'creatorQaMode allowed gate must be __DEV__ or EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE',
+  /return dev \|\| CREATOR_QA_MODE_RELEASE_ENABLED/.test(qaSrc) &&
+  qaSrc.includes("import { CREATOR_QA_MODE_RELEASE_ENABLED } from '../config/featureFlags'"),
+  'creatorQaMode allowed gate must be __DEV__ or CREATOR_QA_MODE_RELEASE_ENABLED',
+);
+
+check(
+  'creatorQaMode NÃO lê flag de env sozinho (uma flag isolada não autoriza)',
+  !/process\.env\.EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE/.test(qaSrc),
+  'creatorQaMode must not parse EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE directly — the multi-gate lives in featureFlags',
 );
 
 check(
@@ -234,6 +241,13 @@ check(
   parentQaSrc.includes('Modo Criador') &&
   parentQaSrc.includes('não altera o plano dos usuários reais'),
   'ParentAreaScreen must show the Creator toggle behind the test-tools gate, with the QA warning',
+);
+
+check(
+  'B4: switch do Modo Criador é renderizado só quando qaAllowed (sem toggle que volta sozinho)',
+  /const qaAllowed = isCreatorQaModeAllowed\(\)/.test(parentQaSrc) &&
+  /\{qaAllowed && \([\s\S]{0,600}?Modo Criador[\s\S]{0,900}?onValueChange=\{handleToggleQa\}/.test(parentQaSrc),
+  'The Creator switch must be wrapped in {qaAllowed && (...)} so it never renders where activation is refused',
 );
 
 check(
@@ -24930,17 +24944,25 @@ try {
       })() && /packDownload\.isRemote/.test(detail26),
       'starter deixou de ser livre OU download não é gated por isRemote');
 
-    // Adendo #2 — Modo Criador impossível em produção: guard + flag NÃO vaza p/ build.
-    check('2B.6 (adendo: Creator QA seguro em prod): guard __DEV__/flag no serviço + flag ausente de eas.json/app.json',
+    // Adendo #2 — Modo Criador impossível em produção: guard no serviço + flag CONFINADA
+    // ao único perfil interno autorizado. B4: a checagem passou a ser POR PERFIL (antes era
+    // pelo arquivo inteiro) — `preview-criador` PODE declarar a flag; todo o resto NÃO pode.
+    check('2B.6 (adendo: Creator QA seguro em prod): flag só no perfil preview-criador + guard no serviço',
       (() => {
-        const eas = srcExists('eas.json') ? readSrc('eas.json') : '';
         const appJson = srcExists('app.json') ? readSrc('app.json') : '';
         const qa = readSrc('src/services/creatorQaMode.js');
-        return !/EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE/.test(eas)
-          && !/EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE/.test(appJson)
+        const F = 'EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE';
+        let profiles;
+        try { profiles = JSON.parse(readSrc('eas.json')).build || {}; } catch { return false; }
+        const vazou = Object.keys(profiles).some(
+          (name) => name !== 'preview-criador' && (profiles[name].env || {})[F] !== undefined,
+        );
+        const autorizado = ((profiles['preview-criador'] || {}).env || {})[F] === 'true';
+        return !vazou && autorizado
+          && !new RegExp(F).test(appJson)
           && /isCreatorQaModeAllowed/.test(qa) && /__DEV__/.test(qa);
       })(),
-      'Modo Criador pode vazar p/ produção (flag em eas.json/app.json ou guard ausente)');
+      'Modo Criador pode vazar p/ produção (flag fora de preview-criador, em app.json, ou guard ausente)');
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -25523,6 +25545,135 @@ try {
       parentM1.includes("'APAGAR'") && parentM1.includes('Administração (dev)')
         && parentM1.indexOf("'APAGAR'") < parentM1.indexOf('Administração (dev)'),
       '"Apagar progresso" ausente OU dentro da seção dev (deveria ser público, fora dela)');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // B4 — perfil interno `preview-criador` + gate QUÍNTUPLO do Modo Criador.
+  // Matriz COMPORTAMENTAL (não textual): featureFlags e creatorQaMode são avaliados com
+  // `process.env`, `__DEV__` e AsyncStorage INJETADOS, cobrindo os 8 cenários do bloco.
+  // Produção continua fechada por AUSÊNCIA de env — e ignora valor salvo no storage.
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── B4: Modo Criador gated (perfil interno preview-criador) ──');
+  {
+    const flagsB4 = readSrc('src/config/featureFlags.js');
+    const qaB4 = readSrc('src/services/creatorQaMode.js');
+    const easB4 = JSON.parse(readSrc('eas.json')).build || {};
+    const QA_KEY = '@ptf_creator_qa_mode';
+
+    // Avalia featureFlags.js com um process.env sintético (independe do ambiente real).
+    const gates = (env) => new Function('process',
+      `${flagsB4.replace(/export /g, '')}\nreturn { creator: CREATOR_QA_MODE_RELEASE_ENABLED, packs: RELEASE_PACK_QA_ENABLED };`,
+    )({ env });
+
+    // Instancia creatorQaMode.js isolado: __DEV__, gate de release e AsyncStorage injetados.
+    const makeQa = (dev, creatorGate, store) => {
+      const AS = {
+        getItem: (k) => Promise.resolve(Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+        setItem: (k, v) => { store[k] = v; return Promise.resolve(); },
+      };
+      const code = qaB4.replace(/^\s*import\s.+?;\s*$/gm, '').replace(/export /g, '');
+      return new Function('__DEV__', 'AsyncStorage', 'CREATOR_QA_MODE_RELEASE_ENABLED',
+        `${code}\nreturn { isCreatorQaModeAllowed, isCreatorQaModeEnabled, setCreatorQaModeEnabled, loadCreatorQaMode };`,
+      )(dev, AS, creatorGate);
+    };
+
+    const ENV_PREVIEW = {
+      EXPO_PUBLIC_ENABLE_PACK_SANDBOX: 'true',
+      EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA: 'true',
+      EXPO_PUBLIC_QA_BUILD: 'true',
+      EXPO_PUBLIC_BUILD_PROFILE: 'preview',
+    };
+    const envCriador = (over) => Object.assign({}, ENV_PREVIEW, {
+      EXPO_PUBLIC_BUILD_PROFILE: 'preview-criador',
+      EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE: 'true',
+    }, over || {});
+    const sem = (env, k) => { const c = Object.assign({}, env); delete c[k]; return c; };
+
+    // B4-1 (cenário 1) — desenvolvimento continua liberado pelo contrato atual.
+    check('B4-1 (dev): __DEV__ true libera o Modo Criador mesmo sem nenhuma flag',
+      makeQa(true, gates({}).creator, {}).isCreatorQaModeAllowed() === true,
+      '__DEV__ deixou de liberar o Modo Criador (regressão do contrato de desenvolvimento)');
+
+    // B4-2 (cenário 2) — Release + `preview` (laboratório de packs) NÃO libera o criador.
+    check('B4-2 (preview): Release com as 4 flags de packs e SEM a flag de criador → não permitido',
+      (() => {
+        const g = gates(ENV_PREVIEW);
+        return g.packs === true && g.creator === false
+          && makeQa(false, g.creator, {}).isCreatorQaModeAllowed() === false;
+      })(),
+      'perfil preview passou a liberar o Modo Criador (deveria ser só laboratório de packs)');
+
+    // B4-3 (cenário 3) — `preview-criador` com as 5 condições: permite, liga e PERSISTE.
+    check('B4-3 (preview-criador): 5 condições → permitido, setCreatorQaModeEnabled(true) grava',
+      await (async () => {
+        const g = gates(envCriador());
+        if (g.creator !== true || g.packs !== true) return false;
+        const store = {};
+        const qa = makeQa(false, g.creator, store);
+        if (qa.isCreatorQaModeAllowed() !== true) return false;
+        const applied = await qa.setCreatorQaModeEnabled(true);
+        return applied === true && qa.isCreatorQaModeEnabled() === true && store[QA_KEY] === 'true';
+      })(),
+      'preview-criador não autoriza/persiste o Modo Criador (perfil de QA quebrado)');
+
+    // B4-4 (cenário 4) — flag de criador SOZINHA (perfil preview) não autoriza nada.
+    check('B4-4 (flag isolada): creator flag true mas BUILD_PROFILE=preview → não permitido',
+      (() => {
+        const env = Object.assign({}, ENV_PREVIEW, { EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE: 'true' });
+        return gates(env).creator === false
+          && makeQa(false, gates(env).creator, {}).isCreatorQaModeAllowed() === false;
+      })(),
+      'uma flag isolada passou a liberar o Modo Criador (gate quíntuplo afrouxado)');
+
+    // B4-5/6/7 (cenários 5 e 6 + 5ª condição) — falta QUALQUER uma das flags → fecha.
+    check('B4-5 (conjunção): sem QA_BUILD, sem RELEASE_PACK_QA ou sem PACK_SANDBOX → não permitido',
+      ['EXPO_PUBLIC_QA_BUILD', 'EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA', 'EXPO_PUBLIC_ENABLE_PACK_SANDBOX']
+        .every((k) => gates(sem(envCriador(), k)).creator === false
+          && gates(Object.assign(envCriador(), { [k]: 'false' })).creator === false),
+      'gate do Modo Criador não é conjunção real (uma flag ausente/false deveria fechar)');
+
+    // B4-6 (cenário 7) — produção ignora valor salvo por um build anterior.
+    check('B4-6 (produção): env vazia + "true" salvo no storage → isCreatorQaModeEnabled false',
+      await (async () => {
+        const g = gates({});
+        if (g.creator !== false || g.packs !== false) return false;
+        const store = { [QA_KEY]: 'true' };
+        const qa = makeQa(false, g.creator, store);
+        const carregado = await qa.loadCreatorQaMode();
+        const gravou = await qa.setCreatorQaModeEnabled(true);
+        return carregado === false && gravou === false
+          && qa.isCreatorQaModeAllowed() === false && qa.isCreatorQaModeEnabled() === false;
+      })(),
+      'produção honrou valor salvo no AsyncStorage (deveria ser fail-closed)');
+
+    // B4-7 (cenário 8) — no perfil autorizado, o estado sobrevive à releitura do storage.
+    check('B4-7 (persistência): ligado em preview-criador continua true ao reler o storage',
+      await (async () => {
+        const g = gates(envCriador()).creator;
+        const store = {};
+        await makeQa(false, g, store).setCreatorQaModeEnabled(true);
+        const outro = makeQa(false, g, store);
+        return (await outro.loadCreatorQaMode()) === true && outro.isCreatorQaModeEnabled() === true;
+      })(),
+      'valor do Modo Criador não sobrevive à releitura do storage no perfil autorizado');
+
+    // B4-8 — eas.json: a flag de criador vive SÓ em preview-criador; preview segue intacto.
+    check('B4-8 (eas): flag de criador só em preview-criador; preview/production/screenshot limpos',
+      (() => {
+        const F = 'EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE';
+        const env = (n) => (easB4[n] || {}).env || {};
+        const pc = env('preview-criador');
+        return pc[F] === 'true'
+          && pc.EXPO_PUBLIC_BUILD_PROFILE === 'preview-criador'
+          && pc.EXPO_PUBLIC_QA_BUILD === 'true'
+          && pc.EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA === 'true'
+          && pc.EXPO_PUBLIC_ENABLE_PACK_SANDBOX === 'true'
+          && (easB4['preview-criador'] || {}).distribution === 'internal'
+          && env('preview').EXPO_PUBLIC_BUILD_PROFILE === 'preview'
+          && env('preview')[F] === undefined
+          && ['production', 'screenshot', 'development'].every((n) => Object.keys(env(n)).length === 0);
+      })(),
+      'perfil preview-criador ausente/incompleto OU flag de criador vazou p/ outro perfil');
   }
 
   // ════════════════════════════════════════════════════════════════════════════
