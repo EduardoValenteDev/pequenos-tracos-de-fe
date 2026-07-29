@@ -13976,6 +13976,876 @@ console.log('\n── LP2.1 G1: revogação por Reset × sucessão de identidade
   globalThis.__LP21G1.catch(() => {});
 }
 
+// ── LP2.1 G2: recovery de ÓRFÃO com consumidores concorrentes (auditoria §10.7) ───────────────
+// Pergunta da auditoria: um pack INTEGRALMENTE publicado no disco mas SEM índice READY (o que um
+// encerramento entre o `moveAsync` e o `setPackEntry` deixa) é recuperado DENTRO da fila física e
+// PUBLICADO para todos os consumidores — o que pediu primeiro, o que chegou durante o recovery e o
+// que só montou depois — sem repetir trabalho físico e sem deixar ninguém eternamente em progresso?
+//
+// A composição sob prova é REAL: packRecoveryService + fila por storyId (`runExclusiveByStory`) +
+// single-flight por identidade resolvida + registro global (`settleReady`/`subscribePackReady`) +
+// replay de snapshot para quem monta depois. Só disco/rede/log são doubles.
+console.log('\n── LP2.1 G2: recovery de órfão com consumidores ──');
+{
+  const { createPackInstallHarness: mkHg2, loadPackDownloader: loadDlg2, loadModule: loadModg2 } = require('./testing/packInstallHarness');
+  const REG_EXP_G2 = ['getStoryPackInstallSnapshot', 'subscribeStoryPackInstall', 'subscribePackReady', 'beginInstall',
+    'reportInstall', 'settleReady', 'settleError', 'clearStoryPackInstall', 'isCurrentOperation',
+    'getRevocationGeneration', 'isFlightRevoked', '_debugState'];
+  // Instância NOVA por cenário (o registro é singleton de módulo: snapshots/gerações vazariam).
+  const novoRegG2 = (mut) => loadModg2('src/services/packInstallRegistry.js', {}, REG_EXP_G2, mut);
+  const novoSvcG2 = (mut) => loadDlg2(mut).createPackDownloadService;
+  // O marcador é construído pelo MESMO builder de produção — nada de marcador fabricado à mão.
+  const { buildPublishMarker: mkMarkerG2 } = loadModg2('src/services/packPublishMarker.js', {}, ['buildPublishMarker']);
+
+  const STORY_G2 = 'david_goliath';
+  const VER_G2 = '2.0.0';
+  const GLOBAL_G2 = 'https://r2/content-manifest.json';
+  const BASE_G2 = `https://r2/${STORY_G2}/${VER_G2}/`;
+  const FILES_G2 = [
+    { kind: 'scene', path: 'scenes/01.webp', text: 'ORFAO-CENA-UM' },
+    { kind: 'scene', path: 'scenes/02.webp', text: 'ORFAO-CENA-DOIS' },
+  ];
+  const flushG2 = async (n = 8) => { for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0)); };
+  const indiceG2 = (e) => (e ? `${e.version}:${e.status}` : 'ausente');
+
+  /** Manifesto do pack: o MESMO texto vai para o disco (órfão) e para a rota de rede (fallback). */
+  const manifestoG2 = (h) => {
+    const F = FILES_G2.map((f) => ({ kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text) }));
+    const text = JSON.stringify({ schemaVersion: 1, id: STORY_G2, version: VER_G2, type: 'story', minAppVersion: '1.0.0', totalBytes: F.reduce((a, f) => a + f.bytes, 0), files: F, metadata: { storyId: STORY_G2, title: 'D', language: 'pt-BR' } });
+    return { text, sha: h.sha256OfText(text) };
+  };
+  const paramsG2 = (onProgress) => ({ storyId: STORY_G2, globalManifestUrl: GLOBAL_G2, appVersion: '1.0.0', requestedKinds: ['scene'], onProgress });
+
+  /**
+   * Interleaving canônico do G2: A pede a história; o recovery é interrompido no checkpoint da
+   * gravação do índice (o instante em que a evidência já foi validada e o READY ainda NÃO existe);
+   * nessa janela entram (a) o consumidor B, com a MESMA identidade resolvida, e (b) uma sonda
+   * EXCLUSIVA (`isCancelled`) que não compartilha voo mas passa pela fila física — é ela que torna
+   * observável se o recovery roda mesmo DENTRO da fila.
+   */
+  const orfaoComConsumidoresG2 = async ({ mutReg, mutSvc, mutRec } = {}) => {
+    const h = mkHg2({ recoveryMutate: mutRec });
+    const man = manifestoG2(h);
+    // Órfão REAL: diretório final completo + marcador válido, e NADA no índice.
+    h.seedOrphanPack({
+      storyId: STORY_G2, version: VER_G2,
+      files: FILES_G2.map((f) => ({ path: f.path, text: f.text })),
+      manifestText: man.text,
+      marker: mkMarkerG2({ storyId: STORY_G2, version: VER_G2, manifestSha256: man.sha, manifestPath: 'manifest.json', kinds: ['scene'], appVersion: '1.0.0' }),
+      indexEntry: null,
+    });
+    // As rotas de rede EXISTEM e funcionam: "zero downloads" só é prova porque baixar era possível.
+    h.route(`${BASE_G2}manifest.json`, { text: man.text });
+    FILES_G2.forEach((f) => h.route(BASE_G2 + f.path, { text: f.text }));
+    h.setGlobalManifest({ manifestVersion: 1, minAppVersion: '1.0.0', packs: [h.packEntry({ storyId: STORY_G2, version: VER_G2, baseUrl: BASE_G2, manifestSha256: man.sha })] });
+    const arquivosIniciais = h.mem.listFiles(h.storage.getPackLocalDir(STORY_G2, VER_G2)).length;
+    const indiceInicial = indiceG2(await h.storage.getPackEntry(STORY_G2));
+    h.resetEvents();
+
+    const REG = novoRegG2(mutReg);
+    const readys = [];
+    REG.subscribePackReady((s) => readys.push((s && s.version) || null));
+    const recBase = h.deps.recoverStoryPack;
+    let recoveries = 0;
+    const svc = novoSvcG2(mutSvc)({
+      ...h.deps,
+      recoverStoryPack: (p) => { recoveries += 1; return recBase(p); },
+      installRegistry: REG,
+      clearPackEntry: h.storage.clearPackEntry,
+    });
+
+    const progA = []; const progB = [];
+    const vistosA = [];
+    const unsubA = REG.subscribeStoryPackInstall(STORY_G2, (s) => vistosA.push(`${s.status}`));
+
+    let pB = null; let pE = null; let armado = false;
+    let indiceNoCheckpoint = null; let recoveriesNoCheckpoint = null; let voosNoCheckpoint = null; let janela = [];
+    h.onBefore = async (t, detail) => {
+      if (t !== 'set-entry' || armado || !String(detail).includes(STORY_G2)) return;
+      armado = true;   // trava SÍNCRONA: o mutante que fura a fila reentra aqui e não pode rearmar
+      indiceNoCheckpoint = indiceG2(await h.storage.getPackEntry(STORY_G2));
+      recoveriesNoCheckpoint = recoveries;
+      voosNoCheckpoint = svc.inFlightInstallCount();
+      const marca = h.events.length;
+      pB = svc.downloadStoryPackScenesFromGlobalManifest(paramsG2((p) => progB.push(p && p.status)));
+      pE = svc.downloadStoryPackScenesFromGlobalManifest({ ...paramsG2(() => {}), isCancelled: () => false });
+      await flushG2(10);
+      janela = h.events.slice(marca);   // o que o disco viu ENQUANTO o recovery estava suspenso
+    };
+
+    const rA = await svc.downloadStoryPackScenesFromGlobalManifest(paramsG2((p) => progA.push(p && p.status)));
+    const rB = pB ? await pB : null;
+    const rE = pE ? await pE.catch((e) => ({ ok: false, reason: String((e && e.message) || e) })) : null;
+    await flushG2(20);
+
+    // Consumidor C monta SÓ AGORA (a tela que abre depois de tudo): tem de receber o terminal.
+    const vistosC = [];
+    const unsubC = REG.subscribeStoryPackInstall(STORY_G2, (s) => vistosC.push(`${s.status}:${s.version}`));
+    unsubA(); unsubC();
+
+    return {
+      rA, rB, rE, readys, recoveries, recoveriesNoCheckpoint, voosNoCheckpoint, indiceNoCheckpoint,
+      arquivosIniciais, indiceInicial, vistosA, vistosC, progA, progB,
+      mesmaConclusao: rA === rB,
+      // A fila física segurou se, na janela de suspensão, o único I/O foi a resolução de rede dos
+      // recém-chegados (nada de leitura/hash/move/download de disco por outro voo).
+      filaSegurou: janela.every((e) => e === 'fetch-global-manifest'),
+      janela,
+      indice: indiceG2(await h.storage.getPackEntry(STORY_G2)),
+      snapshot: REG.getStoryPackInstallSnapshot(STORY_G2),
+      downloads: h.counters.downloads,
+      moves: h.eventsOfType('move').length,
+      mapa: svc.inFlightInstallCount(),
+      ouvintes: REG._debugState().listeners.length,
+    };
+  };
+
+  globalThis.__LP21G2 = (async () => {
+    const G = await orfaoComConsumidoresG2();
+
+    check('LP2.1 G2/1 (cenário é um órfão de verdade): pack íntegro no disco e NENHUM READY no índice',
+      G.arquivosIniciais >= FILES_G2.length + 2 && G.indiceInicial === 'ausente',
+      `arquivos=${G.arquivosIniciais} indice=${G.indiceInicial}`);
+    check('LP2.1 G2/2 (consumidor A é atendido pelo recovery): sucesso com recovered=true, sem rede de conteúdo',
+      G.rA.ok === true && G.rA.recovered === true && G.rA.version === VER_G2,
+      `ok=${G.rA.ok} recovered=${G.rA.recovered} reason=${G.rA.reason}`);
+    check('LP2.1 G2/3 (recovery roda DENTRO da fila física): outro voo da mesma história não tocou o disco na janela de suspensão',
+      G.filaSegurou === true && G.voosNoCheckpoint === 1,
+      `voos=${G.voosNoCheckpoint} janela=${JSON.stringify(G.janela)}`);
+    check('LP2.1 G2/4 (B entra com o recovery ainda suspenso): no checkpoint o índice ainda estava ausente e só havia um recovery',
+      G.indiceNoCheckpoint === 'ausente' && G.recoveriesNoCheckpoint === 1,
+      `indice=${G.indiceNoCheckpoint} recoveries=${G.recoveriesNoCheckpoint}`);
+    check('LP2.1 G2/5 (sem segundo download físico): nenhum byte de conteúdo foi baixado, embora as rotas funcionassem',
+      G.downloads === 0 && G.moves === 0, `downloads=${G.downloads} moves=${G.moves}`);
+    check('LP2.1 G2/6 (sem segundo recovery físico): o recovery real foi invocado exatamente uma vez',
+      G.recoveries === 1, `recoveries=${G.recoveries}`);
+    check('LP2.1 G2/7 (A e B convergem para o MESMO terminal): mesma conclusão lógica e o mesmo evento de progresso terminal',
+      G.mesmaConclusao === true && G.progA[G.progA.length - 1] === 'ready' && G.progB[G.progB.length - 1] === 'ready',
+      `mesma=${G.mesmaConclusao} A=${JSON.stringify(G.progA)} B=${JSON.stringify(G.progB)}`);
+    check('LP2.1 G2/8 (índice termina READY): a promoção do recovery ficou persistida', G.indice === `${VER_G2}:ready`, G.indice);
+    check('LP2.1 G2/9 (registro global coerente): snapshot terminal com a versão e a entrada do pack recuperado',
+      G.snapshot.status === 'ready' && G.snapshot.phase === 'ready' && G.snapshot.version === VER_G2
+        && !!G.snapshot.entry && G.snapshot.entry.status === 'ready',
+      `${G.snapshot.status}/${G.snapshot.phase}/${G.snapshot.version}/${G.snapshot.entry && G.snapshot.entry.status}`);
+    check('LP2.1 G2/10 (um ÚNICO ready global): dois consumidores no mesmo voo → um evento para o PacksContext',
+      G.readys.length === 1 && G.readys[0] === VER_G2, JSON.stringify(G.readys));
+    check('LP2.1 G2/11 (consumidor montado DEPOIS recebe o terminal): replay imediato do snapshot ready',
+      G.vistosC.length === 1 && G.vistosC[0] === `ready:${VER_G2}`, JSON.stringify(G.vistosC));
+    check('LP2.1 G2/12 (nada fica eternamente ativo): mapa de voos vazio, nenhum ouvinte pendurado e nenhuma fase intermediária final',
+      G.mapa === 0 && G.ouvintes === 0 && !['downloading', 'verifying', 'publishing', 'resolving'].includes(G.snapshot.phase),
+      `mapa=${G.mapa} ouvintes=${G.ouvintes} phase=${G.snapshot.phase}`);
+    check('LP2.1 G2/13 (sonda exclusiva não distorce o resultado): o chamador cancelável reaproveita o pack já recuperado',
+      G.rE && G.rE.ok === true && G.rE.recovered === false, `ok=${G.rE && G.rE.ok} recovered=${G.rE && G.rE.recovered}`);
+
+    // ── CONTROLES NEGATIVOS: remover cada elo REAL da composição precisa REPROVAR ────────────────
+    const negativoG2 = async (nome, exec, quebrou) => {
+      let r = null; let erro = null;
+      try { r = await exec(); } catch (e) { erro = e; }
+      check(`LP2.1 G2 ${nome}`, !erro && quebrou(r),
+        erro ? `âncora do mutante não encontrada: ${String((erro && erro.message) || erro)}`
+          : `o mutante NÃO reprovou: ${JSON.stringify(r && { mesma: r.mesmaConclusao, readys: r.readys, recoveries: r.recoveries, downloads: r.downloads, fila: r.filaSegurou, indice: r.indice })}`);
+    };
+
+    // NEG-1 — o elo do single-flight: sem join, B vira um voo próprio (conclusão e ready duplicados).
+    await negativoG2('NEG-1 (join desativado): B deixa de compartilhar o voo do recovery → conclusão e ready duplicados',
+      () => orfaoComConsumidoresG2({ mutSvc: (s) => s.replace('    if (__stillAuth) {', '    if (false) {') }),
+      (r) => r.mesmaConclusao === false || r.readys.length !== 1);
+    // NEG-2 — o elo do evento global: settleReady deixa de avisar o PacksContext.
+    await negativoG2('NEG-2 (ready global suprimido): settleReady para de notificar → o pack recuperado fica invisível ao PacksContext',
+      () => orfaoComConsumidoresG2({ mutReg: (s) => s.replace('  snapshots.set(storyId, snap);\n  notify(storyId);\n  notifyReady(snap);', '  snapshots.set(storyId, snap);\n  notify(storyId);') }),
+      (r) => r.readys.length === 0);
+    // NEG-3 — o elo do recovery: a evidência é validada mas a promoção não é declarada → o fluxo baixa tudo de novo.
+    await negativoG2('NEG-3 (promoção não declarada): recovery valida mas devolve recovered=false → volta a baixar o que já estava no disco',
+      () => orfaoComConsumidoresG2({ mutRec: (s) => s.replace('        recovered: true, version: v.version, kinds: v.kinds,', '        recovered: false, version: v.version, kinds: v.kinds,') }),
+      (r) => r.downloads > 0);
+    // NEG-4 — o elo da fila física: sem `runExclusiveByStory`, a sonda exclusiva entra por cima do
+    // recovery em curso e dispara um SEGUNDO recovery físico sobre o mesmo diretório.
+    await negativoG2('NEG-4 (fila física removida): guardedInstall deixa de serializar → outro voo trabalha o disco durante o recovery',
+      () => orfaoComConsumidoresG2({ mutSvc: (s) => s.replace('  return runExclusiveByStory(resolved.storyId, () => downloadStoryPackScenesFromGlobalManifestImpl(resolved, params));', '  return downloadStoryPackScenesFromGlobalManifestImpl(resolved, params);') }),
+      (r) => r.filaSegurou === false || r.recoveries > 1);
+  })();
+  globalThis.__LP21G2.catch(() => {});
+}
+
+// ── LP2.1 G3: Reset com VOO COMPARTILHADO (auditoria §10.7) ───────────────────────────────────
+// Pergunta da auditoria: quando dois consumidores dividem o MESMO voo físico e o usuário faz um
+// Reset no meio dele, a revogação alcança o voo COMPARTILHADO (não um participante só), ninguém
+// recebe READY do voo revogado, os bytes revogados são limpos, os dois recebem um terminal honesto
+// — e um retry posterior nasce como voo NOVO, aceita consumidores e é o ÚNICO que publica?
+console.log('\n── LP2.1 G3: Reset com voo compartilhado ──');
+{
+  const { createPackInstallHarness: mkHg3, loadPackDownloader: loadDlg3, loadModule: loadModg3 } = require('./testing/packInstallHarness');
+  const REG_EXP_G3 = ['getStoryPackInstallSnapshot', 'subscribeStoryPackInstall', 'subscribePackReady', 'beginInstall',
+    'reportInstall', 'settleReady', 'settleError', 'clearStoryPackInstall', 'isCurrentOperation',
+    'getRevocationGeneration', 'isFlightRevoked', '_debugState'];
+  const novoRegG3 = (mut) => loadModg3('src/services/packInstallRegistry.js', {}, REG_EXP_G3, mut);
+  const novoSvcG3 = (mut) => loadDlg3(mut).createPackDownloadService;
+
+  const STORY_G3 = 'david_goliath';
+  const VER_G3 = '2.0.0';
+  const GLOBAL_G3 = 'https://r2/content-manifest.json';
+  const BASE_G3 = `https://r2/${STORY_G3}/${VER_G3}/`;
+  const FILES_G3 = [
+    { kind: 'scene', path: 'scenes/01.webp', text: 'G3-CENA-UM' },
+    { kind: 'scene', path: 'scenes/02.webp', text: 'G3-CENA-DOIS' },
+  ];
+  const flushG3 = async (n = 8) => { for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0)); };
+  const indiceG3 = (e) => (e ? `${e.version}:${e.status}` : 'ausente');
+  const paramsG3 = (onProgress) => ({ storyId: STORY_G3, globalManifestUrl: GLOBAL_G3, appVersion: '1.0.0', requestedKinds: ['scene'], onProgress });
+
+  /**
+   * Um único manifesto global ESTÁVEL: A, B, o retry e C resolvem EXATAMENTE a mesma identidade —
+   * é o que torna o voo compartilhável e o que faz a pergunta do G3 ser sobre revogação, não sobre
+   * supersessão (esta última já foi provada no G1).
+   */
+  const montarG3 = (h) => {
+    const F = FILES_G3.map((f) => ({ kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text) }));
+    const text = JSON.stringify({ schemaVersion: 1, id: STORY_G3, version: VER_G3, type: 'story', minAppVersion: '1.0.0', totalBytes: F.reduce((a, f) => a + f.bytes, 0), files: F, metadata: { storyId: STORY_G3, title: 'D', language: 'pt-BR' } });
+    h.route(`${BASE_G3}manifest.json`, { text });
+    FILES_G3.forEach((f) => h.route(BASE_G3 + f.path, { text: f.text }));
+    h.setGlobalManifest({ manifestVersion: 1, minAppVersion: '1.0.0', packs: [h.packEntry({ storyId: STORY_G3, version: VER_G3, baseUrl: BASE_G3, manifestSha256: h.sha256OfText(text) })] });
+  };
+
+  /**
+   * Interleaving canônico do G3:
+   *   1. A cria o voo; B JOINA no primeiro checkpoint (a limpeza do `.tmp`), antes de qualquer evento
+   *      de progresso — por isso os dois observam o voo inteiro.
+   *   2. O Reset explícito acontece no checkpoint do `move`: tudo já foi baixado e validado, e a
+   *      publicação ainda NÃO ocorreu. É a janela onde um voo revogado poderia publicar por engano.
+   *   3. `retryConcorrente` decide se o retry NASCE com o voo revogado ainda no mapa de voos (é o
+   *      caso que prova que ele não JOINA um voo revogado) ou depois do repouso.
+   */
+  const resetG3 = async ({ mutReg, mutSvc, retryConcorrente = false } = {}) => {
+    const h = mkHg3();
+    montarG3(h);
+    const REG = novoRegG3(mutReg);
+    const readys = [];
+    REG.subscribePackReady((s) => readys.push((s && s.version) || null));
+    const svc = novoSvcG3(mutSvc)({ ...h.deps, installRegistry: REG, clearPackEntry: h.storage.clearPackEntry });
+
+    const progA = []; const progB = []; const progR = []; const progC = [];
+    let pB = null; let pRetry = null; let pC = null;
+    let bLancado = false; let resetFeito = false; let armadoC = false; let cLancado = false;
+    let voosNoReset = null; let indiceNoReset = null; let readysNoReset = null;
+
+    /**
+     * `inline` só é seguro quando o retry está REPRESADO atrás do voo revogado na fila física (caso
+     * concorrente). No caso sequencial nada o segura e ele terminaria inteiro antes de C nascer — por
+     * isso C é lançado no PRIMEIRO checkpoint do próprio retry, que é um instante do voo, não do relógio.
+     */
+    const lancarRetryG3 = async (inline) => {
+      armadoC = !inline;
+      pRetry = svc.downloadStoryPackScenesFromGlobalManifest(paramsG3((p) => progR.push(p && p.status)));
+      await flushG3(10);
+      if (!inline) return;
+      pC = svc.downloadStoryPackScenesFromGlobalManifest(paramsG3((p) => progC.push(p && p.status)));
+      await flushG3(8);                                         // C entra no voo do RETRY
+    };
+
+    h.onBefore = async (t, detail) => {
+      if (t === 'delete' && !bLancado) {                        // 1º checkpoint do voo: o `.tmp` inicial
+        bLancado = true;
+        pB = svc.downloadStoryPackScenesFromGlobalManifest(paramsG3((p) => progB.push(p && p.status)));
+        await flushG3(10);
+        return;
+      }
+      if (t === 'delete' && armadoC && !cLancado) {             // 1º checkpoint do RETRY: C entra em voo
+        cLancado = true;
+        pC = svc.downloadStoryPackScenesFromGlobalManifest(paramsG3((p) => progC.push(p && p.status)));
+        await flushG3(8);
+        return;
+      }
+      if (t === 'move' && !resetFeito) {                        // tudo validado, nada publicado ainda
+        resetFeito = true;
+        voosNoReset = svc.inFlightInstallCount();
+        REG.clearStoryPackInstall(STORY_G3);                    // RESET EXPLÍCITO (única fonte de revogação)
+        await h.storage.clearPackEntry(STORY_G3);
+        indiceNoReset = indiceG3(await h.storage.getPackEntry(STORY_G3));
+        readysNoReset = readys.length;
+        if (retryConcorrente) await lancarRetryG3(true);
+      }
+    };
+
+    const rA = await svc.downloadStoryPackScenesFromGlobalManifest(paramsG3((p) => progA.push(p && p.status)));
+    const rB = pB ? await pB : null;
+    await flushG3(20);
+
+    // Estado do REPOUSO logo após o voo revogado (só é leitura estável quando não há retry concorrente).
+    const posVoo1 = {
+      indice: indiceG3(await h.storage.getPackEntry(STORY_G3)),
+      arquivos: h.mem.listFiles(h.storage.getPackLocalDir(STORY_G3, VER_G3)).length,
+      temp: h.mem.listFiles(h.storage.getPackTempDir(STORY_G3, VER_G3)).length,
+      readys: readys.length,
+      status: REG.getStoryPackInstallSnapshot(STORY_G3).status,
+      mapa: svc.inFlightInstallCount(),
+      downloads: h.counters.downloads,
+    };
+
+    if (!retryConcorrente) await lancarRetryG3(false);
+    const rRetry = pRetry ? await pRetry.catch((e) => ({ ok: false, reason: String((e && e.message) || e) })) : null;
+    const rC = pC ? await pC.catch((e) => ({ ok: false, reason: String((e && e.message) || e) })) : null;
+    await flushG3(25);
+
+    return {
+      rA, rB, rRetry, rC, readys, posVoo1, voosNoReset, indiceNoReset, readysNoReset,
+      progA, progB, progR, progC,
+      mesmoTerminal: rA === rB,
+      retryEhVooNovo: rRetry !== rA && rRetry !== rB,
+      cJoinouRetry: rC === rRetry,
+      indiceFinal: indiceG3(await h.storage.getPackEntry(STORY_G3)),
+      arquivosFinais: h.mem.listFiles(h.storage.getPackLocalDir(STORY_G3, VER_G3)).length,
+      snapshotFinal: REG.getStoryPackInstallSnapshot(STORY_G3),
+      mapaFinal: svc.inFlightInstallCount(),
+      downloadsFinais: h.counters.downloads,
+    };
+  };
+
+  globalThis.__LP21G3 = (async () => {
+    const S = await resetG3();                       // retry SEQUENCIAL (depois do repouso)
+    const K = await resetG3({ retryConcorrente: true });   // retry NASCE com o voo revogado no mapa
+
+    check('LP2.1 G3/1 (A e B no MESMO voo): um único voo físico no instante do Reset e uma única passagem de download',
+      S.voosNoReset === 1 && S.posVoo1.downloads === FILES_G3.length + 1,
+      `voos=${S.voosNoReset} downloads=${S.posVoo1.downloads}`);
+    check('LP2.1 G3/2 (os DOIS recebem progresso): participantes observam exatamente a mesma sequência de eventos',
+      S.progA.length >= 3 && JSON.stringify(S.progA) === JSON.stringify(S.progB),
+      `A=${JSON.stringify(S.progA)} B=${JSON.stringify(S.progB)}`);
+    check('LP2.1 G3/3 (Reset DURANTE o voo): o Reset caiu com o voo ativo e sem nada publicado',
+      S.indiceNoReset === 'ausente' && S.readysNoReset === 0, `indice=${S.indiceNoReset} readys=${S.readysNoReset}`);
+    check('LP2.1 G3/4 (a revogação invalida o voo COMPARTILHADO): o resultado vem marcado como invalidado por Reset',
+      S.rA.ok === false && S.rA.reason === 'reset' && S.rA.resetInvalidated === true,
+      `ok=${S.rA.ok} reason=${S.rA.reason} inv=${S.rA.resetInvalidated}`);
+    check('LP2.1 G3/5 (nenhum participante recebe READY do voo antigo): nem A nem B veem terminal de sucesso',
+      !S.progA.includes('ready') && !S.progB.includes('ready'),
+      `A=${JSON.stringify(S.progA)} B=${JSON.stringify(S.progB)}`);
+    check('LP2.1 G3/6 (o voo antigo NÃO publica): índice ausente e nenhum evento global após o voo revogado',
+      S.posVoo1.indice === 'ausente' && S.posVoo1.readys === 0, `indice=${S.posVoo1.indice} readys=${S.posVoo1.readys}`);
+    check('LP2.1 G3/7 (bytes revogados limpos): localDir e .tmp do voo revogado ficam vazios',
+      S.posVoo1.arquivos === 0 && S.posVoo1.temp === 0, `localDir=${S.posVoo1.arquivos} tmp=${S.posVoo1.temp}`);
+    check('LP2.1 G3/8 (terminal honesto para os DOIS): mesma conclusão, sem ninguém eternamente em progresso',
+      S.mesmoTerminal === true && S.rB.ok === false && S.rB.reason === 'reset'
+        && S.posVoo1.status === 'idle' && S.posVoo1.mapa === 0,
+      `mesmo=${S.mesmoTerminal} B=${S.rB && S.rB.reason} status=${S.posVoo1.status} mapa=${S.posVoo1.mapa}`);
+    check('LP2.1 G3/9 (o retry cria um voo NOVO): conclusão distinta da revogada e novo trabalho físico',
+      S.retryEhVooNovo === true && S.rRetry.ok === true && S.downloadsFinais > S.posVoo1.downloads,
+      `novo=${S.retryEhVooNovo} ok=${S.rRetry && S.rRetry.ok} downloads=${S.posVoo1.downloads}→${S.downloadsFinais}`);
+    check('LP2.1 G3/10 (novos consumidores entram no retry): C compartilha a conclusão do retry e vê o terminal',
+      S.cJoinouRetry === true && S.progC.includes('ready'), `join=${S.cJoinouRetry} C=${JSON.stringify(S.progC)}`);
+    check('LP2.1 G3/11 (só o retry publica): índice READY e bytes em disco vêm da instalação pós-Reset',
+      S.indiceFinal === `${VER_G3}:ready` && S.arquivosFinais > 0, `indice=${S.indiceFinal} arquivos=${S.arquivosFinais}`);
+    check('LP2.1 G3/12 (um ÚNICO ready global, vindo do retry): o voo revogado não gerou evento',
+      S.readys.length === 1 && S.readys[0] === VER_G3, JSON.stringify(S.readys));
+    check('LP2.1 G3/13 (nada fica eternamente ativo): mapa vazio e snapshot terminal ao final',
+      S.mapaFinal === 0 && S.snapshotFinal.status === 'ready' && S.snapshotFinal.phase === 'ready',
+      `mapa=${S.mapaFinal} ${S.snapshotFinal.status}/${S.snapshotFinal.phase}`);
+
+    // O caso decisivo do eixo 2: o retry NASCE enquanto o voo revogado ainda está no mapa de voos.
+    check('LP2.1 G3/14 (retry NÃO joina o voo revogado): nascendo com o voo revogado no mapa, o retry ainda publica sozinho',
+      K.retryEhVooNovo === true && K.rRetry.ok === true && K.rA.ok === false && K.rA.reason === 'reset'
+        && K.indiceFinal === `${VER_G3}:ready` && K.readys.length === 1 && K.cJoinouRetry === true && K.mapaFinal === 0,
+      `novo=${K.retryEhVooNovo} retry=${K.rRetry && K.rRetry.ok} A=${K.rA && K.rA.reason} indice=${K.indiceFinal} readys=${JSON.stringify(K.readys)} C=${K.cJoinouRetry} mapa=${K.mapaFinal}`);
+
+    // ── CONTROLES NEGATIVOS ──────────────────────────────────────────────────────────────────────
+    const negativoG3 = async (nome, exec, quebrou) => {
+      let r = null; let erro = null;
+      try { r = await exec(); } catch (e) { erro = e; }
+      check(`LP2.1 G3 ${nome}`, !erro && quebrou(r),
+        erro ? `âncora do mutante não encontrada: ${String((erro && erro.message) || erro)}`
+          : `o mutante NÃO reprovou: ${JSON.stringify(r && { mesmo: r.mesmoTerminal, A: r.rA && r.rA.reason, posVoo1: r.posVoo1, readys: r.readys, indice: r.indiceFinal, mapa: r.mapaFinal })}`);
+    };
+
+    // NEG-1 — a revogação deixa de alcançar o voo COMPARTILHADO: sem join, cada participante vira um
+    // voo próprio e é revogado por conta própria (dois trabalhos físicos, duas conclusões distintas).
+    await negativoG3('NEG-1 (revogação por participante): sem join, B vira voo próprio → os dois deixam de compartilhar o terminal',
+      () => resetG3({ mutSvc: (s) => s.replace('    if (__stillAuth) {', '    if (false) {') }),
+      (r) => r.mesmoTerminal === false || r.posVoo1.downloads > FILES_G3.length + 1);
+    // NEG-2 — a fence volta a ler a geração VIGENTE em vez da CAPTURADA no nascimento do voo: a
+    // comparação vira tautológica (g > g é sempre falso) e o voo revogado publica.
+    await negativoG3('NEG-2 (voo antigo publica): a fence relê a geração vigente em vez da capturada → o voo revogado grava READY',
+      () => resetG3({ mutSvc: (s) => s.replace('__reg.isFlightRevoked(resolved.storyId, __gen))', '__reg.isFlightRevoked(resolved.storyId, __reg.getRevocationGeneration(resolved.storyId)))') }),
+      (r) => r.rA.ok === true || r.posVoo1.indice !== 'ausente');
+    // NEG-3 — o joiner-guard deixa de perguntar "fui revogado?": o retry entra no voo revogado e
+    // herda o terminal dele; nada é publicado e o Reset vira um beco sem saída.
+    await negativoG3('NEG-3 (retry joina o voo revogado): guard sempre autoriza → o retry herda o terminal revogado e nada publica',
+      () => resetG3({ retryConcorrente: true, mutSvc: (s) => s.replace("const __stillAuth = !__regJ || existing.__gen == null || typeof __regJ.isFlightRevoked !== 'function' || !__regJ.isFlightRevoked(resolved.storyId, existing.__gen);", 'const __stillAuth = true;') }),
+      (r) => r.rRetry.ok === false || r.indiceFinal !== `${VER_G3}:ready` || r.readys.length === 0);
+    // NEG-4 — o voo revogado não solta a chave: um participante ficaria eternamente "em voo".
+    await negativoG3('NEG-4 (voo sem liberação): cleanupRecord para de remover a chave → sobra voo ativo depois do terminal',
+      () => resetG3({ mutSvc: (s) => s.replace('  if (inFlightInstalls.get(key) === record) inFlightInstalls.delete(key);', '  /* mutante: a chave nunca é liberada */') }),
+      (r) => r.mapaFinal !== 0 || r.posVoo1.mapa !== 0);
+  })();
+  globalThis.__LP21G3.catch(() => {});
+}
+
+// ── LP2.1 G4: dois READY concorrentes no PacksContext (auditoria §10.7) ───────────────────────
+// Pergunta da auditoria: duas histórias diferentes concluem instalação quase juntas; cada READY
+// global dispara um `loadPacks`. As duas leituras do índice correm SEM fila (getPackIndex é um
+// `AsyncStorage.getItem` fora de `runSerialized`). Se a ordem de CONCLUSÃO das leituras se inverter,
+// o estado React do PacksContext continua contendo as duas histórias — ou uma some?
+//
+// O que roda de verdade: o `PacksProvider` do fonte (JSX transpilado, hooks reais), o
+// `packStorageService` real (fila de escrita real, leitura real), o `packReconcileService` real, o
+// `contentManifest` real e o registro global real. Dublados: React (fronteira de framework),
+// AsyncStorage e FileSystem (fronteiras de mundo). A ORDEM de conclusão é a única variável.
+console.log('\n── LP2.1 G4: dois READY concorrentes no PacksContext ──');
+{
+  const babelG4 = require('@babel/core');
+  const jsxModG4 = require('@babel/plugin-transform-react-jsx');
+  const jsxPluginG4 = jsxModG4 && jsxModG4.default ? jsxModG4.default : jsxModG4;
+  const { loadModule: loadModG4 } = require('./testing/packInstallHarness');
+  const REG_EXP_G4 = ['getStoryPackInstallSnapshot', 'subscribeStoryPackInstall', 'subscribePackReady', 'beginInstall',
+    'reportInstall', 'settleReady', 'settleError', 'clearStoryPackInstall', 'isCurrentOperation',
+    'getRevocationGeneration', 'isFlightRevoked', '_debugState'];
+  const flushG4 = async (n = 6) => { for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0)); };
+
+  /**
+   * AsyncStorage dublado com CONTROLE DE ORDEM. `getItem` fotografa o valor no instante do DESPACHO
+   * (é o que uma leitura real captura ao ser servida) e a resolução da promessa pode ser retida e
+   * liberada na ordem que se quiser — é isso que materializa "leitura antiga concluindo depois da
+   * nova". Escrita segue imediata: só a ordem de LEITURA está sob experimento.
+   */
+  const mkArmazemG4 = () => {
+    const dados = new Map();
+    const retidas = [];
+    let retendo = false; let n = 0;
+    return {
+      api: {
+        getItem: (k) => {
+          const ordem = ++n;
+          const valor = dados.has(k) ? dados.get(k) : null;
+          if (!retendo) return Promise.resolve(valor);
+          return new Promise((resolve) => retidas.push({ ordem, valor, resolve }));
+        },
+        setItem: (k, v) => { dados.set(k, v); return Promise.resolve(); },
+        removeItem: (k) => { dados.delete(k); return Promise.resolve(); },
+      },
+      reter: (v) => { retendo = v; },
+      pendentes: () => retidas.length,
+      /**
+       * Libera as leituras retidas e devolve o que cada uma tinha fotografado, na ordem liberada.
+       * `modo`: 'natural' | 'inversa' | array de índices 0-based sobre a fila de DESPACHO.
+       */
+      liberar: (modo) => {
+        const fila = retidas.splice(0);
+        let seq;
+        if (Array.isArray(modo)) seq = modo.map((k) => fila[k]).filter(Boolean);
+        else if (modo === 'inversa') seq = fila.slice().reverse();
+        else seq = fila.slice();
+        const registro = seq.map((p) => ({ ordem: p.ordem, chaves: Object.keys(JSON.parse(p.valor || '{}')).sort() }));
+        seq.forEach((p) => p.resolve(p.valor));
+        return registro;
+      },
+    };
+  };
+
+  const mesmasDepsG4 = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, k) => Object.is(v, b[k]));
+
+  /**
+   * React mínimo de UMA instância: estado, memo, callback e efeito com limpeza, mais um laço de
+   * render dirigido por setState. É a FRONTEIRA do framework — o que está sob prova é a ordem em
+   * que o `PacksProvider` do fonte chama `setPackIndex`.
+   */
+  const mkRuntimeG4 = () => {
+    const hooks = []; const pendentes = [];
+    let i = 0; let sujo = true; let saida = null;
+    let desmontado = false; let escritasPosDesmonte = 0;
+    const R = {
+      createContext: (def) => ({ _def: def, Provider: function Provider(p) { return p; }, Consumer: function Consumer(p) { return p; } }),
+      createElement: (type, props, ...children) => ({ type, props: props || {}, children }),
+      useState: (init) => {
+        const k = i++;
+        if (!hooks[k]) hooks[k] = { v: typeof init === 'function' ? init() : init };
+        const h = hooks[k];
+        return [h.v, (nx) => {
+          // Toda TENTATIVA de escrita após o cleanup é contada (é o que o contrato proíbe), mude ou
+          // não o valor — é assim que G4-E enxerga um setState em provider desmontado.
+          if (desmontado) escritasPosDesmonte += 1;
+          const nv = typeof nx === 'function' ? nx(h.v) : nx;
+          if (!Object.is(nv, h.v)) { h.v = nv; sujo = true; }
+        }];
+      },
+      useRef: (init) => { const h = hooks[i] || (hooks[i] = { v: { current: init } }); i += 1; return h.v; },
+      useCallback: (fn, deps) => { const h = hooks[i] || (hooks[i] = {}); i += 1; if (!('deps' in h) || !mesmasDepsG4(h.deps, deps)) { h.deps = deps; h.v = fn; } return h.v; },
+      useMemo: (fn, deps) => { const h = hooks[i] || (hooks[i] = {}); i += 1; if (!('deps' in h) || !mesmasDepsG4(h.deps, deps)) { h.deps = deps; h.v = fn(); } return h.v; },
+      useEffect: (fn, deps) => { const h = hooks[i] || (hooks[i] = {}); i += 1; if (!('deps' in h) || !mesmasDepsG4(h.deps, deps)) { h.deps = deps; pendentes.push([h, fn]); } },
+      useContext: (c) => c._def,
+    };
+    const passe = (Comp, props) => {
+      i = 0; sujo = false;
+      saida = Comp(props);
+      for (const [h, fn] of pendentes.splice(0)) {
+        if (typeof h.limpar === 'function') { try { h.limpar(); } catch (_) { /* noop */ } }
+        const c = fn();
+        h.limpar = typeof c === 'function' ? c : null;
+      }
+    };
+    const render = (Comp, props) => { let n = 0; while (sujo && n++ < 60) passe(Comp, props); };
+    return {
+      React: R,
+      montar: render,
+      assentar: async (Comp, props, ticks = 30) => {
+        for (let t = 0; t < ticks; t++) { await new Promise((r) => setTimeout(r, 0)); render(Comp, props); }
+      },
+      valor: () => (saida && saida.props ? saida.props.value : null),
+      desmontar: () => {
+        hooks.forEach((h) => { if (h && typeof h.limpar === 'function') { try { h.limpar(); } catch (_) { /* noop */ } } });
+        desmontado = true;   // a partir daqui, QUALQUER setState é violação do contrato
+      },
+      escritasPosDesmonte: () => escritasPosDesmonte,
+    };
+  };
+
+  /** Transpila o JSX do PacksContext REAL e devolve uma fábrica que injeta as fronteiras. */
+  const carregarProviderG4 = (mut) => {
+    let src = readSrc('src/context/PacksContext.js');
+    if (mut) src = mut(src);   // o próprio `mut` já falha alto se a âncora não existir
+    const jsx = babelG4.transformSync(src, {
+      babelrc: false, configFile: false, sourceType: 'module', filename: 'PacksContext.js',
+      plugins: [[jsxPluginG4, { runtime: 'classic' }]],
+    }).code;
+    const code = jsx.replace(/^import[\s\S]*?;$/gm, '').replace(/^export /gm, '')
+      + '\n; return { PacksProvider, usePacks };';
+    return (deps) => { const keys = Object.keys(deps); return new Function(...keys, code)(...keys.map((k) => deps[k])); };
+  };
+
+  /**
+   * Fábrica de MUTANTES do `PacksContext` (nunca toca `src/`): cada par [de, para] precisa achar
+   * uma ÂNCORA REAL no fonte. Âncora ausente LANÇA — assim um controle negativo que deixou de
+   * corresponder ao código não passa despercebido como "verde".
+   */
+  const mutG4 = (...pares) => (s) => {
+    let out = s;
+    for (const [de, para] of pares) {
+      const nv = out.replace(de, para);
+      if (nv === out) throw new Error(`G4 mutante: âncora não encontrada → ${String(de).slice(0, 72)}`);
+      out = nv;
+    }
+    return out;
+  };
+
+  // ── Mutantes dos controles negativos (ETAPA 6) ────────────────────────────────────────────────
+  const G4_GUARD = '    const isCurrent = () => mountedRef.current && gen === loadGenRef.current;';
+  const G4_GEN = '    const gen = ++loadGenRef.current;';
+  const G4_DESCARTE = '      if (!isCurrent()) return; // leitura OBSOLETA (ou provider desmontado) → descartada';
+  const G4_GRAVA = "      setPackIndex(index && typeof index === 'object' ? index : {});";
+  const G4_FINALLY = '      if (isCurrent()) setIsLoadingPacks(false);';
+  const G4_CLEANUP = '    return () => { mountedRef.current = false; };';
+  const G4_LISTENER = "    loadPacks().catch((e) => warn('PacksContext.readyListener:', e));";
+
+  const NEG1_semComparacao = mutG4([G4_GUARD, '    const isCurrent = () => mountedRef.current;']);
+  const NEG2_genDepoisDoAwait = mutG4(
+    [G4_GEN, '    let gen = 0;'],
+    ['      const index = await getPackIndex();', '      const index = await getPackIndex();\n      gen = ++loadGenRef.current;'],
+  );
+  const NEG3_geracaoPorChamada = mutG4(
+    [G4_GEN, '    const __local = { current: 0 };\n    const gen = ++__local.current;'],
+    ['gen === loadGenRef.current', 'gen === __local.current'],
+  );
+  // Guarda EQUIVALENTE reimplantada SÓ no ouvinte READY, e removida do `loadPacks` central.
+  const NEG4_soNoListener = mutG4(
+    [`${G4_DESCARTE}\n`, ''],
+    [G4_LISTENER, [
+      '    const __lg = ++loadGenRef.current;',
+      '    getPackIndex().then((idx) => {',
+      '      if (__lg !== loadGenRef.current) return;',
+      "      setPackIndex(idx && typeof idx === 'object' ? idx : {});",
+      '      setIsLoadingPacks(false);',
+      "    }).catch((e) => warn('PacksContext.readyListener:', e));",
+    ].join('\n')],
+  );
+  const NEG5_mergeNoLugarDeSubstituir = mutG4(
+    [G4_GRAVA, "      setPackIndex(prev => ({ ...prev, ...(index && typeof index === 'object' ? index : {}) }));"],
+  );
+  const NEG6_semGuardDeDesmontagem = mutG4(
+    [G4_CLEANUP, '    return () => { /* mutante: o provider desmonta sem sinalizar */ };'],
+  );
+  const NEG7_aceitaMenorOuIgual = mutG4(['gen === loadGenRef.current', 'gen <= loadGenRef.current']);
+  const NEG8_obsoletaGravaNoFinally = mutG4(
+    [G4_GEN, '    let __obsoleto = null;\n    const gen = ++loadGenRef.current;'],
+    [G4_DESCARTE, '      if (!isCurrent()) { __obsoleto = index; return; }'],
+    [G4_FINALLY, `${G4_FINALLY}\n      if (__obsoleto) setPackIndex(__obsoleto);`],
+  );
+
+  /**
+   * Runner único dos cenários G4.
+   *   ordem   : 'natural' | 'inversa' | array de índices sobre a fila de DESPACHO das leituras.
+   *   via     : 'ready' (ouvinte de READY global) | 'refresh' (`refreshPacks` das telas).
+   *   modo    : 'duas' | 'remocao' (a 2ª leitura vê uma história a MENOS) | 'tres'.
+   *   desmontarAntes : desmonta o provider ANTES de liberar as leituras retidas (G4-E).
+   */
+  const cenarioG4 = async ({ ordem = 'natural', mutProvider, via = 'ready', modo = 'duas', desmontarAntes = false } = {}) => {
+    const armazem = mkArmazemG4();
+    const existentes = new Set();
+    const FSG4 = { documentDirectory: 'file:///doc/', getInfoAsync: async (uri) => ({ exists: existentes.has(uri), uri }) };
+
+    // Módulos REAIS: índice, reconciliação, camadas de conteúdo e registro global.
+    const SK = loadModG4('src/services/storageKeys.js', {}, ['STORAGE_KEYS']);
+    const storage = loadModG4('src/services/packStorageService.js',
+      { AsyncStorage: armazem.api, FileSystem: FSG4, STORAGE_KEYS: SK.STORAGE_KEYS, warn: () => {} },
+      ['PACK_STATUS', 'getPackLocalDir', 'getPackIndex', 'setPackEntry', 'clearPackEntry', 'whenIndexQueueDrained']);
+    const reconc = loadModG4('src/services/packReconcileService.js', { PACK_STATUS: storage.PACK_STATUS },
+      ['collectPackProbes', 'computeInvalidReadyIds', 'reconcileEntry']);
+    const cm = loadModG4('src/data/contentManifest.js', {}, ['CONTENT_LAYERS', 'getContentLayer', 'getStoriesByLayer']);
+    const REG = loadModG4('src/services/packInstallRegistry.js', {}, REG_EXP_G4);
+
+    // Histórias REMOTAS DIFERENTES, tiradas do manifesto de conteúdo real.
+    const remotas = cm.getStoriesByLayer(cm.CONTENT_LAYERS.REMOTE);
+    const A = 'david_goliath';
+    const outras = remotas.filter((id) => id !== A);
+    const B = outras[0] || null;
+    const C = outras[1] || null;
+
+    // Contador de eventos READY GLOBAIS, independente do provider (G4-F: nada é suprimido).
+    let readysGlobais = 0;
+    const pararContagem = REG.subscribePackReady(() => { readysGlobais += 1; });
+    const ouvintesAntes = REG._debugState().readyListeners;   // baseline SEM o provider
+
+    const rt = mkRuntimeG4();
+    const avisos = [];
+    const { PacksProvider } = carregarProviderG4(mutProvider)({
+      React: rt.React,
+      createContext: rt.React.createContext, useCallback: rt.React.useCallback, useContext: rt.React.useContext,
+      useEffect: rt.React.useEffect, useMemo: rt.React.useMemo, useRef: rt.React.useRef, useState: rt.React.useState,
+      FileSystem: FSG4,
+      getPackIndex: storage.getPackIndex, getPackLocalDir: storage.getPackLocalDir, PACK_STATUS: storage.PACK_STATUS,
+      collectPackProbes: reconc.collectPackProbes, computeInvalidReadyIds: reconc.computeInvalidReadyIds, reconcileEntry: reconc.reconcileEntry,
+      getContentLayer: cm.getContentLayer, CONTENT_LAYERS: cm.CONTENT_LAYERS,
+      markOnce: () => {}, subscribePackReady: REG.subscribePackReady, warn: (...a) => avisos.push(String(a[0])),
+    });
+
+    const props = { children: 'app' };
+    rt.montar(PacksProvider, props);
+    await rt.assentar(PacksProvider, props, 12);        // boot: índice vazio, ouvinte de READY montado
+    const ouvintesMontado = REG._debugState().readyListeners;
+
+    const publicarG4 = async (storyId, version) => {
+      const dir = storage.getPackLocalDir(storyId, version);
+      existentes.add(dir); existentes.add(`${dir}manifest.json`);
+      return storage.setPackEntry(storyId, {
+        version, status: storage.PACK_STATUS.READY, localDir: dir,
+        manifestPath: `${dir}manifest.json`, totalBytes: 20, downloadedBytes: 20, errorMessage: null,
+      });
+    };
+    const readyGlobalG4 = (storyId, entry) => {
+      const gen = REG.getRevocationGeneration(storyId);
+      const op = REG.beginInstall(storyId, { version: entry.version });
+      REG.settleReady(storyId, op, entry, gen);          // → notifyReady → ouvinte real do PacksContext
+    };
+    /** Dispara UMA leitura do índice pelo caminho real escolhido e a deixa retida. */
+    const dispararLeitura = async (storyId, entry) => {
+      armazem.reter(true);
+      if (via === 'ready') readyGlobalG4(storyId, entry);
+      else { const v = rt.valor(); if (v && typeof v.refreshPacks === 'function') v.refreshPacks().catch(() => {}); }
+      await flushG4(6);
+      armazem.reter(false);
+      return armazem.pendentes();
+    };
+
+    const retidas = [];
+    let removida = null;
+    let estadoAntesDaRemocao = null;
+    if (modo === 'remocao') {
+      // Snapshot ANTIGO com DUAS histórias; snapshot NOVO com UMA (a outra foi resetada).
+      const eA0 = await publicarG4(A, '1.0.0');
+      const eB0 = B ? await publicarG4(B, '1.0.0') : null;
+      // O estado React precisa CONTER as duas ANTES da remoção — é justamente isso que um merge
+      // com o estado anterior mascararia. Esta 1ª carga conclui normalmente (sem retenção).
+      if (via === 'ready') readyGlobalG4(A, eA0);
+      else { const v0 = rt.valor(); if (v0 && typeof v0.refreshPacks === 'function') v0.refreshPacks().catch(() => {}); }
+      await rt.assentar(PacksProvider, props, 14);
+      estadoAntesDaRemocao = Object.keys(((rt.valor() || {}).packIndex) || {}).sort();
+      retidas.push(await dispararLeitura(B || A, eB0 || eA0));
+      await storage.clearPackEntry(A);                   // Reset real: a entrada some do índice
+      removida = A;
+      retidas.push(await dispararLeitura(B || A, eB0 || eA0));
+    } else {
+      const eA = await publicarG4(A, '1.0.0');
+      retidas.push(await dispararLeitura(A, eA));
+      const eB = modo !== 'uma' && B ? await publicarG4(B, '1.0.0') : null;
+      if (eB) retidas.push(await dispararLeitura(B, eB));
+      if (modo === 'tres') {
+        const eC = C ? await publicarG4(C, '1.0.0') : null;
+        if (eC) retidas.push(await dispararLeitura(C, eC));
+      }
+    }
+
+    // A ORDEM DE CONCLUSÃO — a única variável do experimento.
+    let liberacao;
+    if (desmontarAntes) {
+      rt.desmontar();                                    // provider morre com leitura(s) EM VOO
+      liberacao = armazem.liberar(ordem);
+      await flushG4(30);                                 // deixa as continuações rodarem SEM re-render
+    } else {
+      liberacao = armazem.liberar(ordem);
+      await rt.assentar(PacksProvider, props, 30);
+    }
+
+    const v = rt.valor() || {};   // no caso desmontado: o ÚLTIMO valor renderizado antes do cleanup
+    const indicePersistido = await storage.getPackIndex();
+    const estadoFinal = v.packIndex || {};
+    if (!desmontarAntes) rt.desmontar();
+    const ouvintesDepois = REG._debugState().readyListeners;
+    pararContagem();
+    return {
+      A, B, C, removida, estadoAntesDaRemocao, liberacao, retidas, avisos, readysGlobais,
+      ouvintesAntes, ouvintesMontado, ouvintesDepois,
+      escritasPosDesmonte: rt.escritasPosDesmonte(),
+      chavesEstado: Object.keys(estadoFinal).sort(),
+      chavesPersistidas: Object.keys(indicePersistido).sort(),
+      statusEstado: Object.keys(estadoFinal).sort().map((k) => `${k}:${estadoFinal[k] && estadoFinal[k].status}`),
+      prontoA: typeof v.isPackReady === 'function' ? v.isPackReady(A) : null,
+      prontoB: B && typeof v.isPackReady === 'function' ? v.isPackReady(B) : null,
+      prontoC: C && typeof v.isPackReady === 'function' ? v.isPackReady(C) : null,
+      carregando: v.isLoadingPacks,
+      erro: v.packsError,
+    };
+  };
+
+  globalThis.__LP21G4 = (async () => {
+    // ── G4-A · ORDEM NATURAL ──────────────────────────────────────────────────────────────────────
+    const NAT = await cenarioG4({ ordem: 'natural' });
+    check('LP2.1 G4-A/1 (duas histórias remotas DIFERENTES): as duas ficam READY no índice persistido',
+      !!NAT.B && NAT.B !== NAT.A && NAT.chavesPersistidas.length === 2 && NAT.chavesPersistidas.includes(NAT.A) && NAT.chavesPersistidas.includes(NAT.B),
+      `A=${NAT.A} B=${NAT.B} persistido=${JSON.stringify(NAT.chavesPersistidas)}`);
+    check('LP2.1 G4-A/2 (cada READY global dispara sua própria leitura): duas leituras do índice em voo ao mesmo tempo',
+      JSON.stringify(NAT.retidas) === '[1,2]', `retidas=${JSON.stringify(NAT.retidas)}`);
+    check('LP2.1 G4-A/3 (a 1ª leitura retorna só david_goliath; a 2ª retorna as duas)',
+      NAT.liberacao.length === 2 && JSON.stringify(NAT.liberacao[0].chaves) === JSON.stringify([NAT.A])
+      && NAT.liberacao[1].chaves.length === 2, JSON.stringify(NAT.liberacao));
+    check('LP2.1 G4-A/4 (a 1ª termina ANTES e a 2ª termina DEPOIS): conclusão na ordem de despacho',
+      NAT.liberacao[0].ordem < NAT.liberacao[1].ordem, JSON.stringify(NAT.liberacao.map((l) => l.ordem)));
+    check('LP2.1 G4-A/5 (estado final): o contexto termina com as DUAS histórias READY',
+      NAT.chavesEstado.length === 2 && NAT.prontoA === true && NAT.prontoB === true,
+      `estado=${JSON.stringify(NAT.statusEstado)} prontoA=${NAT.prontoA} prontoB=${NAT.prontoB}`);
+
+    // ── G4-B · ORDEM INVERTIDA (a leitura ANTIGA conclui por último) ───────────────────────────────
+    const INV = await cenarioG4({ ordem: 'inversa' });
+    check('LP2.1 G4-B/1-2 (snapshot antigo × snapshot novo): a leitura antiga viu 1 história e a nova viu 2',
+      INV.liberacao.length === 2 && INV.liberacao[1].chaves.length === 1 && INV.liberacao[0].chaves.length === 2,
+      JSON.stringify(INV.liberacao));
+    check('LP2.1 G4-B/3-4 (a inversão é REAL): a 2ª leitura conclui PRIMEIRO e a 1ª conclui por ÚLTIMO',
+      INV.liberacao[0].ordem > INV.liberacao[1].ordem, JSON.stringify(INV.liberacao.map((l) => l.ordem)));
+    check('LP2.1 G4-B/5 (a leitura antiga NÃO sobrescreve a nova): nenhuma história some do estado React',
+      INV.chavesEstado.length === 2 && INV.prontoA === true && INV.prontoB === true,
+      `estado=${JSON.stringify(INV.statusEstado)} persistido=${JSON.stringify(INV.chavesPersistidas)}`);
+    check('LP2.1 G4-B/6 (estado final = índice persistido): sem regressão a snapshot antigo',
+      JSON.stringify(INV.chavesEstado) === JSON.stringify(INV.chavesPersistidas),
+      `estado=${JSON.stringify(INV.chavesEstado)} persistido=${JSON.stringify(INV.chavesPersistidas)}`);
+    check('LP2.1 G4-B/7 (ordem oposta → MESMO estado final): o resultado não depende da ordem de conclusão',
+      JSON.stringify(NAT.statusEstado) === JSON.stringify(INV.statusEstado),
+      `natural=${JSON.stringify(NAT.statusEstado)} invertida=${JSON.stringify(INV.statusEstado)}`);
+
+    // ── G4-C · REMOÇÃO NÃO PODE SER MASCARADA (o snapshot SUBSTITUI; nunca faz merge) ──────────────
+    const REMN = await cenarioG4({ modo: 'remocao', ordem: 'natural' });
+    const REMI = await cenarioG4({ modo: 'remocao', ordem: 'inversa' });
+    check('LP2.1 G4-C/1-2 (snapshot antigo com DUAS e snapshot novo com UMA): a outra foi resetada',
+      REMN.liberacao.length === 2 && REMN.liberacao[0].chaves.length === 2 && REMN.liberacao[1].chaves.length === 1
+      && REMN.removida === REMN.A && !REMN.liberacao[1].chaves.includes(REMN.A), JSON.stringify(REMN.liberacao));
+    check('LP2.1 G4-C/1b (o estado React CONTINHA as duas antes da remoção): o merge teria o que mascarar',
+      REMN.estadoAntesDaRemocao && REMN.estadoAntesDaRemocao.length === 2 && REMN.estadoAntesDaRemocao.includes(REMN.A)
+      && REMI.estadoAntesDaRemocao && REMI.estadoAntesDaRemocao.length === 2,
+      `natural=${JSON.stringify(REMN.estadoAntesDaRemocao)} invertida=${JSON.stringify(REMI.estadoAntesDaRemocao)}`);
+    check('LP2.1 G4-C/3-4 (o snapshot NOVO vence e a história removida NÃO sobrevive por merge)',
+      JSON.stringify(REMN.chavesEstado) === JSON.stringify([REMN.B]) && REMN.prontoA === false,
+      `estado=${JSON.stringify(REMN.statusEstado)} prontoA=${REMN.prontoA} removida=${REMN.removida}`);
+    check('LP2.1 G4-C/5 (estado React final = snapshot novo EXATAMENTE, nas duas ordens)',
+      JSON.stringify(REMN.chavesEstado) === JSON.stringify(REMN.chavesPersistidas)
+      && JSON.stringify(REMI.chavesEstado) === JSON.stringify(REMI.chavesPersistidas)
+      && JSON.stringify(REMN.statusEstado) === JSON.stringify(REMI.statusEstado),
+      `natural=${JSON.stringify(REMN.statusEstado)}/${JSON.stringify(REMN.chavesPersistidas)} invertida=${JSON.stringify(REMI.statusEstado)}/${JSON.stringify(REMI.chavesPersistidas)}`);
+
+    // ── G4-D · TRÊS LEITURAS CONCORRENTES, CONCLUSÃO FORA DE ORDEM ─────────────────────────────────
+    // Liberação [1, 2, 0]: a 2ª conclui primeiro, depois a MAIS NOVA, e a MAIS ANTIGA por último.
+    const TRES = await cenarioG4({ modo: 'tres', ordem: [1, 2, 0] });
+    check('LP2.1 G4-D/1 (três loadPacks concorrentes): três leituras do índice em voo',
+      JSON.stringify(TRES.retidas) === '[1,2,3]' && TRES.liberacao.length === 3, `retidas=${JSON.stringify(TRES.retidas)}`);
+    check('LP2.1 G4-D/2 (conclusão FORA de ordem): a leitura mais antiga termina por último',
+      TRES.liberacao[2].ordem < TRES.liberacao[0].ordem && TRES.liberacao[2].chaves.length === 1,
+      JSON.stringify(TRES.liberacao));
+    check('LP2.1 G4-D/3-4 (somente a geração mais recente grava): estado final = leitura mais NOVA (3 histórias)',
+      TRES.chavesEstado.length === 3 && TRES.prontoA === true && TRES.prontoB === true && TRES.prontoC === true
+      && JSON.stringify(TRES.chavesEstado) === JSON.stringify(TRES.chavesPersistidas),
+      `estado=${JSON.stringify(TRES.statusEstado)} persistido=${JSON.stringify(TRES.chavesPersistidas)}`);
+
+    // ── G4-E · PROVIDER DESMONTADO COM LEITURA PENDENTE ────────────────────────────────────────────
+    const DESM = await cenarioG4({ modo: 'uma', desmontarAntes: true });
+    check('LP2.1 G4-E/1-3 (uma leitura pendente, provider desmonta, leitura termina)',
+      JSON.stringify(DESM.retidas) === '[1]' && DESM.liberacao.length === 1,
+      `retidas=${JSON.stringify(DESM.retidas)} liberacao=${JSON.stringify(DESM.liberacao)}`);
+    check('LP2.1 G4-E/4 (NENHUMA escrita React após o cleanup): setState em provider desmontado = 0',
+      DESM.escritasPosDesmonte === 0, `escritasPosDesmonte=${DESM.escritasPosDesmonte} estado=${JSON.stringify(DESM.chavesEstado)}`);
+    check('LP2.1 G4-E/5 (NENHUM listener permanece): o ouvinte de READY volta ao baseline após o unmount',
+      DESM.ouvintesMontado === DESM.ouvintesAntes + 1 && DESM.ouvintesDepois === DESM.ouvintesAntes,
+      `antes=${DESM.ouvintesAntes} montado=${DESM.ouvintesMontado} depois=${DESM.ouvintesDepois}`);
+
+    // ── G4-F · DOIS READY GLOBAIS (a correção NÃO reduz eventos) ───────────────────────────────────
+    check('LP2.1 G4-F/1-2 (duas histórias publicam e DOIS ready-event globais são emitidos)',
+      NAT.readysGlobais === 2 && INV.readysGlobais === 2, `natural=${NAT.readysGlobais} invertida=${INV.readysGlobais}`);
+    check('LP2.1 G4-F/3-4 (ambos iniciam loadPacks e NENHUM evento é suprimido): 2 eventos → 2 leituras',
+      NAT.retidas.length === 2 && INV.retidas.length === 2 && NAT.readysGlobais === NAT.retidas.length,
+      `readys=${NAT.readysGlobais} leituras=${NAT.retidas.length}`);
+    check('LP2.1 G4-F/5-6 (a convergência vem do DESCARTE da leitura obsoleta, não da redução de eventos)',
+      INV.readysGlobais === 2 && INV.chavesEstado.length === 2 && INV.liberacao[0].ordem > INV.liberacao[1].ordem,
+      `readys=${INV.readysGlobais} estado=${JSON.stringify(INV.statusEstado)}`);
+
+    // ── ETAPA 6 · CONTROLES NEGATIVOS (cada mutação altera uma ÂNCORA REAL; ausente → derruba) ─────
+    // Antitautologia: um mutante cuja âncora sumiu do fonte precisa EXPLODIR, nunca passar batido.
+    const fonteG4 = readSrc('src/context/PacksContext.js');
+    const ancorasG4 = { G4_GUARD, G4_GEN, G4_DESCARTE, G4_GRAVA, G4_FINALLY, G4_CLEANUP, G4_LISTENER };
+    const ancorasAusentes = Object.keys(ancorasG4).filter((k) => !fonteG4.includes(ancorasG4[k]));
+    let bogusExplodiu = false;
+    try { mutG4(['ÂNCORA-INEXISTENTE-G4', 'x'])(fonteG4); } catch (_) { bogusExplodiu = true; }
+    check('LP2.1 G4 ANTITAUTOLOGIA: as 7 âncoras dos controles existem no fonte e âncora ausente LANÇA',
+      ancorasAusentes.length === 0 && bogusExplodiu,
+      `ausentes=${JSON.stringify(ancorasAusentes)} bogusExplodiu=${bogusExplodiu}`);
+
+    const negativoG4 = async (nome, opts, quebrou) => {
+      let r = null; let err = null;
+      try { r = await cenarioG4(opts); } catch (e) { err = e; }
+      check(`LP2.1 G4 ${nome}`, !err && quebrou(r),
+        err ? `mutação/execução falhou: ${String((err && err.message) || err)}`
+          : `o mutante NÃO reprovou — estado=${JSON.stringify(r.statusEstado)} persistido=${JSON.stringify(r.chavesPersistidas)} escritasPosDesmonte=${r.escritasPosDesmonte}`);
+    };
+    const someHistoria = (r) => r.chavesEstado.length < r.chavesPersistidas.length;
+
+    await negativoG4('NEG-1 (sem comparação de geração): a leitura obsoleta volta a sobrescrever a mais nova',
+      { ordem: 'inversa', mutProvider: NEG1_semComparacao }, someHistoria);
+    await negativoG4('NEG-2 (geração capturada DEPOIS do await): toda leitura se acha a mais recente',
+      { ordem: 'inversa', mutProvider: NEG2_genDepoisDoAwait }, someHistoria);
+    await negativoG4('NEG-3 (geração local recriada a cada chamada): nenhuma leitura é reconhecida como obsoleta',
+      { ordem: 'inversa', mutProvider: NEG3_geracaoPorChamada }, someHistoria);
+    await negativoG4('NEG-5 (merge no lugar de substituição): a história removida sobrevive no estado',
+      { modo: 'remocao', ordem: 'natural', mutProvider: NEG5_mergeNoLugarDeSubstituir },
+      (r) => r.chavesEstado.length > r.chavesPersistidas.length && r.chavesEstado.includes(r.removida));
+    await negativoG4('NEG-6 (sem guard de desmontagem): a leitura pendente grava estado em provider morto',
+      { modo: 'uma', desmontarAntes: true, mutProvider: NEG6_semGuardDeDesmontagem }, (r) => r.escritasPosDesmonte > 0);
+    await negativoG4('NEG-7 (aceitar geração MENOR OU IGUAL): a guarda deixa de discriminar',
+      { ordem: 'inversa', mutProvider: NEG7_aceitaMenorOuIgual }, someHistoria);
+    await negativoG4('NEG-8 (leitura obsoleta grava no finally): o descarte é anulado no bloco final',
+      { ordem: 'inversa', mutProvider: NEG8_obsoletaGravaNoFinally }, someHistoria);
+
+    // NEG-4 é PAREADO: a guarda equivalente é reimplantada SÓ no ouvinte READY e retirada do
+    // `loadPacks` central. O caminho do ouvinte "parece corrigido"; `refreshPacks` fica exposto —
+    // é exatamente por isso que a guarda tem de viver na função central.
+    let n4ready = null; let n4refresh = null; let n4err = null;
+    try {
+      n4ready = await cenarioG4({ ordem: 'inversa', via: 'ready', mutProvider: NEG4_soNoListener });
+      n4refresh = await cenarioG4({ ordem: 'inversa', via: 'refresh', mutProvider: NEG4_soNoListener });
+    } catch (e) { n4err = e; }
+    check('LP2.1 G4 NEG-4 (guarda SÓ no ouvinte READY): o ouvinte passa, mas refreshPacks volta a perder história',
+      !n4err && n4ready.chavesEstado.length === 2 && someHistoria(n4refresh),
+      n4err ? `mutação/execução falhou: ${String((n4err && n4err.message) || n4err)}`
+        : `ready=${JSON.stringify(n4ready.chavesEstado)} refresh=${JSON.stringify(n4refresh.chavesEstado)} persistido=${JSON.stringify(n4refresh.chavesPersistidas)}`);
+
+    // Controle de SANIDADE do caminho `refreshPacks` no fonte ÍNTEGRO: a mesma inversão, sem mutante.
+    const REFR = await cenarioG4({ ordem: 'inversa', via: 'refresh' });
+    check('LP2.1 G4 REFRESH (todos os chamadores herdam a guarda): refreshPacks sobrevive à MESMA inversão',
+      REFR.chavesEstado.length === 2 && JSON.stringify(REFR.chavesEstado) === JSON.stringify(REFR.chavesPersistidas),
+      `estado=${JSON.stringify(REFR.statusEstado)} persistido=${JSON.stringify(REFR.chavesPersistidas)}`);
+  })();
+  globalThis.__LP21G4.catch(() => {});
+}
+
 
 // ── Sprint 3 — Área dos Pais como Central Adulta do MVP ──────────────────────
 
@@ -30575,6 +31445,24 @@ try {
   check('LP2.1 G1 (harness): o bloco assíncrono da correção revogação × sucessão concluiu sem estourar',
     !lp21g1Err,
     `o bloco G1 lançou (${lp21g1Err && lp21g1Err.stack ? String(lp21g1Err.stack).split('\n').slice(0, 3).join(' | ') : lp21g1Err}) — os checks dele não rodaram`);
+
+  let lp21g2Err = null;
+  try { await globalThis.__LP21G2; } catch (e) { lp21g2Err = e; }
+  check('LP2.1 G2 (harness): o bloco assíncrono do recovery de órfão com consumidores concluiu sem estourar',
+    !lp21g2Err,
+    `o bloco G2 lançou (${lp21g2Err && lp21g2Err.stack ? String(lp21g2Err.stack).split('\n').slice(0, 3).join(' | ') : lp21g2Err}) — os checks dele não rodaram`);
+
+  let lp21g3Err = null;
+  try { await globalThis.__LP21G3; } catch (e) { lp21g3Err = e; }
+  check('LP2.1 G3 (harness): o bloco assíncrono do Reset com voo compartilhado concluiu sem estourar',
+    !lp21g3Err,
+    `o bloco G3 lançou (${lp21g3Err && lp21g3Err.stack ? String(lp21g3Err.stack).split('\n').slice(0, 3).join(' | ') : lp21g3Err}) — os checks dele não rodaram`);
+
+  let lp21g4Err = null;
+  try { await globalThis.__LP21G4; } catch (e) { lp21g4Err = e; }
+  check('LP2.1 G4 (harness): o bloco assíncrono dos dois READY concorrentes concluiu sem estourar',
+    !lp21g4Err,
+    `o bloco G4 lançou (${lp21g4Err && lp21g4Err.stack ? String(lp21g4Err.stack).split('\n').slice(0, 4).join(' | ') : lp21g4Err}) — os checks dele não rodaram`);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;

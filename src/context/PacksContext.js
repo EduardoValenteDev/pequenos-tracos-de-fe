@@ -24,6 +24,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -81,23 +82,53 @@ export function PacksProvider({ children }) {
   const [isLoadingPacks, setIsLoadingPacks] = useState(true);
   const [packsError, setPacksError] = useState(null);
 
+  // LP2.1-G4 — GERAÇÃO DE LEITURA (uma por INSTÂNCIA do provider; `useRef` sobrevive ao render e
+  // morre com a instância). `getPackIndex` é um `AsyncStorage.getItem` CRU: a fila serializada do
+  // packStorageService cobre só as MUTAÇÕES do índice (gravar/limpar entrada), nunca as leituras. Logo
+  // duas chamadas concorrentes de `loadPacks` — ouvinte de READY global, `refreshPacks` das telas,
+  // carga inicial — podem concluir FORA da ordem de despacho, e a leitura mais ANTIGA sobrescrever
+  // a mais NOVA no estado React: a história recém-baixada some da estante, sem erro e sem log.
+  // A guarda DESCARTA o resultado obsoleto. Não faz merge (o índice lido é o snapshot COMPLETO, e
+  // por isso remoções/resets/FAILED continuam refletidos), não serializa leitura nenhuma, não
+  // atrasa nada e não depende de qualquer garantia de ordenação do AsyncStorage.
+  const loadGenRef = useRef(0);
+  // Uma leitura pode estar em voo quando o provider desmonta: nada de setState depois disso.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true; // StrictMode remonta o efeito: reativa antes da próxima carga
+    return () => { mountedRef.current = false; };
+  }, []);
+
   // READ-ONLY: só lê o índice. Nunca grava/instala/baixa.
   const loadPacks = useCallback(async () => {
     // LP1M-A: só OBSERVA a hidratação do BOOT (`markOnce`); refreshes seguintes não remarcam.
     markOnce('packs_hydration_start');
-    setIsLoadingPacks(true);
-    setPacksError(null);
+    // LP2.1-G4: incremento SÍNCRONO — nada pode acontecer entre a captura da geração e o despacho
+    // da leitura. `gen` é a identidade DESTA chamada; `isCurrent()` responde "ainda sou a leitura
+    // mais recente de um provider montado?" e governa TODA escrita de estado deste ciclo.
+    const gen = ++loadGenRef.current;
+    const isCurrent = () => mountedRef.current && gen === loadGenRef.current;
+    if (isCurrent()) {
+      setIsLoadingPacks(true);
+      setPacksError(null);
+    }
     try {
       const index = await getPackIndex(); // {} se vazio/erro (packStorageService nunca lança)
+      if (!isCurrent()) return; // leitura OBSOLETA (ou provider desmontado) → descartada
       setPackIndex(index && typeof index === 'object' ? index : {});
     } catch (e) {
+      // Observação/diagnóstico NÃO são guardados: um erro continua marcado e logado mesmo vindo de
+      // uma leitura obsoleta. O que a guarda protege é o ESTADO React.
       markOnce('packs_hydration_error', { reason: 'error' });
       warn('PacksContext.loadPacks:', e);
+      if (!isCurrent()) return;
       setPacksError(e);
       setPackIndex({});
     } finally {
       markOnce('packs_hydration_end');
-      setIsLoadingPacks(false);
+      // `isLoadingPacks` também é estado: uma leitura obsoleta não pode anunciar "terminou"
+      // enquanto a leitura mais recente ainda está em voo.
+      if (isCurrent()) setIsLoadingPacks(false);
     }
   }, []);
 
