@@ -354,6 +354,100 @@ function baseUrlPublica(u) {
   return i >= 0 ? s.slice(0, i) : s;
 }
 
+/** Mesma higiene para texto livre (mensagens de erro do registro podem citar a URL assinada). */
+function textoSemQuery(t) {
+  return String(t || '').replace(/(https?:\/\/\S*?)\?\S*/gi, '$1');
+}
+
+/**
+ * A chave canônica do registro guarda a baseUrl CRUA (com assinatura, se houver); a identidade do P7
+ * guarda a saneada. Comparar as duas exige sanear o mesmo campo dos dois lados — e é o que impede
+ * uma credencial de vazar para o painel copiável. Chave ilegível → null, nunca a chave crua.
+ */
+function chaveInstalacaoPublica(chave) {
+  if (typeof chave !== 'string' || !chave) return null;
+  try {
+    const campos = JSON.parse(chave);
+    if (!Array.isArray(campos) || campos.length !== 7) return null;
+    campos[2] = baseUrlPublica(campos[2]);
+    return JSON.stringify(campos);
+  } catch { return null; }
+}
+
+/**
+ * `getStoryPackInstallSnapshot` NUNCA devolve null — sem publicação ele devolve o snapshot `idle`.
+ * Descrever o snapshot como possivelmente ausente transformava "idle" em "não sei", que é a mentira
+ * exata que deixava um registro ocioso passar por bom. Aqui o resultado é SEMPRE um objeto.
+ * `resolvedInstallKeyPresente` fica separado da chave saneada de propósito: uma chave ilegível não
+ * pode ser confundida com a ausência de chave, que é o que distingue a rota offline.
+ */
+function descreverSnapshotInstalacao(snapshot) {
+  const s = snapshot || {};
+  const chaveCrua = typeof s.resolvedInstallKey === 'string' && s.resolvedInstallKey ? s.resolvedInstallKey : null;
+  return {
+    status: s.status || 'idle',
+    phase: s.phase || null,
+    operationId: s.operationId != null ? s.operationId : null,
+    version: s.version || null,
+    requestedKinds: Array.isArray(s.requestedKinds) ? [...s.requestedKinds] : null,
+    resolvedInstallKeyPresente: !!chaveCrua,
+    resolvedInstallKey: chaveInstalacaoPublica(chaveCrua),
+    error: s.error ? textoSemQuery(s.error) : null,
+  };
+}
+
+/** Vocabulário fechado das rotas do wrapper público, como observadas pelo laboratório. */
+const P7_ROUTES = Object.freeze({
+  ONLINE: 'online-preflight',
+  OFFLINE_OK: 'offline-best-effort',
+  OFFLINE_ERRO: 'offline-error',
+  RESOLUCAO: 'resolution-error',
+  DESCONHECIDA: 'unknown',
+});
+
+/**
+ * Qual rota do downloader público atendeu a chamada — deduzida SÓ do que a própria chamada deixou
+ * observável: o resultado devolvido, o snapshot que o registro publicou e a identidade que o P7 já
+ * tinha persistido em disco. Nenhuma segunda resolução do manifesto, nenhuma requisição extra.
+ *
+ *   • sucesso sem chave e sem versão no snapshot → melhor esforço offline (a rota abre a operação
+ *     com `resolvedInstallKey: null` e `version: null` justamente porque, sem manifesto, essa
+ *     informação ainda não existe);
+ *   • sucesso com chave igual à identidade persistida → rota criadora online;
+ *   • falha com `networkError` → offline sem recuperação possível;
+ *   • falha sem operação aberta → a resolução caiu antes de qualquer voo;
+ *   • qualquer outra combinação → `unknown`, com a evidência bruta ao lado. Preferir "não sei" a
+ *     inventar uma rota é o que mantém o diagnóstico confiável.
+ *
+ * `progressEvents` NÃO participa: um callback pode ser suprimido e uma rota de recovery emite um
+ * único evento — inferir a rota dali seria adivinhação.
+ */
+function classificarRotaPreflight({ resultado, registrySnapshot, identidade }) {
+  const chaveRegistro = registrySnapshot.resolvedInstallKey;
+  const chavePersistida = (identidade && identidade.resolvedInstallKey) || null;
+  const evidencia = {
+    ok: !!(resultado && resultado.ok === true),
+    networkError: !!(resultado && resultado.networkError === true),
+    requiresAppUpdate: !!(resultado && resultado.requiresAppUpdate === true),
+    operacaoAberta: registrySnapshot.operationId !== null,
+    snapshotStatus: registrySnapshot.status,
+    snapshotPhase: registrySnapshot.phase,
+    snapshotVersion: registrySnapshot.version,
+    resolvedInstallKeyPresente: registrySnapshot.resolvedInstallKeyPresente,
+    chaveRegistro,
+    chavePersistida,
+    chavesConferem: !!chaveRegistro && chaveRegistro === chavePersistida,
+  };
+
+  let route = P7_ROUTES.DESCONHECIDA;
+  if (evidencia.ok) {
+    if (!evidencia.resolvedInstallKeyPresente && registrySnapshot.version === null) route = P7_ROUTES.OFFLINE_OK;
+    else if (evidencia.chavesConferem) route = P7_ROUTES.ONLINE;
+  } else if (evidencia.networkError) route = P7_ROUTES.OFFLINE_ERRO;
+  else if (!evidencia.operacaoAberta) route = P7_ROUTES.RESOLUCAO;
+  return { route, evidencia };
+}
+
 /** Estado do tempDir da versão: o órfão só é fiel se não houver instalação pendente ao lado. */
 async function estadoTempDir(storyId, version) {
   const tempDir = getPackTempDir(storyId, version);
@@ -694,7 +788,7 @@ export async function inspectRealOrphan(opts = {}) {
     missing: (foto && foto.missing) || [],
     filesUnchanged,
     tempDir: tmp,
-    registrySnapshot: snapshot ? { status: snapshot.status, phase: snapshot.phase || null } : null,
+    registrySnapshot: descreverSnapshotInstalacao(snapshot),
     foto,
   };
 }
@@ -719,7 +813,10 @@ export async function exerciseRealPreflight(opts = {}) {
     };
   }
   const version = estado.version;
-  const appVersion = String(opts.appVersion || estado.identidade.appVersion || APP_VERSION);
+  // A identidade vem do ARQUIVO de estado do P7, que sobrevive ao restart — nunca de estado da tela.
+  const identidade = estado.identidade;
+  const appVersion = String(opts.appVersion || identidade.appVersion || APP_VERSION);
+  const requestedKinds = [...REAL_RECOVERY_KINDS];
 
   const entryAntes = await getPackEntry(storyId);
   const fotoAntes = await fotografarPackNoDisco(storyId, version, REAL_RECOVERY_KINDS);
@@ -730,7 +827,7 @@ export async function exerciseRealPreflight(opts = {}) {
     storyId,
     globalManifestUrl,
     appVersion,
-    requestedKinds: [...REAL_RECOVERY_KINDS],
+    requestedKinds,
     onProgress: (p) => {
       progressEvents.push({
         status: (p && p.status) || null,
@@ -744,8 +841,10 @@ export async function exerciseRealPreflight(opts = {}) {
   const entryDepois = await getPackEntry(storyId);
   const fotoDepois = await fotografarPackNoDisco(storyId, version, REAL_RECOVERY_KINDS);
   const tmpDepois = await estadoTempDir(storyId, version);
-  const snapshot = getStoryPackInstallSnapshot(storyId);
+  const registrySnapshot = descreverSnapshotInstalacao(getStoryPackInstallSnapshot(storyId));
   const statuses = progressEvents.map((e) => String(e.status || ''));
+  const indexAfterPreflight = entryDepois ? { status: entryDepois.status, version: entryDepois.version } : null;
+  const rota = classificarRotaPreflight({ resultado, registrySnapshot, identidade });
 
   const criterios = {
     okTrue: resultado && resultado.ok === true,
@@ -759,7 +858,8 @@ export async function exerciseRealPreflight(opts = {}) {
     hashesIdenticos: mesmosHashes(estado.baseline, fotoDepois),
     marcadorValido: fotoDepois.markerValid === true,
     tempSemSegundaInstalacao: !tmpDepois.exists || tmpDepois.entries === 0,
-    registroFinalReady: !!snapshot && snapshot.status === 'ready',
+    // O snapshot é sempre um objeto (idle inclusive): só `ready` aprova, e idle aparece como idle.
+    registroFinalReady: registrySnapshot.status === 'ready',
     nenhumaOperacaoAtiva: inFlightInstallCount() === 0,
   };
   const reprovados = Object.keys(criterios).filter((k) => !criterios[k]);
@@ -771,19 +871,37 @@ export async function exerciseRealPreflight(opts = {}) {
     verdict: aprovado ? P7_VERDICTS.RECOVERY_APPROVED : P7_VERDICTS.RECOVERY_REPROVED,
     storyId,
     version,
+    /*
+     * CONTRATO AUTOCONTIDO: tudo o que o painel precisa sai daqui. Depois de um restart real, `target`,
+     * `prepare` e `inspect` são `useState` que já morreram — o diagnóstico não pode depender deles.
+     * A identidade é a PERSISTIDA em disco, e os campos planos abaixo a repetem para que ninguém
+     * precise saber onde ela mora.
+     */
+    identidade,
+    baseUrl: identidade.baseUrl || null,
+    baseUrlQueryOmitida: identidade.baseUrlQueryOmitida === true,
+    manifestSha256: identidade.manifestSha256 || null,
+    resolvedInstallKey: identidade.resolvedInstallKey || null,
+    appVersion,
+    requestedKinds,
+    route: rota.route,
+    routeEvidence: rota.evidencia,
     resultado: resultado
       ? {
         ok: resultado.ok === true, recovered: resultado.recovered === true, version: resultado.version || null,
         kinds: resultado.kinds || null, counts: resultado.counts || null, sceneCount: resultado.sceneCount ?? null,
         totalBytes: resultado.totalBytes ?? null, reason: resultado.reason || null, code: resultado.code || null,
+        // Os dois sinais que separam "sem rede" de "resolução recusada" — é o que classifica a rota.
+        networkError: resultado.networkError === true, requiresAppUpdate: resultado.requiresAppUpdate === true,
       }
       : null,
     recovered: !!resultado && resultado.recovered === true,
     entryAntes: entryAntes ? { status: entryAntes.status, version: entryAntes.version } : null,
-    entryFinal: entryDepois ? { status: entryDepois.status, version: entryDepois.version } : null,
+    entryFinal: indexAfterPreflight,
+    indexAfterPreflight,
     progressEvents,
     statuses,
-    registrySnapshot: snapshot ? { status: snapshot.status, phase: snapshot.phase || null } : null,
+    registrySnapshot,
     fotoAntes,
     fotoDepois,
     tempAntes: tmpAntes,
@@ -846,8 +964,14 @@ export async function cleanupRealRecoveryTest(opts = {}) {
  */
 export function buildRealRecoveryDiagnostic(estadoTela = {}) {
   const { target, prepare, inspect, preflight, cleanup } = estadoTela;
+  /*
+   * ORDEM DAS FONTES, e ela importa: o preflight primeiro, porque é a única etapa cujo resultado
+   * é autocontido e resistente ao restart. `inspect` só enriquece; `prepare` e `target` ficam como
+   * compatibilidade com o fluxo antigo, nunca como requisito. Depois de reabrir o app, os três são
+   * `null` — e o painel tem de continuar completo mesmo assim.
+   */
   const id = (preflight && preflight.identidade) || (prepare && prepare.identidade) || (target && target.identidade) || null;
-  const baselineFoto = (prepare && prepare.baseline) || (preflight && preflight.fotoAntes) || (inspect && inspect.foto) || null;
+  const baselineFoto = (preflight && preflight.fotoAntes) || (prepare && prepare.baseline) || (inspect && inspect.foto) || null;
   const finalFoto = (preflight && preflight.fotoDepois) || (inspect && inspect.foto) || null;
   const verdict = (cleanup && cleanup.verdict) || (preflight && preflight.verdict)
     || (inspect && inspect.verdict) || (prepare && prepare.verdict) || (target && target.verdict) || null;
@@ -859,10 +983,13 @@ export function buildRealRecoveryDiagnostic(estadoTela = {}) {
     baseUrl: id ? id.baseUrl : null,
     baseUrlQueryOmitida: id ? id.baseUrlQueryOmitida === true : null,
     manifestSha256: id ? id.manifestSha256 : null,
-    requestedKinds: id ? id.requestedKinds : [...REAL_RECOVERY_KINDS],
+    appVersion: (preflight && preflight.appVersion) || (id && id.appVersion) || null,
+    requestedKinds: (preflight && preflight.requestedKinds) || (id ? id.requestedKinds : [...REAL_RECOVERY_KINDS]),
+    route: (preflight && preflight.route) || null,
+    routeEvidence: (preflight && preflight.routeEvidence) || null,
     indexBefore: target ? target.entryAtual : null,
     indexAfterPrepare: prepare ? { indexReady: prepare.indexReady === true, orphanPrepared: prepare.orphanPrepared === true } : null,
-    indexAfterPreflight: preflight ? preflight.entryFinal : (inspect ? inspect.indexEntry : null),
+    indexAfterPreflight: preflight ? (preflight.indexAfterPreflight || preflight.entryFinal) : (inspect ? inspect.indexEntry : null),
     fileCount: finalFoto ? finalFoto.fileCount : (baselineFoto ? baselineFoto.fileCount : null),
     totalBytes: finalFoto ? finalFoto.totalBytes : (baselineFoto ? baselineFoto.totalBytes : null),
     hashesBefore: baselineFoto ? baselineFoto.files : null,

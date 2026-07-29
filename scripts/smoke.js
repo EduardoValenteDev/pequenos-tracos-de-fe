@@ -10951,6 +10951,245 @@ console.log('\n── LP2.1a-ii §10.8 · P7: Recovery REAL exercitado pelo pref
         && !P7_ARQ.some((f) => txt.includes(f.text)) && !/token|secret|Bearer/i.test(txt),
         `painel incompleto ou vazando conteúdo: ${JSON.stringify({ v: d.verdict, rec: d.recovered, hb: d.hashesBefore && Object.keys(d.hashesBefore).length })}`);
     }
+
+    // ── B3 · DIAGNÓSTICO AUTOCONTIDO E RESISTENTE A REINÍCIO ──────────────────────────────────
+    /*
+     * O P7 só tem valor depois de FECHAR e REABRIR o app — e é exatamente aí que `target`, `prepare`
+     * e `inspect` deixam de existir: são `useState` da tela. Se o painel depender deles, ele volta
+     * nulo justamente no cenário que a prova existe para medir.
+     *
+     * A regra do B3: o retorno de `exerciseRealPreflight` basta SOZINHO, e a identidade vem do
+     * ARQUIVO de estado P7 (que sobrevive ao restart), nunca de estado React nem de uma segunda
+     * resolução do manifesto.
+     *
+     * Como o reinício é encenado sem trapaça: `reiniciarProcesso()` recria registro + downloader +
+     * laboratório sobre o MESMO disco (P7-N11 é o controle disso), e montar o painel com
+     * `{ target: null, prepare: null, inspect: null }` é o equivalente literal do React state apagado.
+     */
+    const P7_PRINCIPAIS = ['storyId', 'version', 'resolvedInstallKey', 'baseUrl', 'manifestSha256',
+      'appVersion', 'requestedKinds', 'route', 'registrySnapshot', 'indexAfterPreflight'];
+    const p7Nulos = (d) => P7_PRINCIPAIS.filter((k) => d[k] === null || d[k] === undefined);
+    /** Painel montado como a tela o monta DEPOIS do restart: só o preflight na mão. */
+    const p7PainelSoPreflight = (lab, pf, inspect = null) =>
+      lab.buildRealRecoveryDiagnostic({ target: null, prepare: null, inspect, preflight: pf, cleanup: null });
+
+    // B3-1 — o cenário canônico: órfão preparado, processo reiniciado de verdade, manifesto fora do ar.
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      ctx.reiniciarProcesso();
+      ctx.h.setModoRede('offline');
+      const pf = await ctx.lab.exerciseRealPreflight(P7_ARGS);
+      check('§10.8 B3-1 (reinício real offline): o preflight aprova os 12 critérios, classifica a rota como melhor esforço offline e mostra registro READY e índice READY',
+        pf.ok === true && pf.reprovados.length === 0
+        && pf.route === 'offline-best-effort'
+        && pf.registrySnapshot.status === 'ready'
+        && pf.criterios.registroFinalReady === true
+        && !!pf.indexAfterPreflight && pf.indexAfterPreflight.status === 'ready'
+        && pf.indexAfterPreflight.version === P7_V,
+        `B3-1 reprovou: ${JSON.stringify({ rep: pf.reprovados, rota: pf.route, snap: pf.registrySnapshot, idx: pf.indexAfterPreflight })}`);
+    }
+
+    // B3-2 — o painel completo IMEDIATAMENTE após o preflight, sem nenhuma outra etapa na mão.
+    {
+      const ctx = carregarP7(); const p = await prepararP7(ctx);
+      const chavePersistida = p.identidade.resolvedInstallKey;
+      ctx.reiniciarProcesso();
+      ctx.h.setModoRede('offline');
+      const pf = await ctx.lab.exerciseRealPreflight(P7_ARGS);
+      const d = p7PainelSoPreflight(ctx.lab, pf);
+      const faltando = p7Nulos(d);
+      check('§10.8 B3-2 (diagnóstico imediato): só com o preflight — sem target, prepare ou inspect — nenhum campo principal do painel volta nulo depois do reinício',
+        faltando.length === 0
+        && d.storyId === P7_STORY && d.version === P7_V && d.baseUrl === P7_BASE
+        && d.resolvedInstallKey === chavePersistida
+        && /^[a-f0-9]{64}$/.test(String(d.manifestSha256))
+        && d.appVersion === '1.0.0' && d.requestedKinds.length === 4
+        && d.route === 'offline-best-effort' && d.registrySnapshot.status === 'ready'
+        && d.indexAfterPreflight.status === 'ready'
+        && Object.keys(d.hashesBefore || {}).length === 5 && Object.keys(d.hashesAfter || {}).length === 5,
+        `campos nulos no painel após o reinício: ${JSON.stringify({ faltando, rota: d.route, chave: d.resolvedInstallKey })}`);
+    }
+
+    // B3-3 — rota ONLINE: a chave que o registro guardou é a MESMA identidade que o P7 persistiu.
+    {
+      const ctx = carregarP7(); const p = await prepararP7(ctx);
+      ctx.reiniciarProcesso();                       // rede disponível: rota criadora, com chave canônica
+      const pf = await ctx.lab.exerciseRealPreflight(P7_ARGS);
+      check('§10.8 B3-3 (rota online): com o manifesto disponível a rota é online-preflight e a chave do registro, saneada, é idêntica à identidade persistida',
+        pf.ok === true && pf.route === 'online-preflight'
+        && typeof pf.registrySnapshot.resolvedInstallKey === 'string'
+        && pf.registrySnapshot.resolvedInstallKey === p.identidade.resolvedInstallKey
+        && pf.registrySnapshot.resolvedInstallKeyPresente === true
+        && pf.routeEvidence.chavesConferem === true,
+        `rota online não confirmada: ${JSON.stringify({ rota: pf.route, ev: pf.routeEvidence })}`);
+    }
+
+    // B3-4 — rota OFFLINE que FALHA: sem bytes para recuperar, o veredito tem de reprovar de cara limpa.
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      ctx.reiniciarProcesso();
+      // O órfão é apagado do disco: o melhor esforço offline não tem o que promover e falha DE VERDADE.
+      await ctx.h.mem.FileSystem.deleteAsync(P7_DIR(), { idempotent: true });
+      ctx.h.setModoRede('offline');
+      const pf = await ctx.lab.exerciseRealPreflight(P7_ARGS);
+      check('§10.8 B3-4 (rota offline com falha): sem rede e sem bytes, a rota é offline-error, o registro fica em error e o veredito reprova sem maquiagem',
+        pf.ok === false && pf.verdict === 'RECOVERY_REPROVED'
+        && pf.route === 'offline-error'
+        && pf.registrySnapshot.status === 'error'
+        && pf.criterios.registroFinalReady === false
+        && pf.reprovados.includes('registroFinalReady') && pf.reprovados.includes('okTrue')
+        && pf.routeEvidence.networkError === true,
+        `falha offline mal classificada: ${JSON.stringify({ ok: pf.ok, rota: pf.route, snap: pf.registrySnapshot, rep: pf.reprovados })}`);
+    }
+
+    // B3-5 — FONTE PRIORITÁRIA: com as três fontes legadas mentindo, o painel ainda descreve o preflight.
+    {
+      const ctx = carregarP7(); const p = await prepararP7(ctx);
+      ctx.reiniciarProcesso();
+      const pf = await ctx.lab.exerciseRealPreflight(P7_ARGS);
+      const idFalsa = {
+        storyId: 'historia_falsa', version: '9.9.9', baseUrl: 'https://falso/', baseUrlQueryOmitida: false,
+        manifestSha256: 'f'.repeat(64), requestedKinds: ['scene'], appVersion: '9.9.9', resolvedInstallKey: '["falso"]',
+      };
+      const fotoFalsa = {
+        localDir: 'file:///falso/', fileCount: 1, totalBytes: 1, markerValid: false, missing: [],
+        files: { 'falso.webp': { bytes: 1, sha256: 'f'.repeat(64) } },
+      };
+      const d = ctx.lab.buildRealRecoveryDiagnostic({
+        target: { identidade: idFalsa, storyId: 'historia_falsa', entryAtual: null, verdict: 'TARGET_NOT_SAFE' },
+        prepare: { identidade: idFalsa, baseline: fotoFalsa, orphanPrepared: false, indexReady: false, verdict: 'RECOVERY_REPROVED' },
+        inspect: {
+          storyId: 'historia_falsa', version: '9.9.9', foto: fotoFalsa, verdict: 'RECOVERY_REPROVED',
+          indexEntry: { status: 'failed', version: '9.9.9' }, registrySnapshot: { status: 'idle', phase: 'idle' },
+        },
+        preflight: pf, cleanup: null,
+      });
+      check('§10.8 B3-5 (fonte prioritária): com target, prepare e inspect mentindo em todos os campos, o painel continua descrevendo o que o preflight mediu',
+        d.storyId === P7_STORY && d.version === P7_V
+        && d.resolvedInstallKey === p.identidade.resolvedInstallKey
+        && d.baseUrl === P7_BASE && d.manifestSha256 === p.identidade.manifestSha256
+        && d.requestedKinds.length === 4 && d.route === pf.route
+        && d.registrySnapshot.status === pf.registrySnapshot.status
+        && d.indexAfterPreflight.status === 'ready' && d.indexAfterPreflight.version === P7_V
+        && Object.keys(d.hashesBefore).length === 5 && Object.keys(d.hashesAfter).length === 5
+        && d.verdict === 'RECOVERY_APPROVED',
+        `fonte legada venceu o preflight: ${JSON.stringify({ s: d.storyId, v: d.version, rota: d.route, hb: Object.keys(d.hashesBefore || {}).length })}`);
+    }
+
+    // B3-6 — UMA resolução por chamada pública. A rota sai de observáveis, não de uma segunda busca.
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      ctx.reiniciarProcesso();
+      const chamadasAntes = ctx.contadores.downloaderPublico;
+      ctx.h.resetEvents();                            // a partir daqui só conta o que o preflight faz
+      const pf = await ctx.lab.exerciseRealPreflight(P7_ARGS);
+      const buscas = ctx.h.eventsOfType('fetch-global-manifest').length;
+      check('§10.8 B3-6 (uma única resolução): o preflight busca o manifesto global exatamente UMA vez e chama o downloader UMA vez — classificar a rota não custa rede',
+        buscas === 1 && pf.route === 'online-preflight'
+        && (ctx.contadores.downloaderPublico - chamadasAntes) === 1,
+        `resoluções extras no preflight: ${JSON.stringify({ buscas, rota: pf.route, chamadas: ctx.contadores.downloaderPublico - chamadasAntes })}`);
+    }
+
+    // B3-7 — `registroFinalReady` honesto: idle é um snapshot REAL, e um snapshot idle não aprova nada.
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      ctx.reiniciarProcesso();
+      // Catálogo válido MAS sem o pack: a resolução falha e não é problema de rede, então nenhuma
+      // operação chega a ser aberta e o registro fica idle — o caso em que `!!snapshot` mentia.
+      ctx.h.setGlobalManifest({
+        manifestVersion: 1, minAppVersion: '1.0.0',
+        packs: [ctx.h.packEntry({ storyId: 'noah', version: '1.0.0', baseUrl: 'https://r2/noah/v1/' })],
+      });
+      const pf = await ctx.lab.exerciseRealPreflight(P7_ARGS);
+      check('§10.8 B3-7 (registroFinalReady honesto): snapshot idle é objeto, reprova o critério e aparece no painel com status e phase — só `ready` aprova',
+        pf.registrySnapshot !== null && typeof pf.registrySnapshot === 'object'
+        && pf.registrySnapshot.status === 'idle' && pf.registrySnapshot.phase === 'idle'
+        && pf.registrySnapshot.operationId === null
+        && pf.criterios.registroFinalReady === false && pf.ok === false
+        && pf.route === 'resolution-error',
+        `idle não reprovou o registroFinalReady: ${JSON.stringify({ snap: pf.registrySnapshot, crit: pf.criterios && pf.criterios.registroFinalReady, rota: pf.route })}`);
+    }
+
+    // B3-8 — o `inspectRealOrphan` roda DEPOIS e pode demorar ou quebrar: o painel não pode piorar.
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      ctx.reiniciarProcesso();
+      ctx.h.setModoRede('offline');
+      const pf = await ctx.lab.exerciseRealPreflight(P7_ARGS);
+      const dPendente = p7PainelSoPreflight(ctx.lab, pf);                                   // inspect ainda calculando
+      const dQuebrado = p7PainelSoPreflight(ctx.lab, pf, { enabled: true, ok: false, reason: 'storyId inválido' });
+      check('§10.8 B3-8 (inspect não apaga o preflight): o painel é idêntico com inspect pendente e com inspect quebrado — o diagnóstico já está completo antes dele',
+        JSON.stringify(dPendente) === JSON.stringify(dQuebrado)
+        && p7Nulos(dPendente).length === 0 && dPendente.route === 'offline-best-effort'
+        && dPendente.registrySnapshot.status === 'ready' && dPendente.indexAfterPreflight.status === 'ready',
+        `o inspect interferiu no painel: ${JSON.stringify({ iguais: JSON.stringify(dPendente) === JSON.stringify(dQuebrado), faltando: p7Nulos(dPendente) })}`);
+    }
+
+    // ── CONTROLES NEGATIVOS DO B3 ─────────────────────────────────────────────────────────────
+    // Cada um remove UMA das quatro decisões do bloco e exige que a prova correspondente caia.
+
+    // B3-N01 — sem a identidade no retorno, o painel volta a depender de React state apagado.
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      ctx.reiniciarProcesso();
+      const labMut = ctx.montarLab((src) => src.replace('\n    identidade,\n', '\n'));
+      ctx.h.setModoRede('offline');
+      const pf = await labMut.exerciseRealPreflight(P7_ARGS);
+      const d = p7PainelSoPreflight(labMut, pf);
+      check('§10.8 B3-N01 (mutante: preflight sem identidade): tirar `identidade` do retorno faz o painel voltar nulo depois do reinício — é ela que sustenta o B3-2',
+        p7Nulos(d).length > 0 && d.resolvedInstallKey === null && d.baseUrl === null && d.manifestSha256 === null,
+        `o painel sobreviveu sem a identidade do preflight: ${JSON.stringify({ faltando: p7Nulos(d), chave: d.resolvedInstallKey })}`);
+    }
+
+    // B3-N02 — se `prepare` voltar a ter prioridade, uma fonte volátil sequestra o painel.
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      ctx.reiniciarProcesso();
+      const labMut = ctx.montarLab((src) => src.replace(
+        'const id = (preflight && preflight.identidade) || (prepare && prepare.identidade)',
+        'const id = (prepare && prepare.identidade) || (preflight && preflight.identidade)'));
+      const pf = await labMut.exerciseRealPreflight(P7_ARGS);
+      const idFalsa = { storyId: 'historia_falsa', version: '9.9.9', baseUrl: 'https://falso/', manifestSha256: 'f'.repeat(64), requestedKinds: ['scene'], appVersion: '9.9.9', resolvedInstallKey: '["falso"]' };
+      const d = labMut.buildRealRecoveryDiagnostic({
+        target: null, prepare: { identidade: idFalsa, baseline: null, orphanPrepared: false, indexReady: false },
+        inspect: null, preflight: pf, cleanup: null,
+      });
+      check('§10.8 B3-N02 (mutante: prioridade invertida): com `prepare` na frente, o painel passa a descrever a identidade errada — o B3-5 estaria provando nada',
+        d.storyId === 'historia_falsa' && d.version === '9.9.9' && d.resolvedInstallKey === '["falso"]',
+        `a inversão de prioridade não mudou o painel: ${JSON.stringify({ s: d.storyId, v: d.version, k: d.resolvedInstallKey })}`);
+    }
+
+    // B3-N03 — classificar a rota com uma resolução extra custa rede e quebra a contagem do B3-6.
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      ctx.reiniciarProcesso();
+      const labMut = ctx.montarLab((src) => src.replace(
+        '  const rota = classificarRotaPreflight({',
+        '  await resolverAlvoReal({ storyId, globalManifestUrl, appVersion });\n  const rota = classificarRotaPreflight({'));
+      ctx.h.resetEvents();
+      const pf = await labMut.exerciseRealPreflight(P7_ARGS);
+      const buscas = ctx.h.eventsOfType('fetch-global-manifest').length;
+      check('§10.8 B3-N03 (mutante: segunda resolução): descobrir a rota resolvendo o manifesto de novo dobra as buscas — é isso que o B3-6 impede',
+        buscas === 2 && pf.route === 'online-preflight',
+        `a segunda resolução não foi detectada: ${JSON.stringify({ buscas, rota: pf.route })}`);
+    }
+
+    // B3-N04 — de volta ao `!!snapshot`: a condição inerte aprova um registro idle.
+    {
+      const ctx = carregarP7(); await prepararP7(ctx);
+      ctx.reiniciarProcesso();
+      const labMut = ctx.montarLab((src) => src.replace(
+        "registroFinalReady: registrySnapshot.status === 'ready',",
+        'registroFinalReady: !!registrySnapshot,'));
+      ctx.h.setGlobalManifest({
+        manifestVersion: 1, minAppVersion: '1.0.0',
+        packs: [ctx.h.packEntry({ storyId: 'noah', version: '1.0.0', baseUrl: 'https://r2/noah/v1/' })],
+      });
+      const pf = await labMut.exerciseRealPreflight(P7_ARGS);
+      check('§10.8 B3-N04 (mutante: `!!snapshot` restaurado): a condição inerte aprova um registro idle — é exatamente a falha que o B3-7 passa a barrar',
+        pf.registrySnapshot.status === 'idle' && pf.criterios.registroFinalReady === true,
+        `o mutante do !!snapshot não aprovou o idle: ${JSON.stringify({ snap: pf.registrySnapshot, crit: pf.criterios && pf.criterios.registroFinalReady })}`);
+    }
   })();
   globalThis.__P7_LAB.catch(() => {});
 }
