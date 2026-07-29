@@ -17,8 +17,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.valentedev.pequenostracosdefe",
       "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
-        "usesNonExemptEncryption": false,
         "UIRequiresFullScreen": false
       },
       "privacyManifests": {
