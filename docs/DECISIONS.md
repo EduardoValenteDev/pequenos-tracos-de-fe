@@ -254,6 +254,28 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
   7. **Cinco backgrounds e 90 spots são suficientes** para o lançamento inicial.
 - **Escopo (OV4):** apenas exposição/acesso — `AppNavigator.js` (rota principal sempre registrada; Asset Gallery segue gated), `BrincarScreen.js` (card user-facing), `CadeAOvelhinhaScreen.js` (selo "Em teste" só sob gate interno), `scripts/smoke.js`, este documento. **Mecânicas, modos, tempos, randomização, assets e carregamento INTACTOS.**
 
+### D-LP-FECHAMENTO — Fechamento da trilha loading/performance e baseline da Fase 2.5
+
+- **Data:** 2026-07-30 · **Status:** ✅ CONFIRMADA (fundador, ordem "Portão pós fechamento") · **Origem:** [`RELATORIO_FECHAMENTO_LP.md`](../specs/012-loading-performance-foundation/RELATORIO_FECHAMENTO_LP.md).
+- **Decisão:**
+  1. **Branch final:** `fix/loading-performance-foundation`.
+  2. **Baseline anterior:** `013eec4` (relatório de fechamento).
+  3. **Novo baseline:** o commit apontado pela tag anotada **`lp-foundation-closed-2026-07-30`** — `013eec4` + 3 commits deste portão (endurecimento antitautológico do harness, `.gitattributes` LF, ratificação documental). É dele que a Fase 2.5 nasce.
+  4. **Smoke:** `3312/3312` em `013eec4`; **`3314/3314`** no novo baseline (+2 controles negativos §10c e §20c; nenhuma prova removida ou relaxada).
+  5. **Resultado físico:** 13 cenários aprovados em build interno iOS `preview-criador` sem Metro (relatado pelo fundador em 2026-07-29), incluindo offline pós-restart e recovery sem segundo download. **Três** validações físicas seguem pendentes (dois READY concorrentes, reset+retry, saída durante instalação).
+  6. **Método:** auditoria conduzida com **ULTRACODE** (orquestração multi-agente) — 17 agentes em 3 fases no fechamento e 5 agentes de varredura neste portão. Evidência detalhada no relatório final da ordem; os artefatos brutos são efêmeros (`%TEMP%`), não versionados.
+  7. **A trilha loading/performance está ENCERRADA**, com dívidas não bloqueantes registradas no relatório. Não se reabre investigação sobre ela.
+  8. **NÃO existe afirmação de desempenho medido quantitativamente.** Nenhuma medição foi registrada (R21); `performanceTrace.js` é gated por `__DEV__`/env ausente de todos os perfis do `eas.json` e não há baseline versionado. Qualquer ganho percebido é qualitativo.
+  9. **NÃO existe readiness de loja.** O binário ainda referencia ~401 MB por `require()` estático (R5), com premium (R6) e 200 linearts legados (R7) embarcados.
+  10. **Próxima fase oficial:** integração do **Colorir com o Beni** (Fase 2.5). A branch de integração **não** foi criada neste portão.
+- **Condições obrigatórias da Fase 2.5** (nenhuma é opcional):
+  1. **Bloquear a persistência de pintura no plano Free no nível da ESCRITA em storage** — não apenas na UI. Coerente com [`D-FREE-SEM-SALVAR`](#d-free-sem-salvar--plano-grátis-não-salva-arte).
+  2. **Tornar a atualização de manifest/pack funcional para quem já baixou conteúdo** — hoje quem já instalou não recebe versão nova de forma comprovada.
+  3. **Manter os linearts legados fora do binário público** — a remoção é projeto próprio; a Fase 2.5 não pode reintroduzi-los nem ampliar a dependência deles.
+  4. **Resolver a divergência de CRLF sem conflito artificial** — `feat/colorir-60-pilot-creation` tem `scripts/smoke.js` 100% CRLF (R23). Este portão fixou `scripts/smoke.js text eol=lf` no `.gitattributes`; a branch divergente precisa ser renormalizada **antes** do merge. Atenção: além do EOL há divergência real de conteúdo.
+- **Riscos atribuídos a fases futuras:** **R5** (peso do binário) → Fase 2 · **R6** (premium embarcado) → Fase 2 · **R7** (200 linearts legados) → Fase 2 · **R17** (`appVersion` literal `'1.0.0'`, `minAppVersion`/`requiresAppUpdate` inertes) → Fase 10, antes do binário de loja · **R20** (Android sem evidência empírica; sha256 lê o arquivo inteiro em base64) → Fase 12 · **R21** (nenhuma medição de desempenho) → Fase 14.
+- **Escopo do portão:** apenas testes (`scripts/smoke.js`), governança (`.gitattributes`, `CLAUDE.md`, `.specify/memory/constitution.md`) e documentação (este arquivo). **Zero** alteração em código de produção.
+
 ---
 
 ## Analytics / SDKs (registro de restrição)
