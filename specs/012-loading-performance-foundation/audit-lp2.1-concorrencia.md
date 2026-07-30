@@ -768,3 +768,21 @@ Ficam **registradas**, e **não** se convertem em blocos novos:
 
 > **Este bloco não declara o fechamento da trilha.** Ele fecha **apenas** o §10.7. O §10.8 segue
 > pendente e as validações físicas de §13.2 continuam em aberto.
+
+---
+
+## 14. Ponteiro de fechamento (2026-07-30)
+
+O **§10.8 foi concluído** em 2026-07-29 (build interno iOS `preview-criador` instalado sem Metro) e a
+trilha foi encerrada em 2026-07-30 — ver [`RELATORIO_FECHAMENTO_LP.md`](./RELATORIO_FECHAMENTO_LP.md)
+e `spec.md` §13/§17.
+
+**As três validações físicas do §13.2 continuam em aberto.** A validação de 2026-07-29 cobriu boot
+offline, shell global, Modo Criador, premium, preparação real de órfão, recovery `RECOVERY_APPROVED`
+(12/12) e história completa offline — **não** cobriu instalação de duas histórias em sequência rápida,
+Reset seguido de retry, nem saída de tela durante uma instalação em curso.
+
+Classificação no fechamento: **dívida não bloqueante D4**. Os corretivos `bcfde07` e `746c1f3` seguem
+provados em harness comportamental (G1: 27 provas; G4: 27; G5: 24), com controles negativos e
+antitautologia. O risco coberto é de **regressão**, não de defeito conhecido em aberto — por isso não
+bloqueia a integração do Colorir com o Beni e **não deve** ser convertido em bloco novo.

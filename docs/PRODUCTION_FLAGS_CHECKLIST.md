@@ -18,7 +18,7 @@ Verificar ANTES de cada build de produção. Uma flag errada pode entregar premi
 | `microphonePermission` | `app.json` expo-audio plugin | `false` | **`false`** | Permissão desnecessária solicitada | — |
 | `recordAudioAndroid` | `app.json` expo-audio plugin | `false` | **`false`** | Permissão desnecessária no Android | — |
 | `enableBackgroundRecording` | `app.json` expo-audio plugin | `false` | **`false`** | Bateria drenada em background | — |
-| `usesNonExemptEncryption` | `app.json` ios.infoPlist | `false` | **`false`** | Declaração de exportação errada na Apple | — |
+| `usesNonExemptEncryption` | `app.json` **ios.config** | `false` | **`false`** | Declaração de exportação errada na Apple | Movido de `ios.infoPlist` para `ios.config` em `945400b` — é a chave que o EAS reconhece |
 
 ---
 

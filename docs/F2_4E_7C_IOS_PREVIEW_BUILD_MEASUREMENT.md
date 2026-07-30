@@ -45,8 +45,10 @@ Ou seja: quando o build for gerado, o **QA Pack Sandbox aparecerá** e o **Downl
 - **Build ID / URL / status / tamanho do artefato:** **N/A** — o build **não foi enfileirado** (parou antes do upload, na etapa de credenciais). Nenhum crédito de build consumido.
 - **Repo intacto após a tentativa:** `git status` limpo; **sem** `ios/`/`android/`; EAS **não alterou** `app.json`/`eas.json`.
 
-### Nota de config (não bloqueia; requer autorização p/ corrigir)
-O EAS avisou: *"app.json is missing `ios.infoPlist.ITSAppUsesNonExemptEncryption` boolean. Manual configuration is required in App Store Connect before the app can be tested."* O `app.json` atual tem `ios.infoPlist.usesNonExemptEncryption: false` — a chave reconhecida pelo EAS é **`ios.config.usesNonExemptEncryption`** (ou `ios.infoPlist.ITSAppUsesNonExemptEncryption`). É relevante para **App Store Connect/TestFlight**, **não** para o **ad-hoc internal** (só um aviso). **Não corrigi** (mexer em `app.json` exige autorização — regras 6/27). Recomendação para um bloco próprio.
+### Nota de config — ✅ **CORRIGIDA em `945400b` (2026-07-29)**
+O EAS avisou: *"app.json is missing `ios.infoPlist.ITSAppUsesNonExemptEncryption` boolean. Manual configuration is required in App Store Connect before the app can be tested."* Na época o `app.json` tinha `ios.infoPlist.usesNonExemptEncryption: false` — a chave reconhecida pelo EAS é **`ios.config.usesNonExemptEncryption`** (ou `ios.infoPlist.ITSAppUsesNonExemptEncryption`). É relevante para **App Store Connect/TestFlight**, **não** para o **ad-hoc internal** (era só um aviso).
+
+**Estado atual (verificado em `26d2b57`):** o bloco `IOS-CFG` (`945400b`) fez exatamente a correção recomendada — `ios.config = { "usesNonExemptEncryption": false }`, e `ios.infoPlist` ficou apenas com `UIRequiresFullScreen: false`. **Nada a fazer aqui**; o parágrafo acima permanece como registro histórico.
 
 ## 5. O que Eduardo precisa rodar INTERATIVAMENTE (na máquina dele)
 > Estes passos exigem **login Apple (2FA)** e o **iPhone em mãos** — por isso **não** podem rodar neste ambiente headless (regra 28: Eduardo digita as credenciais localmente). Não coloque senhas/códigos em nenhum relatório.

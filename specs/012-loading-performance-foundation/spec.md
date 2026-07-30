@@ -480,12 +480,12 @@ Qualquer política escolhida deve preservar os invariantes já provados: nunca `
 > 4. **LP2.1a-ii-D** — identidade resolvida — ✅ **implementado** (`090a928`)
 > 5. **LP2.1a-ii-E** — progresso compartilhado — ✅ **implementado** (`d5a46c1`)
 > 6. **LP2.1a-ii-F** — cancelamento — ✅ **implementado** (`6cf799c`)
-> 7. **Auditoria integrada de concorrência** — 🟡 **EM EXECUÇÃO** (bloco atual; **não** concluído — §4.2)
-> 8. **Validação real no iPhone** — ⬜ **pendente**
-> 9. **Fechamento da trilha LP2** — ⬜ **pendente**
-> 10. **Análise global de gargalos** (§14) — ⬜ **não iniciada**
+> 7. **Auditoria integrada de concorrência** — ✅ **concluída** (`bcfde07`, `746c1f3`, `138f738`; dois defeitos reais encontrados e corrigidos — §4.2)
+> 8. **Validação real no iPhone** — ✅ **concluída em 2026-07-29** (build interno iOS `preview-criador` instalado **sem Metro**; 13 cenários relatados pelo Eduardo — §17.2)
+> 9. **Fechamento da trilha LP2** — ✅ **concluído em 2026-07-30** — [`RELATORIO_FECHAMENTO_LP.md`](./RELATORIO_FECHAMENTO_LP.md)
+> 10. **Análise global de gargalos** (§14) — ⬜ **não iniciada** e **permanece fora de escopo**
 >
-> **A ordem não mudou.** As correções `01F` e `01G-C` (§4.1) não são itens novos desta lista: são subblocos corretivos dentro da mesma trilha, feitos entre o item 6 e o item 7 por causa da validação física.
+> **A ordem não mudou.** As correções `01F` e `01G-C` (§4.1) não são itens novos desta lista: são subblocos corretivos dentro da mesma trilha, feitos entre o item 6 e o item 7 por causa da validação física. Os blocos **P7, B1–B4 e IOS-CFG** (§17.1) também não são itens novos: são os subblocos que tornaram executável o item 8.
 
 **Por que C primeiro:** é o único item com **perda de valor já provada** (conteúdo íntegro no disco tratado como ausente) e é o que menos depende dos outros — resolve-se com a identidade atual.
 
@@ -534,19 +534,23 @@ Qualquer política escolhida deve preservar os invariantes já provados: nunca `
 
 A trilha LP2 só pode ser declarada concluída quando **todos** forem verdade:
 
-| # | Critério | Estado em 2026-07-28 |
+| # | Critério | Estado em 2026-07-30 |
 |---|---|---|
 | 1 | Todos os blocos comprometidos (C, D, E, F) implementados **ou** formalmente descartados com justificativa registrada nesta spec. | ✅ **atendido** — os quatro implementados (§4.1) |
-| 2 | Gates verdes. | ✅ **atendido em `fddd1f0`** — smoke 3038/3038; expo-doctor 17/18 com o único drift autorizado (§12). *[2026-07-28: smoke **3231/3231** ao fim do §10.7]* |
+| 2 | Gates verdes. | ✅ **atendido** — *[`fddd1f0`: smoke 3038/3038]*, *[2026-07-28, fim do §10.7: **3231/3231**]*, *[2026-07-30, fechamento em `26d2b57`: **3312/3312**]*; expo-doctor **17/18** com o único drift autorizado (§12) |
 | 3 | A **composição** entre os contratos testada — não só cada bloco isolado (ex.: recovery + identidade resolvida + progresso simultâneos). | ✅ **atendido em harness** — §10.7 **concluído**: G1–G6 exercitados em composição, dois defeitos reais encontrados e corrigidos (`bcfde07`, `746c1f3`). **Ressalva:** provas **comportamentais em harness**; a validação em dispositivo é o §10.8 (critério 4) |
-| 4 | **Validação real no iPhone** pelo Eduardo. | ❌ **NÃO atendido** — §10.8 pendente (validações físicas pontuais do `01G-C` **não** substituem) |
+| 4 | **Validação real no iPhone** pelo Eduardo. | ✅ **atendido em 2026-07-29** — build interno iOS `preview-criador` **instalado sem Metro**; 13 cenários aprovados, incluindo recovery real `RECOVERY_APPROVED` (12/12) e história completa offline. Matriz em [`RELATORIO_FECHAMENTO_LP.md`](./RELATORIO_FECHAMENTO_LP.md) §5. **O relato é do Eduardo** — o assistente não tem dispositivo e não declara validação visual (§12) |
 | 5 | Nenhum estado órfão conhecido sem política documentada. | ✅ **atendido** — C1/C2 recuperáveis, C3 detectável, legados congelados (plan §8) |
 | 6 | Riscos residuais registrados. | ✅ **atendido** — §16 |
-| 7 | Árvore limpa. | ⬜ **a verificar no fechamento** (§10.9) |
-| 8 | Commits locais individualmente rastreáveis (um bloco lógico = um commit). | ✅ **atendido até aqui** — um commit por bloco (§4.1) |
-| 9 | Relatório consolidado produzido. | ⬜ **pendente** — pertence ao §10.9 |
+| 7 | Árvore limpa. | ✅ **atendido** — árvore limpa em `26d2b57` antes de qualquer edição do fechamento; o único commit desta etapa é **documental** |
+| 8 | Commits locais individualmente rastreáveis (um bloco lógico = um commit). | ✅ **atendido** — um commit por bloco, dos 32 blocos da trilha (§4.1, §17.1) |
+| 9 | Relatório consolidado produzido. | ✅ **atendido** — [`RELATORIO_FECHAMENTO_LP.md`](./RELATORIO_FECHAMENTO_LP.md) |
 
-> **Enquanto 3 e 4 estiverem em ❌, a trilha LP2 NÃO pode ser declarada concluída.** Esta reconciliação não os move.
+> **Os nove critérios estão atendidos.** A regra anterior — *"enquanto 3 e 4 estiverem em ❌, a trilha LP2 NÃO pode ser declarada concluída"* — foi satisfeita: o critério 3 fechou em harness no §10.7 e o critério 4 fechou fisicamente em 2026-07-29.
+>
+> ## **TRILHA ENCERRADA COM DÍVIDAS NÃO BLOQUEANTES** *(2026-07-30)*
+>
+> As dívidas estão registradas no §16 e no [relatório de fechamento](./RELATORIO_FECHAMENTO_LP.md) §7 — são **registro**, não backlog ativo. **Nenhuma nova investigação de loading/performance deve ser aberta antes da integração do Colorir com o Beni.** O fechamento **não** declara desempenho medido nem prontidão de loja.
 
 ---
 
@@ -598,9 +602,68 @@ Reunidas para o Portão Humano 1:
 
 ## 16. Riscos residuais registrados
 
+> **[FECHAMENTO 2026-07-30]** Esta lista continua válida como registro **da trilha**. O inventário
+> completo e reconciliado — **24 riscos** e **9 dívidas não bloqueantes**, cada um com probabilidade,
+> impacto, se bloqueia a integração do Colorir, se bloqueia o lançamento e a fase correta do Roteiro
+> Mestre — está em [`RELATORIO_FECHAMENTO_LP.md`](./RELATORIO_FECHAMENTO_LP.md) §7. Onde houver
+> divergência de detalhe, **o relatório de fechamento prevalece** (é posterior e foi verificado contra
+> o código atual). Correspondências: o item 1 abaixo → R13/D6; o item 3 → R16; o item 4 → **superado**
+> pela validação física de 2026-07-29 (§13.4); o item 6 → D7.
+
 1. **Dívida de enum** — `NEEDS_UPDATE` e `REQUIRES_APP_UPDATE` declarados sem uso (§5.1). Não é defeito; é superfície morta que pode confundir quem ler o enum como contrato.
 2. **`errorMessage` em `DOWNLOADING`** — ambíguo se algum dia alguém ler o campo (§5.3).
 3. **Diretório da versão antiga fica no disco** após um bump de versão (§7.5.2) — vazamento conhecido, pertence a política de cache, **fora desta trilha**.
 4. **A trilha não tem validação em dispositivo** até hoje. Todas as provas são comportamentais em harness. Isso é adequado para os invariantes provados, mas **não substitui** o iPhone (§12, §13.4). *(Reconciliado 2026-07-28: houve captura física **pontual** no `01G-C`; o §10.8 continua pendente — §4.1.)*
 5. **[REGISTRADO 2026-07-28] Composição entre os contratos ainda não provada** — cada bloco (C, D, E, F, 01F, 01G-C) tem provas isoladas; as seis lacunas **G1–G6** (§4.2) são combinações nunca exercitadas numa mesma execução. **G1** — identidade resolvida divergente × registro global por `storyId` — era a mais séria e foi o **portão de continuidade** do §10.7: **confirmada como defeito real em `fddd1f0` e corrigida em `bcfde07`** (revogação de Reset separada da sucessão visual e da publicação física). **G2–G6 seguem pendentes.** Enquanto o §10.7 não fechar, o §13.3 permanece **não atendido**. *(**Atualizado 2026-07-28:** **G2, G3, G5 e G6 aprovados**; **G4 confirmou um segundo defeito real**, corrigido em **`746c1f3`**. **§10.7 concluído** e o §13.3 passa a **atendido em harness** — a validação em dispositivo continua sendo o §10.8. Risco residual **permanece**: nenhum dos interleavings foi observado em runtime real, todos foram impostos pelo harness.)*
 6. **[REGISTRADO 2026-07-28] Dívida técnica de renderização** — `src/components/story/StorySceneVisual.js:40` declara `SceneNumberBadge` **dentro do render**, o mesmo mecanismo que causou o `01G-C`. Consequência **muito menor** (o badge é **irmão**, não ancestral, de qualquer `<Image>`, e no estado A nem é renderizado) e **sem sintoma visual observado**. Registrado como dívida; **não corrigir sem medição** e fora do escopo do §10.7 (decisão do Eduardo, 2026-07-28).
+
+---
+
+## 17. Fechamento da trilha (2026-07-30)
+
+### 17.1 Blocos executados **após** a última reconciliação dos artefatos SDD
+
+O §4 e o `plan-lp2.1a-ii-c.md` param em 2026-07-28 (`fddd1f0` … `746c1f3`). Os blocos abaixo foram
+executados depois e **não constavam de nenhum artefato SDD** até este fechamento:
+
+| Bloco | Commit | O que entregou |
+|---|---|---|
+| **P7** — laboratório de recovery **real** | `eb871f5` | Preparação física de órfão e recovery exercitados **pelo downloader público real**, não por preset sintético |
+| **IOS-CFG** | `945400b` | Normalização da config iOS: `usesNonExemptEncryption` movido para `ios.config`; `ios.infoPlist` reduzido a `UIRequiresFullScreen` |
+| **B4** | `ba396d1` | Perfil EAS `preview-criador` + gate quíntuplo do Modo Criador; produção **fail-closed** |
+| **B1 + B2** | `d4db2ed` | Publicação de READY em **todas** as rotas criadoras bem-sucedidas + cobertura P8 (rede indisponível, saídas antecipadas, concorrência, revogação, reinício realista dos módulos voláteis) |
+| **B3** | `26d2b57` | Diagnóstico do P7 autocontido e resistente a reinício real do aplicativo |
+
+**Janela completa da trilha:** `67fa172`…`26d2b57` = **37 commits** (36 exclusivos do intervalo).
+**Estado de publicação no fechamento:** `origin/fix/loading-performance-foundation` está em `eb871f5`;
+os **quatro** commits finais são **locais**. Consequência registrada como risco **R22** do relatório:
+eles **nunca rodaram no CI** (o gate duro dispara em `pull_request` e push para `main`).
+
+### 17.2 Validação física
+
+Realizada por **Eduardo** em **2026-07-29**, em build interno iOS `preview-criador` **instalado sem
+Metro**. 13 cenários, todos aprovados — matriz completa em
+[`RELATORIO_FECHAMENTO_LP.md`](./RELATORIO_FECHAMENTO_LP.md) §5. Destaques verificáveis: 31 arquivos /
+18.604.321 bytes persistidos; hashes idênticos antes e depois do reinício; recovery **sem** segundo
+download e **sem** nenhum evento `downloading`/`verifying`; **12/12** critérios; veredito
+`RECOVERY_APPROVED`; história completa aberta e navegada **offline**.
+
+**O que a validação física não cobriu** (dívida **D4**, não bloqueante): as três validações de
+concorrência do `audit-lp2.1-concorrencia.md` §13.2 — duas histórias em sequência rápida, Reset
+seguido de retry, e saída da tela durante a instalação — seguem provadas **apenas em harness**.
+
+### 17.3 Deriva de âncoras de linha
+
+As referências `smoke.js:<linha>` no §4 e no §15 estão **deslocadas** pelo crescimento da suíte
+(3038 → 3312 provas). Correspondências verificadas em `26d2b57`: `01F` `:13485`→`:14314` ·
+`01G-C` `:17332`→`:20804` · bloco C `:10370`→`:11198` · `D1/D2/D3` `:11711/:11916/:12237` →
+`:12539/:12744/:13065` · `E1/E3` `:12438/:12596`→`:13266/:13424` · `F1` `:13045`→`:13875`.
+As âncoras de **`packDownloadService.js`** continuam **corretas**. Registrado como dívida **D2**;
+**não corrigido aqui** porque cada nova prova volta a deslocá-las — a correção certa é deixar de
+citar linha de `smoke.js`, o que é decisão de governança, não de fechamento.
+
+### 17.4 Próximo passo oficial
+
+**Integração do Colorir com o Beni**, a partir do baseline `fix/loading-performance-foundation`
+@ `26d2b57` (+ o commit documental deste fechamento), com o Colorir sendo integrado **sobre** a
+fundação. Veredito de prontidão: **PRONTO COM CONDIÇÕES** (C1–C9 no relatório §9.1).

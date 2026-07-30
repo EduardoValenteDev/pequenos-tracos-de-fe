@@ -33,7 +33,7 @@ Baseado em `app.json`, `eas.json`, `package.json`. Nenhum arquivo alterado.
 ### Privacidade e segurança
 | Campo | Valor | Status |
 |---|---|---|
-| `ios.infoPlist.usesNonExemptEncryption` | false | ✓ Obrigatório para App Store |
+| `ios.config.usesNonExemptEncryption` | false | ✓ Obrigatório para App Store — chave corrigida em `945400b` (antes estava sob `ios.infoPlist`, onde o EAS não a lê) |
 | `ios.privacyManifests.NSPrivacyTracking` | false | ✓ |
 | `ios.privacyManifests.NSPrivacyCollectedDataTypes` | [] | ✓ |
 | `ios.privacyManifests.NSPrivacyAccessedAPITypeReasons` | CA92.1 | ✓ |
