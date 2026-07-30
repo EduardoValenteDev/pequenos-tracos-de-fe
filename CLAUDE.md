@@ -103,8 +103,16 @@ TypeScript Strict é o **estado técnico desejado**, mas **ainda não é a basel
 - **Sem push sem autorização explícita.** Antes do commit, mostrar `git diff --cached --name-only`.
 - Não misturar **código, assets e governança** no mesmo commit. Não incluir arquivos pessoais (ex.: `.claude/settings.local.json`).
 - Relatórios devem distinguir corretamente: **salvo no disco · untracked · modificado · staged/indexado · commitado · enviado ao remoto**. **Nunca usar "indexado" se nenhum `git add` ocorreu.**
-- Mensagens de commit encerram com:
-  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
+- Mensagens de commit encerram com a linha `Co-Authored-By:` do agente que **de fato** escreveu o
+  commit. A regra é de **veracidade, não de versão**: o trailer **nunca** declara um modelo diferente
+  do que foi realmente usado, e a política **não** fica presa a uma versão específica. Valem duas
+  formas:
+  - **nome real do modelo** — ex.: `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`;
+  - **forma genérica durável** — `Co-Authored-By: Claude <noreply@anthropic.com>`, preferível quando
+    a versão exata não for relevante.
+
+  Commits já criados **não** são reescritos (nem têm hashes alterados) só para adequar o trailer a
+  outra versão de modelo.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,

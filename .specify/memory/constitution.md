@@ -218,8 +218,12 @@ Disciplina **OBRIGATÓRIA** na Etapa SDD 8 e no fechamento de cada bloco:
   `git diff --cached --name-only`. **Não misturar** código, assets e governança no mesmo
   commit; não incluir arquivos pessoais (ex.: `.claude/settings.local.json`). Relatórios
   distinguem **salvo no disco · untracked · modificado · staged/indexado · commitado ·
-  enviado**; **nunca** dizer "indexado" sem `git add`. Mensagens encerram com
-  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+  enviado**; **nunca** dizer "indexado" sem `git add`. Mensagens encerram com a linha
+  `Co-Authored-By:` do agente que **de fato** escreveu o commit — regra de **veracidade, não de
+  versão**: o trailer nunca declara um modelo diferente do que foi usado. Valem duas formas: o
+  **nome real do modelo** (ex.: `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`) ou a
+  forma **genérica durável** `Co-Authored-By: Claude <noreply@anthropic.com>`. Commits já
+  criados **não** são reescritos para adequar o trailer a outra versão.
 
 ## Governance
 
