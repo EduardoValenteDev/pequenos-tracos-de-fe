@@ -34122,6 +34122,599 @@ try {
     !lp21p8Err,
     `o bloco P8 lançou (${lp21p8Err && lp21p8Err.stack ? String(lp21p8Err.stack).split('\n').slice(0, 4).join(' | ') : lp21p8Err}) — os checks dele não rodaram`);
 
+  // ══════════════════════════════════════════════════════════════════════════════
+  // P2X · Colorir 60 "A Criação" — contratos de CRIAÇÃO e RESOLUÇÃO (P3 + P3T)
+  //
+  // Transplante SELETIVO da branch `feat/colorir-60-pilot-creation` (origem por bloco
+  // anotada em cada grupo). Só entrou o que ainda representa a decisão ATUAL:
+  // catálogo, registro estático, resolvedor, marcos (cena 09), poses do Beni e o gate
+  // de assets. NÃO foram transplantados — porque pertencem a decisões que este
+  // macrobloco explicitamente NÃO tomou — checks de storage, entitlement, UI/telas,
+  // navegação, conclusão/progresso, feature flag e packs.
+  //
+  // ADAPTAÇÃO PRINCIPAL: a branch antiga modelava uma máquina de fases de assets
+  // (PRE → LIVING_WORLD → COMPLETE) porque os PNGs de `living_world`/`people_and_care`
+  // ainda não existiam e os slots do registro eram `null`. Esse pressuposto está
+  // SUPERADO: após P2A/P2B os três linearts existem fisicamente e os três `require()`
+  // estão ativos. O estado é permanentemente COMPLETE, então os checks aqui asserem
+  // o estado final DIRETAMENTE, sem fase e sem `--mode=pre|post`.
+  //
+  // Os controles negativos chamam as MESMAS funções dos positivos (catálogo/registro/
+  // resolvedor/verificador REAIS carregados por loadModule ou require), nunca uma
+  // reimplementação da regra dentro do teste.
+  // ══════════════════════════════════════════════════════════════════════════════
+  console.log('\n── P2X · Colorir 60 "A Criação": criação e resolução ──');
+  {
+    const { loadModule } = require('./testing/packInstallHarness');
+    // Verificador REAL. O guard `require.main === module` impede que o CLI rode aqui:
+    // só os helpers são expostos, e são eles que os checks abaixo exercitam.
+    const V = require('./verify-coloring60-assets');
+    const c60crypto = require('crypto');
+
+    const CAT_REL = 'src/data/coloring60Catalog.js';
+    const REG_REL = 'src/assets/coloring60LocalAssets.js';
+    const RES_REL = 'src/services/coloring60Resolver.js';
+    const MRC_REL = 'src/data/coloring60StoryMilestones.js';
+    const BENI_REL = 'src/assets/mascot/beniImages.js';
+    const VER_REL = 'scripts/verify-coloring60-assets.js';
+
+    const catSrc = srcExists(CAT_REL) ? readSrc(CAT_REL) : '';
+    const regSrc = srcExists(REG_REL) ? readSrc(REG_REL) : '';
+    const resSrc = srcExists(RES_REL) ? readSrc(RES_REL) : '';
+    const mrcSrc = srcExists(MRC_REL) ? readSrc(MRC_REL) : '';
+    const beniSrc = srcExists(BENI_REL) ? readSrc(BENI_REL) : '';
+    const verSrc = srcExists(VER_REL) ? readSrc(VER_REL) : '';
+
+    const c60Sha = (abs) => c60crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex');
+    // Remove comentários antes de procurar por menções PROIBIDAS no código: o cabeçalho
+    // desses módulos cita `sceneId`/`scene_02` para EXPLICAR o que não fazem. Só o código
+    // executável pode ser julgado.
+    const semComentarios = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+    const catCode = semComentarios(catSrc);
+    const resCode = semComentarios(resSrc);
+    const regCode = semComentarios(regSrc);
+
+    // Carga dos módulos REAIS. O registro faz require() de PNG: o stub do verificador
+    // devolve uma sentinela DISTINTA por path (e LANÇA em path inesperado), então uma
+    // troca de fonte entre atividades é detectável.
+    const c60Stub = V.buildRegistryStub();
+    let catalog = null; let registry = null; let resolver = null; let milestones = null;
+    let c60LoadErr = null;
+    try {
+      catalog = loadModule(CAT_REL, {}, ['COLORING60_MODEL_VERSION', 'getColoring60Activities', 'getColoring60Activity']);
+      registry = loadModule(REG_REL, { require: c60Stub.req }, ['getColoring60LocalSource']);
+      resolver = loadModule(RES_REL, {
+        getColoring60Activity: catalog.getColoring60Activity,
+        getColoring60LocalSource: registry.getColoring60LocalSource,
+      }, ['resolveColoring60Lineart', 'COLORING60_RESOLUTION_STATUS']);
+      milestones = loadModule(MRC_REL, {}, [
+        'COLORING60_STORY_MILESTONES', 'getColoring60StoryMilestones',
+        'getColoring60MilestoneForCompletedScene', 'getColoring60MilestoneByActivityId',
+      ]);
+    } catch (e) {
+      c60LoadErr = e;
+    }
+    const acts = catalog ? catalog.getColoring60Activities('creation') : [];
+    const IDS = ['light', 'living_world', 'people_and_care'];
+
+    // ── Catálogo (origem: C60-P1.T5 · adaptado: sem checks de feature flag) ───────
+    check('P2X C60-CAT [01] os quatro módulos do contrato carregam sem lançar',
+      c60LoadErr === null,
+      `carga falhou: ${c60LoadErr && c60LoadErr.message}`);
+    // Julgado sobre o CÓDIGO (sem comentários): o cabeçalho do catálogo cita `require()`
+    // justamente para declarar que não o usa.
+    check('P2X C60-CAT [02] catálogo é DADO PURO: zero import e zero require no código',
+      catCode.length > 0 && !/^\s*import\s/m.test(catCode) && !/require\s*\(/.test(catCode),
+      'catálogo passou a importar algo — ele não pode depender de asset nem de serviço');
+    check('P2X C60-CAT [03] catálogo não referencia identidade de CENA no código (sceneId/cenaIndex/scene_)',
+      catCode.length > 0 && !/\b(sceneId|cenaIndex|sceneNumber)\b/.test(catCode) && !/scene_\d/.test(catCode),
+      'catálogo voltou a falar em cena — a identidade do Colorir 60 é a ATIVIDADE');
+    check('P2X C60-CAT [04] COLORING60_MODEL_VERSION === 2',
+      catalog != null && catalog.COLORING60_MODEL_VERSION === 2,
+      `versão do modelo = ${catalog && catalog.COLORING60_MODEL_VERSION}`);
+    check('P2X C60-CAT [05] "creation" tem exatamente 3 atividades',
+      acts.length === 3, `recebido ${acts.length}`);
+    check('P2X C60-CAT [06] história fora do piloto → lista VAZIA (sem herdar de creation)',
+      catalog != null && Array.isArray(catalog.getColoring60Activities('noah')) && catalog.getColoring60Activities('noah').length === 0,
+      'história fora do piloto recebeu atividades');
+    check('P2X C60-CAT [07] activityIds exatos e em ordem (light · living_world · people_and_care)',
+      acts.map((a) => a.activityId).join(',') === IDS.join(','),
+      `recebido: ${acts.map((a) => a.activityId).join(',')}`);
+    check('P2X C60-CAT [08] order sequencial 1,2,3',
+      acts.map((a) => a.order).join(',') === '1,2,3',
+      `orders: ${acts.map((a) => a.order).join(',')}`);
+    check('P2X C60-CAT [09] nenhuma entrada expõe chave de cena',
+      acts.length === 3 && acts.every((a) => !('sceneId' in a) && !('cenaIndex' in a) && !('sceneNumber' in a)),
+      'entrada do catálogo carrega chave de cena');
+    check('P2X C60-CAT [10] cada entrada tem EXATAMENTE os 7 campos ratificados',
+      acts.length === 3 && acts.every((a) => Object.keys(a).slice().sort().join(',')
+        === 'activityId,expectedDims,expectedSha256,localSourceKey,order,storyId,title'),
+      `campos: ${acts.map((a) => Object.keys(a).slice().sort().join('|')).join(' / ')}`);
+    check('P2X C60-CAT [11] expectedDims 1122×1402 nas três atividades',
+      acts.length === 3 && acts.every((a) => a.expectedDims && a.expectedDims.width === 1122 && a.expectedDims.height === 1402),
+      'dimensões declaradas divergem do contrato');
+    check('P2X C60-CAT [12] localSourceKey é exatamente "storyId:activityId"',
+      acts.length === 3 && acts.every((a) => a.localSourceKey === `${a.storyId}:${a.activityId}`),
+      'chave composta divergente');
+    check('P2X C60-CAT [13] expectedSha256 de "light" bate com os BYTES de scene_02.png no disco',
+      acts.length === 3 && acts[0].expectedSha256 === c60Sha(path.join(root, 'assets/stories/creation/coloring/scene_02.png')),
+      'o hash declarado no catálogo não corresponde ao arquivo real');
+    check('P2X C60-CAT [14] expectedSha256 de "living_world" bate com os BYTES do arquivo no disco',
+      acts.length === 3 && acts[1].expectedSha256 === c60Sha(path.join(root, 'assets/stories/creation/coloring/activities/living_world.png')),
+      'o hash declarado no catálogo não corresponde ao arquivo real');
+    check('P2X C60-CAT [15] expectedSha256 de "people_and_care" bate com os BYTES do arquivo no disco',
+      acts.length === 3 && acts[2].expectedSha256 === c60Sha(path.join(root, 'assets/stories/creation/coloring/activities/people_and_care.png')),
+      'o hash declarado no catálogo não corresponde ao arquivo real');
+    check('P2X C60-CAT [16] getColoring60Activity resolve por identidade composta',
+      catalog != null && catalog.getColoring60Activity('creation', 'light') != null
+        && catalog.getColoring60Activity('creation', 'light').title === 'Haja luz',
+      'lookup por identidade composta falhou');
+    check('P2X C60-CAT [17] lookup desconhecido → null (story e activity)',
+      catalog != null && catalog.getColoring60Activity('creation', 'nope') === null
+        && catalog.getColoring60Activity('noah', 'light') === null,
+      'lookup inválido não devolveu null');
+    check('P2X C60-CAT [18] getColoring60Activities devolve CÓPIA (mutar o retorno não corrompe o catálogo)',
+      (() => {
+        if (!catalog) return false;
+        const l = catalog.getColoring60Activities('creation');
+        l.push({ activityId: 'intruso' });
+        l.length = 1;
+        return catalog.getColoring60Activities('creation').length === 3;
+      })(),
+      'o catálogo interno foi corrompido pelo consumidor');
+    // NEG (P2X §9.4.3) — um catálogo com id duplicado tem de reprovar a regra de unicidade.
+    check('P2X C60-CAT [19]/NEG catálogo com activityId DUPLICADO reprova a unicidade (mutante morto)',
+      (() => {
+        try {
+          const mut = loadModule(CAT_REL, {}, ['getColoring60Activities'],
+            (s) => s.replace("activityId: 'people_and_care'", "activityId: 'light'"));
+          const ids = mut.getColoring60Activities('creation').map((a) => a.activityId);
+          const dup = ids.length !== new Set(ids).size;
+          const realIds = acts.map((a) => a.activityId);
+          // A MESMA regra tem de aprovar o real e reprovar o mutante.
+          return dup === true && (realIds.length === new Set(realIds).size);
+        } catch (e) { return false; }
+      })(),
+      'a regra de unicidade não distingue catálogo íntegro de catálogo com id duplicado');
+    // NEG (P2X §9.4.4) — faltando uma das três atividades, a regra das 3 tem de reprovar.
+    check('P2X C60-CAT [20]/NEG catálogo SEM people_and_care reprova a regra das 3 atividades (mutante morto)',
+      (() => {
+        try {
+          // Âncora fecha em `localSourceKey: 'creation:people_and_care',` + `}),` — o
+          // `expectedDims: Object.freeze({...}),` INTERNO tornaria um `[\s\S]*?\}\),`
+          // não-guloso parar cedo e mutilar a entrada em vez de removê-la.
+          const mut = loadModule(CAT_REL, {}, ['getColoring60Activities'],
+            (s) => s.replace(/\s*Object\.freeze\(\{\s*\n\s*storyId: 'creation',\s*\n\s*activityId: 'people_and_care',[\s\S]*?localSourceKey: 'creation:people_and_care',\s*\n\s*\}\),/, ''));
+          const ids = mut.getColoring60Activities('creation').map((a) => a.activityId);
+          return ids.length === 2 && !ids.includes('people_and_care') && acts.length === 3;
+        } catch (e) { return false; }
+      })(),
+      'a regra das 3 atividades não reprova um catálogo incompleto');
+
+    // ── Registro estático (origem: C60-P1.T5 registro · adaptado: sem slots null) ─
+    const regRequires = (regSrc.match(/require\(\s*'[^']+'\s*\)/g) || []);
+    check('P2X C60-REG [01] registro tem exatamente 3 require() de asset ATIVOS',
+      regRequires.length === 3, `encontrados ${regRequires.length}`);
+    check('P2X C60-REG [02] todo require do registro é LITERAL (zero require dinâmico — contrato do Metro)',
+      regSrc.length > 0 && !/require\(\s*[^'")\s]/.test(regSrc) && !/require\(\s*`/.test(regSrc),
+      'require dinâmico/por template no registro quebraria o bundler');
+    check('P2X C60-REG [03] registro NÃO importa o mapa legado (coloringImages/getColoringImage)',
+      regSrc.length > 0 && !/coloringImages/.test(regCode) && !/getColoringImage/.test(regCode),
+      'o registro do Colorir 60 passou a depender do mapa legado por cena');
+    check('P2X C60-REG [04] os 3 require apontam para ARQUIVOS REGULARES existentes',
+      (() => {
+        const dir = path.join(root, 'src/assets');
+        return regRequires.length === 3 && regRequires.every((r) => {
+          const lit = r.match(/'([^']+)'/)[1];
+          return V.isRegularFile(path.resolve(dir, lit));
+        });
+      })(),
+      'require aponta para caminho inexistente — o bundle quebraria');
+    check('P2X C60-REG [05] nenhum slot null: as três identidades têm fonte runtime ATIVA',
+      registry != null && IDS.every((id) => registry.getColoring60LocalSource('creation', id) != null),
+      'alguma atividade ficou sem fonte após a integração dos PNGs');
+    check('P2X C60-REG [06] identidade desconhecida → null (sem lançar, sem fallback)',
+      registry != null && registry.getColoring60LocalSource('creation', 'nope') === null
+        && registry.getColoring60LocalSource('noah', 'light') === null
+        && registry.getColoring60LocalSource(null, undefined) === null,
+      'o registro inventou fonte para identidade desconhecida');
+    check('P2X C60-REG [07] cada atividade recebe a SUA fonte — três fontes DISTINTAS',
+      (() => {
+        if (!registry) return false;
+        const srcs = IDS.map((id) => registry.getColoring60LocalSource('creation', id));
+        return srcs.every((s) => s != null) && new Set(srcs).size === 3;
+      })(),
+      'duas atividades compartilham a mesma fonte — alguém caiu no lineart do vizinho');
+    // Julgado sobre o CÓDIGO (sem comentários): o cabeçalho do registro cita os três paths
+    // ao explicar as regras, e um check que lesse o fonte cru continuaria verde mesmo se o
+    // `require()` real apontasse para outro lugar.
+    check('P2X C60-REG [08] "activities/light.png" continua PROIBIDO e os 3 paths estão no CÓDIGO (light é reuso de scene_02.png)',
+      V.isAbsent(path.join(root, 'assets/stories/creation/coloring/activities/light.png'))
+        && /activities\/living_world\.png/.test(regCode) && /activities\/people_and_care\.png/.test(regCode)
+        && /creation\/coloring\/scene_02\.png/.test(regCode),
+      'apareceu uma cópia de light em activities/, ou o require real de scene_02.png mudou de alvo');
+    // NEG (P2X §9.4.7) — um path incorreto tem de ser rejeitado, não silenciosamente aceito.
+    check('P2X C60-REG [09]/NEG path INCORRETO no registro é rejeitado (mutante morto)',
+      (() => {
+        let ok = false;
+        try {
+          loadModule(REG_REL, { require: c60Stub.req }, ['getColoring60LocalSource'],
+            (s) => s.replace('activities/living_world.png', 'activities/nao_existe.png'));
+        } catch (e) { ok = /require inesperado/.test(String(e.message)); }
+        return ok === true && registry != null;
+      })(),
+      'um require apontando para arquivo fora do contrato passou sem ser detectado');
+    // NEG (P2X §9.4.10) — o registro não pode contrabandear uma quarta atividade: a
+    // AUTORIDADE sobre o que existe é o catálogo, e o resolvedor obedece ao catálogo.
+    check('P2X C60-REG [10]/NEG registro NÃO consegue introduzir um 4º item não oficial (mutante morto)',
+      (() => {
+        try {
+          const mutReg = loadModule(REG_REL, { require: c60Stub.req }, ['getColoring60LocalSource'],
+            (s) => s.replace('people_and_care: require(', "water: CREATION_LIGHT_SOURCE,\n    people_and_care: require("));
+          // O registro mutado REALMENTE fornece fonte para 'water' (a mutação pegou)...
+          const registroCede = mutReg.getColoring60LocalSource('creation', 'water') != null;
+          // ...mas o resolvedor REAL, ligado a esse registro, continua dizendo unknown.
+          const mutRes = loadModule(RES_REL, {
+            getColoring60Activity: catalog.getColoring60Activity,
+            getColoring60LocalSource: mutReg.getColoring60LocalSource,
+          }, ['resolveColoring60Lineart']);
+          const r = mutRes.resolveColoring60Lineart('creation', 'water');
+          return registroCede === true && r.status === 'unknown' && r.source === null;
+        } catch (e) { return false; }
+      })(),
+      'uma atividade não catalogada conseguiu resolver fonte pelo registro');
+
+    // ── Resolvedor (origem: C60-P2.T1 e C60-P2.T3 · adaptado: sem deferred no estado atual) ─
+    const R = resolver ? resolver.resolveColoring60Lineart : null;
+    const ST = resolver ? resolver.COLORING60_RESOLUTION_STATUS : null;
+    check('P2X C60-RES [01] (creation, light) → available, com metadados e fonte',
+      R != null && (() => { const r = R('creation', 'light'); return r.status === 'available' && r.activity != null && r.activity.activityId === 'light' && r.source != null; })(),
+      'light não resolveu');
+    check('P2X C60-RES [02] (creation, living_world) → available com a fonte do PRÓPRIO arquivo',
+      R != null && (() => {
+        const r = R('creation', 'living_world');
+        return r.status === 'available' && r.source === c60Stub.sentinels.get('assets/stories/creation/coloring/activities/living_world.png');
+      })(),
+      'living_world não resolveu para o próprio lineart');
+    check('P2X C60-RES [03] (creation, people_and_care) → available com a fonte do PRÓPRIO arquivo',
+      R != null && (() => {
+        const r = R('creation', 'people_and_care');
+        return r.status === 'available' && r.source === c60Stub.sentinels.get('assets/stories/creation/coloring/activities/people_and_care.png');
+      })(),
+      'people_and_care não resolveu para o próprio lineart');
+    check('P2X C60-RES [04] as três resoluções devolvem fontes DISTINTAS (sem colisão silenciosa)',
+      R != null && new Set(IDS.map((id) => R('creation', id).source)).size === 3,
+      'duas atividades resolveram para a mesma fonte');
+    check('P2X C60-RES [05] nenhuma atividade cai na fonte de "light" por engano',
+      R != null && (() => {
+        const lightSrc = R('creation', 'light').source;
+        return R('creation', 'living_world').source !== lightSrc && R('creation', 'people_and_care').source !== lightSrc;
+      })(),
+      'uma atividade herdou o lineart de light');
+    check('P2X C60-RES [06] COLORING60_RESOLUTION_STATUS congelado com exatamente 3 estados',
+      ST != null && Object.isFrozen(ST) && Object.keys(ST).length === 3
+        && ST.AVAILABLE === 'available' && ST.DEFERRED === 'deferred' && ST.UNKNOWN === 'unknown',
+      'o contrato de status mudou');
+    check('P2X C60-RES [07] resolvedor importa SOMENTE catálogo + registro',
+      (() => {
+        const imps = (resSrc.match(/^\s*import[^;]*from\s*'([^']+)'/gm) || []).map((s) => s.match(/'([^']+)'/)[1]);
+        return imps.length === 2 && imps.includes('../data/coloring60Catalog') && imps.includes('../assets/coloring60LocalAssets');
+      })(),
+      'o resolvedor ganhou dependências fora do contrato');
+    check('P2X C60-RES [08] resolvedor NÃO toca storage, entitlement, conclusão, pack ou rede',
+      resCode.length > 0 && !/(AsyncStorage|FileSystem|entitlement|paywall|purchase|packDownload|globalManifest|contentResolver|fetch\(|axios)/i.test(resCode),
+      'o resolvedor passou a conhecer camadas que este macrobloco não integrou');
+    check('P2X C60-RES [09] resolvedor NÃO contém require() (nenhum asset é amarrado aqui)',
+      resSrc.length > 0 && !/require\s*\(/.test(resSrc),
+      'o resolvedor passou a requerer asset diretamente');
+    check('P2X C60-RES [10] resolvedor NÃO coage activityId a número (sem parseInt/Number/+)',
+      resCode.length > 0 && !/\b(parseInt|parseFloat|Number\s*\()/.test(resCode),
+      'coerção numérica reintroduz a identidade por cena');
+    check('P2X C60-RES [11] resolvedor NÃO referencia identidade de cena no código',
+      resCode.length > 0 && !/\b(sceneId|cenaIndex|sceneNumber)\b/.test(resCode) && !/scene_\d/.test(resCode),
+      'o resolvedor voltou a falar em cena');
+    check('P2X C60-RES [12] resolvedor NÃO conhece o mapa legado nem seus hooks',
+      resCode.length > 0 && !/(coloringImages|getColoringImage|useResolvedColoringImage)/.test(resCode),
+      'o resolvedor passou a poder cair no lineart legado');
+    // NEG (P2X §9.4.1) — activity desconhecida reprova.
+    check('P2X C60-RES [13]/NEG activity desconhecida → unknown honesto (activity e source nulos)',
+      R != null && (() => { const r = R('creation', 'nope'); return r.status === 'unknown' && r.activity === null && r.source === null; })(),
+      'activity desconhecida não devolveu unknown honesto');
+    // NEG (P2X §9.4.2) — story desconhecida reprova.
+    check('P2X C60-RES [14]/NEG story desconhecida → unknown honesto',
+      R != null && (() => { const r = R('noah', 'light'); return r.status === 'unknown' && r.activity === null && r.source === null; })(),
+      'story fora do piloto não devolveu unknown honesto');
+    check('P2X C60-RES [15]/NEG activityId NUMÉRICO (2) → unknown (identidade de cena não é aceita)',
+      R != null && R('creation', 2).status === 'unknown',
+      'o resolvedor aceitou um número como atividade');
+    check('P2X C60-RES [16]/NEG activityId "2" (string de cena) → unknown',
+      R != null && R('creation', '2').status === 'unknown',
+      'o resolvedor aceitou a identidade legada por cena');
+    check('P2X C60-RES [17]/NEG activityId "scene_02" → unknown',
+      R != null && R('creation', 'scene_02').status === 'unknown',
+      'o resolvedor aceitou o nome de arquivo legado como atividade');
+    check('P2X C60-RES [18]/NEG entradas vazias/nulas → unknown SEM lançar',
+      R != null && (() => {
+        try {
+          return [['', 'light'], ['creation', ''], [null, null], [undefined, undefined], [{}, []], [2, 2]]
+            .every(([s, a]) => R(s, a).status === 'unknown');
+        } catch (e) { return false; }
+      })(),
+      'entrada inválida lançou ou resolveu');
+    // NEG (P2X §9.4.9) — o resolvedor não pode cair em lineart alheio. Prova por mutante:
+    // um resolvedor com fallback DEVOLVE fonte para 'nope'; o real devolve null.
+    check('P2X C60-RES [19]/NEG resolvedor com fallback para lineart alheio é DETECTADO (mutante morto)',
+      (() => {
+        try {
+          // O fallback tem de ser COMPLETO para produzir o dano real: cair na atividade de
+          // `light` E na fonte de `light`. Mutar só a atividade produziria `deferred` com
+          // fonte nula — dano diferente do que este controle precisa detectar. Cada âncora
+          // é conferida individualmente: âncora obsoleta LANÇA, jamais vira mutante morto.
+          const mut = loadModule(RES_REL, {
+            getColoring60Activity: catalog.getColoring60Activity,
+            getColoring60LocalSource: registry.getColoring60LocalSource,
+          }, ['resolveColoring60Lineart'],
+          (s) => {
+            const a = s.replace(
+              '  const activity = getColoring60Activity(storyId, activityId);',
+              "  const activity = getColoring60Activity(storyId, activityId) || getColoring60Activity('creation', 'light');");
+            if (a === s) throw new Error('âncora da atividade não encontrada');
+            const b = a.replace(
+              '  const source = getColoring60LocalSource(storyId, activityId);',
+              "  const source = getColoring60LocalSource(storyId, activityId) || getColoring60LocalSource('creation', 'light');");
+            if (b === a) throw new Error('âncora da fonte não encontrada');
+            return b;
+          });
+          const mutado = mut.resolveColoring60Lineart('creation', 'nope');
+          const real = R('creation', 'nope');
+          // A MESMA asserção: o real recusa, o mutante cede.
+          return real.source === null && real.status === 'unknown'
+            && mutado.source !== null && mutado.status === 'available';
+        } catch (e) { return false; }
+      })(),
+      'a asserção de "sem fallback" não distingue o resolvedor real de um com fallback');
+    check('P2X C60-RES [20] estado "deferred" existe no contrato mas NÃO ocorre hoje (as 3 têm fonte)',
+      R != null && IDS.every((id) => R('creation', id).status !== 'deferred'),
+      'alguma atividade voltou a ficar deferred após a integração dos PNGs');
+
+    // ── Marcos por cena (origem: C60-PARTEB provas 03/04/05 · adaptado) ──────────
+    const mrcList = milestones ? milestones.getColoring60StoryMilestones('creation') : [];
+    check('P2X C60-MRC [01] 3 marcos, na ordem light · living_world · people_and_care',
+      mrcList.map((m) => m.activityId).join(',') === IDS.join(','),
+      `recebido: ${mrcList.map((m) => m.activityId).join(',')}`);
+    check('P2X C60-MRC [02] história fora do piloto → lista vazia',
+      milestones != null && milestones.getColoring60StoryMilestones('noah').length === 0,
+      'história fora do piloto recebeu marcos');
+    check('P2X C60-MRC [03] invariante: resumeScene === unlockAfterScene + 1 em TODOS os marcos',
+      mrcList.length === 3 && mrcList.every((m) => m.resumeScene === m.unlockAfterScene + 1),
+      'a cena de retorno não é a seguinte à do gatilho — a criança voltaria para o lugar errado');
+    check('P2X C60-MRC [04] gatilhos exatos: cenas [2, 7, 9]',
+      mrcList.map((m) => m.unlockAfterScene).join(',') === '2,7,9',
+      `gatilhos: ${mrcList.map((m) => m.unlockAfterScene).join(',')}`);
+    check('P2X C60-MRC [05] retornos exatos: cenas [3, 8, 10]',
+      mrcList.map((m) => m.resumeScene).join(',') === '3,8,10',
+      `retornos: ${mrcList.map((m) => m.resumeScene).join(',')}`);
+    check('P2X C60-MRC [06] cena concluída → marco correto (2→light, 7→living_world, 9→people_and_care)',
+      milestones != null && [[2, 'light'], [7, 'living_world'], [9, 'people_and_care']]
+        .every(([cena, id]) => {
+          const m = milestones.getColoring60MilestoneForCompletedScene('creation', cena);
+          return m != null && m.activityId === id;
+        }),
+      'o mapeamento cena→atividade divergiu');
+    check('P2X C60-MRC [07] cenas SEM marco → null (1, 3, 4, 5, 6, 8, 10)',
+      milestones != null && [1, 3, 4, 5, 6, 8, 10]
+        .every((cena) => milestones.getColoring60MilestoneForCompletedScene('creation', cena) == null),
+      'uma cena sem marco passou a disparar convite');
+    check('P2X C60-MRC [08] people_and_care ancorado na CENA 09 (decisão ratificada)',
+      milestones != null && (() => {
+        const m = milestones.getColoring60MilestoneByActivityId('creation', 'people_and_care');
+        return m != null && m.unlockAfterScene === 9 && m.resumeScene === 10;
+      })(),
+      'people_and_care saiu da cena 09');
+    check('P2X C60-MRC [09] os activityIds dos marcos são exatamente os do catálogo (sem órfão dos dois lados)',
+      mrcList.length === 3 && acts.length === 3
+        && mrcList.map((m) => m.activityId).slice().sort().join(',') === acts.map((a) => a.activityId).slice().sort().join(','),
+      'existe marco sem atividade, ou atividade sem marco');
+    // NEG (P2X §9.4.5) — um marco fora da cena 09 tem de reprovar.
+    check('P2X C60-MRC [10]/NEG marco de people_and_care movido para a cena 08 é DETECTADO (mutante morto)',
+      (() => {
+        try {
+          const mut = loadModule(MRC_REL, {}, ['getColoring60StoryMilestones'],
+            (s) => s.replace(/unlockAfterScene:\s*9\b/, 'unlockAfterScene: 8'));
+          const g = mut.getColoring60StoryMilestones('creation').map((m) => m.unlockAfterScene).join(',');
+          // O mutante quebra a asserção dos gatilhos E a invariante resumeScene = unlock + 1.
+          const mutInvariante = mut.getColoring60StoryMilestones('creation').every((m) => m.resumeScene === m.unlockAfterScene + 1);
+          return g !== '2,7,9' && mutInvariante === false
+            && mrcList.map((m) => m.unlockAfterScene).join(',') === '2,7,9';
+        } catch (e) { return false; }
+      })(),
+      'mover o marco da cena 09 não é detectado pelas asserções de gatilho/invariante');
+
+    // ── Poses do Beni (origem: C60-P12 prova 1 · adaptado ao beniImages atual) ────
+    const POSE_FILES = [
+      ['admiraEsquerda', '12_beni_admira_esquerda.png'],
+      ['admiraDireita', '13_beni_admira_direita.png'],
+      ['celebraFrente', '14_beni_celebra_frente.png'],
+      ['apresentaGaleria', '15_beni_apresenta_galeria.png'],
+      ['olhaAcima', '16_beni_olha_acima.png'],
+    ];
+    const BENI_CANON = ['avatarBase', 'acenando', 'celebrando', 'comBau', 'ensinando', 'orando',
+      'atelie', 'celebrando2', 'descansando', 'apontandoDireita', 'apontandoEsquerda'];
+    check('P2X C60-BENI [01] as 5 poses novas estão em BENI_IMAGES com require ESTÁTICO literal',
+      POSE_FILES.every(([key, file]) => new RegExp(`${key}:\\s*require\\('\\.\\./\\.\\./\\.\\./assets/mascot/beni/${file.replace(/\./g, '\\.')}'\\)`).test(beniSrc)),
+      'alguma pose não está declarada por require literal');
+    check('P2X C60-BENI [02] os 5 arquivos de pose existem fisicamente',
+      POSE_FILES.every(([, file]) => V.isRegularFile(path.join(root, 'assets/mascot/beni', file))),
+      'arquivo de pose ausente — o bundle quebraria');
+    check('P2X C60-BENI [03] as 11 chaves canônicas do Beni foram PRESERVADAS (expansão aditiva)',
+      BENI_CANON.every((k) => new RegExp(`\\b${k}:\\s*require\\(`).test(beniSrc)),
+      'a expansão do Colorir 60 removeu uma pose que já existia');
+    check('P2X C60-BENI [04] os 5 exports nomeados novos existem',
+      ['beniAdmiraEsquerda', 'beniAdmiraDireita', 'beniCelebraFrente', 'beniApresentaGaleria', 'beniOlhaAcima']
+        .every((n) => new RegExp(`export const ${n}\\s*=`).test(beniSrc)),
+      'export nomeado de pose ausente');
+    check('P2X C60-BENI [05] BENI_POSE_KEYS/BENI_IMAGE_LIST continuam DERIVADOS (nada hardcoded)',
+      /BENI_POSE_KEYS\s*=\s*Object\.freeze\(Object\.keys\(BENI_IMAGES\)\)/.test(beniSrc)
+        && /BENI_IMAGE_LIST\s*=\s*Object\.values\(BENI_IMAGES\)/.test(beniSrc),
+      'as listas derivadas viraram lista manual e podem dessincronizar');
+    check('P2X C60-BENI [06] BENI_IMAGES tem exatamente 16 poses (11 canônicas + 5 do Colorir 60)',
+      (beniSrc.match(/require\('\.\.\/\.\.\/\.\.\/assets\/mascot\/beni\//g) || []).length === 16,
+      `requires de pose encontrados: ${(beniSrc.match(/require\('\.\.\/\.\.\/\.\.\/assets\/mascot\/beni\//g) || []).length}`);
+    // NEG (P2X §9.4.6) — pose ausente reprova.
+    check('P2X C60-BENI [07]/NEG remover uma pose é DETECTADO (mutante morto)',
+      (() => {
+        const mut = beniSrc.replace(/\s*olhaAcima:\s*require\('[^']+'\),/, '');
+        if (mut === beniSrc) return false; // âncora obsoleta jamais passa por mutante morto
+        const contaReal = (beniSrc.match(/require\('\.\.\/\.\.\/\.\.\/assets\/mascot\/beni\//g) || []).length;
+        const contaMut = (mut.match(/require\('\.\.\/\.\.\/\.\.\/assets\/mascot\/beni\//g) || []).length;
+        return contaReal === 16 && contaMut === 15 && !/olhaAcima:\s*require/.test(mut);
+      })(),
+      'a contagem de poses não distingue o inventário completo de um incompleto');
+
+    // ── Gate de assets (origem: C60-P5-GATE1 · ADAPTADO: sem --mode, matriz de 8) ─
+    const verifierAbs = path.join(root, VER_REL);
+    check('P2X C60-VER [01] scripts/verify-coloring60-assets.js existe',
+      V.isRegularFile(verifierAbs), 'verificador ausente');
+    check('P2X C60-VER [02] Node puro: só requer fs/path/crypto/zlib',
+      (() => {
+        const reqs = (verSrc.match(/require\(['"][^'"]+['"]\)/g) || []).map((s) => s.replace(/require\(['"]|['"]\)/g, ''));
+        return reqs.length > 0 && reqs.every((m) => ['fs', 'path', 'crypto', 'zlib'].includes(m));
+      })(),
+      'o verificador importa algo fora de fs/path/crypto/zlib — dependência não autorizada');
+    check('P2X C60-VER [03] verificador NÃO requer child_process',
+      verSrc.length > 0 && !/require\(\s*['"]child_process['"]\s*\)/.test(verSrc),
+      'o verificador ganhou capacidade de executar processos');
+    check('P2X C60-VER [04] verificador é READ-ONLY: nenhuma operação de escrita',
+      verSrc.length > 0 && !/\b(copyFile|copyFileSync|cpSync|writeFile|writeFileSync|appendFile|appendFileSync|mkdir|mkdirSync|rename|renameSync|rmSync|rmdir|rmdirSync|unlink|unlinkSync|truncate|truncateSync|createWriteStream|writeSync)\b/.test(verSrc),
+      'o verificador contém operação de escrita/criação/remoção — um gate nunca conserta o que audita');
+    check('P2X C60-VER [05] raiz via __dirname, sem process.cwd()',
+      /path\.resolve\(__dirname/.test(verSrc) && !/process\.cwd\(\)/.test(verSrc),
+      'a raiz do verificador depende do diretório de invocação');
+    check('P2X C60-VER [06] matriz FECHADA de 8 arquivos (3 linearts + 5 poses)',
+      V.ALL_ASSETS.length === 8 && V.LINEARTS.length === 3 && V.POSES.length === 5
+        && /ALL_ASSETS\.length\s*!==\s*8/.test(verSrc),
+      `matriz com ${V.ALL_ASSETS.length} itens, sem trava de fechamento`);
+    check('P2X C60-VER [07] os 8 sha256 do contrato conferem com os BYTES no disco',
+      V.ALL_ASSETS.every((a) => c60Sha(path.join(root, a.rel)) === a.expectedSha256),
+      'o hash declarado no verificador não corresponde ao arquivo real');
+    check('P2X C60-VER [08] integridade é conjunção ESTRITA (=== true), sem tolerância nem fallback',
+      /integrityOk\s*=/.test(verSrc) && (verSrc.match(/=== true/g) || []).length >= 5,
+      'a agregação de integridade admite valor não estritamente verdadeiro');
+    check('P2X C60-VER [09] o verificador REAL executa e devolve exatamente 16 verificações, TODAS OK',
+      (() => {
+        const rs = V.runAll();
+        return Array.isArray(rs) && rs.length === 16 && rs.every((r) => r.pass === true);
+      })(),
+      (() => {
+        try {
+          const rs = V.runAll();
+          return `divergentes: ${rs.filter((r) => !r.pass).map((r) => `${r.id} ${r.detalhe}`).join(' | ') || `total=${rs.length}`}`;
+        } catch (e) { return `runAll lançou: ${e.message}`; }
+      })());
+    check('P2X C60-VER [10] rodar o gate NÃO altera a árvore (tamanho e mtime dos 8 assets intactos)',
+      (() => {
+        const antes = V.ALL_ASSETS.map((a) => { const s = fs.statSync(path.join(root, a.rel)); return `${s.size}:${s.mtimeMs}`; });
+        V.runAll();
+        const depois = V.ALL_ASSETS.map((a) => { const s = fs.statSync(path.join(root, a.rel)); return `${s.size}:${s.mtimeMs}`; });
+        return antes.join('|') === depois.join('|');
+      })(),
+      'o verificador tocou nos arquivos que deveria apenas auditar');
+    // NEG (P2X §9.4.8) — scene_02.png divergente reprova, exercitando a REGRA REAL do probe.
+    check('P2X C60-VER [11]/NEG probeBuffer REAL reprova scene_02.png com UM byte alterado',
+      (() => {
+        const buf = fs.readFileSync(path.join(root, 'assets/stories/creation/coloring/scene_02.png'));
+        const bom = V.probeBuffer(buf, V.LINEARTS[0]);
+        const adulterado = Buffer.from(buf);
+        adulterado[adulterado.length - 100] ^= 0xff; // dentro do IDAT: quebra sha E CRC
+        const mau = V.probeBuffer(adulterado, V.LINEARTS[0]);
+        return bom.integrityOk === true && mau.integrityOk === false && mau.shaOk === false;
+      })(),
+      'a mesma regra que aprova o blob aprovado não reprova um blob adulterado');
+    check('P2X C60-VER [12]/NEG probeBuffer REAL reprova arquivo TRUNCADO (bytes e estrutura)',
+      (() => {
+        const buf = fs.readFileSync(path.join(root, 'assets/stories/creation/coloring/scene_02.png'));
+        const cortado = buf.subarray(0, buf.length - 5000);
+        const rec = V.probeBuffer(cortado, V.LINEARTS[0]);
+        return rec.integrityOk === false && rec.sizeOk === false && rec.structureOk === false;
+      })(),
+      'um PNG truncado passou pelo gate');
+    check('P2X C60-VER [13]/NEG inspectPng REAL reprova assinatura inválida e IHDR de comprimento ≠ 13',
+      (() => {
+        const buf = fs.readFileSync(path.join(root, 'assets/stories/creation/coloring/scene_02.png'));
+        const semAssinatura = Buffer.from(buf); semAssinatura[1] = 0x00;
+        const ihdrRuim = Buffer.from(buf); ihdrRuim.writeUInt32BE(12, 8);
+        return V.inspectPng(buf).ok === true
+          && V.inspectPng(semAssinatura).ok === false
+          && V.inspectPng(ihdrRuim).ok === false
+          && V.inspectPng(Buffer.alloc(4)).ok === false
+          && V.inspectPng('não é buffer').ok === false;
+      })(),
+      'a perícia de PNG aceita arquivo que não é PNG válido');
+    check('P2X C60-VER [14]/NEG scanPngChunks REAL reprova bytes APÓS o IEND',
+      (() => {
+        const buf = fs.readFileSync(path.join(root, 'assets/stories/creation/coloring/scene_02.png'));
+        const comLixo = Buffer.concat([buf, Buffer.from('lixo')]);
+        return V.scanPngChunks(buf).ok === true && V.scanPngChunks(comLixo).ok === false
+          && V.scanPngChunks(comLixo).trailing === 4;
+      })(),
+      'conteúdo anexado após o IEND passa despercebido');
+    check('P2X C60-VER [15]/NEG classifyLstat REAL: symlink e diretório NÃO contam como arquivo regular',
+      (() => {
+        const K = V.PATH_KIND;
+        const dbl = (t) => ({ isSymbolicLink: () => t === 'sym', isFile: () => t === 'file', isDirectory: () => t === 'dir' });
+        return V.classifyLstat(null, dbl('sym')) === K.SYMLINK
+          && V.classifyLstat(null, dbl('dir')) === K.DIRECTORY
+          && V.classifyLstat(null, dbl('file')) === K.REGULAR_FILE
+          && V.classifyLstat(null, dbl('outro')) === K.OTHER
+          && V.classifyLstat({ code: 'ENOENT' }, null) === K.ABSENT
+          && V.classifyLstat({ code: 'EACCES' }, null) === K.INSPECTION_ERROR;
+      })(),
+      'a classificação de path confunde symlink/diretório com arquivo regular');
+    check('P2X C60-VER [16] measureAlpha REAL: as 5 poses têm fundo transparente e conteúdo recortado',
+      V.POSES.every((p) => {
+        const m = V.measureAlpha(fs.readFileSync(path.join(root, p.rel)));
+        return m.ok === true && m.alphaMin === 0 && m.ringNonZero === 0
+          && m.fullOpaqueRows === 0 && m.fullOpaqueCols === 0
+          && m.bbox != null && m.bbox.w < m.width && m.bbox.h < m.height;
+      }),
+      'alguma pose tem moldura/cenário opaco em vez de recorte transparente');
+    check('P2X C60-VER [17]/NEG measureAlpha REAL recusa PNG que não é RGBA de 8 bits',
+      V.measureAlpha(fs.readFileSync(path.join(root, V.LINEARTS[1].rel))).ok === false,
+      'a medição de alpha aceitou um lineart RGB como se tivesse canal alpha');
+    check('P2X C60-VER [18] scene_02.png é o BLOB APROVADO (sha256 + bytes exatos)',
+      (() => {
+        const abs02 = path.join(root, 'assets/stories/creation/coloring/scene_02.png');
+        return c60Sha(abs02) === V.LINEARTS[0].expectedSha256
+          && fs.statSync(abs02).size === V.LINEARTS[0].expectedBytes;
+      })(),
+      'scene_02.png não é o arquivo aprovado em P2B');
+    check('P2X C60-VER [19] scene_02.png é COMPARTILHADO conscientemente: 1 require no mapa legado (por cena) + 1 no registro Colorir 60 (por atividade), no MESMO path',
+      (() => {
+        const alvo = path.join(root, 'assets/stories/creation/coloring/scene_02.png');
+        const conta = (rel) => {
+          const s = readSrc(rel); const dir = path.dirname(path.join(root, rel));
+          const re = /require\(\s*'([^']+\.png)'\s*\)/g; let n = 0; let m;
+          while ((m = re.exec(s)) !== null) if (path.resolve(dir, m[1]) === alvo) n++;
+          return n;
+        };
+        return conta('src/assets/coloringImages.js') === 1 && conta(REG_REL) === 1;
+      })(),
+      'o compartilhamento de scene_02.png virou duplicação, ou um dos dois consumidores mudou de path');
+    check('P2X C60-VER [20] nenhum asset fora da lista oficial (activities/ = 2 arquivos · raiz do Beni = 16 PNGs)',
+      (() => {
+        const actDir = path.join(root, 'assets/stories/creation/coloring/activities');
+        const beniDir = path.join(root, 'assets/mascot/beni');
+        const actual = fs.readdirSync(actDir).slice().sort().join(',');
+        const beniPngs = fs.readdirSync(beniDir).filter((n) => n.toLowerCase().endsWith('.png'));
+        return actual === 'living_world.png,people_and_care.png'
+          && beniPngs.length === 16
+          && V.BENI_CANONICAL_PNGS.every((n) => beniPngs.includes(n))
+          && V.POSES.every((p) => beniPngs.includes(path.basename(p.rel)));
+      })(),
+      'apareceu asset não autorizado (ou sumiu um autorizado) nos diretórios do Colorir 60');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
