@@ -9,7 +9,7 @@
  *
  * Requires estáticos (em beniImages.js) — sem caminho dinâmico.
  */
-import { BENI_IMAGES, BENI_IMAGE_LIST } from './mascot/beniImages';
+import { BENI_IMAGES, BENI_BOOT_IMAGE_LIST } from './mascot/beniImages';
 
 // Mapa de COMPATIBILIDADE: nomes antigos de pose → novas poses oficiais.
 export const BENI_ASSETS = {
@@ -31,5 +31,9 @@ export const beniArtist      = BENI_ASSETS.artist;
 export const beniThinking    = BENI_ASSETS.thinking;
 export const beniReading     = BENI_ASSETS.reading;
 
-/** Pré-carrega os 7 arquivos reais (poses oficiais). */
-export const BENI_ASSET_LIST = BENI_IMAGE_LIST;
+/**
+ * Conjunto do preload de INICIALIZAÇÃO: as 11 poses de boot, sem as 5 do Colorir 60.
+ * O inventário completo continua em BENI_IMAGE_LIST (beniImages.js) e as poses do Colorir
+ * seguem exportadas e acessíveis — elas só não são aquecidas antes de existir consumidor.
+ */
+export const BENI_ASSET_LIST = BENI_BOOT_IMAGE_LIST;

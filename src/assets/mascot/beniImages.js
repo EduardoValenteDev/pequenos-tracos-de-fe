@@ -67,5 +67,36 @@ export const beniOlhaAcima         = BENI_IMAGES.olhaAcima;
 /** Chaves oficiais de pose (fonte estável para render e testes de existência). */
 export const BENI_POSE_KEYS = Object.freeze(Object.keys(BENI_IMAGES));
 
-/** Lista de TODOS os módulos reais — usada pelo pré-carregamento de assets. */
+/** Lista de TODOS os módulos reais (as 16 poses). Inventário completo do registro. */
 export const BENI_IMAGE_LIST = Object.values(BENI_IMAGES);
+
+/**
+ * Chaves das poses do "Colorir com o Beni" — as ÚNICAS que ficam fora do preload de
+ * inicialização. Elas só aparecem depois que a criança conclui uma atividade de colorir,
+ * então aquecê-las no boot custa peso crítico por um asset que talvez nunca seja exibido.
+ * Medição: as 5 somam 4.287.389 bytes sobre uma base de 14.285.454 (+30,0% no boot).
+ */
+export const BENI_COLORING60_POSE_KEYS = Object.freeze([
+  'admiraEsquerda', 'admiraDireita', 'celebraFrente', 'apresentaGaleria', 'olhaAcima',
+]);
+
+// PARTIÇÃO derivada numa passagem só, a partir do MESMO mapa: por construção a união das
+// duas listas é BENI_IMAGES e a interseção é vazia. Nenhuma das duas é escrita à mão, então
+// não existe o modo de falha "registrei a pose num lugar e esqueci do outro": uma pose nova
+// e não classificada cai no boot (e a contagem reprova no smoke), jamais some das duas.
+const BENI_POSE_ENTRIES = Object.entries(BENI_IMAGES);
+const ehPoseColoring60 = ([chave]) => BENI_COLORING60_POSE_KEYS.includes(chave);
+
+/** Poses aquecidas no BOOT (11) — exatamente o conjunto crítico anterior ao Colorir 60. */
+export const BENI_BOOT_IMAGE_LIST = Object.freeze(
+  BENI_POSE_ENTRIES.filter((entrada) => !ehPoseColoring60(entrada)).map(([, modulo]) => modulo),
+);
+
+/**
+ * Poses do Colorir 60 (5) — preload OPCIONAL e escopado, NUNCA no boot. Hoje esta lista
+ * não tem consumidor: quem exibir o overlay de conclusão é que deve aquecê-la antes. Não
+ * há preload escopado aqui de propósito — código morto não é completude.
+ */
+export const BENI_COLORING60_IMAGE_LIST = Object.freeze(
+  BENI_POSE_ENTRIES.filter(ehPoseColoring60).map(([, modulo]) => modulo),
+);

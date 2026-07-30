@@ -9,6 +9,12 @@
  * Idempotente: cache em memória evita pré-carregar o mesmo conjunto duas vezes.
  *
  * Não pré-carrega imagens de colorir, cenas internas nem áudio (fora do escopo).
+ *
+ * Isso inclui as 5 poses do "Colorir com o Beni": elas moram em BENI_IMAGES, mas ficam
+ * FORA de BENI_ASSET_LIST (ver BENI_COLORING60_IMAGE_LIST em mascot/beniImages.js). Só
+ * aparecem depois de a criança concluir uma atividade, então aquecê-las no boot custaria
+ * 4.287.389 bytes por assets que talvez nunca sejam exibidos. Quem for mostrar o overlay
+ * de conclusão é que deve aquecer a lista escopada — não reintroduza-as aqui.
  */
 import { Asset } from 'expo-asset';
 import { STORY_COVERS } from '../assets/storyCovers';

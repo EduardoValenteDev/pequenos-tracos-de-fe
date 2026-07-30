@@ -34920,6 +34920,165 @@ try {
       'o resolvedor passou a consultar a fonte antes de validar a atividade: membro herdado virou lineart');
   }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// P3H.2 · Beni — as poses do Colorir 60 ficam FORA do preload de inicialização
+//
+// Regressão ancorada aqui: 59c20b7 levou beniImages.js de 11 para 16 require() de pose.
+// Como BENI_IMAGE_LIST é Object.values(BENI_IMAGES) e BENI_ASSET_LIST era BENI_IMAGE_LIST,
+// as 5 poses do Colorir entraram automaticamente no conjunto crítico montado em
+// assetPreloadService.preloadCriticalAssets() — 4.287.389 bytes a mais no boot (+30,0%
+// sobre 14.285.454), por assets que só aparecem DEPOIS de a criança concluir uma atividade.
+//
+// Estes checks NÃO leem o fonte por regex: eles EXECUTAM beniImages/beniAssets/storyCovers/
+// assetPreloadService com `require` trocado por uma função identidade (cada asset vira seu
+// próprio path) e capturam o que preloadCriticalAssets() de fato entrega a Asset.fromModule.
+// O peso vem de fs.statSync nos PNGs reais, não de número escrito à mão.
+// ══════════════════════════════════════════════════════════════════════════════
+console.log('\n── P3H.2 · Beni: poses do Colorir fora do boot ──');
+{
+  const { loadModule: loadMod } = require('./testing/packInstallHarness');
+
+  const PESO_BOOT_BASELINE = 14285454;   // 11 poses canônicas, medido no disco (pré-59c20b7)
+  const PESO_C60_ESPERADO = 4287389;     // 5 poses do Colorir 60, medido no disco
+  const CANONICAS = ['avatarBase', 'acenando', 'celebrando', 'comBau', 'ensinando', 'orando',
+    'atelie', 'celebrando2', 'descansando', 'apontandoDireita', 'apontandoEsquerda'];
+  const C60_ARQUIVOS = /\/(12|13|14|15|16)_beni_/;
+
+  const reqPath = (p) => p;
+  // O path do require é relativo ao módulo; o prefixo '../' some para virar path de repo.
+  const bytesDoModulo = (m) => fs.statSync(path.join(root, String(m).replace(/^(\.\.\/)+/, ''))).size;
+  const somaBytes = (lista) => lista.reduce((t, m) => t + bytesDoModulo(m), 0);
+
+  // Carrega o trio (opcionalmente com o fonte de beniImages mutado) e captura o conjunto
+  // crítico REAL: tudo que preloadCriticalAssets() passa para Asset.fromModule.
+  const montar = (mutarBeni) => {
+    const b = loadMod('src/assets/mascot/beniImages.js', { require: reqPath }, [
+      'BENI_IMAGES', 'BENI_IMAGE_LIST', 'BENI_POSE_KEYS',
+      'BENI_BOOT_IMAGE_LIST', 'BENI_COLORING60_IMAGE_LIST', 'BENI_COLORING60_POSE_KEYS',
+    ], mutarBeni);
+    const a = loadMod('src/assets/beniAssets.js', {
+      BENI_IMAGES: b.BENI_IMAGES, BENI_BOOT_IMAGE_LIST: b.BENI_BOOT_IMAGE_LIST,
+    }, ['BENI_ASSET_LIST']);
+    const cv = loadMod('src/assets/storyCovers.js', { require: reqPath }, ['STORY_COVERS']);
+    const vistos = [];
+    const AssetStub = { fromModule: (m) => { vistos.push(m); return { downloadAsync: () => Promise.resolve() }; } };
+    const s = loadMod('src/services/assetPreloadService.js', {
+      Asset: AssetStub, STORY_COVERS: cv.STORY_COVERS, BENI_ASSET_LIST: a.BENI_ASSET_LIST,
+    }, ['preloadCriticalAssets']);
+    s.preloadCriticalAssets();           // o .map() de fromModule roda SÍNCRONO
+    return { b, a, covers: cv.STORY_COVERS, critico: vistos };
+  };
+
+  // Predicado ÚNICO do contrato. Os checks positivos exigem 0 violações; os mutantes de
+  // [09]-[11] exigem pelo menos 1 — o mesmo juiz nos dois lados, sem asserção sob medida.
+  const violacoes = (g) => {
+    const f = [];
+    try {
+      const boot = g.b.BENI_BOOT_IMAGE_LIST;
+      const c60 = g.b.BENI_COLORING60_IMAGE_LIST;
+      const chaves = Object.keys(g.b.BENI_IMAGES);
+      if (boot.length !== 11) f.push(`boot tem ${boot.length} módulos (esperado 11)`);
+      if (c60.length !== 5) f.push(`lista opcional tem ${c60.length} (esperado 5)`);
+      if (new Set(boot).size !== boot.length) f.push('boot tem módulo duplicado');
+      if (new Set(c60).size !== c60.length) f.push('lista opcional tem módulo duplicado');
+      if (boot.some((m) => C60_ARQUIVOS.test(m))) f.push('pose do Colorir 60 presente no boot');
+      if (g.critico.some((m) => C60_ARQUIVOS.test(m))) f.push('pose do Colorir 60 no preload CRÍTICO');
+      if (!CANONICAS.every((k) => chaves.includes(k))) f.push('pose canônica removida de BENI_IMAGES');
+      if (chaves.length !== 16) f.push(`BENI_IMAGES tem ${chaves.length} poses (esperado 16)`);
+      const pb = somaBytes(boot); const pc = somaBytes(c60);
+      if (pb !== PESO_BOOT_BASELINE) f.push(`peso do boot ${pb} B ≠ baseline ${PESO_BOOT_BASELINE} B`);
+      if (pc !== PESO_C60_ESPERADO) f.push(`peso opcional ${pc} B ≠ ${PESO_C60_ESPERADO} B`);
+    } catch (e) { f.push(`avaliação lançou: ${e.message}`); }
+    return f;
+  };
+
+  let G = null; let gErr = null;
+  try { G = montar(); } catch (e) { gErr = e; }
+
+  check('P3H C60-BOOT [00] beniImages/beniAssets/storyCovers/assetPreloadService executam e o conjunto crítico é capturável',
+    gErr === null && G != null && Array.isArray(G.critico) && G.critico.length > 0,
+    `carga falhou: ${gErr && gErr.message}`);
+
+  const CHAVES_C60 = ['admiraEsquerda', 'admiraDireita', 'celebraFrente', 'apresentaGaleria', 'olhaAcima'];
+  check('P3H C60-BOOT [01] as 5 chaves do Colorir 60 CONTINUAM em BENI_IMAGES (nada foi removido)',
+    !gErr && CHAVES_C60.every((k) => G.b.BENI_IMAGES[k] != null)
+      && CHAVES_C60.every((k) => G.b.BENI_COLORING60_POSE_KEYS.includes(k)),
+    'alguma pose do Colorir 60 sumiu do registro central');
+  check('P3H C60-BOOT [02] a lista opcional BENI_COLORING60_IMAGE_LIST tem EXATAMENTE 5 poses',
+    !gErr && G.b.BENI_COLORING60_IMAGE_LIST.length === 5
+      && G.b.BENI_COLORING60_IMAGE_LIST.every((m) => C60_ARQUIVOS.test(m)),
+    `lista opcional: ${!gErr && G.b.BENI_COLORING60_IMAGE_LIST.length} itens`);
+  check('P3H C60-BOOT [03] boot ∪ opcional = BENI_IMAGES, interseção VAZIA, sem duplicata em nenhuma',
+    (() => {
+      if (gErr) return false;
+      const sb = new Set(G.b.BENI_BOOT_IMAGE_LIST); const sc = new Set(G.b.BENI_COLORING60_IMAGE_LIST);
+      return sb.size === G.b.BENI_BOOT_IMAGE_LIST.length && sc.size === G.b.BENI_COLORING60_IMAGE_LIST.length
+        && [...sb].every((m) => !sc.has(m))
+        && sb.size + sc.size === G.b.BENI_IMAGE_LIST.length
+        && G.b.BENI_IMAGE_LIST.every((m) => sb.has(m) || sc.has(m));
+    })(),
+    'a partição boot/opcional não cobre exatamente BENI_IMAGES');
+  check('P3H C60-BOOT [04] o preload CRÍTICO REAL (capturado em Asset.fromModule) não contém NENHUMA das 5 poses',
+    !gErr && G.critico.filter((m) => C60_ARQUIVOS.test(m)).length === 0,
+    `poses do Colorir vazadas para o boot: ${!gErr && G.critico.filter((m) => C60_ARQUIVOS.test(m)).join(', ')}`);
+  check('P3H C60-BOOT [05] o preload crítico PRESERVA tudo que já existia: as 11 poses canônicas + as capas',
+    (() => {
+      if (gErr) return false;
+      const capas = Object.values(G.covers);
+      const temTodasCapas = capas.every((m) => G.critico.includes(m));
+      const posesNoCritico = G.critico.filter((m) => /assets\/mascot\/beni\//.test(m));
+      const temCanonicas = CANONICAS.every((k) => posesNoCritico.includes(G.b.BENI_IMAGES[k]));
+      return temTodasCapas && temCanonicas && posesNoCritico.length === 11
+        && G.critico.length === 11 + capas.length;
+    })(),
+    'o preload crítico perdeu uma pose canônica ou uma capa de história');
+  check(`P3H C60-BOOT [06] o peso do preload crítico do Beni VOLTOU ao baseline pré-P3 (${PESO_BOOT_BASELINE} B), medido no disco`,
+    !gErr && somaBytes(G.a.BENI_ASSET_LIST) === PESO_BOOT_BASELINE,
+    `peso atual: ${!gErr && somaBytes(G.a.BENI_ASSET_LIST)} B`);
+  check(`P3H C60-BOOT [07] o peso da lista opcional é a soma dos 5 PNGs (${PESO_C60_ESPERADO} B)`,
+    !gErr && somaBytes(G.b.BENI_COLORING60_IMAGE_LIST) === PESO_C60_ESPERADO,
+    `peso opcional: ${!gErr && somaBytes(G.b.BENI_COLORING60_IMAGE_LIST)} B`);
+  check('P3H C60-BOOT [08] BENI_ASSET_LIST NÃO cresceu com as poses: 11 módulos, idênticos ao boot',
+    !gErr && G.a.BENI_ASSET_LIST.length === 11
+      && G.a.BENI_ASSET_LIST.every((m, i) => m === G.b.BENI_BOOT_IMAGE_LIST[i])
+      && !G.a.BENI_ASSET_LIST.some((m) => C60_ARQUIVOS.test(m)),
+    `BENI_ASSET_LIST tem ${!gErr && G.a.BENI_ASSET_LIST.length} módulos`);
+
+  // ── [09]-[11] Mutantes: o fonte REAL é alterado antes do eval (loadModule lança se a
+  // âncora não casar, então âncora obsoleta jamais passa por "mutante morto"). ───────────
+  const mutanteReprova = (mutar) => {
+    try { return violacoes(montar(mutar)).length > 0; }
+    catch (e) { return true; }   // não compilar/carregar também é reprovação honesta
+  };
+  check('P3H C60-BOOT [09]/NEG recolocar uma pose do Colorir no boot é DETECTADO (mutante morto)',
+    !gErr && violacoes(G).length === 0
+      && mutanteReprova((s) => s.replace("'apresentaGaleria', 'olhaAcima',", "'apresentaGaleria',")),
+    'tirar uma pose da lista opcional a joga no boot sem que nenhum check perceba');
+  check('P3H C60-BOOT [10]/NEG remover um asset crítico ANTIGO do boot é DETECTADO (mutante morto)',
+    mutanteReprova((s) => s.replace(/\n\s*orando:\s*require\('[^']+'\),/, '')),
+    'perder uma pose canônica do preload crítico passaria despercebido');
+  check('P3H C60-BOOT [11]/NEG uma SEXTA pose desconhecida entrando no boot é DETECTADA (mutante morto)',
+    mutanteReprova((s) => s.replace(
+      "  olhaAcima:        require('../../../assets/mascot/beni/16_beni_olha_acima.png'),",
+      "  olhaAcima:        require('../../../assets/mascot/beni/16_beni_olha_acima.png'),\n"
+      + "  poseFantasma:     require('../../../assets/mascot/beni/01_beni_avatar_base.png'),")),
+    'uma pose não classificada entraria no boot em silêncio');
+
+  // ── [12] Sem aresta de volta: o registro de imagens não pode conhecer quem o consome ──
+  check('P3H C60-BOOT [12] nenhum import circular: beniImages não importa beniAssets nem assetPreloadService',
+    (() => {
+      const bi = readSrc('src/assets/mascot/beniImages.js');
+      const ba = readSrc('src/assets/beniAssets.js');
+      const ap = readSrc('src/services/assetPreloadService.js');
+      const importsDe = (s) => (s.match(/^import[\s\S]*?from\s+'([^']+)';$/gm) || [])
+        .map((l) => (l.match(/from\s+'([^']+)'/) || [])[1]);
+      return importsDe(bi).length === 0                                  // folha: só require() de PNG
+        && importsDe(ba).every((m) => m === './mascot/beniImages')
+        && !importsDe(ap).some((m) => /beniImages/.test(m));             // serviço fala com o manifesto
+    })(),
+    'apareceu aresta de volta entre registro de imagens, manifesto e serviço de preload');
+}
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
