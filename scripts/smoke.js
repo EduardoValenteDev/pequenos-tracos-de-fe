@@ -9216,9 +9216,15 @@ console.log('\n── LP2.1a-ii-A: instalação de story pack (fluxo real via se
         const hm = createPackInstallHarness();
         const { manifestText } = setupValid(hm);
         if (corrompe) corromper(hm, corrompe, manifestText);
+        // FORA do try: `loadPackDownloader` LANÇA quando a mutação não bate no fonte (âncora
+        // obsoleta). Se essa exceção caísse no catch abaixo, viraria a assinatura `ok=false|
+        // status=ausente|publicados=0` — DIFERENTE da original — e o mutante seria contado como
+        // MORTO sem nada ter sido mutado. Aqui o erro escapa e a guarda do bloco assíncrono
+        // (§9.3, no sumário) acusa alto. O §10c abaixo vigia exatamente esta separação.
+        const mod = loadPackDownloader(mut);
         let r;
         try {
-          r = await loadPackDownloader(mut).createPackDownloadService(hm.deps)
+          r = await mod.createPackDownloadService(hm.deps)
             .downloadStoryPackScenesFromGlobalManifest({
               storyId: 'david_goliath', globalManifestUrl: GLOBAL_URL, appVersion: '1.0.0', requestedKinds: ['scene', 'audio'],
             });
@@ -9245,6 +9251,27 @@ console.log('\n── LP2.1a-ii-A: instalação de story pack (fluxo real via se
         integridade.length === 3
         && integridade.every((x) => x.original.startsWith('ok=false') && x.mutante.startsWith('ok=true')),
         `direção errada: ${integridade.map((x) => `${x.id} original[${x.original}] mutante[${x.mutante}]`).join(' | ')}`);
+
+      // ── §10c · CONTROLE NEGATIVO DA PRÓPRIA PROVA (antitautologia) ─────────────────────────────
+      // Enquanto `loadPackDownloader` ficou DENTRO do try de `rodar`, uma âncora obsoleta virava
+      // `ok=false|status=ausente|publicados=0` — assinatura DIFERENTE da original — e o critério
+      // `original !== mutante` contava o mutante como MORTO sem nada ter sido mutado. M1 e M2 não
+      // têm `corrompe` e ficam fora do §10b, então nada os salvava dessa falsa aprovação.
+      // Este controle prova que ela não é mais possível: com uma âncora deliberadamente inexistente
+      // `rodar` tem de LANÇAR, nunca devolver assinatura. Se a carga voltar para dentro do try,
+      // `lancou` fica false, `assinaturaIndevida` fica preenchida e este check fica VERMELHO.
+      {
+        const ancoraInexistente = (s) => s.replace('âncora que não existe em lugar nenhum do downloader §10c', 'x');
+        let lancou = false;
+        let assinaturaIndevida = null;
+        try { assinaturaIndevida = await rodar(ancoraInexistente); } catch (e) { lancou = /não alterou o fonte/.test(e.message); }
+        const original = (veredito[0] && veredito[0].original) || '(sem veredito)';
+        check('LP2.1a-ii-A §10c (antitautologia): a exceção do guard ESCAPA de `rodar` — jamais vira assinatura de "mutante morto"',
+          lancou === true && assinaturaIndevida === null,
+          assinaturaIndevida !== null
+            ? `o guard virou a assinatura [${assinaturaIndevida}] em vez de lançar; contra o original [${original}] o critério "original !== mutante" a contaria como MORTA (morreria=${assinaturaIndevida !== original}) — a carga do mutante voltou para dentro do try`
+            : 'a âncora deliberadamente inexistente NÃO fez o harness lançar: a guarda antitautológica de loadPackDownloader parou de funcionar');
+      }
     }
   })();
   // O sumário só observa esta promise lá no fim. Sem um handler agora, uma falha aqui vira
@@ -11934,14 +11961,19 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
         if (cfg.remoto) configurarRemoto(h, cfg.remoto === true ? {} : cfg.remoto);
         if (cfg.offline) h.setModoRede('offline');   // LP2.1a-ii-D: offline REAL dispara o caminho de recovery/preservação
         h.resetEvents();
+        // FORA do try: `loadPackDownloader` LANÇA quando a mutação não bate no fonte, e o catch
+        // abaixo converteria essa exceção em `ok=false|…` — assinatura diferente da original — o que
+        // contaria o mutante como MORTO sem nada ter sido mutado. `mut.storage`/`mut.recovery`/
+        // `mut.marker` já eram aplicados por `createPackInstallHarness` acima (fora do try); só o
+        // `mut.downloader` (C11 e C17, ambos fora do §20b) ficava exposto. O §20c abaixo vigia isto.
+        // O downloader carrega a PRÓPRIA cópia do packPublishMarker: sem repassar `mut.marker`
+        // aqui, a regra de colisão do fluxo ficaria intocada e o mutante sobreviveria por engano.
+        const mod = (mut.downloader || mut.marker)
+          ? loadPackDownloader(mut.downloader || ((x) => `${x}
+/* mut */`), mut.marker)
+          : { createPackDownloadService };
         let r;
         try {
-          // O downloader carrega a PRÓPRIA cópia do packPublishMarker: sem repassar `mut.marker`
-          // aqui, a regra de colisão do fluxo ficaria intocada e o mutante sobreviveria por engano.
-          const mod = (mut.downloader || mut.marker)
-            ? loadPackDownloader(mut.downloader || ((x) => `${x}
-/* mut */`), mut.marker)
-            : { createPackDownloadService };
           r = await instalarC(mod.createPackDownloadService(h.deps));
         } catch (e) { r = { ok: false, reason: `lançou: ${e.message}` }; }
         const e2 = await h.entry(STORY_C);
@@ -12073,6 +12105,30 @@ console.log('\n── LP2.1a-ii-C: recuperação de publicação interrompida �
       check('LP2.1a-ii-C §20b (direção): sem as checagens de evidência, o mutante PROMOVE candidatos que o original recusa',
         aceitam.length === 8 && aceitam.every((x) => /recuperou=false/.test(x.orig) && /recuperou=true/.test(x.mutado)),
         `direção errada: ${aceitam.filter((x) => !(/recuperou=false/.test(x.orig) && /recuperou=true/.test(x.mutado))).map((x) => `${x.id} orig[${x.orig}] mut[${x.mutado}]`).join(' | ')}`);
+
+      // ── §20c · CONTROLE NEGATIVO DA PRÓPRIA PROVA (antitautologia) ─────────────────────────────
+      // `mut.storage`/`mut.recovery`/`mut.marker` são aplicados por `createPackInstallHarness`, fora
+      // do try — âncora obsoleta ali sempre estourou. O `mut.downloader` (só C11 e C17, ambos fora do
+      // §20b) era carregado DENTRO do try: a exceção do guard virava `ok=false|…`, diferia da original
+      // e o mutante era contado como MORTO sem nada ter sido mutado. Este controle prova que essa
+      // falsa aprovação acabou — se a carga voltar para dentro do try, `lancou` fica false e este
+      // check fica VERMELHO. `comDownloader` fixa a superfície exposta: se um terceiro mutante passar
+      // a usar `downloader`, o controle exige revisão em vez de cobrir menos do que promete.
+      {
+        const comDownloader = MUT_C.filter((x) => x.mut && x.mut.downloader);
+        const cfg20c = CEN[(comDownloader[0] && comDownloader[0].cen) || 'orfaoValido'];
+        const ancoraInexistente = (s) => s.replace('âncora que não existe em lugar nenhum do downloader §20c', 'x');
+        let lancou = false;
+        let assinaturaIndevida = null;
+        try { assinaturaIndevida = await assinar(cfg20c, { downloader: ancoraInexistente }); }
+        catch (e) { lancou = /não alterou o fonte/.test(e.message); }
+        const original = (vereditoC[0] && vereditoC[0].orig) || '(sem veredito)';
+        check('LP2.1a-ii-C §20c (antitautologia): a exceção do guard ESCAPA de `assinar` — jamais vira assinatura de "mutante morto"',
+          lancou === true && assinaturaIndevida === null && comDownloader.length === 2,
+          assinaturaIndevida !== null
+            ? `o guard virou a assinatura [${assinaturaIndevida}] em vez de lançar; contra o original [${original}] o critério "orig !== mutado" a contaria como MORTA (morreria=${assinaturaIndevida !== original}) — a carga do mutante voltou para dentro do try`
+            : `lancou=${lancou} · mutantes que passam pelo downloader=${comDownloader.map((x) => x.id).join(',') || 'nenhum'} (esperado C11,C17): âncora inexistente tem de LANÇAR e a superfície exposta tem de ser exatamente essa`);
+      }
 
       /* ═══ C10 §19.25 — ISOLAMENTO entre histórias é um contrato COMPOSTO ═══
        * ARBITRAGEM (QA3R-B2B + B2B-R): §19.25 tem DUAS garantias independentes, provadas separadamente
