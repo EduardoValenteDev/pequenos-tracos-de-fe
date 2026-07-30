@@ -29,6 +29,18 @@ export const BENI_IMAGES = {
   descansando:       require('../../../assets/mascot/beni/09_beni_descansando.png'),
   apontandoDireita:  require('../../../assets/mascot/beni/10_beni_apontando_direita.png'),
   apontandoEsquerda: require('../../../assets/mascot/beni/11_beni_apontando_esquerda.png'),
+  // Poses de celebração do "Colorir com o Beni" (Colorir 60 · P12) — corpo inteiro,
+  // 1024×1280 RGBA transparente. Beni ADMIRA/CELEBRA/APRESENTA a criação da criança.
+  //   admiraEsquerda   — obra à esquerda do Beni (Beni olha p/ a esquerda)
+  //   admiraDireita    — obra à direita do Beni (Beni olha p/ a direita)
+  //   celebraFrente    — pico da 1ª conclusão, Beni de frente comemorando
+  //   apresentaGaleria — grande conclusão, Beni apresenta a galeria (corpo à esquerda)
+  //   olhaAcima        — obra acima do personagem (Beni olha/ergue a pata p/ cima)
+  admiraEsquerda:   require('../../../assets/mascot/beni/12_beni_admira_esquerda.png'),
+  admiraDireita:    require('../../../assets/mascot/beni/13_beni_admira_direita.png'),
+  celebraFrente:    require('../../../assets/mascot/beni/14_beni_celebra_frente.png'),
+  apresentaGaleria: require('../../../assets/mascot/beni/15_beni_apresenta_galeria.png'),
+  olhaAcima:        require('../../../assets/mascot/beni/16_beni_olha_acima.png'),
 };
 
 /** Pose padrão segura (fallback universal). */
@@ -46,6 +58,11 @@ export const beniCelebrando2       = BENI_IMAGES.celebrando2;
 export const beniDescansando       = BENI_IMAGES.descansando;
 export const beniApontandoDireita  = BENI_IMAGES.apontandoDireita;
 export const beniApontandoEsquerda = BENI_IMAGES.apontandoEsquerda;
+export const beniAdmiraEsquerda    = BENI_IMAGES.admiraEsquerda;
+export const beniAdmiraDireita     = BENI_IMAGES.admiraDireita;
+export const beniCelebraFrente     = BENI_IMAGES.celebraFrente;
+export const beniApresentaGaleria  = BENI_IMAGES.apresentaGaleria;
+export const beniOlhaAcima         = BENI_IMAGES.olhaAcima;
 
 /** Chaves oficiais de pose (fonte estável para render e testes de existência). */
 export const BENI_POSE_KEYS = Object.freeze(Object.keys(BENI_IMAGES));
