@@ -7,13 +7,15 @@
 >
 > Precedência acima deste arquivo: `docs/PROJECT_SOURCE_OF_TRUTH.md` (Roteiro Mestre) →
 > `.specify/memory/constitution.md` → `AGENTS.md`/`CLAUDE.md`. Este arquivo governa as **decisões
-> de produto/linha de lançamento** e é a base do `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`.
+> de produto/linha de lançamento** e é a base da
+> [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md)
+> (**vigente**; a v4 é histórica).
 >
 > **Mudança de decisão só existe se:** o fundador aprova explicitamente → DECISIONS.md é atualizado
 > PRIMEIRO → documentos depois → código por último. Nenhuma IA reabre item registrado sem sinalizar
 > que está pedindo **REVERSÃO**.
 
-**Data desta versão:** 2026-07-15 (Reconciliação E1) · **Base anterior:** 2026-07-05 (`424972b`) · **Fundador:** Eduardo
+**Data desta versão:** 2026-07-30 (Fonte de verdade v5 · Fase 2.5) · **Base anterior:** 2026-07-15 (Reconciliação E1) · **Fundador:** Eduardo
 
 > **Reconciliação E1 (2026-07-15):** este arquivo passou a ser o **único árbitro** (o `DECISIONS.md`
 > da raiz foi marcado SUPERSEDED). As decisões consolidadas de lançamento estão na seção
@@ -121,6 +123,7 @@ Cada item: **ID · Status · Decisão · Impacto no código · Bloco responsáve
 | Avatares premium liberados no grátis só por estrelinhas | E1-AVATARES (adicionais = Plano Família) |
 | Rodadas definidas **apenas por dispositivo** | E1-RODADAS (decisão = por criança; código a corrigir) |
 | `DOCUMENTO_OFICIAL_PROJETO_FINAL.md` (v2.0) como linha vigente | v4 (`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`) |
+| v4 (`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`) como linha vigente | **v5** (`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`), 2026-07-30 |
 | `DECISIONS.md` da raiz como árbitro | `docs/DECISIONS.md` (este arquivo) |
 | Nomes brutos "Soletrando/Adivinhar o Animal/Quebra-Cabeça" | E1-BRINCAR-4JOGOS (nomes finais) |
 | Lista Brincar de 5 entradas | E1-BRINCAR-4JOGOS (4 jogos + Criar Livre + Minhas artes) |
@@ -172,6 +175,7 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
   `isStoryFullyComplete = (10 cenas narradas concluídas) AND (quiz respondido) AND (colorir concluído) AND (Momento da história / Guardar no coração concluído)`.
 - **Correção do fundador vs. adendo:** o adendo propunha "duas camadas" (desbloqueio guiado só pela narrativa; selo/certificado pela conclusão total). O **fundador escolheu a Opção B**: o **desbloqueio da próxima história também exige a conclusão total**.
 - **Definição operacional de "colorir concluído":** proposta do adendo = **pelo menos 1 página da história colorida e concluída** (não as 10). Marcada como **[A CONFIRMAR]** — o default é 1; se o fundador preferir outro número, declarar.
+- **✅ RESOLVIDO (2026-07-30) — o `[A CONFIRMAR]` acima está fechado:** "colorir concluído" = **pelo menos uma atividade do Colorir com o Beni concluída**; **uma de três** satisfaz o marco obrigatório **Criar**; **três de três** = coleção completa, com celebração própria, e **não** bloqueia o desbloqueio da próxima história; as **dez páginas legadas não são exigidas** em A Criação; até cada história receber o novo modelo, **uma página legada concluída serve como compatibilidade temporária**. Texto integral em [`D-C60-INTEGRACAO-PRODUTO`](#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto) §3.
 - **Impacto:** muda **progressão e retenção** e a base do B5.4 (unlock por cenas). Por isso, **a implementação é bloco próprio POSTERIOR — NÃO agora.** Requer helper puro `isStoryFullyComplete` (separado de `isNarrativeComplete`), revisão de status em cards/mapa/Estrelinhas, certificado só no total.
 
 ### D-BRINCAR-JOGOS-V1 — Escopo funcional dos jogos do Brincar v1
@@ -212,6 +216,7 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
 ### D-ANTIBIFURCACAO — Fonte única + rito de sessão
 - **Data:** 2026-07-05 · **Status:** ✅ CONFIRMADA · **Origem:** Adendo v1 §8.
 - **Decisão:** (1) **UMA fonte de verdade** para a linha de lançamento = `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`, subordinada ao Roteiro Mestre; documentos anteriores viram SUPERSEDED sem apagar conteúdo. (2) **DECISIONS.md é o árbitro.** (3) **Toda sessão de IA começa lendo DECISIONS.md** e declara sob qual data opera. (4) Mudança de decisão: fundador aprova → DECISIONS.md primeiro → documentos → código. (5) **Decisão que só existe em conversa não é decisão oficial** até entrar aqui.
+- **🔄 ATUALIZAÇÃO (2026-07-30):** o **princípio permanece intacto**; muda apenas **qual** documento ocupa o posto. A fonte única da linha de lançamento passa a ser a [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md); a **v4 vira histórica**, com banner no topo e **sem reescrita do conteúdo**.
 
 ### D-PALAVRINHAS-UF1 — Palavrinhas do Beni user-facing no v1 (jogo de soletração)
 - **Data:** 2026-07-13 · **Status:** ✅ CONFIRMADA (fundador) · **Origem:** Portão de Definição do P5 + decisões D1/D2/D3 do fundador.
@@ -284,9 +289,108 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
 
   R20 passa a ser tratado como **dois riscos distintos** (R20A e R20B): a divisão é documental e não altera o conteúdo do risco original. Esta reatribuição **não reabre a Fase 2**.
 
-  *Nota de rastreabilidade:* as Fases **12A, 16, 17, 19, 20 e 21** ainda não têm contrapartida em `PLANO_OFICIAL_BENI_LANCAMENTO.md` §18, que hoje enumera Fases 0–13. Os destinos acima valem como decisão do fundador; a numeração ampliada precisa ser refletida no plano para ficar rastreável.
+  *Nota de rastreabilidade (atualizada em 2026-07-30, bloco P1):* o [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md) é **histórico** e não recebe a numeração ampliada. A [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md) ficou **desatualizada** e foi superada. A partir desta data, o **roadmap completo — Fase 0 à Fase 22, incluindo 2.5, 8A, 12A e 12B — vive na [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md)**, e é lá que os destinos de risco acima ficam rastreáveis. O [`PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) e o [`DOCUMENTATION_INDEX.md`](DOCUMENTATION_INDEX.md) passam a apontar para a **v5**.
 - **Gates físicos obrigatórios da Fase 2.5:** os três cenários ainda não executados no dispositivo passam a ser **gates de aceite da Fase 2.5**, não pendências informativas — (1) **dois READY concorrentes**; (2) **reset seguido de retry**; (3) **saída durante a instalação**.
 - **Escopo do portão:** apenas testes (`scripts/smoke.js`), governança (`.gitattributes`, `CLAUDE.md`, `.specify/memory/constitution.md`) e documentação (este arquivo). **Zero** alteração em código de produção.
+
+### D-C60-INTEGRACAO-PRODUTO — Integração do Colorir com o Beni (decisões de produto)
+
+- **Data:** 2026-07-30 · **Status:** ✅ **CONFIRMADA PELO FUNDADOR** (ordem "Fase 2.5, Bloco P1") · **Origem:** decisões diretas do fundador registradas neste bloco documental.
+- **Alcance:** este registro governa a **Fase 2.5** e tudo que dela decorre. Ele **atualiza e especifica** [`D-FREE-SEM-SALVAR`](#d-free-sem-salvar--plano-grátis-não-salva-arte) e **E1-ARTES-SALVAR**, e **resolve** o `[A CONFIRMAR]` de [`D-CONCLUSAO-TOTAL-B`](#d-conclusao-total-b--desbloqueio-da-próxima-história-exige-conclusão-total-opção-b).
+
+#### 1. Plano Grátis — pintura, conclusão e salvamento
+
+1. O **Plano Grátis nunca persiste pixels de nova pintura.**
+2. O bloqueio vive na **autoridade de escrita**, e é **fail closed**: na dúvida sobre o plano, não escreve.
+3. **Concluir não é salvar.** São ações distintas, com significados distintos para a criança.
+4. O botão **`Pronto`** **conclui** a atividade, **registra progresso** e **apresenta a celebração**.
+5. O **`Pronto` não abre paywall.**
+6. A criança do **Grátis recebe a mesma celebração** que a criança do Plano Família.
+7. A ação explícita **`Salvar` / `Guardar minha arte`** é **benefício do Plano Família**.
+8. No Grátis, a ação explícita de persistência chama o **gate parental** e **só depois** apresenta a oferta ao responsável.
+9. **Nenhuma oferta comercial interrompe automaticamente a celebração infantil.**
+
+> Esta decisão **atualiza e especifica** [`D-FREE-SEM-SALVAR`](#d-free-sem-salvar--plano-grátis-não-salva-arte): o "toque em Salvar → gate parental → paywall" continua valendo, mas passa a se aplicar **apenas à ação explícita de salvar**, nunca ao ato de concluir a atividade.
+
+#### 2. Artes antigas
+
+1. Artes já salvas **nunca são apagadas**.
+2. O Grátis **pode visualizar** as artes antigas em **somente leitura**.
+3. O Grátis **não persiste novas alterações** sobre elas.
+4. Tentar guardar uma alteração chama o **gate parental**.
+5. Ao voltar ao **Plano Família**, a **edição persistente volta a funcionar**.
+6. Migrações **preservam blobs, thumbnails e metadados**.
+
+> Esta decisão **especifica** **E1-ARTES-SALVAR** (seção "7. Artes" das decisões consolidadas E1).
+
+#### 3. Critério de "colorir concluído"
+
+1. Para efeito de `isStoryFullyComplete`, **colorir concluído = pelo menos uma atividade do Colorir com o Beni concluída**.
+2. **Uma de três** já satisfaz o **marco obrigatório Criar**.
+3. **Três de três** = **coleção completa**.
+4. A **coleção completa tem a sua própria grande celebração**.
+5. **Três de três não bloqueia** o desbloqueio da próxima história.
+6. As **dez páginas legadas não são exigidas** em **A Criação**.
+7. Até cada história receber o novo modelo, **uma página legada concluída pode servir como compatibilidade temporária**.
+
+> Esta decisão **resolve** o `[A CONFIRMAR]` de [`D-CONCLUSAO-TOTAL-B`](#d-conclusao-total-b--desbloqueio-da-próxima-história-exige-conclusão-total-opção-b).
+
+#### 4. Estados atribuídos aos itens C1 a C9
+
+**Convenção obrigatória de citação:** sempre escrever **"C1 a C9 de [`specs/012-loading-performance-foundation/RELATORIO_FECHAMENTO_LP.md`](../specs/012-loading-performance-foundation/RELATORIO_FECHAMENTO_LP.md) §9.1"**. **Nunca usar apenas "C1 a C9"**, porque existem homônimos no repositório (a `spec.md` da mesma feature usa `C1`–`C4` para *cenários de crash* de recovery — eixo diferente).
+
+| Item | Estado atribuído |
+|---|---|
+| **C1** | **Reutilizar o kind `coloring`.** Nenhum kind novo é criado. |
+| **C2** | **Corrigir na Fase 2.5** (alinhamento do kind aceito entre `packManifestService` e `packDownloadService` — dívida D6). |
+| **C3** | **Corrigir integralmente na Fase 2.5** (bloqueio de persistência do Grátis na camada de escrita, incluindo o caminho legado). |
+| **C4** | **REPROVADA** — correção **obrigatória** na Fase 2.5 (ativar `needs_update`). |
+| **C5** | **Política mínima de coleta de lixo** e **desempate de `ambiguous`** na Fase 2.5. |
+| **C6** | **Lineart em PNG** e **download público monolítico** nesta fase. |
+| **C7** | **Preservar os linearts legados durante a integração**, sem ampliar dependências. A **remoção do binário público continua nas Fases 16 e 17**. |
+| **C8** | **Documentar a experiência após sete dias offline**, **sem apagar pack nem arte**. |
+| **C9** | **Resolver por transplante semântico sobre o smoke LF**, **sem merge bruto do `smoke.js` antigo**. |
+
+#### 5. Política de atualização de conteúdo (resolve C4 e C5)
+
+1. A **nova versão é preparada sem substituir a READY atual**.
+2. A nova versão **só entra em uso** após **download completo**, **verificação de integridade** e **publicação READY**.
+3. **Falha mantém a versão anterior utilizável.**
+4. O sistema mantém **a versão atual e uma anterior íntegra**.
+5. **Só são removidas versões antigas não referenciadas.**
+6. O estado **`ambiguous` nunca escolhe silenciosamente**.
+7. O **rollback retorna à versão anterior íntegra**.
+
+#### 6. Política de formato e packs
+
+1. As atividades do Colorir com o Beni **reutilizam o kind `coloring`**.
+2. **Nenhum kind novo** é introduzido.
+3. Os **linearts continuam em PNG**.
+4. **A Criação** e **Noé** permanecem **locais**.
+5. As **histórias premium recebem as atividades dentro do pack existente**.
+6. O **download público é monolítico na Fase 2.5**.
+7. O **download seletivo fica para avaliação na Fase 17**.
+
+#### 7. Limite de verificação offline
+
+1. Após a expiração da verificação offline, **nenhum pack é apagado**.
+2. **Nenhuma arte é apagada.**
+3. O **responsável recebe solicitação de reconexão**.
+4. A **criança não recebe culpa nem linguagem comercial**.
+5. Após confirmar o entitlement, **o conteúdo volta sem novo download**.
+6. A **duração definitiva** é **revisada na Fase 18**, junto com o RevenueCat.
+
+### D-C60-SCENE02-SUPERACAO — Substituição de `scene_02.png` supera a proibição de PL01G-01
+
+- **Data:** 2026-07-30 · **Status:** ✅ CONFIRMADA (fundador) · **Origem:** ordem "Fase 2.5, Bloco P1" §6.1.
+- **Decisão histórica preservada (não apagada).** O registro **`PL01G-01`** — criado na branch `feat/colorir-60-pilot-creation` (commits `3cd7e3f` e `802b04a`) e ainda **não presente no `DECISIONS.md` desta branch** — contém, na sua lista de proibições, a cláusula literal: ***"não sobrescrever `scene_02.png`"***. Essa redação fica **registrada aqui como histórico** e **não é removida** de onde existe.
+- **Nota de superação:**
+  1. A **proibição antiga de sobrescrever `scene_02.png` foi superada** pela **aprovação visual explícita do fundador**.
+  2. O **arquivo aprovado foi integrado no mesmo caminho** (`assets/stories/creation/coloring/scene_02.png`), nos commits `cc63e19` e `f16491c` da branch do piloto.
+  3. O arquivo aprovado **mantém as dimensões 1122 por 1402**.
+  4. O **caminho legado também consome esse arquivo** (`src/assets/coloringImages.js`), além do novo Colorir (`src/assets/coloring60LocalAssets.js`, atividade `light`).
+  5. A **Fase 2.5 exige validação visual do novo Colorir *e* do consumidor legado.**
+- **Classificação:** desincronização **documental** do árbitro, **não** ato não autorizado — a substituição foi ratificada pelo fundador e reconciliada em `specs/016-*` §10.2 no momento em que ocorreu; o que faltava era o registro no árbitro. Esta entrada supre essa falta.
 
 ---
 
@@ -300,5 +404,5 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
 
 ## Itens PENDENTES / A CONFIRMAR (resumo)
 - 🟡 **D-NAMING-JOGOS-PENDENTE** — nomes finais de Adivinhar o Animal / Quebra-Cabeça (Soletrando → **"Palavrinhas do Beni"** ✅ resolvido em `D-PALAVRINHAS-UF1`).
-- 🟡 **D-CONCLUSAO-TOTAL-B** — definição operacional de "colorir concluído" (default 1 página) a confirmar.
+- ✅ **D-CONCLUSAO-TOTAL-B** — definição operacional de "colorir concluído" **RESOLVIDA em 2026-07-30**: pelo menos **uma atividade do Colorir com o Beni** concluída (ver [`D-C60-INTEGRACAO-PRODUTO`](#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto) §3). O **restante** da `D-CONCLUSAO-TOTAL-B` (Opção B, ritual de conclusão) segue para implementação na **Fase 11**.
 - 🟡 **D-CRIAR-COM-BENI-STATUS** — manter ou remover "Criar com Beni" no v1 (sem código até confirmar).

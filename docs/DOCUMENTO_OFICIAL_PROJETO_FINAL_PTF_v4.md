@@ -1,3 +1,16 @@
+> # ⛔ SUPERSEDED pela v5
+>
+> **Este documento deixou de ser a fonte única da linha de lançamento em 2026-07-30.**
+> A fonte vigente é a
+> [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md).
+>
+> A v4 permanece **como histórico**, com o conteúdo **preservado e não reescrito**. Não use este
+> arquivo para orientar decisões ou execução: o roadmap completo (Fase 0 à Fase 22), o baseline
+> técnico e a fase atual vivem na **v5**. O árbitro das decisões continua sendo
+> [`docs/DECISIONS.md`](DECISIONS.md).
+
+---
+
 # DOCUMENTO OFICIAL DO PROJETO — Pequenos Traços de Fé — **v4**
 **Fonte única de verdade da linha de lançamento (beta/loja).** · Data: 2026-07-05 · HEAD: `424972b`
 

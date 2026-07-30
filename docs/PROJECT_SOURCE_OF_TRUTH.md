@@ -12,17 +12,34 @@ Quando houver conflito entre documentos antigos e este arquivo, **este arquivo p
 
 Documentos antigos permanecem como histórico, mas **não devem orientar decisões futuras sem validação contra este arquivo**. Veja o mapa de documentos em [docs/DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md).
 
-**Fase final (execução, otimização, beta e lançamento):** o [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md) (**v4, vigente**) é a **fonte única de verdade da linha de lançamento**, subordinado a este arquivo e às decisões. O árbitro único das **decisões de produto/lançamento** é [`docs/DECISIONS.md`](DECISIONS.md). Em conflito entre um documento e o `docs/DECISIONS.md`, **vence o `docs/DECISIONS.md`**. Decisão de escopo travada: **a aba Brincar completa entra no lançamento**, com **arquitetura híbrida obrigatória** (2 histórias grátis locais no binário, 18 premium por packs remotos no Cloudflare R2).
+**Linha de lançamento (execução, otimização, beta e lançamento):** a [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) (**v5, vigente desde 2026-07-30**) é a **fonte única de verdade da linha de lançamento**, subordinada a este arquivo e às decisões. É lá que vivem o **roadmap integral (Fase 0 à Fase 22)**, o **baseline técnico carimbado** e a **fase atual**. O árbitro único das **decisões de produto/lançamento** é [`docs/DECISIONS.md`](DECISIONS.md). Em conflito entre um documento e o `docs/DECISIONS.md`, **vence o `docs/DECISIONS.md`**. Decisão de escopo travada: **a aba Brincar completa entra no lançamento**, com **arquitetura híbrida obrigatória** (2 histórias grátis locais no binário, 18 premium por packs remotos no Cloudflare R2).
 
-> **Reconciliação E1 (2026-07-15):** o antigo `docs/DOCUMENTO_OFICIAL_PROJETO_FINAL.md` (v2.0) foi **superado pelo v4** — é histórico, não normativo. Detalhes em [`docs/launch/RECONCILIACAO_E1.md`](launch/RECONCILIACAO_E1.md).
+> **Fonte de verdade v5 (2026-07-30):** a [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md) foi **superada pela v5** — passa a ser histórica, com banner no topo e conteúdo preservado. Antes disso, a **Reconciliação E1 (2026-07-15)** já havia superado o `docs/DOCUMENTO_OFICIAL_PROJETO_FINAL.md` (v2.0); detalhes em [`docs/launch/RECONCILIACAO_E1.md`](launch/RECONCILIACAO_E1.md).
 
-O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md) e o `DOCUMENTO_OFICIAL_PROJETO_FINAL.md` (v2.0) foram **substituídos** pelo v4 e permanecem **apenas como histórico**. Os conflitos registrados na Fase 0 estão em [`docs/launch/DECISOES_E_CONFLITOS.md`](launch/DECISOES_E_CONFLITOS.md); a matriz de acesso em [`docs/launch/MATRIZ_DE_ACESSO.md`](launch/MATRIZ_DE_ACESSO.md).
+O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md), o `DOCUMENTO_OFICIAL_PROJETO_FINAL.md` (v2.0) e a `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md` foram **substituídos** e permanecem **apenas como histórico**. Os conflitos registrados na Fase 0 estão em [`docs/launch/DECISOES_E_CONFLITOS.md`](launch/DECISOES_E_CONFLITOS.md); a matriz de acesso em [`docs/launch/MATRIZ_DE_ACESSO.md`](launch/MATRIZ_DE_ACESSO.md).
 
-**Precedência documental consolidada (E1):**
+**Precedência documental consolidada:**
 - **Governança técnica:** `docs/PROJECT_SOURCE_OF_TRUTH.md` → `.specify/memory/constitution.md` → `AGENTS.md` → `CLAUDE.md` → spec → plan → tasks → sessão.
-- **Decisões de produto/lançamento:** `docs/DECISIONS.md` (**árbitro único**) → `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md` (vigente) → Direção de Arte v1.1 + docs narrativos/bíblicos vigentes → documentos antigos (**histórico, não normativo**).
+- **Decisões de produto/lançamento:** `docs/DECISIONS.md` (**árbitro único**) → `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md` (**vigente**) → Direção de Arte v1.1 + docs narrativos/bíblicos vigentes → documentos antigos (**histórico, não normativo**: v4, v2.0, plano antigo).
 
-**Anexo de direção visual:** a [`docs/DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md`](DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md) é o **anexo oficial de direção de arte** (governa visual, tokens, responsividade, componentes e critérios de aceite visuais), subordinado ao v4 e ao `docs/DECISIONS.md`. As decisões visuais congeladas (D1–D4) estão registradas em `docs/DECISIONS.md` (D-DESIGN-LIVRO-VIVO).
+**Anexo de direção visual:** a [`docs/DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md`](DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md) é o **anexo oficial de direção de arte** (governa visual, tokens, responsividade, componentes e critérios de aceite visuais), subordinado à v5 e ao `docs/DECISIONS.md`. As decisões visuais congeladas (D1–D4) estão registradas em `docs/DECISIONS.md` (D-DESIGN-LIVRO-VIVO).
+
+---
+
+## 1.1 Fase atual
+
+**Fase 2.5 — integração do Colorir com o Beni sobre a fundação.**
+
+| Item | Valor |
+|---|---|
+| Fase anterior | **Fase 2 — loading, packs, recovery e performance: ENCERRADA** |
+| Baseline técnico | `fix/loading-performance-foundation` @ **`aeda9c2`** · tag **`lp-foundation-closed-2026-07-30`** → `bc79edb` · smoke **3314/3314** |
+| Branch de trabalho | **`integrate/colorir-with-loading`** |
+| Branch de origem do piloto | `feat/colorir-60-pilot-creation` @ **`795760a`** |
+| Merge base | **`6cf799c`** |
+| Método | **A integração é reconstruída por blocos. Não haverá merge bruto da branch antiga.** |
+
+Objetivo, entregas, critério de saída, riscos e as fases seguintes (até a **Fase 22**) estão na [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3. As decisões de produto da Fase 2.5 estão em [`docs/DECISIONS.md`](DECISIONS.md), registro `D-C60-INTEGRACAO-PRODUTO`.
 
 ---
 
@@ -78,7 +95,7 @@ Decisões **fechadas** (não reabrir sem nova decisão estratégica explícita):
 **Assets e peso**
 - Regra daqui para frente: **shell + histórias gratuitas no binário base**.
 - Conteúdo premium/adicional deve caminhar para **sob demanda**.
-- **Não adicionar mais assets pesados ao binário antes da Fase 2.**
+- **Não adicionar mais assets pesados ao binário público.** *(A regra permanece; o tratamento definitivo do peso e do `require()` estático é das **Fases 16 e 17** da [v5](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) — riscos R5/R6/R7. A menção original a "antes da Fase 2" usava a numeração superada.)*
 - Avaliar **WebP lossy** para cenas coloridas.
 - Avaliar **WebP lossless / PNG otimizado** para páginas de colorir, **com teste de flood-fill**.
 - As pastas **untracked** de histórias **não** devem entrar com `git add .` sem auditoria.
@@ -110,7 +127,7 @@ Não tratar como **P1 ativo** (confirmados resolvidos na auditoria de código at
 
 **P1 — Bug do tour no mapa (core loop)**
 - O mapa parece travado durante o tour porque o overlay captura toques enquanto o usuário espera arrastar/tocar.
-- **Decisão esperada na Fase 1 — escolher contrato explícito:**
+- **Decisão esperada — escolher contrato explícito** *(destino na [v5](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md): **Fase 11**, horizonte final do Mapa de Aventuras)*:
   - **Opção A:** tour modal, interação claramente bloqueada e guiada por botões.
   - **Opção B:** tour interativo, toque passa para alvos reais.
   - **Recomendação inicial: Opção A para v1** (mais simples, segura, elimina a sensação de travamento).
@@ -125,17 +142,9 @@ Não tratar como **P1 ativo** (confirmados resolvidos na auditoria de código at
 
 ## 7. Ordem oficial de execução
 
-Sequência **ativa**:
+**A ordem oficial vive na [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3** — roadmap integral da **Fase 0** à **Fase 22**, com objetivo, entregas centrais, critério de saída e riscos atribuídos por fase. **A fase atual é a 2.5** (ver §1.1 acima).
 
-- **Fase 0** — Fonte de Verdade v1. *(este documento)*
-- **Fase 1** — Corrigir contrato do tour do mapa e validar core loop.
-- **Fase 2** — Peso, bundle e arquitetura de assets.
-- **Fase 3** — Robustez de mídia e fonte única de acesso.
-- **Fase 4** — Conteúdo de lançamento impecável, com Criação e Noé completas.
-- **Fase 5** — Monetização com RevenueCat.
-- **Fase 6** — Preparação de loja e release.
-- **Fase 7** — Soft launch Brasil-first com Modo Igreja como cunha.
-- **Fase 8** — Escala e internacionalização em camadas.
+> **Sequência antiga (Fases 0–8) — histórico, não ativa.** A lista de oito fases que este arquivo publicava (Fonte de Verdade → tour do mapa → peso/bundle → robustez de mídia → conteúdo → RevenueCat → loja → soft launch → escala) **não é mais a sequência de execução**. Ela foi absorvida e reordenada pelo roadmap da v5. Quando um texto antigo deste repositório citar "Fase 1", "Fase 2" etc. **sem** referenciar a v5, trate como numeração superada e reancore na v5.
 
 ---
 
@@ -150,12 +159,16 @@ Sequência **ativa**:
 - **Não usar `git add .`** enquanto houver assets pesados/untracked não auditados.
 - **Não instalar pacote novo** sem justificar e pedir aprovação.
 - **Não adicionar backend próprio** sem nova decisão estratégica.
-- **Não adicionar novas abas principais** antes do soft launch.
-- **Não adicionar conteúdo pesado** antes da Fase 2.
+- **Não adicionar novas abas principais** antes do lançamento.
+- **Não adicionar conteúdo pesado ao binário público** (ver §4).
 
 ---
 
-## 9. Critério de saída da Fase 0
+## 9. Critério de saída da Fase 0 *(histórico — já atendido)*
+
+> Registro do critério original de conclusão da Fase 0 de governança. **Já foi atendido.** Os
+> critérios de saída de todas as fases ativas estão na
+> [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3.
 
 A Fase 0 só está concluída quando:
 

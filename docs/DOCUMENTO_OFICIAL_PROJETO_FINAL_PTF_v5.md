@@ -1,0 +1,478 @@
+# DOCUMENTO OFICIAL DO PROJETO — Pequenos Traços de Fé — **v5**
+
+**Fonte única de verdade da linha de lançamento.** · Data: 2026-07-30 · Baseline técnico: `aeda9c2`
+
+> **Precedência.** Esta v5 é a fonte única da **linha de lançamento**, **subordinada** a:
+> [`docs/PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) (governança operacional) →
+> [`.specify/memory/constitution.md`](../.specify/memory/constitution.md) →
+> [`AGENTS.md`](../AGENTS.md) / [`CLAUDE.md`](../CLAUDE.md).
+> As **decisões de produto** continuam governadas por [`docs/DECISIONS.md`](DECISIONS.md)
+> (**árbitro**): em conflito entre esta v5 e o `DECISIONS.md`, **vence o `DECISIONS.md`**.
+>
+> **Rito antibifurcação (D-ANTIBIFURCACAO):** toda sessão de IA começa lendo o `DECISIONS.md`.
+> Decisão que só existe em conversa não é oficial até entrar lá.
+
+---
+
+## 1. Declarações constitutivas desta versão
+
+1. **A v5 substitui a v4 como fonte única da linha de lançamento.** A partir desta data, a
+   linha de lançamento é lida aqui.
+2. **[`docs/DECISIONS.md`](DECISIONS.md) permanece o árbitro das decisões de produto.** A v5
+   não decide: ela organiza, sequencia e torna rastreável o que o árbitro registrou.
+3. **[`docs/PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) permanece superior na
+   governança operacional.** Regras de execução, portões de qualidade e disciplina de repositório
+   continuam vindo de lá.
+4. **Documentos anteriores permanecem históricos.**
+   [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md) (v4),
+   [`DOCUMENTO_OFICIAL_PROJETO_FINAL.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL.md) (v2.0) e
+   [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md) são **histórico, não
+   normativo**. Nenhum deles é apagado ou reescrito.
+5. **A Fase 2 está encerrada.** A trilha de loading, packs, recovery e performance foi fechada e
+   ratificada; não se reabre investigação sobre ela
+   (ver [`D-LP-FECHAMENTO`](DECISIONS.md#d-lp-fechamento--fechamento-da-trilha-loadingperformance-e-baseline-da-fase-25)).
+6. **Baseline técnico oficial:**
+   - branch **`fix/loading-performance-foundation`** no commit **`aeda9c2`**;
+   - tag anotada **`lp-foundation-closed-2026-07-30`** no commit **`bc79edb`**;
+   - **smoke `3314/3314`**.
+7. **Fase atual: Fase 2.5 — integração do Colorir com o Beni sobre a fundação.**
+8. **Branch de trabalho da Fase 2.5:** **`integrate/colorir-with-loading`**.
+9. **Branch de origem do piloto:** **`feat/colorir-60-pilot-creation`** no commit **`795760a`**.
+10. **Merge base confirmado:** **`6cf799c`**.
+11. **A integração será reconstruída por blocos. Não haverá merge bruto da branch antiga.**
+
+---
+
+## 2. Baseline técnico carimbado
+
+| Item | Valor |
+|---|---|
+| Branch da fundação | `fix/loading-performance-foundation` |
+| Commit da fundação (baseline) | `aeda9c2` |
+| Tag de fechamento | `lp-foundation-closed-2026-07-30` → `bc79edb` |
+| Smoke no baseline | **3314/3314** |
+| Branch de trabalho da Fase 2.5 | `integrate/colorir-with-loading` (nasce de `aeda9c2`) |
+| Branch de origem do piloto do Colorir | `feat/colorir-60-pilot-creation` → `795760a` |
+| Merge base entre as duas | `6cf799c` |
+| Stack | Expo SDK 54 · RN 0.81.5 · React 19.1.0 · New Architecture · **100% JavaScript** |
+| Arquitetura de conteúdo | 2 histórias grátis locais no binário + 18 premium por packs remotos (Cloudflare R2), sha256 real, troca atômica `.tmp → localDir → ready` |
+
+**O que o baseline NÃO afirma:**
+
+- **Não existe afirmação de desempenho medido quantitativamente.** Nenhuma medição foi
+  registrada (risco **R21**). Qualquer ganho percebido até aqui é qualitativo.
+- **Não existe readiness de loja.** O binário ainda referencia conteúdo pesado por `require()`
+  estático (**R5**), com premium (**R6**) e linearts legados (**R7**) embarcados.
+
+---
+
+## 3. Roadmap integral até o lançamento
+
+Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrais**,
+**critério de saída** e **riscos atribuídos** quando aplicável.
+
+> **Sem prazos.** Esta v5 **não** atribui semanas, datas ou durações a nenhuma fase. O
+> sequenciamento é por dependência, não por calendário.
+
+---
+
+### Fase 0 — Governança
+
+- **Objetivo:** garantir que exista uma fonte única, um árbitro e um rito antibifurcação antes de
+  qualquer decisão de produto virar código.
+- **Entregas centrais:** `PROJECT_SOURCE_OF_TRUTH.md`; `DECISIONS.md` como árbitro único;
+  `AGENTS.md` compartilhado entre agentes; índice de documentação; precedência documental escrita.
+- **Critério de saída:** toda decisão oficial vive no árbitro; documentos conflitantes marcados
+  como históricos; nenhuma decisão ativa existindo só em conversa.
+- **Estado:** **concluída** (consolidada na Reconciliação E1 e reforçada nesta v5).
+
+---
+
+### Fase 1 — Piloto do Colorir
+
+- **Objetivo:** provar, isoladamente, o novo modelo de atividade de colorir com o Beni — catálogo,
+  telas, storage, tema e assets — sem tocar na arquitetura de conteúdo.
+- **Entregas centrais:** catálogo de atividades do Colorir 60; telas e componentes dedicados;
+  autoridade de escrita própria; trio de atividades de **A Criação**; validação física registrada.
+- **Critério de saída:** piloto aprovado no dispositivo pelo fundador, em branch própria
+  (`feat/colorir-60-pilot-creation` @ `795760a`), **sem** integração com a fundação.
+- **Estado:** **concluída na branch de origem**; a integração é a Fase 2.5.
+
+---
+
+### Fase 2 — Loading, packs, recovery e performance
+
+- **Objetivo:** dar ao app uma fundação confiável de carregamento e de conteúdo remoto: download,
+  integridade, publicação atômica, recuperação de falha e ausência de travamentos.
+- **Entregas centrais:** `packDownloadService` genérico por `storyId`; manifesto global; sha256
+  real via `@noble/hashes`; ready-gate e troca atômica; recuperação sem segundo download; harness
+  de testes endurecido; `.gitattributes` fixando `scripts/smoke.js` em LF.
+- **Critério de saída:** trilha auditada, tag de fechamento aplicada, smoke `3314/3314`, dívidas
+  não bloqueantes registradas.
+- **Estado:** **ENCERRADA.** Não se reabre investigação sobre ela.
+- **Pendências físicas herdadas:** os três cenários ainda não executados em dispositivo — **dois
+  READY concorrentes**, **reset seguido de retry**, **saída durante a instalação** — passam a ser
+  **gates de aceite da Fase 2.5**.
+
+---
+
+### Fase 2.5 — Integração do Colorir com o Beni sobre a fundação
+
+- **Objetivo:** trazer o piloto do Colorir para cima da fundação encerrada, **por blocos**, sem
+  merge bruto da branch antiga, e fechar as condições obrigatórias herdadas da Fase 2.
+- **Entregas centrais:**
+  1. Governança e fonte de verdade v5 (**este documento**) e o registro
+     [`D-C60-INTEGRACAO-PRODUTO`](DECISIONS.md#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto)
+     no árbitro.
+  2. **Bloqueio de persistência de pintura no plano Grátis na autoridade de ESCRITA**, fail closed,
+     não apenas na UI — incluindo o caminho legado de colorir de história.
+  3. **Atualização funcional de manifest/pack para quem já baixou conteúdo** (ativar
+     `needs_update`), com política de versão anterior íntegra e rollback.
+  4. **Política mínima de coleta de lixo** e **desempate determinístico de `ambiguous`**.
+  5. **Alinhamento do kind aceito** entre `packManifestService` e `packDownloadService` (dívida D6).
+  6. **Transplante semântico do smoke** sobre o `scripts/smoke.js` LF — sem merge bruto do arquivo
+     CRLF da branch antiga.
+  7. **Preservação dos linearts legados** durante a integração, sem ampliar a dependência deles.
+  8. **Documentação da experiência após a expiração da verificação offline**, sem apagar pack nem arte.
+  9. Definição operacional de **colorir concluído** aplicada ao critério de conclusão de história.
+- **Critério de saída:**
+  - os três gates físicos herdados da Fase 2 executados e aprovados em dispositivo;
+  - Grátis comprovadamente sem persistir pixels de nova pintura, verificado na camada de escrita;
+  - atualização de conteúdo comprovada para quem já tinha baixado;
+  - smoke verde com o transplante semântico concluído e `scripts/smoke.js` em LF puro;
+  - validação visual do **novo Colorir** **e** do **consumidor legado** de `scene_02.png`.
+- **Riscos atribuídos:** **C2**, **C3**, **C4**, **C5**, **C6**, **C7**, **C8** e **C9** de
+  [`specs/012-loading-performance-foundation/RELATORIO_FECHAMENTO_LP.md`](../specs/012-loading-performance-foundation/RELATORIO_FECHAMENTO_LP.md)
+  §9.1 — estados individuais registrados no árbitro.
+- **Estado:** **em execução.**
+
+---
+
+### Fase 3 — Reconciliação integral somente leitura
+
+- **Objetivo:** confrontar, sem alterar código, o que os documentos afirmam com o que o repositório
+  de fato faz, eliminando divergências silenciosas antes do congelamento de produto.
+- **Entregas centrais:** varredura documento↔código de acesso, progresso, conclusão, packs, áudio,
+  assets e telas; lista de divergências com veredito para cada uma; correção documental das que
+  forem de documentação; abertura de bloco próprio para as que forem de código.
+- **Critério de saída:** nenhuma divergência conhecida entre árbitro, v5 e código sem destino
+  atribuído; relatório de reconciliação registrado.
+- **Riscos atribuídos:** **R21** — **baseline de medição** é estabelecido aqui.
+
+---
+
+### Fase 4 — Product Lock final
+
+- **Objetivo:** congelar o escopo de produto do v1: o que entra, o que fica de fora e o que é
+  explicitamente adiado.
+- **Entregas centrais:** fechamento das pendências controladas que dependem apenas de decisão do
+  fundador; lista final de telas, abas, jogos, histórias e benefícios por plano; registro de tudo
+  no árbitro.
+- **Critério de saída:** nenhuma pendência de escopo em aberto para o v1; qualquer novidade posterior
+  passa a exigir reversão explícita registrada no árbitro.
+- **Regra permanente:** **nenhuma pendência do Product Lock pode ser tratada como resolvida antes
+  desta fase.** Documentos não inventam a resposta.
+
+---
+
+### Fase 5 — Infância, privacidade, teologia e medição
+
+- **Objetivo:** validar o produto congelado nos quatro eixos que não são negociáveis num app
+  infantil cristão.
+- **Entregas centrais:** revisão de adequação etária e linguagem; revisão de privacidade
+  (local-first, sem tracking infantil, sem coleta de dados pessoais); revisão bíblica/teológica do
+  conteúdo; definição do que será medido e como, sem violar privacidade.
+- **Critério de saída:** parecer registrado em cada eixo; plano de medição anônima aprovado;
+  nenhuma prática pendente que exija mudança de arquitetura depois.
+
+---
+
+### Fase 6 — Shell, splash e sistema visual
+
+- **Objetivo:** entregar a primeira impressão do app — abertura, splash, shell de navegação e
+  aplicação do sistema visual "O Livro Vivo".
+- **Entregas centrais:** tokens, tipografia e componentes-base aplicados; splash e abertura reais;
+  estados de card por chip/selo/ícone/tratamento, **não** por paleta paralela
+  ([`D-STATUS-CARDS`](DECISIONS.md#d-status-cards--status-por-chipseloíconetratamento-não-por-paleta-paralela));
+  varredura visual de telas.
+- **Critério de saída:** shell e abertura validados visualmente em dispositivo; nenhuma tela
+  usando paleta de status paralela.
+- **Riscos atribuídos:** **R21** — **medição de shell e abertura**.
+
+---
+
+### Fase 7 — Onboarding, Home e Área dos Pais
+
+- **Objetivo:** desenhar e implementar a primeira experiência da criança e a superfície de
+  confiança do responsável.
+- **Entregas centrais:** onboarding (especificação e implementação visual); Home final; Área dos
+  Pais consolidada com gate parental; remoção/redirecionamento dos atalhos legados de linguagem
+  superada.
+- **Critério de saída:** primeira sessão de uma criança nova percorrida ponta a ponta em
+  dispositivo; Área dos Pais sem vazamento de linguagem comercial para a criança.
+
+---
+
+### Fase 8 — Matriz de falas do Beni
+
+- **Objetivo:** unificar a voz do Beni: o que ele fala, quando fala, em que tela e com que
+  intenção.
+- **Entregas centrais:** matriz completa de falas por contexto; roteiros finais; eliminação de
+  falas legadas que citam nomes superados; regras de repetição e silêncio.
+- **Critério de saída:** matriz aprovada pelo fundador; nenhuma fala ativa fora da matriz.
+
+---
+
+### Fase 8A — Orquestração sonora
+
+- **Objetivo:** tratar áudio como sistema, não como arquivos soltos: música, narração, efeitos e
+  falas do Beni coexistindo sem se atropelar.
+- **Entregas centrais:** política central de ducking e prioridade; comportamento em interrupção,
+  background e retorno; geração e integração dos áudios novos do Beni; toggles de áudio na Área
+  dos Pais.
+- **Critério de saída:** nenhuma sobreposição indevida em dispositivo; comportamento correto ao
+  sair e voltar do app; áudios do Beni integrados conforme a matriz da Fase 8.
+
+---
+
+### Fase 9 — A Criação definitiva
+
+- **Objetivo:** levar **A Criação** ao padrão final de lançamento, como referência de qualidade
+  para todas as outras histórias.
+- **Entregas centrais:** narração, cenas, quiz, Momento/Guardar no coração, Livrinho e as
+  atividades do Colorir com o Beni na versão definitiva; conclusão e recompensas coerentes.
+- **Critério de saída:** história percorrida do início ao fim em dispositivo, sem furo de conteúdo,
+  sem placeholder e sem asset provisório.
+
+---
+
+### Fase 10 — Meu Livro e Escuta Tranquila
+
+- **Objetivo:** consolidar as duas superfícies de releitura e de descanso — o livrinho da criança e
+  o modo de escuta calma.
+- **Entregas centrais:** Meu Livro com os dois modos reais (oficial e da criança, sem misto);
+  Escuta Tranquila com controle simples e seguro; comportamento correto de progresso e de áudio.
+- **Critério de saída:** ambos validados em dispositivo, incluindo retomada e saída no meio.
+
+---
+
+### Fase 11 — Conclusão, presentes, Estrelinhas e mapa
+
+- **Objetivo:** fechar o ciclo de recompensa: como uma história termina, o que a criança ganha e
+  como isso aparece no mapa e nas Estrelinhas.
+- **Entregas centrais:** ritual de conclusão total
+  ([`D-CONCLUSAO-TOTAL-B`](DECISIONS.md#d-conclusao-total-b--desbloqueio-da-próxima-história-exige-conclusão-total-opção-b));
+  estado intermediário "Quase lá!"; presentes/lembranças; Estrelinhas coerentes com a fonte única
+  de recompensa; horizonte final do Mapa de Aventuras.
+- **Critério de saída:** desbloqueio da próxima história comprovadamente coerente com a definição
+  operacional de conclusão registrada no árbitro; nenhum contador paralelo de estrelas.
+
+---
+
+### Fase 12A — Núcleo infantil e jogos
+
+- **Objetivo:** fechar a aba Brincar e o núcleo lúdico com regra de acesso central e comportamento
+  igual em todos os jogos.
+- **Entregas centrais:** os quatro jogos finais em estado de lançamento; seção criativa (Criar
+  Livre + Minhas artes); acesso central `can()`; rodadas diárias pela política compartilhada;
+  recompensa com teto diário único.
+- **Critério de saída:** nenhum jogo com contador próprio; limite do Grátis e ilimitado do Plano
+  Família comprovados; evidência física em Android.
+- **Riscos atribuídos:** **R20A** — ausência de evidência física em Android.
+
+---
+
+### Fase 12B — Rituais e Modo Igreja
+
+- **Objetivo:** entregar os rituais familiares e o diferencial institucional.
+- **Entregas centrais:** Cultinho em Casa; Baú do Beni e cartinhas; Modo Igreja polido e discreto,
+  fora do caminho da criança comum.
+- **Critério de saída:** rituais percorridos em dispositivo; Modo Igreja não interfere no fluxo
+  infantil nem expõe linguagem administrativa à criança.
+
+---
+
+### Fase 13 — Noé e prova da fábrica
+
+- **Objetivo:** provar que o padrão de qualidade de **A Criação** é **reprodutível** — Noé é a
+  segunda história completa e, ao mesmo tempo, o teste do processo de produção.
+- **Entregas centrais:** Noé com narração completa, cenas, quiz, Momento, Livrinho e atividades do
+  Colorir; processo de produção documentado e repetível.
+- **Critério de saída:** Noé no mesmo nível de A Criação; o processo usado está escrito e pode ser
+  seguido por outra pessoa sem improviso.
+
+---
+
+### Fase 14 — Piloto ampliado
+
+- **Objetivo:** validar o pipeline completo com um conjunto maior de histórias antes de escalar
+  para todas.
+- **Entregas centrais:** um subconjunto premium produzido pelo processo da Fase 13, empacotado,
+  publicado, baixado e consumido offline em dispositivo real.
+- **Critério de saída:** o subconjunto funciona ponta a ponta, offline, sem intervenção manual.
+- **Riscos atribuídos:** **R20A** (evidência física em Android) · **R21** (medição do piloto
+  ampliado).
+
+---
+
+### Fase 15 — Produção das outras dezoito histórias
+
+- **Objetivo:** produzir o restante do catálogo com o processo já provado.
+- **Entregas centrais:** cenas, narração, quiz, Momento, Livrinho e atividades do Colorir para as
+  dezoito histórias premium; revisão bíblica de cada uma; inventário e validação de assets.
+- **Critério de saída:** catálogo completo, revisado e validado; nenhum placeholder remanescente.
+
+---
+
+### Fase 16 — Congelamento editorial, visual e funcional
+
+- **Objetivo:** congelar conteúdo, arte e comportamento antes de empacotar para distribuição.
+- **Entregas centrais:** congelamento editorial e visual (M3); remoção do conteúdo premium do
+  binário; remoção dos linearts legados do binário público; auditoria de bundle.
+- **Critério de saída:** nada muda de conteúdo depois deste ponto sem reversão explícita; binário
+  sem conteúdo premium embarcado.
+- **Riscos atribuídos:** **R5** (peso do binário e `require()` estático) · **R6** (premium
+  embarcado) · **R7** (linearts legados).
+
+---
+
+### Fase 17 — Packs e offline completo
+
+- **Objetivo:** fechar a distribuição de conteúdo: packs definitivos, atualização, integridade e
+  offline real.
+- **Entregas centrais:** reconstrução dos packs sobre o conteúdo congelado; manifesto final;
+  compatibilidade de versão (`appVersion`/`minAppVersion`/`requiresAppUpdate`); avaliação de
+  **download seletivo** de atividades; revisão do custo de integridade em arquivos grandes.
+- **Critério de saída:** instalação, atualização e uso offline comprovados em dispositivo, com
+  conteúdo definitivo.
+- **Riscos atribuídos:** **R5** · **R6** · **R7** (conclusão da remoção) · **R17** (compatibilidade
+  de versão) · **R20B** (sha256 lendo o arquivo inteiro em base64).
+
+---
+
+### Fase 18 — RevenueCat, Stripe e Plano Família
+
+- **Objetivo:** ligar a monetização real, com entitlement confiável e paywall respeitoso.
+- **Entregas centrais:** entitlement por RevenueCat; paywall atrás da Área dos Pais + gate
+  parental; compra, restore e sandbox; Plano Família aplicado a histórias, salvamento de arte,
+  rodadas e avatares; **definição definitiva da duração da verificação offline**.
+- **Critério de saída:** compra e restore reais aprovados em ambos os sistemas operacionais;
+  nenhuma tela decidindo acesso sozinha; nenhuma oferta comercial exibida à criança.
+- **Dependência:** valores comerciais são **pendência controlada** até decisão do fundador — não
+  são inventados por nenhum documento.
+
+---
+
+### Fase 19 — Hardening e modelo de ameaças
+
+- **Objetivo:** endurecer o app contra falha, abuso e ambiente ruim.
+- **Entregas centrais:** modelo de ameaças escrito; hardening de Android de baixa memória;
+  comportamento sob armazenamento cheio, rede instável e interrupção; revisão de superfícies
+  internas e ferramentas de desenvolvimento; revisão de custo e segurança do cálculo de
+  integridade.
+- **Critério de saída:** cenários adversos executados e documentados; nenhuma ferramenta interna
+  alcançável em produção.
+- **Riscos atribuídos:** **R20B**.
+
+---
+
+### Fase 20 — Engenharia de lançamento, EAS Update, rollout e compliance
+
+- **Objetivo:** preparar a máquina de entrega e a conformidade de loja.
+- **Entregas centrais:** perfis de build finais; estratégia de atualização entre versões;
+  rollout gradual; Data Safety e App Privacy; classificação etária e metadados; materiais legais.
+- **Critério de saída:** pipeline de entrega reproduzível; formulários de conformidade completos e
+  coerentes com o comportamento real do app.
+- **Riscos atribuídos:** **R17** (compatibilidade entre versões instaladas).
+
+---
+
+### Fase 21 — Beta do candidato e atualização real entre versões
+
+- **Objetivo:** provar o candidato com famílias reais e provar que uma versão instalada consegue
+  virar a próxima.
+- **Entregas centrais:** beta fechado com famílias; matriz de QA incluindo tablet e Android fraco;
+  **atualização real de uma versão instalada para a seguinte**, com conteúdo já baixado;
+  medição final.
+- **Critério de saída:** beta sem bloqueador crítico; atualização entre versões comprovada em
+  dispositivo real, sem perda de progresso nem de arte.
+- **Riscos atribuídos:** **R20A** (evidência física em Android) · **R21** (medição final do beta).
+
+---
+
+### Fase 22 — Lançamento e operação
+
+- **Objetivo:** publicar e operar.
+- **Entregas centrais:** submissão e rollout gradual; monitoramento de falhas sem dados pessoais;
+  resposta a incidente; ciclo de correção pós-lançamento; materiais de divulgação.
+- **Critério de saída:** app publicado, com rollout controlado, canal de correção funcionando e
+  operação registrada.
+
+---
+
+## 4. Mapa de riscos residuais por fase
+
+Reproduz a atribuição oficial registrada em
+[`D-LP-FECHAMENTO`](DECISIONS.md#d-lp-fechamento--fechamento-da-trilha-loadingperformance-e-baseline-da-fase-25).
+Esta v5 **não** reatribui riscos; apenas os torna visíveis no roadmap.
+
+| Risco | Descrição | Fases responsáveis |
+|---|---|---|
+| **R5** | Peso do binário e `require()` estático | 16 e 17 |
+| **R6** | Conteúdo premium embarcado no binário | 16 e 17 |
+| **R7** | Linearts legados embarcados | 16 e 17 |
+| **R17** | `appVersion` literal, `minAppVersion` e `requiresAppUpdate` inerte | 17 e 20 |
+| **R20A** | Ausência de evidência física em Android | 12A, 14 e 21 |
+| **R20B** | sha256 lendo o arquivo inteiro em base64 | 17 e 19 |
+| **R21** | Ausência de medições quantitativas | baseline na **3** · shell/abertura na **6** · piloto ampliado na **14** · beta final na **21** |
+
+---
+
+## 5. Condições obrigatórias da Fase 2.5
+
+Nenhuma é opcional. Detalhamento e estados individuais no árbitro
+([`D-C60-INTEGRACAO-PRODUTO`](DECISIONS.md#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto)).
+
+1. **Persistência de pintura no Grátis bloqueada na autoridade de escrita**, fail closed — não
+   apenas na interface.
+2. **Atualização de manifest/pack funcional para quem já baixou conteúdo.**
+3. **Linearts legados preservados durante a integração**, sem ampliar a dependência deles; a
+   remoção do binário público permanece nas Fases 16 e 17.
+4. **Divergência de CRLF resolvida por transplante semântico sobre o `scripts/smoke.js` LF** —
+   sem merge bruto do arquivo da branch antiga.
+5. **Gates físicos obrigatórios:** dois READY concorrentes · reset seguido de retry · saída
+   durante a instalação.
+6. **Validação visual dupla:** o novo Colorir **e** o consumidor legado do lineart substituído.
+
+---
+
+## 6. Restrições invioláveis (mantidas)
+
+**Nada** de: backend próprio ou login; anúncios; tracking infantil; conteúdo premium embarcado no
+binário final; SDK fora da lista aprovada (Sentry + RevenueCat + analytics anônimo); linguagem
+técnica (pack, manifesto, sha256, MB) para a criança; paleta de status paralela; oferta comercial
+apresentada à criança; decisão tomada em conversa sem registro no
+[`docs/DECISIONS.md`](DECISIONS.md).
+
+---
+
+## 7. O que esta v5 deliberadamente NÃO faz
+
+- **Não inventa prazos.** Nenhuma fase tem semana, data ou duração.
+- **Não decide pendências do Product Lock.** O que está pendente continua pendente até a Fase 4.
+- **Não inventa valores comerciais.** Preços e período de teste seguem como pendência controlada.
+- **Não reabre a Fase 2.**
+- **Não reescreve documentos históricos.** A v4, a v2.0 e o plano antigo permanecem como estavam,
+  apenas sinalizados.
+
+---
+
+### Changelog
+
+- **v5 (2026-07-30):** institui a v5 como fonte única da linha de lançamento; carimba o baseline
+  técnico do fechamento da trilha loading/performance (`aeda9c2`, tag
+  `lp-foundation-closed-2026-07-30` → `bc79edb`, smoke `3314/3314`); declara a **Fase 2 encerrada**;
+  abre a **Fase 2.5** (integração do Colorir com o Beni sobre a fundação, por blocos, sem merge
+  bruto); publica o **roadmap integral da Fase 0 à Fase 22**, incluindo 2.5, 8A, 12A e 12B; mapeia
+  os riscos residuais R5, R6, R7, R17, R20A, R20B e R21 por fase; supersede a v4. Bloco documental
+  **P1** (docs-only, sem código e sem assets).
