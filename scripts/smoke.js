@@ -32160,6 +32160,46 @@ try {
       } catch (e) { console.log('   erro', e.message); return false; } })(),
       'o portrait stack (activePose atômico, readiness própria, gate do stack) regrediu');
 
+    // ── P2T: inventário da RAIZ assets/mascot/beni por CONJUNTO DE NOMES ──
+    // O gate antigo exigia `orig.length === 11`, o que protegia os canônicos por contagem e,
+    // de quebra, proibia para sempre qualquer expansão do elenco do Beni. Aqui os 11 canônicos
+    // passam a ser exigidos NOMINALMENTE (proteção mais forte) e a expansão oficial do Colorir
+    // é aceita só COMPLETA. Nomes desconhecidos, ausências, duplicatas e expansão parcial
+    // continuam reprovando.
+    const BENI_CANONICAL_ROOT_PNGS = Object.freeze([
+      '01_beni_avatar_base.png',
+      '02_beni_acenando.png',
+      '03_beni_celebrando.png',
+      '04_beni_com_bau.png',
+      '05_beni_ensinando.png',
+      '06_beni_orando.png',
+      '07_beni_atelie.png',
+      '08_beni_celebrando_2.png',
+      '09_beni_descansando.png',
+      '10_beni_apontando_direita.png',
+      '11_beni_apontando_esquerda.png',
+    ]);
+    const BENI_COLORING60_POSE_PNGS = Object.freeze([
+      '12_beni_admira_esquerda.png',
+      '13_beni_admira_direita.png',
+      '14_beni_celebra_frente.png',
+      '15_beni_apresenta_galeria.png',
+      '16_beni_olha_acima.png',
+    ]);
+    // Função PURA: não lê disco, não lança, não depende de contagem.
+    // Únicos estados válidos: (a) exatamente os 11 canônicos; (b) os 11 canônicos + as 5 poses
+    // oficiais do Colorir, completas. Qualquer outro inventário reprova.
+    const validateBeniRootPngInventory = (nomes) => {
+      if (!Array.isArray(nomes) || nomes.some((n) => typeof n !== 'string')) return false;
+      const unicos = new Set(nomes);
+      if (unicos.size !== nomes.length) return false;                                 // duplicata
+      if (!BENI_CANONICAL_ROOT_PNGS.every((n) => unicos.has(n))) return false;         // canônico ausente/renomeado
+      const extras = nomes.filter((n) => !BENI_CANONICAL_ROOT_PNGS.includes(n));
+      if (extras.length === 0) return true;                                           // estado (a): só os canônicos
+      if (extras.length !== BENI_COLORING60_POSE_PNGS.length) return false;            // parcial ou excedente
+      return BENI_COLORING60_POSE_PNGS.every((n) => unicos.has(n));                    // estado (b): expansão COMPLETA
+    };
+
     check('P4.3 (ETAPA 4 — assets OTIMIZADOS §18–25): 11 base + 11 @2x + 11 @3x; originais intactos; proporção correta; Palavrinhas usa mapa otimizado; resto do app usa originais',
       (() => { try {
         const dir = path.join(root, 'assets/mascot/beni/palavrinhas');
@@ -32170,7 +32210,7 @@ try {
         const x3 = files.filter((f) => /@3x\.png$/.test(f));
         if (base.length !== 11 || x2.length !== 11 || x3.length !== 11) return false;
         const orig = fs.readdirSync(path.join(root, 'assets/mascot/beni')).filter((f) => f.endsWith('.png'));
-        if (orig.length !== 11) return false;   // originais intactos (11)
+        if (!validateBeniRootPngInventory(orig)) return false;   // 11 canônicos nominais; expansão oficial só completa
         // proporção: 4:5 → 176x220; 1:1 → 220x220 (lê IHDR do PNG base)
         const dim = (f) => { const b = fs.readFileSync(path.join(dir, f)); return `${b.readUInt32BE(16)}x${b.readUInt32BE(20)}`; };
         if (dim('01_beni_avatar_base.png') !== '176x220') return false;
@@ -32184,6 +32224,65 @@ try {
           && !/<PalavrinhasBeniWarmer /.test(tela);   // warmer não duplica as 11 do stack na tela do jogo
       } catch (e) { console.log('   erro', e.message); return false; } })(),
       'os assets otimizados (33 novos, originais intactos, mapa exclusivo) regrediram');
+
+    // ── P2T: controles comportamentais da MESMA função usada pelo P4.3 acima ──
+    // Listas sintéticas, nenhum arquivo físico. Exceção NUNCA vira aprovação (catch → false).
+    const CANON11 = BENI_CANONICAL_ROOT_PNGS.slice();
+    const POSES5 = BENI_COLORING60_POSE_PNGS.slice();
+
+    check('P2T C1 (canônico ausente/duplicado/renomeado): retirar qualquer um dos 11 reprova; duplicata reprova; troca de nome reprova',
+      (() => { try {
+        const semUm = CANON11.every((alvo) =>
+          validateBeniRootPngInventory(CANON11.filter((n) => n !== alvo)) === false);   // os 11 casos de ausência
+        const semUmComPoses = CANON11.every((alvo) =>
+          validateBeniRootPngInventory([...CANON11.filter((n) => n !== alvo), ...POSES5]) === false);   // ausência também reprova no estado expandido
+        const duplicado = validateBeniRootPngInventory([...CANON11, CANON11[0]]) === false;
+        const renomeado = validateBeniRootPngInventory(
+          CANON11.map((n) => (n === '04_beni_com_bau.png' ? '04_beni_com_bau_v2.png' : n))) === false;   // total 11, nome errado
+        const contratoIntacto = CANON11.length === 11 && [   // encolher/reescrever o conjunto canônico derruba este controle
+          '01_beni_avatar_base.png', '02_beni_acenando.png', '03_beni_celebrando.png',
+          '04_beni_com_bau.png', '05_beni_ensinando.png', '06_beni_orando.png',
+          '07_beni_atelie.png', '08_beni_celebrando_2.png', '09_beni_descansando.png',
+          '10_beni_apontando_direita.png', '11_beni_apontando_esquerda.png',
+        ].every((n, i) => CANON11[i] === n);
+        return semUm && semUmComPoses && duplicado && renomeado && contratoIntacto;
+      } catch (e) { return false; } })(),
+      'a exigência NOMINAL dos 11 canônicos regrediu (ausência, duplicata ou renomeação passou)');
+
+    check('P2T C2 (PNG desconhecido): nome fora dos dois conjuntos reprova nos dois estados; total certo com nome errado reprova',
+      (() => { try {
+        const soCanonMaisDesconhecido =
+          validateBeniRootPngInventory([...CANON11, 'beni_desconhecido.png']) === false;
+        const expandidoMaisDesconhecido =
+          validateBeniRootPngInventory([...CANON11, ...POSES5, 'beni_desconhecido.png']) === false;
+        const totalCertoNomeErrado =
+          validateBeniRootPngInventory([...CANON11, ...POSES5.slice(0, 4), 'beni_desconhecido.png']) === false;   // 16 nomes, 1 impostor
+        return soCanonMaisDesconhecido && expandidoMaisDesconhecido && totalCertoNomeErrado;
+      } catch (e) { return false; } })(),
+      'o inventário passou a aceitar PNG desconhecido na raiz de assets/mascot/beni');
+
+    check('P2T C3 (expansão parcial): 1, 2, 3 ou 4 das cinco poses do Colorir reprova',
+      (() => { try {
+        return [1, 2, 3, 4].every((k) =>
+          validateBeniRootPngInventory([...CANON11, ...POSES5.slice(0, k)]) === false)
+          && POSES5.every((p) => validateBeniRootPngInventory([...CANON11, p]) === false);   // qualquer uma sozinha
+      } catch (e) { return false; } })(),
+      'a expansão do Colorir passou a ser aceita pela metade');
+
+    check('P2T C4 (expansão completa): os 11 canônicos + as 5 poses oficiais aprovam; retirar qualquer uma das 5 reprova',
+      (() => { try {
+        const completo = validateBeniRootPngInventory([...CANON11, ...POSES5]) === true;
+        const ordemIndiferente = validateBeniRootPngInventory([...POSES5, ...CANON11]) === true;
+        const semUmaPose = POSES5.every((alvo) =>
+          validateBeniRootPngInventory([...CANON11, ...POSES5.filter((p) => p !== alvo)]) === false);
+        const soCanon = validateBeniRootPngInventory(CANON11) === true;   // estado (a) continua válido
+        const contratoIntacto = POSES5.length === 5 && [   // retirar/renomear qualquer pose oficial derruba este controle
+          '12_beni_admira_esquerda.png', '13_beni_admira_direita.png', '14_beni_celebra_frente.png',
+          '15_beni_apresenta_galeria.png', '16_beni_olha_acima.png',
+        ].every((p, i) => POSES5[i] === p);
+        return completo && ordemIndiferente && semUmaPose && soCanon && contratoIntacto;
+      } catch (e) { return false; } })(),
+      'os dois estados autorizados (11 canônicos · 11 + as 5 poses completas) regrediram');
 
     check('P4.3 (ETAPA 7 — Baú TRANSACIONAL §26–38): contexto origem; auto=entre_rodadas; manual=durante_rodada preserva rodada; guarda anti-duplo-avanço; tempo esgotado prioritário',
       /const contextoBauRef = useRef\(\{ origem: null, rodadaId: null \}\);/.test(tela)
