@@ -273,7 +273,19 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
   2. **Tornar a atualização de manifest/pack funcional para quem já baixou conteúdo** — hoje quem já instalou não recebe versão nova de forma comprovada.
   3. **Manter os linearts legados fora do binário público** — a remoção é projeto próprio; a Fase 2.5 não pode reintroduzi-los nem ampliar a dependência deles.
   4. **Resolver a divergência de CRLF sem conflito artificial** — `feat/colorir-60-pilot-creation` tem `scripts/smoke.js` 100% CRLF (R23). Este portão fixou `scripts/smoke.js text eol=lf` no `.gitattributes`; a branch divergente precisa ser renormalizada **antes** do merge. Atenção: além do EOL há divergência real de conteúdo.
-- **Riscos atribuídos a fases futuras:** **R5** (peso do binário) → Fase 2 · **R6** (premium embarcado) → Fase 2 · **R7** (200 linearts legados) → Fase 2 · **R17** (`appVersion` literal `'1.0.0'`, `minAppVersion`/`requiresAppUpdate` inertes) → Fase 10, antes do binário de loja · **R20** (Android sem evidência empírica; sha256 lê o arquivo inteiro em base64) → Fase 12 · **R21** (nenhuma medição de desempenho) → Fase 14.
+- **Riscos residuais e seus destinos oficiais** (substituem qualquer atribuição anterior deste registro):
+  - **R5** — peso do binário e `require()` estático → **Fases 16 e 17**.
+  - **R6** — conteúdo premium embarcado → **Fases 16 e 17**.
+  - **R7** — 200 linearts legados → **Fases 16 e 17**.
+  - **R17** — `appVersion` literal `'1.0.0'`, `minAppVersion` e compatibilidade (`requiresAppUpdate` inerte) → **Fases 17 e 20**.
+  - **R20A** — ausência de evidência física em Android → **Fases 12A, 14 e 21**.
+  - **R20B** — sha256 lendo o arquivo inteiro em base64 → **Fases 17 e 19**.
+  - **R21** — ausência de medições quantitativas, faseada: **baseline na Fase 3** · **shell e abertura na Fase 6** · **piloto ampliado na Fase 14** · **beta final na Fase 21**.
+
+  R20 passa a ser tratado como **dois riscos distintos** (R20A e R20B): a divisão é documental e não altera o conteúdo do risco original. Esta reatribuição **não reabre a Fase 2**.
+
+  *Nota de rastreabilidade:* as Fases **12A, 16, 17, 19, 20 e 21** ainda não têm contrapartida em `PLANO_OFICIAL_BENI_LANCAMENTO.md` §18, que hoje enumera Fases 0–13. Os destinos acima valem como decisão do fundador; a numeração ampliada precisa ser refletida no plano para ficar rastreável.
+- **Gates físicos obrigatórios da Fase 2.5:** os três cenários ainda não executados no dispositivo passam a ser **gates de aceite da Fase 2.5**, não pendências informativas — (1) **dois READY concorrentes**; (2) **reset seguido de retry**; (3) **saída durante a instalação**.
 - **Escopo do portão:** apenas testes (`scripts/smoke.js`), governança (`.gitattributes`, `CLAUDE.md`, `.specify/memory/constitution.md`) e documentação (este arquivo). **Zero** alteração em código de produção.
 
 ---
