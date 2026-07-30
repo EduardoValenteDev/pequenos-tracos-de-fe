@@ -61,11 +61,33 @@ const COLORING60_CATALOG = Object.freeze({
 });
 
 /**
+ * getOwnActivityList(storyId) — a lista REGISTRADA sob esta história, ou `null`. É a única
+ * porta de entrada ao mapa: nenhuma consulta indexa `COLORING60_CATALOG` diretamente.
+ *
+ * Por que a guarda existe: `COLORING60_CATALOG[storyId]` sozinho responde às chaves HERDADAS
+ * de `Object.prototype` — 'constructor', 'toString', 'valueOf', '__proto__', 'hasOwnProperty',
+ * '__defineGetter__' e as demais. O valor devolvido é truthy, atravessa um `if (!list)` e
+ * explode no `.find`/`.slice` seguinte com `TypeError: ... is not a function`, quebrando o
+ * contrato "não lança" do resolvedor.
+ *
+ * A defesa é NOMINAL e ESTRUTURAL, não uma lista de palavras proibidas (que seria incompleta
+ * hoje e envelheceria a cada versão do runtime): prova-se que a chave é PRÓPRIA do objeto e,
+ * só então, que o valor é mesmo um Array. Isso vale para qualquer propriedade herdada,
+ * presente ou futura. `hasOwnProperty.call` também absorve chave não-string (null, número,
+ * Symbol, objeto) sem lançar, devolvendo `null` — a ausência honesta de sempre.
+ */
+function getOwnActivityList(storyId) {
+  if (!Object.prototype.hasOwnProperty.call(COLORING60_CATALOG, storyId)) return null;
+  const list = COLORING60_CATALOG[storyId];
+  return Array.isArray(list) ? list : null;
+}
+
+/**
  * getColoring60Activities(storyId) — cópia rasa da lista de atividades da história
  * (ordem preservada). História fora do piloto → lista vazia.
  */
 export function getColoring60Activities(storyId) {
-  const list = COLORING60_CATALOG[storyId];
+  const list = getOwnActivityList(storyId);
   return list ? list.slice() : [];
 }
 
@@ -74,7 +96,7 @@ export function getColoring60Activities(storyId) {
  * ou null quando ausente. NÃO aceita/consulta `sceneId`.
  */
 export function getColoring60Activity(storyId, activityId) {
-  const list = COLORING60_CATALOG[storyId];
+  const list = getOwnActivityList(storyId);
   if (!list) return null;
   return list.find((activity) => activity.activityId === activityId) || null;
 }

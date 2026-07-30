@@ -34715,6 +34715,211 @@ try {
       'apareceu asset não autorizado (ou sumiu um autorizado) nos diretórios do Colorir 60');
   }
 
+  // ══════════════════════════════════════════════════════════════════════════════
+  // P3H.1 · Colorir 60 — CHAVES HERDADAS não são história nem atividade
+  //
+  // Defeito ancorado aqui (descoberto por auditoria adversarial no P2X): indexar
+  // `COLORING60_CATALOG[storyId]` sem provar posse da chave respondia às propriedades
+  // HERDADAS de `Object.prototype`. O valor é truthy, atravessava o `if (!list)` e explodia
+  // no `.find`/`.slice` seguinte — `TypeError: list.find is not a function` — violando o
+  // contrato "Não lança" escrito no próprio docstring do resolvedor. Medição original:
+  // 36 de 420 combinações lançavam, todas na posição `storyId`.
+  //
+  // A defesa exigida NÃO é lista de palavras proibidas (seria incompleta hoje e envelheceria
+  // a cada versão do runtime): é `hasOwnProperty` + `Array.isArray`. Por isso [09] varre o
+  // conjunto REAL de `Object.getOwnPropertyNames(Object.prototype)` em tempo de execução, e
+  // não uma lista escrita à mão — se o runtime ganhar uma propriedade nova, o check a cobre
+  // sozinho.
+  // ══════════════════════════════════════════════════════════════════════════════
+  console.log('\n── P3H.1 · Colorir 60: chaves herdadas ──');
+  {
+    const { loadModule } = require('./testing/packInstallHarness');
+    const V = require('./verify-coloring60-assets');
+
+    const CAT_REL = 'src/data/coloring60Catalog.js';
+    const REG_REL = 'src/assets/coloring60LocalAssets.js';
+    const RES_REL = 'src/services/coloring60Resolver.js';
+
+    const hardStub = V.buildRegistryStub();
+    let hCat = null; let hReg = null; let hRes = null; let hErr = null;
+    try {
+      hCat = loadModule(CAT_REL, {}, ['getColoring60Activities', 'getColoring60Activity']);
+      hReg = loadModule(REG_REL, { require: hardStub.req }, ['getColoring60LocalSource']);
+      hRes = loadModule(RES_REL, {
+        getColoring60Activity: hCat.getColoring60Activity,
+        getColoring60LocalSource: hReg.getColoring60LocalSource,
+      }, ['resolveColoring60Lineart', 'COLORING60_RESOLUTION_STATUS']);
+    } catch (e) { hErr = e; }
+
+    const hardSrc = srcExists(CAT_REL) ? readSrc(CAT_REL) : '';
+    // Julga o CÓDIGO, não o comentário: o cabeçalho da guarda CITA os nomes herdados
+    // ('constructor', '__proto__'…) justamente para explicar contra o que ela protege.
+    // Uma varredura no fonte cru confundiria a explicação com uma lista de palavras.
+    const hardCode = hardSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+    // Executa uma chamada e classifica: { lancou, erro, valor }.
+    const tent = (fn) => {
+      try { return { lancou: false, valor: fn() }; }
+      catch (e) { return { lancou: true, erro: `${e.constructor.name}: ${e.message}`, valor: undefined }; }
+    };
+    // As TRÊS APIs lastreadas pelo catálogo, com a entrada hostil na posição `storyId`.
+    const porStory = (x) => [
+      { api: 'getColoring60Activities', r: tent(() => hCat.getColoring60Activities(x)) },
+      { api: 'getColoring60Activity', r: tent(() => hCat.getColoring60Activity(x, 'light')) },
+      { api: 'resolveColoring60Lineart', r: tent(() => hRes.resolveColoring60Lineart(x, 'light')) },
+    ];
+    const porActivity = (x) => [
+      { api: 'getColoring60Activity', r: tent(() => hCat.getColoring60Activity('creation', x)) },
+      { api: 'resolveColoring60Lineart', r: tent(() => hRes.resolveColoring60Lineart('creation', x)) },
+    ];
+    // Ausência honesta: lista vazia, null, ou o status tipado `unknown`. NUNCA um throw,
+    // NUNCA um membro herdado devolvido como se fosse dado do piloto.
+    const ausenciaHonesta = (api, valor) => {
+      if (api === 'getColoring60Activities') return Array.isArray(valor) && valor.length === 0;
+      if (api === 'getColoring60Activity') return valor === null;
+      return valor !== null && typeof valor === 'object'
+        && valor.status === 'unknown' && valor.activity === null && valor.source === null;
+    };
+    const avaliaHostil = (x) => {
+      const falhas = [];
+      for (const { api, r } of [...porStory(x), ...porActivity(x)]) {
+        if (r.lancou) falhas.push(`${api} LANÇOU ${r.erro}`);
+        else if (!ausenciaHonesta(api, r.valor)) falhas.push(`${api} devolveu ${JSON.stringify(r.valor)}`);
+      }
+      return falhas;
+    };
+
+    check('P3H C60-HARD [00] os três módulos carregam para a bateria de entradas hostis',
+      hErr === null, `carga falhou: ${hErr && hErr.message}`);
+
+    // ── [01]–[08] As oito chaves herdadas nomeadas na ordem, uma por check ──────
+    const HERDADAS_NOMEADAS = [
+      'constructor', 'toString', 'hasOwnProperty', 'valueOf',
+      '__proto__', 'prototype', '__defineGetter__', '__lookupGetter__',
+    ];
+    HERDADAS_NOMEADAS.forEach((chave, i) => {
+      const n = String(i + 1).padStart(2, '0');
+      const falhas = hErr ? ['módulos não carregaram'] : avaliaHostil(chave);
+      check(`P3H C60-HARD [${n}] '${chave}' não lança e não vira história nem atividade (5 chamadas)`,
+        falhas.length === 0, falhas.join(' | '));
+    });
+
+    // ── [09] Varredura do conjunto REAL do runtime, não de uma lista escrita à mão ──
+    const TODAS_HERDADAS = Object.getOwnPropertyNames(Object.prototype);
+    check(`P3H C60-HARD [09] varredura de TODAS as ${TODAS_HERDADAS.length} propriedades de Object.prototype: nenhuma lança nem resolve`,
+      (() => {
+        if (hErr) return false;
+        for (const chave of TODAS_HERDADAS) if (avaliaHostil(chave).length) return false;
+        return true;
+      })(),
+      (() => {
+        if (hErr) return 'módulos não carregaram';
+        const ruins = TODAS_HERDADAS.filter((c) => avaliaHostil(c).length);
+        return `propriedades herdadas ainda perigosas: ${ruins.join(', ')}`;
+      })());
+
+    // ── [10]–[12] Entradas degeneradas ─────────────────────────────────────────
+    const DEGENERADAS = [
+      ['null', null], ['undefined', undefined], ['true', true], ['false', false],
+      ['0', 0], ['1', 1], ['-1', -1], ['NaN', NaN], ['{}', {}], ['[]', []],
+      ['função', function () {}], ['Symbol', Symbol('x')],
+    ];
+    check(`P3H C60-HARD [10] storyId não-string (${DEGENERADAS.map(([r]) => r).join(', ')}) → ausência honesta, sem lançar`,
+      !hErr && DEGENERADAS.every(([, v]) => porStory(v).every(({ api, r }) => !r.lancou && ausenciaHonesta(api, r.valor))),
+      'entrada não-string ainda chega a .find/.slice ou resolve');
+    check(`P3H C60-HARD [11] activityId não-string (${DEGENERADAS.length} tipos) → ausência honesta, sem lançar`,
+      !hErr && DEGENERADAS.every(([, v]) => porActivity(v).every(({ api, r }) => !r.lancou && ausenciaHonesta(api, r.valor))),
+      'activityId não-string ainda resolve ou lança');
+    const VAZIAS = [["'' (vazia)", ''], ["'   ' (só espaços)", '   '], ["'\\t\\n'", '\t\n']];
+    check(`P3H C60-HARD [12] string vazia e strings só de espaço (${VAZIAS.length} casos), nas duas posições`,
+      !hErr && VAZIAS.every(([, v]) => avaliaHostil(v).length === 0),
+      'string vazia/branca não devolve ausência honesta');
+
+    // ── [13]–[16] Controles POSITIVOS: o hardening não pode ter quebrado nada ───
+    check('P3H C60-HARD [13] story válida continua resolvendo: creation → 3 atividades na ordem light · living_world · people_and_care',
+      !hErr && (() => {
+        const l = hCat.getColoring60Activities('creation');
+        return Array.isArray(l) && l.length === 3
+          && l.map((a) => a.activityId).join(',') === 'light,living_world,people_and_care'
+          && l.map((a) => a.order).join(',') === '1,2,3';
+      })(),
+      'a guarda quebrou a resolução da história válida');
+    check('P3H C60-HARD [14] activity válida continua resolvendo: as 3 dão available, cada uma com a SUA fonte',
+      !hErr && (() => {
+        const vistos = new Set();
+        for (const id of ['light', 'living_world', 'people_and_care']) {
+          const r = hRes.resolveColoring60Lineart('creation', id);
+          if (r.status !== 'available' || !r.activity || r.activity.activityId !== id || r.source == null) return false;
+          if (vistos.has(r.source)) return false;   // fontes têm de ser distintas entre si
+          vistos.add(r.source);
+        }
+        return vistos.size === 3;
+      })(),
+      'atividade válida deixou de resolver, ou duas atividades compartilham a mesma fonte');
+    check('P3H C60-HARD [15] story desconhecida COMUM (noah, moses, "creation " com espaço) → [] e unknown',
+      !hErr && ['noah', 'moses', 'creation '].every((s) => avaliaHostil(s).length === 0),
+      'história desconhecida comum não devolve ausência honesta');
+    check('P3H C60-HARD [16] activity desconhecida COMUM (zzz, "2", scene_02, Light) → null e unknown',
+      !hErr && ['zzz', '2', 'scene_02', 'Light'].every((a) => porActivity(a).every(({ api, r }) => !r.lancou && ausenciaHonesta(api, r.valor))),
+      'atividade desconhecida comum não devolve ausência honesta');
+
+    // ── [17]–[18] Agregados: nenhuma exceção e formato tipado preservado ────────
+    const MATRIZ = [
+      ...TODAS_HERDADAS.map((c) => [`'${c}'`, c]),
+      ...DEGENERADAS, ...VAZIAS,
+      ['noah', 'noah'], ['zzz', 'zzz'], ['creation', 'creation'], ['light', 'light'],
+    ];
+    const TOTAL_CHAMADAS = MATRIZ.length * 5;
+    check(`P3H C60-HARD [17] ZERO exceções em toda a matriz: ${MATRIZ.length} entradas × 5 chamadas = ${TOTAL_CHAMADAS} execuções`,
+      !hErr && MATRIZ.every(([, v]) => [...porStory(v), ...porActivity(v)].every(({ r }) => !r.lancou)),
+      (() => {
+        if (hErr) return 'módulos não carregaram';
+        const ruins = MATRIZ.filter(([, v]) => [...porStory(v), ...porActivity(v)].some(({ r }) => r.lancou))
+          .map(([rot]) => rot);
+        return `ainda lançam: ${ruins.join(', ')}`;
+      })());
+    check('P3H C60-HARD [18] formato público preservado: resolvedor devolve SEMPRE {status, activity, source} com status tipado',
+      !hErr && MATRIZ.every(([, v]) => {
+        for (const r of [tent(() => hRes.resolveColoring60Lineart(v, 'light')),
+          tent(() => hRes.resolveColoring60Lineart('creation', v))]) {
+          if (r.lancou) return false;
+          const o = r.valor;
+          if (o === null || typeof o !== 'object') return false;
+          if (Object.keys(o).sort().join(',') !== 'activity,source,status') return false;
+          if (!['available', 'deferred', 'unknown'].includes(o.status)) return false;
+        }
+        return true;
+      }),
+      'o formato público do resultado mudou sob entrada hostil');
+
+    // ── [19]–[20] A FORMA da defesa (fonte), não só o efeito ───────────────────
+    // Estes dois julgam o código porque, com a guarda nominal no lugar, a validação de Array
+    // é defesa em profundidade: nenhuma entrada ALCANÇÁVEL hoje a exercita. Ancorá-la só por
+    // comportamento seria impossível; ancorá-la pelo fonte é honesto e explícito.
+    check('P3H C60-HARD [19] a guarda é NOMINAL (hasOwnProperty.call), não lista de palavras proibidas',
+      /Object\.prototype\.hasOwnProperty\.call\(\s*COLORING60_CATALOG\s*,/.test(hardCode)
+        && !/(constructor|__proto__|toString)['"]\s*[,\]]/.test(hardCode),
+      'guarda ausente, ou substituída por lista de nomes proibidos no código');
+    check('P3H C60-HARD [20] valida Array ANTES de usar find/slice, e nenhuma consulta indexa o mapa direto',
+      /Array\.isArray\(\s*list\s*\)/.test(hardCode)
+        && (hardCode.match(/COLORING60_CATALOG\s*\[/g) || []).length === 1,
+      'validação de Array removida, ou existe indexação direta do catálogo fora da guarda');
+
+    // ── [21] A ORDEM que mantém o registry inalcançável ────────────────────────
+    // `getColoring60LocalSource` devolve membros herdados na posição activityId
+    // (ex.: ('creation','constructor') → função Object). Isso é inofensivo HOJE só porque o
+    // catálogo é porteiro: o resolvedor só consulta a fonte depois de a atividade existir.
+    // Inverter essa ordem tornaria o vazamento alcançável — este check reprova se isso ocorrer.
+    check('P3H C60-HARD [21] ORDEM preservada: o catálogo é porteiro do registry (activityId herdado nunca vira fonte)',
+      !hErr && (() => {
+        const vazamento = hReg.getColoring60LocalSource('creation', 'constructor');
+        if (vazamento == null) return true;          // registry endurecido no futuro: também aceito
+        const r = hRes.resolveColoring60Lineart('creation', 'constructor');
+        return r.status === 'unknown' && r.source === null;   // porteiro segurou
+      })(),
+      'o resolvedor passou a consultar a fonte antes de validar a atividade: membro herdado virou lineart');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
