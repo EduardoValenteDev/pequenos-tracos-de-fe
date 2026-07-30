@@ -1,0 +1,11 @@
+# Regras de fim de linha — escopo mínimo e deliberado.
+#
+# `scripts/smoke.js` é o gate duro da CI (`.github/workflows/ci.yml`, job `smoke`) e tem ~34 mil
+# linhas. A branch `feat/colorir-60-pilot-creation` converteu o arquivo INTEIRO para CRLF
+# (commit `d9101f2`), o que transformaria qualquer merge num conflito de arquivo inteiro — risco
+# R23 do fechamento da trilha loading/performance. Com `core.autocrlf=false` no repositório, nada
+# impedia a reconversão. Esta regra fixa LF para o arquivo, em qualquer sistema operacional.
+#
+# Escopo intencionalmente restrito: NÃO normaliza o repositório inteiro. Ampliar a regra exige
+# auditoria própria (renormalização em massa gera diffs artificiais enormes).
+scripts/smoke.js text eol=lf
