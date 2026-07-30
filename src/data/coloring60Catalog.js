@@ -8,15 +8,20 @@
  *
  * Este módulo é EXCLUSIVAMENTE de metadados:
  *   - NÃO contém `require()` de asset (a fonte runtime vive em coloring60LocalAssets.js);
- *   - NÃO carrega imagem, NÃO resolve caminho (o resolvedor pertence ao P2);
+ *   - NÃO carrega imagem, NÃO resolve caminho (isso é de coloring60Resolver.js);
  *   - NÃO conhece plano, progresso, navegação, writer ou conclusão.
  *
  * `expectedSha256` e `expectedDims` são os valores RATIFICADOS (spec 017 §15) que os
  * gates usam para provar a identidade dos PNGs — sem tocar em bytes aqui.
- * `localSourceKey` é a chave estável (`storyId:activityId`) sob a qual a fonte runtime
- * é (ou será) registrada em coloring60LocalAssets.js. Em P1 só `light` tem fonte ativa;
- * `living_world`/`people_and_care` existem nos metadados, mas sua fonte runtime só é
- * integrada em P5, atomicamente com os PNGs reais.
+ * `localSourceKey` é a chave estável (`storyId:activityId`) sob a qual a fonte runtime é
+ * registrada em coloring60LocalAssets.js. As TRÊS atividades já têm fonte ativa lá — nenhuma
+ * é mais `null`, e `light` é atendida por scene_02.png (arquivo compartilhado com a cena 02
+ * do mapa legado). "A Criação" é 100% LOCAL: nada aqui vem de pack remoto, e a migração para
+ * conteúdo remoto NÃO é implementada neste bloco — exige spec própria.
+ *
+ * O catálogo tem EXATAMENTE três atividades, nesta ordem: `light` (1), `living_world` (2) e
+ * `people_and_care` (3). A relação com as cenas vive em coloring60StoryMilestones.js, não
+ * aqui: concluir a cena 09 é o que recomenda `people_and_care`.
  *
  * Governança: specs 014/015/016/017 · DECISIONS.md PL01A-03/PL01G · tasks.md P1.T1.
  */

@@ -35079,6 +35079,48 @@ console.log('\n── P3H.2 · Beni: poses do Colorir fora do boot ──');
     'apareceu aresta de volta entre registro de imagens, manifesto e serviço de preload');
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// P3H.3 · Contrato LF dos dois gates executáveis do Colorir 60
+//
+// smoke.js já tinha regra: a branch feat/colorir-60-pilot-creation converteu o arquivo
+// INTEIRO para CRLF (d9101f2), e qualquer merge viraria conflito de arquivo inteiro. O
+// verificador de assets roda no MESMO pipeline e não tinha atributo nenhum — `git check-attr
+// text eol` respondia `unspecified`, não por conflito com regra mais ampla (não existe: a de
+// smoke.js é de caminho único), mas por ausência de padrão correspondente. Com
+// core.autocrlf=false, era o mesmo buraco. Os checks congelam as DUAS pontas: a regra
+// declarada e o conteúdo em LF puro.
+// ══════════════════════════════════════════════════════════════════════════════
+console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
+{
+  const GATES_LF = ['scripts/smoke.js', 'scripts/verify-coloring60-assets.js'];
+  const attrSrc = srcExists('.gitattributes') ? readSrc('.gitattributes') : '';
+  // Julga a REGRA, nunca o comentário que a explica (o cabeçalho cita os dois caminhos).
+  const regrasDe = (src) => src.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  const fixaLf = (regras, rel) => regras.some((linha) => {
+    const [padrao, ...attrs] = linha.split(/\s+/);
+    return padrao === rel && attrs.includes('text') && attrs.includes('eol=lf');
+  });
+  const regras = regrasDe(attrSrc);
+  const comCr = (rel) => fs.readFileSync(path.join(root, rel)).includes(0x0d);
+
+  check('P3H C60-LF [00] .gitattributes fixa "text eol=lf" para os DOIS gates executáveis',
+    GATES_LF.every((rel) => fixaLf(regras, rel)),
+    `sem regra LF para: ${GATES_LF.filter((rel) => !fixaLf(regras, rel)).join(', ') || '(nenhum)'}`);
+  check('P3H C60-LF [01] os dois gates estão em LF puro no worktree (zero CR)',
+    !GATES_LF.some(comCr),
+    `CR encontrado em: ${GATES_LF.filter(comCr).join(', ')}`);
+  // NEG — a regra do verificador é a NOVA. Sem este mutante, [00] continuaria passando se ela
+  // fosse apagada, bastando um teste mal escrito que se contentasse com a regra do smoke.js.
+  check('P3H C60-LF [02]/NEG apagar a regra do verificador é DETECTADO (mutante morto)',
+    (() => {
+      const mut = attrSrc.replace(/^scripts\/verify-coloring60-assets\.js[^\n]*$/m, '');
+      if (mut === attrSrc) return false;                    // âncora obsoleta nunca "mata" nada
+      const regrasMut = regrasDe(mut);
+      return fixaLf(regrasMut, 'scripts/smoke.js') && !fixaLf(regrasMut, GATES_LF[1]);
+    })(),
+    'o check de contrato LF não distingue as duas regras — apagar a do verificador passaria');
+}
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

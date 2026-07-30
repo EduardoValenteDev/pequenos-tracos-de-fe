@@ -9,3 +9,11 @@
 # Escopo intencionalmente restrito: NÃO normaliza o repositório inteiro. Ampliar a regra exige
 # auditoria própria (renormalização em massa gera diffs artificiais enormes).
 scripts/smoke.js text eol=lf
+
+# `scripts/verify-coloring60-assets.js` é o segundo gate executável do Colorir 60 e roda no
+# mesmo pipeline. Ele já está em LF no índice e no worktree, então esta regra NÃO renormaliza
+# nada: ela é preventiva. Sem atributo, `git check-attr text eol` respondia `unspecified` —
+# não por conflito com uma regra mais ampla (não existe nenhuma; a regra acima é de caminho
+# único), mas por simples ausência de padrão correspondente. Com `core.autocrlf=false`, era o
+# mesmo buraco que deixou smoke.js virar CRLF inteiro em d9101f2.
+scripts/verify-coloring60-assets.js text eol=lf
