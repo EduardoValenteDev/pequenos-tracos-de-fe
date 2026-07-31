@@ -20,7 +20,8 @@
         "EXPO_PUBLIC_ENABLE_PACK_SANDBOX": "true",
         "EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA": "true",
         "EXPO_PUBLIC_QA_BUILD": "true",
-        "EXPO_PUBLIC_BUILD_PROFILE": "preview"
+        "EXPO_PUBLIC_BUILD_PROFILE": "preview",
+        "EXPO_PUBLIC_GLOBAL_MANIFEST_URL": "https://pub-f990153eeeb9460ab963038904f3ac96.r2.dev/content-manifest.json"
       },
       "ios": {
         "resourceClass": "m-medium"
@@ -38,10 +39,14 @@
         "EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA": "true",
         "EXPO_PUBLIC_QA_BUILD": "true",
         "EXPO_PUBLIC_BUILD_PROFILE": "preview-criador",
-        "EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE": "true"
+        "EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE": "true",
+        "EXPO_PUBLIC_GLOBAL_MANIFEST_URL": "https://pub-f990153eeeb9460ab963038904f3ac96.r2.dev/content-manifest.json"
       }
     },
     "production": {
+      "env": {
+        "EXPO_PUBLIC_GLOBAL_MANIFEST_URL": "https://pub-f990153eeeb9460ab963038904f3ac96.r2.dev/content-manifest.json"
+      },
       "ios": {
         "resourceClass": "m-medium"
       },

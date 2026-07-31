@@ -21,6 +21,9 @@ import { usePacks } from '../context/PacksContext';
 import { downloadStoryPackScenesFromGlobalManifest } from '../services/packDownloadService';
 // LP2.1a-ii-01F: fonte global observável do estado de instalação (sobrevive ao unmount da tela).
 import { subscribeStoryPackInstall, getStoryPackInstallSnapshot } from '../services/packInstallRegistry';
+// [P3J-R] diagnóstico estruturado: dá NOME ao estágio da falha em desenvolvimento, sem jamais
+// carregar a URL do manifesto nem qualquer valor de configuração.
+import { buildDownloadDiagnostic, inferNetworkState, logDownloadDiagnostic } from '../services/packDownloadDiagnostics';
 
 const GLOBAL_MANIFEST_URL = process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL || null;
 // [P3J] `coloring` saiu dos kinds pedidos: com o Colorir legado aposentado, baixar os linearts
@@ -54,6 +57,43 @@ function createHookAbortController() {
   };
 }
 
+/** Estado do índice numa forma curta e estável para o log (nunca lança, nunca traz caminho). */
+function indexLabel(state) {
+  if (!state) return null;
+  if (typeof state.status === 'string' && state.status) return state.status;
+  return state.ready ? 'ready' : 'not_downloaded';
+}
+
+/**
+ * [P3J-R] Emite o diagnóstico de UMA operação encerrada, só em desenvolvimento.
+ * O serviço entrega os fatos do fluxo (`res.diagnostic`); aqui entram identidade, kinds pedidos e
+ * o índice antes/depois. `buildDownloadDiagnostic` sanitiza — nenhum campo pode carregar URL.
+ */
+function reportDiagnostic({ storyId, requestedKinds, res, indexBefore, indexAfter, failureStageOverride }) {
+  if (typeof __DEV__ === 'undefined' || !__DEV__) return null;   // silêncio total em produção
+  const d = (res && res.diagnostic) || {};
+  const failureStage = failureStageOverride || d.failureStage || (res && res.ok ? 'none' : 'indeterminado');
+  const diagnostic = buildDownloadDiagnostic({
+    storyId,
+    requestedKinds,
+    manifestKinds: d.manifestKinds,
+    filteredFileCount: d.filteredFileCount,
+    downloadedFileCount: d.downloadedFileCount,
+    failedFile: d.failedFile,
+    failureStage,
+    networkState: inferNetworkState({
+      failureStage,
+      networkError: !!(res && res.networkError),
+      // Chegar a um estágio posterior à resolução prova que o servidor respondeu.
+      reachedServer: ['manifest', 'filter', 'space', 'download', 'verify', 'publish', 'none'].includes(failureStage),
+    }),
+    indexBefore,
+    indexAfter,
+  });
+  logDownloadDiagnostic(diagnostic, { isDev: true });
+  return diagnostic;
+}
+
 function reasonToError(res) {
   if (!res) return 'error';
   if (res.requiresAppUpdate) return 'app_update';
@@ -73,6 +113,10 @@ export function useStoryPackDownload(storyId, options = {}) {
   const generationRef = useRef(0);      // LP2.1a-ii-F3: geração corrente da execução
   const controllerRef = useRef(null);   // LP2.1a-ii-F3: controller de observação da execução corrente
   const localStateStoryIdRef = useRef(storyId);   // LP2.1a-ii-F4A: dono do estado local (downloading/progress/error)
+  // [P3J-R] espelho SEMPRE atual de `getStoryPackState`, para ler o índice depois do await sem
+  // acrescentar dependência ao useCallback (a identidade de `download`/`retry` fica intacta).
+  const getStoryPackStateRef = useRef(getStoryPackState);
+  getStoryPackStateRef.current = getStoryPackState;
 
   // LP2.1a-ii-F4A — corpo: prepara o estado da IDENTIDADE NOVA (reset destinado à história atual, nunca no unmount).
   // LP2.1a-ii-F3 — cleanup: invalida a execução no UNMOUNT e na TROCA de storyId (SEM setters; não cancela o físico).
@@ -92,7 +136,26 @@ export function useStoryPackDownload(storyId, options = {}) {
 
   const download = useCallback(async () => {
     if (busyRef.current || !storyId) return { ok: false };
-    if (!GLOBAL_MANIFEST_URL) { setError('config'); return { ok: false }; }
+    // [P3J-R] leitura do índice pelo espelho (nunca lança; `null` significa "não observado").
+    const lerIndice = () => {
+      try { return indexLabel(getStoryPackStateRef.current(storyId)); } catch { return null; }
+    };
+    if (!GLOBAL_MANIFEST_URL) {
+      // [P3J-R] FALHA DE CONFIGURAÇÃO: retorna ANTES de tocar a rede. O erro fica com nome próprio
+      // ('config'), o diagnóstico registra `failureStage: 'config'` e `networkState:
+      // 'nao_consultada'` — e nada disso revela qual seria a URL. A tela usa esse nome para NÃO
+      // chamar isto de falta de internet, que foi exatamente a confusão da validação física do P3J.
+      setError('config');
+      reportDiagnostic({
+        storyId,
+        requestedKinds: REQUESTED_KINDS,
+        res: { ok: false },
+        indexBefore: lerIndice(),
+        indexAfter: lerIndice(),   // nada foi executado: por construção, o índice não mudou
+        failureStageOverride: 'config',
+      });
+      return { ok: false };
+    }
     busyRef.current = true;
     localStateStoryIdRef.current = storyId;   // LP2.1a-ii-F4A: a execução aceita reivindica a propriedade do estado
     const myGeneration = ++generationRef.current;
@@ -107,6 +170,7 @@ export function useStoryPackDownload(storyId, options = {}) {
     setError(null);
     setProgress(0);
     setDownloading(true);
+    const indexBefore = lerIndice();   // [P3J-R] fotografia do índice ANTES de qualquer escrita
     let res;
     try {
       try {
@@ -133,6 +197,15 @@ export function useStoryPackDownload(storyId, options = {}) {
         res = { ok: false, reason: String((e && e.message) || e) };
       }
       const ok = Boolean(res && res.ok);   // retorno público PURO de res.ok (independe da obsolescência)
+      // [P3J-R] uma linha por operação encerrada, só em DEV. Roda antes dos setters para que o
+      // estágio registrado seja o da operação, e não o efeito colateral de um render posterior.
+      reportDiagnostic({
+        storyId,
+        requestedKinds: REQUESTED_KINDS,
+        res,
+        indexBefore,
+        indexAfter: lerIndice(),
+      });
       if (isCurrentExecution() && ok) {
         setProgress(1);
         // FIX1R — DONO ÚNICO DA RECONCILIAÇÃO: em produção o READY reconcilia o PacksContext via

@@ -7,6 +7,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "check:env": "node scripts/check-env.js",
+    "start:dev": "node scripts/check-env.js && expo start --dev-client --clear --lan",
     "doctor": "npx expo-doctor",
     "qa": "npx expo install --check",
     "smoke": "node scripts/smoke.js",

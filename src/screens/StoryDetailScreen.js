@@ -47,6 +47,32 @@ import { c60OpenEditorFromStory, c60OpenCollectionFromStory } from '../services/
 
 const CREATION_STORY_ID = 'creation';
 
+// [P3J-R] VOCABULÁRIO DA FALHA DE DOWNLOAD.
+// `DOWNLOAD_BLOCKED_TEXT` = causas em que tocar de novo NÃO resolve → vira texto, sem botão.
+// `DOWNLOAD_RETRY_TEXT`   = causas retentáveis → botão, com a frase correspondente à causa.
+// A frase histórica ("Não foi possível baixar. Tentar de novo") permanece como PADRÃO para
+// qualquer motivo não classificado; o que muda é que ela deixa de cobrir configuração ausente.
+const DOWNLOAD_BLOCKED_TEXT = {
+  config: 'Download indisponível nesta versão do app (configuração ausente). Não é falta de internet.',
+  app_update: 'Atualize o app para baixar esta história.',
+};
+const DOWNLOAD_RETRY_TEXT = {
+  network: 'Sem conexão agora. Tentar de novo',
+  insufficient_space: 'Sem espaço no aparelho. Libere espaço e tente de novo',
+  default: 'Não foi possível baixar. Tentar de novo',
+};
+
+/**
+ * Consulta por chave OWN. `error` vem do serviço como string livre; um `reason` que calhe de ser
+ * 'constructor'/'toString' devolveria uma FUNÇÃO pelo protótipo e quebraria o render. Mesma
+ * doutrina já aplicada aos catálogos do Colorir 60.
+ */
+function textoPorCausa(mapa, chave, padrao = null) {
+  return (typeof chave === 'string' && Object.prototype.hasOwnProperty.call(mapa, chave))
+    ? mapa[chave]
+    : padrao;
+}
+
 function PostStoryCard({ emoji, title, desc, done, tagColor, onPress, isTablet }) {
   return (
     <SoundButton
@@ -116,6 +142,14 @@ export default function StoryDetailScreen({ route, navigation }) {
   // sequenceUnlocked = história atual da jornada OU já concluída (exclui futuras bloqueadas)
   // → permite baixar/rebaixar concluídas e a atual; bloqueia download em massa de futuras.
   const canDownload = canAccess && packDownload.isRemote && !isComingSoon && sequenceUnlocked;
+  // [P3J-R] A frase da falha passa a DERIVAR da causa. Antes, toda falha — inclusive configuração
+  // ausente, que sequer toca a rede — virava "Não foi possível baixar. Tentar de novo", e a família
+  // (e o próprio time) lia isso como falta de internet. Estados NÃO-RETENTÁVEIS viram texto, porque
+  // tocar de novo não muda nada; os retentáveis continuam botão, com a frase certa.
+  const downloadBlockedText = packDownload.uiState === 'error'
+    ? textoPorCausa(DOWNLOAD_BLOCKED_TEXT, packDownload.error)
+    : (packDownload.configMissing ? DOWNLOAD_BLOCKED_TEXT.config : null);
+  const downloadErrorText = textoPorCausa(DOWNLOAD_RETRY_TEXT, packDownload.error, DOWNLOAD_RETRY_TEXT.default);
 
   const [quizDone, setQuizDone] = useState(false);
   const [reflectionDone, setReflectionDone] = useState(false);
@@ -364,14 +398,18 @@ export default function StoryDetailScreen({ route, navigation }) {
                     <View style={[styles.downloadFill, { width: `${Math.round(packDownload.progress * 100)}%` }]} />
                   </View>
                 </View>
+              ) : downloadBlockedText ? (
+                <Text style={styles.downloadBlocked} accessibilityRole="text">{downloadBlockedText}</Text>
               ) : (
                 <SoundButton
                   style={styles.downloadBtn}
                   onPress={packDownload.uiState === 'error' ? packDownload.retry : packDownload.download}
                   activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={packDownload.uiState === 'error' ? downloadErrorText : 'Baixar história para usar offline'}
                 >
                   <Text style={styles.downloadBtnText}>
-                    {packDownload.uiState === 'error' ? 'Não foi possível baixar. Tentar de novo' : 'Baixar história (usar offline)'}
+                    {packDownload.uiState === 'error' ? downloadErrorText : 'Baixar história (usar offline)'}
                   </Text>
                 </SoundButton>
               )}
@@ -563,6 +601,12 @@ const styles = StyleSheet.create({
   },
   downloadBtnText: {
     fontFamily: 'FredokaOne', fontSize: 15, color: color.night600, textAlign: 'center',
+  },
+  // [P3J-R] estado NÃO-RETENTÁVEL (configuração ausente / app desatualizado): texto, não botão —
+  // oferecer "tentar de novo" para algo que tocar de novo não resolve é mentir para a família.
+  downloadBlocked: {
+    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
+    textAlign: 'center', maxWidth: 340, alignSelf: 'center',
   },
 
   beniWrap: { marginTop: 2 },

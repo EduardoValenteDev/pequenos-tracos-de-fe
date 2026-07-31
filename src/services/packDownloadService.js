@@ -423,6 +423,19 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = 
   const version = resolved.version;
   const report = makeReport(onProgress);
 
+  // [P3J-R] ACUMULADOR DE DIAGNÓSTICO. Guarda apenas FATOS do fluxo (estágio, contagens, caminho
+  // relativo do arquivo que falhou) — nunca URL, host ou configuração. Quem dá forma, sanitiza e
+  // imprime é `packDownloadDiagnostics` + o hook, sob `__DEV__`. Aqui não há log: o serviço só
+  // relata. Sem esta trilha, toda falha chegava à tela como a MESMA frase, e a causa real do P3J
+  // (configuração ausente) ficou invisível.
+  const diag = {
+    manifestKinds: null,
+    filteredFileCount: null,
+    downloadedFileCount: 0,
+    failedFile: null,
+    failureStage: 'manifest',   // primeiro estágio possível DENTRO desta função (a resolução já passou)
+  };
+
   // LP2.1a-ii-D — PREFLIGHT LOCAL (read-only) contra a identidade RESOLVIDA. O recovery mutável só
   // é chamado DEPOIS de confirmar a identidade local; nunca antes (isso substitui a antiga ordem do
   // bloco C "recuperar antes de qualquer rede", superseded pela identidade resolvida).
@@ -482,7 +495,12 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = 
       }
     } catch { /* noop */ }
     report(PACK_STATUS.FAILED, {});
-    return { ok: false, reason, errors, ...(extra || {}) };
+    // [P3J-R] `diagnostic` é ADITIVO: nenhum consumidor existente lê este campo, e `extra` permanece
+    // com a última palavra (é espalhado depois), preservando `networkError` e afins como estavam.
+    // `typeof`-guard porque o smoke extrai um SLICE de `failWith` por regex e o executa fora da
+    // função hospedeira (sem `diag` no escopo) — mesma doutrina já usada aqui com `installRegistry`.
+    const __diag = (typeof diag !== 'undefined' && diag) ? { diagnostic: { ...diag } } : null;
+    return { ok: false, reason, errors, ...__diag, ...(extra || {}) };
   };
 
   try {
@@ -543,6 +561,11 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = 
 
     // 9) seleciona os arquivos dos KINDS solicitados (path seguro). Default: só 'scene'
     //    (compat F2.4d). F2.4e.1: cover/scene/coloring/audio quando a camada dev pedir.
+    // [P3J-R] Registra os kinds DECLARADOS pelo manifesto antes de filtrar: é isso que permite ver,
+    // num log, que o manifesto ainda traz `coloring` e que o app deliberadamente não o pede.
+    diag.manifestKinds = Array.from(new Set((manifest.files || [])
+      .map((f) => f && f.kind).filter((k) => typeof k === 'string' && k)));
+    diag.failureStage = 'filter';
     const wanted = (manifest.files || []).filter((f) => f && kinds.includes(f.kind)
       && typeof f.path === 'string' && !f.path.startsWith('/') && !f.path.includes('..'));
     if (wanted.length === 0) return failWith(`manifesto do pack sem arquivos dos kinds solicitados (${kinds.join(',')})`);
@@ -555,8 +578,10 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = 
     const missingKind = kinds.find((k) => !expectedPerKind[k]);
     if (missingKind) return failWith(`kind solicitado ausente no manifesto: ${missingKind}`);
 
+    diag.filteredFileCount = wanted.length;
     const totalBytes = wanted.reduce((a, f) => a + (Number(f.bytes) || 0), 0);
 
+    diag.failureStage = 'space';
     // F2.5-hardening-2b.i: PRECHECK DE ESPAÇO — antes do download PESADO. Estimativa = totalBytes
     // (Σ wanted[].bytes: preciso por requestedKinds → parcial NÃO sofre falso bloqueio; NÃO usa
     // pack.bytes cego). API SEGURA: só chama getFreeDiskStorageAsync se for função; se lançar/
@@ -576,8 +601,10 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = 
     let completed = 0;
     const doneByKind = {};
     let lastTick = 0;
+    diag.failureStage = 'download';
     for (const f of wanted) {
       throwIfCancelled(isCancelled); // F2.5-hardening-3: cancelamento antes de cada arquivo
+      diag.failedFile = f.path;   // [P3J-R] arquivo EM VOO; zerado ao concluir este item
       const to = `${tempDir}${f.path}`;
       const parent = to.slice(0, to.lastIndexOf('/'));
       await FileSystem.makeDirectoryAsync(parent, { intermediates: true }); // idempotente (mkdir -p)
@@ -592,6 +619,8 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = 
       const info = await FileSystem.getInfoAsync(to, { size: true });
       completed += info.size || 0;
       doneByKind[f.kind] = (doneByKind[f.kind] || 0) + 1;
+      diag.downloadedFileCount += 1;
+      diag.failedFile = null;   // este arquivo chegou inteiro; só o EM VOO fica marcado
       report(PACK_STATUS.DOWNLOADING, { kind: f.kind, downloadedBytes: completed, totalBytes }); // 1 por arquivo
     }
 
@@ -599,18 +628,24 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = 
     //     CONTAGEM por kind. Nunca ready parcial: qualquer divergência → failWith.
     throwIfCancelled(isCancelled);
     report(PACK_STATUS.VERIFYING, { downloadedBytes: completed, totalBytes });
+    diag.failureStage = 'verify';
     const errors = [];
     const tVerify = Date.now();
     for (const f of wanted) {
       const fileUri = `${tempDir}${f.path}`;
+      // [P3J-R] o PRIMEIRO arquivo que reprova é o que vale no log; o fluxo de controle original
+      // (com `continue`, sem `yieldToUI` nos ramos de falha) permanece EXATAMENTE como estava.
+      const antes = errors.length;
+      const marcaFalha = () => { if (diag.failedFile == null) diag.failedFile = f.path; };
       const info = await FileSystem.getInfoAsync(fileUri, { size: true });
-      if (!info.exists) { errors.push(`${f.path}: ausente`); continue; }
-      if (typeof f.bytes === 'number' && info.size !== f.bytes) { errors.push(`${f.path}: bytes ${info.size} != ${f.bytes}`); continue; }
+      if (!info.exists) { errors.push(`${f.path}: ausente`); marcaFalha(); continue; }
+      if (typeof f.bytes === 'number' && info.size !== f.bytes) { errors.push(`${f.path}: bytes ${info.size} != ${f.bytes}`); marcaFalha(); continue; }
       if (f.sha256) {
         const h = await computeFileSha256(fileUri);
         if (!h.ok) errors.push(`${f.path}: sha256 indisponível (${h.reason})`);
         else if (h.sha256 !== String(f.sha256).toLowerCase()) errors.push(`${f.path}: sha256 divergente`);
       }
+      if (errors.length > antes) marcaFalha();
       await yieldToUI(); // F2.4e.2p: cede a UI entre arquivos (não congela durante o verify)
     }
     if (__DEV__) console.log('[packDownload] verify+sha256:', Date.now() - tVerify, 'ms,', wanted.length, 'arquivos');
@@ -626,6 +661,7 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = 
     //      um pack recuperável offline depois de um crash antes do READY (o manifestSha256 não é
     //      persistido em lugar nenhum, então sem o marcador não há evidência da âncora no disco).
     //      Falhar aqui ABORTA a publicação: sem marcador, nenhuma instalação nova é publicada.
+    diag.failureStage = 'publish';
     const marker = buildPublishMarker({
       storyId, version, manifestSha256: expectedManifestSha, manifestPath: resolved.manifestPath, kinds, appVersion,
     });
@@ -688,14 +724,15 @@ async function downloadStoryPackScenesFromGlobalManifestImpl(resolved, params = 
     report(PACK_STATUS.READY, { downloadedBytes: totalBytes, totalBytes });
 
     // 14) resultado estruturado (counts por kind; sceneCount mantido p/ compat)
-    return { ok: true, storyId, version, kinds, counts: doneByKind, sceneCount: doneByKind.scene || 0, totalBytes, entry };
+    diag.failureStage = 'none';
+    return { ok: true, storyId, version, kinds, counts: doneByKind, sceneCount: doneByKind.scene || 0, totalBytes, entry, diagnostic: { ...diag } };
   } catch (e) {
     // F2.5-hardening-3: CANCELAMENTO — NÃO grava índice (preserva a entry anterior, seja READY ou
     // qualquer outra); só limpa o .tmp. Ready nunca foi setado; a marca DOWNLOADING do hardening-2
     // fica FORA da janela de cancelamento (após o último throwIfCancelled) → índice consistente.
     if (e === CANCELLED || (e && e.__packCancelled)) {
       try { await FileSystem.deleteAsync(tempDir, { idempotent: true }); } catch (_) { /* noop */ }
-      return { ok: false, cancelled: true, reason: 'cancelado' };
+      return { ok: false, cancelled: true, reason: 'cancelado', diagnostic: { ...diag, failureStage: 'cancelled' } };
     }
     warn('downloadStoryPackScenesFromGlobalManifest:', e);
     // timeout de download → networkError no retorno (erro de rede controlado).
@@ -1033,9 +1070,11 @@ async function downloadStoryPackScenesFromGlobalManifest(params = {}) {
   const idr = await resolveInstallIdentity(params);
   if (!idr.ok) {
     if (idr.networkError) return installOfflinePublishing(params);   // B1: o offline também publica
+    // [P3J-R] falhou ANTES de qualquer arquivo do pack: estágio `resolve` (manifesto global,
+    // pack ausente do catálogo, versão de app insuficiente). Campo ADITIVO, sem URL.
     return idr.requiresAppUpdate
-      ? { ok: false, requiresAppUpdate: true, reason: idr.reason }
-      : { ok: false, reason: idr.reason };
+      ? { ok: false, requiresAppUpdate: true, reason: idr.reason, diagnostic: { failureStage: 'resolve' } }
+      : { ok: false, reason: idr.reason, diagnostic: { failureStage: 'resolve' } };
   }
   const resolved = idr.resolved;
 
