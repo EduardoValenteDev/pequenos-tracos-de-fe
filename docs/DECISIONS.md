@@ -549,6 +549,24 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
   5. A **Fase 2.5 exige validação visual do novo Colorir *e* do consumidor legado.**
 - **Classificação:** desincronização **documental** do árbitro, **não** ato não autorizado — a substituição foi ratificada pelo fundador e reconciliada em `specs/016-*` §10.2 no momento em que ocorreu; o que faltava era o registro no árbitro. Esta entrada supre essa falta.
 
+### D-C60-NOMEACAO-OBRAS — Colorir com o Beni é COLEÇÃO; Criar Livre é AUTORIA
+
+- **Data:** 2026-07-31 · **Status:** ✅ CONFIRMADA (fundador) · **Origem:** ordem "P3J-R.1 — Fechamento Técnico", seção *Decisão de produto*.
+- **Problema.** As duas superfícies de criação do app guardam artes no mesmo lugar visual (a coleção da criança), mas **não têm a mesma natureza**. Sem essa distinção registrada, qualquer sessão futura tenderia a "uniformizar" as duas — e a uniformização mais provável (dar campo de nome ao Colorir) mexeria em schema, ponteiro e overlay de uma área já validada fisicamente.
+- **Decisão:**
+  1. **Criar Livre é AUTORIA.** A folha começa em branco, o traço é da criança, e por isso **a criança pode nomear a obra**.
+  2. **Colorir com o Beni é COLEÇÃO.** O desenho de base é do app; a criança colore uma peça de um conjunto conhecido.
+  3. A identidade de uma arte do Colorir é o **nome canônico da história/atividade** — não um texto livre.
+  4. **Não** existe campo de nome para o Colorir 60 **agora**.
+  5. **Não** se altera `POINTER_VERSION` (permanece `3`).
+  6. **Não** se migram obras já salvas.
+  7. **Não** se altera o overlay.
+  8. **Não** se altera o schema de persistência.
+  9. **Não** se altera a coleção nem a forma como ela lista as artes.
+  10. A nomeação opcional no Colorir 60 **pode ser reaberta depois do piloto** — como feature própria, com ciclo SDD completo.
+  11. Enquanto isso, **nenhuma copy pode prometer nomear uma arte de colorir**.
+- **Consequência de copy (aplicada no mesmo bloco):** o Cultinho passou a convidar a **"Criar juntos (opcional)"** (a rota sempre foi o **Ateliê**, que é criação livre — prometer "Colorir" ali era promessa que a tela de destino não cumpre), e o Ateliê passou a se apresentar como **"Criar e guardar suas artes de fé."**.
+
 ---
 
 ## Analytics / SDKs (registro de restrição)
