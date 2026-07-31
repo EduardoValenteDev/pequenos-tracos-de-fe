@@ -8,8 +8,9 @@
  * available (anel branco), locked (anel cinza + cadeado, capa esmaecida). Sem emoji.
  */
 import React, { useRef, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import SoundButton from '../SoundButton';
+import RecoverableImage from '../ui/RecoverableImage';
 import { getStoryCover } from '../../assets/storyCovers';
 import { useResolvedStoryCover } from '../../hooks/useResolvedStoryMedia';
 
@@ -136,8 +137,17 @@ export default function StoryMapMarker({
         ]}
       >
         <View style={[styles.circle, { width: inner, height: inner, borderRadius: inner / 2 }]}>
+          {/* [P3J-R] A capa é a mesma de antes (source via hook); só ganhou recarga limitada. Se
+              falhar, a inicial da história entra ATRÁS e o pin continua identificável — sem estado
+              de carregamento morando aqui. */}
           {cover ? (
-            <Image source={cover} style={[styles.cover, coverDim < 1 && { opacity: coverDim }]} resizeMode="cover" />
+            <RecoverableImage source={cover} style={[styles.cover, coverDim < 1 && { opacity: coverDim }]} resizeMode="cover"
+              renderFallback={() => (
+                <View style={[styles.fallback, styles.fallbackBehind, { backgroundColor: story.corCapa || story.themeColor || '#BCA77E' }]}>
+                  <Text style={styles.fallbackText}>{(story.titulo || '?').trim().charAt(0).toUpperCase()}</Text>
+                </View>
+              )}
+            />
           ) : (
             <View style={[styles.fallback, { backgroundColor: story.corCapa || story.themeColor || '#BCA77E' }]}>
               <Text style={styles.fallbackText}>{(story.titulo || '?').trim().charAt(0).toUpperCase()}</Text>
@@ -183,6 +193,8 @@ const styles = StyleSheet.create({
   circle: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFE7D6' },
   cover: { width: '100%', height: '100%' },
   fallback: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  // Só quando existe capa: a inicial ocupa o círculo sem empurrar a imagem para fora.
+  fallbackBehind: { ...StyleSheet.absoluteFillObject, width: undefined, height: undefined },
   fallbackText: { fontFamily: 'FredokaOne', fontSize: 26, color: '#FFFFFF' },
   badge: {
     position: 'absolute',

@@ -14,8 +14,9 @@
  * aparece no pin (showLabel={false}). Chip de título da região no topo da arte.
  */
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import RecoverableImage from '../ui/RecoverableImage';
 import StoryMapMarker from './StoryMapMarker';
 import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../../data/adventureMap';
 
@@ -90,7 +91,7 @@ export default function MapRegion({ region, width, revealFraction = 0, currentSt
       {/* CAMADA 1 — BASE SÉPIA (asleep): preview instantâneo + final lazy. Sempre
           presente e do tamanho da caixa (top:0, altura plena) — nunca some. */}
       {asleepPreview && (
-        <Image
+        <RecoverableImage
           source={asleepPreview}
           resizeMode="cover"
           style={{ position: 'absolute', top: 0, left: 0, width, height: regionH, zIndex: 1 }}
@@ -98,7 +99,7 @@ export default function MapRegion({ region, width, revealFraction = 0, currentSt
         />
       )}
       {renderImageFinal && asleepFinal && (
-        <Image
+        <RecoverableImage
           source={asleepFinal}
           resizeMode="cover"
           style={{ position: 'absolute', top: 0, left: 0, width, height: regionH, zIndex: 2 }}
@@ -117,7 +118,7 @@ export default function MapRegion({ region, width, revealFraction = 0, currentSt
           pointerEvents="none"
         >
           {awakePreview && (
-            <Image
+            <RecoverableImage
               source={awakePreview}
               resizeMode="cover"
               style={{ position: 'absolute', bottom: 0, left: 0, width, height: regionH }}
@@ -125,7 +126,7 @@ export default function MapRegion({ region, width, revealFraction = 0, currentSt
             />
           )}
           {renderImageFinal && awakeFinal && (
-            <Image
+            <RecoverableImage
               source={awakeFinal}
               resizeMode="cover"
               style={{ position: 'absolute', bottom: 0, left: 0, width, height: regionH }}

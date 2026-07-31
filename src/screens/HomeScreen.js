@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, Image,
+  View, Text, ScrollView,
   Animated, StyleSheet, useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +10,7 @@ import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { stories } from '../data/stories';
 import { images } from '../assets/images';
 import SoundButton from '../components/SoundButton';
+import RecoverableImage from '../components/ui/RecoverableImage';
 import CenteredContent from '../components/layout/CenteredContent';
 import { BeniAvatar } from '../components/beni';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
@@ -275,7 +276,7 @@ function MissaoDeHoje({
         {/* Capa grande — a história em destaque */}
         {hasThumb ? (
           <View style={styles.missionCover}>
-            <Image
+            <RecoverableImage
               source={images[story.imagemCapa]}
               style={styles.missionCoverImg}
               resizeMode="cover"

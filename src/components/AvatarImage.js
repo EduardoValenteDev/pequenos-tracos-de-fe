@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import RecoverableImage from './ui/RecoverableImage';
 import { DEFAULT_AVATAR_IMAGE } from '../data/avatars';
 
 /**
@@ -32,7 +33,8 @@ export default function AvatarImage({
         style,
       ]}
     >
-      <Image
+      {/* [P3J-R] Mesmo <Image> de antes (props/layout idênticos) com tentativa limitada de recarga. */}
+      <RecoverableImage
         source={safeSource}
         style={[styles.fill, zoom !== 1 && { transform: [{ scale: zoom }] }]}
         resizeMode={resizeMode}

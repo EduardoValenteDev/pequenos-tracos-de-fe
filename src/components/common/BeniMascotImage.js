@@ -10,7 +10,7 @@
  *   - resizeMode padrão = 'contain' → nunca estica nem corta o Beni.
  */
 import React from 'react';
-import { Image } from 'react-native';
+import RecoverableImage from '../ui/RecoverableImage';
 import { BENI_IMAGES, BENI_DEFAULT_VARIANT } from '../../assets/mascot/beniImages';
 
 /**
@@ -32,7 +32,10 @@ export default function BeniMascotImage({
   const sizeStyle = typeof size === 'number' ? { width: size, height: size } : null;
 
   return (
-    <Image
+    // [P3J-R] RecoverableImage = mesmo <Image> de antes (props e layout idênticos) com tentativa
+    // limitada de recarga: no Development Client o Beni é servido pelo Metro e sumia de vez ao
+    // primeiro soluço de rede.
+    <RecoverableImage
       source={source}
       resizeMode={resizeMode}
       accessible={!!accessibilityLabel}

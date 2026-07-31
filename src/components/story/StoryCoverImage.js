@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { images } from '../../assets/images';
 import { getStoryCoverMeta } from '../../assets/storyCovers';
 import { radii } from '../../theme/productTheme';
 import StoryFallbackCover from './StoryFallbackCover';
+import RecoverableImage from '../ui/RecoverableImage';
 
 /**
  * StoryCoverImage — renderiza capa de história sempre em proporção 16:9.
@@ -56,23 +57,32 @@ export default function StoryCoverImage({
 
   const borderRadius = rounded ? radii.lg : 0;
 
+  // [P3J-R] Fallback da capa. Quando NÃO há arte, ele é o conteúdo. Quando há arte e ela FALHA ao
+  // carregar, o mesmo fallback entra ATRÁS (absoluto) e a capa continua montada por cima — assim a
+  // recuperação limitada ainda acontece e, ao voltar, a arte simplesmente cobre o fallback.
+  // Nenhuma flag de carregamento vive aqui (ver RecoverableImage): a capa não pisca por re-render.
+  const fallbackCover = (extraStyle) => (
+    <StoryFallbackCover
+      title={fallbackTitle ?? story?.titulo}
+      themeColor={story?.themeColor ?? story?.corCapa ?? '#F4B400'}
+      icon={fallbackIcon ?? story?.emoji ?? '✨'}
+      status={story?.status}
+      accessType={story?.accessType}
+      style={extraStyle ? [styles.fallback, extraStyle] : styles.fallback}
+    />
+  );
+
   return (
     <View style={[styles.container, { borderRadius }, style]}>
       {imgSource ? (
-        <Image
+        <RecoverableImage
           source={imgSource}
           style={[alignTop ? styles.imageTopFocus : styles.image, imageStyle]}
           resizeMode="cover"
+          renderFallback={() => fallbackCover(styles.fallbackBehind)}
         />
       ) : (
-        <StoryFallbackCover
-          title={fallbackTitle ?? story?.titulo}
-          themeColor={story?.themeColor ?? story?.corCapa ?? '#F4B400'}
-          icon={fallbackIcon ?? story?.emoji ?? '✨'}
-          status={story?.status}
-          accessType={story?.accessType}
-          style={styles.fallback}
-        />
+        fallbackCover(null)
       )}
 
       {/* Gradiente inferior — melhora legibilidade de título sobre a imagem */}
@@ -127,6 +137,8 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     aspectRatio: undefined,
   },
+  // Só quando há capa: o fallback ocupa a caixa SEM empurrar a imagem para baixo.
+  fallbackBehind: { ...StyleSheet.absoluteFillObject },
   bottomGradient: {
     position: 'absolute',
     left: 0,

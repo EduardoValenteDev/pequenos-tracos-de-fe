@@ -11,12 +11,18 @@
  * Não força aspectRatio, não sobrescreve borderRadius/dimensões e não impõe cor
  * de fundo (o contêiner do chamador continua mandando).
  *
+ * [P3J-R] Recuperação limitada: quando o carregamento falha, `useImageRecovery`
+ * concede um número finito de novas tentativas (e uma renovação ao voltar para o
+ * primeiro plano). O `key` da imagem só muda quando uma tentativa é concedida —
+ * imagem carregada nunca remonta, portanto capas já visíveis não piscam.
+ *
  * `source`: require local (number) ou { uri }.
  */
 import React, { useEffect, useState } from 'react';
 import { View, Image, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors as pt } from '../../theme/productTheme';
+import { useImageRecovery } from '../../hooks/useImageRecovery';
 
 const DEFAULT_FALLBACK = ['#F3EEE6', '#E7DECF'];
 
@@ -62,6 +68,10 @@ export default function SafeImage({
     if (onStatusChange) onStatusChange(next);
   }
 
+  // Tentativas limitadas APÓS falha real. Enquanto não há erro, `token` é constante — nenhuma
+  // imagem saudável é remontada por causa deste hook.
+  const recovery = useImageRecovery({ sourceKey: key, failed: status === 'error' });
+
   // Fallback SÓ em erro real ou ausência de source (nunca preventivo).
   const showFallback = status === 'empty' || status === 'error';
   const showLoading = status === 'loading';
@@ -91,6 +101,7 @@ export default function SafeImage({
       {/* ── Imagem POR CIMA — mesmo visual de antes (cover/contain) ── */}
       {hasSource && (
         <Image
+          key={recovery.token}
           source={source}
           style={StyleSheet.absoluteFill}
           resizeMode={resizeMode}
