@@ -5,6 +5,19 @@ import CartaoPagina from '../ui/CartaoPagina';
 import TrilhoProgresso from '../ui/TrilhoProgresso';
 import { color, font, fontSize, fontWeight, radius, shadow, seal } from '../../theme/tokens';
 import { storyHasAllRequiredAudio } from '../../services/audioService';
+import { isStoryColoringAvailable } from '../../services/storyColoringAvailability';
+
+/**
+ * [P3J-R] Enumeração natural em PT-BR: ['a'] vira "a"; ['a','b'] vira "a e b"; ['a','b','c'] vira
+ * "a, b e c".
+ * Existe para que a promessa da aventura seja MONTADA a partir do que a história realmente oferece,
+ * em vez de afirmar sempre a mesma lista fixa.
+ */
+function enumerar(itens) {
+  if (itens.length === 0) return '';
+  if (itens.length === 1) return itens[0];
+  return `${itens.slice(0, -1).join(', ')} e ${itens[itens.length - 1]}`;
+}
 
 /**
  * LP2.1a-ii-01G-C — ESTES COMPONENTES VIVEM NO ESCOPO DO MÓDULO, NÃO DENTRO DO RENDER.
@@ -50,6 +63,12 @@ function InfoSection({
 }) {
   const xpPercent = totalScenes > 0 ? Math.min(progressCount / totalScenes, 1) : 0;
   const hasAudio = storyHasAllRequiredAudio(story.id);
+  // [P3J-R] A promessa DERIVA da disponibilidade real. Com o Colorir legado aposentado, 19 das 20
+  // histórias não têm mais o que colorir — prometer "você vai colorir" era uma promessa impossível.
+  // `isStoryColoringAvailable` é a mesma porta que o journey usa: uma só verdade, nenhuma lista fixa.
+  const hasColoring = isStoryColoringAvailable(story.id);
+  const promessa = enumerar([hasAudio && 'ouvir', hasColoring && 'colorir', 'ganhar estrelas'].filter(Boolean));
+  const retrospectiva = enumerar([hasAudio && 'ouviu', hasColoring && 'coloriu', 'ganhou estrelas'].filter(Boolean));
 
   const isPremium = story.accessType === 'premium';
   const acessoVariant = isPremium ? 'premium' : 'free';
@@ -87,7 +106,7 @@ function InfoSection({
           {isFullyComplete ? (
             <>
               <Text style={styles.aventuraTexto}>
-                Você {hasAudio ? 'ouviu, ' : ''}coloriu e ganhou estrelas.
+                Você {retrospectiva}.
               </Text>
               <Text style={[styles.aventuraTexto, styles.aventuraTexto2]}>
                 Sua aventura ficou guardada no{' '}
@@ -97,7 +116,7 @@ function InfoSection({
           ) : (
             <>
               <Text style={styles.aventuraTexto}>
-                Você vai {hasAudio ? 'ouvir, ' : ''}colorir e ganhar estrelas.
+                Você vai {promessa}.
               </Text>
               {!isComingSoon && !isLocked && (
                 <Text style={[styles.aventuraTexto, styles.aventuraTexto2]}>

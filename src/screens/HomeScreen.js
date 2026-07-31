@@ -24,6 +24,7 @@ import { useProgressContext } from '../context/ProgressContext';
 import { getAvatarImage, getProfileAvatarSkinTone } from '../data/avatars';
 import AvatarImage from '../components/AvatarImage';
 import { canOpenMomentoLumi } from '../services/accessControl';
+import { isStoryColoringAvailable } from '../services/storyColoringAvailability';
 import { getHomePrimaryAction } from '../services/homeService';
 import { getShowcaseStory } from '../services/showcaseStory';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
@@ -229,6 +230,9 @@ function MissaoDeHoje({
   const progPct = Math.min(progCount / progTotal, 1) * 100;
   const isContinue = primaryAction.targetType === 'continueStory';
   const isPending = primaryAction.targetType === 'pendingRewards';
+  // [P3J-R] Disponibilidade REAL de colorir nesta história (portão do C60 + catálogo), não uma
+  // promessa fixa. É a mesma porta consultada pelo journey e pelo herói do detalhe.
+  const hasColoring = story ? isStoryColoringAvailable(story.id) : false;
 
   if (allDone) {
     return (
@@ -304,10 +308,13 @@ function MissaoDeHoje({
         <Text style={styles.missionLesson} numberOfLines={2}>💛 {story.licaoCoracao}</Text>
       ) : null}
 
-      {/* O que vou viver nesta aventura */}
+      {/* O que vou viver nesta aventura — [P3J-R] o chip "Colorir" DERIVA da disponibilidade real
+          (mesma porta do journey). Sem C60 na história, a Home não promete colorir. */}
       <View style={styles.missionFeatures}>
         <View style={styles.missionFeature}><Text style={styles.missionFeatureText}>🔊 Ouvir</Text></View>
-        <View style={styles.missionFeature}><Text style={styles.missionFeatureText}>🎨 Colorir</Text></View>
+        {hasColoring && (
+          <View style={styles.missionFeature}><Text style={styles.missionFeatureText}>🎨 Colorir</Text></View>
+        )}
         <View style={styles.missionFeature}><Text style={styles.missionFeatureText}>⭐ Estrelas</Text></View>
       </View>
 
