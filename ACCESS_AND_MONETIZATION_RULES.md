@@ -1,5 +1,13 @@
 # ACCESS AND MONETIZATION RULES — Pequenos Traços de Fé
 
+> ⚠️ **SUPERSEDED — DOCUMENTO HISTÓRICO (não normativo).** Marcado em **2026-07-21** (PTF PRODUCT LOCK 01A).
+>
+> **Este documento NÃO deve orientar novas decisões nem implementações.** Ele contém definições **obsoletas** — por exemplo: planos **"Vitalício"** e **"História Avulsa"** (fora do lançamento; v1 = **mensal + anual**), **"3 artes"** no grátis (hoje grátis = **0 salvamentos**, E1-ARTES-SALVAR) e **"histórias e imagens estão no bundle, não requerem download"** (hoje: **18 premium via packs no Cloudflare R2**, catálogo híbrido).
+>
+> **Fontes vigentes (nesta ordem):** [`docs/DECISIONS.md`](docs/DECISIONS.md) (**árbitro** de produto/monetização — ver **E1-MONETIZACAO-V1** e **PL01A-15**) → [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`](docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md) → [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md), respeitando a hierarquia de governança (`docs/PROJECT_SOURCE_OF_TRUTH.md` → constituição → `AGENTS.md` → `CLAUDE.md`).
+>
+> O conteúdo abaixo é **preservado apenas como histórico** e **não foi reescrito**.
+
 > **Arquitetura de acesso e monetização.** Nenhuma compra real será implementada agora. Este documento define a estrutura que o código deve respeitar para que compras possam ser adicionadas sem refatoração destrutiva.
 
 ---

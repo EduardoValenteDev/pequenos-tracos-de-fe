@@ -23,9 +23,28 @@ import { getStoryCoverImage, getOfficialSceneIllustration } from '../services/st
 import { useResolvedSceneImage, useResolvedStoryAudio } from '../hooks/useResolvedStoryMedia';
 import { canOpenStoryFullExperience, getStoryLockReason } from '../services/contentAccessService';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
+import { isCreationColoringPilotActive } from '../services/coloring60Pilot';
+import {
+  getColoring60MilestoneForCompletedScene,
+  derivePostSceneExperience,
+  C60_POST_SCENE,
+} from '../data/coloring60StoryMilestones';
+import { loadColoring60Done } from '../services/coloring60ActivityService';
+import {
+  hasSeenColoring60MilestoneInvite,
+  markColoring60MilestoneInviteSeen,
+} from '../services/coloring60MilestoneInviteSeen';
+import { c60OpenEditorFromMilestone } from '../services/coloring60Navigation';
+import Coloring60MilestoneInvite from '../components/coloring60/Coloring60MilestoneInvite';
 
 export default function NarrationScreen({ route, navigation }) {
   const { story, cenaIndex } = route.params;
+
+  // Piloto "Colorir com o Beni" (Colorir 60): em "A Criação" com o piloto ativo, o Colorir
+  // TRADICIONAL por cena dá lugar à jornada "Colorir com o Beni" (na StoryDetailScreen).
+  // Aqui isso significa OCULTAR o convite de colorir da cena e o botão de colorir da
+  // celebração — sem apagar nada e sem afetar outras histórias. Piloto off ⇒ tudo como antes.
+  const creationColoringHidden = isCreationColoringPilotActive(story?.id);
 
   // Guard: story must have cenas populated (navigation from onboarding used to crash here)
   const hasCenas = !!(story?.cenas?.length);
@@ -66,6 +85,16 @@ export default function NarrationScreen({ route, navigation }) {
   // true enquanto a celebração ainda não foi finalizada pela ação principal.
   // Permite reabrir o modal ao retornar de uma ação secundária (visita).
   const celebrationPendingRef = useRef(false);
+
+  // [C60-MARCO] Marco narrativo DESTA cena (piloto + "A Criação" + cena 2/7/9), DERIVADO do catálogo
+  // pelo número da cena — null em qualquer outra cena/história (sem fallback). O convite do Beni só
+  // existe quando este marco existe; e como só a PRIMEIRA conclusão da cena abre a experiência pós-cena
+  // (primaryAction = handleConcluirCena apenas quando !jaConcluida), a decisão do marco só ocorre na
+  // estreia da cena. Revisita não passa por aqui.
+  const sceneMilestone = creationColoringHidden
+    ? getColoring60MilestoneForCompletedScene(story?.id, numeroCena)
+    : null;
+  const [showMilestoneInvite, setShowMilestoneInvite] = useState(false);
 
   // Já existe um desenho salvo desta cena? Muda o convite de colorir.
   const [sceneHasDrawing, setSceneHasDrawing] = useState(false);
@@ -156,6 +185,34 @@ export default function NarrationScreen({ route, navigation }) {
       goToNext();
       return;
     }
+
+    // [C60-MODAL-ÚNICO] A cena JÁ está registrada (salvarCena/refreshProgress acima). Agora UMA decisão
+    // pura (`derivePostSceneExperience`) escolhe a experiência pós-cena: OU o convite do marco, OU a
+    // celebração genérica — jamais as duas (fim do modal duplo). CAMINHO A (marco elegível + atividade
+    // incompleta + convite não visto) ⇒ abre SOMENTE o convite; a celebração genérica não aparece nem
+    // antes nem depois. CAMINHO B (cena comum, ou atividade já concluída, ou convite já visto) ⇒
+    // celebração de sempre. O estado de conclusão/convite é lido AQUI, no instante da decisão — nunca
+    // derivado do texto de um botão.
+    if (sceneMilestone) {
+      const [activityAlreadyComplete, inviteAlreadySeen] = await Promise.all([
+        loadColoring60Done(story.id, sceneMilestone.activityId),
+        hasSeenColoring60MilestoneInvite(story.id, sceneMilestone.activityId),
+      ]);
+      const experience = derivePostSceneExperience({
+        milestone: sceneMilestone,
+        activityAlreadyComplete,
+        inviteAlreadySeen,
+      });
+      if (experience === C60_POST_SCENE.COLORING_MILESTONE_INVITE) {
+        // Marca "visto" no INSTANTE da apresentação (não antes; não à espera da escolha da criança).
+        // Best-effort e à prova de falha: uma escrita que falhe não quebra a história nem bloqueia a
+        // próxima cena — a guarda de sessão do módulo já evita repetição imediata mesmo sem disco.
+        markColoring60MilestoneInviteSeen(story.id, sceneMilestone.activityId);
+        setShowMilestoneInvite(true);
+        return;
+      }
+    }
+
     celebrationHandledRef.current = false;
     celebrationPendingRef.current = true;
     setShowCelebration(true);
@@ -166,6 +223,10 @@ export default function NarrationScreen({ route, navigation }) {
     celebrationHandledRef.current = true;
     celebrationPendingRef.current = false;
     setShowCelebration(false);
+    // [C60-MODAL-ÚNICO] A celebração genérica só é exibida no CAMINHO B; sua ação principal apenas
+    // AVANÇA a história. A decisão de mostrar o convite do marco acontece ANTES, em handleConcluirCena
+    // — aqui não há mais interceptação por marco (o modal duplo deixou de existir). O convite tem seus
+    // próprios botões (handleMilestoneAccept / handleMilestoneSkip).
     goToNext();
   }
 
@@ -178,6 +239,30 @@ export default function NarrationScreen({ route, navigation }) {
     celebrationPendingRef.current = false;
     setShowCelebration(false);
     navigation.navigate('Coloring', { story, cenaIndex });
+  }
+
+  // [C60-MARCO] "Colorir agora": abre o editor daquele marco pelo CONTRATO CENTRAL de navegação
+  // (nada de navigation.navigate espalhado). O planner consome ESTA narração (replace), então não há
+  // acúmulo de pilha. Passa o alvo de RETOMADA — resumeCenaIndex = próxima cena (0-based) = decisão
+  // do fundador Q1 ("Próxima cena da história") — para que "Voltar à aventura" do editor retome a
+  // história na cena seguinte com um mount fresco de Narration.
+  function handleMilestoneAccept() {
+    if (!sceneMilestone) { goToNext(); return; }
+    setShowMilestoneInvite(false);
+    c60OpenEditorFromMilestone(navigation, {
+      storyId: story.id,
+      activityId: sceneMilestone.activityId,
+      story,
+      resumeCenaIndex: sceneMilestone.resumeScene - 1,
+    });
+  }
+
+  // [C60-MARCO] "Agora não, continuar": pular é SEMPRE permitido — segue a história para a próxima
+  // cena, exatamente o goToNext de sempre. Nada se perde: a criança ainda alcança o Colorir pela
+  // jornada da StoryDetail.
+  function handleMilestoneSkip() {
+    setShowMilestoneInvite(false);
+    goToNext();
   }
 
   // Rótulo + ação do botão principal conforme o estado da cena
@@ -311,39 +396,43 @@ export default function NarrationScreen({ route, navigation }) {
             </LinearGradient>
           </SoundButton>
 
-          {/* ── 8. CONVITE PARA COLORIR — ação central da história ── */}
-          {sceneHasDrawing ? (
-            <SoundButton
-              style={styles.colorDoneCard}
-              onPress={() => navigation.navigate('Coloring', { story, cenaIndex })}
-              activeOpacity={0.85}
-            >
-              <View style={styles.colorIconWrapDone}>
-                <Text style={styles.colorIconEmoji}>🎨</Text>
-              </View>
-              <View style={styles.colorInfo}>
-                <Text style={styles.colorDoneTitle}>Você já coloriu esta cena ✓</Text>
-                <Text style={styles.colorDoneSub}>Ver ou editar seu desenho</Text>
-              </View>
-              <Text style={styles.colorDoneArrow}>→</Text>
-            </SoundButton>
-          ) : (
-            <SoundButton
-              style={styles.colorInviteCard}
-              onPress={() => navigation.navigate('Coloring', { story, cenaIndex })}
-              activeOpacity={0.9}
-            >
-              <View style={styles.colorIconWrap}>
-                <Text style={styles.colorIconEmoji}>🎨</Text>
-              </View>
-              <View style={styles.colorInfo}>
-                <Text style={styles.colorInviteTitle}>Hora de colorir</Text>
-                <Text style={styles.colorInviteSub}>Dê cor a esta parte da história.</Text>
-              </View>
-              <View style={styles.colorBtn}>
-                <Text style={styles.colorBtnText}>Colorir cena</Text>
-              </View>
-            </SoundButton>
+          {/* ── 8. CONVITE PARA COLORIR — ação central da história ──
+              No piloto "A Criação" (Colorir 60) este convite ao Colorir tradicional por cena
+              some: a jornada "Colorir com o Beni" assume o colorir dessa história. */}
+          {!creationColoringHidden && (
+            sceneHasDrawing ? (
+              <SoundButton
+                style={styles.colorDoneCard}
+                onPress={() => navigation.navigate('Coloring', { story, cenaIndex })}
+                activeOpacity={0.85}
+              >
+                <View style={styles.colorIconWrapDone}>
+                  <Text style={styles.colorIconEmoji}>🎨</Text>
+                </View>
+                <View style={styles.colorInfo}>
+                  <Text style={styles.colorDoneTitle}>Você já coloriu esta cena ✓</Text>
+                  <Text style={styles.colorDoneSub}>Ver ou editar seu desenho</Text>
+                </View>
+                <Text style={styles.colorDoneArrow}>→</Text>
+              </SoundButton>
+            ) : (
+              <SoundButton
+                style={styles.colorInviteCard}
+                onPress={() => navigation.navigate('Coloring', { story, cenaIndex })}
+                activeOpacity={0.9}
+              >
+                <View style={styles.colorIconWrap}>
+                  <Text style={styles.colorIconEmoji}>🎨</Text>
+                </View>
+                <View style={styles.colorInfo}>
+                  <Text style={styles.colorInviteTitle}>Hora de colorir</Text>
+                  <Text style={styles.colorInviteSub}>Dê cor a esta parte da história.</Text>
+                </View>
+                <View style={styles.colorBtn}>
+                  <Text style={styles.colorBtnText}>Colorir cena</Text>
+                </View>
+              </SoundButton>
+            )
           )}
 
           {/* ── 9. CENA ANTERIOR — secundário, só a partir da cena 2 ── */}
@@ -363,10 +452,21 @@ export default function NarrationScreen({ route, navigation }) {
       <UnlockCelebration
         visible={showCelebration}
         onContinue={handleContinue}
-        onColorir={handleColorirFromCelebration}
+        onColorir={creationColoringHidden ? null : handleColorirFromCelebration}
         sceneNumber={numeroCena}
         totalCenas={totalCenas}
         sceneHasDrawing={sceneHasDrawing}
+      />
+
+      {/* [C60-MODAL-ÚNICO] Convite do Beni por marco (cena 2/7/9 de "A Criação"). É o ÚNICO modal
+          pós-cena nos marcos elegíveis — NO LUGAR da celebração genérica, nunca junto dela;
+          handleConcluirCena decide qual dos dois mostrar. O componente não renderiza nada quando não
+          há copy/marco. */}
+      <Coloring60MilestoneInvite
+        visible={showMilestoneInvite}
+        activityId={sceneMilestone?.activityId ?? null}
+        onAccept={handleMilestoneAccept}
+        onSkip={handleMilestoneSkip}
       />
     </View>
   );

@@ -19,6 +19,9 @@ import StoryDetailScreen from '../screens/StoryDetailScreen';
 import NarrationScreen from '../screens/NarrationScreen';
 import ColoringScreen from '../screens/ColoringScreen';
 import ColoringQaScreen from '../screens/ColoringQaScreen';
+import Coloring60CollectionScreen from '../screens/Coloring60CollectionScreen';
+import Coloring60ArtPreviewScreen from '../screens/Coloring60ArtPreviewScreen';
+import Coloring60LabScreen from '../screens/Coloring60LabScreen';
 import SceneValidationScreen from '../screens/SceneValidationScreen';
 import CongratsScreen from '../screens/CongratsScreen';
 import TrophiesScreen from '../screens/TrophiesScreen';
@@ -357,12 +360,37 @@ export default function AppNavigator() {
           component={ColoringScreen}
           options={{ headerShown: false }}
         />
+        {/* Colorir 60 · Parte 7 — a COLEÇÃO virou TELA PRÓPRIA (antes era uma camada por cima do
+            desenho aberto, o que fazia fundo, contraste e composição mudarem conforme a origem).
+            A rota é pública porque a autorização do piloto é decidida DENTRO da tela. */}
+        <Stack.Screen
+          name="Coloring60Collection"
+          component={Coloring60CollectionScreen}
+          options={{ headerShown: false }}
+        />
+        {/* Colorir 60 · seleção visual — PRÉVIA AMPLIADA de UMA obra, aberta ao tocar uma criação
+            na coleção. Pública pela mesma razão da coleção: recebe só a IDENTIDADE (storyId +
+            activityId) e o gate do piloto é decidido DENTRO da tela; nenhuma pintura viaja na nav. */}
+        <Stack.Screen
+          name="Coloring60ArtPreview"
+          component={Coloring60ArtPreviewScreen}
+          options={{ headerShown: false }}
+        />
         {/* M1: QA do Criador (testar desenhos) — rota registrada SÓ sob o gate interno,
             SEM rota pública. Entrada só na seção "Administração (dev)" da Área dos Pais. */}
         {isInternalToolsEnabled() && (
           <Stack.Screen
             name="ColoringQa"
             component={ColoringQaScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+        {/* §Parte 12: bancada do Colorir 60 (reencenar 0/3→3/3 e as reedições). Rota registrada SÓ
+            sob o gate interno; a TELA ainda exige Modo Criador ligado. Sem rota pública. */}
+        {isInternalToolsEnabled() && (
+          <Stack.Screen
+            name="Coloring60Lab"
+            component={Coloring60LabScreen}
             options={{ headerShown: false }}
           />
         )}

@@ -31,6 +31,19 @@ export const ROUTES = Object.freeze({
   CONGRATS: 'Congrats',
   POST_STORY_HUB: 'PostStoryHub',
   COLORING: 'Coloring',
+  /**
+   * Colorir 60 — a COLEÇÃO das três obras (C60 · Parte 7). Tela PRÓPRIA, e não mais uma camada
+   * sobre o desenho aberto: é o que garante composição idêntica venha de onde vier. O gate do
+   * piloto vive dentro da tela (a rota sozinha não autoriza nada).
+   */
+  COLORING60_COLLECTION: 'Coloring60Collection',
+  /**
+   * Colorir 60 — PRÉVIA AMPLIADA de UMA obra (C60 · seleção visual). Aberta ao tocar uma criação na
+   * coleção. Recebe só a IDENTIDADE (`storyId` + `activityId` da vaga) — nunca bytes nem pintura pela
+   * navegação; a tela relê pela leitura canônica reconciliada. Como a coleção, é PÚBLICA e o gate do
+   * piloto vive dentro da tela. É uma VISTA (e a rampa para editar), jamais a celebração de 3 de 3.
+   */
+  COLORING60_ART_PREVIEW: 'Coloring60ArtPreview',
 
   // ── Criação (nomes legados: NÃO renomear, quebram navegação) ──────────────
   ATELIER_CANVAS: 'AtelierCanvas',
@@ -53,6 +66,9 @@ export const ROUTES = Object.freeze({
   // ── Somente desenvolvimento (registradas sob isInternalToolsEnabled) ──────
   COLORING_QA: 'ColoringQa',
   PACK_SANDBOX_DEV: 'PackSandboxDev',
+  // Colorir 60 — bancada para reencenar 0/3, 1/3, 2/3, 3/3 e as reedições no aparelho real.
+  // SÓ dev-gated (rota) + Modo Criador (tela). Ver coloring60LabService.
+  COLORING60_LAB: 'Coloring60Lab',
   SCENE_VALIDATION: 'SceneValidation',
   OVELHA_ASSET_GALLERY: 'OvelhaAssetGallery',
   // Monte a Cena — Architecture Spike M1A (baseline C-SVG, 4 peças). SÓ dev-gated. Legado técnico.

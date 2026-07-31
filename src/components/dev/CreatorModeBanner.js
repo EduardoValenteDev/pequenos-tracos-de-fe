@@ -14,10 +14,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   isCreatorQaModeEnabled, isCreatorQaModeAllowed, subscribeCreatorQaMode,
 } from '../../services/creatorQaMode';
+// [C60-P13-HEADER] §Parte 13 — durante um momento imersivo (os atos da celebração) o selo se recolhe:
+// ele é um overlay global e ficava por cima da festa. É só APRESENTAÇÃO — o Modo Criador continua
+// exatamente como está (nada é ligado, desligado ou persistido aqui) e o selo volta ao fim do momento.
+import { isImmersiveMomentActive, subscribeImmersiveMoment } from '../../services/immersiveMoment';
 
 export default function CreatorModeBanner() {
   const insets = useSafeAreaInsets();
   const [enabled, setEnabled] = useState(isCreatorQaModeEnabled());
+  const [immersive, setImmersive] = useState(isImmersiveMomentActive());
 
   useEffect(() => {
     // Sincroniza com o valor atual e assina mudanças (liga/desliga em runtime).
@@ -25,7 +30,12 @@ export default function CreatorModeBanner() {
     return subscribeCreatorQaMode(() => setEnabled(isCreatorQaModeEnabled()));
   }, []);
 
-  if (!isCreatorQaModeAllowed() || !enabled) return null;
+  useEffect(() => {
+    setImmersive(isImmersiveMomentActive());
+    return subscribeImmersiveMoment((active) => setImmersive(active === true));
+  }, []);
+
+  if (!isCreatorQaModeAllowed() || !enabled || immersive) return null;
 
   // R2C/fechamento §3 — SELO minúsculo no canto superior DIREITO, ancorado NA borda da safe
   // area (não no status bar) e acima da faixa do título: não cobre título, Voltar, seletor de

@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, Image, Modal,
   Animated, StyleSheet,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from '../components/SoundButton';
@@ -20,6 +21,13 @@ import { getBeniGuideMessage } from '../data/beniGuideMessages';
 import { getNextAdventureRecommendation } from '../services/nextAdventureService';
 import StoryCoverImage from '../components/story/StoryCoverImage';
 import { QUIZ_QUESTIONS_PER_STORY } from '../services/quizModel';
+import { isCreationColoringPilotActive } from '../services/coloring60Pilot';
+import { ROUTES } from '../constants/routes';
+import { loadColoring60JourneyState } from '../services/coloring60ProgressReader';
+import {
+  deriveColoring60StoryBridge,
+  COLORING60_ACTION,
+} from '../services/coloring60Journey';
 
 // A0.3: removida a leitura de largura de tela congelada no módulo — era código MORTO
 // (a variável não era usada em lugar nenhum). Sem substituto necessário; esta tela
@@ -53,6 +61,43 @@ function SceneTimelineDot({ cena, done, index }) {
   );
 }
 
+/**
+ * [C60-PARTE-10] PONTE PÓS-HISTÓRIA — o próximo passo, no topo, com UM convite só.
+ *
+ * A conclusão da história NÃO é redesenhada neste bloco: ela ganha uma HIERARQUIA. Primeiro o Beni
+ * diz o que acabou e convida a colorir a Criação; depois vem tudo o que já existia, agora sob um
+ * título que o organiza ("Veja tudo que você conquistou"). Nada foi removido da tela.
+ *
+ * Só aparece na história do piloto e só depois que o progresso REAL foi lido (o rótulo do convite
+ * depende dele). Enquanto lê, a ponte não é renderizada — nunca um rótulo provisório que possa
+ * mandar a criança "começar" o que ela já terminou.
+ */
+function CreationColoringBridge({ bridge, onPress }) {
+  if (!bridge) return null;
+  return (
+    <View style={styles.c60Bridge}>
+      <View style={styles.c60BridgeRow}>
+        <BeniAvatar variant="artist" size="medium" />
+        <Text style={styles.c60BridgeText}>{bridge.message}</Text>
+      </View>
+      <SoundButton
+        style={styles.c60BridgeBtn}
+        onPress={onPress}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={bridge.action.label}
+      >
+        <Text style={styles.c60BridgeBtnText}>{bridge.action.label}</Text>
+      </SoundButton>
+      {/* Contagem só quando ela DIZ algo: "0 de 3" antes de começar seria ruído. Mesmo formato da
+          coleção ("2 de 3"), para a criança reconhecer o mesmo número nas duas superfícies. */}
+      {bridge.completedCount > 0 && (
+        <Text style={styles.c60BridgeCount}>{bridge.progressLabel}</Text>
+      )}
+    </View>
+  );
+}
+
 /* Tile de recompensa (presente) — sem chevron, cara de conquista, não config. */
 function RewardTile({ emoji, label, onPress }) {
   return (
@@ -79,6 +124,55 @@ export default function CongratsScreen({ route, navigation }) {
 
   const completedScenesCount = Object.values(progresso).filter(Boolean).length;
   const scenesPercent = story.totalCenas > 0 ? completedScenesCount / story.totalCenas : 0;
+
+  // Piloto "Colorir com o Beni" (Colorir 60): em "A Criação" com o piloto ativo, o Colorir
+  // TRADICIONAL por cena dá lugar à jornada "Colorir com o Beni" (na StoryDetailScreen). Aqui
+  // isso oculta a recompensa "Colorir" (que abriria o Colorir legado por cena) — sem apagar
+  // nada e sem afetar outras histórias. Piloto off ⇒ recompensa volta a aparecer.
+  const creationColoringPilot = isCreationColoringPilotActive(story?.id);
+  const creationColoringHidden = creationColoringPilot;
+
+  // [C60-PARTE-10] Progresso REAL da jornada de cores, reconciliado (conclusão + instantâneo).
+  // `null` = ANTES da primeira leitura (nada a mostrar ainda). Quando a leitura FALHA depois de já
+  // termos uma ponte válida, PRESERVAMOS a última (não voltamos a "nada" nem a "0 de 3"); se falhar
+  // sem estado anterior, caímos numa ponte HONESTA (readFailed) em vez de convidar errado — um
+  // "Começar" para quem já pintou duas partes seria uma mentira pequena com custo grande.
+  const [c60Bridge, setC60Bridge] = useState(null);
+
+  // Recarrega ao FOCAR: a criança pode sair daqui para colorir e voltar. O rótulo do convite tem de
+  // refletir o progresso de AGORA, não o de quando esta tela montou.
+  useFocusEffect(useCallback(() => {
+    if (!creationColoringPilot) return undefined;
+    let alive = true;
+    loadColoring60JourneyState(story.id)
+      .then((state) => {
+        if (!alive) return;
+        setC60Bridge(deriveColoring60StoryBridge({
+          doneMap: state.doneMap,
+          order: Object.keys(state.doneMap),
+        }));
+      })
+      .catch((err) => {
+        if (__DEV__) console.log('[Coloring60] ponte pós-história: leitura falhou:', err?.message);
+        // Leitura falhou: PRESERVA a última ponte válida; sem estado anterior, mostra a ponte
+        // honesta (readFailed) — nunca volta a `null`/branco e nunca assume 0 de 3.
+        if (alive) setC60Bridge((prev) => prev ?? deriveColoring60StoryBridge({ readFailed: true }));
+      });
+    return () => { alive = false; };
+  }, [creationColoringPilot, story.id]));
+
+  // A ponte tem UMA ação; a tela decide COMO realizá-la (a derivação nunca navega).
+  function handleC60Bridge() {
+    const action = c60Bridge?.action ?? null;
+    if (!action) return;
+    if (action.kind === COLORING60_ACTION.COLLECTION) {
+      navigation.navigate(ROUTES.COLORING60_COLLECTION, { storyId: story.id });
+      return;
+    }
+    if (action.kind === COLORING60_ACTION.OPEN_NEXT && action.targetActivityId) {
+      navigation.navigate(ROUTES.COLORING, { storyId: story.id, activityId: action.targetActivityId });
+    }
+  }
 
   // Recomendação inteligente de continuidade (nunca recomenda história concluída)
   const recommendation = getNextAdventureRecommendation({
@@ -152,6 +246,16 @@ export default function CongratsScreen({ route, navigation }) {
             </Text>
             <BeniAvatar variant="celebrating" size="medium" style={styles.heroBeni} />
           </LinearGradient>
+
+          {/* ── [C60-PARTE-10] PONTE: o próximo passo vem ANTES de tudo o que já existia ── */}
+          {creationColoringPilot && (
+            <CreationColoringBridge bridge={c60Bridge} onPress={handleC60Bridge} />
+          )}
+
+          {/* Título que organiza o RESTANTE da conclusão (nada foi removido daqui para baixo). */}
+          {creationColoringPilot && !!c60Bridge && (
+            <Text style={styles.c60RestTitle}>{c60Bridge.restSectionTitle}</Text>
+          )}
 
           {/* ── LIÇÃO DO CORAÇÃO ── */}
           <View style={styles.licaoBox}>
@@ -234,7 +338,9 @@ export default function CongratsScreen({ route, navigation }) {
             <View style={styles.rewardGrid}>
               <RewardTile emoji="🎴" label="Baú" onPress={() => navigation.navigate('BeniChest', { fromStoryCompletion: true, from: 'storyComplete' })} />
               <RewardTile emoji="⭐" label="Estrelinhas" onPress={() => navigation.navigate('EstrelinhasCena', { fromStoryCompletion: true, from: 'storyComplete' })} />
-              <RewardTile emoji="🎨" label="Colorir" onPress={() => navigation.navigate('Coloring', { story, cenaIndex: 0, from: 'storyComplete' })} />
+              {!creationColoringHidden && (
+                <RewardTile emoji="🎨" label="Colorir" onPress={() => navigation.navigate('Coloring', { story, cenaIndex: 0, from: 'storyComplete' })} />
+              )}
               <RewardTile emoji="✨" label="Guardar no coração" onPress={() => navigation.navigate('Reflection', { story })} />
             </View>
 
@@ -387,6 +493,41 @@ const styles = StyleSheet.create({
   heroSub: {
     fontFamily: 'Nunito', fontSize: 14, color: 'rgba(255,255,255,0.9)',
     textAlign: 'center',
+  },
+
+  // ── [C60-PARTE-10] Ponte pós-história ─────────────────────────────────────
+  // Superfície SÓLIDA e clara, com a borda do ateliê (mesma família visual do Colorir com o Beni na
+  // tela da história). Fica logo abaixo do HERO, com respiro suficiente para ler como "primeiro
+  // passo" e não como mais um cartão da lista de recompensas.
+  c60Bridge: {
+    backgroundColor: '#FFF9ED',
+    borderRadius: radii.lg,
+    borderWidth: 2, borderColor: '#F4B400',
+    paddingVertical: 16, paddingHorizontal: 16,
+    marginHorizontal: 16, marginTop: 16,
+    ...shadows.soft,
+  },
+  c60BridgeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  c60BridgeText: {
+    flex: 1,
+    fontFamily: 'FredokaOne', fontSize: 16, color: colors.text, lineHeight: 22,
+  },
+  c60BridgeBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.lg,
+    paddingVertical: 14, paddingHorizontal: 18,
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 14,
+    ...shadows.soft,
+  },
+  c60BridgeBtnText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
+  c60BridgeCount: {
+    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
+    textAlign: 'center', marginTop: 8,
+  },
+  c60RestTitle: {
+    fontFamily: 'FredokaOne', fontSize: 16, color: pt.textSoft,
+    textAlign: 'center', marginTop: 22, marginHorizontal: 20,
   },
 
   licaoBox: {

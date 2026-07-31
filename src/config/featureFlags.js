@@ -86,3 +86,15 @@ export const CREATOR_QA_MODE_RELEASE_ENABLED =
   RELEASE_PACK_QA_ENABLED &&
   process.env.EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE === 'true' &&
   process.env.EXPO_PUBLIC_BUILD_PROFILE === 'preview-criador';
+
+/**
+ * COLORIR_60_CREATION_PILOT_ENABLED — piloto do Colorir 60 de "A Criação"
+ * (3 atividades semânticas por `activityId`: `light`, `living_world`, `people_and_care`).
+ *   Desligada (false) por padrão. Enquanto false, NENHUMA superfície do Colorir 60
+ *   aparece: sem catálogo exposto, sem rota nova, sem entrada de QA — o app permanece
+ *   idêntico ao baseline e o fluxo legado de colorir (200 linearts por cena) fica
+ *   intocado. A flag é o interruptor único do piloto; ligá-la é trocar para `true`
+ *   (sem migração de dados). Governança: specs 014/015/016/017 · DECISIONS.md PL01A-03/PL01G.
+ *   Introduzida em C60-IMPL-P0 (P0.T7) sem qualquer implementação funcional acoplada.
+ */
+export const COLORIR_60_CREATION_PILOT_ENABLED = false;

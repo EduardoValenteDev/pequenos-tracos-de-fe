@@ -294,8 +294,67 @@ function erase(sx,sy){
   notifyPainted(); renderAll();
 }
 
+/* ──────────────────────────────────────────
+   MEDIDA REAL DE PINTURA  (C60 · Parte 3)
+   O motor é o ÚNICO lugar do app com acesso aos pixels. Aqui ele CONTA quanto foi
+   realmente pintado e publica a medida — em vez do antigo sinal de mão única, que
+   ficava verdadeiro para sempre e deixava folha em branco/apagada passar por "pintada".
+   paintablePx  = pixels do retângulo da ARTE que NÃO são traço (isBFSBarrier) → o lineart
+                  já sai da conta, e a moldura creme fora da imagem nunca entrou.
+   paintedPx    = pixels da CAMADA DE TINTA com alfa>0 dentro desse mesmo retângulo →
+                  transparente não conta; branco só conta quando foi escolhido como cor.
+   paintRev     = revisão monotônica: sobe a CADA operação que muda a tinta. É o que casa
+                  pintura ↔ instantâneo na transação atômica (Parte 4).
+─────────────────────────────────────────── */
+var paintRev=0;
+var paintablePx=0;
+
+function computePaintablePx(){
+  if(!baseD||imgW<=0||imgH<=0){paintablePx=0;return;}
+  var bd=baseD.data,n=0;
+  var x0=Math.max(0,imgX),y0=Math.max(0,imgY);
+  var x1=Math.min(W,imgX+imgW),y1=Math.min(H,imgY+imgH);
+  for(var y=y0;y<y1;y++){
+    var row=y*W;
+    for(var x=x0;x<x1;x++){
+      var i=(row+x)*4;
+      if(!isBFSBarrier(bd[i],bd[i+1],bd[i+2],bd[i+3]))n++;
+    }
+  }
+  paintablePx=n;
+}
+
+function countPaintedPx(){
+  if(!paintD||imgW<=0||imgH<=0)return 0;
+  var pd=paintD.data,n=0;
+  var x0=Math.max(0,imgX),y0=Math.max(0,imgY);
+  var x1=Math.min(W,imgX+imgW),y1=Math.min(H,imgY+imgH);
+  for(var y=y0;y<y1;y++){
+    var row=y*W;
+    for(var x=x0;x<x1;x++){
+      if(pd[(row+x)*4+3]>0)n++;
+    }
+  }
+  return n;
+}
+
+/* Publica a medida atual. Chamado depois de TODA operação que altera a tinta —
+   pintar, apagar, desfazer, limpar e carregar arte salva — para que "tem cor"
+   seja de MÃO DUPLA: apagar tudo derruba o sinal no mesmo toque. */
+function postPaintState(){
+  try{
+    var painted=countPaintedPx();
+    hasPainted=painted>0;
+    window.ReactNativeWebView.postMessage('PAINT_STATE:'+JSON.stringify({
+      rev:paintRev,paintedPx:painted,paintablePx:paintablePx
+    }));
+  }catch(e){/* medir nunca pode derrubar o motor */}
+}
+
 function notifyPainted(){
+  paintRev++;
   if(!hasPainted){hasPainted=true;window.ReactNativeWebView.postMessage('PAINTED');}
+  postPaintState();
 }
 
 /* ──────────────────────────────────────────
@@ -388,8 +447,11 @@ window.setEraser=function(){
   isEraser=true;
 };
 
+/* Limpar e desfazer TAMBÉM mudam a tinta: sobem a revisão e republicam a medida.
+   É o que faz "Pronto" voltar a desabilitado assim que a folha é limpa (Parte 5) e
+   o que faz Desfazer restaurar tanto os pixels quanto a possibilidade de concluir. */
 window.clearPaint=function(){
-  if(paintD){pushHist();paintD=offCtx.createImageData(W,H);renderAll();}
+  if(paintD){pushHist();paintD=offCtx.createImageData(W,H);paintRev++;renderAll();postPaintState();}
 };
 
 window.undo=function(){
@@ -397,10 +459,15 @@ window.undo=function(){
   var prev=hist.pop();
   if(!paintD)paintD=offCtx.createImageData(W,H);
   paintD.data.set(prev);
+  paintRev++;
   renderAll();
+  postPaintState();
 };
 
 window.resetZoom=function(){scale=1;tx=0;ty=0;show();};
+
+/* Reconferência sob demanda da medida real, SEM alterar tinta nem revisão. */
+window.postPaintState=function(){postPaintState();};
 
 window.exportPaint=function(){
   try{
@@ -410,7 +477,14 @@ window.exportPaint=function(){
     if(paintD) outCtx.putImageData(paintD,0,0);
     /* v2 payload: includes canvas dimensions so loadPaint can validate
        compatibility before applying the bitmap to a potentially different-sized canvas. */
-    var payload=JSON.stringify({v:2,W:W,H:H,imgX:imgX,imgY:imgY,imgW:imgW,imgH:imgH,data:out.toDataURL('image/png')});
+    /* Campos ADITIVOS da medida real (C60 · Parte 3/4): o instantâneo carrega quanta cor
+       ele próprio contém e de QUAL revisão veio. Assim quem grava consegue provar, sem
+       decodificar PNG do lado nativo, que gravou uma arte com cor — e que ela é o MESMO
+       estado que foi validado. O campo "v" continua 2: leitores antigos ignoram os campos novos.
+       ATENÇÃO: este bloco vive DENTRO do template literal do HTML — nada de crases aqui. */
+    var payload=JSON.stringify({v:2,W:W,H:H,imgX:imgX,imgY:imgY,imgW:imgW,imgH:imgH,
+      rev:paintRev,paintedPx:countPaintedPx(),paintablePx:paintablePx,
+      data:out.toDataURL('image/png')});
     window.ReactNativeWebView.postMessage('PAINT_EXPORT:'+payload);
   }catch(err){
     window.ReactNativeWebView.postMessage('ERR:export_failed:'+err.message);
@@ -482,7 +556,14 @@ window.loadPaint=function(jsonStr){
         var tcCtx=tc.getContext('2d'); tcCtx.drawImage(img,0,0);
         if(!paintD) paintD=offCtx.createImageData(W,H);
         paintD.data.set(tcCtx.getImageData(0,0,W,H).data);
-        hasPainted=true; renderAll();
+        /* A arte retomada entra como uma REVISÃO nova e é MEDIDA como qualquer outra:
+           nunca mais "tem pintura" só porque existia um payload salvo — se o que voltou
+           for uma folha transparente, a medida dirá zero e "Pronto" seguirá desabilitado. */
+        paintRev++; renderAll(); postPaintState();
+        /* Sinal ADITIVO: a pintura salva já foi DECODIFICADA e DESENHADA neste frame.
+           Quem retoma uma arte (ex.: Colorir 60) usa isto para só então revelar o
+           canvas — nunca o contorno sem cor. O fluxo legado ignora a mensagem. */
+        window.ReactNativeWebView.postMessage('PAINT_APPLIED');
         devLog('[COLORING_STATE] load OK W='+W+' H='+H);
       }catch(e){
         window.ReactNativeWebView.postMessage('ERR:loadPaint_draw:'+e.message);
@@ -533,6 +614,10 @@ function initCanvas(uri){
       baseD=offCtx.getImageData(0,0,W,H);
       devLog('getImageData OK size='+(W*H*4));
       paintD=offCtx.createImageData(W,H);
+      /* Área PINTÁVEL medida UMA vez, com o lineart já no lugar: é o denominador da
+         cobertura mínima (Parte 3). Feito aqui porque baseD (fundo + traço) acabou de
+         ser capturado e imgX/Y/W/H já estão definitivos. */
+      computePaintablePx();
       allocBufs();
       devLog('bufs allocated qBuf='+qBuf.length+' visBuf='+visBuf.length);
       /* Colorir Imersivo — câmera inicial inteligente: abre com zoom de presença,
@@ -551,6 +636,9 @@ function initCanvas(uri){
       clamp();
       renderAll();
       window.ReactNativeWebView.postMessage('READY');
+      /* Medida INICIAL (folha em branco = 0 pintados): quem depende de cor real já nasce
+         com o retrato certo, em vez de herdar um "pintado" implícito. */
+      postPaintState();
       devLog('READY sent zoom='+scale);
     }catch(e){
       window.ReactNativeWebView.postMessage('ERR:initCanvas:'+e.message);
@@ -576,9 +664,11 @@ if(imgUri){
     offCtx.fillStyle='#FFFDF8'; offCtx.fillRect(0,0,W,H);
     baseD=offCtx.getImageData(0,0,W,H);
     paintD=offCtx.createImageData(W,H);
+    computePaintablePx();
     allocBufs();
     show();
     window.ReactNativeWebView.postMessage('READY');
+    postPaintState();
   }catch(e){
     window.ReactNativeWebView.postMessage('ERR:placeholder:'+e.message);
   }
@@ -597,10 +687,91 @@ if(imgUri){
 const lineartCache = new Map();
 
 /* ──────────────────────────────────────────────────────────────────
+   [C60-P13-PREWARM] Chave de cache e conversão da lineart isoladas em funções de MÓDULO.
+   Motivo (§Parte 10): a transição direta entre as partes da jornada de cores remonta a tela por
+   identidade — e era AQUI que nascia a "tela quase vazia com rodinha" vista no teste físico: a
+   próxima lineart só começava a ser convertida (asset → base64 → data URL) DEPOIS da remontagem.
+   Com a conversão exposta, a celebração consegue AQUECER a próxima parte antes de a criança tocar
+   no botão; quando a tela remonta, o cache já responde HIT e o primeiro quadro chega quase junto.
+   Nenhuma mudança de contrato do componente e nenhuma dependência nova.
+────────────────────────────────────────────────────────────────── */
+function lineartCacheKeyOf(imageSource) {
+  // F2.4e.3: require (id de módulo do Metro) OU { uri: 'file://…' } (colorir remoto do pack).
+  const isUriSource = !!(imageSource && typeof imageSource === 'object' && typeof imageSource.uri === 'string');
+  return isUriSource ? imageSource.uri : imageSource;
+}
+
+/**
+ * Converte a lineart em data URL base64 e MEMORIZA no cache do módulo. Devolve o data URL já
+ * pronto quando ele existe (sem download/leitura). Lança em falha — quem chama decide o que fazer.
+ */
+async function convertLineartToDataUrl(imageSource) {
+  const isUriSource = !!(imageSource && typeof imageSource === 'object' && typeof imageSource.uri === 'string');
+  const cacheKey = lineartCacheKeyOf(imageSource);
+  const cached = lineartCache.get(cacheKey);
+  if (cached) return cached;
+
+  let localUri;
+  if (isUriSource) {
+    localUri = imageSource.uri; // fonte remota já resolvida (file:// persistente do pack)
+  } else {
+    const asset = Asset.fromModule(imageSource);
+    if (!asset.downloaded) await asset.downloadAsync();
+    localUri = asset.localUri || asset.uri;
+  }
+  if (!localUri) throw new Error('asset sem localUri/uri');
+  let dataUrl;
+  if (localUri.startsWith('file')) {
+    // Lê o arquivo local direto em base64 — sem blob/FileReader.
+    const b64 = await FileSystem.readAsStringAsync(localUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    dataUrl = 'data:image/png;base64,' + b64;
+  } else {
+    // URI remota/http (fallback raro): fetch + FileReader.
+    const resp = await fetch(localUri);
+    const blob = await resp.blob();
+    dataUrl = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onloadend = () => (typeof reader.result === 'string'
+        ? res(reader.result) : rej(new Error('FileReader result is not a string')));
+      reader.onerror = () => rej(new Error('FileReader error'));
+      reader.readAsDataURL(blob);
+    });
+  }
+  if (!dataUrl || dataUrl.length < 64) throw new Error('dataUrl vazio');
+  lineartCache.set(cacheKey, dataUrl); // guarda p/ próximas aberturas (require OU uri)
+  return dataUrl;
+}
+
+/**
+ * prewarmLineart(imageSource) — AQUECE a lineart no cache do módulo, fora de qualquer render.
+ * Devolve `true` quando a imagem está pronta em cache e `false` em qualquer falha: NUNCA lança e
+ * NUNCA altera estado de tela. É best-effort — a tela que a consome continua funcionando sem ela
+ * (só perde a vantagem do cache quente). Não baixa conteúdo remoto novo: é a mesma fonte que a
+ * tela usaria de qualquer jeito, só que resolvida ANTES.
+ */
+export async function prewarmLineart(imageSource) {
+  if (!imageSource) return false;
+  try {
+    const cacheKey = lineartCacheKeyOf(imageSource);
+    if (lineartCache.get(cacheKey)) return true; // já quente: nada a fazer
+    const dataUrl = await convertLineartToDataUrl(imageSource);
+    return typeof dataUrl === 'string' && dataUrl.length > 0;
+  } catch {
+    return false; // aquecimento é best-effort: falhar aqui não pode afetar a experiência
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────
    React Native component
 ────────────────────────────────────────────────────────────────── */
 const ColoringCanvas = forwardRef(function ColoringCanvas(
-  { selectedColor = '#FF0000', imageSource = null, storyId = null, sceneNumber = null, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected, onReadyChange, onPaintValid, onPaintInvalid },
+  // `onPaintState` (ADITIVO · C60 · Parte 3) recebe a MEDIDA REAL da tinta a cada operação:
+  // { rev, paintedPx, paintablePx }. Diferente de `onPainted` (mão única, legado), ele é de mão
+  // DUPLA — apagar tudo devolve paintedPx=0 no mesmo toque. O fluxo legado simplesmente não passa
+  // a prop e nada muda para ele.
+  { selectedColor = '#FF0000', imageSource = null, storyId = null, sceneNumber = null, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected, onReadyChange, onPaintValid, onPaintInvalid, onPaintApplied, onPaintState },
   ref,
 ) {
   const webViewRef = useRef(null);
@@ -625,11 +796,12 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
 
     // F2.4e.3: imageSource pode ser um require (módulo) OU { uri: 'file://…' } (colorir remoto
     // do pack). A chave de cache e a resolução do localUri tratam os dois casos; o pipeline
-    // file://→base64→dataURL abaixo é IDÊNTICO (o WebView recebe um data URL self-contained).
-    const isUriSource = !!(imageSource && typeof imageSource === 'object' && typeof imageSource.uri === 'string');
-    const cacheKey = isUriSource ? imageSource.uri : imageSource;
+    // file://→base64→dataURL (em `convertLineartToDataUrl`) é IDÊNTICO nos dois (o WebView
+    // recebe um data URL self-contained).
+    const cacheKey = lineartCacheKeyOf(imageSource);
 
-    // Cache HIT: reaproveita a lineart já convertida (sem download/leitura).
+    // Cache HIT: reaproveita a lineart já convertida (sem download/leitura). É por aqui que a
+    // transição direta da jornada entra "quente" quando a celebração já aqueceu a próxima parte.
     const cached = lineartCache.get(cacheKey);
     if (cached) {
       if (__DEV__) console.log(`[ColoringCanvas] lineart CACHE HIT story=${storyId} scene=${sceneNumber}`);
@@ -640,36 +812,7 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
     (async () => {
       const t0 = Date.now();
       try {
-        let localUri;
-        if (isUriSource) {
-          localUri = imageSource.uri; // fonte remota já resolvida (file:// persistente do pack)
-        } else {
-          const asset = Asset.fromModule(imageSource);
-          if (!asset.downloaded) await asset.downloadAsync();
-          localUri = asset.localUri || asset.uri;
-        }
-        if (!localUri) throw new Error('asset sem localUri/uri');
-        let dataUrl;
-        if (localUri.startsWith('file')) {
-          // Lê o arquivo local direto em base64 — sem blob/FileReader.
-          const b64 = await FileSystem.readAsStringAsync(localUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          dataUrl = 'data:image/png;base64,' + b64;
-        } else {
-          // URI remota/http (fallback raro): fetch + FileReader.
-          const resp = await fetch(localUri);
-          const blob = await resp.blob();
-          dataUrl = await new Promise((res, rej) => {
-            const reader = new FileReader();
-            reader.onloadend = () => (typeof reader.result === 'string'
-              ? res(reader.result) : rej(new Error('FileReader result is not a string')));
-            reader.onerror = () => rej(new Error('FileReader error'));
-            reader.readAsDataURL(blob);
-          });
-        }
-        if (!dataUrl || dataUrl.length < 64) throw new Error('dataUrl vazio');
-        lineartCache.set(cacheKey, dataUrl); // guarda p/ próximas aberturas (require OU uri)
+        const dataUrl = await convertLineartToDataUrl(imageSource);
         if (__DEV__) {
           console.log(`[ColoringCanvas] lineart CACHE MISS story=${storyId} scene=${sceneNumber} convMs=${Date.now() - t0} len=${dataUrl.length}`);
         }
@@ -749,6 +892,9 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
 
   useImperativeHandle(ref, () => ({
     clearCanvas() { webViewRef.current?.injectJavaScript('window.clearPaint(); true;'); },
+    // Republica a medida atual sem alterar a tinta (nem a revisão). Usado para reconferir o
+    // estado antes de uma decisão importante, sem depender de o último sinal ter chegado.
+    measurePaint() { webViewRef.current?.injectJavaScript('window.postPaintState && window.postPaintState(); true;'); },
     undo()        { webViewRef.current?.injectJavaScript('window.undo(); true;'); },
     resetZoom()   { webViewRef.current?.injectJavaScript('window.resetZoom(); true;'); },
 
@@ -800,10 +946,16 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
       }
     } else if (msg === 'PAINTED') {
       onPainted?.();
+    } else if (msg.startsWith('PAINT_STATE:')) {
+      // Medida real da tinta (C60 · Parte 3). Entregue crua; quem decide o que é "cor
+      // suficiente" é `coloring60PaintMetrics` — o motor não conhece regra de produto.
+      try { onPaintState?.(JSON.parse(msg.slice('PAINT_STATE:'.length))); } catch { /* medida ilegível: ignorada */ }
     } else if (msg.startsWith('PAINT_EXPORT:')) {
       const exportData = msg.slice('PAINT_EXPORT:'.length);
       pendingExportCallbackRef.current?.(exportData);
       pendingExportCallbackRef.current = null;
+    } else if (msg === 'PAINT_APPLIED') {
+      onPaintApplied?.();
     } else if (msg === 'PAINT_VALID') {
       onPaintValid?.();
     } else if (msg === 'PAINT_INVALID') {

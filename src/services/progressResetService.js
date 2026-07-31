@@ -17,6 +17,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { stories } from '../data/stories';
 import { clearAllSavedDrawings } from './drawingStorage';
+import { resetCreationColoringJourney } from './coloring60ResetService';
 
 const STORY_IDS = stories.map(s => s.id);
 
@@ -98,5 +99,18 @@ export async function resetProgress() {
     // Defensivo: nunca lança a partir do reset.
   }
 
-  return { removed: keys.length + drawingsRemoved, keys };
+  // Jornada de cores do Colorir 60 (C60 · Parte 6). A whitelist acima NÃO alcança as chaves do
+  // piloto (`@ptf_coloring60_*` e `@ptf_drawing60_*`) e `clearAllSavedDrawings` filtra
+  // `@ptf_drawing_` — que NÃO casa `@ptf_drawing60_`. Por isso o "3 de 3" sobrevivia a "Gerenciar
+  // dados". Em vez de copiar as chaves para cá (duas listas divergem), chamamos a FUNÇÃO ÚNICA de
+  // reset da jornada, que é a mesma usada pela bancada de desenvolvimento. Ela apaga conclusão,
+  // memória de "já concluiu", grande conclusão vista, pixels, ARQUIVOS físicos, convite e caches.
+  let coloring60Reset = null;
+  try {
+    coloring60Reset = await resetCreationColoringJourney();
+  } catch {
+    // Defensivo: nunca lança a partir do reset.
+  }
+
+  return { removed: keys.length + drawingsRemoved, keys, coloring60Reset };
 }

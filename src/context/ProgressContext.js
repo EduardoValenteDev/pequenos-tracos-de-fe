@@ -20,6 +20,14 @@ import { getRewardsSummary } from '../services/rewardService';
 import { getStoryJourneyStatus } from '../services/storyJourneyService';
 import { loadStoriesWithColoringDone } from '../services/coloringActivityService';
 import { getStoryAccessStatus } from '../services/contentAccessService';
+// [C60-PONTE] coloringComplete de "A Criação" (piloto) vem da jornada Colorir 60 pela ponte
+// READ-ONLY (não altera a fórmula global — só a FONTE do sinal de 'creation'). Fora do piloto, a
+// ponte devolve "não se aplica" e o Set legado passa intacto (produção idêntica).
+import { COLORING60_STORY_ID } from '../services/coloring60Pilot';
+import {
+  loadStoryColoringCompletionState,
+  applyCreationColoringToSet,
+} from '../services/storyColoringCompletion';
 import {
   getRegionFrontierStory as regionFrontierStory,
   isRegionNarrativeComplete as regionNarrativeComplete,
@@ -173,15 +181,22 @@ export function ProgressProvider({ children }) {
     setIsLoadingProgress(true);
     setProgressError(null);
     try {
-      const [progress, postStatus, bonusStars, coloringDone] = await Promise.all([
+      // [C60-PONTE] A ponte entra no MESMO round-trip (não adiciona latência serial). Ela NUNCA
+      // lança — piloto off devolve "não se aplica" de imediato (zero I/O); leitura falha devolve
+      // READ_FAILED —, então jamais quebra a hidratação nem o Promise.all.
+      const [progress, postStatus, bonusStars, coloringDone, creationColoring] = await Promise.all([
         loadAllProgress(),
         loadAllPostStoryStatuses(),
         getBonusStars(),
         loadStoriesWithColoringDone(STORY_IDS),
+        loadStoryColoringCompletionState(COLORING60_STORY_ID),
       ]);
       setProgressByStory(progress);
       setPostStoryStatusByStory(postStatus);
-      setColoringDoneByStory(coloringDone);
+      // Reconcilia SÓ 'creation' pela ponte: leitura ok ⇒ adiciona/remove; READ_FAILED ⇒ PRESERVA
+      // o valor anterior (nunca força false); não aplicável ⇒ Set legado intacto.
+      setColoringDoneByStory((prev) =>
+        applyCreationColoringToSet(coloringDone, prev, creationColoring, COLORING60_STORY_ID));
       setProgressSummary(computeSummary(progress, postStatus, bonusStars));
     } catch (e) {
       markOnce('progress_hydration_error', { reason: 'error' });

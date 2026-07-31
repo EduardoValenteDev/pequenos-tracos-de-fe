@@ -1,12 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView,
+  View, Text, ScrollView, Modal,
   Animated, StyleSheet, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useProgress } from '../hooks/useProgress';
 import { useStoryPackDownload } from '../hooks/useStoryPackDownload';
 import { hasSavedDrawing } from '../services/drawingStorage';
 import { preloadStorySceneIllustrations } from '../services/storyImageService';
@@ -14,18 +13,37 @@ import { hasAccess } from '../services/accessControl';
 import { isStoryComingSoon, getStoryAccessStatus } from '../services/contentAccessService';
 import { getStoryJourneyStatus, sceneVisualStatus } from '../services/storyJourneyService';
 import { hasStoryColoringActivityDone } from '../services/coloringActivityService';
+// [C60-PONTE] Em "A Criação" com o piloto ativo, coloringComplete vem da jornada Colorir 60 (ponte
+// READ-ONLY), não da fonte legada por cena. Falha de leitura preserva o valor atual (não força false).
+import { loadStoryColoringCompletionState } from '../services/storyColoringCompletion';
 import { useProgressContext } from '../context/ProgressContext';
 import { isQuizDone, getReflection, isStoryBookOpened } from '../services/postStoryStorage';
 import StoryBookHero from '../components/story/StoryBookHero';
 import SceneListItem from '../components/story/SceneListItem';
 import { LumiEmptyState } from '../components/lumi';
-import { BeniGuideBubble } from '../components/beni';
+import { BeniGuideBubble, BeniAvatar } from '../components/beni';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import ContentContainer from '../components/ui/ContentContainer';
 import BotaoPrimario from '../components/ui/BotaoPrimario';
 import { color } from '../theme/tokens';
+// Piloto "Colorir com o Beni" (Colorir 60) — SÓ na jornada de "A Criação", gated pela flag do
+// piloto OU por Dev Client + ferramentas internas (mesmo mecanismo único de `isColoring60PilotAllowed`).
+import { COLORIR_60_CREATION_PILOT_ENABLED } from '../config/featureFlags';
+import { isInternalToolsEnabled } from '../config/internalTools';
+import { getColoring60Activities } from '../data/coloring60Catalog';
+import { loadColoring60Done } from '../services/coloring60ActivityService';
+import {
+  hasSeenCreationColoringInvite, markCreationColoringInviteSeen,
+} from '../services/coloring60JourneyInvite';
+import CreationColoringJourneySection from '../components/coloring60/CreationColoringJourneySection';
+// [C60-PARTE-7] A coleção tem rota própria; o nome vem da fonte única de rotas.
+// [C60-NAV] CONTRATO ÚNICO de navegação do piloto (FLUXO 1): as entradas "Colorir" e "Ver minha
+// coleção" partem daqui por destino semântico, dedup por rota. Ver src/services/coloring60Navigation.
+import { c60OpenEditorFromStory, c60OpenCollectionFromStory } from '../services/coloring60Navigation';
+
+const CREATION_STORY_ID = 'creation';
 
 function PostStoryCard({ emoji, title, desc, done, tagColor, onPress, isTablet }) {
   return (
@@ -54,12 +72,35 @@ export default function StoryDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const isTablet = width >= 768;
 
-  const { isStorySequenceUnlocked } = useProgressContext();
-  const { progresso } = useProgress(story.id);
-  const progressCount = Object.values(progresso).filter(Boolean).length;
+  // [P4 · FONTE ÚNICA] O progresso de cenas desta tela vem do ProgressContext — a MESMA fonte que a
+  // NarrationScreen atualiza (refreshProgress após salvar cada cena) — e não mais de uma leitura
+  // própria só-no-mount (useProgress lia o AsyncStorage uma vez no useEffect de montagem e nunca
+  // revia). Sem isto, ao SAIR da história antes do fim a StoryDetail seguia mostrando o "N de 10", o
+  // passo recomendado e o selo do ESTADO ANTIGO até sair ao Mapa e reentrar (defeito físico observado).
+  // O formato é idêntico ao do useProgress ({ [cenaId]: true }): getStoryProgress devolve o mesmo
+  // objeto salvo por cena; a contagem usa a mesma derivação Object.values(...).filter(Boolean).length.
+  const {
+    isStorySequenceUnlocked,
+    getStoryProgress,
+    getCompletedScenesCount,
+    refreshProgress,
+  } = useProgressContext();
+  const progresso = getStoryProgress(story.id);
+  const progressCount = getCompletedScenesCount(story.id);
   const totalScenes = story.totalCenas ?? 0;
   const xpPercent = totalScenes > 0 ? progressCount / totalScenes : 0;
   const isCompleted = progressCount >= totalScenes && totalScenes > 0;
+
+  // §8 · Piloto "Colorir com o Beni": visível SÓ na jornada de "A Criação" e SÓ quando o piloto
+  // pode aparecer — a flag oficial ligada OU Dev Client (__DEV__) com ferramentas internas ativas.
+  // Espelha EXATAMENTE `isColoring60PilotAllowed()` da ColoringScreen (mesmo mecanismo único, sem
+  // flag paralela). Com a flag `false` em produção, este valor é `false` e a seção some por completo
+  // — o parâmetro de rota sozinho nunca autoriza, e a própria ColoringScreen revalida na entrada.
+  const creationColoringVisible =
+    story.id === CREATION_STORY_ID &&
+    (COLORIR_60_CREATION_PILOT_ENABLED ||
+      (typeof __DEV__ !== 'undefined' && __DEV__ === true && isInternalToolsEnabled()));
+
   // B1: "Em breve" inclui histórias sem mídia suficiente (não só catálogo).
   const isComingSoon = isStoryComingSoon(story);
   const canAccess = hasAccess(story);
@@ -80,6 +121,15 @@ export default function StoryDetailScreen({ route, navigation }) {
   const [bookOpened, setBookOpened] = useState(false);
   const [coloringDone, setColoringDone] = useState(false);
 
+  // §5/§10 · Estado REAL das 3 atividades do Colorir 60, derivado SEMPRE da CONCLUSÃO canônica
+  // (loadColoring60Done) — nunca da existência do PNG. O writer de pixels (coloring60DrawingStorage)
+  // é arquiteturalmente ISOLADO ao ColoringScreen (guard C60-P3→P4.T2 do smoke); a jornada não o
+  // consulta. Por isso os estados aqui são Bloqueado / Novo / Concluído (sem "Em andamento", que
+  // exigiria ler o storage do writer). O progresso "N de 3" e o passo recomendado vêm só da conclusão.
+  const [c60Done, setC60Done] = useState({});
+  // §7 · convite do Beni (após terminar a história pela 1ª vez), exibido UMA única vez.
+  const [inviteVisible, setInviteVisible] = useState(false);
+
   // Preload leve das ilustrações oficiais da história atual (reduz atraso visual
   // ao abrir as cenas). Fire-and-forget; no-op se a história ainda não tem artes.
   useEffect(() => {
@@ -98,14 +148,69 @@ export default function StoryDetailScreen({ route, navigation }) {
     checkDrawings();
   }, [progressCount]);
 
+  // [P4 · REVALIDAÇÃO COMPLEMENTAR] Ao focar (voltar da história ou do Colorir), revalida o progresso
+  // na fonte única. A sincronização PRIMÁRIA já vem da NarrationScreen (refreshProgress após cada cena
+  // salva); esta é a rede complementar para qualquer caminho que não passe por lá. refreshProgress é
+  // estável (loadAll com deps []), então o efeito roda uma vez por foco — sem laço de re-render.
+  useFocusEffect(
+    useCallback(() => { refreshProgress(); }, [refreshProgress]),
+  );
+
   useFocusEffect(
     useCallback(() => {
       if (!isCompleted) return;
       isQuizDone(story.id).then(setQuizDone);
       getReflection(story.id).then(r => setReflectionDone(!!r));
       isStoryBookOpened(story.id).then(setBookOpened);
-      hasStoryColoringActivityDone(story.id).then(setColoringDone);
-    }, [story.id, isCompleted]),
+      // [C60-PONTE] "A Criação" (piloto) tira coloringComplete da jornada Colorir 60; as demais
+      // histórias — e "A Criação" com o piloto off — mantêm a fonte legada por cena. `creationColoringVisible`
+      // é exatamente o gate do piloto. Falha de leitura PRESERVA o valor atual (não chama setColoringDone).
+      if (creationColoringVisible) {
+        loadStoryColoringCompletionState(story.id).then((r) => {
+          if (r.applicable && !r.readFailed) setColoringDone(r.coloringComplete === true);
+        });
+      } else {
+        hasStoryColoringActivityDone(story.id).then(setColoringDone);
+      }
+    }, [story.id, isCompleted, creationColoringVisible]),
+  );
+
+  // §5/§10 · Carrega a CONCLUSÃO real das 3 atividades ao focar a tela (reflete conclusões feitas no
+  // ColoringScreen e o retorno da celebração por "Voltar à aventura"/"Ver meus desenhos"). Só quando
+  // a seção pode aparecer; caso contrário nem toca no service de conclusão do Colorir 60. Lê APENAS a
+  // conclusão (loadColoring60Done) — jamais o writer de pixels, isolado ao ColoringScreen.
+  useFocusEffect(
+    useCallback(() => {
+      if (!creationColoringVisible) return undefined;
+      let active = true;
+      (async () => {
+        const activities = getColoring60Activities(CREATION_STORY_ID);
+        const done = {};
+        for (const activity of activities) {
+          done[activity.activityId] = await loadColoring60Done(CREATION_STORY_ID, activity.activityId);
+        }
+        if (active) setC60Done(done);
+      })();
+      return () => { active = false; };
+    }, [creationColoringVisible, isCompleted]),
+  );
+
+  // §7 · Convite do Beni: aparece UMA vez, quando a criança já terminou a história (isCompleted) e
+  // o convite ainda não foi mostrado. Marca como visto no MESMO instante em que decide exibir, para
+  // nunca repetir a cada reabertura da cena 10. Registro próprio (coloring60JourneyInvite), separado
+  // do progresso e da conclusão. Fora do gate/isCompleted, nunca aparece.
+  useFocusEffect(
+    useCallback(() => {
+      if (!creationColoringVisible || !isCompleted) return undefined;
+      let active = true;
+      hasSeenCreationColoringInvite().then((seen) => {
+        if (active && !seen) {
+          setInviteVisible(true);
+          markCreationColoringInviteSeen();
+        }
+      });
+      return () => { active = false; };
+    }, [creationColoringVisible, isCompleted]),
   );
 
   // A0.10: status público via FONTE ÚNICA (storyJourneyService) — mesma regra do
@@ -182,10 +287,41 @@ export default function StoryDetailScreen({ route, navigation }) {
   function getSceneStatus(cena, index) {
     return sceneVisualStatus({
       isComingSoon,
-      isDone: progresso[cena.id] === true, // progresso REAL salvo (useProgress), independe de canAccess
+      isDone: progresso[cena.id] === true, // progresso REAL salvo (ProgressContext · fonte única), independe de canAccess
       canAccess,
       isCurrent: index === progressCount,
     });
+  }
+
+  // §12 · A Criação é GRÁTIS: todas as crianças abrem as 3 atividades — SEM gate de plano aqui
+  // (o ColoringScreen trata plano internamente: Grátis conclui sem persistir; Família persiste).
+  // NÃO passa o `story` completo nem cria rota nova: só (storyId, activityId). O retorno da
+  // celebração ("Voltar à aventura"/"Ver meus desenhos") volta a ESTA tela pelo goBack já existente.
+  function openCreationColoring(activityId) {
+    c60OpenEditorFromStory(navigation, CREATION_STORY_ID, activityId);
+  }
+
+  // [C60-PARTE-7] "Ver minha coleção" (cartão em 3 de 3). A coleção é uma TELA PRÓPRIA e lê tudo do
+  // armazenamento: por isso NÃO recebe atividade nenhuma. Antes ela abria a tela de colorir na última
+  // parte pedindo uma camada por cima — e a mesma coleção mudava de fundo e de composição conforme a
+  // parte de origem. Agora a entrada é a mesma venha de onde vier: só a história.
+  // Abrir a coleção NÃO conclui nada e NÃO repete a grande conclusão.
+  function openCreationColoringCollection() {
+    c60OpenCollectionFromStory(navigation, CREATION_STORY_ID);
+  }
+
+  // §7 · "Colorir agora": abre a PRIMEIRA atividade ainda não concluída (ordem do catálogo); se
+  // nada foi iniciado, começa por "Haja luz" (light). Fecha o convite antes de navegar.
+  function handleInviteColorNow() {
+    setInviteVisible(false);
+    const activities = getColoring60Activities(CREATION_STORY_ID);
+    const firstNotDone = activities.find((a) => c60Done[a.activityId] !== true) ?? activities[0];
+    openCreationColoring(firstNotDone?.activityId ?? 'light');
+  }
+
+  // §7 · "Continuar depois": não força pintura; volta para a jornada com a seção disponível.
+  function handleInviteLater() {
+    setInviteVisible(false);
   }
 
   return (
@@ -316,17 +452,38 @@ export default function StoryDetailScreen({ route, navigation }) {
                   isTablet={isTablet}
                   onPress={() => navigation.navigate('Reflection', { story })}
                 />
-                <PostStoryCard
-                  emoji="🎨"
-                  title="Colorir"
-                  desc="Pintar uma cena"
-                  done={coloringDone}
-                  tagColor={color.gold300}
-                  isTablet={isTablet}
-                  onPress={() => goToPremium('Narration', { story, cenaIndex: 0 })}
-                />
+                {/* P10 · PARTE 1 · Colorir LEGADO oculto SÓ quando a jornada "Colorir com o Beni"
+                    está visível (história "A Criação" + piloto autorizado): ali a seção nova é a
+                    ÚNICA porta de entrada do colorir, e ver dois "Colorir" ao mesmo tempo confundia.
+                    Fora desse caso (qualquer outra história OU piloto desligado) o card legado
+                    continua EXATAMENTE como antes — rota, storage e desenhos legados intactos. */}
+                {!creationColoringVisible && (
+                  <PostStoryCard
+                    emoji="🎨"
+                    title="Colorir"
+                    desc="Pintar uma cena"
+                    done={coloringDone}
+                    tagColor={color.gold300}
+                    isTablet={isTablet}
+                    onPress={() => goToPremium('Narration', { story, cenaIndex: 0 })}
+                  />
+                )}
               </View>
             </View>
+          )}
+
+          {/* ── COLORIR COM O BENI (piloto "A Criação") ──
+              Fora do `{isCompleted && ...}`: aparece ANTES da história (trava suave, §6) e
+              DEPOIS (liberada, §5). Gate próprio (`creationColoringVisible`) — invisível em
+              produção com a flag `false`. Estado REAL das 3 atividades vem por props. */}
+          {creationColoringVisible && (
+            <CreationColoringJourneySection
+              unlocked={isCompleted}
+              isTablet={isTablet}
+              doneMap={c60Done}
+              onOpenActivity={openCreationColoring}
+              onOpenCollection={openCreationColoringCollection}
+            />
           )}
 
           {/* ── LISTA DE CENAS ── */}
@@ -339,7 +496,7 @@ export default function StoryDetailScreen({ route, navigation }) {
                   cena={cena}
                   index={index}
                   status={getSceneStatus(cena, index)}
-                  hasDrawing={savedDrawings[cena.id] === true}
+                  hasDrawing={savedDrawings[cena.id] === true && !creationColoringVisible}
                   onPress={() => goToPremium('Narration', { story, cenaIndex: index })}
                 />
               ))}
@@ -355,6 +512,39 @@ export default function StoryDetailScreen({ route, navigation }) {
 
         </Animated.View>
       </ScrollView>
+
+      {/* §7 · Convite do Beni após terminar a história (uma vez). Overlay leve; "Continuar depois"
+          não força pintura. Só existe sob o gate do piloto. */}
+      {creationColoringVisible && (
+        <Modal
+          visible={inviteVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={handleInviteLater}
+        >
+          <View style={styles.inviteBackdrop}>
+            <View style={styles.inviteCard}>
+              <BeniAvatar variant="celebrating" size="large" />
+              <Text style={styles.inviteTitle}>Agora vamos colorir o que aprendemos?</Text>
+              <Text style={styles.inviteSupport}>
+                A luz, a vida e o cuidado de Deus estão esperando suas cores!
+              </Text>
+              <BotaoPrimario
+                label="Colorir agora"
+                onPress={handleInviteColorNow}
+                style={styles.invitePrimary}
+              />
+              <SoundButton
+                style={styles.inviteSecondary}
+                onPress={handleInviteLater}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.inviteSecondaryText}>Continuar depois</Text>
+              </SoundButton>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -466,5 +656,31 @@ const styles = StyleSheet.create({
   },
   emptySection: {
     marginHorizontal: 16, marginTop: 24,
+  },
+
+  // §7 — convite do Beni (modal leve). Backdrop suave; cartão em papel; ações claras.
+  inviteBackdrop: {
+    flex: 1, backgroundColor: 'rgba(20,14,10,0.55)',
+    justifyContent: 'center', alignItems: 'center', padding: 28,
+  },
+  inviteCard: {
+    width: '100%', maxWidth: 360,
+    backgroundColor: color.paper50,
+    borderRadius: radii.lg,
+    padding: 24, alignItems: 'center',
+    ...shadows.card,
+  },
+  inviteTitle: {
+    fontFamily: 'FredokaOne', fontSize: 20, color: pt.text,
+    textAlign: 'center', marginTop: 14,
+  },
+  inviteSupport: {
+    fontFamily: 'Nunito', fontSize: 14.5, color: pt.textSoft,
+    textAlign: 'center', marginTop: 8, lineHeight: 21,
+  },
+  invitePrimary: { alignSelf: 'stretch', marginTop: 20 },
+  inviteSecondary: { marginTop: 12, paddingVertical: 8, paddingHorizontal: 16 },
+  inviteSecondaryText: {
+    fontFamily: 'Nunito', fontSize: 15, color: pt.textSoft, fontWeight: '700',
   },
 });
