@@ -231,8 +231,10 @@ async function writeSlot(slotName, payload) {
   const written = await writeBlob(BLOB_SUBDIR, slotName, dataUrl, mime);
   if (!written) {
     // Compensatório: remove qualquer arquivo parcial no slot inativo (seguro: nunca é o ativo).
+    // O subdiretório é FIXADO no alvo: mesmo montado a partir da raiz atual, nada fora de
+    // `ptf_blobs/drawings60/` pode ser atingido por esta limpeza.
     const root = currentBlobsRoot();
-    if (root) await deleteBlob(`${root}${BLOB_SUBDIR}/${slotName}`);
+    if (root) await deleteBlob(`${root}${BLOB_SUBDIR}/${slotName}`, { requireSubdir: BLOB_SUBDIR });
     return null;
   }
 
@@ -299,7 +301,9 @@ async function rollbackFailedPromotion(k, oldRaw, newUri) {
 
   // 3) Só descarta o blob novo com CONFIRMAÇÃO de que nenhuma chave o referencia; senão, preserva.
   if (readable && !keyStillRefsNew) {
-    try { await deleteBlob(newUri); } catch (e) { log('coloring60DrawingStorage.rollback.delnew:', e); }
+    try {
+      await deleteBlob(newUri, { requireSubdir: BLOB_SUBDIR });
+    } catch (e) { log('coloring60DrawingStorage.rollback.delnew:', e); }
   }
 }
 
@@ -386,8 +390,17 @@ export async function saveColoring60DrawingState(storyId, activityId, payload) {
     // Sucesso: descarta o slot ANTIGO (se era um arquivo diferente do novo). Best-effort — uma
     // falha física aqui deixa no máximo um arquivo antigo SEM ponteiro (resíduo), nunca invalida
     // o desenho novo já promovido e verificado.
+    //
+    // [P3J-R.1] `protect: newUri` é a blindagem ESTRUTURAL do snapshot atual. A comparação
+    // `oldUri !== newUri` acima é textual, e um ponteiro antigo pode trazer o `documentDirectory` de
+    // um container iOS anterior: duas URIs textualmente distintas apontariam para o MESMO arquivo
+    // depois de recompostas. O double-buffer A/B já torna essa colisão improvável (o slot novo é
+    // sempre o inativo), mas a preservação da pintura recém-salva não pode depender disso — aqui ela
+    // é garantida por contenção, comparada já recomposta.
     if (oldUri && oldUri !== newUri) {
-      try { await deleteBlob(oldUri); } catch (e) { log('coloring60DrawingStorage.save.cleanupOld:', e); }
+      try {
+        await deleteBlob(oldUri, { requireSubdir: BLOB_SUBDIR, protect: newUri });
+      } catch (e) { log('coloring60DrawingStorage.save.cleanupOld:', e); }
     }
     return COLORING60_SAVE_RESULT.SAVED;
   } catch (e) {
@@ -491,6 +504,8 @@ export async function clearColoring60SavedDrawing(storyId, activityId) {
   // 3) Só apagar o blob depois que a chave PROVADAMENTE não o referencia mais. Se o metadado não
   //    pôde ser removido/confirmado, PRESERVA o blob (sem ponteiro órfão).
   if (uri && removedConfirmed) {
-    try { await deleteBlob(uri); } catch (e) { log('coloring60DrawingStorage.clear.delblob:', e); }
+    try {
+      await deleteBlob(uri, { requireSubdir: BLOB_SUBDIR });
+    } catch (e) { log('coloring60DrawingStorage.clear.delblob:', e); }
   }
 }

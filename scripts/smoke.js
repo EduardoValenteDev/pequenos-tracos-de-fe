@@ -36695,9 +36695,29 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           && /export async function hasSavedDrawing\(/.test(readSrc('src/services/drawingStorage.js'))
           && /export function hasMeaningfulPaint\(/.test(readSrc('src/services/drawingStorage.js')),
         'o writer legado por cena não pode mudar de comportamento (só comentário é permitido)');
-      check('C60-P3: fileBlobStore.js (helpers de blob reutilizados) INALTERADO',
-        sha('src/services/fileBlobStore.js') === 'b5183ea87382598110a6d822b9f08d45a6243e028f91d66854e89aa802cbf870',
-        'o reuso dos helpers de blob é por consumo — o módulo em si não muda');
+      // [P3J-R.1] LACRE REBASEADO CONSCIENTEMENTE. Até aqui este lacre dizia "fileBlobStore.js
+      // INALTERADO", porque o endurecimento do C60 não podia vazar para o helper compartilhado.
+      // O P3J-R.1 mudou esse pressuposto por ORDEM DIRETA: a exclusão insegura mora NESTE módulo
+      // (é ele que chama `deleteAsync`), então corrigi-la aqui é o ÚNICO lugar que corrige as três
+      // áreas (Ateliê, C60 e legado) de uma vez. O lacre não foi afrouxado — foi reapontado para o
+      // novo estado E reforçado: além do sha, a superfície de LEITURA/ESCRITA continua asserida
+      // explicitamente, de modo que uma mudança fora do caminho de exclusão ainda fica vermelha.
+      const blobSrc = readSrc('src/services/fileBlobStore.js');
+      // Superfície EXPORTADA anterior ao P3J-R.1, na íntegra: nenhum destes pode sumir nem trocar de
+      // assinatura. O P3J-R.1 só teve licença para ACRESCENTAR o trio de exclusão contida.
+      const blobSurfaceAntes = [
+        'export function currentBlobsRoot()', 'export function isDataUrl(str)',
+        'export function isFileUri(str)', 'export function dataUrlMime(dataUrl, fallback',
+        'export function stripDataUrlPrefix(dataUrl)', 'export function toDataUrl(base64, mime',
+        'export function safeName(id)', 'export function recomposeBlobUri(oldUri, currentBlobsRoot)',
+        'export async function writeBlob(subdir, filename, dataUrlOrBase64, mimeHint)',
+        'export async function readBlobAsDataUrl(uri, mime',
+      ];
+      check('C60-P3 → [P3J-R.1]: fileBlobStore.js mudou SÓ no caminho de exclusão (sha reapontado + superfície anterior intacta)',
+        sha('src/services/fileBlobStore.js') === '7aec6d2d8c9cb96f32f8fe2b6e4637d01e5d0d18c76faacd30091d3d1d059aec'
+          && blobSurfaceAntes.every((assinatura) => blobSrc.includes(assinatura))
+          && blobSrc.includes("from 'expo-file-system/legacy'"),
+        'o helper de blob só pode mudar no caminho de exclusão — leitura, escrita e entrypoint seguem intactos');
 
       const wCode = stripComments(readSrc('src/services/coloring60DrawingStorage.js'));
       check('C60-P3.T1: writer NÃO importa o writer legado, a tela, a conclusão nem resolvedores',
@@ -36972,13 +36992,15 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     {
       const sha = (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, rel))).digest('hex');
       // [P3J] Mesmo raciocínio do lacre C60-P3 acima: `drawingStorage.js` é comparado pelo sha do
-      // CÓDIGO (a única mudança foi o comentário de cabeçalho da aposentadoria); `fileBlobStore.js`
-      // segue byte-idêntico no arquivo inteiro, sem nem comentário novo.
+      // CÓDIGO (a única mudança foi o comentário de cabeçalho da aposentadoria).
+      // [P3J-R.1] O sha de `fileBlobStore.js` foi reapontado junto com o lacre C60-P3 (ver a
+      // justificativa lá). O que este [E13] preserva INTEGRALMENTE é o ponto que importa aqui: o
+      // WRITER LEGADO continua byte-idêntico no código — o endurecimento nunca escorreu para ele.
       const shaCode13 = (rel) => crypto.createHash('sha256').update(codeOf(rel)).digest('hex');
-      check('C60-P3-FIX1 [E13] → [P3J]: código do drawingStorage.js byte-idêntico e fileBlobStore.js INALTERADO',
+      check('C60-P3-FIX1 [E13] → [P3J-R.1]: código do drawingStorage.js byte-idêntico e fileBlobStore.js no estado reapontado',
         shaCode13('src/services/drawingStorage.js') === 'db08e33ec712f2fbebd63920d9c0e77764838346dc50b3c782ee74b0518874ba'
-          && sha('src/services/fileBlobStore.js') === 'b5183ea87382598110a6d822b9f08d45a6243e028f91d66854e89aa802cbf870',
-        'o hardening é confinado ao writer dedicado — legado e helpers de blob permanecem byte-idênticos');
+          && sha('src/services/fileBlobStore.js') === '7aec6d2d8c9cb96f32f8fe2b6e4637d01e5d0d18c76faacd30091d3d1d059aec',
+        'o hardening é confinado: o writer legado permanece byte-idêntico e o helper de blob no estado auditado');
     }
     {
       const walk = (dir, acc = []) => {
