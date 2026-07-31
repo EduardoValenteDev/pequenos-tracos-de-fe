@@ -43924,6 +43924,789 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       `executados=${CN.length}, sobreviventes=${CN.filter((c) => c.original === c.mutante).map((c) => c.id).join(', ') || '(nenhum)'}`);
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * P3J-R.1 — FECHAMENTO TÉCNICO
+   *
+   * Três resíduos, três provas independentes:
+   *   A) o diagnóstico de download relatava `not_downloaded` DEPOIS de um download bem-sucedido;
+   *   B) a limpeza do blob obsoleto do Colorir 60 falhava com um caminho terminado em `/..`;
+   *   C) sobravam copies que prometiam "Colorir" onde o app não entrega colorir.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  {
+    const { loadModule: rLoad } = require('./testing/packInstallHarness');
+    const CN1 = [];
+    const registrarCN1 = (id, alvo, descricao, original, mutante) =>
+      CN1.push({ id, alvo, descricao, original, mutante });
+
+    /* ── A · ÍNDICE: o diagnóstico relata o índice COMMITADO, não o espelho do contexto ─────
+     *
+     * CAUSA REAL do `indexAfter: "not_downloaded"` após sucesso: o campo era lido de
+     * `getStoryPackState` (espelho do PacksContext) através de um ref que só é reatribuído
+     * durante um RENDER. Entre o `await` da instalação e a emissão do diagnóstico não existe
+     * render nenhum — logo o "depois" era, por construção, idêntico ao "antes". Não era um bug
+     * de download: era um bug de OBSERVABILIDADE, e a correção não tocou o download.
+     */
+    const RDIAG = rLoad('src/services/packDownloadDiagnostics.js', {},
+      ['buildDownloadDiagnostic', 'INDEX_NOT_COMMITTED', 'indexStateFromEntry', 'resolveIndexAfterCommit']);
+
+    // Retornos TRANSACIONAIS nas formas que o packDownloadService realmente devolve.
+    const okNovo = { ok: true, entry: { status: 'ready', version: 3 } };
+    const okReusado = { ok: true, entry: { status: 'ready', version: 3 }, reused: true };
+    const okPreP3J = { ok: true, entry: { status: 'ready', version: 2 } };
+    const okRecuperado = { ok: true, entry: { status: 'ready', version: 3 }, recovered: true };
+    const falhaConfig = { ok: false, reason: 'config' };
+    const falhaPosArquivos = { ok: false, reason: 'index_write_failed' };
+
+    const diagDe = (res, extra = {}) => RDIAG.buildDownloadDiagnostic({
+      storyId: 'creation', indexBefore: 'not_downloaded',
+      indexAfterCommit: RDIAG.resolveIndexAfterCommit(res),
+      contextAtEmit: 'not_downloaded', ...extra,
+    });
+
+    check('P3J-R.1 [índice 01/12]: primeiro download concluído — o relato é o índice COMMITADO (`ready`), não o espelho',
+      RDIAG.resolveIndexAfterCommit(okNovo) === 'ready' && diagDe(okNovo).indexAfterCommit === 'ready',
+      'o diagnóstico não leu o estado persistido devolvido pela transação');
+
+    check('P3J-R.1 [índice 02/12]: pack JÁ EXISTENTE (reuso) informa o estado REAL, não "não baixado"',
+      RDIAG.resolveIndexAfterCommit(okReusado) === 'ready' && diagDe(okReusado).indexAfter === 'ready',
+      'o reuso de pack local foi relatado como se nada existisse');
+
+    check('P3J-R.1 [índice 03/12]: marcador pré-P3J reutilizado também informa `ready`',
+      RDIAG.resolveIndexAfterCommit(okPreP3J) === 'ready' && diagDe(okPreP3J).indexAfter === 'ready',
+      'um pack publicado antes do P3J foi relatado como não baixado');
+
+    check('P3J-R.1 [índice 04/12]: download PARCIAL recuperado informa o índice já commitado',
+      RDIAG.resolveIndexAfterCommit(okRecuperado) === 'ready' && diagDe(okRecuperado).indexAfter === 'ready',
+      'a recuperação de download parcial não refletiu o índice persistido');
+
+    check('P3J-R.1 [índice 05/12]: falha ANTES do commit nunca declara `ready` — declara `nao_commitado`',
+      RDIAG.resolveIndexAfterCommit(falhaConfig) === RDIAG.INDEX_NOT_COMMITTED
+      && RDIAG.INDEX_NOT_COMMITTED === 'nao_commitado'
+      && diagDe(falhaConfig).indexAfterCommit !== 'ready',
+      'uma falha anterior ao commit do índice conseguiu se declarar pronta');
+
+    check('P3J-R.1 [índice 06/12]: falha DEPOIS dos arquivos, mas antes do índice, também é `nao_commitado`',
+      RDIAG.resolveIndexAfterCommit(falhaPosArquivos) === 'nao_commitado'
+      && diagDe(falhaPosArquivos).indexAfter === 'nao_commitado',
+      'arquivos no disco sem índice commitado foram relatados como instalação concluída');
+
+    check('P3J-R.1 [índice 07/12]: nenhum falso `not_downloaded` após sucesso — `indexAfter` espelha o commit',
+      diagDe(okNovo).indexAfter === 'ready' && diagDe(okNovo).indexAfter !== 'not_downloaded'
+      && diagDe(okNovo).contextAtEmit === 'not_downloaded',
+      'o campo histórico voltou a relatar o espelho do contexto em vez do índice commitado');
+
+    check('P3J-R.1 [índice 08/12]: o espelho do contexto continua registrado, com nome honesto e SEM contaminar o commit',
+      diagDe(okNovo).contextAtEmit === 'not_downloaded' && diagDe(okNovo).indexAfterCommit === 'ready'
+      && Object.keys(RDIAG.buildDownloadDiagnostic({})).includes('contextAtEmit'),
+      'o valor do contexto e o valor do índice deixaram de ser distinguíveis no diagnóstico');
+
+    check('P3J-R.1 [índice 09/12]: entrada inválida é FAIL-CLOSED — vira `indeterminado`, nunca `ready` inventado',
+      RDIAG.indexStateFromEntry(null) === null && RDIAG.indexStateFromEntry({}) === null
+      && RDIAG.indexStateFromEntry({ status: 42 }) === null
+      && RDIAG.resolveIndexAfterCommit({ ok: true }) === 'indeterminado'
+      && RDIAG.resolveIndexAfterCommit({ ok: true, entry: { status: 'failed' } }) === 'failed',
+      'uma entrada de índice corrompida produziu um estado fabricado');
+
+    const SRC_HOOK_R1 = readSrc('src/hooks/useStoryPackDownload.js');
+    check('P3J-R.1 [índice 10/12]: o hook deriva o campo do RETORNO TRANSACIONAL, não da closure de contexto',
+      /indexAfterCommit: resolveIndexAfterCommit\(res\)/.test(SRC_HOOK_R1)
+      && !/indexAfter: lerIndice\(\)/.test(SRC_HOOK_R1),
+      'o hook voltou a inferir o estado do índice pela closure do React (desatualizada por construção)');
+
+    /**
+     * Prova, sobre um FONTE qualquer do hook, que o cálculo do diagnóstico mora DEPOIS da guarda de
+     * produção. Extraída para função de propósito: assim o CN-A3 aplica a mutação e mede o MESMO
+     * predicado — sem ele a prova seria só posicional, e um cálculo antecipado sob outro nome
+     * passaria despercebido (achado do Agente D).
+     */
+    const provaOrdemDiag = (src) => {
+      const iFn = src.indexOf('function reportDiagnostic(');
+      if (iFn < 0) return false;
+      const corpo = src.slice(iFn);
+      const iGuarda = corpo.indexOf("if (typeof __DEV__ === 'undefined' || !__DEV__) return null;");
+      const iCalculo = corpo.indexOf('indexAfterCommit: resolveIndexAfterCommit(res)');
+      return iGuarda >= 0 && iCalculo > iGuarda
+        // nada de `resolveIndexAfterCommit` ANTES da guarda: nem fora da função, nem antecipado
+        // para uma variável dentro dela (produção pagaria pelo cálculo do mesmo jeito).
+        && !/resolveIndexAfterCommit\(/.test(src.slice(0, iFn))
+        && !/resolveIndexAfterCommit\(/.test(corpo.slice(0, iGuarda));
+    };
+    check('P3J-R.1 [índice 11/12]: o cálculo fica DENTRO da guarda `__DEV__` — produção não paga por diagnóstico',
+      provaOrdemDiag(SRC_HOOK_R1),
+      'o diagnóstico passou a ser calculado antes da guarda de produção (ou fora da função)');
+
+    check('P3J-R.1 [índice 12/12]: o download NÃO foi alterado para consertar observabilidade',
+      a1StripComments(readSrc('src/services/packDownloadService.js'))
+        .includes('export function createPackDownloadService(')
+      && !/indexAfterCommit|contextAtEmit|resolveIndexAfterCommit/.test(readSrc('src/services/packDownloadService.js')),
+      'o serviço de download foi contaminado por necessidade de diagnóstico (contrato A, item 7)');
+
+    // CN-A1 — sem a guarda de sucesso, uma FALHA passaria a herdar o status da entrada
+    registrarCN1('CN-A1', 'packDownloadDiagnostics', 'a guarda `res.ok !== true` some e a falha se declara pronta',
+      RDIAG.resolveIndexAfterCommit(falhaConfig),
+      rLoad('src/services/packDownloadDiagnostics.js', {}, ['resolveIndexAfterCommit'],
+        (s) => s.replace('  if (!res || res.ok !== true) return INDEX_NOT_COMMITTED;',
+          '  if (!res) return INDEX_NOT_COMMITTED;'))
+        .resolveIndexAfterCommit({ ...falhaConfig, entry: { status: 'ready' } }));
+
+    // CN-A2 — sem a preferência pelo commit, `indexAfter` volta a ser o espelho (o bug original)
+    registrarCN1('CN-A2', 'packDownloadDiagnostics', '`indexAfter` volta a ser o espelho do contexto',
+      diagDe(okNovo).indexAfter,
+      rLoad('src/services/packDownloadDiagnostics.js', {}, ['buildDownloadDiagnostic'],
+        (s) => s.replace('    indexAfter: indexAfterCommit != null ? indexAfterCommit : sanitize(input.indexAfter),',
+          '    indexAfter: sanitize(input.indexAfter),'))
+        .buildDownloadDiagnostic({ indexAfterCommit: 'ready', indexAfter: 'not_downloaded' }).indexAfter);
+
+    // CN-A3 [Agente D] — antecipar o cálculo para ANTES da guarda `__DEV__` tem de ficar vermelho.
+    // Sem este controle, `[índice 11/12]` provaria só a posição do literal, não a contenção.
+    {
+      const ancora = "  if (typeof __DEV__ === 'undefined' || !__DEV__) return null;";
+      const mutado = SRC_HOOK_R1.replace(ancora,
+        '  const antecipado = resolveIndexAfterCommit(res);\n' + ancora);
+      if (mutado === SRC_HOOK_R1) {
+        throw new Error('P3J-R.1 CN-A3: a mutação no hook não alterou o fonte (âncora obsoleta)');
+      }
+      registrarCN1('CN-A3', 'useStoryPackDownload', 'o cálculo é antecipado para antes da guarda de produção',
+        provaOrdemDiag(SRC_HOOK_R1), provaOrdemDiag(mutado));
+    }
+
+    /* ── B · STORAGE: exclusão CONTIDA do blob obsoleto do Colorir 60 ───────────────────────
+     *
+     * CAUSA REAL do caminho terminado em `/..`: o JavaScript NUNCA montou esse caminho. Quem o
+     * acrescenta é o nativo — `FileSystemLegacyModule.swift:88` confere permissão de escrita em
+     * `url.appendingPathComponent("..")`. Com caminho ATUAL isso é inofensivo (o ramo interno
+     * compara `url.standardized.path`, que RESOLVE o `..`). Com um ponteiro que embute o
+     * `documentDirectory` de um container iOS ANTIGO, o prefixo não casa, cai-se no ramo externo,
+     * e lá o `isWritableFile` roda sobre o caminho NÃO normalizado: `access(2)` devolve ENOTDIR.
+     * O erro era REAL e o blob obsoleto FICAVA em disco. A correção recompõe o ponteiro para a
+     * raiz atual (a leitura já fazia isso — a exclusão não) e valida contenção antes de apagar.
+     */
+    const DOC_NOVO = 'file:///var/mobile/Containers/Data/Application/NOVO/Documents/';
+    const DOC_VELHO = 'file:///var/mobile/Containers/Data/Application/VELHO/Documents/';
+    const RAIZ = DOC_NOVO + 'ptf_blobs/';
+    const D60 = RAIZ + 'drawings60/';
+    const ATELIE = RAIZ + 'drawings/';
+
+    /** Disco de mentira: registra TUDO que foi apagado, para provar contenção por varredura. */
+    const mkDisco = (arquivos) => {
+      const disco = new Set(arquivos);
+      const apagados = [];
+      const FileSystem = {
+        documentDirectory: DOC_NOVO,
+        EncodingType: { Base64: 'base64' },
+        getInfoAsync: async (u) => ({ exists: disco.has(u), isDirectory: u.endsWith('/') }),
+        deleteAsync: async (u) => {
+          if (!disco.has(u)) throw new Error('ENOENT');
+          disco.delete(u); apagados.push(u);
+        },
+        makeDirectoryAsync: async (u) => { disco.add(u); },
+        writeAsStringAsync: async (u) => { disco.add(u); },
+        readAsStringAsync: async () => 'QUFB',
+      };
+      return { disco, apagados, FileSystem };
+    };
+    const mkBlob = (d, mutate) => rLoad('src/services/fileBlobStore.js',
+      { FileSystem: d.FileSystem, log: () => {} },
+      ['deleteBlob', 'resolveBlobDeletionTarget', 'BLOB_DELETE_OUTCOME', 'recomposeBlobUri'], mutate);
+
+    const SLOT_A = D60 + '_ptf_drawing60_screation_alight.a.png';
+    const SLOT_B = D60 + '_ptf_drawing60_screation_alight.b.png';
+    const SUB = { requireSubdir: 'drawings60' };
+    const CHAVE60 = '@ptf_drawing60_screation_alight';
+    const ptr60 = (uri) => JSON.stringify({ v: 3, fmt: 1, uri, mime: 'image/png' });
+    const TINTA = 'data:image/png;base64,' + 'A'.repeat(1200);
+
+    /**
+     * Orquestração REAL do writer C60 sobre o `fileBlobStore` REAL (só o FileSystem é de mentira).
+     * Sem isto, os cenários de rollback/pós-commit provariam apenas a primitiva de exclusão — e o
+     * item 15 do contrato ("falha de limpeza após o commit não invalida a nova pintura") ficaria
+     * deduzido por leitura, nunca medido.
+     *
+     * INJEÇÃO DE FALHA (por CHAMADA, não por flag global): `setItemSujo` grava E rejeita na primeira
+     * escrita — a falha REALISTA, em que a rejeição não garante que nada foi persistido;
+     * `getItemThrowFrom` derruba a releitura a partir da n-ésima leitura, produzindo o estado
+     * DESCONHECIDO (`readable === false`) que o rollback tem de tratar preservando o blob novo.
+     * `mutate` permite rodar o MESMO cenário contra o fonte mutado (controles negativos).
+     */
+    const mkStorage60 = (d, mapa, falhas = {}, mutate) => {
+      let nGet = 0;
+      let nSet = 0;
+      const AsyncStorage = {
+        getItem: async (k) => {
+          nGet += 1;
+          if (falhas.getItem || (falhas.getItemThrowFrom && nGet >= falhas.getItemThrowFrom)) {
+            throw new Error('getItem indisponível');
+          }
+          return mapa.has(k) ? mapa.get(k) : null;
+        },
+        setItem: async (k, v) => {
+          nSet += 1;
+          if (falhas.setItemSujo && nSet === 1) {
+            mapa.set(k, v);
+            throw new Error('setItem gravou e rejeitou');
+          }
+          if (falhas.setItem) throw new Error('setItem rejeitou');
+          mapa.set(k, v);
+        },
+        removeItem: async (k) => { mapa.delete(k); },
+      };
+      const blob = rLoad('src/services/fileBlobStore.js', { FileSystem: d.FileSystem, log: () => {} },
+        ['writeBlob', 'readBlobAsDataUrl', 'deleteBlob', 'safeName', 'isDataUrl', 'dataUrlMime',
+          'currentBlobsRoot']);
+      return rLoad('src/services/coloring60DrawingStorage.js', {
+        AsyncStorage,
+        log: () => {},
+        getCurrentPlan: () => 'premium',
+        isInternalToolsEnabled: () => false,
+        getColoring60Activity: () => ({ id: 'light' }),
+        ...blob,
+      }, ['saveColoring60DrawingState', 'clearColoring60SavedDrawing', 'COLORING60_SAVE_RESULT'],
+      mutate);
+    };
+
+    {
+      const d = mkDisco([SLOT_A, SLOT_B, ATELIE + 'arte_livre.png']);
+      const B = mkBlob(d);
+      const r = await B.deleteBlob(SLOT_A, { ...SUB, protect: SLOT_B });
+      check('P3J-R.1 [storage 01/22]: A → B — o slot obsoleto A é apagado e o snapshot atual B é preservado',
+        r.outcome === B.BLOB_DELETE_OUTCOME.DELETED && !d.disco.has(SLOT_A) && d.disco.has(SLOT_B),
+        `outcome=${r.outcome}, apagados=${JSON.stringify(d.apagados)}`);
+    }
+    {
+      const d = mkDisco([SLOT_A, SLOT_B]);
+      const B = mkBlob(d);
+      const r = await B.deleteBlob(SLOT_B, { ...SUB, protect: SLOT_A });
+      check('P3J-R.1 [storage 02/22]: B → A — o sentido inverso tem exatamente o mesmo comportamento',
+        r.outcome === 'apagado' && !d.disco.has(SLOT_B) && d.disco.has(SLOT_A),
+        `outcome=${r.outcome}, disco=${[...d.disco].length}`);
+    }
+    {
+      const d = mkDisco([SLOT_A, SLOT_B]);
+      const B = mkBlob(d);
+      await B.deleteBlob(SLOT_A, { ...SUB, protect: SLOT_B });
+      const r2 = await B.deleteBlob(SLOT_A, { ...SUB, protect: SLOT_B });
+      check('P3J-R.1 [storage 03/22]: duas atualizações consecutivas — a segunda é IDEMPOTENTE e não é erro',
+        r2.outcome === 'ausente' && d.apagados.length === 1 && d.disco.has(SLOT_B),
+        `outcome2=${r2.outcome}, apagados=${d.apagados.length}`);
+    }
+    {
+      const d = mkDisco([SLOT_B]);
+      const B = mkBlob(d);
+      const r = await B.deleteBlob(SLOT_A, { ...SUB, protect: SLOT_B });
+      check('P3J-R.1 [storage 04/22]: arquivo anterior INEXISTENTE = limpeza já satisfeita (nunca falha)',
+        r.outcome === 'ausente' && r.outcome !== 'falhou' && d.apagados.length === 0,
+        `outcome=${r.outcome}`);
+    }
+    {
+      // O CASO DO APARELHO: ponteiro persistido com o container ANTIGO. Sem recomposição, o nativo
+      // recebe um caminho fora do escopo e devolve o erro terminado em `/..`, deixando o lixo.
+      const d = mkDisco([SLOT_A, SLOT_B]);
+      const B = mkBlob(d);
+      const uriVelha = DOC_VELHO + 'ptf_blobs/drawings60/_ptf_drawing60_screation_alight.a.png';
+      const r = await B.deleteBlob(uriVelha, { ...SUB, protect: SLOT_B });
+      check('P3J-R.1 [storage 05/22]: URI `file://` com container ANTIGO é RECOMPOSTA para a raiz atual e apagada',
+        r.outcome === 'apagado' && d.apagados[0] === SLOT_A && !d.disco.has(SLOT_A) && d.disco.has(SLOT_B),
+        `outcome=${r.outcome}, apagados=${JSON.stringify(d.apagados)}`);
+    }
+    {
+      const d = mkDisco([SLOT_A]);
+      const B = mkBlob(d);
+      const alvo1 = B.resolveBlobDeletionTarget(SLOT_A, RAIZ, SUB);
+      const alvo2 = B.resolveBlobDeletionTarget(alvo1.uri, RAIZ, SUB);
+      check('P3J-R.1 [storage 06/22]: caminho JÁ normalizado é ponto fixo — recompor de novo não muda nada',
+        alvo1.ok && alvo2.ok && alvo1.uri === SLOT_A && alvo2.uri === alvo1.uri,
+        `alvo1=${alvo1.uri}, alvo2=${alvo2.uri}`);
+    }
+    {
+      const d = mkDisco([SLOT_A, SLOT_B]);
+      const B = mkBlob(d);
+      const r1 = await B.deleteBlob(D60 + 'x/../_ptf_drawing60_screation_alight.a.png', SUB);
+      const r2 = await B.deleteBlob(D60 + '..', SUB);
+      const r3 = await B.deleteBlob(D60 + '%2e%2e/segredo.png', SUB);
+      check('P3J-R.1 [storage 07/22]: tentativa de `..` (crua ou percent-encoded) é RECUSADA antes de qualquer I/O',
+        r1.outcome === 'recusado' && r1.reason === 'travessia'
+        && r2.outcome === 'recusado' && r3.outcome === 'recusado'
+        && d.apagados.length === 0,
+        `r=${r1.reason}/${r2.reason}/${r3.reason}, apagados=${d.apagados.length}`);
+    }
+    {
+      const d = mkDisco([SLOT_A, ATELIE + 'arte_livre.png', DOC_NOVO + 'progresso.json']);
+      const B = mkBlob(d);
+      const r1 = await B.deleteBlob(ATELIE + 'arte_livre.png', SUB);          // Ateliê / Criar Livre
+      const r2 = await B.deleteBlob(DOC_NOVO + 'progresso.json', SUB);        // fora de ptf_blobs
+      const r3 = await B.deleteBlob(RAIZ + 'drawings60x/vizinho.png', SUB);   // prefixo parecido
+      check('P3J-R.1 [storage 08/22]: alvo FORA da raiz autorizada é recusado — Ateliê, Criar Livre e vizinho de prefixo intactos',
+        r1.reason === 'fora_da_raiz' && r2.reason === 'fora_da_raiz' && r3.reason === 'fora_da_raiz'
+        && d.apagados.length === 0 && d.disco.has(ATELIE + 'arte_livre.png') && d.disco.has(DOC_NOVO + 'progresso.json'),
+        `r=${r1.reason}/${r2.reason}/${r3.reason}, apagados=${JSON.stringify(d.apagados)}`);
+    }
+    {
+      // Interrupção ANTES do commit, medida na ORQUESTRAÇÃO real (não na primitiva): `setItem`
+      // rejeita, o rollback restaura o ponteiro anterior, RELÊ a chave, confirma que ela não
+      // referencia o slot novo — e só então o descarta. A pintura anterior sobrevive inteira.
+      const d = mkDisco([D60, SLOT_A]);
+      const mapa = new Map([[CHAVE60, ptr60(SLOT_A)]]);
+      const S = mkStorage60(d, mapa, { setItem: true });
+      const r = await S.saveColoring60DrawingState('creation', 'light', TINTA);
+      check('P3J-R.1 [storage 09/22]: interrupção ANTES do commit — o rollback apaga o NOVO e o payload original sobrevive',
+        r === S.COLORING60_SAVE_RESULT.WRITE_FAILED
+        && !d.disco.has(SLOT_B) && d.disco.has(SLOT_A)
+        && mapa.get(CHAVE60) === ptr60(SLOT_A) && d.apagados.length === 1,
+        `r=${r}, apagados=${JSON.stringify(d.apagados)}, ponteiro=${mapa.get(CHAVE60)}`);
+    }
+    {
+      // Interrupção DEPOIS do commit, também na orquestração: o ponteiro já promovido e verificado
+      // aponta para o slot novo; quem some é o obsoleto; a arte recém-salva nunca é tocada.
+      const d = mkDisco([D60, SLOT_A]);
+      const mapa = new Map([[CHAVE60, ptr60(SLOT_A)]]);
+      const S = mkStorage60(d, mapa);
+      const r = await S.saveColoring60DrawingState('creation', 'light', TINTA);
+      check('P3J-R.1 [storage 10/22]: interrupção DEPOIS do commit — some o obsoleto, a arte nova permanece',
+        r === S.COLORING60_SAVE_RESULT.SAVED
+        && d.disco.has(SLOT_B) && !d.disco.has(SLOT_A) && d.apagados.join() === SLOT_A
+        && JSON.parse(mapa.get(CHAVE60)).uri === SLOT_B,
+        `r=${r}, apagados=${JSON.stringify(d.apagados)}, ponteiro=${mapa.get(CHAVE60)}`);
+    }
+    {
+      // O caso perigoso: ponteiro ANTIGO que, recomposto, aponta para o MESMO arquivo do snapshot
+      // atual. Comparar texto cru diria "são diferentes, pode apagar" — e apagaria a arte viva.
+      const d = mkDisco([SLOT_B]);
+      const B = mkBlob(d);
+      const uriVelhaDoMesmo = DOC_VELHO + 'ptf_blobs/drawings60/_ptf_drawing60_screation_alight.b.png';
+      const r = await B.deleteBlob(uriVelhaDoMesmo, { ...SUB, protect: SLOT_B });
+      check('P3J-R.1 [storage 11/22]: o snapshot ATUAL é blindado mesmo quando a URI antiga só difere pelo container',
+        r.outcome === 'recusado' && r.reason === 'protegido' && d.disco.has(SLOT_B) && d.apagados.length === 0,
+        `outcome=${r.outcome}/${r.reason}, disco=${[...d.disco].join(',')}`);
+    }
+    {
+      const d = mkDisco([SLOT_A, SLOT_B]);
+      const B = mkBlob(d);
+      const rs = [];
+      rs.push(await B.deleteBlob(SLOT_A, { ...SUB, protect: SLOT_B }));
+      rs.push(await B.deleteBlob(SLOT_A, { ...SUB, protect: SLOT_B }));
+      check('P3J-R.1 [storage 12/22]: ZERO erro no fluxo válido — nenhuma execução termina em `falhou`',
+        rs.every((r) => r.outcome !== 'falhou') && rs.every((r) => r.outcome !== 'recusado'),
+        `outcomes=${rs.map((r) => r.outcome).join(',')}`);
+    }
+    {
+      // Varredura: contra QUALQUER entrada, nada fora de ptf_blobs/drawings60/ pode ser apagado.
+      const foraDaRaiz = [
+        ATELIE + 'arte_livre.png', DOC_NOVO + 'progresso.json', DOC_NOVO + 'ptf_blobs/',
+        'file:///var/mobile/Containers/Data/Application/NOVO/Library/x.png',
+        RAIZ, D60, D60 + '..', RAIZ + 'drawings60x/y.png',
+        DOC_VELHO + 'ptf_blobs/drawings/arte_legada.png',
+      ];
+      const d = mkDisco(foraDaRaiz);
+      const B = mkBlob(d);
+      const outs = [];
+      for (const u of foraDaRaiz) outs.push(await B.deleteBlob(u, SUB));
+      // A RAZÃO entra na asserção de propósito: medir só `recusado` deixaria a regra `nao_e_arquivo`
+      // removível sem ficar vermelho (o guarda de diretório absorveria o caso, mais tarde e no I/O).
+      const razoes = outs.map((r) => r.reason).join(',');
+      check('P3J-R.1 [storage 13/22]: NENHUMA exclusão fora da raiz autorizada — oito alvos hostis distintos, zero arquivos tocados',
+        d.apagados.length === 0 && outs.every((r) => r.outcome === 'recusado')
+        && foraDaRaiz.every((u) => d.disco.has(u))
+        && d.disco.size === 8
+        && outs[5].reason === 'nao_e_arquivo' && outs[4].reason === 'fora_da_raiz'
+        && outs[6].reason === 'travessia',
+        `apagados=${JSON.stringify(d.apagados)}, distintos=${d.disco.size}, motivos=${razoes}`);
+    }
+    {
+      const d = mkDisco([D60 + 'pasta_disfarcada.png']);
+      d.FileSystem.getInfoAsync = async (u) => ({ exists: true, isDirectory: true });
+      const B = mkBlob(d);
+      const r = await B.deleteBlob(D60 + 'pasta_disfarcada.png', SUB);
+      check('P3J-R.1 [storage 14/22]: exclusão NUNCA é recursiva nem atinge diretório (nome de arquivo, inode de pasta)',
+        r.outcome === 'recusado' && r.reason === 'e_diretorio' && d.apagados.length === 0
+        && !a1StripComments(readSrc('src/services/fileBlobStore.js')).includes('deleteDirectory'),
+        `outcome=${r.outcome}/${r.reason}`);
+    }
+    {
+      // [Agente D · M1] A barra percent-codificada deixava os `..` CRUS: o regex não via travessia
+      // nenhuma, o alvo passava por "contido" — e o nativo, que decodifica, aterrissava no Criar
+      // Livre, no `progresso.json` ou em `Library/Caches`. O veto agora olha a forma DECODIFICADA.
+      const d = mkDisco([SLOT_A, ATELIE + 'arte_livre.png', DOC_NOVO + 'progresso.json']);
+      const B = mkBlob(d);
+      const hostis = [
+        D60 + '..%2fdrawings%2farte_livre.png',   // → ptf_blobs/drawings/arte_livre.png (Criar Livre)
+        D60 + '..%2F..%2Fprogresso.json',         // → Documents/progresso.json (maiúscula também)
+        D60 + '..%252f..%252fx.dat',              // duplo encoding: decodifica em cascata
+        D60 + '%2e%2e%2fsegredo.png',             // ponto e barra, ambos codificados
+        D60 + 'arte%zz.png',                      // encoding malformado: hostil por construção
+      ];
+      const outs = [];
+      for (const u of hostis) outs.push(await B.deleteBlob(u, SUB));
+      check('P3J-R.1 [storage 15/22]: travessia PERCENT-CODIFICADA é recusada — `..%2f` não vira caminho válido',
+        outs.every((r) => r.outcome === 'recusado')
+        && outs.slice(0, 4).every((r) => r.reason === 'travessia')
+        && outs[4].reason === 'percent_suspeito'
+        && d.apagados.length === 0 && d.disco.has(ATELIE + 'arte_livre.png')
+        && d.disco.has(DOC_NOVO + 'progresso.json'),
+        `motivos=${outs.map((r) => r.reason).join(',')}, apagados=${JSON.stringify(d.apagados)}`);
+    }
+    {
+      // [Agente D · M2] `protect` comparava TEXTO. Duas grafias triviais do MESMO arquivo — `//` e
+      // `/./` — escapavam da blindagem e apagavam o snapshot vivo. Agora a comparação é normalizada.
+      const d = mkDisco([SLOT_B]);
+      const B = mkBlob(d);
+      const grafias = [
+        D60.slice(0, -1) + '//_ptf_drawing60_screation_alight.b.png',
+        D60 + './_ptf_drawing60_screation_alight.b.png',
+        DOC_VELHO + 'ptf_blobs/drawings60//./_ptf_drawing60_screation_alight.b.png',
+      ];
+      const outs = [];
+      for (const u of grafias) outs.push(await B.deleteBlob(u, { ...SUB, protect: SLOT_B }));
+      check('P3J-R.1 [storage 16/22]: `protect` blinda o snapshot mesmo sob grafia equivalente (`//`, `/./`, container antigo)',
+        outs.every((r) => r.outcome === 'recusado' && r.reason === 'protegido')
+        && d.disco.has(SLOT_B) && d.apagados.length === 0,
+        `motivos=${outs.map((r) => r.reason).join(',')}, disco=${[...d.disco].join(',')}`);
+    }
+    {
+      // [Agente D · M3] Opção malformada degradava em SILÊNCIO, e nos dois sentidos ABERTOS:
+      // `requireSubdir` não-string alargava o escopo para toda a raiz (o Ateliê virava alvo) e
+      // `protect` não-string esvaziava a lista de protegidos (o snapshot vivo virava alvo).
+      const d = mkDisco([SLOT_A, SLOT_B, ATELIE + 'arte_livre.png']);
+      const B = mkBlob(d);
+      const rSub = await B.deleteBlob(ATELIE + 'arte_livre.png', { requireSubdir: 60 });
+      const rVazio = await B.deleteBlob(ATELIE + 'arte_livre.png', { requireSubdir: '' });
+      const rBarra = await B.deleteBlob(ATELIE + 'arte_livre.png', { requireSubdir: '/' });
+      const rProt = await B.deleteBlob(SLOT_A, { ...SUB, protect: { uri: SLOT_A } });
+      const rNulo = await B.deleteBlob(SLOT_A, { ...SUB, protect: null }); // legítimo: nada a blindar
+      check('P3J-R.1 [storage 17/22]: opção malformada falha FECHADO — não alarga escopo nem esvazia a blindagem',
+        [rSub, rVazio, rBarra, rProt].every((r) => r.outcome === 'recusado' && r.reason === 'opcoes_invalidas')
+        && d.disco.has(ATELIE + 'arte_livre.png')
+        && rNulo.outcome === 'apagado' && d.apagados.join() === SLOT_A,
+        `motivos=${[rSub, rVazio, rBarra, rProt, rNulo].map((r) => r.reason).join(',')}`);
+    }
+    {
+      // Lacre da regra `nao_e_arquivo`: um diretório é recusado ANTES de qualquer I/O, com razão
+      // própria. Sem esta asserção a regra some sem ninguém ficar vermelho (ver CN-B8).
+      const d = mkDisco([D60]);
+      const B = mkBlob(d);
+      const alvo = B.resolveBlobDeletionTarget(D60, RAIZ, SUB);
+      const r = await B.deleteBlob(D60, SUB);
+      check('P3J-R.1 [storage 18/22]: diretório é recusado na resolução PURA (`nao_e_arquivo`), antes de tocar o disco',
+        alvo.ok === false && alvo.reason === 'nao_e_arquivo' && alvo.uri === null
+        && r.reason === 'nao_e_arquivo' && d.apagados.length === 0 && d.disco.has(D60),
+        `alvo=${alvo.reason}, delete=${r.reason}`);
+    }
+    {
+      // Item 15 do contrato B, MEDIDO na orquestração: a limpeza pós-commit é best-effort. Com o
+      // `deleteAsync` rejeitando SEMPRE, a pintura recém-salva continua salva e apontada; o que
+      // resta é um arquivo antigo sem ponteiro (resíduo físico), nunca um ponteiro quebrado.
+      const d = mkDisco([D60, SLOT_A]);
+      d.FileSystem.deleteAsync = async () => { throw new Error('EPERM'); };
+      const mapa = new Map([[CHAVE60, ptr60(SLOT_A)]]);
+      const S = mkStorage60(d, mapa);
+      const r = await S.saveColoring60DrawingState('creation', 'light', TINTA);
+      check('P3J-R.1 [storage 19/22]: falha de limpeza APÓS o commit não invalida a nova pintura (contrato B, item 15)',
+        r === S.COLORING60_SAVE_RESULT.SAVED
+        && JSON.parse(mapa.get(CHAVE60)).uri === SLOT_B && d.disco.has(SLOT_B)
+        && d.disco.has(SLOT_A) && d.apagados.length === 0,
+        `r=${r}, ponteiro=${mapa.get(CHAVE60)}`);
+    }
+
+    /* CENÁRIO DE ROLLBACK COM ESTADO DESCONHECIDO — a falha COMPOSTA, alcançável em campo (storage
+     * cheio/indisponível): o `setItem` GRAVA e rejeita, a restauração do metadado também rejeita e a
+     * releitura da chave lança. `readable === false` significa "não sei o que a chave referencia" —
+     * e a única resposta segura é PRESERVAR o blob novo. Sem esta medição, remover a guarda
+     * `readable &&` deixaria o writer apagando um arquivo que a chave ainda aponta: ponteiro órfão e
+     * pintura destruída, com a suíte inteira verde (ver CN-B9). */
+    {
+      const d = mkDisco([D60, SLOT_A]);
+      const mapa = new Map([[CHAVE60, ptr60(SLOT_A)]]);
+      const S = mkStorage60(d, mapa, { setItemSujo: true, setItem: true, getItemThrowFrom: 2 });
+      const r = await S.saveColoring60DrawingState('creation', 'light', TINTA);
+      const ptr = mapa.get(CHAVE60);
+      const alvoDoPonteiro = ptr == null ? null : JSON.parse(ptr).uri;
+      const orfao = alvoDoPonteiro != null && !d.disco.has(alvoDoPonteiro);
+      check('P3J-R.1 [storage 20/22]: rollback com releitura INDISPONÍVEL preserva o blob novo — nunca ponteiro órfão',
+        r === S.COLORING60_SAVE_RESULT.WRITE_FAILED
+        && orfao === false && d.apagados.length === 0
+        && d.disco.has(SLOT_B) && d.disco.has(SLOT_A),
+        `r=${r}, apagados=${JSON.stringify(d.apagados)}, ponteiro=${ptr}, orfao=${orfao}`);
+    }
+    {
+      /* Contrato B, itens 3/12/13 medidos NOS CHAMADORES, não só na primitiva: um ponteiro que
+       * aponte para FORA de `drawings60/` (corrompido, legado ou escrito por outra mão) não pode
+       * virar alvo. É exatamente para isso que `requireSubdir` existe — e sem um cenário com o
+       * ponteiro anterior fora do subdiretório, remover a opção dos dois sítios do C60 não deixaria
+       * nada vermelho (ver CN-B10/CN-B11). */
+      const ARTE = ATELIE + 'arte_livre.png';
+      const LEGADO = RAIZ + 'orfao_legado.png';
+      const d = mkDisco([D60, ARTE, LEGADO]);
+      const mapa = new Map([[CHAVE60, ptr60(ARTE)]]);
+      const S = mkStorage60(d, mapa);
+      const r = await S.saveColoring60DrawingState('creation', 'light', TINTA);
+      check('P3J-R.1 [storage 21/22]: save com ponteiro anterior FORA de drawings60 não apaga nada — Criar Livre intacto',
+        r === S.COLORING60_SAVE_RESULT.SAVED
+        && d.apagados.length === 0 && d.disco.has(ARTE) && d.disco.has(LEGADO)
+        && d.apagados.every((u) => u.startsWith(D60))
+        && JSON.parse(mapa.get(CHAVE60)).uri === SLOT_A,
+        `r=${r}, apagados=${JSON.stringify(d.apagados)}, ponteiro=${mapa.get(CHAVE60)}`);
+    }
+    {
+      const ARTE = ATELIE + 'arte_livre.png';
+      const d = mkDisco([D60, ARTE]);
+      const mapa = new Map([[CHAVE60, ptr60(ARTE)]]);
+      const S = mkStorage60(d, mapa);
+      await S.clearColoring60SavedDrawing('creation', 'light');
+      check('P3J-R.1 [storage 22/22]: clear com ponteiro FORA de drawings60 remove só o metadado — Criar Livre intacto',
+        d.apagados.length === 0 && d.disco.has(ARTE) && mapa.get(CHAVE60) == null
+        && d.apagados.every((u) => u.startsWith(D60)),
+        `apagados=${JSON.stringify(d.apagados)}, ponteiro=${mapa.get(CHAVE60)}`);
+    }
+
+    // CN-B1 — sem a recomposição, o ponteiro de container antigo volta a escapar da raiz (o bug)
+    {
+      const d = mkDisco([SLOT_A]);
+      const uriVelha = DOC_VELHO + 'ptf_blobs/drawings60/_ptf_drawing60_screation_alight.a.png';
+      registrarCN1('CN-B1', 'fileBlobStore', 'a recomposição some e o container antigo volta a vazar',
+        mkBlob(d).resolveBlobDeletionTarget(uriVelha, RAIZ, SUB).ok,
+        mkBlob(d, (s) => s.replace('normalizarCaminho(recomposeBlobUri(uri, raiz))', 'uri'))
+          .resolveBlobDeletionTarget(uriVelha, RAIZ, SUB).ok);
+    }
+    // CN-B2 — sem a contenção, um alvo fora da raiz passa a ser aceito
+    {
+      const d = mkDisco([ATELIE + 'arte_livre.png']);
+      registrarCN1('CN-B2', 'fileBlobStore', 'a contenção na raiz some e o Ateliê vira alvo',
+        mkBlob(d).resolveBlobDeletionTarget(ATELIE + 'arte_livre.png', RAIZ, SUB).ok,
+        mkBlob(d, (s) => s.replace(
+          "  if (!alvo.startsWith(escopo)) return { ok: false, reason: 'fora_da_raiz', uri: null };", ''))
+          .resolveBlobDeletionTarget(ATELIE + 'arte_livre.png', RAIZ, SUB).ok);
+    }
+    // CN-B3 — sem `protect`, o snapshot atual é apagado quando a URI antiga difere só no container
+    {
+      const d = mkDisco([SLOT_B]);
+      const velha = DOC_VELHO + 'ptf_blobs/drawings60/_ptf_drawing60_screation_alight.b.png';
+      registrarCN1('CN-B3', 'fileBlobStore', 'a blindagem do snapshot atual some e a arte viva vira alvo',
+        mkBlob(d).resolveBlobDeletionTarget(velha, RAIZ, { ...SUB, protect: SLOT_B }).ok,
+        mkBlob(d, (s) => s.replace(
+          "  if (protegidas.includes(alvo)) return { ok: false, reason: 'protegido', uri: null };", ''))
+          .resolveBlobDeletionTarget(velha, RAIZ, { ...SUB, protect: SLOT_B }).ok);
+    }
+    // CN-B4 — sem o veto de travessia, um `..` volta a ser aceito como alvo
+    {
+      const d = mkDisco([SLOT_A]);
+      const comTravessia = D60 + 'x/../_ptf_drawing60_screation_alight.a.png';
+      registrarCN1('CN-B4', 'fileBlobStore', 'o veto de travessia some e `..` volta a ser alvo válido',
+        mkBlob(d).resolveBlobDeletionTarget(comTravessia, RAIZ, SUB).ok,
+        mkBlob(d, (s) => s.replace(/TEM_TRAVESSIA\.test\(/g, 'false && TEM_TRAVESSIA.test('))
+          .resolveBlobDeletionTarget(comTravessia, RAIZ, SUB).ok);
+    }
+    // CN-B5 [Agente D · M1] — sem a decodificação, `..%2f` volta a ser aceito como "contido"
+    {
+      const d = mkDisco([ATELIE + 'arte_livre.png']);
+      const codificada = D60 + '..%2fdrawings%2farte_livre.png';
+      registrarCN1('CN-B5', 'fileBlobStore', 'a decodificação some e `..%2f` volta a atravessar até o Criar Livre',
+        mkBlob(d).resolveBlobDeletionTarget(codificada, RAIZ, SUB).ok,
+        mkBlob(d, (s) => s.replace('  const decodificada = decodificarTudo(uri);',
+          '  const decodificada = uri;'))
+          .resolveBlobDeletionTarget(codificada, RAIZ, SUB).ok);
+    }
+    // CN-B6 [Agente D · M2] — sem a normalização, `//` e `/./` furam a blindagem do snapshot vivo
+    {
+      const d = mkDisco([SLOT_B]);
+      const grafia = D60.slice(0, -1) + '//_ptf_drawing60_screation_alight.b.png';
+      registrarCN1('CN-B6', 'fileBlobStore', 'a normalização some e `//` faz o snapshot vivo comparar "diferente"',
+        mkBlob(d).resolveBlobDeletionTarget(grafia, RAIZ, { ...SUB, protect: SLOT_B }).ok,
+        mkBlob(d, (s) => s.replace('  const alvo = normalizarCaminho(recomposeBlobUri(uri, raiz));',
+          '  const alvo = recomposeBlobUri(uri, raiz);'))
+          .resolveBlobDeletionTarget(grafia, RAIZ, { ...SUB, protect: SLOT_B }).ok);
+    }
+    // CN-B7 [Agente D · M3] — sem o veto de opções, `requireSubdir` inválido alarga o escopo em silêncio
+    {
+      const d = mkDisco([ATELIE + 'arte_livre.png']);
+      registrarCN1('CN-B7', 'fileBlobStore', 'o veto de opções some e `requireSubdir` inválido abre a raiz inteira',
+        mkBlob(d).resolveBlobDeletionTarget(ATELIE + 'arte_livre.png', RAIZ, { requireSubdir: 60 }).ok,
+        mkBlob(d, (s) => s.replace(
+          "    return { ok: false, reason: 'opcoes_invalidas', uri: null };\n  }\n  const protectBruto",
+          "    // veto removido\n  }\n  const protectBruto"))
+          .resolveBlobDeletionTarget(ATELIE + 'arte_livre.png', RAIZ, { requireSubdir: 60 }).ok);
+    }
+    // CN-B8 [Agente D] — lacre da regra `nao_e_arquivo`: sem ela, um DIRETÓRIO vira alvo resolvido
+    {
+      const d = mkDisco([D60]);
+      registrarCN1('CN-B8', 'fileBlobStore', 'a regra `nao_e_arquivo` some e um diretório vira alvo resolvido',
+        mkBlob(d).resolveBlobDeletionTarget(D60, RAIZ, SUB).reason,
+        mkBlob(d, (s) => s.replace(
+          "  if (!resto || resto.endsWith('/')) return { ok: false, reason: 'nao_e_arquivo', uri: null };", ''))
+          .resolveBlobDeletionTarget(D60, RAIZ, SUB).reason);
+    }
+    /* CN-B9/B10/B11 lacram o ORQUESTRADOR, não a primitiva. Os oito controles acima provam que
+     * `resolveBlobDeletionTarget` recusa o que deve recusar; nada provava que os CHAMADORES do C60
+     * continuam pedindo essa recusa. Cada cenário roda duas vezes — fonte real e fonte mutado — e o
+     * veredito é a DIVERGÊNCIA do resultado observável (o que sobrou em disco). */
+    // CN-B9 — sem a guarda `readable &&`, o rollback apaga o blob novo sob estado DESCONHECIDO
+    {
+      const cenarioRB = async (mutate) => {
+        const d = mkDisco([D60, SLOT_A]);
+        const mapa = new Map([[CHAVE60, ptr60(SLOT_A)]]);
+        const S = mkStorage60(d, mapa, { setItemSujo: true, setItem: true, getItemThrowFrom: 2 }, mutate);
+        await S.saveColoring60DrawingState('creation', 'light', TINTA);
+        return `${d.apagados.length}|${d.disco.has(SLOT_B)}`;
+      };
+      registrarCN1('CN-B9', 'coloring60DrawingStorage',
+        'a guarda `readable &&` some e o rollback apaga o blob que a chave ainda referencia',
+        await cenarioRB(undefined),
+        await cenarioRB((s) => s.replace('if (readable && !keyStillRefsNew) {', 'if (!keyStillRefsNew) {')));
+    }
+    // CN-B10 — sem `requireSubdir` na limpeza pós-commit, o Criar Livre vira alvo do save
+    {
+      const cenarioSave = async (mutate) => {
+        const ARTE = ATELIE + 'arte_livre.png';
+        const d = mkDisco([D60, ARTE]);
+        const mapa = new Map([[CHAVE60, ptr60(ARTE)]]);
+        const S = mkStorage60(d, mapa, {}, mutate);
+        await S.saveColoring60DrawingState('creation', 'light', TINTA);
+        return `${JSON.stringify(d.apagados)}|${d.disco.has(ARTE)}`;
+      };
+      registrarCN1('CN-B10', 'coloring60DrawingStorage',
+        '`requireSubdir` some da limpeza pós-commit e o Criar Livre vira alvo',
+        await cenarioSave(undefined),
+        await cenarioSave((s) => s.replace(
+          'deleteBlob(oldUri, { requireSubdir: BLOB_SUBDIR, protect: newUri })',
+          'deleteBlob(oldUri, { protect: newUri })')));
+    }
+    // CN-B11 — sem `requireSubdir` no clear, o Criar Livre vira alvo da remoção da arte do C60
+    {
+      const cenarioClear = async (mutate) => {
+        const ARTE = ATELIE + 'arte_livre.png';
+        const d = mkDisco([D60, ARTE]);
+        const mapa = new Map([[CHAVE60, ptr60(ARTE)]]);
+        const S = mkStorage60(d, mapa, {}, mutate);
+        await S.clearColoring60SavedDrawing('creation', 'light');
+        return `${JSON.stringify(d.apagados)}|${d.disco.has(ARTE)}`;
+      };
+      registrarCN1('CN-B11', 'coloring60DrawingStorage',
+        '`requireSubdir` some do clear e o Criar Livre vira alvo',
+        await cenarioClear(undefined),
+        await cenarioClear((s) => s.replace(
+          'deleteBlob(uri, { requireSubdir: BLOB_SUBDIR })',
+          'deleteBlob(uri, {})')));
+    }
+
+    /* ── C · COPIES E DECISÃO DE PRODUTO ───────────────────────────────────────────────────
+     * O app não pode prometer "Colorir" onde a tela de destino não entrega colorir.
+     */
+    const SRC_CULT_R1 = readSrc('src/screens/CultinhoEmCasaScreen.js');
+    const SRC_ATE_R1 = readSrc('src/screens/AtelierScreen.js');
+    const SRC_WORLD_R1 = readSrc('src/components/onboarding/StorybookWorldPage.js');
+    const SRC_DEC_R1 = readSrc('docs/DECISIONS.md');
+
+    check('P3J-R.1 [copy 01/07]: Cultinho convida a CRIAR juntos — e a rota/handler do Ateliê seguem intactos',
+      SRC_CULT_R1.includes('🎨 Criar juntos (opcional)')
+      && !SRC_CULT_R1.includes('Colorir juntos')
+      && SRC_CULT_R1.includes("navigation.navigate('AtelierFromContext', { from: 'cultinho' })")
+      && SRC_CULT_R1.includes('handleColorirJuntos'),
+      'a copy do Cultinho não foi corrigida, ou a correção mexeu na rota/handler');
+
+    check('P3J-R.1 [copy 02/07]: Ateliê se apresenta como CRIAR e guardar — sem prometer colorir',
+      SRC_ATE_R1.includes('Criar e guardar suas artes de fé.')
+      && !SRC_ATE_R1.includes('Colorir, criar e guardar')
+      && SRC_ATE_R1.includes('Ateliê do Beni'),
+      'a subcopy do Ateliê não foi corrigida ou o título oficial foi alterado');
+
+    /* `visibleStamps` é pura, mas mora num arquivo com JSX — que `new Function` não parseia. O
+     * componente `Stamp` é removido ANTES de carregar (o default export o loader já descarta).
+     * A mutação do controle negativo roda ANTES dessa poda e é conferida explicitamente aqui:
+     * sem isso, a poda sozinha satisfaria o guarda de antitautologia do loader e um controle com
+     * âncora obsoleta passaria despercebido. */
+    const podarJSX = (s) => s.replace(/function Stamp\(\{ item \}\) \{[\s\S]*?\n\}\n/, '');
+    const loadWorld = (mut) => rLoad('src/components/onboarding/StorybookWorldPage.js',
+      { OB: { scarf: '#1F6FEB' }, COLORING60_STORY_ID: 'creation', isStoryColoringAvailable: () => false },
+      ['visibleStamps', 'STAMPS'], (s) => {
+        let out = s;
+        if (mut) {
+          out = mut(out);
+          if (out === s) throw new Error('P3J-R.1: a mutação em StorybookWorldPage não alterou o fonte (âncora obsoleta)');
+        }
+        const podado = podarJSX(out);
+        if (podado === out) throw new Error('P3J-R.1: a poda do JSX não encontrou o componente Stamp');
+        return podado;
+      });
+    const WORLD = loadWorld();
+    const comColorir = WORLD.visibleStamps(true).map((s) => s.key);
+    const semColorir = WORLD.visibleStamps(false).map((s) => s.key);
+    check('P3J-R.1 [copy 03/07]: o selo "Colorir" do onboarding é DERIVADO — some quando não há colorir de verdade',
+      JSON.stringify(comColorir) === JSON.stringify(['ouvir', 'colorir', 'brincar', 'guardar'])
+      && JSON.stringify(semColorir) === JSON.stringify(['ouvir', 'brincar', 'guardar'])
+      && !WORLD.visibleStamps(false).some((s) => /colorir/i.test(s.label)),
+      `com=${comColorir.join(',')} · sem=${semColorir.join(',')}`);
+
+    check('P3J-R.1 [copy 04/07]: a ORDEM editorial dos demais selos não muda com a ausência do colorir',
+      JSON.stringify(semColorir) === JSON.stringify(comColorir.filter((k) => k !== 'colorir'))
+      && WORLD.visibleStamps(undefined).length === 3 && WORLD.visibleStamps(null).length === 3,
+      'a lista de selos se reordena — ou um valor não-booleano é tratado como "tem colorir"');
+
+    check('P3J-R.1 [copy 05/07]: o onboarding consulta a PORTA canônica e a CONSTANTE — sem lista fixa por storyId',
+      /import \{ COLORING60_STORY_ID \} from '\.\.\/\.\.\/services\/coloring60Pilot'/.test(SRC_WORLD_R1)
+      && /import \{ isStoryColoringAvailable \} from '\.\.\/\.\.\/services\/storyColoringAvailability'/.test(SRC_WORLD_R1)
+      && /visibleStamps\(isStoryColoringAvailable\(COLORING60_STORY_ID\)\)/.test(SRC_WORLD_R1)
+      && !/'creation'/.test(a1StripComments(SRC_WORLD_R1)),
+      'o onboarding voltou a decidir por literal/lista fixa em vez da porta canônica');
+
+    check('P3J-R.1 [copy 06/07]: a Decisão D está registrada no árbitro, com as proibições que a tornam acionável',
+      /### D-C60-NOMEACAO-OBRAS/.test(SRC_DEC_R1)
+      && /Criar Livre é AUTORIA/.test(SRC_DEC_R1) && /Colorir com o Beni é COLEÇÃO/.test(SRC_DEC_R1)
+      && /`POINTER_VERSION` \(permanece `3`\)/.test(SRC_DEC_R1)
+      && /Não\*\* existe campo de nome para o Colorir 60/.test(SRC_DEC_R1)
+      && /reaberta depois do piloto/.test(SRC_DEC_R1),
+      'a decisão de produto sobre nomeação de obras não está registrada de forma acionável');
+
+    check('P3J-R.1 [copy 07/07]: a decisão foi SÓ documental — ponteiro, schema e portão do piloto intactos',
+      /const POINTER_VERSION = 3;/.test(readSrc('src/services/coloring60DrawingStorage.js'))
+      && /export const COLORIR_60_CREATION_PILOT_ENABLED = false;/.test(readSrc('src/config/featureFlags.js'))
+      && !/nomeDaObra|artworkName|tituloDaArte/.test(readSrc('src/services/coloring60DrawingStorage.js')),
+      'a decisão de produto vazou para persistência, schema ou feature flag');
+
+    // CN-C1 — sem `requiresColoring`, o selo volta a ser promessa impressa incondicional
+    registrarCN1('CN-C1', 'StorybookWorldPage', 'o selo volta a ser promessa fixa, independente da disponibilidade',
+      WORLD.visibleStamps(false).length,
+      loadWorld((s) => s.replace(", color: '#2E9E6B', requiresColoring: true }", ", color: '#2E9E6B' }"))
+        .visibleStamps(false).length);
+
+    // CN-C2 — se o filtro aceitar qualquer valor "verdadeiro-ish", portão fechado volta a prometer
+    registrarCN1('CN-C2', 'StorybookWorldPage', 'o filtro afrouxa para truthy e o portão fechado volta a prometer',
+      WORLD.visibleStamps(undefined).length,
+      loadWorld((s) => s.replace('!s.requiresColoring || coloringAvailable === true',
+        '!s.requiresColoring || coloringAvailable !== true'))
+        .visibleStamps(undefined).length);
+
+    /* ── D · INTEGRIDADE DO BLOCO ──────────────────────────────────────────────────────────── */
+    check('P3J-R.1 [integridade 1/2]: nenhuma copy legada de colorir sobrevive nas três superfícies corrigidas',
+      !/Colorir juntos/.test(SRC_CULT_R1) && !/Colorir, criar e guardar/.test(SRC_ATE_R1)
+      && WORLD.STAMPS.filter((s) => s.requiresColoring === true).map((s) => s.key).join() === 'colorir'
+      && WORLD.STAMPS.every((s) => !/colorir/i.test(s.label) || s.requiresColoring === true),
+      'sobrou promessa de colorir em alguma das superfícies do bloco');
+
+    check('P3J-R.1 [integridade 2/2]: nenhum caminho de exclusão terminado em `..` é construído em src/',
+      (() => {
+        const suspeitos = [];
+        const varrer = (dir) => {
+          for (const nome of fs.readdirSync(dir)) {
+            const full = path.join(dir, nome);
+            if (fs.statSync(full).isDirectory()) { varrer(full); continue; }
+            if (!nome.endsWith('.js')) continue;
+            const c = a1StripComments(fs.readFileSync(full, 'utf8'));
+            if (/['"`][^'"`]*\/\.\.['"`]|appendingPathComponent|\+\s*['"`]\.\.['"`]/.test(c)) suspeitos.push(nome);
+          }
+        };
+        varrer(path.join(root, 'src'));
+        return suspeitos.length === 0;
+      })(),
+      'algum módulo de src/ monta um caminho terminado em `..` — a exclusão nunca pode fazer isso');
+
+    for (const c of CN1) {
+      check(`P3J-R.1 [negativo ${c.id}]: ${c.alvo} — ${c.descricao}`,
+        c.original !== c.mutante,
+        `a proteção pode ser removida sem que nada mude (original=${c.original} · mutante=${c.mutante}) — ou a âncora da mutação ficou obsoleta`);
+    }
+    check('P3J-R.1 [negativos]: os dezesseis controles negativos rodaram e nenhum sobreviveu',
+      CN1.length === 16 && CN1.every((c) => c.original !== c.mutante),
+      `executados=${CN1.length}, sobreviventes=${CN1.filter((c) => c.original === c.mutante).map((c) => c.id).join(', ') || '(nenhum)'}`);
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
