@@ -5947,7 +5947,10 @@ check(
     'Mapa: arte FINAL é camada Image separada (base sépia + colorida) e só monta com renderImageFinal',
     region.includes('renderImageFinal && asleepFinal') &&
     region.includes('renderImageFinal && awakeFinal') &&
-    /<Image\b/.test(region),
+    // P3J-R: a primitiva continua sendo uma <Image> por camada; RecoverableImage É uma <Image>
+    // (mesmas props, mesmo layout) com recarga limitada. O que a prova exige — camada separada e
+    // condicional — não mudou.
+    /<(Recoverable)?Image\b/.test(region),
     'arte final (sépia/colorida) não é camada Image separada/condicional por renderImageFinal',
   );
   check(
@@ -9950,8 +9953,10 @@ console.log('\n── LP2.1a-ii-B: reinstalação e rejeições de story packs �
             '    let manifest;\n    try { manifest = JSON.parse(await FileSystem.readAsStringAsync(mTo)); }\n    catch { return failWith(\'manifest.json do pack inválido (JSON)\'); }\n    const mh = await computeFileSha256(mTo);\n    if (!mh.ok) return failWith(`manifest.json: sha256 indisponível (${mh.reason})`);\n    if (mh.sha256 !== expectedManifestSha) return failWith(\'manifest.json com sha256 divergente da âncora (pack remoto rejeitado)\');') },
         { id: 'B7', nome: 'hash validado só no primeiro arquivo', defeito: 'hash',
           mut: (s) => s.replace('    for (const f of wanted) {\n      const fileUri', '    for (const f of wanted.slice(0, 1)) {\n      const fileUri') },
+        // [P3J-R] a linha ganhou `marcaFalha()` (registro do primeiro arquivo reprovado no
+        // diagnóstico). A âncora acompanha o fonte; a mutação continua REMOVENDO a checagem de bytes.
         { id: 'B8', nome: 'checagem de tamanho removida', defeito: 'tamanho',
-          mut: (s) => s.replace('      if (typeof f.bytes === \'number\' && info.size !== f.bytes) { errors.push(`${f.path}: bytes ${info.size} != ${f.bytes}`); continue; }', '') },
+          mut: (s) => s.replace('      if (typeof f.bytes === \'number\' && info.size !== f.bytes) { errors.push(`${f.path}: bytes ${info.size} != ${f.bytes}`); marcaFalha(); continue; }', '') },
         { id: 'B9', nome: 'erro de download engolido', defeito: 'queda',
           mut: (s) => s.replace(
             '      await withTimeout(() => dl.downloadAsync(), fileTimeoutMs, () => { try { dl.cancelAsync(); } catch (_) { /* noop */ } });',
@@ -16567,7 +16572,10 @@ console.log('\n── LP2.1 G6: chamador cancelável e voo compartilhado ──'
   const G6_CANCELAVEL = "  if (typeof (params && params.isCancelled) === 'function') return guardedInstallPublishing(resolved, params);";
   const G6_EXISTING = '  const existing = inFlightInstalls.get(key);';
   const G6_CHAVE = '  return JSON.stringify([storyId, version, baseUrl, manifestPath, manifestSha256, k, appVersion]);';
-  const G6_CANCEL_RETORNO = "      return { ok: false, cancelled: true, reason: 'cancelado' };";
+  // [P3J-R] o retorno terminal do cancelamento passou a levar `diagnostic` (campo ADITIVO, sem
+  // URL). A âncora acompanha o fonte — o mutante NEG-4 continua trocando o retorno limpo por
+  // `failWith('cancelado')`, que é exatamente a regressão que a prova protege.
+  const G6_CANCEL_RETORNO = "      return { ok: false, cancelled: true, reason: 'cancelado', diagnostic: { ...diag, failureStage: 'cancelled' } };";
   const G6_FILA_SETTLED = '  const settled = run.then(() => undefined, () => undefined);';
 
   /**
@@ -19069,11 +19077,14 @@ check(
   'HomeScreen ainda contém a seção de mundos',
 );
 
+// [P3J-R] O CTA passou a se chamar "Criar livre" (decisão do fundador). O DESTINO não mudou: o
+// parâmetro de rota `from: 'createWithBeni'` continua sendo o contrato de volta (originBack.js).
 check(
-  'Bloco 2: Home tem atalho "Criar com Beni" que abre fluxo contextual (from: createWithBeni)',
-  ux2Home.includes('Criar com Beni') && ux2Home.includes("from: 'createWithBeni'") &&
+  'Bloco 2: Home tem atalho "Criar livre" que abre fluxo contextual (from: createWithBeni)',
+  ux2Home.includes('Criar livre') && !ux2Home.includes("'Criar com Beni'") &&
+  ux2Home.includes("from: 'createWithBeni'") &&
   ux2Home.includes("navigation.navigate('AtelierCanvas'"),
-  'HomeScreen não tem o atalho Criar com Beni contextual',
+  'HomeScreen não tem o atalho Criar livre contextual',
 );
 
 check(
@@ -19096,11 +19107,12 @@ check(
 );
 
 check(
-  'Bloco 2: Canvas reconhece modo Criar com Beni (header "Criar com Beni" + voltar ao Início)',
+  'Bloco 2: Canvas reconhece o modo Criar livre (header "Criar livre" + voltar ao Início)',
   ux2Canvas.includes("from === 'createWithBeni'") &&
-  ux2Canvas.includes('Criar com Beni') &&
+  ux2Canvas.includes('Criar livre') &&
+  !ux2Canvas.includes("'Criar com Beni'") &&
   ux2Canvas.includes('Início'),
-  'AtelierCanvasScreen não trata o modo createWithBeni',
+  'AtelierCanvasScreen não trata o modo createWithBeni com o título Criar livre',
 );
 
 check(
@@ -21221,6 +21233,10 @@ try {
       color: px('#123456'), font: px('F'), fontSize: px(16), fontWeight: px('600'),
       radius: px(8), shadow: px(1), seal: px(() => ({ bg: '#fff', border: '#eee', text: '#111' })),
       storyHasAllRequiredAudio: () => true,
+      // P3J-R: a promessa da aventura passou a DERIVAR da disponibilidade real de colorir. Dublada
+      // aqui como `true` (o caso mais exigente: a frase completa) — as provas anti-piscar julgam
+      // identidade de tipo entre renders, não o texto.
+      isStoryColoringAvailable: () => true,
       __it: () => {}, __itNext: (() => { let i = 0; return () => (i += 1); })(),
       __DEV__: true,
     };
@@ -24890,8 +24906,11 @@ try {
       /useResolvedStoryCover/.test(marker) && /useResolvedStoryCover/.test(focus) && /useResolvedStoryCover/.test(card),
       'StoryMapMarker/StoryFocusModal/StoryCard não usam o hook de cover');
 
+    // P3J-R: `RecoverableImage` renderiza EXATAMENTE uma <Image> com as mesmas props (só acrescenta
+    // recarga limitada após falha), por isso continua valendo como render INALTERADO — nenhuma
+    // superfície ganhou pipeline, wrapper ou layout novo.
     check('F2.4e.4: render das capas INALTERADO (<Image source> — sem pipeline/layout novo)',
-      /Image source=\{cover\}/.test(marker) && /Image source=\{cover\}/.test(focus) && /Image source=\{coverImg\}/.test(card),
+      /(Recoverable)?Image source=\{cover\}/.test(marker) && /Image source=\{cover\}/.test(focus) && /Image source=\{coverImg\}/.test(card),
       'o render de capa mudou (deveria ser só a fonte via hook)');
 
     check('F2.4e.4: superfícies de capa NÃO baixam arquivo nem calculam sha256',
@@ -25714,7 +25733,10 @@ try {
 
     check('F2.5-hardening-3: cancelamento NÃO grava índice (sem setPackEntry) e retorna { cancelled:true }',
       (() => {
-        const m = pds3.match(/if \(e === CANCELLED[\s\S]*?return \{ ok: false, cancelled: true, reason: 'cancelado' \};/);
+        // [P3J-R] o ramo passou a levar `diagnostic` (campo ADITIVO, sem URL). A âncora deixa de
+        // exigir o fim exato da linha — o que a prova protege continua sendo o comportamento:
+        // não grava índice, limpa o .tmp e devolve cancelled:true.
+        const m = pds3.match(/if \(e === CANCELLED[\s\S]*?return \{ ok: false, cancelled: true, reason: 'cancelado'[^\n]*\n/);
         return !!m && !/setPackEntry/.test(m[0]) && /deleteAsync\(tempDir/.test(m[0]);
       })(),
       'ramo de cancelamento grava índice ou não limpa .tmp / não retorna cancelled:true');
@@ -26921,7 +26943,14 @@ try {
           && (easB4['preview-criador'] || {}).distribution === 'internal'
           && env('preview').EXPO_PUBLIC_BUILD_PROFILE === 'preview'
           && env('preview')[F] === undefined
-          && ['production', 'screenshot', 'development'].every((n) => Object.keys(env(n)).length === 0);
+          // [P3J-R] `production` passou a declarar EXPO_PUBLIC_GLOBAL_MANIFEST_URL (contrato de
+          // configuração explícito; valor PÚBLICO, não segredo). O guardrail desta prova nunca foi
+          // "env vazio" e sim "nenhuma flag de QA/sandbox/criador vaza" — agora dito por ALLOWLIST,
+          // o que é MAIS estrito: qualquer variável nova fora da lista reprova.
+          && ['production', 'screenshot', 'development'].every((n) => Object.keys(env(n))
+            .every((k) => k === 'EXPO_PUBLIC_GLOBAL_MANIFEST_URL'))
+          && ['production', 'screenshot', 'development'].every((n) => Object.keys(env(n))
+            .every((k) => !/QA|SANDBOX|CREATOR|BUILD_PROFILE/.test(k)));
       })(),
       'perfil preview-criador ausente/incompleto OU flag de criador vazou p/ outro perfil');
   }
@@ -43083,6 +43112,787 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         detectou,
         `a mutação em memória NÃO foi detectada pela(s) prova(s) ${c.provas.join('+')} — ou a prova ficou verde no mundo mutante (verde infalsificável), ou a própria mutação estourou ('ERRO')`);
     }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     P3J-R — RECUPERAÇÃO VISUAL LIMITADA (contrato de 13 itens do fundador)
+     ══════════════════════════════════════════════════════════════════════════════════════════
+     Na validação física do P3J, com a rede interrompida, a casca sumiu e NÃO voltou quando a rede
+     retornou. A correção vive em `useImageRecovery` + `RecoverableImage`. Aqui o hook é EXECUTADO
+     de verdade — mini-React com estado, efeitos, limpeza e relógio falso — em vez de conferido por
+     regex: cada item do contrato vira um cenário observável. */
+  console.log('\n── P3J-R: recuperação visual limitada (contrato de 13 itens) ──');
+  {
+    const HOOK_RV = readSrc('src/hooks/useImageRecovery.js');
+    const IMG_RV = readSrc('src/components/ui/RecoverableImage.js');
+    const COVER_RV = readSrc('src/components/story/StoryCoverImage.js');
+    const MARKER_RV = readSrc('src/components/map/StoryMapMarker.js');
+    const REGION_RV = readSrc('src/components/map/MapRegion.js');
+    const BENI_RV = readSrc('src/components/common/BeniMascotImage.js');
+    const SAFE_RV = readSrc('src/components/ui/SafeImage.js');
+    const PKG_RV = readSrc('package.json');
+
+    /** Mini-React de verdade: useState reagenda render, useEffect roda com deps + cleanup. */
+    const criarRuntimeRV = () => {
+      const slots = [];
+      const efeitos = [];
+      let i = 0;
+      let sujo = false;
+      let relogio = 0;
+      let proximoTimer = 1;
+      const timers = new Map();
+      const ouvintes = [];
+      let renders = 0;
+
+      const useState = (init) => {
+        const k = i++;
+        if (!slots[k]) slots[k] = { v: typeof init === 'function' ? init() : init };
+        const s = slots[k];
+        return [s.v, (n) => {
+          const nv = typeof n === 'function' ? n(s.v) : n;
+          if (!Object.is(nv, s.v)) { s.v = nv; sujo = true; }
+        }];
+      };
+      const useRef = (init) => { const k = i++; if (!slots[k]) slots[k] = { current: init }; return slots[k]; };
+      const useEffect = (fn, deps) => { const k = i++; efeitos.push({ k, fn, deps }); };
+
+      const AppState = {
+        currentState: 'active',
+        addEventListener: (tipo, cb) => {
+          const reg = { tipo, cb, vivo: true };
+          ouvintes.push(reg);
+          return { remove: () => { reg.vivo = false; } };
+        },
+      };
+      const setTimeoutFalso = (fn, ms) => {
+        const id = proximoTimer++;
+        timers.set(id, { fn, quando: relogio + (Number(ms) || 0) });
+        return id;
+      };
+      const clearTimeoutFalso = (id) => { timers.delete(id); };
+
+      const rodarEfeitos = () => {
+        for (const e of efeitos) {
+          const anterior = slots[e.k];
+          const mudou = !anterior || !anterior.deps
+            || anterior.deps.length !== e.deps.length
+            || anterior.deps.some((d, n) => !Object.is(d, e.deps[n]));
+          if (!mudou) continue;
+          if (anterior && typeof anterior.limpar === 'function') anterior.limpar();
+          const limpar = e.fn();
+          slots[e.k] = { deps: e.deps, limpar: typeof limpar === 'function' ? limpar : null };
+        }
+        efeitos.length = 0;
+      };
+
+      /** Renderiza até estabilizar. O teto é a própria prova anti-loop: estourar = laço infinito. */
+      const render = (fn, props, teto = 40) => {
+        let saida = null;
+        let voltas = 0;
+        do {
+          sujo = false;
+          i = 0;
+          efeitos.length = 0;
+          saida = fn(props);
+          renders += 1;
+          rodarEfeitos();
+          voltas += 1;
+          if (voltas > teto) throw new Error('render não estabilizou (possível laço infinito)');
+        } while (sujo);
+        return saida;
+      };
+
+      return {
+        deps: { useState, useRef, useEffect, AppState, setTimeout: setTimeoutFalso, clearTimeout: clearTimeoutFalso },
+        render,
+        avancar: (ms) => {
+          relogio += ms;
+          const devidos = [...timers.entries()].filter(([, t]) => t.quando <= relogio);
+          for (const [id, t] of devidos) { timers.delete(id); t.fn(); }
+          return devidos.length;
+        },
+        timersPendentes: () => [...timers.values()].map((t) => t.quando - relogio),
+        foreground: () => {
+          AppState.currentState = 'background';
+          for (const o of ouvintes) if (o.vivo) o.cb('background');
+          AppState.currentState = 'active';
+          for (const o of ouvintes) if (o.vivo) o.cb('active');
+        },
+        contarRenders: () => renders,
+      };
+    };
+
+    /** Avalia o módulo REAL do hook com as fronteiras (react/react-native/timers) dubladas.
+        Sem JSX no arquivo → basta retirar import/export; o CORPO julgado é o do fonte de produção. */
+    const carregarHookRV = (runtime) => {
+      const corpo = HOOK_RV
+        .replace(/^import[\s\S]*?;$/gm, '')
+        .replace(/^export default[^\n]*$/gm, '')
+        .replace(/^export /gm, '')
+        + '\n; return { useImageRecovery, RETRY_DELAYS_MS, MAX_RECOVERY_ATTEMPTS };';
+      const chaves = Object.keys(runtime.deps);
+      return new Function(...chaves, corpo)(...chaves.map((k) => runtime.deps[k]));
+    };
+
+    const cenarioRV = () => {
+      const rt = criarRuntimeRV();
+      const { useImageRecovery, MAX_RECOVERY_ATTEMPTS, RETRY_DELAYS_MS } = carregarHookRV(rt);
+      return { rt, useImageRecovery, MAX_RECOVERY_ATTEMPTS, RETRY_DELAYS_MS };
+    };
+
+    /* ── Cenário 1 — imagem SAUDÁVEL: nenhum timer, nenhuma remontagem (itens 1, 7 e 8). ── */
+    {
+      const { rt, useImageRecovery } = cenarioRV();
+      const t0 = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: false }).token;
+      rt.avancar(60000);
+      const t1 = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: false }).token;
+      rt.foreground();
+      const t2 = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: false }).token;
+      check('P3J-R [visual 01/12]: imagem carregada NÃO remonta — token estável mesmo após tempo e foreground (não pisca)',
+        t0 === t1 && t1 === t2 && rt.timersPendentes().length === 0,
+        `token mudou sem falha (${t0} → ${t1} → ${t2}) ou há timer armado para imagem saudável`);
+    }
+
+    /* ── Cenário 2 — falha permanente: tentativas FINITAS e teto respeitado (itens 3, 5 e 6). ── */
+    {
+      const { rt, useImageRecovery, MAX_RECOVERY_ATTEMPTS } = cenarioRV();
+      const tokens = [];
+      let r = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: true });
+      tokens.push(r.token);
+      for (let n = 0; n < 12; n += 1) {
+        rt.avancar(60000);
+        r = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: true });
+        tokens.push(r.token);
+      }
+      const distintos = new Set(tokens).size;
+      check('P3J-R [visual 02/12]: falha permanente gera tentativas FINITAS — o token muda no máximo MAX_RECOVERY_ATTEMPTS vezes e depois congela',
+        r.esgotado === true && r.attempt === MAX_RECOVERY_ATTEMPTS && distintos === MAX_RECOVERY_ATTEMPTS + 1
+        && rt.timersPendentes().length === 0,
+        `attempt=${r.attempt} (teto ${MAX_RECOVERY_ATTEMPTS}), tokens distintos=${distintos}, timers pendentes=${rt.timersPendentes().length}`);
+    }
+
+    /* ── Cenário 3 — a recuperação FUNCIONA: token muda depois do atraso (item 3). ── */
+    {
+      const { rt, useImageRecovery, RETRY_DELAYS_MS } = cenarioRV();
+      const antes = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: true }).token;
+      const armados = rt.timersPendentes();
+      rt.avancar(RETRY_DELAYS_MS[0]);
+      const depois = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: true }).token;
+      check('P3J-R [visual 03/12]: após FALHA existe nova tentativa — um único timer é armado e o token muda quando ele vence',
+        armados.length === 1 && armados[0] === RETRY_DELAYS_MS[0] && antes !== depois,
+        `timers armados=${JSON.stringify(armados)}, token ${antes} → ${depois}`);
+    }
+
+    /* ── Cenário 4 — SINAL SEGURO: voltar ao primeiro plano renova o orçamento (item 4). ── */
+    {
+      const { rt, useImageRecovery } = cenarioRV();
+      let r = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: true });
+      for (let n = 0; n < 8; n += 1) { rt.avancar(60000); r = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: true }); }
+      const esgotadoAntes = r.esgotado === true;
+      const tokenEsgotado = r.token;
+      rt.foreground();
+      const rDepois = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: true });
+      check('P3J-R [visual 04/12]: esgotado o orçamento, VOLTAR AO PRIMEIRO PLANO concede novas tentativas (sinal seguro)',
+        esgotadoAntes && rDepois.attempt === 0 && rDepois.esgotado === false && rDepois.token !== tokenEsgotado,
+        `esgotadoAntes=${esgotadoAntes}, attempt após foreground=${rDepois.attempt}, token ${tokenEsgotado} → ${rDepois.token}`);
+    }
+
+    /* ── Cenário 5 — foreground SEM falha não remonta nada (itens 7 e 8). ── */
+    {
+      const { rt, useImageRecovery } = cenarioRV();
+      const antes = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: false }).token;
+      rt.foreground();
+      const depois = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: false }).token;
+      check('P3J-R [visual 05/12]: voltar ao primeiro plano com tudo carregado NÃO remonta imagem alguma',
+        antes === depois && rt.timersPendentes().length === 0,
+        `token ${antes} → ${depois} com ${rt.timersPendentes().length} timer(s) pendente(s)`);
+    }
+
+    /* ── Cenário 6 — nova resolução da source zera o estado (itens 4 e 6). ── */
+    {
+      const { rt, useImageRecovery } = cenarioRV();
+      let r = rt.render(useImageRecovery, { sourceKey: 'antiga.png', failed: true });
+      for (let n = 0; n < 8; n += 1) { rt.avancar(60000); r = rt.render(useImageRecovery, { sourceKey: 'antiga.png', failed: true }); }
+      const esgotou = r.esgotado === true;
+      const nova = rt.render(useImageRecovery, { sourceKey: 'nova.png', failed: false });
+      check('P3J-R [visual 06/12]: trocar de source ZERA contador e orçamento — a imagem nova não herda a falha da anterior',
+        esgotou && nova.attempt === 0 && nova.esgotado === false && rt.timersPendentes().length === 0,
+        `attempt após troca=${nova.attempt}, esgotado=${nova.esgotado}, timers=${rt.timersPendentes().length}`);
+    }
+
+    /* ── Cenário 7 — a chave NÃO cresce continuamente (item 6). ── */
+    {
+      const { rt, useImageRecovery, MAX_RECOVERY_ATTEMPTS } = cenarioRV();
+      const vistos = new Set();
+      let r = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: true });
+      vistos.add(r.token);
+      const esgotar = () => {
+        for (let n = 0; n < 6; n += 1) {
+          rt.avancar(60000);
+          r = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: true });
+          vistos.add(r.token);
+        }
+      };
+      esgotar();
+      for (let ciclo = 0; ciclo < 5; ciclo += 1) {
+        rt.foreground();
+        r = rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: true });
+        vistos.add(r.token);
+        esgotar();               // termina SEMPRE esgotado: o tempo sozinho não concede mais nada
+      }
+      // 5 orçamentos extras × (MAX+1 tokens) + o inicial: crescimento ligado a AÇÃO do usuário,
+      // nunca ao mero passar do tempo. Sem foreground, o total pararia em MAX+1.
+      const teto = (5 + 1) * (MAX_RECOVERY_ATTEMPTS + 1);
+      check('P3J-R [visual 07/12]: a chave só muda por tentativa concedida — nº de chaves distintas é limitado pelos orçamentos, não pelo tempo',
+        vistos.size <= teto && r.esgotado === true,
+        `chaves distintas=${vistos.size} (teto ${teto}), esgotado=${r.esgotado}`);
+    }
+
+    /* ── Cenário 8 — NÃO é polling: atrasos declarados, poucos e espaçados (item 7). ── */
+    {
+      const { RETRY_DELAYS_MS, MAX_RECOVERY_ATTEMPTS } = cenarioRV();
+      const crescente = RETRY_DELAYS_MS.every((v, n) => n === 0 || v > RETRY_DELAYS_MS[n - 1]);
+      check('P3J-R [visual 08/12]: NÃO há polling agressivo — poucos atrasos, todos ≥ 1s e estritamente crescentes',
+        Array.isArray(RETRY_DELAYS_MS) && RETRY_DELAYS_MS.length <= 3
+        && RETRY_DELAYS_MS.every((v) => v >= 1000) && crescente
+        && MAX_RECOVERY_ATTEMPTS === RETRY_DELAYS_MS.length,
+        `RETRY_DELAYS_MS=${JSON.stringify(RETRY_DELAYS_MS)}, teto=${MAX_RECOVERY_ATTEMPTS}`);
+    }
+
+    /* ── Cenário 9 — o listener de AppState é REMOVIDO ao desmontar (sem vazamento). ── */
+    {
+      const rt = criarRuntimeRV();
+      const { useImageRecovery } = carregarHookRV(rt);
+      rt.render(useImageRecovery, { sourceKey: 'capa.png', failed: false });
+      const usaRemove = /typeof sub\.remove === 'function'/.test(HOOK_RV) && /sub\.remove\(\)/.test(HOOK_RV);
+      check('P3J-R [visual 09/12]: a assinatura de AppState é desfeita na limpeza do efeito (sem listener órfão)',
+        usaRemove && /return \(\) => \{ if \(sub/.test(HOOK_RV),
+        'o hook não remove a assinatura de AppState no cleanup');
+    }
+
+    /* ── Cenário 10 — a imagem em falha continua MONTADA; o fallback entra atrás (itens 1 e 2). ── */
+    {
+      const fragmento = /\{falhou \? renderFallback\(\) : null\}[\s\S]{0,40}\{imagem\}/.test(IMG_RV);
+      const semWrapper = !/<View/.test(IMG_RV);
+      const coverFallback = /renderFallback=\{\(\) => fallbackCover\(styles\.fallbackBehind\)\}/.test(COVER_RV)
+        && /fallbackBehind: \{ \.\.\.StyleSheet\.absoluteFillObject \}/.test(COVER_RV);
+      const markerFallback = /renderFallback=\{\(\) => \(/.test(MARKER_RV) && /styles\.fallbackBehind/.test(MARKER_RV);
+      check('P3J-R [visual 10/12]: em falha, o fallback entra ATRÁS (absoluto) e a imagem SEGUE montada — sem View extra, sem mudança de layout',
+        fragmento && semWrapper && coverFallback && markerFallback,
+        `fragmento=${fragmento}, semWrapper=${semWrapper}, capa=${coverFallback}, pin=${markerFallback}`);
+    }
+
+    /* ── Cenário 11 — escopo VISUAL: nada de pack, índice, marcador ou `ready` (itens 9, 10 e 11). ── */
+    {
+      const PROIBIDO = /downloadStoryPack|installRegistry|publishMarker|buildPublishMarker|clearIndex|removeIndex|setStatus\(\s*['"]ready|AsyncStorage|FileSystem/;
+      const modulos = { 'useImageRecovery.js': HOOK_RV, 'RecoverableImage.js': IMG_RV, 'SafeImage.js': SAFE_RV };
+      const sujos = Object.keys(modulos).filter((k) => PROIBIDO.test(a1StripComments(modulos[k])));
+      check('P3J-R [visual 11/12]: a recuperação é ESTRITAMENTE visual — não reinstala pack, não limpa índice e não toca estado `ready`',
+        sujos.length === 0,
+        `módulo(s) com símbolo proibido: ${sujos.join(', ')}`);
+    }
+
+    /* ── Cenário 12 — nenhuma dependência nova e nenhum asset estático virou URI remota (12 e 13). ── */
+    {
+      // Nenhuma lib de rede/imagem foi acrescentada para contornar o Development Client.
+      const semDepNova = !/netinfo|expo-network|react-native-fast-image/i.test(PKG_RV);
+      // O hook importa EXATAMENTE de 'react' e 'react-native' — AppState é primitiva do próprio RN.
+      const origens = [...a1StripComments(HOOK_RV).matchAll(/from '([^']+)'/g)].map((m) => m[1]).sort();
+      const soReactNative = JSON.stringify(origens) === JSON.stringify(['react', 'react-native']);
+      const semUriFabricada = [IMG_RV, BENI_RV, REGION_RV, MARKER_RV, COVER_RV]
+        .every((s) => !/uri:\s*['"`]https?:/.test(a1StripComments(s)));
+      // Os requires estáticos continuam estáticos: nenhuma superfície da casca passou a montar URL.
+      check('P3J-R [visual 12/12]: zero dependência nova (AppState é do react-native) e nenhum asset estático virou URI remota',
+        semDepNova && soReactNative && semUriFabricada,
+        `semDepNova=${semDepNova}, soReactNative=${soReactNative}, semUriFabricada=${semUriFabricada}`);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * P3J-R — CONTRATOS DA RECUPERAÇÃO DAS REGRESSÕES FÍSICAS
+   *
+   * A validação física do P3J devolveu seis problemas. Este bloco lacra as correções dos quatro
+   * que envolvem código de execução (marcador, configuração, diagnóstico, copies/CTA); a
+   * recuperação visual limitada já tem bloco próprio logo acima.
+   *
+   * DOUTRINA DESTE BLOCO
+   *  · Comportamental onde há comportamento: a contenção de kinds e o reuso do pack rodam o
+   *    downloader REAL sobre o harness de instalação, não uma reimplementação da regra.
+   *  · Estático só onde o contrato é de TEXTO (ordem de campos, vocabulário da tela, scripts).
+   *  · Todo estático vem acompanhado de CONTROLE NEGATIVO: o mesmo predicado é aplicado a uma
+   *    versão MUTADA do fonte e tem de reprovar. Sem isso, um predicado frouxo passaria para
+   *    sempre e a prova não vigiaria nada.
+   *  · Nenhuma prova imprime a URL do manifesto, token ou valor de variável — nem no detalhe de
+   *    falha. O que se afirma é presença, igualdade entre origens e comprimento.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  console.log('\n── P3J-R: contenção de kinds, configuração, diagnóstico, copies e CTA ──');
+  {
+    const {
+      createPackInstallHarness: p3jHarness,
+      loadModule: p3jLoad,
+      loadPackDownloader: p3jLoadDL,
+    } = require('./testing/packInstallHarness');
+
+    /* Muta TEXTO com guarda antitautológica: sem a âncora, o texto volta IGUAL, o predicado
+     * responde o mesmo nos dois lados e o controle negativo fica VERMELHO — que é o desfecho
+     * correto para uma âncora obsoleta (a mesma doutrina do `loadModule`). */
+    const p3jMutar = (src, de, para) => src.split(de).join(para);
+
+    const CN = [];   // controles negativos: { id, alvo, descricao, original, mutante }
+    const registrarCN = (id, alvo, descricao, original, mutante) =>
+      CN.push({ id, alvo, descricao, original: String(original), mutante: String(mutante) });
+
+    /* ── 1 · CONTENÇÃO DE KINDS (as oito provas exigidas) ─────────────────────────────────────
+     * Contrato: kinds EXTRAS no marcador não invalidam o pack; kinds PEDIDOS ausentes continuam
+     * invalidando; ordem e duplicatas não pesam; lixo no marcador nunca vira falso positivo. */
+    const MKC = p3jLoad('src/services/packPublishMarker.js', {},
+      ['missingRequestedKinds', 'publishedKindsCoverRequested', 'buildPublishMarker']);
+    const cobre = MKC.publishedKindsCoverRequested;
+    const faltam = MKC.missingRequestedKinds;
+    const PEDIDO_POS_P3J = ['audio', 'cover', 'scene'];               // REQUESTED_KINDS de hoje (normalizado)
+    const MARCADOR_PRE_P3J = ['audio', 'coloring', 'cover', 'scene']; // pack publicado ANTES do P3J
+
+    check('P3J-R [kinds 1/8]: igualdade exata continua sendo cobertura (o caso trivial não foi afrouxado)',
+      cobre(['audio', 'cover', 'scene'], PEDIDO_POS_P3J) === true
+      && faltam(['audio', 'cover', 'scene'], PEDIDO_POS_P3J).length === 0,
+      'a igualdade exata deixou de ser reconhecida como cobertura');
+
+    check('P3J-R [kinds 2/8]: marcador SUPERSET (pré-P3J, com coloring) cobre o pedido de hoje',
+      cobre(MARCADOR_PRE_P3J, PEDIDO_POS_P3J) === true
+      && faltam(MARCADOR_PRE_P3J, PEDIDO_POS_P3J).length === 0,
+      'kind extra no marcador voltou a invalidar o pack — é exatamente a regressão relatada no P3J');
+
+    check('P3J-R [kinds 3/8]: kind PEDIDO ausente do marcador continua invalidando',
+      cobre(['cover', 'scene'], PEDIDO_POS_P3J) === false
+      && faltam(['cover', 'scene'], PEDIDO_POS_P3J).join(',') === 'audio',
+      'um pedido não coberto pela publicação passou a ser aceito');
+
+    check('P3J-R [kinds 4/8]: o veredito independe da ORDEM dos dois lados',
+      cobre(['scene', 'audio', 'cover'], ['cover', 'scene', 'audio']) === true
+      && cobre(['cover', 'audio', 'scene'], ['scene', 'audio', 'cover']) === true
+      && cobre(['scene', 'cover'], ['audio', 'cover', 'scene']) === false,
+      'a ordem dos kinds passou a alterar o veredito da cobertura');
+
+    check('P3J-R [kinds 5/8]: duplicatas são normalizadas (a cobertura é de CONJUNTO, não de lista)',
+      cobre(['cover', 'cover', 'scene', 'audio', 'audio'], ['audio', 'audio', 'cover', 'scene']) === true
+      && cobre(['cover', 'cover'], ['cover', 'audio', 'audio']) === false
+      && new Set(faltam(['cover'], ['audio', 'audio'])).size === 1,
+      'repetir um kind mudou o veredito da cobertura');
+
+    check('P3J-R [kinds 6/8]: kind DESCONHECIDO extra no marcador não invalida; desconhecido PEDIDO continua acusado',
+      cobre(['audio', 'cover', 'scene', 'sticker'], PEDIDO_POS_P3J) === true
+      && cobre(['audio', 'cover', 'scene'], ['audio', 'sticker']) === false
+      && faltam(['audio', 'cover', 'scene'], ['audio', 'sticker']).join(',') === 'sticker',
+      'a tolerância a kind desconhecido inverteu de lado');
+
+    {
+      // Lixo no marcador entra no conjunto, mas NUNCA cobre um kind pedido (que é string).
+      const invalidos = [null, undefined, 'audio,cover,scene', 42, { 0: 'cover' }, [null, 1, {}], []];
+      const respostas = invalidos.map((m) => cobre(m, PEDIDO_POS_P3J));
+      check('P3J-R [kinds 7/8]: marcador inválido — ou pedido vazio/inválido — nunca produz falso positivo',
+        respostas.every((r) => r === false)
+        && cobre(['audio', 'cover', 'scene'], []) === false
+        && cobre(['audio', 'cover', 'scene'], null) === false,
+        `entradas inválidas que autorizaram reuso: ${respostas.map((r, i) => `#${i}=${r}`).filter((_, i) => respostas[i] !== false).join(' ')}`);
+    }
+
+    /* ── 1.8 · COMPORTAMENTAL: pack PRÉ-P3J reutilizado pelo runtime PÓS-P3J ──────────────────
+     * A prova que fecha o achado: um pack íntegro instalado quando `coloring` ainda era pedido
+     * (marcador com quatro kinds) tem de ser REUSADO pelo runtime de hoje (três kinds), sem
+     * segundo download e sem reescrever o índice. O mundo remoto fica DISPONÍVEL de propósito:
+     * "zero downloads" só significa alguma coisa quando baixar era possível. */
+    const HIST_R = 'david_goliath';
+    const VER_R = '1.0.0';
+    const BASE_R = 'https://r2/david_goliath/v1/';
+    const GLOBAL_R = 'https://r2/content-manifest.json';
+    const ARQ_R = [
+      { kind: 'cover',    path: 'cover.webp',       text: 'CAPA-PRE-P3J' },
+      { kind: 'scene',    path: 'scenes/01.webp',   text: 'CENA-PRE-P3J-UM' },
+      { kind: 'scene',    path: 'scenes/02.webp',   text: 'CENA-PRE-P3J-DOIS' },
+      { kind: 'audio',    path: 'audio/01.mp3',     text: 'AUDIO-PRE-P3J' },
+      // o lineart que a instalação ANTIGA baixou e que o runtime de hoje não pede mais
+      { kind: 'coloring', path: 'coloring/01.webp', text: 'LINEART-PRE-P3J' },
+    ];
+
+    const rodarPreP3J = async (mutDL) => {
+      const h = p3jHarness();
+      const files = ARQ_R.map((f) => ({
+        kind: f.kind, path: f.path, bytes: Buffer.byteLength(f.text), sha256: h.sha256OfText(f.text),
+      }));
+      const manifest = {
+        schemaVersion: 1, id: HIST_R, version: VER_R, type: 'story', minAppVersion: '1.0.0',
+        totalBytes: files.reduce((a, f) => a + f.bytes, 0), files,
+        metadata: { storyId: HIST_R, title: 'Davi e Golias', language: 'pt-BR' },
+      };
+      const manifestText = JSON.stringify(manifest);
+      const ancora = h.sha256OfText(manifestText);
+      const dir = `file:///doc/packs/${HIST_R}@${VER_R}/`;
+      h.seedOrphanPack({
+        storyId: HIST_R, version: VER_R,
+        files: ARQ_R.map((f) => ({ path: f.path, text: f.text })),
+        manifestText,
+        marker: MKC.buildPublishMarker({
+          storyId: HIST_R, version: VER_R, manifestSha256: ancora,
+          manifestPath: 'manifest.json', kinds: MARCADOR_PRE_P3J, appVersion: '1.0.0',
+        }),
+        indexEntry: {
+          status: 'ready', localDir: dir, manifestPath: `${dir}manifest.json`,
+          totalBytes: manifest.totalBytes, downloadedBytes: manifest.totalBytes, errorMessage: null,
+        },
+      });
+      h.setGlobalManifest({
+        manifestVersion: 1, minAppVersion: '1.0.0',
+        packs: [h.packEntry({
+          storyId: HIST_R, version: VER_R, baseUrl: BASE_R,
+          manifestSha256: ancora, mediaKinds: ['cover', 'scene', 'audio'],
+        })],
+      });
+      h.route(`${BASE_R}manifest.json`, { text: manifestText });
+      ARQ_R.forEach((f) => h.route(BASE_R + f.path, { text: f.text }));
+      h.resetEvents();
+      // FORA do try: uma âncora obsoleta tem de ESCAPAR, jamais virar assinatura de mutante morto.
+      const mod = p3jLoadDL(mutDL);
+      let r;
+      try {
+        r = await mod.createPackDownloadService(h.deps).downloadStoryPackScenesFromGlobalManifest({
+          storyId: HIST_R, globalManifestUrl: GLOBAL_R, appVersion: '1.0.0',
+          requestedKinds: ['cover', 'scene', 'audio'],   // o REQUESTED_KINDS do hook, pós-P3J
+        });
+      } catch (e) { r = { ok: false, reason: `lançou: ${e.message}` }; }
+      const entry = await h.entry(HIST_R);
+      return {
+        assinatura: `ok=${r && r.ok === true}|downloads=${h.counters.downloads}|setEntry=${h.counters.setEntry}`,
+        r, entry, downloads: h.counters.downloads, setEntry: h.counters.setEntry,
+      };
+    };
+
+    const reuso = await rodarPreP3J(undefined);
+    check('P3J-R [kinds 8/8]: pack pré-P3J (marcador com coloring) é REUSADO pelo runtime pós-P3J — zero downloads, índice intacto',
+      reuso.r && reuso.r.ok === true && reuso.downloads === 0 && reuso.setEntry === 0
+      && reuso.entry && reuso.entry.status === 'ready',
+      `assinatura=${reuso.assinatura}, motivo=${(reuso.r && reuso.r.reason) || '(sem motivo)'}`);
+
+    check('P3J-R [kinds 8/8-b]: o reuso devolve SÓ os kinds pedidos hoje (coloring não volta pela porta dos fundos)',
+      reuso.r && Array.isArray(reuso.r.kinds)
+      && reuso.r.kinds.join(',') === 'audio,cover,scene'
+      && reuso.r.counts && reuso.r.counts.coloring === undefined
+      && reuso.r.sceneCount === 2,
+      `kinds=${JSON.stringify(reuso.r && reuso.r.kinds)}, counts=${JSON.stringify(reuso.r && reuso.r.counts)}`);
+
+    /* ── 2 · CONTRATO CANÔNICO DA CONFIGURAÇÃO ────────────────────────────────────────────── */
+    {
+      const VAR_CFG = 'EXPO_PUBLIC_GLOBAL_MANIFEST_URL';
+      const ENV_EX = readSrc('.env.example');
+      const GITIGNORE_CFG = readSrc('.gitignore');
+      const PKG_CFG = JSON.parse(readSrc('package.json'));
+      const EAS_CFG = JSON.parse(readSrc('eas.json'));
+
+      const linhaEx = ENV_EX.split(/\r?\n/).find((l) => l.startsWith(`${VAR_CFG}=`)) || '';
+      const valorEx = linhaEx.slice(VAR_CFG.length + 1).trim();
+      // Segredo de verdade nunca entra num arquivo versionado; e a URL pública não pode carregar
+      // credencial embutida (query de token/assinatura) — se carregasse, deixaria de ser pública.
+      const semSegredo = !/^\s*[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|PRIVATE_KEY|API_KEY)[A-Z0-9_]*\s*=\s*\S/mi.test(ENV_EX)
+        && !/[?&](token|signature|sig|key|credential)=/i.test(valorEx);
+      check('P3J-R [config 1/6]: `.env.example` é versionado, declara a variável obrigatória e não carrega segredo',
+        srcExists('.env.example') && /^https:\/\/\S+\.json$/.test(valorEx) && semSegredo,
+        `linha presente=${!!linhaEx}, https+.json=${/^https:\/\/\S+\.json$/.test(valorEx)}, semSegredo=${semSegredo}`);
+
+      check('P3J-R [config 2/6]: o `.env` real fica FORA do Git e `.env.example` é a exceção explícita',
+        /^\.env$/m.test(GITIGNORE_CFG) && /^\.env\.\*$/m.test(GITIGNORE_CFG) && /^!\.env\.example$/m.test(GITIGNORE_CFG),
+        'o .gitignore não protege o .env ou não libera o .env.example');
+
+      check('P3J-R [config 3/6]: `npm run start:dev` roda o portão ANTES de abrir o Metro (comando oficial)',
+        (PKG_CFG.scripts || {})['check:env'] === 'node scripts/check-env.js'
+        && (PKG_CFG.scripts || {})['start:dev'] === 'node scripts/check-env.js && expo start --dev-client --clear --lan',
+        `check:env=${(PKG_CFG.scripts || {})['check:env']}, start:dev=${(PKG_CFG.scripts || {})['start:dev']}`);
+
+      const perfisCfg = ['preview', 'preview-criador', 'production'];
+      const valoresPerfis = perfisCfg.map((p) => ((EAS_CFG.build || {})[p] || {}).env && EAS_CFG.build[p].env[VAR_CFG]);
+      const origensDistintas = new Set([...valoresPerfis, valorEx].filter(Boolean));
+      check('P3J-R [config 4/6]: preview, preview-criador e produção usam a MESMA origem lógica do exemplo (nenhuma segunda URL)',
+        valoresPerfis.every((v) => typeof v === 'string' && v.length > 0) && origensDistintas.size === 1,
+        `perfis com valor: ${valoresPerfis.filter(Boolean).length}/3, origens distintas: ${origensDistintas.size}`);
+
+      /* Execução REAL do portão em subprocesso, com valores FICTÍCIOS: o ambiente do processo
+       * vence os arquivos `.env` (mesma precedência do Expo), então o desfecho não depende de
+       * como a máquina de quem roda o smoke está configurada. */
+      const cpCfg = require('child_process');
+      const FICTICIA_OK = 'https://exemplo-nao-real.invalid/manifesto-de-teste.json';
+      const FICTICIA_RUIM = 'http://exemplo-nao-real.invalid/manifesto-de-teste.txt';
+      const rodarPortao = (valor) => {
+        const r = cpCfg.spawnSync(process.execPath, [path.join(root, 'scripts', 'check-env.js')], {
+          encoding: 'utf8',
+          env: { ...process.env, [VAR_CFG]: valor, NODE_ENV: 'development' },
+        });
+        return { code: r.status, saida: `${r.stdout || ''}${r.stderr || ''}` };
+      };
+      const portaoBom = rodarPortao(FICTICIA_OK);
+      const portaoRuim = rodarPortao(FICTICIA_RUIM);
+      check('P3J-R [config 5/6]: o portão falha ANTES do app (exit 1) com configuração inválida e libera (exit 0) com válida',
+        portaoBom.code === 0 && portaoRuim.code === 1
+        && /FALTA CONFIGURAÇÃO/.test(portaoRuim.saida) && /Configuração completa/.test(portaoBom.saida),
+        `exit(válida)=${portaoBom.code}, exit(inválida)=${portaoRuim.code}`);
+
+      check('P3J-R [config 6/6]: o portão NUNCA imprime o valor da variável (só nome, origem e comprimento)',
+        !portaoBom.saida.includes(FICTICIA_OK) && !portaoRuim.saida.includes(FICTICIA_RUIM)
+        && !portaoBom.saida.includes('exemplo-nao-real') && !portaoRuim.saida.includes('exemplo-nao-real')
+        && /\d+ caracteres/.test(portaoBom.saida),
+        'a saída do portão de configuração vazou o valor da variável');
+    }
+
+    /* ── 3 · DIAGNÓSTICO ESTRUTURADO ──────────────────────────────────────────────────────── */
+    const DIAG = p3jLoad('src/services/packDownloadDiagnostics.js', {},
+      ['DOWNLOAD_FAILURE_STAGES', 'NETWORK_STATES', 'sanitize', 'sanitizePath',
+        'buildDownloadDiagnostic', 'inferNetworkState', 'logDownloadDiagnostic']);
+    const CAMPOS_DIAG = ['storyId', 'requestedKinds', 'manifestKinds', 'filteredFileCount',
+      'downloadedFileCount', 'failedFile', 'failureStage', 'networkState', 'indexBefore', 'indexAfter'];
+
+    check('P3J-R [diag 1/5]: o diagnóstico tem os DEZ campos do contrato, em ordem estável',
+      JSON.stringify(Object.keys(DIAG.buildDownloadDiagnostic({}))) === JSON.stringify(CAMPOS_DIAG),
+      `campos=${JSON.stringify(Object.keys(DIAG.buildDownloadDiagnostic({})))}`);
+
+    check('P3J-R [diag 2/5]: falha de CONFIGURAÇÃO registra `config` e `nao_consultada` — a rede não foi acusada',
+      DIAG.inferNetworkState({ failureStage: 'config' }) === 'nao_consultada'
+      && DIAG.inferNetworkState({ failureStage: 'resolve', networkError: true }) === 'indisponivel'
+      && DIAG.inferNetworkState({ failureStage: 'verify', reachedServer: true }) === 'alcancada'
+      && DIAG.buildDownloadDiagnostic({ failureStage: 'config', networkState: 'nao_consultada' }).failureStage === 'config',
+      'a inferência de rede confundiu configuração ausente com internet indisponível');
+
+    check('P3J-R [diag 3/5]: nada com cara de URL/segredo entra no diagnóstico; caminho relativo do pack é preservado',
+      DIAG.sanitize('https://pub-abc.r2.dev/content-manifest.json') === '[oculto]'
+      && DIAG.sanitize('algo?token=123') === '[oculto]'
+      && DIAG.sanitize('david_goliath') === 'david_goliath'
+      && DIAG.sanitizePath('scenes/01.webp') === 'scenes/01.webp'
+      && DIAG.sanitizePath('https://pub-abc.r2.dev/scenes/01.webp') === '[oculto]'
+      && DIAG.buildDownloadDiagnostic({ storyId: 'https://pub-abc.r2.dev/x.json' }).storyId === '[oculto]',
+      'o diagnóstico aceitou carregar URL ou segredo');
+
+    {
+      const linhas = [];
+      const emProd = DIAG.logDownloadDiagnostic({ failureStage: 'config' }, { logger: (...a) => linhas.push(a.join(' ')) });
+      const emDev = DIAG.logDownloadDiagnostic(
+        DIAG.buildDownloadDiagnostic({ storyId: 'creation', failureStage: 'config', networkState: 'nao_consultada' }),
+        { isDev: true, logger: (...a) => linhas.push(a.join(' ')) },
+      );
+      check('P3J-R [diag 4/5]: uma linha por operação em DEV, silêncio total em produção, sem URL na linha',
+        emProd === false && emDev === true && linhas.length === 1
+        && /"failureStage":"config"/.test(linhas[0]) && !/https?:/.test(linhas[0]),
+        `emProd=${emProd}, emDev=${emDev}, linhas=${linhas.length}`);
+    }
+
+    check('P3J-R [diag 5/5]: estágio e estado de rede desconhecidos viram `indeterminado` (o diagnóstico nunca inventa)',
+      DIAG.buildDownloadDiagnostic({ failureStage: 'inexistente' }).failureStage === 'indeterminado'
+      && DIAG.buildDownloadDiagnostic({ networkState: 'inexistente' }).networkState === 'indeterminado'
+      && DIAG.buildDownloadDiagnostic({ filteredFileCount: -3 }).filteredFileCount === null
+      && DIAG.DOWNLOAD_FAILURE_STAGES.includes('config') && DIAG.NETWORK_STATES.includes('nao_consultada'),
+      'o diagnóstico fabricou um estágio ou um estado de rede que não existe no vocabulário');
+
+    /* ── 4 · A TELA: configuração ausente NÃO é falta de internet ─────────────────────────── */
+    const SRC_HOOK_DL = readSrc('src/hooks/useStoryPackDownload.js');
+    const SRC_DETALHE = readSrc('src/screens/StoryDetailScreen.js');
+
+    /** O hook falha ANTES da rede quando não há configuração, com nome próprio para a causa. */
+    const avaliarPortaoDoHook = (src) => {
+      const c = a1StripComments(src);
+      return /if \(!GLOBAL_MANIFEST_URL\) \{[\s\S]{0,700}?return \{ ok: false \};/.test(c)
+        && /setError\('config'\)/.test(c)
+        && /failureStageOverride: 'config'/.test(c)
+        && /configMissing: !GLOBAL_MANIFEST_URL/.test(c)
+        && /REQUESTED_KINDS = \['cover', 'scene', 'audio'\]/.test(c);
+    };
+    check('P3J-R [tela 1/3]: sem configuração o hook retorna ANTES de tocar a rede, com a causa `config`',
+      avaliarPortaoDoHook(SRC_HOOK_DL),
+      'o caminho de configuração ausente deixou de ser distinguível de uma falha de rede');
+
+    /** A tela traduz a causa: não-retentável vira TEXTO; retentável continua botão. */
+    const avaliarVocabularioDaTela = (src) => {
+      const c = a1StripComments(src);
+      return /config: 'Download indispon[íi]vel[^\n]*N[ãa]o [ée] falta de internet\.'/.test(c)
+        && /downloadBlockedText \? \(\s*<Text/.test(c)
+        && /default: 'N[ãa]o foi poss[íi]vel baixar\. Tentar de novo'/.test(c)
+        && /hasOwnProperty\.call\(mapa, chave\)/.test(c);
+    };
+    check('P3J-R [tela 2/3]: causa não-retentável vira TEXTO explicando que não é internet; a frase histórica sobra só como padrão retentável',
+      avaliarVocabularioDaTela(SRC_DETALHE),
+      'a tela voltou a oferecer "tentar de novo" para uma causa que tocar de novo não resolve');
+
+    check('P3J-R [tela 3/3]: o botão retentável continua existindo para as causas que retentar resolve',
+      /network: 'Sem conex[ãa]o agora\. Tentar de novo'/.test(SRC_DETALHE)
+      && /insufficient_space: 'Sem espa[çc]o no aparelho/.test(SRC_DETALHE)
+      && /onPress=\{packDownload\.uiState === 'error' \? packDownload\.retry : packDownload\.download\}/.test(SRC_DETALHE),
+      'o caminho retentável foi perdido junto com a correção do vocabulário');
+
+    /* ── 5 · COPIES DERIVADAS E CTA "CRIAR LIVRE" ─────────────────────────────────────────── */
+    const SRC_HOME_P3JR = readSrc('src/screens/HomeScreen.js');
+    const SRC_HERO_P3JR = readSrc('src/components/story/StoryBookHero.js');
+    const SRC_GUIAS_P3JR = readSrc('src/data/beniGuides.js');
+    const SRC_CANVAS_P3JR = readSrc('src/screens/AtelierCanvasScreen.js');
+
+    /* A disponibilidade é uma PORTA só, e ela é pura: dá para exercitar as combinações sem flag,
+     * sem catálogo real e sem React — é o que garante que a copy deriva de fato do estado. */
+    const DISPO = p3jLoad('src/services/storyColoringAvailability.js', {
+      getColoring60Activities: () => [],
+      isColoring60PilotAllowed: () => false,
+    }, ['resolveColoringAvailability', 'countStoryColoringActivities', 'isStoryColoringAvailable']);
+    check('P3J-R [copy 1/5]: a disponibilidade exige portão ABERTO e catálogo com atividade — as quatro combinações',
+      DISPO.resolveColoringAvailability({ pilotAllowed: true, activityCount: 3 }).available === true
+      && DISPO.resolveColoringAvailability({ pilotAllowed: false, activityCount: 3 }).available === false
+      && DISPO.resolveColoringAvailability({ pilotAllowed: true, activityCount: 0 }).available === false
+      && DISPO.resolveColoringAvailability({ pilotAllowed: false, activityCount: 0 }).available === false
+      && DISPO.isStoryColoringAvailable('creation') === false,   // catálogo vazio no stub: nada promete
+      'a porta única da disponibilidade deixou de exigir portão aberto E catálogo com atividade');
+
+    const avaliarChipDaHome = (src) => {
+      const c = a1StripComments(src);
+      return /const hasColoring = story \? isStoryColoringAvailable\(story\.id\) : false;/.test(c)
+        && /\{hasColoring && \(/.test(c)
+        && /🎨 Colorir/.test(c);
+    };
+    check('P3J-R [copy 2/5]: o chip "Colorir" da Home DERIVA da disponibilidade real (não é promessa fixa)',
+      avaliarChipDaHome(SRC_HOME_P3JR),
+      'a Home voltou a prometer colorir para toda história');
+
+    const avaliarPromessaDoHero = (src) => {
+      const c = a1StripComments(src);
+      return /const hasColoring = isStoryColoringAvailable\(story\.id\);/.test(c)
+        && /enumerar\(\[hasAudio && 'ouvir', hasColoring && 'colorir', 'ganhar estrelas'\]/.test(c)
+        && /enumerar\(\[hasAudio && 'ouviu', hasColoring && 'coloriu', 'ganhou estrelas'\]/.test(c)
+        && !/ouvir, colorir e ganhar estrelas/.test(c);
+    };
+    check('P3J-R [copy 3/5]: a promessa da aventura é MONTADA do que a história oferece — a lista fixa sumiu',
+      avaliarPromessaDoHero(SRC_HERO_P3JR),
+      'o herói do detalhe voltou a afirmar "ouvir, colorir e ganhar estrelas" para toda história');
+
+    check('P3J-R [copy 4/5]: o CTA oficial é "Criar livre" na Home, no guia e no canvas — e "Criar com Beni" não sobrevive',
+      /accessibilityLabel="Criar livre"/.test(SRC_HOME_P3JR)
+      && /🎨 Criar livre/.test(SRC_HOME_P3JR)
+      && /title: 'Criar livre'/.test(SRC_GUIAS_P3JR)
+      && /'Criar livre'/.test(SRC_CANVAS_P3JR)
+      && ![SRC_HOME_P3JR, SRC_GUIAS_P3JR, SRC_CANVAS_P3JR].some((s) => /Criar com Beni/.test(s)),
+      'o CTA "Criar livre" não está consistente nas três superfícies');
+
+    check('P3J-R [copy 5/5]: o DESTINO não mudou (o parâmetro `createWithBeni` é contrato de volta) e a flag C60 segue fechada',
+      /navigation\.navigate\('AtelierCanvas', \{ from: 'createWithBeni', mission \}\)/.test(SRC_HOME_P3JR)
+      && /from === 'createWithBeni'/.test(SRC_CANVAS_P3JR)
+      && /export const COLORIR_60_CREATION_PILOT_ENABLED = false;/.test(readSrc('src/config/featureFlags.js'))
+      && /const REQUESTED_KINDS = \['cover', 'scene', 'audio'\];/.test(SRC_HOOK_DL)
+      && /const KNOWN_KINDS = \['cover', 'scene', 'coloring', 'audio'\];/.test(readSrc('src/services/packDownloadService.js')),
+      'o destino, a flag do piloto ou a tolerância do parser a manifestos antigos mudaram junto com o nome do CTA');
+
+    /* ── 6 · CONTROLES NEGATIVOS ───────────────────────────────────────────────────────────
+     * Cada proteção acima é removida em memória (nada é escrito no disco) e o MESMO cenário é
+     * medido nos dois lados. A proteção só está provada quando os desfechos DIFEREM. */
+
+    // CN1 — a contenção volta a ser igualdade estrita no módulo puro (a dívida anterior, restaurada)
+    {
+      const M = p3jLoad('src/services/packPublishMarker.js', {}, ['publishedKindsCoverRequested'],
+        (s) => p3jMutar(s,
+          '  return missingRequestedKinds(publishedKinds, requestedKinds).length === 0;',
+          '  return JSON.stringify(publishedKinds.slice().sort()) === JSON.stringify(requestedKinds.slice().sort());'));
+      registrarCN('CN1', 'packPublishMarker', 'igualdade estrita restaurada rejeita o marcador pré-P3J',
+        cobre(MARCADOR_PRE_P3J, PEDIDO_POS_P3J),
+        M.publishedKindsCoverRequested(MARCADOR_PRE_P3J, PEDIDO_POS_P3J));
+    }
+
+    // CN2 — sem a guarda de pedido vazio, uma identidade degenerada autorizaria reuso por vacuidade
+    {
+      const M = p3jLoad('src/services/packPublishMarker.js', {}, ['publishedKindsCoverRequested'],
+        (s) => p3jMutar(s, '  if (requestedKinds.length === 0) return false;\n', ''));
+      registrarCN('CN2', 'packPublishMarker', 'pedido vazio vira "o pack local serve"',
+        cobre(['audio', 'cover', 'scene'], []),
+        M.publishedKindsCoverRequested(['audio', 'cover', 'scene'], []));
+    }
+
+    // CN3 — sem a guarda de tipo, um pedido não-array vira falso positivo
+    {
+      const M = p3jLoad('src/services/packPublishMarker.js', {}, ['publishedKindsCoverRequested'],
+        (s) => p3jMutar(s, '  if (!Array.isArray(publishedKinds) || !Array.isArray(requestedKinds)) return false;\n', ''));
+      registrarCN('CN3', 'packPublishMarker', 'entrada não-array vira falso positivo',
+        cobre(['cover'], 'cover'),
+        M.publishedKindsCoverRequested(['cover'], 'cover'));
+    }
+
+    // CN4 — a REGRESSÃO reproduzida: com igualdade estrita no preflight, o pack íntegro é rebaixado
+    // e o runtime REINSTALA. É o controle negativo mais importante do bloco: prova que a correção
+    // do marcador é o que evita o segundo download.
+    {
+      const comIgualdadeEstrita = await rodarPreP3J((s) => p3jMutar(s,
+        '    && publishedKindsCoverRequested(marker.kinds, resolved.kinds)',
+        '    && JSON.stringify(marker.kinds.slice().sort()) === JSON.stringify(resolved.kinds.slice().sort())'));
+      registrarCN('CN4', 'packDownloadService', 'preflight por igualdade estrita reinstala pack íntegro',
+        reuso.assinatura, comIgualdadeEstrita.assinatura);
+      check('P3J-R [negativo CN4-direção]: sem a contenção o runtime BAIXA de novo; com ela, reusa',
+        reuso.downloads === 0 && comIgualdadeEstrita.downloads > 0,
+        `original=${reuso.assinatura} · mutante=${comIgualdadeEstrita.assinatura}`);
+    }
+
+    // CN5 — sem a rede de segurança, o diagnóstico vaza URL
+    {
+      const M = p3jLoad('src/services/packDownloadDiagnostics.js', {}, ['sanitize'],
+        (s) => p3jMutar(s, "  if (PARECE_URL.test(s)) return '[oculto]';\n", ''));
+      registrarCN('CN5', 'packDownloadDiagnostics', 'sanitize deixa de ocultar URL',
+        DIAG.sanitize('https://pub-abc.r2.dev/content-manifest.json'),
+        M.sanitize('https://pub-abc.r2.dev/content-manifest.json'));
+    }
+
+    // CN6 — sem o portão de ambiente, o diagnóstico passaria a imprimir em produção
+    {
+      const M = p3jLoad('src/services/packDownloadDiagnostics.js', {}, ['logDownloadDiagnostic'],
+        (s) => p3jMutar(s, '  const isDev = options.isDev === true;', '  const isDev = options.isDev !== false;'));
+      registrarCN('CN6', 'packDownloadDiagnostics', 'log escapa para produção',
+        DIAG.logDownloadDiagnostic({}, { logger: () => {} }),
+        M.logDownloadDiagnostic({}, { logger: () => {} }));
+    }
+
+    // CN7 — sem a regra do estágio `config`, a falta de configuração volta a parecer problema de rede
+    {
+      const M = p3jLoad('src/services/packDownloadDiagnostics.js', {}, ['inferNetworkState'],
+        (s) => p3jMutar(s, "  if (failureStage === 'config') return 'nao_consultada';\n", ''));
+      registrarCN('CN7', 'packDownloadDiagnostics', 'config deixa de ser "rede não consultada"',
+        DIAG.inferNetworkState({ failureStage: 'config' }),
+        M.inferNetworkState({ failureStage: 'config' }));
+    }
+
+    // CN8 — o contrato dos dez campos não é decorativo
+    {
+      const M = p3jLoad('src/services/packDownloadDiagnostics.js', {}, ['buildDownloadDiagnostic'],
+        (s) => p3jMutar(s, '    failureStage: asStage(input.failureStage),\n', ''));
+      registrarCN('CN8', 'packDownloadDiagnostics', 'um dos dez campos do contrato some',
+        Object.keys(DIAG.buildDownloadDiagnostic({})).length,
+        Object.keys(M.buildDownloadDiagnostic({})).length);
+    }
+
+    // CN9 — sem o retorno antecipado, a falta de configuração viraria uma ida à rede (e a frase de internet)
+    registrarCN('CN9', 'useStoryPackDownload', 'o retorno antecipado por configuração desaparece',
+      avaliarPortaoDoHook(SRC_HOOK_DL),
+      avaliarPortaoDoHook(p3jMutar(SRC_HOOK_DL, 'if (!GLOBAL_MANIFEST_URL) {', 'if (false) {')));
+
+    // CN10 — sem a entrada `config`, a causa cairia no padrão retentável ("Não foi possível baixar")
+    registrarCN('CN10', 'StoryDetailScreen', 'a causa `config` some do vocabulário não-retentável',
+      avaliarVocabularioDaTela(SRC_DETALHE),
+      avaliarVocabularioDaTela(p3jMutar(SRC_DETALHE,
+        "  config: 'Download indisponível", "  causaSemUso: 'Download indisponível")));
+
+    // CN11 — sem a condição, a Home volta a prometer colorir para toda história
+    registrarCN('CN11', 'HomeScreen', 'o chip "Colorir" deixa de derivar da disponibilidade',
+      avaliarChipDaHome(SRC_HOME_P3JR),
+      avaliarChipDaHome(p3jMutar(SRC_HOME_P3JR, '{hasColoring && (', '{true && (')));
+
+    // CN12 — sem a derivação, a promessa da aventura volta a ser lista fixa
+    registrarCN('CN12', 'StoryBookHero', 'a promessa volta a ser uma lista fixa',
+      avaliarPromessaDoHero(SRC_HERO_P3JR),
+      avaliarPromessaDoHero(p3jMutar(SRC_HERO_P3JR,
+        "const promessa = enumerar([hasAudio && 'ouvir', hasColoring && 'colorir', 'ganhar estrelas'].filter(Boolean));",
+        "const promessa = 'ouvir, colorir e ganhar estrelas';")));
+
+    for (const c of CN) {
+      check(`P3J-R [negativo ${c.id}]: ${c.alvo} — ${c.descricao}`,
+        c.original !== c.mutante,
+        `a proteção pode ser removida sem que nada mude (original=${c.original} · mutante=${c.mutante}) — ou a âncora da mutação ficou obsoleta`);
+    }
+    check('P3J-R [negativos]: os doze controles negativos rodaram e nenhum sobreviveu',
+      CN.length === 12 && CN.every((c) => c.original !== c.mutante),
+      `executados=${CN.length}, sobreviventes=${CN.filter((c) => c.original === c.mutante).map((c) => c.id).join(', ') || '(nenhum)'}`);
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

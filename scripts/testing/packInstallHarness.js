@@ -65,7 +65,10 @@ const DOWNLOADER_DEPS = [
   'isReadyEntryValid', 'validatePackManifest', 'computeFileSha256', 'fetchGlobalContentManifest',
   'getPackFromGlobalManifest', 'warn', 'recoverStoryPack',
   // símbolos de packPublishMarker usados pelo downloader (a regra de colisão e o marcador)
-  'MARKER_FILENAME', 'buildPublishMarker', 'findMarkerCollisions',
+  // [P3J-R] + `publishedKindsCoverRequested`: a contenção de kinds do preflight agora vem do módulo
+  // puro. Precisa entrar REAL — como `() => {}` (o default do map abaixo) devolveria `undefined`,
+  // `markerMatchesResolved` nunca casaria e o reuso de pack local morreria em silêncio nos testes.
+  'MARKER_FILENAME', 'buildPublishMarker', 'findMarkerCollisions', 'publishedKindsCoverRequested',
   '__DEV__',
 ];
 function loadPackDownloader(mutate, markerMutate) {
@@ -87,12 +90,15 @@ function loadPackDownloader(mutate, markerMutate) {
   const marker = loadModule('src/services/packPublishMarker.js', {},
     ['MARKER_FILENAME', 'MARKER_SCHEMA_VERSION', 'normalizePackFilePath', 'collidesWithMarker',
       'findMarkerCollisions', 'buildPublishMarker', 'validateMarkerSchema', 'validatePublishMarker',
+      // [P3J-R] fonte única da contenção de kinds (publicado ⊇ pedido)
+      'missingRequestedKinds', 'publishedKindsCoverRequested',
       'parsePackDirName', 'selectStoryPackDirs'], markerMutate);
   const inertes = {
     __DEV__: false, FileSystem: {}, PACK_STATUS: {},
     MARKER_FILENAME: marker.MARKER_FILENAME,
     buildPublishMarker: marker.buildPublishMarker,
     findMarkerCollisions: marker.findMarkerCollisions,
+    publishedKindsCoverRequested: marker.publishedKindsCoverRequested,
   };
   const args = DOWNLOADER_DEPS.map((k) => (k in inertes ? inertes[k] : () => {}));
   return new Function(...DOWNLOADER_DEPS, code)(...args);
@@ -352,6 +358,8 @@ function createPackInstallHarness({ freeBytes, storageMutate, recoveryMutate, ma
   const markerSvc = loadModule('src/services/packPublishMarker.js', {},
     ['MARKER_FILENAME', 'MARKER_SCHEMA_VERSION', 'normalizePackFilePath', 'collidesWithMarker',
       'findMarkerCollisions', 'buildPublishMarker', 'validateMarkerSchema', 'validatePublishMarker',
+      // [P3J-R] fonte única da contenção de kinds (publicado ⊇ pedido)
+      'missingRequestedKinds', 'publishedKindsCoverRequested',
       'parsePackDirName', 'selectStoryPackDirs'], markerMutate);
 
   /*
