@@ -13,9 +13,8 @@
 import { useEffect, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
 import { usePacks } from '../context/PacksContext';
-import { resolveStoryScene, resolveStoryColoring, resolveStoryCover, resolveStoryAudio, RESOLVE_SOURCE_TYPE } from '../services/contentResolver';
+import { resolveStoryScene, resolveStoryCover, resolveStoryAudio, RESOLVE_SOURCE_TYPE } from '../services/contentResolver';
 import { getOfficialSceneIllustration } from '../services/storyImageService';
-import { getColoringImage } from '../assets/coloringImages';
 import { getContentLayer, CONTENT_LAYERS } from '../data/contentManifest';
 
 /**
@@ -34,18 +33,11 @@ export function isRemotePackStory(storyId) {
   return getContentLayer(storyId) === CONTENT_LAYERS.REMOTE;
 }
 
-/**
- * resolveRemoteColoringUri — { uri: 'file://…' } da PÁGINA DE COLORIR (lineart) SÓ quando a
- * história é `remote` E o `packEntry` está `ready` e válido (o índice do PacksContext já é
- * reconciliado contra o disco). Caso contrário → `null` (o chamador mantém a fonte LOCAL atual
- * como fallback). PURO, não-hook, read-only (Fase 2B). Camada única de consumo: a TELA usa este
- * export de useResolvedStoryMedia, nunca `contentResolver` direto.
- */
-export function resolveRemoteColoringUri(storyId, sceneNumber, packEntry) {
-  if (!isRemotePackStory(storyId) || !packEntry) return null;
-  const r = resolveStoryColoring(storyId, sceneNumber, packEntry);
-  return r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source ? r.source : null;
-}
+// [P3J] REMOVIDO: `resolveRemoteColoringUri`. Resolvia o lineart legado por cena vindo de um pack
+// baixado, e servia exclusivamente ao Livrinho no modo "colorido" e ao Colorir legado — ambos
+// aposentados. Sem consumidor, seria só um caminho de código que ninguém percorre. O Colorir com o
+// Beni não passa por aqui: tem fonte estática própria (`coloring60LocalAssets`).
+// Cena, capa e áudio remotos continuam inteiros logo abaixo — nada de packs foi enfraquecido.
 
 /**
  * resolveRemoteAudioSource — fonte de áudio remota ({ uri: 'file://…' }) SÓ p/ `remote` + pack
@@ -145,66 +137,14 @@ export function useSandboxScenePackEntry(storyId) {
   return isRemotePackStory(storyId) ? getPackEntry(storyId) : null;
 }
 
-/**
- * useResolvedColoringImage — `source` da PÁGINA DE COLORIR (lineart) para o ColoringScreen
- * (Fase 2, F2.4e.3 — primeiro consumo user-facing de coloring remoto).
- *
- * - **Fallback local SEMPRE:** qualquer história ≠ sandbox, OU david_goliath sem pack `ready`,
- *   OU arquivo remoto ausente → retorna o require local ATUAL (`getColoringImage(story.id,
- *   cena.id)`) — byte-a-byte idêntico ao comportamento de antes (A Criação/Noé/demais intactas).
- * - **Remoto file:// só quando TODAS as condições valem:** `story.id === 'david_goliath'` E o
- *   pack está `ready` (índice local — os arquivos foram validados por bytes+sha256 no download) E
- *   o arquivo de colorir da cena EXISTE no disco (checagem leve `getInfoAsync`, FORA do render).
- *
- * READ-ONLY: NÃO baixa, NÃO calcula sha256, NÃO grava índice, NÃO faz leitura pesada em render.
- * O `{ uri }` é resolvido em estado (referência estável) e é resetado ao trocar de cena/pack —
- * nunca aponta para um `file://` antigo após um reset.
- *
- * @param {object} story       objeto da história (com `id` e `cenas`)
- * @param {number} cenaIndex   índice 0-based da cena (posição = cenaIndex+1)
- * @returns {*} source de imagem para o canvas: require local (fallback) OU { uri: 'file://…' }
- */
-export function useResolvedColoringImage(story, cenaIndex) {
-  const { getPackEntry } = usePacks(); // hook chamado SEMPRE (regras do React)
-  const [remoteSource, setRemoteSource] = useState(null);
-
-  const storyId = story && story.id;
-  const cena = story && Array.isArray(story.cenas) ? story.cenas[cenaIndex] : null;
-  // Fallback local ATUAL — a mesma fonte que a tela usava antes (nunca muda p/ outras histórias).
-  const localSource = cena ? getColoringImage(storyId, cena.id) : null;
-
-  // Candidato remoto: só existe quando camada remote + pack ready → file:// do resolver
-  // (convenção de path por POSIÇÃO: coloring/scene_NN.png). sceneNumber = posição (cenaIndex+1).
-  const sceneNumber = Number.isInteger(cenaIndex) ? cenaIndex + 1 : 0;
-  // C4 (F2.5-hardening-1): o pack usa POSIÇÃO (scene_NN) e o fallback local usa cena.id. Só
-  // montar o candidato remoto quando as chaves COINCIDEM — senão o file:// existiria mas seria a
-  // lineart de OUTRA cena (getInfoAsync não pega troca de chave). Hoje cena.id === posição nas 18
-  // (Bloco 2) → comportamento idêntico; a guarda apenas blinda história futura não-sequencial.
-  const keyMatches = !!cena && cena.id === sceneNumber;
-  const packEntry = isRemotePackStory(storyId) ? getPackEntry(storyId) : null;
-  let candidateUri = null;
-  if (isRemotePackStory(storyId) && sceneNumber > 0 && keyMatches) {
-    const r = resolveStoryColoring(storyId, sceneNumber, packEntry);
-    candidateUri = r.sourceType === RESOLVE_SOURCE_TYPE.FILE && r.source ? r.source.uri : null;
-  }
-
-  // Existência confirmada FORA do render (nunca aponta p/ arquivo ausente → evita canvas de erro).
-  // candidateUri é string estável enquanto pack/cena não mudam → efeito não re-dispara à toa.
-  useEffect(() => {
-    let cancelled = false;
-    setRemoteSource(null); // reset ao trocar cena/pack: garante fallback até confirmar de novo
-    if (!candidateUri) return () => { cancelled = true; };
-    (async () => {
-      try {
-        const info = await FileSystem.getInfoAsync(candidateUri); // leve (metadata), sem hash
-        if (!cancelled && info && info.exists) setRemoteSource({ uri: candidateUri });
-      } catch { /* mantém fallback local */ }
-    })();
-    return () => { cancelled = true; };
-  }, [candidateUri]);
-
-  return remoteSource || localSource;
-}
+// [P3J] REMOVIDO: `useResolvedColoringImage`. Era o hook que entregava o lineart por cena ao
+// Colorir legado — fallback local (`getColoringImage`) com promoção a `file://` quando havia pack
+// baixado. Com a atividade aposentada, ele não tinha mais tela para servir, e seu fallback local
+// era o único motivo pelo qual os 199 linearts precisavam continuar no bundle.
+//
+// O Colorir com o Beni NÃO usava este hook e não usa agora: as três atividades de "A Criação" vêm
+// de `coloring60LocalAssets` (require estático próprio), sem packs e sem resolvedor remoto. Os
+// hooks de cena, capa e áudio abaixo seguem intactos.
 
 /**
  * useResolvedStoryCover — `source` da CAPA da história (16:9) para superfícies user-facing

@@ -37,7 +37,9 @@ const pad2 = (n) => String(n).padStart(2, '0');
 /** Caminhos relativos dentro do pack — DEVEM bater com o contentResolver. */
 const sceneRelPath = (n) => `scenes/${STORY_ID}_scene_${pad2(n)}.webp`;
 const coverRelPath = () => 'cover.webp';
-const coloringRelPath = (n) => `coloring/scene_${pad2(n)}.png`;
+// [P3J] `coloringRelPath` removido: o pack não carrega mais `coloring/scene_NN.png` (o Colorir
+// legado foi aposentado e o kind saiu do download). Arquivos desse tipo em packs JÁ instalados
+// continuam intocados no disco — nada é apagado por esta mudança.
 const audioRelPath = (n) => `audio/${STORY_ID}_scene_${pad2(n)}.mp3`;
 
 /** Cede o controle à UI entre etapas pesadas (evita travar o JS thread). */
@@ -233,8 +235,12 @@ export async function downloadDavidGoliathPackSandbox(baseUrl, onProgress) {
 }
 
 /**
- * Diagnóstico read-only LEVE POR KIND (F2.4e.1 → F2.4e.2p): cover/scene/coloring/audio com
+ * Diagnóstico read-only LEVE POR KIND (F2.4e.1 → F2.4e.2p): cover/scene/audio com
  * existência, bytes, decisão do resolver (sourceType require|file) e uri file://.
+ * [P3J] O kind `coloring` saiu do diagnóstico junto com a aposentadoria do Colorir legado — o
+ * resolvedor não o resolve mais e o downloader não o pede. A verificação sha256 PROFUNDA (abaixo)
+ * continua tolerante: ela lê os kinds do `manifest.json` do disco, então um pack antigo que ainda
+ * tenha linearts segue sendo hasheado e reportado como sempre.
  * ⚠️ NÃO hasheia (a verificação sha256 profunda é uma ação dev explícita —
  * `verifyDavidGoliathPackSandboxSha256`). Isto mantém o refresh/entrada da tela rápidos.
  * @returns {Promise<object>}
@@ -266,11 +272,9 @@ export async function diagnoseDavidGoliathPackSandbox() {
 
   const cover = { ...(await inspect(coverRelPath(), media.cover)) };
   const scenes = [];
-  const coloring = [];
   const audio = [];
   for (let n = 1; n <= SCENE_COUNT; n += 1) {
     scenes.push({ n, ...(await inspect(sceneRelPath(n), media.scenes[n - 1])) });
-    coloring.push({ n, ...(await inspect(coloringRelPath(n), media.coloring[n - 1])) });
     audio.push({ n, ...(await inspect(audioRelPath(n), media.audio[n - 1])) });
   }
 
@@ -284,11 +288,10 @@ export async function diagnoseDavidGoliathPackSandbox() {
   const byKind = {
     cover: summarize([cover]),
     scene: summarize(scenes),
-    coloring: summarize(coloring),
     audio: summarize(audio),
   };
-  const filesFound = byKind.cover.found + byKind.scene.found + byKind.coloring.found + byKind.audio.found;
-  const totalBytes = byKind.cover.bytes + byKind.scene.bytes + byKind.coloring.bytes + byKind.audio.bytes;
+  const filesFound = byKind.cover.found + byKind.scene.found + byKind.audio.found;
+  const totalBytes = byKind.cover.bytes + byKind.scene.bytes + byKind.audio.bytes;
 
   return {
     enabled: true,
@@ -302,7 +305,6 @@ export async function diagnoseDavidGoliathPackSandbox() {
     byKind,
     cover,
     scenes,
-    coloring,
     audio,
   };
 }

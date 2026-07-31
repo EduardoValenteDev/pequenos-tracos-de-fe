@@ -15,7 +15,13 @@
  * payload v1/v2 original a partir do ponteiro, de modo que TODOS os consumidores
  * (ColoringScreen, StoryBookScreen, hasMeaningfulPaint) seguem inalterados.
  *
- * A imagem base nunca é armazenada aqui — ela vem de coloringImages.js.
+ * A imagem base nunca foi armazenada aqui — vinha de `coloringImages.js`.
+ *
+ * [P3J] Esse mapa foi removido com a aposentadoria do Colorir legado. Este módulo permanece
+ * INTEGRALMENTE (leitura e escrita, v1/v2/v3): as pinturas já salvas continuam no aparelho,
+ * `hasSavedDrawing` continua alimentando as conquistas antigas e NADA é apagado por aqui. O que
+ * deixou de existir é apenas o contorno que ficava por baixo — por isso as pinturas legadas de
+ * teste não têm mais como ser reabertas na tela de colorir. Alteração apenas de comentário.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { log } from '../utils/logger';

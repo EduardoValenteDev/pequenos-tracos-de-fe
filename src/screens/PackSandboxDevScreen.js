@@ -48,8 +48,11 @@ const DEFAULT_GLOBAL_MANIFEST_URL = process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL
   || 'https://SEU-DOMINIO/content-manifest.json';
 const DEFAULT_STORY_ID = 'david_goliath';
 // F2.4e.1: kinds baixáveis pela camada dev; resumo por kind do retorno do downloader.
-const ALL_KINDS = ['cover', 'scene', 'coloring', 'audio'];
-const kindSummary = (c) => (c ? `cover ${c.cover || 0} · cenas ${c.scene || 0} · colorir ${c.coloring || 0} · áudio ${c.audio || 0}` : '');
+// [P3J] `coloring` saiu da lista: a bancada dev não pede mais os linearts legados, igual ao
+// download real (`REQUESTED_KINDS`). Manifestos antigos que ainda declarem esse kind continuam
+// sendo LIDOS sem erro (o parser permanece tolerante) — apenas não são baixados.
+const ALL_KINDS = ['cover', 'scene', 'audio'];
+const kindSummary = (c) => (c ? `cover ${c.cover || 0} · cenas ${c.scene || 0} · áudio ${c.audio || 0}` : '');
 
 export default function PackSandboxDevScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -385,6 +388,9 @@ export default function PackSandboxDevScreen({ navigation }) {
             <Text style={[styles.msg, verify.ok ? styles.ok : styles.no]}>
               sha256 profundo: {verify.ok ? 'OK ✓' : `FALHOU (${verify.reason || 'divergência'})`}{verify.ms ? ` · ${verify.ms}ms` : ''}
             </Text>
+            {/* [P3J] `coloring` PERMANECE aqui de propósito: esta lista é alimentada pelos kinds do
+                `manifest.json` do DISCO. Um pack antigo com linearts continua sendo hasheado — e
+                precisa continuar aparecendo, senão o dev veria "OK" sem saber o que foi conferido. */}
             {verify.byKind && ['cover', 'scene', 'coloring', 'audio'].map((k) => {
               const g = verify.byKind[k];
               if (!g) return null;
@@ -405,7 +411,9 @@ export default function PackSandboxDevScreen({ navigation }) {
         <View style={styles.card}>
           <Text style={styles.k}>status: <Text style={styles.v}>{diag.status}</Text></Text>
           <Text style={styles.k}>version: <Text style={styles.v}>{String(diag.version)}</Text></Text>
-          {diag.byKind && ['cover', 'scene', 'coloring', 'audio'].map((k) => {
+          {/* [P3J] Aqui, ao contrário do bloco sha256 acima, a fonte é o RESOLVEDOR — que não
+              resolve mais `coloring`. Manter a linha exibiria 0/0 eterno. */}
+          {diag.byKind && ['cover', 'scene', 'audio'].map((k) => {
             const g = diag.byKind[k] || { found: 0, total: 0, file: 0, bytes: 0 };
             const okAll = g.total > 0 && g.found === g.total;
             return (

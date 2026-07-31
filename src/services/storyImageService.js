@@ -1,10 +1,11 @@
 /**
  * storyImageService.js — Resolução central de imagens da história.
  *
- * Centraliza, com fallback seguro, as três fontes visuais:
+ * Centraliza, com fallback seguro, as fontes visuais:
  *   1. official scene illustration  — ilustração oficial da cena (aventura)
- *   2. coloring image               — desenho para colorir (Ateliê)
- *   3. story cover                  — capa da história
+ *   2. story cover                  — capa da história
+ *
+ * [P3J] A antiga fonte 2 (coloring image) foi removida com a aposentadoria do Colorir legado.
  *
  * E prepara a página do livrinho futuro (book page image), que prioriza a
  * arte da criança (child art) quando existir.
@@ -13,7 +14,6 @@
  * import de asset inexistente. Nunca quebra com storyId/sceneId inválidos.
  */
 import { getSceneIllustrationAsset, STORY_SCENE_ILLUSTRATIONS } from '../data/storySceneIllustrations';
-import { getColoringImage } from '../assets/coloringImages';
 import { getStoryCover } from '../assets/storyCovers';
 import { Asset } from 'expo-asset';
 import { recomposeBlobUri, currentBlobsRoot } from './fileBlobStore';
@@ -27,14 +27,10 @@ export function getOfficialSceneIllustration(storyId, sceneId) {
   }
 }
 
-/** Imagem de colorir da cena (manifest atual), ou null. */
-export function getSceneColoringImage(storyId, sceneId) {
-  try {
-    return getColoringImage(storyId, sceneId) ?? null;
-  } catch {
-    return null;
-  }
-}
+// [P3J] REMOVIDO: `getSceneColoringImage`. Era o único ponto do serviço de imagens que alcançava
+// os 199 linearts legados (via `getColoringImage`). Sem ele — e sem `coloringImages.js` — nenhum
+// caminho estático do app referencia esses PNGs, que é o que permite removê-los do binário.
+// As atividades do Colorir com o Beni não passam por aqui (fonte própria: `coloring60LocalAssets`).
 
 /** Capa oficial da história, ou null. */
 export function getStoryCoverImage(storyId) {

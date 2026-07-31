@@ -6,8 +6,8 @@
  * o guardrail de arquitetura (nenhuma `src/screens/*` importa camada `pack*`).
  *
  * Expõe um estado de UI simples: 'not_downloaded' | 'downloading' | 'ready' | 'error', progresso
- * 0..1, e as ações download()/retry(). Baixa TODOS os kinds (cover/scene/coloring/audio) para que
- * a história premium fique 100% offline (Narration + Coloring + Livrinho). Read-only quanto a
+ * 0..1, e as ações download()/retry(). Baixa TODOS os kinds ÚTEIS (cover/scene/audio) para que
+ * a história premium fique 100% offline (Narration + Livrinho). Read-only quanto a
  * progresso/acesso/compras; NÃO altera entitlement. O gate de acesso (premium-active) é da TELA.
  *
  * LP2.1a-ii-F3 — LIFECYCLE: cada execução de download() é dona de uma geração e de um controller
@@ -23,7 +23,11 @@ import { downloadStoryPackScenesFromGlobalManifest } from '../services/packDownl
 import { subscribeStoryPackInstall, getStoryPackInstallSnapshot } from '../services/packInstallRegistry';
 
 const GLOBAL_MANIFEST_URL = process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL || null;
-const REQUESTED_KINDS = ['cover', 'scene', 'coloring', 'audio'];
+// [P3J] `coloring` saiu dos kinds pedidos: com o Colorir legado aposentado, baixar os linearts
+// gastaria rede e disco da família por um arquivo que nenhuma tela abre. O parser de manifesto
+// (`KNOWN_KINDS`, em packDownloadService) CONTINUA aceitando o kind, para que manifestos já
+// publicados sejam lidos sem erro — apenas nada desse tipo é transferido.
+const REQUESTED_KINDS = ['cover', 'scene', 'audio'];
 
 /**
  * Controller de OBSERVAÇÃO mínimo, interno ao hook e SEM dependência. A base de código trata
