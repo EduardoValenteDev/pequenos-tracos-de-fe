@@ -29,8 +29,14 @@ fn(mod, mod.exports);
 const { stories } = mod.exports;
 
 // ── Parse coloringImages.js ───────────────────────────────────────────────────
+// [P3J] O mapa legado `src/assets/coloringImages.js` foi REMOVIDO com a aposentadoria do Colorir
+// legado. A leitura passou a ser TOLERANTE: se o arquivo não existir, este validador segue
+// rodando com zero requires de colorir (as seções B–E, que são as que sustentam capas, narração,
+// órfãos e pastas legadas, continuam idênticas). A ausência é o estado esperado — não é erro.
 const coloringImgDir = path.join(ROOT, 'src', 'assets');
-const coloringImgSrc = fs.readFileSync(path.join(coloringImgDir, 'coloringImages.js'), 'utf8');
+const coloringImgPath = path.join(coloringImgDir, 'coloringImages.js');
+const LEGACY_COLORING_MAP_PRESENT = fs.existsSync(coloringImgPath);
+const coloringImgSrc = LEGACY_COLORING_MAP_PRESENT ? fs.readFileSync(coloringImgPath, 'utf8') : '';
 
 // Extract all require() calls
 const coloringRequires = [];
@@ -39,16 +45,6 @@ let rm;
 while ((rm = reReq.exec(coloringImgSrc)) !== null) {
   coloringRequires.push(rm[1]);
 }
-
-// Determine which storyIds are registered
-const REGISTERED_STORIES = new Set();
-coloringRequires.forEach(req => {
-  // Resolve path relative to src/assets/coloringImages.js — correct resolution
-  const abs = path.resolve(coloringImgDir, req);
-  // Extract storyId from path: assets/stories/{folder}/colorir/{file}
-  const match = abs.match(/stories[/\\](\w+)[/\\]colorir[/\\]/);
-  if (match) REGISTERED_STORIES.add(match[1]);
-});
 
 // Folder-to-storyId reverse mapping
 const FOLDER_TO_STORY = {
@@ -82,6 +78,9 @@ console.log('══════════════════════�
 // SECTION A: coloringImages.js require() → file on disk
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('── A: coloringImages.js require() validation ──────────');
+if (!LEGACY_COLORING_MAP_PRESENT) {
+  info('APOSENTADO (P3J): src/assets/coloringImages.js não existe mais — 0 require() de colorir a validar.');
+}
 
 let reqOk = 0; let reqBroken = 0;
 coloringRequires.forEach(req => {
@@ -219,23 +218,12 @@ if (exists(storiesDir)) {
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\n── F: Future coloring image structure ──────────────────');
 
-const storiesWithNoFolder = stories.filter(s => {
-  if (REGISTERED_STORIES.has('noe') && s.id === 'noah') return false;
-  if (REGISTERED_STORIES.has('davi_golias') && s.id === 'david_goliath') return false;
-  if (REGISTERED_STORIES.has('jesus_criancas') && s.id === 'jesus_children') return false;
-  if (REGISTERED_STORIES.has(s.id)) return false;
-  return true;
-});
-
-console.log(`  Stories without coloring images registered: ${storiesWithNoFolder.length}/20`);
-if (storiesWithNoFolder.length > 0 && !FILTER_STORY) {
-  storiesWithNoFolder.slice(0, 5).forEach(s => {
-    info(`  Pending: ${s.id} — future folder: assets/stories/${s.id}/colorir/`);
-  });
-  if (storiesWithNoFolder.length > 5) {
-    info(`  ... and ${storiesWithNoFolder.length - 5} more`);
-  }
-}
+// [P3J] Esta seção contava quantas histórias AINDA não tinham lineart legado registrado — uma
+// pendência de conteúdo que deixou de existir: o Colorir legado foi aposentado e nenhuma história
+// deve voltar a ter lineart por cena. A atividade de colorir do app é o "Colorir com o Beni",
+// cujos assets são auditados por `node scripts/verify-coloring60-assets.js` (16 verificações).
+info('APOSENTADO (P3J): não há mais "pendência de lineart por cena" — o Colorir legado foi retirado.');
+info('  A cobertura de assets do Colorir com o Beni vive em scripts/verify-coloring60-assets.js.');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Summary

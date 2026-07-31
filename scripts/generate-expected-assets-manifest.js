@@ -18,29 +18,12 @@ const mod = { exports: {} };
 fn(mod, mod.exports);
 const { stories } = mod.exports;
 
-// Parse coloringImages.js
-const coloringImgSrc = fs.readFileSync(path.join(ROOT, 'src', 'assets', 'coloringImages.js'), 'utf8');
-const coloringImgDir = path.join(ROOT, 'src', 'assets');
-const COLORING_FILE_MAP = {}; // storyId → sceneNum → { folder, filename, exists }
-const reqEntryRe = /(\d+)\s*:\s*require\(['"]([^'"]+)['"]\)/g;
-let em;
-while ((em = reqEntryRe.exec(coloringImgSrc)) !== null) {
-  const sceneNum = parseInt(em[1], 10);
-  const reqPath  = em[2];
-  const pathMatch = reqPath.match(/stories\/(\w+)\/colorir\/(.*\.png)$/);
-  if (!pathMatch) continue;
-  const folder   = pathMatch[1];
-  const filename = pathMatch[2];
-  const FOLDER_TO_STORY = { noe:'noah', davi_golias:'david_goliath', jesus_criancas:'jesus_children' };
-  const storyId  = FOLDER_TO_STORY[folder] || folder;
-  if (!COLORING_FILE_MAP[storyId]) COLORING_FILE_MAP[storyId] = {};
-  const absPath  = path.resolve(coloringImgDir, reqPath);
-  COLORING_FILE_MAP[storyId][sceneNum] = {
-    folder, filename,
-    filePath: `assets/stories/${folder}/colorir/${filename}`,
-    exists:   fs.existsSync(absPath),
-  };
-}
+// [P3J] O bloco que lia `src/assets/coloringImages.js` foi REMOVIDO junto com o arquivo: o Colorir
+// legado foi aposentado e não há mais lineart por cena a inventariar. Como consequência, a coluna
+// "Imagem colorir" e as duas linhas de resumo de colorir saíram do documento gerado — manter
+// "0/200 imagens de colorir" descreveria uma lacuna de conteúdo que não existe mais.
+// A atividade viva do app é o Colorir com o Beni, cujos assets NÃO entram neste manifesto: eles têm
+// auditoria própria e mais estrita em `scripts/verify-coloring60-assets.js` (16 verificações).
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 function existsFile(rel) { return fs.existsSync(path.join(ROOT, rel)); }
@@ -52,7 +35,7 @@ const lines = [];
 lines.push('# Expected Assets Manifest — Pequenos Traços de Fé');
 lines.push('');
 lines.push('**Gerado em:** ' + new Date().toISOString().split('T')[0]);
-lines.push('**Fonte:** `src/data/stories.js`, `src/assets/coloringImages.js`');
+lines.push('**Fonte:** `src/data/stories.js`');
 lines.push('**Atualizar após:** adicionar qualquer novo asset ao projeto');
 lines.push('');
 lines.push('---');
@@ -75,7 +58,6 @@ lines.push('| Item | Presente | Total esperado |');
 lines.push('|---|---|---|');
 
 let audioReady = 0;
-let coloringReady = 0; let coloringRegistered = 0;
 let capaReady = 0;
 let narImgReady = 0;
 
@@ -86,20 +68,16 @@ stories.forEach(s => {
   (s.cenas||[]).forEach(c => {
     if (c.imagemNarracao && existsFile(`assets/images/${c.imagemNarracao}.png`)) narImgReady++;
   });
-  // Count coloring
-  if (COLORING_FILE_MAP[s.id]) {
-    for (let i=1;i<=10;i++) {
-      const info = COLORING_FILE_MAP[s.id]?.[i];
-      if (info) { coloringRegistered++; if (info.exists) coloringReady++; }
-    }
-  }
 });
 
 lines.push(`| Capas de história | ${capaReady} | 20 |`);
-lines.push(`| Imagens de colorir (registradas) | ${coloringReady} | ${coloringRegistered} |`);
-lines.push(`| Imagens de colorir (total esperado) | ${coloringReady} | 200 |`);
 lines.push(`| Imagens de narração | ${narImgReady} | 200 (futuro) |`);
 lines.push(`| Áudios de narração | 0 | 200 |`);
+lines.push('');
+lines.push('> **Colorir legado — APOSENTADO (P3J).** As linhas de "imagens de colorir" saíram deste');
+lines.push('> resumo: a atividade foi retirada do app e os 199 linearts por cena foram removidos do');
+lines.push('> repositório (histórico Git é o arquivo oficial). Ver `docs/COLORING_LEGACY_RETIREMENT_INVENTORY.md`.');
+lines.push('> O Colorir com o Beni é auditado por `node scripts/verify-coloring60-assets.js`.');
 lines.push('');
 lines.push('---');
 lines.push('');
@@ -125,9 +103,9 @@ stories.forEach((s, idx) => {
   lines.push(`**Capa 16:9:** ${capaStatus}`);
   lines.push('');
 
-  // Áudio e imagens por cena
-  lines.push('| Cena | Áudio | Imagem colorir | Imagem narração |');
-  lines.push('|---|---|---|---|');
+  // Áudio e imagens por cena ([P3J]: a coluna "Imagem colorir" saiu — atividade aposentada)
+  lines.push('| Cena | Áudio | Imagem narração |');
+  lines.push('|---|---|---|');
 
   (s.cenas || []).forEach((cena, cIdx) => {
     const cNum = cIdx + 1;
@@ -137,17 +115,6 @@ stories.forEach((s, idx) => {
     const audioFile = `assets/audio/${s.id}/${s.id}_${sceneKey}.mp3`;
     const audioStatus = existsFile(audioFile) ? '✓' : '○';
 
-    // Coloring
-    const colorInfo = COLORING_FILE_MAP[s.id]?.[cNum];
-    let colorStatus;
-    if (!colorInfo) {
-      colorStatus = '⋯';
-    } else if (colorInfo.exists) {
-      colorStatus = '✓';
-    } else {
-      colorStatus = '○';
-    }
-
     // Narration image
     let narStatus;
     if (!cena.imagemNarracao) {
@@ -156,7 +123,7 @@ stories.forEach((s, idx) => {
       narStatus = existsFile(`assets/images/${cena.imagemNarracao}.png`) ? '✓' : '○';
     }
 
-    lines.push(`| ${cNum} | ${audioStatus} \`${s.id}_${sceneKey}.mp3\` | ${colorStatus} | ${narStatus} |`);
+    lines.push(`| ${cNum} | ${audioStatus} \`${s.id}_${sceneKey}.mp3\` | ${narStatus} |`);
   });
 
   lines.push('');
@@ -187,17 +154,15 @@ lines.push('assets/audio/{storyId}/{storyId}_scene_{NN}.mp3');
 lines.push('Exemplo: assets/audio/creation/creation_scene_01.mp3');
 lines.push('```');
 lines.push('');
-lines.push('### Imagens de colorir');
+lines.push('### Imagens de colorir — APOSENTADAS (P3J)');
 lines.push('```');
-lines.push('assets/stories/{folder}/colorir/{prefix}_scene_{NN}_coloring.png');
+lines.push('NÃO existe mais convenção de lineart por cena.');
+lines.push('O Colorir legado foi retirado do app; nenhuma história deve voltar a declarar');
+lines.push('assets/stories/{storyId}/coloring/*.png para colorir cena a cena.');
 lines.push('');
-lines.push('Histórias existentes:');
-lines.push('  noah        → assets/stories/noe/colorir/noe_scene_{NN}_coloring.png');
-lines.push('  david_goliath → assets/stories/davi_golias/colorir/davi_scene_{NN}_coloring.png');
-lines.push('  jesus_children → assets/stories/jesus_criancas/colorir/jesus_children_scene_{NN}_coloring.png');
-lines.push('');
-lines.push('Novas histórias (padrão recomendado):');
-lines.push('  {storyId}   → assets/stories/{storyId}/colorir/{storyId}_scene_{NN}_coloring.png');
+lines.push('Atividade viva: Colorir com o Beni (A Criação) — assets registrados em');
+lines.push('src/assets/coloring60LocalAssets.js e auditados por');
+lines.push('node scripts/verify-coloring60-assets.js');
 lines.push('```');
 lines.push('');
 lines.push('### Capas de história');

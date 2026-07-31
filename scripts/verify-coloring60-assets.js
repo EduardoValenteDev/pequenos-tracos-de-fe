@@ -27,8 +27,13 @@
  *   [04] Integridade estrutural.            [12] Resolução negativa de story inválida.
  *   [05] Transparência das cinco poses.     [13] Resolução negativa de activity inválida.
  *   [06] Cantos transparentes.              [14] scene_02.png no blob aprovado.
- *   [07] Paths do catálogo.                 [15] scene_02.png compartilhado conscientemente.
+ *   [07] Paths do catálogo.                 [15] scene_02.png com consumidor único.
  *   [08] Catálogo versus registry.          [16] Nenhum asset fora da lista oficial.
+ *
+ * ADAPTAÇÃO P3J (aposentadoria do Colorir legado): a verificação [15] mudava de sentido junto com
+ * a remoção do mapa `src/assets/coloringImages.js`. Ela NÃO foi enfraquecida — passou a exigir que
+ * o mapa legado esteja ausente e que, em todo o `src/`, o registro do Colorir 60 seja o ÚNICO
+ * módulo que requer `scene_02.png`. As outras quinze seguem literalmente as mesmas.
  *
  * O QUE ESTE GATE NUNCA FAZ (invariante de segurança):
  *   - NUNCA copia, move, renomeia, cria, apaga, trunca ou reescreve arquivo algum.
@@ -706,15 +711,19 @@ function runAll() {
     scene02 != null && scene02.rec.integrityOk === true && scene02.rec.sha256 === light.expectedSha256,
     scene02 && scene02.rec.sha256 ? `sha=${scene02.rec.sha256} bytes=${scene02.rec.bytes}` : 'ausente');
 
-  // [15] scene_02.png compartilhado CONSCIENTEMENTE: o mapa legado (que continua servindo o
-  //      colorir por CENA) e o registro do Colorir 60 (que serve por ATIVIDADE) referenciam o
-  //      MESMO arquivo, cada um com a sua identidade. A contagem é por PATH RESOLVIDO, não por
-  //      nome de arquivo: o mapa legado tem `scene_02.png` de 20 histórias, e só o de `creation`
-  //      é o compartilhado. Duplicar o arquivo (em vez de compartilhá-lo) reprovaria aqui.
-  const countRequiresTo = (fileRel, alvoAbs) => {
-    if (!isRegularFile(abs(fileRel))) return -1;
-    const src = fs.readFileSync(abs(fileRel), 'utf8');
-    const dir = path.dirname(abs(fileRel));
+  // [15] scene_02.png com CONSUMIDOR ÚNICO (reescrito no P3J — aposentadoria do Colorir legado).
+  //      Antes: o arquivo era COMPARTILHADO entre o mapa legado (por CENA) e o registro do
+  //      Colorir 60 (por ATIVIDADE), e o gate exigia exatamente 1 require de cada lado.
+  //      Agora o mapa legado (`src/assets/coloringImages.js`) não existe mais e `scene_02.png` é o
+  //      ÚNICO lineart de `creation/coloring/` que sobreviveu — logo a invariante ficou mais forte:
+  //        (a) o mapa legado está AUSENTE (nenhum arquivo, nem vazio, nem symlink);
+  //        (b) em TODO o `src/`, exatamente UM require resolve para scene_02.png;
+  //        (c) esse require está no registro do Colorir 60 — nenhum outro módulo o alcança;
+  //        (d) não existe gêmeo `activities/light.png`.
+  //      Reintroduzir o mapa legado, ou fazer qualquer outro módulo requerer o arquivo, reprova.
+  const requiresToInFile = (fileAbs, alvoAbs) => {
+    const src = fs.readFileSync(fileAbs, 'utf8');
+    const dir = path.dirname(fileAbs);
     const re = /require\(\s*'([^']+\.png)'\s*\)/g;
     let n = 0;
     let m;
@@ -723,14 +732,29 @@ function runAll() {
     }
     return n;
   };
+  /** Varredura read-only de TODOS os .js de src/ — quem ainda alcança o arquivo alvo. */
+  const findRequirersIn = (dirAbs, alvoAbs, out) => {
+    for (const nome of fs.readdirSync(dirAbs).slice().sort()) {
+      const filho = path.join(dirAbs, nome);
+      const kind = inspectPathKind(filho);
+      if (kind === PATH_KIND.DIRECTORY) findRequirersIn(filho, alvoAbs, out);
+      else if (kind === PATH_KIND.REGULAR_FILE && nome.endsWith('.js')) {
+        const n = requiresToInFile(filho, alvoAbs);
+        if (n > 0) out.push({ rel: path.relative(REPO_ROOT, filho).split(path.sep).join('/'), n });
+      }
+    }
+    return out;
+  };
   const scene02Abs = abs(REL.SCENE_02);
-  const legacyHits = countRequiresTo(REL.LEGACY_COLORING_MAP, scene02Abs);
-  const regHits = countRequiresTo(REL.REGISTRY, scene02Abs);
+  const consumidores = findRequirersIn(path.join(REPO_ROOT, 'src'), scene02Abs, []);
+  const totalRequires = consumidores.reduce((acc, c) => acc + c.n, 0);
+  const legadoAusente = isAbsent(abs(REL.LEGACY_COLORING_MAP));
+  const soORegistro = consumidores.length === 1 && consumidores[0].rel === REL.REGISTRY && consumidores[0].n === 1;
   // Nenhum gêmeo: o arquivo aprovado não pode existir também sob outro nome dentro de activities/.
   const semClone = isAbsent(abs(REL.FORBIDDEN_LIGHT));
-  add('15', 'scene_02.png compartilhado conscientemente (mapa legado por cena + registro Colorir 60 por atividade, MESMO path)',
-    legacyHits === 1 && regHits === 1 && isRegularFile(scene02Abs) && semClone,
-    `requires resolvendo para scene_02.png → legado=${legacyHits} registro=${regHits} · activities/light.png=${semClone ? 'ausente' : 'PRESENTE (proibido)'}`);
+  add('15', 'scene_02.png com consumidor único (mapa legado ausente · só o registro Colorir 60 o requer)',
+    legadoAusente && soORegistro && totalRequires === 1 && isRegularFile(scene02Abs) && semClone,
+    `mapa legado=${legadoAusente ? 'ausente' : 'PRESENTE (proibido após o P3J)'} · requires em src/=${totalRequires} [${consumidores.map((c) => `${c.rel}×${c.n}`).join(', ') || 'nenhum'}] · activities/light.png=${semClone ? 'ausente' : 'PRESENTE (proibido)'}`);
 
   // [16] Nenhum asset fora da lista oficial: `activities/` e a raiz do Beni são conjuntos FECHADOS.
   const foraDaLista = [];

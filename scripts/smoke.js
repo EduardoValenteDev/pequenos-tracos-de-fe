@@ -60,6 +60,15 @@ function srcExists(relPath) {
   return fs.existsSync(path.join(root, relPath));
 }
 
+// [P3J] Muitos lacres de aposentadoria são asserções de AUSÊNCIA ("o símbolo legado não pode voltar").
+// Se lidas sobre o texto cru, um comentário que apenas EXPLICA a remoção ("`computeLineartStyle` saiu
+// com o modo colorido") faria a asserção passar — ou falhar — pelo motivo errado. Este helper é a
+// diferença entre "o código faz" e "o comentário fala": lacres de ausência usam SEMPRE a versão sem
+// comentários. (Existem variantes locais de `stripComments` mais adiante; esta é a de escopo global.)
+function codeOf(relPath) {
+  return readSrc(relPath).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+}
+
 // ── [01–05] stories.js integrity ────────────────────────────────────────────
 console.log('\n── stories.js integrity ──');
 
@@ -264,52 +273,43 @@ check(
   'App.js must load the creator QA mode on startup',
 );
 
-// ── QA 1: Galeria de QA dos desenhos de colorir (só Modo Criador) ────────────
+// ── QA 1 [P3J]: galeria de QA do Colorir legado — APOSENTADA (lacre) ─────────
+// As 5 verificações originais provavam que a galeria de QA existia, listava os 199 linearts e
+// ficava atrás do duplo-gate. Com a atividade aposentada, elas viraram 5 provas de AUSÊNCIA
+// COMPLETA — arquivo, rota, importação, entrada na Área dos Pais — mais a prova de que remover o
+// bypass de QA não afrouxou nada: rota sem `activityId` não abre tela nenhuma. Mesma contagem.
 {
-  const colImgSrc = readSrc('src/assets/coloringImages.js');
-  const colQaSrc = readSrc('src/screens/ColoringQaScreen.js');
   const colScreenSrc = readSrc('src/screens/ColoringScreen.js');
   const navSrc = readSrc('src/navigation/AppNavigator.js');
   const parentSrcQa1 = readSrc('src/screens/ParentAreaScreen.js');
   check(
-    'QA1: coloringImages expõe enumeração do manifesto (getColoringStoryIds/getColoringSceneIds), só leitura',
-    colImgSrc.includes('export function getColoringStoryIds') &&
-    colImgSrc.includes('export function getColoringSceneIds') &&
-    colImgSrc.includes('Object.keys(coloringImages)'),
-    'coloringImages não expõe enumeração do manifesto',
+    'QA1/P3J: mapa legado src/assets/coloringImages.js NÃO existe (199 linearts aposentados)',
+    !srcExists('src/assets/coloringImages.js'),
+    'coloringImages.js reapareceu — o Colorir legado foi aposentado no P3J',
   );
   check(
-    'QA1: ColoringScreen abre QUALQUER desenho só com qa + Modo Criador (duplo-gate); fluxo normal mantém bloqueio',
-    colScreenSrc.includes("import { isCreatorQaModeEnabled } from '../services/creatorQaMode'") &&
-    /qaBypass = route\.params\?\.qa === true && isCreatorQaModeEnabled\(\)/.test(colScreenSrc) &&
-    /if \(!qaBypass && !canOpenStoryFullExperience\(story\)\)/.test(colScreenSrc),
-    'ColoringScreen não tem o bypass de QA com duplo-gate (ou removeu o bloqueio normal)',
+    'QA1/P3J: tela src/screens/ColoringQaScreen.js NÃO existe (galeria de QA do legado removida)',
+    !srcExists('src/screens/ColoringQaScreen.js'),
+    'ColoringQaScreen.js reapareceu — a galeria de QA dependia dos linearts aposentados',
   );
   check(
-    'QA1: ColoringQaScreen lista por história, abre Coloring com qa:true e é restrita ao Modo Criador',
-    colQaSrc.includes("import { stories } from '../data/stories'") &&
-    colQaSrc.includes('getColoringImage') &&
-    colQaSrc.includes('isCreatorQaModeAllowed') &&
-    /navigation\.navigate\('Coloring', \{ story, cenaIndex: index, qa: true/.test(colQaSrc) &&
-    colQaSrc.includes('if (!allowed)'),
-    'ColoringQaScreen não lista/abre os desenhos em QA ou não é restrita ao Criador',
+    'QA1/P3J: AppNavigator não importa ColoringQaScreen nem registra a rota ColoringQa',
+    !navSrc.includes('ColoringQaScreen') &&
+    !/name="ColoringQa"/.test(navSrc),
+    'AppNavigator ainda referencia a rota/tela ColoringQa (rota morta)',
   );
   check(
-    'QA1: ColoringQaScreen é SÓ leitura — não importa/chama writers de progresso/conquista/plano',
-    !colQaSrc.includes('AsyncStorage') &&
-    !/from '\.\.\/services\/(accessControl|achievementService|rewardService|postStoryStorage|drawingStorage|progressResetService)'/.test(colQaSrc) &&
-    !/from '\.\.\/context\/ProgressContext'/.test(colQaSrc) &&
-    !colQaSrc.includes('setCreatorQaModeEnabled') &&
-    !/markStor|saveProgress|refreshProgress|unlockAchievement/i.test(colQaSrc),
-    'ColoringQaScreen importa/chama writers de progresso/conquista/plano (deveria ser só leitura + navegação)',
+    'QA1/P3J: Área dos Pais não oferece entrada para a rota ColoringQa',
+    !parentSrcQa1.includes("navigate('ColoringQa')"),
+    'ParentAreaScreen ainda navega para ColoringQa (botão para tela inexistente)',
   );
   check(
-    'QA1: rota ColoringQa registrada e entrada na seção Ferramentas do Criador (SHOW_TEST_TOOLS)',
-    navSrc.includes("name=\"ColoringQa\"") &&
-    navSrc.includes('import ColoringQaScreen') &&
-    parentSrcQa1.includes("navigation.navigate('ColoringQa')") &&
-    /\{SHOW_TEST_TOOLS &&[\s\S]*?navigation\.navigate\('ColoringQa'\)/.test(parentSrcQa1),
-    'rota ColoringQa ausente ou entrada fora do gate de Ferramentas do Criador',
+    'QA1/P3J: sem bypass de QA — rota sem activityId cai na guarda e volta (nenhum gate afrouxado)',
+    !/qaBypass/.test(colScreenSrc) &&
+    !colScreenSrc.includes('isCreatorQaModeEnabled') &&
+    /route\.params\?\.activityId != null/.test(colScreenSrc) &&
+    colScreenSrc.includes('ColoringRouteGuard'),
+    'ColoringScreen ainda tem bypass de QA, ou perdeu a guarda para rota sem activityId',
   );
 }
 
@@ -359,10 +359,19 @@ check(
   'NarrationScreen missing access guard',
 );
 
+// [P3J] O Colorir legado abria conteúdo por história e por isso revalidava o paywall
+// (`canOpenStoryFullExperience`). Com ele aposentado, a rota `Coloring` só serve o Colorir com o
+// Beni, cuja porta é a autorização do PILOTO — e o parâmetro de rota sozinho não autoriza nada.
+// A guarda não desapareceu: mudou de natureza. A asserção prova a nova E a ausência da antiga.
 check(
-  'ColoringScreen has canOpenStoryFullExperience guard',
-  readSrc('src/screens/ColoringScreen.js').includes('canOpenStoryFullExperience'),
-  'ColoringScreen missing access guard',
+  'ColoringScreen has access gate (isColoring60PilotAllowed) — P3J substitui canOpenStoryFullExperience',
+  (() => {
+    const s = readSrc('src/screens/ColoringScreen.js');
+    return s.includes('function isColoring60PilotAllowed()')
+      && /const pilotAllowed = isColoring60PilotAllowed\(\)/.test(s)
+      && !s.includes('canOpenStoryFullExperience');
+  })(),
+  'ColoringScreen missing pilot access gate (ou reintroduziu o paywall por história do legado)',
 );
 
 check(
@@ -881,6 +890,9 @@ check(
 console.log('\n── Sprint 5: StoryBookScreen ──');
 
 const storyBookSrc = readSrc('src/screens/StoryBookScreen.js');
+// [P3J] Versão SEM comentários — os comentários desta tela citam nominalmente o que foi aposentado
+// (era a única forma honesta de documentar a remoção), então todo lacre de ausência lê daqui.
+const storyBookCode = codeOf('src/screens/StoryBookScreen.js');
 const appNavSrc    = readSrc('src/navigation/AppNavigator.js');
 const postHubSrc2  = readSrc('src/screens/PostStoryHubScreen.js');
 const congratsSrc  = readSrc('src/screens/CongratsScreen.js');
@@ -922,16 +934,21 @@ check(
   'One or more required states missing from StoryBookScreen (must include intro/playing/ended, not ready)',
 );
 
+// [P3J] O Livrinho tinha DOIS modos: "História ilustrada" (oficial) e "Meu livrinho colorido", que
+// montava a arte da criança por cima do lineart legado. O segundo modo dependia inteiramente das 199
+// folhas aposentadas, então saiu com elas. As duas asserções que exigiam os consumos legados
+// (`getSavedDrawing` + `getColoringImage`) viraram o lacre inverso, com o MESMO peso: a tela não pode
+// voltar a ler desenho por cena nem lineart legado. Nenhuma pintura é apagada — só deixou de ser lida.
 check(
-  'StoryBookScreen uses getSavedDrawing from drawingStorage',
-  storyBookSrc.includes('getSavedDrawing') && storyBookSrc.includes('drawingStorage'),
-  'StoryBookScreen missing getSavedDrawing from drawingStorage',
+  'StoryBookScreen [P3J] NÃO lê desenho legado por cena (getSavedDrawing/drawingStorage fora da tela)',
+  !storyBookCode.includes('getSavedDrawing') && !storyBookCode.includes('drawingStorage'),
+  'StoryBookScreen voltou a consumir o storage de desenho legado por cena',
 );
 
 check(
-  'StoryBookScreen uses getColoringImage from coloringImages',
-  storyBookSrc.includes('getColoringImage') && storyBookSrc.includes('coloringImages'),
-  'StoryBookScreen missing getColoringImage from coloringImages',
+  'StoryBookScreen [P3J] NÃO usa lineart legado (getColoringImage/coloringImages fora da tela)',
+  !storyBookCode.includes('getColoringImage') && !storyBookCode.includes('coloringImages'),
+  'StoryBookScreen voltou a referenciar o mapa de linearts aposentado',
 );
 
 check(
@@ -1084,16 +1101,19 @@ check(
 // ── [116–128] Sprint 5.2 — Livrinho drawing fix & playback polish ────────────
 console.log('\n── Sprint 5.2: Livrinho drawing & playback ──');
 
+// [P3J] `parseDrawingPayload` e a extração de `.data` existiam para RENDERIZAR a pintura da criança
+// dentro do Livrinho (modo colorido). Sem esse modo, a tela não decodifica payload de desenho nenhum
+// — o que também significa que ela não pode servir uma pintura por engano nem gravar sobre ela.
 check(
-  'StoryBookScreen has parseDrawingPayload (v1/v2 drawing format)',
-  storyBookSrc.includes('parseDrawingPayload'),
-  'StoryBookScreen missing parseDrawingPayload — drawings will not render',
+  'StoryBookScreen [P3J] não decodifica payload de desenho (parseDrawingPayload fora da tela)',
+  !storyBookCode.includes('parseDrawingPayload'),
+  'StoryBookScreen voltou a decodificar payload de desenho legado',
 );
 
 check(
-  'StoryBookScreen extracts .data from JSON payload (not raw JSON as URI)',
-  storyBookSrc.includes('p.data') || storyBookSrc.includes('payload.data') || storyBookSrc.includes('p?.data'),
-  'StoryBookScreen does not extract .data field from drawing JSON — will pass raw JSON string as Image URI',
+  'StoryBookScreen [P3J] não extrai .data de payload de desenho (sem camada de pintura)',
+  !/\bp\.data\b|payload\.data|\bp\?\.data\b/.test(storyBookCode),
+  'StoryBookScreen voltou a extrair pixels de payload de desenho',
 );
 
 check(
@@ -1140,12 +1160,16 @@ check(
   'StoryBookScreen contains text about future audio narration — must be removed',
 );
 
+// [P3J] O rótulo do botão de abertura era "mode-aware" porque havia dois modos. Com o modo colorido
+// aposentado sobra UM rótulo — e o antigo não pode reaparecer, porque levaria a criança a um modo
+// que não existe mais. A asserção continua sendo sobre o botão da intro: presente, com o rótulo
+// único e SEM o rótulo do modo aposentado.
 check(
-  'StoryBookScreen has a mode-aware "Abrir" button in intro',
-  storyBookSrc.includes('handleStartLivrinho') &&
-  storyBookSrc.includes('Abrir história ilustrada') &&
-  storyBookSrc.includes('Abrir meu livrinho colorido'),
-  'StoryBookScreen missing the intro start button (mode-aware labels)',
+  'StoryBookScreen [P3J] botão da intro com rótulo único ("Abrir história ilustrada"), sem o modo colorido',
+  storyBookCode.includes('handleStartLivrinho') &&
+  storyBookCode.includes('Abrir história ilustrada') &&
+  !storyBookCode.includes('Abrir meu livrinho colorido'),
+  'StoryBookScreen perdeu o botão da intro, ou o rótulo do modo colorido aposentado voltou',
 );
 
 check(
@@ -1168,22 +1192,27 @@ console.log('\n── Sprint 5.3: Livrinho visual composition ──');
 // é tarefa do Bloco A2. A composição real do Livrinho é validada pelos tipos
 // (paintWithLineart/official/fallback) abaixo, produzidos por make*Visual.
 
+// [P3J] As três asserções abaixo descreviam a COMPOSIÇÃO do modo colorido: alinhar pixel a pixel a
+// pintura da criança sob o lineart legado (`computeLineartStyle`), o tipo visual que fazia essa
+// sobreposição (`paintWithLineart`) e a regra "cor nunca sem contorno" (`paintWithLineartFull`, sem
+// `paintOnly`). Todo esse compositor existia por causa das folhas legadas; sem elas não há o que
+// alinhar. Viraram três lacres de ausência — lidos no CÓDIGO, nunca nos comentários que os explicam.
 check(
-  'StoryBookScreen has computeLineartStyle (pixel-aligned lineart positioning)',
-  storyBookSrc.includes('computeLineartStyle'),
-  'StoryBookScreen missing computeLineartStyle — lineart overlay will misalign with paint layer',
+  'StoryBookScreen [P3J] sem geometria de composição do modo colorido (computeLineartStyle removido)',
+  !storyBookCode.includes('computeLineartStyle') && !storyBookCode.includes('computeArtworkScale'),
+  'a geometria de composição do modo colorido voltou à tela',
 );
 
 check(
-  'Livrinho visual: tipo paintWithLineart presente (makeChildArtVisual)',
-  storyBookSrc.includes("'paintWithLineart'") || storyBookSrc.includes('"paintWithLineart"'),
-  'StoryBookScreen missing paintWithLineart type — never correctly overlays paint + lineart',
+  'Livrinho visual [P3J]: tipo paintWithLineart AUSENTE (composição pintura+lineart aposentada)',
+  !storyBookCode.includes('paintWithLineart'),
+  'o tipo visual de sobreposição pintura+lineart legado voltou',
 );
 
 check(
-  'StoryBook: arte da criança SEMPRE com contorno (paintWithLineartFull, sem paintOnly)',
-  storyBookSrc.includes('paintWithLineartFull') && !storyBookSrc.includes("'paintOnly'"),
-  'StoryBookScreen ainda usa paintOnly (cor sem contorno) — Bloco 1 exige lineart sempre',
+  'StoryBook [P3J]: nenhum tipo visual de pintura (paintWithLineartFull/paintOnly ausentes)',
+  !storyBookCode.includes('paintWithLineartFull') && !storyBookCode.includes("'paintOnly'"),
+  'um tipo visual de pintura do modo colorido voltou à tela',
 );
 
 check(
@@ -1198,22 +1227,27 @@ check(
   'StoryBookScreen missing fallback type — no display when neither paint nor lineart exists',
 );
 
+// [P3J] A medição do container (`onLayout` → `imgContainerSize`), o estilo absoluto calculado
+// (`lineartAbsStyle`) e o `resizeMode="stretch"` serviam a UMA coisa: encaixar o contorno legado
+// exatamente sobre a pintura. Sem modo colorido, a tela volta a ser uma ilustração simples — e é
+// isso que as três asserções passam a provar: a medição continua (a seção de arte ainda mede, para
+// layout), mas a maquinaria de sobreposição e o `stretch` (que distorce) não podem voltar.
 check(
-  'StoryBookScreen uses onLayout to measure image container',
-  storyBookSrc.includes('onLayout') && storyBookSrc.includes('imgContainerSize'),
-  'StoryBookScreen missing onLayout measurement — computeLineartStyle has no container dimensions',
+  'StoryBookScreen [P3J] mede a seção de arte, sem geometria de sobreposição (sem imgContainerSize)',
+  storyBookCode.includes('onLayout') && !storyBookCode.includes('imgContainerSize'),
+  'a medição de container do compositor legado voltou (ou a tela perdeu o onLayout da seção de arte)',
 );
 
 check(
-  'StoryBookScreen lineart uses computed absolute style result (not absoluteFill)',
-  storyBookSrc.includes('lineartAbsStyle') && storyBookSrc.includes('computeLineartStyle'),
-  'StoryBookScreen missing lineartAbsStyle/computeLineartStyle — lineart alignment uses wrong approach',
+  'StoryBookScreen [P3J] sem estilo absoluto calculado de lineart (lineartAbsStyle removido)',
+  !storyBookCode.includes('lineartAbsStyle'),
+  'o posicionamento absoluto do contorno legado voltou à tela',
 );
 
 check(
-  'StoryBookScreen lineart uses resizeMode stretch (positioned box matches natural ratio)',
-  storyBookSrc.includes('resizeMode="stretch"') || storyBookSrc.includes("resizeMode='stretch'"),
-  'StoryBookScreen lineart overlay not using resizeMode stretch — may distort at positioned box',
+  'StoryBookScreen [P3J] sem resizeMode stretch (contain é o único modo; stretch era do compositor)',
+  !/resizeMode=["']stretch["']/.test(storyBookCode) && /resizeMode=["']contain["']/.test(storyBookCode),
+  'o resizeMode stretch do compositor legado voltou, ou a tela deixou de usar contain',
 );
 
 check(
@@ -1531,12 +1565,15 @@ check(
   'NarrationScreen must be the only place a scene is completed (Concluir cena ⭐ → salvarCena → UnlockCelebration)',
 );
 
+// [P3J] O cabeçalho em português continua idêntico; o que saiu foi o rótulo "Colorir cena", que
+// levava ao Colorir legado. A asserção mantém tudo o que era sobre o CABEÇALHO e troca o item
+// aposentado por seu lacre: o rótulo não pode voltar (levaria a uma tela que não existe mais).
 check(
-  'NarrationScreen has custom Portuguese header (Voltar / Início), no native route names',
+  'NarrationScreen has custom Portuguese header (Voltar / Início) — P3J: sem o rótulo "Colorir cena"',
   narrationCompletionSrc.includes('Voltar') && narrationCompletionSrc.includes('Início') &&
   narrationCompletionSrc.includes('Cena anterior') &&
-  narrationCompletionSrc.includes('Colorir cena'),
-  'NarrationScreen missing custom header / Cena anterior / Colorir cena labels',
+  !codeOf('src/screens/NarrationScreen.js').includes('Colorir cena'),
+  'NarrationScreen missing custom header / Cena anterior, ou o rótulo legado "Colorir cena" voltou',
 );
 
 const appNavHeaderSrc = readSrc('src/navigation/AppNavigator.js');
@@ -1980,15 +2017,27 @@ check(
   'AtelierCanvasScreen uses ENABLE_LOCAL_PREMIUM_TEST_MODE directly — must go through accessControl',
 );
 
-// Regressão B1: "Escolher cena" deve navegar para a aba via Home > Aventuras.
-// 'Aventuras' NÃO é rota do Stack root (a rota é 'Stories'); navegar 'Aventuras'
-// direto falha ("NAVIGATE not handled") quando o Ateliê é aberto por
-// AtelierFromContext (ex.: Cultinho). O padrão correto é navigate('Home', {screen:'Aventuras'}).
+// [P3J · D2] A regressão B1 protegia a porta "Escolher cena", que mandava a criança à lista de
+// aventuras para pintar uma CENA pelo Colorir legado. Essa porta não existe mais — mandar a criança
+// escolher histórias sem colorir é exatamente o que a decisão do fundador proíbe. A asserção passou
+// a cobrir a porta que a substituiu, com as regras D2 inteiras num só lugar: card "Colorir com o
+// Beni", gateado pelo MESMO portão do piloto, levando à seção canônica (StoryDetail — sem rota
+// paralela) e OMITIDO por inteiro quando indisponível (`: null`, sem card vazio nem "em breve").
 check(
-  'AtelierScreen "Escolher cena" usa navigate(Home, {screen: Aventuras}) — não a rota inexistente Aventuras',
-  atelierScreenSrc.includes("navigate('Home', { screen: 'Aventuras' })") &&
-  !/navigate\(\s*'Aventuras'\s*\)/.test(atelierScreenSrc),
-  'AtelierScreen navega para a rota inexistente Aventuras — quebra ao abrir o Ateliê pelo Cultinho (AtelierFromContext)',
+  'AtelierScreen [P3J·D2]: card "Colorir com o Beni" gateado, para a seção canônica, omitido quando indisponível — sem a porta legada por cena',
+  (() => {
+    const code = codeOf('src/screens/AtelierScreen.js');
+    const semPortaLegada = !/navigate\(\s*'Aventuras'\s*\)/.test(code)
+      && !code.includes("screen: 'Aventuras'")
+      && !code.includes('Escolher cena');
+    const cardCanonico = code.includes("<Text style={styles.cardTitlePrincipal}>Colorir com o Beni</Text>")
+      && /const colorirComBeniVisible = isColoring60PilotAllowed\(\)/.test(code)
+      && /colorirComBeniVisible \? \([\s\S]*?\) : null;/.test(code)
+      && code.includes("navigation.navigate('StoryDetail'");
+    const semRotaParalela = !/navigate\(\s*'Coloring'/.test(code) && !code.includes('em breve');
+    return semPortaLegada && cardCanonico && semRotaParalela;
+  })(),
+  'o Ateliê perdeu o card canônico do Colorir com o Beni, criou rota paralela/"em breve", ou a porta legada por cena voltou',
 );
 
 // Limit modal → ParentArea
@@ -2699,6 +2748,11 @@ console.log('\n── Sprint 9.3: coloring UX improvements ──');
 const faithIconSrc93      = readSrc('src/components/ui/FaithIcon.js');
 const coloringCanvasSrc93 = readSrc('src/components/ColoringCanvas.js');
 const coloringScreenSrc93 = readSrc('src/screens/ColoringScreen.js');
+// [P3J] Versão SEM comentários da tela de colorir. Os comentários desta tela citam NOMINALMENTE o
+// que foi aposentado (a dica de pan e sua chave, os diálogos por cena, o LegacyColoringScreen) —
+// era a única forma honesta de documentar a remoção. Todo lacre de AUSÊNCIA daqui para baixo lê
+// esta versão, senão o comentário que explica a remoção faria a asserção passar pelo motivo errado.
+const coloringScreenCode = codeOf('src/screens/ColoringScreen.js');
 
 check(
   'FaithIcon has erase semantic name',
@@ -2739,12 +2793,18 @@ check(
   !/name="zoom_(in|out)"/.test(coloringScreenSrc93),
   'reset de zoom removido, ou surgiu botão zoom_in/zoom_out (proibido)',
 );
+// [P3J] A orientação inicial ("toque numa parte branca" + Entendi + `dismissStartHint`) era do
+// Colorir por CENA e saiu com ele. O lacre cobre as duas metades da decisão do fundador: a dica
+// não pode voltar, e a chave que ela gravava no aparelho (`@ptf_coloring_start_hint_v1`) NÃO pode
+// ser apagada por esta aposentadoria — nenhum dado do usuário é removido, só fica sem consumidor.
 check(
-  'Colorir (B3): orientação inicial "toque numa parte branca" + botão Entendi',
-  coloringScreenSrc93.includes('Toque em uma parte branca para começar a colorir') &&
-  coloringScreenSrc93.includes('dismissStartHint') &&
-  coloringScreenSrc93.includes('Entendi'),
-  'ColoringScreen perdeu a orientação inicial (toque numa parte branca / botão Entendi / dismissStartHint)',
+  'Colorir [P3J]: orientação inicial do legado REMOVIDA — e a chave dela permanece INERTE (nada é apagado do aparelho)',
+  !coloringScreenCode.includes('Toque em uma parte branca para começar a colorir') &&
+  !coloringScreenCode.includes('dismissStartHint') &&
+  !coloringScreenCode.includes('PAN_HINT_KEY') &&
+  !coloringScreenCode.includes('@ptf_coloring_start_hint_v1') &&
+  !/removeItem\(/.test(coloringScreenCode),
+  'a dica de primeira vez do Colorir legado voltou, ou a tela passou a APAGAR chaves do AsyncStorage (proibido pela decisão do fundador)',
 );
 check(
   'ColoringCanvas postMessages FILL_REJECTED on barrier tap',
@@ -2803,32 +2863,48 @@ check(
   !coloringScreenSrc93.includes('"Zoom ↺"'),
   '"Zoom ↺" label still present — should be replaced by Ampliar/Enquadrar',
 );
+// [P3J] A ação destrutiva continua existindo — mudou de dono. "Limpar tudo"/`handleClearAll` era
+// do ramo por cena; quem limpa hoje é o Colorir com o Beni, por ferramenta compacta e com
+// confirmação obrigatória. O lacre exige a ferramenta, o handler C60 e o Alert — nunca uma
+// limpeza silenciosa.
 check(
-  'Colorir V2: "Limpar" movido para menu compacto (fora do destaque) + confirmação',
-  coloringScreenSrc93.includes('Limpar tudo') &&
-  /showMenu/.test(coloringScreenSrc93) &&
-  coloringScreenSrc93.includes('handleClearAll'),
-  'Limpar não foi movido para o menu / perdeu a confirmação',
+  'Colorir [P3J]: "Limpar desenho" é do Colorir com o Beni (ferramenta compacta + confirmação obrigatória) — sem o handleClearAll legado',
+  coloringScreenCode.includes('accessibilityLabel="Limpar desenho"') &&
+  coloringScreenCode.includes('onPress={handleC60ClearDrawing}') &&
+  /function handleC60ClearDrawing\(\)[\s\S]{0,900}Alert\.alert\(C60_CLEAR_TITLE/.test(coloringScreenCode) &&
+  !coloringScreenCode.includes('handleClearAll') &&
+  !coloringScreenCode.includes('Limpar tudo'),
+  'a limpeza perdeu a confirmação, voltou ao handler legado (handleClearAll/"Limpar tudo") ou saiu da barra de ferramentas',
+);
+// [P3J] O aviso "você tocou na linha" (FILL_REJECTED → toast lineTip) era da folha por cena. O
+// motor `ColoringCanvas` CONTINUA emitindo o sinal (verificado logo acima) — quem deixou de
+// consumi-lo foi a tela. O lacre prova que o consumo legado saiu sem levar o motor junto.
+check(
+  'Colorir [P3J]: consumo legado de FILL_REJECTED saiu da tela — o motor ColoringCanvas segue emitindo o sinal (contrato preservado)',
+  !coloringScreenCode.includes('onFillRejected') &&
+  !coloringScreenCode.includes('handleFillRejected') &&
+  coloringCanvasSrc93.includes("postMessage('FILL_REJECTED')") &&
+  coloringCanvasSrc93.includes('onFillRejected'),
+  'o consumo legado de FILL_REJECTED voltou à tela, ou o sinal foi arrancado do ColoringCanvas (o motor permanece — decisão ratificada 1)',
 );
 check(
-  'ColoringScreen passes onFillRejected to ColoringCanvas',
-  coloringScreenSrc93.includes('onFillRejected={handleFillRejected}'),
-  'onFillRejected not passed to ColoringCanvas — touch feedback disabled',
+  'Colorir [P3J]: estado showLineTip do legado REMOVIDO',
+  !coloringScreenCode.includes('showLineTip') && !coloringScreenCode.includes('setShowLineTip'),
+  'showLineTip voltou — a dica flutuante era da folha por cena e saiu com ela',
 );
 check(
-  'ColoringScreen has showLineTip state',
-  coloringScreenSrc93.includes('showLineTip'),
-  'showLineTip state missing — line tip toast cannot show',
+  'Colorir [P3J]: texto da dica de linha do legado REMOVIDO — o convite vivo é o do Colorir com o Beni',
+  !coloringScreenCode.includes('Toque dentro de uma parte branca para colorir') &&
+  coloringScreenCode.includes("C60_EMPTY_PAINT_MESSAGE = 'Coloque um pouquinho de cor antes de terminar!'"),
+  'a dica legada voltou, ou o convite do Colorir com o Beni sumiu',
 );
+// A camada que precisa de `pointerEvents` mudou de dono: era o toast da dica, hoje é a CAPA de
+// hidratação (que bloqueia o toque enquanto opaca e o libera ao revelar). O contrato de não
+// roubar toque do canvas continua verificado — no elemento certo.
 check(
-  'ColoringScreen lineTip text is correct',
-  coloringScreenSrc93.includes('Toque dentro de uma parte branca para colorir'),
-  'lineTip instructional text not found',
-);
-check(
-  'ColoringScreen lineTip has pointerEvents="none"',
-  coloringScreenSrc93.includes('pointerEvents="none"'),
-  'lineTip missing pointerEvents="none" — tip overlay blocks canvas touches',
+  'Colorir [P3J]: a camada sobre o canvas continua sem roubar toque — hoje é a capa de hidratação do Colorir com o Beni',
+  /hydrationCover[\s\S]{0,200}pointerEvents=\{c60Hydrated \? 'none' : 'auto'\}/.test(coloringScreenCode),
+  'a capa de hidratação perdeu o controle de pointerEvents — pode ficar bloqueando (ou vazando) toques sobre a pintura',
 );
 
 const coloringAssetGuide = (() => {
@@ -2854,27 +2930,37 @@ const coloringAssetGuide94 = (() => {
   try { return fs.readFileSync(path.join(root, 'docs/COLORING_ASSET_GUIDE.md'), 'utf8'); } catch (_) { return ''; }
 })();
 
-// Limpar confirmation text (Tarefa 2)
+// Copy da confirmação de limpar — [P3J] os textos por CENA ("Apagar as cores deste desenho?" /
+// "Você pode continuar colorindo depois." / "Apagar") saíram com a folha por cena. A confirmação
+// não sumiu: passou aos textos aprovados do Colorir com o Beni, que dizem a consequência REAL
+// (sair da coleção) quando a atividade já está concluída.
 check(
-  'ColoringScreen Limpar title is "Apagar as cores deste desenho?"',
-  coloringScreenSrc94.includes('Apagar as cores deste desenho?'),
-  'Limpar confirmation title not updated — should say "Apagar as cores deste desenho?"',
+  'Colorir [P3J]: título da confirmação é o do Colorir com o Beni ("Começar este desenho de novo?") — o texto por cena saiu',
+  coloringScreenCode.includes("C60_CLEAR_TITLE = 'Começar este desenho de novo?'") &&
+  !coloringScreenCode.includes('Apagar as cores deste desenho?'),
+  'a confirmação de limpar perdeu o título aprovado do Colorir com o Beni, ou o texto por cena voltou',
 );
 check(
-  'ColoringScreen Limpar description is "Você pode continuar colorindo depois."',
-  coloringScreenSrc94.includes('Você pode continuar colorindo depois.'),
-  'Limpar description not updated — should say "Você pode continuar colorindo depois."',
+  'Colorir [P3J]: descrição diz a consequência real ("Todas as cores desta parte serão apagadas." + aviso de sair da coleção quando concluída)',
+  coloringScreenCode.includes("C60_CLEAR_MESSAGE = 'Todas as cores desta parte serão apagadas.'") &&
+  coloringScreenCode.includes("C60_CLEAR_MESSAGE_DONE_SUFFIX = ' Ela sairá da sua coleção até você colorir novamente.'") &&
+  !coloringScreenCode.includes('Você pode continuar colorindo depois.'),
+  'a descrição da limpeza deixou de avisar a consequência real, ou voltou o texto por cena',
 );
 check(
-  'ColoringScreen Limpar destructive button text is "Apagar" (not "Apagar tudo")',
-  coloringScreenSrc94.includes("text: 'Apagar'") && !coloringScreenSrc94.includes("text: 'Apagar tudo'"),
-  'Limpar button still says "Apagar tudo" — should be shortened to "Apagar"',
+  'Colorir [P3J]: botões da confirmação são "Limpar desenho" (destrutivo) e "Continuar colorindo" (cancelar) — sem "Apagar"/"Apagar tudo"',
+  coloringScreenCode.includes("C60_CLEAR_CONFIRM = 'Limpar desenho'") &&
+  coloringScreenCode.includes("C60_CLEAR_CANCEL = 'Continuar colorindo'") &&
+  /text: C60_CLEAR_CONFIRM,\s*style: 'destructive'/.test(coloringScreenCode) &&
+  !coloringScreenCode.includes("text: 'Apagar'") &&
+  !coloringScreenCode.includes("text: 'Apagar tudo'"),
+  'os botões da confirmação mudaram: o destrutivo perdeu o rótulo/estilo aprovado, ou os rótulos legados voltaram',
 );
 check(
-  'ColoringScreen Limpar still has Alert.alert (confirmation intact)',
-  coloringScreenSrc94.includes('Alert.alert(') &&
-  coloringScreenSrc94.includes("'Apagar as cores deste desenho?'"),
-  'Limpar confirmation was removed — destructive action must always confirm',
+  'Colorir [P3J]: limpar SEGUE confirmando (Alert.alert intacto) — ação destrutiva nunca acontece em silêncio',
+  coloringScreenCode.includes('Alert.alert(C60_CLEAR_TITLE, message, [') &&
+  /style: 'cancel'/.test(coloringScreenCode),
+  'a confirmação de limpar foi removida — ação destrutiva sempre confirma',
 );
 
 // Two-finger pan — Option A (Tarefa 5)
@@ -2955,10 +3041,14 @@ check(
   coloringCanvasSrc94.includes('ty=Math.max(H*(1-scale)-INITIAL_VIEW_BOTTOM_SAFE_INSET,Math.min(0,ty));'),
   'clamp não tem inset inferior nomeado — parte da arte fica presa sob o overlay',
 );
+// [P3J] O toast da dica saiu; o que precisa respeitar a área segura hoje é o painel flutuante de
+// ferramentas/paleta do Colorir com o Beni. O contrato "nada encosta no gesto do sistema" continua
+// verificado — no único elemento que ainda flutua sobre o canvas.
 check(
-  'ColoringScreen lineTip bottom updated to 168',
-  coloringScreenSrc94.includes('bottom: 168 + insets.bottom'),
-  'lineTip bottom not updated — toast may overlap bottom panel after layout changes',
+  'Colorir [P3J]: toast lineTip removido; o overlay vivo respeita a área segura (bottom: insets.bottom + 8)',
+  !coloringScreenCode.includes('lineTip') &&
+  coloringScreenCode.includes("styles.overlayPanel, { bottom: insets.bottom + 8"),
+  'o toast legado voltou, ou o painel flutuante deixou de respeitar a área segura inferior',
 );
 
 // ── Hotfix render: lineart confiável + sem canvas branco silencioso ──────────
@@ -2976,11 +3066,16 @@ check(
   /catch \(err\)[\s\S]{0,400}setErrorType\('error'\)/.test(coloringCanvasSrc94),
   'ColoringCanvas pode mostrar canvas branco "pronto" quando a imagem não carregou',
 );
+// [P3J] O contexto do erro amigável em dev continua chegando ao motor — mas a identidade agora é
+// SEMÂNTICA (storyId + activityId), não mais numérica por cena. `sceneNumber={cena.id}` saiu junto
+// com a folha por cena; o motor mantém a prop opcional, apenas ninguém mais a preenche por cena.
 check(
-  'Colorir: ColoringScreen passa storyId/sceneNumber ao canvas (erro amigável em dev)',
-  coloringScreenSrc94.includes('storyId={story.id}') &&
-  coloringScreenSrc94.includes('sceneNumber={cena.id}'),
-  'ColoringScreen não passa storyId/sceneNumber — erro de carregamento sem contexto',
+  'Colorir [P3J]: a tela passa storyId ao canvas (erro com contexto), com identidade semântica — sem sceneNumber por cena',
+  coloringScreenCode.includes('storyId={storyId}') &&
+  !coloringScreenCode.includes('storyId={story.id}') &&
+  !coloringScreenCode.includes('sceneNumber={cena.id}') &&
+  !/sceneNumber=\{/.test(coloringScreenCode),
+  'a tela deixou de dar contexto ao motor, ou voltou a identificar a folha por número de cena',
 );
 check(
   'Colorir: motor de pintura intacto (loadPaint/flood fill não tocados neste hotfix)',
@@ -3063,12 +3158,17 @@ check(
   !coloringScreenSrc94.includes('handleZoomIn'),
   'botão Ampliar reapareceu na tela de colorir',
 );
+// [P3J] A orientação de primeira vez saiu inteira com o ramo por cena (dica, chave e estado).
+// O gesto NÃO saiu: o zoom/pan de dois dedos continua no motor — é isso que este lacre protege,
+// para que a remoção do texto não seja confundida com a remoção da capacidade.
 check(
-  'Colorir Grande: orientação de primeira vez — uma vez, persistida, dispensável (B3)',
-  coloringScreenSrc94.includes('@ptf_coloring_start_hint_v1') &&
-  coloringScreenSrc94.includes('Use dois dedos para aproximar ou mover o desenho') &&
-  coloringScreenSrc94.includes('setShowPanHint(false)'),
-  'orientação inicial do Colorir ausente, fixa, ou sem persistência de "primeira vez"',
+  'Colorir Grande [P3J]: orientação de primeira vez REMOVIDA com o ramo legado — o gesto de dois dedos permanece no motor',
+  !coloringScreenCode.includes('@ptf_coloring_start_hint_v1') &&
+  !coloringScreenCode.includes('Use dois dedos para aproximar ou mover o desenho') &&
+  !coloringScreenCode.includes('setShowPanHint') &&
+  coloringCanvasSrc94.includes('pinchMX') &&
+  coloringCanvasSrc94.includes('pinchMY'),
+  'a dica de primeira vez do legado voltou, ou o gesto de dois dedos foi perdido junto com ela',
 );
 check(
   'Colorir Grande: paleta principal segue compacta e visível (não escondida neste bloco)',
@@ -4630,9 +4730,11 @@ check(
   }
 })();
 
-// [613] coloringImages.js has no broken require() (critical check)
+// [613] [P3J] coloring60LocalAssets.js has no broken require() (critical check)
+// Herda o papel do antigo teste de `coloringImages.js`: o mapa de assets vivo do colorir não pode
+// ter `require()` apontando para arquivo inexistente (isso quebra o bundle no Metro, não em runtime).
 (function() {
-  const imgSrc = readSrc('src/assets/coloringImages.js');
+  const imgSrc = readSrc('src/assets/coloring60LocalAssets.js');
   const imgDir = path.join(root, 'src', 'assets');
   const requires = [...imgSrc.matchAll(/require\(['"]([^'"]+)['"]\)/g)].map(m => m[1]);
   const brokenCount = requires.filter(req => {
@@ -4640,22 +4742,39 @@ check(
     return !fs.existsSync(abs);
   }).length;
   check(
-    'coloringImages.js has no broken require() paths',
-    brokenCount === 0,
-    `${brokenCount} broken require() in coloringImages.js — files missing from disk`,
+    'coloring60LocalAssets.js has no broken require() paths',
+    requires.length === 3 && brokenCount === 0,
+    `${brokenCount} broken require() em coloring60LocalAssets.js (total ${requires.length}, esperado 3)`,
   );
 })();
 
-// [613.1] coloringImages.js registra as histórias de colorir oficiais (inclui as 3 novas)
+// [613.1] [P3J] Nenhum módulo de src/ volta a empacotar lineart legado por cena
+// O antigo teste exigia 9 histórias registradas no mapa legado. Agora prova o inverso, e mais forte:
+// varre TODO o src/ e aceita exatamente 3 `require()` sob `assets/stories/**/coloring/` — os do
+// Colorir com o Beni — todos no módulo canônico. Um `require` de lineart reintroduzido em qualquer
+// arquivo do src/ derruba esta verificação (controle negativo do P3J).
 (function() {
-  const imgSrc = readSrc('src/assets/coloringImages.js');
-  const expected = ['creation','noah','david_goliath','jesus_children','daniel_lions',
-    'jonah_big_fish','abraham_stars','good_samaritan','lost_sheep'];
-  const missing = expected.filter(id => !new RegExp(`^  ${id}: \\{`, 'm').test(imgSrc));
+  const canonical = path.join(root, 'src', 'assets', 'coloring60LocalAssets.js');
+  const C60 = [
+    'assets/stories/creation/coloring/scene_02.png',
+    'assets/stories/creation/coloring/activities/living_world.png',
+    'assets/stories/creation/coloring/activities/people_and_care.png',
+  ].sort();
+  const found = [];
+  allFiles.forEach((f) => {
+    const s = fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    [...s.matchAll(/require\(['"]([^'"]+)['"]\)/g)].forEach((m) => {
+      if (!/\/coloring\//.test(m[1])) return;
+      const rel = path.relative(root, path.resolve(path.dirname(f), m[1])).replace(/\\/g, '/');
+      found.push({ file: f, rel });
+    });
+  });
+  const rels = found.map(r => r.rel).sort();
+  const allCanonical = found.every(r => r.file === canonical);
   check(
-    'coloringImages.js registra as 9 histórias de colorir oficiais (+abraham_stars/good_samaritan/lost_sheep)',
-    missing.length === 0,
-    `storyIds de colorir não registrados: ${missing.join(', ')}`,
+    'src/ empacota SÓ os 3 linearts do Colorir com o Beni — nenhum lineart legado por cena (P3J)',
+    allCanonical && rels.length === 3 && rels.join('|') === C60.join('|'),
+    `require() de coloring encontrados: ${rels.join(', ') || '(nenhum)'} — fora do módulo canônico: ${found.filter(r => r.file !== canonical).map(r => path.relative(root, r.file)).join(', ') || 'nenhum'}`,
   );
 })();
 
@@ -4729,12 +4848,18 @@ check(
   );
 })();
 
-// [618] ColoringScreen has fallback for missing imageSource (no white screen)
+// [618→P3J] O placeholder de "folha ausente" (`missingContainer`, com o caminho do arquivo na tela)
+// era do Colorir por cena. A garantia de fundo — a criança NUNCA vê tela branca — permanece, agora
+// pelos estados honestos do Colorir com o Beni: título curto, explicação e botão Voltar. E o
+// fallback proibido também está lacrado: nada de cair na cena legada quando a folha não resolve.
 check(
-  'ColoringScreen has fallback for missing coloring image (no white screen)',
-  readSrc('src/screens/ColoringScreen.js').includes('missingContainer') &&
-  readSrc('src/screens/ColoringScreen.js').includes('caminho'),
-  'ColoringScreen missing fallback for absent coloring image',
+  'ColoringScreen [P3J]: sem tela branca quando a folha não resolve — estado honesto do Colorir com o Beni, sem placeholder técnico nem fallback para cena legada',
+  coloringScreenCode.includes("'Este desenho ainda está a caminho'") &&
+  coloringScreenCode.includes("'Atividade indisponível'") &&
+  /emptyTitle[\s\S]{0,600}topBarNavBtnText}>← Voltar/.test(coloringScreenCode) &&
+  !coloringScreenCode.includes('missingContainer') &&
+  !coloringScreenCode.includes('getColoringImage'),
+  'a tela perdeu o estado honesto de folha indisponível, voltou ao placeholder técnico do legado, ou voltou a cair na cena legada',
 );
 
 // [619] ASSET_PIPELINE_GUIDE.md mentions audioManifest.js workflow
@@ -4807,15 +4932,17 @@ check(
 // ── Sprint Histórias 4.1 — Livrinho da Fé Híbrido ────────────────────────────
 const livroSrc = readSrc('src/screens/StoryBookScreen.js');
 
+// [P3J] A prioridade híbrida tinha 3 degraus porque o primeiro era a arte da criança pintada por
+// CENA — que só podia ser exibida composta com o lineart legado ("a arte nunca aparece sozinha").
+// Sem lineart, o degrau inteiro sai em vez de virar caminho morto. Restam 2 degraus, e o selo
+// "Sua arte" não pode reaparecer sem o contorno que o justificava.
 check(
-  'Livrinho usa prioridade arte da criança > ilustração oficial > fallback',
-  // F2.1i: a imagem oficial (páginas E prévia da intro) é resolvida via
-  // resolveSceneImageForStory (gated a david_goliath). Mesma prioridade + 3 selos.
+  'Livrinho [P3J]: prioridade de 2 degraus (ilustração oficial → fallback seguro); o selo "Sua arte" saiu com o modo colorido',
   livroSrc.includes('resolveSceneImageForStory') &&
-  livroSrc.includes("seal: 'Sua arte'") &&
-  livroSrc.includes("seal: 'Cena ilustrada'") &&
-  livroSrc.includes("seal: 'Cena especial'"),
-  'StoryBookScreen missing hybrid priority (child art / official / fallback) seals',
+  storyBookCode.includes("seal: 'Cena ilustrada'") &&
+  storyBookCode.includes("seal: 'Cena especial'") &&
+  !storyBookCode.includes("seal: 'Sua arte'"),
+  'o Livrinho perdeu a prioridade oficial→fallback, ou o selo "Sua arte" voltou sem o lineart que o compunha',
 );
 
 check(
@@ -4850,32 +4977,37 @@ check(
   'StoryBookScreen header may leak an internal route name',
 );
 
-// ── Livrinho: 2 modos finais (UX 1.0 Bloco 3 — sem modo misto) ───────────────
+// ── Livrinho: MODO ÚNICO pós-P3J (o modo colorido saiu com o Colorir legado) ──
+// O modo "Meu livrinho colorido" existia para reler as pinturas por cena. Sem Colorir por cena não
+// há o que reler — e um seletor com uma opção só é ruído. Some a escolha inteira, não o Livrinho.
 check(
-  'Livrinho tem APENAS 2 modos (História ilustrada / Meu livrinho colorido), sem modo misto',
-  livroSrc.includes('Como você quer ver?') &&
-  livroSrc.includes('História ilustrada') &&
-  livroSrc.includes('Meu livrinho colorido') &&
-  !livroSrc.includes('Livro mágico misto') &&
-  !/setViewMode\('mixed'\)|useState\('mixed'\)/.test(livroSrc),
-  'StoryBookScreen must offer exactly two predictable modes (História ilustrada / Meu livrinho colorido), no mixed mode',
+  'Livrinho [P3J]: MODO ÚNICO (Abrir história ilustrada) — sem seletor, sem modo colorido, sem modo misto',
+  storyBookCode.includes('Abrir história ilustrada') &&
+  !storyBookCode.includes('Como você quer ver?') &&
+  !storyBookCode.includes('Meu livrinho colorido') &&
+  !storyBookCode.includes('Livro mágico misto') &&
+  !/setViewMode\(|useState\('(child|mixed|official)'\)/.test(storyBookCode),
+  'o seletor de modos voltou ao Livrinho, ou o modo colorido/misto reapareceu sem o Colorir por cena que o alimentava',
+);
+
+// [P3J] O estado bloqueado ("pinte a aventura inteira") e seu CTA mandavam a criança colorir cenas
+// que não existem mais. Some junto — e o lacre garante que o Livrinho NÃO ficou com uma porta para
+// a rota `Coloring` sem atividade (a guarda de rota devolveria a criança na hora).
+check(
+  'Livrinho [P3J]: estado bloqueado do colorido e o CTA para colorir cena REMOVIDOS — nenhuma porta para o Colorir por cena',
+  !storyBookCode.includes('Seu livrinho colorido fica pronto quando você pinta a aventura inteira') &&
+  !storyBookCode.includes('Pinte todas para abrir um livrinho só com as suas pinturas') &&
+  !storyBookCode.includes('coloredComplete') &&
+  !/navigation\.navigate\(\s*'Coloring'/.test(storyBookCode),
+  'o Livrinho voltou a exigir pintura completa ou a oferecer o Colorir por cena — atividade aposentada',
 );
 
 check(
-  'Livrinho: estado bloqueado do colorido incompleto + CTA para colorir (LIVRINHO_UX_1)',
-  livroSrc.includes('Seu livrinho colorido fica pronto quando você pinta a aventura inteira') &&
-  livroSrc.includes('Pinte todas para abrir um livrinho só com as suas pinturas') &&
-  livroSrc.includes("viewMode === 'child' && !coloredComplete") &&
-  livroSrc.includes("navigation.navigate('Coloring'"),
-  'StoryBookScreen missing blocked state + CTA for "Meu livrinho colorido" when not 100% painted (LIVRINHO_UX_1)',
-);
-
-check(
-  'Livrinho visual: visualType childArt/official/fallback presente (make*Visual)',
-  livroSrc.includes("visualType: 'childArt'") &&
-  livroSrc.includes("visualType: 'official'") &&
-  livroSrc.includes("visualType: 'fallback'"),
-  'StoryBookScreen missing visualType semantic field',
+  'Livrinho [P3J]: visualType reduzido a official/fallback — childArt saiu com o compositor de lineart',
+  storyBookCode.includes("visualType: 'official'") &&
+  storyBookCode.includes("visualType: 'fallback'") &&
+  !storyBookCode.includes("visualType: 'childArt'"),
+  'o visual childArt voltou ao Livrinho — sem lineart por cena ele exibiria mancha de cor sem contorno',
 );
 
 check(
@@ -4894,33 +5026,29 @@ check(
 );
 
 check(
-  'Livrinho resolve por modo: official sempre oficial; child só arte da criança (com contorno) → fallback',
-  livroSrc.includes('function resolveStoryBookPageImage') &&
-  /makeChildArtVisual\(cena, story, p, baseImage\)/.test(livroSrc) &&
-  /if \(childVisual\) return childVisual/.test(livroSrc) &&
-  /mode === 'official'[\s\S]*?if \(official\) return makeOfficialVisual[\s\S]*?return makeFallbackVisual/.test(livroSrc) &&
-  !/mode === 'mixed'/.test(livroSrc),
-  'StoryBookScreen must resolve official mode = official always, child mode = child art only (no mixed)',
+  'Livrinho [P3J]: resolução SEM parâmetro de modo — sempre oficial, senão fallback seguro (nunca vazio, nunca require quebrado)',
+  storyBookCode.includes('function resolveStoryBookPageImage') &&
+  /function resolveStoryBookPageImage\(cena, story, scenePackEntry\)/.test(storyBookCode) &&
+  /if \(official\) return makeOfficialVisual[\s\S]{0,120}return makeFallbackVisual/.test(storyBookCode) &&
+  !storyBookCode.includes('makeChildArtVisual') &&
+  !/mode === '(official|child|mixed)'/.test(storyBookCode),
+  'a resolução de página do Livrinho voltou a depender de modo, ou voltou a ler arte da criança por cena',
 );
 
 check(
-  'Modo "História ilustrada" (official) nunca usa arte da criança; modo child nunca usa oficial',
+  'Livrinho [P3J]: a resolução lê UMA fonte oficial por cena, sem ramo de arte da criança e sem leitura de desenho salvo',
   (() => {
-    const m = livroSrc.match(/function resolveStoryBookPageImage\([\s\S]*?\n\}/);
+    const m = storyBookCode.match(/function resolveStoryBookPageImage\([\s\S]*?\n\}/);
     if (!m) return false;
     const body = m[0];
-    // A ilustração oficial só é buscada no ramo 'official'.
-    const officialOnlyInOfficialBranch =
-      // F2.1h v2: a imagem oficial é resolvida via resolveSceneImageForStory (gated a
-      // david_goliath). A CHAMADA só ocorre no ramo 'official', exatamente uma vez.
-      /mode === 'official'[\s\S]*?resolveSceneImageForStory\(/.test(body) &&
-      (body.match(/resolveSceneImageForStory\(/g) || []).length === 1;
-    // O ramo official retorna antes de qualquer leitura de arte da criança.
-    const officialReturnsBeforeChildArt =
-      body.indexOf("mode === 'official'") < body.indexOf('makeChildArtVisual');
-    return officialOnlyInOfficialBranch && officialReturnsBeforeChildArt;
+    // Exatamente uma chamada ao resolvedor oficial — sem caminho alternativo escondido.
+    const umaFonteOficial = (body.match(/resolveSceneImageForStory\(/g) || []).length === 1;
+    // Nenhuma leitura de pintura da criança sobrou dentro da resolução.
+    const semArteDaCrianca =
+      !/childArt|drawing|paint/i.test(body) && !body.includes('getSavedDrawing');
+    return umaFonteOficial && semArteDaCrianca;
   })(),
-  'StoryBookScreen: official mode must never read child art; child mode must never use official illustration',
+  'a resolução de página voltou a ler pintura da criança, ou ganhou uma segunda fonte oficial escondida',
 );
 
 check(
@@ -4936,11 +5064,14 @@ check(
   'StoryBookScreen does not guard rapid taps on next/prev/pause with lockRef',
 );
 
+// [P3J] Sem escolha de modo não há troca de modo: `handleSelectMode` saiu. O que o teste protegia
+// de fato — a timeline começar do início ao abrir — continua garantido pelo estado inicial.
 check(
-  'Trocar de modo reseta a timeline (handleSelectMode → index 0)',
-  livroSrc.includes('function handleSelectMode') &&
-  /handleSelectMode\([\s\S]*?setCurrentSlideIndex\(0\)/.test(livroSrc),
-  'StoryBookScreen handleSelectMode does not reset the timeline to the start',
+  'Livrinho [P3J]: sem troca de modo (handleSelectMode saiu) — a timeline continua nascendo na primeira cena',
+  !storyBookCode.includes('handleSelectMode') &&
+  /useState\(0\)/.test(storyBookCode) &&
+  storyBookCode.includes('setCurrentSlideIndex(0)'),
+  'a troca de modo voltou ao Livrinho, ou a timeline deixou de começar na primeira cena',
 );
 
 // ── LIVRINHO_AUTOPLAY_FIX_1 — fim de áudio resiliente à trava de transição ────
@@ -4975,27 +5106,29 @@ check(
   'StoryBookScreen passou a referenciar serviços de pack/R2/download/storage — fora do escopo do fix',
 );
 
-// ── Sprint Histórias 4.2.2 — final do Livrinho com retorno aos modos ─────────
+// ── Sprint Histórias 4.2.2 — final do Livrinho ([P3J]: 2 botões, sem "outro modo") ──
+// Lido do CÓDIGO sem comentários de propósito: o comentário do P3J cita "Escolher outro modo" para
+// documentar a remoção, e sobre o texto cru esta asserção passaria pelo motivo errado.
 check(
-  'Tela final tem os 3 botões (Ver de novo / Escolher outro modo / Voltar para Aventuras)',
-  livroSrc.includes('Ver de novo') &&
-  livroSrc.includes('Escolher outro modo') &&
-  livroSrc.includes('Voltar para Aventuras'),
-  'StoryBookScreen ended state missing one of the 3 final buttons',
+  'Tela final [P3J]: 2 botões (Ver de novo / Voltar para Aventuras) — "Escolher outro modo" saiu com o modo único',
+  storyBookCode.includes('Ver de novo') &&
+  storyBookCode.includes('Voltar para Aventuras') &&
+  !storyBookCode.includes('Escolher outro modo'),
+  'a tela final do Livrinho perdeu um dos 2 botões, ou o botão de troca de modo voltou sem haver segundo modo',
 );
 
 check(
-  'Escolher outro modo volta à seleção sem sair do StoryBookScreen (intro) e reseta slide',
+  'Livrinho [P3J]: handleChooseMode REMOVIDO — e o final continua sem navegar para fora da tela',
   (() => {
-    const m = livroSrc.match(/function handleChooseMode\(\)\s*\{([\s\S]*?)\n  \}/);
+    if (storyBookCode.includes('handleChooseMode')) return false;
+    // O que o teste protegia continua valendo no botão que sobrou: "Ver de novo" resolve dentro
+    // da própria tela, sem navegação.
+    const m = storyBookCode.match(/function handleReplay\(\)\s*\{([\s\S]*?)\n  \}/);
     if (!m) return false;
     const body = m[1];
-    return body.includes("setScreenState('intro')") &&
-           body.includes('setCurrentSlideIndex(0)') &&
-           !body.includes('navigation.navigate') &&
-           !body.includes('navigation.goBack');
+    return !body.includes('navigation.navigate') && !body.includes('navigation.goBack');
   })(),
-  'handleChooseMode must reset slide to 0 and return to intro without navigating away',
+  'handleChooseMode voltou ao Livrinho, ou o replay passou a navegar para fora da tela',
 );
 
 check(
@@ -5017,10 +5150,10 @@ check(
 
 check(
   'Livrinho fallback usa frase amigável e sem texto técnico',
-  livroSrc.includes('Imagem da cena em breve.') &&
-  !livroSrc.includes('Ilustração em breve') &&
-  !livroSrc.includes('placeholder') &&
-  !livroSrc.includes('Sem imagem'),
+  storyBookCode.includes('Imagem da cena em breve.') &&
+  !storyBookCode.includes('Ilustração em breve') &&
+  !storyBookCode.includes('placeholder') &&
+  !storyBookCode.includes('Sem imagem'),
   'StoryBookScreen fallback contains technical text or wrong copy',
 );
 
@@ -5293,14 +5426,16 @@ check(
   'StoryBookScreen images must use a fixed 4:5 frame + width/height 100% (no absoluteFill zoom)',
 );
 
+// [P3J] O fundo claro condicional (`isUserArt ? '#FFFDF8'`) existia só para a arte da criança não
+// virar mancha escura. Sem esse visual, a moldura tem UM fundo só — e o que continua valendo é a
+// regra de fundo: nada escurece a imagem exibida (sem overlay, sem opacity de estilo, sem tint).
 check(
-  'Livrinho: arte da criança em fundo CLARO (não fica preta)',
-  livro54.includes('const isUserArt =') &&
-  /isUserArt \? '#FFFDF8'/.test(livro54) &&
-  // sem overlay/opacity/tint escurecendo a arte da criança
-  !/bookFullImage[\s\S]{0,120}opacity/.test(livro54) &&
-  !livro54.includes('tintColor'),
-  'StoryBookScreen child art must render on a light background (no dark overlay/opacity/tint)',
+  'Livrinho [P3J]: moldura com fundo único (arte da criança aposentada) e imagem nunca escurecida por overlay/opacity/tint',
+  !storyBookCode.includes('isUserArt') &&
+  /styles\.bookArtFrame,\s*\{ width: bookSize\.width, height: bookSize\.height, backgroundColor: '#0B0B0B' \}/.test(storyBookCode) &&
+  !/bookFullImage[\s\S]{0,120}opacity/.test(storyBookCode) &&
+  !storyBookCode.includes('tintColor'),
+  'a moldura do Livrinho voltou a alternar fundo por tipo de arte, ou passou a escurecer a imagem (overlay/opacity/tint)',
 );
 
 check(
@@ -5375,16 +5510,18 @@ check(
   !/if \(!autoPlay \|\| paused\) return;[\s\S]{0,260}'loading'/.test(audioPlayerSrc),
   'autostart do AudioPlayer ainda pode tocar antes do load (autoplay intermitente)',
 );
+// [P3J] Toda a geometria de composição (escala pelo retângulo do lineart, alinhamento cor×contorno)
+// existia para casar duas camadas: pintura + contorno legado. Com uma camada só, ela sai inteira —
+// e a imagem oficial ocupa o card pelo caminho simples e correto (`contain` na moldura 4:5).
 check(
-  'LIVRINHO1.1: arte da criança preenche o card pelo RETÂNGULO da arte (computeArtworkScale/computePaintStyle), cor+contorno alinhados',
-  livro54.includes('computeArtworkScale') &&
-  livro54.includes('computePaintStyle') &&
-  livro54.includes('paintAbsStyle') &&
-  // escala pelo retângulo do lineart (não pelo canvas inteiro) → arte grande
-  /Math\.min\(containerW \/ visual\.lineartImgW, containerH \/ visual\.lineartImgH\)/.test(livro54) &&
-  // computeLineartStyle (alinhamento) e lineartAbsStyle continuam presentes
-  livro54.includes('computeLineartStyle') && livro54.includes('lineartAbsStyle'),
-  'arte colorida não preenche o card pelo retângulo real (segue pequena no canvas inteiro)',
+  'LIVRINHO1.1→P3J: geometria de composição cor×contorno REMOVIDA — a ilustração oficial preenche o card por contain, sem alinhamento de duas camadas',
+  !storyBookCode.includes('computeArtworkScale') &&
+  !storyBookCode.includes('computePaintStyle') &&
+  !storyBookCode.includes('paintAbsStyle') &&
+  !storyBookCode.includes('computeLineartStyle') &&
+  !storyBookCode.includes('lineartAbsStyle') &&
+  /function OfficialSceneImage[\s\S]*?style=\{styles\.bookFullImage\}[\s\S]*?resizeMode="contain"/.test(storyBookCode),
+  'a composição de duas camadas voltou ao Livrinho, ou a ilustração oficial deixou de preencher o card por contain',
 );
 
 check(
@@ -5404,20 +5541,31 @@ const storyBookSrcBugFix = readSrc('src/screens/StoryBookScreen.js');
 const drawingStorageSrcBugFix = readSrc('src/services/drawingStorage.js');
 const magicBookSrc = readSrc('src/components/story/MagicBookEntrance.js');
 
+// [P3J] O bug original: retomar um desenho salvo deixava "Pronto" bloqueado porque o booleano
+// `hasPainted` não era marcado. O Colorir com o Beni não tem esse booleano — ele MEDE a tinta na
+// folha (`onPaintState` → métricas → `hasMeaningfulColor`), então retomar uma arte válida habilita
+// "Pronto!" por medição, não por promessa. O mesmo bug fica impossível por construção.
 check(
-  'ColoringScreen usa hasMeaningfulPaint ou seta hasPainted ao continuar desenho salvo',
-  coloringSrc.includes('setHasPainted(true)') &&
-  coloringSrc.includes('handleContinueDrawing'),
-  'ColoringScreen.handleContinueDrawing deve chamar setHasPainted(true)',
+  'Colorir [P3J]: retomar arte guardada reaplica a pintura e o "Pronto!" é liberado por MEDIÇÃO (sem o booleano hasPainted do legado)',
+  /function handleC60RestoreValid\(\)[\s\S]{0,400}canvasRef\.current\?\.loadPaint\(saved\)/.test(coloringScreenCode) &&
+  coloringScreenCode.includes('const c60HasColor = hasMeaningfulColor(c60PaintMetrics)') &&
+  coloringScreenCode.includes('onPaintState={handleC60PaintState}') &&
+  !coloringScreenCode.includes('setHasPainted') &&
+  !coloringScreenCode.includes('handleContinueDrawing'),
+  'a retomada da arte guardada voltou ao booleano legado hasPainted, ou deixou de reaplicar a pintura medida',
 );
 
 check(
-  'ColoringScreen não bloqueia Pronto quando há pintura salva carregada',
+  'Colorir [P3J]: "Pronto!" não fica bloqueado com arte guardada — a mesma métrica que o habilita é a que a retomada republica',
   (() => {
-    const fnMatch = coloringSrc.match(/function handleContinueDrawing[\s\S]*?\}/);
-    return fnMatch ? fnMatch[0].includes('setHasPainted(true)') : false;
+    const m = coloringScreenCode.match(/function handleC60PaintState\(raw\)[\s\S]*?\n  \}/);
+    if (!m) return false;
+    // A medição do motor vira o estado que governa "Pronto!" — sem atalho, sem booleano paralelo.
+    return m[0].includes('setC60PaintMetrics') &&
+      /accessibilityState=\{\{ disabled: !c60HasColor \|\| c60Saving \}\}/.test(coloringScreenCode) &&
+      !coloringScreenCode.includes('hasPainted');
   })(),
-  'handleContinueDrawing deve conter setHasPainted(true)',
+  'o "Pronto!" deixou de ser governado pela medição do motor (risco de repetir o bug de arte salva sem Pronto)',
 );
 
 check(
@@ -5451,31 +5599,46 @@ check(
     cc.includes('window.validatePaint(${JSON.stringify(pendingValidateRef.current)})'),
     'método validatePaint imperativo/fila ausente — validação pode rodar antes do canvas pronto',
   );
+  // [P3J] O modal "Continuar meu desenho?" era do fluxo por cena. O Colorir com o Beni não pergunta:
+  // ele valida ANTES de aplicar e devolve a arte já pintada no primeiro quadro. A garantia que o
+  // teste protegia — nada é exibido por mera existência da chave — continua, mais forte: exige
+  // payload aceitável E tinta real E confirmação do canvas.
   check(
-    'Persistência: ColoringScreen VALIDA antes de mostrar o modal (não abre por mera existência da chave)',
-    cs.includes('hasMeaningfulPaint(saved)') &&
-    cs.includes('canvasRef.current?.validatePaint(saved)') &&
-    cs.includes('onPaintValid={() => setShowResumeDialog(true)}'),
-    'ColoringScreen ainda abre o modal sem validar o desenho salvo',
+    'Persistência [P3J]: a arte guardada é VALIDADA antes de aparecer (payload aceitável + tinta real + confirmação do canvas) — sem modal por existência de chave',
+    coloringScreenCode.includes('isAcceptableC60Payload(saved)') &&
+    coloringScreenCode.includes('hasMeaningfulPaint(saved)') &&
+    coloringScreenCode.includes('canvasRef.current?.validatePaint(saved)') &&
+    coloringScreenCode.includes('onPaintValid={handleC60RestoreValid}') &&
+    !coloringScreenCode.includes('setShowResumeDialog'),
+    'a retomada voltou a abrir modal, ou passou a aplicar arte guardada sem validar payload/tinta/compatibilidade',
+  );
+  // [P3J · decisão do fundador] A cura APAGAVA a chave da cena. Isso não sobrevive à nova política
+  // de dados: uma leitura ruim não autoriza destruir a pintura da criança. O desfecho seguro passou
+  // a ser abrir o lineart limpo — sem escrever, sem apagar e sem cair na arte de outra atividade.
+  check(
+    'Persistência [P3J]: inválido/incompatível/corrompido abre lineart limpo SEM apagar a arte da criança (nenhuma escrita, nenhuma remoção)',
+    coloringScreenCode.includes('onPaintInvalid={handleC60RestoreInvalid}') &&
+    coloringScreenCode.includes('onLoadCorrupted={handleC60RestoreInvalid}') &&
+    coloringScreenCode.includes('onLoadIncompatible={handleC60RestoreInvalid}') &&
+    /function handleC60RestoreInvalid\(\)[\s\S]{0,300}setC60RevealMode\('lineart'\)/.test(coloringScreenCode) &&
+    !coloringScreenCode.includes('healInvalidSavedDrawing') &&
+    !/function handleC60RestoreInvalid\(\)[\s\S]{0,300}(clear|remove|delete)/i.test(coloringScreenCode),
+    'a retomada voltou a APAGAR a arte guardada num desfecho negativo — proibido pela política de dados do P3J',
   );
   check(
-    'Persistência: estados inválido/incompatível/corrompido se curam (limpam a chave da cena)',
-    cs.includes('function healInvalidSavedDrawing') &&
-    cs.includes('onPaintInvalid={healInvalidSavedDrawing}') &&
-    /onLoadIncompatible=\{\(\)\s*=>\s*\{[\s\S]{0,360}healInvalidSavedDrawing\(\)/.test(cs) &&
-    /onLoadCorrupted=\{\(\)\s*=>\s*\{[\s\S]{0,360}healInvalidSavedDrawing\(\)/.test(cs),
-    'ColoringScreen não cura (clear) estados de colorir inválidos — modal falso persiste',
+    'Persistência [P3J]: a arte validada é REAPLICADA de verdade (as cores voltam) e a capa só sai quando o quadro colorido já foi desenhado',
+    /function handleC60RestoreValid\(\)[\s\S]{0,300}loadPaint\(saved\)/.test(coloringScreenCode) &&
+    coloringScreenCode.includes('onPaintApplied={handleC60PaintApplied}') &&
+    coloringScreenCode.includes("setC60RevealMode('paint')"),
+    'a arte validada não é reaplicada, ou a tela revela o contorno sem a cor que já existia',
   );
   check(
-    'Persistência: "Continuar meu desenho" aplica o paint validado (cores aparecem)',
-    /function handleContinueDrawing[\s\S]{0,200}loadPaint\(savedDrawing\)/.test(cs),
-    'handleContinueDrawing não carrega o desenho validado',
-  );
-  check(
-    'Persistência: "Pronto" é o ÚNICO ponto que persiste (concluído só após salvar) ',
-    /handleProximo[\s\S]{0,700}saveDrawingState\(story\.id, cena\.id, exportData\)/.test(cs) &&
-    (cs.match(/saveDrawingState\(/g) || []).length === 1,
-    'cena pode ser marcada como concluída sem o Pronto (mais de um saveDrawingState)',
+    'Persistência [P3J]: "Pronto!" é o ÚNICO ponto que persiste — e a escrita por CENA (saveDrawingState) não existe mais nesta tela',
+    /function handleC60Pronto\(\)/.test(coloringScreenCode) &&
+    coloringScreenCode.includes('onPress={handleC60Pronto}') &&
+    !coloringScreenCode.includes('saveDrawingState(') &&
+    !coloringScreenCode.includes('markStoryColoringActivityDone('),
+    'surgiu outro ponto de persistência além do "Pronto!", ou a escrita legada por cena voltou à tela',
   );
   check(
     'Persistência: hasSavedDrawing exige tinta real (card "Você já coloriu" = conclusão real)',
@@ -6105,25 +6268,32 @@ check(
   );
 }
 
+// [P3J] Sem modo colorido não há arte da criança a filtrar: o Livrinho deixou de ler
+// `drawingStorage` por completo. O serviço permanece íntegro no projeto (decisão ratificada 4) —
+// perdeu apenas ESTE consumidor. O lacre cobre os dois lados: tela desligada, serviço vivo.
 check(
-  'StoryBookScreen importa hasMeaningfulPaint de drawingStorage',
-  storyBookSrc.includes('hasMeaningfulPaint') &&
-  storyBookSrc.includes("from '../services/drawingStorage'"),
-  'StoryBookScreen não importa hasMeaningfulPaint',
+  'StoryBookScreen [P3J]: NÃO lê mais drawingStorage — e o serviço segue íntegro no projeto (nada foi apagado)',
+  !storyBookCode.includes('hasMeaningfulPaint') &&
+  !storyBookCode.includes("from '../services/drawingStorage'") &&
+  drawingStorageSrcBugFix.includes('export function hasMeaningfulPaint'),
+  'o Livrinho voltou a ler pinturas por cena, ou o serviço drawingStorage foi mutilado (ele permanece por decisão ratificada)',
 );
 
 check(
-  'StoryBookScreen usa hasMeaningfulPaint no modo colorido (não usa childArt sem tinta real)',
-  storyBookSrc.includes('hasMeaningfulPaint(raw)') &&
-  storyBookSrc.includes('resolveStoryBookPageImage'),
-  'resolveStoryBookPageImage deve checar hasMeaningfulPaint antes de usar childArt',
+  'StoryBookScreen [P3J]: a resolução de página não consulta pintura salva (sem hasMeaningfulPaint(raw), sem mapa de desenhos)',
+  !storyBookCode.includes('hasMeaningfulPaint(raw)') &&
+  !storyBookCode.includes('loadDrawingsMap') &&
+  !storyBookCode.includes('drawingsMap') &&
+  storyBookCode.includes('resolveStoryBookPageImage'),
+  'a resolução de página do Livrinho voltou a consultar pinturas salvas',
 );
 
 check(
-  'StoryBookScreen modo colorido filtra artes com tinta significativa',
-  storyBookSrc.includes('hasMeaningfulPaint(raw)') &&
-  storyBookSrc.includes("Você ainda não pintou esta cena."),
-  'StoryBookScreen modo child deve usar hasMeaningfulPaint e ter fallback por cena',
+  'StoryBookScreen [P3J]: copy do modo colorido REMOVIDA — nenhuma página cobra pintura da criança',
+  !storyBookCode.includes('Você ainda não pintou esta cena.') &&
+  !storyBookCode.includes('Pintar próxima cena') &&
+  !storyBookCode.includes('livrinho colorido'),
+  'o Livrinho voltou a cobrar pintura de cena — atividade aposentada, a cobrança seria impossível de cumprir',
 );
 
 check(
@@ -15784,8 +15954,12 @@ console.log('\n── LP2.1 G5: saída durante a publicação ──');
   const VER_G5 = '5.0.0';
   const GLOBAL_G5 = 'https://r2/content-manifest.json';
   const BASE_G5 = `https://r2/${STORY_G5}/${VER_G5}/`;
-  // O hook de produção pede os QUATRO kinds; um manifesto sem algum deles é REPROVADO pelo próprio
-  // fluxo (`missingKind`) e o cenário nem chegaria à publicação.
+  // [P3J] O manifesto do cenário continua sendo um manifesto ANTIGO: declara os quatro kinds,
+  // `coloring` inclusive. Isso é deliberado — a decisão ratificada mandou preservar `KNOWN_KINDS` e
+  // os parsers tolerantes, então um pack publicado antes da aposentadoria PRECISA continuar
+  // instalável. O que mudou é o outro lado: o hook de produção agora pede só três kinds
+  // (`REQUESTED_KINDS = ['cover','scene','audio']`), então a folha de colorir é ACEITA no manifesto
+  // e simplesmente NÃO é baixada — nenhum byte legado desce para o disco da criança.
   const KINDS_G5 = ['cover', 'scene', 'coloring', 'audio'];
   const FILES_G5 = [
     { kind: 'cover', path: 'cover/cover.webp', text: 'G5-CAPA' },
@@ -15793,6 +15967,8 @@ console.log('\n── LP2.1 G5: saída durante a publicação ──');
     { kind: 'coloring', path: 'coloring/01.webp', text: 'G5-COLORIR' },
     { kind: 'audio', path: 'audio/01.mp3', text: 'G5-AUDIO' },
   ];
+  // Quantos arquivos o app REALMENTE baixa desse manifesto legado (o `coloring` fica no papel).
+  const BAIXADOS_G5 = FILES_G5.filter((f) => f.kind !== 'coloring').length;
   const flushG5 = async (n = 8) => { for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0)); };
   const indiceG5 = (e) => (e ? `${e.version}:${e.status}` : 'ausente');
   const manifestoG5 = (h) => {
@@ -16089,9 +16265,9 @@ console.log('\n── LP2.1 G5: saída durante a publicação ──');
       G.progAnoCheckpoint > 0 && G.progBnoCheckpoint > 0 && G.progBnoJoin >= 0
         && G.progA.includes('downloading') && G.progB.includes('downloading'),
       `A=${JSON.stringify(G.progA)} B=${JSON.stringify(G.progB)}`);
-    check('LP2.1 G5/3 (checkpoint logo APÓS o moveAsync e ANTES do índice READY): conteúdo publicado no disco, índice ainda ausente',
+    check('LP2.1 G5/3 [P3J] (checkpoint logo APÓS o moveAsync e ANTES do índice READY): conteúdo publicado no disco (sem a folha de colorir), índice ainda ausente',
       G.desmontouA === true && G.movesNoCheckpoint === 1 && G.indiceNoCheckpoint === 'ausente'
-        && G.arquivosNoCheckpoint >= FILES_G5.length + 2,
+        && G.arquivosNoCheckpoint >= BAIXADOS_G5 + 2,
       `moves=${G.movesNoCheckpoint} indice=${G.indiceNoCheckpoint} arquivos=${G.arquivosNoCheckpoint}`);
 
     // ── 4–8: a saída de A remove SÓ a observação de A ────────────────────────────────────────────
@@ -16100,8 +16276,8 @@ console.log('\n── LP2.1 G5: saída durante a publicação ──');
       `A.aborted=${G.abortadoAnoCheckpoint} B.aborted=${G.abortadoBnoCheckpoint}`);
     check('LP2.1 G5/5 (B permanece inscrito no voo): continua recebendo callbacks depois da saída de A',
       G.progBDepois > 0, `progBDepois=${G.progBDepois} B=${JSON.stringify(G.progB)}`);
-    check('LP2.1 G5/6 (o voo FÍSICO continua): a instalação conclui sem repetir trabalho de disco/rede',
-      G.downloads === FILES_G5.length + 1 && G.moves === 1 && G.arquivosFinais >= FILES_G5.length + 2,
+    check('LP2.1 G5/6 [P3J] (o voo FÍSICO continua): instalação conclui sem repetir trabalho e sem baixar a folha de colorir do manifesto legado',
+      G.downloads === BAIXADOS_G5 + 1 && G.moves === 1 && G.arquivosFinais >= BAIXADOS_G5 + 2,
       `downloads=${G.downloads} moves=${G.moves} arquivos=${G.arquivosFinais}`);
     check('LP2.1 G5/7 (A não recebe nada depois do cleanup): zero callbacks e zero escritas de estado no componente desmontado',
       G.progADepois === 0 && G.escritasPosDesmonteA === 0,
@@ -16142,8 +16318,8 @@ console.log('\n── LP2.1 G5: saída durante a publicação ──');
     check('LP2.1 G5/18 (a saída de A não muda a geração de REVOGAÇÃO): só o Reset avança esse eixo',
       G.revogacaoNoCheckpoint === 0 && G.revogacaoFinal === 0,
       `checkpoint=${G.revogacaoNoCheckpoint} final=${G.revogacaoFinal}`);
-    check('LP2.1 G5/19 (a saída de A não é interpretada como RESET): nada é desfeito, nem no índice nem no disco',
-      G.indice === `${VER_G5}:ready` && G.arquivosFinais >= FILES_G5.length + 2
+    check('LP2.1 G5/19 [P3J] (a saída de A não é interpretada como RESET): nada é desfeito, nem no índice nem no disco',
+      G.indice === `${VER_G5}:ready` && G.arquivosFinais >= BAIXADOS_G5 + 2
         && !(G.rSvc && G.rSvc.resetInvalidated),
       `indice=${G.indice} arquivos=${G.arquivosFinais} reset=${G.rSvc && G.rSvc.resetInvalidated}`);
     check('LP2.1 G5/20 (B recebe o MESMO resultado FÍSICO): o voo compartilhado resolve o mesmo objeto do pack instalado',
@@ -17586,16 +17762,22 @@ check(
   'UnlockCelebration não exibe "Continuar" — botão principal ausente',
 );
 
+// [P3J] O atalho por cena saiu inteiro — prop e botão. Lido do CÓDIGO sem comentários: o cabeçalho
+// do arquivo cita "Colorir esta cena"/onColorir para documentar a aposentadoria.
+const unlockCode20 = codeOf('src/components/UnlockCelebration.js');
 check(
-  'UnlockCelebration aceita prop onColorir (atalho para Colorir cena)',
-  unlockSrc20.includes('onColorir'),
-  'UnlockCelebration sem prop onColorir — colorir não acessível da celebração',
+  'UnlockCelebration [P3J]: prop onColorir REMOVIDA — a assinatura do modal não conhece mais colorir por cena',
+  !unlockCode20.includes('onColorir') &&
+  /export default function UnlockCelebration\(\{\s*visible,\s*onContinue,\s*sceneNumber,\s*totalCenas,\s*\}\)/.test(unlockCode20),
+  'a prop onColorir voltou ao UnlockCelebration — o Colorir por cena não existe mais para ser acionado',
 );
 
 check(
-  'UnlockCelebration (B4): botão secundário "Colorir esta cena"',
-  unlockSrc20.includes('Colorir esta cena'),
-  'UnlockCelebration sem o botão secundário "Colorir esta cena"',
+  'UnlockCelebration [P3J]: botão "Colorir esta cena" REMOVIDO — resta UMA ação (Continuar), sem espaço vazio',
+  !unlockCode20.includes('Colorir esta cena') &&
+  unlockCode20.includes('Continuar') &&
+  !unlockCode20.includes('secondaryBtn'),
+  'o botão secundário de colorir voltou à celebração, ou sobrou estilo/espaço órfão no lugar dele',
 );
 
 check(
@@ -17619,10 +17801,18 @@ check(
   'UnlockCelebration sem sceneNumber/totalCenas — contexto de progresso ausente',
 );
 
+// [P3J] O convite por CENA saiu de todas as histórias — não é mais "oculto no piloto", é
+// inexistente. O único colorir que a narração ainda pode oferecer é o do Colorir com o Beni, por
+// MARCO narrativo e sob o gate de "A Criação".
+const narrationCode20 = codeOf('src/screens/NarrationScreen.js');
 check(
-  'NarrationScreen passa onColorir para UnlockCelebration (oculto só no piloto Colorir 60 de "A Criação")',
-  narrationSrc20.includes('onColorir={creationColoringHidden ? null : handleColorirFromCelebration}'),
-  'NarrationScreen não passa onColorir — colorir não acessível da celebração (fora do piloto Colorir 60)',
+  'NarrationScreen [P3J]: nenhuma prop de colorir por cena na celebração — o colorir vivo é o do marco narrativo, sob o gate de "A Criação"',
+  !narrationCode20.includes('onColorir') &&
+  !narrationCode20.includes('handleColorirFromCelebration') &&
+  !narrationCode20.includes('creationColoringHidden') &&
+  narrationCode20.includes('const coloring60JourneyActive = isCreationColoringPilotActive(story?.id)') &&
+  /const sceneMilestone = coloring60JourneyActive/.test(narrationCode20),
+  'a narração voltou a oferecer o Colorir por cena, ou o convite do marco deixou de depender do gate de "A Criação"',
 );
 
 check(
@@ -17642,13 +17832,17 @@ check(
   'celebrationHandledRef.current = true deve aparecer SOMENTE em handleContinue — handlers secundários não devem encerrar a celebração',
 );
 
+// [P3J] O bug que este teste guardava — modal reabrindo ao voltar do Colorir — nasceu de uma ação
+// secundária que navegava sem fechar a celebração. A ação por cena não existe mais; quem navega
+// para o editor hoje é o convite do MARCO, e o mesmo cuidado continua exigido dele: fecha o modal
+// ANTES de navegar e não avança a cena por conta própria.
 check(
-  'NarrationScreen (B4): "Colorir esta cena" LIMPA o pending e esconde o modal antes de navegar (não reabre ao voltar)',
-  narrationSrc20.includes('handleColorirFromCelebration') &&
-  /handleColorirFromCelebration[\s\S]{0,240}celebrationPendingRef\.current\s*=\s*false[\s\S]{0,120}setShowCelebration\(false\)[\s\S]{0,160}navigate/.test(narrationSrc20) &&
-  // não avança a cena automaticamente ao escolher Colorir
-  !/handleColorirFromCelebration[\s\S]{0,240}goToNext\(\)/.test(narrationSrc20),
-  'handleColorirFromCelebration deve limpar celebrationPendingRef + setShowCelebration(false) antes de navegar (e não chamar goToNext) — senão o modal reabre ao voltar do Colorir',
+  'NarrationScreen [P3J]: quem leva ao editor é o convite do marco — fecha o modal ANTES de navegar e não avança a cena sozinho (sem reabertura ao voltar)',
+  !narrationCode20.includes('handleColorirFromCelebration') &&
+  /function handleMilestoneAccept\(\)[\s\S]{0,240}setShowMilestoneInvite\(false\);[\s\S]{0,120}c60OpenEditorFromMilestone\(/.test(narrationCode20) &&
+  !/function handleMilestoneAccept\(\)[\s\S]{0,120}goToNext\(\);\s*\}\s*$/m.test(narrationCode20) &&
+  !/navigation\.navigate\(\s*'Coloring'/.test(narrationCode20),
+  'a ação por cena voltou, ou o convite do marco passou a navegar com o modal aberto / a avançar a cena sozinho',
 );
 
 check(
@@ -17756,10 +17950,17 @@ check(
   'CongratsScreen sem ação para Estrelinhas',
 );
 
+// [P3J] A recompensa "🎨 Colorir" abria o Colorir legado por cena e foi aposentada em TODAS as
+// histórias. O que resta é a PONTE pós-história do Colorir com o Beni, exclusiva de "A Criação" e
+// sob o gate do piloto — nunca um tile genérico que qualquer história possa oferecer.
+const congratsCode20 = codeOf('src/screens/CongratsScreen.js');
 check(
-  'CongratsScreen: ação para Colorir',
-  congratsSrc20.includes("navigate('Coloring'"),
-  'CongratsScreen sem ação para Colorir cenas',
+  'CongratsScreen [P3J]: sem recompensa "Colorir" por cena — só a ponte do Colorir com o Beni, gateada em "A Criação"',
+  !/navigate\(\s*'Coloring'/.test(congratsCode20) &&
+  !congratsCode20.includes('🎨 Colorir') &&
+  congratsCode20.includes('const creationColoringPilot = isCreationColoringPilotActive(story?.id)') &&
+  /\{creationColoringPilot && \(\s*<CreationColoringBridge/.test(congratsCode20),
+  'a recompensa de colorir por cena voltou ao final da história, ou a ponte do Colorir com o Beni perdeu o gate',
 );
 
 check(
@@ -17811,11 +18012,18 @@ check(
   'StoryBookScreen sem makeFallbackVisual — pode ter tela preta em cenas sem imagem',
 );
 
+// [P3J] O "modo colorido" do Livrinho saiu junto com o Colorir legado: não existe mais arte da
+// criança por cena para montar. A verificação vira trava invertida de mesmo peso — nem
+// makeChildArtVisual nem a leitura de hasMeaningfulPaint podem voltar à tela, e a página passa a
+// ser resolvida SÓ pelo caminho oficial + fallback.
 check(
-  'StoryBookScreen: modo colorido usa arte da criança via hasMeaningfulPaint → makeChildArtVisual',
-  storyBookSrc20.includes('hasMeaningfulPaint') &&
-  /hasMeaningfulPaint[\s\S]{0,600}makeChildArtVisual/.test(storyBookSrc20),
-  'StoryBookScreen não usa arte da criança no modo colorido do Livrinho',
+  'StoryBookScreen [P3J]: sem modo colorido — nenhuma arte da criança por página (makeChildArtVisual/hasMeaningfulPaint); só oficial + fallback',
+  !storyBookCode.includes('makeChildArtVisual') &&
+  !storyBookCode.includes('hasMeaningfulPaint') &&
+  storyBookCode.includes('function makeOfficialVisual(cena, story, official)') &&
+  storyBookCode.includes('function makeFallbackVisual(cena, story, note)') &&
+  /if \(official\) return makeOfficialVisual\(cena, story, official\);\s*return makeFallbackVisual\(cena, story\);/.test(storyBookCode),
+  'o Livrinho voltou a montar arte da criança por página (modo colorido aposentado) ou perdeu o par oficial/fallback',
 );
 
 // TrophiesScreen: fromStoryCompletion suportado
@@ -17899,13 +18107,13 @@ check(
 );
 
 check(
-  'UnlockCelebration (B4): pós-cena simples — onContinue + onColorir, sem isLast/hub por cena',
+  'UnlockCelebration (B4→P3J): pós-cena simples — SÓ onContinue, sem onColorir, sem isLast/hub por cena',
   (() => {
-    const src = readSrc('src/components/UnlockCelebration.js');
-    return src.includes('onContinue') && src.includes('onColorir') &&
-      !src.includes('isLast') && !src.includes('fromStoryCompletion');
+    const code = codeOf('src/components/UnlockCelebration.js');
+    return code.includes('onContinue') && !code.includes('onColorir') &&
+      !code.includes('isLast') && !code.includes('fromStoryCompletion');
   })(),
-  'UnlockCelebration não está no estado B4 (esperado: onContinue + onColorir, sem isLast)',
+  'UnlockCelebration saiu do estado pós-P3J (esperado: onContinue apenas — o colorir por cena foi aposentado)',
 );
 
 check(
@@ -18051,14 +18259,20 @@ check(
   'AudioPlayer não foi recolorido para azul fé',
 );
 
-const narrationVisualSrc = readSrc('src/screens/NarrationScreen.js');
+// [P3J] O convite por CENA ("Hora de colorir" / "Colorir cena" / "Você já coloriu esta cena")
+// foi APOSENTADO em todas as histórias. A verificação original vira uma TRAVA INVERTIDA de mesmo
+// peso: nada disso pode voltar, e o convite VIVO — o modal do Beni por marco narrativo — continua
+// montado e gateado. Lê a fonte SEM comentários (codeOf) porque o comentário do P3J na própria
+// tela cita, de propósito, os textos aposentados.
 check(
-  'Narração: convite forte para colorir ("Hora de colorir") + estado "já coloriu"',
-  narrationVisualSrc.includes('Hora de colorir') &&
-  narrationVisualSrc.includes('Colorir cena') &&
-  narrationVisualSrc.includes('Você já coloriu esta cena') &&
-  narrationVisualSrc.includes('sceneHasDrawing'),
-  'NarrationScreen não tem convite forte para colorir nem estado de cena já colorida',
+  'Narração [P3J]: sem convite de colorir por cena ("Hora de colorir"/"Colorir cena"/"já coloriu") — o convite vivo é o modal do Beni por marco',
+  !narrationCode20.includes('Hora de colorir') &&
+  !narrationCode20.includes('Colorir cena') &&
+  !narrationCode20.includes('Você já coloriu esta cena') &&
+  !narrationCode20.includes('sceneHasDrawing') &&
+  narrationCode20.includes('<Coloring60MilestoneInvite') &&
+  /activityId=\{sceneMilestone\?\.activityId \?\? null\}/.test(narrationCode20),
+  'o convite de colorir por cena voltou à narração, ou o convite do marco (Coloring60MilestoneInvite) sumiu',
 );
 
 const bookHeroVisualSrc = readSrc('src/components/story/StoryBookHero.js');
@@ -18583,7 +18797,11 @@ check(
     const code = raw
       .replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]+['"];?/g, '') // remove imports ESM
       .replace(/export\s+const\s+/g, 'const ')
-      + '\nreturn { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES };';
+      // [P3J] achievements.js passou a exportar também uma FUNÇÃO (isAchievementVisible, que
+      // aposenta artist_ark para novos usuários sem revogá-la de quem já conquistou). Sem esta
+      // linha o `export function` sobrevive ao strip e o sandbox nem carrega.
+      .replace(/export\s+function\s+/g, 'function ')
+      + '\nreturn { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, isAchievementVisible };';
     const colorsStub = new Proxy({}, { get: () => '#000000' });
     // eslint-disable-next-line no-new-func
     const factory = new Function('colors', code);
@@ -18746,11 +18964,17 @@ check(
   coloringCanvasB1.includes('onReadyChange') && coloringCanvasB1.includes('Carregando desenho'),
   'ColoringCanvas sem sinal de prontidão / texto de carregamento',
 );
+// [P3J] A guarda "não salva sem lineart" NÃO foi perdida na aposentadoria: ela migrou do estado
+// legado `canvasReady` para o sinal D1 do Colorir com o Beni (`c60Ready`), consumido pelo núcleo
+// `beginC60Attempt`. A verificação passa a exigir a guarda VIVA e a ausência da legada.
 check(
-  'ColoringScreen bloqueia salvar sem lineart carregado (canvasReady)',
-  coloringScreenB1.includes('canvasReady') && coloringScreenB1.includes('onReadyChange={setCanvasReady}') &&
-  /if \(!canvasReady\)/.test(coloringScreenB1),
-  'ColoringScreen não bloqueia salvar sem lineart',
+  'ColoringScreen [P3J]: guarda "salvar só com lineart carregado" preservada no C60 (D1 c60Ready → beginC60Attempt), sem o canvasReady legado',
+  !coloringScreenB1.includes('canvasReady') &&
+  !coloringScreenB1.includes('setCanvasReady') &&
+  coloringScreenB1.includes('onReadyChange={setC60Ready}') &&
+  /const \[c60Ready, setC60Ready\] = useState\(false\)/.test(coloringScreenB1) &&
+  /beginC60Attempt\(\{[\s\S]{0,400}ready: c60Ready,/.test(coloringScreenB1),
+  'ColoringScreen perdeu a guarda de prontidão do lineart (D1/c60Ready) ou trouxe de volta o canvasReady legado',
 );
 
 // Tarefa 4 — planConfig + acesso (consolidado em src/data/planConfig.js)
@@ -18896,19 +19120,28 @@ check(
   'CongratsScreen não propaga origem ou ordem incorreta',
 );
 
+// [P3J] O back por ORIGEM existia porque a tela de Colorir era alcançável de várias abas. Com o
+// legado aposentado, a rota Coloring serve só ao Colorir com o Beni e sai por DESTINO SEMÂNTICO
+// (volta à história), não por rótulo de origem. A trava mantém o contrato onde ele continua vivo
+// e proíbe o retorno do rótulo de origem na tela do C60.
 check(
-  'Bloco 2: telas reusadas mostram back contextual por origem (Colorir/Baú/Estrelinhas)',
-  ux2Coloring.includes('backLabelFor') &&
+  'Bloco 2 [P3J]: back contextual por origem preservado nas telas realmente reusadas (Baú/Estrelinhas/Ateliê/Brincar) — Colorir com o Beni sai por destino semântico',
   ux2Beni.includes('backLabelFor') &&
-  ux2Trophies.includes('backLabelFor'),
-  'Alguma tela reusada não importou backLabelFor',
+  ux2Trophies.includes('backLabelFor') &&
+  readSrc('src/screens/AtelierScreen.js').includes('backLabelFor') &&
+  readSrc('src/screens/BrincarScreen.js').includes('backLabelFor') &&
+  !ux2Coloring.includes('backLabelFor') &&
+  !ux2Coloring.includes("from '../utils/originBack'"),
+  'alguma tela reusada perdeu backLabelFor, ou o Colorir com o Beni voltou a depender do rótulo de origem',
 );
 
 // ── Sprint Reestruturação UX 1.0 — Bloco 3: Livrinho 2 modos + Ateliê simples ─
 console.log('\n── Sprint UX 1.0 — Bloco 3 ──');
 
 const ux3Flags = readSrc('src/config/featureFlags.js');
-const ux3Livro = readSrc('src/screens/StoryBookScreen.js');
+// [P3J] O Livrinho deste bloco passou a ser verificado por `storyBookCode` (fonte SEM comentários),
+// porque as travas viraram asserções de AUSÊNCIA e os comentários do P3J citam os símbolos
+// aposentados — ler o texto cru daria falso verde.
 const ux3Canvas = readSrc('src/screens/AtelierCanvasScreen.js');
 
 check(
@@ -18917,49 +19150,61 @@ check(
   'src/config/featureFlags.js ausente ou STAMPS_ENABLED não é false',
 );
 
+// [P3J] O Livrinho tinha DOIS modos porque existia lineart por cena. Aposentado o Colorir legado,
+// sobra o MODO ÚNICO ilustrado — não há "default" a escolher nem estado de modo a manter. As cinco
+// verificações do Bloco 3 abaixo viram travas invertidas de mesmo peso, todas lidas SEM comentários
+// (storyBookCode): os comentários do P3J citam os símbolos aposentados de propósito, e ler o texto
+// cru daria falso verde.
 check(
-  'Bloco 3: Livrinho default = História ilustrada (official), nunca inicia em mixed',
-  ux3Livro.includes("useState('official')") &&
-  !ux3Livro.includes("useState('mixed')"),
-  'StoryBookScreen deve iniciar no modo official (História ilustrada)',
+  'Bloco 3 [P3J]: Livrinho é MODO ÚNICO ilustrado — sem estado de modo (viewMode/official/mixed), sem seletor',
+  !storyBookCode.includes('viewMode') &&
+  !storyBookCode.includes("useState('official')") &&
+  !storyBookCode.includes("useState('mixed')") &&
+  storyBookCode.includes('function resolveStoryBookPageImage(cena, story, scenePackEntry)') &&
+  storyBookCode.includes('function buildStoryBookTimeline(story, scenePackEntry)'),
+  'o Livrinho voltou a ter modo de visualização — o modo único ilustrado é o contrato pós-P3J',
 );
 
 check(
-  'Bloco 3: Livrinho preserva contorno por cima da arte (Bloco 1 intacto, sem paintOnly)',
-  ux3Livro.includes('paintWithLineart') &&
-  ux3Livro.includes('paintWithLineartFull') &&
-  ux3Livro.includes('lineartMultiply') &&
-  !ux3Livro.includes('paintOnly'),
-  'StoryBookScreen enfraqueceu a regra de lineart por cima da arte (Bloco 1)',
+  'Bloco 3 [P3J]: a composição cor+contorno saiu inteira (paintWithLineart/Full, lineartMultiply, paintOnly) — sem caminho morto',
+  !storyBookCode.includes('paintWithLineart') &&
+  !storyBookCode.includes('paintWithLineartFull') &&
+  !storyBookCode.includes('lineartMultiply') &&
+  !storyBookCode.includes('paintOnly') &&
+  !storyBookCode.includes('computeLineartStyle') &&
+  !storyBookCode.includes('computePaintStyle'),
+  'sobrou composição de tinta+contorno no Livrinho — sem lineart por cena ela nunca resolveria',
 );
 
-// HOTFIX Bloco 3 — readiness: cor + contorno juntos, nunca cor sozinha por 1 frame
+// [P3J] O readiness "cor E contorno juntos" existia para nunca piscar mancha de cor sem contorno.
+// Sem arte da criança na página, o compositor inteiro sai; o que precisa continuar garantido é que
+// a página oficial tenha key estável por cena (remount limpo ao virar).
 check(
-  'HOTFIX: ChildArtWithLineart só revela quando cor E contorno carregaram (sem frame sem lineart)',
-  ux3Livro.includes('function ChildArtWithLineart') &&
-  ux3Livro.includes('paintLoaded') && ux3Livro.includes('lineartLoaded') &&
-  /const ready = paintLoaded && lineartLoaded/.test(ux3Livro) &&
-  /opacity: ready \? 1 : 0/.test(ux3Livro) &&
-  ux3Livro.includes('Carregando desenho'),
-  'StoryBookScreen não garante readiness de cor+contorno (pode piscar cor sem lineart)',
-);
-
-check(
-  'HOTFIX: arte da criança renderiza via ChildArtWithLineart com key estável (remount por página)',
-  /<ChildArtWithLineart/.test(ux3Livro) &&
-  /key=\{`art-\$\{story\.id\}-\$\{cena\.id\}-\$\{viewMode\}/.test(ux3Livro) &&
-  ux3Livro.includes('onLoad={() => setPaintLoaded(true)}') &&
-  ux3Livro.includes('onLoad={() => setLineartLoaded(true)}'),
-  'StoryBookScreen não usa ChildArtWithLineart com key estável + onLoad das duas camadas',
+  'HOTFIX [P3J]: o compositor ChildArtWithLineart saiu inteiro (paintLoaded/lineartLoaded) — não há mais camada de tinta para sincronizar',
+  !storyBookCode.includes('ChildArtWithLineart') &&
+  !storyBookCode.includes('paintLoaded') &&
+  !storyBookCode.includes('lineartLoaded') &&
+  !storyBookCode.includes('setPaintLoaded') &&
+  !storyBookCode.includes('setLineartLoaded'),
+  'o compositor cor+contorno voltou ao Livrinho — sem lineart por cena ele revelaria mancha de cor',
 );
 
 check(
-  'Bloco 3: cards de modo têm título, descrição e prévia visual distinta',
-  ux3Livro.includes('Reveja a aventura com as imagens da história.') &&
-  ux3Livro.includes('Veja as cenas que você pintou.') &&
-  ux3Livro.includes('modePreview') &&
-  ux3Livro.includes('officialPreview'),
-  'StoryBookScreen: cards de modo sem descrição/prévia visual distinta',
+  'HOTFIX [P3J]: a página do Livrinho tem key estável por cena (slide keyed por visualType+cenaId), sem key de arte da criança',
+  !/<ChildArtWithLineart/.test(storyBookCode) &&
+  !/key=\{`art-/.test(storyBookCode) &&
+  /key: `\$\{visual\.visualType\}-\$\{cena\.id\}`/.test(storyBookCode),
+  'o Livrinho perdeu a key estável por cena, ou voltou a montar arte da criança por página',
+);
+
+check(
+  'Bloco 3 [P3J]: sem cards de modo (prévia/descrição do modo colorido) — a entrada é direta na história ilustrada',
+  !storyBookCode.includes('Veja as cenas que você pintou.') &&
+  !storyBookCode.includes('modePreview') &&
+  !storyBookCode.includes('officialPreview') &&
+  !storyBookCode.includes('Como você quer ver?') &&
+  storyBookCode.includes('Abrir história ilustrada'),
+  'os cards de escolha de modo voltaram ao Livrinho, ou a entrada direta da história ilustrada sumiu',
 );
 
 // C1 — a UI de carimbos saiu do Criar livre por completo (sem STAMPS_ENABLED, sem CORE_STAMPS).
@@ -20119,7 +20364,7 @@ function a1MockAsyncStorage() {
 
 // ── A1.1 Integridade de mídia: todo require de manifest existe no disco ───────
 const a1SceneSrc   = readSrc('src/data/storySceneIllustrations.js');
-const a1ColorSrc   = readSrc('src/assets/coloringImages.js');
+const a1ColorSrc   = readSrc('src/assets/coloring60LocalAssets.js'); // [P3J] mapa legado aposentado
 const a1AudioSrc   = readSrc('src/data/audioManifest.js');
 const a1CoversSrc  = readSrc('src/assets/storyCovers.js');
 
@@ -20131,7 +20376,7 @@ function a1CheckRequiresExist(label, src, fileRelDir) {
                    : 'nenhum require de mídia encontrado');
 }
 a1CheckRequiresExist('A1 mídia: cenas ilustrativas — todo require aponta para arquivo existente', a1SceneSrc, 'src/data');
-a1CheckRequiresExist('A1 mídia: imagens de colorir — todo require aponta para arquivo existente', a1ColorSrc, 'src/assets');
+a1CheckRequiresExist('A1 mídia: Colorir com o Beni — todo require aponta para arquivo existente', a1ColorSrc, 'src/assets');
 a1CheckRequiresExist('A1 mídia: áudios manifestados — todo require aponta para arquivo existente', a1AudioSrc, 'src/data');
 a1CheckRequiresExist('A1 mídia: capas — todo require aponta para arquivo existente', a1CoversSrc, 'src/assets');
 
@@ -20147,23 +20392,36 @@ a1CheckRequiresExist('A1 mídia: capas — todo require aponta para arquivo exis
   }
   check('A1 paridade: cenas ilustrativas — numeração contígua 1..N por história', ok, detail);
 }
-// Colorir: contagem do manifest === .png na pasta /colorir referenciada.
+// [P3J] Colorir: paridade manifest × disco invertida — antes contava lineart por cena de 9
+// histórias; agora prova que o disco NÃO guarda nenhum lineart além dos 3 do Colorir com o Beni.
+// A paridade continua sendo "manifest === disco", só que os dois lados valem exatamente 3.
 {
-  const col = a1ParseStoryMap(a1ColorSrc, 'const coloringImages = {');
-  let ok = true, detail = '';
-  for (const id of Object.keys(col)) {
-    const reqs = col[id];
-    // Aceita a pasta legada 'colorir' e a nova 'coloring' (creation, teste 16:9).
-    const fm = reqs[0].p.match(/assets\/stories\/([^/]+)\/(colorir|coloring)\//);
-    const folder = fm ? fm[1] : id;
-    const subdir = fm ? fm[2] : 'colorir';
-    const dir = path.join(root, 'assets/stories', folder, subdir);
-    // F1.1a: aceita .png OU .webp (piloto WebP) — paridade manifest↔disco preservada
-    // (conta as imagens de colorir reais no disco, independente da extensão).
-    const disk = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.png') || f.endsWith('.webp')).length : 0;
-    if (reqs.length !== disk) { ok = false; detail += `${id}: manifest ${reqs.length} ≠ disco ${disk}; `; }
-  }
-  check('A1 paridade: colorir — contagem do manifest === arquivos .png no disco', ok, detail);
+  const colDirs = [];
+  const storiesRoot = path.join(root, 'assets', 'stories');
+  const scanC = (dir) => {
+    if (!fs.existsSync(dir)) return;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!e.isDirectory()) continue;
+      const full = path.join(dir, e.name);
+      if (e.name === 'coloring' || e.name === 'colorir') colDirs.push(full);
+      scanC(full);
+    }
+  };
+  scanC(storiesRoot);
+  const onDisk = [];
+  const collect = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) collect(full);
+    else if (/\.(png|webp|jpg|jpeg)$/i.test(e.name)) onDisk.push(path.relative(root, full).replace(/\\/g, '/'));
+  });
+  colDirs.forEach(collect);
+  const manifestReqs = a1ExtractRequires(a1StripComments(a1ColorSrc))
+    .map(r => path.relative(root, path.resolve(path.join(root, 'src/assets'), r)).replace(/\\/g, '/'));
+  const same = onDisk.length === manifestReqs.length
+    && onDisk.slice().sort().join('|') === manifestReqs.slice().sort().join('|');
+  check('A1 paridade: colorir — disco tem SÓ os 3 assets do Colorir com o Beni (P3J)',
+    onDisk.length === 3 && same,
+    `disco (${onDisk.length}): ${onDisk.join(', ') || '(vazio)'} | manifest (${manifestReqs.length}): ${manifestReqs.join(', ')}`);
 }
 // Áudio: contagem de entradas ready por história === .mp3 no disco.
 {
@@ -20735,9 +20993,13 @@ check(
 );
 
 // ── Estado oficial (pós-B2): cobertura visual completa das 20 histórias ──
-// Substitui as asserções transitórias "Em breve": agora as 20 histórias têm
-// cenas E colorir registrados (20/200 cada), todos resolvendo para arquivo no
-// disco (0 paths quebrados). Fonte: storySceneIllustrations.js + coloringImages.js.
+// Substitui as asserções transitórias "Em breve": as 20 histórias têm cenas
+// registradas (20/200), todas resolvendo para arquivo no disco (0 paths quebrados).
+// Fonte: storySceneIllustrations.js.
+// [P3J] A segunda asserção era o par "20/20 histórias com 10 colorir (200/200)". O Colorir legado
+// foi aposentado, então ela virou o LACRE inverso: nenhum lineart por cena volta ao disco. O único
+// `coloring/scene_NN.png` que sobrevive é `creation/scene_02.png`, hoje asset do Colorir com o Beni
+// (luz) — e ele é verificado como PRESENTE, para que a remoção do legado não possa levá-lo junto.
 {
   const OFFICIAL_20 = [
     'creation', 'noah', 'david_goliath', 'jesus_children', 'daniel_lions', 'lost_sheep',
@@ -20746,12 +21008,12 @@ check(
     'solomon_wisdom', 'mary_says_yes', 'timothy_faith', 'jesus_temple',
   ];
   const officialSceneSrc = readSrc('src/data/storySceneIllustrations.js');
-  const officialColorSrc = readSrc('src/assets/coloringImages.js');
+  const C60_LIGHT_REL = 'assets/stories/creation/coloring/scene_02.png';
 
   let sceneStories = 0; let sceneEntries = 0; let sceneBroken = 0;
-  let colorStories = 0; let colorEntries = 0; let colorBroken = 0;
+  const legacyLineartsOnDisk = [];
   for (const sid of OFFICIAL_20) {
-    let sc = 0; let cc = 0;
+    let sc = 0;
     for (let n = 1; n <= 10; n += 1) {
       const nn = String(n).padStart(2, '0');
       // F1.1a: extensão-agnóstico (piloto WebP). Protege igual: exige o require no
@@ -20764,17 +21026,14 @@ check(
         sceneEntries += 1; sc += 1;
         if (!fs.existsSync(path.join(root, sRel))) sceneBroken += 1;
       }
-      const cPng = `assets/stories/${sid}/coloring/scene_${nn}.png`;
-      const cWebp = `assets/stories/${sid}/coloring/scene_${nn}.webp`;
-      const cRel = officialColorSrc.includes(`'../../${cWebp}'`) ? cWebp
-        : officialColorSrc.includes(`'../../${cPng}'`) ? cPng : null;
-      if (cRel) {
-        colorEntries += 1; cc += 1;
-        if (!fs.existsSync(path.join(root, cRel))) colorBroken += 1;
-      }
+      // [P3J] lacre: qualquer lineart legado de volta ao disco derruba a asserção abaixo.
+      [`assets/stories/${sid}/coloring/scene_${nn}.png`,
+        `assets/stories/${sid}/coloring/scene_${nn}.webp`,
+        `assets/stories/${sid}/colorir/scene_${nn}.png`].forEach((rel) => {
+        if (rel !== C60_LIGHT_REL && fs.existsSync(path.join(root, rel))) legacyLineartsOnDisk.push(rel);
+      });
     }
     if (sc === 10) sceneStories += 1;
-    if (cc === 10) colorStories += 1;
   }
 
   check(
@@ -20783,9 +21042,9 @@ check(
     `stories=${sceneStories}/20 entries=${sceneEntries}/200 broken=${sceneBroken}`,
   );
   check(
-    'Estado oficial: 20/20 histórias com 10 colorir (200/200) e 0 paths quebrados',
-    colorStories === 20 && colorEntries === 200 && colorBroken === 0,
-    `stories=${colorStories}/20 entries=${colorEntries}/200 broken=${colorBroken}`,
+    'Estado oficial [P3J]: 0/200 linearts legados no disco; scene_02 do Colorir com o Beni preservado',
+    legacyLineartsOnDisk.length === 0 && fs.existsSync(path.join(root, C60_LIGHT_REL)),
+    `linearts legados de volta (${legacyLineartsOnDisk.length}): ${legacyLineartsOnDisk.slice(0, 5).join(', ')} | scene_02 C60 presente: ${fs.existsSync(path.join(root, C60_LIGHT_REL))}`,
   );
 }
 
@@ -22975,7 +23234,8 @@ try {
     const sd = readSrc('src/screens/StoryDetailScreen.js');
     const stories2 = readSrc('src/screens/StoriesScreen.js');
     const parent = readSrc('src/screens/ParentAreaScreen.js');
-    const coloring = readSrc('src/screens/ColoringScreen.js');
+    // [P3J] A tela de Colorir deste bloco é lida por `coloringScreenCode` (fonte SEM comentários):
+    // a asserção virou de AUSÊNCIA e o comentário da tela cita o símbolo aposentado de propósito.
     const hero = readSrc('src/components/story/StoryBookHero.js');
     const tokens = readSrc('src/theme/tokens.js');
     const keys = readSrc('src/services/storageKeys.js');
@@ -22990,6 +23250,9 @@ try {
       const run = new Function(`${sandbox}; return getStoryJourneyStatus;`)();
       R.full = run({ totalScenes: 10, sceneDoneCount: 10, postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true }, coloringComplete: true, accessType: 'free', isFirstStory: true });
       R.scenesOnly = run({ totalScenes: 10, sceneDoneCount: 10, postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true }, coloringComplete: false, accessType: 'free', isFirstStory: true });
+      // [P3J] Mesmo cenário, mas com colorir REALMENTE disponível na história (contrato explícito):
+      // é o único caso em que a ausência de colorir ainda segura a conclusão.
+      R.scenesOnlyC60 = run({ totalScenes: 10, sceneDoneCount: 10, postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true }, coloringComplete: false, coloringAvailable: true, accessType: 'free', isFirstStory: true });
       R.noeLocked = run({ totalScenes: 10, sceneDoneCount: 0, accessType: 'free', isFirstStory: false, previousJourneyComplete: false });
       R.noeNext = run({ totalScenes: 10, sceneDoneCount: 0, accessType: 'free', isFirstStory: false, previousJourneyComplete: true });
       R.daviEarly = run({ totalScenes: 10, sceneDoneCount: 0, accessStatus: 'preview', accessType: 'premium', isFirstStory: false, previousJourneyComplete: false });
@@ -22999,12 +23262,15 @@ try {
     check('A0.10 (1 fonte única): storyJourneyService exporta getStoryJourneyStatus + JOURNEY_STATUS + COMMERCIAL_ACCESS',
       /export function getStoryJourneyStatus/.test(svc) && /export const JOURNEY_STATUS/.test(svc) && /export const COMMERCIAL_ACCESS/.test(svc),
       'storyJourneyService não é a fonte única do contrato');
-    check('A0.10 (2 scenes≠journey): 10/10 sem colorir NÃO é journeyComplete (fica scenesComplete, progress 100%)',
-      !!R.scenesOnly && R.scenesOnly.journeyComplete === false && R.scenesOnly.status === 'scenesComplete' && R.scenesOnly.progress.percent === 100,
-      'cenas completas estão virando conclusão');
-    check('A0.10 (3 regra): journeyComplete = cenas + Livrinho + quiz + reflexão + colorir',
-      /journeyComplete\s*=\s*scenesComplete && bookOpened && quizDone && reflectionDone && coloringComplete/.test(svc) && !!R.full && R.full.journeyComplete === true,
-      'journeyComplete não exige os 5 requisitos');
+    check('A0.10 (2 scenes≠journey) [P3J]: com colorir DISPONÍVEL e não feito, 10/10 NÃO é journeyComplete (scenesComplete, 100%); sem colorir disponível, a história conclui',
+      !!R.scenesOnlyC60 && R.scenesOnlyC60.journeyComplete === false && R.scenesOnlyC60.status === 'scenesComplete' && R.scenesOnlyC60.progress.percent === 100
+      && !!R.scenesOnly && R.scenesOnly.journeyComplete === true,
+      'o colorir deixou de segurar a conclusão onde existe, ou voltou a segurar onde não existe (as 19 histórias sem C60 travariam)');
+    check('A0.10 (3 regra) [P3J]: journeyComplete = cenas + Livrinho + quiz + reflexão + (colorir SÓ quando disponível)',
+      /journeyComplete\s*=\s*scenesComplete && bookOpened && quizDone && reflectionDone\s*&& \(!coloringRequired \|\| coloringComplete\)/.test(svc)
+      && /const coloringRequired = p\.coloringAvailable === true;/.test(svc)
+      && !!R.full && R.full.journeyComplete === true,
+      'a fórmula da jornada não condiciona o colorir à disponibilidade real da atividade');
     check('A0.10 (4 mapa não usa cenas): reveal/pulso/câmera/região/nextJourney NÃO usam isStoryCompleted',
       !/isStoryCompleted/.test(nav),
       'o mapa ainda referencia isStoryCompleted (cenas)');
@@ -23050,10 +23316,16 @@ try {
     check('A0.10 (16): "10/10 cenas" continua como progresso narrativo',
       /\{progressCount\}\/\{totalScenes\} cenas/.test(hero) && /const progress = \{ done, total, percent \}/.test(svc),
       'o progresso narrativo de cenas foi removido');
-    check('A0.10 (17 colorir por storyId): chave @ptf_coloring_done_{storyId}_{sceneId} + marca no "Pronto"',
-      /@ptf_coloring_done_/.test(colorSvc) && /export async function markStoryColoringActivityDone/.test(colorSvc) &&
-      /markStoryColoringActivityDone\(story\.id, cena\.id\)/.test(coloring),
-      'colorir concluído não é derivado/registrado por storyId');
+    // [P3J] A chave @ptf_coloring_done_{storyId}_{sceneId} e seus LEITORES permanecem: são o que
+    // impede o progresso já conquistado de regredir. O que sai é a ESCRITA pela tela aposentada —
+    // nenhuma superfície viva volta a gravar a marca legada.
+    check('A0.10 (17 colorir por storyId) [P3J]: chave @ptf_coloring_done_ + leitores preservados (compatibilidade); nenhuma tela volta a ESCREVER a marca legada',
+      /@ptf_coloring_done_/.test(colorSvc) &&
+      /export async function loadStoriesWithColoringDone/.test(colorSvc) &&
+      /export async function hasStoryColoringActivityDone/.test(colorSvc) &&
+      !/markStoryColoringActivityDone\s*\(/.test(coloringScreenCode) &&
+      !/markStoryColoringActivityDone\s*\(/.test(storyBookCode),
+      'os leitores de compatibilidade da marca legada sumiram, ou uma tela voltou a escrevê-la');
     check('A0.10 (18 sem renome): chaves antigas preservadas; colorir é chave NOVA aditiva',
       /@ptf_progress_/.test(keys) && /@ptf_quiz_done_/.test(keys) && /@ptf_reflection_/.test(keys) &&
       /@ptf_storybook_opened_/.test(keys) && /@ptf_drawing_s/.test(keys) && /@ptf_bonus_stars/.test(keys) &&
@@ -23182,13 +23454,18 @@ try {
       })(),
       'packDownloadService: stubs F2.1a deixaram de ser declarativos, ou download real vazou para fora da função genérica F2.4d.3');
 
-    check('F2.1a (contentResolver): resolvers + enums; starter→require, ready→file://, remote→fallback local',
-      ['getStoryContentLayer', 'getPackState', 'canResolveStoryMedia', 'resolveStoryCover', 'resolveStoryScene', 'resolveStoryColoring', 'resolveStoryAudio'].every(fn => hasFn(resolver, fn)) &&
+    // [P3J] O resolvedor perdeu UMA dimensão — `coloring` — porque o lineart por cena deixou de
+    // existir tanto no binário quanto nos packs. As outras três (capa/cena/áudio) e toda a decisão
+    // starter→require / ready→file:// / remote→fallback local seguem intactas, e o resolvedor de
+    // colorir não pode voltar como caminho morto.
+    check('F2.1a (contentResolver) [P3J]: 3 resolvers (capa/cena/áudio) + enums; starter→require, ready→file://, remote→fallback local; SEM resolveStoryColoring',
+      ['getStoryContentLayer', 'getPackState', 'canResolveStoryMedia', 'resolveStoryCover', 'resolveStoryScene', 'resolveStoryAudio'].every(fn => hasFn(resolver, fn)) &&
+      !hasFn(resolver, 'resolveStoryColoring') &&
       /RESOLVE_SOURCE_TYPE/.test(resolver) &&
       /CONTENT_LAYERS\.STARTER/.test(resolver) &&
       /packEntry\.localDir \+ relPathInPack/.test(resolver) &&
       /fallback local/.test(resolver),
-      'contentResolver: resolvers/decisão starter/ready/fallback ausentes');
+      'contentResolver: resolvers/decisão starter/ready/fallback ausentes, ou o resolvedor de colorir legado voltou');
 
     check('F2.1a (ISOLADO): nenhuma tela consome o runtime (app inalterado)',
       ![sdF2, narF2, colF2, mapF2].some(s => /contentResolver|packStorageService|packDownloadService|packIntegrityService/.test(s)),
@@ -23379,7 +23656,7 @@ try {
   {
     const resolverE = readSrc('src/services/contentResolver.js');
     const cmE = readSrc('src/data/contentManifest.js');
-    const mediaLoaders = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+    const mediaLoaders = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloring60LocalAssets.js', 'src/data/audioManifest.js'];
     const hasExportFn = (src, fn) => new RegExp(`export function ${fn}\\b`).test(src);
 
     check('F2.1e (camada por história existe): contentResolver exporta resolveStoryMedia',
@@ -23392,7 +23669,10 @@ try {
       !/Purchases\.|react-native-purchases/.test(resolverE),
       'contentResolver deixou de ser read-only (escreve/baixa/compras)');
 
-    check('F2.1e (fallback×ready): sem pack → require (fallback local); pack ready → file:// (puro)',
+    // [P3J] Mesma prova de sempre (fallback local × pack ready), agora sobre TRÊS dimensões: a
+    // dimensão `coloring` saiu do conjunto porque não há mais lineart por cena nem no binário nem
+    // no pack. A execução real também confirma que o campo não voltou como array vazio.
+    check('F2.1e (fallback×ready) [P3J]: sem pack → require (fallback local); pack ready → file:// (puro); conjunto SEM a dimensão coloring',
       (() => {
         try {
           const code = resolverE.replace(/import[\s\S]*?from\s*['"][^'"]+['"];?/g, '').replace(/^export\s+/gm, '');
@@ -23401,21 +23681,21 @@ try {
             CONTENT_LAYERS: { STARTER: 'starter', REMOTE: 'remote', COMING_SOON: 'coming_soon' },
             PACK_STATUS: { INCLUDED: 'included', NOT_DOWNLOADED: 'not_downloaded', READY: 'ready', DOWNLOADING: 'downloading', VERIFYING: 'verifying', FAILED: 'failed', NEEDS_UPDATE: 'needs_update', REQUIRES_APP_UPDATE: 'requires_app_update' },
             getOfficialSceneIllustration: () => ({ __local: 1 }),
-            getSceneColoringImage: () => ({ __local: 1 }),
             getStoryCoverImage: () => ({ __local: 1 }),
             getSceneAudio: () => ({ __local: 1 }),
           };
-          const header = 'const getContentLayer=__s.getContentLayer;const CONTENT_LAYERS=__s.CONTENT_LAYERS;const PACK_STATUS=__s.PACK_STATUS;const getOfficialSceneIllustration=__s.getOfficialSceneIllustration;const getSceneColoringImage=__s.getSceneColoringImage;const getStoryCoverImage=__s.getStoryCoverImage;const getSceneAudio=__s.getSceneAudio;';
+          const header = 'const getContentLayer=__s.getContentLayer;const CONTENT_LAYERS=__s.CONTENT_LAYERS;const PACK_STATUS=__s.PACK_STATUS;const getOfficialSceneIllustration=__s.getOfficialSceneIllustration;const getStoryCoverImage=__s.getStoryCoverImage;const getSceneAudio=__s.getSceneAudio;';
           const R = new Function('__s', header + code + ';return { resolveStoryMedia, RESOLVE_SOURCE_TYPE };')(stubs);
-          const allT = (o) => [o.cover, ...o.scenes, ...o.coloring, ...o.audio];
+          const allT = (o) => [o.cover, ...o.scenes, ...o.audio];
           const fb = R.resolveStoryMedia('david_goliath', { packEntry: null, sceneCount: 2 });
           const rd = R.resolveStoryMedia('david_goliath', { packEntry: { status: 'ready', localDir: 'file:///x/' }, sceneCount: 2 });
           const allReq = allT(fb).every((x) => x.sourceType === R.RESOLVE_SOURCE_TYPE.REQUIRE);
           const allFile = allT(rd).every((x) => x.sourceType === R.RESOLVE_SOURCE_TYPE.FILE);
-          return fb.usesPack === false && allReq && rd.usesPack === true && allFile;
+          const semColoring = !('coloring' in fb) && !('coloring' in rd);
+          return fb.usesPack === false && allReq && rd.usesPack === true && allFile && semColoring;
         } catch { return false; }
       })(),
-      'resolveStoryMedia não faz fallback sem pack ou não usa file:// com pack ready');
+      'resolveStoryMedia não faz fallback sem pack, não usa file:// com pack ready, ou a dimensão coloring voltou ao conjunto');
 
     check('F2.1e (loaders de mídia intactos): require-based, NENHUM usa file:///uri',
       mediaLoaders.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
@@ -23455,7 +23735,7 @@ try {
     const resolverF = readSrc('src/services/contentResolver.js');
     const screensDir = path.join(root, 'src/screens');
     const screenFiles = fs.readdirSync(screensDir).filter((f) => f.endsWith('.js'));
-    const mediaLoaders = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+    const mediaLoaders = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloring60LocalAssets.js', 'src/data/audioManifest.js'];
 
     check('F2.1f→F2.5c (hook existe, gated por camada remote, read-only)',
       hasHook &&
@@ -23466,12 +23746,15 @@ try {
       !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|downloadAsync|Purchases\.|react-native-purchases/.test(hook),
       'hook ausente / não-gated / não read-only');
 
-    check('F2.1f→F2.4e.3 (consumo só nas superfícies permitidas: NarrationScreen + StoryBookScreen + ColoringScreen)',
+    // [P3J] A ColoringScreen deixa a lista de superfícies porque o lineart por cena — a única
+    // mídia que ela resolvia por pack — não existe mais. Sobram DUAS superfícies, e a restrição
+    // fica MAIS estreita, não mais frouxa.
+    check('F2.1f→F2.4e.3 [P3J] (consumo só nas superfícies permitidas: NarrationScreen + StoryBookScreen; ColoringScreen saiu com o lineart legado)',
       (() => {
         const consumers = screenFiles.filter((f) => /useResolvedSceneImage|useResolvedStoryMedia|useSandboxScenePackEntry|resolveSceneImageForStory|useResolvedColoringImage/.test(fs.readFileSync(path.join(screensDir, f), 'utf8'))).sort();
-        return consumers.length === 3 && consumers[0] === 'ColoringScreen.js' && consumers[1] === 'NarrationScreen.js' && consumers[2] === 'StoryBookScreen.js';
+        return consumers.length === 2 && consumers[0] === 'NarrationScreen.js' && consumers[1] === 'StoryBookScreen.js';
       })(),
-      'o consumo do hook não está restrito às superfícies permitidas (NarrationScreen + StoryBookScreen + ColoringScreen)');
+      'o consumo do hook não está restrito às superfícies permitidas (NarrationScreen + StoryBookScreen)');
 
     check('F2.1f (escopo cena-only: capa e áudio seguem locais na tela)',
       /useResolvedSceneImage\(/.test(narr) &&
@@ -23480,11 +23763,16 @@ try {
       !/resolveStoryCover|resolveStoryAudio|resolveStoryColoring/.test(narr),
       'a tela roteou capa/áudio/colorir pelo resolver (deveria ser só a cena)');
 
-    check('F2.1f→F2.4e.3 (áudio/capas locais; registros require-based; colorir via HOOK, sem contentResolver direto na tela)',
+    // [P3J] O hook de colorir remoto foi REMOVIDO junto com o lineart por cena. A trava mantém o
+    // que continua valendo (áudio/capas locais, registros require-based) e proíbe o retorno do
+    // hook aposentado e do resolvedor direto na tela do Colorir com o Beni — cujos três assets são
+    // require estático próprio, sem pack.
+    check('F2.1f→F2.4e.3 [P3J] (áudio/capas locais; registros require-based; SEM hook de colorir remoto e SEM contentResolver na tela)',
       mediaLoaders.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }) &&
-      /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js')) &&
-      !/contentResolver/.test(readSrc('src/screens/ColoringScreen.js')),
-      'áudio/capas deixaram de ser locais, ou colorir não passa pelo hook / a tela importa contentResolver direto');
+      !/useResolvedColoringImage/.test(coloringScreenCode) &&
+      !/contentResolver/.test(coloringScreenCode) &&
+      !/export function useResolvedColoringImage/.test(readSrc('src/hooks/useResolvedStoryMedia.js')),
+      'áudio/capas deixaram de ser locais, ou o hook de colorir remoto / o contentResolver voltaram à tela');
 
     check('F2.1f (fallback×ready david_goliath por eval): índice vazio → require; pack ready → file://',
       (() => {
@@ -23525,7 +23813,7 @@ try {
     const resolverG = readSrc('src/services/contentResolver.js');
     const hookG = readSrc('src/hooks/useResolvedStoryMedia.js');
     const screensDirG = path.join(root, 'src/screens');
-    const mediaLoadersG = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+    const mediaLoadersG = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloring60LocalAssets.js', 'src/data/audioManifest.js'];
 
     // Eval do RESOLVER real (stubs no lugar das deps Expo).
     const evalResolver = () => {
@@ -23591,7 +23879,8 @@ try {
     check('F2.1g→F2.4e.3 (consumo só nas superfícies permitidas; read-only; sem download/R2/compras/entitlement)',
       (() => {
         const consumers = fs.readdirSync(screensDirG).filter((f) => f.endsWith('.js')).filter((f) => /useResolvedSceneImage|useResolvedStoryMedia|useSandboxScenePackEntry|resolveSceneImageForStory|useResolvedColoringImage/.test(fs.readFileSync(path.join(screensDirG, f), 'utf8'))).sort();
-        const onlySurfaces = consumers.length === 3 && consumers[0] === 'ColoringScreen.js' && consumers[1] === 'NarrationScreen.js' && consumers[2] === 'StoryBookScreen.js';
+        // [P3J] Duas superfícies: a ColoringScreen saiu com o lineart por cena (nada mais nela vem de pack).
+        const onlySurfaces = consumers.length === 2 && consumers[0] === 'NarrationScreen.js' && consumers[1] === 'StoryBookScreen.js';
         // Uso REAL (chamadas/imports), não prosa de comentário: escrita de storage,
         // download, compras (RevenueCat) e controle de acesso/entitlement.
         const readOnly = !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|clearPackEntry\(|downloadAsync|createDownloadResumable|Purchases\.|react-native-purchases|isPremiumUser\(|getStoryAccessStatus\(|contentAccessService/.test(hookG + resolverG);
@@ -23653,7 +23942,7 @@ try {
     const hookV2 = readSrc('src/hooks/useResolvedStoryMedia.js');
     const livroV2 = readSrc('src/screens/StoryBookScreen.js');
     const narrV2 = readSrc('src/screens/NarrationScreen.js');
-    const mediaLoadersV2 = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+    const mediaLoadersV2 = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloring60LocalAssets.js', 'src/data/audioManifest.js'];
 
     check('F2.1h v2 (hook): resolveSceneImageForStory (pura, gated) + useSandboxScenePackEntry (valor); useResolvedSceneImage intacto',
       /export function resolveSceneImageForStory\b/.test(hookV2) &&
@@ -23669,11 +23958,14 @@ try {
       !/@react-native-async-storage|\.setItem\(|savePackIndex\(|setPackEntry\(|clearPackEntry\(|downloadAsync|createDownloadResumable|Purchases\.|react-native-purchases|isPremiumUser\(|getStoryAccessStatus\(|contentAccessService/.test(hookV2),
       'hook v2 deixou de ser read-only');
 
-    check('F2.1h v2 (Livrinho consome via hook; sem runtime direto; dep do useMemo = VALOR; sem useSceneImageResolver)',
+    // [P3J] A dep list do useMemo encolheu junto com o modo colorido: sem `drawings` (não há mais
+    // arte da criança na página) e sem `viewMode` (modo único). O contrato essencial — dep é VALOR,
+    // nunca callback — continua provado, agora com as duas deps que restaram.
+    check('F2.1h v2 [P3J] (Livrinho consome via hook; sem runtime direto; dep do useMemo = VALOR; sem drawings/viewMode)',
       /import\s*{\s*resolveSceneImageForStory,\s*useSandboxScenePackEntry\s*}\s*from\s*'\.\.\/hooks\/useResolvedStoryMedia'/.test(livroV2) &&
       /const scenePackEntry = useSandboxScenePackEntry\(story\?\.id\)/.test(livroV2) &&
       /resolveSceneImageForStory\(story\.id, cena\.id, scenePackEntry\)/.test(livroV2) &&
-      /\[story\?\.id, drawings, viewMode, scenePackEntry\]/.test(livroV2) &&
+      /\[story\?\.id, scenePackEntry\]/.test(livroV2) &&
       !/useSceneImageResolver/.test(livroV2) &&
       !/from\s*'\.\.\/context\/PacksContext'|from\s*'\.\.\/services\/contentResolver'|from\s*'\.\.\/services\/packStorageService'/.test(livroV2),
       'StoryBookScreen: consumo via hook incorreto, callback no useMemo, ou importa runtime direto');
@@ -23695,10 +23987,16 @@ try {
       })(),
       'resolveSceneImageForStory: gating por camada incorreto (remote david/mary → file://; starter creation → require)');
 
-    check('F2.1i (intro preview via resolveSceneImageForStory + scenePackEntry) + "Meu livrinho colorido" prioriza arte da criança',
-      /officialPreview = firstCena \? resolveSceneImageForStory\(story\.id, firstCena\.id, scenePackEntry\)/.test(livroV2) &&
-      /if \(hasMeaningfulPaint\(raw\)\)[\s\S]*?makeChildArtVisual/.test(livroV2),
-      'intro preview não usa resolveSceneImageForStory(...,scenePackEntry) ou "Meu livrinho colorido" perdeu prioridade da arte da criança');
+    // [P3J] A prévia da intro existia para DIFERENCIAR os dois modos; com modo único ela sai, e
+    // "Meu livrinho colorido" deixa de existir. Sobra UM ponto de resolução oficial na tela — o
+    // que torna a superfície mais simples de auditar, não menos.
+    check('F2.1i [P3J] (sem prévia de modo e sem "Meu livrinho colorido"): UM ponto de resolução oficial, dentro de resolveStoryBookPageImage',
+      !/officialPreview/.test(storyBookCode) &&
+      !storyBookCode.includes('Meu livrinho colorido') &&
+      !/makeChildArtVisual/.test(storyBookCode) &&
+      (storyBookCode.match(/resolveSceneImageForStory\(/g) || []).length === 1 &&
+      /const official = resolveSceneImageForStory\(story\.id, cena\.id, scenePackEntry\);/.test(storyBookCode),
+      'a prévia de modo/"Meu livrinho colorido" voltaram, ou a resolução oficial deixou de ser um ponto único');
 
     check('F2.1h v2 (NarrationScreen intacta): segue via useResolvedSceneImage(story.id, cena?.id)',
       /useResolvedSceneImage\(story\.id, cena\?\.id\)/.test(narrV2),
@@ -23720,15 +24018,18 @@ try {
     const hookI = readSrc('src/hooks/useResolvedStoryMedia.js');
     const livroI = readSrc('src/screens/StoryBookScreen.js');
     const narrI = readSrc('src/screens/NarrationScreen.js');
-    const mediaLoadersI = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+    const mediaLoadersI = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloring60LocalAssets.js', 'src/data/audioManifest.js'];
 
-    check('F2.1i (prévia da intro conectada; getOfficialSceneIllustration fora da tela; 2 pontos oficiais; sem runtime direto)',
-      /officialPreview = firstCena \? resolveSceneImageForStory\(story\.id, firstCena\.id, scenePackEntry\)/.test(livroI) &&
+    // [P3J] Com a prévia de modo aposentada sobra UM ponto oficial na tela; o encapsulamento
+    // continua provado (getOfficialSceneIllustration segue fora da tela, dentro do hook).
+    check('F2.1i [P3J] (getOfficialSceneIllustration fora da tela; 1 ponto oficial; sem runtime direto)',
       !/getOfficialSceneIllustration/.test(livroI) &&
-      (livroI.match(/resolveSceneImageForStory\(/g) || []).length === 2 &&
+      (livroI.match(/resolveSceneImageForStory\(/g) || []).length === 1 &&
+      /export function resolveSceneImageForStory\b/.test(hookI) &&
+      /getOfficialSceneIllustration/.test(hookI) &&
       !/useSceneImageResolver/.test(livroI) &&
       !/from\s*'\.\.\/context\/PacksContext'|from\s*'\.\.\/services\/contentResolver'|from\s*'\.\.\/services\/packStorageService'/.test(livroI),
-      'prévia da intro não conectada, getOfficialSceneIllustration ainda na tela, ou runtime importado direto');
+      'a resolução oficial deixou de ser um ponto único, getOfficialSceneIllustration voltou à tela, ou runtime importado direto');
 
     check('F2.1i→F2.5c (gating por eval, camada): david/mary remote ready→file://; creation starter→require',
       (() => {
@@ -23747,12 +24048,16 @@ try {
       })(),
       'resolveSceneImageForStory: gating por camada incorreto (remote david/mary → file://; starter creation → require)');
 
-    check('F2.1i (superfícies preservadas): História ilustrada (:official), child art prioritária, NarrationScreen intacta, loaders locais',
-      /mode === 'official'[\s\S]*?resolveSceneImageForStory\(story\.id, cena\.id, scenePackEntry\)/.test(livroI) &&
-      /if \(hasMeaningfulPaint\(raw\)\)[\s\S]*?makeChildArtVisual/.test(livroI) &&
+    // [P3J] A superfície "História ilustrada" continua igual — o que sai é a arte da criança, que
+    // dependia do lineart legado. A trava confirma o caminho oficial vivo, a narração intacta, os
+    // loaders locais e a ausência do compositor aposentado.
+    check('F2.1i [P3J] (superfícies preservadas): História ilustrada segue pelo resolver; SEM child art; NarrationScreen intacta; loaders locais',
+      /const official = resolveSceneImageForStory\(story\.id, cena\.id, scenePackEntry\);\s*if \(official\) return makeOfficialVisual/.test(storyBookCode) &&
+      !/makeChildArtVisual/.test(storyBookCode) &&
+      !/hasMeaningfulPaint/.test(storyBookCode) &&
       /useResolvedSceneImage\(story\.id, cena\?\.id\)/.test(narrI) &&
       mediaLoadersI.every((p) => { const s = readSrc(p); return /require\(/.test(s) && !/file:\/\//.test(s) && !/\buri:/.test(s); }),
-      'História ilustrada/child art/NarrationScreen/loaders divergiram');
+      'História ilustrada/NarrationScreen/loaders divergiram, ou a arte da criança voltou ao Livrinho');
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -23767,7 +24072,7 @@ try {
     const nav = readSrc('src/navigation/AppNavigator.js');
     const narrB = readSrc('src/screens/NarrationScreen.js');
     const livroB = readSrc('src/screens/StoryBookScreen.js');
-    const mediaLoadersB = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloringImages.js', 'src/data/audioManifest.js'];
+    const mediaLoadersB = ['src/data/storySceneIllustrations.js', 'src/assets/storyCovers.js', 'src/assets/coloring60LocalAssets.js', 'src/data/audioManifest.js'];
     const fnBody = (name) => svc.match(new RegExp(`export async function ${name}[\\s\\S]*?\\n\\}`))?.[0] || '';
 
     check('F2.2b (duplo gate): isPackSandboxDevEnabled = __DEV__ && EXPO_PUBLIC_ENABLE_PACK_SANDBOX === "true"',
@@ -23803,10 +24108,15 @@ try {
       /clearPackEntry\(STORY_ID\)/.test(svc) && /deleteAsync\(localDir,\s*\{\s*idempotent:\s*true\s*\}\)/.test(svc),
       'reset não limpa índice e/ou diretório');
 
-    check('F2.2b→F2.4e.1 (diagnóstico usa o resolver): resolveStoryMedia p/ os 4 kinds',
+    // [P3J] O diagnóstico perdeu o kind `coloring` porque o resolvedor perdeu a dimensão. Os três
+    // kinds vivos (cover/scene/audio) continuam sendo lidos do MESMO resolver — nada de leitura
+    // paralela — e a agregação não pode voltar a somar uma dimensão inexistente.
+    check('F2.2b→F2.4e.1 [P3J] (diagnóstico usa o resolver): resolveStoryMedia p/ os 3 kinds vivos (cover/scene/audio), sem coloring',
       /resolveStoryMedia\(STORY_ID,/.test(svc) && /byKind/.test(svc)
-        && /media\.cover/.test(svc) && /media\.coloring/.test(svc) && /media\.audio/.test(svc),
-      'diagnóstico não usa resolveStoryMedia para cover/scene/coloring/audio (byKind)');
+        && /media\.cover/.test(svc) && /media\.scenes\[/.test(svc) && /media\.audio\[/.test(svc)
+        && !/media\.coloring/.test(svc)
+        && /byKind\.cover\.found \+ byKind\.scene\.found \+ byKind\.audio\.found/.test(svc),
+      'diagnóstico não usa resolveStoryMedia para cover/scene/audio (byKind), ou voltou a contar a dimensão coloring');
 
     check('F2.2b→F2.3b (sem R2/compras/entitlement; download LAN permitido, sem storage remoto hardcoded)',
       // F2.3b: download real por FileSystem (LAN) é PERMITIDO. Proibido: RevenueCat/
@@ -24191,20 +24501,24 @@ try {
       /requestedKinds\s*=\s*\['scene'\]/.test(dlBody),
       'default de requestedKinds deixou de ser scenes-only');
 
-    check('F2.4e.1: cover/scene/coloring/audio solicitáveis (KNOWN_KINDS + camada dev)',
+    // [P3J] Decisão ratificada: KNOWN_KINDS MANTÉM 'coloring' — é o parser tolerante que permite ler
+    // manifestos antigos sem quebrar. O que muda é a INTENÇÃO: a camada dev não PEDE mais o kind
+    // aposentado, então nenhum download novo traz lineart por cena.
+    check('F2.4e.1 [P3J]: KNOWN_KINDS tolerante mantém "coloring" (manifestos antigos); a camada dev só SOLICITA cover/scene/audio',
       /KNOWN_KINDS = \['cover', 'scene', 'coloring', 'audio'\]/.test(pds)
-        && /ALL_KINDS = \['cover', 'scene', 'coloring', 'audio'\]/.test(scr)
+        && /ALL_KINDS = \['cover', 'scene', 'audio'\]/.test(scr)
         && /requestedKinds:\s*ALL_KINDS/.test(scr),
-      'kinds cover/scene/coloring/audio não são solicitáveis pela camada dev');
+      'a tolerância a manifestos antigos foi perdida, ou a camada dev voltou a solicitar o kind coloring');
 
     check('F2.4e.1: validação de contagem por kind (expectedPerKind vs doneByKind)',
       /expectedPerKind/.test(dlBody) && /doneByKind/.test(dlBody)
         && /!==\s*expectedPerKind\[k\]/.test(dlBody),
       'não valida a contagem esperada por kind');
 
-    check('F2.4e.1: diagnose por kind (byKind cover/scene/coloring/audio)',
-      /byKind/.test(pss) && /coloringRelPath/.test(pss) && /audioRelPath/.test(pss) && /coverRelPath/.test(pss),
-      'diagnose não cobre os 4 kinds (byKind + rel paths)');
+    check('F2.4e.1 [P3J]: diagnose por kind (byKind cover/scene/audio) — sem coloringRelPath',
+      /byKind/.test(pss) && /sceneRelPath/.test(pss) && /audioRelPath/.test(pss) && /coverRelPath/.test(pss)
+        && !/coloringRelPath/.test(pss),
+      'diagnose não cobre os 3 kinds vivos (byKind + rel paths), ou o caminho de colorir legado voltou');
 
     check('F2.4e.1: duplo dev gate preservado (tela + diagnose gated)',
       /isPackSandboxDevEnabled\(\)/.test(scr) && /if \(!enabled\)/.test(scr)
@@ -24465,18 +24779,21 @@ try {
       srcExists('docs/DECISIONS.md') && srcExists('docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md'),
       'DECISIONS.md ou DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md ausente');
 
-    check('F2.4e.3: existe hook explícito para coloring remoto (useResolvedColoringImage)',
-      /export function useResolvedColoringImage/.test(colHook) && /resolveStoryColoring/.test(colHook),
-      'falta o hook useResolvedColoringImage / uso de resolveStoryColoring');
+    // [P3J] Todo o pipeline de "coloring remoto" morre com o lineart por cena: o kind não é mais
+    // baixado, não é mais resolvido e não tem mais consumidor. As quatro travas abaixo garantem que
+    // ele não volte por nenhuma das pontas — hook, resolvedor, registro local ou tela.
+    check('F2.4e.3 [P3J]: o hook de coloring remoto NÃO existe mais (useResolvedColoringImage aposentado)',
+      !/export function useResolvedColoringImage/.test(colHook) && !/resolveStoryColoring/.test(colHook),
+      'o hook de coloring remoto voltou ao projeto');
 
     check('F2.4e.3→F2.5c: coloring remoto gated por camada remote (isRemotePackStory)',
       /isRemotePackStory\(storyId\)/.test(colHook),
       'coloring remoto não está restrito a david_goliath');
 
-    check('F2.4e.3: coloring remoto exige pack READY (via resolveStoryColoring + sourceType FILE)',
-      /resolveStoryColoring\(storyId, sceneNumber, packEntry\)/.test(colHook)
+    check('F2.4e.3 [P3J]: o resolvedor de coloring saiu do contentResolver; a regra pack READY→FILE segue viva para os kinds restantes',
+      !/resolveStoryColoring/.test(a1StripComments(readSrc('src/services/contentResolver.js')))
         && /RESOLVE_SOURCE_TYPE\.FILE/.test(colHook),
-      'coloring remoto não exige pack ready (sourceType FILE do resolver)');
+      'resolveStoryColoring voltou ao resolvedor, ou a regra pack ready→file:// se perdeu');
 
     check('F2.4e.3: coloring remoto usa file:// do pack (retorna { uri }) — sem re-hash',
       /setRemoteSource\(\{ uri: candidateUri \}\)/.test(colHook) && !/computeFileSha256/.test(colHook),
@@ -24487,21 +24804,22 @@ try {
         && /info && info\.exists/.test(colHook),
       'não confirma existência do arquivo remoto fora do render');
 
-    check('F2.4e.3: FALLBACK LOCAL obrigatório (getColoringImage) — requires locais preservados',
-      /getColoringImage\(storyId, cena\.id\)/.test(colHook)
-        && /return remoteSource \|\| localSource/.test(colHook)
-        && /getColoringImage/.test(readSrc('src/assets/coloringImages.js')),
-      'fallback local (getColoringImage) ausente ou requires locais removidos');
+    check('F2.4e.3 [P3J]: o registro local de linearts legados não existe mais (coloringImages.js + getColoringImage) — nada volta ao bundle',
+      !srcExists('src/assets/coloringImages.js')
+        && !/getColoringImage/.test(colHook)
+        && !/getColoringImage/.test(colScreen),
+      'o registro de linearts legados voltou ao projeto — os 199 PNGs entrariam no binário de novo');
 
     check('F2.4e.3: A Criação/Noé (não-sandbox) seguem LOCAL (hook devolve getColoringImage)',
       // fora do sandbox, candidateUri fica null → sempre localSource; validado pelo gate storyId.
       /const packEntry = isRemotePackStory\(storyId\) \? getPackEntry\(storyId\) : null/.test(colHook),
       'histórias não-sandbox poderiam consumir remoto — gate ausente');
 
-    check('F2.4e.3: ColoringScreen usa o hook (não o resolver direto)',
-      /useResolvedColoringImage\(story, cenaIndex\)/.test(colScreen)
-        && /import \{ useResolvedColoringImage \}/.test(readSrc('src/screens/ColoringScreen.js')),
-      'ColoringScreen não passou a usar o hook');
+    check('F2.4e.3 [P3J]: ColoringScreen não usa hook nem resolver de pack — o Colorir com o Beni resolve por require estático próprio',
+      !/useResolvedColoringImage/.test(colScreen)
+        && !/contentResolver|packStorageService|usePacks/.test(colScreen)
+        && /coloring60LocalAssets|getColoring60/.test(colScreen),
+      'a tela de colorir voltou a depender de pack/resolver, ou perdeu o registro estático do Colorir com o Beni');
 
     check('F2.4e.3: ColoringScreen NÃO baixa arquivo nem calcula sha256',
       !/downloadAsync|createDownloadResumable|downloadStoryPack|downloadDavidGoliath|computeFileSha256|\bsha256\b/.test(colScreen),
@@ -24588,10 +24906,14 @@ try {
       /const packEntry = isRemotePackStory\(storyId\) \? getPackEntry\(storyId\) : null/.test(cvBody),
       'cover de histórias não-sandbox poderia ir remoto — gate ausente');
 
-    check('F2.4e.4: F2.4e.3 (coloring remoto) continua intacto',
-      /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
-        && /export function useResolvedColoringImage/.test(covHook),
-      'coloring remoto (F2.4e.3) foi quebrado');
+    // [P3J] O tripwire de regressão do F2.4e.3 muda de sinal: o que precisa continuar verdadeiro
+    // agora é a AUSÊNCIA do coloring remoto — ele foi aposentado, e o cover remoto (F2.4e.4) segue
+    // vivo e independente.
+    check('F2.4e.4 [P3J]: coloring remoto (F2.4e.3) segue APOSENTADO; o cover remoto continua intacto',
+      !/useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
+        && !/export function useResolvedColoringImage/.test(covHook)
+        && /export function useResolvedStoryCover/.test(covHook),
+      'o coloring remoto voltou, ou o cover remoto (F2.4e.4) foi quebrado');
 
     check('F2.4e.4: sem RevenueCat/entitlement/paywall/Brincar/conclusão/Free NOVOS nos arquivos tocados',
       !/Purchases\.|react-native-purchases|RevenueCat|isPremiumUser|paywall|dailyRounds|startGameRound|isStoryFullyComplete|ATELIER_FREE_SAVE_LIMIT/i.test(covTouched),
@@ -24670,12 +24992,12 @@ try {
       /const n = Number\.isInteger\(sceneNumber\)/.test(avBody) && /setRemoteSource\(null\)/.test(avBody),
       'áudio remoto não reseta por cena/pack (troca de cena/reset em risco)');
 
-    check('F2.4e.5: F2.4e.3 (coloring) e F2.4e.4 (cover) continuam intactos',
-      /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
+    check('F2.4e.5 [P3J]: coloring (F2.4e.3) segue APOSENTADO e cover (F2.4e.4) continua intacto',
+      !/useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
         && /useResolvedStoryCover/.test(readSrc('src/components/map/StoryMapMarker.js'))
-        && /export function useResolvedColoringImage/.test(audHook)
+        && !/export function useResolvedColoringImage/.test(audHook)
         && /export function useResolvedStoryCover/.test(audHook),
-      'coloring (F2.4e.3) ou cover (F2.4e.4) foram quebrados');
+      'o coloring remoto voltou, ou o cover (F2.4e.4) foi quebrado');
 
     check('F2.4e.5: sem RevenueCat/entitlement/paywall/Brincar/conclusão/Free NOVOS nos arquivos tocados',
       !/Purchases\.|react-native-purchases|RevenueCat|isPremiumUser|paywall|dailyRounds|startGameRound|isStoryFullyComplete|ATELIER_FREE_SAVE_LIMIT/i.test(audTouched),
@@ -24733,11 +25055,11 @@ try {
         && /<AudioPlayer audioAsset=\{resolvedAudioAsset\}/.test(narr5p),
       'F2.4e.5 (áudio remoto via hook no NarrationScreen) foi quebrado');
 
-    check('F2.4e.5p: F2.4e.3 coloring + F2.4e.4 cover + gate david_goliath preservados',
-      /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
+    check('F2.4e.5p [P3J]: coloring APOSENTADO + F2.4e.4 cover + gate david_goliath preservados',
+      !/useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
         && /useResolvedStoryCover/.test(readSrc('src/components/map/StoryMapMarker.js'))
         && /isRemotePackStory\(storyId\)/.test(readSrc('src/hooks/useResolvedStoryMedia.js')),
-      'coloring/cover remotos ou o gate sandbox foram quebrados');
+      'o coloring remoto voltou, ou o cover remoto / o gate sandbox foram quebrados');
 
     check('F2.4e.5p: escopo — audioService intacto e sem RevenueCat/entitlement/Brincar/conclusão/Free',
       !/resolveStoryAudio|contentResolver/.test(a1StripComments(readSrc('src/services/audioService.js')))
@@ -24819,10 +25141,13 @@ try {
       'onSceneAudioComplete não verifica foco/app ativo — fim de áudio fora da tela avança cena');
 
     // 13–14. Timer da cena sem áudio: gated em foco + token + contexto
-    check('F2.4e.5pR: timer da cena sem áudio não roda fora de foco',
+    // [P3J] A dep list perdeu `viewMode` (modo único). O gate de foco — o que realmente impede o
+    // timer de rodar fora da tela — continua idêntico.
+    check('F2.4e.5pR [P3J]: timer da cena sem áudio não roda fora de foco (deps sem viewMode, modo único)',
       /if \(screenState !== 'playing' \|\| isPaused\) return undefined;\s*if \(!isBookFocused\) return undefined;/.test(sbCode)
-        && /\[screenState, currentSlideIndex, isPaused, viewMode, isBookFocused\]/.test(sbCode),
-      'timer da cena sem áudio não é gated em foco');
+        && /\[screenState, currentSlideIndex, isPaused, isBookFocused\]/.test(sbCode)
+        && !/viewMode/.test(sbCode),
+      'timer da cena sem áudio não é gated em foco, ou o estado de modo voltou às deps');
 
     check('F2.4e.5pR: timer captura o token e valida contexto antes de avançar',
       /const gen = playbackGenerationRef\.current;[\s\S]*?if \(gen !== playbackGenerationRef\.current\) return;\s*if \(!isPlaybackContextLive\(\)\) return;\s*advanceToNextScene\(\);/.test(sbCode),
@@ -24837,9 +25162,16 @@ try {
       /onUserPause=\{\(\) => \{ playbackGenerationRef\.current \+= 1; setAutoplayActive\(false\); \}\}/.test(sb),
       'onUserPause não incrementa o token');
 
-    check('F2.4e.5pR: trocas manuais de cena incrementam o token (>= 7 bumps no total)',
-      (sbCode.match(/playbackGenerationRef\.current \+= 1;/g) || []).length >= 7,
-      'faltam incrementos do token nas trocas manuais de cena');
+    // [P3J] Eram 7 bumps; o 7º pertencia ao seletor de modo do Livrinho (`handleSelectMode`),
+    // removido com o modo único. Trocamos o ">= 7" frouxo por um lock exato de 6 que nomeia cada
+    // sítio sobrevivente — mais forte que o original, e sensível à volta do seletor.
+    check('F2.4e.5pR [P3J]: trocas manuais de cena incrementam o token (exatamente 6 bumps; o 7º saiu com o seletor de modo)',
+      (sbCode.match(/playbackGenerationRef\.current \+= 1;/g) || []).length === 6
+        && !/handleSelectMode/.test(sbCode)
+        && /function invalidatePlaybackSession\(\) \{\s*playbackGenerationRef\.current \+= 1;/.test(sbCode)
+        && /function handlePrevScene\(\) \{\s*if \(lockRef\.current\) return;\s*playbackGenerationRef\.current \+= 1;/.test(sbCode)
+        && /setAutoplayActive\(false\);\s*playbackGenerationRef\.current \+= 1;/.test(sbCode),
+      'faltam incrementos do token nas trocas manuais de cena (ou o seletor de modo voltou)');
 
     // 18–19. AudioPlayer: paused-sync pausa em loading; nunca toca de idle
     check('F2.4e.5pR: AudioPlayer pausa também durante o load (fecha a janela de loading)',
@@ -24890,11 +25222,11 @@ try {
       /useResolvedStoryAudio\(story\?\.id, numeroCena,/.test(narr) && /export function useResolvedStoryAudio/.test(hook),
       'F2.4e.5 (hook de áudio remoto) foi quebrado');
 
-    check('F2.4e.5pR: F2.4e.3 coloring + F2.4e.4 cover + gate david_goliath preservados',
-      /useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
+    check('F2.4e.5pR [P3J]: coloring APOSENTADO + F2.4e.4 cover + gate david_goliath preservados',
+      !/useResolvedColoringImage/.test(readSrc('src/screens/ColoringScreen.js'))
         && /useResolvedStoryCover/.test(readSrc('src/components/map/StoryMapMarker.js'))
         && /isRemotePackStory\(storyId\)/.test(hook),
-      'coloring/cover remotos ou o gate sandbox foram quebrados');
+      'o coloring remoto voltou, ou o cover remoto / o gate sandbox foram quebrados');
 
     check('F2.4e.5pR: fiação de áudio do Livrinho intacta (autoPlay={autoplayActive}, onFinished, paused)',
       /autoPlay=\{autoplayActive\}/.test(sb) && /onFinished=\{onSceneAudioComplete\}/.test(sb) && /paused=\{isPaused\}/.test(sb),
@@ -25046,7 +25378,7 @@ try {
 
     // 17. Requires locais preservados (fallback)
     check('F2.4e.7b: requires locais preservados (coloring/covers/scenes/audio)',
-      /require\(/.test(readSrc('src/assets/coloringImages.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
+      /require\(/.test(readSrc('src/assets/coloring60LocalAssets.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
         && /require\(/.test(readSrc('src/data/storySceneIllustrations.js')) && /require\(/.test(readSrc('src/data/audioManifest.js')),
       'requires locais foram removidos');
 
@@ -25118,7 +25450,7 @@ try {
       'camada remote não cobre as 18 premium esperadas');
 
     check('F2.5c: requires locais preservados (nenhum asset removido)',
-      /require\(/.test(readSrc('src/assets/coloringImages.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
+      /require\(/.test(readSrc('src/assets/coloring60LocalAssets.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
         && /require\(/.test(readSrc('src/data/storySceneIllustrations.js')) && /require\(/.test(readSrc('src/data/audioManifest.js')),
       'requires locais foram removidos');
 
@@ -25190,10 +25522,16 @@ try {
       'PacksContext passou a gravar índice/baixar (deveria seguir read-only)');
 
     // ── C4: guard do colorir (cena.id === posição) ──
-    check('F2.5-hardening-1 C4: colorir só monta candidato remoto quando cena.id === posição (keyMatches)',
-      /keyMatches = !!cena && cena\.id === sceneNumber/.test(hookH)
-        && /sceneNumber > 0 && keyMatches/.test(hookH),
-      'colorir sem guard cena.id===posição (risco de lineart errada no futuro)');
+    // [P3J] O guard `keyMatches` protegia `useResolvedColoringImage` de servir a lineart da cena
+    // errada. O hook foi APOSENTADO junto com o Colorir legado; a propriedade vira um lock
+    // invertido: o guard não pode voltar sozinho (sem hook para proteger) E o anti-race
+    // equivalente da imagem de CENA — a rede que de fato continua viva — segue intacto.
+    check('F2.5-hardening-1 C4 [P3J]: guard keyMatches saiu com o hook de colorir; anti-race da imagem de cena intacto',
+      !/keyMatches/.test(hookH)
+        && !/useResolvedColoringImage/.test(hookH)
+        && /remoteSource && candidateUri && remoteSource\.uri === candidateUri \? remoteSource : null/.test(hookH)
+        && /if \(isRemotePackStory\(storyId\) && sceneId\) \{/.test(hookH),
+      'guard de colorir ressuscitou OU o anti-race da imagem de cena (uri === candidateUri) foi enfraquecido');
 
     // ── Regressão: intactos ──
     check('F2.5-hardening-1: resolveSceneImageForStory (Livrinho) + StoryBookScreen local INTACTOS',
@@ -25331,7 +25669,7 @@ try {
       'contentResolver/packStorageService/StoryBookScreen foram tocados (deveriam ficar intactos)');
 
     check('F2.5-hardening-2: nenhum require removido dos loaders',
-      /require\(/.test(readSrc('src/assets/coloringImages.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
+      /require\(/.test(readSrc('src/assets/coloring60LocalAssets.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
         && /require\(/.test(readSrc('src/data/storySceneIllustrations.js')) && /require\(/.test(readSrc('src/data/audioManifest.js')),
       'requires locais foram removidos');
 
@@ -25428,7 +25766,7 @@ try {
       'a mudança vazou para arquivos protegidos');
 
     check('F2.5-hardening-3: nenhum require removido dos loaders',
-      /require\(/.test(readSrc('src/assets/coloringImages.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
+      /require\(/.test(readSrc('src/assets/coloring60LocalAssets.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
         && /require\(/.test(readSrc('src/data/storySceneIllustrations.js')) && /require\(/.test(readSrc('src/data/audioManifest.js')),
       'requires locais foram removidos');
 
@@ -25510,7 +25848,7 @@ try {
       'a mudança vazou para arquivos protegidos');
 
     check('F2.5-hardening-2b.i: nenhum require removido dos loaders',
-      /require\(/.test(readSrc('src/assets/coloringImages.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
+      /require\(/.test(readSrc('src/assets/coloring60LocalAssets.js')) && /require\(/.test(readSrc('src/assets/storyCovers.js'))
         && /require\(/.test(readSrc('src/data/storySceneIllustrations.js')) && /require\(/.test(readSrc('src/data/audioManifest.js')),
       'requires locais foram removidos');
 
@@ -25591,73 +25929,92 @@ try {
       'falta docs/LIVRINHO_FIX_1.md');
   }
 
-  // ── LIVRINHO_UX_1: modo colorido bloqueado até 100% pintado (estado sem emoji) ──
-  console.log('\n── LIVRINHO_UX_1: bloqueio do Livrinho colorido incompleto ──');
+  // ── LIVRINHO_UX_1 → [P3J]: o modo "Meu livrinho colorido" foi APOSENTADO ──
+  // O bloqueio "pinte todas as cenas" existia para proteger um modo que dependia inteiramente dos
+  // linearts por cena (a pintura salva é só a camada de tinta; sem contorno não há obra a exibir).
+  // Com o Colorir legado retirado, o modo caiu inteiro — e com ele o gate, a contagem de artes, a
+  // copy de bloqueio e os CTAs. As 9 verificações abaixo viram LOCKS INVERTIDOS de mesma contagem:
+  // cada símbolo aposentado não pode voltar, e a experiência viva (modo único ilustrado) está
+  // íntegra. As 2 verificações finais do bloco (AudioPlayer intacto + doc) seguem inalteradas.
+  console.log('\n── LIVRINHO_UX_1 → [P3J]: modo colorido do Livrinho aposentado ──');
   {
     const sb = readSrc('src/screens/StoryBookScreen.js');
-    const blockedBlock = (sb.match(/!coloredComplete \? \(([\s\S]*?)\) : \(/) || ['', ''])[1];
+    // Absences precisam ler o código SEM comentários: as notas [P3J] citam os símbolos removidos.
+    const sbNoC = codeOf('src/screens/StoryBookScreen.js');
 
-    check('LIVRINHO_UX_1: modo colorido gated por 100% pintado (coloredComplete = totalScenes>0 && childArtCount===totalScenes)',
-      /const coloredComplete = totalScenes > 0 && childArtCount === totalScenes;/.test(sb)
-        && /viewMode === 'child' && !coloredComplete \? \(/.test(sb)
-        && !/childArtCount === 0/.test(sb),
-      'gate não usa coloredComplete (com totalScenes>0), ou manteve o antigo childArtCount === 0');
+    check('LIVRINHO_UX_1 [P3J]: gate de 100% pintado removido com o modo (coloredComplete/viewMode child ausentes)',
+      !/coloredComplete/.test(sbNoC)
+        && !/viewMode/.test(sbNoC)
+        && !/childArtCount === 0/.test(sbNoC)
+        && /function handleEnterLivrinho\(\)/.test(sbNoC),
+      'gate do modo colorido ressuscitou OU a entrada única do Livrinho sumiu');
 
-    check('LIVRINHO_UX_1: fontes de verdade (childArtCount/hasMeaningfulPaint, totalScenes/cenas.length, firstUncoloredIndex/findIndex)',
-      /const totalScenes = story\.cenas\.length;/.test(sb)
-        && /const childArtCount = story\.cenas\.filter\(c => hasMeaningfulPaint\(drawings\[c\.id\]\)\)\.length;/.test(sb)
-        && /const firstUncoloredIndex = story\.cenas\.findIndex\(c => !hasMeaningfulPaint\(drawings\[c\.id\]\)\);/.test(sb),
-      'fontes de verdade divergentes do aprovado');
+    check('LIVRINHO_UX_1 [P3J]: fontes de verdade do modo colorido removidas (childArtCount/firstUncoloredIndex/hasMeaningfulPaint); totalScenes segue vivo',
+      !/childArtCount/.test(sbNoC)
+        && !/firstUncoloredIndex/.test(sbNoC)
+        && !/hasMeaningfulPaint/.test(sbNoC)
+        && /const totalScenes = story\.cenas\.length;/.test(sbNoC),
+      'contadores do modo colorido voltaram OU totalScenes (resumo do intro) sumiu');
 
-    check('LIVRINHO_UX_1: copy aprovada (título/subtítulo/progresso/CTAs)',
-      sb.includes('Seu livrinho colorido fica pronto quando você pinta a aventura inteira.')
-        && sb.includes('Pinte todas para abrir um livrinho só com as suas pinturas.')
-        && /\{childArtCount\}\/\{totalScenes\} cenas pintadas/.test(sb)
-        && sb.includes('Pintar próxima cena')
-        && sb.includes('Ver história ilustrada'),
-      'copy divergente do aprovado');
+    check('LIVRINHO_UX_1 [P3J]: copy de bloqueio removida; copy viva do modo único preservada',
+      !sbNoC.includes('Seu livrinho colorido fica pronto quando você pinta a aventura inteira.')
+        && !sbNoC.includes('Pinte todas para abrir um livrinho só com as suas pinturas.')
+        && !/cenas pintadas/.test(sbNoC)
+        && !sbNoC.includes('Pintar próxima cena')
+        && sbNoC.includes('Abrir história ilustrada')
+        && sbNoC.includes('Sua aventura ficou guardada aqui. Reveja cada cena com carinho.'),
+      'copy de bloqueio voltou OU a copy do Livrinho ilustrado mudou');
 
-    check('LIVRINHO_UX_1: estado bloqueado usa BeniAvatar variant="happy", SEM emoji e sem variante insegura',
-      /<BeniAvatar variant="happy"/.test(blockedBlock)
-        && !/variant="(reading|locked|thinking)"/.test(blockedBlock)
-        && !/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{25A0}-\u{25FF}\u{2190}-\u{21FF}\u{2764}\u{FE0F}]/u.test(blockedBlock)
-        && !/styles\.bookEmptyEmoji/.test(sb),
-      'estado bloqueado sem BeniAvatar happy, com emoji, ou com variante insegura');
+    check('LIVRINHO_UX_1 [P3J]: estado bloqueado removido; intro usa BeniAvatar variant="reading" e segue sem emoji de vazio',
+      !/<BeniAvatar variant="happy"/.test(sbNoC)
+        && /<BeniAvatar variant="reading" size="small" \/>/.test(sbNoC)
+        && !/styles\.bookEmptyEmoji/.test(sb)
+        && sbNoC.includes('Beni vai recontar sua aventura com as imagens da história.'),
+      'estado bloqueado voltou OU o Beni leitor do intro foi alterado');
 
-    check('LIVRINHO_UX_1: CTA primário → Coloring na 1ª cena não pintada; secundário → modo oficial',
-      /navigation\.navigate\('Coloring', \{ story, cenaIndex: firstUncoloredIndex >= 0 \? firstUncoloredIndex : 0 \}\)/.test(sb)
-        && /onPress=\{\(\) => handleSelectMode\('official'\)\}/.test(sb),
-      'CTAs do estado bloqueado divergentes');
+    check('LIVRINHO_UX_1 [P3J]: Livrinho não navega mais para Coloring e não tem seletor de modo',
+      !/navigation\.navigate\('Coloring'/.test(sbNoC)
+        && !/handleSelectMode/.test(sbNoC)
+        && !/cenaIndex/.test(sbNoC)
+        && /onPress=\{handleEnterLivrinho\}/.test(sbNoC),
+      'CTA para o Colorir voltou ao Livrinho OU o seletor de modo ressurgiu');
 
-    check('LIVRINHO_UX_1: card do child mostra {childArtCount}/{totalScenes} e sub de bloqueio',
-      /\{childArtCount\}\/\{totalScenes\}<\/Text>/.test(sb)
-        && sb.includes('Disponível quando você pintar todas as cenas.'),
-      'card do child não reflete progresso/bloqueio');
+    check('LIVRINHO_UX_1 [P3J]: card do child removido; o resumo do intro conta apenas cenas da história',
+      !/\{childArtCount\}\/\{totalScenes\}<\/Text>/.test(sbNoC)
+        && !sbNoC.includes('Disponível quando você pintar todas as cenas.')
+        && /<Text style=\{styles\.introStatNum\}>\{totalScenes\}<\/Text>/.test(sbNoC)
+        && /\{totalScenes === 1 \? 'cena' : 'cenas'\}/.test(sbNoC),
+      'card do child voltou OU o resumo de cenas do intro mudou');
 
-    check('LIVRINHO_UX_1: modo oficial continua liberado (botão abrir + resolve official intactos)',
-      sb.includes('Abrir história ilustrada')
-        && /if \(mode === 'official'\)/.test(sb)
-        && /if \(official\) return makeOfficialVisual\(cena, story, official\);/.test(sb),
-      'modo oficial afetado');
+    check('LIVRINHO_UX_1 [P3J]: modo ilustrado é o único caminho (botão abrir + resolve official intactos, sem ramo de modo)',
+      sbNoC.includes('Abrir história ilustrada')
+        && !/mode === 'official'/.test(sbNoC)
+        && /if \(official\) return makeOfficialVisual\(cena, story, official\);/.test(sbNoC)
+        && /function resolveStoryBookPageImage\(cena, story, scenePackEntry\)/.test(sbNoC),
+      'o caminho ilustrado foi afetado OU um ramo de escolha de modo voltou');
 
-    check('LIVRINHO_UX_1: fallback interno do playing preservado (rede de segurança)',
-      sb.includes('Você ainda não pintou esta cena.')
-        && /function makeFallbackVisual\(/.test(sb)
-        && /function BookArtFallback\(/.test(sb),
-      'fallback do playing foi removido/alterado');
+    check('LIVRINHO_UX_1 [P3J]: fallback interno do playing preservado, agora sem nota de pintura ausente',
+      !sbNoC.includes('Você ainda não pintou esta cena.')
+        && /function makeFallbackVisual\(cena, story, note\)/.test(sbNoC)
+        && /function BookArtFallback\(\{ fallbackColor, emoji, title, note \}\)/.test(sbNoC)
+        && /return makeFallbackVisual\(cena, story\);/.test(sbNoC),
+      'fallback do playing foi removido OU voltou a falar de pintura ausente');
 
     check('LIVRINHO_UX_1: AudioPlayer/LIVRINHO_FIX_1 intactos (UX1 não vazou; StoryBook mantém onFinished)',
       !/coloredComplete|firstUncoloredIndex|blockedProgress/.test(readSrc('src/components/AudioPlayer.js'))
         && /onFinished=\{onSceneAudioComplete\}/.test(sb),
       'UX1 vazou para AudioPlayer OU StoryBook perdeu o wiring de áudio');
 
-    check('LIVRINHO_UX_1: refresh ao focar recarrega desenhos (useFocusEffect + loadDrawingsMap, guard cancelled, só no intro, sem interval)',
-      /useFocusEffect\(/.test(sb)
-        && /async function loadDrawingsMap\(story\)/.test(sb)
-        && /const map = await loadDrawingsMap\(story\);\s*if \(!cancelled\) setDrawings\(map\);/.test(sb)
-        && /screenStateRef\.current === 'intro'/.test(sb)
-        && !/setInterval/.test(sb),
-      'refresh ao focar ausente/instável (falta useFocusEffect/loadDrawingsMap/guard cancelled/escopo intro, ou usa interval)');
+    // [P3J] O refresh de desenhos ao focar servia ao contador de artes do modo colorido. Sem o modo,
+    // o Livrinho não lê mais NENHUMA pintura — mas o `useFocusEffect` continua vivo com a revalidação
+    // de acesso (2B.6/RP3), que é a rede que não pode cair junto.
+    check('LIVRINHO_UX_1 [P3J]: leitura de pinturas ao focar removida; useFocusEffect segue vivo revalidando acesso',
+      !/loadDrawingsMap/.test(sbNoC)
+        && !/setDrawings/.test(sbNoC)
+        && !/screenStateRef/.test(sbNoC)
+        && /useFocusEffect\(\s*useCallback\(\(\) => \{\s*if \(story\?\.id && Array\.isArray\(story\?\.cenas\) && !canOpenStoryFullExperience\(story\)\) \{/.test(sbNoC)
+        && !/setInterval/.test(sbNoC),
+      'leitor de pinturas voltou ao Livrinho OU o useFocusEffect de revalidação de acesso caiu');
 
     check('LIVRINHO_UX_1: doc do bloco existe',
       srcExists('docs/LIVRINHO_UX_1.md'),
@@ -25702,12 +26059,15 @@ try {
       'máquina de estado do hook incompleta (reconciliado/refresh/guard/uiState)');
 
     // 4) Resolvers PUROS (não-hook) em useResolvedStoryMedia: file:// só com pack; senão null.
-    check('2B (resolvers puros): resolveRemoteColoringUri/resolveRemoteAudioSource → file:// só com pack, senão null',
-      /export function resolveRemoteColoringUri\(storyId, sceneNumber, packEntry\)/.test(media2b)
+    // [P3J] `resolveRemoteColoringUri` foi APOSENTADO com o Colorir legado (não há mais lineart por
+    // cena a resolver, nem local nem remota). O resolver de ÁUDIO — a outra metade da propriedade —
+    // continua com a mesma guarda estrita: sem pack ⇒ null ⇒ fallback local.
+    check('2B (resolvers puros) [P3J]: resolveRemoteColoringUri aposentado; resolveRemoteAudioSource → file:// só com pack, senão null',
+      !/resolveRemoteColoringUri/.test(codeOf('src/hooks/useResolvedStoryMedia.js'))
         && /export function resolveRemoteAudioSource\(storyId, sceneNumber, packEntry\)/.test(media2b)
-        && (media2b.match(/if \(!isRemotePackStory\(storyId\) \|\| !packEntry\) return null;/g) || []).length >= 2
-        && (media2b.match(/RESOLVE_SOURCE_TYPE\.FILE && r\.source \? r\.source : null/g) || []).length >= 2,
-      'resolvers remotos ausentes ou sem guarda null/FILE (fallback local em risco)');
+        && /if \(!isRemotePackStory\(storyId\) \|\| !packEntry\) return null;/.test(media2b)
+        && /RESOLVE_SOURCE_TYPE\.FILE && r\.source \? r\.source : null/.test(media2b),
+      'resolver de colorir ressuscitou OU o resolver de áudio perdeu a guarda null/FILE (fallback local em risco)');
 
     // 5) StoryDetail consome SÓ o hook + bloco gated a premium-active (canAccess) + remote + !comingSoon.
     check('2B (StoryDetail): importa só useStoryPackDownload; bloco gated a canAccess + isRemote + !isComingSoon',
@@ -25725,21 +26085,27 @@ try {
       'StoryDetail não expõe os 4 estados de download (baixar/baixando/pronto/erro+retry)');
 
     // 7) Livrinho: remoto só pelos resolvers da camada permitida + FALLBACK LOCAL preservado.
-    check('2B (Livrinho): usa resolveRemote* de useResolvedStoryMedia; local é default e só é sobrescrito',
-      /import \{ resolveRemoteColoringUri, resolveRemoteAudioSource \} from '\.\.\/hooks\/useResolvedStoryMedia'/.test(sb2b)
-        && /let baseImage = getColoringImage\(story\.id, cena\.id\);/.test(sb2b)
-        && /if \(remote\) baseImage = remote;/.test(sb2b)
+    // [P3J] O par lineart+áudio virou só áudio: a lineart saiu do Livrinho junto com o modo colorido.
+    // A propriedade que importa — "local é o default; o remoto SÓ sobrescreve" — segue provada no
+    // áudio e, na imagem, pelo resolver de CENA (que já nasce fallback-first).
+    check('2B (Livrinho) [P3J]: sem rota de lineart; áudio e imagem de cena mantêm local como default sobrescrito pelo remoto',
+      !/resolveRemoteColoringUri|getColoringImage|baseImage/.test(codeOf('src/screens/StoryBookScreen.js'))
+        && /import \{ resolveRemoteAudioSource \} from '\.\.\/hooks\/useResolvedStoryMedia'/.test(sb2b)
         && /let audioAsset = hasSceneAudio\(story\.id, slide\.sceneKey\)/.test(sb2b)
-        && /if \(remoteAudio\) audioAsset = remoteAudio;/.test(sb2b),
-      'Livrinho não roteia remoto pela camada permitida OU perdeu o fallback local (lineart/áudio)');
+        && /if \(remoteAudio\) audioAsset = remoteAudio;/.test(sb2b)
+        && /const official = resolveSceneImageForStory\(story\.id, cena\.id, scenePackEntry\);/.test(sb2b),
+      'rota de lineart voltou ao Livrinho OU o fallback local (áudio/imagem de cena) foi perdido');
 
     // 8) Regra dos hooks: um ÚNICO hook de pack no TOPO; a timeline recebe scenePackEntry como
     //    PARÂMETRO (resolvers não-hook), nunca chama hook dentro de loop/map.
-    check('2B (regra dos hooks): scenePackEntry é o único hook de pack no topo; builders recebem por parâmetro',
+    // [P3J] As assinaturas dos builders encolheram (saíram `drawings` e `mode`), mas a propriedade
+    // é a mesma e continua checada: UM único hook de pack no topo, e o packEntry desce por PARÂMETRO.
+    check('2B (regra dos hooks) [P3J]: scenePackEntry é o único hook de pack no topo; builders (já sem drawings/mode) recebem por parâmetro',
       /const scenePackEntry = useSandboxScenePackEntry\(story\?\.id\);/.test(sb2b)
         && (sb2b.match(/useSandboxScenePackEntry\(/g) || []).length === 1
-        && /function buildStoryBookTimeline\(story, drawings, mode, scenePackEntry\)/.test(sb2b)
-        && /function resolveStoryBookPageImage\(cena, sceneNumber, story, drawings, mode, scenePackEntry\)/.test(sb2b),
+        && /function buildStoryBookTimeline\(story, scenePackEntry\)/.test(sb2b)
+        && /function resolveStoryBookPageImage\(cena, story, scenePackEntry\)/.test(sb2b)
+        && !/\bdrawings\b/.test(codeOf('src/screens/StoryBookScreen.js')),
       'Livrinho pode ter hook em loop OU mais de um hook de pack (viola regra dos hooks)');
   }
 
@@ -25779,18 +26145,27 @@ try {
       'StoryDetail navega p/ conteúdo premium sem guard canAccess (goToPremium)');
 
     // RP3 — rechecagem em FOCO nas 3 telas premium.
-    check('2B.6 (RP3 foco): Narration/Coloring/StoryBook revalidam canOpenStoryFullExperience em useFocusEffect',
+    // [P3J] A rota `Coloring` deixou de servir conteúdo premium: o ramo por cena foi aposentado e o
+    // único caminho vivo é o Colorir com o Beni em "A Criação" (história GRÁTIS), autorizado por
+    // `isColoring60PilotAllowed()` — que é revalidado em RENDER, não em foco, e é ainda mais estrito
+    // (flag oficial OU __DEV__ + ferramentas internas). As duas telas que de fato exibem conteúdo
+    // premium — Narração e Livrinho — mantêm a revalidação em foco intacta.
+    check('2B.6 (RP3 foco) [P3J]: Narração/Livrinho revalidam canOpenStoryFullExperience em foco; Coloring não serve mais premium (gate do piloto em render)',
       /useFocusEffect\([\s\S]{0,220}canOpenStoryFullExperience\(story\)/.test(narr26)
-        && /useFocusEffect\([\s\S]{0,220}canOpenStoryFullExperience\(story\)/.test(color26)
-        && /useFocusEffect\([\s\S]{0,260}!canOpenStoryFullExperience\(story\)/.test(sb26),
-      'uma tela premium não revalida acesso em foco (useFocusEffect)');
+        && /useFocusEffect\([\s\S]{0,260}!canOpenStoryFullExperience\(story\)/.test(sb26)
+        && !/canOpenStoryFullExperience/.test(color26)
+        && /const pilotAllowed = isColoring60PilotAllowed\(\);/.test(color26)
+        && /function isColoring60PilotAllowed\(\) \{\s*if \(COLORIR_60_CREATION_PILOT_ENABLED\) return true;/.test(color26),
+      'uma tela premium não revalida acesso em foco OU a rota Coloring perdeu o gate do piloto');
 
-    // RP3 — parada de mídia no StoryBook (pausa imediata + locked); Narration/Coloring saem (unmount pausa).
-    check('2B.6 (RP3 parada de mídia): StoryBook setIsPaused(true)+setScreenState("locked") ao bloquear em foco',
+    // RP3 — parada de mídia no StoryBook (pausa imediata + locked); Narration sai (unmount pausa).
+    check('2B.6 (RP3 parada de mídia) [P3J]: StoryBook setIsPaused(true)+setScreenState("locked"); Narração sai p/ ParentArea; Coloring sem activityId volta sem tela em branco',
       /!canOpenStoryFullExperience\(story\)\) \{\s*setIsPaused\(true\);\s*setScreenState\('locked'\);/.test(sb26)
         && /navigation\.replace\('ParentArea'\)/.test(narr26)
-        && /navigation\.replace\('ParentArea'\)/.test(color26),
-      'StoryBook não pausa/trava a mídia premium ao bloquear em foco');
+        && !/navigation\.replace\('ParentArea'\)/.test(color26)
+        && /function ColoringRouteGuard\(\{ navigation \}\) \{[\s\S]{0,200}if \(navigation\.canGoBack\(\)\) navigation\.goBack\(\);/.test(color26)
+        && /return <ColoringRouteGuard navigation=\{navigation\} \/>;/.test(color26),
+      'StoryBook não pausa/trava a mídia premium ao bloquear em foco OU a rota Coloring órfã não tem saída segura');
 
     // RP2 — resolver permanece agnóstico (sem entitlement).
     check('2B.6 (RP2 resolver agnóstico): contentResolver.decide sem isPremiumUser/hasAccess/canOpenStoryFullExperience',
@@ -26380,10 +26755,14 @@ try {
       'FAB global de packs ainda presente no AppNavigator (M1 removeu)');
 
     // M1-4 — rotas internas SÓ sob gate.
-    check('M1 (rotas internas gated): ColoringQa sob isInternalToolsEnabled; PackSandboxDev sob devPacksEnabled',
-      /\{isInternalToolsEnabled\(\) &&[\s\S]*?name="ColoringQa"/.test(navM1)
+    // [P3J] A rota "ColoringQa" foi REMOVIDA: a galeria de QA existia só para abrir os linearts por
+    // cena. A ferramenta interna do colorir vivo é o Coloring60Lab — que assume o papel na
+    // propriedade: continua registrada SÓ sob o gate interno, exatamente como a rota aposentada.
+    check('M1 (rotas internas gated) [P3J]: ColoringQa removida; Coloring60Lab sob isInternalToolsEnabled; PackSandboxDev sob devPacksEnabled',
+      !/name="ColoringQa"/.test(codeOf('src/navigation/AppNavigator.js'))
+        && /\{isInternalToolsEnabled\(\) && \(\s*<Stack\.Screen\s+name="Coloring60Lab"/.test(navM1)
         && /devPacksEnabled && \(\s*<Stack\.Screen\s+name="PackSandboxDev"/.test(navM1),
-      'rota ColoringQa/PackSandboxDev não está sob o gate interno');
+      'rota ColoringQa ressuscitou OU Coloring60Lab/PackSandboxDev não está sob o gate interno');
 
     // M1-5 — seção "Administração (dev)" sob o gate único.
     check('M1 (seção admin gated): "Administração (dev)" sob SHOW_TEST_TOOLS = isInternalToolsEnabled()',
@@ -26784,10 +27163,15 @@ try {
       !/AudioPlayer|expo-audio|playAsync|salvarCena|addBonusStars|AsyncStorage|setItem|entitlement/i.test(telaV1),
       'SceneValidationScreen passou a tocar áudio ou a escrever estado');
 
-    check('V1 (conteúdo oficial intacto): a tela só LÊ stories.js e os mapas de imagem',
+    // [P3J] A tela deixou de ler o mapa de linearts (`getColoringImage`) porque o mapa não existe
+    // mais. Segue lendo — e SÓ lendo — as fontes oficiais que restaram: stories.js e o mapa de
+    // ilustrações de cena. A ausência é parte da propriedade, não uma cobertura perdida.
+    check('V1 (conteúdo oficial intacto) [P3J]: a tela só LÊ stories.js e o mapa de ilustrações; mapa de linearts não é mais lido',
       /from '\.\.\/data\/stories'/.test(telaV1)
-      && /getSceneIllustrationAsset/.test(telaV1) && /getColoringImage/.test(telaV1),
-      'SceneValidationScreen não lê as fontes oficiais esperadas');
+      && /getSceneIllustrationAsset/.test(telaV1)
+      && !/getColoringImage/.test(telaV1)
+      && !/coloringImages/.test(telaV1),
+      'SceneValidationScreen não lê as fontes oficiais esperadas OU voltou a ler o mapa de linearts aposentado');
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -34698,18 +35082,23 @@ try {
           && fs.statSync(abs02).size === V.LINEARTS[0].expectedBytes;
       })(),
       'scene_02.png não é o arquivo aprovado em P2B');
-    check('P2X C60-VER [19] scene_02.png é COMPARTILHADO conscientemente: 1 require no mapa legado (por cena) + 1 no registro Colorir 60 (por atividade), no MESMO path',
+    // [P3J] Antes: scene_02.png tinha 2 requires conscientes (mapa legado por cena + registro C60
+    // por atividade). Com o legado aposentado, o compartilhamento acabou: o registro do Colorir com
+    // o Beni é o ÚNICO dono. A asserção agora varre TODO o src/ — se alguém recriar um segundo
+    // require (ou copiar o PNG para outro path), ela cai.
+    check('P2X C60-VER [19] scene_02.png tem EXATAMENTE 1 require em todo o src/ — o do registro Colorir 60 (dono único pós-P3J)',
       (() => {
         const alvo = path.join(root, 'assets/stories/creation/coloring/scene_02.png');
-        const conta = (rel) => {
-          const s = readSrc(rel); const dir = path.dirname(path.join(root, rel));
+        const conta = (abs) => {
+          const s = fs.readFileSync(abs, 'utf8'); const dir = path.dirname(abs);
           const re = /require\(\s*'([^']+\.png)'\s*\)/g; let n = 0; let m;
           while ((m = re.exec(s)) !== null) if (path.resolve(dir, m[1]) === alvo) n++;
           return n;
         };
-        return conta('src/assets/coloringImages.js') === 1 && conta(REG_REL) === 1;
+        const total = allFiles.reduce((acc, f) => acc + conta(f), 0);
+        return total === 1 && conta(path.join(root, REG_REL)) === 1;
       })(),
-      'o compartilhamento de scene_02.png virou duplicação, ou um dos dois consumidores mudou de path');
+      'scene_02.png deixou de ter dono único (require duplicado no src/) ou o registro Colorir 60 mudou de path');
     check('P2X C60-VER [20] nenhum asset fora da lista oficial (activities/ = 2 arquivos · raiz do Beni = 16 PNGs)',
       (() => {
         const actDir = path.join(root, 'assets/stories/creation/coloring/activities');
@@ -35883,12 +36272,16 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     check('C60-P2.T2: ColoringScreen consome o resolvedor Colorir 60 (não o legado) no ramo aditivo',
       /resolveColoring60Lineart/.test(scr) && /coloring60Resolver/.test(scr),
       'o ramo Colorir 60 resolve via coloring60Resolver');
-    check('C60-P2.T2: caminho LEGADO preservado (cena/índice + persistência por cena.id intactos)',
-      /story\.cenas\[cenaIndex\]/.test(scr)
-        && /useResolvedColoringImage\(story,\s*cenaIndex\)/.test(scr)
-        && /getSavedDrawing\(story\.id,\s*cena\.id\)/.test(scr)
-        && /markStoryColoringActivityDone\(story\.id,\s*cena\.id\)/.test(scr),
-      'o caminho legado por sceneId/cenaIndex não pode ser alterado');
+    // [P3J] Esta asserção era o tripwire "não toque no legado" enquanto o Colorir 60 era aditivo.
+    // O legado foi aposentado por decisão do fundador, então ela virou o lacre inverso: a tela não
+    // pode conservar NENHUM resquício do caminho por cena/índice. Mesmo peso, sentido invertido.
+    check('C60-P2.T2→P3J: caminho LEGADO REMOVIDO da tela (sem cenaIndex, sem lineart por cena, sem persistência por cena.id)',
+      !/story\.cenas\[cenaIndex\]/.test(scr)
+        && !/useResolvedColoringImage/.test(scr)
+        && !/getSavedDrawing\(/.test(scr)
+        && !/markStoryColoringActivityDone\(/.test(scr)
+        && !/\bcenaIndex\b/.test(scr),
+      'a ColoringScreen ainda tem resquício do caminho legado por cena/índice');
     check('C60-P2.T2: ColoringScreen NÃO coage activityId a número (sem Number/parseInt no param)',
       !/(Number|parseInt|parseFloat)\s*\(\s*[^)]*activityId/.test(scr),
       'activityId nunca é convertido a número na tela');
@@ -35918,12 +36311,17 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     // ── P2.T3 · regressão do legado: módulos legados byte-idênticos (tripwire de hash) ──
     const crypto = require('crypto');
     const sha = (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, rel))).digest('hex');
-    check('C60-P2.T3: coloringImages.js (mapa legado de linearts) INALTERADO',
-      sha('src/assets/coloringImages.js') === '03e0818296ae580cda28fb89eb0fc80c724ac925a545455f650154743bb43c43',
-      'o mapa legado coloringImages.js não pode mudar em P2');
-    check('C60-P2.T3: useResolvedStoryMedia.js (resolvedor legado de lineart) INALTERADO',
-      sha('src/hooks/useResolvedStoryMedia.js') === '4d0391611e435be66abc730ecb4187ced79b7df02e3747c6a3a4128065505e21',
-      'o resolvedor legado useResolvedStoryMedia.js não pode mudar em P2');
+    // [P3J] Os dois tripwires de hash apontavam para o legado ("P2 não pode tocar nisso"). O legado
+    // saiu; os tripwires foram REBASEADOS, não removidos — continuam sendo hash exato, agora sobre
+    // o que precisa ficar estável DEPOIS da aposentadoria:
+    //  · o registro de assets do Colorir com o Beni (fonte única dos 3 linearts vivos);
+    //  · o resolvedor de mídia remota, já sem o ramo de colorir legado (baseline pós-P3J).
+    check('C60-P2.T3→P3J: coloring60LocalAssets.js (registro dos 3 linearts vivos) INALTERADO',
+      sha('src/assets/coloring60LocalAssets.js') === 'c977605c9006b7120219a93c16324c932961e9e034564164bea8cfdd9051d158',
+      'o registro de assets do Colorir com o Beni mudou — rebaseie o hash conscientemente');
+    check('C60-P2.T3→P3J: useResolvedStoryMedia.js (resolvedor de mídia remota, sem colorir) INALTERADO',
+      sha('src/hooks/useResolvedStoryMedia.js') === '4c1a16a780bb2e7ca29bd8e68e089e2ea0368d96e815c0db5b9c6e73e90867bb',
+      'o resolvedor de mídia remota mudou fora do P3J — cena/capa/áudio remotos não podem ser tocados aqui');
 
     // P2 é aditivo e dormente publicamente: a flag do piloto permanece off.
     check('C60-P2: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P2',
@@ -36255,9 +36653,19 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     // ── F · ISOLAMENTO: legado byte-idêntico + writer sem acoplamento proibido + sem integração ──
     {
       const sha = (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, rel))).digest('hex');
-      check('C60-P3: writer legado drawingStorage.js INALTERADO (contrato público intacto)',
-        sha('src/services/drawingStorage.js') === '8e09d7bacbcfd8b6fb45724ed641b707bc7b41bfeacaabe6f66a23302cd90e31',
-        'o writer legado por cena não pode mudar em P3');
+      // [P3J] O writer legado recebeu UMA alteração — e só de comentário: o cabeçalho passou a
+      // registrar que a lineart que ficava por baixo da pintura não existe mais e que, apesar disso,
+      // o módulo permanece INTEGRALMENTE (decisão ratificada 4: "drawingStorage.js permanece
+      // integralmente"). Trocamos o sha do ARQUIVO pelo sha do CÓDIGO (sem comentários): é o lacre
+      // mais forte disponível — documentar é permitido, mudar comportamento não. O valor abaixo é o
+      // mesmo do arquivo em HEAD 7c12987, provando byte a byte que nenhuma linha executável mudou.
+      const shaCode = (rel) => crypto.createHash('sha256').update(codeOf(rel)).digest('hex');
+      check('C60-P3 → [P3J]: writer legado drawingStorage.js com CÓDIGO byte-idêntico (só o comentário mudou)',
+        shaCode('src/services/drawingStorage.js') === 'db08e33ec712f2fbebd63920d9c0e77764838346dc50b3c782ee74b0518874ba'
+          && /export async function saveDrawingState\(/.test(readSrc('src/services/drawingStorage.js'))
+          && /export async function hasSavedDrawing\(/.test(readSrc('src/services/drawingStorage.js'))
+          && /export function hasMeaningfulPaint\(/.test(readSrc('src/services/drawingStorage.js')),
+        'o writer legado por cena não pode mudar de comportamento (só comentário é permitido)');
       check('C60-P3: fileBlobStore.js (helpers de blob reutilizados) INALTERADO',
         sha('src/services/fileBlobStore.js') === 'b5183ea87382598110a6d822b9f08d45a6243e028f91d66854e89aa802cbf870',
         'o reuso dos helpers de blob é por consumo — o módulo em si não muda');
@@ -36534,8 +36942,12 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     }
     {
       const sha = (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, rel))).digest('hex');
-      check('C60-P3-FIX1 [E13]: writer legado drawingStorage.js e fileBlobStore.js seguem INALTERADOS',
-        sha('src/services/drawingStorage.js') === '8e09d7bacbcfd8b6fb45724ed641b707bc7b41bfeacaabe6f66a23302cd90e31'
+      // [P3J] Mesmo raciocínio do lacre C60-P3 acima: `drawingStorage.js` é comparado pelo sha do
+      // CÓDIGO (a única mudança foi o comentário de cabeçalho da aposentadoria); `fileBlobStore.js`
+      // segue byte-idêntico no arquivo inteiro, sem nem comentário novo.
+      const shaCode13 = (rel) => crypto.createHash('sha256').update(codeOf(rel)).digest('hex');
+      check('C60-P3-FIX1 [E13] → [P3J]: código do drawingStorage.js byte-idêntico e fileBlobStore.js INALTERADO',
+        shaCode13('src/services/drawingStorage.js') === 'db08e33ec712f2fbebd63920d9c0e77764838346dc50b3c782ee74b0518874ba'
           && sha('src/services/fileBlobStore.js') === 'b5183ea87382598110a6d822b9f08d45a6243e028f91d66854e89aa802cbf870',
         'o hardening é confinado ao writer dedicado — legado e helpers de blob permanecem byte-idênticos');
     }
@@ -36819,7 +37231,12 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       // Fatia o handler e o ramo Colorir 60 do FONTE BRUTO (âncoras em comentário), depois remove
       // comentários internos — assim indexOf/regex atuam só sobre o CÓDIGO da ordem canônica.
       const handler = stripComments(sliceBetween(scrRaw, '[C60-P4-HANDLER-START]', '[C60-P4-HANDLER-END]'));
-      const c60Region = stripComments(sliceBetween(scrRaw, '[C60-P4-STORYID]', 'function LegacyColoringScreen'));
+      // [P3J] A âncora final era `function LegacyColoringScreen` — a fronteira entre o ramo novo e o
+      // ramo legado. Com o legado removido, essa âncora sumiu e a fatia virava STRING VAZIA: as
+      // asserções positivas quebravam e — pior — as NEGATIVAS passavam por vazio (falso verde). A
+      // nova fronteira é o início dos estilos do próprio ramo (`c60Styles`), que fecha o mesmo
+      // território de código e restabelece a leitura real.
+      const c60Region = stripComments(sliceBetween(scrRaw, '[C60-P4-STORYID]', 'const c60Styles = StyleSheet.create('));
 
       // Grupo A — D1 (lineart pronto): onReadyChange conectado + gate antes do export.
       check('C60-P4.T2 [A/D1]: canvas conecta onReadyChange={setC60Ready} (sinal de lineart pronto)',
@@ -37101,12 +37518,30 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         hmp(SMALL) === false && hmp(BIG) === true && isAcceptableC60Payload(SMALL) === false,
         'canvas em branco (sem traço significativo) não pode concluir');
 
-      // ── Grupo L (FIX1 · Etapa 8) — LEGADO preservado (tripwire por sha256 do corpo legado) ─────
-      const legacyBody = scrRaw.slice(scrRaw.indexOf('function LegacyColoringScreen'));
-      const legacySha = require('crypto').createHash('sha256').update(legacyBody, 'utf8').digest('hex');
-      check('C60-P4.T2 [L]: corpo do LegacyColoringScreen BYTE-IDÊNTICO (sha256 fixado — fluxo legado intocado por FIX1)',
-        legacySha === '86c68bc414bd62bd7fc74b8bf69d6dcdf94a5cfc944e86872d472e3cf29ace6b',
-        `o corpo legado mudou (sha=${legacySha}) — FIX1 não pode tocar o fluxo legado`);
+      // ── Grupo L → [P3J] — LEGADO REMOVIDO (o tripwire de preservação vira lacre de ausência) ────
+      // Enquanto o legado convivia com o ramo novo, o sha256 do corpo legado provava que FIX1 não o
+      // tocava. Agora o corpo não existe: a propriedade a lacrar é a inversa — a remoção foi TOTAL
+      // e não uma mudança de lugar. Varremos toda a árvore `src/` sobre o código sem comentários
+      // (as notas [P3J] citam o símbolo de propósito) e conferimos que os símbolos que só o ramo
+      // legado usava saíram junto — nada foi "movido para outro arquivo".
+      const legacyRefs = (function scanLegacy(dir, acc) {
+        for (const name of fs.readdirSync(dir)) {
+          const full = path.join(dir, name);
+          if (fs.statSync(full).isDirectory()) scanLegacy(full, acc);
+          else if (name.endsWith('.js')) {
+            const rel = path.relative(root, full).split(path.sep).join('/');
+            if (/LegacyColoringScreen/.test(codeOf(rel))) acc.push(rel);
+          }
+        }
+        return acc;
+      })(path.join(root, 'src'), []);
+      const scrCode = codeOf('src/screens/ColoringScreen.js');
+      check('C60-P4.T2 [L] → [P3J]: LegacyColoringScreen REMOVIDO por inteiro (zero referências executáveis em src/) e sem realocação',
+        legacyRefs.length === 0
+          && !/PAN_HINT_KEY/.test(scrCode)
+          && !/getSavedDrawing|saveDrawingState|clearDrawingState|clearAllSavedDrawings/.test(scrCode)
+          && !/markStoryColoringActivityDone|useProgressContext|isCreatorQaModeEnabled/.test(scrCode),
+        `o ramo legado reapareceu (arquivos=${legacyRefs.join(', ') || 'nenhum'}) ou seus símbolos exclusivos foram realocados`);
     }
 
     // ── Etapa 14 · dívidas de cobertura da QA2 (clear/rollback) — sem alterar o contrato do writer ──
@@ -37222,7 +37657,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       };
       const scrF = readSrc('src/screens/ColoringScreen.js');
       const handlerF = stripComments(sliceBetween(scrF, '[C60-P4-HANDLER-START]', '[C60-P4-HANDLER-END]'));
-      const c60RegionF = stripComments(sliceBetween(scrF, '[C60-P4-STORYID]', 'function LegacyColoringScreen'));
+      // [P3J] Mesma re-ancoragem do bloco T2 acima (o legado saiu; a fronteira agora é `c60Styles`).
+      const c60RegionF = stripComments(sliceBetween(scrF, '[C60-P4-STORYID]', 'const c60Styles = StyleSheet.create('));
       const ctrlSrc = scrF.slice(
         scrF.indexOf('function createC60AttemptController('),
         scrF.indexOf('function beginC60Attempt('));
@@ -37559,12 +37995,21 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           `caminhos síncronos de falha não deixam a trava presa (noCanvas held=${freeAfterNoCanvas}, throw held=${freeAfterThrow})`);
       }
 
-      // ── TRIPWIRE do legado (Etapa 11) — corpo do LegacyColoringScreen inalterado pelo FIX2 ───────
-      const legacyBodyF = scrF.slice(scrF.indexOf('function LegacyColoringScreen'));
-      const legacyShaF = require('crypto').createHash('sha256').update(legacyBodyF, 'utf8').digest('hex');
-      check('C60-P4-FIX2 [LEGADO]: LegacyColoringScreen BYTE-IDÊNTICO (sha256 fixado — FIX2 não toca o legado)',
-        legacyShaF === '86c68bc414bd62bd7fc74b8bf69d6dcdf94a5cfc944e86872d472e3cf29ace6b',
-        `o corpo legado mudou (sha=${legacyShaF}) — FIX2 não pode tocar o fluxo legado`);
+      // ── TRIPWIRE [P3J] — o eixo se INVERTE: o legado saiu, o Colorir com o Beni não pode ter
+      // saído junto. O corpo de `Coloring60ActivityScreen` (da assinatura até os estilos do ramo)
+      // é comparado por sha256 contra o valor medido em HEAD 7c12987, ANTES da aposentadoria:
+      // 57.148 bytes byte a byte iguais provam que a remoção das 199 folhas legadas não encostou
+      // no motor vivo do colorir. É o mesmo formato de tripwire, apontado para o lado que importa.
+      const c60BodyF = (function sliceC60(s) {
+        const i = s.indexOf('function Coloring60ActivityScreen(');
+        const j = s.indexOf('const c60Styles = StyleSheet.create(', i + 1);
+        return (i >= 0 && j > i) ? s.slice(i, j) : '';
+      })(scrF);
+      const c60ShaF = require('crypto').createHash('sha256').update(c60BodyF, 'utf8').digest('hex');
+      check('C60-P4-FIX2 [LEGADO] → [P3J]: corpo do Coloring60ActivityScreen BYTE-IDÊNTICO a HEAD (a aposentadoria não tocou o colorir vivo)',
+        c60ShaF === 'f291614e31e7b1e693fa27ce55b72500bbcc8cd59144095961af0641038ee7da'
+          && c60BodyF.length === 57148,
+        `o corpo do Colorir com o Beni mudou (sha=${c60ShaF}, bytes=${c60BodyF.length}) — P3J não pode tocar o ramo vivo`);
     }
   }
 
@@ -37987,17 +38432,34 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
     // ── HARNESS D · ESTRUTURAIS de StoryDetailScreen (Parte 1 · provas 9–12) ───────
     // Prova 9 — card Colorir LEGADO oculto SÓ quando creationColoringVisible (creation + piloto).
-    check('C60-P10 [prova 9] legado oculto SÓ quando creationColoringVisible (creation + piloto)',
+    // [P3J] O card "Colorir" não é mais CONDICIONAL — ele não existe. Antes ele sumia só em
+    // "A Criação" com o piloto ligado; agora saiu de todas as histórias, e por isso o gate
+    // `!creationColoringVisible` que o escondia saiu junto. O que precisa continuar exato é o gate
+    // POSITIVO (creation + piloto), que decide a única porta de colorir que restou.
+    check('C60-P10 [prova 9] → [P3J]: card de Colorir legado REMOVIDO da grade; gate creation+piloto preservado',
       /const creationColoringVisible\s*=\s*[\s\S]*?story\.id === CREATION_STORY_ID\s*&&\s*[\s\S]*?COLORIR_60_CREATION_PILOT_ENABLED[\s\S]*?isInternalToolsEnabled\(\)/.test(sdCode)
-        && /\{!creationColoringVisible && \(\s*[\s\S]*?<PostStoryCard/.test(sdCode)
-        && /title="Colorir"/.test(sdCode),
-      'o card tradicional de Colorir só some quando a jornada "Colorir com o Beni" está autorizada');
+        && !/title="Colorir"/.test(sdCode)
+        && !/\{!creationColoringVisible &&/.test(sdCode)
+        && (sdCode.match(/<PostStoryCard\b/g) || []).length === 3,
+      'o card tradicional de Colorir voltou à grade OU o gate creation+piloto foi alterado');
     // Prova 10 — piloto OFF ⇒ legado preservado: seção nova gated; flag do piloto permanece false; legado presente.
-    check('C60-P10 [prova 10] piloto OFF ⇒ legado preservado: seção nova gated; flag do piloto false; LegacyColoringScreen presente',
+    // [P3J] A prova 10 protegia o legado ("piloto OFF ⇒ nada muda para quem já usava"). A decisão do
+    // fundador aposentou o legado, então a metade que exigia `LegacyColoringScreen` presente vira o
+    // seu oposto: com o piloto OFF, a história simplesmente NÃO tem atividade de colorir — sem card
+    // vazio, sem bloqueio, sem "em breve". A flag continua `false` (restrição 9) e a seção nova
+    // continua gated. Nenhum dado do aparelho é apagado por isso.
+    // [P3J] O "Em breve" que sobra na tela é PRÉ-EXISTENTE (está no HEAD) e fala do CATÁLOGO — história
+    // ainda sendo preparada, via `isComingSoon`. A regra D2 proíbe "em breve" NO LUGAR da atividade
+    // aposentada; não proíbe a copy de catálogo. Por isso a prova não é a ausência global da expressão
+    // (que seria um falso vermelho), e sim que NENHUMA ocorrência dela fala de colorir.
+    const emBreveP10 = sdCode.split('\n').filter((l) => /em breve/i.test(l));
+    check('C60-P10 [prova 10] → [P3J]: piloto OFF ⇒ nenhuma atividade de colorir (seção gated, flag false, legado ausente e sem placeholder "em breve" de colorir)',
       /\{creationColoringVisible && \(\s*[\s\S]*?<CreationColoringJourneySection/.test(sdCode)
         && /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js'))
-        && /function LegacyColoringScreen/.test(scrP10),
-      'com o piloto desligado a experiência anterior fica intacta (nada é apagado)');
+        && !/LegacyColoringScreen/.test(codeOf('src/screens/ColoringScreen.js'))
+        && emBreveP10.length === 2
+        && emBreveP10.every((l) => !/colorir/i.test(l) && /isComingSoon|explorar todas as cenas/.test(l)),
+      'com o piloto desligado a tela precisa ficar sem colorir — sem legado, sem card vazio e sem "em breve"');
     // Prova 11 — outras histórias intactas: gate exige story.id === CREATION_STORY_ID.
     check('C60-P10 [prova 11] outras histórias: gate exige story.id === CREATION_STORY_ID (nada muda fora de "A Criação")',
       /const creationColoringVisible\s*=\s*story\.id === CREATION_STORY_ID &&/.test(sdCode),
@@ -38362,14 +38824,21 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       'com movimento reduzido tudo assenta no estado final por fade, com brilho suave — o progresso e a galeria seguem presentes');
 
     // ── PARTE 12 · Livrinho legado ───────────────────────────────────────────────────
-    check('C60-P12 [prova 25 · Parte 12] Livrinho: "Pintar próxima cena" oculto sob {!pilotColoringActive} via isCreationColoringPilotActive; "Ver história ilustrada" preservado; gate só creation+piloto',
-      /import \{ isCreationColoringPilotActive \} from '\.\.\/services\/coloring60Pilot'/.test(sbsRaw)
-        && /const pilotColoringActive = isCreationColoringPilotActive\(story\.id\)/.test(sbsRaw)
-        && /\{!pilotColoringActive && \(/.test(sbsRaw)
-        && /Pintar próxima cena/.test(sbsRaw)
-        && /Ver história ilustrada/.test(sbsRaw)
-        && /return storyId === COLORING60_STORY_ID && isColoring60PilotAllowed\(\);/.test(pilotRaw),
-      'no piloto (A Criação) o botão da cena legada não aparece; as demais histórias seguem intactas');
+    // [P3J] Trava INVERTIDA: o convite legado do Livrinho não é mais "ocultado sob o piloto" — ele
+    // deixou de existir para TODAS as histórias, o que é estritamente mais forte que o gate anterior.
+    // Por isso a StoryBookScreen não precisa mais do gate compartilhado (nem do `pilotColoringActive`),
+    // enquanto `coloring60Pilot.js` continua íntegro para os consumidores vivos do Colorir com o Beni.
+    // As ausências leem CÓDIGO SEM COMENTÁRIO: o comentário [P3J] da tela cita "Pintar próxima cena"
+    // de propósito, ao explicar a retirada.
+    const sbsCode25 = codeOf('src/screens/StoryBookScreen.js');
+    check('C60-P12 [prova 25 · Parte 12] → [P3J]: Livrinho SEM convite de colorir em qualquer história (sem gate de piloto, sem "Pintar próxima cena") e com CTA única preservada',
+      !/coloring60Pilot/.test(sbsCode25)
+        && !/pilotColoringActive|isCreationColoringPilotActive/.test(sbsCode25)
+        && !/Pintar próxima cena/.test(sbsCode25)
+        && /▶  Abrir história ilustrada/.test(sbsCode25)
+        && /onPress=\{handleEnterLivrinho\}/.test(sbsCode25)
+        && /return storyId === COLORING60_STORY_ID && isColoring60PilotAllowed\(\);/.test(codeOf('src/services/coloring60Pilot.js')),
+      'o botão da cena legada saiu do Livrinho inteiro (não só de A Criação); o gate do piloto segue vivo para o Colorir com o Beni');
 
     // ── PARTE 13 · prewarm das 5 poses ───────────────────────────────────────────────
     check('C60-P12 [prova 26 · Parte 13] ColoringScreen AQUECE as 5 poses do P12 antes do "Pronto!" (Image.prefetch best-effort)',
@@ -41689,8 +42158,14 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
     // MODAL ÚNICO: a decisão de mostrar o convite migrou de handleContinue (modal duplo) para
     // handleConcluirCena, via `derivePostSceneExperience` — UM modal por vez, nunca os dois.
-    check('C60-PARTEB [prova 29 · NarrationScreen decide UM modal via derivePostSceneExperience e sela o convite ao apresentar]',
-      NSsrc.includes('const sceneMilestone = creationColoringHidden')
+    // [P3J] O gate da cena deixou de se chamar "o legado está oculto?" (`creationColoringHidden`) e
+    // passou a se chamar pelo que É: "a jornada do Colorir com o Beni está ativa?"
+    // (`coloring60JourneyActive`). O valor é o mesmo — mas não existe mais um legado para ocultar,
+    // então o nome antigo descreveria um estado inexistente. As ausências leem CÓDIGO SEM COMENTÁRIO.
+    const NScode = codeOf('src/screens/NarrationScreen.js');
+    check('C60-PARTEB [prova 29 · NarrationScreen decide UM modal via derivePostSceneExperience e sela o convite ao apresentar] → [P3J]: gate renomeado e ZERO convite legado na cena',
+      NSsrc.includes('const sceneMilestone = coloring60JourneyActive')
+      && !/creationColoringHidden|Hora de colorir|Colorir cena|markStoryColoringActivityDone/.test(NScode)
       && NSsrc.includes('getColoring60MilestoneForCompletedScene(story?.id, numeroCena)')
       && /derivePostSceneExperience\(\{\s*milestone: sceneMilestone,/.test(NSsrc)
       && NSsrc.includes('=== C60_POST_SCENE.COLORING_MILESTONE_INVITE')
@@ -42032,9 +42507,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       })(),
       'o "pular" do convite pode abrir o editor');
 
-    check('C60-PARTEB [gate 04 · convite só no piloto]: sceneMilestone exige creationColoringHidden, senão null',
-      /const sceneMilestone = creationColoringHidden\s*\?\s*getColoring60MilestoneForCompletedScene\(story\?\.id, numeroCena\)\s*:\s*null;/.test(NSsrc),
-      'o marco não está condicionado ao piloto (creationColoringHidden ? ... : null)');
+    check('C60-PARTEB [gate 04 · convite só no piloto] → [P3J]: sceneMilestone exige coloring60JourneyActive (= isCreationColoringPilotActive), senão null',
+      /const sceneMilestone = coloring60JourneyActive\s*\?\s*getColoring60MilestoneForCompletedScene\(story\?\.id, numeroCena\)\s*:\s*null;/.test(NSsrc)
+      && /const coloring60JourneyActive = isCreationColoringPilotActive\(story\?\.id\);/.test(NSsrc),
+      'o marco não está condicionado ao gate do Colorir com o Beni (coloring60JourneyActive ? ... : null)');
 
     check('C60-PARTEB [gate 05 · marco usa o contrato central, sem navigate cru]',
       (() => {
@@ -42074,10 +42550,20 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       && SDsrc.includes('hasStoryColoringActivityDone(story.id).then(setColoringDone);'),
       'a StoryDetailScreen não usa a ponte no piloto ou não ignora READ_FAILED');
 
-    check('C60-PARTEB [gate 10 · fórmula global intacta]: journeyComplete ainda usa coloringComplete',
-      SJsrc.includes('scenesComplete && bookOpened && quizDone && reflectionDone && coloringComplete')
-      && SJsrc.includes('const coloringComplete = !!p.coloringComplete;'),
-      'a fórmula global de journeyComplete mudou');
+    // [P3J] A fórmula mudou POR DECISÃO DO FUNDADOR (regras 1 e 2 da progressão): colorir só pesa
+    // quando existe colorir naquele ambiente. Exigir `coloringComplete` de 19 histórias sem atividade
+    // trancaria a jornada inteira e congelaria `sequenceUnlocked` na primeira. Como a mudança apenas
+    // REMOVE uma condição, `journeyComplete` só pode passar de false→true: nenhuma história concluída
+    // regride (regra 6) e nenhuma conquista é revogada (regra 8). Com o C60 ativo, `coloringRequired`
+    // volta a true e o contrato canônico vigente é preservado tal e qual (regra 5).
+    check('C60-PARTEB [gate 10 · fórmula global] → [P3J]: journeyComplete = cenas+livrinho+quiz+reflexão, e colorir SÓ quando disponível (jamais exige o que não existe)',
+      /const journeyComplete =\s*scenesComplete && bookOpened && quizDone && reflectionDone\s*&& \(!coloringRequired \|\| coloringComplete\);/.test(SJsrc)
+      && SJsrc.includes('const coloringComplete = !!p.coloringComplete;')
+      && SJsrc.includes('const coloringRequired = p.coloringAvailable === true;')
+      && !/scenesComplete && bookOpened && quizDone && reflectionDone && coloringComplete/.test(SJsrc)
+      && /coloringAvailable: coloringRequired,/.test(SJsrc)
+      && /coloringRequired,/.test(SJsrc),
+      'a fórmula de journeyComplete não tornou o colorir condicional à disponibilidade real');
 
     check('C60-PARTEB [gate 11 · marcos SÓ em creation neste bloco]',
       Object.keys(MS.COLORING60_STORY_MILESTONES).length === 1
@@ -42208,6 +42694,395 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         return mutQuebra && realVerde;
       }),
       'a config antiga 8/9 do Cuidado NAO foi detectada pelo cruzamento com os títulos reais de stories.js');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+  // P3J · APOSENTADORIA GLOBAL DO COLORIR LEGADO — as 22 PROVAS NUMERADAS + 10 CONTROLES NEGATIVOS
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+  //
+  // O restante da suíte já lacra a aposentadoria arquivo a arquivo, espalhada pelos blocos
+  // históricos. Este bloco existe para outra coisa: tornar as 22 propriedades exigidas pelo fundador
+  // ENDEREÇÁVEIS uma a uma, com o mesmo número da lista dele. Quem auditar o P3J lê 22 linhas e sabe
+  // exatamente qual propriedade caiu — não precisa reconstruir o mapeamento a partir de 4 mil labels.
+  //
+  // DESENHO — por que cada prova é uma função pura de um "mundo":
+  //   Cada prova recebe `W`, uma FACHADA de leitura do repositório (arquivos de coloring, fontes de
+  //   `src/`, hashes, módulos carregados em sandbox). Nenhuma prova lê o disco diretamente.
+  //   Os 10 controles negativos então reexecutam A MESMA prova contra um `W` MUTANTE construído EM
+  //   MEMÓRIA e exigem que ela fique VERMELHA. Isso dá dentes ao verde: uma prova que não sabe
+  //   reprovar não prova nada.
+  //
+  //   Consequência deliberada: NENHUM arquivo do worktree é tocado pelos controles negativos. Não há
+  //   mutação a restaurar, não há janela em que o repositório fique sujo, e um Ctrl+C no meio do
+  //   smoke não deixa resíduo. É a forma segura de cumprir "execute controles negativos e restaure
+  //   todas as mutações" num bloco cuja regra número um é não destruir nada.
+  //
+  //   Ausências leem SEMPRE código sem comentário (`W.code`): o P3J documenta a remoção citando os
+  //   símbolos removidos, então ler texto cru produziria vermelhos falsos.
+  console.log('\n── P3J · Aposentadoria do Colorir legado: 22 provas numeradas ──');
+  {
+    const crypto = require('crypto');
+    const { loadModule: p3jLoad } = require('./testing/packInstallHarness');
+
+    // ── Constantes do contrato (medidas no P3/P7 e ratificadas pelo fundador) ──
+    const P3J_C60_ART = Object.freeze({
+      'assets/stories/creation/coloring/scene_02.png':
+        'c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1',
+      'assets/stories/creation/coloring/activities/living_world.png':
+        '818cd917c7493f4a3e04512a7120a6eaff5a03fdd16277b7d4fdfd1ee33b6ac5',
+      'assets/stories/creation/coloring/activities/people_and_care.png':
+        '59988d9a58082a8173a328857fccb6a3716815660f4434c0df4491d6bf30d4e9',
+    });
+    const P3J_POSES = Object.freeze({
+      'assets/mascot/beni/12_beni_admira_esquerda.png':
+        '00d79751129ff8121e497d94191429df2eb6083a13fff86d6a834be7d49b91de',
+      'assets/mascot/beni/13_beni_admira_direita.png':
+        '9c309d23e3b65d64bc8be6243a520e66984b88f8509394f81e838ae3e304545a',
+      'assets/mascot/beni/14_beni_celebra_frente.png':
+        'cff48323d5c7855681e494026c1f00775cadc2c73528c163e3b527bf4cd45709',
+      'assets/mascot/beni/15_beni_apresenta_galeria.png':
+        '29719e11a4d17c87b26467eed38782cbbaeddf80175d10246c98315b5e51fd36',
+      'assets/mascot/beni/16_beni_olha_acima.png':
+        '302b8ca37d9dd0dc4328949ca24d032f72c86a5b7afb2c0f46e7702359b3516f',
+    });
+    const P3J_LINEARTS_REMOVIDOS = 199;
+    const P3J_TEXTOS_LEGADOS = ['Hora de colorir', 'Colorir cena', 'Pintar próxima cena'];
+
+    // ── Fachada REAL ──
+    const p3jWalk = (absDir, relDir, filtro, out) => {
+      for (const e of fs.readdirSync(absDir, { withFileTypes: true })) {
+        const abs = path.join(absDir, e.name);
+        const rel = relDir + '/' + e.name;
+        if (e.isDirectory()) p3jWalk(abs, rel, filtro, out);
+        else if (filtro(rel)) out.push(rel);
+      }
+      return out;
+    };
+    const p3jSrcFiles = p3jWalk(path.join(root, 'src'), 'src', (r) => r.endsWith('.js'), []).sort();
+    const p3jColoringFiles = p3jWalk(path.join(root, 'assets', 'stories'), 'assets/stories',
+      (r) => r.includes('/coloring/'), []).sort();
+
+    const p3jColorsStub = new Proxy({}, { get: () => '#000000' });
+    const REAL = {
+      coloring: p3jColoringFiles,
+      srcFiles: p3jSrcFiles,
+      exists: (rel) => srcExists(rel),
+      read: (rel) => readSrc(rel),
+      code: (rel) => codeOf(rel),
+      sha: (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, rel))).digest('hex'),
+      journey: (mut) => p3jLoad('src/services/storyJourneyService.js', {}, ['getStoryJourneyStatus'], mut),
+      availability: (mut) => p3jLoad('src/services/storyColoringAvailability.js',
+        { getColoring60Activities: () => [1, 2, 3], isColoring60PilotAllowed: () => false },
+        ['resolveColoringAvailability'], mut),
+      catalog: () => p3jLoad('src/data/coloring60Catalog.js', {}, ['getColoring60Activities']),
+      milestones: () => p3jLoad('src/data/coloring60StoryMilestones.js', {},
+        ['getColoring60MilestoneByActivityId', 'getColoring60MilestoneForCompletedScene']),
+      c60journey: () => p3jLoad('src/services/coloring60Journey.js', {},
+        ['deriveColoring60Completion', 'completionCountLabel', 'COLORING60_CANONICAL_ORDER']),
+      achievements: () => p3jLoad('src/data/achievements.js', { colors: p3jColorsStub },
+        ['ACHIEVEMENTS', 'isAchievementVisible']),
+    };
+    // Mundo mutante: só o que o controle negativo troca; o resto continua REAL.
+    const p3jMut = (over) => Object.assign(Object.create(null), REAL, over);
+    // Mundo com um arquivo de `src/` extra ou reescrito, sem tocar o disco.
+    const p3jMutSrc = (rel, conteudo) => p3jMut({
+      srcFiles: REAL.srcFiles.includes(rel) ? REAL.srcFiles : REAL.srcFiles.concat(rel).sort(),
+      exists: (r) => (r === rel ? true : REAL.exists(r)),
+      read: (r) => (r === rel ? conteudo : REAL.read(r)),
+      code: (r) => (r === rel
+        ? conteudo.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+        : REAL.code(r)),
+    });
+    // `p3jEval` devolve TRÊS estados, não dois: true, false ou 'ERRO'. A distinção é o que impede o
+    // controle negativo de passar pelo motivo errado — uma mutação que EXPLODE (âncora de
+    // `loadModule` errada, módulo que não carrega) produziria `false` num predicado de dois estados
+    // e o controle ficaria verde sem ter provado detecção alguma.
+    const p3jEval = (fn) => { try { return fn() === true; } catch (e) { return 'ERRO'; } };
+    const p3jSafe = (fn) => p3jEval(fn) === true;
+
+    // ── As 22 provas, na ordem e com a numeração do fundador ──
+    const PROVA = {};
+
+    PROVA[1] = (W) => W.coloring.length === 3
+      && W.coloring.every((f) => Object.hasOwn(P3J_C60_ART, f))
+      && (W.read('docs/COLORING_LEGACY_RETIREMENT_INVENTORY.md').match(/^\| *\d+ *\|/gm) || []).length === P3J_LINEARTS_REMOVIDOS;
+
+    PROVA[2] = (W) => Object.keys(P3J_C60_ART).every((f) => W.exists(f))
+      && W.coloring.slice().sort().join('|') === Object.keys(P3J_C60_ART).slice().sort().join('|');
+
+    PROVA[3] = (W) => {
+      const alvos = [];
+      for (const rel of W.srcFiles) {
+        const re = /require\(\s*'([^']*\/coloring\/[^']*)'\s*\)/g;
+        let m;
+        while ((m = re.exec(W.code(rel))) !== null) {
+          alvos.push(path.posix.normalize(path.posix.join(path.posix.dirname(rel), m[1])));
+        }
+      }
+      return alvos.length === 3 && alvos.every((a) => Object.hasOwn(P3J_C60_ART, a));
+    };
+
+    PROVA[4] = (W) => !W.exists('src/assets/coloringImages.js')
+      && !W.srcFiles.some((r) => /coloringImages/.test(r) || /coloringImages/.test(W.code(r)));
+
+    PROVA[5] = (W) => W.srcFiles.every((r) => {
+      const c = W.code(r);
+      return P3J_TEXTOS_LEGADOS.every((t) => !c.includes(t)) && !c.includes('LegacyColoringScreen');
+    });
+
+    PROVA[6] = (W) => {
+      const hook = W.code('src/hooks/useStoryPackDownload.js');
+      const resolver = W.code('src/services/contentResolver.js');
+      return /const REQUESTED_KINDS = \['cover', 'scene', 'audio'\];/.test(hook)
+        && !/'coloring'/.test(hook) && !/'coloring'/.test(resolver)
+        // Tolerância PRESERVADA (decisão ratificada 7): manifests antigos de 4 kinds continuam
+        // legíveis — o que muda é que o kind aposentado nunca mais é PEDIDO.
+        && W.code('src/services/globalManifestService.js').includes("const KNOWN_MEDIA_KINDS = ['cover', 'scene', 'coloring', 'audio'];")
+        && /const wanted = \(manifest\.files \|\| \[\]\)\.filter\(\(f\) => f && kinds\.includes\(f\.kind\)/.test(W.code('src/services/packDownloadService.js'));
+    };
+
+    PROVA[7] = (W) => {
+      const r = W.journey().getStoryJourneyStatus({
+        totalScenes: 4, sceneDoneCount: 4,
+        postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+        coloringComplete: false, coloringAvailable: false, isFirstStory: true,
+      });
+      return r.journeyComplete === true && r.coloringRequired === false && r.status === 'journeyComplete';
+    };
+
+    PROVA[8] = (W) => {
+      const disp = W.availability().resolveColoringAvailability({ pilotAllowed: false, activityCount: 3 });
+      const r = W.journey().getStoryJourneyStatus({
+        totalScenes: 10, sceneDoneCount: 10,
+        postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+        coloringComplete: false, coloringAvailable: disp.available, isFirstStory: true,
+      });
+      return disp.available === false && disp.reason === 'gate_closed' && r.journeyComplete === true;
+    };
+
+    PROVA[9] = (W) => {
+      const disp = W.availability().resolveColoringAvailability({ pilotAllowed: true, activityCount: 3 });
+      const base = {
+        totalScenes: 10, sceneDoneCount: 10,
+        postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+        coloringAvailable: disp.available, isFirstStory: true,
+      };
+      const J = W.journey();
+      return disp.available === true
+        && J.getStoryJourneyStatus({ ...base, coloringComplete: false }).journeyComplete === false
+        && J.getStoryJourneyStatus({ ...base, coloringComplete: true }).journeyComplete === true;
+    };
+
+    PROVA[10] = (W) => {
+      const ids = (W.catalog().getColoring60Activities('creation') || []).map((a) => a.activityId);
+      return ids.join(',') === 'light,living_world,people_and_care';
+    };
+
+    PROVA[11] = (W) => Object.entries(P3J_C60_ART).every(([f, h]) => W.exists(f) && W.sha(f) === h);
+
+    PROVA[12] = (W) => Object.entries(P3J_POSES).every(([f, h]) => W.exists(f) && W.sha(f) === h)
+      && /BENI_COLORING60_POSE_KEYS = Object\.freeze\(\[\s*'admiraEsquerda', 'admiraDireita', 'celebraFrente', 'apresentaGaleria', 'olhaAcima',/
+        .test(W.code('src/assets/mascot/beniImages.js'));
+
+    PROVA[13] = (W) => {
+      const C = W.c60journey();
+      const um = C.deriveColoring60Completion({ doneMapBefore: {}, currentActivityId: 'light' });
+      const dois = C.deriveColoring60Completion({ doneMapBefore: { light: true }, currentActivityId: 'living_world' });
+      const tres = C.deriveColoring60Completion({ doneMapBefore: { light: true, living_world: true }, currentActivityId: 'people_and_care' });
+      return C.COLORING60_CANONICAL_ORDER.join(',') === 'light,living_world,people_and_care'
+        && um.completedCountAfter === 1 && um.allActivitiesComplete === false
+        && um.nextIncompleteActivityId === 'living_world'
+        && dois.completedCountAfter === 2 && dois.nextIncompleteActivityId === 'people_and_care'
+        && tres.completedCountAfter === 3 && tres.allActivitiesComplete === true
+        && tres.nextIncompleteActivityId === null
+        && C.completionCountLabel(1, 3) === '1 de 3 concluída'
+        && C.completionCountLabel(3, 3) === '3 de 3 concluídas';
+    };
+
+    PROVA[14] = (W) => W.exists('src/screens/Coloring60CollectionScreen.js')
+      && /name="Coloring60Collection"/.test(W.code('src/navigation/AppNavigator.js'))
+      && /collection: 'Coloring60Collection',/.test(W.code('src/services/coloring60Navigation.js'))
+      && /c60OpenCollectionFromStory\(navigation, CREATION_STORY_ID\);/.test(W.code('src/screens/StoryDetailScreen.js'));
+
+    PROVA[15] = (W) => {
+      const M = W.milestones();
+      const pc = M.getColoring60MilestoneByActivityId('creation', 'people_and_care');
+      return !!pc && pc.unlockAfterScene === 9 && pc.resumeScene === 10
+        && M.getColoring60MilestoneForCompletedScene('creation', 8) === null
+        && M.getColoring60MilestoneForCompletedScene('creation', 9).activityId === 'people_and_care';
+    };
+
+    PROVA[16] = (W) => W.exists('src/services/performanceTrace.js')
+      && W.exists('src/services/assetPreloadService.js')
+      && W.exists('src/services/bootMark.js')
+      && /export function preloadCriticalAssets\(\)/.test(W.code('src/services/assetPreloadService.js'))
+      && /export function isPreloadCompleted\(\)/.test(W.code('src/services/assetPreloadService.js'));
+
+    PROVA[17] = (W) => {
+      const pre = W.code('src/services/assetPreloadService.js');
+      const beni = W.code('src/assets/mascot/beniImages.js');
+      return /const criticalList = \[\.\.\.BENI_ASSET_LIST, \.\.\.Object\.values\(STORY_COVERS\)\];/.test(pre)
+        && !/BENI_COLORING60_IMAGE_LIST/.test(pre)           // as 5 poses ficam FORA do preload crítico
+        && /export const BENI_ASSET_LIST = BENI_BOOT_IMAGE_LIST;/.test(W.code('src/assets/beniAssets.js'))
+        && /BENI_BOOT_IMAGE_LIST = Object\.freeze\(/.test(beni)
+        && /BENI_COLORING60_IMAGE_LIST = Object\.freeze\(/.test(beni);
+    };
+
+    PROVA[18] = (W) => {
+      const hero = W.code('src/components/story/StoryBookHero.js');
+      const iHero = hero.indexOf('function StoryBookHero');
+      return iHero > 0 && W.exists('src/components/story/StoryCoverImage.js')
+        // A correção estrutural: as subárvores são declaradas FORA do corpo do hero. Dentro dele,
+        // cada render criaria uma identidade nova de `type` e remontaria a <Image> da capa.
+        && ['function Moldura', 'function Selo', 'function InfoSection']
+          .every((d) => { const i = hero.indexOf(d); return i >= 0 && i < iHero; });
+    };
+
+    PROVA[19] = (W) => {
+      const apagadores = W.srcFiles.filter((r) => r !== 'src/services/drawingStorage.js'
+        && /clearAllSavedDrawings|clearDrawingState/.test(W.code(r)));
+      return apagadores.length === 1
+        && apagadores[0] === 'src/services/progressResetService.js'   // reset PEDIDO pelo responsável
+        && !W.srcFiles.some((r) => /AsyncStorage\.clear\s*\(/.test(W.code(r)))
+        && !/deleteAsync|multiRemove|removeItem/.test(W.code('src/hooks/useStoryPackDownload.js'));
+    };
+
+    PROVA[20] = (W) => {
+      const svc = W.code('src/services/achievementService.js');
+      const ach = W.code('src/data/achievements.js');
+      return /let hasAnyDrawing = hasArkDrawing;/.test(svc)
+        && /const c60 = await loadColoring60JourneyState\(COLORING60_STORY_ID\);/.test(svc)
+        // Só OBRA CONCLUÍDA conta: abrir a tela ou rabiscar não desbloqueia.
+        && /if \(\(c60\?\.completedCount \?\? 0\) >= 1\) hasAnyDrawing = true;/.test(svc)
+        && ach.includes("id: 'first_drawing'")
+        && !/id: 'first_drawing',[\s\S]{0,600}?retired: true/.test(ach);
+    };
+
+    PROVA[21] = (W) => {
+      const A = W.achievements();
+      const ark = A.ACHIEVEMENTS.find((a) => a.id === 'artist_ark');
+      return !!ark && ark.retired === true && typeof ark.retiredReason === 'string'
+        && A.isAchievementVisible(ark, false) === false      // não é oferecida a quem não tem
+        && A.isAchievementVisible(ark, true) === true        // quem tem continua vendo
+        && A.ACHIEVEMENTS.filter((a) => a.retired === true).length === 1;
+    };
+
+    PROVA[22] = (W) => {
+      const A = W.achievements();
+      const ark = A.ACHIEVEMENTS.find((a) => a.id === 'artist_ark');
+      const fd = A.ACHIEVEMENTS.find((a) => a.id === 'first_drawing');
+      // O `check` é preservado: quem tinha o desenho da arca continua desbloqueado. Nenhuma
+      // aposentadoria revoga — `retired` mexe só em visibilidade.
+      return ark.check({ hasArkDrawing: true }) === true && ark.check({ hasArkDrawing: false }) === false
+        && A.isAchievementVisible(ark, ark.check({ hasArkDrawing: true })) === true
+        && fd.check({ hasAnyDrawing: true }) === true
+        && A.ACHIEVEMENTS.every((a) => typeof a.check === 'function');
+    };
+
+    const P3J_TITULO = {
+      1: 'os 199 linearts legados foram REMOVIDOS do repositório',
+      2: 'apenas os TRÊS assets do Colorir com o Beni permanecem nas pastas de coloring',
+      3: 'nenhum require legado permanece (todo require de coloring aponta para os 3 assets C60)',
+      4: 'coloringImages.js foi REMOVIDO e não tem consumidor',
+      5: 'nenhum card ou CTA legado permanece ("Hora de colorir" · "Colorir cena" · "Pintar próxima cena")',
+      6: 'nenhum manifest ou novo download solicita coloring legado (tolerância a manifests antigos preservada)',
+      7: 'histórias SEM Colorir com o Beni continuam concluíveis',
+      8: 'A Criação continua concluível com o Colorir com o Beni INDISPONÍVEL',
+      9: 'A Criação mantém o Colorir com o Beni como requisito quando ele está DISPONÍVEL',
+      10: 'as três atividades C60 permanecem (light · living_world · people_and_care)',
+      11: 'as três artes C60 permanecem BYTE-IDÊNTICAS (SHA-256)',
+      12: 'as cinco poses do Beni permanecem BYTE-IDÊNTICAS (SHA-256)',
+      13: 'a progressão 1 de 3 → 2 de 3 → 3 de 3 permanece',
+      14: 'a coleção permanece (tela, rota e contrato de navegação)',
+      15: 'o marco da cena 09 permanece (Cuidado libera na 9, retoma na 10)',
+      16: 'loading e performance permanecem (trace, boot mark, preload)',
+      17: 'o preload crítico permanece otimizado (as 5 poses continuam FORA dele)',
+      18: 'as capas não voltam a piscar (subárvores do hero em escopo de módulo)',
+      19: 'nenhum caminho AUTOMÁTICO apaga pinturas antigas',
+      20: 'first_drawing reconhece obra concluída do Colorir com o Beni',
+      21: 'artist_ark não é oferecida como objetivo impossível a novos usuários',
+      22: 'conquistas já obtidas NÃO são revogadas',
+    };
+    for (let n = 1; n <= 22; n++) {
+      check(`P3J [prova ${String(n).padStart(2, '0')}/22]: ${P3J_TITULO[n]}`,
+        p3jSafe(() => PROVA[n](REAL)),
+        `a propriedade ${n} da lista do fundador não está provada pelo repositório atual`);
+    }
+
+    // ── 10 CONTROLES NEGATIVOS ────────────────────────────────────────────────────────────────
+    // Cada um reintroduz o defeito NUM MUNDO EM MEMÓRIA e exige que a prova correspondente fique
+    // vermelha, ENQUANTO a mesma prova segue verde no mundo real. Nenhum arquivo é alterado.
+    const CONTROLES = [
+      {
+        n: 1, provas: [1, 2], desc: 'reintroduzir um lineart removido (assets/stories/noah/coloring/scene_01.png)',
+        mundo: () => p3jMut({ coloring: REAL.coloring.concat('assets/stories/noah/coloring/scene_01.png').sort() }),
+      },
+      {
+        n: 2, provas: [3], desc: 'reintroduzir um require legado num módulo de src/',
+        mundo: () => p3jMutSrc('src/assets/coloringImagesLegacy.js',
+          "export const MAPA = { noah_1: require('../../assets/stories/noah/coloring/scene_01.png') };\n"),
+      },
+      {
+        n: 3, provas: [5], desc: 'reintroduzir o texto "Hora de colorir" numa tela',
+        mundo: () => p3jMutSrc('src/screens/FakeColoringCta.js',
+          "export default function C() { return <Text>Hora de colorir</Text>; }\n"),
+      },
+      {
+        n: 4, provas: [5], desc: 'reintroduzir o texto "Colorir cena" numa tela',
+        mundo: () => p3jMutSrc('src/screens/FakeColoringCta.js',
+          "export default function C() { return <Text>Colorir cena</Text>; }\n"),
+      },
+      {
+        n: 5, provas: [6], desc: "reintroduzir 'coloring' em REQUESTED_KINDS",
+        mundo: () => p3jMutSrc('src/hooks/useStoryPackDownload.js',
+          REAL.read('src/hooks/useStoryPackDownload.js').replace(
+            "const REQUESTED_KINDS = ['cover', 'scene', 'audio'];",
+            "const REQUESTED_KINDS = ['cover', 'scene', 'coloring', 'audio'];")),
+      },
+      {
+        n: 6, provas: [7], desc: 'tornar colorir requisito INCONDICIONAL de journeyComplete',
+        mundo: () => p3jMut({
+          journey: () => REAL.journey((s) => s.replace(
+            '&& (!coloringRequired || coloringComplete);', '&& coloringComplete;')),
+        }),
+      },
+      {
+        n: 7, provas: [2, 11], desc: 'remover assets/stories/creation/coloring/scene_02.png',
+        mundo: () => p3jMut({
+          coloring: REAL.coloring.filter((f) => !f.endsWith('/scene_02.png')),
+          exists: (r) => (r.endsWith('creation/coloring/scene_02.png') ? false : REAL.exists(r)),
+        }),
+      },
+      {
+        n: 8, provas: [12], desc: 'remover uma das cinco poses (15_beni_apresenta_galeria.png)',
+        mundo: () => p3jMut({
+          exists: (r) => (r.endsWith('15_beni_apresenta_galeria.png') ? false : REAL.exists(r)),
+        }),
+      },
+      {
+        n: 9, provas: [19], desc: 'introduzir limpeza AUTOMÁTICA de dados legados num serviço',
+        mundo: () => p3jMutSrc('src/services/legacyAutoCleanup.js',
+          "import { clearAllSavedDrawings } from './drawingStorage';\n"
+          + 'export async function autoLimpar() { await clearAllSavedDrawings(); }\n'),
+      },
+      {
+        n: 10, provas: [8], desc: 'regredir o gate C60 (disponibilidade ignora o portão fechado)',
+        mundo: () => p3jMut({
+          availability: () => REAL.availability((s) => s.replace(
+            "if (p.pilotAllowed !== true) return { available: false, activityCount: count, reason: 'gate_closed' };",
+            "if (p.pilotAllowed !== true) return { available: true, activityCount: count, reason: 'gate_closed' };")),
+        }),
+      },
+    ];
+    for (const c of CONTROLES) {
+      // `=== false` é literal de propósito: a prova precisa REPROVAR o mundo mutante, não estourar
+      // nele. `'ERRO'` reprova o controle e aponta a mutação quebrada, em vez de fingir detecção.
+      const detectou = c.provas.every((p) => p3jEval(() => PROVA[p](REAL)) === true
+        && p3jEval(() => PROVA[p](c.mundo())) === false);
+      check(`P3J [controle NEG ${String(c.n).padStart(2, '0')}/10]: ${c.desc} → reprova a(s) prova(s) ${c.provas.join('+')}`,
+        detectou,
+        `a mutação em memória NÃO foi detectada pela(s) prova(s) ${c.provas.join('+')} — ou a prova ficou verde no mundo mutante (verde infalsificável), ou a própria mutação estourou ('ERRO')`);
+    }
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

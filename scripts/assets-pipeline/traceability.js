@@ -6,7 +6,7 @@
  * Cruza, quando possível:
  *   - histórias declaradas (src/data/stories.js: id, status, accessType);
  *   - camada do contentManifest (starter/remote/coming_soon);
- *   - requires estáticos de capas/cenas/colorir/áudio;
+ *   - requires estáticos de capas/cenas/áudio;
  *   - existência em disco e estado tracked/untracked (clone limpo).
  * Sinaliza: require → arquivo AUSENTE (quebra) e require → arquivo UNTRACKED
  * (quebraria clone limpo). Imprime JSON determinístico em stdout.
@@ -79,10 +79,15 @@ function trackedSet() {
 function run() {
   const { getContentLayer } = loadContentManifest();
   const stories = storyCatalog();
+  // [P3J] A chave `coloring` (que apontava para `src/assets/coloringImages.js`) saiu do mapa: o
+  // Colorir legado foi aposentado e esse arquivo não existe mais. Manter a chave produziria um
+  // `requireCounts.coloring: 0` permanente, que se leria como "lacuna de asset pendente" — o
+  // oposto do estado real. Os assets do Colorir com o Beni NÃO entram aqui: eles têm auditoria
+  // dedicada e mais estrita em `scripts/verify-coloring60-assets.js` (16 verificações, incluindo
+  // require único, sha256 e ausência de clones).
   const maps = {
     covers: 'src/assets/storyCovers.js',
     scenes: 'src/data/storySceneIllustrations.js',
-    coloring: 'src/assets/coloringImages.js',
     audio: 'src/data/audioManifest.js',
   };
   const tracked = trackedSet();

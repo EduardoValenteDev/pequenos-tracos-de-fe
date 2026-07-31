@@ -1,8 +1,13 @@
 /**
  * audit-assets.js — Auditoria completa de assets do projeto.
  *
- * Verifica: áudios, imagens de colorir, capas, narração, pastas legadas,
- * assets órfãos, arquivos grandes, extensões erradas, duplicidades.
+ * Verifica: áudios, capas, narração, pastas legadas, assets órfãos, arquivos
+ * grandes, extensões erradas, duplicidades — e o LACRE do Colorir legado.
+ *
+ * [P3J] A Seção 2 deixou de contar "imagens de colorir por cena" (atividade aposentada) e passou
+ * a ser um LACRE: falha se o mapa `src/assets/coloringImages.js` reaparecer, se qualquer lineart
+ * voltar para `assets/stories/<historia>/coloring/`, ou se um dos 3 assets do Colorir com o Beni
+ * sumir.
  *
  * Não altera, renomeia ou apaga nenhum arquivo.
  * Run: node scripts/audit-assets.js
@@ -25,16 +30,18 @@ const mod = { exports: {} };
 fn(mod, mod.exports);
 const { stories } = mod.exports;
 
-// ── Parse coloringImages.js to know which require()s are registered ───────────
-const coloringImgSrc = fs.readFileSync(path.join(ROOT, 'src', 'assets', 'coloringImages.js'), 'utf8');
-const COLORING_REGISTERED = new Set(); // "storyId::sceneId"
-const reColoring = /require\(['"].*?assets\/stories\/(\w+)\/colorir\/(\w+_scene_\d+_coloring\.png)['"]\)/g;
-let m;
-while ((m = reColoring.exec(coloringImgSrc)) !== null) {
-  const folder = m[1]; // e.g. "noe"
-  const file   = m[2]; // e.g. "noe_scene_01_coloring.png"
-  COLORING_REGISTERED.add(folder + '/' + file);
-}
+// ── Colorir legado: APOSENTADO (P3J) ─────────────────────────────────────────
+// O mapa `src/assets/coloringImages.js` foi removido. A leitura virou uma VERIFICAÇÃO de ausência:
+// se o arquivo reaparecer, a Seção 2 falha (é o sinal de que alguém reabriu a atividade sem spec).
+const LEGACY_COLORING_MAP_REL = 'src/assets/coloringImages.js';
+const LEGACY_COLORING_MAP_PRESENT = fs.existsSync(path.join(ROOT, LEGACY_COLORING_MAP_REL));
+
+// Os 3 únicos PNGs que podem viver sob assets/stories/**/coloring/ — Colorir com o Beni.
+const C60_ALLOWED = new Set([
+  'assets/stories/creation/coloring/scene_02.png',
+  'assets/stories/creation/coloring/activities/living_world.png',
+  'assets/stories/creation/coloring/activities/people_and_care.png',
+]);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function pad2(n)    { return String(n).padStart(2, '0'); }
@@ -55,41 +62,21 @@ function warn(msg)  { warnings++; console.log(WARN + msg); }
 function fail(msg)  { errors++;   console.log(ERR + msg); }
 function info(msg)  { console.log(INFO + msg); }
 
-// ── Story → folder mapping (stories use different folder names than storyId) ──
-// Derived from coloringImages.js naming conventions
-const STORY_FOLDER_MAP = {
-  noah:          'noe',
-  david_goliath: 'davi_golias',
-  jesus_children:'jesus_criancas',
-  // all others: storyId === folder name (when added)
-};
-function storyFolder(id) { return STORY_FOLDER_MAP[id] || id; }
-
-// ── Build exact scene→file mapping from coloringImages.js requires ────────────
-// Each story in coloringImages.js uses a specific file prefix (may differ from storyId)
-// e.g. david_goliath uses "davi_scene_NN_coloring.png" (prefix: "davi")
-const STORY_COLORING_FILES = {}; // storyId → { sceneNum → filename }
-
-coloringImgSrc.replace(/\/\/ ── (\w+):.*?──/g, ''); // strip comments
-// Parse entries like: 1: require('../../assets/stories/FOLDER/colorir/FILENAME')
-const reqEntryRe = /(\d+)\s*:\s*require\(['"]([^'"]+)['"]\)/g;
-let entry;
-while ((entry = reqEntryRe.exec(coloringImgSrc)) !== null) {
-  const sceneNum = parseInt(entry[1], 10);
-  const reqPath  = entry[2]; // e.g. '../../assets/stories/noe/colorir/noe_scene_01_coloring.png'
-  // Extract folder and filename from path
-  const pathMatch = reqPath.match(/stories\/(\w+)\/colorir\/(.*\.png)$/);
-  if (!pathMatch) continue;
-  const folder   = pathMatch[1]; // e.g. "noe"
-  const filename = pathMatch[2]; // e.g. "noe_scene_01_coloring.png"
-  // Find which storyId maps to this folder
-  const storyId = Object.entries(STORY_FOLDER_MAP).find(([,f]) => f === folder)?.[0] || folder;
-  if (!STORY_COLORING_FILES[storyId]) STORY_COLORING_FILES[storyId] = {};
-  STORY_COLORING_FILES[storyId][sceneNum] = { folder, filename };
+// [P3J] O mapa storyId→pasta (`noah: 'noe'`, `david_goliath: 'davi_golias'`, …) e o parser de
+// cena→arquivo existiam SÓ para inventariar os linearts legados, cujos nomes seguiam convenções
+// antigas de pasta. Com a atividade aposentada, ambos saíram: nenhuma outra seção os usava.
+//
+// Varre assets/stories/**/coloring/ e devolve os caminhos relativos (POSIX) dos arquivos achados.
+function findColoringFiles(dirAbs, out) {
+  let entries;
+  try { entries = fs.readdirSync(dirAbs, { withFileTypes: true }); } catch { return out; }
+  entries.forEach((e) => {
+    const abs = path.join(dirAbs, e.name);
+    if (e.isDirectory()) findColoringFiles(abs, out);
+    else out.push(path.relative(ROOT, abs).replace(/\\/g, '/'));
+  });
+  return out;
 }
-
-// ── Stories that have coloring images registered ─────────────────────────────
-const STORIES_WITH_COLORING = new Set(Object.keys(STORY_COLORING_FILES));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 1: Audio assets
@@ -158,61 +145,49 @@ if (audioBig > 0)      console.log(`  Audio > 3 MB:  ${audioBig} (compress recom
 if (audioWrongExt > 0) console.log(`  Wrong ext:     ${audioWrongExt}`);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION 2: Coloring images
+// SECTION 2: Colorir legado — LACRE DE APOSENTADORIA (P3J)
 // ─────────────────────────────────────────────────────────────────────────────
-console.log('\n── SEÇÃO 2: Imagens de colorir ─────────────────────────');
+// Antes esta seção contava 200 linearts por cena. Ela NÃO virou um "pass" vazio: contava a partir
+// de um regex de pasta `colorir/` que o mapa real (que usava `coloring/`) nunca casava — ou seja,
+// reportava 0/200 mesmo com 199 arquivos em disco. No lugar disso ficam três provas que falham de
+// verdade se a atividade for reaberta ou se o Colorir com o Beni for mutilado.
+console.log('\n── SEÇÃO 2: Colorir legado (aposentado — P3J) ──────────');
 
-let coloringPresent = 0; let coloringMissing = 0; let coloringBig = 0;
-const COLORING_MAX_BYTES = 300 * 1024; // 300 KB — above this, needs compression
-const COLORING_WARN_BYTES = 150 * 1024; // 150 KB — flag for review
+let coloringIntruders = 0;
+let c60Present = 0;
 
-stories.forEach(s => {
-  const isRegistered = STORIES_WITH_COLORING.has(s.id);
+// [2a] O mapa legado não pode voltar a existir.
+if (LEGACY_COLORING_MAP_PRESENT) {
+  fail(`REINTRODUZIDO: ${LEGACY_COLORING_MAP_REL} voltou a existir — o Colorir legado foi aposentado (P3J)`);
+} else {
+  pass(`mapa legado ausente: ${LEGACY_COLORING_MAP_REL}`);
+  info(`APOSENTADO: ${LEGACY_COLORING_MAP_REL} não existe — 0 linearts por cena esperados`);
+}
 
-  if (!isRegistered) {
-    coloringMissing += 10;
-    if (VERBOSE) {
-      for (let i = 1; i <= 10; i++) {
-        info(`NOT_REGISTERED colorir: ${s.id} scene ${i} (not in coloringImages.js)`);
-      }
-    }
-    return;
-  }
+// [2b] Sob assets/stories/**/coloring/ só podem viver os 3 assets do Colorir com o Beni.
+const coloringOnDisk = findColoringFiles(path.join(ROOT, 'assets', 'stories'), [])
+  .filter(rel => /\/coloring\//.test(rel));
+coloringOnDisk.forEach(rel => {
+  if (C60_ALLOWED.has(rel)) return;
+  fail(`LINEART INTRUSO: ${rel} — colorir por cena foi retirado; só os 3 assets do Colorir com o Beni são permitidos`);
+  coloringIntruders++;
+});
 
-  const sceneMap = STORY_COLORING_FILES[s.id] || {};
-
-  for (let i = 1; i <= 10; i++) {
-    const sceneInfo = sceneMap[i];
-    if (!sceneInfo) {
-      fail(`MISSING colorir entry in coloringImages.js: ${s.id} scene ${i}`);
-      coloringMissing++;
-      continue;
-    }
-
-    const { folder, filename } = sceneInfo;
-    const fp = path.join(ROOT, 'assets', 'stories', folder, 'colorir', filename);
-
-    if (!exists(fp)) {
-      fail(`MISSING colorir FILE: assets/stories/${folder}/colorir/${filename}`);
-      coloringMissing++;
-    } else {
-      const bytes = size(fp);
-      if (bytes > COLORING_MAX_BYTES) {
-        warn(`LARGE colorir (${mb(bytes)}): ${folder}/colorir/${filename} — comprimir para < 150 KB`);
-        coloringBig++;
-      } else if (bytes > COLORING_WARN_BYTES) {
-        warn(`MEDIUM colorir (${kb(bytes)} KB): ${folder}/colorir/${filename} — avaliar compressão`);
-      } else {
-        pass(`colorir OK: ${folder}/colorir/${filename}`);
-      }
-      coloringPresent++;
-    }
+// [2c] Os 3 assets do Colorir com o Beni continuam em disco (restrição 11 do bloco).
+C60_ALLOWED.forEach(rel => {
+  const fp = path.join(ROOT, rel);
+  if (!exists(fp)) {
+    fail(`AUSENTE (Colorir com o Beni): ${rel} — asset obrigatório da atividade viva`);
+  } else {
+    c60Present++;
+    pass(`Colorir com o Beni OK (${kb(size(fp))} KB): ${rel}`);
   }
 });
 
-console.log(`\n  Colorir presente: ${coloringPresent}/200`);
-console.log(`  Colorir ausente:  ${coloringMissing}/200`);
-if (coloringBig > 0) console.log(`  Colorir > 300 KB: ${coloringBig} (compressão necessária)`);
+console.log(`\n  Mapa legado presente:      ${LEGACY_COLORING_MAP_PRESENT ? 'SIM ✗' : 'não ✓'}`);
+console.log(`  Linearts intrusos:         ${coloringIntruders}`);
+console.log(`  Assets Colorir com o Beni: ${c60Present}/${C60_ALLOWED.size}`);
+info('Auditoria profunda (sha256, require único, clones): node scripts/verify-coloring60-assets.js');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 3: Cover images
@@ -370,24 +345,35 @@ requiresInManifest.forEach(reqPath => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION 8: coloringImages.js consistency
+// SECTION 8: coloring60LocalAssets.js consistency
 // ─────────────────────────────────────────────────────────────────────────────
-console.log('\n── SEÇÃO 8: coloringImages.js consistency ───────────────');
+// [P3J] Era a consistência dos require() de `coloringImages.js` (arquivo removido). O alvo passou
+// a ser o registro do Colorir com o Beni: mesma prova (todo require() aponta para arquivo em
+// disco), agora sobre o mapa que de fato existe. Sem essa troca, a seção viraria um zero mudo.
+console.log('\n── SEÇÃO 8: coloring60LocalAssets.js consistency ────────');
 
-const coloringImgDir = path.join(ROOT, 'src', 'assets');
-const coloringRequires = [...coloringImgSrc.matchAll(/require\(['"]([^'"]+)['"]\)/g)].map(m => m[1]);
+const c60MapDir = path.join(ROOT, 'src', 'assets');
+const c60MapPath = path.join(c60MapDir, 'coloring60LocalAssets.js');
 let brokenColoring = 0;
-coloringRequires.forEach(reqPath => {
-  const absPath = path.resolve(coloringImgDir, reqPath);
-  if (!exists(absPath)) {
-    fail(`BROKEN require() in coloringImages.js: ${reqPath}`);
-    brokenColoring++;
-  } else {
-    pass(`coloringImages require() OK: ${reqPath}`);
-  }
-});
+if (!exists(c60MapPath)) {
+  fail('AUSENTE: src/assets/coloring60LocalAssets.js — registro do Colorir com o Beni');
+  brokenColoring++;
+} else {
+  const c60MapSrc = fs.readFileSync(c60MapPath, 'utf8');
+  const c60Requires = [...c60MapSrc.matchAll(/require\(['"]([^'"]+)['"]\)/g)].map(m => m[1]);
+  c60Requires.forEach(reqPath => {
+    const absPath = path.resolve(c60MapDir, reqPath);
+    if (!exists(absPath)) {
+      fail(`BROKEN require() in coloring60LocalAssets.js: ${reqPath}`);
+      brokenColoring++;
+    } else {
+      pass(`coloring60LocalAssets require() OK: ${reqPath}`);
+    }
+  });
+  console.log(`  require() verificados: ${c60Requires.length}`);
+}
 
-console.log(`  Broken requires in coloringImages.js: ${brokenColoring}`);
+console.log(`  Broken requires in coloring60LocalAssets.js: ${brokenColoring}`);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Summary
@@ -401,8 +387,8 @@ console.log(`  ✗ Errors:         ${errors}`);
 console.log('');
 console.log('  Audio:');
 console.log(`    ${audioPresent}/200 ready  |  ${audioMissing}/200 missing`);
-console.log('  Colorir:');
-console.log(`    ${coloringPresent}/200 ready  |  ${coloringMissing}/200 missing (${STORIES_WITH_COLORING.size}/20 histórias)`);
+console.log('  Colorir legado (aposentado — P3J):');
+console.log(`    mapa legado: ${LEGACY_COLORING_MAP_PRESENT ? 'PRESENTE ✗' : 'ausente ✓'}  |  linearts intrusos: ${coloringIntruders}  |  Colorir com o Beni: ${c60Present}/${C60_ALLOWED.size}`);
 console.log('  Capas:');
 console.log(`    ${capaPresent} files present  |  ${capaMissing} declared/missing`);
 console.log('  Legacy folders: ' + legacyCount);

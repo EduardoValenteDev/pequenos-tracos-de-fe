@@ -6,14 +6,21 @@
  * Carrega o `contentResolver.js` REAL por avaliação isolada (removendo imports e
  * injetando stubs puros para contentManifest/packStorageService/storyImageService/
  * audioService — que dependem de Expo/RN e não rodam em Node). Lê o índice sandbox
- * (`pack-index.json`), pega a entrada `ready` de david_goliath e resolve as 31 mídias.
+ * (`pack-index.json`), pega a entrada `ready` de david_goliath e resolve as 21 mídias.
  *
  * NÃO importa Expo/RN, NÃO grava AsyncStorage, NÃO toca o app, NÃO altera assets.
  *
+ * [P3J] Eram 31 mídias (com 10 de colorir). Com o Colorir legado aposentado, o `contentResolver`
+ * não expõe mais `resolveStoryColoring` nem o `case 'coloring'`, e o pack deixou de pedir esse
+ * kind — então o plano caiu para 21. A cobertura NÃO diminuiu: no lugar das 10 resoluções, foi
+ * acrescentada uma prova mais forte (kind aposentado ⇒ envelope de ERRO explícito), que falha se
+ * alguém reintroduzir um caminho de lineart pelo pack.
+ *
  * Prova:
- *   - 31 resoluções (1 cover + 10 scenes + 10 coloring + 10 audio) com sourceType=file
+ *   - 21 resoluções (1 cover + 10 scenes + 10 audio) com sourceType=file
  *   - cada file:// aponta para um arquivo EXISTENTE dentro do localDir
  *   - cada path resolvido bate com o manifesto
+ *   - o kind aposentado 'coloring' devolve status=error/sourceType=missing (nunca file://)
  *   - o FALLBACK local continua (packEntry=null → sourceType=require)
  *   - nenhuma tela importa o contentResolver
  *
@@ -56,8 +63,9 @@ function loadContentResolver(storyId) {
       NEEDS_UPDATE: 'needs_update', REQUIRES_APP_UPDATE: 'requires_app_update',
     },
     // Fontes locais não-nulas → provam que o FALLBACK local continua disponível.
+    // [P3J] `getSceneColoringImage` saiu dos stubs junto com a função real: o storyImageService
+    // não a exporta mais, então stubá-la aqui esconderia uma reintrodução em vez de denunciá-la.
     getOfficialSceneIllustration: () => ({ __local: 'scene' }),
-    getSceneColoringImage: () => ({ __local: 'coloring' }),
     getStoryCoverImage: () => ({ __local: 'cover' }),
     getSceneAudio: () => ({ __local: 'audio' }),
   };
@@ -67,12 +75,12 @@ function loadContentResolver(storyId) {
     const CONTENT_LAYERS = __stubs.CONTENT_LAYERS;
     const PACK_STATUS = __stubs.PACK_STATUS;
     const getOfficialSceneIllustration = __stubs.getOfficialSceneIllustration;
-    const getSceneColoringImage = __stubs.getSceneColoringImage;
     const getStoryCoverImage = __stubs.getStoryCoverImage;
     const getSceneAudio = __stubs.getSceneAudio;
   `;
+  // [P3J] `resolveStoryColoring` saiu do retorno: a função não existe mais no contentResolver.
   const footer = `
-    ;return { resolveStoryCover, resolveStoryScene, resolveStoryColoring, resolveStoryAudio,
+    ;return { resolveStoryCover, resolveStoryScene, resolveStoryAudio,
       resolveStoryMediaFromPackEntry, getPackState, canResolveStoryMedia, RESOLVE_STATUS, RESOLVE_SOURCE_TYPE };
   `;
   // eslint-disable-next-line no-new-func
@@ -105,10 +113,9 @@ function verify() {
   const resolver = loadContentResolver(storyId);
   const { RESOLVE_STATUS, RESOLVE_SOURCE_TYPE } = resolver;
 
-  // Plano de 31 mídias.
+  // Plano de 21 mídias ([P3J]: as 10 de colorir saíram — ver prova do kind aposentado abaixo).
   const requests = [{ kind: 'cover', scene: null }];
   for (let n = 1; n <= 10; n += 1) requests.push({ kind: 'scene', scene: n });
-  for (let n = 1; n <= 10; n += 1) requests.push({ kind: 'coloring', scene: n });
   for (let n = 1; n <= 10; n += 1) requests.push({ kind: 'audio', scene: n });
 
   let fileCount = 0;
@@ -137,6 +144,17 @@ function verify() {
     rows.push({ label, relPath, file: r.sourceType === RESOLVE_SOURCE_TYPE.FILE, exists, ok });
   });
 
+  // [P3J] Kind APOSENTADO: mesmo com o pack READY instalado (e com os linearts ainda presentes em
+  // packs antigos, que NÃO são apagados), pedir 'coloring' precisa cair no `default` do resolver —
+  // envelope de ERRO explícito, nunca um file:// de lineart. Falha se o caso voltar a existir.
+  const retired = resolver.resolveStoryMediaFromPackEntry(storyId, 'coloring', 1, entry);
+  const retiredOk = retired.status === RESOLVE_STATUS.ERROR
+    && retired.sourceType === RESOLVE_SOURCE_TYPE.MISSING
+    && retired.source === null;
+  if (!retiredOk) {
+    errors.push(`kind aposentado 'coloring' resolveu: status=${retired.status}, sourceType=${retired.sourceType}`);
+  }
+
   // Fallback local: packEntry=null → require (remote sem pack).
   const fb = resolver.resolveStoryMediaFromPackEntry(storyId, 'scene', 1, null);
   const fallbackOk = fb.sourceType === RESOLVE_SOURCE_TYPE.REQUIRE && fb.status === RESOLVE_STATUS.NOT_DOWNLOADED;
@@ -154,13 +172,14 @@ function verify() {
   console.log('mídia         file?  existe?  path');
   rows.forEach((r) => console.log(`${r.label.padEnd(12)}  ${r.file ? ' ✓ ' : ' ✗ '}   ${r.exists ? ' ✓ ' : ' ✗ '}   ${r.relPath}`));
   console.log('');
-  console.log(`resoluções file://: ${fileCount}/31   arquivos existentes: ${existCount}/31`);
+  console.log(`resoluções file://: ${fileCount}/21   arquivos existentes: ${existCount}/21`);
+  console.log(`kind aposentado 'coloring' → erro explícito: ${retiredOk ? 'OK ✓' : 'FALHOU ✗'}`);
   console.log(`fallback local (packEntry=null → require): ${fallbackOk ? 'OK ✓' : 'FALHOU ✗'}`);
   console.log(`telas sem import do runtime: ${screenImports.length === 0 ? 'OK ✓' : 'FALHOU ✗'}`);
 
-  const allOk = errors.length === 0 && fileCount === 31 && existCount === 31;
+  const allOk = errors.length === 0 && fileCount === 21 && existCount === 21;
   if (allOk) {
-    console.log('RESULTADO: VÁLIDO ✓ (31 file:// resolvidos e existentes; fallback preservado; telas intactas)');
+    console.log('RESULTADO: VÁLIDO ✓ (21 file:// resolvidos e existentes; colorir aposentado; fallback preservado; telas intactas)');
     process.exit(0);
   }
   console.log(`RESULTADO: INVÁLIDO ✗ (${errors.length} erro(s)):`);
