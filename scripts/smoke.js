@@ -43643,11 +43643,13 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     /* ── 3 · DIAGNÓSTICO ESTRUTURADO ──────────────────────────────────────────────────────── */
     const DIAG = p3jLoad('src/services/packDownloadDiagnostics.js', {},
       ['DOWNLOAD_FAILURE_STAGES', 'NETWORK_STATES', 'sanitize', 'sanitizePath',
-        'buildDownloadDiagnostic', 'inferNetworkState', 'logDownloadDiagnostic']);
+        'buildDownloadDiagnostic', 'inferNetworkState', 'logDownloadDiagnostic',
+        'INDEX_NOT_COMMITTED', 'indexStateFromEntry', 'resolveIndexAfterCommit']);
     const CAMPOS_DIAG = ['storyId', 'requestedKinds', 'manifestKinds', 'filteredFileCount',
-      'downloadedFileCount', 'failedFile', 'failureStage', 'networkState', 'indexBefore', 'indexAfter'];
+      'downloadedFileCount', 'failedFile', 'failureStage', 'networkState', 'indexBefore', 'indexAfter',
+      'indexAfterCommit', 'contextAtEmit'];
 
-    check('P3J-R [diag 1/5]: o diagnóstico tem os DEZ campos do contrato, em ordem estável',
+    check('P3J-R [diag 1/5]: o diagnóstico tem os DOZE campos do contrato, em ordem estável',
       JSON.stringify(Object.keys(DIAG.buildDownloadDiagnostic({}))) === JSON.stringify(CAMPOS_DIAG),
       `campos=${JSON.stringify(Object.keys(DIAG.buildDownloadDiagnostic({})))}`);
 
@@ -43857,7 +43859,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     {
       const M = p3jLoad('src/services/packDownloadDiagnostics.js', {}, ['buildDownloadDiagnostic'],
         (s) => p3jMutar(s, '    failureStage: asStage(input.failureStage),\n', ''));
-      registrarCN('CN8', 'packDownloadDiagnostics', 'um dos dez campos do contrato some',
+      registrarCN('CN8', 'packDownloadDiagnostics', 'um dos doze campos do contrato some',
         Object.keys(DIAG.buildDownloadDiagnostic({})).length,
         Object.keys(M.buildDownloadDiagnostic({})).length);
     }

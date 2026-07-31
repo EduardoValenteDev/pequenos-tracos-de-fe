@@ -42,6 +42,37 @@ export const NETWORK_STATES = Object.freeze([
 
 const PARECE_URL = /https?:|:\/\/|\.r2\.dev|\?|token|secret|signature|apikey/i;
 
+/** Marcador do estado de índice quando a operação NÃO chegou a gravar o índice. */
+export const INDEX_NOT_COMMITTED = 'nao_commitado';
+
+/**
+ * [P3J-R.1] Estado do índice lido da ENTRADA TRANSACIONAL devolvida pelo serviço — não do espelho
+ * do contexto React. É o único valor que representa o que ficou PERSISTIDO.
+ */
+export function indexStateFromEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const status = entry.status;
+  return (typeof status === 'string' && status) ? status : null;
+}
+
+/**
+ * Traduz o resultado do download no estado FINAL do índice.
+ *
+ * POR QUE NÃO RELER O ÍNDICE PERSISTIDO: em falha, `packDownloadService.failWith` PRESERVA de
+ * propósito uma entrada READY anterior (pack antigo continua jogável). Uma releitura devolveria
+ * `ready` para uma operação que fracassou — exatamente o item 10 do contrato ("falha antes do
+ * commit não pode declarar `ready`").
+ *
+ * O QUE `res.entry` É, com precisão: a entrada de índice DEVOLVIDA pela operação — recém-commitada
+ * no primeiro download, já persistida quando o pack é reutilizado. Nos dois casos ela descreve o
+ * que ficou no disco, que é o que o contrato pede. Em falha ela é ignorada por construção: a guarda
+ * `res.ok !== true` vem ANTES de qualquer leitura de `entry`.
+ */
+export function resolveIndexAfterCommit(res) {
+  if (!res || res.ok !== true) return INDEX_NOT_COMMITTED;
+  return indexStateFromEntry(res.entry) || 'indeterminado';
+}
+
 /**
  * Rede de segurança contra vazamento: valores que pareçam URL/segredo viram marcador.
  * Caminhos relativos de arquivo do pack (`scenes/01.webp`) contêm `/` e TAMBÉM seriam capturados,
@@ -80,10 +111,15 @@ function asNetwork(v) {
 }
 
 /**
- * Monta o diagnóstico com os DEZ campos do contrato, em ordem estável.
+ * Monta o diagnóstico com os DOZE campos do contrato, em ordem estável. Os DEZ originais mantêm
+ * nome e posição; `indexAfterCommit` e `contextAtEmit` foram acrescentados no fim (P3J-R.1).
  * Entrada tolerante: campo ausente vira `null` (nunca lança, nunca inventa valor).
+ *
+ * `indexAfter` é ALIAS do valor commitado quando ele existe — o campo histórico passa a dizer a
+ * verdade sobre o estado persistido em vez de espelhar o contexto React ainda não re-renderizado.
  */
 export function buildDownloadDiagnostic(input = {}) {
+  const indexAfterCommit = sanitize(input.indexAfterCommit);
   return {
     storyId: sanitize(input.storyId),
     requestedKinds: asList(input.requestedKinds),
@@ -94,7 +130,9 @@ export function buildDownloadDiagnostic(input = {}) {
     failureStage: asStage(input.failureStage),
     networkState: asNetwork(input.networkState),
     indexBefore: sanitize(input.indexBefore),
-    indexAfter: sanitize(input.indexAfter),
+    indexAfter: indexAfterCommit != null ? indexAfterCommit : sanitize(input.indexAfter),
+    indexAfterCommit,
+    contextAtEmit: sanitize(input.contextAtEmit),
   };
 }
 

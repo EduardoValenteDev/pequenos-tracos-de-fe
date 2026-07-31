@@ -23,7 +23,7 @@ import { downloadStoryPackScenesFromGlobalManifest } from '../services/packDownl
 import { subscribeStoryPackInstall, getStoryPackInstallSnapshot } from '../services/packInstallRegistry';
 // [P3J-R] diagnóstico estruturado: dá NOME ao estágio da falha em desenvolvimento, sem jamais
 // carregar a URL do manifesto nem qualquer valor de configuração.
-import { buildDownloadDiagnostic, inferNetworkState, logDownloadDiagnostic } from '../services/packDownloadDiagnostics';
+import { buildDownloadDiagnostic, inferNetworkState, logDownloadDiagnostic, resolveIndexAfterCommit } from '../services/packDownloadDiagnostics';
 
 const GLOBAL_MANIFEST_URL = process.env.EXPO_PUBLIC_GLOBAL_MANIFEST_URL || null;
 // [P3J] `coloring` saiu dos kinds pedidos: com o Colorir legado aposentado, baixar os linearts
@@ -68,8 +68,13 @@ function indexLabel(state) {
  * [P3J-R] Emite o diagnóstico de UMA operação encerrada, só em desenvolvimento.
  * O serviço entrega os fatos do fluxo (`res.diagnostic`); aqui entram identidade, kinds pedidos e
  * o índice antes/depois. `buildDownloadDiagnostic` sanitiza — nenhum campo pode carregar URL.
+ *
+ * [P3J-R.1] `indexAfterCommit` vem da ENTRADA TRANSACIONAL (`res.entry`), não do espelho do
+ * contexto: entre o `await` do download e esta emissão NÃO há render, então o espelho ainda mostra
+ * o estado ANTIGO — era essa a origem do `indexAfter: "not_downloaded"` após sucesso. O valor do
+ * contexto continua registrado, com o nome honesto `contextAtEmit`.
  */
-function reportDiagnostic({ storyId, requestedKinds, res, indexBefore, indexAfter, failureStageOverride }) {
+function reportDiagnostic({ storyId, requestedKinds, res, indexBefore, contextAtEmit, failureStageOverride }) {
   if (typeof __DEV__ === 'undefined' || !__DEV__) return null;   // silêncio total em produção
   const d = (res && res.diagnostic) || {};
   const failureStage = failureStageOverride || d.failureStage || (res && res.ok ? 'none' : 'indeterminado');
@@ -88,7 +93,9 @@ function reportDiagnostic({ storyId, requestedKinds, res, indexBefore, indexAfte
       reachedServer: ['manifest', 'filter', 'space', 'download', 'verify', 'publish', 'none'].includes(failureStage),
     }),
     indexBefore,
-    indexAfter,
+    // A chamada fica DENTRO da guarda `__DEV__` acima: em produção nada é calculado.
+    indexAfterCommit: resolveIndexAfterCommit(res),
+    contextAtEmit,
   });
   logDownloadDiagnostic(diagnostic, { isDev: true });
   return diagnostic;
@@ -151,7 +158,7 @@ export function useStoryPackDownload(storyId, options = {}) {
         requestedKinds: REQUESTED_KINDS,
         res: { ok: false },
         indexBefore: lerIndice(),
-        indexAfter: lerIndice(),   // nada foi executado: por construção, o índice não mudou
+        contextAtEmit: lerIndice(),   // nada foi executado: por construção, o índice não mudou
         failureStageOverride: 'config',
       });
       return { ok: false };
@@ -204,7 +211,8 @@ export function useStoryPackDownload(storyId, options = {}) {
         requestedKinds: REQUESTED_KINDS,
         res,
         indexBefore,
-        indexAfter: lerIndice(),
+        // Espelho do contexto NESTE instante — ainda pré-render, por isso não se chama "after".
+        contextAtEmit: lerIndice(),
       });
       if (isCurrentExecution() && ok) {
         setProgress(1);
