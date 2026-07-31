@@ -7,11 +7,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useStoryPackDownload } from '../hooks/useStoryPackDownload';
-import { hasSavedDrawing } from '../services/drawingStorage';
 import { preloadStorySceneIllustrations } from '../services/storyImageService';
 import { hasAccess } from '../services/accessControl';
 import { isStoryComingSoon, getStoryAccessStatus } from '../services/contentAccessService';
 import { getStoryJourneyStatus, sceneVisualStatus } from '../services/storyJourneyService';
+// [P3J] Mesmo contrato de disponibilidade usado pelo ProgressContext — tela e mapa não podem
+// discordar sobre se esta história exige colorir para fechar.
+import { isStoryColoringAvailable } from '../services/storyColoringAvailability';
 import { hasStoryColoringActivityDone } from '../services/coloringActivityService';
 // [C60-PONTE] Em "A Criação" com o piloto ativo, coloringComplete vem da jornada Colorir 60 (ponte
 // READ-ONLY), não da fonte legada por cena. Falha de leitura preserva o valor atual (não força false).
@@ -115,7 +117,6 @@ export default function StoryDetailScreen({ route, navigation }) {
   // → permite baixar/rebaixar concluídas e a atual; bloqueia download em massa de futuras.
   const canDownload = canAccess && packDownload.isRemote && !isComingSoon && sequenceUnlocked;
 
-  const [savedDrawings, setSavedDrawings] = useState({});
   const [quizDone, setQuizDone] = useState(false);
   const [reflectionDone, setReflectionDone] = useState(false);
   const [bookOpened, setBookOpened] = useState(false);
@@ -136,17 +137,9 @@ export default function StoryDetailScreen({ route, navigation }) {
     if (story?.id) preloadStorySceneIllustrations(story.id);
   }, [story?.id]);
 
-  useEffect(() => {
-    if (!story.cenas?.length) return;
-    async function checkDrawings() {
-      const result = {};
-      for (const cena of story.cenas) {
-        result[cena.id] = await hasSavedDrawing(story.id, cena.id);
-      }
-      setSavedDrawings(result);
-    }
-    checkDrawings();
-  }, [progressCount]);
+  // [P3J] O varredor de desenhos legados por cena (hasSavedDrawing × N cenas) saiu com o selo
+  // "desenho salvo" da lista de cenas: sem Colorir legado, nenhuma cena nova pode receber pintura.
+  // Nada foi apagado — drawingStorage segue íntegro; esta tela apenas deixou de lê-lo.
 
   // [P4 · REVALIDAÇÃO COMPLEMENTAR] Ao focar (voltar da história ou do Colorir), revalida o progresso
   // na fonte única. A sincronização PRIMÁRIA já vem da NarrationScreen (refreshProgress após cada cena
@@ -215,13 +208,16 @@ export default function StoryDetailScreen({ route, navigation }) {
 
   // A0.10: status público via FONTE ÚNICA (storyJourneyService) — mesma regra do
   // mapa e do card. journeyComplete = cenas + Livrinho + quiz + reflexão + colorir
-  // (≥1 página). O progresso de cenas ("10/10") segue separado (journey.progress) e
-  // NÃO dispara o selo "Concluída" sozinho.
+  // QUANDO HÁ COLORIR. O progresso de cenas ("10/10") segue separado (journey.progress)
+  // e NÃO dispara o selo "Concluída" sozinho.
+  // [P3J] `coloringAvailable` vem do MESMO contrato que o ProgressContext usa — a tela e o
+  // mapa não podem discordar sobre se esta história exige colorir.
   const journey = getStoryJourneyStatus({
     totalScenes,
     sceneDoneCount: progressCount,
     postStoryStatus: { storyBookOpened: bookOpened, quizDone, reflectionDone },
     coloringComplete: coloringDone,
+    coloringAvailable: isStoryColoringAvailable(story.id),
     accessStatus: getStoryAccessStatus(story),
     accessType: story.accessType,
     isFirstStory: true, // sequência tratada à parte (sequenceUnlocked)
@@ -452,22 +448,11 @@ export default function StoryDetailScreen({ route, navigation }) {
                   isTablet={isTablet}
                   onPress={() => navigation.navigate('Reflection', { story })}
                 />
-                {/* P10 · PARTE 1 · Colorir LEGADO oculto SÓ quando a jornada "Colorir com o Beni"
-                    está visível (história "A Criação" + piloto autorizado): ali a seção nova é a
-                    ÚNICA porta de entrada do colorir, e ver dois "Colorir" ao mesmo tempo confundia.
-                    Fora desse caso (qualquer outra história OU piloto desligado) o card legado
-                    continua EXATAMENTE como antes — rota, storage e desenhos legados intactos. */}
-                {!creationColoringVisible && (
-                  <PostStoryCard
-                    emoji="🎨"
-                    title="Colorir"
-                    desc="Pintar uma cena"
-                    done={coloringDone}
-                    tagColor={color.gold300}
-                    isTablet={isTablet}
-                    onPress={() => goToPremium('Narration', { story, cenaIndex: 0 })}
-                  />
-                )}
+                {/* [P3J] O card "Colorir · Pintar uma cena" foi REMOVIDO: era a porta do Colorir
+                    legado por cena, aposentado globalmente. Nas histórias sem "Colorir com o Beni"
+                    a grade simplesmente tem três cards — sem card vazio, bloqueado ou "em breve".
+                    Em "A Criação" com o piloto ativo, a seção CreationColoringJourneySection abaixo
+                    continua sendo a única porta de entrada do colorir. */}
               </View>
             </View>
           )}
@@ -496,7 +481,6 @@ export default function StoryDetailScreen({ route, navigation }) {
                   cena={cena}
                   index={index}
                   status={getSceneStatus(cena, index)}
-                  hasDrawing={savedDrawings[cena.id] === true && !creationColoringVisible}
                   onPress={() => goToPremium('Narration', { story, cenaIndex: index })}
                 />
               ))}

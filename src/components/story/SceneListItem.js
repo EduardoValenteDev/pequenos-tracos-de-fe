@@ -9,10 +9,12 @@ import { colors as pt, radii, shadows } from '../../theme/productTheme';
  * @param {object}   cena          — objeto cena de stories.js
  * @param {number}   index         — índice na lista (0-based)
  * @param {'completed'|'available'|'locked'} status
- * @param {boolean}  hasDrawing    — há desenho salvo
  * @param {function} onPress
+ *
+ * [P3J] A prop `hasDrawing` (selo "desenho salvo") saiu com o Colorir legado por cena: era o
+ * único produtor de desenhos por cena, e sem ele nenhuma cena pode voltar a ter um.
  */
-export default function SceneListItem({ cena, index, status, hasDrawing, onPress }) {
+export default function SceneListItem({ cena, index, status, onPress }) {
   const isLocked = status === 'locked';
   const isDone = status === 'completed';
   const isAvailable = status === 'available';
@@ -43,9 +45,6 @@ export default function SceneListItem({ cena, index, status, hasDrawing, onPress
         <Text style={[styles.name, isLocked && styles.nameLocked]} numberOfLines={2}>
           {cena.titulo ?? `Cena ${index + 1}`}
         </Text>
-        {hasDrawing && !isLocked && (
-          <StatusBadge type="saved" style={{ marginTop: 4 }} />
-        )}
         {isLocked && (
           <Text style={styles.lockedHint}>Complete a cena anterior</Text>
         )}

@@ -12,9 +12,7 @@ import { BeniGuideBubble } from '../components/beni';
 import StorySceneVisual from '../components/story/StorySceneVisual';
 import UnlockCelebration from '../components/UnlockCelebration';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
-import { hasSavedDrawing } from '../services/drawingStorage';
 import { colors } from '../theme/colors';
-import { colors as pt, radii } from '../theme/productTheme';
 import AudioPlayer from '../components/AudioPlayer';
 import ProgressBar from '../components/ProgressBar';
 import { useProgress } from '../hooks/useProgress';
@@ -40,11 +38,11 @@ import Coloring60MilestoneInvite from '../components/coloring60/Coloring60Milest
 export default function NarrationScreen({ route, navigation }) {
   const { story, cenaIndex } = route.params;
 
-  // Piloto "Colorir com o Beni" (Colorir 60): em "A Criação" com o piloto ativo, o Colorir
-  // TRADICIONAL por cena dá lugar à jornada "Colorir com o Beni" (na StoryDetailScreen).
-  // Aqui isso significa OCULTAR o convite de colorir da cena e o botão de colorir da
-  // celebração — sem apagar nada e sem afetar outras histórias. Piloto off ⇒ tudo como antes.
-  const creationColoringHidden = isCreationColoringPilotActive(story?.id);
+  // [P3J] O Colorir TRADICIONAL por cena foi APOSENTADO globalmente: não existe mais convite
+  // de colorir na cena nem botão de colorir na celebração, em nenhuma história. O que resta
+  // aqui é o gate do "Colorir com o Beni" (Colorir 60), que governa APENAS os marcos narrativos
+  // de "A Criação" (cenas 2/7/9). Fora de "A Criação", ou com o gate inativo, não há colorir.
+  const coloring60JourneyActive = isCreationColoringPilotActive(story?.id);
 
   // Guard: story must have cenas populated (navigation from onboarding used to crash here)
   const hasCenas = !!(story?.cenas?.length);
@@ -91,22 +89,10 @@ export default function NarrationScreen({ route, navigation }) {
   // existe quando este marco existe; e como só a PRIMEIRA conclusão da cena abre a experiência pós-cena
   // (primaryAction = handleConcluirCena apenas quando !jaConcluida), a decisão do marco só ocorre na
   // estreia da cena. Revisita não passa por aqui.
-  const sceneMilestone = creationColoringHidden
+  const sceneMilestone = coloring60JourneyActive
     ? getColoring60MilestoneForCompletedScene(story?.id, numeroCena)
     : null;
   const [showMilestoneInvite, setShowMilestoneInvite] = useState(false);
-
-  // Já existe um desenho salvo desta cena? Muda o convite de colorir.
-  const [sceneHasDrawing, setSceneHasDrawing] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    if (cena?.id) {
-      hasSavedDrawing(story.id, cena.id).then(v => { if (alive) setSceneHasDrawing(v); });
-    } else {
-      setSceneHasDrawing(false);
-    }
-    return () => { alive = false; };
-  }, [story.id, cena?.id, jaConcluida]);
 
   // Fase 2B.6 (RP3): revalida ACESSO ao FOCAR (não só no mount) — protege expiração
   // durante o uso. Ao redirecionar, a tela desmonta e o AudioPlayer pausa no cleanup do
@@ -228,17 +214,6 @@ export default function NarrationScreen({ route, navigation }) {
     // — aqui não há mais interceptação por marco (o modal duplo deixou de existir). O convite tem seus
     // próprios botões (handleMilestoneAccept / handleMilestoneSkip).
     goToNext();
-  }
-
-  // "Colorir esta cena" RESOLVE o modal pós-cena (B4): esconde e LIMPA o pending
-  // para que, ao voltar do Colorir, o modal NÃO reabra (Modal do RN renderiza fora
-  // da pilha do navegador). A cena já está concluída, então "Próxima cena →" fica
-  // disponível para o avanço MANUAL — não chamamos goToNext ao voltar do Colorir.
-  function handleColorirFromCelebration() {
-    if (celebrationHandledRef.current) return;
-    celebrationPendingRef.current = false;
-    setShowCelebration(false);
-    navigation.navigate('Coloring', { story, cenaIndex });
   }
 
   // [C60-MARCO] "Colorir agora": abre o editor daquele marco pelo CONTRATO CENTRAL de navegação
@@ -396,46 +371,11 @@ export default function NarrationScreen({ route, navigation }) {
             </LinearGradient>
           </SoundButton>
 
-          {/* ── 8. CONVITE PARA COLORIR — ação central da história ──
-              No piloto "A Criação" (Colorir 60) este convite ao Colorir tradicional por cena
-              some: a jornada "Colorir com o Beni" assume o colorir dessa história. */}
-          {!creationColoringHidden && (
-            sceneHasDrawing ? (
-              <SoundButton
-                style={styles.colorDoneCard}
-                onPress={() => navigation.navigate('Coloring', { story, cenaIndex })}
-                activeOpacity={0.85}
-              >
-                <View style={styles.colorIconWrapDone}>
-                  <Text style={styles.colorIconEmoji}>🎨</Text>
-                </View>
-                <View style={styles.colorInfo}>
-                  <Text style={styles.colorDoneTitle}>Você já coloriu esta cena ✓</Text>
-                  <Text style={styles.colorDoneSub}>Ver ou editar seu desenho</Text>
-                </View>
-                <Text style={styles.colorDoneArrow}>→</Text>
-              </SoundButton>
-            ) : (
-              <SoundButton
-                style={styles.colorInviteCard}
-                onPress={() => navigation.navigate('Coloring', { story, cenaIndex })}
-                activeOpacity={0.9}
-              >
-                <View style={styles.colorIconWrap}>
-                  <Text style={styles.colorIconEmoji}>🎨</Text>
-                </View>
-                <View style={styles.colorInfo}>
-                  <Text style={styles.colorInviteTitle}>Hora de colorir</Text>
-                  <Text style={styles.colorInviteSub}>Dê cor a esta parte da história.</Text>
-                </View>
-                <View style={styles.colorBtn}>
-                  <Text style={styles.colorBtnText}>Colorir cena</Text>
-                </View>
-              </SoundButton>
-            )
-          )}
-
-          {/* ── 9. CENA ANTERIOR — secundário, só a partir da cena 2 ── */}
+          {/* ── 8. CENA ANTERIOR — secundário, só a partir da cena 2 ──
+              [P3J] O convite ao Colorir por cena foi APOSENTADO: não há card de colorir aqui,
+              nem em nenhuma outra história. Nada ocupa este espaço — sem placeholder, sem
+              bloqueio, sem "em breve". O colorir do produto é o "Colorir com o Beni", que
+              entra pelos marcos narrativos (modal abaixo) e pela jornada da StoryDetail. */}
           {cenaIndex > 0 && (
             <SoundButton
               style={styles.prevLink}
@@ -452,10 +392,8 @@ export default function NarrationScreen({ route, navigation }) {
       <UnlockCelebration
         visible={showCelebration}
         onContinue={handleContinue}
-        onColorir={creationColoringHidden ? null : handleColorirFromCelebration}
         sceneNumber={numeroCena}
         totalCenas={totalCenas}
-        sceneHasDrawing={sceneHasDrawing}
       />
 
       {/* [C60-MODAL-ÚNICO] Convite do Beni por marco (cena 2/7/9 de "A Criação"). É o ÚNICO modal
@@ -565,63 +503,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16, alignItems: 'center',
   },
   primaryBtnText: { fontFamily: 'FredokaOne', fontSize: 18, color: '#FFF' },
-
-  // Convite para colorir — ação central, chamativa (laranja Beni + creme)
-  colorInviteCard: {
-    flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: 16, marginTop: 14,
-    backgroundColor: '#FFF4E6',
-    borderRadius: radii.lg,
-    padding: 12, gap: 12,
-    borderWidth: 1.5, borderColor: pt.beniSoft,
-    elevation: 3, shadowColor: pt.beniDeep,
-    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 6,
-  },
-  colorIconWrap: {
-    width: 50, height: 50, borderRadius: 25,
-    backgroundColor: pt.beniSoft,
-    justifyContent: 'center', alignItems: 'center', flexShrink: 0,
-  },
-  colorIconWrapDone: {
-    width: 50, height: 50, borderRadius: 25,
-    backgroundColor: pt.greenSoft,
-    justifyContent: 'center', alignItems: 'center', flexShrink: 0,
-  },
-  colorIconEmoji: { fontSize: 26 },
-  colorInfo: { flex: 1 },
-  colorInviteTitle: {
-    fontFamily: 'FredokaOne', fontSize: 16, color: '#9A4A12', marginBottom: 1,
-  },
-  colorInviteSub: {
-    fontFamily: 'Nunito', fontSize: 12.5, color: '#9A6B4A', fontWeight: '700', lineHeight: 17,
-  },
-  colorBtn: {
-    backgroundColor: pt.beni,
-    borderRadius: radii.pill,
-    paddingHorizontal: 16, paddingVertical: 10, flexShrink: 0,
-    elevation: 2, shadowColor: pt.beniDeep,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
-  },
-  colorBtnText: { fontFamily: 'FredokaOne', fontSize: 14, color: '#FFF' },
-
-  // Cena já colorida — estado calmo (verde vida)
-  colorDoneCard: {
-    flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: 16, marginTop: 14,
-    backgroundColor: pt.greenSoft,
-    borderRadius: radii.lg,
-    padding: 12, gap: 12,
-    borderWidth: 1.5, borderColor: 'rgba(94,156,62,0.30)',
-  },
-  colorDoneTitle: {
-    fontFamily: 'FredokaOne', fontSize: 15, color: pt.greenDeep, marginBottom: 1,
-  },
-  colorDoneSub: {
-    fontFamily: 'Nunito', fontSize: 12.5, color: '#5E7A47', fontWeight: '700',
-  },
-  colorDoneArrow: {
-    fontFamily: 'FredokaOne', fontSize: 18, color: pt.greenDeep, flexShrink: 0, paddingRight: 4,
-  },
 
   // Cena anterior — o mais discreto
   prevLink: {

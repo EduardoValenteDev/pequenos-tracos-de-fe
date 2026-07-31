@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, Animated, StyleSheet, useWindowDimensions,
 } from 'react-native';
@@ -18,6 +18,15 @@ import { MISSIONS } from '../data/atelierData';
 import { listArts, ATELIER_FREE_SAVE_LIMIT } from '../services/atelierStorage';
 import { hasAtelierUnlimitedAccess } from '../services/accessControl';
 import { backLabelFor, isFromTab } from '../utils/originBack';
+// [P3J] A porta de colorir do Ateliê deixou de ser o Colorir legado por cena ("Escolher cena" →
+// lista de histórias → convite por cena) e passou a ser o "Colorir com o Beni", pelo MESMO portão
+// canônico do piloto — sem flag nova e sem configuração paralela.
+import { isColoring60PilotAllowed, COLORING60_STORY_ID } from '../services/coloring60Pilot';
+import { stories } from '../data/stories';
+
+// A jornada canônica do Colorir com o Beni vive na tela da história "A Criação" (StoryDetail →
+// CreationColoringJourneySection). Resolvida uma vez: se a história não existir, a porta some.
+const CREATION_STORY = stories.find((s) => s && s.id === COLORING60_STORY_ID) || null;
 
 function pickMission() {
   return MISSIONS[Math.floor(Math.random() * MISSIONS.length)];
@@ -92,8 +101,14 @@ export default function AtelierScreen({ navigation, route }) {
   const savePercent = Math.min(artCount / ATELIER_FREE_SAVE_LIMIT, 1);
   const isFull = !hasAtelierUnlimitedAccess() && artCount >= ATELIER_FREE_SAVE_LIMIT;
 
-  /* ── Ação principal: Colorir uma história ── */
-  const pintarCenaCard = (
+  /* ── Ação principal: Colorir com o Beni ──
+     [P3J] Substitui a antiga porta "Colorir uma história / Escolher cena", que levava à lista de
+     aventuras para pintar uma CENA pelo Colorir legado. Agora a porta é a atividade canônica e
+     aparece SOMENTE sob o portão do piloto (`isColoring60PilotAllowed`, o mesmo da jornada — sem
+     flag nova). Indisponível ⇒ o card é OMITIDO por inteiro: nada de card vazio, bloqueado ou
+     "em breve", e nenhum espaço reservado (a Mesa fecha em torno dos cards que restam). */
+  const colorirComBeniVisible = isColoring60PilotAllowed() && CREATION_STORY != null;
+  const colorirComBeniCard = colorirComBeniVisible ? (
     <AnimatedCard delay={90} targetRef={atelierTargets.register('atelier.coloring')} style={[styles.card, styles.cardPrincipal, styles.inMesa]}>
       <LinearGradient colors={['#FFF3E6', '#FFE0C2']} style={styles.cardGradient}>
         <View style={styles.principalTag}>
@@ -104,21 +119,30 @@ export default function AtelierScreen({ navigation, route }) {
             <Text style={styles.cardEmojiPrincipal}>🎨</Text>
           </View>
           <View style={styles.cardInfo}>
-            <Text style={styles.cardTitlePrincipal}>Colorir uma história</Text>
+            <Text style={styles.cardTitlePrincipal}>Colorir com o Beni</Text>
             <Text style={styles.cardDesc}>
-              Escolha uma cena bíblica e dê cor à aventura.
+              Pinte a Criação com o Beni: luz, vida e cuidado.
             </Text>
           </View>
         </View>
         <SoundButton
           style={[styles.cardBtn, styles.cardBtnPrincipal, { backgroundColor: pt.beni }]}
-          onPress={() => navigation.navigate('Home', { screen: 'Aventuras' })}
+          onPress={() => navigation.navigate('StoryDetail', { story: CREATION_STORY })}
           activeOpacity={0.85}
         >
-          <Text style={styles.cardBtnTextPrincipal}>Escolher cena</Text>
+          <Text style={styles.cardBtnTextPrincipal}>Abrir a jornada</Text>
         </SoundButton>
       </LinearGradient>
     </AnimatedCard>
+  ) : null;
+
+  // [P3J] Sem a porta de colorir na tela, o passo do guia que aponta para ela sai do roteiro —
+  // o Beni nunca explica um card ausente. O DADO (`ATELIER_GUIDE`, com o `audioKey`) fica intacto.
+  const atelierGuideSteps = useMemo(
+    () => (colorirComBeniVisible
+      ? ATELIER_GUIDE
+      : ATELIER_GUIDE.filter((step) => step.target !== 'atelier.coloring')),
+    [colorirComBeniVisible],
   );
 
   /* ── Ações secundárias: Desenho guiado + Criar livre (2 colunas) ── */
@@ -209,15 +233,18 @@ export default function AtelierScreen({ navigation, route }) {
       <View style={styles.mesaHeaderRow}>
         <Text style={styles.mesaLabel}>🎨 Mesa criativa</Text>
       </View>
+      {/* [P3J] Sem a porta de colorir, o convite não promete pintura que não existe. */}
       <BeniGuideBubble
-        message="Vamos dar cor para uma história hoje?"
+        message={colorirComBeniVisible
+          ? 'Vamos dar cor para uma história hoje?'
+          : 'Vamos criar uma arte hoje?'}
         avatarVariant="artist"
         tone="purple"
         compact
         style={styles.mesaBubble}
       />
-      {/* Ação principal */}
-      {pintarCenaCard}
+      {/* Ação principal (só sob o portão do piloto) */}
+      {colorirComBeniCard}
       {/* Ações secundárias (2 colunas) */}
       {secondaryDoors}
     </AnimatedCard>
@@ -269,7 +296,7 @@ export default function AtelierScreen({ navigation, route }) {
     </ScrollView>
       {atelierGuide.visible && (
         <BeniGuideOverlay
-          steps={ATELIER_GUIDE}
+          steps={atelierGuideSteps}
           measure={measureAtelierTarget}
           finalLabel="Entendi"
           onStep={scrollGuideTargetIntoView}

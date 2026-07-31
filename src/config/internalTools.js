@@ -3,7 +3,7 @@
  *
  * `isInternalToolsEnabled()` controla:
  *   - a seção "Administração (dev)" na Área dos Pais;
- *   - o registro das rotas internas (ColoringQa, PackSandboxDev).
+ *   - o registro das rotas internas (PackSandboxDev; [P3J] ColoringQa saiu com o Colorir legado).
  *
  * Cada ferramenta MANTÉM seu gate específico como DEFESA EM PROFUNDIDADE:
  *   - Modo Criador → `isCreatorQaModeAllowed()` (creatorQaMode);

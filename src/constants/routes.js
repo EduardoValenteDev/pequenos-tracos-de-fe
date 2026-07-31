@@ -64,7 +64,8 @@ export const ROUTES = Object.freeze({
   FAMILY_WORSHIP: 'FamilyWorship',
 
   // ── Somente desenvolvimento (registradas sob isInternalToolsEnabled) ──────
-  COLORING_QA: 'ColoringQa',
+  // [P3J] COLORING_QA ('ColoringQa') saiu com o Colorir legado: a tela existia só para abrir os
+  // linearts por cena. Nenhuma rota nova ocupou o nome.
   PACK_SANDBOX_DEV: 'PackSandboxDev',
   // Colorir 60 — bancada para reencenar 0/3, 1/3, 2/3, 3/3 e as reedições no aparelho real.
   // SÓ dev-gated (rota) + Modo Criador (tela). Ver coloring60LabService.

@@ -18,7 +18,6 @@ import AdventureMapScreen from '../screens/AdventureMapScreen';
 import StoryDetailScreen from '../screens/StoryDetailScreen';
 import NarrationScreen from '../screens/NarrationScreen';
 import ColoringScreen from '../screens/ColoringScreen';
-import ColoringQaScreen from '../screens/ColoringQaScreen';
 import Coloring60CollectionScreen from '../screens/Coloring60CollectionScreen';
 import Coloring60ArtPreviewScreen from '../screens/Coloring60ArtPreviewScreen';
 import Coloring60LabScreen from '../screens/Coloring60LabScreen';
@@ -376,15 +375,9 @@ export default function AppNavigator() {
           component={Coloring60ArtPreviewScreen}
           options={{ headerShown: false }}
         />
-        {/* M1: QA do Criador (testar desenhos) — rota registrada SÓ sob o gate interno,
-            SEM rota pública. Entrada só na seção "Administração (dev)" da Área dos Pais. */}
-        {isInternalToolsEnabled() && (
-          <Stack.Screen
-            name="ColoringQa"
-            component={ColoringQaScreen}
-            options={{ headerShown: false }}
-          />
-        )}
+        {/* [P3J] A rota "ColoringQa" foi REMOVIDA com o Colorir legado: a galeria de QA existia só
+            para abrir os 200 linearts por cena (getColoringImage), que não existem mais. A bancada
+            do Colorir 60 (Coloring60Lab, abaixo) segue sendo a ferramenta interna do colorir atual. */}
         {/* §Parte 12: bancada do Colorir 60 (reencenar 0/3→3/3 e as reedições). Rota registrada SÓ
             sob o gate interno; a TELA ainda exige Modo Criador ligado. Sem rota pública. */}
         {isInternalToolsEnabled() && (

@@ -14,15 +14,12 @@ import AudioPlayer from '../components/AudioPlayer';
 import LockedStoryFallback from '../components/premium/LockedStoryFallback';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
 import MagicBookEntrance from '../components/story/MagicBookEntrance';
-import { getColoringImage } from '../assets/coloringImages';
-import { getSavedDrawing, hasMeaningfulPaint } from '../services/drawingStorage';
 import { preloadStorySceneIllustrations } from '../services/storyImageService';
 import { resolveSceneImageForStory, useSandboxScenePackEntry } from '../hooks/useResolvedStoryMedia';
-import { resolveRemoteColoringUri, resolveRemoteAudioSource } from '../hooks/useResolvedStoryMedia';
+import { resolveRemoteAudioSource } from '../hooks/useResolvedStoryMedia';
 import { hasSceneAudio, getSceneAudio } from '../services/audioService';
 import { markStoryBookOpened } from '../services/postStoryStorage';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
-import { isCreationColoringPilotActive } from '../services/coloring60Pilot';
 import { useProgressContext } from '../context/ProgressContext';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
@@ -32,13 +29,6 @@ import { computeBookImageSize } from '../constants/officialImage';
 
 const PROGRESS_KEY = '@ptf_progress';
 const AUTOPLAY_MS = 5000;
-
-// Timeout de segurança da arte da criança (cor + contorno). Se a composição não
-// ficar pronta dentro disto (decode de base64 falho, ou — no Expo Go — asset
-// preso no Metro por Wi-Fi ruim), o Livrinho SAI do "Carregando desenho…" e cai
-// num fallback amigável, em vez de travar para sempre. Tradeoff intencional:
-// uma carga muito lenta vira fallback (e se a imagem chegar depois, recupera).
-const CHILD_ART_LOAD_TIMEOUT_MS = 7000;
 
 // Livrinho 1.0 — a arte é a PROTAGONISTA: ocupa o máximo da área disponível entre
 // o header e o painel de controles (medida em tempo real), mantendo 4:5 e com tetos
@@ -55,70 +45,19 @@ function fitBookArt45(availW, availH) {
   return { width: Math.round(w), height: Math.round(w / ratio) };
 }
 
-/**
- * Parses the raw saved drawing value returned by getSavedDrawing().
- *
- * v1 — raw data URL: 'data:image/png;base64,...'
- * v2 — JSON payload: '{"v":2,"W":390,"H":600,"imgX":3,...,"data":"data:image/png..."}'
- *
- * Returns { uri, W, H, imgX, imgY, imgW, imgH } or null on failure.
- */
-function parseDrawingPayload(raw) {
-  if (!raw) return null;
-  try {
-    if (raw.startsWith('data:')) {
-      return { uri: raw, W: null, H: null, imgX: null, imgY: null, imgW: null, imgH: null };
-    }
-    const p = JSON.parse(raw);
-    if (!p?.data) return null;
-    return {
-      uri: p.data,
-      W: p.W ?? null, H: p.H ?? null,
-      imgX: p.imgX ?? null, imgY: p.imgY ?? null,
-      imgW: p.imgW ?? null, imgH: p.imgH ?? null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-const EMPTY_LAYOUT = {
-  baseImage: null, officialImage: null,
-  canvasW: null, canvasH: null,
-  lineartImgX: null, lineartImgY: null, lineartImgW: null, lineartImgH: null,
-};
-
 // ── Construtores de visual por tipo (cada slide carrega um destes) ──
-
-// Arte da criança — SEMPRE com o contorno (lineart) por cima.
-//   v2 (com layout)  → paintWithLineart: lineart alinhado pixel-perfect.
-//   v1 (sem layout)  → paintWithLineartFull: lineart em contain, alinhado pela
-//                      mesma moldura 4:5 do paint (restaura o contorno).
-// Sem lineart (coloringImage) disponível → retorna null: a arte NUNCA é exibida
-// sozinha; o chamador cai para oficial/fallback.
-function makeChildArtVisual(cena, story, p, baseImage) {
-  if (!baseImage) return null; // sem contorno disponível → não mostra cor sozinha
-  const fallbackColor = cena.corTema || '#A78BFA';
-  const hasLayout = p.W && p.H && p.imgX !== null && p.imgY !== null && p.imgW && p.imgH;
-  if (hasLayout) {
-    return {
-      type: 'paintWithLineart', visualType: 'childArt', seal: 'Sua arte', note: null,
-      paintUri: p.uri, baseImage, officialImage: null, fallbackColor,
-      canvasW: p.W, canvasH: p.H,
-      lineartImgX: p.imgX, lineartImgY: p.imgY, lineartImgW: p.imgW, lineartImgH: p.imgH,
-    };
-  }
-  return {
-    type: 'paintWithLineartFull', visualType: 'childArt', seal: 'Sua arte', note: null,
-    paintUri: p.uri, baseImage, officialImage: null, fallbackColor, ...EMPTY_LAYOUT,
-  };
-}
+//
+// [P3J] O visual "arte da criança" (paintWithLineart / paintWithLineartFull) foi APOSENTADO
+// junto com o Colorir legado. Ele só existia porque havia um lineart por cena para compor
+// por cima da pintura: sem contorno, a página mostraria mancha de cor, e a regra desta tela
+// sempre foi "a arte NUNCA é exibida sozinha". Sem lineart não há visual possível — então o
+// tipo inteiro sai, em vez de virar um caminho morto que nunca resolve.
 
 // Ilustração oficial da cena.
 function makeOfficialVisual(cena, story, official) {
   return {
     type: 'official', visualType: 'official', seal: 'Cena ilustrada', note: null,
-    paintUri: null, fallbackColor: cena.corTema || '#A78BFA', ...EMPTY_LAYOUT,
+    fallbackColor: cena.corTema || '#A78BFA',
     officialImage: official,
   };
 }
@@ -128,7 +67,7 @@ function makeFallbackVisual(cena, story, note) {
   return {
     type: 'fallback', visualType: 'fallback', seal: 'Cena especial',
     note: note || 'Imagem da cena em breve.',
-    paintUri: null, fallbackColor: cena.corTema || '#A78BFA', ...EMPTY_LAYOUT,
+    fallbackColor: cena.corTema || '#A78BFA', officialImage: null,
   };
 }
 
@@ -148,112 +87,30 @@ function mkSlide(cena, sceneNumber, visual) {
 /**
  * resolveStoryBookPageImage — resolução central de UMA imagem por cena no Livrinho.
  *
- * DOIS MODOS FINAIS (UX 1.0 — Bloco 3). Sem modo misto: cada modo é previsível
- * e visivelmente diferente, mesmo com 10 artes salvas.
+ * MODO ÚNICO (UX 1.0 — Bloco 3, revisto no P3J): "História ilustrada" — SEMPRE a
+ * ilustração oficial da cena; sem oficial → fallback seguro. O antigo modo "Meu livrinho
+ * colorido" dependia do lineart legado por cena e saiu com ele (ver os construtores acima).
  *
- *   'official' (História ilustrada): SEMPRE a ilustração oficial da cena.
- *     NUNCA troca a página pela arte da criança quando ela existe.
- *     Sem oficial → fallback seguro.
- *   'child' (Meu livrinho colorido): SOMENTE a arte da criança (com contorno).
- *     Sem arte real nesta cena → fallback suave "ainda não pintou".
- *     Nunca usa ilustração oficial (não recria a história).
- *
- * Sempre retorna um visual válido (nunca vazio, nunca require quebrado). A arte
- * da criança só é usada quando makeChildArtVisual entrega o contorno por cima
- * (Bloco 1): nenhuma página renderiza mancha de cor sem lineart.
+ * Sempre retorna um visual válido (nunca vazio, nunca require quebrado).
  */
-function resolveStoryBookPageImage(cena, sceneNumber, story, drawings, mode, scenePackEntry) {
-  // 'official' — História ilustrada: imagem oficial sempre, nunca a arte da criança.
-  if (mode === 'official') {
-    // F2.1h v2: imagem oficial via resolveSceneImageForStory (gated a david_goliath;
-    // fallback local IDÊNTICO com índice vazio; file:// só com pack ready no sandbox).
-    // Retorna sempre um source de <Image> (require OU { uri }), nunca o envelope.
-    const official = resolveSceneImageForStory(story.id, cena.id, scenePackEntry);
-    if (official) return makeOfficialVisual(cena, story, official);
-    return makeFallbackVisual(cena, story);
-  }
-  // 'child' — Meu livrinho colorido: só a arte da criança (com contorno garantido).
-  const raw = drawings[cena.id] ?? null;
-  if (hasMeaningfulPaint(raw)) {
-    const p = parseDrawingPayload(raw);
-    // Lineart (contorno): fonte local ATUAL por padrão; remoto file:// só quando o pack está
-    // ready+válido (resolveRemoteColoringUri via useResolvedStoryMedia) e a chave por posição
-    // bate (cena.id === sceneNumber). NÃO toca o motor; fallback local sempre. (Fase 2B)
-    let baseImage = getColoringImage(story.id, cena.id);
-    if (cena.id === sceneNumber) {
-      const remote = resolveRemoteColoringUri(story.id, sceneNumber, scenePackEntry);
-      if (remote) baseImage = remote;
-    }
-    const childVisual = p ? makeChildArtVisual(cena, story, p, baseImage) : null;
-    if (childVisual) return childVisual;
-  }
-  return makeFallbackVisual(cena, story, 'Você ainda não pintou esta cena.');
+function resolveStoryBookPageImage(cena, story, scenePackEntry) {
+  // F2.1h v2: imagem oficial via resolveSceneImageForStory (gated a david_goliath;
+  // fallback local IDÊNTICO com índice vazio; file:// só com pack ready no sandbox).
+  // Retorna sempre um source de <Image> (require OU { uri }), nunca o envelope.
+  const official = resolveSceneImageForStory(story.id, cena.id, scenePackEntry);
+  if (official) return makeOfficialVisual(cena, story, official);
+  return makeFallbackVisual(cena, story);
 }
 
-/**
- * Constrói a TIMELINE do Livrinho — 1 slide por cena, conforme o modo.
- * Dois modos finais: 'official' (História ilustrada) e 'child' (Meu livrinho colorido).
- */
-function buildStoryBookTimeline(story, drawings, mode, scenePackEntry) {
+/** Constrói a TIMELINE do Livrinho — 1 slide por cena, no modo único ilustrado. */
+function buildStoryBookTimeline(story, scenePackEntry) {
   return (story?.cenas ?? []).map((cena, i) =>
-    mkSlide(cena, i + 1, resolveStoryBookPageImage(cena, i + 1, story, drawings, mode, scenePackEntry)),
+    mkSlide(cena, i + 1, resolveStoryBookPageImage(cena, story, scenePackEntry)),
   );
 }
 
-// LIVRINHO_UX_1 — lê os desenhos salvos de todas as cenas. Usado no init E no refresh
-// ao focar (voltar do Coloring), reaproveitando getSavedDrawing/hasMeaningfulPaint.
-async function loadDrawingsMap(story) {
-  const drawingMap = {};
-  await Promise.all(
-    (story?.cenas ?? []).map(async (cena) => {
-      drawingMap[cena.id] = await getSavedDrawing(story.id, cena.id);
-    }),
-  );
-  return drawingMap;
-}
-
-/**
- * Computes the absolute style for the lineart overlay so it aligns pixel-perfect
- * with the paint layer (which is displayed with resizeMode="contain").
- */
-// Livrinho 1.1 — a ARTE (retângulo do lineart) é a PROTAGONISTA: preenche o card.
-// A arte salva é o CANVAS INTEIRO (W×H) com o desenho num sub-retângulo centralizado
-// (imgX/Y/W/H) cercado de margem creme. Antes containávamos o canvas todo → arte
-// pequena dentro de um card grande. Agora escalamos pelo RETÂNGULO DA ARTE (contain
-// do rect no card): o canvas extrapola o card e é recortado (overflow hidden do
-// frame), mostrando só a arte, grande. Paint e lineart usam a MESMA escala/âncora,
-// então cor e contorno seguem alinhados pixel a pixel.
-function computeArtworkScale(containerW, containerH, visual) {
-  if (!containerW || !containerH || !visual.canvasW || !visual.canvasH || !visual.lineartImgW || !visual.lineartImgH) {
-    return null;
-  }
-  const scale = Math.min(containerW / visual.lineartImgW, containerH / visual.lineartImgH);
-  const rectW = visual.lineartImgW * scale;
-  const rectH = visual.lineartImgH * scale;
-  const rectLeft = (containerW - rectW) / 2;
-  const rectTop = (containerH - rectH) / 2;
-  return { scale, rectW, rectH, rectLeft, rectTop };
-}
-
-/** Estilo do CONTORNO (lineart) — preenche o card com o retângulo real da arte. */
-function computeLineartStyle(containerW, containerH, visual) {
-  const a = computeArtworkScale(containerW, containerH, visual);
-  if (!a) return { position: 'absolute', opacity: 0 };
-  return { position: 'absolute', left: a.rectLeft, top: a.rectTop, width: a.rectW, height: a.rectH };
-}
-
-/** Estilo da PINTURA (canvas inteiro) deslocado p/ o retângulo da arte cair sobre o lineart. */
-function computePaintStyle(containerW, containerH, visual) {
-  const a = computeArtworkScale(containerW, containerH, visual);
-  if (!a) return null;
-  return {
-    position: 'absolute',
-    left: a.rectLeft - visual.lineartImgX * a.scale,
-    top: a.rectTop - visual.lineartImgY * a.scale,
-    width: visual.canvasW * a.scale,
-    height: visual.canvasH * a.scale,
-  };
-}
+// [P3J] computeArtworkScale / computeLineartStyle / computePaintStyle saíram com o modo
+// colorido: existiam só para alinhar pixel a pixel a camada de tinta com o lineart legado.
 
 /**
  * Audio readiness for Livrinho auto-play. canAutoPlay is true ONLY when every
@@ -277,7 +134,6 @@ function getStoryBookPlaybackReadiness(story) {
  * + emoji + título + frase curta). Preenche a moldura inteira (absoluteFill), então
  * cobre o fundo escuro da moldura oficial — nada de quadro preto. Reutilizado por:
  *   • imagem oficial que falhou (OfficialSceneImage),
- *   • arte da criança que falhou/estourou o timeout (ChildArtWithLineart),
  *   • o caminho de fallback "normal" do render (cena sem mídia).
  * Layout idêntico ao fallback já existente — não muda o visual do Livrinho.
  */
@@ -329,110 +185,8 @@ function OfficialSceneImage({ source, cena, fallbackColor, onSettled }) {
   );
 }
 
-/**
- * ChildArtWithLineart — compõe a arte da criança (cor) + o contorno (lineart)
- * garantindo que NENHUM frame mostre a cor sem o contorno.
- *
- * Problema que resolve: a cor é um data-URI base64 (decodifica quase instantâneo)
- * e o lineart é um asset require'd (carrega assíncrono). Empilhar no JSX não
- * basta — a cor aparecia alguns ms antes do lineart. Aqui as DUAS camadas são
- * renderizadas invisíveis (opacity 0) só para disparar onLoad; a composição só
- * fica visível quando `paintLoaded && lineartLoaded` (e, no modo posicionado v2,
- * quando a moldura já foi medida). Enquanto isso, mostra "Carregando desenho…".
- *
- * Estado é por instância: a key no chamador (história+cena+modo+arte) remonta a
- * cada página, então loaded/error nunca vazam de uma cena para outra.
- */
-function ChildArtWithLineart({ visual, containerW, containerH, cena }) {
-  const [paintLoaded, setPaintLoaded] = useState(false);
-  const [lineartLoaded, setLineartLoaded] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false); // onError da cor OU do contorno
-  const [timedOut, setTimedOut] = useState(false);      // estourou o timeout sem ficar pronto
-
-  const positioned = visual.type === 'paintWithLineart';
-  // v2 (com layout): cor e contorno escalados pelo retângulo da arte → arte grande.
-  const lineartAbsStyle = positioned ? computeLineartStyle(containerW, containerH, visual) : null;
-  const paintAbsStyle = positioned ? computePaintStyle(containerW, containerH, visual) : null;
-  // Posicionado só está pronto quando a moldura foi medida (paintAbsStyle calculado).
-  const measured = !positioned || !!paintAbsStyle;
-  // Só revela quando cor E contorno carregaram (e o lineart pode ser posicionado).
-  const ready = paintLoaded && lineartLoaded && measured;
-
-  // Timeout de segurança: arma quando ainda não está pronto e não falhou. Se a
-  // composição não ficar pronta a tempo, marca timedOut → mostra fallback (não
-  // trava em "Carregando desenho…"). O timer é limpo no unmount e sempre que
-  // `ready`/`loadFailed` mudam; o componente é keyed por página, então o timeout
-  // reinicia a cada troca de cena ou mudança de visual (remount limpo).
-  useEffect(() => {
-    if (ready || loadFailed) return undefined; // nada a temporizar
-    const t = setTimeout(() => setTimedOut(true), CHILD_ART_LOAD_TIMEOUT_MS);
-    return () => clearTimeout(t);
-  }, [ready, loadFailed]);
-
-  const onLoadError = () => {
-    if (__DEV__) console.warn('[DEV] Livrinho: arte da criança falhou ao carregar — usando fallback.');
-    setLoadFailed(true);
-  };
-
-  // Mostra o fallback quando NÃO ficou pronto E (alguma imagem falhou OU estourou o
-  // tempo). Se a imagem chegar depois (carga lenta), `ready` vira true e recupera a arte.
-  const showFallback = !ready && (loadFailed || timedOut);
-
-  return (
-    <View style={StyleSheet.absoluteFill}>
-      {/* Camadas reais — invisíveis até cor + contorno estarem prontos juntos.
-          Permanecem montadas mesmo durante o fallback: se a carga lenta terminar,
-          `ready` recupera a arte automaticamente. */}
-      <View style={[StyleSheet.absoluteFill, { opacity: ready ? 1 : 0 }]}>
-        <Image
-          source={{ uri: visual.paintUri }}
-          style={positioned && paintAbsStyle ? paintAbsStyle : styles.bookFullImage}
-          resizeMode={positioned && paintAbsStyle ? 'stretch' : 'contain'}
-          fadeDuration={0}
-          onLoad={() => setPaintLoaded(true)}
-          onError={onLoadError}
-        />
-        {positioned ? (
-          <Image
-            source={visual.baseImage}
-            style={[lineartAbsStyle, styles.lineartMultiply]}
-            resizeMode="stretch"
-            fadeDuration={0}
-            onLoad={() => setLineartLoaded(true)}
-            onError={onLoadError}
-          />
-        ) : (
-          <Image
-            source={visual.baseImage}
-            style={[StyleSheet.absoluteFill, styles.lineartMultiply]}
-            resizeMode="contain"
-            fadeDuration={0}
-            onLoad={() => setLineartLoaded(true)}
-            onError={onLoadError}
-          />
-        )}
-      </View>
-
-      {/* Placeholder honesto enquanto carrega — só até ficar pronto OU cair no fallback */}
-      {!ready && !showFallback && (
-        <View style={[StyleSheet.absoluteFill, styles.childLoading]} pointerEvents="none">
-          <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={styles.childLoadingText}>Carregando desenho…</Text>
-        </View>
-      )}
-
-      {/* Fallback amigável quando a arte não carrega (erro/timeout) — sem loading infinito */}
-      {showFallback && (
-        <BookArtFallback
-          fallbackColor={visual.fallbackColor}
-          emoji={cena?.emojiCena}
-          title={cena?.titulo}
-          note="Não consegui carregar este desenho agora."
-        />
-      )}
-    </View>
-  );
-}
+// [P3J] ChildArtWithLineart saiu com o modo colorido: era o compositor que garantia que
+// nenhum frame mostrasse a cor sem o contorno. Sem lineart legado não há o que compor.
 
 export default function StoryBookScreen({ route, navigation }) {
   const { story, fromStoryCompletion = false } = route.params ?? {};
@@ -451,15 +205,12 @@ export default function StoryBookScreen({ route, navigation }) {
 
   const [screenState, setScreenState] = useState('loading');
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const [drawings, setDrawings] = useState({});
   const [isPaused, setIsPaused] = useState(false);
   // Modo de reprodução CONTÍNUA do Livrinho: ligado quando a criança toca Play
   // (1ª cena); ao terminar uma cena, a próxima toca sozinha. Pausa manual desliga.
   const [autoplayActive, setAutoplayActive] = useState(false);
-  const [imgContainerSize, setImgContainerSize] = useState({ w: 0, h: 0 });
   // Área disponível para a arte (entre header e painel) — medida p/ dimensionar a arte.
   const [artSectionSize, setArtSectionSize] = useState({ w: 0, h: 0 });
-  const [viewMode, setViewMode] = useState('official'); // 'official' (História ilustrada) | 'child' (Meu livrinho colorido)
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [entering, setEntering] = useState(false); // transição mágica de abertura
   const isBookFocused = useIsFocused(); // F2.4e.5p: usado p/ parar o áudio ao sair da tela
@@ -479,12 +230,11 @@ export default function StoryBookScreen({ route, navigation }) {
   const isBookFocusedRef = useRef(true); // espelho do foco (debug/efeitos); a verdade usada nos guards é navigation.isFocused()
   const appActiveRef = useRef(true);     // AppState 'active' (app em foreground)
   const noAudioTimerRef = useRef(null);  // timer da cena sem áudio (cancelável no invalidate)
-  const screenStateRef = useRef('loading'); // LIVRINHO_UX_1: espelho de screenState p/ o refresh ao focar
 
-  // Timeline derivada (memoizada) — só recalcula ao trocar história, artes ou modo.
+  // Timeline derivada (memoizada) — modo único, então só recalcula ao trocar história/pack.
   const timeline = useMemo(
-    () => buildStoryBookTimeline(story, drawings, viewMode, scenePackEntry),
-    [story?.id, drawings, viewMode, scenePackEntry],
+    () => buildStoryBookTimeline(story, scenePackEntry),
+    [story?.id, scenePackEntry],
   );
   const totalSlides = timeline.length;
 
@@ -514,11 +264,7 @@ export default function StoryBookScreen({ route, navigation }) {
           if (!cancelled) setScreenState('notCompleted');
           return;
         }
-        const drawingMap = await loadDrawingsMap(story);
-        if (!cancelled) {
-          setDrawings(drawingMap);
-          setScreenState('intro');
-        }
+        if (!cancelled) setScreenState('intro');
       } catch {
         if (!cancelled) setScreenState('error');
       }
@@ -527,14 +273,11 @@ export default function StoryBookScreen({ route, navigation }) {
     return () => { cancelled = true; };
   }, [story?.id]);
 
-  // LIVRINHO_UX_1 — espelho de screenState (lido pelo refresh ao focar, sem re-subscrever o efeito).
-  useEffect(() => { screenStateRef.current = screenState; }, [screenState]);
-
   // Fase 2B.6 (RP3): revalida ACESSO ao FOCAR (não só no mount). Se o entitlement caiu
   // (ex.: assinatura expirou com o app aberto), PAUSA o áudio imediatamente (setIsPaused,
   // via prop `paused` do AudioPlayer) e trava em 'locked' (remove o AudioPlayer do render →
-  // player.pause() no unmount). Nunca deixa áudio premium tocando após o bloqueio. Roda ANTES
-  // do refresh de desenhos; preserva LIVRINHO_FIX/UX (não altera autoplay).
+  // player.pause() no unmount). Nunca deixa áudio premium tocando após o bloqueio.
+  // Preserva LIVRINHO_FIX/UX (não altera autoplay).
   useFocusEffect(
     useCallback(() => {
       if (story?.id && Array.isArray(story?.cenas) && !canOpenStoryFullExperience(story)) {
@@ -544,22 +287,9 @@ export default function StoryBookScreen({ route, navigation }) {
     }, [story?.id]),
   );
 
-  // LIVRINHO_UX_1 — ao voltar do Coloring (a tela recupera foco ainda no 'intro'), recarrega os
-  // desenhos salvos para childArtCount/coloredComplete refletirem a pintura recém-feita, sem sair
-  // da história. Só no 'intro' (não perturba o 'playing'/áudio). Sem polling/interval; cleanup via
-  // `cancelled` (dispara no blur/desmontagem) evita setState após sair da tela.
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      if (screenStateRef.current === 'intro') {
-        (async () => {
-          const map = await loadDrawingsMap(story);
-          if (!cancelled) setDrawings(map);
-        })();
-      }
-      return () => { cancelled = true; };
-    }, [story?.id]),
-  );
+  // [P3J] O recarregamento de desenhos ao focar (que existia para o contador de artes do
+  // modo colorido refletir uma pintura recém-feita) saiu com o modo: o Livrinho não lê mais
+  // nenhuma pintura. O storage das pinturas NÃO foi tocado — só deixou de ter leitor aqui.
 
   // DEV: relata cenas sem som (autoplay cai no timer nelas). A Criação tem os 10.
   useEffect(() => {
@@ -573,7 +303,7 @@ export default function StoryBookScreen({ route, navigation }) {
   }, [story?.id]);
 
   // Fade-in do slide atual. SEMPRE termina em 1 (defesa contra imagem "presa
-  // quase branca"): cada troca de slide/modo reinicia a opacidade e anima até 1.
+  // quase branca"): cada troca de slide reinicia a opacidade e anima até 1.
   useEffect(() => {
     if (screenState !== 'playing') return undefined;
     // Opacidade inicial alta (0.85) — fade suave sem parecer imagem branca/apagada.
@@ -581,7 +311,7 @@ export default function StoryBookScreen({ route, navigation }) {
     const anim = Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true });
     anim.start();
     return () => anim.stop();
-  }, [currentSlideIndex, viewMode, screenState]);
+  }, [currentSlideIndex, screenState]);
 
   // Limpeza de timers ao desmontar.
   useEffect(() => () => {
@@ -644,7 +374,7 @@ export default function StoryBookScreen({ route, navigation }) {
       clearTimeout(timer);
       if (noAudioTimerRef.current === timer) noAudioTimerRef.current = null;
     };
-  }, [screenState, currentSlideIndex, isPaused, viewMode, isBookFocused]);
+  }, [screenState, currentSlideIndex, isPaused, isBookFocused]);
 
   // LIVRINHO_AUTOPLAY_FIX_1 — consome um avanço por FIM DE ÁUDIO que chegou durante a
   // trava de transição. Quando a trava libera (isTransitioning → false), avança UMA vez.
@@ -774,40 +504,16 @@ export default function StoryBookScreen({ route, navigation }) {
     setScreenState('playing'); // sai de 'ended' (finished → false)
   }
 
-  // "Escolher outro modo" — volta para a tela de seleção SEM sair do StoryBookScreen.
-  function handleChooseMode() {
-    if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
-    lockRef.current = false;
-    pendingAutoAdvanceRef.current = false; // LIVRINHO_AUTOPLAY_FIX_1
-    setIsTransitioning(false);
-    fadeAnim.setValue(1);
-    setCurrentSlideIndex(0);
-    setIsPaused(false);
-    setAutoplayActive(false);
-    playbackGenerationRef.current += 1; // F2.4e.5pR: trocar de modo reinicia a sessão
-    setScreenState('intro'); // mostra de novo os 3 modos (finished → false)
-  }
+  // [P3J] handleChooseMode ("Escolher outro modo") saiu com o modo colorido — com um único modo
+  // não há seleção para reabrir. Reler a história continua por handleReplay.
 
   function handleTogglePause() {
     if (lockRef.current) return;
     setIsPaused(p => !p);
   }
 
-  // Trocar de modo: pausa, reseta a timeline para o começo e opacidade em 1.
-  function handleSelectMode(id) {
-    setViewMode(id);
-    setCurrentSlideIndex(0);
-    setIsPaused(false);
-    setAutoplayActive(false);
-    fadeAnim.setValue(1);
-    pendingAutoAdvanceRef.current = false; // LIVRINHO_AUTOPLAY_FIX_1
-    playbackGenerationRef.current += 1; // F2.4e.5pR: selecionar modo invalida a sessão anterior
-  }
-
-  const handleImageAreaLayout = useCallback((e) => {
-    const { width: w, height: h } = e.nativeEvent.layout;
-    setImgContainerSize({ w, h });
-  }, []);
+  // [P3J] handleSelectMode saiu com a escolha de modo: o Livrinho tem um modo só.
+  // handleImageAreaLayout media a moldura para alinhar tinta e contorno — sem uso agora.
 
   // Mede a área disponível para a arte (entre header e painel de controles).
   const handleArtSectionLayout = useCallback((e) => {
@@ -929,24 +635,11 @@ export default function StoryBookScreen({ route, navigation }) {
   if (screenState === 'intro') {
     const hasCover = story.imagemCapa && images[story.imagemCapa];
     const totalScenes = story.cenas.length;
-    const childArtCount = story.cenas.filter(c => hasMeaningfulPaint(drawings[c.id])).length;
-    // LIVRINHO_UX_1 — modo colorido só abre com a aventura 100% pintada; CTA leva à 1ª cena pendente.
-    const firstUncoloredIndex = story.cenas.findIndex(c => !hasMeaningfulPaint(drawings[c.id]));
-    const coloredComplete = totalScenes > 0 && childArtCount === totalScenes;
-    // [C60-P12-LEGACY] Quando o piloto "Colorir com o Beni" está ATIVO para esta história (A Criação),
-    // o Colorir por CENA (rota legada) não é o caminho de colorir desta história — o piloto usa as
-    // TRÊS atividades semânticas (Luz · Vida · Cuidado), acessadas pela jornada da história, não pelo
-    // índice de cena. Então o botão "Pintar próxima cena" (que levaria à cena legada) é OCULTADO aqui,
-    // pela MESMA porta canônica compartilhada (isCreationColoringPilotActive). As demais histórias
-    // seguem com o botão intacto; com o piloto DESLIGADO, o comportamento base volta idêntico. Nenhuma
-    // rota ou chave de storage é removida — só esta ação deixa de aparecer no piloto.
-    const pilotColoringActive = isCreationColoringPilotActive(story.id);
-    // Prévia do modo "História ilustrada" — ilustração oficial da 1ª cena (ou capa).
-    // F2.1i: via resolveSceneImageForStory (gated a david_goliath; fallback local IDÊNTICO
-    // com índice vazio; file:// só com pack ready no sandbox). Reusa scenePackEntry (valor)
-    // e retorna sempre um source de <Image> (require OU { uri }), nunca o envelope.
-    const firstCena = story.cenas[0];
-    const officialPreview = firstCena ? resolveSceneImageForStory(story.id, firstCena.id, scenePackEntry) : null;
+    // [P3J] O modo "Meu livrinho colorido" foi APOSENTADO junto com o Colorir legado. Ele dependia
+    // inteiramente dos linearts por cena: a pintura salva é só a camada de tinta, e sem contorno não
+    // havia obra a exibir. Sem ele caem também a contagem de artes, o bloqueio "pinte todas as cenas"
+    // e o botão "Pintar próxima cena". O Livrinho passa a ter UM caminho — a história ilustrada — sem
+    // card vazio, sem seletor de um item só e sem mensagem de "em breve".
     return (
       <View style={styles.wrapper}>
         {renderHeader('📖', 'Livrinho da Fé', story.titulo)}
@@ -981,110 +674,23 @@ export default function StoryBookScreen({ route, navigation }) {
           <View style={styles.beniReaderRow}>
             <BeniAvatar variant="reading" size="small" />
             <Text style={styles.beniReaderText}>
-              Beni vai recontar sua aventura com as imagens da história e suas artes.
+              Beni vai recontar sua aventura com as imagens da história.
             </Text>
           </View>
 
-          {/* Resumo: cenas · suas artes (o Livrinho é feito com os desenhos da criança) */}
+          {/* Resumo: quantas cenas o Livrinho vai reler */}
           <View style={styles.introStatsRow}>
             <View style={styles.introStat}>
               <Text style={styles.introStatNum}>{totalScenes}</Text>
               <Text style={styles.introStatLabel}>{totalScenes === 1 ? 'cena' : 'cenas'}</Text>
             </View>
-            <View style={styles.introStat}>
-              <Text style={styles.introStatNum}>{childArtCount}</Text>
-              <Text style={styles.introStatLabel}>{childArtCount === 1 ? 'sua arte' : 'suas artes'}</Text>
-            </View>
           </View>
 
-          {childArtCount > 0 && (
-            <View style={styles.introArtHighlight}>
-              <Text style={styles.introArtHighlightText}>
-                ✨ Você colocou sua arte neste livrinho.
-              </Text>
-            </View>
-          )}
-
-          {/* ── Escolha de modo: 2 modos reais, previsíveis e visivelmente diferentes ── */}
-          <Text style={styles.modeTitle}>Como você quer ver?</Text>
-          <View style={styles.modeList}>
-            {[
-              { id: 'official', emoji: '📖', title: 'História ilustrada', sub: 'Reveja a aventura com as imagens da história.' },
-              { id: 'child', emoji: '🎨', title: 'Meu livrinho colorido', sub: 'Veja as cenas que você pintou.' },
-            ].map(opt => {
-              const active = viewMode === opt.id;
-              return (
-                <SoundButton
-                  key={opt.id}
-                  style={[styles.modeCard, active && styles.modeCardActive]}
-                  onPress={() => handleSelectMode(opt.id)}
-                  activeOpacity={0.85}
-                  accessibilityLabel={opt.title}
-                >
-                  {/* Prévia visual distinta por modo (entende-se a diferença em 5s) */}
-                  {opt.id === 'official' ? (
-                    officialPreview ? (
-                      <Image source={officialPreview} style={styles.modePreview} resizeMode="contain" />
-                    ) : hasCover ? (
-                      <Image source={images[story.imagemCapa]} style={styles.modePreview} resizeMode="contain" />
-                    ) : (
-                      <View style={[styles.modePreview, styles.modePreviewOfficial]}>
-                        <Text style={styles.modePreviewEmoji}>📖</Text>
-                      </View>
-                    )
-                  ) : (
-                    <View style={[styles.modePreview, styles.modePreviewChild]}>
-                      <Text style={styles.modePreviewEmoji}>🎨</Text>
-                      <Text style={styles.modePreviewBadge}>{childArtCount}/{totalScenes}</Text>
-                    </View>
-                  )}
-                  <View style={styles.modeTextWrap}>
-                    <Text style={[styles.modeCardTitle, active && styles.modeCardTitleActive]}>{opt.title}</Text>
-                    <Text style={styles.modeCardSub}>
-                      {opt.id === 'child' && !coloredComplete
-                        ? 'Disponível quando você pintar todas as cenas.'
-                        : opt.sub}
-                    </Text>
-                  </View>
-                  <View style={[styles.modeRadio, active && styles.modeRadioActive]}>
-                    {active && <Text style={styles.modeRadioDot}>✓</Text>}
-                  </View>
-                </SoundButton>
-              );
-            })}
-          </View>
-
-          {viewMode === 'child' && !coloredComplete ? (
-            /* ── LIVRINHO_UX_1: modo colorido bloqueado até 100% pintado (sem emoji) ── */
-            <View style={styles.bookEmptyState}>
-              <BeniAvatar variant="happy" size="small" style={styles.blockedAvatar} />
-              <Text style={styles.bookEmptyTitle}>Seu livrinho colorido fica pronto quando você pinta a aventura inteira.</Text>
-              <Text style={styles.bookEmptySub}>
-                Você já pintou {childArtCount} de {totalScenes} cenas. Pinte todas para abrir um livrinho só com as suas pinturas.
-              </Text>
-              <Text style={styles.blockedProgress}>{childArtCount}/{totalScenes} cenas pintadas</Text>
-              {/* [C60-P12-LEGACY] O piloto (A Criação) NÃO usa o Colorir por cena legado: o botão só
-                  aparece fora do piloto (demais histórias) — nunca navega para a cena legada no piloto. */}
-              {!pilotColoringActive && (
-                <SoundButton
-                  style={styles.startBtn}
-                  onPress={() => navigation.navigate('Coloring', { story, cenaIndex: firstUncoloredIndex >= 0 ? firstUncoloredIndex : 0 })}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.startBtnText}>Pintar próxima cena</Text>
-                </SoundButton>
-              )}
-              <SoundButton style={styles.blockedSecondaryBtn} onPress={() => handleSelectMode('official')} activeOpacity={0.85}>
-                <Text style={styles.blockedSecondaryText}>Ver história ilustrada</Text>
-              </SoundButton>
-            </View>
-          ) : (
-            <SoundButton style={styles.startBtn} onPress={handleEnterLivrinho} activeOpacity={0.85}>
-              <Text style={styles.startBtnText}>
-                {viewMode === 'child' ? '▶  Abrir meu livrinho colorido' : '▶  Abrir história ilustrada'}
-              </Text>
-            </SoundButton>
-          )}
+          {/* [P3J] Sem escolha de modo, a capa do topo já é a única prévia — nenhum card novo
+              foi criado no lugar do seletor, para não duplicar a mesma imagem duas vezes. */}
+          <SoundButton style={styles.startBtn} onPress={handleEnterLivrinho} activeOpacity={0.85}>
+            <Text style={styles.startBtnText}>▶  Abrir história ilustrada</Text>
+          </SoundButton>
         </ScrollView>
 
         {/* Entrada mágica do Livrinho (overlay curto antes da leitura) */}
@@ -1126,9 +732,8 @@ export default function StoryBookScreen({ route, navigation }) {
             <Text style={styles.endedReplayBtnText}>↩  Ver de novo</Text>
           </SoundButton>
 
-          <SoundButton style={styles.endedModeBtn} onPress={handleChooseMode} activeOpacity={0.85}>
-            <Text style={styles.endedModeBtnText}>📖  Escolher outro modo</Text>
-          </SoundButton>
+          {/* [P3J] "Escolher outro modo" saiu com o modo colorido: sobrou um único modo, e o botão
+              levaria a uma tela de escolha sem escolha — duplicando "Ver de novo". */}
 
           <SoundButton
             style={styles.endedBackBtn}
@@ -1158,9 +763,9 @@ export default function StoryBookScreen({ route, navigation }) {
   const remoteAudio = resolveRemoteAudioSource(story.id, slide.sceneNumber, scenePackEntry);
   if (remoteAudio) audioAsset = remoteAudio;
 
-  // key estável por slide (mode + sceneId + visualType + índice) → Image remonta
-  // limpo a cada troca, evitando base64 "preso" da cena anterior.
-  const slideKey = `${viewMode}-${slide.key}-${safeIndex}`;
+  // key estável por slide (sceneId + visualType + índice) → Image remonta limpo a cada
+  // troca. [P3J] O modo saiu da key junto com o modo colorido: só existe uma leitura.
+  const slideKey = `${slide.key}-${safeIndex}`;
 
   // Tamanho 4:5 do Livrinho — a arte é PROTAGONISTA: preenche a área medida entre
   // header e painel (maior em telas altas/tablet), com tetos de respiro. Antes da
@@ -1172,8 +777,6 @@ export default function StoryBookScreen({ route, navigation }) {
         artSectionSize.h - BOOK_ART_V_PAD * 2,
       )
     : fallbackBookSize;
-  // Arte da criança é PNG com transparência: precisa de fundo CLARO (senão fica preta)
-  const isUserArt = visual.type === 'paintWithLineart' || visual.type === 'paintWithLineartFull';
 
   return (
     <View style={styles.bookPlayerRoot}>
@@ -1194,23 +797,10 @@ export default function StoryBookScreen({ route, navigation }) {
           <View
             style={[
               styles.bookArtFrame,
-              { width: bookSize.width, height: bookSize.height,
-                backgroundColor: isUserArt ? '#FFFDF8' : '#0B0B0B' },
+              { width: bookSize.width, height: bookSize.height, backgroundColor: '#0B0B0B' },
             ]}
-            onLayout={handleImageAreaLayout}
           >
-            {isUserArt ? (
-              // Arte da criança: composição cor + contorno com readiness explícita.
-              // NUNCA mostra a cor sem o lineart (nem por 1 frame) — ver ChildArtWithLineart.
-              // key estável (história+cena+modo+arte) força remount limpo por página.
-              <ChildArtWithLineart
-                key={`art-${story.id}-${cena.id}-${viewMode}-${(visual.paintUri || '').length}`}
-                visual={visual}
-                containerW={imgContainerSize.w}
-                containerH={imgContainerSize.h}
-                cena={cena}
-              />
-            ) : visual.type === 'official' ? (
+            {visual.type === 'official' ? (
               // Oficial na moldura fixa 4:5 + contain (width/height 100%) → nasce encaixada, sem zoom.
               // key por slide → estado de erro reseta a cada cena; falha cai no fallback (sem quadro preto).
               <OfficialSceneImage
@@ -1393,78 +983,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, fontWeight: '700',
     textAlign: 'center', marginTop: 2,
   },
-  introArtHighlight: {
-    backgroundColor: '#FFF6E0', borderRadius: 16,
-    paddingVertical: 10, paddingHorizontal: 16, marginBottom: 22,
-    borderWidth: 1, borderColor: '#FFE0A3',
-  },
-  // LIVRINHO_UX_1 — container do estado bloqueado do modo colorido (centralizado, sem emoji)
-  bookEmptyState: {
-    alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, width: '100%',
-  },
-  bookEmptyTitle: {
-    fontFamily: 'FredokaOne', fontSize: 19, color: pt.text,
-    textAlign: 'center', marginBottom: 8,
-  },
-  bookEmptySub: {
-    fontFamily: 'Nunito', fontSize: 14, color: pt.textSoft,
-    textAlign: 'center', lineHeight: 21, marginBottom: 16,
-  },
-  // LIVRINHO_UX_1 — estado bloqueado do modo colorido (BeniAvatar + progresso, sem emoji)
-  blockedAvatar: { marginBottom: 12 },
-  blockedProgress: {
-    fontFamily: 'FredokaOne', fontSize: 14, color: colors.primary,
-    textAlign: 'center', marginBottom: 16,
-  },
-  blockedSecondaryBtn: {
-    marginTop: 10, paddingVertical: 14, paddingHorizontal: 24,
-    borderRadius: radii.pill, borderWidth: 1.5, borderColor: colors.primary,
-    width: '100%', alignItems: 'center',
-  },
-  blockedSecondaryText: { fontFamily: 'FredokaOne', fontSize: 16, color: colors.primary },
-  introArtHighlightText: {
-    fontFamily: 'Nunito', fontSize: 14, color: '#8A6D00', fontWeight: '700', textAlign: 'center',
-  },
-
-  // ── Escolha de modo ──
-  modeTitle: {
-    fontFamily: 'FredokaOne', fontSize: 17, color: pt.text,
-    alignSelf: 'flex-start', marginBottom: 10,
-  },
-  modeList: { width: '100%', gap: 10, marginBottom: 22 },
-  modeCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#FFF', borderRadius: 18,
-    paddingVertical: 12, paddingHorizontal: 14,
-    borderWidth: 2, borderColor: pt.border,
-  },
-  modeCardActive: { borderColor: colors.primary, backgroundColor: '#F6F1FF' },
-  modeEmoji: { fontSize: 30 },
-  // Prévia visual de cada modo (52×52): ilustração oficial vs. tile colorido.
-  modePreview: {
-    width: 52, height: 52, borderRadius: 12, overflow: 'hidden',
-    backgroundColor: '#EFE7DA', alignItems: 'center', justifyContent: 'center',
-  },
-  modePreviewOfficial: { backgroundColor: '#E8E0D8' },
-  modePreviewChild: { backgroundColor: '#FFF1D9', borderWidth: 1, borderColor: '#FFD98A' },
-  modePreviewEmoji: { fontSize: 26 },
-  modePreviewBadge: {
-    position: 'absolute', right: 3, bottom: 2,
-    fontFamily: 'FredokaOne', fontSize: 11, color: '#8A6D00',
-    backgroundColor: 'rgba(255,255,255,0.88)', borderRadius: 8,
-    paddingHorizontal: 5, overflow: 'hidden',
-  },
-  modeTextWrap: { flex: 1 },
-  modeCardTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 1 },
-  modeCardTitleActive: { color: colors.primary },
-  modeCardSub: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 16 },
-  modeRadio: {
-    width: 24, height: 24, borderRadius: 12,
-    borderWidth: 2, borderColor: pt.border,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  modeRadioActive: { borderColor: colors.primary, backgroundColor: colors.primary },
-  modeRadioDot: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF' },
+  // [P3J] Saíram daqui, sem substituto, os estilos exclusivos do modo colorido: o destaque
+  // "sua arte neste livrinho", o estado bloqueado ("pinte todas as cenas") e todo o seletor de
+  // modo (cards, prévias, rádio). Nada ocupou o lugar — a intro tem uma ação só.
 
   startBtn: {
     backgroundColor: colors.action, borderRadius: radii.pill,
@@ -1505,16 +1026,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8,
   },
   endedReplayBtnText: { fontFamily: 'FredokaOne', fontSize: 19, color: '#FFF' },
-  // Secundário importante — creme com borda dourada
-  endedModeBtn: {
-    backgroundColor: '#FFF6E0', borderRadius: radii.pill,
-    paddingVertical: 15, paddingHorizontal: 36, alignItems: 'center',
-    width: '100%',
-    borderWidth: 2, borderColor: '#FFCE5A',
-    elevation: 2, shadowColor: '#FFC02D',
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 5,
-  },
-  endedModeBtnText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#8A6D00' },
+  // [P3J] endedModeBtn/endedModeBtnText saíram com o botão "Escolher outro modo".
   // Terciário — discreto mas claramente clicável (não cinza apagado)
   endedBackBtn: {
     backgroundColor: '#F0EAFB', borderRadius: radii.pill,
@@ -1570,17 +1082,8 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
 
-  lineartMultiply: { mixBlendMode: 'multiply' },
-
-  // Placeholder enquanto cor + contorno não estão prontos (arte da criança)
-  childLoading: {
-    backgroundColor: '#FFFDF8',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  childLoadingText: {
-    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
-    fontWeight: '700', marginTop: 8,
-  },
+  // [P3J] lineartMultiply (blend do contorno) e childLoading/childLoadingText (placeholder da
+  // composição cor+contorno) saíram com ChildArtWithLineart.
 
   sealPill: {
     position: 'absolute', left: 12, bottom: 12,

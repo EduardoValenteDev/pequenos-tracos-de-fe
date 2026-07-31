@@ -125,12 +125,10 @@ export default function CongratsScreen({ route, navigation }) {
   const completedScenesCount = Object.values(progresso).filter(Boolean).length;
   const scenesPercent = story.totalCenas > 0 ? completedScenesCount / story.totalCenas : 0;
 
-  // Piloto "Colorir com o Beni" (Colorir 60): em "A Criação" com o piloto ativo, o Colorir
-  // TRADICIONAL por cena dá lugar à jornada "Colorir com o Beni" (na StoryDetailScreen). Aqui
-  // isso oculta a recompensa "Colorir" (que abriria o Colorir legado por cena) — sem apagar
-  // nada e sem afetar outras histórias. Piloto off ⇒ recompensa volta a aparecer.
+  // [P3J] A recompensa "🎨 Colorir" (que abria o Colorir legado por cena) foi APOSENTADA em
+  // TODAS as histórias — não é mais condicional, simplesmente não existe. O que sobrou aqui é
+  // o gate do "Colorir com o Beni", que governa somente a PONTE pós-história de "A Criação".
   const creationColoringPilot = isCreationColoringPilotActive(story?.id);
-  const creationColoringHidden = creationColoringPilot;
 
   // [C60-PARTE-10] Progresso REAL da jornada de cores, reconciliado (conclusão + instantâneo).
   // `null` = ANTES da primeira leitura (nada a mostrar ainda). Quando a leitura FALHA depois de já
@@ -333,14 +331,14 @@ export default function CongratsScreen({ route, navigation }) {
               <Text style={styles.mainActionArrow}>›</Text>
             </SoundButton>
 
-            {/* ── VOCÊ DESBLOQUEOU — cards de recompensa (sem chevron) ── */}
+            {/* ── VOCÊ DESBLOQUEOU — cards de recompensa (sem chevron) ──
+                [P3J] Três tiles em todas as histórias. Este é exatamente o mesmo arranjo que
+                "A Criação" já exibia com o Colorir com o Beni ativo — não é um estado visual
+                novo, e não sobrou card vazio, bloqueado nem "em breve" no lugar do 🎨. */}
             <Text style={styles.rewardUnlocked}>Você desbloqueou</Text>
             <View style={styles.rewardGrid}>
               <RewardTile emoji="🎴" label="Baú" onPress={() => navigation.navigate('BeniChest', { fromStoryCompletion: true, from: 'storyComplete' })} />
               <RewardTile emoji="⭐" label="Estrelinhas" onPress={() => navigation.navigate('EstrelinhasCena', { fromStoryCompletion: true, from: 'storyComplete' })} />
-              {!creationColoringHidden && (
-                <RewardTile emoji="🎨" label="Colorir" onPress={() => navigation.navigate('Coloring', { story, cenaIndex: 0, from: 'storyComplete' })} />
-              )}
               <RewardTile emoji="✨" label="Guardar no coração" onPress={() => navigation.navigate('Reflection', { story })} />
             </View>
 

@@ -973,15 +973,9 @@ export default function ParentAreaScreen({ navigation }) {
                 )}
               </InfoCard>
 
-              <InfoCard style={[styles.qaCard, { marginTop: 8 }]}>
-                <Text style={styles.qaTitle}>Testar Desenhos (QA)</Text>
-                <Text style={styles.qaDesc}>
-                  Abre todos os desenhos de colorir (inclusive de histórias bloqueadas) para validação. Não altera progresso, plano nem conquistas.
-                </Text>
-                <SoundButton style={styles.qaResetBtn} onPress={() => navigation.navigate('ColoringQa')} activeOpacity={0.85}>
-                  <Text style={styles.qaResetBtnText}>Abrir galeria de QA</Text>
-                </SoundButton>
-              </InfoCard>
+              {/* [P3J] O card "Testar Desenhos (QA)" foi REMOVIDO com a rota ColoringQa: ele abria
+                  a galeria dos 200 linearts por cena, que não existem mais. As ferramentas internas
+                  do colorir atual continuam abaixo (piloto Colorir 60 e a Bancada). */}
 
               {/* C60-P6: piloto Colorir 60 de "A Criação" — entrada INTERNA, fora do fluxo do
                   usuário. Reusa a ROTA EXISTENTE da tela de colorir passando só a identidade

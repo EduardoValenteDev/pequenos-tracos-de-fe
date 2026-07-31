@@ -5,8 +5,10 @@
  * mostrando lado a lado o conteúdo oficial e as duas imagens atuais:
  *   - titulo + textoNarracao       (fonte oficial de narração, já reancorada)
  *   - imagem ilustrada atual       (storySceneIllustrations)
- *   - tituloColorir + instrucaoColorir (briefing oficial de colorir, já reancorado)
- *   - imagem de colorir atual      (coloringImages)
+ *
+ * [P3J] O painel de COLORIR (briefing + folha de colorir) saiu desta tela junto com o Colorir
+ * legado: as 199 folhas por cena não existem mais, então não há o que revisar. A validação de
+ * narração e de ilustração — a razão de ser da tela — continua exatamente como estava.
  *
  * SÓ LEITURA. Não altera progresso, plano, conquistas, imagens, áudio ou conteúdo.
  * Não toca áudio: a validação é pelo TEXTO exibido — os MP3 ainda são os antigos.
@@ -20,7 +22,6 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Image, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { stories } from '../data/stories';
-import { getColoringImage } from '../assets/coloringImages';
 import { getSceneIllustrationAsset } from '../data/storySceneIllustrations';
 import { isInternalToolsEnabled } from '../config/internalTools';
 import SoundButton from '../components/SoundButton';
@@ -120,7 +121,6 @@ export default function SceneValidationScreen({ navigation }) {
   const cena = story && (story.cenas || [])[ci];
 
   const ilu = useMemo(() => (story && cena ? getSceneIllustrationAsset(story.id, cena.id) : null), [story, cena]);
-  const col = useMemo(() => (story && cena ? getColoringImage(story.id, cena.id) : null), [story, cena]);
 
   if (!allowed) {
     return (
@@ -140,8 +140,9 @@ export default function SceneValidationScreen({ navigation }) {
     });
   };
 
+  // [P3J] `marcaCol` saiu com o painel de colorir. As chaves `:col:` do mapa ATENCAO ficam como
+  // REGISTRO da revisão humana já feita, agora sem consumidor — nenhuma delas é lida.
   const marcaIlu = ATENCAO[`${story.id}:ilu:${cena.id}`];
-  const marcaCol = ATENCAO[`${story.id}:col:${cena.id}`];
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -183,18 +184,9 @@ export default function SceneValidationScreen({ navigation }) {
           )}
         </View>
 
-        <View style={styles.bloco}>
-          <Text style={styles.rotulo}>Briefing oficial de colorir</Text>
-          <Text style={styles.tituloColorir}>{cena.tituloColorir}</Text>
-          <Text style={styles.instrucao}>{cena.instrucaoColorir}</Text>
-          <Text style={[styles.rotulo, { marginTop: 12 }]}>Imagem de colorir atual</Text>
-          <AtencaoBox marca={marcaCol} />
-          {col ? (
-            <Image source={col} style={styles.imagem} resizeMode="contain" />
-          ) : (
-            <Text style={styles.ausente}>Folha de colorir ausente.</Text>
-          )}
-        </View>
+        {/* [P3J] O painel de colorir (briefing + folha de colorir atual) foi REMOVIDO: as 199
+            folhas legadas não existem mais. A validação de NARRAÇÃO e de ILUSTRAÇÃO continua
+            intacta — nenhum outro bloco desta tela mudou. */}
 
         <Text style={styles.nota}>
           Esta tela apenas exibe. Nenhuma decisão é salva, e nada é alterado no app.
@@ -244,8 +236,7 @@ const styles = StyleSheet.create({
   rotulo: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5, color: '#7A706A', textTransform: 'uppercase' },
   tituloCena: { fontSize: 18, fontWeight: '800', color: '#2C2621', marginTop: 2, marginBottom: 10 },
   narracao: { fontSize: 15, lineHeight: 22, color: '#2C2621', marginTop: 4 },
-  tituloColorir: { fontSize: 16, fontWeight: '700', color: '#15803D', marginTop: 2 },
-  instrucao: { fontSize: 14, lineHeight: 20, color: '#2C2621', marginTop: 4 },
+  // [P3J] `tituloColorir` e `instrucao` eram exclusivos do painel de colorir removido.
 
   imagem: { width: '100%', aspectRatio: 0.8, marginTop: 8, borderRadius: 8, backgroundColor: '#FFFFFF' },
   ausente: { marginTop: 8, fontSize: 14, color: '#B91C1C', fontWeight: '700' },

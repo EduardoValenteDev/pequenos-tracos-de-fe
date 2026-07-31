@@ -11,20 +11,23 @@ const NUM_STARS = 6;
 /**
  * UnlockCelebration — feedback CURTO após concluir uma cena INTERMEDIÁRIA.
  *
- *   ⭐ badge "+1 estrela"  →  "Que lindo!"  →  Continuar (primário)  →  Colorir esta cena (secundário)
+ *   ⭐ badge "+1 estrela"  →  "Que lindo!"  →  Continuar (único botão)
  *
  * Simplificado (Bloco B4): sem Baú/Estrelinhas/Livrinho por cena. O hub completo
  * da história (Livrinho, Quiz, Baú, Estrelinhas, próxima aventura) vive só no
  * CongratsScreen, ao final. A última cena NÃO usa este modal — a NarrationScreen
  * conduz direto para o CongratsScreen (sem duplicar modal + tela final).
+ *
+ * [P3J] O botão secundário "Colorir esta cena" foi APOSENTADO junto com o Colorir legado.
+ * O modal tem agora UMA ação — Continuar. Nenhum espaço vazio ficou no lugar, e nenhuma
+ * prop de colorir sobrou: o colorir do produto é o "Colorir com o Beni", que aparece por
+ * marco narrativo (Coloring60MilestoneInvite) e não por cena.
  */
 export default function UnlockCelebration({
   visible,
   onContinue,
-  onColorir,
   sceneNumber,
   totalCenas,
-  sceneHasDrawing = false,
 }) {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const starAnims = useRef(Array.from({ length: NUM_STARS }, () => new Animated.Value(0))).current;
@@ -95,19 +98,10 @@ export default function UnlockCelebration({
               : 'Você avançou na aventura!'}
           </Text>
 
-          {/* Botão principal — Continuar */}
+          {/* Botão principal — Continuar (ação única) */}
           <SoundButton style={styles.primaryBtn} onPress={onContinue} activeOpacity={0.85}>
             <Text style={styles.primaryBtnText}>Continuar →</Text>
           </SoundButton>
-
-          {/* Botão secundário — Colorir esta cena */}
-          {onColorir && (
-            <SoundButton style={styles.colorirBtn} onPress={onColorir} activeOpacity={0.85}>
-              <Text style={styles.colorirBtnText}>
-                🎨 {sceneHasDrawing ? 'Ver meu desenho' : 'Colorir esta cena'}
-              </Text>
-            </SoundButton>
-          )}
 
         </Animated.View>
       </View>
@@ -155,29 +149,17 @@ const styles = StyleSheet.create({
     fontWeight: '700', marginBottom: 16, textAlign: 'center', lineHeight: 19,
   },
 
-  // Botão principal — Continuar
+  // Botão principal — Continuar. [P3J] Último elemento do card: sem marginBottom, para
+  // não sobrar folga onde antes ficava o botão de colorir.
   primaryBtn: {
     backgroundColor: colors.success,
     paddingVertical: 14, paddingHorizontal: 28,
     borderRadius: 20, elevation: 3,
     alignSelf: 'stretch', alignItems: 'center',
-    marginBottom: 10,
     shadowColor: colors.success,
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
   },
   primaryBtnText: {
     fontFamily: 'FredokaOne', fontSize: 18, color: '#FFF',
-  },
-
-  // Botão secundário — Colorir esta cena
-  colorirBtn: {
-    alignSelf: 'stretch', alignItems: 'center',
-    paddingVertical: 12, paddingHorizontal: 16,
-    backgroundColor: '#F8F4FF',
-    borderRadius: radii.lg,
-    borderWidth: 1, borderColor: '#E8DFFF',
-  },
-  colorirBtnText: {
-    fontFamily: 'FredokaOne', fontSize: 15, color: '#5B21B6', textAlign: 'center',
   },
 });
