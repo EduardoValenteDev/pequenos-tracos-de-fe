@@ -11,7 +11,16 @@
  *       NÃO reescreve acesso real, paywall, packs ou premium).
  *   2. PROGRESSO NARRATIVO — scenesComplete = todas as cenas vistas.
  *   3. JORNADA COMPLETA  — journeyComplete = cenas + Livrinho + quiz + reflexão +
- *      colorir (pelo menos 1 página). "10/10 cenas" é só progresso, nunca conclusão.
+ *      colorir QUANDO HÁ COLORIR. "10/10 cenas" é só progresso, nunca conclusão.
+ *
+ * [P3J] COLORIR É CONDICIONAL. Antes, colorir pesava em TODA história. Com a aposentadoria do
+ * Colorir legado, 19 das 20 histórias não têm mais atividade de colorir — e exigir o que não
+ * existe trancaria a jornada inteira (a história nunca fecharia e a sequência congelaria na
+ * primeira). Agora o chamador declara `coloringAvailable`, apurado pelo contrato explícito
+ * `storyColoringAvailability` (portão do Colorir com o Beni + catálogo real, NUNCA `storyId`).
+ * Ausente ⇒ indisponível ⇒ NÃO exigido: o sentido da falha é deixar concluir, jamais prender.
+ * Como a mudança só REMOVE uma condição, nenhuma história antes concluída regride e
+ * `sequenceUnlocked` só pode destravar mais.
  *
  * PROGRESSÃO DA JORNADA (sequência):
  *   - sequenceUnlocked = 1ª história sempre true; demais só se a ANTERIOR estiver
@@ -54,6 +63,9 @@ export const COMMERCIAL_ACCESS = {
  * @param {number} [params.sceneDoneCount]
  * @param {object} [params.postStoryStatus] — { storyBookOpened, quizDone, reflectionDone }
  * @param {boolean}[params.coloringComplete] — pelo menos 1 página de colorir concluída
+ * @param {boolean}[params.coloringAvailable] — [P3J] esta história oferece colorir AGORA?
+ *   (`storyColoringAvailability.isStoryColoringAvailable`). Ausente/false ⇒ colorir NÃO participa
+ *   de `journeyComplete`. `coloringComplete` continua sendo devolvido como veio, para a UI.
  * @param {string} [params.accessStatus]     — 'full' | 'preview' | 'locked' | 'coming_soon'
  * @param {string} [params.accessType]       — 'free' | 'premium'
  * @param {boolean}[params.isFirstStory]     — 1ª história da jornada oficial
@@ -77,8 +89,12 @@ export function getStoryJourneyStatus(params) {
   const quizDone = !!pss.quizDone;
   const reflectionDone = !!pss.reflectionDone;
   const coloringComplete = !!p.coloringComplete;
+  // [P3J] `coloringRequired` é o contrato de disponibilidade em forma de booleano: só uma história
+  // que REALMENTE tem colorir hoje precisa de colorir para fechar. Sem o dado, não exige.
+  const coloringRequired = p.coloringAvailable === true;
   const journeyComplete =
-    scenesComplete && bookOpened && quizDone && reflectionDone && coloringComplete;
+    scenesComplete && bookOpened && quizDone && reflectionDone
+    && (!coloringRequired || coloringComplete);
 
   // ── Acesso comercial (classifica; não reescreve regra de acesso) ──
   const accessStatus = p.accessStatus || 'full'; // contentAccessService.getStoryAccessStatus
@@ -119,6 +135,9 @@ export function getStoryJourneyStatus(params) {
     quizDone,
     reflectionDone,
     coloringComplete,
+    // [P3J] Expostos para que a UI possa ser honesta: "colorir existe aqui?" e "colorir conta?".
+    coloringAvailable: coloringRequired,
+    coloringRequired,
     journeyComplete,
     sequenceUnlocked,
     canOpen,

@@ -18,6 +18,10 @@ import {
 } from '../services/postStoryStorage';
 import { getRewardsSummary } from '../services/rewardService';
 import { getStoryJourneyStatus } from '../services/storyJourneyService';
+// [P3J] Contrato explícito de disponibilidade: colorir só entra em `journeyComplete` onde existe
+// atividade de verdade. Sem ele, as 19 histórias sem Colorir com o Beni nunca fechariam e a
+// sequência congelaria na primeira. Síncrono e puro — pode ser chamado dentro dos derivados.
+import { isStoryColoringAvailable } from '../services/storyColoringAvailability';
 import { loadStoriesWithColoringDone } from '../services/coloringActivityService';
 import { getStoryAccessStatus } from '../services/contentAccessService';
 // [C60-PONTE] coloringComplete de "A Criação" (piloto) vem da jornada Colorir 60 pela ponte
@@ -237,14 +241,16 @@ export function ProgressProvider({ children }) {
   );
 
   // A0.10 — CONTRATO da jornada via FONTE ÚNICA storyJourneyService.
-  // journeyComplete = cenas + Livrinho aberto + quiz + reflexão + colorir (≥1 página).
+  // journeyComplete = cenas + Livrinho aberto + quiz + reflexão + colorir QUANDO HÁ COLORIR.
   // Cenas completas NÃO bastam. Deriva de dados JÁ carregados (sem storage novo aqui).
+  // [P3J] `coloringAvailable` é apurado por história pelo contrato de disponibilidade.
   const isStoryJourneyComplete = useCallback(
     storyId => getStoryJourneyStatus({
       totalScenes: getTotalScenesCount(storyId),
       sceneDoneCount: getCompletedScenesCount(storyId),
       postStoryStatus: postStoryStatusByStory[storyId] ?? null,
       coloringComplete: coloringDoneByStory.has(storyId),
+      coloringAvailable: isStoryColoringAvailable(storyId),
       accessStatus: 'full',
       isFirstStory: true, // sequência irrelevante para o booleano de jornada
     }).journeyComplete,
@@ -275,6 +281,7 @@ export function ProgressProvider({ children }) {
         sceneDoneCount: getCompletedScenesCount(storyId),
         postStoryStatus: postStoryStatusByStory[storyId] ?? null,
         coloringComplete: coloringDoneByStory.has(storyId),
+        coloringAvailable: isStoryColoringAvailable(storyId),
         accessStatus: getStoryAccessStatus(story),
         accessType: story?.accessType,
         isFirstStory,
