@@ -282,6 +282,10 @@ export const ACHIEVEMENTS = [
     earned: 'Você ganhou ao salvar sua primeira arte.',
     color: colors.secondary,
     category: 'atelie',
+    // [P3J] CONTINUA VIVA e continua sendo objetivo. `hasAnyDrawing` passou a reconhecer TAMBÉM
+    // obra concluída do Colorir com o Beni (ver achievementService), além dos desenhos legados já
+    // registrados — quem já tinha, mantém; quem chegar agora, conquista pintando no C60.
+    // NÃO é aposentada: o caminho existe, só depende do portão do C60 abrir (Achado 4).
     check: ctx => flag(ctx, 'hasAnyDrawing'),
   },
   {
@@ -293,6 +297,18 @@ export const ACHIEVEMENTS = [
     earned: 'Você ganhou ao salvar o desenho da arca.',
     color: colors.primary,
     category: 'atelie',
+    // [P3J] CONQUISTA LEGADA APOSENTADA. Dependia do lineart de colorir da cena 1 de Noé, que a
+    // aposentadoria do Colorir legado removeu do app — não há mais como pintá-lo. Decisão do
+    // fundador, ponto a ponto: o `id` é preservado (é dado gravado no aparelho de quem já ganhou),
+    // o `check` é preservado (quem tem `hasArkDrawing` continua tendo — nada é revogado), o
+    // significado NÃO é reciclado para outra coisa, e ela deixa de ser oferecida como objetivo a
+    // quem ainda não a tem. Nenhuma substituta é criada aqui.
+    //
+    // `retired` NÃO altera o desbloqueio: é só visibilidade (ver `isAchievementVisible`). Quem
+    // conquistou continua vendo a estrelinha exatamente como antes; quem não conquistou nunca vê
+    // um card trancado e impossível — nem no álbum, nem no contador, nem como "próxima conquista".
+    retired: true,
+    retiredReason: 'O desenho da arca fazia parte do Colorir legado, aposentado no P3J.',
     check: ctx => flag(ctx, 'hasArkDrawing'),
   },
   {
@@ -480,3 +496,23 @@ export const ACHIEVEMENTS = [
     check: ctx => flag(ctx, 'paresPoucosErros'),
   },
 ];
+
+/**
+ * [P3J] Uma conquista LEGADA APOSENTADA (`retired: true`) é aquela cujo caminho de conquista
+ * deixou de existir no app. Ela não é apagada — o id continua válido, o `check` continua sendo
+ * avaliado e quem já a conquistou continua vendo a estrelinha exatamente como antes. O que muda é
+ * só isto: ela para de ser OFERECIDA a quem não a tem, porque um objetivo impossível exibido como
+ * "bloqueado" é uma promessa que o app não pode cumprir — e, para uma criança, um card trancado
+ * para sempre é frustração pura, além de deixar o álbum eternamente incompleto.
+ *
+ * PURA e defensiva: sem ctx, sem I/O, sem React — o smoke avalia direto. `unlocked` é o resultado
+ * do `check` que o chamador já apurou; só `true` (estrito) revela uma aposentada.
+ *
+ * @param {{ retired?: boolean }} achievement
+ * @param {boolean} unlocked — a conquista está desbloqueada para ESTE usuário?
+ * @returns {boolean} deve aparecer no álbum, no contador e como próxima conquista?
+ */
+export function isAchievementVisible(achievement, unlocked) {
+  if (!achievement || achievement.retired !== true) return true;
+  return unlocked === true;
+}

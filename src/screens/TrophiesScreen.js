@@ -31,7 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { stories } from '../data/stories';
 import { useProgressContext } from '../context/ProgressContext';
-import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES } from '../data/achievements';
+import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, isAchievementVisible } from '../data/achievements';
 import { buildCtx } from '../services/achievementService';
 import {
   getSeenAchievementIds,
@@ -72,11 +72,26 @@ function safeProgressLabel(achievement, ctx) {
   try { return achievement.progressLabel(ctx); } catch (_) { return null; }
 }
 
+/**
+ * [P3J] Lista de conquistas que ESTE usuário pode ver. Idêntica a `ACHIEVEMENTS` para todo mundo,
+ * exceto pelas conquistas legadas aposentadas (hoje só `artist_ark`), que aparecem apenas para
+ * quem já as tem — ninguém recebe um card trancado por um caminho que o app não oferece mais.
+ * Sem ctx (primeiro render, antes de `buildCtx` resolver) nada está desbloqueado, então as
+ * aposentadas ficam ocultas: durante o carregamento é melhor não mostrar do que piscar um card
+ * impossível e escondê-lo em seguida.
+ */
+function visibleAchievements(ctx) {
+  return ACHIEVEMENTS.filter(a => isAchievementVisible(a, safeCheck(a, ctx)));
+}
+
 /* Descobre a próxima conquista mais perto de ser desbloqueada (dados reais). */
 function computeNextAchievement(ctx) {
   if (!ctx) return null;
   let best = null;
-  for (const a of ACHIEVEMENTS) {
+  // [P3J] Nunca sugerir uma aposentada como próximo objetivo. Hoje `artist_ark` já cairia no
+  // filtro de `progress` logo abaixo (não tem barra de progresso), mas a intenção fica explícita
+  // aqui para não depender desse detalhe.
+  for (const a of visibleAchievements(ctx)) {
     if (safeCheck(a, ctx)) continue;
     const prog = safeProgress(a, ctx);
     if (!prog || prog.current >= prog.target) continue;
@@ -205,8 +220,13 @@ export default function TrophiesScreen({ navigation, route }) {
   }, [progressByStory, postStoryStatusByStory]);
 
   const isUnlocked = a => safeCheck(a, ctx);
-  const unlockedCount = ctx ? ACHIEVEMENTS.filter(isUnlocked).length : 0;
-  const total = ACHIEVEMENTS.length;
+  // [P3J] Álbum, contador e "próxima conquista" passam a falar da MESMA lista visível. Para quem
+  // conquistou `artist_ark`, nada muda: ela continua contando e aparecendo. Para quem não
+  // conquistou, ela some do denominador também — senão o álbum ficaria travado em 26/27 para
+  // sempre, e "100% das conquistas" viraria uma meta inalcançável.
+  const visible = visibleAchievements(ctx);
+  const unlockedCount = ctx ? visible.filter(isUnlocked).length : 0;
+  const total = visible.length;
   const next = computeNextAchievement(ctx);
 
   // Seções por categoria para a SectionList (pula categorias sem conquistas).
@@ -214,7 +234,7 @@ export default function TrophiesScreen({ navigation, route }) {
   // 1-col (cada conquista é um item). Mesmas categorias/ordem/visual de antes.
   const albumSections = ACHIEVEMENT_CATEGORIES
     .map(cat => {
-      const items = ACHIEVEMENTS.filter(a => a.category === cat.id);
+      const items = visible.filter(a => a.category === cat.id);
       if (items.length === 0) return null;
       const catUnlocked = items.filter(isUnlocked).length;
       const data = isTablet

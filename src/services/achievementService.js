@@ -1,4 +1,14 @@
+// [P3J] `hasSavedDrawing` PERMANECE: é a leitura das pinturas legadas já registradas no aparelho.
+// A aposentadoria do Colorir legado não apaga nada do storage, então quem já tinha "Primeiro traço"
+// e "Artista da arca" continua tendo — conquista não se revoga.
 import { hasSavedDrawing } from './drawingStorage';
+// [P3J] Reconhecimento NOVO de obra do Colorir com o Beni. Lê a jornada C60 pelo leitor
+// RECONCILIADO (conclusão atual + instantâneo íntegro), nunca por `hasEverCompleted` e nunca pela
+// simples existência de um PNG: abrir a tela ou dar um toque sem cor não conta.
+// Deliberadamente SEM o portão do piloto — uma obra já pintada não pode desaparecer do álbum
+// porque a flag mudou de valor.
+import { COLORING60_STORY_ID } from './coloring60Pilot';
+import { loadColoring60JourneyState } from './coloring60ProgressReader';
 import { listArts } from './atelierStorage';
 import { getFamilyWorshipSummary } from './familyWorshipService';
 import { readAchievementCtx as readBrincarAchievementCtx } from './brincarStatsService';
@@ -78,6 +88,26 @@ export async function buildCtx(progressMap, storiesList, options = {}) {
           break outer;
         }
       }
+    }
+  }
+  // [P3J] "Primeiro traço" também acende com obra do Colorir com o Beni. Sem isto, a conquista
+  // ficaria inalcançável para quem chegar depois da aposentadoria do legado — pintaria de verdade
+  // e nada aconteceria. As três leituras acima continuam valendo primeiro: nada legado se perde.
+  //
+  // O que conta como obra: `completedCount >= 1` do leitor reconciliado, ou seja, atividade
+  // CONCLUÍDA (que já exige pintura significativa lá na conclusão) ou instantâneo íntegro de uma
+  // conclusão anterior. Abrir a tela não conta; um toque sem cor não conta.
+  //
+  // Defensivo em três frentes: (1) só consulta se ainda não acendeu, para não pagar I/O à toa;
+  // (2) o leitor REJEITA quando o storage falha, e uma falha de leitura jamais pode apagar uma
+  // conquista — por isso o catch devolve o valor anterior intacto; (3) nada de portão do piloto
+  // aqui: obra pintada é obra pintada, mesmo que a flag feche depois.
+  if (!hasAnyDrawing) {
+    try {
+      const c60 = await loadColoring60JourneyState(COLORING60_STORY_ID);
+      if ((c60?.completedCount ?? 0) >= 1) hasAnyDrawing = true;
+    } catch {
+      // leitura indisponível → mantém o que já foi apurado; nunca revoga
     }
   }
 
