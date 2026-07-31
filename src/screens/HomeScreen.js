@@ -339,9 +339,18 @@ function MissaoDeHoje({
       {/* Promessa emocional do Livrinho */}
       <Text style={styles.missionPromise}>📖 Sua aventura fica guardada no Livrinho da Fé.</Text>
 
-      {/* Atalho discreto para criar — apoio, não ação principal */}
-      <SoundButton style={styles.missionCriar} onPress={onCriar} activeOpacity={0.85}>
-        <Text style={styles.missionCriarText}>🎨 Criar com Beni</Text>
+      {/* Atalho discreto para criar — apoio, não ação principal.
+          [P3J-R] Nome oficial da experiência: "Criar livre" (D-CRIAR-COM-BENI-STATUS). Mesmo
+          destino de sempre; só o nome deixou de prometer uma experiência que não existe. */}
+      <SoundButton
+        style={styles.missionCriar}
+        onPress={onCriar}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Criar livre"
+        accessibilityHint="Abre a tela de desenho livre com o Beni"
+      >
+        <Text style={styles.missionCriarText}>🎨 Criar livre</Text>
         <Text style={styles.missionCriarArrow}>→</Text>
       </SoundButton>
     </View>
@@ -445,10 +454,19 @@ function BauDoBeniCard({ onPress, count, targetRef }) {
   );
 }
 
-/* ── Criar com Beni — atalho para missão criativa contextual ──────── */
-function CriarComBeniCard({ onPress, targetRef }) {
+/* ── Criar livre — atalho para missão criativa contextual ─────────────
+   [P3J-R] Nome oficial da experiência = "Criar livre" (D-CRIAR-COM-BENI-STATUS). O destino, a
+   missão sorteada e o parâmetro de rota permanecem exatamente os mesmos. */
+function CriarLivreCard({ onPress, targetRef }) {
   return (
-    <SoundButton onPress={onPress} activeOpacity={0.88} style={styles.criarWrap}>
+    <SoundButton
+      onPress={onPress}
+      activeOpacity={0.88}
+      style={styles.criarWrap}
+      accessibilityRole="button"
+      accessibilityLabel="Criar livre"
+      accessibilityHint="Abre a tela de desenho livre com o Beni"
+    >
      <View ref={targetRef} collapsable={false}>
       <LinearGradient
         colors={['#8E5BD0', '#6E3FB5']}
@@ -459,7 +477,7 @@ function CriarComBeniCard({ onPress, targetRef }) {
           <Text style={styles.criarIconText}>🎨</Text>
         </View>
         <View style={styles.criarInfo}>
-          <Text style={styles.criarTitle}>Criar com Beni</Text>
+          <Text style={styles.criarTitle}>Criar livre</Text>
           <Text style={styles.criarDesc} numberOfLines={1}>Uma missão criativa com Beni</Text>
         </View>
         <View style={styles.criarBtn}>
@@ -667,8 +685,9 @@ export default function HomeScreen({ navigation }) {
       ? getBeniLine('sceneComplete').text
       : getBeniLine('home').text;
 
-  // Criar com Beni — fluxo CONTEXTUAL (missão criativa), não Ateliê genérico.
-  function onCriarComBeni() {
+  // Criar livre — fluxo CONTEXTUAL (missão criativa), não Ateliê genérico. O parâmetro de rota
+  // `createWithBeni` é preservado de propósito: é o contrato de volta (originBack.js), não um nome.
+  function onCriarLivre() {
     const mission = Array.isArray(MISSIONS) && MISSIONS.length
       ? MISSIONS[Math.floor(Math.random() * MISSIONS.length)]
       : null;
@@ -682,7 +701,7 @@ export default function HomeScreen({ navigation }) {
       getProgressCount={getProgressCount}
       onAdventure={handleAdventurePress}
       adventureLabel={getAdventureButtonLabel()}
-      onCriar={onCriarComBeni}
+      onCriar={onCriarLivre}
       beniLine={missionBeniLine}
       targetRef={homeTargets.register('home.continue')}
     />
@@ -710,9 +729,9 @@ export default function HomeScreen({ navigation }) {
     <BauDoBeniCard onPress={() => navigation.navigate('BeniChest')} count={chestCount} targetRef={homeTargets.register('home.bau')} />
   );
 
-  /* ── Criar com Beni (atalho para missão criativa contextual) ── */
+  /* ── Criar livre (atalho para missão criativa contextual) ── */
   const criarBlock = (
-    <CriarComBeniCard onPress={onCriarComBeni} targetRef={homeTargets.register('home.criar')} />
+    <CriarLivreCard onPress={onCriarLivre} targetRef={homeTargets.register('home.criar')} />
   );
 
   /* ── Cantinho do Beni (ideia + versículo agrupados) ── */
@@ -1113,7 +1132,7 @@ const styles = StyleSheet.create({
   },
   bauBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#5A3E12' },
 
-  // ── Criar com Beni (atalho compacto) ──
+  // ── Criar livre (atalho compacto) ──
   criarWrap: { marginHorizontal: 16, marginTop: 10 },
   criarCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,

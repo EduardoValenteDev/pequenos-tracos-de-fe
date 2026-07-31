@@ -46,9 +46,13 @@ export default function AtelierCanvasScreen({ route, navigation }) {
   const { profile } = useProfile();
   const profileId = (profile && (profile.id || profile.avatarId)) || 'default';
 
+  // [P3J-R] O PARÂMETRO de rota continua `createWithBeni`: ele é o contrato de navegação/volta
+  // (ver originBack.js) e o destino não mudou. O que muda é o NOME VISÍVEL — a experiência se chama
+  // "Criar livre" (D-CRIAR-COM-BENI-STATUS). Renomear o parâmetro quebraria o botão voltar sem
+  // benefício algum para a criança.
   const isCreateWithBeni = from === 'createWithBeni';
   const mode = isCreateWithBeni ? 'createWithBeni' : (mission ? 'guided' : 'free');
-  const title = isCreateWithBeni ? 'Criar com Beni' : (mode === 'guided' ? 'Desenho guiado' : 'Criar livre');
+  const title = isCreateWithBeni ? 'Criar livre' : (mode === 'guided' ? 'Desenho guiado' : 'Criar livre');
 
   const unlimited = hasAtelierUnlimitedAccess();
 

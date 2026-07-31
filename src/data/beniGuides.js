@@ -41,7 +41,9 @@ export const HOME_GUIDE = [
   { variant: 'teaching',    title: 'Sua aventura atual',    text: 'Aqui está a história para continuar sua jornada.', audioKey: 'guide.home.continue',     target: 'home.continue', noRing: true },
   { variant: 'happy',       title: 'Cultinho em Casa',      text: 'Um momento de fé em família.',                      audioKey: 'guide.home.cultinho',     target: 'home.cultinho' },
   { variant: 'celebrating', title: 'Baú do Beni',           text: 'Suas lembranças especiais ficam aqui.',             audioKey: 'guide.home.bau_beni',     target: 'home.bau' },
-  { variant: 'artist',      title: 'Criar com Beni',        text: 'Crie comigo usando imaginação e fé.',               audioKey: 'guide.home.create_beni',  target: 'home.criar' },
+  // [P3J-R] Título alinhado ao CTA oficial "Criar livre". O `audioKey` NÃO muda: manifesto de
+  // áudio é área protegida e o arquivo falado permanece o mesmo (a fala não diz o nome do card).
+  { variant: 'artist',      title: 'Criar livre',           text: 'Crie comigo usando imaginação e fé.',               audioKey: 'guide.home.create_beni',  target: 'home.criar' },
   { variant: 'happy',       title: 'Momento com Beni',      text: 'O Beni fica pertinho para conversar e ajudar.',     audioKey: 'guide.home.momento_beni', target: 'home.momento' },
 ];
 
