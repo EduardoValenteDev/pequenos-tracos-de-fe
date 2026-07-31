@@ -19374,12 +19374,16 @@ check(
   'CultinhoEmCasaScreen não usa a estrutura/conteúdo do cultinhoData',
 );
 
+// [P3J-R.1] A copy passou a ser "Criar juntos": o Cultinho abre o ATELIÊ (criação livre), que não
+// depende do piloto de colorir. Prometer "Colorir" ali era promessa que a tela de destino não
+// cumpre. A ROTA e o handler seguem intocados — o que mudou é só o texto lido pela família.
 check(
-  'Bloco 4B: Colorir juntos é opcional ao final, abre Ateliê from:cultinho e volta',
-  ux4bScreen.includes('Colorir juntos (opcional)') &&
+  'Bloco 4B → [P3J-R.1]: Criar juntos é opcional ao final, abre Ateliê from:cultinho e volta',
+  ux4bScreen.includes('Criar juntos (opcional)') &&
+  !ux4bScreen.includes('Colorir juntos') &&
   ux4bScreen.includes('handleColorirJuntos') &&
   ux4bScreen.includes("navigation.navigate('AtelierFromContext', { from: 'cultinho' })"),
-  'CultinhoEmCasaScreen: Colorir juntos não está opcional/contextual (from:cultinho)',
+  'CultinhoEmCasaScreen: Criar juntos não está opcional/contextual (from:cultinho)',
 );
 
 check(
@@ -20599,10 +20603,11 @@ check(
   'StoryBookScreen ainda empilha StoriesScreen em vez de voltar pela tab Aventuras',
 );
 
-// Item 5 — "Colorir juntos" do Cultinho abre AtelierFromContext from:cultinho e
-// a tela do Ateliê volta por goBack() (canGoBack) → retorna ao Cultinho, não Home.
+// Item 5 — "Criar juntos" do Cultinho ([P3J-R.1]: era "Colorir juntos") abre AtelierFromContext
+// from:cultinho e a tela do Ateliê volta por goBack() (canGoBack) → retorna ao Cultinho, não Home.
+// A asserção é só de NAVEGAÇÃO: a troca de copy não a afeta, e é por isso que ela continua válida.
 check(
-  'A3 Cultinho: "Colorir juntos" → AtelierFromContext from:cultinho e back via goBack (volta ao Cultinho)',
+  'A3 Cultinho: "Criar juntos" → AtelierFromContext from:cultinho e back via goBack (volta ao Cultinho)',
   a3Cultinho.includes("navigation.navigate('AtelierFromContext', { from: 'cultinho' })") &&
   /navigation\.canGoBack\(\)\s*\?\s*navigation\.goBack\(\)/.test(a3Atelier),
   'O retorno do "Colorir juntos" ao Cultinho não está garantido por goBack',

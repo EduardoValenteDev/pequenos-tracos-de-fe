@@ -7,7 +7,7 @@
  *   2. Beni explica (3–5 frases curtas, tom de pastor infantil)
  *   3. Conversa em família (uma pergunta)
  *   4. Oração curtinha (em destaque)
- *   + Colorir juntos é OPCIONAL ao final (abre o Ateliê com from:'cultinho')
+ *   + Criar juntos é OPCIONAL ao final (abre o Ateliê com from:'cultinho')
  *   + Concluir → registro local (alimenta a cartinha de Coração no Baú)
  *
  * Sem backend, sem IA em tempo real, sem texto livre da criança.
@@ -151,9 +151,9 @@ export default function CultinhoEmCasaScreen({ navigation }) {
           </LinearGradient>
         </SoundButton>
 
-        {/* Colorir juntos — ação OPCIONAL ao final (não é etapa do fluxo) */}
+        {/* Criar juntos — ação OPCIONAL ao final (não é etapa do fluxo) */}
         <SoundButton style={styles.optionalColorBtn} onPress={handleColorirJuntos} activeOpacity={0.85}>
-          <Text style={styles.optionalColorText}>🎨 Colorir juntos (opcional)</Text>
+          <Text style={styles.optionalColorText}>🎨 Criar juntos (opcional)</Text>
         </SoundButton>
       </ScrollView>
 
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   concludeGradient: { paddingVertical: 16, alignItems: 'center' },
   concludeText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
 
-  // Colorir juntos — opcional ao final (secundário, claramente não obrigatório)
+  // Criar juntos — opcional ao final (secundário, claramente não obrigatório)
   optionalColorBtn: {
     marginTop: 10, borderRadius: radii.pill, paddingVertical: 13, alignItems: 'center',
     backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: pt.beni,

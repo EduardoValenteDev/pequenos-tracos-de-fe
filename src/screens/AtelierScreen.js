@@ -280,7 +280,7 @@ export default function AtelierScreen({ navigation, route }) {
           <View style={styles.headerText}>
             <Text style={styles.headerTitle}>Ateliê do Beni</Text>
             <Text style={styles.headerSub}>
-              Colorir, criar e guardar suas artes de fé.
+              Criar e guardar suas artes de fé.
             </Text>
           </View>
         </View>

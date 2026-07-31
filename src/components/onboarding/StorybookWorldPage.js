@@ -5,6 +5,12 @@
  * título. Página esquerda = a promessa do app como SELOS IMPRESSOS (ouvir/colorir/brincar/guardar),
  * não botões nem barra de navegação. O Beni aparece como pequeno MEDALHÃO no canto — sem segunda
  * imagem grande. A Criação NÃO aparece aqui.
+ *
+ * [P3J-R.1] O selo de colorir deixou de ser promessa IMPRESSA. Ele é DERIVADO da mesma porta que o
+ * resto do app usa para responder "existe colorir para abrir hoje?" — `isStoryColoringAvailable`
+ * (portão do piloto ABERTO **e** catálogo com pelo menos uma atividade). Portão fechado ⇒ o selo
+ * simplesmente não é impresso: a lista encolhe para três e nada mais muda. Era a PRIMEIRA promessa
+ * que a criança recebia, e a única das três superfícies de texto que não consultava porta nenhuma.
  */
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
@@ -12,13 +18,25 @@ import StorybookBeni from './StorybookBeni';
 import StorybookCover from './StorybookCover';
 import FaithIcon from '../ui/FaithIcon';
 import { OB } from '../../theme/onboardingVisualTokens';
+import { COLORING60_STORY_ID } from '../../services/coloring60Pilot';
+import { isStoryColoringAvailable } from '../../services/storyColoringAvailability';
 
+// Ordem editorial ÚNICA dos selos. `requiresColoring` marca o que só pode ser prometido quando
+// existe colorir de verdade — a ordem dos demais nunca muda por causa dele.
 const STAMPS = [
   { key: 'ouvir', icon: 'play', label: 'Ouvir histórias', color: OB.scarf },
-  { key: 'colorir', icon: 'atelier', label: 'Colorir', color: '#2E9E6B' },
+  { key: 'colorir', icon: 'atelier', label: 'Colorir', color: '#2E9E6B', requiresColoring: true },
   { key: 'brincar', icon: 'brincar', label: 'Brincar', color: '#B4708F' },
   { key: 'guardar', icon: 'heart', label: 'Guardar no coração', color: '#D9557A' },
 ];
+
+/**
+ * Selos que PODEM ser impressos, dada a disponibilidade real de colorir. Pura e síncrona: os dois
+ * mundos (com e sem colorir) ficam exercitáveis sem flag, sem catálogo e sem React.
+ */
+export function visibleStamps(coloringAvailable) {
+  return STAMPS.filter((s) => !s.requiresColoring || coloringAvailable === true);
+}
 
 function Stamp({ item }) {
   return (
@@ -34,6 +52,8 @@ function Stamp({ item }) {
 export default function StorybookWorldPage({ width, height }) {
   const coverW = Math.min(width * 0.42, 158);
   const coverH = Math.round(coverW * 1.2);
+  // Leitura em render: a porta é pura e síncrona (portão + catálogo em memória), sem I/O nem storage.
+  const stamps = visibleStamps(isStoryColoringAvailable(COLORING60_STORY_ID));
   return (
     <View style={styles.spread}>
       {/* Página esquerda — promessa como anotações do livro, ligadas por uma linha */}
@@ -41,7 +61,7 @@ export default function StorybookWorldPage({ width, height }) {
         <Text style={styles.lead}>Aqui, cada história vira uma aventura.</Text>
         <View style={styles.stamps}>
           <View style={styles.stampLine} pointerEvents="none" />
-          {STAMPS.map((s) => <Stamp key={s.key} item={s} />)}
+          {stamps.map((s) => <Stamp key={s.key} item={s} />)}
         </View>
       </View>
 
