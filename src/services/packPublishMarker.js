@@ -146,6 +146,51 @@ export function validateMarkerSchema(marker) {
 }
 
 /**
+ * [P3J-R] CONTENÇÃO de kinds — FONTE ÚNICA do contrato "publicado ⊇ pedido".
+ *
+ * Devolve os kinds PEDIDOS que a publicação NÃO cobre. Lista vazia ⇒ o pack local basta.
+ *
+ * Existia uma segunda implementação desta regra no preflight do downloader
+ * (`packDownloadService.markerMatchesResolved`), lá por IGUALDADE ESTRITA. As duas concordavam
+ * enquanto pedido e publicado coincidiam; quando o P3J tirou `coloring` de `REQUESTED_KINDS`, a
+ * divergência acordou e o downloader passou a reinstalar packs íntegros já em disco. Regra
+ * duplicada é regra que diverge — por isso ela mora aqui, no módulo PURO, e os dois chamadores a
+ * importam.
+ *
+ * Semântica deliberada:
+ *   - ORDEM não importa e DUPLICATAS não importam (a cobertura é feita por conjunto);
+ *   - kinds EXTRAS na publicação não invalidam nada (só cobrir a menos é erro);
+ *   - valores inválidos no publicado (null/número/objeto) entram no conjunto mas NUNCA cobrem um
+ *     kind pedido (que é string) — não há falso positivo por lixo no marcador;
+ *   - o lado PEDIDO não é filtrado: um kind desconhecido pedido continua acusado como ausente,
+ *     que é o comportamento estrito já esperado por `validatePublishMarker`.
+ *
+ * @param {unknown} publishedKinds  kinds registrados no marcador de publicação
+ * @param {unknown} requestedKinds  kinds que o chamador pede agora
+ * @returns {string[]} os pedidos não cobertos (vazio ⇒ cobertura completa)
+ */
+export function missingRequestedKinds(publishedKinds, requestedKinds) {
+  const have = new Set(Array.isArray(publishedKinds) ? publishedKinds : []);
+  return (Array.isArray(requestedKinds) ? requestedKinds : []).filter((k) => !have.has(k));
+}
+
+/**
+ * [P3J-R] Predicado booleano da contenção, para quem só decide reusar ou não (o preflight do
+ * downloader). Mais rígido que `missingRequestedKinds` nas bordas, porque aqui um `true` AUTORIZA
+ * reaproveitar bytes do disco: entradas não-array e pedido VAZIO devolvem `false`, para que uma
+ * identidade degenerada nunca vire "o pack local serve" por vacuidade.
+ *
+ * @param {unknown} publishedKinds  kinds registrados no marcador de publicação
+ * @param {unknown} requestedKinds  kinds que o chamador pede agora
+ * @returns {boolean} true ⇒ o publicado cobre todo o pedido
+ */
+export function publishedKindsCoverRequested(publishedKinds, requestedKinds) {
+  if (!Array.isArray(publishedKinds) || !Array.isArray(requestedKinds)) return false;
+  if (requestedKinds.length === 0) return false;
+  return missingRequestedKinds(publishedKinds, requestedKinds).length === 0;
+}
+
+/**
  * DECISÃO PURA: este marcador comprova que ESTE diretório, com ESTE manifesto, foi validado antes
  * de ser publicado — e serve à história/versão/kinds que se pede agora?
  *
@@ -194,8 +239,9 @@ export function validatePublishMarker(marker, ctx) {
   }
 
   // O que foi publicado precisa COBRIR o que se pede: instalar só cenas e pedir cenas+áudio não serve.
-  const have = new Set(marker.kinds);
-  const missing = (Array.isArray(requestedKinds) ? requestedKinds : []).filter((k) => !have.has(k));
+  // [P3J-R] A regra saiu daqui para `missingRequestedKinds` (acima) SEM mudar de comportamento —
+  // é a mesma expressão, agora com um nome, para que o preflight do downloader use ESTA e não outra.
+  const missing = missingRequestedKinds(marker.kinds, requestedKinds);
   if (missing.length) errors.push(`kinds pedidos ausentes na publicação: ${missing.join(',')}`);
 
   return { ok: errors.length === 0, errors };

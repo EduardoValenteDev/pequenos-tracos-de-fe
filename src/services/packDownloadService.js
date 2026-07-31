@@ -13,7 +13,10 @@ import { PACK_STATUS, getPackLocalDir, getPackTempDir, setPackEntry, getPackEntr
 import { isReadyEntryValid } from './packReconcileService';
 import { validatePackManifest, computeFileSha256 } from './packIntegrityService';
 import { fetchGlobalContentManifest, getPackFromGlobalManifest } from './globalManifestService';
-import { MARKER_FILENAME, buildPublishMarker, findMarkerCollisions } from './packPublishMarker';
+// [P3J-R] `publishedKindsCoverRequested` entra aqui para que o preflight e o `validatePublishMarker`
+// decidam cobertura de kinds pela MESMA função — a divergência entre as duas cópias da regra foi a
+// causa da reinstalação de packs íntegros quando `coloring` saiu de REQUESTED_KINDS.
+import { MARKER_FILENAME, buildPublishMarker, findMarkerCollisions, publishedKindsCoverRequested } from './packPublishMarker';
 import { recoverStoryPack } from './packRecoveryService';
 import { warn } from '../utils/logger';
 // LP2.1a-ii-01F: registro global observável (dep OPCIONAL do serviço; só o singleton de produção o injeta).
@@ -319,13 +322,30 @@ function markerStructureOk(m) {
  * campos; baseUrl FORA. LP2.1a-ii-D3: o `manifestSha256` NÃO entra aqui — ele é a ÂNCORA dos bytes,
  * verificada contra os BYTES REAIS de manifest.json (computeLocalManifestAnchor) contra o marcador E
  * a resolvida. Comparar declaração×declaração não prova integridade.
+ *
+ * [P3J-R] `kinds` deixou de ser comparado por IGUALDADE e passou a ser comparado por CONTENÇÃO —
+ * pela função do módulo puro (`publishedKindsCoverRequested`), a MESMA que `validatePublishMarker`
+ * usa. A igualdade estrita era dívida anterior: ficou latente enquanto pedido e publicado
+ * coincidiam e ACORDOU quando o P3J tirou `coloring` de `REQUESTED_KINDS`. Um pack instalado antes
+ * (marcador `audio,coloring,cover,scene`) deixava de casar com o pedido de hoje
+ * (`audio,cover,scene`), o preflight respondia `coincident:false` e o runtime REINSTALAVA um pack
+ * íntegro que já estava no disco — regressão comportamental de integração provocada pelo novo
+ * contrato, não uma edição deste comparador. Pior: o recovery logo adiante JÁ usava contenção, então
+ * o preflight rejeitava exatamente o que o recovery aceitaria.
+ *
+ * Contenção NÃO afrouxa integridade: quem prova os bytes é a ÂNCORA sha256 do manifest.json
+ * (computeLocalManifestAnchor), conferida logo depois desta função. Kinds respondem só por
+ * SUFICIÊNCIA de conteúdo — se sobra kind publicado, o pack cobre o pedido e serve.
+ *
+ * Os outros quatro campos seguem por igualdade estrita: storyId/version/manifestPath/appVersion
+ * dizem O QUE o pack é, e ali qualquer diferença é outra identidade.
  */
 function markerMatchesResolved(marker, resolved) {
   if (!markerStructureOk(marker) || !resolved) return false;
   return marker.storyId === resolved.storyId
     && marker.version === resolved.version
     && marker.manifestPath === resolved.manifestPath
-    && normalizeKinds(marker.kinds).join(',') === normalizeKinds(resolved.kinds).join(',')
+    && publishedKindsCoverRequested(marker.kinds, resolved.kinds)
     && marker.appVersion === resolved.appVersion;
 }
 /**
