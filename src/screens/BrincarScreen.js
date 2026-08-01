@@ -3,8 +3,9 @@
  *
  * Substitui o antigo Ateliê como TELA DA ABA. O nome "Ateliê" some da interface;
  * a IDENTIDADE de rota (`name: 'Ateliê'` em TAB_DEFS) permanece, porque o Onboarding
- * navega por ela e trocá-la quebraria a navegação. `AtelierScreen` continua existindo
- * para o fluxo contextual (`AtelierFromContext`, aberto pelo Cultinho).
+ * navega por ela e trocá-la quebraria a navegação. [P3J-R.1 FIX1] O hub legado
+ * `AtelierScreen` e a rota `AtelierFromContext` foram REMOVIDOS: o Cultinho passou a
+ * abrir o mesmo Criar livre canônico desta aba (`AtelierCanvas`, com from:'cultinho').
  *
  * ── Redesenho B1 ──────────────────────────────────────────────────────────────
  * Os QUATRO jogos do Beni têm o MESMO peso visual, numa grade 2×2 (mesma largura,

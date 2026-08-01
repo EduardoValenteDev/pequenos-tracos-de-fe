@@ -25,7 +25,6 @@ import SceneValidationScreen from '../screens/SceneValidationScreen';
 import CongratsScreen from '../screens/CongratsScreen';
 import TrophiesScreen from '../screens/TrophiesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import AtelierScreen from '../screens/AtelierScreen';
 import BrincarScreen from '../screens/BrincarScreen';
 import ParesDoBeniScreen from '../screens/ParesDoBeniScreen';
 import CadeAOvelhinhaScreen from '../screens/CadeAOvelhinhaScreen';
@@ -406,13 +405,9 @@ export default function AppNavigator() {
           component={AtelierCanvasScreen}
           options={{ headerShown: false }}
         />
-        {/* Ateliê empurrado por contexto (ex.: Cultinho) — distinto da aba "Ateliê",
-            permite voltar à origem. A aba continua intacta. */}
-        <Stack.Screen
-          name="AtelierFromContext"
-          component={AtelierScreen}
-          options={{ headerShown: false }}
-        />
+        {/* [P3J-R.1 FIX1] A rota `AtelierFromContext` (hub legado "Ateliê do Beni") foi REMOVIDA.
+            O Cultinho agora abre o Criar livre canônico (`AtelierCanvas`, acima) com from:'cultinho'.
+            Não recriar: nenhuma tela intermediária deve existir entre o Cultinho e o canvas. */}
         {/* Bloco 1.3 — primeiro jogo real da aba Brincar. */}
         <Stack.Screen
           name="ParesDoBeni"

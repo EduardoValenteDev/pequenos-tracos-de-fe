@@ -49,6 +49,11 @@ export const HOME_GUIDE = [
 
 // Ateliê (Ateliê 1.0) — guia falado CURTO de 4 cards, com alvos MEDIDOS. Card 1
 // destaca a aba Ateliê (tab bar / sidebar). Não explica outras telas.
+// [P3J-R.1 FIX1] RESÍDUO DECLARADO: seu único consumidor era a tela-hub legada
+// `AtelierScreen`, REMOVIDA neste bloco. Hoje este guia NÃO é disparado por tela
+// alguma. Mantido de propósito: apagá-lo orfanaria os 5 áudios `guide.atelier.*`
+// em `beniGuideAudio.js` — manifesto de áudio é ÁREA PROTEGIDA e só muda com
+// instrução direta. Higiene deste guia = bloco próprio, não este.
 export const ATELIER_GUIDE = [
   { variant: 'artist',      title: 'Seu Ateliê',        text: 'Aqui suas histórias viram arte.',               audioKey: 'guide.atelier.welcome',        highlightTab: 'atelier' },
   { variant: 'happy',       title: 'Colorir histórias', text: 'Escolha uma cena da Bíblia para colorir.',      audioKey: 'guide.atelier.coloring',       target: 'atelier.coloring' },

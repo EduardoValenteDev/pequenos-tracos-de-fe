@@ -34,6 +34,7 @@ import { saveArt, getArt, getArtCount, listArts, ATELIER_FREE_SAVE_LIMIT } from 
 import { resolveArtTitle, displayTitle } from '../services/atelierArtNaming';
 import { hasAtelierUnlimitedAccess } from '../services/accessControl';
 import { hasSeenOrientation, markOrientationSeen } from '../services/criarLivreOrientation';
+import { backLabelFor } from '../utils/originBack';
 
 const haptic = (s) => { Haptics.impactAsync(s).catch(() => {}); };
 const success = () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); };
@@ -353,8 +354,12 @@ export default function AtelierCanvasScreen({ route, navigation }) {
     <View style={styles.wrapper}>
       {/* ── CABEÇALHO compacto ── */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 8), height: CL.headerHeight + Math.max(insets.top, 8) }]}>
+        {/* [P3J-R.1 FIX1] O rótulo do voltar vem do contrato de origem (`originBack.js`), a MESMA
+            convenção que as outras telas reaproveitadas usam. Equivalência preservada: sem `from`
+            continua "Voltar" e `createWithBeni` continua "Voltar ao Início"; a origem `cultinho`
+            ganha "Voltar para Cultinho". O DESTINO da saída não muda — segue o `goBack` da pilha. */}
         <Pressable onPress={onBackPress} style={styles.iconBtn} hitSlop={8}
-          accessibilityRole="button" accessibilityLabel={isCreateWithBeni ? 'Voltar ao Início' : 'Voltar'}>
+          accessibilityRole="button" accessibilityLabel={backLabelFor(from)}>
           <CriarLivreIcon name="back" size={24} color={CL.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>

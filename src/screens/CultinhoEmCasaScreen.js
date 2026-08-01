@@ -7,7 +7,7 @@
  *   2. Beni explica (3–5 frases curtas, tom de pastor infantil)
  *   3. Conversa em família (uma pergunta)
  *   4. Oração curtinha (em destaque)
- *   + Criar juntos é OPCIONAL ao final (abre o Ateliê com from:'cultinho')
+ *   + Criar juntos é OPCIONAL ao final (abre o Criar livre canônico com from:'cultinho')
  *   + Concluir → registro local (alimenta a cartinha de Coração no Baú)
  *
  * Sem backend, sem IA em tempo real, sem texto livre da criança.
@@ -23,6 +23,8 @@ import { BeniGuideBubble, BeniAvatar } from '../components/beni';
 import { images } from '../assets/images';
 import { getStoryOfTheWeek, markFamilyWorshipCompleted } from '../services/familyWorshipService';
 import { getCultinhoForStory } from '../data/cultinhoData';
+import { ROUTES } from '../constants/routes';
+import { ORIGIN } from '../utils/originBack';
 
 function StepCard({ number, accent, title, children }) {
   return (
@@ -54,9 +56,14 @@ export default function CultinhoEmCasaScreen({ navigation }) {
     else navigation.navigate('Home', { screen: 'Aventuras' });
   }
 
-  function handleColorirJuntos() {
-    // Ação opcional ao final — abre o Ateliê por contexto (volta ao Cultinho).
-    navigation.navigate('AtelierFromContext', { from: 'cultinho' });
+  function handleCriarJuntos() {
+    /* [P3J-R.1 FIX1] Destino é o CRIAR LIVRE CANÔNICO — exatamente a rota, o componente, o canvas,
+       o storage, o fluxo de nomeação, a proteção de saída e a galeria que a aba Brincar já usa.
+       Antes ia para a tela-hub legada `AtelierFromContext`, que oferecia um menu (Mesa criativa,
+       Colorir com o Beni, Desenho guiado, Criar livre, Minhas artes): tela intermediária, promessa
+       errada e mistura com o Colorir. `from` NÃO cria fork de comportamento — serve só ao retorno
+       contextual (`backLabelFor` no cabeçalho; a saída continua sendo o `goBack` da pilha). */
+    navigation.navigate(ROUTES.ATELIER_CANVAS, { from: ORIGIN.CULTINHO });
   }
 
   async function handleConcluir() {
@@ -152,7 +159,7 @@ export default function CultinhoEmCasaScreen({ navigation }) {
         </SoundButton>
 
         {/* Criar juntos — ação OPCIONAL ao final (não é etapa do fluxo) */}
-        <SoundButton style={styles.optionalColorBtn} onPress={handleColorirJuntos} activeOpacity={0.85}>
+        <SoundButton style={styles.optionalColorBtn} onPress={handleCriarJuntos} activeOpacity={0.85}>
           <Text style={styles.optionalColorText}>🎨 Criar juntos (opcional)</Text>
         </SoundButton>
       </ScrollView>
