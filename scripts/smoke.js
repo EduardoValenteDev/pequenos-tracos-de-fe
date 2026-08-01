@@ -69,6 +69,117 @@ function codeOf(relPath) {
   return readSrc(relPath).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 }
 
+/* ── [spec 018] Piloto Colorir 60 — RESOLVEDOR REAL da flag (nunca regex sobre o texto) ───────
+ * Até a spec 018 a prova de que o piloto estava fechado era TEXTUAL: casar `= false` no fonte.
+ * A ativação controlada trocou o literal por uma CERCA DUPLA (conjunção de duas variáveis de
+ * build) — e um regex sobre a expressão nova seria mais FRACO, não mais forte: dependeria de
+ * espaçamento e não diria nada sobre o que a expressão RESOLVE.
+ *
+ * A prova passa a ser por EXECUÇÃO do arquivo de produção. `loadModule` avalia o fonte com as
+ * dependências injetadas como parâmetros; injetar `process` SOMBREIA o `process` global, então a
+ * expressão real responde sob um env encenado. O teste não reimplementa a regra — quem responde
+ * é `src/config/featureFlags.js`. O env de cada perfil é LIDO do `eas.json`, não digitado aqui:
+ * o dia em que alguém acrescentar as variáveis ao bloco `production`, estas provas ficam
+ * vermelhas sozinhas.
+ * ─────────────────────────────────────────────────────────────────────────────────────────── */
+const C60_PILOT_PROFILE = 'c60-pilot';
+const C60_PILOT_ENV_ON = Object.freeze({
+  EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT: 'true',
+  EXPO_PUBLIC_BUILD_PROFILE: C60_PILOT_PROFILE,
+});
+
+/** Executa o fonte REAL de featureFlags sob um env encenado (`mutate` = controle antitautológico). */
+function c60ResolveFlags(env, mutate) {
+  const { loadModule } = require('./testing/packInstallHarness');
+  return loadModule(
+    'src/config/featureFlags.js',
+    { process: { env: env || {} } },
+    ['COLORIR_60_CREATION_PILOT_ENABLED', 'RELEASE_PACK_QA_ENABLED', 'CREATOR_QA_MODE_RELEASE_ENABLED'],
+    mutate,
+  );
+}
+
+/** O piloto resolve LIGADO sob este env? (`=== true`: nada de valor "truthy" passar por engano.) */
+function c60PilotFlagUnder(env, mutate) {
+  return c60ResolveFlags(env, mutate).COLORIR_60_CREATION_PILOT_ENABLED === true;
+}
+
+/** Perfis de build REAIS do eas.json — fonte da verdade, nada digitado no teste. */
+function easBuildProfiles() {
+  return JSON.parse(readSrc('eas.json')).build || {};
+}
+
+/** Env efetivo de um perfil, resolvendo a cadeia de `extends` (pai primeiro, filho vence). */
+function easProfileEnv(nome) {
+  const build = easBuildProfiles();
+  const cadeia = [];
+  const vistos = new Set();
+  let atual = nome;
+  while (atual && build[atual] && !vistos.has(atual)) {
+    vistos.add(atual);
+    cadeia.unshift(atual);
+    atual = build[atual].extends;
+  }
+  return cadeia.reduce((acc, n) => Object.assign(acc, build[n].env || {}), {});
+}
+
+// Diagnóstico do último `c60PilotSealed()` — vira o detalhe de falha dos lacres históricos.
+let C60_SEAL_WHY = '';
+
+/**
+ * [spec 018] O piloto do Colorir 60 continua CERCADO?
+ *
+ * Substitui — sem enfraquecer — a antiga asserção "o literal é `false`" nos lacres históricos
+ * (C60-P0.T8, C60-P1.T5, C60-P2, C60-P3, C60-P3-FIX1, C60-P10, P3J-R, P3J-R.1, P3J-R.1 FIX1).
+ * A intenção original de cada bloco — "esta fase NÃO liga o piloto" — é preservada e FORTALECIDA:
+ * antes bastava o texto; agora exige-se, por execução real, que
+ *   1. sem nenhuma variável o piloto resolva `false` (fail-closed por ausência — o padrão);
+ *   2. TODO perfil do eas.json que não seja `c60-pilot` — `production` inclusive — resolva `false`;
+ *   3. cada variável isolada seja inerte (uma condição sozinha nunca abre);
+ *   4. a cerca dupla ainda EXISTA e seja a única porta — senão "fechado" seria fechado por ter
+ *      apagado a flag, e o lacre viraria tautologia.
+ */
+function c60PilotSealed() {
+  C60_SEAL_WHY = '';
+  try {
+    if (c60PilotFlagUnder({})) {
+      C60_SEAL_WHY = 'com env vazio o piloto já abre — deixou de ser fail-closed por ausência';
+      return false;
+    }
+    const perfis = Object.keys(easBuildProfiles());
+    if (perfis.indexOf('production') === -1) {
+      C60_SEAL_WHY = 'o perfil `production` sumiu do eas.json — a prova perderia o seu alvo';
+      return false;
+    }
+    const abertos = perfis.filter((p) => p !== C60_PILOT_PROFILE && c60PilotFlagUnder(easProfileEnv(p)));
+    if (abertos.length) {
+      C60_SEAL_WHY = `perfis que não são o do piloto abrem o piloto: ${abertos.join(', ')}`;
+      return false;
+    }
+    if (c60PilotFlagUnder({ EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT: 'true' })) {
+      C60_SEAL_WHY = 'a variável de autorização sozinha abre o piloto (a conjunção virou disjunção)';
+      return false;
+    }
+    if (c60PilotFlagUnder({ EXPO_PUBLIC_BUILD_PROFILE: C60_PILOT_PROFILE })) {
+      C60_SEAL_WHY = 'o nome do perfil sozinho abre o piloto (a conjunção virou disjunção)';
+      return false;
+    }
+    if (!c60PilotFlagUnder(C60_PILOT_ENV_ON)) {
+      C60_SEAL_WHY = 'a cerca dupla autorizada NÃO abre o piloto — a porta oficial sumiu do fonte';
+      return false;
+    }
+    return true;
+  } catch (e) {
+    C60_SEAL_WHY = `falha ao resolver a flag do piloto: ${e.message}`;
+    return false;
+  }
+}
+
+/** Detalhe de falha dos lacres históricos (usa o diagnóstico do `c60PilotSealed()` imediatamente anterior). */
+function c60SealFail(bloco) {
+  return `${bloco}: o piloto do Colorir 60 precisa continuar cercado — ${C60_SEAL_WHY || 'sem diagnóstico'}`;
+}
+
 // ── [01–05] stories.js integrity ────────────────────────────────────────────
 console.log('\n── stories.js integrity ──');
 
@@ -35888,12 +35999,16 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
   // superfície do piloto existe/aparece e o legado (200 linearts) fica intocado.
   {
     const flagsSrc = readSrc('src/config/featureFlags.js');
-    check('C60-P0.T8: flag COLORIR_60_CREATION_PILOT_ENABLED existe e default false',
-      /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(flagsSrc),
-      'a flag do piloto Colorir 60 deve ser declarada com default false em featureFlags.js');
-    check('C60-P0.T8: flag do piloto NÃO é ligada por padrão (sem = true)',
-      !/export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*true\s*;/.test(flagsSrc),
-      'a flag do piloto Colorir 60 não pode nascer ligada');
+    // [spec 018] O literal `false` de P0.T8 virou CERCA DUPLA (duas variáveis de build em
+    // conjunção). A exigência original — "a flag existe e o piloto NÃO nasce ligado" — não muda:
+    // muda a PROVA, que deixa de ser textual e passa a ser execução real (ver `c60PilotSealed`).
+    check('C60-P0.T8: flag COLORIR_60_CREATION_PILOT_ENABLED existe e default false → [018] fechada por ausência',
+      /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=/.test(flagsSrc) && c60PilotSealed(),
+      c60SealFail('C60-P0.T8'));
+    check('C60-P0.T8: flag do piloto NÃO é ligada por padrão (sem = true) → [018] nem por literal, nem por resolução',
+      !/export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*true\s*;/.test(flagsSrc)
+        && !c60PilotFlagUnder({}),
+      'a flag do piloto Colorir 60 não pode nascer ligada nem resolver `true` sem as duas variáveis de build');
     // Camadas de FASE POSTERIOR que ainda NÃO podem existir. Ao longo do piloto esta lista
     // AVANÇA DE FASE: catálogo (P1.T1) e registro estático (P1.T2) saíram ao entrar P1; o
     // resolvedor (P2.T1) saiu ao entrar P2; o writer dedicado (P3.T1..T3) saiu ao entrar P3;
@@ -36104,10 +36219,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       scene02Sha === 'c960f1bb1c34b0cce71a6d078768e6c2a542fa13ba096cf18a964d45058e83c1',
       `scene_02.png deve casar o hash ratificado de light (recebido: ${scene02Sha})`);
 
-    // P1 é aditivo e inerte: nada liga o piloto.
-    check('C60-P1.T5: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P1',
-      /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
-      'P1 não pode ligar a flag do piloto');
+    // P1 é aditivo e inerte: nada liga o piloto. [spec 018] provado por execução, não por texto.
+    check('C60-P1.T5: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P1 → [018] cercado',
+      c60PilotSealed(),
+      c60SealFail('C60-P1.T5'));
   }
 
   // ── Colorir 60 · A Criação — P2 (resolvedor local + navegação aditiva por activityId) ──
@@ -36313,10 +36428,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       sha('src/hooks/useResolvedStoryMedia.js') === '4c1a16a780bb2e7ca29bd8e68e089e2ea0368d96e815c0db5b9c6e73e90867bb',
       'o resolvedor de mídia remota mudou fora do P3J — cena/capa/áudio remotos não podem ser tocados aqui');
 
-    // P2 é aditivo e dormente publicamente: a flag do piloto permanece off.
-    check('C60-P2: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P2',
-      /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
-      'P2 não pode ligar a flag do piloto');
+    // P2 é aditivo e dormente publicamente: a flag do piloto permanece off. [spec 018] por execução.
+    check('C60-P2: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P2 → [018] cercado',
+      c60PilotSealed(),
+      c60SealFail('C60-P2'));
   }
 
   // ── Colorir 60 · A Criação — P3 (writer dedicado + namespace fechado + entitlement interno) ──
@@ -36739,10 +36854,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         c60WriterIntruders.length === 0,
         `nenhum arquivo fora da lista pode tocar o módulo de pixels (encontrados extras: ${c60WriterIntruders.join(', ')})`);
 
-      // Flag do piloto permanece false; a pasta de PNGs (P5) permanece ausente.
-      check('C60-P3: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P3',
-        /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
-        'P3 não pode ligar a flag do piloto');
+      // Flag do piloto permanece fechada; a pasta de PNGs (P5) permanece ausente. [spec 018] por execução.
+      check('C60-P3: COLORIR_60_CREATION_PILOT_ENABLED permanece false após P3 → [018] cercado',
+        c60PilotSealed(),
+        c60SealFail('C60-P3'));
       // FIX1: a pasta de PNGs continua proibida ANTES de P5; a partir de P5.T4 ela é
       // legítima, e a trava passa a exigir que seu conteúdo esteja em fase válida.
       check('C60-P3→P5/FIX1: pasta de PNGs activities/ ausente antes de P5 e, a partir de P5, em fase válida',
@@ -36992,12 +37107,13 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         `apenas o ramo Colorir 60 em ColoringScreen pode GRAVAR pixels (chamadores: ${c60Writers.map((f) => path.relative(root, f)).join(', ') || 'nenhum — a integração sumiu'})`);
       // FIX1: a flag do piloto continua obrigatoriamente false em TODAS as fases; a pasta
       // activities/ é avaliada pela fase (ausente em PRE, em fase legítima depois de P5.T4).
-      check('C60-P3-FIX1 [E15/E16]→P5/FIX1: pasta activities/ coerente com a fase e flag do piloto ainda false',
+      const seladoFix1 = c60PilotSealed(); // avaliado ANTES do `&&` para o diagnóstico não sair velho
+      check('C60-P3-FIX1 [E15/E16]→P5/FIX1: pasta activities/ coerente com a fase e flag do piloto ainda cercada [018]',
         (C60_REAL.phase === C60_ASSET_PHASE.PRE
           ? !srcExists(C60_ACTIVITIES_REL)
           : c60InPhase(C60_ASSET_PHASE.LIVING_WORLD, C60_ASSET_PHASE.COMPLETE))
-          && /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js')),
-        'o hardening não antecipa PNGs fora de fase legítima nem liga o piloto');
+          && seladoFix1,
+        c60SealFail('C60-P3-FIX1 [E15/E16] (ou a pasta activities/ saiu de fase legítima)'));
     }
   }
 
@@ -38465,9 +38581,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     // aposentada; não proíbe a copy de catálogo. Por isso a prova não é a ausência global da expressão
     // (que seria um falso vermelho), e sim que NENHUMA ocorrência dela fala de colorir.
     const emBreveP10 = sdCode.split('\n').filter((l) => /em breve/i.test(l));
-    check('C60-P10 [prova 10] → [P3J]: piloto OFF ⇒ nenhuma atividade de colorir (seção gated, flag false, legado ausente e sem placeholder "em breve" de colorir)',
+    const seladoP10 = c60PilotSealed(); // [spec 018] "piloto OFF" agora é resolução, não texto
+    check('C60-P10 [prova 10] → [P3J]/[018]: piloto OFF por padrão ⇒ nenhuma atividade de colorir (seção gated, flag cercada, legado ausente e sem placeholder "em breve" de colorir)',
       /\{creationColoringVisible && \(\s*[\s\S]*?<CreationColoringJourneySection/.test(sdCode)
-        && /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(readSrc('src/config/featureFlags.js'))
+        && seladoP10
         && !/LegacyColoringScreen/.test(codeOf('src/screens/ColoringScreen.js'))
         && emBreveP10.length === 2
         && emBreveP10.every((l) => !/colorir/i.test(l) && /isComingSoon|explorar todas as cenas/.test(l)),
@@ -43756,10 +43873,11 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       && ![SRC_HOME_P3JR, SRC_GUIAS_P3JR, SRC_CANVAS_P3JR].some((s) => /Criar com Beni/.test(s)),
       'o CTA "Criar livre" não está consistente nas três superfícies');
 
-    check('P3J-R [copy 5/5]: o DESTINO não mudou (o parâmetro `createWithBeni` é contrato de volta) e a flag C60 segue fechada',
+    const seladoP3JR = c60PilotSealed(); // [spec 018] "fechada" = resolve false, não "o texto diz false"
+    check('P3J-R [copy 5/5]: o DESTINO não mudou (o parâmetro `createWithBeni` é contrato de volta) e a flag C60 segue fechada [018: cercada]',
       /navigation\.navigate\('AtelierCanvas', \{ from: 'createWithBeni', mission \}\)/.test(SRC_HOME_P3JR)
       && /from === 'createWithBeni'/.test(SRC_CANVAS_P3JR)
-      && /export const COLORIR_60_CREATION_PILOT_ENABLED = false;/.test(readSrc('src/config/featureFlags.js'))
+      && seladoP3JR
       && /const REQUESTED_KINDS = \['cover', 'scene', 'audio'\];/.test(SRC_HOOK_DL)
       && /const KNOWN_KINDS = \['cover', 'scene', 'coloring', 'audio'\];/.test(readSrc('src/services/packDownloadService.js')),
       'o destino, a flag do piloto ou a tolerância do parser a manifestos antigos mudaram junto com o nome do CTA');
@@ -44609,9 +44727,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       && /reaberta depois do piloto/.test(SRC_DEC_R1),
       'a decisão de produto sobre nomeação de obras não está registrada de forma acionável');
 
-    check('P3J-R.1 [copy 07/07]: a decisão foi SÓ documental — ponteiro, schema e portão do piloto intactos',
+    const seladoR1 = c60PilotSealed(); // [spec 018] o portão do piloto continua cercado, agora por execução
+    check('P3J-R.1 [copy 07/07]: a decisão foi SÓ documental — ponteiro, schema e portão do piloto intactos [018: cercado]',
       /const POINTER_VERSION = 3;/.test(readSrc('src/services/coloring60DrawingStorage.js'))
-      && /export const COLORIR_60_CREATION_PILOT_ENABLED = false;/.test(readSrc('src/config/featureFlags.js'))
+      && seladoR1
       && !/nomeDaObra|artworkName|tituloDaArte/.test(readSrc('src/services/coloring60DrawingStorage.js')),
       'a decisão de produto vazou para persistência, schema ou feature flag');
 
@@ -44968,13 +45087,14 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       `a arte anterior foi alterada: ${JSON.stringify(fxAntigaDepois)}`);
 
     /* ── PROVA 11 ─────────────────────────────────────────────────────────────────────────── */
-    check('P3J-R.1 FIX1 [prova 11/12]: o Colorir 60 continua SEPARADO e funcional — namespaces e subdiretórios distintos, POINTER_VERSION 3, piloto OFF, e nenhuma mistura com o Criar livre',
+    const seladoFx11 = c60PilotSealed(); // [spec 018] "piloto OFF" = resolve false por padrão
+    check('P3J-R.1 FIX1 [prova 11/12]: o Colorir 60 continua SEPARADO e funcional — namespaces e subdiretórios distintos, POINTER_VERSION 3, piloto OFF por padrão [018: cercado], e nenhuma mistura com o Criar livre',
       /const POINTER_VERSION = 3;/.test(FX_C60)
       && /const BLOB_SUBDIR = 'drawings60';/.test(FX_C60)
       && /@ptf_drawing60_s\$\{storyId\}_a\$\{activityId\}/.test(FX_C60)
       && /const BLOB_SUBDIR = 'atelier';/.test(FX_STORAGE)
       && /const LIST_KEY = 'ptf_atelier_arts_v1_index';/.test(FX_STORAGE)
-      && /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(FX_FLAGS)
+      && /COLORIR_60_CREATION_PILOT_ENABLED/.test(FX_FLAGS) && seladoFx11
       && !/coloring60|Coloring60/i.test(CODE_CANVAS)
       && !/coloring60|Coloring60/i.test(CODE_CULT),
       'o C60 e o Criar livre deixaram de ser mundos separados, ou o piloto do C60 saiu de OFF');
@@ -45048,6 +45168,377 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     check('P3J-R.1 FIX1 [negativos]: os seis controles negativos rodaram e nenhum sobreviveu',
       CNF.length === 6 && CNF.every((c) => c.original === true && c.mutante === false),
       `executados=${CNF.length}, sobreviventes=${CNF.filter((c) => c.original === c.mutante).map((c) => c.id).join(', ') || '(nenhum)'}`);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * [spec 018] COLORIR 60 · ATIVAÇÃO CONTROLADA — infraestrutura, NÃO publicação
+   *
+   * O piloto nasceu atrás de um literal `false`. Como `__DEV__` é false em TODO build de release,
+   * o literal tornava o piloto inalcançável num APK/IPA — e trocá-lo por `true` ligaria também a
+   * LOJA, sem cerca nenhuma. A spec 018 substitui o literal por uma CERCA DUPLA de build e prova,
+   * por EXECUÇÃO REAL do código de produção (nunca por regex sobre o texto), que:
+   *   L1. `production` resolve o piloto como FALSO;
+   *   L2. uma condição isolada NÃO ativa;
+   *   L3. o bloco `production` do eas.json não contém o par de variáveis;
+   *   L4. com o piloto autorizado, as entradas INFANTIS ficam disponíveis e as INTERNAS ausentes;
+   *   L5. o efeito ATUAL sobre `journeyComplete` e sobre Noé é observável — sem alterar a lógica;
+   *   L6. o verificador dos ativos C60 permanece gate obrigatório SEPARADO;
+   *   L7. o PRODUCTION_FLAGS_CHECKLIST.md documenta a flag obrigatoriamente.
+   *
+   * Este bloco NÃO gera build, não instala, não publica e não altera tela, rota, storage,
+   * progresso, catálogo, ativo ou áudio. L5 é HIPÓTESE OBSERVÁVEL do piloto (Ratificação 2),
+   * não regra pública: a decisão definitiva de progressão pertence à Fase 4 do Roteiro Mestre.
+   * ═══════════════════════════════════════════════════════════════════════════════════════ */
+  console.log('\n── [spec 018] Colorir 60 · ativação controlada (cerca dupla de build) ──');
+  {
+    const { loadModule: load018 } = require('./testing/packInstallHarness');
+    const BUILD_018 = easBuildProfiles();
+    const PERFIS_018 = Object.keys(BUILD_018);
+    const NAO_PILOTO_018 = PERFIS_018.filter((p) => p !== C60_PILOT_PROFILE);
+    const VAR_AUTORIZA = 'EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT';
+    const VAR_PERFIL = 'EXPO_PUBLIC_BUILD_PROFILE';
+    const ENV_PILOTO_REAL = easProfileEnv(C60_PILOT_PROFILE); // lido do eas.json, não digitado
+
+    /* ── 1 · A FLAG: tabela-verdade executada no fonte de produção (L2) ──────────────────── */
+
+    const linhas018 = [
+      [{}, false, 'env vazio (o padrão de qualquer build que não declare nada)'],
+      [{ [VAR_AUTORIZA]: 'true' }, false, 'só a autorização'],
+      [{ [VAR_PERFIL]: C60_PILOT_PROFILE }, false, 'só o perfil'],
+      [{ [VAR_AUTORIZA]: 'true', [VAR_PERFIL]: C60_PILOT_PROFILE }, true, 'a cerca dupla completa'],
+    ];
+    const erros018 = linhas018
+      .filter(([env, esperado]) => c60PilotFlagUnder(env) !== esperado)
+      .map(([, esperado, nome]) => `${nome} deveria resolver ${esperado}`);
+    check('018·C60 [flag 1/6] L2: tabela-verdade da cerca dupla executada no fonte real (só a conjunção completa abre)',
+      erros018.length === 0,
+      `a expressão de featureFlags.js não resolve como a cerca dupla exige: ${erros018.join(' · ')}`);
+
+    // Comparação LITERAL e ESTRITA: nada de coerção, prefixo, caixa diferente ou espaço sobrando.
+    const quaseAutoriza = ['True', 'TRUE', '1', 'yes', 'true ', ' true', '', 'false'];
+    const quasePerfil = ['C60-Pilot', 'c60-pilot ', ' c60-pilot', 'c60pilot', 'c60-pilot-2', 'production', 'preview', ''];
+    const frouxos018 = []
+      .concat(quaseAutoriza
+        .filter((v) => c60PilotFlagUnder({ [VAR_AUTORIZA]: v, [VAR_PERFIL]: C60_PILOT_PROFILE }))
+        .map((v) => `${VAR_AUTORIZA}=${JSON.stringify(v)}`))
+      .concat(quasePerfil
+        .filter((v) => c60PilotFlagUnder({ [VAR_AUTORIZA]: 'true', [VAR_PERFIL]: v }))
+        .map((v) => `${VAR_PERFIL}=${JSON.stringify(v)}`));
+    check('018·C60 [flag 2/6]: comparação LITERAL e ESTRITA — variantes de caixa, número, espaço e prefixo NÃO abrem o piloto',
+      frouxos018.length === 0,
+      `valores que não deveriam abrir abriram: ${frouxos018.join(', ')}`);
+
+    // A flag NÃO pode depender de `__DEV__`: em release ele é false, e é justamente por isso que
+    // o literal antigo tornava o piloto inalcançável. Provado injetando `__DEV__` verdadeiro.
+    const comDevLigado = load018('src/config/featureFlags.js',
+      { process: { env: {} }, __DEV__: true }, ['COLORIR_60_CREATION_PILOT_ENABLED']);
+    check('018·C60 [flag 3/6]: a cerca dupla é BUILD-TIME pura — `__DEV__` verdadeiro não abre o piloto sozinho',
+      comDevLigado.COLORIR_60_CREATION_PILOT_ENABLED === false,
+      'a flag passou a depender de __DEV__ — o mecanismo deixou de ser cercado por variáveis de build');
+
+    // O perfil do piloto NÃO liga nenhuma ferramenta interna (as outras flags do arquivo).
+    const flagsPiloto = c60ResolveFlags(ENV_PILOTO_REAL);
+    check('018·C60 [flag 4/6]: no env REAL do perfil `c60-pilot`, RELEASE_PACK_QA_ENABLED e CREATOR_QA_MODE_RELEASE_ENABLED continuam false',
+      flagsPiloto.COLORIR_60_CREATION_PILOT_ENABLED === true
+      && flagsPiloto.RELEASE_PACK_QA_ENABLED === false
+      && flagsPiloto.CREATOR_QA_MODE_RELEASE_ENABLED === false,
+      `o perfil do piloto ligou algo além do piloto: ${JSON.stringify(flagsPiloto)}`);
+
+    /* ── 2 · OS PERFIS: produção fechada por ausência (L1 + L3) ──────────────────────────── */
+
+    const abertos018 = NAO_PILOTO_018.filter((p) => c60PilotFlagUnder(easProfileEnv(p)));
+    check(`018·C60 [perfil 1/6] L1: TODO perfil que não é o do piloto resolve o Colorir 60 como FALSO (${NAO_PILOTO_018.join(', ')})`,
+      PERFIS_018.indexOf('production') !== -1 && abertos018.length === 0,
+      `perfis que abriram o piloto indevidamente: ${abertos018.join(', ') || '(production sumiu do eas.json)'}`);
+
+    const envProd018 = easProfileEnv('production');
+    check('018·C60 [perfil 2/6] L3: o bloco `production` do eas.json não declara NENHUMA das duas variáveis (fail-closed por ausência dupla)',
+      !(VAR_AUTORIZA in envProd018) && !(VAR_PERFIL in envProd018),
+      `o perfil de loja passou a declarar: ${[VAR_AUTORIZA, VAR_PERFIL].filter((k) => k in envProd018).join(', ')}`);
+
+    const vazamentos018 = NAO_PILOTO_018.filter((p) => {
+      const env = easProfileEnv(p);
+      return (VAR_AUTORIZA in env) || env[VAR_PERFIL] === C60_PILOT_PROFILE;
+    });
+    check('018·C60 [perfil 3/6] L3: nenhum perfil não-piloto declara a variável de autorização nem se apresenta como `c60-pilot`',
+      vazamentos018.length === 0,
+      `perfis com vazamento das variáveis do piloto: ${vazamentos018.join(', ')}`);
+
+    const pilotoDef = BUILD_018[C60_PILOT_PROFILE] || {};
+    const herdeiros018 = PERFIS_018.filter((p) => BUILD_018[p].extends === C60_PILOT_PROFILE);
+    check('018·C60 [perfil 4/6]: `c60-pilot` é interno, iOS + Android, com EXATAMENTE as duas variáveis, sem `extends` e sem herdeiros',
+      pilotoDef.distribution === 'internal'
+      && !!pilotoDef.ios && !!pilotoDef.android
+      && pilotoDef.android.buildType === 'apk'
+      && !('extends' in pilotoDef)
+      && herdeiros018.length === 0
+      && JSON.stringify(Object.keys(pilotoDef.env || {}).sort()) === JSON.stringify([VAR_PERFIL, VAR_AUTORIZA].sort())
+      && (pilotoDef.env || {})[VAR_AUTORIZA] === 'true'
+      && (pilotoDef.env || {})[VAR_PERFIL] === C60_PILOT_PROFILE,
+      `o perfil do piloto saiu do contrato: ${JSON.stringify(pilotoDef)}`);
+
+    // Sem Modo Criador, sem sandbox de packs, sem Release Pack QA, sem variáveis de produção.
+    const PROIBIDAS_NO_PILOTO = [
+      'EXPO_PUBLIC_ENABLE_PACK_SANDBOX', 'EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA', 'EXPO_PUBLIC_QA_BUILD',
+      'EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE', 'EXPO_PUBLIC_ENABLE_CHURCH_MODE', 'EXPO_PUBLIC_GLOBAL_MANIFEST_URL',
+    ];
+    const intrusas018 = PROIBIDAS_NO_PILOTO.filter((k) => k in ENV_PILOTO_REAL);
+    check('018·C60 [perfil 5/6]: o perfil do piloto NÃO declara QA de packs, Modo Criador, Modo Igreja nem variável de produção',
+      intrusas018.length === 0 && !pilotoDef.developmentClient,
+      `variáveis indevidas no perfil do piloto: ${intrusas018.join(', ')}${pilotoDef.developmentClient ? ' · developmentClient ligado (o piloto precisa ser release, __DEV__ = false)' : ''}`);
+
+    // Os perfis anteriores ficaram INTOCADOS — comparação por NOME de chave (nunca por valor:
+    // a URL do manifesto global não é impressa por este smoke).
+    const ENV_KEYS_ESPERADAS = Object.freeze({
+      development: [],
+      preview: ['EXPO_PUBLIC_BUILD_PROFILE', 'EXPO_PUBLIC_ENABLE_PACK_SANDBOX', 'EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA', 'EXPO_PUBLIC_GLOBAL_MANIFEST_URL', 'EXPO_PUBLIC_QA_BUILD'],
+      'preview-criador': ['EXPO_PUBLIC_BUILD_PROFILE', 'EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE', 'EXPO_PUBLIC_ENABLE_PACK_SANDBOX', 'EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA', 'EXPO_PUBLIC_GLOBAL_MANIFEST_URL', 'EXPO_PUBLIC_QA_BUILD'],
+      production: ['EXPO_PUBLIC_GLOBAL_MANIFEST_URL'],
+      screenshot: [],
+    });
+    const mexidos018 = Object.keys(ENV_KEYS_ESPERADAS).filter((p) => (
+      !BUILD_018[p]
+      || JSON.stringify(Object.keys((BUILD_018[p].env) || {}).sort()) !== JSON.stringify(ENV_KEYS_ESPERADAS[p])
+    ));
+    check('018·C60 [perfil 6/6]: os perfis PRÉ-EXISTENTES continuam com exatamente as mesmas chaves de env (a spec 018 não mexeu em nenhum)',
+      mexidos018.length === 0 && BUILD_018['preview-criador'].extends === 'preview',
+      `perfis alterados fora do escopo da spec 018: ${mexidos018.join(', ')}`);
+
+    /* ── 3 · O QUE APARECE: entradas infantis sim, internas não (L4) ─────────────────────── */
+
+    // Composição REAL das camadas: featureFlags → creatorQaMode → internalTools.
+    const internalToolsUnder = (env) => {
+      const f = c60ResolveFlags(env);
+      const qa = load018('src/services/creatorQaMode.js', {
+        AsyncStorage: { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} },
+        CREATOR_QA_MODE_RELEASE_ENABLED: f.CREATOR_QA_MODE_RELEASE_ENABLED,
+        __DEV__: false,
+      }, ['isCreatorQaModeAllowed']);
+      return load018('src/config/internalTools.js', {
+        isCreatorQaModeAllowed: qa.isCreatorQaModeAllowed,
+        RELEASE_PACK_QA_ENABLED: f.RELEASE_PACK_QA_ENABLED,
+        __DEV__: false,
+      }, ['isInternalToolsEnabled']).isInternalToolsEnabled();
+    };
+
+    // Gate compartilhado do piloto, com a flag resolvida de verdade e SEM ferramentas internas.
+    const pilotGateUnder = (env, mutate) => load018('src/services/coloring60Pilot.js', {
+      COLORIR_60_CREATION_PILOT_ENABLED: c60PilotFlagUnder(env),
+      isInternalToolsEnabled: () => internalToolsUnder(env),
+      __DEV__: false,
+    }, ['isColoring60PilotAllowed', 'isCreationColoringPilotActive'], mutate);
+
+    const gatePiloto = pilotGateUnder(ENV_PILOTO_REAL);
+    const gateProd = pilotGateUnder(envProd018);
+    check('018·C60 [infantil 1/4] L4: com o perfil do piloto, `isColoring60PilotAllowed()` é TRUE mesmo sem ferramentas internas — e em `production` é FALSE',
+      gatePiloto.isColoring60PilotAllowed() === true && gateProd.isColoring60PilotAllowed() === false,
+      'o portão compartilhado do piloto deixou de responder à flag oficial (ou abriu em produção)');
+
+    check('018·C60 [infantil 2/4] L4: o piloto ativa SOMENTE "A Criação" — nenhuma outra história muda',
+      gatePiloto.isCreationColoringPilotActive('creation') === true
+      && gatePiloto.isCreationColoringPilotActive('noah') === false
+      && gatePiloto.isCreationColoringPilotActive('david_goliath') === false,
+      'o piloto passou a valer para histórias fora de "A Criação"');
+
+    // A entrada infantil da tela de detalhe: a EXPRESSÃO REAL é extraída do fonte e EXECUTADA
+    // (não conferida por texto), com cada dependência injetada como parâmetro.
+    const sdSrc018 = readSrc('src/screens/StoryDetailScreen.js');
+    const mGate018 = /const creationColoringVisible\s*=\s*([\s\S]*?);\r?\n/.exec(sdSrc018);
+    const gateSD = mGate018 && new Function(
+      'story', 'CREATION_STORY_ID', 'COLORIR_60_CREATION_PILOT_ENABLED', '__DEV__', 'isInternalToolsEnabled',
+      `return (${mGate018[1]});`,
+    );
+    const flagPiloto018 = c60PilotFlagUnder(ENV_PILOTO_REAL);
+    check('018·C60 [infantil 3/4] L4: a entrada infantil do detalhe (`creationColoringVisible`) EXECUTADA abre para "A Criação" no perfil do piloto, fecha em produção e nunca vaza para outra história',
+      !!gateSD
+      && gateSD({ id: 'creation' }, 'creation', flagPiloto018, false, () => false) === true
+      && gateSD({ id: 'creation' }, 'creation', c60PilotFlagUnder(envProd018), false, () => false) === false
+      && gateSD({ id: 'noah' }, 'creation', flagPiloto018, false, () => false) === false,
+      mGate018 ? 'a expressão real de creationColoringVisible deixou de responder à flag do piloto' : 'a expressão `creationColoringVisible` sumiu de StoryDetailScreen.js');
+
+    const cat018 = load018('src/data/coloring60Catalog.js', {}, ['getColoring60Activities']);
+    const dispUnder = (permitido) => load018('src/services/storyColoringAvailability.js', {
+      getColoring60Activities: cat018.getColoring60Activities,
+      isColoring60PilotAllowed: () => permitido,
+    }, ['isStoryColoringAvailable', 'countStoryColoringActivities']);
+    const dispOn = dispUnder(true);
+    const dispOff = dispUnder(false);
+    // A porta canônica é `isStoryColoringAvailable` — é ela que o journey consulta. (O
+    // `activityCount` de portão fechado NÃO é asserido aqui: é dado interno do resolvedor,
+    // fora do contrato do piloto, e a spec 018 não toca este arquivo.)
+    check('018·C60 [infantil 4/4] L4: com o piloto autorizado "A Criação" passa a TER colorir (3 atividades); com o portão fechado, não tem colorir — e nenhuma outra história tem',
+      dispOn.isStoryColoringAvailable('creation') === true
+      && dispOn.countStoryColoringActivities('creation') === 3
+      && dispOff.isStoryColoringAvailable('creation') === false
+      && dispOn.isStoryColoringAvailable('noah') === false
+      && dispOff.isStoryColoringAvailable('noah') === false,
+      'o contrato de disponibilidade do colorir deixou de acompanhar o portão do piloto');
+
+    // As ferramentas INTERNAS continuam ausentes: `isInternalToolsEnabled()` é a fonte única e
+    // resolve FALSE no perfil do piloto (sem sandbox de packs, sem Modo Criador, sem __DEV__).
+    check('018·C60 [interno 1/2] L4: no perfil do piloto `isInternalToolsEnabled()` é FALSE (execução real das três camadas) — e também em produção',
+      internalToolsUnder(ENV_PILOTO_REAL) === false
+      && internalToolsUnder(envProd018) === false
+      && internalToolsUnder(easProfileEnv('preview-criador')) === true,
+      `as ferramentas internas apareceriam no build do piloto (piloto=${internalToolsUnder(ENV_PILOTO_REAL)})`);
+
+    const paCode018 = codeOf('src/screens/ParentAreaScreen.js');
+    const navCode018 = codeOf('src/navigation/AppNavigator.js');
+    check('018·C60 [interno 2/2] L4: as entradas internas do C60 (card do piloto e Bancada) e a rota `Coloring60Lab` continuam presas a `isInternalToolsEnabled()`',
+      /const SHOW_TEST_TOOLS = isInternalToolsEnabled\(\);/.test(paCode018)
+      && /\{SHOW_TEST_TOOLS && \(/.test(paCode018)
+      && /\{isInternalToolsEnabled\(\) && \(\s*[\s\S]{0,200}?name="Coloring60Lab"/.test(navCode018),
+      'uma entrada interna do Colorir 60 saiu do gate único de ferramentas internas');
+
+    /* ── 4 · O EFEITO OBSERVÁVEL sobre progresso (L5) — sem alterar lógica ───────────────── */
+
+    const J018 = load018('src/services/storyJourneyService.js', {}, ['getStoryJourneyStatus']);
+    const BASE_018 = Object.freeze({
+      totalScenes: 10, sceneDoneCount: 10, accessStatus: 'full', accessType: 'free',
+      postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+    });
+    const criacao = (coloringAvailable, coloringComplete) => J018.getStoryJourneyStatus(
+      Object.assign({}, BASE_018, { coloringAvailable, coloringComplete, isFirstStory: true }));
+
+    const antes018 = criacao(false, false).journeyComplete;   // instalação de hoje (piloto fechado)
+    const depois018 = criacao(true, false).journeyComplete;   // piloto ligado, ainda sem colorir
+    const restaurado018 = criacao(true, true).journeyComplete; // depois de 1 atividade
+    check('018·C60 [progresso 1/4] L5: ligar o piloto passa a EXIGIR colorir para o journeyComplete de "A Criação" (efeito observável, medido no serviço real)',
+      antes018 === true && depois018 === false && restaurado018 === true,
+      `a fórmula da jornada não reagiu como esperado (antes=${antes018}, depois=${depois018}, restaurado=${restaurado018})`);
+
+    const C018 = load018('src/services/storyColoringCompletion.js', {
+      isCreationColoringPilotActive: () => true,
+      loadColoring60JourneyState: async () => ({}),
+    }, ['isStoryColoringComplete']);
+    check('018·C60 [progresso 2/4] L5: UMA única atividade concluída já restaura a conclusão (`count >= 1`) — a restauração não exige as três',
+      C018.isStoryColoringComplete(0) === false
+      && C018.isStoryColoringComplete(1) === true
+      && C018.isStoryColoringComplete(3) === true,
+      'o critério de conclusão do colorir deixou de ser "pelo menos uma atividade"');
+
+    // Noé: a história imediatamente seguinte na ORDEM OFICIAL — obtida por EXECUÇÃO do mapa real
+    // (os `require` de imagem são dublados: identidade e ordem não dependem dos arquivos).
+    const ST018 = load018('src/data/stories.js', { require: () => null }, ['stories']);
+    const ORDEM018 = load018('src/data/adventureMap.js',
+      { stories: ST018.stories, require: () => null }, ['getOrderedAdventureStories'])
+      .getOrderedAdventureStories().map((s) => s.id);
+    const noahBloqueado = J018.getStoryJourneyStatus(Object.assign({}, BASE_018, {
+      sceneDoneCount: 0, postStoryStatus: null, coloringAvailable: false, coloringComplete: false,
+      isFirstStory: false, previousJourneyComplete: depois018,
+    }));
+    const noahLiberado = J018.getStoryJourneyStatus(Object.assign({}, BASE_018, {
+      sceneDoneCount: 0, postStoryStatus: null, coloringAvailable: false, coloringComplete: false,
+      isFirstStory: false, previousJourneyComplete: restaurado018,
+    }));
+    check('018·C60 [progresso 3/4] L5: Noé é a história logo após "A Criação" na ordem oficial e, com a jornada anterior incompleta, cai em bloqueio de sequência — voltando a abrir com 1 atividade',
+      ORDEM018[0] === 'creation' && ORDEM018[1] === 'noah'
+      && noahBloqueado.sequenceUnlocked === false && noahBloqueado.canOpen === false
+      && noahLiberado.sequenceUnlocked === true && noahLiberado.canOpen === true,
+      `a hipótese de progresso do piloto não se confirmou no serviço real (ordem=${ORDEM018.slice(0, 2).join(' → ')}, bloqueado=${noahBloqueado.sequenceUnlocked}, liberado=${noahLiberado.sequenceUnlocked})`);
+
+    // A spec 018 NÃO altera progresso: a lógica de jornada, disponibilidade e conclusão fica
+    // byte a byte idêntica ao baseline, e a fiação do ProgressContext permanece intacta.
+    const sha018 = (rel) => require('crypto').createHash('sha256').update(fs.readFileSync(path.join(root, rel))).digest('hex');
+    const progCode018 = readSrc('src/context/ProgressContext.js');
+    check('018·C60 [progresso 4/4] L5: a spec 018 NÃO tocou a lógica de progresso — jornada, disponibilidade e conclusão inalteradas (SHA-256) e a fiação do ProgressContext intacta',
+      sha018('src/services/storyJourneyService.js') === 'bc960980621fc8194d2dccc1d1cb2776bb2814b2f5faefcb8539e1e59f2fa7c5'
+      && sha018('src/services/storyColoringAvailability.js') === 'f7a48324fd332f1350175d07e5f238c09684190ef0cd10ac424f16b031a87b9f'
+      && sha018('src/services/storyColoringCompletion.js') === 'b26995f9dd23e9597b412d468f20f3a3e89b11bcf50855ed3d29e4ce1feacf00'
+      && /coloringAvailable: isStoryColoringAvailable\(storyId\),/.test(progCode018)
+      && /return isStoryJourneyComplete\(ORDERED_STORY_IDS\[idx - 1\]\);/.test(progCode018),
+      'a spec 018 é de configuração, testes e governança — nenhuma regra de conclusão ou desbloqueio pode mudar aqui');
+
+    /* ── 5 · GATES e GOVERNANÇA (L6 + L7) ───────────────────────────────────────────────── */
+
+    const verifSrc018 = readSrc('scripts/verify-coloring60-assets.js');
+    check('018·C60 [gate] L6: o verificador dos ativos C60 continua um gate SEPARADO e obrigatório — CLI própria, e o smoke não o executa no lugar dele',
+      srcExists('scripts/verify-coloring60-assets.js')
+      && /if \(require\.main === module\)/.test(verifSrc018)
+      && !/execSync\([^)]*verify-coloring60-assets|spawnSync\([^)]*verify-coloring60-assets/.test(readSrc('scripts/smoke.js')),
+      'o verificador de ativos deixou de existir como gate independente (ou o smoke passou a executá-lo, mascarando o portão)');
+
+    const CHECKLIST_018 = 'docs/PRODUCTION_FLAGS_CHECKLIST.md';
+    const docFlags018 = readSrc(CHECKLIST_018);
+    check(`018·C60 [doc] L7: ${CHECKLIST_018} documenta a flag, as DUAS variáveis, o perfil interno e o fechamento da produção`,
+      /COLORIR_60_CREATION_PILOT_ENABLED/.test(docFlags018)
+      && new RegExp(VAR_AUTORIZA).test(docFlags018)
+      && new RegExp(VAR_PERFIL).test(docFlags018)
+      && /c60-pilot/.test(docFlags018)
+      && /verify-coloring60-assets/.test(docFlags018),
+      'o checklist de produção precisa registrar a flag do piloto, as duas variáveis, o perfil e o verificador como gate');
+
+    /* ── 6 · CONTROLES NEGATIVOS ANTITAUTOLÓGICOS ───────────────────────────────────────────
+     * Cada controle MUTA o fonte de produção (ou o eas.json em memória) e exige que a prova
+     * correspondente CAIA. Sem isso, um teste pode estar verde por construção. As mutações de
+     * fonte passam por `loadModule(..., mutate)`, que LANÇA quando a âncora não é encontrada —
+     * então um controle que envelhecer vira ERRO, nunca falso verde. Nenhum arquivo é escrito.
+     * ─────────────────────────────────────────────────────────────────────────────────────── */
+    const CN018 = [];
+    const cn018 = (id, alvo, descricao, original, mutante) => CN018.push({ id, alvo, descricao, original, mutante });
+    const seguro018 = (fn) => { try { return fn(); } catch (e) { return `ERRO: ${e.message}`; } };
+
+    // CN-018-1 — a conjunção vira literal `true`: produção passaria a abrir o piloto (L1 cai).
+    const mutLiteralTrue = (s) => s.replace(
+      /process\.env\.EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true' &&[\s\S]*?=== 'c60-pilot'/, 'true');
+    cn018('CN-018-1', 'featureFlags.js', 'a cerca dupla vira literal `true` e a LOJA passa a abrir o piloto',
+      c60PilotFlagUnder(envProd018) === false,
+      seguro018(() => c60PilotFlagUnder(envProd018, mutLiteralTrue) === false));
+
+    // CN-018-2 — a conjunção vira disjunção: uma variável isolada passaria a abrir (L2 cai).
+    const mutOu = (s) => s.replace(/process\.env\.EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true' &&/,
+      "process.env.EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true' ||");
+    cn018('CN-018-2', 'featureFlags.js', 'a conjunção vira disjunção e uma variável isolada abre o piloto',
+      c60PilotFlagUnder({ [VAR_AUTORIZA]: 'true' }) === false,
+      seguro018(() => c60PilotFlagUnder({ [VAR_AUTORIZA]: 'true' }, mutOu) === false));
+
+    // CN-018-3 — a comparação estrita vira coerção: `'1'` passaria a abrir (a prova de rigor cai).
+    const mutFrouxo = (s) => s.replace(/process\.env\.EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true'/,
+      'Boolean(process.env.EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT)');
+    cn018('CN-018-3', 'featureFlags.js', 'a comparação literal vira coerção e `1` passa a valer como autorização',
+      c60PilotFlagUnder({ [VAR_AUTORIZA]: '1', [VAR_PERFIL]: C60_PILOT_PROFILE }) === false,
+      seguro018(() => c60PilotFlagUnder({ [VAR_AUTORIZA]: '1', [VAR_PERFIL]: C60_PILOT_PROFILE }, mutFrouxo) === false));
+
+    // CN-018-4 — as variáveis do piloto vazam para o bloco `production` do eas.json (L3 cai).
+    const easMut018 = JSON.parse(readSrc('eas.json'));
+    easMut018.build.production.env[VAR_AUTORIZA] = 'true';
+    easMut018.build.production.env[VAR_PERFIL] = C60_PILOT_PROFILE;
+    const provaL3 = (build) => {
+      const env = build.production.env || {};
+      return !(VAR_AUTORIZA in env) && !(VAR_PERFIL in env);
+    };
+    cn018('CN-018-4', 'eas.json (em memória)', 'o par de variáveis vaza para o perfil de loja',
+      provaL3(BUILD_018) === true && c60PilotFlagUnder(envProd018) === false,
+      provaL3(easMut018.build) === true && c60PilotFlagUnder(easMut018.build.production.env) === false);
+
+    // CN-018-5 — a jornada deixa de exigir colorir: o efeito de L5 sumiria sem ninguém notar.
+    const mutJornada = (s) => s.replace(/&& \(!coloringRequired \|\| coloringComplete\)/, '&& true');
+    const jornadaMutante = seguro018(() => load018('src/services/storyJourneyService.js', {}, ['getStoryJourneyStatus'], mutJornada));
+    cn018('CN-018-5', 'storyJourneyService.js', 'a jornada deixa de exigir colorir e o efeito do piloto some',
+      depois018 === false,
+      seguro018(() => typeof jornadaMutante === 'string'
+        ? jornadaMutante
+        : jornadaMutante.getStoryJourneyStatus(Object.assign({}, BASE_018, { coloringAvailable: true, coloringComplete: false, isFirstStory: true })).journeyComplete === false));
+
+    // CN-018-6 — o portão compartilhado ignora a flag oficial: a entrada infantil nunca abriria.
+    const mutPortao = (s) => s.replace(/if \(COLORIR_60_CREATION_PILOT_ENABLED\) return true;/, 'if (false) return true;');
+    cn018('CN-018-6', 'coloring60Pilot.js', 'o portão compartilhado ignora a flag oficial e a entrada infantil não abre no piloto',
+      gatePiloto.isColoring60PilotAllowed() === true,
+      seguro018(() => pilotGateUnder(ENV_PILOTO_REAL, mutPortao).isColoring60PilotAllowed() === true));
+
+    for (const c of CN018) {
+      check(`018·C60 [negativo ${c.id}]: ${c.alvo} — ${c.descricao}`,
+        c.original === true && c.mutante === false,
+        `o controle negativo não distinguiu o certo do errado (original=${JSON.stringify(c.original)} · mutante=${JSON.stringify(c.mutante)})`);
+    }
+    check('018·C60 [negativos]: os seis controles negativos rodaram e nenhum mutante sobreviveu',
+      CN018.length === 6 && CN018.every((c) => c.original === true && c.mutante === false),
+      `executados=${CN018.length}, sobreviventes=${CN018.filter((c) => c.original === c.mutante).map((c) => c.id).join(', ') || '(nenhum)'}`);
+
+    // Fecho: depois de TODA a encenação acima, o repositório continua entregando o piloto cercado.
+    check('018·C60 [fecho]: encerrada a encenação, o estado versionado continua com o piloto CERCADO (fechado por padrão, aberto só pela cerca dupla autorizada)',
+      c60PilotSealed(),
+      c60SealFail('018·C60 [fecho]'));
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
