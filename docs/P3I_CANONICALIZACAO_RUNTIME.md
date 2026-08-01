@@ -176,6 +176,11 @@ teste interno continua determinístico: `preview` (packs) e `preview-criador` (p
 seguem exigindo o conjunto fechado de variáveis do `eas.json`; `production` e `screenshot` não
 declaram nenhuma.
 
+> **[spec 018 · 2026-08-01]** Este parágrafo continua válido. Na branch `integrate/c60-pilot-activation`
+> o literal virou uma **cerca dupla** de build e ganhou um perfil interno próprio (`c60-pilot`),
+> sem mudar `isColoring60PilotAllowed()` nem o comportamento do dev build: sem as duas variáveis, a
+> flag segue resolvendo `false`. Ver §7, item 2.
+
 ---
 
 ## 4. Procedimento do novo development build (requer autorização — nada foi executado)
@@ -318,8 +323,16 @@ build **sobre** o app atual é uma substituição no mesmo contêiner:
 
 1. **Ratificar a excisão** das 89 verificações descritas em §1.2 (ou determinar o caminho oposto,
    com as quatro perdas listadas).
-2. **`COLORIR_60_CREATION_PILOT_ENABLED`** permanece `false` na linha canônica? (Hoje sim; o
-   piloto aparece no dev build por `__DEV__`, sem alterar a flag.)
+2. ~~**`COLORIR_60_CREATION_PILOT_ENABLED`** permanece `false` na linha canônica? (Hoje sim; o
+   piloto aparece no dev build por `__DEV__`, sem alterar a flag.)~~ → ✅ **RESOLVIDA em
+   2026-08-01 pela spec 018**, em branch **separada** (`integrate/c60-pilot-activation`, nascida
+   de `e07e8bc`): a linha canônica **não foi alterada**. O literal deu lugar a uma **cerca dupla**
+   de build (`EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true'` **e**
+   `EXPO_PUBLIC_BUILD_PROFILE === 'c60-pilot'`), servida **apenas** pelo novo perfil interno
+   `c60-pilot`. O comportamento descrito em §3.5 **continua valendo**: no dev build o piloto
+   segue aparecendo por `__DEV__`, sem depender da flag. Produção permanece fechada por
+   **ausência dupla**. Ver `docs/DECISIONS.md` → `D-C60-PILOT-ATIVACAO` e
+   `docs/PRODUCTION_FLAGS_CHECKLIST.md`.
 3. **`C:\tmp\ptf_colorir60_creation_production`** — as artes de produção aprovadas que vivem fora
    do repositório devem ser arquivadas em local versionado/auditado ou descartadas?
 4. **Push** da branch `integrate/colorir-canonical-runtime`: **não** foi feito e aguarda
