@@ -92,7 +92,10 @@ Cada tela é avaliada em 5 dimensões:
 
 ---
 
-## AtelierScreen / AtelierGalleryScreen / AtelierCanvasScreen
+## AtelierGalleryScreen / AtelierCanvasScreen
+
+> **P3J-R.1 FIX1:** `AtelierScreen.js` (hub legado "Ateliê do Beni") foi **removido** do
+> projeto. A auditoria abaixo cobre apenas as duas telas que permanecem.
 
 | Estado | Status | Detalhe |
 |---|---|---|

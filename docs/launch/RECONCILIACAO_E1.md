@@ -75,7 +75,7 @@ Modo Criador (invisível em produção), Conteúdo visual (M3 após imagens fina
 
 1. **Avatares** — código desbloqueia por estrelinhas; decisão = adicionais do Plano Família. → bloco Acesso/RevenueCat.
 2. **Rodadas** — código conta por dispositivo; decisão = por criança. → bloco Acesso/RevenueCat.
-3. **UI residual "X de N artes"** em `AtelierScreen.js`/`AtelierGalleryScreen.js` (fluxo contextual). → limpeza futura.
+3. **UI residual "X de N artes"** em ~~`AtelierScreen.js`~~/`AtelierGalleryScreen.js` (fluxo contextual). → limpeza futura. *(Nota posterior — P3J-R.1 FIX1: `AtelierScreen.js` foi removido do projeto; a pendência resta só na galeria.)*
 4. **Card/atalho "Criar com Beni" na Home** — redirecionar/remover. → bloco futuro de Home/onboarding.
 5. **Premium ainda no binário** (require() + sem `assetBundlePatterns`). → bloco 2C.
 

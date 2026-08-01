@@ -131,7 +131,7 @@ O Ateliê funciona **100% offline** — sem backend, sem login, sem sincronizaç
 
 | Tela | Arquivo | Função |
 |---|---|---|
-| Hub do Ateliê | `src/screens/AtelierScreen.js` | Cards de entrada |
+| ~~Hub do Ateliê~~ 🪦 | ~~`src/screens/AtelierScreen.js`~~ | **REMOVIDO em P3J-R.1 FIX1.** A tela-hub "Ateliê do Beni" (Mesa criativa, Colorir com o Beni, Desenho guiado, Criar livre, Minhas artes) deixou de existir e não é mais alcançável. As entradas de criação vivem na aba **Brincar** (`BrincarScreen.js`); o Cultinho abre o **Criar livre canônico** direto. |
 | Canvas de desenho | `src/screens/AtelierCanvasScreen.js` | Desenhar, salvar |
 | Galeria | `src/screens/AtelierGalleryScreen.js` | Listar, visualizar, apagar |
 | Canvas (componente) | `src/components/AtelierCanvas.js` | WebView canvas livre |

@@ -84,7 +84,8 @@ Guias usam `SoundButton ... silent` (não conflitam com sons de UI). A **narraç
 - **Estrelas como paginação** (`ProgressStars` usa ★/✦/☆) — conflita com estrelinhas = recompensa.
 - **Beni sempre em círculo** (`BeniAvatar`), nunca personagem em cena.
 - **Rótulos repetidos "Menino"/"Menino"/"Menina"/"Menina"** em `ONBOARDING_AVATAR_OPTIONS`.
-- **Legado vivo:** `HOME_GUIDE` card **"Criar com Beni"** (`guide.home.create_beni`); `ATELIER_GUIDE` inteiro ("Seu Ateliê", "Colorir histórias", "Desenho guiado", "Criar livre", "Minhas artes") + **5 áudios `guide.atelier.*`** — disparado pela `AtelierScreen` contextual (fluxo Cultinho), **não** pela aba Brincar.
+- **Legado vivo:** `HOME_GUIDE` card **"Criar com Beni"** (`guide.home.create_beni`); `ATELIER_GUIDE` inteiro ("Seu Ateliê", "Colorir histórias", "Desenho guiado", "Criar livre", "Minhas artes") + **5 áudios `guide.atelier.*`** — ~~disparado pela `AtelierScreen` contextual (fluxo Cultinho), **não** pela aba Brincar~~.
+  > **Nota posterior (P3J-R.1 FIX1):** `AtelierScreen` foi **removida** e o Cultinho passou a abrir o Criar livre canônico direto. Logo o `ATELIER_GUIDE` e os 5 áudios `guide.atelier.*` **não são mais disparados por tela alguma** — viraram dado sem consumidor, mantidos de propósito para não orfanar áudio (manifesto = área protegida). A higiene desses guias segue pendente.
 - **`ADVENTURES_GUIDE`** = dado morto (não disparado; substituído pelo `INITIAL_TOUR`).
 - Rota interna ainda `'Ateliê'` (identidade), hardcoded no `reset` do onboarding — **funciona, mantém-se** (E1-NAV-5ABAS).
 - **Sem controles de voz/pular no onboarding** (existem só no tour pós-onboarding).
@@ -359,7 +360,7 @@ Estruturais/smoke: 4 momentos presentes · uma ação principal por momento · s
 1. **Arte nova (traço + Mundo)** é o maior risco de prazo/consistência — depende de asset dedicado (não gerar agora).
 2. **"{nome}" na fala** — TTS com nome dinâmico é caro/instável; mitigação: nome só em texto, fala genérica.
 3. **Encanto × tempo** — animações longas antes da 1ª ação prejudicam crianças pequenas; contrato de movimento limita isso.
-4. **Higiene de guias legados** (Ateliê/Criar com Beni) pode ter efeitos colaterais em telas contextuais (`AtelierScreen`) — tratar em O4 com cuidado.
+4. **Higiene de guias legados** (Ateliê/Criar com Beni) pode ter efeitos colaterais em telas contextuais (~~`AtelierScreen`~~) — tratar em O4 com cuidado. *(Nota posterior — P3J-R.1 FIX1: `AtelierScreen` foi removida; o risco de efeito colateral em tela contextual **deixou de existir**, restando só o dado órfão.)*
 5. **Capa de A Criação** depende do congelamento visual (M3) — usar a capa oficial atual; se mudar, é só troca de asset.
 6. **Movimento reduzido / memória baixa** exigem caminhos estáticos testados.
 

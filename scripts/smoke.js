@@ -323,7 +323,8 @@ check(
     /const SCROLL_BOTTOM_PAD = [0-8]\b/.test(readSrc('src/screens/AdventureMapScreen.js')) &&
     readSrc('src/screens/AdventureMapScreen.js').includes('paddingBottom: SCROLL_BOTTOM_PAD') &&
     !readSrc('src/screens/HomeScreen.js').includes('insets.bottom + 80') &&
-    !readSrc('src/screens/AtelierScreen.js').includes('insets.bottom + 72') &&
+    // [P3J-R.1 FIX1] Era `AtelierScreen.js` (hub legado, removido). A tela da aba hoje é a Brincar.
+    !readSrc('src/screens/BrincarScreen.js').includes('insets.bottom + 72') &&
     !readSrc('src/screens/ProfileScreen.js').includes('insets.bottom + 72') &&
     !readSrc('src/screens/TrophiesScreen.js').includes('insets.bottom + 64') &&
     !readSrc('src/screens/ParentAreaScreen.js').includes('insets.bottom + 48'),
@@ -1930,7 +1931,6 @@ check(
 console.log('\n── Sprint 8: Ateliê e Galeria Local ──');
 
 const atelierStorageSrc  = readSrc('src/services/atelierStorage.js');
-const atelierScreenSrc   = readSrc('src/screens/AtelierScreen.js');
 const atelierCanvasSrc   = readSrc('src/screens/AtelierCanvasScreen.js');
 const atelierGallerySrc  = readSrc('src/screens/AtelierGalleryScreen.js');
 const drawingStorageSrc  = readSrc('src/services/drawingStorage.js');
@@ -2017,28 +2017,10 @@ check(
   'AtelierCanvasScreen uses ENABLE_LOCAL_PREMIUM_TEST_MODE directly — must go through accessControl',
 );
 
-// [P3J · D2] A regressão B1 protegia a porta "Escolher cena", que mandava a criança à lista de
-// aventuras para pintar uma CENA pelo Colorir legado. Essa porta não existe mais — mandar a criança
-// escolher histórias sem colorir é exatamente o que a decisão do fundador proíbe. A asserção passou
-// a cobrir a porta que a substituiu, com as regras D2 inteiras num só lugar: card "Colorir com o
-// Beni", gateado pelo MESMO portão do piloto, levando à seção canônica (StoryDetail — sem rota
-// paralela) e OMITIDO por inteiro quando indisponível (`: null`, sem card vazio nem "em breve").
-check(
-  'AtelierScreen [P3J·D2]: card "Colorir com o Beni" gateado, para a seção canônica, omitido quando indisponível — sem a porta legada por cena',
-  (() => {
-    const code = codeOf('src/screens/AtelierScreen.js');
-    const semPortaLegada = !/navigate\(\s*'Aventuras'\s*\)/.test(code)
-      && !code.includes("screen: 'Aventuras'")
-      && !code.includes('Escolher cena');
-    const cardCanonico = code.includes("<Text style={styles.cardTitlePrincipal}>Colorir com o Beni</Text>")
-      && /const colorirComBeniVisible = isColoring60PilotAllowed\(\)/.test(code)
-      && /colorirComBeniVisible \? \([\s\S]*?\) : null;/.test(code)
-      && code.includes("navigation.navigate('StoryDetail'");
-    const semRotaParalela = !/navigate\(\s*'Coloring'/.test(code) && !code.includes('em breve');
-    return semPortaLegada && cardCanonico && semRotaParalela;
-  })(),
-  'o Ateliê perdeu o card canônico do Colorir com o Beni, criou rota paralela/"em breve", ou a porta legada por cena voltou',
-);
+// [P3J · D2 → P3J-R.1 FIX1] A asserção original protegia o card "Colorir com o Beni" DENTRO da
+// tela-hub `AtelierScreen`. Essa tela foi REMOVIDA (decisão D-CULTINHO-CRIAR-LIVRE): o hub não
+// existe mais, logo não há mais card a proteger ali. A garantia que interessa migrou para o bloco
+// [P3J-R.1 FIX1] no fim deste arquivo — que prova que a tela legada sumiu e não é alcançável.
 
 // Limit modal → ParentArea
 check(
@@ -2424,21 +2406,8 @@ check(
   'StoryDetailScreen locked label still says "💎 Ver Plano Familiar" — must be "Pedir ao responsável"',
 );
 
-// AtelierScreen grammar
-const atelierSrc9 = readSrc('src/screens/AtelierScreen.js');
-
-check(
-  'AtelierScreen header subtitle corrected (no "crie artes especiais com sua imaginação")',
-  !atelierSrc9.includes('crie artes especiais com sua imaginação'),
-  'AtelierScreen header subtitle not corrected — still has old grammar',
-);
-
-check(
-  'AtelierScreen: card "Desenho guiado pelo Beni" explica a ação (Receba uma ideia simples)',
-  atelierSrc9.includes('Desenho guiado pelo Beni') &&
-  atelierSrc9.includes('Receba uma ideia simples para desenhar hoje'),
-  'AtelierScreen não tem o card "Desenho guiado pelo Beni" com a explicação correta',
-);
+// [P3J-R.1 FIX1] As duas asserções de gramática/copy da `AtelierScreen` (subtítulo do cabeçalho e
+// card "Desenho guiado pelo Beni") caíram com a própria tela, removida neste bloco.
 
 // ── [304–337] Sprint 9.1 — Safe Area real, FaithIcon aplicado, linguagem ──────
 console.log('\n── Sprint 9.1: Safe Area real, FaithIcon, Especial da Família ──');
@@ -6762,7 +6731,6 @@ check(
   const hookSrc = readSrc('src/hooks/useScreenGuide.js');
   const guidesData = readSrc('src/data/beniGuides.js');
   const homeSrc = readSrc('src/screens/HomeScreen.js');
-  const atelierSrc = readSrc('src/screens/AtelierScreen.js');
   const trophiesSrc = readSrc('src/screens/TrophiesScreen.js');
   const profileSrc = readSrc('src/screens/ProfileScreen.js');
   check(
@@ -6801,9 +6769,12 @@ check(
     parentTour.includes("useScreenGuide('parentArea', false)"),
     'guia da Área dos Pais deveria seguir desativado (terá guia próprio depois)',
   );
-  // ── ATELIÊ 1.0: guia falado do Ateliê (4 cards) com alvos medidos ────────────
+  // ── ATELIÊ 1.0: guia falado do Ateliê (dado + áudio) ─────────────────────────
+  // [P3J-R.1 FIX1] A TELA que disparava este guia (`AtelierScreen`) foi removida. O DADO e os 5
+  // áudios `guide.atelier.*` permanecem — resíduo declarado: apagá-los orfanaria áudio real e
+  // mexeria em manifesto de áudio (área protegida). Por isso as asserções de MANIFESTO e de DADO
+  // continuam vivas; as que liam a tela caíram junto com ela.
   const atelierManifest = readSrc('src/data/beniGuideAudio.js');
-  const atelierGuideSrc = readSrc('src/screens/AtelierScreen.js');
   check(
     'ATELIÊ1.1: manifesto tem as 5 chaves de áudio do Ateliê (inclui guided_drawing; require de atelier/, null-safe)',
     ['welcome', 'coloring', 'guided_drawing', 'free_draw', 'gallery'].every((k) =>
@@ -6813,30 +6784,12 @@ check(
     'manifesto não tem as 5 chaves/áudios do Ateliê corretamente (guided_drawing incluso)',
   );
   check(
-    'ATELIÊ1.1: ATELIER_GUIDE tem 5 cards CURTOS; Card 1 destaca Ateliê; Desenho guiado incluso; cards 2-5 com alvo medido; Entendi',
+    'ATELIÊ1.1: ATELIER_GUIDE tem 5 cards CURTOS; Card 1 destaca Ateliê; Desenho guiado incluso; cards 2-5 com alvo medido',
     (guidesData.match(/audioKey: 'guide\.atelier\./g) || []).length === 5 &&
     guidesData.includes("highlightTab: 'atelier'") &&
     guidesData.includes('guide.atelier.guided_drawing') &&
-    ['atelier.coloring', 'atelier.guided', 'atelier.free_draw', 'atelier.gallery'].every((t) => guidesData.includes(`target: '${t}'`)) &&
-    atelierGuideSrc.includes("finalLabel=\"Entendi\""),
+    ['atelier.coloring', 'atelier.guided', 'atelier.free_draw', 'atelier.gallery'].every((t) => guidesData.includes(`target: '${t}'`)),
     'ATELIER_GUIDE não tem 5 cards / falta Desenho guiado / falta alvo',
-  );
-  check(
-    'ATELIÊ1.1: AtelierScreen ativa o guia só pela aba, mede alvos reais nos cards (targetRef: coloring/guided/free_draw/gallery) e rola até o alvo',
-    atelierGuideSrc.includes("useScreenGuide('atelier', isFromTab(from))") &&
-    atelierGuideSrc.includes('useGuideTargets') &&
-    atelierGuideSrc.includes('measure={measureAtelierTarget}') &&
-    /atelierTargets\.measure\(name\)\.then\(\(r\) => r \|\| measureGuideTarget\(name\)\)/.test(atelierGuideSrc) &&
-    ['atelier.coloring', 'atelier.guided', 'atelier.free_draw', 'atelier.gallery'].every((t) => atelierGuideSrc.includes(`register('${t}')`)) &&
-    atelierGuideSrc.includes('scrollGuideTargetIntoView'),
-    'AtelierScreen não ativa/medê o guia do Ateliê corretamente (guided incluso)',
-  );
-  check(
-    'ATELIÊ1.1: Desenho guiado e Criar livre são cards IRMÃOS — ambos medidos no tile inteiro (tileTarget flex:1), halo coerente',
-    /tileTarget: \{ flex: 1 \}/.test(atelierGuideSrc) &&
-    (atelierGuideSrc.match(/style=\{styles\.tileTarget\}/g) || []).length === 2 &&
-    !atelierGuideSrc.includes('tileTargetWrap'),
-    'tiles do Ateliê não usam o mesmo wrapper medível (halo incoerente entre Desenho guiado e Criar livre)',
   );
   // ── ESTRELINHAS 1.0: guia falado de Estrelinhas (3 cards) com alvos medidos ──
   const starsManifest = readSrc('src/data/beniGuideAudio.js');
@@ -7276,7 +7229,8 @@ check(
     'FASE1.1.2: SÓ o tour do mapa usa embedded (Home/Ateliê/Estrelinhas/Perfil seguem modal bloqueante)',
     /measure=\{measureTarget\}\s*\n\s*embedded/.test(mapSrcTab) &&
     !readSrc('src/screens/HomeScreen.js').includes('embedded') &&
-    !readSrc('src/screens/AtelierScreen.js').includes('embedded') &&
+    // [P3J-R.1 FIX1] Era `AtelierScreen.js` (hub legado, removido); a tela da aba hoje é a Brincar.
+    !readSrc('src/screens/BrincarScreen.js').includes('embedded') &&
     !readSrc('src/screens/TrophiesScreen.js').includes('embedded') &&
     !readSrc('src/screens/ProfileScreen.js').includes('embedded'),
     'embedded vazou para outro guia (ou o tour do mapa não usa embedded)',
@@ -7288,7 +7242,8 @@ check(
     !overlaySrcTab.includes('styles.hintLine') &&
     !mapSrcTab.includes('hint=') &&
     !readSrc('src/screens/HomeScreen.js').includes('hint=') &&
-    !readSrc('src/screens/AtelierScreen.js').includes('hint=') &&
+    // [P3J-R.1 FIX1] Era `AtelierScreen.js` (hub legado, removido); a tela da aba hoje é a Brincar.
+    !readSrc('src/screens/BrincarScreen.js').includes('hint=') &&
     !readSrc('src/screens/TrophiesScreen.js').includes('hint=') &&
     !readSrc('src/screens/ProfileScreen.js').includes('hint='),
     'overlay ainda tem CTA/hint duplicados ou algum guia passa hint',
@@ -17717,7 +17672,8 @@ check(
 
 check(
   'Beni não é duplicado nas telas que já têm guia (sem BeniSpeechCard onde já há BeniGuideBubble)',
-  ['NarrationScreen', 'StoryDetailScreen', 'StoriesScreen', 'AtelierScreen'].every(s => {
+  // [P3J-R.1 FIX1] `AtelierScreen` saiu da lista porque o arquivo deixou de existir (hub removido).
+  ['NarrationScreen', 'StoryDetailScreen', 'StoriesScreen'].every(s => {
     const src = readSrc(`src/screens/${s}.js`);
     return !(src.includes('BeniGuideBubble') && src.includes('BeniSpeechCard'));
   }),
@@ -18311,21 +18267,10 @@ check(
   'StatusBadge in_progress ainda usa o ícone de player ▶',
 );
 
-const atelierMesaSrc = readSrc('src/screens/AtelierScreen.js');
-check(
-  'Ateliê: 3 ações claras (Colorir uma história / Desenho guiado pelo Beni / Criar livre)',
-  atelierMesaSrc.includes('Colorir uma história') && atelierMesaSrc.includes('Escolher cena') &&
-  atelierMesaSrc.includes('Desenho guiado pelo Beni') && atelierMesaSrc.includes('Começar desafio') &&
-  atelierMesaSrc.includes('Criar livre') && atelierMesaSrc.includes('Abrir folha'),
-  'Ateliê não tem as 3 ações renomeadas e explicadas',
-);
-check(
-  'Ateliê: Minhas artes com "Ver galeria" e aviso amigável de limite cheio',
-  atelierMesaSrc.includes('Ver galeria') &&
-  atelierMesaSrc.includes('use o Modo Criador nos') &&
-  atelierMesaSrc.includes('Plano Família'),
-  'Ateliê Minhas artes sem botão de galeria / aviso amigável de limite',
-);
+// [P3J-R.1 FIX1] As duas asserções da "Mesa criativa" (3 ações + Minhas artes) liam a tela-hub
+// `AtelierScreen`, REMOVIDA neste bloco. As entradas de criação vivem hoje na aba Brincar e são
+// cobertas pelas asserções da `BrincarScreen`; o que precisava ser garantido além disso — que a
+// tela legada sumiu e é inalcançável — está no bloco [P3J-R.1 FIX1] no fim deste arquivo.
 
 const canvasSrc2 = readSrc('src/screens/AtelierCanvasScreen.js');
 // C1 §6 — barra principal com 6 controles; ferramentas essenciais: Cor · Pincel · Apagar (+ Desfazer/Refazer/Mais).
@@ -19054,7 +18999,6 @@ const ux2Home = readSrc('src/screens/HomeScreen.js');
 const ux2Nav = readSrc('src/navigation/AppNavigator.js');
 const ux2Cultinho = readSrc('src/screens/CultinhoEmCasaScreen.js');
 const ux2Canvas = readSrc('src/screens/AtelierCanvasScreen.js');
-const ux2Atelier = readSrc('src/screens/AtelierScreen.js');
 const ux2Congrats = readSrc('src/screens/CongratsScreen.js');
 const ux2Coloring = readSrc('src/screens/ColoringScreen.js');
 const ux2Beni = readSrc('src/screens/BeniChestScreen.js');
@@ -19087,23 +19031,26 @@ check(
   'HomeScreen não tem o atalho Criar livre contextual',
 );
 
+// [P3J-R.1 FIX1] As três asserções deste ponto congelavam o COMPORTAMENTO ERRADO reprovado em
+// validação física: rota `AtelierFromContext` registrada, Cultinho abrindo essa rota, e a tela-hub
+// respondendo com back contextual. A decisão D-CULTINHO-CRIAR-LIVRE apagou as três premissas. O
+// contrato correto (Cultinho → Criar livre canônico, sem tela intermediária, tela legada
+// inexistente e inalcançável) está provado no bloco [P3J-R.1 FIX1] no fim deste arquivo.
 check(
-  'Bloco 2: AppNavigator registra rota Stack AtelierFromContext (sem quebrar a tab Ateliê)',
-  ux2Nav.includes('name="AtelierFromContext"') && ux2Nav.includes('component={AtelierScreen}'),
-  'AppNavigator não registra a rota AtelierFromContext',
+  'Bloco 2 [P3J-R.1 FIX1]: AppNavigator NÃO registra mais AtelierFromContext e mantém o Criar livre canônico (AtelierCanvas)',
+  !ux2Nav.includes('name="AtelierFromContext"') &&
+  !ux2Nav.includes('component={AtelierScreen}') &&
+  ux2Nav.includes('name="AtelierCanvas"') &&
+  ux2Nav.includes('component={AtelierCanvasScreen}'),
+  'a rota legada AtelierFromContext voltou ao AppNavigator, ou o AtelierCanvas canônico saiu',
 );
 
 check(
-  'Bloco 2: Cultinho abre o Ateliê via AtelierFromContext com from: cultinho (e pode voltar)',
-  ux2Cultinho.includes("navigation.navigate('AtelierFromContext'") &&
-  ux2Cultinho.includes("from: 'cultinho'"),
-  'CultinhoEmCasaScreen não abre AtelierFromContext from:cultinho',
-);
-
-check(
-  'Bloco 2: AtelierScreen mostra Voltar contextual quando não vem da tab (isFromTab/backLabelFor)',
-  ux2Atelier.includes('isFromTab') && ux2Atelier.includes('backLabelFor'),
-  'AtelierScreen não usa o back contextual por origem',
+  'Bloco 2 [P3J-R.1 FIX1]: Cultinho abre o Criar livre canônico (ROUTES.ATELIER_CANVAS) com from: cultinho — sem tela intermediária',
+  ux2Cultinho.includes('ROUTES.ATELIER_CANVAS') &&
+  ux2Cultinho.includes('ORIGIN.CULTINHO') &&
+  !codeOf('src/screens/CultinhoEmCasaScreen.js').includes('AtelierFromContext'),
+  'CultinhoEmCasaScreen não navega para o Criar livre canônico com from: cultinho',
 );
 
 check(
@@ -19137,10 +19084,12 @@ check(
 // (volta à história), não por rótulo de origem. A trava mantém o contrato onde ele continua vivo
 // e proíbe o retorno do rótulo de origem na tela do C60.
 check(
-  'Bloco 2 [P3J]: back contextual por origem preservado nas telas realmente reusadas (Baú/Estrelinhas/Ateliê/Brincar) — Colorir com o Beni sai por destino semântico',
+  'Bloco 2 [P3J → FIX1]: back contextual por origem preservado nas telas realmente reusadas (Baú/Estrelinhas/Brincar/Criar livre) — Colorir com o Beni sai por destino semântico',
   ux2Beni.includes('backLabelFor') &&
   ux2Trophies.includes('backLabelFor') &&
-  readSrc('src/screens/AtelierScreen.js').includes('backLabelFor') &&
+  // [P3J-R.1 FIX1] Era `AtelierScreen.js` (removida). A tela reusada por contexto hoje é o próprio
+  // Criar livre canônico, que passou a receber `from: 'cultinho'` vindo do Cultinho.
+  ux2Canvas.includes('backLabelFor') &&
   readSrc('src/screens/BrincarScreen.js').includes('backLabelFor') &&
   !ux2Coloring.includes('backLabelFor') &&
   !ux2Coloring.includes("from '../utils/originBack'"),
@@ -19374,16 +19323,16 @@ check(
   'CultinhoEmCasaScreen não usa a estrutura/conteúdo do cultinhoData',
 );
 
-// [P3J-R.1] A copy passou a ser "Criar juntos": o Cultinho abre o ATELIÊ (criação livre), que não
-// depende do piloto de colorir. Prometer "Colorir" ali era promessa que a tela de destino não
-// cumpre. A ROTA e o handler seguem intocados — o que mudou é só o texto lido pela família.
+// [P3J-R.1 → FIX1] A copy "Criar juntos" era correta, mas o DESTINO não: ia para a tela-hub legada
+// `AtelierFromContext`. Reprovado em validação física. Agora o botão abre o CRIAR LIVRE CANÔNICO —
+// a mesma rota/componente da aba Brincar — e a origem serve só ao retorno contextual.
 check(
-  'Bloco 4B → [P3J-R.1]: Criar juntos é opcional ao final, abre Ateliê from:cultinho e volta',
+  'Bloco 4B → [P3J-R.1 FIX1]: Criar juntos é opcional ao final e abre o Criar livre canônico from:cultinho',
   ux4bScreen.includes('Criar juntos (opcional)') &&
   !ux4bScreen.includes('Colorir juntos') &&
-  ux4bScreen.includes('handleColorirJuntos') &&
-  ux4bScreen.includes("navigation.navigate('AtelierFromContext', { from: 'cultinho' })"),
-  'CultinhoEmCasaScreen: Criar juntos não está opcional/contextual (from:cultinho)',
+  ux4bScreen.includes('handleCriarJuntos') &&
+  /navigation\.navigate\(ROUTES\.ATELIER_CANVAS, \{ from: ORIGIN\.CULTINHO \}\)/.test(ux4bScreen),
+  'CultinhoEmCasaScreen: Criar juntos não abre o Criar livre canônico com from: cultinho',
 );
 
 check(
@@ -20591,7 +20540,9 @@ console.log('\n── Sprint A3: navegação e storage leve ──');
 
 const a3StoryBook = readSrc('src/screens/StoryBookScreen.js');
 const a3Cultinho  = readSrc('src/screens/CultinhoEmCasaScreen.js');
-const a3Atelier   = readSrc('src/screens/AtelierScreen.js');
+// [P3J-R.1 FIX1] Era `AtelierScreen.js` (removida). O destino do Cultinho passou a ser o Criar
+// livre canônico, então é o retorno DELE que precisa ser garantido.
+const a3Canvas    = readSrc('src/screens/AtelierCanvasScreen.js');
 const a3Reset     = readSrc('src/services/progressResetService.js');
 
 // Item 1 — Livrinho "Voltar para Aventuras" usa a TAB, não empilha StoriesScreen.
@@ -20603,14 +20554,14 @@ check(
   'StoryBookScreen ainda empilha StoriesScreen em vez de voltar pela tab Aventuras',
 );
 
-// Item 5 — "Criar juntos" do Cultinho ([P3J-R.1]: era "Colorir juntos") abre AtelierFromContext
-// from:cultinho e a tela do Ateliê volta por goBack() (canGoBack) → retorna ao Cultinho, não Home.
-// A asserção é só de NAVEGAÇÃO: a troca de copy não a afeta, e é por isso que ela continua válida.
+// Item 5 [P3J-R.1 FIX1] — "Criar juntos" do Cultinho abre o CRIAR LIVRE CANÔNICO com from:cultinho,
+// e o retorno ao Cultinho é garantido pelo goBack() da pilha (a origem só troca o RÓTULO do voltar,
+// nunca o destino — é isso que impede um fork de comportamento no Criar livre).
 check(
-  'A3 Cultinho: "Criar juntos" → AtelierFromContext from:cultinho e back via goBack (volta ao Cultinho)',
-  a3Cultinho.includes("navigation.navigate('AtelierFromContext', { from: 'cultinho' })") &&
-  /navigation\.canGoBack\(\)\s*\?\s*navigation\.goBack\(\)/.test(a3Atelier),
-  'O retorno do "Colorir juntos" ao Cultinho não está garantido por goBack',
+  'A3 Cultinho [FIX1]: "Criar juntos" → Criar livre canônico from:cultinho e back via goBack (volta ao Cultinho)',
+  /navigation\.navigate\(ROUTES\.ATELIER_CANVAS, \{ from: ORIGIN\.CULTINHO \}\)/.test(a3Cultinho) &&
+  /if \(isCreateWithBeni\) navigation\.navigate\('Home'\);\s*\n\s*else navigation\.goBack\(\);/.test(a3Canvas),
+  'O retorno do "Criar juntos" ao Cultinho não está garantido por goBack',
 );
 
 // Itens 2/3 — reset limpa as chaves diárias do Momento (prefixo) + Baú + Cultinho.
@@ -27391,9 +27342,12 @@ try {
       /getDailyRounds/.test(brcNoCom) && !/consumeRound/.test(brcNoCom),
       'a BrincarScreen consome rodada — só o jogo pode consumir');
 
-    check('1.2 (legado intacto): AtelierScreen segue viva para AtelierFromContext',
-      /name="AtelierFromContext"/.test(navB) && /component=\{AtelierScreen\}/.test(navB),
-      'o fluxo contextual do Cultinho (AtelierFromContext) foi quebrado');
+    // [P3J-R.1 FIX1] Esta trava dizia o OPOSTO do que o produto decidiu: exigia que a tela-hub
+    // legada seguisse viva. A decisão D-CULTINHO-CRIAR-LIVRE a aposentou; a trava inverte de sinal.
+    check('1.2 [FIX1] (legado aposentado): AtelierFromContext/AtelierScreen não existem mais no AppNavigator',
+      !/name="AtelierFromContext"/.test(navB) && !/component=\{AtelierScreen\}/.test(navB)
+      && !/from '\.\.\/screens\/AtelierScreen'/.test(navB),
+      'a tela-hub legada (AtelierFromContext/AtelierScreen) voltou ao AppNavigator');
 
     // "Ateliê" não pode voltar aos TEXTOS que o usuário lê. Identidade de rota
     // (`name: 'Ateliê'`, `tab.name === 'Ateliê'`) é permitida — não é UI.
@@ -27671,11 +27625,13 @@ try {
       && !/icon="desenho_guiado"/.test(brcAn),
       'o card "Desenho guiado pelo Beni" voltou para a aba Brincar');
 
-    check('1.3a (legado intacto): missões, AtelierScreen, AtelierCanvas e a rota seguem vivos',
+    // [P3J-R.1 FIX1] O que precisa seguir vivo é o DESTINO do Desenho guiado (missões + o canvas
+    // canônico + a rota). A tela-hub que servia de porta caiu com a decisão de produto; suas duas
+    // cláusulas saíram daqui e viraram asserção de AUSÊNCIA no bloco FIX1 no fim deste arquivo.
+    check('1.3a (legado intacto): missões, AtelierCanvas e a rota seguem vivos',
       /export const MISSIONS/.test(readSrc('src/data/atelierData.js'))
-      && /name="AtelierFromContext"/.test(navA)
-      && /component=\{AtelierScreen\}/.test(navA)
       && /name="AtelierCanvas"/.test(navA)
+      && /component=\{AtelierCanvasScreen\}/.test(navA)
       && /ATELIER_CANVAS: 'AtelierCanvas'/.test(readSrc('src/constants/routes.js')),
       'o fluxo legado do Desenho guiado foi apagado — só a UI deveria ter mudado');
 
@@ -44590,22 +44546,21 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
      * O app não pode prometer "Colorir" onde a tela de destino não entrega colorir.
      */
     const SRC_CULT_R1 = readSrc('src/screens/CultinhoEmCasaScreen.js');
-    const SRC_ATE_R1 = readSrc('src/screens/AtelierScreen.js');
     const SRC_WORLD_R1 = readSrc('src/components/onboarding/StorybookWorldPage.js');
     const SRC_DEC_R1 = readSrc('docs/DECISIONS.md');
 
-    check('P3J-R.1 [copy 01/07]: Cultinho convida a CRIAR juntos — e a rota/handler do Ateliê seguem intactos',
+    /* [P3J-R.1 FIX1] As duas asserções de copy abaixo foram CORRIGIDAS, não removidas:
+     *  · 01/07 exigia que "a rota/handler do Ateliê" seguissem intactos — congelava exatamente o
+     *    comportamento reprovado em validação física. Agora exige o destino canônico.
+     *  · 02/07 lia a subcopy DENTRO da tela-hub `AtelierScreen`, que deixou de existir. A promessa
+     *    que ela protegia ("não prometer colorir onde não se colore") continua garantida: o
+     *    destino do Cultinho agora É a criação livre, provado no bloco FIX1 no fim do arquivo. */
+    check('P3J-R.1 [copy 01/07 · FIX1]: Cultinho convida a CRIAR juntos — e abre o Criar livre canônico',
       SRC_CULT_R1.includes('🎨 Criar juntos (opcional)')
       && !SRC_CULT_R1.includes('Colorir juntos')
-      && SRC_CULT_R1.includes("navigation.navigate('AtelierFromContext', { from: 'cultinho' })")
-      && SRC_CULT_R1.includes('handleColorirJuntos'),
-      'a copy do Cultinho não foi corrigida, ou a correção mexeu na rota/handler');
-
-    check('P3J-R.1 [copy 02/07]: Ateliê se apresenta como CRIAR e guardar — sem prometer colorir',
-      SRC_ATE_R1.includes('Criar e guardar suas artes de fé.')
-      && !SRC_ATE_R1.includes('Colorir, criar e guardar')
-      && SRC_ATE_R1.includes('Ateliê do Beni'),
-      'a subcopy do Ateliê não foi corrigida ou o título oficial foi alterado');
+      && /navigation\.navigate\(ROUTES\.ATELIER_CANVAS, \{ from: ORIGIN\.CULTINHO \}\)/.test(SRC_CULT_R1)
+      && SRC_CULT_R1.includes('handleCriarJuntos'),
+      'a copy do Cultinho não foi corrigida, ou o destino deixou de ser o Criar livre canônico');
 
     /* `visibleStamps` é pura, mas mora num arquivo com JSX — que `new Function` não parseia. O
      * componente `Stamp` é removido ANTES de carregar (o default export o loader já descarta).
@@ -44674,8 +44629,9 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         .visibleStamps(undefined).length);
 
     /* ── D · INTEGRIDADE DO BLOCO ──────────────────────────────────────────────────────────── */
-    check('P3J-R.1 [integridade 1/2]: nenhuma copy legada de colorir sobrevive nas três superfícies corrigidas',
-      !/Colorir juntos/.test(SRC_CULT_R1) && !/Colorir, criar e guardar/.test(SRC_ATE_R1)
+    // [P3J-R.1 FIX1] A cláusula da subcopy do hub saiu com a tela. As demais superfícies seguem.
+    check('P3J-R.1 [integridade 1/2]: nenhuma copy legada de colorir sobrevive nas superfícies corrigidas',
+      !/Colorir juntos/.test(SRC_CULT_R1)
       && WORLD.STAMPS.filter((s) => s.requiresColoring === true).map((s) => s.key).join() === 'colorir'
       && WORLD.STAMPS.every((s) => !/colorir/i.test(s.label) || s.requiresColoring === true),
       'sobrou promessa de colorir em alguma das superfícies do bloco');
@@ -44705,6 +44661,393 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     check('P3J-R.1 [negativos]: os dezesseis controles negativos rodaram e nenhum sobreviveu',
       CN1.length === 16 && CN1.every((c) => c.original !== c.mutante),
       `executados=${CN1.length}, sobreviventes=${CN1.filter((c) => c.original === c.mutante).map((c) => c.id).join(', ') || '(nenhum)'}`);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * [P3J-R.1 FIX1] O CULTINHO ABRE O CRIAR LIVRE CANÔNICO — 12 provas + 6 controles negativos
+   *
+   * REPROVAÇÃO FÍSICA: "🎨 Criar juntos (opcional)" abria a tela-hub legada "Ateliê do Beni"
+   * (rota `AtelierFromContext` → `AtelierScreen`), com menu Mesa criativa / Colorir com o Beni /
+   * Desenho guiado / Criar livre / Minhas artes. O P3J-R.1 mudou só a copy e CONGELOU esse
+   * destino errado nos testes. Este bloco substitui aquele contrato: o Cultinho abre EXATAMENTE
+   * o Criar livre da aba Brincar — mesma rota, mesmo componente, mesmo canvas, mesmo storage,
+   * mesmo fluxo de nomeação, mesma proteção de saída, mesma galeria.
+   *
+   * As provas 02 e 03 não comparam strings soltas: RESOLVEM a cadeia real
+   * `navigate(ROUTES.X)` → `constants/routes.js` → `<Stack.Screen name=… component=…>` → `import`,
+   * a mesma que o app percorre em runtime. As provas 06 e 10 rodam o storage DE VERDADE.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  {
+    const { loadModule: fxLoad } = require('./testing/packInstallHarness');
+
+    const fxSemCom = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+    const FX_CULT = readSrc('src/screens/CultinhoEmCasaScreen.js');
+    const FX_NAV = readSrc('src/navigation/AppNavigator.js');
+    const FX_CANVAS = readSrc('src/screens/AtelierCanvasScreen.js');
+    const FX_BRINCAR = readSrc('src/screens/BrincarScreen.js');
+    const FX_ROUTES = readSrc('src/constants/routes.js');
+    const FX_GALERIA = readSrc('src/screens/AtelierGalleryScreen.js');
+    const FX_STORAGE = readSrc('src/services/atelierStorage.js');
+    const FX_C60 = readSrc('src/services/coloring60DrawingStorage.js');
+    const FX_DIAG = readSrc('src/services/packDownloadDiagnostics.js');
+    const FX_BLOB = readSrc('src/services/fileBlobStore.js');
+    const FX_HOOK = readSrc('src/hooks/useStoryPackDownload.js');
+    const FX_FLAGS = readSrc('src/config/featureFlags.js');
+
+    const CODE_CULT = fxSemCom(FX_CULT);
+    const CODE_NAV = fxSemCom(FX_NAV);
+    const CODE_CANVAS = fxSemCom(FX_CANVAS);
+    const CODE_BRINCAR = fxSemCom(FX_BRINCAR);
+
+    /* Mutador com ANTITAUTOLOGIA. Fica FORA de qualquer try: se a âncora envelhecer, o erro
+       escapa e derruba o smoke — um controle negativo nunca pode passar por mutante morto. */
+    const fxMutar = (src, de, para) => {
+      const out = src.split(de).join(para);
+      if (out === src) {
+        throw new Error(`[P3J-R.1 FIX1] âncora de mutação obsoleta: ${JSON.stringify(de.slice(0, 90))}`);
+      }
+      return out;
+    };
+
+    const fxTrecho = (codigo, inicio, fim) => {
+      const i = codigo.indexOf(inicio);
+      if (i < 0) return '';
+      const j = codigo.indexOf(fim, i + inicio.length);
+      return j < 0 ? '' : codigo.slice(i, j);
+    };
+
+    const CNF = [];
+    const registrarCNF = (id, alvo, descricao, original, mutante) =>
+      CNF.push({ id, alvo, descricao, original, mutante });
+
+    /* ── Resolvedor da navegação REAL ─────────────────────────────────────────────────────────
+       Recebe o código de uma tela e o regex que captura a CONSTANTE de rota usada no `navigate`.
+       Percorre routes.js → AppNavigator (registro + import) e devolve o arquivo montado. */
+    const fxResolver = (codigoTela, reNavigate, srcRoutes, codigoNav) => {
+      const m = reNavigate.exec(codigoTela);
+      if (!m) return { erro: 'navigate-nao-encontrado' };
+      const constante = m[1];
+      const mr = new RegExp(`\\b${constante}:\\s*'([^']+)'`).exec(srcRoutes);
+      if (!mr) return { erro: `ROUTES.${constante}-inexistente-em-routes.js` };
+      const rota = mr[1];
+      const mc = new RegExp(`name="${rota}"[\\s\\S]{0,240}?component=\\{([A-Za-z0-9_]+)\\}`).exec(codigoNav);
+      if (!mc) return { erro: `rota-${rota}-nao-registrada-no-Stack` };
+      const componente = mc[1];
+      const mi = new RegExp(`import\\s+${componente}\\s+from\\s+'([^']+)'`).exec(codigoNav);
+      return { erro: null, constante, rota, componente, arquivo: mi ? mi[1] : null };
+    };
+
+    const RE_NAV_CULT = /navigation\.navigate\(ROUTES\.([A-Z0-9_]+),\s*\{\s*from:\s*ORIGIN\.CULTINHO\s*\}\)/;
+    const RE_NAV_LIVRE = /navigation\.navigate\(ROUTES\.([A-Z0-9_]+),\s*\{\s*\}\)/;
+
+    /* A ENTRADA VISÍVEL da aba Brincar: o cartão cujo rótulo acessível é o "Criar livre". É dele
+       que sai o destino canônico com que o Cultinho tem de coincidir. */
+    const FX_ROTULO_LIVRE = 'Criar livre, atividade de desenho, abrir folha';
+    const idxLivre = CODE_BRINCAR.indexOf(FX_ROTULO_LIVRE);
+    const FX_CARTAO_LIVRE = idxLivre < 0 ? '' : CODE_BRINCAR.slice(Math.max(0, idxLivre - 500), idxLivre + 200);
+
+    const fxDestinoCultinho = fxResolver(CODE_CULT, RE_NAV_CULT, FX_ROUTES, CODE_NAV);
+    const fxDestinoBrincar = fxResolver(FX_CARTAO_LIVRE, RE_NAV_LIVRE, FX_ROUTES, CODE_NAV);
+
+    /* ── Varredura de alcançabilidade da tela legada ──────────────────────────────────────── */
+    const fxVarrerSrc = (re) => {
+      const achados = [];
+      const anda = (dir) => {
+        for (const nome of fs.readdirSync(dir)) {
+          const full = path.join(dir, nome);
+          if (fs.statSync(full).isDirectory()) { anda(full); continue; }
+          if (!/\.(js|jsx)$/.test(nome)) continue;
+          if (re.test(fxSemCom(fs.readFileSync(full, 'utf8')))) {
+            achados.push(path.relative(root, full).split(path.sep).join('/'));
+          }
+        }
+      };
+      anda(path.join(root, 'src'));
+      return achados;
+    };
+    const fxRefsLegado = fxVarrerSrc(/AtelierFromContext|\bAtelierScreen\b/);
+
+    /* ── Avaliadores (reutilizados pelos controles negativos) ─────────────────────────────── */
+    const provaCultinhoSemLegado = (codigoCult) =>
+      !/AtelierFromContext/.test(codigoCult)
+      && !/\bAtelierScreen\b/.test(codigoCult)
+      && RE_NAV_CULT.test(codigoCult);
+
+    const provaDestinoCanonico = (codigoNav) => {
+      const d = fxResolver(CODE_CULT, RE_NAV_CULT, FX_ROUTES, codigoNav);
+      return d.erro === null
+        && d.rota === 'AtelierCanvas'
+        && d.componente === 'AtelierCanvasScreen'
+        && d.arquivo === '../screens/AtelierCanvasScreen';
+    };
+
+    const provaContratoDeNomeacao = (codigoCanvas) => {
+      const corpo = fxTrecho(codigoCanvas, 'const doSave = useCallback', 'const confirmName');
+      return corpo.length > 0
+        && /setNameInput\(''\);/.test(corpo)
+        && /setOverlay\('name'\)/.test(corpo)
+        && /if \(savedArtId\) \{ performSave\(/.test(corpo)
+        && /if \(mission\) \{ performSave\(/.test(corpo)
+        && (corpo.match(/performSave\(/g) || []).length === 2
+        && /overlay === 'name'/.test(codigoCanvas)
+        && /Nomeie seu desenho/.test(codigoCanvas)
+        && /placeholder="Nome do desenho"/.test(codigoCanvas)
+        && /Guardar desenho/.test(codigoCanvas)
+        && /Cancelar/.test(codigoCanvas);
+    };
+
+    const provaProtecaoDeSaida = (codigoCanvas) => {
+      const efeito = fxTrecho(codigoCanvas, "navigation.addListener('beforeRemove'", 'return off;');
+      return efeito.length > 0
+        && /if \(leavingRef\.current \|\| isBlank \|\| !isDirty \|\| isSaving\) return;/.test(efeito)
+        && /e\.preventDefault\(\);/.test(efeito)
+        && /setOverlay\('exit'\)/.test(efeito)
+        && /Seu desenho ainda não foi salvo\./.test(codigoCanvas)
+        && /Continuar desenhando/.test(codigoCanvas)
+        && /Salvar e sair/.test(codigoCanvas)
+        && /Sair sem salvar/.test(codigoCanvas);
+    };
+
+    const provaSairSemSalvar = (codigoCanvas) => {
+      const corpo = fxTrecho(codigoCanvas, 'const leaveNow = useCallback', 'const saveAndExit');
+      const volta = fxTrecho(codigoCanvas, 'const requestBack = useCallback', 'useEffect(() => {');
+      return corpo.length > 0 && volta.length > 0
+        && /leavingRef\.current = true;/.test(corpo)
+        && !/doSave|performSave|saveArt/.test(corpo)
+        && !/doSave|performSave|saveArt/.test(volta)
+        && /onLeave=\{leaveNow\}/.test(codigoCanvas);
+    };
+
+    const provaSalvarESair = (codigoCanvas) => {
+      const corpo = fxTrecho(codigoCanvas, 'const saveAndExit = useCallback', 'const openDiag');
+      return corpo.length > 0
+        && /leaveAfterSaveRef\.current = true;/.test(corpo)
+        && /doSave\(\);/.test(corpo)
+        && !/performSave\(/.test(corpo)
+        && /onSaveExit=\{saveAndExit\}/.test(codigoCanvas)
+        && /if \(leaveAfterSaveRef\.current\) \{/.test(codigoCanvas);
+    };
+
+    /* ── Storage REAL em memória (provas 06 e 10 e controle negativo CNF-5) ───────────────── */
+    const fxNaming = fxLoad('src/services/atelierArtNaming.js', {},
+      ['resolveArtTitle', 'cleanArtName', 'normalizeArtName', 'displayTitle', 'DEFAULT_ART_BASE']);
+
+    const fxStorage = (inicial = {}, mutate) => {
+      const mem = new Map(Object.entries(inicial));
+      const S = fxLoad('src/services/atelierStorage.js', {
+        AsyncStorage: {
+          getItem: async (k) => (mem.has(k) ? mem.get(k) : null),
+          setItem: async (k, v) => { mem.set(k, v); },
+          removeItem: async (k) => { mem.delete(k); },
+        },
+        log: () => {},
+        writeBlob: async (sub, nome) => ({ uri: `file:///ptf_blobs/${sub}/${nome}` }),
+        deleteBlob: async () => true,
+        safeName: (s) => String(s),
+        recomposeBlobUri: (u) => u,
+        currentBlobsRoot: () => 'file:///ptf_blobs/',
+        resolveArtTitle: fxNaming.resolveArtTitle,
+        cleanArtName: fxNaming.cleanArtName,
+      }, ['saveArt', 'listArts', 'getArt', 'getArtCount', 'ATELIER_FREE_SAVE_LIMIT'], mutate);
+      return { S, mem };
+    };
+
+    /* ── PROVA 01 ─────────────────────────────────────────────────────────────────────────── */
+    check('P3J-R.1 FIX1 [prova 01/12]: o Cultinho NÃO contém navegação para AtelierFromContext nem para a tela-hub legada',
+      provaCultinhoSemLegado(CODE_CULT),
+      'CultinhoEmCasaScreen voltou a referenciar AtelierFromContext/AtelierScreen, ou perdeu o navigate canônico');
+
+    /* ── PROVA 02 ─────────────────────────────────────────────────────────────────────────── */
+    check('P3J-R.1 FIX1 [prova 02/12]: o Cultinho resolve para a MESMA rota, o MESMO componente e o MESMO arquivo do "Criar livre" da aba Brincar',
+      fxDestinoCultinho.erro === null && fxDestinoBrincar.erro === null
+      && fxDestinoCultinho.rota === fxDestinoBrincar.rota
+      && fxDestinoCultinho.componente === fxDestinoBrincar.componente
+      && fxDestinoCultinho.arquivo === fxDestinoBrincar.arquivo
+      && fxDestinoCultinho.rota === 'AtelierCanvas'
+      && fxDestinoCultinho.arquivo === '../screens/AtelierCanvasScreen',
+      `cultinho=${JSON.stringify(fxDestinoCultinho)} · brincar=${JSON.stringify(fxDestinoBrincar)}`);
+
+    /* ── PROVA 03 ─────────────────────────────────────────────────────────────────────────── */
+    check('P3J-R.1 FIX1 [prova 03/12]: NÃO existe tela intermediária — AtelierScreen sumiu do disco, AtelierFromContext saiu do Stack e nada em src/ os alcança',
+      !srcExists('src/screens/AtelierScreen.js')
+      && !/name="AtelierFromContext"/.test(CODE_NAV)
+      && !/\bAtelierScreen\b/.test(CODE_NAV)
+      && fxRefsLegado.length === 0
+      && provaDestinoCanonico(CODE_NAV),
+      `a tela-hub legada continua alcançável (referências vivas: ${fxRefsLegado.join(', ') || '(nenhuma)'})`);
+
+    /* ── PROVA 04 ─────────────────────────────────────────────────────────────────────────── */
+    check('P3J-R.1 FIX1 [prova 04/12]: "Salvar" num desenho novo abre o contrato de nomeação (sheet "Nomeie seu desenho" · campo "Nome do desenho" · Cancelar · Guardar desenho)',
+      provaContratoDeNomeacao(CODE_CANVAS),
+      'o caminho de salvamento do desenho novo não passa mais pelo sheet de nome');
+
+    /* ── PROVA 05 ─────────────────────────────────────────────────────────────────────────── */
+    check('P3J-R.1 FIX1 [prova 05/12]: a obra só é finalizada DEPOIS da confirmação do nome — `doSave` não chama `performSave` no caminho novo-sem-missão; quem chama é `confirmName`, com o título resolvido',
+      (() => {
+        const corpoDoSave = fxTrecho(CODE_CANVAS, 'const doSave = useCallback', 'const confirmName');
+        const corpoConfirm = fxTrecho(CODE_CANVAS, 'const confirmName = useCallback', 'const requestBack = useCallback');
+        return corpoDoSave.length > 0 && corpoConfirm.length > 0
+          && (corpoDoSave.match(/performSave\(/g) || []).length === 2
+          && /setOverlay\('name'\);/.test(corpoDoSave)
+          && /performSave\(resolveArtTitle\(nameInput, existing\)\)/.test(corpoConfirm)
+          && /onPress=\{confirmName\}/.test(CODE_CANVAS)
+          && /onSubmitEditing=\{confirmName\}/.test(CODE_CANVAS)
+          && fxNaming.resolveArtTitle('', []) === 'Desenho de fé'
+          && fxNaming.resolveArtTitle('Arca do Beni', []) === 'Arca do Beni';
+      })(),
+      'existe caminho que finaliza a obra sem passar pela confirmação do nome');
+
+    /* ── PROVA 06 (runtime real do storage) ──────────────────────────────────────────────── */
+    const fx06 = fxStorage();
+    const fxId06 = await fx06.S.saveArt({
+      artId: null, title: 'Arca do Beni', mission: null,
+      stateJson: '{"strokes":1}', thumbnailBase64: 'AAAA', previewBase64: 'BBBB',
+    });
+    const fxLista06 = await fx06.S.listArts();
+    const fxCheia06 = await fx06.S.getArt(fxId06);
+    check('P3J-R.1 FIX1 [prova 06/12]: o nome confirmado é PERSISTIDO e chega visível à galeria (índice + registro completo + displayTitle usado por Minhas artes)',
+      fxLista06.length === 1
+      && fxLista06[0].id === fxId06
+      && fxLista06[0].title === 'Arca do Beni'
+      && fxCheia06 && fxCheia06.title === 'Arca do Beni'
+      && fxNaming.displayTitle(fxLista06[0].title) === 'Arca do Beni'
+      && /\{displayTitle\(art\.title\)\}/.test(FX_GALERIA)
+      && /from '\.\.\/services\/atelierArtNaming'/.test(FX_GALERIA),
+      `índice=${JSON.stringify(fxLista06)} · completo=${JSON.stringify(fxCheia06 && fxCheia06.title)}`);
+
+    /* ── PROVA 07 ─────────────────────────────────────────────────────────────────────────── */
+    check('P3J-R.1 FIX1 [prova 07/12]: voltar com alterações não salvas abre as TRÊS opções (Continuar desenhando · Salvar e sair · Sair sem salvar)',
+      provaProtecaoDeSaida(CODE_CANVAS),
+      'a proteção de saída sem salvar foi enfraquecida ou perdeu uma das três opções');
+
+    /* ── PROVA 08 (estrutural + runtime) ─────────────────────────────────────────────────── */
+    const fx08 = fxStorage({
+      'ptf_atelier_arts_v1_index': JSON.stringify([{ id: 'art_x', title: 'Ovelhinha', createdAt: '2020-01-01T00:00:00.000Z' }]),
+    });
+    const fxAntes08 = fx08.mem.get('ptf_atelier_arts_v1_index');
+    const fxLista08 = await fx08.S.listArts();
+    const fxDepois08 = fx08.mem.get('ptf_atelier_arts_v1_index');
+    check('P3J-R.1 FIX1 [prova 08/12]: "Sair sem salvar" NÃO cria registro — `leaveNow`/`requestBack` não alcançam saveArt/performSave/doSave, e leitura pura não escreve no índice',
+      provaSairSemSalvar(CODE_CANVAS)
+      && fxLista08.length === 1
+      && fxAntes08 === fxDepois08,
+      'o caminho de saída sem salvar passou a tocar o storage');
+
+    /* ── PROVA 09 ─────────────────────────────────────────────────────────────────────────── */
+    check('P3J-R.1 FIX1 [prova 09/12]: "Salvar e sair" preserva o fluxo de nomeação — chama `doSave` (que pede o nome quando a obra ainda não tem) e só sai DENTRO do `performSave`',
+      provaSalvarESair(CODE_CANVAS),
+      '"Salvar e sair" passou a atalhar o contrato de nome');
+
+    /* ── PROVA 10 (runtime real do storage) ──────────────────────────────────────────────── */
+    const fxAntiga = {
+      id: 'art_antiga', title: 'Noé e os bichinhos', createdAt: '2021-05-05T10:00:00.000Z',
+      updatedAt: '2021-05-05T10:00:00.000Z', schema: 2, thumbnailUri: 'file:///ptf_blobs/atelier/art_antiga_thumb.jpg',
+      thumbnailBase64: null,
+    };
+    const fx10 = fxStorage({
+      'ptf_atelier_arts_v1_index': JSON.stringify([fxAntiga]),
+      'ptf_atelier_arts_v1_art_antiga': JSON.stringify({ ...fxAntiga, stateJson: '{"strokes":42}', previewUri: 'file:///ptf_blobs/atelier/art_antiga_preview.jpg' }),
+    });
+    const fxNovoId10 = await fx10.S.saveArt({
+      artId: null, title: 'Criação em família', mission: null,
+      stateJson: '{"strokes":7}', thumbnailBase64: 'CCCC', previewBase64: 'DDDD',
+    });
+    const fxLista10 = await fx10.S.listArts();
+    const fxAntigaDepois = fxLista10.find((a) => a.id === 'art_antiga');
+    const fxAntigaCheia = await fx10.S.getArt('art_antiga');
+    check('P3J-R.1 FIX1 [prova 10/12]: arte já existente continua INTACTA quando o Cultinho cria uma nova (título, createdAt, schema, thumb e stateJson preservados)',
+      fxLista10.length === 2
+      && fxLista10[0].id === fxNovoId10
+      && !!fxAntigaDepois
+      && JSON.stringify(fxAntigaDepois) === JSON.stringify(fxAntiga)
+      && !!fxAntigaCheia
+      && fxAntigaCheia.title === 'Noé e os bichinhos'
+      && fxAntigaCheia.createdAt === '2021-05-05T10:00:00.000Z'
+      && fxAntigaCheia.stateJson === '{"strokes":42}',
+      `a arte anterior foi alterada: ${JSON.stringify(fxAntigaDepois)}`);
+
+    /* ── PROVA 11 ─────────────────────────────────────────────────────────────────────────── */
+    check('P3J-R.1 FIX1 [prova 11/12]: o Colorir 60 continua SEPARADO e funcional — namespaces e subdiretórios distintos, POINTER_VERSION 3, piloto OFF, e nenhuma mistura com o Criar livre',
+      /const POINTER_VERSION = 3;/.test(FX_C60)
+      && /const BLOB_SUBDIR = 'drawings60';/.test(FX_C60)
+      && /@ptf_drawing60_s\$\{storyId\}_a\$\{activityId\}/.test(FX_C60)
+      && /const BLOB_SUBDIR = 'atelier';/.test(FX_STORAGE)
+      && /const LIST_KEY = 'ptf_atelier_arts_v1_index';/.test(FX_STORAGE)
+      && /export const COLORIR_60_CREATION_PILOT_ENABLED\s*=\s*false\s*;/.test(FX_FLAGS)
+      && !/coloring60|Coloring60/i.test(CODE_CANVAS)
+      && !/coloring60|Coloring60/i.test(CODE_CULT),
+      'o C60 e o Criar livre deixaram de ser mundos separados, ou o piloto do C60 saiu de OFF');
+
+    /* ── PROVA 12 ─────────────────────────────────────────────────────────────────────────── */
+    check('P3J-R.1 FIX1 [prova 12/12]: nenhuma regressão no que o P3J-R.1 corrigiu — índice pós-commit, escopo de exclusão de blobs e blindagem do snapshot do C60 seguem íntegros',
+      /export const INDEX_NOT_COMMITTED = 'nao_commitado';/.test(FX_DIAG)
+      && /if \(!res \|\| res\.ok !== true\) return INDEX_NOT_COMMITTED;/.test(FX_DIAG)
+      && /indexAfterCommit: resolveIndexAfterCommit\(res\)/.test(FX_HOOK)
+      && /const decodificada = decodificarTudo\(uri\);/.test(FX_BLOB)
+      && /if \(!alvo\.startsWith\(escopo\)\) return \{ ok: false, reason: 'fora_da_raiz', uri: null \};/.test(FX_BLOB)
+      && /await deleteBlob\(oldUri, \{ requireSubdir: BLOB_SUBDIR, protect: newUri \}\);/.test(FX_C60)
+      && /await deleteBlob\(uri, \{ requireSubdir: BLOB_SUBDIR \}\);/.test(FX_C60),
+      'algum lacre do P3J-R.1 (download/diagnóstico/blobs) foi desfeito por este bloco');
+
+    /* ── CONTROLES NEGATIVOS ─────────────────────────────────────────────────────────────────
+       Cada um reintroduz EXATAMENTE a falha reprovada e exige que o avaliador da prova mude de
+       verdadeiro para falso. `fxMutar`/`fxLoad` lançam se a âncora envelhecer. */
+
+    registrarCNF('CNF-1', 'CultinhoEmCasaScreen.js',
+      'a rota volta a ser AtelierFromContext',
+      provaCultinhoSemLegado(CODE_CULT),
+      provaCultinhoSemLegado(fxMutar(CODE_CULT,
+        'navigation.navigate(ROUTES.ATELIER_CANVAS, { from: ORIGIN.CULTINHO })',
+        "navigation.navigate('AtelierFromContext', { from: 'cultinho' })")));
+
+    registrarCNF('CNF-2', 'AppNavigator.js',
+      'o handler do Cultinho volta a passar por AtelierScreen (rota canônica remapeada para a tela legada)',
+      provaDestinoCanonico(CODE_NAV),
+      provaDestinoCanonico(fxMutar(CODE_NAV,
+        'name="AtelierCanvas"\n          component={AtelierCanvasScreen}',
+        'name="AtelierCanvas"\n          component={AtelierScreen}')));
+
+    registrarCNF('CNF-3', 'AtelierCanvasScreen.js',
+      'o salvamento volta a finalizar silenciosamente, sem pedir nome',
+      provaContratoDeNomeacao(CODE_CANVAS),
+      provaContratoDeNomeacao(fxMutar(CODE_CANVAS,
+        "    setNameInput('');\n    setOverlay('name');",
+        "    performSave('');")));
+
+    registrarCNF('CNF-4', 'AtelierCanvasScreen.js',
+      'a proteção de saída sem salvar é removida (o beforeRemove passa a liberar sempre)',
+      provaProtecaoDeSaida(CODE_CANVAS),
+      provaProtecaoDeSaida(fxMutar(CODE_CANVAS,
+        'if (leavingRef.current || isBlank || !isDirty || isSaving) return;',
+        'return;')));
+
+    const fx05neg = fxStorage({}, (src) => src.split("    title: title || 'Minha arte especial',").join("    title: 'Minha arte especial',"));
+    await fx05neg.S.saveArt({
+      artId: null, title: 'Arca do Beni', mission: null,
+      stateJson: '{"strokes":1}', thumbnailBase64: 'AAAA', previewBase64: 'BBBB',
+    });
+    const fxListaNeg = await fx05neg.S.listArts();
+    registrarCNF('CNF-5', 'atelierStorage.js (runtime)',
+      'o nome deixa de ser persistido (o título confirmado é descartado pelo storage)',
+      fxLista06[0].title === 'Arca do Beni',
+      fxListaNeg[0].title === 'Arca do Beni');
+
+    registrarCNF('CNF-6', 'AtelierCanvasScreen.js',
+      '"Sair sem salvar" passa a tocar o storage (cria/atualiza obra ao sair)',
+      provaSairSemSalvar(CODE_CANVAS),
+      provaSairSemSalvar(fxMutar(CODE_CANVAS,
+        'const leaveNow = useCallback(() => {\n    leavingRef.current = true;',
+        'const leaveNow = useCallback(() => {\n    doSave();\n    leavingRef.current = true;')));
+
+    for (const c of CNF) {
+      check(`P3J-R.1 FIX1 [negativo ${c.id}]: ${c.alvo} — ${c.descricao}`,
+        c.original === true && c.mutante === false,
+        `o controle negativo não distinguiu o certo do errado (original=${c.original} · mutante=${c.mutante})`);
+    }
+    check('P3J-R.1 FIX1 [negativos]: os seis controles negativos rodaram e nenhum sobreviveu',
+      CNF.length === 6 && CNF.every((c) => c.original === true && c.mutante === false),
+      `executados=${CNF.length}, sobreviventes=${CNF.filter((c) => c.original === c.mutante).map((c) => c.id).join(', ') || '(nenhum)'}`);
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
