@@ -1,6 +1,6 @@
 # ATELIER_GUIDE
 
-**Última atualização:** Criar Livre CF — bloco de encerramento (2026-07-15)
+**Última atualização:** P3J-R.1 FIX1 — validação física **aprovada** pelo proprietário (2026-08-01)
 
 > ⚠️ **Precedência das seções.** A **Seção 0 (Criar Livre CF)** descreve o estado
 > ATUAL e APROVADO do "Criar livre" e da galeria "Meus desenhos". As seções 1–13
@@ -8,6 +8,10 @@
 > onde conflitarem com a Seção 0, **vale a Seção 0**. Em especial estão
 > **SUPERADOS**: limite gratuito 3 (hoje é 0), UI de carimbos/stickers, painel por
 > abas, ícones em emoji e miniatura base64 no índice (hoje `file://`).
+>
+> A **§0.11** é o **registro de validação física** do bloco **P3J-R.1 FIX1** (o
+> Cultinho passou a abrir o Criar livre canônico e o hub legado "Ateliê do Beni"
+> deixou de existir). É o artefato de fechamento desse bloco.
 
 ---
 
@@ -114,6 +118,82 @@ terminação (`onPanResponderTerminationRequest: false`, `onShouldBlockNativeRes
 - **Migração para Skia** — apenas hipótese; exigiria spec própria e regressão ampla.
 
 Estes itens são **possibilidades**, não pendências obrigatórias deste bloco.
+
+---
+
+## 0.11 P3J-R.1 FIX1 — validação física APROVADA (registro de fechamento)
+
+> **Natureza deste registro.** O bloco **P3J-R.1** havia sido **reprovado fisicamente** pelo
+> proprietário: o botão "🎨 Criar juntos (opcional)" do **Cultinho em Casa** abria a tela-hub
+> legada **"Ateliê do Beni"** (Mesa criativa · Colorir com o Beni · Desenho guiado pelo Beni ·
+> Criar livre · Minhas artes) — um **menu intermediário**, não a criação. O **FIX1** corrigiu o
+> destino e removeu o hub. Esta seção registra a **aprovação física** que fecha o bloco. A decisão
+> de produto correspondente está em [`DECISIONS.md`](DECISIONS.md) → `D-CULTINHO-CRIAR-LIVRE`.
+
+**a. Data da validação física:** **2026-08-01**, pelo **proprietário**, no **Development Client
+canônico**.
+
+**b. Alvo efetivamente testado:**
+
+| Item | Valor |
+|---|---|
+| Worktree | `C:\tmp\ptf_colorir_canonical_runtime_wt` |
+| Branch | `integrate/colorir-canonical-runtime` |
+| Base preservada | `11fcb8c` |
+| Commit de implementação | `51aff67` — `fix(navigation): open canonical free creation from Cultinho` |
+| Commit de testes e documentação | `36d7077` — `test(docs): remove legacy atelier contract and lock free creation flow` |
+| **HEAD validado** | **`36d7077d00b6592cbe16005e947e3971f8203386`** |
+
+**c. Os doze resultados aprovados no aparelho:**
+
+| # | Resultado observado | Veredito |
+|---|---|---|
+| 1 | **Cultinho em Casa → "Criar juntos (opcional)"** abriu **diretamente** a tela canônica **Criar livre** | ✅ |
+| 2 | **Não** apareceu "Ateliê do Beni", "Mesa criativa" nem qualquer menu intermediário legado | ✅ |
+| 3 | O retorno da tela aberta pelo Cultinho voltou corretamente **ao Cultinho** | ✅ |
+| 4 | **Salvar** abriu **"Nomeie seu desenho"** e pediu o nome **antes** da persistência | ✅ |
+| 5 | A arte **"Arca do Beni"** foi salva e apareceu em **Brincar → Minhas artes** | ✅ |
+| 6 | Sair com alterações não salvas exibiu **"Continuar desenhando" · "Salvar e sair" · "Sair sem salvar"** | ✅ |
+| 7 | **"Sair sem salvar"** não criou nenhuma arte nova e **preservou integralmente** "Arca do Beni" | ✅ |
+| 8 | **"Salvar e sair"** solicitou o nome da arte antes de concluir a saída | ✅ |
+| 9 | **Brincar → Criar livre → "Abrir folha"** abriu **a mesma tela, o mesmo componente, o mesmo motor e o mesmo armazenamento** do acesso vindo do Cultinho | ✅ |
+| 10 | Retorno contextual correto: **Cultinho → "Voltar para Cultinho"**; **Brincar → "Voltar"** | ✅ |
+| 11 | **Colorir com o Beni** seguiu funcional, com as **três atividades** do piloto de *A Criação* acessíveis, sem regressão visual ou funcional | ✅ |
+| 12 | **Nenhum** resquício visual ou navegável da antiga tela "Ateliê do Beni" foi encontrado | ✅ |
+
+**d. Ateliê legado eliminado.** Confirmado **na navegação e na interface**: o componente
+`src/screens/AtelierScreen.js` foi **removido do projeto**, a rota `AtelierFromContext` saiu do
+`AppNavigator` e **nenhum caminho de usuário alcança mais** a tela "Ateliê do Beni" — o
+proprietário não encontrou resquício algum no aparelho (resultado 12).
+
+**e. Convergência de rota.** **Cultinho e Brincar convergem para `ROUTES.ATELIER_CANVAS`**
+(`AtelierCanvasScreen`). Não existe cópia, variante nem tela intermediária: a única diferença
+entre as duas entradas é o parâmetro de origem (`from: 'cultinho'` vs. sem origem), que alimenta
+apenas o **rótulo** do voltar via `backLabelFor` (`src/utils/originBack.js`) — **não** há fork de
+comportamento, e o destino da saída continua sendo o `goBack()` da pilha (resultados 9 e 10).
+
+**f. Nomeação, persistência, galeria e proteção de saída** foram validadas **fisicamente**, não só
+no smoke: o modal "Nomeie seu desenho" precede a persistência (resultado 4), a arte nomeada
+sobrevive e é listada com o nome em "Minhas artes" (resultado 5), e o diálogo de saída oferece as
+três opções, com "Salvar e sair" respeitando o fluxo de nomeação (resultados 6 e 8).
+
+**g. Descarte seguro.** **"Sair sem salvar" não criou registro** e **não corrompeu arte existente**:
+"Arca do Beni" permaneceu íntegra após o descarte (resultado 7).
+
+**h. Colorir com o Beni intacto.** Permaneceu **funcional e separado** do Criar livre, com as três
+atividades do piloto de *A Criação* acessíveis e **sem regressão** observada (resultado 11).
+
+**i. Veredito:**
+
+```
+PHYSICAL_VALIDATION_APPROVED
+P3J_R1_FIX1_CLOSED
+```
+
+**Resíduo declarado (fora do escopo deste fechamento).** `ATELIER_GUIDE` (`src/data/beniGuides.js`)
+e as 5 entradas `guide.atelier.*` (`src/data/beniGuideAudio.js`) **permanecem** no projeto, hoje sem
+consumidor de UI. Removê-las orfanaria 5 áudios reais e alteraria **manifesto de áudio — área
+protegida**. A higiene desses guias exige bloco próprio, com instrução direta.
 
 ---
 
