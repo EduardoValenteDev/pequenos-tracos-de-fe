@@ -64,6 +64,20 @@
         "buildType": "apk",
         "resourceClass": "medium"
       }
+    },
+    "c60-pilot": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT": "true",
+        "EXPO_PUBLIC_BUILD_PROFILE": "c60-pilot"
+      },
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "apk",
+        "resourceClass": "medium"
+      }
     }
   }
 }

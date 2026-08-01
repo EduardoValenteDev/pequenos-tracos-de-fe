@@ -90,11 +90,35 @@ export const CREATOR_QA_MODE_RELEASE_ENABLED =
 /**
  * COLORIR_60_CREATION_PILOT_ENABLED — piloto do Colorir 60 de "A Criação"
  * (3 atividades semânticas por `activityId`: `light`, `living_world`, `people_and_care`).
- *   Desligada (false) por padrão. Enquanto false, NENHUMA superfície do Colorir 60
- *   aparece: sem catálogo exposto, sem rota nova, sem entrada de QA — o app permanece
- *   idêntico ao baseline e o fluxo legado de colorir (200 linearts por cena) fica
- *   intocado. A flag é o interruptor único do piloto; ligá-la é trocar para `true`
- *   (sem migração de dados). Governança: specs 014/015/016/017 · DECISIONS.md PL01A-03/PL01G.
- *   Introduzida em C60-IMPL-P0 (P0.T7) sem qualquer implementação funcional acoplada.
+ *
+ * Introduzida em C60-IMPL-P0 (P0.T7) como literal `false`: enquanto fechada, NENHUMA
+ * superfície do Colorir 60 aparece — sem catálogo exposto, sem rota nova, sem entrada de QA.
+ * O portão continua sendo `isColoring60PilotAllowed()` = esta flag OU (`__DEV__` com
+ * ferramentas internas); o Dev Client NÃO muda de comportamento.
+ *
+ * ⚠️ [spec 018] O literal virou CERCA DUPLA porque `__DEV__` é false em todo build de release:
+ * com o literal, o piloto era inalcançável num APK/IPA — e trocá-lo por `true` ligaria também a
+ * LOJA, sem cerca nenhuma. As duas condições precisam bater ao mesmo tempo (conjunção, não flag
+ * simples), no mesmo padrão release-safe de RELEASE_PACK_QA_ENABLED / CREATOR_QA_MODE_RELEASE_ENABLED:
+ *   - EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true'
+ *   - EXPO_PUBLIC_BUILD_PROFILE           === 'c60-pilot'   (nome EXATO, um único perfil)
+ *
+ * Consequências desenhadas de propósito:
+ *   - FAIL-CLOSED POR AUSÊNCIA: env vazio ⇒ `undefined === 'true'` ⇒ false. É o estado padrão.
+ *   - UMA VARIÁVEL ISOLADA É INERTE: se EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT vazasse sozinha,
+ *     faltaria o perfil; se o perfil vazasse sozinho, faltaria a autorização explícita.
+ *   - PRODUÇÃO NUNCA LIGA: o perfil `production` do eas.json não declara NENHUMA das duas —
+ *     falha por ausência dupla. `preview`, `preview-criador` e `screenshot` também não as declaram.
+ *   - COMPARAÇÃO LITERAL E ESTRITA: 'True', '1', 'C60-Pilot' ou 'c60-pilot ' (com espaço) NÃO abrem.
+ *   - O perfil `c60-pilot` é de distribuição INTERNA e NÃO serve para distribuição pública.
+ *     Ele também não declara Modo Criador, sandbox de packs nem Release Pack QA — logo
+ *     `isInternalToolsEnabled()` é false nele: sem "Administração (dev)", sem Bancada C60.
+ *
+ * Flags NÃO são segredo (EXPO_PUBLIC_* vai embutida no bundle); a proteção é BUILD-TIME, por
+ * ausência de declaração — exatamente como nas demais flags release-safe deste arquivo.
+ * Governança: specs 014/015/016/017/018 · DECISIONS.md PL01A-03/PL01G/D-C60-PILOT-ATIVACAO ·
+ * docs/PRODUCTION_FLAGS_CHECKLIST.md.
  */
-export const COLORIR_60_CREATION_PILOT_ENABLED = false;
+export const COLORIR_60_CREATION_PILOT_ENABLED =
+  process.env.EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true' &&
+  process.env.EXPO_PUBLIC_BUILD_PROFILE === 'c60-pilot';
