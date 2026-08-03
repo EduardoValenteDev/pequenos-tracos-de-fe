@@ -15,7 +15,7 @@
 > PRIMEIRO → documentos depois → código por último. Nenhuma IA reabre item registrado sem sinalizar
 > que está pedindo **REVERSÃO**.
 
-**Data desta versão:** 2026-07-30 (Fonte de verdade v5 · Fase 2.5) · **Base anterior:** 2026-07-15 (Reconciliação E1) · **Fundador:** Eduardo
+**Data desta versão:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Base anterior:** 2026-07-30 (Fonte de verdade v5 · Fase 2.5) · **Fundador:** Eduardo
 
 > **Reconciliação E1 (2026-07-15):** este arquivo passou a ser o **único árbitro** (o `DECISIONS.md`
 > da raiz foi marcado SUPERSEDED). As decisões consolidadas de lançamento estão na seção
@@ -321,10 +321,25 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
 
 ## Decisões oficiais
 
-### D-FREE-SEM-SALVAR — Plano grátis NÃO salva arte
-- **Data:** 2026-07-05 · **Status:** ✅ CONFIRMADA (fundador) · **Origem:** Adendo v1 §1 + confirmação Eduardo.
-- **Decisão:** Salvar arte é benefício **100% Plano Família**. O grátis desenha/colore normalmente, mas **não persiste** a arte; salvar/Galeria/persistência = Plano Família.
-- **Impacto:** remove o limite numérico atual (não há mais "3 de 3"); qualquer toque em Salvar/Guardar no grátis → gate parental → paywall (copy gentil). Colorir continua valendo para progresso/estrela. "Minhas Artes" no grátis = estado vazio convidativo. Baú: cartinhas tipo "Arte" viram exclusivas do Plano Família (demais lembranças seguem para todos). Livrinho grátis: "Meu livrinho colorido" = estado convidativo. **Implementação em bloco próprio (Bloco A da sequência); NÃO agora.**
+### D-FREE-SEM-SALVAR — Plano grátis NÃO salva arte ⚠️ **PARCIALMENTE REVOGADA (2026-08-03)**
+
+> ⚠️ **REVOGAÇÃO CIRÚRGICA — leia antes de aplicar esta decisão.**
+> Em **2026-08-03** o fundador **revogou** esta decisão **no que ela alcançava o Colorir com o Beni
+> (colorir narrativo integrado às histórias)**. O texto original permanece abaixo como **histórico
+> não apagado**, e continua **integralmente vigente para o Criar Livre**.
+>
+> | Alcance | Estado após 2026-08-03 |
+> |---|---|
+> | **Colorir com o Beni** (narrativo, integrado às histórias) | ❌ **REVOGADA.** O Grátis **salva** as pinturas das histórias às quais tem acesso. Vale [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos). |
+> | **Criar Livre** (autoria livre, aba Brincar e Cultinho) | ✅ **VIGENTE, sem alteração.** Continua sendo benefício do Plano Família, com **E1-PLANO-FREE** e **E1-ARTES-SALVAR** intactos e `ATELIER_FREE_SAVE_LIMIT` em **zero**. |
+>
+> A distinção entre as duas experiências é a de [`D-C60-NOMEACAO-OBRAS`](#d-c60-nomeacao-obras--colorir-com-o-beni-é-coleção-criar-livre-é-autoria):
+> **Colorir com o Beni é COLEÇÃO** (obra derivada de um lineart da história, sem nome, uma por atividade);
+> **Criar Livre é AUTORIA** (obra do zero, com nome, ilimitada). A revogação alcança **somente a coleção**.
+
+- **Data:** 2026-07-05 · **Status:** ⚠️ **PARCIALMENTE REVOGADA em 2026-08-03** (vigente só para o Criar Livre) · **Origem:** Adendo v1 §1 + confirmação Eduardo.
+- **Decisão (texto histórico, preservado):** Salvar arte é benefício **100% Plano Família**. O grátis desenha/colore normalmente, mas **não persiste** a arte; salvar/Galeria/persistência = Plano Família.
+- **Impacto (texto histórico, preservado):** remove o limite numérico atual (não há mais "3 de 3"); qualquer toque em Salvar/Guardar no grátis → gate parental → paywall (copy gentil). Colorir continua valendo para progresso/estrela. "Minhas Artes" no grátis = estado vazio convidativo. Baú: cartinhas tipo "Arte" viram exclusivas do Plano Família (demais lembranças seguem para todos). Livrinho grátis: "Meu livrinho colorido" = estado convidativo. **Implementação em bloco próprio (Bloco A da sequência); NÃO agora.**
 
 ### D-CONCLUSAO-TOTAL-B — Desbloqueio da próxima história exige conclusão TOTAL (Opção B)
 - **Data:** 2026-07-05 · **Status:** ✅ CONFIRMADA (fundador — **Opção B**) · **Origem:** Adendo v1 §1 (D-CONCLUSAO-TOTAL) + correção Eduardo.
@@ -431,7 +446,7 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
   9. **NÃO existe readiness de loja.** O binário ainda referencia ~401 MB por `require()` estático (R5), com premium (R6) e 200 linearts legados (R7) embarcados.
   10. **Próxima fase oficial:** integração do **Colorir com o Beni** (Fase 2.5). A branch de integração **não** foi criada neste portão.
 - **Condições obrigatórias da Fase 2.5** (nenhuma é opcional):
-  1. **Bloquear a persistência de pintura no plano Free no nível da ESCRITA em storage** — não apenas na UI. Coerente com [`D-FREE-SEM-SALVAR`](#d-free-sem-salvar--plano-grátis-não-salva-arte).
+  1. ⚠️ **ALTERADA em 2026-08-03.** ~~**Bloquear a persistência de pintura no plano Free no nível da ESCRITA em storage** — não apenas na UI.~~ A condição **muda de critério, não de camada**: a decisão continua vivendo na **autoridade de ESCRITA** e continua **fail closed**, mas passa a ser **decidida pela acessibilidade da história**, não pelo plano. Coerente com [`D-FREE-SEM-SALVAR`](#d-free-sem-salvar--plano-grátis-não-salva-arte-️-parcialmente-revogada-2026-08-03) **apenas no que resta dela (Criar Livre)** e com [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) no Colorir narrativo. **O bloqueio original foi implementado e validado** (commit `1e2f8dd3`); sua substituição é a **Spec 019**.
   2. **Tornar a atualização de manifest/pack funcional para quem já baixou conteúdo** — hoje quem já instalou não recebe versão nova de forma comprovada.
   3. **Manter os linearts legados fora do binário público** — a remoção é projeto próprio; a Fase 2.5 não pode reintroduzi-los nem ampliar a dependência deles.
   4. **Resolver a divergência de CRLF sem conflito artificial** — `feat/colorir-60-pilot-creation` tem `scripts/smoke.js` 100% CRLF (R23). Este portão fixou `scripts/smoke.js text eol=lf` no `.gitattributes`; a branch divergente precisa ser renormalizada **antes** do merge. Atenção: além do EOL há divergência real de conteúdo.
@@ -453,32 +468,41 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
 ### D-C60-INTEGRACAO-PRODUTO — Integração do Colorir com o Beni (decisões de produto)
 
 - **Data:** 2026-07-30 · **Status:** ✅ **CONFIRMADA PELO FUNDADOR** (ordem "Fase 2.5, Bloco P1") · **Origem:** decisões diretas do fundador registradas neste bloco documental.
-- **Alcance:** este registro governa a **Fase 2.5** e tudo que dela decorre. Ele **atualiza e especifica** [`D-FREE-SEM-SALVAR`](#d-free-sem-salvar--plano-grátis-não-salva-arte) e **E1-ARTES-SALVAR**, e **resolve** o `[A CONFIRMAR]` de [`D-CONCLUSAO-TOTAL-B`](#d-conclusao-total-b--desbloqueio-da-próxima-história-exige-conclusão-total-opção-b).
+- **Alcance:** este registro governa a **Fase 2.5** e tudo que dela decorre. Ele **atualiza e especifica** [`D-FREE-SEM-SALVAR`](#d-free-sem-salvar--plano-grátis-não-salva-arte-️-parcialmente-revogada-2026-08-03) e **E1-ARTES-SALVAR**, e **resolve** o `[A CONFIRMAR]` de [`D-CONCLUSAO-TOTAL-B`](#d-conclusao-total-b--desbloqueio-da-próxima-história-exige-conclusão-total-opção-b).
+- ⚠️ **Revogação parcial em 2026-08-03 (Spec 019):** o **§1 regras 1, 2, 7 e 8** e partes do **§2** foram revogados **para o Colorir com o Beni**. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos). Os §§ **3 a 7** deste registro (critério de "colorir concluído", estados C1–C9, atualização de conteúdo, packs e verificação offline) **não foram tocados** e seguem integralmente vigentes.
 
-#### 1. Plano Grátis — pintura, conclusão e salvamento
+#### 1. Plano Grátis — pintura, conclusão e salvamento ⚠️ **REGRAS 1, 2, 7 e 8 REVOGADAS PARA O COLORIR NARRATIVO (2026-08-03)**
 
-1. O **Plano Grátis nunca persiste pixels de nova pintura.**
-2. O bloqueio vive na **autoridade de escrita**, e é **fail closed**: na dúvida sobre o plano, não escreve.
-3. **Concluir não é salvar.** São ações distintas, com significados distintos para a criança.
-4. O botão **`Pronto`** **conclui** a atividade, **registra progresso** e **apresenta a celebração**.
-5. O **`Pronto` não abre paywall.**
-6. A criança do **Grátis recebe a mesma celebração** que a criança do Plano Família.
-7. A ação explícita **`Salvar` / `Guardar minha arte`** é **benefício do Plano Família**.
-8. No Grátis, a ação explícita de persistência chama o **gate parental** e **só depois** apresenta a oferta ao responsável.
-9. **Nenhuma oferta comercial interrompe automaticamente a celebração infantil.**
+> ⚠️ **REVOGAÇÃO CIRÚRGICA.** Em **2026-08-03** o fundador revogou, **para o Colorir com o Beni**,
+> a regra de que a autoridade de escrita decide **pelo plano**. Ela passa a decidir **pela
+> acessibilidade real da história e da atividade**. Vale
+> [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos).
+> As regras **3, 4, 5, 6 e 9 continuam integralmente vigentes** — inclusive a mais importante
+> delas, a de que **nenhuma oferta comercial interrompe a celebração infantil**.
+> Para o **Criar Livre**, o parágrafo inteiro segue vigente **sem alteração**.
 
-> Esta decisão **atualiza e especifica** [`D-FREE-SEM-SALVAR`](#d-free-sem-salvar--plano-grátis-não-salva-arte): o "toque em Salvar → gate parental → paywall" continua valendo, mas passa a se aplicar **apenas à ação explícita de salvar**, nunca ao ato de concluir a atividade.
+1. ~~O **Plano Grátis nunca persiste pixels de nova pintura.**~~ ❌ **REVOGADA (2026-08-03) para o Colorir narrativo.** Passa a valer: *o Colorir com o Beni é persistido para **todos os planos**, sempre que o usuário tiver acesso legítimo à história.* Continua vigente **para o Criar Livre**.
+2. ~~O bloqueio vive na **autoridade de escrita**, e é **fail closed**: na dúvida sobre o plano, não escreve.~~ ❌ **REVOGADA (2026-08-03) quanto ao critério.** A autoridade de escrita **permanece** como o único ponto de decisão e **permanece fail closed** — o que muda é a **pergunta que ela faz**: deixa de ser *"o plano é Família?"* e passa a ser *"esta história e esta atividade estão legitimamente acessíveis?"*. **O mecanismo não é enfraquecido; o critério é substituído.**
+3. **Concluir não é salvar.** São ações distintas, com significados distintos para a criança. ✅ **vigente**
+4. O botão **`Pronto`** **conclui** a atividade, **registra progresso** e **apresenta a celebração**. ✅ **vigente**
+5. O **`Pronto` não abre paywall.** ✅ **vigente**
+6. A criança do **Grátis recebe a mesma celebração** que a criança do Plano Família. ✅ **vigente**
+7. ~~A ação explícita **`Salvar` / `Guardar minha arte`** é **benefício do Plano Família**.~~ ❌ **REVOGADA (2026-08-03) para o Colorir narrativo** — no Colorir com o Beni **não existe ação explícita de salvar**: o `Pronto` conclui **e** guarda, sem pedir nome. Continua vigente **para o Criar Livre**.
+8. ~~No Grátis, a ação explícita de persistência chama o **gate parental** e **só depois** apresenta a oferta ao responsável.~~ ❌ **REVOGADA (2026-08-03) para o Colorir narrativo** (não há ação explícita de persistência a interceptar). Continua vigente **para o Criar Livre**.
+9. **Nenhuma oferta comercial interrompe automaticamente a celebração infantil.** ✅ **vigente — reforçada**
+
+> Esta decisão **atualiza e especifica** [`D-FREE-SEM-SALVAR`](#d-free-sem-salvar--plano-grátis-não-salva-arte-️-parcialmente-revogada-2026-08-03): o "toque em Salvar → gate parental → paywall" continua valendo, mas passa a se aplicar **apenas à ação explícita de salvar**, nunca ao ato de concluir a atividade. **A partir de 2026-08-03 esse fluxo existe apenas no Criar Livre.**
 
 #### 2. Artes antigas
 
-1. Artes já salvas **nunca são apagadas**.
-2. O Grátis **pode visualizar** as artes antigas em **somente leitura**.
-3. O Grátis **não persiste novas alterações** sobre elas.
-4. Tentar guardar uma alteração chama o **gate parental**.
-5. Ao voltar ao **Plano Família**, a **edição persistente volta a funcionar**.
-6. Migrações **preservam blobs, thumbnails e metadados**.
+1. Artes já salvas **nunca são apagadas**. ✅ **vigente para as duas experiências — princípio reafirmado**
+2. O Grátis **pode visualizar** as artes antigas em **somente leitura**. ✅ vigente para o **Criar Livre**. Para o Colorir com o Beni sob **downgrade**, vale a política própria de [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §3.
+3. O Grátis **não persiste novas alterações** sobre elas. ✅ vigente para o **Criar Livre**; para o Colorir narrativo de história **acessível**, ❌ **revogada** — o Grátis persiste.
+4. Tentar guardar uma alteração chama o **gate parental**. ✅ vigente **apenas para o Criar Livre**.
+5. Ao voltar ao **Plano Família**, a **edição persistente volta a funcionar**. ✅ **vigente para as duas experiências** — é a base da regra de downgrade de §3 da decisão nova.
+6. Migrações **preservam blobs, thumbnails e metadados**. ✅ **vigente — princípio reafirmado**
 
-> Esta decisão **especifica** **E1-ARTES-SALVAR** (seção "7. Artes" das decisões consolidadas E1).
+> Esta decisão **especifica** **E1-ARTES-SALVAR** (seção "7. Artes" das decisões consolidadas E1). **E1-ARTES-SALVAR e E1-PLANO-FREE NÃO foram revogados** e continuam governando o Criar Livre.
 
 #### 3. Critério de "colorir concluído"
 
@@ -585,13 +609,189 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
    Comparação **literal e estrita**; **fail-closed por ausência**; **uma variável isolada é inerte**.
 2. **Perfil `c60-pilot`.** Único perfil que declara as duas variáveis. Distribuição **interna**, iOS + Android, **sem `extends`** e sem herdeiros, release (`__DEV__ = false`). **Não** declara Modo Criador, sandbox de packs, Release Pack QA nem variáveis de produção — logo `isInternalToolsEnabled()` é `false` nele: **sem "Administração (dev)", sem Bancada C60**. Nenhum perfil pré-existente foi alterado.
 3. **Produção continua fechada.** O bloco `production` do `eas.json` **não declara nenhuma** das duas variáveis: falha por **ausência dupla**. `preview`, `preview-criador`, `screenshot` e `development` também não as declaram. O smoke prova isso **por execução real** do fonte sob o env lido do próprio `eas.json` — não por leitura de texto.
-4. **Público: Free e Família.** "A Criação" é conteúdo **gratuito**; o piloto **inclui o plano gratuito** e **não** é exclusivo de premium. A criança Free **abre, pinta e conclui**, com celebração e conclusão normais. **O plano gratuito não salva a arte** — `NOT_PERSISTED_FREE` é comportamento **correto**, não bug; a coleção deve representar honestamente que a arte não foi persistida. O **Plano Família continua salvando**. Nenhuma escrita de storage foi alterada e **nenhum aviso, modal, paywall ou copy nova** foi acrescentado neste bloco.
+4. **Público: Free e Família.** "A Criação" é conteúdo **gratuito**; o piloto **inclui o plano gratuito** e **não** é exclusivo de premium. A criança Free **abre, pinta e conclui**, com celebração e conclusão normais. ⚠️ ~~**O plano gratuito não salva a arte** — `NOT_PERSISTED_FREE` é comportamento **correto**, não bug~~ — **REVOGADO em 2026-08-03 (Spec 019)**, ver nota abaixo; a coleção deve representar honestamente que a arte não foi persistida. O **Plano Família continua salvando**. Nenhuma escrita de storage foi alterada e **nenhum aviso, modal, paywall ou copy nova** foi acrescentado neste bloco.
 5. **Modo Criador não falsifica entitlement.** O Modo Criador **não deve ser usado** para simular premium num build de release do piloto — e o perfil `c60-pilot` **sequer o declara**.
 6. **Efeito sobre progresso — HIPÓTESE OBSERVÁVEL, não regra pública.** Com o piloto ligado, `isStoryColoringAvailable('creation')` vira `true` e o colorir passa a **pesar** no `journeyComplete` de "A Criação". Numa instalação que já concluiu a história **sem** o Colorir 60, ela pode **deixar de contar como concluída temporariamente**, e **Noé** (imediatamente seguinte na ordem oficial) pode aparecer com **bloqueio de sequência**. **Concluir uma única das três atividades restaura tudo** (`count >= 1`). **Nada de migração, carência, grandfathering ou exceção** foi implementado — deliberadamente. `ProgressContext.js`, `storyColoringAvailability.js`, `storyColoringCompletion.js`, `isStorySequenceUnlocked`, regras de conclusão e de desbloqueio, mapa e Story Detail ficaram **intocados** (provado por SHA-256 no smoke).
 7. **A decisão definitiva é da Fase 4.** O resultado do piloto vira **evidência** para a decisão de critérios de conclusão e progressão do Roteiro Mestre — **não** regra pública final. Esta decisão **não** constitui Product Lock de progressão.
 
+> ⚠️ **NOTA DE REVOGAÇÃO (2026-08-03) — o piloto continua válido; a política que ele exercitou, não.**
+> Esta decisão **não é anulada**: a cerca dupla, o perfil `c60-pilot`, o fechamento de produção e as
+> asserções `c60PilotSealed()` **continuam integralmente vigentes**. O que foi revogado é **uma única
+> frase** do item 4 — a de que o plano gratuito **não** salva a arte.
+>
+> **O que a validação física do build `3b4dea54-2194-491c-8ddb-0c6bf85ad049` (commit `1e2f8dd3`,
+> aprovada pelo fundador em 2026-08-03) provou e continua provando:** FIX 1, FIX 2 e FIX 3 aprovados;
+> navegação, Cultinho, Criar Livre e funcionamento offline local aprovados. **Esses resultados não são
+> reabertos.**
+>
+> **O que ela NÃO cobriu, por impossibilidade técnica:** entitlement Família real, persistência com
+> plano Família real, download de histórias premium e testes premium sem ferramentas internas. Causa
+> registrada como fato: **não existe nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` declarada no `.env` nem
+> em nenhum perfil do `eas.json`**, e `__DEV__` é `false` no perfil `c60-pilot` — logo o ramo premium
+> era **inalcançável** naquele binário. **Consequência direta: o caminho de ESCRITA do Colorir 60
+> (double buffer, promoção de ponteiro, verificação, rollback, hidratação, edição e sobrescrita) nunca
+> foi exercitado em dispositivo físico — é provado apenas pelo `scripts/smoke.js`.** A Spec 019 abre
+> esse caminho para **todos** os planos e por isso **exige validação física própria**, que **não pode
+> ser herdada** deste build.
+
 - **Alcance dos testes.** As **9 asserções históricas** que exigiam o literal `false` (blocos `C60-P0.T8`, `C60-P1.T5`, `C60-P2`, `C60-P3`, `C60-P3-FIX1`, `C60-P10`, `P3J-R`, `P3J-R.1`, `P3J-R.1 FIX1`) **não foram apagadas**: cada rótulo histórico foi preservado e a metade textual virou `c60PilotSealed()`, que **executa** o fonte de produção. A intenção original ("esta fase não liga o piloto") ficou **mais forte**, não mais fraca.
 - **Inalterado:** telas, rotas, navegação, storage, progresso, catálogo C60, atividades, ativos, áudios, poses, falas, marcos das cenas, Criar livre, Cultinho, packs, download, recovery, RevenueCat, entitlements, `bundle identifier`, `runtimeVersion`, `main`, `package.json` e `package-lock.json`.
+
+### D-C60-PERSISTENCIA-TODOS-PLANOS (spec 019) — Persistência local do Colorir com o Beni para todos os planos
+
+- **Data:** 2026-08-03 · **Status:** ✅ **CONFIRMADA PELO FUNDADOR** (ordem "Bloco D1", após aprovação da auditoria read-only combinada) · **Escopo:** **governança e documentação**. Este registro **não** implementa código, teste, build ou migração.
+- **Branch:** `spec/019-c60-persistence-all-plans`, nascida de `1e2f8dd33ba6a222745e8de898a6b63b2e426da6`. A branch `integrate/c60-pilot-activation`, **validada fisicamente**, é preservada no mesmo commit e **não recebe novos commits**.
+- **Alcance:** **somente o Colorir com o Beni** — o colorir narrativo integrado às histórias. **Não** alcança o Criar Livre.
+
+#### 1. Nova regra oficial de salvamento (revoga a política "Free sem persistência no Colorir com o Beni")
+
+1. Toda pintura do **Colorir com o Beni** deve ser **salva localmente** quando o usuário possuir **acesso à história**.
+2. O **plano gratuito salva** as pinturas das **histórias gratuitas** ou de **qualquer história à qual possua acesso legítimo**.
+3. O **plano Família salva** as pinturas das **histórias premium** às quais possua **acesso legítimo**.
+4. A regra de escrita **não será mais "somente Família"**.
+5. A autoridade de escrita deverá decidir pela **acessibilidade real da história e da atividade** — não pelo plano.
+6. O salvamento deverá **funcionar offline**.
+7. **Uma pintura visível por atividade.**
+8. Uma **nova conclusão substitui com segurança** a pintura anterior da mesma atividade.
+9. **Não** criar **histórico de múltiplas versões**.
+10. **Não** criar **sincronização em nuvem** nesta fase.
+11. **Não** pedir **nome** para a pintura narrativa.
+12. **Não** alterar o **Criar Livre**.
+13. **Não** reintroduzir o **Ateliê legado**.
+14. A **coleção** deverá permitir **rever e editar a obra real**.
+15. A política deverá suportar **três atividades em cada uma das vinte histórias** (60 slots).
+
+> **A diferenciação comercial permanece — ela apenas muda de lugar.** O Plano Família continua
+> diferenciado principalmente pelo **acesso às histórias e experiências premium**, e **não** pela
+> retenção das pinturas das histórias gratuitas.
+
+#### 2. Revogação cirúrgica — o que cai e o que fica
+
+| Registro | Efeito em 2026-08-03 |
+|---|---|
+| [`D-FREE-SEM-SALVAR`](#d-free-sem-salvar--plano-grátis-não-salva-arte-️-parcialmente-revogada-2026-08-03) | ⚠️ **parcialmente revogada** — cai para o Colorir narrativo; **fica** para o Criar Livre |
+| [`D-C60-INTEGRACAO-PRODUTO`](#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto) §1 regras **1, 2, 7, 8** | ❌ **revogadas** para o Colorir narrativo (regras 3–6 e 9 **ficam**) |
+| [`D-C60-INTEGRACAO-PRODUTO`](#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto) §2 regras **3, 4** | ❌ **revogadas** para história acessível (regras **1, 5, 6** ficam e são reafirmadas) |
+| [`D-C60-PILOT-ATIVACAO`](#d-c60-pilot-ativacao-spec-018--ativação-controlada-do-piloto-colorir-60-de-a-criação) item **4**, frase "o plano gratuito não salva a arte" | ❌ **revogada** (todo o resto da decisão **fica**) |
+| [`D-LP-FECHAMENTO`](#d-lp-fechamento--fechamento-da-trilha-loadingperformance-e-baseline-da-fase-25) condição obrigatória **1** da Fase 2.5 | ⚠️ **critério substituído** (camada de escrita e fail-closed **ficam**) |
+| **NÃO REVOGADO — `E1-PLANO-FREE`** ("Criar Livre sem salvar") | ✅ **integralmente vigente** |
+| **NÃO REVOGADO — `E1-ARTES-SALVAR`** ("Grátis = zero salvamentos") | ✅ **integralmente vigente** |
+| **NÃO REVOGADO — limite zero de `ATELIER_FREE_SAVE_LIMIT`** | ✅ **integralmente vigente** |
+| **NÃO REVOGADO — [`D-C60-NOMEACAO-OBRAS`](#d-c60-nomeacao-obras--colorir-com-o-beni-é-coleção-criar-livre-é-autoria)** | ✅ **vigente e agora estrutural** — é ela que sustenta a distinção |
+
+> **A distinção que torna a revogação cirúrgica:** **Colorir com o Beni é COLEÇÃO** — obra derivada
+> de um lineart da história, **sem nome**, **uma por atividade**, presa ao arco narrativo.
+> **Criar Livre é AUTORIA** — obra do zero, **com nome**, ilimitada, sem história. **A revogação
+> alcança a coleção e não toca a autoria.**
+
+#### 3. Downgrade de Plano Família para Grátis
+
+1. Uma pintura premium **já salva nunca será apagada** durante o downgrade.
+2. O **arquivo e o ponteiro permanecem localmente preservados**.
+3. Enquanto a história premium **não estiver acessível**, a criança **não poderá iniciar nem editar** aquela atividade.
+4. O aplicativo **não deverá destruir a obra**.
+5. Quando o **acesso Família retornar**, a obra **reaparece e volta a ser editável**.
+6. **Não inserir pressão comercial infantil.**
+7. **Não prometer acesso** a uma história comercialmente bloqueada.
+8. A **preservação dos dados não significa liberação do conteúdo premium**.
+
+#### 4. Reset — separação obrigatória em três ações
+
+| Ação | Contrato |
+|---|---|
+| **Reiniciar progresso das histórias** | Apaga cenas, quiz, reflexão, livrinho, conclusão e estados de jornada definidos. **Não** apaga automaticamente as pinturas salvas. |
+| **Apagar criações salvas** | **Ação parental separada.** Deve permitir distinguir **(a)** pinturas do **Colorir com o Beni** e **(b)** criações do **Criar Livre**. |
+| **Apagar todos os dados locais** | Ação **diferente das duas anteriores**, com **gate parental reforçado**. |
+
+> A **implementação da separação de reset é obrigatória antes do novo build físico da Spec 019**
+> (bloco **S4**). Sem ela, "reiniciar progresso" apagaria pinturas que a criança nunca pediu para
+> apagar — consequência direta desta decisão, não do estado anterior.
+
+#### 5. Estado legado `NOT_PERSISTED`
+
+1. **`NOT_PERSISTED` continuará existindo como estado legado.** A decisão **não** o elimina: muda apenas o **produtor** do estado — de *"o plano é Grátis"* para *"conclusão legada sem pixels"*.
+2. Uma atividade **antiga concluída sem pixels permanece concluída**.
+3. **Nenhuma pintura poderá ser inventada, reconstruída ou copiada de outro slot.**
+4. **Copy transitória oficial** — Título: **"Parte concluída!"** · Mensagem: **"Pinte de novo para guardar sua criação."**
+5. Depois de **pintar novamente e salvar com sucesso**, o slot passa para **`ART`**.
+6. Uma **falha de escrita não poderá transformar a atividade em não concluída**.
+7. Uma **falha de sobrescrita deverá preservar a obra anterior**.
+
+#### 6. Capacidade e política de armazenamento (orçamento inicial)
+
+1. **Uma obra visível por atividade.**
+2. **Sessenta slots máximos no lançamento** — três por cada uma das vinte histórias.
+3. Orçamento de **até 150 MB** para o diretório `ptf_blobs/drawings60`.
+4. **Double buffer somente durante a escrita.**
+5. A **geração anterior é removida apenas depois da promoção verificada da nova**.
+6. **Nenhum histórico ilimitado.**
+7. **GC dirigido de arquivos órfãos** deverá fazer parte do bloco **S3**.
+8. **Nenhum PNG deverá ser armazenado no AsyncStorage.**
+9. O **AsyncStorage guarda somente ponteiro e metadados**.
+
+> **Quota e GC não são implementados neste bloco.** São orçamento declarado, não código.
+
+#### 7. Estado transitório entre documento e código — ⛔ **NÃO GERAR BUILD**
+
+Depois do **D1** e antes da conclusão do **S1** existe, **de forma intencional**, uma janela em que:
+
+1. A **documentação já contém** a nova decisão.
+2. O **código ainda contém** o gate antigo (`coloring60DrawingStorage.js`, retorno `NOT_PERSISTED_FREE`).
+3. O **smoke ainda defende** a regra antiga — **26 ocorrências** do desfecho em `scripts/smoke.js`
+   (16 `NOT_PERSISTED_FREE` + 10 `not_persisted_free`) afirmam que o Grátis **não** persiste.
+
+> ⛔ **ESTADO TRANSITÓRIO — NÃO GERAR BUILD.** Nenhum build poderá ser gerado entre o **D1** e a
+> conclusão do **S1**. **O D1 não afirma que a implementação existe.** Um binário gerado nesta janela
+> se comportaria segundo a regra **revogada**, contradizendo o árbitro.
+
+### D-CONCLUSAO-GLOBAL-SISTEMA (Decisão B) — Sistema global e reutilizável de conclusão das histórias
+
+- **Data:** 2026-08-03 · **Status:** ✅ **CONFIRMADA PELO FUNDADOR** (decisão de produto) · ⚠️ **CONTRATO TÉCNICO NÃO CONGELADO.**
+- **Correção de escopo registrada pelo fundador:** *"A decisão de redesenho da conclusão **não** é exclusiva de A Criação."*
+
+1. O sistema de conclusão **não é exclusivo de A Criação**.
+2. Todas as histórias utilizarão um **sistema reutilizável** de conclusão.
+3. **A Criação** será o **piloto** do sistema — piloto visual e funcional, **não** exceção arquitetural.
+4. **Noé** será a **prova de reutilização por configuração** — entra no mesmo modelo apenas por dados.
+5. As demais **dezoito** histórias usarão o **mesmo contrato**.
+6. **Não** criar uma tela **hardcoded** para cada história.
+7. **Estrutura, hierarquia, ações e retornos** devem ser **padronizados**.
+8. **Conteúdo, imagens, verdade central e recompensas vêm dos dados da história.**
+9. A conclusão deverá ser **reabrível**.
+10. Visitar **Colorir, Livrinho, Quiz, Reflexão, Baú ou Estrelinhas** **não poderá destruir** o contexto de conclusão.
+11. A navegação deverá **saber retornar à conclusão** quando essa for a origem.
+12. ⚠️ **O contrato técnico ainda NÃO está congelado.**
+
+- **Congelamento:** o contrato global de conclusão será congelado **somente no Product Lock da Fase 4**. Nada nesta decisão autoriza implementá-lo na Spec 019.
+
+### D-ENCERRAMENTO-GLOBAL-ATIVIDADES (Decisão C) — Linguagem global de encerramento de jogos e atividades
+
+- **Data:** 2026-08-03 · **Status:** ✅ **CONFIRMADA PELO FUNDADOR** (decisão de produto) · ⚠️ **CONTRATO TÉCNICO NÃO CONGELADO.**
+
+1. Jogos e atividades usarão uma **linguagem global de encerramento**.
+2. **Não** precisam ter o **mesmo conteúdo visual**.
+3. Devem compartilhar os mesmos **contratos de resultado, recompensa, ação principal e retorno**.
+4. **Jogar novamente**, **continuar**, **voltar ao Brincar**, **voltar à aventura**, **voltar à origem** e **ir ao Início** deverão possuir **regras canônicas**.
+5. **Nenhum jogo poderá ficar sem saída.**
+6. **Nenhum jogo deverá inventar uma origem.**
+7. **Nenhum encerramento** deverá oferecer **botões duplicados ou contraditórios**.
+8. ⚠️ **O contrato técnico ainda NÃO está congelado.**
+
+### D-CONCLUSAO-ESTADO-ATUAL — Achados que impedem o congelamento técnico imediato (registro de fatos)
+
+- **Data:** 2026-08-03 · **Natureza:** **registro de fatos apurados**, não decisão. · **Origem:** auditoria read-only combinada aprovada pelo fundador, detalhada em [`specs/019-c60-persistence-all-plans/AUDITORIA_READONLY_C60_CONCLUSAO.md`](../specs/019-c60-persistence-all-plans/AUDITORIA_READONLY_C60_CONCLUSAO.md).
+- **Estes problemas são REGISTRADOS, e NÃO corrigidos na branch da Spec 019.**
+
+1. Existem **duas telas concorrentes** de conclusão de história.
+2. A conclusão é **destruída ao abrir o Colorir a partir da conclusão**.
+3. A conclusão **não é reabrível** depois do reinício.
+4. As **vinte histórias não possuem campos declarativos de conclusão**.
+5. Existem **múltiplas fontes de verdade** para o retorno.
+6. O **Quiz concede duas estrelas**, mas **três textos prometem uma**.
+7. **Congrats não reflete** corretamente Quiz, Reflexão e Livrinho concluídos.
+8. Os **quatro jogos** possuem **quatro arquiteturas diferentes** de encerramento.
+9. A **pílula de retorno do Brincar está inoperante** porque a origem não é transmitida.
+10. A **conclusão global será congelada somente no Product Lock da Fase 4.**
 
 ---
 
@@ -607,3 +807,5 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
 - 🟡 **D-NAMING-JOGOS-PENDENTE** — nomes finais de Adivinhar o Animal / Quebra-Cabeça (Soletrando → **"Palavrinhas do Beni"** ✅ resolvido em `D-PALAVRINHAS-UF1`).
 - ✅ **D-CONCLUSAO-TOTAL-B** — definição operacional de "colorir concluído" **RESOLVIDA em 2026-07-30**: pelo menos **uma atividade do Colorir com o Beni** concluída (ver [`D-C60-INTEGRACAO-PRODUTO`](#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto) §3). O **restante** da `D-CONCLUSAO-TOTAL-B` (Opção B, ritual de conclusão) segue para implementação na **Fase 11**.
 - 🟡 **D-CRIAR-COM-BENI-STATUS** — manter ou remover "Criar com Beni" no v1 (sem código até confirmar).
+- ⛔ **ESTADO TRANSITÓRIO ATIVO (desde 2026-08-03) — NÃO GERAR BUILD** entre o **D1** e a conclusão do **S1** da Spec 019: a documentação já revogou a restrição de persistência no Grátis, mas o código e o smoke ainda defendem a regra antiga. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §7.
+- 🟡 **Contrato técnico do sistema global de conclusão** (Decisões B e C) — **NÃO congelado**. Congelamento previsto para o **Product Lock da Fase 4**; os cinco impedimentos apurados estão em [`D-CONCLUSAO-ESTADO-ATUAL`](#d-conclusao-estado-atual--achados-que-impedem-o-congelamento-técnico-imediato-registro-de-fatos).

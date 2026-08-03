@@ -124,8 +124,17 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   1. Governança e fonte de verdade v5 (**este documento**) e o registro
      [`D-C60-INTEGRACAO-PRODUTO`](DECISIONS.md#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto)
      no árbitro.
-  2. **Bloqueio de persistência de pintura no plano Grátis na autoridade de ESCRITA**, fail closed,
-     não apenas na UI — incluindo o caminho legado de colorir de história.
+  2. ⚠️ **REVISADA EM 2026-08-03 (Spec 019).** ~~**Bloqueio de persistência de pintura no plano
+     Grátis na autoridade de ESCRITA**, fail closed, não apenas na UI — incluindo o caminho legado
+     de colorir de história.~~ A entrega original **foi implementada e validada fisicamente**
+     (commit `1e2f8dd3`, build `3b4dea54`). Em 2026-08-03 o fundador **revogou a política de
+     produto** que ela materializava, **para o Colorir com o Beni**. A entrega passa a ser:
+     **autoridade de ESCRITA única e fail closed decidindo pela ACESSIBILIDADE real da história e
+     da atividade — não pelo plano**, de modo que **todo usuário com acesso legítimo salva a sua
+     pintura do Colorir narrativo**. A **camada** e o **fail closed** não mudam; muda o **critério**.
+     O **Criar Livre permanece intocado** (`E1-PLANO-FREE`, `E1-ARTES-SALVAR` e
+     `ATELIER_FREE_SAVE_LIMIT = 0` seguem vigentes). Registro:
+     [`D-C60-PERSISTENCIA-TODOS-PLANOS`](DECISIONS.md#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos).
   3. **Atualização funcional de manifest/pack para quem já baixou conteúdo** (ativar
      `needs_update`), com política de versão anterior íntegra e rollback.
   4. **Política mínima de coleta de lixo** e **desempate determinístico de `ambiguous`**.
@@ -137,14 +146,26 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   9. Definição operacional de **colorir concluído** aplicada ao critério de conclusão de história.
 - **Critério de saída:**
   - os três gates físicos herdados da Fase 2 executados e aprovados em dispositivo;
-  - Grátis comprovadamente sem persistir pixels de nova pintura, verificado na camada de escrita;
+  - ⚠️ **REVISADO EM 2026-08-03 (Spec 019).** ~~Grátis comprovadamente sem persistir pixels de nova
+    pintura, verificado na camada de escrita;~~ **O critério original foi cumprido e validado**
+    (commit `1e2f8dd3`). Ele é **substituído** por: **Grátis comprovadamente PERSISTINDO a pintura
+    do Colorir narrativo de história acessível, verificado na camada de escrita e em dispositivo
+    físico** — e, simetricamente, **comprovadamente NÃO persistindo** quando a história **não** está
+    acessível. A **verificação continua sendo na camada de escrita**, nunca só na UI. O critério
+    equivalente do **Criar Livre** (Grátis = zero salvamentos) **permanece inalterado**;
   - atualização de conteúdo comprovada para quem já tinha baixado;
   - smoke verde com o transplante semântico concluído e `scripts/smoke.js` em LF puro;
   - validação visual do **novo Colorir** **e** do **consumidor legado** de `scene_02.png`.
 - **Riscos atribuídos:** **C2**, **C3**, **C4**, **C5**, **C6**, **C7**, **C8** e **C9** de
   [`specs/012-loading-performance-foundation/RELATORIO_FECHAMENTO_LP.md`](../specs/012-loading-performance-foundation/RELATORIO_FECHAMENTO_LP.md)
   §9.1 — estados individuais registrados no árbitro.
-- **Estado:** **em execução.**
+- **Veículo de execução da entrega 2 revisada:**
+  [`specs/019-c60-persistence-all-plans/`](../specs/019-c60-persistence-all-plans/spec-c60-persistence-all-plans.md),
+  em blocos **D1 → S1 → S2 → S3 → S4 → D2**. A spec **018** (ativação controlada do piloto) está
+  **concluída e validada fisicamente** e **não** é reaberta.
+- **Estado:** **em execução.** ⛔ **Janela transitória ativa desde 2026-08-03: NÃO GERAR BUILD**
+  entre o **D1** e a conclusão do **S1** da Spec 019 — a documentação já revogou a política antiga,
+  mas o código e o `scripts/smoke.js` ainda a defendem.
 
 ---
 
