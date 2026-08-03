@@ -113,6 +113,9 @@ import {
 } from '../services/coloring60CollectionReader';
 import { COLORIR_60_CREATION_PILOT_ENABLED } from '../config/featureFlags';
 import { isInternalToolsEnabled } from '../config/internalTools';
+// [S1] Fonte ÚNICA da autorização de conteúdo. A tela não deriva acesso — consulta o adaptador do
+// contexto (que chama `deriveStoryContentAuthorization`) e repassa o contrato inteiro ao writer.
+import { useProgressContext } from '../context/ProgressContext';
 // P8B (Colorir 60) — aquecimento da pose de conclusão do Beni. Usa apenas o `Image.prefetch` do
 // próprio React Native (sem lib nova e sem qualquer primitiva de pack) para aquecer a textura
 // empacotada ANTES do toque em "Pronto!", de modo que a camada de conclusão não precise "buscar"
@@ -297,6 +300,7 @@ function beginC60Attempt(deps) {
     controller, canvasRef, activeRef,
     available, ready, hasColor, saving,
     storyId, activityId, setSaving, goBack, onSaveIssue, onCelebrate, onEmptyPaint,
+    getContentAuthorization,
   } = deps;
   if (!available || saving) return; // guard visual complementar (a trava real é o controller)
   if (!ready) return;       // D1: sem lineart pronto não conclui nem salva
@@ -340,39 +344,46 @@ function beginC60Attempt(deps) {
         // ── PASSOS 3-5 · PERSISTIR A PINTURA (que É o instantâneo desta revisão) ────────────
         // Um único artefato carrega pixels + revisão; por isso "gerar o instantâneo da MESMA
         // revisão" e "persistir o instantâneo" não são duas escritas que possam divergir.
-        const result = await saveColoring60DrawingState(attemptStoryId, attemptActivityId, exportData);
+        // [S1] A autoridade de escrita é o ACESSO LEGÍTIMO a ESTA história, derivado pela fonte
+        // canônica (ProgressContext → storyContentAuthorization) e entregue ao writer INTEIRO, como
+        // objeto. A tela não interpreta o contrato nem cria regra própria: abrir a tela não autoriza
+        // nada. Quem decide — e quem recusa — é o writer, lendo o contrato.
+        const authorization = getContentAuthorization(attemptStoryId);
+        const result = await saveColoring60DrawingState(
+          attemptStoryId, attemptActivityId, exportData, { authorization },
+        );
         const resultLabel =
           result === COLORING60_SAVE_RESULT.SAVED ? 'saved'
-          : result === COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE ? 'not_persisted_free'
           : result === COLORING60_SAVE_RESULT.WRITE_FAILED ? 'write_failed'
-          : 'invalid_identity';
+          : result === COLORING60_SAVE_RESULT.ACCESS_DENIED ? 'access_denied'
+          : result === COLORING60_SAVE_RESULT.AUTHORIZATION_NOT_READY ? 'authorization_not_ready'
+          : result === COLORING60_SAVE_RESULT.INVALID_STORY ? 'invalid_story'
+          : result === COLORING60_SAVE_RESULT.INVALID_ACTIVITY ? 'invalid_activity'
+          : result === COLORING60_SAVE_RESULT.INVALID_AUTHORIZATION ? 'invalid_authorization'
+          : 'write_failed';
         if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante o writer
-        // Falha de persistência: NÃO marca, NÃO incrementa, NÃO abre a coleção. A pintura continua
-        // na tela (recuperável) e a criança pode tentar de novo.
-        if (result !== COLORING60_SAVE_RESULT.SAVED
-          && result !== COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE) {
-          if (__DEV__) console.log('[Coloring60] persistência falhou; nada marcado:', resultLabel);
+        // [S1] Qualquer desfecho diferente de `saved` INTERROMPE: NÃO marca, NÃO incrementa, NÃO
+        // celebra, NÃO abre a coleção. Não existe mais "conclusão sem arte gravada". A pintura
+        // continua na tela (recuperável) e a criança pode tentar de novo — o aviso é o mesmo, gentil
+        // e sem jargão; o rótulo viaja só para o log e para a telemetria interna.
+        if (result !== COLORING60_SAVE_RESULT.SAVED) {
+          if (__DEV__) console.log('[Coloring60] pintura não guardada; nada marcado:', resultLabel);
           if (typeof onSaveIssue === 'function') onSaveIssue(resultLabel);
           return;
         }
 
         // ── PASSO 6 · VERIFICAR QUE O GUARDADO É A MESMA REVISÃO ────────────────────────────
-        // Quando houve gravação em disco, RELEMOS o que ficou lá. É a diferença entre "o writer
-        // disse que deu certo" e "a arte certa está guardada". Divergência ⇒ transação abortada.
+        // RELEMOS o que ficou lá. É a diferença entre "o writer disse que deu certo" e "a arte certa
+        // está guardada". Divergência ⇒ transação abortada.
         let snapshotStatus = SNAPSHOT_STATUS.NOT_PERSISTED;
-        if (result === COLORING60_SAVE_RESULT.SAVED) {
-          const stored = await getColoring60SavedDrawing(attemptStoryId, attemptActivityId);
-          if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante a releitura
-          if (!snapshotMatchesRevision(stored, revisionId)) {
-            if (__DEV__) console.log('[Coloring60] instantâneo guardado diverge da revisão validada');
-            if (typeof onSaveIssue === 'function') onSaveIssue('snapshot_mismatch');
-            return;
-          }
-          snapshotStatus = SNAPSHOT_STATUS.READY;
+        const stored = await getColoring60SavedDrawing(attemptStoryId, attemptActivityId);
+        if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante a releitura
+        if (!snapshotMatchesRevision(stored, revisionId)) {
+          if (__DEV__) console.log('[Coloring60] instantâneo guardado diverge da revisão validada');
+          if (typeof onSaveIssue === 'function') onSaveIssue('snapshot_mismatch');
+          return;
         }
-        // Plano Grátis (`not_persisted_free`): por decisão travada do projeto os pixels não vão para
-        // o disco. O instantâneo validado existe EM MEMÓRIA e acompanha a celebração — o desfecho
-        // registrado é `notPersisted`, que é honesto e conta como conclusão legítima.
+        snapshotStatus = SNAPSHOT_STATUS.READY;
 
         // ── PASSOS 7-9 · CONCLUSÃO, CONTADOR E MEMÓRIA, NUMA ÚNICA AÇÃO ─────────────────────
         // A prova de cor e o desfecho do instantâneo viajam juntos: o serviço de domínio recusa
@@ -389,11 +400,12 @@ function beginC60Attempt(deps) {
         if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante a marcação
 
         // ── PASSOS 10-11 · SÓ AGORA A RECOMPENSA — E SÓ AGORA A COLEÇÃO ─────────────────────
-        // Quem navega é a criança (§4.7). `persisted` é informativo e honesto (nunca vira "salvo"
-        // quando não foi); a experiência infantil é a mesma nos dois casos e não menciona plano.
+        // Quem navega é a criança (§4.7). Chegar aqui já significa arte gravada E verificada, em
+        // qualquer plano: `persisted` é `true` e continua sendo informativo e honesto. A experiência
+        // infantil é a mesma para todo mundo e não menciona plano.
         if (typeof onCelebrate === 'function') {
           onCelebrate({
-            persisted: result === COLORING60_SAVE_RESULT.SAVED,
+            persisted: true,
             snapshot: exportData,
             snapshotStatus,
             activityId: attemptActivityId,
@@ -457,6 +469,10 @@ const C60_PREWARM_TIMEOUT_MS = 4000;
 // refreshProgress (o ramo dormente não tem métrica pública). deferred/unknown mostram estado honesto.
 function Coloring60ActivityScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
+  // [S1] Autoridade CANÔNICA de acesso ao conteúdo (fonte única — a MESMA que o mapa, o detalhe e a
+  // narração consultam). A tela não recalcula acesso: só repassa o adaptador ao núcleo, que o entrega
+  // ao writer. O `?? {}` é defesa de montagem (o app inteiro vive sob ProgressProvider).
+  const { getStoryContentAuthorization } = useProgressContext() ?? {};
   const canvasRef = useRef(null);
   // [C60-P4-ACTIVE] Marca a instância como ativa. A remontagem por identidade (key no wrapper) e a
   // saída da tela desmontam ESTA instância → activeRef.current = false. Um callback de export tardio
@@ -1066,6 +1082,9 @@ function Coloring60ActivityScreen({ route, navigation }) {
       onSaveIssue: handleC60SaveIssue,
       onCelebrate: handleC60Celebrate,
       onEmptyPaint: handleC60EmptyPaint,
+      // [S1] A autoridade de acesso vem PRONTA da fonte única (ProgressContext). A tela apenas
+      // repassa o adaptador — não deriva, não interpreta e não guarda cópia do contrato.
+      getContentAuthorization: getStoryContentAuthorization,
     });
   }
 

@@ -36451,12 +36451,57 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 
     // Catálogo REAL (sem require) → identidade validada pela MESMA fonte que o app usa.
-    const cat3 = loadModule('src/data/coloring60Catalog.js', {}, ['getColoring60Activity']);
+    const cat3 = loadModule('src/data/coloring60Catalog.js', {}, ['getColoring60Activity', 'getColoring60Activities']);
+
+    // [S1] AUTORIDADE CANÔNICA DE ACESSO — a pilha REAL, do fonte, sem literal escrito à mão.
+    // A partir do S1 o writer decide por ACESSO LEGÍTIMO à história e à atividade, nunca por plano.
+    // O contrato que ele recebe é EXATAMENTE o que `deriveStoryContentAuthorization` emite, derivado
+    // do contrato que `getStoryJourneyStatus` calcula. Se qualquer um dos dois mudar de forma, estas
+    // provas mudam junto — é de propósito: um contrato inventado aqui provaria só a si mesmo.
+    const SJ1 = loadModule('src/services/storyJourneyService.js', {},
+      ['getStoryJourneyStatus', 'COMMERCIAL_ACCESS']);
+    const AUT1 = loadModule('src/services/storyContentAuthorization.js',
+      { COMMERCIAL_ACCESS: SJ1.COMMERCIAL_ACCESS },
+      ['CONTENT_AUTH_REASON', 'deriveStoryContentAuthorization']);
+    const RZ1 = AUT1.CONTENT_AUTH_REASON;
+    // Jornada real: por padrão uma história GRÁTIS, em ordem e acessível (o caso do piloto).
+    const jornada1 = (over) => SJ1.getStoryJourneyStatus(Object.assign({
+      totalScenes: 10, sceneDoneCount: 10,
+      postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+      coloringComplete: true, coloringAvailable: true,
+      accessStatus: 'full', accessType: 'free',
+      isFirstStory: true, previousJourneyComplete: true,
+    }, over || {}));
+    // Contrato de autorização DERIVADO (nunca digitado). `hydrated:false` encena a hidratação;
+    // `accessStatus/accessType` encenam bloqueio comercial e mídia ausente; `isFirstStory:false`
+    // com `previousJourneyComplete:false` encena a sequência ainda fechada.
+    const autorizacao = (over = {}) => {
+      const { storyId = 'creation', hydrated = true, ...jornada } = over;
+      return AUT1.deriveStoryContentAuthorization({
+        storyId, knownStory: true, previousStoryId: null,
+        journeyStatus: jornada1(jornada), previousStatus: null, hydrated,
+      });
+    };
+    // Os quatro contratos que o S1 usa o tempo todo, cada um com a sua razão canônica.
+    const AUTZ_OK = autorizacao();                                            // allowed
+    const AUTZ_HIDRATANDO = autorizacao({ hydrated: false });                 // ainda carregando
+    const AUTZ_SEQUENCIA = autorizacao({ isFirstStory: false, previousJourneyComplete: false });
+    const AUTZ_COMERCIAL = autorizacao({ accessStatus: 'locked', accessType: 'premium' });
+    const AUTZ_SEM_MIDIA = autorizacao({ accessStatus: 'coming_soon' });
 
     // Fábrica de ambiente: doubles frescos + writer real recarregado. `plan` aceita valor,
     // array (um por tentativa) ou função(nº da tentativa); '__throw__' faz getCurrentPlan lançar.
+    // O plano permanece INJETADO para provar, por controle negativo, que o writer NÃO o consulta
+    // mais: nenhum desfecho pode variar com ele.
     // `verifyThrows`/`verifyWrong` afetam SÓ a leitura de verificação (após o 1º setItem), nunca a
     // leitura inicial do estado anterior — assim o cenário de falha não contamina o baseline.
+    //
+    // [S1] AUTORIZAÇÃO PADRÃO DO HARNESS: toda gravação passa a exigir o contrato estruturado da
+    // autoridade canônica, e o caso NORMAL do piloto é "usuário com acesso legítimo". Por isso a
+    // fábrica injeta `AUTZ_OK` quando o teste não passa opções — assim os cenários herdados de
+    // round-trip, double-buffer e falha continuam medindo o que sempre mediram. Todo cenário de
+    // RECUSA passa a sua própria autorização explicitamente (inclusive `undefined`/`null`), e as
+    // provas dedicadas do portão chamam o writer sem opção nenhuma.
     const mkEnv = (cfg = {}) => {
       const store = new Map();
       const blob = new Map();
@@ -36471,6 +36516,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         return p;
       };
       const deps = {
+        CONTENT_AUTH_REASON: RZ1,
         AsyncStorage: {
           getItem: async (k) => {
             calls.getItem++;
@@ -36489,6 +36535,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         log: () => {},
         getCurrentPlan: () => planOf(),
         getColoring60Activity: cat3.getColoring60Activity,
+        getColoring60Activities: cat3.getColoring60Activities,
         writeBlob: async (sub, fn, dataUrl) => {
           calls.writeBlob++;
           if (cfg.writeBlobFails) return null;
@@ -36503,10 +36550,22 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         dataUrlMime: (_d, fb = 'image/png') => fb,
         currentBlobsRoot: () => 'file://ptf_blobs/',
       };
-      const W = loadModule('src/services/coloring60DrawingStorage.js', deps, [
+      // [S1] Fronteiras de OVERRIDE injetáveis: `__DEV__` (global livre, vira parâmetro no harness)
+      // e o gate de ferramentas internas. Ficam disponíveis LIGADAS para que os controles negativos
+      // possam provar que, mesmo assim, nenhuma escrita sem acesso passa.
+      Object.assign(deps, cfg.extraDeps || {});
+      const Wraw = loadModule('src/services/coloring60DrawingStorage.js', deps, [
         'saveColoring60DrawingState', 'getColoring60SavedDrawing',
         'hasColoring60SavedDrawing', 'clearColoring60SavedDrawing', 'COLORING60_SAVE_RESULT',
       ]);
+      // Casca de conveniência: quem NÃO passa opções recebe o contrato de acesso legítimo do
+      // próprio storyId da chamada. Quem passa (mesmo `undefined`/`null`/forjado) manda por inteiro.
+      const W = Object.assign({}, Wraw, {
+        raw: Wraw.saveColoring60DrawingState,
+        saveColoring60DrawingState: (storyId, activityId, payload, ...rest) =>
+          Wraw.saveColoring60DrawingState(storyId, activityId, payload,
+            rest.length ? rest[0] : { authorization: autorizacao({ storyId }) }),
+      });
       return { W, store, blob, deleted, calls };
     };
 
@@ -36549,93 +36608,272 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         `chaves esperadas distintas por activityId (recebido: ${keys.join(' | ')})`);
     }
     {
-      // Identidade inválida ⇒ invalid_identity com ZERO escrita — nunca conflada com not_persisted_free.
-      const bad = [['creation', 'nope'], ['creation', 2], ['creation', '2'], ['creation', 'scene_02'], ['noah', 'light'], ['', 'light'], ['creation', ''], [null, undefined], ['creation', null]];
+      // [S1] Identidade inválida ⇒ recusa TIPADA com ZERO escrita. A partir do S1 o writer separa
+      // "história inexistente" de "atividade inexistente/de outra história": um desfecho por causa.
+      const bad = [
+        ['creation', 'nope', 'INVALID_ACTIVITY'], ['creation', 2, 'INVALID_ACTIVITY'],
+        ['creation', '2', 'INVALID_ACTIVITY'], ['creation', 'scene_02', 'INVALID_ACTIVITY'],
+        ['creation', '', 'INVALID_ACTIVITY'], ['creation', null, 'INVALID_ACTIVITY'],
+        ['noah', 'light', 'INVALID_STORY'], ['', 'light', 'INVALID_STORY'],
+        [null, undefined, 'INVALID_STORY'],
+      ];
       let allInvalid = true;
       let anyWrite = false;
       let threw = false;
-      for (const [s, a] of bad) {
+      const got = [];
+      for (const [s, a, esperado] of bad) {
         const e = mkEnv({ plan: 'premium' });
         let r;
         try { r = await e.W.saveColoring60DrawingState(s, a, PAINT); } catch (err) { threw = true; }
-        if (r !== R.INVALID_IDENTITY) allInvalid = false;
+        got.push(`${String(s)}/${String(a)}→${String(r)}`);
+        if (r !== R[esperado]) allInvalid = false;
         if (writesOf(e) !== 0 || e.store.size !== 0) anyWrite = true;
       }
-      check('C60-P3.T1 [controle negativo]: identidade inválida (nope/2/"2"/scene_02/noah/vazio/null) → invalid_identity, sem lançar',
+      check('C60-P3.T1 [controle negativo]: identidade inválida → invalid_story/invalid_activity tipados, sem lançar',
         allInvalid && !threw,
-        'toda identidade fora do catálogo deve retornar invalid_identity sem exceção');
+        `história fora do catálogo ⇒ invalid_story; atividade inexistente/de outra história ⇒ invalid_activity (recebido: ${got.join(' | ')})`);
       check('C60-P3.T1 [controle negativo]: identidade inválida NÃO provoca nenhuma escrita (0 setItem/blob)',
         !anyWrite,
         'nenhuma entrada inválida pode tocar o storage — a chave só é calculada após validar');
+      // A atividade tem de pertencer À HISTÓRIA da gravação, não a "alguma" história do catálogo.
+      const e2 = mkEnv();
+      const r2 = await e2.W.saveColoring60DrawingState('creation', 'light', PAINT,
+        { authorization: autorizacao({ storyId: 'creation' }) });
+      check('C60-S1: atividade do catálogo é validada CONTRA a história da gravação (não basta existir em alguma)',
+        r2 === R.SAVED && R.INVALID_ACTIVITY !== undefined && R.INVALID_STORY !== undefined,
+        'o par (storyId, activityId) é resolvido junto; os dois desfechos precisam existir separados');
     }
     {
       // O writer NÃO aceita chave/rota/entitlement do chamador: argumentos extras são IGNORADOS.
       const e = mkEnv({ plan: 'premium' });
-      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT, { storageKey: '@HACK', route: 'x', isPremium: true, sceneId: 7 });
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT, {
+        authorization: autorizacao({ storyId: 'creation' }),
+        storageKey: '@HACK', route: 'x', isPremium: true, sceneId: 7, canSave: true,
+      });
       check('C60-P3.T1: argumentos extras do chamador (chave/rota/sceneId) são IGNORADOS — chave interna prevalece',
         r === R.SAVED && e.store.has(KEY_LIGHT) && !e.store.has('@HACK') && e.store.size === 1,
         'o writer computa a própria chave; nenhum valor arbitrário do chamador vira chave/caminho');
     }
 
-    // ── B · ENTITLEMENT reavaliado por tentativa, fail-closed (só Plano Família persiste) ──
+    // ── B · AUTORIDADE DE ESCRITA POR ACESSO LEGÍTIMO (S1) ──
+    // REVOGADA PARA O COLORIR NARRATIVO a antiga trava "só Plano Família persiste". A autoridade
+    // deixou de ser o entitlement e passou a ser o contrato canônico de acesso à história e à
+    // atividade. O que a trava antiga protegia — "conteúdo sem direito não escreve" — NÃO some:
+    // migra para as seções B (recusa tipada) e C (zero escrita sem acesso), agora ancoradas em
+    // acessibilidade real. A proteção do Criar Livre segue viva no seu próprio serviço.
     {
-      const cases = [
-        ['premium', R.SAVED, false], ['free', R.NOT_PERSISTED_FREE, true], [undefined, R.NOT_PERSISTED_FREE, true],
-        [null, R.NOT_PERSISTED_FREE, true], ['__throw__', R.NOT_PERSISTED_FREE, true], ['loading', R.NOT_PERSISTED_FREE, true],
-        ['needs_revalidation', R.NOT_PERSISTED_FREE, true],
-      ];
-      for (const [plan, expected, zeroWrite] of cases) {
+      // A REGRA NOVA, no caso que a motivou: Grátis, história gratuita acessível → SALVA.
+      const e = mkEnv({ plan: 'free' });
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT,
+        { authorization: autorizacao({ accessType: 'free', accessStatus: 'full' }) });
+      check('C60-S1.B1: Grátis em história gratuita ACESSÍVEL → saved (blob + ponteiro v3 promovido)',
+        r === R.SAVED && e.calls.writeBlob === 1 && e.store.has(KEY_LIGHT)
+          && JSON.parse(e.store.get(KEY_LIGHT)).v === 3,
+        `o plano gratuito com acesso legítimo persiste a pintura narrativa (recebido: ${r}, writes: ${JSON.stringify(e.calls)})`);
+    }
+    {
+      // E a Família em história premium acessível CONTINUA salvando — nada regrediu.
+      const e = mkEnv({ plan: 'premium' });
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT,
+        { authorization: autorizacao({ accessType: 'premium', accessStatus: 'full' }) });
+      check('C60-S1.B2: Família em história premium ACESSÍVEL → saved (comportamento preservado)',
+        r === R.SAVED && e.store.has(KEY_LIGHT),
+        `o caminho já existente do Plano Família não pode regredir (recebido: ${r})`);
+    }
+    {
+      // O PLANO virou irrelevante para o writer: mesmo contrato de acesso ⇒ mesmo desfecho, sempre.
+      // `__throw__` faria getCurrentPlan lançar; se ninguém o chama, ninguém quebra.
+      const planos = ['premium', 'free', undefined, null, '__throw__', 'loading', 'needs_revalidation'];
+      let todosSalvaram = true;
+      let consultas = 0;
+      const obtidos = [];
+      for (const plan of planos) {
         const e = mkEnv({ plan });
-        const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
-        const label = plan === undefined ? 'undefined' : String(plan);
-        check(`C60-P3.T3: entitlement "${label}" → ${expected}${zeroWrite ? ' com ZERO escrita' : ''}`,
-          r === expected && (!zeroWrite || writesOf(e) === 0),
-          `plano "${label}" deveria resolver ${expected} (recebido: ${r}, writes: ${writesOf(e)})`);
+        const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT,
+          { authorization: AUTZ_OK });
+        obtidos.push(`${String(plan)}→${String(r)}`);
+        if (r !== R.SAVED) todosSalvaram = false;
+        consultas += e.calls.plan;
+      }
+      check('C60-S1.B3: com acesso legítimo, TODO plano salva igual (premium/free/undefined/null/erro/loading)',
+        todosSalvaram,
+        `o desfecho não pode variar com o entitlement (recebido: ${obtidos.join(' | ')})`);
+      check('C60-S1.B3 [controle negativo]: o writer NÃO consulta entitlement nenhuma vez (getCurrentPlan = 0)',
+        consultas === 0,
+        `o writer não pode mais perguntar o plano — nem para "confirmar" (consultas: ${consultas})`);
+    }
+    {
+      // Conteúdo SEM ACESSO nunca salva — e a recusa é ACCESS_DENIED, não um desfecho de plano.
+      const semAcesso = [
+        ['comercialmente bloqueada (premium sem direito)', AUTZ_COMERCIAL],
+        ['sequência ainda fechada', AUTZ_SEQUENCIA],
+        ['mídia indisponível (em breve)', AUTZ_SEM_MIDIA],
+      ];
+      for (const [rotulo, authorization] of semAcesso) {
+        const e = mkEnv({ plan: 'premium' });
+        const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT, { authorization });
+        check(`C60-S1.B4: ${rotulo} → access_denied com ZERO escrita (nem para o Plano Família)`,
+          r === R.ACCESS_DENIED && writesOf(e) === 0 && e.store.size === 0 && e.blob.size === 0,
+          `sem acesso legítimo ninguém grava, qualquer que seja o plano (recebido: ${r}, writes: ${JSON.stringify(e.calls)})`);
       }
     }
     {
-      // Reavaliado a CADA tentativa (a fonte canônica é consultada uma vez por save).
-      const e = mkEnv({ plan: ['premium', 'free', 'premium'] });
-      const r1 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
-      const r2 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT2);
-      const r3 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
-      check('C60-P3.T3: entitlement é REAVALIADO por tentativa (premium→free→premium): saved/not_persisted_free/saved',
-        r1 === R.SAVED && r2 === R.NOT_PERSISTED_FREE && r3 === R.SAVED && e.calls.plan === 3,
-        `cada save deve reconsultar o plano (recebido: ${r1}/${r2}/${r3}, consultas: ${e.calls.plan})`);
-      check('C60-P3.T3: a tentativa grátis do meio NÃO destrói a arte já salva (só não persiste a nova)',
-        e.store.has(KEY_LIGHT),
-        'uma tentativa grátis apenas não persiste — jamais apaga a arte premium anterior');
+      // Autorização AINDA HIDRATANDO ⇒ falha fechada com desfecho PRÓPRIO (não é acesso negado).
+      const e = mkEnv();
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT,
+        { authorization: AUTZ_HIDRATANDO });
+      check('C60-S1.B5: autorização hidratando → authorization_not_ready com ZERO escrita',
+        r === R.AUTHORIZATION_NOT_READY && writesOf(e) === 0,
+        `enquanto os fatos não são confiáveis o writer recusa sem tocar em I/O (recebido: ${r})`);
+      check('C60-S1.B5 [semântica]: "hidratando" NÃO é o mesmo desfecho que "acesso negado"',
+        R.AUTHORIZATION_NOT_READY !== R.ACCESS_DENIED,
+        'falha de autorização e acesso negado precisam ser distinguíveis pelo chamador');
     }
     {
-      // free→premium: a 1ª (grátis) não escreve nada; a 2ª (premium) salva.
-      const e = mkEnv({ plan: ['free', 'premium'] });
-      const r1 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
-      const w1 = writesOf(e);
-      const r2 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
-      check('C60-P3.T3: free→premium: nada escrito no grátis, persistido só quando vira Família',
-        r1 === R.NOT_PERSISTED_FREE && w1 === 0 && r2 === R.SAVED && e.store.has(KEY_LIGHT),
-        `a persistência só ocorre na tentativa premium (recebido: ${r1}/${r2}, writes no grátis: ${w1})`);
+      // Contrato AUSENTE ou malformado ⇒ invalid_authorization. Um booleano solto não autoriza nada.
+      const forjados = [
+        ['ausente (nenhuma opção)', '__SEM_OPCAO__'],
+        ['options sem authorization', {}],
+        ['authorization undefined', { authorization: undefined }],
+        ['authorization null', { authorization: null }],
+        ['authorization string', { authorization: 'allowed' }],
+        ['authorization array', { authorization: [] }],
+        ['booleano solto canSave', { authorization: { canSave: true } }],
+        ['booleano solto canEnterStoryContent', { authorization: { canEnterStoryContent: true } }],
+        ['sem reason canônica', { authorization: Object.assign({}, AUTZ_OK, { reason: 'porque_sim' }) }],
+        ['allowed mente sobre reason', { authorization: Object.assign({}, AUTZ_SEQUENCIA, { allowed: true }) }],
+        ['canEnter mente sobre ready', { authorization: Object.assign({}, AUTZ_HIDRATANDO, { canEnterStoryContent: true }) }],
+        ['canEnter mente sobre allowed', { authorization: Object.assign({}, AUTZ_COMERCIAL, { canEnterStoryContent: true }) }],
+        ['storyId divergente', { authorization: autorizacao({ storyId: 'noah' }) }],
+      ];
+      for (const [rotulo, options] of forjados) {
+        const e = mkEnv({ plan: 'premium' });
+        const r = options === '__SEM_OPCAO__'
+          ? await e.W.raw('creation', 'light', PAINT)
+          : await e.W.saveColoring60DrawingState('creation', 'light', PAINT, options);
+        check(`C60-S1.B6 [controle negativo]: contrato ${rotulo} → invalid_authorization com ZERO escrita`,
+          r === R.INVALID_AUTHORIZATION && writesOf(e) === 0 && e.store.size === 0,
+          `contrato ausente/forjado/inconsistente não autoriza escrita (recebido: ${r}, writes: ${writesOf(e)})`);
+      }
     }
     {
-      // O chamador NÃO tem como forçar premium: um flag `isPremium:true` não vaza pela fonte canônica.
-      const e = mkEnv({ plan: 'free' });
-      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT, { isPremium: true, plan: 'premium' });
-      check('C60-P3.T3: chamador declarando isPremium/plan NÃO burla o gate (fonte é interna)',
-        r === R.NOT_PERSISTED_FREE && writesOf(e) === 0,
-        'o entitlement vem SÓ de getCurrentPlan interno — nenhum flag do chamador autoriza escrita');
+      // A autorização é da HISTÓRIA da gravação. Uma autorização legítima de outra história não vale.
+      const e = mkEnv();
+      const legitimaDeOutra = autorizacao({ storyId: 'noah' });
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT,
+        { authorization: legitimaDeOutra });
+      check('C60-S1.B7 [controle negativo]: autorização LEGÍTIMA de outra história não salva nesta',
+        r === R.INVALID_AUTHORIZATION && writesOf(e) === 0
+          && legitimaDeOutra.canEnterStoryContent === true,
+        `o contrato precisa casar com o storyId da gravação (recebido: ${r}, contrato válido? ${legitimaDeOutra.canEnterStoryContent})`);
+    }
+    {
+      // Nenhum desfecho depende de rede/RevenueCat: os mesmos contratos, offline, dão o mesmo.
+      // (o writer só recebe doubles locais — se tocasse rede, não haveria como responder)
+      const e = mkEnv({ plan: '__throw__' });
+      const r1 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT, { authorization: AUTZ_OK });
+      const r2 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT2, { authorization: AUTZ_COMERCIAL });
+      check('C60-S1.B8: offline/sem entitlement consultável: acesso legítimo salva, sem acesso recusa',
+        r1 === R.SAVED && r2 === R.ACCESS_DENIED && e.calls.plan === 0,
+        `o writer funciona offline porque não depende de plano nem de rede (recebido: ${r1}/${r2})`);
+    }
+    {
+      // [S1] OVERRIDE DE DESENVOLVIMENTO — auditoria de `isDevWriteAuthorized`.
+      // `__DEV__` sozinho (ou com ferramentas internas ligadas) NÃO pode liberar escrita sem acesso.
+      // O harness injeta as duas fronteiras LIGADAS no pior cenário possível; a recusa tem de vir
+      // do contrato, não do ambiente. Se algum dia voltar um atalho de dev, estas provas ficam vermelhas.
+      const devLigado = {
+        __DEV__: true,
+        isInternalToolsEnabled: () => true,
+        isDevWriteAuthorized: () => true,
+      };
+      for (const [rotulo, authorization, esperado] of [
+        ['sem acesso comercial', AUTZ_COMERCIAL, 'ACCESS_DENIED'],
+        ['sequência bloqueada', AUTZ_SEQUENCIA, 'ACCESS_DENIED'],
+        ['mídia indisponível', AUTZ_SEM_MIDIA, 'ACCESS_DENIED'],
+        ['hidratando', AUTZ_HIDRATANDO, 'AUTHORIZATION_NOT_READY'],
+      ]) {
+        const e = mkEnv({ plan: 'free', extraDeps: devLigado });
+        const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT, { authorization });
+        check(`C60-S1.B9 [controle negativo]: __DEV__ + ferramentas internas LIGADAS não liberam escrita — ${rotulo}`,
+          r === R[esperado] && writesOf(e) === 0 && e.store.size === 0 && e.blob.size === 0,
+          `nenhum override de desenvolvimento pode simular acesso (recebido: ${r} / ${JSON.stringify(e.calls)})`);
+      }
+      // E o override também não pode ser a CAUSA de um sucesso: com acesso legítimo o desfecho é o
+      // mesmo com e sem o ambiente de dev ligado — logo o ambiente não participa da decisão.
+      const comDev = mkEnv({ plan: 'free', extraDeps: devLigado });
+      const semDev = mkEnv({ plan: 'free' });
+      const rc = await comDev.W.saveColoring60DrawingState('creation', 'light', PAINT, { authorization: AUTZ_OK });
+      const rs = await semDev.W.saveColoring60DrawingState('creation', 'light', PAINT, { authorization: AUTZ_OK });
+      check('C60-S1.B9 [controle negativo]: o ambiente de dev não altera o desfecho de quem TEM acesso',
+        rc === R.SAVED && rs === R.SAVED
+          && comDev.store.get(KEY_LIGHT) === semDev.store.get(KEY_LIGHT)
+          && comDev.calls.writeBlob === semDev.calls.writeBlob,
+        `com e sem __DEV__ o resultado precisa ser byte a byte o mesmo (recebido: ${rc}/${rs})`);
+      // Trava estática irmã: no perfil do piloto e em produção não existe caminho de override algum.
+      check('C60-S1.B9 [controle negativo]: nenhuma porta de escrita cercada por ambiente sobrou no fonte',
+        !/isDevWriteAuthorized|__DEV__|isInternalToolsEnabled/.test(
+          stripComments(readSrc('src/services/coloring60DrawingStorage.js'))),
+        'a porta de dev de escrita foi removida — não há o que cercar no c60-pilot nem em produção');
+    }
+    {
+      // [S1] SEMÂNTICA: falha de DISCO nunca pode ser confundida com falta de ACESSO. Mesmo contrato
+      // legítimo, disco quebrado ⇒ WRITE_FAILED; mesmo disco sadio, sem acesso ⇒ ACCESS_DENIED.
+      const eDisco = mkEnv({ plan: 'premium', writeBlobFails: true });
+      const rDisco = await eDisco.W.saveColoring60DrawingState('creation', 'light', PAINT, { authorization: AUTZ_OK });
+      const eAcesso = mkEnv({ plan: 'premium' });
+      const rAcesso = await eAcesso.W.saveColoring60DrawingState('creation', 'light', PAINT, { authorization: AUTZ_COMERCIAL });
+      check('C60-S1.B10: falha de disco (write_failed) ≠ acesso negado (access_denied) ≠ autorização inválida',
+        rDisco === R.WRITE_FAILED && rAcesso === R.ACCESS_DENIED && rDisco !== rAcesso
+          && R.WRITE_FAILED !== R.INVALID_AUTHORIZATION && R.WRITE_FAILED !== R.AUTHORIZATION_NOT_READY,
+        `cada causa tem desfecho próprio — nunca um resultado genérico (recebido: disco=${rDisco}, acesso=${rAcesso})`);
+      check('C60-S1.B10: a falha de disco NÃO promove ponteiro nem inventa arte (estado limpo e honesto)',
+        eDisco.store.size === 0 && eDisco.blob.size === 0 && eDisco.calls.setItem === 0,
+        `escrita autorizada que falha não pode deixar ponteiro (store: ${eDisco.store.size}, setItem: ${eDisco.calls.setItem})`);
     }
 
-    // ── C · ZERO ESCRITA NO GRÁTIS (nenhuma fronteira de I/O é sequer tocada) ──
+    // ── C · ZERO ESCRITA SEM ACESSO (nenhuma fronteira de I/O é sequer tocada) ──
+    // AINDA VIGENTE — herdada da seção C antiga, reancorada em "sem acesso" em vez de "grátis".
     {
-      const e = mkEnv({ plan: 'free' });
-      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
-      check('C60-P3.T3: grátis → not_persisted_free e NENHUMA fronteira de escrita tocada (blob/setItem/remove/delete = 0)',
-        r === R.NOT_PERSISTED_FREE && e.calls.writeBlob === 0 && e.calls.setItem === 0
-          && e.calls.removeItem === 0 && e.calls.deleteBlob === 0,
-        `no grátis nenhuma escrita/arquivo/ponteiro pode ser criado (recebido: ${JSON.stringify(e.calls)})`);
-      check('C60-P3.T3: grátis → ZERO resíduo (store, blobs e lista de deletados todos vazios)',
-        e.store.size === 0 && e.blob.size === 0 && e.deleted.length === 0,
-        'o plano grátis não deixa metadado, arquivo nem temporário para trás');
+      for (const [rotulo, authorization, esperado] of [
+        ['sem acesso comercial', AUTZ_COMERCIAL, 'ACCESS_DENIED'],
+        ['hidratando', AUTZ_HIDRATANDO, 'AUTHORIZATION_NOT_READY'],
+      ]) {
+        const e = mkEnv({ plan: 'premium' });
+        const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT, { authorization });
+        check(`C60-S1.C1: ${rotulo} → ${esperado} e NENHUMA fronteira tocada (blob/setItem/remove/delete = 0)`,
+          r === R[esperado] && e.calls.writeBlob === 0 && e.calls.setItem === 0
+            && e.calls.removeItem === 0 && e.calls.deleteBlob === 0,
+          `sem acesso nenhuma escrita/arquivo/ponteiro pode ser criado (recebido: ${r} / ${JSON.stringify(e.calls)})`);
+        check(`C60-S1.C1: ${rotulo} → ZERO resíduo (store, blobs e lista de deletados vazios)`,
+          e.store.size === 0 && e.blob.size === 0 && e.deleted.length === 0,
+          'a recusa não deixa metadado, arquivo nem temporário para trás');
+      }
+    }
+    {
+      // E a recusa NÃO toca a obra anterior: quem já tinha arte salva continua com ela intacta.
+      const e = mkEnv({ plan: 'premium' });
+      const uriAntigo = seedPrev(e, KEY_LIGHT, PAINT);
+      const antes = e.store.get(KEY_LIGHT);
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT2, { authorization: AUTZ_COMERCIAL });
+      check('C60-S1.C2: recusa por acesso NÃO modifica a obra anterior (ponteiro e blob idênticos)',
+        r === R.ACCESS_DENIED && e.store.get(KEY_LIGHT) === antes
+          && e.blob.get(uriAntigo) === PAINT && e.deleted.length === 0,
+        `uma tentativa recusada jamais altera a arte já guardada (recebido: ${r}, deletados: ${e.deleted.length})`);
+    }
+    {
+      // O desfecho revogado NÃO pode voltar: `not_persisted_free` deixou de existir no writer.
+      check('C60-S1.C3 [controle negativo]: o enum do writer não expõe mais not_persisted_free/invalid_identity',
+        R.NOT_PERSISTED_FREE === undefined && R.INVALID_IDENTITY === undefined
+          && R.SAVED === 'saved' && typeof R.ACCESS_DENIED === 'string'
+          && typeof R.AUTHORIZATION_NOT_READY === 'string' && typeof R.INVALID_STORY === 'string'
+          && typeof R.INVALID_ACTIVITY === 'string' && typeof R.INVALID_AUTHORIZATION === 'string'
+          && typeof R.WRITE_FAILED === 'string',
+        `o resultado genérico de recusa foi substituído por desfechos por causa (recebido: ${JSON.stringify(R)})`);
+      const distintos = new Set(Object.values(R));
+      check('C60-S1.C3: os desfechos são mutuamente distintos (acesso ≠ disco ≠ autorização ≠ identidade)',
+        distintos.size === Object.keys(R).length,
+        `nenhum desfecho pode compartilhar valor com outro (recebido: ${JSON.stringify(R)})`);
     }
 
     // ── D · PREMIUM: round-trip, namespace isolado, load e clear ──
@@ -36808,9 +37046,27 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       check('C60-P3.T1: writer NÃO coage activityId a número (sem Number/parseInt/parseFloat)',
         !/\bNumber\s*\(|\bparseInt\s*\(|\bparseFloat\s*\(/.test(wCode),
         'activityId é string semântica — jamais convertido a número/índice');
-      check('C60-P3.T3: writer usa a fonte canônica getCurrentPlan (accessControl), não isPremiumUser/QA',
-        /getCurrentPlan/.test(wCode) && !/isPremiumUser|isCreatorMode|CREATOR/.test(wCode),
-        'o gate de escrita usa getCurrentPlan — nunca o override de Modo Criador/QA');
+      // [S1] TRAVA ANTIGA REESCRITA — classificação: REVOGADA PARA O C60 NARRATIVO.
+      // A prova anterior exigia `getCurrentPlan` no writer ("o gate de escrita usa getCurrentPlan").
+      // A Spec 019 revoga a autoridade por PLANO e a substitui por autoridade por ACESSO LEGÍTIMO.
+      // A proteção NÃO foi removida: a intenção original era "nenhum override de QA/Modo Criador
+      // libera escrita". Essa intenção MIGROU para cá em forma mais forte — agora nem o plano, nem
+      // o QA, nem o __DEV__ podem decidir. Só o contrato canônico decide.
+      check('C60-P3.T3 [S1]: writer NÃO consulta plano, entitlement, QA nem __DEV__ para decidir escrita',
+        !/getCurrentPlan|accessControl|isPremiumUser|isCreatorMode|CREATOR|isInternalToolsEnabled|internalTools|RevenueCat|revenuecat|Purchases|__DEV__|isDevWriteAuthorized|FAMILY_PLAN/.test(wCode),
+        'a autoridade de escrita não pode voltar a ser derivada de plano/entitlement/QA/dev');
+      check('C60-P3.T3 [S1]: writer deriva a escrita do contrato canônico de autorização de conteúdo',
+        /CONTENT_AUTH_REASON/.test(wCode)
+          && /storyContentAuthorization/.test(wCode)
+          && /authorizationReady/.test(wCode)
+          && /canEnterStoryContent/.test(wCode),
+        'o writer só pode decidir pela autoridade canônica de acesso à história/atividade');
+      check('C60-P3.T3 [S1] [controle negativo]: writer NÃO aceita booleano solto como autorização',
+        !/\bcanSave\b|\ballowSave\b|\bisUnlocked\b|\bpodeSalvar\b|\bskipAuth\b|\bforce(Save|Write)\b/.test(wCode),
+        'nenhum atalho booleano pode substituir o objeto estruturado de autorização');
+      check('C60-P3.T3 [S1] [controle negativo]: writer NÃO faz rede — funciona offline',
+        !/\bfetch\s*\(|XMLHttpRequest|axios|https?:\/\//.test(wCode),
+        'a escrita local não pode depender de rede nem de validação remota de assinatura');
 
       // Não integrado à tela em P3: nenhum arquivo em src/ (fora o próprio writer) o chama.
       const walk = (dir, acc = []) => {
@@ -36882,7 +37138,22 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     // atuam na enésima chamada; verifyWrongOnce corrompe só a 1ª leitura APÓS o 1º setItem (a leitura de
     // verificação), deixando a leitura de confirmação do rollback ver o estado REAL; setItemMutateThenThrowOn
     // grava e SÓ ENTÃO lança (metadado desconhecido); deleteKeep(uri) simula exclusão física sem efeito.
-    const cat = loadModule('src/data/coloring60Catalog.js', {}, ['getColoring60Activity']);
+    const cat = loadModule('src/data/coloring60Catalog.js', {}, ['getColoring60Activity', 'getColoring60Activities']);
+    // [S1] Autoridade canônica REAL (jornada → autorização), igual à do bloco C60-P3.
+    const SJf = loadModule('src/services/storyJourneyService.js', {}, ['getStoryJourneyStatus', 'COMMERCIAL_ACCESS']);
+    const AUTf = loadModule('src/services/storyContentAuthorization.js',
+      { COMMERCIAL_ACCESS: SJf.COMMERCIAL_ACCESS }, ['CONTENT_AUTH_REASON', 'deriveStoryContentAuthorization']);
+    const autorizacaoF = (over = {}) => {
+      const { storyId = 'creation', hydrated = true, ...jornada } = over;
+      return AUTf.deriveStoryContentAuthorization({
+        storyId, knownStory: true, previousStoryId: null, previousStatus: null, hydrated,
+        journeyStatus: SJf.getStoryJourneyStatus(Object.assign({
+          totalScenes: 10, sceneDoneCount: 10, coloringComplete: true, coloringAvailable: true,
+          postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+          accessStatus: 'full', accessType: 'free', isFirstStory: true, previousJourneyComplete: true,
+        }, jornada)),
+      });
+    };
     const ROOT = 'file://ptf_blobs/';
     const mkEnv2 = (cfg = {}) => {
       const store = new Map(Object.entries(cfg.seedStore || {}));
@@ -36911,8 +37182,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           },
         },
         log: () => {},
+        CONTENT_AUTH_REASON: AUTf.CONTENT_AUTH_REASON,
         getCurrentPlan: () => (typeof cfg.plan === 'function' ? cfg.plan() : (cfg.plan === undefined ? 'premium' : cfg.plan)),
         getColoring60Activity: cat.getColoring60Activity,
+        getColoring60Activities: cat.getColoring60Activities,
         writeBlob: async (sub, fn, dataUrl) => {
           calls.writeBlob++;
           if (cfg.writeBlobFails) return null;
@@ -36925,10 +37198,15 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         dataUrlMime: (_d, fb = 'image/png') => fb,
         currentBlobsRoot: () => ROOT,
       };
-      const W = loadModule('src/services/coloring60DrawingStorage.js', deps, [
+      const Wraw = loadModule('src/services/coloring60DrawingStorage.js', deps, [
         'saveColoring60DrawingState', 'getColoring60SavedDrawing',
         'hasColoring60SavedDrawing', 'clearColoring60SavedDrawing', 'COLORING60_SAVE_RESULT',
       ]);
+      const W = Object.assign({}, Wraw, {
+        saveColoring60DrawingState: (storyId, activityId, payload, ...rest) =>
+          Wraw.saveColoring60DrawingState(storyId, activityId, payload,
+            rest.length ? rest[0] : { authorization: autorizacaoF({ storyId }) }),
+      });
       return { W, store, blob, deleted, calls };
     };
 
@@ -37041,21 +37319,29 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
     // ── E · REGRESSÕES (o hardening não afrouxou nenhuma garantia do P3) ──
     {
+      // [S1] Reancorado: a trava não é mais "grátis não escreve", é "SEM ACESSO não escreve" — e o
+      // hardening do FIX1 (rollback, verificação, double buffer) não afrouxou essa recusa.
       const e = mkEnv2({ plan: 'free' });
-      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
-      check('C60-P3-FIX1 [E10]: plano grátis continua com ZERO escrita (nem leitura de storage)',
-        r === R.NOT_PERSISTED_FREE && e.calls.setItem === 0 && e.calls.writeBlob === 0 && e.calls.getItem === 0,
-        `o gate de entitlement segue fechado após o FIX1 (calls: ${JSON.stringify(e.calls)})`);
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', PAINT,
+        { authorization: autorizacaoF({ accessStatus: 'locked', accessType: 'premium' }) });
+      check('C60-P3-FIX1 [E10]: sem acesso continua com ZERO escrita (nem leitura de storage)',
+        r === R.ACCESS_DENIED && e.calls.setItem === 0 && e.calls.writeBlob === 0 && e.calls.getItem === 0,
+        `o gate de acesso segue fechado após o FIX1 (r=${r}, calls: ${JSON.stringify(e.calls)})`);
     }
     {
+      // [S1] Reancorado: o que é reavaliado por tentativa é o ACESSO, não o plano. O plano varia
+      // premium→free→premium e NÃO muda nada; quem muda o desfecho é o contrato de acesso.
       let n = 0; const plans = ['premium', 'free', 'premium'];
       const e = mkEnv2({ plan: () => plans[n++] });
-      const r1 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
-      const r2 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT2);
-      const r3 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT);
-      check('C60-P3-FIX1 [E11]: entitlement continua REAVALIADO por tentativa (saved/not_persisted_free/saved)',
-        r1 === R.SAVED && r2 === R.NOT_PERSISTED_FREE && r3 === R.SAVED && e.store.has(KEY),
-        `cada save reconsulta o plano e a tentativa grátis não destrói a arte (r=${r1}/${r2}/${r3})`);
+      const r1 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT,
+        { authorization: autorizacaoF() });
+      const r2 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT2,
+        { authorization: autorizacaoF({ accessStatus: 'locked', accessType: 'premium' }) });
+      const r3 = await e.W.saveColoring60DrawingState('creation', 'light', PAINT,
+        { authorization: autorizacaoF() });
+      check('C60-P3-FIX1 [E11]: o ACESSO é reavaliado por tentativa (saved/access_denied/saved)',
+        r1 === R.SAVED && r2 === R.ACCESS_DENIED && r3 === R.SAVED && e.store.has(KEY),
+        `cada save reconsulta a autorização e a tentativa recusada não destrói a arte (r=${r1}/${r2}/${r3})`);
     }
     {
       const e = mkEnv2({ plan: 'premium' });
@@ -37131,7 +37417,22 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const stripComments = (s) => String(s)
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-    const cat = loadModule('src/data/coloring60Catalog.js', {}, ['getColoring60Activity']);
+    const cat = loadModule('src/data/coloring60Catalog.js', {}, ['getColoring60Activity', 'getColoring60Activities']);
+    // [S1] Autoridade canônica REAL (jornada → autorização) — o writer decide por acesso legítimo.
+    const SJw = loadModule('src/services/storyJourneyService.js', {}, ['getStoryJourneyStatus', 'COMMERCIAL_ACCESS']);
+    const AUTw = loadModule('src/services/storyContentAuthorization.js',
+      { COMMERCIAL_ACCESS: SJw.COMMERCIAL_ACCESS }, ['CONTENT_AUTH_REASON', 'deriveStoryContentAuthorization']);
+    const autorizacaoW = (over = {}) => {
+      const { storyId = 'creation', hydrated = true, ...jornada } = over;
+      return AUTw.deriveStoryContentAuthorization({
+        storyId, knownStory: true, previousStoryId: null, previousStatus: null, hydrated,
+        journeyStatus: SJw.getStoryJourneyStatus(Object.assign({
+          totalScenes: 10, sceneDoneCount: 10, coloringComplete: true, coloringAvailable: true,
+          postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+          accessStatus: 'full', accessType: 'free', isFirstStory: true, previousJourneyComplete: true,
+        }, jornada)),
+      });
+    };
 
     // MÓDULOS DE DOMÍNIO REAIS (C60 · Partes 2/3/11). A conclusão passou a depender da MEDIDA de
     // cor e do DESFECHO canônico do instantâneo. Estes dois módulos são PUROS (não importam nada),
@@ -37443,18 +37744,35 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       check('C60-P4.T2 [D]→P4: CONCLUSÃO é marcada DEPOIS da pintura persistida e verificada (não existe conclusão sem arte)',
         iMark >= 0 && iSave >= 0 && iMark > iSave && iMark > iVerify,
         'a conclusão passa a ser consequência da arte guardada — nunca a precede');
+      // [S1] A recusa ficou MAIS estrita, não menos: agora TODO desfecho diferente de `saved`
+      // interrompe a transação (antes o Grátis seguia adiante sem pixels). A cláusula composta
+      // `&& result !== ...NOT_PERSISTED_FREE` não pode voltar.
       check('C60-P4.T2 [D]→P4: falha de persistência NÃO marca, NÃO celebra e NÃO abre a coleção',
-        /if \(result !== COLORING60_SAVE_RESULT\.SAVED[\s\S]{0,400}?return;/.test(handler)
+        /if \(result !== COLORING60_SAVE_RESULT\.SAVED\)\s*\{[\s\S]{0,400}?return;/.test(handler)
           && handler.indexOf('COLORING60_SAVE_RESULT.WRITE_FAILED') < iMark,
-        'qualquer desfecho que não seja arte guardada (ou Grátis, que por decisão não guarda) interrompe a transação');
+        'só arte guardada e verificada continua a transação — qualquer outro desfecho interrompe');
+      check('C60-P4.T2 [D]→P4 [controle negativo]: nenhum desfecho "sucesso sem pixels" escapa do gate',
+        !/NOT_PERSISTED_FREE/.test(handler)
+          && !/result !== COLORING60_SAVE_RESULT\.SAVED\s*\n?\s*&&/.test(handler),
+        'reintroduzir um desfecho que segue adiante sem arte gravada recria o "3 de 3" sem três artes');
       check('C60-P4.T2 [D]→P4: o desfecho do instantâneo VIAJA JUNTO com a marcação (mark recebe prova + snapshotStatus)',
         /markColoring60ActivityDone\(\s*attemptStoryId, attemptActivityId, exportData, snapshotStatus,?\s*\)/.test(handler)
           && /snapshotStatus = SNAPSHOT_STATUS\.READY/.test(handler)
-          && /let snapshotStatus = SNAPSHOT_STATUS\.NOT_PERSISTED/.test(handler),
-        'sem prova de cor e desfecho do instantâneo o serviço de domínio recusa a conclusão');
+          && handler.indexOf('snapshotMatchesRevision(') < handler.indexOf('snapshotStatus = SNAPSHOT_STATUS.READY'),
+        'sem prova de cor e desfecho do instantâneo o serviço de domínio recusa a conclusão; READY só depois da releitura');
       check('C60-P4.T2 [D]: marcação da conclusão NÃO é condicionada a plano/entitlement no handler',
         !/getCurrentPlan|isPremiumUser|accessControl|entitlement|===\s*['"]premium['"]/.test(handler),
-        'concluir é plan-agnóstico — o handler não checa plano (o writer é quem revalida)');
+        'concluir é plan-agnóstico — o handler não checa plano (a autoridade é o contrato de acesso)');
+      // [S1] O handler passa o CONTRATO ESTRUTURADO ao writer — derivado da autoridade canônica,
+      // para a história DESTA tentativa. Nem booleano solto, nem regra de acesso própria da tela.
+      check('C60-P4.T2 [D]→S1: o writer recebe a autorização canônica DESTA história, como objeto',
+        /saveColoring60DrawingState\(\s*attemptStoryId, attemptActivityId, exportData,\s*\{\s*authorization\s*\}/.test(handler)
+          && /const authorization = getContentAuthorization\(attemptStoryId\)/.test(handler),
+        'a autoridade de escrita é derivada do contrato canônico e entregue ao writer como objeto estruturado');
+      check('C60-P4.T2 [D]→S1 [controle negativo]: a TELA não inventa regra de acesso própria',
+        !/canSave|isUnlocked|allowSave|podeSalvar/.test(handler)
+          && !/authorization\.(allowed|canEnterStoryContent|reason)/.test(handler),
+        'abrir a tela não constitui autorização: quem decide é o writer, lendo o contrato inteiro');
       check('C60-P4.T2 [D]: falha de persistência NÃO apaga conclusão (sem remover/limpar a chave de conclusão) e sem refreshProgress',
         !/removeItem|clearColoring60|coloring60DoneKey/.test(handler) && !/refreshProgress/.test(handler),
         'o handler não remove a conclusão sob falha nem propaga métrica pública');
@@ -37494,8 +37812,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
             },
           },
           log: () => {},
+          CONTENT_AUTH_REASON: AUTw.CONTENT_AUTH_REASON,
           getCurrentPlan: () => { calls.plan++; return cfg.plan === undefined ? 'premium' : cfg.plan; },
           getColoring60Activity: cat.getColoring60Activity,
+          getColoring60Activities: cat.getColoring60Activities,
           writeBlob: async (sub, fn, dataUrl, mime) => { const uri = `file://b/${sub}/${fn}`; blob.set(uri, dataUrl); return { uri, mime: mime || 'image/png' }; },
           readBlobAsDataUrl: async (u) => (blob.has(u) ? blob.get(u) : null),
           deleteBlob: async (u) => { deleted.push(u); blob.delete(u); },
@@ -37504,10 +37824,15 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           dataUrlMime: (_d, fb = 'image/png') => fb,
           currentBlobsRoot: () => 'file://b/',
         };
-        const W = loadModule('src/services/coloring60DrawingStorage.js', deps, [
+        const Wraw = loadModule('src/services/coloring60DrawingStorage.js', deps, [
           'saveColoring60DrawingState', 'clearColoring60SavedDrawing',
           'getColoring60SavedDrawing', 'hasColoring60SavedDrawing', 'COLORING60_SAVE_RESULT',
         ]);
+        const W = Object.assign({}, Wraw, {
+          saveColoring60DrawingState: (storyId, activityId, payload, ...rest) =>
+            Wraw.saveColoring60DrawingState(storyId, activityId, payload,
+              rest.length ? rest[0] : { authorization: autorizacaoW({ storyId }) }),
+        });
         return { W, store, blob, deleted, calls };
       };
       const R = mkW().W.COLORING60_SAVE_RESULT;
@@ -37520,11 +37845,23 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           `premium deveria salvar o v2 (r=${r}, keys=${[...e.store.keys()]})`);
       }
       {
+        // [S1] O payload v2 do canvas persiste TAMBÉM no Grátis, quando a história é acessível — é
+        // exatamente a regra nova. O caminho é o MESMO writer, com o mesmo double buffer.
         const e = mkW({ plan: 'free' });
-        const r = await e.W.saveColoring60DrawingState('creation', 'light', V2);
-        check('C60-P4.T2 [E]: GRÁTIS NÃO persiste pixels (not_persisted_free) com ZERO I/O',
-          r === R.NOT_PERSISTED_FREE && e.store.size === 0 && e.calls.getItem === 0 && e.calls.setItem === 0,
-          `grátis não pode escrever nada (r=${r}, size=${e.store.size}, get=${e.calls.getItem}, set=${e.calls.setItem})`);
+        const r = await e.W.saveColoring60DrawingState('creation', 'light', V2,
+          { authorization: autorizacaoW({ accessType: 'free', accessStatus: 'full' }) });
+        check('C60-P4.T2 [E]: GRÁTIS com acesso legítimo persiste o MESMO payload v2 (saved)',
+          r === R.SAVED && e.store.get(KEY) != null,
+          `grátis acessível deveria salvar o v2 pelo mesmo writer (r=${r}, keys=${[...e.store.keys()]})`);
+      }
+      {
+        // E sem acesso ninguém grava — nem o Plano Família. ZERO I/O, inclusive de leitura.
+        const e = mkW({ plan: 'premium' });
+        const r = await e.W.saveColoring60DrawingState('creation', 'light', V2,
+          { authorization: autorizacaoW({ accessStatus: 'coming_soon' }) });
+        check('C60-P4.T2 [E]: SEM ACESSO não persiste pixels (access_denied) com ZERO I/O',
+          r === R.ACCESS_DENIED && e.store.size === 0 && e.calls.getItem === 0 && e.calls.setItem === 0,
+          `sem acesso nada é escrito nem lido (r=${r}, size=${e.store.size}, get=${e.calls.getItem}, set=${e.calls.setItem})`);
       }
 
       // Grupo F — validação de payload: v3-como-payload ⇒ write_failed no writer; validador no caller (estático).
@@ -37555,9 +37892,23 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       check('C60-P4.T2 [G]: ramo Colorir 60 NÃO concede estrela/conquista',
         !/reward|grantStar|estrela|achievement/i.test(c60Region),
         'concluir a atividade não concede estrela nem conquista');
-      check('C60-P4.T2 [G]: ramo Colorir 60 NÃO usa useProgressContext (só o legado usa)',
-        !/useProgressContext/.test(c60Region),
-        'o ramo aditivo não depende do contexto de progresso');
+      // [S1] TRAVA ANTIGA REESCRITA — classificação: REVOGADA PARA O C60 NARRATIVO, com substituição
+      // MAIS ESTRITA. A prova dizia "o ramo Colorir 60 NÃO usa useProgressContext", escrita quando o
+      // ramo era dormente e qualquer contato com o contexto significaria integração de progresso
+      // narrativo. O S1 muda o pressuposto por ordem direta: a autoridade de acesso é canônica e mora
+      // no ProgressContext — proibir o contexto seria obrigar a tela a inventar regra própria, que é
+      // exatamente o que a Spec 019 proíbe. A proteção NÃO foi removida: o que ela defendia (o ramo
+      // não integra progresso narrativo, cena, estrela nem refresh) continua asserido nas duas provas
+      // irmãs acima. Aqui a regra fica mais fina: o contexto é consumido para UMA coisa só.
+      const c60CtxUsos = (c60Region.match(/useProgressContext/g) || []).length;
+      check('C60-P4.T2 [G]→S1: o ramo consome o contexto SÓ para a autorização canônica de conteúdo',
+        c60CtxUsos === 1
+          && /const \{ getStoryContentAuthorization \} = useProgressContext\(\)/.test(c60Region),
+        `o contexto entra por uma única porta e entrega um único contrato (usos: ${c60CtxUsos})`);
+      check('C60-P4.T2 [G]→S1 [controle negativo]: nada de progresso narrativo entra pelo contexto',
+        !/useProgressContext\(\)[\s\S]{0,200}?(refreshProgress|salvarCena|addStar|bonusStars|markStory)/.test(c60Region)
+          && !/const \{[^}]*,[^}]*\} = useProgressContext\(\)/.test(c60Region),
+        'abrir a porta do contexto não pode virar atalho para progresso, estrela ou cena');
 
       // Integração interna — a tela é o ÚNICO chamador autorizado do writer + conclusão.
       check('C60-P4.T2 [INT]: ColoringScreen importa e CHAMA markColoring60ActivityDone (conclusão)',
@@ -37664,11 +38015,17 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         return acc;
       })(path.join(root, 'src'), []);
       const scrCode = codeOf('src/screens/ColoringScreen.js');
+      // [S1] `useProgressContext` saiu desta lista de símbolos EXCLUSIVOS do legado — e só ele. Ele
+      // estava aqui porque, no P3J, o único consumidor do contexto nesta tela era o ramo legado; sua
+      // presença provava realocação. O S1 lhe dá um dono NOVO e legítimo (a autorização canônica de
+      // conteúdo), então "estar presente" deixou de ser evidência de legado. O restante da lista fica
+      // intacto, e a prova irmã [G]→S1 fecha o uso permitido em UMA porta só — a proteção contra
+      // realocação continua de pé, agora com o alvo certo.
       check('C60-P4.T2 [L] → [P3J]: LegacyColoringScreen REMOVIDO por inteiro (zero referências executáveis em src/) e sem realocação',
         legacyRefs.length === 0
           && !/PAN_HINT_KEY/.test(scrCode)
           && !/getSavedDrawing|saveDrawingState|clearDrawingState|clearAllSavedDrawings/.test(scrCode)
-          && !/markStoryColoringActivityDone|useProgressContext|isCreatorQaModeEnabled/.test(scrCode),
+          && !/markStoryColoringActivityDone|isCreatorQaModeEnabled/.test(scrCode),
         `o ramo legado reapareceu (arquivos=${legacyRefs.join(', ') || 'nenhum'}) ou seus símbolos exclusivos foram realocados`);
     }
 
@@ -37707,7 +38064,9 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           },
           log: () => {},
           getCurrentPlan: () => { calls.plan++; return cfg.plan === undefined ? 'premium' : cfg.plan; },
+          CONTENT_AUTH_REASON: AUTw.CONTENT_AUTH_REASON,
           getColoring60Activity: cat.getColoring60Activity,
+          getColoring60Activities: cat.getColoring60Activities,
           writeBlob: async (sub, fn, dataUrl, mime) => { const uri = `file://b/${sub}/${fn}`; blob.set(uri, dataUrl); return { uri, mime: mime || 'image/png' }; },
           readBlobAsDataUrl: async (u) => (blob.has(u) ? blob.get(u) : null),
           deleteBlob: async (u) => { deleted.push(u); blob.delete(u); },
@@ -37716,9 +38075,16 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           dataUrlMime: (_d, fb = 'image/png') => fb,
           currentBlobsRoot: () => 'file://b/',
         };
-        const W = loadModule('src/services/coloring60DrawingStorage.js', deps, [
+        const Wraw = loadModule('src/services/coloring60DrawingStorage.js', deps, [
           'saveColoring60DrawingState', 'clearColoring60SavedDrawing', 'COLORING60_SAVE_RESULT',
         ]);
+        // [S1] Estas dívidas provam o CONTRATO TRANSACIONAL (rollback/clear), não o acesso: por isso
+        // a chamada de 3 argumentos recebe o contrato canônico legítimo desta história.
+        const W = Object.assign({}, Wraw, {
+          saveColoring60DrawingState: (storyId, activityId, payload, ...rest) =>
+            Wraw.saveColoring60DrawingState(storyId, activityId, payload,
+              rest.length ? rest[0] : { authorization: autorizacaoW({ storyId }) }),
+        });
         return { W, store, blob, deleted, calls };
       };
       const isPtr = (v) => { try { const p = JSON.parse(v); return p && p.v === 3 && typeof p.uri === 'string'; } catch { return false; } };
@@ -37860,7 +38226,13 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       const payFnSrc = scrF.slice(
         scrF.indexOf('function isAcceptableC60Payload('),
         scrF.indexOf('// [C60-P4-LOCK]'));
-      const SR = { SAVED: 'saved', NOT_PERSISTED_FREE: 'nfp', WRITE_FAILED: 'wf', INVALID: 'inv' };
+      // [S1] Enum FALSO de propósito: os valores não coincidem com os rótulos que a tela emite, então
+      // só passa quem compara por REFERÊNCIA ao enum do writer — nunca por string literal.
+      const SR = {
+        SAVED: 'saved', WRITE_FAILED: 'wf', ACCESS_DENIED: 'ad',
+        AUTHORIZATION_NOT_READY: 'anr', INVALID_STORY: 'ist',
+        INVALID_ACTIVITY: 'iac', INVALID_AUTHORIZATION: 'iau',
+      };
       // Fábrica: injeta os colaboradores no controller + beginC60Attempt REAIS extraídos do fonte.
       // Os colaboradores de EFEITO (writer, mark, releitura) são doubles — é o que permite provar
       // ordem e falhas. Os colaboradores de DECISÃO (medir cor, conferir revisão, desfecho do
@@ -37885,14 +38257,15 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         const counts = { mark: 0, save: 0, goBack: 0, releases: 0, empty: 0, celebrate: 0, issues: [] };
         let lastSaved = null;      // o que o writer recebeu (a releitura devolve exatamente isso)
         let markArgs = null;       // prova de que a conclusão viaja com pintura + desfecho
+        let saveArgs = null;       // [S1] identidade + contrato de autorização entregues ao writer
         const collab = {
           markColoring60ActivityDone: async (_s, _a, snapshot, status) => {
             counts.mark++; markArgs = { snapshot, status };
             if (cfg.markThrows) throw new Error('mark boom');
             return cfg.markReturn === undefined ? true : cfg.markReturn;
           },
-          saveColoring60DrawingState: async (_s, _a, payload) => {
-            counts.save++; lastSaved = payload;
+          saveColoring60DrawingState: async (storyId, activityId, payload, options) => {
+            counts.save++; lastSaved = payload; saveArgs = { storyId, activityId, options };
             if (cfg.saveThrows) throw new Error('save boom');
             return cfg.saveReturn || SR.SAVED;
           },
@@ -37906,6 +38279,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           snapshotMatchesRevision: c60Metrics.snapshotMatchesRevision,
         };
         counts.markArgsOf = () => markArgs;
+        counts.saveArgsOf = () => saveArgs;
         const core = buildCore(collab);
         const controller = core.createC60AttemptController();
         const canvas = { exportCalls: 0, captured: [], exportPaint(cb) { this.exportCalls++; if (cfg.exportThrows) throw new Error('export boom'); this.captured.push(cb); } };
@@ -37921,10 +38295,14 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           hasColor: cfg.hasColor === undefined ? true : cfg.hasColor,
           saving: savingSnapshot,
           storyId: 'creation', activityId: 'light',
+          // [S1] A tela NÃO decide acesso: ela apenas repassa o contrato da autoridade canônica.
+          // O double devolve um objeto opaco marcado — provar que ele chega INTEIRO ao writer basta.
+          getContentAuthorization: cfg.getContentAuthorization
+            || ((sid) => ({ __contratoCanonico: true, storyId: sid })),
           setSaving, goBack: () => { counts.goBack++; },
           onSaveIssue: (reason) => { counts.issues.push(reason); },
           onEmptyPaint: () => { counts.empty++; },
-          ...(cfg.withCelebrate ? { onCelebrate: () => { counts.celebrate++; } } : {}),
+          ...(cfg.withCelebrate ? { onCelebrate: (payload) => { counts.celebrate++; counts.celebrateArgs = payload; } } : {}),
         });
         // fire: entrega o callback como o exportPaint REAL — fire-and-forget (SEM await), deixando
         // qualquer rejeição virar unhandled (fidelidade ao caminho de produção); assenta via macrotask,
@@ -38071,24 +38449,62 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
             && j.counts.issues.join(',') === 'snapshot_mismatch',
           `só a MESMA revisão relida do disco autoriza conclusão (i=${JSON.stringify(i.counts.issues)}, j=${JSON.stringify(j.counts.issues)})`);
       }
-      // CENÁRIO N — desfechos legítimos: `saved` conclui com instantâneo READY; `not_persisted_free`
-      // (Grátis, decisão travada: pixels não vão ao disco) conclui com NOT_PERSISTED e SEM releitura.
-      // Nos dois, a conclusão viaja com a PINTURA e o desfecho — o serviço recusa qualquer um faltando.
+      // CENÁRIO N [S1] — agora existe UM ÚNICO desfecho legítimo: `saved`, que conclui com o
+      // instantâneo READY depois da releitura de verificação. Todos os demais recusam. A conclusão
+      // viaja com a PINTURA e o desfecho — o serviço recusa qualquer um faltando.
       {
         const i = makeInstance({ withCelebrate: true });
         i.attempt(); i.render();
         await i.fire(i.canvas.captured[0]);
         const a = i.counts.markArgsOf();
-        const j = makeInstance({ withCelebrate: true, saveReturn: SR.NOT_PERSISTED_FREE, stored: null });
-        j.attempt(); j.render();
-        await j.fire(j.canvas.captured[0]);
-        const b = j.counts.markArgsOf();
-        check('C60-P4-FIX2 [N]→P4 desfechos: saved ⇒ mark(READY) e livre ⇒ mark(NOT_PERSISTED); conclusão sempre com a pintura',
+        check('C60-P4-FIX2 [N]→S1 desfecho único: saved ⇒ mark(READY) com a pintura e celebração persisted=true',
           i.counts.mark === 1 && i.counts.celebrate === 1 && i.counts.goBack === 0
             && a && a.status === SS.READY && a.snapshot === PROOF
-            && j.counts.mark === 1 && j.counts.celebrate === 1 && j.counts.goBack === 0
-            && b && b.status === SS.NOT_PERSISTED && b.snapshot === PROOF,
-          `conclusão registra o desfecho honesto do instantâneo (saved=${a && a.status}, livre=${b && b.status})`);
+            && i.counts.celebrateArgs && i.counts.celebrateArgs.persisted === true
+            && i.counts.celebrateArgs.snapshotStatus === SS.READY,
+          `conclusão registra o desfecho honesto do instantâneo (status=${a && a.status}, celebração=${JSON.stringify(i.counts.celebrateArgs)})`);
+      }
+      {
+        // [S1] CADA recusa do writer vira um aviso PRÓPRIO — e nenhuma conclui, celebra ou navega.
+        // A tela mapeia por REFERÊNCIA ao enum (os valores do SR falso não são os rótulos emitidos).
+        const recusas = [
+          [SR.ACCESS_DENIED, 'access_denied'],
+          [SR.AUTHORIZATION_NOT_READY, 'authorization_not_ready'],
+          [SR.INVALID_STORY, 'invalid_story'],
+          [SR.INVALID_ACTIVITY, 'invalid_activity'],
+          [SR.INVALID_AUTHORIZATION, 'invalid_authorization'],
+          [SR.WRITE_FAILED, 'write_failed'],
+        ];
+        for (const [saveReturn, rotulo] of recusas) {
+          const k = makeInstance({ withCelebrate: true, saveReturn, stored: null });
+          k.attempt(); k.render();
+          await k.fire(k.canvas.captured[0]);
+          check(`C60-P4-FIX2 [N]→S1 recusa "${rotulo}": mark 0, celebra 0, goBack 0, aviso próprio`,
+            k.counts.mark === 0 && k.counts.celebrate === 0 && k.counts.goBack === 0
+              && k.counts.issues.join(',') === rotulo,
+            `cada causa de recusa precisa chegar ao chamador com o próprio nome (recebido: ${JSON.stringify(k.counts.issues)})`);
+        }
+      }
+      {
+        // [S1] O CONTRATO da autoridade canônica chega ao writer INTEIRO, para a história da tentativa.
+        const vistos = [];
+        const i = makeInstance({
+          getContentAuthorization: (sid) => { vistos.push(sid); return { __contratoCanonico: true, storyId: sid }; },
+        });
+        i.attempt(); i.render();
+        await i.fire(i.canvas.captured[0]);
+        const s = i.counts.saveArgsOf();
+        check('C60-P4-FIX2 [N]→S1: o writer recebe (storyId, activityId, pintura, {authorization}) da autoridade canônica',
+          s && s.storyId === 'creation' && s.activityId === 'light'
+            && s.options && s.options.authorization
+            && s.options.authorization.__contratoCanonico === true
+            && s.options.authorization.storyId === 'creation'
+            && vistos.length === 1 && vistos[0] === 'creation',
+          `o contrato é derivado para a história DESTA tentativa e repassado inteiro (recebido: ${JSON.stringify(s)})`);
+        check('C60-P4-FIX2 [N]→S1 [controle negativo]: a tela não substitui o contrato por booleano',
+          s && s.options && typeof s.options.authorization === 'object'
+            && s.options.canSave === undefined && s.options.isPremium === undefined,
+          'um booleano isolado (canSave/isPremium) não pode ocupar o lugar do contrato estruturado');
       }
       // CENÁRIO I — release com TOKEN ANTIGO não libera o token atual.
       {
@@ -38137,6 +38553,15 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       // declarada, está provada nominalmente na prova C60-P11 do carregador logo abaixo e é a
       // razão de o selo ser reancorado aqui — um selo quebrado em silêncio seria pior que nenhum.
       // Qualquer OUTRA alteração neste corpo continua acendendo o alarme.
+      //
+      // REFERÊNCIA REBASEADA DE NOVO — [Spec 019 · S1]. O valor anterior (56.763 bytes,
+      // sha 840cb58e137cada5f170841e9ab0e1a32ec0b1fa13ccf31c272692a16cb5edc1) foi medido antes da
+      // troca da autoridade de escrita. O S1 alterou DELIBERADAMENTE este corpo em DOIS pontos, e
+      // só neles: (1) o componente passou a ler `getStoryContentAuthorization` da fonte única
+      // (`useProgressContext`), e (2) o wiring passou a injetar esse adaptador no núcleo como
+      // `getContentAuthorization`. Ambos estão provados NOMINALMENTE — [G]→S1 fecha o uso do
+      // contexto numa porta só, e [D]→S1 exige o contrato inteiro chegando ao writer. O selo é
+      // reancorado com a mudança declarada; qualquer OUTRA alteração segue acendendo o alarme.
       const c60BodyF = (function sliceC60(s) {
         const i = s.indexOf('function Coloring60ActivityScreen(');
         const j = s.indexOf('const c60Styles = StyleSheet.create(', i + 1);
@@ -38144,8 +38569,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       })(scrF);
       const c60ShaF = require('crypto').createHash('sha256').update(c60BodyF, 'utf8').digest('hex');
       check('C60-P4-FIX2 [LEGADO] → [P3J]: corpo do Coloring60ActivityScreen BYTE-IDÊNTICO a HEAD (a aposentadoria não tocou o colorir vivo)',
-        c60ShaF === '840cb58e137cada5f170841e9ab0e1a32ec0b1fa13ccf31c272692a16cb5edc1'
-          && c60BodyF.length === 56763,
+        c60ShaF === '6a7f4556115ae0c481e74d8187d76caebf27cff0310b961f05c92c593f8bf83e'
+          && c60BodyF.length === 57375,
         `o corpo do Colorir com o Beni mudou (sha=${c60ShaF}, bytes=${c60BodyF.length}) — nenhuma mudança vizinha pode tocar o ramo vivo`);
     }
   }
@@ -38285,15 +38710,19 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           && r1.mode === 'update' && r1.celebrating === true && r1.doneMapCalls === 0 && r1.resetZoom === 1 && r1.loadFinale === 0 && r1.snapshotWritten === 'X1',
         `recolorir CELEBRA (atualização): reenquadra e emoldura, mas nunca repete a festa nem altera progresso (3/3=${JSON.stringify(r3)}, 1/3=${JSON.stringify(r1)})`);
     }
-    // Prova 6b — Grátis (não persistido) recebe a MESMA celebração: persisted=false ⇒ atividade/finale
-    // idênticos ao persistido, usando o snapshot em memória (a galeria não depende do writer).
+    // Prova 6b [S1] — a CELEBRAÇÃO é indiferente a `persisted`. A prova nasceu para garantir que o
+    // Grátis recebesse a mesma festa; com o S1 o Grátis persiste como todo mundo, mas a garantia
+    // continua valendo e vira proteção de classe: nenhuma etapa da experiência pode passar a
+    // depender do desfecho de persistência (nem hoje, nem em estados legados já gravados).
     {
-      const rA = runMachine({ doneMap: {}, activityId: 'light', outcome: { persisted: false, snapshot: 'FREE1' } });
-      const rF = runMachine({ doneMap: { light: true, living_world: true }, activityId: 'people_and_care', outcome: { persisted: false, snapshot: 'FREE3' } });
-      check('C60-P11 [prova 6b] not_persisted_free: MESMA celebração (atividade e finale); galeria usa o snapshot em memória',
+      const rA = runMachine({ doneMap: {}, activityId: 'light', outcome: { persisted: false, snapshot: 'MEM1' } });
+      const rF = runMachine({ doneMap: { light: true, living_world: true }, activityId: 'people_and_care', outcome: { persisted: false, snapshot: 'MEM3' } });
+      const rP = runMachine({ doneMap: {}, activityId: 'light', outcome: { persisted: true, snapshot: 'MEM1' } });
+      check('C60-P11 [prova 6b/S1] a celebração NÃO depende de `persisted`: mesma atividade/finale; galeria usa o snapshot em memória',
         rA.mode === 'activity' && !!rA.doneMapWritten && rA.doneMapWritten.light === true
-          && rF.mode === 'finale' && rF.loadFinale === 1 && rF.finaleSnapshot === 'FREE3',
-        `o Grátis conclui de verdade e recebe a mesma experiência (atividade=${JSON.stringify(rA)}, finale=${JSON.stringify(rF)})`);
+          && rF.mode === 'finale' && rF.loadFinale === 1 && rF.finaleSnapshot === 'MEM3'
+          && rP.mode === rA.mode && rP.loadFinale === rA.loadFinale,
+        `a experiência de conclusão é a mesma qualquer que seja o desfecho de persistência (livre=${JSON.stringify(rA)}, finale=${JSON.stringify(rF)}, persistido=${JSON.stringify(rP)})`);
     }
 
     // ── HARNESS A2 · GEOMETRIA da MOLDURA (artRectFromSnapshot REAL) ────────────────
@@ -38337,7 +38766,12 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const payFnSrc = scrP10.slice(scrP10.indexOf('function isAcceptableC60Payload('), scrP10.indexOf('// [C60-P4-LOCK]'));
     const ctrlSrc = scrP10.slice(scrP10.indexOf('function createC60AttemptController('), scrP10.indexOf('function beginC60Attempt('));
     const beginSrc = scrP10.slice(scrP10.indexOf('function beginC60Attempt('), scrP10.indexOf('// [C60-P4-HANDLER-END]'));
-    const SR = { SAVED: 'saved', NOT_PERSISTED_FREE: 'nfp', WRITE_FAILED: 'wf', INVALID: 'inv' };
+    // [S1] Enum FALSO (valores ≠ rótulos emitidos): só passa quem compara por referência ao enum.
+    const SR = {
+      SAVED: 'saved', WRITE_FAILED: 'wf', ACCESS_DENIED: 'ad',
+      AUTHORIZATION_NOT_READY: 'anr', INVALID_STORY: 'ist',
+      INVALID_ACTIVITY: 'iac', INVALID_AUTHORIZATION: 'iau',
+    };
     // Colaboradores de DECISÃO = módulos PUROS REAIS (C60 · Partes 2/3): medir cor e conferir revisão
     // não podem ser stubs, senão o portão de celebração provaria o stub, não o app.
     const { loadModule: loadPure } = require('./testing/packInstallHarness');
@@ -38370,7 +38804,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       let lastSaved = null;
       const collab = {
         markColoring60ActivityDone: async () => { counts.mark++; return true; },
-        saveColoring60DrawingState: async (_s, _a, payload) => { counts.save++; lastSaved = payload; return cfg.saveReturn || SR.SAVED; },
+        saveColoring60DrawingState: async (_s, _a, payload, options) => {
+          counts.save++; lastSaved = payload; captured.saveOptions = options;
+          return cfg.saveReturn || SR.SAVED;
+        },
         COLORING60_SAVE_RESULT: SR,
         getColoring60SavedDrawing: async () => (cfg.stored !== undefined ? cfg.stored : lastSaved),
         SNAPSHOT_STATUS: gateState.SNAPSHOT_STATUS,
@@ -38385,6 +38822,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         controller, canvasRef: { current: canvas }, activeRef: { current: true },
         available: true, ready: true, hasColor: true, saving: false,
         storyId: 'creation', activityId: 'light',
+        getContentAuthorization: cfg.getContentAuthorization
+          || ((sid) => ({ __contratoCanonico: true, storyId: sid })),
         setSaving: () => {},
         goBack: () => { counts.goBack++; },
         onSaveIssue: (label) => { counts.saveIssue++; captured.issue.push(label); },
@@ -38398,21 +38837,42 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     {
       const i = makeGateInstance({ saveReturn: SR.WRITE_FAILED });
       i.attempt(); await i.fire(i.canvas.captured[0]);
-      const j = makeGateInstance({ saveReturn: SR.INVALID });
+      const j = makeGateInstance({ saveReturn: SR.INVALID_ACTIVITY });
       j.attempt(); await j.fire(j.canvas.captured[0]);
       check('C60-P10 [prova 5] escrita falhou / identidade recusada: NÃO celebra (onCelebrate 0), avisa, não navega',
         i.counts.celebrate === 0 && i.counts.saveIssue === 1 && i.captured.issue[0] === 'write_failed' && i.counts.goBack === 0
-          && j.counts.celebrate === 0 && j.counts.saveIssue === 1 && j.captured.issue[0] === 'invalid_identity' && j.counts.goBack === 0,
+          && j.counts.celebrate === 0 && j.counts.saveIssue === 1 && j.captured.issue[0] === 'invalid_activity' && j.counts.goBack === 0,
         `falha técnica nunca anuncia sucesso (wf=${JSON.stringify(i.counts)}/${JSON.stringify(i.captured.issue)}, inv=${JSON.stringify(j.counts)}/${JSON.stringify(j.captured.issue)})`);
     }
-    // Prova 6a — not_persisted_free: CELEBRA com persisted=false e o snapshot exportado; sem aviso de erro.
+    // Prova 6a [S1] — REVOGADA a celebração sem pixels: sem acesso legítimo (ou com autorização não
+    // pronta) o portão NÃO celebra. A proteção que a prova antiga dava — "não anunciar erro para a
+    // criança quando a decisão era de produto" — migra para o aviso próprio, tratado pela tela com a
+    // mesma mensagem afetiva de sempre. O que não pode acontecer é festa sem arte guardada.
     {
-      const i = makeGateInstance({ saveReturn: SR.NOT_PERSISTED_FREE });
+      const casos = [
+        [SR.ACCESS_DENIED, 'access_denied'],
+        [SR.AUTHORIZATION_NOT_READY, 'authorization_not_ready'],
+        [SR.INVALID_AUTHORIZATION, 'invalid_authorization'],
+        [SR.INVALID_STORY, 'invalid_story'],
+      ];
+      for (const [saveReturn, rotulo] of casos) {
+        const i = makeGateInstance({ saveReturn });
+        i.attempt(); await i.fire(i.canvas.captured[0], GATE_SNAP);
+        check(`C60-P10 [prova 6a/S1] "${rotulo}": NÃO celebra, NÃO marca, NÃO navega — avisa com o próprio nome`,
+          i.counts.celebrate === 0 && i.counts.mark === 0 && i.counts.goBack === 0
+            && i.counts.saveIssue === 1 && i.captured.issue[0] === rotulo,
+          `recusa de persistência não pode virar celebração (recebido: ${JSON.stringify({ c: i.counts, issue: i.captured.issue })})`);
+      }
+    }
+    // Prova 6b [S1] — o contrato canônico chega ao writer; a tela não o reduz nem o substitui.
+    {
+      const i = makeGateInstance({ saveReturn: SR.SAVED });
       i.attempt(); await i.fire(i.canvas.captured[0], GATE_SNAP);
-      const o = i.captured.celebrate[0] || {};
-      check('C60-P10 [prova 6a] not_persisted_free: celebra com persisted=false e o snapshot exportado, sem aviso de erro',
-        i.counts.celebrate === 1 && i.counts.saveIssue === 0 && o.persisted === false && o.snapshot === GATE_SNAP,
-        `Grátis é celebração honesta (persisted=false) com a arte atual (${JSON.stringify({ c: i.counts, o })})`);
+      const opt = i.captured.saveOptions;
+      check('C60-P10 [prova 6b/S1]: o portão entrega ao writer o contrato de acesso DESTA história, inteiro',
+        opt && opt.authorization && opt.authorization.__contratoCanonico === true
+          && opt.authorization.storyId === 'creation',
+        `a autorização é objeto estruturado da autoridade canônica (recebido: ${JSON.stringify(opt)})`);
     }
     // Prova extra (positiva) — SAVED: celebra com persisted=true e o snapshot exportado.
     {
@@ -41037,6 +41497,22 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         'computeArtworkScale', 'computeLineartStyle', 'computePaintStyle']);
     const CAT = loadModule('src/data/coloring60Catalog.js', {},
       ['getColoring60Activities', 'getColoring60Activity']);
+    // [S1] A AUTORIDADE DE ACESSO também entra do FONTE: a jornada real alimenta a autorização real,
+    // que alimenta o writer real. É o mesmo encadeamento que roda no aparelho.
+    const SJd = loadModule('src/services/storyJourneyService.js', {}, ['getStoryJourneyStatus', 'COMMERCIAL_ACCESS']);
+    const AUTd = loadModule('src/services/storyContentAuthorization.js',
+      { COMMERCIAL_ACCESS: SJd.COMMERCIAL_ACCESS }, ['CONTENT_AUTH_REASON', 'deriveStoryContentAuthorization']);
+    const autorizacaoD = (over = {}) => {
+      const { storyId = 'creation', hydrated = true, ...jornada } = over;
+      return AUTd.deriveStoryContentAuthorization({
+        storyId, knownStory: true, previousStoryId: null, previousStatus: null, hydrated,
+        journeyStatus: SJd.getStoryJourneyStatus(Object.assign({
+          totalScenes: 10, sceneDoneCount: 10, coloringComplete: true, coloringAvailable: true,
+          postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+          accessStatus: 'full', accessType: 'free', isFirstStory: true, previousJourneyComplete: true,
+        }, jornada)),
+      });
+    };
     const SS = STA.SNAPSHOT_STATUS;
     const IDS = CAT.getColoring60Activities('creation').map((a) => a.activityId);
 
@@ -41067,11 +41543,13 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         multiGet: async (ks) => { lerOuFalhar(); return ks.map((k) => [k, store.has(k) ? store.get(k) : null]); },
         multiRemove: async (ks) => { ks.forEach((k) => store.delete(k)); },
       };
-      const W = loadModule('src/services/coloring60DrawingStorage.js', {
+      const Wdev = loadModule('src/services/coloring60DrawingStorage.js', {
         AsyncStorage: AS,
         log: () => {},
+        CONTENT_AUTH_REASON: AUTd.CONTENT_AUTH_REASON,
         getCurrentPlan: () => (cfg.plan === undefined ? 'premium' : cfg.plan),
         getColoring60Activity: CAT.getColoring60Activity,
+        getColoring60Activities: CAT.getColoring60Activities,
         writeBlob: async (sub, fn, dataUrl) => {
           if (cfg.writeBlobFails) return null;
           const uri = `file://ptf_blobs/${sub}/${fn}`;
@@ -41086,6 +41564,13 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         currentBlobsRoot: () => 'file://ptf_blobs/',
       }, ['saveColoring60DrawingState', 'getColoring60SavedDrawing', 'hasColoring60SavedDrawing',
         'hasColoring60SnapshotRecord', 'clearColoring60SavedDrawing', 'COLORING60_SAVE_RESULT']);
+      // [S1] O aparelho de mentira é de uma criança com ACESSO LEGÍTIMO, salvo quando a prova diz o
+      // contrário (4º argumento explícito ou `cfg.authorization`).
+      const W = Object.assign({}, Wdev, {
+        saveColoring60DrawingState: (storyId, activityId, payload, ...rest) =>
+          Wdev.saveColoring60DrawingState(storyId, activityId, payload, rest.length ? rest[0]
+            : { authorization: cfg.authorization || autorizacaoD({ storyId }) }),
+      });
       const S = loadModule('src/services/coloring60ActivityService.js', {
         AsyncStorage: AS,
         getColoring60Activity: CAT.getColoring60Activity,
@@ -41138,10 +41623,13 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         'prepareColoring60LabUpdate', 'clearColoring60Lab']);
       // Uma parte "concluída de verdade": arte gravada e verificada + conclusão marcada com o
       // desfecho do instantâneo. É o caminho REAL da transação da Parte 4, em miniatura.
-      const concluirDeVerdade = async (activityId, payload = PINTADO) => {
-        const r = await W.saveColoring60DrawingState('creation', activityId, payload);
-        const status = r === W.COLORING60_SAVE_RESULT.SAVED ? SS.READY
-          : (r === W.COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE ? SS.NOT_PERSISTED : SS.FAILED);
+      // [S1] O contrato de acesso viaja junto: `cfg.authorization` permite encenar o aparelho de uma
+      // criança sem acesso legítimo. Sem ele, o caso normal do piloto (história acessível).
+      const concluirDeVerdade = async (activityId, payload = PINTADO, authorization) => {
+        const r = await W.saveColoring60DrawingState('creation', activityId, payload, {
+          authorization: authorization || cfg.authorization || autorizacaoD(),
+        });
+        const status = r === W.COLORING60_SAVE_RESULT.SAVED ? SS.READY : SS.FAILED;
         const ok = await S.markColoring60ActivityDone('creation', activityId, payload, status);
         return { saveResult: r, status, marked: ok };
       };
@@ -41320,20 +41808,37 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       })(),
       'quem EXIBE a arte usa a evidência forte e recebe ausência honesta; a sonda leve (só rótulo/contador) declara seu limite em vez de escondê-lo');
 
-    check('C60-DOMINIO [D15 · evid. 5] Grátis não grava pixels e MESMO ASSIM conclui de forma legítima: zero escrita, zero arquivo, desfecho "não persistido" que conta',
+    // [S1] REVOGADA para o Colorir narrativo a prova antiga "Grátis não grava pixels e mesmo assim
+    // conclui". No aparelho da criança do plano Grátis, com a história acessível, a obra AGORA vai
+    // para o arquivo e volta idêntica — pelo mesmo writer, com o mesmo double buffer.
+    check('C60-DOMINIO [D15 · evid. 5 · S1] Grátis com acesso legítimo GRAVA os pixels e conclui com arte real: arquivo escrito, obra recuperável, READY',
       await (async () => {
         const d = mkDevice({ plan: 'free' });
-        const r = await d.W.saveColoring60DrawingState('creation', 'light', PINTADO);
-        const marcou = await d.S.markColoring60ActivityDone('creation', 'light', PINTADO, SS.NOT_PERSISTED);
+        const feito = await d.concluirDeVerdade('light');
+        const devolta = await d.W.getColoring60SavedDrawing('creation', 'light');
         const est = STA.deriveColoring60ActivityState({
-          activityId: 'light', isCurrentlyComplete: true, snapshotStatus: SS.NOT_PERSISTED,
+          activityId: 'light', isCurrentlyComplete: true, snapshotStatus: SS.READY,
         });
-        return r === d.W.COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE
-          && d.blob.size === 0 && d.store.size === 3               // só as 3 chaves de conclusão
-          && marcou === true && STA.countsAsComplete(est) === true
-          && STA.hasIntegrityBreak(est) === false;
+        return feito.saveResult === d.W.COLORING60_SAVE_RESULT.SAVED
+          && feito.status === SS.READY && feito.marked === true
+          && d.blob.size === 1 && devolta === PINTADO
+          && STA.countsAsComplete(est) === true && STA.hasIntegrityBreak(est) === false;
       })(),
-      'o plano Grátis não é tratado como falha: a criança conclui a parte, o app só não guarda os pixels — e isso é um desfecho legítimo, não uma quebra');
+      'a criança do plano Grátis conclui a parte E fica com a obra guardada — a restrição por plano foi revogada para o Colorir narrativo');
+
+    // AINDA VIGENTE, reancorada: sem ACESSO à história, ninguém grava — e a recusa não vira conclusão
+    // silenciosa nem quebra de integridade. É a proteção que a trava antiga guardava, no lugar certo.
+    check('C60-DOMINIO [D15b · S1] SEM acesso à história: zero escrita, zero arquivo, recusa tipada — e nenhuma conclusão inventada',
+      await (async () => {
+        const d = mkDevice({ plan: 'premium' });
+        const semAcesso = autorizacaoD({ accessStatus: 'locked', accessType: 'premium' });
+        const r = await d.W.saveColoring60DrawingState('creation', 'light', PINTADO, { authorization: semAcesso });
+        return r === d.W.COLORING60_SAVE_RESULT.ACCESS_DENIED
+          && d.blob.size === 0 && d.store.size === 0
+          && (await d.W.hasColoring60SavedDrawing('creation', 'light')) === false
+          && (await d.W.hasColoring60SnapshotRecord('creation', 'light')) === false;
+      })(),
+      'conteúdo sem acesso legítimo nunca salva, qualquer que seja o plano — e não deixa rastro de conclusão');
 
     check('C60-DOMINIO [D16 · evid. 5] falha de escrita PRESERVA a arte anterior e NÃO deixa conclusão nova: a obra que existia continua exatamente onde estava',
       await (async () => {
@@ -44034,6 +44539,18 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const CN1 = [];
     const registrarCN1 = (id, alvo, descricao, original, mutante) =>
       CN1.push({ id, alvo, descricao, original, mutante });
+    // [S1] Autoridade canônica REAL — o writer do C60 passou a exigir o contrato de acesso.
+    const SJr = rLoad('src/services/storyJourneyService.js', {}, ['getStoryJourneyStatus', 'COMMERCIAL_ACCESS']);
+    const AUTr = rLoad('src/services/storyContentAuthorization.js',
+      { COMMERCIAL_ACCESS: SJr.COMMERCIAL_ACCESS }, ['CONTENT_AUTH_REASON', 'deriveStoryContentAuthorization']);
+    const autorizacaoR = ({ storyId = 'creation' } = {}) => AUTr.deriveStoryContentAuthorization({
+      storyId, knownStory: true, previousStoryId: null, previousStatus: null, hydrated: true,
+      journeyStatus: SJr.getStoryJourneyStatus({
+        totalScenes: 10, sceneDoneCount: 10, coloringComplete: true, coloringAvailable: true,
+        postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+        accessStatus: 'full', accessType: 'free', isFirstStory: true, previousJourneyComplete: true,
+      }),
+    });
 
     /* ── A · ÍNDICE: o diagnóstico relata o índice COMMITADO, não o espelho do contexto ─────
      *
@@ -44250,15 +44767,24 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       const blob = rLoad('src/services/fileBlobStore.js', { FileSystem: d.FileSystem, log: () => {} },
         ['writeBlob', 'readBlobAsDataUrl', 'deleteBlob', 'safeName', 'isDataUrl', 'dataUrlMime',
           'currentBlobsRoot']);
-      return rLoad('src/services/coloring60DrawingStorage.js', {
+      const Wr = rLoad('src/services/coloring60DrawingStorage.js', {
         AsyncStorage,
         log: () => {},
         getCurrentPlan: () => 'premium',
         isInternalToolsEnabled: () => false,
+        CONTENT_AUTH_REASON: AUTr.CONTENT_AUTH_REASON,
         getColoring60Activity: () => ({ id: 'light' }),
+        getColoring60Activities: () => [{ activityId: 'light' }],
         ...blob,
       }, ['saveColoring60DrawingState', 'clearColoring60SavedDrawing', 'COLORING60_SAVE_RESULT'],
       mutate);
+      // [S1] Este bloco mede o CONTRATO DE DISCO (rollback, órfãos, estado desconhecido), não o
+      // portão de acesso: a criança aqui tem acesso legítimo, com o contrato real da autoridade.
+      return Object.assign({}, Wr, {
+        saveColoring60DrawingState: (storyId, activityId, payload, ...rest) =>
+          Wr.saveColoring60DrawingState(storyId, activityId, payload,
+            rest.length ? rest[0] : { authorization: autorizacaoR({ storyId }) }),
+      });
     };
 
     {

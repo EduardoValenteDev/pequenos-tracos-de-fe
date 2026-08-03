@@ -1,25 +1,35 @@
 /**
  * coloring60DrawingStorage.js — Writer DEDICADO e ISOLADO do piloto Colorir 60
- * (C60-IMPL-P3 · P3.T1..T3). Fronteira REAL de persistência da arte por identidade
- * composta (`storyId`, `activityId`), com namespace fechado e entitlement interno.
+ * (C60-IMPL-P3 · P3.T1..T3 · Spec 019 · bloco S1). Fronteira REAL de persistência da arte
+ * por identidade composta (`storyId`, `activityId`), com namespace fechado e autoridade de
+ * escrita derivada do ACESSO LEGÍTIMO ao conteúdo.
  *
  * PRINCÍPIOS (nunca violar):
  *   - A TELA É CHAMADORA, NÃO AUTORIDADE. O writer calcula a própria chave internamente
  *     (`keyDrawing60`), NUNCA aceita chave, path, `route`, `story`, `sceneId`/`cenaIndex`
  *     nem entitlement vindos do chamador. Argumentos extras do chamador são IGNORADOS.
+ *     Abrir a tela NÃO constitui autorização.
  *   - IDENTIDADE SEMÂNTICA: `storyId`/`activityId` são strings validadas contra o catálogo
- *     (`coloring60Catalog`). Número/`"2"`/`"scene_02"`/vazio/não-string ⇒ `invalid_identity`.
+ *     (`coloring60Catalog`). História fora do piloto ⇒ `invalid_story`; atividade inexistente,
+ *     de outra história, número, `"2"`, `"scene_02"`, vazio ou não-string ⇒ `invalid_activity`.
  *     A chave só é calculada APÓS a validação (nenhuma entrada inválida provoca escrita).
- *   - ENTITLEMENT FAIL-CLOSED (D6): o plano é reavaliado a CADA tentativa via a fonte
- *     canônica `accessControl.getCurrentPlan()` (= `entitlementService.getEntitlementPlan()`).
- *     SÓ o Plano Família (`'premium'`) persiste. Grátis, indeterminado, ausente ou erro ⇒
- *     ZERO escrita (`not_persisted_free`). Modo Criador/QA NÃO autoriza salvamento aqui.
- *   - EXCEÇÃO DE DESENVOLVIMENTO (P8 · §3), que NÃO muda o comportamento de produção: quando
- *     `__DEV__ === true` E as ferramentas internas estão realmente habilitadas
- *     (`isInternalToolsEnabled()` — o MESMO mecanismo que abre "Administração (dev)"; nenhuma
- *     flag paralela é criada), a escrita é autorizada para que o piloto seja testável ponta a
- *     ponta no Dev Client. Em produção (`__DEV__` falso) a exceção é inerte e a regra pública
- *     permanece exatamente a mesma: Plano Família persiste, grátis NÃO persiste.
+ *   - AUTORIDADE POR ACESSO LEGÍTIMO (Spec 019 · S1 — substitui a antiga autoridade por PLANO):
+ *     quem tem acesso legítimo à história E à atividade salva a pintura narrativa localmente,
+ *     em QUALQUER plano. Grátis em história gratuita acessível salva; Família em história
+ *     premium acessível salva; conteúdo SEM acesso NUNCA salva. A decisão NÃO é tomada aqui:
+ *     ela chega pronta, como objeto estruturado, da autoridade canônica
+ *     (`storyContentAuthorization.deriveStoryContentAuthorization`, alimentada pelo
+ *     `ProgressContext`). Este módulo apenas VERIFICA o contrato e obedece — ele não conhece
+ *     sequência, trava comercial, packs, disponibilidade de mídia, entitlement nem jornada.
+ *   - FAIL-CLOSED SEM I/O: ausência de contrato, contrato malformado/forjado, hidratação em
+ *     curso ou acesso negado ⇒ recusa TIPADA com ZERO escrita — nenhum blob, nenhum ponteiro,
+ *     nenhuma alternância de slot, nenhuma modificação da obra anterior.
+ *   - SEM PORTA DE DESENVOLVIMENTO: não existe override de ambiente para escrita. Nem build de
+ *     desenvolvimento, nem ferramentas internas, nem Modo Criador/QA autorizam salvar conteúdo
+ *     sem acesso. A única chave é o contrato canônico — a mesma em desenvolvimento, no piloto e
+ *     em produção. (A antiga exceção `isDevWriteAuthorized` do P8 §3 deixou de existir: ela só
+ *     era necessária enquanto a autoridade era o plano.)
+ *   - LOCAL E OFFLINE: o writer não consulta rede, loja nem entitlement. Funciona sem conexão.
  *   - NAMESPACE PRÓPRIO, SEM COLISÃO: pixels em `@ptf_drawing60_s<storyId>_a<activityId>`
  *     (não casa `startsWith('@ptf_drawing_')` do legado) e blobs em `ptf_blobs/drawings60/`.
  *     NÃO cria chave de conclusão (`@ptf_coloring60_done_*` é P4), NÃO migra legado, NÃO faz
@@ -36,7 +46,7 @@
  *
  * GARANTIAS TRANSACIONAIS (C60-IMPL-P3-FIX1 — honestas quanto ao que a infraestrutura oferece;
  * o AsyncStorage/FileSystem NÃO dão transação atômica multi-recurso):
- *   1. ZERO escrita no plano grátis (nem leitura): a fronteira de I/O não é sequer tocada.
+ *   1. ZERO escrita sem acesso legítimo (nem leitura): a fronteira de I/O não é sequer tocada.
  *   2. INVARIANTE central: nenhuma chave ativa aponta DELIBERADAMENTE para um blob que o próprio
  *      writer acabou de apagar. O blob novo só é descartado APÓS reler a chave e CONFIRMAR que
  *      ela não o referencia mais; em estado desconhecido, o blob novo é PRESERVADO (legível).
@@ -52,15 +62,15 @@
  *   7. `get` retorna `null` para ponteiro ilegível (arquivo ausente); `has` retorna `false` no mesmo
  *      caso — `get` e `has` são semanticamente COERENTES (has reusa get, sem healing/escrita).
  *
- * Governança: specs 014/015/016/017 · DECISIONS.md PL01A-03/PL01G · plan.md §6.5/§6.6/§6.7 ·
- * tasks.md P3.T1..T5 · C60-IMPL-P3-QA1 (auditoria) · C60-IMPL-P3-FIX1 (hardening).
+ * Governança: specs 014/015/016/017/019 · DECISIONS.md PL01A-03/PL01G ·
+ * D-C60-PERSISTENCIA-TODOS-PLANOS · plan.md §6.5/§6.6/§6.7 · tasks.md P3.T1..T5 ·
+ * C60-IMPL-P3-QA1 (auditoria) · C60-IMPL-P3-FIX1 (hardening) · Spec 019 bloco S1.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { log } from '../utils/logger';
-import { getCurrentPlan } from './accessControl';
-import { isInternalToolsEnabled } from '../config/internalTools';
-import { getColoring60Activity } from '../data/coloring60Catalog';
+import { CONTENT_AUTH_REASON } from './storyContentAuthorization';
+import { getColoring60Activity, getColoring60Activities } from '../data/coloring60Catalog';
 import {
   writeBlob,
   readBlobAsDataUrl,
@@ -75,48 +85,38 @@ import {
 const POINTER_VERSION = 3;
 // Subdiretório PRÓPRIO dos blobs Colorir 60 — isolado de `drawings/` (legado).
 const BLOB_SUBDIR = 'drawings60';
-// Plano Família = `'premium'` na fonte canônica `getCurrentPlan()`. Único valor que autoriza
-// escrita; qualquer outro (free/undefined/null/erro/loading/desconhecido) é NÃO autorizado.
-const FAMILY_PLAN = 'premium';
 
 /**
- * [C60-P8-DEV-WRITE] Autorização de escrita EXCLUSIVA de desenvolvimento (P8 · §3).
- *
- * Existe só para que o piloto possa ser validado ponta a ponta no Dev Client (pintar →
- * Pronto → sair → voltar → a pintura continua lá) sem depender de assinatura. NÃO é uma
- * regra de produto e NÃO afeta produção:
- *   - exige `__DEV__ === true` (falso em qualquer build de loja) E
- *   - exige o mecanismo ÚNICO de ferramentas internas já existente (`isInternalToolsEnabled`),
- *     o mesmo que gateia a seção "Administração (dev)". Nenhuma flag paralela é criada.
- * Fail-closed: qualquer erro ao consultar as ferramentas internas ⇒ NÃO autoriza.
- * O curto-circuito em `typeof __DEV__` garante ZERO efeito colateral quando o símbolo
- * sequer existe (ambientes que não são o app).
- */
-function isDevWriteAuthorized() {
-  if (typeof __DEV__ === 'undefined' || __DEV__ !== true) return false;
-  try {
-    return isInternalToolsEnabled() === true;
-  } catch (e) {
-    return false;
-  }
-}
-
-/**
- * Resultados TIPADOS do salvamento (contrato estável e congelado).
- *   - SAVED               → arte persistida no namespace Colorir 60 (Plano Família).
- *   - NOT_PERSISTED_FREE  → sem entitlement Família confirmado (grátis/indeterminado): ZERO escrita.
- *   - WRITE_FAILED        → premium, mas a persistência não pôde ser promovida/verificada. Sob falha
- *                           simples o anterior é preservado; sob falha composta, best-effort (ver
- *                           GARANTIAS TRANSACIONAIS) — nunca um ponteiro apontando para blob apagado.
- *   - INVALID_IDENTITY    → identidade fora do catálogo/inválida: rejeitada antes de qualquer escrita.
- * `invalid_identity` NUNCA é conflado com `not_persisted_free` (razões distintas).
+ * Resultados TIPADOS do salvamento (contrato estável e congelado). Spec 019 · S1 substituiu o
+ * antigo desfecho genérico por UM DESFECHO POR CAUSA — "não escreveu" deixou de ser uma coisa só.
+ *   - SAVED                    → arte persistida no namespace Colorir 60 (qualquer plano, com acesso).
+ *   - WRITE_FAILED             → autorizado, mas a persistência não pôde ser promovida/verificada.
+ *                                Sob falha simples o anterior é preservado; sob falha composta,
+ *                                best-effort (ver GARANTIAS TRANSACIONAIS) — nunca um ponteiro
+ *                                apontando para blob apagado. É falha de DISCO, não de direito.
+ *   - ACCESS_DENIED            → contrato válido, porém sem acesso legítimo ao conteúdo (sequência,
+ *                                trava comercial ou mídia indisponível): ZERO escrita.
+ *   - AUTHORIZATION_NOT_READY  → a autorização ainda hidrata; nada é decidido nem escrito. Não é
+ *                                negativa — é "ainda não sei", e o chamador pode tentar de novo.
+ *   - INVALID_STORY            → história fora do catálogo do Colorir com o Beni.
+ *   - INVALID_ACTIVITY         → atividade inexistente ou pertencente a outra história.
+ *   - INVALID_AUTHORIZATION    → contrato ausente, malformado, incoerente ou de outra história.
+ * Nenhum desses valores pode ser reaproveitado para outra causa: acesso negado, falha de disco,
+ * estado legado, falha de autorização e escrita não realizada são desfechos DISTINTOS.
  */
 export const COLORING60_SAVE_RESULT = Object.freeze({
   SAVED: 'saved',
-  NOT_PERSISTED_FREE: 'not_persisted_free',
   WRITE_FAILED: 'write_failed',
-  INVALID_IDENTITY: 'invalid_identity',
+  ACCESS_DENIED: 'access_denied',
+  AUTHORIZATION_NOT_READY: 'authorization_not_ready',
+  INVALID_STORY: 'invalid_story',
+  INVALID_ACTIVITY: 'invalid_activity',
+  INVALID_AUTHORIZATION: 'invalid_authorization',
 });
+
+// Razões canônicas aceitas no contrato. Vem da autoridade — o writer não inventa nem amplia
+// esta lista, só confere que a razão recebida pertence a ela.
+const CANONICAL_AUTH_REASONS = Object.freeze(Object.values(CONTENT_AUTH_REASON));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Identidade + chave (funções FECHADAS — sem valor livre da tela)
@@ -147,6 +147,82 @@ function validateIdentity(storyId, activityId) {
     return null;
   }
   return getColoring60Activity(storyId, activityId); // null quando fora do piloto
+}
+
+/**
+ * identityFailure(storyId, activityId) — `null` quando a identidade é válida; senão, o desfecho
+ * TIPADO da recusa (Spec 019 · S1). Separa duas coisas que o desfecho único antigo confundia:
+ * "essa história não é do Colorir com o Beni" e "essa atividade não existe NESTA história".
+ * A ordem importa: a história é checada primeiro, para que uma história desconhecida não seja
+ * relatada como atividade inválida. `getColoring60Activities` devolve lista VAZIA (não `null`)
+ * para história fora do piloto — por isso o teste é pelo tamanho.
+ */
+function identityFailure(storyId, activityId) {
+  if (typeof storyId !== 'string' || storyId.length === 0) {
+    return COLORING60_SAVE_RESULT.INVALID_STORY;
+  }
+  const doCatalogo = getColoring60Activities(storyId);
+  if (!Array.isArray(doCatalogo) || doCatalogo.length === 0) {
+    return COLORING60_SAVE_RESULT.INVALID_STORY;
+  }
+  if (!validateIdentity(storyId, activityId)) {
+    return COLORING60_SAVE_RESULT.INVALID_ACTIVITY;
+  }
+  return null;
+}
+
+/**
+ * authorizationFailure(authorization, storyId) — `null` quando o contrato canônico autoriza a
+ * escrita NESTA gravação; senão, o desfecho TIPADO da recusa (Spec 019 · S1).
+ *
+ * O writer NÃO decide acesso: ele confere que recebeu de fato o contrato da autoridade canônica
+ * e obedece. Por isso não basta um campo isolado — um `{ canSave: true }` (ou qualquer booleano
+ * solto) é recusado como `invalid_authorization`. A conferência é estrutural e reproduz as duas
+ * INVARIANTES internas de `deriveStoryContentAuthorization`:
+ *     allowed === (reason === ALLOWED)
+ *     canEnterStoryContent === (authorizationReady && allowed)
+ * Um contrato forjado à mão que minta em qualquer um desses campos quebra a invariante e é
+ * rejeitado — é isso que torna a exigência do objeto estruturado verificável, e não decorativa.
+ *
+ * Ordem (fail-closed): forma → coerência → identidade da história → hidratação → acesso.
+ * "Ainda hidratando" é reportado ANTES de "acesso negado" porque ainda não há decisão a negar.
+ */
+function authorizationFailure(authorization, storyId) {
+  const a = authorization;
+  if (!a || typeof a !== 'object' || Array.isArray(a)) {
+    return COLORING60_SAVE_RESULT.INVALID_AUTHORIZATION;
+  }
+  if (
+    typeof a.authorizationReady !== 'boolean' ||
+    typeof a.allowed !== 'boolean' ||
+    typeof a.canEnterStoryContent !== 'boolean' ||
+    typeof a.reason !== 'string' ||
+    typeof a.storyId !== 'string' ||
+    a.storyId.length === 0
+  ) {
+    return COLORING60_SAVE_RESULT.INVALID_AUTHORIZATION;
+  }
+  if (CANONICAL_AUTH_REASONS.indexOf(a.reason) === -1) {
+    return COLORING60_SAVE_RESULT.INVALID_AUTHORIZATION;
+  }
+  if (a.allowed !== (a.reason === CONTENT_AUTH_REASON.ALLOWED)) {
+    return COLORING60_SAVE_RESULT.INVALID_AUTHORIZATION;
+  }
+  if (a.canEnterStoryContent !== (a.authorizationReady && a.allowed)) {
+    return COLORING60_SAVE_RESULT.INVALID_AUTHORIZATION;
+  }
+  // O contrato tem de ser DESTA gravação: uma autorização legítima de outra história não
+  // empresta direito de escrita aqui.
+  if (a.storyId !== storyId) {
+    return COLORING60_SAVE_RESULT.INVALID_AUTHORIZATION;
+  }
+  if (a.authorizationReady !== true) {
+    return COLORING60_SAVE_RESULT.AUTHORIZATION_NOT_READY;
+  }
+  if (a.canEnterStoryContent !== true) {
+    return COLORING60_SAVE_RESULT.ACCESS_DENIED;
+  }
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -312,34 +388,32 @@ async function rollbackFailedPromotion(k, oldRaw, newUri) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * saveColoring60DrawingState(storyId, activityId, payload) — AUTORIDADE de escrita.
- * Ordem: (1) valida identidade → `invalid_identity`; (2) reavalia entitlement (D6),
- * fail-closed → só `'premium'` segue (ou, SOMENTE em desenvolvimento com ferramentas
- * internas ligadas, a exceção do P8 §3), senão `not_persisted_free` com ZERO escrita;
- * (3) só então calcula a chave e persiste via double-buffer (slot inativo → promover →
- * verificar → descartar o slot antigo); (4) resultado tipado. NUNCA marca conclusão,
- * NUNCA chama o writer legado, NUNCA cai em chave/namespace de cena.
+ * saveColoring60DrawingState(storyId, activityId, payload, options) — AUTORIDADE de escrita.
+ *
+ * `options.authorization` é o contrato canônico de acesso ao conteúdo, produzido por
+ * `deriveStoryContentAuthorization` e entregue pelo chamador POR INTEIRO (objeto estruturado;
+ * booleano solto não serve). O writer confere o contrato e obedece — ele não recalcula acesso.
+ *
+ * Ordem: (1) valida identidade → `invalid_story`/`invalid_activity`; (2) confere o contrato,
+ * fail-closed → `invalid_authorization`/`authorization_not_ready`/`access_denied`, todos com
+ * ZERO escrita; (3) só então calcula a chave e persiste via double-buffer (slot inativo →
+ * promover → verificar → descartar o slot antigo); (4) resultado tipado. NUNCA marca conclusão,
+ * NUNCA chama o writer legado, NUNCA cai em chave/namespace de cena, NUNCA consulta plano/rede.
  */
-export async function saveColoring60DrawingState(storyId, activityId, payload) {
+export async function saveColoring60DrawingState(storyId, activityId, payload, options) {
   // 1) Identidade PRIMEIRO — entrada inválida não provoca nenhuma escrita.
-  if (!validateIdentity(storyId, activityId)) {
-    return COLORING60_SAVE_RESULT.INVALID_IDENTITY;
-  }
+  const falhaIdentidade = identityFailure(storyId, activityId);
+  if (falhaIdentidade) return falhaIdentidade;
 
-  // 2) Entitlement reavaliado AGORA, na fonte canônica, fail-closed. Autoridade é o serviço.
-  let plan;
-  try {
-    plan = getCurrentPlan();
-  } catch (e) {
-    plan = null; // erro ao consultar entitlement ⇒ tratado como não autorizado
-  }
-  if (plan !== FAMILY_PLAN && !isDevWriteAuthorized()) {
-    // Grátis OU indeterminado (undefined/null/erro/loading/desconhecido): 0 escrita.
-    // A exceção de desenvolvimento (ver isDevWriteAuthorized) é inerte em produção.
-    return COLORING60_SAVE_RESULT.NOT_PERSISTED_FREE;
-  }
+  // 2) Acesso legítimo, conferido AGORA, a cada tentativa, fail-closed. Sem contrato válido e
+  //    correspondente a ESTA gravação, a fronteira de I/O não é sequer tocada.
+  const falhaAutorizacao = authorizationFailure(
+    options && typeof options === 'object' ? options.authorization : null,
+    storyId,
+  );
+  if (falhaAutorizacao) return falhaAutorizacao;
 
-  // 3) Só APÓS validar identidade e confirmar Plano Família a chave é calculada e escrita.
+  // 3) Só APÓS validar identidade e confirmar o acesso a chave é calculada e escrita.
   const k = keyDrawing60(storyId, activityId);
   const safeKey = safeName(k);
   try {
