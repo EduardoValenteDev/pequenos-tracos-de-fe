@@ -62,6 +62,40 @@
  *   7. `get` retorna `null` para ponteiro ilegível (arquivo ausente); `has` retorna `false` no mesmo
  *      caso — `get` e `has` são semanticamente COERENTES (has reusa get, sem healing/escrita).
  *
+ * SOBRESCRITA, RECUPERAÇÃO E GC DIRIGIDO (Spec 019 · bloco S3)
+ *
+ *   UMA OBRA VISÍVEL POR ATIVIDADE. Cada atividade tem UMA obra ativa. Uma nova conclusão
+ *   SUBSTITUI a anterior — não existe histórico de versões no lançamento. O double-buffer A/B
+ *   é mecanismo de SEGURANÇA TRANSACIONAL, não uma linha do tempo: a geração inativa nunca é
+ *   uma versão acessível, e depois da promoção confirmada ela pode ser removida.
+ *
+ *   FLUXO OBRIGATÓRIO da sobrescrita, na ordem: (1) ler o ponteiro ativo; (2) escolher o slot
+ *   INATIVO; (3) gravar o novo blob; (4) CONFIRMAR que o blob existe e caiu exatamente no slot
+ *   pedido, dentro de `drawings60/` (`confirmSlotUri`); (5) montar o novo ponteiro; (6) promover;
+ *   (7) reler; (8) CONFIRMAR identidade, URI e revisão do que ficou gravado (`confirmPromotion`);
+ *   (9) só então remover a geração anterior; (10) manter o blob novo PROTEGIDO durante a limpeza.
+ *   Em qualquer falha: o ponteiro anterior continua válido, o blob anterior permanece, a coleção
+ *   continua mostrando a obra anterior, a tentativa devolve falha CONTROLADA e nenhuma atividade
+ *   vizinha é afetada.
+ *
+ *   GC DIRIGIDO (`collectColoring60Orphans`). NÃO existe varredura por prefixo aberto, nem
+ *   listagem de diretório, nem GC global no boot. A limpeza é dirigida pela IDENTIDADE
+ *   (`storyId` + `activityId`) e só pode considerar: os dois slots canônicos A/B daquela
+ *   atividade, o ponteiro ativo validado, arquivos dentro de `drawings60/` e nomes que
+ *   correspondam EXATAMENTE à identidade segura. Nunca toca arquivo de outra atividade, de outra
+ *   história, do Criar Livre, do `drawingStorage` legado, desconhecido fora do subdiretório, o
+ *   blob ativo, o blob anterior antes da promoção confirmada nem um blob protegido pela tentativa
+ *   atual. Roda em três momentos apenas: depois de um salvamento bem-sucedido, depois da exclusão
+ *   explícita de uma obra e numa reconciliação dirigida de um slot específico. Se o ponteiro ativo
+ *   não puder ser lido, o estado é DESCONHECIDO e nada é apagado (fail-closed).
+ *
+ *   COTA. O orçamento do diretório `drawings60` é de 150 MB — 60 identidades × uma obra ativa
+ *   cada, com margem. O orçamento NÃO apaga automaticamente obra válida: não há política LRU,
+ *   não há despejo por idade e nenhuma obra antiga é sacrificada para abrir espaço sem ação
+ *   parental explícita. Falta de espaço é ERRO REAL DE ESCRITA e vira `WRITE_FAILED`, com a obra
+ *   anterior preservada. O stack atual não expõe espaço livre de forma confiável para esta
+ *   fronteira, e uma medição inventada seria pior que nenhuma — por isso não existe aqui.
+ *
  * Governança: specs 014/015/016/017/019 · DECISIONS.md PL01A-03/PL01G ·
  * D-C60-PERSISTENCIA-TODOS-PLANOS · plan.md §6.5/§6.6/§6.7 · tasks.md P3.T1..T5 ·
  * C60-IMPL-P3-QA1 (auditoria) · C60-IMPL-P3-FIX1 (hardening) · Spec 019 bloco S1.
@@ -75,6 +109,7 @@ import {
   writeBlob,
   readBlobAsDataUrl,
   deleteBlob,
+  BLOB_DELETE_OUTCOME,
   safeName,
   isDataUrl,
   dataUrlMime,
@@ -112,6 +147,18 @@ export const COLORING60_SAVE_RESULT = Object.freeze({
   INVALID_STORY: 'invalid_story',
   INVALID_ACTIVITY: 'invalid_activity',
   INVALID_AUTHORIZATION: 'invalid_authorization',
+});
+
+/**
+ * [Spec 019 · S3] Momentos em que a limpeza dirigida pode rodar — LISTA FECHADA. Não existe um
+ * quarto momento, e em especial não existe GC de boot: uma varredura global na abertura do app é
+ * exatamente o que esta spec proíbe. `RECONCILE` é a reconciliação DIRIGIDA de um slot específico
+ * (uma identidade por vez), nunca um "reconciliar tudo".
+ */
+export const COLORING60_GC_REASON = Object.freeze({
+  AFTER_SAVE: 'after_save',
+  AFTER_CLEAR: 'after_clear',
+  RECONCILE: 'reconcile',
 });
 
 // Razões canônicas aceitas no contrato. Vem da autoridade — o writer não inventa nem amplia
@@ -239,6 +286,53 @@ function otherSlotName(safeKey, oldUri) {
   return usesA ? `${safeKey}.b.png` : `${safeKey}.a.png`;
 }
 
+/** Nome de arquivo de uma URI de blob (o trecho após a última barra). Puro, sem I/O. */
+function blobFileName(uri) {
+  if (typeof uri !== 'string' || !uri) return '';
+  return uri.slice(uri.lastIndexOf('/') + 1);
+}
+
+/**
+ * [Spec 019 · S3 · passo 4] confirmSlotUri(uri, slotName) — o blob recém-gravado está EXATAMENTE
+ * onde foi pedido? `writeBlob` já confirma a existência do arquivo antes de retornar; o que falta,
+ * e é o que esta função fecha, é a confirmação de ENDEREÇO: o arquivo tem de estar dentro de
+ * `drawings60/` e com o nome do slot escolhido. Sem isso, um caminho vindo de outra fronteira
+ * (refatoração do helper, subdiretório trocado) seria promovido a ponteiro ativo — e ficaria fora
+ * do alcance da limpeza dirigida para sempre, porque nem o GC nem `deleteBlob` podem tocar o que
+ * está fora do subdiretório autorizado. Órfão eterno começa aqui, então aqui ele é barrado.
+ */
+function confirmSlotUri(uri, slotName) {
+  if (typeof uri !== 'string' || !uri || typeof slotName !== 'string' || !slotName) return false;
+  return uri.endsWith(`/${BLOB_SUBDIR}/${slotName}`);
+}
+
+/**
+ * [Spec 019 · S3 · passos 7 e 8] confirmPromotion(check, toStore, newUri, expectedRev, safeKey) —
+ * o que foi RELIDO da chave é, comprovadamente, o estado que se pretendia promover?
+ *
+ * A igualdade textual (`check === toStore`) continua sendo a primeira exigência, mas ela sozinha
+ * responde "gravou o que mandei", não "o que mandei estava certo". As três confirmações do
+ * contrato são explícitas e verificáveis uma a uma:
+ *   - IDENTIDADE: o arquivo apontado pertence a um dos dois slots canônicos DESTA identidade
+ *     (`safeKey`.a/.b) — nunca ao slot de outra atividade ou de outra história;
+ *   - URI: o ponteiro relido referencia exatamente o blob desta tentativa;
+ *   - REVISÃO: a `rev` gravada é a `rev` do payload (o casamento pintura ↔ instantâneo).
+ * Promoção INLINE (canvas sem tinta) tem contrato próprio: o que ficou gravado NÃO pode ser um
+ * ponteiro — senão a chave estaria referenciando um arquivo que esta tentativa não escreveu.
+ */
+function confirmPromotion(check, toStore, newUri, expectedRev, safeKey) {
+  if (typeof toStore !== 'string' || check !== toStore) return false;
+  if (!newUri) return !isPointer60(check);
+  if (!isPointer60(check)) return false;
+  let p;
+  try { p = JSON.parse(check); } catch { return false; }
+  if (p.v !== POINTER_VERSION) return false;
+  if (p.uri !== newUri) return false;
+  const nome = blobFileName(p.uri);
+  if (nome !== `${safeKey}.a.png` && nome !== `${safeKey}.b.png`) return false;
+  return (p.rev ?? null) === (expectedRev ?? null);
+}
+
 /** true se o payload tem tinta REAL (mesmo critério do legado; canvas em branco fica inline). */
 function payloadHasPaint(payload) {
   if (!payload || typeof payload !== 'string') return false;
@@ -270,11 +364,16 @@ function pointerUri(value) {
 }
 
 /**
- * writeSlot(slotName, payload) — grava o blob grande no slot informado (INATIVO) e monta o
- * ponteiro v3. Retorna `{ ptr, uri }` em sucesso, ou `null` em falha — limpando qualquer
+ * writeSlot(slotName, payload, protectUri) — grava o blob grande no slot informado (INATIVO) e
+ * monta o ponteiro v3. Retorna `{ ptr, uri }` em sucesso, ou `null` em falha — limpando qualquer
  * arquivo parcial NO SLOT INATIVO (nunca toca o slot ativo/anterior).
+ *
+ * `protectUri` é o blob ANTERIOR. O compensatório de falha é a única exclusão do writer que roda
+ * sem ter lido o resultado da gravação, e por isso ele entrega o anterior como PROTEGIDO à
+ * contenção: assim, mesmo que o slot calculado coincidisse com o ativo, a limpeza de um arquivo
+ * parcial seria RECUSADA em vez de custar a obra que já estava salva.
  */
-async function writeSlot(slotName, payload) {
+async function writeSlot(slotName, payload, protectUri) {
   let fmt;
   let dataUrl;
   let layout = null;
@@ -310,13 +409,20 @@ async function writeSlot(slotName, payload) {
     // O subdiretório é FIXADO no alvo: mesmo montado a partir da raiz atual, nada fora de
     // `ptf_blobs/drawings60/` pode ser atingido por esta limpeza.
     const root = currentBlobsRoot();
-    if (root) await deleteBlob(`${root}${BLOB_SUBDIR}/${slotName}`, { requireSubdir: BLOB_SUBDIR });
+    if (root) {
+      await deleteBlob(`${root}${BLOB_SUBDIR}/${slotName}`, {
+        requireSubdir: BLOB_SUBDIR,
+        protect: protectUri || undefined,
+      });
+    }
     return null;
   }
 
   const ptr = { v: POINTER_VERSION, fmt, uri: written.uri, mime };
   if (layout) Object.assign(ptr, layout);
-  return { ptr: JSON.stringify(ptr), uri: written.uri };
+  // `rev` sobe junto para que a CONFIRMAÇÃO da promoção (passo 8) possa conferir a revisão sem
+  // reparsear o payload original — a mesma revisão que casa pintura ↔ instantâneo.
+  return { ptr: JSON.stringify(ptr), uri: written.uri, rev: layout ? (layout.rev ?? null) : null };
 }
 
 /** Reconstrói o payload original (v1 data URL ou v2 JSON) a partir do ponteiro v3. */
@@ -417,23 +523,55 @@ export async function saveColoring60DrawingState(storyId, activityId, payload, o
   const k = keyDrawing60(storyId, activityId);
   const safeKey = safeName(k);
   try {
-    // Estado anterior (para double-buffer e para preservar/limpar sem órfão).
+    // [S3 · passo 1] Ler o ponteiro ativo. Esta leitura é FAIL-CLOSED e não admite degradação:
+    // "não havia obra" e "não foi possível saber se havia obra" são estados DIFERENTES, e tratar o
+    // segundo como o primeiro é destrutivo. Sem ponteiro conhecido, `otherSlotName` elegeria
+    // `.a.png` — que pode ser exatamente o slot que a chave ilegível referencia — e a gravação
+    // cairia POR CIMA da obra viva; o compensatório apagaria o que sobrou; e o rollback, lendo o
+    // mesmo `null`, removeria uma chave VÁLIDA. Sem saber qual é o slot ativo não existe slot
+    // INATIVO, e sem slot inativo não existe double buffer. A tentativa morre AQUI, antes de
+    // qualquer escrita: ponteiro anterior válido, blob anterior intacto, coleção inalterada e
+    // falha controlada de volta. É a mesma disciplina do GC, que recusa limpar quando não
+    // consegue ler o ativo (`skipped: 'unknown_active'`) — o writer não pode ser mais frouxo com
+    // a obra da criança do que a rotina de limpeza.
     let oldRaw = null;
-    try { oldRaw = await AsyncStorage.getItem(k); } catch { oldRaw = null; }
+    try {
+      oldRaw = await AsyncStorage.getItem(k);
+    } catch (e) {
+      log('coloring60DrawingStorage.save.ativoIlegivel:', e);
+      return COLORING60_SAVE_RESULT.WRITE_FAILED;
+    }
+    // Daqui para baixo `oldRaw == null` significa, comprovadamente, AUSÊNCIA de estado anterior —
+    // nunca desconhecimento. É essa garantia que autoriza o rollback a remover a chave.
     const oldUri = pointerUri(oldRaw);
 
     let toStore = payload;
     let newUri = null;
+    let expectedRev = null;
 
     if (payloadHasPaint(payload)) {
       const slot = otherSlotName(safeKey, oldUri); // slot INATIVO
-      const built = await writeSlot(slot, payload);
-      if (!built) {
-        // Falha ao escrever o slot novo: anterior intocado (preservado), sem resíduo.
+      const built = await writeSlot(slot, payload, oldUri);
+      // [S3 · passo 4] Falha ao escrever OU blob fora do slot/subdiretório pedidos: em ambos os
+      // casos a tentativa morre AQUI, antes de qualquer promoção — o anterior fica intocado
+      // (preservado) e nenhum ponteiro passa a referenciar um arquivo que não é desta identidade.
+      if (!built || !confirmSlotUri(built.uri, slot)) {
+        if (built && built.uri) {
+          // Compensatório: o arquivo estranho é oferecido à contenção — que o recusa se estiver
+          // fora de `drawings60/`. O blob ANTERIOR entra como protegido: uma escrita malsucedida
+          // jamais pode custar a obra que já estava salva.
+          try {
+            await deleteBlob(built.uri, {
+              requireSubdir: BLOB_SUBDIR,
+              protect: oldUri || undefined,
+            });
+          } catch (e) { log('coloring60DrawingStorage.save.slotForaDaIdentidade:', e); }
+        }
         return COLORING60_SAVE_RESULT.WRITE_FAILED;
       }
       toStore = built.ptr;
       newUri = built.uri;
+      expectedRev = built.rev;
     }
 
     // Promover: o ponteiro/valor no AsyncStorage passa a referenciar o novo estado. Uma rejeição
@@ -454,7 +592,8 @@ export async function saveColoring60DrawingState(storyId, activityId, payload, o
     } catch (e) {
       check = undefined;
     }
-    if (check !== toStore) {
+    // [S3 · passo 8] A releitura não basta: ela precisa CONFIRMAR identidade, URI e revisão.
+    if (!confirmPromotion(check, toStore, newUri, expectedRev, safeKey)) {
       // Verificação divergiu: desfazer preservando a invariante (restaura o anterior e só descarta
       // o blob novo se a chave comprovadamente não o referencia mais).
       await rollbackFailedPromotion(k, oldRaw, newUri);
@@ -476,6 +615,19 @@ export async function saveColoring60DrawingState(storyId, activityId, payload, o
         await deleteBlob(oldUri, { requireSubdir: BLOB_SUBDIR, protect: newUri });
       } catch (e) { log('coloring60DrawingStorage.save.cleanupOld:', e); }
     }
+
+    // [S3] GC DIRIGIDO, no único momento em que ele é barato e seguro: a geração nova já está
+    // promovida e CONFIRMADA, então o que sobrar no slot inativo desta MESMA identidade é órfão —
+    // resíduo de uma tentativa anterior que morreu entre a escrita e a promoção. Sem isto, o fluxo
+    // normal (pintar, sair, repintar) acumularia arquivos sem ponteiro indefinidamente. É
+    // best-effort: nada aqui pode desfazer um `saved` já conquistado.
+    try {
+      await collectColoring60Orphans(storyId, activityId, {
+        reason: COLORING60_GC_REASON.AFTER_SAVE,
+        protect: newUri || undefined,
+      });
+    } catch (e) { log('coloring60DrawingStorage.save.gc:', e); }
+
     return COLORING60_SAVE_RESULT.SAVED;
   } catch (e) {
     log('coloring60DrawingStorage.save:', e);
@@ -582,4 +734,114 @@ export async function clearColoring60SavedDrawing(storyId, activityId) {
       await deleteBlob(uri, { requireSubdir: BLOB_SUBDIR });
     } catch (e) { log('coloring60DrawingStorage.clear.delblob:', e); }
   }
+
+  // [S3] Exclusão explícita é o segundo momento autorizado do GC dirigido. A chave já não existe,
+  // então NENHUM dos dois slots desta identidade tem referência viva: o que restar é resíduo, e
+  // varrê-lo aqui é o que impede que uma exclusão deixe arquivo para trás. Só roda com a remoção
+  // da chave CONFIRMADA — enquanto a chave puder existir, o blob que ela referencia é intocável.
+  if (removedConfirmed) {
+    try {
+      await collectColoring60Orphans(storyId, activityId, {
+        reason: COLORING60_GC_REASON.AFTER_CLEAR,
+      });
+    } catch (e) { log('coloring60DrawingStorage.clear.gc:', e); }
+  }
+}
+
+/**
+ * [Spec 019 · S3] collectColoring60Orphans(storyId, activityId, options) — LIMPEZA DIRIGIDA pela
+ * identidade. Remove a geração INATIVA que ficou sem referência, e nada além disso.
+ *
+ * O QUE ELA NÃO É. Não é varredura: não lista diretório, não usa prefixo, não consulta
+ * `getAllKeys`, não percorre o catálogo e não roda no boot. O universo de candidatos é fechado e
+ * tem no máximo DOIS elementos — os slots canônicos `<safeKey>.a.png` e `<safeKey>.b.png` desta
+ * identidade — e encolhe para UM quando existe ponteiro ativo reconhecível, porque aí o slot ativo
+ * sequer é nomeado. Arquivo de outra atividade, de outra história, do Criar Livre, do
+ * `drawingStorage` legado ou desconhecido nunca entra na lista; e `deleteBlob` ainda julga cada
+ * alvo com `requireSubdir` e `protect`, de modo que mesmo um nome montado errado seria RECUSADO
+ * pela contenção antes de tocar o disco.
+ *
+ * FAIL-CLOSED. Sem identidade válida, sem raiz de blobs ou sem conseguir LER o ponteiro ativo,
+ * nada é apagado: um GC que não sabe qual é a obra viva não tem o direito de apagar nada.
+ *
+ * Devolve um RELATÓRIO estruturado (`examined`/`removed`/`kept`/`refused`/`failed`/`skipped`) —
+ * limpeza silenciosa é indistinguível de limpeza que não aconteceu.
+ */
+export async function collectColoring60Orphans(storyId, activityId, options = {}) {
+  const opcoes = options && typeof options === 'object' ? options : {};
+  const relatorio = {
+    storyId: typeof storyId === 'string' ? storyId : null,
+    activityId: typeof activityId === 'string' ? activityId : null,
+    reason: typeof opcoes.reason === 'string' ? opcoes.reason : COLORING60_GC_REASON.RECONCILE,
+    examined: 0,
+    removed: [],
+    kept: [],
+    refused: 0,
+    failed: 0,
+    skipped: null,
+  };
+
+  if (!validateIdentity(storyId, activityId)) {
+    relatorio.skipped = 'invalid_identity';
+    return relatorio;
+  }
+  const raizAtual = currentBlobsRoot();
+  if (typeof raizAtual !== 'string' || !raizAtual) {
+    relatorio.skipped = 'no_root';
+    return relatorio;
+  }
+
+  const kAlvo = keyDrawing60(storyId, activityId);
+  const safeAlvo = safeName(kAlvo);
+
+  // Ponteiro ATIVO — a única referência que decide o que é órfão. Ilegível ⇒ estado DESCONHECIDO.
+  let ativoRaw;
+  try {
+    ativoRaw = await AsyncStorage.getItem(kAlvo);
+  } catch (e) {
+    log('coloring60DrawingStorage.gc.read:', e);
+    relatorio.skipped = 'unknown_active';
+    return relatorio;
+  }
+  const ativoUri = pointerUri(ativoRaw);
+
+  // Universo FECHADO de candidatos: os DOIS slots canônicos desta identidade, e nada mais. Quando
+  // o ponteiro ativo é um deles, esse é EXCLUÍDO da lista antes de qualquer I/O — a obra viva
+  // sequer chega a ser nomeada. Quando o estado ativo não é nenhum dos dois (payload inline, ou
+  // ponteiro para fora do subdiretório), nenhum dos dois está referenciado e ambos são candidatos.
+  const doisSlots = [`${safeAlvo}.a.png`, `${safeAlvo}.b.png`];
+  const nomeAtivo = blobFileName(ativoUri);
+  const nomes = doisSlots.filter((n) => n !== nomeAtivo);
+
+  // Blindagem estrutural adicional (comparada já recomposta e normalizada por `deleteBlob`):
+  // a obra ativa e o blob da tentativa atual não podem ser atingidos nem por engano de nome.
+  // `protect` aceita string OU lista, como a própria contenção — uma opção que parece legítima e
+  // é silenciosamente ignorada seria uma armadilha: o chamador acreditaria ter blindado um blob
+  // que na verdade entrou no universo de candidatos.
+  const protegidas = [];
+  if (ativoUri) { protegidas.push(ativoUri); relatorio.kept.push(ativoUri); }
+  const pedidas = Array.isArray(opcoes.protect) ? opcoes.protect : [opcoes.protect];
+  for (const p of pedidas) if (typeof p === 'string' && p) protegidas.push(p);
+
+  for (const nome of nomes) {
+    const alvo = `${raizAtual}${BLOB_SUBDIR}/${nome}`;
+    relatorio.examined += 1;
+    let desfecho = null;
+    try {
+      desfecho = await deleteBlob(alvo, {
+        requireSubdir: BLOB_SUBDIR,
+        protect: protegidas.length ? protegidas : undefined,
+      });
+    } catch (e) {
+      log('coloring60DrawingStorage.gc.delete:', e);
+      relatorio.failed += 1;
+      continue;
+    }
+    const out = desfecho && desfecho.outcome;
+    if (out === BLOB_DELETE_OUTCOME.DELETED) relatorio.removed.push(alvo);
+    else if (out === BLOB_DELETE_OUTCOME.REFUSED) relatorio.refused += 1;
+    else if (out === BLOB_DELETE_OUTCOME.FAILED) relatorio.failed += 1;
+  }
+
+  return relatorio;
 }

@@ -69,6 +69,15 @@ function codeOf(relPath) {
   return readSrc(relPath).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 }
 
+/* [Spec 019 · S3] Desfechos TIPADOS da exclusão de blob, para os harnesses que injetam um
+ * `fileBlobStore` DE MENTIRA. O `fileBlobStore` REAL congela este enum (`Object.freeze`) e o selo
+ * sha256 de `fileBlobStore.js` (P3J-R.1) impede que ele mude sem que a suíte fique vermelha — então
+ * a cópia abaixo não pode divergir em silêncio. Os harnesses que carregam o módulo REAL não usam
+ * esta cópia: eles recebem o enum verdadeiro pelo próprio `loadModule`. */
+const BDO_TESTE = Object.freeze({
+  DELETED: 'apagado', ALREADY_ABSENT: 'ausente', REFUSED: 'recusado', FAILED: 'falhou',
+});
+
 /* ── [spec 018] Piloto Colorir 60 — RESOLVEDOR REAL da flag (nunca regex sobre o texto) ───────
  * Até a spec 018 a prova de que o piloto estava fechado era TEXTUAL: casar `= false` no fonte.
  * A ativação controlada trocou o literal por uma CERCA DUPLA (conjunção de duas variáveis de
@@ -36545,6 +36554,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         },
         readBlobAsDataUrl: async (uri) => { calls.read++; return blob.has(uri) ? blob.get(uri) : null; },
         deleteBlob: async (uri) => { calls.deleteBlob++; deleted.push(uri); blob.delete(uri); },
+        BLOB_DELETE_OUTCOME: BDO_TESTE,
         safeName: (id) => String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_'),
         isDataUrl: (s) => typeof s === 'string' && s.startsWith('data:'),
         dataUrlMime: (_d, fb = 'image/png') => fb,
@@ -37193,6 +37203,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         },
         readBlobAsDataUrl: async (uri) => { calls.read++; return blob.has(uri) ? blob.get(uri) : null; },
         deleteBlob: async (uri) => { calls.deleteBlob++; deleted.push(uri); if (cfg.deleteKeep && cfg.deleteKeep(uri)) return; blob.delete(uri); },
+        BLOB_DELETE_OUTCOME: BDO_TESTE,
         safeName: (id) => String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_'),
         isDataUrl: (s) => typeof s === 'string' && s.startsWith('data:'),
         dataUrlMime: (_d, fb = 'image/png') => fb,
@@ -37301,9 +37312,20 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       seedA(e, PAINT);
       await e.W.clearColoring60SavedDrawing('creation', 'light');
       const got = await e.W.getColoring60SavedDrawing('creation', 'light');
-      check('C60-P3-FIX1 [C8]: clear removeItem OK + deleteBlob falha → chave some, resta só resíduo físico (sem ponteiro quebrado)',
-        !e.store.has(KEY) && got === null && e.blob.has(SLOT_A) && e.calls.deleteBlob === 1,
-        `com a chave removida, um arquivo remanescente é resíduo físico — nunca ponteiro órfão (chave? ${e.store.has(KEY)})`);
+      /* [Spec 019 · S3] TRAVA REANCORADA POR INTENÇÃO — a antiga contava `deleteBlob === 1`, isto é,
+       * media a exclusão EXPLÍCITA e mais nada. Contar chamadas proibia, por acidente, a limpeza
+       * dirigida que o S3 acrescentou ao caminho de exclusão: com a chave removida, NENHUM dos dois
+       * slots desta identidade tem referência viva, e varrer o inativo é justamente o que impede que
+       * uma exclusão deixe arquivo para trás. A intenção vigiada é a MESMA (chave removida · resíduo
+       * físico tolerado · ponteiro quebrado proibido) e a exigência ficou MAIOR: toda exclusão
+       * disparada aqui só pode mirar os DOIS slots canônicos desta identidade, a primeira mira o slot
+       * que a chave referenciava, e o slot inativo passa a ser varrido. Um GC que mirasse qualquer
+       * outro alvo — outra atividade, outra história, Criar Livre, legado — fica vermelho aqui. */
+      const alvosCanonicos = e.deleted.every((u) => u === SLOT_A || u === SLOT_B);
+      check('C60-P3-FIX1 [C8] → [S3]: clear removeItem OK + deleteBlob falha → chave some, resta só resíduo físico (sem ponteiro quebrado) e TODA exclusão mira apenas os dois slots canônicos desta identidade',
+        !e.store.has(KEY) && got === null && e.blob.has(SLOT_A)
+        && alvosCanonicos && e.deleted[0] === SLOT_A && e.deleted.includes(SLOT_B),
+        `com a chave removida, um arquivo remanescente é resíduo físico — nunca ponteiro órfão (chave? ${e.store.has(KEY)}, alvos=${JSON.stringify(e.deleted)})`);
     }
 
     // ── D · CLEANUP pós-sucesso best-effort (falha ao apagar o blob antigo não invalida o novo) ──
@@ -37848,6 +37870,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           writeBlob: async (sub, fn, dataUrl, mime) => { const uri = `file://b/${sub}/${fn}`; blob.set(uri, dataUrl); return { uri, mime: mime || 'image/png' }; },
           readBlobAsDataUrl: async (u) => (blob.has(u) ? blob.get(u) : null),
           deleteBlob: async (u) => { deleted.push(u); blob.delete(u); },
+          BLOB_DELETE_OUTCOME: BDO_TESTE,
           safeName: (id) => String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_'),
           isDataUrl: (s) => typeof s === 'string' && s.startsWith('data:'),
           dataUrlMime: (_d, fb = 'image/png') => fb,
@@ -38109,6 +38132,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           writeBlob: async (sub, fn, dataUrl, mime) => { const uri = `file://b/${sub}/${fn}`; blob.set(uri, dataUrl); return { uri, mime: mime || 'image/png' }; },
           readBlobAsDataUrl: async (u) => (blob.has(u) ? blob.get(u) : null),
           deleteBlob: async (u) => { deleted.push(u); blob.delete(u); },
+          BLOB_DELETE_OUTCOME: BDO_TESTE,
           safeName: (id) => String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_'),
           isDataUrl: (s) => typeof s === 'string' && s.startsWith('data:'),
           dataUrlMime: (_d, fb = 'image/png') => fb,
@@ -41674,6 +41698,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         },
         readBlobAsDataUrl: async (uri) => (blob.has(uri) ? blob.get(uri) : null),
         deleteBlob: async (uri) => { blob.delete(uri); },
+        BLOB_DELETE_OUTCOME: BDO_TESTE,
         safeName: (id) => String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_'),
         isDataUrl: (s) => typeof s === 'string' && s.startsWith('data:'),
         dataUrlMime: (_d, fb = 'image/png') => fb,
@@ -44882,7 +44907,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       };
       const blob = rLoad('src/services/fileBlobStore.js', { FileSystem: d.FileSystem, log: () => {} },
         ['writeBlob', 'readBlobAsDataUrl', 'deleteBlob', 'safeName', 'isDataUrl', 'dataUrlMime',
-          'currentBlobsRoot']);
+          'currentBlobsRoot', 'BLOB_DELETE_OUTCOME']);
       const Wr = rLoad('src/services/coloring60DrawingStorage.js', {
         AsyncStorage,
         log: () => {},
@@ -48087,6 +48112,885 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         c.original === true && c.mutante === false,
         `o controle negativo não distinguiu o certo do errado (original=${JSON.stringify(c.original)} · mutante=${JSON.stringify(c.mutante)})`);
     }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * SPEC 019 · S3 — SOBRESCRITA SEGURA, RECUPERAÇÃO E LIMPEZA DIRIGIDA
+   *
+   * O S1 deu ao writer o direito de gravar; o S2 ensinou o app a representar o que já existia.
+   * Falta o caminho que a criança percorre TODO DIA: abrir a obra salva, pintar de novo, salvar
+   * por cima. Sobrescrita é a operação mais perigosa do C60 porque é a única que pode DESTRUIR
+   * uma obra que já estava boa — e a única em que "falhou" e "perdeu" ficam a um passo um do outro.
+   *
+   * O contrato é UMA OBRA VISÍVEL POR ATIVIDADE. Não há histórico de versões no lançamento: o
+   * double buffer A/B existe por segurança TRANSACIONAL, não como galeria de gerações. A geração
+   * inativa não é uma versão acessível — é um slot de trabalho, e depois da promoção confirmada
+   * ela vira lixo que precisa sair do disco.
+   *
+   * O QUE ESTE BLOCO MEDE (e por que quase tudo aqui é COMPORTAMENTAL, não textual):
+   *   · o fluxo obrigatório de 10 passos, na ORDEM, provado por um log de eventos do disco;
+   *   · a preservação da obra anterior em CADA uma das janelas de falha;
+   *   · a limpeza DIRIGIDA pela identidade — jamais varredura por prefixo;
+   *   · o isolamento entre as 60 identidades do piloto.
+   *
+   * O arnês usa `fileBlobStore` REAL e writer REAL — só o `FileSystem` e o `AsyncStorage` são de
+   * mentira. Assim "o GC não apaga o Criar Livre" é medido pela contenção de verdade, e não pela
+   * presença de uma palavra no fonte.
+   *
+   * TESTE QUE EXPLODE É TESTE VERMELHO, NÃO SUÍTE ABORTADA. Cada prova roda dentro de `t3`, que
+   * converte exceção em falha COM a mensagem. Sem isso, um símbolo ausente derrubaria a execução
+   * inteira no primeiro caso e as outras 39 provas ficariam sem veredicto — exatamente o que se
+   * precisa enxergar ao demonstrar o vermelho contra o HEAD anterior do bloco.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  {
+    const { loadModule: s3Load } = require('./testing/packInstallHarness');
+
+    /** Executa uma prova isolando exceções: `fn` devolve `[condição, detalhe]`. */
+    const t3 = async (nome, fn) => {
+      let cond = false;
+      let detalhe = '';
+      try {
+        const r = await fn();
+        cond = !!(Array.isArray(r) ? r[0] : r);
+        detalhe = (Array.isArray(r) && r[1]) || '';
+      } catch (e) {
+        cond = false;
+        detalhe = 'exceção: ' + ((e && e.message) || String(e));
+      }
+      check(nome, cond, detalhe);
+    };
+
+    // ── Autoridade canônica REAL (o writer exige o contrato do S1) ────────────────────────────
+    const SJ3 = s3Load('src/services/storyJourneyService.js', {}, ['getStoryJourneyStatus', 'COMMERCIAL_ACCESS']);
+    const AUT3 = s3Load('src/services/storyContentAuthorization.js',
+      { COMMERCIAL_ACCESS: SJ3.COMMERCIAL_ACCESS }, ['CONTENT_AUTH_REASON', 'deriveStoryContentAuthorization']);
+    const autz3 = (storyId) => AUT3.deriveStoryContentAuthorization({
+      storyId, knownStory: true, previousStoryId: null, previousStatus: null, hydrated: true,
+      journeyStatus: SJ3.getStoryJourneyStatus({
+        totalScenes: 10, sceneDoneCount: 10, coloringComplete: true, coloringAvailable: true,
+        postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+        accessStatus: 'full', accessType: 'free', isFirstStory: true, previousJourneyComplete: true,
+      }),
+    });
+
+    // ── Geografia do disco ────────────────────────────────────────────────────────────────────
+    const DOC3 = 'file:///var/mobile/Containers/Data/Application/ATUAL/Documents/';
+    const RAIZ3 = DOC3 + 'ptf_blobs/';
+    const D60_3 = RAIZ3 + 'drawings60/';   // C60 (esta spec)
+    const LIVRE3 = RAIZ3 + 'atelier/';     // Criar Livre — território de outra fronteira
+    const LEG3 = RAIZ3 + 'drawings/';      // drawingStorage legado
+
+    /**
+     * Disco de mentira com CONTEÚDO REAL e LOG DE EVENTOS ORDENADO. O log é o que permite provar a
+     * ORDEM do fluxo (gravou → promoveu → releu → apagou) — sem ele, "o ponteiro só muda depois da
+     * gravação" seria uma afirmação sobre a leitura do código, não sobre a execução.
+     *
+     * Injeção de falha por PREDICADO de URI (não por flag global), porque as janelas do contrato
+     * são específicas: falha só no slot novo, falha só ao apagar, arquivo que some entre a escrita
+     * e a confirmação de existência. `d.cfg` é MUTÁVEL em teste — é assim que se encena o reinício
+     * do app com o disco já saudável depois de uma interrupção.
+     */
+    const mkDisco3 = (seed = [], cfg = {}) => {
+      const disco = new Map();
+      for (const s of seed) disco.set(s, 'SEED');
+      const apagados = [];
+      const eventos = [];
+      const c = Object.assign({}, cfg);
+      const FileSystem = {
+        documentDirectory: DOC3,
+        EncodingType: { Base64: 'base64' },
+        getInfoAsync: async (u) => ({
+          exists: disco.has(u) && !(c.sumido && c.sumido(u)),
+          isDirectory: u.endsWith('/'),
+          uri: u,
+        }),
+        makeDirectoryAsync: async (u) => { disco.set(u, ''); },
+        writeAsStringAsync: async (u, conteudo) => {
+          if (c.escritaFalha && c.escritaFalha(u)) throw new Error('ENOSPC: no space left on device');
+          disco.set(u, conteudo);
+          eventos.push('escreveu:' + u);
+        },
+        readAsStringAsync: async (u) => {
+          if (!disco.has(u)) throw new Error('ENOENT');
+          eventos.push('leuArq:' + u);
+          return disco.get(u);
+        },
+        deleteAsync: async (u) => {
+          if (c.apagarFalha && c.apagarFalha(u)) throw new Error('EPERM');
+          if (!disco.has(u)) throw new Error('ENOENT');
+          disco.delete(u); apagados.push(u); eventos.push('apagou:' + u);
+        },
+      };
+      return { disco, apagados, eventos, cfg: c, FileSystem };
+    };
+
+    // ── Catálogo SINTÉTICO superset do piloto: 20 histórias × 3 atividades = 60 identidades ────
+    const IDS3 = ['light', 'living_world', 'people_and_care'];
+    const HIST3 = ['creation', ...Array.from({ length: 19 }, (_, i) => `hist_${String(i + 2).padStart(2, '0')}`)];
+    const chave3 = (s, a) => `@ptf_drawing60_s${s}_a${a}`;
+    const safe3 = (id) => String(id).replace(/[^A-Za-z0-9_-]/g, '_');
+    const slot3 = (s, a, ab) => `${D60_3}${safe3(chave3(s, a))}.${ab}.png`;
+
+    /** Payload v2 com tinta REAL (o writer só vai a arquivo quando `data.length > 1000`). */
+    const OBRA3 = (marca, rev) => JSON.stringify({
+      v: 2, W: 1000, H: 1500, imgX: 0, imgY: 0, imgW: 1000, imgH: 1500,
+      rev: rev || 1, paintedPx: 9000, paintablePx: 300000,
+      data: 'data:image/png;base64,' + marca.repeat(1200),
+    });
+
+    /** Semeia uma obra JÁ SALVA (ponteiro v3 + blob), na ordem de campos que o writer produz. */
+    const semear3 = (d, mapa, s, a, ab, payload) => {
+      const uri = slot3(s, a, ab);
+      const p = JSON.parse(payload);
+      mapa.set(chave3(s, a), JSON.stringify({
+        v: 3, fmt: 2, uri, mime: 'image/png',
+        W: p.W, H: p.H, imgX: p.imgX, imgY: p.imgY, imgW: p.imgW, imgH: p.imgH,
+        rev: p.rev, paintedPx: p.paintedPx, paintablePx: p.paintablePx,
+      }));
+      d.disco.set(uri, p.data.slice(p.data.indexOf(',') + 1));
+      return uri;
+    };
+
+    /**
+     * Writer REAL sobre `fileBlobStore` REAL, com ESPIÃO em `deleteBlob`: cada chamada guarda
+     * `(uri, opts)`. É isso que torna "usa `requireSubdir`" e "usa `protect`" provas de INVOCAÇÃO,
+     * e não leitura de fonte. O `deleteBlob` real segue rodando por baixo — a contenção medida é a
+     * de verdade.
+     */
+    const mkC60 = (d, mapa, cfg = {}, mutate) => {
+      let nGet = 0; let nSet = 0; let nRem = 0;
+      const AsyncStorage = {
+        getItem: async (k) => {
+          nGet += 1;
+          if (cfg.getItemFalhaEm && cfg.getItemFalhaEm(nGet, k)) throw new Error('getItem indisponível');
+          d.eventos.push('leu:' + k);
+          if (cfg.getItemMente) {
+            const mentira = cfg.getItemMente(nGet, k);
+            if (mentira != null) return mentira;
+          }
+          return mapa.has(k) ? mapa.get(k) : null;
+        },
+        setItem: async (k, v) => {
+          nSet += 1;
+          if (cfg.setItemSujoEm && cfg.setItemSujoEm(nSet, k)) {
+            mapa.set(k, v); d.eventos.push('promoveu:' + k);
+            throw new Error('setItem gravou e rejeitou');
+          }
+          if (cfg.setItemFalhaEm && cfg.setItemFalhaEm(nSet, k)) throw new Error('setItem rejeitou');
+          mapa.set(k, v); d.eventos.push('promoveu:' + k);
+        },
+        removeItem: async (k) => {
+          nRem += 1;
+          if (cfg.removeItemFalhaEm && cfg.removeItemFalhaEm(nRem, k)) throw new Error('removeItem rejeitou');
+          mapa.delete(k); d.eventos.push('removeu:' + k);
+        },
+      };
+      const blob = s3Load('src/services/fileBlobStore.js', { FileSystem: d.FileSystem, log: () => {} },
+        ['writeBlob', 'readBlobAsDataUrl', 'deleteBlob', 'safeName', 'isDataUrl', 'dataUrlMime',
+          'currentBlobsRoot', 'BLOB_DELETE_OUTCOME']);
+      const espia = [];
+      const W = s3Load('src/services/coloring60DrawingStorage.js', {
+        AsyncStorage,
+        log: () => {},
+        getCurrentPlan: () => 'premium',
+        isInternalToolsEnabled: () => false,
+        CONTENT_AUTH_REASON: AUT3.CONTENT_AUTH_REASON,
+        getColoring60Activity: (s, a) => (HIST3.includes(s) && IDS3.includes(a) ? { id: a, activityId: a } : null),
+        getColoring60Activities: (s) => (HIST3.includes(s) ? IDS3.map((a) => ({ id: a, activityId: a })) : []),
+        ...blob,
+        deleteBlob: async (uri, opts) => {
+          espia.push({ uri, opts });
+          return blob.deleteBlob(uri, opts);
+        },
+        // `desviaUri` encena a única falha que a confirmação de ENDEREÇO existe para barrar: o
+        // arquivo é gravado de verdade, mas `writeBlob` devolve um caminho de OUTRA fronteira.
+        // O nome do slot continua canônico — por isso `confirmPromotion`, que só olha o nome do
+        // arquivo, deixaria passar. Sem este desvio o passo 4 seria inobservável.
+        writeBlob: async (sub, nome, dataUrl, mime) => {
+          const w = await blob.writeBlob(sub, nome, dataUrl, mime);
+          return (w && cfg.desviaUri) ? { ...w, uri: cfg.desviaUri(w.uri) } : w;
+        },
+      }, ['saveColoring60DrawingState', 'getColoring60SavedDrawing', 'hasColoring60SavedDrawing',
+        'clearColoring60SavedDrawing', 'collectColoring60Orphans',
+        'COLORING60_SAVE_RESULT', 'COLORING60_GC_REASON'], mutate);
+      return {
+        espia,
+        __mapa: mapa,
+        R: W.COLORING60_SAVE_RESULT,
+        GCR: W.COLORING60_GC_REASON,
+        salvar: (s, a, payload, opts) => W.saveColoring60DrawingState(s, a, payload,
+          opts !== undefined ? opts : { authorization: autz3(s) }),
+        ler: (s, a) => W.getColoring60SavedDrawing(s, a),
+        tem: (s, a) => W.hasColoring60SavedDrawing(s, a),
+        limpar: (s, a) => W.clearColoring60SavedDrawing(s, a),
+        gc: (s, a, o) => W.collectColoring60Orphans(s, a, o),
+      };
+    };
+
+    /** Quantos ARQUIVOS existem no `drawings60` (diretórios não contam). */
+    const arquivos60 = (d) => [...d.disco.keys()].filter((u) => u.startsWith(D60_3) && u.endsWith('.png'));
+    const daIdentidade = (d, s, a) => arquivos60(d).filter((u) => u === slot3(s, a, 'a') || u === slot3(s, a, 'b'));
+    const ordem = (d, evento) => d.eventos.indexOf(evento);
+
+    const A_LIGHT = slot3('creation', 'light', 'a');
+    const B_LIGHT = slot3('creation', 'light', 'b');
+    const K_LIGHT = chave3('creation', 'light');
+    const ARTE_LIVRE = LIVRE3 + 'criacao_da_crianca.png';
+    const ARTE_LEG = LEG3 + '_ptf_drawing_screation_c02.png';
+
+    // ── 01 · Primeiro salvamento usa o slot canônico A ────────────────────────────────────────
+    await t3('S3 [01/30]: primeiro salvamento grava no slot canônico A e promove o ponteiro v3 para ele', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      const r = await S.salvar('creation', 'light', OBRA3('A', 1));
+      const p = JSON.parse(mapa.get(K_LIGHT) || '{}');
+      return [r === S.R.SAVED && p.v === 3 && p.uri === A_LIGHT && d.disco.has(A_LIGHT)
+        && daIdentidade(d, 'creation', 'light').length === 1,
+      `resultado=${r} · uri=${p.uri} · arquivos=${JSON.stringify(daIdentidade(d, 'creation', 'light'))}`];
+    });
+
+    // ── 02 · Segundo salvamento usa o slot OPOSTO (double buffer de verdade) ──────────────────
+    await t3('S3 [02/30]: segundo salvamento escreve no slot OPOSTO (B) antes de qualquer promoção', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('creation', 'light', OBRA3('A', 1));
+      const marco = d.eventos.length;
+      const r = await S.salvar('creation', 'light', OBRA3('B', 2));
+      const p = JSON.parse(mapa.get(K_LIGHT) || '{}');
+      const escreveuNoOposto = d.eventos.slice(marco).includes('escreveu:' + B_LIGHT);
+      return [r === S.R.SAVED && escreveuNoOposto && p.uri === B_LIGHT && !d.disco.has(A_LIGHT),
+        `resultado=${r} · uri=${p.uri} · escreveuB=${escreveuNoOposto} · A ainda existe? ${d.disco.has(A_LIGHT)}`];
+    });
+
+    // ── 03 · O ponteiro SÓ muda depois da gravação confirmada ─────────────────────────────────
+    await t3('S3 [03/30]: a promoção do ponteiro acontece DEPOIS da gravação do blob — e escrita falha nunca promove', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('creation', 'light', OBRA3('A', 1));
+      const iEscreveu = ordem(d, 'escreveu:' + A_LIGHT);
+      const iPromoveu = ordem(d, 'promoveu:' + K_LIGHT);
+      // E a recíproca: escrita que falha NUNCA chega a promover.
+      const d2 = mkDisco3([], { escritaFalha: (u) => u.endsWith('.png') });
+      const m2 = new Map(); const S2x = mkC60(d2, m2);
+      const r2 = await S2x.salvar('creation', 'light', OBRA3('A', 1));
+      return [iEscreveu >= 0 && iPromoveu > iEscreveu
+        && r2 === S2x.R.WRITE_FAILED && !d2.eventos.some((e) => e.startsWith('promoveu:')) && m2.size === 0,
+      `escreveu@${iEscreveu} · promoveu@${iPromoveu} · falha→${r2} · eventos2=${JSON.stringify(d2.eventos)}`];
+    });
+
+    // ── 04 · A releitura CONFIRMA identidade, URI e revisão do que foi promovido ──────────────
+    await t3('S3 [04/30]: a chave é RELIDA após a promoção e a confirmação exige identidade, URI e revisão', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('creation', 'light', OBRA3('A', 7));
+      const iPromoveu = ordem(d, 'promoveu:' + K_LIGHT);
+      const iReleu = d.eventos.indexOf('leu:' + K_LIGHT, iPromoveu);
+      const p = JSON.parse(mapa.get(K_LIGHT) || '{}');
+      const nome = p.uri ? p.uri.slice(p.uri.lastIndexOf('/') + 1) : '';
+      // Releitura DIVERGENTE (devolve o ponteiro ANTIGO, que esta tentativa não escreveu) é recusada.
+      const d2 = mkDisco3(); const m2 = new Map();
+      semear3(d2, m2, 'creation', 'light', 'a', OBRA3('V', 1));
+      const anterior = m2.get(K_LIGHT);
+      const S2y = mkC60(d2, m2, { getItemMente: (n) => (n === 2 ? anterior : null) });
+      const r2 = await S2y.salvar('creation', 'light', OBRA3('N', 2));
+      return [iReleu > iPromoveu && p.uri === A_LIGHT && p.rev === 7
+        && (nome === safe3(K_LIGHT) + '.a.png' || nome === safe3(K_LIGHT) + '.b.png')
+        && r2 === S2y.R.WRITE_FAILED && m2.get(K_LIGHT) === anterior,
+      `promoveu@${iPromoveu} · releu@${iReleu} · rev=${p.rev} · divergente→${r2}`];
+    });
+
+    // ── 05 · O blob ANTIGO só é apagado depois da confirmação da promoção ─────────────────────
+    await t3('S3 [05/30]: a geração anterior só é removida DEPOIS da promoção confirmada (nunca antes)', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('creation', 'light', OBRA3('A', 1));
+      d.eventos.length = 0;
+      await S.salvar('creation', 'light', OBRA3('B', 2));
+      const iPromoveu = ordem(d, 'promoveu:' + K_LIGHT);
+      const iReleu = d.eventos.indexOf('leu:' + K_LIGHT, iPromoveu);
+      const iApagouAntigo = ordem(d, 'apagou:' + A_LIGHT);
+      return [iApagouAntigo >= 0 && iPromoveu >= 0 && iReleu > iPromoveu && iApagouAntigo > iReleu,
+        `promoveu@${iPromoveu} · releu@${iReleu} · apagou@${iApagouAntigo} · eventos=${JSON.stringify(d.eventos)}`];
+    });
+
+    // ── 06 · Falha ANTES da promoção mantém a obra anterior intacta ───────────────────────────
+    await t3('S3 [06/30]: falha de escrita ANTES da promoção devolve WRITE_FAILED e preserva a obra anterior byte a byte', async () => {
+      const d = mkDisco3([], { sumido: (u) => u === B_LIGHT }); // grava, mas o arquivo não "existe"
+      const mapa = new Map(); const S = mkC60(d, mapa);
+      const uriAnt = semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      const ptrAnt = mapa.get(K_LIGHT); const bytesAnt = d.disco.get(uriAnt);
+      const r = await S.salvar('creation', 'light', OBRA3('N', 2));
+      return [r === S.R.WRITE_FAILED && mapa.get(K_LIGHT) === ptrAnt && d.disco.get(uriAnt) === bytesAnt
+        && (await S.ler('creation', 'light')) === OBRA3('V', 1),
+      `resultado=${r} · ponteiro preservado? ${mapa.get(K_LIGHT) === ptrAnt}`];
+    });
+
+    // ── 07 · Falha DURANTE a promoção executa rollback (anterior restaurado, novo descartado) ─
+    await t3('S3 [07/30]: falha DURANTE a promoção faz rollback — o ponteiro anterior volta e o blob novo é descartado', async () => {
+      const d = mkDisco3(); const mapa = new Map();
+      const uriAnt = semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      const ptrAnt = mapa.get(K_LIGHT);
+      const S = mkC60(d, mapa, { setItemFalhaEm: (n) => n === 1 });
+      const r = await S.salvar('creation', 'light', OBRA3('N', 2));
+      return [r === S.R.WRITE_FAILED && mapa.get(K_LIGHT) === ptrAnt && d.disco.has(uriAnt) && !d.disco.has(B_LIGHT)
+        && (await S.ler('creation', 'light')) === OBRA3('V', 1),
+      `resultado=${r} · ponteiro=${mapa.get(K_LIGHT) === ptrAnt} · B existe? ${d.disco.has(B_LIGHT)}`];
+    });
+
+    // ── 08 · Falha DEPOIS da promoção jamais apaga a obra ativa ───────────────────────────────
+    await t3('S3 [08/30]: falha de limpeza DEPOIS da promoção não invalida nem apaga a obra recém-salva', async () => {
+      const d = mkDisco3([], { apagarFalha: () => true }); const mapa = new Map();
+      semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      const S = mkC60(d, mapa);
+      const r = await S.salvar('creation', 'light', OBRA3('N', 2));
+      const p = JSON.parse(mapa.get(K_LIGHT) || '{}');
+      return [r === S.R.SAVED && p.uri === B_LIGHT && d.disco.has(B_LIGHT)
+        && (await S.ler('creation', 'light')) === OBRA3('N', 2),
+      `resultado=${r} · uri=${p.uri} · B existe? ${d.disco.has(B_LIGHT)}`];
+    });
+
+    // ── 09 · Nova edição substitui a obra CORRETA (terceira geração inclusive) ────────────────
+    await t3('S3 [09/30]: a terceira geração alterna de volta para o slot A e a leitura devolve a obra mais nova', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('creation', 'light', OBRA3('A', 1));
+      await S.salvar('creation', 'light', OBRA3('B', 2));
+      const r = await S.salvar('creation', 'light', OBRA3('C', 3));
+      const p = JSON.parse(mapa.get(K_LIGHT) || '{}');
+      return [r === S.R.SAVED && p.uri === A_LIGHT && (await S.ler('creation', 'light')) === OBRA3('C', 3)
+        && daIdentidade(d, 'creation', 'light').length === 1,
+      `uri=${p.uri} · arquivos=${JSON.stringify(daIdentidade(d, 'creation', 'light'))}`];
+    });
+
+    // ── 10 · Atividade VIZINHA permanece byte-idêntica ────────────────────────────────────────
+    await t3('S3 [10/30]: dois salvamentos em `light` deixam a obra de `living_world` byte a byte idêntica', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('creation', 'living_world', OBRA3('W', 1));
+      const kViz = chave3('creation', 'living_world');
+      const uriV = JSON.parse(mapa.get(kViz)).uri;
+      const bytesV = d.disco.get(uriV); const ptrV = mapa.get(kViz);
+      await S.salvar('creation', 'light', OBRA3('A', 1));
+      await S.salvar('creation', 'light', OBRA3('B', 2));
+      return [d.disco.get(uriV) === bytesV && mapa.get(kViz) === ptrV
+        && (await S.ler('creation', 'living_world')) === OBRA3('W', 1),
+      `bytes iguais? ${d.disco.get(uriV) === bytesV} · ponteiro igual? ${mapa.get(kViz) === ptrV}`];
+    });
+
+    // ── 11 · Outra HISTÓRIA permanece intocada ────────────────────────────────────────────────
+    await t3('S3 [11/30]: salvar, sobrescrever e apagar em `creation` não toca em nenhum arquivo de `hist_02`', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('hist_02', 'light', OBRA3('H', 1));
+      const uriH = JSON.parse(mapa.get(chave3('hist_02', 'light'))).uri;
+      const bytesH = d.disco.get(uriH);
+      await S.salvar('creation', 'light', OBRA3('A', 1));
+      await S.salvar('creation', 'light', OBRA3('B', 2));
+      await S.limpar('creation', 'light');
+      return [d.disco.get(uriH) === bytesH && mapa.has(chave3('hist_02', 'light'))
+        && (await S.ler('hist_02', 'light')) === OBRA3('H', 1),
+      `bytes iguais? ${d.disco.get(uriH) === bytesH} · chave presente? ${mapa.has(chave3('hist_02', 'light'))}`];
+    });
+
+    // ── 12 · O GC remove APENAS o órfão da identidade corrente ────────────────────────────────
+    await t3('S3 [12/30]: o GC dirigido remove só o órfão desta identidade — vizinha, outra história, Criar Livre e legado ficam', async () => {
+      const d = mkDisco3([ARTE_LIVRE, ARTE_LEG]); const mapa = new Map(); const S = mkC60(d, mapa);
+      semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      d.disco.set(B_LIGHT, 'ORFAO');                                  // resíduo desta identidade
+      const uriViz = semear3(d, mapa, 'creation', 'living_world', 'a', OBRA3('W', 1));
+      const uriOut = semear3(d, mapa, 'hist_02', 'light', 'b', OBRA3('H', 1));
+      const rel = await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
+      return [rel.removed.length === 1 && rel.removed[0] === B_LIGHT && rel.examined === 1
+        && d.disco.has(A_LIGHT) && d.disco.has(uriViz) && d.disco.has(uriOut)
+        && d.disco.has(ARTE_LIVRE) && d.disco.has(ARTE_LEG) && !d.disco.has(B_LIGHT),
+      `relatorio=${JSON.stringify(rel)}`];
+    });
+
+    // ── 13 · O GC NUNCA remove o blob ativo (e é idempotente) ─────────────────────────────────
+    await t3('S3 [13/30]: o blob ATIVO entra em `kept` e nunca em `removed` — e uma segunda passada não apaga mais nada', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      d.disco.set(B_LIGHT, 'ORFAO');
+      const r1 = await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
+      const r2 = await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
+      return [r1.kept.includes(A_LIGHT) && !r1.removed.includes(A_LIGHT)
+        && r2.removed.length === 0 && r2.kept.includes(A_LIGHT) && d.disco.has(A_LIGHT)
+        && (await S.ler('creation', 'light')) === OBRA3('V', 1),
+      `r1=${JSON.stringify(r1)} · r2=${JSON.stringify(r2)}`];
+    });
+
+    // ── 14 · Criar Livre é INALCANÇÁVEL, mesmo com um ponteiro C60 apontando para lá ──────────
+    await t3('S3 [14/30]: nem a exclusão nem o GC conseguem apagar um arquivo do Criar Livre — a contenção RECUSA', async () => {
+      const d = mkDisco3([ARTE_LIVRE]); const mapa = new Map(); const S = mkC60(d, mapa);
+      mapa.set(K_LIGHT, JSON.stringify({ v: 3, fmt: 1, uri: ARTE_LIVRE, mime: 'image/png' }));
+      await S.limpar('creation', 'light');
+      const alvos = S.espia.map((c) => c.uri);
+      return [d.disco.has(ARTE_LIVRE) && !mapa.has(K_LIGHT)
+        && alvos.includes(ARTE_LIVRE) && !d.apagados.includes(ARTE_LIVRE)
+        && S.espia.every((c) => c.opts && c.opts.requireSubdir === 'drawings60'),
+      `arte livre viva? ${d.disco.has(ARTE_LIVRE)} · alvos=${JSON.stringify(alvos)} · apagados=${JSON.stringify(d.apagados)}`];
+    });
+
+    // ── 15 · O `drawingStorage` legado é território intocável ─────────────────────────────────
+    await t3('S3 [15/30]: arquivo do `drawingStorage` legado sobrevive à exclusão e ao GC do C60', async () => {
+      const d = mkDisco3([ARTE_LEG]); const mapa = new Map(); const S = mkC60(d, mapa);
+      mapa.set(K_LIGHT, JSON.stringify({ v: 3, fmt: 1, uri: ARTE_LEG, mime: 'image/png' }));
+      await S.limpar('creation', 'light');
+      const rel = await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
+      return [d.disco.has(ARTE_LEG) && !d.apagados.includes(ARTE_LEG) && !rel.removed.includes(ARTE_LEG),
+        `legado vivo? ${d.disco.has(ARTE_LEG)} · apagados=${JSON.stringify(d.apagados)} · rel=${JSON.stringify(rel)}`];
+    });
+
+    // ── 16 · O GC não é varredura: universo fechado, sem listagem, sem prefixo ────────────────
+    await t3('S3 [16/30]: o GC examina no máximo os DOIS slots canônicos — nenhuma listagem de diretório, nenhum prefixo aberto', async () => {
+      const d = mkDisco3([ARTE_LIVRE, ARTE_LEG, D60_3 + 'arquivo_desconhecido.png']);
+      const mapa = new Map(); const S = mkC60(d, mapa);
+      semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      d.disco.set(B_LIGHT, 'ORFAO');
+      const rel = await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
+      const doisSlots = [A_LIGHT, B_LIGHT];
+      const fonte60 = a1StripComments(readSrc('src/services/coloring60DrawingStorage.js'));
+      return [rel.examined <= 2 && S.espia.every((c) => doisSlots.includes(c.uri))
+        && d.disco.has(D60_3 + 'arquivo_desconhecido.png')
+        && typeof d.FileSystem.readDirectoryAsync === 'undefined'
+        && !/readDirectoryAsync|getAllKeys|multiGet|multiRemove/.test(fonte60),
+      `examined=${rel.examined} · alvos=${JSON.stringify(S.espia.map((c) => c.uri))} · desconhecido vivo? ${d.disco.has(D60_3 + 'arquivo_desconhecido.png')}`];
+    });
+
+    // ── 17 · Dois salvamentos NÃO acumulam histórico (uma obra visível por atividade) ─────────
+    await t3('S3 [17/30]: depois de dois salvamentos resta UM arquivo e UM ponteiro — sem histórico de versões', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('creation', 'light', OBRA3('A', 1));
+      await S.salvar('creation', 'light', OBRA3('B', 2));
+      const guardado = mapa.get(K_LIGHT);
+      let ehLista = false;
+      try { ehLista = Array.isArray(JSON.parse(guardado)); } catch { ehLista = false; }
+      return [daIdentidade(d, 'creation', 'light').length === 1 && arquivos60(d).length === 1
+        && !ehLista && JSON.parse(guardado).v === 3,
+      `arquivos=${JSON.stringify(arquivos60(d))} · lista? ${ehLista}`];
+    });
+
+    // ── 18 · Reinício do app depois da sobrescrita carrega a obra NOVA ────────────────────────
+    await t3('S3 [18/30]: uma instância nova (reinício do app) sobre o mesmo disco carrega a obra mais recente', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('creation', 'light', OBRA3('A', 1));
+      await S.salvar('creation', 'light', OBRA3('B', 2));
+      const Sdepois = mkC60(d, mapa); // instância NOVA sobre o mesmo disco/storage = reinício
+      const lido = await Sdepois.ler('creation', 'light');
+      return [lido === OBRA3('B', 2) && (await Sdepois.tem('creation', 'light')) === true,
+        `lido=${(lido || '').slice(0, 60)}`];
+    });
+
+    // ── 19 · O caminho é 100% local: sem rede, nem no fonte nem nas dependências injetadas ────
+    await t3('S3 [19/30]: offline — a obra é lida do disco sem nenhuma primitiva de rede no writer nem no armazém de blobs', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('creation', 'light', OBRA3('A', 1));
+      const fonte60 = a1StripComments(readSrc('src/services/coloring60DrawingStorage.js'));
+      const fonteBlob = a1StripComments(readSrc('src/services/fileBlobStore.js'));
+      const semRede = (s) => !/fetch\s*\(|XMLHttpRequest|axios|NetInfo|https?:\/\//.test(s);
+      return [(await S.ler('creation', 'light')) === OBRA3('A', 1) && semRede(fonte60) && semRede(fonteBlob),
+        `writer sem rede? ${semRede(fonte60)} · blobStore sem rede? ${semRede(fonteBlob)}`];
+    });
+
+    // ── 20 · Falta de espaço (ENOSPC) preserva a obra anterior — nunca despeja para caber ─────
+    await t3('S3 [20/30]: disco cheio vira WRITE_FAILED honesto — a obra anterior continua salva e legível, sem LRU e sem despejo', async () => {
+      const d = mkDisco3([], { escritaFalha: (u) => u === B_LIGHT }); const mapa = new Map();
+      const S = mkC60(d, mapa);
+      const uriAnt = semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      const ptrAnt = mapa.get(K_LIGHT); const bytesAnt = d.disco.get(uriAnt);
+      const r = await S.salvar('creation', 'light', OBRA3('N', 2));
+      return [r === S.R.WRITE_FAILED && mapa.get(K_LIGHT) === ptrAnt && d.disco.get(uriAnt) === bytesAnt
+        && (await S.ler('creation', 'light')) === OBRA3('V', 1) && d.apagados.length === 0,
+      `resultado=${r} · apagados=${JSON.stringify(d.apagados)}`];
+    });
+
+    // ── 21 · Interrupção ENTRE o blob e o ponteiro preserva a obra anterior ───────────────────
+    await t3('S3 [21/30]: interrupção entre a gravação do blob e a promoção do ponteiro deixa a obra anterior íntegra e ativa', async () => {
+      const d = mkDisco3(); const mapa = new Map();
+      const uriAnt = semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      const ptrAnt = mapa.get(K_LIGHT);
+      const S = mkC60(d, mapa, { setItemFalhaEm: () => true }); // nem a promoção nem o rollback gravam
+      const r = await S.salvar('creation', 'light', OBRA3('N', 2));
+      return [r === S.R.WRITE_FAILED && mapa.get(K_LIGHT) === ptrAnt && d.disco.has(uriAnt)
+        && (await S.ler('creation', 'light')) === OBRA3('V', 1) && !d.disco.has(B_LIGHT),
+      `resultado=${r} · ponteiro intacto? ${mapa.get(K_LIGHT) === ptrAnt} · resíduo B? ${d.disco.has(B_LIGHT)}`];
+    });
+
+    // ── 22 · Interrupção ENTRE o ponteiro e a limpeza mantém a obra NOVA válida (e recuperável) ─
+    await t3('S3 [22/30]: interrupção entre a promoção e a limpeza mantém a obra nova válida — e o resíduo é recolhido depois', async () => {
+      const d = mkDisco3([], { apagarFalha: () => true }); const mapa = new Map();
+      semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      const S = mkC60(d, mapa);
+      const r = await S.salvar('creation', 'light', OBRA3('N', 2));
+      const nova = await S.ler('creation', 'light');
+      const antes = arquivos60(d).length;
+      // Reinício com o disco já saudável: o GC dirigido recolhe o resíduo que a interrupção deixou.
+      d.cfg.apagarFalha = null;
+      const Sok = mkC60(d, mapa);
+      const rel = await Sok.gc('creation', 'light', { reason: Sok.GCR.RECONCILE });
+      return [r === S.R.SAVED && nova === OBRA3('N', 2) && antes === 2
+        && rel.removed.length === 1 && rel.removed[0] === A_LIGHT
+        && (await Sok.ler('creation', 'light')) === OBRA3('N', 2) && arquivos60(d).length === 1,
+      `resultado=${r} · antes=${antes} · rel=${JSON.stringify(rel)} · depois=${arquivos60(d).length}`];
+    });
+
+    // ── 23 · TODA exclusão do writer passa `requireSubdir` ────────────────────────────────────
+    await t3('S3 [23/30]: em salvamento, sobrescrita, exclusão e compensação de falha, TODA chamada a `deleteBlob` fixa `requireSubdir`', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('creation', 'light', OBRA3('A', 1));
+      await S.salvar('creation', 'light', OBRA3('B', 2));
+      await S.limpar('creation', 'light');
+      const dFalha = mkDisco3([], { sumido: (u) => u === A_LIGHT });
+      const Sf = mkC60(dFalha, new Map());
+      await Sf.salvar('creation', 'light', OBRA3('A', 1)); // caminho compensatório de writeSlot
+      const todas = S.espia.concat(Sf.espia);
+      const semSub = todas.filter((c) => !c.opts || c.opts.requireSubdir !== 'drawings60');
+      return [todas.length >= 4 && semSub.length === 0,
+        `chamadas=${todas.length} · sem requireSubdir=${JSON.stringify(semSub.map((c) => c.uri))}`];
+    });
+
+    // ── 24 · `protect` blinda o blob da tentativa corrente — inclusive contra promoção concorrente ─
+    await t3('S3 [24/30]: a limpeza carrega `protect` com o blob recém-gravado — e uma promoção concorrente não consegue apagá-lo', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      await S.salvar('creation', 'light', OBRA3('A', 1));
+      const S2x = mkC60(d, mapa);
+      await S2x.salvar('creation', 'light', OBRA3('B', 2));
+      const limpeza = S2x.espia.find((c) => c.uri === A_LIGHT);
+      // Concorrência: entre a promoção e o GC, a chave passa a referenciar o OUTRO slot. Sem
+      // `protect` explícito, o GC apagaria o blob que esta tentativa acabou de gravar.
+      const d3 = mkDisco3(); const m3 = new Map();
+      const S3x = mkC60(d3, m3, {
+        getItemMente: (n) => (n === 3 ? JSON.stringify({ v: 3, fmt: 1, uri: B_LIGHT, mime: 'image/png' }) : null),
+      });
+      const r3 = await S3x.salvar('creation', 'light', OBRA3('A', 1));
+      const gcCall = S3x.espia.find((c) => c.uri === A_LIGHT);
+      return [!!limpeza && limpeza.opts.protect === B_LIGHT
+        && r3 === S3x.R.SAVED && d3.disco.has(A_LIGHT)
+        && !!gcCall && Array.isArray(gcCall.opts.protect) && gcCall.opts.protect.includes(A_LIGHT),
+      `limpeza.protect=${limpeza && JSON.stringify(limpeza.opts.protect)} · concorrente: A vivo? ${d3.disco.has(A_LIGHT)} · gc.protect=${gcCall && JSON.stringify(gcCall.opts.protect)}`];
+    });
+
+    // ── 25 · As 60 identidades do piloto não compartilham um único arquivo ────────────────────
+    await t3('S3 [25/30]: as 60 identidades geram 60 arquivos distintos e cada obra volta exatamente da sua atividade', async () => {
+      const d = mkDisco3(); const mapa = new Map(); const S = mkC60(d, mapa);
+      let todosSalvos = true;
+      for (const h of HIST3) {
+        for (const a of IDS3) {
+          if ((await S.salvar(h, a, OBRA3(`${h}|${a}|`, 1))) !== S.R.SAVED) todosSalvos = false;
+        }
+      }
+      const uris = new Set(arquivos60(d));
+      let cadaUmaNaSua = true;
+      for (const h of HIST3) {
+        for (const a of IDS3) {
+          if ((await S.ler(h, a)) !== OBRA3(`${h}|${a}|`, 1)) cadaUmaNaSua = false;
+        }
+      }
+      return [todosSalvos && uris.size === 60 && mapa.size === 60 && cadaUmaNaSua,
+        `salvos=${todosSalvos} · arquivos=${uris.size} · chaves=${mapa.size} · leitura cruzada OK? ${cadaUmaNaSua}`];
+    });
+
+    // ── 26 · FIX 1, FIX 2 e FIX 3 continuam de pé (o S3 não relaxou nenhum selo anterior) ─────
+    await t3('S3 [26/30]: FIX 1, FIX 2 e FIX 3 permanecem vigiados e a primitiva selada de blobs não foi tocada pelo S3', async () => {
+      const shaBlob3 = require('crypto').createHash('sha256')
+        .update(readSrc('src/services/fileBlobStore.js').replace(/\r\n/g, '\n'), 'utf8').digest('hex');
+      const smokeSrc3 = readSrc('scripts/smoke.js');
+      return [shaBlob3 === '7aec6d2d8c9cb96f32f8fe2b6e4637d01e5d0d18c76faacd30091d3d1d059aec'
+        && smokeSrc3.includes('C60-P3-FIX1') && smokeSrc3.includes('C60-P3-FIX2') && smokeSrc3.includes('C60-P3-FIX3'),
+      `sha(fileBlobStore)=${shaBlob3}`];
+    });
+
+    /* ── 27 a 30 · AS DUAS JANELAS EM QUE O METADADO NÃO RESPONDE ─────────────────────────────
+     * O contrato de falha do S3 diz "em QUALQUER falha o ponteiro anterior permanece válido e o
+     * blob anterior permanece". As provas 01–26 exercitam falhas de DISCO. Faltavam as falhas do
+     * METADADO — quando o `AsyncStorage` não responde, o writer não sabe qual é a obra viva, e é
+     * exatamente aí que "não havia obra" e "não dá para saber se havia obra" precisam continuar
+     * sendo estados DIFERENTES. Confundir os dois é destrutivo, não conservador.
+     */
+
+    // ── 27 · Ponteiro ativo ILEGÍVEL: a gravação morre antes de qualquer escrita ───────────────
+    await t3('S3 [27/30]: ponteiro ativo ILEGÍVEL aborta a gravação ANTES de qualquer I/O — obra anterior byte-idêntica, chave intacta, nenhuma escrita, nenhuma exclusão e falha controlada', async () => {
+      const d = mkDisco3(); const mapa = new Map();
+      const S = mkC60(d, mapa, { getItemFalhaEm: (n, k) => k === K_LIGHT });
+      const uriAnt = semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      const conteudoAnt = d.disco.get(uriAnt);
+      const ptrAnt = mapa.get(K_LIGHT);
+      const r = await S.salvar('creation', 'light', OBRA3('N', 2));
+      const escreveu = d.eventos.some((e) => e.startsWith('escreveu:'));
+      const apagou = d.eventos.some((e) => e.startsWith('apagou:'));
+      return [r === S.R.WRITE_FAILED
+        && d.disco.get(uriAnt) === conteudoAnt && mapa.get(K_LIGHT) === ptrAnt
+        && !escreveu && !apagou && S.espia.length === 0
+        && daIdentidade(d, 'creation', 'light').length === 1,
+      `r=${r} · obra intacta? ${d.disco.get(uriAnt) === conteudoAnt} · ponteiro intacto? ${mapa.get(K_LIGHT) === ptrAnt} · escreveu? ${escreveu} · apagou? ${apagou} · deleteBlob=${S.espia.length}`];
+    });
+
+    // ── 28 · O GC recusa limpar quando não sabe qual é a obra viva ────────────────────────────
+    await t3('S3 [28/30]: GC sem saber qual é a obra viva não apaga nada — ponteiro ilegível vira `unknown_active`, identidade inválida vira `invalid_identity`, e em ambos examined=0', async () => {
+      const d = mkDisco3(); const mapa = new Map();
+      const S = mkC60(d, mapa, { getItemFalhaEm: (n, k) => k === K_LIGHT });
+      semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      d.disco.set(B_LIGHT, 'residuo-que-seria-apagavel');   // órfão REAL desta identidade
+      const rIleg = await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
+      const rInval = await S.gc('creation', 'atividade_inexistente', { reason: S.GCR.RECONCILE });
+      return [rIleg.skipped === 'unknown_active' && rIleg.examined === 0 && rIleg.removed.length === 0
+        && rInval.skipped === 'invalid_identity' && rInval.examined === 0 && rInval.removed.length === 0
+        && d.disco.has(A_LIGHT) && d.disco.has(B_LIGHT) && S.espia.length === 0,
+      `ilegível → skipped=${JSON.stringify(rIleg.skipped)} examined=${rIleg.examined} · inválida → skipped=${JSON.stringify(rInval.skipped)} examined=${rInval.examined} · deleteBlob=${S.espia.length}`];
+    });
+
+    // ── 29 · Exclusão cujo metadado não sai não pode apagar o blob ────────────────────────────
+    await t3('S3 [29/30]: exclusão cujo `removeItem` REJEITA não toca no blob — enquanto a chave puder existir o arquivo que ela referencia é intocável, e a obra continua legível', async () => {
+      const d = mkDisco3(); const mapa = new Map();
+      const S = mkC60(d, mapa, { removeItemFalhaEm: () => true });
+      const uriAnt = semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      await S.limpar('creation', 'light');
+      return [d.disco.has(uriAnt) && mapa.get(K_LIGHT) != null
+        && (await S.ler('creation', 'light')) === OBRA3('V', 1)
+        && S.espia.length === 0 && !d.eventos.some((e) => e.startsWith('apagou:')),
+      `blob? ${d.disco.has(uriAnt)} · chave? ${mapa.get(K_LIGHT) != null} · deleteBlob=${S.espia.length}`];
+    });
+
+    // ── 30 · Passo 4: blob gravado FORA do slot pedido nunca vira ponteiro ativo ──────────────
+    await t3('S3 [30/30]: blob gravado FORA do subdiretório pedido não é promovido — a confirmação de ENDEREÇO barra o ponteiro, a obra anterior sobrevive e o arquivo estranho vai à contenção com o anterior PROTEGIDO', async () => {
+      const d = mkDisco3(); const mapa = new Map();
+      const S = mkC60(d, mapa, { desviaUri: (u) => u.replace(D60_3, LIVRE3) });
+      const uriAnt = semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
+      const ptrAnt = mapa.get(K_LIGHT);
+      const r = await S.salvar('creation', 'light', OBRA3('N', 2));
+      const ofereceu = S.espia.length === 1 && !!S.espia[0].opts
+        && S.espia[0].opts.requireSubdir === 'drawings60'
+        && S.espia[0].opts.protect === uriAnt
+        && S.espia[0].uri.startsWith(LIVRE3);
+      return [r === S.R.WRITE_FAILED && mapa.get(K_LIGHT) === ptrAnt && d.disco.has(uriAnt)
+        && (await S.ler('creation', 'light')) === OBRA3('V', 1) && ofereceu,
+      `r=${r} · ponteiro preservado? ${mapa.get(K_LIGHT) === ptrAnt} · contenção=${JSON.stringify(S.espia.map((x) => [x.uri, x.opts]))}`];
+    });
+
+    /* ── CONTROLES NEGATIVOS S3 ───────────────────────────────────────────────────────────────
+     * Cada um remove UMA proteção do fonte e roda o MESMO cenário. Se a prova não muda, a proteção
+     * era decorativa e o teste que a "cobria" era teatro. `mutar` falha ruidosamente quando a
+     * âncora fica obsoleta, e `parS3` converte a exceção em uma STRING (jamais em `false`) — assim
+     * um controle negativo que morreu por âncora podre reprova em vez de se declarar aprovado.
+     */
+    const CN_S3 = [];
+    const cnS3 = (id, descricao, original, mutante) => CN_S3.push({ id, descricao, original, mutante });
+    const mutar = (busca, troca) => (s) => {
+      if (!s.includes(busca)) {
+        throw new Error('âncora obsoleta → ' + JSON.stringify(busca.slice(0, 70)));
+      }
+      return s.split(busca).join(troca);
+    };
+    const seguro3 = async (fn) => {
+      try { return await fn(); } catch (e) { return '__exceção: ' + ((e && e.message) || String(e)); }
+    };
+    /** Roda `cenario` contra o writer ORIGINAL e contra o MUTADO, devolvendo o par de veredictos. */
+    const parS3 = async (cfg, mutacao, cenario) => [
+      await seguro3(() => {
+        const d = mkDisco3(cfg.seed || [], cfg.disco || {});
+        return cenario(mkC60(d, new Map(), cfg.storage || {}), d);
+      }),
+      await seguro3(() => {
+        const d = mkDisco3(cfg.seed || [], cfg.disco || {});
+        return cenario(mkC60(d, new Map(), cfg.storage || {}, mutacao), d);
+      }),
+    ];
+    /** O `mapa` de cada lado é criado dentro de `parS3`; o cenário o alcança pelo writer. */
+    const mapaDe = (S) => S.__mapa;
+
+    // CN-1 — o blob anterior passa a ser apagado ANTES da promoção
+    {
+      const cenario = async (S, d) => {
+        const uriAnt = semear3(d, mapaDe(S), 'creation', 'light', 'a', OBRA3('V', 1));
+        await S.salvar('creation', 'light', OBRA3('N', 2));
+        return d.disco.has(uriAnt) && (await S.ler('creation', 'light')) === OBRA3('V', 1);
+      };
+      const [o, m] = await parS3({ storage: { setItemFalhaEm: (n) => n === 1 } },
+        mutar('      toStore = built.ptr;',
+          '      toStore = built.ptr;\n      if (oldUri) { try { await deleteBlob(oldUri, { requireSubdir: BLOB_SUBDIR }); } catch (e) { log(e); } }'),
+        cenario);
+      cnS3('CN-S3-01', 'a geração anterior é removida antes da promoção e a falha custa a obra que já estava salva', o, m);
+    }
+
+    // CN-2 — o double buffer é desativado (o novo blob passa a reutilizar o slot ATIVO)
+    {
+      const cenario = async (S, d) => {
+        semear3(d, mapaDe(S), 'creation', 'light', 'a', OBRA3('V', 1));
+        await S.salvar('creation', 'light', OBRA3('N', 2));
+        return (await S.ler('creation', 'light')) === OBRA3('V', 1);
+      };
+      const [o, m] = await parS3({ storage: { setItemFalhaEm: (n) => n === 1 } },
+        mutar('function otherSlotName(safeKey, oldUri) {',
+          'function otherSlotName(safeKey, oldUri) {\n  return safeKey + ".a.png";'),
+        cenario);
+      cnS3('CN-S3-02', 'o slot inativo deixa de ser escolhido e a nova escrita sobrescreve a obra ativa em cima', o, m);
+    }
+
+    // CN-3 — a confirmação da releitura é ignorada
+    {
+      const cenario = async (S) => (await S.salvar('creation', 'light', OBRA3('N', 2))) === S.R.WRITE_FAILED;
+      const [o, m] = await parS3({ storage: { getItemMente: (n) => (n === 2 ? '{"v":3,"uri":"file:///outro.png"}' : null) } },
+        mutar('    if (!confirmPromotion(check, toStore, newUri, expectedRev, safeKey)) {', '    if (false) {'),
+        cenario);
+      cnS3('CN-S3-03', 'a releitura divergente deixa de ser verificada e uma promoção não confirmada se declara salva', o, m);
+    }
+
+    // CN-4 — o rollback é removido
+    {
+      const cenario = async (S, d) => {
+        semear3(d, mapaDe(S), 'creation', 'light', 'a', OBRA3('V', 1));
+        await S.salvar('creation', 'light', OBRA3('N', 2));
+        return (await S.ler('creation', 'light')) === OBRA3('V', 1);
+      };
+      const [o, m] = await parS3({ storage: { setItemSujoEm: (n) => n === 1 } },
+        mutar('await rollbackFailedPromotion(k, oldRaw, newUri);', ';'),
+        cenario);
+      cnS3('CN-S3-04', 'sem rollback, uma promoção que gravou E rejeitou deixa a chave apontando para a obra não confirmada', o, m);
+    }
+
+    // CN-5 — `protect` sai da limpeza dirigida
+    {
+      const cenario = async (S, d) => {
+        await S.salvar('creation', 'light', OBRA3('A', 1));
+        return d.disco.has(A_LIGHT);
+      };
+      const [o, m] = await parS3(
+        { storage: { getItemMente: (n) => (n === 3 ? JSON.stringify({ v: 3, fmt: 1, uri: B_LIGHT, mime: 'image/png' }) : null) } },
+        mutar('        protect: newUri || undefined,', '        protect: undefined,'),
+        cenario);
+      cnS3('CN-S3-05', 'sem `protect`, uma promoção concorrente faz o GC apagar o blob que a tentativa atual acabou de gravar', o, m);
+    }
+
+    // CN-6 — `requireSubdir` sai da exclusão
+    {
+      const cenario = async (S, d) => {
+        mapaDe(S).set(K_LIGHT, JSON.stringify({ v: 3, fmt: 1, uri: ARTE_LIVRE, mime: 'image/png' }));
+        await S.limpar('creation', 'light');
+        return d.disco.has(ARTE_LIVRE);
+      };
+      const [o, m] = await parS3({ seed: [ARTE_LIVRE] },
+        mutar('      await deleteBlob(uri, { requireSubdir: BLOB_SUBDIR });', '      await deleteBlob(uri, {});'),
+        cenario);
+      cnS3('CN-S3-06', 'sem `requireSubdir`, a exclusão do C60 alcança um arquivo do Criar Livre', o, m);
+    }
+
+    // CN-7 — o GC vira varredura por história
+    {
+      const cenario = async (S, d) => {
+        semear3(d, mapaDe(S), 'creation', 'light', 'a', OBRA3('V', 1));
+        const uriViz = semear3(d, mapaDe(S), 'creation', 'living_world', 'a', OBRA3('W', 1));
+        await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
+        return d.disco.has(uriViz);
+      };
+      const [o, m] = await parS3({},
+        mutar('  const nomes = doisSlots.filter((n) => n !== nomeAtivo);',
+          '  const nomes = getColoring60Activities(storyId).map((it) => safeName(keyDrawing60(storyId, it.activityId))).reduce((acc, sk) => acc.concat([sk + ".a.png", sk + ".b.png"]), []).filter((n) => n !== nomeAtivo);'),
+        cenario);
+      cnS3('CN-S3-07', 'o universo de candidatos vira a história inteira e o GC destrói a obra de uma atividade vizinha', o, m);
+    }
+
+    // CN-8 — o GC troca de identidade
+    {
+      const cenario = async (S, d) => {
+        semear3(d, mapaDe(S), 'creation', 'light', 'a', OBRA3('V', 1));
+        semear3(d, mapaDe(S), 'creation', 'living_world', 'a', OBRA3('W', 1));
+        d.disco.set(slot3('creation', 'living_world', 'b'), 'ORFAO_DA_VIZINHA');
+        await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
+        return d.disco.has(slot3('creation', 'living_world', 'b'));
+      };
+      const [o, m] = await parS3({},
+        mutar('  const kAlvo = keyDrawing60(storyId, activityId);', '  const kAlvo = keyDrawing60(storyId, "living_world");'),
+        cenario);
+      cnS3('CN-S3-08', 'a identidade alvo do GC deixa de ser a pedida e a limpeza recai sobre outra atividade', o, m);
+    }
+
+    // CN-9 — o slot ATIVO volta a ser candidato
+    {
+      const cenario = async (S, d) => {
+        semear3(d, mapaDe(S), 'creation', 'light', 'a', OBRA3('V', 1));
+        d.disco.set(B_LIGHT, 'ORFAO');
+        const rel = await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
+        return S.espia.every((c) => c.uri !== A_LIGHT) && rel.examined === 1;
+      };
+      const [o, m] = await parS3({},
+        mutar('  const nomes = doisSlots.filter((n) => n !== nomeAtivo);', '  const nomes = doisSlots;'),
+        cenario);
+      cnS3('CN-S3-09', 'a obra ativa volta a ser candidata do GC (só a contenção a salva — a intenção já é apagá-la)', o, m);
+    }
+
+    // CN-10 — a geração anterior passa a ser retida (histórico por acidente)
+    {
+      const cenario = async (S, d) => {
+        await S.salvar('creation', 'light', OBRA3('A', 1));
+        await S.salvar('creation', 'light', OBRA3('B', 2));
+        return daIdentidade(d, 'creation', 'light').length === 1;
+      };
+      const [o, m] = await parS3({},
+        (s) => mutar('      await collectColoring60Orphans(storyId, activityId, {',
+          '      if (false) await collectColoring60Orphans(storyId, activityId, {')(
+          mutar('    if (oldUri && oldUri !== newUri) {', '    if (false) {')(s)),
+        cenario);
+      cnS3('CN-S3-10', 'a limpeza e o GC somem e cada sobrescrita deixa uma geração antiga acessível no disco', o, m);
+    }
+
+    // CN-11 — a chave deixa de derivar da atividade pedida (paint cruzado)
+    {
+      const cenario = async (S) => {
+        await S.salvar('creation', 'living_world', OBRA3('W', 1));
+        return (await S.ler('creation', 'light')) === null;
+      };
+      const [o, m] = await parS3({},
+        mutar('  const k = keyDrawing60(storyId, activityId);\n  const safeKey = safeName(k);',
+          '  const k = keyDrawing60(storyId, "light");\n  const safeKey = safeName(k);'),
+        cenario);
+      cnS3('CN-S3-11', 'a gravação passa a usar a chave de outra atividade e a pintura vaza para o slot errado', o, m);
+    }
+
+    // CN-12 — a compensação da escrita falhada passa a atingir o slot ATIVO
+    {
+      const cenario = async (S, d) => {
+        const uriAnt = semear3(d, mapaDe(S), 'creation', 'light', 'a', OBRA3('V', 1));
+        await S.salvar('creation', 'light', OBRA3('N', 2));
+        return d.disco.has(uriAnt) && (await S.ler('creation', 'light')) === OBRA3('V', 1);
+      };
+      const [o, m] = await parS3({ disco: { escritaFalha: (u) => u === B_LIGHT } },
+        mutar('  if (!written) {',
+          '  if (!written) {\n    { const raizM = currentBlobsRoot(); const irmao = slotName.endsWith(".a.png") ? slotName.replace(".a.png", ".b.png") : slotName.replace(".b.png", ".a.png"); if (raizM) await deleteBlob(raizM + BLOB_SUBDIR + "/" + irmao, { requireSubdir: BLOB_SUBDIR }); }'),
+        cenario);
+      cnS3('CN-S3-12', 'a compensação de uma escrita falhada passa a apagar o slot ativo e a falha custa a obra anterior', o, m);
+    }
+
+    // CN-13 — a leitura do ponteiro ativo volta a DEGRADAR falha em "não havia obra"
+    {
+      const cenario = async (S, d) => {
+        const uriAnt = semear3(d, mapaDe(S), 'creation', 'light', 'a', OBRA3('V', 1));
+        const antes = d.disco.get(uriAnt);
+        const r = await S.salvar('creation', 'light', OBRA3('N', 2));
+        return r === S.R.WRITE_FAILED && d.disco.get(uriAnt) === antes;
+      };
+      const [o, m] = await parS3(
+        { storage: { getItemFalhaEm: (n, k) => k === K_LIGHT }, disco: { escritaFalha: (u) => u === A_LIGHT } },
+        mutar("      log('coloring60DrawingStorage.save.ativoIlegivel:', e);\n      return COLORING60_SAVE_RESULT.WRITE_FAILED;",
+          '      oldRaw = null;'),
+        cenario);
+      cnS3('CN-S3-13', 'o writer volta a tratar ponteiro ILEGÍVEL como "não havia obra", elege o slot ATIVO como se fosse o inativo e a tentativa falhada destrói a obra anterior', o, m);
+    }
+
+    // CN-14 — a confirmação de ENDEREÇO do passo 4 é neutralizada
+    {
+      const cenario = async (S, d) => {
+        const uriAnt = semear3(d, mapaDe(S), 'creation', 'light', 'a', OBRA3('V', 1));
+        const ptrAnt = mapaDe(S).get(K_LIGHT);
+        const r = await S.salvar('creation', 'light', OBRA3('N', 2));
+        return r === S.R.WRITE_FAILED && d.disco.has(uriAnt) && mapaDe(S).get(K_LIGHT) === ptrAnt;
+      };
+      const [o, m] = await parS3(
+        { storage: { desviaUri: (u) => u.replace(D60_3, LIVRE3) } },
+        mutar('  return uri.endsWith(`/${BLOB_SUBDIR}/${slotName}`);', '  return true;'),
+        cenario);
+      cnS3('CN-S3-14', 'sem a confirmação de endereço, um blob fora de `drawings60/` é promovido a ponteiro ativo (órfão eterno) e a promoção apaga a obra anterior', o, m);
+    }
+
+    for (const c of CN_S3) {
+      check(`S3 [negativo ${c.id}]: ${c.descricao}`,
+        c.original === true && c.mutante === false,
+        `o controle negativo não distinguiu o certo do errado (original=${JSON.stringify(c.original)} · mutante=${JSON.stringify(c.mutante)})`);
+    }
+    check('S3 [negativos]: os catorze controles negativos do S3 rodaram e nenhum sobreviveu',
+      CN_S3.length === 14 && CN_S3.every((c) => c.original === true && c.mutante === false),
+      `executados=${CN_S3.length} · sobreviventes=${CN_S3.filter((c) => !(c.original === true && c.mutante === false)).map((c) => c.id).join(', ') || '(nenhum)'}`);
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
