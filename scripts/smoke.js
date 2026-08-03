@@ -45541,6 +45541,258 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       c60SealFail('018·C60 [fecho]'));
   }
 
+  /* ══ [FIX 1 · C60] O convite do Beni × a conclusão REAL do Colorir ══════════════════════════
+   *
+   * O DEFEITO (aparelho físico, reprovação parcial do piloto). Com as três atividades concluídas —
+   * "3 de 3" impresso na MESMA tela — reabrir "A Criação" trazia de volta o modal "Agora vamos
+   * colorir o que aprendemos?", e "Colorir agora" reabria "Haja luz", uma parte JÁ concluída.
+   *
+   * POR QUE ACONTECIA. A decisão do convite morava DENTRO da tela e olhava três fatos apenas
+   * (piloto ligado, cenas concluídas, marca do convite). A conclusão das atividades — o único fato
+   * que torna o convite absurdo — nunca entrava na conta; e era carregada por um efeito IRMÃO,
+   * separado, que podia chegar DEPOIS da decisão. O destino do botão caía em `?? activities[0]`,
+   * que com 3 de 3 aponta para 'light'. E a marca da chave era disparada sem `await`: falhar era
+   * silencioso.
+   *
+   * O QUE ESTAS PROVAS FIXAM (os 14 cenários do Portão 1, executando o código REAL):
+   *   1-3   ainda há parte por colorir (0, 1 ou 2 de 3) ⇒ o convite APARECE (o convite não morreu);
+   *   4     3 de 3 ⇒ NUNCA aparece — a supressão é do PREDICADO, não da marca;
+   *   5-7   marca já vista / piloto invisível / história inacabada ⇒ não aparece;
+   *   8-9   Grátis (NOT_PERSISTED) e Premium (READY) contam IGUAL: a conclusão é plan-agnóstica;
+   *   10-12 o destino do botão: 1 de 3 e 2 de 3 abrem a parte que FALTA; 3 de 3 abre a COLEÇÃO;
+   *   13    os convites narrativos das cenas 2, 7 e 9 continuam intactos (outra superfície);
+   *   14    se a gravação da marca FALHAR, 3 de 3 ainda impede o reaparecimento.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  {
+    const { loadModule: fx1Load } = require('./testing/packInstallHarness');
+
+    // A derivação PURA, executada do fonte real. Se o serviço ainda não expuser a decisão, TODAS as
+    // provas que dependem dele falham com o motivo explícito — nenhuma passa por ausência.
+    const FX1_EXPORTS = ['deriveColoring60JourneyInvite', 'deriveColoring60InviteAction',
+      'coloring60AllActivitiesComplete', 'COLORING60_INVITE_REASON', 'COLORING60_ACTION',
+      'deriveColoring60CardState', 'orderedCompleted'];
+    let FX1 = null; let FX1_ERR = null;
+    try { FX1 = fx1Load('src/services/coloring60Journey.js', {}, FX1_EXPORTS); }
+    catch (e) { FX1_ERR = (e && e.message) || String(e); }
+    const fx1 = (fn) => {
+      if (!FX1) return { __erro: `coloring60Journey.js não expõe a decisão do convite (${FX1_ERR})` };
+      try { const r = fn(FX1); return r === undefined || r === null ? { __erro: 'a derivação devolveu vazio' } : r; }
+      catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    };
+    const fx1d = (r) => (r && r.__erro ? r.__erro : `obtido: ${JSON.stringify(r)}`);
+    const RAZAO_COMPLETA = FX1 ? FX1.COLORING60_INVITE_REASON.ALL_ACTIVITIES_COMPLETE : '(serviço ausente)';
+
+    // Cenário do convite: SEMPRE os cinco fatos explícitos exigidos pelo contrato — nada mais.
+    const conviteFX1 = ({ piloto = true, cenas = true, flagVista = false, feitas = 0, total = 3 } = {}) =>
+      fx1((M) => M.deriveColoring60JourneyInvite({
+        pilotVisible: piloto,
+        storyScenesComplete: cenas,
+        inviteSeen: flagVista,
+        completedCount: feitas,
+        totalActivities: total,
+      }));
+
+    // 1-3 · o convite CONTINUA vivo enquanto sobrar parte por colorir (contrato 8).
+    for (const feitas of [0, 1, 2]) {
+      const r = conviteFX1({ feitas });
+      check(`FIX1·C60 [prova ${feitas + 1}]: piloto visível, história 10 de 10, marca não vista e ${feitas} de 3 concluídas ⇒ o convite do Beni APARECE`,
+        r.visible === true, fx1d(r));
+    }
+
+    // 4 · o coração do defeito (contrato 9): com as três prontas, o convite não existe mais.
+    const r4 = conviteFX1({ feitas: 3 });
+    check('FIX1·C60 [prova 4]: piloto visível, história 10 de 10, marca NÃO vista e 3 de 3 concluídas ⇒ o convite NÃO aparece (supressão definitiva pela conclusão)',
+      r4.visible === false && r4.reason === RAZAO_COMPLETA, fx1d(r4));
+
+    // 5-7 · as três supressões que já existiam continuam existindo (nada foi afrouxado).
+    const r5 = conviteFX1({ flagVista: true, feitas: 0 });
+    check('FIX1·C60 [prova 5]: a marca do convite JÁ foi vista ⇒ o convite não aparece', r5.visible === false, fx1d(r5));
+    const r6 = conviteFX1({ piloto: false, feitas: 0 });
+    check('FIX1·C60 [prova 6]: piloto invisível ⇒ o convite não aparece', r6.visible === false, fx1d(r6));
+    const r7 = conviteFX1({ cenas: false, feitas: 0 });
+    check('FIX1·C60 [prova 7]: história ainda NÃO concluída nas cenas ⇒ o convite não aparece', r7.visible === false, fx1d(r7));
+
+    // 8-9 · a conclusão é PLAN-AGNÓSTICA (contratos 3, 4 e 12): quem conta é `countsAsComplete`, não
+    // a existência de pixels. Executo o modelo de estado REAL e ligo o resultado ao predicado.
+    const ST1 = fx1Load('src/services/coloring60State.js', {}, [
+      'deriveColoring60JourneyState', 'deriveColoring60ActivityState', 'SNAPSHOT_STATUS']);
+    const ORDEM_FX1 = ['light', 'living_world', 'people_and_care'];
+    const atividadeFX1 = (id, status) => ST1.deriveColoring60ActivityState({
+      activityId: id, hasMeaningfulColor: true, isCurrentlyComplete: true, snapshotStatus: status });
+    const jornadaFree = ST1.deriveColoring60JourneyState({
+      activities: ORDEM_FX1.map((id) => atividadeFX1(id, ST1.SNAPSHOT_STATUS.NOT_PERSISTED)) });
+    const jornadaPrem = ST1.deriveColoring60JourneyState({
+      activities: ORDEM_FX1.map((id) => atividadeFX1(id, ST1.SNAPSHOT_STATUS.READY)) });
+    const rFree = conviteFX1({ feitas: jornadaFree.completedCount, total: jornadaFree.totalActivities });
+    check('FIX1·C60 [prova 8]: Grátis com três instantâneos NOT_PERSISTED ⇒ completedCount continua 3 (nenhum pixel gravado, nenhuma conclusão perdida) e o convite não reaparece',
+      jornadaFree.completedCount === 3 && jornadaFree.isFullyComplete === true && rFree.visible === false,
+      `completedCount=${jornadaFree.completedCount} · ${fx1d(rFree)}`);
+    const rPrem = conviteFX1({ feitas: jornadaPrem.completedCount, total: jornadaPrem.totalActivities });
+    check('FIX1·C60 [prova 9]: Premium com três atividades READY ⇒ completedCount continua 3 e o convite não reaparece',
+      jornadaPrem.completedCount === 3 && rPrem.visible === false,
+      `completedCount=${jornadaPrem.completedCount} · ${fx1d(rPrem)}`);
+
+    // 10-12 · o DESTINO de "Colorir agora". A regra vive no MESMO serviço puro e usa a MESMA
+    // condição de conclusão do predicado — a tela não pode ter uma segunda regra.
+    const acaoFX1 = (done, total = 3, order = null) => fx1((M) => M.deriveColoring60InviteAction({
+      completedCount: M.orderedCompleted(done, order).length,
+      totalActivities: total,
+      doneMap: done,
+      order,
+    }));
+    const ABRIR = FX1 ? FX1.COLORING60_ACTION.OPEN_NEXT : '(serviço ausente)';
+    const COLECAO = FX1 ? FX1.COLORING60_ACTION.COLLECTION : '(serviço ausente)';
+    const a10a = acaoFX1({ light: true });
+    const a10b = acaoFX1({ living_world: true });
+    check('FIX1·C60 [prova 10]: com 1 de 3 concluída, a ação abre a PRIMEIRA atividade ainda não concluída na ordem do catálogo (inclusive quando a concluída não foi a primeira)',
+      a10a.kind === ABRIR && a10a.targetActivityId === 'living_world'
+      && a10b.kind === ABRIR && a10b.targetActivityId === 'light',
+      `{luz} → ${fx1d(a10a)} · {vida} → ${fx1d(a10b)}`);
+    const a11a = acaoFX1({ light: true, living_world: true });
+    const a11b = acaoFX1({ light: true, people_and_care: true });
+    check('FIX1·C60 [prova 11]: com 2 de 3 concluídas, a ação abre a ÚNICA atividade que falta — inclusive quando a que falta é a do meio',
+      a11a.kind === ABRIR && a11a.targetActivityId === 'people_and_care'
+      && a11b.kind === ABRIR && a11b.targetActivityId === 'living_world',
+      `{luz,vida} → ${fx1d(a11a)} · {luz,cuidado} → ${fx1d(a11b)}`);
+    const a12 = acaoFX1({ light: true, living_world: true, people_and_care: true });
+    check('FIX1·C60 [prova 12]: com 3 de 3 concluídas, a ação abre a COLEÇÃO e jamais reabre "Haja luz"',
+      a12.kind === COLECAO && a12.targetActivityId !== 'light', fx1d(a12));
+
+    // Sem SEGUNDA regra: nas 8 combinações de conclusão, o destino do convite coincide com o do
+    // cartão da jornada. (No caso completo comparo o TIPO da ação: o cartão usa a última obra como
+    // âncora visual da coleção, enquanto o convite não tem atividade nenhuma a abrir.)
+    let divergFX1 = null;
+    for (let m = 0; m < 8 && FX1 && divergFX1 === null; m += 1) {
+      const done = {};
+      ORDEM_FX1.forEach((id, i) => { if (m & (1 << i)) done[id] = true; });
+      const doConvite = acaoFX1(done);
+      const doCartao = fx1((M) => M.deriveColoring60CardState({ doneMap: done, unlocked: true }).primaryAction);
+      const mesmoTipo = doConvite.kind === doCartao.kind;
+      const mesmoAlvo = doConvite.kind !== ABRIR || doConvite.targetActivityId === doCartao.targetActivityId;
+      if (!mesmoTipo || !mesmoAlvo) {
+        divergFX1 = `${JSON.stringify(done)} → convite ${JSON.stringify(doConvite)} vs cartão ${JSON.stringify(doCartao)}`;
+      }
+    }
+    check('FIX1·C60 [regra única]: nas 8 combinações de conclusão, o destino do convite é o MESMO do cartão da jornada — não nasceu uma segunda regra',
+      FX1 !== null && divergFX1 === null, divergFX1 || `serviço puro ausente (${FX1_ERR})`);
+
+    // 13 · os convites NARRATIVOS (cenas 2, 7 e 9) são OUTRA superfície, com marca própria por marco,
+    // e continuam intactos: nem a correção os removeu, nem a conclusão global passou a apagá-los.
+    const MS1 = fx1Load('src/data/coloring60StoryMilestones.js', {}, [
+      'getColoring60MilestoneForCompletedScene', 'derivePostSceneExperience', 'C60_POST_SCENE']);
+    const MARCOS_FX1 = [[2, 'light'], [7, 'living_world'], [9, 'people_and_care']];
+    const marcosVivos = MARCOS_FX1.every(([cena, id]) => {
+      const marco = MS1.getColoring60MilestoneForCompletedScene('creation', cena);
+      return !!marco && marco.activityId === id && marco.resumeScene === cena + 1
+        && MS1.derivePostSceneExperience({ milestone: marco, activityAlreadyComplete: false, inviteAlreadySeen: false })
+          === MS1.C60_POST_SCENE.COLORING_MILESTONE_INVITE;
+    });
+    check('FIX1·C60 [prova 13]: os convites narrativos das cenas 2, 7 e 9 continuam intactos (marco presente, retomada na cena seguinte e convite de marco escolhido) — a correção não os tocou',
+      marcosVivos === true, 'algum marco de cena deixou de abrir o convite narrativo do Beni');
+    const marcoJaFeito = MS1.derivePostSceneExperience({
+      milestone: MS1.getColoring60MilestoneForCompletedScene('creation', 2),
+      activityAlreadyComplete: true, inviteAlreadySeen: false });
+    check('FIX1·C60 [prova 13b]: o convite de marco continua decidido por atividade (já concluída ⇒ celebração genérica) — ele NÃO passou a depender do convite pós-história',
+      marcoJaFeito === MS1.C60_POST_SCENE.GENERIC_CELEBRATION, `obtido: ${marcoJaFeito}`);
+
+    // F01-c · a gravação da marca precisa ser AGUARDÁVEL e devolver resultado CONTROLADO. Executo o
+    // módulo real com um storage que FALHA: não pode lançar, não pode mentir "gravei" e não pode calar.
+    const avisosFX1 = [];
+    const storeFalhoFX1 = {
+      getItem: async () => { throw new Error('storage indisponível'); },
+      setItem: async () => { throw new Error('storage indisponível'); },
+      removeItem: async () => { throw new Error('storage indisponível'); },
+    };
+    const storeOkFX1 = (() => {
+      const mem = {};
+      return {
+        getItem: async (k) => (k in mem ? mem[k] : null),
+        setItem: async (k, v) => { mem[k] = v; },
+        removeItem: async (k) => { delete mem[k]; },
+      };
+    })();
+    const INV_OK = fx1Load('src/services/coloring60JourneyInvite.js',
+      { AsyncStorage: storeOkFX1, warn: () => {} }, ['markCreationColoringInviteSeen', 'hasSeenCreationColoringInvite']);
+    const INV_FALHA = fx1Load('src/services/coloring60JourneyInvite.js',
+      { AsyncStorage: storeFalhoFX1, warn: (...a) => avisosFX1.push(a) }, ['markCreationColoringInviteSeen']);
+    const marcouOk = await INV_OK.markCreationColoringInviteSeen();
+    const persistiu = await INV_OK.hasSeenCreationColoringInvite();
+    let marcouFalha = null; let lancouFX1 = false;
+    try { marcouFalha = await INV_FALHA.markCreationColoringInviteSeen(); } catch (e) { lancouFX1 = true; }
+    check('FIX1·C60 [F01-c · gravação]: markCreationColoringInviteSeen devolve resultado CONTROLADO — true quando grava, false quando falha, registrando o aviso e sem NUNCA lançar',
+      marcouOk === true && persistiu === true && lancouFX1 === false && marcouFalha === false && avisosFX1.length === 1,
+      `gravou=${JSON.stringify(marcouOk)} · releu=${JSON.stringify(persistiu)} · falhou=${JSON.stringify(marcouFalha)} · lançou=${lancouFX1} · avisos=${avisosFX1.length}`);
+
+    // 14 · a consequência que importa: marca não gravada NÃO devolve o modal depois de 3 de 3.
+    const r14 = conviteFX1({ flagVista: false, feitas: 3 });
+    check('FIX1·C60 [prova 14]: mesmo com a gravação da marca FALHADA (convite consta como não visto), 3 de 3 continua impedindo o reaparecimento — a supressão é do predicado, não da chave',
+      r14.visible === false && r14.reason === RAZAO_COMPLETA, fx1d(r14));
+
+    // A regra NÃO pode depender de blob, miniatura, pintura salva, plano ou estado visual da coleção:
+    // injeto todos esses ruídos e a decisão tem de sair exatamente igual.
+    const ruidoFX1 = fx1((M) => M.deriveColoring60JourneyInvite({
+      pilotVisible: true, storyScenesComplete: true, inviteSeen: false,
+      completedCount: 3, totalActivities: 3,
+      blob: null, thumbnailUri: null, savedArt: false, plan: 'free', collectionEmpty: true, snapshotStatus: 'missing',
+    }));
+    check('FIX1·C60 [independência]: com blob, miniatura, pintura salva, plano e coleção vazia injetados, a decisão é a MESMA — a regra não depende de nenhum deles',
+      ruidoFX1.visible === false && ruidoFX1.reason === r4.reason, fx1d(ruidoFX1));
+
+    const FX1_SRC = readSrc('src/services/coloring60Journey.js');
+    const FX1_CODE = codeOf('src/services/coloring60Journey.js');
+    check('FIX1·C60 [contrato · cinco fatos]: o predicado recebe EXPLICITAMENTE piloto visível, história concluída nas cenas, marca do convite, completedCount e totalActivities',
+      /function deriveColoring60JourneyInvite\(\{[^}]*pilotVisible[^}]*storyScenesComplete[^}]*inviteSeen[^}]*completedCount[^}]*totalActivities[^}]*\}/.test(FX1_SRC),
+      'a assinatura do predicado não declara os cinco fatos exigidos');
+    check('FIX1·C60 [pureza]: coloring60Journey.js continua sem imports e sem citar blob, miniatura, plano ou storage em CÓDIGO — a decisão do convite nasceu pura',
+      !/^\s*import\s/m.test(FX1_CODE)
+      && !/\b(blob|thumbnail|thumbUri|premium|AsyncStorage|FileSystem)\b/i.test(FX1_CODE),
+      'o módulo puro passou a citar dependência proibida');
+
+    // A TELA obedece: lê a conclusão, chama a derivação e aplica. Sem regra própria, sem corrida.
+    const SD1_CODE = codeOf('src/screens/StoryDetailScreen.js');
+    check('FIX1·C60 [tela · sem regra própria]: StoryDetailScreen decide o convite por deriveColoring60JourneyInvite e não guarda mais o "se ainda não viu, mostra" solto',
+      /deriveColoring60JourneyInvite\(/.test(SD1_CODE)
+      && !/hasSeenCreationColoringInvite\(\)\s*\.then\(/.test(SD1_CODE),
+      'a tela ainda decide o convite sozinha (ou não consulta a derivação pura)');
+    const iSetFX1 = SD1_CODE.indexOf('setC60Done(done)');
+    const iSeenFX1 = SD1_CODE.indexOf('hasSeenCreationColoringInvite(');
+    check('FIX1·C60 [tela · sem corrida]: a conclusão das três atividades é lida ANTES da decisão do convite, dentro do MESMO efeito — o convite nunca decide sobre um retrato vazio',
+      iSetFX1 > 0 && iSeenFX1 > iSetFX1 && !SD1_CODE.slice(iSetFX1, iSeenFX1).includes('useFocusEffect('),
+      `posição de setC60Done=${iSetFX1}, de hasSeenCreationColoringInvite=${iSeenFX1} (efeitos ainda separados?)`);
+    check('FIX1·C60 [tela · F01-c]: a marca do convite é AGUARDADA e seu resultado é tratado — nada de escrita solta que falha em silêncio',
+      /await markCreationColoringInviteSeen\(\)/.test(SD1_CODE),
+      'markCreationColoringInviteSeen continua sendo disparada sem await');
+    check('FIX1·C60 [tela · F01-b]: "Colorir agora" obedece ao serviço puro e o antigo desvio para a primeira atividade não existe mais',
+      /deriveColoring60InviteAction\(/.test(SD1_CODE)
+      && !/activities\.find\(\(a\) => c60Done\[a\.activityId\] !== true\)/.test(SD1_CODE)
+      && !/\?\?\s*'light'/.test(SD1_CODE),
+      'a tela ainda escolhe o destino do convite por conta própria');
+
+    // Controles negativos: cada prova precisa saber DISTINGUIR o certo do errado. Se um mutante
+    // sobreviver, a prova correspondente é decorativa.
+    const CN_FX1 = [];
+    const cnFX1 = (id, descricao, mutate, avaliar) => {
+      let mutante = null;
+      try { mutante = avaliar(fx1Load('src/services/coloring60Journey.js', {}, FX1_EXPORTS, mutate)); }
+      catch (e) { mutante = `erro: ${(e && e.message) || e}`; }
+      CN_FX1.push({ id, descricao, original: FX1 !== null, mutante });
+    };
+    cnFX1('CN-FIX1-1', 'a supressão por conclusão some do predicado e 3 de 3 volta a convidar',
+      (s) => s.replace('return total > 0 && feitas >= total;', 'return total > 0 && feitas >= total + 99;'),
+      (M) => M.deriveColoring60JourneyInvite({ pilotVisible: true, storyScenesComplete: true, inviteSeen: false, completedCount: 3, totalActivities: 3 }).visible === false);
+    cnFX1('CN-FIX1-2', 'a ação nunca chega à coleção e 3 de 3 volta a abrir uma atividade',
+      (s) => s.replace('if (allComplete || nextId === null) {', 'if (false) {'),
+      (M) => M.deriveColoring60InviteAction({ completedCount: 3, totalActivities: 3, doneMap: { light: true, living_world: true, people_and_care: true } }).kind === M.COLORING60_ACTION.COLLECTION);
+    cnFX1('CN-FIX1-3', 'o destino volta a ser sempre a primeira atividade da ordem',
+      (s) => s.replace('const nextId = nextIncompleteActivityId(doneMap, ids);', 'const nextId = ids[0];'),
+      (M) => M.deriveColoring60InviteAction({ completedCount: 1, totalActivities: 3, doneMap: { light: true } }).targetActivityId === 'living_world');
+    for (const c of CN_FX1) {
+      check(`FIX1·C60 [negativo ${c.id}]: ${c.descricao}`,
+        c.original === true && c.mutante === false,
+        `o controle negativo não distinguiu o certo do errado (original=${JSON.stringify(c.original)} · mutante=${JSON.stringify(c.mutante)})`);
+    }
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

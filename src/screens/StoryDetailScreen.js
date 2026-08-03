@@ -6,6 +6,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { warn } from '../utils/logger';
 import { useStoryPackDownload } from '../hooks/useStoryPackDownload';
 import { preloadStorySceneIllustrations } from '../services/storyImageService';
 import { hasAccess } from '../services/accessControl';
@@ -39,6 +40,12 @@ import { loadColoring60Done } from '../services/coloring60ActivityService';
 import {
   hasSeenCreationColoringInvite, markCreationColoringInviteSeen,
 } from '../services/coloring60JourneyInvite';
+// A DECISÃO do convite pós-história (aparecer ou não) e o DESTINO de "Colorir agora" moram no
+// serviço puro. Esta tela reúne os fatos e obedece — não guarda uma segunda regra própria.
+import {
+  deriveColoring60JourneyInvite, deriveColoring60InviteAction,
+  orderedCompleted, COLORING60_ACTION,
+} from '../services/coloring60Journey';
 import CreationColoringJourneySection from '../components/coloring60/CreationColoringJourneySection';
 // [C60-PARTE-7] A coleção tem rota própria; o nome vem da fonte única de rotas.
 // [C60-NAV] CONTRATO ÚNICO de navegação do piloto (FLUXO 1): as entradas "Colorir" e "Ver minha
@@ -202,40 +209,52 @@ export default function StoryDetailScreen({ route, navigation }) {
     }, [story.id, isCompleted, creationColoringVisible]),
   );
 
-  // §5/§10 · Carrega a CONCLUSÃO real das 3 atividades ao focar a tela (reflete conclusões feitas no
-  // ColoringScreen e o retorno da celebração por "Voltar à aventura"/"Ver meus desenhos"). Só quando
-  // a seção pode aparecer; caso contrário nem toca no service de conclusão do Colorir 60. Lê APENAS a
-  // conclusão (loadColoring60Done) — jamais o writer de pixels, isolado ao ColoringScreen.
+  // §5/§7/§10 · Carrega a CONCLUSÃO real das 3 atividades ao focar a tela (reflete conclusões feitas
+  // no ColoringScreen e o retorno da celebração por "Voltar à aventura"/"Ver meus desenhos") e, com
+  // esse retrato em mãos, decide o convite do Beni. Só quando a seção pode aparecer; caso contrário
+  // nem toca no service de conclusão do Colorir 60. Lê APENAS a conclusão (loadColoring60Done) —
+  // jamais o writer de pixels, isolado ao ColoringScreen.
+  //
+  // UM ÚNICO EFEITO, de propósito. Antes eram dois efeitos irmãos: um carregava a conclusão e o
+  // outro decidia o convite sem nunca olhar para ela — e podia decidir ANTES de ela chegar. Agora a
+  // conclusão vem primeiro e a decisão usa o retrato recém-lido, nunca o estado antigo da tela.
+  // A REGRA em si não está aqui: quem decide é `deriveColoring60JourneyInvite` (serviço puro). Esta
+  // tela só reúne os fatos, obedece ao resultado e registra o que aconteceu.
   useFocusEffect(
     useCallback(() => {
       if (!creationColoringVisible) return undefined;
       let active = true;
       (async () => {
         const activities = getColoring60Activities(CREATION_STORY_ID);
+        const order = activities.map((a) => a.activityId);
         const done = {};
         for (const activity of activities) {
           done[activity.activityId] = await loadColoring60Done(CREATION_STORY_ID, activity.activityId);
         }
-        if (active) setC60Done(done);
-      })();
-      return () => { active = false; };
-    }, [creationColoringVisible, isCompleted]),
-  );
+        if (!active) return;
+        setC60Done(done);
 
-  // §7 · Convite do Beni: aparece UMA vez, quando a criança já terminou a história (isCompleted) e
-  // o convite ainda não foi mostrado. Marca como visto no MESMO instante em que decide exibir, para
-  // nunca repetir a cada reabertura da cena 10. Registro próprio (coloring60JourneyInvite), separado
-  // do progresso e da conclusão. Fora do gate/isCompleted, nunca aparece.
-  useFocusEffect(
-    useCallback(() => {
-      if (!creationColoringVisible || !isCompleted) return undefined;
-      let active = true;
-      hasSeenCreationColoringInvite().then((seen) => {
-        if (active && !seen) {
-          setInviteVisible(true);
-          markCreationColoringInviteSeen();
-        }
-      });
+        // Primeira consulta SEM a marca: se o convite já está descartado por outro motivo (piloto,
+        // história inacabada ou as três partes prontas), nem chega a abrir o registro do convite.
+        const fatos = {
+          pilotVisible: creationColoringVisible,
+          storyScenesComplete: isCompleted,
+          completedCount: orderedCompleted(done, order).length,
+          totalActivities: order.length,
+        };
+        if (!deriveColoring60JourneyInvite({ ...fatos, inviteSeen: false }).visible) return;
+
+        const seen = await hasSeenCreationColoringInvite();
+        if (!active) return;
+        if (!deriveColoring60JourneyInvite({ ...fatos, inviteSeen: seen }).visible) return;
+
+        setInviteVisible(true);
+        // A marca é AGUARDADA e seu resultado é tratado: uma gravação que falha não passa mais em
+        // silêncio. Falhar não repete o convite depois de "3 de 3" — quem cala o convite ali é a
+        // conclusão das três atividades, no predicado acima, que não depende desta chave.
+        const marked = await markCreationColoringInviteSeen();
+        if (!marked) warn('StoryDetailScreen: convite do Colorir 60 exibido, mas a marca não ficou gravada');
+      })();
       return () => { active = false; };
     }, [creationColoringVisible, isCompleted]),
   );
@@ -340,13 +359,25 @@ export default function StoryDetailScreen({ route, navigation }) {
     c60OpenCollectionFromStory(navigation, CREATION_STORY_ID);
   }
 
-  // §7 · "Colorir agora": abre a PRIMEIRA atividade ainda não concluída (ordem do catálogo); se
-  // nada foi iniciado, começa por "Haja luz" (light). Fecha o convite antes de navegar.
+  // §7 · "Colorir agora": o DESTINO vem do serviço puro, pela mesma condição de conclusão que decide
+  // o convite. Antes a escolha era feita aqui — "a primeira ainda não concluída, ou então a primeira
+  // de todas" — e aquele "ou então" reabria "Haja luz" quando as três já estavam prontas. Agora,
+  // sem parte a colorir, o botão leva à COLEÇÃO. Fecha o convite antes de navegar.
   function handleInviteColorNow() {
     setInviteVisible(false);
     const activities = getColoring60Activities(CREATION_STORY_ID);
-    const firstNotDone = activities.find((a) => c60Done[a.activityId] !== true) ?? activities[0];
-    openCreationColoring(firstNotDone?.activityId ?? 'light');
+    const order = activities.map((a) => a.activityId);
+    const action = deriveColoring60InviteAction({
+      completedCount: orderedCompleted(c60Done, order).length,
+      totalActivities: order.length,
+      doneMap: c60Done,
+      order,
+    });
+    if (action.kind === COLORING60_ACTION.COLLECTION) {
+      openCreationColoringCollection();
+      return;
+    }
+    openCreationColoring(action.targetActivityId);
   }
 
   // §7 · "Continuar depois": não força pintura; volta para a jornada com a seção disponível.

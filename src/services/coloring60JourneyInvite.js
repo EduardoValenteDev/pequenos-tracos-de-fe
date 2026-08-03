@@ -27,12 +27,22 @@ export async function hasSeenCreationColoringInvite() {
   }
 }
 
-/** Marca o convite como exibido. Melhor esforço; nunca lança. */
+/**
+ * Marca o convite como exibido. Nunca lança — mas também nunca cala: devolve `true` se a marca
+ * realmente ficou gravada e `false` se a gravação falhou, para que quem chamou possa aguardar o
+ * resultado e registrá-lo. Antes esta função não devolvia nada e era disparada sem `await`: uma
+ * falha de storage sumia por completo, e ninguém ficava sabendo que o convite reapareceria.
+ *
+ * Falhar aqui NÃO devolve o convite depois de "3 de 3": quem cala o convite naquele caso é a
+ * conclusão das três atividades (`deriveColoring60JourneyInvite`), que não depende desta chave.
+ */
 export async function markCreationColoringInviteSeen() {
   try {
     await AsyncStorage.setItem(INVITE_KEY, '1');
+    return true;
   } catch (e) {
     warn('coloring60JourneyInvite.markSeen:', e);
+    return false;
   }
 }
 

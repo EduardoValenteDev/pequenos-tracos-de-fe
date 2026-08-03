@@ -652,3 +652,122 @@ export function deriveColoring60StoryBridge({ doneMap = {}, order = null, readFa
     progressLabel: `${completedCount} de ${total}`,
   });
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────────────────────
+ * CONVITE PÓS-HISTÓRIA DO BENI — "Agora vamos colorir o que aprendemos?"
+ *
+ * QUAL CONVITE É ESTE. São DOIS convites diferentes no piloto, e eles não se confundem:
+ *   • o convite de MARCO, dentro da história (cenas 2, 7 e 9), decidido por
+ *     `derivePostSceneExperience` em `coloring60StoryMilestones.js` — um por atividade;
+ *   • este, o convite ÚNICO de fim de história, oferecido quando "A Criação" termina.
+ * Só o segundo mora aqui.
+ *
+ * POR QUE A DECISÃO SAIU DA TELA. A regra vivia dentro do efeito da tela de detalhe e enxergava
+ * três fatos apenas: piloto ligado, cenas concluídas e a marca do convite. Faltava justamente o
+ * fato que torna o convite absurdo — as três atividades JÁ concluídas. Resultado no aparelho: a
+ * mesma tela dizia "3 de 3" e ainda perguntava "vamos colorir o que aprendemos?". Pior, a
+ * conclusão chegava por outro caminho assíncrono, então a decisão podia acontecer antes dela.
+ * Trazer a regra para cá resolve os dois: existe UM lugar que decide, e ele só sabe responder
+ * depois de receber os fatos.
+ *
+ * O QUE ESTA REGRA NÃO PODE SABER. Nada de blob, miniatura, pintura salva, plano ou estado visual
+ * da coleção. A criança do plano Grátis conclui as três partes sem que um único pixel seja
+ * gravado; se o convite dependesse de arte salva, ela seria convidada para sempre a refazer o que
+ * já fez. Conclusão é conclusão — a existência de arquivo é outro assunto.
+ * ───────────────────────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Por que o convite não aparece — ou por que aparece. Motivos FECHADOS para que a razão possa ser
+ * provada e registrada, em vez de inferida de um booleano solitário.
+ */
+export const COLORING60_INVITE_REASON = Object.freeze({
+  PILOT_OFF: 'pilotOff',
+  STORY_INCOMPLETE: 'storyIncomplete',
+  ALL_ACTIVITIES_COMPLETE: 'allActivitiesComplete',
+  ALREADY_SEEN: 'alreadySeen',
+  SHOW: 'show',
+});
+
+/**
+ * "Não sobrou parte para colorir." É a ÚNICA definição de jornada completa usada tanto para calar o
+ * convite quanto para escolher o destino do botão — assim as duas decisões não podem divergir.
+ * `totalActivities > 0` evita que um catálogo vazio (0 de 0) se declare completo.
+ */
+export function coloring60AllActivitiesComplete(completedCount, totalActivities) {
+  const feitas = Number.isFinite(completedCount) ? completedCount : 0;
+  const total = Number.isFinite(totalActivities) ? totalActivities : 0;
+  return total > 0 && feitas >= total;
+}
+
+/**
+ * deriveColoring60JourneyInvite — o convite do Beni deve aparecer agora?
+ *
+ * Recebe os CINCO fatos explícitos e nada mais:
+ *   pilotVisible        — o piloto está visível para esta criança/história;
+ *   storyScenesComplete — a história terminou nas cenas;
+ *   inviteSeen          — a marca do convite já foi registrada alguma vez;
+ *   completedCount      — quantas atividades de colorir estão concluídas AGORA;
+ *   totalActivities     — quantas existem.
+ *
+ * A ordem dos motivos é deliberada: a conclusão das três é avaliada ANTES da marca. Isso importa
+ * porque a marca pode falhar ao ser gravada — e, se falhar, a supressão precisa vir de um fato que
+ * não depende de storage nenhum. Quem terminou as três nunca mais é convidado, mesmo que a chave
+ * nunca tenha sido escrita.
+ *
+ * Fail-safe por construção: qualquer entrada ausente ou estranha cai no lado de NÃO convidar (o
+ * padrão de `inviteSeen` é `true`, o de `pilotVisible` é `false`). Um convite a menos é um detalhe;
+ * um convite repetido depois de "3 de 3" é a tela se contradizendo na frente da criança.
+ */
+export function deriveColoring60JourneyInvite({
+  pilotVisible = false,
+  storyScenesComplete = false,
+  inviteSeen = true,
+  completedCount = 0,
+  totalActivities = 0,
+} = {}) {
+  const allActivitiesComplete = coloring60AllActivitiesComplete(completedCount, totalActivities);
+
+  let reason;
+  if (pilotVisible !== true) reason = COLORING60_INVITE_REASON.PILOT_OFF;
+  else if (storyScenesComplete !== true) reason = COLORING60_INVITE_REASON.STORY_INCOMPLETE;
+  else if (allActivitiesComplete) reason = COLORING60_INVITE_REASON.ALL_ACTIVITIES_COMPLETE;
+  else if (inviteSeen === true) reason = COLORING60_INVITE_REASON.ALREADY_SEEN;
+  else reason = COLORING60_INVITE_REASON.SHOW;
+
+  return Object.freeze({
+    visible: reason === COLORING60_INVITE_REASON.SHOW,
+    reason,
+    allActivitiesComplete,
+  });
+}
+
+/**
+ * deriveColoring60InviteAction — para onde "Colorir agora" leva.
+ *
+ * Antes, a tela escolhia sozinha: "a primeira ainda não concluída, ou então a primeira de todas".
+ * Aquele "ou então" era o defeito: com as três prontas não existe "primeira não concluída", e o
+ * desvio caía em "Haja luz" — reabrindo uma obra já terminada como se fosse nova.
+ *
+ * Aqui só existem dois desfechos honestos: se sobrou parte, abre-se a que falta na ordem do
+ * catálogo; se não sobrou nenhuma, abre-se a COLEÇÃO. Note que `nextId === null` também leva à
+ * coleção: um mapa de conclusão que não deixou nenhuma parte de fora não vira uma reabertura por
+ * falta de opção. Nenhum caminho devolve `OPEN_NEXT` sem destino real.
+ *
+ * A condição de "acabou" é a mesma do predicado do convite (`coloring60AllActivitiesComplete`) —
+ * de propósito: o que cala o convite e o que redireciona o botão nunca podem discordar.
+ */
+export function deriveColoring60InviteAction({
+  completedCount = 0,
+  totalActivities = 0,
+  doneMap = {},
+  order = null,
+} = {}) {
+  const ids = normalizeOrder(order);
+  const allComplete = coloring60AllActivitiesComplete(completedCount, totalActivities);
+  const nextId = nextIncompleteActivityId(doneMap, ids);
+
+  if (allComplete || nextId === null) {
+    return Object.freeze({ kind: COLORING60_ACTION.COLLECTION, targetActivityId: null });
+  }
+  return Object.freeze({ kind: COLORING60_ACTION.OPEN_NEXT, targetActivityId: nextId });
+}
