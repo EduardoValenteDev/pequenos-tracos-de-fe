@@ -32,13 +32,20 @@
 /**
  * Situação do INSTANTÂNEO (a arte gravada) de uma atividade.
  *   READY          — gravado e recuperável: a coleção pode exibi-lo.
- *   NOT_PERSISTED  — NÃO gravado POR DECISÃO DE PLANO (Grátis não salva pixels). Não é falha:
- *                    a conclusão é plan-agnóstica e continua válida. A arte em memória existe
- *                    APENAS durante a celebração imediata da própria atividade e morre com a
- *                    sessão. A coleção e todo resumo persistente derivam SOMENTE do
- *                    estado armazenado — nunca do que sobrou na memória. Este estado
- *                    significa, portanto, CONCLUSÃO SEM PIXELS GUARDADOS: nunca um
- *                    contorno sem cor, nunca uma miniatura fingida.
+ *   NOT_PERSISTED  — concluída SEM pixels guardados. Não é falha de integridade: a conclusão é
+ *                    válida e continua contando. Desde o S1 o plano não é mais o produtor deste
+ *                    estado; sobram DOIS, ambos honestos:
+ *                      (a) CONCLUSÃO LEGADA — gravada quando o Grátis ainda não guardava pixels,
+ *                          ou antes mesmo de a chave de instantâneo existir. É passado; não se
+ *                          reescreve o passado nem se inventa a pintura que nunca houve.
+ *                      (b) FALHA FÍSICA DE ESCRITA — a criança tinha acesso, pintou de verdade e
+ *                          o disco falhou. Punir a conclusão por isso trancaria a história por um
+ *                          motivo que não é dela.
+ *                    A arte em memória existe APENAS durante a celebração imediata da própria
+ *                    atividade e morre com a sessão. A coleção e todo resumo persistente derivam
+ *                    SOMENTE do estado armazenado — nunca do que sobrou na memória. Este estado
+ *                    significa, portanto, CONCLUSÃO SEM PIXELS GUARDADOS: nunca um contorno sem
+ *                    cor, nunca uma miniatura fingida.
  *   MISSING        — deveria existir e não existe (ponteiro órfão, arquivo apagado): INTEGRIDADE
  *                    QUEBRADA. Uma atividade nesse estado não pode ser contada como concluída.
  *   FAILED         — a gravação foi tentada e falhou. Também não sustenta conclusão.
@@ -70,11 +77,12 @@ export const HYDRATION_STATUS = Object.freeze({
  * telas apenas renderizam o resultado.
  *
  *   ART            — há obra VERDADEIRA e recuperável para compor (cor + contorno, instantâneo READY).
- *   NOT_PERSISTED  — concluída, e a pintura não foi guardada POR DECISÃO DE PLANO. É um desfecho
- *                    POSITIVO: conta como conclusão e JAMAIS pode ser desenhado como perda, falha
- *                    ou carregamento incompleto.
- *   NEEDS_COLOR    — concluída sem obra recuperável e SEM decisão de plano (ponteiro órfão,
- *                    gravação falhada, contorno indisponível): integridade quebrada.
+ *   NOT_PERSISTED  — concluída, e a pintura não está guardada: conclusão LEGADA (anterior à
+ *                    política atual) ou falha física de escrita. É um desfecho POSITIVO: conta
+ *                    como conclusão e JAMAIS pode ser desenhado como perda, falha ou carregamento
+ *                    incompleto.
+ *   NEEDS_COLOR    — concluída, havia registro de arte e a arte não está lá (ponteiro órfão,
+ *                    arquivo apagado, contorno indisponível): integridade quebrada.
  *   EMPTY          — ainda não concluída. Pintura antiga no disco não sustenta conclusão.
  */
 export const COLORING60_SLOT_KIND = Object.freeze({
@@ -93,21 +101,49 @@ export function isSnapshotAcceptable(status) {
 }
 
 /**
- * reconcileSnapshotStatus(storedStatus, artRecoverable) — a REGRA DE LEITURA que cura o retrato
- * gravado com o que existe DE FATO no disco (Parte 4/8). Quem chama é a superfície que tem acesso
- * aos pixels (a tela da coleção); este módulo continua sem I/O.
+ * reconcileSnapshotStatus(storedStatus, artRecoverable, evidence) — a REGRA DE LEITURA que cura o
+ * retrato gravado com o que existe DE FATO no disco (Parte 4/8). Quem chama é a superfície que tem
+ * acesso aos pixels (a tela da coleção); este módulo continua sem I/O.
  *
- *   arte recuperável            ⇒ READY (mesmo que a chave de instantâneo seja antiga/ausente:
- *                                 conclusões anteriores a esta chave são CURADAS, não descartadas);
- *   sem arte, gravado NOT_PERSISTED ⇒ NOT_PERSISTED (Grátis não grava pixels — não é falha);
- *   sem arte, qualquer outro    ⇒ MISSING (integridade quebrada: não conta como concluída).
+ *   arte recuperável                ⇒ READY (mesmo que a chave de instantâneo seja antiga/ausente:
+ *                                     conclusões anteriores a esta chave são CURADAS, não descartadas);
+ *   sem arte, gravado NOT_PERSISTED ⇒ NOT_PERSISTED (conclusão sem pixels — não é falha);
+ *   sem arte, retrato SEM desfecho
+ *   gravado e sem registro algum    ⇒ NOT_PERSISTED (S2: CONCLUSÃO LEGADA — ver abaixo);
+ *   sem arte, retrato gravado READY ⇒ MISSING (a arte SUMIU: integridade quebrada);
+ *   sem arte, com registro          ⇒ MISSING (ponteiro órfão: integridade quebrada).
+ *
+ * A SEGUNDA EVIDÊNCIA (S2 · Spec 019). Com uma pergunta só — "a arte é recuperável?" — dois
+ * passados completamente diferentes respondiam igual e caíam juntos em MISSING:
+ *   • a criança concluiu quando o app ainda não guardava aqueles pixels (ou antes de a chave de
+ *     instantâneo existir) — NUNCA houve arte, e isso é NORMAL;
+ *   • havia arte gravada e ela sumiu — integridade QUEBRADA.
+ * Tratar o primeiro caso como quebra apagava conclusões verdadeiras da contagem. `evidence`
+ * carrega a informação que desempata, e o chamador a obtém do metadado que já tem à mão.
+ *
+ * A CONDIÇÃO É DELIBERADAMENTE ESTREITA, e a estreiteza é o ponto. Só migra para legado a vaga que
+ * reúne AS DUAS ausências ao mesmo tempo: nenhum desfecho gravado no retrato E nenhum registro de
+ * instantâneo no disco. Basta o app ter registrado um dia que a arte estava pronta — `READY` no
+ * retrato — para que a ausência dela volte a ser o que é: QUEBRA. Uma conclusão cuja arte foi
+ * apagada não pode se disfarçar de conclusão legada; se pudesse, a coleção passaria a esconder
+ * perdas reais atrás de uma copy gentil, que é exatamente a mentira oposta à que o S2 conserta.
+ *
+ * A MIGRAÇÃO É PREGUIÇOSA E NÃO ESCREVE NADA. Nenhuma varredura no boot, nenhuma reescrita de
+ * chave, nenhuma pintura inventada: a compatibilidade acontece aqui, na LEITURA da vaga, a partir
+ * do que já está no disco. Sem o terceiro argumento a função mantém o comportamento anterior —
+ * chamadores que não têm essa evidência não são obrigados a fingir que têm.
  *
  * É esta função que impede as duas mentiras opostas: "3 de 3" com arte inexistente e "0 de 3" para
  * quem concluiu antes de a chave existir.
  */
-export function reconcileSnapshotStatus(storedStatus, artRecoverable) {
+export function reconcileSnapshotStatus(storedStatus, artRecoverable, evidence = {}) {
   if (artRecoverable === true) return SNAPSHOT_STATUS.READY;
   if (storedStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return SNAPSHOT_STATUS.NOT_PERSISTED;
+  // Retrato SEM desfecho gravado: a chave nunca existiu, ou não guarda um desfecho legítimo.
+  const semDesfechoGravado = storedStatus == null || storedStatus === SNAPSHOT_STATUS.MISSING;
+  if (semDesfechoGravado && evidence && evidence.hasSnapshotRecord === false) {
+    return SNAPSHOT_STATUS.NOT_PERSISTED;
+  }
   return SNAPSHOT_STATUS.MISSING;
 }
 
@@ -153,7 +189,9 @@ export function deriveColoring60ActivityState(input = {}) {
  * countsAsComplete(state) — a atividade pode ser CONTADA no "x de 3"?
  * Só quando está concluída AGORA **e** o instantâneo teve desfecho legítimo. É a regra que
  * cumpre a Parte 4: não existe 3 de 3 sem três artes atualmente completas e com instantâneo
- * íntegro (READY quando o plano grava; NOT_PERSISTED quando, por decisão de plano, não grava).
+ * íntegro (READY quando há obra guardada; NOT_PERSISTED quando a conclusão é legada ou a escrita
+ * falhou). A CONTAGEM NUNCA DEPENDE DA EXISTÊNCIA DO ARQUIVO DE PINTURA: um passado sem pixels
+ * não pode reduzir um "3 de 3" já conquistado.
  */
 export function countsAsComplete(state) {
   if (!state || state.isCurrentlyComplete !== true) return false;
@@ -183,8 +221,9 @@ export function hasIntegrityBreak(state) {
  * quem limpou a folha volta à vaga vazia mesmo que sobre pintura antiga no disco (Parte 9). `ART`
  * exige as TRÊS provas juntas — pintura, contorno e instantâneo READY — porque compor meia obra é
  * a mentira que este seletor existe para impedir. `NOT_PERSISTED` vem ANTES do desfecho genérico
- * para que a decisão de plano nunca seja confundida com quebra de integridade: são coisas
- * diferentes e precisam continuar visualmente distinguíveis.
+ * para que a conclusão sem pixels nunca seja confundida com quebra de integridade: "nunca houve
+ * pintura guardada" e "havia e sumiu" são coisas diferentes e precisam continuar visualmente
+ * distinguíveis.
  */
 export function coloring60SlotKind(evidence = {}) {
   const state = deriveColoring60ActivityState({

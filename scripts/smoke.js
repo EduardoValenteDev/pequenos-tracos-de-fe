@@ -37729,7 +37729,19 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       const iFreeze = handler.indexOf('const revisionId = metrics.revisionId');
       const iSave = handler.indexOf('saveColoring60DrawingState(');
       const iVerify = handler.indexOf('snapshotMatchesRevision(');
-      const iMark = handler.indexOf('markColoring60ActivityDone(');
+      // [S2] O handler passou a ter DUAS marcações de conclusão, e elas provam coisas DIFERENTES:
+      // a do caminho de SUCESSO (depois de gravar e conferir) e a da FALHA FÍSICA de escrita (a
+      // conclusão honesta, sem pixels). A ordem canônica é uma propriedade do caminho de SUCESSO —
+      // medir a PRIMEIRA ocorrência passaria a medir a exceção e a trava perderia o sentido. Os
+      // índices abaixo apontam explicitamente para cada ramo, e ambos continuam vigiados.
+      const iRamoFalha = handler.indexOf('if (result !== COLORING60_SAVE_RESULT.SAVED)');
+      const iRamoSucesso = handler.indexOf('const stored = await getColoring60SavedDrawing(');
+      const ramoFalha = (iRamoFalha >= 0 && iRamoSucesso > iRamoFalha)
+        ? handler.slice(iRamoFalha, iRamoSucesso) : '';
+      const iMark = handler.indexOf('markColoring60ActivityDone(', iRamoSucesso);
+      check('C60-P4.T2 [C]→S2: os dois ramos do desfecho continuam DEMARCÁVEIS no fonte (falha antes, sucesso depois) — sem isso, as travas de ordem mediriam o ramo errado',
+        iRamoFalha >= 0 && iRamoSucesso > iRamoFalha && ramoFalha.length > 0 && iMark > iRamoSucesso,
+        `a demarcação dos ramos se perdeu (falha=${iRamoFalha}, sucesso=${iRamoSucesso}, marcar=${iMark})`);
       check('C60-P4.T2 [C]→P4: ordem da TRANSAÇÃO — export→validar cor REAL→congelar revisão→persistir→verificar revisão→marcar',
         iExport >= 0 && iValid > iExport && iMeasure > iValid && iColor > iMeasure
           && iFreeze > iColor && iSave > iFreeze && iVerify > iSave && iMark > iVerify,
@@ -37744,13 +37756,30 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       check('C60-P4.T2 [D]→P4: CONCLUSÃO é marcada DEPOIS da pintura persistida e verificada (não existe conclusão sem arte)',
         iMark >= 0 && iSave >= 0 && iMark > iSave && iMark > iVerify,
         'a conclusão passa a ser consequência da arte guardada — nunca a precede');
-      // [S1] A recusa ficou MAIS estrita, não menos: agora TODO desfecho diferente de `saved`
-      // interrompe a transação (antes o Grátis seguia adiante sem pixels). A cláusula composta
+      // [S1] A recusa ficou MAIS estrita, não menos: TODO desfecho diferente de `saved` sai do
+      // caminho de sucesso (antes o Grátis seguia adiante sem pixels). A cláusula composta
       // `&& result !== ...NOT_PERSISTED_FREE` não pode voltar.
-      check('C60-P4.T2 [D]→P4: falha de persistência NÃO marca, NÃO celebra e NÃO abre a coleção',
-        /if \(result !== COLORING60_SAVE_RESULT\.SAVED\)\s*\{[\s\S]{0,400}?return;/.test(handler)
-          && handler.indexOf('COLORING60_SAVE_RESULT.WRITE_FAILED') < iMark,
-        'só arte guardada e verificada continua a transação — qualquer outro desfecho interrompe');
+      //
+      // [S2] A PROMESSA ANTIGA DESTA TRAVA FOI PARCIALMENTE REVOGADA, e a revogação é deliberada.
+      // Ela dizia "falha de persistência NÃO marca" para TODA falha. Isso confundia duas coisas que
+      // o S1 separou: quem NÃO PODIA escrever (acesso negado, identidade inválida) e quem PODIA e o
+      // disco falhou. Cobrar da segunda o mesmo preço da primeira trancava a progressão da história
+      // por falta de espaço no aparelho. A proteção não foi removida — foi PARTIDA EM DUAS, e as
+      // duas metades continuam vigiadas aqui: a recusa de acesso segue com efeito ZERO, e a falha
+      // física marca a conclusão HONESTA (nunca READY inventado) sem jamais pular a verificação.
+      check('C60-P4.T2 [D]→S2: recusa de ACESSO continua sem marcar; a falha FÍSICA marca conclusão honesta e NUNCA reaproveita o caminho de sucesso',
+        /if \(result !== COLORING60_SAVE_RESULT\.SAVED\)\s*\{/.test(handler)
+          && /if \(result !== COLORING60_SAVE_RESULT\.WRITE_FAILED\)\s*\{[\s\S]{0,220}?return;\s*\}/.test(ramoFalha)
+          && ramoFalha.indexOf('markColoring60ActivityDone(') > ramoFalha.indexOf('COLORING60_SAVE_RESULT.WRITE_FAILED')
+          && !/snapshotMatchesRevision\(/.test(ramoFalha)
+          && !/SNAPSHOT_STATUS\.READY\s*;/.test(ramoFalha),
+        'a exceção da falha física não pode virar um atalho para o desfecho de sucesso');
+      check('C60-P4.T2 [D]→S2: o desfecho da falha física é DERIVADO do que está no disco (obra anterior), nunca assumido',
+        /const previous = await getColoring60SavedDrawing\(/.test(ramoFalha)
+          && /hasMeaningfulColor\(readPaintMetricsFromSnapshot\(previous\)\)/.test(ramoFalha)
+          && ramoFalha.indexOf('getColoring60SavedDrawing(') < ramoFalha.indexOf('markColoring60ActivityDone(')
+          && /persisted: false/.test(ramoFalha),
+        'sem reler o disco, uma sobrescrita falhada rebaixaria a obra anterior a "sem pixels"');
       check('C60-P4.T2 [D]→P4 [controle negativo]: nenhum desfecho "sucesso sem pixels" escapa do gate',
         !/NOT_PERSISTED_FREE/.test(handler)
           && !/result !== COLORING60_SAVE_RESULT\.SAVED\s*\n?\s*&&/.test(handler),
@@ -37927,17 +37956,27 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       // Antes: o writer só rodava se a conclusão tivesse sido gravada. Isso permitia conclusão sem
       // arte. Agora a conclusão é o ÚLTIMO passo e só acontece se a arte estiver gravada e conferida;
       // e mesmo assim, `completed !== true` continua bloqueando a CELEBRAÇÃO (nada de festa falsa).
+      // [S2] Os índices passam a ser medidos DENTRO do caminho de sucesso (`ramoSucesso`): a
+      // marcação da falha física é anterior no fonte e, medida de fora, faria estas travas
+      // responderem sobre o ramo errado. A exigência sobre o caminho de sucesso não mudou nada.
+      const ramoSucesso = iRamoSucesso >= 0 ? handler.slice(iRamoSucesso) : '';
       check('C60-P4.T2 [H]→P4: conclusão é o ÚLTIMO passo (const completed = await mark, DEPOIS do writer e da verificação)',
-        /const completed = await markColoring60ActivityDone\(/.test(handler)
-          && handler.indexOf('markColoring60ActivityDone(') > handler.indexOf('saveColoring60DrawingState(')
-          && handler.indexOf('markColoring60ActivityDone(') > handler.indexOf('snapshotMatchesRevision('),
+        /const completed = await markColoring60ActivityDone\(/.test(ramoSucesso)
+          && iMark > handler.indexOf('saveColoring60DrawingState(')
+          && iMark > handler.indexOf('snapshotMatchesRevision('),
         'a conclusão não pode voltar a preceder a persistência da pintura');
       check('C60-P4.T2 [H]→P4: conclusão não persistida ⇒ retorna ANTES de celebrar/voltar; c60Saving liberado pelo finally (tela recuperável, sem sucesso falso)',
-        /if \(completed !== true\) \{[\s\S]*?return;[\s\S]*?\}/.test(handler)
-          && handler.indexOf('completed !== true') < handler.indexOf('onCelebrate(')
-          && handler.indexOf('completed !== true') < handler.indexOf('goBack()')
+        /if \(completed !== true\) \{[\s\S]*?return;[\s\S]*?\}/.test(ramoSucesso)
+          && ramoSucesso.indexOf('completed !== true') < ramoSucesso.indexOf('onCelebrate(')
+          && ramoSucesso.indexOf('completed !== true') < ramoSucesso.indexOf('goBack()')
           && /finally \{[\s\S]*?controller\.release\(token\);[\s\S]*?setSaving\(false\);[\s\S]*?\}/.test(handler),
         'mark false não celebra nem navega; o finally libera a trava e reabilita a tela');
+      // [S2] A MESMA exigência vale para a exceção: uma conclusão honesta que NÃO conseguiu ser
+      // gravada também não celebra. A falha física é indulgente com a criança, não com o rigor.
+      check('C60-P4.T2 [H]→S2: também na falha física, conclusão não gravada ⇒ avisa e retorna ANTES de celebrar (a exceção não afrouxa a prova de gravação)',
+        /if \(kept !== true\) \{[\s\S]{0,260}?return;\s*\}/.test(ramoFalha)
+          && ramoFalha.indexOf('kept !== true') < ramoFalha.indexOf('onCelebrate('),
+        'celebrar sem conseguir registrar a conclusão seria um sucesso falso, venha de onde vier');
 
       // ── Grupo I (FIX1 · Etapa 5) — RESET por identidade via remontagem (key no wrapper) ────────
       check('C60-P4.T2 [I]: ramo Colorir 60 REMONTA por identidade (key=storyId+activityId) — reseta D1/D5/saving ao trocar de atividade',
@@ -38178,11 +38217,24 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       check('C60-P4-FIX2 [S5]: finally libera SOMENTE o token vigente (isCurrent antes de release)',
         /finally \{[\s\S]*?if \(controller\.isCurrent\(token\)\) \{[\s\S]*?controller\.release\(token\);/.test(handlerF),
         'um callback antigo não libera a trava de uma tentativa nova');
+      // [S2] O desfecho passou a ter dois ramos, e a celebração de cada um é guardada pela SUA
+      // própria prova de conclusão (`completed` no sucesso, `kept` na falha física). Medir a
+      // primeira ocorrência de `onCelebrate(` no handler inteiro compararia a guarda de um ramo
+      // com a celebração do outro — resposta sem significado. Cada ramo é medido em si.
+      const iSucF = handlerF.indexOf('const stored = await getColoring60SavedDrawing(');
+      const ramoSucF = iSucF >= 0 ? handlerF.slice(iSucF) : '';
+      const iFalF = handlerF.indexOf('if (result !== COLORING60_SAVE_RESULT.SAVED)');
+      const ramoFalF = (iFalF >= 0 && iSucF > iFalF) ? handlerF.slice(iFalF, iSucF) : '';
       check('C60-P4-FIX2 [S6]→P4: writer ANTES do mark e completed !== true bloqueia a CELEBRAÇÃO (dependência invertida)',
         handlerF.indexOf('saveColoring60DrawingState(') < handlerF.indexOf('markColoring60ActivityDone(')
-          && /completed !== true/.test(handlerF)
-          && handlerF.indexOf('completed !== true') < handlerF.indexOf('onCelebrate('),
+          && /completed !== true/.test(ramoSucF)
+          && ramoSucF.indexOf('completed !== true') < ramoSucF.indexOf('onCelebrate('),
         'a arte é gravada e conferida ANTES de existir conclusão; conclusão que falha não celebra');
+      check('C60-P4-FIX2 [S6]→S2: na falha física, kept !== true também bloqueia a CELEBRAÇÃO (a exceção não abre exceção para sucesso falso)',
+        ramoFalF.length > 0
+          && /kept !== true/.test(ramoFalF)
+          && ramoFalF.indexOf('kept !== true') < ramoFalF.indexOf('onCelebrate('),
+        'conclusão honesta que não conseguiu ser registrada não vira celebração');
       check('C60-P4-FIX2 [S7]→P3: o caminho do callback mede COR REAL — e a heurística de TAMANHO de base64 saiu de vez',
         /isAcceptableC60Payload\(/.test(handlerF)
           && /readPaintMetricsFromSnapshot\(/.test(handlerF)
@@ -38467,13 +38519,18 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       {
         // [S1] CADA recusa do writer vira um aviso PRÓPRIO — e nenhuma conclui, celebra ou navega.
         // A tela mapeia por REFERÊNCIA ao enum (os valores do SR falso não são os rótulos emitidos).
+        //
+        // [S2] `write_failed` SAIU desta lista — e a saída é a mudança de contrato, não um relaxamento.
+        // As recusas abaixo dizem "você NÃO PODIA escrever" (acesso, identidade, autorização): nada
+        // aconteceu, então nada é registrado. `write_failed` diz "você PODIA e o disco falhou" — a
+        // criança pintou de verdade. Cobrar dela o preço de um erro do aparelho travaria a história.
+        // O desfecho próprio do `write_failed` é provado logo abaixo, com exigências MAIORES.
         const recusas = [
           [SR.ACCESS_DENIED, 'access_denied'],
           [SR.AUTHORIZATION_NOT_READY, 'authorization_not_ready'],
           [SR.INVALID_STORY, 'invalid_story'],
           [SR.INVALID_ACTIVITY, 'invalid_activity'],
           [SR.INVALID_AUTHORIZATION, 'invalid_authorization'],
-          [SR.WRITE_FAILED, 'write_failed'],
         ];
         for (const [saveReturn, rotulo] of recusas) {
           const k = makeInstance({ withCelebrate: true, saveReturn, stored: null });
@@ -38483,6 +38540,44 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
             k.counts.mark === 0 && k.counts.celebrate === 0 && k.counts.goBack === 0
               && k.counts.issues.join(',') === rotulo,
             `cada causa de recusa precisa chegar ao chamador com o próprio nome (recebido: ${JSON.stringify(k.counts.issues)})`);
+        }
+        // [S2] `write_failed` SEM obra anterior: a atividade fica CONCLUÍDA e HONESTA — conclusão
+        // registrada com notPersisted (nunca READY inventado), celebração com persisted=false.
+        {
+          const k = makeInstance({ withCelebrate: true, saveReturn: SR.WRITE_FAILED, stored: null });
+          k.attempt(); k.render();
+          await k.fire(k.canvas.captured[0]);
+          const a = k.counts.markArgsOf();
+          check('C60-P4-FIX2 [N]→S2 falha física SEM obra anterior: conclui como notPersisted, celebra persisted=false, sem inventar READY',
+            k.counts.mark === 1 && k.counts.celebrate === 1 && k.counts.goBack === 0
+              && a && a.status === SS.NOT_PERSISTED
+              && k.counts.celebrateArgs && k.counts.celebrateArgs.persisted === false
+              && k.counts.celebrateArgs.snapshotStatus === SS.NOT_PERSISTED,
+            `a falha do disco não pode apagar o trabalho da criança nem mentir que ele foi guardado (status=${a && a.status}, celebração=${JSON.stringify(k.counts.celebrateArgs)})`);
+        }
+        // [S2] `write_failed` COM obra anterior no disco: a sobrescrita falhou, mas a obra de antes
+        // continua lá — o desfecho é READY, derivado da RELEITURA, e a coleção segue mostrando arte.
+        {
+          const k = makeInstance({ withCelebrate: true, saveReturn: SR.WRITE_FAILED, stored: PROOF });
+          k.attempt(); k.render();
+          await k.fire(k.canvas.captured[0]);
+          const a = k.counts.markArgsOf();
+          check('C60-P4-FIX2 [N]→S2 falha física COM obra anterior: desfecho READY vindo da RELEITURA (a sobrescrita falhada não rebaixa a arte que já existia)',
+            k.counts.mark === 1 && k.counts.celebrate === 1
+              && a && a.status === SS.READY
+              && k.counts.celebrateArgs && k.counts.celebrateArgs.persisted === false,
+            `assumir notPersisted sem reler apagaria visualmente uma obra íntegra (status=${a && a.status}, celebração=${JSON.stringify(k.counts.celebrateArgs)})`);
+        }
+        // [S2] CONTROLE NEGATIVO: mesmo na falha física, conclusão que NÃO consegue ser registrada
+        // não celebra — vira aviso. A indulgência é com a criança, não com a prova de gravação.
+        {
+          const k = makeInstance({ withCelebrate: true, saveReturn: SR.WRITE_FAILED, stored: null, markReturn: false });
+          k.attempt(); k.render();
+          await k.fire(k.canvas.captured[0]);
+          check('C60-P4-FIX2 [N]→S2 falha física + conclusão recusada: avisa write_failed e NÃO celebra (sem sucesso falso)',
+            k.counts.mark === 1 && k.counts.celebrate === 0 && k.counts.goBack === 0
+              && k.counts.issues.join(',') === 'write_failed',
+            `celebrar sem conclusão registrada seria o "3 de 3" falso por outra porta (celebra=${k.counts.celebrate}, avisos=${JSON.stringify(k.counts.issues)})`);
         }
       }
       {
@@ -38562,6 +38657,15 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       // `getContentAuthorization`. Ambos estão provados NOMINALMENTE — [G]→S1 fecha o uso do
       // contexto numa porta só, e [D]→S1 exige o contrato inteiro chegando ao writer. O selo é
       // reancorado com a mudança declarada; qualquer OUTRA alteração segue acendendo o alarme.
+      // REFERÊNCIA REBASEADA DE NOVO — [Spec 019 · S2]. O valor anterior (57.375 bytes,
+      // sha 6a7f4556115ae0c481e74d8187d76caebf27cff0310b961f05c92c593f8bf83e) foi medido ao fim do
+      // S1. O S2 alterou DELIBERADAMENTE este corpo num ponto de comportamento só: o ramo de
+      // desfecho não-`saved` passou a distinguir a RECUSA DE ACESSO (efeito zero, como sempre) da
+      // FALHA FÍSICA DE ESCRITA, que agora relê o disco e registra a conclusão HONESTA — READY se a
+      // obra anterior sobreviveu, notPersisted se não havia obra. Está provado nominalmente em
+      // [D]→S2 (dois checks), [H]→S2, [S6]→S2, [N]→S2 (três cenários) e na prova 5b do portão.
+      // O restante do delta são comentários que descreviam a política revogada. O selo é reancorado
+      // com a mudança declarada; qualquer OUTRA alteração segue acendendo o alarme.
       const c60BodyF = (function sliceC60(s) {
         const i = s.indexOf('function Coloring60ActivityScreen(');
         const j = s.indexOf('const c60Styles = StyleSheet.create(', i + 1);
@@ -38569,8 +38673,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       })(scrF);
       const c60ShaF = require('crypto').createHash('sha256').update(c60BodyF, 'utf8').digest('hex');
       check('C60-P4-FIX2 [LEGADO] → [P3J]: corpo do Coloring60ActivityScreen BYTE-IDÊNTICO a HEAD (a aposentadoria não tocou o colorir vivo)',
-        c60ShaF === '6a7f4556115ae0c481e74d8187d76caebf27cff0310b961f05c92c593f8bf83e'
-          && c60BodyF.length === 57375,
+        c60ShaF === '070fd5982c72b57af058fcf3664b8b757519b807bf82308cf5ddfa9ba0d41cd6'
+          && c60BodyF.length === 57646,
         `o corpo do Colorir com o Beni mudou (sha=${c60ShaF}, bytes=${c60BodyF.length}) — nenhuma mudança vizinha pode tocar o ramo vivo`);
     }
   }
@@ -38833,16 +38937,28 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         fire: (cb, p = GATE_SNAP) => { cb(p); return new Promise((r) => setTimeout(r, 0)); } };
     };
 
-    // Prova 5 — escrita falhou / identidade recusada: NÃO celebra, avisa honestamente, não navega.
+    // Prova 5 [S2] — identidade recusada não registra nada; falha física registra conclusão honesta.
     {
-      const i = makeGateInstance({ saveReturn: SR.WRITE_FAILED });
-      i.attempt(); await i.fire(i.canvas.captured[0]);
+      // [S2] A metade `write_failed` desta prova foi REESCRITA, não afrouxada. A promessa antiga
+      // ("falha técnica não celebra") juntava dois fatos opostos: identidade recusada significa que
+      // NADA foi feito; falha do disco significa que a criança pintou e o APARELHO falhou. O portão
+      // continua exigindo que nenhuma falha anuncie sucesso — e agora exige MAIS: quando o disco
+      // falha, a celebração precisa declarar `persisted:false` e o desfecho precisa ser o HONESTO.
+      // Anunciar `persisted:true` aqui seria a falha comprovada no aparelho, e segue barrada.
+      // O dublê recebe `stored: null` para encenar o disco vazio — sem isso a releitura devolveria
+      // o payload que o writer nem chegou a gravar (infidelidade do dublê, não do contrato).
       const j = makeGateInstance({ saveReturn: SR.INVALID_ACTIVITY });
       j.attempt(); await j.fire(j.canvas.captured[0]);
-      check('C60-P10 [prova 5] escrita falhou / identidade recusada: NÃO celebra (onCelebrate 0), avisa, não navega',
-        i.counts.celebrate === 0 && i.counts.saveIssue === 1 && i.captured.issue[0] === 'write_failed' && i.counts.goBack === 0
-          && j.counts.celebrate === 0 && j.counts.saveIssue === 1 && j.captured.issue[0] === 'invalid_activity' && j.counts.goBack === 0,
-        `falha técnica nunca anuncia sucesso (wf=${JSON.stringify(i.counts)}/${JSON.stringify(i.captured.issue)}, inv=${JSON.stringify(j.counts)}/${JSON.stringify(j.captured.issue)})`);
+      check('C60-P10 [prova 5] identidade recusada: NÃO celebra (onCelebrate 0), avisa, não navega',
+        j.counts.celebrate === 0 && j.counts.saveIssue === 1 && j.captured.issue[0] === 'invalid_activity' && j.counts.goBack === 0,
+        `recusa de identidade não escreveu nada e não pode registrar nada (inv=${JSON.stringify(j.counts)}/${JSON.stringify(j.captured.issue)})`);
+      const i = makeGateInstance({ saveReturn: SR.WRITE_FAILED, stored: null });
+      i.attempt(); await i.fire(i.canvas.captured[0]);
+      const cf = i.captured.celebrate[0];
+      check('C60-P10 [prova 5b]→S2 escrita falhou: conclui HONESTAMENTE (notPersisted) e a celebração declara persisted=false — jamais sucesso falso',
+        i.counts.mark === 1 && i.counts.celebrate === 1 && i.counts.goBack === 0
+          && cf && cf.persisted === false && cf.snapshotStatus === gateState.SNAPSHOT_STATUS.NOT_PERSISTED,
+        `a falha do disco não pode virar "guardado" nem apagar a parte concluída (wf=${JSON.stringify(i.counts)}, celebração=${JSON.stringify(cf)})`);
     }
     // Prova 6a [S1] — REVOGADA a celebração sem pixels: sem acesso legítimo (ou com autorização não
     // pronta) o portão NÃO celebra. A proteção que a prova antiga dava — "não anunciar erro para a
@@ -46701,12 +46817,19 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
    * a atividade recém-pintada aparecia como miniatura (a arte ainda estava na MEMÓRIA da sessão) ao
    * lado de duas molduras vazias com um ícone genérico de "imagem ausente"; na coleção, as três
    * vagas viravam quadros vazios com um texto cinza minúsculo — indistinguíveis de miniaturas
-   * quebradas ou que não carregaram. A política de armazenamento está CORRETA (o Grátis não guarda
-   * pixels, por decisão de plano). O defeito estava na REPRESENTAÇÃO.
+   * quebradas ou que não carregaram. Na época, a política de armazenamento estava CORRETA (o Grátis
+   * não guardava pixels, por decisão de plano). O defeito estava na REPRESENTAÇÃO.
+   *
+   * [Spec 019 · S1/S2] A POLÍTICA daquele diagnóstico foi REVOGADA: hoje toda pintura legítima é
+   * guardada, em qualquer plano. Este bloco inteiro, porém, continua valendo — porque o estado que
+   * ele protege não desapareceu, só trocou de causa. Conclusão sem pixels guardados agora nasce de
+   * (a) conclusões LEGADAS, anteriores à mudança, e (b) FALHA FÍSICA de escrita no aparelho. A
+   * exigência é a mesma: representar isso com honestidade, nunca como vaga vazia ou miniatura
+   * quebrada. Onde o texto abaixo dizia "Grátis", leia-se "conclusão sem pixels no disco".
    *
    * A CORREÇÃO (Opção A · decisão do fundador): as três partes concluídas sem persistência têm a
    * MESMA representação honesta em toda superfície que representa COLEÇÃO ou CONJUNTO FINAL. Nenhuma
-   * pintura Grátis é reconstruída, fingida ou tratada como salva. A arte viva da sessão continua
+   * pintura ausente é reconstruída, fingida ou tratada como salva. A arte viva da sessão continua
    * protagonista na ÁREA PRINCIPAL da celebração imediata (a moldura `Coloring60ArtGlow`), mas JAMAIS
    * entra num slot que represente obra guardada.
    *
@@ -46812,10 +46935,19 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const S3 = { READY: 'ready', NOT_PERSISTED: 'notPersisted', MISSING: 'missing', FAILED: 'failed' };
     const K3 = { ART: 'art', NOT_PERSISTED: 'notPersisted', NEEDS_COLOR: 'needsColor', EMPTY: 'empty' };
     const IDS3 = ['light', 'living_world', 'people_and_care'];
-    // Evidência de UMA parte concluída no plano Grátis: concluída agora, instantâneo NOT_PERSISTED
-    // por decisão de plano, nenhum pixel recuperável — o contorno oficial existe (e continua proibido
-    // de aparecer sozinho no lugar da obra).
-    const gratis3 = (activityId) => ({
+    // Evidência de UMA parte concluída SEM pixels guardados: concluída, instantâneo NOT_PERSISTED,
+    // nenhum pixel recuperável — o contorno oficial existe (e continua proibido de aparecer sozinho
+    // no lugar da obra).
+    //
+    // [S2] Este retrato se chamava `gratis3` porque, sob a política antiga, só o plano Grátis o
+    // produzia. O S1 revogou essa regra: hoje toda pintura legítima é guardada, em qualquer plano.
+    // O ESTADO, porém, não desapareceu — passou a ter dois produtores legítimos, e é por isso que o
+    // bloco inteiro do FIX 3 continua valendo palavra por palavra: (a) as conclusões LEGADAS, de
+    // quem terminou a atividade antes da mudança e não tem pixels no disco, e (b) a FALHA FÍSICA de
+    // escrita, quando o aparelho não conseguiu gravar. O nome mudou para dizer a verdade; a
+    // exigência é a mesma de sempre — conclusão sem pixels é representada com honestidade, nunca
+    // como vaga vazia, nunca com contorno fingindo ser obra.
+    const legado3 = (activityId) => ({
       activityId, isCurrentlyComplete: true, hasEverCompleted: true,
       snapshotStatus: S3.NOT_PERSISTED, hasPaint: false, hasLineart: true,
     });
@@ -46825,19 +46957,19 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     });
 
     // ── [1] Grátis concluído + instantâneo NOT_PERSISTED + sem pixels ⇒ NOT_PERSISTED ──────────
-    check('FIX3 [1 · domínio] parte concluída no Grátis (instantâneo NOT_PERSISTED, sem pixels) resolve para o estado compartilhado NOT_PERSISTED',
-      kind3(gratis3('light')) === K3.NOT_PERSISTED,
-      `o seletor compartilhado devolveu ${JSON.stringify(kind3(gratis3('light')))}${faltaST3}`);
+    check('FIX3 [1 · domínio] parte concluída SEM pixels (instantâneo NOT_PERSISTED) resolve para o estado compartilhado NOT_PERSISTED',
+      kind3(legado3('light')) === K3.NOT_PERSISTED,
+      `o seletor compartilhado devolveu ${JSON.stringify(kind3(legado3('light')))}${faltaST3}`);
 
     // ── [2] Grátis 3/3 ⇒ os TRÊS slots do FECHO resolvem NOT_PERSISTED ────────────────────────
-    check('FIX3 [2 · fecho] Grátis 3 de 3: os TRÊS slots do fecho resolvem NOT_PERSISTED (nenhum sobra como vazio ou quebrado)',
-      IDS3.every((id) => kind3(gratis3(id)) === K3.NOT_PERSISTED),
-      `kinds do fecho: ${JSON.stringify(IDS3.map((id) => kind3(gratis3(id))))}${faltaST3}`);
+    check('FIX3 [2 · fecho] legado 3 de 3: os TRÊS slots do fecho resolvem NOT_PERSISTED (nenhum sobra como vazio ou quebrado)',
+      IDS3.every((id) => kind3(legado3(id)) === K3.NOT_PERSISTED),
+      `kinds do fecho: ${JSON.stringify(IDS3.map((id) => kind3(legado3(id))))}${faltaST3}`);
 
     // ── [3] Grátis 3/3 ⇒ os TRÊS slots da COLEÇÃO resolvem NOT_PERSISTED ──────────────────────
-    check('FIX3 [3 · coleção] Grátis 3 de 3: os TRÊS slots da coleção resolvem NOT_PERSISTED pelo MESMO modelo',
-      IDS3.every((id) => kindColecao3(gratis3(id)) === K3.NOT_PERSISTED),
-      `kinds da coleção: ${JSON.stringify(IDS3.map((id) => kindColecao3(gratis3(id))))}`);
+    check('FIX3 [3 · coleção] legado 3 de 3: os TRÊS slots da coleção resolvem NOT_PERSISTED pelo MESMO modelo',
+      IDS3.every((id) => kindColecao3(legado3(id)) === K3.NOT_PERSISTED),
+      `kinds da coleção: ${JSON.stringify(IDS3.map((id) => kindColecao3(legado3(id))))}`);
 
     // ── [4] Fecho e coleção produzem o MESMO kind, atividade por atividade, em TODA a matriz ───
     const MATRIZ3 = [
@@ -46897,12 +47029,27 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         && /thumbLabel/.test(fx3Ovl) && /slotLabelText/.test(fx3Cln),
       `a marca de conclusão precisa ser intencional e distinta por estado${vivoCP3 ? '' : ` — ${CP3.__erro}`}`);
 
-    // ── [8] Copy explícita sobre a pintura não ficar guardada ──────────────────────────────────
-    check('FIX3 [8 · copy] NOT_PERSISTED diz "Parte concluída!" e informa, com clareza, que a pintura não fica guardada depois de sair',
+    // ── [8] Copy do estado NOT_PERSISTED ───────────────────────────────────────────────────────
+    // [S2] O TÍTULO é intocado: a parte continua concluída, e essa é a promessa que não podia cair.
+    // A NOTA mudou porque o fato mudou. "A pintura não fica guardada depois de sair." descrevia uma
+    // regra de produto que o S1 revogou — hoje toda pintura legítima é guardada, em qualquer plano.
+    // Manter a frase antiga seria mentir para a criança sobre o app que ela tem na mão. A nota nova
+    // convida a refazer ("Pinte de novo para guardar sua criação."), que é exatamente o caminho
+    // real: repintar converte o slot legado em ART. A trava continua exigindo texto explícito e
+    // honesto na FONTE ÚNICA — mudou o texto exigido, não o rigor.
+    check('FIX3 [8 · copy]→S2 NOT_PERSISTED diz "Parte concluída!" e convida a repintar para guardar (a nota antiga descrevia a política revogada)',
       vivoCP3
         && CP3.COLORING60_SLOT_STATE_COPY[K3.NOT_PERSISTED].title === 'Parte concluída!'
-        && CP3.COLORING60_SLOT_STATE_COPY[K3.NOT_PERSISTED].note === 'A pintura não fica guardada depois de sair.',
+        && CP3.COLORING60_SLOT_STATE_COPY[K3.NOT_PERSISTED].note === 'Pinte de novo para guardar sua criação.',
       `os dois textos oficiais do estado NOT_PERSISTED precisam existir na fonte única${vivoCP3 ? ` (atual: ${JSON.stringify(CP3.COLORING60_SLOT_STATE_COPY && CP3.COLORING60_SLOT_STATE_COPY[K3.NOT_PERSISTED])})` : ` — ${CP3.__erro}`}`);
+    // [S2] CONTROLE NEGATIVO da própria copy: a frase revogada não pode voltar por nenhuma porta,
+    // e a nota nova não pode virar cobrança comercial nem culpa ("você perdeu", "assine", "premium").
+    check('FIX3 [8c · copy]→S2 a frase da política revogada não volta, e a nota nova não menciona plano, assinatura nem culpa',
+      vivoCP3
+        && !/não fica guardada|não será guardada|não fica salva/i.test(JSON.stringify(CP3.COLORING60_SLOT_STATE_COPY))
+        && !/assin|premium|plano|famíl|grátis|gratuit|pag|compr|desbloqu|perdeu|apagad/i
+          .test(JSON.stringify(CP3.COLORING60_SLOT_STATE_COPY)),
+      `a copy do estado honesto fala com a criança sobre pintar, nunca sobre comprar${vivoCP3 ? ` (atual: ${JSON.stringify(CP3.COLORING60_SLOT_STATE_COPY)})` : ` — ${CP3.__erro}`}`);
 
     check('FIX3 [8b · copy] os três estados honestos são DISTINGUÍVEIS por texto (nada de uma frase-modelo para tudo) e nenhum deles promete reabrir a arte',
       vivoCP3
@@ -46976,11 +47123,14 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         && /PREVIEW_STATE\.READY_WITHOUT_PERSISTED_ART/.test(fx3Prv),
       `a prévia do estado honesto não pode inventar obra${J3.__erro ? ` — ${J3.__erro}` : ''}`);
 
-    check('FIX3 [15b · prévia] a prévia de NOT_PERSISTED repete a MESMA informação da coleção e do fecho (a pintura não fica guardada), pela fonte única de textos',
+    // [S2] O que esta trava protege é a UNICIDADE da voz: prévia, coleção e fecho dizem a mesma
+    // frase porque leem a mesma fonte. O texto exigido acompanhou a mudança de política; a exigência
+    // de fonte única — a parte que impede três verdades sobre a mesma vaga — segue idêntica.
+    check('FIX3 [15b · prévia]→S2 a prévia de NOT_PERSISTED repete a MESMA informação da coleção e do fecho (convite a repintar), pela fonte única de textos',
       /COLORING60_SLOT_STATE_COPY/.test(fx3Prv)
         && vivoCP3
-        && CP3.COLORING60_SLOT_STATE_COPY[K3.NOT_PERSISTED].note === 'A pintura não fica guardada depois de sair.',
-      'nenhuma superfície pode deixar a criança achar que a arte voltará depois');
+        && CP3.COLORING60_SLOT_STATE_COPY[K3.NOT_PERSISTED].note === 'Pinte de novo para guardar sua criação.',
+      'nenhuma superfície pode contar uma história diferente sobre a mesma vaga');
 
     // ── [16] Nenhum slot reutiliza a pintura de outra atividade ───────────────────────────────
     check('FIX3 [16 · identidade] cada slot do fecho lê SOMENTE o item da sua própria identidade (mapa por activityId) e nada herda pintura de vizinho',
@@ -46989,15 +47139,15 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         && !/finaleItems\[\d\]/.test(fx3OvlCode),
       'a arte de Vida jamais pode aparecer na vaga de Luz — a busca é por identidade, nunca por posição');
 
-    // ── [17] Nenhuma escrita nova; nenhum dado Grátis gravado ─────────────────────────────────
+    // ── [17] Nenhuma escrita nova a partir das superfícies de representação ───────────────────
     check('FIX3 [17 · política] nenhuma superfície de representação escreve: sem writer de pixels, sem AsyncStorage, sem FileSystem na marca compartilhada, no fecho e na coleção',
       !/saveColoring60DrawingState|coloring60DrawingStorage|AsyncStorage|expo-file-system/.test(fx3MarkCode)
         && !/saveColoring60DrawingState|coloring60DrawingStorage|getColoring60SavedDrawing|AsyncStorage/.test(fx3OvlCode)
         && !/saveColoring60DrawingState|coloring60DrawingStorage|AsyncStorage/.test(fx3ClnCode)
         && !/saveColoring60DrawingState/.test(fx3FinaleLoader),
-      'a correção é de REPRESENTAÇÃO: o Grátis continua sem gravar um único pixel');
+      'a correção é de REPRESENTAÇÃO: quem mostra a vaga jamais grava pixel — escrever é do writer');
 
-    // ── [18] Conclusão Grátis permanece 3 de 3 ────────────────────────────────────────────────
+    // ── [18] Conclusão sem pixels permanece 3 de 3 ────────────────────────────────────────────
     check('FIX3 [18 · contagem] três partes concluídas com instantâneo NOT_PERSISTED continuam valendo 3 de 3 (a ausência de pintura guardada não reduz a conclusão)',
       (() => {
         if (!vivoST3) return false;
@@ -47121,15 +47271,15 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       CN_FX3.push({ id, descricao, original, mutante });
     };
 
-    cnSeletor3('CN-FIX3-1', 'NOT_PERSISTED deixa de existir e a conclusão Grátis volta a cair no estado de vaga vazia',
+    cnSeletor3('CN-FIX3-1', 'NOT_PERSISTED deixa de existir e a conclusão sem pixels volta a cair no estado de vaga vazia',
       (s) => s.replace('if (state.isCurrentlyComplete !== true) return COLORING60_SLOT_KIND.EMPTY;',
         'if (state.isCurrentlyComplete !== true || evidence.hasPaint !== true) return COLORING60_SLOT_KIND.EMPTY;'),
-      (M) => (M && !M.__erro ? M.coloring60SlotKind(gratis3('light')) === K3.NOT_PERSISTED : false));
+      (M) => (M && !M.__erro ? M.coloring60SlotKind(legado3('light')) === K3.NOT_PERSISTED : false));
 
     cnSeletor3('CN-FIX3-4', 'NOT_PERSISTED é convertido em ART (a conclusão sem pixels passaria a prometer obra)',
       (s) => s.replace('if (state.snapshotStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return COLORING60_SLOT_KIND.NOT_PERSISTED;',
         'if (state.snapshotStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return COLORING60_SLOT_KIND.ART;'),
-      (M) => (M && !M.__erro ? M.coloring60SlotKind(gratis3('light')) === K3.NOT_PERSISTED : false));
+      (M) => (M && !M.__erro ? M.coloring60SlotKind(legado3('light')) === K3.NOT_PERSISTED : false));
 
     cnSeletor3('CN-FIX3-5', 'Premium ART é convertido em NOT_PERSISTED (a obra verdadeira sumiria da coleção)',
       (s) => s.replace('&& state.snapshotStatus === SNAPSHOT_STATUS.READY) return COLORING60_SLOT_KIND.ART;',
@@ -47173,10 +47323,13 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       vivoCP3 && semComercial3(fx3Mark),
       vivoCP3 && semComercial3(fx3Mark.replace(/title: 'Parte concluída!'/, "title: 'Assine o Plano Família!'")));
 
-    const temAvisoDeNaoGuardar3 = (s) => /A pintura não fica guardada depois de sair\./.test(s);
-    cnFonte3('CN-FIX3-8', 'o aviso de que a pintura não fica guardada é removido',
-      vivoCP3 && temAvisoDeNaoGuardar3(fx3Mark),
-      vivoCP3 && temAvisoDeNaoGuardar3(fx3Mark.replace(/A pintura não fica guardada depois de sair\./g, '')));
+    // [S2] O controle negativo mudou de FRASE, não de função: ele existe para provar que o estado
+    // NOT_PERSISTED nunca fica mudo. Antes vigiava um aviso; agora vigia o convite que o substituiu.
+    // Um slot concluído sem nota nenhuma deixaria a criança sem saber que repintar resolve.
+    const temConviteDeRepintar3 = (s) => /Pinte de novo para guardar sua criação\./.test(s);
+    cnFonte3('CN-FIX3-8', 'o convite a repintar some e a conclusão sem pixels fica sem recado nenhum',
+      vivoCP3 && temConviteDeRepintar3(fx3Mark),
+      vivoCP3 && temConviteDeRepintar3(fx3Mark.replace(/Pinte de novo para guardar sua criação\./g, '')));
 
     const previaHonesta3 = (s) => /PREVIEW_STATE\.READY_WITHOUT_PERSISTED_ART/.test(s) && !/resolveColoring60Lineart/.test(s);
     cnFonte3('CN-FIX3-9', 'a prévia volta a resolver o contorno e a oferecer uma prévia falsa da obra inexistente',
@@ -47186,6 +47339,751 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
     for (const c of CN_FX3) {
       check(`FIX3 [negativo ${c.id}]: ${c.descricao}`,
+        c.original === true && c.mutante === false,
+        `o controle negativo não distinguiu o certo do errado (original=${JSON.stringify(c.original)} · mutante=${JSON.stringify(c.mutante)})`);
+    }
+  }
+
+  /* ═══ [S2 · SPEC 019] COMPATIBILIDADE DO LEGADO E OBRA REAL NA COLEÇÃO ════════════════════════
+   * O QUE MUDA. O S1 trocou a autoridade de escrita do Colorir narrativo: quem decide não é mais o
+   * plano, é o ACESSO LEGÍTIMO à história. A partir dele, qualquer criança com acesso guarda a sua
+   * pintura. Isso cria um problema de CONVIVÊNCIA — que é exatamente o S2. No aparelho já existem
+   * conclusões antigas gravadas SEM pixels (o Grátis concluía e não gravava) e conclusões ainda
+   * mais antigas, anteriores à própria chave de instantâneo. Nenhuma delas pode regredir, sumir da
+   * contagem, virar "precisa de cor" nem ganhar uma pintura inventada.
+   *
+   * O PRINCÍPIO QUE LIMITA O RAIO. `NOT_PERSISTED` NÃO desaparece: muda o seu PRODUTOR — de "o
+   * plano é Grátis" para "conclusão legada sem pixels" (e também "a escrita física falhou"). O
+   * modelo, o seletor puro compartilhado e as três superfícies continuam com o MESMO contrato. A
+   * migração é de DADOS, não de modelo — e é PREGUIÇOSA: nada é varrido no boot; a compatibilidade
+   * acontece na LEITURA DO SLOT, com a evidência que já está à mão.
+   *
+   * A EVIDÊNCIA QUE FALTAVA. `reconcileSnapshotStatus` só recebia uma pergunta: "a arte é
+   * recuperável?". Com uma pergunta só, "nunca teve ponteiro" (legado) e "tinha ponteiro e o
+   * arquivo sumiu" (órfão) respondem igual — e caíam ambos em MISSING, isto é, em QUEBRA DE
+   * INTEGRIDADE, que não conta como concluída. O S2 entrega a SEGUNDA evidência (existe REGISTRO de
+   * instantâneo?) e separa os dois destinos, sem tocar em nenhum dado:
+   *   sem registro           ⇒ NOT_PERSISTED  (legado honesto — continua concluído)
+   *   com registro, sem blob ⇒ MISSING ⇒ NEEDS_COLOR (integridade quebrada, honesta)
+   *
+   * As provas de DOMÍNIO e LEITURA executam os módulos REAIS sobre um disco de mentira que preserva
+   * a ASSIMETRIA do disco de verdade (metadado × arquivo — é ela que distingue legado de órfão); as
+   * provas de TELA leem o fonte real, porque telas não rodam fora do React.
+   * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+  {
+    const { loadModule: s2Load } = require('./testing/packInstallHarness');
+
+    // ── Fontes reais das superfícies tocadas ou vigiadas pelo S2 ───────────────────────────────
+    const S2_MARK_SRC = 'src/components/coloring60/Coloring60SlotStateMark.js';
+    const s2Mark = srcExists(S2_MARK_SRC) ? readSrc(S2_MARK_SRC) : '';
+    const s2Scr = readSrc('src/screens/ColoringScreen.js');
+    const s2Rdr = readSrc('src/services/coloring60CollectionReader.js');
+    const s2St = readSrc('src/services/coloring60State.js');
+    const s2Prg = readSrc('src/services/coloring60ProgressReader.js');
+    const s2Cln = readSrc('src/screens/Coloring60CollectionScreen.js');
+    const s2Ovl = readSrc('src/components/coloring60/Coloring60CompletionOverlay.js');
+    const s2Prv = readSrc('src/screens/Coloring60ArtPreviewScreen.js');
+    const s2Strip = (s) => String(s).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const s2MarkCode = s2Strip(s2Mark);
+    const s2RdrCode = s2Strip(s2Rdr);
+    const s2StCode = s2Strip(s2St);
+    const s2FinaleLoader = (() => {
+      const i = s2Scr.indexOf('async function loadC60FinaleItems(');
+      const j = s2Scr.indexOf('[C60-P11-MACHINE]', i + 1);
+      return (i >= 0 && j > i) ? s2Scr.slice(i, j) : '';
+    })();
+
+    // ── Módulos PUROS reais ────────────────────────────────────────────────────────────────────
+    const S2_STATE_EXPORTS = ['SNAPSHOT_STATUS', 'HYDRATION_STATUS', 'COLORING60_SLOT_KIND',
+      'coloring60SlotKind', 'reconcileSnapshotStatus', 'deriveColoring60ActivityState',
+      'deriveColoring60JourneyState', 'countsAsComplete', 'isSnapshotAcceptable'];
+    const carregarEstado2 = (mutate) => {
+      try { return s2Load('src/services/coloring60State.js', {}, S2_STATE_EXPORTS, mutate); }
+      catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    };
+    const ST2 = carregarEstado2();
+    const vivoST2 = !!ST2 && !ST2.__erro;
+    const faltaST2 = vivoST2 ? '' : ` — o modelo canônico não respondeu: ${ST2.__erro}`;
+
+    const PM2 = (() => {
+      try {
+        return s2Load('src/services/coloring60PaintMetrics.js', {}, ['snapshotHasMeaningfulColor',
+          'readPaintMetricsFromSnapshot', 'hasMeaningfulColor', 'snapshotMatchesRevision']);
+      } catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    })();
+
+    const carregarCopy2 = (mutate) => {
+      if (!srcExists(S2_MARK_SRC)) return { __erro: 'a marca compartilhada de estado não existe' };
+      try { return s2Load(S2_MARK_SRC, {}, ['COLORING60_SLOT_STATE_COPY', 'COLORING60_SLOT_STATE_ICON'], mutate); }
+      catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    };
+    const CP2 = carregarCopy2();
+    const vivoCP2 = !!CP2 && !CP2.__erro;
+
+    const S2S = { READY: 'ready', NOT_PERSISTED: 'notPersisted', MISSING: 'missing', FAILED: 'failed' };
+    const S2K = { ART: 'art', NOT_PERSISTED: 'notPersisted', NEEDS_COLOR: 'needsColor', EMPTY: 'empty' };
+    const S2_IDS = ['light', 'living_world', 'people_and_care'];
+    const S2_META = [
+      { activityId: 'light', title: 'A Luz' },
+      { activityId: 'living_world', title: 'O Mundo Vivo' },
+      { activityId: 'people_and_care', title: 'Gente e Cuidado' },
+    ];
+
+    // ── DISCO DE MENTIRA com a assimetria do disco REAL ────────────────────────────────────────
+    // `ptr` é o METADADO (o que a sonda leve enxerga, sem abrir arquivo) e `blob` é o ARQUIVO (o que
+    // a evidência forte abre e mede). Um ponteiro ÓRFÃO é `ptr:true` + `blob:false` — precisamente a
+    // diferença que separa "nunca teve pixels" (legado) de "os pixels sumiram" (integridade). Se o
+    // duplo não preservasse essa assimetria, ele provaria o stub, não o app.
+    const PINTURA2 = (marca, rev) => JSON.stringify({
+      v: 2, W: 1000, H: 1500, imgX: 0, imgY: 0, imgW: 1000, imgH: 1500,
+      rev: rev || 7, paintedPx: 9000, paintablePx: 300000,
+      data: `data:image/png;base64,${(marca || 'A').repeat(400)}`,
+    });
+    // Retratos de disco usados repetidamente:
+    const legado2 = { done: true, ever: true, snap: S2S.NOT_PERSISTED, ptr: false, blob: false };
+    const legadoSemChave2 = { done: true, ever: true, ptr: false, blob: false }; // sem `snap` de propósito
+    const comObra2 = (marca) => ({ done: true, ever: true, snap: S2S.READY, ptr: true, blob: true, paint: PINTURA2(marca) });
+    const orfao2 = { done: true, ever: true, snap: S2S.READY, ptr: true, blob: false };
+    const semRegistro2 = { done: true, ever: true, snap: S2S.READY, ptr: false, blob: false };
+    const nunca2 = { done: false, ever: false, ptr: false, blob: false };
+    const espalhar2 = (d) => S2_IDS.reduce((acc, id) => { acc[id] = d; return acc; }, {});
+    // O registro REAL normaliza a chave de instantâneo exatamente assim (`readSnap`): só `ready` e
+    // `notPersisted` sobrevivem; ausente ou lixo viram MISSING. O duplo repete essa normalização —
+    // sem ela, "chave ausente" chegaria como `undefined` e a prova mediria um caminho que não existe.
+    const retrato2 = (d) => {
+      const rec = {
+        activityId: d.__id,
+        isCurrentlyComplete: d.done === true,
+        hasEverCompleted: d.done === true || d.ever === true,
+      };
+      rec.storedSnapshotStatus = (d.snap === S2S.READY || d.snap === S2S.NOT_PERSISTED)
+        ? d.snap
+        : S2S.MISSING;
+      return rec;
+    };
+
+    const mkLeitor2 = (disco, mutate) => {
+      if (!vivoST2 || PM2.__erro) return { __erro: `modelo/medida indisponível${faltaST2}` };
+      const io = { forte: [], leve: [] };
+      try {
+        const M = s2Load('src/services/coloring60CollectionReader.js', {
+          getColoring60Activities: (sid) => (sid === 'creation' ? S2_META : []),
+          resolveColoring60Lineart: (sid, aid) => ((disco[aid] || {}).semContorno === true
+            ? { status: 'unavailable', source: null }
+            : { status: 'available', source: { uri: `lineart://${sid}/${aid}` } }),
+          COLORING60_RESOLUTION_STATUS: { AVAILABLE: 'available' },
+          loadColoring60JourneyRecord: async (sid, ids) => ({
+            storyId: sid, finaleSeen: false, readFailed: false,
+            activities: (ids || []).map((activityId) => retrato2(
+              Object.assign({ __id: activityId }, disco[activityId] || {}))),
+          }),
+          // EVIDÊNCIA FORTE — abre o arquivo. Ponteiro órfão devolve AUSÊNCIA honesta.
+          getColoring60SavedDrawing: async (sid, aid) => {
+            io.forte.push(aid);
+            const d = disco[aid] || {};
+            if (d.ptr !== true || d.blob !== true) return null;
+            return d.paint || PINTURA2('A');
+          },
+          // EVIDÊNCIA LEVE — só o metadado. Ponteiro órfão devolve `true` (limite declarado da sonda).
+          hasColoring60SnapshotRecord: async (sid, aid) => {
+            io.leve.push(aid);
+            return (disco[aid] || {}).ptr === true;
+          },
+          snapshotHasMeaningfulColor: PM2.snapshotHasMeaningfulColor,
+          reconcileSnapshotStatus: ST2.reconcileSnapshotStatus,
+          deriveColoring60ActivityState: ST2.deriveColoring60ActivityState,
+          HYDRATION_STATUS: ST2.HYDRATION_STATUS,
+          SNAPSHOT_STATUS: ST2.SNAPSHOT_STATUS,
+          COLORING60_SLOT_KIND: ST2.COLORING60_SLOT_KIND,
+          coloring60SlotKind: ST2.coloring60SlotKind,
+          __DEV__: false,
+        }, ['loadColoring60Slots', 'loadColoring60Slot', 'coloring60SlotWithKind', 'slotKindOf',
+          'SLOT', 'COLORING60_SLOT_MARKERS'], mutate);
+        return Object.assign({}, M, { __io: io });
+      } catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    };
+
+    // Coleção (e, por construção, o conjunto final): mapa activityId → slot JÁ com `kind`.
+    const colecao2 = async (disco, mutate) => {
+      const M = mkLeitor2(disco, mutate);
+      if (M.__erro) return { __erro: M.__erro };
+      const { slots } = await M.loadColoring60Slots('creation');
+      const out = {};
+      for (const s of slots) out[s.activityId] = M.coloring60SlotWithKind(s);
+      return out;
+    };
+    const kindsColecao2 = async (disco) => {
+      const c = await colecao2(disco);
+      if (c.__erro) return { __erro: c.__erro };
+      return S2_IDS.map((id) => (c[id] ? c[id].kind : null));
+    };
+    // Prévia ampliada: a MESMA reconciliação, por identidade.
+    const previa2 = async (disco, aid) => {
+      const M = mkLeitor2(disco);
+      if (M.__erro) return { __erro: M.__erro };
+      return M.loadColoring60Slot('creation', aid);
+    };
+
+    // Leitor de PROGRESSO (evidência leve — contador e rótulo da ponte pós-história).
+    const progresso2 = async (disco) => {
+      if (!vivoST2) return { __erro: `modelo indisponível${faltaST2}` };
+      try {
+        const M = s2Load('src/services/coloring60ProgressReader.js', {
+          getColoring60Activities: (sid) => (sid === 'creation' ? S2_META : []),
+          loadColoring60JourneyRecord: async (sid, ids) => ({
+            storyId: sid, finaleSeen: false, readFailed: false,
+            activities: (ids || []).map((activityId) => retrato2(
+              Object.assign({ __id: activityId }, disco[activityId] || {}))),
+          }),
+          hasColoring60SnapshotRecord: async (sid, aid) => (disco[aid] || {}).ptr === true,
+          deriveColoring60ActivityState: ST2.deriveColoring60ActivityState,
+          deriveColoring60JourneyState: ST2.deriveColoring60JourneyState,
+          reconcileSnapshotStatus: ST2.reconcileSnapshotStatus,
+          HYDRATION_STATUS: ST2.HYDRATION_STATUS,
+        }, ['loadColoring60JourneyState']);
+        return M.loadColoring60JourneyState('creation');
+      } catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    };
+
+    // ── Fatia REAL da transação de salvamento (ColoringScreen), para as provas 18 e 19 ─────────
+    const S2_SR = {
+      SAVED: 'saved', WRITE_FAILED: 'wf', ACCESS_DENIED: 'ad', AUTHORIZATION_NOT_READY: 'anr',
+      INVALID_STORY: 'ist', INVALID_ACTIVITY: 'iac', INVALID_AUTHORIZATION: 'iau',
+    };
+    const s2Pay = s2Scr.slice(s2Scr.indexOf('function isAcceptableC60Payload('), s2Scr.indexOf('// [C60-P4-LOCK]'));
+    const s2Ctrl = s2Scr.slice(s2Scr.indexOf('function createC60AttemptController('), s2Scr.indexOf('function beginC60Attempt('));
+    const s2Begin = s2Scr.slice(s2Scr.indexOf('function beginC60Attempt('), s2Scr.indexOf('// [C60-P4-HANDLER-END]'));
+    const S2_SNAP = JSON.stringify({
+      v: 2, W: 1000, H: 1500, imgX: 0, imgY: 0, imgW: 1000, imgH: 1500,
+      rev: 11, paintedPx: 6000, paintablePx: 300000,
+      data: `data:image/png;base64,${'A'.repeat(3000)}`,
+    });
+    const tentativa2 = (cfg = {}) => {
+      const counts = { mark: 0, save: 0, celebrate: 0, saveIssue: 0, goBack: 0 };
+      const capt = { marks: [], celebra: [], issue: [] };
+      const collab = {
+        markColoring60ActivityDone: async (sid, aid, prova, status) => {
+          counts.mark++;
+          capt.marks.push({ sid, aid, temCor: PM2.snapshotHasMeaningfulColor(prova), status });
+          // O serviço de domínio REAL recusa desfecho ilegítimo; o duplo espelha essa recusa.
+          return status === S2S.READY || status === S2S.NOT_PERSISTED;
+        },
+        saveColoring60DrawingState: async () => { counts.save++; return cfg.saveReturn || S2_SR.SAVED; },
+        COLORING60_SAVE_RESULT: S2_SR,
+        // A escrita falhou ⇒ o disco continua exatamente como estava ANTES da tentativa.
+        getColoring60SavedDrawing: async () => (cfg.anterior !== undefined ? cfg.anterior : null),
+        SNAPSHOT_STATUS: vivoST2 ? ST2.SNAPSHOT_STATUS : S2S,
+        readPaintMetricsFromSnapshot: PM2.readPaintMetricsFromSnapshot,
+        hasMeaningfulColor: PM2.hasMeaningfulColor,
+        snapshotMatchesRevision: PM2.snapshotMatchesRevision,
+      };
+      const core = new Function('collab', `
+        const __DEV__ = false;
+        const POINTER_VERSION = 3;
+        ${s2Pay}
+        const {
+          markColoring60ActivityDone, saveColoring60DrawingState, COLORING60_SAVE_RESULT,
+          getColoring60SavedDrawing, SNAPSHOT_STATUS,
+          readPaintMetricsFromSnapshot, hasMeaningfulColor, snapshotMatchesRevision,
+        } = collab;
+        ${s2Ctrl}
+        ${s2Begin}
+        return { createC60AttemptController, beginC60Attempt };
+      `)(collab);
+      const controller = core.createC60AttemptController();
+      const canvas = { captured: [], exportPaint(cb) { this.captured.push(cb); } };
+      core.beginC60Attempt({
+        controller, canvasRef: { current: canvas }, activeRef: { current: true },
+        available: true, ready: true, hasColor: true, saving: false,
+        storyId: 'creation', activityId: cfg.activityId || 'light',
+        getContentAuthorization: (sid) => ({ __contratoCanonico: true, storyId: sid }),
+        setSaving: () => {},
+        goBack: () => { counts.goBack++; },
+        onSaveIssue: (l) => { counts.saveIssue++; capt.issue.push(l); },
+        onCelebrate: (o) => { counts.celebrate++; capt.celebra.push(o); },
+      });
+      return {
+        counts, capt,
+        disparar: async () => { canvas.captured[0](S2_SNAP); await new Promise((r) => setTimeout(r, 0)); },
+      };
+    };
+
+    // ═══ PROVAS S2 ═══════════════════════════════════════════════════════════════════════════
+
+    // ── [1] Conclusão legada sem pixels PERMANECE concluída ───────────────────────────────────
+    {
+      const kinds = await kindsColecao2(espalhar2(legado2));
+      const j = await progresso2(espalhar2(legado2));
+      check('S2 [1 · legado] conclusão antiga gravada SEM pixels (snap=notPersisted, sem ponteiro) continua NOT_PERSISTED e continua CONCLUÍDA — 3 de 3, sem quebra de integridade',
+        Array.isArray(kinds) && kinds.every((k) => k === S2K.NOT_PERSISTED)
+          && !j.__erro && j.completedCount === 3 && j.countLabel === '3 de 3' && j.hasIntegrityBreak === false,
+        `kinds=${JSON.stringify(kinds)} · jornada=${JSON.stringify(j.__erro || { c: j.completedCount, q: j.hasIntegrityBreak })}`);
+    }
+
+    // ── [2] done=true com a chave de instantâneo AUSENTE resolve NOT_PERSISTED ────────────────
+    // O caso mais antigo de todos: a criança concluiu antes de a chave `snap` existir. Sem a segunda
+    // evidência isso caía em MISSING — quebra de integridade — e a conclusão sumia da contagem.
+    {
+      const kinds = await kindsColecao2(espalhar2(legadoSemChave2));
+      check('S2 [2 · legado] conclusão anterior à própria chave de instantâneo (done=true, sem snap, sem ponteiro) resolve NOT_PERSISTED — nunca NEEDS_COLOR, nunca EMPTY',
+        Array.isArray(kinds) && kinds.every((k) => k === S2K.NOT_PERSISTED),
+        `kinds=${JSON.stringify(kinds)} — sem a evidência de REGISTRO, legado e órfão viram a mesma coisa`);
+    }
+
+    // ── [3] Copy transitória oficial ─────────────────────────────────────────────────────────
+    check('S2 [3 · copy] NOT_PERSISTED diz "Parte concluída!" e convida — "Pinte de novo para guardar sua criação." — no lugar da promessa revogada de não-permanência',
+      vivoCP2
+        && CP2.COLORING60_SLOT_STATE_COPY[S2K.NOT_PERSISTED].title === 'Parte concluída!'
+        && CP2.COLORING60_SLOT_STATE_COPY[S2K.NOT_PERSISTED].note === 'Pinte de novo para guardar sua criação.',
+      `a copy transitória oficial vive na fonte única${vivoCP2 ? ` (atual: ${JSON.stringify(CP2.COLORING60_SLOT_STATE_COPY && CP2.COLORING60_SLOT_STATE_COPY[S2K.NOT_PERSISTED])})` : ` — ${CP2.__erro}`}`);
+
+    // ── [4] NOT_PERSISTED não inventa paint ──────────────────────────────────────────────────
+    {
+      const c = await colecao2(espalhar2(legado2));
+      const p = await previa2(espalhar2(legado2), 'living_world');
+      check('S2 [4 · honestidade] a vaga NOT_PERSISTED chega com paint NULO na coleção e na prévia — a compatibilidade do legado NÃO inventa pintura antiga',
+        !c.__erro && S2_IDS.every((id) => c[id] && c[id].paint === null)
+          && !p.__erro && p && p.paint === null,
+        `paints=${JSON.stringify(c.__erro || S2_IDS.map((id) => (c[id] ? c[id].paint : 'ausente')))}`);
+    }
+
+    // ── [5] NOT_PERSISTED não inventa miniatura ──────────────────────────────────────────────
+    check('S2 [5 · honestidade] nenhuma superfície compõe miniatura fora do ART: o fecho zera paint E lineart, a coleção só decodifica e só desenha imagem dentro de ART',
+      /paint: kind === COLORING60_SLOT_KIND\.ART \? \(it\?\.paint \?\? null\) : null/.test(s2Ovl)
+        && /lineart: kind === COLORING60_SLOT_KIND\.ART \? \(it\?\.lineart \?\? null\) : null/.test(s2Ovl)
+        && /const parsed = kind === SLOT\.ART \? parseDrawingPayload\(slot\.paint\) : null;/.test(s2Cln)
+        && /\{kind === SLOT\.ART \? \(/.test(s2Cln),
+      'o contorno sozinho no lugar da obra é a mentira que o corte estrutural existe para impedir');
+
+    // ── [6] Repintar e salvar CONVERTE o slot legado em ART ──────────────────────────────────
+    {
+      const antes = await kindsColecao2({ light: legado2, living_world: legado2, people_and_care: legado2 });
+      const depois = await kindsColecao2({ light: comObra2('B'), living_world: legado2, people_and_care: legado2 });
+      check('S2 [6 · migração] repintar uma parte legada e guardar converte AQUELA vaga para ART, sem tocar nas vizinhas (que continuam NOT_PERSISTED)',
+        Array.isArray(antes) && antes.every((k) => k === S2K.NOT_PERSISTED)
+          && Array.isArray(depois) && depois[0] === S2K.ART
+          && depois[1] === S2K.NOT_PERSISTED && depois[2] === S2K.NOT_PERSISTED,
+        `antes=${JSON.stringify(antes)} · depois=${JSON.stringify(depois)}`);
+    }
+
+    // ── [7] e [8] O MESMO disco resolve ART, venha de qual plano vier ────────────────────────
+    // A leitura não conhece plano: a evidência é ponteiro + blob + cor real medida. Free e Família
+    // salvos produzem BYTE A BYTE o mesmo retrato — então produzem o mesmo estado.
+    {
+      const free = await colecao2({ light: comObra2('F'), living_world: nunca2, people_and_care: nunca2 });
+      const familia = await colecao2({ light: comObra2('F'), living_world: nunca2, people_and_care: nunca2 });
+      const semPlano = !/getCurrentPlan|isPremiumUser|entitlement|accessControl|RevenueCat|FAMILY_PLAN/.test(s2RdrCode)
+        && !/getCurrentPlan|isPremiumUser|entitlement|accessControl|RevenueCat|FAMILY_PLAN/.test(s2StCode);
+      check('S2 [7 · paridade] pintura nova guardada no plano GRÁTIS resolve ART: a leitura decide por ponteiro + blob + cor real medida, e não consulta plano em lugar nenhum',
+        !free.__erro && free.light.kind === S2K.ART && free.light.paint !== null && semPlano,
+        `kind=${free.__erro || free.light.kind} · leitura plan-agnóstica=${semPlano}`);
+      check('S2 [8 · paridade] pintura nova guardada no plano FAMÍLIA resolve ART pelo MESMO caminho e com o MESMO resultado — a paridade é por construção, não por ramo',
+        !familia.__erro && familia.light.kind === S2K.ART
+          && JSON.stringify(familia.light) === JSON.stringify(free.light),
+        `família=${familia.__erro || familia.light.kind} · idêntico ao grátis=${JSON.stringify(familia.light) === JSON.stringify(free.light)}`);
+    }
+
+    // ── [9] ART abre a prévia REAL ───────────────────────────────────────────────────────────
+    {
+      const p = await previa2({ light: nunca2, living_world: comObra2('V'), people_and_care: nunca2 }, 'living_world');
+      const J = (() => {
+        try { return s2Load('src/services/coloring60Journey.js', {}, ['deriveColoring60ArtPreview', 'COLORING60_ACTION']); }
+        catch (e) { return { __erro: (e && e.message) || String(e) }; }
+      })();
+      check('S2 [9 · prévia] a prévia de uma obra guardada devolve ART com os pixels REAIS daquela obra e o contorno da PRÓPRIA parte — a arte fica visível, sem estado honesto no lugar dela',
+        !p.__erro && p && p.kind === S2K.ART && p.paint === PINTURA2('V')
+          && p.lineart && p.lineart.uri === 'lineart://creation/living_world'
+          && !J.__erro && J.deriveColoring60ArtPreview({ kind: S2K.ART, activityId: 'living_world' }).artVisible === true,
+        `prévia=${JSON.stringify(p && (p.__erro || { kind: p.kind, tem: p.paint != null }))}`);
+    }
+
+    // ── [10] ART edita a atividade CORRETA ───────────────────────────────────────────────────
+    check('S2 [10 · edição] a ação principal da prévia ART leva ao editor da PRÓPRIA parte: a derivação devolve RESTART com rótulo de edição e a tela injeta o activityId da obra aberta, nunca um id fixo',
+      (() => {
+        try {
+          const J = s2Load('src/services/coloring60Journey.js', {}, ['deriveColoring60ArtPreview', 'COLORING60_ACTION']);
+          const pv = J.deriveColoring60ArtPreview({ kind: S2K.ART, activityId: 'people_and_care' });
+          return pv.editAction.kind === J.COLORING60_ACTION.RESTART && pv.editAction.label === 'Editar desenho';
+        } catch (e) { return false; }
+      })()
+        && /c60EditFromPreview\(navigation, storyId, activityId\);/.test(s2Prv)
+        && !/c60EditFromPreview\([^)]*'light'/.test(s2Prv),
+      'editar a obra de Vida jamais pode abrir o editor de Luz');
+
+    // ── [11] Uma atividade NUNCA usa a pintura de outra ──────────────────────────────────────
+    {
+      const c = await colecao2({ light: nunca2, living_world: comObra2('V'), people_and_care: legado2 });
+      const M = mkLeitor2({ light: nunca2, living_world: comObra2('V'), people_and_care: legado2 });
+      const lidas = M.__erro ? [] : (await (async () => { await M.loadColoring60Slots('creation'); return M.__io.forte; })());
+      check('S2 [11 · identidade] cada vaga lê SOMENTE a sua própria identidade: só quem tem obra recebe pixels, o payload é o da própria parte e a leitura forte é feita uma vez por activityId',
+        !c.__erro
+          && c.light.paint === null && c.people_and_care.paint === null
+          && c.living_world.paint === PINTURA2('V')
+          && lidas.slice().sort().join(',') === S2_IDS.slice().sort().join(','),
+        `paints=${JSON.stringify(c.__erro || S2_IDS.map((id) => (c[id].paint ? c[id].paint.slice(28, 34) : null)))} · lidas=${JSON.stringify(lidas)}`);
+    }
+
+    // ── [12] As DUAS formas de quebra de integridade continuam NEEDS_COLOR ───────────────────
+    // A migração preguiçosa anda na beira de um precipício: afrouxar a condição de "legado" um passo
+    // além do necessário faz a coleção esconder PERDA REAL atrás de uma copy gentil — a mentira
+    // exatamente oposta à que o S2 conserta. Por isso a prova cobre as duas quebras possíveis:
+    //   (a) ponteiro órfão — há registro de instantâneo e o arquivo sumiu;
+    //   (b) retrato READY sem registro nenhum — o app gravou que a arte estava pronta e ela sumiu
+    //       INTEIRA, chave inclusive. Só a ausência do desfecho gravado autoriza chamar de legado.
+    //
+    // A ASSIMETRIA ENTRE AS DUAS EVIDÊNCIAS É DELIBERADA e não é o S2 que a cria. A COLEÇÃO abre o
+    // arquivo (evidência forte) e enxerga as duas quebras. A ponte pós-história usa a sonda LEVE, que
+    // só olha metadado: um ponteiro órfão continua respondendo "existe registro" e segue contando
+    // como concluído ali — é o limite declarado da própria sonda, e o preço de não abrir três
+    // arquivos para decidir se mostra um convite. O que a sonda leve VÊ é a chave apagada, e essa
+    // sim cai da contagem. A prova fixa as duas verdades para que nenhuma das duas mude sem querer.
+    {
+      const orfaos = await kindsColecao2(espalhar2(orfao2));
+      const apagados = await kindsColecao2(espalhar2(semRegistro2));
+      const jOrfaos = await progresso2(espalhar2(orfao2));
+      const jApagados = await progresso2(espalhar2(semRegistro2));
+      check('S2 [12 · integridade] as DUAS quebras continuam NEEDS_COLOR na coleção — ponteiro órfão E conclusão gravada como READY cuja arte sumiu inteira; a compatibilidade do legado NÃO absorve perda real, e a chave apagada também cai da contagem da ponte',
+        Array.isArray(orfaos) && orfaos.every((k) => k === S2K.NEEDS_COLOR)
+          && Array.isArray(apagados) && apagados.every((k) => k === S2K.NEEDS_COLOR)
+          && !jApagados.__erro && jApagados.hasIntegrityBreak === true && jApagados.completedCount === 0
+          && !jOrfaos.__erro && jOrfaos.completedCount === 3, // limite honesto da sonda leve
+        `órfão=${JSON.stringify(orfaos)} · READY apagado=${JSON.stringify(apagados)} · ponte(apagado)=${JSON.stringify(jApagados.__erro || { c: jApagados.completedCount, q: jApagados.hasIntegrityBreak })} · ponte(órfão)=${JSON.stringify(jOrfaos.__erro || { c: jOrfaos.completedCount })}`);
+    }
+
+    // ── [13] Atividade nunca iniciada resolve EMPTY ──────────────────────────────────────────
+    {
+      const kinds = await kindsColecao2(espalhar2(nunca2));
+      const comArteAntiga = await kindsColecao2(espalhar2({ done: false, ever: true, snap: S2S.READY, ptr: true, blob: true }));
+      check('S2 [13 · vazio] parte nunca concluída resolve EMPTY — e continua EMPTY mesmo com pintura antiga guardada no disco (obra antiga não sustenta conclusão)',
+        Array.isArray(kinds) && kinds.every((k) => k === S2K.EMPTY)
+          && Array.isArray(comArteAntiga) && comArteAntiga.every((k) => k === S2K.EMPTY),
+        `nunca=${JSON.stringify(kinds)} · com arte antiga=${JSON.stringify(comArteAntiga)}`);
+    }
+
+    // ── [14] Conjunto final e coleção produzem o MESMO kind ──────────────────────────────────
+    const S2_MATRIZ = [
+      { nome: 'legado com snap', disco: legado2, esperado: S2K.NOT_PERSISTED },
+      { nome: 'legado sem chave', disco: legadoSemChave2, esperado: S2K.NOT_PERSISTED },
+      { nome: 'obra guardada', disco: comObra2('M'), esperado: S2K.ART },
+      { nome: 'ponteiro órfão', disco: orfao2, esperado: S2K.NEEDS_COLOR },
+      { nome: 'READY apagado', disco: semRegistro2, esperado: S2K.NEEDS_COLOR },
+      { nome: 'nunca concluída', disco: nunca2, esperado: S2K.EMPTY },
+      { nome: 'obra sem contorno', disco: Object.assign({}, comObra2('M'), { semContorno: true }), esperado: S2K.NEEDS_COLOR },
+    ];
+    {
+      const obtidos = [];
+      for (const c of S2_MATRIZ) obtidos.push((await kindsColecao2(espalhar2(c.disco)))[0]);
+      check('S2 [14 · fonte única] o conjunto final é montado pela MESMA leitura canônica da coleção (loadColoring60Slots + coloring60SlotWithKind) e a matriz inteira resolve o kind esperado',
+        obtidos.every((k, i) => k === S2_MATRIZ[i].esperado)
+          && /loadColoring60Slots\(\s*storyId\s*\)/.test(s2FinaleLoader)
+          && /coloring60SlotWithKind\(/.test(s2FinaleLoader)
+          && !/coloring60SlotKind\(/.test(s2Strip(s2Ovl)),
+        `esperado=${JSON.stringify(S2_MATRIZ.map((c) => c.esperado))} · obtido=${JSON.stringify(obtidos)}`);
+    }
+
+    // ── [15] A prévia usa o MESMO kind da coleção ────────────────────────────────────────────
+    {
+      const divergentes = [];
+      for (const c of S2_MATRIZ) {
+        const disco = espalhar2(c.disco);
+        const daColecao = (await kindsColecao2(disco))[0];
+        const p = await previa2(disco, 'light');
+        const daPrevia = p && !p.__erro ? p.kind : `__erro`;
+        if (daColecao !== daPrevia) divergentes.push(`${c.nome}: coleção=${daColecao} prévia=${daPrevia}`);
+      }
+      check('S2 [15 · fonte única] a prévia ampliada resolve EXATAMENTE o mesmo kind da coleção nos 6 cenários da matriz — nenhuma tela cria classificação própria',
+        divergentes.length === 0,
+        `divergências: ${JSON.stringify(divergentes)}`);
+    }
+
+    // ── [16] Reinício mantém ART ─────────────────────────────────────────────────────────────
+    {
+      const disco = { light: comObra2('R'), living_world: comObra2('R'), people_and_care: comObra2('R') };
+      const primeira = await kindsColecao2(disco);
+      const segunda = await kindsColecao2(disco); // módulo carregado do zero: o app "reabriu"
+      check('S2 [16 · reinício] fechar e reabrir o app não muda nada: a leitura carregada do zero resolve ART de novo, porque a verdade está no disco e não na sessão',
+        Array.isArray(primeira) && primeira.every((k) => k === S2K.ART)
+          && JSON.stringify(primeira) === JSON.stringify(segunda),
+        `1ª=${JSON.stringify(primeira)} · 2ª=${JSON.stringify(segunda)}`);
+    }
+
+    // ── [17] Offline mantém ART ──────────────────────────────────────────────────────────────
+    check('S2 [17 · offline] todo o caminho de leitura e classificação é LOCAL: nem o modelo, nem o leitor, nem o leitor de progresso tocam rede, e o mesmo disco resolve ART sem conexão',
+      !/fetch\(|axios|XMLHttpRequest|https?:\/\/|NetInfo|Purchases/.test(s2StCode)
+        && !/fetch\(|axios|XMLHttpRequest|https?:\/\/|NetInfo|Purchases/.test(s2RdrCode)
+        && !/fetch\(|axios|XMLHttpRequest|https?:\/\/|NetInfo|Purchases/.test(s2Strip(s2Prg))
+        && (await kindsColecao2(espalhar2(comObra2('O')))).every((k) => k === S2K.ART),
+      'a coleção não pode depender de rede para saber o que já está guardado no próprio aparelho');
+
+    // ── [18] Falha de escrita SEM obra anterior: conclusão honesta em NOT_PERSISTED ──────────
+    // A criança tem acesso legítimo, pintou de verdade e o DISCO falhou. Punir a conclusão por uma
+    // falha física trancaria a progressão da história por um motivo que não é dela. A conclusão é
+    // gravada com o desfecho HONESTO — e a vaga diz exatamente isso, com a copy transitória.
+    {
+      const t = tentativa2({ saveReturn: S2_SR.WRITE_FAILED, anterior: null });
+      await t.disparar();
+      check('S2 [18 · falha física] escrita falhada SEM obra anterior: a atividade é marcada como CONCLUÍDA com snapshotStatus notPersisted e a celebração é honesta (persisted=false) — nada de conclusão perdida por disco cheio',
+        t.counts.mark === 1
+          && t.capt.marks[0].status === S2S.NOT_PERSISTED
+          && t.capt.marks[0].temCor === true
+          && t.capt.marks[0].aid === 'light'
+          && t.counts.celebrate === 1
+          && t.capt.celebra[0].persisted === false
+          && t.capt.celebra[0].snapshotStatus === S2S.NOT_PERSISTED,
+        `mark=${JSON.stringify(t.capt.marks)} · celebra=${JSON.stringify(t.capt.celebra.map((c) => ({ p: c.persisted, s: c.snapshotStatus })))} · issue=${JSON.stringify(t.capt.issue)}`);
+    }
+
+    // ── [19] Falha de SOBRESCRITA: a obra anterior continua ART ─────────────────────────────
+    {
+      const anterior = PINTURA2('P', 3);
+      const t = tentativa2({ saveReturn: S2_SR.WRITE_FAILED, anterior });
+      await t.disparar();
+      check('S2 [19 · falha física] escrita falhada COM obra anterior guardada: a obra anterior permanece intacta e o desfecho marcado continua READY — a vaga segue ART, jamais rebaixada a legado',
+        t.counts.mark === 1
+          && t.capt.marks[0].status === S2S.READY
+          && t.counts.celebrate === 1
+          && t.capt.celebra[0].persisted === false,
+        `mark=${JSON.stringify(t.capt.marks)} · celebra=${JSON.stringify(t.capt.celebra.map((c) => ({ p: c.persisted, s: c.snapshotStatus })))}`);
+    }
+
+    // ── [19b] A recusa de ACESSO continua com efeito ZERO ───────────────────────────────────
+    // O S2 abre exceção para a falha FÍSICA, e só para ela. Acesso negado, autorização não pronta e
+    // identidade inválida continuam exatamente como o S1 os deixou: nada marcado, nada celebrado.
+    {
+      const casos = [
+        [S2_SR.ACCESS_DENIED, 'access_denied'],
+        [S2_SR.AUTHORIZATION_NOT_READY, 'authorization_not_ready'],
+        [S2_SR.INVALID_AUTHORIZATION, 'invalid_authorization'],
+        [S2_SR.INVALID_STORY, 'invalid_story'],
+        [S2_SR.INVALID_ACTIVITY, 'invalid_activity'],
+      ];
+      const desvios = [];
+      for (const [saveReturn, rotulo] of casos) {
+        const t = tentativa2({ saveReturn });
+        await t.disparar();
+        if (!(t.counts.mark === 0 && t.counts.celebrate === 0 && t.counts.goBack === 0
+          && t.counts.saveIssue === 1 && t.capt.issue[0] === rotulo)) {
+          desvios.push(`${rotulo}: ${JSON.stringify({ c: t.counts, i: t.capt.issue })}`);
+        }
+      }
+      check('S2 [19b · limite] a exceção do S2 é SÓ para falha física: recusa de acesso, autorização não pronta e identidade inválida continuam com efeito ZERO — não marcam, não celebram, não navegam',
+        desvios.length === 0,
+        `desvios: ${JSON.stringify(desvios)}`);
+    }
+
+    // ── [20] completedCount NÃO regride ─────────────────────────────────────────────────────
+    {
+      const legadoCompleto = await progresso2(espalhar2(legado2));
+      const legadoSemChaveCompleto = await progresso2(espalhar2(legadoSemChave2));
+      const misto = await progresso2({ light: comObra2('X'), living_world: legadoSemChave2, people_and_care: legado2 });
+      check('S2 [20 · contagem] a ausência de pixels NÃO reduz a contagem antiga: legado com chave, legado sem chave e a mistura com obra nova continuam todos em 3 de 3, sem quebra de integridade',
+        !legadoCompleto.__erro && legadoCompleto.completedCount === 3 && legadoCompleto.isFullyComplete === true
+          && !legadoSemChaveCompleto.__erro && legadoSemChaveCompleto.completedCount === 3
+          && legadoSemChaveCompleto.hasIntegrityBreak === false
+          && !misto.__erro && misto.completedCount === 3 && misto.countLabel === '3 de 3',
+        `comChave=${JSON.stringify(legadoCompleto.__erro || legadoCompleto.countLabel)} · semChave=${JSON.stringify(legadoSemChaveCompleto.__erro || legadoSemChaveCompleto.countLabel)} · misto=${JSON.stringify(misto.__erro || misto.countLabel)}`);
+    }
+
+    // ── [21] Convite de 3 de 3 não reaparece — e não depende de blob ────────────────────────
+    check('S2 [21 · convite] com as três partes concluídas o convite da jornada continua suprimido e a ação continua indo à coleção, INCLUSIVE quando nenhuma delas tem pixels guardados',
+      (() => {
+        try {
+          const J = s2Load('src/services/coloring60Journey.js', {}, [
+            'deriveColoring60JourneyInvite', 'deriveColoring60InviteAction', 'COLORING60_ACTION']);
+          const inv = J.deriveColoring60JourneyInvite({
+            pilotVisible: true, storyScenesComplete: true, inviteSeen: false,
+            completedCount: 3, totalActivities: 3,
+          });
+          const acao = J.deriveColoring60InviteAction({
+            completedCount: 3, totalActivities: 3,
+            doneMap: { light: true, living_world: true, people_and_care: true },
+          });
+          // A derivação do convite não pode sequer FALAR de pintura guardada.
+          const src = s2Strip(readSrc('src/services/coloring60Journey.js'));
+          const semBlob = !/getColoring60SavedDrawing|hasColoring60SavedDrawing|hasColoring60SnapshotRecord|paint\b/.test(
+            src.slice(src.indexOf('function deriveColoring60JourneyInvite('), src.indexOf('function deriveColoring60InviteAction(')));
+          return inv.visible === false && acao.kind === J.COLORING60_ACTION.COLLECTION && semBlob;
+        } catch (e) { return false; }
+      })(),
+      'o convite responde à CONCLUSÃO, nunca à existência do arquivo de pintura');
+
+    // ── [22] Noé continua obedecendo à autorização da jornada ───────────────────────────────
+    check('S2 [22 · escopo] o S2 não abre porta nenhuma: Noé continua fora do piloto do Colorir (catálogo real devolve lista vazia) e a autorização de conteúdo continua barrando a ENTRADA com a Criação incompleta',
+      (() => {
+        try {
+          const C = s2Load('src/data/coloring60Catalog.js', {}, ['getColoring60Activities']);
+          const foraDoPiloto = C.getColoring60Activities('noah').length === 0
+            && C.getColoring60Activities('creation').length === 3;
+          const SJ = s2Load('src/services/storyJourneyService.js', {}, ['COMMERCIAL_ACCESS']);
+          const A = s2Load('src/services/storyContentAuthorization.js',
+            { COMMERCIAL_ACCESS: SJ.COMMERCIAL_ACCESS }, ['deriveStoryContentAuthorization']);
+          const r = A.deriveStoryContentAuthorization({
+            storyId: 'noah', knownStory: true, previousStoryId: 'creation',
+            journeyStatus: { commercialAccess: SJ.COMMERCIAL_ACCESS.FREE, isUnlocked: false },
+            previousStatus: { isCompleted: false, coloringRequired: true, coloringComplete: false },
+            hydrated: true,
+          });
+          return foraDoPiloto && r.canViewStoryDetails === true && r.canEnterStoryContent === false;
+        } catch (e) { return false; }
+      })(),
+      'compatibilidade do legado não é permissão de acesso: a jornada continua mandando em quem entra');
+
+    // ── [23] Nenhuma copy comercial ─────────────────────────────────────────────────────────
+    const S2_COMERCIAL = /[Aa]ssine|[Aa]ssinatura|Plano Fam[íi]lia|[Cc]ompre|[Cc]omprar|[Dd]esbloque|[Pp]remium|R\$|[Vv]ocê perdeu|[Ss]ua arte sumiu|[Ii]magem indispon[íi]vel|[Gg]r[áa]tis/;
+    check('S2 [23 · copy] a copy transitória não vende, não menciona plano nem assinatura, não anuncia erro técnico e não culpa a criança — nem no texto oficial, nem na marca, na coleção, no fecho ou na prévia',
+      vivoCP2
+        && !S2_COMERCIAL.test(JSON.stringify(CP2.COLORING60_SLOT_STATE_COPY))
+        && !S2_COMERCIAL.test(s2MarkCode)
+        && !/[Aa]ssine|Plano Fam[íi]lia|[Dd]esbloque|[Ii]magem indispon[íi]vel|[Ss]ua arte sumiu/.test(s2Strip(s2Cln))
+        && !/[Aa]ssine|Plano Fam[íi]lia|[Dd]esbloque|[Ii]magem indispon[íi]vel|[Ss]ua arte sumiu/.test(s2Strip(s2Ovl))
+        && !/[Aa]ssine|Plano Fam[íi]lia|[Dd]esbloque|[Ii]magem indispon[íi]vel|[Ss]ua arte sumiu/.test(s2Strip(s2Prv))
+        && !/você (não|nao) |perdeu|apagou sua/i.test(JSON.stringify(CP2.COLORING60_SLOT_STATE_COPY || {})),
+      `a superfície infantil continua sem venda e sem culpa${vivoCP2 ? '' : ` — ${CP2.__erro}`}`);
+
+    // ── [24] Criar Livre permanece inalterado ───────────────────────────────────────────────
+    check('S2 [24 · Criar Livre] a política do Criar Livre não é tocada pelo S2: ATELIER_FREE_SAVE_LIMIT continua 0 e nenhum arquivo do bloco fala com o storage do Ateliê',
+      /export const ATELIER_FREE_SAVE_LIMIT = 0;/.test(readSrc('src/services/atelierStorage.js'))
+        && !/atelierStorage|saveArt\(|ATELIER_FREE_SAVE_LIMIT/.test(s2StCode)
+        && !/atelierStorage|saveArt\(|ATELIER_FREE_SAVE_LIMIT/.test(s2RdrCode)
+        && !/atelierStorage|saveArt\(|ATELIER_FREE_SAVE_LIMIT/.test(s2MarkCode)
+        && !/atelierStorage|saveArt\(/.test(s2Strip(s2Prg)),
+      'a revogação vale para o Colorir narrativo; o Criar Livre continua com a sua própria política');
+
+    // ══ CONTROLES NEGATIVOS S2 — provam que estas provas DETECTAM o retrocesso ═══════════════
+    const CN_S2 = [];
+    const cnS2 = (id, descricao, original, mutante) => { CN_S2.push({ id, descricao, original, mutante }); };
+    // Avaliador de MUTAÇÃO sobre um módulo real: se a âncora não existir, `loadModule` LANÇA — uma
+    // âncora obsoleta jamais passa por mutante morto.
+    const cnEstado2 = (id, descricao, mutate, avaliar) => {
+      let original = null; let mutante = null;
+      try { original = avaliar(ST2); } catch (e) { original = `__erro: ${e.message}`; }
+      try { mutante = avaliar(carregarEstado2(mutate)); } catch (e) { mutante = `__erro: ${e.message}`; }
+      cnS2(id, descricao, original, mutante);
+    };
+
+    // 1 — Retorno da copy antiga (a promessa de não-permanência que a nova política revogou).
+    {
+      const copyCerta = (M) => (M && !M.__erro
+        ? M.COLORING60_SLOT_STATE_COPY[S2K.NOT_PERSISTED].note === 'Pinte de novo para guardar sua criação.'
+        : false);
+      let mutante = null;
+      try {
+        mutante = copyCerta(carregarCopy2((s) => s.replace(
+          'Pinte de novo para guardar sua criação.', 'A pintura não fica guardada depois de sair.')));
+      } catch (e) { mutante = false; }
+      cnS2('CN-S2-1', 'a copy antiga volta e a vaga promete de novo que a pintura não fica guardada',
+        copyCerta(CP2), mutante);
+    }
+
+    // 2 — NOT_PERSISTED convertido em EMPTY (a conclusão legada sumiria da coleção).
+    cnEstado2('CN-S2-2', 'NOT_PERSISTED é convertido em EMPTY e a conclusão legada vira vaga vazia',
+      (s) => s.replace('if (state.snapshotStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return COLORING60_SLOT_KIND.NOT_PERSISTED;',
+        'if (state.snapshotStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return COLORING60_SLOT_KIND.EMPTY;'),
+      (M) => (M && !M.__erro
+        ? M.coloring60SlotKind({ activityId: 'light', isCurrentlyComplete: true, hasEverCompleted: true, snapshotStatus: S2S.NOT_PERSISTED, hasPaint: false, hasLineart: true }) === S2K.NOT_PERSISTED
+        : false));
+
+    // 3 — NOT_PERSISTED convertido em ART SEM pixels (a vaga prometeria uma obra que não existe).
+    cnEstado2('CN-S2-3', 'NOT_PERSISTED é convertido em ART sem pixels e a vaga passa a prometer obra inexistente',
+      (s) => s.replace('if (state.snapshotStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return COLORING60_SLOT_KIND.NOT_PERSISTED;',
+        'if (state.snapshotStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return COLORING60_SLOT_KIND.ART;'),
+      (M) => (M && !M.__erro
+        ? M.coloring60SlotKind({ activityId: 'light', isCurrentlyComplete: true, hasEverCompleted: true, snapshotStatus: S2S.NOT_PERSISTED, hasPaint: false, hasLineart: true }) === S2K.NOT_PERSISTED
+        : false));
+
+    // 4 — Paint TEMPORÁRIO da sessão injetado no slot do conjunto final.
+    const semPinturaViva2 = (s) => {
+      const i = s.indexOf('async function loadC60FinaleItems(');
+      const j = s.indexOf('[C60-P11-MACHINE]', i + 1);
+      const corpo = (i >= 0 && j > i) ? s.slice(i, j) : '';
+      return corpo.length > 0 && !/paint = currentSnapshot/.test(corpo) && /loadColoring60Slots\(/.test(corpo);
+    };
+    cnS2('CN-S2-4', 'a pintura viva da sessão volta a ser injetada no slot do conjunto final como se fosse obra guardada',
+      semPinturaViva2(s2Scr),
+      semPinturaViva2(s2Scr.replace('async function loadC60FinaleItems(',
+        'async function loadC60FinaleItems(currentSnapshot) { let paint = currentSnapshot; }\n  async function loadC60FinaleItemsAntigo(')));
+
+    // 5 — Pintura de OUTRA atividade reutilizada na vaga.
+    {
+      const disco = { light: nunca2, living_world: comObra2('V'), people_and_care: legado2 };
+      const soDaPropria = async (mutate) => {
+        try {
+          const M = mkLeitor2(disco, mutate);
+          if (M.__erro) return false;
+          const { slots } = await M.loadColoring60Slots('creation');
+          const byId = {};
+          for (const s of slots) byId[s.activityId] = s;
+          return byId.light.paint === null && byId.people_and_care.paint === null
+            && byId.living_world.paint === PINTURA2('V');
+        } catch (e) { return false; }
+      };
+      cnS2('CN-S2-5', 'o leitor passa a buscar a pintura por um id fixo e a obra de uma parte aparece na vaga de outra',
+        await soDaPropria(),
+        await soDaPropria((s) => s.replace(
+          'const saved = await getColoring60SavedDrawing(storyId, activityMeta.activityId);',
+          "const saved = await getColoring60SavedDrawing(storyId, 'living_world');")));
+    }
+
+    // 6 — Obra guardada (o caso "Família", historicamente premium) rebaixada a legado.
+    cnEstado2('CN-S2-6', 'a obra realmente guardada é rebaixada a conclusão legada e a arte verdadeira some da coleção',
+      (s) => s.replace('&& state.snapshotStatus === SNAPSHOT_STATUS.READY) return COLORING60_SLOT_KIND.ART;',
+        '&& state.snapshotStatus === SNAPSHOT_STATUS.READY) return COLORING60_SLOT_KIND.NOT_PERSISTED;'),
+      (M) => (M && !M.__erro
+        ? M.coloring60SlotKind({ activityId: 'light', isCurrentlyComplete: true, hasEverCompleted: true, snapshotStatus: S2S.READY, hasPaint: true, hasLineart: true }) === S2K.ART
+        : false));
+
+    // 7 — Arte recuperável de uma pintura NOVA (o caso "Grátis" do S1) reclassificada como legado.
+    cnEstado2('CN-S2-7', 'a reconciliação deixa de promover a arte recuperável a READY e a pintura nova é lida como conclusão legada',
+      (s) => s.replace('if (artRecoverable === true) return SNAPSHOT_STATUS.READY;',
+        'if (artRecoverable === true) return SNAPSHOT_STATUS.NOT_PERSISTED;'),
+      (M) => (M && !M.__erro ? M.reconcileSnapshotStatus(undefined, true) === S2S.READY : false));
+
+    // 8 — Classificação PRÓPRIA no conjunto final (o fecho volta a decidir estado dentro da tela).
+    const semRegraPropriaNoFecho2 = (s) => /COLORING60_SLOT_KIND/.test(s2Strip(s)) && !/coloring60SlotKind\(/.test(s2Strip(s));
+    cnS2('CN-S2-8', 'o conjunto final ganha classificação própria e volta a decidir estado dentro da tela',
+      semRegraPropriaNoFecho2(s2Ovl),
+      semRegraPropriaNoFecho2(s2Ovl.replace('const finaleById = new Map(',
+        'const meuKind = coloring60SlotKind({ hasPaint: true });\n  const finaleById = new Map(')));
+
+    // 9 — Classificação PRÓPRIA na coleção (a tela recalcula o que o leitor já resolveu).
+    const semRegraPropriaNaColecao2 = (s) => /const parsed = kind === SLOT\.ART \? parseDrawingPayload\(slot\.paint\) : null;/.test(s)
+      && !/coloring60SlotKind\(/.test(s2Strip(s));
+    cnS2('CN-S2-9', 'a coleção recalcula o estado por conta própria e pode divergir do leitor canônico',
+      semRegraPropriaNaColecao2(s2Cln),
+      semRegraPropriaNaColecao2(s2Cln.replace('const parsed = kind === SLOT.ART ? parseDrawingPayload(slot.paint) : null;',
+        'const kindLocal = coloring60SlotKind({ hasPaint: !!slot.paint });\n  const parsed = parseDrawingPayload(slot.paint);')));
+
+    // 10 — Prévia FALSA reintroduzida (contorno resolvido no lugar da obra inexistente).
+    const previaHonesta2 = (s) => /PREVIEW_STATE\.READY_WITHOUT_PERSISTED_ART/.test(s) && !/resolveColoring60Lineart/.test(s);
+    cnS2('CN-S2-10', 'a prévia volta a resolver o contorno e oferece uma prévia falsa da obra que não existe',
+      previaHonesta2(s2Prv),
+      previaHonesta2(s2Prv.replace('PREVIEW_STATE.READY_WITHOUT_PERSISTED_ART', 'PREVIEW_STATE.READY_WITH_ART')
+        + "\nconst falso = resolveColoring60Lineart('creation', 'light');"));
+
+    // 11 — completedCount passa a depender da existência do blob (o legado sumiria da contagem).
+    cnEstado2('CN-S2-11', 'a contagem passa a exigir instantâneo READY e a conclusão legada some do "3 de 3"',
+      (s) => s.replace('export function countsAsComplete(state) {\n  if (!state || state.isCurrentlyComplete !== true) return false;\n  return isSnapshotAcceptable(state.snapshotStatus);',
+        'export function countsAsComplete(state) {\n  if (!state || state.isCurrentlyComplete !== true) return false;\n  return state.snapshotStatus === SNAPSHOT_STATUS.READY;'),
+      (M) => {
+        if (!M || M.__erro) return false;
+        const j = M.deriveColoring60JourneyState({
+          activities: S2_IDS.map((id) => M.deriveColoring60ActivityState({
+            activityId: id, isCurrentlyComplete: true, hasEverCompleted: true,
+            snapshotStatus: M.SNAPSHOT_STATUS.NOT_PERSISTED, hydrationStatus: M.HYDRATION_STATUS.READY,
+          })),
+          finaleSeen: false,
+        });
+        return j.completedCount === 3;
+      });
+
+    // 12 — Copy comercial inserida na superfície infantil.
+    const semComercial2 = (s) => !S2_COMERCIAL.test(s2Strip(s));
+    cnS2('CN-S2-12', 'copy comercial é inserida na representação da conclusão',
+      vivoCP2 && semComercial2(s2Mark),
+      vivoCP2 && semComercial2(s2Mark.replace(/title: 'Parte concluída!'/, "title: 'Assine o Plano Família!'")));
+
+    for (const c of CN_S2) {
+      check(`S2 [negativo ${c.id}]: ${c.descricao}`,
         c.original === true && c.mutante === false,
         `o controle negativo não distinguiu o certo do errado (original=${JSON.stringify(c.original)} · mutante=${JSON.stringify(c.mutante)})`);
     }

@@ -85,8 +85,8 @@ import {
 } from '../components/coloring60/coloring60ArtComposition';
 // [C60-FIX3] MARCA HONESTA compartilhada. A vaga sem obra guardada deixa de ser um quadro vazio com
 // texto cinza (vocabulário de miniatura quebrada) e passa a exibir a MESMA marca intencional que a
-// galeria da grande conclusão usa — selo do estado, identidade da parte e, no caso do plano Grátis,
-// o recado de que a pintura não fica guardada. Um estado, uma representação, duas telas.
+// galeria da grande conclusão usa — selo do estado, identidade da parte e, na conclusão sem pixels
+// guardados, o convite a pintar de novo para guardar. Um estado, uma representação, duas telas.
 import Coloring60SlotStateMark, {
   COLORING60_SLOT_STATE_COPY,
 } from '../components/coloring60/Coloring60SlotStateMark';

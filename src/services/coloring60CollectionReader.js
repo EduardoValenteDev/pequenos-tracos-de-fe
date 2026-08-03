@@ -21,7 +21,10 @@ import {
   COLORING60_RESOLUTION_STATUS,
 } from './coloring60Resolver';
 import { loadColoring60JourneyRecord } from './coloring60ActivityService';
-import { getColoring60SavedDrawing } from './coloring60DrawingStorage';
+import {
+  getColoring60SavedDrawing,
+  hasColoring60SnapshotRecord,
+} from './coloring60DrawingStorage';
 import { snapshotHasMeaningfulColor } from './coloring60PaintMetrics';
 import {
   reconcileSnapshotStatus,
@@ -83,6 +86,14 @@ export function slotKindOf(slot, state) {
  * (sem `kind`). É o coração compartilhado: abre o blob salvo (evidência forte), mede cor real,
  * reconcilia o instantâneo com o disco e resolve o contorno oficial. Sem contorno não há
  * composição possível, então a pintura é descartada para o caminho de arte (`paint = null`).
+ *
+ * MIGRAÇÃO PREGUIÇOSA DO LEGADO (S2 · Spec 019). Quando a evidência forte não encontra arte,
+ * ainda restam DOIS passados possíveis, e eles não podem ser confundidos: "nunca houve pintura
+ * guardada" (conclusão legada — normal) e "havia e sumiu" (ponteiro órfão — integridade quebrada).
+ * A pergunta que desempata é barata e não abre arquivo nenhum: EXISTE registro de instantâneo?
+ * Ela só é feita quando o desempate importa — se a arte apareceu, o caso já está resolvido e não
+ * se gasta uma segunda leitura. Nada aqui escreve, apaga ou reescreve chave: a compatibilidade
+ * acontece na leitura, e o disco sai desta função exatamente como entrou.
  */
 async function reconcileSlot(storyId, activityMeta, stored) {
   let paint = null;
@@ -92,7 +103,22 @@ async function reconcileSlot(storyId, activityMeta, stored) {
   } catch (err) {
     if (__DEV__) console.log(`[Coloring60] leitura de ${activityMeta.activityId} falhou:`, err?.message);
   }
-  const snapshotStatus = reconcileSnapshotStatus(stored.storedSnapshotStatus, paint != null);
+  let hasSnapshotRecord = null;
+  if (paint == null) {
+    try {
+      hasSnapshotRecord = await hasColoring60SnapshotRecord(storyId, activityMeta.activityId);
+    } catch (err) {
+      // Sem resposta confiável, NÃO se inventa um passado: a evidência fica indefinida e a regra
+      // canônica mantém o comportamento conservador (integridade quebrada continua visível).
+      hasSnapshotRecord = null;
+      if (__DEV__) console.log(`[Coloring60] sonda de registro de ${activityMeta.activityId} falhou:`, err?.message);
+    }
+  }
+  const snapshotStatus = reconcileSnapshotStatus(
+    stored.storedSnapshotStatus,
+    paint != null,
+    hasSnapshotRecord === null ? {} : { hasSnapshotRecord },
+  );
   const res = resolveColoring60Lineart(storyId, activityMeta.activityId);
   const lineart = res.status === COLORING60_RESOLUTION_STATUS.AVAILABLE ? res.source : null;
   return {

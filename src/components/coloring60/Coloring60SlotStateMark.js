@@ -1,21 +1,25 @@
 /**
  * Coloring60SlotStateMark.js — A MARCA HONESTA de uma vaga que NÃO tem obra guardada para mostrar.
  *
- * O QUE ESTE COMPONENTE CORRIGE. No plano Grátis a criança terminava as três partes e o app dizia,
- * com razão, "3 de 3". Mas a composição visual dizia outra coisa: no fecho, a parte recém-pintada
- * aparecia como obra (ainda estava na memória da sessão) e as outras duas viravam molduras vazias
- * com um ícone genérico de imagem ausente; na coleção, as três viravam quadros vazios com um texto
- * cinza minúsculo. Tudo isso é o vocabulário visual de MINIATURA QUEBRADA — a tela contradizia a
- * própria conquista. A política de armazenamento está correta (o Grátis não guarda pixels, por
- * decisão de plano). O que estava errado era a REPRESENTAÇÃO.
+ * O QUE ESTE COMPONENTE CORRIGE. A criança terminava as três partes e o app dizia, com razão,
+ * "3 de 3". Mas a composição visual dizia outra coisa: no fecho, a parte recém-pintada aparecia
+ * como obra (ainda estava na memória da sessão) e as outras duas viravam molduras vazias com um
+ * ícone genérico de imagem ausente; na coleção, as três viravam quadros vazios com um texto cinza
+ * minúsculo. Tudo isso é o vocabulário visual de MINIATURA QUEBRADA — a tela contradizia a própria
+ * conquista. O que estava errado era a REPRESENTAÇÃO.
+ *
+ * O QUE MUDOU DEBAIXO DELE (S2 · Spec 019). A vaga sem pixels já foi a regra do plano Grátis; hoje
+ * não é mais. Desde o S1 quem tem acesso à história guarda a sua pintura, então uma vaga sem obra
+ * só pode vir de um PASSADO: uma conclusão gravada antes da política atual, ou uma escrita que
+ * falhou fisicamente. O estado continua sendo o mesmo e continua sendo POSITIVO — muda apenas o
+ * que ele diz à criança, porque a antiga promessa ("não fica guardada") deixou de ser verdade.
  *
  * O QUE ELE FAZ. Uma vaga sem obra recebe uma marca INTENCIONAL, igual em toda superfície que
  * representa coleção ou conjunto final:
  *   • um selo próprio do estado (nunca um ícone de "imagem que não carregou");
  *   • a frase do estado;
- *   • e, no estado da decisão de plano, o recado que fecha a expectativa — a pintura não fica
- *     guardada depois de sair.
- * Nada aqui é esqueleto, nada finge carregamento, nada promete que a arte poderá ser reaberta.
+ *   • e, na conclusão sem pixels guardados, um CONVITE — pintar de novo passa a guardar a criação.
+ * Nada aqui é esqueleto, nada finge carregamento, nada promete uma arte que não está no disco.
  *
  * O QUE ELE NÃO FAZ. Não lê storage, não conhece plano, não vende nada. A CLASSIFICAÇÃO da vaga
  * nasce no seletor puro compartilhado (`coloring60SlotKind`, em services/coloring60State); este
@@ -33,14 +37,17 @@ import { colors } from '../../theme/productTheme';
  * TEXTO OFICIAL de cada estado honesto — FONTE ÚNICA. A coleção, o fecho e a prévia ampliada dizem
  * a MESMA coisa sobre a MESMA vaga; três redações para um estado só voltariam a ser três verdades.
  *
- * `notPersisted` é o único com `note`, e o recado é deliberado: a criança precisa saber que a
- * pintura não continua guardada, sem que isso vire aviso de erro, de perda ou de venda. A conquista
- * vem primeiro ("Parte concluída!"); a limitação vem depois, em voz baixa e clara.
+ * `notPersisted` é o único com `note`, e o recado é deliberado. Ele deixou de ser um AVISO ("a
+ * pintura não fica guardada depois de sair") e passou a ser um CONVITE, porque a regra mudou: hoje
+ * pintar de novo GUARDA. A frase antiga prometia uma limitação que não existe mais e, mantida,
+ * seria simplesmente mentira. A conquista continua vindo primeiro ("Parte concluída!"); o convite
+ * vem depois, em voz baixa, sem explicar falha técnica, sem mencionar plano e sem culpar a criança
+ * por um passado que não foi escolha dela.
  */
 export const COLORING60_SLOT_STATE_COPY = Object.freeze({
   notPersisted: Object.freeze({
     title: 'Parte concluída!',
-    note: 'A pintura não fica guardada depois de sair.',
+    note: 'Pinte de novo para guardar sua criação.',
   }),
   needsColor: Object.freeze({
     title: 'Precisa de cor de novo',

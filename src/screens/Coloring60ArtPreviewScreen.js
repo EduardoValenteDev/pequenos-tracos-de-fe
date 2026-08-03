@@ -18,7 +18,7 @@
  * NÃO escreve nada. Só lê, compõe a arte (tinta + contorno em `multiply`, a MESMA matemática da
  * coleção e do Livrinho) e oferece duas saídas.
  *
- * ESTADOS HONESTOS. `art` mostra a obra; `notPersisted` (concluída no Grátis, sem pixels),
+ * ESTADOS HONESTOS. `art` mostra a obra; `notPersisted` (concluída sem pixels guardados),
  * `needsColor` (ponteiro órfão) e `empty` (ainda não concluída) NUNCA mostram o contorno sozinho no
  * lugar da obra: mostram uma mensagem acolhedora e convidam a colorir a parte — e o "Editar/Colorir"
  * sempre abre o editor da PRÓPRIA parte.

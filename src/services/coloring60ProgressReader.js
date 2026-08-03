@@ -68,7 +68,18 @@ export async function loadColoring60JourneyState(storyId) {
       isCurrentlyComplete: stored.isCurrentlyComplete === true,
       hasEverCompleted: stored.hasEverCompleted === true,
       // Cura conclusões anteriores à chave de instantâneo e derruba conclusões órfãs (Parte 4).
-      snapshotStatus: reconcileSnapshotStatus(stored.storedSnapshotStatus, artRecorded),
+      //
+      // A MESMA sonda responde às DUAS perguntas da regra canônica, e é por isso que ela aparece
+      // duas vezes aqui. Como `artRecorded`: "dá para promover a READY?". Como `hasSnapshotRecord`:
+      // "existe algum registro de instantâneo?" — a evidência que, quando NEGATIVA, identifica a
+      // CONCLUSÃO LEGADA (sem pixels, nunca houve ponteiro) e a preserva como conclusão válida em
+      // vez de derrubá-la como quebra de integridade. Sem isso, uma conclusão antiga sumiria do
+      // "x de 3" e a criança seria mandada refazer o que já terminou (S2 · Spec 019).
+      snapshotStatus: reconcileSnapshotStatus(
+        stored.storedSnapshotStatus,
+        artRecorded,
+        { hasSnapshotRecord: artRecorded },
+      ),
       hydrationStatus: HYDRATION_STATUS.READY,
     });
   }));

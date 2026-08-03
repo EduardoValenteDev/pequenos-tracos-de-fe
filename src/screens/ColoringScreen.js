@@ -46,8 +46,8 @@ import {
 // [C60-PARTE-3/4] MEDIDA REAL DA TINTA e MODELO CANÔNICO DE ESTADO. Puros, sem I/O. `hasMeaningfulColor`
 // substitui a promessa `onPainted` (mão única, que nunca voltava a falso ao apagar) por uma medida do
 // motor; `snapshotMatchesRevision` é o passo 6 da transação; `SNAPSHOT_STATUS` distingue "arte guardada"
-// de "plano Grátis não guarda" — sem essa distinção, ou o Grátis nunca chega a 3 de 3, ou uma conclusão
-// órfã (arte sumida do disco) passaria por legítima.
+// de "concluída sem pixels" (conclusão legada ou escrita falhada) — sem essa distinção, ou uma conclusão
+// antiga nunca chega a 3 de 3, ou uma conclusão órfã (arte sumida do disco) passaria por legítima.
 import {
   hasMeaningfulColor,
   readPaintMetricsFromSnapshot,
@@ -362,13 +362,57 @@ function beginC60Attempt(deps) {
           : result === COLORING60_SAVE_RESULT.INVALID_AUTHORIZATION ? 'invalid_authorization'
           : 'write_failed';
         if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante o writer
-        // [S1] Qualquer desfecho diferente de `saved` INTERROMPE: NÃO marca, NÃO incrementa, NÃO
-        // celebra, NÃO abre a coleção. Não existe mais "conclusão sem arte gravada". A pintura
-        // continua na tela (recuperável) e a criança pode tentar de novo — o aviso é o mesmo, gentil
-        // e sem jargão; o rótulo viaja só para o log e para a telemetria interna.
         if (result !== COLORING60_SAVE_RESULT.SAVED) {
-          if (__DEV__) console.log('[Coloring60] pintura não guardada; nada marcado:', resultLabel);
-          if (typeof onSaveIssue === 'function') onSaveIssue(resultLabel);
+          // [S1] RECUSA DE ACESSO OU IDENTIDADE INVÁLIDA — efeito ZERO. NÃO marca, NÃO incrementa,
+          // NÃO celebra, NÃO abre a coleção. Quem não podia escrever também não conclui. A pintura
+          // continua na tela (recuperável) e a criança pode tentar de novo — o aviso é gentil e sem
+          // jargão; o rótulo viaja só para o log e para a telemetria interna.
+          if (result !== COLORING60_SAVE_RESULT.WRITE_FAILED) {
+            if (__DEV__) console.log('[Coloring60] escrita recusada; nada marcado:', resultLabel);
+            if (typeof onSaveIssue === 'function') onSaveIssue(resultLabel);
+            return;
+          }
+
+          // ── [S2] FALHA FÍSICA DE ESCRITA — a ÚNICA exceção, e ela é a favor da criança ───────
+          // Aqui o acesso era legítimo e a pintura era real: o DISCO falhou. Tratar isso como
+          // "não concluiu" cobraria da criança um erro que não é dela e trancaria a progressão da
+          // história por falta de espaço no aparelho. A conclusão é gravada — com o desfecho
+          // HONESTO, nunca com um READY inventado.
+          //
+          // Qual desfecho é honesto depende do que está NO DISCO agora, e não do que se tentou
+          // gravar. Se já havia uma obra guardada, ela continua lá, intacta (o writer só promove o
+          // ponteiro depois de confirmar a nova geração): o instantâneo segue READY e a vaga
+          // continua ART — uma sobrescrita falhada JAMAIS rebaixa a obra anterior. Se não havia
+          // nada, a conclusão é registrada sem pixels e a coleção dirá exatamente isso.
+          const previous = await getColoring60SavedDrawing(attemptStoryId, attemptActivityId);
+          if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante a releitura
+          const honestStatus = hasMeaningfulColor(readPaintMetricsFromSnapshot(previous))
+            ? SNAPSHOT_STATUS.READY
+            : SNAPSHOT_STATUS.NOT_PERSISTED;
+          const kept = await markColoring60ActivityDone(
+            attemptStoryId, attemptActivityId, exportData, honestStatus,
+          );
+          if (!activeRef.current || !controller.isCurrent(token)) return; // expirou durante a marcação
+          if (kept !== true) {
+            if (__DEV__) console.log('[Coloring60] falha de escrita E conclusão não registrada');
+            if (typeof onSaveIssue === 'function') onSaveIssue(resultLabel);
+            return;
+          }
+          if (__DEV__) console.log('[Coloring60] escrita falhou; conclusão honesta:', honestStatus);
+          // A celebração acontece — a criança terminou de verdade —, mas ela é HONESTA:
+          // `persisted: false` conta ao app que estes pixels não ficaram guardados. Não se dispara
+          // também o pedido de "tente de novo": comemorar e acusar erro na mesma tela seriam duas
+          // mensagens contraditórias para a mesma criança.
+          if (typeof onCelebrate === 'function') {
+            onCelebrate({
+              persisted: false,
+              snapshot: exportData,
+              snapshotStatus: honestStatus,
+              activityId: attemptActivityId,
+            });
+            return;
+          }
+          goBack();
           return;
         }
 
@@ -845,8 +889,8 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // o overlay só renderiza o resultado.
   //
   // [C60-FIX3] O QUE MUDOU E POR QUÊ. Esta função montava a galeria por conta própria: a atividade
-  // ATUAL vinha do instantâneo EM MEMÓRIA e as outras duas do storage. No plano Grátis — que conclui
-  // e, por decisão de plano, não guarda pixels — isso produzia a cena reprovada no teste físico: a
+  // ATUAL vinha do instantâneo EM MEMÓRIA e as outras duas do storage. Quando a conclusão não vinha
+  // acompanhada de pixels guardados, isso produzia a cena reprovada no teste físico: a
   // parte recém-pintada aparecia como obra guardada e as outras duas como molduras vazias, enquanto
   // o contador dizia, corretamente, 3 de 3. Duas fontes para a mesma pergunta = duas verdades.
   // O instantâneo da sessão continua PROTAGONISTA onde ele de fato existe: a moldura viva da
@@ -879,9 +923,11 @@ function Coloring60ActivityScreen({ route, navigation }) {
   //     continua visível, o Beni reage, mas NÃO repete a festa 3/3 nem a página especial de 1ª vez;
   //   • 1ª conclusão, ainda falta → celebração CURTA de atividade (a pintura continua protagonista);
   //   • 1ª conclusão real 2/3→3/3 → GRANDE conclusão (galeria das três).
-  // Falha de escrita NÃO chega aqui: o núcleo só chama onCelebrate em desfecho SAVED/NOT_PERSISTED_FREE.
-  // O Grátis (não persistido) é conclusão de verdade para a criança e recebe a MESMA celebração — sem
-  // uma palavra sobre plano. NENHUMA navegação acontece aqui: quem navega é a criança, pelas ações do
+  // [S2] O QUE CHEGA AQUI. Recusa de ACESSO e identidade inválida NUNCA chegam — o núcleo interrompe
+  // antes, sem marcar nada. Chega o desfecho SAVED e chega a FALHA FÍSICA de escrita, que é conclusão
+  // de verdade para a criança (ela terminou; o disco é que falhou) e recebe a MESMA celebração, com
+  // `persisted: false`. A festa não muda: nem por plano, nem por disco cheio — a criança concluiu
+  // igual. NENHUMA navegação acontece aqui: quem navega é a criança, pelas ações do
   // cartão. Reentrância: uma tentativa = UM disparo (a trava do controlador garante um único onCelebrate);
   // o overlay monta UMA vez (som/háptico no seu próprio mount, §Parte 4/8) e re-render NÃO reinicia nada.
   // [C60-P11-MACHINE-START] Núcleo de DECISÃO da máquina de conclusão (P11 · Parte 4): a partir do
@@ -930,8 +976,9 @@ function Coloring60ActivityScreen({ route, navigation }) {
         })
       : journey);
 
-    // [C60-A3] TRANSAÇÃO CONCLUÍDA ⇒ AQUECE O RETRATO da coleção. `onCelebrate` só é chamado em
-    // desfecho SAVED/NOT_PERSISTED_FREE — ou seja, a conclusão já está gravada e o disco consistente.
+    // [C60-A3] TRANSAÇÃO CONCLUÍDA ⇒ AQUECE O RETRATO da coleção. `onCelebrate` só é chamado depois
+    // de a conclusão estar GRAVADA — seja com a arte guardada (SAVED), seja com o desfecho honesto de
+    // uma escrita que falhou. Em ambos os casos há o que reconciliar, e o retrato reflete a verdade.
     // Dispara a reconciliação em segundo plano (dedup em voo por storyId): quando a criança tocar
     // "Ver minha coleção", o retorno é quente e instantâneo. Fire-and-forget de propósito — NÃO
     // aguardamos, NÃO navegamos, NÃO tocamos progresso/som/háptico, e um erro aqui não afeta a festa.
