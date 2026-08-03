@@ -9,15 +9,24 @@ import { colors as pt, radii, shadows } from '../../theme/productTheme';
  * @param {object}   cena          — objeto cena de stories.js
  * @param {number}   index         — índice na lista (0-based)
  * @param {'completed'|'available'|'locked'} status
+ * @param {boolean}  entryBlocked  — [FIX 2] a história inteira está sem autorização de ENTRADA no
+ *                                   conteúdo. Nem os cartões já concluídos abrem: o selo de
+ *                                   concluída continua ali (o progresso é real e permanece), mas o
+ *                                   toque não leva a lugar nenhum.
+ * @param {string}   lockedHint    — [FIX 2] frase do estado bloqueado. Quando a aventura anterior é
+ *                                   que segura, ela diz isso; sem frase, segue o texto de sempre.
  * @param {function} onPress
  *
  * [P3J] A prop `hasDrawing` (selo "desenho salvo") saiu com o Colorir legado por cena: era o
  * único produtor de desenhos por cena, e sem ele nenhuma cena pode voltar a ter um.
  */
-export default function SceneListItem({ cena, index, status, onPress }) {
+export default function SceneListItem({ cena, index, status, entryBlocked = false, lockedHint, onPress }) {
   const isLocked = status === 'locked';
   const isDone = status === 'completed';
   const isAvailable = status === 'available';
+  // Bloqueio de ENTRADA vale para todo cartão — inclusive os concluídos.
+  const blocked = isLocked || entryBlocked === true;
+  const hintText = lockedHint || 'Complete a cena anterior';
 
   const numBg = isDone ? pt.greenSoft : isAvailable ? pt.goldSoft : pt.lockedBg;
   const numColor = isDone ? pt.freeText : isAvailable ? pt.premiumText : pt.lockedText;
@@ -29,9 +38,9 @@ export default function SceneListItem({ cena, index, status, onPress }) {
         isLocked && styles.rowLocked,
         isDone && styles.rowDone,
       ]}
-      onPress={isLocked ? undefined : onPress}
-      activeOpacity={isLocked ? 1 : 0.8}
-      disabled={isLocked}
+      onPress={blocked ? undefined : onPress}
+      activeOpacity={blocked ? 1 : 0.8}
+      disabled={blocked}
     >
       {/* Número */}
       <View style={[styles.numCircle, { backgroundColor: numBg }]}>
@@ -45,8 +54,8 @@ export default function SceneListItem({ cena, index, status, onPress }) {
         <Text style={[styles.name, isLocked && styles.nameLocked]} numberOfLines={2}>
           {cena.titulo ?? `Cena ${index + 1}`}
         </Text>
-        {isLocked && (
-          <Text style={styles.lockedHint}>Complete a cena anterior</Text>
+        {blocked && (
+          <Text style={styles.lockedHint}>{hintText}</Text>
         )}
       </View>
 

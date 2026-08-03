@@ -80,7 +80,12 @@ const SPARKS = [
   { bottom: 8, right: 26, size: 8 },
 ];
 
-export default function StoryFocusModal({ visible, story, contractStatus = 'locked', journeyComplete = false, canOpen = false, previousStoryTitle = null, lockReason, progressPercent = 0, onClose, onOpen }) {
+// [FIX 2] A prop `canOpen` saiu daqui. Ela nunca foi lida no corpo deste modal — e o nome
+// prometia duas coisas incompatíveis ao mesmo tempo: "pode abrir os detalhes" e "pode entrar no
+// conteúdo". Este modal só leva à tela de DETALHES (`onOpen`), o que uma história bloqueada
+// continua podendo fazer; quem decide a ENTRADA no conteúdo é `storyContentAuthorization`, na
+// origem e no destino. Um nome ambíguo e morto é convite a bloquear a leitura por engano.
+export default function StoryFocusModal({ visible, story, contractStatus = 'locked', journeyComplete = false, previousStoryTitle = null, lockReason, progressPercent = 0, onClose, onOpen }) {
   const { width } = useWindowDimensions();
   const backdrop = useRef(new Animated.Value(0)).current;
   const pop = useRef(new Animated.Value(0)).current; // 0 = fechado, 1 = aberto

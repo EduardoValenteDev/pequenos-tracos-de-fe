@@ -75,7 +75,15 @@ export default function NarrationScreen({ route, navigation }) {
 
   // Progresso — conclusão da cena é desacoplada do colorir (Sprint Histórias 3.0)
   const { progresso, salvarCena } = useProgress(story.id);
-  const { refreshProgress } = useProgressContext();
+  const { refreshProgress, getStoryContentAuthorization } = useProgressContext();
+  // [FIX 2] GUARDA NO DESTINO. A tela de detalhe não pode ser a única proteção: qualquer caminho
+  // que chegue aqui — cartão, botão principal, retomada pós-Colorir, navegação direta — passa por
+  // ESTA mesma autorização central. Nenhuma regra de sequência é recalculada nesta tela.
+  const contentAuthorization = getStoryContentAuthorization(story?.id);
+  const contentEntryAllowed = contentAuthorization.canEnterStoryContent === true;
+  // Enquanto o progresso hidrata não se sabe nada: não mostra a cena, não toca áudio, não decide
+  // redirecionamento (senão uma história legítima seria expulsa no primeiro frame).
+  const authorizationPending = contentAuthorization.authorizationReady !== true;
   const jaConcluida = cena ? (progresso[cena.id] === true) : false;
 
   const [showCelebration, setShowCelebration] = useState(false);
@@ -97,9 +105,16 @@ export default function NarrationScreen({ route, navigation }) {
   // Fase 2B.6 (RP3): revalida ACESSO ao FOCAR (não só no mount) — protege expiração
   // durante o uso. Ao redirecionar, a tela desmonta e o AudioPlayer pausa no cleanup do
   // unmount (áudio premium não continua tocando após o bloqueio).
+  // [FIX 2] A revalidação de ENTRADA acontece no mesmo foco: primeiro acesso/mídia (regra
+  // comercial intacta), depois a autorização de conteúdo. Negada → volta à tela de DETALHES, que é
+  // onde a explicação do que falta aparece. Nunca crash, nunca tela branca, nunca áudio.
   useFocusEffect(
     useCallback(() => {
-      if (canOpenStoryFullExperience(story)) return;
+      if (authorizationPending) return;
+      if (canOpenStoryFullExperience(story)) {
+        if (!contentEntryAllowed) handleVoltar();
+        return;
+      }
       // B1: separa trava de PLANO de falta de MÍDIA.
       //   premium → Área dos Pais (upsell legítimo);
       //   media/coming_soon → volta, sem paywall enganoso por falta de mídia.
@@ -110,7 +125,7 @@ export default function NarrationScreen({ route, navigation }) {
       } else {
         navigation.replace('Home');
       }
-    }, [story]),
+    }, [story, authorizationPending, contentEntryAllowed]),
   );
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -150,11 +165,13 @@ export default function NarrationScreen({ route, navigation }) {
 
   function handleCenaAnterior() {
     if (cenaIndex <= 0) return;
+    if (!contentEntryAllowed) return; // [FIX 2] a cena anterior também é conteúdo
     // replace mantém a pilha limpa; não conclui cena, não dá estrela, não abre colorir
     navigation.replace('Narration', { story, cenaIndex: cenaIndex - 1 });
   }
 
   function goToNext() {
+    if (!contentEntryAllowed) return; // [FIX 2] o avanço não atravessa o bloqueio
     if (isLastCena) navigation.navigate('Congrats', { story });
     else navigation.replace('Narration', { story, cenaIndex: cenaIndex + 1 });
   }
@@ -162,6 +179,9 @@ export default function NarrationScreen({ route, navigation }) {
   // ── Conclusão da cena (caminho principal) ──
   async function handleConcluirCena() {
     if (!canOpenStoryFullExperience(story)) return;
+    // [FIX 2] DEFESA ANTES DA ESCRITA: esta é a única gravação de progresso de cena do app. Sem
+    // autorização de entrada, nada é marcado como concluído — e nada do que já existe é tocado.
+    if (!contentEntryAllowed) return;
     // salvarCena é idempotente: não duplica estrela se a cena já estava concluída
     await salvarCena(cena.id);
     refreshProgress();
@@ -262,6 +282,27 @@ export default function NarrationScreen({ route, navigation }) {
   } else {
     primaryLabel = 'Próxima cena →';
     primaryAction = goToNext;
+  }
+
+  // ── [FIX 2] ESTADO SEGURO. Enquanto o progresso hidrata (nada se sabe ainda) ou quando a
+  // entrada foi negada (o efeito de foco já está devolvendo à tela de detalhes), esta tela NÃO
+  // monta a cena: sem ilustração da cena proibida, sem áudio, sem nada tocável. Só um respiro
+  // curto — a explicação do que falta mora no detalhe, não aqui. ─────────────────────────────
+  if (authorizationPending || !contentEntryAllowed) {
+    return (
+      <View style={styles.wrapper}>
+        <SafeScreenHeader
+          title={story?.titulo || 'Aventura'}
+          onBack={handleVoltar}
+          showHome
+          onHome={handleInicio}
+        />
+        <View style={styles.fallback}>
+          <Text style={styles.fallbackEmoji}>🌙</Text>
+          <Text style={styles.fallbackMsg}>Só um instante…</Text>
+        </View>
+      </View>
+    );
   }
 
   // ── Fallback: story sem cenas (ex: objeto de navegação incompleto) ──────────

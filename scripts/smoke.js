@@ -45793,6 +45793,358 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     }
   }
 
+  /* ═══ [FIX 2 · JORNADA] AUTORIZAÇÃO DE ENTRADA NO CONTEÚDO DAS HISTÓRIAS ═══════════════════════
+   * O defeito: uma história aparecia bloqueada e mesmo assim deixava abrir cartões de cena, iniciar
+   * a narração, avançar e GRAVAR progresso. O bloqueio era aparência, não autorização.
+   *
+   * O contrato tem DUAS permissões que nunca se confundem:
+   *   · canViewStoryDetails  — pin, modal, capa, resumo, progresso preservado, tela de detalhes.
+   *                            Uma história bloqueada CONTINUA visível e consultável.
+   *   · canEnterStoryContent — iniciar/continuar cenas, abrir a NarrationScreen, avançar entre
+   *                            cenas, gravar novo progresso. Uma história bloqueada NÃO entra.
+   *
+   * A regra nasce em UM serviço puro de domínio e é consultada por todas as telas. As provas de
+   * domínio EXECUTAM esse serviço de verdade; as provas de tela leem o fonte real (telas não rodam
+   * fora do React) e cobram a consulta à mesma fonte — nunca uma regra reescrita localmente.
+   * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+  {
+    const { loadModule: fx2Load } = require('./testing/packInstallHarness');
+
+    const FX2_SRC = 'src/services/storyContentAuthorization.js';
+    const FX2_EXPORTS = ['CONTENT_AUTH_REASON', 'STORY_REQUIREMENT', 'STORY_REQUIREMENT_ORDER',
+      'missingStoryRequirements', 'deriveStoryContentAuthorization', 'describeStorySequenceLock'];
+
+    // O serviço de jornada REAL produz os fatos dos cenários: a classificação comercial e a fórmula
+    // da conclusão continuam morando nele. Nada aqui é digitado à mão nem redefinido.
+    const SJ2 = fx2Load('src/services/storyJourneyService.js', {}, ['getStoryJourneyStatus', 'COMMERCIAL_ACCESS', 'sceneVisualStatus']);
+    const carregarFX2 = (mutate) => {
+      try { return fx2Load(FX2_SRC, { COMMERCIAL_ACCESS: SJ2.COMMERCIAL_ACCESS }, FX2_EXPORTS, mutate); }
+      catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    };
+    const A2 = carregarFX2();
+    const vivoFX2 = !!A2 && !A2.__erro;
+    const faltaFX2 = vivoFX2 ? '' : ` — a fonte única de autorização não respondeu: ${A2.__erro}`;
+    const okFX2 = (fn, padrao) => {
+      if (!vivoFX2) return { __erro: `serviço ausente${faltaFX2}` };
+      try { const r = fn(A2); return r === undefined || r === null ? (padrao !== undefined ? padrao : { __erro: 'a derivação devolveu vazio' }) : r; }
+      catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    };
+    const d2 = (r) => (r && r.__erro ? r.__erro : `obtido: ${JSON.stringify(r)}`);
+    const RAZAO = vivoFX2 ? A2.CONTENT_AUTH_REASON : {};
+
+    // ── Fatos: a jornada real de cada história ───────────────────────────────────────────────────
+    const jornada2 = (over) => SJ2.getStoryJourneyStatus(Object.assign({
+      totalScenes: 10,
+      sceneDoneCount: 0,
+      postStoryStatus: { storyBookOpened: false, quizDone: false, reflectionDone: false },
+      coloringComplete: false,
+      coloringAvailable: false,
+      accessStatus: 'full',
+      accessType: 'free',
+      isFirstStory: true,
+      previousJourneyComplete: false,
+    }, over || {}));
+
+    // Estado FÍSICO atual do aparelho do fundador: "A Criação" com 10 de 10 cenas e 3 de 3 do
+    // Colorir, faltando Livrinho, Quiz e Reflexão.
+    const CRIACAO_FISICA = jornada2({ sceneDoneCount: 10, coloringAvailable: true, coloringComplete: true });
+    const CRIACAO_PRONTA = jornada2({
+      sceneDoneCount: 10, coloringAvailable: true, coloringComplete: true,
+      postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+    });
+    // "Noé": 2 de 10 cenas já concluídas, presa atrás de "A Criação".
+    const noe2 = (previaCompleta, over) => jornada2(Object.assign({
+      sceneDoneCount: 2, isFirstStory: false, previousJourneyComplete: previaCompleta,
+    }, over || {}));
+    const NOE_BLOQ = noe2(CRIACAO_FISICA.journeyComplete);
+    const NOE_LIVRE = noe2(CRIACAO_PRONTA.journeyComplete);
+
+    const autorizar2 = ({ status, previa = null, storyId = 'noah', anterior = 'creation', conhecida = true, hidratado = true }) =>
+      okFX2((M) => M.deriveStoryContentAuthorization({
+        storyId, knownStory: conhecida, previousStoryId: anterior,
+        journeyStatus: status, previousStatus: previa, hydrated: hidratado,
+      }));
+
+    const A_NOE_BLOQ = autorizar2({ status: NOE_BLOQ, previa: CRIACAO_FISICA });
+    const A_NOE_LIVRE = autorizar2({ status: NOE_LIVRE, previa: CRIACAO_PRONTA });
+    const A_CRIACAO_FIS = autorizar2({ status: CRIACAO_FISICA, previa: null, storyId: 'creation', anterior: null });
+    const A_CRIACAO_OK = autorizar2({ status: CRIACAO_PRONTA, previa: null, storyId: 'creation', anterior: null });
+
+    // ── Fonte real das telas ─────────────────────────────────────────────────────────────────────
+    const SD2 = codeOf('src/screens/StoryDetailScreen.js');
+    const NA2 = codeOf('src/screens/NarrationScreen.js');
+    const SLI2 = codeOf('src/components/story/SceneListItem.js');
+    const PC2 = codeOf('src/context/ProgressContext.js');
+    const idx2 = (src, re) => { const m = src.match(re); return m ? src.indexOf(m[0]) : -1; };
+
+    // A decisão de cartão da tela de detalhe, EXECUTADA a partir do fonte real — nada de reescrever
+    // aqui a expressão que a tela usa: se a tela mudar, esta prova muda junto.
+    const rodarCartao = (fonte, { feitas, entrar }) => {
+      const m = fonte.match(/function getSceneStatus\(cena, index\) \{([\s\S]*?)\n {2}\}/);
+      if (!m) return { __erro: 'getSceneStatus não foi encontrada no fonte da tela de detalhe' };
+      const corpo = m[1];
+      if (!/canEnterStoryContent/.test(corpo)) return { __erro: `getSceneStatus ignora a autorização de conteúdo → ${corpo.trim().slice(0, 160)}` };
+      let fn;
+      try {
+        fn = new Function('sceneVisualStatus', 'isComingSoon', 'progresso', 'canAccess', 'progressCount', 'canEnterStoryContent', 'cena', 'index', corpo);
+      } catch (e) { return { __erro: `getSceneStatus não pôde ser avaliada: ${(e && e.message) || e}` }; }
+      const progresso = {};
+      for (let i = 0; i < feitas; i += 1) progresso[`c${i}`] = true;
+      const linha = [];
+      for (let i = 0; i < 4; i += 1) {
+        try { linha.push(fn(SJ2.sceneVisualStatus, false, progresso, true, feitas, entrar, { id: `c${i}` }, i)); }
+        catch (e) { return { __erro: `getSceneStatus lançou: ${(e && e.message) || e}` }; }
+      }
+      return linha;
+    };
+    const CARTOES_BLOQ = rodarCartao(SD2, { feitas: 2, entrar: false });
+    const CARTOES_LIVRE = rodarCartao(SD2, { feitas: 2, entrar: true });
+
+    // O ponto de retomada da tela de detalhe, também executado do fonte real.
+    const rodarRetomada = (fonte, { feitas, total }) => {
+      const m = fonte.match(/const startCenaIndex = ([^\n;]+);/);
+      if (!m) return { __erro: 'startCenaIndex não foi encontrada no fonte da tela de detalhe' };
+      try {
+        return new Function('progressCount', 'isCompleted', `return ${m[1]};`)(feitas, feitas >= total && total > 0);
+      } catch (e) { return { __erro: `startCenaIndex não pôde ser avaliada: ${(e && e.message) || e}` }; }
+    };
+
+    // ═══ 1-5 · O CONTRATO DAS DUAS PERMISSÕES ═══════════════════════════════════════════════════
+    check(`FIX2 [C01]: "Noé" bloqueada pela sequência ⇒ canViewStoryDetails PERMANECE true (o pin, o modal e a tela de detalhe continuam abrindo)${faltaFX2}`,
+      A_NOE_BLOQ.canViewStoryDetails === true, d2(A_NOE_BLOQ));
+    check(`FIX2 [C02]: "Noé" bloqueada pela sequência ⇒ canEnterStoryContent é false (o conteúdo não abre)${faltaFX2}`,
+      A_NOE_BLOQ.canEnterStoryContent === false && A_NOE_BLOQ.reason === RAZAO.SEQUENCE_LOCKED, d2(A_NOE_BLOQ));
+    check(`FIX2 [C03]: "A Criação" (primeira história, jornada ainda incompleta) ⇒ canViewStoryDetails é true${faltaFX2}`,
+      A_CRIACAO_FIS.canViewStoryDetails === true, d2(A_CRIACAO_FIS));
+    check(`FIX2 [C04]: "A Criação" com requisitos de entrada válidos ⇒ canEnterStoryContent é true (a primeira história nunca depende de anterior)${faltaFX2}`,
+      A_CRIACAO_FIS.canEnterStoryContent === true && A_CRIACAO_FIS.reason === RAZAO.ALLOWED, d2(A_CRIACAO_FIS));
+    check(`FIX2 [C05]: "Noé" depois de "A Criação" concluída ⇒ canEnterStoryContent vira true${faltaFX2}`,
+      A_NOE_LIVRE.canEnterStoryContent === true && A_NOE_LIVRE.reason === RAZAO.ALLOWED, d2(A_NOE_LIVRE));
+
+    // ═══ 6-10 · AS ORIGENS: o que só mostra continua abrindo, o que entra passa pela autorização ══
+    check('FIX2 [C06]: com "Noé" bloqueada o modal do mapa continua levando ao StoryDetail (rota de leitura NUNCA é bloqueada)',
+      /onOpen/.test(codeOf('src/components/map/StoryFocusModal.js'))
+      && /onOpen=\{[^}]*\}/.test(codeOf('src/screens/AdventureMapScreen.js'))
+      && /navigation\.navigate\(ROUTES\.STORY_DETAIL|navigate\('StoryDetail'/.test(codeOf('src/screens/AdventureMapScreen.js')),
+      'o caminho pin → modal → detalhe precisa continuar existindo e intacto');
+    check('FIX2 [C07]: o botão principal do detalhe não abre a narração sem autorização de conteúdo',
+      /function handlePrimary\(\)[\s\S]{0,400}?canEnterStoryContent/.test(SD2)
+      || /function goToPremium\([\s\S]{0,300}?canEnterStoryContent/.test(SD2),
+      'handlePrimary/goToPremium precisam consultar a autorização central antes de navegar para a narração');
+    check('FIX2 [C08]: nenhum cartão de cena abre a narração com a história bloqueada (o portão de navegação recusa a rota de conteúdo)',
+      /function goToPremium\(routeName, params\) \{[\s\S]{0,400}?routeName === ROUTES\.NARRATION && !canEnterStoryContent[\s\S]{0,40}?return;/.test(SD2)
+      && /entryBlocked=\{!canEnterStoryContent\}/.test(SD2)
+      && /disabled=\{blocked\}/.test(SLI2),
+      'o cartão precisa recusar o toque E o portão de navegação precisa recusar a rota de conteúdo');
+    check(`FIX2 [C09]: com "Noé" bloqueada, a cena 3 NÃO aparece como "Disponível" — e as cenas 1 e 2 continuam "concluídas" (obtido: ${JSON.stringify(CARTOES_BLOQ)})`,
+      Array.isArray(CARTOES_BLOQ) && CARTOES_BLOQ[0] === 'completed' && CARTOES_BLOQ[1] === 'completed'
+      && CARTOES_BLOQ[2] === 'locked' && CARTOES_BLOQ[3] === 'locked', d2(CARTOES_BLOQ));
+    // A guarda precisa REDIRECIONAR, não apenas mencionar a permissão: citar `contentEntryAllowed`
+    // só na lista de dependências do useCallback satisfaria uma prova frouxa sem proteger nada.
+    const GUARDA_FOCO = /useFocusEffect\([\s\S]{0,700}?if \(!contentEntryAllowed\) handleVoltar\(\);/;
+    check('FIX2 [C10]: navegação direta para a NarrationScreen é interceptada pela MESMA autorização central',
+      /getStoryContentAuthorization\(/.test(NA2) && GUARDA_FOCO.test(NA2),
+      'a NarrationScreen precisa consultar a autorização central no foco E devolver ao detalhe — a tela de detalhe não pode ser a única proteção');
+
+    // ═══ 11-15 · O DESTINO: nada roda, nada avança, nada grava ═══════════════════════════════════
+    const iAudio = idx2(NA2, /<AudioPlayer/);
+    const iGuarda = idx2(NA2, /if \(authorizationPending \|\| !contentEntryAllowed\) \{/);
+    check(`FIX2 [C11]: com a entrada negada nenhum áudio é iniciado — o estado seguro de carregamento retorna ANTES do player (guarda=${iGuarda} · player=${iAudio})`,
+      iGuarda > -1 && iAudio > -1 && iGuarda < iAudio,
+      'a NarrationScreen precisa devolver um estado seguro antes de montar a cena e o áudio');
+    check('FIX2 [C12]: salvarCena NÃO é chamada com a história bloqueada (defesa ANTES da escrita)',
+      /if \(!contentEntryAllowed\) return;[\s\S]{0,200}?await salvarCena\(/.test(NA2),
+      'a única escrita de progresso do app precisa da autorização central antes de gravar');
+    check('FIX2 [C13]: goToNext não avança de cena com a história bloqueada',
+      /function goToNext\(\) \{\s*if \(!contentEntryAllowed\) return;/.test(NA2),
+      'o botão de próxima cena não pode atravessar o bloqueio');
+    check('FIX2 [C14]: a cena anterior também não abre conteúdo com a história bloqueada',
+      /function handleCenaAnterior\(\) \{[\s\S]{0,120}?if \(!contentEntryAllowed\) return;/.test(NA2),
+      'o retorno para a cena anterior não pode atravessar o bloqueio');
+    check('FIX2 [C15]: o retorno do Colorir cai na MESMA guarda do destino (o plano continua intacto e a NarrationScreen recusa)',
+      /planC60ResumeStory\(C60_NAV_ROUTES\.narration/.test(codeOf('src/services/coloring60Navigation.js')) && GUARDA_FOCO.test(NA2),
+      'a retomada pós-Colorir precisa ser barrada pela guarda da NarrationScreen, sem regra própria');
+
+    // ═══ 16-17 · O PROGRESSO ANTIGO É SAGRADO ═══════════════════════════════════════════════════
+    const retomada = rodarRetomada(SD2, { feitas: 2, total: 10 });
+    check('FIX2 [C16]: com "Noé" bloqueada o progresso permanece 2 de 10 — nenhum caminho apaga, zera ou reescreve o que já foi feito',
+      !/limparProgresso|removeItem\(|setProgresso\(\{\}\)/.test(NA2)
+      && Array.isArray(CARTOES_BLOQ) && CARTOES_BLOQ[0] === 'completed' && CARTOES_BLOQ[1] === 'completed'
+      && !/isDone: false/.test(SD2),
+      d2(CARTOES_BLOQ));
+    check(`FIX2 [C17]: depois de "A Criação" concluída, "Noé" retoma na CENA 3 (índice 2) — nem repetida, nem perdida (obtido: ${JSON.stringify(retomada)})`,
+      retomada === 2 && Array.isArray(CARTOES_LIVRE) && CARTOES_LIVRE[2] === 'available',
+      d2({ retomada, cartoes: CARTOES_LIVRE }));
+
+    // ═══ 18-20 · A COPY DIZ SÓ O QUE FALTA, COM GRAMÁTICA CORRETA ════════════════════════════════
+    const copiar2 = (previa, titulo, anterior) => okFX2((M) => {
+      const aut = M.deriveStoryContentAuthorization({
+        storyId: 'noah', knownStory: true, previousStoryId: 'creation',
+        journeyStatus: noe2(previa.journeyComplete), previousStatus: previa, hydrated: true,
+      });
+      return M.describeStorySequenceLock({
+        reason: aut.reason, authorizationReady: aut.authorizationReady,
+        storyTitle: titulo, previousStoryTitle: anterior, missingRequirements: aut.missingRequirements,
+      });
+    });
+    const COPY_TRES = copiar2(CRIACAO_FISICA, 'Noé', 'A Criação');
+    const soReflexao = jornada2({
+      sceneDoneCount: 10, coloringAvailable: true, coloringComplete: true,
+      postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: false },
+    });
+    const COPY_UMA = copiar2(soReflexao, 'Noé', 'A Criação');
+    check(`FIX2 [C18]: a mensagem de "Noé" lista SOMENTE os requisitos ausentes de "A Criação" (10 de 10 cenas e 3 de 3 do Colorir já feitos NÃO aparecem)${faltaFX2}`,
+      !!A_NOE_BLOQ.missingRequirements && A_NOE_BLOQ.missingRequirements.length === 3
+      && A_NOE_BLOQ.missingRequirements.indexOf(RAZAO && vivoFX2 ? A2.STORY_REQUIREMENT.SCENES : 'scenes') === -1
+      && A_NOE_BLOQ.missingRequirements.indexOf(vivoFX2 ? A2.STORY_REQUIREMENT.COLORING : 'coloring') === -1,
+      d2(A_NOE_BLOQ));
+    check(`FIX2 [C19]: faltando só a Reflexão ⇒ a frase cita a Reflexão e NÃO cita Livrinho nem Quiz${faltaFX2}`,
+      !!COPY_UMA && !COPY_UMA.__erro && COPY_UMA.description === 'Para abrir Noé, termine a Reflexão.'
+      && !/Livrinho|Quiz/.test(COPY_UMA.description), d2(COPY_UMA));
+    check(`FIX2 [C20]: faltando os três ⇒ "Para abrir Noé, termine o Livrinho, o Quiz e a Reflexão." com título acolhedor e sem culpa${faltaFX2}`,
+      !!COPY_TRES && !COPY_TRES.__erro
+      && COPY_TRES.description === 'Para abrir Noé, termine o Livrinho, o Quiz e a Reflexão.'
+      && COPY_TRES.title === 'Falta um pouquinho em A Criação'
+      && !/precisa|perde|perder|obrigat|assine|assinar|compre|comprar|desbloqueie j/i.test(`${COPY_TRES.title} ${COPY_TRES.description}`),
+      d2(COPY_TRES));
+
+    // ═══ 21-24 · A SEQUÊNCIA NÃO SEQUESTRA AS REGRAS COMERCIAIS E DE MÍDIA ═══════════════════════
+    const NOE_PREMIUM = noe2(CRIACAO_FISICA.journeyComplete, { accessStatus: 'locked', accessType: 'premium' });
+    const NOE_SEM_MIDIA = noe2(CRIACAO_FISICA.journeyComplete, { accessStatus: 'coming_soon' });
+    const A_NOE_PREMIUM = autorizar2({ status: NOE_PREMIUM, previa: CRIACAO_FISICA });
+    const A_NOE_SEM_MIDIA = autorizar2({ status: NOE_SEM_MIDIA, previa: CRIACAO_FISICA });
+    check(`FIX2 [C21]: sequenceLocked NÃO sobrescreve commercialLocked — história paga e fora de ordem responde COMERCIAL${faltaFX2}`,
+      A_NOE_PREMIUM.reason === RAZAO.COMMERCIAL_LOCKED && A_NOE_PREMIUM.canEnterStoryContent === false, d2(A_NOE_PREMIUM));
+    check(`FIX2 [C22]: sequenceLocked NÃO sobrescreve mediaUnavailable — história sem mídia responde MÍDIA${faltaFX2}`,
+      A_NOE_SEM_MIDIA.reason === RAZAO.MEDIA_UNAVAILABLE && A_NOE_SEM_MIDIA.canEnterStoryContent === false, d2(A_NOE_SEM_MIDIA));
+    const A_PREMIUM_EM_ORDEM = autorizar2({ status: jornada2({ accessStatus: 'locked', accessType: 'premium' }), previa: null, storyId: 'david', anterior: null });
+    check(`FIX2 [C23]: história comercialmente bloqueada continua obedecendo à regra comercial, mesmo em ordem e sem pendência de sequência${faltaFX2}`,
+      A_PREMIUM_EM_ORDEM.reason === RAZAO.COMMERCIAL_LOCKED && A_PREMIUM_EM_ORDEM.canEnterStoryContent === false
+      && A_PREMIUM_EM_ORDEM.canViewStoryDetails === true, d2(A_PREMIUM_EM_ORDEM));
+    const A_SEM_MIDIA_EM_ORDEM = autorizar2({ status: jornada2({ accessStatus: 'coming_soon' }), previa: null, storyId: 'david', anterior: null });
+    check(`FIX2 [C24]: história sem mídia continua obedecendo ao contrato de pack — e ainda assim mostra os detalhes${faltaFX2}`,
+      A_SEM_MIDIA_EM_ORDEM.reason === RAZAO.MEDIA_UNAVAILABLE && A_SEM_MIDIA_EM_ORDEM.canEnterStoryContent === false
+      && A_SEM_MIDIA_EM_ORDEM.canViewStoryDetails === true, d2(A_SEM_MIDIA_EM_ORDEM));
+
+    // ═══ 25 · UMA FONTE SÓ: nenhuma tela reimplementa a decisão ══════════════════════════════════
+    // `[^=]` separa ATRIBUIÇÃO de COMPARAÇÃO: sem isso, o próprio `=== true` da leitura contaria
+    // como uma segunda derivação local e a prova acusaria duplicação onde não há.
+    const decideNoDetalhe = (SD2.match(/canEnterStoryContent\s*=[^=]/g) || []).length;
+    check(`FIX2 [C25]: a decisão não é reimplementada nas telas — StoryDetailScreen e NarrationScreen apenas CONSULTAM a fonte única (derivações locais no detalhe: ${decideNoDetalhe})`,
+      decideNoDetalhe === 1
+      && /const canEnterStoryContent = contentAuthorization\.canEnterStoryContent === true;/.test(SD2)
+      && /getStoryContentAuthorization\(/.test(SD2) && /getStoryContentAuthorization\(/.test(NA2)
+      && !/missingStoryRequirements\(/.test(SD2) && !/missingStoryRequirements\(/.test(NA2)
+      && !/getStoryJourneyStatus|isStorySequenceUnlocked|previousJourneyComplete/.test(NA2)
+      && /getStoryContentAuthorization/.test(PC2),
+      'a autorização precisa nascer no serviço puro, ser adaptada uma vez no contexto e consultada pelas telas');
+
+    // ═══ 26-27 · A FONTE ÚNICA EXISTE, É PURA E RESPONDE O CONTRATO COMPLETO ═════════════════════
+    const FONTE2 = srcExists(FX2_SRC) ? readSrc(FX2_SRC) : '';
+    check(`FIX2 [C26]: o serviço puro de autorização existe, não importa storage/navegação/React e devolve o contrato completo${faltaFX2}`,
+      vivoFX2 && FONTE2.length > 0
+      && !/from 'react|react-native|@react-navigation|async-storage|expo-/.test(FONTE2)
+      && ['allowed', 'reason', 'storyId', 'previousStoryId', 'missingRequirements', 'canViewStoryDetails', 'canEnterStoryContent']
+        .every((k) => Object.prototype.hasOwnProperty.call(A_NOE_BLOQ, k)),
+      d2(A_NOE_BLOQ));
+    const RAZOES = vivoFX2 ? Object.keys(RAZAO).map((k) => RAZAO[k]) : [];
+    const A_DESCONHECIDA = autorizar2({ status: null, previa: null, storyId: 'fantasma', anterior: null, conhecida: false });
+    const A_HIDRATANDO = autorizar2({ status: NOE_LIVRE, previa: CRIACAO_PRONTA, hidratado: false });
+    check(`FIX2 [C27]: as razões são distinguíveis (allowed · sequenceLocked · commercialLocked · mediaUnavailable · invalidStory), história inexistente é invalidStory e, enquanto o progresso hidrata, NADA entra${faltaFX2}`,
+      ['allowed', 'sequenceLocked', 'commercialLocked', 'mediaUnavailable', 'invalidStory'].every((r) => RAZOES.indexOf(r) > -1)
+      && A_DESCONHECIDA.reason === RAZAO.INVALID_STORY && A_DESCONHECIDA.canEnterStoryContent === false
+      && A_DESCONHECIDA.canViewStoryDetails === false
+      && A_HIDRATANDO.canEnterStoryContent === false && A_HIDRATANDO.authorizationReady === false
+      && A_HIDRATANDO.canViewStoryDetails === true,
+      d2({ razoes: RAZOES, desconhecida: A_DESCONHECIDA, hidratando: A_HIDRATANDO }));
+
+    // Invariante de honestidade: a lista de pendências NUNCA discorda da conclusão real da jornada.
+    // Se as duas divergirem, a mensagem estaria inventando (ou escondendo) requisitos.
+    let divergiu2 = null;
+    for (const cenas of [0, 10]) {
+      for (const cor of [false, true]) {
+        for (const livro of [false, true]) {
+          for (const quiz of [false, true]) {
+            for (const refl of [false, true]) {
+              const st = jornada2({
+                sceneDoneCount: cenas, coloringAvailable: true, coloringComplete: cor,
+                postStoryStatus: { storyBookOpened: livro, quizDone: quiz, reflectionDone: refl },
+              });
+              const faltas = okFX2((M) => M.missingStoryRequirements(st), []);
+              if (faltas && faltas.__erro) { divergiu2 = faltas.__erro; break; }
+              if ((faltas.length === 0) !== (st.journeyComplete === true)) {
+                divergiu2 = `cenas=${cenas} colorir=${cor} livro=${livro} quiz=${quiz} reflexão=${refl} → faltas=${JSON.stringify(faltas)} mas journeyComplete=${st.journeyComplete}`;
+              }
+            }
+          }
+        }
+      }
+    }
+    check(`FIX2 [C27b]: a lista de pendências concorda com a conclusão real da jornada em toda a tabela-verdade (32 combinações)${faltaFX2}`,
+      vivoFX2 && divergiu2 === null, divergiu2 || 'a explicação divergiu do veredito');
+
+    // ═══ CONTROLES NEGATIVOS — cada prova precisa DISTINGUIR o certo do errado ═══════════════════
+    const CN_FX2 = [];
+    const cnDominio2 = (id, descricao, mutate, avaliar) => {
+      let original = null; let mutante = null;
+      try { original = avaliar(A2); } catch (e) { original = `erro: ${(e && e.message) || e}`; }
+      const M = carregarFX2(mutate);
+      if (M && M.__erro) mutante = `erro: ${M.__erro}`;
+      else { try { mutante = avaliar(M); } catch (e) { mutante = `erro: ${(e && e.message) || e}`; } }
+      CN_FX2.push({ id, descricao, original, mutante });
+    };
+    // O mutante age sobre o FONTE REAL. `alvo` aceita texto ou expressão — e uma âncora que não
+    // altera nada é ERRO declarado, nunca um "passou": prova morta é pior que prova ausente.
+    const cnFonte2 = (id, descricao, fonte, alvo, troca, avaliar) => {
+      let original = null; let mutante = null;
+      try { original = avaliar(fonte); } catch (e) { original = `erro: ${(e && e.message) || e}`; }
+      const mutado = alvo instanceof RegExp ? fonte.replace(alvo, troca) : fonte.split(alvo).join(troca);
+      if (mutado === fonte) mutante = `ÂNCORA AUSENTE (a mutação não alterou o fonte): ${alvo}`;
+      else { try { mutante = avaliar(mutado); } catch (e) { mutante = `erro: ${(e && e.message) || e}`; } }
+      CN_FX2.push({ id, descricao, original, mutante });
+    };
+
+    cnFonte2('CN-FIX2-1', 'a guarda de foco da NarrationScreen some e a navegação direta volta a abrir a cena proibida',
+      NA2, 'if (!contentEntryAllowed) handleVoltar();', '',
+      (s) => GUARDA_FOCO.test(s));
+    cnFonte2('CN-FIX2-2', 'a defesa antes da escrita some e uma história bloqueada volta a gravar progresso',
+      NA2, /if \(!contentEntryAllowed\) return;\s*await salvarCena\(/, 'await salvarCena(',
+      (s) => /if \(!contentEntryAllowed\) return;[\s\S]{0,200}?await salvarCena\(/.test(s));
+    cnFonte2('CN-FIX2-3', 'os cartões voltam a aceitar toque com a história bloqueada',
+      SLI2, 'disabled={blocked}', 'disabled={isLocked}',
+      (s) => /disabled=\{blocked\}/.test(s));
+    cnFonte2('CN-FIX2-4', 'o progresso antigo é apagado da interface para o bloqueio "parecer" certo',
+      SD2, 'isDone: progresso[cena.id] === true', 'isDone: false',
+      (s) => { const r = rodarCartao(s, { feitas: 2, entrar: false }); return Array.isArray(r) && r[0] === 'completed' && r[1] === 'completed'; });
+    cnFonte2('CN-FIX2-5', 'depois do desbloqueio a retomada volta para a cena 1 em vez da cena 3',
+      SD2, 'const startCenaIndex = progressCount > 0 && !isCompleted ? progressCount : 0;', 'const startCenaIndex = 0;',
+      (s) => rodarRetomada(s, { feitas: 2, total: 10 }) === 2);
+    cnDominio2('CN-FIX2-6', 'a mensagem passa a listar um requisito JÁ concluído (o Colorir de "A Criação")',
+      (s) => s.replace('if (s.coloringRequired === true && s.coloringComplete !== true)', 'if (s.coloringRequired === true)'),
+      (M) => {
+        const f = M.missingStoryRequirements(CRIACAO_FISICA);
+        return Array.isArray(f) && f.length === 3 && f.indexOf(M.STORY_REQUIREMENT.COLORING) === -1;
+      });
+    cnDominio2('CN-FIX2-7', 'canViewStoryDetails passa a valer como autorização de CONTEÚDO',
+      (s) => s.replace('canEnterStoryContent: authorizationReady && allowed,', 'canEnterStoryContent: canViewStoryDetails,'),
+      (M) => M.deriveStoryContentAuthorization({
+        storyId: 'noah', knownStory: true, previousStoryId: 'creation',
+        journeyStatus: NOE_BLOQ, previousStatus: CRIACAO_FISICA, hydrated: true,
+      }).canEnterStoryContent === false);
+    cnDominio2('CN-FIX2-8', 'canEnterStoryContent passa a impedir a abertura dos DETALHES',
+      (s) => s.replace('canViewStoryDetails,', 'canViewStoryDetails: authorizationReady && allowed,'),
+      (M) => M.deriveStoryContentAuthorization({
+        storyId: 'noah', knownStory: true, previousStoryId: 'creation',
+        journeyStatus: NOE_BLOQ, previousStatus: CRIACAO_FISICA, hydrated: true,
+      }).canViewStoryDetails === true);
+
+    for (const c of CN_FX2) {
+      check(`FIX2 [negativo ${c.id}]: ${c.descricao}`,
+        c.original === true && c.mutante === false,
+        `o controle negativo não distinguiu o certo do errado (original=${JSON.stringify(c.original)} · mutante=${JSON.stringify(c.mutante)})`);
+    }
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);

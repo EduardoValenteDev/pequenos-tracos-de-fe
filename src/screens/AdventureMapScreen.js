@@ -506,6 +506,8 @@ export default function AdventureMapScreen({ navigation, route }) {
             flutuante duplicada competindo com os labels.) */}
       </Animated.View>
 
+      {/* [FIX 2] `canOpen` não é mais repassada ao modal: ele nunca a leu, e este caminho leva só
+          à tela de DETALHES — que uma história bloqueada continua podendo abrir. */}
       <StoryFocusModal
         visible={modalVisible}
         story={focusStory}
@@ -513,7 +515,6 @@ export default function AdventureMapScreen({ navigation, route }) {
         // "Concluída" só com journeyComplete; journeyLocked mostra "Complete [anterior]".
         contractStatus={focusContract ? focusContract.status : 'locked'}
         journeyComplete={focusContract ? focusContract.journeyComplete : false}
-        canOpen={focusContract ? focusContract.canOpen : false}
         previousStoryTitle={focusPrevTitle}
         lockReason={focusStory ? getStoryLockReason(focusStory) : null}
         progressPercent={focusStory ? getStoryCompletionPercent(focusStory.id) : 0}

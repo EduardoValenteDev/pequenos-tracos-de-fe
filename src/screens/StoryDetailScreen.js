@@ -51,6 +51,10 @@ import CreationColoringJourneySection from '../components/coloring60/CreationCol
 // [C60-NAV] CONTRATO ÚNICO de navegação do piloto (FLUXO 1): as entradas "Colorir" e "Ver minha
 // coleção" partem daqui por destino semântico, dedup por rota. Ver src/services/coloring60Navigation.
 import { c60OpenEditorFromStory, c60OpenCollectionFromStory } from '../services/coloring60Navigation';
+// [FIX 2] A frase de pendência nasce no serviço puro de autorização — a tela não monta gramática
+// nem decide o que falta. ROUTES identifica, sem literal solto, qual rota é ENTRADA em conteúdo.
+import { describeStorySequenceLock } from '../services/storyContentAuthorization';
+import { ROUTES } from '../constants/routes';
 
 const CREATION_STORY_ID = 'creation';
 
@@ -119,6 +123,7 @@ export default function StoryDetailScreen({ route, navigation }) {
     getStoryProgress,
     getCompletedScenesCount,
     refreshProgress,
+    getStoryContentAuthorization,
   } = useProgressContext();
   const progresso = getStoryProgress(story.id);
   const progressCount = getCompletedScenesCount(story.id);
@@ -141,6 +146,20 @@ export default function StoryDetailScreen({ route, navigation }) {
   const canAccess = hasAccess(story);
   // A0.10: sequência da jornada — só abre se a história ANTERIOR estiver journeyComplete.
   const sequenceUnlocked = isStorySequenceUnlocked(story.id);
+  // [FIX 2] AUTORIZAÇÃO DE ENTRADA NO CONTEÚDO — decisão pronta, vinda da fonte única. Esta tela
+  // CONSULTA; não recalcula sequência, regra comercial nem disponibilidade de mídia. Bloquear a
+  // entrada NÃO fecha esta tela: os detalhes, a capa e o progresso continuam visíveis.
+  const contentAuthorization = getStoryContentAuthorization(story.id);
+  const canEnterStoryContent = contentAuthorization.canEnterStoryContent === true;
+  // A frase acolhedora que diz o que EXATAMENTE falta na aventura anterior (null quando não há o
+  // que dizer — outra razão de bloqueio, progresso ainda carregando ou nada pendente).
+  const sequenceLockCopy = describeStorySequenceLock({
+    reason: contentAuthorization.reason,
+    authorizationReady: contentAuthorization.authorizationReady,
+    storyTitle: story.titulo,
+    previousStoryTitle: contentAuthorization.previousStoryTitle,
+    missingRequirements: contentAuthorization.missingRequirements,
+  });
   // Fase 2B: estado de download do pack remoto vem do hook dedicado em src/hooks; a tela
   // consome só esse hook e não acessa o runtime de conteúdo diretamente (guardrail preservado).
   // O bloco de download só aparece p/ premium-active (canAccess) + história remote (hook.isRemote).
@@ -315,8 +334,12 @@ export default function StoryDetailScreen({ route, navigation }) {
   // Fase 2B.6 (RP3): navega p/ conteúdo premium só com canAccess; senão → Área dos Pais.
   // Guard obrigatório ANTES de navegar — vale inclusive p/ história concluída (isCompleted),
   // sem depender apenas do guard da tela seguinte.
+  // [FIX 2] Portão de navegação: a rota de ENTRADA EM CONTEÚDO (a narração) só passa com a
+  // autorização central. As demais rotas (Livrinho, Quiz, Reflexão, Área dos Pais) seguem exatamente
+  // como antes — bloquear a entrada na história nunca fecha o que só leva a ver/consultar.
   function goToPremium(routeName, params) {
     if (!canAccess) { navigation.navigate('ParentArea'); return; }
+    if (routeName === ROUTES.NARRATION && !canEnterStoryContent) return;
     navigation.navigate(routeName, params);
   }
 
@@ -338,7 +361,10 @@ export default function StoryDetailScreen({ route, navigation }) {
       isComingSoon,
       isDone: progresso[cena.id] === true, // progresso REAL salvo (ProgressContext · fonte única), independe de canAccess
       canAccess,
-      isCurrent: index === progressCount,
+      // [FIX 2] Sem autorização de entrada, NENHUMA cena é a "atual": a próxima deixa de aparecer
+      // como "Disponível" e cai em bloqueada. As já concluídas continuam mostrando que foram
+      // concluídas (o dado nunca é alterado para a interface "parecer" certa).
+      isCurrent: canEnterStoryContent && index === progressCount,
     });
   }
 
@@ -416,6 +442,18 @@ export default function StoryDetailScreen({ route, navigation }) {
               style={styles.ctaBtn}
             />
           </ContentContainer>
+
+          {/* ── [FIX 2] O que ainda falta na aventura anterior. Diz SÓ o que está pendente, com
+              carinho e sem cobrança — nada de "complete a aventura anterior" genérico, e nada de
+              listar o que a criança já terminou. O texto vem pronto do serviço puro. ── */}
+          {sequenceLockCopy && (
+            <ContentContainer style={styles.sequenceLockWrap}>
+              <View style={styles.sequenceLockBox} accessibilityRole="text">
+                <Text style={styles.sequenceLockTitle}>{sequenceLockCopy.title}</Text>
+                <Text style={styles.sequenceLockText}>{sequenceLockCopy.description}</Text>
+              </View>
+            </ContentContainer>
+          )}
 
           {/* ── Fase 2B: download de pack remoto (só premium-active + história remote) ── */}
           {canDownload && (
@@ -550,6 +588,8 @@ export default function StoryDetailScreen({ route, navigation }) {
                   cena={cena}
                   index={index}
                   status={getSceneStatus(cena, index)}
+                  entryBlocked={!canEnterStoryContent}
+                  lockedHint={sequenceLockCopy ? sequenceLockCopy.sceneHint : undefined}
                   onPress={() => goToPremium('Narration', { story, cenaIndex: index })}
                 />
               ))}
@@ -608,6 +648,22 @@ const styles = StyleSheet.create({
   // A0.5 ajuste: botão mais elegante — largura capada e centralizada (não full-bleed,
   // não encosta nas bordas). Mantém alvo 56 e terracota (do BotaoPrimario).
   ctaBtn: { alignSelf: 'center', width: '100%', maxWidth: 340 },
+
+  // [FIX 2] Bloco do que falta na aventura anterior. Acolhedor e discreto: é uma explicação, não
+  // um aviso de erro — nenhum vermelho, nenhum ícone de alerta, nenhuma tela nova.
+  sequenceLockWrap: { marginHorizontal: 20, marginTop: 12 },
+  sequenceLockBox: {
+    alignSelf: 'center', width: '100%', maxWidth: 340,
+    backgroundColor: pt.cream, borderWidth: 1, borderColor: pt.border,
+    borderRadius: radii.md, paddingVertical: 14, paddingHorizontal: 16,
+  },
+  sequenceLockTitle: {
+    fontFamily: 'Baloo2_700Bold', fontSize: 16, color: pt.text, textAlign: 'center',
+  },
+  sequenceLockText: {
+    fontFamily: 'Nunito', fontSize: 14, color: pt.textSoft,
+    textAlign: 'center', marginTop: 4, lineHeight: 20,
+  },
 
   // Fase 2B — bloco de download de pack remoto (premium-active + história remote).
   // Ação secundária abaixo do CTA; acento azul-noite (mesmo tom da seção "completed").

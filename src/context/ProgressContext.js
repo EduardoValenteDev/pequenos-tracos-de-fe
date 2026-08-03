@@ -24,6 +24,9 @@ import { getStoryJourneyStatus } from '../services/storyJourneyService';
 import { isStoryColoringAvailable } from '../services/storyColoringAvailability';
 import { loadStoriesWithColoringDone } from '../services/coloringActivityService';
 import { getStoryAccessStatus } from '../services/contentAccessService';
+// [FIX 2] FONTE ÚNICA da autorização de ENTRADA no conteúdo. O contexto só ADAPTA (busca o
+// contrato desta história e o da anterior); quem decide é o serviço puro — nenhuma tela reescreve.
+import { deriveStoryContentAuthorization } from '../services/storyContentAuthorization';
 // [C60-PONTE] coloringComplete de "A Criação" (piloto) vem da jornada Colorir 60 pela ponte
 // READ-ONLY (não altera a fórmula global — só a FONTE do sinal de 'creation'). Fora do piloto, a
 // ponte devolve "não se aplica" e o Set legado passa intacto (produção idêntica).
@@ -291,6 +294,30 @@ export function ProgressProvider({ children }) {
     [getTotalScenesCount, getCompletedScenesCount, postStoryStatusByStory, coloringDoneByStory, isStoryJourneyComplete],
   );
 
+  // [FIX 2] AUTORIZAÇÃO DE ENTRADA NO CONTEÚDO — adaptador mínimo, sem regra própria.
+  // Reúne os fatos (contrato desta história, contrato da anterior, se o progresso já hidratou) e
+  // entrega ao serviço puro. `isLoadingProgress` é a honestidade sobre o conhecimento: enquanto
+  // carrega, ninguém entra em conteúdo — mas os detalhes continuam abrindo normalmente.
+  const getStoryContentAuthorization = useCallback(
+    storyId => {
+      const idx = ORDERED_STORY_IDS.indexOf(storyId);
+      const previousStoryId = idx > 0 ? ORDERED_STORY_IDS[idx - 1] : null;
+      const previousStory = previousStoryId ? STORY_BY_ID[previousStoryId] : null;
+      const authorization = deriveStoryContentAuthorization({
+        storyId,
+        knownStory: !!STORY_BY_ID[storyId],
+        previousStoryId,
+        journeyStatus: STORY_BY_ID[storyId] ? getStoryContractStatus(storyId) : null,
+        previousStatus: previousStoryId ? getStoryContractStatus(previousStoryId) : null,
+        hydrated: !isLoadingProgress,
+      });
+      // Título da anterior: a mensagem de pendência precisa nomear a aventura, e é aqui que o
+      // catálogo já está em mãos. Nome é apresentação — a DECISÃO continua vindo pronta do serviço.
+      return { ...authorization, previousStoryTitle: previousStory?.titulo ?? null };
+    },
+    [getStoryContractStatus, isLoadingProgress],
+  );
+
   // "narrativa concluída" = só cenas (mantido para compat/consumidores externos).
   const isNarrativeComplete = isStoryCompleted;
 
@@ -340,6 +367,7 @@ export function ProgressProvider({ children }) {
     isStoryJourneyComplete,
     isStorySequenceUnlocked,
     getStoryContractStatus,
+    getStoryContentAuthorization,
     isNarrativeComplete,
     getRegionFrontierStory,
     isRegionNarrativeComplete,
@@ -362,6 +390,7 @@ export function ProgressProvider({ children }) {
     isStoryJourneyComplete,
     isStorySequenceUnlocked,
     getStoryContractStatus,
+    getStoryContentAuthorization,
     isNarrativeComplete,
     getRegionFrontierStory,
     isRegionNarrativeComplete,
