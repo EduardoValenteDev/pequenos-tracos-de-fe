@@ -104,6 +104,13 @@ import {
 // coleção" já a encontre pronta. Fire-and-forget: não navega, não conclui, não escreve progresso,
 // não emite som nem háptico. Lê disco e atualiza só o retrato em memória.
 import { primeColoring60Collection } from '../services/coloring60CollectionPortrait';
+// [C60-FIX3] A GALERIA da grande conclusão passou a ser montada pela MESMA leitura canônica
+// reconciliada que alimenta a coleção — e com o MESMO `kind` anexado. É o que garante, por
+// construção, que o conjunto final e a coleção nunca divirjam sobre a mesma vaga. Só LEITURA.
+import {
+  loadColoring60Slots,
+  coloring60SlotWithKind,
+} from '../services/coloring60CollectionReader';
 import { COLORIR_60_CREATION_PILOT_ENABLED } from '../config/featureFlags';
 import { isInternalToolsEnabled } from '../config/internalTools';
 // P8B (Colorir 60) — aquecimento da pose de conclusão do Beni. Usa apenas o `Image.prefetch` do
@@ -816,38 +823,30 @@ function Coloring60ActivityScreen({ route, navigation }) {
     );
   }
 
-  // [C60-P10-FINALE] Monta a GALERIA das três artes da grande conclusão. A atividade ATUAL usa o
-  // instantâneo em memória (`snapshot`) — funciona inclusive no plano Grátis, que conclui mas não
-  // persiste — e as outras duas leem a arte guardada pelo serviço dedicado do piloto (leitura
-  // permitida SÓ nesta tela, que já importa esse serviço; o overlay JAMAIS toca o writer). Cada item
-  // guarda `paint` (payload v2 aceitável e com traço significativo, ou null) e `lineart` (fonte local
-  // AVAILABLE, ou null). Quando um desenho falta, `paint=null` e o overlay cai no fallback oficial (o
-  // próprio lineart). À prova de falha: qualquer erro entrega galeria vazia e o overlay usa fallback.
-  async function loadC60FinaleItems(currentSnapshot) {
-    const activities = getColoring60Activities(storyId); // ordem fechada: Luz · Vida · Cuidado
+  // [C60-P10-FINALE] Monta a GALERIA das três artes da grande conclusão pela LEITURA CANÔNICA
+  // RECONCILIADA — a MESMA da coleção (`loadColoring60Slots`), com o MESMO estado anexado
+  // (`coloring60SlotWithKind`). Cada item chega com `kind`, `paint` e `lineart` já reconciliados;
+  // o overlay só renderiza o resultado.
+  //
+  // [C60-FIX3] O QUE MUDOU E POR QUÊ. Esta função montava a galeria por conta própria: a atividade
+  // ATUAL vinha do instantâneo EM MEMÓRIA e as outras duas do storage. No plano Grátis — que conclui
+  // e, por decisão de plano, não guarda pixels — isso produzia a cena reprovada no teste físico: a
+  // parte recém-pintada aparecia como obra guardada e as outras duas como molduras vazias, enquanto
+  // o contador dizia, corretamente, 3 de 3. Duas fontes para a mesma pergunta = duas verdades.
+  // O instantâneo da sessão continua PROTAGONISTA onde ele de fato existe: a moldura viva da
+  // celebração imediata (`Coloring60ArtGlow`, alimentada por `c60CelebrateSnapshot`). No CONJUNTO
+  // FINAL, cada vaga passa a mostrar o seu estado verdadeiro — nunca uma pintura temporária exposta
+  // como obra salva.
+  //
+  // O parâmetro sobrevive por CONTRATO DE CHAMADA (a máquina de conclusão passa o instantâneo), mas
+  // é deliberadamente IGNORADO aqui: injetá-lo na galeria é exatamente o defeito corrigido.
+  //
+  // À prova de falha: qualquer erro entrega galeria vazia e o overlay permanece no papel neutro —
+  // jamais um estado inventado, jamais um placeholder de imagem quebrada.
+  async function loadC60FinaleItems(_instantaneoIgnorado) {
     try {
-      const items = await Promise.all(
-        activities.map(async (a) => {
-          let paint = null;
-          if (a.activityId === activityId && typeof currentSnapshot === 'string') {
-            // A arte ATUAL, recém-concluída, vem do instantâneo em memória (funciona no Grátis).
-            paint = currentSnapshot;
-          } else {
-            // [C60-P13-COLLECTION] Sem instantâneo (a coleção pode ser reaberta a frio, pela tela da
-            // história ou por uma atividade já concluída): a arte atual é lida do storage como as
-            // outras duas. Mesmo serviço isolado, mesma validação — nada de fallback improvisado.
-            try {
-              const saved = await getColoring60SavedDrawing(storyId, a.activityId);
-              if (saved && isAcceptableC60Payload(saved) && hasMeaningfulPaint(saved)) paint = saved;
-            } catch (readErr) {
-              if (__DEV__) console.log(`[Coloring60] galeria: leitura de ${a.activityId} falhou:`, readErr?.message);
-            }
-          }
-          const res = resolveColoring60Lineart(storyId, a.activityId);
-          const lineart = res.status === COLORING60_RESOLUTION_STATUS.AVAILABLE ? res.source : null;
-          return { activityId: a.activityId, title: a.title, paint, lineart };
-        }),
-      );
+      const { slots } = await loadColoring60Slots(storyId); // ordem fechada: Luz · Vida · Cuidado
+      const items = slots.map((slot) => coloring60SlotWithKind(slot));
       if (!activeRef.current) return;
       setC60FinaleItems(items);
     } catch (err) {
@@ -947,8 +946,8 @@ function Coloring60ActivityScreen({ route, navigation }) {
     // a 3/3 continua sendo comemorado (celebração de atividade, com a coleção como próximo passo);
     // o que não se repete é o acontecimento único. Só o reset canônico devolve a primeira vez.
     if (journey.allActivitiesComplete && c60FinaleSeenRef.current !== true) {
-      // 2/3 → 3/3 INÉDITO: GRANDE conclusão. Resolve a galeria das três (a atual em memória + as
-      // outras duas do storage) ANTES de a criança tocar em qualquer coisa.
+      // 2/3 → 3/3 INÉDITO: GRANDE conclusão. Resolve a galeria das três pela LEITURA CANÔNICA
+      // (o mesmo estado que a coleção exibe) ANTES de a criança tocar em qualquer coisa.
       setC60CelebrateMode('finale');
       loadC60FinaleItems(snapshot);
       // Exibiu ⇒ está vista. Marca imediatamente (best-effort, sem segurar a festa): se o app for

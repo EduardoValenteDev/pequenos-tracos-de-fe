@@ -24,22 +24,23 @@ import { loadColoring60JourneyRecord } from './coloring60ActivityService';
 import { getColoring60SavedDrawing } from './coloring60DrawingStorage';
 import { snapshotHasMeaningfulColor } from './coloring60PaintMetrics';
 import {
-  SNAPSHOT_STATUS,
   reconcileSnapshotStatus,
   deriveColoring60ActivityState,
   HYDRATION_STATUS,
+  COLORING60_SLOT_KIND,
+  coloring60SlotKind,
 } from './coloring60State';
 
 /**
- * Estados possíveis de UMA vaga da coleção. Só `art` desenha imagem; nenhum outro estado usa o
- * contorno sozinho — contorno sem cor no lugar da obra é justamente a mentira que a Parte 8 proíbe.
+ * Estados possíveis de UMA vaga. Só `art` desenha imagem; nenhum outro estado usa o contorno
+ * sozinho — contorno sem cor no lugar da obra é justamente a mentira que a Parte 8 proíbe.
+ *
+ * O VOCABULÁRIO NÃO NASCE MAIS AQUI: ele mora no modelo canônico (`coloring60State`), porque a
+ * galeria da grande conclusão precisa da MESMA classificação e não pode depender deste leitor
+ * (que faz I/O). `SLOT` continua existindo como o nome pelo qual as telas da coleção e da prévia
+ * já o conhecem — mesmo objeto, um dono só.
  */
-export const SLOT = Object.freeze({
-  ART: 'art',                    // pintura recuperável: cor + contorno compostos
-  NOT_PERSISTED: 'notPersisted', // concluída, mas o plano atual não guarda os pixels
-  NEEDS_COLOR: 'needsColor',     // quebra de integridade: concluída sem arte recuperável
-  EMPTY: 'empty',                // ainda não concluída
-});
+export const SLOT = COLORING60_SLOT_KIND;
 
 // Rótulo curto (marcador temático) de cada parte, EXIBIDO SOB a obra — nunca por cima.
 export const COLORING60_SLOT_MARKERS = Object.freeze({
@@ -60,16 +61,21 @@ export function coloring60SlotSignature(slots) {
 }
 
 /**
- * slotKindOf(slot, state) — estado visual de UMA vaga, derivado do modelo canônico (nunca de um
- * booleano solto). A ordem importa: reflete `isCurrentlyComplete` (Parte 9). Uma parte que NÃO
- * está concluída agora aparece como vazia mesmo que exista pintura antiga no disco — é isso que
- * impede a obra limpa de continuar exposta como se nada tivesse acontecido.
+ * slotKindOf(slot, state) — estado visual de UMA vaga. A REGRA em si não vive mais aqui: este é o
+ * ponto onde a evidência FÍSICA que só o leitor conhece (o payload aberto e medido, o contorno
+ * resolvido) é traduzida em fatos e entregue ao seletor compartilhado. Assim a coleção e a galeria
+ * da grande conclusão respondem à mesma pergunta com a mesma boca — o que a Parte 8 já exigia
+ * dentro da coleção passa a valer também entre telas.
  */
 export function slotKindOf(slot, state) {
-  if (state.isCurrentlyComplete !== true) return SLOT.EMPTY;
-  if (slot.paint && slot.lineart && slot.snapshotStatus === SNAPSHOT_STATUS.READY) return SLOT.ART;
-  if (slot.snapshotStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return SLOT.NOT_PERSISTED;
-  return SLOT.NEEDS_COLOR; // concluída sem arte recuperável = integridade quebrada (Parte 8)
+  return coloring60SlotKind({
+    activityId: slot.activityId,
+    isCurrentlyComplete: state.isCurrentlyComplete,
+    hasEverCompleted: state.hasEverCompleted,
+    snapshotStatus: slot.snapshotStatus,
+    hasPaint: !!slot.paint,
+    hasLineart: !!slot.lineart,
+  });
 }
 
 /**

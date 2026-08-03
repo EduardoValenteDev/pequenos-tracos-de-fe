@@ -33,8 +33,12 @@
  * Situação do INSTANTÂNEO (a arte gravada) de uma atividade.
  *   READY          — gravado e recuperável: a coleção pode exibi-lo.
  *   NOT_PERSISTED  — NÃO gravado POR DECISÃO DE PLANO (Grátis não salva pixels). Não é falha:
- *                    a conclusão é plan-agnóstica e continua válida; a coleção usa o que houver
- *                    em memória e, na falta, o estado honesto — nunca um contorno sem cor.
+ *                    a conclusão é plan-agnóstica e continua válida. A arte em memória existe
+ *                    APENAS durante a celebração imediata da própria atividade e morre com a
+ *                    sessão. A coleção e todo resumo persistente derivam SOMENTE do
+ *                    estado armazenado — nunca do que sobrou na memória. Este estado
+ *                    significa, portanto, CONCLUSÃO SEM PIXELS GUARDADOS: nunca um
+ *                    contorno sem cor, nunca uma miniatura fingida.
  *   MISSING        — deveria existir e não existe (ponteiro órfão, arquivo apagado): INTEGRIDADE
  *                    QUEBRADA. Uma atividade nesse estado não pode ser contada como concluída.
  *   FAILED         — a gravação foi tentada e falhou. Também não sustenta conclusão.
@@ -51,6 +55,33 @@ export const HYDRATION_STATUS = Object.freeze({
   LOADING: 'loading',
   READY: 'ready',
   ERROR: 'error',
+});
+
+/**
+ * VOCABULÁRIO ÚNICO DAS VAGAS. Toda superfície que representa COLEÇÃO ou CONJUNTO FINAL — a
+ * galeria da grande conclusão e a tela da coleção — classifica cada vaga com ESTES quatro nomes e
+ * mais nenhum.
+ *
+ * POR QUE ELE SUBIU PARA CÁ. A regra morava só no leitor da coleção, e a galeria do fecho
+ * improvisava a sua ("tem pintura ⇒ mostra; não tem ⇒ moldura vazia"). Duas regras para a mesma
+ * pergunta produziram exatamente a cena que o plano Grátis mostrava à criança: a parte recém
+ * pintada aparecia como obra (ainda estava na memória da sessão) e as outras duas como quadros
+ * quebrados — enquanto o contador dizia, corretamente, 3 de 3. O modelo passa a ser UM só; as
+ * telas apenas renderizam o resultado.
+ *
+ *   ART            — há obra VERDADEIRA e recuperável para compor (cor + contorno, instantâneo READY).
+ *   NOT_PERSISTED  — concluída, e a pintura não foi guardada POR DECISÃO DE PLANO. É um desfecho
+ *                    POSITIVO: conta como conclusão e JAMAIS pode ser desenhado como perda, falha
+ *                    ou carregamento incompleto.
+ *   NEEDS_COLOR    — concluída sem obra recuperável e SEM decisão de plano (ponteiro órfão,
+ *                    gravação falhada, contorno indisponível): integridade quebrada.
+ *   EMPTY          — ainda não concluída. Pintura antiga no disco não sustenta conclusão.
+ */
+export const COLORING60_SLOT_KIND = Object.freeze({
+  ART: 'art',
+  NOT_PERSISTED: 'notPersisted',
+  NEEDS_COLOR: 'needsColor',
+  EMPTY: 'empty',
 });
 
 /**
@@ -137,6 +168,37 @@ export function countsAsComplete(state) {
 export function hasIntegrityBreak(state) {
   if (!state || state.isCurrentlyComplete !== true) return false;
   return !isSnapshotAcceptable(state.snapshotStatus);
+}
+
+/**
+ * coloring60SlotKind(evidence) — O SELETOR COMPARTILHADO das vagas. Recebe a EVIDÊNCIA de UMA vaga
+ * (nunca uma tela, nunca um componente, nunca um retrato de outra atividade) e devolve o
+ * vocabulário único acima. Quem renderiza apenas obedece: nenhuma superfície reimplementa a regra.
+ *
+ *   evidence.isCurrentlyComplete / hasEverCompleted / snapshotStatus — o retrato canônico da parte;
+ *   evidence.hasPaint    — existe payload de pintura recuperável PARA ESTA vaga;
+ *   evidence.hasLineart  — existe contorno oficial para compor a obra.
+ *
+ * A ORDEM DOS TESTES É DELIBERADA. `EMPTY` vem primeiro porque conclusão é pré-requisito de tudo:
+ * quem limpou a folha volta à vaga vazia mesmo que sobre pintura antiga no disco (Parte 9). `ART`
+ * exige as TRÊS provas juntas — pintura, contorno e instantâneo READY — porque compor meia obra é
+ * a mentira que este seletor existe para impedir. `NOT_PERSISTED` vem ANTES do desfecho genérico
+ * para que a decisão de plano nunca seja confundida com quebra de integridade: são coisas
+ * diferentes e precisam continuar visualmente distinguíveis.
+ */
+export function coloring60SlotKind(evidence = {}) {
+  const state = deriveColoring60ActivityState({
+    activityId: evidence.activityId ?? null,
+    isCurrentlyComplete: evidence.isCurrentlyComplete,
+    hasEverCompleted: evidence.hasEverCompleted,
+    snapshotStatus: evidence.snapshotStatus,
+    hydrationStatus: HYDRATION_STATUS.READY,
+  });
+  if (state.isCurrentlyComplete !== true) return COLORING60_SLOT_KIND.EMPTY;
+  if (evidence.hasPaint === true && evidence.hasLineart === true
+    && state.snapshotStatus === SNAPSHOT_STATUS.READY) return COLORING60_SLOT_KIND.ART;
+  if (state.snapshotStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return COLORING60_SLOT_KIND.NOT_PERSISTED;
+  return COLORING60_SLOT_KIND.NEEDS_COLOR;
 }
 
 /**

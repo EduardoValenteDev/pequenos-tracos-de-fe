@@ -83,6 +83,13 @@ import {
   computePaintStyle,
   computeLineartStyle,
 } from '../components/coloring60/coloring60ArtComposition';
+// [C60-FIX3] MARCA HONESTA compartilhada. A vaga sem obra guardada deixa de ser um quadro vazio com
+// texto cinza (vocabulário de miniatura quebrada) e passa a exibir a MESMA marca intencional que a
+// galeria da grande conclusão usa — selo do estado, identidade da parte e, no caso do plano Grátis,
+// o recado de que a pintura não fica guardada. Um estado, uma representação, duas telas.
+import Coloring60SlotStateMark, {
+  COLORING60_SLOT_STATE_COPY,
+} from '../components/coloring60/Coloring60SlotStateMark';
 import { COLORIR_60_CREATION_PILOT_ENABLED } from '../config/featureFlags';
 import { isInternalToolsEnabled } from '../config/internalTools';
 // [C60-NAV] CONTRATO ÚNICO de navegação do piloto. A coleção é o SELETOR: abre a prévia por
@@ -185,13 +192,15 @@ function CollectionSlot({ slot, theme, cardW, cardH, onOpen }) {
     return () => clearTimeout(t);
   }, [kind, slot.activityId]);
 
-  const emptyText = kind === SLOT.NOT_PERSISTED
-    ? 'Você coloriu esta parte!'
-    : (kind === SLOT.NEEDS_COLOR ? 'Precisa de cor de novo' : 'Ainda falta colorir');
+  // [C60-FIX3] O texto do estado honesto vem da FONTE ÚNICA compartilhada com o fecho e a prévia —
+  // três redações para o mesmo estado voltariam a ser três verdades. A leitura em voz alta inclui o
+  // recado sobre a pintura não ficar guardada, para que a informação não dependa de enxergar a tela.
+  const honest = COLORING60_SLOT_STATE_COPY[kind] ?? null;
+  const honestSpoken = honest ? [honest.title, honest.note].filter(Boolean).join(' ') : '';
 
   const a11y = kind === SLOT.ART
     ? `Ver de perto: ${slot.marker}, obra colorida por você`
-    : `Ver de perto: ${slot.marker}, ${emptyText}`;
+    : `Ver de perto: ${slot.marker}, ${honestSpoken}`;
 
   // A obra INTEIRA (moldura + rótulo) é a área de toque — a coleção É o seletor visual. Tocar leva
   // à PRÉVIA AMPLIADA da PRÓPRIA obra (o `slot.activityId` da vaga), jamais uma parte fixa. Toda
@@ -233,10 +242,11 @@ function CollectionSlot({ slot, theme, cardW, cardH, onOpen }) {
             />
           </Animated.View>
         ) : (
-          // Estado honesto: NUNCA o contorno sozinho no lugar da obra.
-          <View style={styles.slotEmpty}>
-            <Text style={styles.slotEmptyText}>{emptyText}</Text>
-          </View>
+          // Estado honesto: NUNCA o contorno sozinho no lugar da obra, e — desde o FIX 3 — nunca um
+          // quadro vazio. A MARCA do estado é a mesma da grande conclusão: selo próprio, frase do
+          // estado e, quando a parte foi concluída sem pixels guardados, o recado que fecha a
+          // expectativa. A cor temática mantém Luz · Vida · Cuidado distinguíveis sem pintura.
+          <Coloring60SlotStateMark kind={kind} tint={theme.frame} tintDeep={theme.chipText} />
         )}
       </View>
       {/* Rótulo SOB a obra, em chip temático próprio — nenhum texto sobre a arte. */}
@@ -554,8 +564,8 @@ const styles = StyleSheet.create({
     ...shadows.soft,
   },
   multiply: { mixBlendMode: 'multiply' },
-  slotEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  slotEmptyText: { fontSize: 12, fontWeight: '700', color: colors.muted, textAlign: 'center' },
+  // [C60-FIX3] O antigo par `slotEmpty`/`slotEmptyText` (quadro vazio + texto cinza) saiu: quem
+  // desenha a vaga sem obra guardada agora é a marca honesta compartilhada, com estilo próprio.
 
   slotLabelPill: {
     marginTop: 8,

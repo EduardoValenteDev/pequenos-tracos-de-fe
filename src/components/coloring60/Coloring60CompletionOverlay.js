@@ -59,6 +59,12 @@ import {
   computeLineartStyle,
   computePaintStyle,
 } from './coloring60ArtComposition';
+// [C60-FIX3] VOCABULÁRIO ÚNICO das vagas — o mesmo que a coleção consome. Este overlay NÃO
+// classifica: o estado de cada vaga chega pronto por props (vindo da leitura canônica), e aqui
+// serve só para saber quem tem obra para mostrar e quem recebe a marca honesta. O módulo é PURO
+// (sem I/O, sem storage), então importá-lo não viola o contrato "o overlay não lê storage".
+import { COLORING60_SLOT_KIND } from '../../services/coloring60State';
+import Coloring60SlotStateMark from './Coloring60SlotStateMark';
 
 // Utilitário local: converte um hex de 6 dígitos do tema em rgba com alfa (para vinhetas, auras e
 // acentos translúcidos derivados da MESMA paleta — sem cor nova e sem dependência).
@@ -74,10 +80,12 @@ function rgba(hex, a) {
 // [C60-P10-GALLERY] Composição da GALERIA da grande conclusão (§Parte 4/7). Compõe COR + CONTORNO
 // numa miniatura, portando a MESMA técnica já validada no Livrinho (paint por baixo, lineart por cima
 // com `mixBlendMode: 'multiply'`, ambos invisíveis até carregarem JUNTOS). A arte já vem PRONTA por
-// PROPS (o ColoringScreen — única tela autorizada — leu o storage do piloto e passou o payload). Este
-// overlay NUNCA importa o writer nem lê storage: recebe `paint` (payload salvo ou null) e `lineart`.
-// Sem cor (Grátis não persistido / atividade sem arte / falha) → FALLBACK OFICIAL = o próprio
-// contorno sozinho (asset que já existe; nunca mancha de cor sem traço).
+// PROPS (o ColoringScreen — única tela autorizada — fez a LEITURA CANÔNICA e passou o resultado já
+// reconciliado). Este overlay NUNCA importa o writer nem lê storage: recebe `kind` (o estado da vaga),
+// `paint` (payload salvo, só quando o estado é ART) e `lineart`.
+// [C60-FIX3] Sem obra guardada, a vaga NÃO cai em fallback nenhum: recebe a MARCA HONESTA do seu
+// estado (a mesma da coleção). Nunca o contorno sozinho, nunca ícone de imagem ausente, nunca a
+// pintura temporária da sessão fingindo obra salva.
 // ─────────────────────────────────────────────────────────────────────────────
 const FINALE_ART_TIMEOUT_MS = 7000;
 
@@ -568,7 +576,7 @@ const markerStyles = StyleSheet.create({
 const FINALE_THUMB_W = 92;
 const FINALE_THUMB_H = 116; // ~4:5 retrato, a mesma proporção dos linearts do piloto (1122×1402)
 
-function FinaleDrawingThumb({ paint, lineart, marker, tint, tintDeep, tintSoft, revealStyle }) {
+function FinaleDrawingThumb({ kind, paint, lineart, marker, tint, tintDeep, revealStyle }) {
   const parsed = paint ? parseDrawingPayload(paint) : null;
   const positioned = isPositionedPayload(parsed);
   const visual = toArtVisual(parsed, lineart);
@@ -596,6 +604,18 @@ function FinaleDrawingThumb({ paint, lineart, marker, tint, tintDeep, tintSoft, 
   // discreto. Em nenhum dos dois casos aparece contorno sem cor.
   const showPlaceholder = !colorReady;
   const showEmptyMark = !hasColor || giveUp;
+
+  // [C60-FIX3] O "sinal discreto" DEIXOU de ser um ícone genérico de imagem ausente. Aquele ícone
+  // era exatamente o que fazia a conclusão do plano Grátis parecer miniatura quebrada. Agora a vaga
+  // sem obra recebe a MARCA HONESTA do seu estado REAL — a mesma marca, com a mesma classificação,
+  // que a coleção exibe para a mesma parte.
+  //
+  // Duas situações NÃO recebem marca e permanecem no papel neutro, de propósito: (a) o estado ainda
+  // não chegou (a leitura canônica é assíncrona e a galeria só é revelada no Ato 5, depois de
+  // ~1,3 s — afirmar um estado antes de conhecê-lo seria inventar); (b) uma obra ART cuja composição
+  // falhou ou estourou o teto, que já é tratada pelo invariante da Parte 8. Nenhuma das duas mostra
+  // erro, contorno sem cor ou promessa de recuperação.
+  const stateMarkKind = showEmptyMark && kind && kind !== COLORING60_SLOT_KIND.ART ? kind : null;
 
   return (
     <Animated.View style={[galleryStyles.thumbCol, revealStyle]}>
@@ -627,7 +647,9 @@ function FinaleDrawingThumb({ paint, lineart, marker, tint, tintDeep, tintSoft, 
 
         {showPlaceholder && (
           <View style={[StyleSheet.absoluteFill, galleryStyles.thumbEmpty]}>
-            {showEmptyMark ? <MaterialCommunityIcons name="image-outline" size={22} color={tintSoft} /> : null}
+            {stateMarkKind ? (
+              <Coloring60SlotStateMark kind={stateMarkKind} tint={tint} tintDeep={tintDeep} compact />
+            ) : null}
           </View>
         )}
       </View>
@@ -1074,15 +1096,24 @@ export default function Coloring60CompletionOverlay({
   });
 
   // Dados da galeria do fecho: ordem canônica (Luz · Vida · Cuidado) vinda do progresso; a arte
-  // (payload salvo + contorno) já chega PRONTA por props — este overlay não lê storage nem o writer.
+  // (payload salvo + contorno) e o ESTADO da vaga já chegam PRONTOS por props — este overlay não lê
+  // storage nem o writer, e não classifica nada por conta própria.
+  //
+  // [C60-FIX3] CORTE ESTRUTURAL. Só a vaga classificada como `ART` recebe pixels; todos os demais
+  // estados chegam à miniatura com `paint` e `lineart` NULOS. Não é uma convenção que o componente
+  // precise lembrar de respeitar: é a forma dos dados. Assim nenhuma pintura pode vazar para uma
+  // vaga que não tem obra guardada — nem a temporária da sessão, nem a de outra parte (o item é
+  // buscado pela IDENTIDADE da vaga, jamais por posição).
   const orderIds = steps.length ? steps.map((s) => s.id) : ['light', 'living_world', 'people_and_care'];
   const finaleById = new Map((finaleItems || []).map((it) => [it.activityId, it]));
   const galleryData = orderIds.map((id) => {
     const a = atmosphereOf(id);
     const it = finaleById.get(id);
+    const kind = it?.kind ?? null; // null = estado ainda não lido ⇒ papel neutro, sem afirmar nada
     return {
-      key: id, marker: a.marker, tint: a.tint, tintDeep: a.tintDeep, tintSoft: a.tintSoft,
-      paint: it?.paint ?? null, lineart: it?.lineart ?? null,
+      key: id, marker: a.marker, tint: a.tint, tintDeep: a.tintDeep, kind,
+      paint: kind === COLORING60_SLOT_KIND.ART ? (it?.paint ?? null) : null,
+      lineart: kind === COLORING60_SLOT_KIND.ART ? (it?.lineart ?? null) : null,
     };
   });
 
@@ -1122,12 +1153,12 @@ export default function Coloring60CompletionOverlay({
             {galleryData.map((it, i) => (
               <FinaleDrawingThumb
                 key={it.key}
+                kind={it.kind}
                 paint={it.paint}
                 lineart={it.lineart}
                 marker={it.marker}
                 tint={it.tint}
                 tintDeep={it.tintDeep}
-                tintSoft={it.tintSoft}
                 revealStyle={reduceMotion ? null : {
                   opacity: galleryAnims[i],
                   transform: [

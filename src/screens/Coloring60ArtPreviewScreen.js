@@ -54,6 +54,10 @@ import {
   computePaintStyle,
   computeLineartStyle,
 } from '../components/coloring60/coloring60ArtComposition';
+// [C60-FIX3] FONTE ÚNICA dos textos de estado honesto. A prévia é a terceira superfície a falar da
+// MESMA vaga (depois da coleção e da grande conclusão); se ela redigisse por conta própria, voltariam
+// a existir três verdades sobre um estado só.
+import { COLORING60_SLOT_STATE_COPY } from '../components/coloring60/Coloring60SlotStateMark';
 // Reset canônico ("Gerenciar dados"): descarta a vista e rehidrata — uma obra apagada não fica
 // exposta aqui como se nada tivesse acontecido.
 import { subscribeColoring60Reset } from '../services/coloring60ResetService';
@@ -274,8 +278,17 @@ export default function Coloring60ArtPreviewScreen({ route, navigation }) {
     : previewState === PREVIEW_STATE.INTEGRITY_ERROR
       ? 'Esta parte precisa de cor de novo'
       : kind === SLOT.NOT_PERSISTED
-        ? 'Você coloriu esta parte!'
+        ? COLORING60_SLOT_STATE_COPY.notPersisted.title
         : 'Ainda falta colorir esta parte';
+
+  // [C60-FIX3] RECADO DE NÃO-PERMANÊNCIA. Ao ampliar uma parte concluída sem pixels guardados, a
+  // criança precisa sair daqui sem nenhuma promessa de reencontro com aquela pintura — a mesma frase
+  // da coleção e do fecho, nem aviso de erro, nem convite de compra. Só neste estado: a vaga ainda
+  // por colorir não perdeu nada, e a vaga com problema de integridade já tem a sua própria frase.
+  const honestNote = kind === SLOT.NOT_PERSISTED
+    && previewState === PREVIEW_STATE.READY_WITHOUT_PERSISTED_ART
+    ? COLORING60_SLOT_STATE_COPY.notPersisted.note
+    : null;
 
   if (previewState === PREVIEW_STATE.READ_ERROR) {
     return (
@@ -350,6 +363,7 @@ export default function Coloring60ArtPreviewScreen({ route, navigation }) {
               // Estado honesto: NUNCA o contorno sozinho no lugar da obra.
               <View style={styles.honest}>
                 <Text style={styles.honestText}>{honestText}</Text>
+                {honestNote ? <Text style={styles.honestNote}>{honestNote}</Text> : null}
               </View>
             )}
           </View>
@@ -431,6 +445,15 @@ const styles = StyleSheet.create({
   multiply: { mixBlendMode: 'multiply' },
   honest: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   honestText: { fontSize: 15, fontWeight: '700', color: colors.textSoft, textAlign: 'center' },
+  // [C60-FIX3] Recado secundário: menor e mais leve que a frase principal — a conquista fala primeiro.
+  honestNote: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: '600',
+    color: colors.muted,
+    textAlign: 'center',
+  },
 
   beniRow: { flexDirection: 'row', alignItems: 'center', marginTop: 18, width: '100%' },
   beni: { width: 78, height: 98, resizeMode: 'contain' },

@@ -38125,9 +38125,18 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
       // ── TRIPWIRE [P3J] — o eixo se INVERTE: o legado saiu, o Colorir com o Beni não pode ter
       // saído junto. O corpo de `Coloring60ActivityScreen` (da assinatura até os estilos do ramo)
-      // é comparado por sha256 contra o valor medido em HEAD 7c12987, ANTES da aposentadoria:
-      // 57.148 bytes byte a byte iguais provam que a remoção das 199 folhas legadas não encostou
-      // no motor vivo do colorir. É o mesmo formato de tripwire, apontado para o lado que importa.
+      // é comparado por sha256 contra um valor MEDIDO e fixado: bytes iguais provam que mudanças
+      // vizinhas não encostaram no motor vivo do colorir. É o mesmo formato de tripwire, apontado
+      // para o lado que importa.
+      //
+      // REFERÊNCIA REBASEADA — [C60-FIX3]. O valor anterior (57.148 bytes,
+      // sha f291614e31e7b1e693fa27ce55b72500bbcc8cd59144095961af0641038ee7da) foi medido em HEAD
+      // 7c12987, antes da aposentadoria do legado. O FIX 3 alterou DELIBERADAMENTE este corpo num
+      // ponto só: `loadC60FinaleItems` deixou de remontar a galeria da grande conclusão à mão e
+      // passou a consumir a leitura canônica reconciliada (a MESMA da coleção). A mudança é
+      // declarada, está provada nominalmente na prova C60-P11 do carregador logo abaixo e é a
+      // razão de o selo ser reancorado aqui — um selo quebrado em silêncio seria pior que nenhum.
+      // Qualquer OUTRA alteração neste corpo continua acendendo o alarme.
       const c60BodyF = (function sliceC60(s) {
         const i = s.indexOf('function Coloring60ActivityScreen(');
         const j = s.indexOf('const c60Styles = StyleSheet.create(', i + 1);
@@ -38135,9 +38144,9 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       })(scrF);
       const c60ShaF = require('crypto').createHash('sha256').update(c60BodyF, 'utf8').digest('hex');
       check('C60-P4-FIX2 [LEGADO] → [P3J]: corpo do Coloring60ActivityScreen BYTE-IDÊNTICO a HEAD (a aposentadoria não tocou o colorir vivo)',
-        c60ShaF === 'f291614e31e7b1e693fa27ce55b72500bbcc8cd59144095961af0641038ee7da'
-          && c60BodyF.length === 57148,
-        `o corpo do Colorir com o Beni mudou (sha=${c60ShaF}, bytes=${c60BodyF.length}) — P3J não pode tocar o ramo vivo`);
+        c60ShaF === '840cb58e137cada5f170841e9ab0e1a32ec0b1fa13ccf31c272692a16cb5edc1'
+          && c60BodyF.length === 56763,
+        `o corpo do Colorir com o Beni mudou (sha=${c60ShaF}, bytes=${c60BodyF.length}) — nenhuma mudança vizinha pode tocar o ramo vivo`);
     }
   }
 
@@ -38536,12 +38545,20 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         && /setC60CelebrateSnapshot\(snapshot\)/.test(scrP10)
         && /const \[c60CelebrateSnapshot, setC60CelebrateSnapshot\] = useState\(null\)/.test(scrP10),
       'o quadro de brilho recebe o instantâneo v2 para seguir os limites reais da arte');
-    // loadC60FinaleItems compõe a galeria pela CONCLUSÃO (reader + resolver), nunca inventa fonte.
-    check('C60-P11 [render] loadC60FinaleItems lê os outros desenhos pelo reader e resolve o lineart pelo resolver',
+    // loadC60FinaleItems compõe a galeria pela CONCLUSÃO, nunca inventa fonte.
+    // [C60-FIX3] A composição (arte salva + contorno resolvido) NÃO é mais remontada aqui à mão: ela
+    // passou a vir da LEITURA CANÔNICA RECONCILIADA — a MESMA função que a coleção consome —, já com
+    // o `kind` do estado anexado. O contrato antigo (ler o desenho salvo e resolver o contorno) segue
+    // valendo integralmente; só mudou de dono, e agora com um dono só. É o que impede, POR
+    // CONSTRUÇÃO, que o fecho e a coleção contem histórias diferentes sobre a mesma vaga.
+    check('C60-P11 [render] loadC60FinaleItems monta a galeria pela LEITURA CANÔNICA reconciliada (a mesma da coleção), com o kind anexado — sem tocar o writer',
       /async function loadC60FinaleItems\(/.test(scrP10)
-        && /getColoring60SavedDrawing\(storyId, a\.activityId\)/.test(scrP10)
-        && /resolveColoring60Lineart\(storyId, a\.activityId\)/.test(scrP10),
-      'a galeria do fecho usa a arte salva das outras atividades + o lineart resolvido (sem tocar o writer)');
+        && /const \{ slots \} = await loadColoring60Slots\(storyId\);/.test(scrP10)
+        && /slots\.map\(\(slot\) => coloring60SlotWithKind\(slot\)\)/.test(scrP10)
+        && /from '\.\.\/services\/coloring60CollectionReader'/.test(scrP10)
+        // e o fecho NÃO reconstrói a leitura por fora: nada de multiGet/registro próprio aqui dentro.
+        && !/loadColoring60JourneyRecord/.test(scrP10),
+      'a galeria do fecho usa a leitura canônica (arte salva + contorno resolvido + estado), nunca uma segunda montagem paralela');
 
     // Critério OBRIGATÓRIO — com desenho salvo, NENHUM quadro mostra lineart sem cor: a capa (mesma
     // cor do motor, sem lineart) só some quando, no modo 'paint', o canvas confirma PAINT_APPLIED.
@@ -40187,7 +40204,13 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
       check('C60-A [prova 9 · A2 · literais espelham os enums reais] o módulo puro usa os MESMOS literais das fontes canônicas — drift reprova: art == SLOT.ART, e ready|notPersisted == SNAPSHOT_STATUS.READY|NOT_PERSISTED',
         M.C60_PORTRAIT_ART_KIND === 'art'
-          && /ART: 'art'/.test(rdrRaw)
+          // [C60-FIX3] O literal de `ART` mudou de CASA, não de valor: o vocabulário de vagas passou
+          // a morar no modelo puro (`coloring60State`), porque a galeria da grande conclusão precisa
+          // dele e não pode depender do leitor (que faz I/O). A prova acompanha o dono novo e ainda
+          // exige que o leitor continue reexportando o MESMO objeto — se algum dia ele redeclarar um
+          // `SLOT` próprio, a cadeia se parte aqui, antes de o bug chegar ao aparelho.
+          && /ART: 'art'/.test(stRaw)
+          && /export const SLOT = COLORING60_SLOT_KIND;/.test(rdrRaw)
           && M.C60_PORTRAIT_ACCEPTABLE_SNAPSHOT.join(',') === 'ready,notPersisted'
           && /READY: 'ready'/.test(stRaw)
           && /NOT_PERSISTED: 'notPersisted'/.test(stRaw),
@@ -46140,6 +46163,503 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
     for (const c of CN_FX2) {
       check(`FIX2 [negativo ${c.id}]: ${c.descricao}`,
+        c.original === true && c.mutante === false,
+        `o controle negativo não distinguiu o certo do errado (original=${JSON.stringify(c.original)} · mutante=${JSON.stringify(c.mutante)})`);
+    }
+  }
+
+
+  /* ═══ [FIX 3 · C60] REPRESENTAÇÃO HONESTA DA CONCLUSÃO SEM PINTURA GUARDADA ═══════════════════
+   * O DEFEITO (evidência física do fundador, plano Grátis, 3 de 3 concluídas): o app AFIRMAVA que a
+   * criança concluiu as três partes, mas a composição visual dizia o contrário. Na grande conclusão,
+   * a atividade recém-pintada aparecia como miniatura (a arte ainda estava na MEMÓRIA da sessão) ao
+   * lado de duas molduras vazias com um ícone genérico de "imagem ausente"; na coleção, as três
+   * vagas viravam quadros vazios com um texto cinza minúsculo — indistinguíveis de miniaturas
+   * quebradas ou que não carregaram. A política de armazenamento está CORRETA (o Grátis não guarda
+   * pixels, por decisão de plano). O defeito estava na REPRESENTAÇÃO.
+   *
+   * A CORREÇÃO (Opção A · decisão do fundador): as três partes concluídas sem persistência têm a
+   * MESMA representação honesta em toda superfície que representa COLEÇÃO ou CONJUNTO FINAL. Nenhuma
+   * pintura Grátis é reconstruída, fingida ou tratada como salva. A arte viva da sessão continua
+   * protagonista na ÁREA PRINCIPAL da celebração imediata (a moldura `Coloring60ArtGlow`), mas JAMAIS
+   * entra num slot que represente obra guardada.
+   *
+   * MODELO ÚNICO DE ESTADO: conclusão e coleção consomem a MESMA classificação semântica, nascida em
+   * seletor PURO compartilhado (`coloring60SlotKind`, em `coloring60State.js`). As telas apenas
+   * renderizam o resultado — nenhuma superfície reimplementa a regra.
+   *   art · notPersisted · needsColor · empty
+   *
+   * As provas de DOMÍNIO executam o seletor REAL (mutar a regra muda o veredito); as provas de TELA
+   * leem o fonte real (telas não rodam fora do React) e cobram consumo da fonte única.
+   * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+  {
+    const { loadModule: fx3Load } = require('./testing/packInstallHarness');
+
+    // ── Fontes reais das superfícies tocadas pelo FIX 3 ────────────────────────────────────────
+    const FX3_MARK_SRC = 'src/components/coloring60/Coloring60SlotStateMark.js';
+    const fx3Ovl = readSrc('src/components/coloring60/Coloring60CompletionOverlay.js');
+    const fx3Cln = readSrc('src/screens/Coloring60CollectionScreen.js');
+    const fx3Scr = readSrc('src/screens/ColoringScreen.js');
+    const fx3Prv = readSrc('src/screens/Coloring60ArtPreviewScreen.js');
+    const fx3Rdr = readSrc('src/services/coloring60CollectionReader.js');
+    const fx3St = readSrc('src/services/coloring60State.js');
+    const fx3Mark = srcExists(FX3_MARK_SRC) ? readSrc(FX3_MARK_SRC) : '';
+    const fx3Strip = (s) => String(s).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const fx3OvlCode = fx3Strip(fx3Ovl);
+    const fx3ClnCode = fx3Strip(fx3Cln);
+    const fx3MarkCode = fx3Strip(fx3Mark);
+    // Corpo do carregador da galeria do fecho, isolado do resto da tela.
+    const fx3FinaleLoader = (() => {
+      const i = fx3Scr.indexOf('async function loadC60FinaleItems(');
+      const j = fx3Scr.indexOf('[C60-P11-MACHINE]', i + 1);
+      return (i >= 0 && j > i) ? fx3Scr.slice(i, j) : '';
+    })();
+
+    // ── Seletor PURO compartilhado, executado DE VERDADE ───────────────────────────────────────
+    const FX3_STATE_EXPORTS = ['SNAPSHOT_STATUS', 'HYDRATION_STATUS', 'COLORING60_SLOT_KIND',
+      'coloring60SlotKind', 'deriveColoring60ActivityState', 'deriveColoring60JourneyState',
+      'createColoring60ActivityState', 'countsAsComplete'];
+    const carregarEstado3 = (mutate) => {
+      try { return fx3Load('src/services/coloring60State.js', {}, FX3_STATE_EXPORTS, mutate); }
+      catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    };
+    const ST3 = carregarEstado3();
+    const vivoST3 = !!ST3 && !ST3.__erro;
+    const faltaST3 = vivoST3 ? '' : ` — o seletor compartilhado não respondeu: ${ST3.__erro}`;
+
+    // ── Leitor canônico (caminho da COLEÇÃO), executado DE VERDADE com dependências injetadas ──
+    const FX3_RDR_EXPORTS = ['SLOT', 'slotKindOf', 'coloring60SlotWithKind', 'COLORING60_SLOT_MARKERS'];
+    const carregarLeitor3 = (mutate) => {
+      if (!vivoST3) return { __erro: `seletor ausente${faltaST3}` };
+      try {
+        return fx3Load('src/services/coloring60CollectionReader.js', {
+          getColoring60Activities: () => [],
+          resolveColoring60Lineart: () => ({ status: 'unavailable', source: null }),
+          COLORING60_RESOLUTION_STATUS: { AVAILABLE: 'available' },
+          loadColoring60JourneyRecord: async () => ({ activities: [] }),
+          getColoring60SavedDrawing: async () => null,
+          snapshotHasMeaningfulColor: () => false,
+          SNAPSHOT_STATUS: ST3.SNAPSHOT_STATUS,
+          HYDRATION_STATUS: ST3.HYDRATION_STATUS,
+          reconcileSnapshotStatus: () => ST3.SNAPSHOT_STATUS.MISSING,
+          deriveColoring60ActivityState: ST3.deriveColoring60ActivityState,
+          COLORING60_SLOT_KIND: ST3.COLORING60_SLOT_KIND,
+          coloring60SlotKind: ST3.coloring60SlotKind,
+          __DEV__: false,
+        }, FX3_RDR_EXPORTS, mutate);
+      } catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    };
+    const RD3 = carregarLeitor3();
+    const vivoRD3 = !!RD3 && !RD3.__erro;
+
+    // ── Textos oficiais do estado NOT_PERSISTED (fonte única, executada do fonte real) ─────────
+    const carregarCopy3 = (mutate) => {
+      if (!srcExists(FX3_MARK_SRC)) return { __erro: 'a marca compartilhada de estado ainda não existe' };
+      try { return fx3Load(FX3_MARK_SRC, {}, ['COLORING60_SLOT_STATE_COPY', 'COLORING60_SLOT_STATE_ICON'], mutate); }
+      catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    };
+    const CP3 = carregarCopy3();
+    const vivoCP3 = !!CP3 && !CP3.__erro;
+
+    // Atalho: kind pelo seletor compartilhado (caminho do FECHO). Erro vira string diagnosticável.
+    const kind3 = (ev) => {
+      if (!vivoST3) return `__erro${faltaST3}`;
+      try { return ST3.coloring60SlotKind(ev); } catch (e) { return `__erro: ${e.message}`; }
+    };
+    // Atalho: kind pelo leitor canônico (caminho da COLEÇÃO).
+    const kindColecao3 = (ev) => {
+      if (!vivoRD3) return `__erro: leitor indisponível (${RD3.__erro})`;
+      try {
+        return RD3.coloring60SlotWithKind({
+          activityId: ev.activityId ?? 'light',
+          title: 'x',
+          marker: 'Luz',
+          isCurrentlyComplete: ev.isCurrentlyComplete === true,
+          hasEverCompleted: ev.hasEverCompleted === true || ev.isCurrentlyComplete === true,
+          snapshotStatus: ev.snapshotStatus,
+          paint: ev.hasPaint === true ? 'PAYLOAD' : null,
+          lineart: ev.hasLineart === true ? { uri: 'lineart' } : null,
+        }).kind;
+      } catch (e) { return `__erro: ${e.message}`; }
+    };
+
+    const S3 = { READY: 'ready', NOT_PERSISTED: 'notPersisted', MISSING: 'missing', FAILED: 'failed' };
+    const K3 = { ART: 'art', NOT_PERSISTED: 'notPersisted', NEEDS_COLOR: 'needsColor', EMPTY: 'empty' };
+    const IDS3 = ['light', 'living_world', 'people_and_care'];
+    // Evidência de UMA parte concluída no plano Grátis: concluída agora, instantâneo NOT_PERSISTED
+    // por decisão de plano, nenhum pixel recuperável — o contorno oficial existe (e continua proibido
+    // de aparecer sozinho no lugar da obra).
+    const gratis3 = (activityId) => ({
+      activityId, isCurrentlyComplete: true, hasEverCompleted: true,
+      snapshotStatus: S3.NOT_PERSISTED, hasPaint: false, hasLineart: true,
+    });
+    const premium3 = (activityId) => ({
+      activityId, isCurrentlyComplete: true, hasEverCompleted: true,
+      snapshotStatus: S3.READY, hasPaint: true, hasLineart: true,
+    });
+
+    // ── [1] Grátis concluído + instantâneo NOT_PERSISTED + sem pixels ⇒ NOT_PERSISTED ──────────
+    check('FIX3 [1 · domínio] parte concluída no Grátis (instantâneo NOT_PERSISTED, sem pixels) resolve para o estado compartilhado NOT_PERSISTED',
+      kind3(gratis3('light')) === K3.NOT_PERSISTED,
+      `o seletor compartilhado devolveu ${JSON.stringify(kind3(gratis3('light')))}${faltaST3}`);
+
+    // ── [2] Grátis 3/3 ⇒ os TRÊS slots do FECHO resolvem NOT_PERSISTED ────────────────────────
+    check('FIX3 [2 · fecho] Grátis 3 de 3: os TRÊS slots do fecho resolvem NOT_PERSISTED (nenhum sobra como vazio ou quebrado)',
+      IDS3.every((id) => kind3(gratis3(id)) === K3.NOT_PERSISTED),
+      `kinds do fecho: ${JSON.stringify(IDS3.map((id) => kind3(gratis3(id))))}${faltaST3}`);
+
+    // ── [3] Grátis 3/3 ⇒ os TRÊS slots da COLEÇÃO resolvem NOT_PERSISTED ──────────────────────
+    check('FIX3 [3 · coleção] Grátis 3 de 3: os TRÊS slots da coleção resolvem NOT_PERSISTED pelo MESMO modelo',
+      IDS3.every((id) => kindColecao3(gratis3(id)) === K3.NOT_PERSISTED),
+      `kinds da coleção: ${JSON.stringify(IDS3.map((id) => kindColecao3(gratis3(id))))}`);
+
+    // ── [4] Fecho e coleção produzem o MESMO kind, atividade por atividade, em TODA a matriz ───
+    const MATRIZ3 = [
+      { nome: 'Grátis concluído sem pixels', ev: { isCurrentlyComplete: true, snapshotStatus: S3.NOT_PERSISTED, hasPaint: false, hasLineart: true }, esperado: K3.NOT_PERSISTED },
+      { nome: 'Premium concluído com pintura recuperável', ev: { isCurrentlyComplete: true, snapshotStatus: S3.READY, hasPaint: true, hasLineart: true }, esperado: K3.ART },
+      { nome: 'ponteiro órfão (instantâneo sumiu)', ev: { isCurrentlyComplete: true, snapshotStatus: S3.MISSING, hasPaint: false, hasLineart: true }, esperado: K3.NEEDS_COLOR },
+      { nome: 'gravação tentada e falhada', ev: { isCurrentlyComplete: true, snapshotStatus: S3.FAILED, hasPaint: false, hasLineart: true }, esperado: K3.NEEDS_COLOR },
+      { nome: 'ainda não concluída (mesmo com pintura antiga no disco)', ev: { isCurrentlyComplete: false, snapshotStatus: S3.READY, hasPaint: true, hasLineart: true }, esperado: K3.EMPTY },
+      { nome: 'concluída com pintura mas SEM contorno para compor', ev: { isCurrentlyComplete: true, snapshotStatus: S3.READY, hasPaint: true, hasLineart: false }, esperado: K3.NEEDS_COLOR },
+    ];
+    const divergentes3 = MATRIZ3.filter((c) => kind3({ activityId: 'light', ...c.ev }) !== kindColecao3({ activityId: 'light', ...c.ev }));
+    check('FIX3 [4 · modelo único] fecho e coleção produzem o MESMO kind para a MESMA evidência, nos 6 cenários da matriz (nenhuma classificação paralela por tela)',
+      divergentes3.length === 0 && MATRIZ3.every((c) => kind3({ activityId: 'light', ...c.ev }) === c.esperado),
+      `divergências: ${JSON.stringify(divergentes3.map((c) => c.nome))} · fecho=${JSON.stringify(MATRIZ3.map((c) => kind3({ activityId: 'light', ...c.ev })))} · coleção=${JSON.stringify(MATRIZ3.map((c) => kindColecao3({ activityId: 'light', ...c.ev })))}`);
+
+    // ── [4b] O seletor NASCE em serviço puro e as duas superfícies o CONSOMEM ──────────────────
+    check('FIX3 [4b · fonte única] a classificação nasce no serviço PURO (coloring60State) e as duas superfícies a consomem: o leitor canônico reexporta SLOT e delega slotKindOf; o fecho importa o mesmo seletor',
+      /export const COLORING60_SLOT_KIND = Object\.freeze\(\{/.test(fx3St)
+        && /export function coloring60SlotKind\(/.test(fx3St)
+        && /export const SLOT = COLORING60_SLOT_KIND;/.test(fx3Rdr)
+        && /coloring60SlotKind\(/.test(fx3Rdr)
+        // O fecho NÃO reclassifica: ele importa o VOCABULÁRIO do dono puro e apenas compara o `kind`
+        // que a leitura canônica já anexou. Se um dia ele chamar o seletor por conta própria, terá
+        // voltado a decidir estado dentro da tela — exatamente o que este bloco proíbe.
+        && /COLORING60_SLOT_KIND/.test(fx3OvlCode)
+        && !/coloring60SlotKind\(/.test(fx3OvlCode)
+        && /from '\.\.\/\.\.\/services\/coloring60State'/.test(fx3Ovl),
+      'o vocabulário de vagas precisa ter UM dono puro; o leitor e o fecho apenas consomem');
+
+    // ── [5] NOT_PERSISTED não produz imagem, miniatura nem paint ───────────────────────────────
+    check('FIX3 [5 · fecho] o slot do fecho só recebe paint/lineart quando o estado é ART — NOT_PERSISTED/NEEDS_COLOR/EMPTY chegam com paint e lineart nulos',
+      /paint: kind === COLORING60_SLOT_KIND\.ART \? \(it\?\.paint \?\? null\) : null/.test(fx3Ovl)
+        && /lineart: kind === COLORING60_SLOT_KIND\.ART \? \(it\?\.lineart \?\? null\) : null/.test(fx3Ovl),
+      'nenhum estado honesto pode carregar pixels: o corte é ESTRUTURAL, na montagem dos dados da galeria');
+
+    check('FIX3 [5b · coleção] a coleção só decodifica payload quando o estado é ART (nenhum estado honesto compõe imagem)',
+      /const parsed = kind === SLOT\.ART \? parseDrawingPayload\(slot\.paint\) : null;/.test(fx3Cln),
+      'a decodificação de pintura na coleção continua trancada atrás do estado ART');
+
+    // ── [6] Nada de placeholder de imagem quebrada / esqueleto / moldura vazia ─────────────────
+    check('FIX3 [6 · representação] nenhuma superfície usa ícone genérico de imagem ausente, esqueleto ou placeholder de erro para representar conclusão',
+      !/image-outline|image-broken|image-off|image-remove/.test(fx3OvlCode)
+        && !/image-outline|image-broken|image-off|image-remove/.test(fx3ClnCode)
+        && !/image-outline|image-broken|image-off|image-remove/.test(fx3MarkCode)
+        && !/[Ss]keleton|ActivityIndicator/.test(fx3MarkCode),
+      'a conclusão sem pintura guardada não pode se parecer com uma miniatura quebrada ou carregando');
+
+    // ── [7] Marca INTENCIONAL de conclusão + identidade da parte ───────────────────────────────
+    check('FIX3 [7 · representação] NOT_PERSISTED exibe SELO de conclusão (ícone próprio, distinto dos demais estados) e a identidade da parte continua visível',
+      vivoCP3
+        && typeof CP3.COLORING60_SLOT_STATE_ICON[K3.NOT_PERSISTED] === 'string'
+        && CP3.COLORING60_SLOT_STATE_ICON[K3.NOT_PERSISTED].length > 0
+        && new Set([CP3.COLORING60_SLOT_STATE_ICON[K3.NOT_PERSISTED],
+          CP3.COLORING60_SLOT_STATE_ICON[K3.NEEDS_COLOR],
+          CP3.COLORING60_SLOT_STATE_ICON[K3.EMPTY]]).size === 3
+        // A identidade (Luz · Vida · Cuidado) segue impressa ao lado da vaga nas duas superfícies.
+        && /thumbLabel/.test(fx3Ovl) && /slotLabelText/.test(fx3Cln),
+      `a marca de conclusão precisa ser intencional e distinta por estado${vivoCP3 ? '' : ` — ${CP3.__erro}`}`);
+
+    // ── [8] Copy explícita sobre a pintura não ficar guardada ──────────────────────────────────
+    check('FIX3 [8 · copy] NOT_PERSISTED diz "Parte concluída!" e informa, com clareza, que a pintura não fica guardada depois de sair',
+      vivoCP3
+        && CP3.COLORING60_SLOT_STATE_COPY[K3.NOT_PERSISTED].title === 'Parte concluída!'
+        && CP3.COLORING60_SLOT_STATE_COPY[K3.NOT_PERSISTED].note === 'A pintura não fica guardada depois de sair.',
+      `os dois textos oficiais do estado NOT_PERSISTED precisam existir na fonte única${vivoCP3 ? ` (atual: ${JSON.stringify(CP3.COLORING60_SLOT_STATE_COPY && CP3.COLORING60_SLOT_STATE_COPY[K3.NOT_PERSISTED])})` : ` — ${CP3.__erro}`}`);
+
+    check('FIX3 [8b · copy] os três estados honestos são DISTINGUÍVEIS por texto (nada de uma frase-modelo para tudo) e nenhum deles promete reabrir a arte',
+      vivoCP3
+        && new Set([CP3.COLORING60_SLOT_STATE_COPY[K3.NOT_PERSISTED].title,
+          CP3.COLORING60_SLOT_STATE_COPY[K3.NEEDS_COLOR].title,
+          CP3.COLORING60_SLOT_STATE_COPY[K3.EMPTY].title]).size === 3
+        && !/ver de novo|abrir de novo|guardad[oa] para depois|fica salv/i.test(JSON.stringify(CP3.COLORING60_SLOT_STATE_COPY)),
+      'cada estado tem a sua frase; nenhuma promete que a arte poderá ser aberta outra vez');
+
+    // ── [9] Nenhuma copy comercial na superfície infantil ──────────────────────────────────────
+    const FX3_COMERCIAL = /[Aa]ssine|[Aa]ssinatura|Plano Fam[íi]lia|[Cc]ompre|[Cc]omprar|[Dd]esbloque|[Pp]remium|R\$|[Vv]ocê perdeu|[Ss]ua arte sumiu|[Ii]magem indispon[íi]vel/;
+    check('FIX3 [9 · copy] nenhuma palavra comercial e nenhuma palavra de perda/erro na representação da conclusão (marca compartilhada, fecho e coleção)',
+      vivoCP3
+        && !FX3_COMERCIAL.test(JSON.stringify(CP3.COLORING60_SLOT_STATE_COPY))
+        && !FX3_COMERCIAL.test(fx3MarkCode)
+        && !/[Aa]ssine|Plano Fam[íi]lia|[Dd]esbloque|[Ii]magem indispon[íi]vel|[Ss]ua arte sumiu/.test(fx3OvlCode)
+        && !/[Aa]ssine|Plano Fam[íi]lia|[Dd]esbloque|[Ii]magem indispon[íi]vel|[Ss]ua arte sumiu/.test(fx3ClnCode),
+      'a superfície infantil não vende, não culpa e não anuncia erro técnico');
+
+    // ── [10] A arte viva da sessão só na ÁREA PRINCIPAL da celebração ─────────────────────────
+    check('FIX3 [10 · celebração] a arte em memória continua protagonista SÓ na área principal (Coloring60ArtGlow); o carregador da galeria do fecho NÃO usa mais o instantâneo da sessão',
+      /<Coloring60ArtGlow[\s\S]*?snapshot=\{c60CelebrateSnapshot\}/.test(fx3Scr)
+        && fx3FinaleLoader.length > 0
+        && !/paint = currentSnapshot/.test(fx3FinaleLoader)
+        && !/typeof currentSnapshot === 'string'/.test(fx3FinaleLoader),
+      `o slot do conjunto final não pode receber a pintura viva da sessão (corpo do carregador: ${fx3FinaleLoader.length} bytes)`);
+
+    check('FIX3 [10b · fonte única] a galeria do fecho passou a ser montada pela MESMA leitura canônica reconciliada da coleção (loadColoring60Slots + coloring60SlotWithKind)',
+      /loadColoring60Slots\(\s*storyId\s*\)/.test(fx3FinaleLoader)
+        && /coloring60SlotWithKind\(/.test(fx3FinaleLoader)
+        && /import \{[\s\S]*?loadColoring60Slots[\s\S]*?coloring60SlotWithKind[\s\S]*?\} from '\.\.\/services\/coloring60CollectionReader';/.test(fx3Scr),
+      'o fecho e a coleção terminam no MESMO leitor — é assim que o mesmo kind é garantido por construção');
+
+    // ── [11] Premium READY ⇒ ART nas duas superfícies ─────────────────────────────────────────
+    check('FIX3 [11 · premium] instantâneo READY com pintura recuperável resolve para ART no fecho E na coleção',
+      IDS3.every((id) => kind3(premium3(id)) === K3.ART && kindColecao3(premium3(id)) === K3.ART),
+      `fecho=${JSON.stringify(IDS3.map((id) => kind3(premium3(id))))} · coleção=${JSON.stringify(IDS3.map((id) => kindColecao3(premium3(id))))}`);
+
+    // ── [12] Premium ART mantém a miniatura REAL (composição cor + contorno) ──────────────────
+    check('FIX3 [12 · premium] o slot ART do fecho continua compondo a pintura VERDADEIRA (paintUri + contorno em multiply); a marca de estado só aparece fora do ART',
+      /source=\{\{ uri: visual\.paintUri \}\}/.test(fx3Ovl)
+        && /galleryStyles\.multiply/.test(fx3Ovl)
+        && /kind === COLORING60_SLOT_KIND\.ART/.test(fx3Ovl)
+        && /<Coloring60SlotStateMark/.test(fx3Ovl),
+      'a obra premium continua sendo exibida de verdade; a marca honesta não a substitui');
+
+    // ── [13] e [14] NEEDS_COLOR e EMPTY preservados ───────────────────────────────────────────
+    check('FIX3 [13 · integridade] concluída SEM arte recuperável e SEM decisão de plano continua NEEDS_COLOR (nunca vira "concluída sem guardar")',
+      kind3({ activityId: 'light', isCurrentlyComplete: true, snapshotStatus: S3.MISSING, hasPaint: false, hasLineart: true }) === K3.NEEDS_COLOR
+        && kind3({ activityId: 'light', isCurrentlyComplete: true, snapshotStatus: S3.FAILED, hasPaint: false, hasLineart: true }) === K3.NEEDS_COLOR
+        && kindColecao3({ activityId: 'light', isCurrentlyComplete: true, snapshotStatus: S3.MISSING, hasPaint: false, hasLineart: true }) === K3.NEEDS_COLOR,
+      'a quebra de integridade não pode ser maquiada de conclusão honesta do plano Grátis');
+
+    check('FIX3 [14 · integridade] parte ainda NÃO concluída continua EMPTY nas duas superfícies, mesmo com pintura antiga no disco',
+      kind3({ activityId: 'light', isCurrentlyComplete: false, snapshotStatus: S3.READY, hasPaint: true, hasLineart: true }) === K3.EMPTY
+        && kindColecao3({ activityId: 'light', isCurrentlyComplete: false, snapshotStatus: S3.READY, hasPaint: true, hasLineart: true }) === K3.EMPTY,
+      'limpar uma parte devolve a vaga ao estado vazio — obra antiga não sustenta conclusão');
+
+    // ── [15] Tocar NOT_PERSISTED não abre prévia falsa ────────────────────────────────────────
+    const J3 = (() => {
+      try {
+        return fx3Load('src/services/coloring60Journey.js', {}, [
+          'deriveColoring60ArtPreview', 'COLORING60_ACTION']);
+      } catch (e) { return { __erro: (e && e.message) || String(e) }; }
+    })();
+    check('FIX3 [15 · prévia] tocar uma vaga NOT_PERSISTED abre a prévia HONESTA (artVisible=false, convite a colorir a PRÓPRIA parte) — nunca tela branca, imagem inexistente ou contorno no lugar da pintura',
+      !J3.__erro
+        && J3.deriveColoring60ArtPreview({ kind: K3.NOT_PERSISTED, activityId: 'living_world' }).artVisible === false
+        && J3.deriveColoring60ArtPreview({ kind: K3.NOT_PERSISTED, activityId: 'living_world' }).editAction.kind === J3.COLORING60_ACTION.RESTART
+        && !/resolveColoring60Lineart/.test(fx3Prv)
+        && /PREVIEW_STATE\.READY_WITHOUT_PERSISTED_ART/.test(fx3Prv),
+      `a prévia do estado honesto não pode inventar obra${J3.__erro ? ` — ${J3.__erro}` : ''}`);
+
+    check('FIX3 [15b · prévia] a prévia de NOT_PERSISTED repete a MESMA informação da coleção e do fecho (a pintura não fica guardada), pela fonte única de textos',
+      /COLORING60_SLOT_STATE_COPY/.test(fx3Prv)
+        && vivoCP3
+        && CP3.COLORING60_SLOT_STATE_COPY[K3.NOT_PERSISTED].note === 'A pintura não fica guardada depois de sair.',
+      'nenhuma superfície pode deixar a criança achar que a arte voltará depois');
+
+    // ── [16] Nenhum slot reutiliza a pintura de outra atividade ───────────────────────────────
+    check('FIX3 [16 · identidade] cada slot do fecho lê SOMENTE o item da sua própria identidade (mapa por activityId) e nada herda pintura de vizinho',
+      /const finaleById = new Map\(\(finaleItems \|\| \[\]\)\.map\(\(it\) => \[it\.activityId, it\]\)\);/.test(fx3Ovl)
+        && /const it = finaleById\.get\(id\);/.test(fx3Ovl)
+        && !/finaleItems\[\d\]/.test(fx3OvlCode),
+      'a arte de Vida jamais pode aparecer na vaga de Luz — a busca é por identidade, nunca por posição');
+
+    // ── [17] Nenhuma escrita nova; nenhum dado Grátis gravado ─────────────────────────────────
+    check('FIX3 [17 · política] nenhuma superfície de representação escreve: sem writer de pixels, sem AsyncStorage, sem FileSystem na marca compartilhada, no fecho e na coleção',
+      !/saveColoring60DrawingState|coloring60DrawingStorage|AsyncStorage|expo-file-system/.test(fx3MarkCode)
+        && !/saveColoring60DrawingState|coloring60DrawingStorage|getColoring60SavedDrawing|AsyncStorage/.test(fx3OvlCode)
+        && !/saveColoring60DrawingState|coloring60DrawingStorage|AsyncStorage/.test(fx3ClnCode)
+        && !/saveColoring60DrawingState/.test(fx3FinaleLoader),
+      'a correção é de REPRESENTAÇÃO: o Grátis continua sem gravar um único pixel');
+
+    // ── [18] Conclusão Grátis permanece 3 de 3 ────────────────────────────────────────────────
+    check('FIX3 [18 · contagem] três partes concluídas com instantâneo NOT_PERSISTED continuam valendo 3 de 3 (a ausência de pintura guardada não reduz a conclusão)',
+      (() => {
+        if (!vivoST3) return false;
+        const j = ST3.deriveColoring60JourneyState({
+          activities: IDS3.map((id) => ST3.deriveColoring60ActivityState({
+            activityId: id, isCurrentlyComplete: true, hasEverCompleted: true,
+            snapshotStatus: ST3.SNAPSHOT_STATUS.NOT_PERSISTED, hydrationStatus: ST3.HYDRATION_STATUS.READY,
+          })),
+          finaleSeen: false,
+        });
+        return j.completedCount === 3 && j.isFullyComplete === true && j.countLabel === '3 de 3'
+          && j.hasIntegrityBreak === false;
+      })(),
+      `a conclusão continua plan-agnóstica${faltaST3}`);
+
+    // ── [19] FIX 1 continua verde ─────────────────────────────────────────────────────────────
+    check('FIX3 [19 · regressão FIX 1] o convite da jornada segue suprimido em 3 de 3 e a ação segue indo à coleção (nada do FIX 1 foi alterado)',
+      (() => {
+        try {
+          const M = fx3Load('src/services/coloring60Journey.js', {}, [
+            'deriveColoring60JourneyInvite', 'deriveColoring60InviteAction', 'COLORING60_ACTION']);
+          const inv = M.deriveColoring60JourneyInvite({
+            pilotVisible: true, storyScenesComplete: true, inviteSeen: false,
+            completedCount: 3, totalActivities: 3,
+          });
+          const acao = M.deriveColoring60InviteAction({
+            completedCount: 3, totalActivities: 3,
+            doneMap: { light: true, living_world: true, people_and_care: true },
+          });
+          return inv.visible === false && acao.kind === M.COLORING60_ACTION.COLLECTION;
+        } catch (e) { return false; }
+      })(),
+      'o FIX 1 (convite honrando a conclusão) não pode ter sido tocado pelo FIX 3');
+
+    // ── [20] FIX 2 continua verde ─────────────────────────────────────────────────────────────
+    check('FIX3 [20 · regressão FIX 2] a autorização de ENTRADA no conteúdo continua separando ver detalhes de entrar na história (nada do FIX 2 foi alterado)',
+      (() => {
+        try {
+          const SJ = fx3Load('src/services/storyJourneyService.js', {}, ['COMMERCIAL_ACCESS']);
+          const A = fx3Load('src/services/storyContentAuthorization.js',
+            { COMMERCIAL_ACCESS: SJ.COMMERCIAL_ACCESS },
+            ['deriveStoryContentAuthorization']);
+          const r = A.deriveStoryContentAuthorization({
+            storyId: 'noah', knownStory: true, previousStoryId: 'creation',
+            journeyStatus: { commercialAccess: SJ.COMMERCIAL_ACCESS.FREE, isUnlocked: false },
+            previousStatus: { isCompleted: false, coloringRequired: true, coloringComplete: false },
+            hydrated: true,
+          });
+          return r.canViewStoryDetails === true && r.canEnterStoryContent === false;
+        } catch (e) { return false; }
+      })(),
+      'o FIX 2 (autorização de conteúdo) não pode ter sido tocado pelo FIX 3');
+
+    // ── [21] Convites das cenas 02, 07 e 09 continuam verdes ──────────────────────────────────
+    check('FIX3 [21 · regressão marcos] os convites do Beni nas cenas 2, 7 e 9 continuam intactos (marco → atividade → cena de retorno), sem qualquer efeito do FIX 3',
+      (() => {
+        try {
+          const M = fx3Load('src/data/coloring60StoryMilestones.js', {}, [
+            'COLORING60_STORY_MILESTONES', 'derivePostSceneExperience']);
+          const marcos = M.COLORING60_STORY_MILESTONES.creation;
+          const mapa = marcos.map((m) => `${m.unlockAfterScene}:${m.activityId}:${m.resumeScene}`).join('|');
+          return mapa === '2:light:3|7:living_world:8|9:people_and_care:10'
+            && marcos.every((m) => m.resumeScene === m.unlockAfterScene + 1);
+        } catch (e) { return false; }
+      })(),
+      'o mapa cena→atividade→retorno do piloto tem de continuar exatamente como estava');
+
+    // ── [22] Navegação da coleção correta ─────────────────────────────────────────────────────
+    check('FIX3 [22 · navegação] tocar uma vaga continua abrindo a prévia da PRÓPRIA obra pelo contrato central, e a área de toque segue sendo a obra inteira',
+      /onPress=\{\(\) => onOpen\(slot\.activityId\)\}/.test(fx3Cln)
+        && /c60OpenPreview\(navigation, storyId, activityId\);/.test(fx3Cln)
+        && !/c60OpenPreview\([^)]*'light'/.test(fx3Cln),
+      'a correção de representação não pode mudar para onde o toque leva');
+
+    // ── [23] Comportamento premium não regride ────────────────────────────────────────────────
+    check('FIX3 [23 · premium] a coleção continua compondo a obra premium (tinta + contorno em multiply) e revelando só quando as duas imagens carregam',
+      /source=\{\{ uri: visual\.paintUri \}\}/.test(fx3Cln)
+        && /styles\.multiply/.test(fx3Cln)
+        && /if \(st\.paint && st\.lineart\) revealArt\(\);/.test(fx3Cln),
+      'a obra guardada de verdade continua sendo exibida de verdade');
+
+    // ── [24] Os quatro estados são visualmente DISTINGUÍVEIS ─────────────────────────────────
+    check('FIX3 [24 · distinção] ART, NOT_PERSISTED, NEEDS_COLOR e EMPTY não se misturam: ART compõe imagem; os outros três usam a MESMA marca compartilhada, com ícone e texto próprios',
+      vivoCP3
+        && new Set(Object.values(CP3.COLORING60_SLOT_STATE_ICON)).size === 3
+        && new Set(Object.keys(CP3.COLORING60_SLOT_STATE_COPY)).size === 3
+        && Object.keys(CP3.COLORING60_SLOT_STATE_COPY).sort().join(',') === 'empty,needsColor,notPersisted'
+        && /<Coloring60SlotStateMark/.test(fx3Cln)
+        && /<Coloring60SlotStateMark/.test(fx3Ovl),
+      `os quatro estados precisam ser distinguíveis${vivoCP3 ? '' : ` — ${CP3.__erro}`}`);
+
+    // ── [25] A tela final NÃO foi redesenhada ────────────────────────────────────────────────
+    check('FIX3 [25 · escopo] a composição do fecho segue intacta: contador "3 de 3", galeria em stagger, Beni apresentando, título/fala aprovados e as TRÊS ações continuam onde estavam',
+      fx3Ovl.includes('Você coloriu toda a Criação!')
+        && fx3Ovl.includes('Olha só! Você encheu tudo de luz, vida e cuidado!')
+        && fx3Ovl.includes('Minha Criação Cheia de Cor')
+        && /galleryAnims/.test(fx3Ovl)
+        && /FINALE_COUNT_LABEL|countLabel/.test(fx3Ovl)
+        && /variant="apresentaGaleria"/.test(fx3Ovl)
+        && /styles\.finaleHeadRow/.test(fx3Ovl),
+      'o FIX 3 corrige a representação das vagas — não redesenha a tela final');
+
+    // ── [26] O contrato ESCRITO no código deixou de mentir ───────────────────────────────────
+    check('FIX3 [26 · contrato] o comentário de NOT_PERSISTED em coloring60State não afirma mais que "a coleção usa o que houver em memória" — caminho que não existe e não deve existir',
+      !/a coleção usa o que houver\s*\n?\s*\*?\s*em memória/.test(fx3St)
+        && /celebração imediata/i.test(fx3St)
+        && /(coleção|conjunto final)[\s\S]{0,240}estado (armazenado|gravado)/i.test(fx3St),
+      'o código não pode continuar descrevendo um caminho de memória que a arquitetura não tem');
+
+    // ══ CONTROLES NEGATIVOS — provam que estas provas DETECTAM o retrocesso ═══════════════════
+    const CN_FX3 = [];
+    // (a) controles sobre o SELETOR puro (mutação do fonte real: se a âncora sumir, loadModule lança)
+    const cnSeletor3 = (id, descricao, mutate, avaliar) => {
+      let original = null; let mutante = null;
+      try { original = avaliar(ST3); } catch (e) { original = `__erro: ${e.message}`; }
+      try { mutante = avaliar(carregarEstado3(mutate)); } catch (e) { mutante = `__erro: ${e.message}`; }
+      CN_FX3.push({ id, descricao, original, mutante });
+    };
+    // (b) controles sobre o FONTE das telas (a prova é textual; o mutante é o texto adulterado)
+    const cnFonte3 = (id, descricao, original, mutante) => {
+      CN_FX3.push({ id, descricao, original, mutante });
+    };
+
+    cnSeletor3('CN-FIX3-1', 'NOT_PERSISTED deixa de existir e a conclusão Grátis volta a cair no estado de vaga vazia',
+      (s) => s.replace('if (state.isCurrentlyComplete !== true) return COLORING60_SLOT_KIND.EMPTY;',
+        'if (state.isCurrentlyComplete !== true || evidence.hasPaint !== true) return COLORING60_SLOT_KIND.EMPTY;'),
+      (M) => (M && !M.__erro ? M.coloring60SlotKind(gratis3('light')) === K3.NOT_PERSISTED : false));
+
+    cnSeletor3('CN-FIX3-4', 'NOT_PERSISTED é convertido em ART (a conclusão sem pixels passaria a prometer obra)',
+      (s) => s.replace('if (state.snapshotStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return COLORING60_SLOT_KIND.NOT_PERSISTED;',
+        'if (state.snapshotStatus === SNAPSHOT_STATUS.NOT_PERSISTED) return COLORING60_SLOT_KIND.ART;'),
+      (M) => (M && !M.__erro ? M.coloring60SlotKind(gratis3('light')) === K3.NOT_PERSISTED : false));
+
+    cnSeletor3('CN-FIX3-5', 'Premium ART é convertido em NOT_PERSISTED (a obra verdadeira sumiria da coleção)',
+      (s) => s.replace('&& state.snapshotStatus === SNAPSHOT_STATUS.READY) return COLORING60_SLOT_KIND.ART;',
+        '&& state.snapshotStatus === SNAPSHOT_STATUS.READY) return COLORING60_SLOT_KIND.NOT_PERSISTED;'),
+      (M) => (M && !M.__erro ? M.coloring60SlotKind(premium3('light')) === K3.ART : false));
+
+    cnSeletor3('CN-FIX3-10', 'o fecho ganha uma classificação PRÓPRIA e diverge da coleção para a mesma evidência',
+      (s) => s.replace('export function coloring60SlotKind(evidence = {}) {',
+        'export function coloring60SlotKind(evidence = {}) {\n  if (evidence.hasLineart === true) return COLORING60_SLOT_KIND.NEEDS_COLOR;'),
+      (M) => {
+        if (!M || M.__erro) return false;
+        return MATRIZ3.every((c) => M.coloring60SlotKind({ activityId: 'light', ...c.ev }) === kindColecao3({ activityId: 'light', ...c.ev }));
+      });
+
+    // Controles TEXTUAIS: cada um reintroduz, no TEXTO do fonte real, exatamente o retrocesso que a
+    // prova correspondente precisa pegar. `original` é a prova rodando sobre o fonte de verdade;
+    // `mutante` é a MESMA prova rodando sobre o fonte adulterado.
+    const semImagemQuebrada3 = (s) => !/image-outline|image-broken|image-off|image-remove/.test(fx3Strip(s));
+    cnFonte3('CN-FIX3-2', 'NOT_PERSISTED volta a ser renderizado como moldura vazia com ícone de imagem ausente',
+      semImagemQuebrada3(fx3Ovl),
+      semImagemQuebrada3(fx3Ovl.replace('<Coloring60SlotStateMark', '<MaterialCommunityIcons name="image-outline"')));
+
+    const semPinturaViva3 = (s) => {
+      const i = s.indexOf('async function loadC60FinaleItems(');
+      const j = s.indexOf('[C60-P11-MACHINE]', i + 1);
+      const corpo = (i >= 0 && j > i) ? s.slice(i, j) : '';
+      return corpo.length > 0 && !/paint = currentSnapshot/.test(corpo);
+    };
+    cnFonte3('CN-FIX3-3', 'a pintura viva da sessão volta a ser injetada no slot do conjunto final',
+      semPinturaViva3(fx3Scr),
+      semPinturaViva3(fx3Scr.replace('async function loadC60FinaleItems(',
+        'async function loadC60FinaleItems(currentSnapshot) { let paint = currentSnapshot; }\n  async function loadC60FinaleItemsOld(')));
+
+    const semPaintForaDeArt3 = (s) => /paint: kind === COLORING60_SLOT_KIND\.ART \? \(it\?\.paint \?\? null\) : null/.test(s);
+    cnFonte3('CN-FIX3-6', 'o corte estrutural cai e qualquer estado volta a carregar pixels no slot',
+      semPaintForaDeArt3(fx3Ovl),
+      semPaintForaDeArt3(fx3Ovl.replace(/paint: kind === COLORING60_SLOT_KIND\.ART \? \(it\?\.paint \?\? null\) : null/, 'paint: it?.paint ?? null')));
+
+    const semComercial3 = (s) => !FX3_COMERCIAL.test(fx3Strip(s));
+    cnFonte3('CN-FIX3-7', 'copy comercial é inserida na superfície infantil',
+      vivoCP3 && semComercial3(fx3Mark),
+      vivoCP3 && semComercial3(fx3Mark.replace(/title: 'Parte concluída!'/, "title: 'Assine o Plano Família!'")));
+
+    const temAvisoDeNaoGuardar3 = (s) => /A pintura não fica guardada depois de sair\./.test(s);
+    cnFonte3('CN-FIX3-8', 'o aviso de que a pintura não fica guardada é removido',
+      vivoCP3 && temAvisoDeNaoGuardar3(fx3Mark),
+      vivoCP3 && temAvisoDeNaoGuardar3(fx3Mark.replace(/A pintura não fica guardada depois de sair\./g, '')));
+
+    const previaHonesta3 = (s) => /PREVIEW_STATE\.READY_WITHOUT_PERSISTED_ART/.test(s) && !/resolveColoring60Lineart/.test(s);
+    cnFonte3('CN-FIX3-9', 'a prévia volta a resolver o contorno e a oferecer uma prévia falsa da obra inexistente',
+      previaHonesta3(fx3Prv),
+      previaHonesta3(fx3Prv.replace('PREVIEW_STATE.READY_WITHOUT_PERSISTED_ART', 'PREVIEW_STATE.READY_WITH_ART')
+        + "\nconst falso = resolveColoring60Lineart('creation', 'light');"));
+
+    for (const c of CN_FX3) {
+      check(`FIX3 [negativo ${c.id}]: ${c.descricao}`,
         c.original === true && c.mutante === false,
         `o controle negativo não distinguiu o certo do errado (original=${JSON.stringify(c.original)} · mutante=${JSON.stringify(c.mutante)})`);
     }
