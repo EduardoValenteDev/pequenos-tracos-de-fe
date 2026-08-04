@@ -28,18 +28,32 @@ O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md), o `DOC
 
 ## 1.1 Fase atual
 
-**Fase 2.5 — integração do Colorir com o Beni sobre a fundação.**
+**Fase 3 — reconciliação completa (somente leitura).**
 
 | Item | Valor |
 |---|---|
-| Fase anterior | **Fase 2 — loading, packs, recovery e performance: ENCERRADA** |
+| Fase anterior | **Fase 2.5 — integração do Colorir com o Beni sobre a fundação: ENCERRADA em 2026-08-04** |
+| Linha canônica | **`integrate/colorir-canonical-runtime`** |
+| HEAD canônico | **`ea54a90`** — Spec 019 integrada por *fast-forward*, histórico linear, sem commit de merge |
 | Baseline técnico | `fix/loading-performance-foundation` @ **`aeda9c2`** · tag **`lp-foundation-closed-2026-07-30`** → `bc79edb` · smoke **3314/3314** |
-| Branch de trabalho | **`integrate/colorir-with-loading`** |
-| Branch de origem do piloto | `feat/colorir-60-pilot-creation` @ **`795760a`** |
-| Merge base | **`6cf799c`** |
-| Método | **A integração é reconstruída por blocos. Não haverá merge bruto da branch antiga.** |
+| Portões no HEAD canônico | `npm run smoke` **4512/4512** · `npx expo-doctor` **18/18** |
+| Método | **Somente leitura.** A Fase 3 audita e reconcilia; nenhuma implementação sem novo ciclo SDD e sem os portões humanos. |
 
-Objetivo, entregas, critério de saída, riscos e as fases seguintes (até a **Fase 22**) estão na [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3. As decisões de produto da Fase 2.5 estão em [`docs/DECISIONS.md`](DECISIONS.md), registro `D-C60-INTEGRACAO-PRODUTO`.
+Objetivo, entregas, critério de saída, riscos e as fases seguintes (até a **Fase 22**) estão na [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3. As decisões de produto da Fase 2.5 estão em [`docs/DECISIONS.md`](DECISIONS.md), registros `D-C60-INTEGRACAO-PRODUTO` e `D-C60-PERSISTENCIA-TODOS-PLANOS`.
+
+### 1.1.1 Encerramento da Fase 2.5 (2026-08-04)
+
+**Linha canônica.** A Fase 2.5 começou em **`integrate/colorir-with-loading`** e, a partir da canonicalização de runtime, passou a viver em **`integrate/colorir-canonical-runtime`** — esta é a **linha canônica vigente**. A branch anterior permanece como **registro histórico**, não como branch de trabalho. Contexto histórico preservado da fase: branch de origem do piloto `feat/colorir-60-pilot-creation` @ **`795760a`**, merge base **`6cf799c`**, método de integração **reconstruída por blocos, sem merge bruto da branch antiga**.
+
+**Estado técnico integrado.** O HEAD canônico é **`ea54a90`**, alcançado por *fast-forward* a partir de **`e07e8bc`** (16 commits: Spec 018 + Spec 019 + fechamento documental). Nenhum commit de merge; histórico linear preservado. A publicação da linha canônica em `origin` faz parte deste encerramento.
+
+**Aprovação física.** A Spec 019 foi **validada fisicamente pelo fundador em iPhone real**, no build interno iOS **`bafb8e3f-4fd5-43b6-873b-aca69a4a8a6a`** (commit executável **`b24c868`**, perfil `c60-pilot`, fingerprint `c8b6c521500558fde471e47202d41d5e9dda79aa`). Foram declarados **aprovados** os cinco itens visuais A1–A5 e os dez testes de persistência e exclusão P1–P10. Evidências em [`docs/C60_VALIDACAO_FISICA.md`](C60_VALIDACAO_FISICA.md) (Parte D) e veredito em `specs/019-c60-persistence-all-plans/spec-c60-persistence-all-plans.md` §21. O commit `ea54a90` é **puramente documental** sobre `b24c868`: `src`, `scripts`, `assets`, dependências e configurações de build são **bit a bit idênticos** ao binário validado.
+
+**Escopo aprovado.** O veredito vale no **eixo local e do Plano Grátis**: persistência das pinturas em armazenamento local, separação entre progresso e criações, exclusões parentais e comportamento sem rede. É esse eixo que está encerrado.
+
+**Pendência controlada — Plano Família e premium.** O perfil `c60-pilot` não declara chave `EXPO_PUBLIC_REVENUECAT_*` e opera **permanentemente no plano Grátis** (`configureRevenueCat()` é *fail-closed*). Os cenários de **entitlement Família real, compra, restauração, pack premium e downgrade** **não foram validados fisicamente** e **não estão registrados nem como aprovados nem como reprovados**. Tornam-se **obrigatórios na Fase 18 (monetização)**, com **revalidação na Fase 21 (beta do candidato a lançamento)**.
+
+**Próxima fase oficial.** **Fase 3 — reconciliação completa, somente leitura.**
 
 ---
 
@@ -142,7 +156,7 @@ Não tratar como **P1 ativo** (confirmados resolvidos na auditoria de código at
 
 ## 7. Ordem oficial de execução
 
-**A ordem oficial vive na [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3** — roadmap integral da **Fase 0** à **Fase 22**, com objetivo, entregas centrais, critério de saída e riscos atribuídos por fase. **A fase atual é a 2.5** (ver §1.1 acima).
+**A ordem oficial vive na [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3** — roadmap integral da **Fase 0** à **Fase 22**, com objetivo, entregas centrais, critério de saída e riscos atribuídos por fase. **A fase atual é a 3 — reconciliação completa, somente leitura**; a **Fase 2.5 está encerrada desde 2026-08-04** (ver §1.1 e §1.1.1 acima).
 
 > **Sequência antiga (Fases 0–8) — histórico, não ativa.** A lista de oito fases que este arquivo publicava (Fonte de Verdade → tour do mapa → peso/bundle → robustez de mídia → conteúdo → RevenueCat → loja → soft launch → escala) **não é mais a sequência de execução**. Ela foi absorvida e reordenada pelo roadmap da v5. Quando um texto antigo deste repositório citar "Fase 1", "Fase 2" etc. **sem** referenciar a v5, trate como numeração superada e reancore na v5.
 
