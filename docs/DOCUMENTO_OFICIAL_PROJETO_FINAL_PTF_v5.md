@@ -244,6 +244,8 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   superada.
 - **Critério de saída:** primeira sessão de uma criança nova percorrida ponta a ponta em
   dispositivo; Área dos Pais sem vazamento de linguagem comercial para a criança.
+- **Pendências desta fase:** **QA REP 01** (repetição da primeira experiência para QA) e
+  **ONB BRI 01** (apresentar a aba Brincar) — ver [§4.1](#41-pendências-físicas-registradas-na-fase-3--e004-a-e007).
 
 ---
 
@@ -277,6 +279,8 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   atividades do Colorir com o Beni na versão definitiva; conclusão e recompensas coerentes.
 - **Critério de saída:** história percorrida do início ao fim em dispositivo, sem furo de conteúdo,
   sem placeholder e sem asset provisório.
+- **Pendências desta fase:** **JRN C60 01** (conclusão por marco narrativo sem estado visual na
+  história) — ver [§4.1](#41-pendências-físicas-registradas-na-fase-3--e004-a-e007).
 
 ---
 
@@ -300,6 +304,8 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   de recompensa; horizonte final do Mapa de Aventuras.
 - **Critério de saída:** desbloqueio da próxima história comprovadamente coerente com a definição
   operacional de conclusão registrada no árbitro; nenhum contador paralelo de estrelas.
+- **Pendências desta fase:** **STR ONB 01** (colisão entre guia inicial e conquista nas Estrelinhas)
+  — ver [§4.1](#41-pendências-físicas-registradas-na-fase-3--e004-a-e007).
 
 ---
 
@@ -313,6 +319,8 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
 - **Critério de saída:** nenhum jogo com contador próprio; limite do Grátis e ilimitado do Plano
   Família comprovados; evidência física em Android.
 - **Riscos atribuídos:** **R20A** — ausência de evidência física em Android.
+- **Pendências desta fase:** conteúdo, destinos e alvos de **ONB BRI 01** só são revalidados após o
+  fechamento desta fase — ver [§4.1](#41-pendências-físicas-registradas-na-fase-3--e004-a-e007).
 
 ---
 
@@ -471,6 +479,205 @@ Esta v5 **não** reatribui riscos; apenas os torna visíveis no roadmap.
 | **R20A** | Ausência de evidência física em Android | 12A, 14 e 21 |
 | **R20B** | sha256 lendo o arquivo inteiro em base64 | 17 e 19 |
 | **R21** | Ausência de medições quantitativas | baseline na **3** · shell/abertura na **6** · piloto ampliado na **14** · beta final na **21** |
+
+---
+
+## 4.1 Pendências físicas registradas na Fase 3 — E004 a E007
+
+Achados do **build interno iOS `98e2b422-0025-4d40-a772-073ef3dba553`** (perfil `c60-pilot`, commit
+executável **`7f96ee9`**, fingerprint `c8b6c521500558fde471e47202d41d5e9dda79aa`), instalado e
+percorrido pelo fundador em iPhone real. **Nenhum deles foi corrigido no bloco em que foi
+registrado** — este é um registro de **fase proprietária**, não uma implementação.
+
+Regra permanente destes quatro registros: **a correção pertence à fase proprietária indicada**.
+Antecipar qualquer uma delas exige decisão explícita do fundador e ciclo SDD próprio.
+
+| Código | Achado | Severidade | Fase proprietária | Dependências | Revalidação |
+|---|---|---|---|---|---|
+| **QA REP 01** | Não existe caminho autorizado para repetir a primeira experiência (onboarding + guias) fora de `__DEV__` | P2 | **7** | — | **19** e **21** (ausência em produção) |
+| **STR ONB 01** | Guia inicial das Estrelinhas e revelação de conquista disputam a mesma superfície e a tela fica sem ação possível | P1 | **11** | **7** e **8A** | **21** |
+| **JRN C60 01** | Atividade do Colorir concluída por marco narrativo não apresenta estado de conclusão enquanto a história não termina | P1 | **9** | — | **11** e **21** |
+| **ONB BRI 01** | O onboarding não apresenta a aba Brincar | P2 | **7** (estrutura) | fechamento da **12A** | **14** e **21** |
+
+### QA REP 01 — repetição da primeira experiência para QA (E004)
+
+**Fato observado.** O build público **não** oferece opção visível para reiniciar o onboarding; para
+rever a primeira experiência foi necessário **desinstalar e instalar novamente**.
+
+**Causa, comprovada por leitura.** É comportamento **projetado**, não defeito:
+`isInternalToolsEnabled()` (`src/config/internalTools.js`) só é verdadeiro em `__DEV__`, sob Modo
+Criador de release ou sob Release Pack QA. O perfil `c60-pilot` **não declara** nenhum dos três
+(`src/config/featureFlags.js`), logo a seção **"🛠️ Administração (dev)"** da Área dos Pais — que
+contém *Rever apresentação do Beni*, *Rever Tour Inicial do Beni* e *Resetar Guias do Beni* — não é
+renderizada (`src/screens/ParentAreaScreen.js`, `SHOW_TEST_TOOLS`).
+
+**Inventário exato do estado que uma repetição precisará limpar.**
+
+| Chave | Origem | O que representa |
+|---|---|---|
+| `@ptf_onboarding_v1` | `storageKeys.ONBOARDING_STATE` | onboarding concluído / pulado |
+| `@ptf_beni_app_tour_seen_v1` | `beniTourService` · guia `initial` | tour inicial do Mapa já visto |
+| `@ptf_beni_guide_adventures_v1` | guia `adventures` | guia da aba Aventuras |
+| `@ptf_beni_guide_home_v1` | guia `home` | guia do Início |
+| `@ptf_beni_guide_atelier_v1` | guia `atelier` | guia legado do Ateliê (**sem consumidor hoje**) |
+| `@ptf_beni_guide_stars_v1` | guia `stars` | guia das Estrelinhas |
+| `@ptf_beni_guide_profile_v1` | guia `profile` | guia do Perfil |
+| `@ptf_beni_guide_parent_v1` | guia `parentArea` | guia da Área dos Pais |
+| `_pendingInitialTour` · `_adventureTourActive` · `_advTabCallout` | `beniTourService` (**memória**) | sinais em memória do tour; morrem com o processo, **não** são storage |
+
+**Estado que NÃO pode ser limpo junto** (limpar qualquer um destes transforma "repetir a primeira
+experiência" em "apagar a infância registrada"): progresso de cenas (`storageKey.progress`), quiz,
+reflexão, Livrinho, conclusão e pinturas do Colorir com o Beni
+(`@ptf_coloring60_done_*`, `@ptf_coloring60_ever_*`, `@ptf_coloring60_snap_*`, `@ptf_drawing60_*`),
+conquistas (`@ptf_achievements_seen`), perfis (`@ptf_child_profiles_v1`,
+`@ptf_active_child_id_v1`, `@ptf_profile`), Ateliê/Criar Livre (`ptf_atelier_arts_v1_index`),
+Brincar (`BRINCAR_DAILY`, `BRINCAR_STATS`), plano, packs e entitlement.
+
+**Risco concreto de limpeza parcial — já existente no código.** `resetOnboardingForQa()`
+(`src/services/onboardingService.js`) limpa **somente** `@ptf_onboarding_v1`. Usada sozinha, ela
+reencena as quatro páginas do onboarding **mas não devolve o tour do Mapa**, porque
+`@ptf_beni_app_tour_seen_v1` continua marcado — a primeira experiência volta **incompleta e
+incoerente**. Uma repetição honesta precisa das **oito** chaves da tabela acima, e de nenhuma outra.
+
+**Proposta futura (Fase 7) — não implementada.** Ação protegida **"Repetir primeira experiência
+para QA"**, dentro da Área dos Pais, atrás do gate parental **e** do gate interno; existente
+**apenas** em perfis internos; **jamais** exposta como botão público. A barreira **não** pode ser
+uma única variável pública: o contrato vigente é a **conjunção** verificada em
+`isInternalToolsEnabled()`, e é ela que deve ser reusada. Teste negativo **obrigatório** provando a
+ausência da ação em perfil de produção.
+
+**Estado de E004:** requisito **oficialmente documentado**. **Não** é função implementada.
+
+### STR ONB 01 — colisão entre guia inicial e conquista nas Estrelinhas (E005)
+
+**Fato observado.** Na primeira entrada em Estrelinhas, uma conquista obtida e o onboarding da
+superfície tentaram aparecer no mesmo fluxo; a **voz do guia tocou**, a **tela ficou travada**, a
+única interação disponível foi **trocar de aba**, e o onboarding só retomou depois de **encerrar
+completamente e abrir novamente** o app.
+
+**Sequência reconstruída** (`src/screens/TrophiesScreen.js`, `src/hooks/useScreenGuide.js`,
+`src/components/BeniGuideOverlay.js`, `src/components/achievements/AchievementUnlockModal.js`):
+
+| # | Elo | Classificação |
+|---|---|---|
+| 1 | `useScreenGuide('stars', !fromCena)` agenda o guia no foco da tela | **COMPROVADO PELO CÓDIGO** |
+| 2 | Um efeito assíncrono paralelo lê as conquistas não reveladas e define `pendingAchievement` | **COMPROVADO PELO CÓDIGO** |
+| 3 | As duas camadas são renderizadas por condições **independentes**, sem exclusão mútua entre si | **COMPROVADO PELO CÓDIGO** |
+| 4 | Ambas são `<Modal transparent statusBarTranslucent>`; a ordem de empilhamento entre elas não é decidida por regra de produto | **COMPROVADO PELO CÓDIGO** |
+| 5 | O véu do guia é `pointerEvents: 'auto'` fora do modo `embedded` — captura todo o toque da área coberta | **COMPROVADO PELO CÓDIGO** |
+| 6 | O áudio do passo é um componente **headless** montado com o passo, independente de o card estar alcançável | **COMPROVADO PELO CÓDIGO** |
+| 7 | O resultado no aparelho foi voz tocando com a tela sem ação possível, exceto trocar de aba | **COMPROVADO FISICAMENTE** |
+| 8 | O guia só retomou após reabrir o app porque a marca `stars` é gravada **apenas** em `close()`, e `close()` não foi alcançável | **HIPÓTESE** — coerente com o código e com o observado, sem observação isolada que a confirme |
+
+> **Voz tocando não é tutorial visível.** O elo 6 mostra que o áudio pode existir com o card
+> inalcançável; nenhum registro deste bloco afirma que o tutorial estava visível e utilizável.
+
+**Por que só nas Estrelinhas.** É a **única** tela do app onde convivem um guia de superfície
+(`useScreenGuide`) e uma revelação de conquista. As demais telas com guia não revelam conquista, e
+as telas que revelam conquista usam o hook compartilhado `useAchievementCelebration` e não têm guia.
+`TrophiesScreen` também é a única que mantém a conquista em estado local em vez do hook
+compartilhado.
+
+**Contrato a ser congelado na Fase 11 (nove pontos, nenhum implementado agora).**
+
+1. Apenas **uma** camada bloqueante ativa por vez.
+2. Tutorial e conquista **não** disputam foco.
+3. O áudio pertence à camada **visível** — nunca toca por uma camada coberta.
+4. A camada seguinte só entra após **término, cancelamento ou adiamento** da anterior.
+5. Trocar de aba **pausa** ou resolve a fila por regra explícita — nunca por acidente.
+6. A fila **retoma sem reiniciar o aplicativo**.
+7. Nenhum overlay pode deixar a tela **sem ação possível**.
+8. Conquistas só são reveladas **dentro** de Estrelinhas.
+9. A **prioridade definitiva** entre tutorial e conquista é congelada na Fase 11.
+
+### JRN C60 01 — conclusão por marco narrativo sem estado visual (E006)
+
+**Fato observado.** Em *A Criação*, na **cena 2**, a história solicitou o primeiro Colorir com o
+Beni; a atividade abriu e foi **concluída**; ao tocar em **`Pronto`** o app retornou para a
+história; o **estado visual da atividade permaneceu vazio**, sem o efeito ou marcador de conclusão
+esperado.
+
+**Divergência comprovada por leitura — e ela é determinística.** Em
+`src/screens/StoryDetailScreen.js` a seção da jornada recebe `unlocked={isCompleted}`, e
+`isCompleted` significa **todas as cenas vistas**. Em `deriveColoring60CardState`
+(`src/services/coloring60Journey.js`), `unlocked !== true` força **todos** os passos a `LOCKED`,
+**independentemente** do mapa de conclusão. Consequências, com a conclusão da Luz corretamente
+gravada e uma história ainda em andamento:
+
+- os três cards ficam **travados**, sem selo `✓` e **sem rótulo** algum (`STATE_LABEL[LOCKED]` é `null`);
+- o contador **"N de 3" não é renderizado** (a pílula de progresso só existe com `unlocked`);
+- a ação principal **não existe**, o que remove também **"Ver minha coleção"**;
+- a seção exibe **"Conheça a história para liberar os desenhos."**;
+- os cards ficam `disabled`, então **a própria obra não pode ser reaberta**.
+
+Ou seja: **a criança que colore por um marco no meio da história não tem, na tela da história,
+nenhum caminho para a obra nem qualquer marca de que concluiu** — até terminar as dez cenas. Este
+elo, sozinho, reproduz o fato observado.
+
+**Classificação entre as quatro possibilidades.** A evidência declarada é compatível com **A**
+(pintura e conclusão gravadas, com a história exibindo estado que não reflete a conclusão) e o
+código explica **A** integralmente. **B**, **C** e **D** **não podem ser eliminadas somente por
+leitura**, porque o fundador não declarou se a festa de conclusão apareceu nem se a obra reaparece.
+**Não** se presume que o defeito seja apenas visual.
+
+**Regra de exceção — avaliada e NÃO acionada.** Não há, no código ou na evidência declarada,
+demonstração de perda real da pintura, corrupção ou regressão dos contratos aprovados na Fase 2.5:
+a transação atômica do editor continua verificando a revisão gravada antes de marcar conclusão, o
+writer não foi alterado e a coleção lê o disco por caminho próprio. Enquanto o roteiro residual
+abaixo não demonstrar o contrário, a fase proprietária permanece **9**. Se o passo 4 ou o 5 do
+roteiro indicar obra ausente, a regra de bloqueio transversal do roadmap passa a valer e o achado
+volta com **veredito separado**.
+
+**Roteiro físico residual (seis passos, para o fundador).**
+
+1. Encerrar completamente o app e reabrir; abrir **A Criação**.
+2. Avançar as cenas restantes até o fim da história, **sem** colorir mais nada.
+3. Na tela da história, fotografar a seção **"Colorir com o Beni"**: contador e os três cards.
+4. Tocar em **"Haja luz"** e observar se a pintura reaparece no canvas ou se a folha vem limpa.
+5. Tocar em **"Ver minha coleção"** e observar a vaga da **Luz**.
+6. Relatar exatamente o que apareceu em 3, 4 e 5.
+
+Leitura do resultado: card **Concluído** + obra no canvas + obra na coleção ⇒ **A**. Concluído +
+canvas limpo + vaga "concluída sem pintura" ⇒ **C**. Card **não** concluído com obra presente ⇒
+**B**; sem obra ⇒ **D**.
+
+### ONB BRI 01 — o onboarding não apresenta a aba Brincar (E007)
+
+**Fatos comprovados por leitura.**
+
+- O `INITIAL_TOUR` (`src/data/beniGuides.js`) tem **cinco passos** e **nenhum** menciona a aba
+  Brincar; o único realce de aba é `highlightTab: 'adventures'`. **A ausência é real.**
+- A aba existe e é a terceira de `TAB_DEFS` (`src/navigation/AppNavigator.js`): identidade de rota
+  `Ateliê`, **rótulo visível `Brincar`**. Trocar o `name` quebraria a navegação do onboarding.
+- Existe **guia antigo do Ateliê sem consumidor**: `ATELIER_GUIDE` está definido e **ninguém o usa**;
+  o próprio arquivo registra que ele é mantido para não orfanar os cinco áudios `guide.atelier.*`.
+- Esses **cinco áudios continuam referenciados** em `src/data/beniGuideAudio.js` — portanto
+  protegidos do ponto de vista de asset, e **indisponíveis** do ponto de vista de experiência.
+- Os alvos do tour inicial (`adventures.map`, `adventures.viewMapButton`, `adventures.nextPin`) são
+  **reais e estáveis**, registrados por `useGuideTargets` na `AdventureMapScreen`. A `BrincarScreen`
+  **não registra alvo algum** — hoje um passo sobre Brincar só conseguiria realçar a aba, não um
+  elemento interno.
+- No tablet, `highlightTab` é traduzido para `atelier.sidebarTab`, e **esse alvo não está registrado
+  em lugar nenhum**: um passo de Brincar precisará registrá-lo antes de existir no tablet.
+- Conteúdo real da aba hoje: quatro jogos (**Pares do Beni**, **Palavrinhas do Beni**, **Cadê a
+  Ovelhinha?**, **Monte a Cena**) e a seção criativa (**Criar livre** e **Minhas artes**). Nenhum
+  card está atrás de gate interno.
+
+**Contrato futuro (doze pontos, nenhum implementado agora).**
+
+1. O onboarding **apresentará** a aba Brincar.
+2. O Beni explica que ali é o espaço de **brincar, explorar e criar**.
+3. O guia **não** abre nem menciona o **Ateliê legado**.
+4. O guia **não** promete funções provisórias.
+5. O alvo inicial do passo é **real e estável** — registrado, não improvisado.
+6. A **estrutura** do passo pertence à **Fase 7**.
+7. **Conteúdo, destinos e alvos** são revalidados **após o fechamento da Fase 12A**.
+8. Se forem necessários **novos áudios**, o bloco correspondente declara
+   **`ENTRAMOS NA ETAPA DE PRODUÇÃO DE ÁUDIOS`**.
+9. Se forem necessárias **novas imagens**, declara **`ENTRAMOS NA ETAPA DE GERAÇÃO DE IMAGENS`**.
+10. As imagens serão produzidas pelo **ChatGPT**.
+11. A **voz final do Beni** é fornecida ou aprovada por **Eduardo**.
+12. **Claude não gera arte** — apenas audita e integra arquivos autorizados.
 
 ---
 
