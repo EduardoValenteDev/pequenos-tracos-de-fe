@@ -218,136 +218,154 @@ Três coisas apareceram só ao implementar e ficam registradas aqui, como manda 
 Problema 1 do relatório somente leitura da Fase 3 → esta spec → `fix/onboarding-first-adventure-map`.
 **Fase proprietária:** Fase 7 — *Onboarding, Home e Área dos Pais* (critério de saída: *"primeira sessão de uma criança nova percorrida ponta a ponta em dispositivo"*).
 
-## 14. Validação física — registro parcial (2026-08-04)
+## 14. Validação física — APROVADA · encerramento em 4 de agosto de 2026
 
-> **Este é um registro de validação parcial.** Nada aqui declara a Spec 020 aprovada. Somente o
-> fundador declara aprovação, e apenas do que ele mesmo percorreu.
+> **Registro definitivo.** Todos os cenários marcados como aprovados abaixo foram **declarados
+> aprovados pelo fundador** após execução física no build indicado. Nenhum item foi promovido por
+> inferência, por teste automatizado verde ou por descrição de roteiro.
 
 ### 14.1 Identidade do executável validado
 
 | Item | Valor |
 |---|---|
 | Build interno iOS | **`98e2b422-0025-4d40-a772-073ef3dba553`** |
-| Perfil | `c60-pilot` |
-| Commit executável | **`7f96ee9`** (`fix(onboarding): terminar a primeira sessão no Mapa, com o tour do Beni`) |
+| Commit executável validado | **`7f96ee939cb1ee654a26354fb9fcb6d21c33bae1`** (`fix(onboarding): terminar a primeira sessão no Mapa, com o tour do Beni`) |
+| Perfil de build | **`c60-pilot`** |
 | Fingerprint | `c8b6c521500558fde471e47202d41d5e9dda79aa` |
 | Aparelho | **iPhone físico** do fundador |
-| Tipo de instalação | instalação interna (ad hoc) pelo link do build; **sem** `eas update` aplicado sobre o binário |
-| Linha canônica no momento | `integrate/colorir-canonical-runtime` @ `7f96ee9` (local e `origin` idênticos) |
+| Tipo de instalação | **instalação direta no iPhone**, pelo link do build — **sem Metro**, **sem Expo Go**, **sem `eas update`** aplicado sobre o binário |
+| Linha canônica no momento do teste | `integrate/colorir-canonical-runtime` @ `7f96ee9` (local e `origin` idênticos) |
 
-### 14.2 Cenários declarados pelo fundador — o que foi confirmado
+### 14.2 APROVADO — fluxo normal das quatro páginas
 
-Confirmado por declaração direta, e **só** isto:
+1. As quatro páginas do onboarding funcionaram corretamente.
+2. Nenhuma página travou.
+3. Os controles responderam corretamente.
+4. A página final foi alcançada.
+5. O CTA final exibiu exatamente **`Iniciar primeira aventura`**.
+6. **Não** apareceu um segundo botão redundante executando a mesma ação (§7 · remoção do botão
+   secundário confirmada em aparelho).
 
-1. O build foi instalado no iPhone e executado como **build de usuário**.
-2. O build público **não** possui opção visível para reiniciar o onboarding.
-3. Para rever o onboarding foi necessário **desinstalar e instalar novamente**.
-4. Em *A Criação*, a criança avançou até a **cena 2**.
-5. A história solicitou o **primeiro Colorir com o Beni**; a atividade abriu e foi **concluída**.
-6. Ao tocar em **`Pronto`**, o app **retornou para a história**.
+### 14.3 APROVADO — destino após o CTA
 
-Os itens 2 e 3 confirmam fisicamente o **comportamento por perfil** projetado — em `c60-pilot`,
-`isInternalToolsEnabled()` é falso e a seção de administração da Área dos Pais não é renderizada.
-Os itens 4 a 6 confirmam que o caminho **história → marco → editor → retorno** existe e chega ao fim
-no aparelho. **Nenhum** desses seis itens pertence aos critérios centrais do §5 (contrato de
-navegação da primeira sessão).
+1. Ao tocar em `Iniciar primeira aventura`, a tela visível passou a ser o **Mapa de Aventuras**.
+2. A aba **Aventuras** ficou selecionada.
+3. *A Criação* **não** abriu automaticamente.
+4. **Nenhuma `StoryDetail`** foi empilhada sobre o mapa.
+5. O tour inicial do Beni **começou sobre o Mapa de Aventuras**.
 
-### 14.3 Cenários não executados
+Isto é exatamente o contrato único do §5 — `reset` para uma única rota, sem ramo de destino —
+observado em aparelho.
 
-| Cenário | Estado | Motivo |
+### 14.4 APROVADO — tour do mapa (cinco passos)
+
+1. Os **cinco passos** funcionaram.
+2. A apresentação do Beni apareceu corretamente.
+3. A apresentação do Mapa de Aventuras apareceu corretamente.
+4. A **área do mapa** foi apresentada.
+5. O **botão de visualização da região** foi apresentado.
+6. O passo final conduziu até *A Criação*.
+7. O mapa **rolou corretamente** até o pin de *A Criação*.
+8. O pin recebeu **brilho/destaque visível**.
+9. A **voz correspondeu à camada apresentada**.
+10. A tela **não** ficou presa sem ação possível.
+11. A história **não** abriu durante o tour.
+
+O item 9 é registrado com a distinção que este bloco vinha exigindo: aqui a voz **acompanhou** a
+camada visível — comportamento oposto ao observado em `STR ONB 01` nas Estrelinhas.
+
+### 14.5 APROVADO — abertura voluntária da história
+
+1. *A Criação* abriu **somente depois do toque do fundador no pin**.
+2. O destino aberto pelo pin foi **a história correta**.
+
+### 14.6 APROVADO — não repetição do tour
+
+1. Depois de concluir o tour, **trocar de aba e retornar** a Aventuras **não** fez o tour reaparecer.
+2. Depois de **encerrar completamente o aplicativo e reabri-lo**, o tour **não** reapareceu.
+
+### 14.7 APROVADO — caminho `Pular`
+
+O fundador **reinstalou o mesmo build** e validou também o caminho `Pular`:
+
+1. `Pular` funcionou corretamente.
+2. O destino foi o **Mapa de Aventuras**.
+3. A aba **Aventuras** ficou selecionada.
+4. *A Criação* **não** abriu automaticamente.
+5. O tour do Beni **começou**.
+6. Os **cinco passos** funcionaram.
+7. O mapa **rolou** até *A Criação*.
+8. O pin recebeu **destaque**.
+9. A história abriu **somente depois do toque no pin**.
+10. O tour **não** reapareceu depois de trocar de aba e retornar.
+11. O tour **não** reapareceu depois de encerrar e reabrir o aplicativo.
+
+Os dois caminhos de saída do onboarding — CTA principal e `Pular` — produziram o **mesmo** destino,
+como o §5 exige.
+
+### 14.8 Pendências não bloqueantes
+
+Registradas **sem** inventar aprovação:
+
+| Pendência | Estado | Destino |
 |---|---|---|
-| §11.1 — abertura por *Resetar onboarding* na Área dos Pais | **NÃO EXECUTÁVEL NESTE APARELHO** | a ferramenta não existe em `c60-pilot` (comportamento projetado); o caminho usado foi reinstalar |
-| §11.7 — caminho `Pular` na primeira página | **NÃO EXECUTADO** | — |
-| §11.8 — perfil com A Criação já concluída (CTA `Explorar Aventuras`) | **NÃO EXECUTADO** | — |
-| §11.9 — repetição em **tablet** | **NÃO EXECUTADO** | ver §14.5 |
+| **Tablet** — o transporte em memória (`requestInitialTour()` consumido pelo `TabletLayout`, §8) | **NÃO VALIDADO FISICAMENTE** — ausência de aparelho compatível | obrigatória na **Fase 7**, principalmente em **E039** e **E042** |
+| **Fluxo de revisão** com *A Criação* já concluída (CTA `Explorar Aventuras`, §7) | **NÃO REPETIDO FISICAMENTE** neste build | obrigatória na **Fase 7**, principalmente em **E039** e **E042** |
 
-### 14.4 Cenários não declarados — não podem ser inferidos
+Nenhuma das duas **bloqueia** o encerramento do contrato principal da Spec 020 **no iPhone**. Ambas
+permanecem abertas e não são encerradas por prova automatizada.
 
-Os pontos abaixo são os **critérios centrais** desta spec. O fundador **não** os declarou, e nenhum
-documento existente contém declaração inequívoca sobre eles. Teste automatizado verde, descrição de
-roteiro e expectativa de projeto **não** são evidência física e **não** os substituem.
+### 14.9 Achados fora do escopo desta spec
 
-| # | Ponto | Estado |
-|---|---|---|
-| 1 | Rótulo do CTA final **`Iniciar primeira aventura`** | **NÃO DECLARADO** |
-| 2 | Ausência do segundo botão com a mesma ação | **NÃO DECLARADO** |
-| 3 | **Mapa** como tela visível ao concluir o onboarding | **NÃO DECLARADO** |
-| 4 | Aba **Aventuras** ativa | **NÃO DECLARADO** |
-| 5 | *A Criação* **não** abrindo automaticamente | **NÃO DECLARADO** |
-| 6 | Início do tour do Beni | **NÃO DECLARADO** |
-| 7 | Os **cinco passos** do tour | **NÃO DECLARADO** |
-| 8 | Rolagem automática até *A Criação* | **NÃO DECLARADO** |
-| 9 | Brilho no pin de *A Criação* | **NÃO DECLARADO** |
-| 10 | História abrindo **somente** após o toque no pin | **NÃO DECLARADO** |
-| 11 | Tour **não** reaparecendo ao trocar de aba e voltar | **NÃO DECLARADO** |
-| 12 | Tour **não** reaparecendo após encerrar e reabrir o app | **NÃO DECLARADO** |
-| 13 | Percurso das quatro páginas do onboarding | **NÃO DECLARADO** |
+A sessão física produziu achados que **não pertencem** à Spec 020. Eles estão registrados por fase
+proprietária em [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](../../docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §4.1 e **cada um permanece vinculado exclusivamente à sua fase**:
 
-### 14.5 Tablet — pendência física explícita
+| Código | Achado | Estado | Fase proprietária |
+|---|---|---|---|
+| **QA REP 01** | Repetição da primeira experiência para QA | requisito **documentado**, não implementado | **7** |
+| **STR ONB 01** | Colisão entre guia inicial e conquista nas Estrelinhas | P1 | **11** |
+| **JRN C60 01** | Conclusão por marco narrativo sem estado visual — **classe `A` confirmada** | P1 | **9** |
+| **ONB BRI 01** | O onboarding não apresenta a aba Brincar — exige um **`BRINCAR_GUIDE` novo** | — | **7** (revalidação após **12A**) |
 
-O contrato do §8 tem **dois transportes**, e apenas o do telefone poderia ter sido observado. O
-transporte do tablet (`requestInitialTour()` consumido pelo `TabletLayout`) **não foi exercido em
-aparelho**. Esta pendência **permanece aberta** e acompanha a Fase 7; não é encerrada por este
-registro nem por qualquer prova automatizada.
+**Nenhum deles reprova esta spec**, que trata exclusivamente do **destino final no Mapa de
+Aventuras** (§5): não a ausência do guia da aba Brincar, não o defeito visual da jornada de cores,
+não a colisão nas Estrelinhas, e não os **recortes das imagens do Beni** — esta última permanece
+como observação aberta, ainda **sem código nem fase proprietária atribuídos**.
 
-### 14.6 Achados fora do escopo desta spec
+### 14.10 Confirmação de não correção e de identidade do executável
 
-A sessão física produziu quatro achados que **não pertencem** à Spec 020. Eles estão registrados por
-fase proprietária em [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](../../docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §4.1:
+Nenhum achado foi corrigido neste encerramento. Nenhum arquivo de `src`, `scripts`, `assets`,
+dependência, configuração nativa, `app.json`, `eas.json`, Babel, Metro ou build foi alterado, e
+nenhum teste novo foi acrescentado ao smoke. **Como nenhuma linha executável mudou, nenhum novo
+build foi necessário para este fechamento** — o binário validado e o código da linha canônica
+permanecem idênticos, comprovado por hashes de árvore e de blob.
 
-| Código | Achado | Fase proprietária |
-|---|---|---|
-| **QA REP 01** | Repetição da primeira experiência para QA (requisito documentado, não implementado) | **7** |
-| **STR ONB 01** | Colisão entre guia inicial e conquista nas Estrelinhas | **11** |
-| **JRN C60 01** | Conclusão por marco narrativo sem estado visual — **classificação `A` confirmada fisicamente** | **9** |
-| **ONB BRI 01** | O onboarding não apresenta a aba Brincar — exige um **`BRINCAR_GUIDE` novo** | **7** (revalidação após **12A**) |
+### 14.11 Veredito final
 
-**Por que nenhum deles reprova esta spec.** A ausência da aba Brincar no onboarding foi **novamente
-confirmada em aparelho**, e mesmo assim **não reprova a Spec 020**: esta spec trata exclusivamente
-do **destino final no Mapa de Aventuras** (§5). O mesmo vale para `JRN C60 01`, cuja evidência nova
-diz respeito à **representação da jornada de cores dentro da história**, não ao contrato de
-navegação da primeira sessão. Os quatro achados seguem registrados por fase proprietária na v5 §4.1
-e **nenhum** move item algum de §14.4 para §14.2.
+> **A Spec 020 está FISICAMENTE APROVADA e ENCERRADA no escopo validado** — caminho principal de
+> **telefone** e caminho **`Pular`**, no build `98e2b422-…` / commit `7f96ee9`, em **4 de agosto de
+> 2026**.
 
-### 14.7 Confirmação de não correção
+A spec cumpriu seu objetivo:
 
-Nenhum dos quatro achados foi corrigido. Nenhum arquivo de `src`, `scripts`, `assets`, dependência,
-configuração nativa, `app.json`, `eas.json`, Babel, Metro ou build foi alterado. Nenhum teste novo
-foi acrescentado ao smoke. O executável validado e o código da linha canônica permanecem **idênticos**.
+- o onboarding **termina no Mapa de Aventuras**;
+- a criança **conhece o mapa antes da história**;
+- *A Criação* **não abre automaticamente**;
+- o **Beni orienta** a criança;
+- o **pin recebe destaque**;
+- a história abre **somente pela escolha da criança**;
+- o tour **não reaparece** depois de concluído.
 
-### 14.8 Veredito
+**Status dos itens do bloco de reconciliação:**
 
-- **Bloco 1 (E003) — EM VALIDAÇÃO.** Os critérios centrais do §5 (Mapa como tela visível, aba
-  Aventuras ativa, história somente por toque no pin) e os do §3 (CTA, tour de cinco passos, brilho
-  no pin) estão em **NÃO DECLARADO**. Sem declaração do fundador, **não** podem ser marcados como
-  aprovados.
-- **Encerramento documental da Spec 020 (E008) — BLOQUEADO.** A spec **não** é encerrada como
-  aprovada. Este §14 é o registro parcial autorizado; o encerramento depende exclusivamente da
-  execução do roteiro residual abaixo e da declaração do fundador.
+| Item | Status |
+|---|---|
+| **E003** — fechamento do Bloco 1 (Primeira Aventura no Mapa) | **CONCLUÍDA** |
+| **E004** — requisito de repetição do onboarding para QA (`QA REP 01`) | **CONCLUÍDA** (requisito documentado) |
+| **E005** — colisão nas Estrelinhas (`STR ONB 01`) | **CONCLUÍDA** (registrada, Fase 11) |
+| **E006** — Colorir aberto pela história (`JRN C60 01`) | **CONCLUÍDA** (classe `A` confirmada, Fase 9) |
+| **E007** — onboarding e a aba Brincar (`ONB BRI 01`) | **CONCLUÍDA** (`BRINCAR_GUIDE` especificado, Fase 7) |
+| **E008** — encerramento documental da Spec 020 | **CONCLUÍDA** |
 
-**Os dois vereditos são preservados após a rodada física de `JRN C60 01` e `ONB BRI 01`.** E003 será
-decidida **exclusivamente** pelo resultado físico do destino final desta spec: CTA correto · Mapa
-visível · *A Criação* não abre automaticamente · o tour do mapa começa · os cinco passos funcionam ·
-o mapa rola · o pin brilha · a história abre somente pelo toque · o tour não reaparece.
-
-### 14.9 Roteiro físico residual (o que falta observar)
-
-Executável no build **`98e2b422-…`** já instalado, sem gerar build novo. Como não há ferramenta de
-reset neste perfil, o passo 0 é **desinstalar e instalar novamente**.
-
-1. Percorrer as quatro páginas do onboarding e fotografar a última: o CTA deve dizer
-   **`Iniciar primeira aventura`** e **não** deve haver segundo botão com a mesma ação.
-2. Tocar o CTA e fotografar a tela imediatamente seguinte: deve ser o **Mapa**, com a aba
-   **Aventuras** ativa, e **nenhuma história aberta**.
-3. Observar o tour do Beni do card **1 ao 5**; no card 5, o mapa deve rolar até *A Criação* e o pin
-   deve brilhar.
-4. Fechar o tour e confirmar que a história **só** abre ao tocar no pin.
-5. Trocar de aba e voltar para Aventuras → o tour **não** deve reaparecer.
-6. Encerrar completamente o app e reabrir → nada do tour deve reaparecer.
-7. Repetir o ciclo saindo por **`Pular`** na primeira página (mesmo destino esperado).
-8. Em perfil com *A Criação* já concluída, conferir o CTA **`Explorar Aventuras`** e que nenhuma
-   história abre sozinha.
-9. **Tablet:** repetir os passos 2 e 3 — a aba Aventuras deve abrir focada pelo sinal em memória.
-
-Cada passo declarado pelo fundador vira linha em §14.2. O que não for declarado **permanece** em
-§14.4 — nunca migra por inferência.
+As pendências do §14.8 (tablet e fluxo de revisão) seguem **abertas na Fase 7** e não são afetadas
+por este encerramento.

@@ -246,6 +246,11 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   dispositivo; Área dos Pais sem vazamento de linguagem comercial para a criança.
 - **Pendências desta fase:** **QA REP 01** (repetição da primeira experiência para QA) e
   **ONB BRI 01** (apresentar a aba Brincar) — ver [§4.1](#41-pendências-físicas-registradas-na-fase-3--e004-a-e007).
+  Somam-se as **duas pendências físicas não bloqueantes herdadas da Spec 020**: (a) a primeira
+  sessão em **tablet**, não validada por ausência de aparelho compatível; (b) o **fluxo de revisão**
+  com *A Criação* já concluída (CTA `Explorar Aventuras`), não repetido no build `98e2b422-…`.
+  Ambas são obrigatórias nesta fase — no checklist mestre externo do fundador correspondem aos itens
+  **E039** e **E042**, que **não** possuem representação versionada neste repositório.
 
 ---
 
@@ -491,6 +496,18 @@ registrado** — este é um registro de **fase proprietária**, não uma impleme
 
 Regra permanente destes quatro registros: **a correção pertence à fase proprietária indicada**.
 Antecipar qualquer uma delas exige decisão explícita do fundador e ciclo SDD próprio.
+
+**Encerramento do bloco de reconciliação (2026-08-04).** No mesmo build, a **Spec 020 foi declarada
+fisicamente aprovada pelo fundador** no caminho principal de **telefone** e no caminho **`Pular`** —
+registro completo em
+[`specs/020-onboarding-first-adventure/spec-onboarding-first-adventure.md`](../specs/020-onboarding-first-adventure/spec-onboarding-first-adventure.md) §14,
+que é a **única** fonte desse veredito. Com isso, **E003 a E008 estão CONCLUÍDAS**: E003 (aprovação
+física do Bloco 1) e E008 (encerramento documental da Spec 020) por aprovação direta; E004 a E007
+como **achados classificados fora do escopo de implementação**, cada um preso à sua fase
+proprietária na tabela abaixo. **Nenhum deles reprova a Spec 020** e **nenhum** foi corrigido.
+Duas pendências físicas **não bloqueantes** sobraram e migram para a **Fase 7** (ver Fase 7,
+*Pendências desta fase*): **tablet** e **fluxo de revisão com A Criação já concluída**. Como o
+fechamento alterou **somente documentação**, **nenhum build novo foi necessário**.
 
 | Código | Achado | Severidade | Fase proprietária | Dependências | Revalidação |
 |---|---|---|---|---|---|
