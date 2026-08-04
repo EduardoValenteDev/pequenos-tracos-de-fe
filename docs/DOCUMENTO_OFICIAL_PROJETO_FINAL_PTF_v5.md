@@ -496,8 +496,8 @@ Antecipar qualquer uma delas exige decisão explícita do fundador e ciclo SDD p
 |---|---|---|---|---|---|
 | **QA REP 01** | Não existe caminho autorizado para repetir a primeira experiência (onboarding + guias) fora de `__DEV__` | P2 | **7** | — | **19** e **21** (ausência em produção) |
 | **STR ONB 01** | Guia inicial das Estrelinhas e revelação de conquista disputam a mesma superfície e a tela fica sem ação possível | P1 | **11** | **7** e **8A** | **21** |
-| **JRN C60 01** | Atividade do Colorir concluída por marco narrativo não apresenta estado de conclusão enquanto a história não termina | P1 | **9** | — | **11** e **21** |
-| **ONB BRI 01** | O onboarding não apresenta a aba Brincar | P2 | **7** (estrutura) | fechamento da **12A** | **14** e **21** |
+| **JRN C60 01** | Atividade do Colorir concluída por marco narrativo não apresenta estado de conclusão enquanto a história não termina — **classificação `A` confirmada fisicamente**: dado íntegro, representação acoplada a um gate global | P1 (saída da Fase 9) | **9** | — | **11** e **21** |
+| **ONB BRI 01** | O onboarding não apresenta a aba Brincar — exige um **`BRINCAR_GUIDE` novo**, nunca o `ATELIER_GUIDE` | P2 | **7** (estrutura) | fechamento da **12A** | **14** e **21** |
 
 ### QA REP 01 — repetição da primeira experiência para QA (E004)
 
@@ -592,54 +592,67 @@ compartilhado.
 
 ### JRN C60 01 — conclusão por marco narrativo sem estado visual (E006)
 
-**Fato observado.** Em *A Criação*, na **cena 2**, a história solicitou o primeiro Colorir com o
-Beni; a atividade abriu e foi **concluída**; ao tocar em **`Pronto`** o app retornou para a
-história; o **estado visual da atividade permaneceu vazio**, sem o efeito ou marcador de conclusão
-esperado.
+> **Classificação: `A` CONFIRMADA.** O roteiro físico residual foi **executado pelo fundador** e a
+> hipótese A ficou provada: **a pintura e a conclusão são persistidas**. Não há perda, corrupção nem
+> regressão da persistência aprovada na Fase 2.5. O defeito é **exclusivamente de representação**.
+> A regra de bloqueio transversal do roadmap **não** é acionada; a fase proprietária permanece **9**.
 
-**Divergência comprovada por leitura — e ela é determinística.** Em
-`src/screens/StoryDetailScreen.js` a seção da jornada recebe `unlocked={isCompleted}`, e
-`isCompleted` significa **todas as cenas vistas**. Em `deriveColoring60CardState`
-(`src/services/coloring60Journey.js`), `unlocked !== true` força **todos** os passos a `LOCKED`,
-**independentemente** do mapa de conclusão. Consequências, com a conclusão da Luz corretamente
-gravada e uma história ainda em andamento:
+**Evidência física declarada pelo fundador** (build `98e2b422-…`, commit `7f96ee9`, iPhone real):
 
-- os três cards ficam **travados**, sem selo `✓` e **sem rótulo** algum (`STATE_LABEL[LOCKED]` é `null`);
-- o contador **"N de 3" não é renderizado** (a pílula de progresso só existe com `unlocked`);
-- a ação principal **não existe**, o que remove também **"Ver minha coleção"**;
-- a seção exibe **"Conheça a história para liberar os desenhos."**;
-- os cards ficam `disabled`, então **a própria obra não pode ser reaberta**.
+1. Iniciou *A Criação* pelo caminho narrativo normal e avançou cena por cena.
+2. Nas cenas-marco, abriu e **concluiu** as pinturas do Colorir com o Beni.
+3. Voltou à página da história **antes** de terminar todas as cenas.
+4. As atividades já concluídas continuaram **apagadas e travadas**.
+5. O bloco exibia **"Conheça a história para liberar os desenhos"**.
+6. O contador e os marcadores de conclusão **não apareciam**.
+7. Terminou todas as cenas **sem refazer** nenhuma pintura.
+8. Ao voltar à página da história, as pinturas anteriores apareceram **imediatamente** como
+   concluídas: **`3 de 3`**, três estados **`Concluído`** e **`Ver minha coleção`**.
+9. Em outro estado — história concluída e pinturas **removidas** — o bloco exibiu corretamente
+   **`0 de 3`**.
+10. Depois de concluir **apenas** *Haja luz*, o bloco atualizou corretamente para **`1 de 3`**.
 
-Ou seja: **a criança que colore por um marco no meio da história não tem, na tela da história,
-nenhum caminho para a obra nem qualquer marca de que concluiu** — até terminar as dez cenas. Este
-elo, sozinho, reproduz o fato observado.
+Os itens 7 e 8 são a prova decisiva: **nada foi refeito** e tudo apareceu concluído. O item 9 mostra
+que a exclusão parental continua honesta, e o item 10 que o contador reflete o disco assim que o
+gate abre. Portanto **a leitura, a gravação e a hidratação estão corretas**.
 
-**Classificação entre as quatro possibilidades.** A evidência declarada é compatível com **A**
-(pintura e conclusão gravadas, com a história exibindo estado que não reflete a conclusão) e o
-código explica **A** integralmente. **B**, **C** e **D** **não podem ser eliminadas somente por
-leitura**, porque o fundador não declarou se a festa de conclusão apareceu nem se a obra reaparece.
-**Não** se presume que o defeito seja apenas visual.
+**Causa oficial — confirmada no código, ponto a ponto.**
 
-**Regra de exceção — avaliada e NÃO acionada.** Não há, no código ou na evidência declarada,
-demonstração de perda real da pintura, corrupção ou regressão dos contratos aprovados na Fase 2.5:
-a transação atômica do editor continua verificando a revisão gravada antes de marcar conclusão, o
-writer não foi alterado e a coleção lê o disco por caminho próprio. Enquanto o roteiro residual
-abaixo não demonstrar o contrário, a fase proprietária permanece **9**. Se o passo 4 ou o 5 do
-roteiro indicar obra ausente, a regra de bloqueio transversal do roadmap passa a valer e o achado
-volta com **veredito separado**.
+| # | Fato | Onde |
+|---|---|---|
+| 1 | O `doneMap` **verdadeiro** é carregado no foco **mesmo com a história em andamento** — o `useFocusEffect` só depende de `creationColoringVisible`, nunca de `isCompleted`, e chama `loadColoring60Done` por atividade | `src/screens/StoryDetailScreen.js:242-254` |
+| 2 | A renderização envia `unlocked={isCompleted}` para `CreationColoringJourneySection`, e `isCompleted` significa **todas as cenas vistas** | `src/screens/StoryDetailScreen.js:573` (com `:132`) |
+| 3 | `deriveColoring60CardState` deriva **tudo** a partir de `unlocked === true` — passos, ação principal e `allComplete` | `src/services/coloring60Journey.js:344-390` |
+| 4 | Com `unlocked` falso: `unlocked !== true` força **todos** os passos a `LOCKED` (`:363`); o rótulo some (`STATE_LABEL[LOCKED]` é `null`, `CreationColoringJourneySection.js:130`); o contador não é renderizado (`:220-222`); a ação principal não existe (`coloring60Journey.js:379`), o que remove **`Ver minha coleção`**; a seção exibe **"Conheça a história para liberar os desenhos."** (`:231-234`); e os cards ficam `disabled` (`:141-142`) | — |
 
-**Roteiro físico residual (seis passos, para o fundador).**
+> **Causa oficial:** o **gate de conclusão integral das cenas** está sendo usado indevidamente como
+> **gate de representação de toda a jornada de cores**. O `doneMap` verdadeiro é carregado, mas fica
+> **visualmente oculto** até `isCompleted` se tornar verdadeiro.
 
-1. Encerrar completamente o app e reabrir; abrir **A Criação**.
-2. Avançar as cenas restantes até o fim da história, **sem** colorir mais nada.
-3. Na tela da história, fotografar a seção **"Colorir com o Beni"**: contador e os três cards.
-4. Tocar em **"Haja luz"** e observar se a pintura reaparece no canvas ou se a folha vem limpa.
-5. Tocar em **"Ver minha coleção"** e observar a vaga da **Luz**.
-6. Relatar exatamente o que apareceu em 3, 4 e 5.
+**Não é** falta de hidratação. **Não é** ausência de revalidação no foco. **Não é** perda de dado.
+É um único acoplamento indevido entre dois conceitos distintos: *"a história terminou"* e
+*"esta atividade já foi concluída"*.
 
-Leitura do resultado: card **Concluído** + obra no canvas + obra na coleção ⇒ **A**. Concluído +
-canvas limpo + vaga "concluída sem pintura" ⇒ **C**. Card **não** concluído com obra presente ⇒
-**B**; sem obra ⇒ **D**.
+**Contrato para a Fase 9 (dez pontos, nenhum implementado agora).**
+
+1. **Atividade concluída sempre aparece concluída**, mesmo com a história em andamento.
+2. **Disponibilidade** é derivada **por atividade** e pelo **marco narrativo** correspondente — nunca
+   por um gate global de história.
+3. **Haja luz** (`light`) respeita seu marco narrativo: `unlockAfterScene: 2`, `resumeScene: 3`.
+4. **O mundo cheio de vida** (`living_world`) respeita seu marco narrativo: `unlockAfterScene: 7`,
+   `resumeScene: 8`.
+5. **Na criação de Deus** (`people_and_care`) **preserva a recomendação aprovada para a cena 09**:
+   `unlockAfterScene: 9`, `resumeScene: 10` — o marco saiu da cena 8 para a 9 por decisão do
+   fundador, e `unlockAfterScene`/`resumeScene` movem-se **sempre juntos**
+   (`src/data/coloring60StoryMilestones.js`).
+6. Atividades **futuras** permanecem bloqueadas até o **próprio** marco.
+7. `doneMap` concluído **nunca** pode ser sobrescrito visualmente por um gate global de história.
+8. O retorno pelo botão **`Pronto`** atualiza **imediatamente** card, trilha e contador.
+9. Concluir todas as cenas **pode liberar** atividades restantes, mas **não é requisito** para
+   mostrar conclusões anteriores.
+10. Encerrar e reabrir o aplicativo **preserva a mesma representação**.
+
+**Severidade para saída da Fase 9: P1.** Revalidação nas Fases **11** e **21**.
 
 ### ONB BRI 01 — o onboarding não apresenta a aba Brincar (E007)
 
@@ -663,6 +676,10 @@ canvas limpo + vaga "concluída sem pintura" ⇒ **C**. Card **não** concluído
   Ovelhinha?**, **Monte a Cena**) e a seção criativa (**Criar livre** e **Minhas artes**). Nenhum
   card está atrás de gate interno.
 
+**Confirmação física.** A ausência da aba Brincar no onboarding foi **novamente confirmada em
+aparelho**. Ela **não reprova a Spec 020**: aquela spec trata exclusivamente do **destino final no
+Mapa de Aventuras**. Permanece como **pendência obrigatória da Fase 7**.
+
 **Contrato futuro (doze pontos, nenhum implementado agora).**
 
 1. O onboarding **apresentará** a aba Brincar.
@@ -678,6 +695,50 @@ canvas limpo + vaga "concluída sem pintura" ⇒ **C**. Card **não** concluído
 10. As imagens serão produzidas pelo **ChatGPT**.
 11. A **voz final do Beni** é fornecida ou aprovada por **Eduardo**.
 12. **Claude não gera arte** — apenas audita e integra arquivos autorizados.
+
+#### `BRINCAR_GUIDE` — guia novo, cinco passos (especificação congelada, não implementada)
+
+Guia **novo**, sobre o sistema existente do `BeniGuideOverlay`. **Proibido reutilizar o
+`ATELIER_GUIDE`.** **Proibido restaurar a palavra "Ateliê" na experiência infantil.**
+
+| # | Título | Mensagem | Alvo / destaque |
+|---|---|---|---|
+| 1 | `Brincar com o Beni` | `Aqui você encontra brincadeiras, jogos e um espaço para criar do seu jeito!` | destaque na **aba Brincar** |
+| 2 | `Uma ideia para hoje` | `O Beni pode sugerir uma brincadeira diferente para você explorar.` | `brincar.suggestion` |
+| 3 | `Jogos do Beni` | `Cada desenho mostra uma brincadeira diferente. Escolha a que você mais gostar!` | `brincar.games` — o destaque **envolve a área da grade**, sem abrir jogo algum |
+| 4 | `Crie do seu jeito` | `Aqui você pode desenhar e inventar uma criação só sua.` | `brincar.create` |
+| 5 | `Suas criações` | `Aqui você pode rever as artes que ficaram guardadas.` | `brincar.gallery` |
+
+O **quinto passo** exige **variante segura por plano**: sem pressão comercial infantil e **sem
+prometer salvamento indisponível no Plano Grátis**.
+
+**Regras do guia (dez, todas obrigatórias na implementação futura).**
+
+1. Nenhuma fala ou título usa **"Ateliê"**.
+2. A identidade interna da rota `Ateliê` **pode** ser preservada por compatibilidade, desde que
+   **não apareça para a criança**.
+3. A `BrincarScreen` deverá **registrar alvos reais** no `guideTargetRegistry` — hoje não registra
+   nenhum.
+4. Apenas **uma camada bloqueante** poderá aparecer por vez (mesmo princípio de [`STR ONB 01`](#str-onb-01--colisão-entre-guia-inicial-e-conquista-nas-estrelinhas-e005)).
+5. O guia **não abrirá** jogos, Criar Livre ou galeria automaticamente.
+6. **Avançar, voltar e fechar** deverão funcionar.
+7. **Telefone e tablet** terão alvos equivalentes — no tablet, `atelier.sidebarTab` precisa passar a
+   existir de fato.
+8. O **chip comercial do plano não será alvo** do onboarding infantil.
+9. O guia precisará de **testes** para alvos ausentes, rolagem e mudança de layout.
+10. O guia será **revalidado depois do fechamento funcional da Fase 12A**.
+
+**Áudios novos necessários (registrados, não criados nem integrados agora).**
+
+`guide.brincar.welcome` · `guide.brincar.suggestion` · `guide.brincar.games` ·
+`guide.brincar.create` · `guide.brincar.gallery`
+
+O início da implementação **deverá ser precedido** pelo aviso
+**`ENTRAMOS NA ETAPA DE PRODUÇÃO DE ÁUDIOS`**. **Proibido reutilizar silenciosamente os áudios
+`guide.atelier.*`** — eles continuam apenas protegidos como asset, sem consumidor. Se a
+implementação exigir nova arte, deverá ser precedida por **`ENTRAMOS NA ETAPA DE GERAÇÃO DE
+IMAGENS`**; **ChatGPT** gera as imagens, **Eduardo** aprova, **Claude apenas audita e integra** os
+arquivos autorizados.
 
 ---
 

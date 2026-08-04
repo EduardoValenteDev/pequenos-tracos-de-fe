@@ -299,8 +299,15 @@ fase proprietária em [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](../../d
 |---|---|---|
 | **QA REP 01** | Repetição da primeira experiência para QA (requisito documentado, não implementado) | **7** |
 | **STR ONB 01** | Colisão entre guia inicial e conquista nas Estrelinhas | **11** |
-| **JRN C60 01** | Conclusão por marco narrativo sem estado visual na história | **9** |
-| **ONB BRI 01** | O onboarding não apresenta a aba Brincar | **7** (revalidação após **12A**) |
+| **JRN C60 01** | Conclusão por marco narrativo sem estado visual — **classificação `A` confirmada fisicamente** | **9** |
+| **ONB BRI 01** | O onboarding não apresenta a aba Brincar — exige um **`BRINCAR_GUIDE` novo** | **7** (revalidação após **12A**) |
+
+**Por que nenhum deles reprova esta spec.** A ausência da aba Brincar no onboarding foi **novamente
+confirmada em aparelho**, e mesmo assim **não reprova a Spec 020**: esta spec trata exclusivamente
+do **destino final no Mapa de Aventuras** (§5). O mesmo vale para `JRN C60 01`, cuja evidência nova
+diz respeito à **representação da jornada de cores dentro da história**, não ao contrato de
+navegação da primeira sessão. Os quatro achados seguem registrados por fase proprietária na v5 §4.1
+e **nenhum** move item algum de §14.4 para §14.2.
 
 ### 14.7 Confirmação de não correção
 
@@ -317,6 +324,11 @@ foi acrescentado ao smoke. O executável validado e o código da linha canônica
 - **Encerramento documental da Spec 020 (E008) — BLOQUEADO.** A spec **não** é encerrada como
   aprovada. Este §14 é o registro parcial autorizado; o encerramento depende exclusivamente da
   execução do roteiro residual abaixo e da declaração do fundador.
+
+**Os dois vereditos são preservados após a rodada física de `JRN C60 01` e `ONB BRI 01`.** E003 será
+decidida **exclusivamente** pelo resultado físico do destino final desta spec: CTA correto · Mapa
+visível · *A Criação* não abre automaticamente · o tour do mapa começa · os cinco passos funcionam ·
+o mapa rola · o pin brilha · a história abre somente pelo toque · o tour não reaparece.
 
 ### 14.9 Roteiro físico residual (o que falta observar)
 
