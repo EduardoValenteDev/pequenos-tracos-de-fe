@@ -529,14 +529,22 @@ check(
 
 // Regressão B2: fluxo de apagar dados protege o campo "APAGAR" do teclado
 // (KeyboardAvoidingView) e empilha os botões (resetBtnColumn) para não quebrar
-// o texto "Apagar definitivamente" em telas estreitas.
+// o texto do botão destrutivo em telas estreitas.
+//
+// [Spec 019 · S4] REANCORADA POR INTENÇÃO. A trava citava `resetConfirmText` — o estado da ÚNICA
+// ação que existia quando "Gerenciar dados" apagava progresso e pinturas de uma vez só. Agora são
+// TRÊS ações destrutivas independentes e o estado da confirmação é compartilhado (`dataConfirmText`).
+// A intenção vigiada não mudou — o campo digitado continua sendo o que destrava o botão — e a
+// exigência ficou MAIOR: além de existir, a comparação precisa efetivamente governar o `disabled`
+// do botão. Um `APAGAR` decorativo, presente no texto mas sem poder sobre o botão, fica vermelho.
 {
   const parentSrcB2 = readSrc('src/screens/ParentAreaScreen.js');
   check(
     'ParentAreaScreen: apagar dados usa KeyboardAvoidingView + botões empilhados (resetBtnColumn)',
     parentSrcB2.includes('KeyboardAvoidingView') &&
     parentSrcB2.includes('resetBtnColumn') &&
-    parentSrcB2.includes("resetConfirmText.trim() !== 'APAGAR'"),
+    parentSrcB2.includes("dataConfirmText.trim() !== 'APAGAR'") &&
+    /disabled=\{dataConfirmText\.trim\(\) !== 'APAGAR' \|\| dataLoading\}/.test(parentSrcB2),
     'ParentAreaScreen perdeu KeyboardAvoidingView, a coluna de botões, ou a confirmação "APAGAR"',
   );
 }
@@ -3816,11 +3824,20 @@ check(
   'ParentAreaScreen missing "Progresso por história" section — per-story breakdown not added',
 );
 
-// [477] ParentAreaScreen has "Limpar progresso" section
+// [477] ParentAreaScreen tem o fluxo destrutivo de dados
+//
+// [Spec 019 · S4] REANCORADA POR INTENÇÃO. A trava exigia o rótulo "Limpar progresso" — o botão
+// único que dizia limpar progresso e, por baixo, destruía todas as pinturas do Colorir com o Beni.
+// Esse rótulo foi DELIBERADAMENTE aposentado: ele descrevia mal o que a ação fazia. A intenção
+// vigiada (a Área dos Pais oferece o fluxo destrutivo de dados) continua, e a exigência ficou
+// MAIOR: as TRÊS intenções precisam aparecer SEPARADAS, cada uma com seu próprio rótulo. Um
+// retorno ao botão genérico que mistura progresso e criações fica vermelho aqui.
 check(
-  'ParentAreaScreen has "Limpar progresso" section (Sprint 13)',
-  parentArea13.includes('Limpar progresso'),
-  'ParentAreaScreen missing "Limpar progresso" section — reset flow not added',
+  'ParentAreaScreen tem as TRÊS ações de dados separadas (progresso · pinturas · Criar Livre)',
+  parentArea13.includes('Reiniciar progresso das histórias') &&
+  parentArea13.includes('Apagar pinturas das histórias') &&
+  parentArea13.includes('Apagar criações do Criar Livre'),
+  'ParentAreaScreen: "Gerenciar dados" perdeu a separação entre reiniciar progresso, apagar pinturas do C60 e apagar criações do Criar Livre',
 );
 
 // [478] ParentAreaScreen has "Avaliar o app" section or equivalent
@@ -19618,10 +19635,12 @@ check(
   'ParentAreaScreen: Modo Igreja não está discreto/no fim',
 );
 
+// [Spec 019 · S4] REANCORADA POR INTENÇÃO: o rótulo "Limpar progresso" saiu (era o botão único que
+// também destruía as pinturas). A confirmação digitada e o serviço de reset continuam exigidos.
 check(
   'Bloco 4E: Gerenciar dados mantém confirmação (APAGAR) e ações sensíveis',
   ux4eScreen.includes('Gerenciar dados') &&
-  ux4eScreen.includes('Limpar progresso') &&
+  ux4eScreen.includes('Reiniciar progresso das histórias') &&
   (ux4eScreen.includes("'APAGAR'") || ux4eScreen.includes('"APAGAR"')) &&
   ux4eScreen.includes('resetProgress'),
   'ParentAreaScreen: Gerenciar dados perdeu confirmação/ações sensíveis',
@@ -41704,7 +41723,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         dataUrlMime: (_d, fb = 'image/png') => fb,
         currentBlobsRoot: () => 'file://ptf_blobs/',
       }, ['saveColoring60DrawingState', 'getColoring60SavedDrawing', 'hasColoring60SavedDrawing',
-        'hasColoring60SnapshotRecord', 'clearColoring60SavedDrawing', 'COLORING60_SAVE_RESULT']);
+        'hasColoring60SnapshotRecord', 'clearColoring60SavedDrawing', 'collectColoring60Orphans',
+        'COLORING60_SAVE_RESULT', 'COLORING60_GC_REASON']);
       // [S1] O aparelho de mentira é de uma criança com ACESSO LEGÍTIMO, salvo quando a prova diz o
       // contrário (4º argumento explícito ou `cfg.authorization`).
       const W = Object.assign({}, Wdev, {
@@ -41720,12 +41740,19 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         isSnapshotAcceptable: STA.isSnapshotAcceptable,
       }, ['markColoring60ActivityDone', 'loadColoring60Done', 'clearColoring60Done',
         'loadColoring60JourneyRecord', 'loadColoring60Ever',
-        'loadColoring60FinaleSeen', 'markColoring60FinaleSeen', 'clearColoring60Completion']);
+        'loadColoring60FinaleSeen', 'markColoring60FinaleSeen', 'clearColoring60Completion',
+        'clearColoring60Snapshot']);
       const RST = loadModule('src/services/coloring60ResetService.js', {
         clearColoring60Completion: S.clearColoring60Completion,
+        clearColoring60Snapshot: S.clearColoring60Snapshot,
         loadColoring60Done: S.loadColoring60Done,
         clearColoring60SavedDrawing: W.clearColoring60SavedDrawing,
+        // [S4] A exclusão de pinturas verifica RESÍDUO FÍSICO com a limpeza dirigida do próprio
+        // writer — as sondas de metadado não enxergam um arquivo que sobreviveu sem ponteiro.
+        collectColoring60Orphans: W.collectColoring60Orphans,
+        COLORING60_GC_REASON: W.COLORING60_GC_REASON,
         hasColoring60SavedDrawing: W.hasColoring60SavedDrawing,
+        hasColoring60SnapshotRecord: W.hasColoring60SnapshotRecord,
         clearCreationColoringInvite: async () => { convite.visto = false; },
         // Convite por MARCO (cena 2/7/9): mock fiel — remove as MESMAS chaves reais do módulo
         // (`@ptf_coloring60_milestone_invite_seen_<story>_<activity>`) via o AsyncStorage do aparelho.
@@ -41737,7 +41764,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         getColoring60Activities: CAT.getColoring60Activities,
         COLORING60_STORY_ID: 'creation',
         warn: () => {},
-      }, ['resetCreationColoringJourney', 'subscribeColoring60Reset']);
+      }, ['resetCreationColoringJourney', 'resetColoring60Progress', 'deleteColoring60Artworks',
+        'subscribeColoring60Reset']);
       const RD = loadModule('src/services/coloring60ProgressReader.js', {
         getColoring60Activities: CAT.getColoring60Activities,
         loadColoring60JourneyRecord: S.loadColoring60JourneyRecord,
@@ -48991,6 +49019,1013 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     check('S3 [negativos]: os catorze controles negativos do S3 rodaram e nenhum sobreviveu',
       CN_S3.length === 14 && CN_S3.every((c) => c.original === true && c.mutante === false),
       `executados=${CN_S3.length} · sobreviventes=${CN_S3.filter((c) => !(c.original === true && c.mutante === false)).map((c) => c.id).join(', ') || '(nenhum)'}`);
+  }
+
+  /* ═══ [S4 · SPEC 019] SEPARAÇÃO ENTRE RESET DE PROGRESSO E EXCLUSÃO DE CRIAÇÕES ═══════════════
+   * O S1 deu ao writer o direito de gravar por ACESSO LEGÍTIMO; o S2 ensinou o app a representar o
+   * que já existia; o S3 tornou a sobrescrita segura. Sobra a consequência PARENTAL de tudo isso:
+   * a partir do momento em que TODA criança com acesso guarda a sua pintura, "reiniciar progresso"
+   * deixou de ser uma limpeza inofensiva. O botão único da Área dos Pais apagava as duas coisas
+   * juntas — e o texto na tela ainda PROMETIA que os desenhos não seriam afetados.
+   *
+   * O CONTRATO DESTE BLOCO, em uma frase: intenções diferentes, ações diferentes, e nenhuma delas
+   * pode alcançar o território da outra.
+   *   · Reiniciar progresso   → apaga cenas/quiz/reflexão/Livrinho/conclusão. NÃO toca a obra.
+   *   · Apagar pinturas (C60) → apaga ponteiro + arquivo + desfecho. NÃO toca a conquista.
+   *   · Apagar Criar Livre    → apaga só o storage do Criar Livre. NÃO toca o C60.
+   *   · Apagar TUDO           → permanece FORA DE ESCOPO (nada de `AsyncStorage.clear()`).
+   *
+   * A ASSIMETRIA QUE DÁ SENTIDO À SEPARAÇÃO é medida aqui nas duas direções: a pintura preservada
+   * NÃO ressuscita o progresso (a parte volta a estar incompleta e só volta a contar quando a
+   * criança concluir de novo), e a pintura apagada NÃO apaga a conquista (a parte continua
+   * concluída, com o texto honesto "Parte concluída! Pinte de novo para guardar sua criação.").
+   *
+   * COMO SE MEDE. Um único APARELHO DE MENTIRA por prova, com `expo-file-system` e `AsyncStorage`
+   * falsos — e TODO o resto real: `fileBlobStore`, o writer do C60, o serviço de conclusão, os dois
+   * serviços de reset, o leitor da jornada, o leitor reconciliado da coleção, o `drawingStorage`
+   * legado, o `atelierStorage` do Criar Livre e o serviço de exclusão do Criar Livre. "Apagar
+   * pinturas não apaga o Criar Livre" é medido pelos ARQUIVOS que sobram no disco, não pela
+   * ausência de uma palavra no fonte.
+   *
+   * A ÁREA DOS PAIS TAMBÉM EXECUTA. As três ações e as funções de confirmação/cancelamento são
+   * EXTRAÍDAS DO FONTE REAL da tela e avaliadas num arnês com os `setState` espionados — a tela não
+   * roda fora do React, mas a MÁQUINA DE DECISÃO dela roda. É assim que "cancelar não altera nada"
+   * e "cada ação exige confirmação" deixam de ser leitura de código e viram execução.
+   *
+   * TESTE QUE EXPLODE É TESTE VERMELHO, NÃO SUÍTE ABORTADA — `t4` converte exceção em falha COM a
+   * mensagem, para que a demonstração do vermelho contra o HEAD anterior mostre as 26 provas.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  {
+    const { loadModule: s4Load } = require('./testing/packInstallHarness');
+
+    /** Executa uma prova isolando exceções: `fn` devolve `[condição, detalhe]`. */
+    const t4 = async (nome, fn) => {
+      let cond = false;
+      let detalhe = '';
+      try {
+        const r = await fn();
+        cond = !!(Array.isArray(r) ? r[0] : r);
+        detalhe = (Array.isArray(r) && r[1]) || '';
+      } catch (e) {
+        cond = false;
+        detalhe = 'exceção: ' + ((e && e.message) || String(e));
+      }
+      check(nome, cond, detalhe);
+    };
+
+    // ── Geografia do disco e do storage ───────────────────────────────────────────────────────
+    const DOC4 = 'file:///var/mobile/Containers/Data/Application/S4/Documents/';
+    const RAIZ4 = DOC4 + 'ptf_blobs/';
+    const D60_4 = RAIZ4 + 'drawings60/';   // pinturas do Colorir com o Beni
+    const LIVRE4 = RAIZ4 + 'atelier/';     // criações do Criar Livre
+    const LEG4 = RAIZ4 + 'drawings/';      // marca legada "já colorei esta cena"
+    const HIST4 = 'creation';
+    const IDS4 = ['light', 'living_world', 'people_and_care'];
+
+    /** Payload v2 com tinta REAL (o writer só vai a arquivo quando `data.length > 1000`). */
+    const OBRA4 = (marca, rev) => JSON.stringify({
+      v: 2, W: 1000, H: 1500, imgX: 0, imgY: 0, imgW: 1000, imgH: 1500,
+      rev: rev || 1, paintedPx: 9000, paintablePx: 300000,
+      data: 'data:image/png;base64,' + String(marca).repeat(1200),
+    });
+    const ARTE_LIVRE4 = (marca) => 'data:image/jpeg;base64,' + String(marca).repeat(600);
+    /** Marca legada "já colorei esta cena" — o `drawingStorage` só vai a arquivo com PNG e tinta real. */
+    const ARTE_LEG4 = 'data:image/png;base64,' + 'Z'.repeat(1200);
+
+    /**
+     * Fonte SEM COMENTÁRIOS. As provas estruturais deste bloco perguntam se o CÓDIGO usa
+     * `AsyncStorage.clear()` ou `getAllKeys` — e os docblocks destes mesmos arquivos citam as duas
+     * chamadas por extenso, justamente para dizer que NÃO as usam. Buscar no fonte cru reprovaria o
+     * arquivo pela sua própria documentação.
+     */
+    const codigo4 = (f) => readSrc(f)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+    /**
+     * VIZINHOS — chaves canônicas que NENHUMA das três ações pode tocar. Entitlement e compra
+     * (o responsável pagou), consentimentos e configurações parentais (decisões dele), antifarming
+     * (a proteção que impede a criança de girar recompensa) e o perfil.
+     */
+    const VIZINHOS4 = [
+      ['@ptf_entitlement_v1', '{"premium":true}'],
+      ['@ptf_plan_state_v1', '{"plan":"premium"}'],
+      ['@ptf_parent_settings_v1', '{"tempo":30}'],
+      ['@ptf_parental_consent_v1', '{"accepted":true}'],
+      ['@ptf_brincar_daily_v1', '{"dia":"2026-08-03","jogadas":4}'],
+      ['@ptf_brincar_stats_v1', '{"total":41}'],
+      ['@ptf_profile', '{"nome":"Bia"}'],
+      ['@ptf_child_profiles_v1', '[{"id":"p1"}]'],
+    ];
+    /**
+     * ISCAS DE PREFIXO — chaves que PARECEM pertencer a cada território, mas estão FORA do catálogo
+     * canônico e fora do índice do Criar Livre. Qualquer remoção por prefixo aberto as levaria
+     * junto; a remoção dirigida por catálogo/índice não as enxerga sequer como candidatas.
+     */
+    const ISCAS4 = [
+      ['@ptf_drawing60_shistoria_x_alight', '{"v":3,"uri":"file://x"}'],
+      ['@ptf_coloring60_done_snoah_alight', 'true'],
+      ['ptf_atelier_arts_v1_fantasma', '{"id":"fantasma"}'],
+      ['@ptf_drawing60_screation_aoutra', '{"v":3,"uri":"file://y"}'],
+    ];
+
+    /**
+     * mkAp4(cfg, mut) — UM aparelho completo. `cfg` injeta falhas por PREDICADO (o disco do
+     * aparelho falha no meio do uso, não na hora de montar o teste); `mut` traz uma mutação de
+     * FONTE por módulo, usada apenas pelos controles negativos.
+     *
+     * Os ganchos `__apagaLivre` / `__apagaC60` são dependências EXTRAS: o fonte real não os
+     * referencia (e por isso são inertes), mas um mutante pode chamá-los para encenar exatamente a
+     * contaminação que este bloco existe para proibir.
+     */
+    const mkAp4 = (cfg = {}, mut = {}) => {
+      const c = Object.assign({}, cfg);
+      const disco = new Map();
+      const eventos = [];
+      const FileSystem = {
+        documentDirectory: DOC4,
+        EncodingType: { Base64: 'base64' },
+        getInfoAsync: async (u) => ({ exists: disco.has(u), isDirectory: u.endsWith('/'), uri: u }),
+        makeDirectoryAsync: async (u) => { disco.set(u, ''); },
+        writeAsStringAsync: async (u, conteudo) => {
+          if (c.escritaFalha && c.escritaFalha(u)) throw new Error('ENOSPC');
+          disco.set(u, conteudo); eventos.push('escreveu:' + u);
+        },
+        readAsStringAsync: async (u) => {
+          if (!disco.has(u)) throw new Error('ENOENT');
+          return disco.get(u);
+        },
+        deleteAsync: async (u) => {
+          if (c.apagarFalha && c.apagarFalha(u)) throw new Error('EPERM');
+          if (!disco.has(u)) throw new Error('ENOENT');
+          disco.delete(u); eventos.push('apagou:' + u);
+        },
+      };
+
+      const mapa = new Map();
+      // ESPIÃO do storage: `clear` e `getAllKeys` existem de verdade — é preciso que existam para
+      // que "ninguém os usa" seja uma medida, e não a ausência de uma função no duplo.
+      const espia = { clear: 0, getAllKeys: 0 };
+      const AsyncStorage = {
+        getItem: async (k) => (mapa.has(k) ? mapa.get(k) : null),
+        setItem: async (k, v) => { mapa.set(k, v); },
+        removeItem: async (k) => {
+          if (c.removeItemFalha && c.removeItemFalha(k)) throw new Error('removeItem rejeitou');
+          mapa.delete(k);
+        },
+        multiSet: async (ps) => { ps.forEach(([k, v]) => mapa.set(k, v)); },
+        multiGet: async (ks) => ks.map((k) => [k, mapa.has(k) ? mapa.get(k) : null]),
+        multiRemove: async (ks) => {
+          if (c.multiRemoveFalha && c.multiRemoveFalha(ks)) throw new Error('multiRemove rejeitou');
+          ks.forEach((k) => mapa.delete(k));
+        },
+        getAllKeys: async () => { espia.getAllKeys += 1; return [...mapa.keys()]; },
+        clear: async () => { espia.clear += 1; mapa.clear(); },
+      };
+
+      // ── Módulos PUROS reais ─────────────────────────────────────────────────────────────────
+      const MET = s4Load('src/services/coloring60PaintMetrics.js', {},
+        ['snapshotHasMeaningfulColor', 'hasMeaningfulColor', 'readPaintMetricsFromSnapshot',
+          'snapshotMatchesRevision']);
+      const ST = s4Load('src/services/coloring60State.js', {},
+        ['SNAPSHOT_STATUS', 'HYDRATION_STATUS', 'COLORING60_SLOT_KIND', 'coloring60SlotKind',
+          'isSnapshotAcceptable', 'reconcileSnapshotStatus', 'deriveColoring60ActivityState',
+          'deriveColoring60JourneyState', 'countsAsComplete', 'hasIntegrityBreak']);
+      const CAT = s4Load('src/data/coloring60Catalog.js', {},
+        ['getColoring60Activities', 'getColoring60Activity']);
+      const SJ = s4Load('src/services/storyJourneyService.js', {}, ['getStoryJourneyStatus', 'COMMERCIAL_ACCESS']);
+      const AUT = s4Load('src/services/storyContentAuthorization.js',
+        { COMMERCIAL_ACCESS: SJ.COMMERCIAL_ACCESS }, ['CONTENT_AUTH_REASON', 'deriveStoryContentAuthorization']);
+      const autz = (over = {}) => AUT.deriveStoryContentAuthorization({
+        storyId: HIST4, knownStory: true, previousStoryId: null, previousStatus: null, hydrated: true,
+        journeyStatus: SJ.getStoryJourneyStatus(Object.assign({
+          totalScenes: 10, sceneDoneCount: 10, coloringComplete: true, coloringAvailable: true,
+          postStoryStatus: { storyBookOpened: true, quizDone: true, reflectionDone: true },
+          accessStatus: 'full', accessType: 'free', isFirstStory: true, previousJourneyComplete: true,
+        }, over)),
+      });
+
+      // ── Fronteira de arquivos REAL ───────────────────────────────────────────────────────────
+      const blob = s4Load('src/services/fileBlobStore.js', { FileSystem, log: () => {} },
+        ['writeBlob', 'readBlobAsDataUrl', 'deleteBlob', 'safeName', 'isDataUrl', 'dataUrlMime',
+          'recomposeBlobUri', 'currentBlobsRoot', 'BLOB_DELETE_OUTCOME']);
+
+      // ── Writer REAL do C60 ───────────────────────────────────────────────────────────────────
+      const W = s4Load('src/services/coloring60DrawingStorage.js', {
+        AsyncStorage,
+        log: () => {},
+        getCurrentPlan: () => 'premium',
+        isInternalToolsEnabled: () => false,
+        CONTENT_AUTH_REASON: AUT.CONTENT_AUTH_REASON,
+        getColoring60Activity: CAT.getColoring60Activity,
+        getColoring60Activities: CAT.getColoring60Activities,
+        ...blob,
+      }, ['saveColoring60DrawingState', 'getColoring60SavedDrawing', 'hasColoring60SavedDrawing',
+        'hasColoring60SnapshotRecord', 'clearColoring60SavedDrawing', 'collectColoring60Orphans',
+        'COLORING60_SAVE_RESULT', 'COLORING60_GC_REASON']);
+
+      // ── Conclusão REAL ───────────────────────────────────────────────────────────────────────
+      const S = s4Load('src/services/coloring60ActivityService.js', {
+        AsyncStorage,
+        getColoring60Activity: CAT.getColoring60Activity,
+        snapshotHasMeaningfulColor: MET.snapshotHasMeaningfulColor,
+        SNAPSHOT_STATUS: ST.SNAPSHOT_STATUS,
+        isSnapshotAcceptable: ST.isSnapshotAcceptable,
+      }, ['markColoring60ActivityDone', 'loadColoring60Done', 'loadColoring60Ever',
+        'loadColoring60JourneyRecord', 'loadColoring60FinaleSeen', 'markColoring60FinaleSeen',
+        'clearColoring60Completion', 'clearColoring60Snapshot'], mut.act);
+
+      // ── Criar Livre REAL (storage intocado por esta spec) ────────────────────────────────────
+      const ATE = s4Load('src/services/atelierStorage.js', {
+        AsyncStorage,
+        log: () => {},
+        writeBlob: blob.writeBlob,
+        deleteBlob: blob.deleteBlob,
+        safeName: blob.safeName,
+        recomposeBlobUri: blob.recomposeBlobUri,
+        currentBlobsRoot: blob.currentBlobsRoot,
+        resolveArtTitle: (t) => t || 'Desenho de fé',
+        cleanArtName: (t) => (typeof t === 'string' ? t.trim() : ''),
+      }, ['listArts', 'getArt', 'saveArt', 'deleteArt']);
+
+      // ── `drawingStorage` legado REAL (a marca "já colorei esta cena") ────────────────────────
+      const DRW = s4Load('src/services/drawingStorage.js', {
+        AsyncStorage,
+        log: () => {},
+        writeBlob: blob.writeBlob,
+        readBlobAsDataUrl: blob.readBlobAsDataUrl,
+        deleteBlob: blob.deleteBlob,
+        safeName: blob.safeName,
+        isDataUrl: blob.isDataUrl,
+        dataUrlMime: blob.dataUrlMime,
+      }, ['saveDrawingState', 'getSavedDrawing', 'hasSavedDrawing', 'clearAllSavedDrawings'], mut.drw);
+
+      // Ganchos de CONTAMINAÇÃO (inertes no fonte real; só um mutante os invoca).
+      const __apagaLivre = async () => {
+        for (const a of await ATE.listArts()) await ATE.deleteArt(a.id); // eslint-disable-line no-await-in-loop
+      };
+      const __apagaC60 = async () => {
+        for (const id of IDS4) await W.clearColoring60SavedDrawing(HIST4, id); // eslint-disable-line no-await-in-loop
+      };
+
+      // ── Os DOIS serviços de reset e o de exclusão do Criar Livre ────────────────────────────
+      const RST = s4Load('src/services/coloring60ResetService.js', {
+        clearColoring60Completion: S.clearColoring60Completion,
+        clearColoring60Snapshot: S.clearColoring60Snapshot,
+        loadColoring60Done: S.loadColoring60Done,
+        clearColoring60SavedDrawing: W.clearColoring60SavedDrawing,
+        collectColoring60Orphans: W.collectColoring60Orphans,
+        COLORING60_GC_REASON: W.COLORING60_GC_REASON,
+        hasColoring60SavedDrawing: W.hasColoring60SavedDrawing,
+        hasColoring60SnapshotRecord: W.hasColoring60SnapshotRecord,
+        clearCreationColoringInvite: async () => { mapa.delete('@ptf_c60_invite_seen'); },
+        clearColoring60MilestoneInviteSeen: async (sid, ids = []) => {
+          for (const a of ids) await AsyncStorage.removeItem(`@ptf_coloring60_milestone_invite_seen_${sid}_${a}`); // eslint-disable-line no-await-in-loop
+        },
+        getColoring60Activities: CAT.getColoring60Activities,
+        COLORING60_STORY_ID: HIST4,
+        warn: () => {},
+        __apagaLivre,
+      }, ['resetColoring60Progress', 'deleteColoring60Artworks', 'resetCreationColoringJourney',
+        'subscribeColoring60Reset'], mut.rst);
+
+      const ARS = s4Load('src/services/atelierResetService.js', {
+        listArts: ATE.listArts,
+        getArt: ATE.getArt,
+        deleteArt: ATE.deleteArt,
+        warn: () => {},
+        __apagaC60,
+      }, ['deleteAllAtelierCreations'], mut.ars);
+
+      const PRS = s4Load('src/services/progressResetService.js', {
+        AsyncStorage,
+        stories: [{ id: HIST4 }, { id: 'noah' }],
+        clearAllSavedDrawings: DRW.clearAllSavedDrawings,
+        resetColoring60Progress: RST.resetColoring60Progress,
+        resetCreationColoringJourney: RST.resetCreationColoringJourney,
+      }, ['resetProgress', 'getResettableKeys'], mut.prs);
+
+      // ── Leitores REAIS (jornada e coleção) ──────────────────────────────────────────────────
+      const RD = s4Load('src/services/coloring60ProgressReader.js', {
+        getColoring60Activities: CAT.getColoring60Activities,
+        loadColoring60JourneyRecord: S.loadColoring60JourneyRecord,
+        hasColoring60SnapshotRecord: W.hasColoring60SnapshotRecord,
+        deriveColoring60ActivityState: ST.deriveColoring60ActivityState,
+        deriveColoring60JourneyState: ST.deriveColoring60JourneyState,
+        reconcileSnapshotStatus: ST.reconcileSnapshotStatus,
+        HYDRATION_STATUS: ST.HYDRATION_STATUS,
+      }, ['loadColoring60JourneyState']);
+
+      const COL = s4Load('src/services/coloring60CollectionReader.js', {
+        getColoring60Activities: CAT.getColoring60Activities,
+        resolveColoring60Lineart: (sid, aid) => ({ status: 'available', source: { uri: `lineart://${sid}/${aid}` } }),
+        COLORING60_RESOLUTION_STATUS: { AVAILABLE: 'available' },
+        loadColoring60JourneyRecord: S.loadColoring60JourneyRecord,
+        getColoring60SavedDrawing: W.getColoring60SavedDrawing,
+        hasColoring60SnapshotRecord: W.hasColoring60SnapshotRecord,
+        snapshotHasMeaningfulColor: MET.snapshotHasMeaningfulColor,
+        reconcileSnapshotStatus: ST.reconcileSnapshotStatus,
+        deriveColoring60ActivityState: ST.deriveColoring60ActivityState,
+        HYDRATION_STATUS: ST.HYDRATION_STATUS,
+        COLORING60_SLOT_KIND: ST.COLORING60_SLOT_KIND,
+        coloring60SlotKind: ST.coloring60SlotKind,
+        __DEV__: false,
+      }, ['loadColoring60Slots', 'coloring60SlotWithKind', 'SLOT']);
+
+      return { cfg: c, disco, eventos, mapa, espia, AsyncStorage, MET, ST, CAT, blob, W, S, ATE, DRW, RST, ARS, PRS, RD, COL, autz };
+    };
+
+    // ── Semeadura de um aparelho VIVIDO ───────────────────────────────────────────────────────
+    /** Chaves de progresso que a whitelist do reset conhece (cenas, quiz, reflexão, Livrinho…). */
+    const PROGRESSO4 = [
+      ['@ptf_progress_creation', '{"scenes":10}'],
+      ['@ptf_quiz_done_creation', 'true'],
+      ['@ptf_reflection_creation', '{"texto":"amei"}'],
+      ['@ptf_storybook_opened_creation', 'true'],
+      ['@ptf_bonus_stars', '12'],
+      ['@ptf_achievements_seen', '["a1"]'],
+      ['@ptf_lumi_moment_ever', 'true'],
+      ['@ptf_lumi_moment_2026-08-03', 'true'],
+      ['@ptf_beni_chest_seen_cards_v1', '["c1"]'],
+      ['@ptf_family_worship_v1', '{"n":3}'],
+    ];
+
+    /**
+     * viver4(ap) — o aparelho de uma criança que JÁ VIVEU o app: três partes pintadas e concluídas
+     * de verdade (arte no disco, conclusão e desfecho gravados), a grande conclusão vista, o
+     * progresso da história inteiro, duas criações no Criar Livre, a marca legada de cena colorida,
+     * os vizinhos canônicos e as iscas de prefixo. É o único estado inicial deste bloco: provar
+     * separação num aparelho vazio não provaria nada.
+     */
+    const viver4 = async (ap) => {
+      for (const id of IDS4) {
+        // eslint-disable-next-line no-await-in-loop
+        const r = await ap.W.saveColoring60DrawingState(HIST4, id, OBRA4(id[0].toUpperCase(), 3), { authorization: ap.autz() });
+        // eslint-disable-next-line no-await-in-loop
+        await ap.S.markColoring60ActivityDone(HIST4, id, OBRA4(id[0].toUpperCase(), 3),
+          r === ap.W.COLORING60_SAVE_RESULT.SAVED ? ap.ST.SNAPSHOT_STATUS.READY : ap.ST.SNAPSHOT_STATUS.FAILED);
+        // eslint-disable-next-line no-await-in-loop
+        await ap.AsyncStorage.setItem(`@ptf_coloring60_milestone_invite_seen_${HIST4}_${id}`, 'true');
+      }
+      await ap.S.markColoring60FinaleSeen(HIST4);
+      for (const [k, v] of PROGRESSO4) await ap.AsyncStorage.setItem(k, v); // eslint-disable-line no-await-in-loop
+      for (const [k, v] of VIZINHOS4) await ap.AsyncStorage.setItem(k, v);  // eslint-disable-line no-await-in-loop
+      for (const [k, v] of ISCAS4) await ap.AsyncStorage.setItem(k, v);     // eslint-disable-line no-await-in-loop
+      await ap.DRW.saveDrawingState(HIST4, 'c01', ARTE_LEG4);
+      await ap.ATE.saveArt({ artId: 'art_um', title: 'Arco-íris', stateJson: '{"s":1}', previewBase64: ARTE_LIVRE4('P'), thumbnailBase64: ARTE_LIVRE4('T') });
+      await ap.ATE.saveArt({ artId: 'art_dois', title: 'Barquinho', stateJson: '{"s":2}', previewBase64: ARTE_LIVRE4('Q'), thumbnailBase64: ARTE_LIVRE4('U') });
+      return ap;
+    };
+    const vivido4 = async (cfg, mut) => viver4(mkAp4(cfg, mut));
+
+    // ── Inspetores de disco e de storage ──────────────────────────────────────────────────────
+    const arq4 = (ap, dir) => [...ap.disco.keys()].filter((u) => u.startsWith(dir) && !u.endsWith('/'));
+    const chaves4 = (ap, pref) => [...ap.mapa.keys()].filter((k) => k.startsWith(pref));
+    /**
+     * Ponteiros das TRÊS atividades CANÔNICAS, contados por identidade do catálogo — nunca por
+     * prefixo. A isca `@ptf_drawing60_screation_aoutra` divide o mesmo prefixo de propósito e
+     * PRECISA sobreviver a toda operação dirigida: é justamente ela que denuncia uma varredura
+     * aberta. Contar "tudo que começa com o prefixo" seria adotar, no teste, o vício que o S4
+     * proíbe no código.
+     */
+    const ponteiros4 = (ap) => IDS4
+      .map((id) => `@ptf_drawing60_s${HIST4}_a${id}`)
+      .filter((k) => typeof ap.mapa.get(k) === 'string');
+    const vizinhosIntactos4 = (ap) => VIZINHOS4.every(([k, v]) => ap.mapa.get(k) === v);
+    const iscasIntactas4 = (ap) => ISCAS4.every(([k, v]) => ap.mapa.get(k) === v);
+    const criarLivreIntacto4 = async (ap) => {
+      const lista = await ap.ATE.listArts();
+      return lista.length === 2 && arq4(ap, LIVRE4).length === 4
+        && (await ap.ATE.getArt('art_um')) != null && (await ap.ATE.getArt('art_dois')) != null;
+    };
+    const kinds4 = async (ap) => {
+      const { slots } = await ap.COL.loadColoring60Slots(HIST4);
+      const out = {};
+      for (const s of slots) out[s.activityId] = ap.COL.coloring60SlotWithKind(s).kind;
+      return out;
+    };
+
+    // ══ 01–10 · REINICIAR PROGRESSO ═══════════════════════════════════════════════════════════
+
+    await t4('S4 [01/26]: reiniciar progresso apaga as CENAS concluídas da história', async () => {
+      const ap = await vivido4();
+      const antes = ap.mapa.get('@ptf_progress_creation');
+      await ap.PRS.resetProgress();
+      return [antes === '{"scenes":10}' && ap.mapa.has('@ptf_progress_creation') === false,
+        `antes=${antes} · depois=${ap.mapa.get('@ptf_progress_creation')}`];
+    });
+
+    await t4('S4 [02/26]: reiniciar progresso apaga o QUIZ', async () => {
+      const ap = await vivido4();
+      const antes = ap.mapa.get('@ptf_quiz_done_creation');
+      await ap.PRS.resetProgress();
+      return [antes === 'true' && ap.mapa.has('@ptf_quiz_done_creation') === false,
+        `antes=${antes} · depois=${ap.mapa.get('@ptf_quiz_done_creation')}`];
+    });
+
+    await t4('S4 [03/26]: reiniciar progresso apaga a REFLEXÃO', async () => {
+      const ap = await vivido4();
+      const antes = ap.mapa.has('@ptf_reflection_creation');
+      await ap.PRS.resetProgress();
+      return [antes === true && ap.mapa.has('@ptf_reflection_creation') === false,
+        `antes=${antes} · depois=${ap.mapa.has('@ptf_reflection_creation')}`];
+    });
+
+    await t4('S4 [04/26]: reiniciar progresso apaga o LIVRINHO aberto', async () => {
+      const ap = await vivido4();
+      const antes = ap.mapa.has('@ptf_storybook_opened_creation');
+      await ap.PRS.resetProgress();
+      return [antes === true && ap.mapa.has('@ptf_storybook_opened_creation') === false,
+        `antes=${antes} · depois=${ap.mapa.has('@ptf_storybook_opened_creation')}`];
+    });
+
+    await t4('S4 [05/26]: reiniciar progresso apaga a CONCLUSÃO das três partes e a grande conclusão vista — a jornada volta a "0 de 3"', async () => {
+      const ap = await vivido4();
+      const antes = await ap.RD.loadColoring60JourneyState(HIST4);
+      await ap.PRS.resetProgress();
+      const depois = await ap.RD.loadColoring60JourneyState(HIST4);
+      const nenhumaDone = (await Promise.all(IDS4.map((id) => ap.S.loadColoring60Done(HIST4, id)))).every((d) => d === false);
+      return [antes.countLabel === '3 de 3' && antes.finaleSeen === true
+        && depois.countLabel === '0 de 3' && depois.isFullyComplete === false
+        && depois.finaleSeen === false && nenhumaDone === true,
+      `antes=${antes.countLabel} · depois=${depois.countLabel} · finale=${depois.finaleSeen} · done=${nenhumaDone}`];
+    });
+
+    await t4('S4 [06/26]: reiniciar progresso PRESERVA os ponteiros das pinturas do Colorir com o Beni', async () => {
+      const ap = await vivido4();
+      const antes = ponteiros4(ap).sort();
+      const conteudoAntes = antes.map((k) => ap.mapa.get(k));
+      await ap.PRS.resetProgress();
+      const depois = ponteiros4(ap).sort();
+      const iguais = antes.length === 3 && antes.join('|') === depois.join('|')
+        && depois.every((k, i) => ap.mapa.get(k) === conteudoAntes[i]);
+      return [iguais, `antes=${JSON.stringify(antes)} · depois=${JSON.stringify(depois)}`];
+    });
+
+    await t4('S4 [07/26]: reiniciar progresso PRESERVA os arquivos das pinturas no disco (e apaga só o blob da marca legada de cena)', async () => {
+      const ap = await vivido4();
+      const antes60 = arq4(ap, D60_4).sort();
+      const antesLeg = arq4(ap, LEG4);
+      await ap.PRS.resetProgress();
+      const depois60 = arq4(ap, D60_4).sort();
+      return [antes60.length === 3 && antes60.join('|') === depois60.join('|')
+        && antesLeg.length === 1 && arq4(ap, LEG4).length === 0,
+      `c60 antes=${antes60.length} depois=${depois60.length} · legado antes=${antesLeg.length} depois=${arq4(ap, LEG4).length}`];
+    });
+
+    await t4('S4 [08/26]: reiniciar progresso PRESERVA as criações do Criar Livre (índice, registros e arquivos)', async () => {
+      const ap = await vivido4();
+      const antes = await criarLivreIntacto4(ap);
+      await ap.PRS.resetProgress();
+      return [antes === true && (await criarLivreIntacto4(ap)) === true && vizinhosIntactos4(ap) === true,
+        `antes=${antes} · depois=${await criarLivreIntacto4(ap)} · vizinhos=${vizinhosIntactos4(ap)}`];
+    });
+
+    await t4('S4 [09/26]: a pintura preservada NÃO restaura a conclusão — depois do reset a parte volta a estar incompleta, sem quebra de integridade inventada', async () => {
+      const ap = await vivido4();
+      await ap.PRS.resetProgress();
+      const j = await ap.RD.loadColoring60JourneyState(HIST4);
+      const k = await kinds4(ap);
+      // A obra CONTINUA recuperável — e mesmo assim nada volta a contar.
+      const arteViva = (await ap.W.hasColoring60SavedDrawing(HIST4, 'light')) === true;
+      return [j.countLabel === '0 de 3' && j.isFullyComplete === false && j.hasIntegrityBreak === false
+        && IDS4.every((id) => k[id] === ap.COL.SLOT.EMPTY) && arteViva === true,
+      `contador=${j.countLabel} · integridade=${j.hasIntegrityBreak} · kinds=${JSON.stringify(k)} · arte viva=${arteViva}`];
+    });
+
+    await t4('S4 [10/26]: depois do reset a pintura preservada volta a ser aberta byte a byte quando a criança reabre a parte', async () => {
+      const ap = await vivido4();
+      const antes = await ap.W.getColoring60SavedDrawing(HIST4, 'light');
+      await ap.PRS.resetProgress();
+      const depois = await ap.W.getColoring60SavedDrawing(HIST4, 'light');
+      return [antes === OBRA4('L', 3) && depois === antes,
+        `recuperada? ${depois != null} · idêntica? ${depois === antes}`];
+    });
+
+    // ══ 11–15 · APAGAR AS PINTURAS DAS HISTÓRIAS ══════════════════════════════════════════════
+
+    await t4('S4 [11/26]: apagar as pinturas das histórias remove SOMENTE o C60 — ponteiros e arquivos do Colorir somem, Criar Livre e legado continuam no disco', async () => {
+      const ap = await vivido4();
+      const r = await ap.RST.deleteColoring60Artworks(HIST4);
+      return [r.ok === true && r.requested === 3 && r.removedPointers === 3 && r.removedBlobs === 3
+        && r.failed.length === 0 && r.residual.length === 0
+        && ponteiros4(ap).length === 0 && arq4(ap, D60_4).length === 0
+        && (await criarLivreIntacto4(ap)) === true && arq4(ap, LEG4).length === 1
+        && iscasIntactas4(ap) === true,
+      `relatório=${JSON.stringify(r)} · c60=${arq4(ap, D60_4).length} · livre=${arq4(ap, LIVRE4).length} · iscas=${iscasIntactas4(ap)}`];
+    });
+
+    await t4('S4 [12/26]: apagar as pinturas PRESERVA o progresso — cenas, quiz, reflexão, Livrinho e a conclusão das três partes continuam de pé', async () => {
+      const ap = await vivido4();
+      await ap.RST.deleteColoring60Artworks(HIST4);
+      const progressoVivo = PROGRESSO4.every(([k, v]) => ap.mapa.get(k) === v);
+      const done = await Promise.all(IDS4.map((id) => ap.S.loadColoring60Done(HIST4, id)));
+      const j = await ap.RD.loadColoring60JourneyState(HIST4);
+      return [progressoVivo === true && done.every((d) => d === true)
+        && j.countLabel === '3 de 3' && j.isFullyComplete === true && j.finaleSeen === true,
+      `progresso=${progressoVivo} · done=${JSON.stringify(done)} · contador=${j.countLabel}`];
+    });
+
+    await t4('S4 [13/26]: apagar as pinturas PRESERVA as criações do Criar Livre', async () => {
+      const ap = await vivido4();
+      await ap.RST.deleteColoring60Artworks(HIST4);
+      return [(await criarLivreIntacto4(ap)) === true && ap.mapa.get('ptf_atelier_arts_v1_fantasma') === '{"id":"fantasma"}',
+        `livre íntegro? ${await criarLivreIntacto4(ap)} · arquivos=${arq4(ap, LIVRE4).length}`];
+    });
+
+    await t4('S4 [14/26]: apagar as pinturas PRESERVA entitlement, dados de compra, consentimentos e configurações parentais', async () => {
+      const ap = await vivido4();
+      await ap.RST.deleteColoring60Artworks(HIST4);
+      return [vizinhosIntactos4(ap) === true && ap.mapa.get('@ptf_entitlement_v1') === '{"premium":true}',
+        `vizinhos=${VIZINHOS4.filter(([k, v]) => ap.mapa.get(k) !== v).map(([k]) => k).join(', ') || '(todos intactos)'}`];
+    });
+
+    await t4('S4 [15/26]: depois de apagar a pintura, a vaga concluída vira NOT_PERSISTED HONESTO — continua contando, sem virar "falta colorir" nem quebra de integridade', async () => {
+      const ap = await vivido4();
+      const antes = await kinds4(ap);
+      await ap.RST.deleteColoring60Artworks(HIST4);
+      const depois = await kinds4(ap);
+      const { slots } = await ap.COL.loadColoring60Slots(HIST4);
+      const estados = slots.map((s) => ap.ST.deriveColoring60ActivityState({
+        activityId: s.activityId,
+        isCurrentlyComplete: s.isCurrentlyComplete,
+        hasEverCompleted: s.hasEverCompleted,
+        snapshotStatus: s.snapshotStatus,
+        hydrationStatus: ap.ST.HYDRATION_STATUS.READY,
+      }));
+      const j = await ap.RD.loadColoring60JourneyState(HIST4);
+      return [IDS4.every((id) => antes[id] === ap.COL.SLOT.ART)
+        && IDS4.every((id) => depois[id] === ap.COL.SLOT.NOT_PERSISTED)
+        && estados.every((e) => ap.ST.countsAsComplete(e) === true && ap.ST.hasIntegrityBreak(e) === false)
+        && slots.every((s) => s.paint === null)
+        && j.countLabel === '3 de 3' && j.hasIntegrityBreak === false,
+      `antes=${JSON.stringify(antes)} · depois=${JSON.stringify(depois)} · contador=${j.countLabel} · integridade=${j.hasIntegrityBreak}`];
+    });
+
+    // ══ 16–17 · APAGAR AS CRIAÇÕES DO CRIAR LIVRE ═════════════════════════════════════════════
+
+    await t4('S4 [16/26]: apagar as criações do Criar Livre remove SOMENTE o Criar Livre — índice, registros e arquivos de `atelier/`', async () => {
+      const ap = await vivido4();
+      const r = await ap.ARS.deleteAllAtelierCreations();
+      return [r.ok === true && r.requested === 2 && r.removed === 2
+        && r.failed.length === 0 && r.residual.length === 0
+        && (await ap.ATE.listArts()).length === 0 && arq4(ap, LIVRE4).length === 0
+        && (await ap.ATE.getArt('art_um')) === null && (await ap.ATE.getArt('art_dois')) === null
+        && ap.mapa.get('ptf_atelier_arts_v1_fantasma') === '{"id":"fantasma"}',
+      `relatório=${JSON.stringify(r)} · arquivos livre=${arq4(ap, LIVRE4).length} · isca fora do índice preservada? ${ap.mapa.has('ptf_atelier_arts_v1_fantasma')}`];
+    });
+
+    await t4('S4 [17/26]: apagar as criações do Criar Livre PRESERVA as pinturas do C60, o progresso e os vizinhos canônicos', async () => {
+      const ap = await vivido4();
+      await ap.ARS.deleteAllAtelierCreations();
+      const j = await ap.RD.loadColoring60JourneyState(HIST4);
+      return [arq4(ap, D60_4).length === 3 && ponteiros4(ap).length === 3
+        && (await ap.W.getColoring60SavedDrawing(HIST4, 'light')) === OBRA4('L', 3)
+        && j.countLabel === '3 de 3' && PROGRESSO4.every(([k, v]) => ap.mapa.get(k) === v)
+        && vizinhosIntactos4(ap) === true,
+      `c60 arquivos=${arq4(ap, D60_4).length} · ponteiros=${ponteiros4(ap).length} · contador=${j.countLabel}`];
+    });
+
+    // ══ 18–19 · A MÁQUINA DE DECISÃO DA ÁREA DOS PAIS (extraída do fonte e EXECUTADA) ═════════
+
+    /** Extrai um trecho balanceado do fonte a partir de uma âncora. Âncora podre reprova alto. */
+    const trecho4 = (src, ancora, abre, fecha) => {
+      const i = src.indexOf(ancora);
+      if (i < 0) throw new Error('âncora de UI obsoleta → ' + JSON.stringify(ancora));
+      const j = src.indexOf(abre, i);
+      let n = 0;
+      for (let k = j; k < src.length; k += 1) {
+        if (src[k] === abre) n += 1;
+        else if (src[k] === fecha) { n -= 1; if (n === 0) return src.slice(i, k + 1); }
+      }
+      throw new Error('trecho não fechado → ' + JSON.stringify(ancora));
+    };
+
+    /**
+     * mkPais4(ap, mutSrc) — a Área dos Pais SEM React. As três ações e as três funções de fluxo
+     * (`closeDataAction`, `startDataAction`, `handleExecuteDataAction`) vêm do FONTE REAL da tela e
+     * são avaliadas com os `setState` trocados por variáveis observáveis. Os `run()` das ações
+     * ficam ligados aos SERVIÇOS REAIS do aparelho `ap` — então confirmar de verdade apaga de
+     * verdade, e cancelar de verdade não apaga nada.
+     */
+    const mkPais4 = (ap, mutSrc) => {
+      let src = readSrc('src/screens/ParentAreaScreen.js');
+      if (mutSrc) {
+        const m = mutSrc(src);
+        if (m === src) throw new Error('a mutação de UI não alterou o fonte (âncora não encontrada)');
+        src = m;
+      }
+      const acoesSrc = trecho4(src, 'const PARENT_DATA_ACTIONS = [', '[', ']');
+      const fluxo = ['function closeDataAction(', 'function startDataAction(', 'async function handleExecuteDataAction(']
+        .map((a) => trecho4(src, a, '{', '}')).join('\n\n');
+      const alertas = [];
+      const E = { refresh: 0 };
+      const corpo = `
+        ${acoesSrc};
+        let dataAction = null, dataStep = 'idle', dataConfirmText = '', dataLoading = false, dataDoneMsg = '';
+        const setDataAction = (v) => { dataAction = v; };
+        const setDataStep = (v) => { dataStep = v; };
+        const setDataConfirmText = (v) => { dataConfirmText = v; };
+        const setDataLoading = (v) => { dataLoading = v; };
+        const setDataDoneMsg = (v) => { dataDoneMsg = v; };
+        const refreshProgress = () => { E.refresh += 1; };
+        ${fluxo}
+        return {
+          acoes: PARENT_DATA_ACTIONS,
+          abrir: (id) => startDataAction(id),
+          digitar: (t) => setDataConfirmText(t),
+          continuar: () => setDataStep('confirm2'),
+          confirmar: () => handleExecuteDataAction(),
+          cancelar: () => closeDataAction(),
+          estado: () => ({ acao: dataAction, passo: dataStep, texto: dataConfirmText, carregando: dataLoading, feito: dataDoneMsg }),
+        };
+      `;
+      const fabrica = new Function('resetProgress', 'deleteColoring60Artworks', 'deleteAllAtelierCreations', 'Alert', 'E', corpo);
+      const api = fabrica(
+        () => ap.PRS.resetProgress(),
+        () => ap.RST.deleteColoring60Artworks(),
+        () => ap.ARS.deleteAllAtelierCreations(),
+        { alert: (t, m) => alertas.push([t, m]) },
+        E,
+      );
+      return Object.assign(api, { alertas, E });
+    };
+
+    await t4('S4 [18/26]: cada ação parental é INDEPENDENTE, declara o que apaga e o que preserva, e só executa com a confirmação digitada — confirmar uma ação nunca executa outra', async () => {
+      const ap = await vivido4();
+      const ui = mkPais4(ap);
+      const tresAcoes = ui.acoes.length === 3
+        && ui.acoes.map((a) => a.id).join(',') === 'progress,artworks,atelier'
+        && ui.acoes.every((a) => typeof a.title === 'string' && a.title.length > 0
+          && typeof a.apaga === 'string' && a.apaga.length > 20
+          && typeof a.preserva === 'string' && a.preserva.length > 20
+          && typeof a.confirmTitle === 'string' && typeof a.confirmLabel === 'string'
+          && typeof a.run === 'function');
+      // Confirmação AUSENTE ou ERRADA não executa nada.
+      ui.abrir('artworks'); ui.continuar();
+      await ui.confirmar();
+      const semTexto = arq4(ap, D60_4).length === 3;
+      ui.digitar('apagar tudo');
+      await ui.confirmar();
+      const textoErrado = arq4(ap, D60_4).length === 3 && ui.estado().passo === 'confirm2';
+      // Confirmação CORRETA executa — e executa a ação ABERTA, não outra.
+      ui.digitar('APAGAR');
+      await ui.confirmar();
+      const executou = arq4(ap, D60_4).length === 0 && ui.estado().passo === 'done'
+        && (await criarLivreIntacto4(ap)) === true
+        && PROGRESSO4.every(([k, v]) => ap.mapa.get(k) === v)
+        && ui.E.refresh === 1 && ui.alertas.length === 0;
+      return [tresAcoes && semTexto && textoErrado && executou,
+        `três ações=${tresAcoes} · sem texto=${semTexto} · texto errado=${textoErrado} · executou=${executou} · alertas=${JSON.stringify(ui.alertas)}`];
+    });
+
+    await t4('S4 [19/26]: CANCELAR não altera nada — nem no meio do fluxo, nem em nenhuma das três ações; o disco e o storage saem exatamente como entraram', async () => {
+      const ap = await vivido4();
+      const antes = {
+        c60: arq4(ap, D60_4).length,
+        livre: arq4(ap, LIVRE4).length,
+        chaves: ap.mapa.size,
+        progresso: PROGRESSO4.every(([k, v]) => ap.mapa.get(k) === v),
+      };
+      const ui = mkPais4(ap);
+      for (const id of ['progress', 'artworks', 'atelier']) {
+        ui.abrir(id);
+        ui.cancelar();                       // cancelamento no primeiro passo
+        ui.abrir(id); ui.continuar();
+        ui.digitar('APAGAR');
+        ui.cancelar();                       // cancelamento com a confirmação já digitada
+      }
+      const limpo = ui.estado().acao === null && ui.estado().passo === 'idle' && ui.estado().texto === '';
+      return [limpo && arq4(ap, D60_4).length === antes.c60 && arq4(ap, LIVRE4).length === antes.livre
+        && ap.mapa.size === antes.chaves && antes.progresso === true
+        && PROGRESSO4.every(([k, v]) => ap.mapa.get(k) === v)
+        && (await ap.RD.loadColoring60JourneyState(HIST4)).countLabel === '3 de 3',
+      `estado=${JSON.stringify(ui.estado())} · c60=${arq4(ap, D60_4).length}/${antes.c60} · livre=${arq4(ap, LIVRE4).length}/${antes.livre} · chaves=${ap.mapa.size}/${antes.chaves}`];
+    });
+
+    // ══ 20–21 · FALHA PARCIAL E RESÍDUO ══════════════════════════════════════════════════════
+
+    await t4('S4 [20/26]: falha parcial NÃO vira sucesso — quando o desfecho gravado não pode ser removido, o relatório acusa falha e a interface mostra o aviso honesto em vez do "pronto"', async () => {
+      const ap = await vivido4({ multiRemoveFalha: (ks) => ks.some((k) => k.startsWith('@ptf_coloring60_snap_')) });
+      const r = await ap.RST.deleteColoring60Artworks(HIST4);
+      // E a tela obedece ao veredito: nada de "✅ Pinturas apagadas".
+      const ap2 = await vivido4({ multiRemoveFalha: (ks) => ks.some((k) => k.startsWith('@ptf_coloring60_snap_')) });
+      const ui = mkPais4(ap2);
+      ui.abrir('artworks'); ui.continuar(); ui.digitar('APAGAR');
+      await ui.confirmar();
+      return [r.ok === false && r.failed.length === 3
+        && ui.estado().passo !== 'done' && ui.alertas.length === 1
+        && ui.alertas[0][0] === 'Não foi possível concluir',
+      `relatório=${JSON.stringify(r)} · passo=${ui.estado().passo} · alertas=${JSON.stringify(ui.alertas)}`];
+    });
+
+    await t4('S4 [21/26]: a verificação RESIDUAL enxerga o arquivo sobrevivente — sem ponteiro, as sondas de metadado diriam "limpo"; a limpeza dirigida diz a verdade e o relatório acusa resíduo', async () => {
+      const alvo = (u) => u.startsWith(D60_4) && u.includes('alight');
+      const ap = await vivido4({ apagarFalha: alvo });
+      const r = await ap.RST.deleteColoring60Artworks(HIST4);
+      const sobrou = arq4(ap, D60_4);
+      // O METADADO some mesmo assim (a exclusão é metadado-primeiro): é justamente por isso que
+      // sondar só o ponteiro declararia sucesso com o arquivo ainda no aparelho.
+      const semPonteiro = (await ap.W.hasColoring60SnapshotRecord(HIST4, 'light')) === false
+        && (await ap.W.hasColoring60SavedDrawing(HIST4, 'light')) === false;
+      // As contagens de metadado dizem "removi as três" — e não estão erradas: o ponteiro sumiu
+      // mesmo. É exatamente por isso que elas NÃO PODEM ser a última palavra. Quem impede o
+      // "✅ pronto" é o resíduo, e ele só existe porque alguém foi olhar o DISCO.
+      return [r.ok === false && r.residual.includes('light') && r.residual.length === 1
+        && sobrou.length === 1 && sobrou[0].includes('alight') && semPonteiro === true
+        && r.removedPointers === 3 && r.removedBlobs === 3,
+      `relatório=${JSON.stringify(r)} · sobrou=${JSON.stringify(sobrou)} · metadado limpo? ${semPonteiro}`];
+    });
+
+    // ══ 22–24 · AS PROIBIÇÕES GLOBAIS ════════════════════════════════════════════════════════
+
+    await t4('S4 [22/26]: NENHUMA das três ações usa `AsyncStorage.clear()` — nem na execução (o espião nunca é chamado), nem no fonte dos serviços', async () => {
+      const ap = await vivido4();
+      const ui = mkPais4(ap);
+      for (const id of ['progress', 'artworks', 'atelier']) {
+        ui.abrir(id); ui.continuar(); ui.digitar('APAGAR');
+        await ui.confirmar();               // eslint-disable-line no-await-in-loop
+        ui.cancelar();
+      }
+      const fontes = ['src/services/coloring60ResetService.js', 'src/services/atelierResetService.js',
+        'src/services/progressResetService.js', 'src/services/coloring60ActivityService.js',
+        'src/screens/ParentAreaScreen.js'];
+      const semClear = fontes.every((f) => !/AsyncStorage\.clear\s*\(/.test(codigo4(f)));
+      // As três ações rodaram de verdade (senão "ninguém chamou clear" seria trivialmente verdade).
+      const rodaram = arq4(ap, D60_4).length === 0 && arq4(ap, LIVRE4).length === 0
+        && ap.mapa.has('@ptf_progress_creation') === false;
+      return [ap.espia.clear === 0 && semClear && rodaram && vizinhosIntactos4(ap) === true,
+        `clear chamado ${ap.espia.clear}× · fontes limpas=${semClear} · ações rodaram=${rodaram} · vizinhos=${vizinhosIntactos4(ap)}`];
+    });
+
+    await t4('S4 [23/26]: NENHUMA exclusão usa prefixo aberto — as duas ações destrutivas não chamam `getAllKeys`, e as iscas fora do catálogo/índice sobrevivem às três ações', async () => {
+      const ap = await vivido4();
+      const antesGak = ap.espia.getAllKeys;
+      await ap.RST.deleteColoring60Artworks(HIST4);
+      await ap.ARS.deleteAllAtelierCreations();
+      const semVarreduraNasExclusoes = ap.espia.getAllKeys === antesGak;
+      await ap.PRS.resetProgress();
+      // O reset de progresso PODE varrer — mas só com prefixos FECHADOS e documentados
+      // (`@ptf_lumi_moment_` e o legado `@ptf_drawing_`), que não alcançam criação nenhuma.
+      const prsSrc = codigo4('src/services/progressResetService.js');
+      const prefixoFechado = /startsWith\(LUMI_MOMENT_PREFIX\)/.test(prsSrc)
+        && /const LUMI_MOMENT_PREFIX = '@ptf_lumi_moment_'/.test(prsSrc);
+      const exclusoesSemVarredura = ['src/services/coloring60ResetService.js', 'src/services/atelierResetService.js']
+        .every((f) => !/getAllKeys/.test(codigo4(f)));
+      return [semVarreduraNasExclusoes && prefixoFechado && exclusoesSemVarredura
+        && iscasIntactas4(ap) === true && vizinhosIntactos4(ap) === true,
+      `getAllKeys nas exclusões=${ap.espia.getAllKeys - antesGak} · prefixo fechado=${prefixoFechado} · fontes sem varredura=${exclusoesSemVarredura} · iscas=${ISCAS4.filter(([k, v]) => ap.mapa.get(k) !== v).map(([k]) => k).join(', ') || '(todas intactas)'}`];
+    });
+
+    await t4('S4 [24/26]: os dados ANTIFARMING permanecem intactos depois das três ações — a proteção contra girar recompensa não é limpável pela Área dos Pais', async () => {
+      const ap = await vivido4();
+      await ap.RST.deleteColoring60Artworks(HIST4);
+      await ap.ARS.deleteAllAtelierCreations();
+      await ap.PRS.resetProgress();
+      return [ap.mapa.get('@ptf_brincar_daily_v1') === '{"dia":"2026-08-03","jogadas":4}'
+        && ap.mapa.get('@ptf_brincar_stats_v1') === '{"total":41}',
+      `daily=${ap.mapa.get('@ptf_brincar_daily_v1')} · stats=${ap.mapa.get('@ptf_brincar_stats_v1')}`];
+    });
+
+    // ══ 25–26 · O QUE JÁ ESTAVA VERDE CONTINUA VERDE ═════════════════════════════════════════
+
+    // As buscas abaixo são MONTADAS em pedaços de propósito: um literal inteiro escrito aqui seria
+    // encontrado dentro desta própria prova, e ela passaria mesmo com o bloco original apagado.
+    const junta4 = (a, b) => a + b;
+
+    await t4('S4 [25/26]: FIX 1, FIX 2 e FIX 3 continuam vigiados e a primitiva selada de blobs não foi tocada pelo S4', async () => {
+      const shaBlob = require('crypto').createHash('sha256')
+        .update(readSrc('src/services/fileBlobStore.js').replace(/\r\n/g, '\n'), 'utf8').digest('hex');
+      const smokeSrc = readSrc('scripts/smoke.js');
+      const conta = (agulha) => smokeSrc.split(agulha).length - 1;
+      // Os TRÊS marcadores reais, cada um com sua própria família de rótulos (não são variações do
+      // mesmo prefixo): FIX 1 vive em `C60-P3-FIX1`, FIX 2 em `C60-P4-FIX2` e FIX 3 em `C60-FIX3`.
+      // O piso de 3 ocorrências é o menor deles medido hoje — apagar qualquer bloco reprova aqui.
+      const fixes = [junta4('C60-P3-', 'FIX1'), junta4('C60-P4-', 'FIX2'), junta4('C60-', 'FIX3')];
+      return [shaBlob === '7aec6d2d8c9cb96f32f8fe2b6e4637d01e5d0d18c76faacd30091d3d1d059aec'
+        && fixes.every((f) => conta(f) >= 3),
+      `sha=${shaBlob.slice(0, 12)}… · ocorrências=${JSON.stringify(fixes.map(conta))}`];
+    });
+
+    await t4('S4 [26/26]: S1, S2 e S3 continuam verdes sob o arnês do S4 — acesso ilegítimo não grava, conclusão legada continua concluída e a sobrescrita continua deixando UMA obra por atividade', async () => {
+      const smokeSrc = readSrc('scripts/smoke.js');
+      const blocos = [
+        junta4('AUTORIDADE DE ESCRITA POR ACESSO ', 'LEGÍTIMO (S1)'),
+        junta4('[S2 · SPEC 019] COMPATIBILIDADE DO LEGADO ', 'E OBRA REAL NA COLEÇÃO'),
+        junta4('SPEC 019 · S3 — SOBRESCRITA SEGURA, ', 'RECUPERAÇÃO E LIMPEZA DIRIGIDA'),
+      ].every((m) => smokeSrc.includes(m));
+
+      // S1 — sem ACESSO legítimo, zero escrita e zero conclusão inventada.
+      const ap1 = mkAp4();
+      const negado = await ap1.W.saveColoring60DrawingState(HIST4, 'light', OBRA4('X', 1),
+        { authorization: ap1.autz({ accessStatus: 'locked', accessType: 'premium' }) });
+      const s1 = negado === ap1.W.COLORING60_SAVE_RESULT.ACCESS_DENIED
+        && ap1.disco.size === 0 && ap1.mapa.size === 0;
+
+      // S2 — conclusão LEGADA (sem desfecho gravado e sem ponteiro) continua concluída e honesta.
+      const ap2 = mkAp4();
+      for (const id of IDS4) {
+        await ap2.AsyncStorage.setItem(`@ptf_coloring60_done_${HIST4}_${id}`, 'true');   // eslint-disable-line no-await-in-loop
+        await ap2.AsyncStorage.setItem(`@ptf_coloring60_ever_${HIST4}_${id}`, 'true');   // eslint-disable-line no-await-in-loop
+      }
+      const k2 = await kinds4(ap2);
+      const j2 = await ap2.RD.loadColoring60JourneyState(HIST4);
+      const s2 = IDS4.every((id) => k2[id] === ap2.COL.SLOT.NOT_PERSISTED)
+        && j2.countLabel === '3 de 3' && j2.hasIntegrityBreak === false;
+
+      // S3 — duas gravações seguidas deixam UMA obra por atividade, e é a última.
+      const ap3 = mkAp4();
+      await ap3.W.saveColoring60DrawingState(HIST4, 'light', OBRA4('V', 1), { authorization: ap3.autz() });
+      await ap3.W.saveColoring60DrawingState(HIST4, 'light', OBRA4('N', 2), { authorization: ap3.autz() });
+      const s3 = arq4(ap3, D60_4).length === 1
+        && (await ap3.W.getColoring60SavedDrawing(HIST4, 'light')) === OBRA4('N', 2);
+
+      return [blocos && s1 && s2 && s3,
+        `blocos presentes=${blocos} · S1=${s1} (${negado}) · S2=${s2} (${JSON.stringify(k2)}) · S3=${s3} (${arq4(ap3, D60_4).length} arquivo(s))`];
+    });
+
+    /* ── CONTROLES NEGATIVOS S4 ───────────────────────────────────────────────────────────────
+     * Cada um remove UMA proteção do fonte e roda o MESMO cenário nos dois lados. Se a prova não
+     * muda, a proteção era decorativa. `mutar4` falha ruidosamente quando a âncora fica obsoleta e
+     * `seguro4` converte a exceção numa STRING (jamais em `false`) — assim um controle que morreu
+     * por âncora podre REPROVA em vez de se declarar aprovado.
+     */
+    const CN_S4 = [];
+    const cnS4 = (id, descricao, original, mutante) => CN_S4.push({ id, descricao, original, mutante });
+    const mutar4 = (busca, troca) => (s) => {
+      if (!s.includes(busca)) throw new Error('âncora obsoleta → ' + JSON.stringify(busca.slice(0, 80)));
+      return s.split(busca).join(troca);
+    };
+    const seguro4 = async (fn) => {
+      try { return await fn(); } catch (e) { return '__exceção: ' + ((e && e.message) || String(e)); }
+    };
+    /** Roda `cenario` contra o aparelho ORIGINAL e contra o MUTADO, devolvendo o par de veredictos. */
+    const parS4 = async (cfg, mut, cenario) => [
+      await seguro4(async () => cenario(await vivido4(cfg))),
+      await seguro4(async () => cenario(await vivido4(cfg, mut))),
+    ];
+
+    // CN-1 — reiniciar progresso volta a apagar as pinturas (a fusão que o S4 desfez)
+    {
+      const [o, m] = await parS4({},
+        { prs: mutar4('    coloring60Reset = await resetColoring60Progress();',
+          '    coloring60Reset = await resetCreationColoringJourney();') },
+        async (ap) => {
+          await ap.PRS.resetProgress();
+          return arq4(ap, D60_4).length === 3 && ponteiros4(ap).length === 3;
+        });
+      cnS4('CN-S4-01', 'reiniciar progresso volta a destruir as pinturas do Colorir com o Beni', o, m);
+    }
+
+    // CN-2 — a presença da ARTE volta a valer como conclusão (o reset seria "desfeito" pela obra)
+    {
+      const [o, m] = await parS4({},
+        { rst: mutar4('      const stillDone = await loadColoring60Done(storyId, id);',
+          '      const stillDone = (await loadColoring60Done(storyId, id)) || (await hasColoring60SnapshotRecord(storyId, id));') },
+        async (ap) => {
+          const r = await ap.RST.resetColoring60Progress(HIST4);
+          const j = await ap.RD.loadColoring60JourneyState(HIST4);
+          return r.ok === true && r.residual.length === 0 && j.countLabel === '0 de 3';
+        });
+      cnS4('CN-S4-02', 'a existência da pintura preservada volta a contar como conclusão e o reset se declara fracassado', o, m);
+    }
+
+    // CN-3 — apagar pinturas do C60 alcança o Criar Livre
+    {
+      const [o, m] = await parS4({},
+        { rst: mutar4('      await clearColoring60SavedDrawing(storyId, id);',
+          '      await clearColoring60SavedDrawing(storyId, id);\n      await __apagaLivre();') },
+        async (ap) => {
+          await ap.RST.deleteColoring60Artworks(HIST4);
+          return (await ap.ATE.listArts()).length === 2 && arq4(ap, LIVRE4).length === 4;
+        });
+      cnS4('CN-S4-03', 'a exclusão das pinturas das histórias atravessa a fronteira e leva a galeria do Criar Livre junto', o, m);
+    }
+
+    // CN-4 — apagar o Criar Livre alcança as pinturas do C60
+    {
+      const [o, m] = await parS4({},
+        { ars: mutar4('      await deleteArt(ids[i]);', '      await deleteArt(ids[i]);\n      await __apagaC60();') },
+        async (ap) => {
+          await ap.ARS.deleteAllAtelierCreations();
+          return arq4(ap, D60_4).length === 3 && (await ap.W.getColoring60SavedDrawing(HIST4, 'light')) === OBRA4('L', 3);
+        });
+      cnS4('CN-S4-04', 'a exclusão do Criar Livre atravessa a fronteira e destrói as pinturas das histórias', o, m);
+    }
+
+    // CN-5 — apagar pinturas passa a apagar a CONQUISTA (progresso)
+    {
+      const [o, m] = await parS4({},
+        { rst: mutar4('      snapOk = (await clearColoring60Snapshot(storyId, activityIds)) === true;',
+          '      snapOk = (await clearColoring60Completion(storyId, activityIds)) === true;') },
+        async (ap) => {
+          await ap.RST.deleteColoring60Artworks(HIST4);
+          const done = await Promise.all(IDS4.map((id) => ap.S.loadColoring60Done(HIST4, id)));
+          return done.every((d) => d === true) && (await ap.RD.loadColoring60JourneyState(HIST4)).countLabel === '3 de 3';
+        });
+      cnS4('CN-S4-05', 'apagar a pintura passa a apagar a conclusão e a criança perde a conquista junto com a obra', o, m);
+    }
+
+    // CN-6 — o reset volta a ser um `clear()`
+    {
+      const [o, m] = await parS4({},
+        { prs: mutar4('  await AsyncStorage.multiRemove(keys);', '  await AsyncStorage.clear();') },
+        async (ap) => {
+          await ap.PRS.resetProgress();
+          return ap.espia.clear === 0 && vizinhosIntactos4(ap) === true;
+        });
+      cnS4('CN-S4-06', 'o reset de progresso vira um `AsyncStorage.clear()` e leva entitlement, consentimentos e antifarming junto', o, m);
+    }
+
+    // CN-7 — o prefixo fechado do Momento com Beni vira prefixo ABERTO
+    {
+      const [o, m] = await parS4({},
+        { prs: mutar4('k.startsWith(LUMI_MOMENT_PREFIX)', "k.startsWith('@ptf_')") },
+        async (ap) => {
+          await ap.PRS.resetProgress();
+          return ponteiros4(ap).length === 3 && vizinhosIntactos4(ap) === true
+            && iscasIntactas4(ap) === true;
+        });
+      cnS4('CN-S4-07', 'a remoção por prefixo se abre e o reset passa a varrer ponteiros de pintura, entitlement e antifarming', o, m);
+    }
+
+    // CN-8 — o relatório da exclusão passa a se declarar bem-sucedido com resíduo
+    {
+      const alvo = (u) => u.startsWith(D60_4) && u.includes('alight');
+      const [o, m] = await parS4({ apagarFalha: alvo },
+        { rst: mutar4('  if (relatorio.failed.length > 0 || relatorio.residual.length > 0) relatorio.ok = false;',
+          '  if (false) relatorio.ok = false;') },
+        async (ap) => {
+          const r = await ap.RST.deleteColoring60Artworks(HIST4);
+          return r.ok === false && arq4(ap, D60_4).length === 1;
+        });
+      cnS4('CN-S4-08', 'a exclusão declara sucesso completo com um arquivo ainda sobrevivendo no aparelho', o, m);
+    }
+
+    // CN-9 — cancelar passa a executar
+    {
+      const cenarioUI = async (ap, mutSrc) => {
+        const ui = mkPais4(ap, mutSrc);
+        ui.abrir('artworks'); ui.continuar();
+        await ui.cancelar();
+        // O cancelamento é síncrono; o mutante dispara a exclusão sem esperar — daí o respiro.
+        await new Promise((r) => setImmediate(r));
+        return arq4(ap, D60_4).length === 3 && ui.estado().acao === null;
+      };
+      // O aparelho nasce DENTRO do `seguro4`, como em todos os outros controles: se a montagem do
+      // arnês falhar, o controle precisa reprovar com mensagem — não derrubar a suíte inteira.
+      const o = await seguro4(async () => cenarioUI(await vivido4()));
+      const m = await seguro4(async () => cenarioUI(await vivido4(),
+        mutar4('  function closeDataAction() {\n    setDataAction(null);',
+          '  function closeDataAction() {\n    PARENT_DATA_ACTIONS[1].run();\n    setDataAction(null);')));
+      cnS4('CN-S4-09', 'o botão Cancelar passa a executar a exclusão que o responsável acabou de recusar', o, m);
+    }
+
+    // CN-10 — o entitlement entra na whitelist do reset
+    {
+      const [o, m] = await parS4({},
+        { prs: mutar4("  keys.push('@ptf_bonus_stars');", "  keys.push('@ptf_bonus_stars');\n  keys.push('@ptf_entitlement_v1');") },
+        async (ap) => {
+          await ap.PRS.resetProgress();
+          return ap.mapa.get('@ptf_entitlement_v1') === '{"premium":true}';
+        });
+      cnS4('CN-S4-10', 'o entitlement entra na whitelist e reiniciar o progresso apaga a assinatura que o responsável comprou', o, m);
+    }
+
+    // CN-11 — os dados antifarming entram na whitelist do reset
+    {
+      const [o, m] = await parS4({},
+        { prs: mutar4("  keys.push('@ptf_achievements_seen');", "  keys.push('@ptf_achievements_seen');\n  keys.push('@ptf_brincar_daily_v1');") },
+        async (ap) => {
+          await ap.PRS.resetProgress();
+          return ap.mapa.get('@ptf_brincar_daily_v1') === '{"dia":"2026-08-03","jogadas":4}';
+        });
+      cnS4('CN-S4-11', 'os dados antifarming entram na whitelist e o reset vira uma forma de zerar o limite diário', o, m);
+    }
+
+    // CN-12 — o desfecho gravado NÃO é removido junto: a vaga concluída degrada para "falta colorir"
+    {
+      const [o, m] = await parS4({},
+        { rst: mutar4('      snapOk = (await clearColoring60Snapshot(storyId, activityIds)) === true;',
+          '      snapOk = true;') },
+        async (ap) => {
+          await ap.RST.deleteColoring60Artworks(HIST4);
+          const k = await kinds4(ap);
+          const j = await ap.RD.loadColoring60JourneyState(HIST4);
+          return IDS4.every((id) => k[id] === ap.COL.SLOT.NOT_PERSISTED)
+            && j.countLabel === '3 de 3' && j.hasIntegrityBreak === false;
+        });
+      cnS4('CN-S4-12', 'a vaga concluída deixa de virar NOT_PERSISTED honesto e o app acusa quebra de integridade por uma exclusão que o responsável pediu', o, m);
+    }
+
+    for (const c of CN_S4) {
+      check(`S4 [negativo ${c.id}]: ${c.descricao}`,
+        c.original === true && c.mutante === false,
+        `o controle negativo não distinguiu o certo do errado (original=${JSON.stringify(c.original)} · mutante=${JSON.stringify(c.mutante)})`);
+    }
+    check('S4 [negativos]: os doze controles negativos do S4 rodaram e nenhum sobreviveu',
+      CN_S4.length === 12 && CN_S4.every((c) => c.original === true && c.mutante === false),
+      `executados=${CN_S4.length} · sobreviventes=${CN_S4.filter((c) => !(c.original === true && c.mutante === false)).map((c) => c.id).join(', ') || '(nenhum)'}`);
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

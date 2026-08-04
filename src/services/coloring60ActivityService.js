@@ -289,6 +289,43 @@ export async function markColoring60FinaleSeen(storyId) {
 }
 
 /**
+ * [Spec 019 · S4] clearColoring60Snapshot(storyId, activityIds) — remove SOMENTE o DESFECHO
+ * gravado (`@ptf_coloring60_snap_*`) das identidades informadas. Preserva `done`, `ever` e a marca
+ * da grande conclusão.
+ *
+ * POR QUE ELA PRECISA EXISTIR. A exclusão parental das pinturas tem de dizer a verdade: a criança
+ * CONCLUIU aquela parte, e apagar a arte não desfaz o que ela fez. Sem esta primitiva só havia
+ * dois caminhos, e os dois MENTEM:
+ *   · apagar só o ponteiro/blob deixa o desfecho gravado em `ready` sem arte nenhuma. A evidência
+ *     vira "prometi uma obra e ela sumiu": `reconcileSnapshotStatus` cai em `missing`, a vaga é
+ *     classificada como NEEDS_COLOR, o contador CAI de 3/3 para 2/3 e a coleção acusa quebra de
+ *     integridade — como se o APARELHO tivesse perdido a obra, e não como se o responsável a
+ *     tivesse apagado de propósito.
+ *   · `clearColoring60Done` / `clearColoring60Completion` levam o `done` junto, e a vaga vira
+ *     EMPTY: "ainda falta colorir", isto é, NUNCA REALIZADA. Apagar a pintura teria apagado a
+ *     conquista da criança.
+ * Removendo APENAS o desfecho, a evidência passa a ser "concluída, sem registro de arte" — que é
+ * exatamente o que produz o NOT_PERSISTED honesto ("Parte concluída!" + "Pinte de novo para
+ * guardar sua criação."). A atividade continua contando no "x de 3".
+ *
+ * Age SÓ nas identidades informadas, montadas a partir do catálogo canônico: sem `getAllKeys`,
+ * sem prefixo aberto, sem `clear()`. Nunca lança.
+ */
+export async function clearColoring60Snapshot(storyId, activityIds = []) {
+  if (!isValidStory(storyId)) return false;
+  const ids = Array.isArray(activityIds)
+    ? activityIds.filter((id) => isValidIdentity(storyId, id))
+    : [];
+  if (ids.length === 0) return true;
+  try {
+    await AsyncStorage.multiRemove(ids.map((id) => coloring60SnapKey(storyId, id)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * clearColoring60Completion(storyId, activityIds) — apaga TODO o registro de CONCLUSÃO desta
  * história: "concluída agora" e "já concluiu alguma vez" de cada atividade informada, mais a
  * marca da grande conclusão vista.
@@ -297,6 +334,9 @@ export async function markColoring60FinaleSeen(storyId) {
  * O reset canônico (`coloring60ResetService`) chama esta função em vez de repetir prefixos —
  * assim não existem duas listas de chaves para divergirem. Age SÓ nas identidades informadas:
  * sem `getAllKeys`, sem prefixo aberto, sem `clear()`. Nunca lança.
+ *
+ * [S4] NÃO é a primitiva da exclusão parental de pinturas — esta apaga a CONQUISTA junto. Quem
+ * apaga a obra preservando a conclusão é `clearColoring60Snapshot`, logo acima.
  */
 export async function clearColoring60Completion(storyId, activityIds = []) {
   if (!isValidStory(storyId)) return false;

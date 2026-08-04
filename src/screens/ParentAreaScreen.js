@@ -30,6 +30,8 @@ import { getAvatarImage, getProfileAvatarSkinTone } from '../data/avatars';
 import AvatarImage from '../components/AvatarImage';
 import { stories } from '../data/stories';
 import { resetProgress } from '../services/progressResetService';
+import { deleteColoring60Artworks } from '../services/coloring60ResetService';
+import { deleteAllAtelierCreations } from '../services/atelierResetService';
 import { getStoreReviewUrl } from '../config/storeLinks';
 import SoundButton from '../components/SoundButton';
 import { BeniSpeechCard } from '../components/beni';
@@ -143,6 +145,107 @@ function ToggleRow({ label, description, value, onValueChange }) {
   );
 }
 
+/**
+ * [Spec 019 · S4] AÇÕES PARENTAIS DE DADOS — três intenções distintas, três ações distintas.
+ *
+ * O QUE ESTAVA ERRADO. Havia UM botão que dizia apagar progresso e, por baixo, também destruía
+ * todas as pinturas do Colorir com o Beni. O texto na tela chegava a PROMETER o contrário ("todos
+ * os desenhos e artes não serão afetados") — e era falso desde que o S1 passou a salvar a pintura
+ * de todo usuário com acesso legítimo. O responsável que só queria deixar a criança recomeçar
+ * perdia tudo o que ela havia pintado, sem aviso e sem volta.
+ *
+ * A REGRA. Cada storage tem sua própria ação, com título, o que será APAGADO, o que será
+ * PRESERVADO, confirmação, cancelamento e resultado verificado. Não existe botão genérico que
+ * misture os dois storages de criação: quem quer limpar a galeria do Criar Livre não está pedindo
+ * para destruir as pinturas das histórias, e vice-versa.
+ *
+ * `run()` devolve `{ ok }` — a tela NUNCA anuncia sucesso sem essa verificação.
+ */
+const PARENT_DATA_ACTIONS = [
+  {
+    id: 'progress',
+    title: '🗑️ Reiniciar progresso das histórias',
+    intro: 'Use esta opção se quiser que a criança recomece a jornada do zero neste aparelho.',
+    startLabel: '🗑️ Reiniciar progresso',
+    confirmTitle: 'Confirmar reinício do progresso',
+    confirmLabel: 'Reiniciar definitivamente',
+    apaga:
+      'O progresso da jornada — cenas concluídas, quiz, reflexão, Livrinho, estrelas e conquistas '
+      + 'vistas, o que já foi visto no Baú, o Cultinho, os Momentos com Beni, a marca de cenas já '
+      + 'coloridas e os convites do Beni (que voltarão a aparecer).',
+    preserva:
+      'As pinturas do Colorir com o Beni, as criações do Criar Livre, o perfil, o nome, a '
+      + 'assinatura e as configurações. As partes voltam a ficar incompletas, mas cada pintura '
+      + 'continua guardada e reaparece quando a criança abrir a parte de novo — só que agora '
+      + 'precisa concluir outra vez para o progresso voltar a contar.',
+    doneTitle: '✅ Progresso reiniciado',
+    doneMsg:
+      'A jornada pode começar de novo. As pinturas e as criações da criança foram preservadas.',
+    partialMsg:
+      'Parte do progresso pode não ter sido reiniciada. Nada foi apagado das pinturas ou das '
+      + 'criações. Tente novamente.',
+    errorMsg: 'Não foi possível reiniciar o progresso. Tente novamente.',
+    refreshProgress: true,
+    run: async () => {
+      const r = await resetProgress();
+      // O reset geral não devolve veredito próprio; a jornada de cores devolve. Um resíduo lá é
+      // motivo suficiente para NÃO declarar sucesso aqui.
+      const c60 = r && r.coloring60Reset;
+      return { ok: !(c60 && c60.ok === false) };
+    },
+  },
+  {
+    id: 'artworks',
+    title: '🎨 Apagar pinturas das histórias',
+    intro:
+      'Apaga as pinturas que a criança guardou no Colorir com o Beni. O progresso da jornada não é '
+      + 'afetado.',
+    startLabel: '🎨 Apagar pinturas',
+    confirmTitle: 'Confirmar exclusão das pinturas',
+    confirmLabel: 'Apagar pinturas',
+    apaga: 'Todas as pinturas guardadas do Colorir com o Beni, incluindo os arquivos no aparelho.',
+    preserva:
+      'O progresso da jornada, as partes já concluídas, as criações do Criar Livre, a assinatura, '
+      + 'o perfil e as configurações. As partes concluídas continuam concluídas e passam a '
+      + 'mostrar "Parte concluída! Pinte de novo para guardar sua criação."',
+    doneTitle: '✅ Pinturas apagadas',
+    doneMsg:
+      'As pinturas do Colorir com o Beni foram apagadas. O progresso da criança foi preservado, e '
+      + 'ela pode pintar de novo quando quiser.',
+    partialMsg:
+      'Algumas pinturas podem não ter sido apagadas por completo. O progresso não foi alterado. '
+      + 'Tente novamente.',
+    errorMsg: 'Não foi possível apagar as pinturas. Tente novamente.',
+    refreshProgress: true,
+    run: () => deleteColoring60Artworks(),
+  },
+  {
+    id: 'atelier',
+    title: '🖍️ Apagar criações do Criar Livre',
+    intro:
+      'Apaga os desenhos livres guardados na galeria do Criar Livre. As pinturas das histórias e o '
+      + 'progresso não são afetados.',
+    startLabel: '🖍️ Apagar criações',
+    confirmTitle: 'Confirmar exclusão das criações',
+    confirmLabel: 'Apagar criações',
+    apaga:
+      'Todos os desenhos guardados na galeria do Criar Livre, incluindo os arquivos no aparelho.',
+    preserva:
+      'As pinturas do Colorir com o Beni, o progresso da jornada, a assinatura, o perfil e as '
+      + 'configurações.',
+    doneTitle: '✅ Criações apagadas',
+    doneMsg:
+      'Os desenhos do Criar Livre foram apagados. As pinturas das histórias e o progresso foram '
+      + 'preservados.',
+    partialMsg:
+      'Algumas criações podem não ter sido apagadas por completo. Nada mais foi alterado. Tente '
+      + 'novamente.',
+    errorMsg: 'Não foi possível apagar as criações. Tente novamente.',
+    refreshProgress: false,
+    run: () => deleteAllAtelierCreations(),
+  },
+];
+
 // ── Tela principal ────────────────────────────────────────────────────────────
 
 export default function ParentAreaScreen({ navigation }) {
@@ -171,10 +274,15 @@ export default function ParentAreaScreen({ navigation }) {
     ? [...PARENT_GUIDE_BASE, PARENT_GUIDE_CREATOR_STEP]
     : PARENT_GUIDE_BASE;
 
-  // Reset de progresso
-  const [resetStep, setResetStep] = useState('idle');
-  const [resetConfirmText, setResetConfirmText] = useState('');
-  const [resetLoading, setResetLoading] = useState(false);
+  // [Spec 019 · S4] "Gerenciar dados" tem TRÊS ações destrutivas independentes, e elas NUNCA rodam
+  // juntas. Uma única máquina de estados que carrega a AÇÃO ALVO evita triplicar o fluxo de
+  // confirmação e torna estruturalmente impossível confirmar uma ação e executar outra: o botão
+  // final lê a mesma `dataAction` que a tela de confirmação exibiu.
+  const [dataAction, setDataAction] = useState(null);
+  const [dataStep, setDataStep] = useState('idle');
+  const [dataConfirmText, setDataConfirmText] = useState('');
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataDoneMsg, setDataDoneMsg] = useState('');
 
   // Restore purchase
   const [restoreState, setRestoreState] = useState('idle');
@@ -392,18 +500,48 @@ export default function ParentAreaScreen({ navigation }) {
     setPendingUrl(null);
   }
 
-  async function handleExecuteReset() {
-    if (resetConfirmText.trim() !== 'APAGAR') return;
-    setResetLoading(true);
+  function closeDataAction() {
+    setDataAction(null);
+    setDataStep('idle');
+    setDataConfirmText('');
+    setDataDoneMsg('');
+  }
+
+  function startDataAction(id) {
+    setDataAction(id);
+    setDataStep('confirm1');
+    setDataConfirmText('');
+    setDataDoneMsg('');
+  }
+
+  /**
+   * [Spec 019 · S4] Executa a ação parental ATUALMENTE confirmada — nunca outra.
+   *
+   * SUCESSO NÃO É PRESUMIDO. Cada serviço destrutivo devolve verificação própria (resíduo, falha
+   * parcial); a tela só mostra "pronto" quando essa verificação passa. Uma exclusão que deixou
+   * arquivo para trás vira aviso honesto, não confete — anunciar sucesso com resíduo é justamente
+   * o que faria o responsável acreditar que apagou algo que continua no aparelho.
+   */
+  async function handleExecuteDataAction() {
+    const acao = PARENT_DATA_ACTIONS.find((a) => a.id === dataAction);
+    if (!acao) return;
+    if (dataConfirmText.trim() !== 'APAGAR') return;
+    setDataLoading(true);
     try {
-      await resetProgress();
-      refreshProgress();
-      setResetStep('done');
-      setResetConfirmText('');
+      const resultado = await acao.run();
+      if (acao.refreshProgress) refreshProgress();
+      if (resultado && resultado.ok === false) {
+        closeDataAction();
+        Alert.alert('Não foi possível concluir', acao.partialMsg);
+      } else {
+        setDataDoneMsg(acao.doneMsg);
+        setDataConfirmText('');
+        setDataStep('done');
+      }
     } catch {
-      Alert.alert('Erro', 'Não foi possível limpar o progresso. Tente novamente.');
+      Alert.alert('Erro', acao.errorMsg);
     } finally {
-      setResetLoading(false);
+      setDataLoading(false);
     }
   }
 
@@ -781,81 +919,99 @@ export default function ParentAreaScreen({ navigation }) {
           {/* ─── 5. GERENCIAR DADOS ───────────────────────────────────────────── */}
           <AccordionSection
             title="Gerenciar dados"
-            hint="Limpar progresso ou apagar dados — com confirmação."
+            hint="Reiniciar progresso ou apagar criações — cada um separadamente, com confirmação."
           >
             <InfoCard style={styles.resetCard}>
-              <Text style={[styles.bodyText, { fontWeight: '700', color: '#C62828', marginBottom: 8 }]}>
-                🗑️ Limpar progresso da criança
-              </Text>
-              {resetStep === 'done' ? (
-                <View style={styles.resetDoneBox}>
-                  <Text style={styles.resetDoneTitle}>✅ Progresso apagado</Text>
-                  <Text style={styles.resetDoneDesc}>
-                    A jornada pode começar de novo. O perfil e todos os desenhos e artes (do Ateliê e das histórias coloridas) foram preservados.
-                  </Text>
-                  <SoundButton style={styles.resetCancelBtn} onPress={() => setResetStep('idle')} activeOpacity={0.85}>
-                    <Text style={styles.resetCancelBtnText}>Fechar</Text>
-                  </SoundButton>
-                </View>
-              ) : resetStep === 'confirm2' ? (
-                <View>
-                  <Text style={styles.resetWarningTitle}>⚠️ Esta ação não pode ser desfeita</Text>
-                  <Text style={styles.bodyText}>
-                    Será apagado o progresso da jornada: estrelas e cenas concluídas, quiz, reflexão, Livrinho, conquistas vistas, o que já foi visto no Baú, o Cultinho e os Momentos com Beni. As pinturas e artes da criança NÃO são apagadas.
-                  </Text>
-                  <Text style={[styles.bodyText, { marginTop: 10, fontWeight: '700', color: pt.text }]}>
-                    Digite APAGAR para confirmar:
-                  </Text>
-                  <TextInput
-                    style={styles.resetInput}
-                    value={resetConfirmText}
-                    onChangeText={setResetConfirmText}
-                    placeholder="APAGAR"
-                    placeholderTextColor={pt.muted}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                  />
-                  <View style={styles.resetBtnColumn}>
-                    <SoundButton style={[styles.resetCancelBtn, styles.resetBtnStacked]} onPress={() => { setResetStep('idle'); setResetConfirmText(''); }} activeOpacity={0.85}>
-                      <Text style={styles.resetCancelBtnText}>Cancelar</Text>
-                    </SoundButton>
-                    <SoundButton
-                      style={[styles.resetConfirmBtn, styles.resetBtnStacked, resetConfirmText.trim() !== 'APAGAR' && styles.resetConfirmBtnDisabled]}
-                      onPress={handleExecuteReset}
-                      disabled={resetConfirmText.trim() !== 'APAGAR' || resetLoading}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.resetConfirmBtnText} numberOfLines={1}>
-                        {resetLoading ? 'Apagando...' : 'Apagar definitivamente'}
-                      </Text>
-                    </SoundButton>
+              {/* [Spec 019 · S4] Uma ação por intenção. O progresso e cada storage de criação têm
+                  fluxos INDEPENDENTES: enquanto uma confirmação está aberta, as outras ficam
+                  bloqueadas, para que nunca reste dúvida sobre o que o botão final vai apagar. */}
+              {PARENT_DATA_ACTIONS.map((acao, idx) => {
+                const aberta = dataAction === acao.id;
+                const bloqueada = dataAction != null && !aberta;
+                const ultima = idx === PARENT_DATA_ACTIONS.length - 1;
+                return (
+                  <View key={acao.id} style={[styles.dataActionBox, ultima && styles.dataActionBoxLast]}>
+                    <Text style={styles.dataActionTitle}>{acao.title}</Text>
+
+                    {aberta && dataStep === 'done' ? (
+                      <View style={styles.resetDoneBox}>
+                        <Text style={styles.resetDoneTitle}>{acao.doneTitle}</Text>
+                        <Text style={styles.resetDoneDesc}>{dataDoneMsg}</Text>
+                        <SoundButton style={styles.resetCancelBtn} onPress={closeDataAction} activeOpacity={0.85}>
+                          <Text style={styles.resetCancelBtnText}>Fechar</Text>
+                        </SoundButton>
+                      </View>
+                    ) : aberta && dataStep === 'confirm2' ? (
+                      <View>
+                        <Text style={styles.resetWarningTitle}>⚠️ Esta ação não pode ser desfeita</Text>
+                        <Text style={styles.bodyText}>
+                          <Text style={styles.dataActionLabel}>Será apagado: </Text>{acao.apaga}
+                        </Text>
+                        <Text style={[styles.bodyText, { marginTop: 6 }]}>
+                          <Text style={styles.dataActionLabel}>Será preservado: </Text>{acao.preserva}
+                        </Text>
+                        <Text style={[styles.bodyText, { marginTop: 10, fontWeight: '700', color: pt.text }]}>
+                          Digite APAGAR para confirmar:
+                        </Text>
+                        <TextInput
+                          style={styles.resetInput}
+                          value={dataConfirmText}
+                          onChangeText={setDataConfirmText}
+                          placeholder="APAGAR"
+                          placeholderTextColor={pt.muted}
+                          autoCapitalize="characters"
+                          autoCorrect={false}
+                        />
+                        <View style={styles.resetBtnColumn}>
+                          <SoundButton style={[styles.resetCancelBtn, styles.resetBtnStacked]} onPress={closeDataAction} activeOpacity={0.85}>
+                            <Text style={styles.resetCancelBtnText}>Cancelar</Text>
+                          </SoundButton>
+                          <SoundButton
+                            style={[styles.resetConfirmBtn, styles.resetBtnStacked, dataConfirmText.trim() !== 'APAGAR' && styles.resetConfirmBtnDisabled]}
+                            onPress={handleExecuteDataAction}
+                            disabled={dataConfirmText.trim() !== 'APAGAR' || dataLoading}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.resetConfirmBtnText} numberOfLines={1}>
+                              {dataLoading ? 'Apagando...' : acao.confirmLabel}
+                            </Text>
+                          </SoundButton>
+                        </View>
+                      </View>
+                    ) : aberta && dataStep === 'confirm1' ? (
+                      <View>
+                        <Text style={styles.resetWarningTitle}>⚠️ {acao.confirmTitle}</Text>
+                        <Text style={styles.bodyText}>
+                          <Text style={styles.dataActionLabel}>Será apagado: </Text>{acao.apaga}
+                        </Text>
+                        <Text style={[styles.bodyText, { marginTop: 6 }]}>
+                          <Text style={styles.dataActionLabel}>Será preservado: </Text>{acao.preserva}
+                        </Text>
+                        <View style={styles.resetBtnRow}>
+                          <SoundButton style={styles.resetCancelBtn} onPress={closeDataAction} activeOpacity={0.85}>
+                            <Text style={styles.resetCancelBtnText}>Cancelar</Text>
+                          </SoundButton>
+                          <SoundButton style={styles.resetNextBtn} onPress={() => setDataStep('confirm2')} activeOpacity={0.85}>
+                            <Text style={styles.resetNextBtnText}>Continuar →</Text>
+                          </SoundButton>
+                        </View>
+                      </View>
+                    ) : (
+                      <View>
+                        <Text style={styles.bodyText}>{acao.intro}</Text>
+                        <SoundButton
+                          style={[styles.resetStartBtn, bloqueada && styles.resetConfirmBtnDisabled]}
+                          onPress={() => startDataAction(acao.id)}
+                          disabled={bloqueada}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.resetStartBtnText}>{acao.startLabel}</Text>
+                        </SoundButton>
+                      </View>
+                    )}
                   </View>
-                </View>
-              ) : resetStep === 'confirm1' ? (
-                <View>
-                  <Text style={styles.resetWarningTitle}>⚠️ Confirmar reset</Text>
-                  <Text style={styles.bodyText}>
-                    Isso vai apagar o progresso da jornada da criança neste aparelho. Perfil, nome, e todos os desenhos e artes (do Ateliê e das histórias coloridas) não serão afetados.
-                  </Text>
-                  <View style={styles.resetBtnRow}>
-                    <SoundButton style={styles.resetCancelBtn} onPress={() => setResetStep('idle')} activeOpacity={0.85}>
-                      <Text style={styles.resetCancelBtnText}>Cancelar</Text>
-                    </SoundButton>
-                    <SoundButton style={styles.resetNextBtn} onPress={() => setResetStep('confirm2')} activeOpacity={0.85}>
-                      <Text style={styles.resetNextBtnText}>Continuar →</Text>
-                    </SoundButton>
-                  </View>
-                </View>
-              ) : (
-                <View>
-                  <Text style={styles.bodyText}>
-                    Use esta opção apenas se quiser que a criança recomece a jornada do zero neste aparelho.
-                  </Text>
-                  <SoundButton style={styles.resetStartBtn} onPress={() => setResetStep('confirm1')} activeOpacity={0.85}>
-                    <Text style={styles.resetStartBtnText}>🗑️ Apagar progresso</Text>
-                  </SoundButton>
-                </View>
-              )}
+                );
+              })}
 
               <View style={styles.deleteAllBox}>
                 <Text style={styles.deleteAllTitle}>Apagar todos os dados locais</Text>
@@ -1314,6 +1470,18 @@ const styles = StyleSheet.create({
   qaCard: { borderWidth: 1.5, borderColor: '#94A3B8', backgroundColor: '#F1F5F9' },
   comingSoonCard: { borderWidth: 1, borderColor: pt.border, backgroundColor: '#F8F8F8' },
   resetCard: { borderWidth: 1.5, borderColor: '#FFCDD2', backgroundColor: '#FFF8F8' },
+
+  // [Spec 019 · S4] Ações de dados — uma caixa por intenção, separadas por régua, para que
+  // fiquem visualmente distintas em vez de parecerem variações do mesmo botão.
+  dataActionBox: {
+    marginBottom: 18, paddingBottom: 18,
+    borderBottomWidth: 1, borderBottomColor: '#FFE0E0',
+  },
+  dataActionTitle: {
+    fontSize: 15, fontWeight: '700', color: '#C62828', marginBottom: 8,
+  },
+  dataActionBoxLast: { marginBottom: 0, paddingBottom: 0, borderBottomWidth: 0 },
+  dataActionLabel: { fontWeight: '700', color: pt.text },
 
   // Visão geral da criança
   childProfileRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },

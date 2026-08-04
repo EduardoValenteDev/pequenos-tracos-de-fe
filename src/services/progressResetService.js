@@ -8,16 +8,20 @@
  *   (diários + flag permanente) e o VÍNCULO de colorir por cena
  *   (`@ptf_drawing_*` — a marca "já colorei esta cena"). Assim, após o reset uma
  *   cena não aparece mais como já colorida.
- * - PRESERVA as criações guardadas: artes salvas na Galeria do Ateliê
- *   (`ptf_atelier_arts_*`), perfil, plano e configurações ficam fora da whitelist
- *   e dos prefixos. Apagar a Galeria é uma AÇÃO SEPARADA ("Apagar todos os dados").
+ * - PRESERVA as criações guardadas: artes salvas na Galeria do Criar Livre
+ *   (`ptf_atelier_arts_*`), as PINTURAS do Colorir com o Beni (`@ptf_drawing60_*`
+ *   + blobs em `drawings60/`), perfil, plano, entitlement, consentimentos,
+ *   configurações e dados antifarming ficam fora da whitelist e dos prefixos.
+ * - [Spec 019 · S4] Apagar criações é AÇÃO PARENTAL SEPARADA — duas, na verdade,
+ *   uma por storage: "Apagar pinturas das histórias" (C60) e "Apagar criações do
+ *   Criar Livre". Reiniciar o progresso NUNCA as executa por tabela.
  * - Deve ser chamado apenas da Área dos Pais, após confirmação dupla.
  * - Chamar refreshProgress() externamente após este serviço completar.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { stories } from '../data/stories';
 import { clearAllSavedDrawings } from './drawingStorage';
-import { resetCreationColoringJourney } from './coloring60ResetService';
+import { resetColoring60Progress } from './coloring60ResetService';
 
 const STORY_IDS = stories.map(s => s.id);
 
@@ -90,8 +94,10 @@ export async function resetProgress() {
   // Vínculo de colorir por cena: remove TODAS as chaves `@ptf_drawing_*` E os
   // arquivos de blob apontados (sem deixar órfãos), via a função canônica do
   // drawingStorage. Assim, após o reset nenhuma cena aparece como já colorida.
-  // A Galeria do Ateliê (`ptf_atelier_arts_*`) NÃO é tocada → preservada.
-  // (Apagar a Galeria é o "reset total" separado em "Gerenciar dados".)
+  // Este é o namespace LEGADO por cena — a marca "já colorei esta cena", um estado
+  // de progresso do roteiro, e não uma obra guardada. Ele não alcança
+  // `@ptf_drawing60_*` (as pinturas do Colorir com o Beni, preservadas abaixo) nem
+  // `ptf_atelier_arts_*` (o Criar Livre, intocado aqui).
   let drawingsRemoved = 0;
   try {
     drawingsRemoved = await clearAllSavedDrawings();
@@ -102,12 +108,21 @@ export async function resetProgress() {
   // Jornada de cores do Colorir 60 (C60 · Parte 6). A whitelist acima NÃO alcança as chaves do
   // piloto (`@ptf_coloring60_*` e `@ptf_drawing60_*`) e `clearAllSavedDrawings` filtra
   // `@ptf_drawing_` — que NÃO casa `@ptf_drawing60_`. Por isso o "3 de 3" sobrevivia a "Gerenciar
-  // dados". Em vez de copiar as chaves para cá (duas listas divergem), chamamos a FUNÇÃO ÚNICA de
-  // reset da jornada, que é a mesma usada pela bancada de desenvolvimento. Ela apaga conclusão,
-  // memória de "já concluiu", grande conclusão vista, pixels, ARQUIVOS físicos, convite e caches.
+  // dados". Em vez de copiar as chaves para cá (duas listas divergem), chamamos a limpeza canônica
+  // da jornada, que apaga conclusão, memória de "já concluiu", grande conclusão vista, convites e
+  // caches em memória.
+  //
+  // [Spec 019 · S4] AQUI FICA `resetColoring60Progress`, NUNCA `resetCreationColoringJourney`. A
+  // diferença entre as duas é a obra da criança. Até o S1 o C60 não guardava pintura nenhuma e
+  // chamar a composição era inofensivo; agora a política SALVA a pintura de todo usuário com
+  // acesso, e reiniciar o progresso deixaria de ser "fazer de novo" para virar destruição
+  // silenciosa de tudo o que a criança pintou. Apagar pinturas é uma ação parental separada, com
+  // confirmação própria (`deleteColoring60Artworks`). O ponteiro, o blob e o desfecho gravado
+  // SOBREVIVEM a este reset; a atividade volta a estar incompleta, e a obra é reidratada no canvas
+  // quando a criança reabre a parte — sem restaurar conclusão, quiz, reflexão ou cenas.
   let coloring60Reset = null;
   try {
-    coloring60Reset = await resetCreationColoringJourney();
+    coloring60Reset = await resetColoring60Progress();
   } catch {
     // Defensivo: nunca lança a partir do reset.
   }
