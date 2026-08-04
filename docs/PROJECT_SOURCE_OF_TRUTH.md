@@ -34,18 +34,20 @@ O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md), o `DOC
 |---|---|
 | Fase anterior | **Fase 2.5 — integração do Colorir com o Beni sobre a fundação: ENCERRADA em 2026-08-04** |
 | Linha canônica | **`integrate/colorir-canonical-runtime`** |
-| HEAD canônico | **`ea54a90`** — Spec 019 integrada por *fast-forward*, histórico linear, sem commit de merge |
+| HEAD canônico | **`7f96ee9`** — Spec 020 · Bloco 1 (o onboarding termina no Mapa) integrado por *fast-forward* sobre `ea54a90`; histórico linear, sem commit de merge |
 | Baseline técnico | `fix/loading-performance-foundation` @ **`aeda9c2`** · tag **`lp-foundation-closed-2026-07-30`** → `bc79edb` · smoke **3314/3314** |
-| Portões no HEAD canônico | `npm run smoke` **4512/4512** · `npx expo-doctor` **18/18** |
+| Portões no HEAD canônico | `npm run smoke` **4525/4525** · `npx expo-doctor` **18/18** |
 | Método | **Somente leitura.** A Fase 3 audita e reconcilia; nenhuma implementação sem novo ciclo SDD e sem os portões humanos. |
 
 Objetivo, entregas, critério de saída, riscos e as fases seguintes (até a **Fase 22**) estão na [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3. As decisões de produto da Fase 2.5 estão em [`docs/DECISIONS.md`](DECISIONS.md), registros `D-C60-INTEGRACAO-PRODUTO` e `D-C60-PERSISTENCIA-TODOS-PLANOS`.
+
+**Achados físicos registrados nesta fase.** A sessão física no build interno iOS **`98e2b422-0025-4d40-a772-073ef3dba553`** (commit executável `7f96ee9`, perfil `c60-pilot`) produziu quatro pendências, registradas por **fase proprietária** na [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §4.1: **QA REP 01** (Fase 7), **STR ONB 01** (Fase 11), **JRN C60 01** (Fase 9) e **ONB BRI 01** (Fase 7, revalidação após a 12A). Nenhuma foi corrigida — o registro é documental. A **Spec 020 permanece em validação**: os critérios centrais da primeira aventura **não** foram declarados pelo fundador, e o registro parcial com o roteiro residual está em `specs/020-onboarding-first-adventure/spec-onboarding-first-adventure.md` §14.
 
 ### 1.1.1 Encerramento da Fase 2.5 (2026-08-04)
 
 **Linha canônica.** A Fase 2.5 começou em **`integrate/colorir-with-loading`** e, a partir da canonicalização de runtime, passou a viver em **`integrate/colorir-canonical-runtime`** — esta é a **linha canônica vigente**. A branch anterior permanece como **registro histórico**, não como branch de trabalho. Contexto histórico preservado da fase: branch de origem do piloto `feat/colorir-60-pilot-creation` @ **`795760a`**, merge base **`6cf799c`**, método de integração **reconstruída por blocos, sem merge bruto da branch antiga**.
 
-**Estado técnico integrado.** O HEAD canônico é **`ea54a90`**, alcançado por *fast-forward* a partir de **`e07e8bc`** (16 commits: Spec 018 + Spec 019 + fechamento documental). Nenhum commit de merge; histórico linear preservado. A publicação da linha canônica em `origin` faz parte deste encerramento.
+**Estado técnico integrado.** O HEAD canônico **no momento deste encerramento** era **`ea54a90`**, alcançado por *fast-forward* a partir de **`e07e8bc`** (16 commits: Spec 018 + Spec 019 + fechamento documental). Nenhum commit de merge; histórico linear preservado. A publicação da linha canônica em `origin` faz parte deste encerramento.
 
 **Aprovação física.** A Spec 019 foi **validada fisicamente pelo fundador em iPhone real**, no build interno iOS **`bafb8e3f-4fd5-43b6-873b-aca69a4a8a6a`** (commit executável **`b24c868`**, perfil `c60-pilot`, fingerprint `c8b6c521500558fde471e47202d41d5e9dda79aa`). Foram declarados **aprovados** os cinco itens visuais A1–A5 e os dez testes de persistência e exclusão P1–P10. Evidências em [`docs/C60_VALIDACAO_FISICA.md`](C60_VALIDACAO_FISICA.md) (Parte D) e veredito em `specs/019-c60-persistence-all-plans/spec-c60-persistence-all-plans.md` §21. O commit `ea54a90` é **puramente documental** sobre `b24c868`: `src`, `scripts`, `assets`, dependências e configurações de build são **bit a bit idênticos** ao binário validado.
 
