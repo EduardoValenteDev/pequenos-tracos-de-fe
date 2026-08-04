@@ -163,9 +163,22 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   [`specs/019-c60-persistence-all-plans/`](../specs/019-c60-persistence-all-plans/spec-c60-persistence-all-plans.md),
   em blocos **D1 → S1 → S2 → S3 → S4 → D2**. A spec **018** (ativação controlada do piloto) está
   **concluída e validada fisicamente** e **não** é reaberta.
-- **Estado:** **em execução.** ⛔ **Janela transitória ativa desde 2026-08-03: NÃO GERAR BUILD**
+- **Estado:** ~~**em execução.** ⛔ **Janela transitória ativa desde 2026-08-03: NÃO GERAR BUILD**
   entre o **D1** e a conclusão do **S1** da Spec 019 — a documentação já revogou a política antiga,
-  mas o código e o `scripts/smoke.js` ainda a defendem.
+  mas o código e o `scripts/smoke.js` ainda a defendem.~~
+  ✅ **ATUALIZADO EM 2026-08-04.** A janela transitória está **encerrada** — código, smoke e
+  documentação voltaram a concordar. A **Spec 019 está concluída e fisicamente aprovada** no build
+  **`bafb8e3f-4fd5-43b6-873b-aca69a4a8a6a`** (commit **`b24c868`**, perfil `c60-pilot`,
+  fingerprint `c8b6c521500558fde471e47202d41d5e9dda79aa`), com **A1–A5** e **P1–P10** aprovados pelo
+  fundador em iPhone real, smoke **4512/4512** e expo-doctor **18/18**. Registro em
+  [`docs/C60_VALIDACAO_FISICA.md`](C60_VALIDACAO_FISICA.md) **Parte D** e no árbitro
+  ([`D-C60-PERSISTENCIA-TODOS-PLANOS`](DECISIONS.md#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §8).
+  Os blocos **D1 → S1 → S2 → S3 → S4 → S4-FIX → D2** estão **todos concluídos**.
+- **Limite explícito do eixo comercial.** O perfil `c60-pilot` **não declara chave
+  `EXPO_PUBLIC_REVENUECAT_*`** e opera permanentemente no **plano Grátis**. Portanto **entitlement
+  Família real, compra, restauração, pack premium e downgrade NÃO foram validados fisicamente** — e
+  **não** são registrados como aprovados nem reprovados. Por decisão do fundador em 2026-08-04, são
+  **obrigatórios na Fase 18** e recebem **revalidação obrigatória na Fase 21**.
 
 ---
 
@@ -379,6 +392,14 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   rodadas e avatares; **definição definitiva da duração da verificação offline**.
 - **Critério de saída:** compra e restore reais aprovados em ambos os sistemas operacionais;
   nenhuma tela decidindo acesso sozinha; nenhuma oferta comercial exibida à criança.
+- ➕ **Herdado da Fase 2.5 em 2026-08-04 — obrigatório.** Os cenários da **Spec 019** que o perfil
+  `c60-pilot` não conseguiu exercer (por não declarar chave `EXPO_PUBLIC_REVENUECAT_*`) tornam-se
+  **critério de saída desta fase**: **(a)** entitlement **Família real**; **(b)** persistência da
+  pintura do Colorir com o Beni com Família real em **história premium**; **(c)** **download de pack
+  premium** com salvamento da pintura correspondente; **(d)** **downgrade** de Família para Grátis
+  **não apaga** a obra premium já salva; **(e)** teste premium **sem ferramentas internas**. Ver
+  [`D-C60-PERSISTENCIA-TODOS-PLANOS`](DECISIONS.md#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §8.1
+  e [`docs/C60_VALIDACAO_FISICA.md`](C60_VALIDACAO_FISICA.md) **Parte D §D.4/D.5**.
 - **Dependência:** valores comerciais são **pendência controlada** até decisão do fundador — não
   são inventados por nenhum documento.
 
@@ -417,6 +438,10 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   medição final.
 - **Critério de saída:** beta sem bloqueador crítico; atualização entre versões comprovada em
   dispositivo real, sem perda de progresso nem de arte.
+- ➕ **Revalidação obrigatória decidida em 2026-08-04.** Os cinco cenários Família e premium herdados
+  da **Spec 019** e validados na **Fase 18** são **revalidados aqui**, no candidato a lançamento —
+  incluindo a **preservação da pintura já salva através da atualização entre versões**. Ver
+  [`D-C60-PERSISTENCIA-TODOS-PLANOS`](DECISIONS.md#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §8.1.
 - **Riscos atribuídos:** **R20A** (evidência física em Android) · **R21** (medição final do beta).
 
 ---
@@ -454,8 +479,17 @@ Esta v5 **não** reatribui riscos; apenas os torna visíveis no roadmap.
 Nenhuma é opcional. Detalhamento e estados individuais no árbitro
 ([`D-C60-INTEGRACAO-PRODUTO`](DECISIONS.md#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto)).
 
-1. **Persistência de pintura no Grátis bloqueada na autoridade de escrita**, fail closed — não
-   apenas na interface.
+1. ⚠️ **REVISADA EM 2026-08-03 (Spec 019) · ✅ CUMPRIDA EM 2026-08-04.**
+   ~~**Persistência de pintura no Grátis bloqueada na autoridade de escrita**, fail closed — não
+   apenas na interface.~~ A condição original **foi implementada e validada** (commit `1e2f8dd3`,
+   build `3b4dea54`) e depois **teve o critério substituído** pela Spec 019: a decisão continua na
+   **autoridade única de ESCRITA** e continua **fail closed**, mas passa a ser decidida pela
+   **acessibilidade real da história e da atividade — não pelo plano**. A condição vigente é:
+   **o Grátis PERSISTE a pintura do Colorir narrativo de história acessível, verificado na camada de
+   escrita e em dispositivo físico** — e **não persiste** quando a história não está acessível. O
+   **Criar Livre permanece intocado** (`E1-PLANO-FREE`, `E1-ARTES-SALVAR` e `ATELIER_FREE_SAVE_LIMIT = 0`).
+   **Cumprida fisicamente** no build `bafb8e3f` (commit `b24c868`) — ver
+   [`docs/C60_VALIDACAO_FISICA.md`](C60_VALIDACAO_FISICA.md) **Parte D**.
 2. **Atualização de manifest/pack funcional para quem já baixou conteúdo.**
 3. **Linearts legados preservados durante a integração**, sem ampliar a dependência deles; a
    remoção do binário público permanece nas Fases 16 e 17.
@@ -490,6 +524,14 @@ apresentada à criança; decisão tomada em conversa sem registro no
 
 ### Changelog
 
+- **v5 · atualização de 2026-08-04 (fechamento físico da Spec 019):** encerra a janela transitória
+  "NÃO GERAR BUILD"; registra a **aprovação física da Spec 019** no build
+  `bafb8e3f-4fd5-43b6-873b-aca69a4a8a6a` (commit `b24c868`, perfil `c60-pilot`, fingerprint
+  `c8b6c521500558fde471e47202d41d5e9dda79aa`) com **A1–A5** e **P1–P10** aprovados, smoke
+  **4512/4512** e expo-doctor **18/18**; declara **cumprida** a condição obrigatória 1 da Fase 2.5 no
+  seu critério revisado; e **vincula formalmente** os cenários Família e premium — não executáveis no
+  perfil `c60-pilot` — à **Fase 18**, com **revalidação na Fase 21**. Bloco documental, sem código,
+  sem testes, sem dependências, sem assets e sem configuração de build.
 - **v5 (2026-07-30):** institui a v5 como fonte única da linha de lançamento; carimba o baseline
   técnico do fechamento da trilha loading/performance (`aeda9c2`, tag
   `lp-foundation-closed-2026-07-30` → `bc79edb`, smoke `3314/3314`); declara a **Fase 2 encerrada**;

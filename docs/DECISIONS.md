@@ -744,6 +744,44 @@ Depois do **D1** e antes da conclusão do **S1** existe, **de forma intencional*
 > conclusão do **S1**. **O D1 não afirma que a implementação existe.** Um binário gerado nesta janela
 > se comportaria segundo a regra **revogada**, contradizendo o árbitro.
 
+> ✅ **JANELA ENCERRADA EM 2026-08-04.** O **S1** foi concluído (e, com ele, S2, S3, S4 e S4-FIX);
+> código, smoke e documentação voltaram a concordar. O build `bafb8e3f-4fd5-43b6-873b-aca69a4a8a6a`
+> foi gerado **depois** do fechamento da janela, a partir do commit `b24c868`, e **valida a regra
+> nova**. A restrição acima fica preservada como **registro histórico** e **não vigora mais**.
+
+#### 8. Fechamento físico (2026-08-04)
+
+- **Status desta decisão:** ✅ **IMPLEMENTADA E VALIDADA FISICAMENTE.**
+- **Build validado:** `bafb8e3f-4fd5-43b6-873b-aca69a4a8a6a` · **commit** `b24c86842a03bf7216d62b90a7fba6514cfb3f98` ·
+  **branch** `spec/019-c60-persistence-all-plans` · **perfil** `c60-pilot` (interno, iOS) ·
+  **fingerprint** `c8b6c521500558fde471e47202d41d5e9dda79aa` · **iPhone real do fundador**.
+- **Veredito do fundador:** **A1–A5 aprovados** (Colorir com o Beni em *A Criação*; três atividades do
+  piloto; Cultinho → Criar Livre atual; paridade Criar Juntos ↔ Criar Livre; ausência do Ateliê legado)
+  e **P1–P10 aprovados** (persistência após encerramento total; substituição sem duplicação; contador
+  em `3 de 3`; reiniciar progresso preservando pinturas; apagar pinturas preservando conclusão e Criar
+  Livre; `notPersisted` sem `needsColor`; apagar criações do Criar Livre sem tocar no Colorir;
+  persistência após reinício com segunda exclusão idempotente; Modo Avião; mensagens parentais
+  coerentes).
+- **Portões no commit validado:** smoke **4512/4512** · expo-doctor **18/18**.
+- **Registro completo:** [`docs/C60_VALIDACAO_FISICA.md`](C60_VALIDACAO_FISICA.md) **Parte D** ·
+  veredito em [`specs/019-c60-persistence-all-plans/spec-c60-persistence-all-plans.md`](../specs/019-c60-persistence-all-plans/spec-c60-persistence-all-plans.md) **§21**.
+- **Preservação:** os comportamentos A1–A5 e P1–P10 **não são reabertos silenciosamente**. Alteração
+  futura que os toque exige spec própria, provas de regressão e nova validação física.
+
+##### 8.1 Limite do veredito — Plano Família e premium
+
+O perfil `c60-pilot` **não declara** nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` e
+`configureRevenueCat()` é *fail closed* — o binário opera **permanentemente no plano Grátis**. Logo:
+
+- **Validado fisicamente:** o eixo de **persistência local no Plano Grátis**, em toda a sua extensão.
+- **NÃO validado — e nem reprovado:** **entitlement Família real**, **persistência com Família em
+  história premium**, **download de pack premium com salvamento**, **downgrade** e **teste premium sem
+  ferramentas internas**. A causa é **impossibilidade técnica do perfil**, não omissão do testador.
+- **Destino formal decidido pelo fundador em 2026-08-04:** estes cenários são **obrigatórios na
+  Fase 18** (RevenueCat, Stripe e Plano Família) e recebem **revalidação obrigatória na Fase 21**
+  (Beta do candidato e atualização real entre versões). Até lá são **pendência controlada e
+  explícita** — nunca herdados, nunca presumidos.
+
 ### D-CONCLUSAO-GLOBAL-SISTEMA (Decisão B) — Sistema global e reutilizável de conclusão das histórias
 
 - **Data:** 2026-08-03 · **Status:** ✅ **CONFIRMADA PELO FUNDADOR** (decisão de produto) · ⚠️ **CONTRATO TÉCNICO NÃO CONGELADO.**
@@ -807,5 +845,6 @@ Depois do **D1** e antes da conclusão do **S1** existe, **de forma intencional*
 - 🟡 **D-NAMING-JOGOS-PENDENTE** — nomes finais de Adivinhar o Animal / Quebra-Cabeça (Soletrando → **"Palavrinhas do Beni"** ✅ resolvido em `D-PALAVRINHAS-UF1`).
 - ✅ **D-CONCLUSAO-TOTAL-B** — definição operacional de "colorir concluído" **RESOLVIDA em 2026-07-30**: pelo menos **uma atividade do Colorir com o Beni** concluída (ver [`D-C60-INTEGRACAO-PRODUTO`](#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto) §3). O **restante** da `D-CONCLUSAO-TOTAL-B` (Opção B, ritual de conclusão) segue para implementação na **Fase 11**.
 - 🟡 **D-CRIAR-COM-BENI-STATUS** — manter ou remover "Criar com Beni" no v1 (sem código até confirmar).
-- ⛔ **ESTADO TRANSITÓRIO ATIVO (desde 2026-08-03) — NÃO GERAR BUILD** entre o **D1** e a conclusão do **S1** da Spec 019: a documentação já revogou a restrição de persistência no Grátis, mas o código e o smoke ainda defendem a regra antiga. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §7.
+- ✅ **ESTADO TRANSITÓRIO ENCERRADO EM 2026-08-04** — a janela "NÃO GERAR BUILD" entre o **D1** e a conclusão do **S1** da Spec 019 **não vigora mais**: código, smoke e documentação voltaram a concordar, e o build `bafb8e3f` (commit `b24c868`) foi gerado depois do fechamento e **validado fisicamente**. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §7 e §8.
+- 🟡 **Cenários Família e premium da Spec 019** — **obrigatórios na Fase 18** e **revalidados na Fase 21**; não validados no perfil `c60-pilot` por impossibilidade técnica. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §8.1.
 - 🟡 **Contrato técnico do sistema global de conclusão** (Decisões B e C) — **NÃO congelado**. Congelamento previsto para o **Product Lock da Fase 4**; os cinco impedimentos apurados estão em [`D-CONCLUSAO-ESTADO-ATUAL`](#d-conclusao-estado-atual--achados-que-impedem-o-congelamento-técnico-imediato-registro-de-fatos).

@@ -1374,3 +1374,122 @@ de engenharia** — o que o smoke e a revisão independente já garantem, e o qu
     o contrato**; convite, transição, áudio de retomada, legibilidade e clareza seguem para o
     **aparelho**, com os vídeos **V1–V7**. Este relatório **não** declara aprovação — ela é do fundador,
     no iPhone.
+
+---
+
+# Parte D · Spec 019 — Fechamento físico da persistência para todos os planos
+
+> **Numeração própria deste bloco.** As Partes A, B e C acima validaram o **piloto** do Colorir com o
+> Beni na branch `feat/colorir-60-pilot-creation`. Esta Parte D valida a **Spec 019** — a mudança de
+> política que passou a **salvar a pintura de toda história acessível, em qualquer plano** — e o
+> **contrato canônico de exclusão** (S4-FIX). Ela **não** reabre nem substitui nada das partes
+> anteriores.
+
+## D.1 Identidade do build validado
+
+| Item | Valor |
+|---|---|
+| **Build ID** | `bafb8e3f-4fd5-43b6-873b-aca69a4a8a6a` |
+| **Commit validado** | `b24c86842a03bf7216d62b90a7fba6514cfb3f98` |
+| **Branch de origem** | `spec/019-c60-persistence-all-plans` |
+| **Perfil** | `c60-pilot` |
+| **Distribuição** | interna (iOS) |
+| **Fingerprint** | `c8b6c521500558fde471e47202d41d5e9dda79aa` |
+| **Plataforma / SDK** | iOS · Expo SDK 54.0.0 · versão 1.0.0 · build number 1 |
+| **Data da validação física** | **2026-08-04** |
+| **Aparelho** | iPhone real do fundador |
+| **Declarante** | fundador (Eduardo Valente) |
+
+**Portões automatizados no commit validado:** `npm run smoke` **4512/4512, 0 falhas** ·
+`npx expo-doctor` **18/18** · parse Babel dos módulos tocados **3/3**.
+
+## D.2 Aprovação visual inicial — A1 a A5
+
+Declarados **APROVADOS** pelo fundador em 2026-08-04.
+
+| # | Item | Veredito |
+|---|---|---|
+| **A1** | Colorir com o Beni aparece corretamente em **A Criação** | ✅ **APROVADO** |
+| **A2** | As **três atividades** do piloto funcionam corretamente | ✅ **APROVADO** |
+| **A3** | O **Cultinho** direciona para o **Criar Livre atual** | ✅ **APROVADO** |
+| **A4** | **Criar Juntos** e **Criar Livre** apresentam o mesmo comportamento canônico | ✅ **APROVADO** |
+| **A5** | Nenhum fluxo validado abriu ou apresentou o **Ateliê legado** | ✅ **APROVADO** |
+
+## D.3 Validação física de persistência e exclusão — P1 a P10
+
+Declarados **APROVADOS** pelo fundador em 2026-08-04, no build `bafb8e3f`.
+
+| # | Teste | Cenários da spec | Veredito e observação registrada |
+|---|---|---|---|
+| **P1** | Persistência das três pinturas após encerramento completo do app | §14 c5 | ✅ **APROVADO.** Após pintar e concluir as três atividades, encerrar completamente o app e reabrir, as três obras permaneceram salvas, cada uma em sua vaga correta. Contador em **`3 de 3`**. Sem troca de pixels, sem `needsColor`, sem quebra de integridade. |
+| **P2** | Substituição de uma pintura sem duplicação | §14 c7 · c8 | ✅ **APROVADO.** Ao repintar uma atividade concluída de maneira visivelmente diferente, a nova obra substituiu corretamente a anterior. Não surgiu quarta entrada. As outras duas permaneceram intactas. Após encerrar e reabrir, somente a versão nova permaneceu. |
+| **P3** | Contador preservado em `3 de 3` | §14.1 invariantes | ✅ **APROVADO.** O contador permaneceu em **`3 de 3`** em todos os fluxos nos quais a conclusão deveria ser preservada. Não ocorreu queda inesperada. |
+| **P4** | Reiniciar progresso preservando as pinturas | §14 c11 | ✅ **APROVADO.** `Reiniciar progresso` zerou o progresso da jornada e **preservou** as pinturas do Colorir com o Beni. Após fechar, reabrir e retornar ao fluxo, as obras continuaram disponíveis e corretas. |
+| **P5** | Apagar pinturas preservando a conclusão e o Criar Livre | §14 c12 · §14.1 c15 · c22 | ✅ **APROVADO.** `Apagar pinturas` removeu as obras do Colorir com o Beni e preservou o contador em **`3 de 3`**. As vagas passaram corretamente ao estado de **parte concluída sem pintura**. Sem `needsColor`, sem erro de integridade, sem alteração indevida da conclusão. |
+| **P6** | Estado `notPersisted` sem `needsColor` nem quebra de integridade | §14 c9 · c10 · §14.1 invariantes | ✅ **APROVADO.** Depois da exclusão, as três vagas permaneceram como **atividades concluídas**. Ao repintar uma atividade, **somente** essa vaga voltou a apresentar a obra real. Contador em **`3 de 3`**. |
+| **P7** | Apagar criações do Criar Livre sem tocar no Colorir com o Beni | separação S4 (inverso do c22) | ✅ **APROVADO dentro do fluxo fisicamente disponível.** A separação entre os comandos e os *storages* comportou-se conforme previsto: apagar pinturas do Colorir **não** afetou o Criar Livre, e apagar criações do Criar Livre **não** afetou as pinturas do Colorir. |
+| **P8** | Persistência do estado após reinício · idempotência da segunda exclusão | §14.1 c16 · c18 | ✅ **APROVADO.** Após apagar as pinturas, encerrar completamente o app e reabrir, o estado permaneceu correto. A **segunda execução** da exclusão foi **idempotente**, sem regressão, sem queda do contador e **sem alerta incorreto**. |
+| **P9** | Execução em Modo Avião | §14 c6 · §14.1 c17 | ✅ **APROVADO.** O fluxo foi executado em **Modo Avião**: pintura, conclusão, persistência, reabertura e exclusão funcionaram **sem dependência de rede**. Contador e integridade permaneceram corretos. |
+| **P10** | Mensagens parentais coerentes com o estado observado | §14.1 c20 · §20.7 | ✅ **APROVADO.** Os textos e alertas da Área dos Pais foram **coerentes com o estado observado**. A mensagem proibida — que afirmava incorretamente que o progresso não havia sido alterado — **não apareceu** no fluxo de apagar pinturas. Sem contradição entre mensagem, contador, vagas e obras existentes. |
+
+**Declaração do fundador (2026-08-04):** *"Tudo que foi solicitado para a validação física executável
+deste build funcionou conforme previsto. Não encontrei falhas visuais ou funcionais nos contratos
+avaliados da Spec 019."*
+
+> **Estes vereditos são preservados.** Nenhum dos comportamentos A1–A5 e P1–P10 pode ser reaberto
+> silenciosamente. Qualquer alteração futura que os toque exige spec própria e nova validação física.
+
+## D.4 Limitação do perfil `c60-pilot` quanto ao Plano Família
+
+O perfil **`c60-pilot`** em [`eas.json`](../eas.json) declara **apenas** `EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT`
+e `EXPO_PUBLIC_BUILD_PROFILE`. **Nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` é declarada em nenhum perfil.**
+Em [`src/services/entitlementSource.js`](../src/services/entitlementSource.js), `configureRevenueCat()`
+retorna `false` quando a chave está ausente (*fail closed*). **Logo o binário `bafb8e3f` opera
+permanentemente no plano Grátis** — o ramo Família é **inalcançável** nele.
+
+**Consequência formal:** os cenários abaixo **não foram fisicamente validados** neste build, por
+**impossibilidade técnica do perfil**, e **não** por omissão do testador.
+
+| Cenário da spec §14 | Situação |
+|---|---|
+| 1 — Entitlement Família real | **NÃO VALIDADO** — inexecutável no perfil |
+| 2 — Persistência com Família real em história premium | **NÃO VALIDADO** — inexecutável no perfil |
+| 3 — Download de história premium + salvamento da pintura | **NÃO VALIDADO** — inexecutável no perfil |
+| 13 — Downgrade simulado não apaga a obra premium | **NÃO VALIDADO** — inexecutável no perfil |
+| 4 — Premium sem ferramentas internas | **PARCIAL** — `isInternalToolsEnabled()` é comprovadamente falso neste perfil, mas não há entitlement premium para exercer |
+
+> ⚠️ **Estes cinco cenários NÃO são registrados como aprovados nem como reprovados.** Registrá-los de
+> qualquer das duas formas seria inventar um resultado que o aparelho não produziu.
+
+## D.5 Destino formal dos cenários Família e premium
+
+Decisão do fundador em **2026-08-04**:
+
+1. **A Fase 2.5 é encerrada no eixo da persistência local e do Plano Grátis.** Esse eixo está
+   **fisicamente validado** (D.2 e D.3).
+2. Os cenários que exigem **entitlement Família real, compra, restauração, pack premium ou downgrade**
+   tornam-se **formalmente obrigatórios na Fase 18 — RevenueCat, Stripe e Plano Família**.
+3. Os mesmos cenários recebem **revalidação obrigatória na Fase 21 — Beta do candidato e atualização
+   real entre versões**.
+4. Até lá, permanecem **pendência controlada e explícita** — nunca herdados, nunca presumidos.
+
+## D.6 Veredito físico da Spec 019
+
+> ## ✅ **SPEC 019 — FISICAMENTE APROVADA** no eixo executável do perfil `c60-pilot`
+>
+> **Build** `bafb8e3f-4fd5-43b6-873b-aca69a4a8a6a` · **commit** `b24c86842a03bf7216d62b90a7fba6514cfb3f98` ·
+> **branch** `spec/019-c60-persistence-all-plans` · **fingerprint** `c8b6c521500558fde471e47202d41d5e9dda79aa` ·
+> **data** 2026-08-04.
+>
+> **A1–A5** aprovados · **P1–P10** aprovados · portões automatizados verdes
+> (smoke **4512/4512**, expo-doctor **18/18**).
+>
+> **Escopo do veredito:** persistência local, conclusão, coleção, substituição de obra, separação
+> entre reset de progresso e exclusão de criações, contrato canônico de exclusão (S4-FIX),
+> comportamento offline e honestidade das mensagens parentais — **no Plano Grátis**.
+>
+> **Fora do veredito:** entitlement Família real, compra, restauração, pack premium e downgrade —
+> **obrigatórios na Fase 18, revalidados na Fase 21** (D.4 e D.5).
+
+**Este veredito abre o bloco D2** da Spec 019 (fechamento documental) e é o registro físico exigido
+por §14 e §14.1 da [spec](../specs/019-c60-persistence-all-plans/spec-c60-persistence-all-plans.md).

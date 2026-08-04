@@ -280,9 +280,17 @@ do contrato formalizado em §20. Não alteram CS1–CS20.
 
 > **Nenhum bloco além do D1 está autorizado.** Cada um dos demais exige o seu próprio Portão Humano.
 
-**Estado em 2026-08-04:** D1 · S1 · S2 · S3 · S4 · **S4-FIX** implementados e commitados nesta
-branch. **D2 continua fechado** — ele só abre depois da validação física, e esta reancoragem **não** o
-antecipa. Nenhum bloco novo foi criado: o **S4-FIX** é a correção do S4, não uma funcionalidade nova.
+**Estado em 2026-08-04 (fechamento):** D1 · S1 · S2 · S3 · S4 · **S4-FIX** implementados e commitados
+nesta branch. O **D2 ABRIU e foi executado** — a validação física do build
+`bafb8e3f-4fd5-43b6-873b-aca69a4a8a6a` (commit `b24c868`) foi declarada aprovada pelo fundador e está
+registrada em [`docs/C60_VALIDACAO_FISICA.md`](../../docs/C60_VALIDACAO_FISICA.md) **Parte D**;
+o veredito está em **§21**. Nenhum bloco novo foi criado: o **S4-FIX** é a correção do S4, não uma
+funcionalidade nova.
+
+| Bloco | Estado final |
+|---|---|
+| **D1** · **S1** · **S2** · **S3** · **S4** · **S4-FIX** | ✅ implementados, commitados e cobertos pelo smoke |
+| **D2** | ✅ **executado em 2026-08-04** — fechamento documental sobre validação física aprovada |
 
 ---
 
@@ -524,3 +532,63 @@ O convite a repetir aparece **sempre**, porque repetir é seguro e idempotente.
 > **O que estas provas não cobrem.** Os modos de falha são induzidos em arnês Node; `AsyncStorage` e
 > `expo-file-system` **reais** não foram exercitados sob falha. A validação física (§14.1, cenários
 > 15–22) permanece **obrigatória** — e a Spec 019 **não** está fisicamente aprovada por este bloco.
+>
+> ✅ **Cumprido em 2026-08-04.** A validação física exigida acima foi executada no build
+> `bafb8e3f-4fd5-43b6-873b-aca69a4a8a6a` e **aprovada pelo fundador**. Ver **§21**.
+
+---
+
+## 21. Fechamento físico e veredito da Spec 019 (2026-08-04)
+
+### 21.1 Build validado
+
+| Item | Valor |
+|---|---|
+| **Build ID** | `bafb8e3f-4fd5-43b6-873b-aca69a4a8a6a` |
+| **Commit validado** | `b24c86842a03bf7216d62b90a7fba6514cfb3f98` |
+| **Branch de origem** | `spec/019-c60-persistence-all-plans` |
+| **Perfil** | `c60-pilot` · distribuição **interna** · iOS |
+| **Fingerprint** | `c8b6c521500558fde471e47202d41d5e9dda79aa` |
+| **Data da validação física** | **2026-08-04** · iPhone real do fundador |
+| **Registro completo** | [`docs/C60_VALIDACAO_FISICA.md`](../../docs/C60_VALIDACAO_FISICA.md) **Parte D** |
+
+### 21.2 Resultado declarado pelo fundador
+
+**Aprovação visual — A1 a A5:** Colorir com o Beni em *A Criação* · as três atividades do piloto · o
+Cultinho direcionando ao Criar Livre atual · paridade entre Criar Juntos e Criar Livre · ausência do
+Ateliê legado. **Todos APROVADOS.**
+
+**Validação de persistência e exclusão — P1 a P10:** persistência das três pinturas após encerramento
+completo do app · substituição sem duplicação · contador preservado em `3 de 3` · reiniciar progresso
+preservando as pinturas · apagar pinturas preservando conclusão e Criar Livre · `notPersisted` sem
+`needsColor` nem quebra de integridade · apagar criações do Criar Livre sem tocar no Colorir ·
+persistência do estado após reinício com segunda exclusão idempotente · execução em Modo Avião ·
+mensagens parentais coerentes com o estado observado. **Todos APROVADOS.**
+
+**Portões automatizados no commit validado:** `npm run smoke` **4512/4512, 0 falhas** ·
+`npx expo-doctor` **18/18** · parse Babel dos módulos tocados **3/3**.
+
+### 21.3 O que este veredito NÃO cobre
+
+Os cenários **1, 2, 3 e 13** de §14 permanecem **NÃO VALIDADOS** e o cenário **4** permanece
+**PARCIAL** — por **impossibilidade técnica do perfil**, exatamente como §1.2 e §3 já previam: o
+`c60-pilot` não declara chave `EXPO_PUBLIC_REVENUECAT_*` e `configureRevenueCat()` é *fail closed*,
+de modo que o binário opera permanentemente no plano Grátis.
+
+**Não são registrados como aprovados nem como reprovados.** Por decisão do fundador em 2026-08-04,
+tornam-se **obrigatórios na Fase 18** (RevenueCat, Stripe e Plano Família) com **revalidação
+obrigatória na Fase 21** (Beta do candidato).
+
+### 21.4 Veredito
+
+> ## ✅ **SPEC 019 — FISICAMENTE APROVADA** no eixo executável do perfil `c60-pilot`
+>
+> Persistência local, conclusão, coleção, substituição de obra, separação entre reset de progresso e
+> exclusão de criações, contrato canônico de exclusão (**§20**), comportamento offline e honestidade
+> das mensagens parentais estão **validados em dispositivo físico** no **Plano Grátis**.
+>
+> **Todos os blocos — D1, S1, S2, S3, S4, S4-FIX e D2 — estão concluídos.**
+> **A Spec 019 está encerrada.**
+
+**Preservação.** Os comportamentos A1–A5 e P1–P10 **não podem ser reabertos silenciosamente**.
+Qualquer alteração futura que os toque exige spec própria, provas de regressão e nova validação física.
