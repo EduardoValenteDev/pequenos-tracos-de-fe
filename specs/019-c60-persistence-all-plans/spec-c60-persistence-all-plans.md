@@ -10,6 +10,12 @@
 > **Não reabre** as decisões de 014/015/016/017/018, do P3J, do P3J-R.1 nem do P3J-R.1 FIX1.
 >
 > **Autorização do fundador (2026-08-03):** aprovação da auditoria read-only combinada + ordem "Bloco D1" com as Decisões **A** (salvamento), **B** (conclusão global) e **C** (encerramento de atividades).
+>
+> **Reancoragem documental (2026-08-04) — HEAD `2bca66f3142168f53e238deed47fd8c1b7715975`.** Os blocos
+> **S1 · S2 · S3 · S4** estão implementados. A auditoria do S4 encontrou um **defeito bloqueante de
+> ordem de exclusão**, corrigido no commit `2bca66f`. Esta reancoragem **formaliza o contrato que a
+> correção estabeleceu** (§20) e o **protocolo físico correspondente** (§14.1) — ela **não reabre**
+> nenhuma decisão aprovada nem amplia o escopo para outras funcionalidades.
 
 ---
 
@@ -155,6 +161,15 @@ O `return` acontece **antes** do cálculo da chave, da leitura do estado anterio
 - Alteração de `package.json`, `package-lock.json`, `bundle identifier` ou `runtimeVersion`.
 - **Novas dependências.**
 
+> **Exceção pontual autorizada em 2026-08-04 (fundador, ordem "fechamento pré-build").** O `expo`
+> instalado (`54.0.35`) divergia do exigido pelo catálogo do SDK 54 (`~54.0.36`), o que mantinha
+> `npx expo-doctor` em **17/18** e barrava o portão. A ordem autorizou **apenas** o alinhamento mais
+> restrito possível: `npx expo install expo@~54.0.36`. Efeito: **uma linha** de `package.json` (a faixa
+> do `expo`) e o `package-lock.json` correspondente. **Nenhuma outra dependência declarada foi tocada**
+> (as demais mudanças do lockfile são o fecho transitivo do próprio `expo`, listado no relatório do
+> bloco). **`bundle identifier` e `runtimeVersion` permanecem proibidos e intocados.** A proibição
+> geral desta seção **continua valendo** para todo o resto da spec.
+
 ---
 
 ## 8. Critérios de entrada
@@ -198,6 +213,18 @@ O `return` acontece **antes** do cálculo da chave, da leitura do estado anterio
 | CS18 | **FIX 1, FIX 2 e FIX 3 permanecem verdes.** |
 | CS19 | **Novo build físico validado.** |
 | CS20 | **Nenhum arquivo órfão cresce sem limite** no fluxo normal. |
+
+**Acrescentados na reancoragem de 2026-08-04** — decorrem do defeito encontrado na auditoria do S4 e
+do contrato formalizado em §20. Não alteram CS1–CS20.
+
+| # | Critério |
+|---|---|
+| CS21 | **Uma exclusão interrompida nunca reduz o contador** nem cria vaga `needsColor` por corrupção. |
+| CS22 | **Nunca existe desfecho `ready` sem ponteiro e sem pixels** — em nenhum ponto da matriz §14.1. |
+| CS23 | **Falha antes da limpeza lógica preserva arte, ponteiro e desfecho** — a identidade sai inteira. |
+| CS24 | **Falha depois da limpeza lógica pode deixar resíduo físico**, mas a conclusão continua válida como `notPersisted`, **sem quebra de integridade**. |
+| CS25 | **A segunda execução é idempotente e curativa**; matar e reabrir o app entre etapas não muda o desfecho. |
+| CS26 | **A mensagem parental descreve o estado observado** — nunca afirma preservação que a reconciliação não confirmou. |
 
 ---
 
@@ -248,9 +275,14 @@ O `return` acontece **antes** do cálculo da chave, da leitura do estado anterio
 | **S2** | **Migração do legado `NOT_PERSISTED`**, `ART` real na coleção e **copy transitória**. | código + testes | **S1** |
 | **S3** | **Sobrescrita, edição, recuperação e GC dirigido** de arquivos órfãos. | código + testes | **S2** |
 | **S4** | **Separação entre reset de progresso e exclusão de criações** (3 ações parentais). | código + testes | **S3** |
+| **S4-FIX** | **Ordem de exclusão: desfecho lógico antes da destruição física**, identidade por identidade. Contrato em **§20**. | código + testes | **S4** |
 | **D2** | **Fechamento documental** depois da validação física. | documental | **build físico validado** |
 
 > **Nenhum bloco além do D1 está autorizado.** Cada um dos demais exige o seu próprio Portão Humano.
+
+**Estado em 2026-08-04:** D1 · S1 · S2 · S3 · S4 · **S4-FIX** implementados e commitados nesta
+branch. **D2 continua fechado** — ele só abre depois da validação física, e esta reancoragem **não** o
+antecipa. Nenhum bloco novo foi criado: o **S4-FIX** é a correção do S4, não uma funcionalidade nova.
 
 ---
 
@@ -260,7 +292,7 @@ O `return` acontece **antes** do cálculo da chave, da leitura do estado anterio
 |---|---|---|
 | Smoke | `npm run smoke` (ou `node scripts/smoke.js`) | **Verde.** O total de checks **não pode diminuir** em nenhum bloco. |
 | Assets C60 | `node scripts/verify-coloring60-assets.js` | **Verde (16/16).** Gate **separado e obrigatório**, não substituível pelo smoke. |
-| Expo Doctor | `npx expo-doctor` | **Verde.** **Não é alterado** por esta spec. |
+| Expo Doctor | `npx expo-doctor` | **Verde (18/18).** Ver a exceção de 2026-08-04 em §7: o alinhamento restrito de `expo@~54.0.36` foi o **único** ajuste de dependência autorizado, feito justamente para fechar este portão. |
 | Higiene de diff | `git diff --check` | Sem espaço em branco quebrado. |
 | Escopo | `git diff --name-only` | Confere, a cada bloco, que só o previsto mudou. |
 
@@ -290,6 +322,43 @@ O `return` acontece **antes** do cálculo da chave, da leitura do estado anterio
 14. **Criar Livre** inalterado, ainda **sem salvar** no Grátis.
 
 **Registro:** resultado por cenário em [`docs/C60_VALIDACAO_FISICA.md`](../../docs/C60_VALIDACAO_FISICA.md), com build, commit e veredito do fundador. **O bloco D2 só abre depois disso.**
+
+### 14.1 Matriz de falhas da exclusão e critérios físicos (S4-FIX · 2026-08-04)
+
+**Matriz de falhas.** Cada linha é um ponto de interrupção real do storage. As colunas dizem o que
+**deve** ser observado — e as três últimas são as que o defeito corrigido violava. Cada modo é
+exercitado **duas vezes**: imediatamente e **depois de matar e reabrir o app**.
+
+| # | Interrupção | Arte | Ponteiro | Desfecho | Contador | Vaga | Relatório |
+|---|---|---|---|---|---|---|---|
+| F1 | Falha ao **limpar o desfecho** | preservada | preservado | preservado | **3 de 3** | `art` | `ok:false` · `staleOutcomes` · `failed` **vazio** |
+| F2 | Falha ao **remover o ponteiro** | preservada | preservado | já limpo | **3 de 3** | `notPersisted` ou `art` | `ok:false` · `failed`/`residual` |
+| F3 | Falha ao **apagar o blob** | resíduo físico | removido | já limpo | **3 de 3** | `notPersisted` | `ok:false` · `residual` |
+| F4 | **`multiRemove` parcial** (remove N e rejeita) | conforme a sonda | conforme a sonda | conforme a sonda | **3 de 3** | íntegra | decidido pela **sonda**, nunca pelo código de retorno |
+| F5 | **Remove tudo e ainda assim rejeita** | apagada | apagado | apagado | **3 de 3** | `notPersisted` | **`ok:true`** — o estado final está íntegro |
+
+**Invariantes que valem em TODA a matriz, inclusive após reinício:** o contador **nunca** cai de
+"3 de 3"; **nunca** aparece vaga `needsColor` por corrupção; **nunca** existe desfecho `ready` sem
+ponteiro e sem pixels; **nunca** há quebra de integridade na coleção; a **segunda execução** é
+idempotente e cura o que sobrou; o **Criar Livre** e o **legado** permanecem intactos.
+
+**Critérios da validação física** (acrescentam-se aos 14 cenários acima; registro no mesmo documento):
+
+| # | Cenário físico | Critério observável |
+|---|---|---|
+| 15 | Apagar pinturas com as **3 atividades concluídas** | As 3 pinturas somem da coleção; o contador continua **"3 de 3"**; as vagas mostram **"Parte concluída!"**; nenhuma marca de erro. |
+| 16 | Apagar pinturas e **fechar o app por completo** | Ao reabrir, o estado é **o mesmo** — sem contador reduzido, sem `needsColor`, sem quebra. |
+| 17 | Apagar pinturas **em modo avião** | Idêntico ao cenário 15 — nenhum passo depende de rede. |
+| 18 | **Repetir** a exclusão logo em seguida | Sucesso silencioso e idêntico; nada regride; nenhum alerta novo. |
+| 19 | **Repintar** uma atividade depois de apagar | A vaga volta a `ART` com os pixels novos; a conclusão nunca oscilou. |
+| 20 | **Mensagem parental** em caso de falha | O texto descreve o que **de fato** ficou; **não** contém a frase "O progresso não foi alterado". |
+| 21 | **Reiniciar progresso** logo após apagar pinturas | As duas ações permanecem separadas; nenhuma executa a outra. |
+| 22 | **Criar Livre** depois de apagar as pinturas do Colorir | Galeria "Minhas artes" intacta; `ATELIER_FREE_SAVE_LIMIT` continua `0`. |
+
+> **Limite honesto desta matriz.** Os modos F1–F5 são induzidos **no arnês** (`scripts/smoke.js`), onde
+> a falha do storage pode ser provocada. Em dispositivo eles **não são reproduzíveis sob demanda** — o
+> que o teste físico verifica são os **cenários 15–22** e os **invariantes** acima. A matriz responde
+> pelo comportamento sob falha; o aparelho responde pelo caminho real.
 
 ---
 
@@ -340,3 +409,118 @@ As Decisões **B** (sistema global de conclusão das histórias) e **C** (lingua
 1. **Reversão total:** descartar a branch `spec/019-c60-persistence-all-plans`. A linha validada permanece intacta em `1e2f8dd3`.
 2. **Reversão documental:** reverter o commit do D1 restaura o árbitro anterior — **e o código nunca terá sido alterado**, já que D1 antecede S1.
 3. **Reversão pós-implementação:** nenhuma migração destrutiva é executada; ponteiros v3 e blobs continuam legíveis por versões anteriores, que apenas **não escrevem**. Nenhum dado do aparelho é apagado por uma reversão.
+
+---
+
+## 20. Contrato canônico da exclusão de pinturas (S4-FIX · reancorado em 2026-08-04)
+
+> **Natureza:** formalização do contrato que o commit `2bca66f` estabeleceu em
+> [`src/services/coloring60ResetService.js`](../../src/services/coloring60ResetService.js) e em
+> [`src/screens/ParentAreaScreen.js`](../../src/screens/ParentAreaScreen.js). **Não reabre** decisão
+> aprovada e **não amplia** o escopo: descreve a ação parental "Apagar pinturas" já decidida em §12/S4
+> e em `D-C60-PERSISTENCIA-TODOS-PLANOS` §4.
+
+### 20.1 O defeito que este contrato elimina
+
+A versão anterior destruía **ponteiro e blob de cada identidade** e só depois limpava os desfechos
+gravados **das três de uma vez, num único lote**. Uma falha naquele lote deixava desfecho `ready`
+apontando para pixels que já não existiam: a reconciliação caía em `missing`, a vaga virava
+`needsColor`, o contador caía de **3 de 3 para 0** e a coleção acusava quebra de integridade — e,
+diferente do resíduo físico, **esse estado atravessava o reinício do app**.
+
+### 20.2 A ordem obrigatória — por identidade, lógica primeiro
+
+Para **cada** atividade do catálogo, **isoladamente** e **nesta ordem**:
+
+1. **Limpeza lógica individual.** `clearColoring60Snapshot(storyId, [id])` — **lote de UMA chave**.
+   O estrago de uma identidade **não pode atravessar** para outra. Um lote com as três é violação
+   deste contrato, ainda que "funcione" no caminho feliz.
+2. **Sonda canônica do estado.** Reler o desfecho pelo **leitor canônico da jornada** e classificar em
+   **`absent` · `present` · `unknown`**. A sonda **não** pode reimplementar literais de chave.
+3. **Destruição física.** `clearColoring60SavedDrawing(storyId, id)` — ponteiro, blob e varredura
+   dirigida de órfãos — **somente** se o passo 2 devolveu `absent`.
+
+Permanecem íntegras todas as proteções já aprovadas: **restrição ao subdiretório** `drawings60/`,
+**identidade do catálogo**, **GC dirigido** por identidade e **preservação da conclusão**
+(`done` / `ever` nunca são tocados por esta ação).
+
+### 20.3 Por que a sonda decide — e não o código de retorno
+
+**`multiRemove` não é transacional por contrato.** Na implementação nativa ele percorre chave a
+chave, **acumula erros sem abortar** e grava o manifesto uma única vez no fim. Logo *"removeu tudo e
+ainda assim rejeitou"* é **desfecho previsto**, não hipótese. Obedecer ao código de retorno erraria
+nos dois sentidos: recusaria prosseguir sobre um estado já limpo e anunciaria fracasso sobre um disco
+íntegro. **Quem decide é a leitura do que ficou** — antes de destruir (§20.2 passo 2) e outra vez no
+fim, em **leitura em lote sobre a jornada inteira**.
+
+### 20.4 Proibição de destruir sob estado lógico presente ou não verificável
+
+Se o passo 2 devolver **`present`** *ou* **`unknown`**, a identidade **sai inteira**: obra, ponteiro e
+desfecho **preservados**. **Não verificar não autoriza destruir.** É deliberadamente conservador:
+um estado consistente e repetível vale mais do que uma obra destruída sob um desfecho que continua
+prometendo arte. A operação devolve `ok: false` e a interface convida a repetir.
+
+### 20.5 Relatório — três resíduos, três significados
+
+| Campo | Significado **único** | Ação corretiva |
+|---|---|---|
+| `failed` | A exclusão **física** falhou nesta identidade. | Repetir a exclusão. |
+| `residual` | Resíduo **físico** observado: ponteiro, blob ou arquivo sobrevivente. | Repetir a exclusão. |
+| `staleOutcomes` | Resíduo **lógico** observado: desfecho gravado que permaneceu. **A obra dessas identidades não foi tocada — de propósito.** | Repetir a exclusão. |
+
+**É proibido** usar `failed` para representar ao mesmo tempo falha física e falha lógica sem dizer
+qual etapa quebrou. `removedPointers` e `removedBlobs` são **contagens medidas** por sondas antes e
+depois — só conta como removido o que existia antes e não existe depois.
+
+### 20.6 `completionPreserved` e `verified`
+
+| Campo | Contrato |
+|---|---|
+| `completionPreserved` | **Medição, não promessa.** Um retrato inicial em lote registra quais identidades chegaram concluídas; o retrato final compara. Vira `false` **apenas** se alguma conclusão realmente se perdeu. |
+| `verified` | **O relatório é observado, não presumido.** Vira `false` quando um dos retratos não pôde ser lido. Sem leitura final, preserva-se o que as sondas por identidade apuraram e **assume-se o não verificado** — nunca o contrário. |
+
+A sonda final **corrige o relatório nos dois sentidos**: retira da lista de resíduo lógico a
+identidade cujo desfecho o storage removeu apesar de ter rejeitado, e acusa a que ficou para trás em
+silêncio. **`ok` é falso** diante de falha, de resíduo de qualquer natureza, de conclusão perdida ou
+de verificação impossível. **Remoção completa com erro reportado no fim, sobre estado final íntegro,
+resulta em `ok: true`** — o fracasso não pode ser automático quando o disco está limpo.
+
+### 20.7 Mensagens parentais derivadas do estado observado
+
+A frase **"O progresso não foi alterado" está proibida** nesta ação: ela era escrita **antes** de
+olhar o resultado, enquanto o `refreshProgress()` que roda logo acima já podia ter redesenhado o
+contador na frente do responsável. Cada frase passa a corresponder a um **campo medido**:
+
+| Condição | O que a mensagem diz |
+|---|---|
+| `completionPreserved === false` | O progresso **mudou** — e convida a conferir. |
+| `verified === false` | **Não foi possível confirmar** o estado; a conclusão continua de pé. |
+| `staleOutcomes.length > 0` | Pinturas **mantidas como estavam, de propósito**; repetir é seguro. |
+| resíduo físico | Pinturas podem **não ter saído por completo**; repetir. |
+
+O convite a repetir aparece **sempre**, porque repetir é seguro e idempotente.
+
+### 20.8 Idempotência, reinício e resíduo aceitável
+
+1. **Idempotência.** A segunda execução converge e **cura** o que sobrou. Sobre estado já limpo, as
+   sondas examinam e não encontram nada — sem erro, sem regressão.
+2. **Reinício seguro.** Matar e reabrir o app **entre quaisquer duas etapas** não reduz o contador,
+   não cria vaga `needsColor` por corrupção e não muda o desfecho da execução seguinte.
+3. **Resíduo físico é aceitável; resíduo lógico não.** Falha **depois** da limpeza lógica pode deixar
+   arquivo no aparelho — a vaga reconcilia para `notPersisted`, **a conclusão continua válida e não há
+   quebra de integridade**. Falha **antes** dela preserva tudo. **O estado proibido em qualquer
+   interrupção é desfecho `ready` sem ponteiro e sem pixels.**
+4. **A limpeza do resíduo não é automática:** `ok: false` e a mensagem pedem a repetição.
+
+### 20.9 Rastreabilidade
+
+| Artefato | Onde |
+|---|---|
+| Implementação | `src/services/coloring60ResetService.js` · `src/screens/ParentAreaScreen.js` |
+| Provas executáveis | `scripts/smoke.js` — série **S4C [01/13]…[13/13]** e controles negativos **CN-S4** |
+| Matriz de falhas e critérios físicos | **§14.1** |
+| Critérios de saída correspondentes | **CS21–CS26** (§9) |
+
+> **O que estas provas não cobrem.** Os modos de falha são induzidos em arnês Node; `AsyncStorage` e
+> `expo-file-system` **reais** não foram exercitados sob falha. A validação física (§14.1, cenários
+> 15–22) permanece **obrigatória** — e a Spec 019 **não** está fisicamente aprovada por este bloco.
