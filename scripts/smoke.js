@@ -41746,6 +41746,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         clearColoring60Completion: S.clearColoring60Completion,
         clearColoring60Snapshot: S.clearColoring60Snapshot,
         loadColoring60Done: S.loadColoring60Done,
+        // [S4] A exclusão SONDA o desfecho gravado (antes de destruir e no fim, em lote) pelo leitor
+        // canônico da jornada — nunca remontando a chave por conta própria.
+        loadColoring60JourneyRecord: S.loadColoring60JourneyRecord,
+        SNAPSHOT_STATUS: SS,
         clearColoring60SavedDrawing: W.clearColoring60SavedDrawing,
         // [S4] A exclusão de pinturas verifica RESÍDUO FÍSICO com a limpeza dirigida do próprio
         // writer — as sondas de metadado não enxergam um arquivo que sobreviveu sem ponteiro.
@@ -49165,7 +49169,9 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       const mapa = new Map();
       // ESPIÃO do storage: `clear` e `getAllKeys` existem de verdade — é preciso que existam para
       // que "ninguém os usa" seja uma medida, e não a ausência de uma função no duplo.
-      const espia = { clear: 0, getAllKeys: 0 };
+      // `lotes` guarda o TAMANHO e o conteúdo de cada `multiRemove` — é como se mede, na primitiva
+      // real e sem mutar fonte, que a limpeza do desfecho passou a andar de UMA identidade por vez.
+      const espia = { clear: 0, getAllKeys: 0, lotes: [] };
       const AsyncStorage = {
         getItem: async (k) => (mapa.has(k) ? mapa.get(k) : null),
         setItem: async (k, v) => { mapa.set(k, v); },
@@ -49176,7 +49182,20 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         multiSet: async (ps) => { ps.forEach(([k, v]) => mapa.set(k, v)); },
         multiGet: async (ks) => ks.map((k) => [k, mapa.has(k) ? mapa.get(k) : null]),
         multiRemove: async (ks) => {
+          espia.lotes.push([...ks]);
           if (c.multiRemoveFalha && c.multiRemoveFalha(ks)) throw new Error('multiRemove rejeitou');
+          // LOTE PARCIAL — o comportamento REAL do multiRemove do iOS, não uma conveniência de
+          // teste: `RNCAsyncStorage.mm` percorre chave a chave, ignora o erro de cada arquivo,
+          // ACUMULA os erros sem abortar e escreve o manifesto UMA vez no fim. "Removeu e mesmo
+          // assim rejeitou" é desfecho previsto. O gancho devolve QUANTAS chaves saem antes da
+          // rejeição: `n = ks.length` reproduz o caso mais traiçoeiro (tudo removido, erro no fim).
+          if (c.multiRemoveParcial) {
+            const n = c.multiRemoveParcial(ks);
+            if (typeof n === 'number') {
+              for (let i = 0; i < Math.min(n, ks.length); i += 1) mapa.delete(ks[i]);
+              throw new Error('multiRemove interrompido após ' + Math.min(n, ks.length) + ' de ' + ks.length);
+            }
+          }
           ks.forEach((k) => mapa.delete(k));
         },
         getAllKeys: async () => { espia.getAllKeys += 1; return [...mapa.keys()]; },
@@ -49273,6 +49292,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         clearColoring60Completion: S.clearColoring60Completion,
         clearColoring60Snapshot: S.clearColoring60Snapshot,
         loadColoring60Done: S.loadColoring60Done,
+        // [S4] A SONDA do desfecho gravado (antes de destruir e no fim, em lote) usa o leitor
+        // canônico da jornada — o serviço de reset não remonta chave nenhuma por conta própria.
+        loadColoring60JourneyRecord: S.loadColoring60JourneyRecord,
+        SNAPSHOT_STATUS: ST.SNAPSHOT_STATUS,
         clearColoring60SavedDrawing: W.clearColoring60SavedDrawing,
         collectColoring60Orphans: W.collectColoring60Orphans,
         COLORING60_GC_REASON: W.COLORING60_GC_REASON,
@@ -49404,6 +49427,56 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       for (const s of slots) out[s.activityId] = ap.COL.coloring60SlotWithKind(s).kind;
       return out;
     };
+
+    /**
+     * `ready` ÓRFÃO — desfecho gravado prometendo uma arte que o disco já não tem. É A corrupção que
+     * a ordem "desfecho primeiro" existe para tornar impossível: a vaga vira NEEDS_COLOR, o contador
+     * CAI e a coleção acusa quebra por uma exclusão que o responsável pediu — e, ao contrário do
+     * resíduo físico, esse estado ATRAVESSA o reinício. Lido pelo MESMO leitor canônico que o app
+     * usa (nenhuma chave é remontada aqui) e cruzado com a existência REAL da obra.
+     */
+    const readyOrfaos4 = async (ap) => {
+      const registro = await ap.S.loadColoring60JourneyRecord(HIST4, IDS4);
+      const out = [];
+      for (const a of registro.activities || []) {
+        if (a.storedSnapshotStatus !== ap.ST.SNAPSHOT_STATUS.READY) continue;
+        // eslint-disable-next-line no-await-in-loop
+        if ((await ap.W.hasColoring60SavedDrawing(HIST4, a.activityId)) !== true) out.push(a.activityId);
+      }
+      return out;
+    };
+
+    /**
+     * reiniciar4(ap) — MATAR E ABRIR O APP DE NOVO. Módulos recarregados do zero, sem uma única
+     * variável em memória sobrevivendo; só o disco e o storage atravessam. É o que separa "resíduo
+     * que a próxima sessão resolve" de "corrupção que a criança vai encontrar amanhã".
+     */
+    const reiniciar4 = (ap) => {
+      const novo = mkAp4();
+      novo.mapa.clear(); for (const [k, v] of ap.mapa) novo.mapa.set(k, v);
+      novo.disco.clear(); for (const [k, v] of ap.disco) novo.disco.set(k, v);
+      return novo;
+    };
+
+    /** Retrato de INTEGRIDADE de um aparelho: o que a criança e o responsável realmente veriam. */
+    const saude4 = async (ap) => {
+      const j = await ap.RD.loadColoring60JourneyState(HIST4);
+      const k = await kinds4(ap);
+      return {
+        rotulo: j.countLabel,
+        completos: j.completedCount,
+        quebra: j.hasIntegrityBreak === true,
+        quebradas: j.integrityBrokenIds || [],
+        vagas: k,
+        precisaColorir: IDS4.filter((id) => k[id] === ap.COL.SLOT.NEEDS_COLOR),
+        orfaos: await readyOrfaos4(ap),
+        arquivos: arq4(ap, D60_4).length,
+        ponteiros: ponteiros4(ap).length,
+      };
+    };
+    /** O invariante inegociável: conclusão de pé, nenhuma vaga corrompida, nenhum `ready` sem pixels. */
+    const integro4 = (s) => s.rotulo === '3 de 3' && s.completos === 3 && s.quebra === false
+      && s.quebradas.length === 0 && s.precisaColorir.length === 0 && s.orfaos.length === 0;
 
     // ══ 01–10 · REINICIAR PROGRESSO ═══════════════════════════════════════════════════════════
 
@@ -49705,18 +49778,31 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
     // ══ 20–21 · FALHA PARCIAL E RESÍDUO ══════════════════════════════════════════════════════
 
-    await t4('S4 [20/26]: falha parcial NÃO vira sucesso — quando o desfecho gravado não pode ser removido, o relatório acusa falha e a interface mostra o aviso honesto em vez do "pronto"', async () => {
+    await t4('S4 [20/26]: falha parcial NÃO vira sucesso — quando o desfecho gravado não pode ser removido, a obra é PRESERVADA, o relatório acusa resíduo lógico (não falha física) e a interface mostra o aviso honesto em vez do "pronto"', async () => {
       const ap = await vivido4({ multiRemoveFalha: (ks) => ks.some((k) => k.startsWith('@ptf_coloring60_snap_')) });
       const r = await ap.RST.deleteColoring60Artworks(HIST4);
+      // A ordem nova transforma esta falha na MENOS danosa possível: sem o desfecho limpo, a obra
+      // não é tocada. Nada some pela metade e repetir a operação resolve.
+      const s = await saude4(ap);
+      const preservou = s.arquivos === 3 && s.ponteiros === 3 && integro4(s) === true;
+      // `failed` significa "não consegui apagar a OBRA" — e a obra está inteira. O campo certo é o
+      // do resíduo LÓGICO.
+      const relatorioFiel = r.ok === false && r.failed.length === 0
+        && r.staleOutcomes.length === 3 && IDS4.every((id) => r.staleOutcomes.includes(id))
+        && r.completionPreserved === true && r.verified === true;
       // E a tela obedece ao veredito: nada de "✅ Pinturas apagadas".
       const ap2 = await vivido4({ multiRemoveFalha: (ks) => ks.some((k) => k.startsWith('@ptf_coloring60_snap_')) });
       const ui = mkPais4(ap2);
       ui.abrir('artworks'); ui.continuar(); ui.digitar('APAGAR');
       await ui.confirmar();
-      return [r.ok === false && r.failed.length === 3
+      const aviso = ui.alertas.length === 1 ? String(ui.alertas[0][1]) : '';
+      return [relatorioFiel && preservou
         && ui.estado().passo !== 'done' && ui.alertas.length === 1
-        && ui.alertas[0][0] === 'Não foi possível concluir',
-      `relatório=${JSON.stringify(r)} · passo=${ui.estado().passo} · alertas=${JSON.stringify(ui.alertas)}`];
+        && ui.alertas[0][0] === 'Não foi possível concluir'
+        // A frase que a auditoria derrubou: a tela NÃO pode prometer o que não verificou.
+        && !aviso.includes('O progresso não foi alterado')
+        && aviso.includes('Tente novamente'),
+      `relatório=${JSON.stringify(r)} · saúde=${JSON.stringify(s)} · passo=${ui.estado().passo} · aviso=${JSON.stringify(aviso)}`];
     });
 
     await t4('S4 [21/26]: a verificação RESIDUAL enxerga o arquivo sobrevivente — sem ponteiro, as sondas de metadado diriam "limpo"; a limpeza dirigida diz a verdade e o relatório acusa resíduo', async () => {
@@ -49844,6 +49930,279 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         `blocos presentes=${blocos} · S1=${s1} (${negado}) · S2=${s2} (${JSON.stringify(k2)}) · S3=${s3} (${arq4(ap3, D60_4).length} arquivo(s))`];
     });
 
+    /* ══ S4C · A EXCLUSÃO INTERROMPIDA ════════════════════════════════════════════════════════
+     * A auditoria pré-build encontrou um defeito BLOQUEANTE nesta ação: a exclusão destruía ponteiro
+     * e blob de cada identidade e só no FIM, num lote único, limpava o desfecho gravado das três.
+     * Uma falha naquele lote deixava desfecho `ready` apontando para arte que não existia mais —
+     * vaga NEEDS_COLOR, contador caindo de 3 para 0, quebra de integridade, tudo ATRAVESSANDO o
+     * reinício do app. A ordem foi invertida (desfecho lógico primeiro, por identidade, com sonda
+     * que autoriza a destruição) e esta série existe para que a inversão não possa ser desfeita em
+     * silêncio: cada teste EXERCITA um modo de interrupção real e mede o estado que sobra.
+     */
+
+    // ══ S4C 01–05 · CADA ETAPA FALHANDO ══════════════════════════════════════════════════════
+
+    /** As três falhas isoladas, por etapa da exclusão. Usadas como matriz por vários testes. */
+    const SNAPFALHA4 = { multiRemoveFalha: (ks) => ks.some((k) => k.startsWith('@ptf_coloring60_snap_')) };
+    const PONTEIROFALHA4 = { removeItemFalha: (k) => k.startsWith('@ptf_drawing60_') && k.includes('alight') };
+    const BLOBFALHA4 = { apagarFalha: (u) => u.startsWith(D60_4) && u.includes('alight') };
+    /** Lote que remove TUDO e só então rejeita — o desfecho previsto do `multiRemove` do iOS. */
+    const LOTETUDO4 = { multiRemoveParcial: (ks) => (ks.every((k) => k.startsWith('@ptf_coloring60_snap_')) ? ks.length : null) };
+
+    await t4('S4C [01/13]: falha ao limpar o DESFECHO aborta a identidade ANTES de destruir — a obra, o ponteiro e a conclusão saem intactos, e a Área dos Pais não promete o que não verificou', async () => {
+      const ap = await vivido4(SNAPFALHA4);
+      const r = await ap.RST.deleteColoring60Artworks(HIST4);
+      const s = await saude4(ap);
+      // Nada foi tocado: é a interrupção mais benigna possível, e é por desenho.
+      const intacto = s.arquivos === 3 && s.ponteiros === 3 && integro4(s)
+        && IDS4.every((id) => s.vagas[id] === ap.COL.SLOT.ART)
+        && (await ap.W.getColoring60SavedDrawing(HIST4, 'light')) === OBRA4('L', 3);
+      // O relatório separa as duas naturezas de resíduo.
+      const relato = r.ok === false && r.failed.length === 0 && r.staleOutcomes.length === 3
+        && r.completionPreserved === true && r.verified === true
+        && r.removedPointers === 0 && r.removedBlobs === 0;
+      // E a mensagem parcial é DERIVADA do relatório: fala de pinturas mantidas, não de progresso.
+      const ui = mkPais4(await vivido4(SNAPFALHA4));
+      ui.abrir('artworks'); ui.continuar(); ui.digitar('APAGAR');
+      await ui.confirmar();
+      const aviso = ui.alertas.length === 1 ? String(ui.alertas[0][1]) : '';
+      const honesta = typeof ui.acoes[1].partialMsg === 'function'
+        && !aviso.includes('O progresso não foi alterado')
+        && /mantidas|não puderam ser apagadas/.test(aviso)
+        && aviso.includes('continuam concluídas');
+      return [intacto && relato && honesta,
+        `relatório=${JSON.stringify(r)} · saúde=${JSON.stringify(s)} · aviso=${JSON.stringify(aviso)}`];
+    });
+
+    await t4('S4C [02/13]: falha ao remover o PONTEIRO preserva os pixels e NÃO derruba a conclusão — o desfecho já saiu, então a vaga reconcilia para arte recuperável, não para "falta colorir"', async () => {
+      const ap = await vivido4(PONTEIROFALHA4);
+      const r = await ap.RST.deleteColoring60Artworks(HIST4);
+      const s = await saude4(ap);
+      // O writer é metadado-primeiro: sem confirmar a remoção do ponteiro, ele NÃO apaga o arquivo.
+      const obraProtegida = (await ap.W.hasColoring60SavedDrawing(HIST4, 'light')) === true
+        && arq4(ap, D60_4).some((u) => u.includes('alight'));
+      // Falha FÍSICA — nunca resíduo lógico: o desfecho desta identidade foi limpo com sucesso.
+      const relato = r.ok === false && r.staleOutcomes.length === 0
+        && (r.failed.includes('light') || r.residual.includes('light'))
+        && r.completionPreserved === true && r.verified === true;
+      const outrasForam = (await ap.W.hasColoring60SavedDrawing(HIST4, 'living_world')) === false
+        && (await ap.W.hasColoring60SavedDrawing(HIST4, 'people_and_care')) === false;
+      return [obraProtegida && relato && outrasForam && integro4(s),
+        `relatório=${JSON.stringify(r)} · saúde=${JSON.stringify(s)} · obra protegida=${obraProtegida} · outras foram=${outrasForam}`];
+    });
+
+    await t4('S4C [03/13]: falha ao apagar o BLOB deixa resíduo FÍSICO e só isso — o relatório acusa o arquivo sobrevivente, a conclusão continua de pé e nenhum `ready` fica sem pixels', async () => {
+      const ap = await vivido4(BLOBFALHA4);
+      const r = await ap.RST.deleteColoring60Artworks(HIST4);
+      const s = await saude4(ap);
+      const sobrou = arq4(ap, D60_4);
+      const relato = r.ok === false && r.residual.includes('light') && r.staleOutcomes.length === 0
+        && r.failed.length === 0 && r.completionPreserved === true && r.verified === true;
+      return [relato && sobrou.length === 1 && sobrou[0].includes('alight') && integro4(s)
+        && IDS4.every((id) => s.vagas[id] === ap.COL.SLOT.NOT_PERSISTED),
+      `relatório=${JSON.stringify(r)} · sobrou=${JSON.stringify(sobrou)} · saúde=${JSON.stringify(s)}`];
+    });
+
+    await t4('S4C [04/13]: a falha PARCIAL do lote não atravessa identidades — cada `multiRemove` de desfecho carrega UMA chave, então a identidade que falhou sai inteira e as outras duas são apagadas por completo', async () => {
+      // (a) A medida direta na primitiva real: nenhum lote de desfecho carrega mais de uma chave.
+      const ap = await vivido4();
+      ap.espia.lotes.length = 0;
+      await ap.RST.deleteColoring60Artworks(HIST4);
+      const lotesSnap = ap.espia.lotes.filter((ks) => ks.some((k) => k.startsWith('@ptf_coloring60_snap_')));
+      const umPorVez = lotesSnap.length === 3 && lotesSnap.every((ks) => ks.length === 1);
+
+      // (b) O comportamento: só a identidade `light` tem o lote rejeitado. As outras duas seguem.
+      const soLight = { multiRemoveFalha: (ks) => ks.some((k) => k.startsWith('@ptf_coloring60_snap_') && k.includes('light')) };
+      const ap2 = await vivido4(soLight);
+      const r = await ap2.RST.deleteColoring60Artworks(HIST4);
+      const s = await saude4(ap2);
+      const isolou = r.staleOutcomes.length === 1 && r.staleOutcomes[0] === 'light'
+        && s.arquivos === 1 && s.ponteiros === 1
+        && (await ap2.W.getColoring60SavedDrawing(HIST4, 'light')) === OBRA4('L', 3)
+        && s.vagas.light === ap2.COL.SLOT.ART
+        && s.vagas.living_world === ap2.COL.SLOT.NOT_PERSISTED
+        && s.vagas.people_and_care === ap2.COL.SLOT.NOT_PERSISTED;
+      return [umPorVez && isolou && integro4(s) && r.ok === false,
+        `lotes de desfecho=${JSON.stringify(lotesSnap)} · relatório=${JSON.stringify(r)} · saúde=${JSON.stringify(s)}`];
+    });
+
+    await t4('S4C [05/13]: lote que REMOVE TUDO e só então rejeita não vira fracasso — quem decide é a sonda do estado final, não o código de retorno; o disco fica íntegro e o relatório diz `ok`', async () => {
+      const ap = await vivido4(LOTETUDO4);
+      const r = await ap.RST.deleteColoring60Artworks(HIST4);
+      const s = await saude4(ap);
+      // Este é o caso EXATO do `multiRemove` do iOS: chave a chave, erros acumulados, manifesto
+      // escrito no fim. Obedecer ao retorno recusaria continuar sobre um estado já limpo.
+      const limpou = s.arquivos === 0 && s.ponteiros === 0
+        && IDS4.every((id) => s.vagas[id] === ap.COL.SLOT.NOT_PERSISTED);
+      const relato = r.ok === true && r.staleOutcomes.length === 0 && r.failed.length === 0
+        && r.residual.length === 0 && r.verified === true && r.completionPreserved === true
+        && r.removedPointers === 3 && r.removedBlobs === 3;
+      return [limpou && relato && integro4(s) && (await criarLivreIntacto4(ap)) === true,
+        `relatório=${JSON.stringify(r)} · saúde=${JSON.stringify(s)}`];
+    });
+
+    // ══ S4C 06–08 · INTERRUPÇÃO, REPETIÇÃO E AUSÊNCIA DE REDE ════════════════════════════════
+
+    await t4('S4C [06/13]: MATAR o app entre quaisquer duas etapas nunca reduz o contador nem cria vaga "falta colorir" — cada instante intermediário é retomado do zero e continua íntegro', async () => {
+      // Cada operação de storage vira um INSTANTE fotografado: matar o app ali deixaria exatamente
+      // este disco e este storage. Não há estado montado à mão — só estados que a execução produziu.
+      const instantes = [];
+      const ap = await vivido4();
+      const orig = { removeItem: ap.AsyncStorage.removeItem, multiRemove: ap.AsyncStorage.multiRemove };
+      const fotografa = () => instantes.push([new Map(ap.mapa), new Map(ap.disco)]);
+      ap.AsyncStorage.removeItem = async (k) => { const out = await orig.removeItem(k); fotografa(); return out; };
+      ap.AsyncStorage.multiRemove = async (ks) => { const out = await orig.multiRemove(ks); fotografa(); return out; };
+      await ap.RST.deleteColoring60Artworks(HIST4);
+      fotografa();
+
+      const falhas = [];
+      for (let i = 0; i < instantes.length; i += 1) {
+        const [mapa, disco] = instantes[i];
+        const morto = mkAp4();
+        morto.mapa.clear(); for (const [k, v] of mapa) morto.mapa.set(k, v);
+        morto.disco.clear(); for (const [k, v] of disco) morto.disco.set(k, v);
+        const s = await saude4(morto);                                   // eslint-disable-line no-await-in-loop
+        if (!integro4(s)) falhas.push(`instante ${i}: ${JSON.stringify(s)}`);
+        // E uma SEGUNDA execução a partir dali converge para o fim limpo — sempre.
+        const r2 = await morto.RST.deleteColoring60Artworks(HIST4);      // eslint-disable-line no-await-in-loop
+        const s2 = await saude4(morto);                                  // eslint-disable-line no-await-in-loop
+        if (!(r2.ok === true && s2.arquivos === 0 && s2.ponteiros === 0 && integro4(s2))) {
+          falhas.push(`instante ${i} · 2ª execução: ${JSON.stringify(r2)} / ${JSON.stringify(s2)}`);
+        }
+      }
+      return [instantes.length >= 6 && falhas.length === 0,
+        `instantes=${instantes.length} · falhas=${falhas.join(' | ') || '(nenhuma)'}`];
+    });
+
+    await t4('S4C [07/13]: a SEGUNDA execução depois de cada falha é idempotente e curativa — repetir com o storage são termina limpo, e repetir com a MESMA falha não piora nada', async () => {
+      const modos = [['desfecho', SNAPFALHA4], ['ponteiro', PONTEIROFALHA4], ['blob', BLOBFALHA4], ['lote-tudo', LOTETUDO4]];
+      const falhas = [];
+      for (const [nome, cfg] of modos) {
+        const ap = await vivido4(cfg);                                   // eslint-disable-line no-await-in-loop
+        const r1 = await ap.RST.deleteColoring60Artworks(HIST4);         // eslint-disable-line no-await-in-loop
+        // (a) repetir com a MESMA falha: mesmo veredito, nada de deterioração.
+        const r1b = await ap.RST.deleteColoring60Artworks(HIST4);        // eslint-disable-line no-await-in-loop
+        const s1 = await saude4(ap);                                     // eslint-disable-line no-await-in-loop
+        if (r1b.ok !== r1.ok || !integro4(s1)) falhas.push(`${nome} · repetição com a falha: ${JSON.stringify(r1b)} / ${JSON.stringify(s1)}`);
+        // (b) reiniciar o app com o storage SÃO e repetir: precisa terminar limpo.
+        const sao = reiniciar4(ap);
+        const r2 = await sao.RST.deleteColoring60Artworks(HIST4);        // eslint-disable-line no-await-in-loop
+        const s2 = await saude4(sao);                                    // eslint-disable-line no-await-in-loop
+        const limpou = r2.ok === true && s2.arquivos === 0 && s2.ponteiros === 0
+          && IDS4.every((id) => s2.vagas[id] === sao.COL.SLOT.NOT_PERSISTED) && integro4(s2);
+        if (!limpou) falhas.push(`${nome} · cura: ${JSON.stringify(r2)} / ${JSON.stringify(s2)}`);
+        // (c) e uma TERCEIRA execução sobre o estado já limpo não muda mais nada.
+        const r3 = await sao.RST.deleteColoring60Artworks(HIST4);        // eslint-disable-line no-await-in-loop
+        const s3 = await saude4(sao);                                    // eslint-disable-line no-await-in-loop
+        if (!(r3.ok === true && JSON.stringify(s3) === JSON.stringify(s2))) falhas.push(`${nome} · idempotência: ${JSON.stringify(r3)}`);
+        if ((await criarLivreIntacto4(sao)) !== true) falhas.push(`${nome} · Criar Livre alterado`); // eslint-disable-line no-await-in-loop
+      }
+      return [falhas.length === 0, falhas.join(' | ') || '(todos os quatro modos convergiram)'];
+    });
+
+    await t4('S4C [08/13]: a exclusão é 100% OFFLINE — roda inteira com `fetch` e `XMLHttpRequest` transformados em armadilha, e nenhum dos serviços envolvidos referencia rede no fonte', async () => {
+      const antes = { f: globalThis.fetch, x: globalThis.XMLHttpRequest };
+      const tocou = [];
+      let r = null; let s = null;
+      try {
+        globalThis.fetch = () => { tocou.push('fetch'); throw new Error('rede indisponível'); };
+        globalThis.XMLHttpRequest = function XHRArmadilha() { tocou.push('xhr'); throw new Error('rede indisponível'); };
+        const ap = await vivido4();
+        r = await ap.RST.deleteColoring60Artworks(HIST4);
+        s = await saude4(ap);
+      } finally {
+        globalThis.fetch = antes.f;
+        globalThis.XMLHttpRequest = antes.x;
+      }
+      const fontes = ['src/services/coloring60ResetService.js', 'src/services/coloring60ActivityService.js',
+        'src/services/coloring60DrawingStorage.js', 'src/services/fileBlobStore.js'];
+      const semRede = fontes.every((f) => !/\bfetch\s*\(|XMLHttpRequest|WebSocket|https?:\/\//.test(codigo4(f)));
+      return [tocou.length === 0 && r != null && r.ok === true && s.arquivos === 0 && integro4(s) && semRede,
+        `tocou rede=${JSON.stringify(tocou)} · relatório=${JSON.stringify(r)} · fontes sem rede=${semRede}`];
+    });
+
+    // ══ S4C 09–11 · OS TRÊS INVARIANTES, EM TODA A MATRIZ ════════════════════════════════════
+
+    /**
+     * A MATRIZ. Todos os modos de interrupção × (logo depois · depois de MATAR e reabrir o app).
+     * Os três testes seguintes olham a MESMA matriz por três ângulos diferentes, porque são três
+     * promessas distintas feitas ao responsável — e cada uma precisa reprovar sozinha.
+     */
+    const matriz4 = async () => {
+      const modos = [['limpo', {}], ['desfecho', SNAPFALHA4], ['ponteiro', PONTEIROFALHA4],
+        ['blob', BLOBFALHA4], ['lote-tudo', LOTETUDO4]];
+      const out = [];
+      for (const [nome, cfg] of modos) {
+        const ap = await vivido4(cfg);                                   // eslint-disable-line no-await-in-loop
+        const r = await ap.RST.deleteColoring60Artworks(HIST4);          // eslint-disable-line no-await-in-loop
+        out.push([`${nome} · imediato`, await saude4(ap), r, ap]);       // eslint-disable-line no-await-in-loop
+        const re = reiniciar4(ap);
+        out.push([`${nome} · após reinício`, await saude4(re), r, re]);  // eslint-disable-line no-await-in-loop
+      }
+      return out;
+    };
+
+    await t4('S4C [09/13]: o contador NUNCA sai de "3 de 3" — em nenhum modo de interrupção, nem imediatamente depois, nem depois de matar e reabrir o app', async () => {
+      const linhas = await matriz4();
+      const ruins = linhas.filter(([, s]) => !(s.rotulo === '3 de 3' && s.completos === 3));
+      return [linhas.length === 10 && ruins.length === 0,
+        `cenários=${linhas.length} · fora de 3 de 3=${ruins.map(([n, s]) => `${n}→${s.rotulo}`).join(', ') || '(nenhum)'}`];
+    });
+
+    await t4('S4C [10/13]: NUNCA sobra desfecho `ready` sem pixels — a promessa de arte que o disco não pode cumprir deixa de existir em toda a matriz de interrupções', async () => {
+      const linhas = await matriz4();
+      const ruins = linhas.filter(([, s]) => s.orfaos.length > 0);
+      return [linhas.length === 10 && ruins.length === 0,
+        `cenários=${linhas.length} · com ready órfão=${ruins.map(([n, s]) => `${n}→${JSON.stringify(s.orfaos)}`).join(', ') || '(nenhum)'}`];
+    });
+
+    await t4('S4C [11/13]: NENHUM cenário produz quebra de integridade nem vaga "falta colorir" — o app nunca culpa a si mesmo por uma exclusão que o responsável pediu', async () => {
+      const linhas = await matriz4();
+      const ruins = linhas.filter(([, s]) => s.quebra === true || s.quebradas.length > 0 || s.precisaColorir.length > 0);
+      return [linhas.length === 10 && ruins.length === 0,
+        `cenários=${linhas.length} · corrompidos=${ruins.map(([n, s]) => `${n}→quebra=${s.quebra} ${JSON.stringify(s.precisaColorir)}`).join(', ') || '(nenhum)'}`];
+    });
+
+    // ══ S4C 12–13 · A FRONTEIRA CONTINUA ONDE ESTAVA ═════════════════════════════════════════
+
+    await t4('S4C [12/13]: iscas NÃO CANÔNICAS dentro de `drawings60/` sobrevivem a todos os modos de interrupção — a limpeza é dirigida pelos dois slots de cada identidade, nunca pelo diretório', async () => {
+      const ISCAS_ARQ4 = ['screation_aoutra.a.png', 'screation_aoutra.b.png', 'shistoria_x_alight.a.png', 'anotacao.txt'];
+      const modos = [['limpo', {}], ['desfecho', SNAPFALHA4], ['ponteiro', PONTEIROFALHA4],
+        ['blob', BLOBFALHA4], ['lote-tudo', LOTETUDO4]];
+      const falhas = [];
+      for (const [nome, cfg] of modos) {
+        const ap = await vivido4(cfg);                                   // eslint-disable-line no-await-in-loop
+        // Arquivos plantados NO MESMO diretório das pinturas, com nomes que imitam o padrão real mas
+        // não pertencem a nenhuma identidade do catálogo. Uma varredura por diretório os levaria.
+        ISCAS_ARQ4.forEach((n, i) => ap.disco.set(D60_4 + n, 'isca-' + i));
+        await ap.RST.deleteColoring60Artworks(HIST4);                    // eslint-disable-line no-await-in-loop
+        const vivas = ISCAS_ARQ4.filter((n, i) => ap.disco.get(D60_4 + n) === 'isca-' + i);
+        if (vivas.length !== ISCAS_ARQ4.length) falhas.push(`${nome}: sobreviveram ${vivas.length}/${ISCAS_ARQ4.length}`);
+        if (iscasIntactas4(ap) !== true) falhas.push(`${nome}: iscas de CHAVE alteradas`);
+        if (vizinhosIntactos4(ap) !== true) falhas.push(`${nome}: vizinhos canônicos alterados`);
+      }
+      return [falhas.length === 0, falhas.join(' | ') || '(as iscas de arquivo e de chave sobreviveram aos cinco modos)'];
+    });
+
+    await t4('S4C [13/13]: o Criar Livre e a marca LEGADA de cena colorida atravessam intactos todos os modos de interrupção — inclusive os arquivos, não só os índices', async () => {
+      const modos = [['limpo', {}], ['desfecho', SNAPFALHA4], ['ponteiro', PONTEIROFALHA4],
+        ['blob', BLOBFALHA4], ['lote-tudo', LOTETUDO4]];
+      const falhas = [];
+      for (const [nome, cfg] of modos) {
+        const ap = await vivido4(cfg);                                   // eslint-disable-line no-await-in-loop
+        const legAntes = arq4(ap, LEG4).length;
+        await ap.RST.deleteColoring60Artworks(HIST4);                    // eslint-disable-line no-await-in-loop
+        if ((await criarLivreIntacto4(ap)) !== true) falhas.push(`${nome}: Criar Livre alterado`); // eslint-disable-line no-await-in-loop
+        if (arq4(ap, LIVRE4).length !== 4) falhas.push(`${nome}: arquivos do Criar Livre = ${arq4(ap, LIVRE4).length}`);
+        if (arq4(ap, LEG4).length !== legAntes || legAntes !== 1) falhas.push(`${nome}: legado = ${arq4(ap, LEG4).length} (era ${legAntes})`);
+        if ((await ap.DRW.hasSavedDrawing(HIST4, 'c01')) !== true) falhas.push(`${nome}: marca legada perdida`); // eslint-disable-line no-await-in-loop
+        // E o mesmo depois de matar e reabrir o app.
+        const re = reiniciar4(ap);
+        if ((await criarLivreIntacto4(re)) !== true) falhas.push(`${nome}: Criar Livre alterado após reinício`); // eslint-disable-line no-await-in-loop
+      }
+      return [falhas.length === 0, falhas.join(' | ') || '(Criar Livre e legado intactos nos cinco modos)'];
+    });
+
     /* ── CONTROLES NEGATIVOS S4 ───────────────────────────────────────────────────────────────
      * Cada um remove UMA proteção do fonte e roda o MESMO cenário nos dois lados. Se a prova não
      * muda, a proteção era decorativa. `mutar4` falha ruidosamente quando a âncora fica obsoleta e
@@ -49916,8 +50275,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     // CN-5 — apagar pinturas passa a apagar a CONQUISTA (progresso)
     {
       const [o, m] = await parS4({},
-        { rst: mutar4('      snapOk = (await clearColoring60Snapshot(storyId, activityIds)) === true;',
-          '      snapOk = (await clearColoring60Completion(storyId, activityIds)) === true;') },
+        { rst: mutar4('      await clearColoring60Snapshot(storyId, [id]);',
+          '      await clearColoring60Completion(storyId, [id]);') },
         async (ap) => {
           await ap.RST.deleteColoring60Artworks(HIST4);
           const done = await Promise.all(IDS4.map((id) => ap.S.loadColoring60Done(HIST4, id)));
@@ -49953,8 +50312,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     {
       const alvo = (u) => u.startsWith(D60_4) && u.includes('alight');
       const [o, m] = await parS4({ apagarFalha: alvo },
-        { rst: mutar4('  if (relatorio.failed.length > 0 || relatorio.residual.length > 0) relatorio.ok = false;',
-          '  if (false) relatorio.ok = false;') },
+        { rst: mutar4('    || relatorio.residual.length > 0', '    || false') },
         async (ap) => {
           const r = await ap.RST.deleteColoring60Artworks(HIST4);
           return r.ok === false && arq4(ap, D60_4).length === 1;
@@ -50003,11 +50361,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       cnS4('CN-S4-11', 'os dados antifarming entram na whitelist e o reset vira uma forma de zerar o limite diário', o, m);
     }
 
-    // CN-12 — o desfecho gravado NÃO é removido junto: a vaga concluída degrada para "falta colorir"
+    // CN-12 — o desfecho gravado deixa de ser removido: a vaga nunca vira NOT_PERSISTED honesto
     {
       const [o, m] = await parS4({},
-        { rst: mutar4('      snapOk = (await clearColoring60Snapshot(storyId, activityIds)) === true;',
-          '      snapOk = true;') },
+        { rst: mutar4('      await clearColoring60Snapshot(storyId, [id]);', '      await Promise.resolve();') },
         async (ap) => {
           await ap.RST.deleteColoring60Artworks(HIST4);
           const k = await kinds4(ap);
@@ -50015,7 +50372,47 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           return IDS4.every((id) => k[id] === ap.COL.SLOT.NOT_PERSISTED)
             && j.countLabel === '3 de 3' && j.hasIntegrityBreak === false;
         });
-      cnS4('CN-S4-12', 'a vaga concluída deixa de virar NOT_PERSISTED honesto e o app acusa quebra de integridade por uma exclusão que o responsável pediu', o, m);
+      cnS4('CN-S4-12', 'o desfecho gravado deixa de ser removido e a vaga concluída nunca vira o NOT_PERSISTED honesto que a exclusão promete', o, m);
+    }
+
+    /* ── CN-13 a CN-15 · A ORDEM CORRIGIDA (defeito bloqueante da auditoria pré-build) ─────────
+     * Os três encenam, um a um, os jeitos de desfazer a correção: voltar a destruir antes de limpar,
+     * destruir mesmo sem confirmação, e devolver a autoridade ao código de retorno. Todos rodam com
+     * a MESMA falha real de storage — o lote do desfecho rejeitando —, porque é sob interrupção que
+     * a ordem importa. No fonte correto o resultado é sempre "nada se perdeu"; em cada mutante,
+     * "desfecho `ready` sem pixels, contador caindo e quebra de integridade".
+     */
+    const CENARIO_ORDEM4 = async (ap) => {
+      await ap.RST.deleteColoring60Artworks(HIST4);
+      const s = await saude4(ap);
+      return s.arquivos === 3 && s.ponteiros === 3 && integro4(s) === true;
+    };
+
+    // CN-13 — a ordem volta a ser "pixels primeiro, desfecho depois"
+    {
+      const [o, m] = await parS4(SNAPFALHA4,
+        { rst: mutar4('      etapa = \'desfecho\';\n      await clearColoring60Snapshot(storyId, [id]);',
+          '      etapa = \'desfecho\';\n      await clearColoring60SavedDrawing(storyId, id);\n      await clearColoring60Snapshot(storyId, [id]);') },
+        CENARIO_ORDEM4);
+      cnS4('CN-S4-13', 'a destruição volta a acontecer ANTES da limpeza do desfecho e a interrupção ressuscita o `ready` órfão que derruba o contador', o, m);
+    }
+
+    // CN-14 — a guarda que protege a obra some: a identidade segue para a destruição mesmo sem confirmação
+    {
+      const [o, m] = await parS4(SNAPFALHA4,
+        { rst: mutar4('        if (tinhaObra) relatorio.residual.push(id);\n        continue; // eslint-disable-line no-continue',
+          '        if (tinhaObra) relatorio.residual.push(id);') },
+        CENARIO_ORDEM4);
+      cnS4('CN-S4-14', 'a identidade com desfecho não confirmado segue mesmo assim para a destruição e a obra é apagada sob um `ready` que continua prometendo arte', o, m);
+    }
+
+    // CN-15 — a autoridade volta a ser o código de retorno, e não a sonda do estado real
+    {
+      const [o, m] = await parS4(SNAPFALHA4,
+        { rst: mutar4('      const desfecho = await probeStoredOutcome(storyId, id);',
+          '      const desfecho = OUTCOME_PROBE.ABSENT;') },
+        CENARIO_ORDEM4);
+      cnS4('CN-S4-15', 'a sonda deixa de decidir e a exclusão destrói a obra presumindo uma limpeza lógica que não aconteceu', o, m);
     }
 
     for (const c of CN_S4) {
@@ -50023,8 +50420,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         c.original === true && c.mutante === false,
         `o controle negativo não distinguiu o certo do errado (original=${JSON.stringify(c.original)} · mutante=${JSON.stringify(c.mutante)})`);
     }
-    check('S4 [negativos]: os doze controles negativos do S4 rodaram e nenhum sobreviveu',
-      CN_S4.length === 12 && CN_S4.every((c) => c.original === true && c.mutante === false),
+    check('S4 [negativos]: os quinze controles negativos do S4 rodaram e nenhum sobreviveu',
+      CN_S4.length === 15 && CN_S4.every((c) => c.original === true && c.mutante === false),
       `executados=${CN_S4.length} · sobreviventes=${CN_S4.filter((c) => !(c.original === true && c.mutante === false)).map((c) => c.id).join(', ') || '(nenhum)'}`);
   }
 

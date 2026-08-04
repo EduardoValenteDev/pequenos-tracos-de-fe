@@ -212,9 +212,41 @@ const PARENT_DATA_ACTIONS = [
     doneMsg:
       'As pinturas do Colorir com o Beni foram apagadas. O progresso da criança foi preservado, e '
       + 'ela pode pintar de novo quando quiser.',
-    partialMsg:
-      'Algumas pinturas podem não ter sido apagadas por completo. O progresso não foi alterado. '
-      + 'Tente novamente.',
+    /**
+     * [Spec 019 · S4] A MENSAGEM PARCIAL É DERIVADA DO RELATÓRIO, não fixa.
+     *
+     * A versão fixa afirmava "O progresso não foi alterado" em TODA falha — uma frase que a tela não
+     * tinha como sustentar: ela é escrita antes de olhar o resultado, enquanto o `refreshProgress()`
+     * que roda logo acima já pode ter redesenhado o contador na frente do responsável. Prometer
+     * intocado o que talvez tenha mudado é pior do que não dizer nada: manda embora quem deveria
+     * repetir a operação. Agora cada frase corresponde a um campo MEDIDO do relatório:
+     *   · `completionPreserved === false` → alguma conclusão se perdeu. É o único caso em que a tela
+     *     pode falar de progresso, e fala para dizer que MUDOU;
+     *   · `verified === false` → nem o estado final deu para ler. A tela não afirma nada sobre ele;
+     *   · `staleOutcomes` → resíduo LÓGICO. A pintura dessas partes foi PRESERVADA de propósito
+     *     (sem o desfecho limpo, apagá-la corromperia a vaga) — logo, "restaram pinturas";
+     *   · `failed`/`residual` → resíduo FÍSICO: pintura que não saiu.
+     * Em todos eles a conclusão continua de pé, então a única promessa mantida é a que o próprio
+     * relatório sustenta. E o convite a repetir sempre aparece: repetir é seguro e idempotente.
+     */
+    partialMsg: (r) => {
+      if (r && r.completionPreserved === false) {
+        return 'A exclusão não terminou e parte do progresso das histórias mudou. Abra o Colorir '
+          + 'com o Beni para ver como ficou e, se quiser, toque em "Apagar pinturas" outra vez.';
+      }
+      if (r && r.verified === false) {
+        return 'Não foi possível confirmar como ficaram as pinturas neste aparelho. As partes '
+          + 'concluídas continuam concluídas. Tente novamente daqui a pouco.';
+      }
+      const logico = r && Array.isArray(r.staleOutcomes) && r.staleOutcomes.length > 0;
+      if (logico) {
+        return 'Algumas pinturas não puderam ser apagadas agora e foram mantidas como estavam, '
+          + 'para nada se perder pela metade. As partes concluídas continuam concluídas. Tente '
+          + 'novamente.';
+      }
+      return 'Algumas pinturas podem não ter sido apagadas por completo. As partes concluídas '
+        + 'continuam concluídas. Tente novamente.';
+    },
     errorMsg: 'Não foi possível apagar as pinturas. Tente novamente.',
     refreshProgress: true,
     run: () => deleteColoring60Artworks(),
@@ -521,6 +553,10 @@ export default function ParentAreaScreen({ navigation }) {
    * parcial); a tela só mostra "pronto" quando essa verificação passa. Uma exclusão que deixou
    * arquivo para trás vira aviso honesto, não confete — anunciar sucesso com resíduo é justamente
    * o que faria o responsável acreditar que apagou algo que continua no aparelho.
+   *
+   * E O AVISO TAMBÉM É VERIFICADO. `partialMsg` pode ser um TEXTO (quando a mesma frase vale para
+   * qualquer falha daquela ação) ou uma FUNÇÃO do relatório (quando não vale). A tela nunca escolhe
+   * a frase antes de olhar o resultado: é o relatório que decide o que pode ser afirmado.
    */
   async function handleExecuteDataAction() {
     const acao = PARENT_DATA_ACTIONS.find((a) => a.id === dataAction);
@@ -532,7 +568,10 @@ export default function ParentAreaScreen({ navigation }) {
       if (acao.refreshProgress) refreshProgress();
       if (resultado && resultado.ok === false) {
         closeDataAction();
-        Alert.alert('Não foi possível concluir', acao.partialMsg);
+        const aviso = typeof acao.partialMsg === 'function'
+          ? acao.partialMsg(resultado)
+          : acao.partialMsg;
+        Alert.alert('Não foi possível concluir', aviso);
       } else {
         setDataDoneMsg(acao.doneMsg);
         setDataConfirmText('');

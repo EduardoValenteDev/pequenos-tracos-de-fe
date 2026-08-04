@@ -21,8 +21,10 @@
  * presença de uma pintura preservada: a obra sobrevive, mas a atividade volta a estar incompleta e
  * só volta a contar quando a criança concluir de novo (a arte é reidratada no canvas, não no
  * placar). E pintura apagada NÃO pode apagar a conquista: a atividade continua concluída, apenas
- * sem obra guardada. Por isso a exclusão remove o DESFECHO gravado junto com o ponteiro e o blob —
- * é o que converte a vaga em NOT_PERSISTED honesto em vez de fingir perda de dados.
+ * sem obra guardada. Por isso a exclusão remove o DESFECHO gravado — e o remove ANTES do ponteiro e
+ * do blob, identidade por identidade: é o que converte a vaga em NOT_PERSISTED honesto em vez de
+ * fingir perda de dados, e é a única ordem em que uma interrupção no meio não inventa uma promessa
+ * de arte que o disco já não pode cumprir (ver o docblock de `deleteColoring60Artworks`).
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  *
  * O PROBLEMA ORIGINAL. Existiam TRÊS lugares que diziam apagar o Colorir 60 e nenhum apagava tudo:
@@ -59,6 +61,7 @@ import {
   clearColoring60Completion,
   clearColoring60Snapshot,
   loadColoring60Done,
+  loadColoring60JourneyRecord,
 } from './coloring60ActivityService';
 import {
   clearColoring60SavedDrawing,
@@ -67,6 +70,7 @@ import {
   hasColoring60SnapshotRecord,
   COLORING60_GC_REASON,
 } from './coloring60DrawingStorage';
+import { SNAPSHOT_STATUS } from './coloring60State';
 import { clearCreationColoringInvite } from './coloring60JourneyInvite';
 import { clearColoring60MilestoneInviteSeen } from './coloring60MilestoneInviteSeen';
 import { getColoring60Activities } from '../data/coloring60Catalog';
@@ -183,29 +187,82 @@ export async function resetColoring60Progress(storyId = COLORING60_STORY_ID, opt
 }
 
 /**
+ * [Spec 019 · S4] SONDA DO DESFECHO GRAVADO — "o desfecho desta identidade AINDA está no storage?".
+ *
+ * Pergunta feita ao LEITOR CANÔNICO do registro de conclusão, não a um construtor de chave repetido
+ * aqui: continua valendo que só o módulo dono sabe montar suas chaves. São TRÊS respostas, e a
+ * distinção entre elas é o que impede as duas mentiras opostas:
+ *   `absent`  — o desfecho não está mais lá. Vale mesmo que a remoção tenha reportado erro:
+ *               `multiRemove` pode remover e ainda assim rejeitar (ver o docblock abaixo);
+ *   `present` — o desfecho continua lá;
+ *   `unknown` — não deu para ler. NÃO é `absent`: não verificar nunca autoriza destruir.
+ */
+const OUTCOME_PROBE = Object.freeze({ ABSENT: 'absent', PRESENT: 'present', UNKNOWN: 'unknown' });
+
+async function probeStoredOutcome(storyId, activityId) {
+  try {
+    const registro = await loadColoring60JourneyRecord(storyId, [activityId]);
+    if (!registro || registro.readFailed === true) return OUTCOME_PROBE.UNKNOWN;
+    const vaga = (registro.activities || [])[0];
+    if (!vaga) return OUTCOME_PROBE.UNKNOWN;
+    return vaga.storedSnapshotStatus === SNAPSHOT_STATUS.MISSING
+      ? OUTCOME_PROBE.ABSENT
+      : OUTCOME_PROBE.PRESENT;
+  } catch (e) {
+    warn('coloring60Delete.sondaDesfecho:', e);
+    return OUTCOME_PROBE.UNKNOWN;
+  }
+}
+
+/**
  * [Spec 019 · S4] deleteColoring60Artworks(storyId) — APAGAR AS PINTURAS, e só elas.
  *
- * Ação PARENTAL explícita e destrutiva. Para cada identidade do catálogo remove, nesta ordem:
- *   1. o PONTEIRO (metadado) e o ARQUIVO FÍSICO — via `clearColoring60SavedDrawing`, que é
+ * Ação PARENTAL explícita e destrutiva. Cada identidade do catálogo é processada SOZINHA, e dentro
+ * dela a ordem é a INVERSA da intuição — o registro LÓGICO sai antes dos pixels:
+ *   1. o DESFECHO gravado (`snap`) DESTA identidade — via `clearColoring60Snapshot(storyId, [id])`,
+ *      preservando `done`/`ever`. Lote de UMA chave: uma remoção parcial que atinja meia jornada
+ *      deixa de ser possível por construção;
+ *   2. a SONDA que confirma a ausência do desfecho. É ela — e não o código de retorno — que
+ *      autoriza o passo seguinte. Sem confirmação, a obra desta identidade NÃO é tocada;
+ *   3. só então o PONTEIRO e o ARQUIVO FÍSICO — via `clearColoring60SavedDrawing`, que é
  *      metadado-primeiro, confina a exclusão a `drawings60/` e recolhe o resíduo da geração
  *      inativa. Nenhum caminho é montado aqui: a fronteira do writer continua sendo a única que
- *      sabe onde os blobs moram;
- *   2. o DESFECHO gravado (`snap`) — via `clearColoring60Snapshot`, preservando `done`/`ever`.
+ *      sabe onde os blobs moram.
  *
- * POR QUE O DESFECHO SAI JUNTO. Sem o passo 2 a evidência ficaria "prometi uma obra e ela sumiu":
- * a vaga viraria NEEDS_COLOR, o contador cairia e a coleção acusaria quebra de integridade — o app
- * culparia a si mesmo por uma exclusão que o RESPONSÁVEL pediu. Com o passo 2 a evidência vira
- * "concluída, sem registro de arte", que rende o NOT_PERSISTED honesto: "Parte concluída!" +
- * "Pinte de novo para guardar sua criação." A atividade continua contando.
+ * POR QUE O DESFECHO SAI PRIMEIRO. Porque é a única ordem em que NENHUMA interrupção mente:
+ *   · quebrou ANTES do passo 1 → nada foi tocado. Arte, ponteiro e desfecho seguem de pé e a vaga
+ *     continua exatamente como o responsável a viu; basta repetir a operação;
+ *   · quebrou DEPOIS do passo 1 → sobra resíduo FÍSICO, e só ele. Sem desfecho gravado a vaga
+ *     reconcilia para "concluída, sem registro de arte" — ou para READY, se a arte tiver
+ *     sobrevivido. Em nenhuma das duas a conclusão cai nem a coleção acusa quebra.
+ * A ordem oposta — pixels primeiro — admite um terceiro estado que não tem dono: desfecho `ready`
+ * apontando para arte que já não existe. Isso não é resíduo, é CORRUPÇÃO: `reconcileSnapshotStatus`
+ * cai em `missing`, a vaga vira NEEDS_COLOR, o contador CAI e a coleção acusa quebra de integridade
+ * — o app culpando a si mesmo por uma exclusão que o RESPONSÁVEL pediu. E, ao contrário do resíduo
+ * físico, esse estado ATRAVESSA o reinício do app: só uma nova execução da exclusão o cura.
+ *
+ * A SONDA TEM A ÚLTIMA PALAVRA, e nas duas direções. `multiRemove` NÃO é transacional por contrato:
+ * no iOS ele percorre chave a chave, ACUMULA os erros sem abortar e escreve o manifesto uma única
+ * vez no fim — "removeu e mesmo assim rejeitou" é desfecho previsto, não hipótese. Obedecer ao
+ * código de retorno erraria dos dois lados: recusaria continuar sobre um estado já limpo e
+ * anunciaria fracasso sobre um disco íntegro. Por isso quem decide é a LEITURA do que ficou — antes
+ * de destruir (passo 2) e outra vez no fim, sobre a jornada inteira.
  *
  * O QUE NÃO É TOCADO: conclusão, quiz, reflexão, Livrinho, convites, Criar Livre, entitlement,
  * dados de compra, consentimentos, configurações parentais e antifarming.
  *
- * RELATÓRIO ESTRUTURADO `{ ok, storyId, requested, removedPointers, removedBlobs, failed,
- * residual }`. As contagens são MEDIDAS, não presumidas: cada identidade é sondada antes e depois
- * (metadado para o ponteiro, leitura real do arquivo para o blob) e só conta como removida o que
- * existia antes e não existe depois. `ok` é falso diante de QUALQUER falha ou resíduo — a interface
- * só pode anunciar sucesso quando a verificação passa. NUNCA lança.
+ * RELATÓRIO ESTRUTURADO — cada campo com UM significado, porque a ação corretiva difere entre eles:
+ *   `failed`              a exclusão FÍSICA falhou nestas identidades ("não consegui apagar a obra");
+ *   `residual`            resíduo FÍSICO observado: ponteiro, blob ou arquivo sobrevivente;
+ *   `staleOutcomes`       resíduo LÓGICO observado: desfecho gravado que continuou no storage. Nestas
+ *                         identidades a obra NÃO foi tocada — de propósito;
+ *   `completionPreserved` a sonda final confirmou que nenhuma conclusão se perdeu no caminho;
+ *   `verified`            as sondas puderam ser lidas (relatório OBSERVADO, não presumido);
+ *   `removedPointers` / `removedBlobs` contagens MEDIDAS por sondas antes e depois — só conta como
+ *                         removido o que existia antes e não existe depois.
+ * `ok` é falso diante de qualquer falha, de resíduo de um tipo ou do outro, de conclusão perdida ou
+ * de verificação impossível — a interface só pode anunciar sucesso quando a verificação passa.
+ * NUNCA lança.
  */
 export async function deleteColoring60Artworks(storyId = COLORING60_STORY_ID, options = {}) {
   const activityIds = coloring60ActivityIds(storyId);
@@ -217,17 +274,61 @@ export async function deleteColoring60Artworks(storyId = COLORING60_STORY_ID, op
     removedBlobs: 0,
     failed: [],
     residual: [],
+    staleOutcomes: [],
+    completionPreserved: true,
+    verified: true,
   };
+
+  // RETRATO INICIAL, numa única leitura em lote: quais identidades chegaram aqui CONCLUÍDAS. Esta
+  // função não toca a chave de conclusão — mas "a conquista foi preservada" não pode ser uma
+  // promessa do código sobre si mesmo. Com o retrato, vira COMPARAÇÃO medida no fim.
+  const doneAntes = new Map();
+  let retratoInicial = null;
+  try {
+    retratoInicial = await loadColoring60JourneyRecord(storyId, activityIds);
+  } catch (e) {
+    warn('coloring60Delete.retratoInicial:', e);
+  }
+  if (retratoInicial && retratoInicial.readFailed !== true) {
+    (retratoInicial.activities || []).forEach((a) => {
+      doneAntes.set(a.activityId, a.isCurrentlyComplete === true);
+    });
+  } else if (activityIds.length > 0) {
+    relatorio.verified = false;
+  }
 
   for (let i = 0; i < activityIds.length; i += 1) {
     const id = activityIds[i];
+    // Em qual ETAPA esta identidade estava se algo explodir. É o que permite ao relatório dizer
+    // QUAL passo falhou, em vez de despejar as duas naturezas de falha no mesmo campo.
+    let etapa = 'sonda';
+    let tinhaObra = false;
     try {
       // ANTES. Duas sondas com propósitos distintos: a leve responde "existe ponteiro?" sem abrir
       // arquivo; a forte resolve o ponteiro e responde "existe obra RECUPERÁVEL?". Medir as duas
       // separadamente é o que permite distinguir "apaguei uma obra" de "apaguei um ponteiro órfão".
       const tinhaPonteiro = await hasColoring60SnapshotRecord(storyId, id);
       const tinhaBlob = await hasColoring60SavedDrawing(storyId, id);
+      tinhaObra = tinhaPonteiro || tinhaBlob;
 
+      // ─── PASSO 1 · O DESFECHO LÓGICO, ANTES DE QUALQUER DESTRUIÇÃO ────────────────────────────
+      // Lote de UMA chave: o que quer que aconteça, o estrago não atravessa para outra identidade.
+      etapa = 'desfecho';
+      await clearColoring60Snapshot(storyId, [id]);
+
+      // ─── PASSO 2 · A CONFIRMAÇÃO QUE AUTORIZA DESTRUIR ────────────────────────────────────────
+      // Desfecho ainda presente, ou impossível de ler ⇒ esta identidade sai INTEIRA daqui: obra,
+      // ponteiro e desfecho intactos. Um estado consistente e repetível é infinitamente melhor do
+      // que uma obra destruída sob um desfecho que continua prometendo arte.
+      const desfecho = await probeStoredOutcome(storyId, id);
+      if (desfecho !== OUTCOME_PROBE.ABSENT) {
+        relatorio.staleOutcomes.push(id);
+        if (tinhaObra) relatorio.residual.push(id);
+        continue; // eslint-disable-line no-continue
+      }
+
+      // ─── PASSO 3 · O PONTEIRO E O ARQUIVO ─────────────────────────────────────────────────────
+      etapa = 'fisico';
       await clearColoring60SavedDrawing(storyId, id);
 
       const aindaPonteiro = await hasColoring60SnapshotRecord(storyId, id);
@@ -257,27 +358,45 @@ export async function deleteColoring60Artworks(storyId = COLORING60_STORY_ID, op
       const sobreviveu = !!varredura && (varredura.failed > 0 || varredura.refused > 0);
       if ((naoVerificou || sobreviveu) && !relatorio.residual.includes(id)) relatorio.residual.push(id);
     } catch (e) {
-      relatorio.failed.push(id);
+      // A NATUREZA DA FALHA depende da etapa. Explodiu limpando o desfecho ⇒ a obra não foi tocada
+      // (o `await` que lançou está ANTES do passo 3): é resíduo LÓGICO, e dizer `failed` ali seria
+      // afirmar "não consegui apagar a pintura" sobre uma pintura intacta. Explodiu no passo físico
+      // ⇒ é falha de exclusão de verdade. Campos distintos porque a ação corretiva é distinta.
+      if (etapa === 'desfecho') {
+        if (!relatorio.staleOutcomes.includes(id)) relatorio.staleOutcomes.push(id);
+        if (tinhaObra && !relatorio.residual.includes(id)) relatorio.residual.push(id);
+      } else if (!relatorio.failed.includes(id)) {
+        relatorio.failed.push(id);
+      }
       warn('coloring60Delete.artwork:', e);
     }
   }
 
-  // DESFECHO GRAVADO, em lote e depois dos arquivos: se o passo físico falhar, o desfecho some
-  // junto de qualquer forma, e "concluída sem arte" descreve melhor o disco do que "arte pronta".
+  // ─── SONDA FINAL · O RELATÓRIO PASSA A DESCREVER O QUE FICOU, NÃO O QUE SE TENTOU ─────────────
+  // Uma leitura em lote sobre a jornada inteira, depois de tudo. Ela corrige o relatório nos DOIS
+  // sentidos: apaga da lista de resíduo lógico a identidade cujo desfecho o storage removeu apesar
+  // de ter rejeitado (caso previsto do `multiRemove`), e acusa a que ficou para trás em silêncio.
+  // É também aqui que "a conclusão continua de pé" deixa de ser promessa e vira medição.
   if (activityIds.length > 0) {
-    let snapOk = false;
+    let retratoFinal = null;
     try {
-      snapOk = (await clearColoring60Snapshot(storyId, activityIds)) === true;
+      retratoFinal = await loadColoring60JourneyRecord(storyId, activityIds);
     } catch (e) {
-      warn('coloring60Delete.snapshot:', e);
+      warn('coloring60Delete.retratoFinal:', e);
     }
-    if (!snapOk) {
-      // Falha parcial NÃO vira sucesso. Sem saber quais identidades ficaram com desfecho órfão, o
-      // relatório assume o pior para todas as que ainda não estavam marcadas — sub-relatar seria
-      // deixar a interface anunciar um sucesso que o disco não sustenta.
-      for (let i = 0; i < activityIds.length; i += 1) {
-        if (!relatorio.failed.includes(activityIds[i])) relatorio.failed.push(activityIds[i]);
-      }
+    if (retratoFinal && retratoFinal.readFailed !== true) {
+      const observados = [];
+      (retratoFinal.activities || []).forEach((a) => {
+        if (a.storedSnapshotStatus !== SNAPSHOT_STATUS.MISSING) observados.push(a.activityId);
+        if (doneAntes.get(a.activityId) === true && a.isCurrentlyComplete !== true) {
+          relatorio.completionPreserved = false;
+        }
+      });
+      relatorio.staleOutcomes = observados;
+    } else {
+      // Sem leitura final não há relatório observado. Preserva-se o que as sondas por identidade
+      // apuraram e assume-se o não verificado — nunca o contrário.
+      relatorio.verified = false;
     }
   }
 
@@ -285,7 +404,15 @@ export async function deleteColoring60Artworks(storyId = COLORING60_STORY_ID, op
   // desenhada na tela montada.
   if (options.notify !== false) notifyColoring60Reset(storyId);
 
-  if (relatorio.failed.length > 0 || relatorio.residual.length > 0) relatorio.ok = false;
+  if (
+    relatorio.failed.length > 0
+    || relatorio.residual.length > 0
+    || relatorio.staleOutcomes.length > 0
+    || relatorio.completionPreserved !== true
+    || relatorio.verified !== true
+  ) {
+    relatorio.ok = false;
+  }
   return relatorio;
 }
 
