@@ -10,6 +10,11 @@
  *  • TECLADO: usa keyboardWillShow/Hide (iOS) com a duração do evento; o livro/rodapé deslocam por
  *    transform já no mesmo instante, sem salto tardio; CTA ancorado acima do teclado.
  *  • Haptic leve na conclusão da virada (expo-haptics já usado no projeto). Sem áudio. Persistência intacta.
+ *
+ * [B1-PRIMEIRA-AVENTURA] O fim do onboarding tem DESTINO ÚNICO: o Mapa de Aventuras, com o tour
+ * do Beni. A história de A Criação NÃO é mais empilhada automaticamente — ela é alcançada por
+ * ESCOLHA da criança, tocando o pin que o próprio tour destaca (`adventures.nextPin`). Ver
+ * `specs/020-onboarding-first-adventure/`.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -38,19 +43,19 @@ import { emitSummaryOnce, markOnce } from '../services/performanceTrace';
 import { BENI_IMAGES } from '../assets/mascot/beniImages';
 import { getStoryCover } from '../assets/storyCovers';
 import { DEFAULT_AVATAR_ID, DEFAULT_SKIN_TONE, getAvatarImage, isAvatarUnlocked } from '../data/avatars';
-import { stories } from '../data/stories';
 import { log } from '../utils/logger';
 
 const MOMENTS = ['encounter', 'world', 'profile', 'creation'];
 const READY_KEY = ['intro', 'world', 'profile', 'creation'];
 const TOTAL = MOMENTS.length;
-const CREATION_STORY = stories.find((s) => s.id === 'creation') || null;
 
+// [B1-PRIMEIRA-AVENTURA] O CTA final promete o MAPA, não a história. Para quem já concluiu
+// A Criação (modo revisão), "Iniciar primeira aventura" seria falso — o rótulo de revisão fica.
 function labelForMoment(m, creationDone) {
   return m === 'encounter' ? 'Abrir meu livro'
     : m === 'world' ? 'Quero explorar'
       : m === 'profile' ? 'Esse sou eu'
-        : creationDone ? 'Explorar Aventuras' : 'Começar A Criação';
+        : creationDone ? 'Explorar Aventuras' : 'Iniciar primeira aventura';
 }
 
 export default function OnboardingScreen({ navigation }) {
@@ -222,7 +227,7 @@ export default function OnboardingScreen({ navigation }) {
   const pickAvatar = useCallback((id, tone) => { setAvatarId(id); setSkinTone(tone); }, []);
   const onChangeName = useCallback((v) => setName(v), []);
 
-  const finish = useCallback(async (dest) => {
+  const finish = useCallback(async () => {
     if (savingRef.current) return;
     savingRef.current = true;
     try {
@@ -241,6 +246,10 @@ export default function OnboardingScreen({ navigation }) {
       await saveProfile({ name: finalName, avatarId: selectedAvatar, skinTone, avatarSkinTones });
       await createChildProfile({ name: finalName, avatarId: selectedAvatar }).catch((e) => log('onboarding.createChild:', e));
       await markOnboardingCompleted();
+      // Dois TRANSPORTES do mesmo pedido, não duas regras: o celular recebe o tour pelo
+      // `state` aninhado (params.startBeniTour); o tablet, pelo sinal em memória — o
+      // TabletLayout é custom e ignora o estado aninhado. AdventureMapScreen aceita os dois
+      // como um só (`params.startBeniTour || consumeInitialTourRequest()`).
       requestInitialTour();
 
       const tabsState = {
@@ -253,9 +262,10 @@ export default function OnboardingScreen({ navigation }) {
           { name: 'Perfil' },
         ],
       };
-      const routes = [{ name: 'Home', state: tabsState }];
-      if (dest === 'creation' && CREATION_STORY) routes.push({ name: 'StoryDetail', params: { story: CREATION_STORY } });
-      navigation.dispatch(CommonActions.reset({ index: routes.length - 1, routes }));
+      // [B1-PRIMEIRA-AVENTURA] DESTINO ÚNICO: só `Home` na aba Aventuras. NÃO empilhar
+      // `StoryDetail` aqui — a história esconde o mapa e o tour, e abre A Criação sem a
+      // criança escolher. O caminho até a história é o pin destacado pelo próprio tour.
+      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Home', state: tabsState }] }));
     } catch (e) {
       log('onboarding.finish:', e);
       savingRef.current = false;
@@ -263,16 +273,16 @@ export default function OnboardingScreen({ navigation }) {
     }
   }, [name, avatarId, skinTone, reviewMode, profile, saveProfile, navigation]);
 
-  const skip = useCallback(() => { Keyboard.dismiss(); if (!savingRef.current) finish('adventures'); }, [finish]);
+  const skip = useCallback(() => { Keyboard.dismiss(); if (!savingRef.current) finish(); }, [finish]);
 
   const primaryLabel = labelForMoment(moment, creationDone);
   const ctaDisabled = moment === 'profile' && !profileReady;
 
   const onPrimary = useCallback(() => {
     if (lockRef.current) return;
-    if (moment === 'creation') { finish(creationDone ? 'adventures' : 'creation'); return; }
+    if (moment === 'creation') { finish(); return; }   // destino único: o Mapa
     advance();
-  }, [moment, creationDone, finish, advance]);
+  }, [moment, finish, advance]);
 
   /* Geometria do livro. */
   const bookW = Math.min(width - 28, OB.bookMaxWidth);
@@ -373,13 +383,11 @@ export default function OnboardingScreen({ navigation }) {
             </TouchableOpacity>
           )}
         </View>
-        <View style={styles.secondarySlot}>
-          {moment === 'creation' && !creationDone && !turn && (
-            <TouchableOpacity onPress={() => finish('adventures')} activeOpacity={0.7} style={styles.secondary} accessibilityRole="button" accessibilityLabel="Explorar Aventuras">
-              <Text style={styles.secondaryText}>Explorar Aventuras</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* [B1-PRIMEIRA-AVENTURA] O secundário "Explorar Aventuras" saiu: com o destino único,
+            ele fazia EXATAMENTE o mesmo que o CTA principal — dois botões idênticos na mesma
+            página, para uma criança pré-leitora. O ESPAÇO fica reservado de propósito: remover
+            o slot encurtaria o rodapé nas quatro páginas (mudança visual fora deste bloco). */}
+        <View style={styles.secondarySlot} />
       </Animated.View>
     </View>
   );
@@ -413,7 +421,6 @@ const styles = StyleSheet.create({
     width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 9,
     borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: OB.ctaBg,
   },
+  // Espaçador do rodapé (ver [B1-PRIMEIRA-AVENTURA] no render): preserva a geometria das 4 páginas.
   secondarySlot: { minHeight: OB.touchMin, alignItems: 'center', justifyContent: 'center' },
-  secondary: { paddingVertical: 6, paddingHorizontal: 16, minHeight: OB.touchMin, justifyContent: 'center' },
-  secondaryText: { fontFamily: 'Nunito', fontSize: 14, fontWeight: '800', color: OB.textSoft },
 });

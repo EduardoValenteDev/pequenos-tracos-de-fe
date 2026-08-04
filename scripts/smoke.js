@@ -6785,14 +6785,17 @@ check(
   'OnboardingScreen não está com os 4 momentos declarativos ou reintroduziu seleção arbitrária de história',
 );
 
+// [B1-PRIMEIRA-AVENTURA] Contrato ATUALIZADO (spec 020): o onboarding conclui no MAPA, com o tour
+// do Beni. Nenhuma história é empilhada — nem A Criação. O antigo `name: 'StoryDetail'` aqui era o
+// próprio defeito; a guarda agora é o inverso (ver o bloco B1 mais abaixo, que mata o mutante).
 check(
-  'O2 OnboardingScreen: conclui e vai à aba Aventuras (startBeniTour); só A Criação OFICIAL abre StoryDetail',
+  'O2 OnboardingScreen: conclui e vai à aba Aventuras (startBeniTour); NENHUMA história empilhada',
   /name: 'Aventuras', params: \{ startBeniTour: true \}/.test(onboardingScreenSrc) &&
   onboardingScreenSrc.includes('markOnboardingCompleted') &&
-  /CREATION_STORY = stories\.find\(\(s\) => s\.id === 'creation'\)/.test(onboardingScreenSrc) &&
-  /name: 'StoryDetail', params: \{ story: CREATION_STORY \}/.test(onboardingScreenSrc) &&
-  !/params: \{ story: fullStory/.test(onboardingScreenSrc),
-  'OnboardingScreen deve concluir marcando o onboarding e abrir apenas A Criação oficial (não história arbitrária)',
+  // Ausência lida SEM comentários: o comentário do bloco B1 explica a remoção citando `StoryDetail`.
+  !/StoryDetail/.test(codeOf('src/screens/OnboardingScreen.js')) &&
+  !/params: \{ story: /.test(codeOf('src/screens/OnboardingScreen.js')),
+  'OnboardingScreen deve concluir marcando o onboarding e abrindo o Mapa — sem empilhar história alguma',
 );
 
 // ── UX 2.0/2.1: Tour inicial + base de guias contextuais do Beni ─────────────
@@ -7593,7 +7596,9 @@ console.log('\n── Onboarding O2.2: O Livro Vivo do Beni ──');
   // §20.28/29/30/31/32 — sem dep nova; babel/rotas/storage/progresso intactos.
   check('O2.2 §28-32 (isolamento): sem dep nova; rotas/persistência intactas; não apaga perfil/progresso',
     !/react-native-reanimated|@shopify\/react-native-skia/.test(scr + book + bg + beni)
-    && /name: 'Home', state: tabsState/.test(scr) && /name: 'StoryDetail'/.test(scr)
+    // [B1-PRIMEIRA-AVENTURA] `name: 'StoryDetail'` saiu daqui: empilhar a história era o defeito,
+    // não a rota preservada. O que prova "rotas intactas" agora é o destino único (`Home`+tabsState).
+    && /name: 'Home', state: tabsState/.test(scr)
     && /markOnboardingCompleted/.test(scr)
     && !/AsyncStorage\.clear|removeItem\(.*profile|removeItem\(.*progress/.test(scr)
     && !/BrincarScreen|ParesDoBeni|CadeAOvelhinha|MonteACena|StoryBookScreen|ColoringScreen/.test(scr),
@@ -7719,7 +7724,7 @@ console.log('\n── Onboarding O2.3: readiness + sincronização + teclado ─
     !/beniGuideAudio|AudioPlayer|expo-audio/.test(scr + book + cover + beni + probe + prof)
     && /import \* as Haptics from 'expo-haptics'/.test(scr)
     && !/react-native-reanimated|@shopify\/react-native-skia/.test(scr)
-    && /name: 'StoryDetail'/.test(scr) && /markOnboardingCompleted/.test(scr)
+    && /CommonActions\.reset/.test(scr) && /markOnboardingCompleted/.test(scr)
     && !/AsyncStorage\.clear|removeItem\(.*profile|removeItem\(.*progress/.test(scr)
     && !/BrincarScreen|ParesDoBeni|CadeAOvelhinha|MonteACena|StoryBookScreen|ColoringScreen/.test(scr),
     'entrou áudio/dep nova, ou rotas/storage/escopo regrediram');
@@ -7778,6 +7783,306 @@ console.log('\n── Onboarding O2F: congelamento (regressão + código morto) 
     && /onSubmitEditing=\{\(\) => Keyboard\.dismiss\(\)\}/.test(prof),
     'um capítulo vazou capa, o haptic não está gateado, ou o teclado avança');
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// B1 — A PRIMEIRA AVENTURA (spec 020/`specs/020-onboarding-first-adventure/`).
+//
+// O onboarding terminava empilhando `StoryDetail` de A Criação POR CIMA do mapa:
+// a criança nunca via o Mapa de Aventuras, o tour do Beni ficava escondido atrás
+// da história, e A Criação abria sem ninguém ter escolhido. O destino passa a ser
+// ÚNICO — o Mapa, na aba Aventuras, com o tour. A história é alcançada por ESCOLHA,
+// tocando o pin que o próprio tour destaca (`adventures.nextPin`).
+//
+// Estas provas são COMPORTAMENTAIS, não textuais. Três decisões sustentam isso:
+//   1) o `finish` REAL é extraído do fonte pela AST e EXECUTADO — sem render, sem
+//      reimplementação, sem regex descrevendo o que ele "deveria" despachar;
+//   2) a ação despachada é aplicada pelos ROTEADORES REAIS do React Navigation
+//      (`@react-navigation/routers`). Quem responde "qual tela ficou visível" e
+//      "qual aba está selecionada" é o roteador de produção, não este arquivo;
+//   3) a ordem das abas é LIDA de `TAB_DEFS` no AppNavigator. Reordenar as abas sem
+//      corrigir o `index` deixa estas provas vermelhas sozinhas — que é o ponto.
+//
+// Os dois mutantes (11/12) reexecutam o MESMO predicado das provas vivas sobre o
+// fonte mutado e exigem que ele responda FALSO. Um predicado que não morre com o
+// defeito de volta não é prova de nada.
+// ════════════════════════════════════════════════════════════════════════════
+//
+// O bloco é ASSÍNCRONO (executa o `finish` real, que é async) e segue o idioma já usado no
+// arquivo: IIFE em `globalThis`, com a própria conclusão virando um check no fim da suíte —
+// senão um estouro no meio faria os checks seguintes SUMIREM em vez de falhar.
+globalThis.__B1_PRIMEIRA_AVENTURA = (async () => {
+  console.log('\n── B1: a primeira aventura (onboarding termina no Mapa) ──');
+  const parserB1 = require('@babel/parser');
+  const { CommonActions: CAB1, StackRouter: StackRouterB1, TabRouter: TabRouterB1 } = require('@react-navigation/routers');
+  const { loadModule: loadModB1 } = require('./testing/packInstallHarness');
+
+  const ONB_B1 = readSrc('src/screens/OnboardingScreen.js');
+  const NAV_B1 = readSrc('src/navigation/AppNavigator.js');
+  const MAP_B1 = readSrc('src/screens/AdventureMapScreen.js');
+
+  const parseB1 = (src) => parserB1.parse(src, { sourceType: 'module', plugins: ['jsx'] });
+
+  const walkB1 = (node, fn) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const n of node) walkB1(n, fn); return; }
+    if (typeof node.type === 'string') fn(node);
+    for (const k of Object.keys(node)) {
+      if (k === 'loc' || k === 'leadingComments' || k === 'trailingComments' || k === 'innerComments') continue;
+      const v = node[k];
+      if (v && typeof v === 'object') walkB1(v, fn);
+    }
+  };
+
+  /** Fonte do 1º argumento do `useCallback` atribuído a `nome` — o callback REAL, como escrito. */
+  const callbackSrcB1 = (src, nome) => {
+    let out = null;
+    walkB1(parseB1(src), (n) => {
+      if (out) return;
+      if (n.type === 'VariableDeclarator' && n.id && n.id.name === nome
+        && n.init && n.init.type === 'CallExpression'
+        && n.init.callee && n.init.callee.name === 'useCallback'
+        && n.init.arguments && n.init.arguments.length) {
+        out = src.slice(n.init.arguments[0].start, n.init.arguments[0].end);
+      }
+    });
+    if (!out) throw new Error(`B1: callback \`${nome}\` não encontrado em OnboardingScreen.js`);
+    return out;
+  };
+
+  /** Fonte de uma FunctionDeclaration de módulo (usada para executar `labelForMoment` de verdade). */
+  const funcSrcB1 = (src, nome) => {
+    for (const n of parseB1(src).program.body) {
+      if (n.type === 'FunctionDeclaration' && n.id && n.id.name === nome) return src.slice(n.start, n.end);
+    }
+    throw new Error(`B1: função \`${nome}\` não encontrada em OnboardingScreen.js`);
+  };
+
+  /** AsyncStorage em memória — a ÚNICA fronteira dublada do serviço de tour. */
+  const memStorageB1 = () => {
+    const m = new Map();
+    return {
+      getItem: async (k) => (m.has(k) ? m.get(k) : null),
+      setItem: async (k, v) => { m.set(k, String(v)); },
+      removeItem: async (k) => { m.delete(k); },
+    };
+  };
+
+  /** Instância REAL do beniTourService (módulo de produção) sobre storage em memória. */
+  const tourSvcB1 = () => loadModB1(
+    'src/services/beniTourService.js',
+    { AsyncStorage: memStorageB1(), log: () => {} },
+    ['GUIDE_KEYS', 'hasSeenGuide', 'markGuideSeen', 'resetGuide',
+      'requestInitialTour', 'isInitialTourPending', 'consumeInitialTourRequest', 'subscribeInitialTourRequest'],
+  );
+
+  /** Ordem REAL das abas, lida do AppNavigator (não digitada aqui). */
+  const TABS_B1 = (() => {
+    const bloco = NAV_B1.match(/const TAB_DEFS = \[([\s\S]*?)\n\];/);
+    if (!bloco) throw new Error('B1: TAB_DEFS não encontrado no AppNavigator');
+    const nomes = [...bloco[1].matchAll(/\{\s*name:\s*'([^']+)'/g)].map((m) => m[1]);
+    if (nomes.length < 2) throw new Error('B1: TAB_DEFS ilegível');
+    return nomes;
+  })();
+  const ROOT_ROUTES_B1 = ['Splash', 'Onboarding', 'Home', 'StoryDetail', 'Narration', 'Coloring', 'ParentArea'];
+
+  /**
+   * Executa o `finish` REAL do OnboardingScreen com as fronteiras dubladas.
+   * `mutate` altera o TEXTO do callback antes de executar; se a âncora não bater, LANÇA —
+   * um mutante que não se aplicou jamais pode ser contado como mutante morto.
+   */
+  const rodarFinishB1 = async ({ mutate, creationDone = false } = {}) => {
+    let corpo = callbackSrcB1(ONB_B1, 'finish');
+    if (mutate) {
+      const mutado = mutate(corpo);
+      if (mutado === corpo) throw new Error('B1: a mutação não alterou o `finish` (âncora obsoleta)');
+      corpo = mutado;
+    }
+    const acoes = [];
+    const chamadas = [];
+    const svc = tourSvcB1();
+    const historia = { id: 'creation', titulo: 'A Criação' };
+    const deps = {
+      savingRef: { current: false },
+      finalizeName: (v) => v,
+      isValidName: () => true,
+      normalizeName: (v) => v,
+      name: 'Ana',
+      reviewMode: false,
+      profile: creationDone ? { name: 'Ana', avatarId: 'girl' } : null,
+      avatarId: 'girl',
+      skinTone: 'medium',
+      DEFAULT_AVATAR_ID: 'girl',
+      isAvatarUnlocked: () => true,
+      saveProfile: async () => { chamadas.push('saveProfile'); },
+      createChildProfile: async () => { chamadas.push('createChildProfile'); },
+      markOnboardingCompleted: async () => { chamadas.push('markOnboardingCompleted'); },
+      requestInitialTour: (...a) => { chamadas.push('requestInitialTour'); return svc.requestInitialTour(...a); },
+      markGuideSeen: (...a) => { chamadas.push('markGuideSeen'); return svc.markGuideSeen(...a); },
+      log: () => {},
+      CommonActions: CAB1,
+      navigation: { dispatch: (a) => acoes.push(a), setParams: () => {} },
+      // Só existem para o mutante 11 conseguir reencenar o defeito original.
+      CREATION_STORY: historia,
+      stories: [historia],
+    };
+    const keys = Object.keys(deps);
+    const fn = new Function(...keys, `return (${corpo});`)(...keys.map((k) => deps[k]));
+    await fn();
+    return { acoes, chamadas, svc };
+  };
+
+  /** Aplica as ações despachadas nos ROTEADORES REAIS e devolve o estado de navegação resultante. */
+  const navegarB1 = (acoes) => {
+    const sr = StackRouterB1({});
+    const sOpts = { routeNames: ROOT_ROUTES_B1, routeParamList: {}, routeGetIdList: {} };
+    // Ponto de partida honesto: o app está NO Onboarding quando `finish` roda.
+    let st = sr.getRehydratedState({ index: 0, routes: [{ name: 'Onboarding' }] }, sOpts);
+    for (const a of acoes) {
+      const prox = sr.getStateForAction(st, a, sOpts);
+      if (prox === null) continue;          // ação não tratada pela stack
+      st = sr.getRehydratedState(prox, sOpts);
+    }
+    const pilha = st.routes.map((r) => r.name);
+    const foco = st.routes[st.index];
+    let aba = null; let abaIndex = -1; let abaParams = null;
+    if (foco && foco.state) {
+      const tst = TabRouterB1({}).getRehydratedState(foco.state, {
+        routeNames: TABS_B1, routeParamList: {}, routeGetIdList: {},
+      });
+      abaIndex = tst.index;
+      aba = tst.routes[tst.index].name;
+      abaParams = tst.routes[tst.index].params || null;
+    }
+    return { pilha, telaVisivel: foco ? foco.name : null, aba, abaIndex, abaParams };
+  };
+
+  // ── Predicados nomeados: as provas vivas E os mutantes usam EXATAMENTE estes ──
+  const pMapaVisivel = (nav) => nav.telaVisivel === 'Home' && nav.aba === 'Aventuras';
+  const pSemHistoriaEmpilhada = (nav) => nav.pilha.length === 1 && nav.pilha[0] === 'Home'
+    && !nav.pilha.includes('StoryDetail');
+  const pTourPedido = (nav, svc) => nav.abaParams?.startBeniTour === true && svc.isInitialTourPending() === true;
+
+  const rNova = await rodarFinishB1();
+  const navNova = navegarB1(rNova.acoes);
+
+  // 1 — A tela VISÍVEL ao fim do onboarding é o Mapa. Quem responde é o roteador real.
+  check('B1-01 (mapa visível): concluir o onboarding deixa `Home`/Aventuras como tela visível',
+    pMapaVisivel(navNova),
+    `a tela visível ficou ${navNova.telaVisivel}/${navNova.aba} (esperado Home/Aventuras)`);
+
+  // 2 — A pilha tem UMA rota. Nada é empilhado por cima do mapa.
+  check('B1-02 (sem empilhamento): a pilha final é exatamente ["Home"] — sem StoryDetail automático',
+    pSemHistoriaEmpilhada(navNova),
+    `a pilha final ficou [${navNova.pilha.join(', ')}] (esperado ["Home"])`);
+
+  // 3 — A aba selecionada é Aventuras, e o índice bate com a ORDEM REAL de TAB_DEFS.
+  check('B1-03 (aba correta): a aba focada é Aventuras, no índice real de TAB_DEFS',
+    navNova.aba === 'Aventuras' && navNova.abaIndex === TABS_B1.indexOf('Aventuras'),
+    `aba=${navNova.aba} índice=${navNova.abaIndex}; TAB_DEFS=[${TABS_B1.join(', ')}]`);
+
+  // 4 — O pedido de tour chega pelos DOIS transportes (params + sinal em memória real).
+  check('B1-04 (tour pedido): params.startBeniTour=true E o serviço real fica com tour pendente',
+    pTourPedido(navNova, rNova.svc),
+    `params=${JSON.stringify(navNova.abaParams)} pendente=${rNova.svc.isInitialTourPending()}`);
+
+  // 5 — O CTA promete o MAPA. `labelForMoment` é executado de verdade, não casado por regex.
+  {
+    const label = new Function(`${funcSrcB1(ONB_B1, 'labelForMoment')}; return labelForMoment;`)();
+    check('B1-05 (rótulo do CTA): o botão final diz exatamente "Iniciar primeira aventura"',
+      label('creation', false) === 'Iniciar primeira aventura'
+      && label('encounter', false) === 'Abrir meu livro',
+      `labelForMoment('creation', false) devolveu "${label('creation', false)}"`);
+  }
+
+  // 6 — O caminho até A Criação continua existindo: o tour termina apontando o pin, o mapa
+  //     registra esse alvo e rola até ele. Sem isso, "não empilhar" viraria beco sem saída.
+  {
+    const guias = loadModB1('src/data/beniGuides.js', {}, ['INITIAL_TOUR']);
+    const ultimo = guias.INITIAL_TOUR[guias.INITIAL_TOUR.length - 1];
+    check('B1-06 (alvo preservado): o tour termina em `adventures.nextPin`, registrado e rolado pelo mapa',
+      ultimo && ultimo.target === 'adventures.nextPin'
+      && /guideTargets\.register\('adventures\.nextPin'/.test(MAP_B1)
+      && /adventures\.nextPin'\)\s*\{?\s*scrollPinIntoView\(\)|target === 'adventures\.nextPin'\) scrollPinIntoView\(\)/.test(MAP_B1),
+      `último passo do INITIAL_TOUR: ${JSON.stringify(ultimo && ultimo.target)}`);
+  }
+
+  // 7 — Pedir o tour NÃO é o mesmo que dá-lo por visto. Quem marca é o fim do tour, no mapa.
+  check('B1-07 (não marcar antes): após o onboarding, o tour inicial NÃO está marcado como visto',
+    (await rNova.svc.hasSeenGuide(rNova.svc.GUIDE_KEYS.initial)) === false
+    && !rNova.chamadas.includes('markGuideSeen')
+    // Quem marca é o FIM do tour, no mapa (`closeBeniTour` → `markBeniAppTourSeen`, o wrapper
+    // de compatibilidade que grava a chave 'initial').
+    && /closeBeniTour = useCallback\(\(\) => \{[\s\S]{0,240}markBeniAppTourSeen\(\)/.test(MAP_B1),
+    'o onboarding marcou o tour como visto antes de ele acontecer (ou o mapa deixou de marcá-lo no fim)');
+
+  // 8 — Concluído, não volta: a flag persiste E o sinal em memória é de uso único.
+  {
+    const svc = tourSvcB1();
+    svc.requestInitialTour();
+    const primeira = svc.consumeInitialTourRequest();
+    const segunda = svc.consumeInitialTourRequest();
+    await svc.markGuideSeen(svc.GUIDE_KEYS.initial);
+    check('B1-08 (não reaparece): flag persistida após concluir; o sinal em memória é one-shot',
+      primeira === true && segunda === false
+      && (await svc.hasSeenGuide(svc.GUIDE_KEYS.initial)) === true,
+      `consumo=[${primeira}, ${segunda}] visto=${await svc.hasSeenGuide(svc.GUIDE_KEYS.initial)}`);
+  }
+
+  // 9 — Quem já concluiu A Criação também não vê história alguma abrir sozinha. A prova é que o
+  //     destino é o MESMO: não há ramo escondido para esse perfil.
+  {
+    const rFeito = await rodarFinishB1({ creationDone: true });
+    const navFeito = navegarB1(rFeito.acoes);
+    const label = new Function(`${funcSrcB1(ONB_B1, 'labelForMoment')}; return labelForMoment;`)();
+    check('B1-09 (com A Criação concluída): mesmo destino único, nenhuma história aberta; rótulo de revisão',
+      pMapaVisivel(navFeito) && pSemHistoriaEmpilhada(navFeito)
+      && label('creation', true) === 'Explorar Aventuras',
+      `pilha=[${navFeito.pilha.join(', ')}] rótulo="${label('creation', true)}"`);
+  }
+
+  // 10 — Telefone e tablet: DOIS TRANSPORTES, UM pedido. O mapa aceita os dois numa só expressão
+  //      (`||`), então o tablet não abre um segundo tour nem duplica o do telefone.
+  check('B1-10 (tablet sem duplicar): TabletLayout consome o sinal; o mapa une os dois transportes em um `||`',
+    /const \[activeTabName, setActiveTabName\] = useState\(\(\) => \(isInitialTourPending\(\) \? 'Aventuras' : 'Início'\)\)/.test(NAV_B1)
+    && /subscribeInitialTourRequest\(\(\) => setActiveTabName\('Aventuras'\)\)/.test(NAV_B1)
+    && /route\?\.params\?\.startBeniTour \|\| consumeInitialTourRequest\(\)/.test(MAP_B1)
+    && /requestInitialTour\(\)/.test(codeOf('src/screens/OnboardingScreen.js')),
+    'o tablet deixou de receber o mesmo pedido, ou o mapa passou a tratar os transportes como dois tours');
+
+  // ── Mutantes: o defeito de volta tem de deixar as provas VERMELHAS ──────────
+  // 11 — Reencena o defeito original: `StoryDetail` empilhado por cima do mapa.
+  {
+    const rMut = await rodarFinishB1({
+      mutate: (s) => s.replace(
+        /routes: \[\{ name: 'Home', state: tabsState \}\]/,
+        "routes: [{ name: 'Home', state: tabsState }, { name: 'StoryDetail', params: { story: CREATION_STORY } }], index: 1",
+      ).replace('index: 0, routes:', 'routes:'),
+    });
+    const navMut = navegarB1(rMut.acoes);
+    check('B1-11 (mutante morto): reempilhar StoryDetail derruba B1-01 e B1-02',
+      navMut.pilha.includes('StoryDetail')
+      && pSemHistoriaEmpilhada(navMut) === false
+      && pMapaVisivel(navMut) === false,
+      `o mutante sobreviveu: pilha=[${navMut.pilha.join(', ')}] visível=${navMut.telaVisivel}`);
+  }
+
+  // 12 — Remove o início do tour: sem params e sem sinal, a criança cai num mapa mudo.
+  {
+    const rMut = await rodarFinishB1({
+      mutate: (s) => s
+        .replace('requestInitialTour();', '')
+        .replace("{ name: 'Aventuras', params: { startBeniTour: true } }", "{ name: 'Aventuras' }"),
+    });
+    const navMut = navegarB1(rMut.acoes);
+    check('B1-12 (mutante morto): remover o início do tour derruba B1-04',
+      pTourPedido(navMut, rMut.svc) === false
+      && navMut.abaParams?.startBeniTour !== true
+      && rMut.svc.isInitialTourPending() === false
+      // ...sem falso positivo: o destino continua correto, então só B1-04 acusa.
+      && pMapaVisivel(navMut) && pSemHistoriaEmpilhada(navMut),
+      `o mutante sobreviveu: params=${JSON.stringify(navMut.abaParams)} pendente=${rMut.svc.isInitialTourPending()}`);
+  }
+})();
 
 // ════════════════════════════════════════════════════════════════════════════
 // LP1A — Boot à prova de falhas: fonte com erro tem saída (P0 LP0-BOOT-01) e a
@@ -34492,6 +34797,14 @@ try {
   // o sumário só fecha depois que eles terminam, senão não seriam contados.
   // Se o bloco assíncrono estourar no meio, os checks seguintes dele NÃO rodam — e um check que
   // some não falha sozinho. Então a própria conclusão do bloco é um check.
+  // B1 (spec 020): as provas da primeira aventura executam o `finish` REAL (async) e replicam a
+  // navegação nos roteadores de verdade. Mesma regra: a conclusão do bloco é ela própria um check.
+  let b1Err = null;
+  try { await globalThis.__B1_PRIMEIRA_AVENTURA; } catch (e) { b1Err = e; }
+  check('B1 (harness): o bloco da primeira aventura concluiu sem estourar',
+    !b1Err,
+    `o bloco B1 lançou (${b1Err && b1Err.message}) — as 12 provas da spec 020 não rodaram`);
+
   let lp2AsyncErr = null;
   try { await globalThis.__LP2_ASYNC; } catch (e) { lp2AsyncErr = e; }
   check('LP2 (harness): o bloco assíncrono de concorrência concluiu sem estourar',
