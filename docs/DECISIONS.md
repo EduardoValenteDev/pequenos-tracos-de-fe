@@ -389,8 +389,19 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
 - **Decisão:** o estado do card de história (grátis, premium bloqueada, liberada não-baixada, baixando, baixada/offline, em andamento, "Quase lá!", concluída total, erro, requer atualização; "Em breve" **não existe no v1**) é comunicado por **chip + selo + ícone + tratamento da arte** — **não** por uma paleta paralela de cores.
 - **⚠️ BLOQUEIO:** a paleta proposta em conversa (verde=grátis, azul=baixado, roxo=Plano Família, vermelho=erro) **NÃO deve ser implementada** — viola D2 (roxo aposentado), Lei 1 (uma cor de ação) e Lei 2 (dourado = recompensa). Premium usa **selo dourado "Plano Família"** (nunca roxo); erro **nunca** vermelho (card papel + Beni + "tentar de novo").
 
-### D-CRIAR-COM-BENI-STATUS — Status de "Criar com Beni" no v1 [A CONFIRMAR]
-- **Data:** 2026-07-05 · **Status:** 🟡 A CONFIRMAR (fundador) · **Origem:** conflito entre documentos + instrução Eduardo.
+### D-CRIAR-COM-BENI-STATUS — Status de "Criar com Beni" no v1 ✅ **ENCERRADA (2026-08-05)**
+
+> ✅ **ENCERRAMENTO DEFINITIVO — decisão do fundador na Fase 4B (2026-08-05).**
+> **Não existirá uma terceira experiência chamada "Criar com Beni".** Os **nomes oficiais** são
+> **`Criar Livre`** (autoria livre) e **`Colorir com o Beni`** (coleção narrativa dentro da história) —
+> e **somente** esses dois. **"Criar Juntos" é uma chamada contextual para o `Criar Livre`**, não uma
+> funcionalidade independente.
+> Esta decisão **deixa de ser pendência**: nada mais precisa ser confirmado. O que resta é
+> **implementação** — remover ou redirecionar o atalho legado "Criar com Beni" da Home e qualquer
+> card/fala/texto/guia com esse nome. Ver §PL4B · `D-4B-NOMES-OFICIAIS`.
+> O texto histórico abaixo é **preservado sem reescrita**.
+
+- **Data:** 2026-07-05 · **Status:** ✅ **ENCERRADA em 2026-08-05** (era 🟡 A CONFIRMAR) · **Origem:** conflito entre documentos + instrução Eduardo.
 - **Situação:** o adendo pede remover "Criar com Beni / Desenho guiado" do v1; **o fundador NÃO autorizou remoção de código neste bloco.** O status de "Criar com Beni" no v1 está **conflitante entre documentos**.
 - **Decisão:** **registrada como decisão A CONFIRMAR pelo fundador. NENHUMA alteração de código agora.** Até a confirmação, o comportamento atual do app permanece intacto.
 - **🔄 ATUALIZAÇÃO E1 (2026-07-15):** o **nome oficial da experiência criativa livre é `Criar Livre`**. "Criar com Beni" **deixa de existir como nome público de experiência separada**. Qualquer card/fala/texto/guia antigo chamado "Criar com Beni" deve ser **removido ou redirecionado em bloco futuro de código** (a Home ainda possui esse atalho legado). **Não modificar Home nem rotas neste bloco.** Ver E1-BENI-LINGUAGEM e a pendência controlada correspondente.
@@ -1063,6 +1074,164 @@ O perfil `c60-pilot` **não declara** nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` e
 - **Nenhum risco passou a `CORRIGIDO` nesta fase.** Nenhuma severidade foi rebaixada. Nenhuma
   classificação de lançamento foi afrouxada.
 
+## PL4B — Product Lock da Fase 4B · Acesso grátis, conteúdo do Plano Família, histórias e superfícies infantis (2026-08-05)
+
+> **Registro formal das respostas do fundador** ao artefato preliminar
+> [`docs/fase4-product-lock/02_PRODUCT_LOCK_4B_ACESSO_CONTEUDO_HISTORIAS_E_SUPERFICIES.md`](fase4-product-lock/02_PRODUCT_LOCK_4B_ACESSO_CONTEUDO_HISTORIAS_E_SUPERFICIES.md).
+> Estas decisões **prevalecem** sobre qualquer redação anterior conflitante e **preservam
+> integralmente** as decisões da Fase 4A (§`PL4A`), que **nenhuma delas revoga, afrouxa ou reabre**.
+>
+> **Regra de leitura obrigatória.** Uma decisão resolvida **não** corrige risco técnico. Cada item
+> abaixo distingue **decisão resolvida** · **implementação pendente** · **validação futura**.
+> Nenhum código, *asset*, *pack* ou manifesto foi alterado nesta fase; nenhuma imagem foi produzida
+> ou modificada; nenhum *build* foi gerado; nenhuma validação física foi executada.
+
+### `D-4B-CONTEUDO-GRATUITO-E-PREMIUM` — duas gratuitas completas, dezoito integralmente premium
+
+- **Decisão.** **A Criação** e **Noé** são as **duas histórias gratuitas completas** — cenas, áudio,
+  quiz, reflexão, Colorir com o Beni, progresso e recompensas, tudo incluído. As **outras dezoito**
+  histórias, **inclusive Davi e Golias**, permanecem **integralmente protegidas pelo Plano Família**.
+- **Sem meio-termo.** Não existe história "parcialmente gratuita", nem conteúdo premium liberado por
+  tempo, por marco, por progresso ou por presença de arquivo no aparelho.
+- **Estado.** Decisão **resolvida**. Corresponde ao comportamento já implementado
+  (`planConfig.js` `FREE_STORY_IDS = ['creation','noah']`, gate binário por história em
+  `accessControl.js` e `contentAccessService.js`), com **dois guardrails executáveis** no
+  `npm run smoke` que reprovam se `david_goliath` deixar de ser tratada como premium.
+- **Rastreabilidade.** `P-05`, `P-26`, `P-136`.
+
+### `D-4B-SEM-DEGUSTACAO` — não existe degustação de história premium (opção A)
+
+- **Decisão.** **Não haverá degustação gratuita** por cena, atividade ou marco dentro de histórias
+  premium. **Não liberar** cena 03, primeiro Colorir, quiz, reflexão, áudio ou **qualquer progresso
+  parcial** em Davi e Golias ou em qualquer outra história premium.
+- **A antiga hipótese de degustação de Davi e Golias fica REJEITADA para o lançamento.**
+- **Não haverá mecanismo de autorização por cena.** O gate permanece **binário por história**.
+- **Pack presente no aparelho nunca é autorização** — reafirma `D-4A-CACHE-EXPIRADO` e a decisão não
+  reabrível da matriz canônica §19.
+- **Estado.** Decisão **resolvida**, e é o **estado já vigente**: a auditoria da Fase 4B não encontrou
+  **nenhuma** ocorrência de mecanismo de degustação no código nem em todo o histórico do repositório.
+  **Nada a implementar** — o que existe é o **dever de não introduzir** o mecanismo.
+- **Rastreabilidade.** `P-05`, `P-26`.
+
+### `D-4B-PREVIA-EDITORIAL` — contrato da prévia infantil sobre conteúdo bloqueado
+
+- **Decisão.** **Home e Mapa aplicam a mesma regra de acesso**, ainda que possam usar **composições
+  visuais diferentes**. Sobre uma história bloqueada, a criança pode receber **somente**:
+  1. **Capa** · 2. **Título** · 3. **Sinopse curta** · 4. **Região ou posição no Mapa** ·
+  5. **Selo neutro do Plano Família** · 6. **Estado visual protegido**.
+- **NÃO pode conter, em nenhuma hipótese:** 1. cena narrativa integral · 2. áudio narrado ·
+  3. quiz · 4. reflexão · 5. Colorir · 6. recompensa · 7. progresso fabricado · 8. **preço** ·
+  9. **desconto** · 10. **teste grátis** · 11. **urgência** · 12. **botão "Assine agora"**.
+- **Ao tocar**, a criança recebe **orientação neutra para pedir ajuda a um adulto**.
+- **O gate parental ocorre ANTES** de qualquer paywall, preço, oferta ou informação comercial.
+- **A proibição comercial vale também para `accessibilityLabel`, leitor de tela, áudio e qualquer
+  mensagem falada.** Uma oferta que a criança **ouve** é uma oferta feita à criança.
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** o `accessibilityLabel` que hoje
+  verbaliza oferta comercial diretamente à criança (`P-66`) **continua no código** e é corrigido na
+  **Fase 12A**; a aplicação do contrato em Home e Mapa é da **Fase 11**.
+- **Rastreabilidade.** `P-05`, `P-26`, `P-66`.
+
+### `D-4B-FILTRO-RECOMENDACAO` — Cultinho e Meu Momento recomendam apenas conteúdo autorizado
+
+- **Decisão.** **Filtro estrito por conteúdo autorizado.**
+  1. No **plano grátis**, só podem recomendar **A Criação**, **Noé** e demais atividades gratuitas
+     disponíveis.
+  2. No **Plano Família**, podem recomendar **todas as histórias autorizadas**.
+  3. **Não devem recomendar conteúdo protegido** para depois apresentar bloqueio ou paywall.
+  4. Depois da **perda do entitlement**, o conteúdo protegido **sai das recomendações** na próxima
+     atualização controlada.
+  5. Com **cache expirado e sem rede**, aplica-se o **plano grátis** (coerente com
+     `D-4A-CACHE-EXPIRADO`).
+  6. **Não havendo conteúdo novo acessível**, recomendar **revisitação de conteúdo gratuito**.
+  7. **Nenhuma recomendação pode resultar em toque sem resposta.**
+- **Estado.** Decisão **resolvida**. **Implementação pendente e descompasso registrado:** a **Home
+  recomenda `david_goliath` sem consultar autorização** — o toque leva a bloqueio. Correção na
+  **Fase 11**.
+- **Rastreabilidade.** `P-05`, `P-54`.
+
+### `D-4B-COLORIR-60-ESCALA` — Colorir com o Beni padronizado nas vinte histórias
+
+- **Decisão.** O **lançamento** entrega o **Colorir com o Beni padronizado nas vinte histórias**, com
+  **três atividades narrativas por história**, totalizando **sessenta atividades**.
+  1. **A Criação** permanece como **piloto canônico**.
+  2. **Noé** é o **primeiro alvo de escala**, por ser a segunda história gratuita.
+  3. Cada história terá **três atividades vinculadas a marcos narrativos**.
+  4. As atividades respeitam **os mesmos contratos** técnicos, visuais, de persistência, conclusão e
+     revisitação aprovados no piloto.
+  5. **Assets legados não são aceitos automaticamente como arte final.** Qualquer arte antiga
+     candidata a reaproveitamento passa por **perícia técnica e aprovação visual**.
+  6. **Nenhuma história é considerada pronta para lançamento** sem o conjunto aprovado de atividades
+     de Colorir previsto para ela.
+  7. A escala é implementada na **Fase 8A** e nas fases de produção de conteúdo correspondentes.
+- **Coerência.** Confirma a regra 15 de
+  [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos)
+  ("três atividades em cada uma das vinte histórias — 60 *slots*"), que deixa de ser capacidade
+  prevista e passa a ser **escopo obrigatório de lançamento**.
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** hoje existe **1 história de 20** com
+  o modelo novo (**3 de 60** atividades). **Nenhuma imagem foi produzida ou alterada nesta fase.**
+- **Rastreabilidade.** `P-18`, `P-36`, `P-37`, `P-50`, `P-130`.
+
+### `D-4B-SALVAMENTO-DUAS-EXPERIENCIAS` — contrato de salvamento, por experiência
+
+| Experiência | Plano grátis | Plano Família |
+|---|---|---|
+| **Criar Livre** (autoria) | **Desenha, mas NÃO salva.** Sem galeria. | **Salva** e acessa a galeria. |
+| **Colorir com o Beni** (coleção narrativa) | **Salva gratuitamente uma obra real por atividade**, em **qualquer história à qual a criança tenha acesso**. | **Salva** em todas as histórias autorizadas. |
+
+1. Nas **histórias gratuitas**, o Colorir com o Beni **funciona e salva integralmente offline**.
+2. Nas **histórias premium**, **exige autorização válida** para **iniciar ou reabrir**.
+3. Depois da **perda do entitlement**, a **pintura premium permanece preservada e não pode ser
+   apagada**.
+4. Ela **volta a ficar acessível e editável quando a autorização retornar**.
+5. **A pintura, o asset ou o pack no disco nunca concede autorização** sobre a história premium.
+
+- **Correção documental obrigatória.** Toda redação genérica do tipo "**Salvar arte: zero no grátis**"
+  refere-se **exclusivamente ao `Criar Livre`**. O **Colorir narrativo salva no plano grátis** dentro
+  das histórias acessíveis. Corrigido em
+  [`docs/launch/MATRIZ_DE_ACESSO.md`](launch/MATRIZ_DE_ACESSO.md) e anotado em
+  [`docs/launch/DECISOES_E_CONFLITOS.md`](launch/DECISOES_E_CONFLITOS.md).
+- **Estado.** Decisão **resolvida** e **já implementada e validada fisicamente** para o piloto
+  (Spec 019). **Implementação pendente:** os textos de `ParentAreaScreen.js:840` e
+  `BrincarScreen.js:306` (Fase 12A) e o comportamento premium/Família (Fases 18 e 21).
+- **Rastreabilidade.** `P-63`, `P-64`, `P-65`, `P-129`, `P-130`.
+
+### `D-4B-NOMES-OFICIAIS` — dois nomes, nem um a mais
+
+- **Decisão.** **Não existirá uma terceira experiência chamada "Criar com Beni".** Os **nomes
+  oficiais** são **`Criar Livre`** e **`Colorir com o Beni`**. **"Criar Juntos" é uma chamada
+  contextual para o `Criar Livre`**, não uma funcionalidade independente.
+- **Encerra** [`D-CRIAR-COM-BENI-STATUS`](#d-criar-com-beni-status--status-de-criar-com-beni-no-v1--encerrada-2026-08-05), que sai da lista de pendências.
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** remover ou redirecionar o atalho
+  legado "Criar com Beni" ainda presente na Home e qualquer card/fala/texto/guia com esse nome.
+- **Rastreabilidade.** `P-05`.
+
+### `D-4B-PAYLOAD-PREMIUM-NO-BINARIO` — o alcance de `P-136` é todo o conteúdo premium empacotado
+
+- **Decisão.** A evidência de **`P-136`** passa a considerar **todo conteúdo premium incluído no
+  pacote ou *bundle***, **incluindo imagens, áudios, textos narrativos, quizzes e outros dados** — e
+  não apenas a mídia que passa por `require()`.
+- **Regra anti-inflação de códigos.** **Não se cria código `P` novo** para textos narrativos e
+  quizzes **sem demonstrar** que `P-136` **não** cobre o mesmo fato, a mesma superfície e a mesma
+  correção. A demonstração foi feita e **concluiu que `P-136` cobre**: mesmo fato (conteúdo premium
+  dentro do binário), mesma superfície (empacotamento do app) e mesma correção (extrair para *pack*
+  remoto). **Nenhum código novo foi criado nesta fase.**
+- **Estado.** Decisão **resolvida** quanto ao **alcance do risco**. **Risco técnico NÃO corrigido:**
+  o texto narrado integral das vinte histórias e os dezoito quizzes premium **continuam no binário**.
+  Correção nas fases de empacotamento remoto.
+- **Rastreabilidade.** `P-136`.
+
+### PL4B — O que continua **não** decidido e **não** corrigido
+
+- **Rodadas diárias: "por criança" × "por dispositivo/jogo"** — conflito **preservado e
+  deliberadamente não resolvido** nesta fase; pertence ao **bloco decisório do Brincar**. Nenhum dos
+  textos conflitantes foi alterado; ambos foram **anotados**.
+- **`P-55`** e **`P-56`** permanecem **abertos e não corrigidos**; nenhuma decisão desta fase os
+  alcança e **nenhum campo deles foi tocado**.
+- **Nenhum risco passou a `CORRIGIDO` nesta fase.** Nenhuma severidade foi rebaixada. Nenhuma
+  classificação de lançamento foi afrouxada. **Nenhum código `P` novo foi criado.**
+- **A escala de 60 atividades é decisão resolvida com implementação inteiramente futura** — nada
+  nela foi implementado, e **nenhuma imagem foi produzida ou alterada**.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 
@@ -1074,7 +1243,7 @@ O perfil `c60-pilot` **não declara** nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` e
 ## Itens PENDENTES / A CONFIRMAR (resumo)
 - 🟡 **D-NAMING-JOGOS-PENDENTE** — nomes finais de Adivinhar o Animal / Quebra-Cabeça (Soletrando → **"Palavrinhas do Beni"** ✅ resolvido em `D-PALAVRINHAS-UF1`).
 - ✅ **D-CONCLUSAO-TOTAL-B** — definição operacional de "colorir concluído" **RESOLVIDA em 2026-07-30**: pelo menos **uma atividade do Colorir com o Beni** concluída (ver [`D-C60-INTEGRACAO-PRODUTO`](#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto) §3). O **restante** da `D-CONCLUSAO-TOTAL-B` (Opção B, ritual de conclusão) segue para implementação na **Fase 11**.
-- 🟡 **D-CRIAR-COM-BENI-STATUS** — manter ou remover "Criar com Beni" no v1 (sem código até confirmar).
+- ✅ **D-CRIAR-COM-BENI-STATUS** — **ENCERRADA em 2026-08-05** (Fase 4B). Não existirá terceira experiência "Criar com Beni"; os nomes oficiais são **`Criar Livre`** e **`Colorir com o Beni`**; "Criar Juntos" é chamada contextual do Criar Livre. **Deixa de ser pendência de decisão**; resta apenas a implementação de remover/redirecionar o atalho legado da Home (ver §PL4B · `D-4B-NOMES-OFICIAIS`).
 - ✅ **ESTADO TRANSITÓRIO ENCERRADO EM 2026-08-04** — a janela "NÃO GERAR BUILD" entre o **D1** e a conclusão do **S1** da Spec 019 **não vigora mais**: código, smoke e documentação voltaram a concordar, e o build `bafb8e3f` (commit `b24c868`) foi gerado depois do fechamento e **validado fisicamente**. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §7 e §8.
 - 🟡 **Cenários Família e premium da Spec 019** — **obrigatórios na Fase 18** e **revalidados na Fase 21**; não validados no perfil `c60-pilot` por impossibilidade técnica. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §8.1.
 - 🟡 **Contrato técnico do sistema global de conclusão** (Decisões B e C) — **NÃO congelado**. Congelamento previsto para o **Product Lock da Fase 4**; os cinco impedimentos apurados estão em [`D-CONCLUSAO-ESTADO-ATUAL`](#d-conclusao-estado-atual--achados-que-impedem-o-congelamento-técnico-imediato-registro-de-fatos).

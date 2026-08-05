@@ -19,6 +19,14 @@ Este documento é a referência de resolução de conflitos da linha de lançame
 | 4 | **Precedência** | Plano de lançamento = fonte oficial da **linha de lançamento**, referenciada a partir do roteiro mestre; conflitos resolvidos aqui. |
 | 5 | **Bloco 1** | **Fase 0** = congelar o documento + registrar conflitos + Matriz de Acesso. Somente documentação. |
 
+> 📌 **ANOTAÇÃO DE 2026-08-05 — documento histórico, texto original preservado.**
+> A **decisão 3** ("Salvar arte (grátis) = 0 no grátis") foi escrita quando existia **uma única**
+> experiência de desenho. Ela **permanece válida apenas para o `Criar Livre`**. O **`Colorir com o Beni`**
+> (coleção narrativa dentro da história) **salva no plano grátis**, em qualquer história à qual a criança
+> tenha acesso — ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](../DECISIONS.md) (Spec 019),
+> `D-4A-CRIAR-LIVRE-SEM-SALVAR` (Fase 4A) e `D-4B-SALVAMENTO-DUAS-EXPERIENCIAS` (Fase 4B).
+> **Nada acima foi reescrito**; esta nota apenas delimita o alcance da decisão histórica.
+
 ## Conflitos doc × app (estado atual → decisão → impacto)
 
 ### C1 — Avatares: estrelinhas (atual) vs Plano Família (doc/decisão)
@@ -30,11 +38,13 @@ Este documento é a referência de resolução de conflitos da linha de lançame
 - **Estado atual:** salvar é grátis com limite **3** (`ATELIER_FREE_SAVE_LIMIT = 3` em `src/services/atelierStorage.js`); premium = ilimitado (`hasAtelierUnlimitedAccess()` → `isPremiumUser()`). Gate em `src/screens/AtelierCanvasScreen.js`.
 - **Decisão:** **0 no grátis** — desenhar é livre; salvar/Galeria = Plano Família; aviso antes da folha.
 - **Impacto (Bloco A):** ajustar o gate para premium-only (não remover o sistema de salvamento). Não quebrar índice de artes existente.
+- 📌 **ANOTAÇÃO DE 2026-08-05 (texto acima preservado):** este conflito trata **exclusivamente do `Criar Livre`**. O `ATELIER_FREE_SAVE_LIMIT = 0` continua correto para ele. O **`Colorir com o Beni`** usa outra autoridade de escrita, decidida pela **acessibilidade da história** e **não** pelo plano — e **salva no grátis**. Ver §PL4B de [`docs/DECISIONS.md`](../DECISIONS.md).
 
 ### C3 — Rodadas grátis/dia: não existe (atual) vs 2/dia (doc)
 - **Estado atual:** **nenhum** mecanismo de limite diário. Contadores existentes são cumulativos.
 - **Decisão:** **2 rodadas/dia** no grátis, **compartilhadas** entre os jogos de Brincar, reset por dia local, persistido, centralizado no controle de acesso, não burlável, **sem `__DEV__`**.
 - **Impacto (Bloco A):** novo serviço + **chave nova** (ex.: `@ptf_brincar_daily_v1`) — não colide com chaves existentes.
+- 📌 **ANOTAÇÃO DE 2026-08-05 — conflito PRESERVADO, deliberadamente NÃO resolvido na Fase 4B:** este texto diz "**compartilhadas**" entre os jogos; `docs/DECISIONS.md:57` (`E1-PLANO-FREE`) diz "**2 rodadas/dia por criança**". A escolha entre **por criança**, **por dispositivo** e **por jogo** pertence ao **bloco decisório do Brincar** e **não foi decidida** aqui. Nenhum dos dois textos foi alterado.
 
 ### C4 — Navegação: Ateliê (atual) vs Brincar (doc)
 - **Estado atual:** abas = Início · Aventuras · **Ateliê** · Estrelinhas · Perfil (`src/navigation/AppNavigator.js` `TAB_DEFS` + `src/components/TabletSidebar.js`). **Rotas são strings hardcoded** (sem constante central).

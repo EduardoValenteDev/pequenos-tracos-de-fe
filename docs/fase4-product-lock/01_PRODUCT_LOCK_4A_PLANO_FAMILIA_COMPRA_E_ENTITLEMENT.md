@@ -440,6 +440,13 @@ pendências**.
 > `DECISIONS.md:70`. O conflito está formalmente resolvido pela tabela de decisões superadas
 > (`DECISIONS.md:287`), mas o texto contraditório **permanece vivo e sem aviso** num documento de
 > Fase 0. Correção documental proposta na pergunta 9 (§12).
+>
+> ✅ **CORRIGIDO EM 2026-08-05 — este trecho está desatualizado e fica assim anotado.**
+> `docs/launch/MATRIZ_DE_ACESSO.md` **não afirma mais** "mensal, trimestral, anual": a linha vigente é
+> "**Planos comerciais: mensal e anual, e somente esses dois. Sem trimestral e sem vitalício**
+> (Fase 4A · `D-4A-PRODUTOS-E-PERIODICIDADE`)", com a economia aproximada de 25% no anual e o teste
+> grátis de 7 dias **exclusivo do anual**. **O conflito de periodicidade está encerrado.** O parágrafo
+> acima é preservado como registro do achado original.
 
 ### 3.2 Conteúdo no plano grátis — **DECISÃO APROVADA**
 
@@ -482,6 +489,13 @@ Dois regimes distintos, ambos vigentes:
 > salvamentos") como **integralmente vigente**; a matriz canônica classifica `P-64` e `P-65` como
 > **DECISÃO DE PRODUTO PENDENTE**. O árbitro trata como decidido; o inventário trata como pendente.
 > Resolução proposta: pergunta 1 (§12).
+>
+> ✅ **CORRIGIDO EM 2026-08-05 — este trecho está desatualizado e fica assim anotado.**
+> O conflito foi **resolvido pela própria Fase 4A**: `D-4A-CRIAR-LIVRE-SEM-SALVAR` confirma o **zero**
+> para o Criar Livre e **preserva a distinção** do Colorir com o Beni. Na matriz canônica, `P-64` e
+> `P-65` **já não estão** em `DECISÃO DE PRODUTO PENDENTE` — passaram a **`ABERTO`** (implementação de
+> texto pendente na Fase 12A), **não** a `CORRIGIDO`. A Fase 4B reafirma o mesmo contrato em
+> `D-4B-SALVAMENTO-DUAS-EXPERIENCIAS`. O parágrafo acima é preservado como registro do achado original.
 
 ### 3.5 Histórias locais e remotas — **DECISÃO APROVADA**
 
