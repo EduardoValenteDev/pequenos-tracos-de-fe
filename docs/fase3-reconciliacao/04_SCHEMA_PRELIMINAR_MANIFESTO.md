@@ -155,7 +155,8 @@ Formulações **incorretas** de E014 que este artefato **não** repete:
 - **`MANIFESTO ATUAL`** — string obrigatória; **não pode começar com `/`**; **não pode conter `..`** (`:41-42`); duplicidade dentro do mesmo pack é erro (`:88`). Proteção explícita contra *path traversal*. — `COMPROVADO PELO CÓDIGO`
 
 #### 18 · `bytes` por arquivo
-- **`MANIFESTO ATUAL`** — inteiro `>= 0` (`:44`). Note que **zero é aceito** por arquivo, enquanto no índice global `bytes` exige **positivo**.
+- **`MANIFESTO ATUAL`** — inteiro `>= 0` (`:44`). **Zero é aceito** por arquivo.
+- **`CORREÇÃO DE E016`** — a redação anterior comparava este campo com `p.bytes` do índice global. A comparação era **improcedente**: `file.bytes` descreve **um arquivo**, `p.bytes` descreve **o pacote inteiro**. Níveis diferentes podem ter regras diferentes sem contradição. A divergência real é `p.bytes` × `totalBytes` — ver item 22 e `P-132` no artefato 09.
 
 #### 19 · `sha256` por arquivo
 - **`MANIFESTO ATUAL`** — **obrigatório**, hex de 64 caracteres (`:45-47`). Diferente do `manifestSha256` do índice global, que é opcional (item 11).
@@ -168,7 +169,8 @@ Formulações **incorretas** de E014 que este artefato **não** repete:
 - **`SCHEMA PRELIMINAR`** — tornar obrigatórias para `kind: 'scene'` e `kind: 'cover'`, onde a proporção 16/9 já é premissa do catálogo (`stories.js`, `coverAspectRatio: 16/9`).
 
 #### 22 · `totalBytes` e conferência de soma
-- **`MANIFESTO ATUAL`** — inteiro `>= 0` **e** obrigatoriamente igual à soma de `files[].bytes`; divergência é erro explícito (`:93-95`). Validação de consistência interna real. — `COMPROVADO PELO CÓDIGO`
+- **`MANIFESTO ATUAL`** — inteiro `>= 0` (`:76-78`) **e** obrigatoriamente igual à soma de `files[].bytes`; divergência é erro explícito (`:93-95`). Validação de consistência interna real. — `COMPROVADO PELO CÓDIGO`
+- **`CORREÇÃO DE E016`** — este é o campo que descreve o mesmo fato que `p.bytes` do índice global (`globalManifestService.js:130`, inteiro **positivo**). São dois números de nível de pacote com **regras distintas** e **nunca comparados entre si**: `packDownloadService.js:73` lê apenas `manifest.totalBytes`. Registrado como `P-132`.
 
 #### 23 · `metadata.title`
 - **`MANIFESTO ATUAL`** — string não vazia obrigatória (`:102`).
@@ -230,19 +232,31 @@ Formulações **incorretas** de E014 que este artefato **não** repete:
 | 1 | `type` aceito | apenas `story` | `story`, `coloring`, `audio`, `bundle` |
 | 2 | *kinds* aceitos | `cover`, `scene`, `coloring`, `audio` | + `other` |
 | 3 | `sha256` | opcional (`manifestSha256`) | **obrigatório** por arquivo |
-| 4 | `bytes` | inteiro **positivo** | inteiro **`>= 0`** |
+| 4 | Tamanho **do pacote** | `p.bytes` inteiro **positivo** (`globalManifestService.js:130`) | `totalBytes` inteiro **`>= 0`** (`packManifestService.js:76-78`) |
 | 5 | Formato do `id` | qualquer string não vazia | slug `[a-z0-9_]` |
 | 6 | Nome da versão mínima | `minAppVersion` + `requiredAppVersion` | `minAppVersion` |
 
-Todas `COMPROVADO PELO CÓDIGO`. Encaminhadas ao artefato 09, onde **três receberam código
-canônico** na reconciliação de E015:
+> **Correção de E016 na linha 4.** A redação de E015 comparava `p.bytes` (pacote inteiro, no
+> índice) com `file.bytes` (arquivo individual, no pack). Eram **níveis diferentes** — a
+> comparação não caracterizava divergência. A divergência real, mantida acima, é `p.bytes` ×
+> `totalBytes`: dois números do mesmo nível, com regras distintas e **nunca comparados entre si**
+> (`packDownloadService.js:73` lê apenas `manifest.totalBytes`). Ver artefato 09 §2 (D6) e §4.1.
 
-| # desta tabela | Destino no artefato 09 |
-|--:|---|
-| 3 (`sha256` opcional) | **`P-120`** (origem `E015-N11`) |
-| 1 (`type` divergente) | **`P-121`** (origem `E015-N12`) |
-| 2 (*kind* `other`) | **`P-122`** (origem `E015-N13`) |
-| 4 (`bytes`), 5 (formato do `id`), 6 (nome da versão mínima) | **sem código atribuído** — registradas como lacuna explícita no artefato 09 §9.2 item 7, para E016 |
+Todas `COMPROVADO PELO CÓDIGO`. Encaminhadas ao artefato 09, onde **as seis** receberam código
+canônico — três na reconciliação de E015 e três na ETAPA 4 de E016:
+
+| # desta tabela | Destino no artefato 09 | Atribuído em |
+|--:|---|---|
+| 3 (`sha256` opcional) | **`P-120`** (origem `E015-N11`) | E015 |
+| 1 (`type` divergente) | **`P-121`** (origem `E015-N12`) | E015 |
+| 2 (*kind* `other`) | **`P-122`** (origem `E015-N13`) | E015 |
+| 4 (tamanho do pacote) | **`P-132`** | E016 · ETAPA 4 |
+| 5 (formato do `id`) | **`P-133`** | E016 · ETAPA 4 |
+| 6 (nome da versão mínima) | **`P-134`** | E016 · ETAPA 4 |
+
+Nenhum código foi criado automaticamente: cada uma das três foi comparada com `P-01` a `P-131` e
+só recebeu código por **não** duplicar nem ampliar risco existente. A lacuna registrada em E015 —
+"sem código atribuído, para E016" — está **fechada**.
 
 ---
 

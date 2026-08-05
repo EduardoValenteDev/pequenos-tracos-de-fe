@@ -302,7 +302,7 @@ pertencem às **Fases 9 e 11**. E015 não as antecipa.
 |---|---|
 | Contratos de jornada, ordem canônica, revisão espaçada | **4** |
 | Implementação do motor e migração das superfícies | **9 e 11** |
-| Reconciliação documental dos vocabulários | **E016** |
+| Reconciliação documental dos vocabulários | **16** — reconciliada em E016 como `P-10` (origem `E015-N07`); decisão do namespace único fica na Fase 4 |
 
 ---
 
