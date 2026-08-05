@@ -359,6 +359,9 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
 - **Definição operacional de "colorir concluído":** proposta do adendo = **pelo menos 1 página da história colorida e concluída** (não as 10). Marcada como **[A CONFIRMAR]** — o default é 1; se o fundador preferir outro número, declarar.
 - **✅ RESOLVIDO (2026-07-30) — o `[A CONFIRMAR]` acima está fechado:** "colorir concluído" = **pelo menos uma atividade do Colorir com o Beni concluída**; **uma de três** satisfaz o marco obrigatório **Criar**; **três de três** = coleção completa, com celebração própria, e **não** bloqueia o desbloqueio da próxima história; as **dez páginas legadas não são exigidas** em A Criação; até cada história receber o novo modelo, **uma página legada concluída serve como compatibilidade temporária**. Texto integral em [`D-C60-INTEGRACAO-PRODUTO`](#d-c60-integracao-produto--integração-do-colorir-com-o-beni-decisões-de-produto) §3.
 - **Impacto:** muda **progressão e retenção** e a base do B5.4 (unlock por cenas). Por isso, **a implementação é bloco próprio POSTERIOR — NÃO agora.** Requer helper puro `isStoryFullyComplete` (separado de `isNarrativeComplete`), revisão de status em cards/mapa/Estrelinhas, certificado só no total.
+- **📌 ANOTAÇÃO DA FASE 4C (2026-08-05) — a fórmula acima foi SUPERADA, o texto histórico fica preservado.** A fórmula canônica congelada no Product Lock 4C é:
+  `journeyComplete = (todas as cenas DECLARADAS da história) AND (quiz concluído) AND (reflexão concluída) AND (pelo menos UMA atividade do Colorir com o Beni, quando o Colorir estiver disponível para aquela história) AND (persistência confirmada)`.
+  Três divergências ficam resolvidas: (1) **`(10 cenas narradas concluídas)` não vale** — nenhuma regra canônica depende de quantidade fixa de cenas, vale sempre **todas as cenas declaradas**; (2) o **Livrinho NÃO integra** a fórmula obrigatória — fica formalmente registrada como **superada** a parcela do bloco A0.10 que incluía `bookOpened` em `journeyComplete`; (3) o Colorir é exigência **condicional permanente** (emenda `P3J` ratificada) — quando não houver atividade disponível, a ausência **nunca** bloqueia a jornada. Ver [`## PL4C`](#pl4c--product-lock-fase-4c--jornada-progressão-conclusão-e-desbloqueios) e `docs/DECISAO_CONTRATO_JORNADA.md`.
 
 ### D-BRINCAR-JOGOS-V1 — Escopo funcional dos jogos do Brincar v1
 - **Data:** 2026-07-05 · **Status:** ✅ CONFIRMADA (fundador) · **Origem:** Adendo v1 §1 + correção Eduardo.
@@ -826,6 +829,7 @@ O perfil `c60-pilot` **não declara** nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` e
 12. ⚠️ **O contrato técnico ainda NÃO está congelado.**
 
 - **Congelamento:** o contrato global de conclusão será congelado **somente no Product Lock da Fase 4**. Nada nesta decisão autoriza implementá-lo na Spec 019.
+- **📌 ANOTAÇÃO DA FASE 4C (2026-08-05) — ✅ CONTRATO TÉCNICO CONGELADO.** O aviso do item 12 e do parágrafo acima está **superado**: o contrato global de conclusão foi congelado no Product Lock da Fase 4C. O item 9 ("a conclusão deverá ser **reabrível**") fica **precisado**: a conclusão é **reabrível para leitura**, em **modo sóbrio** — sem confete completo, sem animação principal de conquista e **sem nova recompensa** —, e a **conclusão registrada nunca é revogada**. Padrão único congelado: **treze *slots* e cinco modos**, com **ordem canônica de destinos** (próxima aventura → Mapa → revisitar → Brincar → Início). Ver [`## PL4C`](#pl4c--product-lock-fase-4c--jornada-progressão-conclusão-e-desbloqueios). O congelamento é **documental**: nenhum código foi alterado.
 
 ### D-ENCERRAMENTO-GLOBAL-ATIVIDADES (Decisão C) — Linguagem global de encerramento de jogos e atividades
 
@@ -839,6 +843,8 @@ O perfil `c60-pilot` **não declara** nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` e
 6. **Nenhum jogo deverá inventar uma origem.**
 7. **Nenhum encerramento** deverá oferecer **botões duplicados ou contraditórios**.
 8. ⚠️ **O contrato técnico ainda NÃO está congelado.**
+
+- **📌 ANOTAÇÃO DA FASE 4C (2026-08-05) — ✅ CONTRATO TÉCNICO CONGELADO.** O aviso do item 8 está **superado**. O padrão único de encerramento dos **quatro jogos** foi aprovado: **mesmos *slots*, ações e rótulos**, **preservando a identidade visual** de cada jogo. A **rodada** só é consumida quando houver **resultado terminal válido**; **Monte a Cena** mantém retomada de sessão **sem consumo duplicado**. Os **quatro jogos** passam a ter **conquistas** no lançamento. Ver [`## PL4C`](#pl4c--product-lock-fase-4c--jornada-progressão-conclusão-e-desbloqueios). O congelamento é **documental**: nenhum código foi alterado.
 
 ### D-CONCLUSAO-ESTADO-ATUAL — Achados que impedem o congelamento técnico imediato (registro de fatos)
 
@@ -855,6 +861,8 @@ O perfil `c60-pilot` **não declara** nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` e
 8. Os **quatro jogos** possuem **quatro arquiteturas diferentes** de encerramento.
 9. A **pílula de retorno do Brincar está inoperante** porque a origem não é transmitida.
 10. A **conclusão global será congelada somente no Product Lock da Fase 4.**
+
+- **📌 ANOTAÇÃO DA FASE 4C (2026-08-05).** O item 10 está **cumprido**: a conclusão global foi congelada no Product Lock da Fase 4C. Os itens 1 a 9 permanecem como **registro de fatos** e **continuam abertos como risco técnico** — a decisão de produto **não** os corrige. Rastreio na matriz canônica: item 1 → `P-03`; item 2 → `P-22`; item 3 → `P-21`; item 4 → `P-15`; item 5 → `P-04`; item 6 → `P-39`; item 7 → `P-08`; item 8 → `P-15` e `P-70`; item 9 → `P-86`. O item 3 recebe **precisão da Fase 4C**: a conclusão **registrada** nunca é revogada; o que falta é a **reabertura em modo sóbrio**, não a preservação do estado.
 
 ---
 
@@ -1232,6 +1240,144 @@ O perfil `c60-pilot` **não declara** nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` e
 - **A escala de 60 atividades é decisão resolvida com implementação inteiramente futura** — nada
   nela foi implementado, e **nenhuma imagem foi produzida ou alterada**.
 
+## PL4C — Product Lock Fase 4C · Jornada, progressão, conclusão e desbloqueios
+
+> **Data:** 2026-08-05. **Registro formal das respostas do fundador** ao artefato preliminar
+> [`docs/fase4-product-lock/03_PRODUCT_LOCK_4C_JORNADA_PROGRESSAO_CONCLUSAO_E_DESBLOQUEIOS.md`](fase4-product-lock/03_PRODUCT_LOCK_4C_JORNADA_PROGRESSAO_CONCLUSAO_E_DESBLOQUEIOS.md).
+> Bloco **exclusivamente documental**: nenhum código, *asset*, *pack*, manifesto ou configuração
+> foi alterado; nenhum *build* foi gerado; nenhuma validação física foi executada.
+> As decisões das Fases **4A** e **4B** permanecem **integralmente preservadas**.
+
+**Regra de leitura (três estados, como em PL4A e PL4B):** cada decisão abaixo distingue
+**decisão resolvida** · **implementação pendente** · **validação futura**. Decisão de produto
+tomada **não** corrige risco técnico e **não** autoriza escrever código.
+
+### D-4C-ARBITRO — O árbitro canônico da jornada é a autoridade única
+- **Status:** ✅ **APROVADA** · **Ratifica** o contrato `A0.10` (`docs/DECISAO_CONTRATO_JORNADA.md`, `src/services/storyJourneyService.js`), **com a fórmula de conclusão corrigida** por `D-4C-CONCLUSAO`.
+- **Nenhuma superfície pode recalcular sua própria versão da conclusão.** Home e Mapa são atualizados pela **mesma leitura persistida**. A hierarquia mantém **`journeyLocked` antes de `premiumLocked`**.
+- **Dez superfícies consumidoras obrigatórias** e **dez estados canônicos** ficam aprovados conforme o artefato §4 e §5.
+- **Implementação pendente** (Fase 11): hoje existem **cinco produtores concorrentes** de "próxima história" e **dezenove enunciados** distintos de "história concluída". Rastreio: `P-01`, `P-03`, `P-04`, `P-05`, `P-17`, `P-19`, `P-22`.
+
+### D-4C-CONCLUSAO — Fórmula canônica de conclusão de história
+- **Status:** ✅ **APROVADA** · **Congela** o contrato aberto em `D-CONCLUSAO-GLOBAL-SISTEMA`.
+- **Fórmula:** (1) **todas as cenas declaradas** da história · (2) **quiz** concluído · (3) **reflexão** concluída · (4) **pelo menos uma atividade do Colorir com o Beni**, quando o Colorir estiver **disponível** para aquela história · (5) **persistência confirmada**.
+- **O Livrinho NÃO é requisito** de conclusão nem de desbloqueio. Fica formalmente registrada como **superada** a parcela do bloco **A0.10** que incluía `bookOpened` em `journeyComplete`.
+- **Nunca uma quantidade fixa de cenas.** O literal "10 cenas" está **substituído** por "todas as cenas declaradas" em todo contrato canônico. Anotação aplicada em `D-CONCLUSAO-TOTAL-B`.
+- **Implementação pendente** (Fase 11) · **validação física futura**. Rastreio: `P-01`, `P-03`, `P-11` (documental, **corrigido**), `P-08`, `P-50`.
+
+### D-4C-LIVRINHO — Dois estados do Livrinho, fora da fórmula obrigatória
+- **Status:** ✅ **APROVADA.**
+- **Abrir o Livrinho não equivale a concluí-lo.** Dois estados distintos: **iniciado/aberto** e **concluído** (ao alcançar a última página).
+- A **conclusão** do Livrinho pode conceder **recompensa própria uma única vez**; **não** compõe a conclusão obrigatória da história.
+- **Registros antigos de `@ptf_storybook_opened_{id}` não são apagados** nem causam regressão de progresso.
+- O Livrinho permanece **experiência própria, revisável e recompensável**.
+- **Implementação pendente** (Fase 10). Rastreio: `P-38`, `P-49`.
+
+### D-4C-COLORIR-CONDICIONAL — Exigência condicional permanente (emenda `P3J` ratificada)
+- **Status:** ✅ **APROVADA** · **Ratifica formalmente a emenda `P3J`.**
+- Quando **houver** atividades disponíveis para a história, concluir **pelo menos uma das três** é **requisito de conclusão**. Quando **não houver**, a ausência **nunca bloqueia** a jornada.
+- **Três de três** continua sendo **conclusão da coleção**, **nunca** requisito de desbloqueio.
+- Com a escala completa das **60 atividades** (Fase 4B), o resultado natural é **uma atividade obrigatória em cada uma das 20 histórias**.
+- **Implementação pendente** (Fase 9 e fases de produção) · **risco técnico NÃO corrigido**. Rastreio: `P-08`, `P-14`, `P-18`, `P-36`, `P-50`, `P-51`.
+
+### D-4C-RETROATIVIDADE — História concluída antes da escala permanece concluída
+- **Status:** ✅ **APROVADA.**
+- Conteúdo novo entra como **conteúdo a explorar**, **nunca como pendência retroativa**: **não** retranca a próxima história, **não** retira recompensa e **não** repete automaticamente a grande celebração.
+- **Princípio de reconciliação:** sempre **favorável à criança** · **nada é apagado** · **conclusão registrada nunca é revogada** · **regra nova não retroage para retrancar** · **dado inconsistente usa o maior estado defensável** · reconciliação é **silenciosa** e não repete recompensa nem celebração.
+- **Implementação pendente** (Fase 7) · **validação física ainda exigida**. Rastreio: `P-21`, `P-55`.
+
+### D-4C-RETOMADA-HISTORIA — A história retoma por cena
+- **Status:** ✅ **APROVADA.**
+- O lançamento **não** persiste posição exata de **áudio, rolagem ou palavra**. Na **revisitação voluntária**, o fluxo futuro poderá permitir **começar novamente** ou **selecionar uma cena**.
+- **Sem presunção de contiguidade** de progresso para decidir onde a criança entra.
+- **Implementação pendente** (Fase 11) · **validação física ainda exigida**. Rastreio: `P-06`.
+
+### D-4C-CELEBRACAO-SOBRIA — Grande celebração só na primeira conclusão
+- **Status:** ✅ **APROVADA** · **precisa** o item 9 de `D-CONCLUSAO-GLOBAL-SISTEMA`.
+- **Modo sóbrio** para revisitação, reabertura da conclusão, edição de pintura e atualização de atividade já concluída: (1) sem confete completo · (2) sem animação principal de conquista · (3) **sem nova recompensa** · (4) com confirmação afetiva e discreta · (5) **preservando a primeira conclusão**.
+- **Implementação pendente** (Fase 11). Rastreio: `P-15`, `P-82`.
+
+### D-4C-DESTINOS — Ordem canônica dos destinos após a conclusão
+- **Status:** ✅ **APROVADA** · **congela** `D-ENCERRAMENTO-GLOBAL-ATIVIDADES`.
+- **Ordem:** (1) **próxima aventura**, quando existir e estiver autorizada · (2) **Mapa de Aventuras** · (3) **revisitar esta história** · (4) **ir ao Brincar** · (5) **ir ao Início**.
+- **Baú, Estrelinhas, obras e demais recompensas são elementos secundários**, nunca ações concorrentes da ação principal.
+- **Sem próxima história disponível** — e também **em modo de revisitação** — o **Mapa** assume a ação principal.
+- **Treze *slots* e cinco modos** aprovados; o padrão único vale para os **quatro jogos**, **preservando identidade visual** mas usando os **mesmos *slots*, ações e rótulos**.
+- **Implementação pendente** (Fase 11). Rastreio: `P-15`, `P-68`, `P-82`, `P-83`.
+
+### D-4C-ESTRELINHAS — Estrelinhas do Brincar são reais, visíveis e canônicas
+- **Status:** ✅ **APROVADA** · **resolve o conflito** entre o acumulador invisível e o contador visível.
+- (1) **Uma estrelinha por partida válida concluída** · (2) **teto diário compartilhado de duas** no Brincar · (3) **Monte a Cena também concede** dentro da mesma regra · (4) a recompensa só é anunciada **depois da persistência confirmada** · (5) depois do teto, **nenhuma tela promete nova estrelinha** · (6) acumulador e contador **reconciliados em uma fonte canônica** · (7) **nenhuma estrela perdida na migração**.
+- **Estrelinhas nunca são gastas** e **não autorizam conteúdo premium**. São **marcos de progresso** e podem liberar **cosméticos sem consumo**. **Avatares adicionais continuam exclusivos do Plano Família**; dentro do Plano Família, o marco de estrelinhas **pode** liberar o avatar.
+- **Implementação pendente** (Fase 11) · **risco técnico NÃO corrigido**. Rastreio: `P-19`, `P-39`, `P-69`, `P-71`.
+
+### D-4C-CONQUISTAS-JOGOS — Os quatro jogos têm conquistas no lançamento
+- **Status:** ✅ **APROVADA.**
+- Cobertura aprovada agora para **Pares do Beni**, **Palavrinhas do Beni**, **Cadê a Ovelhinha** e **Monte a Cena**.
+- As conquistas devem ser **idempotentes**, **celebradas no próprio jogo**, **visíveis na aba Estrelinhas**, **não autorizar conteúdo premium**, **não gerar recompensa infinita** e ter **critérios próprios de cada jogo**.
+- **Quantidade e textos exatos são produzidos na Fase 11**; a **cobertura** fica aprovada agora.
+- **Implementação pendente** (Fase 11). Rastreio: `P-70`, `P-69`.
+
+### D-4C-FAIL-CLOSED-ESCRITA — Falha de gravação é visível e ***fail-closed***
+- **Status:** ✅ **APROVADA** · **reafirma** o *fail-closed* já aprovado na Fase 4A.
+- (1) **"Guardando…"** durante a escrita · (2) **não declarar conclusão** antes da confirmação · (3) **não conceder recompensa** antes da confirmação · (4) em falha, informar de forma **afetiva e objetiva** · (5) oferecer **nova tentativa** · (6) **preservar o trabalho em memória** quando possível · (7) **nunca** conceder *premium*, rodada, recompensa ou desbloqueio **como alternativa** · (8) **nunca** deixar CTA **habilitado e inerte**.
+- **Copy infantil de referência:** *"Não consegui guardar agora. Vamos tentar mais uma vez?"*
+- **Implementação pendente** (Fases 9, 12A e 19) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-13`, `P-23`, `P-46`, `P-56`, `P-58`, `P-71`.
+
+### D-4C-GALERIA-CRIAR-LIVRE — Galeria do Criar Livre sem "0 de 0" no plano grátis
+- **Status:** ✅ **APROVADA** · **não reabre** a regra de **zero salvamentos** no Criar Livre grátis (Fase 4B).
+- **Plano grátis:** (1) remover contador · (2) remover barra · (3) **não mostrar "0 de 0"** · (4) **estado vazio afetivo** · (5) explicação comercial **somente depois do gate parental**.
+- **Plano Família:** (1) mostrar **"N artes salvas"** · (2) **sem denominador fixo** · (3) **sem barra de limite** quando o salvamento for ilimitado.
+- **Implementação pendente** (Fase 12A) · **risco técnico NÃO corrigido** (divisão por zero). Rastreio: `P-63`, `P-68`.
+
+### D-4C-ORDEM-CRONOLOGICA — Ordem cronológica fora do produto de lançamento
+- **Status:** ✅ **APROVADA.**
+- A **única ordem oficial da jornada é a ordem do Mapa de Aventuras**. `chronologicalOrder` e `getStoriesInChronologicalOrder()` **não orientam nenhuma superfície** no lançamento.
+- Uma futura **trilha cronológica** poderá ser avaliada **depois** do lançamento.
+- **Destino do campo e da função pendente** (Fase 16). Rastreio: `P-10`, `P-118`, `P-119`.
+
+### D-4C-RETOMADA-JOGOS — Contrato de retomada diferente por duração
+- **Status:** ✅ **APROVADA.**
+- **Pares, Palavrinhas e Cadê a Ovelhinha:** (1) **não** precisam persistir partida incompleta no lançamento · (2) a **rodada só é consumida quando houver resultado terminal válido** · (3) **sair antes do resultado não consome rodada** · (4) vitória, derrota, tempo encerrado ou conclusão válida **consomem uma rodada** · (5) **nenhuma estrelinha sem conclusão válida**.
+- **Monte a Cena:** (1) mantém **retomada de sessão** · (2) a rodada é consumida **uma única vez** · (3) retomar a mesma sessão **não** consome nova rodada · (4) repetir **consulta o contador real** · (5) **nunca fabricar rodada restante** · (6) **nunca liberar rodada ilimitada quando o storage falhar**.
+- **Implementação pendente** (Fase 12A) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-55`, `P-56`, `P-57`, `P-71`, `P-86`.
+
+### PL4C — Ratificações globais
+1. **`A0.10` e o árbitro canônico** como autoridade única da jornada, **com a fórmula de conclusão corrigida** pelas decisões acima.
+2. As **dez superfícies** do artefato §4 como **consumidoras obrigatórias**.
+3. Os **dez estados canônicos** da história (artefato §5).
+4. **`journeyLocked` antes de `premiumLocked`.**
+5. **Home e Mapa** atualizados pela **mesma leitura persistida**.
+6. Os **treze *slots*** e os **cinco modos**.
+7. **Padrão único de encerramento dos quatro jogos**, preservando identidade visual, mas usando os **mesmos *slots*, ações e rótulos**.
+8. **Princípio de reconciliação sempre favorável à criança.**
+9. **Nada é apagado.**
+10. **Conclusão registrada nunca é revogada.**
+11. **Regra nova não retroage para retrancar.**
+12. **Dado inconsistente usa o maior estado defensável.**
+13. **Reconciliação é silenciosa** e não repete recompensa ou celebração.
+14. **Nenhuma superfície pode recalcular sua própria versão da conclusão.**
+
+### PL4C — Correções de rastreabilidade aplicadas
+1. **`docs/DECISAO_CONTRATO_JORNADA.md:33` corrigido** — a fórmula perdeu `bookOpened`. `P-11` passa a **`CORRIGIDO`** por ser defeito **documental** efetivamente sanado.
+2. **Conflito do Livrinho anotado como resolvido** em favor da fórmula **sem** `bookOpened` (anotação em `D-CONCLUSAO-TOTAL-B`).
+3. **"10 cenas" corrigido** para **"todas as cenas declaradas"** no contrato normativo; a ocorrência histórica em `D-CONCLUSAO-TOTAL-B` foi **anotada**, não reescrita.
+4. **Dois estados do Livrinho registrados** — aberto e concluído.
+5. **Conflito estrelinhas × avatares resolvido explicitamente:** estrelas são **marcos cosméticos não consumíveis**; **avatares adicionais exigem Plano Família**.
+6. **Nenhum risco técnico foi marcado como corrigido** apenas porque a decisão foi tomada.
+7. **Conflito "rodadas por criança × por dispositivo" preservado** para o bloco decisório do Brincar, como em PL4B.
+8. **Nenhum código `P` novo foi criado** — a cobertura foi verificada dentro de `P-01` a `P-140` e nenhum fato, consequência e correção realmente distintos foram encontrados.
+9. **`P-42` não trata do fluxo de revisão de história concluída** — seu enunciado é "Ramo `ParentArea` do Cantinho do Beni é morto". A citação em contrário encontrada em material de apoio foi **descartada** e registrada como erro.
+10. **Precisão de atribuição:** a presunção de contiguidade está em `StoryDetailScreen.js:319` e `:367`, e não na tela do Mapa, como o enunciado original de `P-06` sugeria.
+
+### PL4C — O que continua **não** decidido e **não** corrigido
+- **Rodadas diárias: "por criança" × "por dispositivo/jogo"** — conflito **preservado**, como em PL4B; pertence ao **bloco decisório do Brincar**.
+- **Nenhum risco técnico passou a `CORRIGIDO` nesta fase.** A única linha que mudou para `CORRIGIDO` é `P-11`, **defeito documental** sanado neste mesmo bloco.
+- **Nenhuma severidade rebaixada, nenhuma classificação de lançamento afrouxada, nenhum código `P` novo criado.**
+- **`P-56` e `P-63` continuam `BLOQUEIA LANÇAMENTO`**; a decisão de produto **não** os corrige.
+- **Quantidade e textos exatos das conquistas dos quatro jogos** — produção na **Fase 11**.
+- **Toda a implementação** das decisões acima é **futura**; **nenhuma validação física** foi executada nesta fase.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 
@@ -1246,4 +1392,4 @@ O perfil `c60-pilot` **não declara** nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` e
 - ✅ **D-CRIAR-COM-BENI-STATUS** — **ENCERRADA em 2026-08-05** (Fase 4B). Não existirá terceira experiência "Criar com Beni"; os nomes oficiais são **`Criar Livre`** e **`Colorir com o Beni`**; "Criar Juntos" é chamada contextual do Criar Livre. **Deixa de ser pendência de decisão**; resta apenas a implementação de remover/redirecionar o atalho legado da Home (ver §PL4B · `D-4B-NOMES-OFICIAIS`).
 - ✅ **ESTADO TRANSITÓRIO ENCERRADO EM 2026-08-04** — a janela "NÃO GERAR BUILD" entre o **D1** e a conclusão do **S1** da Spec 019 **não vigora mais**: código, smoke e documentação voltaram a concordar, e o build `bafb8e3f` (commit `b24c868`) foi gerado depois do fechamento e **validado fisicamente**. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §7 e §8.
 - 🟡 **Cenários Família e premium da Spec 019** — **obrigatórios na Fase 18** e **revalidados na Fase 21**; não validados no perfil `c60-pilot` por impossibilidade técnica. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §8.1.
-- 🟡 **Contrato técnico do sistema global de conclusão** (Decisões B e C) — **NÃO congelado**. Congelamento previsto para o **Product Lock da Fase 4**; os cinco impedimentos apurados estão em [`D-CONCLUSAO-ESTADO-ATUAL`](#d-conclusao-estado-atual--achados-que-impedem-o-congelamento-técnico-imediato-registro-de-fatos).
+- ✅ **Contrato técnico do sistema global de conclusão** (Decisões B e C) — **CONGELADO em 2026-08-05** no **Product Lock da Fase 4C**. Ver [`## PL4C`](#pl4c--product-lock-fase-4c--jornada-progressão-conclusão-e-desbloqueios). **Deixa de ser pendência de decisão**; os achados de [`D-CONCLUSAO-ESTADO-ATUAL`](#d-conclusao-estado-atual--achados-que-impedem-o-congelamento-técnico-imediato-registro-de-fatos) **continuam abertos como risco técnico**, com implementação nas Fases 7, 9, 10, 11, 12A, 16 e 19 e **validação física futura**.

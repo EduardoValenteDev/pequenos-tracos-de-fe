@@ -316,6 +316,16 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   operacional de conclusão registrada no árbitro; nenhum contador paralelo de estrelas.
 - **Pendências desta fase:** **STR ONB 01** (colisão entre guia inicial e conquista nas Estrelinhas)
   — ver [§4.1](#41-pendências-físicas-registradas-na-fase-3--e004-a-e007).
+- **Contrato congelado (Product Lock 4C, 2026-08-05):** esta fase implementa o contrato aprovado em
+  [`## PL4C`](DECISIONS.md#pl4c--product-lock-fase-4c--jornada-progressão-conclusão-e-desbloqueios)
+  e detalhado em
+  [`docs/fase4-product-lock/03_PRODUCT_LOCK_4C_...`](fase4-product-lock/03_PRODUCT_LOCK_4C_JORNADA_PROGRESSAO_CONCLUSAO_E_DESBLOQUEIOS.md).
+  Em especial: **fórmula canônica de conclusão sem o Livrinho** e por **todas as cenas declaradas**
+  (nunca um número fixo); **Colorir com o Beni como exigência condicional permanente**; **árbitro
+  canônico como autoridade única**, sem superfície recalculando conclusão; **treze *slots* e cinco
+  modos** de encerramento com **ordem canônica de destinos**; **grande celebração só na primeira
+  conclusão** (revisitação em **modo sóbrio**); **estrelinhas dos jogos visíveis, reconciliadas em
+  fonte canônica única e não consumíveis**; **conquistas nos quatro jogos**.
 
 ---
 
@@ -693,6 +703,15 @@ gate abre. Portanto **a leitura, a gravação e a hidratação estão corretas**
 9. Concluir todas as cenas **pode liberar** atividades restantes, mas **não é requisito** para
    mostrar conclusões anteriores.
 10. Encerrar e reabrir o aplicativo **preserva a mesma representação**.
+
+> **Reforço do Product Lock 4C (2026-08-05).** O contrato acima fica **reforçado**, não alterado: o
+> Colorir com o Beni **não** pode ser liberado por conclusão da história, porque ele **integra o
+> caminho da conclusão** quando estiver disponível — exigir história concluída para abrir o Colorir
+> cria **dependência circular** com a fórmula canônica. A exigência é de **pelo menos uma** atividade
+> (**condicional permanente**, emenda `P3J` ratificada); **três de três** permanecem **conclusão de
+> coleção**, nunca requisito de desbloqueio. Ver
+> [`## PL4C`](DECISIONS.md#pl4c--product-lock-fase-4c--jornada-progressão-conclusão-e-desbloqueios).
+> **Nenhum ponto de 1 a 10 foi revogado e nenhum código foi alterado.**
 
 **Severidade para saída da Fase 9: P1.** Revalidação nas Fases **11** e **21**.
 
