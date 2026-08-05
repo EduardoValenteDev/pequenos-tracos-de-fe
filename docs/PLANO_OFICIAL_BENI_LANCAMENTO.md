@@ -124,6 +124,12 @@ Ofertas oficiais:
 
 Nao oferecer plano vitalicio nesta fase.
 
+> ⚠️ **Nota de superacao (Fase 4A · 2026-08-05).** O texto historico acima esta **preservado como
+> registro** e **nao tem autoridade normativa**. Ele listava um **plano trimestral** que nenhuma
+> decisao aprovou. A decisao vigente e `D-4A-PRODUTOS-E-PERIODICIDADE` em `docs/DECISIONS.md`:
+> **somente mensal e anual**, sem trimestral e sem vitalicio; o anual tem economia aproximada de
+> 25 por cento e e o unico com teste gratis de 7 dias.
+
 Compra, assinatura, restauracao de compra e qualquer link externo devem ficar atras da Area dos Pais com gate parental.
 
 ## 6. Estrelinhas E Avatares
@@ -745,6 +751,12 @@ Entregas:
 7. App Privacy.
 8. Data Safety.
 9. Classificacao etaria.
+
+> ⚠️ **Nota de superacao (Fase 4A · 2026-08-05).** O item 3 acima esta **preservado como registro
+> historico** e **nao tem autoridade normativa**. Ele mandava configurar um produto **trimestral**
+> que nenhuma decisao aprovou. Vale `D-4A-PRODUTOS-E-PERIODICIDADE`: configurar **apenas mensal e
+> anual**. O roadmap vigente e `docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`, onde esta materia
+> pertence a **Fase 18 — RevenueCat e Plano Familia**, nao a esta "Fase 11" historica.
 10. Screenshots.
 11. Notas de revisao.
 

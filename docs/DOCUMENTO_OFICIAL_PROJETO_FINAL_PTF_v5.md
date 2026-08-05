@@ -402,12 +402,19 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
 
 ---
 
-### Fase 18 — RevenueCat, Stripe e Plano Família
+### Fase 18 — RevenueCat e Plano Família
+
+> **Correção da Fase 4A (2026-08-05).** O título desta fase citava **Stripe**, que **nunca teve
+> decisão de produto que o aprovasse**. Stripe **não faz parte do lançamento**: a compra é
+> **in-app**, via **App Store** no iOS e **Google Play Billing** no Android, com o **RevenueCat**
+> como orquestrador. Ver `D-4A-PLATAFORMAS` em `docs/DECISIONS.md`.
 
 - **Objetivo:** ligar a monetização real, com entitlement confiável e paywall respeitoso.
 - **Entregas centrais:** entitlement por RevenueCat; paywall atrás da Área dos Pais + gate
   parental; compra, restore e sandbox; Plano Família aplicado a histórias, salvamento de arte,
-  rodadas e avatares; **definição definitiva da duração da verificação offline**.
+  rodadas e avatares; **validação técnica da janela de verificação offline de 7 dias já
+  congelada na Fase 4A** (`D-4A-JANELA-OFFLINE`) — a Fase 18 **valida**, não **redecide**, a
+  duração.
 - **Critério de saída:** compra e restore reais aprovados em ambos os sistemas operacionais;
   nenhuma tela decidindo acesso sozinha; nenhuma oferta comercial exibida à criança.
 - ➕ **Herdado da Fase 2.5 em 2026-08-04 — obrigatório.** Os cenários da **Spec 019** que o perfil

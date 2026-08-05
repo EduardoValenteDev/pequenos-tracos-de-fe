@@ -31,7 +31,7 @@ decisões em [`DECISOES_E_CONFLITOS.md`](./DECISOES_E_CONFLITOS.md).
 - **Estrelinhas**: progresso/celebração. A criança **nunca gasta**. **Não** liberam avatares no grátis.
 - **Avatares**: benefício **exclusivo** do Plano Família; nunca vendidos diretamente à criança.
 - **Compra/assinatura/links externos**: somente na **Área dos Pais** com gate parental.
-- **Planos comerciais**: mensal, trimestral, anual (sem vitalício nesta fase).
+- **Planos comerciais**: **mensal e anual**, e **somente** esses dois. **Sem trimestral** e **sem vitalício** (Fase 4A · `D-4A-PRODUTOS-E-PERIODICIDADE`). O anual traz economia aproximada de **25%** sobre doze mensalidades e é o **único** com **teste grátis de 7 dias**.
 - **Limite de rodadas**: centralizado no controle de acesso; reset por dia local; persistido; não burlável por troca de tela/fechar app; **sem `__DEV__`**.
 
 ## Onde isso vive no código (referência — Bloco A)

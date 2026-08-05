@@ -19,13 +19,13 @@
 > produto** e nada abaixo o rebaixa. O que ele **não** governa é o **inventário de pendências**:
 > identidade, status, severidade, fase e rastreabilidade de riscos vivem exclusivamente em
 > [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md)
-> (**matriz canônica**, códigos `P-01` a `P-139`). A `v5` governa **roadmap e sequência de fases**;
+> (**matriz canônica**, códigos `P-01` a `P-140`). A `v5` governa **roadmap e sequência de fases**;
 > o `PROJECT_SOURCE_OF_TRUTH.md` governa **precedência e governança**. Listas de risco antigas
 > mantidas neste arquivo — em especial a lista `R` — valem **apenas como origem histórica e alias**
 > e **não** são matriz concorrente. Este arquivo **não replica** a matriz: cita códigos `P`, e a
 > definição fica lá.
 
-**Data desta versão:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Base anterior:** 2026-07-30 (Fonte de verdade v5 · Fase 2.5) · **Fundador:** Eduardo
+**Data desta versão:** 2026-08-05 (**Fase 4A · Product Lock de Plano Família, compra, restauração e entitlement** — ver seção `PL4A`) · **Base anterior:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Fundador:** Eduardo
 
 > **Reconciliação E1 (2026-07-15):** este arquivo passou a ser o **único árbitro** (o `DECISIONS.md`
 > da raiz foi marcado SUPERSEDED). As decisões consolidadas de lançamento estão na seção
@@ -791,7 +791,8 @@ O perfil `c60-pilot` **não declara** nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` e
   história premium**, **download de pack premium com salvamento**, **downgrade** e **teste premium sem
   ferramentas internas**. A causa é **impossibilidade técnica do perfil**, não omissão do testador.
 - **Destino formal decidido pelo fundador em 2026-08-04:** estes cenários são **obrigatórios na
-  Fase 18** (RevenueCat, Stripe e Plano Família) e recebem **revalidação obrigatória na Fase 21**
+  Fase 18** (RevenueCat e Plano Família — título corrigido na Fase 4A, ver `D-4A-PLATAFORMAS`)
+  e recebem **revalidação obrigatória na Fase 21**
   (Beta do candidato e atualização real entre versões). Até lá são **pendência controlada e
   explícita** — nunca herdados, nunca presumidos.
 
@@ -845,6 +846,222 @@ O perfil `c60-pilot` **não declara** nenhuma chave `EXPO_PUBLIC_REVENUECAT_*` e
 10. A **conclusão global será congelada somente no Product Lock da Fase 4.**
 
 ---
+
+## PL4A — Product Lock da Fase 4A · Plano Família, compra, restauração e entitlement (2026-08-05)
+
+> **Registro formal das respostas do fundador** ao artefato preliminar
+> [`docs/fase4-product-lock/01_PRODUCT_LOCK_4A_PLANO_FAMILIA_COMPRA_E_ENTITLEMENT.md`](fase4-product-lock/01_PRODUCT_LOCK_4A_PLANO_FAMILIA_COMPRA_E_ENTITLEMENT.md).
+> Estas doze decisões **prevalecem** sobre qualquer redação anterior conflitante.
+>
+> **Regra de leitura obrigatória.** Uma decisão resolvida **não** corrige risco técnico. Cada item
+> abaixo distingue **decisão resolvida** · **implementação pendente** · **validação futura**.
+> Nenhum código foi alterado nesta fase; nenhum produto foi criado nas lojas; o RevenueCat **não**
+> foi configurado; nenhuma chave foi inserida; nenhum *build* foi gerado.
+
+### `D-4A-CRIAR-LIVRE-SEM-SALVAR` — Criar Livre no plano grátis: zero salvamentos
+
+- **Decisão.** No **Criar Livre**, a criança do plano grátis **pode desenhar**, mas o aplicativo
+  **não oferece persistência, galeria nem salvamento**. Confirma `E1-PLANO-FREE`, `E1-ARTES-SALVAR`
+  e `ATELIER_FREE_SAVE_LIMIT = 0`, todos **integralmente vigentes**.
+- **Distinção que NÃO pode ser apagada.** Esta decisão **não se aplica ao Colorir com o Beni**. O
+  **Colorir narrativo salva** e permite **revisitar a obra real da criança** em **todas as histórias
+  às quais ela tenha acesso, inclusive no plano grátis** — vale
+  [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos)
+  e a distinção coleção × autoria de
+  [`D-C60-NOMEACAO-OBRAS`](#d-c60-nomeacao-obras--colorir-com-o-beni-é-coleção-criar-livre-é-autoria).
+  **O escopo desta decisão é o Criar Livre e não o amplia.**
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** os textos de
+  `ParentAreaScreen.js:840` ("3 artes salvas") e `BrincarScreen.js:306` ("guarde suas criações")
+  continuam prometendo o que o app não faz, e a Galeria ainda calcula `Math.min(n/0, 1)`.
+- **Rastreabilidade.** `P-63`, `P-64`, `P-65` — que saem de `DECISÃO DE PRODUTO PENDENTE` para
+  `ABERTO`, **não** para `CORRIGIDO`.
+
+### `D-4A-CACHE-EXPIRADO` — Cache de entitlement expirado sem rede: opção A
+
+- **Decisão.** Esgotada a validade do cache **sem rede**, o plano efetivo é **grátis** até a próxima
+  validação real. **Não existe tolerância adicional depois da expiração.**
+- **Nada é apagado.** Progresso, pinturas, criações e **conteúdo premium já baixado** permanecem no
+  disco. **A existência física de asset ou pack nunca concede autorização** — reafirma a decisão não
+  reabrível registrada na matriz canônica §19.
+- **Sem interrupção destrutiva.** Uma atividade iniciada **enquanto o entitlement ainda era válido**
+  não é interrompida no meio; a restrição vale na **próxima entrada protegida ou retomada
+  controlada**, conforme contrato futuro de implementação.
+- **Estado.** Decisão **resolvida**. **Validação futura:** o caminho *fail-closed* offline com cache
+  expirado **nunca foi executado fisicamente** e continua exigindo aparelho.
+- **Rastreabilidade.** `P-129`, `P-24`, `P-93`.
+
+### `D-4A-JANELA-OFFLINE` — Janela offline congelada em 7 dias
+
+- **Decisão.** O cache de entitlement é válido por **7 dias** contados da **última validação real
+  bem-sucedida**. Corresponde ao `OFFLINE_MAX_WINDOW_MS` já presente em
+  `src/services/entitlementPolicy.js`.
+- **Congelamento.** A **Fase 18 valida tecnicamente** a regra e **não reabre a duração como decisão
+  de produto**. Encerra a pendência "definição definitiva da duração da verificação offline" que a
+  `v5` §Fase 18 mantinha aberta.
+- **Estado.** Decisão **resolvida e congelada**. **Validação futura:** Fase 18, revalidação Fase 21.
+- **Rastreabilidade.** `P-129`, `P-140`.
+
+### `D-4A-NOME-PUBLICO` — Nome público único: **Plano Família**
+
+- **Decisão.** O plano pago tem **um único nome público: Plano Família**. **Não** usar "Premium",
+  "Clube", "Assinatura Beni" nem nome de concorrente **em nenhuma interface**.
+- **Identificadores técnicos internos** podem manter nomes próprios (ex.: o *entitlement* legado
+  `premium` em `entitlementSource.js`), mas **toda comunicação ao responsável diz Plano Família**.
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** o chip de plano do Brincar corta o
+  texto em 100% dos estados.
+- **Rastreabilidade.** `P-59`, `P-60`.
+
+### `D-4A-DISPOSITIVOS-E-PERFIL` — Dispositivos e perfil familiar na v1
+
+1. **Sem limite próprio de dispositivos** definido pelo app.
+2. A **restauração segue a conta da App Store / Google Play** usada na compra.
+3. **Nenhuma promessa de sincronização de progresso** entre aparelhos.
+4. Cada instalação mantém **dados locais próprios**: perfil, progresso, pinturas e downloads.
+5. **Sem múltiplos perfis infantis sincronizados** na v1.
+6. Restaurar em outro aparelho **restaura o acesso, não os dados locais**.
+7. **Conta familiar e sincronização ficam posteriores ao lançamento.**
+
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** Fase 18.
+- **Rastreabilidade.** **`P-24`** (principal) e **`P-140`** (estado local persistido). **`P-57` NÃO
+  é código de dispositivos** — é a rodada fabricada na retomada do Monte a Cena, e a associação
+  registrada no artefato preliminar foi **removida por determinação do fundador**.
+
+### `D-4A-PRODUTOS-E-PERIODICIDADE` — Produtos, periodicidade e teste grátis
+
+| Item | Decisão |
+|---|---|
+| Periodicidades | **Mensal** e **anual**, e somente essas duas |
+| Trimestral | ❌ **Não existe** |
+| Vitalício | ❌ **Não existe** |
+| Economia do anual | **≈ 25%** sobre doze mensalidades |
+| Teste grátis | **7 dias, somente no anual** |
+| Teste grátis no mensal | ❌ **Nenhum**, nem recorrente |
+| Valores nominais em reais | **Não congelados nesta fase** — classificados como **parâmetro comercial pré-implementação**, e **não** como razão para manter aberto o contrato técnico e de produto da Fase 4A |
+
+- **Correções documentais autorizadas e executadas.** Duas fontes diziam "trimestral", e cada uma
+  recebeu o tratamento compatível com o seu estatuto:
+  - `docs/launch/MATRIZ_DE_ACESSO.md` — documento **normativo vigente**. Dizia "mensal,
+    **trimestral**, anual"; **texto corrigido**.
+  - `docs/PLANO_OFICIAL_BENI_LANCAMENTO.md` — documento **histórico e substituído**, sem autoridade
+    normativa. Listava "Mensal / **Trimestral** / Anual" e mandava "configurar produtos mensal,
+    **trimestral** e anual". **O texto histórico foi preservado como registro** e recebeu
+    **notas de superação** apontando para esta decisão — **não** foi reescrito.
+
+  Confirma `E1-MONETIZACAO-V1` e `PL01A-15`.
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** Fase 18.
+- **Rastreabilidade.** `P-24`.
+
+### `D-4A-IDENTIFICADORES` — Identificadores comerciais e responsabilidades
+
+| Item | Valor |
+|---|---|
+| *Entitlement* RevenueCat | `familia` |
+| *Offering* principal | `familia` |
+| Produto mensal | `com.valentedev.pequenostracosdefe.family.monthly` |
+| Produto anual | `com.valentedev.pequenostracosdefe.family.annual` |
+| Variáveis de chave (**apenas os nomes**) | `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` · `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY` |
+
+- **Imutabilidade.** Depois de publicados, esses identificadores **não mudam**, salvo migração
+  formal futura.
+- **Responsabilidades.** **Amanda** valida preço, oferta e textos comerciais. **Eduardo** cria os
+  produtos nas lojas e no RevenueCat e executa a integração técnica.
+- **O que NÃO foi feito nesta fase.** Nenhum produto criado, RevenueCat **não** configurado,
+  **nenhuma chave inserida**, **nenhum arquivo de configuração alterado** — `eas.json` continua sem
+  qualquer variável `EXPO_PUBLIC_REVENUECAT_*` em seus perfis.
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** Fase 18.
+- **Rastreabilidade.** `P-93`, `P-24`.
+
+### `D-4A-RESTAURACAO-E-COMUNICACAO` — Restauração e textos aprovados
+
+- **Onde "Restaurar compra" aparece.** Na **Área dos Pais** *e* no **paywall exibido depois do gate
+  parental**. **Nunca** como oferta direta na superfície infantil.
+- **Textos aprovados ao responsável** (redação oficial):
+
+| Situação | Texto |
+|---|---|
+| Sucesso | "Plano Família restaurado neste aparelho." |
+| Nenhuma compra encontrada | "Não encontramos uma compra ativa nesta conta da loja." |
+| Erro temporário | "Não foi possível verificar sua compra agora. Confira a internet e tente novamente." |
+| Assinatura expirada | "Sua assinatura não está ativa no momento. Seus dados e criações continuam preservados." |
+
+- **Na superfície infantil, proibido:** preço, desconto, teste grátis, urgência, contagem
+  regressiva e "Assine agora". **Permitido apenas** orientação neutra equivalente a *"Peça ajuda a
+  um adulto para continuar"*. **Toda oferta ou explicação comercial fica depois do gate parental.**
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** o `handleRestorePurchase` de
+  `ParentAreaScreen.js:507` **não está montado em JSX** — é código sem superfície; e
+  `BrincarScreen.js:324` ainda coloca oferta comercial dentro de `accessibilityLabel`.
+- **Rastreabilidade.** `P-24`, `P-66`, `P-28`.
+
+### `D-4A-PLATAFORMAS` — Plataformas de cobrança
+
+- **No escopo:** **iOS e Android**. Ordem **operacional** de validação: **iOS, depois Android**, com
+  **o mesmo contrato**. O **lançamento oficial depende dos portões das duas**.
+- **Arquitetura:** **RevenueCat** como orquestrador; **App Store** no iOS; **Google Play Billing**
+  no Android.
+- **Stripe NÃO faz parte do lançamento.** Nenhuma decisão jamais o aprovou. **Correções
+  documentais autorizadas e executadas:** o título "Fase 18 — RevenueCat, **Stripe** e Plano
+  Família" foi corrigido para **"Fase 18 — RevenueCat e Plano Família"** na `v5` — o roadmap
+  vigente, que é a fonte do nome da fase — e no quadro de fases da matriz canônica. A citação
+  desse título em `docs/C60_VALIDACAO_FISICA.md` **não foi tocada**: aquele arquivo é **registro
+  de validação física** e a citação vive dentro do texto de uma decisão do fundador de
+  **2026-08-04**; reescrevê-la alteraria um registro histórico sem necessidade, já que a
+  autoridade sobre o nome da fase é da `v5`. Confirma o registro de restrição de SDKs
+  (Sentry + RevenueCat + analytics anônimo).
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** Fase 18. **Validação futura:**
+  Fases 18 e 21, nas duas plataformas.
+- **Rastreabilidade.** `P-24`, `P-93`, `P-129`.
+
+### `D-4A-HOME-GRATIS-ESGOTADA` — Home do plano grátis depois de esgotar o conteúdo livre
+
+- **Decisão.** A Home **não fica vazia** e **não vira paywall**. A criança continua vendo:
+  histórias gratuitas para **revisitar**, **obras do Colorir com o Beni**, **progresso**,
+  **conquistas** e **atividades gratuitas**.
+- Conteúdo protegido **pode** aparecer como **prévia carinhosa**; ao toque, o app produz **apenas**
+  orientação para **chamar um adulto**. **Oferta comercial só depois do gate parental.**
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** hoje a Home recomenda
+  `david_goliath`, que é premium, **sem filtro de acesso**.
+- **Rastreabilidade.** `P-05`, `P-01`, `P-26`.
+
+### `D-4A-PAYLOAD-PREMIUM` — O que o binário de produção pode conter
+
+- **Decisão.** O *build* de produção contém **somente as 2 histórias gratuitas locais**. As **18
+  premium** são entregues por **packs remotos**.
+- **Podem permanecer no binário:** **metadados mínimos de vitrine**, **assets genéricos
+  compartilhados** e **fixtures internas comprovadamente excluídas ou inalcançáveis em produção**.
+- **Princípio inegociável.** **A existência física de asset ou pack nunca concede autorização.**
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** as 18 premium continuam com
+  `require()` estático — **378 arquivos, 84.183.401 bytes (80,3 MB)** — e a remoção depende da UX de
+  **baixar antes de ver**, sob pena de história premium sem imagem.
+- **Rastreabilidade.** `P-136`, `P-135`, `P-130`, `P-116`.
+
+### `D-4A-MIGRACAO-ENTITLEMENT` — Migração de entitlement e ausência de grandfathering
+
+1. **Sem grandfathering** de Modo Criador, de flags de desenvolvimento ou de estados premium locais
+   fabricados.
+2. **Não existem assinantes comerciais** que exijam migração hoje.
+3. *Entitlement* **inválido, antigo, corrompido ou sem origem comprovada** → **plano grátis** até
+   validação real.
+4. A **única fonte comercial real** é o **RevenueCat**.
+5. **Progresso, pinturas e criações locais são preservados** independentemente do estado comercial.
+
+- **Código criado por determinação do fundador.** A ausência de caminho de migração **não podia
+  permanecer como observação solta**. A busca foi refeita nos **22 campos dos 139 códigos**
+  anteriores; `P-126` trata do *schema* do **manifesto de pack** e `P-114` da **localização** de
+  chaves — nenhum cobre o mesmo fato, superfície, consequência e correção. **`P-140` foi criado**,
+  **sem renumerar nenhum código anterior**.
+- **Estado.** Decisão **resolvida**. **Implementação pendente:** a política declarada de
+  versionamento do *snapshot* e o teste que a comprove. **Risco técnico NÃO corrigido.**
+- **Rastreabilidade.** **`P-140`** (novo), `P-129`, `P-24`, `P-93`.
+
+### PL4A — O que continua **não** decidido e **não** corrigido
+
+- **Preço nominal em reais** — parâmetro comercial pré-implementação, sob responsabilidade de
+  Amanda. **Não bloqueia** o contrato técnico da Fase 4A.
+- **`P-55`** (fallback premium do Modo Criador) e **`P-56`** (rodada fabricada na retomada)
+  permanecem **riscos técnicos abertos e não corrigidos**. Nenhuma decisão desta fase os alcança e
+  **nenhum campo deles foi tocado**.
+- **Nenhum risco passou a `CORRIGIDO` nesta fase.** Nenhuma severidade foi rebaixada. Nenhuma
+  classificação de lançamento foi afrouxada.
 
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.

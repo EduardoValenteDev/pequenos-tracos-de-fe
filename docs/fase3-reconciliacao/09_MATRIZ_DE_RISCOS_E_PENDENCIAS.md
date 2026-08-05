@@ -1,16 +1,18 @@
 # 09 · Matriz definitiva de riscos e pendências
 
 > **Artefato 9 de 11 — consolidado em E016, aprovado em E017, adotado em E018 · Fase 3H.**
-> **Versão 4 — matriz única, deduplicada, definitiva e canônica.**
+> **Atualizado na Fase 4A (Product Lock de Plano Família, compra, restauração e entitlement).**
+> **Versão 5 — matriz única, deduplicada, definitiva e canônica.**
 
 | Campo | Valor |
 |---|---|
-| **Estado** | **CANÔNICA — ADOTADA PELOS DOCUMENTOS ÁRBITROS EM E018** |
-| **Base auditada** | E009 a E015, mais os sete riscos `R` residuais absorvidos em E018 |
+| **Estado** | **CANÔNICA — ADOTADA PELOS DOCUMENTOS ÁRBITROS EM E018, ATUALIZADA PELA FASE 4A** |
+| **Base auditada** | E009 a E015, mais os sete riscos `R` residuais absorvidos em E018, mais as decisões do fundador registradas na Fase 4A |
 | **Branch auditada** | `integrate/colorir-canonical-runtime` |
 | **HEAD canônico** | `015c438106538595b592981fbe1b80b1d5d65e55` |
-| **Total de riscos** | **139** — `P-01` a `P-131` (herdados) + `P-132` a `P-134` (E016, ETAPA 4) + `P-135` a `P-139` (E018, ETAPA 2) |
+| **Total de riscos** | **140** — `P-01` a `P-131` (herdados) + `P-132` a `P-134` (E016, ETAPA 4) + `P-135` a `P-139` (E018, ETAPA 2) + `P-140` (Fase 4A, §24) |
 | **Fusões realizadas** | **0** |
+| **Renumerações** | **0** — `P-140` é acréscimo puro |
 
 > Este artefato é a **única fonte canônica de riscos** do projeto. Nenhum outro documento
 > replica a matriz; os demais artefatos da Fase 3 apenas a referenciam por código.
@@ -113,7 +115,9 @@ código atribuído. Cada uma foi comparada com `P-01` a `P-131` e classificada i
 
 Sequência criada sem lacunas: `P-132`, `P-133`, `P-134`. **Total ao fim da E016: 134 riscos.**
 A E018 acrescentou `P-135` a `P-139` pela absorção dos sete riscos `R` residuais (§22).
-**Total final: 139 riscos.**
+**Total ao fim da E018: 139 riscos.** A Fase 4A acrescentou `P-140`, único código criado
+por determinação do fundador na consolidação do Product Lock, sem renumerar nenhum código
+anterior (§24). **Total atual: 140 riscos.**
 
 ### 4.1 Verificação em código das três classificações
 
@@ -305,7 +309,7 @@ Resumo:
 | `3F` | **13** | `P-105` | Noé e prova da fábrica |
 | `3F` | **7** | `P-103` | Onboarding e guias |
 | `3F` / 5 | **12B** | `P-108` | Rituais e Modo Igreja |
-| `3F` / 4 | **18** | `P-93` | RevenueCat, Stripe e Plano Família |
+| `3F` / 4 | **18** | `P-93` | RevenueCat e Plano Família (Stripe removido do título da fase na Fase 4A — ver §24) |
 | 4 | **16** | `P-118` `P-119` | Decisão editorial permanece na Fase 4; a implementação é do congelamento editorial |
 | 4 | **17** | `P-120` a `P-126` `P-130` `P-132` `P-133` `P-134` | Decisão de contrato na Fase 4; implementação em packs e offline |
 | 5 | **17** | `P-131` | A saída do peso do binário é matéria de packs |
@@ -395,7 +399,7 @@ foi reconferida contra a fonte e sobreviveu.
 | Código | Status | Classif. transversal | Fase impl. | Product Lock | Lançamento | Resultado da reconferência |
 |---|---|---|---|---|---|---|
 | **P-06** | `EXIGE VALIDAÇÃO FÍSICA` | **CRÍTICO** | 11 | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | classificação anterior reconferida e mantida |
-| **P-24** | `ABERTO` | **CRÍTICO** | 18 | `EXIGE DECISÃO NO PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | classificação anterior reconferida e mantida |
+| **P-24** | `ABERTO` | **CRÍTICO** | 18 | `INFORMA O PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | classificação anterior reconferida e mantida |
 | **P-27** | `EXIGE VALIDAÇÃO FÍSICA` | **ALTO** | 6 | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | fase proprietária reclassificada |
 | **P-28** | `EXIGE VALIDAÇÃO FÍSICA` | **ALTO** | 6 | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | fase proprietária reclassificada |
 | **P-31** | `EXIGE VALIDAÇÃO FÍSICA` | **ALTO** | 6 | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | fase proprietária reclassificada |
@@ -403,15 +407,15 @@ foi reconferida contra a fonte e sobreviveu.
 | **P-36** | `DECISÃO DE PRODUTO PENDENTE` | **ALTO** | 9 | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | classificação anterior reconferida e mantida |
 | **P-55** | `INTERNO E INALCANÇÁVEL EM PRODUÇÃO` | **CRÍTICO** | 12A | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | classificação anterior reconferida e mantida |
 | **P-56** | `ABERTO` | **CRÍTICO** | 12A | `INFORMA O PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | classificação anterior reconferida e mantida |
-| **P-63** | `ABERTO` | **CRÍTICO** | 12A | `EXIGE DECISÃO NO PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | classificação anterior reconferida e mantida |
-| **P-64** | `DECISÃO DE PRODUTO PENDENTE` | **ALTO** | 12A | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | classificação anterior reconferida e mantida |
-| **P-65** | `DECISÃO DE PRODUTO PENDENTE` | **ALTO** | 12A | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | classificação anterior reconferida e mantida |
+| **P-63** | `ABERTO` | **CRÍTICO** | 12A | `INFORMA O PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | classificação anterior reconferida e mantida |
+| **P-64** | `ABERTO` | **ALTO** | 12A | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | classificação anterior reconferida e mantida |
+| **P-65** | `ABERTO` | **ALTO** | 12A | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | classificação anterior reconferida e mantida |
 | **P-66** | `ABERTO` | **MÉDIO** | 12A | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | classificação anterior reconferida e mantida |
 | **P-67** | `ABERTO` | **ALTO** | 12A | `INFORMA O PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | classificação anterior reconferida e mantida |
 | **P-71** | `ABERTO` | **ALTO** | 12A | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | classificação anterior reconferida e mantida |
 | **P-86** | `ABERTO` | **MÉDIO** | 12A | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | rebaixado no lançamento |
 | **P-87** | `DOCUMENTAL` | **INFORMATIVO** | 4 | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | classificação anterior reconferida e mantida |
-| **P-93** | `ABERTO` | **CRÍTICO** | 18 | `EXIGE DECISÃO NO PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | fase proprietária reclassificada |
+| **P-93** | `ABERTO` | **CRÍTICO** | 18 | `INFORMA O PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | fase proprietária reclassificada |
 | **P-97** | `ABERTO` | **ALTO** | 8A | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | fase proprietária reclassificada |
 | **P-98** | `ABERTO` | **ALTO** | 8A | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | fase proprietária reclassificada |
 | **P-100** | `DECISÃO DE PRODUTO PENDENTE` | **MÉDIO** | 8A | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | fase proprietária reclassificada |
@@ -431,7 +435,7 @@ foi reconferida contra a fonte e sobreviveu.
 | **P-126** | `DECISÃO DE PRODUTO PENDENTE` | **ALTO** | 17 | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | rebaixado no lançamento |
 | **P-127** | `EXIGE VALIDAÇÃO FÍSICA` | **MÉDIO** | 9 | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | classificação anterior reconferida e mantida |
 | **P-128** | `EXIGE VALIDAÇÃO FÍSICA` | **ALTO** | 21 | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | fase proprietária reclassificada |
-| **P-129** | `EXIGE VALIDAÇÃO FÍSICA` | **ALTO** | 18 | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | classificação anterior reconferida e mantida |
+| **P-129** | `EXIGE VALIDAÇÃO FÍSICA` | **ALTO** | 18 | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | classificação anterior reconferida e mantida |
 | **P-130** | `DECISÃO DE PRODUTO PENDENTE` | **ALTO** | 17 | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | rebaixado no lançamento |
 | **P-131** | `CORRIGIDO` | **INFORMATIVO** | 16 | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | classificação anterior reconferida e mantida |
 
@@ -477,7 +481,7 @@ As tabelas rolam horizontalmente.
 | **P-02** | Sem `ContentRotationEngine` | Não existe motor de rotação de conteúdo; a vitrine é constante em três superfícies simultâneas, sem dedupe | **JORNADA E PROGRESSO** · sec.: CONTEÚDO E TEOLOGIA | `COMPROVADO PELO CÓDIGO` · artefato 03 | E010 | `DECISÃO DE PRODUTO PENDENTE` | média | **MÉDIO** | Home, Cultinho, Meu Momento | mesma sugestão repetida indefinidamente | descoberta de conteúdo não escala | 4 | 11 | `P-01` | 21 | `VFP` · `TEL` | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | AMPLIA: `E015-N10` nomeia as três superfícies. MESMO BLOCO DE CORREÇÃO: `P-44`, `P-54`, `P-61` | `COMPROVADO PELO CÓDIGO` | Ausência de motor não impede lançar com vitrine fixa declarada |
 | **P-03** | Aventura concluída com 3 textos e 2 regras | `CongratsScreen:241` é incondicional enquanto `StoryDetailScreen:522` usa o predicado correto; a contradição é da Congrats | **JORNADA E PROGRESSO** | `CongratsScreen:241` incondicional × `StoryDetailScreen:522` | E010, refinado por E011 | `ABERTO` | alta | **MÉDIO** | Congrats, Story Detail | recebe elogio de conclusão sem ter concluído | dois predicados para o mesmo fato | 4 | 11 | `P-01` | 21 | `VFP` · `TEL` | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-22`, `P-15` | `COMPROVADO PELO CÓDIGO` | E011 localizou a evidência sem alterar o enunciado original |
 | **P-04** | Quatro algoritmos de próxima história | Home usa ordem de array, Mapa usa `ORDERED_STORY_IDS`, `nextAdventureService` usa `CATALOG`; E015 ampliou para 6 eixos de ordenação | **JORNADA E PROGRESSO** · sec.: CONTEÚDO E TEOLOGIA | `COMPROVADO PELO CÓDIGO` | E010, refinado por E011 | `DECISÃO DE PRODUTO PENDENTE` | alta | **ALTO** | Home, Mapa, jornada | ordem de aventuras muda conforme a tela | 6 eixos editoriais coexistentes | 4 | 11 | `P-01` | 21 | `VFP` · `TEL` | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | AMPLIA: `E015-N04` (6 eixos). MESMO BLOCO DE CORREÇÃO: `P-01`, `P-118`, `P-119` | `COMPROVADO PELO CÓDIGO` | REBAIXADO na ETAPA 11: consequência local do `P-01`, que já carrega a classificação de lançamento do bloco. Contar aqui duplicaria o mesmo bloqueio. |
-| **P-05** | Home sem filtro de acesso ou sequência | Fechadas as 2 grátis, a Home recomenda `david_goliath`, que é premium; 18 de 20 histórias são premium | **JORNADA E PROGRESSO** · sec.: PLANO E ENTITLEMENT | caso reprodutível `david_goliath` | E010, refinado por E011 | `ABERTO` | alta | **ALTO** | Home | recebe convite para conteúdo que não pode abrir | recomendação ignora entitlement | 4 | 11 | `P-01`, `P-24` | 18 e 21 | `VFP` · `TEL` · `GRA` | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | CAUSADO POR `P-01`. MESMO BLOCO DE CORREÇÃO: `P-24`, `P-26` | `COMPROVADO PELO CÓDIGO` | Falta para lançamento: confirmar em plano grátis, em aparelho, o convite a conteúdo bloqueado |
+| **P-05** | Home sem filtro de acesso ou sequência | Fechadas as 2 grátis, a Home recomenda `david_goliath`, que é premium; 18 de 20 histórias são premium | **JORNADA E PROGRESSO** · sec.: PLANO E ENTITLEMENT | caso reprodutível `david_goliath` | E010, refinado por E011 | `ABERTO` | alta | **ALTO** | Home | recebe convite para conteúdo que não pode abrir | recomendação ignora entitlement | 4 | 11 | `P-01`, `P-24` | 18 e 21 | `VFP` · `TEL` · `GRA` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | CAUSADO POR `P-01`. MESMO BLOCO DE CORREÇÃO: `P-24`, `P-26` | `COMPROVADO PELO CÓDIGO` | DECISÃO DA FASE 4A: a Home do plano grátis, esgotado o conteúdo livre, não fica vazia nem vira paywall. Continua exibindo histórias gratuitas para revisitar, obras do Colorir com o Beni, progresso, conquistas e atividades gratuitas. Conteúdo protegido pode aparecer como prévia carinhosa e, ao toque, produz apenas orientação neutra para chamar um adulto; qualquer oferta comercial fica atrás do gate parental. Decisão de produto resolvida, implementação do filtro pendente na Fase 11. Falta para lançamento: confirmar em plano grátis, em aparelho, o convite a conteúdo bloqueado |
 | **P-06** | Contiguidade presumida gera beco sem saída | Em progresso não contíguo a cena pendente fica `locked` e nenhuma fica `available`, porque `isDone` precede `isCurrent` (`:319`, `:367`) | **JORNADA E PROGRESSO** | `COMPROVADO PELO CÓDIGO` · `:319`, `:367` | E010, refinado por E011, ratificado em E013 | `EXIGE VALIDAÇÃO FÍSICA` | alta | **CRÍTICO** | Mapa, jornada | história iniciada pode ficar impossível de concluir | máquina de estados sem estado alcançável | 4 | 11 | `P-01` | 21 | `VFP` · `TEL` · `MIG` | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-01`, `P-04` | `COMPROVADO PELO CÓDIGO` | Falta para lançamento: reproduzir progresso não contíguo em aparelho e observar o beco. Critério 5 de lançamento se confirmado |
 | **P-07** | Congrats inalcançável após kill | Parcialmente refutado: a Congrats é reencontrável pela lista de cenas (`Ver conclusao` para `NarrationScreen:175`) e conquistas são derivadas a cada chamada | **JORNADA E PROGRESSO** | `NarrationScreen:175` | E010, rebaixado por E011 | `REFUTADO` | baixa (era média) | **BAIXO** | Congrats | residual: caminho de volta pouco evidente | nenhum estado é perdido | - | 11 | - | 21 | `NEF` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | Rebaixado por E011: Lock de sim para não. Linha preservada com a refutação | `REFUTADO PELO CÓDIGO` | Refutado não desaparece: permanece com a evidência da refutação, conforme ETAPA 6 |
 | **P-08** | `hasPendingRewards` exclui Colorir | `ProgressContext.js:81` usa 3 termos por história e exclui Colorir, Cultinho e Meu Momento (`postStoryStorage.js:53`) | **JORNADA E PROGRESSO** · sec.: PRESENTES E RECOMPENSAS | `ProgressContext.js:81` · `postStoryStorage.js:53` | E010, E011, ampliado por E012 | `ABERTO` | média | **MÉDIO** | Story Detail, pós-história | atividade feita não conta como recompensa pendente | predicado de pendência incompleto | - | 11 | `P-51` | 21 | `VFP` · `TEL` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-50`, `P-51` | `COMPROVADO PELO CÓDIGO` | - |
@@ -514,7 +518,7 @@ As tabelas rolam horizontalmente.
 | **P-20** | Tablet nunca validado fisicamente | Nenhum módulo C60 consulta `isTablet`; o Livrinho trata tablet em 1 ponto; Meu Momento e Cultinho em nenhum | **UI E RESPONSIVIDADE** · sec.: NAVEGAÇÃO | `COMPROVADO PELO CÓDIGO` | E010, ampliado por E012 | `EXIGE VALIDAÇÃO FÍSICA` | média | **ALTO** | aparelhos e layout | layout não verificado na classe de aparelho | metade das classes-alvo sem evidência | - | 6 | - | 21 | `VFP` · `TAB` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `E015-N20` (duplicado). MESMO BLOCO DE CORREÇÃO: `P-30`, `P-31`, `P-47`. Candidato D de dedupe: NÃO fundido | `COMPROVADO PELO DOCUMENTO` | Falta para lançamento: decidir no Lock se tablet é classe-alvo do v1 e, se for, executar a campanha |
 | **P-29** | `AppScreen.js` é código morto | Cada tela improvisa a área segura em vez de usar o componente existente | **UI E RESPONSIVIDADE** | `COMPROVADO PELO CÓDIGO` | E011 | `IMPLEMENTADO SEM CONSUMIDOR` | média | **BAIXO** | 5 telas | margens inconsistentes entre telas | duplicação e divergência | - | 6 | - | 21 | `VFP` · `TEL` · `TAB` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-27`, `P-30` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 7 para 6 (sistema visual e shell) |
 | **P-30** | Dois sistemas de breakpoint concorrentes | `>= 768` em 10 pontos contra `breakpoints.tablet = 600` em `tokens.js:128`, usado por `ContentContainer.js:22`; o Livrinho usa 768 | **UI E RESPONSIVIDADE** | `tokens.js:128` × `StoryBookScreen.js:195` | E011, confirmado e reformulado por E013 | `ABERTO` | média | **MÉDIO** | todas as telas e `tokens.js` | layout imprevisível entre 600 e 767 px | dois sistemas de layout | - | 6 | `P-20` | 21 | `VFP` · `TAB` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-29`, `P-31`, `P-47` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 7 para 6. REBAIXADO na ETAPA 11: consequência local medida pelo `P-31` e pelo `P-20`, que carregam a classificação de lançamento do bloco. |
-| **P-59** | Chip de plano do Brincar corta em 100% dos estados | `BrincarScreen.js:238`, `386`, `390` e `198-204` cortam o texto do chip em todos os estados possíveis | **UI E RESPONSIVIDADE** · sec.: PLANO E ENTITLEMENT | `COMPROVADA PELO CÓDIGO E FISICAMENTE` | E013 | `ABERTO` | **P2** | **MÉDIO** | Brincar | informação de plano ilegível | largura insuficiente sem tratamento | - | 12A | - | 21 | `VFP` · `TEL` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-60` | `COMPROVADO PELO CÓDIGO E FISICAMENTE` | Já possui evidência física registrada em E013 |
+| **P-59** | Chip de plano do Brincar corta em 100% dos estados | `BrincarScreen.js:238`, `386`, `390` e `198-204` cortam o texto do chip em todos os estados possíveis | **UI E RESPONSIVIDADE** · sec.: PLANO E ENTITLEMENT | `COMPROVADA PELO CÓDIGO E FISICAMENTE` | E013 | `ABERTO` | **P2** | **MÉDIO** | Brincar | informação de plano ilegível | largura insuficiente sem tratamento | - | 12A | - | 21 | `VFP` · `TEL` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-60` | `COMPROVADO PELO CÓDIGO E FISICAMENTE` | Já possui evidência física registrada em E013. DECISÃO DA FASE 4A: o nome público do plano pago é único e imutável, Plano Família, e é essa string que o chip precisa acomodar. A decisão fixa o texto, não corrige o corte, que permanece pendente de implementação na Fase 12A. |
 | **P-60** | `headerTitle` do Brincar sem `numberOfLines` | `BrincarScreen.js:233`, `379`, `371` e `231` deixam o título sem `numberOfLines` nem `lineHeight` em coluna de cerca de 118 dp | **UI E RESPONSIVIDADE** | `COMPROVADA PELO CÓDIGO E FISICAMENTE` | E013 | `ABERTO` | **P2** | **MÉDIO** | Brincar | título cortado no topo da tela | tipografia sem limite de linhas | - | 12A | `P-27` | 21 | `VFP` · `TEL` · `FS13` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-27`, `P-59` | `COMPROVADO PELO CÓDIGO E FISICAMENTE` | Ofensor visual dominante do defeito de topo, já observado fisicamente |
 
 ### ACESSIBILIDADE — 5 riscos
@@ -523,7 +527,7 @@ As tabelas rolam horizontalmente.
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | **P-27** | Tipografia sem proteção de escala | Zero `allowFontScaling` e `maxFontSizeMultiplier` em todo `src`; cerca de 34 textos abaixo de 13px e 4 contrastes reprovados em AA | **ACESSIBILIDADE** · sec.: UI E RESPONSIVIDADE | zero `allowFontScaling` em `src` (E013) | E011, ampliado por E012 e E013 | `EXIGE VALIDAÇÃO FÍSICA` | alta | **ALTO** | 5 telas e design system | texto ilegível ou cortado com fonte grande do sistema | layout quebra fora do tamanho padrão | - | 6 | - | 21 | `VFP` · `TEL` · `TAB` · `FS13` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-28`, `P-29`, `P-30` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: corpus dizia 7 (Onboarding, Home e Área dos Pais); o alvo real é o sistema visual, Fase 6. Falta para lançamento: teste físico em font scale 1.3 |
 | **P-28** | Semântica de acessibilidade ausente | Papéis, rótulos e estados esparsos, zero `announceForAccessibility`, sem `accessibilityViewIsModal` e sem reduce-motion; 3 telas com a11y totalmente zerada | **ACESSIBILIDADE** | 0 `accessibilityRole` em Cultinho, Meu Momento e Livrinho | E011, ampliado por E012 e E013 | `EXIGE VALIDAÇÃO FÍSICA` | alta | **ALTO** | 5 telas | leitor de tela sem contexto utilizável | árvore de acessibilidade incompleta | - | 6 | `P-27` | 21 | `VFP` · `TEL` · `IOS` · `AND` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-27`, `P-66`, `P-79`, `P-104`. Depende de 10 e 12B para as 3 telas zeradas | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 7 para 6, pelo mesmo motivo de `P-27`. Falta para lançamento: passagem com leitor de tela nas 3 telas zeradas |
-| **P-66** | Mensagem comercial dentro de `accessibilityLabel` | `BrincarScreen.js:324` coloca oferta comercial no rótulo de acessibilidade | **ACESSIBILIDADE** · sec.: PLANO E ENTITLEMENT | `BrincarScreen.js:324` | E013 | `ABERTO` | **P2** | **MÉDIO** | Brincar | leitor de tela lê oferta comercial para a criança | rótulo de a11y usado como copy | 4 | 12A | `P-28` | 5 e 21 | `VFP` · `TEL` · `IOS` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-28` | `COMPROVADO PELO CÓDIGO` | Voz comercial dirigida a criança é matéria da Fase 5 |
+| **P-66** | Mensagem comercial dentro de `accessibilityLabel` | `BrincarScreen.js:324` coloca oferta comercial no rótulo de acessibilidade | **ACESSIBILIDADE** · sec.: PLANO E ENTITLEMENT | `BrincarScreen.js:324` | E013 | `ABERTO` | **P2** | **MÉDIO** | Brincar | leitor de tela lê oferta comercial para a criança | rótulo de a11y usado como copy | 4 | 12A | `P-28` | 5 e 21 | `VFP` · `TEL` · `IOS` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-28` | `COMPROVADO PELO CÓDIGO` | Voz comercial dirigida a criança é matéria da Fase 5. DECISÃO DA FASE 4A: a superfície infantil não exibe preço, desconto, teste grátis, urgência, contagem regressiva nem convite a assinar; apenas orientação neutra equivalente a pedir ajuda a um adulto para continuar, com toda explicação comercial atrás do gate parental. O rótulo de acessibilidade fica proibido de carregar oferta; a correção permanece pendente de implementação. |
 | **P-79** | Ovelhinha sem reduce-motion | `CadeAOvelhinhaScreen.js` tem zero ocorrências de `reduceMotion` ou `isReduceMotionEnabled` apesar de cerca de 8 laços de animação | **ACESSIBILIDADE** · sec.: JOGOS | prova negativa em `CadeAOvelhinhaScreen.js` | E013 | `ABERTO` | **P2** | **MÉDIO** | Ovelhinha | animação continua para quem pediu menos movimento | preferência do sistema ignorada | - | 12A | `P-28` | 21 | `VFP` · `TEL` · `IOS` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-28`, `P-104` | `COMPROVADO PELO CÓDIGO` | Localizado: depende da decisão sistêmica de acessibilidade do `P-28`, que é o item que pode bloquear |
 | **P-104** | Hápticos sem reduce motion em 3 telas | Três telas vibram sem consultar a preferência e duas leem a preferência sem aplicar | **ACESSIBILIDADE** · sec.: ÁUDIO E HÁPTICOS | `COMPROVADO PELO CÓDIGO` | E014 | `ABERTO` | ND | **MÉDIO** | Acessibilidade | vibração mantida para quem pediu menos movimento | preferência lida e não aplicada | - | 6 | `P-28` | 21 | `VFP` · `TEL` · `IOS` · `AND` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-28`, `P-79` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 3F para 6 (sistema visual e acessibilidade). Localizado: o item sistêmico é o `P-28` |
 
@@ -552,7 +556,7 @@ As tabelas rolam horizontalmente.
 | **P-111** | Capas em 2 famílias de resolução e 9 fora do ratio declarado | Nove capas tem ratio 1,784 contra o `16/9` declarado | **ASSETS** | `COMPROVADO PELO ARQUIVO` | E014 | `ABERTO` | ND | **MÉDIO** | Assets | capas com corte ou barra visível | padrão de asset não uniforme | - | 16 | `P-131` | 16 e 21 | `VFP` · `TEL` · `TAB` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-131` | `COMPROVADO PELO ARQUIVO` | RECLASSIFICAÇÃO DE FASE: de 3F para 16 |
 | **P-131** | Colorir e 278 MB em PNG, o maior peso local | Enunciado original corrigido: os 199 linearts legados foram aposentados no macrobloco P3J e `src/assets/coloringImages.js` deixou de existir; em `015c438` restam 3 PNG de colorir rastreados, todos do Colorir 60 | **ASSETS** · sec.: COLORIR COM O BENI | `COMPROVADO PELO CÓDIGO` · `git ls-tree -r 015c438` traz 3 arquivos em `assets/stories/*/coloring/` e nenhum `coloringImages.js` · `COLORING_LEGACY_RETIREMENT_INVENTORY.md` | E015 (`E015-N24`), artefato 06 | `CORRIGIDO` | média | **INFORMATIVO** | mídia | nenhum | os 278 MB deixaram o binário; resta resíduo documental | - | 16 | `P-37`, `P-110` | - | `NEF` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS: `E015-N24`, `R7`. MESMO BLOCO DE CORREÇÃO: `P-37`, `P-110` (resíduo documental). Não confundir com `P-135`, que é o peso agregado remanescente | `COMPROVADO PELO CÓDIGO` | CORRIGIDO em E018 por erro factual verificável: a linha foi herdada de `F1_2:103,140` com o token `DOCUMENTADO HISTORICAMENTE`, que a própria matriz define como registro sem reverificação. A reverificação no commit executável congelado refuta 200 PNG e 278 MB. Corrigido não desaparece: a linha permanece com a evidência da correção. Resíduo vivo: `P-37` (copy promete pintura removida) e os artefatos 06, 08 e 11 que ainda afirmam 200 PNG |
 | **P-135** | Peso agregado do binário por `require()` estático | 519 arquivos de `assets/` estão amarrados por `require()` literal em `src/`, somando 130.976.281 bytes (124,9 MB) que viajam dentro do binário público independentemente de uso | **ASSETS** · sec.: DEPENDÊNCIAS E BUILD | `COMPROVADO PELO CÓDIGO` · 519 requires únicos medidos em `015c438`, 130.976.281 bytes resolvidos, 0 não resolvidos | E018 (alias `R5`), `RELATORIO_FECHAMENTO_LP.md:246` | `DECISÃO DE PRODUTO PENDENTE` | alta | **ALTO** | binário, upload EAS, download da loja | download inicial pesado para a família | peso do binário não cai sem tirar os registries estáticos do caminho do bundle | 4 | 16 | `P-136`, `P-130`, `P-94` | 17 e 21 | `NEF` | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS: `R5` (parcela agregada). PARCELAS JÁ COBERTAS: `P-130` (canal de saída), `P-116` (teto no aparelho), `P-88`, `P-89`, `P-90`, `P-91`, `P-94` (upload e configuração de bundle). MESMO BLOCO DE CORREÇÃO: `P-136`, `P-130` | `COMPROVADO PELO CÓDIGO` | E018: parcela residual de `R5` — nenhum dos 134 códigos anteriores enuncia o peso agregado do binário nem o mecanismo `require()` estático. O número original de `R5` (401,12 MB em 711 arquivos) está desatualizado por fato do código: a medição em `015c438` dá 519 arquivos e 130.976.281 bytes, depois da conversão WebP e do P3J. NÃO conta em dobro com `P-136`, que é o subconjunto premium (378 arquivos, 84.183.401 bytes). Teto de tamanho é decisão do Lock, não critério de lançamento, seguindo o rebaixamento da ETAPA 11 |
-| **P-136** | 18 histórias premium fisicamente embarcadas no binário | As 18 histórias declaradas `remote` em `contentManifest.js:28-49` continuam com `require()` estático de cenas, áudio e capa — 378 arquivos e 84.183.401 bytes (80,3 MB) — e viajam íntegras no aparelho de quem não comprou | **ASSETS** · sec.: PLANO E ENTITLEMENT · PACKS E OFFLINE | `COMPROVADO PELO CÓDIGO` · `contentManifest.js:28-49` × `storySceneIllustrations.js`, `audioManifest.js`, `storyCovers.js` · 378 requires medidos em `015c438` | E018 (alias `R6`), `RELATORIO_FECHAMENTO_LP.md:247`, artefato 11 | `DECISÃO DE PRODUTO PENDENTE` | alta | **ALTO** | binário, packs, entitlement | nenhum efeito direto na criança | conteúdo pago viaja íntegro no binário público e a remoção depende de UX de baixar antes de ver | 4 | 16 | `P-130`, `P-135`, `P-26` | 17 e 21 | `NEF` | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `R6`. AMPLIA: o artefato 11 já afirmava o fato sem lhe dar código P. MESMO BLOCO DE CORREÇÃO: `P-135`, `P-130`, `P-116`. CONTEXTO, não cobertura: `P-24` e `P-05` citam 18 de 20 premium apenas como pano de fundo | `COMPROVADO PELO CÓDIGO` | E018: risco novo real. Nenhum dos 134 códigos anteriores enuncia o embarque físico das premium nem a consequência de entitlement. Condição de saída registrada em `F2_5A_PREMIUM_PACKS_AUDIT_AND_MIGRATION_PLAN.md:64`: remover os requires sem UX de baixar antes de ver deixa história premium sem imagem. Subconjunto de `P-135`, não conta em dobro. Falta para lançamento: decidir no Lock se o binário público pode conter as 18 histórias premium íntegras |
+| **P-136** | 18 histórias premium fisicamente embarcadas no binário | As 18 histórias declaradas `remote` em `contentManifest.js:28-49` continuam com `require()` estático de cenas, áudio e capa — 378 arquivos e 84.183.401 bytes (80,3 MB) — e viajam íntegras no aparelho de quem não comprou | **ASSETS** · sec.: PLANO E ENTITLEMENT · PACKS E OFFLINE | `COMPROVADO PELO CÓDIGO` · `contentManifest.js:28-49` × `storySceneIllustrations.js`, `audioManifest.js`, `storyCovers.js` · 378 requires medidos em `015c438` | E018 (alias `R6`), `RELATORIO_FECHAMENTO_LP.md:247`, artefato 11 | `ABERTO` | alta | **ALTO** | binário, packs, entitlement | nenhum efeito direto na criança | conteúdo pago viaja íntegro no binário público e a remoção depende de UX de baixar antes de ver | 4 | 16 | `P-130`, `P-135`, `P-26` | 17 e 21 | `NEF` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `R6`. AMPLIA: o artefato 11 já afirmava o fato sem lhe dar código P. MESMO BLOCO DE CORREÇÃO: `P-135`, `P-130`, `P-116`. CONTEXTO, não cobertura: `P-24` e `P-05` citam 18 de 20 premium apenas como pano de fundo | `COMPROVADO PELO CÓDIGO` | E018: risco novo real. Nenhum dos 134 códigos anteriores enuncia o embarque físico das premium nem a consequência de entitlement. Condição de saída registrada em `F2_5A_PREMIUM_PACKS_AUDIT_AND_MIGRATION_PLAN.md:64`: remover os requires sem UX de baixar antes de ver deixa história premium sem imagem. Subconjunto de `P-135`, não conta em dobro. DECISÃO DA FASE 4A: o build de produção contém apenas as 2 histórias gratuitas locais; as 18 premium passam a ser entregues por packs remotos. Podem permanecer no binário somente metadados mínimos de vitrine, assets genéricos compartilhados e fixtures internas comprovadamente excluídas ou inalcançáveis em produção. A existência física de asset ou pack nunca concede autorização. Decisão de produto resolvida, remoção pendente na Fase 16. Falta para lançamento: remover os `require()` estáticos das 18 premium com a UX de baixar antes de ver e medir o binário resultante |
 
 ### PACKS E OFFLINE — 16 riscos
 
@@ -567,7 +571,7 @@ As tabelas rolam horizontalmente.
 | **P-123** | `metadata.coverPath` não é verificado contra `files` | `packManifestService.js:109-111` aceita capa declarada que pode não existir no pack | **PACKS E OFFLINE** | `packManifestService.js:109-111` | E015 (`E015-N14`), artefato 04 | `ABERTO` | baixa | **BAIXO** | manifesto | capa ausente após instalar | referência não validada | 4 | 17 | `P-120` | 17 e 21 | `VFP` · `TEL` | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS: `E015-N14` | `COMPROVADO PELO CÓDIGO` | - |
 | **P-124** | `metadata.storyId` do pack não é cruzado com o índice | `packManifestService.js:103` valida o formato e não compara com o `storyId` do índice global | **PACKS E OFFLINE** · sec.: DADOS E PERSISTÊNCIA | `packManifestService.js:103` | E015 (`E015-N15`), artefato 04 | `ABERTO` | média | **ALTO** | manifesto | pack pode ser instalado sob a história errada | ausência de verificação cruzada | 4 | 17 | `P-120` | 17 e 21 | `VFP` · `TEL` · `AVI` | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `E015-N15`. MESMO BLOCO DE CORREÇÃO: `P-132`, `P-133`, `P-134` (mesma classe: campo declarado nos dois lados sem cruzamento) | `COMPROVADO PELO CÓDIGO` | Falta para lançamento: exercitar a instalação de um pack com `storyId` divergente |
 | **P-125** | `status` no índice remoto descreve estado que só o aparelho conhece | `globalManifestService.js:26-29` define no servidor um campo cuja verdade é local | **PACKS E OFFLINE** | `globalManifestService.js:26-29` | E015 (`E015-N16`), artefato 04 | `DECISÃO DE PRODUTO PENDENTE` | baixa | **BAIXO** | manifesto | índice pode contradizer o aparelho | campo servidor sobre estado local | 4 | 17 | `P-26` | 17 e 21 | `VFP` · `TEL` · `AVI` | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS: `E015-N16` | `COMPROVADO PELO CÓDIGO` | - |
-| **P-126** | Sem caminho de migração de versão de schema | Ambos os validadores exigem versão 1, então um bump quebra todos os clientes instalados | **PACKS E OFFLINE** | `COMPROVADO PELO CÓDIGO` | E015 (`E015-N17`), artefato 04 | `DECISÃO DE PRODUTO PENDENTE` | média | **ALTO** | manifesto | atualização futura pode parar os downloads | versão rígida sem migração | 4 | 17 | `P-120` | 17 e 21 | `VFP` · `TEL` · `AVI` | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS: `E015-N17`. NÃO é o mesmo risco de `P-134`: aqui é `schemaVersion`, lá é a versão mínima de app | `COMPROVADO PELO CÓDIGO` | REBAIXADO na ETAPA 11: risco latente de atualização futura, não de lançamento. Nenhuma superfície é servida por pack instalado hoje. |
+| **P-126** | Sem caminho de migração de versão de schema | Ambos os validadores exigem versão 1, então um bump quebra todos os clientes instalados | **PACKS E OFFLINE** | `COMPROVADO PELO CÓDIGO` | E015 (`E015-N17`), artefato 04 | `DECISÃO DE PRODUTO PENDENTE` | média | **ALTO** | manifesto | atualização futura pode parar os downloads | versão rígida sem migração | 4 | 17 | `P-120` | 17 e 21 | `VFP` · `TEL` · `AVI` | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS: `E015-N17`. NÃO é o mesmo risco de `P-134`: aqui é `schemaVersion`, lá é a versão mínima de app. NÃO É o mesmo risco de `P-140`: aqui o schema versionado é o do manifesto de pack, lá é o do snapshot de entitlement | `COMPROVADO PELO CÓDIGO` | REBAIXADO na ETAPA 11: risco latente de atualização futura, não de lançamento. Nenhuma superfície é servida por pack instalado hoje. |
 | **P-130** | Packs não entregam colorir | `packDownloadService.js:136` e `:243` pedem `requestedKinds = ['scene']`, então colorir jamais chega por pack | **PACKS E OFFLINE** · sec.: COLORIR COM O BENI | `COMPROVADO PELO CÓDIGO` · `packDownloadService.js:136,243` | E015 (`E015-N23`), artefato 08 | `DECISÃO DE PRODUTO PENDENTE` | média | **ALTO** | packs, Colorir | colorir fica preso ao binário | peso do binário não pode ser reduzido por pack | 4 | 17 | `P-131` | 17 e 21 | `VFP` · `TEL` · `AVI` | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS: `E015-N23`. MESMO BLOCO DE CORREÇÃO: `P-116`, `P-131`, `P-36` | `COMPROVADO PELO CÓDIGO` | REBAIXADO na ETAPA 11: é decisão de produto no Lock sobre o peso do binário, não critério de lançamento. |
 | **P-132** | Tamanho total do pack declarado duas vezes sem cruzamento | O índice global exige `p.bytes` inteiro positivo (`globalManifestService.js:130`) e o manifesto do pack aceita `totalBytes` inteiro maior ou igual a zero (`packManifestService.js:76-78`); as duas declarações nunca são comparadas entre si | **PACKS E OFFLINE** | `globalManifestService.js:130` × `packManifestService.js:76-78` · `packDownloadService.js:73` lê só `manifest.totalBytes` | E016, artefato 04 seção 5 divergência 4 | `ABERTO` | não classificada em E015 | **MÉDIO** | manifesto, download | barra de progresso pode mentir sobre o tamanho | tamanho anunciado e tamanho real podem divergir sem detecção | 4 | 17 | `P-120`, `P-124` | 17 e 21 | `VFP` · `TEL` · `AVI` | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-124`, `P-133`, `P-134`. NÃO fundido com `P-124`: campo diferente e correção diferente | `COMPROVADO PELO CÓDIGO` | ETAPA 4: classificado como NOVO RISCO REAL. CORREÇÃO DE PREMISSA: o artefato 04 comparava `p.bytes` do índice com `file.bytes` do pack, que são campos de níveis diferentes (pack inteiro × arquivo individual) e por isso admitem regras diferentes sem contradição. A divergência real é entre `p.bytes` e `totalBytes` |
 | **P-133** | Formato do identificador de pack divergente entre os dois schemas | O índice global aceita qualquer string não vazia como `p.id` (`globalManifestService.js:113`) e o manifesto do pack exige o slug `[a-z0-9_]` (`packManifestService.js:68`) | **PACKS E OFFLINE** | `globalManifestService.js:113` × `packManifestService.js:68` | E016, artefato 04 seção 5 divergência 5 | `ABERTO` | não classificada em E015 | **ALTO** | manifesto, download | a criança espera o download inteiro e a instalação é recusada | bytes consumidos antes da recusa | 4 | 17 | `P-121`, `P-132` | 17 e 21 | `VFP` · `TEL` · `AVI` | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-121`, `P-132`, `P-134` | `COMPROVADO PELO CÓDIGO` | ETAPA 4: classificado como NOVO RISCO REAL. Falta para lançamento: exercitar um índice com `id` fora do slug e observar o consumo de dados antes da recusa |
@@ -598,7 +602,7 @@ As tabelas rolam horizontalmente.
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **P-63** | Galeria mostra N de 0 e divide por zero | `AtelierGalleryScreen.js:113` imprime N de 0 artes salvas e `:116` calcula `Math.min(n/0,1)`, que é `NaN` na barra; o cabeçalho é incondicional, sem guarda de plano | **CRIAR LIVRE** · sec.: PLANO E ENTITLEMENT | `AtelierGalleryScreen.js:113` e `:116` | E013 | `ABERTO` | **P1** | **CRÍTICO** | Galeria | a criança vê zero como total e uma barra quebrada | divisão por zero determinística | 4 | 12A | `P-64`, `P-65` | 18 e 21 | `VFP` · `TEL` · `GRA` | `EXIGE DECISÃO NO PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-64`, `P-65` (raiz comum `atelierStorage.js:10` = 0). NÃO fundidos: três arquivos e um bug de `NaN` independente | `COMPROVADO PELO CÓDIGO` | O `NaN` é determinístico para 100% dos usuários do plano grátis e independe da decisão de limite: por isso bloqueia lançamento |
+| **P-63** | Galeria mostra N de 0 e divide por zero | `AtelierGalleryScreen.js:113` imprime N de 0 artes salvas e `:116` calcula `Math.min(n/0,1)`, que é `NaN` na barra; o cabeçalho é incondicional, sem guarda de plano | **CRIAR LIVRE** · sec.: PLANO E ENTITLEMENT | `AtelierGalleryScreen.js:113` e `:116` | E013 | `ABERTO` | **P1** | **CRÍTICO** | Galeria | a criança vê zero como total e uma barra quebrada | divisão por zero determinística | 4 | 12A | `P-64`, `P-65` | 18 e 21 | `VFP` · `TEL` · `GRA` | `INFORMA O PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-64`, `P-65` (raiz comum `atelierStorage.js:10` = 0). NÃO fundidos: três arquivos e um bug de `NaN` independente | `COMPROVADO PELO CÓDIGO` | O `NaN` é determinístico para 100% dos usuários do plano grátis e independe da decisão de limite: por isso bloqueia lançamento. DECISÃO DA FASE 4A: o limite de salvamento do Criar Livre no plano grátis é zero, confirmado. A Galeria precisa distinguir as duas políticas: o Criar Livre não persiste no plano grátis, enquanto o Colorir com o Beni salva e permite revisitar a obra real da criança em todas as histórias a que ela tenha acesso, inclusive no plano grátis. O NaN e o cabeçalho incondicional continuam defeitos abertos, pendentes na Fase 12A. |
 | **P-68** | Fluxo com `mission` nunca pergunta o nome da arte | `AtelierCanvasScreen.js:276` pula a pergunta do nome quando há missão | **CRIAR LIVRE** | `AtelierCanvasScreen.js:276` | E013 | `ABERTO` | **P3** | **BAIXO** | Canvas | a arte fica sem nome escolhido pela criança | ramo de fluxo divergente | - | 12A | - | 21 | `VFP` · `TEL` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | - | `COMPROVADO PELO CÓDIGO` | - |
 
 ### COLORIR COM O BENI — 5 riscos
@@ -650,15 +654,16 @@ As tabelas rolam horizontalmente.
 | **P-82** | Três serviços de recompensa sem consumidor de runtime | `certificateService`, `shareCardService` e `weeklyReportService` aparecem só dentro dos próprios arquivos: zero recompensa imprimível ou compartilhável no app | **PRESENTES E RECOMPENSAS** | prova negativa por grep em `src/` | E013 | `IMPLEMENTADO SEM CONSUMIDOR` | **P2** | **MÉDIO** | recompensas | recompensa prometida não existe | três serviços vivos sem chamador | 4 | 11 | `P-39` | 21 | `VFP` · `TEL` | `EXIGE DECISÃO NO PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-39`, `P-70` | `COMPROVADO PELO CÓDIGO` | Decisão do Lock: o v1 entrega recompensa imprimível ou compartilhável |
 | **P-83** | Baú não calcula `hiddenLocked` na aba todas | `BeniChestScreen.js:156-160` não calcula o contador no ramo `todas`, então o botão Ver cartinhas escondidas nunca renderiza nessa aba; o conteúdo segue alcançável por outra aba | **PRESENTES E RECOMPENSAS** · sec.: UI E RESPONSIVIDADE | `BeniChestScreen.js:156-160` × `:247` | E013 | `ABERTO` | **P2** | **BAIXO** | Baú do Beni | caminho some em uma aba, mas não há perda de conteúdo | ramo sem cálculo | - | 12A | - | 21 | `VFP` · `TEL` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | - | `COMPROVADO PELO CÓDIGO` | - |
 
-### PLANO E ENTITLEMENT — 5 riscos
+### PLANO E ENTITLEMENT — 6 riscos
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **P-24** | Plano Família sem caminho de compra | `planConfig.js:40-56` traz `monthly` e `annual` em `comingSoon` com `productIdPlaceholder` vazio e `isPurchaseEnabled: false`, com 18 de 20 histórias premium | **PLANO E ENTITLEMENT** | `planConfig.js:40-56` · `ENABLE_LOCAL_PREMIUM_TEST_MODE = false` | E011, reconfirmado por E012, evidência direta em E013 | `ABERTO` | alta | **CRÍTICO** | Story Detail, Área dos Pais, Home | promessa de conteúdo sem forma de obtê-lo | monetização inexistente | 4 | 18 | `P-05`, `P-93` | 18 e 21 | `VFP` · `TEL` · `GRA` · `FAM` | `EXIGE DECISÃO NO PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-93`, `P-129`. Candidato B de dedupe: NÃO fundido | `COMPROVADO PELO CÓDIGO` | Critério 3 de lançamento: compra e entitlement quebrados. Bloqueador confirmado |
-| **P-64** | Área dos Pais promete 3 artes salvas contra limite real 0 | `ParentAreaScreen.js:840` anuncia 3 artes salvas enquanto `atelierStorage.js:10` define limite 0; arquivo alterado e reauditado | **PLANO E ENTITLEMENT** · sec.: CRIAR LIVRE | `ParentAreaScreen.js:840` × `atelierStorage.js:10` | E013 | `DECISÃO DE PRODUTO PENDENTE` | **P1** | **ALTO** | Área dos Pais | o responsável recebe promessa que o app não cumpre | texto divergente do limite real | 4 | 12A | `P-63` | 18 e 21 | `VFP` · `TEL` · `GRA` | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-63`, `P-65` | `COMPROVADO PELO CÓDIGO` | Falta para lançamento: a decisão do Lock sobre o limite real do plano grátis. Definido o limite, ou o texto muda ou o código muda |
-| **P-65** | Criar livre promete guardar criações a quem tem limite 0 | `BrincarScreen.js:306` promete guarde suas criações e `AtelierCanvasScreen.js:273` faz `0 >= 0` bloquear todo salvamento no plano grátis | **PLANO E ENTITLEMENT** · sec.: CRIAR LIVRE | `BrincarScreen.js:306` · `AtelierCanvasScreen.js:273` | E013 | `DECISÃO DE PRODUTO PENDENTE` | **P1** | **ALTO** | Brincar, Canvas | a criança desenha e não consegue guardar nada | promessa infantil sem capacidade | 4 | 12A | `P-63` | 18 e 21 | `VFP` · `TEL` · `GRA` | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-63`, `P-64` | `COMPROVADO PELO CÓDIGO` | Falta para lançamento: a mesma decisão de limite do `P-64`. Texto dirigido a criança, o que agrava o impacto |
-| **P-93** | `EXPO_PUBLIC_REVENUECAT` ausente de todos os perfis | As variáveis são lidas no código e não existem em nenhum dos 4 perfis do `eas.json` nem no `.env.example` | **PLANO E ENTITLEMENT** · sec.: DEPENDÊNCIAS E BUILD | `COMPROVADO PELO CÓDIGO` | E014 | `ABERTO` | ND | **CRÍTICO** | EAS, Paywall | compra impossível em build de loja | SDK de compra sem configuração | 4 | 18 | `P-24` | 18 e 21 | `VFP` · `TEL` · `FAM` | `EXIGE DECISÃO NO PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-24`, `P-129` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 3F para 18. Critério 3 de lançamento: sem as chaves não existe compra, assinatura nem restore |
-| **P-129** | Entitlement offline com cache expirado nunca exercitado | O caminho fail-closed crítico nunca foi executado fisicamente | **PLANO E ENTITLEMENT** | `NÃO DETERMINADO` · artefato 07 linha 13 | E015 (`E015-N22`), artefato 07 | `EXIGE VALIDAÇÃO FÍSICA` | alta | **ALTO** | entitlement | pode perder ou ganhar acesso indevido sem rede | caminho fail-closed sem prova de comportamento | 4 | 18 | `P-24`, `P-93` | 18 e 21 | `VFP` · `TEL` · `AVI` · `FAM` · `GRA` | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `E015-N22`. MESMO BLOCO DE CORREÇÃO: `P-24`, `P-93`. PRECONDIÇÃO EXECUTÁVEL: `P-24` e `P-93`, ambos com fase de decisão 4 | `NÃO DETERMINADO NO CORPUS RECUPERADO` | RECLASSIFICADO EM E018, de `BLOQUEIA PRODUCT LOCK` para `EXIGE DECISÃO NO PRODUCT LOCK`, por erro factual demonstrável de classificação: a linha bloqueava a Fase 4 enquanto declarava dependência de `P-24` e `P-93`, cujo campo Fase decisão é a própria Fase 4. A precondição do teste é produto do Lock, então o bloqueio era circular. Severidade, status, fase de implementação e classificação de lançamento permanecem inalterados. O teste físico NÃO é executável hoje: nenhum dos cinco perfis do `eas.json` declara chave RevenueCat, `entitlementSource.js:38-42` é fail-closed sem chave, `planConfig.js:40-55` não tem produto comprável e o Modo Criador é override lateral em `accessControl.js:74`, fora do caminho do entitlement. O que o Lock deve decidir é o gate e o harness, não o resultado. Falta para lançamento: executar o caminho offline com cache expirado nos dois planos e registrar se o acesso é negado ou concedido. |
+| **P-24** | Plano Família sem caminho de compra | `planConfig.js:40-56` traz `monthly` e `annual` em `comingSoon` com `productIdPlaceholder` vazio e `isPurchaseEnabled: false`, com 18 de 20 histórias premium | **PLANO E ENTITLEMENT** | `planConfig.js:40-56` · `ENABLE_LOCAL_PREMIUM_TEST_MODE = false` | E011, reconfirmado por E012, evidência direta em E013 | `ABERTO` | alta | **CRÍTICO** | Story Detail, Área dos Pais, Home | promessa de conteúdo sem forma de obtê-lo | monetização inexistente | 4 | 18 | `P-05`, `P-93` | 18 e 21 | `VFP` · `TEL` · `GRA` · `FAM` | `INFORMA O PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-93`, `P-129`. Candidato B de dedupe: NÃO fundido | `COMPROVADO PELO CÓDIGO` | Critério 3 de lançamento: compra e entitlement quebrados. Bloqueador confirmado. DECISÃO DA FASE 4A: nome público único Plano Família; produtos mensal e anual, sem trimestral e sem vitalício; anual com economia aproximada de 25% sobre doze mensalidades; teste grátis de 7 dias apenas no anual. Entitlement e offering do RevenueCat nomeados familia; identificadores de produto com.valentedev.pequenostracosdefe.family.monthly e com.valentedev.pequenostracosdefe.family.annual, imutáveis após publicação. Restauração exposta na Área dos Pais e no paywall pós-gate parental, nunca na superfície infantil. O valor nominal em reais é parâmetro comercial pré-implementação, não pendência do contrato técnico. Decisão de produto resolvida; a criação dos produtos nas lojas, a configuração do RevenueCat e a implementação da compra continuam pendentes na Fase 18, e por isso a classificação de lançamento permanece inalterada. |
+| **P-64** | Área dos Pais promete 3 artes salvas contra limite real 0 | `ParentAreaScreen.js:840` anuncia 3 artes salvas enquanto `atelierStorage.js:10` define limite 0; arquivo alterado e reauditado | **PLANO E ENTITLEMENT** · sec.: CRIAR LIVRE | `ParentAreaScreen.js:840` × `atelierStorage.js:10` | E013 | `ABERTO` | **P1** | **ALTO** | Área dos Pais | o responsável recebe promessa que o app não cumpre | texto divergente do limite real | 4 | 12A | `P-63` | 18 e 21 | `VFP` · `TEL` · `GRA` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-63`, `P-65` | `COMPROVADO PELO CÓDIGO` | DECISÃO DA FASE 4A: o limite real do plano grátis no Criar Livre é zero salvamento e não muda; o texto é que está errado. A decisão não se aplica ao Colorir com o Beni, que salva em todos os planos. Decisão de produto resolvida, correção do texto pendente na Fase 12A. Falta para lançamento: reescrever `ParentAreaScreen.js:840` para não prometer 3 artes salvas e preservar explicitamente a política distinta do Colorir com o Beni |
+| **P-65** | Criar livre promete guardar criações a quem tem limite 0 | `BrincarScreen.js:306` promete guarde suas criações e `AtelierCanvasScreen.js:273` faz `0 >= 0` bloquear todo salvamento no plano grátis | **PLANO E ENTITLEMENT** · sec.: CRIAR LIVRE | `BrincarScreen.js:306` · `AtelierCanvasScreen.js:273` | E013 | `ABERTO` | **P1** | **ALTO** | Brincar, Canvas | a criança desenha e não consegue guardar nada | promessa infantil sem capacidade | 4 | 12A | `P-63` | 18 e 21 | `VFP` · `TEL` · `GRA` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-63`, `P-64` | `COMPROVADO PELO CÓDIGO` | DECISÃO DA FASE 4A: no Criar Livre do plano grátis a criança pode desenhar, mas o aplicativo não oferece persistência, galeria nem salvamento; o limite zero está correto e é a promessa que precisa sair. A decisão não se aplica ao Colorir com o Beni. Decisão de produto resolvida, correção do texto pendente na Fase 12A. Falta para lançamento: reescrever `BrincarScreen.js:306` para não prometer guarda de criações no Criar Livre gratuito |
+| **P-93** | `EXPO_PUBLIC_REVENUECAT` ausente de todos os perfis | As variáveis são lidas no código e não existem em nenhum dos 4 perfis do `eas.json` nem no `.env.example` | **PLANO E ENTITLEMENT** · sec.: DEPENDÊNCIAS E BUILD | `COMPROVADO PELO CÓDIGO` | E014 | `ABERTO` | ND | **CRÍTICO** | EAS, Paywall | compra impossível em build de loja | SDK de compra sem configuração | 4 | 18 | `P-24` | 18 e 21 | `VFP` · `TEL` · `FAM` | `INFORMA O PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-24`, `P-129` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 3F para 18. Critério 3 de lançamento: sem as chaves não existe compra, assinatura nem restore. DECISÃO DA FASE 4A: os nomes das variáveis são `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` e `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`; o entitlement do RevenueCat chama-se familia e o offering principal também. Eduardo cria os produtos nas lojas e no RevenueCat e executa a integração técnica; Amanda valida preço, oferta e textos comerciais. Nenhuma chave foi inserida e nenhum arquivo de configuração foi alterado nesta fase. Decisão de produto resolvida; configuração e integração continuam pendentes na Fase 18. |
+| **P-129** | Entitlement offline com cache expirado nunca exercitado | O caminho fail-closed crítico nunca foi executado fisicamente | **PLANO E ENTITLEMENT** | `NÃO DETERMINADO` · artefato 07 linha 13 | E015 (`E015-N22`), artefato 07 | `EXIGE VALIDAÇÃO FÍSICA` | alta | **ALTO** | entitlement | pode perder ou ganhar acesso indevido sem rede | caminho fail-closed sem prova de comportamento | 4 | 18 | `P-24`, `P-93` | 18 e 21 | `VFP` · `TEL` · `AVI` · `FAM` · `GRA` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `E015-N22`. MESMO BLOCO DE CORREÇÃO: `P-24`, `P-93`. PRECONDIÇÃO EXECUTÁVEL: `P-24` e `P-93`, ambos com fase de decisão 4 | `NÃO DETERMINADO NO CORPUS RECUPERADO` | RECLASSIFICADO EM E018, de `BLOQUEIA PRODUCT LOCK` para `EXIGE DECISÃO NO PRODUCT LOCK`, por erro factual demonstrável de classificação: a linha bloqueava a Fase 4 enquanto declarava dependência de `P-24` e `P-93`, cujo campo Fase decisão é a própria Fase 4. A precondição do teste é produto do Lock, então o bloqueio era circular. Severidade, status, fase de implementação e classificação de lançamento permanecem inalterados. O teste físico NÃO é executável hoje: nenhum dos cinco perfis do `eas.json` declara chave RevenueCat, `entitlementSource.js:38-42` é fail-closed sem chave, `planConfig.js:40-55` não tem produto comprável e o Modo Criador é override lateral em `accessControl.js:74`, fora do caminho do entitlement. O que o Lock deve decidir é o gate e o harness, não o resultado. DECISÃO DA FASE 4A: opção A. O cache de entitlement vale 7 dias contados da última validação real bem-sucedida; esgotado o prazo sem rede, o plano efetivo é grátis até a próxima validação real, sem tolerância adicional. Nada é apagado: progresso, pinturas e conteúdo premium já baixado permanecem no disco, e a existência física nunca concede autorização. Atividade iniciada enquanto o entitlement ainda era válido não sofre interrupção destrutiva; a restrição vale na próxima entrada protegida ou retomada controlada. Os 7 dias ficam congelados: a Fase 18 valida tecnicamente a regra e não reabre a duração como decisão de produto. Decisão de produto resolvida; a validação física permanece pendente e continua condicionada a `P-24` e `P-93`. Falta para lançamento: executar o caminho offline com cache expirado nos dois planos e registrar se o acesso é negado ou concedido. |
+| **P-140** | Entitlement sem caminho de migração de schema | A chave `@ptf_entitlement_v1` carrega a versão no próprio nome e `entitlementService.js:57-70` só reconhece o formato atual; não existe caminho declarado de migração para uma versão futura do snapshot, nem política escrita para snapshot antigo, corrompido ou de origem não comprovada | **PLANO E ENTITLEMENT** · sec.: DADOS E PERSISTÊNCIA | `COMPROVADO PELO CÓDIGO` · `storageKeys.js` (`@ptf_entitlement_v1`) · `entitlementService.js:57-70` · `entitlementService.js:99-102` (writer único) | Fase 4A, por determinação do fundador na consolidação | `ABERTO` | ND | **MÉDIO** | entitlement, Storage | nenhum efeito direto na criança: progresso, pinturas e criações locais são preservados em qualquer estado comercial | snapshot comercial sem política declarada de versionamento e sem teste que a prove | 4 | 18 | `P-24`, `P-93`, `P-129` | 18 e 21 | `VFP` · `FAM` · `REI` · `MIG` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | CRIADO NA FASE 4A por determinação do fundador, sem renumerar nenhum código anterior. NÃO coberto por `P-126`, que trata do schema do manifesto de pack, nem por `P-114`, que trata da localização das chaves. MESMO BLOCO DE CORREÇÃO: `P-129` | `COMPROVADO PELO CÓDIGO` | Código criado porque a busca nos 22 campos dos 139 códigos anteriores não encontrou nenhum que cobrisse o mesmo fato, superfície, consequência e correção. O risco trata exclusivamente do VERSIONAMENTO e da MIGRAÇÃO FUTURA do snapshot de entitlement gravado em `@ptf_entitlement_v1`. DECISÃO DA FASE 4A: (1) não existem assinantes comerciais anteriores ao lançamento, portanto não há base instalada paga a migrar e nenhum grandfathering é devido; (2) Modo Criador, flags de desenvolvimento e estado premium local fabricado NÃO serão migrados em hipótese alguma; (3) os dados infantis locais permanecem preservados em qualquer estado comercial — progresso, pinturas, desenhos e galeria nunca são apagados por decisão de plano; (4) entitlement sem origem comercial comprovada, antigo, inválido ou corrompido resolve para PLANO GRÁTIS até validação real, e a única fonte comercial real é o RevenueCat. Decisão de produto resolvida; risco técnico NÃO corrigido. Critério futuro de encerramento: só pode ser encerrado quando existir política escrita de versionamento do snapshot, caminho declarado de migração para a versão seguinte da chave e teste que exerça snapshot antigo, corrompido e de origem não comprovada provando o resolve para grátis. |
 
 ### PRIVACIDADE — 1 risco
 
@@ -736,15 +741,15 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 
 | # | Resumo executivo | Total |
 |---|---|---|
-| 1 | Total bruto de códigos na matriz | **139** |
-| 2 | Riscos distintos após deduplicação | **139** |
+| 1 | Total bruto de códigos na matriz | **140** |
+| 2 | Riscos distintos após deduplicação | **140** |
 | 3 | Códigos fundidos (preservados como linha, sem definição própria) | **0** |
 | 4 | `CORRIGIDO` | **2** |
 | 5 | `REFUTADO` | **1** |
-| 6 | `ABERTO` | **82** |
+| 6 | `ABERTO` | **86** |
 | 7 | `DOCUMENTAL` | **7** |
 | 8 | `INTERNO E INALCANÇÁVEL EM PRODUÇÃO` | **2** |
-| 9 | Exigem decisão na Fase 4 (campo Fase decisão = 4) | **50** |
+| 9 | Exigem decisão na Fase 4 (campo Fase decisão = 4) | **51** |
 | 10 | `BLOQUEIA PRODUCT LOCK` | **0** |
 | 11 | `BLOQUEIA LANÇAMENTO` | **5** |
 | 12 | `PODE BLOQUEAR LANÇAMENTO` | **40** |
@@ -765,7 +770,7 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 | Fase 13 | 1 |
 | Fase 16 | 12 |
 | Fase 17 | 16 |
-| Fase 18 | 3 |
+| Fase 18 | 4 |
 | Fase 19 | 6 |
 | Fase 20 | 8 |
 | Fase 21 | 1 |
@@ -783,10 +788,10 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 | ÁUDIO E HÁPTICOS | 11 |
 | DOCUMENTAÇÃO | 9 |
 | UI E RESPONSIVIDADE | 6 |
+| PLANO E ENTITLEMENT | 6 |
 | ASSETS | 6 |
 | DEPENDÊNCIAS E BUILD | 6 |
 | COLORIR COM O BENI | 5 |
-| PLANO E ENTITLEMENT | 5 |
 | ACESSIBILIDADE | 5 |
 | FERRAMENTAS INTERNAS | 5 |
 | CONTEÚDO E TEOLOGIA | 4 |
@@ -810,7 +815,7 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 |---|---|
 | CRÍTICO | 6 |
 | ALTO | 40 |
-| MÉDIO | 52 |
+| MÉDIO | 53 |
 | BAIXO | 29 |
 | INFORMATIVO | 11 |
 | NÃO DETERMINADO | 1 |
@@ -819,8 +824,8 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 
 | Status | Riscos |
 |---|---|
-| `ABERTO` | 82 |
-| `DECISÃO DE PRODUTO PENDENTE` | 20 |
+| `ABERTO` | 86 |
+| `DECISÃO DE PRODUTO PENDENTE` | 17 |
 | `IMPLEMENTADO SEM CONSUMIDOR` | 14 |
 | `EXIGE VALIDAÇÃO FÍSICA` | 10 |
 | `DOCUMENTAL` | 7 |
@@ -833,15 +838,15 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 
 | Product Lock | Riscos |
 |---|---|
-| `INFORMA O PRODUCT LOCK` | 54 |
-| `EXIGE DECISÃO NO PRODUCT LOCK` | 46 |
+| `INFORMA O PRODUCT LOCK` | 63 |
 | `NÃO BLOQUEIA PRODUCT LOCK` | 39 |
+| `EXIGE DECISÃO NO PRODUCT LOCK` | 38 |
 
 **Complementares — validações físicas futuras (múltiplas por risco)**
 
 | Validação física | Riscos |
 |---|---|
-| `EXIGE VALIDAÇÃO FÍSICA NA FASE PROPRIETÁRIA` | 106 |
+| `EXIGE VALIDAÇÃO FÍSICA NA FASE PROPRIETÁRIA` | 107 |
 | `EXIGE VALIDAÇÃO EM TELEFONE` | 96 |
 | `NÃO EXIGE VALIDAÇÃO FÍSICA` | 33 |
 | `EXIGE MODO AVIÃO` | 15 |
@@ -849,9 +854,9 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 | `EXIGE VALIDAÇÃO EM TABLET` | 8 |
 | `EXIGE VALIDAÇÃO EM ANDROID` | 7 |
 | `EXIGE VALIDAÇÃO EM IOS` | 6 |
-| `EXIGE REINSTALAÇÃO` | 4 |
-| `EXIGE ESTADO MIGRADO` | 3 |
-| `EXIGE VALIDAÇÃO NO PLANO FAMÍLIA` | 3 |
+| `EXIGE REINSTALAÇÃO` | 5 |
+| `EXIGE ESTADO MIGRADO` | 4 |
+| `EXIGE VALIDAÇÃO NO PLANO FAMÍLIA` | 4 |
 | `EXIGE FONT SCALE 1.3` | 2 |
 
 ## 16. Provas automáticas (ETAPA 17)
@@ -860,20 +865,20 @@ Executadas sobre a tabela da §14. `S1` e `S2` são provas suplementares de inte
 
 | # | Prova | Resultado |
 |---|---|---|
-| 1 | Sequência sem lacunas até o maior código (P-139) | OK — 0 ausentes |
-| 2 | Uma linha principal por código | OK — 139 códigos, 139 linhas, 0 duplicados |
+| 1 | Sequência sem lacunas até o maior código (P-140) | OK — 0 ausentes |
+| 2 | Uma linha principal por código | OK — 140 códigos, 140 linhas, 0 duplicados |
 | 3 | Nenhum código P antigo desapareceu (P-01..P-131 herdados) | OK — 131/131 presentes |
 | 4 | Nenhum código fundido foi reutilizado | OK — 0 códigos fundidos; nenhum reaproveitado |
 | 5 | Nenhum `E015-N` aparece como código principal | OK — 0 ocorrências |
-| 6 | Todo risco aberto possui fase proprietária | OK — 129 riscos não encerrados, 0 sem fase |
-| 7 | Todo risco possui status canônico | OK — 139/139 |
-| 8 | Todo risco possui classificação de Product Lock | OK — 139/139 |
-| 9 | Todo risco possui classificação de lançamento | OK — 139/139 |
-| 10 | Todo risco possui indicação de validação física | OK — 139/139 |
+| 6 | Todo risco aberto possui fase proprietária | OK — 130 riscos não encerrados, 0 sem fase |
+| 7 | Todo risco possui status canônico | OK — 140/140 |
+| 8 | Todo risco possui classificação de Product Lock | OK — 140/140 |
+| 9 | Todo risco possui classificação de lançamento | OK — 140/140 |
+| 10 | Todo risco possui indicação de validação física | OK — 140/140 |
 | 11 | Totais executivos correspondem à tabela | OK — todos os totais da §15 são gerados por contagem da própria tabela da §14 |
-| 12 | As três divergências de schema foram classificadas | OK — P-132, P-133, P-134, P-135, P-136, P-137, P-138, P-139 |
+| 12 | As três divergências de schema foram classificadas | OK — P-132, P-133, P-134, P-135, P-136, P-137, P-138, P-139, P-140 |
 | S1 | Todo `PODE BLOQUEAR LANÇAMENTO` registra a evidência que falta | OK — 40/40 |
-| S2 | Toda referência cruzada aponta para código existente | OK — 115 códigos referenciados, 0 órfãos |
+| S2 | Toda referência cruzada aponta para código existente | OK — 116 códigos referenciados, 0 órfãos |
 
 ## 17. Listas de códigos por classificação
 
@@ -885,9 +890,9 @@ Todas derivadas da tabela da §14.
 | `PODE BLOQUEAR LANÇAMENTO` | 40 | `P-01` · `P-05` · `P-06` · `P-09` · `P-16` · `P-18` · `P-20` · `P-26` · `P-27` · `P-28` · `P-31` · `P-35` · `P-36` · `P-44` · `P-46` · `P-50` · `P-55` · `P-57` · `P-64` · `P-65` · `P-71` · `P-92` · `P-94` · `P-97` · `P-98` · `P-102` · `P-105` · `P-107` · `P-114` · `P-115` · `P-116` · `P-120` · `P-124` · `P-128` · `P-129` · `P-133` · `P-134` · `P-136` · `P-137` · `P-138` |
 | `POSTERIOR AO LANÇAMENTO` | 1 | `P-84` |
 | `BLOQUEIA PRODUCT LOCK` | 0 | — |
-| `EXIGE DECISÃO NO PRODUCT LOCK` | 46 | `P-01` · `P-02` · `P-03` · `P-04` · `P-05` · `P-06` · `P-09` · `P-15` · `P-16` · `P-17` · `P-22` · `P-24` · `P-36` · `P-37` · `P-38` · `P-43` · `P-44` · `P-45` · `P-49` · `P-63` · `P-64` · `P-65` · `P-70` · `P-75` · `P-76` · `P-82` · `P-85` · `P-93` · `P-100` · `P-108` · `P-118` · `P-120` · `P-121` · `P-122` · `P-123` · `P-124` · `P-125` · `P-126` · `P-129` · `P-130` · `P-132` · `P-133` · `P-134` · `P-135` · `P-136` · `P-137` |
+| `EXIGE DECISÃO NO PRODUCT LOCK` | 38 | `P-01` · `P-02` · `P-03` · `P-04` · `P-06` · `P-09` · `P-15` · `P-16` · `P-17` · `P-22` · `P-36` · `P-37` · `P-38` · `P-43` · `P-44` · `P-45` · `P-49` · `P-70` · `P-75` · `P-76` · `P-82` · `P-85` · `P-100` · `P-108` · `P-118` · `P-120` · `P-121` · `P-122` · `P-123` · `P-124` · `P-125` · `P-126` · `P-130` · `P-132` · `P-133` · `P-134` · `P-135` · `P-137` |
 | `EXIGE VALIDAÇÃO FÍSICA` (status) | 10 | `P-06` · `P-20` · `P-21` · `P-27` · `P-28` · `P-31` · `P-35` · `P-127` · `P-128` · `P-129` |
-| `DECISÃO DE PRODUTO PENDENTE` | 20 | `P-01` · `P-02` · `P-04` · `P-36` · `P-45` · `P-64` · `P-65` · `P-70` · `P-75` · `P-76` · `P-85` · `P-100` · `P-120` · `P-121` · `P-122` · `P-125` · `P-126` · `P-130` · `P-135` · `P-136` |
+| `DECISÃO DE PRODUTO PENDENTE` | 17 | `P-01` · `P-02` · `P-04` · `P-36` · `P-45` · `P-70` · `P-75` · `P-76` · `P-85` · `P-100` · `P-120` · `P-121` · `P-122` · `P-125` · `P-126` · `P-130` · `P-135` |
 | `IMPLEMENTADO SEM CONSUMIDOR` | 14 | `P-14` · `P-29` · `P-39` · `P-42` · `P-49` · `P-50` · `P-53` · `P-72` · `P-82` · `P-91` · `P-99` · `P-103` · `P-106` · `P-119` |
 | `DOCUMENTAL` | 7 | `P-11` · `P-12` · `P-48` · `P-52` · `P-87` · `P-109` · `P-110` |
 | `INTERNO E INALCANÇÁVEL EM PRODUÇÃO` | 2 | `P-55` · `P-78` |
@@ -1187,8 +1192,94 @@ fora do caminho do *entitlement*, e o perfil `c60-pilot` sequer satisfaz seu gat
 `EXPO_PUBLIC_BUILD_PROFILE === 'preview-criador'` (`featureFlags.js:86-88`). Não declarou o *build*
 atual suficiente — declarou o contrário, com prova.
 
+## 24. Atualização pela Fase 4A — Product Lock de Plano Família, compra, restauração e entitlement
+
+Esta seção registra **o que a Fase 4A mudou nesta matriz e por quê**. A Fase 4A é
+exclusivamente documental: nenhum arquivo executável foi alterado, nenhum defeito foi
+corrigido, nenhum produto foi criado nas lojas, o RevenueCat não foi configurado, nenhum
+*build* foi gerado e nenhuma validação física foi executada.
+
+### 24.1 Regra de leitura — três estados que não se confundem
+
+A Fase 4A resolveu **decisões de produto**. Isso **não** corrige risco técnico. Cada código
+tocado passa a distinguir explicitamente três estados:
+
+| Estado | O que significa | Onde aparece |
+|---|---|---|
+| **Decisão resolvida** | O fundador decidiu; a pergunta de produto está fechada | Campo *Observação*, prefixo `DECISÃO DA FASE 4A` |
+| **Implementação pendente** | O código ainda não faz o que foi decidido | Campo *Status* (`ABERTO`) e *Fase implementação* |
+| **Validação futura** | Só um teste em aparelho encerra o item | Campo *Status* (`EXIGE VALIDAÇÃO FÍSICA`) e *Validação física* |
+
+**Nenhum código passou a `CORRIGIDO` nesta fase.** Nenhuma severidade foi rebaixada.
+Nenhuma classificação de lançamento foi afrouxada.
+
+### 24.2 Movimento de classificação de Product Lock
+
+Os códigos cuja pergunta de produto foi respondida deixam de **exigir** decisão e passam a
+**informar** o Lock: `EXIGE DECISÃO NO PRODUCT LOCK` → `INFORMA O PRODUCT LOCK`. Esse
+movimento descreve apenas que a decisão saiu da fila do Lock; **não** encerra o risco.
+
+| Código | Status antes → depois | Product Lock antes → depois | Lançamento | Decisão registrada |
+|---|---|---|---|---|
+| `P-05` | `ABERTO` → `ABERTO` | `ED` → `IN` | inalterado | Home do plano grátis após esgotamento |
+| `P-24` | `ABERTO` → `ABERTO` | `ED` → `IN` | inalterado (`BLOQUEIA LANÇAMENTO`) | Produtos, periodicidade, teste, identificadores, restauração |
+| `P-59` | `ABERTO` → `ABERTO` | `NB` (inalterado) | inalterado | Nome público único |
+| `P-63` | `ABERTO` → `ABERTO` | `ED` → `IN` | inalterado (`BLOQUEIA LANÇAMENTO`) | Limite zero no Criar Livre e distinção do Colorir |
+| `P-64` | `DECISÃO DE PRODUTO PENDENTE` → `ABERTO` | `ED` → `IN` | inalterado | Limite zero confirmado; o texto é que muda |
+| `P-65` | `DECISÃO DE PRODUTO PENDENTE` → `ABERTO` | `ED` → `IN` | inalterado | Idem, na superfície infantil |
+| `P-66` | `ABERTO` → `ABERTO` | `IN` (inalterado) | inalterado | Voz comercial proibida na superfície infantil |
+| `P-93` | `ABERTO` → `ABERTO` | `ED` → `IN` | inalterado (`BLOQUEIA LANÇAMENTO`) | Nomes de variáveis, identificadores e responsabilidades |
+| `P-129` | `EXIGE VALIDAÇÃO FÍSICA` (inalterado) | `ED` → `IN` | inalterado | Janela offline de 7 dias, opção A |
+| `P-136` | `DECISÃO DE PRODUTO PENDENTE` → `ABERTO` | `ED` → `IN` | inalterado | Binário de produção só com as 2 histórias gratuitas |
+| `P-126` | inalterado | inalterado | inalterado | Somente *alias* de distinção contra `P-140` |
+
+`P-64`, `P-65` e `P-136` saem de `DECISÃO DE PRODUTO PENDENTE` porque a decisão **existe**
+agora. Eles entram em `ABERTO`, não em `CORRIGIDO`: o texto de `ParentAreaScreen.js:840`, o
+texto de `BrincarScreen.js:306` e os `require()` estáticos das 18 histórias premium
+continuam exatamente como estavam no commit canônico.
+
+### 24.3 `P-55` e `P-56` permanecem riscos técnicos não corrigidos
+
+Verificação explícita exigida pelo fundador. Nenhum campo de `P-55` e `P-56` foi tocado
+nesta fase. As decisões da Fase 4A **não** os alcançam: o fallback premium do Modo Criador e
+a rodada fabricada na retomada são defeitos de código, não perguntas de produto, e seguem
+abertos com a mesma severidade, a mesma fase proprietária e a mesma classificação de
+lançamento registradas em E016 e reconferidas em E018.
+
+### 24.4 Correção de rastreabilidade — `P-57` e a decisão de dispositivos
+
+A decisão sobre **quantidade de dispositivos e perfil familiar** vincula-se principalmente a
+`P-24` e, no que toca a estado local persistido, a `P-140`. **`P-57` não é código de
+dispositivos.** `P-57` é a rodada fabricada na retomada do Monte a Cena; permanece no escopo
+de plano apenas pela relação secundária com consumo de rodadas do plano grátis. Esta matriz
+**nunca** registrou vínculo entre `P-57` e dispositivos — seus campos *Dependências* e
+*Aliases* apontam apenas para `P-56` e `P-58`. A associação indevida existiu somente no
+artefato preliminar da Fase 4A e foi removida lá.
+
+### 24.5 `P-140` — código criado, sem renumeração
+
+O fundador determinou que a ausência de caminho de migração de *entitlement* não podia
+permanecer como observação solta. A busca foi refeita nos **22 campos dos 139 códigos**
+anteriores. Dois candidatos foram inspecionados campo a campo e descartados:
+
+| Candidato | Por que **não** cobre |
+|---|---|
+| `P-126` | Trata do `schemaVersion` do **manifesto de pack**; superfície `manifesto`; consequência é o *download* parar. Fato, superfície, consequência e correção são outros |
+| `P-114` | Trata da **localização** de cerca de 20 chaves `@ptf` fora do `storageKeys.js`; superfície `Storage`. Não enuncia versionamento nem migração |
+
+Nenhum outro código enuncia o fato. **`P-140` foi criado**, com o número imediatamente
+seguinte ao maior código existente. **Nenhum código anterior foi renumerado**, nenhum foi
+fundido e nenhum perdeu histórico.
+
+### 24.6 O que a Fase 4A **não** fez nesta matriz
+
+Não reabriu decisão aprovada (§19 permanece íntegra: o *fail-closed* com *writer* único e a
+regra "pack no disco nunca é autorização" foram **reafirmados**, não revistos). Não marcou
+nenhum risco como corrigido. Não removeu nenhum código. Não alterou `P-55`, `P-56` nem
+`P-57`. Não tocou em nenhum campo dos demais 128 códigos.
+
 ---
 
-*Fim do artefato 9 de 11. **Matriz única e definitiva com 139 riscos**, `P-01` a `P-139`, sem
+*Fim do artefato 9 de 11. **Matriz única e definitiva com 140 riscos**, `P-01` a `P-140`, sem
 lacunas, sem renumeração e sem perda de histórico. Esta é a única fonte canônica de riscos do
 projeto.*
