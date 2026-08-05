@@ -25,7 +25,7 @@
 > e **não** são matriz concorrente. Este arquivo **não replica** a matriz: cita códigos `P`, e a
 > definição fica lá.
 
-**Data desta versão:** 2026-08-05 (**Fase 4A · Product Lock de Plano Família, compra, restauração e entitlement** — ver seção `PL4A`) · **Base anterior:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Fundador:** Eduardo
+**Data desta versão:** 2026-08-05 (**Product Lock — Fase 4A**, Plano Família, compra, restauração e entitlement, seção `PL4A`; **Fase 4B**, acesso grátis, conteúdo do Plano Família, histórias e superfícies infantis, seção `PL4B`; **Fase 4C**, jornada, progressão, conclusão e desbloqueios, seção `PL4C`; **Fase 4D**, dados, persistência, migração, recuperação e integridade, seção `PL4D`) · **Base anterior:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Fundador:** Eduardo
 
 > **Reconciliação E1 (2026-07-15):** este arquivo passou a ser o **único árbitro** (o `DECISIONS.md`
 > da raiz foi marcado SUPERSEDED). As decisões consolidadas de lançamento estão na seção
@@ -1372,11 +1372,124 @@ tomada **não** corrige risco técnico e **não** autoriza escrever código.
 
 ### PL4C — O que continua **não** decidido e **não** corrigido
 - **Rodadas diárias: "por criança" × "por dispositivo/jogo"** — conflito **preservado**, como em PL4B; pertence ao **bloco decisório do Brincar**.
+  - **📌 ANOTAÇÃO DA FASE 4D (2026-08-05) — ✅ CONFLITO RESOLVIDO.** O escopo foi decidido no Product Lock da Fase 4D: **as rodadas pertencem à criança local**, com **`childId` estável**, e **`avatarId` nunca serve como identidade nem como endereço de armazenamento**. Ver [`## PL4D`](#pl4d--product-lock-fase-4d--dados-persistência-migração-recuperação-e-integridade) · `D-4D-RODADAS-ESCOPO`. **Deixa de ser pendência de decisão**; a implementação segue pendente e o **risco técnico continua ABERTO**.
 - **Nenhum risco técnico passou a `CORRIGIDO` nesta fase.** A única linha que mudou para `CORRIGIDO` é `P-11`, **defeito documental** sanado neste mesmo bloco.
 - **Nenhuma severidade rebaixada, nenhuma classificação de lançamento afrouxada, nenhum código `P` novo criado.**
 - **`P-56` e `P-63` continuam `BLOQUEIA LANÇAMENTO`**; a decisão de produto **não** os corrige.
 - **Quantidade e textos exatos das conquistas dos quatro jogos** — produção na **Fase 11**.
 - **Toda a implementação** das decisões acima é **futura**; **nenhuma validação física** foi executada nesta fase.
+
+## PL4D — Product Lock Fase 4D · Dados, persistência, migração, recuperação e integridade
+
+> **Data:** 2026-08-05. **Registro formal das respostas do fundador** ao artefato preliminar
+> [`docs/fase4-product-lock/04_PRODUCT_LOCK_4D_DADOS_PERSISTENCIA_MIGRACAO_E_INTEGRIDADE.md`](fase4-product-lock/04_PRODUCT_LOCK_4D_DADOS_PERSISTENCIA_MIGRACAO_E_INTEGRIDADE.md).
+> Bloco **exclusivamente documental**: nenhum código, *asset*, *pack*, manifesto ou configuração
+> foi alterado; nenhum *build* foi gerado; nenhuma validação física foi executada.
+> As decisões das Fases **4A**, **4B** e **4C** permanecem **integralmente preservadas**.
+
+**Regra de leitura (três estados, como em PL4A, PL4B e PL4C):** cada decisão abaixo distingue
+**decisão resolvida** · **implementação pendente** · **validação futura**. Decisão de produto
+tomada **não** corrige risco técnico e **não** autoriza escrever código.
+
+### D-4D-PERFIL-LOCAL — Uma única criança local por instalação
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `D-2` do artefato.
+- (1) O produto cria um **identificador local estável** para a criança · (2) **nome e avatar são atributos editáveis**, não identidade · (3) **trocar avatar não troca identidade** · (4) **sem** seletor de múltiplas crianças no lançamento · (5) **sem** sincronização · (6) o formato deve **permitir evolução futura** para múltiplos perfis · (7) **os dados legados globais são associados ao perfil local criado, nunca abandonados**.
+- **Implementação pendente** (Fases 12A e 19) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-62`, `P-55`, `P-114`, `P-141`.
+
+### D-4D-RODADAS-ESCOPO — As rodadas diárias pertencem à criança local
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `D-3`, preservado desde PL4B e PL4C.
+- **Duas rodadas por criança local por dia.** Como o lançamento terá **uma única criança local por instalação**, o efeito prático equivale a duas por instalação — **mas a propriedade semântica do contador pertence à criança**.
+- A implementação deve usar **`childId` local estável**. **`avatarId` nunca poderá ser usado como identidade nem como endereço de armazenamento.** Trocar avatar, nome ou aparência **não reinicia rodadas** e **não cria outra criança**.
+- O contador continua **compartilhado entre os quatro jogos**. A **alteração do relógio não concede vantagem silenciosa**: a política técnica será especificada na implementação, **preservando a fronteira de dia local** e o comportamento ***fail closed***.
+- **Implementação pendente** (Fases 12A e 19) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-40`, `P-56`, `P-57`, `P-61`, `P-86`, `P-146`.
+
+### D-4D-REINSTALACAO — Sem promessa de recuperação de dado infantil
+- **Status:** ✅ **APROVADA.**
+- O produto **não promete** recuperar dados infantis após a desinstalação. **Somente o direito comercial do Plano Família é restaurável** pela conta da loja. **Não há garantia** para progresso, pinturas, artes, perfil, estrelinhas, conquistas, resultados de jogos ou *downloads*.
+- **Copy obrigatória na Área dos Pais:** *"Desinstalar o aplicativo pode apagar o progresso e as criações salvas neste aparelho."*
+- Um eventual **backup automático do sistema operacional pode existir, mas não é compromisso do produto**.
+- **Implementação pendente** (Fase 19) · **risco técnico NÃO corrigido**. Rastreio: `P-129`, `P-140`, `P-144`.
+
+### D-4D-EXPORTACAO — Exportação individual protegida por portão parental
+- **Status:** ✅ **APROVADA.**
+- O lançamento permite exportar **individualmente**: **pinturas do Colorir com o Beni** e **artes salvas do Criar Livre no Plano Família**.
+- (1) **Portão parental obrigatório** · (2) folha de compartilhamento nativa ou salvamento autorizado · (3) **nenhuma chamada infantil para rede social** · (4) **nenhum nome da criança incluído automaticamente** · (5) **nenhum identificador interno ou dado de progresso acompanha a imagem** · (6) **sem** importação de volta · (7) **sem** backup completo no lançamento · (8) **não utilizar automaticamente `certificateService`, `shareCardService` ou serviços antigos** para implementar a exportação.
+- **Implementação pendente** (Fase 10) · **risco técnico NÃO corrigido**. Rastreio: `P-49`, `P-82`.
+
+### D-4D-RESET — Quatro operações distintas de reset
+- **Status:** ✅ **APROVADA** · **resolve** os conflitos `D-7` e `D-8`.
+- **A. Recomeçar a jornada** — apaga progresso, quiz, reflexão, estrelinhas, conquistas, resultados dos jogos, rodadas diárias e os estados de *onboarding* e guias ligados à jornada; **preserva** pinturas, artes do Criar Livre, *entitlement*, *downloads* e perfil básico.
+- **B. Apagar downloads** — somente *packs* e temporários. **C. Apagar uma criação** — individual, com confirmação do responsável. **D. Apagar todos os dados locais** — perfil, progresso, criações, jogos e *downloads*, exigindo **portão parental, confirmação dupla, digitação da palavra `APAGAR` e lista explícita** do que será perdido.
+- **O direito comprado na loja não é apagado** e poderá ser restaurado. **Logout, *downgrade* e perda do *entitlement* nunca equivalem a reset.**
+- O cartão **"Em preparação" deve ser removido ou substituído pela operação real antes do lançamento**.
+- **Implementação pendente** (Fases 11 e 19) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-32`, `P-35`, `P-145`.
+
+### D-4D-CORRUPCAO — Quarentena com tentativa de recuperação
+- **Status:** ✅ **APROVADA.**
+- (1) **Não sobrescrever imediatamente** o *payload* corrompido · (2) **preservar o original em quarentena** · (3) executar **reparo determinístico** · (4) **preservar blobs e criações recuperáveis** · (5) usar **estado seguro** durante o reparo · (6) ***fail closed*** a *entitlement*, rodadas, recompensas e desbloqueios · (7) **não fabricar** conclusão ou recompensa · (8) **não interpretar falha de leitura como atividade não realizada** · (9) informar o responsável **somente quando houver risco real de perda** · (10) manter a quarentena por **trinta dias** · (11) manter no máximo **três versões por domínio** · (12) remover depois **somente o comprovadamente irrecuperável**.
+- **Copy de referência:** *"Encontramos um problema em alguns dados deste aparelho. O Mundo do Beni preservou o que conseguiu e está usando um estado seguro."* **Não mostrar linguagem técnica à criança.**
+- **Implementação pendente** (Fases 12A e 19) · **risco técnico NÃO corrigido**. Rastreio: `P-41`, `P-46`, `P-146`.
+
+### D-4D-SERVICOS-MORTOS — Certificados, share cards e relatório semanal fora do v1
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `D-13` **após re-auditoria exigida pelo fundador**.
+- **A divergência do corpus anterior está resolvida: as duas leituras descreviam coisas diferentes.** Medido no commit canônico: (a) **três módulos inteiramente mortos** — `certificateService.js`, `shareCardService.js`, `weeklyReportService.js`, com **zero importadores** em `src/` e em `App.js`; (b) **dois *exports* órfãos dentro de módulos VIVOS** — `getStoryRewardBreakdown` em `rewardService.js` e `clearSeenAchievements` em `achievementsStorage.js`; (c) a cadeia **`totalBonusStars` NÃO é código morto** — a escrita é viva e aguardada em **oito pontos** e chega a `ProgressContext`; **apenas o consumo final é inexistente**, e **removê-la destruiria estrelinhas realmente conquistadas**; (d) a **suíte de fumaça fixa o código morto no lugar**.
+- **Decisões:** nenhum dos três é ativado no lançamento · **remover do *runtime* apenas o comprovadamente morto** · **preservar o histórico no Git** · registrar as ideias no *backlog* pós-lançamento · **ajustar as verificações de fumaça que mantêm código morto artificialmente** · **não** usar esses serviços como implementação automática da exportação.
+- **Implementação pendente** (Fase 16) · **risco técnico NÃO corrigido**. Rastreio: `P-82`, `P-39` (**sem remoção**), `P-147`, `P-148`.
+
+### D-4D-ARMAZENAMENTO — Sem teto para criações; piso de espaço livre para downloads
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `D-12`.
+- **Não** haverá limite rígido automático para as criações da criança.
+- Para *downloads*: (1) calcular tamanho necessário e margem para **instalação atômica** · (2) **bloquear o download que deixe o aparelho com menos do que o MAIOR valor entre 2 GB livres e 10% da capacidade total** · (3) mostrar **uso de armazenamento na Área dos Pais** · (4) permitir **remoção individual ou total de packs** · (5) limpar automaticamente **apenas temporários e downloads incompletos** · (6) **nunca apagar pinturas, artes ou progresso automaticamente** · (7) **informar a falta de espaço antes de iniciar o download**.
+- **Implementação pendente** (Fase 17) · **risco técnico NÃO corrigido**. Rastreio: `P-116`.
+
+### D-4D-PACKS-POS-ATUALIZACAO — Packs compatíveis sobrevivem à atualização do app
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `D-11`.
+- Na abertura após a atualização: (1) **revalidar manifesto, schema, versão mínima e hashes** · (2) manter disponível o *pack* compatível · (3) **marcar o incompatível como exigindo atualização** · (4) **não usar** *pack* incompatível · (5) **não apagar a versão anterior antes de a nova ser instalada e validada** · (6) fazer **substituição atômica** · (7) **preservar progresso e criações** · (8) em modo *offline*, **manter o pack inerte e informar ao responsável** · (9) apagar automaticamente **somente temporários, incompletos ou versões já substituídas com sucesso**.
+- **Implementação pendente** (Fase 17) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-120`, `P-124`, `P-125`, `P-126`, `P-134`, `P-137`, `P-138`.
+
+### D-4D-CHAVES — Centralização progressiva das chaves de storage
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `D-9`.
+- (1) Toda chave **nova** nasce em `storageKeys.js` · (2) **nenhum literal novo** fora da fonte canônica · (3) **preservar valores físicos legados** quando renomear criar risco · (4) expor chaves legadas por constantes ou funções canônicas · (5) **não renomear `ptf_atelier_arts_v1_index`** · (6) escritores e leitores usam a constante canônica · (7) reset, migração, diagnóstico e exclusão total usam o **mesmo inventário** · (8) remover literais duplicados nas fases proprietárias · (9) **remover chave morta somente depois de auditoria de leitores, escritores, histórico e necessidade de migração** · (10) **não apagar chave baseada apenas em busca textual superficial**.
+- **Implementação pendente** (Fase 19) · **risco técnico NÃO corrigido**. Rastreio: `P-114`, `P-141`, `P-143`.
+
+### PL4D — Ratificações globais
+1. **Falha de leitura não é ausência.**
+2. **Fato próprio não é inferido de subproduto** de outro domínio.
+3. **Perder o pixel não apaga a conclusão** já registrada.
+4. **Nenhuma superfície recalcula sua própria conclusão.**
+5. **Falha de escrita é visível e *fail closed*.**
+6. **Recompensa somente depois da persistência confirmada.**
+7. **Nenhum dado infantil é apagado para resolver inconsistência.**
+8. **O maior estado defensável preserva apenas o que já foi conquistado.**
+9. **O maior estado defensável nunca concede o que ainda não foi conquistado.**
+10. **Migração é idempotente e retomável.**
+11. **Migração deve terminar antes de qualquer superfície consumir o domínio migrado.**
+12. **Atualização normal deve preservar dados locais.**
+13. **Perda do *entitlement* não apaga dado infantil.**
+14. **Estado de teste nunca vira direito comercial.**
+15. ***Pack* instalado e autorização comercial são fatos independentes.**
+16. **Estado de *download* pertence ao aparelho, nunca ao índice remoto.**
+
+Os itens **8 e 9 formam um par indivisível**: o maior estado defensável é um **teto**, não um piso.
+
+### PL4D — Correções de rastreabilidade aplicadas
+1. **Duas contagens do relatório preliminar corrigidas, sem ajuste silencioso.** (a) Dos **33 códigos** em escopo, **8** dependiam de resposta do fundador (`P-35` `P-62` `P-82` `P-114` `P-116` `P-126` `P-134` `P-137`) e **25** decorriam de contratos já aprovados — o relatório dizia "9 e 24". As **10 perguntas** excedem os 8 códigos porque três perguntas são de contrato e não têm código âncora, e porque perguntas distintas compartilham o mesmo código. (b) Os conflitos são **14**, dos quais **7 exigiam o fundador** (`D-2` `D-3` `D-7` `D-9` `D-11` `D-12` `D-13`) e **7 eram resolvíveis** — o relatório dizia "seis e oito", contradizendo a própria enumeração.
+2. **Oito códigos `P` novos criados — `P-141` a `P-148`** —, todos pelo **gerador determinístico**, **sem renumerar** nenhum código anterior. A matriz canônica passa de **140** para **148** riscos.
+3. **A ausência de política de armazenamento NÃO virou código novo** — o fato, a superfície e a correção já são os de `P-116`, e a regra do fundador proíbe criar código por simples ampliação de evidência.
+4. **A cadeia `totalBonusStars` fica explicitamente protegida de remoção** (`P-39`): a escrita é viva e aguardada; apagá-la destruiria estrelinhas conquistadas, contra a Decisão 9 da Fase 4C.
+5. **`P-120`, `P-125` e `P-126` saem de `DECISÃO DE PRODUTO PENDENTE` para `ABERTO`** — nunca para `CORRIGIDO`.
+6. **Sete códigos saem de `EXIGE DECISÃO NO PRODUCT LOCK` para `INFORMA O PRODUCT LOCK`:** `P-44`, `P-120`, `P-124`, `P-125`, `P-126`, `P-134`, `P-137`.
+7. **`P-108` permanece `EXIGE DECISÃO NO PRODUCT LOCK`** — a Fase 4D **não** decidiu o destino do Modo Igreja.
+8. **Nenhum risco técnico foi marcado como corrigido** apenas porque a decisão foi tomada.
+9. **Nenhuma decisão das Fases 4A, 4B e 4C foi revogada, afrouxada, reinterpretada ou reaberta.**
+
+### PL4D — O que continua **não** decidido e **não** corrigido
+- **Nenhum risco técnico passou a `CORRIGIDO` nesta fase.**
+- **`P-141` entra como `BLOQUEIA LANÇAMENTO`** (`CRÍTICO`): no commit canônico, sete telas escopam dado infantil por `profile.id || profile.avatarId`, e trocar de avatar faz a criança perder acesso ao que salvou.
+- **Toda a implementação** das dez decisões acima é **futura** (Fases 10, 11, 12A, 16, 17 e 19); **nenhuma validação física** foi executada nesta fase.
+- **A política técnica anti-adiantamento de relógio** será especificada na fase de implementação, preservando a fronteira de dia local e o comportamento *fail closed*.
+- **Destino do Modo Igreja** (`P-108`) segue pendente de decisão de produto.
+- **Quantidade, textos e desenho de tela** das quatro operações de reset, do aviso de desinstalação e do painel de armazenamento são **produção futura**.
 
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
@@ -1392,4 +1505,5 @@ tomada **não** corrige risco técnico e **não** autoriza escrever código.
 - ✅ **D-CRIAR-COM-BENI-STATUS** — **ENCERRADA em 2026-08-05** (Fase 4B). Não existirá terceira experiência "Criar com Beni"; os nomes oficiais são **`Criar Livre`** e **`Colorir com o Beni`**; "Criar Juntos" é chamada contextual do Criar Livre. **Deixa de ser pendência de decisão**; resta apenas a implementação de remover/redirecionar o atalho legado da Home (ver §PL4B · `D-4B-NOMES-OFICIAIS`).
 - ✅ **ESTADO TRANSITÓRIO ENCERRADO EM 2026-08-04** — a janela "NÃO GERAR BUILD" entre o **D1** e a conclusão do **S1** da Spec 019 **não vigora mais**: código, smoke e documentação voltaram a concordar, e o build `bafb8e3f` (commit `b24c868`) foi gerado depois do fechamento e **validado fisicamente**. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §7 e §8.
 - 🟡 **Cenários Família e premium da Spec 019** — **obrigatórios na Fase 18** e **revalidados na Fase 21**; não validados no perfil `c60-pilot` por impossibilidade técnica. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §8.1.
+- ✅ **Escopo das rodadas diárias, perfil local, reset, exportação, corrupção, armazenamento, packs pós-atualização e chaves de storage** — **DECIDIDOS em 2026-08-05** no **Product Lock da Fase 4D**. Ver [`## PL4D`](#pl4d--product-lock-fase-4d--dados-persistência-migração-recuperação-e-integridade). **Deixam de ser pendências de decisão**; a implementação segue pendente nas Fases 10, 11, 12A, 16, 17 e 19, e os riscos técnicos correspondentes **continuam abertos** na matriz canônica (`P-01`..`P-148`).
 - ✅ **Contrato técnico do sistema global de conclusão** (Decisões B e C) — **CONGELADO em 2026-08-05** no **Product Lock da Fase 4C**. Ver [`## PL4C`](#pl4c--product-lock-fase-4c--jornada-progressão-conclusão-e-desbloqueios). **Deixa de ser pendência de decisão**; os achados de [`D-CONCLUSAO-ESTADO-ATUAL`](#d-conclusao-estado-atual--achados-que-impedem-o-congelamento-técnico-imediato-registro-de-fatos) **continuam abertos como risco técnico**, com implementação nas Fases 7, 9, 10, 11, 12A, 16 e 19 e **validação física futura**.

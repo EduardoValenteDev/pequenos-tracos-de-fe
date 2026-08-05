@@ -4,6 +4,20 @@
 
 Guia da Área dos Pais: acesso, seções, reset de progresso, links de loja e regras de segurança.
 
+> **📌 ANOTAÇÃO DO PRODUCT LOCK 4D (2026-08-05).** Este guia continua **descrevendo corretamente o
+> código de hoje** — nada nele foi invalidado e **nenhum código foi alterado**. O que mudou é o
+> **contrato de destino**: o Product Lock da Fase 4D aprovou, para o lançamento, **quatro operações
+> distintas** na Área dos Pais — **A. Recomeçar a jornada**, **B. Apagar downloads**, **C. Apagar
+> uma criação** e **D. Apagar todos os dados locais** —, além do **aviso obrigatório de perda por
+> desinstalação**, do **painel de uso de armazenamento** e da **exportação individual de pinturas e
+> artes com portão parental**. A seção 2 deste guia descreve **apenas a operação A**; as demais
+> **ainda não existem no código**. O cartão **"Em preparação"** deve ser **removido ou substituído
+> pela operação real antes do lançamento**. Contrato completo em
+> [`## PL4D`](DECISIONS.md#pl4d--product-lock-fase-4d--dados-persistência-migração-recuperação-e-integridade)
+> e no artefato
+> [`docs/fase4-product-lock/04_PRODUCT_LOCK_4D_...`](fase4-product-lock/04_PRODUCT_LOCK_4D_DADOS_PERSISTENCIA_MIGRACAO_E_INTEGRIDADE.md).
+> Rastreio na matriz canônica: `P-32`, `P-35`, `P-116`, `P-144`, `P-145`.
+
 ---
 
 ## 1. Acesso e gate parental

@@ -35,7 +35,7 @@
    - branch **`fix/loading-performance-foundation`** no commit **`aeda9c2`**;
    - tag anotada **`lp-foundation-closed-2026-07-30`** no commit **`bc79edb`**;
    - **smoke `3314/3314`**.
-7. ⚠️ **ATUALIZADO em 2026-08-05 (E018).** ~~Fase atual: Fase 2.5 — integração do Colorir com o Beni sobre a fundação.~~ **Fase atual: Fase 3 — reconciliação completa (somente leitura)**, com o bloco documental **Fase 3H (E009 a E018) ENCERRADO**. A Fase 2.5 foi encerrada em **2026-08-04**. Linha canônica **`integrate/colorir-canonical-runtime`**; commit executável congelado **`015c438`**. O **Product Lock está apto a iniciar**. Ver [`PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) §1.1.
+7. ⚠️ **ATUALIZADO em 2026-08-05 (E018).** ~~Fase atual: Fase 2.5 — integração do Colorir com o Beni sobre a fundação.~~ **Fase atual: Fase 3 — reconciliação completa (somente leitura)**, com o bloco documental **Fase 3H (E009 a E018) ENCERRADO**. A Fase 2.5 foi encerrada em **2026-08-04**. Linha canônica **`integrate/colorir-canonical-runtime`**; commit executável congelado **`015c438`**. O **Product Lock está apto a iniciar**. Ver [`PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) §1.1. — ⚠️ **ATUALIZADO em 2026-08-05 (Fase 4D).** ~~O Product Lock está apto a iniciar.~~ O **Product Lock começou e avançou**: os blocos **4A**, **4B**, **4C** e **4D** estão **encerrados** (seções `PL4A`, `PL4B`, `PL4C` e `PL4D` de [`DECISIONS.md`](DECISIONS.md)). **Fase atual: Fase 4 — Product Lock final**, ainda em curso; o commit executável congelado continua **`015c438`**.
 8. **Branch de trabalho da Fase 2.5:** **`integrate/colorir-with-loading`** *(histórico — a linha canônica vigente é `integrate/colorir-canonical-runtime`)*.
 9. **Branch de origem do piloto:** **`feat/colorir-60-pilot-creation`** no commit **`795760a`**.
 10. **Merge base confirmado:** **`6cf799c`**.
@@ -211,6 +211,18 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   passa a exigir reversão explícita registrada no árbitro.
 - **Regra permanente:** **nenhuma pendência do Product Lock pode ser tratada como resolvida antes
   desta fase.** Documentos não inventam a resposta.
+- **Andamento registrado (2026-08-05):** os blocos **4A** (Plano Família, compra, restauração e
+  entitlement), **4B** (acesso grátis, conteúdo do Plano Família, histórias e superfícies
+  infantis), **4C** (jornada, progressão, conclusão e desbloqueios) e **4D** (dados, persistência,
+  migração, recuperação e integridade) estão **encerrados**, com as decisões do fundador
+  registradas em [`docs/DECISIONS.md`](DECISIONS.md) — seções `PL4A`, `PL4B`, `PL4C` e `PL4D` — e
+  os artefatos em [`docs/fase4-product-lock/`](fase4-product-lock/). A matriz canônica passou a
+  **148 riscos** (`P-01` a `P-148`): a Fase 4A criou `P-140` e a Fase 4D criou `P-141` a `P-148`,
+  **sem renumerar** nenhum código anterior. **Decisão de produto tomada não corrige risco
+  técnico**: nenhum risco foi marcado como `CORRIGIDO` por causa de decisão, e toda implementação
+  segue para as fases proprietárias. Os blocos são **exclusivamente documentais** — `src`,
+  `scripts`, `assets` e configurações de build seguem bit a bit idênticos ao commit executável
+  congelado **`015c438`**.
 
 ---
 
