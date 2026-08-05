@@ -14,6 +14,16 @@
 > **Mudança de decisão só existe se:** o fundador aprova explicitamente → DECISIONS.md é atualizado
 > PRIMEIRO → documentos depois → código por último. Nenhuma IA reabre item registrado sem sinalizar
 > que está pedindo **REVERSÃO**.
+>
+> **Divisão de competências (E018 · 2026-08-05).** Este arquivo continua **árbitro das decisões de
+> produto** e nada abaixo o rebaixa. O que ele **não** governa é o **inventário de pendências**:
+> identidade, status, severidade, fase e rastreabilidade de riscos vivem exclusivamente em
+> [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md)
+> (**matriz canônica**, códigos `P-01` a `P-139`). A `v5` governa **roadmap e sequência de fases**;
+> o `PROJECT_SOURCE_OF_TRUTH.md` governa **precedência e governança**. Listas de risco antigas
+> mantidas neste arquivo — em especial a lista `R` — valem **apenas como origem histórica e alias**
+> e **não** são matriz concorrente. Este arquivo **não replica** a matriz: cita códigos `P`, e a
+> definição fica lá.
 
 **Data desta versão:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Base anterior:** 2026-07-30 (Fonte de verdade v5 · Fase 2.5) · **Fundador:** Eduardo
 
@@ -442,24 +452,27 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
   5. **Resultado físico:** 13 cenários aprovados em build interno iOS `preview-criador` sem Metro (relatado pelo fundador em 2026-07-29), incluindo offline pós-restart e recovery sem segundo download. **Três** validações físicas seguem pendentes (dois READY concorrentes, reset+retry, saída durante instalação).
   6. **Método:** auditoria conduzida com **ULTRACODE** (orquestração multi-agente) — 17 agentes em 3 fases no fechamento e **7** agentes neste portão (2 varreduras, padrão de referência, CRLF/governança, evidência do fechamento, refutação adversarial e projeto da correção). A refutação adversarial não derrubou nenhum dos 2 sítios vulneráveis nem promoveu nenhum dos ~36 descartados. Evidência detalhada no relatório final da ordem; os artefatos brutos são efêmeros (`%TEMP%`), não versionados.
   7. **A trilha loading/performance está ENCERRADA**, com dívidas não bloqueantes registradas no relatório. Não se reabre investigação sobre ela.
-  8. **NÃO existe afirmação de desempenho medido quantitativamente.** Nenhuma medição foi registrada (R21); `performanceTrace.js` é gated por `__DEV__`/env ausente de todos os perfis do `eas.json` e não há baseline versionado. Qualquer ganho percebido é qualitativo.
+  8. **NÃO existe afirmação de desempenho medido quantitativamente.** Nenhuma medição foi registrada (R21 → `P-127` + `P-139`); `performanceTrace.js` é gated por `__DEV__`/env ausente de todos os perfis do `eas.json` e não há baseline versionado. Qualquer ganho percebido é qualitativo.
   9. **NÃO existe readiness de loja.** O binário ainda referencia ~401 MB por `require()` estático (R5), com premium (R6) e 200 linearts legados (R7) embarcados.
+     > *Correção de precisão E018 (2026-08-05) — a conclusão de que **não existe readiness de loja** permanece válida; os números de apoio estavam desatualizados.* Medido no commit executável congelado `015c438`: **519 arquivos e 130.976.281 bytes (124,9 MB)** por `require()` estático (`P-135`), dos quais **378 arquivos e 84.183.401 bytes (80,3 MB)** são as 18 histórias premium (`P-136`). Os **200 linearts legados já não estão no binário** — saíram no macrobloco P3J e `src/assets/coloringImages.js` não existe mais (`P-131`, agora CORRIGIDO). Este item **não é reescrito**: a correção fica registrada aqui, e o estado atual é lido na matriz.
   10. **Próxima fase oficial:** integração do **Colorir com o Beni** (Fase 2.5). A branch de integração **não** foi criada neste portão.
 - **Condições obrigatórias da Fase 2.5** (nenhuma é opcional):
   1. ⚠️ **ALTERADA em 2026-08-03.** ~~**Bloquear a persistência de pintura no plano Free no nível da ESCRITA em storage** — não apenas na UI.~~ A condição **muda de critério, não de camada**: a decisão continua vivendo na **autoridade de ESCRITA** e continua **fail closed**, mas passa a ser **decidida pela acessibilidade da história**, não pelo plano. Coerente com [`D-FREE-SEM-SALVAR`](#d-free-sem-salvar--plano-grátis-não-salva-arte-️-parcialmente-revogada-2026-08-03) **apenas no que resta dela (Criar Livre)** e com [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) no Colorir narrativo. **O bloqueio original foi implementado e validado** (commit `1e2f8dd3`); sua substituição é a **Spec 019**.
   2. **Tornar a atualização de manifest/pack funcional para quem já baixou conteúdo** — hoje quem já instalou não recebe versão nova de forma comprovada.
   3. **Manter os linearts legados fora do binário público** — a remoção é projeto próprio; a Fase 2.5 não pode reintroduzi-los nem ampliar a dependência deles.
   4. **Resolver a divergência de CRLF sem conflito artificial** — `feat/colorir-60-pilot-creation` tem `scripts/smoke.js` 100% CRLF (R23). Este portão fixou `scripts/smoke.js text eol=lf` no `.gitattributes`; a branch divergente precisa ser renormalizada **antes** do merge. Atenção: além do EOL há divergência real de conteúdo.
-- **Riscos residuais e seus destinos oficiais** (substituem qualquer atribuição anterior deste registro):
-  - **R5** — peso do binário e `require()` estático → **Fases 16 e 17**.
-  - **R6** — conteúdo premium embarcado → **Fases 16 e 17**.
-  - **R7** — 200 linearts legados → **Fases 16 e 17**.
-  - **R17** — `appVersion` literal `'1.0.0'`, `minAppVersion` e compatibilidade (`requiresAppUpdate` inerte) → **Fases 17 e 20**.
-  - **R20A** — ausência de evidência física em Android → **Fases 12A, 14 e 21**.
-  - **R20B** — sha256 lendo o arquivo inteiro em base64 → **Fases 17 e 19**.
-  - **R21** — ausência de medições quantitativas, faseada: **baseline na Fase 3** · **shell e abertura na Fase 6** · **piloto ampliado na Fase 14** · **beta final na Fase 21**.
+- **Riscos residuais — ORIGEM HISTÓRICA. ⚠️ ABSORVIDOS PELA MATRIZ CANÔNICA em 2026-08-05 (E018).** A lista abaixo **deixou de ser normativa**. Ela permanece aqui como **origem histórica e tabela de alias**: cada `R` tem agora um código `P` canônico em [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md), **única fonte de inventário, identidade, status, fase e rastreabilidade de pendências do projeto**. Status, severidade e fase de cada item passam a ser lidos **na matriz**, nunca aqui. A classificação individual e as correções de precisão estão na §22 da matriz.
+  - **R5** — peso do binário e `require()` estático → **parcialmente coberto**; parcela residual em **`P-135`** (número original de ~401 MB corrigido para 519 arquivos / 130.976.281 bytes no commit `015c438`).
+  - **R6** — conteúdo premium embarcado → **`P-136`** (risco novo real).
+  - **R7** — 200 linearts legados → **`P-131`, agora CORRIGIDO**: os 199 linearts saíram no macrobloco P3J e `coloringImages.js` não existe mais. Rescaldo documental vivo em `P-37`.
+  - **R17** — `appVersion` literal `'1.0.0'`, `minAppVersion` e compatibilidade → **parcialmente coberto por `P-134`**; parcela residual em **`P-137`**. Correção de precisão: `requiresAppUpdate` **não** é inerte — inerte é a **entrada** `appVersion`.
+  - **R20A** — ausência de evidência física em Android → **`P-128`** (equivalente pleno).
+  - **R20B** — sha256 lendo o arquivo inteiro em base64 → **`P-138`** (risco novo real).
+  - **R21** — ausência de medições quantitativas → **parcialmente coberto por `P-127`**; parcela residual em **`P-139`**.
 
   R20 passa a ser tratado como **dois riscos distintos** (R20A e R20B): a divisão é documental e não altera o conteúdo do risco original. Esta reatribuição **não reabre a Fase 2**.
+
+  *Divergências de fase registradas na E018 e ainda não resolvidas:* a matriz situa `P-128` na **Fase 21** como única fase proprietária, enquanto a `v5` pede evidência física em Android como critério de saída das Fases 12A e 14; e situa `P-127` na **Fase 9** e `P-139` na **Fase 6**, enquanto este registro punha o baseline de `R21` na **Fase 3** — fase que é somente leitura e não pode produzir medição. As três ficam para o Product Lock decidir.
 
   *Nota de rastreabilidade (atualizada em 2026-07-30, bloco P1):* o [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md) é **histórico** e não recebe a numeração ampliada. A [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md) ficou **desatualizada** e foi superada. A partir desta data, o **roadmap completo — Fase 0 à Fase 22, incluindo 2.5, 8A, 12A e 12B — vive na [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md)**, e é lá que os destinos de risco acima ficam rastreáveis. O [`PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) e o [`DOCUMENTATION_INDEX.md`](DOCUMENTATION_INDEX.md) passam a apontar para a **v5**.
 - **Gates físicos obrigatórios da Fase 2.5:** os três cenários ainda não executados no dispositivo passam a ser **gates de aceite da Fase 2.5**, não pendências informativas — (1) **dois READY concorrentes**; (2) **reset seguido de retry**; (3) **saída durante a instalação**.

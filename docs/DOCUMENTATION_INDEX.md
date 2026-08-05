@@ -12,8 +12,12 @@ Este índice classifica a documentação do projeto. Em caso de conflito, vale s
 - **[DECISIONS.md](DECISIONS.md)** — **árbitro único** das decisões de produto/lançamento.
   Em conflito entre um documento e este arquivo, **vence o `docs/DECISIONS.md`**.
 - **[DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md)** —
-  **linha de lançamento VIGENTE (v5, 2026-07-30)**, subordinada às decisões. Contém o **roadmap
-  integral da Fase 0 à Fase 22**, o baseline técnico carimbado e a **fase atual (2.5)**.
+  **linha de lançamento VIGENTE (v5, 2026-07-30)**, subordinada às decisões. Governa o **roadmap
+  integral da Fase 0 à Fase 22** e a **sequência de fases**, com o baseline técnico carimbado.
+- **[fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md)**
+  — **matriz canônica única de riscos e pendências** (`P-01` a `P-139`), adotada em **2026-08-05
+  (E018)**. Governa **inventário, identidade, status, severidade, fase e rastreabilidade** das
+  pendências. Nenhum outro documento replica esta matriz nem mantém tabela normativa de riscos.
 - **[launch/RECONCILIACAO_E1.md](launch/RECONCILIACAO_E1.md)** — reconciliação da governança
   (E1, 2026-07-15): precedência, decisões consolidadas, superadas e pendentes.
 
@@ -34,12 +38,19 @@ acima, com `docs/DECISIONS.md` como árbitro de produto.
 
 **Precedência:** governança técnica (`PROJECT_SOURCE_OF_TRUTH` → constitution → AGENTS → CLAUDE)
 acima das decisões de produto (`docs/DECISIONS.md` **árbitro** → **v5** → Direção de Arte v1.1 →
-docs narrativos/bíblicos vigentes → históricos: v4, v2.0, plano antigo).
+docs narrativos/bíblicos vigentes → históricos: v4, v2.0, plano antigo). O **inventário de
+pendências** corre num eixo próprio e não concorre com nenhum dos anteriores: ele vive na **matriz
+09**, e os demais documentos apenas citam códigos `P`.
 
-**Fase atual:** **Fase 2.5 — integração do Colorir com o Beni sobre a fundação** (branch
-`integrate/colorir-with-loading`, baseline `aeda9c2`). Ver
+**Fase atual (atualizada em 2026-08-05 · E018):** **Fase 3 — reconciliação completa (somente
+leitura)**, com o bloco documental **Fase 3H (E009 a E018) ENCERRADO**. Linha canônica
+`integrate/colorir-canonical-runtime`; commit executável congelado **`015c438`**. O **Product Lock
+está apto a iniciar** — nenhum item da matriz o bloqueia. Ver
+[`PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) §1.1, a
 [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3 e o registro `D-C60-INTEGRACAO-PRODUTO` em
 [`DECISIONS.md`](DECISIONS.md).
+*(A indicação anterior — "Fase 2.5, branch `integrate/colorir-with-loading`, baseline `aeda9c2`" —
+estava desatualizada desde o encerramento da Fase 2.5 em 2026-08-04.)*
 
 **Guias de feature vigentes do Brincar/Criar Livre:** [BRINCAR_HUB_GUIDE.md](BRINCAR_HUB_GUIDE.md),
 [ATELIER_GUIDE.md](ATELIER_GUIDE.md) (Seção 0 = Criar Livre atual; seções antigas = histórico).

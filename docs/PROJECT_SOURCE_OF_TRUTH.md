@@ -21,6 +21,17 @@ O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md), o `DOC
 **Precedência documental consolidada:**
 - **Governança técnica:** `docs/PROJECT_SOURCE_OF_TRUTH.md` → `.specify/memory/constitution.md` → `AGENTS.md` → `CLAUDE.md` → spec → plan → tasks → sessão.
 - **Decisões de produto/lançamento:** `docs/DECISIONS.md` (**árbitro único**) → `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md` (**vigente**) → Direção de Arte v1.1 + docs narrativos/bíblicos vigentes → documentos antigos (**histórico, não normativo**: v4, v2.0, plano antigo).
+- **Inventário de pendências e riscos:** [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md) (**matriz canônica única**, códigos `P-01` a `P-139`, adotada em 2026-08-05).
+
+> **Divisão de competências (E018 · 2026-08-05).** Os quatro eixos não competem entre si:
+> **este arquivo** governa precedência e governança técnica; **`docs/DECISIONS.md`** arbitra as
+> decisões de produto e lançamento; a **`v5`** governa o roadmap e a sequência de fases; a
+> **matriz 09** governa o inventário, a identidade, o status, a fase e a rastreabilidade das
+> pendências. Onde um documento cita um risco, ele cita o **código `P`** e deixa a definição na
+> matriz — **nenhum outro documento replica a matriz nem mantém tabela normativa de riscos
+> concorrente**. As listas antigas (lista `R` no `docs/DECISIONS.md` e na `v5` §4, achados
+> físicos da `v5` §4.1, listas `E015-N`) permanecem legíveis **apenas como origem histórica e
+> alias**.
 
 **Anexo de direção visual:** a [`docs/DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md`](DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md) é o **anexo oficial de direção de arte** (governa visual, tokens, responsividade, componentes e critérios de aceite visuais), subordinado à v5 e ao `docs/DECISIONS.md`. As decisões visuais congeladas (D1–D4) estão registradas em `docs/DECISIONS.md` (D-DESIGN-LIVRO-VIVO).
 
@@ -41,7 +52,9 @@ O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md), o `DOC
 
 Objetivo, entregas, critério de saída, riscos e as fases seguintes (até a **Fase 22**) estão na [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3. As decisões de produto da Fase 2.5 estão em [`docs/DECISIONS.md`](DECISIONS.md), registros `D-C60-INTEGRACAO-PRODUTO` e `D-C60-PERSISTENCIA-TODOS-PLANOS`.
 
-**Achados físicos registrados nesta fase.** A sessão física no build interno iOS **`98e2b422-0025-4d40-a772-073ef3dba553`** (commit executável `7f96ee9`, perfil `c60-pilot`) produziu quatro pendências, registradas por **fase proprietária** na [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §4.1: **QA REP 01** (Fase 7), **STR ONB 01** (Fase 11), **JRN C60 01** (Fase 9) e **ONB BRI 01** (Fase 7, revalidação após a 12A). Nenhuma foi corrigida — o registro é documental.
+**Achados físicos registrados nesta fase.** A sessão física no build interno iOS **`98e2b422-0025-4d40-a772-073ef3dba553`** (commit executável `7f96ee9`, perfil `c60-pilot`) produziu quatro pendências: **QA REP 01**, **STR ONB 01**, **JRN C60 01** e **ONB BRI 01**. Elas foram reconciliadas na matriz canônica como **`P-32`**, **`P-35`**, **`P-18`** e **`P-34`** — é lá que status e fase proprietária são lidos. A tabela da [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §4.1 permanece como **origem histórica e alias**. Nenhuma foi corrigida — o registro é documental.
+
+**Fase 3H — reconciliação documental (E009 a E018), encerrada em 2026-08-05.** O bloco produziu os onze artefatos de `docs/fase3-reconciliacao/` e, na E018, a **adoção da matriz canônica** pelos documentos árbitros. A matriz fechou com **139 códigos**, `P-01` a `P-139`, sem lacunas e sem renumeração: os sete riscos `R` residuais foram absorvidos (`P-135` a `P-139` e alias), a precisão do `P-56` foi corrigida sem rebaixar severidade, e o `P-129` foi reclassificado de `BLOQUEIA PRODUCT LOCK` para `EXIGE DECISÃO NO PRODUCT LOCK` por bloqueio circular demonstrado. **Nenhum item bloqueia o Product Lock**, que fica **apto a iniciar**. Todo o bloco alterou **somente documentação**: `src`, `scripts`, `assets` e configurações de build seguem bit a bit idênticos ao commit executável congelado **`015c438`**.
 
 **Spec 020 — aprovada e encerrada (2026-08-04).** No mesmo build, e por **declaração direta do fundador**, a Spec 020 foi **fisicamente aprovada** no caminho principal de **telefone** e no caminho **`Pular`**: o onboarding termina no **Mapa de Aventuras**, *A Criação* não abre sozinha, o tour do Beni percorre os cinco passos, o mapa rola até o pin, o pin recebe destaque, a história abre somente pelo toque e o tour não reaparece. O veredito e as evidências vivem **exclusivamente** em `specs/020-onboarding-first-adventure/spec-onboarding-first-adventure.md` §14 — este parágrafo é ponteiro, não duplicata. **E003 a E008 estão CONCLUÍDAS.** Permanecem **abertas e não bloqueantes**, migradas para a **Fase 7**, a validação em **tablet** e o **fluxo de revisão** com *A Criação* já concluída. O fechamento alterou **somente documentação** — `src`, `scripts`, `assets` e configurações de build seguem bit a bit idênticos a `7f96ee9`, e **nenhum build novo foi necessário**.
 
@@ -113,7 +126,7 @@ Decisões **fechadas** (não reabrir sem nova decisão estratégica explícita):
 **Assets e peso**
 - Regra daqui para frente: **shell + histórias gratuitas no binário base**.
 - Conteúdo premium/adicional deve caminhar para **sob demanda**.
-- **Não adicionar mais assets pesados ao binário público.** *(A regra permanece; o tratamento definitivo do peso e do `require()` estático é das **Fases 16 e 17** da [v5](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) — riscos R5/R6/R7. A menção original a "antes da Fase 2" usava a numeração superada.)*
+- **Não adicionar mais assets pesados ao binário público.** *(A regra permanece; o tratamento definitivo do peso e do `require()` estático é das **Fases 16 e 17** da [v5](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) — riscos R5/R6/R7, hoje canônicos como `P-135`, `P-136` e `P-131`. A menção original a "antes da Fase 2" usava a numeração superada.)*
 - Avaliar **WebP lossy** para cenas coloridas.
 - Avaliar **WebP lossless / PNG otimizado** para páginas de colorir, **com teste de flood-fill**.
 - As pastas **untracked** de histórias **não** devem entrar com `git add .` sem auditoria.

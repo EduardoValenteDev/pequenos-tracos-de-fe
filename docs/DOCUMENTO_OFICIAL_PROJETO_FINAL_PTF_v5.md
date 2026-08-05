@@ -35,8 +35,8 @@
    - branch **`fix/loading-performance-foundation`** no commit **`aeda9c2`**;
    - tag anotada **`lp-foundation-closed-2026-07-30`** no commit **`bc79edb`**;
    - **smoke `3314/3314`**.
-7. **Fase atual: Fase 2.5 — integração do Colorir com o Beni sobre a fundação.**
-8. **Branch de trabalho da Fase 2.5:** **`integrate/colorir-with-loading`**.
+7. ⚠️ **ATUALIZADO em 2026-08-05 (E018).** ~~Fase atual: Fase 2.5 — integração do Colorir com o Beni sobre a fundação.~~ **Fase atual: Fase 3 — reconciliação completa (somente leitura)**, com o bloco documental **Fase 3H (E009 a E018) ENCERRADO**. A Fase 2.5 foi encerrada em **2026-08-04**. Linha canônica **`integrate/colorir-canonical-runtime`**; commit executável congelado **`015c438`**. O **Product Lock está apto a iniciar**. Ver [`PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) §1.1.
+8. **Branch de trabalho da Fase 2.5:** **`integrate/colorir-with-loading`** *(histórico — a linha canônica vigente é `integrate/colorir-canonical-runtime`)*.
 9. **Branch de origem do piloto:** **`feat/colorir-60-pilot-creation`** no commit **`795760a`**.
 10. **Merge base confirmado:** **`6cf799c`**.
 11. **A integração será reconstruída por blocos. Não haverá merge bruto da branch antiga.**
@@ -60,9 +60,14 @@
 **O que o baseline NÃO afirma:**
 
 - **Não existe afirmação de desempenho medido quantitativamente.** Nenhuma medição foi
-  registrada (risco **R21**). Qualquer ganho percebido até aqui é qualitativo.
+  registrada (risco **R21** → `P-127` + `P-139`). Qualquer ganho percebido até aqui é qualitativo.
 - **Não existe readiness de loja.** O binário ainda referencia conteúdo pesado por `require()`
   estático (**R5**), com premium (**R6**) e linearts legados (**R7**) embarcados.
+  > *Correção de precisão E018 (2026-08-05): a conclusão permanece válida — não existe readiness
+  > de loja. Medido no commit executável congelado `015c438`: **519 arquivos / 130.976.281 bytes**
+  > por `require()` estático (`P-135`), dos quais **378 arquivos / 84.183.401 bytes** são as 18
+  > histórias premium (`P-136`). Os **linearts legados já não estão embarcados** — saíram no
+  > macrobloco P3J (`P-131`, CORRIGIDO).*
 
 ---
 
@@ -469,21 +474,31 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
 
 ---
 
-## 4. Mapa de riscos residuais por fase
+## 4. Mapa de riscos residuais por fase — ⚠️ HISTÓRICO E ALIAS (não normativo desde 2026-08-05)
+
+> **Absorvido pela matriz canônica (E018).** Esta tabela **deixou de ser normativa**. O
+> inventário, o status, a severidade e a fase de cada pendência são lidos **exclusivamente** em
+> [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md)
+> (códigos `P-01` a `P-139`). A tabela permanece aqui como **origem histórica e alias**, para que
+> nenhum registro se perca. A `v5` continua governando o **roadmap e a sequência de fases**; ela
+> não governa o inventário de riscos e **não mantém tabela de riscos concorrente**.
+>
+> A classificação individual dos sete `R`, com as correções de precisão e as divergências de fase
+> ainda em aberto, está na **§22 da matriz**.
 
 Reproduz a atribuição oficial registrada em
 [`D-LP-FECHAMENTO`](DECISIONS.md#d-lp-fechamento--fechamento-da-trilha-loadingperformance-e-baseline-da-fase-25).
 Esta v5 **não** reatribui riscos; apenas os torna visíveis no roadmap.
 
-| Risco | Descrição | Fases responsáveis |
-|---|---|---|
-| **R5** | Peso do binário e `require()` estático | 16 e 17 |
-| **R6** | Conteúdo premium embarcado no binário | 16 e 17 |
-| **R7** | Linearts legados embarcados | 16 e 17 |
-| **R17** | `appVersion` literal, `minAppVersion` e `requiresAppUpdate` inerte | 17 e 20 |
-| **R20A** | Ausência de evidência física em Android | 12A, 14 e 21 |
-| **R20B** | sha256 lendo o arquivo inteiro em base64 | 17 e 19 |
-| **R21** | Ausência de medições quantitativas | baseline na **3** · shell/abertura na **6** · piloto ampliado na **14** · beta final na **21** |
+| Risco | Descrição | Fases responsáveis (registro histórico) | Código canônico |
+|---|---|---|---|
+| **R5** | Peso do binário e `require()` estático | 16 e 17 | parcial; residual em **`P-135`** |
+| **R6** | Conteúdo premium embarcado no binário | 16 e 17 | **`P-136`** |
+| **R7** | Linearts legados embarcados | 16 e 17 | **`P-131` — CORRIGIDO** (saíram no P3J) |
+| **R17** | `appVersion` literal, `minAppVersion` e `requiresAppUpdate` inerte | 17 e 20 | parcial em `P-134`; residual em **`P-137`** |
+| **R20A** | Ausência de evidência física em Android | 12A, 14 e 21 | **`P-128`** (fase 21 na matriz — divergência registrada) |
+| **R20B** | sha256 lendo o arquivo inteiro em base64 | 17 e 19 | **`P-138`** |
+| **R21** | Ausência de medições quantitativas | baseline na **3** · shell/abertura na **6** · piloto ampliado na **14** · beta final na **21** | parcial em `P-127`; residual em **`P-139`** (divergência de fase registrada) |
 
 ---
 
@@ -509,12 +524,15 @@ Duas pendências físicas **não bloqueantes** sobraram e migram para a **Fase 7
 *Pendências desta fase*): **tablet** e **fluxo de revisão com A Criação já concluída**. Como o
 fechamento alterou **somente documentação**, **nenhum build novo foi necessário**.
 
-| Código | Achado | Severidade | Fase proprietária | Dependências | Revalidação |
-|---|---|---|---|---|---|
-| **QA REP 01** | Não existe caminho autorizado para repetir a primeira experiência (onboarding + guias) fora de `__DEV__` | P2 | **7** | — | **19** e **21** (ausência em produção) |
-| **STR ONB 01** | Guia inicial das Estrelinhas e revelação de conquista disputam a mesma superfície e a tela fica sem ação possível | P1 | **11** | **7** e **8A** | **21** |
-| **JRN C60 01** | Atividade do Colorir concluída por marco narrativo não apresenta estado de conclusão enquanto a história não termina — **classificação `A` confirmada fisicamente**: dado íntegro, representação acoplada a um gate global | P1 (saída da Fase 9) | **9** | — | **11** e **21** |
-| **ONB BRI 01** | O onboarding não apresenta a aba Brincar — exige um **`BRINCAR_GUIDE` novo**, nunca o `ATELIER_GUIDE` | P2 | **7** (estrutura) | fechamento da **12A** | **14** e **21** |
+> **Alias canônico (E018 · 2026-08-05).** Os quatro achados foram reconciliados na matriz canônica
+> em E016 e é lá que status e fase são lidos hoje. Esta tabela permanece como **origem histórica**.
+
+| Código | Achado | Severidade | Fase proprietária | Dependências | Revalidação | Código canônico |
+|---|---|---|---|---|---|---|
+| **QA REP 01** | Não existe caminho autorizado para repetir a primeira experiência (onboarding + guias) fora de `__DEV__` | P2 | **7** | — | **19** e **21** (ausência em produção) | **`P-32`** |
+| **STR ONB 01** | Guia inicial das Estrelinhas e revelação de conquista disputam a mesma superfície e a tela fica sem ação possível | P1 | **11** | **7** e **8A** | **21** | **`P-35`** |
+| **JRN C60 01** | Atividade do Colorir concluída por marco narrativo não apresenta estado de conclusão enquanto a história não termina — **classificação `A` confirmada fisicamente**: dado íntegro, representação acoplada a um gate global | P1 (saída da Fase 9) | **9** | — | **11** e **21** | **`P-18`** |
+| **ONB BRI 01** | O onboarding não apresenta a aba Brincar — exige um **`BRINCAR_GUIDE` novo**, nunca o `ATELIER_GUIDE` | P2 | **7** (estrutura) | fechamento da **12A** | **14** e **21** | **`P-34`** |
 
 ### QA REP 01 — repetição da primeira experiência para QA (E004)
 
