@@ -267,14 +267,34 @@ Controles: **CN-3, CN-8** · Físico: **F-OPEN-1/2/3, F-ICON**.
 | T065 | Aplicar o HEX em **`app.json:48`** (`android.adaptiveIcon.backgroundColor`), substituindo `#7C3AED` | `app.json:48` | T064 | Diff de 1 linha | reversão da linha |
 | T066 | Corrigir **`app.json:14`** (`splash.backgroundColor`), substituindo `#7C3AED` | `app.json:14` | T064 | Diff de 1 linha | reversão da linha |
 | T067 | Corrigir **`app.json:41`** (`androidStatusBar.backgroundColor`), substituindo `#7C3AED` | `app.json:41` | T064 | Diff de 1 linha | reversão da linha |
-| T068 | **Alternativa C:** remover o portão de fonte como **estado visual independente**. Durante a espera de fonte, renderizar **fundo + mascote sem texto dependente de fonte**; após o portão, título e subtítulo entram no **fade já existente** | `src/screens/SplashScreen.js` | T064 | Diff; nenhuma tela intermediária nova | reversão do arquivo |
-| T069 | **Preservar integralmente** e provar por diff: `FONT_TIMEOUT_MS` · `isWaitingForFonts` · `fontGateDoneRef` · as marcas do portão · `DECISION_CEILING_MS` · `resolveBootRoute` · `canNavigate` · tolerância a erro de fonte · saída por prontidão | `src/screens/SplashScreen.js` | T068 | `git diff` mostrando que nenhum desses símbolos foi removido nem teve semântica alterada | reversão |
+| T068 | **Alternativa C:** remover o portão de fonte como **estado visual independente**. Durante a espera de fonte, renderizar **fundo + mascote sem texto dependente de fonte**; após o portão, título e subtítulo entram no **fade já existente** | **`App.js:109-115`** (onde vive o estado visual do portão) **+** `src/screens/SplashScreen.js` | T064 | Diff; nenhuma tela intermediária nova; o `#FFF8F0`/`ActivityIndicator` deixa de ser uma tela distinta da splash | **reversão de `App.js` E de `SplashScreen.js`** |
+| T069 | **Preservar integralmente** e provar por diff: `FONT_TIMEOUT_MS` · `isWaitingForFonts` · `fontGateDoneRef` · as marcas do portão (`font_gate_start`, `font_gate_loaded`, `font_gate_error`, `font_gate_timeout`, `providers_mounted`) · `DECISION_CEILING_MS` · `resolveBootRoute` · `canNavigate` · tolerância a erro de fonte · saída por prontidão | **`App.js`** (contratos de fonte) · `src/screens/SplashScreen.js` (contratos de rota) · **`src/services/bootRoute.js` — NÃO deve ser alterado** | T068 | `git diff` mostrando que nenhum desses símbolos foi removido nem teve semântica alterada; `git diff 015c438 -- src/services/bootRoute.js` **vazio** | reversão de `App.js` e `SplashScreen.js` |
 | T070 | Criar **G-SPLASH** (nenhum `#7C3AED` em `app.json`), **G-STATUS** e **G-ICON** no smoke | `scripts/smoke.js`, `app.json` | T065–T068 | `git grep -n "7C3AED"` sem ocorrência; smoke verde | remover os checks |
 | T071 | **CN-3 (reescrito pelo Portão 2 §4):** provar que a correção do background **não** alterou `assets/icon.png` nem `assets/adaptive-icon.png` (bytes idênticos a `015c438`) e **não** criou redesign de marca nem token exclusivo do ícone. Executar também **CN-8** | `assets/icon.png`, `assets/adaptive-icon.png` (leitura) | T065 | `git diff 015c438 -- assets/icon.png assets/adaptive-icon.png` **vazio** | N/A |
 | T072 | **Validação física** F-OPEN-1/2/3 (abertura fria, morna, com fonte lenta) e **F-ICON** (ícone no lançador Android) | — | T070, T078 | Vídeo da abertura + print do lançador | N/A |
 
 > **Proibições explícitas de B4, verificadas por CN-3/CN-8:** não redesenhar `assets/icon.png` · não trocar
 > a marca · não adicionar `expo-splash-screen` · não criar dependência nova · não reabrir loading/performance.
+
+> 🔴 **Verificação técnica exigida antes do runtime (Portão 3 §3) — executada, com achado.**
+>
+> O portão de fontes **não** vive em `SplashScreen.js`: o estado visual independente que a Alternativa C
+> elimina está em **`App.js:109-115`** — um `<View backgroundColor:'#FFF8F0'>` com
+> `<ActivityIndicator color='#FF8C42'/>`, renderizado enquanto `isWaitingForFonts(...)` é verdadeiro.
+> `SplashScreen.js` só é montado **depois** desse portão.
+>
+> Os contratos congelados também se dividem entre arquivos:
+> `FONT_TIMEOUT_MS` e `isWaitingForFonts` são **definidos** em `src/services/bootRoute.js:17,36` e
+> **consumidos** em `App.js:29,101`; `fontGateDoneRef` e as cinco marcas do portão vivem em
+> `App.js:93-106`; `DECISION_CEILING_MS` está em `SplashScreen.js:15`; `resolveBootRoute` e `canNavigate`
+> são definidos em `bootRoute.js:25,56` e consumidos em `SplashScreen.js:7`.
+>
+> **Correção aplicada:** `App.js` passa a constar nos arquivos candidatos **e** no rollback de T068/T069.
+> O rollback documental deixa de ser menor que o diff real. `src/services/bootRoute.js` é declarado
+> **intocável** em B4 e isso passa a ser verificável por diff.
+
+**Rollback do bloco B4:** alto — `App.js`, `src/screens/SplashScreen.js`, 3 linhas de `app.json` e os
+checks de `scripts/smoke.js`. Nenhum asset e nenhum arquivo de contrato de boot (`bootRoute.js`) é tocado.
 
 ---
 
@@ -288,7 +308,7 @@ Gate: **G-PERF** · Controles: **CN-2, CN-7** · Físico: **F-PERF**.
 | T074 | Confirmar que **`production` permanece sem a variável** (hoje seu `env` só tem `GLOBAL_MANIFEST_URL`) | `eas.json` (leitura) | T073 | `git diff` sem alteração no perfil `production` | N/A |
 | T075 | Adicionar o script **`perf:report`** apontando para o agregador **já existente** `scripts/perf-baseline-report.js` (CLI, lê `process.argv[2]`, parseia `[PTF_PERF_SAMPLE]`). Nenhum script atual reivindica esse nome | `package.json` (scripts) | T073 | Diff de 1 linha + execução do script contra um log de exemplo | reversão da linha |
 | T076 | Criar **G-PERF** no smoke; executar **CN-2** (production sem a variável) e **CN-7** (nenhuma métrica nova, nenhuma tela nova instrumentada) | `scripts/smoke.js` | T073–T075 | Smoke verde; controles registrados | remover o check |
-| T077 | **Controle de escopo:** não alterar `src/utils/performanceTrace.js` a menos que T073–T076 provem ser necessário; **não** coletar baseline oficial nesta fase | `src/utils/performanceTrace.js` (leitura) | T076 | `git diff` vazio no arquivo, **ou** a justificativa escrita da exceção | reversão |
+| T077 | **Controle de escopo:** não alterar `src/services/performanceTrace.js` a menos que T073–T076 provem ser necessário; **não** coletar baseline oficial nesta fase | `src/services/performanceTrace.js` (leitura) | T076 | `git diff 015c438 -- src/services/performanceTrace.js` **vazio**, **ou** a justificativa escrita da exceção | reversão |
 
 ---
 
@@ -310,7 +330,7 @@ Gate: **G-PERF** · Controles: **CN-2, CN-7** · Físico: **F-PERF**.
 | T087 | **F-TAB-600, F-TAB-NAV, F-TAB-BACK, F-TAB-SIDE, F-TAB-C60** (consolida T038 no build `preview`) | — | T081 | 5 roteiros com evidência | N/A |
 | T088 | **F-SEAL** — três estados de selo + **validação física do azul `#3E5C96`** ("acolhedor e infantil"), diferida do Portão 2 para cá | — | T079–T081 | Prints dos 3 estados + veredito do fundador sobre o azul | reverter T057 se reprovado |
 | T089 | **F-OPEN-1/2/3 + F-ICON** — abertura e ícone no lançador | — | T078 | Vídeo + print do lançador | N/A |
-| T090 | **F-PERF** — P-139/E5.52 no build `preview`, **e** verificação de que loading e performance **não regrediram** (sem reabrir o assunto) | — | T078 | Amostras `[PTF_PERF_SAMPLE]` + relatório do `perf:report` | N/A |
+| T090 | **F-PERF** — P-139/E5.52. **UMA execução real** num binário **`preview` não-DEV** (uma plataforma basta — ver correção §2 do Portão 3), provando: `isPerformanceTraceEnabled()` ativo · coletor alcançável · artefato/log local produzido · `production` sem a flag. **Mais** a verificação de que loading e performance **não regrediram** (sem reabrir o assunto) | — | T078 | Amostras `[PTF_PERF_SAMPLE]` + relatório do `perf:report` + a plataforma usada, declarada | N/A |
 | T091 | Fechamento: **`npm run smoke` verde** e **`npx expo-doctor` verde**; conferir 100 % de cobertura do inventário §1; relatório final em PT-BR | — | T079–T090 | Saídas completas + matriz tela × plataforma sem lacuna | N/A |
 
 ---
@@ -376,10 +396,20 @@ que trava toda a campanha física.
 | B2′ | F-MOTION-ON, F-MOTION-OFF | iOS + Android |
 | B5 | F-SEAL (inclui o veredito do azul) | iOS + Android + tablet |
 | B4 | F-OPEN-1, F-OPEN-2, F-OPEN-3, F-ICON | iOS + Android |
-| B6 | F-PERF | iOS + Android |
+| B6 | F-PERF | **um binário `preview` não-DEV — uma plataforma basta** |
 | B7 | consolidação dos 17 + varredura das 32 telas | os três |
 
 **Total: 17 cenários** — exatamente os do Plan §14, sem acréscimo nem supressão.
+
+> 🔵 **Correção operacional aplicada antes do runtime (Portão 3 §2) — P-139 não duplica plataforma.**
+>
+> P-139 é classificado **NEF** e o Plan elegeu `preview` como fonte primária de evidência. A matriz física
+> anterior pedia F-PERF em **iOS e Android**, o que era **redundância**, não cobertura: a flag
+> `EXPO_PUBLIC_PTF_PERF_TRACE=1` e o caminho do coletor são **JavaScript**, idênticos nas duas plataformas.
+>
+> **iOS e Android continuam obrigatórios para a Fase 6** — por splash (F-OPEN-*), acessibilidade
+> (F-A11Y-*) e pela campanha B7 (T079/T080). O que deixa de existir é **apenas** a execução duplicada
+> *especificamente para provar P-139*. O total de cenários permanece **17**.
 
 ---
 
