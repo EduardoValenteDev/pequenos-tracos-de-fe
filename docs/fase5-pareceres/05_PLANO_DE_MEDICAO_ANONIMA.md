@@ -2,7 +2,22 @@
 
 **Criado em 2026-08-07 · documento de especificação · nenhuma linha de runtime alterada**
 
-**Estado deste documento: PROPOSTA APRESENTADA AO FUNDADOR. NÃO APROVADO.**
+> **ESTADO: ✅ APROVADO PELO FUNDADOR EM 2026-08-07 como especificação de produto da Fase 5**,
+> sujeito às precisões obrigatórias registradas em §17.
+>
+> **A aprovação NÃO significa** implementação de analytics · validação jurídica definitiva ·
+> garantia de anonimização · aprovação de SDK · autorização para coleta remota · alteração de
+> runtime. Ver §17.1.
+
+---
+
+## Nota de terminologia canônica
+
+**"Ateliê" NÃO é o nome canônico da funcionalidade.** Os nomes canônicos são **Criar Livre** e
+**Colorir com o Beni**. Onde "Ateliê" aparecer nos documentos, no código
+(`AtelierCanvasScreen.js`), em chaves de armazenamento ou em riscos herdados, trata-se de **nome
+legado / alias histórico**, mantido apenas por rastreabilidade técnica. **O Ateliê legado não é
+ressuscitado como superfície de produto.** Determinação do fundador em 2026-08-07 (§17.4).
 
 ---
 
@@ -25,7 +40,8 @@ fundador à Pergunta 4 da Fase 4E.
 | **Não é implementação** | Nenhum código de analytics foi escrito. `src/`, `scripts/`, `App.js`, `app.json`, `eas.json`, `package.json` e `plugins/` permanecem intocados. |
 | **Não é habilitação** | Nenhuma telemetria foi ligada, em nenhum perfil de build. `performanceTrace.js` não foi alterado. |
 | **Não é parecer jurídico** | Nenhum advogado revisou este texto. Onde há afirmação de conformidade legal, ela está marcada como **dependente de terceiro externo**. |
-| **Não é aprovação** | O plano só passa a valer com aprovação explícita do fundador. Até lá é proposta. |
+| **Não é autorização de coleta remota** | O fundador aprovou a **especificação** em 2026-08-07 (§17). Aprovar a especificação não liga nenhuma coleta, não aprova nenhum SDK e não autoriza nenhum envio. |
+| **Não é garantia de anonimização** | Os limiares de `k` são salvaguardas de minimização, **não** certificação de anonimato. Ver §7.3-bis. |
 | **Não é a correção de `P-85`** | Ver §0.3 imediatamente abaixo. |
 
 ### 0.3 `P-85` NÃO está corrigido — os três estados, separados
@@ -35,9 +51,15 @@ especificado."* Esta seção cumpre a determinação.
 
 | Estado | Significado | `P-85` hoje |
 |---|---|---|
-| **1 · Especificação produzida na Fase 5** | Existe um documento que declara o que medir, com que campos, por quanto tempo, com que agregação e sob que condição. | ✅ **FEITO — é este documento** |
+| **1 · Especificação produzida na Fase 5** | Existe um documento que declara o que medir, com que campos, por quanto tempo, com que agregação e sob que condição. | ✅ **FEITO — é este documento**, e **APROVADO pelo fundador em 2026-08-07** (§17) |
 | **2 · Implementação técnica futura** | Existe código em `src/` que coleta, sumariza, valida esquema, respeita o desligamento e o consentimento. | ❌ **NÃO FEITO** — Fases 6, 9, 18, 19, 20, 21 e 22 conforme §12 |
 | **3 · Validação futura** | Existe prova, em aparelho real e em ambiente real, de que o implementado corresponde ao especificado, e parecer jurídico externo sobre a terminologia e os limiares. | ❌ **NÃO FEITO** — depende de validação física e de terceiro externo |
+
+**A aprovação do fundador em 2026-08-07 move o estado 1 de "produzido" para "produzido e aprovado".
+Ela não move os estados 2 e 3.** O fundador determinou expressamente: *"a especificação da Fase 5
+está aprovada; `P-85` NÃO passa a CORRIGIDO; a implementação técnica permanece futura; a validação
+permanece futura. Atualize somente o eixo documental correspondente, preservando os três estados
+separados."*
 
 **Portanto, na matriz canônica, `P-85` permanece `ABERTO` e `risco técnico NÃO corrigido`.** A linha
 de `P-85` já registra, desde o Bloco 0 da Fase 5, que a coluna `Fase implementação = 5` se refere à
@@ -345,12 +367,12 @@ perguntas a corrigir. O que é proibido é a trajetória de respostas de uma cri
 
 ---
 
-### 4.4 Categoria 4 — Ateliê e Colorir · `P` apenas local
+### 4.4 Categoria 4 — Criar Livre e Colorir com o Beni · `P` apenas local
 
 | Campo obrigatório | Declaração |
 |---|---|
 | **1 · Evento ou métrica** | Contagem de artes criadas · contagem de desenhos de Colorir concluídos · uso de ferramenta em faixa. Nomes: `criar.arte_salva` · `criar.colorir_concluido`. |
-| **2 · Finalidade** | Saber se as crianças **usam** o Ateliê e o Colorir e se terminam o que começam. |
+| **2 · Finalidade** | Saber se as crianças **usam** o Criar Livre e o Colorir com o Beni e se terminam o que começam. |
 | **3 · Camada** | **2, exclusivamente, no lançamento.** |
 | **4 · Campos permitidos** | `activityId` / `coloringId` de allowlist fechada · `count_bucket` · `app_version` |
 | **5 · Campos proibidos — o núcleo desta categoria** | **a arte** · a miniatura · o base64 · o caminho `file://` · **o nome dado pela criança à arte** · qualquer traço, cor por traço ou coordenada · `art_<ts>_<rand>` e o composto de 60 do Colorir (**são identificadores com carimbo temporal embutido: revelam a hora exata de uso**) |
@@ -527,6 +549,21 @@ para todos**; ele não segmenta crianças, não sorteia variantes, não observa 
 retorna dado. Confundir os dois criaria uma contradição falsa entre este plano e o roteiro. **EAS
 Update é permitido; segmentação comportamental por configuração remota é proibida.**
 
+**Cerca normativa acrescentada pelo fundador em 2026-08-07 — a distinção técnica NÃO cria
+autorização de produto.** EAS Update **não pode ser usado como substituto funcional** de remote
+config, de *feature experimentation* ou de teste A/B para **contornar**:
+
+| # | O que EAS Update não pode contornar |
+|---:|---|
+| 1 | o Product Lock |
+| 2 | o consentimento adulto |
+| 3 | as fases proprietárias do roteiro |
+| 4 | os portões de validação |
+| 5 | as decisões de lançamento |
+
+Entregar por EAS Update algo que só seria permitido depois de um portão **é violar o portão**, ainda
+que o mecanismo de entrega seja legítimo. O canal é permitido; o desvio de governança pelo canal, não.
+
 ---
 
 ### 4.12 Categoria 12 — Identificador de dispositivo, atribuição e publicidade · `X` proibido
@@ -557,7 +594,7 @@ Update é permitido; segmentação comportamental por configuração remota é p
 | 1 | Navegação da criança | `POS` | 2 → 3 | R2 / R4 | A1·A2 | só p/ envio | PRODUTO | ALTO | 19 · 20 · 22 |
 | 2 | Progresso de história e cena | `P`/`C` | 2 → 3 | R1 / R3 | A0·A1·A2 | só p/ envio | PRODUTO | MÉDIO | 19 · 20 |
 | 3 | Jogos do Brincar | `P` | 2 | R1 | A0 | não | aparelho | BAIXO | 12A (se houver campo novo) |
-| 4 | Ateliê e Colorir | `P` | 2 | R1 | A0 | não | aparelho | CRÍTICO se vazar | 19 (depende de `P-141`) |
+| 4 | Criar Livre e Colorir com o Beni | `P` | 2 | R1 | A0 | não | aparelho | CRÍTICO se vazar | 19 (depende de `P-141`) |
 | 5 | Desempenho | `P`/`C` | 1 · 2 → 3 | R0 / R2 / R3 | A1·A2 | só p/ envio | PRODUTO | MÉDIO | **6** · **9** · 19/20 |
 | 6 | Erros e crashes | `POS` | 1 | RL / R3 | A3 / A2 | só se próprio | loja | ALTO se bruto | 20 · 22 |
 | 7 | Eventos comerciais | `C` | transacional | RT | A0 / A2 | base legal ≠ consentimento | COMERCIAL · TRANSACIONAL | ALTO (correlação) | 18 · 20 |
@@ -668,6 +705,29 @@ seguras**, não de uma célula pequena isolada.
 Uma congregação é uma população pequena e geograficamente concentrada. Um recorte religioso com 20
 sessões pode corresponder a um único grupo identificável — e o dado inferido seria dado de fé, que a
 §2 preservação 8 proíbe. `k ≥ 50` é a compensação operacional. Encaminhado à Fase 12B (`E5.64`).
+
+### 7.3-bis O que os limites de `k` NÃO são — registro obrigatório do fundador
+
+**Determinação do fundador em 2026-08-07, ao aprovar este plano:**
+
+> **Os limites de `k` NÃO constituem garantia de anonimização nem de impossibilidade de
+> reidentificação.**
+>
+> São **salvaguardas de minimização e de redução de risco** — **não** certificação jurídica nem
+> matemática de anonimato.
+
+O mesmo vale para os prazos de retenção `R2` (7 dias / 200 registros) e `R3` (90 dias), para os
+buckets da §3.4 e para a allowlist de quatro atributos da §3.5: são **tetos operacionais
+conservadores**, não provas.
+
+**Cláusula de assimetria — a regra que governa toda revisão futura deste plano:**
+
+| Direção da mudança | O que exige |
+|---|---|
+| Retenção **menor** · salvaguarda **mais restritiva** · coleta **reduzida** | **Não reabre o Product Lock.** Uma revisão jurídica futura pode impor essas mudanças diretamente. |
+| Retenção **maior** · coleta **adicional** · salvaguarda **menos restritiva** · `k` **menor** | **Exige nova decisão formal do fundador.** Nenhuma fase posterior pode afrouxar por conta própria. |
+
+A assimetria é deliberada: apertar é sempre permitido, afrouxar nunca é automático.
 
 ### 7.4 Validação da terminologia — o que a Fase 5 pode e o que não pode afirmar
 
@@ -826,7 +886,7 @@ especificado.
 | 1 | Navegação | ✅ feita | ❌ Fase 19 · 22 | física em piloto |
 | 2 | Progresso | ✅ feita | ❌ Fase 19 | física + conferência de esquema |
 | 3 | Brincar | ✅ feita | ✅ **local já existe** — nada a implementar | conferência de campos na Fase 12A |
-| 4 | Ateliê e Colorir | ✅ feita | ❌ Fase 19, **bloqueada por `P-141`** | física em estado migrado |
+| 4 | Criar Livre e Colorir com o Beni | ✅ feita | ❌ Fase 19, **bloqueada por `P-141`** | física em estado migrado |
 | 5 | Desempenho | ✅ feita | ❌ **Fase 6** (`P-139`) · **Fase 9** (`P-127`) | **física obrigatória**, `P-127` |
 | 6 | Erros e crashes | ✅ feita | ❌ Fase 20 · 22 | consoles das lojas após publicação |
 | 7 | Comerciais | ✅ feita | ❌ Fase 18 · 20 | Fase 21 (revalidação dos cinco cenários) |
@@ -841,9 +901,10 @@ especificado.
 
 ---
 
-## 13. `E5.41` — Política de oração: os caminhos A, B e C
+## 13. `E5.41` — Política de oração: caminhos apresentados e decisão do fundador
 
-**Apresentado separadamente, conforme determinação do fundador. Este documento NÃO escolhe.**
+**Os três caminhos foram apresentados separadamente ao fundador, sem escolha feita por este
+documento. O fundador decidiu em 2026-08-07 pelo CAMINHO B — §13.4.**
 
 ### 13.1 O que já está fechado e não se reabre
 
@@ -862,7 +923,7 @@ O Bloco 4 estendeu essa política ao produto inteiro, conforme mandato da v5 lin
 | **Cultinho em Casa**, passo 4 | `CultinhoEmCasaScreen.js:143-148` | a oração é passo declarado de um ritual cuja conclusão alimenta a conquista `first_family_worship` (`achievements.js:408-419`) e cujo modal de sucesso convida a *"Ver minhas estrelinhas"*. O app **não verifica** que houve oração — mas a sequência vivida pela criança é **orar → concluir → ganhar** |
 | **Momento com Beni** | `LumiMomentScreen.js` · `lumiReflections.js:93+` | em **1 de 7 dias** do rodízio determinístico, a mensagem é sobre oração (`'Uma oração pequena vale muito para Deus!'`, *"Orai sem cessar."*), o Beni aparece em avatar `praying`, a tela diz **"Repita com Beni:"** e oferece **"✓ Completar (+1 ⭐)"** |
 
-### 13.3 Os três caminhos — sem escolha feita
+### 13.3 Os três caminhos, como foram apresentados ao fundador
 
 | Caminho | O que implica | Custo | O que resolve | O que não resolve |
 |---|---|---|---|---|
@@ -870,24 +931,75 @@ O Bloco 4 estendeu essa política ao produto inteiro, conforme mandato da v5 lin
 | **B — Separar o passo** | Manter as recompensas e tornar a oração um passo **explicitamente fora** do fluxo recompensado — como "Criar juntos (opcional)" já é hoje no Cultinho | reestruturação do fluxo de 4 passos do Cultinho | preserva o incentivo ao ritual e tira a oração da conta | exige que a separação seja **legível para a criança**, e não apenas verdadeira no código |
 | **C — Reescrever a mensagem** | Manter estrutura e recompensa, e **retirar a oração do que é repetido e recompensado** — trocar "Repita com Beni" por convite não imperativo e remover a mensagem de índice 5 do rodízio recompensado | menor custo técnico; mexe em texto e em um índice de rodízio | elimina a repetição induzida e a estrela em dia de oração | o Cultinho continua com a oração dentro do fluxo recompensado — resolve a superfície 2, **não a 1** |
 
-**Observação técnica, não recomendação:** os caminhos não são mutuamente exclusivos. **C** endereça a
-superfície 2 e **B** endereça a superfície 1; combinados, cobrem as duas. **A** cobre as duas ao custo
-de recompensa. **A escolha é do fundador, e este documento não a faz.**
+**Observação técnica registrada quando os caminhos foram apresentados:** eles não são mutuamente
+exclusivos — **C** endereça a superfície 2 e **B** endereça a superfície 1.
 
-### 13.4 Estado e consequências
+### 13.4 ✅ DECISÃO DO FUNDADOR — 2026-08-07: **CAMINHO B**
 
-- **Estado de `E5.41`: DEPENDENTE DE VALIDAÇÃO HUMANA EXTERNA** (decisão do fundador).
-- **Nada foi alterado.** Corrigir seria mudança de comportamento de recompensa — área protegida
-  (progresso e conquistas), fora do escopo documental da Fase 5.
-- **Fase proprietária da implementação, qualquer que seja a escolha:** **Fase 11** (conclusão,
-  presentes, Estrelinhas) para a mecânica de recompensa e **Fase 12B** (rituais e Modo Igreja) para o
-  Cultinho em Casa.
-- **Consequência para este plano de medição:** **nenhuma.** Em qualquer dos três caminhos, a regra de
-  medição é a mesma — **o app nunca registra se a criança orou** (§11).
+**`E5.41` é DECISÃO RESOLVIDA.** O fundador escolheu o **Caminho B** como contrato canônico.
+
+#### Princípio vinculante
+
+> **A oração pode fazer parte da experiência espiritual do Mundo do Beni, mas nunca pode ser
+> requisito mensurável, ação pontuada, condição de conclusão ou causa direta de recompensa.**
+
+#### As seis regras derivadas
+
+| # | Regra |
+|---:|---|
+| 1 | a oração fica **fora do fluxo contabilizado** para recompensa |
+| 2 | o sistema **não registra** se a criança orou |
+| 3 | o sistema **não exige** oração para concluir Cultinho, Meu Momento ou qualquer outra atividade |
+| 4 | **nenhuma estrelinha** é concedida porque a criança orou |
+| 5 | **nenhuma conquista** depende de verificar oração |
+| 6 | a criança **nunca deve perceber** a relação causal "orei → ganhei recompensa" |
+
+#### Cultinho em Casa — o que o Caminho B determina
+
+- A **experiência principal e sua recompensa podem permanecer.**
+- A oração é apresentada como **momento opcional e afetivo, fora do predicado técnico de conclusão**.
+- Concluir o Cultinho pode continuar gerando a recompensa própria da experiência, **desde que o
+  sistema não saiba nem exija que a oração ocorreu**.
+- A conquista relacionada ao Cultinho representa **participação e conclusão da experiência
+  familiar** — nunca comprovação de oração ou de fé.
+
+#### Meu Momento / Momento com Beni — o que o Caminho B determina
+
+- Havendo conteúdo de oração, ele é **opcional e fora da ação recompensada**.
+- **Proibida** a mecânica em que `"Repita com Beni"` + oração + `"✓ Completar (+1 ⭐)"` possam ser
+  percebidos como **uma única relação causal**.
+- A implementação futura tem de **separar visual e funcionalmente** o convite à oração da ação que
+  concede a recompensa. Separação verdadeira no código, mas ilegível para a criança, **não cumpre a
+  regra 6**.
+- Uma mensagem bíblica como *"Orai sem cessar"* **pode permanecer** como conteúdo ou convite
+  espiritual — **nunca** como tarefa cuja execução seja presumida ou recompensada.
+
+#### Relação entre B, C e A
+
+| Caminho | Estado |
+|---|---|
+| **B** | ✅ **decisão normativa** |
+| **C** | ⚙️ **complemento técnico e redacional** — pode ser usado futuramente como detalhe de redação quando necessário, mas **não substitui o princípio B** |
+| **A** | ❌ **não adotada** |
+
+#### Estado e consequências
+
+- **Estado de `E5.41`: DECISÃO RESOLVIDA** · **implementação futura nas fases proprietárias** ·
+  **risco técnico NÃO corrigido**.
+- **Nada foi alterado no runtime.** A decisão não autoriza alteração incidental de código: mudar
+  comportamento de recompensa é área protegida (progresso e conquistas).
+- **Fases proprietárias da implementação:** **Fase 11** (conclusão, presentes e Estrelinhas — a
+  mecânica de recompensa) e **Fase 12B** (rituais e Modo Igreja — o Cultinho em Casa). A superfície
+  do Momento com Beni acompanha a fase que a reescrever.
+- **Validação futura obrigatória:** validação **visual** de que a separação entre convite à oração e
+  ação recompensada é perceptível pela criança — a regra 6 é sobre percepção, e percepção não se
+  prova por leitura de código.
+- **Consequência para este plano de medição:** **nenhuma mudança.** A regra 2 do Caminho B coincide
+  com o que §11 já proibia — **o app nunca registra se a criança orou**.
 
 ---
 
-## 14. Encaminhamentos do Bloco 5 — `E5.52` a `E5.65`
+## 14. Encaminhamentos do Bloco 5 — `E5.52` a `E5.66`
 
 Os quatro estados obrigatórios determinados pelo fundador: **RESOLVIDO NESTA FASE** · **ENCAMINHADO À
 FASE PROPRIETÁRIA** · **DEPENDENTE DE VALIDAÇÃO HUMANA EXTERNA** · **DEPENDENTE DE TERCEIRO EXTERNO**.
@@ -903,15 +1015,20 @@ Nenhum encaminhamento fica sem destino.
 | **E5.57** | Validação **jurídica** externa da terminologia *"telemetria minimizada e não identificada na origem, agregada e anonimizada no processamento"* e da suficiência de `k ≥ 20` / `k ≥ 50` | **DEPENDENTE DE TERCEIRO EXTERNO** | advogado especializado em dados e público infantil |
 | **E5.58** | Preencher Data Safety (Google) e App Privacy (Apple) **coerentes com este plano**, declarando corretamente `RL` e `RT` como retenções fora do controle do projeto | ENCAMINHADO À FASE PROPRIETÁRIA | **Fase 20** |
 | **E5.59** | Auditoria de SDK a cada release **e** teste automatizado que falhe se qualquer identificador de publicidade ou de aparelho aparecer em `src/` | ENCAMINHADO À FASE PROPRIETÁRIA | **Fase 19** (teste) · **Fase 20** (auditoria de release) |
-| **E5.60** | A medição do Ateliê e do Colorir depende de `P-141` resolvido: enquanto o endereço de armazenamento variar com o `avatarId`, nenhum contador de artes é confiável | ENCAMINHADO À FASE PROPRIETÁRIA | **Fase 19** |
+| **E5.60** | A medição do Criar Livre e do Colorir com o Beni depende de `P-141` resolvido: enquanto o endereço de armazenamento variar com o `avatarId`, nenhum contador de artes é confiável | ENCAMINHADO À FASE PROPRIETÁRIA | **Fase 19** |
 | **E5.61** | Termo do piloto formal com famílias, base PESQUISA isolada, questionário nunca dirigido à criança | DEPENDENTE DE VALIDAÇÃO HUMANA EXTERNA | **Fase 21** |
-| **E5.62** | Distinção normativa entre **EAS Update** (permitido) e **configuração remota de experimentação** (proibida) | **RESOLVIDO NESTA FASE** (§4.11) | — |
+| **E5.62** | Distinção normativa entre **EAS Update** (permitido) e **configuração remota de experimentação** (proibida), **acrescida da cerca normativa do fundador**: o canal não pode ser usado para contornar Product Lock, consentimento, fases proprietárias, portões ou decisões de lançamento | **RESOLVIDO NESTA FASE** (§4.11) | — |
 | **E5.63** | Exclusão individual é **tecnicamente impossível** na Camada 3 por ausência de identificador; as três consequências normativas ficam declaradas | **RESOLVIDO NESTA FASE** (§6.4) | — |
 | **E5.64** | Modo Igreja: `k ≥ 50` obrigatório e proibição de telemetria de igreja e de denominação | ENCAMINHADO À FASE PROPRIETÁRIA | **Fase 12B** |
-| **E5.65** | `P-85` permanece `ABERTO` e `risco técnico NÃO corrigido`: a especificação da Fase 5 **não é** a correção | **RESOLVIDO NESTA FASE** (registro, §0.3) · implementação **ENCAMINHADA** | **Fase 19** |
+| **E5.65** | `P-85` permanece `ABERTO` e `risco técnico NÃO corrigido`: a especificação da Fase 5 **não é** a correção — e a **aprovação** da especificação em 2026-08-07 também não é | **RESOLVIDO NESTA FASE** (registro, §0.3) · implementação **ENCAMINHADA** | **Fase 19** |
 
-**Reapresentado, não novo:** `E5.41` (política de oração) — **DEPENDENTE DE VALIDAÇÃO HUMANA
-EXTERNA**, §13.
+| **E5.66** | Propagar a terminologia canônica **Criar Livre** / **Colorir com o Beni** aos demais documentos onde "Ateliê" figure como nome de produto; avaliar renomeação de superfície — **nunca** de chave de armazenamento sem migração (§17.4) | ENCAMINHADO À FASE PROPRIETÁRIA | **Fase 12A** |
+
+**Reapresentado, não novo — e agora decidido:** `E5.41` (política de oração) — **RESOLVIDO NESTA
+FASE** pela decisão do fundador de 2026-08-07 (**Caminho B**, §13.4). A **implementação** das seis
+regras derivadas é **ENCAMINHADA À FASE PROPRIETÁRIA** — **Fase 11** (mecânica de recompensa) e
+**Fase 12B** (Cultinho em Casa) — e a **validação visual** da regra 6 (a criança não percebe relação
+causal) é **DEPENDENTE DE VALIDAÇÃO HUMANA EXTERNA**. O **risco técnico NÃO está corrigido**.
 
 ---
 
@@ -941,15 +1058,21 @@ EXTERNA**, §13.
 7. **`P-85`, `P-100`, `P-127`, `P-139` e `P-141` permanecem `ABERTO` e `risco técnico NÃO
    corrigido`.** Especificar não é implementar, e implementar não é validar.
 
-8. **`E5.41` é apresentado sem escolha.** Os caminhos A, B e C estão descritos com custo e alcance de
-   cada um. A decisão é do fundador.
+8. **`E5.41` foi apresentado sem escolha e decidido pelo fundador.** Os caminhos A, B e C foram
+   descritos com custo e alcance de cada um; a decisão de 2026-08-07 é o **Caminho B** como contrato
+   canônico, com **C** como complemento técnico e redacional e **A não adotada** (§13.4). A
+   implementação é futura e o risco técnico **não** está corrigido.
 
-9. **Este plano não está aprovado.** Ele é a proposta que o critério de saída da Fase 5 exige que o
-   fundador aprove.
+9. **Este plano foi aprovado pelo fundador em 2026-08-07 como especificação de produto da Fase 5**,
+   sujeito às precisões obrigatórias de §17. A aprovação satisfaz o critério de saída da v5 linha
+   249 (*"plano de medição anônima aprovado"*) **no eixo documental** — e apenas nele. Ela não
+   implementa, não habilita, não valida juridicamente e não autoriza coleta.
 
 ---
 
 ## 16. O que este bloco NÃO fez
+
+### 16.1 Permanece verdadeiro depois da aprovação e da decisão do fundador
 
 - Não escreveu código de analytics.
 - Não criou identificador remoto.
@@ -962,11 +1085,107 @@ EXTERNA**, §13.
 - Não gerou build, não abriu Metro, não instalou app, não fez validação física.
 - Não fez push, não fez merge.
 - Não repetiu as auditorias dos Blocos 0 a 4 nem reabriu qualquer um deles.
-- Não escolheu entre os caminhos A, B e C de `E5.41`.
 - Não declarou `P-85` corrigido.
-- Não declarou o plano de medição aprovado.
-- Não declarou a Fase 5 encerrada.
-- Não iniciou o Bloco 6 nem o Bloco 7.
+- Não declarou nenhum risco técnico corrigido.
+
+### 16.2 Era verdadeiro na rodada de produção, e deixou de ser pela decisão do fundador
+
+Registro explícito, para que a mudança de estado seja auditável e não silenciosa:
+
+| Afirmação da rodada de produção (2026-08-07, commit `451f7ac`) | Estado depois da decisão do fundador |
+|---|---|
+| *"Não escolheu entre os caminhos A, B e C de `E5.41`"* | **superado** — o fundador escolheu o **Caminho B** (§13.4). O documento continua não escolhendo por conta própria: ele **registra** a escolha. |
+| *"Não declarou o plano de medição aprovado"* | **superado** — o fundador aprovou a especificação (§17). O documento não se autoaprovou. |
+| *"Não declarou a Fase 5 encerrada"* | **permanece verdadeiro neste bloco** — o encerramento documental é matéria do Bloco 7. |
+| *"Não iniciou o Bloco 6 nem o Bloco 7"* | **permanece verdadeiro neste bloco** — os Blocos 6 e 7 foram autorizados por decisão separada e vivem em seus próprios documentos e commits. |
+
+---
+
+## 17. Precisões obrigatórias do fundador — 2026-08-07
+
+O fundador aprovou este plano *"como especificação de produto da Fase 5, sujeito às precisões
+obrigatórias"* abaixo. Esta seção é **normativa**: onde ela e qualquer outra seção deste documento
+divergirem, **§17 prevalece**.
+
+### 17.1 O que a aprovação NÃO significa
+
+Determinação literal do fundador. A aprovação **não** significa:
+
+| # | A aprovação não significa |
+|---:|---|
+| 1 | implementação de analytics |
+| 2 | validação jurídica definitiva |
+| 3 | garantia de anonimização |
+| 4 | aprovação de SDK |
+| 5 | autorização para coleta remota |
+| 6 | alteração de runtime |
+
+### 17.2 O que fica ratificado como contrato de produto
+
+| # | Item ratificado |
+|---:|---|
+| 1 | a **arquitetura de três camadas** |
+| 2 | **zero categorias enviando dados remotamente no lançamento**, enquanto não existirem implementações, consentimentos e portões |
+| 3 | a proibição de **converter identificador local em identificador remoto** |
+| 4 | a proibição de **nome da criança**, **arte da criança**, **texto criado pela criança**, **conteúdo de oração**, **igreja**, **denominação**, **dado de fé**, **localização** e **identificador publicitário** em telemetria |
+| 5 | **consentimento adulto explícito por finalidade**, sempre que necessário para envio opcional |
+| 6 | **revogação prospectiva**, quando não existir identificador para localizar dado agregado já enviado |
+| 7 | **desligamento independente de rede** |
+| 8 | **supressão de coorte pequena** |
+| 9 | **máximo de três atributos por coorte** |
+| 10 | **`k ≥ 20`** geral |
+| 11 | **`k ≥ 50`** para qualquer contexto religioso permitido |
+| 12 | as retenções **R0, R1, R2, R3, R4, RL e RT** conforme propostas — com **R2 = no máximo 7 dias ou 200 registros** e **R3 = no máximo 90 dias** |
+
+### 17.3 Registro obrigatório sobre os limites de `k`
+
+Transcrição literal exigida pelo fundador, desenvolvida em §7.3-bis:
+
+> *"Os limites de `k` NÃO constituem garantia de anonimização ou impossibilidade de reidentificação.
+> São salvaguardas de minimização e redução de risco, não certificação jurídica ou matemática de
+> anonimato."*
+
+E a cláusula de assimetria:
+
+> *"Uma revisão jurídica futura pode exigir retenção MENOR ou salvaguarda MAIS restritiva sem
+> reabrir o Product Lock. Qualquer proposta futura de retenção maior, coleta adicional ou salvaguarda
+> menos restritiva exige nova decisão formal."*
+
+### 17.4 Terminologia canônica — "Ateliê" é nome legado
+
+Determinação do fundador: *"não consolide 'Ateliê' como nome canônico da funcionalidade. Use: Criar
+Livre e Colorir com o Beni. Se 'Ateliê' precisar aparecer por rastreabilidade histórica ou técnica,
+marque explicitamente como nome legado ou alias histórico. Não ressuscitar o Ateliê legado como
+superfície de produto."*
+
+Aplicação neste documento: a Categoria 4 passou a se chamar **Criar Livre e Colorir com o Beni** em
+todas as suas ocorrências (§4.4, §5, §12, §14) e a nota de terminologia canônica abre o documento.
+**O identificador de código `AtelierCanvasScreen.js` e as chaves de armazenamento existentes não
+foram alterados** — são runtime, e runtime não se toca na Fase 5.
+
+**Encaminhamento derivado — `E5.66`:** propagar a terminologia canônica aos demais documentos onde
+"Ateliê" figure como nome de produto, e avaliar renomeação de superfície (nunca de chave de
+armazenamento sem migração) na fase proprietária. **ENCAMINHADO À FASE PROPRIETÁRIA — Fase 12A.**
+
+### 17.5 Cerca normativa do EAS Update
+
+A distinção de `E5.62` foi aceita **com** a cerca normativa acrescentada em §4.11: EAS Update **não**
+pode ser usado como substituto funcional de configuração remota, experimentação ou teste A/B para
+contornar **Product Lock**, **consentimento**, **fases proprietárias**, **portões de validação** ou
+**decisões de lançamento**. *"A distinção técnica não cria autorização de produto."*
+
+### 17.6 `P-85` — o que a aprovação move e o que não move
+
+Determinação literal: *"a especificação da Fase 5 está aprovada; `P-85` NÃO passa a CORRIGIDO; a
+implementação técnica permanece futura; a validação permanece futura. Atualize somente o eixo
+documental correspondente, preservando os três estados separados."*
+
+Cumprido em §0.3. **`P-85` continua `ABERTO`, severidade inalterada, risco técnico NÃO corrigido.**
+
+### 17.7 `E5.41` — decisão registrada
+
+O **Caminho B** é o contrato canônico. Ver §13.4 para o princípio vinculante, as seis regras
+derivadas, as determinações sobre Cultinho em Casa e Momento com Beni, e a relação entre B, C e A.
 
 ---
 
