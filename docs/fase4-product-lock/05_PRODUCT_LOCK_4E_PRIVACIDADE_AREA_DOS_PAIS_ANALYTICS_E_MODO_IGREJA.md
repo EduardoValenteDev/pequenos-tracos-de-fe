@@ -2152,7 +2152,7 @@ lançamento; **o Beni não arbitra silenciosamente divergência cristã legítim
 O Beni **pode convidar** o grupo a orar; **o adulto conduz**; o guia **pode sugerir** uma oração.
 **Evitar**: forçar repetição, registrar decisões espirituais, pontuar oração, dar estrelinhas por
 orar, julgar fé, ou dizer que Deus está mais feliz porque a criança respondeu corretamente.
-Aprofundamento na **Fase 5C**.
+Aprofundamento na **Fase 5**. *(Correção de nomenclatura aplicada na Fase 5, Bloco 0: o texto original dizia "Fase 5C". A Fase 5 não é subdividida.)*
 
 ### 19.10 Estrutura canônica da aula
 

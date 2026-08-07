@@ -1,7 +1,7 @@
 # 09 · Matriz definitiva de riscos e pendências
 
 > **Artefato 9 de 11 — consolidado em E016, aprovado em E017, adotado em E018 · Fase 3H.**
-> **Atualizado nas Fases 4A, 4B, 4C, 4D e 4E (Product Lock).**
+> **Atualizado nas Fases 4A, 4B, 4C, 4D e 4E (Product Lock) e na Fase 5 (§29).**
 > **Versão 5 — matriz única, deduplicada, definitiva e canônica.**
 
 | Campo | Valor |
@@ -10,9 +10,9 @@
 | **Base auditada** | E009 a E015, mais os sete riscos `R` residuais absorvidos em E018, mais as decisões do fundador registradas nas Fases 4A, 4B, 4C, 4D e 4E |
 | **Branch auditada** | `integrate/colorir-canonical-runtime` |
 | **HEAD canônico** | `015c438106538595b592981fbe1b80b1d5d65e55` |
-| **Total de riscos** | **148** — `P-01` a `P-131` (herdados) + `P-132` a `P-134` (E016, ETAPA 4) + `P-135` a `P-139` (E018, ETAPA 2) + `P-140` (Fase 4A, §24) + `P-141` a `P-148` (Fase 4D, §27). **A Fase 4E (§28) não criou nenhum código novo.** |
+| **Total de riscos** | **149** — `P-01` a `P-131` (herdados) + `P-132` a `P-134` (E016, ETAPA 4) + `P-135` a `P-139` (E018, ETAPA 2) + `P-140` (Fase 4A, §24) + `P-141` a `P-148` (Fase 4D, §27) + `P-149` (Fase 5, §29). **A Fase 4E (§28) não criou nenhum código novo.** |
 | **Fusões realizadas** | **0** |
-| **Renumerações** | **0** — `P-140` e `P-141` a `P-148` são acréscimos puros |
+| **Renumerações** | **0** — `P-140`, `P-141` a `P-148` e `P-149` são acréscimos puros |
 
 > Este artefato é a **única fonte canônica de riscos** do projeto. Nenhum outro documento
 > replica a matriz; os demais artefatos da Fase 3 apenas a referenciam por código.
@@ -674,17 +674,18 @@ As tabelas rolam horizontalmente.
 | **P-129** | Entitlement offline com cache expirado nunca exercitado | O caminho fail-closed crítico nunca foi executado fisicamente | **PLANO E ENTITLEMENT** | `NÃO DETERMINADO` · artefato 07 linha 13 | E015 (`E015-N22`), artefato 07 | `EXIGE VALIDAÇÃO FÍSICA` | alta | **ALTO** | entitlement | pode perder ou ganhar acesso indevido sem rede | caminho fail-closed sem prova de comportamento | 4 | 18 | `P-24`, `P-93` | 18 e 21 | `VFP` · `TEL` · `AVI` · `FAM` · `GRA` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `E015-N22`. MESMO BLOCO DE CORREÇÃO: `P-24`, `P-93`. PRECONDIÇÃO EXECUTÁVEL: `P-24` e `P-93`, ambos com fase de decisão 4 | `NÃO DETERMINADO NO CORPUS RECUPERADO` | RECLASSIFICADO EM E018, de `BLOQUEIA PRODUCT LOCK` para `EXIGE DECISÃO NO PRODUCT LOCK`, por erro factual demonstrável de classificação: a linha bloqueava a Fase 4 enquanto declarava dependência de `P-24` e `P-93`, cujo campo Fase decisão é a própria Fase 4. A precondição do teste é produto do Lock, então o bloqueio era circular. Severidade, status, fase de implementação e classificação de lançamento permanecem inalterados. O teste físico NÃO é executável hoje: nenhum dos cinco perfis do `eas.json` declara chave RevenueCat, `entitlementSource.js:38-42` é fail-closed sem chave, `planConfig.js:40-55` não tem produto comprável e o Modo Criador é override lateral em `accessControl.js:74`, fora do caminho do entitlement. O que o Lock deve decidir é o gate e o harness, não o resultado. DECISÃO DA FASE 4A: opção A. O cache de entitlement vale 7 dias contados da última validação real bem-sucedida; esgotado o prazo sem rede, o plano efetivo é grátis até a próxima validação real, sem tolerância adicional. Nada é apagado: progresso, pinturas e conteúdo premium já baixado permanecem no disco, e a existência física nunca concede autorização. Atividade iniciada enquanto o entitlement ainda era válido não sofre interrupção destrutiva; a restrição vale na próxima entrada protegida ou retomada controlada. Os 7 dias ficam congelados: a Fase 18 valida tecnicamente a regra e não reabre a duração como decisão de produto. Decisão de produto resolvida; a validação física permanece pendente e continua condicionada a `P-24` e `P-93`. DECISÃO DA FASE 4D: perda de autorização comercial nunca apaga dado infantil, e estado de teste nunca vira direito comercial. Depois da reinstalação, apenas o direito comercial do Plano Família é restaurável pela conta da loja; progresso, pinturas, artes, perfil, estrelinhas, conquistas, resultados de jogos e downloads não têm garantia de recuperação. Decisão de produto resolvida, exercício do caminho offline pendente na Fase 18, risco técnico NÃO corrigido, validação física ainda exigida. Falta para lançamento: executar o caminho offline com cache expirado nos dois planos e registrar se o acesso é negado ou concedido. |
 | **P-140** | Entitlement sem caminho de migração de schema | A chave `@ptf_entitlement_v1` carrega a versão no próprio nome e `entitlementService.js:57-70` só reconhece o formato atual; não existe caminho declarado de migração para uma versão futura do snapshot, nem política escrita para snapshot antigo, corrompido ou de origem não comprovada | **PLANO E ENTITLEMENT** · sec.: DADOS E PERSISTÊNCIA | `COMPROVADO PELO CÓDIGO` · `storageKeys.js` (`@ptf_entitlement_v1`) · `entitlementService.js:57-70` · `entitlementService.js:99-102` (writer único) | Fase 4A, por determinação do fundador na consolidação | `ABERTO` | ND | **MÉDIO** | entitlement, Storage | nenhum efeito direto na criança: progresso, pinturas e criações locais são preservados em qualquer estado comercial | snapshot comercial sem política declarada de versionamento e sem teste que a prove | 4 | 18 | `P-24`, `P-93`, `P-129` | 18 e 21 | `VFP` · `FAM` · `REI` · `MIG` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | CRIADO NA FASE 4A por determinação do fundador, sem renumerar nenhum código anterior. NÃO coberto por `P-126`, que trata do schema do manifesto de pack, nem por `P-114`, que trata da localização das chaves. MESMO BLOCO DE CORREÇÃO: `P-129` | `COMPROVADO PELO CÓDIGO` | Código criado porque a busca nos 22 campos dos 139 códigos anteriores não encontrou nenhum que cobrisse o mesmo fato, superfície, consequência e correção. O risco trata exclusivamente do VERSIONAMENTO e da MIGRAÇÃO FUTURA do snapshot de entitlement gravado em `@ptf_entitlement_v1`. DECISÃO DA FASE 4A: (1) não existem assinantes comerciais anteriores ao lançamento, portanto não há base instalada paga a migrar e nenhum grandfathering é devido; (2) Modo Criador, flags de desenvolvimento e estado premium local fabricado NÃO serão migrados em hipótese alguma; (3) os dados infantis locais permanecem preservados em qualquer estado comercial — progresso, pinturas, desenhos e galeria nunca são apagados por decisão de plano; (4) entitlement sem origem comercial comprovada, antigo, inválido ou corrompido resolve para PLANO GRÁTIS até validação real, e a única fonte comercial real é o RevenueCat. Decisão de produto resolvida; risco técnico NÃO corrigido. Critério futuro de encerramento: só pode ser encerrado quando existir política escrita de versionamento do snapshot, caminho declarado de migração para a versão seguinte da chave e teste que exerça snapshot antigo, corrompido e de origem não comprovada provando o resolve para grátis. DECISÃO DA FASE 4D: a migração do snapshot é idempotente e retomável e deve terminar antes de qualquer superfície consumir o domínio migrado, sob o estado seguro enquanto corre. A atualização normal preserva os dados locais; a perda de autorização não apaga dado infantil; pacote instalado e autorização comercial são fatos independentes. A ordem entre migração e consumo recebeu código próprio em `P-142`. Decisão de produto resolvida, implementação pendente na Fase 18, risco técnico NÃO corrigido. |
 
-### PRIVACIDADE — 1 risco
+### PRIVACIDADE — 2 riscos
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **P-92** | `plugins/withPrivacyManifest.js` órfão | O plugin existe e não está registrado em `app.json`, então não participa do prebuild | **PRIVACIDADE** · sec.: DEPENDÊNCIAS E BUILD | `COMPROVADO PELO ARQUIVO` | E014 | `ABERTO` | ND | **ALTO** | Config, privacidade | nenhum direto | manifesto de privacidade pode não ser aplicado | - | 20 | `P-94` | 20 e 21 | `NEF` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-94` | `COMPROVADO PELO ARQUIVO` | Falta para lançamento: determinar se o Expo SDK 54 já gera o manifesto de privacidade exigido pela loja sem esse plugin. Se não gerar, sobe para bloqueador por obrigação legal (critério 2) DECISÃO DA FASE 4E: a sessão adulta termina por inatividade de cinco minutos, vale para toda a Área dos Pais e termina ao sair para a área infantil ou ao ir a segundo plano por período relevante; todo link que sai do aplicativo exige portão parental e aviso de saída com destino declarado; qualquer coleta opcional depende de consentimento adulto explícito e revogável obtido atrás do portão, sem escurecimento de padrão; a Política de Privacidade e os Termos ficam em endereços externos oficiais, alcançados pela mesma regra de saída; o canal oficial de contato é registrado sem implementação nesta fase. A Fase 4E NÃO declara conformidade jurídica: o mapa de dados, a base legal, a retenção, o ECA, o ECA Digital, a LGPD, o RIPD, os requisitos de Apple Kids e Google Families e a auditoria de SDKs são obrigatórios na Fase 5. Decisão de produto resolvida, implementação pendente nas Fases 5 e 19, risco técnico NÃO corrigido, revisão jurídica ainda exigida |
+| **P-92** | `plugins/withPrivacyManifest.js` órfão | O plugin existe e não está registrado em `app.json`, então não participa do prebuild | **PRIVACIDADE** · sec.: DEPENDÊNCIAS E BUILD | `COMPROVADO PELO ARQUIVO` | E014 | `ABERTO` | ND | **ALTO** | Config, privacidade | nenhum direto | manifesto de privacidade pode não ser aplicado | - | 20 | `P-94` | 20 e 21 | `NEF` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-94` | `COMPROVADO PELO ARQUIVO` | Falta para lançamento: determinar se o Expo SDK 54 já gera o manifesto de privacidade exigido pela loja sem esse plugin. Se não gerar, sobe para bloqueador por obrigação legal (critério 2) DECISÃO DA FASE 4E: a sessão adulta termina por inatividade de cinco minutos, vale para toda a Área dos Pais e termina ao sair para a área infantil ou ao ir a segundo plano por período relevante; todo link que sai do aplicativo exige portão parental e aviso de saída com destino declarado; qualquer coleta opcional depende de consentimento adulto explícito e revogável obtido atrás do portão, sem escurecimento de padrão; a Política de Privacidade e os Termos ficam em endereços externos oficiais, alcançados pela mesma regra de saída; o canal oficial de contato é registrado sem implementação nesta fase. A Fase 4E NÃO declara conformidade jurídica: o mapa de dados, a base legal, a retenção, o ECA, o ECA Digital, a LGPD, o RIPD, os requisitos de Apple Kids e Google Families e a auditoria de SDKs são obrigatórios na Fase 5. Decisão de produto resolvida, implementação pendente nas Fases 5 e 19, risco técnico NÃO corrigido, revisão jurídica ainda exigida CORREÇÃO DE REDAÇÃO NA FASE 5 (§29): a frase herdada da 4E "implementação pendente nas Fases 5 e 19" descreve o pacote de decisões da Fase 4E como um todo, e NÃO a fase proprietária deste risco. Para P-92 vale a distinção: a Fase 5 emite parecer e especificação sobre o manifesto de privacidade; a Fase 20 permanece proprietária da implementação técnica e da validação, exatamente como registra a coluna Fase implementação = 20 desta linha, que NÃO foi alterada; a Fase 19 não é proprietária deste risco. A Fase 5 não registrou plugin em app.json, não alterou plugins/withPrivacyManifest.js e não marcou este risco como corrigido |
+| **P-149** | Área dos Pais afirma ausência de tráfego de rede que existe | `ParentAreaScreen.js:890`, `:896`, `:911` e `:1104` afirmam à família que o aplicativo não envia dados e funciona sem internet, enquanto `globalManifestService.js:211` executa `fetch` sobre a URL de `EXPO_PUBLIC_GLOBAL_MANIFEST_URL`, declarada no perfil `production` do `eas.json` e em `.env:29` | **PRIVACIDADE** · sec.: UI E RESPONSIVIDADE | `COMPROVADO PELO CÓDIGO` · `ParentAreaScreen.js:890,896,911,1104` · `globalManifestService.js:211` · `eas.json` perfil `production` · `.env:29` | Fase 5 (§29) | `ABERTO` | ND | **ALTO** | Área dos Pais, privacidade | nenhum efeito direto na criança | o texto exibido à família não corresponde ao comportamento de rede verificável no código | - | 7 | `P-92` | 21 | `VFP` · `TEL` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | RELAÇÃO: `P-92` (manifesto de privacidade, artefato de build), `P-64` (outra promessa divergente na mesma tela). MESMO BLOCO DE CORREÇÃO: nenhum | `COMPROVADO PELO CÓDIGO` | Falta para lançamento: a análise jurídica e de política de loja que determine se a afirmação falsa sobre tráfego de rede exibida à família viola obrigação legal ou regra de loja. Essa análise é obrigatória e a Fase 5 está PROIBIDA de declará-la concluída, por isso a classificação é PODE BLOQUEAR pelo critério 2 e não BLOQUEIA. DISTINÇÃO OBRIGATÓRIA QUE O TEXTO SUBSTITUTO DEVE PRESERVAR: não enviar dados pessoais da criança é verdadeiro e verificável; não realizar tráfego de rede é falso. A requisição é um GET sem corpo e sem identificador de usuário na carga de saída. DECISÃO DA FASE 5: registra a divergência e a redação correta; a implementação permanece para a Fase 7; risco técnico NÃO corrigido. A existência desta divergência NÃO autoriza alteração incidental de código. Validação futura, visual e em aparelho. Este código foi criado após auditoria de deduplicação contra P-01 a P-148 que provou ausência de cobertura material, sem renumerar nenhum código |
 
 ### ANALYTICS E PESQUISA — 3 riscos
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **P-85** | Zero telemetria em todo o domínio do Brincar | Zero analytics em `src/` e `performanceTrace.js:9` declara SEM analytics: o campo métrica ou evento é impreenchível | **ANALYTICS E PESQUISA** | prova negativa em `src/` · `performanceTrace.js:9` | E013 | `ABERTO` | ND | **NÃO DETERMINADO** | medição | nenhum efeito direto | nenhuma métrica de produto disponível | 4 | 5 | `P-127` | 21 | `NEF` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-127` | `NÃO DETERMINADO NO CORPUS RECUPERADO` | Ausência de telemetria pode ser decisão de privacidade infantil, e não defeito: a Fase 4 decide e a Fase 5 implementa DECISÃO DA FASE 4E: aprovada a arquitetura de três camadas, camada local de produto que nunca sai do aparelho, camada de diagnóstico técnico sem conteúdo infantil e sem identificador remoto, e camada pública opcional desligada por padrão e dependente de autorização adulta explícita. As doze categorias de evento ficam ratificadas. É proibido converter o identificador local da criança em identificador remoto, e igreja e denominação nunca entram na telemetria de produto. MOVIMENTO DE STATUS NA FASE 4E: de DECISÃO DE PRODUTO PENDENTE para ABERTO, e de EXIGE DECISÃO NO PRODUCT LOCK para INFORMA O PRODUCT LOCK. Decisão de produto resolvida, implementação pendente nas Fases 5 e 19, risco técnico NÃO corrigido |
+| **P-85** | Zero telemetria em todo o domínio do Brincar | Zero analytics em `src/` e `performanceTrace.js:9` declara SEM analytics: o campo métrica ou evento é impreenchível | **ANALYTICS E PESQUISA** | prova negativa em `src/` · `performanceTrace.js:9` | E013 | `ABERTO` | ND | **NÃO DETERMINADO** | medição | nenhum efeito direto | nenhuma métrica de produto disponível | 4 | 5 | `P-127` | 21 | `NEF` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-127` | `NÃO DETERMINADO NO CORPUS RECUPERADO` | Ausência de telemetria pode ser decisão de privacidade infantil, e não defeito: a Fase 4 decide e a Fase 5 implementa DECISÃO DA FASE 4E: aprovada a arquitetura de três camadas, camada local de produto que nunca sai do aparelho, camada de diagnóstico técnico sem conteúdo infantil e sem identificador remoto, e camada pública opcional desligada por padrão e dependente de autorização adulta explícita. As doze categorias de evento ficam ratificadas. É proibido converter o identificador local da criança em identificador remoto, e igreja e denominação nunca entram na telemetria de produto. MOVIMENTO DE STATUS NA FASE 4E: de DECISÃO DE PRODUTO PENDENTE para ABERTO, e de EXIGE DECISÃO NO PRODUCT LOCK para INFORMA O PRODUCT LOCK. Decisão de produto resolvida, implementação pendente nas Fases 5 e 19, risco técnico NÃO corrigido DISTINÇÃO REGISTRADA NA FASE 5 (§29), sem reclassificação: a coluna Fase implementação = 5 desta linha NÃO foi alterada, porque a entrega da Fase 5 é documental por definição do critério de saída da v5 linha 249, plano de medição anônima aprovado. A Fase 5 entrega especificação, taxonomia de eventos, campos permitidos, retenção, mecanismo de desligamento e critérios de privacidade; a Fase 19 implementa o runtime correspondente. A Fase 5 não escreveu código de analytics, não criou identificador remoto, não alterou performanceTrace.js nem eas.json e não habilitou telemetria em build |
 | **P-127** | Boot instrumentado sem nenhuma amostra coletada | `performanceTrace.js` instrumenta o boot e não há registro de amostra coletada | **ANALYTICS E PESQUISA** | `NÃO DETERMINADO` · `performanceTrace.js` · artefato 06 | E015 (`E015-N19`), artefato 06 | `EXIGE VALIDAÇÃO FÍSICA` | alta | **MÉDIO** | desempenho | nenhum efeito direto | linha de base de desempenho inexistente | - | 9 | `P-85` | 21 | `VFP` · `TEL` · `AND` · `IOS` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS: `E015-N19`, `R21` (parcela do boot; a parcela do coletor é `P-139`). MESMO BLOCO DE CORREÇÃO: `P-85`, `P-117`, `P-139` | `NÃO DETERMINADO NO CORPUS RECUPERADO` | E018: absorve a parcela de `R21` que trata do boot instrumentado sem amostra. A parcela que trata da impossibilidade de coletar em qualquer perfil de build vive em `P-139` DECISÃO DA FASE 4E: a dependência de `P-85` está resolvida pela arquitetura de três camadas; a coleta de desempenho pertence à camada de diagnóstico técnico, sem conteúdo infantil, sem PII e sem identificador remoto derivado do identificador local da criança. Decisão de produto resolvida, implementação pendente na Fase 9, risco técnico NÃO corrigido, validação física ainda exigida |
 | **P-139** | Coletor de desempenho inalcançável em qualquer perfil de build | `performanceTrace.js:44-52` só liga em `__DEV__` ou com `EXPO_PUBLIC_PTF_PERF_TRACE`, que não é declarada por nenhum dos cinco perfis do `eas.json`; não existe script npm para `scripts/perf-baseline-report.js` e nenhuma superfície além do boot está instrumentada | **ANALYTICS E PESQUISA** · sec.: DEPENDÊNCIAS E BUILD | `COMPROVADO PELO CÓDIGO` · `performanceTrace.js:44-52` · `eas.json` sem `PERF_TRACE` em nenhum perfil · `package.json` sem script de desempenho · `06_BASELINE_DE_DESEMPENHO.md:230` | E018 (alias `R21`), `RELATORIO_FECHAMENTO_LP.md:262` | `ABERTO` | alta | **MÉDIO** | desempenho | nenhum efeito direto na criança | nenhuma medição quantitativa é obtível em build interno, então não há linha de base | - | 6 | `P-127`, `P-85` | 14 e 21 | `NEF` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS: `R21` (parcela do coletor). PARCELA JÁ COBERTA: `P-127` (boot sem amostra). MESMO BLOCO DE CORREÇÃO: `P-127`, `P-85`, `P-117` | `COMPROVADO PELO CÓDIGO` | E018: parcela residual de `R21`. `P-127` cobre o boot sem amostra e pressupõe que a coleta seja possível; a impossibilidade de coletar em qualquer perfil, a ausência de script npm e o escopo além do boot não têm P. DIVERGÊNCIA DE FASE REGISTRADA, não resolvida aqui: `DECISIONS.md` e a `v5` §3 põem o baseline de `R21` na Fase 3; `06_BASELINE_DE_DESEMPENHO.md` §9 manda a coleta para a Fase 9; `P-127` está na 9. Esta linha assume a Fase 6, onde a `v5` situa shell e abertura, por ser o primeiro marco em que a coleta é útil DECISÃO DA FASE 4E: a dependência de `P-85` está resolvida; a habilitação do coletor pertence à camada de diagnóstico técnico e não à camada pública opcional, que permanece desligada por padrão. A divergência de fase registrada acima NÃO é resolvida pela Fase 4E. Decisão de produto resolvida, implementação pendente na Fase 6, risco técnico NÃO corrigido |
 
@@ -751,18 +752,18 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 
 | # | Resumo executivo | Total |
 |---|---|---|
-| 1 | Total bruto de códigos na matriz | **148** |
-| 2 | Riscos distintos após deduplicação | **148** |
+| 1 | Total bruto de códigos na matriz | **149** |
+| 2 | Riscos distintos após deduplicação | **149** |
 | 3 | Códigos fundidos (preservados como linha, sem definição própria) | **0** |
 | 4 | `CORRIGIDO` | **3** |
 | 5 | `REFUTADO` | **1** |
-| 6 | `ABERTO` | **102** |
+| 6 | `ABERTO` | **103** |
 | 7 | `DOCUMENTAL` | **6** |
 | 8 | `INTERNO E INALCANÇÁVEL EM PRODUÇÃO` | **2** |
 | 9 | Exigem decisão na Fase 4 (campo Fase decisão = 4) | **58** |
 | 10 | `BLOQUEIA PRODUCT LOCK` | **0** |
 | 11 | `BLOQUEIA LANÇAMENTO` | **6** |
-| 12 | `PODE BLOQUEAR LANÇAMENTO` | **44** |
+| 12 | `PODE BLOQUEAR LANÇAMENTO` | **45** |
 | 13 | `POSTERIOR AO LANÇAMENTO` | **1** |
 | 14 | `NÃO DETERMINADO` (lançamento) | **0** |
 
@@ -773,7 +774,7 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 | Fase 4 | 3 |
 | Fase 5 | 1 |
 | Fase 6 | 9 |
-| Fase 7 | 6 |
+| Fase 7 | 7 |
 | Fase 9 | 7 |
 | Fase 10 | 5 |
 | Fase 11 | 19 |
@@ -815,7 +816,7 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 | ESTRELINHAS E CONQUISTAS | 2 |
 | CULTINHO | 2 |
 | CRIAR LIVRE | 2 |
-| PRIVACIDADE | 1 |
+| PRIVACIDADE | 2 |
 | MODO IGREJA | 1 |
 | OUTRO | 1 |
 
@@ -824,7 +825,7 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 | Classificação | Riscos |
 |---|---|
 | CRÍTICO | 7 |
-| ALTO | 42 |
+| ALTO | 43 |
 | MÉDIO | 55 |
 | BAIXO | 32 |
 | INFORMATIVO | 11 |
@@ -834,7 +835,7 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 
 | Status | Riscos |
 |---|---|
-| `ABERTO` | 102 |
+| `ABERTO` | 103 |
 | `IMPLEMENTADO SEM CONSUMIDOR` | 15 |
 | `EXIGE VALIDAÇÃO FÍSICA` | 10 |
 | `DECISÃO DE PRODUTO PENDENTE` | 7 |
@@ -848,7 +849,7 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 
 | Product Lock | Riscos |
 |---|---|
-| `INFORMA O PRODUCT LOCK` | 92 |
+| `INFORMA O PRODUCT LOCK` | 93 |
 | `NÃO BLOQUEIA PRODUCT LOCK` | 42 |
 | `EXIGE DECISÃO NO PRODUCT LOCK` | 14 |
 
@@ -860,12 +861,22 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 > *"gerador determinístico"* citado nos commits das Fases 4A a 4D **não existe neste repositório** e
 > **não** foi executado.
 
+> **Recontagem da Fase 5 (2026-08-06).** Os números acima foram novamente alterados pela criação de
+> **`P-149`** (§29): `ABERTO` de 102 para **103**, `INFORMA O PRODUCT LOCK` de 92 para **93**,
+> `PODE BLOQUEAR LANÇAMENTO` de 44 para **45**, `ALTO` de 42 para **43**, natureza `PRIVACIDADE` de 1
+> para **2**, Fase proprietária 7 de 6 para **7**, `VFP` de 113 para **114** e `TEL` de 101 para
+> **102**. O total passa de 148 para **149**, **sem renumeração e sem fusão**. A recontagem foi
+> derivada **manualmente** e depois **conferida por contagem direta sobre a própria tabela da §14**,
+> campo a campo. Continua valendo que o *"gerador determinístico"* citado nos commits das Fases 4A a
+> 4D **não existe neste repositório** e **não** foi executado. Detalhamento em
+> [`docs/fase5-pareceres/00_ABERTURA_E_RASTREABILIDADE.md`](../fase5-pareceres/00_ABERTURA_E_RASTREABILIDADE.md) §6.
+
 **Complementares — validações físicas futuras (múltiplas por risco)**
 
 | Validação física | Riscos |
 |---|---|
-| `EXIGE VALIDAÇÃO FÍSICA NA FASE PROPRIETÁRIA` | 113 |
-| `EXIGE VALIDAÇÃO EM TELEFONE` | 101 |
+| `EXIGE VALIDAÇÃO FÍSICA NA FASE PROPRIETÁRIA` | 114 |
+| `EXIGE VALIDAÇÃO EM TELEFONE` | 102 |
 | `NÃO EXIGE VALIDAÇÃO FÍSICA` | 35 |
 | `EXIGE MODO AVIÃO` | 15 |
 | `EXIGE VALIDAÇÃO NO PLANO GRÁTIS` | 11 |
@@ -883,20 +894,27 @@ Executadas sobre a tabela da §14. `S1` e `S2` são provas suplementares de inte
 
 | # | Prova | Resultado |
 |---|---|---|
-| 1 | Sequência sem lacunas até o maior código (P-148) | OK — 0 ausentes |
-| 2 | Uma linha principal por código | OK — 148 códigos, 148 linhas, 0 duplicados |
+| 1 | Sequência sem lacunas até o maior código (P-149) | OK — 0 ausentes |
+| 2 | Uma linha principal por código | OK — 149 códigos, 149 linhas, 0 duplicados |
 | 3 | Nenhum código P antigo desapareceu (P-01..P-131 herdados) | OK — 131/131 presentes |
 | 4 | Nenhum código fundido foi reutilizado | OK — 0 códigos fundidos; nenhum reaproveitado |
 | 5 | Nenhum `E015-N` aparece como código principal | OK — 0 ocorrências |
-| 6 | Todo risco aberto possui fase proprietária | OK — 138 riscos não encerrados, 0 sem fase |
-| 7 | Todo risco possui status canônico | OK — 148/148 |
-| 8 | Todo risco possui classificação de Product Lock | OK — 148/148 |
-| 9 | Todo risco possui classificação de lançamento | OK — 148/148 |
-| 10 | Todo risco possui indicação de validação física | OK — 148/148 |
+| 6 | Todo risco aberto possui fase proprietária | OK — 139 riscos não encerrados, 0 sem fase |
+| 7 | Todo risco possui status canônico | OK — 149/149 |
+| 8 | Todo risco possui classificação de Product Lock | OK — 149/149 |
+| 9 | Todo risco possui classificação de lançamento | OK — 149/149 |
+| 10 | Todo risco possui indicação de validação física | OK — 149/149 |
 | 11 | Totais executivos correspondem à tabela | OK — todos os totais da §15 são gerados por contagem da própria tabela da §14 |
 | 12 | As três divergências de schema foram classificadas | OK — P-132, P-133, P-134, P-135, P-136, P-137, P-138, P-139, P-140, P-141, P-142, P-143, P-144, P-145, P-146, P-147, P-148 |
-| S1 | Todo `PODE BLOQUEAR LANÇAMENTO` registra a evidência que falta | OK — 44/44 |
+| S1 | Todo `PODE BLOQUEAR LANÇAMENTO` registra a evidência que falta | OK — 45/45 |
 | S2 | Toda referência cruzada aponta para código existente | OK — 124 códigos referenciados, 0 órfãos |
+
+> **Nota da Fase 5 sobre as provas 12 e `S2`.** A prova **12** enumera as **divergências de schema**
+> classificadas; `P-149` **não** é divergência de schema e por isso **não** entra naquela lista — a
+> prova foi conferida e permanece inalterada. A prova **`S2`** também permanece em **124 códigos
+> referenciados**: `P-149` referencia `P-92` e `P-64`, e **ambos já figuravam** no conjunto de
+> códigos referenciados antes desta fase, de modo que o conjunto não muda. Nenhuma das duas foi
+> ajustada silenciosamente.
 
 ## 17. Listas de códigos por classificação
 
@@ -905,7 +923,7 @@ Todas derivadas da tabela da §14.
 | Classificação | Qtd. | Códigos |
 |---|--:|---|
 | `BLOQUEIA LANÇAMENTO` | 6 | `P-24` · `P-56` · `P-63` · `P-67` · `P-93` · `P-141` |
-| `PODE BLOQUEAR LANÇAMENTO` | 44 | `P-01` · `P-05` · `P-06` · `P-09` · `P-16` · `P-18` · `P-20` · `P-26` · `P-27` · `P-28` · `P-31` · `P-35` · `P-36` · `P-44` · `P-46` · `P-50` · `P-55` · `P-57` · `P-64` · `P-65` · `P-71` · `P-92` · `P-94` · `P-97` · `P-98` · `P-102` · `P-105` · `P-107` · `P-114` · `P-115` · `P-116` · `P-120` · `P-124` · `P-128` · `P-129` · `P-133` · `P-134` · `P-136` · `P-137` · `P-138` · `P-142` · `P-144` · `P-145` · `P-146` |
+| `PODE BLOQUEAR LANÇAMENTO` | 45 | `P-01` · `P-05` · `P-06` · `P-09` · `P-16` · `P-18` · `P-20` · `P-26` · `P-27` · `P-28` · `P-31` · `P-35` · `P-36` · `P-44` · `P-46` · `P-50` · `P-55` · `P-57` · `P-64` · `P-65` · `P-71` · `P-92` · `P-94` · `P-97` · `P-98` · `P-102` · `P-105` · `P-107` · `P-114` · `P-115` · `P-116` · `P-120` · `P-124` · `P-128` · `P-129` · `P-133` · `P-134` · `P-136` · `P-137` · `P-138` · `P-142` · `P-144` · `P-145` · `P-146` · `P-149` |
 | `POSTERIOR AO LANÇAMENTO` | 1 | `P-84` |
 | `BLOQUEIA PRODUCT LOCK` | 0 | — |
 | `EXIGE DECISÃO NO PRODUCT LOCK` | 14 | `P-02` · `P-09` · `P-16` · `P-37` · `P-43` · `P-45` · `P-75` · `P-76` · `P-121` · `P-122` · `P-123` · `P-132` · `P-133` · `P-135` |
@@ -1690,8 +1708,108 @@ renumerou, não fundiu e não criou código algum. Não tocou em nenhum campo do
 do escopo. Não alterou código, *assets*, *packs*, manifestos ou configurações. **Não declarou
 conformidade jurídica** e **não** resolveu direitos de exibição coletiva.
 
+## 29. Atualização pela Fase 5 — Infância, privacidade, teologia e medição
+
+> **Data:** 2026-08-06. Registro das correções de rastreabilidade da Fase 5, consolidadas em
+> [`docs/fase5-pareceres/00_ABERTURA_E_RASTREABILIDADE.md`](../fase5-pareceres/00_ABERTURA_E_RASTREABILIDADE.md)
+> e em [`docs/DECISIONS.md`](../DECISIONS.md) §`PF5`. Atualização **exclusivamente documental**.
+> A Fase 5 **não é subdividida**: `Fase 5A`, `Fase 5B` e `Fase 5C` não existem.
+
+### 29.1 Um código novo criado — `P-149`
+
+A Fase 5 **cria um único código**: **`P-149`**, na natureza primária **PRIVACIDADE**. A matriz passa
+de **148** para **149** riscos, `P-01` a `P-149`, com **0 fusões** e **0 renumerações**.
+
+A criação foi precedida de **auditoria de deduplicação** contra `P-01` a `P-148`, varrendo as 25
+subtabelas por natureza da §14. Nenhuma linha existente cobre materialmente o fato. Candidatos
+próximos examinados e **rejeitados**: `P-92` (artefato de build, não texto exibido), `P-64` e `P-65`
+(promessas de armazenamento), `P-144` e `P-145` (capacidade e aviso ausentes), `P-85` (ausência de
+telemetria), `P-120` a `P-134`, `P-137` e `P-138` (schema e integridade de manifesto). Nenhuma linha
+da §14 citava `globalManifestService.js:211`, `EXPO_PUBLIC_GLOBAL_MANIFEST_URL` ou as linhas 890, 896,
+911 e 1104 de `ParentAreaScreen.js`.
+
+**A criação de `P-149` NÃO corrige o risco.** A implementação pertence à **Fase 7** e **nenhuma
+alteração de `src/screens/ParentAreaScreen.js` foi autorizada ou executada nesta fase.**
+
+### 29.2 Códigos tocados
+
+| Código | O que mudou |
+|---|---|
+| `P-149` | **criado** — ver §14, natureza PRIVACIDADE |
+| `P-92` | **somente anotação** na Observação — reconciliação de redação. `Fase implementação` permanece **20**; Status, severidade, lançamento, Product Lock e validação física **inalterados** |
+| `P-85` | **somente anotação** na Observação — distinção Fase 5 (especificação) / Fase 19 (runtime). `Fase implementação` permanece **5**; nenhum outro campo alterado |
+
+Nenhum outro dos 148 códigos preexistentes foi tocado em qualquer campo.
+
+### 29.3 Reconciliação de `P-92` — sem deslocar a implementação
+
+A frase herdada da Fase 4E *"implementação pendente nas Fases 5 e 19"* descreve o **pacote de
+decisões da 4E**, não a fase proprietária de `P-92` — o mesmo texto aparece em `P-85`. Lida sobre
+`P-92`, contradizia a coluna canônica da própria linha.
+
+**Redação reconciliada:** a **Fase 5** emite **parecer e especificação** sobre o manifesto de
+privacidade; a **Fase 20** permanece proprietária da **implementação técnica e da validação**; a
+**Fase 19 não** é proprietária deste risco. O texto herdado **não foi apagado**; recebeu cláusula de
+correção explícita.
+
+**O que a Fase 5 não fez em `P-92`:** não registrou plugin em `app.json`, não moveu a implementação
+para a Fase 5 nem para a Fase 19, não alterou `plugins/withPrivacyManifest.js` e não marcou o risco
+como corrigido.
+
+### 29.4 Distinção registrada em `P-85` — sem reclassificação silenciosa
+
+A coluna `Fase implementação = 5` **não** foi alterada: a entrega da Fase 5 é documental por
+definição do critério de saída da `v5:249` (*"plano de medição anônima aprovado"*). A Fase 5 entrega
+especificação, taxonomia, campos permitidos, retenção, desligamento e critérios de privacidade; a
+**Fase 19 implementa o runtime**. Nenhum código de analytics foi escrito, nenhum identificador remoto
+foi criado, `performanceTrace.js` e `eas.json` não foram tocados e nenhuma telemetria foi habilitada
+em build.
+
+### 29.5 Recontagem dos blocos derivados
+
+Derivada **manualmente** e depois **conferida por contagem direta sobre a tabela da §14**, campo a
+campo. O *"gerador determinístico"* citado nos commits das Fases 4A a 4D **não existe neste
+repositório** e **não** foi executado.
+
+| Bloco derivado | Antes | Depois |
+|---|--:|--:|
+| Cabeçalho — Total de riscos | 148 | **149** |
+| §14 — `### PRIVACIDADE` | 1 risco | **2 riscos** |
+| §15 itens 1 e 2 | 148 | **149** |
+| §15 item 6 e totais por status — `ABERTO` | 102 | **103** |
+| §15 item 12 e §17 — `PODE BLOQUEAR LANÇAMENTO` | 44 | **45** |
+| §15 fase proprietária — Fase 7 | 6 | **7** |
+| §15 natureza primária — PRIVACIDADE | 1 | **2** |
+| §15 classificação transversal — ALTO | 42 | **43** |
+| §15 Product Lock — `INFORMA O PRODUCT LOCK` | 92 | **93** |
+| §15 validação física — `VFP` | 113 | **114** |
+| §15 validação física — `TEL` | 101 | **102** |
+| §16 provas 1, 2, 6, 7, 8, 9, 10 e `S1` | base 148 | base **149** |
+
+**Conferidos e inalterados, com motivo declarado:** fusões e renumerações (0, `P-149` é acréscimo
+puro) · §11.2 os cinco bloqueadores (`P-149` é `PODE BLOQUEAR`, não `BLOQUEIA`) · §11.3 · §12
+(`P-149` não pertence ao conjunto da ETAPA 12) · §15 itens 3, 4, 5, 7 a 11, 13 e 14 · demais tokens
+de validação física · §15 `DECISÃO DE PRODUTO PENDENTE` (7), `EXIGE DECISÃO NO PRODUCT LOCK` (14),
+`Fase decisão = 4` (58), `BLOQUEIA LANÇAMENTO` (6), `NÃO BLOQUEIA LANÇAMENTO` (97) e `POSTERIOR` (1)
+· §16 provas 3, 4, 5, 12 e `S2` · §17 demais listas · §18 a §28.
+
+### 29.6 Divergência herdada confirmada e **não** corrigida
+
+A §11.2 cita `planConfig.js:40-56` para `P-24`, enquanto o bloco `PLAN_PRICING` termina em **`:55`**.
+A Fase 5 **confirma o registro da §28.4 e não altera a referência**, por tocar um bloqueador de
+lançamento fora do seu escopo. Destino: fase proprietária de `P-24` (Fase 18).
+
+### 29.7 O que a Fase 5 **não** fez nesta matriz
+
+Não criou subfases. Não renumerou, não fundiu e não removeu nenhum código. **Não marcou nenhum risco
+técnico como corrigido.** Não rebaixou severidade, não alterou classificação de lançamento e não
+moveu nenhuma fase proprietária — nem a de `P-92` (20), nem a de `P-85` (5). Não tocou em nenhum
+campo dos **146** códigos fora do escopo. Não alterou código, *assets*, *packs*, manifestos ou
+configurações. **Não declarou conformidade jurídica** e não usou as expressões proibidas
+*"legalmente aprovado"*, *"100% conforme"*, *"nenhum risco"* ou *"anonimização garantida"*.
+
 ---
 
-*Fim do artefato 9 de 11. **Matriz única e definitiva com 148 riscos**, `P-01` a `P-148`, sem
+*Fim do artefato 9 de 11. **Matriz única e definitiva com 149 riscos**, `P-01` a `P-149`, sem
 lacunas, sem renumeração e sem perda de histórico. Esta é a única fonte canônica de riscos do
 projeto.*

@@ -19,13 +19,13 @@
 > produto** e nada abaixo o rebaixa. O que ele **não** governa é o **inventário de pendências**:
 > identidade, status, severidade, fase e rastreabilidade de riscos vivem exclusivamente em
 > [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md)
-> (**matriz canônica**, códigos `P-01` a `P-148`). A `v5` governa **roadmap e sequência de fases**;
+> (**matriz canônica**, códigos `P-01` a `P-149`). A `v5` governa **roadmap e sequência de fases**;
 > o `PROJECT_SOURCE_OF_TRUTH.md` governa **precedência e governança**. Listas de risco antigas
 > mantidas neste arquivo — em especial a lista `R` — valem **apenas como origem histórica e alias**
 > e **não** são matriz concorrente. Este arquivo **não replica** a matriz: cita códigos `P`, e a
 > definição fica lá.
 
-**Data desta versão:** 2026-08-05 (**Product Lock — Fase 4A**, Plano Família, compra, restauração e entitlement, seção `PL4A`; **Fase 4B**, acesso grátis, conteúdo do Plano Família, histórias e superfícies infantis, seção `PL4B`; **Fase 4C**, jornada, progressão, conclusão e desbloqueios, seção `PL4C`; **Fase 4D**, dados, persistência, migração, recuperação e integridade, seção `PL4D`) · **Atualizada em:** 2026-08-06 (**Fase 4E**, privacidade, Área dos Pais, analytics e Modo Igreja, seção `PL4E`) · **Base anterior:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Fundador:** Eduardo
+**Data desta versão:** 2026-08-05 (**Product Lock — Fase 4A**, Plano Família, compra, restauração e entitlement, seção `PL4A`; **Fase 4B**, acesso grátis, conteúdo do Plano Família, histórias e superfícies infantis, seção `PL4B`; **Fase 4C**, jornada, progressão, conclusão e desbloqueios, seção `PL4C`; **Fase 4D**, dados, persistência, migração, recuperação e integridade, seção `PL4D`) · **Atualizada em:** 2026-08-06 (**Fase 4E**, privacidade, Área dos Pais, analytics e Modo Igreja, seção `PL4E`; **Fase 5**, infância, privacidade, teologia e medição, seção `PF5`) · **Base anterior:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Fundador:** Eduardo
 
 > **Reconciliação E1 (2026-07-15):** este arquivo passou a ser o **único árbitro** (o `DECISIONS.md`
 > da raiz foi marcado SUPERSEDED). As decisões consolidadas de lançamento estão na seção
@@ -125,6 +125,11 @@ Cada item: **ID · Status · Decisão · Impacto no código · Bloco responsáve
 - **Proibição:** **não alterar arquitetura, assets, resolver, packs ou manifestos neste bloco.** Só registro + mapa de impacto.
 
 ### PL01A-04 · Público 6–8 (acessível ~5–10) — 🔄 REVERSÃO ESTRATÉGICA (público)
+> ⚠️ **SUPERSEDED NO EIXO DE FAIXA ETÁRIA em 2026-08-06 pela Fase 5** — ver [`PF5-FAIXA-ETARIA`](#pf5-faixa-etaria--faixa-oficial-4-a-8-anos-supersede-pl01a-04-no-eixo-etário).
+> A faixa oficial do produto passa a ser **4 a 8 anos**. O registro histórico abaixo **não** é
+> reescrito. As demais determinações desta decisão — **sem coleta de idade**, **sem perfis etários**,
+> loja **4+ fora da Kids Category**, e **classificação de loja ≠ faixa de produto** — **continuam
+> integralmente válidas**.
 - **Decisão:** público **principal oficial = crianças de 6 a 8 anos**; experiência **acessível ~5 a 10**.
 - **Motivo:** foco de tom, leitura, complexidade e retenção na faixa real de uso.
 - **Substitui/revoga:** **reverte** a orientação **3–8** (primário 3–6) do `PRODUCT_BLUEPRINT.md` (agora SUPERSEDED). Loja segue **4+ / fora da Kids Category** (E1) — classificação de loja ≠ faixa de produto.
@@ -1582,8 +1587,39 @@ tomada **não** corrige risco técnico e **não** autoriza escrever código.
 - **Nenhum risco técnico passou a `CORRIGIDO` nesta fase.**
 - **Preço, mensalidade, desconto, preço de fundador, limite de líderes, limite de salas, limite de dispositivos, nome final do produto pago e modelo institucional do Modo Igreja** ficam num **portão futuro obrigatório**, depois do piloto físico de **A Criação** e **antes** da implementação comercial da **Fase 18**.
 - **Conformidade jurídica não foi declarada.** Os **24 encaminhamentos** da §22 do artefato (mapa de dados, base legal, retenção, ECA, ECA Digital, LGPD, RIPD, Apple Kids, Google Families, SDKs, licenças de exibição coletiva e demais) são **obrigatórios na Fase 5**. É **proibido** declarar *"legalmente aprovado"*, *"100% conforme"*, *"nenhum risco"* ou *"anonimização garantida"* antes disso.
-- **Política de oração e neutralidade denominacional** têm aprofundamento na **Fase 5C**.
+- **Política de oração e neutralidade denominacional** têm aprofundamento na **Fase 5**. *(Correção de nomenclatura aplicada na Fase 5, Bloco 0: o texto original dizia "Fase 5C" — designação que nunca existiu no árbitro de sequência. A Fase 5 **não** é subdividida.)*
 - **Toda a implementação** das onze decisões acima é **futura** (Fases 5, 11, 12A, 12B, 16, 18 e 19); **nenhuma validação física** foi executada nesta fase.
+
+---
+
+## PF5 — Fase 5 · Infância, privacidade, teologia e medição (2026-08-06)
+
+> Fase **documental**. Registro consolidado em [`docs/fase5-pareceres/`](fase5-pareceres/).
+> A Fase 5 **não é subdividida**: não existem `Fase 5A`, `Fase 5B` nem `Fase 5C`. Os "blocos"
+> internos são unidades de trabalho dos artefatos, não eixo de nomenclatura do roadmap.
+> **Nenhum arquivo executável foi alterado nesta fase.**
+
+### PF5-FAIXA-ETARIA · Faixa oficial 4 a 8 anos (supersede PL01A-04 no eixo etário)
+- **Decisão:** a faixa etária oficial do **Mundo do Beni** fica **congelada em 4 a 8 anos**.
+- **Referência de linguagem (não é faixa):** texto simples e compreensível, idealmente acessível a uma criança de **aproximadamente 5 anos**, quando a natureza do conteúdo permitir.
+- **Substitui/revoga:** **supersede a [`PL01A-04`](#pl01a-04--público-68-acessível-510--🔄-reversão-estratégica-público) no eixo de faixa etária** (6–8, acessível ~5–10, de 2026-07-21). O registro histórico da `PL01A-04` **não** é reescrito e suas demais determinações — sem coleta de idade, sem perfis etários, loja 4+ fora da Kids Category, classificação de loja ≠ faixa de produto — **continuam válidas**. Reconcilia também os documentos que ainda dizem "3 a 8".
+- **Alinhamento com o código:** `ageBand: '4-8'` nas **20** histórias de `src/data/stories.js` está **alinhado** e **não deve ser alterado**. **Nenhuma alteração de runtime decorre desta decisão.**
+- ⚠️ **Ratificação pendente do fundador:** a arbitragem de 4 a 8 foi emitida **sem** conhecimento da existência da `PL01A-04`, que a auditoria de entrada não havia encontrado. A supersessão é aplicada por precedência temporal e de autoridade e será **apresentada para ratificação explícita** junto com o plano de medição. Ver [`00_ABERTURA_E_RASTREABILIDADE.md`](fase5-pareceres/00_ABERTURA_E_RASTREABILIDADE.md) §2.
+- **Proibição:** não criar coleta de idade, não criar perfis etários, não alterar `ageBand`.
+
+### PF5-NOMENCLATURA · A Fase 5 não é subdividida
+- **Decisão:** não existem `Fase 5A`, `Fase 5B` ou `Fase 5C`. O árbitro de sequência (`v5` §3) nunca as registrou.
+- **Correção aplicada, declarada e não silenciosa:** **duas** ocorrências de "Fase 5C" foram corrigidas para "Fase 5" — `DECISIONS.md:1585` e `05_PRODUCT_LOCK_4E_…md:2155`. A auditoria de entrada havia relatado **uma**; a contagem correta é **duas**. Motivo da divergência em [`00_ABERTURA_E_RASTREABILIDADE.md`](fase5-pareceres/00_ABERTURA_E_RASTREABILIDADE.md) §1.1.
+
+### PF5-P92 · Reconciliação de redação sem deslocar implementação
+- **Decisão:** para `P-92`, a **Fase 5 emite parecer e especificação**; a **Fase 20 permanece proprietária da implementação técnica e da validação**. A **Fase 19 não é proprietária** deste risco. A coluna canônica `Fase implementação = 20` **não** é alterada.
+- **Proibição:** não registrar plugin em `app.json` nesta fase; não mover a implementação para a Fase 5 nem para a Fase 19; não marcar o risco como corrigido.
+
+### PF5-P149 · Novo código de risco criado (matriz passa a 149)
+- **Decisão:** criado **`P-149`** — a Área dos Pais afirma ausência de tráfego de rede que existe (`ParentAreaScreen.js:890,896,911,1104` contra `globalManifestService.js:211`). Criado **após auditoria de deduplicação** contra `P-01`..`P-148`, que provou ausência de cobertura material. **Sem renumeração.** A matriz canônica passa de **148** para **149** riscos.
+- **Contratos:** Natureza primária **PRIVACIDADE** · Status `ABERTO` · Fase decisão: nenhuma · **Fase implementação: 7** · Product Lock `INFORMA` · Lançamento `PODE BLOQUEAR` (critério 2, com a evidência faltante registrada).
+- **Distinção preservada:** *"não enviar dados pessoais da criança"* é **verdadeiro**; *"não realizar tráfego de rede"* é **falso**.
+- **Implementação pendente (Fase 7) · risco técnico NÃO corrigido · nenhuma alteração de `ParentAreaScreen.js` autorizada nesta fase.**
 
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
