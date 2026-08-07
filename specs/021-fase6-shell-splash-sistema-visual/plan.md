@@ -5,7 +5,7 @@
 **Spec**: [spec-fase6-shell-splash-sistema-visual.md](./spec-fase6-shell-splash-sistema-visual.md)
 **Branch**: `feat/fase6-shell-splash`
 **Worktree**: `C:\tmp\ptf_fase6_shell_splash_wt`
-**Data**: 2026-08-07
+**Data**: 2026-08-07 · **emendado em 2026-08-07 pelo Portão Humano 2**
 **Base documental exata**: `76e502c146767885e342c5d96a4dcdd13c94a1f7`
 **Base executável preservada**: `015c438106538595b592981fbe1b80b1d5d65e55` (runtime bit-idêntico)
 **Autorização**: Portão Humano 1 aprovado pelo fundador em 2026-08-07
@@ -98,7 +98,8 @@ src/navigation/AppNavigator  ← TabletLayout, MainTabs, rotas raiz (B3)
 src/screens/*.js             ← consumidores de 768 (B1), navegações inefetivas (B3),
                                semântica a11y (B2), hápticos (B2′), cores de estado (B5)
 src/screens/SplashScreen.js  ← abertura (B4)
-app.json                     ← splash.backgroundColor, androidStatusBar (B4)
+app.json                     ← splash.backgroundColor, androidStatusBar e
+                               android.adaptiveIcon.backgroundColor (B4)
 eas.json                     ← EXPO_PUBLIC_PTF_PERF_TRACE (B6)
 package.json                 ← script npm do agregador (B6)
 scripts/smoke.js             ← gates novos e gate A0.7 atualizado (B1, B3, B5)
@@ -322,6 +323,18 @@ que não existe, e é **descartada por construção**.
 >   efetiva — é um requisito **total**, não uma contagem. O critério de aceite é "zero navegações
 >   inefetivas", verificado por gate estrutural, e independe de o número ser 10 ou 11.
 
+> ⚠️ **EMENDA VINCULANTE 2 DO PORTÃO HUMANO 2 (2026-08-07) — como esta divergência se resolve.**
+> O fundador determinou: *"Isso NÃO é pergunta ao fundador. Resolva por evidência."* A reconstrução
+> histórica passa a ser **tarefa obrigatória da Etapa SDD 6 (Analyze)**, com o seguinte mandato:
+> reconstruir **apenas o histórico necessário** entre o registro original de E012 e a base atual;
+> identificar se existiu uma **8ª** chamada; identificar em qual commit ou bloco ela desapareceu, se
+> possível; determinar se a matriz está desatualizada ou se a auditoria atual perdeu uma ocorrência.
+> **Proibições explícitas:** *"Não invente uma ocorrência para fazer a contagem fechar. Não reduza o
+> critério funcional a '10' ou '11'."* **Se a evidência for conclusiva**, preparar a correção
+> documental correspondente na matriz e nos artefatos SDD. **Se não for conclusiva**, manter a
+> divergência **explicitamente registrada** e operar pelo critério funcional total.
+> **Critério de aceite inalterado: ZERO NAVEGAÇÕES INEFETIVAS NO ESCOPO.**
+
 #### 6.2.4 Arquitetura desejada do shell
 
 | Superfície | Estado atual | Arquitetura desejada |
@@ -446,6 +459,13 @@ chip, selo, ícone ou tratamento).
 **Recomendação: `color.night400 = #3E5C96`**, um **degrau novo da rampa `night` já existente**
 (`night800 #1C2B52` · `night600 #2E4370` · **`night400 #3E5C96`** · `night...`).
 
+> ✅ **CONFIRMADO NO PORTÃO HUMANO 2 (2026-08-07).** O fundador declarou `night400 = #3E5C96`
+> **aprovado para seguir como candidato de implementação**. A validação física do caráter
+> "acolhedor e infantil" (critério **B3** da tabela abaixo) fica **diferida para a etapa física**
+> (F-SEAL, em B7) e **não bloqueia Tasks nem Analyze**. Se a implementação revelar problema
+> **objetivo** de contraste ou legibilidade, a correção é técnica **dentro da banda aprovada** —
+> só se retorna ao fundador diante de mudança material de produto.
+
 > Isto **não** cria paleta paralela (proibição da autorização §6): é derivação coerente **dentro
 > da família de cor que os tokens já declaram**, exatamente o que a autorização autoriza
 > ("derive tokens relacionados... de forma coerente se necessário").
@@ -525,7 +545,7 @@ está autorizado como parte do bloco de implementação (não desta rodada de Pl
 |---|---|---|---|
 | `app.json` | 14 (`splash.backgroundColor`) | superfície de **abertura** | **B4** — dentro de RF-B2 |
 | `app.json` | 41 (`androidStatusBar`) | superfície de **abertura** | **B4** — dentro de RF-B2 |
-| `app.json` | 48 (`android.adaptiveIcon.backgroundColor`) | **ícone de lançador** | **FORA** — ver §16 |
+| `app.json` | 48 (`android.adaptiveIcon.backgroundColor`) | **cor aposentada em configuração nativa** | **B4** — dentro de `RF-B8` (**emenda vinculante do Portão 2** — ver §16) |
 | `src/components/premium/LockedStoryFallback.js` | 32, 102, 122, 127 | **1 · status** (bloqueio/premium) | migra em B5 |
 | `src/components/story/MagicBookEntrance.js` | 93 | 4 · decoração de transição | avaliar em B5 |
 | `src/data/achievements.js` | 29, 360, 371, 415, 483 | **2 · recompensa** | **preserva** |
@@ -622,6 +642,50 @@ animação `FADE_MS = 800` **após** o gate de fontes terminar. Assim não há s
 **A cor de abertura** deriva do sistema visual oficial (`tokens.color.paper*`), **não** é inventada
 aqui, e é fixada no bloco B5 antes de B4 — motivo adicional para B5 preceder B4 na ordem de §4.3.
 
+#### 6.6.4 ⚠️ Emenda vinculante do Portão Humano 2 — correção restrita do adaptive icon
+
+O fundador decidiu, na aprovação do Portão Humano 2 (2026-08-07), que o `#7C3AED` usado como
+`android.adaptiveIcon.backgroundColor` (`app.json:48`) **também é corrigido na Fase 6**. A decisão
+**supera parcialmente C18** — não porque o ícone tenha virado "superfície de abertura" (não virou;
+RF-B2 continua delimitado às quatro camadas renderizadas da tabela acima), mas porque o ícone entra
+por um **eixo diferente**: **cor aposentada em configuração nativa**. O requisito correspondente é
+**`RF-B8`**, separado de RF-B2 justamente para preservar o caráter binário deste.
+
+**Motivação registrada pelo fundador:** o roxo foi formalmente aposentado; o `app.json` já será
+alterado em B4; a correção pega carona no mesmo ciclo de build que B4 já torna obrigatório; e não
+há justificativa para manter uma cor explicitamente aposentada numa configuração nativa conhecida.
+
+**Escopo — o que entra:**
+
+| Entra | Não entra |
+|---|---|
+| O **valor configurável** `android.adaptiveIcon.backgroundColor` em `app.json:48` | Redesenhar `assets/icon.png` ou `assets/adaptive-icon.png` |
+| A escolha da cor substituta dentro da paleta canônica | Alterar a identidade gráfica do ícone |
+| A validação visual do lançador (F12 / F-ICON) | Criar novo conceito de marca |
+| — | Entregas de App Store / Play Store ou trabalho de *branding* |
+
+**Critérios declarados para a cor substituta** (§3 da autorização — **não** é pergunta ao fundador;
+a escolha é técnica e sai da paleta já existente):
+
+1. **não** roxo;
+2. compatível com "O Livro Vivo";
+3. **não** criar token novo apenas para o ícone;
+4. harmonizar com o *foreground* existente do ícone;
+5. contraste visual adequado no lançador;
+6. coerente com o novo splash;
+7. **não** usar dourado como fundo principal — o dourado é recompensa, não cor estrutural;
+8. **não** confundir com o azul premium do Plano Família (`night400 #3E5C96`).
+
+**Momento da decisão exata:** a cor é concluída **durante a implementação de B4**, após inspeção
+factual do *foreground* de `assets/icon.png` (cujo conteúdo cromático **não foi inspecionado** nesta
+rodada). A validação estética ocorre depois, em aparelho físico (F12 / F-ICON, em B7).
+
+**Custo de build:** **zero adicional.** A correção viaja no mesmo ciclo `preview` que B4 já exige
+(§12) — cor nativa é compilada, e B4 já obriga binário novo.
+
+**Proteção do escopo restrito:** ver **CN-3** (§10.3), reescrito por esta emenda para provar pela
+negativa que os assets gráficos permaneceram byte-idênticos.
+
 ---
 
 ### 6.7 B6 — P-139 / E5.52: coletor de desempenho alcançável
@@ -704,7 +768,7 @@ Ver §15 (inventário) e §14 (matriz física).
 | **B2** | `src/components/layout/AppScreen.js` · `src/components/ui/ContentContainer.js` · `src/components/ui/ModalPapel.js` · `src/components/ui/BotaoPrimario.js` · shell em `AppNavigator.js` · telas do inventário de §15 |
 | **B2′** | novo `src/hooks/useReduceMotion.js` (extraído de `Coloring60CompletionOverlay.js:255-273`) · utilitário de háptico · subconjunto dos 12 consumidores de §6.4 |
 | **B5** | `src/theme/tokens.js` (`night400`, `seal.premium`) · `src/components/story/StoryBookHero.js` · `src/components/premium/LockedStoryFallback.js` · `src/screens/CongratsScreen.js` · **`scripts/smoke.js:23597-23606` (gate A0.7 → D-SELOS-ESTADO-V2)** |
-| **B4** | `App.js` (retorno condicional da porta de fontes) · `src/screens/SplashScreen.js` · `app.json` (linhas 14 e 41 — **NÃO a 48**) |
+| **B4** | `App.js` (retorno condicional da porta de fontes) · `src/screens/SplashScreen.js` · `app.json` (linhas 14, 41 **e 48** — a 48 por `RF-B8`, emenda do Portão 2; **`assets/icon.png` e `assets/adaptive-icon.png` NÃO são tocados**) |
 | **B6** | `eas.json` (perfil `preview`) · `package.json` (script `perf:report`) — **`src/services/performanceTrace.js` INTOCADO** |
 | **B7** | Nenhum arquivo de código. Produz evidência |
 
@@ -774,6 +838,7 @@ Ver §15 (inventário) e §14 (matriz física).
 | **G-SEAL** (substitui A0.7) | premium = azul da rampa `night` mais luminoso que `night800`; Grátis `#2E6B33`; Concluída `gold500`; roxos aposentados ausentes | B5 |
 | **G-STATUS** | Nenhum arquivo do inventário de status declara HEX literal de estado | B5 |
 | **G-SPLASH** | As superfícies de abertura de RF-B2 declaram a **mesma** cor | B4 |
+| **G-ICON** *(acrescido pela emenda do Portão 2)* | `android.adaptiveIcon.backgroundColor` **não** é `#7C3AED` nem qualquer roxo aposentado, e o valor pertence à paleta canônica | B4 |
 | **G-PERF** | `eas.json` declara `EXPO_PUBLIC_PTF_PERF_TRACE` em ao menos um perfil interno e **em nenhum** perfil `production` | B6 |
 
 ### 10.3 🔻 Controles negativos
@@ -785,7 +850,7 @@ Ver §15 (inventário) e §14 (matriz física).
 |---|---|---|
 | **CN-1** | Abaixo de `breakpoints.tablet`, o shell **NÃO** apresenta layout de tablet | A migração de 768→600 não vazou para telefone |
 | **CN-2** | Com `production` selecionado, `isPerformanceTraceEnabled()` retorna **falso** | O coletor **não** vazou para produção |
-| **CN-3** | O `adaptiveIcon` **permanece** `#7C3AED` | A varredura de roxo **não** invadiu o ícone (fora de escopo por C18) |
+| **CN-3** *(reescrito pela emenda do Portão 2)* | `assets/icon.png` e `assets/adaptive-icon.png` permanecem **byte-idênticos** aos de `015c438`, e nenhum token novo foi criado apenas para o ícone | A correção de `adaptiveIcon.backgroundColor` ficou restrita ao **valor de configuração** — não houve redesenho de asset, nem alteração de identidade de marca, nem paleta paralela (`RF-B8`) |
 | **CN-4** | Com a fonte falhando deliberadamente, o app **abre mesmo assim** em ≤ `FONT_TIMEOUT_MS` + margem, **sem spinner eterno** | `D-LP-FECHAMENTO` intacto após B4 |
 | **CN-5** | Com reduce motion **desligado**, os hápticos **continuam** ocorrendo | B2′ não desativou háptico para todo mundo |
 | **CN-6** | As cores de **recompensa** (`achievements.js`) **permanecem** inalteradas | D-STATUS-CARDS não fez substituição cega por HEX |
@@ -861,12 +926,13 @@ ANTES de B1.** Isso não é presumido aqui: é **condicional e declarado**.
 | **Novo build `development`** | Só se V0 falhar, **ou** se for preciso desenvolver contra o estado nativo pós-B4 | `development` |
 | **Evidência física final** | Após B4 + B6 | **`preview`** |
 | **Build específico de P-139** | **Não necessário** — o coletor viaja no mesmo `preview` (ver §6.7.2) | — |
+| **Build específico do adaptive icon (`RF-B8`)** | **Não necessário** — a cor nativa do ícone viaja no **mesmo `preview`** de B4, que já é obrigatório (ver §6.6.4) | — |
 
 ### 12.3 📦 Quantidade prevista de novos builds
 
 | # | Build | Perfil | Condição | Conteúdo |
 |---|---|---|---|---|
-| **1** | **Obrigatório** | `preview` | sempre | **B4 (splash) + B6 (coletor) no MESMO ciclo** + todo o JS de B1–B5 |
+| **1** | **Obrigatório** | `preview` | sempre | **B4 (splash **+ adaptive icon, `RF-B8`**) + B6 (coletor) no MESMO ciclo** + todo o JS de B1–B5 |
 | **2** | **Condicional** | `development` | só se **V0.7** falhar | Dev Client para o tablet |
 | **3** | **Condicional** | `development` | só se o desenvolvimento pós-B4 exigir o estado nativo novo | Dev Client atualizado |
 
@@ -944,7 +1010,7 @@ cronograma declarado**, não uma dívida a descobrir depois.
 | **F-OPEN-2** | Sem flicker, sem salto de tipografia, sem spinner eterno | Telefone | AND + IOS | B4 | RF-B3, CN-4 |
 | **F-OPEN-3** | Fonte falhando ⇒ abre mesmo assim (`D-LP-FECHAMENTO`) | Telefone | AND | B4 | CN-4 |
 | **F-PERF** | `preview` produz linhas `[PTF_PERF_SAMPLE]` agregáveis por `perf:report` | Telefone | AND | B6 | **P-139**, E5.52 |
-| **F-ICON** | `adaptiveIcon` **permanece roxo** (CN-3) | Telefone | AND | B7 | §16 |
+| **F-ICON** *(invertido pela emenda do Portão 2)* | Ícone no lançador **sem roxo**, com contraste adequado, harmônico com o *foreground* existente e distinguível do azul premium; assets gráficos inalterados (CN-3) | **Telefone + Tablet** | AND | B4 → validado em B7 | **RF-B8** (F12 da Spec), §16 |
 
 **Formato da evidência:** vídeo para navegação, leitor de tela, movimento e abertura; print para
 `fontScale`, selos e varredura visual; log textual para F-PERF.
@@ -1011,23 +1077,36 @@ prova a correção sem depender de N prints.
 
 ## 16. 🟣 Tratamento Explícito do Ícone / Adaptive Icon Roxo
 
-A ambiguidade **C18** concluiu que o ícone de lançador **não é uma "superfície de abertura"**, e a
-Spec §4.8 o colocou **fora de escopo**. A autorização §19 é explícita: *"Isso NÃO significa que o
-roxo existente pode simplesmente desaparecer do radar."*
+> ⚠️ **SEÇÃO REESCRITA PELA EMENDA VINCULANTE 1 DO PORTÃO HUMANO 2 (2026-08-07).**
+> A versão original desta seção registrava a superfície como **sem proprietário** e a levava ao
+> Portão Humano 2 como pergunta genuína (AC-1). **O fundador respondeu**: a superfície passa a ter
+> proprietário — **a própria Fase 6**, com escopo restrito. A pendência AC-1 está **encerrada**.
 
-**Registro formal:**
+**A decisão do fundador, na íntegra do que ela decide:** o `#7C3AED` usado como
+`android.adaptiveIcon.backgroundColor` **é corrigido na Fase 6**. Motivação registrada: o roxo foi
+formalmente aposentado; o `app.json` já será alterado em B4; a correção pega carona no mesmo ciclo
+de build já necessário; e não há justificativa para manter uma cor explicitamente aposentada numa
+configuração nativa conhecida. **Essa decisão supera C18 na parte em que ela excluía integralmente
+o adaptive icon da Fase 6.**
+
+**Registro formal (atualizado):**
 
 | Item | Valor |
 |---|---|
 | **Onde está** | `app.json:48` — `android.adaptiveIcon.backgroundColor: "#7C3AED"`; e `app.json:7` — `icon: "./assets/icon.png"` (o arquivo de imagem, cujo conteúdo cromático **não foi inspecionado** nesta rodada) |
-| **Pertence à Fase 6 pelo eixo "sistema visual"?** | **NÃO.** O eixo C da Spec cobre **o sistema visual do app em execução** — tokens, tipografia, componentes-base, estados de card. O ícone de lançador é **identidade de loja e de sistema operacional**: vive fora da árvore React, é renderizado pelo launcher, e mudá-lo é decisão de **marca e de submissão**, não de sistema visual de tela |
-| **Qual fase/árbitro é proprietário** | **NÃO ATRIBUÍDO NA MATRIZ.** Nenhum dos nove P da Fase 6 cobre o ícone, e nenhuma linha da matriz §14 foi identificada como proprietária do `adaptiveIcon`. O árbitro natural é a fase de **identidade visual / preparação de loja**, mas **essa atribuição não existe hoje em documento** |
-| **Ação desta rodada** | **Nenhuma alteração.** O ícone permanece `#7C3AED`, e **CN-3 existe justamente para provar que ele não foi tocado** |
-| **Pendência registrada** | 🔴 **O `#7C3AED` do ícone/adaptive icon é uma superfície roxa conhecida SEM PROPRIETÁRIO EXPLÍCITO.** Isto é levado ao Portão Humano 2 como pergunta genuína (ver §19, AC-1) — precisa de atribuição de fase pelo fundador, e a Fase 6 **não** pode atribuí-la por conta própria |
+| **Por qual eixo entra na Fase 6?** | **Não** pelo eixo "abertura" — o ícone continua **não** sendo superfície de abertura, e `RF-B2` permanece delimitado às quatro camadas renderizadas (§6.6.3). Entra pelo eixo **"cor aposentada em configuração nativa"**, com requisito próprio: **`RF-B8`** |
+| **Proprietário** | ✅ **FASE 6**, por decisão explícita do fundador no Portão Humano 2. A atribuição **não** foi inferida pelo Plan — foi dada em documento |
+| **Escopo autorizado** | **Somente o valor configurável** de `app.json:48`, substituído por cor **já pertencente à paleta canônica** (critérios em §6.6.4) |
+| **Fora do escopo (inalterado)** | Redesenhar `assets/icon.png` ou `assets/adaptive-icon.png`; alterar a identidade gráfica; criar novo conceito de marca; entregas de App Store / Play Store; qualquer trabalho de *branding* |
+| **Ação de implementação** | **B4** — junto de `app.json:14` e `app.json:41`, no mesmo ciclo de build |
+| **Gate automático** | **G-ICON** (§10.2) |
+| **Controle negativo** | **CN-3 reescrito** (§10.3) — prova pela negativa que os assets gráficos ficaram **byte-idênticos** e que nenhum token novo foi criado só para o ícone |
+| **Validação física** | **F-ICON** (§14) + **F12** da Spec — print do lançador em telefone **e** tablet Android, em B7 |
+| **Pendência** | ✅ **ENCERRADA.** A superfície roxa deixou de estar sem proprietário |
 
-> A Fase 6 **não altera o ícone por inferência** (proibido) e **não deixa a superfície roxa sem
-> atribuição explícita** (também proibido). Ela declara: *não é minha, não sei de quem é, e isso
-> precisa ser decidido.*
+> A Fase 6 continua **não alterando o ícone por inferência** — ela o altera por **decisão explícita
+> e delimitada do fundador**, e mantém o controle negativo que impede a decisão de crescer para
+> redesenho de marca.
 
 ---
 
@@ -1062,6 +1141,7 @@ roxo existente pode simplesmente desaparecer do radar."*
 | S1–S2 (shell e navegação) | B1, B3 | G-NAV-1/2, F-TAB-NAV, F-TAB-SIDE |
 | **S3** (nenhuma paleta de status paralela) | B5 + B7 | **Inventário nominal de §15 com 100 % de prints** |
 | S4–S6 (abertura) | B4 | F-OPEN-1/2/3, G-SPLASH |
+| **`RF-B8`** (adaptive icon não roxo — **emenda do Portão 2**, fora dos critérios S1–S11 originais) | B4 + B7 | **G-ICON, CN-3 reescrito, F-ICON, F12** |
 | S7–S9 (acessibilidade e responsividade) | B1, B2, B2′ | F-A11Y-*, F-MOTION-*, F-TAB-600 |
 | S10–S11 (medição) | B6 | F-PERF, G-PERF |
 
@@ -1076,6 +1156,15 @@ a revalidação **21**.
 **Nenhum conflito material com a Spec 021 foi encontrado.** A Spec **não foi alterada** por este
 Plan. O único conflito de contagem encontrado é **com a matriz de riscos**, não com a Spec, e está
 registrado em §6.2.3 sem edição do artefato proprietário.
+
+> **Atualização de 2026-08-07 (emenda do Portão Humano 2).** A Spec **foi** alterada depois desta
+> conclusão — mas **não** por decisão do Plan: por **emenda vinculante do fundador**, aplicando a
+> Regra de Ouro (requisito alterado volta ao artefato). A Spec ganhou `RF-B8`, `T14`, `F12`, um
+> controle negativo em §9.1, a supersessão parcial de **C18** e os itens **CHK039**/**CHK040**, com
+> revalidação direcionada de **CHK004** e **CHK038** (resultado: 40/40). Este Plan foi então
+> reconciliado nos pontos §6.6.4, §6.5.4, §7, §10.2 (**G-ICON**), §10.3 (**CN-3** reescrito), §14
+> (**F-ICON** invertido), §16, §17.3, §19 e §22. A direção de causalidade permanece correta:
+> **o requisito mudou primeiro na Spec, e o Plan seguiu.**
 
 ---
 
@@ -1127,7 +1216,7 @@ aprovação explícita**.
 | **Sem OTA / expo-updates** | Nada proposto | ✅ |
 | **Sem submit automático** | Nada proposto | ✅ |
 | **Sem SDK de tracking/analytics** | §6.7.3 proíbe **explicitamente** transformar o coletor em analytics; CN-7 prova | ✅ |
-| `privacyManifests` / permissões mínimas | `app.json` alterado **apenas** nas linhas 14 e 41 (cor). `privacyManifests` e `permissions` **intocados** | ✅ |
+| `privacyManifests` / permissões mínimas | `app.json` alterado **apenas** nas linhas 14, 41 e 48 (**somente valores de cor**). `privacyManifests` e `permissions` **intocados** | ✅ |
 | Untracked de assets | **Nenhum asset novo.** Nenhum `git add` amplo | ✅ |
 | `git add .` / `-A` proibidos | Commit desta rodada é seletivo, caminho a caminho (§20) | ✅ |
 | Git LFS | Não aplicável | ✅ n/a |
@@ -1155,8 +1244,8 @@ aprovação explícita**.
 | **Loading/performance não reaberto** | ✅ §10.4 — entra **só** como contrato de regressão. Nenhum item congelado é rediscutido |
 | **Fases 10 e 12B não puxadas** | ✅ §6.3.2 — as 3 telas zeradas ficam como resíduo **atribuído** |
 | **P-66 e P-79 não puxados** | ✅ §6.3.2 — citados pela matriz como mesmo bloco, mas **fora dos nove P** |
-| **Ícone não alterado por inferência** | ✅ §16 + CN-3 |
-| **Spec não reescrita silenciosamente** | ✅ §17.4 — Spec **não** alterada |
+| **Ícone não alterado por inferência** | ✅ §16 — o ícone é alterado por **decisão explícita e delimitada do fundador** (emenda do Portão 2), não por inferência do Plan; **CN-3** reescrito impede o crescimento do escopo |
+| **Spec não reescrita silenciosamente** | ✅ §17.4 — a alteração da Spec veio de **emenda vinculante do fundador**, foi declarada e revalidada (40/40), não foi silenciosa |
 | **Matriz não editada** | ✅ §6.2.3 — divergência **declarada**, artefato **não tocado** |
 | **Azul não perguntado de novo ao fundador só pelo HEX** | ✅ §6.5.2 — token **definido tecnicamente** contra a banda §15.1 |
 
@@ -1183,10 +1272,16 @@ mérito, não por omissão.**
 > materialmente diferentes**. Escolhas meramente técnicas foram decididas neste Plan, conforme a
 > autorização §7.
 
-| # | Pergunta | Por que não pôde ser decidida pelo Plan |
-|---|---|---|
-| **AC-1** | **A quem pertence o `#7C3AED` do ícone/adaptive icon (`app.json:48`)?** A Fase 6 o exclui por C18, e **nenhuma linha da matriz foi identificada como proprietária.** Qual fase o herda? | Atribuição de fase é decisão de **governança**, e a autorização §19 proíbe explicitamente deixar a superfície sem proprietário. O Plan pode declarar a lacuna; não pode preenchê-la |
-| **AC-2** | **A divergência de contagem de P-31** (matriz: 8 chamadas aninhadas; recontagem auditada: 7) deve ser reconciliada **na matriz** — e em qual bloco documental? | A matriz é artefato proprietário de outra trilha; a autorização §24 proíbe correção documental paralela nesta rodada |
+> ⚠️ **ATUALIZADO EM 2026-08-07 — AS DUAS PERGUNTAS FORAM RESPONDIDAS PELO FUNDADOR
+> NO PORTÃO HUMANO 2. NÃO HÁ MAIS PERGUNTA PENDENTE NESTE PLAN.**
+
+| # | Pergunta levada ao Portão 2 | Resposta do fundador | Estado |
+|---|---|---|---|
+| **AC-1** | **A quem pertence o `#7C3AED` do ícone/adaptive icon (`app.json:48`)?** A Fase 6 o excluía por C18 e nenhuma linha da matriz foi identificada como proprietária | **Emenda vinculante 1:** a superfície pertence à **Fase 6**, com **escopo restrito ao valor configurável**. C18 é parcialmente superada. Vira **`RF-B8`** | ✅ **ENCERRADA** — ver §16 e §6.6.4 |
+| **AC-2** | **A divergência de contagem de P-31** (matriz: 8 chamadas aninhadas / 11 total; recontagem auditada: 7 / 10) deve ser reconciliada na matriz — e em qual bloco documental? | **Emenda vinculante 2:** *"Isso NÃO é pergunta ao fundador. Resolva por evidência."* A reconciliação histórica vira **tarefa da Etapa 6 (Analyze)**: reconstruir o histórico entre o registro original de E012 e a base atual; se a evidência for conclusiva, preparar a correção documental; se não for, **manter a divergência registrada** e usar o critério funcional total. Proibido inventar ocorrência ou reduzir o critério a "10"/"11" | ✅ **ENCERRADA como pergunta** — segue como **investigação de Analyze** |
+
+**Critério de aceite de P-31 permanece inalterado por ambas as emendas:**
+**ZERO NAVEGAÇÕES INEFETIVAS NO ESCOPO** — não "10", não "11".
 
 **Não são perguntas** (decididas pelo Plan, como manda a autorização):
 o HEX do azul premium (§6.5.2), a alternativa de splash (§6.6.3), o perfil de build para o coletor
@@ -1217,7 +1312,8 @@ seria cerimônia sem conteúdo — contrária ao rigor proporcional ao risco.
 
 ```text
 App.js                        # porta de fontes (B4)
-app.json                      # abertura: linhas 14 e 41 (B4). Linha 48 FORA (§16)
+app.json                      # abertura: linhas 14 e 41 (B4) + linha 48 (RF-B8, §16).
+                              #   assets/icon.png e assets/adaptive-icon.png NÃO tocados (CN-3)
 eas.json                      # perfil `preview` (B6)
 package.json                  # script `perf:report` (B6)
 scripts/smoke.js              # gates novos + A0.7 → G-SEAL (B1, B3, B5)
@@ -1266,13 +1362,15 @@ só entra se uma dependência aprovada existir — e **nenhuma é proposta** (§
 
 | Artefato | Estado |
 |---|---|
-| `specs/021-.../plan.md` | **salvo no disco** → **staged** → **commitado** (ver relatório) |
-| `specs/021-.../spec-...md` | **commitado** em `76e502c` — **não alterado** por este Plan |
-| `src/`, `scripts/`, `assets/`, `App.js`, `app.json`, `eas.json`, `package.json`, `package-lock.json`, `plugins/` | **INTOCADOS** — nenhum arquivo criado, modificado ou removido |
+| `specs/021-.../plan.md` | **commitado** em `1419abf` (Etapa 4) → **reaberto e emendado em 2026-08-07** pelo Portão Humano 2 (§6.6.4, §6.5.4, §7, §10.2, §10.3, §14, §16, §17.3, §17.4, §18, §19, §20, §22, §23) |
+| `specs/021-.../spec-...md` | **commitado** em `76e502c` (Etapas 1–3) → **emendado em 2026-08-07** pela emenda vinculante 1 (§4.8, RF-B2, **RF-B8**, **T14**, §9.1, **F12**, **C18**, §15.2, CHK004, CHK038, **CHK039**, **CHK040**, §17.7, §18) |
+| `specs/021-.../tasks.md` | **NÃO criado ainda** — Etapa SDD 5, autorizada pelo Portão 2 |
+| `src/`, `scripts/`, `assets/`, `App.js`, `app.json`, `eas.json`, `package.json`, `package-lock.json`, `plugins/` | **INTOCADOS** — nenhum arquivo criado, modificado ou removido, nem por este Plan nem pela emenda |
 | `CLAUDE.md` | **não alterado** — o bloco `<!-- SPECKIT -->` (`:117-120`) é genérico ("read the current plan") e já resolve via `.specify/feature.json`, que aponta para 021 |
-| `docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md` | **não alterado** — divergência de P-31 declarada em §6.2.3, não corrigida |
+| `docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md` | **não alterado** — divergência de P-31 declarada em §6.2.3; sua reconciliação por evidência é **tarefa da Etapa 6 (Analyze)** por decisão da emenda 2 |
 | Builds | **NENHUM gerado.** Histórico remoto EAS **NÃO RECUPERADO** |
 | Metro | **NÃO aberto** |
+| `npm ci` / `npm run smoke` / `expo-doctor` | **NÃO executados** — proibidos antes do Portão Humano 3 |
 | Validação física | **NÃO executada** |
 | Push | **NÃO realizado** |
 
@@ -1285,6 +1383,23 @@ violações, nenhuma dependência nova é proposta, o runtime permanece intocado
 pendências (§19) são de **governança documental**, não bloqueiam a execução técnica e podem ser
 decididas no próprio Portão.
 
-**Recomendação: APTO PARA PORTÃO HUMANO 2.**
+**Recomendação original (Etapa 4): APTO PARA PORTÃO HUMANO 2.**
+
+### 23.1 Estado após o Portão Humano 2 (2026-08-07)
+
+**🚦 PORTÃO HUMANO 2 — APROVADO COM DUAS EMENDAS VINCULANTES.**
+
+| Emenda | Conteúdo | Onde foi aplicada |
+|---|---|---|
+| **1** | Correção **restrita** do `android.adaptiveIcon.backgroundColor` entra na Fase 6; supera C18 na parte que excluía integralmente o adaptive icon | Spec (RF-B8, T14, F12, §4.8, §9.1, C18, CHK039/CHK040) + Plan (§6.6.4, §6.5.4, §7, G-ICON, CN-3, F-ICON, §16) |
+| **2** | Divergência de contagem de P-31 (10 × 11) é resolvida **por evidência histórica na Etapa 6 (Analyze)**, não por pergunta ao fundador | Plan §19 (AC-2 encerrada como pergunta) — investigação a executar em Analyze |
+
+**Decisões do fundador confirmadas sem alteração de artefato:**
+o azul premium **`night400 = #3E5C96`** segue **aprovado como candidato de implementação** (§6.5.2),
+com a validação estética do caráter "acolhedor e infantil" **diferida para a validação física**
+(F-SEAL, em B7); isso **não** bloqueia Tasks nem Analyze.
+
+**Próximo passo autorizado:** **Etapa SDD 5 — Tasks** → **Etapa SDD 6 — Analyze** → **parada
+obrigatória no Portão Humano 3**.
 
 **Complexity Tracking:** vazio — nenhuma violação constitucional a justificar.

@@ -89,7 +89,18 @@ Tokens como fonte única, tipografia contratada, componentes-base, estados de ca
 5. **Itens das Fases 7, 10, 11, 12A, 12B, 17, 19, 20 e 21** — nenhum é puxado para cá silenciosamente.
 6. **Escolha do HEX exato do azul premium não é decisão de produto desta spec** — é derivação técnica do Plan, sob `D-SELOS-ESTADO-V2`.
 7. **Escolha da solução técnica de splash** (manter arquitetura atual, controle nativo explícito, eliminar camada intermediária) — pertence ao **Plan**, não ao requisito de produto.
-8. **Ícone de lançador e ícone adaptativo** (hoje com fundo `#7C3AED`) — são **asset de marca e de loja**, não superfície de abertura. Ficam fora desta fase e são atribuídos à fase de identidade/publicação. Registrado por C18 para não desaparecer.
+8. **Redesenho gráfico do ícone** — `assets/icon.png`, `assets/adaptive-icon.png`, identidade da marca, conceito de ícone, entregas de App Store/Play Store e qualquer trabalho de *branding* **ficam fora desta fase**, atribuídos à fase de identidade/publicação.
+
+   > **⚠️ EMENDA VINCULANTE DO PORTÃO HUMANO 2 (2026-08-07) — supersessão parcial de C18.**
+   > O fundador decidiu que o **`android.adaptiveIcon.backgroundColor` = `#7C3AED`** (`app.json:48`)
+   > **ENTRA no escopo da Fase 6**, exclusivamente como **correção de cor aposentada em configuração
+   > nativa**. Motivação registrada: o roxo foi formalmente aposentado; `app.json` já será alterado
+   > em B4; a correção viaja no mesmo ciclo de build já necessário; não há justificativa para manter
+   > uma cor explicitamente aposentada numa configuração nativa conhecida.
+   > Esta decisão **SUPERA C18** na parte em que ela excluía **integralmente** o ícone adaptativo.
+   > **O que entra:** apenas o valor de `backgroundColor` configurável.
+   > **O que permanece fora:** o asset gráfico, a identidade, o conceito de marca e as entregas de loja.
+   > Ver **`RF-B8`**, **`T14`**, o controle negativo de escopo em §9.1 e **`F12`**.
 
 ## 5. Requisitos funcionais
 
@@ -112,12 +123,13 @@ Tokens como fonte única, tipografia contratada, componentes-base, estados de ca
 | ID | Requisito | Verificação |
 |---|---|---|
 | **RF-B1** | A **primeira impressão** do app é coerente com "O Livro Vivo" — mundo papel/tinta/dourado/luz quente do mascote **Beni**. | prints e vídeo da abertura |
-| **RF-B2** | **Nenhuma superfície de abertura é roxa**, em nenhuma das camadas, em iOS e em Android. **Superfície de abertura**, aqui, é o conjunto delimitado: fundo do *splash* nativo, barra de status na abertura, fundo da porta de fontes e fundo da `SplashScreen`. O **ícone de lançador / ícone adaptativo fica fora** (ver C18). | inspeção de configuração + prints |
+| **RF-B2** | **Nenhuma superfície de abertura é roxa**, em nenhuma das camadas, em iOS e em Android. **Superfície de abertura**, aqui, é o conjunto delimitado: fundo do *splash* nativo, barra de status na abertura, fundo da porta de fontes e fundo da `SplashScreen`. O **ícone adaptativo é tratado à parte, por `RF-B8`** — a *superfície de abertura* de `RF-B2` continua sendo o conjunto de quatro camadas nomeado acima, e é isso que mantém `RF-B2` binário. | inspeção de configuração + prints |
 | **RF-B3** | A **transição entre as camadas de abertura** é percebida como **contínua e coerente** — sem salto de cor, sem *flash* de fundo estranho, sem tela intermediária fora do mundo do Beni. | **validação física em vídeo**, iOS e Android |
 | **RF-B4** | A abertura é **resiliente a erro de fonte**: com fonte indisponível ou lenta, o app **abre mesmo assim**, sem travar e sem tela vazia permanente. | teste automático do contrato de boot + prova física |
 | **RF-B5** | A saída da abertura **não volta a ser governada simplesmente por relógio**: continua acontecendo **por prontidão**, com teto apenas como segurança. | teste automático do contrato de boot |
 | **RF-B6** | A transição até a **primeira tela útil** é visualmente coerente, e a tela útil correta é escolhida (onboarding pendente × mapa). | teste automático + validação física |
 | **RF-B7** | A abertura **não regride** o contrato de carregamento já encerrado: nenhum piso artificial, nenhuma espera nova, nenhum aumento de tempo até a primeira revelação. | teste de regressão + comparação de marcos existentes |
+| **RF-B8** | **O `android.adaptiveIcon.backgroundColor` não é roxo.** O valor `#7C3AED` é substituído por uma cor **já pertencente à paleta canônica** e coerente com "O Livro Vivo". **Escopo restrito, verificável pela negativa:** `assets/icon.png` e `assets/adaptive-icon.png` permanecem **byte-idênticos**; nenhum token novo é criado apenas para o ícone; nenhuma identidade de marca é alterada. *(Emenda vinculante do Portão Humano 2 — supersede C18 parcialmente.)* | inspeção de configuração + `git diff` dos assets + print do lançador em aparelho físico |
 
 ### 5.3 Eixo C — Sistema visual
 
@@ -225,6 +237,7 @@ Registro obrigatório, **não é decisão de produto e não é Product Lock**:
 | T11 | rota de destino do boot (onboarding pendente × concluído × falha de storage) | comportamental | `RF-B6` |
 | T12 | coletor desligado por padrão; ligado apenas no perfil interno | comportamental | `P-139` |
 | T13 | marcos de carregamento existentes preservados (regressão) | comportamental | `D-LP-FECHAMENTO` |
+| T14 | `android.adaptiveIcon.backgroundColor` não é roxo **e** os assets gráficos do ícone permanecem inalterados | inspeção | `RF-B8` |
 
 > ⚠️ O portão de *smoke* hoje **exige** o selo premium azul-noite. Sem ser atualizado, ele **reprovaria** a implementação de `D-SELOS-ESTADO-V2`. A atualização desse portão é item obrigatório do Plan.
 
@@ -234,6 +247,10 @@ Registro obrigatório, **não é decisão de produto e não é Product Lock**:
 - Provar que `T9` **falha** se uma paleta cromática por status for introduzida.
 - Provar que `T12` **falha** se o coletor ligar fora do perfil interno.
 - Provar que `T10` **falha** se a saída da abertura voltar a ser governada por relógio.
+- **Provar que `T14` falha se o asset gráfico do ícone for alterado.** *(Emenda do Portão 2.)* Este
+  controle protege o **escopo restrito** da decisão: a Fase 6 corrige **apenas o valor de cor
+  configurável**; qualquer alteração em `assets/icon.png` ou `assets/adaptive-icon.png` significaria
+  que a correção virou redesenho de marca, o que **não** foi autorizado.
 
 ## 10. Roteiro de validação física (não executado nesta etapa)
 
@@ -250,6 +267,7 @@ Registro obrigatório, **não é decisão de produto e não é Product Lock**:
 | F9 | reduce motion ativo — hápticos silenciados | telefone | vídeo |
 | F10 | varredura visual: nenhuma paleta de status paralela | telefone + tablet | prints por tela |
 | F11 | coletor alcançável no binário interno | telefone | evidência de execução |
+| F12 | **ícone no lançador Android após a correção de fundo** — sem roxo, com contraste adequado, harmônico com o *foreground* existente e distinguível do azul premium | **telefone Android + tablet Android** | print da tela inicial do lançador |
 
 > **NÃO DETERMINADO SEM EXECUÇÃO FÍSICA:** o resultado de F1 a F11. Nenhum deles pode ser inferido por leitura estática.
 
@@ -354,7 +372,7 @@ Fato apurado por enumeração completa da coluna [16] da §14: o valor `6` **nã
 | C15 | O sistema visual da Fase 6 inclui substituir o mascote legado "Lumi" por "Beni"? | busca no corpus + leitura do runtime | **não há ambiguidade de produto**: "Lumi" sobrevive **apenas como identificador interno** (`LumiMoment`, `lumiReflections.js`, `src/components/lumi/*`); a superfície visível já diz **Beni** e **"Meu Momento"**. O resíduo interno é `P-53`, cuja fase proprietária é **12B/16** — **não** é puxado para cá. `RF-A5` trata **posição de rota**, não renomeação |
 | C16 | Como verificar objetivamente "azul premium **luminoso e acolhedor**", se o HEX não é decidido aqui? | `D-SELOS-ESTADO-V2` + Direção de Arte v1.1 + critério de contraste AA + `tokens.js` | resolvida **sem perguntar ao fundador**: converte-se o adjetivo em **banda de aceitação objetiva** (§15.1), que restringe o HEX sem escolhê-lo |
 | C17 | O que significa "eliminação **progressiva**" dos sistemas visuais concorrentes — qual é a fronteira? | Constituição (escopo de fase) + `v5` §3 (varredura visual de telas) | fronteira objetivada em `RF-C3`: eliminação **completa** nas superfícies tocadas pela fase; resíduo fora delas **inventariado nominalmente e atribuído**. "Progressiva" nunca significa "parcial e não declarada" |
-| C18 | O **ícone de lançador**, hoje com fundo roxo `#7C3AED`, é "superfície de abertura"? | `v5` §3 (objetivo = abertura, splash, shell, sistema visual) + natureza do artefato | **não**. O ícone é **asset de marca e de loja**, não superfície renderizada na abertura do app. `RF-B2` delimita nominalmente as quatro superfícies que **são** de abertura; o ícone sai por §4.8, **declarado e atribuído**, não silenciado. Sem essa delimitação, `RF-B2` não seria binário |
+| C18 | O **ícone de lançador**, hoje com fundo roxo `#7C3AED`, é "superfície de abertura"? | `v5` §3 (objetivo = abertura, splash, shell, sistema visual) + natureza do artefato | **não** — *resposta original, hoje **PARCIALMENTE SUPERADA**.* O ícone continua **não sendo** superfície de abertura, e `RF-B2` continua delimitado às quatro camadas renderizadas (é isso que o mantém binário). **PORÉM**, a emenda vinculante do **Portão Humano 2 (2026-08-07)** decidiu que o **valor `adaptiveIcon.backgroundColor`** entra na Fase 6 por um **eixo diferente** — não "abertura", mas **"cor aposentada em configuração nativa"**. Ver §4.8 e **`RF-B8`**. O **asset gráfico** permanece fora, como C18 concluiu. Árbitro da supersessão: **decisão explícita do fundador**, que precede a conclusão do agente |
 
 ### 15.1 Banda de aceitação objetiva do azul premium (deriva C16 — **não** escolhe o HEX)
 
@@ -377,7 +395,7 @@ O HEX continua sendo derivação do Plan. Esta spec fixa apenas o **envelope** q
 | Categoria | Status |
 |---|---|
 | Objetivos e critérios de sucesso | **Clear** — §1, §5, §6 |
-| Fora de escopo explícito | **Resolvido** — §4, com a fronteira do ícone de lançador acrescentada por C18 |
+| Fora de escopo explícito | **Resolvido** — §4. A fronteira do ícone foi acrescentada por C18 e **reposicionada pela emenda do Portão 2**: o **valor de cor** do ícone adaptativo entra (`RF-B8`); o **asset gráfico e a marca** permanecem fora |
 | Papéis / personas | **Clear** — estado de acesso entra só como selo; entitlement é área protegida |
 | Modelo de dados / entidades | **Não aplicável** — a fase não cria nem altera entidade persistida |
 | Ciclo de vida e transições de estado | **Clear** — camadas de abertura, RF-B3…RF-B6 |
@@ -429,7 +447,7 @@ Duas escolhas ficam **explicitamente delegadas ao Plan** e **não** são pergunt
 | CHK001 | Cada requisito funcional declara **como será verificado**, sem depender de interpretação posterior? `[Mensurabilidade, §5]` | ✅ toda linha `RF-*` tem coluna de verificação própria |
 | CHK002 | Os adjetivos herdados da decisão do fundador — *"luminoso"*, *"acolhedor"*, *"sem aparência corporativa"* — foram convertidos em critério objetivo ou explicitamente isolados como julgamento humano? `[Clareza, §15.1]` | ✅ B1–B6 objetivam o que é calculável; a parcela subjetiva é **nomeada como tal** e endereçada à aprovação visual da Etapa 8 |
 | CHK003 | O termo *"eliminação progressiva"* tem fronteira definida, em vez de permitir entrega parcial não declarada? `[Clareza, RF-C3, C17]` | ✅ completo nas superfícies tocadas; resíduo **nominal** e atribuído |
-| CHK004 | *"Superfície de abertura"* está delimitada nominalmente, de modo que `RF-B2` seja binário? `[Fronteira, RF-B2, C18]` | ✅ **corrigido na iteração 1** — quatro superfícies nomeadas; ícone excluído por §4.8 |
+| CHK004 | *"Superfície de abertura"* está delimitada nominalmente, de modo que `RF-B2` seja binário? `[Fronteira, RF-B2, C18]` | ✅ **revalidado na iteração 2 (emenda do Portão 2)** — as quatro superfícies renderizadas continuam nomeadas e `RF-B2` continua binário; o ícone adaptativo **saiu da exclusão e ganhou requisito próprio** (`RF-B8`), por um eixo diferente, **sem** contaminar a definição de "superfície de abertura" |
 | CHK005 | Cada ambiguidade levantada aponta o **documento árbitro** que a resolveu, e não a opinião do agente? `[Rastreabilidade, §15]` | ✅ as 18 linhas de C1–C18 nomeiam o árbitro |
 | CHK006 | Resta algum marcador `[NEEDS CLARIFICATION]`? `[Completude, §16]` | ✅ nenhum |
 
@@ -488,7 +506,9 @@ Duas escolhas ficam **explicitamente delegadas ao Plan** e **não** são pergunt
 | CHK035 | Responsividade traz larguras de referência, e não "adaptar-se bem"? `[Mensurabilidade, RF-C16, §8]` | ✅ |
 | CHK036 | Os **três** eixos têm requisitos próprios — nenhum eixo ficou só no título? `[Completude, §5.1–5.3]` | ✅ 7 + 7 + 9 requisitos |
 | CHK037 | Estados de card estão cobertos com a proibição de paleta paralela **e** a regra de que cor não comunica sozinha? `[Cobertura, RF-C4, RF-C5, RF-C8]` | ✅ |
-| CHK038 | Validação física futura é roteiro executável com prova nomeada, e não intenção? `[Mensurabilidade, §10]` | ✅ F1–F11 com aparelho e artefato de prova |
+| CHK038 | Validação física futura é roteiro executável com prova nomeada, e não intenção? `[Mensurabilidade, §10]` | ✅ **revalidado na iteração 2** — F1–**F12** com aparelho e artefato de prova |
+| CHK039 | A correção do ícone adaptativo tem **fronteira verificável pela negativa**, de modo que não possa escorregar para redesenho de marca? `[Fronteira, RF-B8, §4.8]` | ✅ **acrescentado na iteração 2** — `RF-B8` exige assets **byte-idênticos**; `T14` inspeciona; §9.1 tem o controle negativo de escopo; `F12` prova no lançador |
+| CHK040 | A cor de substituição do ícone adaptativo tem **critério de escolha declarado**, em vez de ser arbitrada na implementação? `[Mensurabilidade, RF-B8]` | ✅ **acrescentado na iteração 2** — critérios do fundador: não roxo · da paleta canônica · sem token novo só para o ícone · harmônica com o *foreground* existente · contraste adequado no lançador · coerente com o novo splash · dourado não vira cor estrutural · não confundível com o azul premium. O valor exato é concluído em B4 **após inspeção factual do foreground**, e validado em `F12` |
 
 ### 17.7 Iterações de correção
 
@@ -499,7 +519,20 @@ O checklist **não passou de primeira**. Duas lacunas materiais foram encontrada
 | 1 | *"Nenhuma tela usando paleta de status paralela"* não definia o conjunto de telas — o critério **não era binário** | CHK008 | S3 passou a exigir **inventário nominal de telas** e cobertura de 100 % dele |
 | 2 | *"Nenhuma superfície de abertura é roxa"* não definia o que conta como superfície de abertura — o ícone de lançador, hoje `#7C3AED`, ficava em zona cinzenta | CHK004 | `RF-B2` nomeia as quatro superfícies; o ícone sai por **§4.8**, declarado e atribuído; ambiguidade registrada como **C18** |
 
-**Iteração 2:** todos os 38 itens aprovados. Nenhum item permanece não aprovado.
+**Iteração 2 (original):** todos os 38 itens aprovados. Nenhum item permanece não aprovado.
+
+#### Revalidação direcionada — emenda vinculante do Portão Humano 2 (2026-08-07)
+
+A decisão do fundador de trazer o `adaptiveIcon.backgroundColor` para a Fase 6 é **mudança material de requisito após o Portão 1**. Pela Regra de Ouro, o requisito voltou aos artefatos. A revalidação foi **direcionada aos itens afetados**, não integral — os demais 36 itens não foram reabertos porque a emenda não os toca.
+
+| Item | Estado antes | Ação | Estado depois |
+|---|---|---|---|
+| CHK004 | ✅ (ícone excluído por §4.8) | **revalidado** — a exclusão deixou de valer para o valor de cor; verificado que `RF-B2` **continua binário** porque a definição de "superfície de abertura" não foi alterada | ✅ |
+| CHK038 | ✅ (F1–F11) | **revalidado** — roteiro estendido para F1–**F12** | ✅ |
+| CHK039 | — | **acrescentado** — fronteira do escopo restrito, verificável pela negativa | ✅ |
+| CHK040 | — | **acrescentado** — critério de escolha da cor declarado | ✅ |
+
+**Resultado da revalidação direcionada: 40/40 itens aprovados.** Nenhuma regressão: nenhum item passou de aprovado para não aprovado. Nenhum item fora do alcance da emenda foi tocado.
 
 ### 17.8 Ressalva metodológica declarada
 
@@ -511,8 +544,11 @@ O checklist **não passou de primeira**. Duas lacunas materiais foram encontrada
 
 | Campo | Valor |
 |---|---|
-| Etapas concluídas | **1 (Specify) · 2 (Clarify) · 3 (Checklist)** |
-| Etapa seguinte | **🚦 Portão Humano 1** — aprovação da especificação pelo fundador |
-| Proibido antes do portão | Plan, Tasks, Analyze, implementação, alteração de runtime, Metro, build, instalação, validação física, push |
+| Etapas concluídas | **1 (Specify) · 2 (Clarify) · 3 (Checklist)** · **emenda vinculante do Portão Humano 2 aplicada em 2026-08-07** |
+| Portões vencidos | **🚦 Portão Humano 1** aprovado · **🚦 Portão Humano 2** aprovado **com duas emendas vinculantes** |
+| Emenda 1 aplicada a este artefato | `adaptiveIcon.backgroundColor` entra na Fase 6 — §4.8, `RF-B2`, **`RF-B8`**, `T14`, §9.1, **`F12`**, C18 (supersessão parcial), CHK004, CHK038, **CHK039**, **CHK040** |
+| Emenda 2 (divergência P-31 10×11) | **não** altera requisito — o critério permanece **zero navegações inefetivas no escopo**; a reconciliação por evidência histórica é tarefa da **Etapa 6 (Analyze)** |
+| Etapa seguinte | **Etapa SDD 5 (Tasks)** → **Etapa SDD 6 (Analyze)** → **🚦 Portão Humano 3** |
+| Proibido antes do Portão 3 | implementação, alteração de runtime, `npm ci`, Metro, build, instalação, validação física, push |
 | Runtime alterado por este artefato | **nenhum** |
 | Push | **não realizado** |
