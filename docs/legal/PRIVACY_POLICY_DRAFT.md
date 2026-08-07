@@ -32,7 +32,9 @@ O aplicativo foi projetado para ser utilizado com **supervisão dos responsávei
 
 ### 3.1 Dados coletados localmente no dispositivo
 
-O aplicativo **não envia dados para servidores externos** em sua versão atual. Todos os dados ficam armazenados exclusivamente no dispositivo do usuário.
+**Nenhum dado pessoal da criança é enviado para servidores externos.** Nome, avatar, progresso, desenhos, pinturas e criações ficam armazenados **exclusivamente no dispositivo**.
+
+O aplicativo realiza tráfego de rede em duas situações, **nenhuma delas envolvendo dados pessoais da criança** — descritas em detalhe na seção 6.1: a **validação da assinatura** junto ao provedor de pagamento e o **download opcional de histórias** para uso offline.
 
 | Dado | Finalidade | Base legal (LGPD) | Obrigatório? |
 |---|---|---|---|
@@ -61,12 +63,15 @@ O aplicativo **não envia dados para servidores externos** em sua versão atual.
 
 ## 4. Como os Dados São Armazenados
 
-Todos os dados são armazenados **localmente no dispositivo** usando o mecanismo de armazenamento local do sistema operacional (AsyncStorage). Os dados:
+Os dados são armazenados **localmente no dispositivo**, de duas formas: no mecanismo de armazenamento local do sistema operacional (AsyncStorage), para textos e registros de progresso; e no **diretório privado do aplicativo**, para os arquivos de imagem dos desenhos e das criações. Os dados:
 
-- **Nunca são transmitidos para servidores externos** na versão atual
-- **Ficam no dispositivo** até que o responsável utilize a função "Limpar progresso" na Área dos Pais
-- **Podem ser apagados** a qualquer momento pelo responsável através da Área dos Pais, protegida por verificação matemática
+- **Nunca são transmitidos para servidores externos** — nenhum dado pessoal da criança sai do aparelho
+- **Ficam no dispositivo** até que o responsável utilize uma das funções de exclusão da Área dos Pais
+- **Podem ser apagados** a qualquer momento pelo responsável através da Área dos Pais, protegida por verificação de adulto
 - **São removidos automaticamente** quando o aplicativo é desinstalado
+- **Não têm prazo de expiração automática:** o aplicativo não apaga dados sozinho com o passar do tempo. A remoção depende de ação do responsável ou da desinstalação
+
+Os arquivos de imagem dos desenhos recebem nomes derivados de identificadores internos do aplicativo — **nunca do nome da criança**.
 
 ---
 
@@ -87,15 +92,30 @@ Se você é responsável por uma criança e deseja exercer direitos sobre os dad
 
 ## 6. Compartilhamento de Dados
 
-**Não compartilhamos dados pessoais com terceiros** na versão atual do aplicativo.
+**Não compartilhamos dados pessoais da criança com terceiros.**
 
 Não utilizamos:
 - SDKs de analytics comportamental
 - Plataformas de publicidade
-- Serviços de rastreamento
+- Serviços de rastreamento ou identificadores de publicidade (IDFA / GAID)
 - Plataformas de redes sociais integradas
+- Serviços de relatório de falhas (crash reporting)
+- Notificações push
 
-**Exceção futura:** Caso funcionalidades de sincronização em nuvem, autenticação ou assinatura premium sejam implementadas em versões futuras, esta política será atualizada e o consentimento dos responsáveis será solicitado novamente.
+### 6.1 Conexões de rede que o aplicativo realiza
+
+Para que a informação seja completa e verificável, estas são **todas** as situações em que o aplicativo acessa a internet:
+
+| Quando | Para quê | O que trafega | Envolve dado da criança? |
+|---|---|---|---|
+| Ao retornar ao aplicativo | Verificar se a assinatura do Plano Família está ativa, junto ao provedor de processamento de assinaturas | Identificadores técnicos de dispositivo e de compra, gerados pelo próprio provedor | **Não.** Nenhum nome, desenho ou progresso |
+| Ao tocar em "Baixar história (usar offline)" | Baixar o conteúdo da história escolhida | Apenas o download do conteúdo, do servidor para o aparelho | **Não.** Nada é enviado do aparelho |
+| Ao tocar em "Falar com a gente" | Abrir o aplicativo de e-mail do aparelho | O que o responsável escrever | apenas o que o adulto decidir escrever |
+| Ao tocar em "Compartilhar orientação" (Modo Igreja) | Abrir o menu de compartilhamento do sistema | O texto de orientação da turma | pode conter os nomes de turma e de líder digitados pelo responsável |
+
+Nenhuma dessas conexões envia nome, avatar, progresso, desenhos ou criações da criança.
+
+**Exceção futura:** Caso funcionalidades de sincronização em nuvem ou autenticação sejam implementadas em versões futuras, esta política será atualizada e o consentimento dos responsáveis será solicitado novamente.
 
 ---
 
@@ -119,10 +139,12 @@ Como responsável pela criança, você tem os seguintes direitos:
 | Confirmar a existência de tratamento | Leia esta política ou entre em contato |
 | Acessar os dados | Os dados estão no dispositivo, acessíveis pelo uso normal do app |
 | Corrigir dados incompletos ou incorretos | Edite o nome/avatar na tela de Perfil |
-| Anonimizar, bloquear ou eliminar dados | Use "Limpar progresso" na Área dos Pais |
-| Portabilidade | Os dados são locais; o app não possui função de exportação na versão atual |
+| Anonimizar, bloquear ou eliminar dados | Use, na Área dos Pais: **"Reiniciar progresso"**, **"Apagar pinturas do Colorir com o Beni"** ou **"Apagar criações do Criar Livre"**. Para apagar **tudo, incluindo nome e avatar**, desinstale o aplicativo — a exclusão total dentro do app está em preparação |
+| Portabilidade | Os dados são locais; o aplicativo **não possui função de exportação** na versão atual |
 | Revogar consentimento | Desinstale o aplicativo |
 | Reclamação à ANPD | Acesse www.gov.br/anpd |
+
+**Prazo de conservação:** os dados permanecem no aparelho **enquanto o aplicativo estiver instalado**, sem expiração automática, até que o responsável utilize uma das funções de exclusão acima.
 
 Para exercer seus direitos ou esclarecer dúvidas: **contato@pequenostracosdefe.com**
 
@@ -137,9 +159,13 @@ O aplicativo é distribuído por:
 
 O aplicativo utiliza:
 
-- **Google Fonts** (Fredoka One, Nunito) — carregadas localmente no bundle, sem requisição de rede
+- **Google Fonts** (Fraunces, Fredoka One, Nunito) — carregadas localmente no bundle, **sem requisição de rede**
 - **Expo** (plataforma de build) — dados de build tratados pela Expo Inc. conforme expo.dev/privacy
+- **RevenueCat** (`react-native-purchases`) — serviço de verificação de assinatura. Recebe identificadores técnicos de dispositivo e de compra para confirmar se o Plano Família está ativo. **Não recebe nome, avatar, progresso, desenhos ou qualquer dado pessoal da criança.** [PLACEHOLDER — confirmar com o provedor o país de hospedagem, o prazo de retenção e o acordo de tratamento de dados antes da publicação]
+- **Cloudflare R2** — hospedagem pública do conteúdo das histórias disponíveis para download offline. O aparelho apenas **baixa** arquivos; nada é enviado
 - [PLACEHOLDER — Listar qualquer SDK de terceiro adicionado no futuro]
+
+Este aplicativo **não** utiliza SDKs de analytics, publicidade, rastreamento ou relatório de falhas.
 
 ---
 
