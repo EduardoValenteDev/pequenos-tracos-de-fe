@@ -56,7 +56,7 @@ Fatos relevantes já apurados:
 - **Zero** ocorrências de `allowFontScaling` e `maxFontSizeMultiplier` em todo o `src/`.
 - Cerca de **34 textos abaixo de 13 px** e **4 contrastes reprovados em AA**.
 - **Zero `accessibilityRole`** em **Cultinho**, **Meu Momento** e **Livrinho**.
-- Hápticos **sem respeitar reduce motion** em três telas.
+- Hápticos **sem respeitar reduce motion** em **9 arquivos** — recontagem auditada na Etapa 6 (Plan §6.4.1): **3** vibram sem sequer consultar a preferência (`CadeAOvelhinhaScreen`, `MonteACenaDifficultyScreen`, `PuzzleGestureLabScreen`) e **6** consultam a preferência mas **não a aplicam ao háptico** (`usePuzzleController`, `AtelierCanvasScreen`, `MonteACenaGameScreen`, `MonteACenaSpikeScreen`, `MonteACenaTableGameScreen`, `ParesDoBeniScreen`). A matriz registra "três telas … e duas leem sem aplicar"; o "três" confere, o "duas" era subcontagem.
 
 ### 2.4 Shell de navegação e responsividade (`P-20`, `P-29`, `P-30`, `P-31`, `P-47`)
 
@@ -547,7 +547,7 @@ A decisão do fundador de trazer o `adaptiveIcon.backgroundColor` para a Fase 6 
 | Etapas concluídas | **1 (Specify) · 2 (Clarify) · 3 (Checklist)** · **emenda vinculante do Portão Humano 2 aplicada em 2026-08-07** |
 | Portões vencidos | **🚦 Portão Humano 1** aprovado · **🚦 Portão Humano 2** aprovado **com duas emendas vinculantes** |
 | Emenda 1 aplicada a este artefato | `adaptiveIcon.backgroundColor` entra na Fase 6 — §4.8, `RF-B2`, **`RF-B8`**, `T14`, §9.1, **`F12`**, C18 (supersessão parcial), CHK004, CHK038, **CHK039**, **CHK040** |
-| Emenda 2 (divergência P-31 10×11) | **não** altera requisito — o critério permanece **zero navegações inefetivas no escopo**; a reconciliação por evidência histórica é tarefa da **Etapa 6 (Analyze)** |
+| Emenda 2 (divergência P-31 10×11) | **não** altera requisito — o critério permanece **zero navegações inefetivas no escopo**. A reconciliação por evidência foi **executada na Etapa 6** (Plan §6.2.3): o **11** desta Spec está **confirmado correto**; o erro era da recontagem do Plan, que perdeu `src/navigation/monteACenaExit.js:38`. Nenhuma ocorrência desapareceu; a matriz não precisa de correção |
 | Etapa seguinte | **Etapa SDD 5 (Tasks)** → **Etapa SDD 6 (Analyze)** → **🚦 Portão Humano 3** |
 | Proibido antes do Portão 3 | implementação, alteração de runtime, `npm ci`, Metro, build, instalação, validação física, push |
 | Runtime alterado por este artefato | **nenhum** |

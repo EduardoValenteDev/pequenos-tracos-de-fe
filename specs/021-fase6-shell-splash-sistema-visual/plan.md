@@ -241,10 +241,32 @@ tablet. Isso não é efeito colateral: é o objetivo. Mas **exige validação f�
 |---|---|
 | **Área segura** | RF-A1 exige tratamento único de área segura. Remover `AppScreen` deixaria o requisito sem primitiva; cada tela continuaria improvisando (exatamente o defeito que P-29 descreve) |
 | **Consistência** | Uma primitiva consumida é o que torna S-shell verificável; sem ela, "consistência" não é binária |
-| **Duplicação** | A adoção **elimina** a duplicação (5 telas improvisando); a remoção a **perpetua** |
-| **Impacto nas telas** | 5 telas nominadas pela matriz migram. Escopo delimitado, não os 42 arquivos |
+| **Duplicação** | A adoção **elimina** a duplicação no conjunto migrado; a remoção a **perpetua** em todos os consumidores |
+| **Impacto nas telas** | Migra um **conjunto nominal fechado e delimitado**, não os 42 arquivos — ver correção abaixo |
 | **Rollback** | Alto: a migração é por tela, reversível individualmente |
-| **Testabilidade** | Gate estrutural no smoke: "nenhuma tela do inventário chama `useSafeAreaInsets` diretamente" |
+| **Testabilidade** | Gate estrutural no smoke (**G-SAFE**, escopo corrigido em §10.2): nenhuma das **telas migradas por B1** chama `useSafeAreaInsets` diretamente |
+
+> 🔴 **Correção aplicada na Etapa 6 — a redação "5 telas nominadas pela matriz" estava errada.**
+>
+> A matriz (`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md` §14, linha P-29) fala em
+> **"5 telas"** de superfície, mas **não nomeia nenhuma delas**. Escrever "nominadas pela matriz" atribuía
+> ao árbitro uma precisão que ele não tem, e deixaria B1 sem critério verificável de quais arquivos migrar.
+>
+> **Fato apurado nesta Etapa 6:** `useSafeAreaInsets` é consumido diretamente por **41 telas** mais
+> `BeniGuideOverlay`, `TabletSidebar`, `CreatorModeBanner`, `AppScreen`, `SafeScreenHeader` e `AppNavigator`.
+> Migrar as 41 **não** é escopo da Fase 6 — seria uma refatoração de porte incompatível com o
+> "Rollback: Baixo" declarado em §11 para B1 e com a delimitação de §9 ("a Fase 6 não migra os 75
+> consumidores de `productTheme`").
+>
+> **Critério que substitui a contagem falsa** — B1 migra a interseção de:
+> 1. tela **incluída** no inventário nominal de `tasks.md` (§1, PRE-0); **e**
+> 2. tela que consome `useSafeAreaInsets` **diretamente** para compor *padding* de topo ou de base
+>    (não para cálculo interno de um canvas/overlay); **e**
+> 3. tela cuja adoção de `AppScreen` **não** exija tocar `productTheme` em cascata.
+>
+> A lista nominal fechada resultante é produzida em `tasks.md` (T017) **antes** de qualquer edição, e é
+> ela — não "5" — que o gate **G-SAFE** verifica. Se a interseção resultar em mais telas do que B1 pode
+> absorver com rollback baixo, o excedente é **declarado e adiado**, não migrado silenciosamente.
 
 **Condição inegociável:** ao ser adotado, `AppScreen.js` **deve deixar de importar `productTheme`** e
 passar a consumir `tokens.js`. Adotar um componente-base que propaga o tema concorrente
@@ -288,7 +310,7 @@ que não existe, e é **descartada por construção**.
 | 2 | `src/screens/HomeScreen.js` | 660 | `navigation.navigate('Aventuras')` |
 | 3 | `src/screens/HomeScreen.js` | 717 | `navigation.navigate('Estrelinhas')` |
 
-**Navegações com payload aninhado `navigate(…, { screen: … })` (7 auditadas):**
+**Navegações com payload aninhado `{ screen: … }` (8 — corrigido na Etapa 6 · Analyze):**
 
 | # | Arquivo | Linha | Chamada |
 |---|---|---|---|
@@ -299,8 +321,57 @@ que não existe, e é **descartada por construção**.
 | 5 | `src/screens/ParentAreaScreen.js` | 493 | `navigate('Home', { screen: 'Aventuras', params: { startBeniTour: true } })` |
 | 6 | `src/screens/ParesDoBeniScreen.js` | 971 | `navigate(ROUTES.HOME, { screen: ROUTES.ACTIVITIES })` |
 | 7 | `src/screens/StoryBookScreen.js` | 740 | `navigate('Home', { screen: 'Aventuras' })` |
+| **8** | **`src/navigation/monteACenaExit.js`** | **38** | **`exitTo(navigation, ROUTES.HOME, { screen: ROUTES.ACTIVITIES })`** — despacha `StackActions.popTo(ROUTES.HOME, { screen: ROUTES.ACTIVITIES })` **ou** `CommonActions.navigate({ name, params })`. Exportado como `exitToBrincar`, consumido por `MonteACenaTableGameScreen.js:370` e `:491` (**duas superfícies de toque, um único ponto de chamada**) |
 
-#### 6.2.3 🔴 DIVERGÊNCIA DE CONTAGEM — DECLARADA, NÃO AJUSTADA
+> **A oitava ocorrência foi acrescentada na Etapa 6 (Analyze), por evidência.** A auditoria original
+> desta seção varreu chamadas literais `navigation.navigate(` em telas e componentes, e por isso
+> **não** alcançou `monteACenaExit.js`, onde a navegação é **indireta**: o payload aninhado viaja
+> dentro de `StackActions`/`CommonActions` despachados por um helper de `src/navigation/`.
+> Ver §6.2.3 para a reconciliação completa.
+
+**Total auditado: 3 + 8 = 11 navegações inefetivas.**
+
+#### 6.2.3 ✅ DIVERGÊNCIA DE CONTAGEM — RESOLVIDA POR EVIDÊNCIA NA ETAPA 6
+
+> ### Resultado da investigação exigida pela Emenda Vinculante 2
+>
+> **A matriz está CORRETA. A recontagem da Etapa 4 (este Plan) estava ERRADA.**
+>
+> | Item | Matriz (E011/E012) | Recontagem da Etapa 4 | **Veredito da Etapa 6** |
+> |---|---|---|---|
+> | Chamadas com payload aninhado | **8** | 7 | ✅ **8 — a matriz acerta** |
+> | Nomes de aba | 3 | 3 | ✅ **3 — coincidem** |
+> | **Total** | **11** | 10 | ✅ **11** |
+>
+> **A 8ª ocorrência é `src/navigation/monteACenaExit.js:38`.**
+>
+> **Método da reconstrução histórica** (apenas o histórico necessário, como manda a emenda):
+> a linha P-31 nasceu na primeira versão versionada da matriz, `c293cea` (2026-08-05, E015),
+> herdando a contagem de E011/E012. Comparando o runtime **naquele commit** com a base atual
+> (`015c438` ≡ `HEAD:src` — mesma árvore, `3d7c07d`), a varredura por payload aninhado
+> (`git grep -nE "\{ *screen:" -- src`) retorna **8 ocorrências em ambos, idênticas linha a linha**.
+>
+> **Conclusão: nenhuma ocorrência desapareceu. Nada foi removido entre E012 e a base atual.**
+> A hipótese registrada na Etapa 4 — "uma 8ª chamada pode ter sido removida junto com uma tela
+> aposentada" — está **refutada pela evidência** e é aqui retirada.
+>
+> **Por que a Etapa 4 perdeu a ocorrência (causa declarada, não silenciada):** a auditoria do Plan
+> varreu **chamadas literais `navigation.navigate(`** em `src/screens/` e `src/components/`. Em
+> `monteACenaExit.js` a navegação é **indireta** — o helper `exitTo()` despacha
+> `StackActions.popTo(targetName, params)` ou `CommonActions.navigate({ name, params })`. O padrão
+> de busca não alcançava esse formato. **Não houve invenção de ocorrência para fechar a conta:**
+> a ocorrência existe, está no runtime hoje, e é verificável em uma linha.
+>
+> **Consequência documental: NENHUMA correção é necessária na matriz.** O artefato proprietário
+> está certo. A correção coube ao Plan (§6.2.2, §14) e está aplicada.
+>
+> **O critério de aceite permanece o mesmo e não vira número:**
+> **ZERO NAVEGAÇÕES INEFETIVAS NO ESCOPO.**
+
+---
+
+**Registro histórico da divergência, como declarada na Etapa 4** *(preservado para rastreabilidade;
+os itens abaixo foram superados pela investigação acima)*:
 
 > A matriz (`09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md:506`) registra **"8 chamadas `navigate('Home', {screen})` e 3 nomes de aba"** — total **11**.
 > A **recontagem manual auditada** do runtime atual (`76e502c`, idêntico a `015c438`) encontra
@@ -346,9 +417,11 @@ que não existe, e é **descartada por construção**.
 | **`BackHandler`** | Ausente em `TabletLayout`; existe só em `BeniGuideOverlay.js:70` e `AtelierCanvasScreen.js:307` | Com o Tab.Navigator real, o botão físico Android volta a ser tratado **pelo próprio React Navigation**. Nenhum `BackHandler` manual novo é introduzido no shell — **corrigir a estrutura remove a necessidade do remendo** |
 | **Navegação aninhada** | Descartada por construção acima de 768 dp | Passa a funcionar por construção, pelo mesmo motivo |
 
-**Consequência de escopo:** com o Tab.Navigator real, **as 10 chamadas mapeadas em §6.2.2 não
+**Consequência de escopo:** com o Tab.Navigator real, **as 11 chamadas mapeadas em §6.2.2 não
 precisam ser reescritas** — elas passam a funcionar. O plano prevê **normalizá-las para `ROUTES.*`**
-(4 das 10 ainda usam strings literais) como higiene, mas isso é consequência, não a correção.
+(4 das 8 chamadas com payload aninhado ainda usam strings literais: `CultinhoEmCasaScreen.js:56`
+e `:183`, `ParentAreaScreen.js:493`, `StoryBookScreen.js:740`) como higiene, mas isso é
+consequência, não a correção.
 
 #### 6.2.5 P-20 — parcela do shell
 
@@ -422,27 +495,67 @@ desapareceu** (exigência literal da autorização §13):
 
 ### 6.4 B2′ — Reduce motion e hápticos (P-104)
 
-**Estado auditado.** 12 arquivos consomem `expo-haptics`:
-`Coloring60CompletionOverlay`, `BotaoPrimario`, `usePuzzleController`, `AtelierCanvasScreen`,
-`CadeAOvelhinhaScreen`, `MonteACenaDifficultyScreen`, `MonteACenaGameScreen`,
-`MonteACenaSpikeScreen`, `MonteACenaTableGameScreen`, `OnboardingScreen`, `ParesDoBeniScreen`,
-`PuzzleGestureLabScreen`.
+> ### ✅ Recontagem auditada na Etapa 6 — duas correções declaradas
+>
+> A Etapa 4 registrou **12** consumidores de `expo-haptics` e **1** consumidor de
+> `AccessibilityInfo.isReduceMotionEnabled`, e declarou a identificação nominal 3+2 como
+> "NÃO DETERMINADO". **As três afirmações estavam erradas** e são corrigidas abaixo por
+> evidência. O ajuste é declarado, não silencioso:
+>
+> | O que a Etapa 4 dizia | Contagem correta | Por que divergiu |
+> |---|---|---|
+> | 12 arquivos consomem `expo-haptics` | **11** | `BotaoPrimario.js` foi incluído por um *match* de texto na **linha 14, que é um comentário** (`Haptics NÃO é acionado neste bloco`). O arquivo **não importa** `expo-haptics`. |
+> | 1 consumidor de `isReduceMotionEnabled` | **10** | A varredura da Etapa 4 partiu do conjunto de arquivos com háptico; os arquivos que consultam a preferência **sem** vibrar ficaram fora do campo de busca. |
+> | Identificação nominal 3+2 "não recuperável" | **Recuperável — e recuperada** | A matriz descreve um padrão verificável estaticamente (vibrar sem consultar a preferência). Bastava cruzar os dois conjuntos, o que a Etapa 4 não fez. |
 
-**Único consumidor de `AccessibilityInfo.isReduceMotionEnabled`:**
-`Coloring60CompletionOverlay.js:255-273` — que já implementa o padrão correto, inclusive tratando
-a **assincronia** da consulta (o hook expõe `ready` para não animar antes de saber).
+**Estado auditado (Etapa 6, base `015c438` ≡ `HEAD:src`).**
 
-A matriz (P-104) registra "três telas vibram sem consultar a preferência e duas leem a preferência
-sem aplicar". **A identificação nominal dessas 3+2 telas não é recuperável da linha visível da
-matriz** e será extraída na Etapa 5 a partir do conjunto de 12 candidatos acima.
-**NÃO DETERMINADO nesta rodada** — e deliberadamente não inventado.
+**11 arquivos importam `expo-haptics`**, somando **24 chamadas** de
+`Haptics.impactAsync` / `notificationAsync` / `selectionAsync`:
+`Coloring60CompletionOverlay` (4), `usePuzzleController` (3), `AtelierCanvasScreen` (2),
+`CadeAOvelhinhaScreen` (1), `MonteACenaDifficultyScreen` (1), `MonteACenaGameScreen` (1),
+`MonteACenaSpikeScreen` (1), `MonteACenaTableGameScreen` (3), `OnboardingScreen` (1),
+`ParesDoBeniScreen` (3), `PuzzleGestureLabScreen` (4).
+
+**10 arquivos originam a consulta `AccessibilityInfo.isReduceMotionEnabled`** (outros ~13
+apenas **recebem** `reduceMotion` como prop/parâmetro e não são origem da leitura):
+`Coloring60CompletionOverlay`, `usePuzzleController`, `AtelierCanvasScreen`, `BrincarScreen`,
+`MonteACenaGameScreen`, `MonteACenaSpikeScreen`, `MonteACenaTableGameScreen`,
+`OnboardingScreen`, `PalavrinhasDoBeniScreen`, `ParesDoBeniScreen`.
+
+#### 6.4.1 ✅ Identificação nominal exigida pelo Portão Humano 2
+
+Cruzando os dois conjuntos:
+
+| Grupo | Arquivos | Alcance | Situação |
+|---|---|---|---|
+| **A — 3 telas com háptico e SEM consultar a preferência** | `CadeAOvelhinhaScreen` (1 chamada), `MonteACenaDifficultyScreen` (1), `PuzzleGestureLabScreen` (4) | As duas primeiras são **alcançáveis em produção** (rotas registradas **sem** gate — `AppNavigator.js:421-425` e `:488`); `PuzzleGestureLab` é **dev-gated** (`:491-493`) | 🔴 Vibram sempre |
+| **B — 6 que leem a preferência mas NÃO a aplicam ao háptico** | `usePuzzleController` (3), `AtelierCanvasScreen` (2), `MonteACenaGameScreen` (1), `MonteACenaSpikeScreen` (1), `MonteACenaTableGameScreen` (3), `ParesDoBeniScreen` (3) | Aplicam `reduceMotion` à **animação**, não ao háptico | 🟠 Vibram mesmo com movimento reduzido |
+| **C — 2 que já aplicam corretamente** | `OnboardingScreen.js:180` (`if (!reduceMotion) Haptics.impactAsync…`), `Coloring60CompletionOverlay.js:963` e `:980` | Produção | ✅ Padrão de referência |
+| **D — 2 que leem e aplicam, sem háptico** | `BrincarScreen`, `PalavrinhasDoBeniScreen` | Produção | ✅ Fora do escopo de B2′ |
+
+> **O "3" da matriz está exatamente certo** — grupo A confere item a item.
+> **O "2" da matriz é subcontagem:** o grupo real que lê sem aplicar ao háptico tem **6** arquivos,
+> não 2. A matriz não é corrigida aqui (é artefato proprietário de outra fase); a divergência fica
+> **declarada** e o escopo de B2′ trabalha com o número real — **9 arquivos a corrigir (A + B)**,
+> não 5.
 
 **Arquitetura proposta:** extrair o padrão já validado em `Coloring60CompletionOverlay` para um
-hook compartilhado (`useReduceMotion`) e um utilitário de háptico que consulta a preferência antes
-de vibrar. **Nenhuma dependência nova** — `expo-haptics` e `AccessibilityInfo` já estão no projeto.
-Vários dos 12 consumidores são telas **dev-gated** (Monte a Cena, PuzzleGestureLab); o plano
-prioriza os consumidores **alcançáveis pela criança em produção** e declara os dev-gated como
-cobertura de segunda ordem.
+hook compartilhado **`src/hooks/useReduceMotion.js`** e um utilitário de háptico que consulta a
+preferência antes de vibrar, preservando o tratamento da **assincronia** da consulta (o hook expõe
+`ready` para não decidir antes de saber). **Nenhuma dependência nova** — `expo-haptics` e
+`AccessibilityInfo` já estão no projeto.
+
+**Semântica fixada pelo Portão Humano 2:** o háptico **permanece ativo** para quem **não** pediu
+movimento reduzido. A correção não desliga vibração; ela passa a **respeitar a preferência do
+sistema**.
+
+**Alcance real dos 9 arquivos (verificado em `AppNavigator.js`, não presumido):**
+
+| Alcance | Arquivos | Prioridade |
+|---|---|---|
+| **Alcançáveis pela criança em produção — 5** | `CadeAOvelhinhaScreen`, `MonteACenaDifficultyScreen`, `AtelierCanvasScreen`, `MonteACenaTableGameScreen`, `ParesDoBeniScreen` | 🔴 **Primeira ordem** — bloqueiam G-MOTION e F-MOTION-ON/OFF |
+| **Dev-gated — 4** | `PuzzleGestureLabScreen` e `MonteACenaSpikeScreen` e `MonteACenaGameScreen` (todos sob `isInternalToolsEnabled()`) · `usePuzzleController` (**único consumidor**: `MonteACenaGameV2Screen`, também dev-gated) | 🟡 **Segunda ordem** — recebem a mesma correção por consistência; **não** bloqueiam validação física |
 
 ---
 
@@ -764,9 +877,9 @@ Ver §15 (inventário) e §14 (matriz física).
 | Bloco | Arquivos candidatos |
 |---|---|
 | **B1** | `src/theme/tokens.js` · `src/theme/productTheme.js:107` · `src/components/layout/AppScreen.js` · `src/components/layout/CenteredContent.js` · `src/components/ui/ContentContainer.js` · `src/components/BeniGuideOverlay.js:79` · `src/navigation/AppNavigator.js:283` · 7 telas de §6.1.1 · `scripts/smoke.js` (gate novo) |
-| **B3** | `src/navigation/AppNavigator.js` (`MainTabs`, `TabletLayout`, rotas `LumiMoment`/`StoryBook`) · `src/constants/routes.js` (sem trocar valores) · as 10 chamadas de §6.2.2 (normalização para `ROUTES.*`) · `scripts/smoke.js` (gate novo) |
+| **B3** | `src/navigation/AppNavigator.js` (`MainTabs`, `TabletLayout`, rotas `LumiMoment`/`StoryBook`) · `src/constants/routes.js` (sem trocar valores) · as 11 chamadas de §6.2.2 (normalização para `ROUTES.*`), incluindo `src/navigation/monteACenaExit.js:38` · `scripts/smoke.js` (gate novo) |
 | **B2** | `src/components/layout/AppScreen.js` · `src/components/ui/ContentContainer.js` · `src/components/ui/ModalPapel.js` · `src/components/ui/BotaoPrimario.js` · shell em `AppNavigator.js` · telas do inventário de §15 |
-| **B2′** | novo `src/hooks/useReduceMotion.js` (extraído de `Coloring60CompletionOverlay.js:255-273`) · utilitário de háptico · subconjunto dos 12 consumidores de §6.4 |
+| **B2′** | novo `src/hooks/useReduceMotion.js` (extraído de `Coloring60CompletionOverlay.js:255-273`) · utilitário de háptico · os **9 arquivos dos grupos A e B** de §6.4.1 (dos 11 consumidores de `expo-haptics`) |
 | **B5** | `src/theme/tokens.js` (`night400`, `seal.premium`) · `src/components/story/StoryBookHero.js` · `src/components/premium/LockedStoryFallback.js` · `src/screens/CongratsScreen.js` · **`scripts/smoke.js:23597-23606` (gate A0.7 → D-SELOS-ESTADO-V2)** |
 | **B4** | `App.js` (retorno condicional da porta de fontes) · `src/screens/SplashScreen.js` · `app.json` (linhas 14, 41 **e 48** — a 48 por `RF-B8`, emenda do Portão 2; **`assets/icon.png` e `assets/adaptive-icon.png` NÃO são tocados**) |
 | **B6** | `eas.json` (perfil `preview`) · `package.json` (script `perf:report`) — **`src/services/performanceTrace.js` INTOCADO** |
@@ -829,7 +942,7 @@ Ver §15 (inventário) e §14 (matriz física).
 |---|---|---|
 | **G-BP-1** | Nenhum arquivo de `src/` compara largura contra `768` literal | B1 |
 | **G-BP-2** | `productTheme` não declara mais `tabletBreakpoint` | B1 |
-| **G-SAFE** | Nenhuma tela do inventário chama `useSafeAreaInsets` diretamente | B1 |
+| **G-SAFE** *(escopo corrigido na Etapa 6)* | Nenhuma das **telas migradas por B1** (o conjunto nominado em `tasks.md` T017) chama `useSafeAreaInsets` diretamente — todas consomem `AppScreen`. O gate é uma **lista fechada e crescente**, não "todo o inventário" | B1 |
 | **G-NAV-1** | `TabletLayout` não fabrica objeto `route` | B3 |
 | **G-NAV-2** | Toda `navigate` para nome de aba usa `ROUTES.*` | B3 |
 | **G-A11Y-1** | Todo componente-base emite `accessibilityRole` e `accessibilityLabel` | B2 |
@@ -995,7 +1108,7 @@ cronograma declarado**, não uma dívida a descobrir depois.
 | ID | Cenário | Aparelho | SO | Bloco | P coberto |
 |---|---|---|---|---|---|
 | **F-TAB-600** | Faixa 600–767 dp recebe layout de tablet; abaixo de 600 não | Tablet | AND | B1 | P-30 |
-| **F-TAB-NAV** | As 10 navegações de §6.2.2 **trocam de aba de fato** | Tablet | AND + IOS | B3 | **P-31** |
+| **F-TAB-NAV** | As **11** navegações de §6.2.2 **trocam de aba de fato** | Tablet | AND + IOS | B3 | **P-31** |
 | **F-TAB-BACK** | Botão físico de voltar tem comportamento correto no shell | Tablet | **AND** | B3 | P-31 |
 | **F-TAB-SIDE** | Sidebar presente/ausente **por decisão declarada** em `LumiMoment` e `StoryBook` | Tablet | AND + IOS | B3 | **P-47** |
 | **F-TAB-C60** | Módulos C60, Livrinho, Meu Momento e Cultinho em largura de tablet | Tablet | AND + IOS | B3/B7 | **P-20** |
@@ -1042,16 +1155,66 @@ Uma tela entra no inventário da Fase 6 se satisfizer **ao menos um**:
 
 | Critério | Árbitro |
 |---|---|
-| **E1** — tela **dev-gated** (só registrada sob `isInternalToolsEnabled` / Modo Criador) | `routes.js` — não alcançável pela criança |
-| **E2** — tela cuja parcela pendente **depende das Fases 10 ou 12B** | linha **P-28** da matriz |
-| **E3** — tela cujo conteúdo é área **congelada** (C60, histórias, manifestos) | Constituição, áreas protegidas |
+| **E1** — 🚫 **exclusão de TELA** — tela **dev-gated** (só registrada sob `isInternalToolsEnabled()` / `isPackSandboxDevEnabled()`) | **`AppNavigator.js`** — é o navegador que aplica o gate (ver correção abaixo); não alcançável pela criança |
+| **E2** — ⚠️ **exclusão de PARCELA, não de tela** — a parcela **dependente de conteúdo** das 3 telas zeradas de P-28 fica com as Fases 10 e 12B | linha **P-28** da matriz + Plan §6.3.2 |
+| **E3** — ⚠️ **exclusão de PARCELA, não de tela** — o **conteúdo** de área congelada (C60, histórias, manifestos) não é alterado; o **casco** (shell, tipografia, semântica, selos) é | Constituição, áreas protegidas |
 
-**Excluídas por E1 (identificadas nominalmente em `routes.js`):** `PackSandboxDev`,
-`Coloring60Lab`, `SceneValidation`, `OvelhaAssetGallery`, `MonteACenaSpike`,
-`MonteACenaPrototype`, `MonteACenaLevels`, `MonteACenaGame`, `MonteACenaGameV2`,
-`MonteACenaHome`, `MonteACenaDifficulty`, `MonteACenaGallery`, `MonteACenaStory`,
-`PuzzleGestureLab`, `MonteACenaTableGame`, `CadeAOvelhinha`, `PalavrinhasDoBeni` —
-**17 rotas dev-gated**, o que já reduz materialmente o alcance.
+> ### 🔴 Segunda correção da Etapa 6 — E2 e E3 não excluem telas
+>
+> Redigidos na Etapa 4 como "tela cuja parcela… " / "tela cujo conteúdo…", E2 e E3 seriam lidos
+> como **exclusões de tela**. Isso **contradiz o próprio Plan**: §6.3.2 determina que a passagem
+> com leitor de tela cubra *"100 % do inventário nominal de §15 — **incluindo** as três telas
+> zeradas na parcela que o shell controla"*. Se E2 excluísse Cultinho, Meu Momento e Livrinho,
+> a exigência de §6.3.2 ficaria sem inventário onde ser cumprida.
+>
+> **Correção:** **apenas E1 exclui telas.** E2 e E3 delimitam **o que dentro da tela** não é
+> tocado. As telas atingidas por E2/E3 **permanecem no inventário**, recebem print e passagem de
+> leitor de tela, e a parcela não coberta é declarada nominalmente no relatório de fechamento.
+
+> ### 🔴 Correção aplicada na Etapa 6 — a lista E1 original estava ERRADA
+>
+> A Etapa 4 declarou **17 rotas dev-gated** com base em `routes.js`. **O árbitro correto é
+> `AppNavigator.js`** — é lá que o gate `isInternalToolsEnabled()` decide o registro, não em
+> `routes.js` (que só declara constantes). Verificação linha a linha do navegador: **apenas 10**
+> rotas são gated. **7 das 17 listadas são user-facing e estavam sendo excluídas indevidamente
+> da varredura visual**, o que quebraria o critério S3 ("100 % de cobertura").
+>
+> O ajuste é declarado, não silencioso. Nenhuma tela foi movida para reduzir trabalho — a
+> correção **aumenta** o inventário.
+
+**Excluídas por E1 — 10 rotas efetivamente gated (verificadas em `src/navigation/AppNavigator.js`):**
+
+| Rota | Tela | Gate | Linha |
+|---|---|---|---|
+| `Coloring60Lab` | `Coloring60LabScreen` | `isInternalToolsEnabled()` | :382-390 |
+| `SceneValidation` | `SceneValidationScreen` | `isInternalToolsEnabled()` | :391-397 |
+| `OvelhaAssetGallery` | `OvelhaAssetGalleryScreen` | `isInternalToolsEnabled()` | :428-434 |
+| `MonteACenaSpike` | `MonteACenaSpikeScreen` | `isInternalToolsEnabled()` | :446-452 |
+| `MonteACenaPrototype` | `MonteACenaPrototypeScreen` | `isInternalToolsEnabled()` | :453-460 |
+| `MonteACenaLevels` | `MonteACenaLevelSelectScreen` | `isInternalToolsEnabled()` | :461-467 |
+| `MonteACenaGame` | `MonteACenaGameScreen` | `isInternalToolsEnabled()` | :468-474 |
+| `MonteACenaGameV2` | `MonteACenaGameV2Screen` | `isInternalToolsEnabled()` | :475-481 |
+| `PuzzleGestureLab` | `PuzzleGestureLabScreen` | `isInternalToolsEnabled()` | :491-493 |
+| `PackSandboxDev` | `PackSandboxDevScreen` | `isPackSandboxDevEnabled()` | :554-560 |
+
+**As 7 rotas indevidamente excluídas pela Etapa 4 — SÃO user-facing e VOLTAM ao inventário:**
+
+| Rota | Tela | Evidência de que NÃO é dev-gated |
+|---|---|---|
+| `CadeAOvelhinha` | `CadeAOvelhinhaScreen` | `:417-425` — comentário explícito: *"user-facing v1: rota SEMPRE registrada (aba Brincar)"* (`D-OVELHINHA-UF1`) |
+| `PalavrinhasDoBeni` | `PalavrinhasDoBeniScreen` | `:435-442` — *"user-facing no v1 … Rota SEMPRE registrada"* (`D-PALAVRINHAS-UF1`) |
+| `MonteACenaHome` | `MonteACenaHomeScreen` | `:486` — registro incondicional |
+| `MonteACenaStory` | `MonteACenaStoryScreen` | `:487` — registro incondicional |
+| `MonteACenaDifficulty` | `MonteACenaDifficultyScreen` | `:488` — registro incondicional |
+| `MonteACenaGallery` | `MonteACenaGalleryScreen` | `:489` — registro incondicional |
+| `MonteACenaTableGame` | `MonteACenaTableGameScreen` | `:490` — registro incondicional |
+
+> `AppNavigator.js:482-485` é literal: *"Monte a Cena — fluxo **OFICIAL user-facing** (publicado,
+> aprovado no aparelho / `fca92f5`): Home → Story → Difficulty → TableGame + Gallery … Rotas
+> **SEMPRE registradas**."*
+
+**Consequência:** E1 exclui **10** telas, não 17. O inventário nominal fechado está em `tasks.md`
+(§1, PRE-0), aplicando I1–I4 e E1–E3 às 42 telas, uma a uma, com árbitro por linha.
 
 ### 15.3 Componentes compartilhados que entram
 
@@ -1121,7 +1284,7 @@ o adaptive icon da Fase 6.**
 | **P-28** | Semântica de a11y ausente | **B2** (parcela sistêmica) | F-A11Y-TB + F-A11Y-VO + G-A11Y-1/2 · **resíduo em Fases 10 e 12B** (§6.3.2) | **PODE BLOQUEAR** |
 | **P-29** | `AppScreen` sem consumidor | **B1** | G-SAFE | NÃO bloqueia |
 | **P-30** | `768` × `breakpoints.tablet = 600` | **B1** | G-BP-1 + G-BP-2 + F-TAB-600 | NÃO bloqueia |
-| **P-31** | Navegações inefetivas em tablet | **B3** | G-NAV-1/2 + F-TAB-NAV + F-TAB-BACK · **divergência de contagem em §6.2.3** | **PODE BLOQUEAR** |
+| **P-31** | Navegações inefetivas em tablet | **B3** | G-NAV-1/2 + F-TAB-NAV + F-TAB-BACK · **divergência de contagem RESOLVIDA em §6.2.3 (11 confirmadas)** | **PODE BLOQUEAR** |
 | **P-47** | `LumiMoment`/`StoryBook` como rotas raiz | **B3** | F-TAB-SIDE | NÃO bloqueia |
 | **P-104** | Hápticos sem reduce motion | **B2′** | G-MOTION + F-MOTION-ON + F-MOTION-OFF | NÃO bloqueia |
 | **P-139** | Coletor inalcançável | **B6** | G-PERF + F-PERF | NÃO bloqueia |
@@ -1278,7 +1441,7 @@ mérito, não por omissão.**
 | # | Pergunta levada ao Portão 2 | Resposta do fundador | Estado |
 |---|---|---|---|
 | **AC-1** | **A quem pertence o `#7C3AED` do ícone/adaptive icon (`app.json:48`)?** A Fase 6 o excluía por C18 e nenhuma linha da matriz foi identificada como proprietária | **Emenda vinculante 1:** a superfície pertence à **Fase 6**, com **escopo restrito ao valor configurável**. C18 é parcialmente superada. Vira **`RF-B8`** | ✅ **ENCERRADA** — ver §16 e §6.6.4 |
-| **AC-2** | **A divergência de contagem de P-31** (matriz: 8 chamadas aninhadas / 11 total; recontagem auditada: 7 / 10) deve ser reconciliada na matriz — e em qual bloco documental? | **Emenda vinculante 2:** *"Isso NÃO é pergunta ao fundador. Resolva por evidência."* A reconciliação histórica vira **tarefa da Etapa 6 (Analyze)**: reconstruir o histórico entre o registro original de E012 e a base atual; se a evidência for conclusiva, preparar a correção documental; se não for, **manter a divergência registrada** e usar o critério funcional total. Proibido inventar ocorrência ou reduzir o critério a "10"/"11" | ✅ **ENCERRADA como pergunta** — segue como **investigação de Analyze** |
+| **AC-2** | **A divergência de contagem de P-31** (matriz: 8 chamadas aninhadas / 11 total; recontagem auditada: 7 / 10) deve ser reconciliada na matriz — e em qual bloco documental? | **Emenda vinculante 2:** *"Isso NÃO é pergunta ao fundador. Resolva por evidência."* A reconciliação histórica vira **tarefa da Etapa 6 (Analyze)**: reconstruir o histórico entre o registro original de E012 e a base atual; se a evidência for conclusiva, preparar a correção documental; se não for, **manter a divergência registrada** e usar o critério funcional total. Proibido inventar ocorrência ou reduzir o critério a "10"/"11" | ✅ **ENCERRADA como pergunta e RESOLVIDA na Etapa 6** — §6.2.3: a matriz (8+3=11) está correta; a recontagem da Etapa 4 (7) perdeu `src/navigation/monteACenaExit.js:38`; **nada desapareceu** entre E012 e a base atual; a matriz **não** precisa de correção |
 
 **Critério de aceite de P-31 permanece inalterado por ambas as emendas:**
 **ZERO NAVEGAÇÕES INEFETIVAS NO ESCOPO** — não "10", não "11".
@@ -1367,7 +1530,7 @@ só entra se uma dependência aprovada existir — e **nenhuma é proposta** (§
 | `specs/021-.../tasks.md` | **NÃO criado ainda** — Etapa SDD 5, autorizada pelo Portão 2 |
 | `src/`, `scripts/`, `assets/`, `App.js`, `app.json`, `eas.json`, `package.json`, `package-lock.json`, `plugins/` | **INTOCADOS** — nenhum arquivo criado, modificado ou removido, nem por este Plan nem pela emenda |
 | `CLAUDE.md` | **não alterado** — o bloco `<!-- SPECKIT -->` (`:117-120`) é genérico ("read the current plan") e já resolve via `.specify/feature.json`, que aponta para 021 |
-| `docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md` | **não alterado** — divergência de P-31 declarada em §6.2.3; sua reconciliação por evidência é **tarefa da Etapa 6 (Analyze)** por decisão da emenda 2 |
+| `docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md` | **não alterado — e agora comprovadamente não precisa ser alterado quanto a P-31**: a Etapa 6 confirmou que a contagem da matriz (8+3=11) está certa e que o erro era do Plan (§6.2.3). A subcontagem do "2" em P-104 (real: 6) fica **declarada** em §6.4.1, sem alterar o artefato proprietário |
 | Builds | **NENHUM gerado.** Histórico remoto EAS **NÃO RECUPERADO** |
 | Metro | **NÃO aberto** |
 | `npm ci` / `npm run smoke` / `expo-doctor` | **NÃO executados** — proibidos antes do Portão Humano 3 |
@@ -1392,7 +1555,7 @@ decididas no próprio Portão.
 | Emenda | Conteúdo | Onde foi aplicada |
 |---|---|---|
 | **1** | Correção **restrita** do `android.adaptiveIcon.backgroundColor` entra na Fase 6; supera C18 na parte que excluía integralmente o adaptive icon | Spec (RF-B8, T14, F12, §4.8, §9.1, C18, CHK039/CHK040) + Plan (§6.6.4, §6.5.4, §7, G-ICON, CN-3, F-ICON, §16) |
-| **2** | Divergência de contagem de P-31 (10 × 11) é resolvida **por evidência histórica na Etapa 6 (Analyze)**, não por pergunta ao fundador | Plan §19 (AC-2 encerrada como pergunta) — investigação a executar em Analyze |
+| **2** | Divergência de contagem de P-31 (10 × 11) é resolvida **por evidência histórica na Etapa 6 (Analyze)**, não por pergunta ao fundador | ✅ **EXECUTADA** — Plan §6.2.2 (8ª ocorrência incluída), §6.2.3 (veredito), §6.2.4, §7, §14 F-TAB-NAV, §17.1, §19 AC-2, §22 |
 
 **Decisões do fundador confirmadas sem alteração de artefato:**
 o azul premium **`night400 = #3E5C96`** segue **aprovado como candidato de implementação** (§6.5.2),
