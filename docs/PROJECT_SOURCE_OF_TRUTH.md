@@ -39,8 +39,23 @@ O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md), o `DOC
 
 ## 1.1 Fase atual
 
+**Fase 6 — Shell, splash e sistema visual: EM EXECUÇÃO desde 2026-08-07.** Abertura canônica
+auditada e **aprovada pelo fundador** em 2026-08-07; o ciclo SDD foi formalmente iniciado.
 **Fase 5 — infância, privacidade, teologia e medição: DOCUMENTALMENTE ENCERRADA em 2026-08-07.**
-**Próxima fase canônica, segundo [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3 — único árbitro de sequência: Fase 6 — *shell* e *splash*.**
+**Sequência confirmada pelo [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3 — único árbitro de sequência.**
+
+> **Correção declarada, não silenciosa (2026-08-07, abertura da Fase 6).** Este campo dizia
+> *"Fase 5 … DOCUMENTALMENTE ENCERRADA"* + *"Próxima fase canônica … **Fase 6 — shell e splash**"*.
+> Duas imprecisões foram corrigidas, **sem apagar nada**: (a) o campo apontava a Fase 6 como
+> *próxima* quando ela já está **em execução**; (b) o título estava reduzido a *"shell e splash"* e
+> **omitia o terceiro eixo — o sistema visual** —, enquanto o título canônico no `v5` §3 é
+> **"Fase 6 — Shell, splash e sistema visual"**. A substância do registro anterior permanece: a
+> Fase 5 segue documentalmente encerrada e a Fase 6 herda `E5.52` e o risco `P-139`.
+>
+> **Estado executável da Fase 6 nesta data:** *worktree* `C:\tmp\ptf_fase6_shell_splash_wt` ·
+> *branch* `feat/fase6-shell-splash` · baseline documental `7de7085` · base executável preservada
+> `015c438` · **nenhum arquivo de runtime alterado** · nenhum *build*, nenhuma validação física e
+> **nenhum push**.
 
 > **Correção declarada, não silenciosa (2026-08-07, Fase 5 Bloco 7).** Este campo dizia *"Fase 3 —
 > reconciliação completa (somente leitura)"*. Estava correto quando escrito e ficou desatualizado

@@ -147,11 +147,19 @@ Nada aqui precisa ser desfeito, e a redação futura **tem de preservar**:
 | `preview-criador` | 43 | idem |
 | **`production`** | 48 | idem |
 
-Os cinco perfis do arquivo são `development`, `preview`, `preview-criador`, `production` e
-`screenshot`. **`P-149` citava apenas o perfil `production`; os outros dois são acréscimo deste
-bloco.** O `.env` local (linha 29) também define a variável e **não é versionado**
+Os **seis** perfis do arquivo são `development`, `preview`, `preview-criador`, `production`,
+`screenshot` e `c60-pilot`. **`P-149` citava apenas o perfil `production`; os outros dois são
+acréscimo deste bloco.**
+
+O `.env` local (linha 29) também define a variável e **não é versionado**
 (`git ls-files .env` vazio) — o que significa que **em desenvolvimento o comportamento depende de um
 arquivo que não está no repositório**, e portanto não pode ser inferido do histórico.
+
+> **↪ Correção declarada, não silenciosa (2026-08-07 · abertura da Fase 6).** O parágrafo acima
+> dizia *"Os cinco perfis do arquivo são …"* e **omitia `c60-pilot`**, acrescentado ao `eas.json` em
+> 2026-08-01 pelo commit `8464954`. **Nenhuma conclusão deste bloco muda:** a tabela de três perfis
+> acima continua exata, porque `c60-pilot` **não declara** `EXPO_PUBLIC_GLOBAL_MANIFEST_URL` — ele
+> declara apenas `EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT` e `EXPO_PUBLIC_BUILD_PROFILE`.
 
 ---
 

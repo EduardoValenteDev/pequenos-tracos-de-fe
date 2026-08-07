@@ -115,7 +115,7 @@ Assets conferidos: `scene_02.png` (`c960f1bb…`), `activities/living_world.png`
 | `expo-dev-client` / `-launcher` / `-menu` | `6.0.21` / `6.0.21` / `7.0.19` |
 | `NSLocalNetworkUsageDescription` / `NSBonjourServices` | **ausentes** (nenhum pacote Expo os injeta) |
 | Perfil `development` do `eas.json` | `developmentClient: true`, `distribution: internal`, `ios.simulator: false`, `credentialsSource: remote`, **sem `env`** |
-| Bundle id por perfil | **um só** para os 5 perfis (`development`, `preview`, `preview-criador`, `production`, `screenshot`) |
+| Bundle id por perfil | **um só** para os 6 perfis (`development`, `preview`, `preview-criador`, `production`, `screenshot`, `c60-pilot`) — *ver nota de correção declarada em §6.2* |
 
 ### 3.2 Por que o app instalado abre versão antiga e o Metro fica em "No apps connected"
 
@@ -287,8 +287,15 @@ Se a rede local do iPhone estiver bloqueada ou a rede for isolada, usar `--tunne
 
 ### 6.2 Risco não óbvio — a instalação, e não a remoção, é o momento perigoso
 
-Os **cinco perfis do `eas.json` compartilham o mesmo bundle id**. Instalar o novo development
+Os **seis perfis do `eas.json` compartilham o mesmo bundle id**. Instalar o novo development
 build **sobre** o app atual é uma substituição no mesmo contêiner:
+
+> **↪ Correção declarada, não silenciosa (2026-08-07 · abertura da Fase 6).** Este artefato foi
+> escrito em **2026-07-30**, quando o `eas.json` de fato tinha **cinco** perfis; a redação original
+> — aqui e no quadro da §3.1 — dizia *"cinco perfis"* / *"5 perfis"* e estava **correta na data**.
+> O sexto perfil, **`c60-pilot`**, entrou em **2026-08-01** pelo commit `8464954` e **também não
+> declara bundle id próprio**, herdando o mesmo de `app.json`. **A conclusão deste parágrafo não
+> muda em nada** — ela apenas passa a cobrir seis perfis em vez de cinco.
 
 - se a assinatura/provisionamento forem compatíveis, o iOS trata como atualização e **preserva** o
   contêiner;

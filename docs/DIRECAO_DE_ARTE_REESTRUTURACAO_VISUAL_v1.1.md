@@ -151,6 +151,14 @@ Formato: **Tela — problemas encontrados — destino no plano**. Itens marcados
 | **Cantinho do Beni** | 🏡🕯️📖 emoji como ícones de seção; lavanda | A12 — ritual diário no padrão céu-noite leve ou papel, ícones próprios, versículo→cartinha do Baú |
 | **Tour do Beni (todos)** | Cards do tour OK de estrutura; links "Voltar · Sem voz · Pular" pequenos (<44px) | A14 — links viram botões-texto 44px+; card em papel com borda gold fina |
 
+> **↪ Nota normativa superveniente (2026-08-07 · abertura da Fase 6).** Na linha **"Perfil / Meu
+> Cantinho"** acima, a expressão *"avatares premium com moldura gold + **selo 'Plano Família'**"*
+> deve ser lida sob [`D-SELOS-ESTADO-V2`](DECISIONS.md): o **selo do Plano Família não é dourado** —
+> é **azul premium luminoso e acolhedor** (nunca roxo, nunca azul-noite escuro). A **moldura gold**
+> do avatar não é alterada por esta nota; o que muda é **apenas a cor do selo**. **Lei 2 permanece
+> intacta:** dourado segue reservado a recompensa/conquista/conclusão. O texto original **foi
+> preservado e não apagado**.
+
 **Achado transversal (resolvido pela decisão D4 — "Galeria Viva"):** as capas das 20 histórias usam estilos artísticos deliberadamente diferentes (Davi e Golias pictórico, Pesca Milagrosa estilo Pixar, Criação pintura digital luminosa…). O fundador confirmou isso como identidade: **cada história é uma obra num estilo próprio, como salas de um museu**. Consequência de design: a coerência do app passa a ser responsabilidade EXCLUSIVA do sistema que envolve as artes — moldura-padrão das capas (borda gold + cantos de fita), tipografia única sobre elas, chips padronizados, pins do mapa com o mesmo anel/tratamento sépia, e o mundo papel/tinta ao redor. Regra prática: **a arte muda de estilo; a moldura nunca muda.** É assim que multiestilo vira premium ("coleção") em vez de bagunça. Nenhuma recapa será feita.
 
 ---
@@ -180,6 +188,17 @@ Fundo night800→night600 com estrelas sutis (asset), texto star100, versículo 
 
 ### 4.6 Paywall Plano Família (bloco B4) — a tela mais rica do app
 Mosaico das 20 capas em grade levemente rotacionada ao fundo (sépia→cor num gradiente de "desbloqueio"), painel papel por cima: selo gold "Plano Família", os 5 benefícios com ícones próprios, card Anual com moldura gold + badge "Economize 33%" + "sai por R$ 9,99/mês", Mensal discreto abaixo, botão terra "Desbloquear a jornada completa", Restaurar compras em ink400. Tom: convite, nunca pressão (compliance v3.1 §5.5).
+
+> **↪ Nota normativa superveniente (2026-08-07 · abertura da Fase 6).** Neste parágrafo, *"**selo
+> gold** 'Plano Família'"* está **SUPERADO** por [`D-SELOS-ESTADO-V2`](DECISIONS.md): o selo do
+> **Plano Família** é **azul premium luminoso e acolhedor** — claramente reconhecível como azul,
+> comunicando confiança, acesso premium e acolhimento, **sem aparência corporativa, pesada ou
+> adulta**; **nunca roxo** (D2) e **nunca** o azul-noite escuro hoje implementado. O **HEX exato
+> ainda não existe** e será derivado no ciclo SDD da Fase 6 a partir desta Direção de Arte, da
+> paleta oficial, de contraste, acessibilidade e legibilidade. **Não muda** nesta nota: a **moldura
+> gold do card Anual**, o painel papel, o botão terra e o tom de convite. **Lei 2 permanece
+> intacta** — dourado segue sendo material de recompensa (estado **Concluída**), não cor de acesso
+> comercial. O texto original **foi preservado e não apagado**.
 
 ### 4.7 Estados com alma (transversal, nasce no A0 e se aplica em todo bloco)
 Loading global = Beni caminhando com lanterna (Lottie, fundo papel) · Loading do colorir = Beni pintando · Vazio de galeria = Beni segurando moldura vazia "Sua primeira arte vai morar aqui" · Erro = Beni tropeçado "Ops! Beni tropeçou. Toque para voltar" (já previsto no B3/Error Boundary).

@@ -57,6 +57,16 @@ total, erro sem vermelho, requer atualização; "Em breve" **não existe no v1**
 capa com moldura-padrão · título Fraunces · referência Nunito · 1 chip · 1 indicador de estado · 1 CTA
 terra.
 
+> **↪ Nota normativa superveniente (2026-08-07 · abertura da Fase 6).** O trecho acima *"premium
+> bloqueada com **selo dourado**"* está **SUPERADO** por
+> [`D-SELOS-ESTADO-V2`](DECISIONS.md) em `docs/DECISIONS.md`: o selo do **Plano Família** passa a ser
+> **azul premium luminoso e acolhedor** (nunca roxo, nunca azul-noite escuro); **Grátis** = verde
+> suave; **Concluída** = dourado, reservado a recompensa. O **HEX exato ainda não existe** — será
+> derivado no ciclo SDD da Fase 6. **Todo o resto deste parágrafo continua valendo integralmente:**
+> proibição da paleta de status paralela, roxo aposentado, erro sem vermelho, status por chip + selo
+> + ícone + tratamento da arte, vocabulário oficial dos estados e anatomia única do card. O texto
+> original **foi preservado e não apagado**.
+
 ## 3. Auditoria — respostas (resumo)
 Plano coerente, com dois ajustes: (a) **A0 tokens/fontes em paralelo à migração dos 18 packs**; (b)
 **RevenueCat: código depois do piloto user-facing, mas preparação externa começa agora** (contas,

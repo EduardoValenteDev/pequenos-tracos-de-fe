@@ -426,7 +426,13 @@ Inclui **`P-149`** (textos de privacidade), **`P-92`** (manifesto de privacidade
 
 Segundo `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md` §3 — **único árbitro de sequência**:
 
-> ### **A próxima fase canônica é a FASE 6 — *shell* e *splash*.**
+> ### **A próxima fase canônica é a FASE 6 — Shell, splash e sistema visual.**
+
+> **↪ Correção declarada, não silenciosa (2026-08-07 · abertura da Fase 6).** Esta linha dizia
+> *"FASE 6 — shell e splash"*, redação que **omitia o terceiro eixo da fase — o sistema visual**. O
+> título canônico registrado no `v5` §3 é **"Fase 6 — Shell, splash e sistema visual"**. **Nenhuma
+> outra substância deste artefato foi alterada**, e a herança declarada abaixo (`E5.52` e `P-139`)
+> permanece exatamente como estava.
 
 **Herança direta da Fase 5 para a Fase 6:** `E5.52` (habilitar o coletor de desempenho em perfil
 interno do `eas.json`) e o risco **`P-139`**, cuja fase proprietária é **6**.

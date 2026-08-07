@@ -397,6 +397,47 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
 - **Data:** 2026-07-05 · **Status:** ✅ CONFIRMADA · **Origem:** Adendo v1 §2.
 - **Decisão:** o estado do card de história (grátis, premium bloqueada, liberada não-baixada, baixando, baixada/offline, em andamento, "Quase lá!", concluída total, erro, requer atualização; "Em breve" **não existe no v1**) é comunicado por **chip + selo + ícone + tratamento da arte** — **não** por uma paleta paralela de cores.
 - **⚠️ BLOQUEIO:** a paleta proposta em conversa (verde=grátis, azul=baixado, roxo=Plano Família, vermelho=erro) **NÃO deve ser implementada** — viola D2 (roxo aposentado), Lei 1 (uma cor de ação) e Lei 2 (dourado = recompensa). Premium usa **selo dourado "Plano Família"** (nunca roxo); erro **nunca** vermelho (card papel + Beni + "tentar de novo").
+- **↪ PARCIALMENTE SUPERADA em 2026-08-07 por `D-SELOS-ESTADO-V2` (abaixo).** Deixa de valer **exclusivamente** o trecho *"Premium usa **selo dourado 'Plano Família'** (nunca roxo)"*. **Todo o resto desta decisão permanece integralmente em vigor:** status por chip + selo + ícone + tratamento da arte; proibição da paleta paralela de status; roxo aposentado; erro nunca vermelho. O texto acima é **preservado como histórico e não foi apagado** — leia-o sempre junto com `D-SELOS-ESTADO-V2`.
+
+### D-SELOS-ESTADO-V2 — Cores dos selos de estado do card (Grátis · Plano Família · Concluída)
+- **Data:** 2026-08-07 · **Status:** ✅ CONFIRMADA · **Origem:** decisão explícita do fundador na **abertura da Fase 6** (§1 da autorização "FASE 6 — FECHAMENTO DA ABERTURA + INÍCIO FORMAL DO SDD"), em resposta à contradição normativa levantada no relatório de abertura da Fase 6.
+
+**1. Decisão anterior (preservada, não apagada).** `D-STATUS-CARDS` (2026-07-05) determinava *"Premium usa selo dourado 'Plano Família' (nunca roxo)"*. A mesma prescrição aparecia, com as mesmas palavras ou equivalentes, em [`ADENDO_ALINHAMENTO_AUDITORIA_FINAL_PTF_v1_2026_07.md`](ADENDO_ALINHAMENTO_AUDITORIA_FINAL_PTF_v1_2026_07.md) §2 (*"premium bloqueada com selo dourado"*) e em [`DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md`](DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md) §3 (*"avatares premium com moldura gold + selo 'Plano Família'"*) e §4.6 (*"selo gold 'Plano Família'"*).
+
+**2. Contradição detectada na abertura da Fase 6 (2026-08-07).** A auditoria somente-leitura da abertura da Fase 6 encontrou três fatos simultâneos e incompatíveis entre si:
+   1. **três fontes normativas** prescreviam **selo dourado** para o Plano Família (item 1 acima);
+   2. o **runtime implementado** usa **azul-noite** no selo premium (`src/theme/tokens.js`, bloco `seal`), com uma nota de governança em comentário de código identificada como **`A0.7`**;
+   3. o **smoke** (`scripts/smoke.js`) transformou esse azul-noite em **portão duro de CI**, falhando o build se o premium voltar a roxo/lilás/marrom.
+
+   A contradição **não era resolvível por precedência documental**: aplicar "documento vence código" tornaria o selo premium **dourado**, colidindo frontalmente com a **Lei 2** da Direção de Arte (*"Dourado é material de recompensa, não cor de UI… Se tudo é dourado, nada é precioso"*) e com a exigência, registrada no próprio runtime, de que os três selos sejam *"coesos e **DISTINTOS**"* — já que **Concluída** também é dourado. O corpus contradizia a si mesmo, e por isso a questão foi elevada ao fundador como a **única pergunta genuína de produto** da abertura da Fase 6.
+
+**3. Decisão atual do fundador (2026-08-07) — vigente.**
+   - **GRÁTIS → verde suave.**
+   - **PLANO FAMÍLIA → azul premium mais luminoso e acolhedor.** O azul-noite hoje implementado é **escuro demais para a linguagem infantil desejada**. O novo azul deve permanecer **claramente reconhecível como azul** e comunicar **confiança, acesso premium e acolhimento**, **sem aparência corporativa, pesada ou adulta**.
+   - **CONCLUÍDA → dourado**, reservado a **recompensa, conquista, conclusão e preciosidade**.
+   - **ROXO segue aposentado** (D2) e **não pode voltar** nem como cor de estado, nem como cor do Plano Família.
+   - **Regra transversal reafirmada:** **cor nunca comunica estado sozinha.** Todo estado continua expresso na linguagem de `D-STATUS-CARDS` — **chip · selo · ícone · texto · tratamento visual**. **Nenhuma paleta cromática paralela por status.** **Vermelho não vira sistema próprio de erro.** Estados como *baixando, baixado, offline, em andamento* e *requer atualização* **não** ganham paleta cromática independente.
+
+**4. O HEX exato NÃO é decidido aqui.** O fundador determinou explicitamente que o HEX final **não seja inventado arbitrariamente** nesta abertura. O token exato será produzido **dentro do ciclo SDD da Fase 6**, derivado de: Direção de Arte "O Livro Vivo"; paleta oficial já existente; contraste; acessibilidade; legibilidade; uso sobre fundo claro e escuro quando aplicável; coerência com os demais tokens. **A escolha do HEX não volta como pergunta ao fundador**, salvo se a análise técnica encontrar **duas alternativas materialmente diferentes de produto** que os documentos não consigam arbitrar.
+
+**5. Novo árbitro.** Para a **cor dos selos de estado**, o árbitro passa a ser **esta decisão (`D-SELOS-ESTADO-V2`)**. Para **tudo o mais** relativo a estados de card — gramática de estado, proibição de paleta paralela, erro sem vermelho, roxo aposentado —, o árbitro continua sendo **`D-STATUS-CARDS` + `D-DESIGN-LIVRO-VIVO` + Lei 2 da Direção de Arte v1.1**. Onde os documentos citados no item 1 prescrevem "selo dourado" para o Plano Família, prevalece esta decisão; os textos originais permanecem no lugar, marcados com nota de superação.
+
+**6. Impacto esperado no futuro bloco B5 (sistema visual da Fase 6).** O bloco de sistema visual da Fase 6 — designado **B5** no relatório de abertura — passa a ter, além do que já lhe cabia:
+   - derivar e registrar o **token de azul premium luminoso** conforme o item 4;
+   - **atualizar `src/theme/tokens.js`** (bloco `seal`, hoje azul-noite) e a **nota de governança em comentário** que hoje cita `A0.7`;
+   - **atualizar o portão de smoke** (`scripts/smoke.js`), que hoje **exige** o azul-noite e, sem alteração, **reprovaria** a implementação desta decisão — o portão deve passar a exigir *azul premium luminoso, sem roxo/lilás/marrom, Grátis verde, Concluída dourada*;
+   - **atualizar os documentos do item 1** para a redação final, se e quando o token existir.
+
+   ⚠️ **Nada disso foi executado nesta etapa.** Esta é uma decisão **exclusivamente documental**; **nenhum arquivo de runtime foi tocado** no registro desta decisão.
+
+**7. Registro formal sobre a alegação `A0.7`.** A migração do selo premium de roxo/lilás para azul-noite existia **apenas como comentário de código** em `src/theme/tokens.js`, autoidentificada como *"A0.7"*. A busca no corpus confirmou que **`A0.7` não aparece em nenhum documento normativo do projeto** — nem em `DECISIONS.md`, nem na Direção de Arte v1.1, nem no Adendo v1, nem nos Product Locks. Fica **formalmente registrado** que **comentário de código nunca foi registro normativo suficiente** de decisão de produto (o que o próprio `v5` já proíbe: decisão tomada em conversa sem registro em `DECISIONS.md` não é oficial). Essa alegação está agora **substituída por esta decisão formal**, que é o registro normativo válido do assunto.
+
+### D-SDD-WORKFLOW-YML-DIVERGENCIA — O `workflow.yml` do Speckit descreve um fluxo reduzido (registro, não alteração)
+- **Data:** 2026-08-07 · **Status:** 📌 REGISTRADA (divergência conhecida, **arquivo não alterado**) · **Origem:** auditoria da abertura da Fase 6.
+- **Fato:** [`.specify/workflows/speckit/workflow.yml`](../.specify/workflows/speckit/workflow.yml) (`author: "GitHub"`, `name: "Full SDD Cycle"`) descreve **4 comandos e 2 portões** (`specify → review-spec → plan → review-plan → tasks → implement`). **Faltam `clarify`, `checklist`, `analyze` e o Portão Humano 3.**
+- **Consequência:** esse arquivo **não é o fluxo do projeto**. O fluxo obrigatório é o de **10 etapas e 3 portões humanos** fixado na Constituição (`.specify/memory/constitution.md`), onde *"pular, inverter ou comprimir essas etapas é violação constitucional"*, e reproduzido em `AGENTS.md`/`CLAUDE.md`.
+- **Árbitro:** a **Constituição** permanece o árbitro operacional. O `workflow.yml` é artefato *upstream* do Speckit, **não** fonte de verdade de processo.
+- **O que NÃO foi feito:** o arquivo **não foi alterado** nesta etapa, por determinação expressa do fundador. Sua correção só se torna obrigatória se a própria Constituição ou o ciclo SDD a exigirem antes do Specify — o que **não** ocorre hoje, porque a Constituição já prevalece sobre ele.
 
 ### D-CRIAR-COM-BENI-STATUS — Status de "Criar com Beni" no v1 ✅ **ENCERRADA (2026-08-05)**
 
@@ -1651,7 +1692,7 @@ tomada **não** corrige risco técnico e **não** autoriza escrever código.
 - **Portão bíblico violado 20/20:** nenhum relatório `REVIEW_<storyId>.md` existe e **nenhum revisor bíblico humano foi identificado**; a cobertura da revisão de 2026-06-01 sobre o texto hoje no app é de **49 de 200 cenas (24,5%)**. Ver [`docs/biblical-review/reports/README.md`](biblical-review/reports/README.md).
 - **Matriz canônica:** **149** riscos, recontagem **manual e auditada** no Bloco 7 confirmando as dez contagens derivadas de §29.5; **nenhuma linha da §14 foi alterada**. Duas imprecisões de **rótulo de coluna** foram declaradas (não ajustadas em silêncio) na §30 da matriz.
 - **Runtime intacto:** os nove caminhos protegidos permanecem **bit a bit idênticos** a `015c438`; `npm run smoke` **4525/4525**; nenhuma dependência instalada, nenhum build gerado, nenhuma validação física, nenhum push.
-- **Próxima fase canônica, segundo `v5` §3:** **Fase 6 — *shell* e *splash***, que herda `E5.52` e o risco `P-139`. **A Fase 6 toca código e exige o ciclo SDD completo com os três portões humanos.**
+- **Próxima fase canônica, segundo `v5` §3:** **Fase 6 — Shell, splash e sistema visual** (título canônico do `v5` §3; a redação anterior desta linha dizia apenas *"shell e splash"* e **omitia o terceiro eixo, o sistema visual** — corrigido em 2026-08-07 na abertura da Fase 6, sem mudar a substância do registro), que herda `E5.52` e o risco `P-139`. **A Fase 6 toca código e exige o ciclo SDD completo com os três portões humanos.**
 - Consolidação completa em [`07_CONSOLIDACAO_FASE_5.md`](fase5-pareceres/07_CONSOLIDACAO_FASE_5.md).
 
 ## Analytics / SDKs (registro de restrição)
