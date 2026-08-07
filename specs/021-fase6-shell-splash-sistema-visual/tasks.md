@@ -148,6 +148,22 @@ Objetivo: saber, **por evidência e não por dedução**, o que já existe antes
 **Testes do bloco:** T003, T004. **Validação física:** T011–T014. **Rollback do bloco:** nenhum arquivo é
 modificado em PRE-0 — o bloco é integralmente de leitura e verificação.
 
+#### 2.1.1 Registro de execução do PRE-0 (Etapa SDD 7)
+
+| Task | Resultado apurado |
+|---|---|
+| T002 | `npm ci` concluído com código 0. **Nenhum arquivo versionado foi alterado** — `package.json` e `package-lock.json` intactos. A condição de PARADA não foi acionada |
+| T003 | Baseline `npm run smoke`: **4525/4525 verdes, 0 falhas** |
+| T004 | Baseline `npx expo-doctor`: **18/18 verificações passaram**, sem achados |
+| T005 | **RECUPERADO** por consulta ao histórico remoto do EAS. iOS: `development` ×4, `c60-pilot` ×4, `preview` ×1. Android: **4 builds em toda a história do projeto** — `screenshot` ×2 e `preview` ×2. **Nunca existiu build Android de perfil `development`** |
+| T006/T007 | Dev Client iOS mais recente: `10fce052-222b-4d9a-aad8-92467ccd8d1d`, perfil `development`, commit `7c129876`, 31/07/2026 |
+| T008 | Fingerprint atual iOS `c8b6c521500558fde471e47202d41d5e9dda79aa` (idêntico aos dois `c60-pilot` de 04/08/2026); atual Android `5e7343821330ea34c796e349788c9799e77a1360` (não corresponde a nenhum build existente). Divergência contra o Dev Client iOS mais recente: `eas.json`, `expo` 54.0.35→54.0.36, dois scripts novos de `package.json` e ferramentas JS de prebuild. **Nenhum módulo nativo entrou, saiu ou mudou de versão além desse patch** |
+| T009/T012 | `eas device:list` retorna **um único** dispositivo iOS registrado, classe **iPhone** (UDID `00008110-001C75E214E3A01E`). **Nenhum iPad registrado.** Como os builds `development` iOS usam distribuição interna ad-hoc, o Dev Client existente só é instalável nesse iPhone |
+| T011 | Existe Dev Client iOS para o **telefone** registrado. O estado real de instalação no aparelho é **NÃO DETERMINADO SEM EXECUÇÃO FÍSICA** |
+| T012 | **NÃO existe Dev Client instalável em tablet algum.** Se o tablet for iPad, ele precisa ser registrado e um novo build `development` iOS precisa ser gerado; se for tablet Android, é preciso gerar o **primeiro** APK `development` Android da história do projeto |
+| T015 | **Veredito V0: SIM, um novo `development` build é necessário** — por necessidade comprovada (T012), não por conveniência. A **plataforma** do build depende de qual tablet o fundador tem (T013/T014), o que **não é determinável estaticamente**. Nenhum build foi gerado |
+| T016 | Recontagem auditada: 39 `<Stack.Screen` + 5 `TAB_DEFS`; 9 `isInternalToolsEnabled()` + 1 `devPacksEnabled` = 10 excluídas; 32 incluídas. **32 + 10 = 42** — confere com §1, sem delta |
+
 ---
 
 ### 2.2 Bloco **B1** — fundação responsiva unificada (P-30, P-29)
@@ -169,6 +185,80 @@ Gates que fecham o bloco: **G-BP-1, G-BP-2, G-SAFE** · Controle negativo: **CN-
 
 **Rollback do bloco:** alto — a migração é por tela e por arquivo, revertível individualmente sem tocar
 persistência, progresso ou assets.
+
+#### 2.2.1 T017 — lista nominal fechada das telas que B1 migra
+
+Critério aplicado (interseção dos 3 do Plan §6.1.2), **por evidência**: `useSafeAreaInsets` é consumido
+por **47 arquivos** (41 telas + `BeniGuideOverlay`, `TabletSidebar`, `CreatorModeBanner`, `AppScreen`,
+`SafeScreenHeader`, `AppNavigator`). Destes, apenas 7 usam o inset **exclusivamente** como *padding* de
+container rolável.
+
+| # | Tela | Uso do inset antes de B1 | Prop equivalente em `AppScreen` |
+|---|---|---|---|
+| 1 | `src/screens/NarrationScreen.js` | `paddingBottom: insets.bottom + 32` | `scroll bottomExtra={32}` |
+| 2 | `src/screens/StoryDetailScreen.js` | `paddingBottom: insets.bottom + 24` | `scroll bottomExtra={24}` |
+| 3 | `src/screens/CongratsScreen.js` | `paddingBottom: insets.bottom + 48` | `scroll bottomExtra={48}` |
+| 4 | `src/screens/QuizScreen.js` | **dois** ScrollViews, ambos `insets.bottom + 48` | `scroll bottomExtra={48}` (×2) |
+| 5 | `src/screens/ReflectionScreen.js` | `paddingBottom: insets.bottom + 48` | `scroll bottomExtra={48}` |
+| 6 | `src/screens/CultinhoEmCasaScreen.js` | `padding: 16, paddingBottom: insets.bottom + 40` | `scroll bottomExtra={40} contentContainerStyle={{ padding: 16 }}` |
+| 7 | `src/screens/StoriesScreen.js` | `paddingTop: insets.top + 16` e `paddingBottom: insets.bottom + 72` | `scroll applyTopInset topExtra={16} bottomExtra={72}` + `ref` encaminhado |
+
+**Excedente declarado e adiado (não migrado):** as demais 34 telas do inventário §1. As cinco telas de aba
+foram examinadas uma a uma e **excluídas por motivo técnico**: Home e Perfil usam `insets.top` para a
+**geometria do alvo do tour guiado** e para cabeçalho com gradiente; Mapa da Aventura usa o inset para
+estimar o **viewport da câmera** do mapa, além de cabeçalho com gradiente; Brincar e Troféus leem o inset
+dentro de cabeçalhos condicionais/estilizados. Nenhum desses usos é *padding* de container — migrá-los
+mudaria comportamento, não unificaria tratamento.
+
+**Regra de inversão do Plan §6.1.2 não dispara:** 7 ≥ 3, logo a decisão permanece **ADOTAR `AppScreen`**
+(P-29 resolvido **por consumo**, não por remoção).
+
+#### 2.2.2 Registro de execução de B1 (Etapa SDD 7)
+
+- **T018** — `tokens.breakpoints.tablet` passou a valer **600** e virou fonte única;
+  `productTheme.layout.tabletBreakpoint` deixou de declarar o literal `768` e passou a **derivar**
+  (`tabletBreakpoint: breakpoints.tablet`). `tokens.js` não tem imports, logo não há ciclo com
+  `productTheme`. `layout.tabletBreakpoint` tem **zero consumidores** em `src/` — risco de runtime nulo.
+- **T019** — as comparações literais foram substituídas em **9 arquivos**
+  (`BeniGuideOverlay`, `AppNavigator`, `ParentAreaScreen`, `PostStoryHubScreen`, `QuizScreen`,
+  `ReflectionScreen`, `StoryBookScreen`, `StoryDetailScreen`, `TrophiesScreen`); a **décima** ocorrência
+  vivia em `CenteredContent.js` e foi resolvida por T022. `src/data/coloring60Catalog.js:39` contém `768`
+  apenas dentro de um sha256 — **falso positivo**, não é comparação.
+- **T020/T023** — `AppScreen` foi reescrito: consome `tokens.js` (nunca `productTheme`), virou
+  `React.forwardRef` (para `StoriesScreen`, que controla o scroll por `ref`), ganhou
+  `applyTopInset`/`topExtra`/`bottomExtra`/`noBottomPadding`, e o *padding* seguro passou a ser injetado
+  **por último** — vence o estilo do chamador, que é o que torna o tratamento único. **Só as chaves
+  geridas** entram (sem `applyTopInset`, o componente não escreve `paddingTop` nenhum).
+  `backgroundColor` ficou **sem padrão**: B1 é migração estrutural, não repintura; a cor de fundo é
+  assunto de B5. Quem quiser o fundo universal usa a constante exportada `APP_SCREEN_BACKGROUND`.
+- **T022 — decisão registrada: DELEGAR, não aposentar.** `CenteredContent` passou a renderizar
+  `ContentContainer`. Os 4 consumidores (`HomeScreen`, `BrincarScreen`, `ProfileScreen`, `StoriesScreen`)
+  seguem funcionando sem edição e nenhum ficou órfão. **Mudança visual esperada em tablet, e ela é o
+  objetivo:** a coluna de conteúdo sai de `720` fixo acima de 768dp para `560` (≥600dp) / `640` (≥900dp).
+  É um item do roteiro físico da banda 600–767.
+- **T024/T025** — gates criados em `scripts/smoke.js`: **G-BP-1** (3 checks: valor 600 · varredura real de
+  `src/**/*.js` sem comparação de largura contra `768` · `productTheme` derivando), **G-BP-2** (1 check) e
+  **G-SAFE** (3 checks sobre a lista fechada acima, incluindo a prova de que o tratamento existe **dentro**
+  do `AppScreen` — sem esse terceiro, o gate ficaria verde com as telas **sem** área segura).
+- **T026 — CN-1, metade automatizável:** 2 checks provam que 599 é telefone, 600 e 767 são tablet, e que
+  **todo** consumidor de `breakpoints.tablet` usa a mesma forma `width >= breakpoints.tablet`.
+  A metade **visual** de CN-1 (telefone abaixo de 600 não apresentar shell de tablet) e a validação da
+  banda **600–767** permanecem **físicas** e estão no roteiro de validação em aparelho.
+- **Controles negativos executados (mutação real, revertida):** reintroduzir `width >= 768` em
+  `ReflectionScreen` derrubou G-BP-1 [2/3]; reintroduzir `useSafeAreaInsets` em `CongratsScreen` derrubou
+  G-SAFE [2/3]; remover `insets.bottom` de `AppScreen` derrubou G-SAFE [3/3]. Os três gates distinguem o
+  certo do errado — não são verdes vazios.
+- **Asserção pré-existente ajustada, e o ajuste é declarado:** o smoke da Sprint 9.1 fixava o *mecanismo*
+  de `StoriesScreen` (`insets.top` no `contentContainerStyle`). A **intenção** — topo respeitando a status
+  bar com folga 16 — é imutável e foi preservada; a asserção passou a exigir a delegação na tela
+  (`applyTopInset` + `topExtra={16}`) **e** a aplicação real do inset dentro do `AppScreen`. Se qualquer
+  um dos dois lados sumir, o teste cai, como antes.
+- **Imprecisão de caminho no próprio T019, declarada:** a coluna "Arquivos candidatos" lista
+  `CenteredContent.js:8`; o caminho real é `src/components/layout/CenteredContent.js`. T020 e T023 listam
+  `src/components/AppScreen.js`; o caminho real é `src/components/layout/AppScreen.js`. Nenhuma decisão
+  muda — corrige-se o registro, não o escopo.
+- **Smoke após B1: 4534/4534 verdes, 0 falhas** (baseline 4525 + 9 checks novos). `npx expo-doctor`
+  reexecutado ao fim do bloco.
 
 ---
 
