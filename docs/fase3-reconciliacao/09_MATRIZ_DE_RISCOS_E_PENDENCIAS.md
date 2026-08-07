@@ -1810,6 +1810,122 @@ configurações. **Não declarou conformidade jurídica** e não usou as express
 
 ---
 
+## 30. Encerramento documental da Fase 5 — recontagem auditada (Bloco 7)
+
+> **Data:** 2026-08-07. Registro do **Bloco 7** da Fase 5, autorizado pelo fundador em §7 e §9 da sua
+> decisão de 2026-08-07. Consolidação completa em
+> [`docs/fase5-pareceres/07_CONSOLIDACAO_FASE_5.md`](../fase5-pareceres/07_CONSOLIDACAO_FASE_5.md).
+> **Atualização exclusivamente documental. Nenhuma linha da §14 foi alterada.**
+
+### 30.1 Recontagem **manual e auditada** — as dez contagens de §29.5 confirmadas
+
+**Método declarado:** leitura linha a linha da **§14 "Matriz definitiva"** (linhas 464 a 748 do
+arquivo), separando as 22 colunas por **pipe não escapado** — várias células contêm `\|` literal, e
+uma divisão ingênua produziria contagens erradas. Um `git grep` simples foi **rejeitado como método**:
+ele conta **189** ocorrências de `| **P-nnn** |` no arquivo inteiro, porque os códigos reaparecem nas
+§17 a §29; **só a §14 é contável**.
+
+⚠️ **Declaração de veracidade, repetida:** o *"gerador determinístico"* citado nas mensagens de commit
+das Fases 4A a 4D **não existe neste repositório**. **Não se alega tê-lo executado.** Esta recontagem
+é manual, auditada e reproduzível pelo método acima.
+
+| Bloco derivado | §29.5 dizia "Depois" | Recontagem do Bloco 7 | Veredicto |
+|---|--:|--:|:--:|
+| Total de riscos | 149 | **149** | ✅ |
+| Natureza **PRIVACIDADE** na §14 | 2 | **2** | ✅ |
+| §15 itens 1 e 2 | 149 | **149** | ✅ |
+| Status `ABERTO` | 103 | **103** | ✅ |
+| `PODE BLOQUEAR LANÇAMENTO` | 45 | **45** | ✅ |
+| Fase implementação = 7 | 7 | **7** | ✅ |
+| `ALTO` | 43 | **43** | ✅ |
+| `INFORMA O PRODUCT LOCK` | 93 | **93** | ✅ |
+| `VFP` | 114 | **114** | ✅ |
+| `TEL` | 102 | **102** | ✅ |
+
+**Integridade dos códigos:** 149 linhas · **149 códigos únicos** · **zero duplicados** · faixa
+contígua `P-1` a `P-149` · **nenhum ausente**. A soma das fases proprietárias fecha em **149**.
+**A §15 (resumo executivo) foi conferida item a item e está correta**: 149 / 149 / 0 fundidos / 3
+`CORRIGIDO` / 1 `REFUTADO` / 103 `ABERTO` / 6 `DOCUMENTAL` / 2 `INTERNO` / 58 com decisão na Fase 4 /
+**0 `BLOQUEIA PRODUCT LOCK`** / 6 `BLOQUEIA LANÇAMENTO` / 45 `PODE BLOQUEAR` / 1 `POSTERIOR` / 0
+`NÃO DETERMINADO`.
+
+### 30.2 Duas imprecisões de **rótulo de coluna** — declaradas, **não** ajustadas em silêncio
+
+**Nenhuma contagem estava errada.** O que se encontrou foi ambiguidade sobre **de qual coluna** cada
+número vem — o bastante para uma auditoria futura procurar no lugar errado e encontrar **zero**.
+
+| Rótulo em §29.5 | Onde uma auditoria ingênua procuraria | Onde o valor de fato está | Se procurasse no lugar errado |
+|---|---|---|---|
+| **`ALTO` = 43** | coluna 8, **`Sev. origem`** | coluna 9, **`Classif. transversal`** | **0** — em `Sev. origem` o vocabulário é `ND` / `alta` / `média` / `baixa` / `P1`–`P4`; **`ALTO` nunca ocorre nessa coluna** |
+| **`VFP` = 114 e `TEL` = 102** | `TEL` na coluna 16, **`Revalidação`** | **ambos** na coluna 17, **`Validação física`**, no formato `VFP · TEL · …` | **0** — `Revalidação` contém **números de fase** (`21`, `17 e 21`, …), não siglas |
+
+**Correção aplicada:** esta §30 passa a nomear a coluna de origem de cada contagem. **Os números de
+§29.5 permanecem exatamente como estavam.** Nada foi reescrito lá.
+
+### 30.3 `P-85` — eixo documental aprovado, risco **não** corrigido
+
+O plano de medição de [`05_PLANO_DE_MEDICAO_ANONIMA.md`](../fase5-pareceres/05_PLANO_DE_MEDICAO_ANONIMA.md)
+foi **aprovado pelo fundador em 2026-08-07**. Determinação literal: *"a especificação da Fase 5 está
+aprovada; `P-85` NÃO passa a CORRIGIDO."*
+
+| Campo da §14, linha 688 | Estado |
+|---|---|
+| Status | **`ABERTO`** — inalterado |
+| Classificação transversal | **`ALTO`** — inalterada |
+| Fase implementação | **`5`** — **inalterada** (a entrega da Fase 5 é documental por definição do critério de saída da `v5` linha 249; o **runtime** é da **Fase 19**) |
+| Product Lock / Lançamento | inalterados |
+
+O fato que originou `P-85` — *"zero telemetria em todo o domínio do Brincar"* — **continua
+literalmente verdadeiro no código**. Nada em `src/` mudou. O mesmo vale para `P-92`, `P-100`,
+`P-127`, `P-139`, `P-141` e `P-149`: **nenhum foi corrigido.**
+
+### 30.4 `P-149` — base factual **ampliada**, contratos **inalterados**
+
+O Bloco 6 aprofundou a evidência de `P-149` **sem** alterar nenhum campo da §14:
+
+| Dimensão | Registro original (§29.1) | Verificado no Bloco 6 |
+|---|--:|--:|
+| Textos divergentes em `ParentAreaScreen.js` | 4 (`:890`, `:896`, `:911`, `:1104`) | **6** — mais `:952` e `:1280` |
+| Superfícies de rede em `src/` | 1 (`globalManifestService.js:211`) | **5** |
+| Perfis de `eas.json` com `EXPO_PUBLIC_GLOBAL_MANIFEST_URL` | 1 | **3** |
+
+**Descoberta material adicional:** o acesso à rede é **iniciado pelo usuário adulto**, atrás de um
+botão rotulado (`useStoryPackDownload.js:144`; `StoryDetailScreen.js:166,475`; **nenhum disparo
+automático** — `grep` por `download()` em `StoryDetailScreen.js` não retorna chamada implícita). Isso
+permite uma redação futura que seja **honesta e acolhedora** ao mesmo tempo.
+
+**Distinção preservada, como na §29.1:** *"não enviar dados pessoais da criança"* é **verdadeiro**;
+*"não realizar tráfego de rede"* é **falso**. Status `ABERTO`, `PODE BLOQUEAR LANÇAMENTO` e
+**Fase implementação = 7** permanecem inalterados. **`ParentAreaScreen.js` não foi alterado.**
+Evidência em [`06_DIVERGENCIA_DOS_TEXTOS_DE_PRIVACIDADE.md`](../fase5-pareceres/06_DIVERGENCIA_DOS_TEXTOS_DE_PRIVACIDADE.md).
+
+### 30.5 `E5.41` — política de oração decidida, riscos correlatos **abertos**
+
+O fundador decidiu o **Caminho B**: *"a oração pode fazer parte da experiência espiritual do Mundo do
+Beni, mas nunca pode ser requisito mensurável, ação pontuada, condição de conclusão ou causa direta de
+recompensa."* Registro em [`DECISIONS.md`](../DECISIONS.md) §`PF5-ORACAO`.
+
+**Decisão de produto resolvida ≠ risco técnico corrigido.** Os encaminhamentos `E5.42` (Momento com
+Beni concede +1 ⭐ em dia de oração), `E5.43` (`first_family_worship` premia concluir o Cultinho) e
+`E5.44` ("Repita com Beni" como instrução de repetição) **seguem abertos**, com implementação nas
+**Fases 11, 12B, 8 e 9** e **validação visual futura obrigatória**. **Nenhum campo da §14 foi
+alterado por esta decisão.**
+
+### 30.6 O que o Bloco 7 **não** fez nesta matriz
+
+Não alterou **nenhuma linha da §14**. Não criou, não fundiu, não removeu e não renumerou código
+algum — a matriz continua com **149**. Não mudou status, severidade, classificação transversal,
+classificação de Product Lock, classificação de lançamento nem fase proprietária de **nenhum** dos 149
+códigos. Não marcou **nenhum** risco como corrigido. Não reescreveu os números de §29.5. Não alterou
+código, *assets*, *packs*, manifestos ou configurações de build. **Não declarou conformidade
+jurídica** e não usou as expressões proibidas *"legalmente aprovado"*, *"100% conforme"*, *"nenhum
+risco"* ou *"anonimização garantida"*.
+
+⚠️ **Encerramento documental da Fase 5 ≠ aprovação para lançamento.** Nenhum item desta matriz foi
+aprovado para lançamento pela Fase 5.
+
+---
+
 *Fim do artefato 9 de 11. **Matriz única e definitiva com 149 riscos**, `P-01` a `P-149`, sem
 lacunas, sem renumeração e sem perda de histórico. Esta é a única fonte canônica de riscos do
 projeto.*
