@@ -10,6 +10,8 @@
  *   laranja Beni (ação principal infantil) · creme (fundo) · roxo mágico (Livrinho)
  *   marrom quente (texto). Ajuste sobre a paleta existente, sem troca destrutiva.
  */
+import { breakpoints } from './tokens';
+
 export const colors = {
   // Fundos — creme acolhedor, leve
   background: '#FFF9F0',
@@ -104,7 +106,11 @@ export const shadows = {
 };
 
 export const layout = {
-  tabletBreakpoint: 768,
+  // [Fase 6 · B1 · P-30] DERIVADO/LEGADO. O valor canônico mora em
+  // `tokens.breakpoints.tablet`; este campo continua exportado só para não quebrar
+  // consumidores futuros do tema legado, e agora acompanha a fonte única em vez de
+  // manter um segundo corte (era o literal 768). Não criar aqui um valor próprio.
+  tabletBreakpoint: breakpoints.tablet,
   contentMaxWidth: 1180,
   sideColumnWidth: 320,
 };

@@ -3,7 +3,6 @@ import {
   View, Text, ScrollView, StyleSheet, Modal,
   TouchableOpacity, useWindowDimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { stories } from '../data/stories';
@@ -18,6 +17,7 @@ import CenteredContent from '../components/layout/CenteredContent';
 import { useProgressContext } from '../context/ProgressContext';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
 import { getShowcaseStory } from '../services/showcaseStory';
+import AppScreen from '../components/layout/AppScreen';
 
 /* ── Trail definitions ───────────────────────────────────────────── */
 const CATEGORIES = [
@@ -167,7 +167,6 @@ function StoryStepWrapper({ index, total, isDone, inProgress, isLocked, isRecomm
 
 /* ── Main screen ─────────────────────────────────────────────────── */
 export default function StoriesScreen({ route, navigation }) {
-  const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
 
   const { nivel } = route.params ?? {};
@@ -282,11 +281,13 @@ export default function StoriesScreen({ route, navigation }) {
 
   return (
     <View style={styles.screenWrapper}>
-      <ScrollView
+      <AppScreen
+        scroll
         ref={outerScrollRef}
         style={styles.container}
-        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 72 }}
-        showsVerticalScrollIndicator={false}
+        applyTopInset
+        topExtra={16}
+        bottomExtra={72}
       >
         <CenteredContent>
 
@@ -411,7 +412,7 @@ export default function StoriesScreen({ route, navigation }) {
           {storyListContent}
 
         </CenteredContent>
-      </ScrollView>
+      </AppScreen>
       <ComingSoonModal category={modalCategory} onClose={() => setModalCategory(null)} />
     </View>
   );

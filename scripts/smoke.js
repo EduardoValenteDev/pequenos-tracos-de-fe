@@ -2557,10 +2557,18 @@ const atelierCanvasSrc91 = readSrc('src/screens/AtelierCanvasScreen.js');
 const parentAreaSrc91    = readSrc('src/screens/ParentAreaScreen.js');
 
 // Safe Area — StoriesScreen
+// [Fase 6 · B1 · P-29] A INTENÇÃO desta asserção (Sprint 9.1) é imutável: o topo de Histórias
+// respeita o inset da status bar com a mesma folga de 16. O que mudou foi o MECANISMO — a tela
+// não lê mais `useSafeAreaInsets()` direto; ela delega ao tratamento único `AppScreen`
+// (`applyTopInset` + `topExtra={16}`). Por isso a asserção passou a exigir a delegação NA TELA
+// **e** a aplicação real do inset DENTRO do AppScreen: se qualquer um dos dois lados sumir, o
+// título volta a ficar sob a status bar e o teste cai — exatamente como antes.
+const appScreenSrc91 = readSrc('src/components/layout/AppScreen.js');
 check(
-  'StoriesScreen applies insets.top to contentContainerStyle (paddingTop)',
-  storiesScreenSrc91.includes('insets.top') &&
-  (storiesScreenSrc91.includes('paddingTop: insets.top') || storiesScreenSrc91.includes('insets.top + 16')),
+  'StoriesScreen aplica o inset de topo (delegado ao AppScreen, com folga 16)',
+  storiesScreenSrc91.includes('applyTopInset') &&
+  storiesScreenSrc91.includes('topExtra={16}') &&
+  appScreenSrc91.includes('safePad.paddingTop = insets.top + topExtra'),
   'StoriesScreen missing insets.top in contentContainerStyle — titles under status bar on iPhone',
 );
 
@@ -50737,6 +50745,132 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       CN_S4.length === 15 && CN_S4.every((c) => c.original === true && c.mutante === false),
       `executados=${CN_S4.length} · sobreviventes=${CN_S4.filter((c) => !(c.original === true && c.mutante === false)).map((c) => c.id).join(', ') || '(nenhum)'}`);
   }
+
+  // ── [Fase 6 · B1] G-BP-1 · G-BP-2 · G-SAFE · CN-1 ──────────────────────────
+  /* Estes quatro lacres fecham o bloco B1 (fundação responsiva unificada) da spec 021.
+   * O que eles impedem de VOLTAR:
+   *   G-BP-1 — havia DOIS cortes telefone↔tablet no app: dez comparações literais a `768`
+   *            espalhadas por telas/navegação e um segundo valor em `productTheme.layout`.
+   *            Cada ponto era livre para divergir. Agora existe UMA fonte: `tokens.breakpoints`.
+   *   G-BP-2 — `AppScreen` importava o tema CONCORRENTE (`productTheme`). Condição inegociável
+   *            do Plan §6.1.2 para adotá-lo: consumir `tokens.js`.
+   *   G-SAFE — as telas da lista fechada de T017 não voltam a improvisar área segura por conta
+   *            própria; o tratamento é único, dentro de `AppScreen`.
+   *   CN-1   — a metade ARITMÉTICA do controle negativo: nenhuma tela pode classificar telefone
+   *            como tablet na banda 600–767. A metade VISUAL (o shell de tablet não aparecer em
+   *            telefone grande) é física e continua exigida no roteiro de validação. */
+  console.log('\n── Fase 6 · B1: breakpoint único, AppScreen e área segura ──');
+
+  // Varredura real do diretório `src` — o lacre não pode depender de uma lista de arquivos
+  // escrita à mão, senão um arquivo NOVO com `width >= 768` nasceria fora do gate.
+  const b1Arquivos = [];
+  (function varrer(dirRel) {
+    for (const entrada of fs.readdirSync(path.join(root, dirRel), { withFileTypes: true })) {
+      const rel = `${dirRel}/${entrada.name}`;
+      if (entrada.isDirectory()) varrer(rel);
+      else if (entrada.name.endsWith('.js')) b1Arquivos.push(rel);
+    }
+  })('src');
+
+  // Comparação de LARGURA contra literal — não casa `768` dentro de string/sha256/nome de arquivo.
+  const B1_LITERAL = /(?:[A-Za-z_$][\w$]*\.)?\b\w*[Ww]idth\s*[<>]=?\s*768\b|\b768\s*[<>]=?\s*(?:[A-Za-z_$][\w$]*\.)?\w*[Ww]idth\b/;
+  const b1Infratores = b1Arquivos.filter((rel) => B1_LITERAL.test(codeOf(rel)));
+
+  const b1TokensSrc = readSrc('src/theme/tokens.js');
+  const b1ProductSrc = readSrc('src/theme/productTheme.js');
+  const b1TabletMatch = b1TokensSrc.match(/export const breakpoints\s*=\s*\{[^}]*\btablet:\s*(\d+)/);
+  const b1Tablet = b1TabletMatch ? Number(b1TabletMatch[1]) : NaN;
+
+  check(
+    'G-BP-1 [1/3]: `tokens.breakpoints.tablet` é a fonte única e vale 600',
+    b1Tablet === 600,
+    `tokens.breakpoints.tablet=${b1TabletMatch ? b1TabletMatch[1] : '(não declarado)'} — esperado 600`,
+  );
+
+  check(
+    'G-BP-1 [2/3]: nenhuma comparação de largura contra o literal 768 sobrevive em `src`',
+    b1Infratores.length === 0,
+    `arquivos com corte literal: ${b1Infratores.join(', ')}`,
+  );
+
+  check(
+    'G-BP-1 [3/3]: `productTheme.layout.tabletBreakpoint` DERIVA da fonte única (não é um segundo valor)',
+    /tabletBreakpoint:\s*breakpoints\.tablet/.test(b1ProductSrc) &&
+    /import\s*\{[^}]*\bbreakpoints\b[^}]*\}\s*from\s*'\.\/tokens'/.test(b1ProductSrc),
+    'productTheme.layout.tabletBreakpoint voltou a declarar um corte próprio em vez de derivar de tokens',
+  );
+
+  const b1AppScreenSrc = readSrc('src/components/layout/AppScreen.js');
+  check(
+    'G-BP-2: `AppScreen` não importa `productTheme` e consome `tokens.js`',
+    !codeOf('src/components/layout/AppScreen.js').includes('productTheme') &&
+    /import\s*\{[^}]*\}\s*from\s*'\.\.\/\.\.\/theme\/tokens'/.test(b1AppScreenSrc),
+    'AppScreen voltou ao tema concorrente — Plan §6.1.2 exige tokens.js como condição de adoção',
+  );
+
+  /* Lista NOMINAL FECHADA de T017 — a interseção dos 3 critérios do Plan §6.1.2 (tela do
+   * inventário §1 · lia `useSafeAreaInsets` só para padding de topo/base · adoção não obriga
+   * tocar `productTheme` em cascata). As 34 telas restantes ficam DECLARADAS e adiadas: o
+   * gate não as cobre, e é isso que mantém o rollback de B1 baixo. Home, Perfil, Mapa,
+   * Brincar e Troféus ficaram de fora por motivo TÉCNICO, não por conveniência — nelas o
+   * inset alimenta geometria (alvo do tour guiado, viewport da câmera do mapa) ou cabeçalho
+   * com gradiente, e isso não é padding de container. */
+  const B1_TELAS_T017 = [
+    'src/screens/NarrationScreen.js',
+    'src/screens/StoryDetailScreen.js',
+    'src/screens/CongratsScreen.js',
+    'src/screens/QuizScreen.js',
+    'src/screens/ReflectionScreen.js',
+    'src/screens/CultinhoEmCasaScreen.js',
+    'src/screens/StoriesScreen.js',
+  ];
+
+  const b1SemAppScreen = B1_TELAS_T017.filter((rel) => !codeOf(rel).includes('AppScreen'));
+  const b1AindaLeemInset = B1_TELAS_T017.filter((rel) => codeOf(rel).includes('useSafeAreaInsets'));
+
+  check(
+    `G-SAFE [1/3]: as ${B1_TELAS_T017.length} telas da lista fechada de T017 consomem \`AppScreen\``,
+    b1SemAppScreen.length === 0,
+    `telas sem AppScreen: ${b1SemAppScreen.join(', ')}`,
+  );
+
+  check(
+    'G-SAFE [2/3]: nenhuma tela da lista T017 chama `useSafeAreaInsets` diretamente',
+    b1AindaLeemInset.length === 0,
+    `telas que voltaram a improvisar área segura: ${b1AindaLeemInset.join(', ')}`,
+  );
+
+  check(
+    'G-SAFE [3/3]: o tratamento de área segura existe DE FATO dentro de `AppScreen`',
+    b1AppScreenSrc.includes('useSafeAreaInsets()') &&
+    b1AppScreenSrc.includes('safePad.paddingBottom = insets.bottom + bottomExtra'),
+    'AppScreen deixou de aplicar o padding seguro — G-SAFE ficaria verde com as telas SEM área segura',
+  );
+
+  /* CN-1 (metade automatizável). O corte é UM só, então basta provar que a expressão que TODAS
+   * as telas passaram a usar (`width >= breakpoints.tablet`) classifica 599 como telefone e 600
+   * como tablet. Se alguém "corrigir" o gate afrouxando o operador (`>` em vez de `>=`), o 600
+   * vira telefone e o teste cai. */
+  const b1Classifica = (w) => w >= b1Tablet;
+  const b1FormaCanonica = /width\s*>=\s*breakpoints\.tablet/;
+  const b1ForaDaForma = b1Arquivos.filter(
+    (rel) => /\bbreakpoints\.tablet\b/.test(codeOf(rel)) &&
+             rel !== 'src/theme/productTheme.js' &&
+             rel !== 'src/theme/tokens.js' &&
+             !b1FormaCanonica.test(codeOf(rel)),
+  );
+
+  check(
+    'CN-1 [1/2]: na fronteira, 599 é telefone e 600 é tablet — a banda 600–767 mudou de lado, como planejado',
+    b1Classifica(599) === false && b1Classifica(600) === true && b1Classifica(767) === true,
+    `599→${b1Classifica(599)} · 600→${b1Classifica(600)} · 767→${b1Classifica(767)}`,
+  );
+
+  check(
+    'CN-1 [2/2]: todo consumidor de `breakpoints.tablet` usa a MESMA forma `width >= breakpoints.tablet`',
+    b1ForaDaForma.length === 0,
+    `consumidores com forma divergente: ${b1ForaDaForma.join(', ')}`,
+  );
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;

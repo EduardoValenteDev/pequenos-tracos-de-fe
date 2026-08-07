@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet,
+  View, Text, StyleSheet,
   useWindowDimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
@@ -12,6 +11,8 @@ import { HEART_FEELINGS, HEART_KEEPS } from '../data/lumiReflections';
 import { getReflection, saveReflection, addBonusStars } from '../services/postStoryStorage';
 import { useProgressContext } from '../context/ProgressContext';
 import BeniAvatar from '../components/beni/BeniAvatar';
+import { breakpoints } from '../theme/tokens';
+import AppScreen from '../components/layout/AppScreen';
 
 const STAR_BONUS = 1;
 // Bloco 4C: reflexão curta — 2 perguntas + feedback (não é quiz).
@@ -47,8 +48,7 @@ function ChoiceGrid({ options, selected, onSelect, withEmoji }) {
 export default function ReflectionScreen({ route, navigation }) {
   const { story } = route.params;
   const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const isTablet = width >= 768;
+  const isTablet = width >= breakpoints.tablet;
 
   const { refreshProgress } = useProgressContext();
 
@@ -97,9 +97,9 @@ export default function ReflectionScreen({ route, navigation }) {
         backgroundColor="#7C3AED"
         variant="dark"
       />
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 48 }}
-        showsVerticalScrollIndicator={false}
+      <AppScreen
+        scroll
+        bottomExtra={48}
       >
         {/* ── Header ── */}
         <LinearGradient
@@ -179,7 +179,7 @@ export default function ReflectionScreen({ route, navigation }) {
             </SoundButton>
           )}
         </View>
-      </ScrollView>
+      </AppScreen>
     </View>
   );
 }

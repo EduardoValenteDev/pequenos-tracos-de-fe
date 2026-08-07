@@ -48,6 +48,7 @@ import {
   deleteChurchGroup,
 } from '../services/churchModeService';
 import { PARENTAL_CONSENT_FLOW_ENABLED } from '../config/featureFlags';
+import { breakpoints } from '../theme/tokens';
 import {
   getAudioPreferences,
   loadAudioPreferences,
@@ -283,7 +284,7 @@ const PARENT_DATA_ACTIONS = [
 export default function ParentAreaScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
+  const isTablet = width >= breakpoints.tablet;
   const currentPlan = getCurrentPlan();
   const isPremium = currentPlan === 'premium';
 

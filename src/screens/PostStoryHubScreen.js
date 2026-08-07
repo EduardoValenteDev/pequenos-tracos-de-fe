@@ -13,6 +13,7 @@ import SoundButton from '../components/SoundButton';
 import { isQuizDone, getReflection, isStoryBookOpened } from '../services/postStoryStorage';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
 import LockedStoryFallback from '../components/premium/LockedStoryFallback';
+import { breakpoints } from '../theme/tokens';
 
 function HubCard({ emoji, title, desc, cta, tagColor, done, onPress }) {
   return (
@@ -48,7 +49,7 @@ export default function PostStoryHubScreen({ route, navigation }) {
   const { story } = route.params;
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const isTablet = width >= 768;
+  const isTablet = width >= breakpoints.tablet;
 
   const [quizDone, setQuizDone] = useState(false);
   const [reflectionDone, setReflectionDone] = useState(false);

@@ -24,6 +24,7 @@ import BeniAvatar from './beni/BeniAvatar';
 import BeniGuideAudio from './BeniGuideAudio';
 import { getBeniGuideAudio, preloadGuideAudio } from '../data/beniGuideAudio';
 import { getAudioPreferences, subscribeAudioPreferences } from '../services/audioManager';
+import { breakpoints } from '../theme/tokens';
 
 const CARD_H = 168;        // altura estimada do card (posicionamento)
 const CARD_H_TALL = 200;   // estimativa GENEROSA p/ colisão (card real c/ texto de 3 linhas passa de CARD_H)
@@ -76,7 +77,7 @@ export default function BeniGuideOverlay({
   const step = safeSteps[index];
   // Tablet (sidebar) vs mobile (tab bar). No tablet, o passo com highlightTab vira um
   // alvo MEDIDO da sidebar ('adventures.sidebarTab'); no mobile usa o realce de tab bar.
-  const isTabletLayout = width >= 768;
+  const isTabletLayout = width >= breakpoints.tablet;
   // Realce de aba por chave (mobile=tab bar / tablet=sidebar). Generalizado p/ Início
   // e Aventuras (mesma lógica premium). Índice da aba (mobile) e alvo da sidebar (tablet).
   const TAB_INDEX_BY_KEY = { home: 0, adventures: 1, atelier: 2, stars: 3, profile: 4 };

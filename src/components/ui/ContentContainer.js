@@ -11,8 +11,12 @@ import { breakpoints, maxContentWidth } from '../../theme/tokens';
  *
  * Usa `useWindowDimensions` + os tokens (`breakpoints`, `maxContentWidth`) — NUNCA
  * leitura de dimensão congelada em módulo, para responder a rotação e Split View.
- * NÃO estiliza cor/fonte/borda; só resolve largura e centralização. Não é aplicado
- * a nenhuma tela ainda (A0.3 só cria a base).
+ * NÃO estiliza cor/fonte/borda; só resolve largura e centralização.
+ *
+ * [Fase 6 · B1 · P-30] Deixou de ser base sem uso: além do consumo direto em
+ * `StoryDetailScreen`, o antigo `CenteredContent` — a SEGUNDA primitiva de largura, com
+ * corte `768` e máximo `720` próprios — passou a delegar aqui. Este arquivo é agora o
+ * único lugar onde a largura de coluna é decidida.
  */
 export default function ContentContainer({ children, style, ...rest }) {
   const { width } = useWindowDimensions();

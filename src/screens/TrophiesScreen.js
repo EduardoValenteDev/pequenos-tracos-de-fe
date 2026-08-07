@@ -40,6 +40,7 @@ import {
 } from '../services/achievementSeenService';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
 import { backLabelFor } from '../utils/originBack';
+import { breakpoints } from '../theme/tokens';
 
 /* Extrai a unidade ("cenas", "artes"...) do progressLabel para frases naturais. */
 function unitFromLabel(label) {
@@ -193,7 +194,7 @@ export default function TrophiesScreen({ navigation, route }) {
 
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
+  const isTablet = width >= breakpoints.tablet;
 
   const { progressByStory, postStoryStatusByStory } = useProgressContext();
 

@@ -125,6 +125,12 @@ export const motion = {
 
 // ── §2.4 RESPONSIVIDADE ───────────────────────────────────────────────────────
 // Consumidos via useWindowDimensions + estes tokens (nunca Dimensions.get em módulo).
+//
+// [Fase 6 · B1 · P-30] FONTE ÚNICA DE BREAKPOINT. `breakpoints.tablet` é o ÚNICO
+// valor de corte telefone↔tablet do app. Nenhum arquivo pode comparar largura com
+// um literal (era `width >= 768` em 10 pontos, cada um livre para divergir).
+// `productTheme.layout.tabletBreakpoint` passou a DERIVAR daqui — não é mais um
+// segundo valor. O gate G-BP-1 no smoke trava esta regra.
 export const breakpoints = { phone: 0, tablet: 600, tabletL: 900 };            // dp
 export const maxContentWidth = { phone: '100%', tablet: 560, tabletL: 640 };   // conteúdo centralizado
 export const grid = { phone: 1, tablet: 2, tabletL: 3 };                        // colunas por breakpoint

@@ -26,6 +26,7 @@ import AchievementUnlockModal from '../components/achievements/AchievementUnlock
 import { images } from '../assets/images';
 import BeniAvatar from '../components/beni/BeniAvatar';
 import { computeBookImageSize } from '../constants/officialImage';
+import { breakpoints } from '../theme/tokens';
 
 const PROGRESS_KEY = '@ptf_progress';
 const AUTOPLAY_MS = 5000;
@@ -192,7 +193,7 @@ export default function StoryBookScreen({ route, navigation }) {
   const { story, fromStoryCompletion = false } = route.params ?? {};
   const insets = useSafeAreaInsets();
   const { width, height: screenH } = useWindowDimensions();
-  const isTablet = width >= 768;
+  const isTablet = width >= breakpoints.tablet;
 
   const { refreshProgress, progressByStory, postStoryStatusByStory } = useProgressContext();
 

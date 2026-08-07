@@ -13,9 +13,8 @@
  * Sem backend, sem IA em tempo real, sem texto livre da criança.
  */
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Image, StyleSheet, Modal } from 'react-native';
+import { View, Text, Image, StyleSheet, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
@@ -25,6 +24,7 @@ import { getStoryOfTheWeek, markFamilyWorshipCompleted } from '../services/famil
 import { getCultinhoForStory } from '../data/cultinhoData';
 import { ROUTES } from '../constants/routes';
 import { ORIGIN } from '../utils/originBack';
+import AppScreen from '../components/layout/AppScreen';
 
 function StepCard({ number, accent, title, children }) {
   return (
@@ -41,8 +41,6 @@ function StepCard({ number, accent, title, children }) {
 }
 
 export default function CultinhoEmCasaScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
-
   // História sugerida — escolhida 1x por sessão (só ambienta a passagem do dia).
   const [story] = useState(() => getStoryOfTheWeek());
   const [cultinho] = useState(() => getCultinhoForStory(getStoryOfTheWeek()));
@@ -81,9 +79,10 @@ export default function CultinhoEmCasaScreen({ navigation }) {
         onHome={() => navigation.navigate('Home')}
       />
 
-      <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}
-        showsVerticalScrollIndicator={false}
+      <AppScreen
+        scroll
+        bottomExtra={40}
+        contentContainerStyle={{ padding: 16 }}
       >
         {/* Beni guia */}
         <BeniGuideBubble
@@ -162,7 +161,7 @@ export default function CultinhoEmCasaScreen({ navigation }) {
         <SoundButton style={styles.optionalColorBtn} onPress={handleCriarJuntos} activeOpacity={0.85}>
           <Text style={styles.optionalColorText}>🎨 Criar juntos (opcional)</Text>
         </SoundButton>
-      </ScrollView>
+      </AppScreen>
 
       {/* Sucesso */}
       <Modal visible={done} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setDone(false)}>

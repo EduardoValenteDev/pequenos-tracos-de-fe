@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, Image, Modal,
+  View, Text, Image, Modal,
   Animated, StyleSheet,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from '../components/SoundButton';
 import Confetti from '../components/Confetti';
@@ -24,6 +23,7 @@ import { QUIZ_QUESTIONS_PER_STORY } from '../services/quizModel';
 import { isCreationColoringPilotActive } from '../services/coloring60Pilot';
 import { ROUTES } from '../constants/routes';
 import { loadColoring60JourneyState } from '../services/coloring60ProgressReader';
+import AppScreen from '../components/layout/AppScreen';
 import {
   deriveColoring60StoryBridge,
   COLORING60_ACTION,
@@ -112,7 +112,6 @@ function RewardTile({ emoji, label, onPress }) {
 
 export default function CongratsScreen({ route, navigation }) {
   const { story } = route.params;
-  const insets = useSafeAreaInsets();
   const { progressByStory, postStoryStatusByStory } = useProgressContext();
   const { profile } = useProfile();
   const progresso = progressByStory[story.id] ?? {};
@@ -225,10 +224,10 @@ export default function CongratsScreen({ route, navigation }) {
         <Confetti visible={true} />
       </View>
 
-      <ScrollView
+      <AppScreen
+        scroll
+        bottomExtra={48}
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 48 }}
-        showsVerticalScrollIndicator={false}
       >
         <Animated.View style={[styles.pageContent, {
           opacity: fadeAnim,
@@ -426,7 +425,7 @@ export default function CongratsScreen({ route, navigation }) {
           </Text>
 
         </Animated.View>
-      </ScrollView>
+      </AppScreen>
 
       {pendingAchievement && (
         <AchievementUnlockModal

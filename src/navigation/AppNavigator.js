@@ -65,6 +65,7 @@ import { isPackSandboxDevEnabled } from '../services/packSandboxDevService';
 import PackSandboxDevScreen from '../screens/PackSandboxDevScreen';
 // M1 — gate único das ferramentas internas (Administração dev): rotas internas só sob ele.
 import { isInternalToolsEnabled } from '../config/internalTools';
+import { breakpoints } from '../theme/tokens';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -280,7 +281,7 @@ function MobileTabs() {
 // Entrada do layout principal — decide entre tablet e celular
 function MainTabs({ navigation }) {
   const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
+  const isTablet = width >= breakpoints.tablet;
   return isTablet ? <TabletLayout navigation={navigation} /> : <MobileTabs />;
 }
 

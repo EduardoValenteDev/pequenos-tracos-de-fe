@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, TouchableOpacity,
   Animated, StyleSheet,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import SoundButton from '../components/SoundButton';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
@@ -34,6 +33,7 @@ import {
 } from '../services/coloring60MilestoneInviteSeen';
 import { c60OpenEditorFromMilestone } from '../services/coloring60Navigation';
 import Coloring60MilestoneInvite from '../components/coloring60/Coloring60MilestoneInvite';
+import AppScreen from '../components/layout/AppScreen';
 
 export default function NarrationScreen({ route, navigation }) {
   const { story, cenaIndex } = route.params;
@@ -48,7 +48,6 @@ export default function NarrationScreen({ route, navigation }) {
   const hasCenas = !!(story?.cenas?.length);
   const cena = hasCenas ? story.cenas[cenaIndex] : null;
 
-  const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const numeroCena = cenaIndex + 1;
   const totalCenas = hasCenas ? story.cenas.length : 0;
@@ -343,10 +342,11 @@ export default function NarrationScreen({ route, navigation }) {
         onHome={handleInicio}
       />
 
-      <ScrollView
+      <AppScreen
+        scroll
+        bottomExtra={32}
         style={styles.container}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
       >
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
 
@@ -428,7 +428,7 @@ export default function NarrationScreen({ route, navigation }) {
           )}
 
         </Animated.View>
-      </ScrollView>
+      </AppScreen>
 
       <UnlockCelebration
         visible={showCelebration}

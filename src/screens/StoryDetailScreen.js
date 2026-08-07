@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, Modal,
+  View, Text, Modal,
   Animated, StyleSheet, useWindowDimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { warn } from '../utils/logger';
@@ -30,7 +29,7 @@ import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import ContentContainer from '../components/ui/ContentContainer';
 import BotaoPrimario from '../components/ui/BotaoPrimario';
-import { color } from '../theme/tokens';
+import { color, breakpoints } from '../theme/tokens';
 // Piloto "Colorir com o Beni" (Colorir 60) — SÓ na jornada de "A Criação", gated pela flag do
 // piloto OU por Dev Client + ferramentas internas (mesmo mecanismo único de `isColoring60PilotAllowed`).
 import { COLORIR_60_CREATION_PILOT_ENABLED } from '../config/featureFlags';
@@ -55,6 +54,7 @@ import { c60OpenEditorFromStory, c60OpenCollectionFromStory } from '../services/
 // nem decide o que falta. ROUTES identifica, sem literal solto, qual rota é ENTRADA em conteúdo.
 import { describeStorySequenceLock } from '../services/storyContentAuthorization';
 import { ROUTES } from '../constants/routes';
+import AppScreen from '../components/layout/AppScreen';
 
 const CREATION_STORY_ID = 'creation';
 
@@ -108,8 +108,7 @@ function PostStoryCard({ emoji, title, desc, done, tagColor, onPress, isTablet }
 export default function StoryDetailScreen({ route, navigation }) {
   const { story } = route.params;
   const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const isTablet = width >= 768;
+  const isTablet = width >= breakpoints.tablet;
 
   // [P4 · FONTE ÚNICA] O progresso de cenas desta tela vem do ProgressContext — a MESMA fonte que a
   // NarrationScreen atualiza (refreshProgress após salvar cada cena) — e não mais de uma leitura
@@ -413,10 +412,11 @@ export default function StoryDetailScreen({ route, navigation }) {
 
   return (
     <View style={styles.wrapper}>
-      <ScrollView
+      <AppScreen
+        scroll
+        bottomExtra={24}
         style={styles.container}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
       >
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
 
@@ -604,7 +604,7 @@ export default function StoryDetailScreen({ route, navigation }) {
           ) : null}
 
         </Animated.View>
-      </ScrollView>
+      </AppScreen>
 
       {/* §7 · Convite do Beni após terminar a história (uma vez). Overlay leve; "Continuar depois"
           não força pintura. Só existe sob o gate do piloto. */}

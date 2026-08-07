@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet,
+  View, Text, StyleSheet,
   useWindowDimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import { colors } from '../theme/colors';
@@ -18,14 +17,15 @@ import { useProgressContext } from '../context/ProgressContext';
 import PremiumLockCard from '../components/premium/PremiumLockCard';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
+import { breakpoints } from '../theme/tokens';
+import AppScreen from '../components/layout/AppScreen';
 
 const STAR_BONUS = 2;
 
 export default function QuizScreen({ route, navigation }) {
   const { story } = route.params;
   const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const isTablet = width >= 768;
+  const isTablet = width >= breakpoints.tablet;
 
   const { refreshProgress, progressByStory, postStoryStatusByStory } = useProgressContext();
 
@@ -127,9 +127,10 @@ export default function QuizScreen({ route, navigation }) {
           backgroundColor={allCorrect ? '#2E7D32' : colors.primaryDark}
           variant="dark"
         />
-        <ScrollView
-          contentContainerStyle={[styles.resultContent, { paddingBottom: insets.bottom + 48 }]}
-          showsVerticalScrollIndicator={false}
+        <AppScreen
+          scroll
+          bottomExtra={48}
+          contentContainerStyle={styles.resultContent}
         >
           <LinearGradient
             colors={allCorrect ? ['#43A047', '#2E7D32'] : [colors.primaryDark, colors.primary]}
@@ -173,7 +174,7 @@ export default function QuizScreen({ route, navigation }) {
               <Text style={styles.doneBtnText}>Continuar →</Text>
             </SoundButton>
           </View>
-        </ScrollView>
+        </AppScreen>
         {pendingAchievement && (
           <AchievementUnlockModal
             achievement={pendingAchievement}
@@ -198,9 +199,10 @@ export default function QuizScreen({ route, navigation }) {
         backgroundColor={colors.primaryDark}
         variant="dark"
       />
-      <ScrollView
-        contentContainerStyle={[styles.quizContent, { paddingBottom: insets.bottom + 48 }]}
-        showsVerticalScrollIndicator={false}
+      <AppScreen
+        scroll
+        bottomExtra={48}
+        contentContainerStyle={styles.quizContent}
       >
         <LinearGradient
           colors={[colors.primaryDark, colors.primary]}
@@ -294,7 +296,7 @@ export default function QuizScreen({ route, navigation }) {
             </SoundButton>
           )}
         </View>
-      </ScrollView>
+      </AppScreen>
     </View>
   );
 }
