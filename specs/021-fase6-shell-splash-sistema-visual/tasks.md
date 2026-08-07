@@ -285,6 +285,100 @@ Gates: **G-NAV-1, G-NAV-2** · Físico: **F-TAB-600, F-TAB-NAV, F-TAB-BACK, F-TA
 **Rollback do bloco:** médio — concentrado em `AppNavigator.js` e `TabletSidebar.js`; as correções de
 navegação são pontuais e revertíveis por arquivo.
 
+#### 2.3.1 Registro de execução de B3 (Etapa SDD 7)
+
+- **T027/T029 — o shell paralelo deixou de existir.** `TabletLayout` (estado de aba em `useState`, tela
+  ativa renderizada à mão, objeto `route={{ params, key, name }}` fabricado) foi **removido**. `MobileTabs`
+  e `MainTabs` colapsaram em **um único** `MainTabs`, com **um** `Tab.Navigator` para os dois formatos.
+  No tablet muda a **posição** (`tabBarPosition: 'left'`) e a **apresentação** (`tabBar` custom) da barra —
+  **não** a árvore de navegação. As telas de aba passaram a receber o par `route`/`navigation` real.
+- **T028 — a sidebar virou apresentação do navegador.** `TabletSidebarTabBar` deriva o item ativo de
+  `state.routes[state.index].name`, monta os itens a partir das **rotas reais** e o toque emite o evento
+  **`tabPress` de verdade** (`canPreventDefault: true`), respeitando `defaultPrevented`. Com isso o bloqueio
+  de navegação durante o tour (Fase 1.1.3) passou a viver em **um lugar só** — o `listeners.tabPress` das
+  abas — e vale nos dois layouts; a cópia da regra que existia dentro do `TabletLayout` sumiu. O array
+  privado `TABS` do `TabletSidebar.js` foi apagado: o componente recebe `items` e não tem mais catálogo
+  próprio de abas (era a segunda fonte de verdade que causava divergência de rótulo).
+- **T030 — ZERO NAVEGAÇÕES INEFETIVAS, provado por mecanismo, não por dedução.** Das 11 ocorrências
+  fechadas em §4.3:
+  - **8 payloads aninhados** (`monteACenaExit.js:38`, `CadeAOvelhinhaScreen.js:1074`,
+    `CultinhoEmCasaScreen.js:54` e `:182`, `PalavrinhasDoBeniScreen.js:894`, `ParentAreaScreen.js:494`,
+    `ParesDoBeniScreen.js:971`, `StoryBookScreen.js:741`) passam a surtir efeito no tablet **por T027**,
+    sem mudança de comportamento própria. Leitura das fontes instaladas (não deduzida):
+    `@react-navigation/core` `useNavigationBuilder.tsx:656-734` consome `route.params.screen` e rastreia o
+    consumo **por identidade do objeto de params** (`ConsumedParamsContext.isConsumed`), reemitindo
+    `CommonActions.navigate` dentro do navegador filho quando os params são novos.
+  - **`monteACenaExit.js:38` não precisou de edição** e o motivo é verificável: `StackRouter` (
+    `@react-navigation/routers` 7.5.5, `StackRouter.tsx` POP_TO) **define params novos** na rota de destino,
+    o que satisfaz exatamente a condição de identidade acima. A suspeita inicial de que a linha precisaria
+    de correção explícita foi **descartada por leitura de código**, não por conveniência.
+  - **`HomeScreen.js:660` e `:717`** já funcionavam no celular (Home é aba **irmã** das demais) e passam a
+    funcionar no tablet por T027; foram normalizadas para `ROUTES`.
+  - **`CongratsScreen.js:210` era a única ocorrência morta nos DOIS formatos** — tela **empilhada**
+    chamando `navigate('Aventuras')`: o `StackRouter` devolve `null` e a ação **sobe** para o pai, nunca
+    desce para o navegador filho. Recebeu a única correção **semântica** do bloco: payload aninhado a
+    partir de `ROUTES.HOME`.
+- **T031 — normalização aplicada nas 4 chamadas nomeadas** (`CultinhoEmCasaScreen.js:54` e `:182`,
+  `ParentAreaScreen.js:494`, `StoryBookScreen.js:741`) mais as 3 por nome de aba.
+- **T032 — preservação do estado de aba virou estrutural, não código defensivo.** Como o `Tab.Navigator`
+  é **o mesmo elemento** nos dois formatos, cruzar o breakpoint (rotação na banda 600–767) é **re-render**,
+  não remontagem; e voltar de uma rota empilhada devolve o estado de aba real do navegador.
+- **T033 — nenhum `BackHandler` manual foi adicionado, e a prova veio antes do código.** O tablet passou a
+  usar exatamente o mesmo caminho do celular (`TabRouter` `GO_BACK` + stack). Não há handler para justificar
+  porque não há caminho divergente. **Confirmação física ainda pendente** (F-TAB-BACK).
+- **T036 — já satisfeito por B1 (T022):** `CenteredContent` delega a `ContentContainer`, que limita a coluna
+  no tablet. Nenhuma edição adicional foi necessária em B3. O **print** que comprova a coluna limitada é
+  físico e está no roteiro.
+- **T034/T035 (LumiMoment e StoryBook sob o shell novo) e T038 permanecem FÍSICOS** — nada aqui os declara
+  aprovados.
+- **T037 — 6 gates novos**, todos com controle negativo:
+  - **G-NAV-1** [1/3] nenhum `route` fabricado no shell · [2/3] o shell não guarda estado de aba próprio ·
+    [3/3] existe **um** `Tab.Navigator`, com `tabBarPosition` por ternário e a sidebar como `tabBar`.
+  - **G-NAV-2** [1/3] nenhum payload aninhado pendurado em string literal · [2/3] nenhuma navegação por
+    **nome de aba** literal (varredura em todo `src/**/*.js`) · [3/3] **todo** payload aninhado parte de
+    `ROUTES.HOME` e nomeia a aba por `ROUTES.*`.
+- **Controles negativos executados (mutação real no disco, revertida em memória — 6/6 efetivos):**
+  reintroduzir `route={{ … }}` derrubou G-NAV-1 [1/3]; renomear `focusedRouteName` para `activeTabName`
+  derrubou [2/3]; fixar `tabBarPosition: 'bottom'` derrubou [3/3]; trocar `ROUTES.HOME` por `'Home'` em
+  `CongratsScreen` derrubou G-NAV-2 [1/3]; `navigate('Aventuras')` em `HomeScreen` derrubou [2/3];
+  pendurar o payload em `ROUTES.ADVENTURES` no `CultinhoEmCasaScreen` derrubou [3/3]. Nenhum gate é verde
+  vazio. A restauração foi conferida arquivo a arquivo.
+- **Escopo do gate G-NAV-2 [1/3] estreitado, e o estreitamento é DECLARADO.** A coluna "Teste" de T031
+  escreve `git grep -n "navigate('Home'"` **sem ocorrência**, o que é mais largo do que a própria T031, que
+  nomeia **quatro** ocorrências — todas **aninhadas**. A varredura real encontrou `navigate('Home')`
+  **simples** em 10 arquivos (`AppNavigator`, `AtelierCanvasScreen`, `CongratsScreen`,
+  `CultinhoEmCasaScreen`, `LumiMomentScreen`, `NarrationScreen`, `PostStoryHubScreen`, `QuizScreen`,
+  `ReflectionScreen`, `StoryBookScreen`). Essa forma é o "voltar para as abas", **é efetiva nos dois
+  formatos** e nunca esteve no escopo de B3. O gate mede a forma **aninhada** (`navigate('Home', {`), que é
+  a que causava o defeito; a normalização das 10 restantes fica **registrada para B7** — não foi
+  implementada silenciosamente nem declarada resolvida.
+- **Nome de variável ajustado para não colidir com o gate, e o motivo é registrado:** o gate G-NAV-1 [2/3]
+  proíbe o identificador `activeTabName` inteiro (era o nome do estado paralelo). O valor **derivado** de
+  `state.routes[state.index]` na sidebar chama-se `focusedRouteName` — derivar do estado real é o
+  comportamento desejado; guardar estado próprio é o defeito.
+- **Oito asserções pré-existentes do smoke reescritas, cada uma com comentário declarando o quê e o porquê:**
+  `UX2.1 (Criador)`, `TABLET1.0`, `FASE1.1.3 (sidebar)`, `FASE1.1.4.3 (callout)`, `Home: card "Você
+  conquistou"`, `A3 (Livrinho)`, `B1-10 (tablet sem duplicar)` e `1.2 (sidebar exibe "Brincar")`. Todas
+  fixavam o **mecanismo** removido por B3 (shell paralelo, `setActiveTabName`, catálogo próprio da sidebar);
+  em todas a **intenção** foi preservada e passou a ser verificada pelo mecanismo novo. Nenhuma foi
+  enfraquecida ou apagada.
+- **Divergência de numeração de linha entre o Plan §6.2.2 e a árvore real, declarada:** Cultinho `:56`/`:183`
+  → reais `:54`/`:182`; ParentArea `:493` → real `:494`; StoryBook `:740` → real `:741`. Parte do
+  deslocamento veio das próprias remoções de import de B1. Nenhuma decisão muda; corrige-se o registro.
+- **Imprecisão de caminho em T036, declarada:** a coluna lista `src/components/AppScreen.js`; o caminho real
+  é `src/components/layout/AppScreen.js`.
+- **Mudanças de comportamento declaradas (nenhuma oportunista):** (a) o shell **deixou de assinar**
+  `subscribeInitialTourRequest`/`isInitialTourPending` — quem pede o tour **navega** de verdade nos dois
+  formatos; o sinal permanece no serviço para o caso "mapa **já montado**" (Rever Tour), e
+  `isInitialTourPending` fica **sem consumidor em `src/`**, mantido de propósito (leitura pura; remover
+  exportação de serviço não é escopo de B3); (b) no tablet as abas agora **permanecem montadas** após a
+  primeira visita — comportamento padrão de aba lazy, idêntico ao do celular — em vez de serem desmontadas
+  a cada troca; (c) a moldura decorativa da aba Aventuras é explicitamente **só do celular** (no tablet o
+  alvo guiado já é o `adventures.sidebarTab` registrado dentro da sidebar).
+- **Smoke após B3: 4540/4540 verdes, 0 falhas** (4534 de B1 + 6 checks novos). `npx expo-doctor`: **18/18**.
+- **Estado de B3: IMPLEMENTADO, AGUARDANDO VALIDAÇÃO FÍSICA EM TABLET.** P-31 **não** está declarado
+  aprovado fisicamente. T034, T035 e T038 seguem abertos.
+
 ---
 
 ### 2.4 Bloco **B2** — acessibilidade semântica e tipografia (P-28, P-20)
