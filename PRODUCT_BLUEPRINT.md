@@ -2,7 +2,7 @@
 
 > ⚠️ **SUPERSEDED — DOCUMENTO HISTÓRICO (não normativo).** Marcado em **2026-07-21** (PTF PRODUCT LOCK 01A).
 >
-> **Este documento NÃO deve orientar novas decisões nem implementações.** Ele contém definições **obsoletas** — por exemplo: mascote **"Lumi"** (o oficial é **Beni**), faixa etária **3–8** (revogada por **PL01A-04**: público 6–8, acessível ~5–10), **"3 artes grátis"** (hoje grátis = **0 salvamentos**), planos **"Vitalício"/"Avulso"** (fora do lançamento) e **"tudo no bundle"** (hoje catálogo **híbrido** com 18 premium sob demanda).
+> **Este documento NÃO deve orientar novas decisões nem implementações.** Ele contém definições **obsoletas** — por exemplo: mascote **"Lumi"** (o oficial é **Beni**), faixa etária **3–8** (revogada; a faixa oficial vigente é **4 a 8 anos**, fixada por **PF5-FAIXA-ETARIA** em 2026-08-06, que supersede a **PL01A-04**: público 6–8, acessível ~5–10), **"3 artes grátis"** (hoje grátis = **0 salvamentos**), planos **"Vitalício"/"Avulso"** (fora do lançamento) e **"tudo no bundle"** (hoje catálogo **híbrido** com 18 premium sob demanda).
 >
 > **Fontes vigentes (nesta ordem):** hierarquia de governança [`docs/PROJECT_SOURCE_OF_TRUTH.md`](docs/PROJECT_SOURCE_OF_TRUTH.md) → `.specify/memory/constitution.md` → `AGENTS.md` → `CLAUDE.md`; decisões de produto em [`docs/DECISIONS.md`](docs/DECISIONS.md) (**árbitro**) → [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) (linha de lançamento vigente; a v4 passou a histórica em 2026-07-30); mapa em [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md).
 >

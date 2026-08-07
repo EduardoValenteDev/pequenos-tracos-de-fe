@@ -22,7 +22,7 @@ Este documento define como o app Pequenos Traços de Fé usa textos bíblicos e 
 O app **não transcreve longos trechos de traduções bíblicas modernas** como conteúdo de narração, quiz ou lição. O motivo é duplo:
 
 - **Direito autoral:** traduções como NVI, NTLH, NVT e outras modernas possuem direitos autorais ativos. Transcrição extensiva sem licença pode constituir infração.
-- **Adequação etária:** nenhuma tradução moderna foi produzida especificamente para crianças de 3 a 8 anos. O vocabulário e a estrutura de frase precisam ser adaptados de qualquer forma.
+- **Adequação etária:** nenhuma tradução moderna foi produzida especificamente para crianças de 4 a 8 anos. O vocabulário e a estrutura de frase precisam ser adaptados de qualquer forma.
 
 ### O que é permitido
 
@@ -104,7 +104,7 @@ Quando há **divergência significativa de vocabulário entre traduções**, o a
 
 ### Critério para escolha de vocabulário próprio
 
-1. **Clareza para criança de 3–8 anos** — sempre prioritário.
+1. **Clareza para criança de 4–8 anos** — sempre prioritário.
 2. **Reconhecimento amplo** — preferir o termo que a maioria das famílias cristãs brasileiras reconheceria.
 3. **Fidelidade ao sentido** — o termo não pode distorcer o significado do original.
 4. **Registro no relatório de revisão** — quando o app usa um termo que diverge de alguma tradução importante, documentar a justificativa.

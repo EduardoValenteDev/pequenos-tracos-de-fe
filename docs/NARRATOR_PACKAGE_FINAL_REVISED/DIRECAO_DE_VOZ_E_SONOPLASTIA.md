@@ -10,7 +10,7 @@ O narrador segue as direções de voz. O produtor adiciona sonoplastia em camada
 
 ### Público
 
-Crianças de 3 a 8 anos. O tom deve ser:
+Crianças de 4 a 8 anos. O tom deve ser:
 - **Acolhedor** — como um adulto de confiança contando uma história antes de dormir
 - **Claro** — articulação precisa, sem pressa
 - **Respeitoso** — as histórias são bíblicas; o tom deve ser reverente quando o momento pede

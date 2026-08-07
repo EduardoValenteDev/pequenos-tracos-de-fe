@@ -10,7 +10,7 @@
 
 Este documento define o padrão editorial bíblico do app Pequenos Traços de Fé. Ele estabelece o critério mínimo que todo conteúdo textual deve atender antes de ser aprovado para produção: narração, quiz, lição, mensagem do guia, instrução de colorir e conteúdo da área dos pais.
 
-O app se destina a crianças de 3 a 8 anos. O padrão bíblico deve ser alto o suficiente para garantir fidelidade ao texto sagrado e baixo o suficiente em linguagem para que uma criança de 3 anos compreenda o essencial.
+O app se destina a crianças de 4 a 8 anos. O padrão bíblico deve ser alto o suficiente para garantir fidelidade ao texto sagrado e baixo o suficiente em linguagem para que uma criança de aproximadamente 5 anos compreenda o essencial, quando a natureza do conteúdo permitir.
 
 ---
 
@@ -38,7 +38,7 @@ Cada história possui uma lição central. Essa lição deve:
 
 - Derivar naturalmente do texto bíblico, não ser imposta sobre ele.
 - Ser verificável: um leitor que abrir a Bíblia e ler a passagem deve reconhecer a lição como consistente com o texto.
-- Ser acessível a crianças de 3 a 8 anos sem distorcer o sentido teológico.
+- Ser acessível a crianças de 4 a 8 anos sem distorcer o sentido teológico.
 
 ### 4. Personagens bíblicos com dignidade
 
@@ -63,7 +63,7 @@ O tom de qualquer história, mesmo as que envolvem temas difíceis (julgamento, 
 | Categoria | Padrão |
 |---|---|
 | Título da história | Deve refletir o personagem, evento ou lição central. Evitar títulos que prometam algo não contido na história. |
-| Texto de narração | Paráfrase fiel. Sem invenção de fatos. Linguagem de 3–8 anos. |
+| Texto de narração | Paráfrase fiel. Sem invenção de fatos. Linguagem de 4–8 anos. |
 | Lição curta | Derivada do texto. Uma frase. Positiva e memorável. |
 | Mensagem do guia (Lumi) | Aplicação prática da lição. Não criar nova teologia. Linguagem infantil e afetuosa. |
 | Quiz | Perguntas sobre fatos da história ou sobre a lição. Alternativas incorretas devem ser claramente diferentes, nunca confusas. |

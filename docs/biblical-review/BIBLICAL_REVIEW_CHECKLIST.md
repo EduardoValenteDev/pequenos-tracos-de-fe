@@ -46,7 +46,7 @@
 
 - [ ] A lição deriva diretamente do texto bíblico?
 - [ ] A lição é positiva (foco em valor a cultivar, não apenas em erro a evitar)?
-- [ ] A lição é expressa em linguagem de 3–8 anos?
+- [ ] A lição é expressa em linguagem de 4–8 anos?
 - [ ] A lição não impõe uma interpretação denominacional específica?
 - [ ] A lição não é mais ampla do que o texto suporta?
 
@@ -85,7 +85,7 @@ Para cada cena com texto de narração:
 - [ ] A mensagem fala diretamente com a criança (segunda pessoa: "você")?
 - [ ] A mensagem é afetuosa e encorajadora, não ameaçadora?
 - [ ] A mensagem não cria nova teologia além do que o texto bíblico da história suporta?
-- [ ] A mensagem é adequada para 3–8 anos?
+- [ ] A mensagem é adequada para 4–8 anos?
 - [ ] A mensagem não atribui a Deus algo que não está na passagem?
 
 ---

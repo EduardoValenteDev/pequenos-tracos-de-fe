@@ -8,7 +8,7 @@ Este pacote contém os roteiros completos para a narração do aplicativo.
 ## O que você vai fazer
 
 Gravar **200 narrações de áudio** — 10 por história, 20 histórias.  
-Cada narração é uma cena de uma história bíblica contada para crianças de **3 a 8 anos**.
+Cada narração é uma cena de uma história bíblica contada para crianças de **4 a 8 anos**.
 
 ---
 
@@ -18,7 +18,7 @@ Cada narração é uma cena de uma história bíblica contada para crianças de 
 
 - Voz **doce, clara, acolhedora e expressiva**
 - Tom **infantil** — como quem conta uma história para uma criança querida
-- Ritmo **calmo** — não apressado, adequado para crianças de 3 a 8 anos
+- Ritmo **calmo** — não apressado, adequado para crianças de 4 a 8 anos
 - Pronunciar com clareza, sem engolir palavras
 - Sorrir enquanto fala — o sorriso muda o timbre da voz
 - Vaiar a entonação nos momentos de surpresa ou emoção

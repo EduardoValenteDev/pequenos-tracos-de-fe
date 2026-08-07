@@ -72,7 +72,7 @@ Verificar cada item antes de submeter às lojas. Revisado após cada sprint.
 
 ### Kids Category
 - [ ] Categoria Kids selecionada no App Store Connect
-- [ ] Classificação etária: 4+ (recomendado para 3-8 anos)
+- [ ] Classificação etária: 4+ (recomendado para 4-8 anos)
 - [ ] Confirmação de que o app se destina a crianças (Kid Apps section preenchida)
 - [ ] Nenhum anúncio de terceiros ✓
 - [ ] Parental gate implementado ✓

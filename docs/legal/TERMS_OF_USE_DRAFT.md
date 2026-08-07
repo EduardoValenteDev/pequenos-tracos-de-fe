@@ -42,7 +42,7 @@ O **Pequenos Traços de Fé** é um aplicativo educativo cristão que oferece:
 - Criação livre de arte no Ateliê
 - Área dos Pais para supervisão e configuração
 
-O aplicativo é destinado a crianças de **3 a 8 anos**, sob supervisão ou autorização dos responsáveis legais.
+O aplicativo é destinado a crianças de **4 a 8 anos**, sob supervisão ou autorização dos responsáveis legais.
 
 ---
 
@@ -107,7 +107,7 @@ Ilustrações e assets gerados por ferramentas de IA foram criados para uso excl
 
 O desenvolvedor se compromete a:
 
-- Manter conteúdo adequado para faixa etária indicada (3–8 anos)
+- Manter conteúdo adequado para faixa etária indicada (4–8 anos)
 - Não exibir publicidade comportamental para crianças
 - Não incluir conteúdo violento, sexual ou inadequado
 - Revisar regularmente o conteúdo para adequação pedagógica

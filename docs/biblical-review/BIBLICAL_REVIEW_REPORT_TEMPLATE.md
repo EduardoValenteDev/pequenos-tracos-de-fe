@@ -27,7 +27,7 @@
 | Título recomendado (se diferente) | |
 | Livro bíblico | |
 | Passagens de referência | |
-| Faixa etária principal | 3–8 anos |
+| Faixa etária principal | 4–8 anos |
 | Denominação alvo | Cristão amplo (não denominacional) |
 
 ---

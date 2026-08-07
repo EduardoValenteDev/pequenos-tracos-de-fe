@@ -8,7 +8,7 @@
 
 ## Propósito
 
-Este guia define como apresentar histórias bíblicas para crianças de 3 a 8 anos de forma segura, amorosa, fiel e adequada ao desenvolvimento infantil. A Bíblia contém histórias de guerra, morte, julgamento, traição e sofrimento. A tarefa do app é extrair o essencial bíblico e apresentá-lo com linguagem que uma criança possa absorver sem trauma, medo excessivo ou confusão.
+Este guia define como apresentar histórias bíblicas para crianças de 4 a 8 anos de forma segura, amorosa, fiel e adequada ao desenvolvimento infantil. A Bíblia contém histórias de guerra, morte, julgamento, traição e sofrimento. A tarefa do app é extrair o essencial bíblico e apresentá-lo com linguagem que uma criança possa absorver sem trauma, medo excessivo ou confusão.
 
 ---
 
@@ -16,7 +16,7 @@ Este guia define como apresentar histórias bíblicas para crianças de 3 a 8 an
 
 | Faixa | Desenvolvimento | Implicação para o conteúdo |
 |---|---|---|
-| 3–4 anos | Pensamento mágico, vocabulário em expansão, atenção curta | Frases muito curtas, personagens simples, emoções claras (alegre, triste, com medo, corajoso) |
+| 4 anos (limite inferior da faixa oficial) | Pensamento mágico, vocabulário em expansão, atenção curta | Frases muito curtas, personagens simples, emoções claras (alegre, triste, com medo, corajoso) |
 | 5–6 anos | Narrativa linear, causalidade básica, empatia emergente | Pode seguir uma sequência de eventos, compreende "por que Deus pediu isso" |
 | 7–8 anos | Pensamento mais abstrato emergente, questionamentos | Pode absorver lições com nuances leves; pode perguntar sobre injustiça |
 
@@ -64,7 +64,7 @@ Histórias bíblicas contêm violência real: batalhas, mortes, punições físi
 
 ### 6. Linguagem concreta, não abstrata
 
-Crianças de 3 a 8 anos pensam concretamente. Conceitos teológicos abstratos devem ser ancorados em imagens concretas:
+Crianças de 4 a 8 anos pensam concretamente. Conceitos teológicos abstratos devem ser ancorados em imagens concretas:
 
 | Conceito abstrato | Forma concreta para crianças |
 |---|---|
@@ -94,7 +94,7 @@ A narração deve usar frases curtas, com ritmo natural de fala. Evitar subordin
 | "Punição" (como tema central) | Foco negativo | "Consequência" ou narrativa do evento sem rótulo |
 | "Sangue de Cristo" (contexto litúrgico) | Abstrato e potencialmente assustador | Reservar para histórias de crucificação em linguagem muito adaptada |
 | "Reprovado", "maldito", "danado" | Condenatório | Evitar |
-| "Morte" | Evitar quando possível em idades 3–4 | "Foi para longe", "não estava mais aqui" — ou omitir o detalhe para essa faixa |
+| "Morte" | Evitar quando possível com os mais novos da faixa (4 anos) | "Foi para longe", "não estava mais aqui" — ou omitir o detalhe para essa faixa |
 | "Diabo", "Satanás" | Pode ser assustador; contextualizar | "O inimigo de Deus", "o mal" — com cuidado e sem detalhes |
 | "Inferno" | Altamente assustador e denominacional | Evitar completamente nas histórias principais |
 
@@ -122,4 +122,4 @@ Antes de aprovar qualquer narração, verificar:
 - [ ] Se sim: há um elemento de segurança, esperança ou amor de Deus para equilibrar?
 - [ ] O texto descreve violência física com detalhes desnecessários?
 - [ ] Alguma fala foi atribuída a Deus ou Jesus que não está nas Escrituras?
-- [ ] O vocabulário é concreto e acessível para a faixa 3–8?
+- [ ] O vocabulário é concreto e acessível para a faixa 4–8?

@@ -20,12 +20,12 @@ O nível determina a urgência e o tipo de ação necessária antes de o conteú
 
 ### Nível 1 — Aprovado
 
-**Definição:** O conteúdo está bíblico, teologicamente seguro, denominacionalmente neutro e adequado para a faixa etária 3–8 anos. Nenhuma alteração necessária.
+**Definição:** O conteúdo está bíblico, teologicamente seguro, denominacionalmente neutro e adequado para a faixa etária 4–8 anos. Nenhuma alteração necessária.
 
 **Critérios para aprovação:**
 - O fato narrado está no texto bíblico identificado.
 - A lição deriva naturalmente da passagem.
-- A linguagem é adequada para crianças de 3–8 anos.
+- A linguagem é adequada para crianças de 4–8 anos.
 - Nenhuma fala é inventada para Deus, Jesus, anjos ou profetas.
 - O conteúdo não toma partido em debates denominacionais.
 - Nenhum elemento causa medo excessivo, culpa pesada ou confusão teológica.
@@ -86,7 +86,7 @@ O nível determina a urgência e o tipo de ação necessária antes de o conteú
 - Como tratar a história de Ló e sua família com crianças (detalhe omitido vs. mencionado de forma neutra).
 - Se incluir ou não a decapitação de Golias em histórias para crianças pequenas.
 - Como nomear o Espírito Santo em contextos que possam ter implicação denominacional.
-- Se uma história de Novo Testamento deve mencionar ou não a ressurreição como desfecho esperançoso, em histórias voltadas para faixa de 3–4 anos.
+- Se uma história de Novo Testamento deve mencionar ou não a ressurreição como desfecho esperançoso, em histórias voltadas para a faixa mais nova do público (4 anos).
 - Uso de "Senhor" vs. "Deus" em contextos onde a distinção pode ter implicação teológica.
 
 **Ação:** O item é marcado e pausado. O dono do produto convoca uma decisão com pelo menos o revisor bíblico, e quando necessário um consultor externo. A decisão é documentada no relatório como decisão deliberada, com justificativa, e não pode ser revertida sem nova revisão explícita.

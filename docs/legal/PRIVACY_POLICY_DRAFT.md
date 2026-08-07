@@ -22,7 +22,7 @@
 
 ## 2. Sobre o Aplicativo
 
-O **Pequenos Traços de Fé** é um aplicativo cristão infantil destinado a crianças de **3 a 8 anos**, com foco em histórias bíblicas interativas, colorir, quizzes e conquistas.
+O **Pequenos Traços de Fé** é um aplicativo cristão infantil destinado a crianças de **4 a 8 anos**, com foco em histórias bíblicas interativas, colorir, quizzes e conquistas.
 
 O aplicativo foi projetado para ser utilizado com **supervisão dos responsáveis** nas primeiras sessões e é seguro para uso independente pela criança a partir das configurações descritas nesta política.
 
