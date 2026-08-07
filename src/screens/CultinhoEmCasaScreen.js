@@ -51,7 +51,7 @@ export default function CultinhoEmCasaScreen({ navigation }) {
   // "Rever a história" é apenas um link discreto — não compete com o Cultinho.
   function handleReviewStory() {
     if (story) navigation.navigate('StoryDetail', { story });
-    else navigation.navigate('Home', { screen: 'Aventuras' });
+    else navigation.navigate(ROUTES.HOME, { screen: ROUTES.ADVENTURES });
   }
 
   function handleCriarJuntos() {
@@ -179,7 +179,7 @@ export default function CultinhoEmCasaScreen({ navigation }) {
             </SoundButton>
             <SoundButton
               style={styles.successBtnSecondary}
-              onPress={() => { setDone(false); navigation.navigate('Home', { screen: 'Estrelinhas' }); }}
+              onPress={() => { setDone(false); navigation.navigate(ROUTES.HOME, { screen: ROUTES.TROPHIES }); }}
               activeOpacity={0.85}
             >
               <Text style={styles.successBtnSecondaryText}>Ver minhas estrelinhas</Text>

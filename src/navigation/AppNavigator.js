@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef, CommonActions } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, View, TouchableOpacity, useWindowDimensions } from 'react-native';
@@ -8,7 +8,11 @@ import { colors } from '../theme/colors';
 import TabletSidebar from '../components/TabletSidebar';
 import FaithIcon from '../components/ui/FaithIcon';
 import { useProgressContext } from '../context/ProgressContext';
-import { isInitialTourPending, subscribeInitialTourRequest, isAdventureTourActive, getAdventureTabCalloutActive, subscribeAdventureTabCalloutActive } from '../services/beniTourService';
+// Fase 6 · B3: o shell não precisa mais assinar o sinal do tour para FOCAR a aba.
+// Com um Tab.Navigator real também no tablet, quem pede o tour navega de verdade
+// (`{ screen: 'Aventuras' }` / state aninhado) e o foco vem do próprio navegador.
+// O sinal continua existindo para a TELA do mapa abrir o tour (AdventureMapScreen).
+import { isAdventureTourActive, getAdventureTabCalloutActive, subscribeAdventureTabCalloutActive } from '../services/beniTourService';
 
 import SplashScreen from '../screens/SplashScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
@@ -149,44 +153,53 @@ function TabIcon({ iconName, focused }) {
   );
 }
 
-// Layout para tablet: sidebar fixa à esquerda + tela ativa à direita
-function TabletLayout({ navigation }) {
-  // Tablet: o nested state da navegação não chega aqui (layout custom). Se há tour
-  // inicial pendente (onboarding/“Rever Tour”), começa na aba Aventuras e assina o
-  // sinal para focar Aventuras quando o pedido vier com a tela já montada.
-  const [activeTabName, setActiveTabName] = useState(() => (isInitialTourPending() ? 'Aventuras' : 'Início'));
-  useEffect(() => subscribeInitialTourRequest(() => setActiveTabName('Aventuras')), []);
+/**
+ * Sidebar do tablet como TAB BAR CUSTOMIZADA (Fase 6 · B3 · P-27/P-47).
+ *
+ * Antes da Fase 6 o tablet tinha um shell PARALELO (`TabletLayout`): estado de aba em
+ * `useState`, tela ativa renderizada à mão e um objeto `route` FABRICADO. Consequência:
+ * o tablet não era um navegador — payload aninhado (`{ screen }`), histórico, estado de
+ * aba e `route.key` reais não existiam ali (P-31).
+ *
+ * Agora a sidebar é APRESENTAÇÃO do mesmo `Tab.Navigator` que o celular usa:
+ * - o item ativo vem de `state.routes[state.index].name` (estado real, não local);
+ * - o toque emite o evento REAL `tabPress`, então o bloqueio do tour vive em UM lugar
+ *   só (o `listeners.tabPress` das abas) e vale para os dois layouts;
+ * - a lista de itens vem das rotas do navegador — a sidebar não tem mais catálogo próprio.
+ */
+function TabletSidebarTabBar({ state, navigation }) {
   const { progressSummary } = useProgressContext();
   const totalStars = progressSummary?.totalStars ?? 0;
   const maxStars = progressSummary?.maxTotalStars ?? 0;
 
-  const activeTab = TAB_DEFS.find(t => t.name === activeTabName) ?? TAB_DEFS[0];
-  const ActiveComponent = activeTab.component;
+  // Derivado do estado REAL do navegador — de propósito sem nome de "estado de aba":
+  // não existe mais aba ativa própria do tablet, existe a rota focada do Tab.Navigator.
+  const focusedRouteName = state.routes[state.index]?.name;
+  const items = state.routes.map((route) => {
+    const def = TAB_DEFS.find((t) => t.name === route.name);
+    return { name: route.name, label: def?.label ?? route.name, faithIcon: def?.faithIcon };
+  });
+
+  function handleTabPress(name) {
+    const route = state.routes.find((r) => r.name === name);
+    if (!route) return;
+    // Evento real do navegador: quem escuta (bloqueio do tour) pode impedir.
+    const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+    if (event.defaultPrevented) return;
+    navigation.dispatch({
+      ...CommonActions.navigate({ name, merge: true }),
+      target: state.key,
+    });
+  }
 
   return (
-    <View style={{ flex: 1, flexDirection: 'row' }}>
-      <TabletSidebar
-        activeTab={activeTabName}
-        // Fase 1.1.3: durante o tour de Aventuras, ignora a troca para outros itens
-        // (sidebar segue visível, Aventuras continua ativa). Sem Modal/overlay.
-        onTabPress={(name) => {
-          if (isAdventureTourActive() && name !== 'Aventuras') return;
-          setActiveTabName(name);
-        }}
-        totalStars={totalStars}
-        maxStars={maxStars}
-      />
-      <View style={{ flex: 1 }}>
-        <ActiveComponent
-          navigation={navigation}
-          route={{
-            params: activeTab.defaultParams ?? {},
-            key: activeTabName,
-            name: activeTabName,
-          }}
-        />
-      </View>
-    </View>
+    <TabletSidebar
+      items={items}
+      activeTab={focusedRouteName}
+      onTabPress={handleTabPress}
+      totalStars={totalStars}
+      maxStars={maxStars}
+    />
   );
 }
 
@@ -201,16 +214,30 @@ const TOUR_TAB_CALLOUT = {
   backgroundColor: 'rgba(255,222,150,0.18)',
 };
 
-// Navegação inferior para celular com safe area corrigida
-function MobileTabs() {
+/**
+ * Shell ÚNICO de navegação (Fase 6 · B3 · P-27).
+ *
+ * Um só `Tab.Navigator` para celular e tablet. O tablet NÃO ganha um navegador
+ * paralelo: ganha a MESMA árvore com a tab bar em outra posição (`tabBarPosition:
+ * 'left'`) e outra apresentação (a sidebar). Isso é o que faz `{ screen: ... }`,
+ * histórico, botão voltar e estado de aba valerem nos dois formatos.
+ *
+ * Efeito colateral desejado ao cruzar o breakpoint (rotação de tablet, banda 600–767):
+ * como o navegador é o mesmo elemento, mudar de sidebar para tab bar inferior é
+ * re-render — não remonta as abas nem perde o que a criança estava fazendo.
+ */
+function MainTabs() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const isTablet = width >= breakpoints.tablet;
   // Fase 1.1.4.3: re-renderiza a tab bar quando o REALCE da aba liga/desliga — e isso
   // liga SÓ no passo "Seu mapa de aventuras" (sinal callout), não no tour inteiro.
   const [calloutOn, setCalloutOn] = useState(getAdventureTabCalloutActive());
   useEffect(() => subscribeAdventureTabCalloutActive(setCalloutOn), []);
 
   // Geometria da moldura sobre o item Aventuras (sem tocar o layout do item).
+  // Só faz sentido na barra inferior do celular — no tablet a sidebar tem o alvo
+  // guiado próprio (`adventures.sidebarTab`), registrado dentro da sidebar.
   const tabBarH = 64 + insets.bottom;
   const advIndex = TAB_DEFS.findIndex((t) => t.name === 'Aventuras');
   const tabW = width / TAB_DEFS.length;
@@ -220,9 +247,13 @@ function MobileTabs() {
   return (
     <View style={{ flex: 1 }}>
     <Tab.Navigator
+      tabBar={isTablet ? (props) => <TabletSidebarTabBar {...props} /> : undefined}
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
+        // A sidebar fica à ESQUERDA; no celular a barra continua embaixo.
+        tabBarPosition: isTablet ? 'left' : 'bottom',
+        // `tabBarStyle` é a barra inferior do celular — a sidebar tem estilo próprio.
+        tabBarStyle: isTablet ? undefined : {
           backgroundColor: colors.cardBg,
           borderTopColor: colors.border,
           borderTopWidth: 1,
@@ -265,7 +296,7 @@ function MobileTabs() {
     </Tab.Navigator>
       {/* Moldura decorativa sobre o item Aventuras — só no passo que realça a aba.
           pointerEvents none: não bloqueia toque, não altera o layout do item. */}
-      {calloutOn && advIndex >= 0 && (
+      {!isTablet && calloutOn && advIndex >= 0 && (
         <View
           pointerEvents="none"
           style={[
@@ -276,13 +307,6 @@ function MobileTabs() {
       )}
     </View>
   );
-}
-
-// Entrada do layout principal — decide entre tablet e celular
-function MainTabs({ navigation }) {
-  const { width } = useWindowDimensions();
-  const isTablet = width >= breakpoints.tablet;
-  return isTablet ? <TabletLayout navigation={navigation} /> : <MobileTabs />;
 }
 
 export default function AppNavigator() {

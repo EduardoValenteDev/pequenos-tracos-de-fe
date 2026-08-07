@@ -91,10 +91,13 @@ export async function resetAllGuides() {
 }
 
 // ── Pedido de TOUR INICIAL (independe do layout: mobile tab bar OU tablet sidebar) ──
-// O onboarding/“Rever Tour” NÃO consegue, no tablet, passar route.params para a
-// AdventureMapScreen (TabletLayout é custom e ignora o nested state da navegação).
-// Então usamos um SINAL em memória: quem quer abrir o tour chama requestInitialTour();
-// a tela de Aventuras consome; o TabletLayout assina para focar a aba Aventuras.
+// Este sinal nasceu porque o tablet tinha um shell CUSTOM que ignorava o state aninhado
+// da navegação — logo, `route.params` não chegava à AdventureMapScreen. A Fase 6 · B3
+// removeu esse shell: hoje quem pede o tour NAVEGA de verdade nos dois formatos, e o
+// foco da aba é responsabilidade do navegador, não deste módulo.
+// O sinal permanece por um motivo que continua real e independe de layout: a tela de
+// Aventuras pode JÁ ESTAR MONTADA quando o pedido chega (ex.: "Rever Tour" na Área dos
+// Pais) — aí só um params novo não basta, e a tela reage pela assinatura.
 let _pendingInitialTour = false;
 const _tourReqListeners = new Set();
 
@@ -104,7 +107,11 @@ export function requestInitialTour() {
   _tourReqListeners.forEach((fn) => { try { fn(); } catch { /* nunca quebra */ } });
 }
 
-/** Lê SEM consumir (o TabletLayout usa para focar a aba Aventuras). */
+/**
+ * Lê SEM consumir. Era usado pelo `TabletLayout` para escolher a aba inicial; com o
+ * shell único da Fase 6 · B3 ficou SEM consumidor em `src/`. Mantido de propósito:
+ * é leitura pura, sem efeito, e remover exportação de serviço não é escopo de B3.
+ */
 export function isInitialTourPending() {
   return _pendingInitialTour;
 }
@@ -116,7 +123,7 @@ export function consumeInitialTourRequest() {
   return v;
 }
 
-/** Assina pedidos de tour (ex.: TabletLayout focar Aventuras). Retorna unsubscribe. */
+/** Assina pedidos de tour (a tela de Aventuras já montada). Retorna unsubscribe. */
 export function subscribeInitialTourRequest(fn) {
   if (typeof fn !== 'function') return () => {};
   _tourReqListeners.add(fn);

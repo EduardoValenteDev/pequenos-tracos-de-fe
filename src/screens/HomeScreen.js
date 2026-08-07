@@ -34,6 +34,7 @@ import { buildCtx } from '../services/achievementService';
 import { buildBeniChestCards, getBeniChestSummary } from '../services/beniChestService';
 import { emitSummaryOnce, markOnce } from '../services/performanceTrace';
 import { MISSIONS } from '../data/atelierData';
+import { ROUTES } from '../constants/routes';
 
 /* ── Conteúdo rotativo ─────────────────────────────────────────── */
 const DAILY_MESSAGES = [
@@ -657,7 +658,10 @@ export default function HomeScreen({ navigation }) {
   function handleAdventurePress() {
     const targetStory = primaryStory ?? getShowcaseStory();
     if (!targetStory) {
-      navigation.navigate('Aventuras');
+      // Home é tela de ABA: o irmão 'Aventuras' está no mesmo navegador. Fase 6 · B3
+      // fez isso valer também no tablet (antes o shell custom entregava a navegação
+      // do stack, e a troca de aba não acontecia).
+      navigation.navigate(ROUTES.ADVENTURES);
       return;
     }
     if (primaryAction.targetType === 'pendingRewards') {
@@ -714,7 +718,7 @@ export default function HomeScreen({ navigation }) {
       <ConquistaCard
         lastCompleted={lastCompleted}
         totalStars={totalStars}
-        onPress={() => navigation.navigate('Estrelinhas')}
+        onPress={() => navigation.navigate(ROUTES.TROPHIES)}
       />
     </>
   );

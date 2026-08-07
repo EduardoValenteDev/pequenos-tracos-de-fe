@@ -27,6 +27,7 @@ import { images } from '../assets/images';
 import BeniAvatar from '../components/beni/BeniAvatar';
 import { computeBookImageSize } from '../constants/officialImage';
 import { breakpoints } from '../theme/tokens';
+import { ROUTES } from '../constants/routes';
 
 const PROGRESS_KEY = '@ptf_progress';
 const AUTOPLAY_MS = 5000;
@@ -738,7 +739,7 @@ export default function StoryBookScreen({ route, navigation }) {
 
           <SoundButton
             style={styles.endedBackBtn}
-            onPress={() => navigation.navigate('Home', { screen: 'Aventuras' })}
+            onPress={() => navigation.navigate(ROUTES.HOME, { screen: ROUTES.ADVENTURES })}
             activeOpacity={0.85}
           >
             <Text style={styles.endedBackBtnText}>← Voltar para Aventuras</Text>

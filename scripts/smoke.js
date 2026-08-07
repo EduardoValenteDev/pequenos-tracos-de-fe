@@ -6871,7 +6871,9 @@ check(
     parentTour.includes('resetAllGuides') &&
     parentTour.includes('Rever Tour Inicial do Beni') &&
     parentTour.includes('Resetar Guias do Beni') &&
-    /navigation\.navigate\('Home', \{ screen: 'Aventuras', params: \{ startBeniTour: true \} \}\)/.test(parentTour),
+    // [Fase 6 · B3] A INTENÇÃO — "Rever Tour" abre a aba Aventuras com o gatilho — é
+    // imutável. O que mudou foi a FORMA: as strings literais viraram `ROUTES` (T031).
+    /navigation\.navigate\(ROUTES\.HOME, \{ screen: ROUTES\.ADVENTURES, params: \{ startBeniTour: true \} \}\)/.test(parentTour),
     'faltam os botões de rever/resetar guias do Beni na Área dos Pais (Criador)',
   );
 
@@ -7260,11 +7262,19 @@ check(
     parentSrcTab.includes('requestInitialTour()'),
     'falta o sinal de tour por layout ou não é disparado no onboarding/Rever Tour',
   );
+  // [Fase 6 · B3] Esta asserção fixava o MECANISMO: um shell custom (`activeTabName` em
+  // `useState`) que assinava o sinal do tour para focar a aba. O shell foi eliminado
+  // (P-27/P-47). A INTENÇÃO — no tablet, pedir o tour leva à aba Aventuras — é imutável
+  // e passou a ser cumprida pela NAVEGAÇÃO REAL, que agora existe nos dois formatos.
   check(
-    'TABLET1.0: TabletLayout foca Aventuras quando há tour pendente (default + subscribe)',
-    /useState\(\(\) => \(isInitialTourPending\(\) \? 'Aventuras' : 'Início'\)\)/.test(navSrcTab) &&
-    /subscribeInitialTourRequest\(\(\) => setActiveTabName\('Aventuras'\)\)/.test(navSrcTab),
-    'TabletLayout não foca Aventuras no tour pendente',
+    'TABLET1.0: no tablet, pedir o tour leva à aba Aventuras — agora por navegação real, sem shell paralelo',
+    // quem pede navega de verdade (Área dos Pais) ou entrega state aninhado (onboarding)
+    /navigation\.navigate\(ROUTES\.HOME, \{ screen: ROUTES\.ADVENTURES, params: \{ startBeniTour: true \} \}\)/.test(parentSrcTab) &&
+    /routes: \[\{ name: 'Home', state: tabsState \}\]/.test(onbSrcTab) &&
+    // e o tablet é um Tab.Navigator de verdade: sem estado de aba próprio, sem route fabricada
+    !/setActiveTabName/.test(navSrcTab) &&
+    /tabBarPosition: isTablet \? 'left' : 'bottom'/.test(navSrcTab),
+    'o tablet voltou a ter shell próprio, ou o pedido de tour deixou de navegar de verdade',
   );
   check(
     'TABLET1.0: mapa usa LARGURA DA ÁREA DE CONTEÚDO (onLayout) — corrige corte na sidebar; mobile == janela (sem regressão)',
@@ -7431,10 +7441,16 @@ check(
     !/<Modal[\s\S]{0,200}adventure/i.test(navSrc113),
     'tab bar não bloqueia navegação durante o tour de Aventuras',
   );
+  // [Fase 6 · B3] Antes o bloqueio existia DUAS vezes: um `return` dentro do onTabPress
+  // da sidebar e o `preventDefault` da tab bar. A INTENÇÃO — durante o tour, a sidebar
+  // não troca de aba — é imutável; o mecanismo passou a ser UM só: a sidebar emite o
+  // evento REAL `tabPress` e respeita quem o preveniu (o listener das abas, acima).
   check(
-    'FASE1.1.3: sidebar tablet ignora troca p/ outros itens no tour (Aventuras segue ativa)',
-    /onTabPress=\{\(name\) => \{[\s\S]*?isAdventureTourActive\(\) && name !== 'Aventuras'\) return;[\s\S]*?setActiveTabName\(name\)/.test(navSrc113),
-    'sidebar do tablet não respeita o lock do tour',
+    'FASE1.1.3: sidebar tablet ignora troca p/ outros itens no tour (agora pelo MESMO tabPress das abas)',
+    /navigation\.emit\(\{ type: 'tabPress', target: route\.key, canPreventDefault: true \}\)/.test(navSrc113) &&
+    /if \(event\.defaultPrevented\) return;/.test(navSrc113) &&
+    !/onTabPress=\{\(name\) => \{/.test(navSrc113),
+    'sidebar do tablet não respeita o lock do tour (ou voltou a decidir navegação por conta própria)',
   );
   // ── FASE 1.1.4: destaque da aba na tab bar + halo não-stale ao rolar ──────────
   check(
@@ -7450,7 +7466,9 @@ check(
     // tab bar: assina o callout e desenha CAMADA decorativa (não tabBarItemStyle)
     navSrc113.includes('subscribeAdventureTabCalloutActive') &&
     navSrc113.includes('TOUR_TAB_CALLOUT') &&
-    /\{calloutOn && advIndex >= 0 && \([\s\S]*?pointerEvents="none"/.test(navSrc113) &&
+    // [Fase 6 · B3] A moldura ganhou `!isTablet`: ela é geometria da barra INFERIOR
+    // (largura da janela ÷ nº de abas). No tablet o alvo guiado é `adventures.sidebarTab`.
+    /\{!isTablet && calloutOn && advIndex >= 0 && \([\s\S]*?pointerEvents="none"/.test(navSrc113) &&
     !/tabBarItemStyle:/.test(navSrc113) &&
     // ícone padrão (sem container especial no SVG)
     /function TabIcon\(\{ iconName, focused \}\)/.test(navSrc113) &&
@@ -8050,12 +8068,16 @@ globalThis.__B1_PRIMEIRA_AVENTURA = (async () => {
 
   // 10 — Telefone e tablet: DOIS TRANSPORTES, UM pedido. O mapa aceita os dois numa só expressão
   //      (`||`), então o tablet não abre um segundo tour nem duplica o do telefone.
-  check('B1-10 (tablet sem duplicar): TabletLayout consome o sinal; o mapa une os dois transportes em um `||`',
-    /const \[activeTabName, setActiveTabName\] = useState\(\(\) => \(isInitialTourPending\(\) \? 'Aventuras' : 'Início'\)\)/.test(NAV_B1)
-    && /subscribeInitialTourRequest\(\(\) => setActiveTabName\('Aventuras'\)\)/.test(NAV_B1)
-    && /route\?\.params\?\.startBeniTour \|\| consumeInitialTourRequest\(\)/.test(MAP_B1)
-    && /requestInitialTour\(\)/.test(codeOf('src/screens/OnboardingScreen.js')),
-    'o tablet deixou de receber o mesmo pedido, ou o mapa passou a tratar os transportes como dois tours');
+  // [Fase 6 · B3] A prova citava o shell do tablet porque ELE era o segundo transporte.
+  // Com o shell único, o tablet recebe o pedido pelo MESMO caminho do telefone. A
+  // INTENÇÃO — um pedido só, nenhum tour duplicado — é imutável: continua garantida
+  // pelo `||` do mapa, e agora também por não existir mais um transporte só do tablet.
+  check('B1-10 (tablet sem duplicar): um pedido só; o mapa une os dois transportes em um `||` e o tablet não tem caminho próprio',
+    /route\?\.params\?\.startBeniTour \|\| consumeInitialTourRequest\(\)/.test(MAP_B1)
+    && /requestInitialTour\(\)/.test(codeOf('src/screens/OnboardingScreen.js'))
+    && !/isInitialTourPending/.test(NAV_B1)
+    && !/subscribeInitialTourRequest/.test(NAV_B1),
+    'o tablet voltou a ter transporte próprio de tour, ou o mapa passou a tratar os transportes como dois tours');
 
   // ── Mutantes: o defeito de volta tem de deixar as provas VERMELHAS ──────────
   // 11 — Reencena o defeito original: `StoryDetail` empilhado por cima do mapa.
@@ -18866,7 +18888,8 @@ check(
 const homeAlbumSrc = readSrc('src/screens/HomeScreen.js');
 check(
   'Home: card "Você conquistou" leva ao Álbum de Estrelinhas',
-  homeAlbumSrc.includes("navigation.navigate('Estrelinhas')") &&
+  // [Fase 6 · B3 · T031] Mesmo destino; a string literal virou `ROUTES.TROPHIES`.
+  homeAlbumSrc.includes('navigation.navigate(ROUTES.TROPHIES)') &&
   homeAlbumSrc.includes('VOCÊ CONQUISTOU'),
   'Home: ConquistaCard não aponta para Estrelinhas',
 );
@@ -21001,7 +21024,8 @@ const a3Reset     = readSrc('src/services/progressResetService.js');
 check(
   'A3 Livrinho: "Voltar para Aventuras" usa a tab (navigate Home/Aventuras), sem navigate(\'Stories\')',
   /Voltar para Aventuras/.test(a3StoryBook) &&
-  a3StoryBook.includes("navigate('Home', { screen: 'Aventuras' })") &&
+  // [Fase 6 · B3 · T031] Mesmo destino pela aba; strings literais viraram `ROUTES`.
+  a3StoryBook.includes('navigate(ROUTES.HOME, { screen: ROUTES.ADVENTURES })') &&
   !a3StoryBook.includes("navigate('Stories')"),
   'StoryBookScreen ainda empilha StoriesScreen em vez de voltar pela tab Aventuras',
 );
@@ -27747,11 +27771,17 @@ try {
       && /tabBarLabel: tab\.label \?\? tab\.name/.test(navB),
       'a aba não exibe "Brincar", ou o name de rota deixou de ser Ateliê');
 
+    // [Fase 6 · B3 · T028] A sidebar tinha um CATÁLOGO PRÓPRIO de abas (cópia de TAB_DEFS,
+    // livre para divergir). Agora ela é apresentação: os itens chegam das rotas reais do
+    // Tab.Navigator. A INTENÇÃO — o tablet mostra "Brincar" com ícone semântico e sem
+    // emoji — é imutável, e o rótulo passou a vir de `label ?? name` no adaptador.
     check('1.2 (tablet): sidebar exibe "Brincar" com FaithIcon, sem emoji',
-      /name: 'Ateliê',\s*label: 'Brincar',\s*faithIcon: 'brincar'/.test(sideB)
+      /label: def\?\.label \?\? route\.name/.test(navB)
+      && /name: 'Ateliê',\s*label: 'Brincar',\s*faithIcon: 'brincar'/.test(navB)
+      && /\{\(items \?\? \[\]\)\.map\(tab => \{/.test(sideB)
       && /<FaithIcon/.test(sideB)
       && !/\p{Extended_Pictographic}/u.test(sideB),
-      'sidebar do tablet ainda usa emoji ou não exibe "Brincar"');
+      'sidebar do tablet ainda usa emoji, voltou a ter catálogo próprio, ou não exibe "Brincar"');
 
     // Bloco 1.3a — MIGRADO de 6 para 5 cards: "Desenho guiado pelo Beni" saiu da UI
     // (decisão de produto). O fluxo legado segue vivo — ver check 1.3a (legado).
@@ -50870,6 +50900,100 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     'CN-1 [2/2]: todo consumidor de `breakpoints.tablet` usa a MESMA forma `width >= breakpoints.tablet`',
     b1ForaDaForma.length === 0,
     `consumidores com forma divergente: ${b1ForaDaForma.join(', ')}`,
+  );
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · B3 — shell único de navegação (T037)
+   *
+   * G-NAV-1: o shell não pode voltar a FABRICAR navegação. O defeito original
+   *   (P-47) era um objeto `route={{ params, key, name }}` montado à mão e um
+   *   estado de aba em `useState` — com isso o tablet não era um navegador, e
+   *   `{ screen: ... }`, histórico e `route.key` não valiam nada lá (P-31).
+   * G-NAV-2: navegação de aba só pelo CONTRATO. Fora do navegador de abas, o
+   *   destino se declara como payload aninhado a partir de `ROUTES.HOME`; de
+   *   dentro dele, pelo nome da rota irmã. Em nenhum caso por string literal.
+   * ────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · B3: shell único, sem navegação fabricada ──');
+
+  const b3Nav = codeOf('src/navigation/AppNavigator.js');
+  const b3Sidebar = codeOf('src/components/TabletSidebar.js');
+
+  check(
+    'G-NAV-1 [1/3]: nenhum `route` fabricado no shell — o `route` das abas vem do navegador',
+    !/route=\{\{/.test(b3Nav) && !/key: activeTabName/.test(b3Nav),
+    'o AppNavigator voltou a montar um objeto `route` à mão (P-47)',
+  );
+
+  /* [2/3] `activeTabName` era o NOME do estado paralelo do antigo TabletLayout. O gate
+   * proíbe o identificador inteiro, não só o setter: por isso a barra do tablet nomeia
+   * `focusedRouteName` o valor que DERIVA de `state.routes[state.index]`. Derivar do
+   * estado real é o comportamento desejado; guardar estado próprio é o defeito. */
+  check(
+    'G-NAV-1 [2/3]: o shell não guarda estado de aba próprio — o estado é o do `Tab.Navigator`',
+    !/activeTabName/.test(b3Nav) && !/setActiveTabName/.test(b3Nav) &&
+    /const focusedRouteName = state\.routes\[state\.index\]\?\.name;/.test(b3Nav),
+    'o tablet voltou a ter estado de aba paralelo ao do navegador (P-27)',
+  );
+
+  check(
+    'G-NAV-1 [3/3]: tablet e celular são o MESMO navegador — muda a posição/apresentação da barra, não a árvore',
+    /tabBarPosition: isTablet \? 'left' : 'bottom'/.test(b3Nav) &&
+    /tabBar=\{isTablet \? \(props\) => <TabletSidebarTabBar \{\.\.\.props\} \/> : undefined\}/.test(b3Nav) &&
+    (b3Nav.match(/<Tab\.Navigator/g) || []).length === 1 &&
+    /items=\{items\}/.test(b3Nav) &&
+    /\{\(items \?\? \[\]\)\.map\(/.test(b3Sidebar),
+    'existe mais de um Tab.Navigator, ou a sidebar deixou de ser apresentação do navegador',
+  );
+
+  /* G-NAV-2. Duas formas ERRADAS, ambas provadas por varredura em todo o `src`:
+   *   (a) `navigate('Home', { ... })` — payload ANINHADO pendurado num literal (T031);
+   *   (b) `navigate('<aba>')` por literal — a forma que não alcançava a aba a
+   *       partir de uma tela EMPILHADA e que, no tablet, não alcançava nunca.
+   *
+   * ESCOPO DECLARADO (não é ajuste silencioso): o gate mede a forma ANINHADA
+   * `navigate('Home', {`, não todo `navigate('Home')`. O `navigate('Home')` simples é
+   * o "voltar para as abas" e É EFETIVO nos dois formatos; ele aparece hoje em 10
+   * arquivos que T031 nunca nomeou (T031 lista quatro ocorrências, todas aninhadas).
+   * Exigir `ROUTES.HOME` nesses 10 seria uma varredura de normalização fora de B3 —
+   * fica REGISTRADA para B7, não implementada aqui. */
+  const B3_ABAS = ['Início', 'Aventuras', 'Ateliê', 'Estrelinhas', 'Perfil'];
+  const b3LiteralHome = /navigate\(\s*'Home'\s*,/;
+  const b3LiteralAba = new RegExp(`navigate\\(\\s*'(${B3_ABAS.join('|')})'\\s*\\)`);
+  const b3InfratoresHome = b1Arquivos.filter((rel) => b3LiteralHome.test(codeOf(rel)));
+  const b3InfratoresAba = b1Arquivos.filter((rel) => b3LiteralAba.test(codeOf(rel)));
+
+  check(
+    'G-NAV-2 [1/3]: nenhum payload aninhado pendurado em string literal (`navigate(\'Home\', {`)',
+    b3InfratoresHome.length === 0,
+    `arquivos com literal: ${b3InfratoresHome.join(', ')}`,
+  );
+
+  check(
+    'G-NAV-2 [2/3]: nenhuma navegação por NOME DE ABA em string literal',
+    b3InfratoresAba.length === 0,
+    `arquivos com literal de aba: ${b3InfratoresAba.join(', ')}`,
+  );
+
+  /* [3/3] Todo payload aninhado `{ screen: ... }` do app tem de sair de `ROUTES.HOME`
+   * e nomear a aba por `ROUTES.*`. É o que impede a volta do "navega e não acontece
+   * nada": payload aninhado pendurado na rota errada não troca aba nenhuma. */
+  const b3PayloadAninhado = /navigate\(([^,)]+),\s*\{\s*screen:\s*([^,}\s]+)/g;
+  const b3PayloadForaDoContrato = [];
+  for (const rel of b1Arquivos) {
+    const src = codeOf(rel);
+    for (const m of src.matchAll(b3PayloadAninhado)) {
+      const alvo = m[1].trim();
+      const aba = m[2].trim();
+      if (alvo !== 'ROUTES.HOME' || !aba.startsWith('ROUTES.')) {
+        b3PayloadForaDoContrato.push(`${rel}: navigate(${alvo}, { screen: ${aba} })`);
+      }
+    }
+  }
+
+  check(
+    'G-NAV-2 [3/3]: todo payload aninhado de aba parte de `ROUTES.HOME` e nomeia a aba por `ROUTES.*`',
+    b3PayloadForaDoContrato.length === 0,
+    `fora do contrato: ${b3PayloadForaDoContrato.join(' · ')}`,
   );
 
   // ── Summary ────────────────────────────────────────────────────────────────

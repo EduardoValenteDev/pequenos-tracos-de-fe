@@ -19,6 +19,7 @@ import { isInternalToolsEnabled } from '../config/internalTools';
 import { isPackSandboxDevEnabled } from '../services/packSandboxDevService';
 import { resetOnboardingForQa } from '../services/onboardingService';
 import { resetBeniAppTour, resetAllGuides, requestInitialTour } from '../services/beniTourService';
+import { ROUTES } from '../constants/routes';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
 import { PARENT_GUIDE_BASE, PARENT_GUIDE_CREATOR_STEP } from '../data/beniGuides';
@@ -490,8 +491,10 @@ export default function ParentAreaScreen({ navigation }) {
   // Rever o Tour INICIAL do Beni: limpa a flag e abre a aba Aventuras com o gatilho.
   async function handleReviewBeniTour() {
     await resetBeniAppTour();
-    requestInitialTour(); // tablet: foca Aventuras via sinal; mobile: também usa o param
-    navigation.navigate('Home', { screen: 'Aventuras', params: { startBeniTour: true } });
+    // Fase 6 · B3: o foco da aba passou a vir da NAVEGAÇÃO nos dois formatos (o tablet
+    // deixou de ter shell próprio). O sinal continua servindo ao caso "mapa já montado".
+    requestInitialTour();
+    navigation.navigate(ROUTES.HOME, { screen: ROUTES.ADVENTURES, params: { startBeniTour: true } });
   }
 
   // Resetar TODOS os guias contextuais do Beni (inicial + por aba) para revê-los.

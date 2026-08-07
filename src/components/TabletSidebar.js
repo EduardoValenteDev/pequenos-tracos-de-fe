@@ -10,18 +10,22 @@ import FaithIcon from './ui/FaithIcon';
 import { registerGuideTarget } from '../services/guideTargetRegistry';
 
 /**
- * Bloco 1.2 — `name` é a IDENTIDADE DE ROTA (onTabPress navega por ela): não muda.
+ * TabletSidebar — APRESENTAÇÃO da tab bar no tablet (Fase 6 · B3 · P-27).
+ *
+ * Não decide navegação e não tem catálogo próprio de abas. Até a Fase 6 este arquivo
+ * mantinha uma cópia da lista de abas, que podia divergir de `TAB_DEFS` sem ninguém
+ * perceber. Agora os itens chegam prontos em `items`, derivados das rotas REAIS do
+ * `Tab.Navigator` — o que a sidebar mostra é o que o navegador tem.
+ *
+ * Bloco 1.2 (mantido) — `name` é a IDENTIDADE DE ROTA (onTabPress navega por ela).
  * `label` é o que o usuário lê. Emoji saiu: ícone semântico via FaithIcon.
+ *
+ * Props:
+ *   items      — [{ name, label, faithIcon }] na ordem das rotas do navegador
+ *   activeTab  — nome da rota focada (estado real do navegador)
+ *   onTabPress — recebe o nome da rota; quem navega é o shell
  */
-const TABS = [
-  { name: 'Início',      label: 'Início',      faithIcon: 'home' },
-  { name: 'Aventuras',   label: 'Aventuras',   faithIcon: 'adventures' },
-  { name: 'Ateliê',      label: 'Brincar',     faithIcon: 'brincar' },
-  { name: 'Estrelinhas', label: 'Estrelinhas', faithIcon: 'trophies' },
-  { name: 'Perfil',      label: 'Perfil',      faithIcon: 'profile' },
-];
-
-export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxStars }) {
+export default function TabletSidebar({ items, activeTab, onTabPress, totalStars, maxStars }) {
   const insets = useSafeAreaInsets();
   const { profile } = useProfile();
 
@@ -73,7 +77,7 @@ export default function TabletSidebar({ activeTab, onTabPress, totalStars, maxSt
 
       {/* Botões de navegação */}
       <View style={styles.navButtons}>
-        {TABS.map(tab => {
+        {(items ?? []).map(tab => {
           const isActive = activeTab === tab.name;
           const btn = (
             <TouchableOpacity

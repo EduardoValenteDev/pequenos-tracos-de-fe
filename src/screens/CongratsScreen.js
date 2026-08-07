@@ -207,7 +207,10 @@ export default function CongratsScreen({ route, navigation }) {
     } else if (recommendation.state === 'B') {
       navigation.navigate('ParentArea');
     } else {
-      navigation.navigate('Aventuras');
+      // Fase 6 · B3 · P-31: Congrats é tela EMPILHADA. `navigate('Aventuras')` não
+      // alcançava a aba em nenhum aparelho — o stack não desce para o navegador filho.
+      // O destino da aba se declara pelo payload aninhado a partir da rota 'Home'.
+      navigation.navigate(ROUTES.HOME, { screen: ROUTES.ADVENTURES });
     }
   }
   const nextLabel = recommendation.state === 'C' ? 'Ver aventuras' : 'Próxima aventura';
