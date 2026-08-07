@@ -19,13 +19,13 @@
 > produto** e nada abaixo o rebaixa. O que ele **não** governa é o **inventário de pendências**:
 > identidade, status, severidade, fase e rastreabilidade de riscos vivem exclusivamente em
 > [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md)
-> (**matriz canônica**, códigos `P-01` a `P-140`). A `v5` governa **roadmap e sequência de fases**;
+> (**matriz canônica**, códigos `P-01` a `P-148`). A `v5` governa **roadmap e sequência de fases**;
 > o `PROJECT_SOURCE_OF_TRUTH.md` governa **precedência e governança**. Listas de risco antigas
 > mantidas neste arquivo — em especial a lista `R` — valem **apenas como origem histórica e alias**
 > e **não** são matriz concorrente. Este arquivo **não replica** a matriz: cita códigos `P`, e a
 > definição fica lá.
 
-**Data desta versão:** 2026-08-05 (**Product Lock — Fase 4A**, Plano Família, compra, restauração e entitlement, seção `PL4A`; **Fase 4B**, acesso grátis, conteúdo do Plano Família, histórias e superfícies infantis, seção `PL4B`; **Fase 4C**, jornada, progressão, conclusão e desbloqueios, seção `PL4C`; **Fase 4D**, dados, persistência, migração, recuperação e integridade, seção `PL4D`) · **Base anterior:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Fundador:** Eduardo
+**Data desta versão:** 2026-08-05 (**Product Lock — Fase 4A**, Plano Família, compra, restauração e entitlement, seção `PL4A`; **Fase 4B**, acesso grátis, conteúdo do Plano Família, histórias e superfícies infantis, seção `PL4B`; **Fase 4C**, jornada, progressão, conclusão e desbloqueios, seção `PL4C`; **Fase 4D**, dados, persistência, migração, recuperação e integridade, seção `PL4D`) · **Atualizada em:** 2026-08-06 (**Fase 4E**, privacidade, Área dos Pais, analytics e Modo Igreja, seção `PL4E`) · **Base anterior:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Fundador:** Eduardo
 
 > **Reconciliação E1 (2026-07-15):** este arquivo passou a ser o **único árbitro** (o `DECISIONS.md`
 > da raiz foi marcado SUPERSEDED). As decisões consolidadas de lançamento estão na seção
@@ -294,6 +294,7 @@ Cada item: **ID · Status · Decisão · Impacto no código · Bloco responsáve
 | `DECISIONS.md` da raiz como árbitro | `docs/DECISIONS.md` (este arquivo) |
 | Nomes brutos "Soletrando/Adivinhar o Animal/Quebra-Cabeça" | E1-BRINCAR-4JOGOS (nomes finais) |
 | Lista Brincar de 5 entradas | E1-BRINCAR-4JOGOS (4 jogos + Criar Livre + Minhas artes) |
+| Modo Igreja **sem destino de produto**, reduzido a código atrás de *flag* de *build* (decisão #5 do `DECISIONS.md` da raiz, hoje SUPERSEDED) | **PL4E · D-4E-IGREJA** (segunda linha de produto real dentro do mesmo app, contrato congelado, implementação na Fase 12B). Alcance exato da supersessão em [`docs/fase4-product-lock/05_PRODUCT_LOCK_4E_...md`](fase4-product-lock/05_PRODUCT_LOCK_4E_PRIVACIDADE_AREA_DOS_PAIS_ANALYTICS_E_MODO_IGREJA.md) §19.1. **Cultinho em Casa NÃO é tocado**; a exclusão do produto institucional completo (D3) **permanece**; a *flag* continua **desligada** |
 
 ---
 
@@ -1479,7 +1480,7 @@ Os itens **8 e 9 formam um par indivisível**: o maior estado defensável é um 
 4. **A cadeia `totalBonusStars` fica explicitamente protegida de remoção** (`P-39`): a escrita é viva e aguardada; apagá-la destruiria estrelinhas conquistadas, contra a Decisão 9 da Fase 4C.
 5. **`P-120`, `P-125` e `P-126` saem de `DECISÃO DE PRODUTO PENDENTE` para `ABERTO`** — nunca para `CORRIGIDO`.
 6. **Sete códigos saem de `EXIGE DECISÃO NO PRODUCT LOCK` para `INFORMA O PRODUCT LOCK`:** `P-44`, `P-120`, `P-124`, `P-125`, `P-126`, `P-134`, `P-137`.
-7. **`P-108` permanece `EXIGE DECISÃO NO PRODUCT LOCK`** — a Fase 4D **não** decidiu o destino do Modo Igreja.
+7. **`P-108` permanece `EXIGE DECISÃO NO PRODUCT LOCK`** — a Fase 4D **não** decidiu o destino do Modo Igreja. — ⚠️ **ATUALIZADO em 2026-08-06 (Fase 4E):** o destino foi decidido; `P-108` passa a **`INFORMA O PRODUCT LOCK`**, mantendo Status `ABERTO` (ver §`PL4E`).
 8. **Nenhum risco técnico foi marcado como corrigido** apenas porque a decisão foi tomada.
 9. **Nenhuma decisão das Fases 4A, 4B e 4C foi revogada, afrouxada, reinterpretada ou reaberta.**
 
@@ -1488,11 +1489,112 @@ Os itens **8 e 9 formam um par indivisível**: o maior estado defensável é um 
 - **`P-141` entra como `BLOQUEIA LANÇAMENTO`** (`CRÍTICO`): no commit canônico, sete telas escopam dado infantil por `profile.id || profile.avatarId`, e trocar de avatar faz a criança perder acesso ao que salvou.
 - **Toda a implementação** das dez decisões acima é **futura** (Fases 10, 11, 12A, 16, 17 e 19); **nenhuma validação física** foi executada nesta fase.
 - **A política técnica anti-adiantamento de relógio** será especificada na fase de implementação, preservando a fronteira de dia local e o comportamento *fail closed*.
-- **Destino do Modo Igreja** (`P-108`) segue pendente de decisão de produto.
+- **Destino do Modo Igreja** (`P-108`) segue pendente de decisão de produto. — ⚠️ **ATUALIZADO em 2026-08-06 (Fase 4E):** ~~segue pendente~~ **decidido** em `D-4E-IGREJA`; o **risco técnico** de `P-108` continua **`ABERTO`**.
 - **Quantidade, textos e desenho de tela** das quatro operações de reset, do aviso de desinstalação e do painel de armazenamento são **produção futura**.
+
+## PL4E — Product Lock Fase 4E · Privacidade, Área dos Pais, analytics e Modo Igreja
+
+> **Data:** 2026-08-06. **Registro formal das respostas do fundador** ao artefato preliminar
+> [`docs/fase4-product-lock/05_PRODUCT_LOCK_4E_PRIVACIDADE_AREA_DOS_PAIS_ANALYTICS_E_MODO_IGREJA.md`](fase4-product-lock/05_PRODUCT_LOCK_4E_PRIVACIDADE_AREA_DOS_PAIS_ANALYTICS_E_MODO_IGREJA.md).
+> Bloco **exclusivamente documental**: nenhum código, *asset*, *pack*, manifesto ou configuração
+> foi alterado; nenhum *build* foi gerado; nenhuma validação física foi executada.
+> As decisões das Fases **4A**, **4B**, **4C** e **4D** permanecem **integralmente preservadas**.
+
+**Regra de leitura (três estados, como em PL4A, PL4B, PL4C e PL4D):** cada decisão abaixo distingue
+**decisão resolvida** · **implementação pendente** · **validação futura**. Decisão de produto
+tomada **não** corrige risco técnico e **não** autoriza escrever código.
+
+### D-4E-SESSAO-ADULTA — A sessão adulta termina por inatividade de 5 minutos
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `C-2` do artefato.
+- (1) O portão parental abre uma **sessão adulta** que vale para **toda** a Área dos Pais, não por tela · (2) a sessão **termina após 5 minutos de inatividade**, não por tempo absoluto · (3) **termina imediatamente** ao sair da Área dos Pais para a área infantil · (4) **termina** quando o app vai a segundo plano por período relevante · (5) navegação **dentro** da área adulta **não** exige revalidação · (6) ações destrutivas ou comerciais **sempre** exigem confirmação própria, mesmo com sessão válida · (7) em **aparelho compartilhado**, a regra é a mesma — o produto **não** presume um único adulto.
+- **Implementação pendente** (Fase 19) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-49`, `P-92`.
+
+### D-4E-LINKS-EXTERNOS — Regra D refinada para saída do app
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `C-10`.
+- Todo link que leva para fora do app exige **portão parental** e **aviso de saída**; a criança **nunca** abre navegador externo a partir da área infantil. A refinação: o aviso é **uma tela adulta clara**, não um alerta genérico, e o destino é **declarado antes** da saída.
+- **Implementação pendente** (Fase 19) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-92`, `P-145`.
+
+### D-4E-EXCLUSAO — A criança pode iniciar, só o adulto conclui
+- **Status:** ✅ **APROVADA.**
+- A criança **pode iniciar** a exclusão da própria criação; a **conclusão** exige o **adulto** através do portão parental. Nenhuma exclusão irreversível ocorre por toque infantil isolado. Preserva integralmente as cinco garantias de exportação e reset da Fase 4D.
+- **Implementação pendente** (Fases 11 e 19) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-100`, `P-107`.
+
+### D-4E-ANALYTICS-3-CAMADAS — Arquitetura de três camadas
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `C-4`.
+- (1) **Camada local de produto**, que nunca sai do aparelho · (2) **camada de diagnóstico técnico**, sem conteúdo infantil e sem identificador remoto derivado do `childId` · (3) **camada pública opcional**, **desligada por padrão** e dependente de **autorização adulta explícita**. As **12 categorias** do artefato ficam ratificadas. **Proibido** converter o `childId` local em identificador remoto. **Igreja e denominação nunca entram na telemetria de produto.**
+- **Implementação pendente** (Fases 5 e 19) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-85`, `P-127`, `P-139`.
+
+### D-4E-CONSENTIMENTO — Consentimento adulto e pesquisa
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `C-5`.
+- Qualquer coleta opcional depende de **consentimento adulto explícito, revogável**, obtido **atrás do portão parental**, com **linguagem compreensível** e **sem escurecimento de padrão** (*dark pattern*). Pesquisa com famílias **não** se confunde com telemetria de produto.
+- **Implementação pendente** (Fase 5) · **risco técnico NÃO corrigido** · **revisão jurídica ainda exigida**. Rastreio: `P-85`, `P-92`.
+
+### D-4E-ARTE-PURA — Exportação da obra da criança é arte pura
+- **Status:** ✅ **APROVADA** · **ratifica** o conflito `C-14`.
+- A obra pessoal da criança sai **sem** moldura, marca d'água, logo, CTA ou QR comercial. O **imprimível oficial** do Mundo do Beni é outro objeto e **pode** levar identidade de marca, com a área comercial **visualmente separada** sob rótulo para pais e responsáveis. **A chamada de compra nunca é dirigida à criança.** Contrato completo na §20 do artefato.
+- **Implementação pendente** (Fases 11 e 16) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-100`, `P-107`.
+
+### D-4E-COMPARTILHAMENTO — Folha de compartilhamento nativa
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `C-7`.
+- O compartilhamento usa a **folha nativa do sistema**, sempre por **ação adulta**. `expo-sharing` fica **conceitualmente autorizado**; **`expo-media-library` NÃO** é autorizada — gravar na galeria do aparelho exige permissão ampla que o produto não quer pedir. **Nenhuma dependência foi instalada nesta fase.**
+- **Implementação pendente** (Fase 19) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. Rastreio: `P-100`, `P-107`.
+
+### D-4E-IGREJA — Modo Igreja é segunda linha de produto real dentro do mesmo app
+- **Status:** ✅ **APROVADA** · **resolve** os conflitos `C-11`, `C-12` e `C-13` · **supera**, no alcance da §19.1 do artefato, a decisão #5 do `DECISIONS.md` da raiz.
+- Marca guarda-chuva **Mundo do Beni**, linha **Mundo do Beni para Igrejas**, recurso **Modo Igreja** — **sem** segundo app, segundo mascote ou segunda identidade. **A Criação Igreja é gratuita e completa**; as cinco aulas de lançamento são **A Criação, Noé, Davi e Golias, Jesus e as Crianças e Daniel** (**O Bom Samaritano não está entre elas**). **25 exclusões** de escopo compensatório, **núcleo bíblico compartilhado** sem alegar neutralidade teológica, Mural **coletivo** sem ranking, *presets* de **10/25/45 min**, **sem** *entitlement* por número de crianças, **sem vazamento de *entitlement*** entre Família e Igreja, e a regra dura **paywall antes do encontro, nunca durante**. **Preço, plano pago e limites NÃO são definidos agora** — ficam num **portão futuro obrigatório** antes da Fase 18. Contrato congelado na §19 do artefato.
+- **Implementação pendente** (Fase 12B; comercialização na Fase 18) · **risco técnico NÃO corrigido** · **validação física ainda exigida**. **A *flag* de *build* continua desligada e nenhuma UI foi exposta.** Rastreio: `P-108`.
+
+### D-4E-POLITICA-ARQUITETURA-C — Arquitetura C para política e termos
+- **Status:** ✅ **APROVADA.**
+- Política de Privacidade e Termos ficam em **`mundobeni.com.br/privacidade`** e **`mundobeni.com.br/termos`**, acessíveis a partir da Área dos Pais atrás do portão parental e do aviso de saída (`D-4E-LINKS-EXTERNOS`).
+- **Implementação pendente** (Fases 5 e 19) · **risco técnico NÃO corrigido** · **revisão jurídica ainda exigida**. Rastreio: `P-92`, `P-145`.
+
+### D-4E-CONTATO — Canal oficial de contato
+- **Status:** ✅ **APROVADA.**
+- O canal oficial é **`contato@mundobeni.com.br`**. **Não foi implementado em código nesta fase.**
+- **Implementação pendente** (Fase 19) · **risco técnico NÃO corrigido**. Rastreio: `P-92`.
+
+### D-4E-TEXTO-PRIVACIDADE — O absoluto cai
+- **Status:** ✅ **APROVADA** · **resolve** o conflito `C-3` · **encaminha** o conflito `C-9`.
+- As frases **"sem coleta de dados"** e **"tudo funciona só com dados locais neste aparelho"** **não podem permanecer absolutas**: a RevenueCat processa informação de compra, pode haver telemetria pública opcional futura e o compartilhamento adulto envia conteúdo para fora. O novo texto é **curto, compreensível e verdadeiro**, obedecendo às **oito regras** da §18 do artefato — incluindo a proibição de texto jurídico gigante como mensagem principal da Área dos Pais e a proibição de afirmar de forma absoluta que nenhum dado sai do aparelho.
+- **Implementação pendente** (Fase 19) · **risco técnico NÃO corrigido** · **revisão jurídica ainda exigida** (Fase 5). Rastreio: `P-93`.
+
+### PL4E — Ratificações globais
+1. **As regras de minimização de identificadores** ficam ratificadas, com a **proibição explícita** de converter o `childId` local em identificador remoto.
+2. **A lista do que nunca pode aparecer em log** fica ratificada sem afrouxamento.
+3. **As cinco garantias de exportação da Fase 4D** e **as quatro garantias comerciais de 4A/4B** ficam **preservadas**.
+4. **Direitos de exibição coletiva** (música, fontes, ilustrações, efeitos, narração, traduções bíblicas e conteúdo de terceiros) são **portão obrigatório** antes do lançamento das aulas de Igreja, com dono natural na **Fase 16**.
+5. **A correção dos cinco rótulos de acessibilidade** segue encaminhada à **Fase 12A**, sem antecipação.
+
+### PL4E — Correções de rastreabilidade aplicadas
+1. **Cinco contagens do artefato preliminar corrigidas, sem ajuste silencioso** (§0 do artefato): (a) os códigos dependentes do fundador são **4**, não 5 — `P-107` foi contado duas vezes; (b) a fórmula *"19 aprovados + 5 fundador"* é inválida — a decomposição correta dos 24 é **4 + 15 + 3 + 2**; (c) o portão parental cobre **10 + 6 + 1 = 17** ações, não "11 + 5 + 1"; (d) o resumo de analytics soma **6 + 2 + 2 + 2 = 12** categorias, não 13; (e) o conjunto de perguntas sem código âncora é **{1, 2, 6, 7, 9, 10}** — a Pergunta 3 estava indevidamente incluída e a 6 omitida.
+2. **Sete conflitos não possuem código `P` correspondente** — C-5, C-6, C-8, C-10, C-12, C-13, C-15. **Nenhum código novo foi criado por isso**, conforme a regra que proíbe criar código por ampliação de evidência.
+3. **Quatro referências de código corrigidas** no artefato (`appDataModel.js:51`→`src/data/appDataModel.js:49`; `postStoryStorage.js:72`→`:71`; `planConfig.js:40-56`→`:40-55`; `storageKeys.js:98-110`→`:96-110`) e registrado o achado de que **`src/models/` não existe** — o caminho real é **`src/data/`**.
+4. **Nenhum código `P` novo foi criado nesta fase.** A matriz canônica permanece com **148** riscos (`P-01`..`P-148`), **sem renumeração**.
+5. **`P-85` e `P-100` saem de `DECISÃO DE PRODUTO PENDENTE` para `ABERTO`** — nunca para `CORRIGIDO`.
+6. **Três códigos saem de `EXIGE DECISÃO NO PRODUCT LOCK` para `INFORMA O PRODUCT LOCK`:** `P-85`, `P-100` e `P-108`.
+7. **Correção metodológica registrada:** o artefato preliminar afirmava que `P-108` também sairia de `DECISÃO DE PRODUTO PENDENTE`; **`P-108` já estava `ABERTO`**, de modo que apenas o eixo **Product Lock** se move. A divergência veio de tratar os três códigos como um bloco homogêneo.
+8. **Nenhum risco técnico foi marcado como corrigido** apenas porque a decisão foi tomada.
+9. **Nenhuma decisão das Fases 4A, 4B, 4C e 4D foi revogada, afrouxada, reinterpretada ou reaberta.**
+10. **A recontagem dos blocos derivados da matriz foi feita manualmente e auditada** — o *"gerador determinístico"* citado nos commits de 4A a 4D **não existe no repositório** e **não** foi executado.
+
+### PL4E — O que continua **não** decidido e **não** corrigido
+- **Nenhum risco técnico passou a `CORRIGIDO` nesta fase.**
+- **Preço, mensalidade, desconto, preço de fundador, limite de líderes, limite de salas, limite de dispositivos, nome final do produto pago e modelo institucional do Modo Igreja** ficam num **portão futuro obrigatório**, depois do piloto físico de **A Criação** e **antes** da implementação comercial da **Fase 18**.
+- **Conformidade jurídica não foi declarada.** Os **24 encaminhamentos** da §22 do artefato (mapa de dados, base legal, retenção, ECA, ECA Digital, LGPD, RIPD, Apple Kids, Google Families, SDKs, licenças de exibição coletiva e demais) são **obrigatórios na Fase 5**. É **proibido** declarar *"legalmente aprovado"*, *"100% conforme"*, *"nenhum risco"* ou *"anonimização garantida"* antes disso.
+- **Política de oração e neutralidade denominacional** têm aprofundamento na **Fase 5C**.
+- **Toda a implementação** das onze decisões acima é **futura** (Fases 5, 11, 12A, 12B, 16, 18 e 19); **nenhuma validação física** foi executada nesta fase.
 
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
+- ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
+  1. **Camada local de produto** — dados de uso que **nunca saem do aparelho**. É a camada padrão do produto.
+  2. **Camada de diagnóstico técnico** — erro e estabilidade, **sem conteúdo infantil**, **sem PII**, **sem AAID** e **sem identificador remoto derivado do `childId`**.
+  3. **Camada pública opcional** — telemetria de produto **desligada por padrão**, dependente de **consentimento adulto explícito e revogável** obtido **atrás do portão parental** (`D-4E-CONSENTIMENTO`), sem escurecimento de padrão.
+- **As 12 categorias** de evento do artefato de 4E ficam **ratificadas** (6 + 2 + 2 + 2).
+- **Proibições duras:** converter o `childId` local em identificador remoto · enviar conteúdo criado pela criança · enviar nome, foto, voz, e-mail ou resposta identificada de criança · enviar **igreja ou denominação** · registrar em log qualquer item da lista proibida do artefato · ativar telemetria pública por padrão · presumir consentimento.
+- **Nenhum SDK novo foi adicionado nesta fase** e **nenhuma dependência foi instalada**. `expo-sharing` fica **conceitualmente autorizado** (`D-4E-COMPARTILHAMENTO`) e **`expo-media-library` NÃO** é autorizada.
+- **Implementação pendente** (Fases 5 e 19) · **risco técnico NÃO corrigido** · **revisão jurídica ainda exigida**. Rastreio: `P-85`, `P-93`, `P-127`, `P-139`.
 
 ## RevenueCat (registro de sequenciamento)
 - **Código** só depois do **piloto user-facing** dos packs (F2.4e.3–e.5). A **preparação externa** (contas Apple/Play, produtos, dashboard RC, teste fechado do Play, acordos fiscais/bancários) **pode começar em paralelo AGORA** — não toca código.
@@ -1506,4 +1608,5 @@ Os itens **8 e 9 formam um par indivisível**: o maior estado defensável é um 
 - ✅ **ESTADO TRANSITÓRIO ENCERRADO EM 2026-08-04** — a janela "NÃO GERAR BUILD" entre o **D1** e a conclusão do **S1** da Spec 019 **não vigora mais**: código, smoke e documentação voltaram a concordar, e o build `bafb8e3f` (commit `b24c868`) foi gerado depois do fechamento e **validado fisicamente**. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §7 e §8.
 - 🟡 **Cenários Família e premium da Spec 019** — **obrigatórios na Fase 18** e **revalidados na Fase 21**; não validados no perfil `c60-pilot` por impossibilidade técnica. Ver [`D-C60-PERSISTENCIA-TODOS-PLANOS`](#d-c60-persistencia-todos-planos-spec-019--persistência-local-do-colorir-com-o-beni-para-todos-os-planos) §8.1.
 - ✅ **Escopo das rodadas diárias, perfil local, reset, exportação, corrupção, armazenamento, packs pós-atualização e chaves de storage** — **DECIDIDOS em 2026-08-05** no **Product Lock da Fase 4D**. Ver [`## PL4D`](#pl4d--product-lock-fase-4d--dados-persistência-migração-recuperação-e-integridade). **Deixam de ser pendências de decisão**; a implementação segue pendente nas Fases 10, 11, 12A, 16, 17 e 19, e os riscos técnicos correspondentes **continuam abertos** na matriz canônica (`P-01`..`P-148`).
+- ✅ **Privacidade, sessão adulta, links externos, exclusão, analytics, consentimento, exportação, compartilhamento, política/termos, contato e destino do Modo Igreja** — **DECIDIDOS em 2026-08-06** no **Product Lock da Fase 4E**. Ver [`## PL4E`](#pl4e--product-lock-fase-4e--privacidade-área-dos-pais-analytics-e-modo-igreja). **Deixam de ser pendências de decisão**; a implementação segue pendente nas Fases 5, 11, 12A, 12B, 16, 18 e 19, e os riscos técnicos correspondentes **continuam abertos** na matriz canônica (`P-01`..`P-148`). **Preço e modelo comercial do Modo Igreja** e **os 24 encaminhamentos jurídicos** permanecem **explicitamente em aberto**.
 - ✅ **Contrato técnico do sistema global de conclusão** (Decisões B e C) — **CONGELADO em 2026-08-05** no **Product Lock da Fase 4C**. Ver [`## PL4C`](#pl4c--product-lock-fase-4c--jornada-progressão-conclusão-e-desbloqueios). **Deixa de ser pendência de decisão**; os achados de [`D-CONCLUSAO-ESTADO-ATUAL`](#d-conclusao-estado-atual--achados-que-impedem-o-congelamento-técnico-imediato-registro-de-fatos) **continuam abertos como risco técnico**, com implementação nas Fases 7, 9, 10, 11, 12A, 16 e 19 e **validação física futura**.

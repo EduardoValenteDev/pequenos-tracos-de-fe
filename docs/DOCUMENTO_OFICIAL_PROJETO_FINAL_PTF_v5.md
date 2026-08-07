@@ -35,7 +35,7 @@
    - branch **`fix/loading-performance-foundation`** no commit **`aeda9c2`**;
    - tag anotada **`lp-foundation-closed-2026-07-30`** no commit **`bc79edb`**;
    - **smoke `3314/3314`**.
-7. ⚠️ **ATUALIZADO em 2026-08-05 (E018).** ~~Fase atual: Fase 2.5 — integração do Colorir com o Beni sobre a fundação.~~ **Fase atual: Fase 3 — reconciliação completa (somente leitura)**, com o bloco documental **Fase 3H (E009 a E018) ENCERRADO**. A Fase 2.5 foi encerrada em **2026-08-04**. Linha canônica **`integrate/colorir-canonical-runtime`**; commit executável congelado **`015c438`**. O **Product Lock está apto a iniciar**. Ver [`PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) §1.1. — ⚠️ **ATUALIZADO em 2026-08-05 (Fase 4D).** ~~O Product Lock está apto a iniciar.~~ O **Product Lock começou e avançou**: os blocos **4A**, **4B**, **4C** e **4D** estão **encerrados** (seções `PL4A`, `PL4B`, `PL4C` e `PL4D` de [`DECISIONS.md`](DECISIONS.md)). **Fase atual: Fase 4 — Product Lock final**, ainda em curso; o commit executável congelado continua **`015c438`**.
+7. ⚠️ **ATUALIZADO em 2026-08-05 (E018).** ~~Fase atual: Fase 2.5 — integração do Colorir com o Beni sobre a fundação.~~ **Fase atual: Fase 3 — reconciliação completa (somente leitura)**, com o bloco documental **Fase 3H (E009 a E018) ENCERRADO**. A Fase 2.5 foi encerrada em **2026-08-04**. Linha canônica **`integrate/colorir-canonical-runtime`**; commit executável congelado **`015c438`**. O **Product Lock está apto a iniciar**. Ver [`PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) §1.1. — ⚠️ **ATUALIZADO em 2026-08-05 (Fase 4D).** ~~O Product Lock está apto a iniciar.~~ O **Product Lock começou e avançou**: os blocos **4A**, **4B**, **4C** e **4D** estão **encerrados** (seções `PL4A`, `PL4B`, `PL4C` e `PL4D` de [`DECISIONS.md`](DECISIONS.md)). **Fase atual: Fase 4 — Product Lock final**, ainda em curso; o commit executável congelado continua **`015c438`**. — ⚠️ **ATUALIZADO em 2026-08-06 (Fase 4E).** O bloco **4E** também está **encerrado** (seção `PL4E`); o commit executável congelado continua **`015c438`**.
 8. **Branch de trabalho da Fase 2.5:** **`integrate/colorir-with-loading`** *(histórico — a linha canônica vigente é `integrate/colorir-canonical-runtime`)*.
 9. **Branch de origem do piloto:** **`feat/colorir-60-pilot-creation`** no commit **`795760a`**.
 10. **Merge base confirmado:** **`6cf799c`**.
@@ -221,6 +221,18 @@ Sequência **ativa e completa**. Cada fase traz **objetivo**, **entregas centrai
   **sem renumerar** nenhum código anterior. **Decisão de produto tomada não corrige risco
   técnico**: nenhum risco foi marcado como `CORRIGIDO` por causa de decisão, e toda implementação
   segue para as fases proprietárias. Os blocos são **exclusivamente documentais** — `src`,
+  `scripts`, `assets` e configurações de build seguem bit a bit idênticos ao commit executável
+  congelado **`015c438`**.
+- **Andamento registrado (2026-08-06):** o bloco **4E** (privacidade, Área dos Pais, analytics e
+  Modo Igreja) está **encerrado**, com as onze decisões do fundador registradas em
+  [`docs/DECISIONS.md`](DECISIONS.md) — seção `PL4E` — e o artefato em
+  [`docs/fase4-product-lock/05_PRODUCT_LOCK_4E_PRIVACIDADE_AREA_DOS_PAIS_ANALYTICS_E_MODO_IGREJA.md`](fase4-product-lock/05_PRODUCT_LOCK_4E_PRIVACIDADE_AREA_DOS_PAIS_ANALYTICS_E_MODO_IGREJA.md).
+  A Fase 4E **não criou nenhum código novo**: a matriz canônica permanece com **148 riscos**
+  (`P-01` a `P-148`), e apenas `P-85`, `P-100` e `P-108` mudaram de classificação (§28 da matriz).
+  O **Modo Igreja passa a ter destino de produto** — segunda linha comercial dentro do mesmo
+  aplicativo, com **implementação na Fase 12B** e **comercialização na Fase 18**, sem definição de
+  preço agora. Os encaminhamentos jurídicos e a política de oração vão para a **Fase 5**; os
+  direitos de exibição coletiva, para a **Fase 16**. Bloco **exclusivamente documental** — `src`,
   `scripts`, `assets` e configurações de build seguem bit a bit idênticos ao commit executável
   congelado **`015c438`**.
 
