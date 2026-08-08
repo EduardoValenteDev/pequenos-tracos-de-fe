@@ -57,6 +57,36 @@ auditada e **aprovada pelo fundador** em 2026-08-07; o ciclo SDD foi formalmente
 > `015c438` · **nenhum arquivo de runtime alterado** · nenhum *build*, nenhuma validação física e
 > **nenhum push**.
 
+> **Delta v4.1 da Fase 6 — pós-validação física em iPad (2026-08-08).** A **validação física em
+> iPad conduzida pelo fundador** revelou **bloqueadores estruturais** que a *spec* aprovada da
+> feature `021-fase6-shell-splash-sistema-visual` **não previa**. Registro factual do estado:
+>
+> - **Blocos B1 e B3:** implementados. **Regressão em telefone validada, sem anomalia relevante** —
+>   B1 e B3 entregaram o que lhes foi pedido; o que faltou nunca lhes foi pedido.
+> - **Bloco B2: NÃO INICIADO e BLOQUEADO** por decisão do fundador (`D18`), até que o delta de
+>   responsividade e ciclo de vida seja corrigido e revalidado.
+> - **Delta aberto:** `F6-R1` *Adaptive Surface System* · `F6-R2` *Map Geometry Foundation* ·
+>   `F6-R3` *Lifecycle & Resize Stability*.
+>
+> **As 22 fases continuam 22.** O delta **acrescenta subportões dentro de fases existentes** — não
+> cria roteiro paralelo, não move entrega de fase e não inverte ordem. O
+> [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3 **não foi alterado** e continua o único
+> árbitro de sequência.
+>
+> **Artefatos canônicos do delta:**
+> [`docs/DECISIONS.md`](DECISIONS.md) §`PF6D` (decisões `D1`–`D18` e a questão **não decidida**
+> `PF6D-D-CANVAS`) ·
+> [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md) §32
+> (**a matriz passa de 149 para 167 riscos**, `P-150` a `P-167`, **acréscimo puro**: 0 fusões, 0
+> renumerações, 0 reclassificações) ·
+> [`specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/)
+> (auditoria somente leitura, *spec* do delta, Clarify e *checklist*, roteiro v4.1).
+>
+> **Estado da etapa `F6-DELTA0` nesta data:** **documental e de auditoria somente leitura**.
+> **Nenhum** arquivo de *runtime*, *asset*, manifesto ou configuração de *build* foi alterado.
+> Nenhum *build* gerado · nenhuma validação física nova executada · **nenhum push**. A implementação
+> de `F6-R1`, `F6-R2` e `F6-R3` **depende de nova autorização do fundador no Portão Humano 1**.
+
 > **Correção declarada, não silenciosa (2026-08-07, Fase 5 Bloco 7).** Este campo dizia *"Fase 3 —
 > reconciliação completa (somente leitura)"*. Estava correto quando escrito e ficou desatualizado
 > porque as Fases 3H, 4 (blocos 4A a 4E) e 5 foram registradas **como parágrafos** desta seção **sem

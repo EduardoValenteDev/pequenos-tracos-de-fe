@@ -1,7 +1,7 @@
 # 09 · Matriz definitiva de riscos e pendências
 
 > **Artefato 9 de 11 — consolidado em E016, aprovado em E017, adotado em E018 · Fase 3H.**
-> **Atualizado nas Fases 4A, 4B, 4C, 4D e 4E (Product Lock), na Fase 5 (§29, §30) e na abertura da Fase 6 (§31 — duas correções de numeral declaradas, nenhum risco alterado).**
+> **Atualizado nas Fases 4A, 4B, 4C, 4D e 4E (Product Lock), na Fase 5 (§29, §30), na abertura da Fase 6 (§31 — duas correções de numeral declaradas, nenhum risco alterado) e no Delta v4.1 da Fase 6 (§32 — dezoito códigos novos `P-150` a `P-167`, acréscimo puro, nenhuma renumeração e nenhuma reclassificação de código anterior).**
 > **Versão 5 — matriz única, deduplicada, definitiva e canônica.**
 
 | Campo | Valor |
@@ -10,9 +10,9 @@
 | **Base auditada** | E009 a E015, mais os sete riscos `R` residuais absorvidos em E018, mais as decisões do fundador registradas nas Fases 4A, 4B, 4C, 4D e 4E |
 | **Branch auditada** | `integrate/colorir-canonical-runtime` |
 | **HEAD canônico** | `015c438106538595b592981fbe1b80b1d5d65e55` |
-| **Total de riscos** | **149** — `P-01` a `P-131` (herdados) + `P-132` a `P-134` (E016, ETAPA 4) + `P-135` a `P-139` (E018, ETAPA 2) + `P-140` (Fase 4A, §24) + `P-141` a `P-148` (Fase 4D, §27) + `P-149` (Fase 5, §29). **A Fase 4E (§28) não criou nenhum código novo.** |
+| **Total de riscos** | **167** — `P-01` a `P-131` (herdados) + `P-132` a `P-134` (E016, ETAPA 4) + `P-135` a `P-139` (E018, ETAPA 2) + `P-140` (Fase 4A, §24) + `P-141` a `P-148` (Fase 4D, §27) + `P-149` (Fase 5, §29) + `P-150` a `P-167` (Fase 6 · Delta v4.1, §32). **A Fase 4E (§28) e a abertura da Fase 6 (§31) não criaram nenhum código novo.** |
 | **Fusões realizadas** | **0** |
-| **Renumerações** | **0** — `P-140`, `P-141` a `P-148` e `P-149` são acréscimos puros |
+| **Renumerações** | **0** — `P-140`, `P-141` a `P-148`, `P-149` e `P-150` a `P-167` são acréscimos puros |
 
 > Este artefato é a **única fonte canônica de riscos** do projeto. Nenhum outro documento
 > replica a matriz; os demais artefatos da Fase 3 apenas a referenciam por código.
@@ -480,7 +480,7 @@ As tabelas rolam horizontalmente.
 | **P-144** | Nenhum aviso de perda de dados por desinstalação | nenhuma superfície do aplicativo informa ao responsável que desinstalar pode apagar o progresso e as criações guardadas no aparelho; a varredura por texto de desinstalação em `src/` devolve um único acerto, e é um comentário de código sem relação | **DADOS E PERSISTÊNCIA** · sec.: UI E RESPONSIVIDADE | `COMPROVADO PELO CÓDIGO` · ausência verificada em toda a árvore `src/` · único acerto textual em `coloring60LabService.js:6`, comentário interno sem relação com aviso ao responsável | Fase 4D, por determinação do fundador na consolidação | `ABERTO` | ND | **MÉDIO** | Área dos Pais | a família perde desenhos, pinturas e progresso sem nunca ter sido avisada de que isso poderia acontecer | o produto não declara ao responsável o alcance real da persistência local nem a fronteira entre dado infantil e direito comercial | 4 | 19 | `P-145`, `P-140` | 19 e 20 | `VFP` · `TEL` · `REI` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | NÃO coberto por `P-140`, que trata do snapshot de entitlement, nem por `P-35`, que trata do transporte do estado de guia. MESMO BLOCO DE CORREÇÃO: `P-145` | `COMPROVADO PELO CÓDIGO` | CRIADO NA FASE 4D, sem renumerar nenhum código anterior. Código criado porque nenhum dos 140 códigos anteriores enuncia a ausência do aviso de perda por desinstalação. DECISÃO DA FASE 4D: o produto não promete recuperar dados infantis depois da desinstalação; somente o direito comercial do Plano Família é restaurável pela conta da loja; a Área dos Pais deverá exibir a frase de referência aprovada pelo fundador, Desinstalar o aplicativo pode apagar o progresso e as criações salvas neste aparelho; um eventual backup automático do sistema operacional não é compromisso do produto. Decisão de produto resolvida, texto e superfície pendentes na Fase 19, risco técnico NÃO corrigido. Falta para lançamento: inserir o aviso na Área dos Pais e verificá-lo em aparelho real antes de publicar |
 | **P-145** | Apagar todos os dados locais anunciado ao responsável e não implementado | `ParentAreaScreen.js:1055-1063` exibe o cartão Apagar todos os dados locais com o selo Em preparação e sem nenhum manipulador de toque; a capacidade é anunciada ao responsável e não existe no produto | **DADOS E PERSISTÊNCIA** · sec.: UI E RESPONSIVIDADE | `COMPROVADO PELO CÓDIGO` · `ParentAreaScreen.js:1055-1063`, bloco declarativo sem `onPress` | Fase 4D, por determinação do fundador na consolidação | `ABERTO` | ND | **MÉDIO** | Área dos Pais | o responsável acredita ter controle sobre os dados da criança e não tem | superfície declarativa sem operação por trás, e sem inventário único de chaves capaz de executá-la com segurança | 4 | 19 | `P-35`, `P-114`, `P-144` | 19 e 20 | `VFP` · `TEL` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | NÃO coberto por `P-35`, que trata do transporte do estado de guia no reinício da jornada. MESMO BLOCO DE CORREÇÃO: `P-35`, `P-114`, `P-144` | `COMPROVADO PELO CÓDIGO` | CRIADO NA FASE 4D, sem renumerar nenhum código anterior. Código criado porque nenhum dos 140 códigos anteriores enuncia capacidade anunciada e ausente. DECISÃO DA FASE 4D: a Área dos Pais terá quatro operações distintas, recomeçar a jornada, apagar downloads, apagar uma criação e apagar todos os dados locais; a exclusão total exige portão parental, confirmação dupla, digitação de palavra de confirmação e lista explícita do que será perdido; o direito comprado na loja não é apagado e continua restaurável; saída da conta, rebaixamento de plano e perda de autorização nunca equivalem a reinício; o cartão Em preparação deverá ser removido ou substituído pela operação real antes do lançamento. Decisão de produto resolvida, implementação pendente na Fase 19, risco técnico NÃO corrigido. Falta para lançamento: remover o cartão ou entregar a operação real com todos os seus portões DECISÃO DA FASE 4E: as quatro operações da Área dos Pais passam a viver dentro de uma sessão adulta que termina por inatividade de cinco minutos, termina ao sair para a área infantil e termina quando o app vai a segundo plano por período relevante; navegação dentro da área adulta não exige revalidação, mas toda ação destrutiva ou comercial exige confirmação própria mesmo com sessão válida, e em aparelho compartilhado a regra é a mesma. A criança pode iniciar a exclusão da própria criação, mas somente o adulto conclui. Nenhum texto jurídico longo será usado como mensagem principal da Área dos Pais. Decisão de produto resolvida, implementação pendente na Fase 19, risco técnico NÃO corrigido, validação física ainda exigida |
 
-### JORNADA E PROGRESSO — 14 riscos
+### JORNADA E PROGRESSO — 16 riscos
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -499,7 +499,10 @@ As tabelas rolam horizontalmente.
 | **P-23** | CTA habilitado é inerte na hidratação | `canEnterStoryContent` falso não desabilita o botão durante `ProgressContext.isLoadingProgress` | **JORNADA E PROGRESSO** · sec.: UI E RESPONSIVIDADE | `ProgressContext.isLoadingProgress` | E011 | `ABERTO` | média | **MÉDIO** | Story Detail | toca e nada acontece | `disabled` incompleto | - | 11 | - | 21 | `VFP` · `TEL` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-22` | `COMPROVADO PELO CÓDIGO` | DECISÃO DA FASE 4C: nenhuma tela pode deixar CTA habilitado e inerte. Durante a hidratação a interface mostra estado de carregamento e só habilita a ação quando a leitura persistida estiver disponível. Decisão de produto resolvida, correção pendente na Fase 11, risco técnico NÃO corrigido. |
 | **P-51** | Ordem canônica das 3 atividades replicada | A mesma ordem está escrita em quatro lugares distintos | **JORNADA E PROGRESSO** | E012 seção 16 item 2 | E012 | `ABERTO` | baixa | **BAIXO** | pós-história | ordem pode divergir entre telas | quatro fontes para uma ordem | - | 11 | - | 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-08`, `P-50` | `COMPROVADO PELO CÓDIGO` | DECISÃO DA FASE 4C: a ordem das três atividades do Colorir com o Beni é dado canônico e a exigência de conclusão é de pelo menos uma atividade, nunca das três. Três de três permanecem conclusão de coleção. Decisão de produto resolvida, unificação da fonte da ordem pendente na Fase 11. |
 
-### NAVEGAÇÃO — 4 riscos
+| **P-154** | Cinco derivações independentes da mesma âncora do mapa | A posição de um ponto do mapa é recalculada de forma independente em cinco lugares — o pino desenhado, o alvo de toque, o brilho, o `scrollTo` da câmera e o holofote do tour — sem nenhuma fonte única; `AdventureMapScreen.js:123-127` usa fator `0.58` da altura da janela enquanto `beniTourService.js` centraliza o holofote em `0.5`, e a estimativa de viewport de tablet não coincide com a geometria real da barra lateral de 200dp | **JORNADA E PROGRESSO** · sec.: UI E RESPONSIVIDADE; ONBOARDING E GUIAS | `COMPROVADO PELO CÓDIGO` · `AdventureMapScreen.js:123-127`, `:367` · `mapGeometry.js` · `beniTourService.js` · divergência latente de aridade em `getStoryMapCoord` | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **ALTO** | Mapa de Aventuras, tour do Beni, *onboarding* | o holofote não cai exatamente sobre o que o Beni está apontando; o toque não coincide com o pino que a criança vê | cinco derivações independentes divergem por construção, e qualquer mudança de largura multiplica a divergência | 6 | 6 | `P-152` | 14 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F6-MAP-ANCHOR-01`. É **infraestrutura da Fase 6**, e por isso **precede** `P-157` (holofote, Fase 7). NÃO coberto por `P-47` nem por `P-42`. MESMO BLOCO DE CORREÇÃO: `P-152` | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÃO DO FUNDADOR `D11`: **uma âncora canônica única** governa pino, alvo de toque, brilho, rolagem e holofote. Requisito do delta: `F6-R2` (`MapAnchorRegistry`). A Fase 6 entrega a FUNDAÇÃO GEOMÉTRICA; a semântica definitiva de jornada permanece da Fase 11. Risco técnico NÃO corrigido |
+| **P-165** | Portão de desbloqueio do Monte a Cena não formalizado | A condição de desbloqueio do Monte a Cena não está registrada como regra canônica única; a decisão do fundador fixa o desbloqueio em `Historia ouvida = true` | **JORNADA E PROGRESSO** · sec.: JOGOS | `DECISÃO DO FUNDADOR` · `DECISIONS.md` §`PF6D-D14`; sem prova de código isolada nesta auditoria | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **MÉDIO** | Monte a Cena, Brincar | a criança pode encontrar o jogo antes de ter o contexto da história que ele monta | regra de desbloqueio não centralizada | 6 | 12A | `P-166` | 14 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F12A-MONTE-01`. MESMO BLOCO DE CORREÇÃO: `P-166` | `DECISÃO DO FUNDADOR` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÃO DO FUNDADOR `D14`. Fase de decisão 6, fase de implementação 12A. A Fase 6 está PROIBIDA de implementar o portão. Área protegida (progresso): exige instrução direta |
+
+### NAVEGAÇÃO — 5 riscos
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -508,7 +511,9 @@ As tabelas rolam horizontalmente.
 | **P-47** | `LumiMoment` e `StoryBook` são rotas raiz | `AppNavigator.js:281-285`, `:514-518` e `:532-536`: em tablet a barra lateral desaparece e não há largura máxima de leitura | **NAVEGAÇÃO** · sec.: UI E RESPONSIVIDADE | `AppNavigator.js:281-285` | E012 | `ABERTO` | média | **MÉDIO** | navegação, tablet | perde a navegação ao entrar nessas telas | hierarquia de rotas inconsistente | - | 6 | `P-30`, `P-31` | 21 | `VFP` · `TAB` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-30`, `P-31` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 7 para 6. Falta: confirmar em tablet físico REBAIXADO na ETAPA 11: consequência local do `P-31`, que já carrega a classificação de lançamento do bloco de navegação em tablet. |
 | **P-84** | Nenhum deep link para os quatro jogos | `AppNavigator.js:292` monta `NavigationContainer` sem `linking` | **NAVEGAÇÃO** | `AppNavigator.js:292` | E013 | `ABERTO` | **P3** | **BAIXO** | navegação | nenhum hoje | capacidade planejada e não implementada | - | 20 | - | - | `NEF` | `NÃO BLOQUEIA PRODUCT LOCK` | `POSTERIOR AO LANÇAMENTO` | - | `COMPROVADO PELO CÓDIGO` | Não atende a nenhum dos 12 critérios de bloqueio: entra como posterior ao lançamento |
 
-### ONBOARDING E GUIAS — 4 riscos
+| **P-159** | Cantinho do Beni sem propósito exclusivo aprovado | O Cantinho do Beni não possui propósito exclusivo aprovado que justifique ser ensinado obrigatoriamente no *onboarding*; enquanto isso não existir, a decisão do fundador o mantém **fora** do ensino obrigatório | **NAVEGAÇÃO** · sec.: ONBOARDING E GUIAS | `DECISÃO DO FUNDADOR` · `DECISIONS.md` §`PF6D-D13` | Fase 6 · Delta v4.1 (§32) | `DECISÃO DE PRODUTO PENDENTE` | média | **MÉDIO** | Cantinho do Beni, *onboarding* | ensinar um destino sem propósito próprio gasta a atenção da criança sem lhe entregar nada | destino existe na navegação sem definição de propósito exclusivo | 6 | 7 | `P-155` | Portão de Produto | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F7-CANT-01` | `DECISÃO DO FUNDADOR` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. Status **`DECISÃO DE PRODUTO PENDENTE`**, único token do vocabulário canônico da §6 que descreve o caso — a decisão `D13` NÃO é um defeito a corrigir, é uma restrição a respeitar, e o item permanece **congelado** enquanto a decisão de propósito exclusivo não existir. **`CONGELADO` NÃO foi introduzido como status novo:** o delta não amplia o vocabulário da §6. Sai do congelamento apenas por **PORTÃO DE PRODUTO** — aprovação de propósito exclusivo pelo fundador. Nem a Fase 6 nem a Fase 7 podem descongelá-lo por conta própria |
+
+### ONBOARDING E GUIAS — 8 riscos
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -517,7 +522,12 @@ As tabelas rolam horizontalmente.
 | **P-35** | STR ONB 01: transporte do estado de guia | O estado de guia vive em memória no `beniTourService` e a whitelist de `progressResetService.js:34-63` não tem chaves de guia nem `@ptf_brincar`, com risco de camadas simultâneas | **ONBOARDING E GUIAS** · sec.: ESTRELINHAS E CONQUISTAS | `progressResetService.js:34-63` · `v5:512` | E011, sustentado por E013 | `EXIGE VALIDAÇÃO FÍSICA` | média (E011) e **P1** (v5:512, árbitro) | **ALTO** | Onboarding, Estrelinhas | overlays sobrepostos na primeira entrada | estado de guia não persistido nem limpo | - | 11 | 7 e 8A | 21 | `VFP` · `TEL` · `REI` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `STR ONB 01` (v5:512). MESMO BLOCO DE CORREÇÃO: `P-16`, `P-101`, `P-114` | `COMPROVADO PELO CÓDIGO` | DIVERGÊNCIA RESOLVIDA: corpus dizia média, o árbitro `v5:512` diz **P1**. Prevalece o árbitro. Fase 11, dependências 7 e 8A e revalidação 21 vem do árbitro. DECISÃO DA FASE 4D: a Área dos Pais terá quatro operações distintas. Recomeçar a jornada apaga progresso, quiz, reflexão, estrelinhas, conquistas, resultados dos jogos, rodadas diárias e os estados de onboarding e de guias ligados à jornada, e PRESERVA pinturas, artes do Criar Livre, autorização comercial, downloads e o perfil básico. Apagar downloads alcança somente pacotes e temporários. Apagar uma criação é individual e exige confirmação do responsável. Apagar todos os dados locais alcança perfil, progresso, criações, jogos e downloads, sob portão parental, confirmação dupla, digitação de palavra de confirmação e lista explícita do que será perdido. O direito comprado na loja nunca é apagado e continua restaurável, e saída da conta, rebaixamento ou perda de autorização nunca equivalem a reinício. Decisão de produto resolvida, implementação pendente na Fase 11, risco técnico NÃO corrigido, validação física ainda exigida. Falta para lançamento: reproduzir as camadas simultâneas na primeira entrada e verificar se a criança consegue sair delas. |
 | **P-103** | `ADVENTURES_GUIDE` sem consumidor e `BeniAppTour` órfão | O guia está definido sem chamador e o componente de tour não é montado por ninguém | **ONBOARDING E GUIAS** | `COMPROVADO PELO CÓDIGO` | E014 | `IMPLEMENTADO SEM CONSUMIDOR` | ND | **BAIXO** | Guias | guia previsto nunca aparece | guia e tour vivos sem consumidor | - | 7 | `P-34` | 21 | `VFP` · `TEL` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-34`, `P-53` (inventário único de guias órfãos) | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 3F para 7 (onboarding e guias) |
 
-### UI E RESPONSIVIDADE — 6 riscos
+| **P-155** | *Onboarding* não se apresenta corretamente em tablet | A coreografia e a marcação do *onboarding* foram observadas incorretas em iPad na validação física; textos, cartões e alvos de guia não acompanham a janela do tablet | **ONBOARDING E GUIAS** · sec.: UI E RESPONSIVIDADE | `OBSERVADO FISICAMENTE` · validação em iPad conduzida pelo fundador | Fase 6 · Delta v4.1 (§32) | `EXIGE VALIDAÇÃO FÍSICA` | alta | **ALTO** | *onboarding*, tour do Beni | a primeira experiência da criança em tablet já começa errada | apresentação do *onboarding* não foi projetada para a janela do tablet | 6 | 7 | `P-151` | 14 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F7-ONB-TAB-01`. NÃO coberto por `P-21` nem por `P-34`. MESMO BLOCO DE CORREÇÃO: `P-156`, `P-157`, `P-158` | `OBSERVADO FISICAMENTE` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. Fase de decisão 6, fase de implementação **7**. A Fase 6 está PROIBIDA de mexer em textos ou coreografia de *onboarding*; entrega apenas os arquétipos de superfície sobre os quais a Fase 7 constrói |
+| **P-156** | Primeira experiência não parte de "Comece Aqui" / "A Criação" | A primeira experiência de mapa e de *onboarding* não centraliza deterministicamente a região inicial; a decisão do fundador fixa que ela **sempre** parte de "Comece Aqui" / "A Criação" | **ONBOARDING E GUIAS** · sec.: JORNADA E PROGRESSO | `COMPROVADO PELO CÓDIGO` · `adventureMap.js:56` (`comece_aqui`) e `:59` (`jovens_da_fe`) confirmam que a condição é verificável · `OBSERVADO FISICAMENTE` em iPad | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **ALTO** | Mapa de Aventuras, *onboarding* | a criança pode ser deixada num ponto do mapa que não é o começo da jornada | ponto de partida não é determinístico e depende da câmera, que `P-152` e `P-154` já mostram instável | 6 | 7 | `P-154` (âncora), `P-152` (câmera) | 14 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F7-ONB-START-01`. **Depende** de `P-154`: sem âncora canônica não há ponto de partida determinístico. MESMO BLOCO DE CORREÇÃO: `P-155`, `P-157` | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÃO DO FUNDADOR `D12`. Fase de implementação **7**; a Fase 6 entrega apenas a âncora que torna a condição verificável |
+| **P-157** | Holofote do tour não coincide com o alvo apontado | O holofote do tour é centralizado por derivação própria em `beniTourService.js`, com fator `0.5`, enquanto a câmera do mapa usa `0.58` e a estimativa de viewport de tablet não corresponde à geometria real; o holofote portanto não cai sobre o mesmo ponto que o pino desenhado | **ONBOARDING E GUIAS** · sec.: JORNADA E PROGRESSO | `COMPROVADO PELO CÓDIGO` · `beniTourService.js` (fator `0.5`) confrontado com `AdventureMapScreen.js:123-127` (fator `0.58`) · `OBSERVADO FISICAMENTE` em iPad | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **ALTO** | tour do Beni, Mapa de Aventuras | o Beni destaca um lugar e a criança olha para outro | duas derivações independentes da mesma âncora divergem por construção | 6 | 7 | `P-154` (**precondição**) | 14 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F7-ONB-SPOT-01`. **PRECONDIÇÃO ESTRITA:** não pode ser corrigido antes de `P-154`; corrigir o fator isoladamente apenas troca uma divergência por outra. MESMO BLOCO DE CORREÇÃO: `P-154`, `P-156` | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. Fase de implementação **7**, sobre a fundação `F6-R2` entregue na Fase 6 |
+| **P-158** | Semântica de "Ver mapa" indefinida no *onboarding* | O comportamento de "Ver mapa" durante o *onboarding* não tem semântica canônica definida; a semântica definitiva pertence ao orquestrador de jornada da Fase 11 | **ONBOARDING E GUIAS** · sec.: NAVEGAÇÃO | `COMPROVADO PELO CÓDIGO` · `beniGuides.js:19` e `:33` declaram alvos `adventures.viewMapButton` · `AppNavigator.js:15` e `:291` consomem `isAdventureTourActive()` definido em `beniTourService.js:150` | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **MÉDIO** | *onboarding*, Mapa de Aventuras | a criança aciona "Ver mapa" e não recebe um resultado previsível | semântica dividida entre *onboarding* e orquestração de jornada, sem dono único | 6 | 7 | `P-155`, `P-154` | 14 e 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F7-ONB-MAP-01`. TENSÃO REGISTRADA, NÃO RESOLVIDA: `P-103` está declarado `IMPLEMENTADO SEM CONSUMIDOR`, mas `AppNavigator.js:291` consome `isAdventureTourActive()` em tempo de execução. **Esta auditoria NÃO reclassificou `P-103`** — a divergência é encaminhada como questão `Q7` do Clarify, para decisão do fundador na Fase 7 | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. **Fase proprietária de implementação = 7** (dono único, para preservar a invariante da §15 de que a soma das fases fecha no total da matriz): a Fase 7 entrega o comportamento de "Ver mapa" no *onboarding*. A **semântica definitiva** do orquestrador de jornada permanece da **Fase 11** e está registrada como **revalidação**, não como segunda propriedade. A Fase 6 pode entregar apenas API de infraestrutura, jamais a semântica |
+
+### UI E RESPONSIVIDADE — 14 riscos
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -527,6 +537,15 @@ As tabelas rolam horizontalmente.
 | **P-30** | Dois sistemas de breakpoint concorrentes | `>= 768` em 10 pontos contra `breakpoints.tablet = 600` em `tokens.js:128`, usado por `ContentContainer.js:22`; o Livrinho usa 768 | **UI E RESPONSIVIDADE** | `tokens.js:128` × `StoryBookScreen.js:195` | E011, confirmado e reformulado por E013 | `ABERTO` | média | **MÉDIO** | todas as telas e `tokens.js` | layout imprevisível entre 600 e 767 px | dois sistemas de layout | - | 6 | `P-20` | 21 | `VFP` · `TAB` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-29`, `P-31`, `P-47` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 7 para 6. REBAIXADO na ETAPA 11: consequência local medida pelo `P-31` e pelo `P-20`, que carregam a classificação de lançamento do bloco. |
 | **P-59** | Chip de plano do Brincar corta em 100% dos estados | `BrincarScreen.js:238`, `386`, `390` e `198-204` cortam o texto do chip em todos os estados possíveis | **UI E RESPONSIVIDADE** · sec.: PLANO E ENTITLEMENT | `COMPROVADA PELO CÓDIGO E FISICAMENTE` | E013 | `ABERTO` | **P2** | **MÉDIO** | Brincar | informação de plano ilegível | largura insuficiente sem tratamento | - | 12A | - | 21 | `VFP` · `TEL` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-60` | `COMPROVADO PELO CÓDIGO E FISICAMENTE` | Já possui evidência física registrada em E013. DECISÃO DA FASE 4A: o nome público do plano pago é único e imutável, Plano Família, e é essa string que o chip precisa acomodar. A decisão fixa o texto, não corrige o corte, que permanece pendente de implementação na Fase 12A. |
 | **P-60** | `headerTitle` do Brincar sem `numberOfLines` | `BrincarScreen.js:233`, `379`, `371` e `231` deixam o título sem `numberOfLines` nem `lineHeight` em coluna de cerca de 118 dp | **UI E RESPONSIVIDADE** | `COMPROVADA PELO CÓDIGO E FISICAMENTE` | E013 | `ABERTO` | **P2** | **MÉDIO** | Brincar | título cortado no topo da tela | tipografia sem limite de linhas | - | 12A | `P-27` | 21 | `VFP` · `TEL` · `FS13` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-27`, `P-59` | `COMPROVADO PELO CÓDIGO E FISICAMENTE` | Ofensor visual dominante do defeito de topo, já observado fisicamente |
+
+| **P-150** | Política de orientação não distingue telefone de tablet | `app.json` declara uma única chave global `orientation: "portrait"`, que trava telefone **e** tablet em iOS **e** Android; o projeto opera em CNG (não há `ios/` nem `android/`), de modo que o *plugin* interno `withOrientation` escreve a chave base `UISupportedInterfaceOrientations` sem a variante `~ipad`, e o iPad herda retrato; simultaneamente `ios.supportsTablet: true` e `ios.infoPlist.UIRequiresFullScreen: false` declaram participação em Split View e Slide Over, o que a regra de multitarefa da Apple exige acompanhada das quatro orientações | **UI E RESPONSIVIDADE** · sec.: DEPENDÊNCIAS E BUILD | `COMPROVADO PELO ARQUIVO` · `app.json` chaves `orientation`, `ios.supportsTablet`, `ios.infoPlist.UIRequiresFullScreen` · ausência de `ios/` e `android/` · ausência de `expo-screen-orientation` em `package.json` | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **ALTO** | todo o aplicativo em tablet e iPad | a criança em iPad não pode usar o aparelho na posição em que ele naturalmente fica; a decisão do fundador não chega ao produto | a distinção telefone × tablet não existe na plataforma, e a multitarefa declarada já entrega larguras variáveis em tempo de execução sem nenhuma mudança de orientação | 6 | 6 | `P-152` (precondição), `P-164` (canvas) | 14 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F6-RSP-01`. NÃO coberto por `P-20`, que enuncia ausência de validação física em tablet, não política de orientação; NÃO coberto por `P-30`, resolvido no Bloco B1. MESMO BLOCO DE CORREÇÃO: `P-151`, `P-152`, `P-153` | `COMPROVADO PELO ARQUIVO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÃO DO FUNDADOR `D1`: telefones permanecem em retrato, tablets e iPads suportam retrato e paisagem. PRECONDIÇÃO INEGOCIÁVEL: não aplicar antes de `P-152` corrigido e antes da política de canvas decidida (`PF6D-D-CANVAS`), sob pena de destruir o desenho da criança. Requisito do delta: `F6-R1.1`. Risco técnico NÃO corrigido, nada foi alterado nesta auditoria |
+| **P-151** | Um único modelo de largura aplicado a quatro famílias de superfície | O predicado `width >= breakpoints.tablet` governa, de forma idêntica, superfícies de naturezas diferentes em 13 pontos, e `ContentContainer.js:25-27` impõe uma coluna de no máximo 640dp a Início, Brincar, Perfil, Histórias e Detalhe de História indistintamente; num iPad Pro em paisagem isso deixa cerca de 700pt de vazio lateral; a faixa expandida `>=900` tem um único consumidor e os *tokens* `grid` e `displayScaleTablet` de `tokens.js` §2.4 não têm nenhum | **UI E RESPONSIVIDADE** | `COMPROVADO PELO CÓDIGO` · `ContentContainer.js:25-27` · `AppNavigator.js:232` · `ParentAreaScreen.js:288` · `StoryDetailScreen.js:111` · `ReflectionScreen.js:51` · `PostStoryHubScreen.js:52` · `StoryBookScreen.js:197` · `QuizScreen.js:28` · `TrophiesScreen.js:197` · `BeniGuideOverlay.js:80` · `ModalPapel.js:21` · `productTheme.js:113` · `tokens.js` §2.4 | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **ALTO** | Início, Brincar, Perfil, Histórias, Detalhe, Livrinho, Quiz, Estrelinhas, Área dos Pais | em tablet a criança vê uma coluna estreita cercada de vazio, em vez de uma composição pensada para a tela que tem | não existe arquétipo de superfície: `AppScreen` cuida de área segura e `ContentContainer` cuida de uma coluna; ninguém decide que espécie de superfície é aquela | 6 | 6 | `P-150`, `P-153` | 14 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F6-RSP-02`. NÃO coberto por `P-30`, que enunciava dois sistemas de *breakpoint* concorrentes e foi resolvido no Bloco B1 — este código enuncia o oposto: um corte único aplicado uniformemente onde as superfícies são diferentes. ABSORVE, sem criar código próprio, o fato de `grid` e `displayScaleTablet` serem *tokens* sem consumidor. MESMO BLOCO DE CORREÇÃO: `P-150`, `P-153`, `P-167` | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÃO DO FUNDADOR `D2` (o *layout* é decidido pelo tamanho da janela, nunca pelo nome do aparelho) e `D3` (quatro famílias: Hub, Editorial, Imersiva, Jogo). ACHADO POSITIVO REGISTRADO PARA LIMITAR ESCOPO: a leitura reativa já está correta em todo o aplicativo — zero `Dimensions.get`, ~34 usos de `useWindowDimensions` — falta a política, não a medida. Requisitos do delta: `F6-R1.2` e `F6-R1.3`. Risco técnico NÃO corrigido |
+| **P-152** | Mudança de largura descarta estado da criança; nenhuma política de `resize` existe | `AdventureMapScreen.js:367` executa `useEffect(() => { didInitScroll.current = false; }, [mapWidth])`, de modo que qualquer mudança de largura — rotação, entrada ou saída de Split View, redimensionamento de painel ou travessia do corte de 600dp — trata o evento como primeira montagem, o `onContentSize` volta a disparar e o `scrollTo` puxa o mapa de volta à âncora da câmera, descartando a posição da criança; `userScrolledRef` também não é reposto, deixando `activeIdx` e o acompanhamento de região dessincronizados; nenhuma superfície do aplicativo implementa política de `resize` | **UI E RESPONSIVIDADE** · sec.: JORNADA E PROGRESSO | `COMPROVADO PELO CÓDIGO` · `AdventureMapScreen.js:123-127`, `:367` · prova negativa: zero tratamento de `resize` em toda a árvore `src/` · 15 pontos de `AppState` inventariados, nenhum ligado a largura | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **ALTO** | Mapa de Aventuras, Livrinho, jogos, Colorir, Ateliê, tour | girar o iPad joga fora onde a criança estava no mapa; sob paisagem liberada, pode destruir o desenho em andamento | o aplicativo nunca precisou de política de `resize` porque sempre esteve travado em retrato, e o Split View já entrega larguras variáveis hoje | 6 | 6 | — | 14 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS DO FUNDADOR: `F6-LFC-01`. É a camada **GLOBAL** da classificação exigida pelo escopo; a camada **CANVAS-SPECIFIC** é `P-164` e pertence à Fase 9. É **precondição** de `P-150`. MESMO BLOCO DE CORREÇÃO: `P-154` | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. Classificado `PODE BLOQUEAR LANÇAMENTO` pelo critério da perda de trabalho da criança: se a orientação for liberada sem esta correção, rotação destrói desenho. Requisito do delta: `F6-R3`. Risco técnico NÃO corrigido, nada foi alterado nesta auditoria |
+| **P-153** | Barra lateral do tablet com largura fixa, vazio acumulado e tema legado | `TabletSidebar.js:125` fixa `width: 200` idêntica a 600dp e a 1366dp; `:196` declara `navButtons: { gap: 2 }` sem `flex: 1` e sem ancoragem inferior, de modo que o bloco de perfil de cerca de 200pt somado a cinco botões de cerca de 52pt deixa cerca de 700pt de vazio vertical num iPad em retrato; `:4` importa `colors` de `src/theme/colors.js`, o tema legado concorrente, em vez de `src/theme/tokens.js` | **UI E RESPONSIVIDADE** · sec.: NAVEGAÇÃO | `COMPROVADO PELO CÓDIGO E FISICAMENTE` · `TabletSidebar.js:4`, `:125`, `:196` · observado pelo fundador em iPad | Fase 6 · Delta v4.1 (§32) | `ABERTO` | média | **MÉDIO** | barra lateral do tablet | a criança vê uma faixa lateral quase vazia ocupando espaço sem entregar nada | apresentação da barra não acompanhou a hierarquia de rota entregue no Bloco B3, e o tema legado sobrevive ali | 6 | 6 | `P-151` | 14 e 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F6-SID-01`. NÃO coberto por `P-31`, que enunciava navegações inefetivas no tablet e foi resolvido no Bloco B3 — este código enuncia apresentação, não efetividade de navegação. MESMO BLOCO DE CORREÇÃO: `P-151` | `COMPROVADO PELO CÓDIGO E FISICAMENTE` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÃO DO FUNDADOR `D4`: a barra é responsiva e NÃO recebe destinos, ícones ou seções artificiais para preencher vazio. REGISTRO SEPARADO, NÃO É ACHADO NOVO: a mesma barra viola `RF-A7` (alvo de 56×56 — `navButton` de cerca de 52pt em `:200` e `:209`) e `RF-C12` (piso de 13px — `progressLabel` 10 em `:192` e `stars` 11 em `:173`), requisitos JÁ APROVADOS na *spec* da 021 que pertencem ao Bloco B2, hoje BLOQUEADO por `D18`. Requisito do delta: `F6-R1.4`. Risco técnico NÃO corrigido |
+| **P-160** | Story Home sobrecarregada na primeira camada visual | A tela de entrada da história apresenta simultaneamente elementos que a decisão do fundador redistribui entre primeira e segunda camada, sem capa herói dominante, identidade, frase central, chamada única e progresso resumido | **UI E RESPONSIVIDADE** · sec.: JORNADA E PROGRESSO | `OBSERVADO FISICAMENTE` · validação em iPad conduzida pelo fundador; sem prova de código isolada nesta auditoria | Fase 6 · Delta v4.1 (§32) | `EXIGE VALIDAÇÃO FÍSICA` | alta | **MÉDIO** | Story Home | a criança recebe informação demais antes de entender o que aquela história é e o que fazer ali | arquitetura de conteúdo editorial não definida | 6 | 9 | `P-151` | 14 e 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F9-HOME-01`. MESMO BLOCO DE CORREÇÃO: `P-161` | `OBSERVADO FISICAMENTE` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. Fase de decisão 6 porque a decisão foi tomada aqui; fase de implementação 9 porque a entrega é da Fase 9. DECISÕES DO FUNDADOR `D5`, `D6`, `D7` e `D8`. P1 para a SAÍDA DA FASE 9, não para a Fase 6. A Fase 6 está PROIBIDA de implementar este item |
+| **P-161** | Leitor rejeitado visualmente na validação física | A composição atual do Leitor foi rejeitada pelo fundador na validação em iPad; a decisão substitui o Leitor por uma nova superfície na Fase 9, com composição distinta em retrato e em paisagem de tablet | **UI E RESPONSIVIDADE** · sec.: MEU LIVRO | `OBSERVADO FISICAMENTE` · validação em iPad conduzida pelo fundador | Fase 6 · Delta v4.1 (§32) | `EXIGE VALIDAÇÃO FÍSICA` | alta | **MÉDIO** | Leitor, Livrinho | a experiência de leitura não sustenta a arte nem a legibilidade que o produto promete | não existe composição de paisagem para superfície imersiva | 6 | 9 | `P-151`, `P-152` | 14 e 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F9-READER-01`. MESMO BLOCO DE CORREÇÃO: `P-160`, `P-162` | `OBSERVADO FISICAMENTE` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÕES DO FUNDADOR `D9` (o Leitor atual é substituído na Fase 9 pela Página Viva) e `D10` (retrato = arte dominante mais camada legível; tablet em paisagem = composição de livro aberto ou painel de apoio). P1 para a SAÍDA DA FASE 9. A Fase 6 entrega apenas a possibilidade geométrica e está PROIBIDA de implementar o Leitor V2 |
+| **P-162** | Cintilação visível na troca de cena | A troca de cena apresenta quadro intermediário perceptível; a decisão exige pré-carga, proteção contra toque duplo e troca atômica, com zero quadro vazio visível | **UI E RESPONSIVIDADE** · sec.: ASSETS | `OBSERVADO FISICAMENTE` · validação em iPad conduzida pelo fundador | Fase 6 · Delta v4.1 (§32) | `EXIGE VALIDAÇÃO FÍSICA` | alta | **MÉDIO** | Leitor, Livrinho | a criança vê a costura entre as cenas, o que quebra a ilusão da história | não existe motor de transição com pré-carga e troca atômica | 6 | 9 | `P-161` | 14 e 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F9-READER-02`. MESMO BLOCO DE CORREÇÃO: `P-161` | `OBSERVADO FISICAMENTE` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÃO DO FUNDADOR `D17`. P1 para a SAÍDA DA FASE 9. A Fase 6 está PROIBIDA de implementar o motor de transição |
+| **P-167** | Composição do Brincar subaproveitada em tablet | A aba Brincar herda a coluna única de no máximo 640dp de `ContentContainer`, e em tablet a grade de jogos e a seção criativa não ocupam a janela disponível | **UI E RESPONSIVIDADE** · sec.: JOGOS | `COMPROVADO PELO CÓDIGO` · `ContentContainer.js:25-27` aplicado à árvore de `BrincarScreen` · `OBSERVADO FISICAMENTE` em iPad | Fase 6 · Delta v4.1 (§32) | `ABERTO` | média | **MÉDIO** | Brincar | em tablet a criança vê os jogos apertados numa faixa central com vazio nas laterais | ausência de arquétipo da família Hub na faixa expandida | 6 | 12A | `P-151` | 14 e 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F12A-BRI-01`. RELAÇÃO: `P-151` é a causa estrutural. MESMO BLOCO DE CORREÇÃO: `P-166` | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. A Fase 6 entrega a GEOMETRIA BASE da família Hub e da família Jogo; a COMPOSIÇÃO FINAL do Brincar é da Fase 12A. P2 |
 
 ### ACESSIBILIDADE — 5 riscos
 
@@ -586,7 +605,7 @@ As tabelas rolam horizontalmente.
 | **P-137** | `appVersion` congelado no cliente e rebaixamento de packs no primeiro bump | `useStoryPackDownload.js:113` e `packDownloadService.js:136`, `:243` e `:754` usam o literal `1.0.0` e `expo-constants` não existe no projeto; como `packDownloadService.js:349` compara `marker.appVersion` por igualdade estrita, o primeiro bump de versão invalida todo marcador de pack já instalado | **PACKS E OFFLINE** · sec.: DEPENDÊNCIAS E BUILD | `COMPROVADO PELO CÓDIGO` · `useStoryPackDownload.js:113` · `packDownloadService.js:286`, `:349`, `:666` · `expo-constants` ausente de `package.json` e de `src/` | E018 (alias `R17`), `RELATORIO_FECHAMENTO_LP.md:258` | `ABERTO` | alta | **ALTO** | packs, Story Detail, marcador de instalação | a criança perde o conteúdo já baixado depois de atualizar o app | a identidade canônica do pack inclui `appVersion`, então o bump derruba a reutilização de todos os marcadores | 4 | 17 | `P-134`, `P-126` | 17 e 20 | `VFP` · `TEL` · `AVI` · `REI` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `R17` (parcela do cliente). PARCELA JÁ COBERTA: `P-134` (os dois nomes no schema). MESMO BLOCO DE CORREÇÃO: `P-134`, `P-126`, `P-94` | `COMPROVADO PELO CÓDIGO` | E018: parcela residual de `R17`. PRECISÃO sobre o enunciado original: `requiresAppUpdate` não é inerte por falta de consumidor — a cadeia existe de `globalManifestService.js:162-177` até `StoryDetailScreen.js:68`. Inerte é a ENTRADA, o `appVersion` congelado. DECISÃO DA FASE 4D: pacote válido e compatível sobrevive à atualização normal, portanto o marcador de instalação não pode ser invalidado por igualdade estrita de versão do aplicativo. A versão anterior não é apagada antes de a nova estar instalada e validada, e a substituição é atômica. Decisão de produto resolvida, política de marcador pendente na Fase 17, risco técnico NÃO corrigido. Falta para lançamento: decidir a política de marcador para que o bump de versão não rebaixe os packs já instalados |
 | **P-138** | sha256 de pack lê o arquivo inteiro em base64, sem streaming nem teto | `packIntegrityService.js:52` lê o arquivo inteiro como base64 e `:21-31` o converte em binary string e `Uint8Array` antes de hashear, materializando cerca de três cópias simultâneas do arquivo em memória; o `size` obtido em `:50` só testa existência e nunca limita | **PACKS E OFFLINE** · sec.: DEPENDÊNCIAS E BUILD | `COMPROVADO PELO CÓDIGO` · `packIntegrityService.js:20-31`, `:45-60` | E018 (alias `R20B`), `RELATORIO_FECHAMENTO_LP.md:261` | `ABERTO` | média | **ALTO** | instalação e verificação de packs | o download pode falhar ou derrubar o app em aparelho de pouca memória | pico de memória proporcional ao maior asset, sem teto e sem hash incremental | - | 17 | `P-120`, `P-128` | 19 e 21 | `VFP` · `AND` · `TEL` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `R20B`. RELAÇÃO INVERSA com `P-120`: lá se pede mais verificação, aqui se precifica a verificação que já existe. MESMO BLOCO DE CORREÇÃO: `P-120`, `P-116` | `COMPROVADO PELO CÓDIGO` | E018: risco novo real. Nenhum dos 134 códigos anteriores menciona memória, streaming ou custo do cálculo de integridade; a busca por memória, teto, streaming e base64 na matriz anterior retorna zero. A prova só fecha em Android de baixa memória, o que o prende a `P-128`. REGISTRO DA FASE 4D: a revalidação de hashes na abertura seguinte à atualização torna o custo de memória deste cálculo recorrente, e não mais restrito à instalação. A decisão de espaço livre mínimo e de instalação atômica pertence a `P-116` e a `P-126`. Risco técnico NÃO corrigido. Falta para lançamento: medir o pico de memória no maior asset em Android real e decidir entre teto por tamanho e hash incremental |
 
-### JOGOS — 15 riscos
+### JOGOS — 16 riscos
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -606,6 +625,8 @@ As tabelas rolam horizontalmente.
 | **P-86** | Nenhum dos quatro jogos tem retomada | Pares e Ovelhinha tem zero ocorrências de sessão ou retomada, Palavrinhas 1 irrelevante e só Monte a Cena tem `getRawSession` (`:445-451`): encerrar o app perde a partida em 3 de 4 | **JOGOS** · sec.: DADOS E PERSISTÊNCIA | prova negativa em Pares e Ovelhinha · `:445-451` | E013 | `ABERTO` | **P2** | **MÉDIO** | Brincar (4 jogos) | partida perdida ao sair do app | sem sessão persistida | - | 12A | `P-69`, `P-71` | 21 | `VFP` · `TEL` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-69` | `COMPROVADO PELO CÓDIGO` | REBAIXADO na ETAPA 11: o corpus marcava Sim para lançamento. Perder uma partida curta e casual ao encerrar o app é comportamento normal em celular e não atende ao critério 4 (perda de criação da criança). Nenhum desenho, nem estrela já concedida, é perdido DECISÃO DA FASE 4C: o contrato de retomada é diferente por duração. Pares do Beni, Palavrinhas do Beni e Cadê a Ovelhinha não precisam persistir partida incompleta no lançamento, e a rodada só é consumida quando houver resultado terminal válido: sair antes do resultado não consome rodada e nenhuma estrelinha é concedida sem conclusão válida. Monte a Cena mantém retomada de sessão sem consumo duplicado. Decisão de produto resolvida, implementação do consumo por resultado terminal pendente na Fase 12A, risco técnico NÃO corrigido. REGISTRO DA FASE 4D: o contador de rodadas é compartilhado pelos quatro jogos e pertence à criança local, o que torna a retomada de partida um problema do mesmo domínio de dados. Decisão de produto resolvida quanto à propriedade do contador, retomada pendente na Fase 12A, risco técnico NÃO corrigido. |
 | **P-146** | Registro de rodada corrompido devolve o dia inteiro de rodadas | `brincarDailyService.js:49-55` saneia formato desconhecido ou corrompido para dia nulo e zero rodadas usadas, e `:60-65` conclui que nada foi usado hoje, de modo que a corrupção do contador concede de novo todas as rodadas do dia | **JOGOS** · sec.: DADOS E PERSISTÊNCIA | `COMPROVADO PELO CÓDIGO` · `brincarDailyService.js:49-55` (`sanitizeEntry`) · `:60-65` (`usedToday`) | Fase 4D, por determinação do fundador na consolidação | `ABERTO` | ND | **ALTO** | Brincar, Monte a Cena, contador diário | a criança pode jogar acima do limite diário combinado com a família, e o responsável perde a previsibilidade que o limite deveria dar | a política de saneamento resolve corrupção para o estado mais permissivo em vez do estado seguro, contrariando o fechamento por falta de prova | 4 | 12A | `P-56`, `P-57`, `P-86` | 12A e 20 | `VFP` · `TEL` · `GRA` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | NÃO coberto por `P-56`, que trata do `catch` permissivo na tela; aqui o defeito está na política de saneamento do serviço, antes de qualquer `catch`, e permanece mesmo que a tela seja corrigida. MESMO BLOCO DE CORREÇÃO: `P-56`, `P-57` | `COMPROVADO PELO CÓDIGO` | CRIADO NA FASE 4D, sem renumerar nenhum código anterior. Código criado porque `P-56` localiza o defeito na tela e este localiza o defeito no serviço; fato, superfície e correção são distintos, e corrigir um não corrige o outro. DECISÃO DA FASE 4D: durante reparo, quarentena ou qualquer estado de corrupção vale o estado seguro, com rodadas, recompensas, autorização e desbloqueios fechados por falta de prova; falha de leitura nunca é interpretada como atividade não realizada; nenhuma rodada é fabricada. Decisão de produto resolvida, correção pendente na Fase 12A, risco técnico NÃO corrigido. Falta para lançamento: corromper o registro diário em aparelho real e provar que a rodada não é reconcedida |
 
+| **P-166** | Ausência de casca comum e integral para os jogos | Os jogos não compartilham uma casca comum que padronize entrada, pausa, ciclo de vida, conclusão, retorno e composição em tablet; a decisão do fundador fixa que **todos** os jogos passam a compartilhar o `GameShell` integral | **JOGOS** · sec.: UI E RESPONSIVIDADE | `COMPROVADO PELO CÓDIGO` · as quatro telas de jogo tratam `AppState` cada uma por si · `ContentContainer.js:25-27` aplicado indistintamente · `DECISIONS.md` §`PF6D-D15` | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **ALTO** | todos os jogos, Brincar | cada jogo se comporta de um jeito na entrada, na pausa e na saída, e a criança precisa reaprender a cada vez | quatro implementações paralelas do mesmo contrato implícito | 6 | 12A | `P-151`, `P-165` | 14 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F12A-GAME-01`. MESMO BLOCO DE CORREÇÃO: `P-165`, `P-167` | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÃO DO FUNDADOR `D15`. Fase de decisão 6, fase de implementação **12A**. A Fase 6 entrega apenas a **geometria base da família Jogo** (`F6-R1.3`); o `GameShell` é PROIBIDO à Fase 6 |
+
 ### CRIAR LIVRE — 2 riscos
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
@@ -613,7 +634,7 @@ As tabelas rolam horizontalmente.
 | **P-63** | Galeria mostra N de 0 e divide por zero | `AtelierGalleryScreen.js:113` imprime N de 0 artes salvas e `:116` calcula `Math.min(n/0,1)`, que é `NaN` na barra; o cabeçalho é incondicional, sem guarda de plano | **CRIAR LIVRE** · sec.: PLANO E ENTITLEMENT | `AtelierGalleryScreen.js:113` e `:116` | E013 | `ABERTO` | **P1** | **CRÍTICO** | Galeria | a criança vê zero como total e uma barra quebrada | divisão por zero determinística | 4 | 12A | `P-64`, `P-65` | 18 e 21 | `VFP` · `TEL` · `GRA` | `INFORMA O PRODUCT LOCK` | `BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-64`, `P-65` (raiz comum `atelierStorage.js:10` = 0). NÃO fundidos: três arquivos e um bug de `NaN` independente | `COMPROVADO PELO CÓDIGO` | O `NaN` é determinístico para 100% dos usuários do plano grátis e independe da decisão de limite: por isso bloqueia lançamento. DECISÃO DA FASE 4A: o limite de salvamento do Criar Livre no plano grátis é zero, confirmado. A Galeria precisa distinguir as duas políticas: o Criar Livre não persiste no plano grátis, enquanto o Colorir com o Beni salva e permite revisitar a obra real da criança em todas as histórias a que ela tenha acesso, inclusive no plano grátis. O NaN e o cabeçalho incondicional continuam defeitos abertos, pendentes na Fase 12A. DECISÃO DA FASE 4C: no plano grátis a galeria do Criar Livre não mostra contador, não mostra barra e não exibe a expressão de zero em zero, apresentando estado vazio afetivo, com explicação comercial somente depois do gate parental. No Plano Família mostra a contagem de artes salvas, sem denominador fixo e sem barra de limite quando o salvamento for ilimitado. A regra de zero salvamentos no Criar Livre grátis não é reaberta. Decisão de produto resolvida, correção da divisão por zero e da interface pendente na Fase 12A, risco técnico NÃO corrigido. |
 | **P-68** | Fluxo com `mission` nunca pergunta o nome da arte | `AtelierCanvasScreen.js:276` pula a pergunta do nome quando há missão | **CRIAR LIVRE** | `AtelierCanvasScreen.js:276` | E013 | `ABERTO` | **P3** | **BAIXO** | Canvas | a arte fica sem nome escolhido pela criança | ramo de fluxo divergente | - | 12A | - | 21 | `VFP` · `TEL` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | - | `COMPROVADO PELO CÓDIGO` | REGISTRO DA FASE 4C: o encerramento das atividades do Criar Livre segue o mesmo sistema padronizado de slots e modos aprovado para histórias e jogos, sem caminho que termine sem saída. Decisão de produto resolvida quanto ao padrão, correção do fluxo pendente na Fase 12A, risco técnico NÃO corrigido. |
 
-### COLORIR COM O BENI — 5 riscos
+### COLORIR COM O BENI — 7 riscos
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -622,6 +643,9 @@ As tabelas rolam horizontalmente.
 | **P-18** | JRN C60 01: `unlocked={isCompleted}` no Colorir | `StoryDetailScreen.js:573` avalia `unlocked !== true` para `LOCKED` antes do `doneMap`, então cards concluídos ficam `disabled`; reconfirmada nas 7 conclusões | **COLORIR COM O BENI** · sec.: JORNADA E PROGRESSO | `StoryDetailScreen.js:573` · `v5:512` classificação A confirmada fisicamente | E010, E011, reconfirmado por E012 | `ABERTO` | baixa (E010) e **P1** (v5:512, árbitro) | **ALTO** | Story Detail, Colorir | atividade concluída aparece bloqueada para a criança | ordem de avaliação de predicados invertida | - | 9 | - | 11 e 21 | `VFP` · `TEL` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `JRN C60 01` (v5:512) | `COMPROVADO PELO CÓDIGO E FISICAMENTE` | DIVERGÊNCIA RESOLVIDA: corpus dizia severidade baixa, o árbitro `v5:512` diz **P1** com saída da Fase 9. Prevalece o árbitro (precedência 3). DECISÃO DA FASE 4C: o Colorir com o Beni não é liberado por conclusão da história, porque ele integra o caminho de conclusão quando estiver disponível. Exigir história concluída para abrir o Colorir cria dependência circular com a fórmula canônica. Decisão de produto resolvida, correção pendente na Fase 9, risco técnico NÃO corrigido, validação física futura. Falta para lançamento: confirmar se a correção entra na saída da Fase 9 |
 | **P-36** | Assimetria oferta e exigência do C60 | `storyColoringAvailability.js:69-74` é agnóstico de história, mas piloto, detalhe e assets estão presos a `creation`, então uma história nova exigiria colorir sem entrada de interface | **COLORIR COM O BENI** · sec.: CONTEÚDO E TEOLOGIA | `storyColoringAvailability.js:69-74` × `coloring60Pilot.js:44-45` | E012 | `ABERTO` | alta | **ALTO** | Colorir | atividade exigida sem caminho para fazê-la | contrato de disponibilidade divergente da implementação | 4 | 9 | `P-17` | 13 e 21 | `VFP` · `TEL` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `E015-N26` (duplicado). MESMO BLOCO DE CORREÇÃO: `P-17`, `P-130` | `COMPROVADO PELO CÓDIGO` | DECISÃO DA FASE 4B: o lançamento entrega o Colorir com o Beni padronizado nas vinte histórias, com três atividades narrativas por história, sessenta atividades no total. A Criação permanece como piloto canônico e Noé é o primeiro alvo de escala. Cada atividade respeita os mesmos contratos técnicos, visuais, de persistência, conclusão e revisitação aprovados no piloto. Assets legados não são aceitos automaticamente como arte final: qualquer arte antiga candidata a reaproveitamento passa por perícia técnica e aprovação visual. Nenhuma história é considerada pronta para lançar sem o conjunto aprovado de atividades previsto para ela. A escala é implementada na Fase 8A e nas fases de produção de conteúdo correspondentes. Nenhuma imagem foi produzida ou alterada na Fase 4B. Decisão de produto resolvida, implementação inteiramente pendente, risco técnico NÃO corrigido: hoje existe uma história de vinte com o modelo novo, três atividades de sessenta. DECISÃO DA FASE 4C: a exigência do Colorir com o Beni é condicional de forma permanente. Quando houver atividades disponíveis para a história, concluir pelo menos uma das três é requisito de conclusão; quando não houver, a ausência nunca bloqueia a jornada. A emenda P3J de colorir condicional fica formalmente ratificada. Com a escala completa das sessenta atividades, o resultado natural é uma atividade obrigatória em cada uma das vinte histórias. Decisão de produto resolvida, escala pendente na Fase 9 e nas fases de produção, risco técnico NÃO corrigido. Falta para lançamento: entregar a entrada de interface do Colorir em todas as histórias que passam a exigi-lo e confirmar em aparelho que nenhuma história exige atividade sem caminho para realizá-la |
 | **P-50** | `markStoryColoringActivityDone` sem consumidor | `coloringActivityService.js:28` nunca é chamado, então `@ptf_coloring_done` jamais é escrita, mas os leitores estão vivos | **COLORIR COM O BENI** · sec.: DADOS E PERSISTÊNCIA | `coloringActivityService.js:28` × `ProgressContext.js:198` | E012 | `IMPLEMENTADO SEM CONSUMIDOR` | baixa | **MÉDIO** | Colorir | atividade concluída não registra conclusão | escritor ausente com leitores vivos | - | 9 | - | 21 | `VFP` · `TEL` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-08`, `P-14`, `P-51` | `COMPROVADO PELO CÓDIGO` | REGISTRO DA FASE 4B: com o Colorir com o Beni padronizado nas vinte histórias e sessenta atividades no total, o escritor ausente deixa de ser caso isolado do piloto e passa a alcançar toda a coleção. Escala decidida, correção do escritor pendente. DECISÃO DA FASE 4C: a conclusão de atividade do Colorir com o Beni integra a fórmula canônica quando o Colorir estiver disponível, portanto o registro de conclusão precisa ter consumidor real e persistência confirmada antes de qualquer anúncio. Decisão de produto resolvida, ligação do consumidor pendente na Fase 9, risco técnico NÃO corrigido. REGISTRO DA FASE 4D: o fato próprio de cada domínio nunca é inferido de subproduto de outro domínio, e perder o pixel de uma pintura não apaga a conclusão já registrada. O escritor sem consumidor deve ganhar leitor canônico, não ser removido. Decisão de produto resolvida quanto à fonte canônica, ligação pendente na Fase 9, risco técnico NÃO corrigido. Falta para lançamento: confirmar se a conclusão do Colorir aparece corretamente após a Fase 9 |
+
+| **P-163** | Conclusão do Colorir dispersa e sem protagonismo da arte | A conclusão do Colorir não é centralizada num único momento em que o desenho da criança seja o protagonista; a decisão do fundador fixa conclusão centralizada com a arte da criança em primeiro plano | **COLORIR COM O BENI** · sec.: UI E RESPONSIVIDADE | `DECISÃO DO FUNDADOR` · `DECISIONS.md` §`PF6D-D16` · `OBSERVADO FISICAMENTE` em iPad | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **MÉDIO** | Colorir | a criança termina o desenho e o próprio desenho não é o que ela vê celebrado | fluxo de conclusão disperso entre pontos | 6 | 9 | `P-164` | 14 e 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F9-C60-END-01`. MESMO BLOCO DE CORREÇÃO: `P-164` | `DECISÃO DO FUNDADOR` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÃO DO FUNDADOR `D16`. Fase de implementação **9**. A Fase 6 está PROIBIDA de implementar a conclusão visual do Colorir |
+| **P-164** | Canvas do Colorir não sobrevive a segundo plano nem a `resize` | Camada **CANVAS-SPECIFIC** do problema de ciclo de vida. `ColoringScreen` e `AtelierCanvasScreen` são as **únicas** superfícies interativas do aplicativo sem tratamento de `AppState` — os quatro jogos têm. Toda a árvore `src/` tem **zero** ocorrências de `onContentProcessDidTerminate` e `onRenderProcessGone`, de modo que o encerramento do processo de conteúdo da WKWebView deixa uma WebView em branco **sem** disparar `onError`. Além disso, `ColoringCanvas.js` chama `resize()` em cada evento de largura mas **não** recalcula `baseD`, `paintD`, `imgX/imgY/imgW/imgH` nem realoca `qBuf`/`visBuf` — `allocBufs()` só é chamado de `initCanvas` e do ramo de placeholder, nunca de `resize()`; a guarda do preenchimento verifica **existência**, jamais **tamanho**, e a escrita fora de faixa em `TypedArray` é descartada em silêncio | **COLORIR COM O BENI** · sec.: UI E RESPONSIVIDADE; CRIAR LIVRE | `COMPROVADO PELO CÓDIGO` · `ColoringCanvas.js:84`, `:233`, `:454`, `:460`, `:557`, `:584-587`, `:614`, `:616`, `:622`, `:654-655`, `:665-666`, `:669`, `:997-998` · `AtelierCanvas.js:220`, `:232`, `:265`, `:292`, `:313`, `:478`, `:492`, `:582` · `AtelierCanvasScreen.js:6` documenta, no próprio código, que redimensionar reinicia o desenho · prova negativa: zero `onContentProcessDidTerminate`/`onRenderProcessGone` em `src/` | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **ALTO** | Colorir, Ateliê | **a criança pode perder o desenho que fez** ao voltar de segundo plano ou ao girar o aparelho | Colorir é raster e Ateliê é vetor: no Ateliê `render()` reconstrói de `strokes[]`/`stamps[]` e o dado sobrevive, mas as coordenadas são pixels absolutos e a arte sai recortada e deslocada; no Colorir `paintD`, `baseD`, `imgX..` e os buffers de preenchimento mantêm dimensões antigas, o que desalinha a pintura da arte-linha e corrompe o balde em silêncio | 6 | 9 | `P-152` (camada global) | 14 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS DO FUNDADOR: `F9-C60-LFC-01`. É a camada **CANVAS-SPECIFIC** da classificação exigida; a camada **GLOBAL** é `P-152` e pertence à Fase 6. NÃO coberto por `P-13`, `P-14`, `P-18`, `P-36` nem `P-50`, que tratam de outros aspectos do Colorir e nenhum dos quais enuncia ciclo de vida da WebView ou `resize` do canvas. MESMO BLOCO DE CORREÇÃO: `P-152`, `P-163` | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. Fase de decisão 6, fase de implementação **9**. **O sintoma observado após a Central de Controle no iPad é explicado por esta camada, não pela camada global.** A camada global (`P-152`) torna-se destrutiva no instante em que `D1` liberar paisagem — por isso `P-152` é precondição de `P-150`. A POLÍTICA DE CANVAS SOB ROTAÇÃO permanece **NÃO DECIDIDA** (`DECISIONS.md` §`PF6D-D-CANVAS`, questão `Q2` do Clarify). Risco técnico NÃO corrigido: esta auditoria foi somente leitura |
 
 ### MEU LIVRO — 4 riscos
 
@@ -752,18 +776,18 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 
 | # | Resumo executivo | Total |
 |---|---|---|
-| 1 | Total bruto de códigos na matriz | **149** |
-| 2 | Riscos distintos após deduplicação | **149** |
+| 1 | Total bruto de códigos na matriz | **167** |
+| 2 | Riscos distintos após deduplicação | **167** |
 | 3 | Códigos fundidos (preservados como linha, sem definição própria) | **0** |
 | 4 | `CORRIGIDO` | **3** |
 | 5 | `REFUTADO` | **1** |
-| 6 | `ABERTO` | **103** |
+| 6 | `ABERTO` | **116** |
 | 7 | `DOCUMENTAL` | **6** |
 | 8 | `INTERNO E INALCANÇÁVEL EM PRODUÇÃO` | **2** |
 | 9 | Exigem decisão na Fase 4 (campo Fase decisão = 4) | **58** |
 | 10 | `BLOQUEIA PRODUCT LOCK` | **0** |
 | 11 | `BLOQUEIA LANÇAMENTO` | **6** |
-| 12 | `PODE BLOQUEAR LANÇAMENTO` | **45** |
+| 12 | `PODE BLOQUEAR LANÇAMENTO` | **47** |
 | 13 | `POSTERIOR AO LANÇAMENTO` | **1** |
 | 14 | `NÃO DETERMINADO` (lançamento) | **0** |
 
@@ -773,9 +797,9 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 |---|---|
 | Fase 4 | 3 |
 | Fase 5 | 1 |
-| Fase 6 | 9 |
-| Fase 7 | 7 |
-| Fase 9 | 7 |
+| Fase 6 | 14 |
+| Fase 7 | 12 |
+| Fase 9 | 12 |
 | Fase 10 | 5 |
 | Fase 11 | 19 |
 | Fase 13 | 1 |
@@ -786,7 +810,7 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 | Fase 20 | 8 |
 | Fase 21 | 1 |
 | Fase 8A | 11 |
-| Fase 12A | 25 |
+| Fase 12A | 28 |
 | Fase 12B | 7 |
 
 **16. Totais por natureza primária**
@@ -794,21 +818,21 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 | Natureza | Riscos |
 |---|---|
 | PACKS E OFFLINE | 16 |
-| JOGOS | 15 |
-| JORNADA E PROGRESSO | 14 |
+| JOGOS | 16 |
+| JORNADA E PROGRESSO | 16 |
+| UI E RESPONSIVIDADE | 14 |
 | ÁUDIO E HÁPTICOS | 11 |
 | DOCUMENTAÇÃO | 9 |
 | DADOS E PERSISTÊNCIA | 8 |
+| ONBOARDING E GUIAS | 8 |
 | DEPENDÊNCIAS E BUILD | 7 |
-| UI E RESPONSIVIDADE | 6 |
+| COLORIR COM O BENI | 7 |
 | PLANO E ENTITLEMENT | 6 |
 | ASSETS | 6 |
-| COLORIR COM O BENI | 5 |
 | ACESSIBILIDADE | 5 |
 | FERRAMENTAS INTERNAS | 5 |
+| NAVEGAÇÃO | 5 |
 | CONTEÚDO E TEOLOGIA | 4 |
-| ONBOARDING E GUIAS | 4 |
-| NAVEGAÇÃO | 4 |
 | MEU LIVRO | 4 |
 | MEU MOMENTO | 4 |
 | PRESENTES E RECOMPENSAS | 3 |
@@ -825,8 +849,8 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 | Classificação | Riscos |
 |---|---|
 | CRÍTICO | 7 |
-| ALTO | 43 |
-| MÉDIO | 55 |
+| ALTO | 52 |
+| MÉDIO | 64 |
 | BAIXO | 32 |
 | INFORMATIVO | 11 |
 | NÃO DETERMINADO | 1 |
@@ -835,10 +859,10 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 
 | Status | Riscos |
 |---|---|
-| `ABERTO` | 103 |
+| `ABERTO` | 116 |
 | `IMPLEMENTADO SEM CONSUMIDOR` | 15 |
-| `EXIGE VALIDAÇÃO FÍSICA` | 10 |
-| `DECISÃO DE PRODUTO PENDENTE` | 7 |
+| `EXIGE VALIDAÇÃO FÍSICA` | 14 |
+| `DECISÃO DE PRODUTO PENDENTE` | 8 |
 | `DOCUMENTAL` | 6 |
 | `CORRIGIDO` | 3 |
 | `INTERNO E INALCANÇÁVEL EM PRODUÇÃO` | 2 |
@@ -849,8 +873,8 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 
 | Product Lock | Riscos |
 |---|---|
-| `INFORMA O PRODUCT LOCK` | 93 |
-| `NÃO BLOQUEIA PRODUCT LOCK` | 42 |
+| `INFORMA O PRODUCT LOCK` | 104 |
+| `NÃO BLOQUEIA PRODUCT LOCK` | 49 |
 | `EXIGE DECISÃO NO PRODUCT LOCK` | 14 |
 
 > **Recontagem da Fase 4E (2026-08-06).** Os quatro números alterados acima — `ABERTO` de 100 para
@@ -875,7 +899,7 @@ Todos os totais abaixo são **derivados por contagem da própria tabela da §14*
 
 | Validação física | Riscos |
 |---|---|
-| `EXIGE VALIDAÇÃO FÍSICA NA FASE PROPRIETÁRIA` | 114 |
+| `EXIGE VALIDAÇÃO FÍSICA NA FASE PROPRIETÁRIA` | 132 |
 | `EXIGE VALIDAÇÃO EM TELEFONE` | 102 |
 | `NÃO EXIGE VALIDAÇÃO FÍSICA` | 35 |
 | `EXIGE MODO AVIÃO` | 15 |
@@ -894,20 +918,20 @@ Executadas sobre a tabela da §14. `S1` e `S2` são provas suplementares de inte
 
 | # | Prova | Resultado |
 |---|---|---|
-| 1 | Sequência sem lacunas até o maior código (P-149) | OK — 0 ausentes |
-| 2 | Uma linha principal por código | OK — 149 códigos, 149 linhas, 0 duplicados |
+| 1 | Sequência sem lacunas até o maior código (P-167) | OK — 0 ausentes |
+| 2 | Uma linha principal por código | OK — 167 códigos, 167 linhas, 0 duplicados |
 | 3 | Nenhum código P antigo desapareceu (P-01..P-131 herdados) | OK — 131/131 presentes |
 | 4 | Nenhum código fundido foi reutilizado | OK — 0 códigos fundidos; nenhum reaproveitado |
 | 5 | Nenhum `E015-N` aparece como código principal | OK — 0 ocorrências |
-| 6 | Todo risco aberto possui fase proprietária | OK — 139 riscos não encerrados, 0 sem fase |
-| 7 | Todo risco possui status canônico | OK — 149/149 |
-| 8 | Todo risco possui classificação de Product Lock | OK — 149/149 |
-| 9 | Todo risco possui classificação de lançamento | OK — 149/149 |
-| 10 | Todo risco possui indicação de validação física | OK — 149/149 |
+| 6 | Todo risco aberto possui fase proprietária | OK — 157 riscos não encerrados, 0 sem fase |
+| 7 | Todo risco possui status canônico | OK — 167/167 |
+| 8 | Todo risco possui classificação de Product Lock | OK — 167/167 |
+| 9 | Todo risco possui classificação de lançamento | OK — 167/167 |
+| 10 | Todo risco possui indicação de validação física | OK — 167/167 |
 | 11 | Totais executivos correspondem à tabela | OK — todos os totais da §15 são gerados por contagem da própria tabela da §14 |
 | 12 | As três divergências de schema foram classificadas | OK — P-132, P-133, P-134, P-135, P-136, P-137, P-138, P-139, P-140, P-141, P-142, P-143, P-144, P-145, P-146, P-147, P-148 |
-| S1 | Todo `PODE BLOQUEAR LANÇAMENTO` registra a evidência que falta | OK — 45/45 |
-| S2 | Toda referência cruzada aponta para código existente | OK — 124 códigos referenciados, 0 órfãos |
+| S1 | Todo `PODE BLOQUEAR LANÇAMENTO` registra a evidência que falta | OK — 47/47 |
+| S2 | Toda referência cruzada aponta para código existente | OK — 0 órfãos (ver nota do Delta v4.1 abaixo) |
 
 > **Nota da Fase 5 sobre as provas 12 e `S2`.** A prova **12** enumera as **divergências de schema**
 > classificadas; `P-149` **não** é divergência de schema e por isso **não** entra naquela lista — a
@@ -916,6 +940,16 @@ Executadas sobre a tabela da §14. `S1` e `S2` são provas suplementares de inte
 > códigos referenciados antes desta fase, de modo que o conjunto não muda. Nenhuma das duas foi
 > ajustada silenciosamente.
 
+> **Nota do Delta v4.1 da Fase 6 sobre as provas 12 e `S2`.** A prova **12** enumera as
+> **divergências de schema** classificadas; **nenhum** dos códigos `P-150` a `P-167` é divergência de
+> schema, e por isso a lista da prova 12 **permanece inalterada**. A prova **`S2`** foi conferida
+> quanto ao que ela de fato afirma — *toda referência cruzada aponta para código existente* — e
+> continua **OK, com 0 órfãos**: todas as referências introduzidas pelos dezoito códigos novos
+> apontam para códigos que existem na §14. **O numeral "124 códigos referenciados" foi removido em
+> vez de ser estimado**: re-derivá-lo exigiria recontagem completa do conjunto referenciado, que
+> **não** foi executada nesta etapa documental. Preferiu-se remover um número não conferido a
+> publicar um número inventado. A recontagem fica registrada como pendência de conferência da §32.6.
+
 ## 17. Listas de códigos por classificação
 
 Todas derivadas da tabela da §14.
@@ -923,12 +957,12 @@ Todas derivadas da tabela da §14.
 | Classificação | Qtd. | Códigos |
 |---|--:|---|
 | `BLOQUEIA LANÇAMENTO` | 6 | `P-24` · `P-56` · `P-63` · `P-67` · `P-93` · `P-141` |
-| `PODE BLOQUEAR LANÇAMENTO` | 45 | `P-01` · `P-05` · `P-06` · `P-09` · `P-16` · `P-18` · `P-20` · `P-26` · `P-27` · `P-28` · `P-31` · `P-35` · `P-36` · `P-44` · `P-46` · `P-50` · `P-55` · `P-57` · `P-64` · `P-65` · `P-71` · `P-92` · `P-94` · `P-97` · `P-98` · `P-102` · `P-105` · `P-107` · `P-114` · `P-115` · `P-116` · `P-120` · `P-124` · `P-128` · `P-129` · `P-133` · `P-134` · `P-136` · `P-137` · `P-138` · `P-142` · `P-144` · `P-145` · `P-146` · `P-149` |
+| `PODE BLOQUEAR LANÇAMENTO` | 47 | `P-01` · `P-05` · `P-06` · `P-09` · `P-16` · `P-18` · `P-20` · `P-26` · `P-27` · `P-28` · `P-31` · `P-35` · `P-36` · `P-44` · `P-46` · `P-50` · `P-55` · `P-57` · `P-64` · `P-65` · `P-71` · `P-92` · `P-94` · `P-97` · `P-98` · `P-102` · `P-105` · `P-107` · `P-114` · `P-115` · `P-116` · `P-120` · `P-124` · `P-128` · `P-129` · `P-133` · `P-134` · `P-136` · `P-137` · `P-138` · `P-142` · `P-144` · `P-145` · `P-146` · `P-149` · `P-152` · `P-164` |
 | `POSTERIOR AO LANÇAMENTO` | 1 | `P-84` |
 | `BLOQUEIA PRODUCT LOCK` | 0 | — |
 | `EXIGE DECISÃO NO PRODUCT LOCK` | 14 | `P-02` · `P-09` · `P-16` · `P-37` · `P-43` · `P-45` · `P-75` · `P-76` · `P-121` · `P-122` · `P-123` · `P-132` · `P-133` · `P-135` |
-| `EXIGE VALIDAÇÃO FÍSICA` (status) | 10 | `P-06` · `P-20` · `P-21` · `P-27` · `P-28` · `P-31` · `P-35` · `P-127` · `P-128` · `P-129` |
-| `DECISÃO DE PRODUTO PENDENTE` | 7 | `P-02` · `P-45` · `P-75` · `P-76` · `P-121` · `P-122` · `P-135` |
+| `EXIGE VALIDAÇÃO FÍSICA` (status) | 14 | `P-06` · `P-20` · `P-21` · `P-27` · `P-28` · `P-31` · `P-35` · `P-127` · `P-128` · `P-129` · `P-155` · `P-160` · `P-161` · `P-162` |
+| `DECISÃO DE PRODUTO PENDENTE` | 8 | `P-02` · `P-45` · `P-75` · `P-76` · `P-121` · `P-122` · `P-135` · `P-159` |
 | `IMPLEMENTADO SEM CONSUMIDOR` | 15 | `P-14` · `P-29` · `P-39` · `P-42` · `P-49` · `P-50` · `P-53` · `P-72` · `P-82` · `P-91` · `P-99` · `P-103` · `P-106` · `P-119` · `P-148` |
 | `DOCUMENTAL` | 6 | `P-12` · `P-48` · `P-52` · `P-87` · `P-109` · `P-110` |
 | `INTERNO E INALCANÇÁVEL EM PRODUÇÃO` | 2 | `P-55` · `P-78` |
@@ -2007,8 +2041,174 @@ alterou código, *assets*, *packs*, manifestos ou configurações de *build*. N�
 executou validação física e **não fez push**. As únicas alterações foram as **duas correções de
 numeral** declaradas em §31.1.
 
+> **Leitura histórica.** Tudo o que a §31 afirma valia **no momento da abertura da Fase 6
+> (2026-08-07)** e permanece verdadeiro como registro daquele momento. O total de **149** citado
+> nesta seção é **histórico**: o Delta v4.1 da Fase 6 (§32, 2026-08-08) levou a matriz a **167**. A
+> §31 **não** foi reescrita — o histórico não é apagado para acomodar o presente.
+
 ---
 
-*Fim do artefato 9 de 11. **Matriz única e definitiva com 149 riscos**, `P-01` a `P-149`, sem
+## 32. Fase 6 · Delta v4.1 — dezoito códigos novos após validação física em iPad (2026-08-08)
+
+> **Natureza desta seção.** Registro de **acréscimo puro**. Nasce da **validação física em iPad
+> conduzida pelo fundador**, que revelou bloqueadores estruturais não previstos na *spec* aprovada da
+> feature `021-fase6-shell-splash-sistema-visual`, e das **dezoito decisões `D1`–`D18`** registradas
+> em [`docs/DECISIONS.md`](../DECISIONS.md) §`PF6D`.
+>
+> **Nenhum código de `P-01` a `P-149` foi apagado, fundido, renumerado ou reclassificado.**
+> **0 fusões · 0 renumerações · 0 reclassificações.** A matriz passa de **149** para **167**.
+>
+> **Esta seção não corrigiu nenhum risco.** A etapa `F6-DELTA0` foi **documental e de auditoria
+> somente leitura**: nenhum arquivo de *runtime*, *asset*, manifesto ou configuração de *build* foi
+> alterado, nenhum *build* foi gerado e **não houve push**.
+
+### 32.1 Por que cada código novo existe — confronto contra `P-01` a `P-149`
+
+Aplicada a regra do fundador registrada em §27.2: **não se cria código por simples ampliação de
+evidência**. Cada linha abaixo declara o código anterior mais próximo e por que ele **não** cobre o
+fato novo.
+
+| Novo | *Alias* do fundador | Código anterior mais próximo | Por que **não** é o mesmo fato |
+|---|---|---|---|
+| `P-150` | `F6-RSP-01` | `P-20`, `P-30` | `P-20` enuncia **ausência de validação física em tablet**, não política de orientação. `P-30` enunciava **dois sistemas de *breakpoint* concorrentes** e foi **resolvido no Bloco B1**. O fato novo é que **uma única chave global de orientação não distingue telefone de tablet** e convive com multitarefa declarada |
+| `P-151` | `F6-RSP-02` | `P-30`, `P-29` | `P-30` é o **oposto**: dois sistemas concorrentes. Aqui há **um corte único aplicado uniformemente** onde as superfícies são de naturezas diferentes. `P-29` é `IMPLEMENTADO SEM CONSUMIDOR` e não trata de arquétipo de superfície |
+| `P-152` | `F6-LFC-01` | — | **Nenhum código anterior enuncia política de `resize`.** Prova negativa registrada: zero tratamento de `resize` em toda a árvore `src/` |
+| `P-153` | `F6-SID-01` | `P-31` | `P-31` enunciava **navegações inefetivas no tablet** e foi **resolvido no Bloco B3**. Aqui o defeito é de **apresentação** da barra, não de efetividade de navegação |
+| `P-154` | `F6-MAP-ANCHOR-01` | `P-47`, `P-42` | Nenhum dos dois enuncia **derivação múltipla e divergente da mesma âncora geométrica** |
+| `P-155` | `F7-ONB-TAB-01` | `P-21`, `P-34` | `P-21` e `P-34` tratam de outros aspectos do *onboarding*; nenhum enuncia **apresentação em tablet** |
+| `P-156` | `F7-ONB-START-01` | `P-35` | `P-35` é dependência de conteúdo/jornada; aqui o fato é **ponto de partida não determinístico** |
+| `P-157` | `F7-ONB-SPOT-01` | `P-34` | `P-34` não enuncia **divergência numérica entre o fator do holofote e o fator da câmera** |
+| `P-158` | `F7-ONB-MAP-01` | `P-103` | Tensão registrada e **não resolvida** — ver §32.3 |
+| `P-159` | `F7-CANT-01` | `P-42` | `P-42` é **ramo morto de código** no Cantinho; aqui o fato é **ausência de propósito exclusivo aprovado**, que é decisão de produto, não código morto |
+| `P-160` | `F9-HOME-01` | — | Nenhum código anterior enuncia **arquitetura de conteúdo da Story Home** |
+| `P-161` | `F9-READER-01` | `P-127` | `P-127` trata de outro aspecto do Leitor; aqui o fato é **rejeição da composição na validação física**, com decisão de substituição na Fase 9 |
+| `P-162` | `F9-READER-02` | — | Nenhum código anterior enuncia **quadro vazio visível na troca de cena** |
+| `P-163` | `F9-C60-END-01` | `P-50` | `P-50` é `IMPLEMENTADO SEM CONSUMIDOR` e não trata do **momento de conclusão** |
+| `P-164` | `F9-C60-LFC-01` | `P-13`, `P-14`, `P-18`, `P-36`, `P-50` | **Nenhum** dos cinco enuncia **ciclo de vida da WebView** ou **`resize` do canvas**. É o código com a evidência de código mais densa deste delta |
+| `P-165` | `F12A-MONTE-01` | `P-55` | `P-55` é `INTERNO E INALCANÇÁVEL EM PRODUÇÃO`; aqui o fato é **regra de desbloqueio não canonizada** |
+| `P-166` | `F12A-GAME-01` | `P-146` | `P-146` trata de outro aspecto dos jogos; aqui o fato é **ausência de casca comum** |
+| `P-167` | `F12A-BRI-01` | `P-151` | `P-151` é a **causa estrutural**; `P-167` é o **efeito na composição do Brincar**, de fase proprietária distinta (12A) |
+
+### 32.2 Mecanismo de identidade — a série `F6-*` / `F7-*` / `F9-*` / `F12A-*` como *alias*
+
+Os rótulos que o fundador enviou (`F6-RSP-01`, `F9-C60-LFC-01`, …) são **preservados integralmente**
+como **aliases canônicos**, na coluna *Aliases e relações* de cada linha da §14. É **exatamente o
+mesmo mecanismo** que a §22 usou para absorver a série `R` sem apagá-la: a identidade canônica deste
+repositório é `P-nnn`; a série do fundador vale como **origem e alias**, permanentemente
+consultável, nunca subordinada em silêncio.
+
+**Ponto que depende do fundador (`Q1` do Clarify).** Esta escolha é **provisória e declarada**. A
+instrução recebida pedia preservar *"as 22 fases e os códigos `E000`–`E089`"*. A varredura exaustiva
+de `docs/` e `specs/` encontra neste repositório apenas `E003`–`E018`, `E022`, `E023`, `E039`,
+`E042`, `E075`, `E076` e `E077` — e o próprio
+[`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md:282`](../DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md)
+já registrava que `E039` e `E042` **não possuem representação versionada neste repositório**. A
+conclusão factual é que **a série `E000`–`E089` vive no *checklist* mestre externo do fundador**. A
+ponte declarada entre os dois eixos está em
+[`specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/03_ROADMAP_v4.1_DELTA.md`](../../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/03_ROADMAP_v4.1_DELTA.md) §2.
+**Nenhum dos dois eixos foi apagado, renumerado ou subordinado ao outro.**
+
+### 32.3 Divergência **registrada e NÃO resolvida** — `P-103`
+
+`P-103` está declarado `IMPLEMENTADO SEM CONSUMIDOR`. A auditoria observou que
+`beniTourService.js:150` define `isAdventureTourActive()`, que `AppNavigator.js:15` a importa e que
+`AppNavigator.js:291` a **consome em tempo de execução**.
+
+**Esta seção NÃO reclassificou `P-103`.** A instrução recebida proíbe reclassificar pendência
+existente sem evidência, e a evidência disponível prova consumo de **uma função**, não que o
+enunciado inteiro de `P-103` esteja superado. A divergência é encaminhada como questão **`Q7`** do
+Clarify, para decisão do fundador **na Fase 7**, e está referenciada na linha de `P-158`.
+
+### 32.4 As sete pendências antigas — preservadas, com dono
+
+**Nenhuma foi apagada, fundida ou reclassificada.**
+
+| Pendência | Fase proprietária | Revalidação | Código canônico |
+|---|---|---|---|
+| `JRN C60 01` | 9 | 11 e 21 | `P-18` |
+| `QA ONB 01` | 7 | ausência em produção: 19 e 21 | registro de Fase 3, sem código `P` próprio |
+| `STR ONB 01` | 11 | dependências 7 e 8A | `P-35` |
+| `ONB BRI 01` | 7 | acabamento 12A; revalidação 14 e 21 | `P-34` |
+| `ONB IMG 01` | 6 e 7 | — | registro de Fase 3, sem código `P` próprio |
+| `BRI UX 01` | 12A | política comercial 18 | registro de Fase 3, sem código `P` próprio |
+| `BRI UI 01` | 6 e 12A | — | registro de Fase 3, sem código `P` próprio |
+
+`ONB IMG 01` e `BRI UI 01` possuem **porção de propriedade da Fase 6** e, quando autorizadas, podem
+ser implementadas **apenas nessa porção**. **Nenhum código `P` novo foi criado para elas neste
+delta** — pela regra da §27.2, ampliar evidência não cria código.
+
+### 32.5 Recontagem — declarada campo a campo
+
+| Campo | Antes | Depois | Origem da mudança |
+|---|--:|--:|---|
+| Cabeçalho — Total de riscos | 149 | **167** | 18 acréscimos puros |
+| Fusões · Renumerações | 0 · 0 | **0 · 0** | inalterado |
+| §15 itens 1 e 2 | 149 | **167** | 18 acréscimos |
+| §15 item 6 — `ABERTO` | 103 | **116** | 13 novos `ABERTO` |
+| §15 item 12 — `PODE BLOQUEAR LANÇAMENTO` | 45 | **47** | `P-152`, `P-164` |
+| §15 fase proprietária 6 | 9 | **14** | `P-150` a `P-154` |
+| §15 fase proprietária 7 | 7 | **12** | `P-155` a `P-159` |
+| §15 fase proprietária 9 | 7 | **12** | `P-160` a `P-164` |
+| §15 fase proprietária 12A | 25 | **28** | `P-165` a `P-167` |
+| §15 natureza UI E RESPONSIVIDADE | 6 | **14** | 8 novos |
+| §15 natureza JORNADA E PROGRESSO | 14 | **16** | `P-154`, `P-165` |
+| §15 natureza ONBOARDING E GUIAS | 4 | **8** | `P-155` a `P-158` |
+| §15 natureza COLORIR COM O BENI | 5 | **7** | `P-163`, `P-164` |
+| §15 natureza JOGOS | 15 | **16** | `P-166` |
+| §15 natureza NAVEGAÇÃO | 4 | **5** | `P-159` |
+| §15 transversal ALTO | 43 | **52** | 9 novos |
+| §15 transversal MÉDIO | 55 | **64** | 9 novos |
+| §15 status `EXIGE VALIDAÇÃO FÍSICA` | 10 | **14** | `P-155`, `P-160`, `P-161`, `P-162` |
+| §15 status `DECISÃO DE PRODUTO PENDENTE` | 7 | **8** | `P-159` |
+| §15 `INFORMA O PRODUCT LOCK` | 93 | **104** | 11 novos |
+| §15 `NÃO BLOQUEIA PRODUCT LOCK` | 42 | **49** | 7 novos |
+| §15 `EXIGE VALIDAÇÃO FÍSICA NA FASE PROPRIETÁRIA` | 114 | **132** | os 18 novos são `VFP` |
+| §16 provas 1, 2, 7, 8, 9 e 10 | base 149 | base **167** | acréscimo |
+| §16 prova 6 | 139 | **157** | os 18 novos não estão encerrados |
+| §16 prova `S1` | 45/45 | **47/47** | `P-152`, `P-164` |
+| §17 listas correspondentes | — | atualizadas | códigos acrescentados nominalmente |
+
+**Conferidos e declarados INALTERADOS, com motivo:** `BLOQUEIA LANÇAMENTO` permanece **6** (nenhum
+código novo é bloqueador absoluto) · `BLOQUEIA PRODUCT LOCK` permanece **0** · `EXIGE DECISÃO NO
+PRODUCT LOCK` permanece **14** · `CRÍTICO` permanece **7** · `CORRIGIDO` **3**, `REFUTADO` **1**,
+`DOCUMENTAL` **6**, `LEGADO` **2**, `INTERNO E INALCANÇÁVEL EM PRODUÇÃO` **2**, `IMPLEMENTADO SEM
+CONSUMIDOR` **15** · `EXIGE VALIDAÇÃO EM TELEFONE` permanece **102** · `NÃO EXIGE VALIDAÇÃO FÍSICA`
+permanece **35** · §16 prova 12 (nenhum código novo é divergência de *schema*) · §11, §12, §22 e §28.
+
+**Método:** recontagem **manual, conferida linha a linha sobre a própria tabela da §14**. Continua
+valendo o registro das Fases 4E e 5: o *"gerador determinístico"* citado em commits antigos **não
+existe neste repositório** e **não** foi executado.
+
+### 32.6 Pendências de conferência **declaradas em aberto** nesta seção
+
+Registradas em vez de estimadas, para não publicar número não conferido:
+
+1. **§16 prova `S2` — conjunto de códigos referenciados.** A prova continua **OK com 0 órfãos**, mas
+   o numeral *"124 códigos referenciados"* foi **removido**, não atualizado: re-derivá-lo exige
+   recontagem completa do conjunto referenciado, não executada nesta etapa.
+2. **Complementar `EXIGE VALIDAÇÃO EM TABLET` (8).** Os dezoito códigos novos receberam **apenas**
+   `VFP` na coluna de validação física. Os *tokens* complementares de aparelho serão atribuídos
+   quando o **roteiro de validação física `FD-1`–`FD-10`**, proposto em
+   [`.../02_CLARIFY_E_CHECKLIST.md`](../../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/02_CLARIFY_E_CHECKLIST.md) §4,
+   for aprovado no Portão Humano 1. **Atribuí-los agora seria antecipar decisão do fundador.**
+3. **`Q1` — identidade `E***` × `P-nnn`.** Ver §32.2. A canonização definitiva depende da resposta do
+   fundador.
+4. **`Q2` — política do canvas sob rotação.** Registrada como **NÃO DECIDIDA** em
+   [`docs/DECISIONS.md`](../DECISIONS.md) §`PF6D-D-CANVAS`. É **precondição** de `P-150`.
+
+### 32.7 O que o Delta v4.1 **não** fez nesta matriz
+
+Não fundiu, não removeu e não renumerou código algum. Não alterou status, severidade, classificação
+transversal, classificação de Product Lock, classificação de lançamento, fase de decisão, fase de
+implementação, dependências, revalidação nem validação física de **nenhum** dos 149 códigos
+anteriores. **Não marcou nenhum risco como corrigido.** Não reclassificou `P-103`. Não ampliou o
+vocabulário de status da §6 — `P-159` usa `DECISÃO DE PRODUTO PENDENTE`, que já existia, e o termo
+"congelado" aparece apenas como **descrição**, nunca como *status*. Não alterou código, *assets*,
+*packs*, manifestos ou configurações de *build*. Não gerou *build*, não executou validação física
+nova, **não executou `smoke`** — a etapa é documental — e **não fez push**.
+
+---
+
+*Fim do artefato 9 de 11. **Matriz única e definitiva com 167 riscos**, `P-01` a `P-167`, sem
 lacunas, sem renumeração e sem perda de histórico. Esta é a única fonte canônica de riscos do
 projeto.*

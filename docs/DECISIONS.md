@@ -25,7 +25,7 @@
 > e **não** são matriz concorrente. Este arquivo **não replica** a matriz: cita códigos `P`, e a
 > definição fica lá.
 
-**Data desta versão:** 2026-08-05 (**Product Lock — Fase 4A**, Plano Família, compra, restauração e entitlement, seção `PL4A`; **Fase 4B**, acesso grátis, conteúdo do Plano Família, histórias e superfícies infantis, seção `PL4B`; **Fase 4C**, jornada, progressão, conclusão e desbloqueios, seção `PL4C`; **Fase 4D**, dados, persistência, migração, recuperação e integridade, seção `PL4D`) · **Atualizada em:** 2026-08-06 (**Fase 4E**, privacidade, Área dos Pais, analytics e Modo Igreja, seção `PL4E`; **Fase 5**, infância, privacidade, teologia e medição, seção `PF5`) · **Base anterior:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Fundador:** Eduardo
+**Data desta versão:** 2026-08-05 (**Product Lock — Fase 4A**, Plano Família, compra, restauração e entitlement, seção `PL4A`; **Fase 4B**, acesso grátis, conteúdo do Plano Família, histórias e superfícies infantis, seção `PL4B`; **Fase 4C**, jornada, progressão, conclusão e desbloqueios, seção `PL4C`; **Fase 4D**, dados, persistência, migração, recuperação e integridade, seção `PL4D`) · **Atualizada em:** 2026-08-06 (**Fase 4E**, privacidade, Área dos Pais, analytics e Modo Igreja, seção `PL4E`; **Fase 5**, infância, privacidade, teologia e medição, seção `PF5`) · **Atualizada em:** 2026-08-08 (**Fase 6 · Delta v4.1** pós-validação física em iPad, decisões `D1`–`D18`, seção `PF6D`) · **Base anterior:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Fundador:** Eduardo
 
 > **Reconciliação E1 (2026-07-15):** este arquivo passou a ser o **único árbitro** (o `DECISIONS.md`
 > da raiz foi marcado SUPERSEDED). As decisões consolidadas de lançamento estão na seção
@@ -1694,6 +1694,192 @@ tomada **não** corrige risco técnico e **não** autoriza escrever código.
 - **Runtime intacto:** os nove caminhos protegidos permanecem **bit a bit idênticos** a `015c438`; `npm run smoke` **4525/4525**; nenhuma dependência instalada, nenhum build gerado, nenhuma validação física, nenhum push.
 - **Próxima fase canônica, segundo `v5` §3:** **Fase 6 — Shell, splash e sistema visual** (título canônico do `v5` §3; a redação anterior desta linha dizia apenas *"shell e splash"* e **omitia o terceiro eixo, o sistema visual** — corrigido em 2026-08-07 na abertura da Fase 6, sem mudar a substância do registro), que herda `E5.52` e o risco `P-139`. **A Fase 6 toca código e exige o ciclo SDD completo com os três portões humanos.**
 - Consolidação completa em [`07_CONSOLIDACAO_FASE_5.md`](fase5-pareceres/07_CONSOLIDACAO_FASE_5.md).
+
+---
+
+## PF6D — Fase 6 · Delta v4.1 pós-validação física em iPad (2026-08-08)
+
+> **Origem.** Validação física em iPad conduzida pelo fundador **depois** da implementação dos
+> Blocos **B1** (fundação responsiva) e **B3** (*shell* de navegação) da Fase 6. A regressão em
+> telefone **não apontou anomalia relevante**; o iPad revelou **bloqueadores estruturais**. O
+> fundador tomou dezoito decisões de produto e de arquitetura, registradas aqui como `D1`–`D18`.
+>
+> **Estas decisões estão APROVADAS e não são reabertas** por nenhuma sessão de IA sem sinalizar
+> explicitamente que está pedindo **REVERSÃO**, e sem evidência técnica material.
+>
+> **Nada foi implementado.** A produção executável do delta depende dos três portões humanos.
+> Artefatos do delta em
+> [`specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/).
+>
+> **Divisão de competências preservada (E018).** Este arquivo registra as **decisões**. Os
+> **códigos de risco** correspondentes (`P-150` a `P-167`) vivem exclusivamente na
+> [matriz canônica](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md) §32. A `v5` continua
+> governando **roadmap e sequência de fases** — e o delta **não** altera as 22 fases.
+
+### PF6D-ESCOPO — O que este bloco é e o que não é
+
+- **É** o registro canônico de dezoito decisões do fundador sobre adaptatividade, orientação,
+  famílias de superfície, geometria do mapa, ciclo de vida e sequenciamento da Fase 6.
+- **Não é** aprovação de implementação. **Nenhuma linha de `F6-R1`, `F6-R2` ou `F6-R3` foi
+  escrita.** Não existe `plan.md` nem `tasks.md` do delta.
+- **Não revoga** nada da *spec* aprovada da 021: eixos A/B/C, `RF-A1..A7`, `RF-B1..B8`,
+  `RF-C1..C16`, `RF-M1..M5`, `S1..S11`, `T1..T14`, `F1..F12`, `B1..B7` e `CHK001..CHK040`
+  **permanecem integralmente em vigor**. Os Portões Humanos 1 e 2 já concedidos àquela *spec*
+  **continuam concedidos**; o delta abre um **novo** Portão 1, só para si.
+- **Não** contradiz `D-SELOS-ESTADO-V2` nem `D-SDD-WORKFLOW-YML-DIVERGENCIA`, registradas na
+  abertura da Fase 6 — o delta é ortogonal a ambas.
+
+### PF6D-D1 — Telefones em retrato; tablets e iPads em retrato **e** paisagem
+- **Status:** ✅ CONFIRMADA. Telefones (iOS e Android) permanecem travados em **retrato**. Tablets
+  e iPads suportam **retrato e paisagem**.
+- **Estado do código:** ⚠️ **CONTRARIADA HOJE PELA CONFIGURAÇÃO.** `app.json` declara uma única
+  chave global `orientation: "portrait"`, que trava **telefone e tablet**, em **ambas** as
+  plataformas. Não é defeito de tela: é **política de plataforma ausente**. Risco `P-150`.
+- **Precondição inegociável:** `D1` **não pode ser aplicada antes** de `D3`-`F6-R3` existir e da
+  política de canvas de `PF6D-D-CANVAS` estar decidida. Liberar paisagem sobre a fundação atual
+  **destrói o desenho da criança** — ver `PF6D-EVID` item 5.
+
+### PF6D-D2 — O *layout* é decidido pelo tamanho da janela, nunca pelo nome do aparelho
+- **Status:** ✅ CONFIRMADA. É **proibido** decidir *layout* por modelo, por `Platform.isPad`, por
+  `expo-device` ou por qualquer heurística de identidade de aparelho.
+- **Estado do código:** ✅ **A MECÂNICA JÁ EXISTE.** Varredura completa de `src/` e `App.js`:
+  **zero** `Dimensions.get`, **zero** `Dimensions.addEventListener`, ~34 leituras reativas via
+  `useWindowDimensions`. **O que falta é a política, não a medida** — registrado para impedir que o
+  delta sobredimensione o escopo.
+
+### PF6D-D3 — Quatro famílias de superfície
+- **Status:** ✅ CONFIRMADA. **Hub · Editorial · Imersiva · Jogo.** A família — e não a tela —
+  determina como a janela é ocupada em cada faixa.
+- **Estado do código:** ⚠️ **INEXISTENTE.** Um único predicado `width >= breakpoints.tablet` em
+  **13** pontos governa as quatro famílias, e um único `ContentContainer` (coluna de no máximo
+  640dp) governa Início, Brincar, Perfil, Histórias e Detalhe indistintamente. Risco `P-151`.
+
+### PF6D-D4 — A barra lateral é responsiva e **não** recebe destinos artificiais
+- **Status:** ✅ CONFIRMADA. Nenhum destino, ícone, atalho ou seção é inventado para preencher
+  vazio. Vazio se resolve por **composição**.
+- **Estado do código:** ⚠️ `TabletSidebar` tem `width: 200` **fixo**, sem distribuição vertical,
+  acumulando ~700pt de vazio num iPad em retrato; e importa o tema **legado**
+  `src/theme/colors.js`. Risco `P-153`.
+
+### PF6D-D5 — *Story Home V2* = capa herói + identidade + frase central + CTA único + progresso resumido
+- **Status:** ✅ CONFIRMADA. **Fase 9.** Risco `P-160`.
+
+### PF6D-D6 — "Nesta aventura" sai da primeira camada visual
+- **Status:** ✅ CONFIRMADA. Permanece no conteúdo secundário. **Fase 9.** Risco `P-160`.
+
+### PF6D-D7 — Beni permanece, com fala contextual por estado
+- **Status:** ✅ CONFIRMADA. **Fase 9.** Risco `P-160`.
+
+### PF6D-D8 — Navegação de partes prioriza a atual e a próxima
+- **Status:** ✅ CONFIRMADA. Lista completa atrás de **"Ver todas as partes"**. **Fase 9.**
+  Risco `P-160`.
+
+### PF6D-D9 — O Leitor atual é substituído na Fase 9 pela **Página Viva**
+- **Status:** ✅ CONFIRMADA. **Fase 9.** Risco `P-161`.
+- **Consequência para a Fase 6:** a F6 entrega apenas a **possibilidade geométrica** da composição;
+  **não** implementa o Leitor V2.
+
+### PF6D-D10 — Leitor: retrato = arte dominante + camada legível; tablet em paisagem = livro aberto / painel de apoio
+- **Status:** ✅ CONFIRMADA. **Fase 9.** Risco `P-161`.
+
+### PF6D-D11 — **Uma âncora canônica** controla pino, alvo de toque, brilho, *scroll* e holofote do mapa
+- **Status:** ✅ CONFIRMADA. **Fase 6 — infraestrutura.** Risco `P-154`.
+- **Estado do código:** ⚠️ **CINCO derivações independentes** da mesma âncora, com **dois fatores
+  de enquadramento divergentes** (`0.58` da câmera × `0.5` do `scrollPinIntoView`, este último com
+  comentário afirmando usar *"a mesma geometria da câmera"* — o comentário **mente sobre o
+  código**), estimativa de viewport que subtrai **56pt de barra inferior que não existe no
+  tablet**, e uma divergência **latente** de aridade em `getStoryMapCoord`. Evidência completa em
+  [`00_AUDITORIA_SOMENTE_LEITURA.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/00_AUDITORIA_SOMENTE_LEITURA.md) §4.2.
+
+### PF6D-D12 — A primeira experiência de mapa e o *onboarding* sempre centram "Comece Aqui" / "A Criação"
+- **Status:** ✅ CONFIRMADA. **Fase 6** entrega a capacidade de mirar; **Fase 7** escolhe o alvo.
+  Riscos `P-154` (infra) e `P-156` (alvo).
+- **Verificado no código:** as regiões existem — `adventureMap.js:56` (`comece_aqui`) e `:59`
+  (`jovens_da_fe`).
+
+### PF6D-D13 — O Cantinho do Beni **não** é obrigatoriamente ensinado no *onboarding*
+- **Status:** 🧊 **CONGELADA** enquanto não houver propósito exclusivo aprovado. **Portão de
+  Produto · Fase 7.** Risco `P-159`.
+
+### PF6D-D14 — Monte a Cena desbloqueia quando `Historia ouvida = true`
+- **Status:** ✅ CONFIRMADA. Atividades opcionais **não** bloqueiam. **Fase 12A.** Risco `P-165`.
+
+### PF6D-D15 — Todos os jogos compartilham o **GameShell integral**
+- **Status:** ✅ CONFIRMADA. **Fase 12A.** Risco `P-166`.
+- **Consequência para a Fase 6:** a F6 entrega apenas a **geometria base** da família Jogo.
+
+### PF6D-D16 — A conclusão do Colorir é centralizada; a obra da criança permanece protagonista
+- **Status:** ✅ CONFIRMADA. **Fase 9.** Risco `P-163`.
+
+### PF6D-D17 — A transição de cena usa pré-carga + proteção de toque duplo + troca atômica, com **zero** quadro vazio visível
+- **Status:** ✅ CONFIRMADA. **Fase 9.** Risco `P-162`.
+
+### PF6D-D18 — A Fase 6 **não** avança para o Bloco B2 antes do delta corrigido e revalidado
+- **Status:** ✅ CONFIRMADA. **Vinculante e imediata.**
+- **Efeito registrado:** o Bloco **B2** (acessibilidade e tipografia) da 021 está **BLOQUEADO**.
+  B2 mede alvo de toque e tamanho de fonte; medir isso sobre uma fundação que ainda vai mudar de
+  faixa e de orientação produziria resultado **descartável**.
+- **Ordem obrigatória:** `F6-R3` → `F6-R2` → `F6-R1` → **só então** B2.
+
+### PF6D-D-CANVAS — Orientação nas superfícies de canvas · **PERGUNTA ABERTA, decisão do fundador**
+- **Status:** 🟡 **NÃO DECIDIDA.** É a questão `Q2` do Clarify do delta e é **bloqueante** para
+  `D1`.
+- **O fato, comprovado por código:** `src/screens/AtelierCanvasScreen.js:6` declara textualmente
+  *"NUNCA redimensionam o canvas (o motor é uma WebView; mudar o tamanho reinicia o desenho)"*. Em
+  `ColoringCanvas`, `resize()` **não** recalcula `baseD`, `paintD`, `imgX/imgY/imgW/imgH` nem os
+  buffers `qBuf`/`visBuf` do preenchimento — **qualquer redimensionamento posterior à
+  inicialização desalinha a pintura do traço e corrompe o preenchimento**.
+- **Isto não contradiz `D1`.** Contradiz **aplicá-la ao canvas antes da Fase 9**.
+- **Opções:** (a) congelar Colorir e Ateliê em retrato até a Fase 9 — **recomendação técnica**;
+  (b) permitir rotação descartando a arte em andamento com aviso — **recomendo rejeitar**, perder
+  o desenho de uma criança de 4 a 8 anos é dano de produto; (c) implementar preservação de arte sob
+  `resize` dentro da Fase 6 — puxa escopo da Fase 9 e reabre o motor do canvas fora de *spec*
+  própria.
+
+### PF6D-EVID — Cinco fatos de código que sustentam este bloco
+
+Todos verificados por leitura direta no HEAD `f10370e` da *branch* `feat/fase6-shell-splash`.
+Auditoria completa em
+[`00_AUDITORIA_SOMENTE_LEITURA.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/00_AUDITORIA_SOMENTE_LEITURA.md).
+
+1. **`app.json`** declara `orientation: "portrait"` **global**, com `ios.supportsTablet: true` e
+   `ios.infoPlist.UIRequiresFullScreen: false`. O projeto opera em **CNG** (não há `ios/` nem
+   `android/`), portanto a orientação vem inteiramente da configuração e mudá-la exige **novo
+   *build***, mas **nenhum código nativo**.
+2. **O Split View do iPadOS já pode entregar larguras variáveis hoje**, sem nenhuma mudança de
+   orientação, porque `UIRequiresFullScreen` é `false`. **A instabilidade de redimensionamento não
+   é hipotética nem futura.**
+3. **`ContentContainer`** aplica **uma** coluna de no máximo **640dp** a todas as famílias. Num
+   iPad Pro em paisagem (~1366pt) isso deixa **~700pt de vazio lateral**.
+4. **`AdventureMapScreen.js:367`** — `useEffect(() => { didInitScroll.current = false; },
+   [mapWidth])` — faz **qualquer** mudança de largura descartar a posição de *scroll* da criança e
+   puxar o mapa de volta à âncora da câmera. **Girar o iPad joga fora onde a criança estava.**
+5. **Colorir e Ateliê são as únicas superfícies interativas sem escuta de `AppState`** (os quatro
+   jogos têm), e **não existe uma única ocorrência** de `onContentProcessDidTerminate` ou
+   `onRenderProcessGone` em todo o `src/` — de modo que um término do processo da `WebView` deixa
+   uma tela **em branco sem recuperação automática**.
+
+### PF6D-CLASSIFICACAO — Global × *canvas-specific*, exigida pelo escopo
+
+| Camada | Fato | Fase proprietária | Código |
+|---|---|---|---|
+| **GLOBAL** | Não existe política de `resize` em lugar nenhum do aplicativo. Liberar paisagem torna o canvas destrutível. | **6** | `P-152` |
+| **CANVAS-SPECIFIC** | Ausência de tratamento de término do processo da `WebView` e de revalidação por `AppState` nas duas telas de canvas; `resize()` do `ColoringCanvas` não recalcula estruturas raster nem buffers de BFS. | **9** | `P-164` |
+
+**As duas são reais e distintas.** A camada global **não** causa o sintoma do Centro de Controle; a
+camada específica **não** protege contra rotação. Corrigir uma sem a outra deixa o defeito de pé.
+
+### PF6D-NAO-FEZ — O que este bloco **não** fez
+
+Não implementou `F6-R1`, `F6-R2` nem `F6-R3`. Não alterou `app.json`, `eas.json`, `package.json`
+nem nenhum arquivo de `src/`. Não instalou dependência. Não gerou *build*. Não executou validação
+física. Não executou `npm run smoke` — por determinação explícita do fundador para esta etapa
+documental. Não corrigiu nenhum defeito. **Não reclassificou nenhuma pendência existente**, em
+particular **`P-103`**, cuja divergência com o comportamento observado está registrada como `Q7` do
+Clarify e encaminhada à Fase 7. Não reabriu nenhuma decisão registrada. Não alterou as 22 fases da
+`v5`. Não fez *push*, não fez *merge* e não trocou de *worktree*.
+
+---
 
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
