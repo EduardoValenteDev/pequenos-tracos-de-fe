@@ -1711,6 +1711,13 @@ tomada **não** corrige risco técnico e **não** autoriza escrever código.
 > Artefatos do delta em
 > [`specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/).
 >
+> **🔁 EMENDADO em 2026-08-08 pelo Portão Humano 1 — veredito 🟡 APROVADO CONDICIONALMENTE.**
+> A emenda **resolveu** `Q1` (`PF6D-Q1`) e `Q2` (`PF6D-D-CANVAS`), **autorizou** a exceção estreita
+> de escopo de `F6-R3` (`PF6D-EXC-R3`), **corrigiu** `PF6D-D1` (o iPad **já gira**; o vão real é
+> **tablet Android**), **emendou a ordem dos subportões** em `PF6D-D18` e **rebaixou a causalidade**
+> do sintoma da `WebView` a hipótese não confirmada. Síntese em `PF6D-EMENDA-P1`.
+> **Continua sem autorização para Plan, Tasks, Analyze ou Implement.**
+>
 > **Divisão de competências preservada (E018).** Este arquivo registra as **decisões**. Os
 > **códigos de risco** correspondentes (`P-150` a `P-167`) vivem exclusivamente na
 > [matriz canônica](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md) §32. A `v5` continua
@@ -1732,12 +1739,37 @@ tomada **não** corrige risco técnico e **não** autoriza escrever código.
 ### PF6D-D1 — Telefones em retrato; tablets e iPads em retrato **e** paisagem
 - **Status:** ✅ CONFIRMADA. Telefones (iOS e Android) permanecem travados em **retrato**. Tablets
   e iPads suportam **retrato e paisagem**.
-- **Estado do código:** ⚠️ **CONTRARIADA HOJE PELA CONFIGURAÇÃO.** `app.json` declara uma única
-  chave global `orientation: "portrait"`, que trava **telefone e tablet**, em **ambas** as
-  plataformas. Não é defeito de tela: é **política de plataforma ausente**. Risco `P-150`.
-- **Precondição inegociável:** `D1` **não pode ser aplicada antes** de `D3`-`F6-R3` existir e da
-  política de canvas de `PF6D-D-CANVAS` estar decidida. Liberar paisagem sobre a fundação atual
-  **destrói o desenho da criança** — ver `PF6D-EVID` item 5.
+- **Alcance explicitado na emenda do Portão 1 (item 4):** `D1` cobre **quatro** casos, não dois —
+  **iPhone retrato**, **telefone Android retrato**, **iPad retrato+paisagem** e **tablet Android
+  retrato+paisagem**. É **proibido** congelar *"iPad rotaciona / Android permanece retrato"* como
+  solução final: isso resolveria apenas parte da decisão.
+- **Estado do código — ⚠️ CORRIGIDO NA EMENDA DO PORTÃO 1:**
+
+  | *Idiom* | Configuração efetiva do HEAD | `D1` |
+  |---|---|---|
+  | iPhone | `UISupportedInterfaceOrientations` = retrato | ✅ cumprido |
+  | **iPad** | `UISupportedInterfaceOrientations~ipad` = **as quatro orientações** | ✅ **já cumprido hoje** |
+  | Telefone Android | `android:screenOrientation="portrait"` | ✅ cumprido |
+  | **Tablet Android** | `android:screenOrientation="portrait"` — chave única, **sem variante por *idiom*** | ❌ **VIOLADO** |
+
+  A avaliação anterior — *"contrariada em ambas as plataformas, para todos os tablets"* — **estava
+  errada** e fica **retificada**. O *plugin* `withRequiresFullScreen` do `@expo/config-plugins`
+  escreve a variante `~ipad` com as quatro orientações sempre que `ios.supportsTablet` é `true` e
+  `ios.requireFullScreen` é falso — exatamente a forma do `app.json` atual. A evidência física do
+  fundador (o iPad **girou**) estava correta; a leitura estática é que estava incompleta.
+  **O único vão real de orientação é o tablet Android.** Risco `P-150`, atualizado.
+- **Consequência que agrava, e não alivia:** como o **iPad já gira hoje**, a exposição do canvas a
+  `resize` **não é futura nem condicionada** à liberação da paisagem — **já existe**, por rotação e
+  por Split View. `F6-R3` é urgente **mesmo que nenhuma mudança de orientação seja feita**.
+- **Precondição inegociável, mantida:** nenhuma mudança de orientação pode ser aplicada antes de
+  `F6-R3` existir e da política `PF6D-D-CANVAS` estar em vigor.
+- **Vias a comparar objetivamente no PLAN** (nenhuma escolhida agora; **nenhuma dependência
+  instalada**): **(A)** configuração CNG/nativa por plataforma e *idiom*; **(B)**
+  `expo-screen-orientation`; **(C)** *config plugin* próprio / runtime específico de Android;
+  **(D)** qualquer alternativa já compatível com o runtime atual. A vencedora deverá cumprir `D1`
+  **integralmente**, preservar multitarefa e redimensionamento no iPad, **evitar dependência nova
+  se não for necessária**, **nunca classificar telefone em paisagem como tablet apenas por
+  largura** (`D2`) e exigir ***build* nativo** quando a configuração nativa mudar.
 
 ### PF6D-D2 — O *layout* é decidido pelo tamanho da janela, nunca pelo nome do aparelho
 - **Status:** ✅ CONFIRMADA. É **proibido** decidir *layout* por modelo, por `Platform.isPad`, por
@@ -1819,22 +1851,85 @@ tomada **não** corrige risco técnico e **não** autoriza escrever código.
 - **Efeito registrado:** o Bloco **B2** (acessibilidade e tipografia) da 021 está **BLOQUEADO**.
   B2 mede alvo de toque e tamanho de fonte; medir isso sobre uma fundação que ainda vai mudar de
   faixa e de orientação produziria resultado **descartável**.
-- **Ordem obrigatória:** `F6-R3` → `F6-R2` → `F6-R1` → **só então** B2.
+- **Ordem obrigatória — EMENDADA no Portão Humano 1 (item 9):**
+  `F6-SG-A` (**`F6-R3`** — ciclo de vida + segurança do canvas) → `F6-SG-B` (**`F6-R2`** — geometria
+  do mapa) → `F6-SG-C` (**`F6-R1`** — superfície adaptativa + orientação) → `F6-SG-D` (**liberação
+  do B2**).
+  - **Ordem anterior, preservada e não apagada:** o roteiro v4.1 recebido enunciava
+    `F6-R1` → `F6-R2` → `F6-R3`.
+  - **Razão da mudança, registrada:** liberar orientação e faixas (`R1`) **antes** de existir
+    proteção de ciclo de vida e de canvas (`R3`) exporia a arte da criança à destruição — e, com a
+    correção de `D1` acima, o iPad **já gira hoje**, de modo que a fundação de segurança é o item
+    **mais urgente**, não o último. `R2` precede `R1` porque a âncora canônica do mapa é
+    pré-requisito da geometria que `R1` consome.
+  - Esta emenda **substitui explicitamente** a ordem anterior. Nada foi apagado em silêncio.
 
-### PF6D-D-CANVAS — Orientação nas superfícies de canvas · **PERGUNTA ABERTA, decisão do fundador**
-- **Status:** 🟡 **NÃO DECIDIDA.** É a questão `Q2` do Clarify do delta e é **bloqueante** para
-  `D1`.
-- **O fato, comprovado por código:** `src/screens/AtelierCanvasScreen.js:6` declara textualmente
-  *"NUNCA redimensionam o canvas (o motor é uma WebView; mudar o tamanho reinicia o desenho)"*. Em
-  `ColoringCanvas`, `resize()` **não** recalcula `baseD`, `paintD`, `imgX/imgY/imgW/imgH` nem os
-  buffers `qBuf`/`visBuf` do preenchimento — **qualquer redimensionamento posterior à
-  inicialização desalinha a pintura do traço e corrompe o preenchimento**.
-- **Isto não contradiz `D1`.** Contradiz **aplicá-la ao canvas antes da Fase 9**.
-- **Opções:** (a) congelar Colorir e Ateliê em retrato até a Fase 9 — **recomendação técnica**;
-  (b) permitir rotação descartando a arte em andamento com aviso — **recomendo rejeitar**, perder
-  o desenho de uma criança de 4 a 8 anos é dano de produto; (c) implementar preservação de arte sob
-  `resize` dentro da Fase 6 — puxa escopo da Fase 9 e reabre o motor do canvas fora de *spec*
-  própria.
+### PF6D-D-CANVAS — Política canônica de canvas e rotação · ✅ **RESOLVIDA no Portão Humano 1**
+- **Status:** ✅ **DECIDIDA pelo fundador em 2026-08-08.** Era a questão `Q2` do Clarify, que fica
+  **RESOLVIDA**. Substitui integralmente o registro anterior 🟡 *NÃO DECIDIDA* e as opções (a)/(b)/(c)
+  que ali constavam — **nenhuma delas foi adotada**.
+
+- **Texto congelado, literal, do fundador:**
+
+  > *"A obra da criança possui um espaço lógico próprio e imutável. A janela é apenas uma viewport
+  > desse espaço. Rotação, resize, multitarefa, AppState, Control Center, background/foreground ou
+  > qualquer mudança de viewport NÃO podem alterar, reinicializar ou corromper as
+  > coordenadas/dimensões lógicas da obra."*
+
+- **Colorir / modelo *raster*:**
+  - o *canvas* lógico/*backing* fica atrelado à **dimensão canônica da arte**;
+  - **não** redimensionar destrutivamente o conteúdo quando a *viewport* mudar;
+  - **não** recriar `paint`/*buffers* apenas porque a tela mudou;
+  - a *viewport* recalcula **somente a transformação de apresentação**;
+  - toque e *hit testing* convertem coordenadas **tela → canônicas**;
+  - preservar proporção; usar *letterbox*/*pillarbox* quando necessário;
+  - **sem perda silenciosa**, **sem corrupção do preenchimento** (balde) e **sem pintura
+    desalinhada do traço**.
+- **Criar Livre / modelo vetorial:**
+  - traços e carimbos **não** podem depender permanentemente de pixels da *viewport* corrente;
+  - usar coordenadas lógicas **canônicas ou normalizadas**;
+  - `resize` e orientação apenas **reprojetam a apresentação**;
+  - a **compatibilidade com os dados existentes** deve ser definida **antes** de qualquer migração;
+  - **nenhuma migração destrutiva**.
+- **REGRA ABSOLUTA:** **`SD-8` continua bloqueador — ZERO perda ou corrupção de obra infantil.**
+- **Vedação explícita:** **não é aceitável resolver `D1` simplesmente bloqueando as telas criativas
+  em retrato.** A opção (a) do registro anterior — *congelar Colorir e Ateliê em retrato até a Fase
+  9* — está, portanto, **rejeitada**.
+- **O fato de código que motivou a política, mantido:** `src/screens/AtelierCanvasScreen.js:6`
+  declara textualmente *"NUNCA redimensionam o canvas (o motor é uma WebView; mudar o tamanho
+  reinicia o desenho)"*; em `ColoringCanvas`, `resize()` **não** recalcula `baseD`, `paintD`,
+  `imgX/imgY/imgW/imgH` nem os *buffers* `qBuf`/`visBuf`. A política acima é exatamente o contrato
+  que essa fragilidade viola hoje.
+
+### PF6D-EXC-R3 — Exceção formal e estreita de escopo para `F6-R3` · ✅ **AUTORIZADA (futura)**
+- **Status:** ✅ **AUTORIZADA pelo fundador no Portão Humano 1 (item 3)**, para vigorar **somente
+  depois** de cumpridos os demais portões do fluxo SDD. **Não** é autorização de implementação
+  agora.
+- **O que `F6-R3` PODE alterar** — e **apenas** o estritamente necessário disso: as primitivas
+  técnicas de **sistema de coordenadas**, ***resize***, **transformação de *viewport***, **ciclo de
+  vida**, **preservação de estado** e **recuperação técnica** indispensáveis à rotação segura.
+- **O que `F6-R3` NÃO PODE antecipar:** redesenho do Colorir · conclusão visual do Colorir ·
+  *Story Home V2* · *Página Viva* · redesenho final do Criar Livre · política comercial ·
+  `GameShell` · qualquer escopo de produto da **Fase 9** ou da **Fase 12A**.
+- **Leitura obrigatória:** esta exceção **não** revoga a regra de que `F6-R3` não puxa escopo da
+  Fase 9. Ela apenas reconhece que **a fundação técnica mínima da rotação segura pertence à Fase
+  6** — sem a qual `D1` não pode ser entregue sem violar `SD-8`. Formalizada também na *spec* do
+  delta (`01_SPEC_DELTA_F6_R1_R2_R3.md`) e no roteiro delta (`03_ROADMAP_v4.1_DELTA.md`).
+
+### PF6D-Q1 — Identidade dos eixos `E` e `P` · ✅ **RESOLVIDA no Portão Humano 1**
+- **Status:** ✅ **CONGELADA pelo fundador em 2026-08-08.** Encerra a questão `Q1` do Clarify e o
+  achado `AD-1` da auditoria.
+- **Decisão:** `E000–E089` é o **eixo EXECUTIVO** do roteiro mestre. `P-01–P-167` é o **eixo de
+  RISCOS E PENDÊNCIAS**. São **taxonomias paralelas** e **não possuem relação obrigatoriamente
+  1:1**: um `E` pode depender de vários `P`; um `P` pode aparecer ou revalidar-se em vários `E`.
+  **Os `P` NÃO substituem, NÃO renumeram e NÃO absorvem os `E`.**
+- **A ausência material de `E000–E089` neste repositório NÃO autoriza:** inventar entradas
+  faltantes · recriar a série · migrar `E` para `P` · substituir o *checklist* mestre.
+- **A ponte declarada adotada no `F6-DELTA0` está APROVADA.** *Crosswalks* do tipo
+  `E028-R3 → P-152` **podem** ser registrados, desde que **não alterem a identidade de nenhum dos
+  dois eixos**.
+- **Árbitro de sequência:** `docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md` permanece o árbitro da
+  sequência de fases.
 
 ### PF6D-EVID — Cinco fatos de código que sustentam este bloco
 
@@ -1846,6 +1941,14 @@ Auditoria completa em
    `ios.infoPlist.UIRequiresFullScreen: false`. O projeto opera em **CNG** (não há `ios/` nem
    `android/`), portanto a orientação vem inteiramente da configuração e mudá-la exige **novo
    *build***, mas **nenhum código nativo**.
+   - **Emenda do Portão 1:** essa chave global **não** é a única que decide. Como
+     `ios.supportsTablet` é `true` e `ios.requireFullScreen` é falso, o *plugin*
+     `withRequiresFullScreen` (`@expo/config-plugins/build/ios/RequiresFullScreen.js:55-67`)
+     escreve **`UISupportedInterfaceOrientations~ipad` com as quatro orientações**, para atender à
+     regra da Apple de multitarefa (`ITMS-90474`). **Por isso o iPad gira hoje.** No Android, ao
+     contrário, `setAndroidOrientation` (`.../android/Orientation.js:21-33`) grava
+     `android:screenOrientation` numa **chave única**, sem variante por *idiom* — daí o vão em
+     **tablet Android**.
 2. **O Split View do iPadOS já pode entregar larguras variáveis hoje**, sem nenhuma mudança de
    orientação, porque `UIRequiresFullScreen` é `false`. **A instabilidade de redimensionamento não
    é hipotética nem futura.**
@@ -1856,18 +1959,85 @@ Auditoria completa em
    puxar o mapa de volta à âncora da câmera. **Girar o iPad joga fora onde a criança estava.**
 5. **Colorir e Ateliê são as únicas superfícies interativas sem escuta de `AppState`** (os quatro
    jogos têm), e **não existe uma única ocorrência** de `onContentProcessDidTerminate` ou
-   `onRenderProcessGone` em todo o `src/` — de modo que um término do processo da `WebView` deixa
-   uma tela **em branco sem recuperação automática**.
+   `onRenderProcessGone` em todo o `src/` — de modo que **se** o processo de conteúdo da `WebView`
+   for encerrado, a tela ficaria **em branco sem recuperação automática**.
+   - **Correção de causalidade (emenda do Portão 1, item 6):** o que está **provado** é a
+     **ausência de defesa**. **Não** está provado que abrir e fechar o Centro de Controle **causou**
+     `onContentProcessDidTerminate` no aparelho do fundador — a execução física não capturou essa
+     evidência. Registre-se, portanto, como **`HIPÓTESE CAUSAL PRIORITÁRIA / MECANISMO COMPATÍVEL
+     COM A EVIDÊNCIA ESTÁTICA, AINDA NÃO CONFIRMADO EMPIRICAMENTE`**. A confirmação causal exige
+     instrumentação e reprodução em `F6-SG-A`. **`P-152` e `P-164` permanecem, sem rebaixamento** —
+     a incerteza é sobre a **causa**, não sobre o **risco**.
 
 ### PF6D-CLASSIFICACAO — Global × *canvas-specific*, exigida pelo escopo
 
 | Camada | Fato | Fase proprietária | Código |
 |---|---|---|---|
-| **GLOBAL** | Não existe política de `resize` em lugar nenhum do aplicativo. Liberar paisagem torna o canvas destrutível. | **6** | `P-152` |
+| **GLOBAL** | Não existe política de `resize` em lugar nenhum do aplicativo. O canvas é destrutível sob rotação e sob multitarefa — **e o iPad já gira hoje** (`PF6D-D1` emendada), de modo que a exposição é **presente**, não condicionada a liberação futura de paisagem. | **6** | `P-152` |
 | **CANVAS-SPECIFIC** | Ausência de tratamento de término do processo da `WebView` e de revalidação por `AppState` nas duas telas de canvas; `resize()` do `ColoringCanvas` não recalcula estruturas raster nem buffers de BFS. | **9** | `P-164` |
 
-**As duas são reais e distintas.** A camada global **não** causa o sintoma do Centro de Controle; a
-camada específica **não** protege contra rotação. Corrigir uma sem a outra deixa o defeito de pé.
+**As duas ausências de defesa são reais, comprovadas e distintas** — e isso **independe** da
+hipótese causal. A camada global **não seria** a explicação do sintoma do Centro de Controle; a
+camada específica **não** protege contra rotação. Corrigir uma sem a outra deixa a exposição de pé.
+**Qual delas — ou qual terceira causa — explica o sintoma observado permanece indeterminado**, e
+determinar isso é tarefa instrumentada de `F6-SG-A`.
+
+### PF6D-EMENDA-P1 — Emenda do Portão Humano 1 (2026-08-08) · veredito 🟡 condicional
+
+O fundador aprovou **condicionalmente** o Portão Humano 1 do delta: *"a base documental foi aceita,
+MAS ainda NÃO existe autorização para Plan, Tasks, Analyze ou Implement"*. O que se autorizou foi
+**exclusivamente uma emenda documental** aos artefatos já produzidos. Registro do que a emenda
+decidiu e do que apurou:
+
+| # | Item | Resultado |
+|---|---|---|
+| 1 | `Q1` — identidade `E` × `P` | ✅ **RESOLVIDA** — ver `PF6D-Q1` |
+| 2 | `Q2` — canvas e rotação | ✅ **RESOLVIDA** — ver `PF6D-D-CANVAS` |
+| 3 | Exceção de escopo de `F6-R3` | ✅ **AUTORIZADA (futura)** — ver `PF6D-EXC-R3` |
+| 4 | `D1` cobre **tablet Android** | ✅ corrigido em `PF6D-D1`; `O1` **rebaixada** |
+| 5 | IPA físico × HEAD | ✅ reconciliado — abaixo |
+| 6 | Causalidade WKWebView | ✅ **rebaixada a hipótese** — `PF6D-EVID` item 5 |
+| 7 | `P-141` | ⬜ **NÃO alterada** — verificada e **correta**; ver abaixo |
+| 8 | `P-103` | ⬜ **NÃO reclassificada** — permanece encaminhada à **Fase 7** |
+| 9 | Ordem dos subportões | ✅ **emendada** — `SG-A` → `SG-B` → `SG-C` → `SG-D`, em `PF6D-D18` |
+| 10 | `Q3`–`Q7` | Mantidas abertas com direções congeladas — `02_CLARIFY_E_CHECKLIST.md` |
+
+**Item 5 — reconciliação exigida: binário fisicamente testado × configuração que o HEAD geraria.**
+Os dois **não** são tratados como equivalentes; foram auditados **separadamente**, somente leitura,
+**sem gerar *build*** e **sem baixar artefato do EAS**.
+
+- **(A) Binário fisicamente testado:** *Development Client* iOS do *build*
+  `10fce052-222b-4d9a-aad8-92467ccd8d1d`, origem nativa no *commit*
+  `7c12987622d07a8e305e1930fdae45751afc65d9`, **resignado** para o iPad do fundador; o JS da Fase 6
+  veio do **Metro**, não do binário.
+- **(B) Configuração que o CNG do HEAD `93571c6` produziria** num *build* novo.
+- **Prova de equivalência da fonte de orientação** — `git diff 7c12987..HEAD`: **`app.json` tem
+  *diff* vazio** (byte a byte idêntico) e é a **única** fonte de orientação do projeto; **não
+  existem** `app.config.js`, `app.config.ts` nem diretório `plugins/`; `eas.json` mudou apenas em
+  variáveis `EXPO_PUBLIC_*` e no perfil `c60-pilot`, **nada de orientação, `idiom` ou Info.plist**;
+  `package.json` mudou `expo ~54.0.35 → ~54.0.36` e acrescentou *scripts*.
+- **Veredito:** **A e B produzem a mesma política de orientação** — e é por isso que o iPad girou.
+  A evidência física e a evidência estática **agora concordam**; antes discordavam porque a leitura
+  estática anterior estava incompleta.
+- **Incerteza residual, declarada e não estimada:** o binário físico foi gerado com
+  `@expo/config-plugins` **54.0.4** e o instalado neste *worktree* é **54.0.5**. O código da 54.0.4
+  **não foi lido** — não está instalado. A diferença é de *patch* dentro do mesmo SDK 54, mas
+  **isso é inferência, não prova**. Confirmação definitiva exigiria inspecionar o `Info.plist` do
+  `.ipa`, o que **não foi feito**.
+
+**Item 7 — `P-141`.** O fundador autorizou corrigir a estrutura daquela linha, condicionado a não
+haver ambiguidade. **A correção não foi aplicada porque a linha não está defeituosa.** O relatório
+anterior de *"24 colunas"* foi **erro da minha ferramenta de contagem**, que não honrava o escape
+`\|` do Markdown. A leitura crua dos bytes mostra `` `profile.id \|\| profile.avatarId` `` —
+corretamente escapado. Recontagem com verificador que honra o escape, sobre a matriz inteira:
+**167/167 linhas com exatamente 22 colunas, zero divergências, zero células vazias, zero códigos
+duplicados e sequência `P-01` … `P-167` sem lacunas**. A decisão da Fase 4D **não** foi reaberta e
+nenhuma célula foi unificada. Detalhamento em
+[`09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md)
+§32.8.4.
+
+**Item 8 — `P-103`.** Permanece `IMPLEMENTADO SEM CONSUMIDOR`, com a divergência registrada e
+**encaminhada à Fase 7**. Nada reclassificado.
 
 ### PF6D-NAO-FEZ — O que este bloco **não** fez
 
@@ -1878,6 +2048,14 @@ documental. Não corrigiu nenhum defeito. **Não reclassificou nenhuma pendênci
 particular **`P-103`**, cuja divergência com o comportamento observado está registrada como `Q7` do
 Clarify e encaminhada à Fase 7. Não reabriu nenhuma decisão registrada. Não alterou as 22 fases da
 `v5`. Não fez *push*, não fez *merge* e não trocou de *worktree*.
+
+**A emenda do Portão Humano 1 também não fez:** não iniciou `plan.md`, `tasks.md`, `analyze` nem
+implementação · não desbloqueou o Bloco **B2** · não instalou `expo-screen-orientation` nem
+qualquer outra dependência · não escolheu entre as vias **A/B/C/D** de orientação · não gerou
+*build* nem baixou artefato do EAS · não alterou runtime, *assets*, manifestos ou configuração de
+*build* · não rebaixou `P-152` nem `P-164` · não reclassificou `P-103` · não alterou `P-141` · não
+apagou a ordem anterior `R1 → R2 → R3`, que fica registrada com a razão da mudança · não fez
+*push* e não fez *merge*.
 
 ---
 
