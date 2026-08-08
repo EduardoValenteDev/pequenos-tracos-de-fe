@@ -42,16 +42,30 @@ pedido a eles.
 
 ## 2. *Checklist* do delta por fase — preservado como recebido
 
-> **Declaração obrigatória (`Q1` do Clarify).** Os códigos `E***-R*` abaixo são reproduzidos
-> **exatamente como o fundador os enviou**. A varredura deste repositório mostra que a série
-> `E000–E089` vive no ***checklist* mestre externo** do fundador e **não** tem representação
-> versionada aqui — fato que o próprio `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md:282` já
-> registrava para `E039` e `E042`. A identidade canônica **deste repositório** é a matriz
-> `P-01..P-167`.
+> ### ✅ `Q1` **RESOLVIDA** — emenda do Portão Humano 1, 2026-08-08
 >
-> Este quadro é, portanto, a **ponte declarada** entre os dois eixos. **Nenhum dos dois foi
-> apagado, renumerado ou subordinado ao outro em silêncio.** A canonização definitiva depende da
-> resposta a `Q1`.
+> A identidade dos dois eixos está **congelada** pelo fundador:
+>
+> - **`E000–E089` = eixo EXECUTIVO** do roteiro mestre.
+> - **`P-01–P-167` = eixo de RISCOS E PENDÊNCIAS.**
+>
+> São **taxonomias paralelas** e **não possuem relação obrigatoriamente 1:1**: um `E` pode depender
+> de **vários** `P`; um `P` pode aparecer ou revalidar-se em **vários** `E`. **Os `P` NÃO
+> substituem, NÃO renumeram e NÃO absorvem os `E`.**
+>
+> A **ausência material** de `E000–E089` neste repositório — fato que o próprio
+> `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md:282` já registrava para `E039` e `E042` — **NÃO
+> autoriza**: inventar entradas faltantes · recriar a série · migrar `E` para `P` · substituir o
+> *checklist* mestre.
+>
+> **A ponte declarada adotada no `F6-DELTA0` está APROVADA.** Os quadros abaixo são exatamente
+> essa ponte: *crosswalks* do tipo `E028-R3 → P-152` **podem** ser registrados, **desde que não
+> alterem a identidade de nenhum dos dois eixos**. Os códigos `E***-R*` continuam reproduzidos
+> **exatamente como o fundador os enviou**. **Nenhum dos dois eixos foi apagado, renumerado ou
+> subordinado ao outro.**
+>
+> `docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md` permanece o **árbitro da sequência de fases**.
+> Registro canônico da decisão: `docs/DECISIONS.md` §`PF6D-Q1`.
 
 ### 2.1 Fase 6 — Shell, splash e sistema visual
 
@@ -67,7 +81,7 @@ pedido a eles.
 |---|---|---|---|
 | `E035-R1` .. `E035-R6` | Coreografia e marcação do *onboarding* | `P-155`, `P-156`, `P-157` | `P-157` **depende** de `F6-R2` |
 | `E036-R1`, `E036-R2` | Semântica de "Ver mapa" no *onboarding* | `P-158` | Semântica definitiva é **F11** |
-| `E042-R1` | Cantinho do Beni | `P-159` | **Congelado** por `D13` — Portão de Produto |
+| `E042-R1` | Cantinho do Beni | `P-159` | `DECISÃO DE PRODUTO PENDENTE` por `D13` — Portão de Produto. *(`CONGELADO` **não** é status canônico da matriz §6 e não foi introduzido.)* |
 
 ### 2.3 Fase 9 — Story Home, Leitor e conclusão
 
@@ -103,12 +117,12 @@ proprietária de cada um.
 **Nenhuma fase foi criada, movida, dividida ou renumerada.** O que o delta acrescenta são
 **subportões**, que são condições de saída **adicionais** dentro de fases que já existiam.
 
-| Fase | Subportão | Condição |
-|---|---|---|
-| **6** | `F6-SG-A` | `F6-R3` implementada e validada — **antes** de qualquer liberação de orientação |
-| **6** | `F6-SG-B` | `F6-R2` implementada — âncora canônica única, verificada nas três faixas |
-| **6** | `F6-SG-C` | `F6-R1` implementada — faixas, famílias, barra lateral, orientação |
-| **6** | `F6-SG-D` | **Só então** o Bloco `B2` é desbloqueado (`D18`) |
+| Fase | Subportão | Requisito | Condição |
+|---|---|---|---|
+| **6** | `F6-SG-A` | **`F6-R3`** — ciclo de vida + segurança do canvas | Implementada e validada — **antes** de qualquer liberação de orientação |
+| **6** | `F6-SG-B` | **`F6-R2`** — fundação de geometria do mapa | Implementada — âncora canônica única, verificada nas três faixas |
+| **6** | `F6-SG-C` | **`F6-R1`** — superfície adaptativa + orientação | Implementada — faixas, famílias, barra lateral, orientação nos **quatro** *idioms* |
+| **6** | `F6-SG-D` | **liberação do `B2`** | **Só então** o Bloco `B2` é desbloqueado (`D18`) |
 | **7** | `F7-SG-A` | Marcação, ponto de partida e holofote do *onboarting* corretos sobre a âncora de `F6-R2` |
 | **9** | `F9-SG-A` | *Story Home V2* e Leitor V2 entregues sobre os arquétipos de `F6-R1` |
 | **9** | `F9-SG-B` | Ciclo de vida do canvas resolvido — desenho sobrevive a segundo plano e a `resize` |
@@ -116,6 +130,44 @@ proprietária de cada um.
 
 **Ordem obrigatória dentro da Fase 6:** `F6-SG-A` → `F6-SG-B` → `F6-SG-C` → `F6-SG-D`.
 Inverter destrói arte da criança (auditoria §5.2, risco `RD-1`).
+
+### 3.1 ✅ **EMENDA EXPLÍCITA DA ORDEM** — Portão Humano 1, 2026-08-08 (item 9)
+
+**A ordem acima está APROVADA pelo fundador** e **substitui, por emenda explícita, a ordem anterior
+do roteiro v4.1 recebido.**
+
+| | Ordem |
+|---|---|
+| **Ordem anterior — preservada, não apagada** | `F6-R1` → `F6-R2` → `F6-R3` |
+| **Ordem vigente — aprovada na emenda** | `F6-R3` (`SG-A`) → `F6-R2` (`SG-B`) → `F6-R1` (`SG-C`) → **`B2`** (`SG-D`) |
+
+**Razão da mudança, registrada conforme exigido** — *"não apague a ordem antiga sem registrar a
+razão da mudança"*:
+
+1. **`R3` foi para a frente porque a exposição é presente, não futura.** A correção da §1.2 da
+   auditoria provou que o **iPad já gira hoje** — a variante `UISupportedInterfaceOrientations~ipad`
+   é escrita pelo `withRequiresFullScreen` com as quatro orientações. Somado ao Split View, há
+   **dois** caminhos de `resize` abertos **agora**. Deixar `R3` por último manteria a arte da
+   criança desprotegida durante toda a fase.
+2. **`R1` foi para o fim porque é a que libera orientação.** Liberar faixas e orientação sobre uma
+   fundação que ainda não preserva a obra violaria `SD-8`, que é **bloqueador absoluto**.
+3. **`R2` precede `R1`** porque a **âncora canônica única** do mapa (`D11`) é pré-requisito da
+   geometria que `R1` consome — e `P-157` (Fase 7) depende dela.
+
+**Nada foi apagado em silêncio.** Registro canônico paralelo em `docs/DECISIONS.md` §`PF6D-D18`.
+
+### 3.2 Exceção formal de escopo de `F6-R3` — autorizada (futura)
+
+O fundador **autorizou formalmente**, para vigorar **somente após** os demais portões do fluxo SDD,
+uma exceção **estreita**: `F6-R3` **pode** alterar **apenas** as primitivas técnicas — sistema de
+coordenadas, `resize`, transformação de *viewport*, ciclo de vida, preservação de estado e
+recuperação técnica — **indispensáveis à rotação segura**.
+
+`F6-R3` **NÃO pode antecipar**: redesenho do Colorir · conclusão visual do Colorir · *Story Home
+V2* · *Página Viva* · redesenho final do Criar Livre · política comercial · `GameShell` · qualquer
+escopo de produto de **F9** ou **F12A**.
+
+Registro canônico em `docs/DECISIONS.md` §`PF6D-EXC-R3`; contrato na *spec* do delta.
 
 ---
 
@@ -146,3 +198,9 @@ moveu entrega de fase. Não renumerou código algum — nem `E`, nem `P`. Não a
 pendência existente. Não reabriu decisão registrada. Não criou roteiro paralelo. Não tocou runtime,
 *assets*, manifestos ou configuração de *build*. Não gerou *build*, não executou validação física e
 não fez *push*.
+
+**A emenda do Portão Humano 1 (2026-08-08) não fez:** não criou fase nova · não moveu nenhuma das
+22 fases · não renumerou `E` nem `P` · **não apagou a ordem anterior `R1 → R2 → R3`**, que fica
+registrada em §3.1 com a razão da mudança · não iniciou `plan.md`, `tasks.md` nem `analyze` · não
+desbloqueou o `B2` · não escolheu via de orientação · não instalou dependência · não gerou *build*
+· não fez *push* nem *merge*.

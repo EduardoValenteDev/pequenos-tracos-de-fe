@@ -3,6 +3,13 @@
 > **Etapas SDD 2 e 3** aplicadas ao delta
 > [`01_SPEC_DELTA_F6_R1_R2_R3.md`](01_SPEC_DELTA_F6_R1_R2_R3.md).
 >
+> **🔁 EMENDADO em 2026-08-08 pelo Portão Humano 1.** `Q1` e `Q2` — as duas **bloqueantes** — foram
+> **RESOLVIDAS** pelo fundador e estão registradas abaixo com o **texto congelado**. `Q3` a `Q7`
+> permanecem expostas na íntegra, cada uma com **pergunta · opções · recomendação · natureza
+> (decisão do fundador × resolvível no PLAN) · relação com `D`/`P`/`E`**, e com as **direções
+> congeladas** que o fundador impôs a `Q4`, `Q6` e `Q7`. **Nenhuma autorização de Plan, Tasks,
+> Analyze ou Implement foi concedida.**
+>
 > **Regra de disciplina aplicada:** as decisões `D1`–`D18` do fundador **não** são reabertas. Uma
 > pergunta só entra neste Clarify se for **genuinamente aberta** ou se houver **conflito técnico
 > comprovado por código** com uma decisão — e nesse caso o conflito é apresentado com a prova, não
@@ -10,9 +17,45 @@
 
 ---
 
-## 1. Perguntas abertas — exigem decisão antes do Portão 2
+## 1. Perguntas — situação após o Portão Humano 1 (2026-08-08)
 
-### `Q1` · Identidade dos códigos novos — a série `E` × a matriz `P` **[BLOQUEANTE]**
+| Questão | Situação | Onde vive a decisão |
+|---|---|---|
+| `Q1` — identidade `E` × `P` | ✅ **RESOLVIDA** | `DECISIONS.md` §`PF6D-Q1` |
+| `Q2` — canvas e rotação | ✅ **RESOLVIDA** | `DECISIONS.md` §`PF6D-D-CANVAS`; *spec* `F6-R3.5` |
+| `Q3` — faixa expandida | 🟡 **ABERTA** — decisão do fundador, com maquete | Portão 2 |
+| `Q4` — `grid` / `displayScaleTablet` | 🟡 **ABERTA** — **direção congelada** abaixo | Portão 2 |
+| `Q5` — onde vive a âncora | ⚙️ **RESOLVÍVEL TECNICAMENTE no PLAN** | Etapa PLAN |
+| `Q6` — `0.58` × `0.5` | 🟡 **ABERTA** — **direção congelada** abaixo | Portão 2, com captura |
+| `Q7` — `P-103` | ⏸️ **DIFERIDA à Fase 7** — **não reclassificar agora** | Fase 7 |
+
+### `Q1` · Identidade dos códigos novos — a série `E` × a matriz `P` · ✅ **RESOLVIDA**
+
+> **Decisão do fundador, congelada em 2026-08-08 (Portão Humano 1, item 1):**
+>
+> - **`E000–E089` = eixo EXECUTIVO** do roteiro mestre.
+> - **`P-01–P-167` = eixo de RISCOS E PENDÊNCIAS.**
+>
+> São **taxonomias paralelas** e **não possuem relação obrigatoriamente 1:1**. Um `E` pode depender
+> de **vários** `P`. Um `P` pode aparecer ou revalidar-se em **vários** `E`. **Os `P` NÃO
+> substituem, NÃO renumeram e NÃO absorvem os `E`.**
+>
+> A **ausência material** de `E000–E089` neste repositório **NÃO autoriza**: inventar entradas
+> faltantes · recriar a série · migrar `E` para `P` · substituir o *checklist* mestre.
+>
+> **A ponte declarada adotada no `F6-DELTA0` está APROVADA.** *Crosswalks* como `E028-R3 → P-152`
+> podem ser registrados **sem alterar a identidade de nenhum dos dois eixos**.
+> `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md` permanece o **árbitro da sequência de fases**.
+
+**Efeito sobre a opção que eu havia proposto:** a saída **(a)** (*"os rótulos `F6-*` são apelidos,
+os números `P` mandam"*) fica **parcialmente corrigida** — os `P` mandam **dentro do eixo de
+riscos**, e **não** sobre o eixo executivo `E`, que não lhes é subordinado. As opções **(b)** e
+**(c)** não foram adotadas: a série `E` **não** é importada nem declarada inexistente; ela vive no
+*checklist* mestre e é **ponteada**, não absorvida.
+
+**Registro histórico da pergunta, preservado:**
+
+### ~~`Q1` — enunciado original~~ **[era BLOQUEANTE]**
 
 **O fato.** O prompt determina *"preservar as 22 fases e os códigos `E000–E089`"*. A varredura
 exaustiva de `docs/` e `specs/` neste HEAD devolve apenas `E003–E018`, `E022`, `E023`, `E039`,
@@ -42,77 +85,136 @@ fica sem contrato de identidade.
 
 ---
 
-### `Q2` · Orientação nas superfícies de canvas **[BLOQUEANTE para `F6-R1.1`]**
+### `Q2` · Orientação nas superfícies de canvas · ✅ **RESOLVIDA — política canônica congelada**
 
-**O fato, comprovado por código.** `src/screens/AtelierCanvasScreen.js:6` declara textualmente:
-*"NUNCA redimensionam o canvas (o motor é uma WebView; mudar o tamanho reinicia o desenho)."* A
-auditoria §5.2 confirma que `ColoringCanvas.resize()` **não** recalcula `baseD`, `paintD`,
-`imgX/imgY/imgW/imgH` nem `qBuf`/`visBuf` — qualquer redimensionamento posterior à inicialização
-**desalinha a pintura do traço e corrompe o preenchimento**.
+> **Decisão do fundador, texto literal, congelado em 2026-08-08 (Portão Humano 1, item 2):**
+>
+> *"A obra da criança possui um espaço lógico próprio e imutável. A janela é apenas uma viewport
+> desse espaço. Rotação, resize, multitarefa, AppState, Control Center, background/foreground ou
+> qualquer mudança de viewport NÃO podem alterar, reinicializar ou corromper as
+> coordenadas/dimensões lógicas da obra."*
 
-**Isto não contradiz `D1`; contradiz aplicá-la ao canvas antes da Fase 9.**
+**Colorir / raster:** *backing*/canvas lógico atrelado à **dimensão canônica da arte** · **não**
+redimensionar destrutivamente o conteúdo na mudança de *viewport* · **não** recriar `paint`/buffers
+só porque a tela mudou · a *viewport* recalcula **apenas a transformação de apresentação** · toque e
+*hit testing* convertem **tela → coordenadas canônicas** · preservar proporção ·
+*letterbox*/*pillarbox* quando necessário · **sem perda silenciosa, sem corrupção de balde, sem
+pintura desalinhada do traço**.
 
-**Opções:**
-- **(a)** Congelar Colorir e Ateliê em retrato até a Fase 9. Zero risco de perda de arte. Custo:
-  incoerência percebida ("tudo gira menos o desenho").
-- **(b)** Permitir rotação e **descartar** a arte em andamento com aviso. **Recomendo rejeitar** —
-  perder o desenho de uma criança de 4 a 8 anos é dano de produto, não inconveniente.
-- **(c)** Implementar preservação de arte sob `resize` **dentro da F6**. Puxa escopo da Fase 9 para
-  a Fase 6 e reabre um motor de canvas fora de *spec* própria.
+**Criar Livre / vetor:** traços e carimbos **não** dependem permanentemente de pixels da *viewport*
+corrente · coordenadas lógicas **canônicas ou normalizadas** · `resize`/orientação apenas
+**reprojetam a apresentação** · **compatibilidade com os dados existentes definida ANTES** de
+qualquer migração · **nenhuma migração destrutiva**.
 
-**Recomendação técnica:** **(a)**. A decisão é do fundador.
+**REGRA ABSOLUTA: `SD-8` continua bloqueador — ZERO perda ou corrupção de obra infantil.**
 
----
+**Efeito sobre as opções que eu havia proposto — todas as três ficam superadas:**
 
-### `Q3` · Faixa expandida — painel de apoio × grade **[NÃO BLOQUEANTE]**
+| Opção original | Situação |
+|---|---|
+| **(a)** congelar Colorir e Ateliê em retrato até a Fase 9 — *era minha recomendação* | ❌ **REJEITADA.** *"Não é aceitável resolver `D1` simplesmente bloqueando as telas criativas em portrait."* |
+| **(b)** rotacionar descartando a arte com aviso | ❌ **REJEITADA** — viola `SD-8` frontalmente |
+| **(c)** preservação de arte sob `resize` dentro da F6 | ✅ **É o caminho** — e o receio de *"puxar escopo da Fase 9"* foi endereçado pela **exceção formal e estreita** do item 3 (`PF6D-EXC-R3`), que autoriza **apenas** as primitivas técnicas indispensáveis e **proíbe** antecipar qualquer escopo de produto de F9/F12A |
 
-`D3` fixa as quatro famílias e `D10` fixa a composição do Leitor em paisagem. O que **não** está
-decidido é o comportamento da família **Hub** em `>=900dp`: grade mais larga (mais colunas) ou
-**painel de apoio** (lista + detalhe, como o *layout* canônico de painel de apoio do Material 3)?
-
-Afeta Início, Brincar, Estrelinhas e a Galeria. **Pode ser decidido no Portão 2**, com maquete.
-
----
-
-### `Q4` · `grid` e `displayScaleTablet` — consumir ou aposentar **[NÃO BLOQUEANTE]**
-
-Ambos existem em `src/theme/tokens.js` §2.4 com **zero consumidores**. `F6-R1.3` exige que deixem
-de ser declarados e inertes. Duas saídas legítimas: ganhar consumidor real em `F6-R1`, ou serem
-declarados aposentados com registro. **Não** podem permanecer como estão. Decisão no Portão 2.
-
----
-
-### `Q5` · Onde vive a âncora canônica do mapa **[NÃO BLOQUEANTE]**
-
-`D11` fixa que a âncora **existe e é única**; não fixa **onde**. Duas opções coerentes com a
-arquitetura:
-- **(a)** Estender `src/services/guideTargetRegistry.js` — já é um registro global de alvos
-  mensuráveis, já serve ao tour, já tem `measureGuideTarget`. **Estender o que existe.**
-- **(b)** Módulo novo `src/services/mapAnchorRegistry.js`, separando geometria de mapa de alvos de
-  guia.
-
-**Recomendação:** **(a)** para o registro/medição, com a **derivação** de coordenada permanecendo
-em `src/data/adventureMap.js`. Evita um terceiro sistema de geometria.
+**O fato de código que motivou a pergunta, preservado.** `src/screens/AtelierCanvasScreen.js:6`
+declara textualmente: *"NUNCA redimensionam o canvas (o motor é uma WebView; mudar o tamanho
+reinicia o desenho)."* A auditoria §5.2 confirma que `ColoringCanvas.resize()` **não** recalcula
+`baseD`, `paintD`, `imgX/imgY/imgW/imgH` nem `qBuf`/`visBuf`. **É exatamente o contrato acima que o
+código de hoje viola.**
 
 ---
 
-### `Q6` · Fator único de enquadramento — `0.58` ou `0.5` **[NÃO BLOQUEANTE]**
+### `Q3` · Faixa expandida — painel de apoio × grade **[ABERTA · NÃO BLOQUEANTE]**
 
-`F6-R2.2` unifica os dois fatores divergentes. Qual sobrevive é decisão **visual**, não técnica:
-`0.58` (câmera, hoje majoritário) põe o pino um pouco acima do centro; `0.5` centra. Decidir com
-captura em aparelho no Portão 2.
+- **Pergunta.** `D3` fixa as quatro famílias e `D10` fixa a composição do Leitor em paisagem. O que
+  **não** está decidido é o comportamento da família **Hub** em `>=900dp`: **grade mais larga**
+  (mais colunas) ou **painel de apoio** (lista + detalhe, o *layout* canônico de *supporting pane*
+  do Material 3)? Afeta **Início, Brincar, Estrelinhas e Galeria**.
+- **Opções.** **(a)** grade mais larga — mais simples, reaproveita a composição de retrato;
+  **(b)** painel de apoio — usa melhor a largura do iPad e é coerente com `D10`, que já escolheu
+  painel de apoio para o Leitor em paisagem; **(c)** misto, por superfície.
+- **Recomendação.** **(b)** para superfícies com hierarquia lista→detalhe e **(a)** para as
+  puramente de grade — ou seja, **(c)** aplicado com critério, não uniformemente. Justificativa:
+  `D10` já estabeleceu o precedente do painel de apoio no tablet em paisagem; repetir o padrão
+  reduz vocabulário visual novo.
+- **Natureza.** **Exige decisão do fundador** — é escolha de **produto e composição visual**, não
+  técnica. **Decidir no Portão 2, com maquete.**
+- **Relação.** `D3` (quatro famílias) · `D10` (Leitor em paisagem) · `P-151` (`F6-RSP-02`, ausência
+  do modelo de três faixas) · `F6-R1.2` e `F6-R1.3` da *spec*.
 
 ---
 
-### `Q7` · Divergência `P-103` × comportamento observado **[NÃO BLOQUEANTE — encaminhado à F7]**
+### `Q4` · `grid` e `displayScaleTablet` — consumir ou aposentar **[ABERTA · direção congelada]**
 
-A matriz classifica `P-103` como `IMPLEMENTADO SEM CONSUMIDOR` (*"`ADVENTURES_GUIDE` sem consumidor
-e `BeniAppTour` órfão"*). Porém o tour de Aventuras **executa em aparelho**, e
-`isAdventureTourActive()` é consumido por `AppNavigator.js:291` e pela `TabletSidebar`.
+- **Pergunta.** Ambos existem em `src/theme/tokens.js` §2.4 com **zero consumidores**. `F6-R1.3`
+  exige que deixem de ser *"declarados e inertes"*. Ganham consumidor real ou são aposentados?
+- **Opções.** **(a)** dar consumidor real em `F6-R1`; **(b)** declarar aposentados, com registro;
+  **(c)** manter como estão — **inadmissível**, é exatamente a natureza de `P-82`/`P-148`, código
+  declarado e morto.
+- **Recomendação.** **(a)**, condicionada: se o *Adaptive Surface System* de `F6-R1` **usar** esses
+  *tokens*, eles passam a ter consumidor e a pendência fecha naturalmente.
+- **⛔ DIREÇÃO CONGELADA PELO FUNDADOR (Portão 1, item 10):** **não remover os *tokens* apenas por
+  não terem consumidor antes de determinar se o novo *Adaptive Surface System* vai usá-los.** A
+  opção **(b)** fica, portanto, **subordinada** — só pode ser considerada **depois** que `F6-R1`
+  definir o sistema, nunca antes.
+- **Natureza.** **Resolvível tecnicamente no PLAN**, na ordem imposta acima: primeiro decidir o
+  sistema, depois julgar os *tokens*.
+- **Relação.** `AD-4` da auditoria · `P-82` e `P-148` (mesma natureza) · `F6-R1.3` · `D2`.
 
-**Não reclassifiquei `P-103`** — reclassificar exigiria evidência que esta auditoria não produziu, e
-a regra é não reclassificar pendência sem prova. Registrado como `AD-2` na auditoria e encaminhado
-à **Fase 7**, junto de `P-155`.
+---
+
+### `Q5` · Onde vive a âncora canônica do mapa **[RESOLVÍVEL NO PLAN]**
+
+- **Pergunta.** `D11` fixa que a âncora **existe e é única** — *"uma âncora canônica controla pino,
+  alvo de toque, brilho, *scroll* e holofote"* — mas **não** fixa **onde** ela vive.
+- **Opções.** **(a)** estender `src/services/guideTargetRegistry.js`, que já é registro global de
+  alvos mensuráveis, já serve ao tour e já tem `measureGuideTarget`; **(b)** criar
+  `src/services/mapAnchorRegistry.js`, separando geometria de mapa de alvos de guia.
+- **Recomendação.** **(a)** para registro e medição, mantendo a **derivação** de coordenada em
+  `src/data/adventureMap.js`. Evita um **terceiro** sistema de geometria e obedece à regra de
+  governança *"estender o que existe antes de criar paralelo"*.
+- **Natureza.** **Resolvível tecnicamente na etapa PLAN.** **Não exige decisão do fundador** — é
+  escolha de arquitetura interna, sem efeito observável no produto.
+- **Relação.** `D11` · `P-154` (`F6-MAP-01`) · `P-157` (Fase 7, depende de `F6-R2`) · `F6-R2.1` e
+  `F6-R2.4`.
+
+---
+
+### `Q6` · Fator único de enquadramento — `0.58` ou `0.5` **[ABERTA · direção congelada]**
+
+- **Pergunta.** `F6-R2.2` exige **um** fator de enquadramento. Hoje há **dois**: `0.58` (câmera,
+  majoritário) e `0.5`. Qual sobrevive?
+- **Opções.** **(a)** `0.58` — põe o pino ligeiramente acima do centro, é o comportamento hoje
+  dominante; **(b)** `0.5` — centra exatamente; **(c)** um terceiro valor, escolhido por captura.
+- **Recomendação.** Decidir por **captura comparativa em aparelho real**, nas três faixas — a
+  diferença é **perceptual**, e nenhum argumento estático a resolve honestamente.
+- **⛔ DIREÇÃO CONGELADA PELO FUNDADOR (Portão 1, item 10):** **a duplicação `0.58`/`0.5` não pode
+  sobreviver como duas verdades.** `F6-R2` **tem** de chegar a **uma geometria canônica**. Qual das
+  duas vence é aberto; **que reste apenas uma, não é**.
+- **Natureza.** **Exige decisão do fundador** — é julgamento **visual**. Mas o **requisito de
+  unicidade** já está decidido e não se rediscute.
+- **Relação.** `D11` (âncora única) · `D12` (primeira experiência centra "Comece Aqui") ·
+  `P-154` · `F6-R2.2` · `SD-5` e `SD-6`.
+
+---
+
+### `Q7` · Divergência `P-103` × comportamento observado **[DIFERIDA À FASE 7]**
+
+- **Pergunta.** A matriz classifica `P-103` como `IMPLEMENTADO SEM CONSUMIDOR` (*"`ADVENTURES_GUIDE`
+  sem consumidor e `BeniAppTour` órfão"*). Porém o tour de Aventuras **executa em aparelho**, e
+  `isAdventureTourActive()` é consumido por `AppNavigator.js:291` e pela `TabletSidebar`. A
+  classificação ainda descreve a realidade?
+- **Opções.** **(a)** manter `IMPLEMENTADO SEM CONSUMIDOR` e resolver na Fase 7; **(b)**
+  reclassificar agora, com base no comportamento observado; **(c)** desdobrar em dois códigos,
+  separando `ADVENTURES_GUIDE` de `BeniAppTour`.
+- **Recomendação.** **(a)**. Reclassificar exigiria evidência que esta auditoria **não produziu** —
+  e a regra do projeto é **não reclassificar pendência sem prova**.
+- **✅ DECISÃO DO FUNDADOR (Portão 1, item 8), congelada:** *"Sua decisão foi correta. NÃO
+  reclassifique `P-103` agora. Permanece encaminhado para a Fase 7."* **`Q7` fica DIFERIDA, sem
+  reclassificação.**
+- **Natureza.** **Já decidida** — não exige nova decisão do fundador nem trabalho no PLAN. Volta a
+  ser questão viva **na Fase 7**.
+- **Relação.** `AD-2` da auditoria · `P-103` · `P-155` (`F7-ONB-01`) · `D12` · `D13`.
 
 ---
 
@@ -186,14 +288,18 @@ respondido com evidência ou com `FALHA`.
 | ID | Verificação | Resultado |
 |---|---|---|
 | `CKD-23` | O delta não implementa nada de F7, F9, F11 ou F12A | **OK** — §8 da *spec* |
-| `CKD-24` | O delta não introduz dependência nova | **OK** — opção `O1` recomendada é configuração pura |
+| `CKD-24` | O delta não introduz dependência nova | **OK** — **nenhuma dependência instalada.** `expo-screen-orientation` permanece **não instalada** e é apenas a via **(B)** a comparar no PLAN, entre quatro |
 | `CKD-25` | O delta não toca área protegida sem instrução | **OK** — não toca *paywall*, progresso, conquistas, `accessControl`, manifestos, histórias, *assets* |
 | `CKD-26` | O delta não cria *breakpoint* novo | **OK** — reusa `tokens.js` §2.4 |
 | `CKD-27` | O delta não migra `.js` para TypeScript | **OK** |
-| `CKD-28` | O delta não altera o motor do canvas | **OK** — §7 e `Q2` |
+| `CKD-28` | O delta não altera o motor do canvas | **REVISTO na emenda** — `Q2` resolvida e a **exceção formal `F6-R3.6`** autoriza `F6-R3` a alterar **apenas** as primitivas técnicas de coordenada, `resize`, *viewport*, ciclo de vida, preservação de estado e recuperação técnica indispensáveis à rotação segura. **Continua proibido** antecipar redesenho do Colorir, conclusão visual, redesenho do Criar Livre, *Story Home V2*, *Página Viva*, `GameShell`, política comercial ou qualquer escopo de produto de F9/F12A |
+| `CKD-29` | *(novo)* `D1` está especificada nos **quatro** *idioms*, incluindo tablet Android | **OK** — `F6-R1.1` emendada, `SD-1`, `G-ORIENT-1`, `FD-11` |
+| `CKD-30` | *(novo)* Nenhuma causa é declarada confirmada sem evidência empírica | **OK** — §5.3 da auditoria rebaixada a hipótese; `FD-12` é o passo de confirmação |
+| `CKD-31` | *(novo)* A obra da criança tem contrato de **espaço lógico canônico** normativo | **OK** — `F6-R3.5`, `SD-8`, `MT-D6`/`MT-D7`/`MT-D8` |
 
-**Resultado: 28 de 28 itens `OK`, com `Q1` e `Q2` registradas como bloqueantes de decisão** (não de
-qualidade de requisito).
+**Resultado: 31 de 31 itens `OK`.** `Q1` e `Q2` deixaram de ser bloqueantes — foram **resolvidas**
+no Portão Humano 1. `Q3`–`Q7` permanecem registradas com natureza e direção declaradas; nenhuma
+delas bloqueia a **qualidade dos requisitos**.
 
 ---
 
@@ -206,8 +312,9 @@ antes do Portão 3.
 
 | ID | Portão | O que prova |
 |---|---|---|
-| `G-ORIENT-1` | `app.json` declara orientação **por plataforma**, e Android permanece `portrait` | Telefone não gira |
-| `G-ORIENT-2` | Se `UIRequiresFullScreen` for `false`, a lista de orientações de iPad é **completa** | Coerência com a regra de multitarefa da Apple |
+| `G-ORIENT-1` | A configuração de orientação distingue **telefone × tablet** em **cada** plataforma — os **quatro** casos de `D1`, incluindo **tablet Android** | Telefone não gira; tablet gira, nas duas plataformas |
+| `G-ORIENT-2` | Se `UIRequiresFullScreen` for `false`, a lista de orientações de iPad é **completa** | Coerência com a regra de multitarefa da Apple (`ITMS-90474`) |
+| `G-ORIENT-3` | *(novo, emenda do Portão 1)* Nenhum ponto de `src/` decide *"sou tablet"* por **largura em paisagem** | `D2` preservada: telefone deitado **não** vira tablet |
 | `G-BP-3` | **Nenhuma** comparação de largura literal (`600`, `768`, `900`, `1024`) fora de `tokens.js` | O corte permanece único |
 | `G-BP-4` | A faixa `>=900` tem **mais de um** consumidor | A faixa expandida existe de fato |
 | `G-ANCHOR-1` | `getStoryMapCoord` é chamada com a **mesma aridade** em todos os pontos | Mata a divergência `LATENTE` |
@@ -221,7 +328,8 @@ antes do Portão 3.
 
 | ID | Cenário | Esperado |
 |---|---|---|
-| `CN-D1` | Reintroduzir `orientation: "portrait"` global | `G-ORIENT-1` **falha** |
+| `CN-D1` | Reintroduzir `orientation: "portrait"` global sem variante por *idiom* | `G-ORIENT-1` **falha** |
+| `CN-D6` | *(novo)* Introduzir `largura >= 900 ⇒ tablet` como identidade de aparelho | `G-ORIENT-3` **falha** |
 | `CN-D2` | Reintroduzir literal `768` numa comparação de largura | `G-BP-3` **falha** |
 | `CN-D3` | Adicionar segundo fator de enquadramento | `G-ANCHOR-2` **falha** |
 | `CN-D4` | Chamar `getStoryMapCoord(id)` com um argumento num ponto de *scroll* | `G-ANCHOR-1` **falha** |
@@ -236,7 +344,9 @@ antes do Portão 3.
 | `MT-D3` | Zerar o fator de enquadramento | Teste de âncora da câmera |
 | `MT-D4` | Devolver coordenada fixa em `getStoryMapCoord` | Teste de coincidência pino × holofote |
 | `MT-D5` | Reintroduzir o reset de `didInitScroll` por largura | `SD-7` (preservação de *scroll* sob rotação) |
-| `MT-D6` | Remover o congelamento de orientação do canvas (se `Q2`=(a)) | `SD-8` (perda de arte) |
+| `MT-D6` | **Reescrito na emenda** — `Q2` foi resolvida e o congelamento de orientação no canvas está **vedado**. A mutação passa a ser: **atrelar o *canvas* lógico à dimensão da *viewport*** em vez da dimensão canônica da arte | `SD-8` — o teste **deve** acusar perda/corrupção da obra |
+| `MT-D7` | *(novo)* Fazer o *hit testing* usar coordenadas de tela sem converter para canônicas | `SD-8` — pintura desalinhada do traço |
+| `MT-D8` | *(novo)* Recriar `paint`/*buffers* na mudança de *viewport* | `SD-8` — perda silenciosa da pintura |
 
 ### 4.4 Roteiro físico proposto — só em aparelho real
 
@@ -245,14 +355,24 @@ antes do Portão 3.
 | `FD-1` | Abrir o app em iPad em **retrato**; confirmar que a barra lateral não tem vazio acumulado | iPad |
 | `FD-2` | Girar para **paisagem**; confirmar que rota, *scroll* e áudio sobrevivem | iPad |
 | `FD-3` | Rolar o mapa até o fim, girar, confirmar que a posição **não** volta para a câmera | iPad |
-| `FD-4` | Iniciar um desenho no Colorir, girar (ou confirmar o congelamento), verificar a arte | iPad |
-| `FD-5` | Idem no Ateliê / Criar Livre | iPad |
+| `FD-4` | Iniciar um desenho no Colorir, **girar**, verificar que traço, pintura e preenchimento permanecem **alinhados e íntegros** — congelar em retrato **não** é resposta aceitável | iPad |
+| `FD-5` | Idem no Ateliê / Criar Livre — traços e carimbos **reprojetados**, nunca perdidos nem deslocados | iPad |
 | `FD-6` | Abrir Split View com outro aplicativo; variar a largura do painel nas três faixas | iPad |
 | `FD-7` | Puxar o Centro de Controle sobre o Colorir, voltar, verificar o canvas | iPad |
 | `FD-8` | Rodar o tour de Aventuras nas três faixas; conferir pino, holofote e "Ver mapa" | iPad + telefone |
-| `FD-9` | Confirmar que o telefone **não** gira, em iOS **e** Android | iPhone + Android |
+| `FD-9` | Confirmar que o telefone **não** gira, em iOS **e** Android | iPhone + telefone Android |
 | `FD-10` | Regressão completa do roteiro `F1`–`F12` da *spec* vigente da 021 | Telefone |
+| `FD-11` | *(novo, emenda do Portão 1)* Confirmar que o **tablet Android gira** — o único vão real de `D1` | **Tablet Android** |
+| `FD-12` | *(novo)* Instrumentar `FD-7` para **capturar** se `onContentProcessDidTerminate` de fato dispara ao abrir/fechar o Centro de Controle | iPad |
 
 > `FD-7` é o passo que reproduz o sintoma original relatado pelo fundador. Ele valida a camada
 > **canvas-specific** (`P-164`), que é **Fase 9** — está aqui para que o roteiro da F6 **detecte**
 > o defeito, não para que a F6 o corrija.
+>
+> **`FD-11` é indispensável:** sem um **tablet Android** físico, `SD-1` **não** pode ser declarado
+> cumprido, porque é exatamente ali que `D1` está violada hoje. Um iPad **não** substitui esse
+> aparelho.
+>
+> **`FD-12` é o que converte hipótese em fato.** Enquanto ele não rodar, a explicação do sintoma
+> permanece **`HIPÓTESE CAUSAL PRIORITÁRIA / MECANISMO COMPATÍVEL COM A EVIDÊNCIA ESTÁTICA, AINDA
+> NÃO CONFIRMADO EMPIRICAMENTE`** — e **nenhum** artefato pode declarar a causa como confirmada.

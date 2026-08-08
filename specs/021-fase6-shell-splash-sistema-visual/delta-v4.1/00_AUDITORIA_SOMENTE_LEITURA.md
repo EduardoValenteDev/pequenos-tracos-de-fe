@@ -14,6 +14,24 @@
 > **Precedência aplicada:** `docs/PROJECT_SOURCE_OF_TRUTH.md` → `.specify/memory/constitution.md`
 > → `AGENTS.md` → `CLAUDE.md` → `spec` da 021 → este artefato.
 
+> ### 🔁 EMENDA DO PORTÃO HUMANO 1 — 2026-08-08 (HEAD de entrada `93571c6`)
+>
+> Este artefato foi **emendado** após o veredito 🟡 **APROVADO CONDICIONALMENTE** do fundador. A
+> emenda é **documental**: nenhum arquivo de runtime, *asset*, manifesto ou configuração de *build*
+> foi tocado, nenhum *build* gerado, nenhuma dependência instalada.
+>
+> | Seção | Natureza da emenda |
+> |---|---|
+> | **§1.2** | **CORREÇÃO MATERIAL DE ERRO.** A afirmação *"iPad: retrato"* era **FALSA**. O iPad **já gira hoje**. Texto anterior preservado e tachado. |
+> | **§1.2-bis** | Nova. `P-152`/`P-164` são exposição **presente**, não futura. |
+> | **§1.3** | Corrigida — não há conflito com a regra de multitarefa da Apple; há coerência. |
+> | **§1.4** | `O1` **rebaixada**. `D1` cobre **tablet Android**, o único vão real. Quatro vias A/B/C/D para o PLAN. |
+> | **§1.5** | Nova. Reconciliação **binário físico × configuração do HEAD**, tratados separadamente. |
+> | **§5.3** | **Causalidade rebaixada** a hipótese não confirmada empiricamente. |
+>
+> **Erro registrado não se apaga.** A versão anterior das seções corrigidas permanece legível, com
+> a razão da correção — mesmo princípio da §31 da matriz de riscos.
+
 ---
 
 ## 0. Como ler este documento
@@ -53,46 +71,166 @@ Nenhuma linha deste artefato autoriza correção. Toda correção depende dos tr
 momento do *prebuild*; **não há código nativo a editar**, e qualquer mudança de orientação exige
 **novo *build*** (não exige, porém, escrever Objective-C, Swift, Java ou Kotlin).
 
-### 1.2 Efeito real, por plataforma
+### 1.2 Efeito real, por plataforma — **SEÇÃO CORRIGIDA NA EMENDA DO PORTÃO 1**
 
-O *plugin* interno `withOrientation` do Expo, ao receber `orientation: "portrait"`:
+> ### ⚠️ CORREÇÃO MATERIAL — a versão anterior desta seção estava **ERRADA**
+>
+> **O que esta seção afirmava, e que é FALSO:** *"o plugin `withOrientation` … **não** escreve a
+> variante `UISupportedInterfaceOrientations~ipad`. Na ausência da variante, o iPad **herda** a
+> chave base. → iPhone: retrato. **iPad: retrato.**"*
+>
+> **Por que estava errada:** a auditoria anterior leu **apenas** o *plugin* de orientação e
+> concluiu dali o comportamento do iPad. **Faltou ler o segundo *plugin* que escreve a mesma
+> família de chaves** — `withRequiresFullScreen`. O erro foi meu, não da evidência física.
+>
+> **O fundador estava certo:** o aplicativo **rodou em paisagem no iPad** na campanha física. A
+> evidência empírica contradizia minha conclusão estática, e a evidência empírica é que estava
+> correta. O texto original é preservado acima, tachado como falso, porque **erro registrado não
+> se apaga** — a §31 da matriz aplica o mesmo princípio.
 
-- **iOS** — escreve a chave base `UISupportedInterfaceOrientations` e **não** escreve a variante
-  `UISupportedInterfaceOrientations~ipad`. Na ausência da variante, o iPad **herda** a chave base.
-  → **iPhone: retrato. iPad: retrato.**
-- **Android** — escreve `android:screenOrientation="portrait"` na `activity` principal.
-  → **Telefone Android: retrato. Tablet Android: retrato.**
+`COMPROVADO PELO CÓDIGO` · `node_modules/@expo/config-plugins/build/ios/Orientation.js:15-39`
 
-**Conclusão factual:** a decisão do fundador **D1** — *telefones permanecem em retrato; tablets e
-iPads suportam retrato **e** paisagem* — **está hoje contrariada pela configuração**, em ambas as
-plataformas, para **todos** os tablets. Não é um defeito de código de tela: é uma **política de
-plataforma ausente**.
+Ao receber `orientation: "portrait"`, o *plugin* `withOrientation` escreve **somente** a chave
+base:
 
-### 1.3 Conflito latente com a regra de multitarefa da Apple
+```js
+// Orientation.js:22, :25-26, :33-39
+const PORTRAIT_ORIENTATIONS = ['UIInterfaceOrientationPortrait', 'UIInterfaceOrientationPortraitUpsideDown'];
+function setOrientation(config, infoPlist) {
+  return { ...infoPlist, UISupportedInterfaceOrientations: getUISupportedInterfaceOrientations(orientation) };
+}
+```
 
-`UIRequiresFullScreen: false` é a declaração de que o aplicativo **participa de Split View e Slide
-Over**. A regra da Apple para multitarefa em iPadOS exige que o aplicativo aceite **as quatro
-orientações**. Hoje o binário declara **multitarefa habilitada** e **uma única orientação**.
+`COMPROVADO PELO CÓDIGO` · `node_modules/@expo/config-plugins/build/ios/RequiresFullScreen.js:21-22`,
+`:55-67` — **o *plugin* que a auditoria anterior não leu**
 
-Consequência prática do Split View, independentemente de rotação: o iPad pode entregar ao
-aplicativo uma janela de **~320pt, ~507pt, ~678pt ou ~981pt** de largura, e pode **mudá-la em
-tempo de execução** enquanto o aplicativo está em primeiro plano. Ou seja: **a instabilidade de
-redimensionamento descrita na §4 já é alcançável hoje, sem nenhuma mudança de orientação.**
+```js
+const iPadInterfaceKey = 'UISupportedInterfaceOrientations~ipad';
+const requiredIPadInterface = ['UIInterfaceOrientationPortrait','UIInterfaceOrientationPortraitUpsideDown',
+                               'UIInterfaceOrientationLandscapeLeft','UIInterfaceOrientationLandscapeRight'];
+function setRequiresFullScreen(config, infoPlist) {
+  const requiresFullScreen = !!config.ios?.requireFullScreen;              // undefined -> false
+  const isTabletEnabled = config.ios?.supportsTablet || config.ios?.isTabletOnly;  // true
+  if (isTabletEnabled && !requiresFullScreen) {                            // ⇒ VERDADEIRO neste projeto
+    infoPlist[iPadInterfaceKey] = [...new Set(existing.concat(requiredIPadInterface))];
+  }
+  return { ...infoPlist, UIRequiresFullScreen: requiresFullScreen };
+}
+```
 
-### 1.4 Opções técnicas e riscos — **nada foi alterado**
+O comentário do próprio Expo em `:61-63` explica o porquê: a chave é escrita para **evitar a
+recusa `ITMS-90474` da App Store**, que exige as quatro orientações de quem declara multitarefa
+em iPad.
 
-| Opção | O que faz | Risco | Custo |
+**Efeito real, corrigido:**
+
+| Plataforma / *idiom* | Chave efetiva | Resultado | `D1` |
 |---|---|---|---|
-| **O1** — `orientation` por plataforma via `ios.infoPlist` explícito (`UISupportedInterfaceOrientations~ipad` com as quatro orientações) + `android.screenOrientation` mantido `portrait` | Entrega D1 exatamente. Telefone trava; tablet libera. | Exige *build* novo. Expõe **todas** as telas à paisagem de uma vez — inclusive Colorir e Ateliê (§5). | Baixo em configuração, **alto** em validação. |
-| **O2** — `orientation: "default"` global + travamento por tela via `expo-screen-orientation` | Controle fino, tela a tela. | **Dependência nova** (exige aprovação prévia, `AGENTS.md`). Adiciona *plugin* e superfície de erro. Telefone passaria a depender de código, não de configuração — mais frágil. | Médio/alto. |
-| **O3** — Manter retrato global e **não** entregar D1 | Zero risco técnico imediato. | **Contraria D1**, decisão já aprovada do fundador. Não resolve o Split View, que independe de orientação. | Nulo — e insuficiente. |
+| **iPhone** | `UISupportedInterfaceOrientations` = retrato + retrato invertido | retrato | ✅ **cumprido** |
+| **iPad** | `UISupportedInterfaceOrientations~ipad` = **as quatro** | **retrato + paisagem** | ✅ **já cumprido hoje** |
+| **Telefone Android** | `android:screenOrientation="portrait"` | retrato | ✅ cumprido |
+| **Tablet Android** | `android:screenOrientation="portrait"` — **o manifesto Android não tem variante por *idiom*** | **retrato forçado** | ❌ **VIOLADO** |
 
-**Recomendação técnica (não é decisão):** **O1**, porque é a única que entrega D1 sem dependência
-nova, e porque a distinção telefone × tablet passa a viver na **plataforma**, não em código de
-tela — coerente com **D2** (o *layout* é decidido pelo tamanho da janela, não pelo nome do
-aparelho). **Precondição inegociável:** O1 só pode ser aplicada **depois** que F6-R3 (§4) e a
-política do canvas (§5) existirem, sob pena de liberar a paisagem sobre uma fundação que a
-destrói.
+`COMPROVADO PELO CÓDIGO` · `node_modules/@expo/config-plugins/build/android/Orientation.js:21-33`:
+`setAndroidOrientation` grava `android:screenOrientation` na *activity* principal a partir da
+**mesma chave global**, sem nenhuma distinção entre telefone e tablet.
+
+`COMPROVADO PELO CÓDIGO` · prova negativa: `grep` por `ScreenOrientation`, `lockAsync`,
+`OrientationLock` e `screenOrientation` em **todo o `src/`** → **zero ocorrências**. Não há
+travamento nem liberação de orientação em tempo de execução.
+
+**Conclusão factual corrigida:** `D1` **não** está integralmente violada. Está violada **apenas em
+tablet Android**. Esse é o **único vão real de orientação** — e é o vão mais difícil, porque o
+manifesto Android **não oferece** o mecanismo por *idiom* que o Info.plist oferece.
+
+### 1.2-bis Consequência que muda a urgência de `F6-R3`
+
+Como o **iPad já gira hoje**, o risco de `resize` **não** é uma exposição futura condicionada à
+liberação da paisagem: **é uma exposição presente**, em qualquer binário com a forma do HEAD atual.
+
+Isso **não rebaixa** `P-152` nem `P-164` — **eleva** os dois. A formulação anterior (*"a camada
+global torna-se destrutiva no instante em que `D1` liberar paisagem"*) fica **corrigida para**:
+*"a camada global **já é** alcançável em iPad hoje, por rotação e por Split View"*.
+
+### 1.3 Multitarefa da Apple — **coerência confirmada, não conflito**
+
+A versão anterior desta seção descrevia um *"conflito latente"*: multitarefa declarada com uma
+única orientação. **Isso também estava errado, pela mesma razão.** O Expo escreve a variante
+`~ipad` exatamente **para manter a coerência** com a regra da Apple. Não há conflito, e um envio à
+App Store **não** seria recusado por `ITMS-90474` com a configuração atual.
+
+Permanece verdadeiro, e independe de orientação: o Split View pode entregar janelas de
+**~320pt, ~507pt, ~678pt ou ~981pt** e **mudá-las em tempo de execução**. A instabilidade da §4
+**já é alcançável hoje** — agora por **dois** caminhos, não um: rotação **e** multitarefa.
+
+### 1.4 Opções técnicas — **reformuladas; `O1` REBAIXADA; nada foi alterado**
+
+> **`O1` deixou de ser a recomendação.** Ela partia de duas premissas hoje refutadas: (a) que o
+> iPad estaria travado em retrato — **não está**; (b) que *"Android permanece retrato"* satisfaria
+> `D1` — **não satisfaz**, porque `D1` cobre **tablet Android** também (emenda do fundador, item 4).
+> `O1` **permanece candidata apenas para a parte iOS**, onde, de fato, hoje **nada precisa mudar**.
+
+**O problema, reduzido ao que resta:** entregar paisagem em **tablet Android** sem liberar paisagem
+em **telefone Android**, sabendo que o manifesto tem **uma única** chave para os dois.
+
+Quatro caminhos deverão ser comparados **objetivamente na etapa PLAN** — nenhum é decisão agora, e
+**nenhuma dependência foi instalada**:
+
+| Via | O que faz | A favor | Contra / a provar |
+|---|---|---|---|
+| **A — configuração CNG/nativa por plataforma e *idiom*** | iOS: manter o que já existe. Android: qualificador de recurso (`values-sw600dp`) ou variante de manifesto que diferencie o *idiom* | Sem dependência nova; distinção vive na plataforma, coerente com `D2` | **Provar que existe** mecanismo de manifesto que separe telefone de tablet sem código. Se não existir, A é insuficiente sozinha |
+| **B — `expo-screen-orientation`** | `orientation: "default"` global + travamento em tempo de execução onde `D1` exige retrato | Cobre Android integralmente; controle explícito | **Dependência nova** — exige aprovação prévia (`AGENTS.md`); telefone passa a depender de código, não de configuração; interação com Split View a validar |
+| **C — *config plugin* próprio / runtime Android específico** | *Plugin* local que escreve o manifesto Android por *idiom* | Sem dependência de terceiros | Código nativo de *build* a manter; risco de divergir do Expo a cada SDK |
+| **D — comportamento nativo do Android moderno** | A partir do Android 16 (API 36) o sistema **ignora** restrições de orientação em telas grandes (≥600dp) | Pode entregar `D1` em tablet Android **sem nenhuma mudança** | **Depende da versão do Android**; não cobre tablets antigos; precisa ser medido, não presumido |
+
+**A solução vencedora deverá, cumulativamente:** cumprir `D1` **integralmente** nos quatro casos ·
+preservar multitarefa e redimensionamento no iPad · evitar dependência nova se não for necessária ·
+**nunca classificar telefone em paisagem como tablet apenas por largura** · exigir ***build* nativo**
+quando a configuração nativa mudar.
+
+**Precondição inegociável, reforçada:** nada disso pode ser aplicado antes de `F6-R3` e da política
+de canvas do §`PF6D-D-CANVAS`. E como o **iPad já gira**, `F6-R3` é urgente **mesmo que nenhuma
+mudança de orientação seja feita**.
+
+### 1.5 Reconciliação exigida — **binário físico × configuração que o HEAD geraria**
+
+A emenda do fundador exige que os dois **não** sejam tratados como equivalentes. Auditoria somente
+leitura, **nenhum *build* gerado**.
+
+**A) Binário nativo efetivamente testado na campanha física**
+
+| Item | Valor |
+|---|---|
+| *Build* EAS | `10fce052-222b-4d9a-aad8-92467ccd8d1d` |
+| *Commit* nativo de origem | `7c12987622d07a8e305e1930fdae45751afc65d9` — existe neste repositório; *"docs(governance): registra a canonicalizacao do runtime e os contratos de build/validacao"*, 2026-07-30 |
+| Natureza | *Development Client* iOS, **resignado** para o iPad do fundador |
+| JS executado | **não** o do binário — veio do **Metro**, com o código da Fase 6 |
+
+**B) Configuração que o CNG do HEAD `93571c6` produziria num *build* novo**
+
+**Prova de equivalência da fonte de orientação** — `git diff 7c12987..HEAD`:
+
+| Arquivo | Resultado |
+|---|---|
+| `app.json` | **diff vazio — byte a byte idêntico.** É a **única** fonte de orientação do projeto |
+| `app.config.js` / `app.config.ts` | **não existem** |
+| `plugins/` | **não existe** — nenhum *config plugin* próprio |
+| `eas.json` | mudou: variáveis `EXPO_PUBLIC_*` e o perfil `c60-pilot`. **Nada relacionado a orientação, `idiom` ou Info.plist** |
+| `package.json` | `expo ~54.0.35` → `~54.0.36`; *scripts* `check:env` e `start:dev` |
+| `@expo/config-plugins` (*lock*) | **54.0.4** → **54.0.5** |
+
+**Veredito da reconciliação:** **A e B produzem a mesma política de orientação.** A configuração de
+orientação do binário fisicamente testado é a mesma que o HEAD atual geraria — e é por isso que o
+iPad girou. A evidência física e a evidência estática **agora concordam**; antes discordavam porque
+minha leitura estática estava incompleta.
+
+**Incerteza residual, declarada e não estimada:** o binário físico foi gerado com
+`@expo/config-plugins` **54.0.4**, e o que está instalado neste *worktree* é **54.0.5**. **Não li o
+código da 54.0.4** — ela não está instalada, e baixá-la não é leitura de repositório. A diferença é
+de *patch* dentro do mesmo SDK 54 e o comportamento de `withRequiresFullScreen` é antigo e
+estável, mas **isso é inferência, não prova**. A confirmação definitiva exige inspecionar o
+`Info.plist` do próprio `.ipa` — o que **não** foi feito porque exigiria baixar o artefato do EAS.
+Registrado como item de conferência, não como fato.
 
 ---
 
@@ -443,7 +581,31 @@ O próprio código já documenta a fragilidade — `src/screens/AtelierCanvasScr
 
 O aplicativo **depende de nunca redimensionar**. **D1 remove essa garantia.**
 
-### 5.3 O sintoma após o Centro de Controle — hipótese sustentada por código
+### 5.3 O sintoma após o Centro de Controle — **HIPÓTESE CAUSAL PRIORITÁRIA, NÃO CONFIRMADA**
+
+> ### ⚠️ CORREÇÃO DE CAUSALIDADE — emenda do Portão Humano 1, item 6
+>
+> **Status desta seção, congelado:**
+> **`HIPÓTESE CAUSAL PRIORITÁRIA / MECANISMO COMPATÍVEL COM A EVIDÊNCIA ESTÁTICA, AINDA NÃO
+> CONFIRMADO EMPIRICAMENTE`.**
+>
+> **É proibido escrever** — aqui ou em qualquer artefato do delta — que *"o sintoma é explicado por
+> encerramento do processo da `WKWebView`"* **como fato confirmado**.
+>
+> **O que esta auditoria provou:** que existem, no código, **vulnerabilidades reais e compatíveis**
+> com o sintoma relatado — ausência de escuta de `onContentProcessDidTerminate` e ausência de
+> revalidação em `AppState` nas duas telas de canvas. Isso é prova de **ausência de defesa**.
+>
+> **O que esta auditoria NÃO provou:** que abrir e fechar o Centro de Controle **de fato** provocou
+> `onContentProcessDidTerminate` no aparelho do fundador. A execução física **não capturou** essa
+> evidência. Ausência de defesa **não é** demonstração de causa.
+>
+> **Confirmação causal exige** instrumentação e reprodução no subportão apropriado (`F6-SG-A`),
+> com captura do evento em aparelho — não inferência estática.
+>
+> **`P-152` e `P-164` permanecem, sem rebaixamento.** A incerteza é sobre a **causa**, não sobre o
+> **risco**: as ausências de defesa estão comprovadas e continuam abertas independentemente de qual
+> mecanismo tenha disparado o sintoma observado.
 
 O Centro de Controle do iOS **não redimensiona** a janela; ele leva o aplicativo a `inactive`.
 Portanto §5.2 **não** explica sozinho o sintoma. A auditoria encontrou uma segunda ausência:
@@ -462,20 +624,26 @@ Portanto §5.2 **não** explica sozinho o sintoma. A auditoria encontrou uma seg
 
 Em iOS, quando o processo de conteúdo do `WKWebView` é encerrado por pressão de memória — o que
 segundo plano e transições de sistema tornam mais provável — **`onError` não dispara**. O único
-sinal é `onContentProcessDidTerminate`, que **não é escutado em lugar nenhum**. O resultado é uma
-`WebView` **em branco, sem recuperação automática**, e como nenhuma das duas telas escuta
-`AppState`, **nada reavalia a integridade do canvas quando o aplicativo volta a `active`**.
+sinal é `onContentProcessDidTerminate`, que **não é escutado em lugar nenhum**. **Se** esse
+encerramento ocorrer, o resultado **seria** uma `WebView` em branco **sem recuperação automática**;
+e como nenhuma das duas telas escuta `AppState`, **nada reavalia a integridade do canvas quando o
+aplicativo volta a `active`** — isso último é fato, e vale para **qualquer** causa de perda, não só
+para esta hipótese.
 
 **Classificação exigida pelo escopo:**
 
 | Camada | Natureza | Dono |
 |---|---|---|
 | Ausência de tratamento de término do processo da `WebView` e ausência de revalidação em `AppState` nas duas telas de canvas | **`CANVAS-SPECIFIC`** — os quatro jogos tratam `AppState`; **só** Colorir e Ateliê não tratam | **Fase 9** (`F9-C60-LFC-01`) |
-| Ausência de qualquer política de `resize`/orientação em toda a aplicação, que torna o canvas destrutível assim que a paisagem for liberada | **`GLOBAL`** | **Fase 6** (`F6-LFC-01` / **F6-R3**) |
+| Ausência de qualquer política de `resize`/orientação em toda a aplicação, que deixa o canvas destrutível sob rotação e sob multitarefa — **ambas já alcançáveis hoje em iPad** (§1.2-bis) | **`GLOBAL`** | **Fase 6** (`F6-LFC-01` / **F6-R3**) |
 
-**As duas coisas são reais e distintas.** A camada global **não** causa o sintoma do Centro de
-Controle; a camada específica **não** protege contra rotação. Corrigir uma sem a outra deixa o
-defeito de pé. **Nada foi corrigido nesta auditoria.**
+**As duas ausências de defesa são reais, comprovadas e distintas** — e essa afirmação **não**
+depende da hipótese causal. A camada global **não seria** a explicação do sintoma do Centro de
+Controle; a camada específica **não** protege contra rotação. Corrigir uma sem a outra deixa a
+exposição de pé. **Nada foi corrigido nesta auditoria.**
+
+**Qual delas explica o sintoma observado permanece indeterminado** — inclusive a possibilidade de
+uma terceira causa ainda não levantada. A determinação é tarefa de `F6-SG-A`, com instrumentação.
 
 ---
 
@@ -483,11 +651,12 @@ defeito de pé. **Nada foi corrigido nesta auditoria.**
 
 | # | Achado | Estado |
 |---|---|---|
-| **AD-1** | A série `E000–E089` do *checklist* mestre **não existe** neste repositório. Varredura exaustiva de `docs/` + `specs/` devolve apenas `E003–E018`, `E022`, `E023`, `E039`, `E042`, `E075`, `E076`, `E077`. O próprio `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md:282` afirma textualmente que `E039` e `E042` *"**não** possuem representação versionada neste repositório"*. A identidade canônica de pendência aqui é a matriz **`P-01..P-149`**. → **Questão aberta `Q1` do Clarify.** | Registrado, não resolvido |
+| **AD-1** | A série `E000–E089` do *checklist* mestre **não existe** neste repositório. Varredura exaustiva de `docs/` + `specs/` devolve apenas `E003–E018`, `E022`, `E023`, `E039`, `E042`, `E075`, `E076`, `E077`. O próprio `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md:282` afirma textualmente que `E039` e `E042` *"**não** possuem representação versionada neste repositório"*. A identidade canônica de pendência aqui é a matriz **`P-01..P-167`**. → `Q1` **RESOLVIDA** na emenda do Portão 1: `E` e `P` são **taxonomias paralelas**, sem relação obrigatória 1:1; a ausência material de `E000–E089` **não** autoriza inventar, recriar, migrar `E`→`P` nem substituir o *checklist* mestre. Ver `DECISIONS.md` §`PF6D-Q1`. | **Resolvido pela emenda** |
 | **AD-2** | `P-103` está na matriz como `IMPLEMENTADO SEM CONSUMIDOR` (*"`ADVENTURES_GUIDE` sem consumidor e `BeniAppTour` órfão"*). Porém o tour de Aventuras **executa em aparelho** — `isAdventureTourActive()` é consumido por `AppNavigator.js:291` e pela `TabletSidebar`, e o fundador observou o tour rodando com marcação errada. **Tensão entre a matriz e o comportamento observado.** **Não reclassifiquei `P-103`** — reclassificar exigiria evidência que esta auditoria não produziu. → **Encaminhado à Fase 7.** | Registrado, não resolvido |
 | **AD-3** | `TabletSidebar` viola `RF-A7` (alvo 56×56) e `RF-C12` (piso 13px) — requisitos **já aprovados** na *spec* da 021. São violações de requisito existente, **não** achados novos; pertencem ao Bloco **B2**, que está **BLOQUEADO** por **D18**. | Registrado |
 | **AD-4** | `grid` e `displayScaleTablet` em `tokens.js` são *tokens* **sem nenhum consumidor** — a mesma natureza de `P-82`/`P-148` (código declarado e morto). **Não criei código de risco novo por isso**: a regra do fundador em §27.2 da matriz proíbe criar código por simples ampliação de evidência, e o fato passa a ser **coberto** por `F6-RSP-02`, que enuncia a ausência do modelo de três faixas. | Registrado, sem código novo |
-| **AD-5** | O Split View do iPadOS **já pode** entregar larguras variáveis hoje (`UIRequiresFullScreen: false`), **sem** nenhuma mudança de orientação. A instabilidade de `resize` **não é hipotética nem futura**. | Registrado |
+| **AD-5** | O Split View do iPadOS **já pode** entregar larguras variáveis hoje (`UIRequiresFullScreen: false`), **sem** nenhuma mudança de orientação. A instabilidade de `resize` **não é hipotética nem futura**. **Reforçado pela emenda:** a §1.2 corrigida prova que o iPad **também já gira**, então são **dois** caminhos de `resize` abertos hoje, não um. | Registrado — **agravado** |
+| **AD-7** | *(novo, emenda do Portão 1)* O manifesto Android gerado pelo CNG **não possui variante por *idiom***: `android:screenOrientation` é uma chave única para telefone e tablet (`@expo/config-plugins/build/android/Orientation.js:21-33`). Entregar `D1` em **tablet Android** sem liberar paisagem em **telefone Android** é, hoje, um problema **sem solução de configuração conhecida e provada** neste repositório. → comparação obrigatória das vias **A/B/C/D** na etapa PLAN (§1.4). | Registrado, não resolvido |
 | **AD-6** | O *smoke* atual (portões `G-BP-1/2`, `G-SAFE`, `G-NAV-1/2`, `G-A11Y-1/2`, `G-MOTION`, `G-SPLASH`, `G-STATUS`, `G-ICON`) **não tem nenhum portão** de âncora de mapa, de faixa expandida, de política de orientação ou de estabilidade sob `resize`. O *checklist* do delta (`02_CLARIFY_E_CHECKLIST.md` §3) propõe esses portões. | Registrado |
 
 ---
@@ -499,3 +668,10 @@ nenhum manifesto. Não instalou dependência. Não gerou *build*. Não executou 
 executou `npm run smoke` (por determinação explícita do fundador para esta etapa documental). Não
 corrigiu nenhum defeito. Não reclassificou nenhuma pendência existente. Não reabriu nenhuma das
 decisões `D1`–`D18`. Não fez *push*, não fez *merge* e não trocou de *worktree*.
+
+**A emenda do Portão Humano 1 (2026-08-08) também não fez:** não baixou o `.ipa` do *build*
+`10fce052`, não consultou o EAS, não gerou *build*, não instalou `expo-screen-orientation` nem
+qualquer outra dependência, não alterou `app.json`, não escolheu entre as vias A/B/C/D, não
+rebaixou `P-152` nem `P-164`, não reclassificou `P-103` e não alterou a linha `P-141` — que foi
+**verificada e está correta** (167/167 linhas da matriz com exatamente 22 colunas, com contagem
+que honra o escape `\|` do Markdown).
