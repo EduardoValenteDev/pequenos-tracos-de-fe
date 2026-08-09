@@ -11,6 +11,14 @@ concedida no fechamento do **Portão Humano 1** (aprovado definitivamente em **2
 | Árvore de entrada | **limpa** |
 | Data | 2026-08-09 |
 | Etapa | **PLAN + Constitution Check — e nada além disso** |
+| Revisão | **r2 — Emenda do Portão Humano 2** (`HEAD` de entrada da emenda: `3e5ae91`) |
+
+> **Emenda do Portão Humano 2 (r2).** Incorpora a decisão **`Q8`** (§41.5), a autorização **`Q9`**
+> (§41.6), a **correção obrigatória da colisão de versionamento `v:3`** (§11.5), o contrato de
+> *tokens* da barra lateral (§19.1), a **trava de `MAP_ANCHOR_FRAMING`** (§41.4), a **matriz de
+> compatibilidade obrigatória** (§28.1) e o Constitution Check atualizado (§4). Ordem executiva,
+> conteúdo técnico aprovado, `Q3`–`Q7`, `SD-8`, `P-152`, `P-164` e as fronteiras de escopo da Fase 6
+> permanecem **inalterados**.
 
 ---
 
@@ -49,10 +57,14 @@ ou na auditoria `00`, e diz **o que** será feito, **em que ordem**, **com que c
 | P6 | `npm run smoke` e `npx expo-doctor` verdes no `HEAD` de partida | ⏳ **a confirmar na Etapa 7**, não executado nesta rodada (proibido) |
 | P7 | Aparelho físico iPad do fundador disponível para as campanhas de `SG-A`/`SG-B`/`SG-C` | ✅ (usado na campanha anterior) |
 | P8 | **Tablet Android físico** | ❌ **indisponível** — ver §33 e §36 |
-| P9 | Portão Humano 2 (este PLAN) | ⏳ **pendente** |
+| P9 | Portão Humano 2 (este PLAN) | ⏳ **pendente de aprovação definitiva** |
 | P10 | Portão Humano 3 (Tasks + Analyze) | ⏳ pendente |
+| P11 | **`Q8`** — política de compatibilidade da obra já salva | ✅ **DECIDIDA** pelo fundador (§41.5) — direção `c + d`, 10 regras normativas |
+| P12 | **`Q9`** — autorização para tocar `src/theme/tokens.js` em `F6-R1.4` | ✅ **AUTORIZADA** pelo fundador (§41.6), com 6 restrições |
 
 **P6, P9 e P10 são bloqueadores de execução.** Nenhuma linha de código é escrita antes de P9 e P10.
+**P11 e P12 deixaram de ser questões abertas de produto**: viraram **contratos normativos** cujo
+cumprimento é verificado por portões de implementação (§26).
 
 ---
 
@@ -98,7 +110,7 @@ ou na auditoria `00`, e diz **o que** será feito, **em que ordem**, **com que c
 | # | Princípio | Como o PLAN o respeita | Tensão identificada | Mitigação | Veredito |
 |---|---|---|---|---|---|
 | **I** | **Stack Tecnológico Soberano** — nada de dependência nova sem aprovação prévia; `npx expo install`; compatibilidade SDK 54 / RN 0.81.5 / React 19.1 / New Architecture | Todo o plano de `F6-R3` e `F6-R2` é **zero dependência**: usa `AppState`, `useWindowDimensions`, `react-native-webview` e `expo-file-system` já presentes. Nenhuma biblioteca de *layout* é introduzida (`F6-R1.2`) | **Sim, em `F6-R1.1`:** a via **(B)** de orientação seria `expo-screen-orientation` — **dependência nova** | **Nenhuma instalação nesta rodada.** §20 elimina a via (A) com prova de leitura de código e ordena as demais; a escolha só ocorre após **prova de mecanismo** no início de `F6-R1`, e uma dependência só entra com **aprovação prévia explícita** e via `npx expo install` | ✅ **PASSA**, com a tensão declarada e contida |
-| **II** | **Arquitetura Local-First e Separação de Responsabilidades** — UI em `src/screens`/`src/components`, lógica em `src/services`, estado compartilhado em `src/context`; áreas protegidas; nenhuma alteração destrutiva sem aprovação | Geometria pura vai para `src/services/mapAnchor.js`; ciclo de vida para `src/hooks/`; arquétipos para `src/components/layout/`. `src/data/adventureMap.js` continua a fonte de coordenadas. Nada sai do local-first | **Sim, duas:** (a) `F6-R3.5` toca o **formato persistido** da obra da criança; (b) `F6-R1.4` + o *token* de largura da barra lateral tocam o **design system**, área protegida | (a) **Nenhuma migração destrutiva** (`R3.5-l`): versionamento *write-forward*, arquivo antigo nunca reescrito no lugar; e a política de compatibilidade vira a **questão `Q8`** submetida ao fundador (§41.5) antes das Tasks. (b) `F6-R1.4` **já é requisito aprovado** na *spec*; a criação de *token* novo em `tokens.js` §2.4 vira a **questão `Q9`** (§41.6) | ⚠️ **PASSA CONDICIONALMENTE** — depende de `Q8` e `Q9` respondidas no Portão 2 |
+| **II** | **Arquitetura Local-First e Separação de Responsabilidades** — UI em `src/screens`/`src/components`, lógica em `src/services`, estado compartilhado em `src/context`; áreas protegidas; nenhuma alteração destrutiva sem aprovação | Geometria pura vai para `src/services/mapAnchor.js`; ciclo de vida para `src/hooks/`; arquétipos para `src/components/layout/`. `src/data/adventureMap.js` continua a fonte de coordenadas. Nada sai do local-first | **Duas áreas protegidas são tocadas:** (a) `F6-R3.5` toca o **formato persistido** da obra da criança; (b) `F6-R1.4` toca o **design system** (`tokens.js`) | **Ambas têm instrução direta do fundador.** (a) **`Q8` DECIDIDA** (§41.5): abertura é estritamente leitura, proibida migração silenciosa, gravação *write-forward* com validação de releitura antes da promoção, formato anterior nunca destruído, *lineart* histórico protegido. (b) **`Q9` AUTORIZADA** (§41.6): `tokens.js` pode ser alterado em `F6-R1.4` sob 6 restrições. **O que restou de ambas são condições de implementação verificáveis** — portões `G-CMP-1`..`G-CMP-5` e `G-SID-2`/`G-SID-3` (§26), não questões de produto | ✅ **PASSA** — sem condição de produto pendente |
 | **III** | **Qualidade e Clean Code** — identificadores em inglês, documentação/comentários/relatórios em PT-BR, tolerância zero a *God Objects*, TypeScript **não** é a *baseline* | Todos os módulos novos em **JavaScript**; nenhum `tsconfig.json`; nenhuma conversão de `.js`. A extração da aritmética do mapa **reduz** `AdventureMapScreen.js`, hoje o maior concentrador de geometria | **Sim:** `AdventureMapScreen.js` e `ColoringCanvas.js` já são arquivos grandes e as mudanças caem dentro deles | Extração para `src/services/mapAnchor.js` e `src/hooks/useSurfaceLifecycle.js` **remove** responsabilidade das telas em vez de acrescentar. No canvas, a mudança substitui aritmética existente — não acrescenta camada | ✅ **PASSA** |
 | **IV** | **Performance e UI/UX Mobile** — memoização situacional e justificada, chaves estáveis, listas virtualizadas, base64 transitório no canvas **não** é violação, medir antes de refatorar amplo | A âncora canônica é função **pura** e barata; o `resize` do canvas passa a recalcular **apenas uma transformação de apresentação** (O(1)) em vez de realocar *buffers* (hoje O(W·H) e destrutivo). O *pipeline* base64 de exportação **não muda** | **Sim:** o mapa é caminho quente de *scroll*; introduzir chamada nova no `onScroll` pode custar | O `onScroll` só passa a **gravar** uma fração (duas operações aritméticas), sem alocação nem `setState` adicional. Nenhuma memoização preventiva. **Medição antes** de qualquer refatoração ampla (§23) | ✅ **PASSA** |
 | **V** | **Regra de Ouro — SDD com 3 Portões Humanos** — pular, inverter ou comprimir etapas é violação constitucional | Este artefato é **exclusivamente** a Etapa SDD 4. Etapas 1–3 estão concluídas e aprovadas; Tasks (5), Analyze (6) e Implement (7) **não** foram iniciadas e não serão antes dos Portões 2 e 3 | Nenhuma | — | ✅ **PASSA** |
@@ -110,19 +122,27 @@ ou na auditoria `00`, e diz **o que** será feito, **em que ordem**, **com que c
 | **Precedência Documental** | O PLAN se situa **abaixo** da *spec* aprovada e acima de Tasks. Nenhum ponto deste documento contraria o Roteiro Mestre, a Constituição ou a *spec* | Nenhuma | — | ✅ |
 | **Nomenclatura sem Ambiguidade** | "Fase 6" = fase do Roteiro; "Etapa SDD 4" = Plan; `F6-SG-A..D` = subportões; `R1/R2/R3` = **taxonomia**, nunca ordem | Nenhuma | — | ✅ |
 | **Rigor Proporcional ao Risco** | A mudança toca **persistência de dados da criança** e **ciclo de vida** ⇒ faixa de rigor máximo: fluxo completo + pesquisa técnica + revisão independente + aprovação explícita | Nenhuma — o PLAN adota a faixa máxima voluntariamente | Revisão independente prevista na Etapa 8 (§27) | ✅ |
-| **Áreas Protegidas** | *Paywall*, progresso, conquistas, `accessControl`, manifestos de áudio/cenas, histórias e **assets**: **zero toque** (§10) | **Sim:** *design system* (`tokens.js`) e obra da criança | `Q8` e `Q9`; e `F6-R1.4` já tem instrução direta via *spec* aprovada | ⚠️ condicionada a `Q8`/`Q9` |
+| **Áreas Protegidas** | *Paywall*, progresso, conquistas, `accessControl`, manifestos de áudio/cenas, histórias e **assets**: **zero toque** (§10) | *Design system* (`tokens.js`) e formato persistido da obra da criança são tocados | **Instrução direta existe para os dois casos**: `Q9` autoriza `tokens.js` dentro de `F6-R1.4`; `Q8` fixa o contrato de compatibilidade da obra. Nenhuma outra área protegida é tocada | ✅ **PASSA** |
 | **Restrições de Stack e Segurança** | Sem `Dimensions.get` novo (`SD-11`); sem *breakpoint* novo; sem `Platform.isPad`; sem `expo-device` para decidir *layout* (`D2`) | Nenhuma | Portão de *smoke* estático (§26) | ✅ |
 | **Portões de Qualidade** | `npm run smoke` verde + `npx expo-doctor` verde + **validação visual** + **validação em aparelho físico** — todos exigidos por subportão (§27–§32) | Nenhuma | — | ✅ |
 | **Governance** — "todo Plano DEVE passar pelo Constitution Check" | Este §4 é esse Check | Nenhuma | — | ✅ |
 
 ### 4.3 Veredito consolidado do Constitution Check
 
-> **Nenhuma violação constitucional não resolvida.**
-> **Duas tensões declaradas e contidas** (Princípio II e Áreas Protegidas), ambas convertidas em
-> perguntas objetivas ao fundador — **`Q8`** e **`Q9`** — que precisam de resposta **antes das
-> Tasks**. Enquanto não respondidas, o PLAN é aprovável, mas a Etapa 5 não começa.
-> A tensão do Princípio I (dependência de orientação) **não bloqueia**: nada é instalado e a via
-> vencedora exige prova de mecanismo + aprovação prévia.
+> **Nenhuma violação constitucional não resolvida. Nenhuma questão de produto em aberto.**
+>
+> As duas tensões que estavam registradas como pendentes (Princípio II e Áreas Protegidas) foram
+> **decididas pelo fundador** na emenda do Portão Humano 2: **`Q8`** (compatibilidade da obra já
+> salva) e **`Q9`** (autorização de `tokens.js`). O que subsiste delas **não é questão** — são
+> **condições de implementação verificáveis**, expressas como portões que falham automaticamente:
+> `G-CMP-1`..`G-CMP-5`, `G-SID-2`, `G-SID-3` e `G-VER-1`..`G-VER-3` (§26), mais a matriz de
+> compatibilidade obrigatória do §28.1.
+>
+> A tensão do Princípio I (dependência de orientação) **não bloqueia**: nada é instalado, a via (A)
+> está provada insuficiente e a via vencedora exige prova de mecanismo + aprovação prévia.
+>
+> **Bloqueadores remanescentes são apenas de processo:** Portão Humano 2 (aprovação definitiva) e
+> Portão Humano 3 (Tasks + Analyze).
 
 **Complexidade a justificar (molde do `plan-template.md`):**
 
@@ -326,7 +346,7 @@ na porção dos *tokens* inertes. **Subportão:** `F6-SG-C`.
 | `src/components/layout/CenteredContent.js` | `R1` | delegação pura para `ContentContainer` | Acompanha, sem mudar de contrato |
 | `src/components/TabletSidebar.js` | `R1` | `:4` importa `theme/colors` legado · `:125` `width: 200` · `:196` `navButtons` sem `flex:1` | `R1.4` (§19) |
 | `src/navigation/AppNavigator.js` | `R1` | `:232` corte de tablet · geometria do *callout* condicionada a `!isTablet` | Consome `useWindowBand`; geometria do *callout* ganha equivalente lateral |
-| `src/theme/tokens.js` | `R1` | `:134-137` §2.4 | `grid` e `displayScaleTablet` ganham consumidor (§17.2); possível *token* novo de largura da barra lateral — **`Q9`** |
+| `src/theme/tokens.js` | `R1` | `:134-137` §2.4 | `grid` e `displayScaleTablet` ganham consumidor (§17.2); *token* de largura estrutural da barra lateral com semântica adaptativa — **`Q9` AUTORIZADA**, contrato em §19.1 |
 | `app.json` | `R1` | única fonte de orientação do projeto | **Só** se a via vencedora de §20 exigir — e só após aprovação |
 | `scripts/smoke.js` | todos | `:48` `check(...)`, `:68` `codeOf(...)` | Portões estáticos novos (§26) |
 
@@ -342,7 +362,7 @@ na porção dos *tokens* inertes. **Subportão:** `F6-SG-C`.
 | Progresso e conquistas (`src/context/ProgressContext.js`, serviços de jornada) | Área protegida |
 | Manifestos de áudio e de cenas; `src/data/stories*`; conteúdo das histórias | Área protegida |
 | `assets/**` — qualquer *asset* | Área protegida; nenhum lote auditado nesta rodada |
-| `src/services/drawingStorage.js` e o **esquema** de armazenamento | `R3.5-l`: nenhuma migração destrutiva. Só muda se `Q8` autorizar, e ainda assim *write-forward* |
+| `src/services/drawingStorage.js` — o **envelope** de armazenamento (`POINTER_VERSION`/`v`) e `APP_STORAGE_SCHEMA_VERSION` | **Intocados** (§11.5, `G-VER-2`). `Q8` decidiu o contrato: abrir é **leitura pura**; o registro antigo nunca é reescrito no lugar; nenhum degrau novo entra na escada de `storageMigrationService.js`. Qualquer gravação no formato novo é *write-forward* isolado (`Q8`, regras 7–9), sobre os eixos `paintSchemaVersion`/`layoutVersion` — **nunca** sobre `v` |
 | Os quatro jogos (`MonteACena*`, `ParesDoBeni`, `Palavrinhas`, `CadeAOvelhinha`) e `QuizScreen` | Já tratam `AppState`; refatorá-los é risco sem requisito. `GameSurface` é **oferecido**, não imposto, e sua adoção por tela é `F12A` |
 | `StoryBookScreen.js` além do necessário | *Story Home V2* / *Página Viva* são **F9** |
 | `src/theme/colors.js` (tema legado) | Não é apagado neste delta; só deixa de ser consumido pela barra lateral |
@@ -393,20 +413,83 @@ com proporção preservada e *letterbox*/*pillarbox* (`R3.5-f`).
 largura em faixa. Os 13 consumidores atuais do predicado `width >= breakpoints.tablet` migram para
 ele de forma **incremental** (§12).
 
-### 11.5 Contrato do canvas *raster* — **alterado, aditivo**
+### 11.5 ⚠️ Eixos de versionamento — **quatro eixos, quatro nomes, zero colisão**
+
+**Correção obrigatória do Portão Humano 2.** A versão anterior deste PLAN propunha chamar a nova
+representação de `v:3`. **Isso está proibido.** A revisão do fundador identificou a colisão, e a
+leitura dirigida desta rodada confirmou que ela é **mais grave do que parecia**: o número `3` já
+tem **dois** significados distintos no sistema, e o campo `v` **já é lido como discriminador de
+ponteiro** — a proposta anterior seria silenciosamente descartada pelo próprio código.
+
+#### 11.5.1 O que já existe — verificado por leitura de código
+
+| Eixo | Nome canônico existente | Onde vive | Valor hoje | Evidência |
+|---|---|---|---|---|
+| **1. Schema do AsyncStorage do app** | `APP_STORAGE_SCHEMA_VERSION` | `src/services/storageKeys.js:19`; escada de migração em `storageMigrationService.js:156` (`{ version: 3, run: migrateToV3 }`) | **`3`** | `export const APP_STORAGE_SCHEMA_VERSION = 3;` |
+| **2. Envelope de ponteiro de blob** | `POINTER_VERSION`, serializado como o campo **`v`** | `src/services/drawingStorage.js:30, :47, :83`; reusado por `coloring60DrawingStorage.js:119` | **`3`** | `const POINTER_VERSION = 3;` · `p.v === POINTER_VERSION && typeof p.uri === 'string'` |
+| **3. Formato do payload visual transportado** | campo **`fmt`** do ponteiro | `drawingStorage.js:59-77` (escrita), `:94-102` (leitura) | **`1`** = data URL crua · **`2`** = JSON com bloco de *layout* | `fmt = 1` / `fmt = 2`; `if (p.fmt === 2) {...}` |
+| **4. Geometria lógica da obra** | **não existe hoje** | os campos `W/H/imgX/imgY/imgW/imgH` viajam **sem** versão própria | — | `layout = { W, H, imgX, imgY, imgW, imgH }` em `buildPointer` |
+
+#### 11.5.2 Prova de que `v:3` no payload do canvas seria destrutivo
+
+`src/screens/ColoringScreen.js:224`:
+
+```js
+if (obj.v === 3 || typeof obj.uri === 'string') return false; // ponteiro v3 nunca vem do canvas
+```
+
+Um payload emitido por `exportPaint` com `v:3` seria **classificado como ponteiro**, reprovado pela
+guarda do *writer* e **descartado** — perda de obra por colisão de nomenclatura. A proibição do
+fundador não é estilística: é a evitação de um defeito real.
+
+#### 11.5.3 Separação normativa adotada
+
+| Eixo | Nome | Estado nesta fase |
+|---|---|---|
+| Schema do AsyncStorage do app | `APP_STORAGE_SCHEMA_VERSION` | **PRESERVADO E INTOCADO.** A Fase 6 **não** incrementa este número e **não** acrescenta degrau à escada de migração |
+| Envelope de ponteiro de blob | `POINTER_VERSION` / campo `v` do ponteiro | **PRESERVADO, CONGELADO EM `3`.** O significado existente é mantido integralmente |
+| **Formato do payload visual** | **`paintSchemaVersion`** (novo campo nomeado) | **NOVO EIXO.** O campo `v` **interno do payload do canvas permanece `2` para sempre** e passa a ser tratado como marca legada, nunca como discriminador de evolução |
+| **Geometria lógica da obra** | **`layoutVersion`** (novo campo nomeado) | **NOVO EIXO.** Versiona a **semântica** dos campos de geometria (`W/H/imgX/imgY/imgW/imgH` no *raster*; `logicalW/logicalH` no vetor) — isto é, *como esses números devem ser interpretados* |
+
+**Justificativa técnica dos nomes — escolhidos após confirmar a estrutura existente, não por
+conveniência:** `paintSchemaVersion` nomeia exatamente o que `exportPaint`/`exportState` produzem
+(o payload de pintura). `layoutVersion` nomeia exatamente o bloco que o ponteiro **já** chama de
+`layout` em `drawingStorage.js:72-77` — o vocabulário é herdado do código, não inventado. Nenhum
+dos dois é `v`, nenhum dos dois é `POINTER_VERSION`, nenhum dos dois é `schemaVersion` (nome já
+ocupado por manifestos de *pack* em `packManifestService.js:67` e `packPublishMarker.js:39`).
+
+**Regras invioláveis de leitura e escrita:**
+
+1. `POINTER_VERSION` responde **"onde está o blob"** — nunca "como a pintura é interpretada".
+2. `paintSchemaVersion` responde **"que campos o payload tem"** — nunca "onde ele está guardado".
+3. `layoutVersion` responde **"o que as coordenadas significam"** — nunca "que campos existem".
+4. `APP_STORAGE_SCHEMA_VERSION` responde **"que chaves o AsyncStorage tem"** — e não muda nesta fase.
+5. **Nenhum** *reader*, *writer*, *validator*, migração ou teste pode inferir um eixo a partir de
+   outro. Ausência de `paintSchemaVersion` ⇒ payload legado; ausência de `layoutVersion` ⇒
+   geometria legada; e as duas ausências são **independentes**.
+6. `G-VER-1`, `G-VER-2` e `G-VER-3` (§26) lacram estas regras.
+
+### 11.6 Contrato do canvas *raster* (Colorir) — **alterado, aditivo**
 
 | Ponte | Hoje | Alvo |
 |---|---|---|
-| `exportPaint` | `{v:2, W, H, imgX, imgY, imgW, imgH, rev, paintedPx, paintablePx, data}` — `W`/`H` são **píxeis da *viewport*** | `{v:3, canonicalW, canonicalH, ...}` — dimensões do **espaço lógico da arte**. Campos de `v:2` continuam presentes para leitores antigos |
-| `validatePaint` / `loadPaint` | Portão de dimensão contra `W`/`H` **da janela** (`:550`) — rejeita com `LOAD_PAINT_INCOMPATIBLE` | Portão contra o **espaço canônico**. `v:2` legado tratado conforme a resposta a **`Q8`** |
+| `exportPaint` | `{v:2, W, H, imgX, imgY, imgW, imgH, rev, paintedPx, paintablePx, data}` — `W`/`H` são **píxeis da *viewport*** | `{v:2, paintSchemaVersion, layoutVersion, W, H, imgX, imgY, imgW, imgH, ...}` — os campos de geometria passam a expressar o **espaço lógico da obra**, e `layoutVersion` declara essa interpretação. **`v` permanece `2`** (§11.5.2). Todos os campos existentes continuam presentes |
+| `validatePaint` / `loadPaint` | Portão de dimensão contra `W`/`H` **da janela** (`:548-553`) — rejeita com `LOAD_PAINT_INCOMPATIBLE` | O portão **deixa de reprovar por diferença de *viewport***. Passa a validar **integridade** (o payload é legível e coerente) e a **enquadrar** o espaço lógico na janela atual (§15.2). `LOAD_PAINT_INCOMPATIBLE` fica reservado a payload **ilegível**, e mesmo então **nunca** autoriza apagar (§41.5, regra 3) |
 | `resize()` | Realoca `C`, `off`, `tmp` e **não** recalcula `baseD`, `paintD`, `imgX/Y/W/H`, `qBuf`/`visBuf` | Recalcula **apenas** a transformação de apresentação e redesenha. *Buffers* canônicos **nunca** são realocados por mudança de janela (`R3.5-c`) |
 
-### 11.6 Contrato do canvas vetorial — **alterado, aditivo**
+### 11.7 Contrato do canvas vetorial (Ateliê) — **alterado, aditivo**
 
 `exportState` passa de `{v:2, strokes, stamps, bgColor}` para
-`{v:3, logicalW, logicalH, strokes, stamps, bgColor}`, com traços e carimbos em coordenadas
-**lógicas canônicas**. `loadState` ganha um ramo `d.v===3` **antes** do ramo `d.v===2` existente,
-que é preservado intacto — exatamente como o ramo `d.ops` legado já é preservado hoje.
+`{v:2, paintSchemaVersion, layoutVersion, logicalW, logicalH, strokes, stamps, bgColor}`, com
+traços e carimbos em coordenadas **lógicas canônicas**. **O campo `v` permanece `2`.**
+`loadState` passa a ramificar por `paintSchemaVersion`/`layoutVersion` **antes** de cair no ramo
+`d.v===2` existente, que é **preservado intacto** — exatamente como o ramo legado `d.ops`
+(`AtelierCanvas.js:420-442`) já é preservado hoje.
+
+**Obras `v:2` sem `logicalW`/`logicalH`** (todas as existentes) são tratadas pelo leitor de
+compatibilidade determinístico da regra 6 de `Q8` (§41.5): a geometria é reconstruída a partir dos
+metadados e dimensões intrínsecas realmente disponíveis, **nunca** assumindo a *viewport* atual como
+se fosse a de criação.
 
 ---
 
@@ -417,7 +500,7 @@ cada um. Nenhum passo exige que o seguinte exista.
 
 | Pacote | Passos incrementais |
 |---|---|
-| `F6-R3` | (1) `useSurfaceLifecycle` criado e consumido **só** por Colorir e Ateliê. (2) Instrumentação de término do processo — **observabilidade pura**, sem mudança de comportamento. (3) `R3.1` no mapa — preservação de posição, isolada. (4) Espaço lógico do **vetor** (menor risco: o dado já sobrevive). (5) Espaço lógico do ***raster*** (maior risco: precisa de `Q8`) |
+| `F6-R3` | (1) `useSurfaceLifecycle` criado e consumido **só** por Colorir e Ateliê. (2) Instrumentação de término do processo — **observabilidade pura**, sem mudança de comportamento. (3) `R3.1` no mapa — preservação de posição, isolada. (4) **Leitor de compatibilidade** — somente leitura, sem gravar nada, regido pelas regras 1–6 de `Q8`; é o passo que já elimina a perda descrita em §15.1. (5) Espaço lógico do **vetor** (o dado já sobrevive). (6) Espaço lógico do ***raster***. (7) ***Writer* de gravação nova** — *write-forward* completo das regras 7–9 de `Q8`, **último** e isoladamente reversível |
 | `F6-R2` | (1) `mapAnchor.js` criado e coberto por testes **sem nenhum consumidor** — mudança de zero risco. (2) `MapRegion` migra (pino). (3) Câmera inicial migra. (4) `onContentSize` migra. (5) `scrollPinIntoView` migra e o comentário falso morre. (6) Assinatura única. Entre (2) e (5), âncora antiga e nova coexistem **provadamente iguais** por comparação de captura |
 | `F6-R1` | (1) `useWindowBand` criado sem consumidor. (2) Arquétipos criados sem consumidor. (3) Adoção **família a família**, uma superfície de cada vez, começando pela Editorial (menor risco, já tem coluna). (4) Barra lateral. (5) Orientação — **último passo do último pacote**, porque é o único que exige *build* nativo |
 
@@ -431,8 +514,11 @@ morra no passo (6). Ao fim de `F6-SG-B`, **nenhuma** derivação paralela sobrev
 
 | Frente | Garantia |
 |---|---|
-| **Obra da criança já salva** | `SD-8` é bloqueador absoluto. `R3.5-k` exige definir a compatibilidade **antes** de qualquer migração — é o objeto de **`Q8`**. `R3.5-l`: **nenhuma migração destrutiva**; o arquivo antigo nunca é reescrito no lugar; a gravação é *write-forward* |
-| **Formato persistido** | Versionamento aditivo (`v:2` → `v:3`) nos dois motores, com o ramo antigo **preservado** — o mesmo padrão que `loadState` já usa para o formato `d.ops` |
+| **Obra da criança já salva** | `SD-8` é bloqueador absoluto. `R3.5-k` está **satisfeito**: a compatibilidade foi definida **antes** de qualquer migração pela decisão `Q8` (§41.5). `R3.5-l`: **nenhuma migração destrutiva**; abrir é **estritamente leitura**; o arquivo antigo nunca é reescrito no lugar; a gravação é *write-forward* com validação de releitura antes da promoção |
+| **Formato persistido** | Versionamento aditivo por **campo nomeado** (`paintSchemaVersion`, `layoutVersion`) nos dois motores, com o campo `v` **congelado** e o ramo antigo **preservado** — o mesmo padrão que `loadState` já usa para o formato `d.ops`. Quatro eixos de versão, quatro nomes distintos (§11.5) |
+| **Envelope de armazenamento** | `POINTER_VERSION`/`v:3` de `drawingStorage.js` e `coloring60DrawingStorage.js` **preservado e intocado**; `APP_STORAGE_SCHEMA_VERSION` **não é incrementado** e nenhum degrau é acrescentado à escada de `storageMigrationService.js` |
+| ***Lineart* histórico** | Nenhum *lineart* necessário para recompor uma obra anterior é removido, sobrescrito visualmente ou tornado inacessível enquanto houver obra que dependa dele (`Q8`, regra 10) |
+| ***Rollback*** | O caminho de reversão continua capaz de **consumir** o formato anterior enquanto existir obra nesse formato (`Q8`, regra 9) |
 | **Progresso, conquistas, *entitlements*** | Intocados |
 | **Rota e navegação** | `Tab.Navigator` único; travessia de faixa **já é** *re-render*, não remontagem (auditoria §3.1). `R3.3` existe para **impedir regressão**, não para reconstruir |
 | **Alvos de guia** | `adventures.sidebarTab`, `home.sidebarTab`, `atelier.sidebarTab`, `stars.sidebarTab`, `profile.sidebarTab` **permanecem registrados e mensuráveis** após `R1.4` |
@@ -513,10 +599,13 @@ gesto "meio aplicado" atravessando uma mudança de janela.
 gira hoje** — é classificado como incompatível e a tela abre **sem a pintura**. Isto não é
 degradação estética nem hipótese: é leitura direta do portão de dimensão.
 
-**Efeito no PLAN, sem reclassificar nada:** o achado **reforça** `P-152` e `P-164`, **eleva** a
-prioridade do passo (5) de `F6-R3` (§12) e é a razão técnica pela qual **`Q8` precisa ser
-respondida antes das Tasks**. Nenhuma linha da matriz é alterada nesta rodada; nenhum código é
-tocado.
+**Efeito no PLAN, sem reclassificar nada:** o achado **reforça** `P-152` e `P-164` e foi a razão
+técnica da decisão **`Q8`** (§41.5). A resposta do fundador ataca este ponto de forma direta: o
+portão de dimensão **deixa de reprovar por diferença de *viewport***, e incompatibilidade **nunca**
+autoriza `clear`, `removeItem`, exclusão de blob ou substituição por canvas limpo. O passo (4) de
+`F6-R3` (§12) — o leitor de compatibilidade, **somente leitura** — é o que fecha esta exposição, e
+por isso vem **antes** de qualquer mudança de gravação. Nenhuma linha da matriz é alterada; nenhum
+código é tocado nesta rodada.
 
 ### 15.2 Colorir — *raster* (`R3.5-a` a `R3.5-g`)
 
@@ -537,8 +626,8 @@ tocado.
 | `h` sem dependência permanente de píxeis da *viewport* | `:220`, `:232`, `:265`, `:292` gravam píxeis absolutos | Traços e carimbos gravados em coordenadas **lógicas canônicas** |
 | `i` coordenadas canônicas ou normalizadas | ausente | Espaço lógico fixo por obra, registrado em `logicalW`/`logicalH` |
 | `j` `resize` só reprojeta | `resize()` (`:452-456`) faz `C.width=W; C.height=H; render()` — o dado sobrevive (o modelo é vetorial), mas a **composição** é recortada e deslocada | `render()` aplica a projeção lógico→tela; a composição **se conserva** |
-| `k` compatibilidade definida **antes** da migração | `exportState` grava `{v:2, strokes, stamps, bgColor}` — **sem nenhuma dimensão de canvas registrada** | Objeto de **`Q8`**. Sem a dimensão de autoria, o espaço lógico de uma obra `v:2` precisa de uma regra explícita |
-| `l` nenhuma migração destrutiva | — | O `stateJson` antigo nunca é reescrito no lugar; `v:3` é gravado apenas na **próxima** gravação da obra |
+| `k` compatibilidade definida **antes** da migração | `exportState` grava `{v:2, strokes, stamps, bgColor}` — **sem nenhuma dimensão de canvas registrada** | ✅ **SATISFEITO** por `Q8` (§41.5). Sem dimensão de autoria, vale a regra 6: reconstrução **determinística** a partir dos metadados e dimensões intrínsecas realmente disponíveis; **nunca** usar a *viewport* atual como se fosse a original; ausência de evidência favorece **preservação** |
+| `l` nenhuma migração destrutiva | — | O `stateJson` antigo **nunca** é reescrito no lugar. Abrir é leitura pura. O formato novo (`paintSchemaVersion`/`layoutVersion`) só é produzido na **próxima gravação explícita da criança**, por *write-forward* validado (`Q8`, regras 7–9) |
 
 ### 15.4 Regra absoluta
 
@@ -641,11 +730,40 @@ já previa. Isso **não** é pergunta nova: é o julgamento visual que `Q3` semp
 
 | # | Defeito verificado | Linha | Alvo | Dono |
 |---|---|---|---|---|
-| 1 | `styles.sidebar: { width: 200 }` fixo — idêntico a 600dp e a 1366dp | `:125` | Largura responde à faixa (média × expandida). Requer um *token* — **`Q9`** | `F6-R1.4` |
+| 1 | `styles.sidebar: { width: 200 }` fixo — idêntico a 600dp e a 1366dp | `:125` | A largura estrutural sai do componente e passa à fonte canônica do *design system*, com semântica adaptativa — **`Q9` AUTORIZADA**, contrato em §19.1 | `F6-R1.4` |
 | 2 | `navButtons: { gap: 2 }` sem `flex: 1` e sem ancoragem inferior ⇒ **~700pt de vazio vertical** em iPad retrato | `:196` | Distribuição vertical com `flex` e ancoragem; **zero destino novo** | `F6-R1.4` |
 | 3 | `import { colors } from '../theme/colors'` — tema legado concorrente | `:4` | Passa a consumir `src/theme/tokens.js` | `F6-R1.4` |
 | 4 | `navButton: paddingVertical 13` + ícone 26 ⇒ ≈52pt — **abaixo** do mínimo 56×56 de `RF-A7` | `:200`, `:209` | **NÃO tocado aqui** | **Bloco `B2`** (`AD-3`) |
 | 5 | `progressLabel` 10px, `stars` 11px — **abaixo** do piso de 13px de `RF-C12` | `:192`, `:173` | **NÃO tocado aqui** | **Bloco `B2`** (`AD-3`) |
+
+### 19.1 Contrato do *token* de barra lateral (`Q9` — autorizada, com restrições)
+
+**A autorização não é para mover o número.** Transformar `width: 200` em `sidebarWidth: 200` e
+declarar o problema resolvido **não cumpre `F6-R1.4`**: continuaria sendo uma largura única para
+600dp e para 1366dp, e o vazio vertical de retrato permaneceria.
+
+**A semântica precisa refletir o contrato adaptativo.** Os *tokens* devem expressar o cruzamento de
+**papel de navegação** × **faixa**, e não uma constante única:
+
+| Eixo | Valores |
+|---|---|
+| **Papel de navegação** | *rail* / barra lateral compacta (só ícone e rótulo curto) × barra lateral completa |
+| **Faixa** | média `600–899dp` × expandida `>=900dp` |
+
+**Forma final decidida tecnicamente em Tasks**, desde que **todas** as seis restrições sejam
+cumpridas — e cada uma tem portão correspondente:
+
+| # | Restrição | Verificação |
+|---|---|---|
+| 1 | Existe **uma única fonte canônica** (`src/theme/tokens.js`) | `G-SID-2` |
+| 2 | **Nenhum novo *hardcode* distribuído** — nem em `TabletSidebar.js`, nem em `AppNavigator.js`, nem em arquétipo | `G-SID-2` |
+| 3 | **Nenhum *design system* paralelo** criado; nada duplicado de `tokens.js` | `G-RSP-4` |
+| 4 | A largura **não** é usada como substituto de medição real da *viewport*: quem precisa saber o espaço disponível **mede**; o *token* declara apenas a largura **estrutural** da navegação | `G-SID-3` + §41.4 |
+| 5 | A solução funciona em **600–899** e em **>=900**, com composição distinta | `SD-4` + captura em `SG-C` |
+| 6 | **Telefone compacto não sofre regressão** — a faixa compacta não consome estes *tokens* | `CN-1` |
+
+**Fato verificado que motiva a restrição 5:** hoje `TabletSidebar.js:125` entrega a mesma largura
+nas duas faixas; é exatamente essa indistinção que `R1.3` e `R1.4` existem para corrigir.
 
 **Invariantes:** os cinco alvos de guia (`adventures.sidebarTab`, `home.sidebarTab`,
 `atelier.sidebarTab`, `stars.sidebarTab`, `profile.sidebarTab`) **permanecem registrados e
@@ -707,7 +825,7 @@ e por `npx expo install`.
 
 | # | Risco | Onde nasce | Probabilidade | Impacto | Contenção |
 |---|---|---|---|---|---|
-| RG-1 | **Perda de obra já salva** ao introduzir espaço canônico | `loadPaint` portão de dimensão (§15.1) | **Alta se `Q8` for mal resolvida** | **Máximo — `SD-8`** | `Q8` respondida **antes** das Tasks; *write-forward*; teste com acervo real antes de qualquer gravação; passo (5) isolado e reversível |
+| RG-1 | **Perda de obra já salva** ao introduzir espaço canônico | `loadPaint` portão de dimensão (§15.1) | **Reduzida de "alta" para "média"** — a política deixou de ser incógnita | **Máximo — `SD-8`, inalterado** | **`Q8` DECIDIDA** (§41.5): abrir é leitura pura; incompatibilidade nunca autoriza apagar; gravação só por *write-forward* validado; formato anterior nunca destruído; *lineart* histórico protegido. Verificação: portões `G-CMP-1`..`G-CMP-5`, matriz de compatibilidade obrigatória (§28.1) com acervo real, e passos (4) e (7) de §12 isolados e reversíveis. **O risco permanece aberto e com impacto máximo** — o que caiu foi a incerteza de decisão, não a exigência de prova |
 | RG-2 | Deslocamento visível dos pinos ao unificar a âncora | `F6-R2` | Média | Médio | `RD-2`: comparação de captura **antes/depois** nas 20 histórias, nas três faixas; coexistência provada em §12 |
 | RG-3 | Arquétipos viram *design system* paralelo | `F6-R1.2` | Média | Alto | `RD-3`: estender `AppScreen`/`ContentContainer`; proibido duplicar *tokens*; portão estático em §26 |
 | RG-4 | Remontagem incidental na travessia de faixa | `F6-R1` | Baixa | Alto | `R3.3`; o *shell* já está correto e o portão protege contra regressão |
@@ -717,6 +835,9 @@ e por `npx expo install`.
 | RG-8 | Declarar causa provada sem prova | `P-164` | Média | **Alto — de credibilidade** | `FD-12`; §6.4; nenhum artefato pode escrever causalidade confirmada |
 | RG-9 | Liberar orientação antes de `SG-A` | ordem executiva | Baixa | **Máximo** | `RD-1`; a orientação é o **último passo do último pacote** (§12) |
 | RG-10 | *Build* nativo consumir o ciclo | `F6-R1.1` | Alta | Baixo | `RD-4`: um único *build* agrupando todas as mudanças de configuração |
+| **RG-11** | **Colisão de versionamento** — dois significados concorrentes para o mesmo discriminador | `drawingStorage.js` (`POINTER_VERSION`=3), `storageKeys.js` (`APP_STORAGE_SCHEMA_VERSION`=3), payload do canvas (`v`=2) e `ColoringScreen.js:224` | **Era alta** — a proposta anterior do PLAN a materializava | **Máximo** — payload seria descartado pela guarda do *writer* (§11.5.2) | **Eliminada por projeto:** quatro eixos, quatro nomes (`APP_STORAGE_SCHEMA_VERSION` · `POINTER_VERSION`/`v` · `paintSchemaVersion` · `layoutVersion`); `v` do canvas congelado em `2`; portões `G-VER-1`..`G-VER-3` |
+| **RG-12** | ***Token* de largura usado como substituto de medição real** da *viewport* | `F6-R1.4` | Média | Alto — reintroduz geometria estimada, o mesmo defeito que `R2.3` corrige | Restrição 4 de §19.1; portão `G-SID-3`; a regra geral de "medir o que pode ser medido" do §41.4 |
+| **RG-13** | ***Write-forward* incompleto** — promoção antes da validação de releitura | passo (7) de §12 | Média | **Máximo — `SD-8`** | `Q8` regra 8: criar → persistir → validar integridade → **provar releitura** → só então promover. Falha em qualquer etapa mantém a representação anterior como fonte válida. Casos 12 e 13 da matriz (§28.1) e portão `G-CMP-4` |
 
 ---
 
@@ -728,14 +849,17 @@ e por `npx expo install`.
 | Instrumentação de término do processo | `useSurfaceLifecycle` | Confirmação/refutação de `P-164` em `SG-A` | Não (é observabilidade) |
 | `R3.1` preservação do mapa | `regionLayout` (já existe) | `SD-7` | Não |
 | `R3.5` espaço lógico vetorial | `useViewportProjection` | `SD-8` | **Sim** |
-| `R3.5` espaço lógico *raster* | `useViewportProjection` + **`Q8`** | `SD-8` | **Sim** |
-| **`F6-SG-A`** | tudo de `F6-R3` + roteiro físico | `F6-R2` | **Sim** |
+| **Leitor de compatibilidade** (somente leitura) | contrato `Q8` regras 1–6 | espaço lógico *raster* e vetorial; fecha §15.1 | **Sim** |
+| `R3.5` espaço lógico *raster* | `useViewportProjection` + leitor de compatibilidade | `SD-8` | **Sim** |
+| ***Writer* write-forward** | espaço lógico dos dois motores + contrato `Q8` regras 7–9 | gravação no formato novo | **Sim** |
+| **Eixos de versionamento separados** (§11.5) | — | leitor, *writer*, *validator*, migração e testes | **Sim** |
+| **`F6-SG-A`** | tudo de `F6-R3` + roteiro físico + **matriz de compatibilidade (§28.1)** | `F6-R2` | **Sim** |
 | `mapAnchor.js` | — | `R2.1`–`R2.5` | Não |
 | `R2.1`–`R2.5` | `mapAnchor.js` | `SD-5`, `SD-6`; infraestrutura de `P-157` | **Sim** |
 | **`F6-SG-B`** | tudo de `F6-R2` + captura comparativa | `F6-R1` | **Sim** |
 | `useWindowBand` | — | arquétipos | Não |
 | Arquétipos | `useWindowBand` | `R1.3`, `SD-2`, `SD-3` | Não |
-| `R1.4` barra lateral | arquétipos + **`Q9`** | `SD-4` | **Sim** |
+| `R1.4` barra lateral | arquétipos + *tokens* semânticos de §19.1 | `SD-4` | **Sim** |
 | `R1.1` orientação | **`F6-SG-A` concedido** + prova de mecanismo + *build* | `SD-1` | **Sim** |
 | **`F6-SG-C`** | tudo de `F6-R1` + campanha física | apresentação de `F6-SG-D` | **Sim** |
 | **`F6-SG-D`** | `SG-A` + `SG-B` + `SG-C` + §37 | Bloco `B2` | **Sim — e não concedido** |
@@ -760,7 +884,10 @@ portanto, os dois mecanismos que já existem — e é justamente por isso que `m
 | `TA-2` | Arnês Node puro | `computeCameraTarget` — *clamp* em `[0, contentH - vp]`; nunca produz vazio no rodapé | idem | `R2` |
 | `TA-3` | Arnês Node puro | Assinatura única: história **sem** coordenada explícita produz a **mesma** fração para pino e para *scroll* (mata a divergência `LATENTE`) | idem | `R2` |
 | `TA-4` | Arnês Node puro | Projeção de *viewport*: `toScreen(toCanonical(p)) == p` dentro da tolerância, em retrato, paisagem e Split View | `scripts/testing/viewportProjectionHarness.js` (**novo**) | `R3` |
-| `TA-5` | Arnês Node puro | Ida e volta do formato: `v:3` → serializa → desserializa ⇒ coordenadas lógicas idênticas; `v:2` legado continua carregável | idem | `R3` |
+| `TA-5` | Arnês Node puro | Ida e volta do formato: payload com `paintSchemaVersion`/`layoutVersion` → serializa → desserializa ⇒ coordenadas lógicas idênticas; payload legado (sem esses campos) continua carregável | idem | `R3` |
+| `TA-11` | Arnês Node puro | **Ortogonalidade dos eixos de versão**: variar `POINTER_VERSION`, `paintSchemaVersion` e `layoutVersion` de forma independente não confunde *reader*, *writer* nem *validator*; nenhum eixo é inferido de outro (§11.5, regra 5) | `scripts/testing/artworkVersionHarness.js` (**novo**) | `R3` |
+| `TA-12` | Arnês Node puro | **Leitor de compatibilidade determinístico**: mesma obra legada + mesmos metadados ⇒ **mesma** geometria reconstruída, em qualquer *viewport*; a *viewport* atual **nunca** entra na reconstrução (`Q8`, regra 6) | idem | `R3` |
+| `TA-13` | Arnês Node puro | ***Write-forward***: falha injetada em cada etapa (criar · persistir · validar · reler) deixa a representação **anterior** como fonte válida e **não destrói nada** (`Q8`, regras 8 e 9) | idem | `R3` |
 | `TA-6` | Portão estático | Ausência de `Dimensions.get` em `src/` (`SD-11`) | `scripts/smoke.js` | todos |
 | `TA-7` | Portão estático | Nenhum *breakpoint* novo; `breakpoints` continua fonte única; `G-BP-1` preservado | `scripts/smoke.js` | `R1` |
 | `TA-8` | Portão estático | `grid` e `displayScaleTablet` têm **pelo menos um** consumidor real | `scripts/smoke.js` | `R1` |
@@ -804,6 +931,11 @@ nenhum portão falhar, o portão é decorativo.
 | `MT-9` | Reimportar `theme/colors` na barra lateral | `TA-10` |
 | `MT-10` | Remover um `registerGuideTarget` da barra lateral | `TA-9` |
 | `MT-11` | Reintroduzir literal `768` | `CN-7` / `G-BP-1` |
+| `MT-12` | Emitir o payload do canvas com `v:3` (a colisão proibida) | `G-VER-1` + `TA-11` |
+| `MT-13` | Fazer o leitor apagar, limpar ou substituir por canvas branco ao encontrar incompatibilidade de dimensão | `G-CMP-1` + caso 14 da matriz (§28.1) |
+| `MT-14` | Promover a nova representação **antes** de validar a releitura | `G-CMP-4` + `TA-13` + casos 12 e 13 da matriz |
+| `MT-15` | Reintroduzir largura estrutural de barra lateral fora de `tokens.js` | `G-SID-2` |
+| `MT-16` | Derivar largura disponível a partir do *token* de barra lateral em vez de medir | `G-SID-3` |
 
 **Regra:** cada mutante é injetado, o portão é observado falhando, o mutante é **revertido** e o
 resultado é registrado. Nenhum mutante é *commitado*.
@@ -829,6 +961,18 @@ de ausência, que ignoram comentários).
 | `G-RSP-2` | `grid` e `displayScaleTablet` têm consumidor | `P-82`/`P-148` |
 | `G-RSP-3` | Zero `Platform.isPad` e zero `expo-device` decidindo *layout* | `D2` |
 | `G-SID-1` | `TabletSidebar.js` importa `theme/tokens` e **não** `theme/colors`; mantém os cinco alvos de guia | `F6-SID-01` / `P-153` |
+| **`G-SID-2`** | `TabletSidebar.js`, `AppNavigator.js` e os arquétipos **não** contêm literal de largura estrutural de navegação; a largura vem de `tokens.js` | `Q9` restrições 1 e 2 |
+| **`G-SID-3`** | Nenhum consumidor deriva "espaço disponível" subtraindo o *token* de largura — quem precisa do espaço **mede** | `Q9` restrição 4 · `RG-12` |
+| **`G-RSP-4`** | Nenhum módulo de *layout* redeclara valores já presentes em `tokens.js` (sem *design system* paralelo) | `Q9` restrição 3 · `RD-3` |
+| **`G-VER-1`** | O payload emitido por `exportPaint`/`exportState` **nunca** contém `v: 3`; o campo `v` permanece `2` | **`RG-11`** · `ColoringScreen.js:224` |
+| **`G-VER-2`** | `POINTER_VERSION` continua `3` em `drawingStorage.js` e `coloring60DrawingStorage.js`; `APP_STORAGE_SCHEMA_VERSION` continua `3` e a escada de `storageMigrationService.js` não ganha degrau | preservação do envelope existente |
+| **`G-VER-3`** | *Reader*, *writer*, *validator* e testes referenciam `paintSchemaVersion` e `layoutVersion` por **nome**, nunca inferindo um eixo do outro | §11.5 regra 5 |
+| **`G-CMP-1`** | O caminho de **abertura** de obra não contém `clear`, `removeItem`, exclusão de blob nem substituição por canvas limpo | **`Q8` regras 2 e 3** |
+| **`G-CMP-2`** | Abrir uma obra **não** grava: nenhuma escrita de AsyncStorage nem de arquivo no caminho de leitura | **`Q8` regras 2 e 7** |
+| **`G-CMP-3`** | A projeção de compatibilidade é do tipo `contain` com *letterbox*; ausência de esticamento, de recorte silencioso e de transformação por camada divergente | **`Q8` regra 5** |
+| **`G-CMP-4`** | A gravação nova promove a representação **somente após** validar integridade e provar releitura; falha em qualquer etapa preserva a anterior | **`Q8` regras 8 e 9** · `RG-13` |
+| **`G-CMP-5`** | O caminho de limpeza/reset **não** remove *lineart* histórico enquanto houver obra que dependa dele | **`Q8` regra 10** |
+| **`G-MAP-4`** | Toda geometria mensurável (barra lateral, área segura, sobreposições) é **medida**; o *framing* residual é único, nomeado e justificado no próprio código | §41.4 · trava do Portão 2 |
 | `G-BP-1` | **preservado como está** | `P-30` |
 
 ---
@@ -837,9 +981,9 @@ de ausência, que ignoram comentários).
 
 | Subportão | Entrada | Saída (todos os itens, sem exceção) |
 |---|---|---|
-| **`F6-SG-A`** (`F6-R3`) | Portões Humanos 2 e 3 concedidos; **`Q8` respondida**; `HEAD` limpo; *smoke* e *doctor* verdes | `R3.1`–`R3.6` implementados · `TA-4`, `TA-5` verdes · `G-LFC-*` e `G-CVS-*` verdes · `MT-1`, `MT-5`, `MT-6` observados falhando e revertidos · roteiro físico §28 completo em iPad · **`SD-8` demonstrado: zero perda, zero desalinhamento, zero substituição indevida, zero desaparecimento** · `SD-7` demonstrado · instrumentação de término do processo ativa e com registro anexado (evento capturado **ou** "não reproduzido") · `CN-1`, `CN-3`, `CN-4` verdes · *smoke* e *doctor* verdes · revisão independente · **aprovação explícita do fundador** |
-| **`F6-SG-B`** (`F6-R2`) | **`SG-A` concedido** | `R2.1`–`R2.5` implementados · `TA-1`, `TA-2`, `TA-3` verdes · `G-MAP-*` verdes · `MT-2`, `MT-3`, `MT-4` observados falhando e revertidos · comparação de captura das **20** histórias, nas **três** faixas, antes/depois (`RD-2`) · **`SD-5`** (pino, alvo de toque, brilho, *scroll* e holofote na mesma âncora) · **`SD-6`** (câmera acerta a mira no iPad) · **uma única** constante de enquadramento no código, confirmada visualmente pelo fundador · `CN-2` verde · *smoke* e *doctor* verdes · **aprovação explícita** |
-| **`F6-SG-C`** (`F6-R1`) | **`SG-B` concedido**; **`Q9` respondida**; via de orientação escolhida com prova de mecanismo; dependência, se houver, **aprovada previamente** | `R1.1`–`R1.4` implementados · `G-RSP-*` e `G-SID-1` verdes · `MT-7`–`MT-11` observados falhando e revertidos · **`SD-1`** nos quatro casos (ver §33 para a rota condicional do caso 4) · **`SD-2`**, **`SD-3`**, **`SD-4`** com captura · **`SD-9`** (Split View e Slide Over) · vídeo do tour em telefone **e** iPad com os alvos da barra lateral medidos · `CN-1`, `CN-5`, `CN-6` verdes · *build* nativo único gerado e validado · *smoke* e *doctor* verdes · **aprovação explícita** |
+| **`F6-SG-A`** (`F6-R3`) | Portões Humanos 2 e 3 concedidos; `HEAD` limpo; *smoke* e *doctor* verdes | `R3.1`–`R3.6` implementados · `TA-4`, `TA-5`, `TA-11`, `TA-12`, `TA-13` verdes · `G-LFC-*`, `G-CVS-*`, **`G-VER-1..3`** e **`G-CMP-1..5`** verdes · `MT-1`, `MT-5`, `MT-6`, **`MT-12`, `MT-13`, `MT-14`** observados falhando e revertidos · roteiro físico §28 completo em iPad · **matriz de compatibilidade do §28.1 integralmente executada com o acervo real, com os quatro invariantes ZERO satisfeitos** · **`SD-8` demonstrado: zero perda, zero desalinhamento, zero substituição indevida, zero desaparecimento** · `SD-7` demonstrado · instrumentação de término do processo ativa e com registro anexado (evento capturado **ou** "não reproduzido") · `CN-1`, `CN-3`, `CN-4` verdes · *smoke* e *doctor* verdes · revisão independente · **aprovação explícita do fundador** |
+| **`F6-SG-B`** (`F6-R2`) | **`SG-A` concedido** | `R2.1`–`R2.5` implementados · `TA-1`, `TA-2`, `TA-3` verdes · `G-MAP-*` verdes · `MT-2`, `MT-3`, `MT-4` observados falhando e revertidos · comparação de captura das **20** histórias, nas **três** faixas, antes/depois (`RD-2`) · **`SD-5`** (pino, alvo de toque, brilho, *scroll* e holofote na mesma âncora) · **`SD-6`** (câmera acerta a mira no iPad) · **`G-MAP-4`: toda geometria mensurável medida** (barra lateral, área segura, sobreposições) e **no máximo uma** constante de enquadramento residual, nomeada, justificada no código e validada nas três faixas — confirmada visualmente pelo fundador · `CN-2` verde · *smoke* e *doctor* verdes · **aprovação explícita** |
+| **`F6-SG-C`** (`F6-R1`) | **`SG-B` concedido**; via de orientação escolhida com prova de mecanismo; dependência, se houver, **aprovada previamente** | `R1.1`–`R1.4` implementados · `G-RSP-1..4`, `G-SID-1`, **`G-SID-2`, `G-SID-3`** verdes · as **6 restrições de §19.1** cumpridas · `MT-7`–`MT-11`, **`MT-15`, `MT-16`** observados falhando e revertidos · **`SD-1`** nos quatro casos (ver §33 para a rota condicional do caso 4) · **`SD-2`**, **`SD-3`**, **`SD-4`** com captura · **`SD-9`** (Split View e Slide Over) · vídeo do tour em telefone **e** iPad com os alvos da barra lateral medidos · `CN-1`, `CN-5`, `CN-6` verdes · *build* nativo único gerado e validado · *smoke* e *doctor* verdes · **aprovação explícita** |
 | **`F6-SG-D`** | §37 | **Não é objeto deste PLAN.** Portão separado, não concedido |
 
 ---
@@ -868,6 +1012,46 @@ desenhos já salvos do aparelho.** Registro em vídeo, não só em captura.
 | 15 | Percorrer as quatro famílias nas três faixas | Composições **distintas**; sem coluna estreita com vazio | `SG-C` |
 | 16 | Barra lateral em retrato e paisagem | Sem vazio acumulado; sem destino novo | `SG-C` |
 | 17 | Regressão completa em **telefone** | Nada mudou | `SG-A`, `SG-B`, `SG-C` |
+
+---
+
+## 28.1 Matriz de compatibilidade obrigatória (`Q8`)
+
+**Obrigação futura de teste, normativa.** Nenhum item é opcional. Toda a matriz é executada com o
+**acervo real** de desenhos do aparelho, e sua conclusão integral é **critério de saída de
+`F6-SG-A`** (§27).
+
+| # | Caso | O que se executa | O que se verifica | Verificação automática |
+|---|---|---|---|---|
+| 1 | **Obra antiga em retrato** | Abrir obra criada antes da mudança, em retrato | Abre com a pintura **presente** e alinhada ao *lineart* | `TA-12`, `G-CMP-1` |
+| 2 | **Mesma obra em paisagem** | Girar com a obra aberta | Proporção preservada, `contain` + *letterbox*; tinta e *lineart* seguem juntos | `TA-4`, `G-CMP-3` |
+| 3 | **Retorno a retrato** | Girar de volta | Estado idêntico ao caso 1; nenhuma deriva acumulada | `TA-4` |
+| 4 | ***Viewport* menor** | Split View estreito / Slide Over | Nada some; nada é recortado silenciosamente | `G-CMP-3` |
+| 5 | ***Viewport* maior** | Tela cheia em paisagem | Nada é esticado; moldura em vez de distorção | `G-CMP-3` |
+| 6 | **Reabertura após fechar o app** | Encerrar o app, reabrir, abrir a obra | Obra íntegra; nenhuma gravação ocorreu no ciclo anterior | `G-CMP-2` |
+| 7 | ***Background* e *foreground*** | Sair e voltar com a obra aberta | Obra íntegra; nenhum recarregamento destrutivo | `G-LFC-2` |
+| 8 | **Centro de Controle** | Abrir e fechar o Centro de Controle | Idem | `G-LFC-2` |
+| 9 | **Término do processo de conteúdo** | Quando reproduzível no aparelho | Recuperação preserva a obra; evento **instrumentado** e registrado (`FD-12`: sem declarar causa provada) | `G-LFC-3` |
+| 10 | **Obra sem modificação** | Abrir e fechar sem desenhar | **Bytes persistidos idênticos** antes e depois — abrir não migra, não promove, não reescreve | `G-CMP-2` |
+| 11 | **Obra modificada e salva no formato novo** | Desenhar e salvar | Nova representação criada, validada, relida e **só então** promovida | `G-CMP-4`, `TA-13` |
+| 12 | **Falha durante a gravação nova** | Falha injetada em criar · persistir · validar · reler | Representação **anterior** continua sendo a fonte válida; nada destruído | `TA-13`, `G-CMP-4` |
+| 13 | ***Rollback*** | Reverter para a versão anterior do código com obras já gravadas no formato novo e no antigo | O caminho revertido **consome** o formato anterior; nenhuma obra fica órfã | `TA-13` |
+| 14 | **Formato legado** | Obra `v1`/`v2` sem geometria completa | Reconstrução **determinística** a partir dos metadados e dimensões intrínsecas disponíveis; **jamais** usando a *viewport* atual como se fosse a original; ausência de evidência favorece preservação | `TA-12` |
+| 15 | **Payload visual atual** | Obra no formato de pintura vigente | Lida e enquadrada corretamente; `paintSchemaVersion` ausente ⇒ tratada como legada, sem erro | `TA-11` |
+| 16 | **Envelope de armazenamento atual** | Obra guardada como ponteiro `v:3` de blob | Resolvida normalmente; `POINTER_VERSION` **intocado**; blob nunca excluído por incompatibilidade visual | `G-VER-2`, `G-CMP-1` |
+| 17 | **Novo schema lógico** | Obra gravada com `paintSchemaVersion` + `layoutVersion` | Lida, reprojetada e regravada sem perda; eixos de versão nunca confundidos | `TA-11`, `G-VER-3` |
+
+### Invariantes — válidos em **todos** os casos aplicáveis
+
+| Invariante | Significado operacional |
+|---|---|
+| **ZERO perda de píxeis da criança** | Nenhum píxel pintado desaparece em nenhuma transição da matriz |
+| **ZERO associação da tinta ao *lineart* errado** | Tinta e contorno são transformados pela **mesma** geometria; é proibido transformar camadas com geometrias diferentes |
+| **ZERO promoção destrutiva** | Nenhuma representação nova substitui a anterior antes de validada e relida; falha nunca destrói o que existia |
+| **ZERO abertura silenciosa como canvas branco quando existe obra recuperável** | Se há obra recuperável, ela é recuperada; canvas branco só quando **de fato** não há obra |
+
+**Violação de qualquer invariante em qualquer caso ⇒ `F6-SG-A` NÃO é concedido**, e nada avança —
+nem `F6-R2`, nem `F6-R1`, nem `B2`.
 
 ---
 
@@ -940,8 +1124,9 @@ indisponibilidade do aparelho é um fato operacional, não uma decisão de produ
 ## 34. Critérios objetivos de `F6-SG-A`
 
 Ver §27, linha `F6-SG-A`. **Condição dominante:** `SD-8` demonstrado no roteiro físico completo do
-§28, passos 3 a 9, com o **acervo real** de desenhos do aparelho. Sem isso, o subportão não é
-concedido, **independentemente** de tudo o mais estar verde.
+§28, passos 3 a 9, **e a matriz de compatibilidade do §28.1 executada integralmente** — 17 casos,
+quatro invariantes ZERO — com o **acervo real** de desenhos do aparelho. Sem isso, o subportão não
+é concedido, **independentemente** de tudo o mais estar verde.
 
 ## 35. Critérios objetivos de `F6-SG-B`
 
@@ -973,7 +1158,9 @@ abaixo estejam satisfeitas e documentadas:
 8. Regressão em telefone sem anomalia relevante.
 9. Revisão independente concluída.
 10. `P-150`, `P-151`, `P-152`, `P-153`, `P-154` com estado atualizado na matriz e evidência anexada.
-11. `Q8` e `Q9` respondidas e implementadas conforme a resposta.
+11. `Q8` e `Q9` — **decididas** no Portão Humano 2 — **implementadas conforme decidido**, com
+    `G-CMP-1`..`G-CMP-5`, `G-VER-1`..`G-VER-3`, `G-SID-2`, `G-SID-3`, `G-RSP-4` e `G-MAP-4` verdes
+    e a matriz de compatibilidade do §28.1 integralmente executada.
 12. Nenhuma decisão congelada reaberta; `P-103` **continua diferida à Fase 7**.
 
 > **Este PLAN não declara `B2` desbloqueado.** `D18` permanece em vigor.
@@ -984,15 +1171,19 @@ abaixo estejam satisfeitas e documentadas:
 
 | Cenário | Contenção imediata | *Rollback* |
 |---|---|---|
-| Perda ou corrupção de obra detectada em `SG-A` | **Parar o subportão.** Nenhum avanço para `R2` | Reverter o *commit* do passo (5)/(4) de `F6-R3`; o formato `v:2` continua íntegro em disco porque a gravação é *write-forward* |
+| Perda ou corrupção de obra detectada em `SG-A` | **Parar o subportão.** Nenhum avanço para `R2` | Reverter o *commit* dos passos (7)/(6)/(5) de `F6-R3`; o formato anterior continua íntegro em disco porque abrir é leitura pura e a gravação é *write-forward* validado |
+| Obra gravada no formato novo e código revertido | Nenhuma — o caminho revertido **consome** o formato anterior enquanto houver obra nele (`Q8`, regra 9) | Caso 13 da matriz (§28.1) prova esta reversibilidade **antes** de `SG-A` ser concedido |
+| Falha na promoção da nova representação | A representação anterior **permanece ativa**; nada é destruído (`Q8`, regra 8) | Nenhuma reversão de código necessária — é o comportamento projetado, coberto por `TA-13` e `G-CMP-4` |
 | Deslocamento de pino inaceitável em `SG-B` | Manter a âncora canônica e ajustar **a constante**, nunca reintroduzir a segunda derivação | Reverter o *commit* do passo de migração específico; os passos são atômicos por consumidor |
 | Regressão em telefone | Parar a adoção do arquétipo da família afetada | Reverter o *commit* daquela família; os arquétipos são adotados **família a família** |
 | Via de orientação falha na prova de mecanismo | **Não** adotar; reavaliar entre (B), (C) e (D) | Nenhuma reversão de código — a prova ocorre **antes** da adoção |
 | *Build* nativo quebra | Voltar ao perfil de *build* anterior | `app.json` é o único ponto de configuração e sua reversão é de uma linha |
 
 **Invariantes de contenção:** cada passo de §12 é um ***commit* atômico** próprio; nenhum passo
-mistura código, *assets* e governança; nenhuma gravação destrutiva ocorre antes de `Q8`; o acervo de
-desenhos é preservado por *write-forward* em qualquer cenário.
+mistura código, *assets* e governança; **nenhuma gravação destrutiva ocorre em cenário algum** —
+abrir é leitura pura e promover exige validação de releitura; o acervo de desenhos é preservado por
+*write-forward* em qualquer cenário; e o *lineart* histórico permanece acessível enquanto houver
+obra que dependa dele.
 
 ---
 
@@ -1007,6 +1198,8 @@ desenhos é preservado por *write-forward* em qualquer cenário.
 | `F6-R3.3` | `E034-R2` | `P-152` | — | `AppNavigator.js` | `CN-6`, §32 #2 | `SG-A` |
 | `F6-R3.4` | — | `P-164` | `PF6D-EXC-R3` | fronteira documental | revisão | `SG-A` |
 | `F6-R3.5` | — (novo do Portão 1) | `P-152`, `P-164` | **`PF6D-D-CANVAS`** | `ColoringCanvas.js`, `AtelierCanvas.js`, `useViewportProjection` | `TA-4`, `TA-5`, `G-CVS-1/2`, `MT-5`, `MT-6`, §28 #3-9 | `SG-A` · **`SD-8`** |
+| `F6-R3.5-k` · `-l` (compatibilidade e não destrutividade) | — (novo do Portão 1) | `P-152` | **`Q8`** (Portão 2) | leitor de compatibilidade, *writer* *write-forward*, `drawingStorage.js` (leitura), `atelierStorage.js` (leitura) | `TA-12`, `TA-13`, `G-CMP-1`..`G-CMP-5`, `MT-13`, `MT-14`, **§28.1 completa** | `SG-A` · **`SD-8`** |
+| Separação de eixos de versionamento | — (novo do Portão 2) | `P-152` | **`Q8` — correção de nomenclatura** | `ColoringCanvas.js`, `AtelierCanvas.js`, `ColoringScreen.js` (guarda `:224`), leitores/escritores | `TA-11`, `G-VER-1`..`G-VER-3`, `MT-12` | `SG-A` |
 | `F6-R3.6` | — (novo do Portão 1) | — | `PF6D-EXC-R3` | fronteira documental | revisão | `SG-A` |
 
 ### 39.2 `F6-R2` → … → `F6-SG-B`
@@ -1026,7 +1219,7 @@ desenhos é preservado por *write-forward* em qualquer cenário.
 | `F6-R1.1` | `E028-R1`..`R3` | `P-150` | `D1`, `PF6D-D1`, `D2` | configuração nativa (§20) | `SD-1`, prova de mecanismo, *build* | `SG-C` |
 | `F6-R1.2` | `E028-R4`..`R6` | `P-151` | `D3` | arquétipos, `ContentContainer`, `AppScreen` | `SD-2`, `SD-3`, `G-RSP-3`, `CN-1` | `SG-C` |
 | `F6-R1.3` | `E028-R7` | `P-151`, `P-82`, `P-148` | `D2` | `tokens.js`, `HubSurface` | `TA-8`, `G-RSP-2`, `MT-8` | `SG-C` |
-| `F6-R1.4` | `E028-R8`, `R9` | `P-153` | `D4` | `TabletSidebar.js`, `AppNavigator.js` | `TA-9`, `TA-10`, `G-SID-1`, `MT-9`, `MT-10`, `SD-4` | `SG-C` |
+| `F6-R1.4` | `E028-R8`, `R9` | `P-153` | `D4` + **`Q9`** (Portão 2) | `TabletSidebar.js`, `AppNavigator.js`, **`src/theme/tokens.js`** | `TA-9`, `TA-10`, `G-SID-1`, **`G-SID-2`, `G-SID-3`, `G-RSP-4`**, `MT-9`, `MT-10`, **`MT-15`, `MT-16`**, as 6 restrições de §19.1, `SD-4` | `SG-C` |
 
 ### 39.4 Elegibilidade de `F6-SG-D`
 
@@ -1074,8 +1267,11 @@ F6-SG-A concedido  ∧  F6-SG-B concedido  ∧  F6-SG-C concedido
 | `Q5` | 🟡 resolvível no PLAN | ✅ **RESOLVIDA** — `mapAnchor.js` + registro existente inalterado | §16, §11.1 |
 | `Q6` | 🟡 aberta, direção congelada | ✅ **RESOLVIDA quanto à unicidade**; valor confirmado visualmente em `SG-B` | §41.4 |
 | `Q7` | ⏸️ diferida à Fase 7 | ⏸️ **CONTINUA DIFERIDA** — não reclassificada | §41.7 |
-| **`Q8`** | — | 🆕 **NOVA — exige decisão do fundador antes das Tasks** | §41.5 |
-| **`Q9`** | — | 🆕 **NOVA — exige decisão do fundador antes das Tasks** | §41.6 |
+| **`Q8`** | 🆕 levantada pelo PLAN | ✅ **DECIDIDA E CONGELADA** pelo fundador — direção `c + d`, 10 regras normativas + correção de nomenclatura de versionamento | §41.5, §11.5, §28.1 |
+| **`Q9`** | 🆕 levantada pelo PLAN | ✅ **AUTORIZADA E CONGELADA** pelo fundador — `tokens.js` liberado em `F6-R1.4` sob 6 restrições | §41.6, §19.1 |
+
+> **Nenhuma questão de produto permanece aberta neste PLAN.** O que resta de `Q8` e `Q9` são
+> **condições de implementação verificáveis**, com portão automático correspondente.
 
 ### 41.2 `Q3` — resolvida
 
@@ -1112,30 +1308,80 @@ Consequências, e é isso que mata a duplicação:
    nas três faixas — o julgamento visual que `Q6` sempre reservou.
 4. `G-MAP-1` impede o retorno da duplicação.
 
-### 41.5 🆕 `Q8` — compatibilidade da obra **já salva** com o espaço lógico canônico
+#### Trava adicional do Portão Humano 2 — `MAP_ANCHOR_FRAMING` não pode virar o novo número mágico
 
-| Campo | Conteúdo |
+A resolução de `Q6` está aprovada **com esta trava**, que é parte do contrato e não comentário:
+
+| # | Regra |
 |---|---|
-| **Pergunta concreta** | Quando o espaço lógico canônico entrar em vigor, o que deve acontecer com um desenho **já salvo** cujo formato está preso às dimensões da *viewport* em que foi criado? |
-| **Evidência** | `ColoringCanvas.js:485-487` grava `W`/`H` em píxeis da *viewport*; `:548-553` **descarta** a pintura com `LOAD_PAINT_INCOMPATIBLE` quando as dimensões não batem exatamente; `:513-521` aplica o mesmo critério em `validatePaint`. `AtelierCanvas.js:411` grava `{v:2, strokes, stamps, bgColor}` — **sem nenhuma dimensão de canvas registrada**, e os traços estão em píxeis absolutos (`:220`, `:232`, `:265`, `:292`). Como o iPad **já gira hoje**, esta situação **já pode estar ocorrendo**. |
-| **Opções** | **(a)** Projetar a obra antiga para o espaço canônico, reamostrando o *raster* e reescalando o vetor — a obra **sobrevive**, com diferença de nitidez possível no *raster*. **(b)** Manter o portão estrito para o formato antigo — a obra **não carrega** fora da janela original: é exatamente a perda que `SD-8` proíbe. **(c)** Projetar quando a proporção coincidir e aplicar *letterbox* quando não coincidir — sobrevivência com moldura, sem distorção. **(d)** Congelar o espaço lógico da obra antiga na **primeira** abertura após a mudança e gravar essa dimensão na próxima gravação (*write-forward*), sem tocar no arquivo existente. |
-| **Impacto** | Direto sobre **`SD-8`**, que é bloqueador absoluto, e sobre o acervo real de desenhos das crianças. Define se `F6-SG-A` pode sequer ser concedido. |
-| **Recomendação técnica** | **(c) combinada com (d)**: na abertura, projetar com proporção preservada e *letterbox*/*pillarbox* quando necessário; congelar o espaço lógico resultante; gravar `v:3` **apenas na próxima gravação**, sem jamais reescrever o arquivo antigo no lugar (`R3.5-l`). Preserva a obra, não distorce e não é destrutivo. |
-| **Por que o PLAN não pode resolver sozinho** | É decisão sobre **dados já produzidos pela criança** em **área protegida** de persistência, com efeito visível e irreversível na percepção da obra (nitidez, moldura). A Constituição exige instrução direta; `R3.5-k` exige que a compatibilidade seja definida **antes** de qualquer migração; e a regra do projeto proíbe alteração destrutiva sem aprovação prévia. |
+| 1 | **Tudo o que puder ser medido, será medido.** Barra lateral, área segura, cabeçalho, barra inferior e quaisquer sobreposições que ocupem espaço têm medida real disponível — e é a medida que entra na conta, nunca uma estimativa |
+| 2 | **`MAP_ANCHOR_FRAMING` só pode existir se ainda restar decisão de enquadramento genuinamente estética** — a posição do alvo dentro do espaço **livre já medido** |
+| 3 | **É proibido que ele compense geometria derivável.** Se um valor está lá para "corrigir" um cabeçalho, uma barra lateral ou uma área segura não subtraída, ele **não é enquadramento**: é estimativa disfarçada, e o defeito de `R2.3` voltou com outro nome |
+| 4 | **Semântica única, justificativa explícita no código**, e validação nas três faixas |
+| 5 | Se a medição tornar o resíduo desnecessário, **a constante não nasce** — o desenho preferido é o sem constante alguma |
+| 6 | `G-MAP-4` (§26) verifica as regras 1, 3 e 4; a 5 é confirmada visualmente em `F6-SG-B` |
 
-**Isto não reabre `PF6D-D-CANVAS`.** Aquela decisão fixou o **espaço lógico canônico**; esta
-pergunta é sobre o **acervo legado**, que a própria decisão remeteu a `R3.5-k`.
+**Consequência de projeto:** `computeCameraTarget` recebe a ***viewport* livre já medida** como
+entrada. Ele **não** conhece cabeçalho, barra lateral nem área segura — e é justamente por não
+conhecer que não tem como compensá-los com um número.
 
-### 41.6 🆕 `Q9` — autorização pontual para tocar o *design system*
+### 41.5 ✅ `Q8` — **DECIDIDA E CONGELADA** pelo fundador (Portão Humano 2)
 
-| Campo | Conteúdo |
+**Direção aprovada: combinação conceitual das opções `c + d`**, com as dez regras normativas abaixo.
+**Texto congelado — não reinterpretar, não resumir, não flexibilizar em Tasks.**
+
+| # | Regra normativa |
 |---|---|
-| **Pergunta concreta** | `F6-R1.4` exige que a largura da barra lateral deixe de ser o literal `200` e passe a responder à faixa. Isso pede um *token* novo em `src/theme/tokens.js` §2.4 (por exemplo `sidebarWidth = { tablet, tabletL }`). O *design system* é **área protegida**. Está autorizado criar esse *token*, ou a largura deve ser derivada sem introduzir *token* novo? |
-| **Evidência** | `TabletSidebar.js:125` — `width: 200` fixo, idêntico a 600dp e a 1366dp. `tokens.js:134-137` — §2.4 concentra hoje `breakpoints`, `maxContentWidth`, `grid`, `displayScaleTablet`. `AGENTS.md`: *"Não alterar sem aprovação explícita: … design system e assets."* |
-| **Opções** | **(a)** Criar `sidebarWidth` em `tokens.js` §2.4 — coerente com a fonte única, e o valor fica auditável. **(b)** Derivar a largura de `maxContentWidth`/`grid` sem *token* novo — zero adição ao *design system*, porém acopla a barra lateral a *tokens* de conteúdo. **(c)** Manter `200` na faixa média e variar só na expandida — mudança mínima, resolve pouco do vazio. |
-| **Impacto** | Pequeno em código, **normativo** em governança: define se a Fase 6 pode acrescentar *token* ao *design system*. |
-| **Recomendação técnica** | **(a)** — é a opção coerente com a fonte única de *tokens* e com "estender o que existe antes de criar paralelo". |
-| **Por que o PLAN não pode resolver sozinho** | O *design system* está na lista de **áreas protegidas** que só mudam com **instrução direta**. A *spec* aprovada autoriza mexer na **barra lateral**, mas não declara autorização para **acrescentar *token*** ao *design system*. |
+| **1** | Uma obra já existente possui um **espaço lógico próprio** e **não pode depender das dimensões da *viewport* atual**. |
+| **2** | Ao abrir uma obra antiga, a operação é **estritamente de leitura**. Abrir **NÃO pode**: migrar silenciosamente · reescrever · apagar · limpar · substituir · promover formato · alterar bytes persistidos · marcar uma obra incompatível como vazia. |
+| **3** | Incompatibilidade entre dimensões antigas e *viewport* atual **nunca** autoriza `clear`, `removeItem`, exclusão de *blob* ou substituição por canvas limpo. |
+| **4** | Para *payloads* que já possuem `W/H` e geometria de *lineart*, esses valores representam o **espaço lógico histórico da obra**. A *viewport* atual apenas **enquadra** esse espaço. |
+| **5** | A representação visual deve **preservar proporção**. Usar projeção equivalente a **`contain`**; quando as razões forem diferentes, usar ***letterbox***. É **proibido**: esticar · recortar silenciosamente · reposicionar tinta independentemente do *lineart* · transformar cada camada com geometria diferente. |
+| **6** | Para formatos legados sem toda a geometria explícita, o **leitor de compatibilidade** deve reconstruir a melhor representação **determinística** a partir dos metadados e dimensões intrínsecas **realmente disponíveis** e da geometria histórica compatível. **Nunca** usar a *viewport* atual como se fosse a *viewport* original da criação. **Ausência de evidência deve favorecer preservação.** |
+| **7** | **Nenhuma migração acontece apenas porque a criança abriu a obra.** O formato novo somente pode ser produzido na **próxima gravação explícita da criança**. |
+| **8** | A gravação nova deve ser ***write-forward***. Primeiro: criar nova representação → persistir → validar integridade → **provar que pode ser relida**. Somente depois: **promover** a nova representação como ativa. Se qualquer etapa falhar, a representação anterior continua sendo a **fonte válida**. **Nenhuma falha pode destruir a versão anterior.** |
+| **9** | O ***rollback*** deve continuar **capaz de consumir o formato anterior** enquanto houver uma obra existente nesse formato. |
+| **10** | Os ***linearts* históricos** continuam **protegidos** enquanto alguma obra puder depender deles. **Não remover, sobrescrever visualmente ou tornar inacessível** um *lineart* necessário para recompor uma obra anterior. |
+
+**Correção obrigatória de nomenclatura que acompanha `Q8`:** a expressão genérica `v:3` **não está
+aprovada** para a nova representação. `v:3` já significa o **envelope/ponteiro de persistência de
+desenhos no *filesystem***, e esse significado é **preservado**. A evolução da representação lógica
+da pintura usa **discriminadores separados e inequívocos** — `paintSchemaVersion` (payload visual) e
+`layoutVersion` (geometria lógica) — de modo que **versão do envelope de storage**, **versão do
+payload visual** e **versão da geometria lógica** **não possam ser confundidas por *reader*,
+*writer*, *validator*, migração ou testes**. Especificação completa e prova da colisão em **§11.5**.
+
+**Onde a decisão vira verificação:** leitor de compatibilidade = passo (4) de §12 · *writer* = passo
+(7) · testes `TA-12`, `TA-13` · portões `G-CMP-1`..`G-CMP-5` e `G-VER-1`..`G-VER-3` · mutantes
+`MT-12`, `MT-13`, `MT-14` · **matriz de compatibilidade obrigatória do §28.1** (17 casos, quatro
+invariantes ZERO) · critério de saída de `F6-SG-A` (§27, §34).
+
+**Isto não reabriu `PF6D-D-CANVAS`.** Aquela decisão fixou o **espaço lógico canônico**; `Q8`
+resolve o **acervo legado**, que a própria decisão remeteu a `R3.5-k`.
+
+### 41.6 ✅ `Q9` — **AUTORIZADA E CONGELADA** pelo fundador (Portão Humano 2)
+
+**Está AUTORIZADA a alteração de `src/theme/tokens.js` dentro de `F6-R1.4`** para remover a largura
+estrutural *hardcoded* da barra lateral e colocá-la sob a fonte canônica do *design system*.
+
+**A autorização NÃO é para mover o número.** Transformar `width: 200` (`TabletSidebar.js:125`) em
+`sidebarWidth: 200` e declarar o problema resolvido **não cumpre o requisito**. A semântica precisa
+refletir o **contrato adaptativo**: o sistema distingue **faixa média** × **faixa expandida** e
+***rail*/barra lateral compacta** × **barra lateral completa**. O PLAN, portanto, permite ***tokens*
+semânticos adequados às faixas e ao papel de navegação**.
+
+**A forma final pode ser decidida tecnicamente em Tasks**, desde que — e estas seis condições são o
+que sobrou de `Q9`, todas verificáveis:
+
+1. exista **uma única fonte canônica**;
+2. **não haja novo *hardcode* distribuído**;
+3. **não seja criado *design system* paralelo**;
+4. **a largura não seja usada como substituto de medição real da *viewport***;
+5. a solução **funcione em `600–899` e em `>=900`**;
+6. **telefone compacto não sofra regressão**.
+
+**Onde a decisão vira verificação:** contrato detalhado em **§19.1** · portões `G-SID-2`, `G-SID-3`,
+`G-RSP-4` · mutantes `MT-15`, `MT-16` · `CN-1` · `SD-4` com captura em `F6-SG-C`.
 
 ### 41.7 `Q7` — confirmada **DIFERIDA**
 
@@ -1171,15 +1417,15 @@ matriz de riscos, a *spec*, o *clarify* nem o roteiro do delta.
 | 8 | Arquitetura alvo de `F6-R1` | §8 |
 | 9 | Arquivos/componentes afetados com evidência real | §9 |
 | 10 | Arquivos que **não** devem ser afetados | §10 |
-| 11 | APIs e contratos novos/alterados | §11 |
+| 11 | APIs e contratos novos/alterados | §11 · **§11.5 (eixos de versionamento)** |
 | 12 | Migração sem *big bang* | §12 |
-| 13 | Preservação de compatibilidade | §13 |
+| 13 | Preservação de compatibilidade | §13 · **§28.1 (matriz)** |
 | 14 | Ciclo de vida e *state preservation* | §14 |
-| 15 | Canvas lógico × *viewport* | §15 |
+| 15 | Canvas lógico × *viewport* | §15 · §41.5 |
 | 16 | Âncora canônica do mapa | §16 + §11.1 |
 | 17 | Três faixas | §17 |
 | 18 | Quatro famílias | §18 |
-| 19 | Barra lateral | §19 |
+| 19 | Barra lateral | §19 · **§19.1 (contrato de *tokens*, `Q9`)** |
 | 20 | Infraestrutura nativa de orientação | §20 |
 | 21 | Riscos de regressão | §21 |
 | 22 | Matriz de dependências | §22 |
@@ -1188,7 +1434,7 @@ matriz de riscos, a *spec*, o *clarify* nem o roteiro do delta.
 | 25 | Testes mutantes | §25 |
 | 26 | Portões que falham se defeito reaparecer | §26 |
 | 27 | Entrada/saída de cada subportão | §27 |
-| 28 | Sequência de validação física | §28 |
+| 28 | Sequência de validação física | §28 · **§28.1 (matriz de compatibilidade `Q8`)** |
 | 29 | Critérios iPhone | §29 |
 | 30 | Critérios iPad retrato | §30 |
 | 31 | Critérios iPad paisagem | §31 |
@@ -1204,6 +1450,7 @@ matriz de riscos, a *spec*, o *clarify* nem o roteiro do delta.
 
 ---
 
-**Fim do PLAN.** Etapa SDD 4 concluída. **Portão Humano 2 aberto para revisão do fundador.**
-Tasks, Analyze e Implement **não** foram iniciados e não serão antes da aprovação — e, quanto a
-`Q8` e `Q9`, não serão antes das respostas.
+**Fim do PLAN (r2 — emenda do Portão Humano 2 incorporada).** Etapa SDD 4 concluída.
+**Nenhuma questão de produto em aberto. Nenhuma violação constitucional não resolvida.**
+Tasks, Analyze e Implement **não** foram iniciados e não serão antes da **aprovação definitiva do
+fundador** no Portão Humano 2 e da concessão do Portão Humano 3. **`B2` continua bloqueado.**
