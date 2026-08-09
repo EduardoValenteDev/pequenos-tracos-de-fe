@@ -363,7 +363,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-007` · Portões `G-VER-1`, `G-VER-2` e `G-VER-3` em `scripts/smoke.js`
 - **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** transformar as regras de §11.5 em asserção estática que falha sozinha.
 - **Arquivos:** `scripts/smoke.js` — **Símbolos/contratos:** `check(label, condition, failDetail)`, `readSrc`, `codeOf` (asserção de ausência que ignora comentários).
-- **Precondições:** `TK-A-006` — **Depende de:** `TK-A-003`, `TK-A-005`
+- **Precondições:** `TK-A-006` — **Depende de:** `TK-A-003`, `TK-A-005`, `TK-A-006`
 - **Mudança esperada:** três asserções novas: payload nunca contém `v: 3`; `POINTER_VERSION`/`APP_STORAGE_SCHEMA_VERSION` inalterados e escada sem degrau novo; eixos referenciados por nome. **Esta task cria os três portões** — ela **não** os prova.
 - **Prova:** **prova independente, um mutante por portão** — `G-VER-1` fica vermelho sob `MT-12` (`TK-A-008`); `G-VER-2` sob `MT-28` (`TK-A-089`); `G-VER-3` sob `MT-29` (`TK-A-090`) — **Gate:** `G-VER-1`, `G-VER-2`, `G-VER-3`
 - **Conclusão:** `npm run smoke` verde no estado correto e **vermelho** sob cada um dos três mutantes independentes.
@@ -437,7 +437,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-015` · Portões `G-LFC-2` e `G-LFC-3` em `scripts/smoke.js`
 - **Pacote · Subportão:** `F6-R3.2`/`R3.4` · `F6-SG-A` — **Objetivo:** lacrar a ausência de defesa para que ela não volte.
 - **Arquivos:** `scripts/smoke.js` — **Símbolos/contratos:** `check`, `readSrc`.
-- **Precondições:** `TK-A-010`, `TK-A-011`, `TK-A-013` — **Depende de:** `TK-A-011`, `TK-A-013`
+- **Precondições:** `TK-A-010`, `TK-A-011`, `TK-A-013` — **Depende de:** `TK-A-010`, `TK-A-011`, `TK-A-013`
 - **Mudança esperada:** asserção de que as duas telas de canvas consomem `useSurfaceLifecycle` e de que os dois componentes declaram **ambas** as props de término de processo. **Esta task cria os dois portões** — ela **não** os prova.
 - **Prova:** **prova independente** — `G-LFC-2` fica vermelho sob `MT-26` (`TK-A-087`); `G-LFC-3` fica vermelho sob `MT-27` (`TK-A-088`). Nenhum portão prova a si próprio. — **Gate:** `G-LFC-2`, `G-LFC-3`
 - **Conclusão:** `npm run smoke` verde no estado correto e vermelho sob cada mutante independente.
@@ -502,7 +502,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-022` · `R3.3` — provar que a travessia de faixa é *re-render*, não remontagem
 - **Pacote · Subportão:** `F6-R3.3` · `F6-SG-A` — **Objetivo:** **impedir regressão** de algo que já está correto (auditoria §3.1) — não reconstruir nada.
 - **Arquivos:** `src/navigation/AppNavigator.js` (**verificação**) — **Símbolos/contratos:** `Tab.Navigator` único; corte de tablet (`:232`).
-- **Precondições:** `TK-A-009` — **Depende de:** —
+- **Precondições:** `TK-A-009` — **Depende de:** `TK-A-009`
 - **Mudança esperada:** **nenhuma mudança estrutural**; instrumentação de montagem em desenvolvimento suficiente para evidenciar ausência de remontagem na travessia de `600dp`.
 - **Prova:** `CN-6` — **Gate:** — (`CN-6`)
 - **Conclusão:** *log* de montagem não registra remontagem ao atravessar `600dp` arrastando o divisor.
@@ -529,7 +529,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-025` · Preservação de **áudio** através de rotação, segundo plano e retorno
 - **Pacote · Subportão:** `F6-R3.2` · `F6-SG-A` — **Objetivo:** confirmar ausência de interrupção anômala; **não** alterar o gerenciador de áudio.
 - **Arquivos:** `src/services/audioManager.js`, `src/services/audioService.js` (**verificação**) — **Símbolos/contratos:** sessão de reprodução `expo-audio`.
-- **Precondições:** `TK-A-010`, `TK-A-011` — **Depende de:** `TK-A-010`
+- **Precondições:** `TK-A-010`, `TK-A-011` — **Depende de:** `TK-A-010`, `TK-A-011`
 - **Mudança esperada:** **nenhuma** — a adoção de `useSurfaceLifecycle` nas telas de canvas **não** pode alterar a política de áudio existente.
 - **Prova:** §28 #11 — **Gate:** — (`CN-4`)
 - **Conclusão:** áudio tocando atravessa rotação, segundo plano e retorno sem corte anômalo.
@@ -538,7 +538,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-026` · Preservação do **passo do tour** e re-medição no retorno ao *foreground*
 - **Pacote · Subportão:** `F6-R3.2` · `F6-SG-A` — **Objetivo:** o passo sobrevive; a **geometria** é remedida, não reiniciada.
 - **Arquivos:** `src/services/beniTourService.js`, `src/hooks/useScreenGuide.js`, `src/hooks/useGuideTargets.js`, `src/services/guideTargetRegistry.js` (**verificação e re-medição**) — **Símbolos/contratos:** `registerGuideTarget`, `measureInWindow`.
-- **Precondições:** `TK-A-010`, `TK-A-011` — **Depende de:** `TK-A-010`
+- **Precondições:** `TK-A-010`, `TK-A-011` — **Depende de:** `TK-A-010`, `TK-A-011`
 - **Mudança esperada:** ao voltar ao *foreground* ou mudar a *viewport*, os alvos são **re-medidos**; o passo corrente **não** é reiniciado. `guideTargetRegistry` **não** ganha aritmética de mapa (isso é `F6-R2`/§16).
 - **Prova:** §28 #13 (vídeo do tour) — **Gate:** — (prepara `SD-5`)
 - **Conclusão:** girar no meio do tour mantém o passo e reposiciona o holofote corretamente.
@@ -725,7 +725,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-046` · Arnês de compatibilidade `TA-12` — corpus de payloads legados
 - **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** exercitar o leitor contra todas as formas conhecidas, sem depender de aparelho.
 - **Arquivos:** `scripts/testing/artworkVersionHarness.js` (estendido por `TK-A-006`) — **Símbolos/contratos:** `TA-12`; corpus sintético cobrindo `fmt:1`, `fmt:2`, `v:2`, `ops[]`, ausência de eixos, payload truncado.
-- **Precondições:** `TK-A-041`..`TK-A-045` — **Depende de:** `TK-A-045`
+- **Precondições:** `TK-A-041`..`TK-A-045` — **Depende de:** `TK-A-041`..`TK-A-045`
 - **Mudança esperada:** corpus versionado no arnês; cada entrada declara o ramo esperado. **Esta task cria `G-CMP-1` e `G-CMP-2`** — ela **não** os prova.
 - **Prova:** **prova independente** — `G-CMP-1` fica vermelho sob `MT-13` (`TK-A-040`); `G-CMP-2` fica vermelho sob `MT-17` (`TK-A-047`). Nenhum portão prova a si próprio. — **Gate:** `G-CMP-1`, `G-CMP-2`
 - **Conclusão:** arnês sai com código `0` e cobre cada forma legada listada em §28.1.
@@ -817,7 +817,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-056` · Portões `G-CMP-5` e `G-CMP-6` em `scripts/smoke.js`
 - **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** lacrar a proteção do *lineart* histórico na semântica canônica do PLAN §26.
 - **Arquivos:** `scripts/smoke.js` — **Símbolos/contratos:** `check`, `codeOf`; inventário de chamadas de escrita e de limpeza nos dois motores.
-- **Precondições:** `TK-A-048`..`TK-A-052` — **Depende de:** `TK-A-052`
+- **Precondições:** `TK-A-048`..`TK-A-052` — **Depende de:** `TK-A-048`..`TK-A-052`
 - **Mudança esperada:** duas asserções distintas: (a) **`G-CMP-5`** (canônico) — o caminho de limpeza/*reset* **não** remove *lineart* histórico enquanto houver obra que dependa dele; (b) **`G-CMP-6`** (novo) — o caminho de abertura verifica a identidade do *lineart* antes de compor a tinta.
 - **Prova:** **prova independente** — `G-CMP-5` fica vermelho sob `MT-34` (`TK-A-092`); `G-CMP-6` fica vermelho sob `MT-18` (`TK-A-055`) — **Gate:** `G-CMP-5`, `G-CMP-6`
 - **Conclusão:** `npm run smoke` verde no estado correto; cada portão vermelho sob o seu mutante, injetado por outra task.
@@ -844,7 +844,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-085` · `resize()` de `ColoringCanvas.js` **não** realoca `qBuf`, `visBuf` nem `paintD` (`SD-8`)
 - **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** eliminar a realocação de *buffers* dentro de `resize()`, que hoje é o caminho mais curto para corromper o balde e desalinhar a tinta já feita pela criança.
 - **Arquivos:** `src/components/ColoringCanvas.js` — **Símbolos/contratos:** `resize()`, `qBuf`, `visBuf`, `paintD`, `W`, `H`.
-- **Precondições:** `TK-A-030`, `TK-A-035` — **Depende de:** `TK-A-035`
+- **Precondições:** `TK-A-030`, `TK-A-035` — **Depende de:** `TK-A-030`, `TK-A-035`
 - **Mudança esperada:** `resize()` passa a **apenas reprojetar a exibição**. Os *buffers* de estado (`qBuf` fila de preenchimento, `visBuf` visitados, `paintD` dados de pintura) são dimensionados pelo **retângulo lógico** e **não** são realocados, zerados nem substituídos quando a janela muda. Se o retângulo lógico realmente mudar, a transição é explícita e reamostra a partir do modelo lógico (`TK-A-036`) — nunca uma realocação silenciosa dentro de `resize()`.
 - **Prova:** `TA-4`, `TA-5`; §28.1 casos 2, 3, 4, 5 — **Gate:** `G-CVS-1` (criado por `TK-A-038`)
 - **Conclusão:** girar, dividir a tela e voltar preserva a pintura **bit a bit** no espaço lógico; nenhuma chamada de alocação dos três *buffers* permanece dentro de `resize()`.
@@ -961,7 +961,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-098` · Cenário físico §28 **#17** — regressão completa em **telefone** (parcela de `F6-SG-A`)
 - **Pacote · Subportão:** `F6-R3` · `F6-SG-A` — **Objetivo:** cumprir a parcela de `SG-A` do cenário #17, que é declarado no PLAN como pertencente a `SG-A`, `SG-B` **e** `SG-C`.
 - **Arquivos:** nenhum (**validação física**) — **Símbolos/contratos:** telefone em retrato, faixa compacta.
-- **Precondições:** `TK-A-058`..`TK-A-062` — **Depende de:** `TK-A-062`
+- **Precondições:** `TK-A-058`..`TK-A-062` — **Depende de:** `TK-A-058`..`TK-A-062`
 - **Mudança esperada:** **nenhuma** — percorrer mapa, história, Colorir, Ateliê, galeria e jogos em telefone, comparando com o comportamento anterior a `F6-R3`.
 - **Prova:** **`CN-1`** (canônico — telefone em retrato **não muda em nada**); §28 #17 — **Gate:** —
 - **Conclusão:** nenhuma diferença perceptível em telefone atribuível a `F6-R3`; capturas anexadas.
@@ -979,7 +979,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-100` · Caso adicional **`E1`** — obra nova, criada e reaberta na **mesma** janela
 - **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** caso-controle: sem mudança de janela, nada pode mudar.
 - **Arquivos:** nenhum (**execução da matriz**) — **Símbolos/contratos:** §28.1 adicional `E1`.
-- **Precondições:** `TK-A-080` — **Depende de:** `TK-A-063`..`TK-A-079`
+- **Precondições:** `TK-A-063`..`TK-A-079` — **Depende de:** `TK-A-063`..`TK-A-079`
 - **Mudança esperada:** **nenhuma** — executar e registrar `PASS`/`FAIL` com as quatro invariantes ZERO.
 - **Prova:** `TA-12`; verificação automática por `artworkVersionHarness.js` + confirmação em aparelho — **Gate:** `G-CMP-2`
 - **Conclusão:** bytes persistidos idênticos; nenhuma reprojeção ocorre.
@@ -988,7 +988,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-101` · Caso adicional **`E2`** — obra **vetorial** do Ateliê atravessando mudança de janela
 - **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** o motor vetorial tem falha diferente do *raster*; precisa de caso próprio.
 - **Arquivos:** nenhum (**execução da matriz**) — **Símbolos/contratos:** §28.1 adicional `E2`; `strokes`, `stamps`, `logicalW`/`logicalH`.
-- **Precondições:** `TK-A-080` — **Depende de:** `TK-A-063`..`TK-A-079`
+- **Precondições:** `TK-A-063`..`TK-A-079` — **Depende de:** `TK-A-063`..`TK-A-079`
 - **Mudança esperada:** **nenhuma** — executar e registrar `PASS`/`FAIL`.
 - **Prova:** `TA-5`; `viewportProjectionHarness.js` + aparelho — **Gate:** `G-CVS-2`, `G-CMP-3`
 - **Conclusão:** traços e carimbos reaparecem nas mesmas posições lógicas.
@@ -997,7 +997,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-102` · Caso adicional **`E3`** — rotação repetida (**dez ciclos**) sem deriva acumulada
 - **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** deriva de reamostragem só aparece na repetição; um ciclo não revela.
 - **Arquivos:** nenhum (**execução da matriz**) — **Símbolos/contratos:** §28.1 adicional `E3`.
-- **Precondições:** `TK-A-080` — **Depende de:** `TK-A-036`, `TK-A-063`..`TK-A-079`
+- **Precondições:** `TK-A-036`, `TK-A-063`..`TK-A-079` — **Depende de:** `TK-A-036`, `TK-A-063`..`TK-A-079`
 - **Mudança esperada:** **nenhuma** — dez rotações consecutivas com obra complexa; comparação da primeira com a décima.
 - **Prova:** comparação de captura; reamostragem sempre a partir do modelo lógico — **Gate:** `G-CVS-1`
 - **Conclusão:** nenhuma degradação perceptível acumulada; a décima é equivalente à primeira.
@@ -1006,7 +1006,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-103` · Caso adicional **`E4`** — payload associado a *lineart* **divergente**
 - **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** fechar a **invariante ZERO #2** com caso próprio da matriz.
 - **Arquivos:** nenhum (**execução da matriz**) — **Símbolos/contratos:** §28.1 adicional `E4`; identificador do *lineart*.
-- **Precondições:** `TK-A-080` — **Depende de:** `TK-A-051`, `TK-A-063`..`TK-A-079`
+- **Precondições:** `TK-A-051`, `TK-A-063`..`TK-A-079` — **Depende de:** `TK-A-051`, `TK-A-063`..`TK-A-079`
 - **Mudança esperada:** **nenhuma** — associar deliberadamente um payload a outro *lineart* no corpus e observar o ramo de recusa.
 - **Prova:** `TA-12` — **Gate:** `G-CMP-6`
 - **Conclusão:** recusa explícita; **nunca** exibição de tinta sobre desenho errado; arquivo preservado.
@@ -1015,7 +1015,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-104` · Caso adicional **`E5`** — payload **corrompido ou truncado**
 - **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** erro de leitura nunca pode virar dano nem canvas branco silencioso.
 - **Arquivos:** nenhum (**execução da matriz**) — **Símbolos/contratos:** §28.1 adicional `E5`.
-- **Precondições:** `TK-A-080` — **Depende de:** `TK-A-044`, `TK-A-045`, `TK-A-063`..`TK-A-079`
+- **Precondições:** `TK-A-044`, `TK-A-045`, `TK-A-063`..`TK-A-079` — **Depende de:** `TK-A-044`, `TK-A-045`, `TK-A-063`..`TK-A-079`
 - **Mudança esperada:** **nenhuma** — injetar payload truncado no corpus e observar o estado explícito de incompatibilidade.
 - **Prova:** `TA-12` — **Gate:** `G-CMP-1`, `G-CVS-3`
 - **Conclusão:** o registro original permanece intacto; a superfície comunica em linguagem infantil; nada é apagado.
@@ -1024,7 +1024,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-105` · Caso adicional **`E6`** — galeria com **acervo misto** após atualização do app
 - **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** o estado real do aparelho de uma criança que já usava o app: obras antigas e novas lado a lado.
 - **Arquivos:** nenhum (**execução da matriz**) — **Símbolos/contratos:** §28.1 adicional `E6`.
-- **Precondições:** `TK-A-080` — **Depende de:** `TK-A-043`, `TK-A-063`..`TK-A-079`
+- **Precondições:** `TK-A-043`, `TK-A-063`..`TK-A-079` — **Depende de:** `TK-A-043`, `TK-A-063`..`TK-A-079`
 - **Mudança esperada:** **nenhuma** — abrir a galeria com acervo misto, verificar miniaturas, abrir uma de cada formato, confirmar que **nenhuma migração em massa** ocorreu.
 - **Prova:** **`CN-13`**; `TA-12` — **Gate:** `G-CMP-2`, `G-VER-2`
 - **Conclusão:** a galeria exibe os dois formatos; nenhum registro foi reescrito pela simples abertura.
@@ -1060,7 +1060,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-A-060` · Executar os **controles negativos** de `F6-SG-A`
 - **Pacote · Subportão:** — · `F6-SG-A` — **Objetivo:** provar que a Fase 6 **não** fez o que prometeu não fazer.
 - **Arquivos:** `scripts/smoke.js`; `git diff` do pacote — **Símbolos/contratos:** `CN-2` (abertura idêntica), `CN-4` (sessão sobrevive), `CN-6` (sem remontagem), **`CN-13`** (nenhuma migração silenciosa em massa), **`CN-8`** (áreas protegidas intactas no pacote `F6-R3` — executado por `TK-A-099`).
-- **Precondições:** `TK-A-059` — **Depende de:** `TK-A-020`, `TK-A-028`, `TK-A-022`, `TK-A-043`, `TK-A-099`
+- **Precondições:** `TK-A-059` — **Depende de:** `TK-A-059`, `TK-A-020`, `TK-A-028`, `TK-A-022`, `TK-A-043`, `TK-A-099`
 - **Mudança esperada:** nenhuma; produção de evidência de **não-regressão**.
 - **Prova:** os próprios controles — **Gate:** — (controles negativos)
 - **Conclusão:** os **cinco** controles passam com evidência anexada.
@@ -1071,7 +1071,7 @@ testada e `F6-SG-A` concedido:
 - **Pacote · Subportão:** — · `F6-SG-A` — **Objetivo:** reunir, num único quadro, o veredito de **cada** prova vermelha de `R3` — provar que cada portão de `R3` tem dentes.
 - **Arquivos:** artefato de evidência (documental). **Esta task não injeta mutação alguma.** Cada mutante é injetado, observado e revertido **isoladamente**, na sua própria task de prova (`A-08`).
 - **Símbolos/contratos — os 14 mutantes de domínio `R3`:** `MT-1` (`TK-A-093`), `MT-5` (`TK-A-086`), `MT-6` (`TK-A-039`), `MT-12` (`TK-A-008`), `MT-13` (`TK-A-040`), `MT-14` (`TK-A-054`), `MT-17` (`TK-A-047`), `MT-18` (`TK-A-055`), `MT-26` (`TK-A-087`), `MT-27` (`TK-A-088`), `MT-28` (`TK-A-089`), `MT-29` (`TK-A-090`), `MT-33` (`TK-A-091`), `MT-34` (`TK-A-092`). **Mais** o registro da verificação imediata de `MT-7` antecipada a `R3` (`TK-A-095`, `A-14`/`A-16`) — cuja prova **formal** permanece em `F6-SG-C` (`TK-C-047`).
-- **Precondições:** `TK-A-060` e **todas** as tasks de prova acima concluídas — **Depende de:** `TK-A-008`, `TK-A-039`, `TK-A-040`, `TK-A-047`, `TK-A-054`, `TK-A-055`, `TK-A-086`, `TK-A-087`, `TK-A-088`, `TK-A-089`, `TK-A-090`, `TK-A-091`, `TK-A-092`, `TK-A-093`, `TK-A-095`
+- **Precondições:** `TK-A-060` e **todas** as tasks de prova acima concluídas — **Depende de:** `TK-A-060`, `TK-A-008`, `TK-A-039`, `TK-A-040`, `TK-A-047`, `TK-A-054`, `TK-A-055`, `TK-A-086`, `TK-A-087`, `TK-A-088`, `TK-A-089`, `TK-A-090`, `TK-A-091`, `TK-A-092`, `TK-A-093`, `TK-A-095`
 - **Mudança esperada:** nenhuma. Tabela `mutante → defeito nomeado → portão → vermelho observado → revertido → árvore limpa`.
 - **Prova:** a própria tabela — **Gate:** os 14 portões correspondentes (`G-LFC-1`, `G-LFC-2`, `G-LFC-3`, `G-CVS-1`, `G-CVS-2`, `G-CVS-3`, `G-VER-1`, `G-VER-2`, `G-VER-3`, `G-CMP-1`..`G-CMP-6`)
 - **Conclusão:** **14 mutantes, 14 vermelhos observados, 14 reversões, `git status` limpo ao fim** — e **nenhuma** mutação simultânea em nenhum momento.
@@ -1104,94 +1104,94 @@ testada e `F6-SG-A` concedido:
 **Campos comuns a `TK-A-063`..`TK-A-079`:** *Pacote · Subportão:* `F6-R3.5` · `F6-SG-A` — *Precondições:* pacote `F6-R3` implementado e `TK-A-062` concluída — *Validação automatizada:* parcial (arnês cobre a lógica; o aparelho cobre a percepção) — *Validação física futura:* **sim, com o acervo real do aparelho** — *Commit:* `C-GOV1` (evidência; correções voltam ao *commit* do motor afetado) — *Rollback:* reverter o *commit* do motor afetado. **As quatro invariantes ZERO valem em todos os casos aplicáveis.**
 
 #### `TK-A-063` · **Caso 1** — obra **antiga** em retrato
-- **Objetivo:** o caso zero de `Q8`: obra criada **antes** da mudança abre com a pintura presente. **Arquivos:** `ColoringCanvas.js` (`loadPaint`), `ColoringScreen.js`. **Depende de:** `TK-A-062`.
-- **O que se executa:** abrir obra criada antes da mudança, em retrato. **O que se verifica:** abre com a pintura **presente** e alinhada ao *lineart*.
-- **Prova:** `TA-12` + aparelho — **Gate:** `G-CMP-1`. **Risco:** **`RG-1`** · invariantes ZERO #1, #2, #4.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** o caso zero de `Q8`: obra criada **antes** da mudança abre com a pintura presente. **Arquivos:** `ColoringCanvas.js` (`loadPaint`), `ColoringScreen.js`. **Precondições:** `TK-A-062` — **Depende de:** `TK-A-062`. **Símbolos/contratos:** caso obrigatório **#1** da matriz §28.1 do PLAN.
+- **O que se executa:** abrir obra criada antes da mudança, em retrato. **O que se verifica:** abre com a pintura **presente** e alinhada ao *lineart*. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-12` + aparelho — **Gate:** `G-CMP-1`. **Risco:** **`RG-1`** · invariantes ZERO #1, #2, #4. **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-064` · **Caso 2** — **mesma obra em paisagem**
-- **Objetivo:** provar a projeção entre orientações **com a obra aberta**. **Arquivos:** `useViewportProjection.js`, os dois motores. **Depende de:** `TK-A-063`.
-- **O que se executa:** girar com a obra aberta. **O que se verifica:** proporção preservada, `contain` + *letterbox*; tinta e *lineart* seguem **juntos**.
-- **Prova:** `TA-4` + §28 #6/#7 — **Gate:** `G-CMP-3`. **Risco:** **`RG-1`** · invariantes ZERO #1, #2.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar a projeção entre orientações **com a obra aberta**. **Arquivos:** `useViewportProjection.js`, os dois motores. **Precondições:** `TK-A-063` — **Depende de:** `TK-A-063`. **Símbolos/contratos:** caso obrigatório **#2** da matriz §28.1 do PLAN.
+- **O que se executa:** girar com a obra aberta. **O que se verifica:** proporção preservada, `contain` + *letterbox*; tinta e *lineart* seguem **juntos**. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-4` + §28 #6/#7 — **Gate:** `G-CMP-3`. **Risco:** **`RG-1`** · invariantes ZERO #1, #2. **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-065` · **Caso 3** — **retorno a retrato**
-- **Objetivo:** provar ausência de deriva no ciclo de ida e volta. **Arquivos:** `useViewportProjection.js`, `ColoringCanvas.js`. **Depende de:** `TK-A-064`.
-- **O que se executa:** girar de volta. **O que se verifica:** estado **idêntico ao caso 1**; nenhuma deriva acumulada.
-- **Prova:** `TA-4` — **Gate:** `G-CVS-1`. **Risco:** **`RG-1`**.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar ausência de deriva no ciclo de ida e volta. **Arquivos:** `useViewportProjection.js`, `ColoringCanvas.js`. **Precondições:** `TK-A-064` — **Depende de:** `TK-A-064`. **Símbolos/contratos:** caso obrigatório **#3** da matriz §28.1 do PLAN.
+- **O que se executa:** girar de volta. **O que se verifica:** estado **idêntico ao caso 1**; nenhuma deriva acumulada. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-4` — **Gate:** `G-CVS-1`. **Risco:** **`RG-1`**. **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-066` · **Caso 4** — ***viewport* menor**
-- **Objetivo:** provar que reduzir a janela não recorta obra. **Arquivos:** `useViewportProjection.js`. **Depende de:** `TK-A-063`.
-- **O que se executa:** Split View estreito / Slide Over. **O que se verifica:** **nada some**; nada é recortado silenciosamente.
-- **Prova:** `TA-4` + aparelho (`SD-9`) — **Gate:** `G-CMP-3`. **Risco:** **`RG-1`** · invariante ZERO #1.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar que reduzir a janela não recorta obra. **Arquivos:** `useViewportProjection.js`. **Precondições:** `TK-A-063` — **Depende de:** `TK-A-063`. **Símbolos/contratos:** caso obrigatório **#4** da matriz §28.1 do PLAN.
+- **O que se executa:** Split View estreito / Slide Over. **O que se verifica:** **nada some**; nada é recortado silenciosamente. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-4` + aparelho (`SD-9`) — **Gate:** `G-CMP-3`. **Risco:** **`RG-1`** · invariante ZERO #1. **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-067` · **Caso 5** — ***viewport* maior**
-- **Objetivo:** provar que ampliar a janela não estica a obra. **Arquivos:** `useViewportProjection.js`. **Depende de:** `TK-A-063`.
-- **O que se executa:** tela cheia em paisagem. **O que se verifica:** **nada é esticado**; moldura em vez de distorção.
-- **Prova:** `TA-4` + aparelho — **Gate:** `G-CMP-3`. **Risco:** **`RG-1`**.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar que ampliar a janela não estica a obra. **Arquivos:** `useViewportProjection.js`. **Precondições:** `TK-A-063` — **Depende de:** `TK-A-063`. **Símbolos/contratos:** caso obrigatório **#5** da matriz §28.1 do PLAN.
+- **O que se executa:** tela cheia em paisagem. **O que se verifica:** **nada é esticado**; moldura em vez de distorção. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-4` + aparelho — **Gate:** `G-CMP-3`. **Risco:** **`RG-1`**. **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-068` · **Caso 6** — **reabertura após fechar o app**
-- **Objetivo:** provar que o ciclo anterior **não gravou nada**. **Arquivos:** `drawingStorage.js` (**leitura**), `ColoringScreen.js`. **Depende de:** `TK-A-042`.
-- **O que se executa:** encerrar o app, reabrir, abrir a obra. **O que se verifica:** obra íntegra; **nenhuma gravação ocorreu no ciclo anterior**.
-- **Prova:** inventário de armazenamento antes/depois — **Gate:** `G-CMP-2`. **Risco:** **`RG-1`** · invariante ZERO #3.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar que o ciclo anterior **não gravou nada**. **Arquivos:** `drawingStorage.js` (**leitura**), `ColoringScreen.js`. **Precondições:** `TK-A-042` — **Depende de:** `TK-A-042`. **Símbolos/contratos:** caso obrigatório **#6** da matriz §28.1 do PLAN.
+- **O que se executa:** encerrar o app, reabrir, abrir a obra. **O que se verifica:** obra íntegra; **nenhuma gravação ocorreu no ciclo anterior**. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** inventário de armazenamento antes/depois — **Gate:** `G-CMP-2`. **Risco:** **`RG-1`** · invariante ZERO #3. **Auto:** não · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-069` · **Caso 7** — ***background* e *foreground***
-- **Objetivo:** provar `useSurfaceLifecycle` no caminho mais sensível. **Arquivos:** `ColoringScreen.js`, `AtelierCanvasScreen.js`. **Depende de:** `TK-A-011`.
-- **O que se executa:** sair e voltar com a obra aberta. **O que se verifica:** obra íntegra; **nenhum recarregamento destrutivo**.
-- **Prova:** §28 #4/#8 + aparelho — **Gate:** `G-LFC-2`. **Risco:** **`RG-1`**, `RG-8`.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar `useSurfaceLifecycle` no caminho mais sensível. **Arquivos:** `ColoringScreen.js`, `AtelierCanvasScreen.js`. **Precondições:** `TK-A-011` — **Depende de:** `TK-A-011`. **Símbolos/contratos:** caso obrigatório **#7** da matriz §28.1 do PLAN.
+- **O que se executa:** sair e voltar com a obra aberta. **O que se verifica:** obra íntegra; **nenhum recarregamento destrutivo**. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** §28 #4/#8 + aparelho — **Gate:** `G-LFC-2`. **Risco:** **`RG-1`**, `RG-8`. **Auto:** não · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-070` · **Caso 8** — **Centro de Controle**
-- **Objetivo:** cobrir a interrupção **parcial**, distinta do segundo plano pleno. **Arquivos:** `ColoringScreen.js`, `AtelierCanvasScreen.js`. **Depende de:** `TK-A-069`.
-- **O que se executa:** abrir e fechar o Centro de Controle sobre o canvas. **O que se verifica:** idem ao caso 7 — obra íntegra, sem recarregamento.
-- **Prova:** §28 #5 + aparelho — **Gate:** `G-LFC-2`. **Risco:** `RG-8`.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** cobrir a interrupção **parcial**, distinta do segundo plano pleno. **Arquivos:** `ColoringScreen.js`, `AtelierCanvasScreen.js`. **Precondições:** `TK-A-069` — **Depende de:** `TK-A-069`. **Símbolos/contratos:** caso obrigatório **#8** da matriz §28.1 do PLAN.
+- **O que se executa:** abrir e fechar o Centro de Controle sobre o canvas. **O que se verifica:** idem ao caso 7 — obra íntegra, sem recarregamento. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** §28 #5 + aparelho — **Gate:** `G-LFC-2`. **Risco:** `RG-8`. **Auto:** não · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-071` · **Caso 9** — **término do processo de conteúdo** (quando reproduzível)
-- **Objetivo:** observar a defesa instrumentada **sem** declarar causa provada (`FD-12`). **Arquivos:** `ColoringCanvas.js`, `AtelierCanvas.js`. **Depende de:** `TK-A-014`.
-- **O que se executa:** provocar/aguardar o término do processo de conteúdo, **quando reproduzível no aparelho**. **O que se verifica:** a recuperação **preserva a obra**; o evento é **instrumentado e registrado**.
-- **Prova:** registro do evento **ou** declaração explícita de "não reproduzido" — **Gate:** `G-LFC-3`. **Risco:** **`RG-8`**, `P-164`. **Proibido** escrever "causa confirmada".
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** observar a defesa instrumentada **sem** declarar causa provada (`FD-12`). **Arquivos:** `ColoringCanvas.js`, `AtelierCanvas.js`. **Precondições:** `TK-A-014` — **Depende de:** `TK-A-014`. **Símbolos/contratos:** caso obrigatório **#9** da matriz §28.1 do PLAN.
+- **O que se executa:** provocar/aguardar o término do processo de conteúdo, **quando reproduzível no aparelho**. **O que se verifica:** a recuperação **preserva a obra**; o evento é **instrumentado e registrado**. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** registro do evento **ou** declaração explícita de "não reproduzido" — **Gate:** `G-LFC-3`. **Risco:** **`RG-8`**, `P-164`. **Proibido** escrever "causa confirmada". **Auto:** não · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-072` · **Caso 10** — **obra sem modificação**
-- **Objetivo:** provar leitura pura (`Q8` r.1): abrir **não** migra, **não** promove, **não** reescreve. **Arquivos:** `ColoringScreen.js`, `AtelierCanvasScreen.js`, `drawingStorage.js` (**leitura**). **Depende de:** `TK-A-042`.
-- **O que se executa:** abrir e fechar **sem desenhar**. **O que se verifica:** **bytes persistidos idênticos** antes e depois.
-- **Prova:** comparação byte a byte do registro — **Gate:** `G-CMP-2`. **Risco:** **`RG-1`** · invariante ZERO #3.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar leitura pura (`Q8` r.1): abrir **não** migra, **não** promove, **não** reescreve. **Arquivos:** `ColoringScreen.js`, `AtelierCanvasScreen.js`, `drawingStorage.js` (**leitura**). **Precondições:** `TK-A-042` — **Depende de:** `TK-A-042`. **Símbolos/contratos:** caso obrigatório **#10** da matriz §28.1 do PLAN.
+- **O que se executa:** abrir e fechar **sem desenhar**. **O que se verifica:** **bytes persistidos idênticos** antes e depois. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** comparação byte a byte do registro — **Gate:** `G-CMP-2`. **Risco:** **`RG-1`** · invariante ZERO #3. **Auto:** não · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-073` · **Caso 11** — **obra modificada e salva no formato novo**
-- **Objetivo:** provar a cadeia *write-forward* completa (`Q8` r.7–8). **Arquivos:** os dois motores + `drawingStorage.js` (**consumidor**). **Depende de:** `TK-A-049`.
-- **O que se executa:** desenhar e salvar. **O que se verifica:** nova representação **criada, validada, relida e só então promovida**.
-- **Prova:** `TA-13` + inspeção de armazenamento — **Gate:** `G-CMP-4`. **Risco:** **`RG-1`**, `RG-13`.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar a cadeia *write-forward* completa (`Q8` r.7–8). **Arquivos:** os dois motores + `drawingStorage.js` (**consumidor**). **Precondições:** `TK-A-049` — **Depende de:** `TK-A-049`. **Símbolos/contratos:** caso obrigatório **#11** da matriz §28.1 do PLAN.
+- **O que se executa:** desenhar e salvar. **O que se verifica:** nova representação **criada, validada, relida e só então promovida**. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-13` + inspeção de armazenamento — **Gate:** `G-CMP-4`. **Risco:** **`RG-1`**, `RG-13`. **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-074` · **Caso 12** — **falha durante a gravação nova**
-- **Objetivo:** provar que a falha **em qualquer etapa** preserva o anterior. **Arquivos:** caminho de gravação. **Depende de:** `TK-A-050`.
-- **O que se executa:** falha injetada em **criar · persistir · validar · reler** — as quatro, uma a uma. **O que se verifica:** a representação **anterior** continua sendo a fonte válida; **nada destruído**.
-- **Prova:** `TA-13` — **Gate:** `G-CMP-4`. **Risco:** **`RG-1`**, **`RG-13`** · invariante ZERO #3.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar que a falha **em qualquer etapa** preserva o anterior. **Arquivos:** caminho de gravação. **Precondições:** `TK-A-050` — **Depende de:** `TK-A-050`. **Símbolos/contratos:** caso obrigatório **#12** da matriz §28.1 do PLAN.
+- **O que se executa:** falha injetada em **criar · persistir · validar · reler** — as quatro, uma a uma. **O que se verifica:** a representação **anterior** continua sendo a fonte válida; **nada destruído**. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-13` — **Gate:** `G-CMP-4`. **Risco:** **`RG-1`**, **`RG-13`** · invariante ZERO #3. **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-075` · **Caso 13** — ***rollback*** do código com acervo já misto
-- **Objetivo:** provar que reverter o código **não deixa obra órfã** — o caso que só aparece quando a Fase 6 já rodou em campo. **Arquivos:** versão anterior do código + acervo com obras nos **dois** formatos. **Depende de:** `TK-A-050`.
-- **O que se executa:** reverter para a versão anterior do código **com obras já gravadas no formato novo e no antigo**. **O que se verifica:** o caminho revertido **consome o formato anterior**; **nenhuma obra fica órfã**.
-- **Prova:** `TA-13` + inventário do acervo após a reversão — **Gate:** `G-CMP-4`. **Risco:** **`RG-1`** · invariante ZERO #3. **Este caso exige aparelho com acervo real e um *build* anterior instalável.**
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar que reverter o código **não deixa obra órfã** — o caso que só aparece quando a Fase 6 já rodou em campo. **Arquivos:** versão anterior do código + acervo com obras nos **dois** formatos. **Precondições:** `TK-A-050` — **Depende de:** `TK-A-050`. **Símbolos/contratos:** caso obrigatório **#13** da matriz §28.1 do PLAN.
+- **O que se executa:** reverter para a versão anterior do código **com obras já gravadas no formato novo e no antigo**. **O que se verifica:** o caminho revertido **consome o formato anterior**; **nenhuma obra fica órfã**. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-13` + inventário do acervo após a reversão — **Gate:** `G-CMP-4`. **Risco:** **`RG-1`** · invariante ZERO #3. **Este caso exige aparelho com acervo real e um *build* anterior instalável.** **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-076` · **Caso 14** — **formato legado** (`v1`/`v2` sem geometria completa)
-- **Objetivo:** provar reconstrução determinística **sem** usar a janela atual como se fosse a original (`Q8` r.6). **Arquivos:** leitor de compatibilidade. **Depende de:** `TK-A-041`.
-- **O que se executa:** abrir obra `v1`/`v2` **sem geometria completa**. **O que se verifica:** reconstrução **determinística** a partir dos metadados e dimensões intrínsecas disponíveis; **jamais** usando a *viewport* atual como se fosse a original; **ausência de evidência favorece preservação**.
-- **Prova:** `TA-12` — **Gate:** `G-CMP-1`. **Risco:** `RG-12` · invariante ZERO #4.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar reconstrução determinística **sem** usar a janela atual como se fosse a original (`Q8` r.6). **Arquivos:** leitor de compatibilidade. **Precondições:** `TK-A-041` — **Depende de:** `TK-A-041`. **Símbolos/contratos:** caso obrigatório **#14** da matriz §28.1 do PLAN.
+- **O que se executa:** abrir obra `v1`/`v2` **sem geometria completa**. **O que se verifica:** reconstrução **determinística** a partir dos metadados e dimensões intrínsecas disponíveis; **jamais** usando a *viewport* atual como se fosse a original; **ausência de evidência favorece preservação**. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-12` — **Gate:** `G-CMP-1`. **Risco:** `RG-12` · invariante ZERO #4. **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-077` · **Caso 15** — **payload visual atual**
-- **Objetivo:** provar que a ausência de `paintSchemaVersion` é tratada como legado **sem erro**. **Arquivos:** *reader*/*validator*. **Depende de:** `TK-A-002`.
-- **O que se executa:** abrir obra no formato de pintura **vigente**. **O que se verifica:** lida e enquadrada corretamente; **`paintSchemaVersion` ausente ⇒ tratada como legada, sem erro**.
-- **Prova:** `TA-11` — **Gate:** `G-VER-3`. **Risco:** `RG-11`.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar que a ausência de `paintSchemaVersion` é tratada como legado **sem erro**. **Arquivos:** *reader*/*validator*. **Precondições:** `TK-A-002` — **Depende de:** `TK-A-002`. **Símbolos/contratos:** caso obrigatório **#15** da matriz §28.1 do PLAN.
+- **O que se executa:** abrir obra no formato de pintura **vigente**. **O que se verifica:** lida e enquadrada corretamente; **`paintSchemaVersion` ausente ⇒ tratada como legada, sem erro**. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-11` — **Gate:** `G-VER-3`. **Risco:** `RG-11`. **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-078` · **Caso 16** — **envelope de armazenamento atual** (ponteiro `v:3`)
-- **Objetivo:** provar que o envelope permanece intocado e que o blob nunca é excluído por incompatibilidade **visual**. **Arquivos:** `drawingStorage.js` (`isDrawingPointer`, `POINTER_VERSION`), `fileBlobStore.js`. **Depende de:** `TK-A-005`.
-- **O que se executa:** abrir obra guardada como **ponteiro `v:3` de blob**. **O que se verifica:** resolvida normalmente; `POINTER_VERSION` **intocado**; **blob nunca excluído por incompatibilidade visual**.
-- **Prova:** `TA-11` + inventário de blobs antes/depois — **Gate:** `G-VER-2`, `G-CMP-1`. **Risco:** **`RG-11`** · invariante ZERO #3.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar que o envelope permanece intocado e que o blob nunca é excluído por incompatibilidade **visual**. **Arquivos:** `drawingStorage.js` (`isDrawingPointer`, `POINTER_VERSION`), `fileBlobStore.js`. **Precondições:** `TK-A-005` — **Depende de:** `TK-A-005`. **Símbolos/contratos:** caso obrigatório **#16** da matriz §28.1 do PLAN.
+- **O que se executa:** abrir obra guardada como **ponteiro `v:3` de blob**. **O que se verifica:** resolvida normalmente; `POINTER_VERSION` **intocado**; **blob nunca excluído por incompatibilidade visual**. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-11` + inventário de blobs antes/depois — **Gate:** `G-VER-2`, `G-CMP-1`. **Risco:** **`RG-11`** · invariante ZERO #3. **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-079` · **Caso 17** — **novo schema lógico** (`paintSchemaVersion` + `layoutVersion`)
-- **Objetivo:** provar que os quatro eixos nunca se confundem no ciclo completo. **Arquivos:** *reader*, *writer*, *validator*, `ColoringScreen.js:224`. **Depende de:** `TK-A-003`.
-- **O que se executa:** abrir obra gravada com `paintSchemaVersion` **e** `layoutVersion`. **O que se verifica:** **lida, reprojetada e regravada sem perda**; eixos de versão **nunca confundidos**; a guarda de `:224` aceita o payload novo e continua rejeitando ponteiro.
-- **Prova:** `TA-11` + aparelho — **Gate:** `G-VER-3`. **Risco:** **`RG-11`**.
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** provar que os quatro eixos nunca se confundem no ciclo completo. **Arquivos:** *reader*, *writer*, *validator*, `ColoringScreen.js:224`. **Precondições:** `TK-A-003` — **Depende de:** `TK-A-003`. **Símbolos/contratos:** caso obrigatório **#17** da matriz §28.1 do PLAN.
+- **O que se executa:** abrir obra gravada com `paintSchemaVersion` **e** `layoutVersion`. **O que se verifica:** **lida, reprojetada e regravada sem perda**; eixos de versão **nunca confundidos**; a guarda de `:224` aceita o payload novo e continua rejeitando ponteiro. **Mudança esperada:** nenhuma — task de **verificação**, não de alteração de runtime.
+- **Prova:** `TA-11` + aparelho — **Gate:** `G-VER-3`. **Risco:** **`RG-11`**. **Auto:** parcial · **Física futura:** **sim (obrigatória)** · **Commit:** `C-GOV1` (registro) · **Rollback:** não aplicável.
 
 #### `TK-A-080` · Consolidar a matriz — **17 obrigatórios + 6 adicionais**, veredito por caso
 - **Pacote · Subportão:** — · `F6-SG-A` — **Objetivo:** produzir a evidência única que o fundador lê para decidir sobre `F6-SG-A`.
 - **Arquivos:** artefato de evidência da Fase 6 (documental) — **Símbolos/contratos:** §28.1; quatro invariantes ZERO.
-- **Precondições:** `TK-A-063`..`TK-A-079` e `TK-A-100`..`TK-A-105` — **Depende de:** `TK-A-079`, `TK-A-105`
+- **Precondições:** `TK-A-063`..`TK-A-079` e `TK-A-100`..`TK-A-105` — **Depende de:** `TK-A-063`..`TK-A-079`, `TK-A-100`..`TK-A-105`
 - **Mudança esperada:** tabela com **23 linhas** — **17 obrigatórias (casos 1–17 do PLAN §28.1)** e **6 adicionais (`E1`..`E6`)** —, cada uma com veredito, aparelho, janela, captura e invariantes verificadas. As duas famílias são **visualmente separadas** na tabela; o veredito de `F6-SG-A` lê primeiro os 17.
 - **Prova:** a própria tabela — **Gate:** `G-CVS-1`..`G-CVS-3`, `G-CMP-1`..`G-CMP-6`, `G-VER-2`, `G-VER-3`, `G-LFC-2`, `G-LFC-3`
 - **Conclusão:** **17 de 17 obrigatórios `PASS`.** **Um único `FAIL` nos 17 obrigatórios impede `F6-SG-A`.** Um `FAIL` num caso adicional é registrado, analisado e submetido ao fundador — não é automaticamente bloqueante, mas **não pode ser omitido**.
@@ -1538,7 +1538,7 @@ testada e `F6-SG-A` concedido:
 - **Pacote · Subportão:** — · `F6-SG-B` — **Objetivo:** provar que os **cinco** portões do mapa têm dentes.
 - **Arquivos:** artefato de evidência (documental). **Esta task não injeta mutação alguma** — cada mutante é injetado, observado e revertido **isoladamente**, na sua própria task (`A-08`).
 - **Símbolos/contratos — os cinco mutantes de domínio `R2`:** `MT-2` → `G-MAP-1` (`TK-B-025`) · `MT-24` → `G-MAP-2` (`TK-B-026`) · `MT-3` → `G-MAP-2` (`TK-B-037`) · `MT-4` → `G-MAP-3` (`TK-B-038`) · `MT-25` → `G-MAP-4` (`TK-B-039`) · `MT-30` → `G-MAP-5` (`TK-B-042`).
-- **Precondições:** `TK-B-029` — **Depende de:** `TK-B-025`, `TK-B-026`, `TK-B-037`, `TK-B-038`, `TK-B-039`, `TK-B-042`
+- **Precondições:** `TK-B-029` — **Depende de:** `TK-B-029`, `TK-B-025`, `TK-B-026`, `TK-B-037`, `TK-B-038`, `TK-B-039`, `TK-B-042`
 - **Mudança esperada:** nenhuma. Tabela `mutante → defeito nomeado → portão → vermelho observado → revertido → árvore limpa`.
 - **Prova:** a própria tabela — **Gate:** `G-MAP-1`..`G-MAP-5`
 - **Conclusão:** **seis mutantes, seis vermelhos observados, seis reversões**, `git status` limpo ao fim, **nenhuma** mutação simultânea. — **Risco:** `RG-13` · **Auto:** sim · **Física futura:** não · **Commit:** `C-GOV1` · **Rollback:** não aplicável (esta task não altera código).
@@ -1792,7 +1792,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-C-010` · `ImmersiveSurface` — a obra e a cena mandam na composição
 - **Pacote · Subportão:** `F6-R1.2` · `F6-SG-C` — **Objetivo:** integrar a família imersiva **respeitando** o espaço lógico já entregue por `F6-R3`.
 - **Arquivos:** `src/components/layout/ImmersiveSurface.js` — **Símbolos/contratos:** consome `useViewportProjection`; **não** reimplementa projeção.
-- **Precondições:** `TK-C-004`, `TK-A-030` — **Depende de:** `TK-C-004`
+- **Precondições:** `TK-C-004`, `TK-A-030` — **Depende de:** `TK-C-004`, `TK-A-030`
 - **Mudança esperada:** o arquétipo delega a projeção ao *hook* de `R3`; **nenhuma arquitetura paralela de canvas nasce aqui**.
 - **Prova:** `TA-7` + `G-CVS-1` continua verde — **Gate:** **`G-RSP-4`** (nenhum módulo de *layout* redeclara valores já presentes em `tokens.js` nem reimplementa projeção), `G-CVS-1`
 - **Conclusão:** o arquétipo não contém aritmética de projeção própria.
@@ -2080,7 +2080,7 @@ testada e `F6-SG-A` concedido:
 
 #### `TK-C-036` · Executar o conjunto automatizado de `F6-SG-C`
 - **Pacote · Subportão:** — · `F6-SG-C` — **Objetivo:** veredito de `TA-6`..`TA-10`, `TA-14`, `TA-15` + `npm run smoke` + `npx expo-doctor`.
-- **Arquivos:** `scripts/smoke.js`, arneses — **Símbolos/contratos:** `SD-10`. **Depende de:** `TK-C-035`
+- **Arquivos:** `scripts/smoke.js`, arneses — **Símbolos/contratos:** `SD-10`. **Precondições:** `TK-C-035` — **Depende de:** `TK-C-035`
 - **Mudança esperada:** nenhuma; evidência. **Prova:** saídas anexadas — **Gate:** `G-RSP-1`, `G-RSP-2`, `G-RSP-3`, `G-RSP-4`, `G-RSP-5`, `G-RSP-6`, `G-RSP-7`, `G-SID-1`, `G-SID-2`, `G-SID-3`, `G-SID-4`, `G-BP-1`
 - **Conclusão:** tudo verde. **Risco:** — · **Auto:** sim · **Física futura:** não · **Commit:** `C-GOV1` · **Rollback:** não aplicável.
 
@@ -2096,56 +2096,56 @@ testada e `F6-SG-A` concedido:
 
 #### `TK-C-038` · Regressão completa em **telefone** (faixa compacta)
 - **Pacote · Subportão:** — · `F6-SG-C` — **Objetivo:** o aparelho onde o app já funciona **não pode** piorar.
-- **Arquivos:** — (aparelho) — **Símbolos/contratos:** **`CN-11`** (novo: faixa compacta inalterada por `R1`) e **`CN-1`** (canônico: **telefone em retrato não muda em nada**). **Depende de:** `TK-C-037`
-- **Mudança esperada:** nenhuma; capturas comparativas por família. **Prova:** **parcela `SG-C` do cenário físico §28 #17** ("regressão completa em **telefone** — nada mudou"), somada à reexecução pontual dos cenários §28 **#1**, **#4** e **#7** no telefone. *(Emenda `A-12`: a numeração usada aqui é a do PLAN §28, nunca uma renumeração destas `TASKS`. As parcelas `SG-A` e `SG-B` do mesmo #17 são `TK-A-098` e `TK-B-045`.)*
+- **Arquivos:** — (aparelho) — **Símbolos/contratos:** **`CN-11`** (novo: faixa compacta inalterada por `R1`) e **`CN-1`** (canônico: **telefone em retrato não muda em nada**). **Precondições:** `TK-C-037` — **Depende de:** `TK-C-037`
+- **Mudança esperada:** nenhuma; capturas comparativas por família. **Prova:** **parcela `SG-C` do cenário físico §28 #17** ("regressão completa em **telefone** — nada mudou"), somada à reexecução pontual dos cenários §28 **#1**, **#4** e **#7** no telefone. *(Emenda `A-12`: a numeração usada aqui é a do PLAN §28, nunca uma renumeração destas `TASKS`. As parcelas `SG-A` e `SG-B` do mesmo #17 são `TK-A-098` e `TK-B-045`.)* — **Gate:** — (cenário físico; validação perceptual, não asserção estática)
 - **Conclusão:** as quatro famílias indistinguíveis do estado anterior no telefone. **Risco:** **`RG-5`** · **Auto:** não · **Física futura:** **sim** · **Commit:** `C-GOV1` · **Rollback:** não aplicável.
 
 #### `TK-C-039` · Validação em **tablet *portrait***
 - **Pacote · Subportão:** — · `F6-SG-C` — **Objetivo:** cobrir a faixa média com composição real.
-- **Arquivos:** — (aparelho) — **Símbolos/contratos:** `SD-2`, `SD-3`, `SD-4`. **Depende de:** `TK-C-038`
-- **Mudança esperada:** nenhuma; capturas por família. **Prova:** **parcela *portrait* do cenário físico §28 #15** ("percorrer as quatro famílias nas três faixas — composições distintas, sem coluna estreita com vazio") + capturas por família
+- **Arquivos:** — (aparelho) — **Símbolos/contratos:** `SD-2`, `SD-3`, `SD-4`. **Precondições:** `TK-C-038` — **Depende de:** `TK-C-038`
+- **Mudança esperada:** nenhuma; capturas por família. **Prova:** **parcela *portrait* do cenário físico §28 #15** ("percorrer as quatro famílias nas três faixas — composições distintas, sem coluna estreita com vazio") + capturas por família — **Gate:** — (cenário físico; validação perceptual, não asserção estática)
 - **Conclusão:** composição coerente, sem vazio dominante, barra lateral correta. **Risco:** `SD-3` · **Auto:** não · **Física futura:** **sim** · **Commit:** `C-GOV1` · **Rollback:** não aplicável.
 
 #### `TK-C-040` · Validação em **tablet *landscape***
 - **Pacote · Subportão:** — · `F6-SG-C` — **Objetivo:** cobrir a faixa expandida.
-- **Arquivos:** — (aparelho) — **Símbolos/contratos:** `breakpoints.tabletL`. **Depende de:** `TK-C-039`
-- **Mudança esperada:** nenhuma; capturas por família. **Prova:** **parcela *landscape* do cenário físico §28 #15** + capturas por família
+- **Arquivos:** — (aparelho) — **Símbolos/contratos:** `breakpoints.tabletL`. **Precondições:** `TK-C-039` — **Depende de:** `TK-C-039`
+- **Mudança esperada:** nenhuma; capturas por família. **Prova:** **parcela *landscape* do cenário físico §28 #15** + capturas por família — **Gate:** — (cenário físico; validação perceptual, não asserção estática)
 - **Conclusão:** nenhuma coluna estreita cercada de vazio em `>=900dp` (`SD-3`). **Risco:** `SD-3` · **Auto:** não · **Física futura:** **sim** · **Commit:** `C-GOV1` · **Rollback:** não aplicável.
 
 #### `TK-C-041` · Validação de ***resize*** quando suportado (Split View, Slide Over)
 - **Pacote · Subportão:** — · `F6-SG-C` — **Objetivo:** cobrir a mudança contínua de janela, não só a rotação.
-- **Arquivos:** — (iPad) — **Símbolos/contratos:** `SD-9`; travessia de `600dp` arrastando o divisor. **Depende de:** `TK-C-040`
-- **Mudança esperada:** nenhuma; vídeo da travessia. **Prova:** **cenário físico §28 #6** ("Split View, arrastar o divisor, sair" — `SD-9`), **reexecutado sob a ótica de `R1`** (composição das quatro famílias sob larguras contínuas), + `CN-6`. *(Emenda `A-12`: a r1 citava aqui "§28 #14, #15", números que no PLAN pertencem a **outros** cenários — "as 20 histórias, três faixas" (`TK-B-044`) e "percorrer as quatro famílias nas três faixas" (`TK-C-039`/`TK-C-040`). A renumeração está desfeita.)*
+- **Arquivos:** — (iPad) — **Símbolos/contratos:** `SD-9`; travessia de `600dp` arrastando o divisor. **Precondições:** `TK-C-040` — **Depende de:** `TK-C-040`
+- **Mudança esperada:** nenhuma; vídeo da travessia. **Prova:** **cenário físico §28 #6** ("Split View, arrastar o divisor, sair" — `SD-9`), **reexecutado sob a ótica de `R1`** (composição das quatro famílias sob larguras contínuas), + `CN-6`. *(Emenda `A-12`: a r1 citava aqui "§28 #14, #15", números que no PLAN pertencem a **outros** cenários — "as 20 histórias, três faixas" (`TK-B-044`) e "percorrer as quatro famílias nas três faixas" (`TK-C-039`/`TK-C-040`). A renumeração está desfeita.)* — **Gate:** — (cenário físico; validação perceptual, não asserção estática)
 - **Conclusão:** travessia sem remontagem, sem perda de estado e sem quebra de composição. **Risco:** `RG-4` · **Auto:** não · **Física futura:** **sim** · **Commit:** `C-GOV1` · **Rollback:** não aplicável.
 
 #### `TK-C-042` · Consistência das **quatro famílias** entre si
 - **Pacote · Subportão:** — · `F6-SG-C` — **Objetivo:** provar `SD-2` de forma comparativa, não isolada.
-- **Arquivos:** artefato de evidência — **Símbolos/contratos:** 4 famílias × 3 faixas = **12 células**. **Depende de:** `TK-C-041`
-- **Mudança esperada:** matriz com captura por célula e veredito de coerência. **Prova:** a própria matriz
+- **Arquivos:** artefato de evidência — **Símbolos/contratos:** 4 famílias × 3 faixas = **12 células**. **Precondições:** `TK-C-041` — **Depende de:** `TK-C-041`
+- **Mudança esperada:** matriz com captura por célula e veredito de coerência. **Prova:** a própria matriz — **Gate:** — (cenário físico; validação perceptual, não asserção estática)
 - **Conclusão:** as 12 células coerentes entre si; nenhuma família contradiz a política das outras. **Risco:** `SD-2` · **Auto:** não · **Física futura:** **sim** · **Commit:** `C-GOV1` · **Rollback:** não aplicável.
 
 #### `TK-C-043` · Verificação final da **barra lateral**
 - **Pacote · Subportão:** — · `F6-SG-C` — **Objetivo:** fechar `SD-4` com evidência.
-- **Arquivos:** — (aparelho) — **Símbolos/contratos:** `SD-4`; **`CN-5`** (nenhum destino novo na barra lateral); defeitos 1–3 corrigidos, 4–5 abertos; os **cinco** `registerGuideTarget` medidos no aparelho. **Depende de:** `TK-C-042`
-- **Mudança esperada:** nenhuma; capturas nas duas faixas onde a barra existe. **Prova:** cenário físico **§28 #16** (barra lateral em iPad retrato e paisagem, com o vazio vertical medido em pontos e os cinco alvos de guia medidos) + capturas comparativas
+- **Arquivos:** — (aparelho) — **Símbolos/contratos:** `SD-4`; **`CN-5`** (nenhum destino novo na barra lateral); defeitos 1–3 corrigidos, 4–5 abertos; os **cinco** `registerGuideTarget` medidos no aparelho. **Precondições:** `TK-C-042` — **Depende de:** `TK-C-042`
+- **Mudança esperada:** nenhuma; capturas nas duas faixas onde a barra existe. **Prova:** cenário físico **§28 #16** (barra lateral em iPad retrato e paisagem, com o vazio vertical medido em pontos e os cinco alvos de guia medidos) + capturas comparativas — **Gate:** — (cenário físico; validação perceptual, não asserção estática)
 - **Conclusão:** sem vazio desproporcional, sem destino novo, cinco alvos de guia medidos, defeitos 4–5 ainda registrados como **abertos** em `B2`. **Risco:** `SD-4` · **Auto:** não · **Física futura:** **sim** · **Commit:** `C-GOV1` · **Rollback:** não aplicável.
 
 #### `TK-C-044` · Verificação final dos ***tokens***
 - **Pacote · Subportão:** — · `F6-SG-C` — **Objetivo:** fechar `Q4` e `Q9` com evidência, não com promessa.
-- **Arquivos:** `src/theme/tokens.js` (**revisão do *diff***) — **Símbolos/contratos:** `grid`, `displayScaleTablet`, *token* da barra lateral. **Depende de:** `TK-C-043`
+- **Arquivos:** `src/theme/tokens.js` (**revisão do *diff***) — **Símbolos/contratos:** `grid`, `displayScaleTablet`, *token* da barra lateral. **Precondições:** `TK-C-043` — **Depende de:** `TK-C-043`
 - **Mudança esperada:** nenhuma; parecer item a item sobre o *diff*. **Prova:** **`TA-8`** (`grid` e `displayScaleTablet` têm consumidor real) — **Gate:** **`G-RSP-2`**, **`G-SID-2`**
 - **Conclusão:** nenhum *token* morto por inércia; nenhuma remoção preventiva; `Q9` cumprida além da renomeação. **Risco:** `Q4`, `Q9` · **Auto:** parcial · **Física futura:** não · **Commit:** `C-GOV1` · **Rollback:** não aplicável.
 
 #### `TK-C-045` · Ausência de **arquitetura paralela**
 - **Pacote · Subportão:** — · `F6-SG-C` — **Objetivo:** provar a Governança da Arquitetura ao fim do delta.
-- **Arquivos:** `src/components/layout/`, `src/hooks/`, `src/services/` — **Símbolos/contratos:** um *hook* de faixa, um de projeção, um de *lifecycle*, um serviço de âncora. **Depende de:** `TK-C-044`
+- **Arquivos:** `src/components/layout/`, `src/hooks/`, `src/services/` — **Símbolos/contratos:** um *hook* de faixa, um de projeção, um de *lifecycle*, um serviço de âncora. **Precondições:** `TK-C-044` — **Depende de:** `TK-C-044`
 - **Mudança esperada:** nenhuma; inventário provando que não há dois caminhos para a mesma responsabilidade. **Prova:** inventário + **`G-RSP-4`** (nenhum módulo de *layout* redeclara valor já presente em `tokens.js`) — **Gate:** **`G-RSP-4`**
 - **Conclusão:** nenhuma responsabilidade da Fase 6 tem duas implementações concorrentes. **Risco:** **`RG-2`** · **Auto:** parcial · **Física futura:** não · **Commit:** `C-GOV1` · **Rollback:** não aplicável.
 
 #### `TK-C-046` · Relatório e critérios `PASS`/`FAIL` de `F6-SG-C`
 - **Pacote · Subportão:** — · `F6-SG-C` — **Objetivo:** entregar a base de decisão **sem conceder o subportão**.
-- **Arquivos:** artefato de evidência — **Símbolos/contratos:** critérios de saída de `F6-SG-C` (§27). **Depende de:** `TK-C-045`
-- **Mudança esperada:** relatório em PT-BR com a distinção correta de estado de arquivo. **Prova:** revisão do fundador
+- **Arquivos:** artefato de evidência — **Símbolos/contratos:** critérios de saída de `F6-SG-C` (§27). **Precondições:** `TK-C-045` — **Depende de:** `TK-C-045`
+- **Mudança esperada:** relatório em PT-BR com a distinção correta de estado de arquivo. **Prova:** revisão do fundador — **Gate:** — (relatório de subportão)
 - **Conclusão:** relatório entregue; **`F6-SG-C` permanece não concedido**. O relatório declara explicitamente, como limitação: **`SD-1` NÃO CONCEDÍVEL** enquanto `TK-C-062` (tablet Android, retrato e paisagem) permanecer `PENDENTE — SEM APARELHO`; e que **a rota condicional de §33 do PLAN continua NÃO ESCOLHIDA**, cabendo ao fundador. **Risco:** `RG-10` · `P8` · **Auto:** não · **Física futura:** — · **Commit:** `C-GOV1` · **Rollback:** não aplicável.
 
 ### 8.1 Emenda pós-`Analyze` — tasks acrescentadas ao `BLOCO 5` e ao `BLOCO 6`
@@ -2382,7 +2382,7 @@ testada e `F6-SG-A` concedido:
 #### `TK-D-005` · Emitir o **parecer** de elegibilidade de `B2`
 - **Pacote · Subportão:** — · `F6-SG-D` — **Objetivo:** produzir a única saída admissível deste bloco.
 - **Arquivos:** artefato de evidência (documental) — **Símbolos/contratos:** parecer (i) ou (ii); **nunca** "`B2` desbloqueado".
-- **Precondições:** `TK-D-001`..`TK-D-004` — **Depende de:** `TK-D-004`
+- **Precondições:** `TK-D-001`..`TK-D-004` — **Depende de:** `TK-D-001`..`TK-D-004`
 - **Mudança esperada:** **nenhuma** — parecer em PT-BR com as 12 condições, as três concessões, o veredito de `SD-8` e o estado das pendências.
 - **Prova:** revisão do fundador — **Gate:** —
 - **Conclusão:** o parecer diz **exatamente** "`B2` elegível para ser apresentado ao fundador" **ou** "`B2` continua bloqueado". **Em nenhuma hipótese o parecer desbloqueia `B2`.**
@@ -2790,6 +2790,23 @@ de arquivos como **parte da prova**, e não "nenhuma migração silenciosa em ma
 identificação própria e **sem ocupar número do PLAN**: **cenário físico de tablet Android (retrato e
 paisagem)** — `TK-C-062` —, criado pela emenda `A-13` para tornar `SD-1` **NÃO CONCEDÍVEL** enquanto
 não for executado.
+
+> **Nota normativa `N-02` — §11.8 e §11.9 são EIXOS ORTOGONAIS.** §11.8 descreve o **contexto ou
+> cenário físico de execução**. §11.9 descreve o **caso de compatibilidade da matriz §28.1 que está
+> sendo validado**. Um caso §28.1 **pode** ser executado dentro de um cenário físico §28. Entretanto:
+>
+> - nenhum ID de §11.8 substitui ID de §11.9;
+> - nenhum cenário físico substitui caso obrigatório da matriz;
+> - nenhum caso da matriz substitui cenário físico obrigatório;
+> - a cobertura dos dois eixos permanece **independente** — cada eixo é contado, exigido e concedido
+>   por si mesmo;
+> - a *cross-reference* entre os dois eixos é **permitida e desejável** quando uma mesma execução
+>   produz evidência para ambos.
+>
+> Esta nota **não** reintroduz a contradição corrigida pela emenda `A-25`: aparecer nos dois eixos
+> **não** atribui dois significados diferentes à mesma task. A task continua com um único significado;
+> o que muda é apenas **qual eixo** está sendo contado — o cenário em que ela roda (§11.8) ou o caso
+> de compatibilidade que ela prova (§11.9).
 
 ### 11.9 Matriz de compatibilidade §28.1 → task
 
