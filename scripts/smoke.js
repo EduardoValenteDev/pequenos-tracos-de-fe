@@ -39072,6 +39072,16 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       // [D]→S2 (dois checks), [H]→S2, [S6]→S2, [N]→S2 (três cenários) e na prova 5b do portão.
       // O restante do delta são comentários que descreviam a política revogada. O selo é reancorado
       // com a mudança declarada; qualquer OUTRA alteração segue acendendo o alarme.
+      // REFERÊNCIA REBASEADA DE NOVO — [Fase 6 · F6-R3.2 · TK-A-010]. O valor anterior
+      // (57.646 bytes, sha 070fd5982c72b57af058fcf3664b8b757519b807bf82308cf5ddfa9ba0d41cd6) foi
+      // medido ao fim do S2. A Fase 6 alterou DELIBERADAMENTE este corpo num ponto só: o Colorir
+      // era uma das DUAS únicas superfícies interativas do app sem nenhuma escuta de `AppState` ou
+      // de foco, e passou a consumir `useSurfaceLifecycle`. A adoção é observabilidade pura — não
+      // grava, não exporta, não relê o armazenamento e não reaplica pintura —, exatamente porque
+      // aqui vive pintura de criança (`SD-8`). A prova nominal do consumo é `G-LFC-2`, criado por
+      // `TK-A-015` (commit `C-A12`) e provado de forma INDEPENDENTE por `MT-26` (`TK-A-087`):
+      // nenhum portão prova a si próprio. O selo é reancorado com a mudança declarada; qualquer
+      // OUTRA alteração neste corpo segue acendendo o alarme.
       const c60BodyF = (function sliceC60(s) {
         const i = s.indexOf('function Coloring60ActivityScreen(');
         const j = s.indexOf('const c60Styles = StyleSheet.create(', i + 1);
@@ -39079,8 +39089,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       })(scrF);
       const c60ShaF = require('crypto').createHash('sha256').update(c60BodyF, 'utf8').digest('hex');
       check('C60-P4-FIX2 [LEGADO] → [P3J]: corpo do Coloring60ActivityScreen BYTE-IDÊNTICO a HEAD (a aposentadoria não tocou o colorir vivo)',
-        c60ShaF === '070fd5982c72b57af058fcf3664b8b757519b807bf82308cf5ddfa9ba0d41cd6'
-          && c60BodyF.length === 57646,
+        c60ShaF === '4ad15445501286f24bec92db9676bfd3584f696a067ca86a66b562fedf384288'
+          && c60BodyF.length === 59077,
         `o corpo do Colorir com o Beni mudou (sha=${c60ShaF}, bytes=${c60BodyF.length}) — nenhuma mudança vizinha pode tocar o ramo vivo`);
     }
   }

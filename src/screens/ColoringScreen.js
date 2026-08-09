@@ -14,6 +14,7 @@ import SoundButton from '../components/SoundButton';
 // pintura. O módulo continua íntegro no projeto (leitura, escrita e limpeza legadas seguem lá) —
 // esta tela apenas deixou de usar as funções por cena junto com o ramo legado.
 import { hasMeaningfulPaint } from '../services/drawingStorage';
+import { useSurfaceLifecycle } from '../hooks/useSurfaceLifecycle';
 // [C60-P13-HEADER] §Parte 13 — sinal de "momento imersivo": recolhe os enfeites globais de
 // desenvolvimento (o selo MODO CRIADOR) enquanto os atos da celebração estão em cena.
 import { beginImmersiveMoment } from '../services/immersiveMoment';
@@ -633,6 +634,27 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // semente ESTÁVEL das partículas do overlay (sem Math.random): o mesmo evento gera sempre a mesma
   // disposição, e re-render não "reembaralha". Derivada — sem estado novo e sem tocar a máquina.
   const c60CelebrationId = `${activityId ?? 'none'}:${c60CelebrateMode ?? 'idle'}:${c60Steps.filter((s) => s.done).length}`;
+
+  // [F6-R3.2] CICLO DE VIDA DA SUPERFÍCIE. Colorir era uma das DUAS únicas superfícies interativas
+  // do app sem nenhuma escuta de `AppState` nem de foco: abrir o Centro de Controle, mandar o app
+  // para segundo plano ou navegar para longe com pintura na tela passava inteiramente despercebido.
+  // A adoção aqui é DELIBERADAMENTE conservadora, porque esta tela guarda pintura de criança (SD-8):
+  //   · sair NÃO salva, NÃO exporta, NÃO limpa e NÃO descarta nada;
+  //   · voltar NÃO relê o armazenamento e NÃO reaplica pintura. A hidratação é de ABERTURA (efeito
+  //     com dependências vazias, acima) e reler aqui seria exatamente o "recarregamento silencioso"
+  //     que a validação física de `F6-SG-A` precisa provar que não acontece.
+  // Neste passo a escuta é OBSERVABILIDADE PURA. A finalização atômica do gesto em curso pertence
+  // ao motor (`TK-A-016`), não à tela, e chega no bloco do canvas — não é antecipada aqui.
+  // Sem desestruturar o retorno: nada na interface depende de `appState`/`isFocused` hoje, e criar
+  // uma variável só para não usá-la seria estado morto.
+  useSurfaceLifecycle({
+    onBackground: () => {
+      if (__DEV__) console.log('[Coloring60] superfície → segundo plano/sem foco (nenhuma escrita, nenhum descarte)');
+    },
+    onForeground: () => {
+      if (__DEV__) console.log('[Coloring60] superfície → primeiro plano (nenhuma releitura, nenhuma reaplicação)');
+    },
+  });
 
   useEffect(() => {
     activeRef.current = true;

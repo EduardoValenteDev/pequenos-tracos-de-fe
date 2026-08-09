@@ -24,6 +24,11 @@ import AchievementUnlockModal from '../components/achievements/AchievementUnlock
 import { useProgressContext } from '../context/ProgressContext';
 import { useProfile } from '../context/ProfileContext';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
+import { useSurfaceLifecycle } from '../hooks/useSurfaceLifecycle';
+// `log` do helper central, e não um teste de ambiente escrito à mão: esta tela é vizinha do limite
+// de guarda do Plano Família, e o smoke proíbe que o sinalizador de desenvolvimento apareça aqui
+// como portão de produto. O helper já cala em produção sem trazer esse sinalizador para o arquivo.
+import { log } from '../utils/logger';
 import { isInternalToolsEnabled } from '../config/internalTools';
 import {
   CL, CRIAR_LIVRE_COLORS, ORGANIZED_PALETTES, RECENT_COLORS_MAX,
@@ -126,6 +131,22 @@ export default function AtelierCanvasScreen({ route, navigation }) {
     const sub = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v) => setReduceMotion(!!v));
     return () => { alive = false; sub?.remove?.(); };
   }, []);
+
+  /* ── [F6-R3.2] Ciclo de vida da superfície ──
+     O Ateliê era, com o Colorir, uma das duas únicas superfícies interativas sem nenhuma escuta de
+     `AppState` ou de foco. A adoção é conservadora porque aqui vive a composição da criança (SD-8):
+     sair para segundo plano NÃO grava, NÃO exporta e NÃO limpa; voltar NÃO relê o armazenamento e
+     NÃO reaplica estado. A carga continua sendo a de abertura, disparada por `onCanvasReady` →
+     `loadState`, e reler no retorno seria a reescrita silenciosa que `Q8` proíbe. Neste passo a
+     escuta é observabilidade pura; a finalização atômica do gesto pertence ao motor (`TK-A-016`). */
+  useSurfaceLifecycle({
+    onBackground: () => {
+      log('[Atelie] superfície → segundo plano/sem foco (nenhuma gravação, nenhum descarte)');
+    },
+    onForeground: () => {
+      log('[Atelie] superfície → primeiro plano (nenhuma releitura, nenhuma reaplicação)');
+    },
+  });
 
   /* ── Animações ── */
   const panelAnim = useRef(new Animated.Value(0)).current;  // 0 fechado, 1 aberto
