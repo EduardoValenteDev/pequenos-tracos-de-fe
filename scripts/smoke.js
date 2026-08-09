@@ -51261,6 +51261,31 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     console.log(`  ⚠ ${aviso}`);
   }
 
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.5 · TK-A-031 — TA-4 (`scripts/testing/viewportProjectionHarness.js`)
+   *
+   * A projeção `contain` canônica (`TK-A-030`/`TK-A-032`), provada sobre a função
+   * REAL lida do fonte de `src/hooks/useViewportProjection.js` — não sobre uma
+   * segunda cópia da conta. Cobre `contain`, isotropia, `letterbox`, ida-e-volta,
+   * ausência de deriva em dez ciclos, entrada degenerada e os extremos nomeados
+   * (Slide Over estreito, tablet em paisagem, janela de 1×1).
+   *
+   * Limite declarado (§11.11-b): isto é ARITMÉTICA. Que a obra apareça inteira,
+   * sem esticar e sem recorte num aparelho real é evidência FÍSICA (§28 #2, #6,
+   * #7) e continua pendente. Nenhum motor consome a projeção ainda — `TK-A-030`
+   * cria o hook SEM consumidor, de propósito.
+   * ────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-031: TA-4 · projeção `contain` canônica ──');
+
+  const { executarTA4 } = require('./testing/viewportProjectionHarness');
+  const a31 = executarTA4();
+  for (const caso of a31.casos) {
+    check(`TA-4 · ${caso.nome}`, caso.ok, caso.detalhe);
+  }
+  for (const aviso of a31.avisos) {
+    console.log(`  ⚠ ${aviso}`);
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
