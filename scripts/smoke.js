@@ -51094,6 +51094,154 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     `arquivos com conjunto próprio de breakpoints: ${a94DeclaraBreakpoints.join(', ')}`,
   );
 
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.5 · TK-A-007 — G-VER-1, G-VER-2 e G-VER-3
+   *
+   * Transforma as regras de §11.5 em asserção estática que falha SOZINHA. Esta
+   * task CRIA os três portões; ela NÃO os prova. As provas vermelhas são
+   * independentes e vêm de mutantes próprios:
+   *   G-VER-1 ← MT-12 (`exportPaint` emite `v: 3`)              · TK-A-008
+   *   G-VER-2 ← MT-28 (`POINTER_VERSION` = 4 / degrau novo)      · TK-A-089
+   *   G-VER-3 ← MT-29 (inferir `layoutVersion` de `paintSchemaVersion`) · TK-A-090
+   *
+   * Os QUATRO eixos (§11.5.3) respondem a perguntas diferentes e nenhum pode ser
+   * deduzido do outro:
+   *   APP_STORAGE_SCHEMA_VERSION → que CHAVES o AsyncStorage tem
+   *   POINTER_VERSION / campo `v` do ponteiro → ONDE está o blob
+   *   paintSchemaVersion → que CAMPOS o payload tem
+   *   layoutVersion → o que as COORDENADAS significam
+   *
+   * Por que `v:3` vindo do canvas seria DESTRUTIVO e não apenas "errado":
+   * `isAcceptableC60Payload` (ColoringScreen.js) recusa `obj.v === 3` porque um
+   * `v:3` é, por contrato, um PONTEIRO. Um canvas que emitisse `v:3` teria sua
+   * pintura classificada como ponteiro e DESCARTADA antes de chegar ao writer —
+   * perda de píxel da criança, o bloqueador absoluto SD-8. Daí o lacre.
+   * ────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-007: G-VER-1 · G-VER-2 · G-VER-3 ──');
+
+  const A07_MOTORES = ['src/components/ColoringCanvas.js', 'src/components/AtelierCanvas.js'];
+
+  /* ── G-VER-1 · o campo `v` do payload do canvas é 2 e vem de constante CONGELADA ── */
+
+  // Presença: `readSrc` (o texto como está). Ausência: `codeOf` (sem comentários), porque
+  // um comentário que EXPLICA por que `v:3` é proibido não pode derrubar o próprio lacre.
+  const a07SemConstante = A07_MOTORES.filter((rel) => !/export const CANVAS_PAYLOAD_V = 2;/.test(readSrc(rel)));
+  check(
+    'G-VER-1 [1/3]: os dois motores de canvas declaram `CANVAS_PAYLOAD_V = 2` CONGELADO',
+    a07SemConstante.length === 0,
+    `motores sem a constante congelada: ${a07SemConstante.join(', ')}`,
+  );
+
+  const a07SemUso = A07_MOTORES.filter((rel) => !/JSON\.stringify\(\{v:CANVAS_PAYLOAD_V,/.test(readSrc(rel)));
+  check(
+    'G-VER-1 [2/3]: o payload serializado tira o `v` da constante, nunca de literal solto',
+    a07SemUso.length === 0,
+    `motores que não serializam com \`v:CANVAS_PAYLOAD_V\`: ${a07SemUso.join(', ')}`,
+  );
+
+  // Um `v:3` literal em QUALQUER lugar dos motores é proibido — inclusive fora do export.
+  const A07_V3_LITERAL = /\bv\s*:\s*3\b/;
+  const a07ComV3 = A07_MOTORES.filter((rel) => A07_V3_LITERAL.test(codeOf(rel)));
+  check(
+    'G-VER-1 [3/3]: zero `v:3` nos motores de canvas — `v:3` é ponteiro e seria DESCARTADO (SD-8)',
+    a07ComV3.length === 0,
+    `motores que emitem v:3: ${a07ComV3.join(', ')}`,
+  );
+
+  /* ── G-VER-2 · eixos de ENVELOPE e de CHAVES congelados, escada sem degrau novo ── */
+
+  const a07Ponteiros = [
+    ['src/services/drawingStorage.js', /const POINTER_VERSION = 3;/],
+    ['src/services/coloring60DrawingStorage.js', /const POINTER_VERSION = 3;/],
+    ['src/services/storageKeys.js', /export const APP_STORAGE_SCHEMA_VERSION = 3;/],
+  ];
+  const a07Destravados = a07Ponteiros.filter(([rel, re]) => !re.test(readSrc(rel))).map(([rel]) => rel);
+  check(
+    'G-VER-2 [1/2]: `POINTER_VERSION` (2 armazenamentos) e `APP_STORAGE_SCHEMA_VERSION` seguem CONGELADOS em 3',
+    a07Destravados.length === 0,
+    `arquivos com eixo destravado: ${a07Destravados.join(', ')}`,
+  );
+
+  // A escada de migração é o outro lado do MESMO eixo: subir `APP_STORAGE_SCHEMA_VERSION`
+  // sem degrau, ou acrescentar degrau sem subir a versão, deixa o app num estado que
+  // nenhuma leitura sabe interpretar. Os dois têm de andar juntos — ou nenhum anda.
+  const a07EscadaSrc = readSrc('src/services/storageMigrationService.js');
+  const a07EscadaBloco = a07EscadaSrc.match(/const migrations = \[([\s\S]*?)\];/);
+  const a07Degraus = a07EscadaBloco
+    ? [...a07EscadaBloco[1].matchAll(/\{\s*version:\s*(\d+)\s*,\s*run:\s*\w+\s*\}/g)].map((m) => Number(m[1]))
+    : [];
+  check(
+    'G-VER-2 [2/2]: a escada de migração tem exatamente os degraus 1 · 2 · 3 (nenhum degrau novo)',
+    a07Degraus.length === 3 && a07Degraus.join(',') === '1,2,3',
+    `degraus lidos: ${a07Degraus.length ? a07Degraus.join(' · ') : '(nenhum — `const migrations = [` não foi encontrado)'}`,
+  );
+
+  /* ── G-VER-3 · cada eixo é lido PELO PRÓPRIO NOME, sem inferência cruzada ── */
+
+  const a07SemPorNome = A07_MOTORES.filter((rel) => {
+    const src = readSrc(rel);
+    return !/paint:axisOf\(obj\.paintSchemaVersion\)/.test(src) || !/layout:axisOf\(obj\.layoutVersion\)/.test(src);
+  });
+  check(
+    'G-VER-3 [1/3]: `classifyAxes` deriva cada eixo do SEU campo — `paintSchemaVersion` e `layoutVersion`',
+    a07SemPorNome.length === 0,
+    `motores que não classificam por nome: ${a07SemPorNome.join(', ')}`,
+  );
+
+  // O corpo de `classifyAxes` não pode olhar o ENVELOPE: `v`, `fmt` e `uri` respondem a
+  // outra pergunta (§11.5.3 regra 5). Se um deles aparecer ali, o eixo passou a ser
+  // deduzido de onde o blob está guardado — exatamente a inferência proibida.
+  const a07ComEnvelope = A07_MOTORES.filter((rel) => {
+    const corpo = codeOf(rel).match(/function classifyAxes\([\s\S]*?\n\}/);
+    return !corpo || /\.v\b|\bfmt\b|\buri\b/.test(corpo[0]);
+  });
+  check(
+    'G-VER-3 [2/3]: `classifyAxes` não consulta o envelope (`v` · `fmt` · `uri`)',
+    a07ComEnvelope.length === 0,
+    `motores cujo classifyAxes olha o envelope (ou sumiu): ${a07ComEnvelope.join(', ')}`,
+  );
+
+  // Terceira metade em `src/` INTEIRO, não só nos motores: um eixo derivado do outro em
+  // qualquer serviço, tela ou hook é a mesma violação.
+  const A07_CRUZAMENTO = [
+    /layoutVersion\s*[:=][^,;)\n]*paintSchemaVersion/,
+    /paintSchemaVersion\s*[:=][^,;)\n]*layoutVersion/,
+  ];
+  const a07Cruzados = b1Arquivos.filter((rel) => {
+    const codigo = codeOf(rel);
+    return A07_CRUZAMENTO.some((re) => re.test(codigo));
+  });
+  check(
+    'G-VER-3 [3/3]: zero inferência cruzada em `src` — nenhum eixo é derivado do outro',
+    a07Cruzados.length === 0,
+    `arquivos que derivam um eixo do outro: ${a07Cruzados.join(', ')}`,
+  );
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.5 · TK-A-006 — TA-11 (`scripts/testing/artworkVersionHarness.js`)
+   *
+   * Os portões acima provam propriedade ESTÁTICA. `TA-11` prova o COMPORTAMENTO
+   * que eles não alcançam: sobe o motor REAL da WebView (o próprio texto do
+   * template literal, com as interpolações resolvidas pelas constantes do módulo)
+   * sobre um DOM modelado e varia os três eixos de forma independente.
+   *
+   * Limite declarado (§11.11-b): Node prova aqui lógica pura, serialização,
+   * classificação e simulação isolada. NÃO prova — e nada abaixo alega provar —
+   * sobrevivência da WebView real, término de processo, `resize` nativo, Split
+   * View, Slide Over, safe area, React Navigation nem geometria visual real.
+   * ────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-006: TA-11 · ortogonalidade dos quatro eixos ──');
+
+  const { executarTA11, executarTA11Ponteiro } = require('./testing/artworkVersionHarness');
+  const a06Sincrono = executarTA11();
+  const a06Ponteiro = await executarTA11Ponteiro();
+  for (const caso of a06Sincrono.casos.concat(a06Ponteiro.casos)) {
+    check(`TA-11 · ${caso.nome}`, caso.ok, caso.detalhe);
+  }
+  for (const aviso of a06Sincrono.avisos.concat(a06Ponteiro.avisos)) {
+    console.log(`  ⚠ ${aviso}`);
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
