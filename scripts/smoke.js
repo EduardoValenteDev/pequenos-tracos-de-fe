@@ -2836,9 +2836,16 @@ check(
   atelierCanvasSrc92.includes('previewBase64:previewData'),
   'previewBase64 no longer exported from AtelierCanvas — breaks gallery viewer',
 );
+// [Fase 6 · TK-A-001/TK-A-003] A ÂNCORA mudou, a PROPRIEDADE não. O `stateJson`
+// deixou de trazer o literal `v:2` e passou a trazer `v:CANVAS_PAYLOAD_V` — que é
+// declarado 2 no topo do módulo e CONGELADO ali. A prova continua exigindo as duas
+// coisas que sempre exigiu (o `v` vale 2 e os três campos continuam presentes) e
+// ganhou uma terceira: a fonte do `v` é a constante congelada, não um literal solto.
 check(
   'AtelierCanvas stamps format unchanged (v:2, strokes, stamps, bgColor)',
-  atelierCanvasSrc92.includes('"v":2') || atelierCanvasSrc92.includes("v:2,strokes:strokes,stamps:stamps"),
+  /export const CANVAS_PAYLOAD_V = 2;/.test(atelierCanvasSrc92)
+  && atelierCanvasSrc92.includes('v:CANVAS_PAYLOAD_V,')
+  && atelierCanvasSrc92.includes('strokes:strokes,stamps:stamps,bgColor:bgColor'),
   'AtelierCanvas state format changed — breaks loading existing saved arts',
 );
 check(
@@ -20183,8 +20190,11 @@ console.log('\n── Criar livre C1: Ateliê essencial premium ──');
     'o erro de salvamento não mantém o desenho / não permite tentar de novo');
 
   // §16/§25 — a interface (RN) fica FORA do canvas (WebView) → não entra na arte exportada.
+  // [Fase 6 · TK-A-001/TK-A-003] Âncora atualizada, propriedade preservada: o `v` do
+  // stateJson continua valendo 2 (agora pela constante CONGELADA `CANVAS_PAYLOAD_V`) e
+  // os três campos do estado continuam saindo juntos no mesmo `JSON.stringify`.
   check('C1 §16 (export limpo): a interface é RN, fora da WebView; export achata contra o fundo',
-    /var st=JSON\.stringify\(\{v:2,strokes:strokes,stamps:stamps,bgColor:bgColor\}\)/.test(eng)
+    /var st=JSON\.stringify\(\{v:CANVAS_PAYLOAD_V,[\s\S]{0,160}?strokes:strokes,stamps:stamps,bgColor:bgColor\}\)/.test(eng)
     && /fctx\.fillStyle=bgColor; fctx\.fillRect\(0,0,W,H\)/.test(eng)   // achata contra o fundo
     && !/CriarLivreIcon|styles\.toolBtn|styles\.header/.test(eng),      // nenhuma UI RN dentro do motor
     'a interface pode entrar na arte exportada');
@@ -21111,9 +21121,11 @@ check(
   'AtelierCanvas mudou o composite da borracha no render ao vivo',
 );
 
+// [Fase 6 · TK-A-001/TK-A-003] Âncora atualizada, propriedade preservada: os três
+// campos de edição continuam no stateJson e o `v` continua 2 pela constante congelada.
 check(
   'H2: stateJson preserva strokes/stamps/bgColor (edição futura intacta)',
-  h2Canvas.includes('JSON.stringify({v:2,strokes:strokes,stamps:stamps,bgColor:bgColor})'),
+  /JSON\.stringify\(\{v:CANVAS_PAYLOAD_V,[\s\S]{0,160}?strokes:strokes,stamps:stamps,bgColor:bgColor\}\)/.test(h2Canvas),
   'AtelierCanvas alterou o stateJson — edição futura pode quebrar',
 );
 
@@ -50994,6 +51006,92 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     'G-NAV-2 [3/3]: todo payload aninhado de aba parte de `ROUTES.HOME` e nomeia a aba por `ROUTES.*`',
     b3PayloadForaDoContrato.length === 0,
     `fora do contrato: ${b3PayloadForaDoContrato.join(' · ')}`,
+  );
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · delta v4.1 · F6-R3 · TK-A-094 — portão estático ANTECIPADO de SD-11
+   *
+   * Por que aqui e não em F6-R1: `SD-11` proíbe que a estabilidade de ciclo de
+   * vida/resize (F6-R3) reintroduza, de passagem, os retrocessos estruturais que
+   * o sistema de superfícies adaptativas (F6-R1) vai tratar formalmente depois.
+   * Esperar F6-R1 para criar o lacre deixaria três pacotes inteiros desprotegidos.
+   * Os portões nascem AQUI e ficam verdes em TODOS os pacotes seguintes; `TK-C-002`
+   * e `TK-C-060` apenas CONFIRMAM e ESTENDEM — não criam do zero.
+   *
+   *   G-RSP-1 — zero `Dimensions.get` em `src/`. Hoje já é zero: a asserção
+   *             CONGELA o estado atual. Fotografia congelada de layout é o defeito;
+   *             `useWindowDimensions` (reativo) é a forma correta e não é medida aqui.
+   *   G-RSP-3 — zero `Platform.isPad` e zero `expo-device` decidindo layout (`D2`).
+   *             Idiom de aparelho não é medida de janela: em Split View um iPad
+   *             responde "sou tablet" com 320dp de largura real.
+   *   G-RSP-7 — nenhum BREAKPOINT PARALELO: o conjunto permanece com exatamente
+   *             três faixas, declaradas num único lugar.
+   *   G-BP-1  — PRESERVADO COMO ESTÁ, não reescrito aqui. Suas três asserções
+   *             canônicas (`P-30`, herdadas do B1) rodam no bloco "Fase 6 · B1"
+   *             acima, no MESMO `npm run smoke`. Regredi-las é proibido.
+   *
+   * Nenhum destes portões prova a si próprio (emenda A-09/A-10). As provas
+   * vermelhas independentes são: `MT-7` → `G-RSP-1` (`TK-A-095` em SG-A,
+   * reconfirmado por `TK-C-047` em SG-C); `MT-31` → `G-RSP-3` (`TK-C-058`);
+   * `MT-21` → `G-RSP-7` (`TK-C-055`); `MT-11` → `G-BP-1` (`TK-C-051`).
+   *
+   * DESVIO REGISTRADO (TASKS × runtime): `TK-A-094` cita `src/theme/breakpoints.js`
+   * como origem das três faixas. Esse arquivo NÃO existe no repositório — a fonte
+   * única real é `src/theme/tokens.js` (`export const breakpoints`, criada pelo B1
+   * sob `P-30`). O portão mede a fonte REAL; o PLAN (§`TA-7`) não nomeia caminho,
+   * só exige "`breakpoints` continua fonte única", que é exatamente o que se mede.
+   * ────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-094: portão antecipado de SD-11 ──');
+
+  // `codeOf` (sem comentários) é obrigatório nas três: são asserções de AUSÊNCIA, e um
+  // comentário que apenas EXPLICA por que `Dimensions.get` saiu não pode derrubar o lacre.
+  const A94_DIMENSIONS_GET = /\bDimensions\s*\.\s*get\s*\(/;
+  const a94InfratoresDim = b1Arquivos.filter((rel) => A94_DIMENSIONS_GET.test(codeOf(rel)));
+
+  check(
+    'G-RSP-1 (SD-11 · antecipado): zero `Dimensions.get` em `src` — layout nunca é fotografia congelada',
+    a94InfratoresDim.length === 0,
+    `arquivos com Dimensions.get: ${a94InfratoresDim.join(', ')}`,
+  );
+
+  const A94_IS_PAD = /\bPlatform\s*\.\s*isPad\b/;
+  const A94_EXPO_DEVICE = /(?:from|require\()\s*['"]expo-device['"]/;
+  const a94InfratoresIdiom = b1Arquivos.filter((rel) => {
+    const codigo = codeOf(rel);
+    return A94_IS_PAD.test(codigo) || A94_EXPO_DEVICE.test(codigo);
+  });
+
+  check(
+    'G-RSP-3 (D2 · antecipado): zero `Platform.isPad` e zero `expo-device` decidindo layout em `src`',
+    a94InfratoresIdiom.length === 0,
+    `arquivos que decidem layout por idiom de aparelho: ${a94InfratoresIdiom.join(', ')}`,
+  );
+
+  /* G-RSP-7 tem DUAS metades e ambas são necessárias: contar as faixas da fonte única
+   * pegaria um quarto breakpoint nascido DENTRO de `tokens.js`, mas não pegaria um
+   * segundo conjunto nascido em OUTRO arquivo — que é justamente a forma como o corte
+   * duplo de `P-30` apareceu da primeira vez. */
+  const a94TokensSrc = readSrc('src/theme/tokens.js');
+  const a94BpMatch = a94TokensSrc.match(/export const breakpoints\s*=\s*\{([^}]*)\}/);
+  const a94Faixas = a94BpMatch
+    ? a94BpMatch[1].split(',').map((p) => p.trim()).filter(Boolean).map((p) => p.split(':')[0].trim())
+    : [];
+
+  const a94DeclaraBreakpoints = b1Arquivos.filter(
+    (rel) => rel !== 'src/theme/tokens.js' && /\b(?:const|let|var)\s+breakpoints\s*=/.test(codeOf(rel)),
+  );
+
+  check(
+    'G-RSP-7 [1/2]: `tokens.breakpoints` tem exatamente três faixas (phone · tablet · tabletL)',
+    a94Faixas.length === 3 &&
+    a94Faixas.join(',') === 'phone,tablet,tabletL',
+    `faixas declaradas: ${a94Faixas.length ? a94Faixas.join(' · ') : '(nenhuma — `export const breakpoints` não foi encontrado)'}`,
+  );
+
+  check(
+    'G-RSP-7 [2/2]: nenhum breakpoint PARALELO — `src/theme/tokens.js` é o único a declarar o conjunto',
+    a94DeclaraBreakpoints.length === 0,
+    `arquivos com conjunto próprio de breakpoints: ${a94DeclaraBreakpoints.join(', ')}`,
   );
 
   // ── Summary ────────────────────────────────────────────────────────────────

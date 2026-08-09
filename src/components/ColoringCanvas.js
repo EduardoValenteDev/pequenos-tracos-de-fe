@@ -9,6 +9,42 @@ export const ERASER_COLOR = '__ERASER__';
 const TIMEOUT_MS = 7000;
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   [Fase 6 · F6-R3.5 · TK-A-001] OS QUATRO EIXOS DE VERSIONAMENTO — quatro nomes,
+   zero colisão. Cada eixo responde a UMA pergunta e só a ela. É PROIBIDO inferir
+   um eixo a partir de outro (regra 5 de §11.5.3 do PLAN):
+
+     1. `APP_STORAGE_SCHEMA_VERSION` (src/services/storageKeys.js, hoje 3)
+        responde "QUE CHAVES o AsyncStorage tem". NÃO muda nesta fase e nenhum
+        degrau novo entra na escada de `storageMigrationService.js`.
+
+     2. `POINTER_VERSION` (src/services/drawingStorage.js, hoje 3), serializado
+        como o campo `v` do PONTEIRO, responde "ONDE ESTÁ O BLOB". Congelado.
+
+     3. `paintSchemaVersion` (novo, aqui) responde "QUE CAMPOS O PAYLOAD TEM" —
+        nunca "onde ele está guardado".
+
+     4. `layoutVersion` (novo, aqui) responde "O QUE AS COORDENADAS SIGNIFICAM"
+        (`W`/`H`/`imgX`/`imgY`/`imgW`/`imgH` no raster; `logicalW`/`logicalH` no
+        vetor) — nunca "que campos existem".
+
+   ⚠️ `CANVAS_PAYLOAD_V` é o campo `v` INTERNO do payload do canvas e está
+   CONGELADO EM 2 PARA SEMPRE. Ele é marca legada, jamais discriminador de
+   evolução. Emitir `v: 3` aqui seria destrutivo de verdade, não estético: a
+   guarda do writer em `src/screens/ColoringScreen.js` (`isAcceptableC60Payload`)
+   classifica `obj.v === 3` como PONTEIRO e DESCARTA o payload — a pintura da
+   criança se perderia. Quem precisar versionar a evolução do payload move
+   `PAINT_SCHEMA_VERSION`; quem precisar versionar a semântica da geometria move
+   `LAYOUT_VERSION`. Nunca `v`. Portões `G-VER-1`..`G-VER-3` lacram estas regras.
+
+   A ausência de `paintSchemaVersion` significa payload legado; a ausência de
+   `layoutVersion` significa geometria legada; e as duas ausências são
+   INDEPENDENTES uma da outra.
+───────────────────────────────────────────────────────────────────────────── */
+export const CANVAS_PAYLOAD_V = 2;
+export const PAINT_SCHEMA_VERSION = 1;
+export const LAYOUT_VERSION = 1;
+
+/* ─────────────────────────────────────────────────────────────────────────────
    buildHtml — generates the complete WebView HTML/JS for the coloring canvas.
 
    Architecture:
@@ -55,6 +91,30 @@ html,body{width:100%;height:100%;overflow:hidden;background:#FFFDF8}
 
 /* ─── Dev flag (set at HTML build time) ─── */
 var DEV=${devFlag};
+
+/* [Fase 6 · TK-A-001] Eixos de versionamento, injetados do módulo RN (fonte única
+   no topo deste arquivo). CANVAS_PAYLOAD_V é o campo "v" congelado em 2. */
+var CANVAS_PAYLOAD_V=${CANVAS_PAYLOAD_V};
+var PAINT_SCHEMA_VERSION=${PAINT_SCHEMA_VERSION};
+var LAYOUT_VERSION=${LAYOUT_VERSION};
+
+/* [Fase 6 · TK-A-002/TK-A-004] Classificação dos eixos POR NOME, sem inferência
+   cruzada e sem consultar o envelope de armazenamento (nada de "uri"/"fmt"/"v"
+   entra aqui). Devolve, para cada eixo, o valor declarado ou null quando o eixo
+   está AUSENTE — ausência é legado, nunca defeito. 'ok' é false só quando o eixo
+   está PRESENTE e mente sobre si mesmo (não é inteiro positivo): um payload assim
+   nunca poderia ter sido escrito por este app. Os dois eixos são independentes:
+   o veredito de um jamais decide o do outro. */
+function axisOf(value){
+  if(value===undefined||value===null) return {declared:null,legacy:true,ok:true};
+  var n=(typeof value==='number')?value:NaN;
+  var ok=(typeof value==='number')&&isFinite(n)&&n>0&&Math.floor(n)===n;
+  return {declared:ok?n:value,legacy:false,ok:ok};
+}
+function classifyAxes(p){
+  var obj=(p&&typeof p==='object')?p:{};
+  return {paint:axisOf(obj.paintSchemaVersion),layout:axisOf(obj.layoutVersion)};
+}
 function devLog(msg){
   if(!DEV)return;
   try{window.ReactNativeWebView.postMessage('LOG:'+msg);}catch(e){}
@@ -482,7 +542,13 @@ window.exportPaint=function(){
        decodificar PNG do lado nativo, que gravou uma arte com cor — e que ela é o MESMO
        estado que foi validado. O campo "v" continua 2: leitores antigos ignoram os campos novos.
        ATENÇÃO: este bloco vive DENTRO do template literal do HTML — nada de crases aqui. */
-    var payload=JSON.stringify({v:2,W:W,H:H,imgX:imgX,imgY:imgY,imgW:imgW,imgH:imgH,
+    /* [Fase 6 · TK-A-003] Os dois eixos novos passam a ser EMITIDOS POR NOME, e o
+       campo "v" permanece CANVAS_PAYLOAD_V (2) — nunca 3 (ver TK-A-001). Todos os
+       campos que já existiam continuam presentes, na mesma posição semântica: a
+       adição é estritamente aditiva e nenhum leitor antigo quebra. */
+    var payload=JSON.stringify({v:CANVAS_PAYLOAD_V,
+      paintSchemaVersion:PAINT_SCHEMA_VERSION,layoutVersion:LAYOUT_VERSION,
+      W:W,H:H,imgX:imgX,imgY:imgY,imgW:imgW,imgH:imgH,
       rev:paintRev,paintedPx:countPaintedPx(),paintablePx:paintablePx,
       data:out.toDataURL('image/png')});
     window.ReactNativeWebView.postMessage('PAINT_EXPORT:'+payload);
@@ -510,6 +576,21 @@ window.validatePaint=function(jsonStr){
     var p;
     try{p=JSON.parse(jsonStr);}catch(e){window.ReactNativeWebView.postMessage('PAINT_INVALID');return;}
     if(!p||typeof p.data!=='string'){window.ReactNativeWebView.postMessage('PAINT_INVALID');return;}
+    /* [Fase 6 · TK-A-004] Veredito POR EIXO, publicado como sinal ADITIVO e
+       observável. Cada eixo é julgado isoladamente: o veredito de um NUNCA
+       contamina o do outro, e nenhum deles é deduzido de "v", de "fmt" nem de
+       "uri" (o envelope de armazenamento não é consultado aqui — ele responde a
+       outra pergunta, ver TK-A-001).
+       ⚠️ Este veredito é INFORMATIVO: por Q8 regra 3, incompatibilidade de eixo
+       jamais autoriza apagar, regravar ou substituir a obra por folha em branco.
+       Quem decide o que fazer com uma obra legada é o leitor de compatibilidade,
+       e a decisão dele nunca é destrutiva. Nenhum payload passa a ser INVÁLIDO
+       por causa desta task. */
+    var ax=classifyAxes(p);
+    window.ReactNativeWebView.postMessage('PAINT_AXES:'+JSON.stringify({
+      paint:{declared:ax.paint.declared,legacy:ax.paint.legacy,ok:ax.paint.ok},
+      layout:{declared:ax.layout.declared,legacy:ax.layout.legacy,ok:ax.layout.ok}
+    }));
     var sw=(p.W!==null&&p.W!==undefined)?p.W:null;
     var sh=(p.H!==null&&p.H!==undefined)?p.H:null;
     if(sw===null||sh===null){
@@ -526,28 +607,64 @@ window.validatePaint=function(jsonStr){
 
 window.loadPaint=function(jsonStr){
   try{
-    var payload,dataUrl,savedW,savedH;
+    var payload,dataUrl,savedW,savedH,axes;
     if(jsonStr.startsWith('data:')){
       /* Legacy format (v1): raw data URL, no dimension metadata.
          Fall back to using the image's natural pixel size for validation. */
       payload=null; dataUrl=jsonStr; savedW=null; savedH=null;
+      /* [Fase 6 · TK-A-002] Um data URL cru não declara eixo NENHUM: os dois
+         ficam ausentes, e ausência é legado — nunca defeito. */
+      axes=classifyAxes(null);
     }else{
       try{payload=JSON.parse(jsonStr);}catch(parseErr){
         devLog('[COLORING_STATE] parse error: '+parseErr.message);
         window.ReactNativeWebView.postMessage('LOAD_PAINT_CORRUPTED');
         return;
       }
-      dataUrl=payload.data; savedW=payload.W; savedH=payload.H;
+      /* [Fase 6 · TK-A-002] A representação é identificada PELO NOME DO EIXO,
+         ANTES de qualquer ramo legado — e os ramos legados continuam INTACTOS
+         logo abaixo, porque a ausência de eixo continua sendo um caminho de
+         leitura de primeira classe, não um erro. */
+      axes=classifyAxes(payload);
+      dataUrl=payload.data;
+      if(axes.layout.legacy){
+        /* Geometria LEGADA: W/H são o que sempre foram. Quando o payload antigo
+           nem os traz, o fallback histórico pelo tamanho natural do bitmap
+           permanece exatamente como era — nada de comportamento antigo se perde. */
+        savedW=payload.W; savedH=payload.H;
+      }else{
+        /* Geometria DECLARADA: quem declara 'layoutVersion' se compromete a
+           trazer a geometria explícita. Se ela não vier, o leitor NÃO adivinha
+           pelo tamanho natural do bitmap — adivinhar seria inferir um eixo a
+           partir de outro (§11.5.3 regra 5). Fica nulo e o ramo de
+           incompatibilidade decide, sem nunca apagar nada. */
+        savedW=(payload.W!==null&&payload.W!==undefined)?payload.W:null;
+        savedH=(payload.H!==null&&payload.H!==undefined)?payload.H:null;
+      }
     }
+    /* Sinal ADITIVO e observável da classificação por eixo. Os dois eixos são
+       independentes: 'paint.legacy' diz que campos esperar, 'layout.legacy' diz
+       como ler as coordenadas, e nenhum decide o outro. */
+    window.ReactNativeWebView.postMessage('LOAD_PAINT_AXES:'+JSON.stringify({
+      paint:{declared:axes.paint.declared,legacy:axes.paint.legacy,ok:axes.paint.ok},
+      layout:{declared:axes.layout.declared,legacy:axes.layout.legacy,ok:axes.layout.ok}
+    }));
     var img=new window.Image();
     img.onload=function(){
       try{
         /* Dimension gate: saved bitmap must exactly match the current canvas size.
            imgX/Y/W/H are deterministic from W,H + image natural size, so matching
            W and H guarantees the paint pixels align with the line art.          */
-        var checkW=(savedW!==null&&savedW!==undefined)?savedW:img.naturalWidth;
-        var checkH=(savedH!==null&&savedH!==undefined)?savedH:img.naturalHeight;
-        if(checkW!==W||checkH!==H){
+        /* [Fase 6 · TK-A-002] O fallback pelo tamanho natural do bitmap é do
+           ramo LEGADO de geometria — e continua idêntico para ele. Um payload
+           que DECLARA 'layoutVersion' e mesmo assim omite W/H se contradiz: aí o
+           leitor não deduz a geometria a partir dos píxeis (isso seria inferir um
+           eixo a partir de outro). Segue para o ramo de incompatibilidade, que
+           não apaga nada. */
+        var geomLegacy=axes.layout.legacy;
+        var checkW=(savedW!==null&&savedW!==undefined)?savedW:(geomLegacy?img.naturalWidth:null);
+        var checkH=(savedH!==null&&savedH!==undefined)?savedH:(geomLegacy?img.naturalHeight:null);
+        if(checkW===null||checkH===null||checkW!==W||checkH!==H){
           devLog('[COLORING_STATE] incompatible saved state ignored W_saved='+checkW+' H_saved='+checkH+' W_curr='+W+' H_curr='+H);
           window.ReactNativeWebView.postMessage('LOAD_PAINT_INCOMPATIBLE');
           return;

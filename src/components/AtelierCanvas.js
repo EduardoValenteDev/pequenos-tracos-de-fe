@@ -30,6 +30,30 @@ import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } f
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { WebView } from 'react-native-webview';
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   [Fase 6 · F6-R3.5 · TK-A-001] OS QUATRO EIXOS DE VERSIONAMENTO no motor
+   VETORIAL. Mesma separação normativa do motor raster (ver o bloco equivalente em
+   `src/components/ColoringCanvas.js`), aplicada ao payload deste canvas:
+
+     1. `APP_STORAGE_SCHEMA_VERSION` — "que chaves o AsyncStorage tem". Intocado.
+     2. `POINTER_VERSION` / campo `v` do PONTEIRO — "onde está o blob". Congelado.
+     3. `paintSchemaVersion` — "que campos o payload tem".
+     4. `layoutVersion` — "o que as coordenadas significam" (aqui: `logicalW` e
+        `logicalH`, além das coordenadas de `strokes` e `stamps`).
+
+   ⚠️ `CANVAS_PAYLOAD_V` é o campo `v` INTERNO do `stateJson` e está CONGELADO EM 2
+   PARA SEMPRE — marca legada, jamais discriminador de evolução. Nenhum eixo é
+   inferido de outro: ausência de `paintSchemaVersion` significa payload legado,
+   ausência de `layoutVersion` significa geometria legada, e as duas ausências são
+   INDEPENDENTES. Portões `G-VER-1`..`G-VER-3` lacram estas regras.
+
+   Os dois eixos são declarados aqui com valor próprio porque o payload vetorial
+   evolui por conta própria: ele não herda nem empresta a versão do payload raster.
+───────────────────────────────────────────────────────────────────────────── */
+export const CANVAS_PAYLOAD_V = 2;
+export const PAINT_SCHEMA_VERSION = 1;
+export const LAYOUT_VERSION = 1;
+
 /* ─── HTML do canvas ────────────────────────────────────────────── */
 const CANVAS_HTML = `<!DOCTYPE html>
 <html>
@@ -65,6 +89,27 @@ function notify(msg){
 var C=document.getElementById('C');
 var ctx=C.getContext('2d');
 var W=0,H=0;
+
+/* [Fase 6 · TK-A-001] Eixos de versionamento, injetados do módulo RN (fonte única
+   no topo deste arquivo). CANVAS_PAYLOAD_V é o campo "v" congelado em 2. */
+var CANVAS_PAYLOAD_V=${CANVAS_PAYLOAD_V};
+var PAINT_SCHEMA_VERSION=${PAINT_SCHEMA_VERSION};
+var LAYOUT_VERSION=${LAYOUT_VERSION};
+
+/* [Fase 6 · TK-A-002] Classificação dos eixos POR NOME, sem inferência cruzada e
+   sem consultar o envelope de armazenamento. 'legacy' = eixo AUSENTE (caminho de
+   leitura de primeira classe, nunca defeito); 'ok' = false só quando o eixo está
+   PRESENTE e mente sobre si mesmo. Os dois eixos são independentes. */
+function axisOf(value){
+  if(value===undefined||value===null) return {declared:null,legacy:true,ok:true};
+  var n=(typeof value==='number')?value:NaN;
+  var ok=(typeof value==='number')&&isFinite(n)&&n>0&&Math.floor(n)===n;
+  return {declared:ok?n:value,legacy:false,ok:ok};
+}
+function classifyAxes(d){
+  var obj=(d&&typeof d==='object')?d:{};
+  return {paint:axisOf(obj.paintSchemaVersion),layout:axisOf(obj.layoutVersion)};
+}
 
 /* Estado principal */
 var bgColor='#FFFDF8';
@@ -408,7 +453,13 @@ window.exportState=function(){
     tb.getContext('2d').drawImage(flat,0,0,tw,th);
     var thumbData=tb.toDataURL('image/jpeg',0.6);
     var previewData=flat.toDataURL('image/jpeg',0.85);
-    var st=JSON.stringify({v:2,strokes:strokes,stamps:stamps,bgColor:bgColor});
+    /* [Fase 6 · TK-A-003] Os dois eixos novos são EMITIDOS POR NOME e o campo "v"
+       permanece CANVAS_PAYLOAD_V (2) — nunca 3 (ver TK-A-001). Adição estritamente
+       aditiva: todos os campos que já existiam continuam presentes e um leitor
+       antigo ignora os campos novos sem quebrar. */
+    var st=JSON.stringify({v:CANVAS_PAYLOAD_V,
+      paintSchemaVersion:PAINT_SCHEMA_VERSION,layoutVersion:LAYOUT_VERSION,
+      strokes:strokes,stamps:stamps,bgColor:bgColor});
     notify('STATE_EXPORT:'+JSON.stringify({stateJson:st,thumbnailBase64:thumbData,previewBase64:previewData}));
     selId=prevSel;
   }catch(err){
@@ -428,7 +479,19 @@ window.loadState=function(jsonStr){
       strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist(); render();
       notifyHist(); notify('STATE_LOADED'); return;
     }
-    if(d.v===2){
+    /* [Fase 6 · TK-A-002] A representação é identificada PELO NOME DO EIXO, ANTES
+       dos ramos legados — e os dois ramos legados abaixo (d.v===2 e d.ops)
+       continuam INTACTOS, porque a ausência de eixo é caminho de leitura de
+       primeira classe. O ramo novo NÃO depende de "v": um payload que declara
+       'paintSchemaVersion' é lido pelo conjunto de campos que ele declara ter, e
+       não pela marca legada. Isso fecha um caminho real de perda — hoje um
+       payload sem 'v' cairia no 'else' final e voltaria como folha em branco. */
+    var axes=classifyAxes(d);
+    if(!axes.paint.legacy){
+      strokes=Array.isArray(d.strokes)?d.strokes:[];
+      stamps=Array.isArray(d.stamps)?d.stamps:[];
+      bgColor=typeof d.bgColor==='string'?d.bgColor:'#FFFDF8';
+    } else if(d.v===2){
       strokes=Array.isArray(d.strokes)?d.strokes:[];
       stamps=Array.isArray(d.stamps)?d.stamps:[];
       bgColor=typeof d.bgColor==='string'?d.bgColor:'#FFFDF8';
@@ -440,6 +503,14 @@ window.loadState=function(jsonStr){
     } else {
       strokes=[]; stamps=[]; bgColor='#FFFDF8';
     }
+    /* Sinal ADITIVO e observável da classificação por eixo (TK-A-002/TK-A-004):
+       'paint.legacy' diz que campos esperar, 'layout.legacy' diz como ler as
+       coordenadas, e nenhum decide o outro. Informativo — por Q8 regra 3 nenhum
+       veredito de eixo autoriza apagar, regravar ou substituir a obra. */
+    notify('STATE_AXES:'+JSON.stringify({
+      paint:{declared:axes.paint.declared,legacy:axes.paint.legacy,ok:axes.paint.ok},
+      layout:{declared:axes.layout.declared,legacy:axes.layout.legacy,ok:axes.layout.ok}
+    }));
     selId=null; resetHist(); render();
     notifyHist(); notify('STATE_LOADED');
   }catch(err){
