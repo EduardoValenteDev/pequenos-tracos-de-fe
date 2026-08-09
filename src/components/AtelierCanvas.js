@@ -535,6 +535,33 @@ notify('READY');
 </body>
 </html>`;
 
+/* ─── [F6-R3.4 · TK-A-012..TK-A-014] Término do processo de conteúdo da WebView ───
+   ⚠️ GUARDRAIL `FD-12`: este registro descreve **o evento**, nunca a causa. Ele NÃO
+   prova, NÃO confirma e NÃO refuta `P-164`, e não autoriza rotular nada como
+   resolvido. É instrumento de captura para a campanha física; a leitura é humana.
+
+   OBSERVABILIDADE PURA: o handler não recarrega, não remonta, não limpa e não grava
+   — recarregar aqui destruiria a composição que o evento ameaça (`SD-8`).
+
+   O registro sai por `console.warn`, o idioma que este arquivo já usa para anomalia
+   de WebView (`onError`, erro de JS, READY ausente): sobrevive fora de
+   desenvolvimento, e a validação física pode rodar num build de pré-visualização.
+   O contador é de módulo — uma remontagem depois do término não pode zerá-lo.
+   O motor do Colorir mantém o seu próprio contador, com a sua própria etiqueta:
+   são duas superfícies distintas e misturar as contagens esconderia qual caiu. */
+let webViewProcessTerminations = 0;
+
+function recordWebViewProcessTermination(origem, detalhe) {
+  webViewProcessTerminations += 1;
+  const quando = new Date().toISOString();
+  console.warn(
+    '[AtelierCanvas] PROCESSO DE CONTEUDO DA WEBVIEW TERMINOU'
+    + ` · origem=${origem} · ocorrencia=#${webViewProcessTerminations} · quando=${quando}`
+    + (detalhe ? ` · ${detalhe}` : '')
+    + ' · EVENTO OBSERVADO, CAUSA NAO DETERMINADA',
+  );
+}
+
 /* ─── Componente React Native ─────────────────────────────────── */
 const AtelierCanvas = forwardRef(function AtelierCanvas(
   { onReady, onPainted, onPlaced, onStampSelected, onStampDeselected, onLoadCorrupted, onHist },
@@ -666,6 +693,16 @@ const AtelierCanvas = forwardRef(function AtelierCanvas(
         onError={() => {
           console.warn('[AtelierCanvas] WebView onError');
           setLoadState('error');
+        }}
+        // [TK-A-012] iOS — o processo de conteúdo do WKWebView foi encerrado pelo sistema.
+        onContentProcessDidTerminate={() => {
+          recordWebViewProcessTermination('ios:onContentProcessDidTerminate');
+        }}
+        // [TK-A-013] Android — o processo de renderização morreu. `didCrash` distingue queda de
+        // encerramento por pressão de recurso; é DADO do evento, não diagnóstico da causa.
+        onRenderProcessGone={(evento) => {
+          const didCrash = evento?.nativeEvent?.didCrash;
+          recordWebViewProcessTermination('android:onRenderProcessGone', `didCrash=${didCrash === true}`);
         }}
       />
 

@@ -881,6 +881,47 @@ export async function prewarmLineart(imageSource) {
 }
 
 /* ──────────────────────────────────────────────────────────────────
+   [F6-R3.4 · TK-A-012..TK-A-014] TÉRMINO DO PROCESSO DE CONTEÚDO DA WEBVIEW
+   ─────────────────────────────────────────────────────────────────
+   Até aqui o app tinha ZERO ocorrência das duas props de término de processo em
+   `src/`: quando o sistema matava o processo de conteúdo da WebView, o app não
+   ficava sabendo — e ninguém podia sequer contar quantas vezes isso acontecia.
+
+   ⚠️ GUARDRAIL `FD-12` — O QUE ESTE REGISTRO É, E O QUE ELE NÃO É.
+   Este registro descreve **o evento**, nunca a causa. Ele NÃO prova, NÃO confirma
+   e NÃO refuta `P-164`; ele não autoriza ninguém a escrever que "a causa foi X"
+   nem a rotular qualquer correção como resolvida. É instrumento de captura para a
+   campanha física — a leitura do que foi capturado é humana, e vem depois.
+
+   É OBSERVABILIDADE PURA: o handler não recarrega, não remonta, não limpa, não
+   grava e não altera nada visível. Recarregar aqui seria justamente destruir a
+   pintura que o evento ameaça (`SD-8`).
+
+   Sobre o destino do registro (a incerteza localizada de `TK-A-014`): NÃO pode ser
+   o `devLog` da ponte, porque aquele logger vive DENTRO da página e não sobrevive
+   à morte do próprio processo que deveria relatar. E não passa por `utils/logger`,
+   que cala fora de desenvolvimento: a validação física pode rodar num build de
+   pré-visualização, e um registro invisível justamente ali não seria evidência
+   nenhuma. Fica `console.warn` — o mesmo idioma que `AtelierCanvas` já usa para
+   anomalia de WebView, legível no console do aparelho em qualquer build.
+
+   O contador é de MÓDULO, não de instância: uma remontagem depois do término não
+   pode zerar a contagem, senão a contagem não contaria nada.
+────────────────────────────────────────────────────────────────── */
+let webViewProcessTerminations = 0;
+
+function recordWebViewProcessTermination(origem, detalhe) {
+  webViewProcessTerminations += 1;
+  const quando = new Date().toISOString();
+  console.warn(
+    '[ColoringCanvas] PROCESSO DE CONTEUDO DA WEBVIEW TERMINOU'
+    + ` · origem=${origem} · ocorrencia=#${webViewProcessTerminations} · quando=${quando}`
+    + (detalhe ? ` · ${detalhe}` : '')
+    + ' · EVENTO OBSERVADO, CAUSA NAO DETERMINADA',
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────
    React Native component
 ────────────────────────────────────────────────────────────────── */
 const ColoringCanvas = forwardRef(function ColoringCanvas(
@@ -1125,6 +1166,16 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
           allowFileAccess
           allowUniversalAccessFromFileURLs
           mixedContentMode="always"
+          // [TK-A-012] iOS — o processo de conteúdo do WKWebView foi encerrado pelo sistema.
+          onContentProcessDidTerminate={() => {
+            recordWebViewProcessTermination('ios:onContentProcessDidTerminate');
+          }}
+          // [TK-A-013] Android — o processo de renderização morreu. `didCrash` distingue queda de
+          // encerramento por pressão de recurso; é DADO do evento, não diagnóstico da causa.
+          onRenderProcessGone={(evento) => {
+            const didCrash = evento?.nativeEvent?.didCrash;
+            recordWebViewProcessTermination('android:onRenderProcessGone', `didCrash=${didCrash === true}`);
+          }}
         />
       )}
 
