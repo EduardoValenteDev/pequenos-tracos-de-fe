@@ -48,6 +48,24 @@ aprovados.
 fonte; medir isso sobre uma fundação que ainda vai mudar de faixa e de orientação produziria
 resultado descartável.
 
+> ### ⚠️ A numeração dos requisitos **não é ordem de execução**
+>
+> Os §§ **4**, **5** e **6** apresentam `F6-R1`, `F6-R2` e `F6-R3` em **ordem numérica de catálogo**,
+> para leitura. **Isso é taxonomia, não cronologia.** Os nomes são fixos e **não foram renumerados**:
+> `F6-R1` = *Adaptive Surface System* · `F6-R2` = *Map Geometry Foundation* · `F6-R3` = *Lifecycle &
+> Resize Stability*.
+>
+> **A ordem executiva canônica da Fase 6 — verdade única, ratificada no fechamento do Portão Humano
+> 1 (2026-08-09) — é:**
+> **`F6-SG-A` = `F6-R3` → `F6-SG-B` = `F6-R2` → `F6-SG-C` = `F6-R1` → `F6-SG-D` = avaliar/desbloquear
+> o Bloco `B2`.**
+>
+> **Razão:** a proteção de ciclo de vida, `resize`, orientação, continuidade de estado e integridade
+> da obra infantil precisa existir **antes** de mudanças estruturais de geometria e adaptatividade.
+> **`SD-8` (§9) é bloqueador absoluto.** Registro canônico em
+> [`docs/DECISIONS.md`](../../../docs/DECISIONS.md) §`PF6D-D18`; detalhamento em
+> [`03_ROADMAP_v4.1_DELTA.md`](03_ROADMAP_v4.1_DELTA.md) §3.1.
+
 ---
 
 ## 2. Contrato de faixas de janela — normativo

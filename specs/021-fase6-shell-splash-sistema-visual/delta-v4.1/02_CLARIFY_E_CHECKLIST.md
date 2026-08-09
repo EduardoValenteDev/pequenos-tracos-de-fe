@@ -252,6 +252,7 @@ respondido com evidência ou com `FALHA`.
 | `CKD-05` | As quatro famílias têm exemplos verificados no código | **OK** — §3 da *spec* do delta |
 | `CKD-06` | A fronteira canvas F6 × F9 está declarada com prova | **OK** — §7 da *spec*, auditoria §5 |
 | `CKD-07` | Existe ordem obrigatória entre os requisitos | **OK** — `F6-R3` → `F6-R2` → `F6-R1.1` (`RD-1`) |
+| `CKD-32` | *(novo, fechamento do Portão 1)* **Existe UMA ÚNICA ordem executiva versionada** — nenhum artefato declara, rotula ou permite interpretar `R1` → `R2` → `R3` como ordem de execução | **OK** — ordem canônica `F6-SG-A`/`F6-R3` → `F6-SG-B`/`F6-R2` → `F6-SG-C`/`F6-R1` → `F6-SG-D`/`B2` em `PROJECT_SOURCE_OF_TRUTH.md`, `DECISIONS.md` §`PF6D-D18`, roteiro §3/§3.1 e *spec* §1; as ocorrências remanescentes de `R1` → `R2` → `R3` estão **rotuladas como taxonomia ou memória histórica sem valor executivo** |
 
 ### 3.2 Ausência de ambiguidade
 
@@ -297,9 +298,10 @@ respondido com evidência ou com `FALHA`.
 | `CKD-30` | *(novo)* Nenhuma causa é declarada confirmada sem evidência empírica | **OK** — §5.3 da auditoria rebaixada a hipótese; `FD-12` é o passo de confirmação |
 | `CKD-31` | *(novo)* A obra da criança tem contrato de **espaço lógico canônico** normativo | **OK** — `F6-R3.5`, `SD-8`, `MT-D6`/`MT-D7`/`MT-D8` |
 
-**Resultado: 31 de 31 itens `OK`.** `Q1` e `Q2` deixaram de ser bloqueantes — foram **resolvidas**
-no Portão Humano 1. `Q3`–`Q7` permanecem registradas com natureza e direção declaradas; nenhuma
-delas bloqueia a **qualidade dos requisitos**.
+**Resultado: 32 de 32 itens `OK`** — `CKD-32` acrescentado no fechamento do Portão Humano 1
+(2026-08-09). `Q1` e `Q2` deixaram de ser bloqueantes — foram **resolvidas** no Portão Humano 1.
+`Q3`–`Q7` permanecem registradas com natureza e direção declaradas; nenhuma delas bloqueia a
+**qualidade dos requisitos** nem o fechamento do Portão 1.
 
 ---
 

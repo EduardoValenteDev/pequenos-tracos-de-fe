@@ -1851,12 +1851,24 @@ tomada **não** corrige risco técnico e **não** autoriza escrever código.
 - **Efeito registrado:** o Bloco **B2** (acessibilidade e tipografia) da 021 está **BLOQUEADO**.
   B2 mede alvo de toque e tamanho de fonte; medir isso sobre uma fundação que ainda vai mudar de
   faixa e de orientação produziria resultado **descartável**.
-- **Ordem obrigatória — EMENDADA no Portão Humano 1 (item 9):**
-  `F6-SG-A` (**`F6-R3`** — ciclo de vida + segurança do canvas) → `F6-SG-B` (**`F6-R2`** — geometria
-  do mapa) → `F6-SG-C` (**`F6-R1`** — superfície adaptativa + orientação) → `F6-SG-D` (**liberação
-  do B2**).
-  - **Ordem anterior, preservada e não apagada:** o roteiro v4.1 recebido enunciava
-    `F6-R1` → `F6-R2` → `F6-R3`.
+- **ORDEM EXECUTIVA CANÔNICA DA FASE 6 — verdade única, ratificada no fechamento do Portão Humano 1
+  (2026-08-09):**
+  1. **`F6-R3`** · *Lifecycle & Resize Stability* — subportão `F6-SG-A`
+  2. **`F6-R2`** · *Map Geometry Foundation* — subportão `F6-SG-B`
+  3. **`F6-R1`** · *Adaptive Surface System* — subportão `F6-SG-C`
+  4. **`F6-SG-D`** — **somente então** avaliar/desbloquear o Bloco **B2**
+  - **Razão declarada pelo fundador:** a proteção de ciclo de vida, `resize`, orientação,
+    continuidade de estado e integridade da obra infantil precisa existir **antes** de mudanças
+    estruturais de geometria e adaptatividade. **`SD-8` continua bloqueador absoluto.**
+  - **Os nomes NÃO mudam e nada foi renumerado:** `F6-R1` = *Adaptive Surface System* · `F6-R2` =
+    *Map Geometry Foundation* · `F6-R3` = *Lifecycle & Resize Stability*. Muda **somente a ordem
+    executiva**.
+  - **A numeração `R1`, `R2`, `R3` é taxonomia dos pacotes de trabalho e NÃO representa ordem
+    temporal.** Onde ela aparecer como catálogo, vale como catálogo; **em nenhum lugar vale como
+    ordem de execução**.
+  - **Ordem anterior, preservada e não apagada — histórica, SEM valor executivo:** o roteiro v4.1
+    recebido enunciava `F6-R1` → `F6-R2` → `F6-R3`. Essa sequência **fica registrada como memória do
+    que foi recebido** e **não pode ser lida, rotulada ou interpretada como ordem de execução**.
   - **Razão da mudança, registrada:** liberar orientação e faixas (`R1`) **antes** de existir
     proteção de ciclo de vida e de canvas (`R3`) exporia a arte da criança à destruição — e, com a
     correção de `D1` acima, o iPad **já gira hoje**, de modo que a fundação de segurança é o item
@@ -2054,8 +2066,8 @@ implementação · não desbloqueou o Bloco **B2** · não instalou `expo-screen
 qualquer outra dependência · não escolheu entre as vias **A/B/C/D** de orientação · não gerou
 *build* nem baixou artefato do EAS · não alterou runtime, *assets*, manifestos ou configuração de
 *build* · não rebaixou `P-152` nem `P-164` · não reclassificou `P-103` · não alterou `P-141` · não
-apagou a ordem anterior `R1 → R2 → R3`, que fica registrada com a razão da mudança · não fez
-*push* e não fez *merge*.
+apagou a ordem anterior `R1 → R2 → R3`, que fica registrada com a razão da mudança **como memória
+histórica, sem valor executivo** · não fez *push* e não fez *merge*.
 
 ---
 

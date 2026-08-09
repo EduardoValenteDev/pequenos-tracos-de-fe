@@ -65,17 +65,31 @@ auditada e **aprovada pelo fundador** em 2026-08-07; o ciclo SDD foi formalmente
 >   B1 e B3 entregaram o que lhes foi pedido; o que faltou nunca lhes foi pedido.
 > - **Bloco B2: NÃO INICIADO e BLOQUEADO** por decisão do fundador (`D18`), até que o delta de
 >   responsividade e ciclo de vida seja corrigido e revalidado.
-> - **Delta aberto:** `F6-R1` *Adaptive Surface System* · `F6-R2` *Map Geometry Foundation* ·
->   `F6-R3` *Lifecycle & Resize Stability*.
+> - **Delta aberto — catálogo, não ordem:** `F6-R1` *Adaptive Surface System* · `F6-R2` *Map
+>   Geometry Foundation* · `F6-R3` *Lifecycle & Resize Stability*. **A numeração é taxonomia dos
+>   pacotes de trabalho e NÃO representa ordem temporal.**
+>
+> **Ordem executiva canônica da Fase 6 — decidida pelo fundador no fechamento do Portão Humano 1
+> (2026-08-09), verdade única:**
+> `F6-SG-A` = **`F6-R3`** *Lifecycle & Resize Stability* → `F6-SG-B` = **`F6-R2`** *Map Geometry
+> Foundation* → `F6-SG-C` = **`F6-R1`** *Adaptive Surface System* → `F6-SG-D` = **somente então
+> avaliar/desbloquear o Bloco `B2`**.
+> **Razão:** a proteção de ciclo de vida, `resize`, orientação, continuidade de estado e integridade
+> da obra infantil precisa existir **antes** de mudanças estruturais de geometria e adaptatividade.
+> **`SD-8` continua bloqueador absoluto.** A sequência textual `R1` → `R2` → `R3` do roteiro v4.1
+> recebido fica **preservada como numeração/taxonomia** e **não vale como ordem de execução**.
+> Registro canônico em [`docs/DECISIONS.md`](DECISIONS.md) §`PF6D-D18`.
 >
 > **As 22 fases continuam 22.** O delta **acrescenta subportões dentro de fases existentes** — não
-> cria roteiro paralelo, não move entrega de fase e não inverte ordem. O
+> cria roteiro paralelo, não move entrega de fase e **não altera a ordem das fases**. O
 > [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3 **não foi alterado** e continua o único
-> árbitro de sequência.
+> árbitro da sequência **de fases**; a ordem **interna** dos requisitos do delta da Fase 6 é a
+> declarada acima.
 >
 > **Artefatos canônicos do delta:**
-> [`docs/DECISIONS.md`](DECISIONS.md) §`PF6D` (decisões `D1`–`D18` e a questão **não decidida**
-> `PF6D-D-CANVAS`) ·
+> [`docs/DECISIONS.md`](DECISIONS.md) §`PF6D` (decisões `D1`–`D18` e a política canônica de canvas e
+> rotação `PF6D-D-CANVAS` — ⚠️ **atualizado em 2026-08-08:** este texto dizia *"a questão **não
+> decidida** `PF6D-D-CANVAS`"*; a questão foi **RESOLVIDA** pelo fundador no Portão Humano 1) ·
 > [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md) §32
 > (**a matriz passa de 149 para 167 riscos**, `P-150` a `P-167`, **acréscimo puro**: 0 fusões, 0
 > renumerações, 0 reclassificações) ·

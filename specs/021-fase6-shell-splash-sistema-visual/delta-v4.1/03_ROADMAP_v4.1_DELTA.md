@@ -25,7 +25,8 @@
 
 ### 1.1 O que a validação física mudou — e o que **não** mudou
 
-**Mudou:** a Fase 6 passou a ter um **delta de fundação** (`F6-R1`, `F6-R2`, `F6-R3`) que **não
+**Mudou:** a Fase 6 passou a ter um **delta de fundação** — `F6-R1`, `F6-R2`, `F6-R3`, **listados
+como catálogo; a numeração NÃO é ordem temporal** (ordem executiva canônica na §3.1) — que **não
 existia** na *spec* aprovada. O Bloco **B2** passou a ser **bloqueado** por decisão do fundador
 (`D18`).
 
@@ -136,10 +137,15 @@ Inverter destrói arte da criança (auditoria §5.2, risco `RD-1`).
 **A ordem acima está APROVADA pelo fundador** e **substitui, por emenda explícita, a ordem anterior
 do roteiro v4.1 recebido.**
 
-| | Ordem |
-|---|---|
-| **Ordem anterior — preservada, não apagada** | `F6-R1` → `F6-R2` → `F6-R3` |
-| **Ordem vigente — aprovada na emenda** | `F6-R3` (`SG-A`) → `F6-R2` (`SG-B`) → `F6-R1` (`SG-C`) → **`B2`** (`SG-D`) |
+| | Ordem | Valor executivo |
+|---|---|---|
+| **Ordem anterior — preservada, não apagada** | `F6-R1` → `F6-R2` → `F6-R3` | ❌ **NENHUM.** Memória histórica do roteiro v4.1 recebido. **Não vale como ordem de execução** e não pode ser rotulada nem interpretada como tal. |
+| **✅ ORDEM EXECUTIVA CANÔNICA — verdade única** | `F6-R3` (`SG-A`) → `F6-R2` (`SG-B`) → `F6-R1` (`SG-C`) → **`B2`** (`SG-D`) | ✅ **ÚNICA VÁLIDA**, ratificada no fechamento do Portão Humano 1 (2026-08-09). |
+
+**Os nomes não mudaram e nada foi renumerado:** `F6-R1` = *Adaptive Surface System* · `F6-R2` =
+*Map Geometry Foundation* · `F6-R3` = *Lifecycle & Resize Stability*. **Mudou somente a ordem
+executiva.** A numeração `R1`/`R2`/`R3` é **taxonomia dos pacotes de trabalho** e **não representa
+ordem temporal** em nenhum artefato deste repositório.
 
 **Razão da mudança, registrada conforme exigido** — *"não apague a ordem antiga sem registrar a
 razão da mudança"*:
@@ -201,6 +207,12 @@ não fez *push*.
 
 **A emenda do Portão Humano 1 (2026-08-08) não fez:** não criou fase nova · não moveu nenhuma das
 22 fases · não renumerou `E` nem `P` · **não apagou a ordem anterior `R1 → R2 → R3`**, que fica
-registrada em §3.1 com a razão da mudança · não iniciou `plan.md`, `tasks.md` nem `analyze` · não
-desbloqueou o `B2` · não escolheu via de orientação · não instalou dependência · não gerou *build*
-· não fez *push* nem *merge*.
+registrada em §3.1 com a razão da mudança, **como memória histórica e sem valor executivo** · não
+iniciou `plan.md`, `tasks.md` nem `analyze` · não desbloqueou o `B2` · não escolheu via de
+orientação · não instalou dependência · não gerou *build* · não fez *push* nem *merge*.
+
+**O fechamento do Portão Humano 1 (2026-08-09) não fez:** não renumerou `F6-R1`, `F6-R2` nem
+`F6-R3` · não alterou o significado de nenhum deles · não tocou `Q1`, `Q2`, `Q3`–`Q7`, `P-01`–`P-167`,
+`E000`–`E089`, `SD-8`, a classificação de `P-152`/`P-164` nem a linha `P-141` · não alterou conteúdo
+técnico da *spec* · **mudou exclusivamente a ORDEM EXECUTIVA** e rotulou como taxonomia as listas em
+que `R1`/`R2`/`R3` aparecem por numeração.
