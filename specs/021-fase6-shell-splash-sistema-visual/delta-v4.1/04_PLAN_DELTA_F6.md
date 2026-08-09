@@ -11,7 +11,7 @@ concedida no fechamento do **Portão Humano 1** (aprovado definitivamente em **2
 | Árvore de entrada | **limpa** |
 | Data | 2026-08-09 |
 | Etapa | **PLAN + Constitution Check — e nada além disso** |
-| Revisão | **r2 — Emenda do Portão Humano 2** (`HEAD` de entrada da emenda: `3e5ae91`) |
+| Revisão | **r3 — Emenda pós-`Analyze` do Portão Humano 3** (`HEAD` de entrada da emenda r3: `db76ac4`) · r2 — Emenda do Portão Humano 2 (`HEAD` de entrada: `3e5ae91`) |
 
 > **Emenda do Portão Humano 2 (r2).** Incorpora a decisão **`Q8`** (§41.5), a autorização **`Q9`**
 > (§41.6), a **correção obrigatória da colisão de versionamento `v:3`** (§11.5), o contrato de
@@ -19,6 +19,21 @@ concedida no fechamento do **Portão Humano 1** (aprovado definitivamente em **2
 > compatibilidade obrigatória** (§28.1) e o Constitution Check atualizado (§4). Ordem executiva,
 > conteúdo técnico aprovado, `Q3`–`Q7`, `SD-8`, `P-152`, `P-164` e as fronteiras de escopo da Fase 6
 > permanecem **inalterados**.
+
+> **Emenda pós-`Analyze` do Portão Humano 3 (r3).** O `Analyze` foi aprovado **como diagnóstico**;
+> o **Portão Humano 3 permanece RETIDO** e `Implement` continua **PROIBIDO**. Esta revisão altera o
+> PLAN **exclusivamente** nos dois pontos em que a própria análise provou omissão real do PLAN em
+> relação à `SPEC`, ou em que a decisão do fundador precisava ser congelada:
+>
+> | Ponto | Achado | O que mudou |
+> |---|---|---|
+> | §7.3 (linha `R2.5`) + **§7.3.1 nova** + §26 (**`G-MAP-5` novo**) + §39.2 | `A-07` | `F6-R2.5` / `D12` / "Comece Aqui" ganha representação **explícita**, com escopo estritamente geométrico e fronteira declarada com F7. `D12` **não** é remetida à Fase 7 |
+> | §41.4 (bloco "Sequência condicional congelada") | `A-18` | A decisão sobre `MAP_ANCHOR_FRAMING` vira **sequência condicional**: medir → eliminar compensação → se não restar decisão estética, **a constante não nasce**; só se restar, capturas comparativas nas três faixas ao fundador **antes de `F6-SG-B`**. Nenhum agente escolhe valor silenciosamente |
+>
+> **Nada mais do PLAN foi alterado.** Nenhum identificador canônico (`G-*`, `MT-*`, `TA-*`, `CN-*`,
+> casos de §28.1, cenários de §28) foi renumerado, redefinido ou removido para acomodar as `TASKS`.
+> Os identificadores acrescentados são **novos e inéditos** (`G-MAP-5`). O restante das correções
+> do `Analyze` (`A-01`..`A-06`, `A-08`..`A-17`, `A-19`..`A-27`) foi feito em `05_TASKS_DELTA_F6.md`.
 
 ---
 
@@ -276,7 +291,42 @@ MapRegion  MapRegion    AdventureMapScreen   guideTargetRegistry (medição)
 | `R2.2` fator único | `0.58` em `:310` e `:385`; `0.5` em `:436`; comentário falso em `:424-426` | Uma geometria canônica com **uma** constante nomeada — §41.4. O comentário passa a descrever o código |
 | `R2.3` *viewport* real | `:299` `Math.max(220, height - (insets.top + 56) - (insets.bottom + 56))` — os 56pt inferiores **não existem no tablet** | `onScrollLayout` (`:368`) já mede o *viewport* real em `scrollViewH`. O `initialOffsetY` deixa de estimar: primeira pintura usa o melhor valor disponível e **converge** para a medida real sem pulo — a estimativa fantasma some |
 | `R2.4` assinatura única | `getStoryMapCoord(s.id, i, n)` em `MapRegion.js:51` × `getStoryMapCoord(cameraStoryId)` em `:308`, `:383`, `:432` | Assinatura única através de `getStoryAnchor(storyId, ctx)`, que resolve `index`/`count` internamente a partir do contexto de regiões. A divergência **`LATENTE`** morre antes de acordar |
-| `R2.5` primeira experiência | `:303-305`, `:376-379` alinham `comece_aqui` no topo | Preservado **sem alteração de comportamento**, agora expresso como `mode: 'regionTop'` da mesma função. `F6-R2` entrega a **capacidade de mirar**; **quem** é o alvo continua sendo F7 |
+| `R2.5` primeira experiência (`D12`) | `:303-305`, `:376-379` alinham `comece_aqui` no topo | **A primeira experiência do mapa centra corretamente `Comece Aqui`** — parcela **geométrica** de `D12`, expressa como `mode: 'regionTop'` da mesma função canônica. `F6-R2` entrega a **capacidade de mirar** e **acerta a mira inicial**; **quem** é o alvo em cada momento da jornada continua sendo F7. Detalhamento normativo em §7.3.1 |
+
+### 7.3.1 `F6-R2.5` · `D12` · "Comece Aqui" — representação explícita (emenda pós-`Analyze`)
+
+**Origem:** `Analyze` `A-07`. A `SPEC` aprovada já carrega `D12` dentro de `F6-R2.5`; o PLAN a
+representava apenas de forma indireta ("preservado sem alteração de comportamento"), sem requisito
+observável e sem portão próprio. **`D12` NÃO é remetida à Fase 7.** Ela permanece em `F6-R2.5`.
+
+**Requisito normativo:**
+
+> **`F6-R2.5` — a primeira experiência do mapa centra corretamente `Comece Aqui`.**
+> Na primeira montagem, a câmera inicial do mapa é derivada da **fonte canônica de âncora definida
+> em `F6-R2.1`** (`mapAnchor.getStoryAnchor`), com a ***viewport* livre realmente medida** (`R2.3`),
+> e coloca a região de `comece_aqui` na posição de leitura correta — nas **três** faixas de janela.
+
+**Escopo estrito de `F6-R2.5` nesta fase — o que É entregue:**
+
+| # | Item |
+|---|---|
+| 1 | **Geometria** da primeira mira: a âncora inicial sai da mesma função canônica, sem derivação paralela |
+| 2 | **Posição inicial** de *scroll* do mapa na primeira montagem |
+| 3 | **Câmera inicial** (`computeCameraTarget`) alimentada pela *viewport* livre medida |
+| 4 | **Fonte canônica de âncora já definida em `R2.1`** como única origem do alvo |
+
+**O que NÃO é implementado aqui (fronteira inegociável com F7):**
+
+| # | Item excluído |
+|---|---|
+| 1 | Texto de *onboarding* |
+| 2 | *Spotlight* de F7 |
+| 3 | Coreografia de F7 |
+| 4 | Tour novo |
+| 5 | Semântica futura da jornada (**qual** história é o alvo em cada momento) |
+
+**Apenas a parcela geométrica F6 de `D12`.** Portão correspondente: **`G-MAP-5`** (§26).
+Controle negativo correspondente: `CN-2`. Cenário físico correspondente: §28 #12.
 
 ### 7.4 Restrições de projeto
 
@@ -973,6 +1023,7 @@ de ausência, que ignoram comentários).
 | **`G-CMP-4`** | A gravação nova promove a representação **somente após** validar integridade e provar releitura; falha em qualquer etapa preserva a anterior | **`Q8` regras 8 e 9** · `RG-13` |
 | **`G-CMP-5`** | O caminho de limpeza/reset **não** remove *lineart* histórico enquanto houver obra que dependa dele | **`Q8` regra 10** |
 | **`G-MAP-4`** | Toda geometria mensurável (barra lateral, área segura, sobreposições) é **medida**; o *framing* residual é único, nomeado e justificado no próprio código | §41.4 · trava do Portão 2 |
+| **`G-MAP-5`** | A câmera inicial da **primeira montagem** do mapa deriva de `mapAnchor` com a *viewport* livre medida e mira `comece_aqui`; `AdventureMapScreen.js` **não** contém cálculo próprio de posição inicial | **`F6-R2.5` · `D12`** · §7.3.1 (emenda `A-07`) |
 | `G-BP-1` | **preservado como está** | `P-30` |
 
 ---
@@ -1210,7 +1261,7 @@ obra que dependa dele.
 | `F6-R2.2` | `E032-R2` | `P-154` | `D11` | `mapAnchor.js` | `TA-1`, `G-MAP-1`, `MT-2` | `SG-B` |
 | `F6-R2.3` | `E032-R3` | `P-154` | `D11` | `AdventureMapScreen.js:295-311` | `TA-2`, `G-MAP-3`, `MT-4` | `SG-B` · `SD-6` |
 | `F6-R2.4` | `E032-R4` | `P-154` | `D11` | `adventureMap.js`, `mapAnchor.js` | `TA-3`, `MT-3` | `SG-B` |
-| `F6-R2.5` | `E032-R1` | `P-154` | `D12` | `AdventureMapScreen.js` | `CN-2`, §28 #12 | `SG-B` |
+| `F6-R2.5` | `E032-R1` | `P-154` | `D12` | `AdventureMapScreen.js`, `mapAnchor.js` | `G-MAP-5`, `CN-2`, §28 #12 (§7.3.1) | `SG-B` |
 
 ### 39.3 `F6-R1` → … → `F6-SG-C`
 
@@ -1320,6 +1371,25 @@ A resolução de `Q6` está aprovada **com esta trava**, que é parte do contrat
 | 4 | **Semântica única, justificativa explícita no código**, e validação nas três faixas |
 | 5 | Se a medição tornar o resíduo desnecessário, **a constante não nasce** — o desenho preferido é o sem constante alguma |
 | 6 | `G-MAP-4` (§26) verifica as regras 1, 3 e 4; a 5 é confirmada visualmente em `F6-SG-B` |
+
+#### Sequência condicional congelada (emenda pós-`Analyze`, achado `A-18`)
+
+O item 3 acima, lido isoladamente, ainda pressupunha que a constante existiria e que restaria
+apenas escolher **qual** valor confirmar. **Não é isso.** A decisão do fundador na emenda do
+Portão Humano 3 congela a seguinte **sequência obrigatória** — e ela substitui qualquer leitura do
+item 3 que implique escolha antecipada:
+
+| Passo | Ato | Consequência |
+|---|---|---|
+| 1 | **Derivar a *viewport* livre por medição real** (cabeçalho, área segura, barra lateral, sobreposições) | Insumo único de `computeCameraTarget` |
+| 2 | **Eliminar tudo o que for compensação de geometria mensurável** | Regra 3 aplicada de forma exaustiva |
+| 3 | **Se, após 1 e 2, não restar nenhuma decisão estética residual ⇒ `MAP_ANCHOR_FRAMING` NÃO nasce** | Desenho preferido (regra 5). Nada é apresentado ao fundador |
+| 4 | **Somente se restar uma decisão estética genuína**, produzir **capturas comparativas nas três faixas** e apresentá-las ao fundador **ANTES de `F6-SG-B`** | A confirmação visual do item 3 acontece **aqui**, e só aqui |
+
+**Proibição explícita:** **nenhum agente pode escolher silenciosamente `0.58`, `0.5` ou um terceiro
+valor.** A escolha de valor, se o passo 4 for alcançado, é **ato humano do fundador**, com as
+capturas em mãos. Se o passo 4 não for alcançado, não há valor a escolher — e é esse o resultado
+preferido.
 
 **Consequência de projeto:** `computeCameraTarget` recebe a ***viewport* livre já medida** como
 entrada. Ele **não** conhece cabeçalho, barra lateral nem área segura — e é justamente por não
