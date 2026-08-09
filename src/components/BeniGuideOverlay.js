@@ -15,9 +15,11 @@
  * Props: steps[], measure?, finalLabel?, onFinish, onSkip, onStep?(target),
  *        withAudioPrompt?
  */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Animated, Modal, BackHandler, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+// [F6-R3.2 · TK-A-026] Um único contrato de ciclo de vida para todas as superfícies.
+import { useSurfaceLifecycle } from '../hooks/useSurfaceLifecycle';
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundButton from './SoundButton';
 import BeniAvatar from './beni/BeniAvatar';
@@ -146,6 +148,44 @@ export default function BeniGuideOverlay({
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapScrollNonce]);
+
+  /* ── [F6-R3.2 · TK-A-026/027] RE-MEDIR O ALVO — NUNCA REINICIAR O PASSO ──
+     O passo corrente (`index`) é estado do componente e sobrevive a qualquer
+     re-render; o que NÃO sobrevive é o `rect`, que são coordenadas de tela medidas
+     numa geometria que acabou de deixar de existir. Girar o aparelho, arrastar o
+     divisor do Split View ou voltar do segundo plano deixavam o holofote, a seta e a
+     zona de toque presos onde o alvo estava ANTES.
+
+     Pior no cruzamento de 600dp: `targetFor` troca de alvo (barra inferior ↔ item da
+     sidebar), então a medição velha nem sequer descreve o mesmo elemento.
+
+     Aqui só se RE-MEDE. Nada de trocar de passo, reiniciar áudio ou fechar o guia — e
+     `guideTargetRegistry` NÃO ganha aritmética de mapa: isso é `F6-R2`/§16. */
+  const remedirAlvoAtual = useCallback(() => {
+    if (phase !== 'steps') return;
+    // Com um commit em voo, quem manda é o commit: ele já vai medir o alvo do passo de
+    // DESTINO. Medir aqui escreveria o rect do passo de ORIGEM por cima.
+    if (busy) return;
+    const target = targetFor(safeSteps[index]);
+    if (!target || typeof measure !== 'function') { setRect(null); return; }
+    measure(target).then((r) => setRect(r || null)).catch(() => setRect(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, busy, index, safeSteps, measure, isTabletLayout]);
+
+  // Mudança de viewport. A primeira execução é ignorada de propósito: na montagem quem
+  // posiciona é o `commitStep(0)`, e medir antes do layout assentar apagaria o alvo.
+  const janelaRef = useRef(null);
+  useEffect(() => {
+    const anterior = janelaRef.current;
+    janelaRef.current = `${width}x${height}`;
+    if (anterior === null || anterior === janelaRef.current) return;
+    remedirAlvoAtual();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, height]);
+
+  // Retorno do segundo plano. `pauseOnBlur: false` porque o guia vive dentro da tela
+  // que o abriu: perder o foco de navegação aqui não é evento de viewport.
+  useSurfaceLifecycle({ pauseOnBlur: false, onForeground: remedirAlvoAtual });
 
   // Pulso discreto (Beni + moldura do alvo).
   const pulse = useRef(new Animated.Value(0)).current;

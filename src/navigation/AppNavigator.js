@@ -8,6 +8,9 @@ import { colors } from '../theme/colors';
 import TabletSidebar from '../components/TabletSidebar';
 import FaithIcon from '../components/ui/FaithIcon';
 import { useProgressContext } from '../context/ProgressContext';
+// [F6-R3.3 · TK-A-022] `log` central: cala sozinho em produção, sem trazer um teste de
+// ambiente escrito à mão para dentro do shell de navegação.
+import { log } from '../utils/logger';
 // Fase 6 · B3: o shell não precisa mais assinar o sinal do tour para FOCAR a aba.
 // Com um Tab.Navigator real também no tablet, quem pede o tour navega de verdade
 // (`{ screen: 'Aventuras' }` / state aninhado) e o foco vem do próprio navegador.
@@ -226,10 +229,38 @@ const TOUR_TAB_CALLOUT = {
  * como o navegador é o mesmo elemento, mudar de sidebar para tab bar inferior é
  * re-render — não remonta as abas nem perde o que a criança estava fazendo.
  */
+// [F6-R3.3 · TK-A-022] Contador de MÓDULO: sobrevive a qualquer remontagem de `MainTabs`
+// e por isso pode denunciá-la. Um contador de instância nasceria em 1 sempre.
+let mainTabsMounts = 0;
 function MainTabs() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= breakpoints.tablet;
+
+  /* [F6-R3.3 · TK-A-022] INSTRUMENTAÇÃO DE MONTAGEM — CN-6.
+     Nada estrutural muda aqui: a ausência de remontagem na travessia de 600dp já é
+     consequência do shell único acima. O que faltava era EVIDÊNCIA observável dela.
+     O contador é de módulo (não de instância): remontar não o zera. Se, ao arrastar o
+     divisor do Split View de um lado ao outro de 600dp, a linha de faixa mudar e o
+     número de montagem NÃO mudar, a travessia foi re-render. Se o número subir, foi
+     remontagem — e isso é defeito, não observação. Registro em desenvolvimento
+     (`log` cala em produção): é ferramenta de campanha física, não de produto. */
+  const montagensRef = useRef(0);
+  useEffect(() => {
+    mainTabsMounts += 1;
+    montagensRef.current = mainTabsMounts;
+    log(`[AppNavigator] MainTabs MONTADO · montagem #${mainTabsMounts}`);
+    return () => { log(`[AppNavigator] MainTabs DESMONTADO · era a montagem #${montagensRef.current}`); };
+  }, []);
+  useEffect(() => {
+    log(
+      `[AppNavigator] faixa = ${isTablet ? 'tablet (sidebar à esquerda)' : 'celular (barra inferior)'}`
+      + ` · largura=${Math.round(width)}dp · ainda na montagem #${montagensRef.current}`,
+    );
+    // `width` fora das dependências de propósito: o interesse é a TRAVESSIA da faixa,
+    // não cada pixel arrastado — uma linha por pixel afogaria a evidência.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTablet]);
   // Fase 1.1.4.3: re-renderiza a tab bar quando o REALCE da aba liga/desliga — e isso
   // liga SÓ no passo "Seu mapa de aventuras" (sinal callout), não no tour inteiro.
   const [calloutOn, setCalloutOn] = useState(getAdventureTabCalloutActive());
