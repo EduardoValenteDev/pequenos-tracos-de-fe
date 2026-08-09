@@ -7283,14 +7283,23 @@ check(
     /tabBarPosition: isTablet \? 'left' : 'bottom'/.test(navSrcTab),
     'o tablet voltou a ter shell próprio, ou o pedido de tour deixou de navegar de verdade',
   );
+  // [Fase 6 · F6-R3.1 · TK-A-017/018/019] Esta asserção fixava, no último termo, o
+  // MECANISMO de reação à largura: repor `didInitScroll` para a câmera recalcular do
+  // zero. Esse mecanismo era exatamente o defeito `F6-LFC-01`/`P-152` — recalcular do
+  // zero DESCARTAVA a posição da criança. A INTENÇÃO — o mapa não fica calculado para a
+  // largura errada — é imutável e passou a ser cumprida pela REPROJEÇÃO da posição
+  // lógica. Os quatro primeiros termos (largura da área de conteúdo) seguem intactos.
+  // A prova de que a reposição NÃO voltou é `G-LFC-1` (TK-A-021, commit `C-A12`),
+  // provada de forma independente por `MT-1` (TK-A-093): nenhum portão prova a si próprio.
   check(
     'TABLET1.0: mapa usa LARGURA DA ÁREA DE CONTEÚDO (onLayout) — corrige corte na sidebar; mobile == janela (sem regressão)',
     mapSrcTab.includes('const mapWidth = contentW > 0 ? contentW : width') &&
     mapSrcTab.includes('onLayout={onContainerLayout}') &&
     mapSrcTab.includes('computeRegionHeight(mapWidth)') &&
     mapSrcTab.includes('width={mapWidth}') &&
-    /useEffect\(\(\) => \{ didInitScroll\.current = false; \}, \[mapWidth\]\)/.test(mapSrcTab),
-    'mapa ainda usa largura da janela / não recentra ao mudar a largura',
+    /useEffect\(\(\) => \{ reprojetarRef\.current = true; \}, \[mapWidth\]\)/.test(mapSrcTab) &&
+    mapSrcTab.includes('if (reprojetando && par.valida && regionLayout[par.regionIndex])'),
+    'mapa ainda usa largura da janela / não reage à mudança de largura',
   );
   check(
     'TABLET1.0: tour dispara por param OU sinal pendente (consume + subscribe) — funciona no tablet',

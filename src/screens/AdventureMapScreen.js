@@ -362,12 +362,59 @@ export default function AdventureMapScreen({ navigation, route }) {
   const scrollRef = useRef(null);
   const scrollViewH = useRef(0);
   const didInitScroll = useRef(false);
-  // Câmera re-centraliza quando a largura do mapa muda (ex.: medição da área de
-  // conteúdo no tablet) — senão o scroll inicial fica calculado p/ a largura errada.
-  useEffect(() => { didInitScroll.current = false; }, [mapWidth]);
+
+  /* ── [F6-R3.1 · TK-A-017/018/019] POSIÇÃO DA CRIANÇA SOBREVIVE À MUDANÇA DE LARGURA ──
+     Antes, mudar a largura do mapa (girar o aparelho, arrastar o divisor do Split View,
+     a medição da área de conteúdo no tablet) era tratado como PRIMEIRA MONTAGEM: o
+     efeito repunha `didInitScroll` e a câmera recalculava do zero, DESCARTANDO o ponto
+     onde a criança estava. Era o `F6-LFC-01`/`P-152`.
+
+     Agora a largura nova agenda uma REPROJEÇÃO: quando o `contentSize` novo chega, o
+     mapa volta para o MESMO PAR LÓGICO — a região e a fração dentro dela —, não para a
+     câmera. Como as alturas das regiões escalam com a largura, a fração é o que
+     atravessa a mudança de geometria; o deslocamento em pixels não atravessaria.
+
+     O par só passa a valer depois do PRIMEIRO ARRASTO MANUAL (`userScrolledRef`). Sem
+     arrasto não há posição da criança a preservar, e a abertura continua sendo
+     exatamente a de hoje — inclusive a recentragem da medição inicial no tablet
+     (`TK-A-020`/`CN-2`). O `userScrolledRef` NÃO é reposto pela troca de largura. */
+  const posLogicaRef = useRef({ regionIndex: -1, frac: 0, valida: false });
+  const reprojetarRef = useRef(false);
+  useEffect(() => { reprojetarRef.current = true; }, [mapWidth]);
+
+  // Região que contém uma coordenada do conteúdo. É a MESMA varredura que o `onScroll`
+  // já fazia; extraída para que a reconciliação de `activeIdx` use exatamente o mesmo
+  // critério da sonda — dois critérios divergentes seriam nova dessincronização.
+  const regiaoDe = useCallback((coordY) => {
+    let idx = regionLayout.length - 1;
+    for (let i = 0; i < regionLayout.length; i++) {
+      const r = regionLayout[i];
+      if (coordY >= r.top && coordY < r.top + r.height) { idx = i; break; }
+    }
+    return idx;
+  }, [regionLayout]);
+
   const onScrollLayout = useCallback((e) => { scrollViewH.current = e.nativeEvent.layout.height; }, []);
   const onContentSize = useCallback((w, h) => {
-    if (didInitScroll.current || scrollViewH.current <= 0) return;
+    if (scrollViewH.current <= 0) return;
+    // [TK-A-018] Reprojeção pendente com par gravado: restaura a posição lógica e sai.
+    // Sem par gravado a reprojeção CAI no caminho da câmera abaixo — que é o comportamento
+    // de hoje para a medição de abertura, preservado intacto por `TK-A-020`.
+    const reprojetando = reprojetarRef.current;
+    reprojetarRef.current = false;
+    const par = posLogicaRef.current;
+    if (reprojetando && par.valida && regionLayout[par.regionIndex]) {
+      const r = regionLayout[par.regionIndex];
+      const alvoY = Math.max(0, Math.min(r.top + par.frac * r.height, Math.max(0, h - scrollViewH.current)));
+      scrollRef.current?.scrollTo({ y: alvoY, animated: false });
+      // [TK-A-019] `activeIdx` reconciliado a partir da posição REAL restaurada, pela
+      // mesma sonda do `onScroll` — a pílula de região e o "Ver mapa" acompanham.
+      const idxReconciliado = regiaoDe(alvoY + 90);
+      activeIdxRef.current = idxReconciliado;
+      setActiveIdx((prev) => (prev === idxReconciliado ? prev : idxReconciliado));
+      return;
+    }
+    if (didInitScroll.current && !reprojetando) return;
     didInitScroll.current = true;
     const vp = scrollViewH.current;
     const maxY = Math.max(0, h - vp);
@@ -392,7 +439,7 @@ export default function AdventureMapScreen({ navigation, route }) {
     const camIdx = idx >= 0 ? idx : comeceRegionIdx;
     activeIdxRef.current = camIdx;
     setActiveIdx((prev) => (prev === camIdx ? prev : camIdx));
-  }, [regionLayout, regionsVisual, cameraStoryId, comeceRegionIdx]);
+  }, [regionLayout, regiaoDe, regionsVisual, cameraStoryId, comeceRegionIdx]);
 
   // Atualiza o índice da região ativa conforme a rolagem (só quando muda — leve).
   const onScroll = useCallback((e) => {
@@ -400,14 +447,21 @@ export default function AdventureMapScreen({ navigation, route }) {
     // ativa é a da câmera ("Comece Aqui" no 1º acesso), definida no scroll inicial — o
     // scroll programático não pode sequestrar o activeIdx (senão "Ver mapa" abre errado).
     if (userScrolledRef.current) {
-      const y = e.nativeEvent.contentOffset.y + 90; // sonda perto do topo do viewport
-      let idx = regionLayout.length - 1;
-      for (let i = 0; i < regionLayout.length; i++) {
-        const r = regionLayout[i];
-        if (y >= r.top && y < r.top + r.height) { idx = i; break; }
-      }
+      const offsetY = e.nativeEvent.contentOffset.y;
+      const idx = regiaoDe(offsetY + 90); // sonda perto do topo do viewport
       activeIdxRef.current = idx; // ref sempre atual (lida pelo "Ver mapa")
       setActiveIdx((prev) => (prev === idx ? prev : idx));
+      // [F6-R3.1 · TK-A-017] Grava o PAR LÓGICO da posição corrente: a região que contém
+      // o deslocamento CRU (não a sonda — o par precisa ser invertível) e a fração dentro
+      // dela. Duas contas sobre o `regionLayout` que já existe, escritas em campos de uma
+      // ref criada uma única vez: sem alocação por evento e sem `setState` adicional.
+      const idxPos = regiaoDe(offsetY);
+      const rPos = regionLayout[idxPos];
+      if (rPos && rPos.height > 0) {
+        posLogicaRef.current.regionIndex = idxPos;
+        posLogicaRef.current.frac = (offsetY - rPos.top) / rPos.height;
+        posLogicaRef.current.valida = true;
+      }
     }
     // Durante o tour: esconde o halo enquanto rola; re-mede o alvo ao parar (settle).
     if (showBeniTour) {
@@ -419,7 +473,7 @@ export default function AdventureMapScreen({ navigation, route }) {
         setMapScrollNonce((n) => n + 1);
       }, 180);
     }
-  }, [regionLayout, showBeniTour]);
+  }, [regionLayout, regiaoDe, showBeniTour]);
 
   // UX 2.3.1: ao abrir o guia de Aventuras, traz o pin foco para a área visível
   // (mesma geometria da câmera) → maximiza a chance de medir o brilho. Se não der,
