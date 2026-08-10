@@ -1328,7 +1328,11 @@ async function executarTA13() {
         + 'destruída por falha nem por interrupção; o que se perde numa interrupção é coerência de preview/índice, '
         + 'que é derivada e recuperável. NÃO corrigido nesta fase: `atelierStorage.js` não consta da lista de '
         + 'arquivos de NENHUMA task de `F6-R3` (`TK-A-049` nomeia `drawingStorage.js`, que é o escritor MORTO). '
-        + 'Exige decisão do fundador antes de qualquer alteração.');
+        + 'DECISÃO DO FUNDADOR (fechada): NÃO corrigir na Fase 6, NÃO ampliar `F6-R3` para consertá-lo; '
+        + 'pendência formalizada em TASKS §11.16-c, com destino `F12A` — junto da eliminação do Ateliê '
+        + 'legado já decidida em produto. Este aviso permanece de propósito para que a dívida não '
+        + 'apodreça em silêncio, e é AVISO (⚠), não falha (✗): NÃO reprova portão algum e NÃO é '
+        + 'bloqueador de `F6-R3` nem de `F6-SG-A`.');
     }
   }
 
