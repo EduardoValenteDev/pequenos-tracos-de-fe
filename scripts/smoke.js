@@ -51416,6 +51416,68 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
   }
 
   /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.5 · TK-A-056 — `G-CMP-5` e `G-CMP-6` na semântica canônica do
+   * PLAN §26. São propriedades ESTRUTURAIS, e estão declaradas como tais: elas
+   * fixam que o caminho CERTO é o único caminho possível. O comportamento das duas
+   * já é provado em outro lugar e de outro jeito — `G-CMP-6` pelos 9 casos da seção
+   * G de `TA-12`, que injetam um lineart REAL e derrubam sob `MT-18`.
+   *
+   * `G-CMP-6` (novo): a abertura verifica a identidade do lineart ANTES de compor a
+   * tinta. O selo estrutural aqui é o que impede a próxima mão de contornar a
+   * verificação sem querer: existe uma função crua (`origemBruta`) e uma verificada
+   * (`retanguloDeOrigem`), e os dois pontos de entrada do motor precisam usar a
+   * VERIFICADA. Chamar a crua compilaria, passaria em revisão e devolveria tinta
+   * deformada sobre o desenho errado — em silêncio.
+   *
+   * `G-CMP-5` (canônico): o caminho de limpeza/reset não remove lineart histórico
+   * enquanto houver obra que dependa dele (`Q8` r.10). A garantia é estrutural e
+   * dupla: (a) a limpeza só apaga arquivo cuja URI veio de um ponteiro sob a chave
+   * `@ptf_drawing_` — ela nunca ENUMERA diretório, e é a enumeração que transforma
+   * "apagar a pintura desta criança" em "apagar tudo que estiver por perto"; (b)
+   * nenhum módulo de limpeza importa o provedor de lineart, então nem sequer existe
+   * um nome de lineart alcançável de dentro do caminho de exclusão. ────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-056: G-CMP-5 · G-CMP-6 (proteção do lineart histórico) ──');
+  {
+    const motor = codeOf('src/components/ColoringCanvas.js');
+    check(
+      'G-CMP-6 [1/3] (F6 §2.4.1-e): a origem VERIFICADA existe e a crua é separada dela',
+      /function origemBruta\(/.test(motor) && /function retanguloDeOrigem\(/.test(motor)
+        && /function identidadeDoLineartConfere\(/.test(motor),
+      'as funções de origem crua/verificada não estão ambas declaradas no motor raster');
+    check(
+      'G-CMP-6 [2/3] (F6 §2.4.1-e): `retanguloDeOrigem` NÃO devolve retângulo sem passar pela identidade',
+      /function retanguloDeOrigem\([^)]*\)\{[^}]*origemBruta\([^)]*\);[^]*?identidadeDoLineartConfere\(org\)/.test(motor),
+      'retanguloDeOrigem deixou de encadear origemBruta → identidadeDoLineartConfere');
+    /* `origemBruta` só pode ser citada UMA vez em todo o motor: na própria declaração
+       e na chamada de dentro de `retanguloDeOrigem`. Qualquer terceira citação é um
+       atalho em volta da verificação. */
+    const citacoesCruas = (motor.match(/origemBruta\(/g) || []).length;
+    check(
+      'G-CMP-6 [3/3] (F6 §2.4.1-e): NENHUM ponto de entrada chama a origem CRUA — a verificação não tem desvio',
+      citacoesCruas === 2 && !/validatePaint[^]*?origemBruta\(/.test(motor),
+      `citações de origemBruta( no motor: ${citacoesCruas} (esperado 2: declaração + chamada verificada)`);
+
+    const legado = codeOf('src/services/drawingStorage.js');
+    const limpeza = legado.slice(legado.indexOf('export async function clearAllSavedDrawings'));
+    check(
+      'G-CMP-5 [1/2] (PLAN §26 · Q8 r.10): a limpeza só apaga arquivo apontado por ponteiro — nunca ENUMERA diretório',
+      limpeza.includes("startsWith('@ptf_drawing_')") && /isDrawingPointer\(raw\)/.test(limpeza)
+        && !/readDirectory|getInfoAsync|currentBlobsRoot|readdir/.test(limpeza),
+      'o caminho de limpeza passou a enumerar diretório ou a apagar fora do ponteiro');
+    const LIMPEZA_MODULOS = [
+      'src/services/drawingStorage.js',
+      'src/services/progressResetService.js',
+      'src/services/coloring60DrawingStorage.js',
+      'src/services/atelierStorage.js',
+    ];
+    const contaminados = LIMPEZA_MODULOS.filter((rel) => /coloringImages|coloring60LocalAssets|getColoringImage/.test(codeOf(rel)));
+    check(
+      'G-CMP-5 [2/2] (PLAN §26 · Q8 r.10): nenhum módulo de limpeza alcança o provedor de lineart',
+      contaminados.length === 0,
+      `módulos de limpeza que passaram a citar o provedor de lineart: ${contaminados.join(', ')}`);
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
    * Fase 6 · F6-R3.5 · TK-A-043 — `CN-13` (§2.4.1-d): nenhuma migração silenciosa
    * em massa. Esta task é uma **asserção de ausência**: a mudança esperada nela é
    * NENHUMA. O risco que ela cobre é o oposto do defeito comum — não é o código
