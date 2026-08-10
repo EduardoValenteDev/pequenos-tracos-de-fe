@@ -1,7 +1,7 @@
 # 09 · Matriz definitiva de riscos e pendências
 
 > **Artefato 9 de 11 — consolidado em E016, aprovado em E017, adotado em E018 · Fase 3H.**
-> **Atualizado nas Fases 4A, 4B, 4C, 4D e 4E (Product Lock), na Fase 5 (§29, §30), na abertura da Fase 6 (§31 — duas correções de numeral declaradas, nenhum risco alterado) e no Delta v4.1 da Fase 6 (§32 — dezoito códigos novos `P-150` a `P-167`, acréscimo puro, nenhuma renumeração e nenhuma reclassificação de código anterior).**
+> **Atualizado nas Fases 4A, 4B, 4C, 4D e 4E (Product Lock), na Fase 5 (§29, §30), na abertura da Fase 6 (§31 — duas correções de numeral declaradas, nenhum risco alterado), no Delta v4.1 da Fase 6 (§32 — dezoito códigos novos `P-150` a `P-167`, acréscimo puro, nenhuma renumeração e nenhuma reclassificação de código anterior) e na auditoria investigativa pós validação física da Fase 6 (§33 — dois códigos novos `P-168` e `P-169`, acréscimo puro, duas células de *Observação* alteradas com declaração explícita, nenhuma renumeração).**
 > **Versão 5 — matriz única, deduplicada, definitiva e canônica.**
 
 | Campo | Valor |
@@ -10,9 +10,9 @@
 | **Base auditada** | E009 a E015, mais os sete riscos `R` residuais absorvidos em E018, mais as decisões do fundador registradas nas Fases 4A, 4B, 4C, 4D e 4E |
 | **Branch auditada** | `integrate/colorir-canonical-runtime` |
 | **HEAD canônico** | `015c438106538595b592981fbe1b80b1d5d65e55` |
-| **Total de riscos** | **167** — `P-01` a `P-131` (herdados) + `P-132` a `P-134` (E016, ETAPA 4) + `P-135` a `P-139` (E018, ETAPA 2) + `P-140` (Fase 4A, §24) + `P-141` a `P-148` (Fase 4D, §27) + `P-149` (Fase 5, §29) + `P-150` a `P-167` (Fase 6 · Delta v4.1, §32). **A Fase 4E (§28) e a abertura da Fase 6 (§31) não criaram nenhum código novo.** |
+| **Total de riscos** | **169** — `P-01` a `P-131` (herdados) + `P-132` a `P-134` (E016, ETAPA 4) + `P-135` a `P-139` (E018, ETAPA 2) + `P-140` (Fase 4A, §24) + `P-141` a `P-148` (Fase 4D, §27) + `P-149` (Fase 5, §29) + `P-150` a `P-167` (Fase 6 · Delta v4.1, §32) + `P-168` e `P-169` (Fase 6 · auditoria investigativa pós validação física, §33). **A Fase 4E (§28) e a abertura da Fase 6 (§31) não criaram nenhum código novo.** |
 | **Fusões realizadas** | **0** |
-| **Renumerações** | **0** — `P-140`, `P-141` a `P-148`, `P-149` e `P-150` a `P-167` são acréscimos puros |
+| **Renumerações** | **0** — `P-140`, `P-141` a `P-148`, `P-149`, `P-150` a `P-167` e `P-168` a `P-169` são acréscimos puros |
 
 > Este artefato é a **única fonte canônica de riscos** do projeto. Nenhum outro documento
 > replica a matriz; os demais artefatos da Fase 3 apenas a referenciam por código.
@@ -527,13 +527,13 @@ As tabelas rolam horizontalmente.
 | **P-157** | Holofote do tour não coincide com o alvo apontado | O holofote do tour é centralizado por derivação própria em `beniTourService.js`, com fator `0.5`, enquanto a câmera do mapa usa `0.58` e a estimativa de viewport de tablet não corresponde à geometria real; o holofote portanto não cai sobre o mesmo ponto que o pino desenhado | **ONBOARDING E GUIAS** · sec.: JORNADA E PROGRESSO | `COMPROVADO PELO CÓDIGO` · `beniTourService.js` (fator `0.5`) confrontado com `AdventureMapScreen.js:123-127` (fator `0.58`) · `OBSERVADO FISICAMENTE` em iPad | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **ALTO** | tour do Beni, Mapa de Aventuras | o Beni destaca um lugar e a criança olha para outro | duas derivações independentes da mesma âncora divergem por construção | 6 | 7 | `P-154` (**precondição**) | 14 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F7-ONB-SPOT-01`. **PRECONDIÇÃO ESTRITA:** não pode ser corrigido antes de `P-154`; corrigir o fator isoladamente apenas troca uma divergência por outra. MESMO BLOCO DE CORREÇÃO: `P-154`, `P-156` | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. Fase de implementação **7**, sobre a fundação `F6-R2` entregue na Fase 6 |
 | **P-158** | Semântica de "Ver mapa" indefinida no *onboarding* | O comportamento de "Ver mapa" durante o *onboarding* não tem semântica canônica definida; a semântica definitiva pertence ao orquestrador de jornada da Fase 11 | **ONBOARDING E GUIAS** · sec.: NAVEGAÇÃO | `COMPROVADO PELO CÓDIGO` · `beniGuides.js:19` e `:33` declaram alvos `adventures.viewMapButton` · `AppNavigator.js:15` e `:291` consomem `isAdventureTourActive()` definido em `beniTourService.js:150` | Fase 6 · Delta v4.1 (§32) | `ABERTO` | alta | **MÉDIO** | *onboarding*, Mapa de Aventuras | a criança aciona "Ver mapa" e não recebe um resultado previsível | semântica dividida entre *onboarding* e orquestração de jornada, sem dono único | 6 | 7 | `P-155`, `P-154` | 14 e 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F7-ONB-MAP-01`. TENSÃO REGISTRADA, NÃO RESOLVIDA: `P-103` está declarado `IMPLEMENTADO SEM CONSUMIDOR`, mas `AppNavigator.js:291` consome `isAdventureTourActive()` em tempo de execução. **Esta auditoria NÃO reclassificou `P-103`** — a divergência é encaminhada como questão `Q7` do Clarify, para decisão do fundador na Fase 7 | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. **Fase proprietária de implementação = 7** (dono único, para preservar a invariante da §15 de que a soma das fases fecha no total da matriz): a Fase 7 entrega o comportamento de "Ver mapa" no *onboarding*. A **semântica definitiva** do orquestrador de jornada permanece da **Fase 11** e está registrada como **revalidação**, não como segunda propriedade. A Fase 6 pode entregar apenas API de infraestrutura, jamais a semântica |
 
-### UI E RESPONSIVIDADE — 14 riscos
+### UI E RESPONSIVIDADE — 16 riscos
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | **P-16** | Sem fila global de overlays (7 pares de colisão) | São 7 pares, não 3, com prova negativa: zero gerenciador central de overlays em todo `src`; mais 1 par novo em E013 | **UI E RESPONSIVIDADE** · sec.: ONBOARDING E GUIAS | prova negativa em todo `src` | E010, ampliado por E011 e E013 | `ABERTO` | média | **ALTO** | overlays (global) | camadas simultâneas confundem e travam a interação | nenhuma arbitragem central | 4 | 11 | - | 21 | `VFP` · `TEL` | `EXIGE DECISÃO NO PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `E015-N27` (duplicado). MESMO BLOCO DE CORREÇÃO: `P-81`, `P-35`, `P-101` | `COMPROVADO PELO CÓDIGO` | O par `esgotarTempo` do Palavrinhas citado na evidência é o MESMO fato de `P-81`, registrado aqui para não ser contado duas vezes. Falta para lançamento: reproduzir fisicamente um par simultâneo |
 | **P-20** | Tablet nunca validado fisicamente | Nenhum módulo C60 consulta `isTablet`; o Livrinho trata tablet em 1 ponto; Meu Momento e Cultinho em nenhum | **UI E RESPONSIVIDADE** · sec.: NAVEGAÇÃO | `COMPROVADO PELO CÓDIGO` | E010, ampliado por E012 | `EXIGE VALIDAÇÃO FÍSICA` | média | **ALTO** | aparelhos e layout | layout não verificado na classe de aparelho | metade das classes-alvo sem evidência | - | 6 | - | 21 | `VFP` · `TAB` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ALIAS: `E015-N20` (duplicado). MESMO BLOCO DE CORREÇÃO: `P-30`, `P-31`, `P-47`. Candidato D de dedupe: NÃO fundido | `COMPROVADO PELO DOCUMENTO` | Falta para lançamento: decidir no Lock se tablet é classe-alvo do v1 e, se for, executar a campanha |
-| **P-29** | `AppScreen.js` é código morto | Cada tela improvisa a área segura em vez de usar o componente existente | **UI E RESPONSIVIDADE** | `COMPROVADO PELO CÓDIGO` | E011 | `IMPLEMENTADO SEM CONSUMIDOR` | média | **BAIXO** | 5 telas | margens inconsistentes entre telas | duplicação e divergência | - | 6 | - | 21 | `VFP` · `TEL` · `TAB` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-27`, `P-30` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 7 para 6 (sistema visual e shell) |
+| **P-29** | `AppScreen.js` é código morto | Cada tela improvisa a área segura em vez de usar o componente existente | **UI E RESPONSIVIDADE** | `COMPROVADO PELO CÓDIGO` | E011 | `IMPLEMENTADO SEM CONSUMIDOR` | média | **BAIXO** | 5 telas | margens inconsistentes entre telas | duplicação e divergência | - | 6 | - | 21 | `VFP` · `TEL` · `TAB` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-27`, `P-30` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 7 para 6 (sistema visual e shell) REAVALIAÇÃO DOCUMENTAL DA AUDITORIA DA FASE 6 (§33.3, 2026-08-10): a auditoria investigativa mostrou, no achado `B-05`, que o fato enunciado aqui **não é apenas duplicação estética** — as reservas inferiores fixas das telas raiz foram calibradas para o cromo de telefone e, em tablet, somam-se ou faltam em relação à área segura real. **O risco NÃO é fechado, NÃO é rebaixado e NÃO é reclassificado nesta rodada**; a severidade `BAIXO` fica **declarada sob suspeita**, e a decisão de mantê-la ou elevá-la pertence ao subportão `F6-SG-C` / `F6-R1`, com prova de largura em mão. A camada GLOBAL do mesmo problema recebeu código próprio: `P-169` |
 | **P-30** | Dois sistemas de breakpoint concorrentes | `>= 768` em 10 pontos contra `breakpoints.tablet = 600` em `tokens.js:128`, usado por `ContentContainer.js:22`; o Livrinho usa 768 | **UI E RESPONSIVIDADE** | `tokens.js:128` × `StoryBookScreen.js:195` | E011, confirmado e reformulado por E013 | `ABERTO` | média | **MÉDIO** | todas as telas e `tokens.js` | layout imprevisível entre 600 e 767 px | dois sistemas de layout | - | 6 | `P-20` | 21 | `VFP` · `TAB` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-29`, `P-31`, `P-47` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 7 para 6. REBAIXADO na ETAPA 11: consequência local medida pelo `P-31` e pelo `P-20`, que carregam a classificação de lançamento do bloco. |
 | **P-59** | Chip de plano do Brincar corta em 100% dos estados | `BrincarScreen.js:238`, `386`, `390` e `198-204` cortam o texto do chip em todos os estados possíveis | **UI E RESPONSIVIDADE** · sec.: PLANO E ENTITLEMENT | `COMPROVADA PELO CÓDIGO E FISICAMENTE` | E013 | `ABERTO` | **P2** | **MÉDIO** | Brincar | informação de plano ilegível | largura insuficiente sem tratamento | - | 12A | - | 21 | `VFP` · `TEL` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-60` | `COMPROVADO PELO CÓDIGO E FISICAMENTE` | Já possui evidência física registrada em E013. DECISÃO DA FASE 4A: o nome público do plano pago é único e imutável, Plano Família, e é essa string que o chip precisa acomodar. A decisão fixa o texto, não corrige o corte, que permanece pendente de implementação na Fase 12A. |
 | **P-60** | `headerTitle` do Brincar sem `numberOfLines` | `BrincarScreen.js:233`, `379`, `371` e `231` deixam o título sem `numberOfLines` nem `lineHeight` em coluna de cerca de 118 dp | **UI E RESPONSIVIDADE** | `COMPROVADA PELO CÓDIGO E FISICAMENTE` | E013 | `ABERTO` | **P2** | **MÉDIO** | Brincar | título cortado no topo da tela | tipografia sem limite de linhas | - | 12A | `P-27` | 21 | `VFP` · `TEL` · `FS13` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-27`, `P-59` | `COMPROVADO PELO CÓDIGO E FISICAMENTE` | Ofensor visual dominante do defeito de topo, já observado fisicamente |
@@ -546,6 +546,8 @@ As tabelas rolam horizontalmente.
 | **P-161** | Leitor rejeitado visualmente na validação física | A composição atual do Leitor foi rejeitada pelo fundador na validação em iPad; a decisão substitui o Leitor por uma nova superfície na Fase 9, com composição distinta em retrato e em paisagem de tablet | **UI E RESPONSIVIDADE** · sec.: MEU LIVRO | `OBSERVADO FISICAMENTE` · validação em iPad conduzida pelo fundador | Fase 6 · Delta v4.1 (§32) | `EXIGE VALIDAÇÃO FÍSICA` | alta | **MÉDIO** | Leitor, Livrinho | a experiência de leitura não sustenta a arte nem a legibilidade que o produto promete | não existe composição de paisagem para superfície imersiva | 6 | 9 | `P-151`, `P-152` | 14 e 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F9-READER-01`. MESMO BLOCO DE CORREÇÃO: `P-160`, `P-162` | `OBSERVADO FISICAMENTE` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÕES DO FUNDADOR `D9` (o Leitor atual é substituído na Fase 9 pela Página Viva) e `D10` (retrato = arte dominante mais camada legível; tablet em paisagem = composição de livro aberto ou painel de apoio). P1 para a SAÍDA DA FASE 9. A Fase 6 entrega apenas a possibilidade geométrica e está PROIBIDA de implementar o Leitor V2 |
 | **P-162** | Cintilação visível na troca de cena | A troca de cena apresenta quadro intermediário perceptível; a decisão exige pré-carga, proteção contra toque duplo e troca atômica, com zero quadro vazio visível | **UI E RESPONSIVIDADE** · sec.: ASSETS | `OBSERVADO FISICAMENTE` · validação em iPad conduzida pelo fundador | Fase 6 · Delta v4.1 (§32) | `EXIGE VALIDAÇÃO FÍSICA` | alta | **MÉDIO** | Leitor, Livrinho | a criança vê a costura entre as cenas, o que quebra a ilusão da história | não existe motor de transição com pré-carga e troca atômica | 6 | 9 | `P-161` | 14 e 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F9-READER-02`. MESMO BLOCO DE CORREÇÃO: `P-161` | `OBSERVADO FISICAMENTE` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. DECISÃO DO FUNDADOR `D17`. P1 para a SAÍDA DA FASE 9. A Fase 6 está PROIBIDA de implementar o motor de transição |
 | **P-167** | Composição do Brincar subaproveitada em tablet | A aba Brincar herda a coluna única de no máximo 640dp de `ContentContainer`, e em tablet a grade de jogos e a seção criativa não ocupam a janela disponível | **UI E RESPONSIVIDADE** · sec.: JOGOS | `COMPROVADO PELO CÓDIGO` · `ContentContainer.js:25-27` aplicado à árvore de `BrincarScreen` · `OBSERVADO FISICAMENTE` em iPad | Fase 6 · Delta v4.1 (§32) | `ABERTO` | média | **MÉDIO** | Brincar | em tablet a criança vê os jogos apertados numa faixa central com vazio nas laterais | ausência de arquétipo da família Hub na faixa expandida | 6 | 12A | `P-151` | 14 e 21 | `VFP` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS DO FUNDADOR: `F12A-BRI-01`. RELAÇÃO: `P-151` é a causa estrutural. MESMO BLOCO DE CORREÇÃO: `P-166` | `COMPROVADO PELO CÓDIGO` | CRIADO NO DELTA v4.1 DA FASE 6, sem renumerar nenhum código anterior. A Fase 6 entrega a GEOMETRIA BASE da família Hub e da família Jogo; a COMPOSIÇÃO FINAL do Brincar é da Fase 12A. P2 |
+| **P-168** | Overlay de guia mistura espaço da JANELA com espaço da SUPERFÍCIE | `BeniGuideOverlay.js:481` estende o overlay com `absoluteFillObject` sobre o container da superfície, sem portal (`:472`), enquanto `guideTargetRegistry.js:39` mede o alvo com `measureInWindow`: um alvo em coordenadas de JANELA é desenhado em coordenadas de SUPERFÍCIE. No telefone a origem da superfície é 0 e o erro é **exatamente zero**; no tablet, com barra lateral de 200 dp, o erro é de **+200 dp no eixo X** | **UI E RESPONSIVIDADE** · sec.: ONBOARDING E GUIAS | `COMPROVADO PELO CÓDIGO` · `BeniGuideOverlay.js:472,481` · `guideTargetRegistry.js:39` · `OBSERVADO FISICAMENTE` em Samsung SM-X510 (823 dp em retrato, faixa **MÉDIO**) | Fase 6 · auditoria investigativa pós validação física (§33) | `ABERTO` | alta | **ALTO** | guias do Beni, tour, Aventuras, Início, Brincar | no tablet o balão e o holofote apontam para o lugar errado, e a criança recebe uma instrução que não corresponde ao que está na tela | dois espaços de coordenada distintos tratados como um só, sem portal e sem projeção declarada | 6 | 6 | `P-154`, `P-151` | 6 e 21 | `VFP` · `TAB` | `NÃO BLOQUEIA PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ACHADO DA AUDITORIA: `B-01`. CAUSA COMPARTILHADA com os achados `B-02` e `B-03` (ruptura janela × superfície). MESMO BLOCO DE CORREÇÃO: `P-154` | `COMPROVADO PELO CÓDIGO` | CRIADO NA AUDITORIA INVESTIGATIVA DA FASE 6 (§33), sem renumerar nenhum código anterior. Pertence ao subportão `F6-SG-B` / `F6-R2` (Map Geometry Foundation) e está **CONGELADO**: o Human Gate de 2026-08-10 autorizou somente o bloco `F6-R3.x` e proibiu expressamente corrigir a ruptura janela × superfície, corrigir *offsets*, tocar o `MapAnchorRegistry` e mexer no posicionamento visual do tour. Risco técnico NÃO corrigido |
+| **P-169** | Reserva inferior de área segura depende de cromo exclusivo de telefone | No telefone a barra de abas inferior (`AppNavigator.js:281,287-296`) absorve `insets.bottom`; no tablet a navegação vira barra lateral e **nenhuma camada** passa a reservar a área segura inferior. A reserva não é uma política declarada do shell — é um efeito colateral de um cromo que só existe numa das famílias de largura | **UI E RESPONSIVIDADE** | `COMPROVADO PELO CÓDIGO` · `AppNavigator.js:281,287-296` · `OBSERVADO FISICAMENTE` em Samsung SM-X510 | Fase 6 · auditoria investigativa pós validação física (§33) | `ABERTO` | média | **MÉDIO** | shell, todas as telas raiz de aba em tablet | em tablet o conteúdo do rodapé pode encostar na área de gestos do sistema, e o toque da criança cai fora do alvo | a área segura inferior não tem dono declarado quando o cromo que a absorvia deixa de existir | 6 | 6 | `P-29`, `P-151`, `P-153` | 6 e 21 | `VFP` · `TAB` | `NÃO BLOQUEIA PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | ACHADO DA AUDITORIA: `B-04`. RELAÇÃO: `P-29` é a camada **ESPECÍFICA** (reservas inferiores fixas nas telas raiz, achado `B-05`); `P-169` é a camada **GLOBAL**, e uma não cobre a outra. MESMO BLOCO DE CORREÇÃO: `P-29`, `P-153` | `COMPROVADO PELO CÓDIGO` | CRIADO NA AUDITORIA INVESTIGATIVA DA FASE 6 (§33), sem renumerar nenhum código anterior. Pertence ao subportão `F6-SG-C` / `F6-R1` e está **CONGELADO**: o Human Gate de 2026-08-10 proibiu expressamente corrigir área segura, redesenhar a barra lateral e mudar a composição das faixas Médio e Expandido nesta rodada. Risco técnico NÃO corrigido |
 
 ### ACESSIBILIDADE — 5 riscos
 
@@ -717,7 +719,7 @@ As tabelas rolam horizontalmente.
 
 | Código | Título curto | Descrição factual | Natureza | Evidência | Origem | Status | Sev. origem | Classif. transversal | Superfícies | Impacto infantil | Impacto técnico | Fase decisão | Fase implementação | Dependências | Revalidação | Validação física | Product Lock | Lançamento | Aliases e relações | Estado de evidência | Observação |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **P-32** | QA REP 01: `resetOnboardingForQa` grava em vez de remover | A rotina grava `@ptf_onboarding_v1` em vez de removê-la e não cobre tour nem guias | **FERRAMENTAS INTERNAS** · sec.: ONBOARDING E GUIAS | `@ptf_onboarding_v1` · `v5:512` | E011 | `ABERTO` | baixa (E011) e **P2** (v5:512, árbitro) | **BAIXO** | Onboarding, Área dos Pais | nenhum (ferramenta interna) | QA não reproduz a primeira experiência | - | 7 | `P-114` | 19 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS: `QA REP 01` (v5:512) | `COMPROVADO PELO CÓDIGO` | Fase, dependências e revalidação alinhadas ao árbitro `v5:512` REGISTRO DA FASE 4D: o reinício aprovado exige que cada operação use o mesmo inventário canônico de chaves e remova de fato o que promete remover, em vez de gravar marca de estado. Ferramenta interna de teste nunca produz direito comercial. Decisão de produto resolvida quanto ao contrato, correção pendente na Fase 7, risco técnico NÃO corrigido. |
+| **P-32** | QA REP 01: `resetOnboardingForQa` grava em vez de remover | A rotina grava `@ptf_onboarding_v1` em vez de removê-la e não cobre tour nem guias | **FERRAMENTAS INTERNAS** · sec.: ONBOARDING E GUIAS | `@ptf_onboarding_v1` · `v5:512` | E011 | `ABERTO` | baixa (E011) e **P2** (v5:512, árbitro) | **BAIXO** | Onboarding, Área dos Pais | nenhum (ferramenta interna) | QA não reproduz a primeira experiência | - | 7 | `P-114` | 19 e 21 | `VFP` | `INFORMA O PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | ALIAS: `QA REP 01` (v5:512) | `COMPROVADO PELO CÓDIGO` | Fase, dependências e revalidação alinhadas ao árbitro `v5:512` REGISTRO DA FASE 4D: o reinício aprovado exige que cada operação use o mesmo inventário canônico de chaves e remova de fato o que promete remover, em vez de gravar marca de estado. Ferramenta interna de teste nunca produz direito comercial. Decisão de produto resolvida quanto ao contrato, correção pendente na Fase 7, risco técnico NÃO corrigido. ⚠️ RESSALVA TÉCNICA ANEXADA PELA AUDITORIA DA FASE 6 (achado `A-02`, §33.4, 2026-08-10): **a correção prescrita neste verbete — "remover em vez de gravar" — tornaria a ferramenta um NO-OP se aplicada isoladamente.** `onboardingService.js:81-102` trata a **ausência** da chave pelo ramo legado `:88-97`, que reconstrói o estado a partir de sinais antigos; remover a chave sem tratar esse ramo faz a rotina "recomeçar" devolver exatamente o mesmo estado de antes. A Fase 7 **precisa corrigir o verbete e o ramo legado juntos**, sob pena de entregar uma ferramenta que se declara reinício e não reinicia. **O risco NÃO é fechado e a fase proprietária continua sendo a 7**; esta ressalva não autoriza a Fase 6 a tocar em `onboardingService.js` |
 | **P-78** | Painel vazio ao escolher Infinito na galeria de assets | `OvelhaAssetGalleryScreen.js:211` não tem chave `infinito` em `SIM_QTD`, então `:217` e `:222` iteram sobre `undefined` sem crash | **FERRAMENTAS INTERNAS** | `OvelhaAssetGalleryScreen.js:211`, `:217`, `:222` | E013 | `INTERNO E INALCANÇÁVEL EM PRODUÇÃO` | **P4** | **BAIXO** | ferramenta interna | nenhum (não alcançável pela criança) | ferramenta interna incompleta | - | 19 | `P-115` | 19 | `NEF` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-115` | `COMPROVADO PELO CÓDIGO` | - |
 | **P-107** | `SHOW_CHURCH_MODE` é a única flag interna com cerca simples | A flag depende de uma única variável de ambiente, enquanto `RELEASE_PACK_QA_ENABLED` usa cerca quádrupla | **FERRAMENTAS INTERNAS** · sec.: MODO IGREJA | `featureFlags.js` no commit canônico | E014 | `ABERTO` | ND | **ALTO** | Gates | superfície interna pode aparecer em produção | critério de cerca inconsistente | - | 19 | `P-115` | 19 e 21 | `NEF` | `INFORMA O PRODUCT LOCK` | `PODE BLOQUEAR LANÇAMENTO` | MESMO BLOCO DE CORREÇÃO: `P-115`, `P-55` | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 3F para 19 (hardening e modelo de ameaças). Falta para lançamento: confirmar que nenhum perfil de produção define `EXPO_PUBLIC_ENABLE_CHURCH_MODE`. Critério 7 se falhar DECISÃO DA FASE 4E: o Modo Igreja passa a ter destino de produto, segunda linha comercial dentro do mesmo aplicativo, com implementação na Fase 12B. Isso NÃO afrouxa a cerca: a flag continua desligada, nenhuma interface foi exposta e a inconsistência de cerca segue exigindo correção antes do lançamento. A exclusão iniciada pela criança e concluída pelo adulto e a exportação como arte pura também rastreiam por este código. Decisão de produto resolvida, correção pendente na Fase 19, risco técnico NÃO corrigido |
 | **P-112** | `App.js:88` usa `console.warn` cru em produção | A chamada ignora o logger já importado no próprio arquivo | **FERRAMENTAS INTERNAS** | `COMPROVADO PELO CÓDIGO` · `App.js:88` | E014 | `ABERTO` | ND | **BAIXO** | Higiene | nenhum | log fora do canal controlado | - | 19 | - | 19 | `NEF` | `NÃO BLOQUEIA PRODUCT LOCK` | `NÃO BLOQUEIA LANÇAMENTO` | - | `COMPROVADO PELO CÓDIGO` | RECLASSIFICAÇÃO DE FASE: de 3F para 19 |
@@ -2317,6 +2319,99 @@ status da §6. Não tocou código, *assets*, *packs*, manifestos ou configuraç�
 
 ---
 
-*Fim do artefato 9 de 11. **Matriz única e definitiva com 167 riscos**, `P-01` a `P-167`, sem
+## 33. Fase 6 · Auditoria investigativa pós validação física — dois códigos novos e quatro emendas declaradas (2026-08-10)
+
+> **Natureza desta seção.** Registro de **acréscimo puro mais emendas declaradas**. Nasce da
+> **auditoria investigativa somente leitura** conduzida sobre a *branch* `feat/fase6-shell-splash`
+> no HEAD `daa12d3`, com **65 achados** em seis blocos, e do **Human Gate de 2026-08-10**, que
+> emitiu o veredito *"auditoria aprovada com emendas"* e autorizou **apenas** o bloco de
+> implementação `F6-R3.x`. As decisões correspondentes estão em
+> [`docs/DECISIONS.md`](../DECISIONS.md) §`PF6R3X`.
+>
+> **Nenhum código de `P-01` a `P-167` foi apagado, fundido, renumerado ou reclassificado.**
+> **0 fusões · 0 renumerações · 0 reclassificações.** A matriz passa de **167** para **169**.
+>
+> **Duas células de *Observação* foram alteradas** — `P-29` e `P-32` — e ambas estão declaradas
+> em §33.3 e §33.4. **Nenhuma das duas fecha, rebaixa ou afrouxa risco.**
+
+### 33.1 Por que cada código novo existe — confronto contra `P-01` a `P-167`
+
+Aplicada a mesma regra do fundador registrada em §27.2 e §32.1: **não se cria código por simples
+ampliação de evidência**.
+
+| Novo | Achado da auditoria | Código anterior mais próximo | Por que **não** é o mesmo fato |
+|---|---|---|---|
+| `P-168` | `B-01` | `P-154`, `P-151`, `P-30` | `P-154` enuncia **derivação múltipla e divergente da mesma âncora geométrica** — é sobre quantas fórmulas existem, não sobre **em qual espaço de coordenada** o resultado é desenhado. `P-151` é o corte único de largura aplicado a superfícies de naturezas diferentes. `P-30` (dois sistemas de *breakpoint*) foi **resolvido no Bloco B1**. O fato novo é a **medição em coordenadas de JANELA desenhada em coordenadas de SUPERFÍCIE**, com erro exatamente zero em telefone e igual à largura da barra lateral em tablet |
+| `P-169` | `B-04` | `P-29`, `P-153` | `P-29` é a camada **ESPECÍFICA** — telas raiz que improvisam a própria reserva — e está `IMPLEMENTADO SEM CONSUMIDOR`. `P-153` é a **apresentação** da barra lateral. O fato novo é **GLOBAL e de dono**: a reserva inferior nunca foi política do shell, era efeito colateral da barra de abas, e desaparece silenciosamente quando o cromo muda de família |
+
+**Confronto negativo declarado:** nenhum dos 167 códigos anteriores enuncia qualquer dos dois fatos.
+A busca foi feita nos 22 campos de todas as linhas da §14, não por semelhança de título.
+
+### 33.2 Os demais 63 achados **não** receberam código
+
+O Human Gate autorizou **exatamente dois** códigos novos. Os outros achados permanecem rastreados
+**pelo relatório da auditoria e pelo registro `PF6R3X` de `DECISIONS.md`**, e serão convertidos em
+código — se for o caso — pela fase proprietária de cada um, sob autorização própria. **Declaro a
+lacuna em vez de preenchê-la.** Em particular, o achado **`E-01`** (§33.5) é **bloqueador crítico de
+lançamento sem código `P` próprio nesta rodada**, e isso é uma **pendência de governança aberta**.
+
+### 33.3 `P-29` — célula de *Observação* alterada, risco **NÃO** fechado
+
+**Alteração declarada.** Foi anexada à coluna *Observação* de `P-29` a reavaliação exigida pelo
+Human Gate (§7, item 4), à luz do achado `B-05`. O que mudou: passa a constar que a severidade
+`BAIXO` está **declarada sob suspeita**. O que **não** mudou: status, severidade, classificação
+transversal, fase, Product Lock, lançamento e evidência — **nenhuma célula além da *Observação***.
+**O risco continua ABERTO** e a decisão sobre a severidade pertence ao subportão `F6-SG-C`.
+
+### 33.4 `P-32` — ressalva `A-02` anexada, fase proprietária **inalterada**
+
+**Alteração declarada.** Foi anexada à coluna *Observação* de `P-32` a ressalva do achado `A-02`: a
+**correção prescrita no próprio verbete se tornaria um NO-OP** se aplicada isoladamente, porque o
+ramo legado de `onboardingService.js:88-97` reconstrói o estado quando a chave está ausente. É
+**dívida de governança que a Fase 7 herdaria sem saber**. O verbete **não** foi reclassificado, a
+fase proprietária continua sendo a **7**, e a Fase 6 **não** está autorizada a tocar em
+`onboardingService.js`.
+
+### 33.5 `E-01` — registrado como **BLOQUEADOR CRÍTICO DE LANÇAMENTO**
+
+O achado `E-01` da auditoria — **a `ExpoImage` da ovelha nunca recarrega entre rodadas (sem `key`,
+*source* constante, `recyclingKey` que não força novo render no nativo), de modo que o gate de
+prontidão trava permanentemente da rodada 2 em diante** — atinge **100% das partidas no Modo Fácil**,
+que é o modo padrão da criança, e é **independente de largura, *breakpoint*, área segura e
+orientação** (idêntico em cinco geometrias, inclusive telefone). Confiança declarada pela auditoria:
+**95%**.
+
+- **Classificação:** `BLOQUEIA LANÇAMENTO`.
+- **Fase proprietária:** **12A** — a Fase 6 está **PROIBIDA** de corrigir.
+- **Consequência operacional imediata, decidida no Human Gate:** **"Cadê a Ovelhinha" permanece
+  DEV-GATED / EM TESTE** até que a Fase 12A corrija **e revalide** o problema.
+- **Pendência de governança declarada:** este item **ainda não tem código `P` próprio**, porque a
+  autorização de 2026-08-10 criou somente `P-168` e `P-169`. **Não inventei um terceiro.**
+
+### 33.6 Recontagem — declarada campo a campo
+
+| Campo | Antes (§32.8) | Depois | Delta |
+|---|---|---|---|
+| Total de códigos | 167 | **169** | +2 |
+| Sequência | `P-01`…`P-167` | `P-01`…`P-169` | sem lacunas |
+| Códigos duplicados | 0 | **0** | 0 |
+| Fusões | 0 | **0** | 0 |
+| Renumerações | 0 | **0** | 0 |
+| Reclassificações | 0 | **0** | 0 |
+| Linhas da natureza **UI E RESPONSIVIDADE** | 14 | **16** | +2 |
+| Células alteradas fora das linhas novas | — | **2** (*Observação* de `P-29` e de `P-32`) | declaradas em §33.3 e §33.4 |
+
+### 33.7 O que esta seção **não** fez nesta matriz
+
+Não corrigiu nenhum risco. Não fechou, não rebaixou e não reclassificou nenhum código — em
+particular **não** rebaixou `P-29` nem `P-32`, e **não** reabriu `P-103`, `P-141`, `P-152` ou
+`P-164`. Não criou código para os outros 63 achados. Não ampliou o vocabulário de status da §6. Não
+alterou as tabelas históricas das §§3, 12, 13, 15, 16 e 17, que retratam estados anteriores e não
+são reescritas. Não tocou em *assets*, manifestos, *packs* nem configuração de *build*. Não fez
+*push* e não fez *merge*.
+
+---
+
+*Fim do artefato 9 de 11. **Matriz única e definitiva com 169 riscos**, `P-01` a `P-169`, sem
 lacunas, sem renumeração e sem perda de histórico. Esta é a única fonte canônica de riscos do
 projeto.*

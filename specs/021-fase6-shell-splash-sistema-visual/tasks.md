@@ -494,6 +494,29 @@ Gate: **G-PERF** · Controles: **CN-2, CN-7** · Físico: **F-PERF**.
 | T076 | Criar **G-PERF** no smoke; executar **CN-2** (production sem a variável) e **CN-7** (nenhuma métrica nova, nenhuma tela nova instrumentada) | `scripts/smoke.js` | T073–T075 | Smoke verde; controles registrados | remover o check |
 | T077 | **Controle de escopo:** não alterar `src/services/performanceTrace.js` a menos que T073–T076 provem ser necessário; **não** coletar baseline oficial nesta fase | `src/services/performanceTrace.js` (leitura) | T076 | `git diff 015c438 -- src/services/performanceTrace.js` **vazio**, **ou** a justificativa escrita da exceção | reversão |
 
+> **Estado do Bloco B6 em 2026-08-10 — executado dentro de `F6-R3.x`.** O Human Gate posterior à
+> auditoria física autorizou o item `R3X-1` (parcela da Fase 6 do risco `P-139`), e **T073, T074,
+> T075 e T076 foram executados como estavam escritos**: a chave `EXPO_PUBLIC_PTF_PERF_TRACE` entrou
+> **apenas** no `env` do perfil `preview` do `eas.json` (`preview-criador` herda por `extends`),
+> `production` **continua sem a variável**, o script `perf:report` passou a existir no
+> `package.json`, e o gate **G-PERF** vive no `scripts/smoke.js` executando **CN-2** e **CN-7**.
+>
+> **T077 — exceção acionada, na segunda evidência que a própria tarefa admite.** O `git diff` de
+> `src/services/performanceTrace.js` **não** é vazio: o coletor precisou de um **evento terminal
+> garantido**, porque `emitSummaryOnce()` dependia de `home_first_layout` / `onboarding_first_layout`
+> e qualquer arranque que não chegasse a essas telas produzia silêncio **indistinguível de
+> "desligado" e de "não instrumentado"** — ou seja, T073–T076 sozinhos **não** encerrariam `P-139`. A
+> **justificativa escrita da exceção** é o registro canônico
+> [`DECISIONS.md` §`PF6R3X-EXC-T077`](../../docs/DECISIONS.md), que também lista o que a exceção
+> **proíbe**. `T077` **não** foi apagada nem revogada e continua valendo para tudo o que não esteja
+> nessa lista. **Nenhuma superfície nova de produto foi instrumentada** (CN-7 preservado) e o
+> `schema` da amostra subiu de `1` para `2` (campo `terminal`), com o agregador atualizado no mesmo
+> passo.
+>
+> **T090 / F-PERF continua PENDENTE:** nenhum *baseline* oficial foi coletado nesta rodada e nenhuma
+> medição foi registrada — o que existe agora é a **possibilidade** de medir num binário `preview`
+> não-DEV.
+
 ---
 
 ### 2.9 Bloco **B7** — varredura visual e campanha de validação física

@@ -514,6 +514,7 @@ Registradas sem inventar resposta. Para cada uma: **bloco que resolve · o que b
   6. **Método:** auditoria conduzida com **ULTRACODE** (orquestração multi-agente) — 17 agentes em 3 fases no fechamento e **7** agentes neste portão (2 varreduras, padrão de referência, CRLF/governança, evidência do fechamento, refutação adversarial e projeto da correção). A refutação adversarial não derrubou nenhum dos 2 sítios vulneráveis nem promoveu nenhum dos ~36 descartados. Evidência detalhada no relatório final da ordem; os artefatos brutos são efêmeros (`%TEMP%`), não versionados.
   7. **A trilha loading/performance está ENCERRADA**, com dívidas não bloqueantes registradas no relatório. Não se reabre investigação sobre ela.
   8. **NÃO existe afirmação de desempenho medido quantitativamente.** Nenhuma medição foi registrada (R21 → `P-127` + `P-139`); `performanceTrace.js` é gated por `__DEV__`/env ausente de todos os perfis do `eas.json` e não há baseline versionado. Qualquer ganho percebido é qualitativo.
+     > *Atualização declarada de `F6-R3.x` (2026-08-10) — a conclusão de que **não existe afirmação de desempenho medido quantitativamente** permanece **integralmente válida**; mudou apenas a **causa da impossibilidade**. A partir deste bloco, `performanceTrace.js` **deixa de ser inalcançável fora de `__DEV__`**: a chave `EXPO_PUBLIC_PTF_PERF_TRACE` passa a existir no perfil `preview` do `eas.json` (herdada por `preview-criador`), permanece **ausente do perfil `production`**, e o coletor ganha **evento terminal garantido** que não depende de `home_first_layout` nem de `onboarding_first_layout`. **Continua não existindo baseline versionado e continua não existindo medição registrada** — o que existe agora é a **possibilidade** de medir. Ver §`PF6R3X`.*
   9. **NÃO existe readiness de loja.** O binário ainda referencia ~401 MB por `require()` estático (R5), com premium (R6) e 200 linearts legados (R7) embarcados.
      > *Correção de precisão E018 (2026-08-05) — a conclusão de que **não existe readiness de loja** permanece válida; os números de apoio estavam desatualizados.* Medido no commit executável congelado `015c438`: **519 arquivos e 130.976.281 bytes (124,9 MB)** por `require()` estático (`P-135`), dos quais **378 arquivos e 84.183.401 bytes (80,3 MB)** são as 18 histórias premium (`P-136`). Os **200 linearts legados já não estão no binário** — saíram no macrobloco P3J e `src/assets/coloringImages.js` não existe mais (`P-131`, agora CORRIGIDO). Este item **não é reescrito**: a correção fica registrada aqui, e o estado atual é lido na matriz.
   10. **Próxima fase oficial:** integração do **Colorir com o Beni** (Fase 2.5). A branch de integração **não** foi criada neste portão.
@@ -2070,6 +2071,171 @@ apagou a ordem anterior `R1 → R2 → R3`, que fica registrada com a razão da 
 histórica, sem valor executivo** · não fez *push* e não fez *merge*.
 
 ---
+
+## PF6R3X — Human Gate pós auditoria física · autorização restrita de `F6-R3.x` (2026-08-10)
+
+- **Data:** 2026-08-10 · **Status:** ✅ **AUTORIZAÇÃO DE IMPLEMENTAÇÃO CONTROLADA**, concedida pelo
+  fundador no Human Gate posterior à auditoria investigativa somente leitura.
+- **Base:** *branch* `feat/fase6-shell-splash`, HEAD de entrada `daa12d3`, *worktree*
+  `C:\tmp\ptf_fase6_shell_splash_wt`. Auditoria de **65 achados** em seis blocos (`A`–`F`).
+- **Veredito literal do fundador:** *"AUDITORIA APROVADA COM EMENDAS."*
+- ⚠️ **O que esta autorização NÃO é.** **`F6-SG-A` NÃO está concedido.** `F6-R2` / `SG-B` **não**
+  está aberto. `F6-R1` / `SG-C` **não** está aberto. `B2` / `SG-D` **não** está aberto. Trata-se de
+  **autorização de implementação controlada dentro de `SG-A`**, não de aprovação do subportão. A
+  concessão depende de **nova revisão humana** e da **campanha física apropriada**.
+
+### PF6R3X-BREAKPOINTS — Emenda obrigatória: a fronteira canônica é **900**, não 840
+
+- **Correção de erro do agente, exigida pelo fundador.** O relatório de auditoria de 2026-08-10
+  descreveu as famílias de largura como *"Medium 600–839 / Expanded ≥840"*. **Isso NÃO é canônico e
+  não pode permanecer.**
+- **Contrato canônico, único e não reabrível:**
+
+  | Família | Faixa (dp) | *Token* |
+  |---|---|---|
+  | **COMPACTO** | `< 600` | `breakpoints.phone = 0` |
+  | **MÉDIO** | `600 – 899` | `breakpoints.tablet = 600` |
+  | **EXPANDIDO** | `>= 900` | `breakpoints.tabletL = 900` |
+
+- **Consequência direta:** o **Samsung SM-X510 em retrato (~823 dp) é MÉDIO**, não Expandido. Toda
+  leitura da campanha física precisa ser feita nessa faixa.
+- **Correção do achado `B-06`:** a faixa **600–899 NÃO é indefinida**. O `ROADMAP v4.1` já a
+  determina — **Médio (600–899):** barra lateral **compacta**, contêineres fluidos, sem largura
+  rígida incompatível; **Expandido (>= 900):** barra lateral completa, composições multicoluna e
+  painel de apoio. Portanto **`SG-C` deverá VERIFICAR se a barra lateral atual de 200 dp cumpre o
+  contrato da faixa Média** — isso é conferência de contrato existente, **não** nova pergunta de
+  produto.
+- **Alcance da correção:** o valor `840` **não existia em nenhum artefato versionado** — a varredura
+  encontrou apenas referências à linha `ParentAreaScreen.js:840`, que nada têm a ver com
+  *breakpoint*. O erro viveu **somente no relatório de auditoria entregue em conversa**, e fica
+  retificado aqui, que é o registro canônico.
+
+### PF6R3X-EXC-T077 — Exceção formal e **extremamente restrita** ao controle de escopo `T077`
+
+- **Status:** ✅ **CONCEDIDA pelo fundador em 2026-08-10**, exclusivamente para **encerrar a parcela
+  da Fase 6 do risco `P-139`**.
+- **O que `T077` diz.** A tarefa `T077` do Bloco B6 (`specs/021-fase6-shell-splash-sistema-visual/tasks.md`)
+  proíbe alterar `src/services/performanceTrace.js` e aceita como evidência de conformidade *"`git
+  diff` vazio **ou a justificativa escrita da exceção**"*. **Este registro É essa justificativa
+  escrita.** `T077` **não** é apagada, **não** é revogada e continua valendo para tudo o que não
+  esteja listado abaixo.
+- **Permitido — e apenas o mínimo necessário disto:**
+  1. tornar o coletor **efetivamente emissor**;
+  2. garantir um **evento terminal** que **não dependa** de `home_first_layout` nem de
+     `onboarding_first_layout`;
+  3. permitir a habilitação no **perfil interno/preview já previsto**;
+  4. manter `production` **desligado por padrão**;
+  5. **preservar** os contratos existentes de boot e de *loading*.
+- **PROIBIDO nesta exceção, textualmente:** instrumentar novas superfícies de produto · instrumentar
+  áudio · instrumentar jogos · instrumentar Estrelinhas · criar *analytics* · criar telemetria
+  infantil · mudar política de privacidade · expandir escopo para `F9` ou `F11`.
+- **Compatibilidade com o registro de restrição de *Analytics*:** nada aqui cria SDK, evento
+  remoto, identificador ou envio. O coletor **imprime uma linha local no log de desenvolvimento** e
+  não sai do aparelho. As três camadas de `D-4E-ANALYTICS-3-CAMADAS` permanecem intactas.
+
+### PF6R3X-ESCOPO — Os quatro itens executáveis, e nada além deles
+
+| Item | Achados | O que foi autorizado |
+|---|---|---|
+| **`R3X-1`** | `P-139` · `F-03` | Tornar o coletor de desempenho **efetivamente emissor** dentro da parcela da Fase 6 |
+| **`R3X-2`** | `F-04` | **Registro documental** (este verbete, §`PF6R3X-R3X2`) |
+| **`R3X-3`** | `A-05` · `D-10` · `F-C5` · `F-08` · `B-11` | Observabilidade real de instâncias **VIVAS** de `MainTabs` |
+| **`R3X-4`** | `A-03` | Corrigir **somente** o consumo do sinal residual `_pendingInitialTour` |
+
+- **`R3X-3` — contrato exigido:** montagem incrementa vivos · desmontagem decrementa vivos · **vivos
+  nunca pode passar de 1** · toda montagem precisa ter desmontagem correspondente · o registro
+  precisa **distinguir remontagem normal de duas árvores simultâneas**. **Não alterar a navegação
+  para "resolver" um problema ainda não comprovado.**
+- **`R3X-4` — objetivo mínimo:** *"a requisição pendente precisa ser consumida exatamente uma vez
+  mesmo quando `route.params.startBeniTour` já é `true`"*. **PROIBIDO:** alterar ordem do
+  *onboarding* · alterar quantidade de passos · alterar texto · alterar destino · alterar áudio ·
+  alterar *reset* · alterar `reviewMode` · alterar quais abas possuem guia · antecipar `F7`.
+- **Item RETIRADO de `SG-A`:** o teste/correção de `spotHitboxDentroViewport` (achado `E-06`)
+  **não** é executado agora. Move-se para o pacote preparatório de `SG-B` / `F6-R2`, por ser
+  **geometria de mapa/viewport** e pertencer à *Map Geometry Foundation*. **Nenhum código funcional
+  do jogo "Cadê a Ovelhinha" pode ser alterado.**
+
+### PF6R3X-R3X2 — O que o coletor da Fase 6 mede, e o que ele **não** resolve
+
+- **O coletor de `F6-R3.x` mede `boot` e `shell`** — marcos do arranque até o primeiro *layout* da
+  rota inicial, mais o **evento terminal por teto** quando esse primeiro *layout* não chega.
+- **Ele NÃO resolve a instrumentação de navegação** (achado `F-04`): tempo de transição entre telas,
+  custo de foco/desfoco, latência de toque em destino de aba e correlação entre navegação e áudio
+  **continuam sem instrumentação**.
+- **A instrumentação posterior permanece com as fases proprietárias** de cada superfície. Este
+  registro existe para que **ninguém leia a amostra de boot como se fosse medição de navegação**.
+
+### PF6R3X-EVIDENCIA — Retificação do registro físico e protocolo de captura
+
+- **RETIRADA de todo registro** a afirmação de que o log de 2026-08-10 provou *"≈21 s"* até a
+  segunda montagem, e a afirmação de *jank* / pressão de memória do aplicativo. **As duas foram
+  refutadas por evidência:** não há `Start proc` na captura, a primeira montagem não aparece, o
+  intervalo está ocupado por nove toques respondidos em 1 ms — a latência real toque→remontagem é de
+  **293 ms** — e **todas** as linhas de `Skipped frames` / `Davey!` pertencem a **outros PIDs**,
+  sobretudo **PID 26398 = Samsung SmartCapture** (`buffSize=75MB`, 1.230 linhas). O PID do
+  aplicativo aparece **zero** vezes nessas linhas.
+- **Texto que substitui as afirmações retiradas, na forma exata determinada pelo fundador:**
+
+  > *"a captura de 10/08 não possui evidência suficiente para quantificar a lentidão do app; eventos
+  > severos observados eram majoritariamente de SmartCapture, enquanto P-139 impediu medição própria
+  > adequada"*
+
+- **Ressalva honesta preservada:** `Choreographer` só registra a partir de 30 quadros consecutivos
+  perdidos. **A ausência de log não prova fluidez** — prova apenas que não houve travamento
+  grosseiro.
+- **Protocolo de captura física, agora normativo:**
+  1. `adb logcat -c` **antes** da sessão;
+  2. a captura **começa em `Start proc`** e cobre o arranque inteiro;
+  3. o **PID é sempre correlacionado**;
+  4. **nenhuma** linha de `Choreographer` / `HWUI` é atribuída ao aplicativo **sem conferência de
+     PID**;
+  5. **nenhuma** captura de tela, gravação ou `SmartCapture` fica ativa durante a medição.
+
+### PF6R3X-CODIGOS — Governança documental registrada
+
+1. **Dois códigos canônicos novos**, criados com os **próximos IDs livres**, **sem renumerar nem
+   reutilizar código existente**: **`P-168`** (achado `B-01` — espaço de coordenada do *overlay*
+   `embedded`) e **`P-169`** (achado `B-04` — reserva inferior dependente de cromo exclusivo de
+   telefone). Ambos **comprovados pelo código**, ambos **congelados** nos seus subportões. Registro
+   canônico em [`09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md)
+   §33. **A matriz passa de 167 para 169 riscos.**
+2. **Ressalva `A-02` anexada ao verbete `P-32`:** a correção prescrita *"remover em vez de gravar"*
+   **seria um NO-OP se aplicada isoladamente**, porque o ramo legado de `onboardingService.js:88-97`
+   reconstrói o estado quando a chave está ausente. Dívida de governança que a **Fase 7** herdaria
+   sem saber. `P-32` **não** foi reclassificado.
+3. **`E-01` registrado como BLOQUEADOR CRÍTICO DE LANÇAMENTO** — a `ExpoImage` da ovelha nunca
+   recarrega entre rodadas, e o gate de prontidão trava permanentemente da rodada 2 em diante, em
+   **100% das partidas no Modo Fácil**, independentemente de largura, *breakpoint*, área segura e
+   orientação. **Fase proprietária: 12A.** **"Cadê a Ovelhinha" permanece DEV-GATED / EM TESTE** até
+   a Fase 12A corrigir **e revalidar**. Cadeia causal anexada em §33.5 da matriz.
+4. **`P-29` reavaliado documentalmente à luz de `B-05`, SEM fechar o risco:** a severidade `BAIXO`
+   fica **declarada sob suspeita**; status, fase e classificação permanecem. A decisão pertence a
+   `F6-SG-C`.
+
+### PF6R3X-CONGELADOS — O que **não** pode ser tocado
+
+- **`SG-B` / `F6-R2` — FECHADO:** `B-01`, `B-02`, `B-03`, `B-07`, `B-08`, `B-09`, `B-10`, `D-07`,
+  `D-08`, `E-06`. **Não corrigir ainda a ruptura janela × superfície. Não corrigir *offsets*. Não
+  tocar `MapAnchorRegistry` ainda. Não mexer no posicionamento visual do tour.**
+- **`SG-C` / `F6-R1` — FECHADO:** `B-04`, `B-05`, `B-06`. **Não corrigir área segura ainda. Não
+  redesenhar a barra lateral ainda. Não mudar composição Médio/Expandido ainda.**
+- **Congelados para `F7`:** `A-01`, `A-02`, `A-04`, `A-07`, `A-08`, `B-12`, `F-C10`, `F-01`.
+- **Congelados para `F8A`:** `F-C1`, `F-C2`, `F-C3`, `F-C6`, `F-C7`, `F-C8`, `F-C9`, `D-09`, `F-07`.
+- **Congelados para `F11`:** `D-01`, `D-02`, `D-03`, `D-06`, `D-11`, `D-12`, `F-05`, `F-06`.
+- **Congelados para `F12A`:** `E-01`, `E-02`, `E-03`, `E-04`, `E-05`.
+- **Congelados para `F16`:** `F-02` e a racionalização dos *assets* do Beni.
+- **Congelado para `F19`:** migração/versionamento do *onboarding* (`A-08`).
+
+### PF6R3X-NAO-FEZ — O que este bloco **não** fez
+
+Não concedeu `F6-SG-A`. Não abriu `SG-B`, `SG-C` nem `SG-D`. Não corrigiu a ruptura janela ×
+superfície, *offsets*, `MapAnchorRegistry`, posicionamento do tour, área segura, barra lateral nem
+composição de faixa. Não tocou em `onboardingService.js`, em `ovelhaTransition.js` nem em nenhum
+código funcional de "Cadê a Ovelhinha". Não alterou ordem, passos, texto, destino, áudio, *reset*,
+`reviewMode` nem a lista de abas com guia do *onboarding*. Não alterou a navegação. Não instrumentou
+áudio, jogos, Estrelinhas nem qualquer superfície nova de produto. Não criou *analytics*, telemetria
+infantil nem SDK. Não mudou política de privacidade. Não instalou dependência. Não gerou *build*.
+Não executou validação física. Não fez *push* e não fez *merge*.
 
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
