@@ -751,14 +751,43 @@ testada e `F6-SG-A` concedido:
 - **Conclusão:** abrir obra legada, pintar e salvar produz registro novo **sem destruir** o anterior.
 - **Risco · decisão:** **`RG-1` (impacto máximo)** · `Q8` r.7 · **invariante ZERO #3** — **Auto:** sim · **Física futura:** **sim** (§28.1 casos 12, 13) · **Commit:** `C-A11` · **Rollback:** reverter `C-A11`; nada previamente gravado é afetado.
 
-#### `TK-A-049` · Releitura de validação **antes** da promoção
-- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** nunca promover um registro que não se prova legível.
-- **Arquivos:** `src/services/drawingStorage.js` (**consumidor**), `src/components/ColoringCanvas.js`, `src/components/AtelierCanvas.js` — **ponto de promoção já congelado documentalmente por `TK-A-096`** (emenda `A-22`; a incerteza anterior deixa de existir) — **Símbolos/contratos:** gravar → **reler** → validar → **só então** promover.
+#### `TK-A-049` · Releitura de validação **antes** da promoção — **REESCRITA** após `TK-A-096`
+
+> **Reescrita documental autorizada pelo fundador** na sessão de execução de `C-A11`/`C-GOV1`, depois
+> que `TK-A-096` provou **falsa a premissa** sobre a qual a redação anterior fora escrita. A correção
+> é de **verdade documental e de escopo** — **não** é mudança oportunista de requisito. `Q8` regra 8
+> permanece **intacta e igualmente exigente**; nenhuma garantia foi afrouxada. O que muda é **onde** a
+> regra incide, porque a arquitetura real do repositório não é a que a redação anterior supunha.
+>
+> **Redação anterior — preservada como registro histórico, não como contrato vigente:**
+>
+> > *"**Arquivos:** `src/services/drawingStorage.js` (**consumidor**), `src/components/ColoringCanvas.js`,
+> > `src/components/AtelierCanvas.js` — **ponto de promoção já congelado documentalmente por `TK-A-096`**
+> > (emenda `A-22`; a incerteza anterior deixa de existir). **Mudança esperada:** a promoção do registro
+> > novo é condicionada a uma releitura bem-sucedida e validada; falha na releitura ⇒ o antigo permanece
+> > vigente. **A alteração incide exatamente no ponto de promoção congelado por `TK-A-096`.**"*
+>
+> **Por que essa redação estava incorreta.** Ela pressupunha **um** ponto de promoção, no singular, e
+> mandava alterá-lo. `TK-A-096` (registro completo em §11.16) leu a cadeia com `arquivo:linha` e
+> encontrou o oposto da premissa: **três cadeias de salvamento e quatro pontos de promoção**, que
+> **divergem entre si**. E, decisivamente: o escritor que a redação anterior nomeia —
+> `drawingStorage.saveDrawingState` — **não tem chamador de *runtime*** (`TA-13`, caso 13.7), enquanto
+> o caminho que a criança de fato percorre no Colorir — `coloring60DrawingStorage.js` — **já implementa
+> a cadeia inteira** de `Q8` r.7–9. Cumprir a redação anterior ao pé da letra significaria escrever
+> cerimônia de *write-forward* dentro de um **escritor morto**, apenas para que o código coubesse no
+> texto da task — exatamente a inversão que o `CLAUDE.md` proíbe (*"não alterar runtime apenas para
+> satisfazer teste ou documentação incorretos"*). A descoberta **voltou aos artefatos**, como a própria
+> `TK-A-096` já previa em sua **Conclusão**: *"se a leitura revelar que não existe ponto único de
+> promoção, isso é registrado e `TK-A-049` é reescrita antes de ser executada"*.
+
+- **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** nunca promover um registro que não se prova legível. Como o **único** ponto de promoção **vivo** já satisfaz `Q8` r.7–9, o objetivo executável desta task passa a ser **verificar** essa propriedade com evidência e **congelá-la contra regressão** — e **não** reescrever escritores que ninguém executa.
+- **Arquivos:** **verificação, sem alteração de *runtime*** — `src/services/coloring60DrawingStorage.js` (**cadeia viva do Colorir**, `INTOCADO`), `src/services/drawingStorage.js` (**escritor sem chamador; o LEITOR do mesmo módulo segue vivo no Livrinho**, `INTOCADO`), `src/services/atelierStorage.js` (**terceira cadeia — pendência registrada em §11.16-c, destino `F12A`**, `INTOCADO`) — **Símbolos/contratos:** gravar no slot inativo → **reler** → **confirmar identidade/URI/revisão** → promover → **só então** descartar o anterior; *rollback* na divergência.
 - **Precondições:** `TK-A-048`, **`TK-A-096`** — **Depende de:** `TK-A-048`, **`TK-A-096`**
-- **Mudança esperada:** a promoção do registro novo é condicionada a uma releitura bem-sucedida e validada; falha na releitura ⇒ **o antigo permanece vigente**. A alteração incide **exatamente** no ponto de promoção congelado por `TK-A-096`.
-- **Prova:** `TA-13` — **Gate:** **`G-CMP-4`**
-- **Conclusão:** simular falha de releitura no arnês mantém o registro antigo como vigente.
-- **Risco · decisão:** **`RG-1`** · `Q8` r.8 — **Auto:** sim · **Física futura:** **sim** (§28.1 caso 13) · **Commit:** `C-A11` · **Rollback:** reverter `C-A11`.
+- **Mudança esperada:** **nenhuma alteração de *runtime* nos três armazenamentos.** A task se resolve como **verificação** da cadeia real: `coloring60DrawingStorage.js:581` (promoção), `:591` (releitura), `:596` (`confirmPromotion` — identidade, URI e revisão), `:599` (`rollbackFailedPromotion` na divergência), `:613` (descarte do blob anterior, com `protect`). Falha ou divergência em qualquer etapa ⇒ **o antigo permanece vigente**.
+- **Prova:** `TA-13` (11 casos — a metade **estática** fixa a **SEQUÊNCIA**, que nenhum teste comportamental fixa) **+** os **30 cenários `S3`** do `smoke`, que executam o **writer real** contra `AsyncStorage` e disco duplos — **Gate:** **`G-CMP-4`**
+- **Prova vermelha independente:** `MT-14` (`TK-A-054`) — promover **antes** de validar a releitura ⇒ **11 vermelhos**, derrubando as **duas** metades (`G-CMP-4` estático **e** `S3 [04/30]` comportamental).
+- **Conclusão:** simular falha de releitura no arnês mantém o registro antigo como vigente, **no caminho que a criança realmente percorre** — e a sequência está lacrada contra reordenação.
+- **Risco · decisão:** **`RG-1`** · `Q8` r.8 — **Auto:** sim · **Física futura:** **sim** (§28.1 caso 13) · **Commit:** `C-A11` (verificação) **+** `C-GOV1` (esta reescrita) · **Rollback:** **não aplicável a *runtime*** — nenhum dos três armazenamentos foi alterado.
 
 #### `TK-A-050` · Rollback determinístico de gravação interrompida
 - **Pacote · Subportão:** `F6-R3.5` · `F6-SG-A` — **Objetivo:** interrupção (fechar o app, bateria, término de processo) nunca deixa obra meio gravada vigente.
@@ -2922,6 +2951,7 @@ saída de Node.
 | **Itens de §40 (fora de escopo)** | Declarados fora do delta da Fase 6 pelo PLAN aprovado. |
 | **Migração para TypeScript** | Depende de feature própria aprovada pelo ciclo SDD. Fora deste delta. |
 | **Adoção de `useSurfaceLifecycle` pelos quatro jogos** | Mesma justificativa de §6.3; o *hook* é oferecido, não imposto. |
+| ***Write-forward* em `atelierStorage.saveArt`** | **Descoberto por `TK-A-096`**, não por esta emenda. `atelierStorage.js` **não consta da lista de arquivos de nenhuma task de `F6-R3`**; corrigi-lo aqui ampliaria o pacote sobre **área protegida (persistência)** sem requisito. Severidade **MÉDIA**, explicitamente **não `SD-8`** (caso `13.9`). Registro completo e destino **`F12A`** em **§11.16-c**. **Não é bloqueador de `F6-SG-A`.** |
 
 ### 11.13 Subportão → critério de saída → task
 
@@ -3006,8 +3036,148 @@ texto de preâmbulo; passa a ter **asserção de ausência** com task nomeada.
 | Regras de ordem (`OR-1`..`OR-6`) | **6** | 6 | **0** — `OR-3` deixou de ser só texto |
 | Tasks definidas **citadas** por alguma matriz do §11 | **220** | 220 | **0** — verificado por extração mecânica dos IDs |
 
-**Itens de não-geração deliberada: 10** (§11.12) — declarados, justificados e rastreáveis. **Não são
-omissão**, e **não** são contabilizados como cobertura.
+**Itens de não-geração deliberada: 11** (§11.12) — declarados, justificados e rastreáveis. **Não são
+omissão**, e **não** são contabilizados como cobertura. O décimo primeiro (***write-forward* em
+`atelierStorage.saveArt`**) **não** existia quando esta tabela foi apurada: ele foi **descoberto pela
+leitura `TK-A-096`** durante a execução de `C-A11` e está registrado em **§11.16-c**, com destino
+**`F12A`**.
+
+### 11.16 Registro de `TK-A-096` — a cadeia **real** de promoção (leitura congelada)
+
+> `TK-A-096` é **leitura dirigida**, `Auto: não`, **sem alteração de *runtime***. Ela existe para
+> substituir suposição por leitura provada **antes** de qualquer linha de promoção ser escrita. Este é
+> o registro documental que a task produz, e é ele que sustenta a reescrita de `TK-A-049` (§3.6).
+>
+> **A premissa da emenda `A-22` era falsa.** `A-22` falava em *"o ponto de promoção"*, no singular.
+> Não existe ponto único: existem **três cadeias de salvamento** e **quatro pontos de promoção**, e
+> eles **divergem** entre si.
+
+**(a) As cinco perguntas de `TK-A-096`, respondidas com `arquivo:linha` verificável**
+
+| Cadeia | Onde o blob é escrito | Onde o ponteiro é gravado | Instrução que **promove** | O que acontece se falhar | Estado |
+|---|---|---|---|---|---|
+| **Colorir 60 — *único caminho vivo*** | slot **inativo** do *double-buffer* A/B | mesma chave, após confirmação | `coloring60DrawingStorage.js:581` | **relê** (`:591`), **confirma** identidade/URI/revisão (`:596`), faz ***rollback*** na divergência (`:599`) e só então descarta o blob anterior (`:613`, com `protect`) | ✅ **`Q8` r.7–9 SATISFEITAS** |
+| **Colorir legado** | `drawingStorage.js` | `drawingStorage.js` | `drawingStorage.js:140` | — | ⚠️ **escritor sem chamador de *runtime*** (`TA-13` caso 13.7). O **LEITOR** do mesmo módulo continua vivo no **Livrinho** (caso 13.8, `Q8` r.11) — por isso o módulo permanece `INTOCADO` |
+| **Ateliê** | `atelierStorage.js:138` | `atelierStorage.js:146` | dois `setItem` **não atômicos entre si** | *preview* sobrescrito em caminho determinístico **antes** da promoção; **sem** releitura, **sem** confirmação, **sem** *rollback* | ⚠️ **pendência (c)** |
+
+**(b) Consequência normativa para `TK-A-048` · `TK-A-049` · `TK-A-050`**
+
+As três se resolvem como **VERIFICAÇÃO**, não como reescrita. A mudança que pediam **já é o
+comportamento vigente** do único escritor que a criança alcança; escrevê-la de novo no escritor
+**morto** seria cerimônia sobre código que ninguém executa — e forçar o código a caber na task.
+**Nenhum dos três arquivos de armazenamento foi tocado em `C-A11`.** A reescrita de `TK-A-049` está
+registrada na própria task (§3.6), com a redação anterior preservada e o motivo do erro explicitado.
+
+**(c) Pendência registrada — `atelierStorage.saveArt` **sem** *write-forward* → destino **`F12A`****
+
+- **O que é.** `atelierStorage.saveArt` grava por **dois `setItem` não atômicos entre si**
+  (`atelierStorage.js:138` e `:146`) e sobrescreve o *preview* em caminho determinístico **antes** da
+  promoção, sem releitura, confirmação ou *rollback*. Não satisfaz `Q8` r.7–9.
+- **Severidade avaliada: MÉDIA — explicitamente NÃO `SD-8`.** O caso **13.9** de `TA-13` prova que a
+  obra da criança (`stateJson`) viaja num **único `setItem` por chave**, e `setItem` é **atômico por
+  chave**: uma falha ou interrupção deixa a **obra anterior vigente e válida**. O que se perde numa
+  interrupção é **coerência de *preview*/índice** — derivada e recuperável, não píxel de criança.
+- **Por que NÃO é corrigida na Fase 6.** `atelierStorage.js` **não consta da lista de arquivos de
+  NENHUMA task de `F6-R3`**. Corrigi-la aqui seria ampliar o pacote por conta própria, sobre **área
+  protegida (persistência)**, sem requisito e sem *spec*.
+- **Destino.** **`F12A`**, junto da **eliminação do Ateliê legado** já decidida em produto — o mesmo
+  destino, e não um item avulso que sobreviveria ao módulo que o hospeda.
+- **Decisão do fundador (fechada nesta sessão):** *não* implementar *write-forward* no Ateliê agora;
+  *não* ampliar `F6-R3` para consertá-lo; registrar formalmente a pendência; vinculá-la a `F12A`; **não
+  deixar o aviso parecer bloqueador de `F6-R3`**; **não apagar nem silenciar evidência existente apenas
+  para tornar os *gates* verdes**.
+- **Evidência viva, deliberadamente não silenciada.** O arnês emite `⚠ DÍVIDA (TK-A-049)` **em toda
+  execução** do `smoke`. O aviso **permanece**: ele é um aviso (`⚠`), não uma falha (`✗`) — não
+  reprova nenhum portão, não bloqueia `F6-SG-A`, e existe para que a dívida **não apodreça em
+  silêncio** até `F12A`.
+
+### 11.17 Registro de `TK-A-057` — fronteira de `F6-R3.6`: `P-164` permanece **ABERTA**
+
+> `TK-A-057` é **documental**, `Auto: não`, **nenhum arquivo de *runtime***. Ela existe para impedir
+> que a instrumentação de `F6-R3.2`/`F6-R3.4` seja lida como investigação concluída.
+
+**O que a Fase 6 entrega sobre `P-164`, e apenas isto:**
+
+| Entregue | **Não** entregue |
+|---|---|
+| **Defesa** — `onContentProcessDidTerminate` (iOS) e `onRenderProcessGone` (Android) declaradas nos **dois** motores de canvas, cada uma **registrando** o evento com a plataforma nomeada (`G-LFC-3`, `C-A4`) | **Diagnóstico fechado.** Nenhum artefato afirma qual é a causa do término do processo de conteúdo |
+| **Instrumentação** — o evento passa a ser **observável** quando ocorrer (`recordWebViewProcessTermination`) | **Reprodução provada.** O evento **não** foi reproduzido em aparelho nesta rodada |
+| **Ciclo de vida** — `useSurfaceLifecycle` consumido pelas duas telas de canvas (`G-LFC-2`) | **Causalidade.** `FD-12` **proíbe** que qualquer artefato declare "causa confirmada" |
+
+**Estado verificado na fonte (leitura, sem alteração):** em
+`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`, **`P-152` (linha 543)** e **`P-164`
+(linha 648)** continuam com estado **`ABERTO`** e severidade **alta**. **Nenhuma das duas foi apagada,
+rebaixada ou marcada como resolvida pela Fase 6.** A verificação formal desse não-rebaixamento é de
+`TK-D-004` (`BLOCO 7`), e **não** é antecipada aqui.
+
+**Observação registrada, não corrigida (fora do escopo de `F6-R3`):** a célula de evidência de `P-164`
+cita, entre suas provas, *"prova negativa: zero `onContentProcessDidTerminate`/`onRenderProcessGone`
+em `src/`"*. Essa frase descreve o estado **anterior** à Fase 6 e deixou de valer com `C-A4` — o que
+**não** altera o estado da pendência (que segue `ABERTO`), mas torna aquela linha de evidência
+**histórica**. A atualização da matriz da Fase 3 pertence a `TK-D-004`; alterá-la a partir de `F6-R3`
+seria mexer em artefato de outra fase sem requisito.
+
+---
+
+### 11.18 Registro consolidado de `TK-A-061` — os 14 mutantes de domínio `R3`
+
+> Este quadro é o **artefato** de `TK-A-061`. Ele **não injeta mutação alguma**: cada mutante foi
+> injetado, observado vermelho e revertido **isoladamente**, na sua própria task de prova, **um por
+> vez**, com `git diff --stat` vazio conferido antes do seguinte. **Nenhum mutante foi *commitado*.**
+> O quadro existe porque um portão que nunca foi visto vermelho é indistinguível de um portão sem
+> dentes — e é essa distinção, não o número verde do relatório, que `RG-13` cobra.
+
+**(a) Os 14 mutantes obrigatórios**
+
+| # | Mutante · task | Defeito deliberado (injeção exata) | Portão que devia detectar | Vermelho observado | Revertido |
+|---|---|---|---|---|---|
+| 1 | `MT-1` · `TK-A-093` | recolocar `useEffect(() => { didInitScroll.current = false; }, [mapWidth])` em `AdventureMapScreen.js` | `G-LFC-1` | **1** — `G-LFC-1 [1/2]`. `[2/2]` seguiu **verde**: as duas metades medem coisas diferentes e o defeito é dirigido | ✅ |
+| 2 | `MT-5` · `TK-A-086` | realocar `qBuf`/`visBuf`/`paintD` dentro de `resize()` no motor do Colorir | `G-CVS-1` | **5** — `G-CVS-1` estático + **4 casos comportamentais** de `TA-5R`, entre eles a deriva acumulada em dez rotações e a obra anterior perdida | ✅ |
+| 3 | `MT-6` · `TK-A-039` | `stateJson` do Ateliê deixa de declarar `logicalW`/`logicalH` (volta a gravar coordenada de *viewport*) | `G-CVS-2` | **5** — `G-CVS-2 [1/2]` + 4 casos de `TA-5`. `[2/2]` verde: o leitor não foi tocado | ✅ |
+| 4 | `MT-12` · `TK-A-008` | `exportPaint` emite `v:3`: `JSON.stringify({v:CANVAS_PAYLOAD_V,` → `JSON.stringify({v:3,` | `G-VER-1` | **6** — `G-VER-1 [2/3]` e `[3/3]`, `TA-11 1.3` (`v` congelado em 2), `TA-11 1.8` (guarda REAL do C60 aceita o payload), `TA-11 7.13` (ida-e-volta) e `TA-5R 11.4`. `G-VER-1 [1/3]` verde: a constante não foi tocada — o defeito é dirigido ao ponto de emissão | ✅ |
+| 5 | `MT-13` · `TK-A-040` | leitor **apaga/limpa/substitui por canvas branco** ao encontrar incompatibilidade | `G-CMP-1` + `G-CVS-3` | **5** contra `G-CMP-1` (`C-A10`) e **3** contra `G-CVS-3 [1/3]` (`C-A12`), estes incluindo `TA-12 12.30` (`SD-8`: obra viva apagada) e `TA-11 4.2` | ✅ (nas duas ocasiões) |
+| 6 | `MT-14` · `TK-A-054` | promover a nova representação **antes** de validar a releitura | `G-CMP-4` | **11** — derrubou **as duas metades**: `G-CMP-4` estático (`13.3`, `13.5`) e o comportamental (`S3 [04/30]` + controles negativos do `S3`). **Também expôs que o caso `13.4` passava VACUAMENTE** com a âncora ausente (`iConf = -1`); o caso foi endurecido com `iConf > 0` | ✅ |
+| 7 | `MT-17` · `TK-A-047` | abrir obra volta a converter e regravar em formato novo | `G-CMP-2` | **5** | ✅ |
+| 8 | `MT-18` · `TK-A-055` | remover a verificação de identidade do *lineart* | `G-CMP-6` | **4**, entre eles `12.30` — a obra viva **sobrescrita pela tinta de outro desenho**, que é o dano concreto da invariante **ZERO #2**. Os casos de aceitação seguiram verdes: defeito único e dirigido | ✅ |
+| 9 | `MT-26` · `TK-A-087` | `ColoringScreen` deixa de consumir `useSurfaceLifecycle` | `G-LFC-2` | **2** — `G-LFC-2` + o selo byte-idêntico preexistente `[3714]` | ✅ |
+| 10 | `MT-27` · `TK-A-088` | remover `onRenderProcessGone` do motor | `G-LFC-3` | **2** — `G-LFC-3 [1/2]` e `[2/2]` | ✅ |
+| 11 | `MT-28` · `TK-A-089` | **duas metades, uma por vez** — (a) `POINTER_VERSION` 3 → 4; (b) a escada de migração ganha o degrau `{ version: 4, run: migrateToV3 }` | `G-VER-2` | (a) **8** — `G-VER-2 [1/2]`, `TA-11 7.1`, `TA-11 7.5`, `A1`, `A5` (2 selos) e os **2 selos byte-idênticos** do `drawingStorage`; (b) **2** — `G-VER-2 [2/2]` e `CN-13 [1/3]` | ✅ (as duas, separadamente) |
+| 12 | `MT-29` · `TK-A-090` | `classifyAxes` passa a **inferir um eixo a partir do outro** (`layout: axisOf(obj.layoutVersion !== undefined ? obj.layoutVersion : obj.paintSchemaVersion)`) | `G-VER-3` | **4** — `G-VER-3 [1/3]`, `G-VER-3 [3/3]`, `TA-11 3.2a` e `TA-11 4.1` | ✅ |
+| 13 | `MT-33` · `TK-A-091` | `Math.min` → `Math.max` em `computeViewportProjection` (`contain` vira `cover`) | `G-CMP-3` | **8 casos de `TA-4`** — `1.1`, `2.4`, `3.1`, `3.2`, `3.3`, `7.1`, `7.2`, `8.1`. Ver a nuance registrada em **(c)** | ✅ |
+| 14 | `MT-34` · `TK-A-092` | limpeza volta a **enumerar diretório** | `G-CMP-5` | **4** — `G-CMP-5 [1/2]` + os **2 selos byte-idênticos** do `drawingStorage` + o comportamental `S4 [07/26]` | ✅ |
+
+**14 mutantes · 14 vermelhos observados · 14 reversões · nenhuma mutação simultânea em momento
+algum · nenhum mutante *commitado*.**
+
+**(b) Registro de `MT-7` (`TK-A-095`) — verificação antecipada, prova formal em `F6-SG-C`**
+
+`MT-7` (reintroduzir `Dimensions.get`) tem prova **formal** em `TK-C-047` (`F6-SG-C`); aqui vale
+apenas o registro da **verificação imediata** exigida por `TK-A-095`. Ele foi executado em duas
+variantes, porque a primeira revelou um efeito colateral que merece registro:
+
+| Variante | Injeção | Resultado |
+|---|---|---|
+| `MT-7` | `Dimensions.get('window')` dentro de `useViewportProjection.js` | `G-RSP-1` (≡ `TA-6`) **vermelho** em `[4543]`, **seguido de queda dura** do smoke: `TA-4` **executa a fonte real** do hook e lançou `ReferenceError: Dimensions is not defined`, abortando a contagem final |
+| `MT-7b` | `useWindowDimensions()` → `Dimensions.get('window')` em `AdventureMapScreen.js:91` — módulo que **nenhum arnês executa** | **1** vermelho — `[4543]` `G-RSP-1`, com **tally completo** (`4853/4854`). Defeito dirigido, red contável |
+
+A queda dura de `MT-7` **não** é defeito: é consequência de o arnês executar a fonte real em vez de
+uma cópia. A variante `MT-7b` existe só para obter um vermelho **contável e isolado** sobre o mesmo
+portão. Ambas revertidas.
+
+**(c) Nuance registrada — `G-CMP-3` não tem asserção estática nomeada**
+
+`MT-33` deveria "deixar `G-CMP-3` vermelho". A string `G-CMP-3` **não existe** em
+`scripts/smoke.js`. Isso **não** é um portão faltando: por `TK-A-032`/`TK-A-033`, a **Prova** de
+`G-CMP-3` é o arnês **`TA-4`**, que executa o **código-fonte real** de `useViewportProjection.js` —
+prova **comportamental**, não asserção de texto. Entre os 8 vermelhos de `MT-33` está o caso
+`2.4 · é contain e NÃO cover · a escala é o min, jamais o max`, que é o **enunciado literal** de
+`G-CMP-3`. Registrado como nuance de leitura dos artefatos; **não** gera trabalho novo em `R3`.
+
+**(d) Nuance registrada — `TA-6` ≡ `G-RSP-1`**
+
+O PLAN (linha 941) define `TA-6` como *"Portão estático · Ausência de `Dimensions.get` em `src/` ·
+`scripts/smoke.js`"*. `TA-6` e `G-RSP-1` são **o mesmo artefato**: "`G-RSP-1` vermelho e `TA-6`
+falhando" descrevem **um único** vermelho, não dois.
 
 ---
 
