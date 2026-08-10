@@ -209,7 +209,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
   }, [routeArtId, syncTool]);
 
   /* [Fase 6 · TK-A-044/TK-A-045] Os dois desfechos de leitura malsucedida. Nenhum deles
-     escreve, apaga ou converte: a única coisa que muda é o que a criança vê. */
+     escreve, apaga ou converte: a única coisa que muda é o que a criança vê.
      O diagnóstico fica no motor (`AtelierCanvas` já registra o ramo): esta tela evita `__DEV__`
      de propósito, porque aqui ele é PROIBIDO como decisor de produto e a proteção que existe
      contra isso é textual — introduzi-lo aqui, mesmo para um `console.log`, apagaria a única
