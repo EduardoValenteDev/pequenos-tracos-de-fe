@@ -83,11 +83,19 @@ TypeScript Strict é o **estado técnico desejado**, mas **ainda não é a basel
 
 ## Portões de Qualidade (Etapa SDD 8)
 
-- **`npm run smoke`** verde e **`npx expo-doctor`** verde.
+- **`npm run verify:runtime`** verde (= `bundle:check` **e depois** `smoke`) e **`npx expo-doctor`** verde. Ver a regra de bundleabilidade abaixo — ela é global e não depende de lembrança humana.
 - Testes focados proporcionais ao risco; **testes de regressão** para bugs.
 - **Validação visual por print/vídeo** para mapa, tour, Livrinho, Ateliê, imagens e interfaces.
 - **Validação em dispositivo físico** quando a mudança depender de toque, gestos, canvas, áudio, persistência, performance ou layout real.
 - **Smoke e expo-doctor NÃO substituem validação visual.** Critérios de aceite devem ser observáveis e verificáveis. Relatórios ao usuário em **PT-BR**.
+
+### Bundleabilidade (obrigatório — `AGENTS.md` traz a regra completa)
+
+Qualquer alteração capaz de afetar o **grafo executável** exige `npm run verify:runtime` verde **antes** de: (1) declarar implementação concluída; (2) gerar qualquer EAS build; (3) pedir validação física; (4) encerrar um bloco de runtime; (5) produzir o commit final de implementação.
+
+Superfícies que disparam: `App.js`, `index.js`, `src/**`, `babel.config.js`, `metro.config.js`, configuração Expo capaz de afetar o bundle, `package.json`/`package-lock.json` quando pertinente, e imports/exports/assets alcançáveis. **Documentação pura não dispara** — mas **comentário dentro de `.js` alcançável é código para o parser**.
+
+`bundle:check` e `smoke` provam propriedades **disjuntas**: o primeiro prova que o Metro consegue empacotar; o segundo prova regras de produto lendo a maior parte de `src/` **como texto**. Nenhum substitui o outro, e nenhum substitui a validação visual/física. Motivo histórico: incidente `BOOT/BUNDLE BLOCKED` de `F6-R3` — 10 commits com a árvore inbundlável e o smoke **4854/4854 verde** o tempo todo.
 
 ## Dependências
 

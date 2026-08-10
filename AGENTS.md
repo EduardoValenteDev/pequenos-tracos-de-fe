@@ -57,12 +57,63 @@ Commit → Push.
 
 ## Portões de qualidade (obrigatórios)
 
-- **`npm run smoke`** verde **e** **`npx expo-doctor`** verde antes de concluir.
+- **`npm run verify:runtime`** verde — é `bundle:check` **seguido de** `smoke`, na ordem
+  (ver a regra de bundleabilidade abaixo).
+- **`npx expo-doctor`** verde antes de concluir.
 - Testes focados proporcionais ao risco; **teste de regressão** para bugs.
 - **Validação visual** (print/vídeo) sempre que houver **UI** perceptível (mapa, tour,
   Livrinho, Ateliê, imagens, telas). **Validação em dispositivo físico** quando envolver
   toque, gestos, canvas, áudio, persistência, performance ou layout real.
 - Smoke e expo-doctor **não substituem** a validação visual.
+
+### Bundleabilidade — regra global e inegociável
+
+**Toda alteração capaz de afetar o grafo executável exige, ANTES de qualquer outra coisa:**
+
+```
+npm run verify:runtime        # equivale a: npm run bundle:check && npm run smoke
+```
+
+Rodar os dois separadamente também vale — o que **não** vale é rodar só um deles.
+`bundle:check` e `smoke` provam propriedades **disjuntas** e nenhum substitui o outro:
+
+- **`npm run bundle:check`** prova **bundleabilidade**: o grafo executável a partir de
+  `index.js` transforma e serializa sem erro. Pega **erro de sintaxe** e **falha de
+  resolução de módulo/asset** em qualquer arquivo alcançável. **Não** executa nada.
+- **`npm run smoke`** prova **regras de produto** com altíssima densidade — mas lê a
+  maioria de `src/` **como texto**, e leitura textual **não parseia**.
+
+**O gate de bundleabilidade é obrigatório antes de:**
+
+1. declarar uma implementação **concluída**;
+2. gerar **qualquer** EAS build;
+3. **pedir validação física** ao responsável;
+4. **encerrar um bloco de runtime**;
+5. produzir o **commit final de implementação**.
+
+**Superfícies que disparam a obrigação** (lista não exaustiva — na dúvida, rode):
+`App.js` · `index.js` · `src/**` · `babel.config.js` · `metro.config.js` ·
+`app.json`/`app.config.*` e qualquer configuração Expo capaz de afetar o bundle ·
+`package.json` e `package-lock.json` quando mexem em dependências, `main` ou nos scripts
+de gate · **imports, exports e assets alcançáveis** pelo grafo.
+
+**Documentação pura não dispara a obrigação.** Alterar apenas `docs/**`, `specs/**`,
+`README`, `AGENTS.md`/`CLAUDE.md` ou comentário de arquivo **não executável** não exige
+`bundle:check`. Mas atenção: **comentário dentro de arquivo `.js` alcançável É código para
+o parser** — foi exatamente assim que a Fase 6 perdeu meio dia (ver abaixo).
+
+**Por que esta regra existe.** Incidente `BOOT/BUNDLE BLOCKED` de `F6-R3`: um bloco de
+comentário mal fechado em `src/screens/AtelierCanvasScreen.js` deixou a árvore **incapaz
+de gerar bundle por 10 commits**, enquanto `npm run smoke` reportava **4854/4854 verde**.
+O defeito só apareceu na primeira inicialização física, num Samsung, depois de um build
+nativo. Registro completo:
+`specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/09_BOOT_BUNDLE_BLOCKED_ANDROID_E_GATE_DE_BUNDLEABILIDADE.md`.
+
+**Premissa Android-only, com lacre automático.** `bundle:check` roda só para Android
+porque o código próprio tem grafo idêntico entre Android e iOS. Essa premissa **não é
+documental**: `npm run gate:platform-scope` (embutido em `bundle:check`) falha se surgir
+qualquer arquivo próprio com sufixo `.ios.*`, `.android.*` ou `.native.*`, exigindo revisão
+da cobertura para multiplataforma. **Não desative esse lacre para "fazer o gate passar".**
 
 ## Áreas protegidas (só com instrução direta)
 
@@ -89,6 +140,9 @@ remoto**. Nunca usar "indexado" se nenhum `git add` ocorreu.
 - **Codex:** segue **as mesmas regras deste arquivo**. Respeita os portões humanos, o
   `git add` seletivo, a proibição de push sem aprovação e os gates de qualidade. Não
   introduz dependências nem toca áreas protegidas sem aprovação.
-- **CI (rede de segurança):** o workflow `.github/workflows/ci.yml` executa `npm run smoke`
-  (gate duro) e `npx expo-doctor` (informativo) — independente de qual agente escreveu o
-  código.
+- **CI (rede de segurança):** o workflow `.github/workflows/ci.yml` executa, no job `smoke`,
+  **`npm run bundle:check` e depois `npm run smoke` — ambos gates DUROS** — e, em job
+  separado, `npx expo-doctor` (informativo). Os dois gates duros ficam no mesmo job de
+  propósito: esse é o nome do *required status check* já configurado. O CI é rede de
+  segurança, **não** substituto do gate local: ele só roda em PR e nos pushes para as
+  branches configuradas.
