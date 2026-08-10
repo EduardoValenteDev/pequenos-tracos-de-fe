@@ -22,7 +22,7 @@ import SoundButton from '../components/SoundButton';
 import MapRegion from '../components/map/MapRegion';
 import StoryFocusModal from '../components/map/StoryFocusModal';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
-import { hasSeenBeniAppTour, markBeniAppTourSeen, markGuideSeen, consumeInitialTourRequest, subscribeInitialTourRequest, setAdventureTourActive, setAdventureTabCalloutActive } from '../services/beniTourService';
+import { hasSeenBeniAppTour, markBeniAppTourSeen, markGuideSeen, consumeInitialTourRequest, resolveInitialTourRequest, subscribeInitialTourRequest, setAdventureTourActive, setAdventureTabCalloutActive } from '../services/beniTourService';
 import { useGuideTargets } from '../hooks/useGuideTargets';
 import { measureGuideTarget } from '../services/guideTargetRegistry';
 import { INITIAL_TOUR } from '../data/beniGuides';
@@ -46,8 +46,11 @@ export default function AdventureMapScreen({ navigation, route }) {
     let alive = true;
     const maybeShow = () => hasSeenBeniAppTour().then((seen) => { if (alive && !seen) setShowBeniTour(true); });
     // Gatilho por param (mobile) OU pelo SINAL pendente (tablet pós-onboarding, já setado
-    // antes do mount). Consome o sinal para não reabrir.
-    if (route?.params?.startBeniTour || consumeInitialTourRequest()) maybeShow();
+    // antes do mount). [F6-R3.x · A-03] Os dois transportes carregam UM pedido só, e o
+    // sinal precisa ser consumido em AMBOS os caminhos — o `||` escrito à mão aqui
+    // curto-circuitava o consumo sempre que o param já era verdadeiro, deixando o pedido
+    // pendente para o assinante reabrir. O resolvedor consome primeiro e só então decide.
+    if (resolveInitialTourRequest(route?.params?.startBeniTour)) maybeShow();
     // E também enquanto montado (ex.: "Rever Tour" no tablet com Aventuras já ativa).
     const unsub = subscribeInitialTourRequest(() => { consumeInitialTourRequest(); maybeShow(); });
     return () => { alive = false; unsub(); };

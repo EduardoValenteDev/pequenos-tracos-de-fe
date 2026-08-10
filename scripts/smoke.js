@@ -7317,10 +7317,13 @@ check(
     'mapa ainda usa largura da janela / não reage à mudança de largura',
   );
   check(
-    'TABLET1.0: tour dispara por param OU sinal pendente (consume + subscribe) — funciona no tablet',
+    'TABLET1.0: tour dispara por param OU sinal pendente (resolve + subscribe) — funciona no tablet',
     mapSrcTab.includes('consumeInitialTourRequest()') &&
     mapSrcTab.includes('subscribeInitialTourRequest(') &&
-    /route\?\.params\?\.startBeniTour \|\| consumeInitialTourRequest\(\)/.test(mapSrcTab),
+    // [F6-R3.x · A-03] A união dos dois transportes continua sendo UMA decisão só — mas agora
+    // no resolvedor do serviço, que consome o sinal ANTES de olhar o param. O `||` escrito à
+    // mão aqui curto-circuitava o consumo quando o param já era verdadeiro.
+    /resolveInitialTourRequest\(route\?\.params\?\.startBeniTour\)/.test(mapSrcTab),
     'tour não dispara pelo sinal pendente no tablet',
   );
   check(
@@ -8097,14 +8100,17 @@ globalThis.__B1_PRIMEIRA_AVENTURA = (async () => {
       `pilha=[${navFeito.pilha.join(', ')}] rótulo="${label('creation', true)}"`);
   }
 
-  // 10 — Telefone e tablet: DOIS TRANSPORTES, UM pedido. O mapa aceita os dois numa só expressão
-  //      (`||`), então o tablet não abre um segundo tour nem duplica o do telefone.
+  // 10 — Telefone e tablet: DOIS TRANSPORTES, UM pedido. O mapa aceita os dois numa só
+  //      decisão, então o tablet não abre um segundo tour nem duplica o do telefone.
   // [Fase 6 · B3] A prova citava o shell do tablet porque ELE era o segundo transporte.
   // Com o shell único, o tablet recebe o pedido pelo MESMO caminho do telefone. A
-  // INTENÇÃO — um pedido só, nenhum tour duplicado — é imutável: continua garantida
-  // pelo `||` do mapa, e agora também por não existir mais um transporte só do tablet.
-  check('B1-10 (tablet sem duplicar): um pedido só; o mapa une os dois transportes em um `||` e o tablet não tem caminho próprio',
-    /route\?\.params\?\.startBeniTour \|\| consumeInitialTourRequest\(\)/.test(MAP_B1)
+  // INTENÇÃO — um pedido só, nenhum tour duplicado — é imutável.
+  // [F6-R3.x · A-03] A decisão saiu do `||` escrito à mão e virou `resolveInitialTourRequest`,
+  // que consome o sinal ANTES de olhar o param. O `||` unia os transportes, mas ao
+  // curto-circuitar deixava o pedido PENDENTE quando o param já era verdadeiro — um pedido
+  // só na intenção, dois no efeito.
+  check('B1-10 (tablet sem duplicar): um pedido só; o mapa une os dois transportes numa decisão só e o tablet não tem caminho próprio',
+    /resolveInitialTourRequest\(route\?\.params\?\.startBeniTour\)/.test(MAP_B1)
     && /requestInitialTour\(\)/.test(codeOf('src/screens/OnboardingScreen.js'))
     && !/isInitialTourPending/.test(NAV_B1)
     && !/subscribeInitialTourRequest/.test(NAV_B1),
@@ -8546,9 +8552,11 @@ console.log('\n── LP1M-B: amostra reproduzível + agregador ──');
   const onb = a1StripComments(readSrc('src/screens/OnboardingScreen.js'));
 
   // (2)(5)(7) Prefixo fixo; emissão presa ao primeiro layout; sem tela/botão/storage/rede.
+  // [F6-R3.x · P-139] O gate do primeiro layout continua valendo para o caminho normal; o que
+  // mudou é que o TETO próprio do coletor (`porTeto`) pode dispensá-lo — é o conserto do F-03.
   check('LP1M-B §4 (emissão): prefixo fixo, presa ao primeiro layout, sem UI/persistência/rede',
     /SAMPLE_PREFIX = '\[PTF_PERF_SAMPLE\]'/.test(traceC)
-    && /if \(!firstEvent\('home_first_layout'\) && !firstEvent\('onboarding_first_layout'\)\) return false;/.test(traceC)
+    && /if \(!porTeto && !firstEvent\('home_first_layout'\) && !firstEvent\('onboarding_first_layout'\)\) return false;/.test(traceC)
     && /emitSummaryOnce\(\)/.test(home) && /emitSummaryOnce\(\)/.test(onb)
     && !/AsyncStorage|FileSystem|fetch\(|Alert|Modal/.test(traceC),
     'a amostra perdeu o prefixo/gate de primeiro layout, ou ganhou UI/persistência/rede');
@@ -8606,7 +8614,7 @@ console.log('\n── LP1M-B: amostra reproduzível + agregador ──');
       if (printed.length !== 1) return false;                          // → 1 linha
       if (!printed[0].startsWith('[PTF_PERF_SAMPLE] ')) return false;
       const json = JSON.parse(printed[0].slice('[PTF_PERF_SAMPLE] '.length));
-      return json.schema === 1 && json.route === 'Home' && json.fontReason === 'loaded'
+      return json.schema === 2 && json.route === 'Home' && json.fontReason === 'loaded'
         && typeof json.fontGateMs === 'number' && typeof json.firstLayoutMs === 'number';
     })(),
     'a amostra não é única, perdeu o prefixo, ou não é JSON válido');
@@ -8653,9 +8661,9 @@ console.log('\n── LP1M-B: amostra reproduzível + agregador ──');
       const line = printed[0] || '';
       return !/Ana|Maria|@|childName|profileId|avatar/i.test(line)
         && Object.keys(JSON.parse(line.slice('[PTF_PERF_SAMPLE] '.length)))
-          .every((k) => ['schema', 'route', 'fontReason', 'routeReason', 'fontGateMs', 'routeDecisionMs',
-            'splashReactMs', 'firstLayoutMs', 'profileHydrationMs', 'progressHydrationMs',
-            'packsHydrationMs', 'bufferDropped'].includes(k));
+          .every((k) => ['schema', 'terminal', 'route', 'fontReason', 'routeReason', 'fontGateMs',
+            'routeDecisionMs', 'splashReactMs', 'firstLayoutMs', 'profileHydrationMs',
+            'progressHydrationMs', 'packsHydrationMs', 'bufferDropped'].includes(k));
     })(),
     'a amostra pode vazar PII ou campos fora do schema');
 
@@ -8703,7 +8711,7 @@ console.log('\n── LP1M-B: amostra reproduzível + agregador ──');
   const os = require('os');
   const pathMod = require('path');
   const tmpDir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'ptf-perf-enc-'));
-  const SAMPLE_OK = '[PTF_PERF_SAMPLE] {"schema":1,"route":"Home","fontReason":"loaded","routeReason":"end",'
+  const SAMPLE_OK = '[PTF_PERF_SAMPLE] {"schema":2,"terminal":"first_layout","route":"Home","fontReason":"loaded","routeReason":"end",'
     + '"fontGateMs":40,"routeDecisionMs":18,"splashReactMs":810,"firstLayoutMs":860,'
     + '"profileHydrationMs":11,"progressHydrationMs":90,"packsHydrationMs":20,"bufferDropped":0}';
   const logText = ['Starting Metro Bundler', 'iOS Bundled 1200ms (1234 modules)', SAMPLE_OK,
@@ -8788,25 +8796,34 @@ console.log('\n── LP1M-B: amostra reproduzível + agregador ──');
     })(),
     'a saída do agregador tem caractere não-ASCII (vira mojibake no PowerShell do Windows)');
 
+  const AMOSTRA_VAZIA = {
+    schema: 2, terminal: 'first_layout', route: 'Home', fontReason: null, routeReason: null,
+    fontGateMs: null, routeDecisionMs: null, splashReactMs: null, firstLayoutMs: null,
+    profileHydrationMs: null, progressHydrationMs: null, packsHydrationMs: null, bufferDropped: 0,
+  };
   check('LP1M-B (agregador): amostra sem nenhuma métrica medida é rejeitada (defesa em profundidade)',
-    !!R
-    && R.validate({
-      schema: 1, route: 'Home', fontReason: null, routeReason: null,
-      fontGateMs: null, routeDecisionMs: null, splashReactMs: null, firstLayoutMs: null,
-      profileHydrationMs: null, progressHydrationMs: null, packsHydrationMs: null, bufferDropped: 0,
-    }).ok === false,
+    !!R && R.validate(AMOSTRA_VAZIA).ok === false,
     'o agregador aceita amostra vazia como boot válido');
+
+  // [F6-R3.x · P-139] A ÚNICA exceção à regra acima: a amostra por TETO. Ali "nada foi
+  // medido" é o achado — o boot começou e não chegou ao primeiro layout. Descartá-la
+  // devolveria exatamente o silêncio que o bloco R3X existe para acabar.
+  check('LP1M-B (agregador): a amostra por TETO entra mesmo toda nula — ausência de layout é achado, não ruído',
+    !!R
+    && R.validate({ ...AMOSTRA_VAZIA, terminal: 'ceiling' }).ok === true
+    && R.validate({ ...AMOSTRA_VAZIA, terminal: 'outro' }).ok === false,
+    'o agregador descarta o boot que nunca chegou ao primeiro layout, ou aceita terminal desconhecido');
 
   // (9)(10) Parser ignora ruído e rejeita schema incorreto.
   check('LP1M-B (agregador): ignora ruído do Metro e rejeita schema/campos inválidos',
     !!R
     && R.parseLine('iOS Bundled 1200ms (1234 modules)') === null
     && R.parseLine('[PTF_PERF_SAMPLE] {truncado') === null
-    && R.validate({ schema: 2 }).ok === false
+    && R.validate({ schema: 3 }).ok === false
     && R.validate(null).ok === false
-    && R.validate({ schema: 1, route: 'Home' }).ok === false            // campos faltando
+    && R.validate({ schema: 2, route: 'Home' }).ok === false            // campos faltando
     && R.validate({
-      schema: 1, route: 'Home', fontReason: 'loaded', routeReason: 'end',
+      schema: 2, terminal: 'first_layout', route: 'Home', fontReason: 'loaded', routeReason: 'end',
       fontGateMs: 40, routeDecisionMs: 18, splashReactMs: 810, firstLayoutMs: 860,
       profileHydrationMs: 11, progressHydrationMs: 90, packsHydrationMs: null, bufferDropped: 0,
     }).ok === true,
@@ -46471,7 +46488,11 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     // a URL do manifesto global não é impressa por este smoke).
     const ENV_KEYS_ESPERADAS = Object.freeze({
       development: [],
-      preview: ['EXPO_PUBLIC_BUILD_PROFILE', 'EXPO_PUBLIC_ENABLE_PACK_SANDBOX', 'EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA', 'EXPO_PUBLIC_GLOBAL_MANIFEST_URL', 'EXPO_PUBLIC_QA_BUILD'],
+      // `EXPO_PUBLIC_PTF_PERF_TRACE` entrou por F6 · T073 (P-139), NÃO pela spec 018: sem ela o
+      // coletor de desempenho era inalcançável fora de `__DEV__`. Declarada aqui de propósito —
+      // este check é o inventário fechado de chaves, e toda adição passa por ele.
+      // `preview-criador` a herda por `extends`, sem redeclarar.
+      preview: ['EXPO_PUBLIC_BUILD_PROFILE', 'EXPO_PUBLIC_ENABLE_PACK_SANDBOX', 'EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA', 'EXPO_PUBLIC_GLOBAL_MANIFEST_URL', 'EXPO_PUBLIC_PTF_PERF_TRACE', 'EXPO_PUBLIC_QA_BUILD'],
       'preview-criador': ['EXPO_PUBLIC_BUILD_PROFILE', 'EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE', 'EXPO_PUBLIC_ENABLE_PACK_SANDBOX', 'EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA', 'EXPO_PUBLIC_GLOBAL_MANIFEST_URL', 'EXPO_PUBLIC_QA_BUILD'],
       production: ['EXPO_PUBLIC_GLOBAL_MANIFEST_URL'],
       screenshot: [],
@@ -51840,6 +51861,484 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
   }
   for (const aviso of a35.avisos) {
     console.log(`  ⚠ ${aviso}`);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * F6-R3.x — bloco complementar autorizado no Human Gate pós-auditoria física.
+   *
+   * Quatro itens, e SÓ eles: R3X-1 (P-139 emissor de verdade), R3X-2 (fronteira
+   * documental do que a F6 mede), R3X-3 (instâncias VIVAS do shell) e R3X-4
+   * (consumo do sinal residual do tour). Nada aqui toca SG-B, SG-C, F7, F8A,
+   * F11 ou F12A.
+   *
+   * As provas abaixo nasceram VERMELHAS: foram escritas contra o comportamento
+   * desejado antes de o código existir. Cada uma tem um mutante correspondente
+   * mais abaixo — prova que não morre com o defeito de volta não prova nada.
+   * ═════════════════════════════════════════════════════════════════════════ */
+  console.log('\n── F6-R3.x · P-139 emissor · lifecycle vivo · sinal do tour ──');
+  {
+    const { loadModule: loadModR3X } = require('./testing/packInstallHarness');
+    const PREFIXO_R3X = '[PTF_PERF_SAMPLE] ';
+
+    /**
+     * Instancia o performanceTrace REAL com relógio, timers e `process.env` CONTROLADOS.
+     *
+     * Difere do harness do LP1M-B num ponto decisivo: aqui os timers NÃO são neutralizados.
+     * O caminho que R3X-1 conserta é justamente assíncrono — um teto que dispara quando o
+     * primeiro layout nunca chega —, e um timer engolido esconderia exatamente o defeito.
+     */
+    const mkTraceR3X = (opts) => {
+      const o = opts || {};
+      const printed = [];
+      let clock = 0;
+      let seq = 0;
+      const pend = new Map();
+      const setT = (fn) => { seq += 1; pend.set(seq, fn); return seq; };
+      const clearT = (id) => { pend.delete(id); };
+      const flush = (maxRodadas) => {
+        let n = 0;
+        // Teto alto de propósito: o relógio falso anda 10 ms por leitura, então esgotar o
+        // teto REAL dos providers (3000 ms) exige algumas centenas de rodadas.
+        while (pend.size && n < (maxRodadas || 500)) {
+          const lote = [...pend.values()];
+          pend.clear();
+          for (const fn of lote) { try { fn(); } catch (e) { /* o teste julga o efeito, não a exceção */ } }
+          n += 1;
+        }
+        return n;
+      };
+      let fonte = a1StripComments(readSrc('src/services/performanceTrace.js'));
+      if (o.mutate) {
+        const mutada = o.mutate(fonte);
+        if (mutada === fonte) throw new Error('mkTraceR3X: a mutação não alterou o fonte (âncora não encontrada)');
+        fonte = mutada;
+      }
+      const code = fonte
+        .replace(/export default[\s\S]*$/m, '')
+        .replace(/^try \{[\s\S]*?globalThis\.__ptfPerf[\s\S]*?\n\} catch \(e\) \{[^}]*\}/m, '')
+        .replace(/export /g, '')
+        + '; return { mark, markOnce, reset, emitSummaryOnce, buildSample, cancelSampleEmission,'
+        + ' getSnapshot, isPerformanceTraceEnabled, SAMPLE_SCHEMA };';
+      const S = new Function('__DEV__', 'globalThis', 'console', 'setTimeout', 'clearTimeout', 'process', code)(
+        o.dev !== false,
+        { performance: { now: () => (clock += 10) } },
+        { log: (l) => printed.push(l) },
+        setT, clearT,
+        { env: o.env || {} },
+      );
+      return { S, printed, flush, pendentes: () => pend.size };
+    };
+
+    /** Boot completo MENOS o primeiro layout — o cenário que hoje não produz amostra alguma. */
+    const bootSemLayoutR3X = (h) => {
+      h.S.reset(); h.printed.length = 0;
+      h.S.mark('app_render_start');
+      h.S.mark('font_gate_start'); h.S.markOnce('font_gate_loaded');
+      h.S.mark('route_decision_start'); h.S.markOnce('route_decision_end', { route: 'Home' });
+      h.S.markOnce('splash_mount');
+      ['profile', 'progress', 'packs'].forEach((p) => {
+        h.S.markOnce(`${p}_hydration_start`); h.S.markOnce(`${p}_hydration_end`);
+      });
+    };
+
+    const jsonR3X = (linha) => {
+      try { return JSON.parse(String(linha).slice(PREFIXO_R3X.length)); } catch (e) { return null; }
+    };
+
+    // ── T-a · a amostra SAI mesmo quando o primeiro layout nunca acontece ────────
+    // Causa do P-139 parcela F6: `emitSummaryOnce` só é CHAMADO pelos `onLayout` de Home
+    // e Onboarding. Todo boot que não chega a uma dessas duas telas fica indistinguível
+    // de "trace desligado" e de "app não instrumentado". Sem evento terminal próprio,
+    // o coletor não é um coletor — é um coletor condicional a quem deveria medir.
+    {
+      const h = mkTraceR3X({ dev: true });
+      bootSemLayoutR3X(h);
+      const antes = h.printed.length;      // armar o teto NÃO pode imprimir nada
+      h.flush();                           // o teto vence
+      const j = jsonR3X(h.printed[0] || '');
+      check('R3X T-a (P-139): a amostra sai mesmo sem home_first_layout/onboarding_first_layout',
+        antes === 0
+        && h.printed.length === 1
+        && String(h.printed[0]).startsWith(PREFIXO_R3X)
+        && !!j && j.terminal === 'ceiling' && j.firstLayoutMs === null
+        && typeof j.routeDecisionMs === 'number',
+        `antes=${antes} linhas=${h.printed.length} terminal=${j && j.terminal} firstLayoutMs=${j && j.firstLayoutMs}`);
+    }
+
+    // ── T-a2 · o caminho feliz continua sendo o primeiro layout, e só sai UMA linha ──
+    {
+      const h = mkTraceR3X({ dev: true });
+      bootSemLayoutR3X(h);
+      h.S.markOnce('home_first_layout');
+      h.S.emitSummaryOnce();               // caminho normal, pelo onLayout
+      const depoisDoLayout = h.printed.length;
+      h.flush();                           // o teto, se sobreviveu, imprimiria a 2ª linha
+      const j = jsonR3X(h.printed[0] || '');
+      check('R3X T-a2 (uma por processo): com primeiro layout a amostra é `first_layout` e o teto não duplica',
+        depoisDoLayout === 1 && h.printed.length === 1
+        && !!j && j.terminal === 'first_layout' && typeof j.firstLayoutMs === 'number',
+        `depoisDoLayout=${depoisDoLayout} total=${h.printed.length} terminal=${j && j.terminal}`);
+    }
+
+    // ── T-b · alcançabilidade real (T073/T074 · G-PERF · CN-2) ──────────────────
+    // O coletor podia ser perfeito e ainda assim nunca rodar: `EXPO_PUBLIC_PTF_PERF_TRACE`
+    // não existia em NENHUM perfil do eas.json. Fora de `__DEV__` ele estava morto.
+    {
+      const easR3X = JSON.parse(readSrc('eas.json')).build || {};
+      const envDe = (p) => (easR3X[p] && easR3X[p].env) || {};
+      const VAR = 'EXPO_PUBLIC_PTF_PERF_TRACE';
+      const temVar = (p) => Object.prototype.hasOwnProperty.call(envDe(p), VAR);
+      const ligado = mkTraceR3X({ dev: false, env: { EXPO_PUBLIC_PTF_PERF_TRACE: '1' } });
+      const desligado = mkTraceR3X({ dev: false, env: {} });
+      check('R3X T-b (G-PERF/CN-2): `preview` LIGA o coletor e `production` continua SEM a variável',
+        envDe('preview')[VAR] === '1'
+        && temVar('production') === false
+        && ligado.S.isPerformanceTraceEnabled() === true
+        && desligado.S.isPerformanceTraceEnabled() === false,
+        `preview=${JSON.stringify(envDe('preview')[VAR])} production tem a var? ${temVar('production')}`);
+
+      // Desligado é desligado até no caminho novo: o teto não pode furar o gate.
+      check('R3X T-b2 (production desligado): sem a flag e fora de DEV, nem o teto imprime',
+        (() => {
+          const h = mkTraceR3X({ dev: false, env: {} });
+          bootSemLayoutR3X(h);
+          h.flush();
+          return h.printed.length === 0 && h.S.getSnapshot() === null;
+        })(),
+        'o evento terminal novo emite mesmo com o trace desligado');
+
+      // CN-7 — nenhuma superfície nova instrumentada. O teto nasce DENTRO do próprio
+      // performanceTrace, a partir do t0 que o bootMark já marcava. Zero call sites novos.
+      const IMPORTADORES_R3X = [
+        'App.js', 'src/services/bootMark.js', 'src/screens/SplashScreen.js',
+        'src/screens/HomeScreen.js', 'src/screens/OnboardingScreen.js',
+        'src/context/ProfileContext.js', 'src/context/ProgressContext.js', 'src/context/PacksContext.js',
+      ];
+      const varrerR3X = (dir, out) => {
+        for (const e of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+          const rel = `${dir}/${e.name}`;
+          if (e.isDirectory()) varrerR3X(rel, out);
+          else if (e.name.endsWith('.js')) out.push(rel);
+        }
+        return out;
+      };
+      const importamR3X = varrerR3X('src', ['App.js'])
+        .filter((f) => f !== 'src/services/performanceTrace.js')
+        .filter((f) => /from '[^']*performanceTrace'|require\('[^']*performanceTrace'\)/.test(readSrc(f)));
+      check('R3X T-b3 (CN-7): nenhuma superfície nova instrumentada — a lista de importadores não cresceu',
+        importamR3X.length === IMPORTADORES_R3X.length
+        && importamR3X.every((f) => IMPORTADORES_R3X.includes(f))
+        && !importamR3X.some((f) => /audio|Audio|game|Ovelhinha|Estrelinha|Pares|Palavrinhas|MonteACena/.test(f)),
+        `importadores: ${importamR3X.join(', ')}`);
+    }
+
+    // ── T-c · instâncias VIVAS do shell (A-05 / D-10 / F-C5 / F-08 / B-11) ──────
+    // O contador acumulado de montagens NÃO responde à pergunta que importa: "existem
+    // duas árvores de MainTabs ao mesmo tempo?". `montagens = 2` é ambíguo — pode ser
+    // remontagem normal (saudável) ou duas árvores simultâneas (defeito). O que decide
+    // é o número de VIVOS, e ele só existe se a desmontagem também for notada.
+    {
+      const mkShellR3X = () => loadModR3X(
+        'src/services/shellLifecycleTrace.js',
+        {},
+        ['SHELL_MAX_VIVOS', 'notarMontagem', 'notarDesmontagem',
+          'shellLifecycleSnapshot', 'resetShellLifecycle', 'descreverShellLifecycle'],
+      );
+
+      check('R3X T-c1 (vivos sobe e desce): MONTADO incrementa vivos, DESMONTADO decrementa',
+        (() => {
+          const L = mkShellR3X();
+          L.resetShellLifecycle();
+          const m = L.notarMontagem('MainTabs');
+          if (!(m.vivos === 1 && m.montagens === 1 && m.anomalia === null && m.pareado === true)) return false;
+          const d = L.notarDesmontagem('MainTabs');
+          return d.vivos === 0 && d.desmontagens === 1 && d.anomalia === null && d.pareado === true;
+        })(),
+        'o contador de vivos não sobe na montagem ou não desce na desmontagem');
+
+      check('R3X T-c2 (remontagem ≠ duas árvores): a MESMA contagem de montagens tem dois significados, e o registro os separa',
+        (() => {
+          const L = mkShellR3X();
+          // (a) remontagem normal: monta, desmonta, monta. Duas montagens, nunca dois vivos.
+          L.resetShellLifecycle();
+          L.notarMontagem('MainTabs'); L.notarDesmontagem('MainTabs');
+          const remont = L.notarMontagem('MainTabs');
+          // (b) duas árvores simultâneas: monta, monta. As MESMAS duas montagens.
+          const M = mkShellR3X();
+          M.resetShellLifecycle();
+          M.notarMontagem('MainTabs');
+          const duas = M.notarMontagem('MainTabs');
+          return remont.montagens === 2 && duas.montagens === 2          // indistinguíveis pelo acumulado
+            && remont.vivos === 1 && remont.picoVivos === 1 && remont.anomalia === null
+            && duas.vivos === 2 && duas.picoVivos === 2
+            && duas.anomalia === 'duas_arvores_vivas';                   // ...distinguíveis pelos vivos
+        })(),
+        'o registro não separa remontagem normal de duas árvores simultâneas');
+
+      check('R3X T-c3 (teto e pareamento): vivos > SHELL_MAX_VIVOS é anomalia; montagem sem desmontagem quebra o pareamento',
+        (() => {
+          const L = mkShellR3X();
+          if (L.SHELL_MAX_VIVOS !== 1) return false;
+          L.resetShellLifecycle();
+          L.notarMontagem('MainTabs'); L.notarMontagem('MainTabs');
+          const s = L.shellLifecycleSnapshot('MainTabs');
+          if (!(s.vivos > L.SHELL_MAX_VIVOS && s.anomalia === 'duas_arvores_vivas' && s.pareado === false)) return false;
+          L.notarDesmontagem('MainTabs'); L.notarDesmontagem('MainTabs');
+          const f = L.shellLifecycleSnapshot('MainTabs');
+          // pareamento integral: toda montagem teve a sua desmontagem.
+          return f.vivos === 0 && f.montagens === 2 && f.desmontagens === 2 && f.pareado === true;
+        })(),
+        'o teto de vivos não vira anomalia, ou o pareamento montagem↔desmontagem não é verificável');
+
+      check('R3X T-c4 (desmontagem órfã): desmontar sem montar não zera silenciosamente',
+        (() => {
+          const L = mkShellR3X();
+          L.resetShellLifecycle();
+          const d = L.notarDesmontagem('MainTabs');
+          return d.vivos === 0 && d.anomalia === 'desmontagem_sem_montagem';
+        })(),
+        'uma desmontagem sem montagem correspondente passa despercebida');
+
+      // O shell de navegação precisa CONSUMIR o registro — senão nada disso é observável no
+      // dispositivo. Continua sendo só `log` (que cala em produção): nenhuma UI, nenhum storage.
+      {
+        const NAV_R3X = a1StripComments(readSrc('src/navigation/AppNavigator.js'));
+        check('R3X T-c5 (fiação): MainTabs nota montagem E desmontagem pelo registro, e apenas registra (sem UI/persistência)',
+          /from '\.\.\/services\/shellLifecycleTrace'/.test(NAV_R3X)
+          && /notarMontagem\('MainTabs'\)/.test(NAV_R3X)
+          && /notarDesmontagem\('MainTabs'\)/.test(NAV_R3X)
+          && /descreverShellLifecycle\(/.test(NAV_R3X),
+          'o AppNavigator não consome o registro de instâncias vivas');
+
+        const LIFE_R3X = a1StripComments(readSrc('src/services/shellLifecycleTrace.js'));
+        check('R3X T-c6 (inerte): o registro de lifecycle não tem UI, storage, rede nem imports',
+          !/^import /m.test(LIFE_R3X)
+          && !/AsyncStorage|FileSystem|fetch\(|Alert|Modal|console\./.test(LIFE_R3X),
+          'o registro de lifecycle ganhou dependência, UI, persistência ou rede');
+      }
+    }
+
+    // ── T-d · A-03: o sinal pendente tem de ser consumido EXATAMENTE UMA VEZ ────
+    // Defeito comprovado: `route.params.startBeniTour || consumeInitialTourRequest()`.
+    // Quando o param já é verdadeiro, o `||` curto-circuita e o sinal em memória NUNCA é
+    // consumido — fica pendente, e o próximo assinante reabre o tour.
+    {
+      const memR3X = () => {
+        const m = new Map();
+        return {
+          getItem: async (k) => (m.has(k) ? m.get(k) : null),
+          setItem: async (k, v) => { m.set(k, String(v)); },
+          removeItem: async (k) => { m.delete(k); },
+        };
+      };
+      const svcR3X = () => loadModR3X(
+        'src/services/beniTourService.js',
+        { AsyncStorage: memR3X(), log: () => {} },
+        ['requestInitialTour', 'isInitialTourPending', 'consumeInitialTourRequest', 'resolveInitialTourRequest'],
+      );
+
+      check('R3X T-d (A-03): com param=true E sinal pendente, o tour pode abrir — mas o sinal termina consumido',
+        (() => {
+          const svc = svcR3X();
+          svc.requestInitialTour();
+          const abriu = svc.resolveInitialTourRequest(true);       // param JÁ verdadeiro
+          const pendenteDepois = svc.isInitialTourPending();       // ...e mesmo assim consumiu
+          if (!(abriu === true && pendenteDepois === false)) return false;
+
+          // Tablet pós-onboarding: sem param, só o sinal.
+          svc.requestInitialTour();
+          const abriu2 = svc.resolveInitialTourRequest(false);
+          if (!(abriu2 === true && svc.isInitialTourPending() === false)) return false;
+
+          // Sem param e sem sinal: nada abre (não inventa tour).
+          return svc.resolveInitialTourRequest(false) === false
+            && svc.resolveInitialTourRequest(undefined) === false;
+        })(),
+        'o sinal pendente sobrevive quando route.params.startBeniTour já é true');
+
+      check('R3X T-d2 (fiação): o mapa decide pelo resolvedor, sem o curto-circuito `||`',
+        (() => {
+          const MAP_R3X = a1StripComments(readSrc('src/screens/AdventureMapScreen.js'));
+          return /resolveInitialTourRequest\(route\?\.params\?\.startBeniTour\)/.test(MAP_R3X)
+            && !/route\?\.params\?\.startBeniTour \|\| consumeInitialTourRequest\(\)/.test(MAP_R3X);
+        })(),
+        'o mapa ainda curto-circuita o consumo do sinal com `||`');
+    }
+
+    // ── T-f · não-regressão: RF-B7 / loading / decisão de rota intactos ─────────
+    {
+      const traceF = a1StripComments(readSrc('src/services/performanceTrace.js'));
+      const rotaF = a1StripComments(readSrc('src/services/bootRoute.js'));
+      const splashF = a1StripComments(readSrc('src/screens/SplashScreen.js'));
+      const appF = a1StripComments(readSrc('App.js'));
+
+      check('R3X T-f1 (contratos de boot intactos): portão de fonte, teto de decisão e resolvedor de rota inalterados',
+        /FONT_TIMEOUT_MS/.test(rotaF) && /export function isWaitingForFonts/.test(rotaF)
+        && /export function resolveBootRoute/.test(rotaF) && /export function canNavigate/.test(rotaF)
+        && /DECISION_CEILING_MS/.test(splashF)
+        && /import '\.\/src\/services\/bootMark';/.test(appF),
+        'um contrato de boot/loading foi tocado pelo bloco R3X');
+
+      check('R3X T-f2 (o teto não atropela o boot): armar não emite, e cancelar realmente cancela',
+        (() => {
+          const h = mkTraceR3X({ dev: true });
+          h.S.reset(); h.printed.length = 0;
+          h.S.mark('app_render_start');
+          if (h.printed.length !== 0) return false;      // armar é silencioso
+          h.S.cancelSampleEmission();                    // o app desmontou / a tela saiu
+          h.flush();
+          return h.printed.length === 0;
+        })(),
+        'o teto emite ao ser armado, ou sobrevive ao cancelamento');
+
+      check('R3X T-f3 (disciplina do coletor preservada): uma só impressão, sem import, sem await, sem UI',
+        !/^import /m.test(traceF)
+        && (traceF.match(/console\.log/g) || []).length === 1
+        && !/await /.test(traceF)
+        && !/AsyncStorage|FileSystem|fetch\(|Alert|Modal/.test(traceF),
+        'o coletor ganhou import, segunda impressão, await, UI, persistência ou rede');
+    }
+
+    /* ── Mutantes negativos: o defeito de volta tem de deixar a prova VERMELHA ──
+     *
+     * Cada mutante reexecuta o MESMO predicado da prova viva sobre o fonte mutado e
+     * exige que ele responda FALSO. O predicado é chamado duas vezes de propósito —
+     * vivo (tem de passar) e mutado (tem de falhar) —, senão um predicado quebrado
+     * "mataria" o mutante sem provar coisa alguma. */
+    {
+      // Predicados, um por prova. São os mesmos julgamentos das provas acima.
+      const pTa = (h) => {
+        bootSemLayoutR3X(h); h.flush();
+        const j = jsonR3X(h.printed[0] || '');
+        return h.printed.length === 1 && !!j && j.terminal === 'ceiling';
+      };
+      const pTf2 = (h) => {
+        h.S.reset(); h.printed.length = 0;
+        h.S.mark('app_render_start'); h.S.cancelSampleEmission(); h.flush();
+        return h.printed.length === 0;
+      };
+      const pTc1 = (L) => {
+        L.resetShellLifecycle();
+        const m = L.notarMontagem('MainTabs');
+        const d = L.notarDesmontagem('MainTabs');
+        return m.vivos === 1 && d.vivos === 0 && d.pareado === true;
+      };
+      const pTc2 = (LA, LB) => {
+        LA.resetShellLifecycle();
+        LA.notarMontagem('MainTabs'); LA.notarDesmontagem('MainTabs');
+        const remont = LA.notarMontagem('MainTabs');
+        LB.resetShellLifecycle();
+        LB.notarMontagem('MainTabs');
+        const duas = LB.notarMontagem('MainTabs');
+        return remont.montagens === duas.montagens          // o acumulado NÃO distingue...
+          && remont.anomalia === null && duas.anomalia === 'duas_arvores_vivas';   // ...os vivos sim
+      };
+      const pTd = (svc) => {
+        svc.requestInitialTour();
+        const abriu = svc.resolveInitialTourRequest(true);   // param já verdadeiro
+        return abriu === true && svc.isInitialTourPending() === false;
+      };
+      const pTb = (build) => {
+        const env = (p) => ((build[p] && build[p].env) || {});
+        const V = 'EXPO_PUBLIC_PTF_PERF_TRACE';
+        return env('preview')[V] === '1'
+          && Object.prototype.hasOwnProperty.call(env('production'), V) === false;
+      };
+
+      const shellMut = (mutate) => loadModR3X(
+        'src/services/shellLifecycleTrace.js', {},
+        ['SHELL_MAX_VIVOS', 'notarMontagem', 'notarDesmontagem',
+          'shellLifecycleSnapshot', 'resetShellLifecycle', 'descreverShellLifecycle'],
+        mutate,
+      );
+      const memMut = () => {
+        const m = new Map();
+        return {
+          getItem: async (k) => (m.has(k) ? m.get(k) : null),
+          setItem: async (k, v) => { m.set(k, String(v)); },
+          removeItem: async (k) => { m.delete(k); },
+        };
+      };
+      const tourMut = (mutate) => loadModR3X(
+        'src/services/beniTourService.js', { AsyncStorage: memMut(), log: () => {} },
+        ['requestInitialTour', 'isInitialTourPending', 'consumeInitialTourRequest', 'resolveInitialTourRequest'],
+        mutate,
+      );
+      const easMut = (mutate) => JSON.parse(mutate(readSrc('eas.json'))).build || {};
+
+      // M1 — devolve o gate incondicional de primeiro layout: o defeito exato do F-03.
+      check('R3X M1 (mutante morto): reexigir o primeiro layout na emissão derruba T-a',
+        pTa(mkTraceR3X({ dev: true })) === true
+        && pTa(mkTraceR3X({
+          dev: true,
+          mutate: (s) => s.replace('if (!porTeto && !firstEvent(', 'if (!firstEvent('),
+        })) === false,
+        'o gate incondicional voltou e T-a continuou verde — a prova não vigia o conserto');
+
+      // M2 — desarma o teto: o coletor volta a depender de quem deveria medir.
+      check('R3X M2 (mutante morto): remover o armamento do teto no t0 derruba T-a',
+        pTa(mkTraceR3X({ dev: true })) === true
+        && pTa(mkTraceR3X({
+          dev: true,
+          mutate: (s) => s.replace("if (name === 'app_render_start') armSampleTerminal();", ''),
+        })) === false,
+        'o teto deixou de ser armado e T-a continuou verde');
+
+      // M3 — o cancelamento esquece o timer do teto: a amostra sai depois do cleanup.
+      check('R3X M3 (mutante morto): cancelSampleEmission sem o timer do teto derruba T-f2',
+        pTf2(mkTraceR3X({ dev: true })) === true
+        && pTf2(mkTraceR3X({
+          dev: true,
+          // A linha do teto existe em três funções; a mutação alcança SÓ a do cancelamento.
+          mutate: (s) => {
+            const ini = s.indexOf('export function cancelSampleEmission');
+            const fim = s.indexOf('\n}', ini);
+            const corpo = s.slice(ini, fim)
+              .replace('    if (terminalTimer) { clearTimeout(terminalTimer); terminalTimer = null; }\n', '');
+            return s.slice(0, ini) + corpo + s.slice(fim);
+          },
+        })) === false,
+        'o teto sobreviveu ao cancelamento e T-f2 continuou verde');
+
+      // M4 — a desmontagem para de decrementar: o contador de vivos vira contador de montagens.
+      check('R3X M4 (mutante morto): desmontagem que não decrementa vivos derruba T-c1',
+        pTc1(shellMut()) === true
+        && pTc1(shellMut((s) => s.replace('r.vivos -= 1;', 'r.vivos -= 0;'))) === false,
+        'a desmontagem parou de decrementar e T-c1 continuou verde');
+
+      // M5 — a anomalia some: volta a ser impossível separar remontagem de duas árvores.
+      check('R3X M5 (mutante morto): sem a anomalia de duas árvores, T-c2 perde o que a distingue',
+        pTc2(shellMut(), shellMut()) === true
+        && pTc2(
+          shellMut((s) => s.replace("r.anomalia = 'duas_arvores_vivas';", 'r.anomalia = null;')),
+          shellMut((s) => s.replace("r.anomalia = 'duas_arvores_vivas';", 'r.anomalia = null;')),
+        ) === false,
+        'a anomalia sumiu e T-c2 continuou verde — o acumulado voltou a ser a única evidência');
+
+      // M6 — o resolvedor volta a curto-circuitar: o defeito A-03, agora dentro do serviço.
+      check('R3X M6 (mutante morto): resolvedor com curto-circuito `||` derruba T-d',
+        pTd(tourMut()) === true
+        && pTd(tourMut((s) => s.replace(
+          'const pendente = consumeInitialTourRequest();   // consome SEMPRE, exatamente uma vez\n  return !!paramStartTour || pendente;',
+          'return !!paramStartTour || consumeInitialTourRequest();',
+        ))) === false,
+        'o curto-circuito voltou e T-d continuou verde');
+
+      // M7 — a variável some do perfil interno: o coletor volta a ser inalcançável fora de DEV.
+      check('R3X M7 (mutante morto): tirar a flag do `preview` derruba T-b',
+        pTb(easMut((s) => s)) === true
+        && pTb(easMut((s) => s.replace('        "EXPO_PUBLIC_PTF_PERF_TRACE": "1",\n', ''))) === false,
+        'a flag saiu do perfil interno e T-b continuou verde');
+
+      // M8 — a variável vaza para `production`: violação direta de CN-2.
+      check('R3X M8 (mutante morto): vazar a flag para `production` derruba T-b',
+        pTb(easMut((s) => s)) === true
+        && pTb(easMut((s) => s.replace(
+          '    "production": {\n      "env": {\n',
+          '    "production": {\n      "env": {\n        "EXPO_PUBLIC_PTF_PERF_TRACE": "1",\n',
+        ))) === false,
+        'a flag vazou para production e T-b continuou verde');
+    }
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

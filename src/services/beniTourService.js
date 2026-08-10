@@ -123,6 +123,23 @@ export function consumeInitialTourRequest() {
   return v;
 }
 
+/**
+ * Decide se o tour inicial deve abrir, CONSUMINDO o sinal pendente em qualquer caso.
+ *
+ * [F6-R3.x · A-03] O mapa decidia com `route.params.startBeniTour || consumeInitialTourRequest()`.
+ * Quando o param já era verdadeiro, o `||` curto-circuitava e `consumeInitialTourRequest()`
+ * NUNCA era chamado: o tour abria (certo), mas o sinal ficava pendente (errado) e o próximo
+ * assinante o reabria. Os dois transportes carregam UM pedido só — então consumir é
+ * obrigação, não consequência de qual transporte chegou primeiro.
+ *
+ * A ordem aqui é o conserto inteiro: consome ANTES de olhar o param, e só então combina.
+ * Nada mais muda — nem os passos, nem o texto, nem o destino, nem quem marca como visto.
+ */
+export function resolveInitialTourRequest(paramStartTour) {
+  const pendente = consumeInitialTourRequest();   // consome SEMPRE, exatamente uma vez
+  return !!paramStartTour || pendente;
+}
+
 /** Assina pedidos de tour (a tela de Aventuras já montada). Retorna unsubscribe. */
 export function subscribeInitialTourRequest(fn) {
   if (typeof fn !== 'function') return () => {};

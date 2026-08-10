@@ -15,6 +15,7 @@
     "gate:platform-scope": "node scripts/check-platform-suffixes.js",
     "bundle:check": "npm run gate:platform-scope && expo export:embed --platform android --entry-file index.js --dev false --minify false --bundle-output .expo/bundle-check.jsbundle",
     "verify:runtime": "npm run bundle:check && npm run smoke",
+    "perf:report": "node scripts/perf-baseline-report.js",
     "assets:inventory": "node scripts/assets-pipeline/inventory.js",
     "assets:measure": "node scripts/assets-pipeline/measure-size.js",
     "assets:guard": "node scripts/assets-pipeline/check-untracked-guard.js",

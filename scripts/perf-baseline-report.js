@@ -18,7 +18,9 @@
 const fs = require('fs');
 
 const PREFIX = '[PTF_PERF_SAMPLE]';
-const SCHEMA = 1;
+// v2 — [F6-R3.x · P-139] acrescentou `terminal`. Nenhuma amostra v1 foi coletada (o coletor
+// nunca foi alcançável fora de `__DEV__`), então a subida não descarta baseline alguma.
+const SCHEMA = 2;
 
 const METRICS = [
   'fontGateMs',
@@ -31,7 +33,7 @@ const METRICS = [
 ];
 
 /** Campos obrigatórios (podem ser null, mas têm de existir). */
-const FIELDS = ['schema', 'route', 'fontReason', 'routeReason', ...METRICS, 'bufferDropped'];
+const FIELDS = ['schema', 'terminal', 'route', 'fontReason', 'routeReason', ...METRICS, 'bufferDropped'];
 
 /* ─────────────────────────── Leitura tolerante a encoding ─────────────────────────── */
 /*
@@ -136,9 +138,18 @@ function validate(sample) {
     }
   }
   if (sample.route !== null && typeof sample.route !== 'string') return { ok: false, reason: 'route invalida' };
+  if (sample.terminal !== 'first_layout' && sample.terminal !== 'ceiling') {
+    return { ok: false, reason: `terminal ${JSON.stringify(sample.terminal)} desconhecido` };
+  }
   // Defesa em profundidade: amostra com TODAS as métricas nulas não é boot medido — é ruído
   // (ex.: emissor destravado por reavaliação de módulo com o buffer já limpo). Não entra.
-  if (METRICS.every((m) => sample[m] === null)) return { ok: false, reason: 'amostra sem nenhuma metrica medida' };
+  //
+  // EXCEÇÃO [F6-R3.x · P-139]: a amostra por TETO é o caso em que "nada foi medido" é o
+  // próprio achado — o boot começou e não chegou a lugar nenhum. Descartá-la devolveria o
+  // silêncio que este bloco existe para acabar. Ela entra, e o relatório a separa.
+  if (sample.terminal !== 'ceiling' && METRICS.every((m) => sample[m] === null)) {
+    return { ok: false, reason: 'amostra sem nenhuma metrica medida' };
+  }
   return { ok: true };
 }
 
@@ -245,7 +256,16 @@ function main() {
   const dropped = accepted.filter((s) => s.bufferDropped > 0).length;
   if (dropped) console.log(`aviso: ${dropped} amostra(s) com bufferDropped > 0 (buffer do trace estourou)`);
 
+  // Boots que nunca chegaram ao primeiro layout. NAO sao ruido: sao o achado.
+  const porTeto = accepted.filter((s) => s.terminal === 'ceiling').length;
+  if (porTeto) {
+    console.log(`ATENCAO: ${porTeto} boot(s) terminaram por TETO (o primeiro layout da rota inicial nunca chegou).`);
+  }
+
   console.log(table('TODAS as amostras', accepted));
+  for (const [term, group] of groupBy(accepted, 'terminal')) {
+    console.log(table(`Por terminal: ${term}`, group));
+  }
 
   for (const [route, group] of groupBy(accepted, 'route')) {
     console.log(table(`Por rota: ${route}`, group));

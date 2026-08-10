@@ -16,6 +16,9 @@ import { log } from '../utils/logger';
 // (`{ screen: 'Aventuras' }` / state aninhado) e o foco vem do próprio navegador.
 // O sinal continua existindo para a TELA do mapa abrir o tour (AdventureMapScreen).
 import { isAdventureTourActive, getAdventureTabCalloutActive, subscribeAdventureTabCalloutActive } from '../services/beniTourService';
+// [F6-R3.x · A-05/D-10/F-C5/F-08/B-11] Registro de instâncias VIVAS do shell: separa
+// remontagem normal de duas árvores de `MainTabs` simultâneas. Só conta e descreve.
+import { notarMontagem, notarDesmontagem, descreverShellLifecycle } from '../services/shellLifecycleTrace';
 
 import SplashScreen from '../screens/SplashScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
@@ -229,28 +232,28 @@ const TOUR_TAB_CALLOUT = {
  * como o navegador é o mesmo elemento, mudar de sidebar para tab bar inferior é
  * re-render — não remonta as abas nem perde o que a criança estava fazendo.
  */
-// [F6-R3.3 · TK-A-022] Contador de MÓDULO: sobrevive a qualquer remontagem de `MainTabs`
-// e por isso pode denunciá-la. Um contador de instância nasceria em 1 sempre.
-let mainTabsMounts = 0;
 function MainTabs() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= breakpoints.tablet;
 
-  /* [F6-R3.3 · TK-A-022] INSTRUMENTAÇÃO DE MONTAGEM — CN-6.
+  /* [F6-R3.3 · TK-A-022 · ampliado em F6-R3.x] INSTRUMENTAÇÃO DE MONTAGEM — CN-6.
      Nada estrutural muda aqui: a ausência de remontagem na travessia de 600dp já é
      consequência do shell único acima. O que faltava era EVIDÊNCIA observável dela.
-     O contador é de módulo (não de instância): remontar não o zera. Se, ao arrastar o
-     divisor do Split View de um lado ao outro de 600dp, a linha de faixa mudar e o
-     número de montagem NÃO mudar, a travessia foi re-render. Se o número subir, foi
-     remontagem — e isso é defeito, não observação. Registro em desenvolvimento
-     (`log` cala em produção): é ferramenta de campanha física, não de produto. */
-  const montagensRef = useRef(0);
+
+     O contador acumulado de montagens, sozinho, NÃO bastava: `montagem #2` tanto pode
+     ser remontagem normal (nasceu, morreu, nasceu) quanto duas árvores de `MainTabs`
+     vivas ao mesmo tempo (nasceu, nasceu de novo sem a primeira morrer). Só o segundo
+     caso é defeito, e o acumulado dá o mesmo número nos dois. Quem separa um do outro é
+     o contador de VIVOS — daí o registro dedicado, que também nota a DESMONTAGEM e
+     verifica o pareamento montagem↔desmontagem.
+
+     Continua sendo observação, não correção: nenhuma decisão de navegação depende disto.
+     Registro em desenvolvimento (`log` cala em produção) — ferramenta de campanha
+     física, não de produto. */
   useEffect(() => {
-    mainTabsMounts += 1;
-    montagensRef.current = mainTabsMounts;
-    log(`[AppNavigator] MainTabs MONTADO · montagem #${mainTabsMounts}`);
-    return () => { log(`[AppNavigator] MainTabs DESMONTADO · era a montagem #${montagensRef.current}`); };
+    log(descreverShellLifecycle('MONTADO', notarMontagem('MainTabs')));
+    return () => { log(descreverShellLifecycle('DESMONTADO', notarDesmontagem('MainTabs'))); };
   }, []);
   useEffect(() => {
     log(

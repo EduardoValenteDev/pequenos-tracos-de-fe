@@ -85,7 +85,28 @@ export function mark(name, metadata) {
     if (typeof name !== 'string' || !SAFE_NAME.test(name)) return;
     if (events.length >= TRACE_BUFFER_LIMIT) { dropped += 1; return; }
     events.push({ name, t: now(), meta: sanitizeMetadata(metadata) });
+    // [F6-R3.x · P-139] O t0 do boot arma o terminal próprio do coletor. É o ÚNICO ponto
+    // de armamento, e reaproveita uma marca que já existia: nenhuma superfície nova é
+    // instrumentada por causa disto. Armar não imprime nada — só agenda.
+    if (name === 'app_render_start') armSampleTerminal();
   } catch (e) { /* diagnóstico nunca afeta o app */ }
+}
+
+/**
+ * Agenda o terminal próprio do coletor. Silencioso: só cria o timer.
+ *
+ * Declarado depois de `mark` de propósito — é uma FunctionDeclaration, então já existe
+ * quando `mark` roda, e a leitura de cima para baixo continua contando a história na
+ * ordem certa (marcar primeiro, terminar depois).
+ */
+function armSampleTerminal() {
+  try {
+    if (terminalTimer || sampleEmitted) return;
+    terminalTimer = setTimeout(() => {
+      terminalTimer = null;
+      emitSummaryOnce({ terminal: 'ceiling' });
+    }, SAMPLE_TERMINAL_CEILING_MS);
+  } catch (e) { /* noop */ }
 }
 
 /** Marca que só pode ser emitida UMA vez por boot (evento terminal / primeiro layout). */
@@ -142,7 +163,9 @@ export function reset() {
     onceEmitted.clear();
     dropped = 0;
     sampleEmitted = false;
+    sampleTerminal = 'first_layout';
     if (sampleTimer) { clearTimeout(sampleTimer); sampleTimer = null; }
+    if (terminalTimer) { clearTimeout(terminalTimer); terminalTimer = null; }
   } catch (e) { /* noop */ }
 }
 
@@ -207,13 +230,38 @@ export function summarize() {
 
 /** Prefixo fixo da amostra — é o que o agregador procura. */
 export const SAMPLE_PREFIX = '[PTF_PERF_SAMPLE]';
-/** Versão do schema da amostra (o agregador rejeita o que não bater). */
-export const SAMPLE_SCHEMA = 1;
+/**
+ * Versão do schema da amostra (o agregador rejeita o que não bater).
+ *
+ * v2 — [F6-R3.x · P-139] acrescentou o campo `terminal`. A subida de versão é segura
+ * porque NENHUMA amostra v1 chegou a ser coletada: o coletor nunca foi alcançável fora
+ * de `__DEV__` (a flag não existia em perfil de build algum), e é exatamente isso que
+ * este bloco conserta. Não há baseline histórica a perder.
+ */
+export const SAMPLE_SCHEMA = 2;
 /** Teto para esperar os terminais dos providers. Não bloqueia o app: só adia a IMPRESSÃO. */
 export const SAMPLE_PROVIDERS_CEILING_MS = 3000;
+/**
+ * Teto do EVENTO TERMINAL PRÓPRIO do coletor.
+ *
+ * [F6-R3.x · P-139 · F-03] O coletor só emitia quando `home_first_layout` ou
+ * `onboarding_first_layout` acontecia — e só era CHAMADO pelos `onLayout` dessas duas
+ * telas. Todo boot que não chegasse a uma delas ficava indistinguível de "trace
+ * desligado" e de "app não instrumentado": silêncio idêntico, três causas diferentes.
+ * Um coletor que só mede quando tudo dá certo não mede o que interessa.
+ *
+ * Este teto dá ao coletor um terminal que NÃO depende do primeiro layout. Ele é armado a
+ * partir do t0 que o `bootMark` já marcava — nenhuma superfície nova é instrumentada.
+ * Valor: folga larga sobre o pior boot previsto pelos contratos (portão de fonte 1500 ms
+ * + teto de decisão 1500 ms + render), para nunca roubar a amostra do caminho feliz.
+ */
+export const SAMPLE_TERMINAL_CEILING_MS = 12000;
 
 let sampleEmitted = false;
 let sampleTimer = null;
+/** Como a amostra terminou: `'first_layout'` (caminho feliz) ou `'ceiling'` (o teto venceu). */
+let sampleTerminal = 'first_layout';
+let terminalTimer = null;
 
 const TERMINAL_FONT = ['font_gate_loaded', 'font_gate_error', 'font_gate_timeout'];
 const TERMINAL_ROUTE = ['route_decision_end', 'route_decision_error', 'route_decision_timeout'];
@@ -250,6 +298,10 @@ export function buildSample() {
       : route === 'Home' ? 'home_first_layout' : null;
     return {
       schema: SAMPLE_SCHEMA,
+      // Como esta amostra terminou. Sem este campo, uma amostra com `firstLayoutMs: null`
+      // seria ambígua: "não medi o layout" e "o layout nunca aconteceu" são coisas
+      // diferentes, e só a segunda é um achado.
+      terminal: sampleTerminal,
       route,
       fontReason: fontEv ? fontEv.name.replace('font_gate_', '') : null,
       routeReason: routeEv ? routeEv.name.replace('route_decision_', '') : null,
@@ -270,24 +322,32 @@ export function buildSample() {
 /**
  * Emite UMA linha de amostra por processo, para coleta reproduzível.
  *
- * Regras: só com o trace ligado; nunca antes do primeiro layout da rota inicial (senão as
- * durações ainda não existem); espera os terminais dos providers SEM bloquear o app (adia só a
- * impressão, com teto); imprime uma única linha JSON (nunca marca a marca); nunca lança.
- * A emissão NÃO altera durações: todas as marcas já foram gravadas antes.
+ * Regras: só com o trace ligado; pelo caminho normal, nunca antes do primeiro layout da rota
+ * inicial (senão as durações ainda não existem); espera os terminais dos providers SEM bloquear
+ * o app (adia só a impressão, com teto); imprime uma única linha JSON (nunca marca a marca);
+ * nunca lança. A emissão NÃO altera durações: todas as marcas já foram gravadas antes.
+ *
+ * [F6-R3.x · P-139] `options.terminal === 'ceiling'` é o terminal PRÓPRIO do coletor, armado
+ * pelo t0 do boot. Ele — e só ele — dispensa a exigência de primeiro layout, porque a ausência
+ * do layout é justamente o que ele existe para relatar. Sem argumento, o comportamento é o de
+ * sempre: chamada de `onLayout` que ainda não teve layout continua devolvendo `false`.
  */
-export function emitSummaryOnce() {
+export function emitSummaryOnce(options) {
   try {
     if (!isPerformanceTraceEnabled()) return false;
     // 1 por INSTÂNCIA DO MÓDULO (é o que o estado de módulo garante — um Fast Refresh que
     // reavalie este arquivo zera a trava; nesse caso o guard de t0 em buildSample é quem barra).
     if (sampleEmitted) return false;
-    if (!firstEvent('home_first_layout') && !firstEvent('onboarding_first_layout')) return false;
+    const porTeto = !!(options && options.terminal === 'ceiling');
+    if (!porTeto && !firstEvent('home_first_layout') && !firstEvent('onboarding_first_layout')) return false;
+    sampleTerminal = porTeto ? 'ceiling' : 'first_layout';
 
     const print = () => {
       try {
         if (sampleEmitted) return;
         sampleEmitted = true;
         if (sampleTimer) { clearTimeout(sampleTimer); sampleTimer = null; }
+        if (terminalTimer) { clearTimeout(terminalTimer); terminalTimer = null; }
         const sample = buildSample();
         if (!sample) return;
         // Uma linha, prefixo fixo, JSON válido. Não imprime marca por marca.
@@ -315,10 +375,11 @@ export function emitSummaryOnce() {
   }
 }
 
-/** Cancela a espera pendente da amostra (cleanup). Nunca lança. */
+/** Cancela as esperas pendentes da amostra — a dos providers E a do teto (cleanup). Nunca lança. */
 export function cancelSampleEmission() {
   try {
     if (sampleTimer) { clearTimeout(sampleTimer); sampleTimer = null; }
+    if (terminalTimer) { clearTimeout(terminalTimer); terminalTimer = null; }
   } catch (e) { /* noop */ }
 }
 
