@@ -264,6 +264,34 @@ Os artefatos deste delta usam a nomenclatura local `00_`..`05_` dentro de
 > `05_TASKS_DELTA_F6.md` = *tasks*. Nenhuma ferramenta deve concluir que a *feature* está
 > incompleta a partir do nome dos arquivos.
 
+### 2.4.3 Correção de caminho — `breakpoints` (emenda `A-28`)
+
+**Achado objetivo:** duas linhas deste artefato citavam `src/theme/breakpoints.js`. Esse arquivo
+**não existe** e **nunca existiu em nenhum *commit* de nenhuma *ref*** do repositório
+(`git log --all --diff-filter=A -- "*breakpoints*"` sai vazio; `git ls-files` idem). A fonte única
+real é **`export const breakpoints` em `src/theme/tokens.js`** (`{ phone: 0, tablet: 600,
+tabletL: 900 }`), criada pelo B1 sob `P-30` — e é dela que `productTheme.layout.tabletBreakpoint`
+deriva.
+
+**O que foi corrigido (somente documental):**
+
+| Local | Antes | Depois |
+|---|---|---|
+| `TK-A-094`, campo *Mudança esperada* (`G-RSP-7`) | *"três valores derivados de `src/theme/breakpoints.js`"* | *"…de `src/theme/tokens.js`"*, com a nota da correção |
+| §11.11, mapa arquivo → task | linha própria `src/theme/breakpoints.js` para `TK-C-001`/`TK-C-002`/`TK-C-055` | as três tasks realocadas para a linha de `src/theme/tokens.js`; a linha do caminho inexistente deixa de existir |
+
+**O que NÃO foi feito, de propósito:** nenhuma alteração de runtime; nenhum arquivo
+`breakpoints.js` criado para satisfazer a documentação. Criar o arquivo seria inverter a ordem —
+adaptar o código à documentação errada em vez do contrário.
+
+**Por que nada quebrou:** o portão `G-RSP-7` **já media a fonte real** (`scripts/smoke.js:51170`
+lê `src/theme/tokens.js`) e o PLAN (§`TA-7`, linha 942) **não nomeia caminho** — exige apenas que
+*"`breakpoints` continua fonte única"*, que é exatamente o que se mede. O desvio era do TASKS
+contra o runtime, e o runtime estava certo. O comentário de `scripts/smoke.js:51133-51137`, que
+registrava o desvio, **permanece** como registro histórico da descoberta.
+
+Mesmo padrão da emenda `A-23`, que corrigiu `src/components/MapRegion.js` → `src/components/map/MapRegion.js`.
+
 ### 2.5 Ordem executiva e regras de bloqueio
 
 ```
@@ -955,7 +983,7 @@ testada e `F6-SG-A` concedido:
 - **Pacote · Subportão:** `F6-R3` (transversal) · `F6-SG-A` — **Objetivo:** proteger **desde o primeiro pacote** contra a reintrodução dos quatro retrocessos estruturais, em vez de esperar `F6-R1`.
 - **Arquivos:** `scripts/smoke.js` — **Símbolos/contratos:** `check`, `codeOf`, `readSrc`.
 - **Precondições:** Portão 3 concedido — **Depende de:** — (**primeira task executável de `F6-R3`, junto de `TK-A-001`**)
-- **Mudança esperada:** quatro asserções estáticas ativadas já em `F6-R3` e mantidas verdes em **todos** os pacotes: (a) **`G-RSP-1`** — zero `Dimensions.get` em `src/` (`SD-11`, hoje já zero: a asserção **congela** o estado atual); (b) **`G-RSP-3`** — zero `Platform.isPad` e zero `expo-device` decidindo *layout* (`D2`); (c) **`G-RSP-7`** (novo · §2.4.1-e) — nenhum *breakpoint* paralelo: o conjunto permanece com exatamente **três** valores derivados de `src/theme/breakpoints.js`; (d) **`G-BP-1`** — **preservado como está**: zero literais `768` (`P-30`, herdado do B1 — **proibido regredir**).
+- **Mudança esperada:** quatro asserções estáticas ativadas já em `F6-R3` e mantidas verdes em **todos** os pacotes: (a) **`G-RSP-1`** — zero `Dimensions.get` em `src/` (`SD-11`, hoje já zero: a asserção **congela** o estado atual); (b) **`G-RSP-3`** — zero `Platform.isPad` e zero `expo-device` decidindo *layout* (`D2`); (c) **`G-RSP-7`** (novo · §2.4.1-e) — nenhum *breakpoint* paralelo: o conjunto permanece com exatamente **três** valores derivados de `src/theme/tokens.js` (**caminho corrigido pela emenda `A-28`**: a redação anterior dizia `src/theme/breakpoints.js`, arquivo que **nunca existiu** — a fonte única real é `export const breakpoints` em `src/theme/tokens.js`, criada pelo B1 sob `P-30`; o portão já media a fonte REAL, então a correção é **documental** e nada de runtime muda); (d) **`G-BP-1`** — **preservado como está**: zero literais `768` (`P-30`, herdado do B1 — **proibido regredir**).
 - **Prova:** `TA-6`, `TA-7`, `CN-7`; **prova independente** — `G-RSP-1` fica vermelho sob `MT-7` (`TK-A-095` em `SG-A`; reconfirmado por `TK-C-047` em `SG-C`); `G-RSP-3` sob `MT-31` (`TK-C-058`); `G-RSP-7` sob `MT-21` (`TK-C-055`); `G-BP-1` sob `MT-11` (`TK-C-051`) — **Gate:** `G-RSP-1`, `G-RSP-3`, `G-RSP-7`, `G-BP-1`
 - **Conclusão:** `npm run smoke` verde com os quatro portões ativos **antes** de qualquer alteração de `F6-R3`; `TK-C-002` e `TK-C-060` apenas **confirmam e estendem**, não criam do zero.
 - **Risco · decisão:** **`SD-11`** · `D2` · `P-30` — **Auto:** sim · **Física futura:** não · **Commit:** `C-A1` · **Rollback:** reverter `C-A1`.
@@ -2907,8 +2935,7 @@ omitido**.
 | **`src/components/map/MapRegion.js`** | `TK-B-009`..`TK-B-011`, `TK-B-026` | existente — **caminho corrigido pela emenda `A-23`**, conforme já provado pelo PLAN (a r1 escrevia `src/components/MapRegion.js`, que não existe) |
 | `src/navigation/AppNavigator.js` | `TK-A-022`, `TK-A-023`, `TK-C-019`, `TK-C-026`, `TK-C-052`, `TK-C-057` | existente |
 | `src/components/TabletSidebar.js` | `TK-C-019`..`TK-C-021`, `TK-C-024`, `TK-C-049`, `TK-C-050`, `TK-C-063` | existente |
-| `src/theme/tokens.js` | `TK-C-015`..`TK-C-018`, `TK-C-061` (**`Q4`**, **`Q9`**) | existente — **área protegida, autorizada** |
-| `src/theme/breakpoints.js` | `TK-C-001`, `TK-C-002`, `TK-C-055` | existente |
+| `src/theme/tokens.js` | `TK-C-001`, `TK-C-002`, `TK-C-015`..`TK-C-018`, `TK-C-055`, `TK-C-061` (**`Q4`**, **`Q9`**) | existente — **área protegida, autorizada**. **Caminho corrigido pela emenda `A-28`**: havia aqui uma segunda linha, `src/theme/breakpoints.js`, para `TK-C-001`/`TK-C-002`/`TK-C-055` — arquivo que **nunca existiu em nenhum *commit* do repositório**. As três tasks foram realocadas para cá, que é onde `export const breakpoints` de fato vive. Consistente com `TK-C-055` (`MT-21`), que já apontava `src/theme/tokens.js` |
 | `src/services/guideTargetRegistry.js` · `src/hooks/useGuideTargets.js` | `TK-A-026`, `TK-B-019`, `TK-C-026`, `TK-C-063` | existente |
 | `scripts/smoke.js` | `TK-A-007`, `TK-A-015`, `TK-A-021`, `TK-A-038`, `TK-A-046`, `TK-A-053`, `TK-A-056`, **`TK-A-094`**, `TK-B-017`, `TK-B-022`..`TK-B-024`, `TK-B-041`, `TK-C-002`, `TK-C-014`, `TK-C-017`, `TK-C-023`, `TK-C-027`, `TK-C-060`, `TK-C-061`, `TK-C-063` | existente |
 | `src/services/drawingStorage.js` · `storageKeys.js` · `storageMigrationService.js` · `coloring60DrawingStorage.js` | `TK-A-005`, `TK-A-043`, `TK-A-096` | **INTOCADOS salvo o ponto de promoção congelado em `TK-A-096`** |
