@@ -39131,6 +39131,20 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       // relê armazenamento e não apaga tinta, então `SD-8` continua intacto e a escuta continua
       // sem efeito de persistência. O resto do delta é comentário. O selo é reancorado com a
       // mudança declarada; qualquer OUTRA alteração neste corpo segue acendendo o alarme.
+      // REFERÊNCIA REBASEADA DE NOVO — [Fase 6 · F6-R3.5 · TK-A-045 · C-A10]. O valor anterior
+      // (59.248 bytes, sha 14964ff4b7e26d3987b7297252357f31f019c1e90fb49fe4e0c9cc01acd47f48) foi
+      // medido ao fim de `TK-A-016`. O delta desta vez é a quarta invariante ZERO de `SD-8`:
+      // "obra recuperável nunca abre como canvas branco silencioso". Antes, arte guardada que não
+      // pudesse ser aberta simplesmente sumia da tela — a criança via a folha limpa e concluía,
+      // pelo silêncio, que nunca tinha pintado ali. Entrou um estado de apresentação PURO
+      // (`c60ObraNaoAberta`), o handler `handleC60RestoreInvalid` passou a acendê-lo, e o JSX ganhou
+      // o aviso explícito "não consegui abrir" com o botão "Pintar de novo". O que ele NÃO faz é o
+      // ponto: não escreve, não apaga, não converte e não remove nada do armazenamento — os bytes
+      // da obra continuam exatamente onde estavam (`Q8` regras 2 e 3), e recomeçar volta a ser
+      // escolha consciente da criança em vez de consequência do silêncio. Deliberadamente NÃO se
+      // bloqueia aqui o "Pronto": isso alcançaria progresso/conquistas, que são área protegida.
+      // A leitura VISUAL deste estado é evidência FÍSICA e continua PENDENTE (§28.1 caso 15).
+      // O selo é reancorado com a mudança declarada; qualquer OUTRA alteração segue acendendo o alarme.
       const c60BodyF = (function sliceC60(s) {
         const i = s.indexOf('function Coloring60ActivityScreen(');
         const j = s.indexOf('const c60Styles = StyleSheet.create(', i + 1);
@@ -39138,8 +39152,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       })(scrF);
       const c60ShaF = require('crypto').createHash('sha256').update(c60BodyF, 'utf8').digest('hex');
       check('C60-P4-FIX2 [LEGADO] → [P3J]: corpo do Coloring60ActivityScreen BYTE-IDÊNTICO a HEAD (a aposentadoria não tocou o colorir vivo)',
-        c60ShaF === '14964ff4b7e26d3987b7297252357f31f019c1e90fb49fe4e0c9cc01acd47f48'
-          && c60BodyF.length === 59248,
+        c60ShaF === '0d82600f029a9a1faa63e785c50b3ef3eeffbd56fe18ca118462883756e75de5'
+          && c60BodyF.length === 61195,
         `o corpo do Colorir com o Beni mudou (sha=${c60ShaF}, bytes=${c60BodyF.length}) — nenhuma mudança vizinha pode tocar o ramo vivo`);
     }
   }
@@ -51321,6 +51335,98 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
   }
   for (const aviso of a06Sincrono.avisos.concat(a06Ponteiro.avisos)) {
     console.log(`  ⚠ ${aviso}`);
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.5 · TK-A-046 — TA-12 · leitor de compatibilidade (`G-CMP-1`, `G-CMP-2`)
+   *
+   * `TA-12` roda um corpus versionado de payloads legados contra os DOIS motores
+   * REAIS — `fmt:1`, `fmt:2`, `v:2`, `ops[]`, ausência de eixos, payload truncado,
+   * eixo inválido, forma desconhecida — e cada entrada declara o ramo esperado.
+   *
+   * Os dois portões que nascem aqui:
+   *   `G-CMP-1` · a classificação é EXAUSTIVA (o corpus cobre exatamente o conjunto
+   *               de ramos lido do fonte do classificador, nos dois sentidos) e
+   *               DETERMINÍSTICA (janela diferente, mesmo ramo); e incompatibilidade
+   *               **nunca** apaga, limpa nem substitui por canvas branco.
+   *   `G-CMP-2` · abrir obra **não grava nada** — nem no motor, nem no disco.
+   *
+   * O detector de `G-CMP-1` não é a mensagem: é a TINTA. O motor recebe uma obra boa
+   * ANTES do payload do corpus, e um ramo terminal que zerasse o modelo — que é
+   * literalmente `MT-13` — faria a reexportação voltar em branco. Provar a mensagem
+   * provaria só que o motor AVISA; isto prova que ele PRESERVA.
+   *
+   * Nenhum portão prova a si próprio (`TK-A-046`): `G-CMP-1` fica vermelho sob
+   * `MT-13` (`TK-A-040`) e `G-CMP-2` fica vermelho sob `MT-17` (`TK-A-047`).
+   *
+   * Limite declarado (§11.11-b): lógica pura, serialização e classificação. WebView
+   * real, término de processo, `resize` nativo, Split View e a leitura visual do
+   * estado "não consegui abrir" (`TK-A-045`) continuam sendo evidência FÍSICA.
+   * ────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-046: TA-12 · G-CMP-1 · G-CMP-2 ──');
+
+  const { executarTA12 } = require('./testing/artworkVersionHarness');
+  const a46 = await executarTA12();
+  for (const caso of a46.casos) {
+    check(`TA-12 · ${caso.nome}`, caso.ok, caso.detalhe);
+  }
+  for (const aviso of a46.avisos) {
+    console.log(`  ⚠ ${aviso}`);
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.5 · TK-A-043 — `CN-13` (§2.4.1-d): nenhuma migração silenciosa
+   * em massa. Esta task é uma **asserção de ausência**: a mudança esperada nela é
+   * NENHUMA. O risco que ela cobre é o oposto do defeito comum — não é o código
+   * novo que quebra, é o código novo que resolve varrer a galeria inteira "para
+   * deixar tudo no formato de hoje" e reescrever obra que ninguém pediu para
+   * reescrever. Q8 regra 7: nenhuma migração apenas por abrir.
+   *
+   * Estes três são propriedade ESTÁTICA e só isso é alegado aqui. O comportamento
+   * — abrir não grava — é provado por `TA-12` (`G-CMP-2`), acima.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  // (a) A escada A5 é anterior à Fase 6 e continua BYTE-IDÊNTICA. O selo foi tirado
+  //     de HEAD com o arquivo verificadamente não modificado (`git status` limpo para
+  //     ele, e `git log` do arquivo inteiramente pré-Fase 6).
+  {
+    const a43Src = readSrc('src/services/storageMigrationService.js');
+    const a43Sha = require('crypto').createHash('sha256').update(a43Src, 'utf8').digest('hex');
+    check(
+      'CN-13 [1/3] (F6 §2.4.1-d): `storageMigrationService.js` INTOCADO pela Fase 6 (byte a byte)',
+      a43Sha === 'f81ec31d6da0d8ac4bd2416d03f139c49d823b0cfd71ed84b9511daca4730f7f' && a43Src.length === 6465,
+      `sha=${a43Sha} len=${a43Src.length} — se a mudança for deliberada, ela precisa de task própria, não de um selo reancorado em silêncio`,
+    );
+  }
+
+  // (b) A migração em massa que EXISTE (o degrau 2 da escada A5) continua com os dois
+  //     únicos módulos que sempre a citaram. Um terceiro citante seria, por definição,
+  //     um caminho novo de conversão em massa.
+  {
+    const a43Citantes = b1Arquivos.filter((rel) => codeOf(rel).includes('migrateDrawingsToFiles'));
+    const a43Esperados = ['src/services/drawingStorage.js', 'src/services/storageMigrationService.js'];
+    check(
+      'CN-13 [2/3]: `migrateDrawingsToFiles` continua citado por EXATAMENTE 2 módulos (nenhum caminho novo)',
+      a43Citantes.slice().sort().join(',') === a43Esperados.join(','),
+      `citantes: ${a43Citantes.join(', ') || '(nenhum)'}`,
+    );
+  }
+
+  // (c) Os motores de canvas não têm como migrar nada: eles não alcançam armazenamento.
+  //     É a garantia estrutural por trás de `G-CMP-2` — abrir não grava porque, de dentro
+  //     da WebView, não existe para onde gravar.
+  {
+    const A43_MOTORES = ['src/components/ColoringCanvas.js', 'src/components/AtelierCanvas.js'];
+    const A43_ARMAZENAMENTO = [/AsyncStorage/, /migrateDrawingsToFiles/, /\bsaveDrawing\b/, /\bsaveArt\b/, /localStorage/];
+    const a43Furados = A43_MOTORES.filter((rel) => {
+      const codigo = codeOf(rel);
+      return A43_ARMAZENAMENTO.some((re) => re.test(codigo));
+    });
+    check(
+      'CN-13 [3/3]: nenhum motor de canvas alcança armazenamento (não há de onde migrar em massa)',
+      a43Furados.length === 0,
+      `motores que passaram a citar armazenamento: ${a43Furados.join(', ')}`,
+    );
   }
 
   /* ──────────────────────────────────────────────────────────────────────────

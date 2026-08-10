@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Animated, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Animated, Image, ActivityIndicator, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -593,6 +593,10 @@ function Coloring60ActivityScreen({ route, navigation }) {
   const [c60PaintApplied, setC60PaintApplied] = useState(false);
   const [c60Hydrated, setC60Hydrated] = useState(false);
   const [c60HydrationSpinner, setC60HydrationSpinner] = useState(false);
+  // [Fase 6 · TK-A-045] Havia arte guardada e ela NÃO abriu. Estado de apresentação puro: não
+  // escreve, não apaga e não converte nada — só impede que a tela minta dizendo, pelo silêncio,
+  // que a criança nunca pintou aqui. Distinto de "não havia arte", que segue abrindo limpo.
+  const [c60ObraNaoAberta, setC60ObraNaoAberta] = useState(false);
   const hydratedRef = useRef(false);
   const hydrationCoverAnim = useRef(new Animated.Value(1)).current;
 
@@ -875,15 +879,19 @@ function Coloring60ActivityScreen({ route, navigation }) {
     canvasRef.current?.loadPaint(saved);
   }
 
-  // Arte guardada inválida, corrompida ou de outro tamanho de tela: descarta o candidato e segue
-  // com o LINEART LIMPO. Não apaga nada do storage (uma leitura ruim não autoriza destruir a arte
-  // da criança), não recorre à pintura de outra atividade nem ao desenho legado da cena, e o
-  // diagnóstico existe SOMENTE em desenvolvimento.
+  // [Fase 6 · TK-A-045 · invariante ZERO #4] EXISTE arte guardada e este motor não conseguiu
+  // abri-la. Antes, este desfecho abria o lineart limpo em SILÊNCIO — para a criança, idêntico a
+  // "nunca pintei isso aqui". A diferença importa: a pintura dela continua no aparelho, e uma
+  // tela que não diz isso convida a refazer tudo por cima. Agora o desfecho é declarado. Nada é
+  // apagado do armazenamento (uma leitura ruim não autoriza destruir a arte da criança), não se
+  // recorre à pintura de outra atividade nem ao desenho legado da cena.
   function handleC60RestoreInvalid() {
     restoreRef.current = null;
-    if (__DEV__) console.log('[Coloring60] arte guardada não aplicável; abrindo lineart limpo');
-    // [C60-P10-HYDRATION] A arte salva não é aplicável: o primeiro quadro passa a ser o LINEART
-    // limpo. Como isto só chega depois do READY, o efeito de revelação dispara de imediato.
+    if (__DEV__) console.log('[Coloring60] arte guardada não pôde ser aberta; bytes preservados no armazenamento');
+    setC60ObraNaoAberta(true);
+    // [C60-P10-HYDRATION] O primeiro quadro passa a ser o LINEART limpo — a capa precisa sair,
+    // senão o aviso ficaria escondido atrás dela. Como isto só chega depois do READY, o efeito
+    // de revelação dispara de imediato.
     setC60RevealMode('lineart');
   }
 
@@ -1359,6 +1367,28 @@ function Coloring60ActivityScreen({ route, navigation }) {
               <ActivityIndicator size="large" color="#FF8C42" />
             ) : null}
           </Animated.View>
+          {/* [Fase 6 · TK-A-045 · invariante ZERO #4] "Não consegui abrir sua pintura". Aparece
+              SOMENTE quando existia arte guardada e a leitura não deu certo — nunca quando
+              simplesmente não havia arte. Diz a verdade em linguagem de criança, afirma que o
+              desenho continua guardado e devolve a decisão a ela: começar de novo é escolha
+              CONSCIENTE, não consequência do silêncio. Enquanto o aviso está de pé o toque no
+              canvas fica bloqueado; nenhuma escrita parte daqui. */}
+          {c60ObraNaoAberta && (
+            <View style={c60Styles.naoAbriu} accessibilityLiveRegion="polite">
+              <Text style={c60Styles.naoAbriuTitulo}>Não consegui abrir sua pintura 😕</Text>
+              <Text style={c60Styles.naoAbriuTexto}>
+                Ela continua guardadinha, do jeitinho que estava. Nada foi apagado.
+              </Text>
+              <Pressable
+                onPress={() => setC60ObraNaoAberta(false)}
+                style={c60Styles.naoAbriuBotao}
+                accessibilityRole="button"
+                accessibilityLabel="Pintar de novo"
+              >
+                <Text style={c60Styles.naoAbriuBotaoTexto}>Pintar de novo</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         <Animated.View
@@ -1500,6 +1530,23 @@ const c60Styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // [Fase 6 · TK-A-045] Aviso de obra que não abriu. Opaco de propósito: contorno visível seria
+  // convite a pintar por cima de uma pintura que existe, e a escolha de recomeçar tem de ser dela.
+  naoAbriu: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#FFFDF8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    gap: 12,
+  },
+  naoAbriuTitulo: { fontSize: 19, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  naoAbriuTexto: { fontSize: 15, color: colors.textLight, textAlign: 'center' },
+  naoAbriuBotao: {
+    marginTop: 6, paddingHorizontal: 22, paddingVertical: 12,
+    borderRadius: 999, backgroundColor: '#FF8C42', minHeight: 44, justifyContent: 'center',
+  },
+  naoAbriuBotaoTexto: { fontSize: 16, fontWeight: '700', color: '#FFF' },
   // [C60-PARTE-3] "Pronto!" sem cor na folha: apagado, mas ainda tocável (tocar devolve o convite).
   prontoBtnDisabled: { opacity: 0.45 },
 });

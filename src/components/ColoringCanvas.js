@@ -714,6 +714,66 @@ window.exportPaint=function(){
   }
 };
 
+/* ─── [Fase 6 · F6-R3.5 · TK-A-041 · Q8 regras 1-3] LEITOR DE COMPATIBILIDADE ────
+   Classificação EXAUSTIVA e DETERMINÍSTICA de tudo o que pode chegar como obra
+   guardada do Colorir. A função é PURA: não decodifica, não desenha, não grava e
+   não apaga — ela só diz EM QUE RAMO a obra caiu. Existe porque um leitor sem ramo
+   definido é um leitor que, diante do desconhecido, abre folha em branco em
+   silêncio — exatamente a quarta invariante ZERO que 'SD-8' proíbe.
+
+   O conjunto de ramos é FECHADO e toda entrada cai em EXATAMENTE UM deles. A ordem
+   dos testes É a especificação da precedência (o primeiro que casa vence):
+
+     1. 'ausente'                nada foi guardado. NÃO é obra: é a folha nova
+                                 legítima, e folha em branco aqui é o certo.
+     2. 'v1-datauri'             data URL cru, sem metadado nenhum (formato mais
+                                 antigo que existe no acervo).
+     3. 'ilegivel'               não é JSON — truncado, cortado pela metade, lixo.
+     4. 'eixo-invalido'          um eixo está PRESENTE e mente sobre si mesmo. Vence
+                                 os ramos de forma porque é afirmação mais forte:
+                                 nenhum payload assim poderia ter sido escrito aqui.
+                                 Continua CANDIDATO — quem decide se abre é a
+                                 geometria, e a decisão dela nunca é destrutiva
+                                 (TK-A-002: nenhum payload fica inválido por eixo).
+     5. 'envelope-nao-resolvido' o ponteiro de armazenamento chegou ao motor sem ter
+                                 sido resolvido. Reconhecido pela FORMA (tem 'uri' e
+                                 não tem 'data'), nunca pelo número da versão do
+                                 ponteiro — o motor não lê o eixo do envelope
+                                 (§11.5.3 regra 5). É engano de camada, não obra
+                                 corrompida, e chamá-lo de corrompido convidaria a
+                                 tratar como lixo o que é uma obra intacta em disco.
+     6. 'sem-tinta'              JSON legítimo, mas sem o campo 'data'.
+     7. 'logico'                 JSON com 'data' e eixo de layout DECLARADO.
+     8. 'v2-legado'              JSON com 'data' e eixo de layout AUSENTE.
+
+   'candidato' diz apenas que existe caminho de leitura — o veredito final ainda
+   depende do retângulo de origem, medido depois da decodificação. Nenhum ramo, em
+   nenhuma combinação, autoriza apagar, truncar, regravar ou substituir os bytes
+   guardados (Q8 regras 2 e 3). */
+function classificarPayload(jsonStr){
+  if(typeof jsonStr!=='string'||!jsonStr)
+    return {ramo:'ausente',candidato:false,payload:null,dataUrl:null};
+  if(jsonStr.indexOf('data:')===0)
+    return {ramo:'v1-datauri',candidato:true,payload:null,dataUrl:jsonStr};
+  var p;
+  try{p=JSON.parse(jsonStr);}catch(e){
+    return {ramo:'ilegivel',candidato:false,payload:null,dataUrl:null};
+  }
+  if(!p||typeof p!=='object'||Array.isArray(p))
+    return {ramo:'ilegivel',candidato:false,payload:null,dataUrl:null};
+  var ax=classifyAxes(p);
+  if(!ax.paint.ok||!ax.layout.ok)
+    return {ramo:'eixo-invalido',candidato:true,payload:p,dataUrl:(typeof p.data==='string')?p.data:null};
+  if(typeof p.data!=='string'){
+    if(typeof p.uri==='string')
+      return {ramo:'envelope-nao-resolvido',candidato:false,payload:p,dataUrl:null};
+    return {ramo:'sem-tinta',candidato:false,payload:p,dataUrl:null};
+  }
+  if(!ax.layout.legacy)
+    return {ramo:'logico',candidato:true,payload:p,dataUrl:p.data};
+  return {ramo:'v2-legado',candidato:true,payload:p,dataUrl:p.data};
+}
+
 /* ─── [Fase 6 · F6-R3.5 · TK-A-036 · Q8 regras 2, 3, 6] ORIGEM DA REPROJEÇÃO ─────
    Devolve o retângulo do lineart DENTRO do bitmap salvo — o único ponto de partida
    legítimo para trazer uma obra ao espaço lógico de agora. A leitura é ESTRITAMENTE
@@ -764,8 +824,14 @@ function retanguloDeOrigem(p,bmpW,bmpH){
    Usado para decidir o modal ANTES de carregar — nunca deixa modal falso. */
 window.validatePaint=function(jsonStr){
   try{
-    if(typeof jsonStr!=='string'||!jsonStr){window.ReactNativeWebView.postMessage('PAINT_INVALID');return;}
-    if(jsonStr.startsWith('data:')){
+    /* [Fase 6 · TK-A-041] Os DOIS pontos de entrada — 'validatePaint' e 'loadPaint' —
+       classificam pelo MESMO leitor. Antes cada um tinha a sua cascata de 'if', e duas
+       cascatas que precisam concordar acabam discordando: bastaria uma divergir para
+       a tela mostrar "continuar pintando" e a carga seguinte devolver folha em branco. */
+    var cls=classificarPayload(jsonStr);
+    window.ReactNativeWebView.postMessage('PAINT_BRANCH:'+JSON.stringify({ramo:cls.ramo,candidato:cls.candidato}));
+    if(!cls.candidato){window.ReactNativeWebView.postMessage('PAINT_INVALID');return;}
+    if(cls.ramo==='v1-datauri'){
       /* v1 legado: sem metadado nenhum. A pergunta deixou de ser "tem o tamanho
          desta janela?" — que reprovava a obra da criança só por ela ter sido feita
          noutra orientação (Q8 regra 3) — e passou a ser "dá para reconstruir?". */
@@ -774,8 +840,7 @@ window.validatePaint=function(jsonStr){
       im.onerror=function(){window.ReactNativeWebView.postMessage('PAINT_INVALID');};
       im.src=jsonStr; return;
     }
-    var p;
-    try{p=JSON.parse(jsonStr);}catch(e){window.ReactNativeWebView.postMessage('PAINT_INVALID');return;}
+    var p=cls.payload;
     if(!p||typeof p.data!=='string'){window.ReactNativeWebView.postMessage('PAINT_INVALID');return;}
     /* [Fase 6 · TK-A-004] Veredito POR EIXO, publicado como sinal ADITIVO e
        observável. Cada eixo é julgado isoladamente: o veredito de um NUNCA
@@ -815,7 +880,29 @@ window.validatePaint=function(jsonStr){
 window.loadPaint=function(jsonStr){
   try{
     var payload,dataUrl,savedW,savedH,axes;
-    if(jsonStr.startsWith('data:')){
+    /* [Fase 6 · TK-A-041] REGISTRO, antes de qualquer decisão. Toda carga publica o
+       ramo em que caiu — inclusive (e principalmente) quando o ramo é terminal. Sem
+       este registro, "não abriu" e "abriu vazia" chegam iguais a quem observa, e a
+       diferença entre as duas é a diferença entre preservar e perder a obra. */
+    var cls=classificarPayload(jsonStr);
+    window.ReactNativeWebView.postMessage('LOAD_PAINT_BRANCH:'+JSON.stringify({ramo:cls.ramo,candidato:cls.candidato}));
+    if(!cls.candidato){
+      /* [Fase 6 · TK-A-044 · Q8 regra 3] Ramo terminal. Repare no que NÃO acontece
+         aqui: 'paintD' não é tocado, nada é exportado, nada é regravado e nada é
+         removido do armazenamento. Falha de leitura reporta — nunca vira dano.
+           · 'ausente' é o único que não é falha: não havia obra, então a folha nova
+             é o comportamento CERTO e nenhum alarme é levantado (SD-8: canvas
+             branco só quando de fato não há obra);
+           · 'ilegivel' é o único legitimamente corrompido;
+           · os demais são obra que EXISTE e que este motor não soube abrir — dizem
+             'INCOMPATIBLE', que a tela traduz num estado explícito (TK-A-045),
+             jamais numa folha em branco silenciosa. */
+      if(cls.ramo==='ausente')return;
+      devLog('[COLORING_STATE] ramo terminal '+cls.ramo+' — nada aplicado, nada apagado');
+      window.ReactNativeWebView.postMessage(cls.ramo==='ilegivel'?'LOAD_PAINT_CORRUPTED':'LOAD_PAINT_INCOMPATIBLE');
+      return;
+    }
+    if(cls.ramo==='v1-datauri'){
       /* Legacy format (v1): raw data URL, no dimension metadata.
          Fall back to using the image's natural pixel size for validation. */
       payload=null; dataUrl=jsonStr; savedW=null; savedH=null;
@@ -823,11 +910,7 @@ window.loadPaint=function(jsonStr){
          ficam ausentes, e ausência é legado — nunca defeito. */
       axes=classifyAxes(null);
     }else{
-      try{payload=JSON.parse(jsonStr);}catch(parseErr){
-        devLog('[COLORING_STATE] parse error: '+parseErr.message);
-        window.ReactNativeWebView.postMessage('LOAD_PAINT_CORRUPTED');
-        return;
-      }
+      payload=cls.payload;
       /* [Fase 6 · TK-A-002] A representação é identificada PELO NOME DO EIXO,
          ANTES de qualquer ramo legado — e os ramos legados continuam INTACTOS
          logo abaixo, porque a ausência de eixo continua sendo um caminho de
@@ -1333,15 +1416,22 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
       onPaintApplied?.();
     } else if (msg === 'PAINT_VALID') {
       onPaintValid?.();
+    } else if (msg.startsWith('PAINT_BRANCH:') || msg.startsWith('LOAD_PAINT_BRANCH:')) {
+      // [Fase 6 · TK-A-041] O REGISTRO da classificação. Sinal ADITIVO: nenhum fluxo
+      // decide nada por ele — ele existe para que "em que ramo esta obra caiu?" tenha
+      // resposta observável no aparelho, e não só no arnês. Em produção não custa nada.
+      if (__DEV__) console.log('[ColoringCanvas] [COMPAT]', msg);
     } else if (msg === 'PAINT_INVALID') {
-      if (__DEV__) console.log('[ColoringCanvas] [COLORING_STATE] saved state invalid/incompatible — healing (clear + fresh)');
+      // Nada é "curado" e nada é limpo: o armazenamento não é tocado por uma leitura
+      // que não deu certo (Q8 regra 3). O que muda é só o que a tela vai apresentar.
+      if (__DEV__) console.log('[ColoringCanvas] [COLORING_STATE] arte guardada não aplicável nesta leitura — nada foi apagado');
       onPaintInvalid?.();
     } else if (msg === 'LOAD_PAINT_CORRUPTED') {
       onLoadCorrupted?.();
     } else if (msg === 'FILL_REJECTED') {
       onFillRejected?.();
     } else if (msg === 'LOAD_PAINT_INCOMPATIBLE') {
-      if (__DEV__) console.log('[ColoringCanvas] [COLORING_STATE] incompatible saved state ignored — starting fresh');
+      if (__DEV__) console.log('[ColoringCanvas] [COLORING_STATE] obra existente não aberta por este motor — bytes preservados no armazenamento');
       onLoadIncompatible?.();
     } else if (msg.startsWith('LOG:')) {
       if (__DEV__) console.log('[ColoringCanvas WebView]', msg.slice(4));

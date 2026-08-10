@@ -857,6 +857,267 @@ async function executarTA11Ponteiro() {
   return { casos, avisos };
 }
 
+/* ═══════════════════════════ Casos do TA-12 · compatibilidade ══════════════════════════ */
+
+/**
+ * Lê o CONJUNTO FECHADO de ramos que o classificador REAL pode devolver, direto do fonte
+ * do motor. É isto que torna a exaustividade uma propriedade **verificada** em vez de uma
+ * declaração de boa intenção: se alguém acrescentar um ramo ao leitor sem acrescentar a
+ * entrada correspondente ao corpus, `G-CMP-1` acende — porque passaria a existir um
+ * caminho de leitura sobre o qual ninguém nunca disse o que acontece com a obra da
+ * criança, e é exatamente daí que nasce a folha em branco silenciosa.
+ */
+function ramosDeclarados(rel, nomeFn) {
+  const src = readSrc(rel);
+  const ini = src.indexOf(`function ${nomeFn}(`);
+  if (ini < 0) throw new Error(`ramosDeclarados: \`${nomeFn}\` não encontrada em ${rel}`);
+  const fim = src.indexOf('\n}\n', ini);
+  if (fim < 0) throw new Error(`ramosDeclarados: não achei o fim de \`${nomeFn}\` em ${rel}`);
+  const corpo = src.slice(ini, fim);
+  const achados = new Set();
+  const re = /ramo:'([a-z0-9-]+)'/g;
+  let m;
+  while ((m = re.exec(corpo)) !== null) achados.add(m[1]);
+  return [...achados].sort();
+}
+
+/**
+ * Corpus RASTER (`ColoringCanvas`). Cada entrada declara o ramo esperado, se é candidata
+ * a abrir e se representa **obra que existe** — a última decide se o motor tem obrigação
+ * de GRITAR quando não conseguir abrir. `ausente` é o único caso em que a folha nova é a
+ * resposta certa; em todo o resto, silêncio seria indistinguível de perda.
+ */
+function corpusRaster(pintura) {
+  const dataUrl = codificarPixels(W, H, pintura, 'image/png');
+  const geo = { W, H, imgX: 0, imgY: 0, imgW: W, imgH: H };
+  return [
+    { id: '12.1', nome: 'ausência total (`null`)', json: null, ramo: 'ausente', candidato: false, existeObra: false },
+    { id: '12.2', nome: 'string vazia', json: '', ramo: 'ausente', candidato: false, existeObra: false },
+    { id: '12.3', nome: 'v1 — data URL cru, sem envelope nenhum', json: dataUrl, ramo: 'v1-datauri', candidato: true, existeObra: true },
+    { id: '12.4', nome: '`v:2` com geometria e SEM os eixos novos (ausência de eixos)', json: JSON.stringify(Object.assign({ v: 2 }, geo, { data: dataUrl })), ramo: 'v2-legado', candidato: true, existeObra: true },
+    { id: '12.5', nome: '`v:2` sem geometria (fallback histórico pelo bitmap)', json: JSON.stringify({ v: 2, data: dataUrl }), ramo: 'v2-legado', candidato: true, existeObra: true },
+    { id: '12.6', nome: 'representação atual — os dois eixos declarados', json: JSON.stringify(Object.assign({ v: 2, paintSchemaVersion: 1, layoutVersion: 1, logicalW: W, logicalH: H }, geo, { data: dataUrl })), ramo: 'logico', candidato: true, existeObra: true },
+    { id: '12.7', nome: 'ponteiro `fmt:1` chegando NÃO resolvido ao motor', json: JSON.stringify({ v: 3, fmt: 1, uri: 'file:///double/a.png', mime: 'image/png' }), ramo: 'envelope-nao-resolvido', candidato: false, existeObra: true },
+    { id: '12.8', nome: 'ponteiro `fmt:2` chegando NÃO resolvido ao motor', json: JSON.stringify(Object.assign({ v: 3, fmt: 2, uri: 'file:///double/b.png', mime: 'image/png' }, geo)), ramo: 'envelope-nao-resolvido', candidato: false, existeObra: true },
+    { id: '12.9', nome: 'payload TRUNCADO (JSON inválido)', json: '{"v":2,"W":64,"data":"data:im', ramo: 'ilegivel', candidato: false, existeObra: true },
+    { id: '12.10', nome: 'JSON válido que não é objeto (array)', json: '[1,2,3]', ramo: 'ilegivel', candidato: false, existeObra: true },
+    { id: '12.11', nome: 'eixo declarado com valor INVÁLIDO (segue candidata — `TK-A-002`)', json: JSON.stringify(Object.assign({ v: 2, paintSchemaVersion: 'x' }, geo, { data: dataUrl })), ramo: 'eixo-invalido', candidato: true, existeObra: true },
+    { id: '12.12', nome: 'envelope sem tinta e sem ponteiro', json: JSON.stringify(Object.assign({ v: 2 }, geo)), ramo: 'sem-tinta', candidato: false, existeObra: true },
+  ];
+}
+
+/** Corpus VETORIAL (`AtelierCanvas`) — mesma leitura, formatos históricos próprios. */
+function corpusVetor() {
+  const tracos = [{ id: 's1', color: '#F44336', size: 9, eraser: false, points: [{ x: 4, y: 5 }, { x: 20, y: 26 }] }];
+  const ops = [{ type: 'stroke', id: 'o1', color: '#2196F3', size: 7, eraser: false, points: [{ x: 2, y: 3 }, { x: 9, y: 11 }] }];
+  return [
+    { id: '12.13', nome: 'ausência total (string vazia)', json: '', ramo: 'ausente', candidato: false, existeObra: false, tracos: 0 },
+    { id: '12.14', nome: 'estado atual — os dois eixos declarados', json: JSON.stringify({ v: 2, paintSchemaVersion: 1, layoutVersion: 1, logicalW: 800, logicalH: 600, strokes: tracos, stamps: [], bgColor: '#FFFDF8' }), ramo: 'logico', candidato: true, existeObra: true, tracos: 1 },
+    { id: '12.15', nome: '`v:2` legado (sem eixos novos)', json: JSON.stringify({ v: 2, strokes: tracos, stamps: [], bgColor: '#FFEECC' }), ramo: 'v2-legado', candidato: true, existeObra: true, tracos: 1 },
+    { id: '12.16', nome: '`ops[]` — o formato mais antigo do Ateliê', json: JSON.stringify({ ops, bgColor: '#EEFFEE' }), ramo: 'ops-legado', candidato: true, existeObra: true, tracos: 1 },
+    { id: '12.17', nome: 'eixo declarado com valor INVÁLIDO (segue candidata)', json: JSON.stringify({ v: 2, layoutVersion: -3, strokes: tracos, stamps: [], bgColor: '#FFFDF8' }), ramo: 'eixo-invalido', candidato: true, existeObra: true, tracos: 1 },
+    { id: '12.18', nome: 'payload TRUNCADO (JSON inválido)', json: '{"strokes":[{"id":"s1",', ramo: 'ilegivel', candidato: false, existeObra: true, tracos: 0 },
+    { id: '12.19', nome: 'JSON válido que não é objeto (array)', json: '[{"id":"s1"}]', ramo: 'ilegivel', candidato: false, existeObra: true, tracos: 0 },
+    { id: '12.20', nome: 'objeto de forma DESCONHECIDA (nem `v:2`, nem `ops[]`, nem eixo)', json: JSON.stringify({ formatoDoFuturo: true, conteudo: 'x' }), ramo: 'desconhecido', candidato: false, existeObra: true, tracos: 0 },
+  ];
+}
+
+/** Mensagens que, se aparecerem DURANTE uma carga, significam que abrir gravou. */
+const SAIDA_DE_BYTES = ['PAINT_EXPORT:', 'STATE_EXPORT:'];
+
+/**
+ * `TA-12` — arnês de compatibilidade (`TK-A-046`). Roda o corpus contra os DOIS motores
+ * REAIS e sustenta dois portões:
+ *
+ *   `G-CMP-1` · a classificação é EXAUSTIVA e DETERMINÍSTICA, e incompatibilidade
+ *               **nunca** apaga, limpa ou substitui por canvas branco;
+ *   `G-CMP-2` · abrir obra **não grava nada**.
+ *
+ * O detector de `G-CMP-1` não é a mensagem: é a TINTA. O motor recebe primeiro uma obra
+ * boa, e só então o payload do corpus. Se um ramo terminal zerar o modelo — que é
+ * literalmente o mutante `MT-13` —, a reexportação volta em branco e o caso acende. Uma
+ * asserção sobre a mensagem provaria apenas que o motor AVISA; esta prova que ele
+ * PRESERVA.
+ *
+ * Limite declarado (§11.11-b): isto é lógica pura, serialização e classificação — o que
+ * Node de fato prova. WebView real, término de processo, `resize` nativo, Split View e
+ * geometria física continuam sendo evidência FÍSICA, pendente.
+ *
+ * @returns {Promise<{casos: Array<{nome:string, ok:boolean, detalhe:string}>, avisos: string[]}>}
+ */
+async function executarTA12() {
+  const casos = [];
+  const avisos = [];
+  const ok = (nome, condicao, detalhe = '') => casos.push({ nome, ok: !!condicao, detalhe: condicao ? '' : detalhe });
+
+  const pintura = fabricarPintura(W, H, 41);
+  const boaRaster = JSON.stringify({
+    v: 2, paintSchemaVersion: 1, layoutVersion: 1, logicalW: W, logicalH: H,
+    W, H, imgX: 0, imgY: 0, imgW: W, imgH: H, data: codificarPixels(W, H, pintura, 'image/png'),
+  });
+  const boaVetor = JSON.stringify({
+    v: 2, paintSchemaVersion: 1, layoutVersion: 1, logicalW: 800, logicalH: 600,
+    strokes: [{ id: 'prev', color: '#4CAF50', size: 11, eraser: false, points: [{ x: 1, y: 1 }, { x: 30, y: 40 }] }],
+    stamps: [], bgColor: '#FFFDF8',
+  });
+
+  /* ── A. Exaustividade: o corpus cobre TODO ramo que o motor sabe devolver ──────────── */
+  const listaRaster = corpusRaster(pintura);
+  const listaVetor = corpusVetor();
+  {
+    const declaradosR = ramosDeclarados(RASTER, 'classificarPayload');
+    const cobertosR = [...new Set(listaRaster.map((e) => e.ramo))].sort();
+    ok('12.0a G-CMP-1 · o corpus RASTER cobre EXATAMENTE os ramos do classificador real',
+      declaradosR.join(',') === cobertosR.join(','),
+      `motor=[${declaradosR.join(', ')}] corpus=[${cobertosR.join(', ')}]`);
+    const declaradosV = ramosDeclarados(VETOR, 'classificarEstado');
+    const cobertosV = [...new Set(listaVetor.map((e) => e.ramo))].sort();
+    ok('12.0b G-CMP-1 · o corpus VETORIAL cobre EXATAMENTE os ramos do classificador real',
+      declaradosV.join(',') === cobertosV.join(','),
+      `motor=[${declaradosV.join(', ')}] corpus=[${cobertosV.join(', ')}]`);
+  }
+
+  /* ── B. Corpus RASTER, entrada por entrada ────────────────────────────────────────── */
+  for (const e of listaRaster) {
+    const m = bootMotor(RASTER, { largura: W, altura: H });
+    /* Obra boa ANTES: é ela que denuncia quem apaga. */
+    m.janela.loadPaint(boaRaster);
+    const aplicouAntes = m.tem('PAINT_APPLIED');
+    m.limpar();
+    const entrada = e.json;
+    m.janela.loadPaint(entrada);
+    const ramoBruto = m.ultima('LOAD_PAINT_BRANCH:');
+    const cls = ramoBruto ? JSON.parse(ramoBruto) : null;
+
+    ok(`${e.id}-a G-CMP-1 · ${e.nome} → ramo REGISTRADO`, ramoBruto !== null,
+      'nenhum `LOAD_PAINT_BRANCH:` foi publicado — a classificação passou em silêncio');
+    ok(`${e.id}-b G-CMP-1 · ${e.nome} → ramo \`${e.ramo}\``, cls && cls.ramo === e.ramo,
+      `ramo observado=${cls && cls.ramo} | esperado=${e.ramo}`);
+    ok(`${e.id}-c G-CMP-1 · ${e.nome} → candidata=${e.candidato}`, cls && cls.candidato === e.candidato,
+      `candidato observado=${cls && cls.candidato}`);
+
+    if (e.candidato) {
+      ok(`${e.id}-d G-CMP-1 · ${e.nome} → obra recuperável ABRE (nunca folha em branco)`,
+        m.tem('PAINT_APPLIED') && !m.tem('LOAD_PAINT_CORRUPTED') && !m.tem('LOAD_PAINT_INCOMPATIBLE'),
+        m.msgs.join(' | '));
+    } else if (e.existeObra) {
+      ok(`${e.id}-d G-CMP-1 · ${e.nome} → obra que existe e não abriu é ANUNCIADA`,
+        m.tem('LOAD_PAINT_INCOMPATIBLE') || m.tem('LOAD_PAINT_CORRUPTED'), m.msgs.join(' | '));
+    } else {
+      ok(`${e.id}-d G-CMP-1 · ${e.nome} → não havia obra: silêncio é o certo, sem alarme falso`,
+        !m.tem('LOAD_PAINT_INCOMPATIBLE') && !m.tem('LOAD_PAINT_CORRUPTED'), m.msgs.join(' | '));
+    }
+
+    /* O detector de MT-13: a tinta anterior continua inteira depois de um ramo terminal. */
+    if (!e.candidato) {
+      m.limpar();
+      m.janela.exportPaint();
+      const volta = decodificarPixels(JSON.parse(m.ultima('PAINT_EXPORT:') || '{}').data || '');
+      ok(`${e.id}-e G-CMP-1 · ${e.nome} → a tinta que já estava no modelo NÃO foi apagada`,
+        aplicouAntes && volta && mesmosPixels(volta.px, pintura),
+        'o modelo perdeu píxeis depois de um ramo terminal — incompatibilidade virou dano');
+    }
+  }
+
+  /* ── C. G-CMP-2 no RASTER: a carga, sozinha, não produz saída de bytes ────────────── */
+  for (const e of listaRaster) {
+    const m = bootMotor(RASTER, { largura: W, altura: H });
+    m.limpar();
+    m.janela.loadPaint(e.json);
+    const vazou = m.msgs.filter((s) => SAIDA_DE_BYTES.some((p) => s.startsWith(p)));
+    ok(`${e.id}-g G-CMP-2 · ${e.nome} → abrir NÃO grava: zero saída de bytes na carga`,
+      vazou.length === 0, `mensagens de saída durante a carga: ${vazou.map((s) => s.slice(0, 24)).join(' | ')}`);
+    /* Determinismo: o mesmo payload, motor novo, cai no mesmo ramo — sempre. */
+    const m2 = bootMotor(RASTER, { largura: 128, altura: 96, dpr: 2 });
+    m2.limpar();
+    m2.janela.loadPaint(e.json);
+    ok(`${e.id}-h G-CMP-1 · ${e.nome} → classificação DETERMINÍSTICA (janela diferente, mesmo ramo)`,
+      m2.ultima('LOAD_PAINT_BRANCH:') === m.ultima('LOAD_PAINT_BRANCH:'),
+      `janela A=${m.ultima('LOAD_PAINT_BRANCH:')} | janela B=${m2.ultima('LOAD_PAINT_BRANCH:')}`);
+  }
+
+  /* ── D. Corpus VETORIAL, entrada por entrada ──────────────────────────────────────── */
+  for (const e of listaVetor) {
+    const m = bootMotor(VETOR, { largura: 320, altura: 240 });
+    m.janela.loadState(boaVetor);
+    m.limpar();
+    m.janela.loadState(e.json);
+    const ramoBruto = m.ultima('STATE_BRANCH:');
+    const cls = ramoBruto ? JSON.parse(ramoBruto) : null;
+
+    ok(`${e.id}-a G-CMP-1 · [vetor] ${e.nome} → ramo REGISTRADO`, ramoBruto !== null,
+      'nenhum `STATE_BRANCH:` foi publicado');
+    ok(`${e.id}-b G-CMP-1 · [vetor] ${e.nome} → ramo \`${e.ramo}\``, cls && cls.ramo === e.ramo,
+      `ramo observado=${cls && cls.ramo} | esperado=${e.ramo}`);
+    ok(`${e.id}-c G-CMP-1 · [vetor] ${e.nome} → candidata=${e.candidato}`, cls && cls.candidato === e.candidato,
+      `candidato observado=${cls && cls.candidato}`);
+
+    if (!e.candidato && e.existeObra) {
+      ok(`${e.id}-d G-CMP-1 · [vetor] ${e.nome} → anunciada, e SEM \`STATE_LOADED\``,
+        (m.tem('LOAD_CORRUPTED') || m.tem('LOAD_INCOMPATIBLE')) && !m.tem('STATE_LOADED'),
+        `${m.msgs.join(' | ')} — "não abri" e "abri e estava vazia" não podem chegar iguais`);
+    } else {
+      ok(`${e.id}-d G-CMP-1 · [vetor] ${e.nome} → abre e conclui`,
+        m.tem('STATE_LOADED') && !m.tem('LOAD_CORRUPTED') && !m.tem('LOAD_INCOMPATIBLE'), m.msgs.join(' | '));
+    }
+
+    /* Detector de MT-13 no vetorial: os traços que já estavam continuam lá. */
+    m.limpar();
+    m.janela.exportState();
+    const exp = JSON.parse(m.ultima('STATE_EXPORT:') || '{}');
+    const st = exp.stateJson ? JSON.parse(exp.stateJson) : null;
+    const nTracos = st && Array.isArray(st.strokes) ? st.strokes.length : -1;
+    if (!e.candidato && e.existeObra) {
+      ok(`${e.id}-e G-CMP-1 · [vetor] ${e.nome} → o traço anterior NÃO foi apagado`,
+        nTracos === 1, `traços no modelo depois do ramo terminal: ${nTracos} (esperado 1)`);
+    } else {
+      ok(`${e.id}-e G-CMP-1 · [vetor] ${e.nome} → o modelo reflete a obra lida (${e.tracos} traço/s)`,
+        nTracos === e.tracos, `traços=${nTracos} | esperado=${e.tracos}`);
+    }
+  }
+
+  /* ── E. G-CMP-2 no VETORIAL: carregar, sozinho, não exporta ───────────────────────── */
+  for (const e of listaVetor) {
+    const m = bootMotor(VETOR, { largura: 320, altura: 240 });
+    m.limpar();
+    m.janela.loadState(e.json);
+    const vazou = m.msgs.filter((s) => SAIDA_DE_BYTES.some((p) => s.startsWith(p)));
+    ok(`${e.id}-f G-CMP-2 · [vetor] ${e.nome} → abrir NÃO grava: zero saída de bytes na carga`,
+      vazou.length === 0, `mensagens de saída durante a carga: ${vazou.map((s) => s.slice(0, 24)).join(' | ')}`);
+  }
+
+  /* ── F. G-CMP-2 no ARMAZENAMENTO REAL: abrir não escreve e não apaga blob ─────────── */
+  {
+    const ptr = carregarPonteiroReal();
+    const ponteiro = await ptr.buildPointer('ta12.png', boaRaster);
+    const antes = JSON.stringify([...ptr.disco.entries()]);
+    const resolvido = await ptr.resolvePointer(ponteiro);
+    const m = bootMotor(RASTER, { largura: W, altura: H });
+    m.limpar();
+    m.janela.loadPaint(resolvido);
+    const depois = JSON.stringify([...ptr.disco.entries()]);
+    ok('12.21 G-CMP-2 · resolver o ponteiro + abrir NÃO altera um byte do disco',
+      antes === depois && antes.length > 0, 'o armazenamento mudou só porque a obra foi aberta');
+    ok('12.22 G-CMP-2 · o blob NÃO é excluído ao abrir (Q8 regra 3)',
+      ptr.disco.size >= 1, 'o blob sumiu do disco durante a abertura');
+    ok('12.23 G-CMP-1 · a obra vinda do ponteiro ABRE (nunca folha em branco)',
+      m.tem('PAINT_APPLIED'), m.msgs.join(' | '));
+    /* Ler duas vezes seguidas é idêntico: não há conversão acumulando a cada abertura. */
+    m.limpar();
+    m.janela.loadPaint(resolvido);
+    const segundaLeitura = JSON.stringify([...ptr.disco.entries()]);
+    ok('12.24 G-CMP-2 · abrir DUAS vezes continua sem escrever (nenhuma migração ao abrir)',
+      segundaLeitura === antes, 'a segunda abertura escreveu no armazenamento');
+    m.limpar();
+    m.janela.exportPaint();
+    const volta = decodificarPixels(JSON.parse(m.ultima('PAINT_EXPORT:') || '{}').data || '');
+    ok('12.25 SD-8 · depois de duas aberturas, a tinta continua píxel a píxel a mesma',
+      volta && mesmosPixels(volta.px, pintura), 'a obra mudou entre aberturas');
+  }
+
+  return { casos, avisos };
+}
+
 /* ═══════════════════════════════════════ Runner ════════════════════════════════════════ */
 
 async function main() {
@@ -865,8 +1126,9 @@ async function main() {
   try {
     const sincrono = executarTA11();
     const assincrono = await executarTA11Ponteiro();
-    casos = sincrono.casos.concat(assincrono.casos);
-    avisos = sincrono.avisos.concat(assincrono.avisos);
+    const compat = await executarTA12();
+    casos = sincrono.casos.concat(assincrono.casos, compat.casos);
+    avisos = sincrono.avisos.concat(assincrono.avisos, compat.avisos);
   } catch (err) {
     console.error(`\n✖ TA-11 abortou: ${err && err.message}`);
     console.error(err && err.stack);
@@ -874,13 +1136,13 @@ async function main() {
     return;
   }
 
-  console.log('\n── TA-11 · ortogonalidade dos quatro eixos de versionamento ──\n');
+  console.log('\n── TA-11 (quatro eixos) + TA-12 (compatibilidade somente leitura) ──\n');
   let falhas = 0;
   for (const c of casos) {
     if (c.ok) { console.log(`  ✓ ${c.nome}`); } else { falhas++; console.log(`  ✖ ${c.nome}\n      ${c.detalhe}`); }
   }
   for (const a of avisos) console.log(`\n  ⚠ ${a}`);
-  console.log(`\n── TA-11: ${casos.length - falhas}/${casos.length} casos verdes, ${falhas} vermelhos ──\n`);
+  console.log(`\n── TA-11+TA-12: ${casos.length - falhas}/${casos.length} casos verdes, ${falhas} vermelhos ──\n`);
   process.exit(falhas === 0 ? 0 : 1);
 }
 
@@ -889,6 +1151,8 @@ if (require.main === module) main();
 module.exports = {
   executarTA11,
   executarTA11Ponteiro,
+  executarTA12,
+  ramosDeclarados,
   bootMotor,
   loadModule,
   lerEixosDeclarados,

@@ -106,7 +106,22 @@ export default function AtelierCanvasScreen({ route, navigation }) {
   const [isSaving, setIsSaving] = useState(false);
   const savingRef = useRef(false);
   const isDirty = rev !== lastSavedRevision;
-  const canSave = !isBlank && !isSaving;
+
+  /* ── [Fase 6 · F6-R3.5 · TK-A-045 · invariante ZERO #4] OBRA QUE NÃO ABRIU ──
+     Até aqui, uma arte que o motor não conseguisse ler chegava à criança como PAPEL EM
+     BRANCO, sem aviso nenhum: o sinal `LOAD_CORRUPTED` existia e ninguém o escutava. E
+     papel em branco no Ateliê não é só um susto — o salvamento atualiza a MESMA arte
+     (`performSave` com `artId: savedArtId`), então o primeiro toque em Salvar gravaria o
+     vazio por cima da obra original. Era perda total, silenciosa e irreversível.
+
+     O estado abaixo é a resposta honesta: a tela diz que não conseguiu abrir, o arquivo
+     continua exatamente onde estava (nada aqui apaga, converte ou regrava — `Q8` regras
+     2 e 3) e o caminho de gravação fica FECHADO enquanto durar. Bloquear o Salvar é o
+     que transforma o aviso em proteção de verdade; sem isso, seria só um texto bonito
+     sobre uma obra prestes a ser substituída. */
+  const [obraNaoAberta, setObraNaoAberta] = useState(null);   // null | 'corrompida' | 'incompativel'
+
+  const canSave = !isBlank && !isSaving && !obraNaoAberta;
 
   /* Proteção ao sair — §15 (padrão beforeRemove). */
   const leavingRef = useRef(false);          // true → beforeRemove libera a saída
@@ -192,6 +207,15 @@ export default function AtelierCanvasScreen({ route, navigation }) {
       }
     }).catch(() => {});
   }, [routeArtId, syncTool]);
+
+  /* [Fase 6 · TK-A-044/TK-A-045] Os dois desfechos de leitura malsucedida. Nenhum deles
+     escreve, apaga ou converte: a única coisa que muda é o que a criança vê. */
+     O diagnóstico fica no motor (`AtelierCanvas` já registra o ramo): esta tela evita `__DEV__`
+     de propósito, porque aqui ele é PROIBIDO como decisor de produto e a proteção que existe
+     contra isso é textual — introduzi-lo aqui, mesmo para um `console.log`, apagaria a única
+     defesa que o projeto tem contra `__DEV__` virar portão comercial. */
+  const onArtCorrupted = useCallback(() => setObraNaoAberta('corrompida'), []);
+  const onArtIncompatible = useCallback(() => setObraNaoAberta('incompativel'), []);
 
   const onHist = useCallback(({ canUndo: cu, canRedo: cr, empty, rev: r }) => {
     setCanUndo(!!cu); setCanRedo(!!cr); setIsBlank(!!empty);
@@ -293,6 +317,10 @@ export default function AtelierCanvasScreen({ route, navigation }) {
   }, [savedArtId, mission, rev, reduceMotion, checkForNewAchievements, navigation, isCreateWithBeni]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const doSave = useCallback(async () => {
+    /* [Fase 6 · TK-A-045] Segunda tranca, no caminho e não só no botão: "Salvar e sair"
+       chama `doSave` diretamente, e uma proteção que só existe no `disabled` do botão
+       protege apenas o botão. */
+    if (obraNaoAberta) return;
     if (!canSave || savingRef.current) return;
     if (!unlimited && !savedArtId) {
       const count = await getArtCount();
@@ -302,7 +330,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
     if (mission) { performSave(mission.slice(0, 35)); return; }                          // guiado já tem título
     setNameInput('');
     setOverlay('name');   // desenho novo → pede o nome
-  }, [canSave, unlimited, savedArtId, mission, performSave]);
+  }, [canSave, unlimited, savedArtId, mission, performSave, obraNaoAberta]);
 
   const confirmName = useCallback(async () => {
     const existing = (await listArts()).map((a) => a && a.title).filter(Boolean);
@@ -407,15 +435,35 @@ export default function AtelierCanvasScreen({ route, navigation }) {
       {/* ── PAPEL protagonista (canvas nunca redimensiona) ── */}
       <View style={styles.paperArea}>
         <Animated.View style={[styles.paperFrame]}>
-          <AtelierCanvas ref={canvasRef} onReady={onCanvasReady} onHist={onHist} />
+          <AtelierCanvas ref={canvasRef}
+            onReady={onCanvasReady}
+            onHist={onHist}
+            onLoadCorrupted={onArtCorrupted}
+            onLoadIncompatible={onArtIncompatible}
+          />
           {/* brilho de sucesso — só na borda, fora da arte exportada */}
           {savedFlash && (
             <Animated.View pointerEvents="none" style={[styles.saveGlow, { opacity: reduceMotion ? 0.5 : glowOpacity }]} />
           )}
         </Animated.View>
 
+        {/* [Fase 6 · TK-A-045 · invariante ZERO #4] "Não consegui abrir esta obra".
+            Cobre o papel para que ele NÃO seja lido como folha nova, diz a verdade em
+            linguagem de criança e afirma o que mais importa: o desenho continua guardado.
+            Nada aqui toca o armazenamento — é estado de apresentação, e o caminho de
+            gravação já está fechado por `canSave`. */}
+        {obraNaoAberta && (
+          <View style={styles.naoAbriu} accessibilityLiveRegion="polite">
+            <Text style={styles.naoAbriuTitulo}>Não consegui abrir este desenho</Text>
+            <Text style={styles.naoAbriuTexto}>
+              Ele continua guardadinho, do jeitinho que estava. Nada foi apagado.
+            </Text>
+            <Text style={styles.naoAbriuTexto}>Toque em voltar para escolher outro.</Text>
+          </View>
+        )}
+
         {/* orientação inicial (RN overlay — NÃO entra na arte) */}
-        {showOrientation && isBlank && (
+        {!obraNaoAberta && showOrientation && isBlank && (
           <View pointerEvents="none" style={styles.orientation}>
             <Text style={styles.orientationText}>Escolha uma cor e comece a desenhar.</Text>
           </View>
@@ -854,6 +902,21 @@ const styles = StyleSheet.create({
   saveGlow: {
     ...StyleSheet.absoluteFillObject, borderRadius: CL.radiusPaper,
     borderWidth: 4, borderColor: CL.save,
+  },
+
+  /* [Fase 6 · TK-A-045] Cobre o papel inteiro (menos a margem), opaco de propósito:
+     papel visível seria convite a desenhar por cima de uma obra que existe. */
+  naoAbriu: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: CL.radiusPaper, backgroundColor: CL.paper,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 10,
+  },
+  naoAbriuTitulo: {
+    fontFamily: 'FredokaOne', fontSize: 18, textAlign: 'center', color: CL.text,
+  },
+  naoAbriuTexto: {
+    fontFamily: 'Nunito', fontSize: 15, fontWeight: '700',
+    textAlign: 'center', color: 'rgba(90,74,50,0.75)',
   },
 
   orientation: {

@@ -9,7 +9,9 @@
  *   STAMP_DESEL           Carimbo desselecionado
  *   STATE_EXPORT:{...}    stateJson + thumbnailBase64 + previewBase64
  *   STATE_AXES:{...}      Classificação dos eixos + espaço lógico em que a obra foi lida
- *   LOAD_CORRUPTED        JSON inválido ao carregar
+ *   STATE_BRANCH:{...}    Ramo do leitor de compatibilidade em que a obra caiu (TK-A-041)
+ *   LOAD_CORRUPTED        JSON inválido ao carregar — nada apagado
+ *   LOAD_INCOMPATIBLE     Obra existe e este motor não soube abrir — nada apagado
  *   CANVAS_ERROR:{...}    Erro JS interno
  *
  * API via injectJavaScript:
@@ -650,40 +652,78 @@ function estabelecerEspacoLogico(d){
   reprojetar();
   return declarado;
 }
+/* ─── [Fase 6 · F6-R3.5 · TK-A-041 · Q8 regras 1-3] LEITOR DE COMPATIBILIDADE ────
+   O mesmo contrato do motor raster, aplicado à obra VETORIAL: classificação
+   EXAUSTIVA e DETERMINÍSTICA, função PURA, conjunto FECHADO de ramos, e toda
+   entrada caindo em exatamente um. A ordem dos testes É a precedência:
+
+     1. 'ausente'       nada foi guardado — folha nova legítima, e aqui folha em
+                        branco é o comportamento CERTO.
+     2. 'ilegivel'      não é JSON, ou é JSON que não descreve um objeto.
+     3. 'eixo-invalido' um eixo está PRESENTE e mente sobre si mesmo. Continua
+                        CANDIDATO: quem decide é o conjunto de campos, e nenhum
+                        veredito de eixo autoriza destruição (TK-A-002).
+     4. 'logico'        declara 'paintSchemaVersion' — lido pelos campos que diz ter.
+     5. 'v2-legado'     marca legada 'v:2'.
+     6. 'ops-legado'    formato mais antigo, com a lista 'ops'.
+     7. 'desconhecido'  objeto que não é nenhuma das formas acima.
+
+   O ramo 7 é a razão de esta função existir. Antes ele era o 'else' final e fazia
+   'strokes=[]' — uma obra de forma não reconhecida voltava como FOLHA EM BRANCO, em
+   silêncio, e o primeiro save da criança gravava esse vazio por cima do original,
+   porque o Ateliê atualiza a MESMA arte. Era um caminho real de perda total, e é
+   exatamente a quarta invariante ZERO de 'SD-8'. Agora ele é um ramo declarado, sem
+   'STATE_LOADED', que a tela traduz num estado explícito (TK-A-045). */
+function classificarEstado(jsonStr){
+  if(!jsonStr||typeof jsonStr!=='string')return {ramo:'ausente',candidato:false,estado:null};
+  var d;
+  try{d=JSON.parse(jsonStr);}catch(e){return {ramo:'ilegivel',candidato:false,estado:null};}
+  if(!d||typeof d!=='object'||Array.isArray(d))return {ramo:'ilegivel',candidato:false,estado:null};
+  var ax=classifyAxes(d);
+  if(!ax.paint.ok||!ax.layout.ok)return {ramo:'eixo-invalido',candidato:true,estado:d};
+  if(!ax.paint.legacy)return {ramo:'logico',candidato:true,estado:d};
+  if(d.v===2)return {ramo:'v2-legado',candidato:true,estado:d};
+  if(Array.isArray(d.ops))return {ramo:'ops-legado',candidato:true,estado:d};
+  return {ramo:'desconhecido',candidato:false,estado:d};
+}
 window.loadState=function(jsonStr){
   try{
-    if(!jsonStr||typeof jsonStr!=='string'){
+    var cls=classificarEstado(jsonStr);
+    /* [Fase 6 · TK-A-041] REGISTRO, antes de qualquer decisão — inclusive (e
+       principalmente) quando o ramo é terminal. */
+    notify('STATE_BRANCH:'+JSON.stringify({ramo:cls.ramo,candidato:cls.candidato}));
+    if(cls.ramo==='ausente'){
       strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist(); abrirEmBranco(); render();
       notifyHist(); notify('STATE_LOADED'); return;
     }
-    var d=JSON.parse(jsonStr);
-    if(!d||typeof d!=='object'){
-      strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist(); abrirEmBranco(); render();
-      notifyHist(); notify('STATE_LOADED'); return;
+    if(!cls.candidato){
+      /* [Fase 6 · TK-A-044/TK-A-045 · Q8 regra 3] Ramo terminal. A obra EXISTE e este
+         motor não soube abri-la. O que NÃO acontece aqui: nada é exportado, nada é
+         regravado, nada é removido — os bytes seguem intactos no armazenamento. E,
+         principalmente, NÃO sai 'STATE_LOADED': quem escuta não pode confundir "não
+         abri" com "abri e estava vazia", porque é dessa confusão que nasce o save
+         por cima. A tela transforma este sinal num estado explícito. */
+      selId=null; resetHist(); notifyHist();
+      notify(cls.ramo==='ilegivel'?'LOAD_CORRUPTED':'LOAD_INCOMPATIBLE');
+      return;
     }
+    var d=cls.estado;
     /* [Fase 6 · TK-A-002] A representação é identificada PELO NOME DO EIXO, ANTES
-       dos ramos legados — e os dois ramos legados abaixo (d.v===2 e d.ops)
+       dos ramos legados — e os dois ramos legados abaixo ('v2-legado' e 'ops-legado')
        continuam INTACTOS, porque a ausência de eixo é caminho de leitura de
        primeira classe. O ramo novo NÃO depende de "v": um payload que declara
        'paintSchemaVersion' é lido pelo conjunto de campos que ele declara ter, e
-       não pela marca legada. Isso fecha um caminho real de perda — hoje um
-       payload sem 'v' cairia no 'else' final e voltaria como folha em branco. */
+       não pela marca legada. */
     var axes=classifyAxes(d);
-    if(!axes.paint.legacy){
-      strokes=Array.isArray(d.strokes)?d.strokes:[];
-      stamps=Array.isArray(d.stamps)?d.stamps:[];
-      bgColor=typeof d.bgColor==='string'?d.bgColor:'#FFFDF8';
-    } else if(d.v===2){
-      strokes=Array.isArray(d.strokes)?d.strokes:[];
-      stamps=Array.isArray(d.stamps)?d.stamps:[];
-      bgColor=typeof d.bgColor==='string'?d.bgColor:'#FFFDF8';
-    } else if(Array.isArray(d.ops)){
-      /* Migra formato antigo: só traz strokes, ignora shapes/stamps velhos */
+    if(cls.ramo==='ops-legado'){
+      /* Formato mais antigo: só traz strokes, ignora shapes/stamps velhos */
       strokes=d.ops.filter(function(op){return op&&op.type==='stroke';});
       stamps=[];
       bgColor=typeof d.bgColor==='string'?d.bgColor:'#FFFDF8';
     } else {
-      strokes=[]; stamps=[]; bgColor='#FFFDF8';
+      strokes=Array.isArray(d.strokes)?d.strokes:[];
+      stamps=Array.isArray(d.stamps)?d.stamps:[];
+      bgColor=typeof d.bgColor==='string'?d.bgColor:'#FFFDF8';
     }
     /* Sinal ADITIVO e observável da classificação por eixo (TK-A-002/TK-A-004):
        'paint.legacy' diz que campos esperar, 'layout.legacy' diz como ler as
@@ -706,10 +746,14 @@ window.loadState=function(jsonStr){
     selId=null; resetHist(); render();
     notifyHist(); notify('STATE_LOADED');
   }catch(err){
-    strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist();
-    abrirEmBranco();
-    render();
-    notifyHist(); notify('LOAD_CORRUPTED');
+    /* [Fase 6 · TK-A-044 · Q8 regra 4] Falha inesperada no meio da leitura. Este ramo
+       chamava 'abrirEmBranco()' e zerava 'strokes'/'stamps' — apresentava folha nova
+       para uma obra que existe, e no Ateliê a folha nova é gravada por cima da MESMA
+       arte no primeiro save. O que sobra agora é o mínimo honesto: encerra a seleção e
+       o histórico (não faz sentido desfazer para dentro de uma carga que falhou) e
+       REPORTA. Nada é apagado, truncado ou substituído — nem em memória, nem no disco —
+       e sem 'STATE_LOADED' ninguém confunde "não abri" com "abri e estava vazia". */
+    selId=null; resetHist(); notifyHist(); notify('LOAD_CORRUPTED');
   }
 };
 
@@ -771,7 +815,7 @@ function recordWebViewProcessTermination(origem, detalhe) {
 
 /* ─── Componente React Native ─────────────────────────────────── */
 const AtelierCanvas = forwardRef(function AtelierCanvas(
-  { onReady, onPainted, onPlaced, onStampSelected, onStampDeselected, onLoadCorrupted, onHist },
+  { onReady, onPainted, onPlaced, onStampSelected, onStampDeselected, onLoadCorrupted, onLoadIncompatible, onHist },
   ref,
 ) {
   const webViewRef        = useRef(null);
@@ -871,8 +915,18 @@ const AtelierCanvas = forwardRef(function AtelierCanvas(
         pendingStatsRef.current?.(JSON.parse(msg.slice('STATS:'.length)));
         pendingStatsRef.current = null;
       } catch {}
+    } else if (msg.startsWith('STATE_BRANCH:')) {
+      // [Fase 6 · TK-A-041] O REGISTRO da classificação. Sinal ADITIVO: nenhum fluxo
+      // decide nada por ele — ele existe para que "em que ramo esta obra caiu?" tenha
+      // resposta observável no aparelho, e não só no arnês.
+      if (__DEV__) console.log('[AtelierCanvas] [COMPAT]', msg);
     } else if (msg === 'LOAD_CORRUPTED') {
       onLoadCorrupted?.();
+    } else if (msg === 'LOAD_INCOMPATIBLE') {
+      // [Fase 6 · TK-A-045] Obra que EXISTE e este motor não soube abrir. Os bytes
+      // continuam no disco; quem decide o que mostrar é a tela, e o que ela não pode
+      // mostrar é folha em branco como se a obra não existisse.
+      onLoadIncompatible?.();
     } else if (msg.startsWith('CANVAS_ERROR:')) {
       console.warn('[AtelierCanvas] Erro JS:', msg);
     }
