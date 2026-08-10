@@ -1115,6 +1115,242 @@ async function executarTA12() {
       volta && mesmosPixels(volta.px, pintura), 'a obra mudou entre aberturas');
   }
 
+  /* ── G. G-CMP-6 · IDENTIDADE DO LINEART (TK-A-051 · invariante ZERO #2) ────────────
+     Todo o corpus acima roda com `imgJson: 'null'` — ou seja, SEM lineart. Sem lineart
+     não existe identidade de lineart a conferir, e a verificação de `TK-A-051` nunca é
+     exercida. Esta seção é a única que injeta um lineart REAL no motor, e por isso é a
+     única que pode provar (ou derrubar) `G-CMP-6`.
+
+     O lineart tem 640×480, então o espaço lógico é 640×480 e a razão de referência é
+     4:3. A obra boa (`boaRaster`) declara os eixos e traz um bitmap 64×48 — mesma razão,
+     resolução menor: a reamostragem é uma reampliação uniforme LEGÍTIMA, e precisa
+     continuar entrando. Os casos de recusa mudam a RAZÃO do retângulo salvo, que é o
+     que acontece de fato quando o lineart de uma atividade é trocado por outro desenho. */
+  {
+    const LWfix = 640;
+    const LHfix = 480;
+    const lineart = codificarPixels(LWfix, LHfix, fabricarPintura(LWfix, LHfix, 7), 'image/png');
+    const comLineart = (extra) => bootMotor(RASTER, Object.assign({
+      largura: W, altura: H, overrides: { imgJson: JSON.stringify(lineart) },
+    }, extra || {}));
+    /* Payload LEGADO (sem eixos declarados) que ESCREVE o retângulo do lineart: é o
+       ramo em que `imgX/imgY/imgW/imgH` mandam, exatamente o contrato de `TK-A-051`. */
+    const legadoComRetangulo = (iw, ih) => JSON.stringify({
+      v: 2, W: LWfix, H: LHfix, imgX: 0, imgY: 0, imgW: iw, imgH: ih,
+      data: codificarPixels(LWfix, LHfix, fabricarPintura(LWfix, LHfix, 23), 'image/png'),
+    });
+
+    const mBoa = comLineart();
+    mBoa.janela.loadPaint(boaRaster);
+    ok('12.26 G-CMP-6 · obra na MESMA razão do lineart (4:3, resolução menor) ABRE normalmente',
+      mBoa.tem('PAINT_APPLIED'), mBoa.msgs.join(' | '));
+
+    {
+      const m = comLineart();
+      m.janela.loadPaint(legadoComRetangulo(640, 483));   /* 1,3251 contra 1,3333 = 0,6% */
+      ok('12.27 G-CMP-6 · divergência de ARREDONDAMENTO (0,6%) NÃO é recusa — obra legada legítima abre',
+        m.tem('PAINT_APPLIED'), m.msgs.join(' | '));
+    }
+
+    /* O caso central: retângulo QUADRADO gravado sob um lineart 4:3. Sem a verificação,
+       `drawImage` estica 480 para 640 na horizontal e a tinta entra deformada sobre
+       linhas que não são as dela — estrago silencioso, sem nenhuma mensagem de erro. */
+    const mDiv = comLineart();
+    mDiv.janela.loadPaint(boaRaster);                      /* obra BOA já aberta e viva */
+    mDiv.limpar();
+    mDiv.janela.exportPaint();
+    const tintaAntes = mDiv.ultima('PAINT_EXPORT:');
+    mDiv.limpar();
+    mDiv.janela.loadPaint(legadoComRetangulo(480, 480));   /* 1,0 contra 1,3333 = 25% */
+    const durante = mDiv.msgs.slice(0);
+    ok('12.28 G-CMP-6 · retângulo de OUTRA razão (1:1 sob lineart 4:3) é RECUSADO — a tinta não é composta',
+      !mDiv.tem('PAINT_APPLIED'), mDiv.msgs.join(' | '));
+    ok('12.29 G-CMP-6 · a recusa declara o MOTIVO `identidade-lineart` (distinta de "sem retângulo")',
+      /"motivo":"identidade-lineart"/.test(mDiv.ultima('LOAD_PAINT_ORIGIN:') || ''),
+      `LOAD_PAINT_ORIGIN ausente ou com outro motivo: ${mDiv.ultima('LOAD_PAINT_ORIGIN:')}`);
+    mDiv.limpar();
+    mDiv.janela.exportPaint();
+    ok('12.30 SD-8 · a recusa por identidade NÃO apaga a obra que já estava aberta',
+      tintaAntes && mDiv.ultima('PAINT_EXPORT:') === tintaAntes,
+      'a tinta viva mudou depois de um payload recusado por identidade');
+    ok('12.31 G-CMP-2 · a recusa por identidade não emite NENHUMA saída de bytes',
+      durante.every((s) => !SAIDA_DE_BYTES.some((p) => s.startsWith(p))),
+      `saída de bytes durante a recusa: ${durante.join(' | ')}`);
+
+    /* Os DOIS pontos de entrada precisam concordar (a regra de `TK-A-041`): se
+       `validatePaint` dissesse "pode continuar pintando" e a carga recusasse, a criança
+       veria a oferta e receberia a folha limpa — a divergência é que produz o estrago. */
+    {
+      const m = comLineart();
+      m.janela.validatePaint(legadoComRetangulo(480, 480));
+      ok('12.32 G-CMP-6 · `validatePaint` CONCORDA com a carga e responde `PAINT_INVALID`',
+        m.tem('PAINT_INVALID') && !m.tem('PAINT_VALID'), m.msgs.join(' | '));
+      const m2 = comLineart();
+      m2.janela.validatePaint(boaRaster);
+      ok('12.33 G-CMP-6 · `validatePaint` continua aceitando a obra de razão compatível',
+        m2.tem('PAINT_VALID') && !m2.tem('PAINT_INVALID'), m2.msgs.join(' | '));
+    }
+
+    /* Fronteira que impede a regressão de C-A9: SEM lineart (folha livre) não há
+       identidade a conferir, e a obra pintada em retrato precisa continuar reabrindo em
+       paisagem. Se `G-CMP-6` passasse a valer aqui, ele destruiria justamente o caso que
+       C-A9 existe para salvar. */
+    {
+      const m = bootMotor(RASTER, { largura: W, altura: H });
+      m.janela.loadPaint(JSON.stringify({
+        v: 2, paintSchemaVersion: 1, layoutVersion: 1, logicalW: 48, logicalH: 64,
+        W: 48, H: 64, imgX: 0, imgY: 0, imgW: 48, imgH: 64,
+        data: codificarPixels(48, 64, fabricarPintura(48, 64, 31), 'image/png'),
+      }));
+      ok('12.34 G-CMP-6 · folha livre (sem lineart): razão diferente NÃO é recusada — C-A9 preservado',
+        m.tem('PAINT_APPLIED'), m.msgs.join(' | '));
+    }
+  }
+
+  return { casos, avisos };
+}
+
+/* ═══════════════ TA-13 · write-forward, releitura e rollback (`TK-A-053`) ══════════════
+   Cria `G-CMP-4`: promoção só depois de validar integridade e PROVAR releitura (`Q8`
+   regras 7, 8 e 9). Esta função NÃO prova o portão — quem o prova é `MT-14`
+   (`TK-A-054`), injetado por outra task.
+
+   O que a leitura dirigida `TK-A-096` encontrou, e que muda o que esta prova pode
+   afirmar honestamente: NÃO existe um ponto único de promoção. Existem três cadeias de
+   salvamento, com quatro pontos de promoção, e elas divergem materialmente:
+
+     · `coloring60DrawingStorage.js:581` — o ÚNICO caminho vivo do Colorir. Já implementa
+       o write-forward inteiro: blob no slot INATIVO (double-buffer A/B) → promover →
+       RELER a chave → `confirmPromotion` (identidade, URI e revisão) → `rollback` na
+       divergência → só então descartar o blob antigo. `Q8` r.7-9 SATISFEITAS.
+     · `drawingStorage.js:140` — escritor LEGADO. `TA-13` confirma que ele não tem
+       chamador de runtime: escrever um write-forward aqui seria cerimônia sobre código
+       morto, não proteção da obra de ninguém. O LEITOR do mesmo módulo continua vivo
+       (o Livrinho lê as 199 cenas legadas por `getSavedDrawing`), e por isso o módulo
+       permanece INTOCADO.
+     · `atelierStorage.js:138` e `:146` — DOIS `setItem` não atômicos entre si, blob de
+       preview sobrescrito em caminho determinístico ANTES da promoção, e nenhuma
+       releitura, confirmação ou rollback. É a divergência real, e `atelierStorage.js`
+       não aparece na lista de arquivos de NENHUMA task de `F6-R3`.
+
+   Divisão honesta da prova. Os casos de ORDEM abaixo são propriedade ESTÁTICA lida do
+   fonte — eles fixam a SEQUÊNCIA, que nenhum teste comportamental fixa. A prova
+   COMPORTAMENTAL das mesmas regras já existe e é independente: os 30 cenários `S3` do
+   `scripts/smoke.js` executam o writer REAL com disco e AsyncStorage duplos
+   (`S3 [03]` promoção só depois do blob, `[04]` releitura + confirmação, `[05]` descarte
+   só depois de confirmar, `[07]` rollback, `[21]` interrupção antes da promoção,
+   `[30]` confirmação de endereço). `MT-14` derruba as duas metades ao mesmo tempo. */
+async function executarTA13() {
+  const casos = [];
+  const avisos = [];
+  const ok = (nome, condicao, detalhe = '') => casos.push({ nome, ok: !!condicao, detalhe: condicao ? '' : detalhe });
+
+  const C60 = 'src/services/coloring60DrawingStorage.js';
+  const src = readSrc(C60);
+  const ini = src.indexOf('export async function saveColoring60DrawingState');
+  const corpo = ini >= 0 ? src.slice(ini, src.indexOf('\n}\n', ini)) : '';
+  const at = (agulha) => corpo.indexOf(agulha);
+  const iBlob = at('await writeSlot(');
+  const iPromo = at('await AsyncStorage.setItem(k, toStore)');
+  const iRelê = at('check = await AsyncStorage.getItem(k)');
+  const iConf = at('confirmPromotion(check, toStore');
+  const iDel = at('await deleteBlob(oldUri');
+
+  ok('13.0 G-CMP-4 · o ponto de promoção congelado por `TK-A-096` continua no lugar declarado',
+    corpo.length > 0 && iBlob > 0 && iPromo > 0, `não localizei o corpo de saveColoring60DrawingState em ${C60}`);
+  ok('13.1 G-CMP-4 · `Q8` r.9 [estática] o blob novo é gravado ANTES da promoção do ponteiro',
+    iBlob > 0 && iPromo > iBlob, `writeSlot=${iBlob} promoção=${iPromo}`);
+  ok('13.2 G-CMP-4 · `Q8` r.8 [estática] a chave é RELIDA depois da promoção',
+    iRelê > iPromo, `promoção=${iPromo} releitura=${iRelê}`);
+  ok('13.3 G-CMP-4 · `Q8` r.8 [estática] a releitura é CONFIRMADA (não basta reler: identidade, URI e revisão)',
+    iConf > iRelê && /function confirmPromotion\(/.test(src), `releitura=${iRelê} confirmação=${iConf}`);
+  /* `iConf > 0` explícito: sem ele, remover a confirmação faria `iConf` valer -1 e a
+     comparação passaria VACUAMENTE — o caso ficaria verde justamente no defeito que
+     deveria denunciar. Foi `MT-14` que expôs isso, e é a razão de o mutante existir. */
+  ok('13.4 G-CMP-4 · `Q8` r.7 [estática] o blob ANTIGO só é descartado DEPOIS da confirmação',
+    iConf > 0 && iDel > iConf, `confirmação=${iConf} descarte=${iDel}`);
+  {
+    /* Os DOIS caminhos de falha — `setItem` rejeitado e confirmação divergente — precisam
+       desfazer. Um deles sem rollback deixaria a criança com um ponteiro que não se prova. */
+    const rb = (corpo.match(/await rollbackFailedPromotion\(/g) || []).length;
+    ok('13.5 G-CMP-4 · `Q8` r.9 [estática] os DOIS caminhos de falha da promoção fazem rollback',
+      rb >= 2, `chamadas a rollbackFailedPromotion no corpo: ${rb}`);
+    const rbIni = src.indexOf('async function rollbackFailedPromotion');
+    const rbCorpo = rbIni >= 0 ? src.slice(rbIni, src.indexOf('\n}\n', rbIni)) : '';
+    ok('13.6 G-CMP-4 · `Q8` r.9 [estática] o rollback RESTAURA o anterior antes de descartar o blob novo',
+      rbCorpo.indexOf('setItem') > 0 && (rbCorpo.indexOf('deleteBlob') < 0
+        || rbCorpo.indexOf('setItem') < rbCorpo.indexOf('deleteBlob')),
+      'o rollback descarta o blob novo antes de devolver a chave ao estado anterior');
+  }
+
+  /* ── O escritor legado: registrado, não "consertado" ───────────────────────────────── */
+  {
+    const alvos = [];
+    (function andar(dir) {
+      for (const nome of fs.readdirSync(path.join(ROOT, dir))) {
+        const rel = `${dir}/${nome}`;
+        if (fs.statSync(path.join(ROOT, rel)).isDirectory()) andar(rel);
+        else if (nome.endsWith('.js')) alvos.push(rel);
+      }
+    })('src');
+    const citantes = alvos.filter((rel) => rel !== 'src/services/drawingStorage.js'
+      && /\bsaveDrawingState\s*\(/.test(readSrc(rel)));
+    ok('13.7 `TK-A-096` · o escritor legado `saveDrawingState` NÃO tem chamador de runtime',
+      citantes.length === 0, `chamadores encontrados: ${citantes.join(', ')}`);
+    const leitores = alvos.filter((rel) => rel !== 'src/services/drawingStorage.js'
+      && /\bgetSavedDrawing\s*\(/.test(readSrc(rel)));
+    ok('13.8 `Q8` r.11 · o LEITOR legado continua vivo — o módulo não pode ser tocado nem removido',
+      leitores.length >= 1, 'nenhum leitor de getSavedDrawing: a premissa de compatibilidade mudou');
+  }
+
+  /* ── Ateliê: o que HOJE segura `SD-8`, e o que falta ───────────────────────────────── */
+  {
+    const AT = 'src/services/atelierStorage.js';
+    const aSrc = readSrc(AT);
+    const aIni = aSrc.indexOf('export async function saveArt(');
+    const aCorpo = aIni >= 0 ? aSrc.slice(aIni, aSrc.indexOf('\n}\n', aIni)) : '';
+    /* Esta é a asserção que importa para `SD-8`, e ela continua verdadeira mesmo depois
+       de um eventual write-forward: `stateJson` — a obra de verdade — viaja num ÚNICO
+       `setItem` por chave. `setItem` é atômico por chave, então uma falha ou uma
+       interrupção deixa o valor ANTERIOR vigente. Nenhuma leitura-modificação-escrita
+       sobre a obra; nenhum caminho apaga `artKey(id)` durante o salvamento. */
+    const gravacoesDaObra = (aCorpo.match(/setItem\(artKey\(/g) || []).length;
+    ok('13.9 SD-8 · [Ateliê] a obra (`stateJson`) viaja num ÚNICO `setItem` por chave — falha deixa a anterior vigente',
+      gravacoesDaObra === 1 && !/removeItem\(artKey\(/.test(aCorpo),
+      `gravações de artKey no salvamento: ${gravacoesDaObra}`);
+    const temReleitura = /getItem\(artKey\(/.test(aCorpo);
+    const temRollback = /rollback/i.test(aCorpo);
+    if (!temReleitura || !temRollback) {
+      avisos.push('DÍVIDA (TK-A-096 · desvio registrado) · `atelierStorage.saveArt` NÃO implementa o write-forward '
+        + 'de `Q8` r.7-9: são DOIS `setItem` não atômicos entre si (obra em `:138`, índice em `:146`), o blob de '
+        + 'preview é sobrescrito em caminho determinístico ANTES da promoção, e não há releitura, confirmação nem '
+        + 'rollback. Severidade avaliada: MÉDIA, não `SD-8` — o caso 13.9 prova que a obra da criança não é '
+        + 'destruída por falha nem por interrupção; o que se perde numa interrupção é coerência de preview/índice, '
+        + 'que é derivada e recuperável. NÃO corrigido nesta fase: `atelierStorage.js` não consta da lista de '
+        + 'arquivos de NENHUMA task de `F6-R3` (`TK-A-049` nomeia `drawingStorage.js`, que é o escritor MORTO). '
+        + 'Exige decisão do fundador antes de qualquer alteração.');
+    }
+  }
+
+  /* ── O único caso COMPORTAMENTAL: a ida-e-volta real não perde a obra ─────────────── */
+  {
+    const pintura = fabricarPintura(W, H, 71);
+    const payload = JSON.stringify({
+      v: 2, paintSchemaVersion: 1, layoutVersion: 1, logicalW: W, logicalH: H,
+      W, H, imgX: 0, imgY: 0, imgW: W, imgH: H, data: codificarPixels(W, H, pintura, 'image/png'),
+    });
+    const ptr = carregarPonteiroReal();
+    const ponteiro = await ptr.buildPointer('ta13.png', payload);
+    const resolvido = await ptr.resolvePointer(ponteiro);
+    const m = bootMotor(RASTER, { largura: W, altura: H });
+    m.janela.loadPaint(resolvido);
+    m.limpar();
+    m.janela.exportPaint();
+    const volta = decodificarPixels(JSON.parse(m.ultima('PAINT_EXPORT:') || '{}').data || '');
+    ok('13.10 `Q8` r.9 [comportamental] a obra sobrevive à ida-e-volta pelo ponteiro REAL, píxel a píxel',
+      volta && mesmosPixels(volta.px, pintura), 'a promoção pelo ponteiro alterou a obra');
+  }
+
   return { casos, avisos };
 }
 
@@ -1127,8 +1363,9 @@ async function main() {
     const sincrono = executarTA11();
     const assincrono = await executarTA11Ponteiro();
     const compat = await executarTA12();
-    casos = sincrono.casos.concat(assincrono.casos, compat.casos);
-    avisos = sincrono.avisos.concat(assincrono.avisos, compat.avisos);
+    const wf = await executarTA13();
+    casos = sincrono.casos.concat(assincrono.casos, compat.casos, wf.casos);
+    avisos = sincrono.avisos.concat(assincrono.avisos, compat.avisos, wf.avisos);
   } catch (err) {
     console.error(`\n✖ TA-11 abortou: ${err && err.message}`);
     console.error(err && err.stack);
@@ -1136,13 +1373,13 @@ async function main() {
     return;
   }
 
-  console.log('\n── TA-11 (quatro eixos) + TA-12 (compatibilidade somente leitura) ──\n');
+  console.log('\n── TA-11 (quatro eixos) + TA-12 (compatibilidade) + TA-13 (write-forward) ──\n');
   let falhas = 0;
   for (const c of casos) {
     if (c.ok) { console.log(`  ✓ ${c.nome}`); } else { falhas++; console.log(`  ✖ ${c.nome}\n      ${c.detalhe}`); }
   }
   for (const a of avisos) console.log(`\n  ⚠ ${a}`);
-  console.log(`\n── TA-11+TA-12: ${casos.length - falhas}/${casos.length} casos verdes, ${falhas} vermelhos ──\n`);
+  console.log(`\n── TA-11+TA-12+TA-13: ${casos.length - falhas}/${casos.length} casos verdes, ${falhas} vermelhos ──\n`);
   process.exit(falhas === 0 ? 0 : 1);
 }
 
@@ -1152,6 +1389,7 @@ module.exports = {
   executarTA11,
   executarTA11Ponteiro,
   executarTA12,
+  executarTA13,
   ramosDeclarados,
   bootMotor,
   loadModule,

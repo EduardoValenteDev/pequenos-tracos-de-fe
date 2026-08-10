@@ -51375,6 +51375,47 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
   }
 
   /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.5 · TK-A-053 — `TA-13` cria **`G-CMP-4`**: a promoção de uma
+   * representação nova só acontece depois de validar integridade e PROVAR releitura
+   * (`Q8` regras 7, 8 e 9). A task CRIA o portão; quem o prova é `MT-14`
+   * (`TK-A-054`), injetado por outra task — nenhum portão prova a si próprio.
+   *
+   * O que a leitura dirigida `TK-A-096` mudou nesta prova. Ela foi executada como
+   * precondição obrigatória de `C-A11` e encontrou o oposto do que as TASKS supunham:
+   * **não existe ponto único de promoção**. São três cadeias e quatro pontos, e eles
+   * divergem. O caminho VIVO do Colorir (`coloring60DrawingStorage.js:581`) já
+   * implementa o write-forward inteiro — gravar no slot inativo, promover, RELER,
+   * confirmar identidade/URI/revisão, fazer rollback na divergência e só então
+   * descartar o blob anterior. O escritor que `TK-A-049` nomeia
+   * (`drawingStorage.saveDrawingState`) não tem chamador de runtime (caso 13.7); só o
+   * seu LEITOR continua vivo, no Livrinho (caso 13.8). Por isso `TK-A-048`/`049`/`050`
+   * se resolvem aqui como VERIFICAÇÃO, e não como reescrita: a mudança que eles pedem
+   * já é o comportamento vigente do único escritor que a criança alcança, e escrevê-la
+   * de novo no escritor morto seria cerimônia sobre código que ninguém executa.
+   *
+   * Divisão honesta: os casos de ORDEM de `TA-13` são propriedade ESTÁTICA — fixam a
+   * SEQUÊNCIA, que nenhum teste comportamental fixa. A prova COMPORTAMENTAL das mesmas
+   * regras é independente e já existe: os 30 cenários `S3` deste arquivo executam o
+   * writer REAL contra AsyncStorage e disco duplos. `MT-14` derruba as duas metades.
+   *
+   * O desvio que sobra está REGISTRADO como aviso, não corrigido: `atelierStorage.js`
+   * não implementa write-forward e não consta da lista de arquivos de nenhuma task de
+   * `F6-R3`. O caso 13.9 mede o que hoje segura `SD-8` naquela cadeia — a obra viaja
+   * num único `setItem` por chave, e `setItem` é atômico por chave, então falha e
+   * interrupção deixam a obra ANTERIOR vigente. Alterar aquele arquivo exige decisão
+   * do fundador. ────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-053: TA-13 · G-CMP-4 (write-forward, releitura, rollback) ──');
+
+  const { executarTA13 } = require('./testing/artworkVersionHarness');
+  const a53 = await executarTA13();
+  for (const caso of a53.casos) {
+    check(`TA-13 · ${caso.nome}`, caso.ok, caso.detalhe);
+  }
+  for (const aviso of a53.avisos) {
+    console.log(`  ⚠ ${aviso}`);
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
    * Fase 6 · F6-R3.5 · TK-A-043 — `CN-13` (§2.4.1-d): nenhuma migração silenciosa
    * em massa. Esta task é uma **asserção de ausência**: a mudança esperada nela é
    * NENHUMA. O risco que ela cobre é o oposto do defeito comum — não é o código

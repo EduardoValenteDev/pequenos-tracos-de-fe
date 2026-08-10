@@ -797,7 +797,7 @@ function classificarPayload(jsonStr){
    sob pena de "obra recuperável aberta como canvas vazio" (SD-8). O leitor de
    compatibilidade completo — corpus, vereditos por caso e TA-12 — permanece em
    'C-A10' e não é antecipado aqui. */
-function retanguloDeOrigem(p,bmpW,bmpH){
+function origemBruta(p,bmpW,bmpH){
   if(!(bmpW>0&&bmpH>0))return null;
   var lw=Number(p&&p.logicalW), lh=Number(p&&p.logicalH);
   if(isFinite(lw)&&lw>0&&isFinite(lh)&&lh>0)return{x:0,y:0,w:bmpW,h:bmpH};
@@ -815,6 +815,59 @@ function retanguloDeOrigem(p,bmpW,bmpH){
   /* Folha livre (Ateliê raster): não há lineart, o bitmap é a obra inteira. */
   if(!lineArtImg)return{x:0,y:0,w:bmpW,h:bmpH};
   return colocacaoHistorica(bmpW,bmpH,lineArtImg.naturalWidth,lineArtImg.naturalHeight);
+}
+
+/* ─── [Fase 6 · F6-R3.5 · TK-A-051 · Q8 regra 10 · invariante ZERO #2] ───────────
+   IDENTIDADE DO LINEART. A carga termina em uma reamostragem única que leva o
+   retângulo de origem ao espaço lógico de hoje ('drawImage(...,0,0,LW,LH)'). Essa
+   conta assume, sem nunca ter conferido, que o retângulo salvo e o espaço lógico de
+   agora descrevem O MESMO desenho. Se o lineart da atividade for substituído por
+   outro de proporção diferente, a mesma linha deixa de ser uma reampliação e vira um
+   ESTICAMENTO não uniforme: a tinta da criança entra deformada e desalinhada sobre
+   linhas que não são as dela. É a segunda invariante ZERO — tinta associada ao
+   lineart errado — e ela não se manifesta como erro, e sim como obra estragada.
+
+   O que se verifica é a PROPORÇÃO, porque é a única identidade que sobrevive: a
+   volta pelo ponteiro v3 preserva 'W'/'H'/'imgX'…'imgH' (whitelist do envelope) e
+   descarta qualquer campo extra do payload, de modo que gravar um identificador
+   textual do lineart junto do payload sobreviveria apenas nos saves inline. Por isso
+   'TK-A-051' nomeia justamente 'imgX/imgY/imgW/imgH' como o contrato: o retângulo
+   ESCRITO é o registro fiel da geometria do lineart no momento em que a criança
+   pintou.
+
+   Tolerância: 'imgW'/'imgH' nasceram de 'Math.round(LW*dS)', com erro de até meio
+   pixel em cada dimensão; num retângulo de algumas centenas de píxeis isso é erro
+   relativo abaixo de 1% na razão. 2% dá folga sobre o arredondamento e continua uma
+   ordem de grandeza abaixo de qualquer troca real de arte (4:5 contra 1:1 já são
+   25%). LIMITE HONESTO E REGISTRADO: isto reconhece a substituição por arte de
+   proporção diferente, NÃO um redesenho na mesma proporção — para esse caso não
+   existe evidência nos bytes que sobrevivem ao ponteiro.
+
+   Recusar é SEGURO e não destrói: devolver null cai no ramo terminal que não aplica,
+   não exporta, não regrava e não remove (Q8 regra 3), e a tela mostra o aviso de
+   'TK-A-045'. Os bytes antigos continuam exatamente onde estavam.
+
+   Duas fronteiras deliberadas, ambas para não regredir C-A9:
+     · sem lineart (folha livre) NÃO há identidade de lineart a conferir — e ali o
+       espaço lógico vem da janela ('definirEspacoLogico(W,H)'), de modo que conferir
+       proporção recusaria justamente o caso que C-A9 existe para salvar (pintar em
+       retrato, reabrir em paisagem);
+     · com lineart, 'LW'/'LH' derivam do tamanho natural da arte e são INVARIANTES à
+       orientação do aparelho — girar o tablet nunca aciona esta recusa. */
+var TOL_ASPECTO_LINEART=0.02;
+var motivoSemOrigem='';
+function identidadeDoLineartConfere(org){
+  if(!lineArtImg)return true;
+  if(!(LW>0&&LH>0))return true;
+  if(!(org.w>0&&org.h>0))return false;
+  return Math.abs((org.w/org.h)-(LW/LH))<=TOL_ASPECTO_LINEART*(LW/LH);
+}
+function retanguloDeOrigem(p,bmpW,bmpH){
+  var org=origemBruta(p,bmpW,bmpH);
+  if(!org){motivoSemOrigem='sem-retangulo';return null;}
+  if(!identidadeDoLineartConfere(org)){motivoSemOrigem='identidade-lineart';return null;}
+  motivoSemOrigem='';
+  return org;
 }
 
 /* Validação REAL do desenho salvo, SEM aplicar tinta. Confirma que o payload
@@ -960,6 +1013,11 @@ window.loadPaint=function(jsonStr){
         var org=retanguloDeOrigem(payload,img.naturalWidth,img.naturalHeight);
         if(!org){
           devLog('[COLORING_STATE] sem retangulo de origem — nada aplicado, nada apagado W_saved='+savedW+' H_saved='+savedH+' bmp='+img.naturalWidth+'x'+img.naturalHeight);
+          /* [TK-A-051] Sinal ADITIVO com o MOTIVO. 'LOAD_PAINT_INCOMPATIBLE' continua
+             idêntico para quem já o consome; sem esta linha, "não sei de onde recortar"
+             e "esta tinta é de outro desenho" chegariam iguais a quem observa — e é
+             justamente a segunda que 'G-CMP-6' precisa poder ver. */
+          window.ReactNativeWebView.postMessage('LOAD_PAINT_ORIGIN:'+JSON.stringify({motivo:motivoSemOrigem}));
           window.ReactNativeWebView.postMessage('LOAD_PAINT_INCOMPATIBLE');
           return;
         }
