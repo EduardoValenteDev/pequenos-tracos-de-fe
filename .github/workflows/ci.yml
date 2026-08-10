@@ -1,8 +1,18 @@
 name: CI
 
 # Gates de qualidade agnósticos de agente (Claude Code, Codex e outros).
+# bundle:check = gate DURO (bundleabilidade: o grafo executável a partir de index.js
+#   transforma e serializa sem erro). Roda ANTES do smoke para falhar cedo em árvore
+#   inbundlável. Sem rede, sem build nativo, sem credencial.
 # smoke = gate DURO (node puro, determinístico, sem rede).
 # expo-doctor = informativo no início (toca a rede): continue-on-error.
+#
+# Os dois gates duros vivem no MESMO job `smoke` de propósito: esse é o nome do
+# required status check já configurado. Separá-los criaria um check novo, não exigido
+# pela proteção de branch — ou seja, bundleabilidade poderia falhar em silêncio.
+# Ver specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/09_*.md (incidente
+# BOOT/BUNDLE BLOCKED): o smoke ficou 4854/4854 verde sobre uma árvore que o Metro
+# não conseguia empacotar.
 #
 # concurrency: cancela execuções ANTIGAS/duplicadas do MESMO ref (PR ou branch),
 # evitando dois check-runs "smoke" concorrentes no mesmo commit (estabiliza o
@@ -30,7 +40,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run smoke
+      - name: bundle:check (gate DURO — bundleabilidade)
+        run: npm run bundle:check
+      - name: smoke (gate DURO)
+        run: npm run smoke
 
   expo-doctor:
     name: expo-doctor (informativo)
