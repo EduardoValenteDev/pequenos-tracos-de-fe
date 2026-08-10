@@ -8,6 +8,7 @@
  *   STAMP_SEL:{...}       Carimbo selecionado (id,emoji,label,size)
  *   STAMP_DESEL           Carimbo desselecionado
  *   STATE_EXPORT:{...}    stateJson + thumbnailBase64 + previewBase64
+ *   STATE_AXES:{...}      Classificação dos eixos + espaço lógico em que a obra foi lida
  *   LOAD_CORRUPTED        JSON inválido ao carregar
  *   CANVAS_ERROR:{...}    Erro JS interno
  *
@@ -21,6 +22,7 @@
  *   window.clearPending()
  *   window.resizeSelectedStamp(delta)  -- delta em px
  *   window.deleteSelectedStamp()
+ *   window.commitGesture()
  *   window.undo()
  *   window.clearAll()
  *   window.exportState()
@@ -88,7 +90,51 @@ function notify(msg){
 
 var C=document.getElementById('C');
 var ctx=C.getContext('2d');
+/* TELA: a janela de AGORA, nesta orientação, neste tamanho de painel. Muda o tempo
+   todo e NUNCA é persistida. */
 var W=0,H=0;
+
+/* ── [Fase 6 · F6-R3.5 · TK-A-034] ESPAÇO LÓGICO DA OBRA ───────────────────────────
+   LÓGICO: o espaço em que a obra é MODELADA e ARMAZENADA. Não muda quando a janela
+   muda. É a ÚNICA coordenada que pode ser persistida.
+
+   Antes deste bloco, `strokes` e `stamps` guardavam PÍXEL DE TELA: `resize()` redefinia
+   W/H e o modelo continuava com os números da janela anterior. Girar o aparelho, abrir
+   Split View ou arrastar o divisor deixava o traço da criança deslocado — e, na direção
+   apertada, fora da tela. Era o `F6-CVS-01`.
+
+   Agora nenhum ponto do modelo carrega píxel de dispositivo: a tela é obtida por
+   projeção `contain` (`pS`/`pX`/`pY`), a mesma conta canônica de `useViewportProjection`
+   (`TK-A-030`/`TK-A-032`) — `scale = min(w/W, h/H)`, um fator só, isotrópico, sobra
+   centralizada nos dois eixos.
+
+   ⚠️ Q8 regra 4: `logicalW`/`logicalH` pertencem ao ESPAÇO LÓGICO HISTÓRICO da obra,
+   nunca à viewport atual. Q8 regra 7: abrir não migra. Q8 regra 8: representação nova só
+   no PRÓXIMO SAVE EXPLÍCITO da criança. Por isso `espacoTravado` é uma trava de mão
+   única: enquanto a folha está genuinamente em branco a janela pode ser adotada (folha
+   vazia não tem geometria a preservar, e adotar evita moldura inútil); a partir do
+   primeiro conteúdo ou do primeiro carregamento de obra o espaço lógico é IMUTÁVEL.
+   Reatribuí-lo depois disso seria exatamente a corrupção que este bloco existe para
+   impedir (`SD-8`). */
+var LW=0,LH=0;
+var pS=1,pX=0,pY=0;
+var espacoTravado=false;
+/* Cor da moldura = o mesmo papel do `body`. A sobra é superfície, não obra. */
+var FRAME_COLOR='#FFFDF8';
+
+function adotarEspacoLogico(){
+  if(W>0&&H>0){ LW=W; LH=H; }
+}
+function reprojetar(){
+  if(!(LW>0&&LH>0&&W>0&&H>0)){ pS=1; pX=0; pY=0; return; }
+  pS=Math.min(W/LW,H/LH);
+  pX=(W-LW*pS)/2;
+  pY=(H-LH*pS)/2;
+}
+/* Uma casa decimal: em janela menor que o espaço lógico (pS<1) o inteiro lógico já é
+   mais fino que o píxel; em janela maior (pS>1) o inteiro seria grosso. Uma casa cobre
+   os dois lados sem inchar o JSON da obra. */
+function q(n){ return Math.round(n*10)/10; }
 
 /* [Fase 6 · TK-A-001] Eixos de versionamento, injetados do módulo RN (fonte única
    no topo deste arquivo). CANVAS_PAYLOAD_V é o campo "v" congelado em 2. */
@@ -150,6 +196,10 @@ function isEmptyState(){ return strokes.length===0 && stamps.length===0; }
 /* Chamar ANTES de uma ação que muda o conteúdo: empilha o estado atual e limpa o futuro
    (um novo traço depois de Desfazer descarta o Refazer). */
 function commit(){
+  /* [TK-A-034] Trava de mão única do espaço lógico. `commit` antecede TODA mutação de
+     conteúdo (traço, carimbo, fundo, apagar tudo), então é o ponto exato em que a folha
+     deixa de estar em branco. Daqui em diante `resize` não pode mais redefinir LW/LH. */
+  espacoTravado=true;
   try{
     past.push(snap());
     if(past.length>HIST_LIMIT) past.shift();
@@ -165,17 +215,40 @@ function notifyHist(){
   }));
 }
 
-/* ── Renderização ── */
-function render(){
-  ctx.clearRect(0,0,W,H);
-  ctx.fillStyle=bgColor;
-  ctx.fillRect(0,0,W,H);
-  for(var i=0;i<strokes.length;i++) drawStroke(strokes[i]);
-  for(var j=0;j<stamps.length;j++) drawStamp(stamps[j],stamps[j].id===selId);
-  if(curStroke) drawStroke(curStroke);
+/* ── Renderização ────────────────────────────────────────────────────────────────
+   [Fase 6 · TK-A-034] `paintInto` desenha O MODELO em QUALQUER destino, com a projeção
+   passada por parâmetro. A tela usa a projeção da janela de agora; a exportação usa a
+   identidade no espaço lógico. Um caminho de desenho só: a imagem salva não pode
+   divergir da imagem vista porque as duas nascem do mesmo código sobre os mesmos dados.
+
+   [TK-A-033] A MOLDURA (letterbox) é INERTE: `clip` ao retângulo lógico garante que
+   nenhum píxel de traço a alcance, seja qual for a coordenada — a garantia é do
+   recorte, não da aritmética do toque. */
+function paintInto(g,sc,ox,oy,comSel,comMoldura){
+  g.setTransform(1,0,0,1,0,0);
+  g.clearRect(0,0,g.canvas.width,g.canvas.height);
+  if(comMoldura){
+    /* Faixa de sobra: fundo do papel, sem obra. Não é área pintável. */
+    g.fillStyle=FRAME_COLOR;
+    g.fillRect(0,0,g.canvas.width,g.canvas.height);
+  }
+  g.save();
+  g.beginPath();
+  g.rect(ox,oy,LW*sc,LH*sc);
+  g.clip();
+  g.setTransform(sc,0,0,sc,ox,oy);
+  g.fillStyle=bgColor;
+  g.fillRect(0,0,LW,LH);
+  for(var i=0;i<strokes.length;i++) drawStroke(g,strokes[i]);
+  for(var j=0;j<stamps.length;j++) drawStamp(g,stamps[j],comSel&&stamps[j].id===selId);
+  if(curStroke) drawStroke(g,curStroke);
+  g.restore();
+  g.setTransform(1,0,0,1,0,0);
 }
 
-function drawStroke(s){
+function render(){ paintInto(ctx,pS,pX,pY,true,true); }
+
+function drawStroke(ctx,s){
   if(!s||!s.points||s.points.length===0) return;
   ctx.save();
   ctx.globalCompositeOperation=s.eraser?'destination-out':'source-over';
@@ -197,7 +270,7 @@ function drawStroke(s){
   ctx.restore();
 }
 
-function drawStamp(s,sel){
+function drawStamp(ctx,s,sel){
   ctx.save();
   ctx.globalCompositeOperation='source-over';
   ctx.font=s.size+'px serif';
@@ -260,16 +333,64 @@ function doSelect(id){
   render();
 }
 
+/* ── [Fase 6 · TK-A-033/TK-A-034] TOQUE: TELA → LÓGICO ───────────────────────────────
+   O toque nasce em píxel de tela e é registrado em coordenada LÓGICA, na mesma volta —
+   nenhum ponto de dispositivo entra no modelo.
+
+   POLÍTICA DA MOLDURA, determinística e a MESMA que o motor raster deve seguir (`C-A9`):
+     · gesto que COMEÇA na moldura é IGNORADO — ali não há papel, e um traço que aparece
+       fora da folha ensina à criança uma borda que não existe;
+     · gesto que começa DENTRO e passa por cima da moldura é FIXADO À BORDA LÓGICA — o
+       traço em andamento não pode ser perdido no meio por causa de onde o dedo passou.
+   `dentro` carrega a distinção; quem chama decide qual das duas regras aplicar. */
 function getP(t){
   var r=C.getBoundingClientRect();
-  return{x:(t.clientX-r.left)|0,y:(t.clientY-r.top)|0};
+  return{x:t.clientX-r.left,y:t.clientY-r.top};
+}
+function getL(t){
+  var p=getP(t);
+  if(!(pS>0)) return {x:0,y:0,dentro:false};
+  var x=(p.x-pX)/pS, y=(p.y-pY)/pS;
+  return {
+    x:q(Math.max(0,Math.min(LW,x))),
+    y:q(Math.max(0,Math.min(LH,y))),
+    dentro:(x>=0&&x<=LW&&y>=0&&y<=LH),
+  };
+}
+
+/* ── [Fase 6 · F6-R3.5 · TK-A-016] FECHAMENTO ATÔMICO DO GESTO ───────────────────────
+   Chamado ANTES de qualquer reprojeção (mudança de viewport) e ao ir para segundo
+   plano. O gesto em voo é comitado NO MODELO — inteiro ou não comitado — e só então a
+   geometria muda. Sem isto, o traço em andamento teria os primeiros pontos numa
+   projeção e os últimos noutra: uma única linha da criança partida ao meio, com um
+   degrau no lugar da curva. Devolve `true` quando havia gesto a fechar. */
+function finalizarGestoAtomico(){
+  var fechou=false;
+  if(dragging){
+    dragging=false;
+    fechou=true;
+  }
+  if(drawing&&curStroke){
+    var tinha=curStroke.points.length>0;
+    if(tinha){
+      commit();
+      strokes.push(curStroke);
+      notify('PAINTED');
+    }
+    curStroke=null;
+    drawing=false;
+    if(tinha){ fechou=true; bump(); }
+  }
+  return fechou;
 }
 
 /* ── Eventos de toque ── */
 C.addEventListener('touchstart',function(e){
   e.preventDefault();
   if(e.touches.length!==1) return;
-  var p=getP(e.touches[0]);
+  var p=getL(e.touches[0]);
+  /* [TK-A-033] Gesto que NASCE na moldura não existe: ali não há papel. */
+  if(!p.dentro) return;
 
   /* 1. Colocar carimbo pendente (legado: só se o RN pedir; a UI nova não pede) */
   if(pendingStamp){
@@ -315,14 +436,17 @@ C.addEventListener('touchstart',function(e){
 C.addEventListener('touchmove',function(e){
   e.preventDefault();
   if(e.touches.length!==1) return;
-  var p=getP(e.touches[0]);
+  /* [TK-A-033] Gesto JÁ EM ANDAMENTO: a moldura não interrompe — o ponto é fixado à
+     borda lógica (`getL` já clampa) e o traço continua. */
+  var p=getL(e.touches[0]);
 
   if(dragging&&selId){
     for(var i=0;i<stamps.length;i++){
       if(stamps[i].id===selId){
         var s=stamps[i];
-        s.x=Math.max(s.size/2,Math.min(W-s.size/2,dragOrigX+(p.x-dragStartX)));
-        s.y=Math.max(s.size/2,Math.min(H-s.size/2,dragOrigY+(p.y-dragStartY)));
+        /* Limites do CARIMBO no espaço LÓGICO da obra — nunca na janela de agora. */
+        s.x=q(Math.max(s.size/2,Math.min(LW-s.size/2,dragOrigX+(p.x-dragStartX))));
+        s.y=q(Math.max(s.size/2,Math.min(LH-s.size/2,dragOrigY+(p.y-dragStartY))));
         break;
       }
     }
@@ -353,15 +477,10 @@ C.addEventListener('touchend',function(e){
     dragging=false;
     return;
   }
-  if(drawing&&curStroke){
-    commit();
-    strokes.push(curStroke);
-    curStroke=null;
-    drawing=false;
-    notify('PAINTED');
-    render();
-    bump();
-  }
+  /* [TK-A-016] O dedo levantado e a mudança de viewport fecham o gesto pelo MESMO
+     caminho. Dois caminhos de fechamento divergiriam com o tempo, e a divergência
+     apareceria justamente no caso raro — o gesto interrompido por uma rotação. */
+  if(finalizarGestoAtomico()) render();
 },{passive:false});
 
 /* ── API exposta ao React Native ── */
@@ -424,10 +543,23 @@ window.clearAll=function(){
   notify('STAMP_DESEL'); render(); notify('CLEARED'); bump();
 };
 window.isEmpty=function(){ return isEmptyState(); };
+/* [Fase 6 · TK-A-016] Fecha o gesto em voo por ordem do RN — usado quando a superfície
+   vai para segundo plano. NÃO grava, NÃO exporta e NÃO descarta: só transforma "traço
+   em andamento" em "traço no modelo". Um gesto em voo quando o processo de conteúdo é
+   encerrado seria pixel infantil perdido; comitá-lo no modelo é o que o torna
+   recuperável. Idempotente: sem gesto em voo, não faz nada. */
+window.commitGesture=function(){
+  if(finalizarGestoAtomico()) render();
+};
 /* Diagnóstico do Modo Criador (§20). Puro relatório; não muda estado. */
 window.getStats=function(){
   notify('STATS:'+JSON.stringify({
-    W:W,H:H,strokes:strokes.length,stamps:stamps.length,
+    W:W,H:H,
+    /* [TK-A-034] O diagnóstico distingue os DOIS espaços por nome. Ver `W:H` sozinho
+       não diz se a obra está no lugar certo; ver `LW:LH` com a projeção, sim. */
+    LW:LW,LH:LH,espacoTravado:espacoTravado,
+    scale:pS,offX:pX,offY:pY,
+    strokes:strokes.length,stamps:stamps.length,
     past:past.length,future:future.length,rev:rev,
     tool:tool,color:curColor,brush:brushSz,eraser:eraserSz,empty:isEmptyState()
   }));
@@ -442,12 +574,20 @@ window.exportState=function(){
        preenchido com bgColor + C desenhado por cima. Assim a area apagada
        exporta como o fundo, nunca como preto. O render ao vivo e os strokes
        (stateJson) ficam intactos. */
+    /* [Fase 6 · TK-A-034] A imagem sai no ESPAÇO LÓGICO, redesenhada do MODELO em 1:1 —
+       nunca reamostrada do buffer de tela. Reamostrar da tela gravaria a moldura desta
+       janela dentro da obra e traria a perda de resolução da projeção de agora; a obra
+       salva ficaria refém da orientação em que a criança apertou "salvar". */
+    var fw=Math.max(1,Math.round(LW)), fh=Math.max(1,Math.round(LH));
+    var art=document.createElement('canvas');
+    art.width=fw; art.height=fh;
+    paintInto(art.getContext('2d'),1,0,0,false,false);
     var flat=document.createElement('canvas');
-    flat.width=W; flat.height=H;
+    flat.width=fw; flat.height=fh;
     var fctx=flat.getContext('2d');
-    fctx.fillStyle=bgColor; fctx.fillRect(0,0,W,H);
-    fctx.drawImage(C,0,0);
-    var tw=300,th=Math.round(300*H/W)||300;
+    fctx.fillStyle=bgColor; fctx.fillRect(0,0,fw,fh);
+    fctx.drawImage(art,0,0);
+    var tw=300,th=Math.round(300*fh/fw)||300;
     var tb=document.createElement('canvas');
     tb.width=tw; tb.height=th;
     tb.getContext('2d').drawImage(flat,0,0,tw,th);
@@ -457,8 +597,14 @@ window.exportState=function(){
        permanece CANVAS_PAYLOAD_V (2) — nunca 3 (ver TK-A-001). Adição estritamente
        aditiva: todos os campos que já existiam continuam presentes e um leitor
        antigo ignora os campos novos sem quebrar. */
+    /* [Fase 6 · TK-A-034 · G-CVS-2] `logicalW`/`logicalH` são DECLARADOS: sem eles, a
+       obra guardaria coordenadas cujo significado ninguém conhece, e a próxima abertura
+       teria de ADIVINHAR o espaço. É a declaração — e não a janela de quem abre — que
+       define onde o traço está. Q8 regra 8: isto só é gravado no SAVE EXPLÍCITO da
+       criança; abrir uma obra antiga jamais chega aqui. */
     var st=JSON.stringify({v:CANVAS_PAYLOAD_V,
       paintSchemaVersion:PAINT_SCHEMA_VERSION,layoutVersion:LAYOUT_VERSION,
+      logicalW:LW,logicalH:LH,
       strokes:strokes,stamps:stamps,bgColor:bgColor});
     notify('STATE_EXPORT:'+JSON.stringify({stateJson:st,thumbnailBase64:thumbData,previewBase64:previewData}));
     selId=prevSel;
@@ -468,15 +614,51 @@ window.exportState=function(){
 };
 /* Zera o histórico e a revisão — o estado recém-carregado é a base "salva". */
 function resetHist(){ past=[]; future=[]; rev=0; }
+
+/* Folha nova/vazia: sem obra não há geometria histórica a respeitar. A janela é adotada
+   e a trava volta a ficar aberta, para que girar ANTES do primeiro traço dê à criança a
+   folha inteira em vez de uma moldura sem motivo. */
+function abrirEmBranco(){
+  espacoTravado=false;
+  adotarEspacoLogico();
+  reprojetar();
+}
+
+/* ── [Fase 6 · TK-A-034 · Q8 regras 2, 4, 6, 7, 8] ESPAÇO LÓGICO AO ABRIR ────────────
+   Abrir é ESTRITAMENTE SOMENTE LEITURA. Esta função escolhe COMO INTERPRETAR os números
+   que já estão gravados; ela não regrava, não migra, não converte e não descarta nada.
+
+   1. Obra que DECLARA `logicalW`/`logicalH`: a declaração manda. Ela pertence ao espaço
+      lógico HISTÓRICO da obra e não à janela de quem está abrindo (Q8 regra 4). Uma obra
+      feita em retrato aberta em paisagem aparece INTEIRA, com moldura — nunca esticada,
+      nunca cortada.
+   2. Obra LEGADA, sem declaração: o `stateJson` antigo não guardava o espaço. A
+      reconstrução determinística possível a partir da evidência real é a janela ATUAL —
+      que é exatamente como esses números sempre foram interpretados até aqui. Abrir uma
+      obra legada na mesma orientação em que foi feita continua idêntico ao que já era;
+      girar depois passa a REPROJETAR em vez de deslocar. Nenhum byte antigo muda: a
+      representação nova só nasce no próximo save explícito da criança (Q8 regra 8).
+
+   Incompatibilidade dimensional NUNCA autoriza destruição (Q8 regra 3): não há caminho
+   nesta função que esvazie `strokes`/`stamps` nem que devolva folha em branco. */
+function estabelecerEspacoLogico(d){
+  var lw=Number(d&&d.logicalW), lh=Number(d&&d.logicalH);
+  var declarado=isFinite(lw)&&lw>0&&isFinite(lh)&&lh>0;
+  if(declarado){ LW=lw; LH=lh; }
+  else { adotarEspacoLogico(); }
+  espacoTravado=true;
+  reprojetar();
+  return declarado;
+}
 window.loadState=function(jsonStr){
   try{
     if(!jsonStr||typeof jsonStr!=='string'){
-      strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist(); render();
+      strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist(); abrirEmBranco(); render();
       notifyHist(); notify('STATE_LOADED'); return;
     }
     var d=JSON.parse(jsonStr);
     if(!d||typeof d!=='object'){
-      strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist(); render();
+      strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist(); abrirEmBranco(); render();
       notifyHist(); notify('STATE_LOADED'); return;
     }
     /* [Fase 6 · TK-A-002] A representação é identificada PELO NOME DO EIXO, ANTES
@@ -507,22 +689,47 @@ window.loadState=function(jsonStr){
        'paint.legacy' diz que campos esperar, 'layout.legacy' diz como ler as
        coordenadas, e nenhum decide o outro. Informativo — por Q8 regra 3 nenhum
        veredito de eixo autoriza apagar, regravar ou substituir a obra. */
+    /* [TK-A-034] O espaço lógico é estabelecido DEPOIS de os campos entrarem e ANTES do
+       primeiro `render` — a obra nunca chega a ser desenhada numa geometria provisória. */
+    var declarouEspaco=estabelecerEspacoLogico(d);
+    /* Sinal ADITIVO e observável da classificação por eixo (TK-A-002/TK-A-004):
+       'paint.legacy' diz que campos esperar, 'layout.legacy' diz como ler as
+       coordenadas, e nenhum decide o outro. Informativo — por Q8 regra 3 nenhum
+       veredito de eixo autoriza apagar, regravar ou substituir a obra. */
     notify('STATE_AXES:'+JSON.stringify({
       paint:{declared:axes.paint.declared,legacy:axes.paint.legacy,ok:axes.paint.ok},
-      layout:{declared:axes.layout.declared,legacy:axes.layout.legacy,ok:axes.layout.ok}
+      layout:{declared:axes.layout.declared,legacy:axes.layout.legacy,ok:axes.layout.ok},
+      /* [TK-A-034] Terceira informação, também informativa: em QUE espaço a obra acabou
+         de ser interpretada, e se esse espaço veio DECLARADO ou foi reconstruído. */
+      logical:{w:LW,h:LH,declared:declarouEspaco}
     }));
     selId=null; resetHist(); render();
     notifyHist(); notify('STATE_LOADED');
   }catch(err){
     strokes=[]; stamps=[]; bgColor='#FFFDF8'; selId=null; resetHist();
+    abrirEmBranco();
     render();
     notifyHist(); notify('LOAD_CORRUPTED');
   }
 };
 
+/* ── [Fase 6 · TK-A-034/TK-A-016/G-CVS-1] RESIZE ─────────────────────────────────────
+   `resize` mede a JANELA e reprojeta. Ele NÃO redefine mais o espaço lógico de uma obra
+   que já existe — essa reatribuição era o defeito. O que ele faz, em ordem:
+
+     1. fecha o gesto em voo de forma ATÔMICA (`TK-A-016`), para que uma única linha da
+        criança não fique metade numa projeção e metade noutra;
+     2. mede W/H e redimensiona o buffer de TELA — que é buffer de exibição, e o único
+        que pode ser realocado aqui (o análogo raster de `qBuf`/`visBuf`/`paintD` é
+        modelo, e `G-CVS-1` proíbe realocá-lo);
+     3. adota a janela como espaço lógico SOMENTE com a trava aberta (folha em branco);
+     4. reprojeta a partir do MODELO — nunca a partir do buffer de tela anterior. */
 function resize(){
+  finalizarGestoAtomico();   /* já avisa o RN por `bump` quando houve o que fechar */
   W=window.innerWidth|0; H=window.innerHeight|0;
   C.width=W; C.height=H;
+  if(!espacoTravado||!(LW>0&&LH>0)) adotarEspacoLogico();
+  reprojetar();
   render();
 }
 window.addEventListener('resize',resize);
@@ -602,6 +809,9 @@ const AtelierCanvas = forwardRef(function AtelierCanvas(
     clearPending()    { inject('window.clearPending();true;'); },
     resizeSelectedStamp(delta) { inject(`window.resizeSelectedStamp(${Number(delta)});true;`); },
     deleteSelectedStamp()      { inject('window.deleteSelectedStamp();true;'); },
+    /* [Fase 6 · TK-A-016] Fechamento atômico do gesto por ordem da tela (ida para
+       segundo plano). Não grava e não exporta — ver `window.commitGesture`. */
+    commitGesture()   { inject('window.commitGesture();true;'); },
     undo()            { inject('window.undo();true;'); },
     redo()            { inject('window.redo();true;'); },
     clearAll()        { inject('window.clearAll();true;'); },

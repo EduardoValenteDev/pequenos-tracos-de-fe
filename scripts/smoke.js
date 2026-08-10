@@ -20159,7 +20159,11 @@ console.log('\n── Criar livre C1: Ateliê essencial premium ──');
   check('C1 §12 (histórico): undo pop past + push future; redo inverso; commit limpa o futuro; clear desfazível',
     /window\.undo=function\(\)\{[\s\S]{0,140}future\.push\(snap\(\)\);[\s\S]{0,60}restore\(past\.pop\(\)\)/.test(eng)
     && /window\.redo=function\(\)\{[\s\S]{0,140}past\.push\(snap\(\)\);[\s\S]{0,60}restore\(future\.pop\(\)\)/.test(eng)
-    && /function commit\(\)\{[\s\S]{0,140}future=\[\];/.test(eng)
+    // [Fase 6 · TK-A-034] `commit()` ganhou a trava do espaço lógico ANTES do `past.push`
+    // (é o ponto exato em que a folha deixa de estar em branco), então a janela curta
+    // deixou de alcançar `future=[]`. A PROPRIEDADE é a mesma e continua exigida por
+    // inteiro: `commit` empilha o presente E limpa o futuro.
+    && /function commit\(\)\{[\s\S]{0,400}past\.push\(snap\(\)\);[\s\S]{0,140}future=\[\];/.test(eng)
     && /window\.clearAll=function\(\)\{\s*commit\(\);/.test(eng)
     && /HIST_LIMIT=150/.test(eng),
     'o histórico não é por operação com past/future, ou Limpar não é desfazível');
@@ -20204,7 +20208,11 @@ console.log('\n── Criar livre C1: Ateliê essencial premium ──');
   // os três campos do estado continuam saindo juntos no mesmo `JSON.stringify`.
   check('C1 §16 (export limpo): a interface é RN, fora da WebView; export achata contra o fundo',
     /var st=JSON\.stringify\(\{v:CANVAS_PAYLOAD_V,[\s\S]{0,160}?strokes:strokes,stamps:stamps,bgColor:bgColor\}\)/.test(eng)
-    && /fctx\.fillStyle=bgColor; fctx\.fillRect\(0,0,W,H\)/.test(eng)   // achata contra o fundo
+    // [Fase 6 · TK-A-034] O achatamento continua sendo exigido; o que mudou é O ESPAÇO em
+    // que ele acontece: a imagem sai no espaço LÓGICO (`fw`×`fh`), não na janela de agora
+    // (`W`×`H`). Exportar na janela gravaria a moldura desta orientação dentro da obra.
+    && /fctx\.fillStyle=bgColor; fctx\.fillRect\(0,0,fw,fh\)/.test(eng)   // achata contra o fundo
+    && /var fw=Math\.max\(1,Math\.round\(LW\)\), fh=Math\.max\(1,Math\.round\(LH\)\)/.test(eng)
     && !/CriarLivreIcon|styles\.toolBtn|styles\.header/.test(eng),      // nenhuma UI RN dentro do motor
     'a interface pode entrar na arte exportada');
 
@@ -21117,7 +21125,15 @@ const h2Screen = readSrc('src/screens/AtelierCanvasScreen.js');
 check(
   'H2: export achata a borracha contra o fundo (preview/thumb de canvas opaco, não de C)',
   h2Canvas.includes('fctx.fillStyle=bgColor') &&
-  h2Canvas.includes('fctx.drawImage(C,0,0)') &&
+  // [Fase 6 · TK-A-034] A fonte do achatamento deixou de ser o buffer de TELA (`C`) e
+  // passou a ser `art` — o MODELO redesenhado no espaço lógico em 1:1. A propriedade do
+  // H2 (canvas opaco + obra por cima, para a borracha não virar preto no JPEG) continua
+  // exigida, e agora com uma exigência MAIS FORTE junto: a exportação não pode reamostrar
+  // do buffer de tela em lugar nenhum — reamostrar de `C` traria a moldura e a escala
+  // desta janela para dentro da obra salva.
+  h2Canvas.includes('fctx.drawImage(art,0,0)') &&
+  /paintInto\(art\.getContext\('2d'\),1,0,0,false,false\)/.test(h2Canvas) &&
+  !/drawImage\(C,/.test(h2Canvas) &&
   h2Canvas.includes('previewData=flat.toDataURL') &&
   /drawImage\(flat,0,0,tw,th\)/.test(h2Canvas) &&
   !h2Canvas.includes('previewData=C.toDataURL'),
@@ -51283,6 +51299,31 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     check(`TA-4 · ${caso.nome}`, caso.ok, caso.detalhe);
   }
   for (const aviso of a31.avisos) {
+    console.log(`  ⚠ ${aviso}`);
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.5 · TK-A-034 — TA-5 (`scripts/testing/logicalSpaceHarness.js`)
+   *
+   * Diferença importante em relação ao TA-4: o TA-5 não testa um módulo RN — ele
+   * EXTRAI E EXECUTA o JavaScript que roda dentro da WebView do Ateliê, direto do
+   * `src/components/AtelierCanvas.js`, com os três eixos de versionamento resolvidos
+   * pelas constantes reais do módulo. Se o motor mudar, o arnês executa o motor mudado.
+   *
+   * Limite declarado (§11.11-b), repetido no cabeçalho do arnês: o `canvas` do arnês é
+   * MAQUETE — registra chamadas de desenho, não rasteriza. Isto prova modelo,
+   * serialização, compatibilidade e aritmética de projeção. NÃO prova WebView real,
+   * término do processo de conteúdo, `resize` nativo, Split View, Slide Over, safe area
+   * nem geometria visual: isso é evidência FÍSICA (§28 #7, #8) e continua PENDENTE.
+   * ───────────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-034: TA-5 · espaço lógico vetorial (motor REAL do Ateliê) ──');
+
+  const { executarTA5 } = require('./testing/logicalSpaceHarness');
+  const a34 = executarTA5();
+  for (const caso of a34.casos) {
+    check(`TA-5 · ${caso.nome}`, caso.ok, caso.detalhe);
+  }
+  for (const aviso of a34.avisos) {
     console.log(`  ⚠ ${aviso}`);
   }
 

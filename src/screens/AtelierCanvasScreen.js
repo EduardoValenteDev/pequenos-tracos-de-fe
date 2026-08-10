@@ -141,7 +141,12 @@ export default function AtelierCanvasScreen({ route, navigation }) {
      escuta é observabilidade pura; a finalização atômica do gesto pertence ao motor (`TK-A-016`). */
   useSurfaceLifecycle({
     onBackground: () => {
-      log('[Atelie] superfície → segundo plano/sem foco (nenhuma gravação, nenhum descarte)');
+      /* [Fase 6 · F6-R3.5 · TK-A-016] Fecha o gesto em voo NO MODELO antes que a
+         superfície saia de cena. Continua sem gravação e sem descarte: `commitGesture`
+         só transforma "traço em andamento" em "traço no modelo", e é justamente isso
+         que torna o traço recuperável se o processo de conteúdo for encerrado. */
+      canvasRef.current?.commitGesture?.();
+      log('[Atelie] superfície → segundo plano/sem foco (gesto fechado no modelo; nenhuma gravação, nenhum descarte)');
     },
     onForeground: () => {
       log('[Atelie] superfície → primeiro plano (nenhuma releitura, nenhuma reaplicação)');
