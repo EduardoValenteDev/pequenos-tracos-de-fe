@@ -98,28 +98,28 @@ var W=0,H=0;
    LÓGICO: o espaço em que a obra é MODELADA e ARMAZENADA. Não muda quando a janela
    muda. É a ÚNICA coordenada que pode ser persistida.
 
-   Antes deste bloco, `strokes` e `stamps` guardavam PÍXEL DE TELA: `resize()` redefinia
+   Antes deste bloco, 'strokes' e 'stamps' guardavam PÍXEL DE TELA: 'resize()' redefinia
    W/H e o modelo continuava com os números da janela anterior. Girar o aparelho, abrir
    Split View ou arrastar o divisor deixava o traço da criança deslocado — e, na direção
-   apertada, fora da tela. Era o `F6-CVS-01`.
+   apertada, fora da tela. Era o 'F6-CVS-01'.
 
    Agora nenhum ponto do modelo carrega píxel de dispositivo: a tela é obtida por
-   projeção `contain` (`pS`/`pX`/`pY`), a mesma conta canônica de `useViewportProjection`
-   (`TK-A-030`/`TK-A-032`) — `scale = min(w/W, h/H)`, um fator só, isotrópico, sobra
+   projeção 'contain' ('pS'/'pX'/'pY'), a mesma conta canônica de 'useViewportProjection'
+   ('TK-A-030'/'TK-A-032') — 'scale = min(w/W, h/H)', um fator só, isotrópico, sobra
    centralizada nos dois eixos.
 
-   ⚠️ Q8 regra 4: `logicalW`/`logicalH` pertencem ao ESPAÇO LÓGICO HISTÓRICO da obra,
+   ⚠️ Q8 regra 4: 'logicalW'/'logicalH' pertencem ao ESPAÇO LÓGICO HISTÓRICO da obra,
    nunca à viewport atual. Q8 regra 7: abrir não migra. Q8 regra 8: representação nova só
-   no PRÓXIMO SAVE EXPLÍCITO da criança. Por isso `espacoTravado` é uma trava de mão
+   no PRÓXIMO SAVE EXPLÍCITO da criança. Por isso 'espacoTravado' é uma trava de mão
    única: enquanto a folha está genuinamente em branco a janela pode ser adotada (folha
    vazia não tem geometria a preservar, e adotar evita moldura inútil); a partir do
    primeiro conteúdo ou do primeiro carregamento de obra o espaço lógico é IMUTÁVEL.
    Reatribuí-lo depois disso seria exatamente a corrupção que este bloco existe para
-   impedir (`SD-8`). */
+   impedir ('SD-8'). */
 var LW=0,LH=0;
 var pS=1,pX=0,pY=0;
 var espacoTravado=false;
-/* Cor da moldura = o mesmo papel do `body`. A sobra é superfície, não obra. */
+/* Cor da moldura = o mesmo papel do 'body'. A sobra é superfície, não obra. */
 var FRAME_COLOR='#FFFDF8';
 
 function adotarEspacoLogico(){
@@ -196,9 +196,9 @@ function isEmptyState(){ return strokes.length===0 && stamps.length===0; }
 /* Chamar ANTES de uma ação que muda o conteúdo: empilha o estado atual e limpa o futuro
    (um novo traço depois de Desfazer descarta o Refazer). */
 function commit(){
-  /* [TK-A-034] Trava de mão única do espaço lógico. `commit` antecede TODA mutação de
+  /* [TK-A-034] Trava de mão única do espaço lógico. 'commit' antecede TODA mutação de
      conteúdo (traço, carimbo, fundo, apagar tudo), então é o ponto exato em que a folha
-     deixa de estar em branco. Daqui em diante `resize` não pode mais redefinir LW/LH. */
+     deixa de estar em branco. Daqui em diante 'resize' não pode mais redefinir LW/LH. */
   espacoTravado=true;
   try{
     past.push(snap());
@@ -216,12 +216,12 @@ function notifyHist(){
 }
 
 /* ── Renderização ────────────────────────────────────────────────────────────────
-   [Fase 6 · TK-A-034] `paintInto` desenha O MODELO em QUALQUER destino, com a projeção
+   [Fase 6 · TK-A-034] 'paintInto' desenha O MODELO em QUALQUER destino, com a projeção
    passada por parâmetro. A tela usa a projeção da janela de agora; a exportação usa a
    identidade no espaço lógico. Um caminho de desenho só: a imagem salva não pode
    divergir da imagem vista porque as duas nascem do mesmo código sobre os mesmos dados.
 
-   [TK-A-033] A MOLDURA (letterbox) é INERTE: `clip` ao retângulo lógico garante que
+   [TK-A-033] A MOLDURA (letterbox) é INERTE: 'clip' ao retângulo lógico garante que
    nenhum píxel de traço a alcance, seja qual for a coordenada — a garantia é do
    recorte, não da aritmética do toque. */
 function paintInto(g,sc,ox,oy,comSel,comMoldura){
@@ -337,12 +337,12 @@ function doSelect(id){
    O toque nasce em píxel de tela e é registrado em coordenada LÓGICA, na mesma volta —
    nenhum ponto de dispositivo entra no modelo.
 
-   POLÍTICA DA MOLDURA, determinística e a MESMA que o motor raster deve seguir (`C-A9`):
+   POLÍTICA DA MOLDURA, determinística e a MESMA que o motor raster deve seguir ('C-A9'):
      · gesto que COMEÇA na moldura é IGNORADO — ali não há papel, e um traço que aparece
        fora da folha ensina à criança uma borda que não existe;
      · gesto que começa DENTRO e passa por cima da moldura é FIXADO À BORDA LÓGICA — o
        traço em andamento não pode ser perdido no meio por causa de onde o dedo passou.
-   `dentro` carrega a distinção; quem chama decide qual das duas regras aplicar. */
+   'dentro' carrega a distinção; quem chama decide qual das duas regras aplicar. */
 function getP(t){
   var r=C.getBoundingClientRect();
   return{x:t.clientX-r.left,y:t.clientY-r.top};
@@ -363,7 +363,7 @@ function getL(t){
    plano. O gesto em voo é comitado NO MODELO — inteiro ou não comitado — e só então a
    geometria muda. Sem isto, o traço em andamento teria os primeiros pontos numa
    projeção e os últimos noutra: uma única linha da criança partida ao meio, com um
-   degrau no lugar da curva. Devolve `true` quando havia gesto a fechar. */
+   degrau no lugar da curva. Devolve 'true' quando havia gesto a fechar. */
 function finalizarGestoAtomico(){
   var fechou=false;
   if(dragging){
@@ -437,7 +437,7 @@ C.addEventListener('touchmove',function(e){
   e.preventDefault();
   if(e.touches.length!==1) return;
   /* [TK-A-033] Gesto JÁ EM ANDAMENTO: a moldura não interrompe — o ponto é fixado à
-     borda lógica (`getL` já clampa) e o traço continua. */
+     borda lógica ('getL' já clampa) e o traço continua. */
   var p=getL(e.touches[0]);
 
   if(dragging&&selId){
@@ -555,8 +555,8 @@ window.commitGesture=function(){
 window.getStats=function(){
   notify('STATS:'+JSON.stringify({
     W:W,H:H,
-    /* [TK-A-034] O diagnóstico distingue os DOIS espaços por nome. Ver `W:H` sozinho
-       não diz se a obra está no lugar certo; ver `LW:LH` com a projeção, sim. */
+    /* [TK-A-034] O diagnóstico distingue os DOIS espaços por nome. Ver 'W:H' sozinho
+       não diz se a obra está no lugar certo; ver 'LW:LH' com a projeção, sim. */
     LW:LW,LH:LH,espacoTravado:espacoTravado,
     scale:pS,offX:pX,offY:pY,
     strokes:strokes.length,stamps:stamps.length,
@@ -597,7 +597,7 @@ window.exportState=function(){
        permanece CANVAS_PAYLOAD_V (2) — nunca 3 (ver TK-A-001). Adição estritamente
        aditiva: todos os campos que já existiam continuam presentes e um leitor
        antigo ignora os campos novos sem quebrar. */
-    /* [Fase 6 · TK-A-034 · G-CVS-2] `logicalW`/`logicalH` são DECLARADOS: sem eles, a
+    /* [Fase 6 · TK-A-034 · G-CVS-2] 'logicalW'/'logicalH' são DECLARADOS: sem eles, a
        obra guardaria coordenadas cujo significado ninguém conhece, e a próxima abertura
        teria de ADIVINHAR o espaço. É a declaração — e não a janela de quem abre — que
        define onde o traço está. Q8 regra 8: isto só é gravado no SAVE EXPLÍCITO da
@@ -628,11 +628,11 @@ function abrirEmBranco(){
    Abrir é ESTRITAMENTE SOMENTE LEITURA. Esta função escolhe COMO INTERPRETAR os números
    que já estão gravados; ela não regrava, não migra, não converte e não descarta nada.
 
-   1. Obra que DECLARA `logicalW`/`logicalH`: a declaração manda. Ela pertence ao espaço
+   1. Obra que DECLARA 'logicalW'/'logicalH': a declaração manda. Ela pertence ao espaço
       lógico HISTÓRICO da obra e não à janela de quem está abrindo (Q8 regra 4). Uma obra
       feita em retrato aberta em paisagem aparece INTEIRA, com moldura — nunca esticada,
       nunca cortada.
-   2. Obra LEGADA, sem declaração: o `stateJson` antigo não guardava o espaço. A
+   2. Obra LEGADA, sem declaração: o 'stateJson' antigo não guardava o espaço. A
       reconstrução determinística possível a partir da evidência real é a janela ATUAL —
       que é exatamente como esses números sempre foram interpretados até aqui. Abrir uma
       obra legada na mesma orientação em que foi feita continua idêntico ao que já era;
@@ -640,7 +640,7 @@ function abrirEmBranco(){
       representação nova só nasce no próximo save explícito da criança (Q8 regra 8).
 
    Incompatibilidade dimensional NUNCA autoriza destruição (Q8 regra 3): não há caminho
-   nesta função que esvazie `strokes`/`stamps` nem que devolva folha em branco. */
+   nesta função que esvazie 'strokes'/'stamps' nem que devolva folha em branco. */
 function estabelecerEspacoLogico(d){
   var lw=Number(d&&d.logicalW), lh=Number(d&&d.logicalH);
   var declarado=isFinite(lw)&&lw>0&&isFinite(lh)&&lh>0;
@@ -690,7 +690,7 @@ window.loadState=function(jsonStr){
        coordenadas, e nenhum decide o outro. Informativo — por Q8 regra 3 nenhum
        veredito de eixo autoriza apagar, regravar ou substituir a obra. */
     /* [TK-A-034] O espaço lógico é estabelecido DEPOIS de os campos entrarem e ANTES do
-       primeiro `render` — a obra nunca chega a ser desenhada numa geometria provisória. */
+       primeiro 'render' — a obra nunca chega a ser desenhada numa geometria provisória. */
     var declarouEspaco=estabelecerEspacoLogico(d);
     /* Sinal ADITIVO e observável da classificação por eixo (TK-A-002/TK-A-004):
        'paint.legacy' diz que campos esperar, 'layout.legacy' diz como ler as
@@ -714,18 +714,18 @@ window.loadState=function(jsonStr){
 };
 
 /* ── [Fase 6 · TK-A-034/TK-A-016/G-CVS-1] RESIZE ─────────────────────────────────────
-   `resize` mede a JANELA e reprojeta. Ele NÃO redefine mais o espaço lógico de uma obra
+   'resize' mede a JANELA e reprojeta. Ele NÃO redefine mais o espaço lógico de uma obra
    que já existe — essa reatribuição era o defeito. O que ele faz, em ordem:
 
-     1. fecha o gesto em voo de forma ATÔMICA (`TK-A-016`), para que uma única linha da
+     1. fecha o gesto em voo de forma ATÔMICA ('TK-A-016'), para que uma única linha da
         criança não fique metade numa projeção e metade noutra;
      2. mede W/H e redimensiona o buffer de TELA — que é buffer de exibição, e o único
-        que pode ser realocado aqui (o análogo raster de `qBuf`/`visBuf`/`paintD` é
-        modelo, e `G-CVS-1` proíbe realocá-lo);
+        que pode ser realocado aqui (o análogo raster de 'qBuf'/'visBuf'/'paintD' é
+        modelo, e 'G-CVS-1' proíbe realocá-lo);
      3. adota a janela como espaço lógico SOMENTE com a trava aberta (folha em branco);
      4. reprojeta a partir do MODELO — nunca a partir do buffer de tela anterior. */
 function resize(){
-  finalizarGestoAtomico();   /* já avisa o RN por `bump` quando houve o que fechar */
+  finalizarGestoAtomico();   /* já avisa o RN por 'bump' quando houve o que fechar */
   W=window.innerWidth|0; H=window.innerHeight|0;
   C.width=W; C.height=H;
   if(!espacoTravado||!(LW>0&&LH>0)) adotarEspacoLogico();

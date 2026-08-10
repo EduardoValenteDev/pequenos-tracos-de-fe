@@ -42625,6 +42625,28 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       })(),
       'o interior do template literal do WebView é território sem crase — comentário ali dentro também quebra o arquivo');
 
+    // ── [Fase 6 · correção do C-A8] O MESMO DEFEITO, NO OUTRO MOTOR ────────────────────
+    // A prova acima existia só para o motor de PINTURA. O Ateliê tem um template literal
+    // idêntico em natureza — e o bloco C-A8 escreveu 84 crases dentro dele, em comentários,
+    // deixando `AtelierCanvas.js` sem compilar. Nada ficou vermelho: as 4661 provas daquele
+    // bloco eram textuais e todas continuavam casando, porque casar texto não é compilar.
+    // Um portão que cobre um motor e ignora o gêmeo não é um portão, é um ponto cego. Esta
+    // prova fecha o ponto cego varrendo OS DOIS motores pela mesma regra.
+    for (const motor of [
+      { arq: 'src/components/AtelierCanvas.js', ini: 'const CANVAS_HTML = `<!DOCTYPE html>', fim: '</html>`;' },
+      { arq: 'src/components/ColoringCanvas.js', ini: 'return `<!DOCTYPE html>', fim: '</script></body></html>`;' },
+    ]) {
+      check(`[Fase 6 · bundle] ${motor.arq}: o interior do template literal do WebView não contém CRASE`,
+        (() => {
+          const raw = readSrc(motor.arq);
+          const i = raw.indexOf(motor.ini);
+          const j = raw.indexOf(motor.fim, i + 1);
+          if (i < 0 || j <= i) return false;               // âncora sumiu ⇒ reprova (não passa por omissão)
+          return raw.slice(i + motor.ini.length, j).indexOf('`') < 0;
+        })(),
+        'uma crase nua ali fecha o literal mais cedo e o módulo inteiro deixa de compilar — o app não abre');
+    }
+
     // ── D28/D29/D30 · DEFEITOS ENCONTRADOS PELOS PORTÕES ADVERSARIAIS DESTE BLOCO ───────
     // Não vieram de leitura de código: vieram de ATACAR o sistema com um disco hostil. Ficam
     // aqui porque uma regressão neles não seria "um teste vermelho", e sim uma das evidências
