@@ -212,17 +212,32 @@ function criarContexto(cv, diag) {
         }
       }
     },
-    drawImage(src, dx, dy, dw, dh) {
+    /* [Fase 6 · C-A9] As TRÊS assinaturas reais de `drawImage`. A de NOVE argumentos
+       (recorte na fonte + destino) passou a ser usada pelo motor raster para trazer a
+       obra ao espaço lógico a partir do retângulo do lineart dentro do bitmap salvo.
+       Modelar só a de cinco faria o arnês julgar um motor que não existe: os quatro
+       primeiros números seriam lidos como destino e o caso "passaria" por engano. */
+    drawImage(src, a1, a2, a3, a4, a5, a6, a7, a8) {
       const f = fonteDePixels(src);
       if (!f) { diag.naoModelado.push(`drawImage(fonte sem píxeis: ${typeof src})`); return; }
-      const destW = (dw === undefined) ? f.w : (dw | 0);
-      const destH = (dh === undefined) ? f.h : (dh | 0);
+      let recX = 0, recY = 0, recW = f.w, recH = f.h, dx, dy, destW, destH;
+      if (a5 !== undefined) {
+        recX = a1 | 0; recY = a2 | 0; recW = a3 | 0; recH = a4 | 0;
+        dx = a5 | 0; dy = a6 | 0;
+        destW = (a7 === undefined) ? recW : (a7 | 0);
+        destH = (a8 === undefined) ? recH : (a8 | 0);
+      } else {
+        dx = a1 | 0; dy = a2 | 0;
+        destW = (a3 === undefined) ? f.w : (a3 | 0);
+        destH = (a4 === undefined) ? f.h : (a4 | 0);
+      }
+      if (recW <= 0 || recH <= 0 || destW <= 0 || destH <= 0) return;
       const modo = alvo.globalCompositeOperation;
       if (modo !== 'source-over' && modo !== 'destination-out') diag.naoModelado.push(`composicao:${modo}`);
       for (let ly = 0; ly < destH; ly++) {
         for (let lx = 0; lx < destW; lx++) {
-          const sx = Math.min(f.w - 1, Math.floor(lx * f.w / destW));
-          const sy = Math.min(f.h - 1, Math.floor(ly * f.h / destH));
+          const sx = Math.max(0, Math.min(f.w - 1, recX + Math.min(recW - 1, Math.floor(lx * recW / destW))));
+          const sy = Math.max(0, Math.min(f.h - 1, recY + Math.min(recH - 1, Math.floor(ly * recH / destH))));
           const tx = (dx | 0) + lx;
           const ty = (dy | 0) + ly;
           if (tx < 0 || ty < 0 || tx >= cv._w || ty >= cv._h) continue;
@@ -276,8 +291,16 @@ function criarCanvas(diag) {
   let ctx = null;
   cv.getContext = () => (ctx || (ctx = criarContexto(cv, diag)));
   cv.toDataURL = (mime) => codificarPixels(cv._w, cv._h, cv._px, mime);
-  cv.addEventListener = NOOP;
-  cv.removeEventListener = NOOP;
+  /* [Fase 6 · C-A9] Os ouvintes de toque eram ENGOLIDOS por um `NOOP`: o motor registrava
+     `touchstart`/`touchmove`/`touchend` e nada guardava a referência, então nenhum caso
+     conseguia tocar a superfície. Registrar aqui não afrouxa nada — só deixa de descartar
+     em silêncio o que o motor real declara. */
+  cv._ouvintes = {};
+  cv.addEventListener = (ev, fn) => { (cv._ouvintes[ev] || (cv._ouvintes[ev] = [])).push(fn); };
+  cv.removeEventListener = (ev, fn) => {
+    const l = cv._ouvintes[ev];
+    if (l) cv._ouvintes[ev] = l.filter((f) => f !== fn);
+  };
   cv.getBoundingClientRect = () => ({ left: 0, top: 0, width: cv._w, height: cv._h });
   return cv;
 }
@@ -399,6 +422,21 @@ function bootMotor(rel, opts = {}) {
     redimensionar: (w, h) => {
       janela.innerWidth = w; janela.innerHeight = h;
       (ouvintes.resize || []).forEach((fn) => fn());
+    },
+    /**
+     * Um toque de pintura em coordenada CSS da tela — `touchstart` + `touchend`, que é o
+     * gesto REAL do Colorir (o preenchimento é um toque só). Quem decide se aquele ponto
+     * vira tinta é o motor, não o arnês.
+     */
+    tocar: (cssX, cssY) => {
+      const dedo = { clientX: cssX, clientY: cssY };
+      const disparar = (ev, toques, mudados) => {
+        (raiz._ouvintes[ev] || []).forEach((fn) => fn({
+          preventDefault() {}, touches: toques, changedTouches: mudados,
+        }));
+      };
+      disparar('touchstart', [dedo], [dedo]);
+      disparar('touchend', [], [dedo]);
     },
   };
 }
@@ -591,17 +629,46 @@ function executarTA11() {
       ax3 && ax3.paint.legacy === true && ax3.layout.legacy === true && m3.tem('PAINT_APPLIED'),
       `axes=${JSON.stringify(ax3)} msgs=${m3.msgs.join(' | ')}`);
 
-    /* 4.4 — geometria de OUTRA viewport: incompatível, jamais destrutivo. */
+    /* 4.4 — obra salva quando a JANELA era outra.
+       Enquanto o buffer de pintura vivia no espaço da janela, recusar era o comportamento
+       seguro possível: aplicar significaria colar tinta em coordenadas que não eram dela.
+       Com o espaço lógico do lineart (`TK-A-035`: "o buffer de pintura é definido no
+       retângulo lógico do lineart; a projeção acontece na exibição, nunca no armazenamento")
+       recusar deixou de ser o seguro e virou o LESIVO: o payload declara o próprio retângulo
+       de origem, é inteiramente recuperável, e devolver folha em branco para obra recuperável
+       é exatamente o que `SD-8` proíbe. O caso mantém a propriedade de sempre — Q8 regra 3,
+       nada é destruído — e passa a exigir a propriedade mais forte que agora existe: a obra
+       volta INTEIRA. Isto é supersessão declarada de comportamento, não afrouxamento: a
+       asserção ficou mais exigente, não menos.
+
+       A obra de origem é a pintura de 64×48 ampliada 2× por vizinho-mais-próximo. A
+       reprojeção de volta amostra `sx = 2·lx`, `sy = 2·ly`, então a igualdade píxel a píxel
+       é EXATA — não é tolerância disfarçada de igualdade. */
+    const grande = new Uint8ClampedArray(W * 2 * H * 2 * 4);
+    for (let y = 0; y < H * 2; y++) {
+      for (let x = 0; x < W * 2; x++) {
+        const o = (y * W * 2 + x) * 4;
+        const i = ((y >> 1) * W + (x >> 1)) * 4;
+        grande[o] = pintura[i]; grande[o + 1] = pintura[i + 1];
+        grande[o + 2] = pintura[i + 2]; grande[o + 3] = pintura[i + 3];
+      }
+    }
     const m4 = bootMotor(RASTER, { largura: W, altura: H });
     m4.limpar();
     m4.janela.loadPaint(JSON.stringify({
       v: 2, paintSchemaVersion: 1, layoutVersion: 1, W: W * 2, H: H * 2,
       imgX: 0, imgY: 0, imgW: W * 2, imgH: H * 2,
-      data: codificarPixels(W * 2, H * 2, fabricarPintura(W * 2, H * 2, 3), 'image/png'),
+      data: codificarPixels(W * 2, H * 2, grande, 'image/png'),
     }));
-    ok('4.4 Q8 regra 3 · incompatibilidade dimensional NÃO destrói (só recusa aplicar)',
-      m4.tem('LOAD_PAINT_INCOMPATIBLE') && !m4.tem('LOAD_PAINT_CORRUPTED') && !m4.tem('PAINT_APPLIED'),
+    ok('4.4a Q8 regra 3 · obra de OUTRA viewport: nada corrompido, nada recusado em silêncio',
+      m4.tem('PAINT_APPLIED') && !m4.tem('LOAD_PAINT_CORRUPTED') && !m4.tem('LOAD_PAINT_INCOMPATIBLE'),
       m4.msgs.join(' | '));
+    m4.limpar();
+    m4.janela.exportPaint();
+    const volta44 = decodificarPixels(JSON.parse(m4.ultima('PAINT_EXPORT:') || '{}').data || '');
+    ok('4.4b SD-8 · a obra de outra viewport volta INTEIRA no espaço lógico, píxel a píxel',
+      !!volta44 && volta44.w === W && volta44.h === H && mesmosPixels(volta44.px, pintura),
+      volta44 ? `voltou ${volta44.w}x${volta44.h} e os píxeis não conferem` : 'não voltou bitmap algum');
 
     /* 4.5 — bitmap ilegível é CORROMPIDO, não "incompatível": os dois caminhos seguem
        distintos e nenhum deles apaga a obra armazenada. */

@@ -5708,10 +5708,25 @@ check(
     cc.includes("'PAINT_INVALID'"),
     'ColoringCanvas não tem validatePaint que diferencia válido/incompatível',
   );
+  // [Fase 6 · TK-A-035/TK-A-036 · C-A9] SUPERSESSÃO DECLARADA de comportamento.
+  // A prova antiga exigia `sw===W&&sh===H`: o veredito de compatibilidade era "a obra tem o
+  // tamanho da JANELA de agora". Isso fazia sentido enquanto o buffer de pintura vivia no
+  // espaço da janela. Com o buffer no retângulo lógico do lineart, o mesmo veredito passou a
+  // REPROVAR obra perfeitamente recuperável — e obra recuperável aberta como folha em branco
+  // é literalmente o que `SD-8` proíbe. A propriedade protegida NÃO mudou: `validatePaint`
+  // continua tendo de dar veredito real sobre poder exibir, em vez de dizer "sim" para
+  // qualquer coisa. Mudou o critério: "existe retângulo de origem?" no lugar de "tem o
+  // tamanho da janela?". A asserção abaixo é mais exigente que a anterior — cobre os DOIS
+  // ramos (data URL cru e payload JSON) e ainda proíbe o retorno do critério antigo.
+  const ccCode = codeOf('src/components/ColoringCanvas.js');
   check(
-    'Persistência: validatePaint compara dimensões salvas com o canvas atual (compatibilidade real)',
-    /sw===W&&sh===H/.test(cc) && cc.includes('im.naturalWidth===W&&im.naturalHeight===H'),
-    'validatePaint não checa compatibilidade de tamanho (W/H) — modal pode abrir branco',
+    'Persistência [Fase 6]: validatePaint decide por RETÂNGULO DE ORIGEM nos dois ramos, e NÃO pela dimensão da janela atual',
+    ccCode.includes('function retanguloDeOrigem(') &&
+    /retanguloDeOrigem\(null,im\.naturalWidth,im\.naturalHeight\)/.test(ccCode) &&
+    /retanguloDeOrigem\(p,im2\.naturalWidth,im2\.naturalHeight\)/.test(ccCode) &&
+    !/sw===W&&sh===H/.test(ccCode) &&
+    !ccCode.includes('im.naturalWidth===W&&im.naturalHeight===H'),
+    'validatePaint voltou a julgar pelo tamanho da janela — obra de outra viewport seria reprovada e a criança abriria folha em branco (SD-8)',
   );
   check(
     'Persistência: canvas expõe validatePaint imperativo com fila até READY',
@@ -39107,6 +39122,15 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       // `TK-A-015` (commit `C-A12`) e provado de forma INDEPENDENTE por `MT-26` (`TK-A-087`):
       // nenhum portão prova a si próprio. O selo é reancorado com a mudança declarada; qualquer
       // OUTRA alteração neste corpo segue acendendo o alarme.
+      // REFERÊNCIA REBASEADA DE NOVO — [Fase 6 · F6-R3.4 · TK-A-016 · C-A9]. O valor anterior
+      // (59.077 bytes, sha 4ad15445501286f24bec92db9676bfd3584f696a067ca86a66b562fedf384288) foi
+      // medido ao fim de `TK-A-010`. O delta desta vez é UMA linha de comportamento: o
+      // `onBackground` passou a chamar `canvasRef.current?.commitGesture?.()`. A tela apenas AVISA
+      // que a superfície sai de cena; QUEM decide o que "fechar o gesto" significa é o motor
+      // (`TK-A-016`), e o que ele faz é encerrar o gesto no MODELO — não grava, não exporta, não
+      // relê armazenamento e não apaga tinta, então `SD-8` continua intacto e a escuta continua
+      // sem efeito de persistência. O resto do delta é comentário. O selo é reancorado com a
+      // mudança declarada; qualquer OUTRA alteração neste corpo segue acendendo o alarme.
       const c60BodyF = (function sliceC60(s) {
         const i = s.indexOf('function Coloring60ActivityScreen(');
         const j = s.indexOf('const c60Styles = StyleSheet.create(', i + 1);
@@ -39114,8 +39138,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       })(scrF);
       const c60ShaF = require('crypto').createHash('sha256').update(c60BodyF, 'utf8').digest('hex');
       check('C60-P4-FIX2 [LEGADO] → [P3J]: corpo do Coloring60ActivityScreen BYTE-IDÊNTICO a HEAD (a aposentadoria não tocou o colorir vivo)',
-        c60ShaF === '4ad15445501286f24bec92db9676bfd3584f696a067ca86a66b562fedf384288'
-          && c60BodyF.length === 59077,
+        c60ShaF === '14964ff4b7e26d3987b7297252357f31f019c1e90fb49fe4e0c9cc01acd47f48'
+          && c60BodyF.length === 59248,
         `o corpo do Colorir com o Beni mudou (sha=${c60ShaF}, bytes=${c60BodyF.length}) — nenhuma mudança vizinha pode tocar o ramo vivo`);
     }
   }
@@ -51340,12 +51364,35 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
    * ───────────────────────────────────────────────────────────────────────────────── */
   console.log('\n── Fase 6 · F6-R3 · TK-A-034: TA-5 · espaço lógico vetorial (motor REAL do Ateliê) ──');
 
-  const { executarTA5 } = require('./testing/logicalSpaceHarness');
+  const { executarTA5, executarTA5Raster } = require('./testing/logicalSpaceHarness');
   const a34 = executarTA5();
   for (const caso of a34.casos) {
     check(`TA-5 · ${caso.nome}`, caso.ok, caso.detalhe);
   }
   for (const aviso of a34.avisos) {
+    console.log(`  ⚠ ${aviso}`);
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.5 · TK-A-035/TK-A-036 — TA-5, metade RASTER (`C-A9`)
+   *
+   * O motor vetorial guarda COORDENADAS; o raster guarda PÍXEIS. São propriedades
+   * diferentes e por isso a metade raster não repete os casos do Ateliê: ela prova que o
+   * buffer de tinta vive no retângulo lógico do LINEART e que a janela nunca chega a
+   * tocá-lo (`G-CVS-1`). A maquete usada aqui é a do TA-11 — a que RASTERIZA —, porque
+   * "nem um píxel mudou" é afirmação sobre píxeis, e uma maquete que só registra chamadas
+   * não distinguiria um caso do outro.
+   *
+   * O mesmo limite de sempre continua valendo: nitidez física, `resize` nativo, Split
+   * View e WebView real seguem sendo evidência FÍSICA, PENDENTE.
+   * ───────────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-035/036: TA-5 · espaço lógico RASTER (motor REAL do Colorir) ──');
+
+  const a35 = executarTA5Raster();
+  for (const caso of a35.casos) {
+    check(`TA-5R · ${caso.nome}`, caso.ok, caso.detalhe);
+  }
+  for (const aviso of a35.avisos) {
     console.log(`  ⚠ ${aviso}`);
   }
 

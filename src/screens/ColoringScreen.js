@@ -643,13 +643,15 @@ function Coloring60ActivityScreen({ route, navigation }) {
   //   · voltar NÃO relê o armazenamento e NÃO reaplica pintura. A hidratação é de ABERTURA (efeito
   //     com dependências vazias, acima) e reler aqui seria exatamente o "recarregamento silencioso"
   //     que a validação física de `F6-SG-A` precisa provar que não acontece.
-  // Neste passo a escuta é OBSERVABILIDADE PURA. A finalização atômica do gesto em curso pertence
-  // ao motor (`TK-A-016`), não à tela, e chega no bloco do canvas — não é antecipada aqui.
+  // A finalização atômica do gesto em curso pertence ao MOTOR (`TK-A-016`) — a tela apenas AVISA
+  // que a superfície vai sair de cena, e quem decide o que "fechar o gesto" significa é o canvas.
+  // Isso não é escrita nem descarte: `commitGesture` não grava, não exporta e não apaga tinta.
   // Sem desestruturar o retorno: nada na interface depende de `appState`/`isFocused` hoje, e criar
   // uma variável só para não usá-la seria estado morto.
   useSurfaceLifecycle({
     onBackground: () => {
-      if (__DEV__) console.log('[Coloring60] superfície → segundo plano/sem foco (nenhuma escrita, nenhum descarte)');
+      canvasRef.current?.commitGesture?.();
+      if (__DEV__) console.log('[Coloring60] superfície → segundo plano/sem foco (gesto fechado no modelo; nenhuma escrita, nenhum descarte)');
     },
     onForeground: () => {
       if (__DEV__) console.log('[Coloring60] superfície → primeiro plano (nenhuma releitura, nenhuma reaplicação)');

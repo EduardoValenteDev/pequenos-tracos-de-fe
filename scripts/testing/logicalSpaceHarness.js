@@ -419,19 +419,251 @@ function executarTA5() {
     + 'APAREÇA inteira, sem esticar e sem recorte num aparelho é evidência FÍSICA '
     + '(§28 #7, #8) e continua PENDENTE.',
   );
+  return { casos, avisos };
+}
+
+/* ═══════════════════ TA-5 · metade RASTER (Colorir) — `TK-A-035`/`TK-A-036` ═══════════════
+ *
+ * O motor vetorial guarda COORDENADAS: reprojetar é multiplicar, e nada se perde. O motor
+ * raster guarda PÍXEIS — reprojetar o armazenamento seria reamostrar, e reamostrar é perder.
+ * Por isso a metade raster não repete os casos do Ateliê: ela prova a propriedade que só
+ * existe aqui — que o buffer de tinta vive no retângulo lógico do LINEART e que a janela
+ * nunca chega a tocá-lo (`G-CVS-1`).
+ *
+ * Diferente da metade vetorial, esta usa a maquete que RASTERIZA de verdade (a do TA-11):
+ * "não realocou" e "nenhum píxel mudou" são afirmações sobre píxeis, e uma maquete que só
+ * registra chamadas não teria como distinguir uma da outra.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+
+const {
+  bootMotor, codificarPixels, decodificarPixels, mesmosPixels, RASTER,
+} = require('./artworkVersionHarness');
+
+const NAT_W = 40;
+const NAT_H = 30;
+const JANELA_A = { w: 200, h: 160 };
+const JANELA_B = { w: 320, h: 120 };
+
+/** A folga histórica é LIDA do motor, nunca digitada aqui: se ela mudar, o arnês acompanha. */
+function folgaDoMotor() {
+  const hit = fs.readFileSync(path.join(RAIZ, 'src', 'components', 'ColoringCanvas.js'), 'utf8')
+    .match(/var SP=(\d+);/);
+  if (!hit) throw new Error('TA-5 raster: `var SP=` não encontrado em ColoringCanvas.js');
+  return Number(hit[1]);
+}
+
+/** A conta `contain` — a MESMA especificação usada na metade vetorial (casos 2.x). */
+function projecaoEsperada(w, h, lw, lh, sp) {
+  const dS = Math.min(Math.max(1, w - sp * 2) / lw, Math.max(1, h - sp * 2) / lh);
+  const iw = Math.round(lw * dS);
+  const ih = Math.round(lh * dS);
+  return { dS, x: Math.round((w - iw) / 2), y: Math.round((h - ih) / 2), w: iw, h: ih };
+}
+
+/**
+ * Lineart de teste: uma CRUZ preta que divide a folha em quatro regiões fechadas. Sem
+ * barreira o balde inunda a folha inteira e nenhum caso conseguiria dizer ONDE a tinta caiu
+ * — que é justamente o que a projeção precisa provar.
+ */
+function linearteCruz(w, h) {
+  const px = new Uint8ClampedArray(w * h * 4);
+  const cx = w >> 1;
+  const cy = h >> 1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const traco = (x === cx || y === cy);
+      px[i] = traco ? 0 : 255;
+      px[i + 1] = traco ? 0 : 255;
+      px[i + 2] = traco ? 0 : 255;
+      px[i + 3] = 255;
+    }
+  }
+  return px;
+}
+
+function subirRaster(jan) {
+  const uri = codificarPixels(NAT_W, NAT_H, linearteCruz(NAT_W, NAT_H), 'image/png');
+  const m = bootMotor(RASTER, {
+    largura: jan.w, altura: jan.h, dpr: 1,
+    overrides: { imgJson: JSON.stringify(uri) },
+  });
+  /* Tira a câmera de apresentação do caminho (zoom inicial + enquadramento seguro): o que
+     está sob julgamento é a PROJEÇÃO do espaço lógico, não o zoom de abertura. */
+  m.janela.resetZoom();
+  return m;
+}
+
+function tintaExportada(m) {
+  m.limpar();
+  m.janela.exportPaint();
+  const bruto = m.ultima('PAINT_EXPORT:');
+  if (!bruto) return null;
+  const payload = JSON.parse(bruto);
+  return { payload, bmp: decodificarPixels(payload.data || '') };
+}
+
+/** Toca no CENTRO do píxel lógico (`lx`,`ly`), convertendo pela projeção esperada. */
+function tocarLogico(m, proj, lx, ly) {
+  m.tocar(proj.x + (lx + 0.5) * proj.dS, proj.y + (ly + 0.5) * proj.dS);
+}
+
+/** Devolve o conjunto de píxeis com tinta (alfa > 0) do bitmap exportado. */
+function pintados(bmp) {
+  const lista = [];
+  for (let y = 0; y < bmp.h; y++) {
+    for (let x = 0; x < bmp.w; x++) if (bmp.px[(y * bmp.w + x) * 4 + 3] > 0) lista.push({ x, y });
+  }
+  return lista;
+}
+
+function executarTA5Raster() {
+  const casos = [];
+  const avisos = [];
+  const ok = (nome, cond, detalhe) => casos.push({ nome, ok: !!cond, detalhe: detalhe || '' });
+
+  const SP = folgaDoMotor();
+  const projA = projecaoEsperada(JANELA_A.w, JANELA_A.h, NAT_W, NAT_H, SP);
+  const projB = projecaoEsperada(JANELA_B.w, JANELA_B.h, NAT_W, NAT_H, SP);
+
+  /* ── 11. O espaço lógico do raster nasce do LINEART ───────────────────────────── */
+  const m = subirRaster(JANELA_A);
+  const e0 = tintaExportada(m);
+  ok('11.1 o espaço lógico do Colorir nasce do LINEART, não da janela',
+    !!e0 && e0.payload.logicalW === NAT_W && e0.payload.logicalH === NAT_H,
+    e0 ? `logicalW=${e0.payload.logicalW} logicalH=${e0.payload.logicalH} (janela ${JANELA_A.w}×${JANELA_A.h})` : 'não exportou');
+  ok('11.2 `G-CVS-2` · o payload DECLARA o espaço lógico por NOME, e não por dedução',
+    !!e0 && Object.prototype.hasOwnProperty.call(e0.payload, 'logicalW')
+      && Object.prototype.hasOwnProperty.call(e0.payload, 'logicalH'),
+    'o payload do raster não declara `logicalW`/`logicalH`');
+  ok('11.3 o bitmap salvo tem o tamanho do ESPAÇO LÓGICO, não o da janela de agora',
+    !!e0 && !!e0.bmp && e0.bmp.w === NAT_W && e0.bmp.h === NAT_H,
+    e0 && e0.bmp ? `bitmap ${e0.bmp.w}×${e0.bmp.h}` : 'bitmap ilegível');
+  ok('11.4 o `v` do envelope continua CONGELADO em 2, mesmo com o espaço lógico novo',
+    !!e0 && e0.payload.v === 2, e0 ? `v=${e0.payload.v}` : 'não exportou');
+
+  /* ── 12. A projeção é `contain`, e o toque volta pelo caminho inverso ─────────── */
+  tocarLogico(m, projA, 10, 7);                    /* quadrante superior-esquerdo */
+  const e1 = tintaExportada(m);
+  const p1 = e1 && e1.bmp ? pintados(e1.bmp) : [];
+  ok('12.1 o toque na tela cai no píxel LÓGICO certo — a projeção `contain` é invertível',
+    p1.length > 0 && p1.every((q) => q.x < (NAT_W >> 1) && q.y < (NAT_H >> 1)),
+    `${p1.length} píxeis pintados, e algum caiu fora do quadrante tocado`);
+  ok('12.2 o balde respeita a barreira do lineart NO ESPAÇO LÓGICO (região fechada inteira, nada além)',
+    p1.length === (NAT_W >> 1) * (NAT_H >> 1),
+    `pintou ${p1.length} píxeis; a região fechada tem ${(NAT_W >> 1) * (NAT_H >> 1)}`);
+
+  /* ── 13. `TK-A-033` · a moldura (sobra do letterbox) é INERTE ─────────────────── */
+  const antes13 = e1 && e1.bmp ? Uint8ClampedArray.from(e1.bmp.px) : null;
+  m.tocar(2, 2);
+  m.tocar(JANELA_A.w - 2, JANELA_A.h - 2);
+  const e2 = tintaExportada(m);
+  ok('13.1 `TK-A-033` · toque na moldura não pinta nada (nem cria traço órfão)',
+    !!antes13 && !!e2 && !!e2.bmp && mesmosPixels(e2.bmp.px, antes13),
+    'a sobra do letterbox virou superfície pintável — ali não há papel');
+
+  /* ── 14. `G-CVS-1` · girar a janela NÃO realoca a camada de tinta ─────────────── */
+  m.redimensionar(JANELA_B.w, JANELA_B.h);
+  const e3 = tintaExportada(m);
+  ok('14.1 `G-CVS-1` · depois de girar, nem um píxel da tinta mudou de lugar ou de valor',
+    !!e3 && !!e3.bmp && mesmosPixels(e3.bmp.px, antes13),
+    'a rotação mexeu na camada de tinta — é exatamente a corrupção que `F6-CVS-01` descreve');
+  ok('14.2 o espaço lógico atravessa a rotação intacto (a janela nunca o redefine)',
+    !!e3 && e3.payload.logicalW === NAT_W && e3.payload.logicalH === NAT_H
+      && e3.bmp.w === NAT_W && e3.bmp.h === NAT_H,
+    e3 ? `logical=${e3.payload.logicalW}×${e3.payload.logicalH}` : 'não exportou');
+
+  for (let i = 0; i < 10; i++) {
+    const j = (i % 2) ? JANELA_A : JANELA_B;
+    m.redimensionar(j.w, j.h);
+  }
+  const e4 = tintaExportada(m);
+  ok('14.3 dez ciclos de rotação não acumulam UM píxel de deriva',
+    !!e4 && !!e4.bmp && mesmosPixels(e4.bmp.px, antes13),
+    'a tinta derivou ao longo das rotações — há reamostragem em cadeia no armazenamento');
+
+  /* ── 15. O BFS continua indexado pelo espaço LÓGICO depois da rotação ─────────── */
+  m.redimensionar(JANELA_B.w, JANELA_B.h);
+  tocarLogico(m, projB, (NAT_W >> 1) + 10, (NAT_H >> 1) + 7);   /* quadrante inferior-direito */
+  const e5 = tintaExportada(m);
+  const p5 = e5 && e5.bmp ? pintados(e5.bmp) : [];
+  const esperado5 = (NAT_W >> 1) * (NAT_H >> 1)
+    + (NAT_W - (NAT_W >> 1) - 1) * (NAT_H - (NAT_H >> 1) - 1);
+  ok('15.1 depois de girar, pintar continua acertando a região certa (o BFS não indexa pela janela)',
+    p5.length === esperado5
+    && p5.some((q) => q.x > (NAT_W >> 1) && q.y > (NAT_H >> 1))
+    && p5.every((q) => !(q.x === (NAT_W >> 1) || q.y === (NAT_H >> 1))),
+    `pintados=${p5.length}, esperado=${esperado5}`);
+  ok('15.2 a obra anterior sobreviveu à nova pintura numa janela diferente',
+    p1.every((q) => e5 && e5.bmp && e5.bmp.px[(q.y * e5.bmp.w + q.x) * 4 + 3] > 0),
+    'pintar depois de girar apagou parte do que já estava lá');
+
+  /* ── 16. A exportação nasce da CAMADA DE TINTA, nunca da tela composta ────────── */
+  let linearteVazou = false;
+  if (e5 && e5.bmp) {
+    for (let y = 0; y < e5.bmp.h; y++) {
+      if (e5.bmp.px[(y * e5.bmp.w + (NAT_W >> 1)) * 4 + 3] > 0) { linearteVazou = true; break; }
+    }
+  }
+  ok('16.1 a exportação NÃO reamostra a tela: o traço do lineart não aparece na camada salva',
+    !linearteVazou,
+    'o traço preto entrou no arquivo da criança — a obra foi copiada da tela, não do modelo');
+
+  /* ── 17. `SD-8` · a mesma obra abre igual noutra janela ───────────────────────── */
+  const m2 = subirRaster(JANELA_B);
+  m2.limpar();
+  m2.janela.loadPaint(JSON.stringify(e5.payload));
+  /* O veredito do carregamento é lido ANTES de exportar: `tintaExportada` zera as mensagens,
+     e checar depois responderia sempre "não aplicou" — teste que falha por si mesmo. */
+  const aplicou17 = m2.tem('PAINT_APPLIED') && !m2.tem('LOAD_PAINT_INCOMPATIBLE');
+  const e6 = tintaExportada(m2);
+  ok('17.1 `SD-8` · a obra salva numa janela abre INTEIRA noutra, píxel a píxel',
+    aplicou17 && !!e6 && !!e6.bmp && mesmosPixels(e6.bmp.px, e5.bmp.px),
+    'abrir noutra janela devolveu obra diferente — ou folha em branco');
+
+  /* ── 18. A cobertura deixou de depender do aparelho ───────────────────────────── */
+  const estA = JSON.parse(subirRaster(JANELA_A).ultima('PAINT_STATE:') || '{}');
+  const estB = JSON.parse(subirRaster(JANELA_B).ultima('PAINT_STATE:') || '{}');
+  ok('18.1 `TK-A-035` · a área pintável é a mesma em qualquer janela (concluir não depende da tela)',
+    estA.paintablePx > 0 && estA.paintablePx === estB.paintablePx,
+    `paintablePx: janela A=${estA.paintablePx}, janela B=${estB.paintablePx}`);
+
+  /* ── 19. `TK-A-016` · `commitGesture` fecha sem gravar e sem descartar ────────── */
+  const m3 = subirRaster(JANELA_A);
+  tocarLogico(m3, projA, 10, 7);
+  const antes19 = tintaExportada(m3).bmp.px;
+  m3.limpar();
+  m3.janela.commitGesture();
+  const gravou = m3.tem('PAINT_EXPORT:') || m3.tem('STATE_EXPORT:') || m3.tem('PAINT_APPLIED');
+  const e7 = tintaExportada(m3);
+  ok('19.1 `commitGesture` não grava, não exporta e não descarta — só encerra o gesto',
+    !gravou && !!e7 && mesmosPixels(e7.bmp.px, antes19), 'ir para segundo plano mexeu na obra');
+  m3.limpar();
+  m3.janela.commitGesture();
+  m3.janela.commitGesture();
+  const e8 = tintaExportada(m3);
+  ok('19.2 `commitGesture` é idempotente — chamar sem gesto em voo não muda a obra',
+    !!e8 && mesmosPixels(e8.bmp.px, antes19), 'chamadas repetidas alteraram a obra');
+
   avisos.push(
-    'O motor RASTER (Colorir) não é coberto aqui: `TK-A-035`/`TK-A-036` pertencem ao '
-    + 'commit `C-A9` e ganharão a sua metade de TA-5.',
+    'A metade RASTER executa o MOTOR REAL numa maquete que RASTERIZA, então "nem um píxel '
+    + 'mudou" é afirmação sobre píxeis de verdade. Ainda assim Node não prova WebView real, '
+    + '`resize` nativo, Split View, Slide Over nem nitidez física: que a borda do balde '
+    + 'apareça limpa sob o lineart em multiply — agora que a camada de tinta é AMPLIADA na '
+    + 'exibição em tela grande — é evidência FÍSICA e continua PENDENTE.',
   );
 
   return { casos, avisos };
 }
 
-module.exports = { executarTA5, extrairMotor, montarMotor };
+module.exports = { executarTA5, executarTA5Raster, extrairMotor, montarMotor };
 
 /* Execução direta: `node scripts/testing/logicalSpaceHarness.js` */
 if (require.main === module) {
-  const { casos, avisos } = executarTA5();
+  const v = executarTA5();
+  const r = executarTA5Raster();
+  const casos = v.casos.concat(r.casos);
+  const avisos = v.avisos.concat(r.avisos);
   let falhas = 0;
   for (const c of casos) {
     if (c.ok) { console.log(`  ✓ ${c.nome}`); } else { falhas++; console.log(`  ✗ ${c.nome}\n       → ${c.detalhe}`); }

@@ -24,8 +24,9 @@ const TIMEOUT_MS = 7000;
         nunca "onde ele está guardado".
 
      4. `layoutVersion` (novo, aqui) responde "O QUE AS COORDENADAS SIGNIFICAM"
-        (`W`/`H`/`imgX`/`imgY`/`imgW`/`imgH` no raster; `logicalW`/`logicalH` no
-        vetor) — nunca "que campos existem".
+        (`logicalW`/`logicalH` — mais `W`/`H`/`imgX`/`imgY`/`imgW`/`imgH`, que desde
+        `TK-A-035` descrevem o bitmap salvo e o retângulo do lineart dentro dele, não
+        mais a janela) — nunca "que campos existem".
 
    ⚠️ `CANVAS_PAYLOAD_V` é o campo `v` INTERNO do payload do canvas e está
    CONGELADO EM 2 PARA SEMPRE. Ele é marca legada, jamais discriminador de
@@ -143,6 +144,38 @@ var W=0,H=0;
    Limitado a 3 para não explodir memória/BFS em telas 4x. */
 var DPR=Math.min(window.devicePixelRatio||1,3);
 
+/* ─── [Fase 6 · F6-R3.5 · TK-A-035] ESPAÇO LÓGICO DA OBRA (motor raster) ───────
+   ANTES: a camada de tinta era do tamanho da JANELA (W×H em px físicos). Girar o
+   aparelho, abrir Split View ou arrastar o divisor redefinia W/H enquanto 'paintD',
+   'baseD', 'qBuf' e 'visBuf' continuavam dimensionados pela janela anterior — e o
+   BFS seguia indexando '(y*W+x)' com o W NOVO. Resultado: pintura deslocada e
+   barreiras lidas no lugar errado. Era o 'F6-CVS-01' do lado raster.
+
+   AGORA: a pintura vive no RETÂNGULO LÓGICO DO LINEART ('LW'×'LH'), que é derivado
+   SÓ do próprio desenho — nunca do aparelho, nunca da orientação, nunca do DPR.
+   Duas consequências que importam para a criança:
+     · a obra é a MESMA em qualquer janela: girar só reprojeta a exibição;
+     · a mesma obra abre em qualquer aparelho, porque o espaço lógico de um lineart
+       é idêntico em todos eles (nada de "incompatível" por causa de tela diferente).
+
+   ⚠️ 'G-CVS-1': 'resize()' NÃO realoca 'qBuf', 'visBuf' nem 'paintD'. Com o modelo
+   no espaço lógico isso deixa de ser uma promessa e passa a ser estrutural — esses
+   três buffers não dependem mais de W/H para existir.
+
+   ⚠️ Q8 regra 4: 'LW'/'LH' pertencem ao espaço lógico da OBRA, não à viewport de
+   quem abre. 'imgX'/'imgY'/'imgW'/'imgH' continuam existindo, mas agora são
+   EXIBIÇÃO (a projeção 'contain' do retângulo lógico dentro da janela de agora) —
+   nunca armazenamento.
+
+   Resolução canônica = o tamanho natural do lineart, que é a resolução real da
+   arte; nada além disso é informação verdadeira. O teto existe só para limitar
+   memória/BFS em um asset gigante e é aplicado preservando a proporção. */
+var LW=0,LH=0;
+var LOGICAL_MAX_LONG=2048;
+var espacoTravado=false;
+/* Escala de exibição do espaço lógico dentro da janela (px físicos por px lógico). */
+var dS=1;
+
 /* ─── Image data layers ─── */
 /* baseD — pixel snapshot of (bg + line art), used ONLY for BFS barrier detection */
 /* paintD — user colour layer, transparent where unpainted                         */
@@ -153,14 +186,66 @@ var baseD=null,paintD=null,lineArtImg=null;
 var qBuf=null;    /* Int32Array  W*H*2 — interleaved x,y queue             */
 var visBuf=null;  /* Uint8Array  W*H   — visited flags, cleared after BFS  */
 
-/* ─── Image placement (filled by initCanvas) ─── */
-/* BFS is strictly confined to this rectangle.  Without this, the BFS enters
-   the cream padding area (lum≈255, not a barrier) and connects regions that
-   touch the image edge — e.g. sky and ground merge into one fill zone.      */
+/* ─── Projeção de EXIBIÇÃO do retângulo lógico (recalculada por 'reprojetar') ───
+   [Fase 6 · TK-A-035] Estes quatro números mudaram de papel: eram a posição da arte
+   DENTRO do modelo; agora são a posição do MODELO dentro da janela de agora. Quem
+   guarda pintura não os consulta mais — a projeção acontece na exibição, nunca no
+   armazenamento. Continuam publicados no payload porque descrevem o retângulo do
+   lineart dentro do bitmap exportado (que passou a ser o próprio espaço lógico). */
 var imgX=0,imgY=0,imgW=0,imgH=0;
 
+/* [Fase 6 · TK-A-035] O confinamento do BFS agora é ao ESPAÇO LÓGICO. A razão de
+   existir não mudou uma vírgula: sem ela o BFS entra na área creme (lum≈255, não é
+   barreira) e conecta regiões que só se tocam pela borda — céu e chão viram uma
+   zona só. O que mudou é que a borda deixou de depender da janela. */
 function inImg(x,y){
-  return x>=imgX&&x<imgX+imgW&&y>=imgY&&y<imgY+imgH;
+  return x>=0&&x<LW&&y>=0&&y<LH;
+}
+
+/* Projeção 'contain' do espaço lógico na janela: um fator só, isotrópico, sobra
+   centralizada — a mesma conta canônica de 'useViewportProjection' e do motor
+   vetorial. 'SP' é a folga histórica de 6px que impede a borda da arte de cair em
+   posição subpixel (o que corromperia a detecção de barreira no baseD). */
+var SP=6;
+function reprojetar(){
+  if(!(LW>0&&LH>0&&W>0&&H>0)){imgX=0;imgY=0;imgW=0;imgH=0;dS=1;return;}
+  var availW=Math.max(1,W-SP*2), availH=Math.max(1,H-SP*2);
+  dS=Math.min(availW/LW,availH/LH);
+  imgW=Math.round(LW*dS); imgH=Math.round(LH*dS);
+  imgX=Math.round((W-imgW)/2); imgY=Math.round((H-imgH)/2);
+}
+
+/* Estabelece o espaço lógico a partir do tamanho natural do lineart. Chamado UMA
+   vez, na inicialização — e a trava fecha na mesma volta. Diferente do motor
+   vetorial (que pode readotar a janela enquanto a folha está genuinamente vazia),
+   aqui a trava é fechada já no boot: o modelo raster É um buffer de píxeis, e
+   readotar significaria REALOCAR 'paintD'/'qBuf'/'visBuf' — exatamente o que
+   'G-CVS-1' proíbe. Coordenada vetorial reprojeta sem perda; pixel, não. */
+function definirEspacoLogico(natW,natH){
+  /* A trava é PORTANTE, não decorativa: uma segunda definição realocaria os buffers e
+     'G-CVS-1' seria violado por dentro, em silêncio. Preferir a recusa a confiar em
+     que nenhum chamador futuro vá chamar duas vezes. */
+  if(espacoTravado)return false;
+  var w=Math.max(1,Math.round(natW||0)), h=Math.max(1,Math.round(natH||0));
+  var lo=Math.max(w,h), k=lo>LOGICAL_MAX_LONG?LOGICAL_MAX_LONG/lo:1;
+  LW=Math.max(1,Math.round(w*k)); LH=Math.max(1,Math.round(h*k));
+  tmp.width=LW; tmp.height=LH;
+  espacoTravado=true;
+  reprojetar();
+  return true;
+}
+
+/* Retângulo do lineart dentro de uma janela histórica de 'w'×'h'. É a MESMA conta
+   que sempre colocou a arte na tela — extraída para que a reconstrução de uma obra
+   legada seja determinística a partir de evidência real (Q8 regra 6), e não de
+   chute. Devolve null quando não há como calcular. */
+function colocacaoHistorica(w,h,natW,natH){
+  if(!(w>0&&h>0&&natW>0&&natH>0))return null;
+  var aw=w-SP*2, ah=h-SP*2;
+  if(!(aw>0&&ah>0))return null;
+  var s=Math.min(aw/natW,ah/natH);
+  var iw=Math.round(natW*s), ih=Math.round(natH*s);
+  return {x:Math.round((w-iw)/2),y:Math.round((h-ih)/2),w:iw,h:ih};
 }
 
 /* ─── Undo history ─── */
@@ -195,14 +280,23 @@ var suppressPaintUntil=0;
    Layer order: 1. cream bg  2. user paint  3. line art on top
 ─────────────────────────────────────────── */
 function resize(){
+  /* [Fase 6 · TK-A-016] Fecha o gesto em voo ANTES de a projeção mudar. Sem isto,
+     um pinch interrompido por uma rotação terminaria como toque solto e poderia
+     pintar numa coordenada que já significa outro ponto da arte. */
+  finalizarGestoAtomico();
   var cssW=window.innerWidth|0, cssH=window.innerHeight|0;
   /* Backing FÍSICO (×DPR) para nitidez; display em CSS px via style. */
   W=Math.round(cssW*DPR); H=Math.round(cssH*DPR);
   C.style.width=cssW+'px'; C.style.height=cssH+'px';
   C.width=W; C.height=H;
   off.width=W; off.height=H;
-  tmp.width=W; tmp.height=H;
   INITIAL_VIEW_BOTTOM_SAFE_INSET=Math.round(H*INITIAL_VIEW_BOTTOM_SAFE_FRAC);
+  /* ⚠️ [Fase 6 · TK-A-085 · G-CVS-1] Daqui não sai realocação de 'paintD', 'qBuf'
+     nem 'visBuf', e 'tmp' (o buffer da camada de tinta) não é redimensionado: eles
+     pertencem ao espaço LÓGICO, que a janela não decide. Redimensionar qualquer um
+     deles aqui apagaria a pintura da criança em toda rotação (SD-8). O que a janela
+     move é só a PROJEÇÃO. */
+  reprojetar();
   if(baseD) renderAll();
 }
 
@@ -211,11 +305,15 @@ function renderAll(){
     /* 1. Cream background */
     offCtx.fillStyle='#FFFDF8';
     offCtx.fillRect(0,0,W,H);
-    /* 2. User paint layer */
-    if(paintD){
-      tmpCtx.clearRect(0,0,W,H);
+    /* 2. User paint layer
+       [Fase 6 · TK-A-036] A tinta sai SEMPRE do estado lógico canônico ('paintD') e
+       é projetada uma única vez para o retângulo de exibição. Nunca de um quadro
+       anterior nem do buffer de tela: reamostrar do que já estava desenhado
+       encadearia perdas a cada rotação e a arte iria borrando sozinha. */
+    if(paintD&&LW>0&&LH>0){
+      tmpCtx.clearRect(0,0,LW,LH);
       tmpCtx.putImageData(paintD,0,0);
-      offCtx.drawImage(tmp,0,0);
+      offCtx.drawImage(tmp,0,0,LW,LH,imgX,imgY,imgW,imgH);
     }
     /* 3. Line art on top with multiply blending.
        WHY multiply: the coloring PNG has an opaque white background.
@@ -297,21 +395,21 @@ function fill(sx,sy,rgb){
      if BFS were allowed to enter it.                                         */
   if(!inImg(sx,sy)){devLog('[COLORING_DEBUG] fill rejected: outside inImg sx='+sx+' sy='+sy);return;}
   var bd=baseD.data,pd=paintD.data;
-  var bi=(sy*W+sx)*4;
+  var bi=(sy*LW+sx)*4;
   if(isBarrier(bd[bi],bd[bi+1],bd[bi+2],bd[bi+3])){devLog('[COLORING_DEBUG] fill rejected: isBarrier lum='+lum(bd[bi],bd[bi+1],bd[bi+2]).toFixed(0));var _now=Date.now();if(_now-lastFillRejectedAt>2000){lastFillRejectedAt=_now;window.ReactNativeWebView.postMessage('FILL_REJECTED');}return;}
   var tR=pd[bi],tG=pd[bi+1],tB=pd[bi+2],tA=pd[bi+3];
   var fR=rgb[0],fG=rgb[1],fB=rgb[2];
   if(tA===255&&tR===fR&&tG===fG&&tB===fB)return;
   pushHist();
   var vis=visBuf,buf=qBuf,qh=0,qt=0;
-  vis[sy*W+sx]=1; buf[qt++]=sx; buf[qt++]=sy;
+  vis[sy*LW+sx]=1; buf[qt++]=sx; buf[qt++]=sy;
   while(qh<qt){
-    var cx=buf[qh++],cy=buf[qh++],idx=(cy*W+cx)*4;
+    var cx=buf[qh++],cy=buf[qh++],idx=(cy*LW+cx)*4;
     pd[idx]=fR; pd[idx+1]=fG; pd[idx+2]=fB; pd[idx+3]=255;
     for(var i=0;i<4;i++){
       var nx=cx+DX[i],ny=cy+DY[i];
       if(!inImg(nx,ny))continue; /* confine BFS to image rectangle */
-      var vi=ny*W+nx; if(vis[vi])continue;
+      var vi=ny*LW+nx; if(vis[vi])continue;
       var ni=vi*4;
       if(isBFSBarrier(bd[ni],bd[ni+1],bd[ni+2],bd[ni+3]))continue;
       if(pd[ni]!==tR||pd[ni+1]!==tG||pd[ni+2]!==tB||pd[ni+3]!==tA)continue;
@@ -319,7 +417,7 @@ function fill(sx,sy,rgb){
     }
   }
   /* Clear visited flags only for enqueued pixels — O(N_fill) not O(W*H). */
-  for(var k=1;k<qt;k+=2) vis[buf[k]*W+buf[k-1]]=0;
+  for(var k=1;k<qt;k+=2) vis[buf[k]*LW+buf[k-1]]=0;
   devLog('[COLORING_DEBUG] fillPixelCount='+Math.floor(qt/2)+' hasPaint='+hasPainted);
   notifyPainted(); renderAll();
   devLog('[COLORING_DEBUG] renderAll called after fill');
@@ -332,25 +430,25 @@ function erase(sx,sy){
   if(!paintD||!qBuf||!visBuf)return;
   sx=sx|0; sy=sy|0;
   if(!inImg(sx,sy))return;
-  var pd=paintD.data,si=(sy*W+sx)*4;
+  var pd=paintD.data,si=(sy*LW+sx)*4;
   var tR=pd[si],tG=pd[si+1],tB=pd[si+2],tA=pd[si+3];
   if(tA===0)return;
   pushHist();
   var vis=visBuf,buf=qBuf,qh=0,qt=0;
-  vis[sy*W+sx]=1; buf[qt++]=sx; buf[qt++]=sy;
+  vis[sy*LW+sx]=1; buf[qt++]=sx; buf[qt++]=sy;
   while(qh<qt){
-    var cx=buf[qh++],cy=buf[qh++],idx=(cy*W+cx)*4;
+    var cx=buf[qh++],cy=buf[qh++],idx=(cy*LW+cx)*4;
     pd[idx]=0; pd[idx+1]=0; pd[idx+2]=0; pd[idx+3]=0;
     for(var i=0;i<4;i++){
       var nx=cx+DX[i],ny=cy+DY[i];
       if(!inImg(nx,ny))continue;
-      var vi=ny*W+nx; if(vis[vi])continue;
+      var vi=ny*LW+nx; if(vis[vi])continue;
       var ni=vi*4;
       if(pd[ni]!==tR||pd[ni+1]!==tG||pd[ni+2]!==tB||pd[ni+3]!==tA)continue;
       vis[vi]=1; buf[qt++]=nx; buf[qt++]=ny;
     }
   }
-  for(var k=1;k<qt;k+=2) vis[buf[k]*W+buf[k-1]]=0;
+  for(var k=1;k<qt;k+=2) vis[buf[k]*LW+buf[k-1]]=0;
   notifyPainted(); renderAll();
 }
 
@@ -369,14 +467,17 @@ function erase(sx,sy){
 var paintRev=0;
 var paintablePx=0;
 
+/* [Fase 6 · TK-A-035] As duas medidas passam a percorrer o ESPAÇO LÓGICO inteiro —
+   que É o retângulo da arte. A conta é a mesma de antes; o que sumiu foi o recorte
+   contra a janela, porque a moldura creme deixou de existir dentro do modelo. Como
+   o denominador não depende mais do aparelho, a mesma obra tem a mesma cobertura em
+   qualquer tela: a criança não conclui numa e fica devendo noutra. */
 function computePaintablePx(){
-  if(!baseD||imgW<=0||imgH<=0){paintablePx=0;return;}
+  if(!baseD||LW<=0||LH<=0){paintablePx=0;return;}
   var bd=baseD.data,n=0;
-  var x0=Math.max(0,imgX),y0=Math.max(0,imgY);
-  var x1=Math.min(W,imgX+imgW),y1=Math.min(H,imgY+imgH);
-  for(var y=y0;y<y1;y++){
-    var row=y*W;
-    for(var x=x0;x<x1;x++){
+  for(var y=0;y<LH;y++){
+    var row=y*LW;
+    for(var x=0;x<LW;x++){
       var i=(row+x)*4;
       if(!isBFSBarrier(bd[i],bd[i+1],bd[i+2],bd[i+3]))n++;
     }
@@ -385,13 +486,11 @@ function computePaintablePx(){
 }
 
 function countPaintedPx(){
-  if(!paintD||imgW<=0||imgH<=0)return 0;
+  if(!paintD||LW<=0||LH<=0)return 0;
   var pd=paintD.data,n=0;
-  var x0=Math.max(0,imgX),y0=Math.max(0,imgY);
-  var x1=Math.min(W,imgX+imgW),y1=Math.min(H,imgY+imgH);
-  for(var y=y0;y<y1;y++){
-    var row=y*W;
-    for(var x=x0;x<x1;x++){
+  for(var y=0;y<LH;y++){
+    var row=y*LW;
+    for(var x=0;x<LW;x++){
       if(pd[(row+x)*4+3]>0)n++;
     }
   }
@@ -425,6 +524,31 @@ var tapX=0,tapY=0,pinchD=0,pinchMX=0,pinchMY=0;
 var TAP_THRESH=8;
 
 function d2(a,b){var dx=a.clientX-b.clientX,dy=a.clientY-b.clientY;return Math.sqrt(dx*dx+dy*dy);}
+
+/* [Fase 6 · F6-R3.5 · TK-A-016] FECHAMENTO ATÔMICO DO GESTO — espelho raster do que
+   o motor vetorial faz com o traço em voo. Aqui o gesto que altera a tinta é um
+   TOQUE, e ele só vira pintura quando o dedo levanta: se a janela mudar no meio, as
+   coordenadas de partida passam a significar outro ponto da arte. Fechar o gesto
+   ANTES da reprojeção é o que impede o pior caso — uma pintura aparecer no lugar
+   errado sem que ninguém tenha pedido.
+   Não grava, não exporta e não descarta pintura: só encerra o gesto em curso. A
+   janela de silêncio é a MESMA já usada depois do pinch, pelo mesmo motivo (o dedo
+   que ainda está na tela não deve virar toque de pintura). */
+function finalizarGestoAtomico(){
+  if(touchState==='idle')return false;
+  touchState='idle';
+  pinchD=0;
+  suppressPaintUntil=Date.now()+300;
+  return true;
+}
+
+/* Converte px físico da janela → coordenada do ESPAÇO LÓGICO, na mesma volta em que
+   o toque é lido. Nenhum ponto do modelo carrega pixel de dispositivo. */
+function paraLogico(px,py){
+  if(!(dS>0))return{x:0,y:0,dentro:false};
+  var x=(px-imgX)/dS, y=(py-imgY)/dS;
+  return{x:Math.floor(x),y:Math.floor(y),dentro:(x>=0&&x<LW&&y>=0&&y<LH)};
+}
 
 C.addEventListener('touchstart',function(e){
   e.preventDefault();
@@ -485,13 +609,20 @@ C.addEventListener('touchend',function(e){
     var touch=e.changedTouches[0];
     var r=C.getBoundingClientRect();
     /* (clientX-r.left) é offset CSS no canvas → ×DPR para px físicos do backing. */
-    var ox=Math.floor(((touch.clientX-r.left)*DPR-tx)/scale);
-    var oy=Math.floor(((touch.clientY-r.top)*DPR-ty)/scale);
+    var ox=((touch.clientX-r.left)*DPR-tx)/scale;
+    var oy=((touch.clientY-r.top)*DPR-ty)/scale;
+    /* [Fase 6 · TK-A-033] MOLDURA INERTE — política idêntica à do motor vetorial: o
+       gesto que NASCE na sobra é IGNORADO. Ali não há papel, e pintar fora da folha
+       ensinaria à criança uma borda que não existe. (No motor vetorial há também o
+       caso do gesto que começa dentro e passa pela moldura, fixado à borda lógica;
+       aqui esse caso não existe, porque o gesto de pintura é um toque só.) */
+    var pl=paraLogico(ox,oy);
     devLog('[COLORING_DEBUG] touch clientX='+touch.clientX+' clientY='+touch.clientY
-      +' canvasX='+ox+' canvasY='+oy
+      +' logicalX='+pl.x+' logicalY='+pl.y+' LW='+LW+' LH='+LH
       +' imgX='+imgX+' imgY='+imgY+' imgW='+imgW+' imgH='+imgH
-      +' inImg='+inImg(ox,oy)+' eraser='+isEraser+' color='+color);
-    if(isEraser) erase(ox,oy); else fill(ox,oy,hex2rgb(color));
+      +' dentro='+pl.dentro+' eraser='+isEraser+' color='+color);
+    if(!pl.dentro){devLog('[COLORING_DEBUG] toque na moldura ignorado');return;}
+    if(isEraser) erase(pl.x,pl.y); else fill(pl.x,pl.y,hex2rgb(color));
   }
 },{passive:false});
 
@@ -510,14 +641,21 @@ window.setEraser=function(){
 /* Limpar e desfazer TAMBÉM mudam a tinta: sobem a revisão e republicam a medida.
    É o que faz "Pronto" voltar a desabilitado assim que a folha é limpa (Parte 5) e
    o que faz Desfazer restaurar tanto os pixels quanto a possibilidade de concluir. */
+/* [Fase 6 · TK-A-035] Camada de tinta NOVA sempre nasce no espaço lógico. Criá-la
+   com W/H voltaria a acoplar a pintura à janela — e um "limpar" feito em paisagem
+   deixaria o buffer com um tamanho que o BFS não indexa. */
+function novaCamadaTinta(){
+  return tmpCtx.createImageData(Math.max(1,LW),Math.max(1,LH));
+}
+
 window.clearPaint=function(){
-  if(paintD){pushHist();paintD=offCtx.createImageData(W,H);paintRev++;renderAll();postPaintState();}
+  if(paintD){pushHist();paintD=novaCamadaTinta();paintRev++;renderAll();postPaintState();}
 };
 
 window.undo=function(){
   if(hist.length===0)return;
   var prev=hist.pop();
-  if(!paintD)paintD=offCtx.createImageData(W,H);
+  if(!paintD)paintD=novaCamadaTinta();
   paintD.data.set(prev);
   paintRev++;
   renderAll();
@@ -529,10 +667,19 @@ window.resetZoom=function(){scale=1;tx=0;ty=0;show();};
 /* Reconferência sob demanda da medida real, SEM alterar tinta nem revisão. */
 window.postPaintState=function(){postPaintState();};
 
+/* [Fase 6 · TK-A-016] Fechamento atômico pedido de FORA (ida para segundo plano,
+   perda de foco). Não grava, não exporta, não descarta — só encerra o gesto. */
+window.commitGesture=function(){finalizarGestoAtomico();};
+
 window.exportPaint=function(){
   try{
+    /* [Fase 6 · TK-A-035/TK-A-036] O bitmap salvo é o ESPAÇO LÓGICO em 1:1 — nunca
+       uma cópia da tela. Reamostrar da janela gravaria dentro da obra a moldura
+       desta orientação e a resolução deste aparelho, e a arte ficaria refém do
+       momento em que a criança apertou "salvar". Como o espaço lógico é o próprio
+       retângulo do lineart, o PNG também deixou de carregar a faixa creme vazia. */
     var out=document.createElement('canvas');
-    out.width=W; out.height=H;
+    out.width=Math.max(1,LW); out.height=Math.max(1,LH);
     var outCtx=out.getContext('2d');
     if(paintD) outCtx.putImageData(paintD,0,0);
     /* v2 payload: includes canvas dimensions so loadPaint can validate
@@ -546,9 +693,19 @@ window.exportPaint=function(){
        campo "v" permanece CANVAS_PAYLOAD_V (2) — nunca 3 (ver TK-A-001). Todos os
        campos que já existiam continuam presentes, na mesma posição semântica: a
        adição é estritamente aditiva e nenhum leitor antigo quebra. */
+    /* [Fase 6 · TK-A-035 · G-CVS-2] O espaço lógico é DECLARADO POR NOME
+       ('logicalW'/'logicalH'), como no motor vetorial: sem a declaração, a obra
+       guardaria coordenadas cujo significado a próxima abertura teria de adivinhar.
+       Os campos que já existiam continuam presentes e continuam VERDADEIROS na sua
+       própria definição: 'W'/'H' são as dimensões do bitmap salvo, e
+       'imgX'/'imgY'/'imgW'/'imgH' são o retângulo do lineart DENTRO desse bitmap —
+       que agora o ocupa inteiro. Quem lê razões ('imgX/W', 'imgW/W') para recortar a
+       arte segue lendo o recorte certo. O campo 'v' permanece CANVAS_PAYLOAD_V (2) e
+       nunca 3: a adição é estritamente aditiva e os quatro eixos seguem separados. */
     var payload=JSON.stringify({v:CANVAS_PAYLOAD_V,
       paintSchemaVersion:PAINT_SCHEMA_VERSION,layoutVersion:LAYOUT_VERSION,
-      W:W,H:H,imgX:imgX,imgY:imgY,imgW:imgW,imgH:imgH,
+      logicalW:LW,logicalH:LH,
+      W:LW,H:LH,imgX:0,imgY:0,imgW:LW,imgH:LH,
       rev:paintRev,paintedPx:countPaintedPx(),paintablePx:paintablePx,
       data:out.toDataURL('image/png')});
     window.ReactNativeWebView.postMessage('PAINT_EXPORT:'+payload);
@@ -557,9 +714,51 @@ window.exportPaint=function(){
   }
 };
 
+/* ─── [Fase 6 · F6-R3.5 · TK-A-036 · Q8 regras 2, 3, 6] ORIGEM DA REPROJEÇÃO ─────
+   Devolve o retângulo do lineart DENTRO do bitmap salvo — o único ponto de partida
+   legítimo para trazer uma obra ao espaço lógico de agora. A leitura é ESTRITAMENTE
+   SOMENTE LEITURA: escolhe COMO INTERPRETAR os bytes gravados, não os regrava, não
+   migra, não converte e não descarta. A representação nova só aparece no próximo
+   save explícito da criança (Q8 regra 8).
+
+   Três origens, todas determinísticas a partir de evidência real:
+     1. obra que DECLARA 'logicalW'/'logicalH' — o bitmap É o espaço lógico;
+     2. obra legada que traz a colocação ('imgX'…'imgH') — o retângulo está escrito;
+     3. obra legada sem colocação — o bitmap era a JANELA inteira daquele momento, e
+        a colocação daquela janela é recalculável pela MESMA conta que sempre a
+        produziu ('colocacaoHistorica'), com o tamanho natural do lineart de hoje.
+
+   Devolve null quando não há evidência suficiente. Null NUNCA autoriza apagar: quem
+   recebe null não aplica nada e a obra continua guardada exatamente como estava
+   (Q8 regra 3) — incompatibilidade dimensional não destrói.
+
+   ⚠️ Este é o mínimo exigido pela atomicidade de C-A9: no instante em que o modelo
+   passa a viver no espaço lógico, uma obra já existente PRECISA continuar abrindo,
+   sob pena de "obra recuperável aberta como canvas vazio" (SD-8). O leitor de
+   compatibilidade completo — corpus, vereditos por caso e TA-12 — permanece em
+   'C-A10' e não é antecipado aqui. */
+function retanguloDeOrigem(p,bmpW,bmpH){
+  if(!(bmpW>0&&bmpH>0))return null;
+  var lw=Number(p&&p.logicalW), lh=Number(p&&p.logicalH);
+  if(isFinite(lw)&&lw>0&&isFinite(lh)&&lh>0)return{x:0,y:0,w:bmpW,h:bmpH};
+  var ix=Number(p&&p.imgX), iy=Number(p&&p.imgY);
+  var iw=Number(p&&p.imgW), ih=Number(p&&p.imgH);
+  if(isFinite(ix)&&isFinite(iy)&&isFinite(iw)&&iw>0&&isFinite(ih)&&ih>0)
+    return{x:ix,y:iy,w:iw,h:ih};
+  /* Chegou aqui sem retângulo escrito. A RECONSTRUÇÃO HISTÓRICA é do ramo LEGADO
+     de geometria — e só dele. Quem DECLARA 'layoutVersion' se comprometeu a trazer
+     a geometria explícita; se ela não veio, o payload se contradiz, e o leitor NÃO
+     deduz o retângulo a partir dos píxeis. Deduzir seria inferir um eixo a partir de
+     outro (§11.5.3 regra 5) — a mesma proibição que TK-A-002 já fixou. Sem retângulo
+     nada é aplicado, e não aplicar nunca apaga (Q8 regra 3). */
+  if(!classifyAxes(p).layout.legacy)return null;
+  /* Folha livre (Ateliê raster): não há lineart, o bitmap é a obra inteira. */
+  if(!lineArtImg)return{x:0,y:0,w:bmpW,h:bmpH};
+  return colocacaoHistorica(bmpW,bmpH,lineArtImg.naturalWidth,lineArtImg.naturalHeight);
+}
+
 /* Validação REAL do desenho salvo, SEM aplicar tinta. Confirma que o payload
-   existe, parseia e é COMPATÍVEL com o tamanho atual do canvas (mesmas W,H —
-   imgX/Y/W/H são determinísticos a partir disso). Posta:
+   existe, parseia e é RECUPERÁVEL para o espaço lógico de agora. Posta:
      PAINT_VALID    → há tinta carregável e compatível (mostrar modal "continuar")
      PAINT_INVALID  → ausente / corrompido / incompatível (limpar e abrir como nova)
    Usado para decidir o modal ANTES de carregar — nunca deixa modal falso. */
@@ -567,9 +766,11 @@ window.validatePaint=function(jsonStr){
   try{
     if(typeof jsonStr!=='string'||!jsonStr){window.ReactNativeWebView.postMessage('PAINT_INVALID');return;}
     if(jsonStr.startsWith('data:')){
-      /* v1 legado: sem dims no payload → compara o tamanho natural da imagem. */
+      /* v1 legado: sem metadado nenhum. A pergunta deixou de ser "tem o tamanho
+         desta janela?" — que reprovava a obra da criança só por ela ter sido feita
+         noutra orientação (Q8 regra 3) — e passou a ser "dá para reconstruir?". */
       var im=new window.Image();
-      im.onload=function(){window.ReactNativeWebView.postMessage((im.naturalWidth===W&&im.naturalHeight===H)?'PAINT_VALID':'PAINT_INVALID');};
+      im.onload=function(){window.ReactNativeWebView.postMessage(retanguloDeOrigem(null,im.naturalWidth,im.naturalHeight)?'PAINT_VALID':'PAINT_INVALID');};
       im.onerror=function(){window.ReactNativeWebView.postMessage('PAINT_INVALID');};
       im.src=jsonStr; return;
     }
@@ -591,15 +792,21 @@ window.validatePaint=function(jsonStr){
       paint:{declared:ax.paint.declared,legacy:ax.paint.legacy,ok:ax.paint.ok},
       layout:{declared:ax.layout.declared,legacy:ax.layout.legacy,ok:ax.layout.ok}
     }));
-    var sw=(p.W!==null&&p.W!==undefined)?p.W:null;
-    var sh=(p.H!==null&&p.H!==undefined)?p.H:null;
-    if(sw===null||sh===null){
-      var im2=new window.Image();
-      im2.onload=function(){window.ReactNativeWebView.postMessage((im2.naturalWidth===W&&im2.naturalHeight===H)?'PAINT_VALID':'PAINT_INVALID');};
-      im2.onerror=function(){window.ReactNativeWebView.postMessage('PAINT_INVALID');};
-      im2.src=p.data; return;
+    /* [Fase 6 · TK-A-035] Obra que DECLARA o espaço lógico é recuperável por
+       construção: o bitmap É o espaço lógico. Resposta imediata, sem decodificar. */
+    var lwD=Number(p.logicalW), lhD=Number(p.logicalH);
+    if(isFinite(lwD)&&lwD>0&&isFinite(lhD)&&lhD>0){
+      window.ReactNativeWebView.postMessage('PAINT_VALID'); return;
     }
-    window.ReactNativeWebView.postMessage((sw===W&&sh===H)?'PAINT_VALID':'PAINT_INVALID');
+    /* Obra legada: a decisão depende de existir retângulo de origem — e ele pode
+       vir do payload ou ser recalculado a partir do tamanho do próprio bitmap.
+       Repare no que NÃO está mais aqui: a comparação com W/H da janela. Ela fazia
+       uma obra perfeitamente inteira ser tratada como inválida só porque a criança
+       virou o aparelho — e "inválida" abria folha em branco (SD-8). */
+    var im2=new window.Image();
+    im2.onload=function(){window.ReactNativeWebView.postMessage(retanguloDeOrigem(p,im2.naturalWidth,im2.naturalHeight)?'PAINT_VALID':'PAINT_INVALID');};
+    im2.onerror=function(){window.ReactNativeWebView.postMessage('PAINT_INVALID');};
+    im2.src=p.data;
   }catch(err){
     window.ReactNativeWebView.postMessage('PAINT_INVALID');
   }
@@ -652,27 +859,32 @@ window.loadPaint=function(jsonStr){
     var img=new window.Image();
     img.onload=function(){
       try{
-        /* Dimension gate: saved bitmap must exactly match the current canvas size.
-           imgX/Y/W/H are deterministic from W,H + image natural size, so matching
-           W and H guarantees the paint pixels align with the line art.          */
-        /* [Fase 6 · TK-A-002] O fallback pelo tamanho natural do bitmap é do
-           ramo LEGADO de geometria — e continua idêntico para ele. Um payload
-           que DECLARA 'layoutVersion' e mesmo assim omite W/H se contradiz: aí o
-           leitor não deduz a geometria a partir dos píxeis (isso seria inferir um
-           eixo a partir de outro). Segue para o ramo de incompatibilidade, que
-           não apaga nada. */
-        var geomLegacy=axes.layout.legacy;
-        var checkW=(savedW!==null&&savedW!==undefined)?savedW:(geomLegacy?img.naturalWidth:null);
-        var checkH=(savedH!==null&&savedH!==undefined)?savedH:(geomLegacy?img.naturalHeight:null);
-        if(checkW===null||checkH===null||checkW!==W||checkH!==H){
-          devLog('[COLORING_STATE] incompatible saved state ignored W_saved='+checkW+' H_saved='+checkH+' W_curr='+W+' H_curr='+H);
+        /* [Fase 6 · F6-R3.5 · TK-A-036 · Q8] O portão dimensional que existia aqui
+           EXIGIA que o bitmap salvo tivesse exatamente o tamanho da janela de agora.
+           Era ele que transformava "criança pintou em retrato e reabriu em paisagem"
+           em 'LOAD_PAINT_INCOMPATIBLE' — obra inteira, recuperável, tratada como se
+           não existisse. Com o espaço lógico, a pergunta certa é outra: de qual
+           retângulo do bitmap sai a obra? Havendo retângulo, a obra entra INTEIRA,
+           com proporção preservada, em UMA única reamostragem que parte do bitmap
+           canônico — nunca de um quadro anterior, para que rotações sucessivas não
+           acumulem perda.
+           Não havendo retângulo, nada é aplicado e nada é apagado: os bytes antigos
+           continuam intactos no armazenamento (Q8 regra 3). */
+        if(!(LW>0&&LH>0)){
           window.ReactNativeWebView.postMessage('LOAD_PAINT_INCOMPATIBLE');
           return;
         }
-        var tc=document.createElement('canvas'); tc.width=W; tc.height=H;
-        var tcCtx=tc.getContext('2d'); tcCtx.drawImage(img,0,0);
-        if(!paintD) paintD=offCtx.createImageData(W,H);
-        paintD.data.set(tcCtx.getImageData(0,0,W,H).data);
+        var org=retanguloDeOrigem(payload,img.naturalWidth,img.naturalHeight);
+        if(!org){
+          devLog('[COLORING_STATE] sem retangulo de origem — nada aplicado, nada apagado W_saved='+savedW+' H_saved='+savedH+' bmp='+img.naturalWidth+'x'+img.naturalHeight);
+          window.ReactNativeWebView.postMessage('LOAD_PAINT_INCOMPATIBLE');
+          return;
+        }
+        var tc=document.createElement('canvas'); tc.width=LW; tc.height=LH;
+        var tcCtx=tc.getContext('2d');
+        tcCtx.drawImage(img,org.x,org.y,org.w,org.h,0,0,LW,LH);
+        if(!paintD) paintD=novaCamadaTinta();
+        paintD.data.set(tcCtx.getImageData(0,0,LW,LH).data);
         /* A arte retomada entra como uma REVISÃO nova e é MEDIDA como qualquer outra:
            nunca mais "tem pintura" só porque existia um payload salvo — se o que voltou
            for uma folha transparente, a medida dirá zero e "Pronto" seguirá desabilitado. */
@@ -681,7 +893,7 @@ window.loadPaint=function(jsonStr){
            Quem retoma uma arte (ex.: Colorir 60) usa isto para só então revelar o
            canvas — nunca o contorno sem cor. O fluxo legado ignora a mensagem. */
         window.ReactNativeWebView.postMessage('PAINT_APPLIED');
-        devLog('[COLORING_STATE] load OK W='+W+' H='+H);
+        devLog('[COLORING_STATE] load OK espacoLogico='+LW+'x'+LH+' origem='+org.x+','+org.y+' '+org.w+'x'+org.h);
       }catch(e){
         window.ReactNativeWebView.postMessage('ERR:loadPaint_draw:'+e.message);
       }
@@ -698,9 +910,11 @@ window.loadPaint=function(jsonStr){
 /* ──────────────────────────────────────────
    INITIALISATION
 ─────────────────────────────────────────── */
+/* [Fase 6 · TK-A-085 · G-CVS-1] Os buffers do BFS são dimensionados pelo ESPAÇO
+   LÓGICO e alocados UMA vez, na inicialização. 'resize()' não passa por aqui. */
 function allocBufs(){
-  qBuf=new Int32Array(W*H*2);
-  visBuf=new Uint8Array(W*H);
+  qBuf=new Int32Array(Math.max(1,LW*LH*2));
+  visBuf=new Uint8Array(Math.max(1,LW*LH));
 }
 
 function initCanvas(uri){
@@ -710,27 +924,23 @@ function initCanvas(uri){
     try{
       resize();
       devLog('img.naturalSize='+img.naturalWidth+'x'+img.naturalHeight+' canvas='+W+'x'+H);
-      /* 6px padding — minimal margin so image occupies maximum canvas space
-         while preventing sub-pixel placement of the image edge.
-         inImg bounds still enforced, BFS cannot escape into padding.       */
-      var SP=6;
-      var availW=W-SP*2, availH=H-SP*2;
-      var s=Math.min(availW/img.naturalWidth,availH/img.naturalHeight);
-      /* Integer placement — no sub-pixel antialiasing on the image boundary
-         that could corrupt barrier detection in baseD.                      */
-      imgW=Math.round(img.naturalWidth*s);
-      imgH=Math.round(img.naturalHeight*s);
-      imgX=Math.round((W-imgW)/2);
-      imgY=Math.round((H-imgH)/2);
-      devLog('imgPlacement x='+imgX+' y='+imgY+' w='+imgW+' h='+imgH);
       /* Store reference for compositing — line art is re-drawn each frame. */
       lineArtImg=img;
-      /* Capture barrier snapshot (bg + line art) for BFS isBarrier checks. */
-      offCtx.fillStyle='#FFFDF8'; offCtx.fillRect(0,0,W,H);
-      offCtx.drawImage(img,imgX,imgY,imgW,imgH);
-      baseD=offCtx.getImageData(0,0,W,H);
-      devLog('getImageData OK size='+(W*H*4));
-      paintD=offCtx.createImageData(W,H);
+      /* [Fase 6 · TK-A-035] O ESPAÇO LÓGICO nasce do lineart — e só dele. A janela
+         entra depois, e só na projeção ('reprojetar', dentro de 'definirEspacoLogico'),
+         que mantém a folga histórica de 6px e a colocação inteira que impedem a borda
+         da arte de cair em posição subpixel. */
+      definirEspacoLogico(img.naturalWidth,img.naturalHeight);
+      devLog('espacoLogico='+LW+'x'+LH+' projecao x='+imgX+' y='+imgY+' w='+imgW+' h='+imgH);
+      /* Capture barrier snapshot (bg + line art) for BFS isBarrier checks —
+         agora NO ESPAÇO LÓGICO, em 1:1 com o lineart. A barreira deixou de ser
+         reamostrada pelo tamanho da tela, o que também a torna igual em qualquer
+         aparelho: a mesma região fechada é a mesma região fechada em todo lugar. */
+      tmpCtx.fillStyle='#FFFDF8'; tmpCtx.fillRect(0,0,LW,LH);
+      tmpCtx.drawImage(img,0,0,LW,LH);
+      baseD=tmpCtx.getImageData(0,0,LW,LH);
+      devLog('getImageData OK size='+(LW*LH*4));
+      paintD=novaCamadaTinta();
       /* Área PINTÁVEL medida UMA vez, com o lineart já no lugar: é o denominador da
          cobertura mínima (Parte 3). Feito aqui porque baseD (fundo + traço) acabou de
          ser capturado e imgX/Y/W/H já estão definitivos. */
@@ -776,14 +986,18 @@ if(imgUri){
   initCanvas(imgUri);
 }else{
   try{
-    /* Atelier free-draw canvas — blank slate, full viewport. */
-    imgX=0; imgY=0; imgW=W; imgH=H;
-    offCtx.fillStyle='#FFFDF8'; offCtx.fillRect(0,0,W,H);
-    baseD=offCtx.getImageData(0,0,W,H);
-    paintD=offCtx.createImageData(W,H);
+    /* Atelier free-draw canvas — blank slate.
+       [Fase 6 · TK-A-035] Sem lineart não há retângulo de arte, então a folha adota
+       a janela do primeiro quadro como espaço lógico — UMA vez, e a trava fecha aí
+       mesmo. Readotar depois significaria realocar 'paintD'/'qBuf'/'visBuf', que é
+       exatamente o que 'G-CVS-1' proíbe: pixel realocado é pintura perdida. */
+    definirEspacoLogico(W,H);
+    tmpCtx.fillStyle='#FFFDF8'; tmpCtx.fillRect(0,0,LW,LH);
+    baseD=tmpCtx.getImageData(0,0,LW,LH);
+    paintD=novaCamadaTinta();
     computePaintablePx();
     allocBufs();
-    show();
+    renderAll();
     window.ReactNativeWebView.postMessage('READY');
     postPaintState();
   }catch(e){
@@ -1055,6 +1269,9 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
     measurePaint() { webViewRef.current?.injectJavaScript('window.postPaintState && window.postPaintState(); true;'); },
     undo()        { webViewRef.current?.injectJavaScript('window.undo(); true;'); },
     resetZoom()   { webViewRef.current?.injectJavaScript('window.resetZoom(); true;'); },
+    // [Fase 6 · TK-A-016] Fecha o gesto em curso no MODELO, sem gravar, exportar
+    // ou descartar. Chamado quando a superfície sai de cena.
+    commitGesture() { webViewRef.current?.injectJavaScript('window.commitGesture && window.commitGesture(); true;'); },
 
     exportPaint(callback) {
       pendingExportCallbackRef.current = callback;
