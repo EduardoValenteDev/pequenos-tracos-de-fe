@@ -51478,6 +51478,243 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
   }
 
   /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.2/R3.4 · TK-A-015 — `G-LFC-2` e `G-LFC-3`
+   *
+   * Estes dois portões lacram uma AUSÊNCIA DE DEFESA, e não um comportamento —
+   * distinção que precisa ficar escrita, porque confundi-las é o jeito mais fácil
+   * de transformar `SD-10` em teatro. Nenhuma asserção daqui prova que a WebView
+   * sobrevive a coisa alguma; nenhuma consegue. O que elas provam é que a defesa
+   * continua LIGADA: que ninguém removeu o consumidor do ciclo de vida nem as props
+   * de término de processo numa refatoração distraída. A sobrevivência real é
+   * FÍSICA (§28 #5) e permanece PENDENTE por definição — `FD-12` proíbe qualquer
+   * artefato de declarar causa provada a partir daqui.
+   *
+   * `G-LFC-2` — as DUAS telas de canvas consomem `useSurfaceLifecycle`. Duas, não
+   * uma: o contrato de `F6-R3.2` é ÚNICO exatamente para que Colorir e Ateliê não
+   * tratem background/foreground de jeitos diferentes. Meio contrato ligado é pior
+   * que nenhum, porque a criança perde estado num motor e não no outro, e o defeito
+   * passa a se apresentar como "às vezes" — a forma mais cara de bug que existe.
+   *
+   * `G-LFC-3` — os DOIS motores declaram AMBAS as props de término de processo, e
+   * ambas alcançam o registrador. Ambas porque são plataformas distintas:
+   * `onContentProcessDidTerminate` é iOS, `onRenderProcessGone` é Android. Declarar
+   * só uma deixa metade do parque sem registro nenhum do evento — e sem registro
+   * `P-164` continua sendo investigada por adivinhação. A segunda asserção existe
+   * porque uma prop declarada com corpo vazio passaria na primeira: o portão pediria
+   * a defesa e aceitaria a fachada.
+   *
+   * Nenhum portão prova a si próprio: a prova vermelha de `G-LFC-2` é `MT-26`
+   * (`TK-A-087`) e a de `G-LFC-3` é `MT-27` (`TK-A-088`), injetadas fora desta task.
+   * ───────────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-015: G-LFC-2 · G-LFC-3 (ciclo de vida e término de processo) ──');
+  {
+    const TELAS_CANVAS = ['src/screens/ColoringScreen.js', 'src/screens/AtelierCanvasScreen.js'];
+    const semCicloDeVida = TELAS_CANVAS.filter((rel) => {
+      const tela = codeOf(rel);
+      return !/import\s*\{[^}]*useSurfaceLifecycle[^}]*\}\s*from/.test(tela)
+        || !/useSurfaceLifecycle\s*\(\s*\{/.test(tela);
+    });
+    check(
+      'G-LFC-2 (PLAN §26 · P-164): as DUAS telas de canvas consomem `useSurfaceLifecycle`',
+      semCicloDeVida.length === 0,
+      `telas de canvas que deixaram de consumir o contrato único de ciclo de vida: ${semCicloDeVida.join(', ')}`);
+
+    const MOTORES_CANVAS = ['src/components/ColoringCanvas.js', 'src/components/AtelierCanvas.js'];
+    const semPropDeTermino = MOTORES_CANVAS.filter((rel) => {
+      const motorWv = codeOf(rel);
+      return !/onContentProcessDidTerminate\s*=\s*\{/.test(motorWv)
+        || !/onRenderProcessGone\s*=\s*\{/.test(motorWv);
+    });
+    check(
+      'G-LFC-3 [1/2] (PLAN §26 · P-164 · FD-12): os DOIS motores declaram AMBAS as props de término (iOS e Android)',
+      semPropDeTermino.length === 0,
+      `motores sem uma das duas props de término de processo: ${semPropDeTermino.join(', ')}`);
+    /* Uma prop declarada com corpo vazio satisfaria a asserção acima e não registraria
+       nada. Aqui o portão exige que os DOIS lados cheguem ao registrador, com o eixo
+       de plataforma nomeado — sem isso, "o evento aconteceu" e "o evento aconteceu no
+       Android" chegariam iguais a quem for ler o registro no aparelho. */
+    const semRegistroDeTermino = MOTORES_CANVAS.filter((rel) => {
+      const motorWv = codeOf(rel);
+      return (motorWv.match(/recordWebViewProcessTermination\s*\(/g) || []).length < 2
+        || !/recordWebViewProcessTermination\s*\(\s*'ios:/.test(motorWv)
+        || !/recordWebViewProcessTermination\s*\(\s*'android:/.test(motorWv);
+    });
+    check(
+      'G-LFC-3 [2/2]: as duas props REGISTRAM o evento com a plataforma nomeada — prop declarada vazia não passa',
+      semRegistroDeTermino.length === 0,
+      `motores cujas props de término não alcançam o registrador nos dois eixos: ${semRegistroDeTermino.join(', ')}`);
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.1 · TK-A-021 — `G-LFC-1`
+   *
+   * O defeito que este portão lacra (`F6-LFC-01`/`P-152`) não era um erro de conta:
+   * era uma classificação errada. Mudar a largura do mapa — girar, arrastar o
+   * divisor do Split View, a medição da área de conteúdo no tablet — era tratado
+   * como PRIMEIRA MONTAGEM. E primeira montagem tem o direito de escolher onde a
+   * câmera começa; por isso o efeito repunha `didInitScroll` e o ponto onde a
+   * criança estava era descartado sem que nada falhasse.
+   *
+   * Daí a forma da asserção: ela é de AUSÊNCIA. Não existe reposição de
+   * `didInitScroll` em caminho nenhum da tela — não "não existe no efeito de
+   * largura", porque bastaria mover a mesma linha para outro efeito com a mesma
+   * dependência transitiva para o defeito voltar com outra roupa.
+   *
+   * A segunda metade é positiva e igualmente necessária: apagar a reposição sem pôr
+   * a reprojeção no lugar não preserva a posição — só faz a tela deixar de tentar.
+   * O par lógico (região + fração dentro dela) é o que atravessa a mudança de
+   * geometria; o deslocamento em píxeis não atravessaria, porque as alturas das
+   * regiões escalam com a largura.
+   *
+   * Nenhum portão prova a si próprio: a prova vermelha é `MT-1` (`TK-A-093`).
+   * ───────────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-021: G-LFC-1 (a largura não descarta a posição da criança) ──');
+  {
+    const mapa = codeOf('src/screens/AdventureMapScreen.js');
+    check(
+      'G-LFC-1 [1/2] (F6-LFC-01 · P-152): NENHUM caminho repõe `didInitScroll` — trocar de largura não é primeira montagem',
+      !/didInitScroll\s*\.\s*current\s*=\s*false/.test(mapa),
+      'voltou a existir `didInitScroll.current = false`: a troca de largura descarta a posição da criança');
+    check(
+      'G-LFC-1 [2/2]: a largura agenda REPROJEÇÃO do par lógico — não basta parar de descartar',
+      /useEffect\(\s*\(\)\s*=>\s*\{\s*reprojetarRef\.current\s*=\s*true;?\s*\}\s*,\s*\[\s*mapWidth\s*\]\s*\)/.test(mapa)
+        && /posLogicaRef/.test(mapa) && /regionIndex/.test(mapa),
+      'o efeito de largura deixou de agendar a reprojeção do par lógico gravado');
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R3.5 · TK-A-038 — `G-CVS-1`, `G-CVS-2` e `G-CVS-3`
+   *
+   * Três portões, três propriedades distintas, uma asserção para cada — na semântica
+   * canônica do PLAN §26, restaurada pelas emendas `A-02` (G-CVS-1) e `A-24` (G-CVS-2).
+   *
+   * Todos os três leem o CORPO de uma função, não o arquivo inteiro. É a diferença
+   * entre "o motor não realoca buffer nenhum" (falso, e teria de ser: eles são
+   * alocados uma vez na inicialização) e "o caminho de RESIZE não realoca" (que é a
+   * propriedade real). Por isso existe `corpoDe`, que casa chaves em vez de confiar
+   * num `}` em coluna zero. E por isso cada portão exige primeiro que a extração
+   * tenha dado em algo: `MT-14` já mostrou, no caso 13.4, que uma âncora que some
+   * transforma a asserção em verdade vazia — o portão fica verde exatamente sobre o
+   * defeito que deveria denunciar.
+   *
+   * `G-CVS-1` (`SD-8`, invariante ZERO #1) — `resize()` não realoca `qBuf`, `visBuf`
+   * nem `paintD`. Estes três pertencem ao espaço LÓGICO, que a janela não decide.
+   * Redimensioná-los quando a janela muda apagaria a pintura da criança em TODA
+   * rotação, e apagaria em silêncio: nada falha, a folha só volta limpa.
+   *
+   * `G-CVS-2` — o `stateJson` do Ateliê declara `logicalW`/`logicalH`, e o leitor
+   * HONRA a declaração. As duas metades, porque uma sozinha não vale: declarar sem
+   * honrar é metadado morto, e honrar sem declarar é adivinhação. Q8 regra 4 — o
+   * espaço lógico pertence à obra, não à janela de quem abre.
+   *
+   * `G-CVS-3` (novo, §2.4.1-e; invariante ZERO #4) — nenhum caminho de carga abre
+   * canvas branco silencioso quando existe obra recuperável. Vale para os DOIS
+   * motores, porque a forma da perda é diferente em cada um: no raster ela seria uma
+   * camada de tinta nova por cima do estado; no vetorial era literalmente `strokes=[]`
+   * no `else` final, e o primeiro save da criança gravava o vazio por cima do
+   * original. A prova vermelha de ambos é `MT-13` (`TK-A-040`).
+   *
+   * Nenhum portão prova a si próprio: `MT-5` (`TK-A-086`) para `G-CVS-1`, `MT-6`
+   * (`TK-A-039`) para `G-CVS-2`, `MT-13` (`TK-A-040`) para `G-CVS-3`.
+   * ───────────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-R3 · TK-A-038: G-CVS-1 · G-CVS-2 · G-CVS-3 (espaço lógico e ausência de perda silenciosa) ──');
+  {
+    /* Corpo de uma função por CONTAGEM DE CHAVES a partir da assinatura. Um `slice`
+       até o próximo `}` em coluna zero funcionaria no motor raster e mentiria no
+       vetorial, onde as funções vivem dentro do template do WebView e a indentação
+       não é garantia de nada. */
+    const corpoDe = (texto, assinatura) => {
+      const i = texto.indexOf(assinatura);
+      if (i < 0) return '';
+      let nivel = 0;
+      for (let j = i + assinatura.length - 1; j < texto.length; j++) {
+        if (texto[j] === '{') nivel += 1;
+        else if (texto[j] === '}') { nivel -= 1; if (nivel === 0) return texto.slice(i, j + 1); }
+      }
+      return '';
+    };
+
+    const motorRaster = codeOf('src/components/ColoringCanvas.js');
+    const motorVetor = codeOf('src/components/AtelierCanvas.js');
+
+    // ── G-CVS-1 ──────────────────────────────────────────────────────────────
+    const corpoResize = corpoDe(motorRaster, 'function resize(){');
+    const REALOCACOES = [
+      [/\bqBuf\s*=[^=]/, 'qBuf'],
+      [/\bvisBuf\s*=[^=]/, 'visBuf'],
+      [/\bpaintD\s*=[^=]/, 'paintD'],
+      [/\ballocBufs\s*\(/, 'allocBufs()'],
+      [/\bnovaCamadaTinta\s*\(/, 'novaCamadaTinta()'],
+      [/\btmp\s*\.\s*(?:width|height)\s*=/, 'tmp.width/height'],
+    ];
+    const realocados = REALOCACOES.filter(([re]) => re.test(corpoResize)).map(([, nome]) => nome);
+    check(
+      'G-CVS-1 (PLAN §26 · A-02 · SD-8 · invariante ZERO #1): `resize()` NÃO realoca `qBuf`, `visBuf` nem `paintD`',
+      corpoResize.length > 0 && realocados.length === 0,
+      corpoResize.length === 0
+        ? 'não foi possível extrair o corpo de `resize()` — asserção seria vazia (lição do MT-14/13.4)'
+        : `realocação de estado lógico dentro de resize(): ${realocados.join(', ')}`);
+
+    // ── G-CVS-2 ──────────────────────────────────────────────────────────────
+    const corpoExport = corpoDe(motorVetor, 'window.exportState=function(){');
+    check(
+      'G-CVS-2 [1/2] (PLAN §26 · A-24 · Q8 r.4): o `stateJson` do Ateliê DECLARA `logicalW` e `logicalH`',
+      corpoExport.length > 0 && /logicalW\s*:/.test(corpoExport) && /logicalH\s*:/.test(corpoExport),
+      corpoExport.length === 0
+        ? 'não foi possível extrair o corpo de `exportState` — asserção seria vazia'
+        : 'o `stateJson` deixou de declarar o espaço lógico: as coordenadas voltam a ser píxel de viewport');
+    const corpoEspaco = corpoDe(motorVetor, 'function estabelecerEspacoLogico(d){');
+    check(
+      'G-CVS-2 [2/2]: o leitor HONRA a declaração da obra — declarar sem honrar seria metadado morto',
+      corpoEspaco.length > 0 && /d\s*&&\s*d\.logicalW/.test(corpoEspaco) && /d\s*&&\s*d\.logicalH/.test(corpoEspaco),
+      corpoEspaco.length === 0
+        ? 'não foi possível extrair `estabelecerEspacoLogico` — asserção seria vazia'
+        : 'o leitor deixou de ler `logicalW`/`logicalH` da obra: o espaço voltou a sair da janela de quem abre');
+
+    // ── G-CVS-3 ──────────────────────────────────────────────────────────────
+    /* Metade RASTER: dentro de `loadPaint`, `paintD` é atribuído UMA única vez, e é a
+       atribuição do caminho de SUCESSO — guardada por `if(!paintD)` e imediatamente
+       preenchida com os píxeis lidos. Qualquer segunda atribuição é, por construção,
+       uma camada nova nascendo num ramo que não tem o que aplicar: folha em branco. */
+    const corpoLoadPaint = corpoDe(motorRaster, 'window.loadPaint=function(jsonStr){');
+    const atribuicoesPaintD = (corpoLoadPaint.match(/\bpaintD\s*=[^=]/g) || []).length;
+    const DANOS_NA_CARGA = [
+      [/\bclearPaint\s*\(/, 'clearPaint()'],
+      [/\bremoveItem\s*\(/, 'removeItem()'],
+      [/\bhist\s*\.\s*length\s*=\s*0/, 'hist.length=0'],
+      [/\bctx\s*\.\s*clearRect\s*\(/, 'ctx.clearRect()'],
+    ];
+    const danos = DANOS_NA_CARGA.filter(([re]) => re.test(corpoLoadPaint)).map(([, nome]) => nome);
+    check(
+      'G-CVS-3 [1/3] (§2.4.1-e · invariante ZERO #4): no RASTER, a carga não substitui a tinta por camada nova nem apaga nada',
+      corpoLoadPaint.length > 0 && atribuicoesPaintD === 1
+        && /if\(!paintD\)\s*paintD=novaCamadaTinta\(\);\s*paintD\.data\.set\(/.test(corpoLoadPaint)
+        && danos.length === 0,
+      corpoLoadPaint.length === 0
+        ? 'não foi possível extrair o corpo de `loadPaint` — asserção seria vazia'
+        : `atribuições a paintD em loadPaint: ${atribuicoesPaintD} (esperado 1, no caminho de sucesso); danos: ${danos.join(', ') || 'nenhum'}`);
+    check(
+      'G-CVS-3 [2/3]: o ÚNICO ramo que abre folha em branco é `ausente` — e ausente é o ramo em que não há obra',
+      /if\(cls\.ramo==='ausente'\)return;/.test(corpoLoadPaint)
+        && /LOAD_PAINT_INCOMPATIBLE/.test(corpoLoadPaint) && /LOAD_PAINT_CORRUPTED/.test(corpoLoadPaint),
+      'o ramo terminal da carga raster deixou de distinguir "não havia obra" de "não soube abrir a obra"');
+    /* Metade VETORIAL: o ramo terminal (`!cls.candidato`) é onde vivia o `else` que
+       fazia `strokes=[]` e ainda assim anunciava `STATE_LOADED` — "abri e estava
+       vazia". Era perda total, e silenciosa. As duas ausências são a propriedade. */
+    const corpoLoadState = corpoDe(motorVetor, 'window.loadState=function(jsonStr){');
+    const ramoTerminalVetor = corpoDe(corpoLoadState, 'if(!cls.candidato){');
+    check(
+      'G-CVS-3 [3/3]: no VETORIAL, o ramo terminal não zera `strokes` nem anuncia `STATE_LOADED`',
+      ramoTerminalVetor.length > 0
+        && !/strokes\s*=\s*\[\]/.test(ramoTerminalVetor)
+        && !/STATE_LOADED/.test(ramoTerminalVetor)
+        && /LOAD_INCOMPATIBLE/.test(ramoTerminalVetor) && /LOAD_CORRUPTED/.test(ramoTerminalVetor),
+      ramoTerminalVetor.length === 0
+        ? 'não foi possível extrair o ramo terminal de `loadState` — asserção seria vazia'
+        : 'o ramo terminal vetorial voltou a devolver folha em branco como se a obra tivesse sido aberta');
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
    * Fase 6 · F6-R3.5 · TK-A-043 — `CN-13` (§2.4.1-d): nenhuma migração silenciosa
    * em massa. Esta task é uma **asserção de ausência**: a mudança esperada nela é
    * NENHUMA. O risco que ela cobre é o oposto do defeito comum — não é o código
