@@ -2237,6 +2237,121 @@ código funcional de "Cadê a Ovelhinha". Não alterou ordem, passos, texto, des
 infantil nem SDK. Não mudou política de privacidade. Não instalou dependência. Não gerou *build*.
 Não executou validação física. Não fez *push* e não fez *merge*.
 
+## `PF6SGA-GATE` — Human Gate de `F6-SG-A`: decisões `D-1`, `D-2` e `D-3` (2026-08-10)
+
+Decisões de fundador tomadas na preparação da campanha física final de `F6-SG-A`, **antes** de
+qualquer execução. **`F6-SG-A` NÃO está concedido.** `SG-B`, `SG-C` e `SG-D` continuam fechados.
+
+### `PF6SGA-D1` — Tablets: coberturas **complementares**, não substitutas
+
+**Samsung Android NÃO substitui iPad.** `F6-SG-A` preserva **as duas** validações: **(i)** tablet
+Android no **Samsung SM-X510**; **(ii)** tablet iOS em **iPad**.
+
+- **NÃO emendar o §27** do [`04_PLAN_DELTA_F6.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/04_PLAN_DELTA_F6.md)
+  para tornar *"iPad"* equivalente genérico a *"tablet"*. O critério permanece **literal**.
+- **Emendar apenas a premissa caduca do §33** — *"nenhum tablet Android físico está disponível (P8)"*.
+  **Hoje existe Samsung SM-X510 disponível e fisicamente utilizado** (Android 16, 1440×2304,
+  densidade 280, `fontScale` 1.15 — faixa **MÉDIO**, ≈823 dp em retrato). Emenda aplicada.
+- A rota condicional de `F6-SG-C` no fim do §33 permanece **inalterada e ainda por decidir**.
+
+### `PF6SGA-D2` — `CN-1` exige **telefone físico real**
+
+§28 **#17** / **`CN-1`** continua exigindo **telefone físico real**. O **SM-X510 é tablet e NÃO
+satisfaz `CN-1`**. **Não escolher arbitrariamente modelo inexistente.** A campanha só marca `CN-1`
+como `PASS` **depois** de execução em telefone real compatível; até lá o item é **`NÃO EXECUTADO`**,
+nunca `PASS` e nunca `FAIL`.
+
+### `PF6SGA-D3` — `T090` / `F-PERF` / `P-139` vira **complemento obrigatório** do gate
+
+Embora `T090` **não** constasse da lista literal original do §27, o fundador determina que
+**`T090` / `F-PERF` / `P-139` passa a ser complemento obrigatório do Human Gate de `F6-SG-A`**.
+
+- **Razão:** `F6-R3.x` modificou infraestrutura *F6-owned* **especificamente** para tornar `P-139`
+  verificável, e **`SG-B` não será aberto deixando essa implementação fisicamente não provada**.
+- **Registro honesto:** isto é **complemento posterior** do gate. **Não** se afirma que fazia parte
+  da redação histórica original do §27.
+- **Consequência:** um **novo *build* `preview` Android pós-`456ac1b`** é necessário — Android e iOS
+  não têm artefato utilizável (os `preview` Android expiraram em 2026-07-16 e 2026-06-10; o `preview`
+  iOS vigente foi construído de `eb871f5`, cujo `eas.json` **não** contém
+  `EXPO_PUBLIC_PTF_PERF_TRACE`, adicionada só em `456ac1b`; e não há rota OTA — sem `expo-updates`,
+  sem `runtimeVersion`, sem bloco `updates`, sem `channel`). **NÃO gerado agora.**
+
+### `PF6SGA-ORDEM` — Ordem operacional **congelada** e rodadas `R1`–`R7`
+
+1. campanha do **Development Build inteira**; 2. **inventário e backup do acervo**; 3. **iPad**;
+4. **telefone**; 5. **só então** gerar/instalar **Preview Android**; 6. executar **`T090`/`P-139`** e
+as validações de áudio apropriadas; 7. **Human Gate final**.
+
+Rodadas: **`R1`** `G-PRE` + `targetSdk` + *cold start*/`MainTabs` + `A-03` · **`R2`** casos canônicos
+independentes de rotação (`1, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17`) · **`R3`** *resize*/rotação
+(`2, 3, 4, 5, E2, E3`, conforme executabilidade real) · **`R4`** caso 13 (*rollback*), isolado ·
+**`R5`** extras restantes + cenários §28 de `SG-A` · **`R6`** iPad + telefone/`CN-1` · **`R7`**
+Preview Android + `T090`/`P-139` + áudio.
+
+> **Regra de parada:** qualquer **`FAIL` relevante** numa rodada ⇒ **PARAR antes da rodada seguinte**,
+> **classificar** e **reportar**. **Não corrigir automaticamente.**
+
+### `PF6SGA-ANDROID` — Correção operacional da rota Android
+
+**Removidos do roteiro como requisito:** mesma rede **Wi-Fi**, **QR Code** e **descoberta automática
+de servidor**. A rota preferencial, **já fisicamente comprovada**, é **USB + ADB +
+`adb reverse tcp:8081 tcp:8081` + Development Build + *deep link* explícito para `localhost:8081`**.
+
+- Pré-voo obrigatório: `adb reverse --remove-all` → `adb reverse tcp:8081 tcp:8081` →
+  `adb reverse --list`. **O gate NÃO exige saída literal:** o ambiente pode imprimir
+  `UsbFfs tcp:8081 tcp:8081`, e **prefixo de transporte é permitido**. Aceite: **exatamente um
+  mapeamento relevante contendo `tcp:8081 tcp:8081`**. **`FAIL` de pré-voo** só se o `8081` do tablet
+  não apontar para o `8081` do host.
+- ***Deep link* canônico — forma URL-encoded**, que é a fisicamente comprovada:
+  `pequenostracosdefe://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081`. Usada tanto no
+  *cold start* quanto nas reaberturas.
+- **Não usar apenas `MainActivity` como prova de *bundle* atual.**
+- ***Cold start*:** a captura começa **antes** da abertura, em **três janelas PowerShell
+  independentes** — `PS1` Metro, `PS2` controle ADB, `PS3` `adb logcat`. `PS3` fica **em primeiro
+  plano** e é encerrada explicitamente com **Ctrl+C**. **Não usar `Start-Process`**; `Tee-Object`
+  **não** é necessário — a forma canônica é
+  `adb logcat -v threadtime | Out-File "…\raw.log" -Encoding utf8`. **Preservar o `raw.log`
+  íntegro**; filtros são arquivos **adicionais**.
+- **Backup binário do estado persistido:** **não** usar `adb exec-out … > arquivo.tar` direto no
+  PowerShell 5.1 (o `>` trata a saída como texto e corrompe o TAR). Rota canônica: **(1)** inspeção
+  somente-leitura com `adb shell run-as com.valentedev.pequenostracosdefe ls -la` para identificar
+  quais de **`files`**, **`databases`** e **`shared_prefs`** existem; **(2)** redirecionamento pelo
+  **`cmd.exe /c "adb exec-out run-as … tar cf - <dirs> > …\appdata.tar"`**, ajustado aos diretórios
+  realmente existentes; **(3)** validação obrigatória — `Get-Item`, `Get-FileHash … -Algorithm
+  SHA256` e, se disponível, `tar -tf`. **O backup só é declarado válido se puder ser lido/listado.**
+  Se `run-as` estiver indisponível: **registrar a limitação**, **não** contornar com root, **não**
+  usar `pm clear`, **não** desinstalar, seguir só com inventário visual onde permitido.
+
+### `PF6SGA-LANDING` — Superfície de abertura **não é gate** de `F6-SG-A`
+
+Fica **removida** de qualquer rodada a exigência de *"deixar chegar ao mapa"* como critério de
+`PASS`. Depois do *cold start*: **aguardar o *runtime* estabilizar** · **registrar a superfície real
+em que abriu** · **confirmar `MainTabs`** · **executar a navegação de *shell* prevista**.
+
+Se o app abrir em **Home** em vez de Aventuras/Mapa: **registrar**; **NÃO reprovar `SG-A`** por esse
+motivo; **NÃO corrigir**; **não transformar a rodada em `F7`**. A **primeira jornada** e a
+**obrigatoriedade semântica do Mapa** pertencem à **`F7`**, que permanece congelada.
+
+### `PF6SGA-ROTACAO` — Como registrar rotação no Android
+
+`targetSdk` é **entrada crítica**, porém **não decide isoladamente** a rotação: **o comportamento
+físico efetivo continua sendo a prova**. Se a rotação permanecer bloqueada, **não alterar `F6-R1.1`
+durante `SG-A`** — os cenários dependentes viram **`NÃO EXECUTÁVEL`**. **A política canônica de
+orientação continua congelada para `F6-SG-C`.**
+
+### `PF6SGA-E1E6` — `E1`–`E6`: não bloqueantes **automáticos**, mas classificados
+
+`E1`–`E6` permanecem, documentalmente, **não bloqueantes automáticos** de `F6-SG-A`. **Todo `FAIL`
+em `E1`–`E6` é classificado por severidade ANTES da concessão.** Um `FAIL` que revele **`P0`/`P1`**
+ou **violação de invariante ZERO** **não pode ser ignorado apenas porque o caso é extra**.
+
+### `PF6SGA-NAO-FEZ`
+
+Este bloco é **documental**. Não alterou *runtime*. Não gerou *build*. Não iniciou Metro. Não tocou
+o aparelho. Não tocou *storage*. Não executou campanha física. Não concedeu `F6-SG-A`. Não abriu
+`SG-B`, `SG-C` nem `SG-D`. `F7`, `F8A`, `F11` e `F12A` permanecem congeladas. Não fez *push* nem
+*merge*.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:

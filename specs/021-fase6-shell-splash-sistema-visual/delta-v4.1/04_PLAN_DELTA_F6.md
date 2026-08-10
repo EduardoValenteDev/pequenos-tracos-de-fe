@@ -1152,7 +1152,22 @@ nem `F6-R2`, nem `F6-R1`, nem `B2`.
 
 ## 33. Critérios futuros — **tablet Android físico**
 
-**Estado:** nenhum tablet Android físico está disponível (P8). O caso 4 de `D1` é o **único vão real**.
+> **EMENDA DE 2026-08-10 (Human Gate · decisão `D-1`) — a premissa original caducou.**
+> O texto abaixo dizia *"nenhum tablet Android físico está disponível (P8)"*. **Isso é falso a partir
+> de 2026-08-10:** existe e está **fisicamente em uso** um **Samsung SM-X510** (Android 16,
+> 1440×2304, densidade 280, `fontScale` 1.15 — faixa **MÉDIO**, ≈823 dp em retrato). A emenda atinge
+> **somente** esta premissa de disponibilidade.
+>
+> **O que a emenda NÃO faz:** não altera o §27. O critério *"roteiro físico §28 completo em **iPad**"*
+> permanece **literal**. **Tablet Android não é equivalente genérico de iPad.** `F6-SG-A` exige as
+> **duas** coberturas, que são **complementares**: **(i)** validação em tablet Android no
+> **SM-X510** e **(ii)** validação em tablet iOS em **iPad**. A rota condicional de `F6-SG-C` ao fim
+> desta seção permanece **inalterada e ainda por decidir** no próprio subportão.
+
+**Estado (2026-08-10):** há tablet Android físico disponível — **Samsung SM-X510**. O caso 4 de `D1`
+deixa de ser um vão por indisponibilidade de aparelho e passa a ser um item **executável**, sujeito
+apenas à política de orientação, que continua **congelada para `F6-SG-C`** (`F6-R1.1` não é tocado
+durante `SG-A`).
 
 | # | Critério, para quando houver aparelho |
 |---|---|
