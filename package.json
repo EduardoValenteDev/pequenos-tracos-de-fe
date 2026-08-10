@@ -12,6 +12,7 @@
     "doctor": "npx expo-doctor",
     "qa": "npx expo install --check",
     "smoke": "node scripts/smoke.js",
+    "bundle:check": "expo export:embed --platform android --entry-file index.js --dev false --minify false --bundle-output .expo/bundle-check.jsbundle",
     "assets:inventory": "node scripts/assets-pipeline/inventory.js",
     "assets:measure": "node scripts/assets-pipeline/measure-size.js",
     "assets:guard": "node scripts/assets-pipeline/check-untracked-guard.js",
