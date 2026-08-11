@@ -2624,6 +2624,297 @@ Se essa evidência nova basta para os itens de `SG-A` cobertos pela `R1`, **é d
 está registrada aqui como **em aberto**. Alternativa: suprir a lacuna de redação de §7.2 (dizer o que
 **é** fonte admissível de arquivo de pré-voo) por Human Gate próprio.
 
+## `PF6SGA-R2-S1-LACRE` — lacre documental da `R2 · Sessão 1` (2026-08-11)
+
+**Veredito único e final da sessão:** **`R2 · SESSÃO 1 = SUSPENSA POR AUSÊNCIA DE INSUMO LEGADO`.**
+
+Não é `PASS`. Não é `FAIL`. **Nenhum caso da `R2` foi executado.** Os Casos **1, 15, 14, 16 e 10**
+permanecem **sem insumo**. **`F6-SG-A` continua NÃO CONCEDIDO** e **`R1-PEND-1..5` continuam
+ABERTAS**. Nada desta sessão pode ser reutilizado como evidência de execução de uma sessão futura.
+
+**Causa.** O Bloco 0 fechou **CONFORME**, mas o `TAR-1` provou que **o acervo do SM-X510 está
+vazio** — nenhuma obra do Ateliê, nenhuma do Colorir 60, nenhum ponteiro `{"v":3,…}`, nenhum *blob*
+em `files/ptf_blobs/`. Três inventários independentes (10/08 20:24, 10/08 23:35, 11/08 03:17)
+concordam, e `@ptf_migration_status_v1 = {"fromVersion":0,"toVersion":3,"changed":[],"errors":[]}`
+confirma instalação limpa. A conduta prescrita pelo canônico para esse estado é **parar e reportar**
+(`10_RODADA_FISICA_2` §7 #8 e Caso 14; `07_CAMPANHA`; `08_SEQUENCIA`) — e foi o que se fez.
+
+### Estado físico observado na retomada de controle
+
+Retomada em **`2026-08-11T12:22:34.058-03:00`**. Aparelho **`RX2XC003LTJ`** · `model: SM_X510` ·
+*package* `com.valentedev.pequenostracosdefe`.
+
+| Superfície | Estado observado na retomada |
+|---|---|
+| Metro / porta 8081 | **sem *listener*** |
+| `node.exe` | **nenhum processo** |
+| `adb logcat` | **nenhum processo** |
+| *Worktree* histórico `C:\tmp\ptf_colorir_canonical_runtime_wt` | `HEAD 7de7085` · `docs/e015-phase3-artifacts` · `git status --porcelain` **VAZIO** |
+| *Worktree* canônico `C:\tmp\ptf_fase6_shell_splash_wt` | `HEAD b1faf8d` · `feat/fase6-shell-splash` · `git status --porcelain` **VAZIO** |
+
+O ADB havia sido encerrado e, ao ser reiniciado, imprimiu `daemon not running; starting now at
+tcp:5037` / `daemon started successfully`. **Isto NÃO é falha** — é reinício normal do *daemon*, e
+explica o `adb reverse --list` vazio descrito adiante.
+
+### 🔴 Regra de honestidade aplicada ao encerramento — `S1`…`S5`
+
+O encerramento ocorreu em **retomada de recuperação**, não em sessão contínua. O registro abaixo é o
+que **de fato** aconteceu:
+
+| Passo | O que era | O que ocorreu |
+|---|---|---|
+| **`S1`** | inventário de suspensão | **EXECUTADO** — `TAR-SUSPENSAO.tar` gerado |
+| **`S2`** | `am force-stop` | **EXECUTADO** — sem erro e sem saída |
+| **`S3`** | `Ctrl+C` no `logcat` | **NÃO APLICÁVEL à retomada de recuperação** |
+| **`S4`** | `adb reverse --remove-all` | **EXECUTADO** |
+| **`S5`** | `Ctrl+C` no Metro | **NÃO APLICÁVEL à retomada de recuperação** |
+
+- **`S3`:** *não aplicável à retomada de recuperação; a captura `logcat` já estava encerrada quando a
+  sessão foi retomada. **Nenhum novo `logcat` foi iniciado e nenhum `logcat -c` foi executado.***
+- **`S5`:** *não aplicável à retomada de recuperação; o Metro já estava encerrado quando a sessão foi
+  retomada. **Nenhum novo Metro foi iniciado.***
+
+⛔ **Está proibido converter isso em `PASS` fictício de `Ctrl+C`.** O que se registra é **encerramento
+de recuperação com estado factual observado** — não a execução de um passo que não houve.
+
+### Artefatos lacrados — tamanho, `SHA256` e *timestamps*
+
+Todos os valores abaixo foram **recomputados de forma independente** no lacre e batem com o reportado
+pelo operador.
+
+| Artefato | Tamanho (bytes) | `SHA256` |
+|---|---|---|
+| `C:\tmp\ptf_evidencias\R2\raw.log` | **8.065.745** | `B40E2CEB43BA7E313699D52F0536169307F0BFAECA71B2D509F663EAE3A6274B` |
+| `…\R2\acervo\TAR-SUSPENSAO.tar` | **16.806.912** | `8486DEC65C2A61834B54C5B8FCB54FD5BDEE6B8DD7BF76B9359443F0E2FF1BA7` |
+| `…\R2\acervo\TAR-1.tar` | **16.806.912** | `9E64680E963718F96AB916433D375C378373428D964DBFD9BBE512A2780591C1` |
+| `…\R2\BLOCO-0_FECHAMENTO.md` | 4.890 | `1673429B4DC9DF2BF576923F3F1B689423C921B1726DA244059B79B089D1B23A` |
+| `…\R2\ACHADO-01_ACERVO_VAZIO.md` | 4.541 | `191DD5EC7336B4126068D76940276879B7661EB81A871D43EBFD25F73D85F813` |
+| `…\R2\INCIDENTE-01_PASSO2_PASTA_ERRADA.md` | 3.581 | `057ABD0F2C65007D5679EC42D4FDEF2B1E1ED9F2851D197CA08E3DC3AE157DC0` |
+
+*Timestamps* (hora local do posto de trabalho): `raw.log` **criado 11/08 03:21:00**, **última escrita
+11/08 04:06:06**; `TAR-SUSPENSAO.tar` **criado 11/08 12:24:26**, **última escrita 11/08 12:24:27**;
+`TAR-1.tar` **última escrita 11/08 03:17:21**.
+
+> ⚠️ **Não se reescreve o passado.** O registro anterior mencionava **03:49:10** como *"última
+> escrita conhecida naquele momento"*. Aquela afirmação estava **correta quando foi escrita**. A
+> inspeção posterior mostrou **`LastWriteTime` final 04:06:06** — e é esse o valor de lacre.
+
+**`TAR-SUSPENSAO` NÃO é `TAR-2`** e **não entra na cadeia canônica como `TAR-2`**. Ele é **artefato de
+encerramento da campanha suspensa**. Seu tamanho é idêntico ao do `TAR-1` e seu digesto é diferente —
+o que é esperado, já que o contêiner `tar` carrega metadados do instante da captura. **Tamanho
+idêntico não é prova de identidade de conteúdo**; a comparação byte a byte **não foi executada** neste
+lacre e **não é requisito dele**.
+
+`TAR-1.tar` e `raw.log` ficam preservados como **evidência histórica imutável**. Os artefatos da
+Sessão 1 **não são modificados, renomeados nem substituídos**.
+
+### Higiene final executada
+
+`am force-stop` do *package* — **sem erro e sem saída**. `adb reverse --list` retornou **VAZIO já
+antes** da remoção; após `adb reverse --remove-all`, `--list` seguiu **VAZIO** — coerente com o
+reinício do *daemon* ADB antes da retomada.
+
+**Não** houve: abertura do app, interação física, Metro, captura, `logcat -c`, `adb install`,
+`adb uninstall`, `pm clear`, *root* ou troca de binário.
+
+### `R2-ACH-01-ERRATA` — precisão do marcador, sem alterar a conclusão
+
+A tabela *"O que **NÃO** existe"* de `ACHADO-01_ACERVO_VAZIO.md` cita como marcador de obra de
+colorir a chave **`@ptf_drawing_s<story>_c<cena>`** (`storageKeys.js:101`) — **namespace aposentado**,
+cujo *writer* (`saveDrawingState`) está **órfão** e sem chamador em `src/`. O *namespace* **vivo** do
+Colorir 60 é **`@ptf_drawing60_s<storyId>_a<activityId>`**, e o do Ateliê é
+`ptf_atelier_arts_v1_*` — este último **está** listado na tabela; o do C60 **não estava**.
+
+**A conclusão do achado permanece íntegra e não é revista.** A varredura ampla registrada no próprio
+documento (`drawing`, `atelier`, `arts`, `canvas`, `colorir`, `coloring`, `strokes`, `png`, `jpeg`,
+`base64`, `sketch`, `obra` — **0 ocorrências de cada**) **já cobre** o *namespace* do C60, assim como
+a ausência total de `{"v":3,…}`, de `file://` e de qualquer arquivo em `files/ptf_blobs/`.
+
+🔴 **O corpo original de `ACHADO-01` NÃO foi reescrito.** Esta errata é **acréscimo**, registrado aqui
+e no pacote operacional da `R2`; a evidência lacrada permanece como estava.
+
+### `PF6SGA-R2-S1-NAO-FEZ`
+
+Não concedeu `PASS` nem `FAIL` a caso algum. Não executou os Casos 1, 15, 14, 16 ou 10. Não concedeu
+`F6-SG-A`. Não fechou `R1-PEND-1..5`. Não fabricou obra, *fixture* ou *timestamp*. Não instalou,
+desinstalou nem limpou dados. Não alterou `src/`, `scripts/`, `package.json`, `app.json` ou
+`eas.json`. Não tocou o *worktree* histórico além de leitura.
+
+## `PREP-LEGADO-01` — produzir acervo legado com o **writer histórico real**, sem trocar binário (2026-08-11)
+
+**Decisão do fundador. Congelada.** Autoriza uma **sessão de preparação separada**, que produz obras
+**genuínas** executando o JavaScript histórico do commit **`7de7085`** no **mesmo *dev client* já
+instalado**. Não é caso da `R2`, não concede `PASS` e não concede `F6-SG-A`.
+
+### A fronteira que o projeto **não** cruza
+
+O projeto **não autoriza fabricar *fixture* para substituir proveniência histórica**. Continuam
+proibidos, sem exceção: sintetizar JSON, escrever no `AsyncStorage` por terminal, editar registro,
+fabricar arquivo de *blob*, converter obra moderna em formato antigo, ou produzir qualquer artefato
+cujo único propósito seja fazer um caso passar. O canônico é literal: *"Não fabricar obra 'legada' —
+isso destruiria o valor do caso"*.
+
+### Por que é viável sem tocar no binário
+
+Fato técnico verificado: **o projeto não tem `expo-updates`, `runtimeVersion` nem `channel`** — há
+*gates* ativos em [`scripts/smoke.js:4174-4186`](../scripts/smoke.js) e
+[`:4452-4456`](../scripts/smoke.js) **exigindo a ausência**. Logo o *dev client* **só carrega JS do
+Metro**, e **o escritor é 100% JavaScript**. **Trocar o escritor não exige trocar o binário: exige
+trocar o Metro.**
+
+- Runtime histórico servido **exclusivamente** do *worktree* `C:\tmp\ptf_colorir_canonical_runtime_wt`
+  com `HEAD` obrigatoriamente **`7de7085`** — o último commit antes da mudança de *payload* da Fase 6.
+- Esse *worktree* é **SOMENTE LEITURA**: proibido `commit`, `checkout`, `switch`, `reset`, `rebase`,
+  `merge`, `stash`, alteração de arquivo, `npm ci` e qualquer instalação ou atualização de dependência.
+- **Nenhum APK é instalado.** Proibidos `adb install`, `adb install -r`, `adb uninstall`, `pm clear`,
+  *root*, alteração de assinatura e alteração de `versionCode`. O acervo existente é **preservado**.
+- A preparação vive em `C:\tmp\ptf_evidencias\PREP-LEGADO\`, com `raw.log` e TARs **próprios**.
+
+### Por que o Ateliê é o veículo de grau probatório
+
+O Ateliê grava `stateJson` **inline e verbatim** dentro do registro `ptf_atelier_arts_v1_<id>`
+([`src/services/atelierStorage.js:121`](../src/services/atelierStorage.js) e
+[`:138`](../src/services/atelierStorage.js)). Em `7de7085` o `exportState` produz
+`{"v":2,"strokes":…,"stamps":…,"bgColor":…}` — **sem** `paintSchemaVersion`, `layoutVersion`,
+`logicalW` e `logicalH`, que só nascem no `HEAD`
+([`src/components/AtelierCanvas.js:607-610`](../src/components/AtelierCanvas.js)). A **ausência desses
+eixos é verificável byte a byte no TAR** — é **prova**, não indício.
+
+### Por que o Colorir 60 **não** serve como prova discriminável
+
+O *writer* do C60 **descarta os eixos na escrita**
+([`src/services/coloring60DrawingStorage.js:390-401`](../src/services/coloring60DrawingStorage.js)):
+o ponteiro leva apenas `v/fmt/uri/mime` + `W/H/imgX/imgY/imgW/imgH/rev/paintedPx/paintablePx`,
+montado **campo a campo, sem *spread***, e o arquivo de *blob* recebe **só os bytes do PNG**.
+`paintSchemaVersion` e `layoutVersion` **nunca alcançam o disco, em veículo nenhum, nem em `7de7085`
+nem no `HEAD`**. Uma obra C60 dos dois runtimes é, no armazenamento, **estruturalmente
+indistinguível**.
+
+**Consequência congelada:** o C60 **não** pode ser apresentado como prova discriminável da variante do
+Caso 14 cuja distinção depende de estrutura persistida ausente. **Heurística de geometria não
+substitui prova quando o contrato exige prova.**
+
+### `CASO14-V1-INEXECUTAVEL-01` — a variante `v1` não tem *writer* reproduzível
+
+A variante `v1` (data URL crua gravada direto no `AsyncStorage`) recebe a classificação
+**`INEXECUTÁVEL_POR_AUSÊNCIA_DE_WRITER_REPRODUZÍVEL`** — que **não é `PASS` e não é `FAIL`**.
+
+Fundamentação auditada sobre os **550 commits** de todos os *refs*:
+
+1. **`POINTER_VERSION` nasceu valendo `3` e nunca valeu outra coisa.** Em
+   [`drawingStorage.js`](../src/services/drawingStorage.js) a constante surge em `e02a3d1`
+   (2026-06-11) já com `3`; antes disso ela **não existia**. Em
+   [`coloring60DrawingStorage.js`](../src/services/coloring60DrawingStorage.js) ela nasce em `a0881a2`
+   (2026-07-22), também `3`. **`v1`/`v2`/`v3` são formatos do VALOR armazenado, não valores de
+   `POINTER_VERSION`.**
+2. **Nenhum *writer* versionado jamais produziu `v1`.** Desde o primeiro commit que traz `src/`
+   (`7484a5b`, 2026-06-01), o único produtor de *payload* é `ColoringCanvas.exportPaint`, que emite
+   `{v:2,…}`. A *pickaxe* `-S'window.exportPaint=function'` reconhece **exatamente 3 revisões**, e as
+   três emitem `v:2`. `v1` aparece **só em ramos de leitura**, rotulados `Legacy format (v1)` desde o
+   dia zero.
+3. **O formato antecede o próprio histórico.** O commit-raiz (`8d44c70`, 2026-05-19) é *scaffold*
+   vazio — 13 arquivos, sem `src/`, **sem `@react-native-async-storage/async-storage` instalado**.
+   **Ressalva honesta:** se algum *build* anterior ao histórico disponível produziu `v1`, isso é
+   **`NÃO DETERMINADO` por este repositório** — comentário de código não é prova de execução. O que é
+   auditável e definitivo: **nenhum *writer* reproduzível existe**.
+4. **O *writer* legado está órfão desde `d5f7541` (2026-07-31 13:21:27).** `saveDrawingState` não tem
+   chamador em `src/` nem em `App.js`, e **já não tinha em `7de7085`** — o runtime histórico **não
+   consegue** gravar em `@ptf_drawing_s<story>_c<cena>` por via de pintura. O próprio repositório trava
+   isso como teste em
+   [`scripts/testing/artworkVersionHarness.js:1288-1298`](../scripts/testing/artworkVersionHarness.js)
+   (caso `13.7` · `TK-A-096`), com o leitor vivo no Livrinho (caso `13.8`).
+5. **Corolário:** `buildPointer` só atribui `fmt = 1` quando o *payload* é data URL
+   ([`drawingStorage.js:58-65`](../src/services/drawingStorage.js)). Como `v1` nunca é produzido,
+   **`{"v":3,"fmt":1,…}` também é inalcançável por escrita genuína** — só entraria por migração de um
+   dado `v1` preexistente.
+
+Produzir um `v1` agora exigiria **acrescentar um chamador inexistente** e **fazê-lo passar uma data URL
+crua que nenhum canvas do projeto sabe produzir**. Seria **fabricação de evidência, não reprodução de
+legado**.
+
+**Limite explícito:** a decisão vale **para a variante `v1`** e **não** se generaliza automaticamente
+para qualquer outra variante do Caso 14 que venha a ser executável.
+
+### `CASO14-JANELA-V2` — correção histórica
+
+A janela real do *writer* **`v2` inline** é **`7484a5b` (2026-06-01) → `e02a3d1` (2026-06-11
+19:38:41)**, quando o ponteiro nasceu. ⛔ **Não usar o dado antigo `deda774`**, que constava de
+registro anterior e está **corrigido aqui**. Sem efeito prático sobre o plano: nenhuma etapa usa
+commit da era `v2` inline.
+
+### Allowlists de persistência — derivadas do código, não adivinhadas
+
+Antes da primeira interação física, `ALLOWLIST_ATELIER` e `ALLOWLIST_C60` foram **derivadas por
+leitura do código de `7de7085`** (o *worktree* histórico **não** foi tocado) e fixadas em disco em
+`C:\tmp\ptf_evidencias\PREP-LEGADO\ALLOWLISTS.md`. **Escrita fora da allowlist do veículo em uso =
+STOP. Alteração não prevista de registro preexistente = STOP.**
+
+**`ALLOWLIST_ATELIER`** — criações: `ptf_atelier_arts_v1_<id>` (`<id> = art_<epoch_ms>_<0..9998>`) e
+`ptf_atelier_arts_v1_index`; arquivos `ptf_blobs/atelier/<id>_preview.jpg` (q=0.85) e
+`<id>_thumb.jpg` (q=0.60, 300 px). ⚠️ **Modificações ESPERADAS de registros preexistentes**, ambas já
+presentes no `TAR-1`: `@ptf_criar_livre_orientation_seen_v1:<profileId>` (no **primeiro traço**) e
+`@ptf_achievements_seen` (500 ms **após** o salvar). **Sem esta pré-declaração, o diff probatório
+dispararia um STOP falso.** O salvar **não apaga arquivo algum**.
+
+**`ALLOWLIST_C60`** — cinco chaves: `@ptf_drawing60_s<storyId>_a<activityId>`, `…_done_…`, `…_snap_…`,
+`…_ever_…` e `@ptf_coloring60_finale_seen_<storyId>` — **esta última só no 3/3 inédito: se aparecer
+com uma única obra, é STOP**. Arquivo: `ptf_blobs/drawings60/_ptf_drawing60_s…_a….a.png` (a primeira
+gravação sempre escreve o *slot* `.a`). Com **uma** gravação por atividade, o esperado é **zero
+remoções**.
+
+**Conjunto de destinos idêntico nos dois runtimes:** o `git diff` entre `7de7085` e `b1faf8d` sobre
+**todos** os serviços de persistência dos dois fluxos retorna **vazio**. Mudaram apenas
+`AtelierCanvas.js`, `AtelierCanvasScreen.js`, `ColoringCanvas.js` e `ColoringScreen.js` — **conteúdo
+do *payload* e apresentação, nunca destino de escrita**. **Nenhum destino nasceu, sumiu ou foi
+renomeado**, o que torna o diff probatório interpretável sem ambiguidade.
+
+**Ponto deixado em aberto pela auditoria:** `payloadHasPaint`
+(`coloring60DrawingStorage.js:337-347`) exige `data.length > 1000`; abaixo disso o salvar cai no ramo
+**inline** e **não** cria arquivo. **Mitigação operacional:** exigir tinta abundante e conferir que o
+*blob* existe.
+
+### Cadeia de custódia — emendas obrigatórias do fundador
+
+1. **Dois TARs.** `TAR-PRE-LEGADO.tar` **antes** de servir `7de7085` ao aparelho e **antes** de criar
+   qualquer obra; `TAR-LEGADO.tar` **depois**. Ambos em `C:\tmp\ptf_evidencias\PREP-LEGADO\`, com
+   tamanho, `SHA256`, *timestamp*, `HEAD` canônico, `HEAD` histórico, estado das árvores,
+   identificação do dispositivo e *package*. *"O objetivo não é apenas provar que existem obras depois
+   da preparação. É provar exatamente o que mudou."*
+2. **Allowlist por veículo**, derivada do *writer* real — ver seção acima.
+3. **Proveniência por conjunto.** Provar qual Metro serviu o *bundle* **não** pode depender de uma
+   única linha de terminal: *worktree*, `HEAD`, porta, unicidade do servidor na porta, `adb reverse`,
+   pedido do dispositivo e resposta do Metro precisam **convergir**.
+4. **Paralelização** autorizada **apenas** para tarefas de leitura. A **execução física no Samsung
+   permanece serial**, com **um único condutor**. Nenhum agente pode modificar o *worktree* histórico.
+5. **Registro canônico antes da execução física** — esta entrada, em commit **documental isolado**.
+
+### `logcat -c`
+
+A futura **`R2 · Sessão 2`** é campanha **independente**, com Bloco 0 próprio, e **pode** executar seu
+próprio `adb logcat -c`. Isso **não** autoriza apagar, substituir ou renomear qualquer log da Sessão 1,
+cujos artefatos ficam **imutáveis**. A `PREP-LEGADO` **não** pressupõe `logcat -c` e usa `raw.log`
+próprio.
+
+### Condições de **STOP** da `PREP-LEGADO`
+
+*Worktree* histórico com `HEAD` diferente de `7de7085` ou árvore suja · Metro fora da 8081 ou servido
+de outra pasta · mais de um servidor na porta · `adb reverse` com mapeamento inesperado · escrita fora
+da allowlist do veículo · alteração não prevista de registro preexistente · `@ptf_coloring60_finale_seen_*`
+com uma única obra · ausência do *blob* após o salvar · qualquer necessidade de instalar, desinstalar
+ou limpar dados · qualquer *crash* de montagem.
+
+**STOP significa:** não improvisar, não corrigir silenciosamente, não continuar para obter um
+resultado — **preservar o estado e reportar**.
+
+### `PREP-LEGADO-01-NAO-FEZ`
+
+Esta entrada **registra e autoriza. Ela NÃO executa.** Até este commit: não se iniciou a
+`PREP-LEGADO`; não se iniciou Metro; não se abriu o app; não se iniciou `logcat`; não se executou
+`logcat -c`; não se instalou nem substituiu binário; não se desinstalou; não se usou `pm clear` nem
+*root*; não se alterou `src/`, `scripts/`, `package.json`, `app.json` nem `eas.json`; não se tocou o
+*worktree* histórico além de leitura. **Nenhum caso da `R2` foi executado. `F6-SG-A` continua NÃO
+CONCEDIDO e `R1-PEND-1..5` continuam ABERTAS.**
+
 ## `COPY-RESPONSAVEIS-01` — "Área dos Pais" → "Área dos Responsáveis" (2026-08-11)
 
 **Decisão do fundador, aprovada.** O texto **visível** "Área dos Pais" passa a ser **"Área dos

@@ -1,5 +1,11 @@
 # `RODADA FÍSICA 2` — pacote operacional completo (`F6-SG-A`)
 
+> 🔴 **ESTADO ATUAL (2026-08-11): `R2 · SESSÃO 1 = SUSPENSA POR AUSÊNCIA DE INSUMO LEGADO`.**
+> Nenhum caso recebeu `PASS` ou `FAIL`; **`F6-SG-A` continua NÃO CONCEDIDO** e `R1-PEND-1..5`
+> continuam **ABERTAS**. O roteiro abaixo **permanece válido** e será reexecutado por uma
+> **`Sessão 2` independente**, com Bloco 0 próprio. Ver **§10** e `docs/DECISIONS.md`
+> §`PF6SGA-R2-S1-LACRE` / §`PREP-LEGADO-01`.
+
 > **Preparado em 2026-08-11. NÃO EXECUTADO.** Este documento é o roteiro. Executá-lo depende de
 > **Human Gate explícito** do fundador.
 >
@@ -597,3 +603,62 @@ Mesmo com os **12 casos `PASS`**, o estado correto continua sendo:
 - **`F6-R2`, `F6-R1` e `B2` permanecem fechados.**
 
 **Próximo passo após a `R2`: Human Gate.** Não encadear `R3` automaticamente.
+
+---
+
+## 10. `SESSÃO 1` — lacre documental (2026-08-11)
+
+**Veredito:** **`R2 · SESSÃO 1 = SUSPENSA POR AUSÊNCIA DE INSUMO LEGADO`.** Não é `PASS`. Não é
+`FAIL`. A decisão canônica completa vive em [`docs/DECISIONS.md`](../../../docs/DECISIONS.md)
+§`PF6SGA-R2-S1-LACRE`; esta seção registra apenas o efeito sobre **este** pacote operacional.
+
+**O que aconteceu.** O **Bloco 0 fechou CONFORME**. O `TAR-1` então provou que **o acervo do SM-X510
+está vazio**, disparando a condição de **PARADA IMEDIATA §7 #8** (*"ausência de obra legada no acervo
+(caso 14 inexecutável)"*). Parou-se e reportou-se, como o protocolo manda. **Os Casos 1, 15, 14, 16 e
+10 ficaram sem insumo** e o Bloco A não chegou a ser executado.
+
+**Onde a rodada parou, caso a caso:**
+
+| Bloco | Casos | Estado ao lacre |
+|---|---|---|
+| **0** | pré-voo + `TAR-1` | **CONFORME** — 4 confirmações obtidas, *cold start*, `MainTabs`, `targetSdk=36` |
+| **A** | 1 · 15 · 14 · 16 · 10 | **SEM INSUMO** — não executados |
+| **B**…**F** | 7 · 8 · 6 · 11 · 17 · 12 · 9 | **NÃO ALCANÇADOS** |
+
+⛔ **Nada desta sessão pode ser reutilizado como evidência de execução da `Sessão 2`.** O `TAR-1` da
+Sessão 1 **não** serve como inventário de abertura de outra sessão, e o `TAR-SUSPENSAO` **não** é o
+`TAR-2` previsto em §5 — é artefato de encerramento da campanha suspensa.
+
+### Encerramento em retomada de recuperação — `S3` e `S5`
+
+Os passos `S1` (inventário de suspensão), `S2` (`am force-stop`) e `S4` (`adb reverse --remove-all`)
+foram **executados**. Já `S3` e `S5` são **NÃO APLICÁVEIS à retomada de recuperação**: quando o
+controle foi retomado, **a captura `logcat` e o Metro já estavam encerrados**. **Nenhum novo `logcat`
+foi iniciado, nenhum `logcat -c` foi executado e nenhum novo Metro foi iniciado.** Isso **não** é
+`PASS` de `Ctrl+C` — é encerramento de recuperação com estado factual observado.
+
+### Artefatos lacrados
+
+`raw.log` **8.065.745 B** · `SHA256 B40E2CEB…3A6274B`; `TAR-SUSPENSAO.tar` **16.806.912 B** ·
+`SHA256 8486DEC6…0E2FF1BA7`; `TAR-1.tar` **16.806.912 B** · `SHA256 9E64680E…780591C1`. Valores
+completos, *timestamps* e demais artefatos na entrada de `DECISIONS.md`. **`TAR-1.tar` e `raw.log`
+ficam preservados como evidência histórica imutável.**
+
+### `R2-ACH-01-ERRATA` — precisão do marcador
+
+A tabela *"O que NÃO existe"* de `ACHADO-01_ACERVO_VAZIO.md` cita
+**`@ptf_drawing_s<story>_c<cena>`** — *namespace* **aposentado**, de *writer* órfão. O *namespace*
+vivo do Colorir 60 é **`@ptf_drawing60_s<storyId>_a<activityId>`** e não constava da tabela. **A
+conclusão do achado permanece íntegra:** a varredura ampla registrada no próprio documento (`drawing`,
+`atelier`, `coloring`, `strokes`, `png`, `base64`… — **0 ocorrências de cada**) já cobre o C60, assim
+como a ausência total de `{"v":3,…}`, de `file://` e de arquivos em `files/ptf_blobs/`. **O corpo
+original do achado NÃO foi reescrito** — esta errata é acréscimo.
+
+### Caminho de retomada
+
+A retomada depende de **acervo legado genuíno**, produzido pela sessão separada
+**`PREP-LEGADO-01`** (`docs/DECISIONS.md`), que serve o runtime histórico de **`7de7085`** pelo Metro
+ao **mesmo *dev client* já instalado** — **sem instalar, desinstalar ou substituir binário**, e **sem
+fabricar obra**. O **Ateliê** é o veículo de grau probatório; o **Colorir 60 não** produz artefato
+discriminável. A variante `v1` do Caso 14 fica classificada como
+**`INEXECUTÁVEL_POR_AUSÊNCIA_DE_WRITER_REPRODUZÍVEL`** — ver `CASO14-V1-INEXECUTAVEL-01`.
