@@ -2443,6 +2443,280 @@ O buraco era de **análise de escopo**, e é ele que a prova nova fecha.
 Não gerou *build*. Não iniciou Metro. Não tocou o aparelho. Não executou `A-03`. Não marcou qualquer
 item físico como `PASS`. Não concedeu `F6-SG-A`. Não abriu `SG-B`. Não fez *push* nem *merge*.
 
+## `PF6SGA-R1-VEREDITO` — Fechamento formal da `RODADA FÍSICA 1` repetida (2026-08-11)
+
+**Veredito: `R1` — CONTEÚDO OBSERVADO SEM ANOMALIA · `PASS` NÃO FORMALIZÁVEL.**
+**Não é `PASS`. Não é `FAIL`. Não é `NÃO EXECUTADO`.** Registro completo, com as tabelas de
+observação, em `specs/021-…/delta-v4.1/06_PROTOCOLO_VALIDACAO_FISICA_F6_SG_A.md` **§7.2**.
+
+**Por que não é `PASS`.** O comportamento saiu limpo em **todos** os pontos que a `R1` exercita —
+`targetSdk 36` lido no aparelho; *cold start* com PID correlacionado (`Start proc 9913`; complemento
+`14015` com PID inicial = final); `MainTabs` `montagens #1 · vivos 1/1 · pico 1 · desmontagens 0 ·
+pareado`; 3 idas e 3 voltas entre abas + *background* ~5 s + *foreground* com `MONTADOS=1`,
+`DESMONTADOS=0`, `ANOMALIAS=0` e zero `duas_arvores_vivas`; **zero `montagensRef`**, **zero
+`ReferenceError`**; `A-03` conforme. O impedimento é **formal**: o protocolo é literal em §3.3 —
+*"se as quatro confirmações não forem obtidas, **nenhum** cenário abaixo pode ser marcado como
+`PASS`"* — e o **pré-voo foi executado sem ser arquivado**.
+
+**As 5 pendências são de ARQUIVO, não de comportamento** (`R1-PEND-1..5`, detalhadas em §7.2): saída
+dos quatro `Write-Host` + `git diff --stat aa58849..HEAD`; cabeçalho do Metro exibindo a pasta;
+linha do Metro registrando a requisição do *bundle*; `adb reverse --list` da rodada; `raw.log`
+íntegro + atestação do *deep link* URL-encoded em **todas** as aberturas. **Nenhuma exige repetir a
+rodada** — fechadas as cinco, `R1` vira `PASS` por leitura direta.
+
+**Não houve `FAIL` relevante**, logo a regra de parada de §3.4 **não** foi acionada.
+
+### `PF6SGA-R1-VEREDITO-A03`
+
+O *onboarding* que aparece em uma das gravações **foi solicitado explicitamente pelo fundador**.
+**Não** é reaparecimento espontâneo e **não** pode ser classificado como regressão. Observado: abre
+1× sob solicitação explícita · não reaparece após troca de telas/abas · nem após
+*background/foreground* · nem após *force-stop* e nova abertura · nova solicitação explícita reabre
+legitimamente. **A semântica de `F7` não foi alterada.**
+
+### `PF6SGA-R1-VEREDITO-P139`
+
+`P-139` emitiu no *Development Build* (schema 2 · terminal `first_layout` · `route Home` ·
+`fontGateMs 277` · `routeDecisionMs 38` · `splashReactMs 808` · `firstLayoutMs 3204` ·
+`profileHydrationMs 33` · `progressHydrationMs 58` · `packsHydrationMs 23` · `bufferDropped 0`).
+⛔ **Isto NÃO fecha `T090`/`F-PERF`/`P-139`**, que é da `R7` e exige o par `preview` **com**
+`PERF_TRACE` × `production` **comprovadamente sem** (`D-3`). É insumo de `R3X-1`.
+🔧 **Correção de §2.4:** como o Development Build **também** emite `[PTF_PERF_SAMPLE]`, esse marcador
+**deixa de ser discriminador de perfil**; na `R7` vale a **ausência de `[shell]`**.
+
+### `PF6SGA-R1-VEREDITO-AMBIGUIDADES`
+
+Registradas, **não** resolvidas por conta própria: (1) §3.4 diz "três confirmações", §3.3 lista
+**quatro** — vale a leitura conservadora, **as quatro**; (2) `G-PRE` tem duas definições divergentes
+(§3.4 × `08_SEQUENCIA…:328-337`) — prevalece a de §3.4; (3) o backup do acervo é de **§4.0**, não da
+`R1` — tê-lo adiantado é compatível, e o TAR validado (16.803.840 bytes, `SHA256 5014004…9CE1F`)
+**serve** para a `R2`.
+
+### `PF6SGA-R1-VEREDITO-NAO-FEZ`
+
+Não marcou nenhum caso de §28.1 como `PASS`. Não fechou `T090`. Não abriu `SG-B`, `SG-C`, `F7` nem
+`F8A`. Não corrigiu nada do inventário visual. Não executou `R2`. **`F6-SG-A` continua NÃO
+CONCEDIDO.**
+
+## `COPY-RESPONSAVEIS-01` — "Área dos Pais" → "Área dos Responsáveis" (2026-08-11)
+
+**Decisão do fundador, aprovada.** O texto **visível** "Área dos Pais" passa a ser **"Área dos
+Responsáveis"**. **Objetivo:** linguagem mais inclusiva para pais, mães, responsáveis legais,
+cuidadores e demais adultos responsáveis.
+
+**Esta entrada REGISTRA e PLANEJA. Ela NÃO implementa.** A interface **não** foi alterada: mexer em
+`src/` agora fura o *ownership* da fase corrente (`F6-R3` / campanha `SG-A`). A implementação é
+**feature própria**, com ciclo SDD e Portão Humano — e **não** entra em nenhuma rodada física.
+
+### Inventário (somente leitura, HEAD `1bb8dfb`)
+
+430 ocorrências brutas em 100 arquivos. **"Área dos Responsáveis" ainda não existe em lugar nenhum**
+— o termo é inédito no repositório.
+
+| Categoria | Ocorrências | Arquivos | Destino |
+|---|---:|---:|---|
+| **A** — texto visível ao usuário | **11** | 9 | **TROCAR** |
+| **B** — acessibilidade | **0** | 0 | nada a fazer (a11y é derivada do texto de `A`) |
+| **C** — documentação e comentários | ~373 | ~96 | atualizar em lote documental **separado** |
+| **D** — identificador técnico | ~24 | 11 | **NÃO MEXER** |
+| **E** — *route key* | 12 | 12 | **NÃO MEXER** |
+| **F** — persistência / *storage* | 3 | 2 | **NÃO MEXER** |
+| **G** — teste (`scripts/smoke.js`) | 49 | 1 | **nenhuma é assertiva** — ver abaixo |
+
+**Achado que reduz muito o risco:** as 49 ocorrências em `scripts/smoke.js` são **descrições de
+lacre, mensagens de falha e comentários** — **nenhuma asserta o texto literal**. A troca de copy
+**não deixa o `smoke` vermelho**; deixa descrições desatualizadas (dívida de legibilidade), que devem
+ser corrigidas junto por higiene.
+
+### Escopo mínimo da futura troca — categoria `A`
+
+`src/navigation/AppNavigator.js:588` (`title` da rota) · `src/screens/ParentAreaScreen.js:643` ·
+`src/components/ParentalGate.js:80` · `src/screens/ProfileScreen.js:320` ·
+`src/screens/QuizScreen.js:63,65` · `src/components/premium/PremiumLockCard.js:28` (**default** do
+componente — propaga) · `src/data/beniGuides.js:79,84` (79 ativo; 84 dormente, mas precisa mudar
+para não voltar errado depois) · `src/screens/Coloring60LabScreen.js:224` (dev-only, decidir) ·
+`src/config/productConfig.js:24` (`parentAreaTitle` — copy **órfã, sem consumidor**; decidir se troca
+ou se vira limpeza separada).
+
+**Núcleo estrito visível em produção: 7 arquivos, 9 linhas.**
+
+### **NÃO MEXER** — o que a troca de copy não pode arrastar
+
+- **`route keys`:** `PARENT_AREA: 'ParentArea'` (`src/constants/routes.js:62`), `name="ParentArea"`
+  e as **10** chamadas `navigation.navigate/replace('ParentArea')`; e o contrato
+  `'openParentArea'` de `src/services/contentAccessService.js:103`.
+- **`storage keys`:** `@ptf_parent_settings_v1`, `@ptf_parental_consent_v1` (**consentimento
+  parental**) e `@ptf_beni_guide_parent_v1`. Renomear = **perda silenciosa de dados já persistidos**
+  no aparelho, e o guia do Beni reapareceria para todo mundo. Persistência é **área protegida**:
+  exigiria spec de migração própria.
+- **Identificadores de consentimento:** `PARENTAL_CONSENT_FLOW_ENABLED`, `getParentalConsent`,
+  `acceptParentalConsent`, `revokeParentalConsent`.
+- **Nomes de arquivo:** `ParentAreaScreen.js`, `ParentalGate.js`, `parentSettingsService.js`,
+  `PARENT_AREA_RULES.md`, `docs/PARENT_AREA_GUIDE.md` e o `05_PRODUCT_LOCK_4E_…AREA_DOS_PAIS_….md`.
+  Renomear quebraria *imports*, dezenas de `readSrc(...)` do `smoke` e a rastreabilidade da Fase 4.
+- ***Deep link* / `scheme`:** nada a fazer — `app.json` declara `"scheme": "pequenostracosdefe"`, não
+  há bloco `linking` nem *path* mapeado para `ParentArea`.
+
+**A regra:** priorizar **copy**, evitar **migração técnica desnecessária**.
+
+### Riscos que a implementação futura DEVE tratar (não são efeito colateral — são escopo)
+
+1. **Repetição agramatical.** A troca literal produz frases que repetem "responsável/responsáveis"
+   em espaço curto: `QuizScreen.js:63`, `PremiumLockCard.js:24+28`, `ProfileScreen.js:311+313+320`
+   (**tripla** repetição), `beniGuides.js:79` e `:84`, `ParentAreaScreen.js:643+645`,
+   `ParentalGate.js:80+82`. **Reescrever a frase, não substituir a palavra.**
+2. **Comprimento: 21 caracteres contra 14 (+50%).** Ameaça truncamento no `title` do header nativo,
+   no `gateBgTitle`, no `styles.title` do `ParentalGate`, no `adultCardTitle` do Perfil (que divide
+   linha com emoji e *chevron*) e no botão "Ver Área dos Responsáveis" (25 caracteres). **Exige
+   validação visual em dispositivo físico.**
+3. **⚠️ Áudio do Beni.** `beniGuides.js:79` aponta `audioKey: 'guide.profile.parents'` →
+   `assets/audio/beni_guide/profile/guide_profile_parents.mp3`. Se a narração gravada disser "Área
+   dos Pais", trocar só o texto cria **dessincronia entre balão e voz**. O MP3 não é inspecionável
+   por texto: **exige escuta manual antes do Portão Humano 1**. A **chave** e o **caminho do MP3**
+   são intocáveis (asset é área protegida).
+4. **Coerência jurídica.** `docs/legal/PRIVACY_POLICY_DRAFT.md`, `TERMS_OF_USE_DRAFT.md`,
+   `CHILD_DATA_MATRIX.md` e o parecer `06_DIVERGENCIA_DOS_TEXTOS_DE_PRIVACIDADE.md` usam "Área dos
+   Pais" como **nome próprio da superfície**. Se o app mudar e os textos legais não, **reabre-se
+   exatamente a divergência que o Bloco 6 da Fase 5 registrou**. Isso é decisão de escopo
+   documental e **precisa constar da spec** da futura feature.
+
+### `COPY-RESPONSAVEIS-01-NAO-FEZ`
+
+Não alterou `src/`. Não alterou `scripts/`. Não renomeou rota, chave de *storage*, identificador nem
+arquivo. Não tocou áudio nem asset. Não abriu a feature de implementação.
+
+## `D-OBS-01` — Observabilidade vira **requisito arquitetural** (2026-08-11)
+
+**Decisão do fundador.** Observabilidade deixa de ser um acessório de campanha e passa a ser
+**requisito arquitetural** do Mundo do Beni: o produto precisa ser capaz de responder *"isto quebrou,
+onde, em qual build, com que frequência"* sem depender de o fundador estar com o aparelho na mão.
+
+**O que esta decisão AUTORIZA agora:** apenas **estudo técnico**. O ADR canônico é
+[`docs/ADR_OBSERVABILIDADE_D_OBS_01.md`](ADR_OBSERVABILIDADE_D_OBS_01.md).
+
+**O que esta decisão NÃO autoriza — proibições duras, até Human Gate específico posterior:**
+
+- **Nenhuma dependência nova.** Estão **explicitamente não autorizados** *Grafana Agent*, *Grafana
+  Faro*, *Prometheus client*, *OpenTelemetry* (SDK ou qualquer pacote `@opentelemetry/*`), *Sentry*
+  (`@sentry/react-native`) e **qualquer outro SDK**.
+- **Nenhuma alteração** em `package.json`, `package-lock.json`, `app.json` ou `eas.json`.
+- Nenhuma instalação, nenhum `npx expo install`, nenhum *config plugin*, nenhum *prebuild*.
+
+**Ligação com o contrato já existente.** `D-OBS-01` **não** revoga e **não** afrouxa
+`D-4E-ANALYTICS-3-CAMADAS`, `D-4E-CONSENTIMENTO` nem o registro de restrição de *Analytics / SDKs*
+abaixo. Observabilidade técnica é lida **dentro** daquela arquitetura de três camadas: a camada de
+diagnóstico técnico continua **sem conteúdo infantil, sem PII, sem AAID e sem identificador remoto
+derivado do `childId`**; a camada pública continua **desligada por padrão** e dependente de
+consentimento adulto explícito atrás do portão parental. **Nada de *screen replay* ou *session
+replay*.**
+
+**Ponto de partida real:** a instrumentação própria já existente — `src/services/performanceTrace.js`
+(coletor `P-139`), `src/services/shellLifecycleTrace.js` e `src/utils/logger.js` — mais o gating por
+`__DEV__` e por `EXPO_PUBLIC_PTF_PERF_TRACE` (perfil `preview` liga, `production` não tem a
+variável). O ADR parte disso, não de uma folha em branco.
+
+### `D-OBS-01-ADR` — conclusão do estudo (2026-08-11)
+
+O ADR está **escrito e no disco**. Recomendação central: **manter e estender a instrumentação
+própria**, adotando o **vocabulário** do OpenTelemetry **sem instalar OpenTelemetry**, complementada
+pelas métricas agregadas que **Google Play (Android Vitals)** e **App Store Connect** já entregam
+**sem SDK**. Custo **R$ 0** · dependências novas **0** · mudança nativa **nenhuma** · *prebuild*
+**nenhum** · `production` segue **desligado**.
+
+**Achados que ancoram a recomendação:**
+
+1. 🔴 **O app não tem `ErrorBoundary`, `componentDidCatch` nem `ErrorUtils`** — `grep` vazio em
+   `src/` e `App.js`. Em produção, erro de render **derruba a tela e não deixa rastro**
+   (`logger.js` é `__DEV__`-only). **É o maior buraco real de observabilidade hoje** — e conserta
+   duas coisas de uma vez: diagnóstico **e** experiência infantil.
+2. **A hidratação NÃO é o gargalo.** Perfil 33 + progresso 58 + packs 23 ≈ **114 ms** contra
+   `firstLayoutMs` **3204**. A hipótese "AsyncStorage lento" está **refutada por medição própria**.
+   Restam **~2080 ms sem marca nenhuma** — mas em *Development Build*, o que **não** sustenta
+   conclusão de produto (ver `PERF-OBS-01`).
+3. **A amostra não tem discriminador de build:** DEV e `preview` são **indistinguíveis** no log.
+   Corrigível **sem dependência** (`__DEV__` + `EXPO_PUBLIC_BUILD_PROFILE`, schema 2→3). Enquanto
+   não existir, **todo número medido é ambíguo**.
+4. **O pipeline base64 do canvas já é, tecnicamente, captura de tela.** A proibição de *replay*
+   precisa virar **asserção em `npm run smoke`** — não há ESLint; texto não falha *build*.
+5. **`@noble/hashes` já está instalado**, o que torna `sha256(childId)` uma armadilha **concreta** —
+   e **proibida**: hash determinístico do `childId` **é** o `childId` (pseudonimização, não
+   anonimização).
+
+**Veredito duro sobre Prometheus:** apontá-lo para o telefone é errado por **seis razões
+independentes** — modelo *pull*, NAT/CGNAT, IP efêmero, processo efêmero, bateria e **cardinalidade
+(uma série por aparelho = identificador estável)**. Prometheus e Grafana são **backend**; este
+projeto **não tem backend**. *Grafana Faro* é outra coisa — **SDK de cliente**, não autorizado.
+
+**Dependências avaliadas e marcadas ⚠️ NÃO AUTORIZADAS:** `@sentry/react-native` (linha 7.x, *patch*
+**não afirmado**; exige *config plugin* + **prebuild** + mudança em `app.json` e no Data Safety —
+invalidaria a campanha física em curso); `@opentelemetry/*` (compatibilidade Hermes/New Arch **não
+estabelecida**, fora do catálogo Expo); `prom-client` (**inaplicável** — Node-only, não roda em
+Hermes); `@grafana/faro-*` (suporte RN **incerto**, e faz *replay*); `expo-device` (**expõe o modelo
+exato — campo proibido**); `expo-constants` / `expo-application` (compatíveis e de baixo risco, mas
+alterariam `package.json` — **proibido agora**).
+
+**O ADR não instalou nada.** `package.json`, `package-lock.json`, `app.json`, `eas.json` e `src/`
+**não foram tocados**; nenhum `npm install`, nenhum `npx expo install`, nenhum *prebuild*.
+
+**O ADR também NÃO decide:** adotar qualquer SDK; conceder Human Gate; fechar `P-85`, `P-93`,
+`P-127`, `P-139` ou `P-149`; declarar conformidade jurídica; autorizar *backend*; nem concluir
+qualquer coisa sobre `PERF-OBS-01`.
+
+## `PF6SGA-R1-VISUAL` — Achados visuais da `R1`: **inventário**, não trabalho (2026-08-11)
+
+Durante a repetição da `R1` o fundador observou, em **vídeo físico**, cinco coisas que **não são**
+critério da `R1`. Elas ficam **inventariadas** e **nada mais**. **A `R1` não abre `SG-B` por via
+transversa.**
+
+| # | Achado observado em vídeo | Owner | Pode ser corrigido em `SG-A`? |
+|---|---|---|---|
+| **A** | *Spotlight* / *onboarding* **mal posicionado** no tablet | **`F6-R2` = `SG-B`** (coordenadas/projeção — `B-01`/`B-02`) | **NÃO** |
+| **B** | **Linhas / recortes verticais anômalos** durante o *spotlight* | **`F6-R2` = `SG-B`** (mesma família de projeção/recorte) | **NÃO** |
+| **C** | **Composição pouco adaptada** à largura do tablet | **`F6-R1` = `SG-C`** (faixa/layout de tablet) — e o que for conteúdo/jornada, **`F7`** | **NÃO** |
+| **D** | **Abertura/reabertura percebida como lenta** | Registrado como **`PERF-OBS-01`** (abaixo); leitura final em `R7`/`T090` | **NÃO** — é sintoma, não conserto |
+| **E** | **Intervalo branco** antes da UI útil em determinada reabertura | Idem **`PERF-OBS-01`** | **NÃO** |
+
+**Regra que governa este inventário:**
+
+- **`B-01`/`B-02` e todo problema de coordenadas/*spotlight* continuam CONGELADOS para `SG-B`.**
+- Nenhum destes itens é `FAIL` da `R1`: **nenhum deles pertence aos requisitos que a `R1` exercita**
+  (*cold start*, instância única de `MainTabs`, navegação de abas sem remontagem,
+  *background*/*foreground*, `A-03`).
+- Vale o §7 do protocolo: **achado fora de `F6-R3` vira registro, não vira trabalho não autorizado.**
+- **A validação física não expande escopo em silêncio.**
+
+## `PERF-OBS-01` — Reabertura com intervalo perceptível (registro de sintoma, 2026-08-11)
+
+**Isto é registro de SINTOMA. A causa NÃO está declarada.**
+
+**Sintoma observado** em gravação física externa durante a repetição da `R1`: em **uma** reabertura,
+houve intervalo **visualmente perceptível** entre *splash* / tela branca / *loading* e a UI útil.
+
+**O que NÃO pode ser usado como métrica deste sintoma:**
+
+- ⛔ **`Android Bundled 34102ms` NÃO é métrica de performance do app.** Esse número veio de *rebuild*
+  do Metro com **cache vazio** (`--clear`) e mede o **empacotador na máquina do desenvolvedor**, não
+  o aparelho. Usá-lo como evidência de lentidão do produto seria erro de leitura.
+
+**Camadas que precisam ser distinguidas antes de qualquer diagnóstico** — misturá-las é o que produz
+conclusão errada: *Metro bundling* · *startup* de JS/runtime · **font gate** · **route decision** ·
+**hydration** (perfil, progresso, packs) · **first layout** · **time-to-interactive real** · assets ·
+rede/conteúdo.
+
+**Evidência inicial disponível** (Development Build, `P-139`, schema 2, terminal `first_layout`,
+route `Home`): `fontGateMs` 277 · `routeDecisionMs` 38 · `splashReactMs` 808 · **`firstLayoutMs`
+3204** · `profileHydrationMs` 33 · `progressHydrationMs` 58 · `packsHydrationMs` 23 ·
+`bufferDropped` 0. **Isto é evidência inicial, não conclusão** — e um *Development Build* carrega
+JS pelo Metro, o que por si só inflaciona o número.
+
+**Comparação planejada (posterior, não agora):** Development Build × **Preview Android pós-`aa58849`**
+× outro dispositivo, quando previsto. **O `Preview` exigido por `D-3` só é gerado DEPOIS da campanha
+Development Build** (§2.4 e ordem operacional congelada do §3.4). **Não gerar `Preview` agora.**
+
+**Owner:** a investigação de causa **não** pertence à `F6-SG-A`. `PERF-OBS-01` fica **registrado e
+aberto**, para ser lido junto de `P-139` e do `T090`/`F-PERF` na rodada `R7` e nas fases de
+performance. **Não corrigir dentro de `SG-A`.**
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:

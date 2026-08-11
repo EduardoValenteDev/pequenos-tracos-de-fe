@@ -53,11 +53,31 @@ if ([string]::IsNullOrWhiteSpace($sujo)) { Write-Host "4) ARVORE : LIMPA" }
 else { Write-Host "4) ARVORE : SUJA — PARE"; $sujo }
 ```
 
-**Aceite:** pasta `C:\tmp\ptf_fase6_shell_splash_wt` · branch `feat/fase6-shell-splash` · `HEAD`
-`f013560` · árvore `LIMPA`.
+**Aceite (emenda de 2026-08-11 · corrige texto caduco):** pasta `C:\tmp\ptf_fase6_shell_splash_wt` ·
+branch `feat/fase6-shell-splash` · árvore `LIMPA` · `HEAD` **`aa58849` ou um descendente cujo
+`diff` contra `aa58849` seja SOMENTE DOCUMENTAL**.
+
+> A redação anterior fixava `f013560` — valor caduco, anterior a duas emendas (`456ac1b` e, depois,
+> `aa58849`). O aceite passa a ser **funcional, não literal**, porque o que precisa ser idêntico é o
+> **JS que o Metro serve**, não o número do *commit*: um *commit* que só toca `docs/` e `specs/`
+> **não muda uma linha do que roda no aparelho**. Confira com o comando abaixo — ele é parte do
+> aceite, não uma cortesia:
+
+```powershell
+git diff --stat aa58849..HEAD
+```
+
+**Aceite do comando:** saída **vazia** (`HEAD` é `aa58849`) **ou** apenas caminhos sob `docs/` e
+`specs/`. **Se aparecer qualquer caminho sob `src/`, `scripts/`, `assets/`, `App.js`,
+`package.json`, `app.json` ou `eas.json`, PARE** — o aparelho passaria a exercitar código que este
+documento não descreve.
 
 **Se qualquer um dos quatro divergir, PARE e reporte.** Não reconcilie silenciosamente: um `HEAD`
 diferente significa que o que está no aparelho **não é** o que este documento descreve.
+
+📌 **Arquive a saída dos quatro `Write-Host` e a do `git diff --stat`.** Não basta executar: a
+`RODADA 1` de 2026-08-11 ficou sem `PASS` formalizável exatamente porque o pré-voo foi executado e
+**não arquivado** — ver **§7.2**.
 
 ---
 
@@ -164,9 +184,11 @@ insumo** da campanha. Portanto:
 2. **backup somente-leitura do acervo por `adb` antes** de qualquer instalação;
 3. usar **`adb install -r`**; **NUNCA desinstalar** (desinstalar apaga o acervo); **`pm clear`
    proibido**;
-4. discriminação em tempo de execução: o **Development Build** imprime linhas `[shell]` (o
-   `logger.log` é `__DEV__`-only) e oferece o *launcher* do *dev client*; o **`preview`** não imprime
-   `[shell]`, mas **imprime** `[PTF_PERF_SAMPLE]`.
+4. discriminação em tempo de execução *(redação corrigida em 2026-08-11 — ver §7.2)*: o
+   **discriminador válido é a AUSÊNCIA das linhas `[shell]`** (o `logger.log` é `__DEV__`-only) e a
+   ausência do *launcher* do *dev client*. **`[PTF_PERF_SAMPLE]` NÃO discrimina perfil:** a `R1` de
+   2026-08-11 provou que o **Development Build também emite** — o coletor liga em `__DEV__`. Usar a
+   presença de `[PTF_PERF_SAMPLE]` como prova de estar no `preview` é **proibido**.
 
 **Aceite de `T090` (`R7`):** `[PTF_PERF_SAMPLE]` efetivamente emitido · `schema 2` · terminal
 `first_layout` **ou** `ceiling` · `preview` com `PERF_TRACE` ativo · `production` **comprovadamente
@@ -245,7 +267,7 @@ Usar **essa mesma forma** tanto no *cold start* quanto em **todas** as reabertur
 | 1 | O Metro está servindo **esta** pasta | O terminal do Metro imprime `C:\tmp\ptf_fase6_shell_splash_wt` no cabeçalho. Se imprimir `ptf_colorir_canonical_runtime_wt`, **PARE**: pasta errada |
 | 2 | O aparelho pediu o *bundle* **agora** | Ao abrir pelo *deep link* (ou dar *Reload*), o terminal do Metro registra a requisição do *bundle*. **Sem linha nova no terminal, o app está usando JS embutido — inválido** |
 | 3 | Não é `preview` nem `production` | Esses perfis embutem o JS no binário e **ignoram** o Metro. Só o perfil `development` serve |
-| 4 | O túnel USB está de pé *(emenda 2026-08-10)* | `adb reverse --list` exibe **`tcp:8081 -> tcp:8081`** |
+| 4 | O túnel USB está de pé *(emenda 2026-08-10; redação corrigida em 2026-08-11)* | `adb reverse --list` exibe **exatamente UM** mapeamento relevante contendo **`tcp:8081 tcp:8081`**. **Prefixo de transporte (`UsbFfs …`) é permitido** — o gate **não** é literal, conforme §3.1 |
 
 > **Regra dura:** se as **quatro** confirmações não forem obtidas, **nenhum** cenário abaixo pode ser
 > marcado como `PASS`.
@@ -272,6 +294,10 @@ executar `T090`/`P-139` e as validações de áudio → (7) Human Gate final.
 > **REGRA DE PARADA.** Qualquer **`FAIL` relevante** em uma rodada: **PARAR antes da rodada
 > seguinte**, **classificar** conforme §7 e **reportar**. **Não corrigir automaticamente.** Retomar a
 > campanha só depois de decisão explícita.
+
+📄 **Pacote operacional da `R2`:** [`10_RODADA_FISICA_2_F6_SG_A.md`](10_RODADA_FISICA_2_F6_SG_A.md)
+— ordem otimizada, comandos exatos por janela e os 19 campos de cada um dos 12 casos. **Aquele
+documento operacionaliza este; não o substitui.** Em divergência, **vale este `06`**.
 
 ### 3.5 Rotação no Android — como registrar *(emenda de 2026-08-10)*
 
@@ -492,6 +518,83 @@ Primeiro uso desta seção §7 com um defeito de campo de verdade. Registro comp
 `bundle:check` compila sem executar, `expo-doctor` audita configuração e o `smoke` não avaliava a
 árvore de `MainTabs`. **Portão verde nunca substituiu validação física — e este defeito é a prova
 empírica disso.**
+
+---
+
+### 7.2 · `RODADA 1` repetida sobre `aa58849` (2026-08-11) — fechamento formal
+
+**Veredito canônico: `R1` — CONTEÚDO OBSERVADO SEM ANOMALIA · `PASS` NÃO FORMALIZÁVEL.**
+**Não é `PASS`. Não é `FAIL`. Não é `NÃO EXECUTADO`.**
+
+Esta rodada **não** foi interrompida por defeito: o comportamento exercitado saiu **limpo em todos os
+pontos**. O que falta é **arquivamento de evidência de pré-voo**, e o próprio protocolo torna isso
+bloqueante em §3.3: *"se as quatro confirmações não forem obtidas, **nenhum** cenário abaixo pode ser
+marcado como `PASS`"*. A regra vale como está escrita — inclusive quando é inconveniente.
+
+#### O que foi observado, sem anomalia
+
+| Requisito da `R1` (§3.4) | Observado |
+|---|---|
+| `targetSdk` lido **no aparelho** | `targetSdk 36` · SM-X510 · Android 16 |
+| *Cold start* com PID correlacionado | `Start proc: PID 9913` e, no complemento, `Start proc 14015` com **PID inicial = PID final** |
+| `MainTabs` — instância única | `MONTADO · montagens #1 · vivos 1/1 · pico 1 · desmontagens 0 · pareado` |
+| Contrato `R3X-3` completo | 3 idas e 3 voltas entre abas + *background* ~5 s + *foreground*: `MONTADOS=1`, `DESMONTADOS=0`, `ANOMALIAS=0`; **zero** `vivos 2/1`, **zero** `duas_arvores_vivas`, **zero** `desmontagem_sem_montagem` |
+| `R1-BLOCK-01` não reapareceu | **zero** ocorrência de `montagensRef` · **zero** `ReferenceError` |
+| `A-03` (`R3X-4`) | Tour **explicitamente solicitado** abriu **1×**; não reapareceu após troca de telas/abas, nem após *background/foreground*, nem após *force-stop* e nova abertura; nova solicitação explícita reabriu legitimamente |
+| Superfície real de abertura (§3.7) | `route Home` — **registrada, não reprovada** |
+| Captura sem *observer effect* | Câmera externa; **sem** SmartCapture, **sem** gravação de tela |
+| Backup do acervo *(adiantado — é §4.0, não `R1`)* | `appdata.tar` · **16.803.840 bytes** · `SHA256 501400425F64C42A5E6786BC294006FAE452E8CDE4EC2134D1F542E78E99CE1F` · contém `files/`, `databases/`, `shared_prefs/` |
+
+⚠️ **`A-03` não é reaparecimento espontâneo.** O *onboarding* visto em gravação **foi solicitado
+explicitamente pelo fundador**. Classificá-lo como regressão seria erro de leitura da evidência.
+Fisicamente, `A-03` saiu **conforme**.
+
+#### O que impede a formalização — **5 pendências, todas de ARQUIVO, nenhuma de comportamento**
+
+| # | Pendência | Exigido por |
+|---|---|---|
+| **`R1-PEND-1`** | Saída dos quatro `Write-Host` do momento da rodada (pasta · branch · `HEAD` · `ARVORE: LIMPA`) + `git diff --stat aa58849..HEAD` | §1 |
+| **`R1-PEND-2`** | Confirmação **#1** — cabeçalho do Metro **exibindo** `C:\tmp\ptf_fase6_shell_splash_wt` | §3.3 |
+| **`R1-PEND-3`** | Confirmação **#2** — a linha do Metro registrando a requisição do *bundle* **agora** | §3.3 |
+| **`R1-PEND-4`** | Confirmação **#4** — saída de `adb reverse --list` da rodada (**exatamente um** mapeamento contendo `tcp:8081 tcp:8081`) | §3.1 · §3.3 |
+| **`R1-PEND-5`** | `raw.log` **íntegro preservado** + atestação de que **todas** as aberturas usaram o *deep link* URL-encoded (abrir só a `MainActivity` **não** prova *bundle* atual) e da ordem `force-stop` → `logcat -c` → `PS3` no ar → *deep link* | §3.2 · §3.6 |
+
+**Nada disso exige comportamento novo no aparelho.** São capturas de terminal que o operador já teve
+diante dos olhos e não guardou. Fechadas as cinco, `R1` vira **`PASS`** por leitura direta da tabela
+acima — sem repetir a rodada.
+
+📌 **A confirmação #3** (*não é `preview`/`production`*) **está coberta**: a rodada correu em
+*Development Build*, e Expo Go não foi usado (§2.3).
+
+⚠️ **`P-139` emitiu no *Development Build*** (schema 2 · terminal `first_layout` · `route Home` ·
+`fontGateMs 277` · `routeDecisionMs 38` · `splashReactMs 808` · `firstLayoutMs 3204` ·
+`profileHydrationMs 33` · `progressHydrationMs 58` · `packsHydrationMs 23` · `bufferDropped 0`).
+**Isto NÃO fecha `T090`/`F-PERF`/`P-139`**, que é da `R7` e exige o par `preview` **com**
+`PERF_TRACE` ativo × `production` **comprovadamente sem** — ver §2.4 e `D-3`. É **insumo de
+`R3X-1`**, nunca aceite de `T090`.
+
+🔧 **Discriminador de perfil — correção de §2.4.** A redação dizia que o `preview` *"imprime
+`[PTF_PERF_SAMPLE]`"*. A rodada provou que o **Development Build também emite** (o coletor liga em
+`__DEV__`). Portanto, na `R7`, **`[PTF_PERF_SAMPLE]` NÃO prova que se está no `preview`** — o
+discriminador válido continua sendo a **ausência das linhas `[shell]`**.
+
+#### Ambiguidades do texto canônico registradas (não resolvidas por conta própria)
+
+1. **"três confirmações" × quatro.** §3.4 diz "três"; §3.3 lista **quatro** e a regra dura fala em
+   "as quatro". **Leitura conservadora obrigatória: valem as quatro.**
+2. **`G-PRE` tem duas definições.** §3.4 glosa como *"worktree, `adb reverse`, confirmações"*;
+   `08_SEQUENCIA_OPERACIONAL_UNICA…:328-337` define como *captura pré-instalação com 4 fotos do
+   acervo*. **Prevalece a glosa de §3.4**, por ser a redação das rodadas congeladas.
+3. **Backup do acervo.** §4.0 manda fazê-lo *"antes de abrir qualquer obra"* (⇒ primeiro ato da
+   `R2`), enquanto a ordem congelada o põe como etapa (2), depois da campanha do Development Build.
+   Tê-lo feito na `R1` é **conservador e compatível**, e o TAR validado **serve** para a `R2`.
+
+#### Efeito sobre a campanha
+
+- **`RODADA FÍSICA 1` não está fechada** — faltam `R1-PEND-1..5`.
+- **Nenhum `FAIL` relevante ocorreu**, portanto a regra de parada de §3.4 **não** foi acionada.
+- **`F6-SG-A` continua NÃO CONCEDIDO** — e continuaria mesmo com `R1` `PASS`: faltam `R2`–`R7`, o
+  Caso 13, o iPad, o telefone real e o `preview`.
 
 ---
 
