@@ -903,3 +903,290 @@ acontece **antes** do `BLOCO A`, portanto **fora** da janela daquele caso.
 | ⛔ | **Nenhuma** rota `dev`/`admin`, *reset*, escrita manual ou fabricação de estado |
 | ⛔ | `TAR-1` e `CK-C1-ROUTE-BLOCKED` **não** deixam a cadeia de custódia |
 | ⛔ | `CASO 14 · v1` permanece `INEXECUTÁVEL_POR_AUSÊNCIA_DE_WRITER_REPRODUZÍVEL` |
+
+---
+
+## 14. `EMENDA 2` — marcos das cenas 7 e 9, *allowlist* incompleta e repouso redesenhado
+
+> 🔴 **Esta emenda CORRIGE a `EMENDA 1`.** A `ALLOWLIST PRE-STORY-COMPLETE` de §13.6 estava
+> **INCOMPLETA** e o roteiro físico derivado dela estava **ERRADO**. A omissão foi levantada pelo
+> fundador antes de qualquer execução física — nenhum toque ocorreu sob a versão defeituosa. O
+> tablet permanece na **cena 4**.
+
+### 14.1 A omissão — o catálogo tem **três** marcos, não um
+
+`coloring60StoryMilestones.js:44-48` (catálogo `Object.freeze`, imutável em *runtime*):
+
+| Marco | `activityId` | `unlockAfterScene` | `resumeScene` |
+|---|---|---|---|
+| 1 | `light` | **2** | 3 |
+| 2 | `living_world` | **7** | 8 |
+| 3 | `people_and_care` | **9** | 10 |
+
+A `EMENDA 1` raciocinou **apenas** sobre `light` — o marco do incidente — e não projetou os marcos
+das cenas **7** e **9**, que estão exatamente **dentro** do trecho `4 → 10` do pré-condicionamento.
+
+**Auditoria direta do `CK-C1-ROUTE-BLOCKED`** (`SELECT rowid,key,value FROM catalystLocalStorage`,
+21 chaves, extração `CKC1-EXTRACTED/databases/RKStorage`):
+
+| Chave | Presença no `CK-C1` | Consequência |
+|---|---|---|
+| `@ptf_coloring60_done_creation_light` | **`true`** (*rowid* 44) | `activityAlreadyComplete=TRUE` ⇒ marco 1 fechado |
+| `@ptf_coloring60_done_creation_living_world` | **AUSENTE** | `activityAlreadyComplete=FALSE` |
+| `@ptf_coloring60_done_creation_people_and_care` | **AUSENTE** | `activityAlreadyComplete=FALSE` |
+| `@ptf_coloring60_milestone_invite_seen_creation_light` | **AUSENTE** | prova do incidente (§13.4) |
+| `@ptf_coloring60_milestone_invite_seen_creation_living_world` | **AUSENTE** | `inviteAlreadySeen=FALSE` |
+| `@ptf_coloring60_milestone_invite_seen_creation_people_and_care` | **AUSENTE** | `inviteAlreadySeen=FALSE` |
+
+O acervo tem **1/3** do `C60` concluído. Só `light` está `done`.
+
+### 14.2 O contrato confirmado no `HEAD` — os convites **VÃO** abrir
+
+Três condições precisam ser verdadeiras ao mesmo tempo. As três foram verificadas no `HEAD` atual:
+
+**(a) O piloto está ATIVO neste *runtime*.**
+
+```
+NarrationScreen.js:45     coloring60JourneyActive = isCreationColoringPilotActive(story?.id)
+coloring60Pilot.js:44     storyId === 'creation' && isColoring60PilotAllowed()
+coloring60Pilot.js:33-36  COLORIR_60_CREATION_PILOT_ENABLED  ||  (__DEV__ && isInternalToolsEnabled())
+internalTools.js:24-26    isInternalToolsEnabled() = __DEV__ || isCreatorQaModeAllowed() || RELEASE_PACK_QA_ENABLED
+```
+
+O *runtime* da `R2 · Sessão 2` é **Dev Client + Metro** (`G-13`, `PID 18029`) ⇒ `__DEV__ === true`
+⇒ `isInternalToolsEnabled() === true` ⇒ `isColoring60PilotAllowed() === true` ⇒ **piloto ativo**.
+Corroboração empírica independente: o próprio acervo contém as 4 chaves `C60` (*rowids* 43-46),
+gravadas por este mesmo caminho na `PREP-03`. `sceneMilestone` **não** será `null` nas cenas 7 e 9.
+
+**(b) `getColoring60MilestoneForCompletedScene('creation', 7|9)` devolve o marco** — tabela §14.1.
+
+**(c) A decisão pura cai no `CAMINHO A`.**
+
+```
+coloring60StoryMilestones.js:164-172
+  if (milestone && !activityAlreadyComplete && !inviteAlreadySeen)
+      return COLORING_MILESTONE_INVITE;
+```
+
+Cena 7: `(marco, false, false)` ⇒ **`COLORING_MILESTONE_INVITE`**.
+Cena 9: `(marco, false, false)` ⇒ **`COLORING_MILESTONE_INVITE`**.
+
+**Portanto: `@ptf_progress_creation` + `@ptf_achievements_seen` NÃO cobrem o
+pré-condicionamento. A *allowlist* de §13.6 está incompleta.**
+
+### 14.3 A escrita acontece **no instante da apresentação**, antes de qualquer escolha
+
+```
+NarrationScreen.js:212-217
+  if (experience === C60_POST_SCENE.COLORING_MILESTONE_INVITE) {
+    markColoring60MilestoneInviteSeen(story.id, sceneMilestone.activityId);   // ← AQUI
+    setShowMilestoneInvite(true);
+    return;
+  }
+```
+
+`markColoring60MilestoneInviteSeen` é chamada **antes** de `setShowMilestoneInvite(true)` e é
+**síncrona na fachada** (`coloring60MilestoneInviteSeen.js:58-63`): grava a guarda de sessão em
+memória e dispara `AsyncStorage.setItem(key, '1')` *fire-and-forget*. **Não depende da escolha da
+criança.** Escolher `Colorir agora` ou `Continuar a história` **não altera** se a chave é gravada —
+altera apenas o que acontece depois. Chave e valor exatos:
+
+```
+coloring60MilestoneInviteSeen.js:27-30
+  KEY_PREFIX = '@ptf_coloring60_milestone_invite_seen_'
+  keyFor(storyId, activityId) = `${KEY_PREFIX}${storyId}_${activityId}`
+  valor gravado = '1'
+```
+
+### 14.4 Prova de que `Continuar a história` **não** acrescenta escrita alguma
+
+```
+NarrationScreen.js:257-260
+  function handleMilestoneSkip() {
+    setShowMilestoneInvite(false);   // estado de React — sem storage
+    goToNext();
+  }
+
+NarrationScreen.js:172-176
+  function goToNext() {
+    if (!contentEntryAllowed) return;
+    if (isLastCena) navigation.navigate('Congrats', { story });
+    else navigation.replace('Narration', { story, cenaIndex: cenaIndex + 1 });
+  }
+```
+
+`handleMilestoneSkip` faz **exatamente duas coisas**: fecha o modal e navega. **Zero**
+`AsyncStorage`, **zero** `FileSystem`, **zero** serviço. `goToNext` é o mesmo avanço de sempre,
+já exercido nas cenas 1→2→3. O botão `Continuar a história` é um `SoundButton` com `silent`
+(`Coloring60MilestoneInvite.js:56`) — nem som toca, e `SoundButton` não tem *writer* de
+armazenamento em caminho algum.
+
+> ✅ **Conclusão formal:** o par (apresentação + `Continuar a história`) escreve **UMA** chave por
+> marco — o `invite_seen` já gravado na apresentação — **e nada mais**.
+
+O caminho oposto (`Colorir agora`) chamaria `c60OpenEditorFromMilestone` e abriria o editor:
+**PROIBIDO** nesta janela. Ele criaria obra nova em `living_world`/`people_and_care`, contaminando
+irreversivelmente os `CASOS 15` e `16` e o inventário do `CASO 10`.
+
+### 14.5 `@ptf_coloring60_milestone_invite_seen_creation_light` permanece **AUSENTE**
+
+A cena 2 **já está concluída** (`@ptf_progress_creation = {"1":true,"2":true,"3":true}`, *rowid* 53).
+`NarrationScreen.js:273-283`: numa cena já concluída, `primaryAction = goToNext`, **não**
+`handleConcluirCena`. O operador avança **sempre para a frente**, da 4 em diante, e nunca reentra na
+cena 2 — logo `handleConcluirCena` nunca roda para a cena 2 outra vez.
+
+> 🔴 **A prova por escrita ausente do incidente (§13.4) permanece INTACTA e falseável.**
+> Se `@ptf_coloring60_milestone_invite_seen_creation_light` **aparecer** no
+> `CK-STORY-COMPLETE`, isso significa que a cena 2 foi reconcluída ⇒ **`STOP S-24`**.
+
+### 14.6 `ALLOWLIST PRE-STORY-COMPLETE` — versão **CORRIGIDA** (substitui §13.6)
+
+| # | Chave | *Writer* | Ocorrências | Natureza |
+|---|---|---|---|---|
+| 1 | `@ptf_progress_creation` | `useProgress.js:29` | **7** (cenas 4,5,6,7,8,9,10) | `CHANGED` — *rowid* migra |
+| 2 | `@ptf_achievements_seen` | `achievementsStorage.js:27` via `dismissAchievement` | **8** (§13.7) | `CHANGED` — *rowid* migra |
+| 3 | `@ptf_coloring60_milestone_invite_seen_creation_living_world` | `coloring60MilestoneInviteSeen.js:61` | **1** (cena 7) | **`ADDED`** — valor `'1'` |
+| 4 | `@ptf_coloring60_milestone_invite_seen_creation_people_and_care` | `coloring60MilestoneInviteSeen.js:61` | **1** (cena 9) | **`ADDED`** — valor `'1'` |
+
+**Contadores esperados de `CK-C1-ROUTE-BLOCKED × CK-STORY-COMPLETE`:**
+
+```
+ESCOPO_OK          = SIM
+FILES_ADDED        = 0
+FILES_CHANGED      = 1        (databases/RKStorage)
+FILES_DELETED      = 0
+KEYS_ADDED         = 2        (as duas chaves invite_seen)
+KEYS_CHANGED       = 2        (@ptf_progress_creation, @ptf_achievements_seen)
+KEYS_DELETED       = 0
+KEYS_ROWID_MOVED   = 2        (exatamente as duas CHANGED — INSERT OR REPLACE)
+```
+
+> Um arquivo lateral do `SQLite` (`RKStorage-journal` / `-wal` / `-shm`) que apareça ou suma **não**
+> é `STOP` por si: é artefato de motor, não estado do app. **Deve ser reportado**, nunca silenciado,
+> e nunca serve de justificativa para uma chave fora da lista.
+
+**Classificação obrigatória (Decisão 1 do fundador, estendida):** as **quatro** mutações são
+**inevitáveis** e pertencem à **etapa de PRÉ-CONDICIONAMENTO DA HISTÓRIA**. Não são achado do
+`CASO 1`, nem do `CASO 10`, nem de nenhum caso funcional. Ocorrem **antes** do `TAR-1B-C1` e,
+portanto, **fora** de toda janela de medição.
+
+As tabelas de ausência de *writer* de §13.6 (bônus estrelas, áudio, guia do Beni, *context*,
+quiz/Livrinho/baú, ponte `C60`, Ateliê, `brincar*`) **permanecem válidas e não são revogadas** —
+foram reverificadas e nada nelas muda. O que muda é **apenas** o acréscimo das linhas 3 e 4 acima.
+
+### 14.7 Roteiro físico **CORRIGIDO** — cena a cena
+
+A `EMENDA 1` presumia celebração genérica em todas as cenas 4-9. **Errado.** O comportamento
+esperado, derivado do contrato:
+
+| Cena | Botão | Experiência pós-cena | Escrita |
+|---|---|---|---|
+| 4 | `Concluir cena ⭐` | celebração genérica → `Continuar →` | `@ptf_progress_creation` |
+| 5 | `Concluir cena ⭐` | celebração genérica → `Continuar →` | `@ptf_progress_creation` |
+| 6 | `Concluir cena ⭐` | celebração genérica → `Continuar →` | `@ptf_progress_creation` |
+| **7** | `Concluir cena ⭐` | 🎯 **CONVITE** — *"O mundo ficou cheio de vida!"* / *"Quer colorir essa parte comigo?"* | `@ptf_progress_creation` **+** `invite_seen_creation_living_world` |
+| 8 | `Concluir cena ⭐` | celebração genérica → `Continuar →` | `@ptf_progress_creation` |
+| **9** | `Concluir cena ⭐` | 🎯 **CONVITE** — *"A Criação ficou muito boa!"* / *"Vamos mostrar nosso cuidado com as cores?"* | `@ptf_progress_creation` **+** `invite_seen_creation_people_and_care` |
+| 10 | `Concluir história ⭐` | **nenhuma** — vai direto a `Congrats` (`NarrationScreen.js:189-192`) | `@ptf_progress_creation` |
+
+Textos verbatim do catálogo (`coloring60StoryMilestones.js:70-80`) — os botões do convite são
+`Colorir agora` (laranja, principal) e `Continuar a história` (discreto, abaixo).
+
+> 🔴 **Nas cenas 7 e 9: tocar SOMENTE `Continuar a história`.**
+> `Colorir agora` = `STOP S-25` — abriria o editor e criaria obra nova.
+> O recuo por *hardware* do Android também cai em `onSkip`
+> (`Coloring60MilestoneInvite.js:41 onRequestClose={onSkip}`) — é seguro, mas **não** é o caminho
+> instruído: use o botão.
+
+**Falseabilidade:** se o convite **não** aparecer na cena 7 ou na 9, isso **contradiz** o contrato
+auditado e é `STOP` imediato — pare e reporte, não improvise.
+
+### 14.8 `REPOUSO` — método **REDESENHADO** (`R-2'`, substitui `R-2`/`R-3` de §13.8)
+
+**O problema levantado pelo fundador:** §13.8 exigia ≥ 60 s + 75 s sem interação **e** proibia
+`background`. Se o `SCREEN_OFF_TIMEOUT` do aparelho for menor que a janela, os dois requisitos são
+**incompatíveis** — e alterar a configuração do aparelho é **proibido**.
+
+**A resolução vem do código, não de uma configuração.** O ouvinte é assimétrico:
+
+```
+entitlementService.js:128-132
+  _appStateSub = AppState.addEventListener('change', (s) => {
+    if (s === 'active') refreshEntitlement().catch(() => {});
+  });
+```
+
+> 🔴 **Só a transição `→ active` escreve. `→ background` / `→ inactive` NÃO escrevem NADA.**
+
+Varredura completa de `AppState` em `src/` + `App.js` (13 pontos): `AudioPlayer` e `StoryBookScreen`
+(desmontados no `Congrats`), `usePuzzleController`, `MonteACena*`, `Pares`, `Palavrinhas`,
+`CadêAOvelhinha` (telas não montadas), `useSurfaceLifecycle` (só `setState`), `useImageRecovery`
+(**zero** `AsyncStorage` — verificado por *grep*). **`entitlementService` é o único com *writer*.**
+
+**Método `R-2'` — o aparelho PODE dormir; o que não pode é ACORDAR:**
+
+| # | Critério | Como se mede |
+|---|---|---|
+| `R-1` | 8 modais dispensados, contados um a um, nenhum na tela | observação física |
+| `R-2'` | Dois `SHA256` de `databases/RKStorage`, ≥ 60 s de intervalo, **idênticos** | lado-**PC** (`adb exec-out run-as … cat`) — funciona com a tela apagada e o aparelho bloqueado |
+| `R-3'` | **Zero toque no tablet** desde a dispensa do 8.º modal até o `TAR-1B-C1` — inclusive **não acordar a tela** | disciplina do operador |
+| `R-4` | `PS3` contínuo e `PS1` servindo | `LOGCAT_PROCESS_COUNT=1`, `raw.log` crescendo |
+
+**Consequências desenhadas:**
+
+1. `SCREEN_OFF_TIMEOUT_MS`, `STAY_ON_WHILE_PLUGGED_IN` e `mWakefulness` passam a ser
+   **informativos**, não bloqueantes. Continuam sendo lidos e registrados (leitura pura, nenhuma
+   escrita de configuração), mas **nenhum passo depende do valor**. Um protocolo que depende de um
+   valor não reportado é um protocolo que trava.
+2. **Nada é alterado no aparelho** — nem `settings put`, nem `svc power`, nem `keyevent`.
+3. Se a tela apagar entre `R-2'`-A e `R-2'`-B, o resultado **continua válido**: o `→ background` não
+   escreve, e a leitura por `adb` não acorda o aparelho.
+
+> ⚠️ **`W-1` — a transição `→ active` do PRÓXIMO despertar.**
+> Quando o operador acordar o tablet para iniciar o `CASO 1`, `AppState` disparará `'active'` e
+> `refreshEntitlement()` **poderá** gravar `@ptf_entitlement_v1`. Esse despertar acontece
+> **depois** do `TAR-1B-C1`, logo cairia **dentro** da janela do `CASO 1`.
+> **Atribuição declarada por antecipação: `@ptf_entitlement_v1` que apareça na primeira medição
+> após um despertar é `RETOMADA DE SESSÃO (W-1)`, jamais achado do `CASO 1`.**
+> A chave nunca apareceu em nenhum `TAR` até aqui (fonte `RevenueCat`, *fail-closed*), então o
+> cenário mais provável é que não apareça. Se aparecer, é **explicável e registrada**, nunca
+> silenciada, e **nunca** convertida em `FAIL` de caso.
+
+**`CK-STORY-COMPLETE` e `TAR-1B-C1` são capturados na MESMA janela de quiescência**, ambos com o
+tablet intocado. Por construção, a comparação entre os dois deve dar **`0` mutações** — que é
+exatamente o que `S-19` exige. Esta é a forma **mais forte** de satisfazer a Decisão 2 do fundador:
+o intervalo em que "nada deveria estar escrevendo" passa a ser um intervalo em que **nada pode
+sequer ser acionado**.
+
+### 14.9 Correções operacionais dos comandos
+
+| # | Regra |
+|---|---|
+| `O-1` | **Nunca depender de `adb` no `PATH`.** Usar sempre `$adb = 'C:\Android\platform-tools\adb.exe'` e `$serial = 'RX2XC003LTJ'`, com `-s $serial` em todo comando. |
+| `O-2` | **`cmd.exe /c` obrigatório** para todo redirecionamento binário (`TAR`, `RKStorage`): o `>` do PowerShell corrompe `stdout` binário (foi o que produziu o `raw.log` em `UTF-16LE`). |
+| `O-3` | **Guarda anti-sobrescrita:** antes de criar qualquer artefato, exigir `Test-Path <destino>` = `False`. Um artefato que já existe **nunca** é sobrescrito — é evidência. |
+| `O-4` | Leituras de estado do aparelho (`settings get`, `dumpsys`) são **somente leitura**. `settings put`, `svc`, `input`, `keyevent` são **proibidos** nesta sessão. |
+
+### 14.10 `STOP` adicionais desta emenda
+
+| # | Condição |
+|---|---|
+| `S-24` | `@ptf_coloring60_milestone_invite_seen_creation_light` **aparecer** — a cena 2 foi reconcluída, o incidente foi contaminado |
+| `S-25` | `Colorir agora` tocado em qualquer convite — obra nova criada, `CASOS 15/16/10` contaminados |
+| `S-26` | Convite **não** aparecer na cena 7 ou na cena 9 — contradiz o contrato auditado em §14.2 |
+| `S-27` | Artefato de destino já existente (`Test-Path` = `True`) — não sobrescrever evidência |
+
+`S-23` fica **REVISADO**: o app ir a segundo plano por apagamento de tela **não** é `STOP`
+(§14.8). Continua `STOP` **relançar/matar** o app (migração) e **acordar** o tablet dentro da janela
+de quiescência.
+
+### 14.11 O que esta emenda **NÃO** concede
+
+| | |
+|---|---|
+| ⛔ | **Nenhum `PASS`** de caso — o pré-condicionamento não é caso |
+| ⛔ | **Nenhuma** autorização de `push`, `merge` ou alteração de código |
+| ⛔ | **Nenhuma** alteração de configuração do aparelho |
+| ⛔ | `TAR-1` e `CK-C1-ROUTE-BLOCKED` seguem imutáveis na cadeia de custódia |
+| ⛔ | As duas chaves `invite_seen` gravadas **não** viram evidência de caso — são pré-condicionamento |
+| ⛔ | `CASO 1` continua `NÃO EXECUTADO`; nada aqui o executa |
