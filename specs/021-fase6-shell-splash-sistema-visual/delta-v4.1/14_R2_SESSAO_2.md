@@ -241,12 +241,25 @@ Todos os marcadores abaixo foram **verificados nos dois *worktrees*** durante a 
 | **`M+2`** | `[COLORING_STATE] load OK espacoLogico=` | `src/components/ColoringCanvas.js:1037` | **ausente** (lá é `load OK W=`) |
 | **`M+3`** | `obra existente não aberta por este motor — bytes preservados no armazenamento` | `src/components/ColoringCanvas.js:1492` | **ausente** |
 | **`M+4`** | Existem `src/hooks/useSurfaceLifecycle.js`, `src/hooks/useViewportProjection.js`, `src/services/shellLifecycleTrace.js` | `git diff --name-status 7de7085 8b1daf1 -- src/` ⇒ **3 `A`, 0 `D`** | **os três não existem** |
+| **`M+5`** | `[shell] ` (o prefixo, como literal) | `src/services/shellLifecycleTrace.js:105` — **1** ocorrência no canônico | **0 ocorrências** |
 
 **Forma completa de `M+1` no `logcat`** (`SHELL_MAX_VIVOS = 1`, `shellLifecycleTrace.js:32`):
 
 ```
 [shell] MainTabs MONTADO · montagens #1 · vivos 1/1 · pico 1 · desmontagens 0 · pareado
 ```
+
+> 🔴 **`M+1` NÃO existe como texto contíguo no *bundle*.** `descreverShellLifecycle`
+> (`shellLifecycleTrace.js:103-112`) monta a linha por concatenação de *template literals*:
+>
+> ```js
+> const base = `[shell] ${s.nome} ${evento}`
+>   + ` · montagens #${s.montagens}`
+> ```
+>
+> O que o *bundle* contém são os **fragmentos** `[shell] ` (`M+5`) e ` · montagens #`; a forma
+> composta só nasce **em tempo de execução**. Procurar a linha inteira no *bundle* daria **`STOP`
+> falso garantido**. Por isso `G-12` (*bundle*) e `G-13` (`logcat`) usam alvos diferentes — §6.5.
 
 ### 6.2 `M−` — **devem estar AUSENTES** (denunciam *runtime* histórico)
 
@@ -255,7 +268,21 @@ Todos os marcadores abaixo foram **verificados nos dois *worktrees*** durante a 
 | **`M−1`** | `[COLORING_STATE] load OK W=` | `ColoringCanvas.js:567` | **0 arquivos** — verificado |
 | **`M−2`** | `incompatible saved state ignored` | `ColoringCanvas.js:551`, `:969` | **0 arquivos** — verificado |
 | **`M−3`** | `saved state invalid/incompatible — healing (clear + fresh)` | `ColoringCanvas.js:962` | **ausente** |
-| **`M−4`** | Qualquer linha começando por `[shell] ` | — | (se ausente ⇒ *runtime* errado) |
+
+Reconferido no canônico em **2026-08-11**: `load OK W=` → **0**, `incompatible saved state ignored`
+→ **0**, `saved state invalid/incompatible` → **0**. Os três negativos são válidos.
+
+> ⚠️ **`M−4` foi RETIRADO — era um marcador invertido, defeito do próprio documento.**
+> Ele dizia "qualquer linha começando por `[shell] `", sentado na tabela dos que **devem estar
+> ausentes**, enquanto a sua própria observação dizia *"se ausente ⇒ runtime errado"*. As duas
+> leituras se contradizem, e **ambas reprovam**: pela tabela, encontrar `[shell] ` seria `STOP`
+> (falso — é o *runtime* certo); pela observação, não encontrar seria `STOP`.
+> O fato é que **`[shell] ` só existe no canônico** (`shellLifecycleTrace.js:105`, **1** ocorrência;
+> **0** no histórico `7de7085`, onde o arquivo não existe): é marcador **positivo**. Reclassificado
+> como **`M+5`** em §6.1. Mesma classe de defeito catalogada em §6.4 — um guarda que aponta para o
+> lado errado é pior que guarda nenhum, porque parece proteger.
+>
+> **Os negativos desta sessão são `M−1`, `M−2` e `M−3`. Não há `M−4`.**
 
 ### 6.3 `M+2` × `M−1` — **par casado**, o discriminador mais forte
 
@@ -294,6 +321,29 @@ O documento `08` prescreve, em **duas** linhas, o literal **`[AppNavigator] Main
 NÃO é reescrito** — esta errata é acréscimo, na mesma disciplina de `R2-ACH-01-ERRATA`
 (`10_RODADA_FISICA_2_F6_SG_A.md`) e da convenção de `docs/DECISIONS.md:2733`. `08` permanece como foi
 congelado, e quem o executar deve ler esta seção antes.
+
+### 6.5 Onde cada marcador é observável — `G-12` ≠ `G-13`
+
+> 📌 **Esta seção existe porque §6.4 diagnosticou a causa certa e eu não a apliquei ao meu próprio
+> `G-12`.** O defeito do documento `08` é *texto composto em tempo de execução procurado como
+> literal*. `M+1` tem **exatamente** essa forma — e o `G-12`, que lê o *bundle*, o exigia inteiro.
+
+| Marcador | *Bundle* (`G-12`) | `logcat` (`G-13`) |
+|---|---|---|
+| `M+1` linha completa | ⛔ **não procurar** — composta em execução | ✅ é aqui que ela existe |
+| `M+5` `[shell] ` | ✅ 1 ocorrência | ✅ prefixo de toda linha do *shell* |
+| ` · montagens #` | ✅ fragmento presente | ✅ dentro da linha composta |
+| `M+2` `[COLORING_STATE] load OK espacoLogico=` | ✅ literal contíguo (`ColoringCanvas.js:1037`) | ✅ ao abrir obra do Colorir |
+| `M+3` `bytes preservados no armazenamento` | ✅ literal contíguo (`:1492`) | ✅ quando dispara |
+| `M+4` (três arquivos) | ✅ por nome de módulo no *bundle* | — não se aplica |
+| `M−1` `load OK W=` | ⛔ deve estar ausente | ⛔ deve estar ausente |
+| `M−2` `incompatible saved state ignored` | ⛔ ausente | ⛔ ausente |
+| `M−3` `saved state invalid/incompatible` | ⛔ ausente | ⛔ ausente |
+
+**Regra geral, aplicável a qualquer marcador futuro:** antes de transformar um texto em critério de
+gate, abrir o código e verificar se ele é **literal** ou **composto**. Literal se procura no
+*bundle*; composto **só** se observa em execução. Confundir os dois produz `STOP` falso quando o
+*runtime* está certo — e foi o que derrubou o documento `08`.
 
 ---
 
@@ -336,8 +386,8 @@ horário · veredito · artefato`.
 | **`G-09`** | 🔴 **GATE DE ESTADO DE ENTRADA** — `compare_state.py` contra `TAR-POST03` (§8.1) | `ESCOPO_OK=NAO` ou **qualquer um dos sete contadores ≠ 0** |
 | **`G-10`** | `PS1`: `node scripts/check-env.js`, depois `npx expo start --dev-client --clear --lan --port 8081` | `check-env` falhar |
 | **`G-11`** | Aparelho: **`force-stop` + *cold start*** por *deep link* `pequenostracosdefe://` | app não abrir |
-| **`G-12`** | `PS2`: baixar o *bundle* de `http://127.0.0.1:8081/index.bundle?platform=android&dev=true` e **grep dos marcadores** — `M+1..M+4` **presentes**, `M−1..M−4` **ausentes** (§6) | **qualquer** `M+` ausente **ou** **qualquer** `M−` presente |
-| **`G-13`** | `PS3`: confirmar `M+1` no `logcat` na forma completa de §6.1, com o `PID` do processo do app | não aparecer, ou `PID` divergente |
+| **`G-12`** | `PS2`: baixar o *bundle* de `http://127.0.0.1:8081/index.bundle?platform=android&dev=true` e **grep dos marcadores de *bundle* de §6.5** — `M+2`, `M+3`, `M+4`, `M+5` e ` · montagens #` **presentes**; `M−1`, `M−2`, `M−3` **ausentes**. **`M+1` inteiro NÃO se procura aqui** (§6.5) | qualquer marcador de *bundle* `M+` ausente **ou** qualquer `M−` presente |
+| **`G-13`** | `PS3`: confirmar `M+1` no `logcat` na forma completa de §6.1 — **é aqui, e só aqui, que a linha composta existe** —, com o `PID` do processo do app | não aparecer, ou `PID` divergente |
 | **`G-14`** | `PS2`: capturar **`TAR-1`** conforme `10_RODADA_FISICA_2_F6_SG_A.md:244` — **antes de abrir qualquer obra** | falha ou app já ter aberto obra |
 
 > ✅ **Só depois de `G-14` verde começa o Bloco A.**
@@ -593,8 +643,8 @@ anterior. Custo: alguns segundos por caso. Benefício: **atribuição de qualque
 | 5 | `PS3` interrompido, fechado ou limpo em qualquer momento |
 | 6 | Falha de `run-as` ou `TAR` truncado |
 | 7 | **Qualquer** contador de `G-09` ≠ 0 (§8.1) — `ESCOPO_OK=NAO` é **recaptura**, não `STOP` (§5.7) |
-| 8 | **Qualquer** `M+` ausente no *bundle* ou no `logcat` (`G-12`, `G-13`) |
-| 9 | **Qualquer** `M−` presente (`G-12`) |
+| 8 | **Qualquer** `M+` ausente **onde §6.5 diz que ele é observável** (`G-12`, `G-13`) — ausência de `M+1` no *bundle* **não** é `STOP`: ele não existe lá |
+| 9 | **Qualquer** `M−1`/`M−2`/`M−3` presente (`G-12`). **Não existe `M−4`** (§6.2) |
 | 10 | Traço, salvamento ou encerramento acidental durante o Bloco A |
 | 11 | `TAR-2 ≠ TAR-1` em qualquer um dos sete contadores |
 | 12 | `CK-C<n>` revelando escrita não prevista |
