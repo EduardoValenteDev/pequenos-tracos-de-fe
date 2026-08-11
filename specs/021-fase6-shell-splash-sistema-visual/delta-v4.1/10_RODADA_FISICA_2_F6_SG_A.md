@@ -745,3 +745,63 @@ desvio de rota. §10 do protocolo tem **três defeitos materiais** (`D-PREP02-10
 
 > ⛔ **`PREP-LEGADO-02` = `STOP`.** ⛔ **`R2 · SESSÃO 2` = NÃO INICIADA.** ⛔ **`F6-SG-A` = NÃO
 > CONCEDIDO**; `R1-PEND-1..5` **ABERTAS**. Nenhum caso do **Bloco A** foi executado.
+
+---
+
+## 12. `PREP-LEGADO-03` executada — acervo admissível e `R2 · Sessão 2` preparada (2026-08-11)
+
+> Esta seção **acrescenta**; não reescreve §10 nem §11, e **não** altera critério de caso algum.
+> Auditoria: [`13_PREP_LEGADO_03.md`](13_PREP_LEGADO_03.md) · Protocolo:
+> [`14_R2_SESSAO_2.md`](14_R2_SESSAO_2.md) · Decisões: [`docs/DECISIONS.md`](../../../docs/DECISIONS.md)
+> §`PREP-LEGADO-03-FECHO`, §`R2S2-PREPARADA`.
+>
+> 📌 **Fato posterior a §11.** Onde §11 diz que a `PREP-LEGADO-03` está *"desenhada, não executada"*,
+> leia-se: **foi executada em 2026-08-11 e fechou com acervo admissível.** O texto de §11 permanece
+> como foi congelado.
+
+### ✅ `PREP-LEGADO-03` = **CONCLUÍDA COM ACERVO ADMISSÍVEL**
+
+O **Caminho de retomada** previsto em §10 está cumprido: existe **acervo legado genuíno**, produzido
+por interação humana real no *runtime* histórico `7de7085`, **sem instalar, desinstalar ou substituir
+binário** e **sem fabricar obra**. Como §10 antecipou, o veículo probatório foi o **Ateliê**.
+
+**O bloqueio 🔴 do Caso 14 está satisfeito.** A ficha exige *"existir obra legada no acervo real"* e
+manda **parar** se não houver (`:370`, `:376`). Há — e a ausência dos quatro eixos da Fase 6 nela é
+**originária**, porque o *writer* de `7de7085` (`atelierStorage.js:112-150`) não os conhece. **Nada foi
+fabricado, convertido ou sintetizado.**
+
+### Matriz de insumo — critérios **lidos** do §6 deste documento
+
+| Caso | Ficha | Insumo | `PASS` canônico | Insumo |
+|---|---|---|---|---|
+| **1** | `TK-A-063` | *blob* + ponteiro C60 | `:348` | ✅ SUFICIENTE |
+| **15** | `TK-A-077` | obra do Ateliê | `:360` | ✅ SUFICIENTE |
+| **14** | `TK-A-076` | obra do Ateliê (**`v2`**) | `:374` | ⚠️ PARCIAL |
+| **16** | `TK-A-078` | ponteiro `v:3` + *blob* | `:387` | ✅ SUFICIENTE |
+| **10** | `TK-A-072` | ambas as metades | `:400` | ✅ SUFICIENTE |
+
+**Ordem `1 · 15 · 14 · 16 · 10` (`:92`) mantida.** ⛔ **`CASO 14 · variante v1` continua
+`INEXECUTÁVEL_POR_AUSÊNCIA_DE_WRITER_REPRODUZÍVEL`** (`CASO14-V1-INEXECUTAVEL-01`) — reportada
+**separadamente**, nunca diluída no veredito do Caso 14.
+
+### Duas mudanças que a `PREP-03` impõe à `R2 · Sessão 2`
+
+1. **`rowid` passa a ser obrigatório em toda comparação de acervo.** A `PREP-03` provou fisicamente
+   que uma reescrita idempotente é **invisível** a um comparador `key→value`
+   (`ADDED=0 CHANGED=0 DELETED=0` **com escrita real**). Como todo o **Bloco A** afirma que *"nenhum
+   caso escreve"*, essa afirmação **não seria demonstrável** com o instrumento antigo.
+2. ***Checkpoints* `CK-C*` por caso viram obrigatórios.** Sem eles, um `TAR-2 ≠ TAR-1` seria
+   inatribuível — e a regra de honestidade de `:120` (*"está proibido concluir 'foi outro caso'"*)
+   transformaria isso em `FAIL` de **todo** o bloco.
+
+⚠️ **Errata de marcador (acréscimo, na convenção de `R2-ACH-01-ERRATA`):**
+`08_SEQUENCIA_OPERACIONAL_UNICA_F6_SG_A.md:451,483` prescreve o literal
+`[AppNavigator] MainTabs MONTADO`, **inexistente nos dois *worktrees***. O texto real é
+`[shell] MainTabs MONTADO · montagens #N …` (`shellLifecycleTrace.js:105`). Na linha 451 o literal
+obsoleto causa **`STOP` falso**; na 483, **guarda morta** (`PASS` falso). **`08` não é reescrito** —
+ver [`14_R2_SESSAO_2.md`](14_R2_SESSAO_2.md) §6.4.
+
+> ⛔ **`PREP-LEGADO-01` = `STOP`** · ⛔ **`PREP-LEGADO-02` = `STOP`** — permanecem, sem reabilitação.
+> ⛔ **Nenhum caso da `R2` foi executado** e **nenhum `PASS` de `R2`** é concedido: a `PREP-03` produz
+> **insumo**, não é rodada. ⛔ **`R2 · SESSÃO 2` = NÃO INICIADA** (protocolo pronto, execução dependente
+> de **`HUMAN GATE`**). ⛔ **`F6-SG-A` = NÃO CONCEDIDO**; `R1-PEND-1..5` **ABERTAS**.

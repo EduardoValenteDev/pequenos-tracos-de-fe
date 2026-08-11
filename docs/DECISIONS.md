@@ -3390,6 +3390,131 @@ alguma** — não há `rowid` que os acomode) · se o operador chegou a **ver** 
 > `F6-SG-A` = NÃO CONCEDIDO** (`R1-PEND-1..5` ABERTAS). **`PREP-LEGADO-03` = DESENHADA, NÃO
 > EXECUTADA.** Nenhuma história foi apagada ou reescrita.
 
+## `PREP-LEGADO-03-FECHO` — acervo legado admissível, produzido e periciado (2026-08-11)
+
+> Esta entrada **acrescenta**. **Não** reescreve nem reabilita nada. Auditoria completa em
+> [`13_PREP_LEGADO_03.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/13_PREP_LEGADO_03.md).
+
+Depois de **duas** campanhas encerradas em `STOP`, a `PREP-LEGADO-03` foi executada fisicamente e
+lacrada. Auditoria independente — **nenhum relatório pré-existente aceito como prova; todo número
+recalculado da fonte primária**, em cópias abertas com `mode=ro`, sem tocar no aparelho.
+
+### ✅ `PREP-LEGADO-03` = **CONCLUÍDA COM ACERVO ADMISSÍVEL**
+
+| Sustentação | |
+|---|---|
+| Cadeia de custódia | **23/23** *hashes* conferidos; `TAR-PRE03 = TAR-PRE02 = TAR-PRE-LEGADO`; estado terminal da `PREP-02` preservado **antes** da restauração |
+| *Diff* independente | `ADDED=7 CHANGED=0 DELETED=0` — as **sete** exatas; as **quatro** chaves proibidas **ausentes** |
+| Ordem física | `rowid` **43–50 denso** ⇒ cada chave gravada **uma única vez**; C60 (43–46) **antes** do Modo Criador (47) |
+| Insumo C60 | ponteiro `v:3`/`fmt:2`/`image/png`/`rev:22` e *blob* PNG com `IHDR` **1440×2156** batendo com o ponteiro |
+| Insumo Ateliê | `schema 2`, `stateJson.v 2`, 12 *strokes*, `stamps []`, e **`paintSchemaVersion`/`layoutVersion`/`logicalW`/`logicalH` exaustivamente ausentes** |
+| Integridade do título | bytes `C3 A9` (`é`) — UTF-8 canônico no *storage* |
+| Interação real | sem *seed*, sem fabricação, sem bancada, sem automação por coordenada |
+
+### Duas provas que o instrumento anterior não alcançava
+
+1. **Reescrita idempotente detectada.** `@ptf_criar_livre_orientation_seen_v1:star` moveu do `rowid`
+   **30 → 48** com **valor idêntico**, na janela `A1 → A2-BLOCKED` — ou seja, **durante a pintura,
+   antes do *save***. O *checkpoint* `A2-BLOCKED`, que o desenho **não** pedia, é o que tornou o
+   mecanismo `OBSERVADO` em vez de `INFERIDO`. Era **exatamente** o comportamento pré-declarado na
+   allowlist de `11_PREP_LEGADO_02.md:291`. **A allowlist se confirmou na física.**
+2. **Previsão refutada, não apenas "não observada".** `@ptf_achievements_seen` manteve o `rowid` **20
+   nos seis *snapshots*** ⇒ **provadamente não tocada**. **15 das 16** chaves do *baseline* têm
+   `rowid` intacto — prova **positiva** de ausência de mutação silenciosa.
+
+> 🔬 **Achado metodológico canônico.** Um comparador `key→value` classifica os dois casos acima como
+> "nada aconteceu", e **erra nos dois**. `CHANGED=0` **não** prova ausência de escrita. **Toda
+> verificação de acervo passa a capturar `rowid`.**
+
+### Fragilidades registradas (nenhuma altera o veredito)
+
+- **`A2-UI-HIERARCHY.txt` não contém hierarquia** — 37 B com `"UI hierchary dumped to: /dev/tty"`. As
+  coordenadas do *sheet* bloqueado são **NÃO DETERMINADAS**.
+- **Instrumento de `G4`/`G5` não versionado** — os dois relatórios não são reproduzíveis; os números
+  foram reconferidos na fonte primária.
+- **`ReactNativeJS` emudece em `16:48:01.502`** — `G5`, `A1` e `A2` **sem log do aplicativo**; causa
+  **NÃO DETERMINADA** (sem `crash`, sem ANR, sem reinício de processo). O *save* é provado pelo estado
+  persistido e por **duas testemunhas externas ao processo**: o *autofill* do Samsung Pass registrando
+  o *hint* **`Nome do desenho`** (PID 4095, fora do app) e a correlação **IME ocultado `17:11:43.871`
+  → `createdAt` `17:11:43.982`** = **+111 ms**.
+- **`BASELINE_EQUAL=STOP` é rótulo ambíguo** — significa apenas `PRE ≠ POST`, resultado **esperado** no
+  relatório final. Segunda ocorrência da classe de defeito de `BUNDLE_PROVENANCE_PRE_C60.txt`.
+- **Deriva de relógio aparelho ↔ PC ≈ 10,5 s** (aparelho adiantado), não documentada na campanha.
+  Nenhuma conclusão depende dela — as correlações são **intra-aparelho**.
+- **Mojibake de transporte** — o título correto (`é`) apareceu como `Ú` por cadeia
+  `CP1252 → CP850/CP858 → UTF-16LE`. **CP437 refutada** (mapearia `0xE9` para `Θ`). **`CLASSIFICAÇÃO A`
+  — artefato de apresentação; o *storage* sempre esteve correto.**
+
+> ⛔ **O que este veredito NÃO concede:** `PREP-LEGADO-01` = **`STOP`** e `PREP-LEGADO-02` = **`STOP`**
+> — **permanecem**, sem reabilitação e sem ampliação retroativa de allowlist. **Nenhum caso da `R2` foi
+> executado**, **nenhum `PASS` de `R2`** é concedido, **`R2 · Sessão 2` = NÃO INICIADA** e
+> **`F6-SG-A` = NÃO CONCEDIDO** (`R1-PEND-1..5` ABERTAS).
+
+## `PF6SGA-PREP03-VISUAL` — achado visual do *runtime* histórico: registro, não trabalho (2026-08-11)
+
+Durante a `PREP-LEGADO-03`, ao salvar obra nova no `Criar Livre` do **SM-X510**, o *sheet*
+**"Nomeie seu desenho"** abriu **parcialmente abaixo/atrás da barra fixa inferior**: campo de texto
+parcialmente visível e ação **"Guardar desenho" visualmente inacessível**.
+
+| | |
+|---|---|
+| **Classificação** | `ACHADO VISUAL REAL` do *runtime* histórico **`7de7085`** |
+| **Evidência** | `A2-NAME-SHEET-BLOCKED.png` (449.056 B, `8317D474…`) + `A2-BLOCKED-NAME-SHEET-PRE-SAVE.tar` (`FE448167…`) — **o defeito foi lacrado antes de ser contornado** |
+| **Contorno usado** | **somente** a interação nativa do próprio componente: `returnKeyType="done"` → `onSubmitEditing` → `confirmName` → `performSave`. Sem `adb input`, sem coordenada artificial, sem rotação, sem alteração de *display* |
+| **Invalida o *writer*?** | **NÃO.** O caminho acionado é o mesmo do botão. O defeito é de **apresentação**; a gravação é **legítima** e periciada |
+| **Corrigir agora?** | **NÃO.** Registro, na disciplina de `PF6SGA-R1-VISUAL`: *achado fora de `F6-R3` vira registro, não vira trabalho não autorizado* |
+
+**Por que fica em entrada separada, e não na tabela de `PF6SGA-R1-VISUAL`:** aquele inventário cobre
+**cinco achados da `R1`**, observados no *runtime* **canônico**. Este é da **`PREP-03`**, no *runtime*
+**histórico**. Misturá-los produziria contradição de proveniência.
+
+⚠️ **Não confundir com itens já canônicos** — são outros componentes, outras telas e outros subportões:
+
+| Item preexistente | Do que trata | Por que **não** é este achado |
+|---|---|---|
+| **`TK-B-013`** | compensação fantasma de **56pt** em `initialOffsetY` do `AdventureMapScreen` | tela do **mapa**, geometria de **câmera**; congelado em `F6-SG-B` |
+| **`P-169`** | reserva inferior dependente de **cromo exclusivo de telefone** (achado `B-04`) | espaço de coordenada de ***overlay***, não *sheet* de nomeação |
+
+⚠️ **Ressalva honesta:** **se o `HEAD` canônico reproduz o mesmo problema é `NÃO DETERMINADO`** — não
+foi testado e **não** pode ser inferido daqui. Investigar é trabalho próprio, **fora** desta campanha.
+
+## `R2S2-PREPARADA` — protocolo da `R2 · Sessão 2` pronto e **não iniciado** (2026-08-11)
+
+Protocolo executável em
+[`14_R2_SESSAO_2.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/14_R2_SESSAO_2.md).
+
+- **O *runtime* é o CANÔNICO ATUAL.** Metro **somente** de `C:\tmp\ptf_fase6_shell_splash_wt`. O
+  *worktree* histórico **não** serve Metro e volta a ser **somente leitura**.
+- **Continuidade provada:** `c71e8b6` é ancestral do `HEAD`, e `git diff --name-only aa58849..HEAD`
+  **não** lista nenhum arquivo fora de `docs/` e `specs/` ⇒ **nenhum arquivo funcional mudou desde
+  `aa58849`**. Dispensa novo *build* nativo.
+- **Marcadores de proveniência DERIVADOS para o *runtime* atual** — os negativos da `PREP` histórica
+  **não** são reutilizados (produziriam `STOP` falso). O discriminador mais forte é um **par casado no
+  mesmo ponto do código**: canônico emite `[COLORING_STATE] load OK espacoLogico=`, histórico emite
+  `[COLORING_STATE] load OK W=`.
+- **Estado de entrada por comparação SEMÂNTICA** (caminho/tamanho/`SHA256` + chave/valor/**`rowid`**)
+  contra `TAR-POST03`, exigindo **seis contadores em zero**. **Igualdade byte-a-byte entre `TAR` está
+  proibida como prova única** — diferenças de *mtime*/ordem/*padding* são legítimas. **Não se restaura
+  `TAR` por reflexo.**
+- ***Checkpoints* `CK-C*` por caso passam a ser obrigatórios** — correção direta do defeito `P-2` da
+  `PREP-02` (zero *checkpoints* intermediários), validada pelo ganho probatório que o *checkpoint*
+  extra `A2-BLOCKED` produziu na `PREP-03`.
+- **Errata de marcador obsoleto:** `08_SEQUENCIA_OPERACIONAL_UNICA_F6_SG_A.md:451,483` prescreve o
+  literal `[AppNavigator] MainTabs MONTADO`, que **não existe em nenhum dos dois *worktrees***. O texto
+  real é composto em execução (`[shell] ${nome} ${evento} · montagens #N`,
+  `shellLifecycleTrace.js:105`). **O mesmo literal erra nos dois sentidos**: na linha 451 é marcador
+  **positivo** (⇒ `STOP` falso) e na 483 é marcador **negativo** (⇒ **guarda morta**, `PASS` falso —
+  o mais perigoso, por ser silencioso). **`08` NÃO é reescrito**; a errata é acréscimo, na convenção
+  de `R2-ACH-01-ERRATA`.
+- **`CASO 14 · variante v1`** permanece **`INEXECUTÁVEL_POR_AUSÊNCIA_DE_WRITER_REPRODUZÍVEL`**
+  (`CASO14-V1-INEXECUTAVEL-01`) — **não é `PASS`, não é `FAIL`**, não autoriza fabricar *fixture*, e
+  **não pode bloquear** as variantes executáveis. Aparece **separadamente** no relatório.
+- **Ordem dos casos congelada:** `1 · 15 · 14 · 16 · 10`.
+
+> ⛔ **`R2 · SESSÃO 2` = NÃO INICIADA.** O documento é **plano**, não registro de execução. Nenhum
+> `PASS` é concedido, **`F6-SG-A` = NÃO CONCEDIDO** (`R1-PEND-1..5` ABERTAS), e a execução depende de
+> **`HUMAN GATE` explícito**.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:

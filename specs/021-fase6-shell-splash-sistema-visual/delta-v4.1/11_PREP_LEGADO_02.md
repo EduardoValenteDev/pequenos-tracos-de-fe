@@ -564,3 +564,30 @@ A auditoria causal somente leitura está em
 > ⛔ **A `PREP-LEGADO-02` permanece `STOP`.** Nenhuma allowlist é ampliada retroativamente; nenhum
 > artefato é descartado; nenhum `TAR` é refeito. **`R2 · Sessão 2` continua NÃO INICIADA** e
 > **`F6-SG-A` continua NÃO CONCEDIDO.**
+
+---
+
+## Adendo — as allowlists deste documento foram **validadas na física** pela `PREP-LEGADO-03`
+
+> Acréscimo de 2026-08-11. **Não altera o `STOP` da `PREP-02`, não amplia allowlist e não reabilita
+> nada.** Auditoria: [`13_PREP_LEGADO_03.md`](13_PREP_LEGADO_03.md).
+
+A `PREP-LEGADO-03` executou a rota com as **mesmas** allowlists escritas aqui. O resultado é um
+atestado da qualidade **deste** documento, e apenas isso:
+
+| Previsão deste documento | Resultado físico na `PREP-03` |
+|---|---|
+| **§7.1** — o *save* do C60 grava as **quatro** chaves | ✅ `ADDED=4`, `rowid` **43–46** — exatamente as quatro |
+| **§7.2** — o *switch* grava **só** `@ptf_creator_qa_mode` | ✅ `ADDED=1`, `rowid` **47**, isolado |
+| **§8** — allowlist **física** de arquivos | ✅ 13 arquivos no `TAR-POST03`, **nenhum** fora da lista |
+| **`:291`** — `@ptf_criar_livre_orientation_seen_v1:star` sofre **reescrita com valor idêntico `'1'`**; qualquer outro valor ⇒ `STOP` | ✅ **CONFIRMADA** — `rowid` **30 → 48**, valor `'1'` inalterado |
+| `@ptf_achievements_seen` **pode** ser gravada | ⛔ **REFUTADA** — `rowid` **20** fixo nos seis *snapshots* ⇒ **provadamente não tocada** |
+
+> 🔬 **A previsão de `:291` só foi verificável por `rowid`.** Um comparador `key→value` reportaria
+> `CHANGED=0` e concluiria "não houve escrita" — **errado**. As duas últimas linhas da tabela são
+> indistinguíveis para o instrumento antigo e **opostas** na física. Por isso a `R2 · Sessão 2` passa a
+> capturar `rowid` em toda comparação ([`14_R2_SESSAO_2.md`](14_R2_SESSAO_2.md) §5.1).
+
+**As allowlists deste documento estavam corretas.** Isso **não** muda o motivo do `STOP` da
+`PREP-02`, que foi **desvio de rota**, não falha de allowlist — como `12_AUDITORIA_PREP02_STOP.md` já
+havia estabelecido. ⛔ **`PREP-LEGADO-02` = `STOP`.**
