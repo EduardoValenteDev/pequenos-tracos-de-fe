@@ -33,25 +33,26 @@ Classificação usada: **OBSERVADO** · **INFERIDO** · **NÃO DETERMINADO** ·
 
 ---
 
-## 2. Cadeia de custódia — 23/23 hashes conferidos
+## 2. Cadeia de custódia — 25/25 hashes conferidos
 
-Todos recalculados com `sha256sum` sobre os arquivos originais. **Nenhuma divergência.**
+Todos recalculados com `sha256sum` sobre os arquivos originais. **Nenhum arquivo divergiu.**
+Abreviação **uniforme `PRIMEIROS8…ÚLTIMOS8`**; os 64 dígitos de cada artefato estão em **§2.3**.
 
 | Artefato | `SHA256` | Papel |
 |---|---|---|
-| `TAR-ROLLBACK-PRE03.tar` | `C556D264…83E0952` | Estado vivo **preservado antes** de restaurar — idêntico ao `TAR-STOP-C60` da `PREP-02` |
-| `TAR-PRE03.tar` | `8486DEC6…FF1BA7` | *Baseline* restaurado — **byte-idêntico** ao `TAR-PRE02.tar` |
-| `G0`…`G3` `TAR` | `27C7769A…16214F6` (os **quatro** iguais) | *Boot*, Área dos Pais, acordeão, editor aberto |
+| `TAR-ROLLBACK-PRE03.tar` | `C556D264…983E0952` | Estado vivo **preservado antes** de restaurar — idêntico ao `TAR-STOP-C60` da `PREP-02` |
+| `TAR-PRE03.tar` | `8486DEC6…E2FF1BA7` | *Baseline* restaurado — **byte-idêntico** ao `TAR-PRE02.tar` |
+| `G0`…`G3` `TAR` | `27C7769A…116214F6` (os **quatro** iguais) | *Boot*, Área dos Pais, acordeão, editor aberto |
 | `G0`…`G3` `CHECK` | `ED531A43…BC1BBB1D` (os **quatro** iguais) | `ADDED=0 CHANGED=0 DELETED=0` |
-| `G4-C60-SAVED.tar` | `D5318D36…DCC33F923` | `CHECK` `6C7B2C68…179BC127` |
-| `G5-CREATOR-ON.tar` | `14CF6798…DC7EE4380` | `CHECK` `EDC580F4…5F9D28BE8` |
-| `A1-ATELIER-OPEN-PREPAINT.tar` | `14CF6798…DC7EE4380` — **igual ao `G5`** | `CHECK` `9E71F96B…059D7BC1C` |
+| `G4-C60-SAVED.tar` | `D5318D36…DC33F923` | `CHECK` `6C7B2C68…179BC127` |
+| `G5-CREATOR-ON.tar` | `14CF6798…C7EE4380` | `CHECK` `EDC580F4…F9D28BE8` |
+| `A1-ATELIER-OPEN-PREPAINT.tar` | `14CF6798…C7EE4380` — **igual ao `G5`** | `CHECK` `9E71F96B…59D7BC1C` |
 | `A2-BLOCKED-NAME-SHEET-PRE-SAVE.tar` | `FE448167…83301E62` | Estado congelado **antes** de resolver o bloqueio visual |
-| `A2-ATELIER-SAVED.tar` | `8398EE72…3FBB6A923` | Obra do Ateliê gravada |
-| `TAR-POST03.tar` | `14FFA2E4…D3E25574` · **17.033.728 B** | Lacre final |
+| `A2-ATELIER-SAVED.tar` | `8398EE72…3BB6A923` | Obra do Ateliê gravada |
+| `TAR-POST03.tar` | `14FFA2E42C95FB92B997B327AA90CAC897025E92FC32367DC31F3D04E3C25574` · **17.033.728 B** | Lacre final — **hash completo**, é a referência do gate `G-09` |
 | `A2-NAME-SHEET-BLOCKED.png` | `8317D474…D5642E27` · 449.056 B | Prova visual do achado de §8 |
-| `A2-UI-HIERARCHY.txt` | `FB965FAD…4BAC619359` | ⚠️ ver §8.2 |
-| `FINAL_PRE03_POST03_ASYNC_DIFF.txt` | `FC063888…2C74EC0` | ⚠️ ver §7 |
+| `A2-UI-HIERARCHY.txt` | `FB965FAD…AC619359` | ⚠️ ver §8.2 |
+| `FINAL_PRE03_POST03_ASYNC_DIFF.txt` | `FC063888…2C74EC2C` | ⚠️ ver §7 |
 | `raw.log` | `48DED077…47A39E02EF` · 15.315.964 B | Captura contínua |
 
 **Âncoras de cadeia entre campanhas — OBSERVADAS:**
@@ -81,11 +82,80 @@ A distinção importa — *hash* de arquivo em disco do PC não é evidência de
 Nenhum arquivo da `PREP-01` ou da `PREP-02` foi alterado, apagado ou sobrescrito. Todos os seus
 *mtimes* são **≤ 15:57**, anteriores ao início da `PREP-03` (**16:31**).
 
+### 2.2 ⚠️ Errata de transcrição — as abreviações da tabela de §2
+
+A **conferência** dos arquivos estava correta: todos os 25 artefatos foram recalculados e **nenhum
+divergiu do original**. O defeito estava na **transcrição para esta tabela**, e era real:
+
+| Artefato | Abreviação publicada (errada) | `SHA256` verdadeiro |
+|---|---|---|
+| `TAR-POST03.tar` | `14FFA2E4…D3E25574` | …`E3C25574` |
+| `G4-C60-SAVED.tar` | `D5318D36…DCC33F923` | …`DC33F923` |
+| `A2-ATELIER-SAVED.tar` | `8398EE72…3FBB6A923` | …`3BB6A923` |
+| `A2-UI-HIERARCHY.txt` | `FB965FAD…4BAC619359` | …`AC619359` |
+| `FINAL_PRE03_POST03_ASYNC_DIFF.txt` | `FC063888…2C74EC0` | …`2C74EC2C` |
+| `…_6079_preview.jpg` (§4) | `FDC55296…C83F81…` | …`D9E1E248` |
+| `…_6079_thumb.jpg` (§4) | `A5FB5908…F057C793…` | …`A48910DE` |
+
+O caso do `preview.jpg` é o mais instrutivo: a cauda publicada (`C83F81`) era a do **PNG do C60**,
+isto é, uma cauda **colada do artefato errado** — exatamente o tipo de erro que uma abreviação curta
+esconde. Causa comum aos sete: caudas de **comprimento variável** (6, 7, 8, 9 e 10 dígitos)
+copiadas à mão. Correções aplicadas **no lugar** — um `hash` inválido não pode permanecer no corpus
+como se valesse — com duas travas novas: abreviação **uniforme** e o registro de §2.3.
+
+**Consequência material:** `TAR-POST03.tar` é a referência do gate `G-09`. Se a `R2 · Sessão 2`
+tivesse sido conferida contra o valor publicado, o gate falharia por defeito do documento, não do
+dispositivo. Registrado como fragilidade da `PREP-03` (§11).
+
+### 2.3 Registro completo — 25 artefatos, 64 dígitos
+
+Fonte de verdade das abreviações acima. `sha256sum` · tamanho em *bytes* · nome.
+
+```
+2E1A8A253CF1E315DE219AAA8C511EA35C97808BA0C9F44D1B03653A5A9DD5BC       698  00_EXECUTION_HEADER.md
+14CF67989A3C3330E96E0551FDAB4296A07119996C2A1208E3230FEDC7EE4380     23040  A1-ATELIER-OPEN-PREPAINT.tar
+9E71F96BB4B82C10E3BCA82078FE1D6C45A0BF95B5500B015AB9260059D7BC1C      1494  A1_ATELIER_OPEN_ASYNC_CHECK.txt
+8398EE72D7FF770CEF6DCF02C3076737FC7F0189BA2FC14F53425CFA3BB6A923    355840  A2-ATELIER-SAVED.tar
+FE4481679E10C3F17AFED82EEBC7F5D959CEB66EFD19ACADC38D340583301E62     23040  A2-BLOCKED-NAME-SHEET-PRE-SAVE.tar
+8317D474FFE4B95776AAEF6B36DD0D1F805A0C37C9A204377DD21AD9D5642E27    449056  A2-NAME-SHEET-BLOCKED.png
+FB965FADF526DFB5CF5C6E97B4C4C87C19A755933BB9F47544BAC4B8AC619359        37  A2-UI-HIERARCHY.txt
+FC0638884F94B040AA60A4925889010067FC2E55AF822446F89EB12F2C74EC2C     49566  FINAL_PRE03_POST03_ASYNC_DIFF.txt
+27C7769A3DB9ADB90FC5FD7E712EB8E549848230C8756C60DA7F1017116214F6     23040  G0-POST-BOOT.tar
+ED531A431AA19BDEA9E2B4E4DAD84324AB43B469F098759196054DFEBC1BBB1D       872  G0_ASYNC_CHECK.txt
+27C7769A3DB9ADB90FC5FD7E712EB8E549848230C8756C60DA7F1017116214F6     23040  G1-PARENT-AREA.tar
+ED531A431AA19BDEA9E2B4E4DAD84324AB43B469F098759196054DFEBC1BBB1D       872  G1_ASYNC_CHECK.txt
+27C7769A3DB9ADB90FC5FD7E712EB8E549848230C8756C60DA7F1017116214F6     23040  G2-ADMIN-EXPANDED.tar
+ED531A431AA19BDEA9E2B4E4DAD84324AB43B469F098759196054DFEBC1BBB1D       872  G2_ASYNC_CHECK.txt
+27C7769A3DB9ADB90FC5FD7E712EB8E549848230C8756C60DA7F1017116214F6     23040  G3-C60-OPEN-PREPAINT.tar
+ED531A431AA19BDEA9E2B4E4DAD84324AB43B469F098759196054DFEBC1BBB1D       872  G3_ASYNC_CHECK.txt
+D5318D36CCF888FF272E67A63CDCDAB206E86DCD8EAC85F80A4DE48BDC33F923    224768  G4-C60-SAVED.tar
+6C7B2C6824CD1EF66CB64C92897A1F25591E4EE3EC9C9707F676A303179BC127      2182  G4_C60_ASYNC_CHECK.txt
+14CF67989A3C3330E96E0551FDAB4296A07119996C2A1208E3230FEDC7EE4380     23040  G5-CREATOR-ON.tar
+EDC580F46DDD0E9B662FD9B284B4E96E53587A2242D045ACD4F15005F9D28BE8      1084  G5_CREATOR_ASYNC_CHECK.txt
+14FFA2E42C95FB92B997B327AA90CAC897025E92FC32367DC31F3D04E3C25574  17033728  TAR-POST03.tar
+8486DEC65C2A61834B54C5B8FCB54FD5BDEE6B8DD7BF76B9359443F0E2FF1BA7  16806912  TAR-PRE03.tar
+C556D2645B14C880030E381D1CD422F9CCE765B7C7BC8537E86B687A983E0952  16908288  TAR-ROLLBACK-PRE03.tar
+EA397E0E38BB69EE3211DAB3B235F20154E78ED7888E4300CC1388C0DE75CCB2      2645  check_async.py
+48DED07729048B370C24CE4EC0C34EBC7D54187027158A2FB7F8A447A39E02EF  15315964  raw.log
+```
+
+**Arquivos internos** citados no corpo deste documento (extraídos dos `TAR`, não são arquivos soltos):
+
+```
+B7F8FA36D192647503393ACA151AA2DC164ABAC7783C2985765D0FA55B5EAB2B     45056  G0:  databases/RKStorage  (baseline)
+6814DEE7975F95D126EAB69DDAE3E46C2BF59892DA429611B1141773E1C83F81    200565  A2:  ..._ptf_drawing60_screation_alight.a.png
+FDC5529619201C3CC24CFC719DA719047DE9A65E827A8FD934644205D9E1E248     89593  A2:  art_1786479103982_6079_preview.jpg
+A5FB5908353A0E8D23C537AF2711C214D6E35F2048FD0281A60F3242A48910DE     14730  A2:  art_1786479103982_6079_thumb.jpg
+```
+
+> O `check_async.py` acima é o instrumento **versionado** na evidência; §7.3 demonstra que **não é**
+> o que gerou os relatórios `G4`/`G5` — o registro do seu `hash` aqui não sana aquela lacuna.
+
 ---
 
 ## 3. Perícia independente do `TAR-POST03`
 
-### 3.1 Inventário físico — 13 arquivos, nenhum inesperado
+### 3.1 Inventário físico — 14 arquivos, nenhum inesperado
 
 `SHA256` do `TAR` reproduzido exatamente. Conteúdo completo: `databases/RKStorage` (45.056 B),
 `databases/RKStorage-journal` (**0 B** — sem transação pendente), `files/profileInstalled`,
@@ -254,8 +324,8 @@ Caso 14 exige.
 `atelierStorage.js:123,135` (o *fallback* inline só existe se a gravação em arquivo falhar). O
 caminho de arquivo foi usado, como manda a arquitetura.
 
-**Blobs:** `art_1786479103982_6079_preview.jpg` **89.593 B** `FDC55296…C83F81…` e
-`art_1786479103982_6079_thumb.jpg` **14.730 B** `A5FB5908…F057C793…` — ambos JPEG válidos
+**Blobs:** `art_1786479103982_6079_preview.jpg` **89.593 B** `FDC55296…D9E1E248` e
+`art_1786479103982_6079_thumb.jpg` **14.730 B** `A5FB5908…A48910DE` — ambos JPEG válidos
 (`FF D8 FF` … `FF D9`), 809×1098 e 300×407, e ambos são exatamente os arquivos apontados por
 `previewUri` / `thumbnailUri`.
 
@@ -511,8 +581,9 @@ derrubou a `PREP-01`.
 
 Sustentado por, cumulativamente:
 
-1. **Cadeia de custódia fechada** — 23/23 hashes; *baseline* reproduzido byte a byte; estado anterior
-   preservado antes da restauração (§2).
+1. **Cadeia de custódia fechada** — 25/25 hashes; *baseline* reproduzido byte a byte; estado anterior
+   preservado antes da restauração (§2). Sete abreviações desta seção estavam mal transcritas e foram
+   corrigidas; **nenhum arquivo divergiu** — o defeito era do documento, não do acervo (§2.2).
 2. **Diff independente conferido** — `ADDED=7 CHANGED=0 DELETED=0`, as sete exatas, as quatro
    proibidas ausentes (§3.2).
 3. **Ordem física provada** — `rowid` 43–50 denso, C60 **antes** do Modo Criador, nada gravado depois
@@ -580,6 +651,12 @@ supre e **não** tentou supri-la: nenhum *writer* de `7de7085` emite `v1`
 - **Reprodutibilidade de `G4_C60_ASYNC_CHECK.txt` e `G5_CREATOR_ASYNC_CHECK.txt`** — instrumento não
   versionado (§7.3). Os valores foram reconferidos na fonte primária; os arquivos, em si, não são
   regeneráveis.
+
+**Fragilidade do próprio documento (§2.2):** sete `SHA256` foram publicados com a cauda errada, um
+deles o do `TAR-POST03`, que é a **referência do gate `G-09`**. Nenhum arquivo divergiu — o acervo
+está íntegro —, mas o corpus **carregou por um *commit*** valores que reprovariam um gate legítimo.
+A lição vale para a `R2 · Sessão 2`: **`hash` abreviado é resumo de leitura, nunca referência de
+gate.** Todo gate cita §2.3 (64 dígitos) ou recalcula na hora.
 
 ---
 

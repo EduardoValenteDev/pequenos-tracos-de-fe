@@ -3403,7 +3403,7 @@ recalculado da fonte primária**, em cópias abertas com `mode=ro`, sem tocar no
 
 | Sustentação | |
 |---|---|
-| Cadeia de custódia | **23/23** *hashes* conferidos; `TAR-PRE03 = TAR-PRE02 = TAR-PRE-LEGADO`; estado terminal da `PREP-02` preservado **antes** da restauração |
+| Cadeia de custódia | **25/25** *hashes* conferidos; `TAR-PRE03 = TAR-PRE02 = TAR-PRE-LEGADO`; estado terminal da `PREP-02` preservado **antes** da restauração |
 | *Diff* independente | `ADDED=7 CHANGED=0 DELETED=0` — as **sete** exatas; as **quatro** chaves proibidas **ausentes** |
 | Ordem física | `rowid` **43–50 denso** ⇒ cada chave gravada **uma única vez**; C60 (43–46) **antes** do Modo Criador (47) |
 | Insumo C60 | ponteiro `v:3`/`fmt:2`/`image/png`/`rev:22` e *blob* PNG com `IHDR` **1440×2156** batendo com o ponteiro |
@@ -3444,6 +3444,18 @@ recalculado da fonte primária**, em cópias abertas com `mode=ro`, sem tocar no
 - **Mojibake de transporte** — o título correto (`é`) apareceu como `Ú` por cadeia
   `CP1252 → CP850/CP858 → UTF-16LE`. **CP437 refutada** (mapearia `0xE9` para `Θ`). **`CLASSIFICAÇÃO A`
   — artefato de apresentação; o *storage* sempre esteve correto.**
+- **Sete `SHA256` mal transcritos no próprio documento de fecho** (`13_PREP_LEGADO_03.md` §2.2),
+  incluindo o do **`TAR-POST03`**, que é a **referência do gate `G-09`**. **Nenhum arquivo divergiu** —
+  os 25 artefatos foram recalculados e conferem; o defeito era **transcrição manual** de caudas de
+  comprimento variável (6 a 10 dígitos). Um dos erros era uma cauda **colada do artefato errado**
+  (o `preview.jpg` recebeu a cauda do PNG do C60). Corrigidos no lugar, com registro de 64 dígitos em
+  `13_PREP_LEGADO_03.md` §2.3.
+
+> 🔬 **Segundo achado metodológico canônico.** O corpus carregou por um *commit* valores que
+> **reprovariam um gate legítimo** — a falha teria sido lida como defeito do dispositivo. Regra
+> permanente: **`hash` abreviado é resumo de leitura, nunca referência de gate.** Todo `hash` que
+> decide alguma coisa aparece com **64 dígitos** ou é **recalculado na hora** e colado da saída do
+> comando; **nenhum `hash` é digitado à mão** (`14_R2_SESSAO_2.md` §5.6).
 
 > ⛔ **O que este veredito NÃO concede:** `PREP-LEGADO-01` = **`STOP`** e `PREP-LEGADO-02` = **`STOP`**
 > — **permanecem**, sem reabilitação e sem ampliação retroativa de allowlist. **Nenhum caso da `R2` foi

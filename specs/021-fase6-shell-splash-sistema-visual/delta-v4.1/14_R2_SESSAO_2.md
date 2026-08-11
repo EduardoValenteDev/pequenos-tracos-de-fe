@@ -59,7 +59,7 @@ Detalhamento e perícia em [`13_PREP_LEGADO_03.md`](13_PREP_LEGADO_03.md) §3–
 | **Ponteiro C60** | `@ptf_drawing60_screation_alight` | `v:3`, `fmt:2`, `image/png`, `rev:22`, `W/H 1440×2156` |
 | ***Blob* C60** | `files/ptf_blobs/drawings60/_ptf_drawing60_screation_alight.a.png` | PNG íntegro, `IHDR` **1440×2156** = `W`/`H` do ponteiro |
 | ***Blobs* do Ateliê** | `…_preview.jpg` (809×1098) · `…_thumb.jpg` (300×407) | JPEG íntegros, apontados por `previewUri`/`thumbnailUri` |
-| **Lacre** | `TAR-POST03.tar` · **17.033.728 B** · `SHA256 14FFA2E4…D3E25574` | Estado do dispositivo ao fim da `PREP-03` |
+| **Lacre** | `TAR-POST03.tar` · **17.033.728 B** · `SHA256 14FFA2E42C95FB92B997B327AA90CAC897025E92FC32367DC31F3D04E3C25574` | Estado do dispositivo ao fim da `PREP-03` — **referência do gate `G-09`** |
 
 **A ausência dos quatro eixos é o insumo**, não um defeito: é ela que caracteriza a obra como
 **legada** perante o *runtime* da Fase 6.
@@ -180,6 +180,48 @@ e tem o seu `SHA256` registrado antes do primeiro uso.**
 conclusão da `PREP-03` dependeu disso, mas a `R2` correlaciona `logcat` com ações do operador.
 **`G-05` mede e registra o *offset*.** Correlação sem *offset* declarado ⇒ inválida.
 
+### 5.6 `SHA256` de gate é **sempre** de 64 dígitos
+
+`13_PREP_LEGADO_03.md` §2.2: sete abreviações foram publicadas com a cauda errada, entre elas a do
+`TAR-POST03` — a **referência do `G-09`**. Nenhum arquivo tinha divergido; o defeito era de
+transcrição manual, escondido por caudas de comprimento variável. Portanto, nesta sessão:
+
+| | |
+|---|---|
+| ✅ | Todo `hash` que **decide** um gate aparece com os **64 dígitos**, ou é **recalculado na hora** com `sha256sum` e colado da saída. |
+| ✅ | Abreviação, quando usada, é **uniforme `PRIMEIROS8…ÚLTIMOS8`** e serve **apenas** à leitura. |
+| ⛔ | **Nenhum `hash` é digitado à mão.** Copia-se da saída do comando. |
+| ⛔ | Abreviação **não** reprova nem aprova gate algum. |
+
+### 5.7 Um único **escopo de captura** para toda a sessão
+
+Descoberto ao validar o instrumento contra o acervo da `PREP-03`: **os `TAR` daquela campanha não
+têm todos a mesma abrangência.**
+
+| `TAR` | Escopo capturado |
+|---|---|
+| `G0`…`G3` | `databases/` apenas |
+| `G4`, `G5`, `A1`, `A2` | `databases/` + `files/ptf_blobs/` |
+| `TAR-PRE03`, `TAR-POST03` | **completo** — `databases/` + `files/` + `shared_prefs/` |
+
+`compare_state.py` percorre a árvore inteira. Comparar um *checkpoint* estreito com um `TAR` completo
+produz **`FILES_ADDED` que não são escritas** — apenas arquivos que o lado estreito nunca capturou.
+Rodando `A2-ATELIER-SAVED × TAR-POST03` o instrumento acusava **`FILES_ADDED=9`** com todos os
+contadores de chave em zero: um `STOP` **falso**, por defeito do método de captura.
+
+**Correções aplicadas:**
+
+| | |
+|---|---|
+| ✅ | **Todo `TAR` desta sessão** — `TAR-R2S2-PRE`, `TAR-1`, todos os `CK-C<n>`, `TAR-2` — é capturado com o **mesmo comando**, no escopo **completo**. |
+| ✅ | O instrumento passou a computar a **assinatura de escopo** dos dois lados e emite `ESCOPO_OK=SIM/NAO`. |
+| ✅ | Escopos diferentes ⇒ veredito **`STOP_ESCOPO_DIVERGENTE`**, distinto de `STOP`: é **recusa de comparar**, não reprovação de estado. |
+| ⛔ | **Nunca** comparar capturas de escopos diferentes e ler o resultado como mutação. |
+
+> Aplicação de §5.4 (*veredito nomeado pelo que mede*) ao próprio instrumento: o `STOP` genérico
+> teria sido lido como "o aparelho mudou", quando o fato era "as duas fotos não têm o mesmo
+> enquadramento".
+
 ---
 
 ## 6. Proveniência do *bundle* — marcadores **derivados para o *runtime* ATUAL**
@@ -290,8 +332,8 @@ horário · veredito · artefato`.
 | **`G-05`** | `PS2`: medir e registrar o ***offset* de relógio** aparelho ↔ PC (§5.5) | impossível medir |
 | **`G-06`** | `PS2`: provar **8081, 8082 e 8083 livres** | qualquer porta em `Listen` |
 | **`G-07`** | `PS3`: **iniciar a captura contínua** e provar que grava | arquivo não cresce |
-| **`G-08`** | `PS2`: capturar **`TAR-R2S2-PRE`** — *hash*, tamanho, listagem | falha de `run-as` ou truncamento |
-| **`G-09`** | 🔴 **GATE DE ESTADO DE ENTRADA** — `compare_state.py` contra `TAR-POST03` (§8.1) | **qualquer um dos seis contadores ≠ 0** |
+| **`G-08`** | `PS2`: capturar **`TAR-R2S2-PRE`** no **escopo completo** (§5.7) — *hash*, tamanho, listagem | falha de `run-as`, truncamento ou **escopo estreito** |
+| **`G-09`** | 🔴 **GATE DE ESTADO DE ENTRADA** — `compare_state.py` contra `TAR-POST03` (§8.1) | `ESCOPO_OK=NAO` ou **qualquer um dos sete contadores ≠ 0** |
 | **`G-10`** | `PS1`: `node scripts/check-env.js`, depois `npx expo start --dev-client --clear --lan --port 8081` | `check-env` falhar |
 | **`G-11`** | Aparelho: **`force-stop` + *cold start*** por *deep link* `pequenostracosdefe://` | app não abrir |
 | **`G-12`** | `PS2`: baixar o *bundle* de `http://127.0.0.1:8081/index.bundle?platform=android&dev=true` e **grep dos marcadores** — `M+1..M+4` **presentes**, `M−1..M−4` **ausentes** (§6) | **qualquer** `M+` ausente **ou** **qualquer** `M−` presente |
@@ -312,16 +354,21 @@ horário · veredito · artefato`.
 legitimamente em *mtime*, ordem e *padding*. **Exigir igualdade de `SHA256` entre `TAR` como prova
 única está proibido** — produziria `STOP` falso.
 
-**Critério de aprovação — os seis contadores em zero:**
+**Critério de aprovação — escopo idêntico e os *sete* contadores em zero:**
 
 ```
+ESCOPO_OK=SIM
 FILES_ADDED=0  FILES_CHANGED=0  FILES_DELETED=0
-KEYS_ADDED=0   KEYS_CHANGED=0   KEYS_ROWID_MOVED=0
+KEYS_ADDED=0   KEYS_CHANGED=0   KEYS_DELETED=0   KEYS_ROWID_MOVED=0
 ENTRY_STATE_RESULT=PASS
 ```
 
 **Única tolerância:** `databases/RKStorage-journal` (arquivo de 0 B cujo *mtime* varia sem significado
 semântico). **Nenhuma outra.**
+
+`ESCOPO_OK=NAO` ⇒ `ENTRY_STATE_RESULT=STOP_ESCOPO_DIVERGENTE` (§5.7). Isso **não** é reprovação do
+aparelho: é `TAR-R2S2-PRE` capturado com abrangência diferente da do `TAR-POST03`. Recapturar no
+escopo completo e repetir — **não** restaurar nada.
 
 > 🔴 **Qualquer contador ≠ 0 ⇒ `STOP` e reporte.** Não interpretar, não "explicar", não seguir.
 > `KEYS_ROWID_MOVED ≠ 0` significa que **houve escrita** entre o lacre e agora, mesmo com todos os
@@ -351,6 +398,17 @@ def inventario(root):
                 dados = fh.read()
             itens[rel] = (len(dados), hashlib.sha256(dados).hexdigest())
     return itens
+
+def escopo(itens):
+    # Assinatura de ABRANGENCIA da captura (prefixos de diretorio, niveis 1 e 2).
+    # Serve para recusar comparacao entre TAR capturados com comandos diferentes.
+    prefixos = set()
+    for rel in itens:
+        partes = rel.split("/")[:-1]
+        for n in (1, 2):
+            if len(partes) >= n:
+                prefixos.add("/".join(partes[:n]))
+    return prefixos
 
 def linhas_do_banco(root):
     caminho = os.path.join(root, DB_REL.replace("/", os.sep))
@@ -384,6 +442,18 @@ else:
     ch_chg = sorted(c for c in comuns if kref[c][1] != katual[c][1])
     ch_mov = sorted(c for c in comuns if kref[c][0] != katual[c][0])
 
+esc_ref, esc_atual = escopo(ref), escopo(atual)
+escopo_ok = (esc_ref == esc_atual)
+
+saida += [
+    "ESCOPO_REF="   + ",".join(sorted(esc_ref)),
+    "ESCOPO_ATUAL=" + ",".join(sorted(esc_atual)),
+    "ESCOPO_OK="    + ("SIM" if escopo_ok else "NAO"),
+]
+for pref in sorted(esc_ref ^ esc_atual):
+    saida.append("ESCOPO_DIVERGENTE=" + pref
+                 + " (" + ("so_em_REF" if pref in esc_ref else "so_em_ATUAL") + ")")
+
 saida += [
     "FILES_ADDED="      + str(len(arq_add)),
     "FILES_CHANGED="    + str(len(arq_chg)),
@@ -406,12 +476,40 @@ if kref is not None and katual is not None:
 
 limpo = (kref is not None and katual is not None
          and not (arq_add or arq_chg or arq_del or ch_add or ch_chg or ch_del or ch_mov))
-saida.append("ENTRY_STATE_RESULT=" + ("PASS" if limpo else "STOP"))
+
+if not escopo_ok:
+    # Capturas de escopos diferentes NAO sao comparaveis: os arquivos ausentes de um
+    # dos lados apareceriam como FILES_ADDED/DELETED reais. Recusar, nao "reprovar".
+    resultado = "STOP_ESCOPO_DIVERGENTE"
+elif limpo:
+    resultado = "PASS"
+else:
+    resultado = "STOP"
+saida.append("ENTRY_STATE_RESULT=" + resultado)
 
 with open(destino, "w", encoding="utf-8") as fh:
     fh.write("\n".join(saida) + "\n")
-print("ENTRY_STATE_RESULT=" + ("PASS" if limpo else "STOP"))
+print("ENTRY_STATE_RESULT=" + resultado)
 ```
+
+#### Autoteste obrigatório — o instrumento é calibrado **antes** do `G-09`
+
+`G-03` não termina na cópia: o instrumento é rodado contra **pares de resultado já conhecido** do
+acervo da `PREP-03`, que é imutável e serve de padrão de aferição. Executado em **2026-08-11**:
+
+| # | Par | Esperado | Obtido |
+|---|---|---|---|
+| **T1** | `A1-ATELIER-OPEN-PREPAINT` × `A2-BLOCKED-NAME-SHEET-PRE-SAVE` | detectar a reescrita idempotente de §3.3.1 do `13_` | `KEY_ROWID_MOVED=@ptf_criar_livre_orientation_seen_v1:star 30->48 valor_identico=True` ✅ |
+| **T2** | `G0-POST-BOOT` × `G3-C60-OPEN-PREPAINT` | `PASS` — os dois são o *baseline* | `ESCOPO_OK=SIM` · sete contadores **0** · `PASS` ✅ |
+| **T3** | `A2-ATELIER-SAVED` × `TAR-POST03` | recusar: escopos diferentes (§5.7) | `STOP_ESCOPO_DIVERGENTE`, com os quatro contadores de chave em **0** ✅ |
+
+**T1 prova que ele detecta** (sem falso negativo — e reproduz, de forma independente, o achado
+central da `PREP-03`). **T2 prova que ele não inventa** (sem falso positivo). **T3 prova que ele
+recusa o que não pode comparar.** Um instrumento que só passou por `T2` não está calibrado.
+
+> O `SHA256` do arquivo copiado é registrado em `C:\tmp\ptf_evidencias\R2S2\G-03_INSTRUMENTO.txt`
+> — **não** aqui. Um `hash` que muda a cada edição deste documento, escrito **dentro** deste
+> documento, é auto-referente e sempre estaria desatualizado. Aplicação de §5.6.
 
 **Notas de projeto** — cada uma corrige um defeito observado na `PREP-03`:
 
@@ -494,7 +592,7 @@ anterior. Custo: alguns segundos por caso. Benefício: **atribuição de qualque
 | 4 | Porta 8081/8082/8083 ocupada antes de subir o Metro (`G-06`) |
 | 5 | `PS3` interrompido, fechado ou limpo em qualquer momento |
 | 6 | Falha de `run-as` ou `TAR` truncado |
-| 7 | **Qualquer** contador de `G-09` ≠ 0 (§8.1) |
+| 7 | **Qualquer** contador de `G-09` ≠ 0 (§8.1) — `ESCOPO_OK=NAO` é **recaptura**, não `STOP` (§5.7) |
 | 8 | **Qualquer** `M+` ausente no *bundle* ou no `logcat` (`G-12`, `G-13`) |
 | 9 | **Qualquer** `M−` presente (`G-12`) |
 | 10 | Traço, salvamento ou encerramento acidental durante o Bloco A |
