@@ -1190,3 +1190,223 @@ de quiescência.
 | ⛔ | `TAR-1` e `CK-C1-ROUTE-BLOCKED` seguem imutáveis na cadeia de custódia |
 | ⛔ | As duas chaves `invite_seen` gravadas **não** viram evidência de caso — são pré-condicionamento |
 | ⛔ | `CASO 1` continua `NÃO EXECUTADO`; nada aqui o executa |
+
+---
+
+## 15. `EMENDA 3` — `HARD STOP`, preservação de tentativas e cisão `FASE A` / `FASE B`
+
+> 🔴 **Esta emenda corrige três defeitos de protocolo da `EMENDA 2`**, todos levantados pelo fundador
+> **antes** de qualquer execução física. O tablet permanece na **cena 4**. Nenhum toque novo.
+
+### 15.1 Defeito `1` — `S-27` não parava nada
+
+A guarda escrita na `EMENDA 2` apenas **imprimia** texto:
+
+```powershell
+foreach ($n in 'CK-STORY-COMPLETE','TAR-1B-C1') {
+  if (Test-Path "$ev\acervo\$n.tar") { "STOP S-27 - $n ja existe" }   # ← só imprime
+}
+cmd.exe /c "... > ...CK-STORY-COMPLETE.tar"                            # ← executa mesmo assim
+```
+
+Em PowerShell, uma *string* solta é **saída**, não controle de fluxo. Pior: linhas coladas no console
+são **statements independentes** — um `throw` numa linha **não** impede a linha seguinte de rodar.
+A guarda era decorativa e podia **sobrescrever evidência**.
+
+**Padrão obrigatório a partir daqui — `HARD STOP` real:** toda captura vive **dentro de um único
+bloco `& { … }`**, com `$ErrorActionPreference='Stop'` e `throw` **antes** de qualquer
+redirecionamento. Um `throw` dentro do bloco é erro **terminante**: aborta o bloco inteiro, e nenhum
+`cmd.exe` posterior chega a ser invocado.
+
+```powershell
+$ErrorActionPreference='Stop'
+& {
+  foreach ($p in @($dest1,$dest2)) { if (Test-Path $p) { throw "STOP S-27 - preexiste: $p" } }
+  cmd.exe /c "..."      # só chega aqui se NENHUM destino existir
+}
+```
+
+> **Regra `O-5`:** nunca confiar em mensagem textual como controle. Guarda que não aborta **não é
+> guarda**. Captura e guarda no **mesmo bloco**, sempre.
+
+### 15.2 Defeito `2` — apagar `RK-A`/`RK-B` destruía evidência de instabilidade
+
+A `EMENDA 2` mandava apagar e repetir quando `RK_A ≠ RK_B`. **Errado**: a divergência **é** o dado —
+prova que algo continuava gravando, e o quanto. Apagar é destruir o único registro disso.
+
+**`R-2''` — tentativas numeradas e preservadas.** Máximo **3**; **nenhuma** é apagada:
+
+| Tentativa | Arquivos | Registro obrigatório |
+|---|---|---|
+| 1 | `RK-A1.bin` · `RK-B1.bin` | `mtime`, `Length`, `SHA256` de cada um |
+| 2 | `RK-A2.bin` · `RK-B2.bin` | idem |
+| 3 | `RK-A3.bin` · `RK-B3.bin` | idem |
+
+`A(n) ≠ B(n)` ⇒ registrar **`TENTATIVA n = NÃO ESTÁVEL`**, esperar, e produzir `A(n+1)`/`B(n+1)` em
+**arquivos novos**. Três tentativas sem convergir ⇒ **`S-21`**, parar e reportar — com as **seis**
+amostras intactas, que passam a ser evidência de primeira classe sobre o que não silenciou.
+
+Os nomes `RK-A.bin` / `RK-B.bin` (sem índice) da `EMENDA 2` ficam **revogados**.
+
+### 15.3 Defeito `3` — o `TAR-1B-C1` estava no lugar errado
+
+A `EMENDA 2` provou que `AppState → active` pode gravar `@ptf_entitlement_v1`, e ao mesmo tempo
+colocava `TAR-1B-C1` **antes** do despertar. Contradição: a mutação do despertar cairia **dentro** da
+janela `TAR-1B-C1 → CASO 1`. Chamá-la de `W-1` não resolve — **atribuição não conserta posição**.
+
+Um *baseline* "imediatamente antes" que precede um *writer* conhecido **não é** um *baseline*.
+
+### 15.4 Auditoria da rota física pós-`Parabéns` — **não suposta, lida**
+
+Rota **determinística** da `CongratsScreen` até o *card* `Haja luz`:
+
+| Passo | Superfície | Elemento | Código |
+|---|---|---|---|
+| 1 | `Congrats` | **`🏠 Voltar ao início`** | `CongratsScreen.js:401-408` → `navigation.navigate('Home')` |
+| 2 | `Home` (aba) | aba **`Aventuras`** | `AppNavigator.js:142` → `AdventureMapScreen` |
+| 3 | mapa | *pin* de **`A Criação`** | `AdventureMapScreen.js:342-345` → `openFocus` (abre `StoryFocusModal`) |
+| 4 | `StoryFocusModal` | botão principal — **`Continuar aventura`** | `AdventureMapScreen.js:347-351` → `navigate('StoryDetail')` |
+| 5 | `StoryDetail` | modal do Beni → **`Continuar depois`** | `StoryDetailScreen.js:632-635` |
+| 6 | `StoryDetail` | *card* **`Haja luz`** na jornada de cores | `coloring60Catalog.js:36-38` |
+
+> ⚠️ **`🏠 Voltar ao início` é o ÚNICO botão determinístico de saída do `Congrats`.**
+> `Próxima aventura` passa por `getNextAdventureRecommendation` e pode ir a `StoryDetail` de **outra**
+> história, a `ParentArea` ou à aba `Aventuras`, conforme o estado — **não** serve a um protocolo.
+> O *card* de continuar da `HomeScreen` também é variável: `HomeScreen.js:666-671` desvia para
+> `PostStoryHub` quando `targetType === 'pendingRewards'` — **superfície proibida** nesta rota.
+
+**Varredura de *writers* de cada passo:**
+
+| Superfície | *Writer* automático? | Prova |
+|---|---|---|
+| `Congrats` (saída) | **não** | apenas `navigate`; a fila de conquistas já se esgotou na `FASE A` |
+| `HomeScreen` | **NENHUM** | `grep AsyncStorage\|setItem` em `HomeScreen.js` ⇒ **zero ocorrências** |
+| `AdventureMapScreen` | **não dispara** | os únicos *writers* (`markBeniAppTourSeen`, `markGuideSeen('adventures')`, `:60-61`) vivem **dentro de `closeBeniTour`**, que só roda se o tour abrir — e o tour exige `hasSeenBeniAppTour()` **false**; `@ptf_beni_app_tour_seen_v1` já é `true` (*rowid* 41) |
+| `StoryFocusModal` | **não** | componente de apresentação; `onOpen` = `navigate` |
+| **`StoryDetail`** | 🔴 **SIM — achado novo** | ver abaixo |
+| `CreationColoringJourneySection` | **não** | `onPress={locked ? undefined : onPress}`; nada dispara sozinho |
+
+#### 🔴 `ACHADO` — `@ptf_creation_colorir_invite_shown_v1`
+
+```js
+// StoryDetailScreen.js:241-276  (useFocusEffect)
+if (!deriveColoring60JourneyInvite({ ...fatos, inviteSeen: false }).visible) return;
+const seen = await hasSeenCreationColoringInvite();
+if (!deriveColoring60JourneyInvite({ ...fatos, inviteSeen: seen }).visible) return;
+setInviteVisible(true);
+const marked = await markCreationColoringInviteSeen();      // ← ESCRITA AUTOMÁTICA
+```
+
+```js
+// coloring60JourneyInvite.js:18
+const INVITE_KEY = '@ptf_creation_colorir_invite_shown_v1';
+// :41  await AsyncStorage.setItem(INVITE_KEY, '1');
+```
+
+Predicado (`coloring60Journey.js:721-742`) no estado que teremos após a `FASE A`:
+
+| Fato | Valor | Efeito |
+|---|---|---|
+| `pilotVisible` | `true` | não é `PILOT_OFF` |
+| `storyScenesComplete` | `true` (10/10) | não é `STORY_INCOMPLETE` |
+| `allActivitiesComplete` | `false` (**1/3**) | não é `ALL_ACTIVITIES_COMPLETE` |
+| `inviteSeen` | `false` — chave **AUSENTE** no `CK-C1` | não é `ALREADY_SEEN` |
+| ⇒ `reason` | **`SHOW`** | `visible = true` ⇒ **grava** |
+
+> 🎯 **Este é exatamente o *writer* automático que o fundador exigiu que eu não supusesse.**
+> Ele dispara **no foco da `StoryDetail`**, sem toque nenhum — e, no desenho da `EMENDA 2`, cairia
+> **dentro** da janela do `CASO 1`. No desenho corrigido, ele acontece **antes** do `TAR-1B-C1`.
+> A escrita é **única**: no foco seguinte, `hasSeenCreationColoringInvite()` devolve `true` e o
+> ramo `ALREADY_SEEN` corta antes de qualquer `setItem`.
+
+`handleInviteLater` (`StoryDetailScreen.js:409-411`) é `setInviteVisible(false)` e **nada mais** —
+`Continuar depois` **não escreve**. `Colorir agora` chamaria `handleInviteColorNow`, que abre a
+**próxima atividade incompleta** = `living_world` — **atividade errada, obra nova**: `S-25`.
+
+### 15.5 Cadeia redesenhada — `FASE A` e `FASE B` são **execuções separadas**
+
+**`FASE A` — pré-condicionamento** (termina e é validada antes de a `FASE B` começar):
+
+| # | Passo | Artefato |
+|---|---|---|
+| A1 | Cenas 4→10, convites 7 e 9 com `Continuar a história` | — |
+| A2 | `Congrats`: dispensar **8** modais | — |
+| A3 | Repouso `R-1` + `R-2''` + `R-3'` + `R-4` — **o tablet pode dormir** | `RK-A(n)`/`RK-B(n)` |
+| A4 | Captura do *checkpoint* | **`CK-STORY-COMPLETE.tar`** |
+| A5 | `CK-C1 × CK-STORY-COMPLETE` sob a *allowlist* §14.6 | veredito |
+
+> 🔴 **`TAR-1B-C1` NÃO é capturado na `FASE A`.** A `FASE A` termina no `CK-STORY-COMPLETE`.
+> O app fica onde está (`Congrats`); a tela pode apagar.
+
+**`FASE B` — entrada real do `CASO 1`** (só começa após A5 validado):
+
+| # | Passo | Observação |
+|---|---|---|
+| B1 | **Despertar** o tablet — `AppState → active` **absorvido aqui**, de propósito | é o momento do `W-1` |
+| B2 | Rota §15.4, passos 1→5 — inclusive `Continuar depois` | `W-2` grava aqui |
+| B3 | Parar na `StoryDetail`, sobre o *card* `Haja luz`, **sem tocá-lo** | última superfície antes da obra |
+| B4 | Provar estabilidade de novo (`R-2''`, mesma mecânica, arquivos `RK-C(n)`/`RK-D(n)`) | — |
+| B5 | Capturar **`TAR-1B-C1.tar`** | *baseline* verdadeiro |
+| B6 | Tocar `Haja luz` — **`CASO 1` começa** | nenhuma outra interação entre B5 e B6 |
+
+> 🔴 **Entre `B5` e `B6`: NADA.** Nem tocar, nem rolar, nem sair da tela, nem deixar dormir.
+> Se o tablet dormir entre `B5` e `B6`, o despertar seguinte reabre a janela: **descartar `B5`**,
+> refazer `B4`/`B5` com **novo** nome (`TAR-1B-C1-r2.tar`) e **preservar** o anterior.
+
+**Como manter a tela acesa em `B4`/`B5` sem alterar configuração e sem tocar em nada com *handler*:**
+a `StoryDetail` é `<AppScreen scroll …>` (`StoryDetailScreen.js:415-417`), e o `AppScreen` em modo
+`scroll` renderiza um `ScrollView` **nu** — `ref`, `style`, `contentContainerStyle`,
+`showsVerticalScrollIndicator`, e **nenhum** `onScroll`, `onMomentumScrollEnd` ou `refreshControl`
+(`AppScreen.js:67-77`). **Um micro-arrasto vertical na área vazia é provadamente inerte**: não
+navega, não escreve, não dispara *handler* algum. É o único gesto autorizado nessa janela — e só se
+o `SCREEN_OFF_TIMEOUT_MS` lido em `B0` for menor que a janela. Nenhum `settings put`, nenhum
+`keyevent`, nenhuma mudança no aparelho.
+
+### 15.6 Os quatro papéis — **não se fundem**
+
+| Artefato | Papel | Imutável? |
+|---|---|---|
+| `TAR-1.tar` | *baseline* **original** da entrada do `BLOCO A` | **sim** |
+| `CK-C1-ROUTE-BLOCKED.tar` | **incidente**, progresso `3/10` | **sim** |
+| `CK-STORY-COMPLETE.tar` | **fim do pré-condicionamento** (`FASE A`) | sim, após capturado |
+| `TAR-1B-C1.tar` | **entrada imediata do `CASO 1`** (`FASE B`, pós-navegação) | sim, após capturado |
+
+Nenhum substitui, renomeia ou aposenta outro. Nenhum é reutilizado como *baseline* do `CASO 10` —
+esse continua sendo `TAR-C10-PRE` (§13.9).
+
+### 15.7 `ALLOWLIST-NAV-C1` — janela `CK-STORY-COMPLETE → TAR-1B-C1`
+
+Esta janela **não** é a do pré-condicionamento e **não** é a de nenhum caso. Tem lista própria,
+**fechada em duas entradas**:
+
+| # | Chave | *Writer* | Quando | Ocorrências |
+|---|---|---|---|---|
+| `W-1` | `@ptf_entitlement_v1` | `entitlementService.js:128-132` | **`B1`** — `AppState → active` do despertar | 0 ou 1 (**condicional**: a chave nunca apareceu em `TAR` algum; fonte `RevenueCat`, *fail-closed*) |
+| `W-2` | `@ptf_creation_colorir_invite_shown_v1` | `coloring60JourneyInvite.js:41` via `StoryDetailScreen.js:273` | **`B2`** — foco da `StoryDetail` | **1** (`ADDED`, valor `'1'`) |
+
+**Qualquer outra chave nesta janela = `STOP`.** Em particular, `@ptf_progress_creation`,
+`@ptf_achievements_seen` e as duas `invite_seen` de marco **não** podem se mover aqui — se moverem,
+o pré-condicionamento não havia terminado quando o `CK-STORY-COMPLETE` foi tirado.
+
+`S-19` fica **REVISADO**: a exigência de "`0` mutações" passa a valer para a janela
+`CK-STORY-COMPLETE → início da FASE B`. Dentro da `FASE B`, vale a `ALLOWLIST-NAV-C1`.
+
+### 15.8 `STOP` adicionais
+
+| # | Condição |
+|---|---|
+| `S-28` | Qualquer destino de captura preexistente — abortado por `throw` **antes** do redirecionamento (substitui a versão decorativa de `S-27`) |
+| `S-29` | Qualquer `RK-*.bin` apagado, renomeado ou sobrescrito |
+| `S-30` | Chave fora da `ALLOWLIST-NAV-C1` mutada entre `CK-STORY-COMPLETE` e `TAR-1B-C1` |
+| `S-31` | Tablet dormir, ser tocado ou navegar entre `B5` e `B6` — `TAR-1B-C1` deixa de ser "imediatamente antes" |
+| `S-32` | `PostStoryHub`, `Próxima aventura` ou o *card* de continuar da `Home` usados na rota — superfícies não auditadas |
+
+### 15.9 O que esta emenda **NÃO** concede
+
+| | |
+|---|---|
+| ⛔ | **Nenhum `PASS`** — `CASO 1` continua `NÃO EXECUTADO` |
+| ⛔ | **Nenhuma** execução de `FASE A` e `FASE B` na mesma sessão de comandos |
+| ⛔ | **Nenhuma** alteração de configuração do aparelho, `settings put`, `svc` ou `input` |
+| ⛔ | **Nenhuma** exclusão de amostra, tentativa ou artefato |
+| ⛔ | **Nenhum** `push`, `merge` ou alteração de código |
