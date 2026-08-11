@@ -2498,6 +2498,132 @@ Não marcou nenhum caso de §28.1 como `PASS`. Não fechou `T090`. Não abriu `S
 `F8A`. Não corrigiu nada do inventário visual. Não executou `R2`. **`F6-SG-A` continua NÃO
 CONCEDIDO.**
 
+## `PF6SGA-R2-GATE` — Human Gate de liberação da `RODADA FÍSICA 2` (2026-08-11)
+
+**Decisão do fundador. Congelada.** Autoriza a preparação imediata e a **execução guiada** da
+`RODADA FÍSICA 2` de `F6-SG-A`, resolvendo os dois vãos canônicos declarados no fechamento da `R1` e
+fixando a regra de integridade histórica. Escopo, ordem, topologia e proibições permanecem os já
+formalizados em [`10_RODADA_FISICA_2_F6_SG_A.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/10_RODADA_FISICA_2_F6_SG_A.md).
+
+**Estado canônico de entrada conferido antes da execução:** `C:\tmp\ptf_fase6_shell_splash_wt` ·
+`feat/fase6-shell-splash` · `HEAD 04bd479` · árvore **LIMPA** · `git diff --stat aa58849..HEAD`
+**exclusivamente documental** (`docs/` + `specs/`). Qualquer alteração inesperada em *runtime* é
+**STOP**.
+
+### `CASO8-ANDROID-01` — equivalência Android do "Centro de Controle" (**vão eliminado**)
+
+Para fins **exclusivos do Caso 8 (`TK-A-070` · §28.1 #8) em Android**, a expressão canônica
+*"Centro de Controle"* passa a ser **operacionalmente interpretada** como a superfície Android
+equivalente composta pelo **painel de notificações** e pelas **Configurações rápidas** do sistema,
+**acessadas pelo gesto a partir da borda superior da tela**.
+
+Limites da decisão — todos explícitos:
+
+- a equivalência é **exclusivamente operacional para Android**;
+- **não** altera a semântica do caso no **iOS**;
+- **não** autoriza usar **outras páginas das Configurações do Android** como substitutas (abrir o
+  app *Configurações*, ir a uma tela de ajuste, usar o menu de energia ou a tela de recentes **não**
+  satisfaz este caso);
+- o **objetivo comportamental do teste permanece intacto**: cobrir a **interrupção parcial**,
+  distinta do segundo plano pleno do Caso 7. O critério de `PASS` continua sendo *"igual ao caso 7"*
+  (gate `G-LFC-2`), e qualquer divergência do Caso 7 é `FAIL`.
+
+**Efeito:** o vão canônico do Caso 8 está **eliminado**. O caso deixa de ser "executável
+condicionado" e passa a **executável**. A escolha continua sendo **registrada no veredito** — não
+porque ainda haja dúvida, mas porque a rastreabilidade exige dizer qual superfície foi usada.
+
+### `CASO12-PARCIAL-01` — cobertura parcial autorizada do Caso 12
+
+Na `R2` está **autorizada a execução física** da variante **"*kill* durante a gravação"** — a única
+executável com a infraestrutura atualmente autorizada (`06` §3.4).
+
+Os **quatro estágios injetados** (*criar · persistir · validar · reler*), que dependem de **harness
+de injeção**, permanecem **`NÃO EXECUTADOS`** nesta rodada. Decorre disso, sem exceção:
+
+- **não** criar harness agora;
+- **não** ampliar o *runtime*;
+- **não** transformar ausência de execução em `PASS`;
+- **não** inferir resultado; **não** simular evidência.
+
+**Natureza da autorização:** ela permite a **continuidade** da `R2` — **não** é dispensa permanente.
+A pendência dos quatro estágios fica **preservada sob o árbitro canônico do Caso 12
+(`TK-A-074` · §28.1 #12)**, para tratamento futuro **caso ainda seja exigida**. O veredito do Caso 12
+na `R2` será, no máximo, **`PASS` com cobertura declaradamente PARCIAL**, com o vão nomeado.
+
+### `R1-PROVENIENCIA-01` — integridade histórica da `R1` (regra dura)
+
+Está autorizado usar o **Bloco 0 da `R2`** para **repetir e arquivar controles equivalentes** às
+pendências formais `R1-PEND-1..5` — **desde que o protocolo atualizado permita formalmente esse
+saneamento** (ver `PF6SGA-R2-GATE-SANEAMENTO` abaixo).
+
+🔴 **É terminantemente proibido representar evidência nova, obtida durante a `R2`, como se fosse
+artefato histórico originalmente preservado durante a execução da `R1`.**
+
+Sempre que uma evidência estiver sendo **refeita**, o registro deve conter, literalmente:
+
+> *"Evidência originalmente não arquivada na `R1`. Controle repetido e arquivado durante o pré-voo
+> da `R2`."*
+
+Proibições correlatas, sem exceção:
+
+- **não** fabricar *timestamps* históricos;
+- **não** renomear um `raw.log` novo como se fosse o `raw.log` original da execução passada — o
+  arquivo desta sessão é `C:\tmp\ptf_evidencias\R2\raw.log` e **assim permanece nomeado**;
+- **não** reconstruir evidência ausente por inferência;
+- **não** declarar retroativamente nada que a **cadeia de custódia** não sustente.
+
+### `PF6SGA-R2-GATE-SANEAMENTO` — o protocolo **NÃO permite** saneamento administrativo
+
+A condição posta pelo fundador (*"desde que o protocolo atualizado permita formalmente esse
+saneamento"*) foi **auditada literalmente** contra
+[`06_PROTOCOLO_VALIDACAO_FISICA_F6_SG_A.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/06_PROTOCOLO_VALIDACAO_FISICA_F6_SG_A.md)
+no `HEAD 04bd479`.
+
+**VEREDITO: NÃO PERMITE.** Não existe **uma linha sequer** que autorize **reexecutar** um controle de
+pré-voo em outro momento e arquivá-lo como evidência da rodada anterior. O bloqueio decorre dos
+qualificadores temporais das próprias pendências, em §7.2:
+
+| Pendência | Redação literal | Saneável depois? |
+|---|---|---|
+| `R1-PEND-1` | *"do momento da rodada"* | **NÃO** |
+| `R1-PEND-2` | *"cabeçalho do Metro exibindo …"* — sem qualificador | **OMISSO** |
+| `R1-PEND-3` | *"requisição do bundle **agora**"* (§3.3 #2 — prova de **instante**) | **NÃO** |
+| `R1-PEND-4` | *"saída … **da rodada**"* | **NÃO** |
+| `R1-PEND-5` | *"`raw.log` **íntegro preservado**"* — registro da execução, não do ambiente | **NÃO** |
+
+**Também não há proibição expressa:** busca literal por `contemporân`, `custódia`, `mesma execução`,
+`mesma sessão`, `simultân`, `reaproveit`, `timestamp`, `carimbo` retorna **zero ocorrências**. O
+protocolo é **omisso sobre o instituto** e **restritivo nas células**. Precedente hermenêutico do
+próprio arquivo (caso *"três × quatro confirmações"*): **em dúvida, leitura conservadora**.
+
+**Tensão registrada, não escondida.** §7.2 diz *"Fechadas as cinco, `R1` vira `PASS` … sem repetir a
+rodada"*. É o único apoio textual plausível à tese oposta. Mas o mesmo parágrafo descreve o remédio
+como **guardar o que já esteve diante dos olhos** — *recuperar* artefato existente (*scrollback*,
+buffer, print já tirado) —, e *"sem repetir a rodada"* nega repetir **o comportamento no aparelho**,
+não autoriza reexecutar o pré-voo depois.
+
+**Decisão aplicada, conforme a instrução do fundador para este ramo:**
+
+- o veredito da `R1` fica **PRESERVADO COMO ESTÁ** — **`CONTEÚDO OBSERVADO SEM ANOMALIA · PASS NÃO
+  FORMALIZÁVEL`**;
+- **`R1-PEND-1..5` permanecem ABERTAS.** O Bloco 0 da `R2` **NÃO** as fecha;
+- fica **revogada** a afirmação em contrário que constava de
+  [`10_RODADA_FISICA_2_F6_SG_A.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/10_RODADA_FISICA_2_F6_SG_A.md)
+  §1 e Bloco 0 — ela era **conclusão minha, não regra canônica**, e a auditoria a derrubou.
+
+⚠️ **Isto NÃO bloqueia a `R2`.** A regra dura de §3.3 é **por sessão**: a `R2` produz **as suas
+próprias** quatro confirmações no Bloco 0, contemporâneas à sua execução. A validade dos casos da
+`R2` **não** depende do arquivo da `R1`. A afirmação anterior de que *"enquanto `R1-PEND-1..5` não
+forem fechadas, todo `PASS` desta rodada é inválido"* era **excesso meu** e está corrigida.
+
+**Pendência aberta para Human Gate futuro — não decidida aqui:** os cenários cobertos pela `R1`
+(`G-PRE`, `targetSdk`, *cold start*/`MainTabs`, `A-03`) continuam **sem evidência formalizável**. O
+Bloco 0 da `R2` reexecuta fisicamente parte deles (*cold start*, `MainTabs`, `targetSdk`) e produzirá
+evidência **nova e contemporânea** — o que é **reexecução do cenário**, não saneamento da `R1`.
+Se essa evidência nova basta para os itens de `SG-A` cobertos pela `R1`, **é decisão do fundador**, e
+está registrada aqui como **em aberto**. Alternativa: suprir a lacuna de redação de §7.2 (dizer o que
+**é** fonte admissível de arquivo de pré-voo) por Human Gate próprio.
+
 ## `COPY-RESPONSAVEIS-01` — "Área dos Pais" → "Área dos Responsáveis" (2026-08-11)
 
 **Decisão do fundador, aprovada.** O texto **visível** "Área dos Pais" passa a ser **"Área dos

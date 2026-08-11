@@ -563,6 +563,33 @@ Fisicamente, `A-03` saiu **conforme**.
 diante dos olhos e não guardou. Fechadas as cinco, `R1` vira **`PASS`** por leitura direta da tabela
 acima — sem repetir a rodada.
 
+> 🔴 **EMENDA DE 2026-08-11 (Human Gate de liberação da `R2`) — leia antes de usar o parágrafo
+> acima.** Auditoria literal deste documento concluiu que **o protocolo NÃO autoriza saneamento
+> administrativo**: nenhuma linha permite **reexecutar** um controle de pré-voo em outro momento e
+> arquivá-lo como evidência da rodada anterior. As próprias células da tabela acima o impedem —
+> `R1-PEND-1` exige a saída **"do momento da rodada"**, `R1-PEND-4` a saída **"da rodada"**,
+> `R1-PEND-3` a requisição **"agora"** (prova de instante, por definição — §3.3 #2) e `R1-PEND-5` o
+> `raw.log` **"íntegro preservado"** da execução observada.
+>
+> O parágrafo acima descreve o remédio como **guardar o que já esteve diante dos olhos** — ou seja,
+> **recuperar** artefato existente daquela rodada (*scrollback*, buffer de terminal, print já
+> tirado). *"Sem repetir a rodada"* nega repetir **o comportamento no aparelho**; **não** autoriza
+> reexecutar o pré-voo depois e valer retroativamente.
+>
+> **Consequência, por decisão do fundador (`R1-PROVENIENCIA-01`):** o veredito da `R1` fica
+> **preservado como está** — **`CONTEÚDO OBSERVADO SEM ANOMALIA · PASS NÃO FORMALIZÁVEL`**.
+> `R1-PEND-1..5` **permanecem abertas** e **não** são fechadas pelo Bloco 0 da `R2`. Fechá-las por
+> reexecução posterior seria **criar regra nova**, não aplicar esta.
+>
+> ⚠️ **Isto NÃO bloqueia a `R2`.** A regra dura de §3.3 é **por sessão**: a `R2` obtém **as suas
+> próprias** quatro confirmações no Bloco 0, contemporâneas à sua execução. A validade dos casos da
+> `R2` **não** depende do arquivo da `R1`.
+>
+> **Lacuna de redação identificada e NÃO suprida aqui** (exige Human Gate próprio): o documento não
+> diz o que **é** admissível como fonte do arquivo de pré-voo — se *scrollback*/buffer recuperado
+> vale, e sob que forma de atestação. Enquanto não disser, vale a leitura conservadora, precedente já
+> firmado neste arquivo no caso "três × quatro confirmações".
+
 📌 **A confirmação #3** (*não é `preview`/`production`*) **está coberta**: a rodada correu em
 *Development Build*, e Expo Go não foi usado (§2.3).
 

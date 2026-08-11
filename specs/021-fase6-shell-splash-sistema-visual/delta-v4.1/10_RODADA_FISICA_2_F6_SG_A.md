@@ -45,20 +45,29 @@ impede `F6-SG-A`**.
 
 ---
 
-## 1. Precondição bloqueante — **a `R2` ainda NÃO está liberada**
+## 1. Relação com a `R1` — **corrigida em 2026-08-11**
 
-`06` §7.2 fecha a `R1` como **`CONTEÚDO OBSERVADO SEM ANOMALIA · PASS NÃO FORMALIZÁVEL`**, com
-**5 pendências de arquivo** (`R1-PEND-1..5`). E `06` §3.3 é literal: *"se as quatro confirmações não
-forem obtidas, **nenhum** cenário abaixo pode ser marcado como `PASS`"*.
+> 🔴 **CORREÇÃO — a redação anterior desta seção está REVOGADA.** Ela afirmava que
+> *"enquanto `R1-PEND-1..5` não forem fechadas, todo `PASS` desta rodada é inválido"* e que o Bloco 0
+> fecharia `R1-PEND-1..4`. **Ambas as afirmações eram conclusão do redator, não regra canônica**, e a
+> auditoria literal do `06` (Human Gate de 2026-08-11) as derrubou. Ver
+> `docs/DECISIONS.md` §`PF6SGA-R2-GATE-SANEAMENTO`.
 
-> 🔴 **Enquanto `R1-PEND-1..5` não forem fechadas, todo `PASS` desta rodada é inválido.**
-> As cinco são **capturas de terminal**, não comportamento novo: elas podem ser fechadas **no mesmo
-> pré-voo da `R2`**, porque o pré-voo da `R2` é *o mesmo* pré-voo. É o caminho barato — e é o
-> recomendado.
+**O que vale agora:**
 
-**Consequência prática:** o **Bloco 0** abaixo fecha, de uma vez, o pré-voo da `R2` **e** as
-pendências `R1-PEND-1..4`. `R1-PEND-5` fecha ao preservar o `raw.log` desta sessão **e** atestar a
-forma de abertura.
+1. **A `R2` está LIBERADA** por Human Gate do fundador (2026-08-11).
+2. **A regra dura de `06` §3.3 é POR SESSÃO.** A `R2` obtém **as suas próprias** quatro confirmações
+   no Bloco 0, **contemporâneas** à sua execução. A validade dos casos da `R2` **não** depende do
+   arquivo da `R1`.
+3. **`R1-PEND-1..5` permanecem ABERTAS.** O protocolo **não autoriza** saneamento administrativo —
+   quatro das cinco pendências trazem qualificador temporal expresso (*"do momento da rodada"*,
+   *"da rodada"*, *"agora"*, *"íntegro preservado"*). O Bloco 0 **não** as fecha.
+4. **O veredito da `R1` fica preservado:** `CONTEÚDO OBSERVADO SEM ANOMALIA · PASS NÃO FORMALIZÁVEL`.
+
+**Pendência em aberto, não decidida aqui:** o Bloco 0 reexecuta fisicamente parte dos cenários da
+`R1` (*cold start*, `MainTabs`, `targetSdk`) e produzirá evidência **nova e contemporânea** — isso é
+**reexecução do cenário**, jamais saneamento da `R1`. Se essa evidência nova basta para os itens de
+`SG-A` cobertos pela `R1` é **decisão do fundador**, em Human Gate próprio.
 
 ---
 
@@ -139,8 +148,8 @@ npm run start:dev
 pasta** · porta **8081**. **Metro em 8082 é `PARE`** — significa que outra instância já ocupa a
 8081, e o `adb reverse` mandaria o aparelho para a instância errada.
 
-📌 **Arquive esta janela inteira** (print ou cópia do texto): ela fecha **`R1-PEND-1`** e
-**`R1-PEND-2`**.
+📌 **Arquive esta janela inteira** (print ou cópia do texto): é o bloco de estado da `R2` e a
+**confirmação #1**. *(Não fecha `R1-PEND-1`/`-2` — ver §1.)*
 
 ### `PS2` — ADB (túnel e comandos pontuais)
 
@@ -155,7 +164,7 @@ adb reverse --list
 **Aceite:** um aparelho `device` (não `unauthorized`, não `offline`) · **exatamente um** mapeamento
 relevante contendo `tcp:8081 tcp:8081`. **Prefixo `UsbFfs` é permitido — o gate não é literal.**
 
-📌 **Arquive a saída do `--list`**: fecha **`R1-PEND-4`**.
+📌 **Arquive a saída do `--list`**: é a **confirmação #4** da `R2`. *(Não fecha `R1-PEND-4`.)*
 
 ⛔ **USB + `adb reverse` + `localhost:8081`.** **Sem QR. Sem Wi-Fi como rota principal. Sem Expo Go.**
 
@@ -167,7 +176,8 @@ adb logcat -v threadtime |
   Out-File "C:\tmp\ptf_evidencias\R2\raw.log" -Encoding utf8
 ```
 
-📌 **`raw.log` preservado íntegro** ao fim: fecha a primeira metade de **`R1-PEND-5`**.
+📌 **`raw.log` preservado íntegro** ao fim — é o registro da execução **da `R2`**.
+*(Não fecha `R1-PEND-5`: o `raw.log` da `R1` não foi preservado e é irrecuperável.)*
 **Não editar, não filtrar, não recortar o arquivo original.** Extrações vão para cópias.
 
 ### `TABLET` — abertura canônica (**a mesma forma em toda abertura**)
@@ -178,8 +188,9 @@ adb shell am start -a android.intent.action.VIEW `
 ```
 
 ⛔ **Toda reabertura desta rodada usa este comando** — inclusive as dos casos **6** e **12**. Abrir
-pelo ícone ou pela `MainActivity` **não prova** que o *bundle* servido é o atual. Atestar isso por
-escrito fecha a segunda metade de **`R1-PEND-5`**.
+pelo ícone ou pela `MainActivity` **não prova** que o *bundle* servido é o atual. **Atestar por
+escrito**, ao fim da rodada, que **todas** as aberturas usaram esta forma — é exigência de `06` §3.2
+para a **`R2`**. *(Não fecha `R1-PEND-5`.)*
 
 ### Captura de imagem — regra de *observer effect*
 
@@ -271,11 +282,11 @@ Repetir trocando `TAR-1` por `TAR-2` … `TAR-5` nos pontos indicados na §6.
 
 ### BLOCO 0 — pré-voo *(não é caso; é o que valida todos)*
 
-1. `PS1`: bloco de estado + `git diff --stat aa58849..HEAD` → **arquivar** *(`R1-PEND-1`)*.
+1. `PS1`: bloco de estado + `git diff --stat aa58849..HEAD` → **arquivar** *(evidência da `R2`)*.
 2. `PS1`: `npm run start:dev`; conferir pasta no cabeçalho e **porta 8081** → **arquivar**
-   *(`R1-PEND-2`)*.
+   *(confirmação #1 da `R2`)*.
 3. `PS2`: `adb devices -l`, `adb reverse --remove-all`, `tcp:8081 tcp:8081`, `--list` → **arquivar**
-   *(`R1-PEND-4`)*.
+   *(confirmação #4 da `R2`)*.
 4. `PS2`: `adb shell dumpsys package com.valentedev.pequenostracosdefe | Select-String targetSdk`
    → registrar *(esperado `36`; confirma que o `build` instalado é o mesmo da `R1`)*.
 5. `PS2`: **`TAR-1`** (§5) — **antes de abrir qualquer obra**.
@@ -283,13 +294,29 @@ Repetir trocando `TAR-1` por `TAR-2` … `TAR-5` nos pontos indicados na §6.
    *(este é o **único** momento autorizado para limpar o logcat)*.
 7. `PS3`: iniciar a captura — **antes** de abrir o app.
 8. `TABLET`: *deep link*. Aguardar `Start proc: PID <n>` no `PS3` e **anotar o PID**.
-9. `PS1`: confirmar a **linha de requisição do *bundle*** → **arquivar** *(`R1-PEND-3`)*.
+9. `PS1`: confirmar a **linha de requisição do *bundle*** → **arquivar** *(confirmação #2 da `R2` —
+   prova de instante)*.
 10. `PS3`: confirmar `MainTabs MONTADO … vivos 1/1`; **registrar a superfície real** de abertura
     (`C-8`).
 
-> ✅ Ao fim do Bloco 0, as **4 confirmações** de `C-1` estão obtidas **e arquivadas**, e
-> **`R1-PEND-1..4`** estão fechadas. `R1-PEND-5` fecha ao final, com o `raw.log` preservado.
-> **Se qualquer uma falhar: PARE. Nenhum caso abaixo pode ser marcado `PASS`.**
+> ✅ Ao fim do Bloco 0, as **4 confirmações** de `C-1` estão obtidas **e arquivadas** — **para a
+> `R2`**. **Se qualquer uma falhar: PARE. Nenhum caso abaixo pode ser marcado `PASS`.**
+
+> 🔴 **PROVENIÊNCIA DA EVIDÊNCIA — `R1-PROVENIENCIA-01`** (`docs/DECISIONS.md` §`PF6SGA-R2-GATE`).
+> Tudo o que o Bloco 0 arquiva é **evidência NOVA da `R2`, produzida em 2026-08-11**. **Não fecha
+> nenhuma `R1-PEND-*`** — o protocolo não autoriza saneamento administrativo
+> (§`PF6SGA-R2-GATE-SANEAMENTO`). É **terminantemente proibido** apresentá-la como artefato
+> histórico preservado durante a `R1`.
+>
+> Onde o Bloco 0 **reexecutar** um cenário que a `R1` já observara (*cold start*, `MainTabs`,
+> `targetSdk`), o registro carrega, literalmente:
+>
+> > *"Evidência originalmente não arquivada na `R1`. Controle repetido e arquivado durante o pré-voo
+> > da `R2`."*
+>
+> **Não** fabricar *timestamps* históricos · **não** renomear este `raw.log` como se fosse o da `R1`
+> (o arquivo é e continua sendo `C:\tmp\ptf_evidencias\R2\raw.log`) · **não** reconstruir evidência
+> ausente por inferência · **não** declarar retroativamente o que a cadeia de custódia não sustenta.
 
 ---
 
@@ -398,17 +425,20 @@ Repetir trocando `TAR-1` por `TAR-2` … `TAR-5` nos pontos indicados na §6.
 | 3 | Objetivo | *"cobrir a interrupção **parcial**, distinta do segundo plano pleno"* |
 | 4 | Pré-condição | **caso 7 executado antes** |
 | 7 | Superfície | canvas com obra aberta |
-| 8 | Ações | Abrir e fechar o **Centro de Controle** sobre o canvas |
+| 8 | Ações | Abrir e fechar, **sobre o canvas**, o **painel de notificações / Configurações rápidas**, pelo **gesto a partir da borda superior** — equivalência Android fixada por `CASO8-ANDROID-01` |
 | 11 | `PASS` | *"Igual ao caso 7. A interrupção **parcial** não pode se comportar diferente da plena"* — gate `G-LFC-2` |
 | 12 | `FAIL` | qualquer divergência do caso 7 |
-| 15 | Executável | **sim, condicionado** — ver o vão abaixo |
+| 15 | Executável | **SIM** — vão eliminado em 2026-08-11 |
 
-> 🔴 **VÃO CANÔNICO — decidir ANTES de executar.** *"Centro de Controle"* é nomenclatura **iOS**.
-> **Nenhum dos cinco documentos do delta traduz este caso para Android.** O equivalente natural é o
-> **painel de notificações / *quick settings*** (arrastar da borda superior sobre o canvas e
-> fechar). **Isto é interpretação, não texto canônico.** Registrar a escolha explicitamente no
-> veredito; se o fundador preferir outra leitura, o caso vira `NÃO EXECUTADO` até a decisão —
-> **nunca `PASS` por analogia silenciosa**.
+> ✅ **VÃO CANÔNICO ELIMINADO — `CASO8-ANDROID-01`** (`docs/DECISIONS.md` §`PF6SGA-R2-GATE`).
+> *"Centro de Controle"* é nomenclatura **iOS** e nenhum documento do delta a traduzia para Android.
+> O fundador fixou a equivalência: **painel de notificações + Configurações rápidas, pelo gesto da
+> borda superior**. A equivalência é **operacional e exclusiva de Android**, **não** altera a
+> semântica do caso no iOS e **não** autoriza usar **outras páginas das Configurações do Android**
+> como substitutas (abrir o app *Configurações*, o menu de energia ou a tela de recentes **não**
+> satisfaz o caso). O **objetivo comportamental permanece o mesmo**: interrupção **parcial**, distinta
+> do segundo plano pleno. **Registrar no veredito qual superfície foi usada** — por rastreabilidade,
+> não por dúvida.
 
 ---
 
@@ -480,13 +510,22 @@ Repetir trocando `TAR-1` por `TAR-2` … `TAR-5` nos pontos indicados na §6.
 | 10 | Comando | `adb shell am force-stop com.valentedev.pequenostracosdefe` disparado **no instante do salvamento** *(o comando exato não é especificado no protocolo)* |
 | 11 | `PASS` | *"A representação **anterior** continua válida. **Nada destruído**. Nunca 'abri e estava vazia'"* — gates `TA-13`, `G-CMP-4` |
 | 12 | `FAIL` | obra vazia/truncada/irrecuperável · ponteiro trocado · *blob* anterior apagado ⇒ invariante ZERO **#3** |
-| 15 | Executável | **sim, com cobertura declaradamente PARCIAL** — ver o vão abaixo |
+| 15 | Executável | **SIM, com cobertura PARCIAL AUTORIZADA** — `CASO12-PARCIAL-01` |
 
-> 🔴 **VÃO DECLARADO — não mascarar.** PLAN e TASKS pedem falha injetada nas **quatro** etapas
-> (*criar · persistir · validar · reler*); o `06` prevê fisicamente **só** *matar o app durante o
-> salvamento*. A rota de injeção pertence ao **harness do contexto C**, que **§3.4 não menciona** —
-> logo, **não especificado no protocolo** para a `R2`. **Executar a parcela física e registrar o
-> resto como vão**, explicitamente, no veredito.
+> ✅ **COBERTURA PARCIAL AUTORIZADA — `CASO12-PARCIAL-01`** (`docs/DECISIONS.md` §`PF6SGA-R2-GATE`).
+> PLAN e TASKS pedem falha injetada nas **quatro** etapas (*criar · persistir · validar · reler*); o
+> `06` prevê fisicamente **só** *matar o app durante o salvamento*. A rota de injeção pertence ao
+> **harness do contexto C**, que **§3.4 não menciona**.
+>
+> **Autorizado nesta rodada:** executar fisicamente a variante ***kill* durante a gravação**.
+> **Permanecem `NÃO EXECUTADOS`:** os quatro estágios injetados. **Não** criar harness agora, **não**
+> ampliar o *runtime*, **não** converter ausência de execução em `PASS`, **não** inferir resultado,
+> **não** simular evidência.
+>
+> ⚠️ **A autorização é de continuidade, não de dispensa.** A pendência dos quatro estágios fica
+> **preservada sob o árbitro canônico deste caso (`TK-A-074` · §28.1 #12)** para tratamento futuro,
+> caso ainda seja exigida. O melhor veredito possível para o Caso 12 na `R2` é
+> **`PASS` com cobertura declaradamente PARCIAL**, com o vão nomeado no registro.
 
 ---
 
