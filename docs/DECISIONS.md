@@ -2352,6 +2352,97 @@ o aparelho. Não tocou *storage*. Não executou campanha física. Não concedeu 
 `SG-B`, `SG-C` nem `SG-D`. `F7`, `F8A`, `F11` e `F12A` permanecem congeladas. Não fez *push* nem
 *merge*.
 
+> ⚠️ O escopo do parágrafo acima é **o bloco documental de 2026-08-10** (*commit* `aced9d3`) e **não
+> é retroativamente alterado**. O bloco **seguinte** (`PF6SGA-R1BLOCK01`) é outro, **posterior**, e
+> **alterou** *runtime* — sob autorização própria.
+
+## `PF6SGA-R1BLOCK01` — `R1-BLOCK-01`: defeito bloqueante achado na **RODADA 1** (2026-08-10)
+
+**Primeiro defeito encontrado pela campanha física de `F6-SG-A`.** A `R1` foi **interrompida por
+`FAIL` físico antes do `A-03`**. Nenhum item físico virou `PASS`.
+
+### 1. O que foi observado no aparelho
+
+Samsung **SM-X510**, Android **16**, `targetSdk` **36**, *Development Build*, Metro canônico na pasta
+correta, porta **8081**, Metro **PID 27940**, `adb reverse 8081 -> 8081`, app **PID 4262**. O app
+carregou e chegou ao primeiro *onboarding*. Em seguida, no `logcat`:
+
+```
+[shell] MainTabs MONTADO     montagens #1 vivos 1/1 pico 1 desmontagens 0 pareado
+ReferenceError: Property 'montagensRef' doesn't exist          (componentStack: at MainTabs)
+[shell] MainTabs DESMONTADO  montagens #1 vivos 0/1 pico 1 desmontagens 1 pareado
+```
+
+Uma ocorrência, em `src/navigation/AppNavigator.js` linha **261**.
+
+> **Os números `1/1` e `0/1` NÃO são `PASS` do cenário `MainTabs`.** Eles provam apenas que o
+> mecanismo de `R3X-3` funciona e é pareado. A execução foi **abortada antes** das trocas de aba e
+> do ciclo de vida — o cenário permanece **NÃO EXECUTADO**.
+
+### 2. Causa raiz — **provada**, não presumida
+
+| Evidência | Resultado |
+|---|---|
+| `git grep -n montagensRef -- src scripts` | **uma única** ocorrência: `AppNavigator.js:261` (o consumidor). Nenhuma declaração. |
+| `git blame -L 254,266` | linha **261** vem de **`064dd76`** (2026-08-09); linhas 255–256 vêm de **`456ac1b`** (2026-08-10). |
+| `git diff 456ac1b^ 456ac1b -- src/navigation/AppNavigator.js` | `456ac1b` **removeu** `let mainTabsMounts = 0;` e `const montagensRef = useRef(0);` e reescreveu o primeiro `useEffect`. O *hunk* **termina antes** do segundo `useEffect` — o consumidor da linha 261 ficou de pé. |
+| Análise de escopo (`@babel/parser` + `scope.hasBinding`) | `montagensRef@261` é o **único** identificador sem *binding* em `MainTabs` — e o único em **326** módulos de `src/` (+ `App.js`). |
+
+**Classificação: regressão de `F6-R3.x`.** O defeito foi introduzido pela própria instrumentação de
+`SG-A`. **Não** é `F7`, **não** é `SG-B`, **não** é `SG-C`.
+
+### 3. Por que nenhum portão automatizado pegou
+
+O *bundle* é **sintaticamente válido**. Um identificador livre só falha quando o caminho é
+**avaliado** — e o `useEffect` de faixa só roda no aparelho.
+
+- **`npm run smoke` (4879/4879 verde antes)** — não avaliava a árvore de `MainTabs`; nenhum lacre
+  fazia análise de escopo.
+- **`npm run bundle:check`** — `expo export:embed` **compila** e escreve o *bundle*; não executa.
+- **`npx expo-doctor` (18/18)** — audita **configuração de projeto**, não escopo de código.
+- O projeto **não tem ESLint**, logo não há `no-undef` em lugar nenhum.
+
+O buraco era de **análise de escopo**, e é ele que a prova nova fecha.
+
+### 4. Correção e prova (*commit* `aa58849`)
+
+- **Correção mínima:** a linha 261 passa a **LER** a contagem da autoridade já existente —
+  `shellLifecycleSnapshot('MainTabs').montagens`. O fragmento `ainda na montagem #…` **não** foi
+  apagado: ele é a evidência `CN-6`/`TK-A-022` da travessia de 600dp sem remontagem (faixa muda,
+  número não muda ⇒ foi *re-render*).
+- **`shellLifecycleTrace` continua sendo a autoridade única.** Nenhuma segunda fonte de verdade,
+  nenhum `useRef` local reintroduzido, nenhum `export` novo, nenhuma variável escolhida por palpite.
+- **Prova de regressão, sem dependência nova** (`@babel/parser` e `@babel/core` já eram exigidos pelo
+  próprio `smoke.js`): análise de escopo real, não busca textual.
+
+| Lacre | O que sela |
+|---|---|
+| `T-e1` | `MainTabs` não referencia identificador sem declaração/autoridade |
+| `T-e2` | nenhum dos **326** módulos de `src/` (+ `App.js`) referencia identificador sem declaração, fora do **ambiente RN declarado** |
+| `M9` | reinjetar a referência órfã em `MainTabs` **derruba** `T-e1` |
+| `M10` | identificador órfão em outro módulo do *shell* **derruba** `T-e2` |
+
+- **Vermelha antes:** `4879/4883`, `T-e1` apontando `montagensRef@261`.
+- **Verde depois:** `4883/4883`.
+- **Mutante executado no arquivo real** (não só em memória): reinjetada a referência legada, `npm run
+  smoke` saiu com **`exit 1`** e `4879/4883`, `T-e1` apontando `montagensRef@267`. Mutante revertido
+  com `git checkout --` **depois** do *commit* da correção; árvore limpa.
+
+### 5. Consequência para a campanha
+
+1. **A `R1` deve ser REPETIDA DO INÍCIO.** A execução anterior é descartada como rodada de validação.
+2. O **`HEAD` a validar** passa de `456ac1b` para **`aa58849`** (§0 do `06_PROTOCOLO…`).
+3. O *Development Build* instalado **continua servindo** — a correção é JS servido pelo Metro, e não
+   houve mudança nativa nem em `eas.json`/`app.json`/dependências. O `preview` de `D-3` (§2.4) segue
+   pendente e agora deve sair de `aa58849` ou posterior.
+4. **`F6-SG-A` continua NÃO CONCEDIDO.** `SG-B`, `SG-C`, `SG-D`, `F7`, `F8A`, `F9`, `F11` e `F12A`
+   permanecem **congeladas**.
+
+### `PF6SGA-R1BLOCK01-NAO-FEZ`
+
+Não gerou *build*. Não iniciou Metro. Não tocou o aparelho. Não executou `A-03`. Não marcou qualquer
+item físico como `PASS`. Não concedeu `F6-SG-A`. Não abriu `SG-B`. Não fez *push* nem *merge*.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:

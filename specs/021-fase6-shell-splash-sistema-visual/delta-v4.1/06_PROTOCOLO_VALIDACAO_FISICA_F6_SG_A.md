@@ -17,13 +17,24 @@
 |---|---|
 | Worktree canônico | `C:\tmp\ptf_fase6_shell_splash_wt` |
 | Branch | `feat/fase6-shell-splash` |
-| `HEAD` a validar | **`456ac1b`** *(emenda de 2026-08-10; era `f013560` na redação original, antes dos commits `169e439` e `456ac1b` de `F6-R3.x`)* |
+| `HEAD` a validar | **`aa58849`** *(emenda de 2026-08-10 · `R1-BLOCK-01`; era `456ac1b`, e `f013560` na redação original)* |
 | Base documental do delta | `a190b3e` |
 | Upstream | **nenhum** — nada foi enviado ao remoto |
 
 ⚠️ **Existe um segundo worktree no disco** (`C:\tmp\ptf_colorir_canonical_runtime_wt`). Ele **não** é
 o alvo desta validação. Iniciar o Metro na pasta errada é a forma mais fácil de validar código que
 não é este — o passo 1 existe justamente para impedir isso.
+
+> 🔴 **A `RODADA 1` JÁ FOI TENTADA E FOI INTERROMPIDA POR `FAIL` FÍSICO — ela deve ser REPETIDA DO
+> INÍCIO.** Em 2026-08-10, na `R1`, `MainTabs` montou e caiu com
+> `ReferenceError: Property 'montagensRef' doesn't exist` **antes do `A-03`**. Defeito
+> **`R1-BLOCK-01`**, classificado como **regressão de `F6-R3.x`** e corrigido no *commit* `aa58849`
+> — ver **§7.1** e `docs/DECISIONS.md` §`PF6SGA-R1BLOCK01`.
+>
+> - **Nenhum item físico daquela execução vale como `PASS`.** A execução anterior é descartada.
+> - O *Development Build* instalado **continua servindo**: a correção é JS servido pelo Metro, sem
+>   mudança nativa e sem tocar `eas.json`, `app.json` ou dependências. O `preview` de `D-3` (§2.4)
+>   segue pendente e agora deve sair de **`aa58849`** ou posterior.
 
 ---
 
@@ -460,6 +471,27 @@ cadeia causal — o que foi observado, em que ordem, sob que janela — e **repo
 
 **A validação física não pode expandir escopo em silêncio.** Um achado fora de `F6-R3` vira registro,
 não vira trabalho não autorizado.
+
+### 7.1 · `R1-BLOCK-01` — defeito **real** da `RODADA 1` (2026-08-10)
+
+Primeiro uso desta seção §7 com um defeito de campo de verdade. Registro completo em
+`docs/DECISIONS.md` §`PF6SGA-R1BLOCK01`; o essencial para quem for repetir a campanha:
+
+| Item | Valor |
+|---|---|
+| Onde | `src/navigation/AppNavigator.js:261`, dentro de `MainTabs` |
+| Sintoma | `ReferenceError: Property 'montagensRef' doesn't exist` logo após `MainTabs MONTADO` |
+| Classificação | **Defeito de `F6-R3`** (regressão introduzida por `F6-R3.x`, *commit* `456ac1b`) — corrigido **aqui**, com regressão própria |
+| Causa | `456ac1b` apagou `const montagensRef = useRef(0)` ao migrar a contagem para `shellLifecycleTrace`, mas o **consumidor** (de `064dd76`) ficou sem declaração |
+| Correção | `shellLifecycleSnapshot('MainTabs').montagens` — **leitura** da autoridade existente, *commit* `aa58849` |
+| Regressão | `T-e1`, `T-e2` + mutantes `M9`, `M10` no `npm run smoke` (análise de escopo `@babel` — sem dependência nova) |
+| Efeito na campanha | **`R1` REPETIDA DO INÍCIO**; `HEAD` a validar passa a ser `aa58849` |
+
+**Por que os portões automatizados não pegaram** (e por que isso importa para a leitura da matriz): o
+*bundle* era **sintaticamente válido**; identificador livre só falha quando o caminho é **avaliado**.
+`bundle:check` compila sem executar, `expo-doctor` audita configuração e o `smoke` não avaliava a
+árvore de `MainTabs`. **Portão verde nunca substituiu validação física — e este defeito é a prova
+empírica disso.**
 
 ---
 
